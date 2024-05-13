@@ -8,6 +8,8 @@ Our [Openterface Mini-KVM](https://openterface.com/) crowdfunding campaign is no
 
 We're hard at work developing [the host applications](https://openterface.com/quick-start/#install-host-application) for this handy gadget. Our team is coding away and tweaking these tools to boost their performance and functionality. We’re all about open hardware and open-source software, and we'll keep sharing updates throughout our campaign.
 
+Check out some early demos demonstrating the basic operation of our host application [here](https://openterface.com/basic-testing/).
+
 ## 🛠️ Getting Ready for Release
 
 We're sprucing up our code and getting our repos in shape for everyone to use. We want to make sure everything is neat and user-friendly for you. Plus, we'll open up all repos before the end of our crowdfunding campaign! Just bear with us a little longer!
