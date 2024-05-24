@@ -1,0 +1,5 @@
+*.pro.user.*
+build/*
+release/*
+aqtinstall.log
+debug/*

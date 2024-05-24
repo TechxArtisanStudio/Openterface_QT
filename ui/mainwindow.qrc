@@ -1,0 +1,12 @@
+<RCC>
+    <qresource prefix="/">
+        <file>../images/shutter.svg</file>
+        <file>../images/icon_32.png</file>
+        <file>../images/icon_32.ico</file>
+        <file>../images/icon_64.png</file>
+        <file>../images/icon_64.ico</file>
+        <file>../images/icon_128.png</file>
+        <file>../images/icon_128.ico</file>
+        <file>../images/content_dark_eng.png</file>
+    </qresource>
+</RCC>
