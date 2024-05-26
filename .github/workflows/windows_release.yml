@@ -43,7 +43,6 @@ jobs:
           target:       desktop
           arch:         win64_msvc2019_64
           dir:          ${{ runner.temp }}
-          modules:      multimedia multimediawidgets serialport concurrent
           setup-python: false
 
       - name: Download JOM
@@ -71,7 +70,7 @@ jobs:
               qmake -r ${{ env.SOURCE_DIR }}\openterfaceQT.pro
               ${{ runner.temp }}\jom\jom -j2
               cd release
-              windeployqt --qmldir ${{ env.SOURCE_DIR }} planets-qml.exe --pdb --release --compiler-runtime
+              windeployqt --qmldir ${{ env.SOURCE_DIR }} openterfaceQT.exe --pdb --release --compiler-runtime
               copy C:\Windows\System32\concrt140.dll . 
               copy C:\Windows\System32\vccorlib140.dll .
               copy C:\Windows\System32\msvcp140.dll .
@@ -80,7 +79,7 @@ jobs:
       - name: Zip build
         working-directory: ${{ runner.temp }}
         run:  |
-              7z a qt-planets-build.zip ${{ runner.temp }}\build\* -r
+              7z a openterface-qt-build.zip ${{ runner.temp }}\build\* -r
               
       - name: Save build artifact
         uses: actions/upload-artifact@master
