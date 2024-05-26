@@ -70,7 +70,9 @@ jobs:
         run:  |
               qmake -r ${{ env.SOURCE_DIR }}\openterfaceQT.pro
               ${{ runner.temp }}\jom\jom -j2
-              cd release
+              mkdir package
+              copy ${{ env.SOURCE_DIR }}\openterfaceQT\build\openterfaceQT.exe package
+              cd package
               windeployqt --qmldir ${{ env.SOURCE_DIR }} openterfaceQT.exe --pdb --release --compiler-runtime
               copy C:\Windows\System32\concrt140.dll . 
               copy C:\Windows\System32\vccorlib140.dll .
@@ -80,7 +82,7 @@ jobs:
       - name: Zip build
         working-directory: ${{ runner.temp }}
         run:  |
-              7z a openterface-qt-build.zip ${{ runner.temp }}\build\* -r
+              7z a openterface-qt-build.zip ${{ runner.temp }}\build\package\* -r
               
       - name: Save build artifact
         uses: actions/upload-artifact@master
