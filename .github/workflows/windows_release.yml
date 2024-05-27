@@ -84,7 +84,6 @@ jobs:
       - name: Compile .ISS to .EXE Installer
         uses: Minionguyjpro/Inno-Setup-Action@v1.2.2
         with:
-          working-directory: ${{ runner.temp }}\build
-          path: installer.iss
+          path: ${{ runner.temp }}\build\installer.iss
           options: /O+ 
               
