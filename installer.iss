@@ -5,7 +5,7 @@
 #define MyAppVersion "1.0.0"
 #define MyAppPublisher "Guangzhou Billio Tech, Inc."
 #define MyAppURL "https://openterface.com/"
-#define MyAppExeName "OpenterfaceQT.exe"
+#define MyAppExeName "openterfaceQT.exe"
 
 [Setup]
 ; NOTE: The value of AppId uniquely identifies this application. Do not use the same AppId value in installers for other applications.
