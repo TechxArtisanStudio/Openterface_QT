@@ -79,10 +79,12 @@ jobs:
               copy C:\Windows\System32\concrt140.dll . 
               copy C:\Windows\System32\vccorlib140.dll .
               copy C:\Windows\System32\msvcp140.dll .
-              copy C:\Windows\System32\vcruntime140.dll .
-              move ../package ${{ env.SOURCE_DIR }}
 
-              
+      - name: Move directory
+        run: |
+          move /Y package ${{ env.SOURCE_DIR }}
+        shell: cmd
+        
       - name: Compile .ISS to .EXE Installer
         uses: Minionguyjpro/Inno-Setup-Action@v1.2.2
         with:
