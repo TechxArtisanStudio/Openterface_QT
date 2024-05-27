@@ -3,14 +3,12 @@ name: Windows Release
 on:
   push:
     branches:
-      - 'dev'
-      - 'continuous-integration'
+      - 'main'
     tags:
       - 'v*'
   pull_request:
     branches:
-    - 'dev'
-    - 'continuous-integration'
+    - 'main'
 
 defaults:
   run:
