@@ -71,9 +71,9 @@ jobs:
               qmake -r ${{ env.SOURCE_DIR }}\openterfaceQT.pro
               ${{ runner.temp }}\jom\jom -j2
               mkdir package
-              copy ${{ env.SOURCE_DIR }}\openterfaceQT\build\release\openterfaceQT.exe package
+              copy release\openterfaceQT.exe package
               cd package
-              windeployqt --qmldir ${{ env.SOURCE_DIR }} openterfaceQT.exe --pdb --release --compiler-runtime
+              windeployqt --qmldir ${{ env.SOURCE_DIR }} openterfaceQT.exe --compiler-runtime
               copy C:\Windows\System32\concrt140.dll . 
               copy C:\Windows\System32\vccorlib140.dll .
               copy C:\Windows\System32\msvcp140.dll .
