@@ -55,8 +55,22 @@
 
 Q_LOGGING_CATEGORY(log_ui_mainwindow, "opf.ui.mainwindow")
 
+/*
+  * QT Permissions API is not compatible with Qt < 6.5 and will cause compilation failure on
+  * expanding the QT_CONFIG macro if it isn't set as a feature in qtcore-config.h. QT < 6.5
+  * is still true for a large number of linux distros in 2024. This ifdef or another 
+  * workaround needs to be used anywhere the QPermissions class is called, for distros to 
+  * be able to use their package manager's native Qt libs, if they are < 6.5. 
+  *
+  * See qtconfigmacros.h, qtcore-config.h, etc. in the relevant Qt includes directory, and:
+  * https://doc-snapshots.qt.io/qt6-6.5/whatsnew65.html
+  * https://doc-snapshots.qt.io/qt6-6.5/permissions.html
+*/
+
+#ifdef QT_FEATURE_permissions
 #if QT_CONFIG(permissions)
-  #include <QPermission>
+#include <QPermission>
+#endif
 #endif
 
 Camera::Camera() : ui(new Ui::Camera), videoPane(new VideoPane(this)), stackedLayout(new QStackedLayout(this)), transWindow(new TransWindow())
@@ -92,6 +106,7 @@ Camera::Camera() : ui(new Ui::Camera), videoPane(new VideoPane(this)), stackedLa
 
 void Camera::init()
 {
+#ifdef QT_FEATURE_permissions //Permissions API not compatible with Qt < 6.5 and will cause compilation failure on expanding macro in qtconfigmacros.h
 #if QT_CONFIG(permissions)
     qCDebug(log_ui_mainwindow) << "Camera init...";
 
@@ -119,6 +134,7 @@ void Camera::init()
     case Qt::PermissionStatus::Granted:
         break;
     }
+#endif
 #endif
 
     m_audioInput.reset(new QAudioInput);
