@@ -85,5 +85,5 @@ jobs:
         uses: Minionguyjpro/Inno-Setup-Action@v1.2.2
         with:
           path: installer.iss
-          options: /O+ /DIR="${{ runner.temp }}\build\package" /F"${{ runner.temp }}\build\OpenTerfaceInstaller.exe"
+          options: /O+ /DIR="${{ runner.temp }}\build\package"
               
