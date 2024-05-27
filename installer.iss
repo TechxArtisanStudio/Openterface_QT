@@ -6,7 +6,7 @@
 #define MyAppPublisher "Guangzhou Billio Tech, Inc."
 #define MyAppURL "https://openterface.com/"
 #define MyAppExeName "openterfaceQT.exe"
-#define WoringDir "D:\a\_temp\build\package"
+#define MyWorkingDir "{param:MyWorkingDir|D:\a\_temp\build\package}"
 
 [Setup]
 ; NOTE: The value of AppId uniquely identifies this application. Do not use the same AppId value in installers for other applications.
