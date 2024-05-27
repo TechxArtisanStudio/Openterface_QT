@@ -85,5 +85,5 @@ jobs:
         uses: Minionguyjpro/Inno-Setup-Action@v1.2.2
         with:
           path: installer.iss
-          options: /O+ /DMyWorkingDir="${{ runner.temp }}\build"
+          options: /O+ /DWorkingDir="${{ runner.temp }}\build"
               
