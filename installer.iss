@@ -35,10 +35,10 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
 
 [Files]
-Source: "build\package\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
-Source: "build\package\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
-Source: "build\package\driver\CH341SER.INF"; DestDir: {app}\driver;
-Source: "build\package\driver\CH341SER.SYS"; DestDir: {app}\driver;
+Source: "{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
+Source: "*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "driver\CH341SER.INF"; DestDir: {app}\driver;
+Source: "driver\CH341SER.SYS"; DestDir: {app}\driver;
 
 ; NOTE: Don't use "Flags: ignoreversion" on any shared system files
 
