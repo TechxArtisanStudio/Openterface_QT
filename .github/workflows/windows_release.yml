@@ -81,6 +81,7 @@ jobs:
               copy C:\Windows\System32\msvcp140.dll .
 
       - name: Move directory
+        working-directory: ${{ runner.temp }}\build
         run: |
           move /Y package ${{ env.SOURCE_DIR }}
         shell: cmd
