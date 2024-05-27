@@ -142,11 +142,17 @@ void Camera::init()
 
     // Camera devices:
     updateCameras();
+    
     setCamera(QMediaDevices::defaultVideoInput());
 }
 
 void Camera::setCamera(const QCameraDevice &cameraDevice)
 {
+    if(cameraDevice.description().contains("Openterface") == false){
+        qCDebug(log_ui_mainwindow) << "The camera is not an Openterface Mini-KVM, skip it.";
+        return;
+    }
+    qCDebug(log_ui_mainwindow) << "Set Camera, device name: " << cameraDevice.description();
     m_camera.reset(new QCamera(cameraDevice));
     m_captureSession.setCamera(m_camera.data());
 
@@ -428,8 +434,11 @@ void Camera::displayCameraError()
 
         stackedLayout->setCurrentIndex(0);
 
+        disconnect(m_camera.data());
+
         m_audioInput->disconnect();
         m_captureSession.disconnect();
+
     }
 }
 
@@ -482,6 +491,12 @@ void Camera::updateCameras()
                 continue;
 
             stackedLayout->setCurrentIndex(1);
+
+            //If the default camera is not an Openterface camera, set the camera to the first Openterface camera
+            //if (QMediaDevices::defaultVideoInput().description().contains("Openterface") == false) {
+                //update the default camera to the first Openterface camera
+                setCamera(camera);
+            //}
 
             break;
         }
