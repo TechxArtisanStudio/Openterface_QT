@@ -17,7 +17,7 @@
    <bool>true</bool>
   </property>
   <property name="windowTitle">
-   <string>Camera</string>
+   <string>Openterface Mini-KVM</string>
   </property>
   <widget class="QWidget" name="centralwidget">
    <property name="cursor">
