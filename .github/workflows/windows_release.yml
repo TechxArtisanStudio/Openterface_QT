@@ -19,7 +19,7 @@ defaults:
 env:
   SOURCE_DIR:   ${{ github.workspace }}
   QT_VERSION:   6.6.3
-  ARTIFACT:     openterface-qt-build.zip
+  ARTIFACT:     openterface-installer.zip
 
 jobs:
   build:
@@ -84,6 +84,6 @@ jobs:
       - name: Compile .ISS to .EXE Installer
         uses: Minionguyjpro/Inno-Setup-Action@v1.2.2
         with:
-          path: ${{ runner.temp }}\build\installer.iss
+          path: installer.iss
           options: /O+ 
               
