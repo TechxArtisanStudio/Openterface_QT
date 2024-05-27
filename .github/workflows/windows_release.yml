@@ -79,11 +79,6 @@ jobs:
               copy C:\Windows\System32\msvcp140.dll .
               copy C:\Windows\System32\vcruntime140.dll .
               
-      - name: Zip build
-        working-directory: ${{ runner.temp }}
-        run:  |
-              7z a openterface-qt-build.zip ${{ runner.temp }}\build\package\* -r
-              
       - name: Save build artifact
         uses: actions/upload-artifact@master
         with:
