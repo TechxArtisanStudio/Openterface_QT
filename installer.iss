@@ -35,10 +35,10 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
 
 [Files]
-Source: "C:\Users\admin\projects\OpenterfaceQt\build\Installer\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
-Source: "C:\Users\admin\projects\OpenterfaceQt\build\Installer\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
-Source: "C:\Users\admin\projects\OpenterfaceQt\build\Installer\driver\CH341SER.INF"; DestDir: {app}\driver;
-Source: "C:\Users\admin\projects\OpenterfaceQt\build\Installer\driver\CH341SER.SYS"; DestDir: {app}\driver;
+Source: "{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
+Source: "*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "driver\CH341SER.INF"; DestDir: {app}\driver;
+Source: "driver\CH341SER.SYS"; DestDir: {app}\driver;
 
 ; NOTE: Don't use "Flags: ignoreversion" on any shared system files
 
