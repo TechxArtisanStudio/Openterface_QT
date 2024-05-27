@@ -79,9 +79,13 @@ jobs:
               copy C:\Windows\System32\msvcp140.dll .
               copy C:\Windows\System32\vcruntime140.dll .
               
-      - name: Save build artifact
-        uses: actions/upload-artifact@master
-        with:
-          name: ${{ env.ARTIFACT }}
-          path: ${{ runner.temp }}\${{ env.ARTIFACT }}
+      - name: Build the Installer
+      runs-on: windows-2019
+      steps:
+        - uses: actions/checkout@v4
+        - name: Compile .ISS to .EXE Installer
+          uses: Minionguyjpro/Inno-Setup-Action@v1.2.2
+          with:
+            path: setup.iss
+            options: /O+
               
