@@ -6,6 +6,7 @@
 #define MyAppPublisher "Guangzhou Billio Tech, Inc."
 #define MyAppURL "https://openterface.com/"
 #define MyAppExeName "openterfaceQT.exe"
+#define WoringDir "D:\a\_temp\build\package"
 
 [Setup]
 ; NOTE: The value of AppId uniquely identifies this application. Do not use the same AppId value in installers for other applications.
@@ -35,10 +36,10 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
 
 [Files]
-Source: "{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
-Source: "*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
-Source: "driver\CH341SER.INF"; DestDir: {app}\driver;
-Source: "driver\CH341SER.SYS"; DestDir: {app}\driver;
+Source: "{#WoringDir}\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#WoringDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#WoringDir}\driver\CH341SER.INF"; DestDir: {app}\driver;
+Source: "{#WoringDir}\driver\CH341SER.SYS"; DestDir: {app}\driver;
 
 ; NOTE: Don't use "Flags: ignoreversion" on any shared system files
 
