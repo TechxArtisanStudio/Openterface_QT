@@ -19,7 +19,7 @@ defaults:
 env:
   SOURCE_DIR:   ${{ github.workspace }}
   QT_VERSION:   6.6.3
-  ARTIFACT:     openterface-installer.zip
+  ARTIFACT:     OpenterfaceInstaller.exe
 
 jobs:
   build:
@@ -80,6 +80,8 @@ jobs:
               copy C:\Windows\System32\vccorlib140.dll .
               copy C:\Windows\System32\msvcp140.dll .
               copy C:\Windows\System32\vcruntime140.dll .
+              move ../package ${{ env.SOURCE_DIR }}
+
               
       - name: Compile .ISS to .EXE Installer
         uses: Minionguyjpro/Inno-Setup-Action@v1.2.2
@@ -87,3 +89,9 @@ jobs:
           path: installer.iss
           options: /O+ /DWorkingDir="${{ runner.temp }}\build"
               
+                
+      - name: Save build artifact
+        uses: actions/upload-artifact@master
+        with:
+          name: ${{ env.ARTIFACT }}
+          path: ${{ env.SOURCE_DIR }}\Output\${{ env.ARTIFACT }}
