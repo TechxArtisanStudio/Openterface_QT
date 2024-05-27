@@ -4,3 +4,4 @@ release/*
 aqtinstall.log
 debug/*
 .vscode
+openterfaceQT.pro.user*
