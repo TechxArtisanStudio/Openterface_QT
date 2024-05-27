@@ -73,7 +73,7 @@ jobs:
               mkdir package
               mkdir package\driver
               copy release\openterfaceQT.exe package
-              copy release\driver\* package\driver
+              copy ${{ env.SOURCE_DIR }}\driver\windows\* package\driver
               cd package
               windeployqt --qmldir ${{ env.SOURCE_DIR }} openterfaceQT.exe --compiler-runtime
               copy C:\Windows\System32\concrt140.dll . 
@@ -85,5 +85,5 @@ jobs:
         uses: Minionguyjpro/Inno-Setup-Action@v1.2.2
         with:
           path: installer.iss
-          options: /O+ 
+          options: /O+ /DMyWorkingDir="${{ runner.temp }}\build"
               
