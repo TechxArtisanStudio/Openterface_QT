@@ -71,6 +71,31 @@ jobs:
       - name: Configure And Build
         working-directory: ${{ runner.temp }}\build
         run:  |
+          qmake6 ${{ github.workspace }} && make -j$(nproc)
+          
+      - name: Create deb package
+        working-directory: ${{ runner.temp }}
+        run: |
+          mkdir -p package/DEBIAN
+          # Create control file with package information
+          echo "Package: ${{ env.ARTIFACT }}
+          Version: 0.0.1
+          Section: base
+          Priority: optional
+          Architecture: all
+          Maintainer: TechXArtisan <info@techxartisan.com>
+          Description: OpenterfaceQT" > package/DEBIAN/control
+          # Copy files to package directory
+          cp -r ${{ runner.temp }}/build/* package/
+          # Build deb package
+          dpkg-deb --build package
+              
+      - name: Create build directory
+        run:  mkdir ${{ runner.temp }}\build
+
+      - name: Configure And Build
+        working-directory: ${{ runner.temp }}\build
+        run:  |
           qmake && make -j$(nproc)
           cp ${{ github.workspace }}\build\bin\${{ env.ARTIFACT }} ${{ github.workspace }}\${{ env.ARTIFACT }}
 
