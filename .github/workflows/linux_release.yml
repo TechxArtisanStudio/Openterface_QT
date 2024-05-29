@@ -41,22 +41,13 @@ jobs:
                 qmake6 \
                 qt6-base-dev \
                 qt6-multimedia-dev \
-                qt6-serialport-dev
+                qt6-serialport-dev \
+                mesa-common-dev
 
       - name: Get all tags for correct version determination
         working-directory:  ${{ github.workspace }}
         run: |
           git fetch --all --tags -f
-      # - name: Install Qt
-      #   uses: jurplel/install-qt-action@v4
-      #   with:
-      #     version:      ${{ env.QT_VERSION }}
-      #     host:         linux
-      #     target:       desktop
-      #     arch:         linux64_gcc
-      #     dir:          ${{ runner.temp }}
-      #     modules:      qtmultimedia qtserialport
-      #     setup-python: false
 
       - name: Download JOM
         uses: suisei-cn/actions-download-file@v1
@@ -94,28 +85,6 @@ jobs:
           # Build deb package
           mv package ${{ env.ARTIFACT }}
           dpkg-deb --build ${{ env.ARTIFACT }}
-
-      # - name: Install Qt
-      #   uses: jurplel/install-qt-action@v4
-      #   with:
-      #     version:      ${{ env.QT_VERSION }}
-      #     host:         linux
-      #     target:       desktop
-      #     arch:         linux64_gcc
-      #     dir:          ${{ runner.temp }}
-      #     modules:      qtmultimedia qtserialport
-      #     setup-python: false
-
-      - name: Download JOM
-        uses: suisei-cn/actions-download-file@v1
-        with:
-          url:    http://download.qt.io/official_releases/jom/jom.zip
-          target: ${{ runner.temp }}\
-
-      - name: Unzip JOM
-        working-directory: ${{ runner.temp }}
-        run:  |
-              7z x jom.zip -ojom
               
       - name: Create build directory
         run:  mkdir ${{ runner.temp }}\build
@@ -130,4 +99,4 @@ jobs:
         uses: actions/upload-artifact@v2
         with:
           name: ${{ env.ARTIFACT }}
-          path: ${{ github.workspace }}\${{ env.ARTIFACT }}
+          path: ${{ runner.temp }}/${{ env.ARTIFACT }}.deb
