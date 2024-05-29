@@ -3,7 +3,7 @@ name: Linux Release
 on:
   push:
     branches:
-      - 'dev'
+      - 'main'
     tags:
       - 'v*'
   pull_request:
@@ -12,12 +12,12 @@ on:
 
 defaults:
   run:
-    shell: bash
+    shell: cmd
 
 env:
   SOURCE_DIR:   ${{ github.workspace }}
-  QT_VERSION:   6.4.2
-  ARTIFACT:     openterfaceQT
+  QT_VERSION:   6.6.3
+  ARTIFACT:     Openterface
 
 jobs:
   build:
@@ -31,51 +31,39 @@ jobs:
 
       - name: Setup Dependencies
         run: |
-
-            echo "deb http://deb.debian.org/debian bookworm main contrib non-free non-free-firmware
-            deb http://deb.debian.org/debian-security/ bookworm-security main contrib non-free non-free-firmware
-            deb http://deb.debian.org/debian bookworm-updates main contrib non-free non-free-firmware" | sudo tee -a /etc/apt/sources.list
-            sudo apt-key adv --keyserver keyserver.ubuntu.com --recv-keys 0E98404D386FA1D9 6ED0E7B82643E131 F8D2585B8783D481 54404762BBB6E853 BDE6D2B9216EC7A8
             sudo apt-get update -y
             sudo apt-get install -y \
                 build-essential \
                 qmake6 \
                 qt6-base-dev \
                 qt6-multimedia-dev \
-                qt6-serialport-dev \
-                mesa-common-dev
+                qt6-serialport-dev
 
       - name: Get all tags for correct version determination
         working-directory:  ${{ github.workspace }}
         run: |
           git fetch --all --tags -f
+      # - name: Install Qt
+      #   uses: jurplel/install-qt-action@v4
+      #   with:
+      #     version:      ${{ env.QT_VERSION }}
+      #     host:         linux
+      #     target:       desktop
+      #     arch:         linux64_gcc
+      #     dir:          ${{ runner.temp }}
+      #     modules:      qtmultimedia qtserialport
+      #     setup-python: false
 
-      - name: Create build directory
-        run:  mkdir ${{ runner.temp }}/build
+      - name: Download JOM
+        uses: suisei-cn/actions-download-file@v1
+        with:
+          url:    http://download.qt.io/official_releases/jom/jom.zip
+          target: ${{ runner.temp }}\
 
-      - name: Configure And Build
-        working-directory: ${{ runner.temp }}/build
-        run:  |
-          qmake6 ${{ github.workspace }} && make -j$(nproc)
-          
-      - name: Create deb package
+      - name: Unzip JOM
         working-directory: ${{ runner.temp }}
-        run: |
-          mkdir -p package/DEBIAN
-          # Create control file with package information
-          echo "Package: ${{ env.ARTIFACT }}
-          Version: 0.0.1
-          Section: base
-          Priority: optional
-          Architecture: all
-          Maintainer: TechXArtisan <info@techxartisan.com>
-          Description: OpenterfaceQT" > package/DEBIAN/control
-          # Copy files to package directory
-          mkdir -p package/usr/bin
-          cp -r ${{ runner.temp }}/build/${{ env.ARTIFACT }} package/usr/bin
-          # Build deb package
-          mv package ${{ env.ARTIFACT }}
-          dpkg-deb --build ${{ env.ARTIFACT }}
+        run:  |
+              7z x jom.zip -ojom
               
       - name: Create build directory
         run:  mkdir ${{ runner.temp }}\build
@@ -90,4 +78,4 @@ jobs:
         uses: actions/upload-artifact@v2
         with:
           name: ${{ env.ARTIFACT }}
-          path: ${{ runner.temp }}/${{ env.ARTIFACT }}.deb
+          path: ${{ github.workspace }}\${{ env.ARTIFACT }}
