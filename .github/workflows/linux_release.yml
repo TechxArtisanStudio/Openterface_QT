@@ -74,9 +74,23 @@ jobs:
           mkdir -p package/usr/bin
           cp -r build/${{ env.ARTIFACT }} package/usr/bin
           # Build deb package
+<<<<<<< HEAD
           mv package ${{ env.ARTIFACT }}
           dpkg-deb --build ${{ env.ARTIFACT }}
         
+=======
+          dpkg-deb --build package
+              
+      - name: Create build directory
+        run:  mkdir ${{ runner.temp }}\build
+
+      - name: Configure And Build
+        working-directory: ${{ runner.temp }}\build
+        run:  |
+          qmake && make -j$(nproc)
+          cp ${{ github.workspace }}\build\bin\${{ env.ARTIFACT }} ${{ github.workspace }}\${{ env.ARTIFACT }}
+
+>>>>>>> c500638 (Add trial linux build github)
       - name: Upload Artifact
         uses: actions/upload-artifact@v2
         with:
