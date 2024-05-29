@@ -1,0 +1,81 @@
+name: Linux Release
+
+on:
+  push:
+    branches:
+      - 'main'
+    tags:
+      - 'v*'
+  pull_request:
+    branches:
+    - 'dev'
+
+defaults:
+  run:
+    shell: cmd
+
+env:
+  SOURCE_DIR:   ${{ github.workspace }}
+  QT_VERSION:   6.6.3
+  ARTIFACT:     Openterface
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup Dependencies
+        run: |
+            sudo apt-get update -y
+            sudo apt-get install -y \
+                build-essential \
+                qmake6 \
+                qt6-base-dev \
+                qt6-multimedia-dev \
+                qt6-serialport-dev
+
+      - name: Get all tags for correct version determination
+        working-directory:  ${{ github.workspace }}
+        run: |
+          git fetch --all --tags -f
+      # - name: Install Qt
+      #   uses: jurplel/install-qt-action@v4
+      #   with:
+      #     version:      ${{ env.QT_VERSION }}
+      #     host:         linux
+      #     target:       desktop
+      #     arch:         linux64_gcc
+      #     dir:          ${{ runner.temp }}
+      #     modules:      qtmultimedia qtserialport
+      #     setup-python: false
+
+      - name: Download JOM
+        uses: suisei-cn/actions-download-file@v1
+        with:
+          url:    http://download.qt.io/official_releases/jom/jom.zip
+          target: ${{ runner.temp }}\
+
+      - name: Unzip JOM
+        working-directory: ${{ runner.temp }}
+        run:  |
+              7z x jom.zip -ojom
+              
+      - name: Create build directory
+        run:  mkdir ${{ runner.temp }}\build
+
+      - name: Configure And Build
+        working-directory: ${{ runner.temp }}\build
+        run:  |
+          qmake && make -j$(nproc)
+          cp ${{ github.workspace }}\build\bin\${{ env.ARTIFACT }} ${{ github.workspace }}\${{ env.ARTIFACT }}
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v2
+        with:
+          name: ${{ env.ARTIFACT }}
+          path: ${{ github.workspace }}\${{ env.ARTIFACT }}
