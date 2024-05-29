@@ -4,7 +4,4 @@ release/*
 aqtinstall.log
 debug/*
 .vscode
-<<<<<<< HEAD
 openterfaceQT.pro.user*
-=======
->>>>>>> bc7306c (add vscode files to .gitignore)
