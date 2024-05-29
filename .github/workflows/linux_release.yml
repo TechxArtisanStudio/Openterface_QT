@@ -72,15 +72,39 @@ jobs:
           Description: OpenterfaceQT" > package/DEBIAN/control
           # Copy files to package directory
           mkdir -p package/usr/bin
-<<<<<<< HEAD
+
           cp -r build/${{ env.ARTIFACT }} package/usr/bin
           # Build deb package
-<<<<<<< HEAD
           mv package ${{ env.ARTIFACT }}
           dpkg-deb --build ${{ env.ARTIFACT }}
         
-=======
-          dpkg-deb --build package
+          cp -r ${{ runner.temp }}/build/${{ env.ARTIFACT }} package/usr/bin
+          # Build deb package
+          mv package ${{ env.ARTIFACT }}
+          dpkg-deb --build ${{ env.ARTIFACT }}
+
+      
+      # - name: Install Qt
+      #   uses: jurplel/install-qt-action@v4
+      #   with:
+      #     version:      ${{ env.QT_VERSION }}
+      #     host:         linux
+      #     target:       desktop
+      #     arch:         linux64_gcc
+      #     dir:          ${{ runner.temp }}
+      #     modules:      qtmultimedia qtserialport
+      #     setup-python: false
+
+      - name: Download JOM
+        uses: suisei-cn/actions-download-file@v1
+        with:
+          url:    http://download.qt.io/official_releases/jom/jom.zip
+          target: ${{ runner.temp }}\
+
+      - name: Unzip JOM
+        working-directory: ${{ runner.temp }}
+        run:  |
+              7z x jom.zip -ojom
               
       - name: Create build directory
         run:  mkdir ${{ runner.temp }}\build
@@ -91,24 +115,8 @@ jobs:
           qmake && make -j$(nproc)
           cp ${{ github.workspace }}\build\bin\${{ env.ARTIFACT }} ${{ github.workspace }}\${{ env.ARTIFACT }}
 
->>>>>>> c500638 (Add trial linux build github)
-=======
-          cp -r ${{ runner.temp }}/build/${{ env.ARTIFACT }} package/usr/bin
-          # Build deb package
-          mv package ${{ env.ARTIFACT }}
-          dpkg-deb --build ${{ env.ARTIFACT }}
-        
->>>>>>> c5b52f6 (chore: Update linux_release.yml workflow to fix file paths and improve build process)
       - name: Upload Artifact
         uses: actions/upload-artifact@v2
         with:
           name: ${{ env.ARTIFACT }}
-<<<<<<< HEAD
-<<<<<<< HEAD
           path: ${{ runner.temp }}/${{ env.ARTIFACT }}.deb
-=======
-          path: ${{ runner.temp }}/package.deb
->>>>>>> bd5bd84 (change the push branch to main)
-=======
-          path: ${{ runner.temp }}/${{ env.ARTIFACT }}.deb
->>>>>>> c5b52f6 (chore: Update linux_release.yml workflow to fix file paths and improve build process)
