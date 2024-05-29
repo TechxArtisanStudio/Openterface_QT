@@ -16,8 +16,8 @@ defaults:
 
 env:
   SOURCE_DIR:   ${{ github.workspace }}
-  QT_VERSION:   6.6.3
-  ARTIFACT:     Openterface
+  QT_VERSION:   6.4.2
+  ARTIFACT:     OpenterfaceQT
 
 jobs:
   build:
@@ -31,6 +31,10 @@ jobs:
 
       - name: Setup Dependencies
         run: |
+            echo "deb http://deb.debian.org/debian bookworm main contrib non-free non-free-firmware
+            deb http://deb.debian.org/debian-security/ bookworm-security main contrib non-free non-free-firmware
+            deb http://deb.debian.org/debian bookworm-updates main contrib non-free non-free-firmware" | sudo tee -a /etc/apt/sources.list
+            sudo apt-key adv --keyserver keyserver.ubuntu.com --recv-keys 0E98404D386FA1D9 6ED0E7B82643E131 F8D2585B8783D481 54404762BBB6E853 BDE6D2B9216EC7A8
             sudo apt-get update -y
             sudo apt-get install -y \
                 build-essential \
@@ -88,7 +92,30 @@ jobs:
           # Copy files to package directory
           cp -r ${{ runner.temp }}/build/* package/
           # Build deb package
-          dpkg-deb --build package
+          mv package ${{ env.ARTIFACT }}
+          dpkg-deb --build ${{ env.ARTIFACT }}
+
+      # - name: Install Qt
+      #   uses: jurplel/install-qt-action@v4
+      #   with:
+      #     version:      ${{ env.QT_VERSION }}
+      #     host:         linux
+      #     target:       desktop
+      #     arch:         linux64_gcc
+      #     dir:          ${{ runner.temp }}
+      #     modules:      qtmultimedia qtserialport
+      #     setup-python: false
+
+      - name: Download JOM
+        uses: suisei-cn/actions-download-file@v1
+        with:
+          url:    http://download.qt.io/official_releases/jom/jom.zip
+          target: ${{ runner.temp }}\
+
+      - name: Unzip JOM
+        working-directory: ${{ runner.temp }}
+        run:  |
+              7z x jom.zip -ojom
               
       - name: Create build directory
         run:  mkdir ${{ runner.temp }}\build
@@ -103,4 +130,4 @@ jobs:
         uses: actions/upload-artifact@v2
         with:
           name: ${{ env.ARTIFACT }}
-          path: ${{ runner.temp }}/package.deb
+          path: ${{ github.workspace }}\${{ env.ARTIFACT }}
