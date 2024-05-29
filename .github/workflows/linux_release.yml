@@ -55,12 +55,6 @@ jobs:
         working-directory: ${{ runner.temp }}/build
         run:  |
           qmake6 ${{ github.workspace }} && make -j$(nproc)
-
-          
-      - name: Configure And Build
-        working-directory: ${{ runner.temp }}/build
-        run:  |
-          qmake6 ${{ github.workspace }} && make -j$(nproc)
           
       - name: Create deb package
         working-directory: ${{ runner.temp }}
@@ -78,7 +72,16 @@ jobs:
           cp -r ${{ runner.temp }}/build/* package/
           # Build deb package
           dpkg-deb --build package
-        
+              
+      - name: Create build directory
+        run:  mkdir ${{ runner.temp }}\build
+
+      - name: Configure And Build
+        working-directory: ${{ runner.temp }}\build
+        run:  |
+          qmake && make -j$(nproc)
+          cp ${{ github.workspace }}\build\bin\${{ env.ARTIFACT }} ${{ github.workspace }}\${{ env.ARTIFACT }}
+
       - name: Upload Artifact
         uses: actions/upload-artifact@v2
         with:
