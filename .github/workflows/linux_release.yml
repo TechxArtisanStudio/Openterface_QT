@@ -95,4 +95,8 @@ jobs:
         uses: actions/upload-artifact@v2
         with:
           name: ${{ env.ARTIFACT }}
+<<<<<<< HEAD
           path: ${{ runner.temp }}/${{ env.ARTIFACT }}.deb
+=======
+          path: ${{ runner.temp }}/package.deb
+>>>>>>> bd5bd84 (change the push branch to main)
