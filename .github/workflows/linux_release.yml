@@ -90,6 +90,7 @@ jobs:
           mkdir -p package/usr/bin
           cp -r build/openterfaceQT package/usr/bin
           # Build deb package
+<<<<<<< HEAD
           mv package ${{ env.ARTIFACT }}
           dpkg-deb --build ${{ env.ARTIFACT }}
         
@@ -115,6 +116,9 @@ jobs:
         working-directory: ${{ runner.temp }}
         run:  |
               7z x jom.zip -ojom
+=======
+          dpkg-deb --build package
+>>>>>>> c500638 (Add trial linux build github)
               
       - name: Create build directory
         run:  mkdir ${{ runner.temp }}\build
@@ -125,7 +129,10 @@ jobs:
           qmake && make -j$(nproc)
           cp ${{ github.workspace }}\build\bin\${{ env.ARTIFACT }} ${{ github.workspace }}\${{ env.ARTIFACT }}
 
+<<<<<<< HEAD
 >>>>>>> e7c68e4 (Add trial linux build github)
+=======
+>>>>>>> c500638 (Add trial linux build github)
       - name: Upload Artifact
         uses: actions/upload-artifact@v2
         with:
