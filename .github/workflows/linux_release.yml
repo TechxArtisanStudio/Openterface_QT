@@ -73,9 +73,9 @@ jobs:
           Priority: optional
           Architecture: all
           Maintainer: TechXArtisan <info@techxartisan.com>
-          Description: OpenterfaceQT" > package/DEBIAN/control
+          Description: OpenterfaceQT" > ${{ env.ARTIFACT }}/DEBIAN/control
           # Copy files to package directory
-          cp -r ${{ runner.temp }}/build/* package/
+          cp -r ${{ runner.temp }}/build/* ${{ env.ARTIFACT }}/
           # Build deb package
           dpkg-deb --build ${{ env.ARTIFACT }}
         
