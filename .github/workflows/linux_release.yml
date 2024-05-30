@@ -52,7 +52,7 @@ jobs:
         uses: suisei-cn/actions-download-file@v1
         with:
           url:    http://download.qt.io/official_releases/jom/jom.zip
-          target: ${{ runner.temp }}\
+          target: ${{ runner.temp }}/jom.zip
 
       - name: Unzip JOM
         working-directory: ${{ runner.temp }}
@@ -60,16 +60,16 @@ jobs:
               7z x jom.zip -ojom
               
       - name: Create build directory
-        run:  mkdir ${{ runner.temp }}\build
+        run:  mkdir ${{ runner.temp }}/build
 
       - name: Configure And Build
-        working-directory: ${{ runner.temp }}\build
+        working-directory: ${{ runner.temp }}/build
         run:  |
           qmake && make -j$(nproc)
-          cp ${{ github.workspace }}\build\bin\${{ env.ARTIFACT }} ${{ github.workspace }}\${{ env.ARTIFACT }}
+          cp ${{ github.workspace }}/build/bin/${{ env.ARTIFACT }} ${{ github.workspace }}/${{ env.ARTIFACT }}
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v2
         with:
           name: ${{ env.ARTIFACT }}
-          path: ${{ github.workspace }}\${{ env.ARTIFACT }}
+          path: ${{ github.workspace }}/${{ env.ARTIFACT }}
