@@ -47,17 +47,6 @@ jobs:
         working-directory:  ${{ github.workspace }}
         run: |
           git fetch --all --tags -f
-
-      - name: Download JOM
-        uses: suisei-cn/actions-download-file@v1
-        with:
-          url:    http://download.qt.io/official_releases/jom/jom.zip
-          target: ${{ runner.temp }}/jom.zip
-
-      - name: Unzip JOM
-        working-directory: ${{ runner.temp }}
-        run:  |
-              7z x jom.zip -ojom
               
       - name: Create build directory
         run:  mkdir ${{ runner.temp }}/build
@@ -65,7 +54,7 @@ jobs:
       - name: Configure And Build
         working-directory: ${{ runner.temp }}/build
         run:  |
-          qmake6 && make -j$(nproc)
+          qmake6 .. && make -j$(nproc)
           cp ${{ github.workspace }}/build/bin/${{ env.ARTIFACT }} ${{ github.workspace }}/${{ env.ARTIFACT }}
 
       - name: Upload Artifact
