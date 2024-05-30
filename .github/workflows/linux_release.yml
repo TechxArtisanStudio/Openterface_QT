@@ -67,7 +67,7 @@ jobs:
         run: |
           mkdir -p package/DEBIAN
           # Create control file with package information
-          echo "Package: OpenterfaceQT
+          echo "Package: ${{ env.ARTIFACT }}
           Version: 0.0.1
           Section: base
           Priority: optional
@@ -77,10 +77,10 @@ jobs:
           # Copy files to package directory
           cp -r ${{ runner.temp }}/build/* package/
           # Build deb package
-          dpkg-deb --build package
+          dpkg-deb --build ${{ env.ARTIFACT }}
         
       - name: Upload Artifact
         uses: actions/upload-artifact@v2
         with:
           name: ${{ env.ARTIFACT }}
-          path: OpenterfaceQT.deb
+          path: ${{ env.ARTIFACT }}.deb
