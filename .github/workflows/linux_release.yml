@@ -16,7 +16,11 @@ defaults:
 
 env:
   SOURCE_DIR:   ${{ github.workspace }}
+<<<<<<< HEAD
   QT_VERSION:   6.2.4
+=======
+  QT_VERSION:   6.6.3
+>>>>>>> d89b5d0 (chore: Update linux_release.yml workflow to use 'dev' branch instead of 'main')
   ARTIFACT:     OpenterfaceQT
 
 jobs:
@@ -31,7 +35,10 @@ jobs:
 
       - name: Setup Dependencies
         run: |
+<<<<<<< HEAD
 
+=======
+>>>>>>> d89b5d0 (chore: Update linux_release.yml workflow to use 'dev' branch instead of 'main')
             echo "deb http://deb.debian.org/debian bookworm main contrib non-free non-free-firmware
             deb http://deb.debian.org/debian-security/ bookworm-security main contrib non-free non-free-firmware
             deb http://deb.debian.org/debian bookworm-updates main contrib non-free non-free-firmware" | sudo tee -a /etc/apt/sources.list
@@ -49,7 +56,11 @@ jobs:
         working-directory:  ${{ github.workspace }}
         run: |
           git fetch --all --tags -f
+<<<<<<< HEAD
 
+=======
+              
+>>>>>>> d89b5d0 (chore: Update linux_release.yml workflow to use 'dev' branch instead of 'main')
       - name: Create build directory
         run:  mkdir ${{ runner.temp }}/build
 
@@ -74,11 +85,28 @@ jobs:
           mkdir -p package/usr/bin
           cp -r build/openterfaceQT package/usr/bin
           # Build deb package
+<<<<<<< HEAD
           mv package ${{ env.ARTIFACT }}
           dpkg-deb --build ${{ env.ARTIFACT }}
+=======
+          dpkg-deb --build package
+              
+      - name: Create build directory
+        run:  mkdir ${{ runner.temp }}\build
+
+      - name: Configure And Build
+        working-directory: ${{ runner.temp }}\build
+        run:  |
+          qmake && make -j$(nproc)
+          cp ${{ github.workspace }}\build\bin\${{ env.ARTIFACT }} ${{ github.workspace }}\${{ env.ARTIFACT }}
+>>>>>>> d89b5d0 (chore: Update linux_release.yml workflow to use 'dev' branch instead of 'main')
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v2
         with:
           name: ${{ env.ARTIFACT }}
+<<<<<<< HEAD
           path: ${{ runner.temp }}/${{ env.ARTIFACT }}.deb
+=======
+          path: ${{ runner.temp }}/package.deb
+>>>>>>> d89b5d0 (chore: Update linux_release.yml workflow to use 'dev' branch instead of 'main')
