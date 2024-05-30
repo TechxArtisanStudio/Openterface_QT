@@ -67,7 +67,7 @@ jobs:
         run: |
           mkdir -p package/DEBIAN
           # Create control file with package information
-          echo "Package: OpenterfaceQT deb
+          echo "Package: OpenterfaceQT
           Version: 0.0.1
           Section: base
           Priority: optional
