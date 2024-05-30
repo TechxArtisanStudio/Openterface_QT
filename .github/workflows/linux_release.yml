@@ -63,7 +63,7 @@ jobs:
           qmake6 ${{ github.workspace }} && make -j$(nproc)
           
       - name: Create deb package
-        working-directory: ${{ runner.temp }}/build
+        working-directory: ${{ runner.temp }}
         run: |
           mkdir -p package/DEBIAN
           # Create control file with package information
