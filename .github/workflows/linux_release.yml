@@ -34,6 +34,7 @@ jobs:
             echo "deb http://deb.debian.org/debian bookworm main contrib non-free non-free-firmware
             deb http://deb.debian.org/debian-security/ bookworm-security main contrib non-free non-free-firmware
             deb http://deb.debian.org/debian bookworm-updates main contrib non-free non-free-firmware" | sudo tee -a /etc/apt/sources.list
+            sudo apt-key adv --keyserver keyserver.ubuntu.com --recv-keys 0E98404D386FA1D9 6ED0E7B82643E131 F8D2585B8783D481 54404762BBB6E853 BDE6D2B9216EC7A8
             sudo apt-get update -y
             sudo apt-get install -y \
                 build-essential \
