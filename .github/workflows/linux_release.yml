@@ -12,7 +12,7 @@ on:
 
 defaults:
   run:
-    shell: cmd
+    shell: bash
 
 env:
   SOURCE_DIR:   ${{ github.workspace }}
