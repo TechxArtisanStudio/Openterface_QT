@@ -65,7 +65,7 @@ jobs:
       - name: Configure And Build
         working-directory: ${{ runner.temp }}/build
         run:  |
-          qmake && make -j$(nproc)
+          qmake6 && make -j$(nproc)
           cp ${{ github.workspace }}/build/bin/${{ env.ARTIFACT }} ${{ github.workspace }}/${{ env.ARTIFACT }}
 
       - name: Upload Artifact
