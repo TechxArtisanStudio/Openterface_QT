@@ -43,16 +43,6 @@ jobs:
         working-directory:  ${{ github.workspace }}
         run: |
           git fetch --all --tags -f
-      # - name: Install Qt
-      #   uses: jurplel/install-qt-action@v4
-      #   with:
-      #     version:      ${{ env.QT_VERSION }}
-      #     host:         linux
-      #     target:       desktop
-      #     arch:         linux64_gcc
-      #     dir:          ${{ runner.temp }}
-      #     modules:      qtmultimedia qtserialport
-      #     setup-python: false
 
       - name: Download JOM
         uses: suisei-cn/actions-download-file@v1
