@@ -17,7 +17,7 @@ defaults:
 env:
   SOURCE_DIR:   ${{ github.workspace }}
   QT_VERSION:   6.6.3
-  ARTIFACT:     Openterface
+  ARTIFACT:     OpenterfaceQT
 
 jobs:
   build:
