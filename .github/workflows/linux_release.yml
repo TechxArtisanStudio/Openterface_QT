@@ -83,7 +83,11 @@ jobs:
           Description: OpenterfaceQT" > package/DEBIAN/control
           # Copy files to package directory
           mkdir -p package/usr/bin
+<<<<<<< HEAD
           cp -r build/openterfaceQT package/usr/bin
+=======
+          cp -r ${{ runner.temp }}/build/${{ env.ARTIFACT }} package/usr/bin
+>>>>>>> 27a40f3 (chore: Update linux_release.yml workflow to fix file paths and improve build process)
           # Build deb package
 <<<<<<< HEAD
           mv package ${{ env.ARTIFACT }}
