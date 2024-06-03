@@ -75,12 +75,14 @@ jobs:
           Maintainer: TechXArtisan <info@techxartisan.com>
           Description: OpenterfaceQT" > package/DEBIAN/control
           # Copy files to package directory
-          cp -r ${{ runner.temp }}/build/* package/
+          mkdir -p package/usr/bin
+          cp -r ${{ runner.temp }}/build/${{ env.ARTIFACT }} package/usr/bin
           # Build deb package
-          dpkg-deb --build package
+          mv package ${{ env.ARTIFACT }}
+          dpkg-deb --build ${{ env.ARTIFACT }}
         
       - name: Upload Artifact
         uses: actions/upload-artifact@v2
         with:
           name: ${{ env.ARTIFACT }}
-          path: ${{ runner.temp }}/package.deb
+          path: ${{ runner.temp }}/${{ env.ARTIFACT }}.deb
