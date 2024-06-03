@@ -74,8 +74,33 @@ jobs:
           qmake && make -j$(nproc)
           cp ${{ github.workspace }}\build\bin\${{ env.ARTIFACT }} ${{ github.workspace }}\${{ env.ARTIFACT }}
 
+          
+      - name: Configure And Build
+        working-directory: ${{ runner.temp }}/build
+        run:  |
+          qmake6 ${{ github.workspace }} && make -j$(nproc)
+          
+      - name: Create deb package
+        working-directory: ${{ runner.temp }}
+        run: |
+          mkdir -p package/DEBIAN
+          # Create control file with package information
+          echo "Package: ${{ env.ARTIFACT }}
+          Version: 0.0.1
+          Section: base
+          Priority: optional
+          Architecture: all
+          Maintainer: TechXArtisan <info@techxartisan.com>
+          Description: OpenterfaceQT" > package/DEBIAN/control
+          # Copy files to package directory
+          mkdir -p package/usr/bin
+          cp -r ${{ runner.temp }}/build/${{ env.ARTIFACT }} package/usr/bin
+          # Build deb package
+          mv package ${{ env.ARTIFACT }}
+          dpkg-deb --build ${{ env.ARTIFACT }}
+        
       - name: Upload Artifact
         uses: actions/upload-artifact@v2
         with:
           name: ${{ env.ARTIFACT }}
-          path: ${{ github.workspace }}\${{ env.ARTIFACT }}
+          path: ${{ runner.temp }}/${{ env.ARTIFACT }}.deb
