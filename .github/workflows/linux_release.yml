@@ -85,6 +85,7 @@ jobs:
           mkdir -p package/usr/bin
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
           cp -r build/openterfaceQT package/usr/bin
 =======
           cp -r ${{ runner.temp }}/build/${{ env.ARTIFACT }} package/usr/bin
@@ -92,6 +93,9 @@ jobs:
 =======
           cp -r build/${{ env.ARTIFACT }} package/usr/bin
 >>>>>>> 806be06 (chore: Update linux_release.yml workflow to fix file paths and improve build process)
+=======
+          cp -r build/openterfaceQT package/usr/bin
+>>>>>>> 7384273 (chore: Update linux_release.yml workflow to use 'openterfaceQT' as the binary name)
           # Build deb package
 <<<<<<< HEAD
           mv package ${{ env.ARTIFACT }}
