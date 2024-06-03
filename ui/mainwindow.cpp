@@ -156,6 +156,20 @@ void Camera::setCamera(const QCameraDevice &cameraDevice)
     connect(m_camera.data(), &QCamera::activeChanged, this, &Camera::updateCameraActive);
     connect(m_camera.data(), &QCamera::errorOccurred, this, &Camera::displayCameraError);
 
+    if (!m_imageCapture) {
+        m_imageCapture.reset(new QImageCapture);
+        m_captureSession.setImageCapture(m_imageCapture.get());
+
+
+        QSize resolution;
+        auto photoResolutions = m_imageCapture.get()->captureSession()->camera()->cameraDevice().photoResolutions();
+        if (!photoResolutions.empty()) {
+            resolution = photoResolutions[0];
+            video_height = resolution.height();
+            video_width = resolution.width();
+            qCDebug(log_ui_mainwindow) << "Camera resolution: " << resolution;
+        }
+    }
 
     m_captureSession.setVideoOutput(this->videoPane);
     qCDebug(log_ui_mainwindow) << "Camera start..";
@@ -324,23 +338,6 @@ void Camera::updateCameraActive(bool active) {
         stackedLayout->setCurrentIndex(0);
         return;
     }
-
-    if (!m_imageCapture) {
-        m_imageCapture.reset(new QImageCapture);
-        m_captureSession.setImageCapture(m_imageCapture.get());
-
-
-        QSize resolution;
-        auto photoResolutions = m_imageCapture.get()->captureSession()->camera()->cameraDevice().photoResolutions();
-        if (!photoResolutions.empty()) {
-            resolution = photoResolutions[0];
-            video_height = resolution.height();
-            video_width = resolution.width();
-            qCDebug(log_ui_mainwindow) << "Camera resolution: " << resolution;
-        }
-    }
-
-
 }
 
 void Camera::updateRecordTime()
