@@ -38,7 +38,6 @@
 #include <QMediaRecorder>
 #include <QVideoWidget>
 #include <QStackedLayout>
-
 #include <QLineEdit>
 #include <QMessageBox>
 
@@ -94,7 +93,7 @@ Camera::Camera() : ui(new Ui::Camera), videoPane(new VideoPane(this)), stackedLa
 
     connect(&m_source, &QMediaDevices::videoInputsChanged, this, &Camera::updateCameras);
 
-    connect(videoDevicesGroup, &QActionGroup::triggered, this, &Camera::updateCameraDevice);
+    //connect(videoDevicesGroup, &QActionGroup::triggered, this, &Camera::updateCameraDevice);
 
     connect(ui->actionRelative, &QAction::triggered, this, &Camera::onActionRelativeTriggered);
 
@@ -105,10 +104,9 @@ Camera::Camera() : ui(new Ui::Camera), videoPane(new VideoPane(this)), stackedLa
 
 void Camera::init()
 {
+    qCDebug(log_ui_mainwindow) << "Camera init...";
 #ifdef QT_FEATURE_permissions //Permissions API not compatible with Qt < 6.5 and will cause compilation failure on expanding macro in qtconfigmacros.h
 #if QT_CONFIG(permissions)
-    qCDebug(log_ui_mainwindow) << "Camera init...";
-
     // camera
     QCameraPermission cameraPermission;
     switch (qApp->checkPermission(cameraPermission)) {
@@ -136,56 +134,49 @@ void Camera::init()
 #endif
 #endif
 
-    m_audioInput.reset(new QAudioInput);
-    m_captureSession.setAudioInput(m_audioInput.get());
+    //m_audioInput.reset(new QAudioInput);
+    //m_captureSession.setAudioInput(m_audioInput.get());
 
     // Camera devices:
     updateCameras();
-    
-    setCamera(QMediaDevices::defaultVideoInput());
 }
 
 void Camera::setCamera(const QCameraDevice &cameraDevice)
 {
     if(cameraDevice.description().contains("Openterface") == false){
-        qCDebug(log_ui_mainwindow) << "The camera is not an Openterface Mini-KVM, skip it.";
+        qCDebug(log_ui_mainwindow) << "The camera("<<cameraDevice.description()<<") is not an Openterface Mini-KVM, skip it.";
         return;
     }
     qCDebug(log_ui_mainwindow) << "Set Camera, device name: " << cameraDevice.description();
     m_camera.reset(new QCamera(cameraDevice));
     m_captureSession.setCamera(m_camera.data());
+    // Set the desired resolution
+    //m_imageCapture->setResolution(1920, 1080);
 
     connect(m_camera.data(), &QCamera::activeChanged, this, &Camera::updateCameraActive);
     connect(m_camera.data(), &QCamera::errorOccurred, this, &Camera::displayCameraError);
 
-    if (!m_imageCapture) {
-        m_imageCapture.reset(new QImageCapture);
-        m_captureSession.setImageCapture(m_imageCapture.get());
-        QSize resolution;
-        auto photoResolutions = m_imageCapture.get()->captureSession()->camera()->cameraDevice().photoResolutions();
-        if (!photoResolutions.empty()) {
-            resolution = photoResolutions[0];
-            video_height = resolution.height();
-            video_width = resolution.width();
-        }
-    }
 
     m_captureSession.setVideoOutput(this->videoPane);
-
+    qCDebug(log_ui_mainwindow) << "Camera start..";
     m_camera->start();
 }
 
 void Camera::resizeEvent(QResizeEvent *event) {
+    qCDebug(log_ui_mainwindow) << "Handle window resize event.";
     QMainWindow::resizeEvent(event);  // Call base class implementation
 
     // Define the desired aspect ratio
     qreal aspect_ratio = static_cast<qreal>(video_width) / video_height;
 
+    qCDebug(log_ui_mainwindow) << "Aspect ratio: " << aspect_ratio << ",Width: " << video_width << ",Height: " << video_height;
+    int titleBarHeight = this->frameGeometry().height() - this->geometry().height();
     // Calculate the new height based on the width and the aspect ratio
-    int new_height = static_cast<int>(width() / aspect_ratio);
+    int new_height = static_cast<int>(width() / aspect_ratio) + this->menuBar()->height() + ui->statusbar->height()+titleBarHeight;
 
     // Set the new size of the window
-    resize(width(), new_height + this->menuBar()->height() + ui->statusbar->height());
+    qCDebug(log_ui_mainwindow) << "Resize to " << width() << "x" << new_height;
+    resize(width(), new_height);
 }
 
 
@@ -231,8 +222,6 @@ void Camera::calculate_video_position(){
         scaled_window_height =static_cast<int>(ui->centralwidget->width()) / aspect_ratio + titleBarHeight + statusBarHeight+menuBarHeight;
     }
     resize(scaled_window_width, scaled_window_height);
-
-
 
     GlobalVar::instance().setMenuHeight(menuBarHeight);
     GlobalVar::instance().setTitleHeight(titleBarHeight);
@@ -333,7 +322,25 @@ void Camera::updateCameraActive(bool active) {
     if(!active){
         qCDebug(log_ui_mainwindow) << "Set index to : " << 0;
         stackedLayout->setCurrentIndex(0);
+        return;
     }
+
+    if (!m_imageCapture) {
+        m_imageCapture.reset(new QImageCapture);
+        m_captureSession.setImageCapture(m_imageCapture.get());
+
+
+        QSize resolution;
+        auto photoResolutions = m_imageCapture.get()->captureSession()->camera()->cameraDevice().photoResolutions();
+        if (!photoResolutions.empty()) {
+            resolution = photoResolutions[0];
+            video_height = resolution.height();
+            video_width = resolution.width();
+            qCDebug(log_ui_mainwindow) << "Camera resolution: " << resolution;
+        }
+    }
+
+
 }
 
 void Camera::updateRecordTime()
@@ -390,14 +397,9 @@ void Camera::pause()
     m_mediaRecorder->pause();
 }
 
-void Camera::stop()
-{
-    m_mediaRecorder->stop();
-}
-
 void Camera::setMuted(bool muted)
 {
-    m_captureSession.audioInput()->setMuted(muted);
+   // m_captureSession.audioInput()->setMuted(muted);
 }
 
 void Camera::takeImage()
@@ -433,12 +435,15 @@ void Camera::displayCameraError()
 
         stackedLayout->setCurrentIndex(0);
 
-        disconnect(m_camera.data());
-
-        m_audioInput->disconnect();
-        m_captureSession.disconnect();
-
+        stop();
     }
+}
+
+void Camera::stop(){
+ 
+    disconnect(m_camera.data());
+    // m_audioInput->disconnect();
+    m_captureSession.disconnect();
 }
 
 void Camera::updateCameraDevice(QAction *action)
@@ -479,23 +484,27 @@ void Camera::closeEvent(QCloseEvent *event)
 
 void Camera::updateCameras()
 {
+    qCDebug(log_ui_mainwindow) << "Update cameras...";
     ui->menuSource->clear();
     const QList<QCameraDevice> availableCameras = QMediaDevices::videoInputs();
 
     for (const QCameraDevice &camera : availableCameras) {
         if (!m_lastCameraList.contains(camera)) {
-            qCDebug(log_ui_mainwindow) << "A new camera has been connected:" << camera.description();
+            //qCDebug(log_ui_mainwindow) << "A new camera has been connected:" << camera.description();
 
             if (!camera.description().contains("Openterface"))
                 continue;
 
+            qCDebug(log_ui_mainwindow) << "Update openterface layer to top layer.";
             stackedLayout->setCurrentIndex(1);
 
             //If the default camera is not an Openterface camera, set the camera to the first Openterface camera
-            //if (QMediaDevices::defaultVideoInput().description().contains("Openterface") == false) {
-                //update the default camera to the first Openterface camera
-                setCamera(camera);
-            //}
+            if (!QMediaDevices::defaultVideoInput().description().contains("Openterface")) {
+                qCDebug(log_ui_mainwindow) << "Set defualt camera to the Openterface camera...";
+            } else {
+                qCDebug(log_ui_mainwindow) << "The default camera is" << QMediaDevices::defaultVideoInput().description();
+            }
+            setCamera(camera);
 
             break;
         }
