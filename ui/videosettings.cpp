@@ -207,5 +207,3 @@ void VideoSettings::selectComboBoxItem(QComboBox *box, const QVariant &value)
     if (idx != -1)
         box->setCurrentIndex(idx);
 }
-
-#include "moc_videosettings.cpp"
