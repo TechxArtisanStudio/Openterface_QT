@@ -57,6 +57,7 @@ class Camera : public QMainWindow, public SerialPortEventCallback
 public:
     Camera();
     void calculate_video_position();
+    void stop();
 
 private slots:
     void init();
@@ -65,7 +66,6 @@ private slots:
 
     void record();
     void pause();
-    void stop();
     void setMuted(bool);
 
     void takeImage();
@@ -116,13 +116,13 @@ private:
 
     QVideoWidget *videoPane;
     QStackedLayout *stackedLayout;
-    QActionGroup *videoDevicesGroup = nullptr;
+    //QActionGroup *videoDevicesGroup = nullptr;
 
     QMediaDevices m_source;
     QScopedPointer<QImageCapture> m_imageCapture;
     QMediaCaptureSession m_captureSession;
     QScopedPointer<QCamera> m_camera;
-    QScopedPointer<QAudioInput> m_audioInput;
+    // QScopedPointer<QAudioInput> m_audioInput;
     QScopedPointer<QMediaRecorder> m_mediaRecorder;
 
     bool videoReady = false;
