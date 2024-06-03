@@ -71,13 +71,6 @@ jobs:
       - name: Configure And Build
         working-directory: ${{ runner.temp }}\build
         run:  |
-          qmake && make -j$(nproc)
-          cp ${{ github.workspace }}\build\bin\${{ env.ARTIFACT }} ${{ github.workspace }}\${{ env.ARTIFACT }}
-
-          
-      - name: Configure And Build
-        working-directory: ${{ runner.temp }}/build
-        run:  |
           qmake6 ${{ github.workspace }} && make -j$(nproc)
           
       - name: Create deb package
@@ -94,7 +87,7 @@ jobs:
           Description: OpenterfaceQT" > package/DEBIAN/control
           # Copy files to package directory
           mkdir -p package/usr/bin
-          cp -r ${{ runner.temp }}/build/${{ env.ARTIFACT }} package/usr/bin
+          cp -r build/${{ env.ARTIFACT }} package/usr/bin
           # Build deb package
           mv package ${{ env.ARTIFACT }}
           dpkg-deb --build ${{ env.ARTIFACT }}
