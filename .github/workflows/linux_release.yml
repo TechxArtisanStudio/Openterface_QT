@@ -72,7 +72,7 @@ jobs:
           Description: OpenterfaceQT" > package/DEBIAN/control
           # Copy files to package directory
           mkdir -p package/usr/bin
-          cp -r ${{ runner.temp }}/build/${{ env.ARTIFACT }} package/usr/bin
+          cp -r build/${{ env.ARTIFACT }} package/usr/bin
           # Build deb package
           mv package ${{ env.ARTIFACT }}
           dpkg-deb --build ${{ env.ARTIFACT }}
