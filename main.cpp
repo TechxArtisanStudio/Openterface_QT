@@ -53,10 +53,20 @@ void customMessageHandler(QtMsgType type, const QMessageLogContext &context, con
     }
 }
 
+void setupEnv(){
+#ifdef Q_OS_LINUX
+    QString originalMediaBackend = qgetenv("QT_MEDIA_BACKEND");
+    qDebug() << "Oringial QT Media Backend:" << originalMediaBackend;
+    qputenv("QT_MEDIA_BACKEND", "ffmpeg");
+    QString newMediaBackend = qgetenv("QT_MEDIA_BACKEND");
+    qDebug() << "Current QT Media Backend:" << newMediaBackend;
+#endif
+}
 
 int main(int argc, char *argv[])
 {
     qDebug() << "Start openterface...";
+    setupEnv();
     QApplication app(argc, argv);
 
     //qInstallMessageHandler(customMessageHandler);
