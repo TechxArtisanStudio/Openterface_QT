@@ -120,5 +120,3 @@ void MetaDataDialog::openCoverArtImage()
     if (!fileName.isEmpty())
         m_metaDataFields[QMediaMetaData::CoverArtImage]->setText(fileName);
 }
-
-#include "moc_metadatadialog.cpp"
