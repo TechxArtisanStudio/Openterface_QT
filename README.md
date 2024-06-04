@@ -14,9 +14,31 @@
 # Suppported OS
 - Window (10/11) 
 - Ubuntu 22.04
+- Linux Mint 21.3 (Need to upgrade QT to >=6.4)
 - openSUSE Tumbleweed, built by community, not yet verify
 - Raspberry Pi OS (64-bit), working good
 - Raspberry Pi OS (32-bit), not yet complete testing
+
+# Download & Run from Github build
+1. Download the package from Github release page, and find the latest version to download according to your os and cpu architecture.
+2. For Windows user, just run the installer and it will install all required drivers and application to your windows. You can run the application from start menu.
+3. For Linux user, you should install the dependency first then install the package.
+
+ ```bash
+# Setup the QT 6.4.2 runtime
+sudo apt install -y libqt6core6 libqt6dbus6 libqt6gui6 libqt6network6 libqt6multimedia6 libqt6multimediawidgets6 libqt6serialport6
+ ```
+
+ ```bash
+# Unszip the package and install
+unzip openterfaceQT.deb.zip
+sudo dpkg -i openterfaceQT.deb
+ ```
+
+ ```bash
+# Run from terminal 
+openterfaceQT
+ ```
 
 # Development
 - Using QT Creator
