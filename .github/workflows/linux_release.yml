@@ -16,7 +16,7 @@ defaults:
 
 env:
   SOURCE_DIR:   ${{ github.workspace }}
-  QT_VERSION:   6.6.3
+  QT_VERSION:   6.2.4
   ARTIFACT:     OpenterfaceQT
 
 jobs:
@@ -41,7 +41,8 @@ jobs:
                 qmake6 \
                 qt6-base-dev \
                 qt6-multimedia-dev \
-                qt6-serialport-dev
+                qt6-serialport-dev \
+                mesa-common-dev
 
       - name: Get all tags for correct version determination
         working-directory:  ${{ github.workspace }}
