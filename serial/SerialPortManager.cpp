@@ -32,6 +32,8 @@ const QByteArray SerialPortManager::MOUSE_ABS_ACTION_PREFIX = QByteArray::fromHe
 const QByteArray SerialPortManager::MOUSE_REL_ACTION_PREFIX = QByteArray::fromHex("57 AB 00 05 05 01");
 const QByteArray SerialPortManager::CMD_GET_PARA_CFG = QByteArray::fromHex("57 AB 00 08 00");
 const QByteArray SerialPortManager::CMD_RESET = QByteArray::fromHex("57 AB 00 0F 00");
+const QByteArray SerialPortManager::CMD_SET_PARA_CFG_PREFIX = QByteArray::fromHex("57 AB 00 09 32 82 80 00 00 01 C2 00");
+
 
 SerialPortManager::SerialPortManager(QObject *parent) : QObject(parent), serialThread(new QThread(this)) {
     //qCDebug(log_core_serial) << "Initialize serial port.";
@@ -104,51 +106,40 @@ void SerialPortManager::initializeSerialPort(){
     }
 
     serialPort = new QSerialPort();
-    if(openPort(availablePort, SerialPortManager::DEFAULT_BAUDRATE)){
-        connect(serialPort, &QSerialPort::readyRead, this, &SerialPortManager::readData);
-        connect(serialPort, &QSerialPort::bytesWritten, this, &SerialPortManager::bytesWritten);
-        qCDebug(log_core_serial) << "Open port " << availablePort << " with baudrate " << SerialPortManager::DEFAULT_BAUDRATE << "success.";
-    }else{
-        qCDebug(log_core_serial) << "Open port " << availablePort << " with baudrate " << SerialPortManager::DEFAULT_BAUDRATE << "fail.";
+    if(!prepareSerialPort(availablePort, SerialPortManager::DEFAULT_BAUDRATE)){
+        QThread::sleep(1);
+        closePort();
+        prepareSerialPort(availablePort, SerialPortManager::ORIGINAL_BAUDRATE);
     }
+}
+
+
+bool SerialPortManager::prepareSerialPort(const QString& availablePort, int baudrate) {
+    if(!openPort(availablePort, baudrate)){
+        qCDebug(log_core_serial) << "Open port " << availablePort << " with baudrate " << baudrate << "fail.";
+        return false;
+    }
+
+    connect(serialPort, &QSerialPort::readyRead, this, &SerialPortManager::readData);
+    connect(serialPort, &QSerialPort::bytesWritten, this, &SerialPortManager::bytesWritten);
+    qCDebug(log_core_serial) << "Open port " << availablePort << " with baudrate " << baudrate << "success.";
+
     bool ret = sendCommand(SerialPortManager::CMD_GET_PARA_CFG, true);
 
     if(!ret) {
         qCDebug(log_core_serial) << "Send command failure. ";
-    }else {
-        // In order to receive the response, we need to exit the event loop
-        QEventLoop loop;
-        connect(serialPort, &QSerialPort::readyRead, &loop, &QEventLoop::quit);
-        loop.exec();
-        QThread::msleep(100);
-        if(ret && ready) {
-            return;
-        }
-    }
-    QThread::sleep(1);
-    closePort();
-
-    if(openPort(availablePort, SerialPortManager::ORIGINAL_BAUDRATE)){
-        connect(serialPort, &QSerialPort::readyRead, this, &SerialPortManager::readData);
-        connect(serialPort, &QSerialPort::bytesWritten, this, &SerialPortManager::bytesWritten);
-        qCDebug(log_core_serial) << "Open port " << availablePort << " with baudrate " << SerialPortManager::ORIGINAL_BAUDRATE << "success.";
     } else {
-        qCDebug(log_core_serial) << "Open port " << availablePort << " with baudrate " << SerialPortManager::ORIGINAL_BAUDRATE << "fail.";
-    }
-    ret = sendCommand(SerialPortManager::CMD_GET_PARA_CFG, true);
-    if(!ret) {
-        qCDebug(log_core_serial) << "Send command failure. ";
-    }else {
         // In order to receive the response, we need to exit the event loop
         QEventLoop loop;
         connect(serialPort, &QSerialPort::readyRead, &loop, &QEventLoop::quit);
         loop.exec();
         QThread::msleep(100);
         if(ret && ready) {
-            return;
+            return true;
         }
     }
 
+    return false;
 }
 
 void SerialPortManager::resetSerialPort(){
@@ -254,18 +245,39 @@ void SerialPortManager::readData() {
 
             unsigned char code = fourthByte | 0x80;
             int baudrate = 0;
+            int mode = 0;
             switch (code)
             {
             case 0x88:
                 // get parameter configuration
                 // baud rate 8...11 bytes
                 baudrate = ((unsigned char)data[8] << 24) | ((unsigned char)data[9] << 16) | ((unsigned char)data[10] << 8) | (unsigned char)data[11];
-                qCDebug(log_core_serial) << "Receive baudrate update: " << baudrate;
-                if (baudrate == SerialPortManager::DEFAULT_BAUDRATE) {
+                mode = data[5];
+
+                qCDebug(log_core_serial) << "Current serial port baudrate rate: " << baudrate << "Mode:" << mode;
+                if (baudrate == SerialPortManager::DEFAULT_BAUDRATE && mode == 0x82) {
                     ready = true;
-                    if(eventCallback!=nullptr)
+                    if(eventCallback!=nullptr){
                         eventCallback->onPortConnected(serialPort->portName());
+                    }else{
+                        qCDebug(log_core_serial) << "Reset to baudrate 115200 and mode 0x82";
+                        // replace the data with set parameter configuration prefix
+                        QByteArray command = SerialPortManager::CMD_SET_PARA_CFG_PREFIX;
+                        //append from date 12...31
+                        command.append(data.mid(12, 20));
+                        //append 22 bytes of 0x00
+                        command.append(QByteArray(22, 0x00));
+                        sendCommand(command, true);
+                        QThread::msleep(500);
+                        //reset the serial port
+                        resetSerialPort();
+                    }
                 }
+                break;
+            case 0x84:
+                qCDebug(log_core_serial) << "Absolute mouse event sent, status" << data[5];
+            case 0x85:
+                qCDebug(log_core_serial) << "Relative mouse event sent, status" << data[5];
                 break;
             default:
                 break;
