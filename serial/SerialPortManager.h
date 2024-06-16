@@ -41,6 +41,7 @@ public:
     static const QByteArray MOUSE_REL_ACTION_PREFIX;
     static const QByteArray CMD_GET_PARA_CFG;
     static const QByteArray CMD_RESET;
+    static const QByteArray CMD_SET_PARA_CFG_PREFIX;
 
     static const int ORIGINAL_BAUDRATE = 9600;
     static const int DEFAULT_BAUDRATE = 115200;
@@ -66,7 +67,8 @@ private slots:
     void readData();
     void aboutToClose();
     void bytesWritten(qint64 bytes);
-
+    bool prepareSerialPort(const QString& availablePort, int baudrate);
+    
     static quint8 calculateChecksum(const QByteArray &data);
     //void checkSerialPortConnection();
     QString getPortName();
