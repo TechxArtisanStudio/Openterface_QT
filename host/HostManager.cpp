@@ -27,15 +27,15 @@
 Q_LOGGING_CATEGORY(log_core_host, "opf.core.host")
 
 HostManager::HostManager(QObject *parent) : QObject(parent),
-                                            serialPortManager(),
-                                            mouseManager(serialPortManager),
-                                            keyboardManager(serialPortManager)
+                                            mouseManager(),
+                                            keyboardManager()
 {
 }
 
 void HostManager::setEventCallback(SerialPortEventCallback* callback)
 {
-    this->serialPortManager.setEventCallback(callback);
+    qCDebug(log_core_host) << "HostManager.setEventCallback";
+    SerialPortManager::getInstance().setEventCallback(callback);
 }
 
 void HostManager::handleKeyPress(QKeyEvent *event)
@@ -79,7 +79,7 @@ void HostManager::handleMouseMove(int x, int y, int mouseButton)
 
 void HostManager::resetSerialPort()
 {
-    serialPortManager.closePort();
+    SerialPortManager::getInstance().closePort();
 }
 
 void HostManager::restartApplication() {
