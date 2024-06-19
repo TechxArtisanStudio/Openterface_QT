@@ -26,7 +26,7 @@
 
 Q_LOGGING_CATEGORY(log_keyboard, "opf.host.keyboard")
 
-KeyboardManager::KeyboardManager(SerialPortManager& spm, QObject *parent) : QObject(parent), serialPortManager(spm){
+KeyboardManager::KeyboardManager(QObject *parent) : QObject(parent){
 
 }
 
@@ -55,7 +55,7 @@ void KeyboardManager::handleKeyboardAction(int keyCode, int modifiers, bool isKe
         if(currentModifiers!=0){
             qCDebug(log_keyboard) << "sendCommand:" << keyData.toHex(' ');
             // release previous modifier
-            serialPortManager.sendCommand(keyData, false);
+            SerialPortManager::getInstance().sendCommand(keyData, false);
             currentModifiers = 0;
         }
 
@@ -68,7 +68,7 @@ void KeyboardManager::handleKeyboardAction(int keyCode, int modifiers, bool isKe
         keyData[5] = isKeyDown ? combinedModifiers : 0;
         keyData[7] = isKeyDown ? mappedKeyCode : 0;
         qCDebug(log_keyboard) << "sendCommand:" << keyData.toHex(' ');
-        serialPortManager.sendCommand(keyData, false);
+        SerialPortManager::getInstance().sendCommand(keyData, false);
     }
 }
 

@@ -35,14 +35,13 @@ class KeyboardManager: public QObject
     Q_OBJECT
 
 public:
-    explicit KeyboardManager(SerialPortManager& spm, QObject *parent = nullptr);
+    explicit KeyboardManager(QObject *parent = nullptr);
 
     void handleKeyboardAction(int keyCode, int modifiers, bool isKeyDown);
 
     bool isModiferKeys(int keycode);
 
 private:
-    SerialPortManager& serialPortManager;
     static const QMap<int, uint8_t> keyMap;
     static const QList<int> SHIFT_KEYS;
     static const QList<int> CTRL_KEYS;

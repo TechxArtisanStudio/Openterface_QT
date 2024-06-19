@@ -42,12 +42,20 @@ public:
     static const QByteArray CMD_GET_PARA_CFG;
     static const QByteArray CMD_RESET;
     static const QByteArray CMD_SET_PARA_CFG_PREFIX;
+    static const QByteArray CMD_SET_PARA_CFG_MID;
 
     static const int ORIGINAL_BAUDRATE = 9600;
     static const int DEFAULT_BAUDRATE = 115200;
     
-    explicit SerialPortManager(QObject *parent = nullptr);
-    ~SerialPortManager();
+    static SerialPortManager& getInstance() {
+        static SerialPortManager instance; // Guaranteed to be destroyed, instantiated on first use.
+        return instance;
+    }
+
+    SerialPortManager(SerialPortManager const&) = delete; // Don't Implement
+    void operator=(SerialPortManager const&) = delete; // Don't implement
+
+    virtual ~SerialPortManager(); // Declare the destructor
 
     void setEventCallback(SerialPortEventCallback* callback);
     bool openPort(const QString &portName, int baudRate);
@@ -55,26 +63,31 @@ public:
 
     bool writeData(const QByteArray &data);
     bool sendCommand(const QByteArray &data, bool force);
+    bool sendResetCommand();
     void resetSerialPort();
+    void resetHidChip();
 
 signals:
     void dataReceived(const QByteArray &data);
 
 private slots:
     void checkSerialPort();
-    void initializeSerialPort();
+    void initializeSerialPort(const QString& availablePort);
     void observerSerialPortNotification();
     void readData();
     void aboutToClose();
     void bytesWritten(qint64 bytes);
-    bool prepareSerialPort(const QString& availablePort, int baudrate);
-    
+    bool prepareSerialPort(const QString& availablePort);
+
+
     static quint8 calculateChecksum(const QByteArray &data);
     //void checkSerialPortConnection();
     QString getPortName();
 
 private:
+    SerialPortManager(QObject *parent = nullptr);
     QSerialPort *serialPort;
+    int baudrate = ORIGINAL_BAUDRATE;
     QThread *serialThread;
     QList<QSerialPortInfo> m_lastPortList;
     bool ready = false;
