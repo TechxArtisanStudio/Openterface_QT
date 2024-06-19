@@ -73,6 +73,7 @@ Q_LOGGING_CATEGORY(log_ui_mainwindow, "opf.ui.mainwindow")
 
 Camera::Camera() : ui(new Ui::Camera), videoPane(new VideoPane(this)), stackedLayout(new QStackedLayout(this)), transWindow(new TransWindow())
 {
+    qCDebug(log_ui_mainwindow) << "Init camera...";
     ui->setupUi(this);
 
     QWidget *centralWidget = new QWidget(this);
@@ -91,12 +92,16 @@ Camera::Camera() : ui(new Ui::Camera), videoPane(new VideoPane(this)), stackedLa
 
     HostManager::getInstance().setEventCallback(this);
 
+    qCDebug(log_ui_mainwindow) << "Observe video input changed...";
     connect(&m_source, &QMediaDevices::videoInputsChanged, this, &Camera::updateCameras);
 
     //connect(videoDevicesGroup, &QActionGroup::triggered, this, &Camera::updateCameraDevice);
 
+    qCDebug(log_ui_mainwindow) << "Observe Relative/Absolute toggle...";
     connect(ui->actionRelative, &QAction::triggered, this, &Camera::onActionRelativeTriggered);
 
+
+    qCDebug(log_ui_mainwindow) << "Observe reset HID triggerd...";
     connect(ui->actionResetHID, &QAction::triggered, this, &Camera::onActionResetHIDTriggered);
 
     init();

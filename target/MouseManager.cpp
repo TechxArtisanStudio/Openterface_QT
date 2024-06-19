@@ -24,7 +24,7 @@
 
 Q_LOGGING_CATEGORY(log_core_mouse, "opf.host.mouse")
 
-MouseManager::MouseManager(SerialPortManager& spm, QObject *parent) : QObject(parent), serialPortManager(spm){
+MouseManager::MouseManager(QObject *parent) : QObject(parent){
     // Initialization code here...
 }
 
@@ -43,8 +43,9 @@ void MouseManager::handleAbsoluteMouseAction(int x, int y, int mouse_event, int 
     data.append(static_cast<char>(y & 0xFF));
     data.append(static_cast<char>((y >> 8) & 0xFF));
     data.append(static_cast<char>(mappedWheelMovement & 0xFF));
+
     // send the data to serial
-    serialPortManager.sendCommand(data, false);
+    SerialPortManager::getInstance().sendCommand(data, false);
 }
 
 void MouseManager::handleRelativeMouseAction(int dx, int dy, int mouse_event, int wheelMovement) {

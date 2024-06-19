@@ -36,13 +36,12 @@ class MouseManager : public QObject
     Q_OBJECT
 
 public:
-    explicit MouseManager(SerialPortManager& spm, QObject *parent = nullptr);
+    explicit MouseManager(QObject *parent = nullptr);
 
     void handleAbsoluteMouseAction(int x, int y, int mouse_event, int wheelMovement);
     void handleRelativeMouseAction(int dx, int dy, int mouse_event, int wheelMovement);
 
 private:
-    SerialPortManager& serialPortManager;
     bool isDragging = false; 
     
     uint8_t mapScrollWheel(int delta);
