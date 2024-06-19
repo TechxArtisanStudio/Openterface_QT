@@ -63,7 +63,6 @@ public:
 
 private:
     explicit HostManager(QObject *parent = nullptr);
-    SerialPortManager serialPortManager;
     MouseManager mouseManager;
     KeyboardManager keyboardManager;
 };
