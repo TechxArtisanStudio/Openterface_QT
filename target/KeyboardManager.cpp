@@ -51,9 +51,43 @@ void KeyboardManager::handleKeyboardAction(int keyCode, int modifiers, bool isKe
             mappedKeyCode = 0xe2;
             currentModifiers |= 0x04;
         }
+    }else if(isKeypadKeys(keyCode, modifiers)){
+        if(keyCode == Qt::Key_7){
+            mappedKeyCode = 0x5F;
+        } else if(keyCode == Qt::Key_4){
+            mappedKeyCode = 0x5C;
+        } else if(keyCode == Qt::Key_1){
+            mappedKeyCode = 0x59;
+        } else if(keyCode == Qt::Key_Slash){
+            mappedKeyCode = 0x54;
+        } else if(keyCode == Qt::Key_8){
+            mappedKeyCode = 0x60;
+        } else if(keyCode == Qt::Key_5){
+            mappedKeyCode = 0x5D;
+        } else if(keyCode == Qt::Key_2){
+            mappedKeyCode = 0x5A;
+        } else if(keyCode == Qt::Key_0){
+            mappedKeyCode = 0x62;
+        } else if(keyCode == Qt::Key_Asterisk) {
+            mappedKeyCode = 0x55;
+        } else if(keyCode == Qt::Key_9){
+            mappedKeyCode = 0x61;
+        } else if(keyCode == Qt::Key_6){
+            mappedKeyCode = 0x5E;
+        } else if(keyCode == Qt::Key_3){
+            mappedKeyCode = 0x5B;
+        } else if(keyCode == Qt::Key_Period){
+            mappedKeyCode = 0x63;
+        } else if(keyCode == Qt::Key_Minus){
+            mappedKeyCode = 0x56;
+        } else if(keyCode == Qt::Key_Plus){
+            mappedKeyCode = 0x57;
+        } else if(keyCode == Qt::Key_Enter){
+            mappedKeyCode = 0x58;
+        }
     }else {
         if(currentModifiers!=0){
-            qCDebug(log_keyboard) << "sendCommand:" << keyData.toHex(' ');
+            qCDebug(log_keyboard) << "Send release command :" << keyData.toHex(' ');
             // release previous modifier
             SerialPortManager::getInstance().sendCommand(keyData, false);
             currentModifiers = 0;
@@ -61,7 +95,6 @@ void KeyboardManager::handleKeyboardAction(int keyCode, int modifiers, bool isKe
 
         combinedModifiers = handleKeyModifiers(modifiers, isKeyDown);
     }
-
 
     qCDebug(log_keyboard) << "isKeyDown:" << isKeyDown << ", KeyCode:"<<keyCode<<", Mapped Keycode:" << mappedKeyCode << ", modifiers: " << combinedModifiers;
     if (mappedKeyCode != 0) {
@@ -73,7 +106,6 @@ void KeyboardManager::handleKeyboardAction(int keyCode, int modifiers, bool isKe
 }
 
 int KeyboardManager::handleKeyModifiers(int modifier, bool isKeyDown) {
-    qCDebug(log_keyboard) << "handleKeyModifiers:";
     // Check if the modifier key is pressed or released
     int combinedModifiers = currentModifiers;
 
@@ -106,4 +138,8 @@ bool KeyboardManager::isModiferKeys(int keycode){
     return SHIFT_KEYS.contains(keycode)
            || CTRL_KEYS.contains(keycode)
            || ALT_KEYS.contains(keycode); //Shift, Ctrl, Alt
+}
+
+bool KeyboardManager::isKeypadKeys(int keycode, int modifiers){
+    return KEYPAD_KEYS.contains(keycode) && modifiers == Qt::KeypadModifier;
 }
