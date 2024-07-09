@@ -39,13 +39,22 @@ public:
 
     void handleKeyboardAction(int keyCode, int modifiers, bool isKeyDown);
 
+    /*
+     * Check if the key is a modifier key, eg: shift, ctrl, alt
+     */
     bool isModiferKeys(int keycode);
+
+    /*
+     * Check if the key is a keypad key
+     */
+    bool isKeypadKeys(int keycode, int modifiers);
 
 private:
     static const QMap<int, uint8_t> keyMap;
     static const QList<int> SHIFT_KEYS;
     static const QList<int> CTRL_KEYS;
     static const QList<int> ALT_KEYS;
+    static const QList<int> KEYPAD_KEYS;
     
     int handleKeyModifiers(int modifierKeyCode, bool isKeyDown);
     int currentModifiers = 0;

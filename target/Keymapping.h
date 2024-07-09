@@ -150,4 +150,23 @@ const QList<int> KeyboardManager::ALT_KEYS = {
     164, // Menu Left
     165 // Menu Right
 };
+
+const QList<int> KeyboardManager::KEYPAD_KEYS = {
+    Qt::Key_0, // 0
+    Qt::Key_1, // 1
+    Qt::Key_2, // 2
+    Qt::Key_3, // 3
+    Qt::Key_4, // 4
+    Qt::Key_5, // 5
+    Qt::Key_6, // 6
+    Qt::Key_7, // 7
+    Qt::Key_8, // 8
+    Qt::Key_9, // 9
+    Qt::Key_Return, // Enter
+    Qt::Key_Plus, // +
+    Qt::Key_Minus, // -
+    Qt::Key_Asterisk, // *
+    Qt::Key_Slash, // /
+    Qt::Key_Period // .
+};
 #endif // WINKEYMAPPING_H
