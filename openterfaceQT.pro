@@ -38,7 +38,6 @@ HEADERS  += \
     serial/SerialPortManager.h \
     target/KeyboardManager.h \
     target/MouseManager.h \
-    target/Keymapping_Linux.h \
     target/Keymapping.h
 
 FORMS    += \

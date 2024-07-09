@@ -43,7 +43,7 @@ void HostManager::handleKeyPress(QKeyEvent *event)
     QString hexKeyCode = QString::number(event->key(), 16);
     // In order to distingush the left or right modifiers
     int modifiers = keyboardManager.isModiferKeys(event->key()) ? event->nativeModifiers() : event->modifiers();
-    qCDebug(log_core_host) << "Key press event for qt key code:" << event->key() << "(" << hexKeyCode << "), modifers: " << modifiers;
+    qCDebug(log_core_host) << "Key press event for qt key code:" << event->key() << "(" << hexKeyCode << "), modifers:" << "0x" + QString::number(modifiers, 16);
     keyboardManager.handleKeyboardAction(event->key(), modifiers, true);
 }
 
@@ -51,7 +51,7 @@ void HostManager::handleKeyRelease(QKeyEvent *event)
 {
     QString hexKeyCode = QString::number(event->key(), 16);
     int modifiers = keyboardManager.isModiferKeys(event->key()) ? event->nativeModifiers() : event->modifiers();
-    qCDebug(log_core_host) << "Key release event for qt key code:" << event->key() << "(" << hexKeyCode << "), modifer: " << modifiers;
+    qCDebug(log_core_host) << "Key release event for qt key code:" << event->key() << "(" << hexKeyCode << "), modifer:" << "0x" + QString::number(modifiers, 16);
     keyboardManager.handleKeyboardAction(event->key(), modifiers, false);
 }
 
