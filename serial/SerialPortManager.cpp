@@ -154,7 +154,6 @@ void SerialPortManager::initializeSerialPort(const QString& availablePort){
 void SerialPortManager::resetSerialPort(){
     qCDebug(log_core_serial) << "resetSerialPort: " << serialPort;
 
-    resetHidChip();
     QThread::sleep(1);
     resetSerialPort();
     QThread::sleep(1);
@@ -293,6 +292,7 @@ void SerialPortManager::readData() {
                 }else{
                     resetHidChip();
                     QThread::sleep(1);
+                    sendResetCommand();
                     closePort();
                     ready=false;
                 }

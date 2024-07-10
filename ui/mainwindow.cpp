@@ -104,6 +104,9 @@ Camera::Camera() : ui(new Ui::Camera), videoPane(new VideoPane(this)), stackedLa
     qCDebug(log_ui_mainwindow) << "Observe reset HID triggerd...";
     connect(ui->actionResetHID, &QAction::triggered, this, &Camera::onActionResetHIDTriggered);
 
+    qCDebug(log_ui_mainwindow) << "Observe reset Serial Port triggerd...";
+    connect(ui->actionResetSerialPort, &QAction::triggered, this, &Camera::onActionResetSerialPortTriggered);
+
     init();
 }
 
@@ -295,9 +298,14 @@ void Camera::onActionRelativeTriggered()
 void Camera::onActionResetHIDTriggered()
 {
     qCDebug(log_ui_mainwindow) << "onActionResetHIDTriggered";
-    HostManager::getInstance().resetSerialPort();
+    HostManager::getInstance().resetHid();
 }
 
+void Camera::onActionResetSerialPortTriggered()
+{
+    qCDebug(log_ui_mainwindow) << "onActionResetSerialPortTriggered";
+    HostManager::getInstance().resetSerialPort();
+}
 
 void Camera::popupMessage(QString message)
 {
