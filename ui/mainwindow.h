@@ -110,6 +110,7 @@ protected:
     
     void onActionRelativeTriggered();
     void onActionResetHIDTriggered();
+    void onActionResetSerialPortTriggered();
 private:
     Ui::Camera *ui;
     TransWindow *transWindow;
