@@ -50,6 +50,9 @@ RESOURCES += \
     openterfaceQT.rc \
     ui/mainwindow.qrc
 
+# Set the target installation path to a directory within the build folder
+target.path = $$OUT_PWD/build/install
+
 INSTALLS += target
 
 RC_FILE = openterfaceQT.rc
