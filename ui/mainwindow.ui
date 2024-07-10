@@ -49,7 +49,7 @@
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>668</width>
+     <width>1280</width>
      <height>21</height>
     </rect>
    </property>
@@ -80,6 +80,7 @@
     </widget>
     <addaction name="menuMouse_Mode"/>
     <addaction name="actionResetHID"/>
+    <addaction name="actionResetSerialPort"/>
    </widget>
    <addaction name="menuFile"/>
    <addaction name="menuControl"/>
@@ -109,6 +110,11 @@
   <action name="actionResetHID">
    <property name="text">
     <string>ResetHID</string>
+   </property>
+  </action>
+  <action name="actionResetSerialPort">
+   <property name="text">
+    <string>ResetSerialPort</string>
    </property>
   </action>
   <actiongroup name="actionGroup">

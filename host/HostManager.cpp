@@ -77,6 +77,12 @@ void HostManager::handleMouseMove(int x, int y, int mouseButton)
     mouseManager.handleAbsoluteMouseAction(x, y, mouseButton, 0);
 }
 
+void HostManager::resetHid()
+{
+    SerialPortManager::getInstance().sendResetCommand();
+}
+
+
 void HostManager::resetSerialPort()
 {
     SerialPortManager::getInstance().closePort();
