@@ -57,6 +57,7 @@ public:
     void handleMouseMove(int x, int y, int mouseButton);
     void handleMouseScroll(int x, int y, int delta);
     
+    void resetHid();
     void resetSerialPort();
     void setEventCallback(SerialPortEventCallback* callback);
     void restartApplication();
