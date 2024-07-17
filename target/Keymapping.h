@@ -118,7 +118,7 @@ const QMap<int, uint8_t> KeyboardManager::keyMap = {
     {Qt::Key_Percent, 0x22}, // key 5
     {Qt::Key_AsciiCircum, 0x23}, // key 6
     {Qt::Key_Ampersand, 0x24}, // key 7
-    {Qt::Key_Asterisk, 0x2A}, // key *
+    {Qt::Key_Asterisk, 0x25}, // key *
     {Qt::Key_ParenLeft, 0x26}, // key 9
     {Qt::Key_ParenRight, 0x27}, // key 0
     {Qt::Key_Underscore, 0x2D}, // key -
