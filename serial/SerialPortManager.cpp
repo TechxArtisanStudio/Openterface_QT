@@ -214,6 +214,7 @@ bool SerialPortManager::openPort(const QString &portName, int baudRate) {
     serialPort->setBaudRate(baudRate);
     if (serialPort->open(QIODevice::ReadWrite)) {
         qCDebug(log_core_serial) << "Open port" << portName + ", baudrate: " << baudRate;
+        if(eventCallback!=nullptr) eventCallback->onPortConnected(portName);
         return true;
     } else {
         return false;
