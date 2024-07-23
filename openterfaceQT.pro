@@ -12,6 +12,7 @@ QT       += core gui multimedia multimediawidgets serialport concurrent
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 
 SOURCES += main.cpp \
+    video/videohid.cpp \
     ui/helppane.cpp \
     ui/imagesettings.cpp \
     ui/mainwindow.cpp \
@@ -26,6 +27,7 @@ SOURCES += main.cpp \
 
 HEADERS  += \
     global.h \
+    video/videohid.h \
     ui/helppane.h \
     ui/imagesettings.h \
     ui/mainwindow.h \
@@ -43,15 +45,20 @@ HEADERS  += \
 FORMS    += \
     ui/imagesettings.ui \
     ui/mainwindow.ui \
-    ui/videosettings_mobile.ui \
     ui/videosettings.ui
 
 RESOURCES += \
     openterfaceQT.rc \
     ui/mainwindow.qrc
 
+
+# Link against the HID library
+win32:LIBS += -lhid
+win32:LIBS += -lsetupapi
+
+
 # Set the target installation path to a directory within the build folder
-target.path = $$OUT_PWD/build/install
+target.path = $$PWD/build/install
 
 INSTALLS += target
 

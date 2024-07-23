@@ -28,6 +28,7 @@
 #include "ui/helppane.h"
 #include "ui/videosettings.h"
 #include "ui/videopane.h"
+#include "video/videohid.h"
 
 #include <QAudioDevice>
 #include <QAudioInput>
@@ -40,6 +41,7 @@
 #include <QStackedLayout>
 #include <QLineEdit>
 #include <QMessageBox>
+#include <QImageCapture>
 
 #include <QAction>
 #include <QActionGroup>
@@ -91,6 +93,8 @@ Camera::Camera() : ui(new Ui::Camera), videoPane(new VideoPane(this)), stackedLa
     setCentralWidget(centralWidget);
 
     HostManager::getInstance().setEventCallback(this);
+
+    VideoHid::getInstance().start();
 
     qCDebug(log_ui_mainwindow) << "Observe video input changed...";
     connect(&m_source, &QMediaDevices::videoInputsChanged, this, &Camera::updateCameras);
@@ -156,27 +160,26 @@ void Camera::setCamera(const QCameraDevice &cameraDevice)
         return;
     }
     qCDebug(log_ui_mainwindow) << "Set Camera, device name: " << cameraDevice.description();
-    m_camera.reset(new QCamera(cameraDevice));
-    m_captureSession.setCamera(m_camera.data());
-    // Set the desired resolution
-    //m_imageCapture->setResolution(1920, 1080);
 
-    connect(m_camera.data(), &QCamera::activeChanged, this, &Camera::updateCameraActive);
-    connect(m_camera.data(), &QCamera::errorOccurred, this, &Camera::displayCameraError);
+    m_camera.reset(new QCamera(cameraDevice));
+    m_captureSession.setCamera(m_camera.get());
 
     if (!m_imageCapture) {
-        m_imageCapture.reset(new QImageCapture);
+        m_imageCapture.reset(new QImageCapture());
         m_captureSession.setImageCapture(m_imageCapture.get());
 
+        // Set the desired resolution for image capture
+        //m_imageCapture->setResolution(1280, 800);
 
-        QSize resolution;
-        auto photoResolutions = m_imageCapture.get()->captureSession()->camera()->cameraDevice().photoResolutions();
-        if (!photoResolutions.empty()) {
-            resolution = photoResolutions[0];
-            video_height = resolution.height();
-            video_width = resolution.width();
-            qCDebug(log_ui_mainwindow) << "Camera resolution: " << resolution;
-        }
+        connect(m_camera.get(), &QCamera::activeChanged, this, &Camera::updateCameraActive);
+        connect(m_camera.get(), &QCamera::errorOccurred, this, &Camera::displayCameraError);
+
+
+        QPair<int, int> resolution = VideoHid::getInstance().getResolution();
+        video_width = resolution.first;
+        video_height = resolution.second;
+        qCDebug(log_ui_mainwindow) << "Camera resolution: " << resolution;
+
     }
 
     m_captureSession.setVideoOutput(this->videoPane);
@@ -191,11 +194,13 @@ void Camera::resizeEvent(QResizeEvent *event) {
     // Define the desired aspect ratio
     qreal aspect_ratio = static_cast<qreal>(video_width) / video_height;
 
-    qCDebug(log_ui_mainwindow) << "Aspect ratio: " << aspect_ratio << ",Width: " << video_width << ",Height: " << video_height;
     int titleBarHeight = this->frameGeometry().height() - this->geometry().height();
-    // Calculate the new height based on the width and the aspect ratio
-    int new_height = static_cast<int>(width() / aspect_ratio) + this->menuBar()->height() + ui->statusbar->height()+titleBarHeight;
+    qCDebug(log_ui_mainwindow) << "Aspect ratio:" << aspect_ratio << ", Width:" << video_width << "Height:" << video_height;
+    qCDebug(log_ui_mainwindow) << "menuBar height:" << this->menuBar()->height() << ", statusbar height:" << ui->statusbar->height() << ", titleBarHeight" << titleBarHeight;
 
+    // Calculate the new height based on the width and the aspect ratio
+    int new_height = static_cast<int>(width() / aspect_ratio) - this->menuBar()->height() - ui->statusbar->height() - 1;
+    // int new_height = static_cast<int>(width() / aspect_ratio) + this->menuBar()->height() + ui->statusbar->height()+titleBarHeight;
     // Set the new size of the window
     qCDebug(log_ui_mainwindow) << "Resize to " << width() << "x" << new_height;
     resize(width(), new_height);
@@ -285,7 +290,6 @@ void Camera::onActionRelativeTriggered()
     QPoint globalPosition = videoPane->mapToGlobal(QPoint(0, 0));
 
     QRect globalGeometry = QRect(globalPosition, videoPane->geometry().size());
-    qCDebug(log_ui_mainwindow) << globalGeometry;
     transWindow->showFullScreen();
     transWindow->updateGeometry(&globalGeometry);
     transWindow->show();
