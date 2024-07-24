@@ -36,10 +36,10 @@ private:
 
     QString extractPortNumberFromPath(const QString& path);
     QPair<QByteArray, bool> usbXdataRead4Byte(quint16 u16_address);
-    std::wstring GetHIDDevicePath();
     QString devicePath;
-    
+
 #ifdef _WIN32
+    std::wstring GetHIDDevicePath();
     bool sendFeatureReport(BYTE reportId, BYTE* reportBuffer, DWORD bufferSize);
     bool getFeatureReport(BYTE reportId, BYTE* reportBuffer, DWORD bufferSize);
 #elif __linux__
