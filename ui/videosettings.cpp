@@ -52,39 +52,44 @@ VideoSettings::VideoSettings(QCamera *_camera, QWidget *parent)
     // // camera format
     // ui->videoFormatBox->addItem(tr("Default camera format"));
 
-    const QList<QCameraFormat> videoFormats = camera->cameraDevice().videoFormats();
+    if (camera != nullptr && !camera->cameraDevice().isNull()) {
+        const QList<QCameraFormat> videoFormats = camera->cameraDevice().videoFormats();
+        populateResolutionBox(videoFormats);
 
-    populateResolutionBox(videoFormats);
+        connect(ui->videoFormatBox, &QComboBox::currentIndexChanged, [this](int /*index*/) {
+            //Update the Fps spiner and slider
+            this->setFpsRange(boxValue(ui->videoFormatBox).value<std::set<int>>());
 
-    connect(ui->videoFormatBox, &QComboBox::currentIndexChanged, [this](int /*index*/) {
-        //Update the Fps spiner and slider
-        this->setFpsRange(boxValue(ui->videoFormatBox).value<std::set<int>>());
+            QString resolutionText = ui->videoFormatBox->currentText();
+            QStringList resolutionParts = resolutionText.split(' ').first().split('x');
+            m_currentResolution = QSize(resolutionParts[0].toInt(), resolutionParts[1].toInt());
 
+            //Update the pixel format drop down box, TODO
+        });
+
+        connect(ui->fpsSlider, &QSlider::valueChanged, ui->fpsSpinBox, &QSpinBox::setValue);
+        connect(ui->fpsSpinBox, &QSpinBox::valueChanged, ui->fpsSlider, &QSlider::setValue);
+
+        const std::set<int> fpsValues = boxValue(ui->videoFormatBox).value<std::set<int>>();
+        setFpsRange(fpsValues);
         QString resolutionText = ui->videoFormatBox->currentText();
         QStringList resolutionParts = resolutionText.split(' ').first().split('x');
         m_currentResolution = QSize(resolutionParts[0].toInt(), resolutionParts[1].toInt());
 
-        //Update the pixel format drop down box, TODO
-    });
+        updateFormatsAndCodecs();
+        connect(ui->audioCodecBox, &QComboBox::currentIndexChanged, this,
+                &VideoSettings::updateFormatsAndCodecs);
+        connect(ui->pixelFormatBox, &QComboBox::currentIndexChanged, this,
+                &VideoSettings::updateFormatsAndCodecs);
+        connect(ui->containerFormatBox, &QComboBox::currentIndexChanged, this,
+                &VideoSettings::updateFormatsAndCodecs);
 
-    connect(ui->fpsSlider, &QSlider::valueChanged, ui->fpsSpinBox, &QSpinBox::setValue);
-    connect(ui->fpsSpinBox, &QSpinBox::valueChanged, ui->fpsSlider, &QSlider::setValue);
+        ui->qualitySlider->setRange(0, int(QMediaRecorder::VeryHighQuality));
 
-    const std::set<int> fpsValues = boxValue(ui->videoFormatBox).value<std::set<int>>();
-    setFpsRange(fpsValues);
-    QString resolutionText = ui->videoFormatBox->currentText();
-    QStringList resolutionParts = resolutionText.split(' ').first().split('x');
-    m_currentResolution = QSize(resolutionParts[0].toInt(), resolutionParts[1].toInt());
-
-    updateFormatsAndCodecs();
-    connect(ui->audioCodecBox, &QComboBox::currentIndexChanged, this,
-            &VideoSettings::updateFormatsAndCodecs);
-    connect(ui->pixelFormatBox, &QComboBox::currentIndexChanged, this,
-            &VideoSettings::updateFormatsAndCodecs);
-    connect(ui->containerFormatBox, &QComboBox::currentIndexChanged, this,
-            &VideoSettings::updateFormatsAndCodecs);
-
-    ui->qualitySlider->setRange(0, int(QMediaRecorder::VeryHighQuality));
+    } else {
+        // Handle the error case where camera or cameraDevice is not valid
+        qWarning() << "Camera or CameraDevice is not valid.";
+    }
 
     // QCameraViewfinderSettings viewfinderSettings = camera->viewfinderSettings();
     // selectComboBoxItem(ui->containerFormatBox, QVariant::fromValue(viewfinderSettings.fileFormat()));
@@ -93,8 +98,8 @@ VideoSettings::VideoSettings(QCamera *_camera, QWidget *parent)
 
     // ui->qualitySlider->setValue(mediaRecorder->quality());
     // ui->audioSampleRateBox->setValue(mediaRecorder->audioSampleRate());
-    selectComboBoxItem(ui->videoFormatBox,
-                       QVariant::fromValue<std::set<int>>({5, 10, 30}));
+    // selectComboBoxItem(ui->videoFormatBox,
+    //                    QVariant::fromValue<std::set<int>>({5, 10, 30}));
 
     // ui->fpsSlider->setValue(mediaRecorder->videoFrameRate());
     // ui->fpsSpinBox->setValue(mediaRecorder->videoFrameRate());

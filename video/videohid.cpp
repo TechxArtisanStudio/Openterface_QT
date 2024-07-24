@@ -52,6 +52,7 @@ float VideoHid::getFps() {
     return static_cast<float>(fps) / 100;
 }
 
+
 QPair<QByteArray, bool> VideoHid::usbXdataRead4Byte(quint16 u16_address) {
     QByteArray ctrlData(9, 0); // Initialize with 9 bytes set to 0
     QByteArray result(9, 0);
@@ -80,6 +81,8 @@ QPair<QByteArray, bool> VideoHid::usbXdataRead4Byte(quint16 u16_address) {
     return qMakePair(QByteArray(4, 0), false); // Return 4 bytes set to 0 and false
 }
 
+
+#ifdef _WIN32
 std::wstring VideoHid::GetHIDDevicePath() {
     GUID hidGuid;
     HidD_GetHidGuid(&hidGuid); // Get the HID GUID
@@ -131,9 +134,6 @@ std::wstring VideoHid::GetHIDDevicePath() {
     return L""; // Device not found
 }
 
-
-
-#ifdef _WIN32
 bool VideoHid::sendFeatureReport(BYTE reportId, BYTE* reportBuffer, DWORD bufferSize) {
     HANDLE deviceHandle = CreateFileW(GetHIDDevicePath().c_str(),
                                       GENERIC_READ | GENERIC_WRITE,
