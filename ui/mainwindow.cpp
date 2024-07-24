@@ -73,10 +73,14 @@ Q_LOGGING_CATEGORY(log_ui_mainwindow, "opf.ui.mainwindow")
 #endif
 #endif
 
-Camera::Camera() : ui(new Ui::Camera), videoPane(new VideoPane(this)), stackedLayout(new QStackedLayout(this)), transWindow(new TransWindow())
+Camera::Camera() : ui(new Ui::Camera), videoPane(new VideoPane(this)),
+                                        stackedLayout(new QStackedLayout(this)), 
+                                        transWindow(new TransWindow()),
+                                        resolutionLabel(new QLabel(this))
 {
     qCDebug(log_ui_mainwindow) << "Init camera...";
     ui->setupUi(this);
+    ui->statusbar->addPermanentWidget(resolutionLabel);
 
     QWidget *centralWidget = new QWidget(this);
     centralWidget->setLayout(stackedLayout);
@@ -164,27 +168,27 @@ void Camera::setCamera(const QCameraDevice &cameraDevice)
     m_camera.reset(new QCamera(cameraDevice));
     m_captureSession.setCamera(m_camera.get());
 
-    if (!m_imageCapture) {
-        m_imageCapture.reset(new QImageCapture());
-        m_captureSession.setImageCapture(m_imageCapture.get());
+    connect(m_camera.get(), &QCamera::activeChanged, this, &Camera::updateCameraActive);
+    connect(m_camera.get(), &QCamera::errorOccurred, this, &Camera::displayCameraError);
 
-        // Set the desired resolution for image capture
-        //m_imageCapture->setResolution(1280, 800);
-
-        connect(m_camera.get(), &QCamera::activeChanged, this, &Camera::updateCameraActive);
-        connect(m_camera.get(), &QCamera::errorOccurred, this, &Camera::displayCameraError);
-
-
-        QPair<int, int> resolution = VideoHid::getInstance().getResolution();
-        video_width = resolution.first;
-        video_height = resolution.second;
-        qCDebug(log_ui_mainwindow) << "Camera resolution: " << resolution;
-
-    }
+    queryResolutions();
 
     m_captureSession.setVideoOutput(this->videoPane);
     qCDebug(log_ui_mainwindow) << "Camera start..";
     m_camera->start();
+}
+
+void Camera::queryResolutions()
+{
+    QPair<int, int> resolution = VideoHid::getInstance().getResolution();
+    qCDebug(log_ui_mainwindow) << "Input resolution: " << resolution;
+    GlobalVar::instance().setInputWidth(resolution.first);
+    GlobalVar::instance().setInputHeight(resolution.second);
+    video_width = GlobalVar::instance().getCaptureWidth();
+    video_height = GlobalVar::instance().getCaptureHeight();
+
+    float input_fps = VideoHid::getInstance().getFps();
+    updateResolutions(resolution.first, resolution.second, input_fps, video_width, video_height, GlobalVar::instance().getCaptureFps());
 }
 
 void Camera::resizeEvent(QResizeEvent *event) {
@@ -199,11 +203,13 @@ void Camera::resizeEvent(QResizeEvent *event) {
     qCDebug(log_ui_mainwindow) << "menuBar height:" << this->menuBar()->height() << ", statusbar height:" << ui->statusbar->height() << ", titleBarHeight" << titleBarHeight;
 
     // Calculate the new height based on the width and the aspect ratio
-    int new_height = static_cast<int>(width() / aspect_ratio) - this->menuBar()->height() - ui->statusbar->height() - 1;
-    // int new_height = static_cast<int>(width() / aspect_ratio) + this->menuBar()->height() + ui->statusbar->height()+titleBarHeight;
+    // int new_width = static_cast<int>((height() -  this->menuBar()->height() - ui->statusbar->height()) * aspect_ratio);
+    int new_height = static_cast<int>(width() / aspect_ratio) + this->menuBar()->height() + ui->statusbar->height();
+
     // Set the new size of the window
     qCDebug(log_ui_mainwindow) << "Resize to " << width() << "x" << new_height;
     resize(width(), new_height);
+    // resize(new_width, height());
 }
 
 
@@ -350,11 +356,14 @@ void Camera::popupMessage(QString message)
 
 void Camera::updateCameraActive(bool active) {
     qCDebug(log_ui_mainwindow) << "Camera active: " << active;
-    if(!active){
+    if(active){
+        qCDebug(log_ui_mainwindow) << "Set index to : " << 1;
+        stackedLayout->setCurrentIndex(1);
+    }else {
         qCDebug(log_ui_mainwindow) << "Set index to : " << 0;
         stackedLayout->setCurrentIndex(0);
-        return;
     }
+    queryResolutions();
 }
 
 void Camera::updateRecordTime()
@@ -378,15 +387,15 @@ void Camera::processCapturedImage(int requestId, const QImage &img)
 
 void Camera::configureCaptureSettings()
 {
-    if (m_doImageCapture)
-        configureImageSettings();
-    else
-        configureVideoSettings();
+    // if (m_doImageCapture)
+    //     configureImageSettings();
+    // else
+    configureVideoSettings();
 }
 
 void Camera::configureVideoSettings()
 {
-    VideoSettings settingsDialog(m_mediaRecorder.data());
+    VideoSettings settingsDialog(m_camera.data());
 
     if (settingsDialog.exec())
         settingsDialog.applySettings();
@@ -551,4 +560,16 @@ void Camera::onLastKeyPressed(const QString& key) {
 
 void Camera::onLastMouseLocation(const QPoint& location) {
     // Implementation...
+}
+
+void Camera::updateResolutions(int input_width, int input_height, float input_fps, int capture_width, int capture_height, int capture_fps)
+{
+    QString text = QString("Resolution: INPUT(%1x%2@%3) | CAPTURE(%4x%5@%6)")
+        .arg(input_width)
+        .arg(input_height)
+        .arg(input_fps)
+        .arg(capture_width)
+        .arg(capture_height)
+        .arg(capture_fps);
+    resolutionLabel->setText(text);
 }

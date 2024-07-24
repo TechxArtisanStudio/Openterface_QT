@@ -32,11 +32,23 @@ public:
         return instance;
     }
 
-    int getVideoWidth() const { return video_width; }
-    void setVideoWidth(int width) { video_width = width; }
+    int getInputWidth() const { return input_width; }
+    void setInputWidth(int width) { input_width = width; }
 
-    int getVideoHeight() const { return video_height; }
-    void setVideoHeight(int height) { video_height = height; }
+    int getInputHeight() const { return input_height; }
+    void setInputHeight(int height) { input_height = height; }
+
+    float getInputFps() const { return input_fps; }
+    void setInputFps(float fps) { input_fps = fps; }
+
+    int getCaptureWidth() const { return capture_width; }
+    void setCaptureWidth(int width) { capture_width = width; }
+
+    int getCaptureHeight() const { return capture_height; }
+    void setCaptureHeight(int height) { capture_height = height; }
+
+    int getCaptureFps() const { return capture_fps; }
+    void setCaptureFps(int fps) { capture_fps = fps; }
 
     int getWinWidth() const { return win_width; }
     void setWinWidth(int width) { win_width = width; }
@@ -58,7 +70,7 @@ public:
     int getAllbarHeight() const {return title_height + menu_height + statusbar_height ;}
 
 private:
-    GlobalVar() : video_width(1920), video_height(1080) {} // Private constructor
+    GlobalVar() : input_width(1920), input_height(1080), capture_width(1920), capture_height(1080), capture_fps(30) {} // Private constructor
     ~GlobalVar() {} // Private destructor
 
     // Prevent copying
@@ -72,8 +84,15 @@ private:
     int video_x;
     int video_y;
 
-    int video_width;
-    int video_height;
+    // The target device input resolution
+    int input_width;
+    int input_height;
+    float input_fps;
+
+    // The capture card capture resolution
+    int capture_width;
+    int capture_height;
+    float capture_fps;
 
     int win_width;
     int win_height;
