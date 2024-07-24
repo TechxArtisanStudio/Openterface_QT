@@ -33,12 +33,16 @@
       <item row="0" column="0" colspan="2">
        <widget class="QLabel" name="label_8">
         <property name="text">
-         <string>Camera Format</string>
+         <string>Capture resolutions:</string>
         </property>
        </widget>
       </item>
       <item row="5" column="0" colspan="2">
-       <widget class="QComboBox" name="videoCodecBox"/>
+       <widget class="QComboBox" name="pixelFormatBox">
+        <property name="enabled">
+         <bool>false</bool>
+        </property>
+       </widget>
       </item>
       <item row="2" column="0" colspan="2">
        <widget class="QLabel" name="label_9">
@@ -50,17 +54,21 @@
       <item row="4" column="0" colspan="2">
        <widget class="QLabel" name="label_6">
         <property name="text">
-         <string>Video Codec:</string>
+         <string>Pixel Format:</string>
         </property>
        </widget>
       </item>
       <item row="1" column="0" colspan="2">
-       <widget class="QComboBox" name="videoFormatBox"/>
+       <widget class="QComboBox" name="videoFormatBox">
+        <property name="currentIndex">
+         <number>-1</number>
+        </property>
+       </widget>
       </item>
       <item row="3" column="0" colspan="2">
        <layout class="QHBoxLayout" name="horizontalLayout">
         <item>
-         <widget class="QSpinBox" name="fpsSpinBox"/>
+         <widget class="FpsSpinBox" name="fpsSpinBox"/>
         </item>
         <item>
          <widget class="QSlider" name="fpsSlider">
@@ -119,7 +127,11 @@
           </widget>
          </item>
          <item>
-          <widget class="QSpinBox" name="audioSampleRateBox"/>
+          <widget class="QSpinBox" name="audioSampleRateBox">
+           <property name="enabled">
+            <bool>false</bool>
+           </property>
+          </widget>
          </item>
         </layout>
        </widget>
@@ -152,7 +164,11 @@
           </widget>
          </item>
          <item>
-          <widget class="QComboBox" name="containerFormatBox"/>
+          <widget class="QComboBox" name="containerFormatBox">
+           <property name="enabled">
+            <bool>false</bool>
+           </property>
+          </widget>
          </item>
         </layout>
        </widget>
@@ -175,6 +191,13 @@
    </item>
   </layout>
  </widget>
+ <customwidgets>
+  <customwidget>
+   <class>FpsSpinBox</class>
+   <extends>QSpinBox</extends>
+   <header>ui/fpsspinbox.h</header>
+  </customwidget>
+ </customwidgets>
  <resources/>
  <connections>
   <connection>

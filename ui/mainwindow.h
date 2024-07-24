@@ -38,6 +38,7 @@
 #include <QMainWindow>
 #include <QStackedLayout>
 #include <QLoggingCategory>
+#include <QLabel>
 
 Q_DECLARE_LOGGING_CATEGORY(log_ui_mainwindow)
 
@@ -111,6 +112,11 @@ protected:
     void onActionRelativeTriggered();
     void onActionResetHIDTriggered();
     void onActionResetSerialPortTriggered();
+
+    void queryResolutions();
+    
+    void updateResolutions(int input_width, int input_height, float input_fps, int capture_width, int capture_height, int capture_fps);
+
 private:
     Ui::Camera *ui;
     TransWindow *transWindow;
@@ -135,6 +141,7 @@ private:
     QList<QCameraDevice> m_lastCameraList;
 
     MetaDataDialog *m_metaDataDialog = nullptr;
+    QLabel *resolutionLabel; 
 };
 
 #endif
