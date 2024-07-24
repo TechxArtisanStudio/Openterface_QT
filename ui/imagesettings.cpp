@@ -31,13 +31,26 @@
 
 #include <QDebug>
 
+QString pixelFormatToString(QVideoFrameFormat::PixelFormat format) {
+    qDebug() << format;
+    switch (format) {
+    case QVideoFrameFormat::Format_Jpeg: return "Jpeg";
+    case QVideoFrameFormat::Format_YUYV: return "YUYV";
+    case QVideoFrameFormat::Format_NV12: return "NV12";
+    // Add more formats as needed
+    default: return "Unknown";
+    }
+}
+
+
+
 ImageSettings::ImageSettings(QImageCapture *imageCapture, QWidget *parent)
     : QDialog(parent), ui(new Ui::ImageSettingsUi), imagecapture(imageCapture)
 {
     ui->setupUi(this);
 
     //image codecs
-    ui->imageCodecBox->addItem(tr("Default image format"), QVariant(QString()));
+    ui->imageCodecBox->addItem(tr("Default video format"), QVariant(QString()));
     const auto supportedImageFormats = QImageCapture::supportedFormats();
     for (const auto &f : supportedImageFormats) {
         QString description = QImageCapture::fileFormatDescription(f);
@@ -48,12 +61,18 @@ ImageSettings::ImageSettings(QImageCapture *imageCapture, QWidget *parent)
     ui->imageQualitySlider->setRange(0, int(QImageCapture::VeryHighQuality));
 
     ui->imageResolutionBox->addItem(tr("Default Resolution"));
-    const QList<QSize> supportedResolutions =
-            imagecapture->captureSession()->camera()->cameraDevice().photoResolutions();
-    for (const QSize &resolution : supportedResolutions) {
+    const QList<QCameraFormat> formats =
+            imagecapture->captureSession()->camera()->cameraDevice().videoFormats();
+    for (const QCameraFormat &format : formats) {
+        qDebug() << "Resolution: " << format.resolution();
+        QSize resolution = format.resolution();
         ui->imageResolutionBox->addItem(
-            QString::asprintf("%1x%2", resolution.width(), resolution.height()),
-            QVariant(resolution));
+            QString::asprintf("%dx%d@%.0fHz %s",
+                            resolution.width(), 
+                            resolution.height(), 
+                            format.minFrameRate(),
+                            pixelFormatToString(format.pixelFormat()).toUtf8().constData()),
+            QVariant::fromValue(format));
     }
 
     selectComboBoxItem(ui->imageCodecBox, QVariant::fromValue(imagecapture->fileFormat()));
@@ -81,7 +100,7 @@ void ImageSettings::changeEvent(QEvent *e)
 void ImageSettings::applyImageSettings() const
 {
     imagecapture->setFileFormat(boxValue(ui->imageCodecBox).value<QImageCapture::FileFormat>());
-    imagecapture->setQuality(QImageCapture::Quality(ui->imageQualitySlider->value()));
+    // imagecapture->setQuality(QImageCapture::Quality(ui->imageQualitySlider->value()));
     imagecapture->setResolution(boxValue(ui->imageResolutionBox).toSize());
 }
 

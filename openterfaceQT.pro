@@ -12,6 +12,7 @@ QT       += core gui multimedia multimediawidgets serialport concurrent
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 
 SOURCES += main.cpp \
+    ui/fpsspinbox.cpp \
     video/videohid.cpp \
     ui/helppane.cpp \
     ui/imagesettings.cpp \
@@ -27,6 +28,7 @@ SOURCES += main.cpp \
 
 HEADERS  += \
     global.h \
+    ui/fpsspinbox.h \
     video/videohid.h \
     ui/helppane.h \
     ui/imagesettings.h \
