@@ -74,18 +74,9 @@ jobs:
           ls -la ${{ runner.temp }}
           ls -la ${{github.workspace}}
 
-      - name: Create build directory
-        run: mkdir ${{ runner.temp }}/build
-
-      - name: Configure And Build
-        working-directory: ${{ runner.temp }}/build
-        run: |
-          qmake && make -j$(nproc)
-          cp ${{ github.workspace }}/build/bin/${{ env.ARTIFACT }} ${{ github.workspace }}/${{ env.ARTIFACT }}
-
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ env.ARTIFACT }}
-          path: ${{ runner.temp }}/${{ env.ARTIFACT }}_${GITHUB_REF#refs/tags/}.deb
+          name: openterfaceqt.deb
+          path: ${{ runner.temp }}/${{ env.ARTIFACT }}.deb
           if-no-files-found: error
