@@ -1,93 +1,61 @@
-name: Linux Release
+---
+name: Linux Build
 
 on:
   push:
-    branches:
-      - 'dev'
-    tags:
-      - 'v*'
+    branches: ['main', 'dev']
+    tags: ['v*']
   pull_request:
-    branches:
-    - 'dev'
-
-defaults:
-  run:
-    shell: bash
-
-env:
-  SOURCE_DIR:   ${{ github.workspace }}
-  QT_VERSION:   6.4.2
-  ARTIFACT:     openterfaceQT
+    branches: ['dev']
 
 jobs:
   build:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repo
-        uses: actions/checkout@v4
-        with:
-          submodules: recursive
+    - name: Checkout code
+      uses: actions/checkout@v2
 
-      - name: Setup Dependencies
-        run: |
+    - name: Set up Qt
+      uses: jurplel/install-qt-action@v2
+      with:
+        version: '6.4.2'
+        host: 'ubuntu'
+        target: 'desktop'
+        arch: 'gcc_64'
 
-            echo "deb http://deb.debian.org/debian bookworm main contrib non-free non-free-firmware
-            deb http://deb.debian.org/debian-security/ bookworm-security main contrib non-free non-free-firmware
-            deb http://deb.debian.org/debian bookworm-updates main contrib non-free non-free-firmware" | sudo tee -a /etc/apt/sources.list
-            sudo apt-key adv --keyserver keyserver.ubuntu.com --recv-keys 0E98404D386FA1D9 6ED0E7B82643E131 F8D2585B8783D481 54404762BBB6E853 BDE6D2B9216EC7A8
-            sudo apt-get update -y
-            sudo apt-get install -y \
-                build-essential \
-                qmake6 \
-                qt6-base-dev \
-                qt6-multimedia-dev \
-                qt6-serialport-dev \
-                mesa-common-dev
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y build-essential fakeroot devscripts lintian
 
-      - name: Get all tags for correct version determination
-        working-directory:  ${{ github.workspace }}
-        run: |
-          git fetch --all --tags -f
+    - name: Build project
+      run: |
+        mkdir build
+        cd build
+        qmake6 ..
+        make -j $(nproc)
 
-      - name: Create build directory
-        run:  mkdir ${{ runner.temp }}/build
+    - name: Create deb package
+      run: |
+        mkdir -p build/deb/usr/local/bin
+        cp build/your_executable build/deb/usr/local/bin/
+        mkdir -p build/deb/DEBIAN
+        echo "Package: openterfaceqt
+        Version: ${GITHUB_REF#refs/tags/}
+        Section: base
+        Priority: optional
+        Architecture: all
+        Depends: libqt6core6 (>= 6.4.2), libqt6multimedia6 (>= 6.4.2), libqt6serialport6 (>= 6.4.2)
+        Maintainer: TechXArtisan <info@techxartisan.com>
+        Description: OpenterfaceQT" > build/deb/DEBIAN/control
+        dpkg-deb --build build/deb
 
-      - name: Configure And Build
-        working-directory: ${{ runner.temp }}/build
-        run:  |
-          qmake6 ${{ github.workspace }} && make -j$(nproc)
-          
-      - name: Create deb package
-        working-directory: ${{ runner.temp }}
-        run: |
-          mkdir -p package/DEBIAN
-          # Create control file with package information
-          echo "Package: ${{ env.ARTIFACT }}
-          Version: 0.0.1
-          Section: base
-          Priority: optional
-          Architecture: all
-          Maintainer: TechXArtisan <info@techxartisan.com>
-          Description: OpenterfaceQT" > package/DEBIAN/control
-          # Copy files to package directory
-          mkdir -p package/usr/bin
-          cp -r build/openterfaceQT package/usr/bin
-          # Build deb package
-          mv package ${{ env.ARTIFACT }}
-          dpkg-deb --build ${{ env.ARTIFACT }}
-              
-      - name: Create build directory
-        run:  mkdir ${{ runner.temp }}\build
+    - name: Rename and move deb package for upload
+      run: mv build/deb.deb build/openterfaceqt_${GITHUB_REF#refs/tags/}.deb
 
-      - name: Configure And Build
-        working-directory: ${{ runner.temp }}\build
-        run:  |
-          qmake && make -j$(nproc)
-          cp ${{ github.workspace }}\build\bin\${{ env.ARTIFACT }} ${{ github.workspace }}\${{ env.ARTIFACT }}
-
-      - name: Upload Artifact
-        uses: actions/upload-artifact@v2
-        with:
-          name: ${{ env.ARTIFACT }}
-          path: ${{ runner.temp }}/${{ env.ARTIFACT }}.deb
+    - name: Upload artifact
+      uses: actions/upload-artifact@v2
+      with:
+        name: deb-package
+        path: build/openterfaceqt_${GITHUB_REF#refs/tags/}.deb
