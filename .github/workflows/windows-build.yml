@@ -43,16 +43,11 @@ jobs:
           modules: qtmultimedia qtserialport
           setup-python: false
 
-      - name: Download JOM
-        uses: suisei-cn/actions-download-file@v1
-        with:
-          url: http://download.qt.io/official_releases/jom/jom.zip
-          target: ${{ runner.temp }}\
-
-      - name: Unzip JOM
+      - name: Download and Unzip Jom
         working-directory: ${{ runner.temp }}
         run: |
-          7z x jom.zip -ojom
+          curl -L -o jom.zip "http://download.qt.io/official_releases/jom/jom.zip"
+          7z x jom.zip -o jom
 
       - name: Create build directory
         run: mkdir ${{ runner.temp }}\build
