@@ -12,7 +12,7 @@ on:
 env:
   ARTIFACT: openterfaceQT
   SOURCE_DIR: ${{ github.workspace }}
-  QT_VERSION: 6.6.3
+  QT_VERSION: 6.4.2
 
 jobs:
   build:
@@ -38,7 +38,6 @@ jobs:
           target: desktop
           arch: gcc_64
           modules: qtmultimedia qtserialport
-          setup-python: false
 
       - name: Get all tags for correct version determination
         working-directory: ${{ github.workspace }}
