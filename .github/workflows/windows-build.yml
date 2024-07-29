@@ -1,0 +1,97 @@
+name: Windows Release
+
+on:
+  push:
+    branches: ["main", "dev"]
+    tags: ["v*"]
+  pull_request:
+    branches: ["dev"]
+  workflow_dispatch:
+
+defaults:
+  run:
+    shell: cmd
+
+env:
+  ARTIFACT: OpenterfaceInstaller.exe
+  SOURCE_DIR: ${{ github.workspace }}
+  QT_VERSION: 6.6.3
+
+jobs:
+  build:
+    runs-on: windows-2019
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Get all tags for correct version determination
+        working-directory: ${{ github.workspace }}
+        run: |
+          git fetch --all --tags -f
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: ${{ env.QT_VERSION }}
+          host: windows
+          target: desktop
+          arch: win64_msvc2019_64
+          dir: ${{ runner.temp }}
+          modules: qtmultimedia qtserialport
+          setup-python: false
+
+      - name: Download JOM
+        uses: suisei-cn/actions-download-file@v1
+        with:
+          url: http://download.qt.io/official_releases/jom/jom.zip
+          target: ${{ runner.temp }}\
+
+      - name: Unzip JOM
+        working-directory: ${{ runner.temp }}
+        run: |
+          7z x jom.zip -ojom
+
+      - name: Create build directory
+        run: mkdir ${{ runner.temp }}\build
+
+      - name: Set up Visual Studio shell
+        uses: egor-tensin/vs-shell@v2
+        with:
+          arch: x64
+
+      - name: Build
+        working-directory: ${{ runner.temp }}\build
+        run: |
+          qmake -r ${{ env.SOURCE_DIR }}\openterfaceQT.pro
+          ${{ runner.temp }}\jom\jom -j2
+          mkdir package
+          mkdir package\driver
+          copy release\openterfaceQT.exe package
+          copy ${{ env.SOURCE_DIR }}\driver\windows\* package\driver
+          cd package
+          windeployqt --qmldir ${{ env.SOURCE_DIR }} openterfaceQT.exe --compiler-runtime
+          copy C:\Windows\System32\concrt140.dll . 
+          copy C:\Windows\System32\vccorlib140.dll .
+          copy C:\Windows\System32\msvcp140.dll .
+
+      - name: Move directory
+        working-directory: ${{ runner.temp }}\build
+        run: |
+          move /Y package ${{ env.SOURCE_DIR }}
+        shell: cmd
+
+      - name: Compile .ISS to .EXE Installer
+        uses: Minionguyjpro/Inno-Setup-Action@v1.2.2
+        with:
+          path: installer.iss
+          options: /O+ /DWorkingDir="${{ runner.temp }}\build"
+
+      - name: Save build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: openterfaceqt.exe
+          path: ${{ env.SOURCE_DIR }}\Output\${{ env.ARTIFACT }}
+          if-no-files-found: error
