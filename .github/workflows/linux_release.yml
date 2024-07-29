@@ -38,16 +38,16 @@ jobs:
               mesa-common-dev
 
       - name: Get all tags for correct version determination
-        working-directory:  ${{ github.workspace }}
+        working-directory: ${{ github.workspace }}
         run: |
           git fetch --all --tags -f
 
       - name: Create build directory
-        run:  mkdir ${{ runner.temp }}/build
-  
+        run: mkdir ${{ runner.temp }}/build
+
       - name: Configure And Build
         working-directory: ${{ runner.temp }}/build
-        run:  |
+        run: |
           qmake6 ${{ github.workspace }} && make -j$(nproc)
 
       - name: Create deb package
@@ -69,14 +69,19 @@ jobs:
           mv package ${{ env.ARTIFACT }}
           dpkg-deb --build ${{ env.ARTIFACT }}
 
+      - name: Debug list
+        run: |
+          ls -la ${{ runner.temp }}
+          ls -la ${{github.workspace}}
+
       - name: Create build directory
-        run:  mkdir ${{ runner.temp }}\build
+        run: mkdir ${{ runner.temp }}/build
 
       - name: Configure And Build
-        working-directory: ${{ runner.temp }}\build
-        run:  |
+        working-directory: ${{ runner.temp }}/build
+        run: |
           qmake && make -j$(nproc)
-          cp ${{ github.workspace }}\build\bin\${{ env.ARTIFACT }} ${{ github.workspace }}\${{ env.ARTIFACT }}
+          cp ${{ github.workspace }}/build/bin/${{ env.ARTIFACT }} ${{ github.workspace }}/${{ env.ARTIFACT }}
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
