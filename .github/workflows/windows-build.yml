@@ -47,7 +47,7 @@ jobs:
         working-directory: ${{ runner.temp }}
         run: |
           curl -L -o jom.zip "http://download.qt.io/official_releases/jom/jom.zip"
-          7z x jom.zip -o jom
+          7z x jom.zip -ojom
 
       - name: Create build directory
         run: mkdir ${{ runner.temp }}\build
