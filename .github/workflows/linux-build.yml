@@ -12,7 +12,7 @@ on:
 env:
   ARTIFACT: openterfaceQT
   SOURCE_DIR: ${{ github.workspace }}
-  QT_VERSION: 6.4.2
+  QT_VERSION: 6.6.3
 
 jobs:
   build:
@@ -24,20 +24,21 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Install dependencies
+      - name: Install prerequisites
         run: |
-          echo "deb http://deb.debian.org/debian bookworm main contrib non-free non-free-firmware
-          deb http://deb.debian.org/debian-security/ bookworm-security main contrib non-free non-free-firmware
-          deb http://deb.debian.org/debian bookworm-updates main contrib non-free non-free-firmware" | sudo tee -a /etc/apt/sources.list
-          sudo apt-key adv --keyserver keyserver.ubuntu.com --recv-keys 0E98404D386FA1D9 6ED0E7B82643E131 F8D2585B8783D481 54404762BBB6E853 BDE6D2B9216EC7A8
-          sudo apt-get update -y
-          sudo apt-get install -y \
-              build-essential \
-              qmake6 \
-              qt6-base-dev \
-              qt6-multimedia-dev \
-              qt6-serialport-dev \
-              mesa-common-dev
+          sudo apt update -y
+          sudo apt upgrade -y
+          sudo apt install build-essential
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: ${{ env.QT_VERSION }}
+          host: linux
+          target: desktop
+          arch: gcc_64
+          modules: qtmultimedia qtserialport
+          setup-python: false
 
       - name: Get all tags for correct version determination
         working-directory: ${{ github.workspace }}
