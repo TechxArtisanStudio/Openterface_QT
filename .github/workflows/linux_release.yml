@@ -18,12 +18,12 @@ jobs:
       uses: actions/checkout@v2
 
     - name: Set up Qt
-      uses: jurplel/install-qt-action@v2
+      uses: jurplel/install-qt-action@v4
       with:
-        version: '6.4.2'
-        host: 'ubuntu'
-        target: 'desktop'
-        arch: 'gcc_64'
+        version: 6.4.2
+        host: linux
+        target: desktop
+        arch: gcc_64
 
     - name: Install dependencies
       run: |
