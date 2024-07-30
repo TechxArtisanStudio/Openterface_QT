@@ -301,6 +301,7 @@ void SerialPortManager::readData() {
                 break;
             case 0x84:
                 qCDebug(log_core_serial) << "Absolute mouse event sent, status" << data[5];
+                break;
             case 0x85:
                 qCDebug(log_core_serial) << "Relative mouse event sent, status" << data[5];
                 break;
