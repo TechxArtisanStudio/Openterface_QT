@@ -25,6 +25,7 @@
 #include "ui_mainwindow.h"
 
 #include "ui/imagesettings.h"
+#include "ui/settingdialog.h"
 #include "ui/helppane.h"
 #include "ui/videosettings.h"
 #include "ui/videopane.h"
@@ -115,6 +116,8 @@ Camera::Camera() : ui(new Ui::Camera), videoPane(new VideoPane(this)),
     qCDebug(log_ui_mainwindow) << "Observe reset Serial Port triggerd...";
     connect(ui->actionResetSerialPort, &QAction::triggered, this, &Camera::onActionResetSerialPortTriggered);
 
+    
+
     init();
 }
 
@@ -170,6 +173,8 @@ void Camera::setCamera(const QCameraDevice &cameraDevice)
 
     connect(m_camera.get(), &QCamera::activeChanged, this, &Camera::updateCameraActive);
     connect(m_camera.get(), &QCamera::errorOccurred, this, &Camera::displayCameraError);
+    qCDebug(log_ui_mainwindow) << "Observe congigure setting";
+    // connect(ui->actionsetting, &QAction::triggered, this, &Camera::configureSettings);
 
     queryResolutions();
 
@@ -407,6 +412,14 @@ void Camera::configureImageSettings()
 
     if (settingsDialog.exec() == QDialog::Accepted)
         settingsDialog.applyImageSettings();
+}
+
+void Camera::configureSettings() {
+    qDebug() << "Configuring settings...";
+    settingDialog *setting = new settingDialog(this);
+    setting->setWindowTitle("setting");
+    qDebug() << "Setting configuration... ";
+    setting->show();
 }
 
 void Camera::record()
