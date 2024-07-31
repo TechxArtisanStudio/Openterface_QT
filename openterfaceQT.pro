@@ -13,6 +13,7 @@ greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 
 SOURCES += main.cpp \
     ui/fpsspinbox.cpp \
+    ui/settingdialog.cpp \
     video/videohid.cpp \
     ui/helppane.cpp \
     ui/imagesettings.cpp \
@@ -29,6 +30,7 @@ SOURCES += main.cpp \
 HEADERS  += \
     global.h \
     ui/fpsspinbox.h \
+    ui/settingdialog.h \
     video/videohid.h \
     ui/helppane.h \
     ui/imagesettings.h \
@@ -47,6 +49,7 @@ HEADERS  += \
 FORMS    += \
     ui/imagesettings.ui \
     ui/mainwindow.ui \
+    ui/settingdialog.ui \
     ui/videosettings.ui
 
 RESOURCES += \

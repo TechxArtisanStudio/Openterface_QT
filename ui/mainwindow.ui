@@ -60,6 +60,8 @@
     <addaction name="separator"/>
     <addaction name="actionSettings"/>
     <addaction name="separator"/>
+    <addaction name="actionsetting"/>
+    <addaction name="separator"/>
     <addaction name="actionExit"/>
    </widget>
    <widget class="QMenu" name="menuSource">
@@ -120,6 +122,14 @@
   <action name="actionAutoReszie">
    <property name="text">
     <string>AutoReszie</string>
+   </property>
+  </action>
+  <action name="actionsetting">
+   <property name="checkable">
+    <bool>false</bool>
+   </property>
+   <property name="text">
+    <string>setting</string>
    </property>
   </action>
   <actiongroup name="actionGroup">
@@ -210,6 +220,22 @@
     </hint>
    </hints>
   </connection>
+  <connection>
+   <sender>actionsetting</sender>
+   <signal>triggered()</signal>
+   <receiver>Camera</receiver>
+   <slot>configureSettings()</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>-1</x>
+     <y>-1</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>639</x>
+     <y>380</y>
+    </hint>
+   </hints>
+  </connection>
  </connections>
  <slots>
   <slot>record()</slot>
@@ -217,6 +243,7 @@
   <slot>stop()</slot>
   <slot>enablePreview(bool)</slot>
   <slot>configureCaptureSettings()</slot>
+  <slot>configureSettings()</slot>
   <slot>takeImage()</slot>
   <slot>startCamera()</slot>
   <slot>toggleLock()</slot>
