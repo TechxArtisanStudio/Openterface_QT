@@ -2,7 +2,9 @@
 #define SETTINGDIALOG_H
 
 #include <QDialog>
-
+#include <QWidget>
+#include <QTreeWidget>
+#include <QTreeWidgetItem>
 namespace Ui {
 class settingDialog;
 }
@@ -14,12 +16,15 @@ class settingDialog : public QDialog
 public:
     explicit settingDialog(QWidget *parent = nullptr);
     ~settingDialog();
-private slots:
-    void clickbtn();
 
 private:
     Ui::settingDialog *ui;
-    void init();
+    QTreeWidget *settingTree;
+    
+    void switchWidgetShow(QString &btnName);
+    void createSettingTree();
+    void createLayout();
+
 };
 
 #endif // SETTINGDIALOG_H
