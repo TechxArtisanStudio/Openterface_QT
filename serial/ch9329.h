@@ -49,7 +49,6 @@ T fromByteArray(const QByteArray &data) {
         result.dump();
     } else {
         qWarning() << "Data size is too small to parse" << typeid(T).name();
-        qDebug() << "Data content:" << data.toHex(' ');
     }
     return result;
 }
@@ -58,23 +57,26 @@ struct CmdDataParamConfig
 {
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
 >>>>>>> 9e3324f (Refactor SerialPortManager to restart port on reset and improve error handling)
+=======
+>>>>>>> 6e7d29e (chore: Refactor SerialPortManager to improve port initialization and configuration)
     uint16_t prefix;    //0x57AB
     uint8_t addr1;      //0x00
     uint8_t cmd;        //0x08
     uint8_t len;        //0x32
     uint8_t mode;       //0x82
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> 6e7d29e (chore: Refactor SerialPortManager to improve port initialization and configuration)
 =======
     uint16_t prefix;
     uint8_t addr1;
     uint8_t cmd;
     uint8_t len;
     uint8_t mode;
->>>>>>> 3c884b2 (chore: Refactor SerialPortManager to improve port initialization and configuration)
-=======
->>>>>>> 9e3324f (Refactor SerialPortManager to restart port on reset and improve error handling)
     uint8_t cfg;
     uint8_t addr2;
     uint32_t baudrate;
@@ -158,6 +160,9 @@ struct CmdDataParamConfig
 struct CmdDataResult {
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> 6e7d29e (chore: Refactor SerialPortManager to improve port initialization and configuration)
     uint16_t prefix;    //0x57AB
     uint8_t addr1;      //0x00
     uint8_t cmd;        
@@ -165,12 +170,16 @@ struct CmdDataResult {
     uint16_t prefix;
     uint8_t addr1;
     uint8_t cmd;
+<<<<<<< HEAD
 >>>>>>> 3c884b2 (chore: Refactor SerialPortManager to improve port initialization and configuration)
 =======
     uint16_t prefix;    //0x57AB
     uint8_t addr1;      //0x00
     uint8_t cmd;        
 >>>>>>> 9e3324f (Refactor SerialPortManager to restart port on reset and improve error handling)
+=======
+>>>>>>> 6224ec8 (chore: Refactor SerialPortManager to improve port initialization and configuration)
+>>>>>>> 6e7d29e (chore: Refactor SerialPortManager to improve port initialization and configuration)
     uint8_t len;
     uint8_t data;
     uint8_t sum;
