@@ -525,7 +525,7 @@ void Camera::updateCameras()
 
     for (const QCameraDevice &camera : availableCameras) {
         if (!m_lastCameraList.contains(camera)) {
-            //qCDebug(log_ui_mainwindow) << "A new camera has been connected:" << camera.description();
+            qCDebug(log_ui_mainwindow) << "A new camera has been connected:" << camera.description();
 
             if (!camera.description().contains("Openterface"))
                 continue;
