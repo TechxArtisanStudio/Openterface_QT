@@ -38,6 +38,7 @@ HEADERS  += \
     ui/videopane.h \
     ui/videosettings.h \
     host/HostManager.h \
+    serial/ch9329.h \
     serial/serialportevents.h \
     serial/SerialPortManager.h \
     target/KeyboardManager.h \

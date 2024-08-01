@@ -25,10 +25,12 @@
 
 #include "serialportevents.h"
 #include <QObject>
-#include <QDebug>
 #include <QSerialPort>
 #include <QThread>
+#include <QTimer>
 #include <QLoggingCategory>
+
+#include "ch9329.h"
 
 Q_DECLARE_LOGGING_CATEGORY(log_core_serial)
 
@@ -37,16 +39,9 @@ class SerialPortManager : public QObject
     Q_OBJECT
 
 public:
-    static const QByteArray MOUSE_ABS_ACTION_PREFIX;
-    static const QByteArray MOUSE_REL_ACTION_PREFIX;
-    static const QByteArray CMD_GET_PARA_CFG;
-    static const QByteArray CMD_RESET;
-    static const QByteArray CMD_SET_PARA_CFG_PREFIX;
-    static const QByteArray CMD_SET_PARA_CFG_MID;
-
     static const int ORIGINAL_BAUDRATE = 9600;
     static const int DEFAULT_BAUDRATE = 115200;
-    
+
     static SerialPortManager& getInstance() {
         static SerialPortManager instance; // Guaranteed to be destroyed, instantiated on first use.
         return instance;
@@ -62,36 +57,50 @@ public:
     void closePort();
 
     bool writeData(const QByteArray &data);
-    bool sendCommand(const QByteArray &data, bool force);
+    bool sendAsyncCommand(const QByteArray &data, bool force);
+    QByteArray sendSyncCommand(const QByteArray &data, bool force);
     bool sendResetCommand();
     void resetSerialPort();
     void resetHidChip();
 
 signals:
     void dataReceived(const QByteArray &data);
+    void serialPortConnected(const QString &portName);
+    void serialPortDisconnected(const QString &portName);
+    void serialPortConnectionSuccess(const QString &portName);
 
 private slots:
     void checkSerialPort();
-    void initializeSerialPort(const QString& availablePort);
-    void observerSerialPortNotification();
+
+    void observeSerialPortNotification();
     void readData();
     void aboutToClose();
     void bytesWritten(qint64 bytes);
-    bool prepareSerialPort(const QString& availablePort);
-
 
     static quint8 calculateChecksum(const QByteArray &data);
     //void checkSerialPortConnection();
-    QString getPortName();
+
+    void checkSerialPorts();
+
+    void onSerialPortConnected(const QString &portName);
+    void onSerialPortDisconnected(const QString &portName);
+    void onSerialPortConnectionSuccess(const QString &portName);
 
 private:
     SerialPortManager(QObject *parent = nullptr);
     QSerialPort *serialPort;
-    int baudrate = ORIGINAL_BAUDRATE;
+
+    QSet<QString> availablePorts;
+
+    // int baudrate = ORIGINAL_BAUDRATE;
+
     QThread *serialThread;
+    QTimer *serialTimer;
+
     QList<QSerialPortInfo> m_lastPortList;
     bool ready = false;
     SerialPortEventCallback* eventCallback = nullptr;
+
 };
 
 #endif // SERIALPORTMANAGER_H
