@@ -5,6 +5,8 @@
 #include <QWidget>
 #include <QTreeWidget>
 #include <QTreeWidgetItem>
+#include <QStackedWidget>
+
 namespace Ui {
 class settingDialog;
 }
@@ -20,11 +22,15 @@ public:
 private:
     Ui::settingDialog *ui;
     QTreeWidget *settingTree;
-    
+    QStackedWidget *stackedWidget;
+
+
     void switchWidgetShow(QString &btnName);
     void createSettingTree();
     void createLayout();
-
+    void createPages();
+    void changePage(QTreeWidgetItem *current, QTreeWidgetItem *previous);
+    
 };
 
 #endif // SETTINGDIALOG_H
