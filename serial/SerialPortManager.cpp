@@ -256,8 +256,11 @@ void SerialPortManager::onSerialPortConnectionSuccess(const QString &portName){
 >>>>>>> 6e7d29e (chore: Refactor SerialPortManager to improve port initialization and configuration)
 =======
     ready = true;
+<<<<<<< HEAD
 
 >>>>>>> b9622b1 (Refactor SerialPortManager to restart port on reset and improve error handling)
+=======
+>>>>>>> c4d4d18 (Refactor SerialPortManager to add factoryResetHipChip() function and improve port initialization and configuration)
 }
 
 void SerialPortManager::setEventCallback(SerialPortEventCallback* callback) {
@@ -344,6 +347,26 @@ bool SerialPortManager::resetHipChip(){
 >>>>>>> 6e7d29e (chore: Refactor SerialPortManager to improve port initialization and configuration)
 =======
 >>>>>>> b9622b1 (Refactor SerialPortManager to restart port on reset and improve error handling)
+}
+
+/*
+ * Factory reset the hid chip by holding the RTS pin to low for 4 seconds
+ */
+bool SerialPortManager::factoryResetHipChip(){
+    qCDebug(log_core_serial) << "Factory reset Hid chip now...";
+
+    if(serialPort->setRequestToSend(true)){
+        qCDebug(log_core_serial) << "Set RTS to low";
+        QThread::sleep(4);
+        if(serialPort->setRequestToSend(false)){
+            qCDebug(log_core_serial) << "Set RTS to high";
+
+            QString portName = serialPort->portName();
+            restartPort();
+            emit serialPortConnectionSuccess(portName);
+        }
+    }
+    return false;
 }
 
 /*
