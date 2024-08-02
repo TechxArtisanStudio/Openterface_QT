@@ -38,13 +38,17 @@ private:
     QPair<QByteArray, bool> usbXdataRead4Byte(quint16 u16_address);
     QString devicePath;
 
+    bool getFeatureReport(uint8_t* buffer, size_t bufferLength);
+    bool sendFeatureReport(uint8_t* buffer, size_t bufferLength);
+
 #ifdef _WIN32
-    std::wstring GetHIDDevicePath();
-    bool sendFeatureReport(BYTE reportId, BYTE* reportBuffer, DWORD bufferSize);
-    bool getFeatureReport(BYTE reportId, BYTE* reportBuffer, DWORD bufferSize);
+    std::wstring getHIDDevicePath();
+    bool sendFeatureReportWindows(uint8_t* reportBuffer, DWORD bufferSize);
+    bool getFeatureReportWindows(uint8_t* reportBuffer, DWORD bufferSize);
 #elif __linux__
-    bool sendFeatureReport(int fd, unsigned char* reportBuffer, int bufferSize);
-    bool getFeatureReport(int fd, unsigned char* reportBuffer, int bufferSize);
+    QString getHIDDevicePath();
+    bool sendFeatureReportLinux(uint8_t* reportBuffer, int bufferSize);
+    bool getFeatureReportLinux(uint8_t* reportBuffer, int bufferSize);
 #endif
 
 };
