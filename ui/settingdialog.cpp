@@ -69,6 +69,11 @@ void settingDialog::createPages() {
     QCheckBox *serialCheckBox = new QCheckBox("serial");
     QCheckBox *uiCheckBox = new QCheckBox("ui");
     QCheckBox *hostCheckBox = new QCheckBox("host");
+    coreCheckBox->setObjectName("core");
+    serialCheckBox->setObjectName("serial");
+    uiCheckBox->setObjectName("ui");
+    hostCheckBox->setObjectName("host");
+
     QHBoxLayout *logCheckboxLayout = new QHBoxLayout();
     logCheckboxLayout->addWidget(coreCheckBox);
     logCheckboxLayout->addWidget(serialCheckBox);
@@ -116,6 +121,7 @@ void settingDialog::createButtons(){
     buttonLayout->addWidget(cancelButton);
 
     connect(cancelButton, &QPushButton::clicked, this, &QDialog::reject);
+    connect(applyButton, &QPushButton::clicked, this, &settingDialog::readCheckBoxState);
 }
 
 void settingDialog::createLayout() {
@@ -151,5 +157,25 @@ void settingDialog::changePage(QTreeWidgetItem *current, QTreeWidgetItem *previo
         QMetaObject::invokeMethod(this, [this]() {
             stackedWidget->setCurrentIndex(2);
         }, Qt::QueuedConnection);
+    }
+}
+
+void settingDialog::readCheckBoxState() {
+    QCheckBox *coreCheckBox = findChild<QCheckBox*>("core");
+    QCheckBox *serialCheckBox = findChild<QCheckBox*>("serial");
+    QCheckBox *uiCheckBox = findChild<QCheckBox*>("ui");
+    QCheckBox *hostCheckBox = findChild<QCheckBox*>("host");
+
+    if (coreCheckBox) {
+        qDebug() << "Core CheckBox:" << coreCheckBox->isChecked();
+    }
+    if (serialCheckBox) {
+        qDebug() << "Serial CheckBox:" << serialCheckBox->isChecked();
+    }
+    if (uiCheckBox) {
+        qDebug() << "UI CheckBox:" << uiCheckBox->isChecked();
+    }
+    if (hostCheckBox) {
+        qDebug() << "Host CheckBox:" << hostCheckBox->isChecked();
     }
 }
