@@ -67,7 +67,11 @@ QPair<QByteArray, bool> VideoHid::usbXdataRead4Byte(quint16 u16_address) {
 <<<<<<< HEAD
 =======
 
+<<<<<<< HEAD
 >>>>>>> 9e3324f (Refactor SerialPortManager to restart port on reset and improve error handling)
+=======
+>>>>>>> 3ff511c (Refactor SerialPortManager to restart port on reset and improve error handling)
+>>>>>>> b9622b1 (Refactor SerialPortManager to restart port on reset and improve error handling)
     // 0: Some devices use report ID 0 to indicate that no specific report ID is used. 
     if (this->sendFeatureReport((uint8_t*)ctrlData.data(), ctrlData.size())) {
         if (this->getFeatureReport((uint8_t*)result.data(), result.size())) {
