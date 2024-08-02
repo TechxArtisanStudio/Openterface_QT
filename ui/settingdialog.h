@@ -7,6 +7,7 @@
 #include <QTreeWidgetItem>
 #include <QStackedWidget>
 
+
 namespace Ui {
 class settingDialog;
 }
@@ -23,14 +24,14 @@ private:
     Ui::settingDialog *ui;
     QTreeWidget *settingTree;
     QStackedWidget *stackedWidget;
-
+    QWidget *buttonWidget;
 
     void switchWidgetShow(QString &btnName);
     void createSettingTree();
     void createLayout();
     void createPages();
     void changePage(QTreeWidgetItem *current, QTreeWidgetItem *previous);
-    
+    void createButtons();
 };
 
 #endif // SETTINGDIALOG_H
