@@ -82,6 +82,7 @@
     </widget>
     <addaction name="menuMouse_Mode"/>
     <addaction name="actionResetHID"/>
+    <addaction name="actionFactory_reset_HID"/>
     <addaction name="actionResetSerialPort"/>
    </widget>
    <addaction name="menuFile"/>
@@ -116,7 +117,7 @@
   </action>
   <action name="actionResetSerialPort">
    <property name="text">
-    <string>ResetSerialPort</string>
+    <string>Reset serialport</string>
    </property>
   </action>
   <action name="actionAutoReszie">
@@ -124,12 +125,18 @@
     <string>AutoReszie</string>
    </property>
   </action>
+<<<<<<< HEAD
   <action name="actionsetting">
    <property name="checkable">
     <bool>false</bool>
    </property>
    <property name="text">
     <string>Preference</string>
+=======
+  <action name="actionFactory_reset_HID">
+   <property name="text">
+    <string>Factory reset HID</string>
+>>>>>>> c7c4e2f (Refactor SerialPortManager to add factoryResetHipChip() function and improve port initialization and configuration)
    </property>
   </action>
   <actiongroup name="actionGroup">

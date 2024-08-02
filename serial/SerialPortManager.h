@@ -63,6 +63,7 @@ public:
     bool sendResetCommand();
     bool resetHipChip();
     bool reconfigureHidChip();
+    bool factoryResetHipChip();
 
 signals:
     void dataReceived(const QByteArray &data);
