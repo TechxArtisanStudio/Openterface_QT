@@ -124,6 +124,16 @@ void VideoSettings::populateResolutionBox(const QList<QCameraFormat> &videoForma
     for (const auto &entry : resolutionSampleRates) {
         const QSize &resolution = entry.first;
         const std::set<int> &sampleRates = entry.second;
+
+        // Convert sampleRates to QStringList for printing
+        QStringList sampleRatesList;
+        for (int rate : sampleRates) {
+            sampleRatesList << QString::number(rate);
+        }
+
+        // Print all sampleRates
+        qDebug() << "Resolution:" << resolution << "Sample Rates:" << sampleRatesList.join(", ");
+
         if (!sampleRates.empty()) {
             int minSampleRate = *std::begin(sampleRates); // First element is the smallest
             int maxSampleRate = *std::rbegin(sampleRates); // Last element is the largest

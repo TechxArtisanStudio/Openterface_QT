@@ -85,7 +85,7 @@ int main(int argc, char *argv[])
     QLoggingCategory::setFilterRules("opf.core.*=false\n"
                                      "opf.ui.*=true\n"
                                      "opf.host.*=true\n"
-                                     "opf.core.serial=false\n");
+                                     "opf.core.serial=true\n");
 
     QCoreApplication::setApplicationName("Openterface Mini-KVM");
     QCoreApplication::setOrganizationName("TechxArtisan");
