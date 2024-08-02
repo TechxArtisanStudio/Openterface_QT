@@ -64,29 +64,25 @@ void settingDialog::createPages() {
     QWidget *videoPage = new QWidget();
     QWidget *audioPage = new QWidget();
     
-    // create checkbox for log
-    QWidget *logCheckbox = new QWidget();
-    QCheckBox *coreCheckBox = new QCheckBox("core", logCheckbox);
-    QCheckBox *serialCheckBox = new QCheckBox("serial", logCheckbox);
-    QCheckBox *uiCheckBox = new QCheckBox("ui", logCheckbox);
-    QCheckBox *hostCheckBox = new QCheckBox("host",logCheckbox);
-    QHBoxLayout *logCheckboxLayout = new QHBoxLayout(logCheckbox);
+    // Create checkbox for log
+    QCheckBox *coreCheckBox = new QCheckBox("core");
+    QCheckBox *serialCheckBox = new QCheckBox("serial");
+    QCheckBox *uiCheckBox = new QCheckBox("ui");
+    QCheckBox *hostCheckBox = new QCheckBox("host");
+    QHBoxLayout *logCheckboxLayout = new QHBoxLayout();
     logCheckboxLayout->addWidget(coreCheckBox);
     logCheckboxLayout->addWidget(serialCheckBox);
     logCheckboxLayout->addWidget(uiCheckBox);
     logCheckboxLayout->addWidget(hostCheckBox);
 
-
     // Create labels for each page
-    QLabel *logLabel = new QLabel("log general", logPage);
-    QLabel *videoLabel = new QLabel("video general", videoPage);
-    QLabel *audioLabel = new QLabel("audio general", audioPage);
+    QLabel *logLabel = new QLabel("log general");
+    QLabel *videoLabel = new QLabel("video general");
+    QLabel *audioLabel = new QLabel("audio general");
     
-
     // Create layouts for each page and add labels to them
     QVBoxLayout *logLayout = new QVBoxLayout(logPage);
     logLayout->addWidget(logLabel);
-    logLayout->addWidget(logCheckbox);
     logLayout->addLayout(logCheckboxLayout);
     logLayout->addStretch();
 
@@ -118,6 +114,8 @@ void settingDialog::createButtons(){
     buttonLayout->addWidget(okButton);
     buttonLayout->addWidget(applyButton);
     buttonLayout->addWidget(cancelButton);
+
+    connect(cancelButton, &QPushButton::clicked, this, &QDialog::reject);
 }
 
 void settingDialog::createLayout() {
@@ -140,11 +138,18 @@ void settingDialog::changePage(QTreeWidgetItem *current, QTreeWidgetItem *previo
     // Switch page based on the selected item
     QString itemText = current->text(0);
     qDebug() << "Selected item:" << itemText;
+
     if (itemText == "log") {
-        stackedWidget->setCurrentIndex(0);
+        QMetaObject::invokeMethod(this, [this]() {
+            stackedWidget->setCurrentIndex(0);
+        }, Qt::QueuedConnection);
     } else if (itemText == "video") {
-        stackedWidget->setCurrentIndex(1);
+        QMetaObject::invokeMethod(this, [this]() {
+            stackedWidget->setCurrentIndex(1);
+        }, Qt::QueuedConnection);
     } else if (itemText == "audio") {
-        stackedWidget->setCurrentIndex(2);
+        QMetaObject::invokeMethod(this, [this]() {
+            stackedWidget->setCurrentIndex(2);
+        }, Qt::QueuedConnection);
     }
 }
