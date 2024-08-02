@@ -32,6 +32,7 @@ private:
     void createPages();
     void changePage(QTreeWidgetItem *current, QTreeWidgetItem *previous);
     void createButtons();
+    void readCheckBoxState();
 };
 
 #endif // SETTINGDIALOG_H
