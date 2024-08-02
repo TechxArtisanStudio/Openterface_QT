@@ -83,6 +83,7 @@ Camera::Camera() : ui(new Ui::Camera), videoPane(new VideoPane(this)),
     ui->setupUi(this);
     ui->statusbar->addPermanentWidget(resolutionLabel);
 
+
     QWidget *centralWidget = new QWidget(this);
     centralWidget->setLayout(stackedLayout);
 
@@ -97,8 +98,10 @@ Camera::Camera() : ui(new Ui::Camera), videoPane(new VideoPane(this)),
 
     setCentralWidget(centralWidget);
 
+    qCDebug(log_ui_mainwindow) << "Set host manager event callback...";
     HostManager::getInstance().setEventCallback(this);
 
+    qCDebug(log_ui_mainwindow) << "Observe HID connected...";
     VideoHid::getInstance().start();
 
     qCDebug(log_ui_mainwindow) << "Observe video input changed...";
@@ -112,6 +115,9 @@ Camera::Camera() : ui(new Ui::Camera), videoPane(new VideoPane(this)),
 
     qCDebug(log_ui_mainwindow) << "Observe reset HID triggerd...";
     connect(ui->actionResetHID, &QAction::triggered, this, &Camera::onActionResetHIDTriggered);
+
+    qCDebug(log_ui_mainwindow) << "Observe factory reset HID triggerd...";
+    connect(ui->actionFactory_reset_HID, &QAction::triggered, this, &Camera::onActionFactoryResetHIDTriggered);
 
     qCDebug(log_ui_mainwindow) << "Observe reset Serial Port triggerd...";
     connect(ui->actionResetSerialPort, &QAction::triggered, this, &Camera::onActionResetSerialPortTriggered);
@@ -314,6 +320,12 @@ void Camera::onActionResetHIDTriggered()
 {
     qCDebug(log_ui_mainwindow) << "onActionResetHIDTriggered";
     HostManager::getInstance().resetHid();
+}
+
+void Camera::onActionFactoryResetHIDTriggered()
+{
+    qCDebug(log_ui_mainwindow) << "onActionFactoryResetHIDTriggered";
+    SerialPortManager::getInstance().factoryResetHipChip();
 }
 
 void Camera::onActionResetSerialPortTriggered()
