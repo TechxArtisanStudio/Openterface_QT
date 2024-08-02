@@ -55,13 +55,14 @@ public:
     void setEventCallback(SerialPortEventCallback* callback);
     bool openPort(const QString &portName, int baudRate);
     void closePort();
+    bool restartPort();
 
     bool writeData(const QByteArray &data);
     bool sendAsyncCommand(const QByteArray &data, bool force);
     QByteArray sendSyncCommand(const QByteArray &data, bool force);
     bool sendResetCommand();
-    void resetSerialPort();
-    void resetHidChip();
+    bool resetHipChip();
+    bool reconfigureHidChip();
 
 signals:
     void dataReceived(const QByteArray &data);

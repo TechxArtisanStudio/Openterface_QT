@@ -40,7 +40,7 @@ static uint32_t toLittleEndian(uint32_t value) {
 template <typename T>
 T fromByteArray(const QByteArray &data) {
     T result;
-    if (data.size() >= sizeof(T)) {
+    if (data.size() > 0) {
         std::memcpy(&result, data.constData(), sizeof(T));
         // Debugging: Print the raw data
         qDebug() << "Raw data:" << data.toHex(' ');
@@ -49,17 +49,18 @@ T fromByteArray(const QByteArray &data) {
         result.dump();
     } else {
         qWarning() << "Data size is too small to parse" << typeid(T).name();
+        qDebug() << "Data content:" << data.toHex(' ');
     }
     return result;
 }
 
 struct CmdDataParamConfig
 {
-    uint16_t prefix;
-    uint8_t addr1;
-    uint8_t cmd;
-    uint8_t len;
-    uint8_t mode;
+    uint16_t prefix;    //0x57AB
+    uint8_t addr1;      //0x00
+    uint8_t cmd;        //0x08
+    uint8_t len;        //0x32
+    uint8_t mode;       //0x82
     uint8_t cfg;
     uint8_t addr2;
     uint32_t baudrate;
@@ -141,9 +142,9 @@ struct CmdDataParamConfig
 };
 
 struct CmdDataResult {
-    uint16_t prefix;
-    uint8_t addr1;
-    uint8_t cmd;
+    uint16_t prefix;    //0x57AB
+    uint8_t addr1;      //0x00
+    uint8_t cmd;        
     uint8_t len;
     uint8_t data;
     uint8_t sum;
