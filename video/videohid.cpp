@@ -64,6 +64,10 @@ QPair<QByteArray, bool> VideoHid::usbXdataRead4Byte(quint16 u16_address) {
     ctrlData[1] = 0xB5;
     ctrlData[2] = static_cast<char>((u16_address >> 8) & 0xFF);
     ctrlData[3] = static_cast<char>(u16_address & 0xFF);
+<<<<<<< HEAD
+=======
+
+>>>>>>> 9e3324f (Refactor SerialPortManager to restart port on reset and improve error handling)
     // 0: Some devices use report ID 0 to indicate that no specific report ID is used. 
     if (this->sendFeatureReport((uint8_t*)ctrlData.data(), ctrlData.size())) {
         if (this->getFeatureReport((uint8_t*)result.data(), result.size())) {

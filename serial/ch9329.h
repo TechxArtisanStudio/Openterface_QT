@@ -40,11 +40,7 @@ static uint32_t toLittleEndian(uint32_t value) {
 template <typename T>
 T fromByteArray(const QByteArray &data) {
     T result;
-<<<<<<< HEAD
-    if (data.size() > 0) {
-=======
     if (data.size() >= sizeof(T)) {
->>>>>>> 3c884b2 (chore: Refactor SerialPortManager to improve port initialization and configuration)
         std::memcpy(&result, data.constData(), sizeof(T));
         // Debugging: Print the raw data
         qDebug() << "Raw data:" << data.toHex(' ');
@@ -53,10 +49,7 @@ T fromByteArray(const QByteArray &data) {
         result.dump();
     } else {
         qWarning() << "Data size is too small to parse" << typeid(T).name();
-<<<<<<< HEAD
         qDebug() << "Data content:" << data.toHex(' ');
-=======
->>>>>>> 3c884b2 (chore: Refactor SerialPortManager to improve port initialization and configuration)
     }
     return result;
 }
@@ -64,11 +57,15 @@ T fromByteArray(const QByteArray &data) {
 struct CmdDataParamConfig
 {
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> 9e3324f (Refactor SerialPortManager to restart port on reset and improve error handling)
     uint16_t prefix;    //0x57AB
     uint8_t addr1;      //0x00
     uint8_t cmd;        //0x08
     uint8_t len;        //0x32
     uint8_t mode;       //0x82
+<<<<<<< HEAD
 =======
     uint16_t prefix;
     uint8_t addr1;
@@ -76,6 +73,8 @@ struct CmdDataParamConfig
     uint8_t len;
     uint8_t mode;
 >>>>>>> 3c884b2 (chore: Refactor SerialPortManager to improve port initialization and configuration)
+=======
+>>>>>>> 9e3324f (Refactor SerialPortManager to restart port on reset and improve error handling)
     uint8_t cfg;
     uint8_t addr2;
     uint32_t baudrate;
@@ -158,6 +157,7 @@ struct CmdDataParamConfig
 
 struct CmdDataResult {
 <<<<<<< HEAD
+<<<<<<< HEAD
     uint16_t prefix;    //0x57AB
     uint8_t addr1;      //0x00
     uint8_t cmd;        
@@ -166,6 +166,11 @@ struct CmdDataResult {
     uint8_t addr1;
     uint8_t cmd;
 >>>>>>> 3c884b2 (chore: Refactor SerialPortManager to improve port initialization and configuration)
+=======
+    uint16_t prefix;    //0x57AB
+    uint8_t addr1;      //0x00
+    uint8_t cmd;        
+>>>>>>> 9e3324f (Refactor SerialPortManager to restart port on reset and improve error handling)
     uint8_t len;
     uint8_t data;
     uint8_t sum;

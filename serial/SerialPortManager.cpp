@@ -107,10 +107,14 @@ void SerialPortManager::onSerialPortConnected(const QString &portName){
     QByteArray retBtye = sendSyncCommand(CMD_GET_PARA_CFG, true);
     CmdDataParamConfig config;
 <<<<<<< HEAD
+<<<<<<< HEAD
     if(retBtye.size() > 0){
 =======
     if(retBtye.size() >= sizeof(CmdDataParamConfig)){
 >>>>>>> 3c884b2 (chore: Refactor SerialPortManager to improve port initialization and configuration)
+=======
+    if(retBtye.size() > 0){
+>>>>>>> 9e3324f (Refactor SerialPortManager to restart port on reset and improve error handling)
         qCDebug(log_core_serial) << "Data read from serial port: " << retBtye.toHex(' ');
         config = CmdDataParamConfig::fromByteArray(retBtye);
         if(config.mode == 0x82){ // the default mode is correct, TODO store the default mode to config in future
@@ -125,6 +129,7 @@ void SerialPortManager::onSerialPortConnected(const QString &portName){
         openPort(portName, ORIGINAL_BAUDRATE);
         QByteArray retBtye = sendSyncCommand(CMD_GET_PARA_CFG, true);
 
+<<<<<<< HEAD
 <<<<<<< HEAD
         if(retBtye.size() > 0){
             config = CmdDataParamConfig::fromByteArray(retBtye);
@@ -151,36 +156,35 @@ void SerialPortManager::onSerialPortConnected(const QString &portName){
                 qCDebug(log_core_serial) << "Reopen the serial port with baudrate: " << DEFAULT_BAUDRATE;
 =======
         if(retBtye.size() >= static_cast<qsizetype>(sizeof(CmdDataParamConfig))){
+=======
+        if(retBtye.size() > 0){
+>>>>>>> 9e3324f (Refactor SerialPortManager to restart port on reset and improve error handling)
             config = CmdDataParamConfig::fromByteArray(retBtye);
-            qCDebug(log_core_serial) << "Connect success with baudrate: " << config.baudrate << ", Mode: " << config.mode << "cfg:" << config.cfg;
-            qCDebug(log_core_serial) << "Reset to baudrate to 115200 and mode 0x82";
-            // replace the data with set parameter configuration prefix
-            QByteArray command = CMD_SET_PARA_CFG_PREFIX;
-            //append from date 12...31
-            command.append(CMD_SET_PARA_CFG_MID);
-            QByteArray retBtye = sendSyncCommand(command, true);
-            if(retBtye.size() >= static_cast<qsizetype>(sizeof(CmdDataResult))){
-                CmdDataResult dataResult = fromByteArray<CmdDataResult>(retBtye);
-                qCDebug(log_core_serial) << "Set data config result: " << dataResult.data;
-                if(dataResult.data == DEF_CMD_SUCCESS){
-                    qCDebug(log_core_serial) << "Set data config success, reconfig to 115200 baudrate and mode 0x82";
-                    qCDebug(log_core_serial) << "Reset the serial port now...";
-                    QByteArray retByte = sendSyncCommand(CMD_RESET, true);
-                    if (retByte.size() >= static_cast<qsizetype>(sizeof(CmdResetResult))) {
-                        QThread::sleep(1);
-                        closePort();
-                        openPort(portName, DEFAULT_BAUDRATE);
-                        qCDebug(log_core_serial) << "Reopen the serial port with baudrate: " << DEFAULT_BAUDRATE;
-                    } 
-                } else {
-                    qCDebug(log_core_serial) << "Set data config fail, reset the serial port now...";
+            qCDebug(log_core_serial) << "Connect success with baudrate: " << ORIGINAL_BAUDRATE;
+            qCDebug(log_core_serial) << "Current working mode is:" << "0x" + QString::number(config.mode, 16);
+
+            qCDebug(log_core_serial) << "Reconfigure to baudrate to 115200 and mode 0x82";
+
+            if(reconfigureHidChip()) {
+                if(resetHipChip()){
                     QThread::sleep(1);
                     closePort();
                     openPort(portName, DEFAULT_BAUDRATE);
-                    ready = true;
                     qCDebug(log_core_serial) << "Reopen the serial port with baudrate: " << DEFAULT_BAUDRATE;
+                }else{
+                    qCWarning(log_core_serial) << "Reset the hid chip fail...";
                 }
+<<<<<<< HEAD
 >>>>>>> 3c884b2 (chore: Refactor SerialPortManager to improve port initialization and configuration)
+=======
+            }else{
+                qCWarning(log_core_serial) << "Set data config fail, reset the serial port now...";
+                QThread::sleep(1);
+                closePort();
+                openPort(portName, DEFAULT_BAUDRATE);
+                ready = false;
+                qCDebug(log_core_serial) << "Reopen the serial port with baudrate: " << DEFAULT_BAUDRATE;
+>>>>>>> 9e3324f (Refactor SerialPortManager to restart port on reset and improve error handling)
             }
         }
     }
@@ -210,8 +214,12 @@ void SerialPortManager::onSerialPortConnectionSuccess(const QString &portName){
     connect(serialPort, &QSerialPort::readyRead, this, &SerialPortManager::readData);
     connect(serialPort, &QSerialPort::bytesWritten, this, &SerialPortManager::bytesWritten);
 <<<<<<< HEAD
+<<<<<<< HEAD
     ready = true;
 =======
+=======
+    ready = true;
+>>>>>>> 9e3324f (Refactor SerialPortManager to restart port on reset and improve error handling)
 
 >>>>>>> 3c884b2 (chore: Refactor SerialPortManager to improve port initialization and configuration)
 }
@@ -221,6 +229,7 @@ void SerialPortManager::setEventCallback(SerialPortEventCallback* callback) {
 }
 
 /* 
+<<<<<<< HEAD
 <<<<<<< HEAD
  * Reset the hid chip
  */
@@ -255,15 +264,27 @@ bool SerialPortManager::factoryResetHipChip(){
     return false;
 =======
  * Reset the serial port
+=======
+ * Reset the hid chip
+>>>>>>> 9e3324f (Refactor SerialPortManager to restart port on reset and improve error handling)
  */
-void SerialPortManager::resetSerialPort(){
-    qCDebug(log_core_serial) << "resetSerialPort: " << serialPort;
+bool SerialPortManager::resetHipChip(){
+    qCDebug(log_core_serial) << "Reset Hid chip now...";
 
+<<<<<<< HEAD
     QThread::sleep(1);
     resetSerialPort();
     QThread::sleep(1);
     ready=false;
 >>>>>>> 3c884b2 (chore: Refactor SerialPortManager to improve port initialization and configuration)
+=======
+    QByteArray retByte = sendSyncCommand(CMD_RESET, true);
+    if (retByte.size() > 0) {
+        qCDebug(log_core_serial) << "Reset the hid chip success.";
+        return true;
+    }
+    return false;
+>>>>>>> 9e3324f (Refactor SerialPortManager to restart port on reset and improve error handling)
 }
 
 /*
@@ -330,7 +351,6 @@ void SerialPortManager::closePort() {
     }
 }
 
-<<<<<<< HEAD
 bool SerialPortManager::restartPort() {
     QString portName = serialPort->portName();
     qint32 baudRate = serialPort->baudRate();
@@ -340,8 +360,6 @@ bool SerialPortManager::restartPort() {
     return ready;
 }
 
-=======
->>>>>>> 3c884b2 (chore: Refactor SerialPortManager to improve port initialization and configuration)
 /*
  * Read the data from the serial port
  */
@@ -423,6 +441,7 @@ void SerialPortManager::readData() {
 
 /*
 <<<<<<< HEAD
+<<<<<<< HEAD
  * Reconfigure the HID chip to the default baudrate and mode
  */
 bool SerialPortManager::reconfigureHidChip()
@@ -431,6 +450,11 @@ bool SerialPortManager::reconfigureHidChip()
  */
 void SerialPortManager::resetHidChip()
 >>>>>>> 3c884b2 (chore: Refactor SerialPortManager to improve port initialization and configuration)
+=======
+ * Reconfigure the HID chip to the default baudrate and mode
+ */
+bool SerialPortManager::reconfigureHidChip()
+>>>>>>> 9e3324f (Refactor SerialPortManager to restart port on reset and improve error handling)
 {
     qCDebug(log_core_serial) << "Reset to baudrate to 115200 and mode 0x82";
     // replace the data with set parameter configuration prefix
@@ -438,6 +462,9 @@ void SerialPortManager::resetHidChip()
     //append from date 12...31
     command.append(CMD_SET_PARA_CFG_MID);
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> 9e3324f (Refactor SerialPortManager to restart port on reset and improve error handling)
     QByteArray retBtyes = sendSyncCommand(command, true);
     if(retBtyes.size() > 0){
         CmdDataResult dataResult = fromByteArray<CmdDataResult>(retBtyes);
@@ -449,9 +476,12 @@ void SerialPortManager::resetHidChip()
     }
 
     return false;
+<<<<<<< HEAD
 =======
     sendAsyncCommand(command, true);
 >>>>>>> 3c884b2 (chore: Refactor SerialPortManager to improve port initialization and configuration)
+=======
+>>>>>>> 9e3324f (Refactor SerialPortManager to restart port on reset and improve error handling)
 }
 
 /*
