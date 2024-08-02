@@ -80,6 +80,7 @@
     </widget>
     <addaction name="menuMouse_Mode"/>
     <addaction name="actionResetHID"/>
+    <addaction name="actionFactory_reset_HID"/>
     <addaction name="actionResetSerialPort"/>
    </widget>
    <addaction name="menuFile"/>
@@ -114,12 +115,17 @@
   </action>
   <action name="actionResetSerialPort">
    <property name="text">
-    <string>ResetSerialPort</string>
+    <string>Reset serialport</string>
    </property>
   </action>
   <action name="actionAutoReszie">
    <property name="text">
     <string>AutoReszie</string>
+   </property>
+  </action>
+  <action name="actionFactory_reset_HID">
+   <property name="text">
+    <string>Factory reset HID</string>
    </property>
   </action>
   <actiongroup name="actionGroup">
