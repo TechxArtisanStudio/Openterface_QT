@@ -22,10 +22,9 @@ VideoHid::VideoHid(QObject *parent) : QObject(parent){
 }
 
 void VideoHid::start() {
-    // qDebug() << usbXdataRead4Byte(0xDF00).first.toHex(' ');      //GPIO0
-    // qDebug() << usbXdataRead4Byte(0xDF01).first.toHex(' ');      //spdifout 0xDF01
-    // qDebug() << usbXdataRead4Byte(0xFA8C).first.toHex(' ');      //HDMI CONNECTION 0xFA8C
-
+    qDebug() << "Current GPIO0 Value:" << usbXdataRead4Byte(0xDF00).first.toHex(' ');      //GPIO0
+    qDebug() << "Current SPDIFOUT Value:" << usbXdataRead4Byte(0xDF01).first.toHex(' ');      //spdifout 0xDF01
+    qDebug() << "Current HDMI connection status:" << usbXdataRead4Byte(0xFA8C).first.toHex(' ');      //HDMI CONNECTION 0xFA8C
     qDebug() << "Resolution:" << getResolution();    //HDMI resolution
 
     //MS2109 firmware version
@@ -65,7 +64,6 @@ QPair<QByteArray, bool> VideoHid::usbXdataRead4Byte(quint16 u16_address) {
     ctrlData[1] = 0xB5;
     ctrlData[2] = static_cast<char>((u16_address >> 8) & 0xFF);
     ctrlData[3] = static_cast<char>(u16_address & 0xFF);
-
     // 0: Some devices use report ID 0 to indicate that no specific report ID is used. 
     if (this->sendFeatureReport((uint8_t*)ctrlData.data(), ctrlData.size())) {
         if (this->getFeatureReport((uint8_t*)result.data(), result.size())) {
@@ -88,7 +86,7 @@ QPair<QByteArray, bool> VideoHid::usbXdataRead4Byte(quint16 u16_address) {
 
 bool VideoHid::getFeatureReport(uint8_t* buffer, size_t bufferLength) {
 #ifdef _WIN32
-    return this->getFeatureReport(buffer, bufferLength);
+    return this->getFeatureReportWindows(buffer, bufferLength);
 #elif __linux__
     return this->getFeatureReportLinux(buffer, bufferLength);
 #endif
@@ -96,7 +94,7 @@ bool VideoHid::getFeatureReport(uint8_t* buffer, size_t bufferLength) {
 
 bool VideoHid::sendFeatureReport(uint8_t* buffer, size_t bufferLength) {
 #ifdef _WIN32
-    return this->sendFeatureReport(buffer, bufferLength);
+    return this->sendFeatureReportWindows(buffer, bufferLength);
 #elif __linux__
     // implementation
     return this->sendFeatureReportLinux(buffer, bufferLength);
@@ -156,7 +154,7 @@ std::wstring VideoHid::getHIDDevicePath() {
 }
 
 bool VideoHid::sendFeatureReportWindows(BYTE* reportBuffer, DWORD bufferSize) {
-    HANDLE deviceHandle = CreateFileW(GetHIDDevicePath().c_str(),
+    HANDLE deviceHandle = CreateFileW(getHIDDevicePath().c_str(),
                                       GENERIC_READ | GENERIC_WRITE,
                                       FILE_SHARE_READ | FILE_SHARE_WRITE,
                                       NULL,
@@ -182,7 +180,7 @@ bool VideoHid::sendFeatureReportWindows(BYTE* reportBuffer, DWORD bufferSize) {
 
 bool VideoHid::getFeatureReportWindows(BYTE* reportBuffer, DWORD bufferSize) {
     // Assuming devicePath is a member variable containing the device path
-    HANDLE deviceHandle = CreateFileW(GetHIDDevicePath().c_str(),
+    HANDLE deviceHandle = CreateFileW(getHIDDevicePath().c_str(),
                                       GENERIC_READ | GENERIC_WRITE,
                                       FILE_SHARE_READ | FILE_SHARE_WRITE,
                                       NULL,
