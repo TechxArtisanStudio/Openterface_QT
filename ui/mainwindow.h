@@ -114,6 +114,7 @@ protected:
     void onActionRelativeTriggered();
     void onActionResetHIDTriggered();
     void onActionResetSerialPortTriggered();
+    void onActionFactoryResetHIDTriggered();
 
     void queryResolutions();
     
