@@ -33,6 +33,7 @@ private:
     void changePage(QTreeWidgetItem *current, QTreeWidgetItem *previous);
     void createButtons();
     void readCheckBoxState();
+    void setLogCheckBox();
 };
 
 #endif // SETTINGDIALOG_H
