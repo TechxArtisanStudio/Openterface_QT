@@ -89,7 +89,7 @@ void KeyboardManager::handleKeyboardAction(int keyCode, int modifiers, bool isKe
         if(currentModifiers!=0){
             qCDebug(log_keyboard) << "Send release command :" << keyData.toHex(' ');
             // release previous modifier
-            SerialPortManager::getInstance().sendCommand(keyData, false);
+            SerialPortManager::getInstance().sendAsyncCommand(keyData, false);
             currentModifiers = 0;
         }
 
@@ -101,7 +101,9 @@ void KeyboardManager::handleKeyboardAction(int keyCode, int modifiers, bool isKe
         keyData[5] = isKeyDown ? combinedModifiers : 0;
         keyData[7] = isKeyDown ? mappedKeyCode : 0;
         qCDebug(log_keyboard) << "sendCommand:" << keyData.toHex(' ');
-        SerialPortManager::getInstance().sendCommand(keyData, false);
+        if(!SerialPortManager::getInstance().sendAsyncCommand(keyData, false)){
+            qCWarning(log_keyboard) << "Failed to send command";
+        }
     }
 }
 

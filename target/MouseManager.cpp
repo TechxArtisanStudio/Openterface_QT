@@ -36,7 +36,7 @@ void MouseManager::handleAbsoluteMouseAction(int x, int y, int mouse_event, int 
     }
     uint8_t mappedWheelMovement = mapScrollWheel(wheelMovement);
     if(mappedWheelMovement>0){    qCDebug(log_core_mouse) << "mappedWheelMovement:" << mappedWheelMovement; }
-    data.append(SerialPortManager::MOUSE_ABS_ACTION_PREFIX);
+    data.append(MOUSE_ABS_ACTION_PREFIX);
     data.append(static_cast<char>(mouse_event));
     data.append(static_cast<char>(x & 0xFF));
     data.append(static_cast<char>((x >> 8) & 0xFF));
@@ -45,7 +45,7 @@ void MouseManager::handleAbsoluteMouseAction(int x, int y, int mouse_event, int 
     data.append(static_cast<char>(mappedWheelMovement & 0xFF));
 
     // send the data to serial
-    SerialPortManager::getInstance().sendCommand(data, false);
+    SerialPortManager::getInstance().sendAsyncCommand(data, false);
 }
 
 void MouseManager::handleRelativeMouseAction(int dx, int dy, int mouse_event, int wheelMovement) {

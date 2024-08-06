@@ -85,7 +85,11 @@ void HostManager::resetHid()
 
 void HostManager::resetSerialPort()
 {
-    SerialPortManager::getInstance().closePort();
+    if(SerialPortManager::getInstance().restartPort()) {
+        qCDebug(log_core_host) << "Serial port restarted successfully";
+    } else {
+        qCDebug(log_core_host) << "Serial port restart failed";
+    }
 }
 
 void HostManager::restartApplication() {
