@@ -17,6 +17,7 @@
 #include <QTreeWidgetItem>
 #include <QStackedWidget>
 #include <QDebug>
+#include <QLoggingCategory>
 
 settingDialog::settingDialog(QWidget *parent)
     : QDialog(parent)
@@ -160,22 +161,48 @@ void settingDialog::changePage(QTreeWidgetItem *current, QTreeWidgetItem *previo
     }
 }
 
+void settingDialog::setLogCheckBox(){
+    QCheckBox *coreCheckBox = findChild<QCheckBox*>("core");
+    QCheckBox *serialCheckBox = findChild<QCheckBox*>("serial");
+    QCheckBox *uiCheckBox = findChild<QCheckBox*>("ui");
+    QCheckBox *hostCheckBox = findChild<QCheckBox*>("host");
+
+    coreCheckBox->setChecked(true);    
+}
+
 void settingDialog::readCheckBoxState() {
     QCheckBox *coreCheckBox = findChild<QCheckBox*>("core");
     QCheckBox *serialCheckBox = findChild<QCheckBox*>("serial");
     QCheckBox *uiCheckBox = findChild<QCheckBox*>("ui");
     QCheckBox *hostCheckBox = findChild<QCheckBox*>("host");
 
-    if (coreCheckBox) {
-        qDebug() << "Core CheckBox:" << coreCheckBox->isChecked();
+    // set the log filter value by check box
+    QString logFilter = "";
+
+    if (coreCheckBox && coreCheckBox->isChecked()) {
+        logFilter += "opf.core.*=true\n";
+    } else {
+        logFilter += "opf.core.*=false\n";
     }
-    if (serialCheckBox) {
-        qDebug() << "Serial CheckBox:" << serialCheckBox->isChecked();
+
+    if (uiCheckBox && uiCheckBox->isChecked()) {
+        logFilter += "opf.ui.*=true\n";
+    } else {
+        logFilter += "opf.ui.*=false\n";
     }
-    if (uiCheckBox) {
-        qDebug() << "UI CheckBox:" << uiCheckBox->isChecked();
+
+    if (hostCheckBox && hostCheckBox->isChecked()) {
+        logFilter += "opf.host.*=true\n";
+    } else {
+        logFilter += "opf.host.*=false\n";
     }
-    if (hostCheckBox) {
-        qDebug() << "Host CheckBox:" << hostCheckBox->isChecked();
+
+    if (serialCheckBox && serialCheckBox->isChecked()) {
+        logFilter += "opf.core.serial=true\n";
+    } else {
+        logFilter += "opf.core.serial=false\n";
     }
+
+    QLoggingCategory::setFilterRules(logFilter);
+
 }
