@@ -129,7 +129,7 @@
     <bool>false</bool>
    </property>
    <property name="text">
-    <string>preference</string>
+    <string>Preference</string>
    </property>
   </action>
   <actiongroup name="actionGroup">

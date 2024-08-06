@@ -47,12 +47,16 @@ settingDialog::~settingDialog()
 void settingDialog::createSettingTree() {
     // qDebug() << "creating setting Tree";
     settingTree->setColumnCount(1);
-    settingTree->setHeaderLabels(QStringList(tr("general")));
+    // settingTree->setHeaderLabels(QStringList(tr("general")));
+    settingTree->setHeaderHidden(true);
     settingTree->setSelectionMode(QAbstractItemView::SingleSelection);
     
     settingTree->setMaximumSize(QSize(120, 1000));
     settingTree->setRootIsDecorated(false);
-    QStringList names = {"log", "video", "audio"};
+
+
+    QStringList names = {"Log"};
+    // QStringList names = {"Log", "Video", "Audio"};
     for (const QString &name : names) {     // add item to setting tree
         QTreeWidgetItem *item = new QTreeWidgetItem(settingTree);
         item->setText(0, name);
@@ -66,10 +70,10 @@ void settingDialog::createPages() {
     QWidget *audioPage = new QWidget();
     
     // Create checkbox for log
-    QCheckBox *coreCheckBox = new QCheckBox("core");
-    QCheckBox *serialCheckBox = new QCheckBox("serial");
-    QCheckBox *uiCheckBox = new QCheckBox("ui");
-    QCheckBox *hostCheckBox = new QCheckBox("host");
+    QCheckBox *coreCheckBox = new QCheckBox("Core");
+    QCheckBox *serialCheckBox = new QCheckBox("Serial");
+    QCheckBox *uiCheckBox = new QCheckBox("Ui");
+    QCheckBox *hostCheckBox = new QCheckBox("Host");
     coreCheckBox->setObjectName("core");
     serialCheckBox->setObjectName("serial");
     uiCheckBox->setObjectName("ui");
@@ -82,9 +86,9 @@ void settingDialog::createPages() {
     logCheckboxLayout->addWidget(hostCheckBox);
 
     // Create labels for each page
-    QLabel *logLabel = new QLabel("log general");
-    QLabel *videoLabel = new QLabel("video general");
-    QLabel *audioLabel = new QLabel("audio general");
+    QLabel *logLabel = new QLabel("General log setting");
+    QLabel *videoLabel = new QLabel("General video setting");
+    QLabel *audioLabel = new QLabel("General audio setting");
     
     // Create layouts for each page and add labels to them
     QVBoxLayout *logLayout = new QVBoxLayout(logPage);
@@ -107,9 +111,9 @@ void settingDialog::createPages() {
 }
 
 void settingDialog::createButtons(){
-    QPushButton *okButton = new QPushButton("ok");
-    QPushButton *applyButton = new QPushButton("apply");
-    QPushButton *cancelButton = new QPushButton("cencel");
+    QPushButton *okButton = new QPushButton("OK");
+    QPushButton *applyButton = new QPushButton("Apply");
+    QPushButton *cancelButton = new QPushButton("Cencel");
 
     okButton->setFixedSize(80, 30);
     applyButton->setFixedSize(80, 30);
@@ -146,15 +150,15 @@ void settingDialog::changePage(QTreeWidgetItem *current, QTreeWidgetItem *previo
     QString itemText = current->text(0);
     qDebug() << "Selected item:" << itemText;
 
-    if (itemText == "log") {
+    if (itemText == "Log") {
         QMetaObject::invokeMethod(this, [this]() {
             stackedWidget->setCurrentIndex(0);
         }, Qt::QueuedConnection);
-    } else if (itemText == "video") {
+    } else if (itemText == "Video") {
         QMetaObject::invokeMethod(this, [this]() {
             stackedWidget->setCurrentIndex(1);
         }, Qt::QueuedConnection);
-    } else if (itemText == "audio") {
+    } else if (itemText == "Audio") {
         QMetaObject::invokeMethod(this, [this]() {
             stackedWidget->setCurrentIndex(2);
         }, Qt::QueuedConnection);
@@ -166,8 +170,11 @@ void settingDialog::setLogCheckBox(){
     QCheckBox *serialCheckBox = findChild<QCheckBox*>("serial");
     QCheckBox *uiCheckBox = findChild<QCheckBox*>("ui");
     QCheckBox *hostCheckBox = findChild<QCheckBox*>("host");
-
-    coreCheckBox->setChecked(true);    
+    
+    coreCheckBox->setChecked(true);
+    serialCheckBox->setChecked(true);
+    uiCheckBox->setChecked(true);
+    hostCheckBox->setChecked(true);
 }
 
 void settingDialog::readCheckBoxState() {
