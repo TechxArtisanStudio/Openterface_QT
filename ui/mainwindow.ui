@@ -50,7 +50,7 @@
      <x>0</x>
      <y>0</y>
      <width>1280</width>
-     <height>21</height>
+     <height>20</height>
     </rect>
    </property>
    <widget class="QMenu" name="menuFile">
@@ -60,8 +60,8 @@
     <addaction name="separator"/>
     <addaction name="actionSettings"/>
     <addaction name="separator"/>
-    <addaction name="actionsetting"/>
     <addaction name="separator"/>
+    <addaction name="actionPreferences"/>
     <addaction name="actionExit"/>
    </widget>
    <widget class="QMenu" name="menuSource">
@@ -137,6 +137,11 @@
    <property name="text">
     <string>Factory reset HID</string>
 >>>>>>> c7c4e2f (Refactor SerialPortManager to add factoryResetHipChip() function and improve port initialization and configuration)
+   </property>
+  </action>
+  <action name="actionPreferences">
+   <property name="text">
+    <string>Preferences</string>
    </property>
   </action>
   <actiongroup name="actionGroup">
@@ -228,7 +233,7 @@
    </hints>
   </connection>
   <connection>
-   <sender>actionsetting</sender>
+   <sender>actionPreferences</sender>
    <signal>triggered()</signal>
    <receiver>Camera</receiver>
    <slot>configureSettings()</slot>
