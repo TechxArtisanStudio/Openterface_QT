@@ -50,7 +50,7 @@
      <x>0</x>
      <y>0</y>
      <width>1280</width>
-     <height>21</height>
+     <height>20</height>
     </rect>
    </property>
    <widget class="QMenu" name="menuFile">
@@ -60,6 +60,8 @@
     <addaction name="separator"/>
     <addaction name="actionSettings"/>
     <addaction name="separator"/>
+    <addaction name="separator"/>
+    <addaction name="actionPreferences"/>
     <addaction name="actionExit"/>
    </widget>
    <widget class="QMenu" name="menuSource">
@@ -126,6 +128,11 @@
   <action name="actionFactory_reset_HID">
    <property name="text">
     <string>Factory reset HID</string>
+   </property>
+  </action>
+  <action name="actionPreferences">
+   <property name="text">
+    <string>Preferences</string>
    </property>
   </action>
   <actiongroup name="actionGroup">
@@ -216,6 +223,22 @@
     </hint>
    </hints>
   </connection>
+  <connection>
+   <sender>actionPreferences</sender>
+   <signal>triggered()</signal>
+   <receiver>Camera</receiver>
+   <slot>configureSettings()</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>-1</x>
+     <y>-1</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>639</x>
+     <y>380</y>
+    </hint>
+   </hints>
+  </connection>
  </connections>
  <slots>
   <slot>record()</slot>
@@ -223,6 +246,7 @@
   <slot>stop()</slot>
   <slot>enablePreview(bool)</slot>
   <slot>configureCaptureSettings()</slot>
+  <slot>configureSettings()</slot>
   <slot>takeImage()</slot>
   <slot>startCamera()</slot>
   <slot>toggleLock()</slot>
