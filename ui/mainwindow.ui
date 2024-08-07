@@ -138,6 +138,11 @@
     <string>Factory reset HID</string>
    </property>
   </action>
+  <action name="actionPreferences">
+   <property name="text">
+    <string>Preferences</string>
+   </property>
+  </action>
   <actiongroup name="actionGroup">
    <action name="actionAbsolute">
     <property name="checkable">
