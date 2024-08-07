@@ -17,9 +17,9 @@
 #include <QDebug>
 #include <QLoggingCategory>
 
-settingDialog::settingDialog(QWidget *parent)
+SettingDialog::SettingDialog(QWidget *parent)
     : QDialog(parent)
-    , ui(new Ui::settingDialog)
+    , ui(new Ui::SettingDialog)
     , settingTree(new QTreeWidget(this))
     , stackedWidget(new QStackedWidget(this))
     , buttonWidget(new QWidget(this))
@@ -32,17 +32,17 @@ settingDialog::settingDialog(QWidget *parent)
     setWindowTitle(tr("Preferences"));
 
     // Connect the tree widget's currentItemChanged signal to a slot
-    connect(settingTree, &QTreeWidget::currentItemChanged, this, &settingDialog::changePage);
+    connect(settingTree, &QTreeWidget::currentItemChanged, this, &SettingDialog::changePage);
 }
 
-settingDialog::~settingDialog()
+SettingDialog::~SettingDialog()
 {
     delete ui;
     // Ensure all dynamically allocated memory is freed
     qDeleteAll(settingTree->invisibleRootItem()->takeChildren());
 }
 
-void settingDialog::createSettingTree() {
+void SettingDialog::createSettingTree() {
     // qDebug() << "creating setting Tree";
     settingTree->setColumnCount(1);
     // settingTree->setHeaderLabels(QStringList(tr("general")));
@@ -60,7 +60,7 @@ void settingDialog::createSettingTree() {
     }
 }
 
-void settingDialog::createPages() {
+void SettingDialog::createPages() {
     // Create pages for each setting
     QWidget *logPage = new QWidget();
     QWidget *videoPage = new QWidget();
@@ -107,10 +107,10 @@ void settingDialog::createPages() {
     stackedWidget->addWidget(audioPage);
 }
 
-void settingDialog::createButtons(){
+void SettingDialog::createButtons(){
     QPushButton *okButton = new QPushButton("OK");
     QPushButton *applyButton = new QPushButton("Apply");
-    QPushButton *cancelButton = new QPushButton("Cencel");
+    QPushButton *cancelButton = new QPushButton("Cancel");
 
     okButton->setFixedSize(80, 30);
     applyButton->setFixedSize(80, 30);
@@ -122,11 +122,12 @@ void settingDialog::createButtons(){
     buttonLayout->addWidget(applyButton);
     buttonLayout->addWidget(cancelButton);
 
+    connect(okButton, &QPushButton::clicked, this, &SettingDialog::handleOkButton);
     connect(cancelButton, &QPushButton::clicked, this, &QDialog::reject);
-    connect(applyButton, &QPushButton::clicked, this, &settingDialog::readCheckBoxState);
+    connect(applyButton, &QPushButton::clicked, this, &SettingDialog::readCheckBoxState);
 }
 
-void settingDialog::createLayout() {
+void SettingDialog::createLayout() {
 
     QHBoxLayout *selectLayout = new QHBoxLayout;
     selectLayout->addWidget(settingTree);
@@ -139,7 +140,7 @@ void settingDialog::createLayout() {
     setLayout(mainLayout);
 }
 
-void settingDialog::changePage(QTreeWidgetItem *current, QTreeWidgetItem *previous) {
+void SettingDialog::changePage(QTreeWidgetItem *current, QTreeWidgetItem *previous) {
     if (!current)
         current = previous;
 
@@ -162,7 +163,7 @@ void settingDialog::changePage(QTreeWidgetItem *current, QTreeWidgetItem *previo
     }
 }
 
-void settingDialog::setLogCheckBox(){
+void SettingDialog::setLogCheckBox(){
     QCheckBox *coreCheckBox = findChild<QCheckBox*>("core");
     QCheckBox *serialCheckBox = findChild<QCheckBox*>("serial");
     QCheckBox *uiCheckBox = findChild<QCheckBox*>("ui");
@@ -174,7 +175,7 @@ void settingDialog::setLogCheckBox(){
     hostCheckBox->setChecked(true);
 }
 
-void settingDialog::readCheckBoxState() {
+void SettingDialog::readCheckBoxState() {
     QCheckBox *coreCheckBox = findChild<QCheckBox*>("core");
     QCheckBox *serialCheckBox = findChild<QCheckBox*>("serial");
     QCheckBox *uiCheckBox = findChild<QCheckBox*>("ui");
@@ -210,4 +211,7 @@ void settingDialog::readCheckBoxState() {
     QLoggingCategory::setFilterRules(logFilter);
 }
 
-
+void SettingDialog::handleOkButton() {
+    readCheckBoxState();
+    accept();
+}
