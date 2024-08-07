@@ -1,7 +1,5 @@
 #include "settingdialog.h"
 #include "ui_settingdialog.h"
-#include "global.h"
-#include "imagesettings.h"
 
 #include <QComboBox>
 #include <QDialogButtonBox>
@@ -53,8 +51,7 @@ void settingDialog::createSettingTree() {
     
     settingTree->setMaximumSize(QSize(120, 1000));
     settingTree->setRootIsDecorated(false);
-
-
+    
     QStringList names = {"Log"};
     // QStringList names = {"Log", "Video", "Audio"};
     for (const QString &name : names) {     // add item to setting tree
@@ -211,5 +208,6 @@ void settingDialog::readCheckBoxState() {
     }
 
     QLoggingCategory::setFilterRules(logFilter);
-
 }
+
+
