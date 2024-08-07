@@ -211,4 +211,9 @@ void SettingDialog::readCheckBoxState() {
     QLoggingCategory::setFilterRules(logFilter);
 }
 
+void SettingDialog::handleOkButton() {
+    readCheckBoxState();
+    accept();
+}
+
 
