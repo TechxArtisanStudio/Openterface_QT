@@ -9,19 +9,19 @@
 
 
 namespace Ui {
-class settingDialog;
+class SettingDialog;
 }
 
-class settingDialog : public QDialog
+class SettingDialog : public QDialog
 {
     Q_OBJECT
 
 public:
-    explicit settingDialog(QWidget *parent = nullptr);
-    ~settingDialog();
+    explicit SettingDialog(QWidget *parent = nullptr);
+    ~SettingDialog();
 
 private:
-    Ui::settingDialog *ui;
+    Ui::SettingDialog *ui;
     QTreeWidget *settingTree;
     QStackedWidget *stackedWidget;
     QWidget *buttonWidget;
@@ -34,6 +34,7 @@ private:
     void createButtons();
     void readCheckBoxState();
     void setLogCheckBox();
+    void handleOkButton();
 };
 
 #endif // SETTINGDIALOG_H
