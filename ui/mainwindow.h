@@ -76,6 +76,8 @@ private slots:
     void configureVideoSettings();
     void configureImageSettings();
 
+    void configureSettings();
+    
     void displayRecorderError();
     void displayCameraError();
 
