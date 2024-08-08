@@ -125,18 +125,9 @@
     <string>AutoReszie</string>
    </property>
   </action>
-<<<<<<< HEAD
-  <action name="actionsetting">
-   <property name="checkable">
-    <bool>false</bool>
-   </property>
-   <property name="text">
-    <string>Preference</string>
-=======
   <action name="actionFactory_reset_HID">
    <property name="text">
     <string>Factory reset HID</string>
->>>>>>> c7c4e2f (Refactor SerialPortManager to add factoryResetHipChip() function and improve port initialization and configuration)
    </property>
   </action>
   <action name="actionPreferences">
