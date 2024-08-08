@@ -133,14 +133,6 @@
   <action name="actionPreferences">
    <property name="text">
     <string>Preferences</string>
-  <action name="actionFactory_reset_HID">
-   <property name="text">
-    <string>Factory reset HID</string>
-   </property>
-  </action>
-  <action name="actionPreferences">
-   <property name="text">
-    <string>Preferences</string>
    </property>
   </action>
   <actiongroup name="actionGroup">
