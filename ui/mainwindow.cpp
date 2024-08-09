@@ -428,7 +428,7 @@ void Camera::configureImageSettings()
 
 void Camera::configureSettings() {
     qDebug() << "Configuring settings...";
-    SettingDialog *setting = new SettingDialog(this);
+    SettingDialog *setting = new SettingDialog(m_camera.data());
     qDebug() << "Setting configuration... ";
     setting->show();
 }

@@ -23,8 +23,12 @@
 #include "settingdialog.h"
 #include "ui_settingdialog.h"
 #include "ui/fpsspinbox.h"
-#include "videosettings.h"
+#include "global.h"
 
+
+#include <QCamera>
+#include <QCameraDevice>
+#include <QCameraFormat>
 #include <QComboBox>
 #include <QDialogButtonBox>
 #include <QDir>
@@ -42,7 +46,7 @@
 #include <QLoggingCategory>
 
 
-SettingDialog::SettingDialog(QWidget *parent)
+SettingDialog::SettingDialog(QCamera *_camera, QWidget *parent)
     : QDialog(parent)
     , ui(new Ui::SettingDialog)
     , settingTree(new QTreeWidget(this))
@@ -51,6 +55,8 @@ SettingDialog::SettingDialog(QWidget *parent)
     , logPage(nullptr)
     , videoPage(nullptr)
     , audioPage(nullptr)
+    , camera(_camera)
+
 {
     ui->setupUi(this);
     createSettingTree();
@@ -121,6 +127,7 @@ void SettingDialog::createVideoPage() {
     QLabel *videoLabel = new QLabel("General video setting");
     QLabel *resolutionsLabel = new QLabel("Capture resolutions: ");
     QComboBox *videoFormatBox = new QComboBox();
+    videoFormatBox->setObjectName("videoFormatBox");
 
     QLabel *framerateLabel = new QLabel("Framerate: ");
     FpsSpinBox *fpsSpinBox = new FpsSpinBox();
@@ -146,7 +153,63 @@ void SettingDialog::createVideoPage() {
     videoLayout->addWidget(formatLabel);
     videoLayout->addWidget(pixelFormatBox);
     videoLayout->addStretch();
+
+    if (camera  != nullptr && camera->cameraDevice().isNull()){
+        const QList<QCameraFormat> videoFormats = camera->cameraDevice().videoFormats();
+        // populateResolutionBox(videoFormats);
+        // connect(videoFormatBox, &QCameraFormat::currentFormatChanged, [this](int ){
+            
+        // })
+    }
 }
+
+void SettingDialog::setFpsRange(const std::set<int> &fpsValues){
+
+}
+
+// void SettingDialog::populateResolutionBox(const QList<QCameraFormat> &videoFormats){
+//     std::map<QSize, std::set<int>, QSizeComparator> resolutionSampleRates;
+
+//     // Process videoFormats to fill resolutionSampleRates and videoFormatMap
+//     for (const QCameraFormat &format : videoFormats) {
+//         QSize resolution = format.resolution();
+//         int frameRate = format.minFrameRate();
+//         QVideoFrameFormat::PixelFormat pixelFormat = format.pixelFormat();
+
+//         VideoFormatKey key = {resolution, frameRate, pixelFormat};
+//         videoFormatMap[key] = format;
+
+//         resolutionSampleRates[resolution].insert(frameRate);
+//     }
+
+//     // Populate videoFormatBox with consolidated information
+//     for (const auto &entry : resolutionSampleRates) {
+//         const QSize &resolution = entry.first;
+//         const std::set<int> &sampleRates = entry.second;
+
+//         // Convert sampleRates to QStringList for printing
+//         QStringList sampleRatesList;
+//         for (int rate : sampleRates) {
+//             sampleRatesList << QString::number(rate);
+//         }
+
+//         // Print all sampleRates
+//         qDebug() << "Resolution:" << resolution << "Sample Rates:" << sampleRatesList.join(", ");
+
+//         if (!sampleRates.empty()) {
+//             int minSampleRate = *std::begin(sampleRates); // First element is the smallest
+//             int maxSampleRate = *std::rbegin(sampleRates); // Last element is the largest
+//             QString itemText = QString("%1x%2 [%3 - %4 Hz]").arg(resolution.width()).arg(resolution.height()).arg(minSampleRate).arg(maxSampleRate);
+
+//             // Convert the entire set to QVariant
+//             QVariant sampleRatesVariant = QVariant::fromValue<std::set<int>>(sampleRates);
+
+            
+//             QComboBox *videoFormatBox = videoPage->findChild<QComboBox*>("videoFormatBox");
+//             videoFormatBox->addItem(itemText, sampleRatesVariant);
+//         }
+//     }
+// }
 
 void SettingDialog::createAudioPage() {
     audioPage = new QWidget();
@@ -188,7 +251,6 @@ void SettingDialog::createPages() {
     createVideoPage();
     createAudioPage();
 
-    
 
     // Add pages to the stacked widget
     stackedWidget->addWidget(logPage);
@@ -302,7 +364,7 @@ void SettingDialog::readCheckBoxState() {
 }
 
 void SettingDialog::applyAccrodingPage(){
-    int *currentPageIndex = stackedWidget->currentIndex();
+    int currentPageIndex = stackedWidget->currentIndex();
     switch (currentPageIndex)
     {
         // sequence Log Video Audio
