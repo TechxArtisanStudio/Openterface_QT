@@ -176,22 +176,6 @@
    </hints>
   </connection>
   <connection>
-   <sender>actionSettings</sender>
-   <signal>triggered()</signal>
-   <receiver>Camera</receiver>
-   <slot>configureCaptureSettings()</slot>
-   <hints>
-    <hint type="sourcelabel">
-     <x>-1</x>
-     <y>-1</y>
-    </hint>
-    <hint type="destinationlabel">
-     <x>333</x>
-     <y>210</y>
-    </hint>
-   </hints>
-  </connection>
-  <connection>
    <sender>actionStartCamera</sender>
    <signal>triggered()</signal>
    <receiver>Camera</receiver>
@@ -228,6 +212,22 @@
    <signal>triggered()</signal>
    <receiver>Camera</receiver>
    <slot>configureSettings()</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>-1</x>
+     <y>-1</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>639</x>
+     <y>380</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>actionSettings</sender>
+   <signal>triggered()</signal>
+   <receiver>Camera</receiver>
+   <slot>configureCaptureSettings()</slot>
    <hints>
     <hint type="sourcelabel">
      <x>-1</x>
