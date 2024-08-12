@@ -179,9 +179,41 @@ void SettingDialog::createVideoPage() {
         QStringList resolutionParts = resolutionText.split(' ').first().split('x');
         m_currentResolution = QSize(resolutionParts[0].toInt(), resolutionParts[1].toInt());
 
+
+        updatePixelFormats();
+        connect(pixelFormatBox, &QComboBox::currentIndexChanged, this,
+                &SettingDialog::updatePixelFormats);
+        
     }else {
         qWarning() << "Camera or CameraDevice is not valid.";
     }
+}
+
+void SettingDialog::updatePixelFormats()
+{   
+    qDebug() << "update pixel formats";
+    if (m_updatingFormats)
+        return;
+    m_updatingFormats = true;
+    
+    QMediaFormat format;
+    QComboBox *pixelFormatBox = videoPage->findChild<QComboBox*>("pixelFormatBox");
+    if (pixelFormatBox->count())
+        format.setVideoCodec(boxValue(pixelFormatBox).value<QMediaFormat::VideoCodec>());
+
+    int currentIndex = 0;
+    pixelFormatBox->clear();
+    pixelFormatBox->addItem(tr("Default pixel format"),
+                               QVariant::fromValue(QMediaFormat::VideoCodec::Unspecified));
+    for (auto codec : format.supportedVideoCodecs(QMediaFormat::Encode)) {
+        if (codec == format.videoCodec())
+            currentIndex = pixelFormatBox->count();
+        pixelFormatBox->addItem(QMediaFormat::videoCodecDescription(codec),
+                                   QVariant::fromValue(codec));
+    }
+    pixelFormatBox->setCurrentIndex(currentIndex);
+
+    m_updatingFormats = false;
 }
 
 QVariant SettingDialog::boxValue(const QComboBox *box) const
@@ -191,10 +223,42 @@ QVariant SettingDialog::boxValue(const QComboBox *box) const
 }
 
 void SettingDialog::applyVideoSettings(){
+    QSlider *fpsSlider = videoPage->findChild<QSlider*>("fpsSlider");
+    qDebug() << "Apply video setting";
+    QCameraFormat format = getVideoFormat(m_currentResolution, fpsSlider->value(), QVideoFrameFormat::PixelFormat::Format_Jpeg);
+    qDebug() << "After video format get";
+    if(!format.isNull()){
+        qDebug() << "Set Camera Format, resolution:"<< format.resolution() << ",FPS:"<< format.minFrameRate() << format.pixelFormat();
+    } else {
+        qWarning() << "Invalid camera format!" << m_currentResolution << fpsSlider->value();
+        return;
+    }
 
+    // Check the current status of the camera
+    qDebug() << "Current camera status:" << camera;
+
+    // Stop the camera if it is in an active status
+    if (camera->isActive()) {
+        camera->stop();
+    }
+
+    camera->setCameraFormat(format);
+
+    GlobalVar::instance().setCaptureWidth(format.resolution().width());
+    GlobalVar::instance().setCaptureHeight(format.resolution().height());
+    GlobalVar::instance().setCaptureFps(format.minFrameRate());
+    // Start the camera with the new settings
+    camera->start();
+
+    // Debug output to confirm settings
+    QCameraFormat appliedFormat = camera->cameraFormat();
+    qDebug() << "Applied Camera Format, resolution:" << appliedFormat.resolution()
+             << ", FPS:" << appliedFormat.minFrameRate()
+             << appliedFormat.pixelFormat();
 }
 
 QCameraFormat SettingDialog::getVideoFormat(const QSize &resolution, int frameRate, QVideoFrameFormat::PixelFormat pixelFormat) const{
+    qDebug() << "getVideoFormat";
     VideoFormatKey key = {resolution, frameRate, pixelFormat};
     auto it = videoFormatMap.find(key);
     if (it != videoFormatMap.end()) {
@@ -229,12 +293,24 @@ void SettingDialog::setFpsRange(const std::set<int> &fpsValues){
     }
 }
 
-void SettingDialog::onFpsSliderValueChanged(int value){
-    // This ensures that even if the slider is manually moved, it snaps to valid fpsValues
-    QComboBox *videoFormatBox  = videoPage->findChild<QComboBox*>("videoFormatBox");
+void SettingDialog::onFpsSliderValueChanged(int value) {
+    static bool isUpdating = false; // prevent recursion when the slider have long pressed
+
+    if (isUpdating) return;
+
+    isUpdating = true;
+
+    QComboBox *videoFormatBox = videoPage->findChild<QComboBox*>("videoFormatBox");
     QSlider *fpsSlider = videoPage->findChild<QSlider*>("fpsSpinBox");
-    // const std::set<int> fpsValues = boxValue(videoFormatBox).value<std::set<int>>();
+
+    if (!videoFormatBox || !fpsSlider) {
+        qWarning() << "Failed to find videoFormatBox or fpsSlider";
+        isUpdating = false;
+        return;
+    }
+
     const std::set<int> fpsValues = boxValue(videoFormatBox).value<std::set<int>>();
+
     if (fpsValues.find(value) == fpsValues.end()) {
         auto lower = fpsValues.lower_bound(value);
         auto upper = fpsValues.upper_bound(value);
@@ -248,9 +324,11 @@ void SettingDialog::onFpsSliderValueChanged(int value){
         } else if (upper != fpsValues.begin()) {
             nearestValue = *(--upper);
         }
-        
+
         fpsSlider->setValue(nearestValue);
     }
+
+    isUpdating = false;
 }
 
 void SettingDialog::populateResolutionBox(const QList<QCameraFormat> &videoFormats){
@@ -459,7 +537,7 @@ void SettingDialog::applyAccrodingPage(){
             readCheckBoxState();
             break;
         case 1:
-            
+            applyVideoSettings();
             break;
         case 2:
 
