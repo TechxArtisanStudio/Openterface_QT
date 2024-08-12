@@ -20,43 +20,40 @@
 * ========================================================================== *
 */
 
-#ifndef SETTINGDIALOG_H
-#define SETTINGDIALOG_H
+#include "statuswidget.h"
 
-#include <QDialog>
-#include <QWidget>
-#include <QTreeWidget>
-#include <QTreeWidgetItem>
-#include <QStackedWidget>
+StatusWidget::StatusWidget(QWidget *parent) : QWidget(parent) {
+    resolutionLabel = new QLabel("💻:", this);
+    inputResolutionLabel = new QLabel("INPUT(NA),", this);
+    captureResolutionLabel = new QLabel("CAPTURE(NA)", this);
+    connectedPortLabel = new QLabel("🔌: N/A", this);
 
+    QHBoxLayout *layout = new QHBoxLayout(this);
+    layout->setContentsMargins(0, 0, 0, 0);
+    layout->setSpacing(1);
 
-namespace Ui {
-class SettingDialog;
+    layout->addWidget(connectedPortLabel);
+    layout->addWidget(new QLabel("|", this));
+    layout->addWidget(resolutionLabel);
+    layout->addWidget(inputResolutionLabel);
+    layout->addWidget(captureResolutionLabel);
+
+    setLayout(layout);
+    setMinimumHeight(30);
+    update();
 }
 
-class SettingDialog : public QDialog
-{
-    Q_OBJECT
+void StatusWidget::setInputResolution(const int &width, const int &height, const float &fps) {
+    inputResolutionLabel->setText(QString("INPUT(%1X%2@%3),").arg(width).arg(height).arg(fps));
+    update(); 
+}
 
-public:
-    explicit SettingDialog(QWidget *parent = nullptr);
-    ~SettingDialog();
+void StatusWidget::setCaptureResolution(const int &width, const int &height, const float &fps) {
+    captureResolutionLabel->setText(QString("CAPTURE(%1X%2@%3)").arg(width).arg(height).arg(fps));
+    update(); 
+}
 
-private:
-    Ui::SettingDialog *ui;
-    QTreeWidget *settingTree;
-    QStackedWidget *stackedWidget;
-    QWidget *buttonWidget;
-
-    void switchWidgetShow(QString &btnName);
-    void createSettingTree();
-    void createLayout();
-    void createPages();
-    void changePage(QTreeWidgetItem *current, QTreeWidgetItem *previous);
-    void createButtons();
-    void readCheckBoxState();
-    void setLogCheckBox();
-    void handleOkButton();
-};
-
-#endif // SETTINGDIALOG_H
+void StatusWidget::setConnectedPort(const QString &port) {
+    connectedPortLabel->setText("🔌: " + port);
+    update(); 
+}

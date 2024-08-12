@@ -20,43 +20,21 @@
 * ========================================================================== *
 */
 
-#ifndef SETTINGDIALOG_H
-#define SETTINGDIALOG_H
+#ifndef SERIALPORTEVENTS_H
+#define SERIALPORTEVENTS_H
 
-#include <QDialog>
-#include <QWidget>
-#include <QTreeWidget>
-#include <QTreeWidgetItem>
-#include <QStackedWidget>
+#include <QObject>
+#include <QString>
+#include <QPoint>
 
-
-namespace Ui {
-class SettingDialog;
-}
-
-class SettingDialog : public QDialog
+class StatusEventCallback
 {
-    Q_OBJECT
-
 public:
-    explicit SettingDialog(QWidget *parent = nullptr);
-    ~SettingDialog();
+    virtual ~StatusEventCallback() = default;
 
-private:
-    Ui::SettingDialog *ui;
-    QTreeWidget *settingTree;
-    QStackedWidget *stackedWidget;
-    QWidget *buttonWidget;
-
-    void switchWidgetShow(QString &btnName);
-    void createSettingTree();
-    void createLayout();
-    void createPages();
-    void changePage(QTreeWidgetItem *current, QTreeWidgetItem *previous);
-    void createButtons();
-    void readCheckBoxState();
-    void setLogCheckBox();
-    void handleOkButton();
+    virtual void onPortConnected(const QString& port) = 0;
+    virtual void onLastKeyPressed(const QString& key) = 0;
+    virtual void onLastMouseLocation(const QPoint& location, const QString& mouseEvent) = 0;
 };
 
-#endif // SETTINGDIALOG_H
+#endif

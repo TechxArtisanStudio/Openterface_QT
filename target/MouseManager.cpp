@@ -28,6 +28,10 @@ MouseManager::MouseManager(QObject *parent) : QObject(parent){
     // Initialization code here...
 }
 
+void MouseManager::setEventCallback(StatusEventCallback* callback) {
+    statusEventCallback = callback;
+}
+
 void MouseManager::handleAbsoluteMouseAction(int x, int y, int mouse_event, int wheelMovement) {
     // build a array
     QByteArray data;
@@ -46,6 +50,19 @@ void MouseManager::handleAbsoluteMouseAction(int x, int y, int mouse_event, int 
 
     // send the data to serial
     SerialPortManager::getInstance().sendAsyncCommand(data, false);
+
+    QString mouseEventStr;
+    if(mouse_event == Qt::LeftButton){
+        mouseEventStr = "L";
+    }else if(mouse_event == Qt::RightButton){
+        mouseEventStr = "R";
+    }else if(mouse_event == Qt::MiddleButton){
+        mouseEventStr = "M";
+    } else{
+        mouseEventStr = "";
+    }
+
+    if (statusEventCallback) statusEventCallback->onLastMouseLocation(QPoint(x, y), mouseEventStr);
 }
 
 void MouseManager::handleRelativeMouseAction(int dx, int dy, int mouse_event, int wheelMovement) {

@@ -14,6 +14,7 @@ greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 SOURCES += main.cpp \
     ui/fpsspinbox.cpp \
     ui/settingdialog.cpp \
+    ui/statuswidget.cpp \
     video/videohid.cpp \
     ui/helppane.cpp \
     ui/imagesettings.cpp \
@@ -31,6 +32,7 @@ HEADERS  += \
     global.h \
     ui/fpsspinbox.h \
     ui/settingdialog.h \
+    ui/statuswidget.h \
     video/videohid.h \
     ui/helppane.h \
     ui/imagesettings.h \
@@ -39,9 +41,9 @@ HEADERS  += \
     ui/transwindow.h \
     ui/videopane.h \
     ui/videosettings.h \
+    ui/statusevents.h \    
     host/HostManager.h \
     serial/ch9329.h \
-    serial/serialportevents.h \
     serial/SerialPortManager.h \
     target/KeyboardManager.h \
     target/MouseManager.h \
