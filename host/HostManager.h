@@ -31,7 +31,7 @@
 #include "../target/MouseManager.h"
 #include "../target/KeyboardManager.h"
 #include "../serial/SerialPortManager.h"
-#include "../serial/serialportevents.h"
+#include "../ui/statusevents.h"
 
 Q_DECLARE_LOGGING_CATEGORY(log_core_host)
 
@@ -59,7 +59,7 @@ public:
     
     void resetHid();
     void resetSerialPort();
-    void setEventCallback(SerialPortEventCallback* callback);
+    void setEventCallback(StatusEventCallback* callback);
     void restartApplication();
 
 private:

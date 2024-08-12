@@ -23,7 +23,7 @@
 #ifndef SERIALPORTMANAGER_H
 #define SERIALPORTMANAGER_H
 
-#include "serialportevents.h"
+#include "../ui/statusevents.h"
 #include <QObject>
 #include <QSerialPort>
 #include <QThread>
@@ -52,7 +52,7 @@ public:
 
     virtual ~SerialPortManager(); // Declare the destructor
 
-    void setEventCallback(SerialPortEventCallback* callback);
+    void setEventCallback(StatusEventCallback* callback);
     bool openPort(const QString &portName, int baudRate);
     void closePort();
     bool restartPort();
@@ -101,7 +101,7 @@ private:
 
     QList<QSerialPortInfo> m_lastPortList;
     bool ready = false;
-    SerialPortEventCallback* eventCallback = nullptr;
+    StatusEventCallback* eventCallback = nullptr;
 
 };
 

@@ -25,6 +25,7 @@
 
 
 #include "serial/SerialPortManager.h"
+#include "ui/statusevents.h"
 
 #include <QObject>
 #include <QLoggingCategory>
@@ -40,12 +41,13 @@ public:
 
     void handleAbsoluteMouseAction(int x, int y, int mouse_event, int wheelMovement);
     void handleRelativeMouseAction(int dx, int dy, int mouse_event, int wheelMovement);
+    void setEventCallback(StatusEventCallback* callback);
 
 private:
-    bool isDragging = false; 
-    
+    bool isDragging = false;
+    StatusEventCallback* statusEventCallback = nullptr;
+
     uint8_t mapScrollWheel(int delta);
-    // ... rest of your class definition ...
 };
 
 #endif // MOUSEMANAGER_H
