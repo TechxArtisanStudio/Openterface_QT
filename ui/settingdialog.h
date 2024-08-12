@@ -25,6 +25,7 @@
 
 #include <QDialog>
 #include <QCamera>
+#include <QMediaFormat>
 #include <QCameraDevice>
 #include <QWidget>
 #include <QTreeWidget>
@@ -88,7 +89,8 @@ private:
     
     QCamera *camera; 
     QSize m_currentResolution;
-    // std::map<VideoFormatKey, QCameraFormat> videoFormatMap;
+    bool m_updatingFormats = false;
+    std::map<VideoFormatKey, QCameraFormat> videoFormatMap;
     // QCameraFormat getVideoFormat(const QSize &resolution, int frameRate, QVideoFrameFormat::PixelFormat pixelFormat) const;
     
     void switchWidgetShow(QString &btnName);
@@ -108,11 +110,11 @@ private:
 
     // video setting
     void populateResolutionBox(const QList<QCameraFormat> &videoFormats);
-    std::map<VideoFormatKey, QCameraFormat> videoFormatMap;
     void setFpsRange(const std::set<int> &fpsValues);
     QVariant boxValue(const QComboBox *) const;
     void onFpsSliderValueChanged(int value);
     void applyVideoSettings();
+    void updatePixelFormats();
     QCameraFormat getVideoFormat(const QSize &resolution, int frameRate, QVideoFrameFormat::PixelFormat pixelFormat) const;
 };
 
