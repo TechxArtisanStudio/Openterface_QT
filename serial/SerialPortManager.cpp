@@ -175,7 +175,7 @@ void SerialPortManager::onSerialPortConnectionSuccess(const QString &portName){
     ready = true;
 }
 
-void SerialPortManager::setEventCallback(SerialPortEventCallback* callback) {
+void SerialPortManager::setEventCallback(StatusEventCallback* callback) {
     eventCallback = callback;
 }
 
@@ -184,10 +184,12 @@ void SerialPortManager::setEventCallback(SerialPortEventCallback* callback) {
  */
 bool SerialPortManager::resetHipChip(){
     qCDebug(log_core_serial) << "Reset Hid chip now...";
+    eventCallback->onPortConnected("Reset Hid chip now...");
 
     QByteArray retByte = sendSyncCommand(CMD_RESET, true);
     if (retByte.size() > 0) {
         qCDebug(log_core_serial) << "Reset the hid chip success.";
+        eventCallback->onPortConnected("Reset Hid chip success.");
         return true;
     }
     return false;
@@ -271,7 +273,7 @@ void SerialPortManager::closePort() {
         delete serialPort;
         serialPort = nullptr;
         ready=false;
-        if(eventCallback!=nullptr) eventCallback->onPortConnected("NA");
+        if(eventCallback!=nullptr) eventCallback->onPortConnected("Going to close the port");
     } else {
         qCDebug(log_core_serial) << "Serial port is not opened.";
     }

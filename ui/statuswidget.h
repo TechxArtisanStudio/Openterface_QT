@@ -20,21 +20,29 @@
 * ========================================================================== *
 */
 
-#ifndef SERIALPORTEVENTS_H
-#define SERIALPORTEVENTS_H
+#ifndef STATUSWIDGET_H
+#define STATUSWIDGET_H
 
-#include <QObject>
-#include <QString>
-#include <QPoint>
+#include <QWidget>
+#include <QLabel>
+#include <QVBoxLayout>
 
-class SerialPortEventCallback
-{
+class StatusWidget : public QWidget {
+    Q_OBJECT
+
 public:
-    virtual ~SerialPortEventCallback() = default;
+    explicit StatusWidget(QWidget *parent = nullptr);
 
-    virtual void onPortConnected(const QString& port) = 0;
-    virtual void onLastKeyPressed(const QString& key) = 0;
-    virtual void onLastMouseLocation(const QPoint& location) = 0;
+    void setInputResolution(const int &width, const int &height, const float &fps);
+    void setCaptureResolution(const int &width, const int &height, const float &fps);
+    void setKeyboardIndicators(const QString &indicators);
+    void setConnectedPort(const QString &port);
+
+private:
+    QLabel *resolutionLabel;
+    QLabel *inputResolutionLabel;
+    QLabel *captureResolutionLabel;
+    QLabel *connectedPortLabel;
 };
 
-#endif
+#endif // STATUSWIDGET_H
