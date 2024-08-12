@@ -22,8 +22,6 @@ VideoHid::VideoHid(QObject *parent) : QObject(parent){
 }
 
 void VideoHid::start() {
-    qDebug() << "Current GPIO0 Value:" << usbXdataRead4Byte(0xDF00).first.toHex(' ');      //GPIO0
-    qDebug() << "Current SPDIFOUT Value:" << usbXdataRead4Byte(0xDF01).first.toHex(' ');      //spdifout 0xDF01
     qDebug() << "Current HDMI connection status:" << usbXdataRead4Byte(0xFA8C).first.toHex(' ');      //HDMI CONNECTION 0xFA8C
     qDebug() << "Resolution:" << getResolution();    //HDMI resolution
 
