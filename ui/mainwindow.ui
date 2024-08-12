@@ -223,29 +223,13 @@
     </hint>
    </hints>
   </connection>
-  <connection>
-   <sender>actionSettings</sender>
-   <signal>triggered()</signal>
-   <receiver>Camera</receiver>
-   <slot>configureCaptureSettings()</slot>
-   <hints>
-    <hint type="sourcelabel">
-     <x>-1</x>
-     <y>-1</y>
-    </hint>
-    <hint type="destinationlabel">
-     <x>639</x>
-     <y>380</y>
-    </hint>
-   </hints>
-  </connection>
  </connections>
  <slots>
   <slot>record()</slot>
   <slot>pause()</slot>
   <slot>stop()</slot>
   <slot>enablePreview(bool)</slot>
-  <slot>configureCaptureSettings()</slot>
+  <!-- <slot>configureCaptureSettings()</slot> -->
   <slot>configureSettings()</slot>
   <slot>takeImage()</slot>
   <slot>startCamera()</slot>

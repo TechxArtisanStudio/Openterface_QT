@@ -22,12 +22,13 @@
 
 #include "mainwindow.h"
 #include "global.h"
+// #include "ui/videosettings.h"
 #include "ui_mainwindow.h"
 
 #include "ui/imagesettings.h"
 #include "ui/settingdialog.h"
 #include "ui/helppane.h"
-#include "ui/videosettings.h"
+// #include "ui/videosettings.h"
 #include "ui/videopane.h"
 #include "video/videohid.h"
 
@@ -180,7 +181,7 @@ void Camera::setCamera(const QCameraDevice &cameraDevice)
     connect(m_camera.get(), &QCamera::activeChanged, this, &Camera::updateCameraActive);
     connect(m_camera.get(), &QCamera::errorOccurred, this, &Camera::displayCameraError);
     qCDebug(log_ui_mainwindow) << "Observe congigure setting";
-    // connect(ui->actionsetting, &QAction::triggered, this, &Camera::configureSettings);
+    
 
     queryResolutions();
 
@@ -402,29 +403,30 @@ void Camera::processCapturedImage(int requestId, const QImage &img)
     QTimer::singleShot(4000, this, &Camera::displayViewfinder);
 }
 
-void Camera::configureCaptureSettings()
-{
-    // if (m_doImageCapture)
-    //     configureImageSettings();
-    // else
-    configureVideoSettings();
-}
+// void Camera::configureCaptureSettings()
+// {
+//     // if (m_doImageCapture)
+//     //     configureImageSettings();
+//     // else
+//     configureVideoSettings();
+    
+// }
 
-void Camera::configureVideoSettings()
-{
-    VideoSettings settingsDialog(m_camera.data());
+// void Camera::configureVideoSettings()
+// {
+//     VideoSettings settingsDialog(m_camera.data());
 
-    if (settingsDialog.exec())
-        settingsDialog.applySettings();
-}
+//     if (settingsDialog.exec())
+//         settingsDialog.applySettings();
+// }
 
-void Camera::configureImageSettings()
-{
-    ImageSettings settingsDialog(m_imageCapture.get());
+// void Camera::configureImageSettings()
+// {
+//     ImageSettings settingsDialog(m_imageCapture.get());
 
-    if (settingsDialog.exec() == QDialog::Accepted)
-        settingsDialog.applyImageSettings();
-}
+//     if (settingsDialog.exec() == QDialog::Accepted)
+//         settingsDialog.applyImageSettings();
+// }
 
 void Camera::configureSettings() {
     qDebug() << "Configuring settings...";

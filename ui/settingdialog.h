@@ -41,31 +41,31 @@ class SettingDialog;
 }
 QT_END_NAMESPACE
 
-// // Custom key structure
-// struct VideoFormatKey {
-//     QSize resolution;
-//     int frameRate;
-//     QVideoFrameFormat::PixelFormat pixelFormat;
+// Custom key structure
+struct VideoFormatKey {
+    QSize resolution;
+    int frameRate;
+    QVideoFrameFormat::PixelFormat pixelFormat;
 
-//     bool operator<(const VideoFormatKey &other) const {
-//         if (resolution.width() != other.resolution.width())
-//             return resolution.width() < other.resolution.width();
-//         if (resolution.height() != other.resolution.height())
-//             return resolution.height() < other.resolution.height();
-//         if (frameRate != other.frameRate)
-//             return frameRate < other.frameRate;
-//         return pixelFormat < other.pixelFormat;
-//     }
-// };
+    bool operator<(const VideoFormatKey &other) const {
+        if (resolution.width() != other.resolution.width())
+            return resolution.width() < other.resolution.width();
+        if (resolution.height() != other.resolution.height())
+            return resolution.height() < other.resolution.height();
+        if (frameRate != other.frameRate)
+            return frameRate < other.frameRate;
+        return pixelFormat < other.pixelFormat;
+    }
+};
 
-// struct QSizeComparator {
-//     bool operator()(const QSize& lhs, const QSize& rhs) const {
-//         if (lhs.width() == rhs.width()) {
-//             return lhs.height() > rhs.height(); // Compare heights in descending order
-//         }
-//         return lhs.width() > rhs.width(); // Compare widths in descending order
-//     }
-// };
+struct QSizeComparator {
+    bool operator()(const QSize& lhs, const QSize& rhs) const {
+        if (lhs.width() == rhs.width()) {
+            return lhs.height() > rhs.height(); // Compare heights in descending order
+        }
+        return lhs.width() > rhs.width(); // Compare widths in descending order
+    }
+};
 
 class SettingDialog : public QDialog
 {
@@ -85,10 +85,12 @@ private:
     QWidget *audioPage;
     QWidget *buttonWidget;
 
+    
     QCamera *camera; 
+    QSize m_currentResolution;
     // std::map<VideoFormatKey, QCameraFormat> videoFormatMap;
     // QCameraFormat getVideoFormat(const QSize &resolution, int frameRate, QVideoFrameFormat::PixelFormat pixelFormat) const;
-
+    
     void switchWidgetShow(QString &btnName);
     void createSettingTree();
     void createLayout();
@@ -104,8 +106,14 @@ private:
     void setLogCheckBox();
     void handleOkButton();
 
-    // void populateResolutionBox(const QList<QCameraFormat> &videoFormats);
+    // video setting
+    void populateResolutionBox(const QList<QCameraFormat> &videoFormats);
+    std::map<VideoFormatKey, QCameraFormat> videoFormatMap;
     void setFpsRange(const std::set<int> &fpsValues);
+    QVariant boxValue(const QComboBox *) const;
+    void onFpsSliderValueChanged(int value);
+    void applyVideoSettings();
+    QCameraFormat getVideoFormat(const QSize &resolution, int frameRate, QVideoFrameFormat::PixelFormat pixelFormat) const;
 };
 
 #endif // SETTINGDIALOG_H
