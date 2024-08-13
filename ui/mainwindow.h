@@ -24,10 +24,15 @@
 #define CAMERA_H
 
 #include "transwindow.h"
+#include "../host/audiomanager.h"
 #include "ui/statuswidget.h"
 #include "ui/statusevents.h"
 
 #include <QAudioInput>
+#include <QAudioOutput>
+#include <QAudioSource>
+#include <QAudioSink>
+#include <QAudioDecoder>
 #include <QCamera>
 #include <QImageCapture>
 #include <QMediaCaptureSession>
@@ -38,7 +43,9 @@
 #include <QVideoWidget>
 #include <QMainWindow>
 #include <QStackedLayout>
+#include <QMediaDevices>
 #include <QLoggingCategory>
+#include <QAudioBuffer>
 #include <QLabel>
 
 Q_DECLARE_LOGGING_CATEGORY(log_ui_mainwindow)
@@ -51,6 +58,7 @@ class QActionGroup;
 QT_END_NAMESPACE
 
 class MetaDataDialog;
+
 
 class Camera : public QMainWindow, public StatusEventCallback
 {
@@ -96,6 +104,7 @@ private slots:
     void imageSaved(int id, const QString &fileName);
 
     void updateCameras();
+
     void popupMessage(QString message);
 
     void onPortConnected(const QString& port) override;
@@ -118,12 +127,14 @@ protected:
     void onActionFactoryResetHIDTriggered();
 
     void queryResolutions();
-    
+
     void updateResolutions(int input_width, int input_height, float input_fps, int capture_width, int capture_height, int capture_fps);
+
 
 private:
     Ui::Camera *ui;
     TransWindow *transWindow;
+    AudioManager *m_audioManager;
 
     QVideoWidget *videoPane;
     QStackedLayout *stackedLayout;
@@ -133,8 +144,8 @@ private:
     QScopedPointer<QImageCapture> m_imageCapture;
     QMediaCaptureSession m_captureSession;
     QScopedPointer<QCamera> m_camera;
-    // QScopedPointer<QAudioInput> m_audioInput;
     QScopedPointer<QMediaRecorder> m_mediaRecorder;
+
 
     bool videoReady = false;
     bool m_isCapturingImage = false;

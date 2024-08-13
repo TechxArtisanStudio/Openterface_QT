@@ -12,6 +12,7 @@ QT       += core gui multimedia multimediawidgets serialport concurrent
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 
 SOURCES += main.cpp \
+    host/audiomanager.cpp \
     ui/fpsspinbox.cpp \
     ui/settingdialog.cpp \
     ui/statuswidget.cpp \
@@ -30,6 +31,7 @@ SOURCES += main.cpp \
 
 HEADERS  += \
     global.h \
+    host/audiomanager.h \
     ui/fpsspinbox.h \
     ui/settingdialog.h \
     ui/statuswidget.h \

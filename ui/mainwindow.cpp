@@ -32,8 +32,6 @@
 #include "ui/videopane.h"
 #include "video/videohid.h"
 
-#include <QAudioDevice>
-#include <QAudioInput>
 #include <QCameraDevice>
 #include <QMediaDevices>
 #include <QMediaFormat>
@@ -60,9 +58,9 @@ Q_LOGGING_CATEGORY(log_ui_mainwindow, "opf.ui.mainwindow")
 /*
   * QT Permissions API is not compatible with Qt < 6.5 and will cause compilation failure on
   * expanding the QT_CONFIG macro if it isn't set as a feature in qtcore-config.h. QT < 6.5
-  * is still true for a large number of linux distros in 2024. This ifdef or another 
-  * workaround needs to be used anywhere the QPermissions class is called, for distros to 
-  * be able to use their package manager's native Qt libs, if they are < 6.5. 
+  * is still true for a large number of linux distros in 2024. This ifdef or another
+  * workaround needs to be used anywhere the QPermissions class is called, for distros to
+  * be able to use their package manager's native Qt libs, if they are < 6.5.
   *
   * See qtconfigmacros.h, qtcore-config.h, etc. in the relevant Qt includes directory, and:
   * https://doc-snapshots.qt.io/qt6-6.5/whatsnew65.html
@@ -76,9 +74,10 @@ Q_LOGGING_CATEGORY(log_ui_mainwindow, "opf.ui.mainwindow")
 #endif
 
 Camera::Camera() : ui(new Ui::Camera), videoPane(new VideoPane(this)),
-                                        stackedLayout(new QStackedLayout(this)), 
+                                        stackedLayout(new QStackedLayout(this)),
                                         transWindow(new TransWindow()),
-                                        statusWidget(new StatusWidget(this))
+                                        statusWidget(new StatusWidget(this)),
+                                        m_audioManager(new AudioManager(this))
 {
     qCDebug(log_ui_mainwindow) << "Init camera...";
     ui->setupUi(this);
@@ -123,7 +122,7 @@ Camera::Camera() : ui(new Ui::Camera), videoPane(new VideoPane(this)),
     qCDebug(log_ui_mainwindow) << "Observe reset Serial Port triggerd...";
     connect(ui->actionResetSerialPort, &QAction::triggered, this, &Camera::onActionResetSerialPortTriggered);
 
-    
+
 
     init();
 }
@@ -160,18 +159,16 @@ void Camera::init()
 #endif
 #endif
 
-    //m_audioInput.reset(new QAudioInput);
-    //m_captureSession.setAudioInput(m_audioInput.get());
-
     // Camera devices:
     updateCameras();
 }
 
+
 void Camera::setCamera(const QCameraDevice &cameraDevice)
 {
     if(cameraDevice.description().contains("Openterface") == false){
-        qCDebug(log_ui_mainwindow) << "The camera("<<cameraDevice.description()<<") is not an Openterface Mini-KVM, skip it.";
-        return;
+    qCDebug(log_ui_mainwindow) << "The camera("<<cameraDevice.description()<<") is not an Openterface Mini-KVM, skip it.";
+    return;
     }
     qCDebug(log_ui_mainwindow) << "Set Camera, device name: " << cameraDevice.description();
 
@@ -496,7 +493,7 @@ void Camera::displayCameraError()
 }
 
 void Camera::stop(){
- 
+
     disconnect(m_camera.data());
     // m_audioInput->disconnect();
     m_captureSession.disconnect();
@@ -560,8 +557,8 @@ void Camera::updateCameras()
             } else {
                 qCDebug(log_ui_mainwindow) << "The default camera is" << QMediaDevices::defaultVideoInput().description();
             }
+            m_audioManager->initializeAudio();
             setCamera(camera);
-
             break;
         }
     }
