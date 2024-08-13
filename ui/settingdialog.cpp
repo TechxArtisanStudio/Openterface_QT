@@ -423,7 +423,6 @@ void SettingDialog::createPages() {
     stackedWidget->addWidget(audioPage);
 }
 
-
 void SettingDialog::createButtons(){
     QPushButton *okButton = new QPushButton("OK");
     QPushButton *applyButton = new QPushButton("Apply");

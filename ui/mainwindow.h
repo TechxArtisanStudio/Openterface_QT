@@ -24,7 +24,8 @@
 #define CAMERA_H
 
 #include "transwindow.h"
-#include "serial/serialportevents.h"
+#include "ui/statuswidget.h"
+#include "ui/statusevents.h"
 
 #include <QAudioInput>
 #include <QCamera>
@@ -51,7 +52,7 @@ QT_END_NAMESPACE
 
 class MetaDataDialog;
 
-class Camera : public QMainWindow, public SerialPortEventCallback
+class Camera : public QMainWindow, public StatusEventCallback
 {
     Q_OBJECT
 
@@ -101,7 +102,7 @@ private slots:
 
     void onLastKeyPressed(const QString& key) override;
 
-    void onLastMouseLocation(const QPoint& location) override;
+    void onLastMouseLocation(const QPoint& location, const QString& mouseEvent) override;
 
 protected:
     void keyPressEvent(QKeyEvent *event) override;
@@ -144,7 +145,7 @@ private:
     QList<QCameraDevice> m_lastCameraList;
 
     MetaDataDialog *m_metaDataDialog = nullptr;
-    QLabel *resolutionLabel; 
+    StatusWidget *statusWidget;
 };
 
 #endif

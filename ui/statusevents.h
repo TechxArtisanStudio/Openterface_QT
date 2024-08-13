@@ -20,34 +20,21 @@
 * ========================================================================== *
 */
 
-#ifndef MOUSEMANAGER_H
-#define MOUSEMANAGER_H
-
-
-#include "serial/SerialPortManager.h"
-#include "ui/statusevents.h"
+#ifndef SERIALPORTEVENTS_H
+#define SERIALPORTEVENTS_H
 
 #include <QObject>
-#include <QLoggingCategory>
+#include <QString>
+#include <QPoint>
 
-Q_DECLARE_LOGGING_CATEGORY(log_core_mouse)
-
-class MouseManager : public QObject
+class StatusEventCallback
 {
-    Q_OBJECT
-
 public:
-    explicit MouseManager(QObject *parent = nullptr);
+    virtual ~StatusEventCallback() = default;
 
-    void handleAbsoluteMouseAction(int x, int y, int mouse_event, int wheelMovement);
-    void handleRelativeMouseAction(int dx, int dy, int mouse_event, int wheelMovement);
-    void setEventCallback(StatusEventCallback* callback);
-
-private:
-    bool isDragging = false;
-    StatusEventCallback* statusEventCallback = nullptr;
-
-    uint8_t mapScrollWheel(int delta);
+    virtual void onPortConnected(const QString& port) = 0;
+    virtual void onLastKeyPressed(const QString& key) = 0;
+    virtual void onLastMouseLocation(const QPoint& location, const QString& mouseEvent) = 0;
 };
 
-#endif // MOUSEMANAGER_H
+#endif
