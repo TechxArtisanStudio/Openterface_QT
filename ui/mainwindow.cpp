@@ -78,11 +78,11 @@ Q_LOGGING_CATEGORY(log_ui_mainwindow, "opf.ui.mainwindow")
 Camera::Camera() : ui(new Ui::Camera), videoPane(new VideoPane(this)),
                                         stackedLayout(new QStackedLayout(this)), 
                                         transWindow(new TransWindow()),
-                                        resolutionLabel(new QLabel(this))
+                                        statusWidget(new StatusWidget(this))
 {
     qCDebug(log_ui_mainwindow) << "Init camera...";
     ui->setupUi(this);
-    ui->statusbar->addPermanentWidget(resolutionLabel);
+    ui->statusbar->addPermanentWidget(statusWidget);
 
 
     QWidget *centralWidget = new QWidget(this);
@@ -435,6 +435,13 @@ void Camera::configureSettings() {
     setting->show();
 }
 
+void Camera::configureSettings() {
+    qDebug() << "Configuring settings...";
+    SettingDialog *setting = new SettingDialog(this);
+    qDebug() << "Setting configuration... ";
+    setting->show();
+}
+
 void Camera::record()
 {
     m_mediaRecorder->record();
@@ -577,15 +584,21 @@ void Camera::checkCameraConnection()
 
 
 void Camera::onPortConnected(const QString& port) {
-    ui->statusbar->showMessage("Port: " + port);
+    statusWidget->setConnectedPort(port);
 }
 
 void Camera::onLastKeyPressed(const QString& key) {
     // Implementation...
 }
 
-void Camera::onLastMouseLocation(const QPoint& location) {
-    // Implementation...
+void Camera::onLastMouseLocation(const QPoint& location, const QString& mouseEvent) {
+    ui->statusbar->showMessage(QString("🖱️(%1,%2)\t%3").arg(location.x()).arg(location.y()).arg(mouseEvent));
+}
+
+void Camera::updateResolutions(const int input_width, const int input_height, const float input_fps, const int capture_width, const int capture_height, const int capture_fps)
+{
+    statusWidget->setInputResolution(input_width, input_height, input_fps);
+    statusWidget->setCaptureResolution(capture_width, capture_height, capture_fps);
 }
 
 void Camera::updateResolutions(int input_width, int input_height, float input_fps, int capture_width, int capture_height, int capture_fps)

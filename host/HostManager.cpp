@@ -32,10 +32,11 @@ HostManager::HostManager(QObject *parent) : QObject(parent),
 {
 }
 
-void HostManager::setEventCallback(SerialPortEventCallback* callback)
+void HostManager::setEventCallback(StatusEventCallback* callback)
 {
     qCDebug(log_core_host) << "HostManager.setEventCallback";
     SerialPortManager::getInstance().setEventCallback(callback);
+    mouseManager.setEventCallback(callback);
 }
 
 void HostManager::handleKeyPress(QKeyEvent *event)
@@ -70,6 +71,7 @@ void HostManager::handleMouseScroll(int x, int y, int delta)
 {
     mouseManager.handleAbsoluteMouseAction(x, y, 0, delta);
 }
+
 void HostManager::handleMouseMove(int x, int y, int mouseButton)
 {
     // Add your implementation here

@@ -20,34 +20,40 @@
 * ========================================================================== *
 */
 
-#ifndef MOUSEMANAGER_H
-#define MOUSEMANAGER_H
+#include "statuswidget.h"
 
+StatusWidget::StatusWidget(QWidget *parent) : QWidget(parent) {
+    resolutionLabel = new QLabel("💻:", this);
+    inputResolutionLabel = new QLabel("INPUT(NA),", this);
+    captureResolutionLabel = new QLabel("CAPTURE(NA)", this);
+    connectedPortLabel = new QLabel("🔌: N/A", this);
 
-#include "serial/SerialPortManager.h"
-#include "ui/statusevents.h"
+    QHBoxLayout *layout = new QHBoxLayout(this);
+    layout->setContentsMargins(0, 0, 0, 0);
+    layout->setSpacing(1);
 
-#include <QObject>
-#include <QLoggingCategory>
+    layout->addWidget(connectedPortLabel);
+    layout->addWidget(new QLabel("|", this));
+    layout->addWidget(resolutionLabel);
+    layout->addWidget(inputResolutionLabel);
+    layout->addWidget(captureResolutionLabel);
 
-Q_DECLARE_LOGGING_CATEGORY(log_core_mouse)
+    setLayout(layout);
+    setMinimumHeight(30);
+    update();
+}
 
-class MouseManager : public QObject
-{
-    Q_OBJECT
+void StatusWidget::setInputResolution(const int &width, const int &height, const float &fps) {
+    inputResolutionLabel->setText(QString("INPUT(%1X%2@%3),").arg(width).arg(height).arg(fps));
+    update(); 
+}
 
-public:
-    explicit MouseManager(QObject *parent = nullptr);
+void StatusWidget::setCaptureResolution(const int &width, const int &height, const float &fps) {
+    captureResolutionLabel->setText(QString("CAPTURE(%1X%2@%3)").arg(width).arg(height).arg(fps));
+    update(); 
+}
 
-    void handleAbsoluteMouseAction(int x, int y, int mouse_event, int wheelMovement);
-    void handleRelativeMouseAction(int dx, int dy, int mouse_event, int wheelMovement);
-    void setEventCallback(StatusEventCallback* callback);
-
-private:
-    bool isDragging = false;
-    StatusEventCallback* statusEventCallback = nullptr;
-
-    uint8_t mapScrollWheel(int delta);
-};
-
-#endif // MOUSEMANAGER_H
+void StatusWidget::setConnectedPort(const QString &port) {
+    connectedPortLabel->setText("🔌: " + port);
+    update(); 
+}

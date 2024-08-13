@@ -22,6 +22,7 @@
 
 #include "ui/mainwindow.h"
 
+
 #include <iostream>
 #include <QApplication>
 #include <QIcon>
@@ -33,6 +34,7 @@
 void customMessageHandler(QtMsgType type, const QMessageLogContext &context, const QString &msg)
 {
     Q_UNUSED(context)
+
 
     QString timestamp = QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm:ss");
     QThread *currentThread = QThread::currentThread();

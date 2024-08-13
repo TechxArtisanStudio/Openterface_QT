@@ -1,0 +1,80 @@
+---
+name: Linux Build
+
+on:
+  push:
+    branches: ["main", "dev"]
+    tags: ["v*"]
+  pull_request:
+    branches: ["dev"]
+  workflow_dispatch:
+
+env:
+  ARTIFACT: openterfaceQT
+  SOURCE_DIR: ${{ github.workspace }}
+  QT_VERSION: 6.4.2
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install prerequisites
+        run: |
+          sudo apt update -y
+          sudo apt upgrade -y
+          sudo apt install build-essential
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: ${{ env.QT_VERSION }}
+          host: linux
+          target: desktop
+          arch: gcc_64
+          modules: qtmultimedia qtserialport
+
+      - name: Get all tags for correct version determination
+        working-directory: ${{ github.workspace }}
+        run: |
+          git fetch --all --tags -f
+
+      - name: Create build directory
+        run: mkdir ${{ runner.temp }}/build
+
+      - name: Configure And Build
+        working-directory: ${{ runner.temp }}/build
+        run: |
+          qmake6 ${{ github.workspace }} && make -j$(nproc)
+
+      - name: Create deb package
+        working-directory: ${{ runner.temp }}
+        run: |
+          mkdir -p package/DEBIAN
+          # Create control file with package information
+          echo "Package: ${{ env.ARTIFACT }}
+          Version: 0.0.1
+          Section: base
+          Priority: optional
+          Architecture: all
+          Depends: libqt6core6 (>= 6.4.2), libqt6multimedia6 (>= 6.4.2), libqt6serialport6 (>= 6.4.2)
+          Maintainer: TechXArtisan <info@techxartisan.com>
+          Description: OpenterfaceQT" > package/DEBIAN/control
+          # Copy files to package directory
+          mkdir -p package/usr/bin
+          cp -r build/openterfaceQT package/usr/bin
+          # Build deb package
+          mv package ${{ env.ARTIFACT }}
+          dpkg-deb --build ${{ env.ARTIFACT }}
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: openterfaceqt.deb
+          path: ${{ runner.temp }}/${{ env.ARTIFACT }}.deb
+          if-no-files-found: error
