@@ -58,7 +58,6 @@
      <string>File</string>
     </property>
     <addaction name="separator"/>
-    <addaction name="actionSettings"/>
     <addaction name="separator"/>
     <addaction name="separator"/>
     <addaction name="actionPreferences"/>
@@ -229,7 +228,6 @@
   <slot>pause()</slot>
   <slot>stop()</slot>
   <slot>enablePreview(bool)</slot>
-  <!-- <slot>configureCaptureSettings()</slot> -->
   <slot>configureSettings()</slot>
   <slot>takeImage()</slot>
   <slot>startCamera()</slot>
