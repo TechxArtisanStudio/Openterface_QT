@@ -432,12 +432,6 @@ void Camera::configureSettings() {
     setting->show();
 }
 
-void Camera::configureSettings() {
-    qDebug() << "Configuring settings...";
-    SettingDialog *setting = new SettingDialog(this);
-    qDebug() << "Setting configuration... ";
-    setting->show();
-}
 
 void Camera::record()
 {
@@ -598,14 +592,3 @@ void Camera::updateResolutions(const int input_width, const int input_height, co
     statusWidget->setCaptureResolution(capture_width, capture_height, capture_fps);
 }
 
-void Camera::updateResolutions(int input_width, int input_height, float input_fps, int capture_width, int capture_height, int capture_fps)
-{
-    QString text = QString("Resolution: INPUT(%1x%2@%3) | CAPTURE(%4x%5@%6)")
-        .arg(input_width)
-        .arg(input_height)
-        .arg(input_fps)
-        .arg(capture_width)
-        .arg(capture_height)
-        .arg(capture_fps);
-    resolutionLabel->setText(text);
-}
