@@ -20,34 +20,37 @@
 * ========================================================================== *
 */
 
-#ifndef MOUSEMANAGER_H
-#define MOUSEMANAGER_H
+#include "target/mouseeventdto.h"
 
+MouseEventDTO::MouseEventDTO(int x, int y, bool isAbsoluteMode, int mouseButton, int wheelDelta)
+    : absX(x), absY(y), _isAbsoluteMode(isAbsoluteMode) {
+    if (!isAbsoluteMode) {
+        // Calculate delta values if not in absolute mode
+        deltaX = x; // Assuming x is deltaX in relative mode
+        deltaY = y; // Assuming y is deltaY in relative mode
+    }
+    this->mouseButton = mouseButton;
+    this->wheelDelta = wheelDelta;
+}
 
-#include "serial/SerialPortManager.h"
-#include "ui/statusevents.h"
+MouseEventDTO::MouseEventDTO(int x, int y, bool isAbsoluteMode, int mouseButton)
+    : absX(x), absY(y), _isAbsoluteMode(isAbsoluteMode) {
+    MouseEventDTO(x, y, isAbsoluteMode, mouseButton, 0);
+}
 
-#include <QObject>
-#include <QLoggingCategory>
+MouseEventDTO::MouseEventDTO(int x, int y, bool isAbsoluteMode)
+    : absX(x), absY(y), _isAbsoluteMode(isAbsoluteMode) {
+    MouseEventDTO(x, y, isAbsoluteMode, 0, 0);
+}
 
-Q_DECLARE_LOGGING_CATEGORY(log_core_mouse)
+int MouseEventDTO::getX() const {
+    return _isAbsoluteMode ? absX : deltaX;
+}
 
-class MouseManager : public QObject
-{
-    Q_OBJECT
+int MouseEventDTO::getY() const {
+    return _isAbsoluteMode ? absY : deltaY;
+}
 
-public:
-    explicit MouseManager(QObject *parent = nullptr);
-
-    void handleAbsoluteMouseAction(int x, int y, int mouse_event, int wheelMovement);
-    void handleRelativeMouseAction(int dx, int dy, int mouse_event, int wheelMovement);
-    void setEventCallback(StatusEventCallback* callback);
-
-private:
-    bool isDragging = false; 
-    StatusEventCallback* statusEventCallback = nullptr;
-
-    uint8_t mapScrollWheel(int delta);
-};
-
-#endif // MOUSEMANAGER_H
+bool MouseEventDTO::isAbsoluteMode() {
+    return _isAbsoluteMode;
+}

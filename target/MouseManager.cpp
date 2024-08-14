@@ -21,6 +21,7 @@
 */
 
 #include "MouseManager.h"
+#include "serial/SerialPortManager.h"
 
 Q_LOGGING_CATEGORY(log_core_mouse, "opf.host.mouse")
 
@@ -66,7 +67,21 @@ void MouseManager::handleAbsoluteMouseAction(int x, int y, int mouse_event, int 
 }
 
 void MouseManager::handleRelativeMouseAction(int dx, int dy, int mouse_event, int wheelMovement) {
-    // Handle relative mouse action here...
+    qCDebug(log_core_mouse) << "handleRelativeMouseAction";
+    QByteArray data;
+    if (mouse_event > 0){
+        qCDebug(log_core_mouse) << "mouse_event:" << mouse_event;
+    }
+    uint8_t mappedWheelMovement = mapScrollWheel(wheelMovement);
+    if(mappedWheelMovement>0){    qCDebug(log_core_mouse) << "mappedWheelMovement:" << mappedWheelMovement; }
+    data.append(MOUSE_REL_ACTION_PREFIX);
+    data.append(static_cast<char>(mouse_event));
+    data.append(static_cast<char>(dx & 0xFF));
+    data.append(static_cast<char>(dy & 0xFF));
+    data.append(static_cast<char>(mappedWheelMovement & 0xFF));
+
+    // send the data to serial
+    SerialPortManager::getInstance().sendAsyncCommand(data, false);
 }
 
 uint8_t MouseManager::mapScrollWheel(int delta){
