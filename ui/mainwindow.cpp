@@ -23,7 +23,11 @@
 #include "mainwindow.h"
 #include "global.h"
 // #include "ui/videosettings.h"
+#include "settingdialog.h"
 #include "ui_mainwindow.h"
+#include "globalsetting.h"
+
+#include "host/HostManager.h"
 
 #include "ui/imagesettings.h"
 #include "ui/settingdialog.h"
@@ -75,14 +79,12 @@ Q_LOGGING_CATEGORY(log_ui_mainwindow, "opf.ui.mainwindow")
 
 Camera::Camera() : ui(new Ui::Camera), videoPane(new VideoPane(this)),
                                         stackedLayout(new QStackedLayout(this)),
-                                        transWindow(new TransWindow()),
                                         statusWidget(new StatusWidget(this)),
                                         m_audioManager(new AudioManager(this))
 {
     qCDebug(log_ui_mainwindow) << "Init camera...";
     ui->setupUi(this);
     ui->statusbar->addPermanentWidget(statusWidget);
-
 
     QWidget *centralWidget = new QWidget(this);
     centralWidget->setLayout(stackedLayout);
@@ -111,7 +113,7 @@ Camera::Camera() : ui(new Ui::Camera), videoPane(new VideoPane(this)),
 
     qCDebug(log_ui_mainwindow) << "Observe Relative/Absolute toggle...";
     connect(ui->actionRelative, &QAction::triggered, this, &Camera::onActionRelativeTriggered);
-
+    connect(ui->actionAbsolute, &QAction::triggered, this, &Camera::onActionAbsoluteTriggered);
 
     qCDebug(log_ui_mainwindow) << "Observe reset HID triggerd...";
     connect(ui->actionResetHID, &QAction::triggered, this, &Camera::onActionResetHIDTriggered);
@@ -122,8 +124,9 @@ Camera::Camera() : ui(new Ui::Camera), videoPane(new VideoPane(this)),
     qCDebug(log_ui_mainwindow) << "Observe reset Serial Port triggerd...";
     connect(ui->actionResetSerialPort, &QAction::triggered, this, &Camera::onActionResetSerialPortTriggered);
 
-
-
+    // load the settings
+    GlobalSetting::instance().loadLogSettings();
+    GlobalSetting::instance().loadVideoSettings();
     init();
 }
 
@@ -161,6 +164,9 @@ void Camera::init()
 
     // Camera devices:
     updateCameras();
+
+    GlobalVar::instance().setWinWidth(this->width());
+    GlobalVar::instance().setWinHeight(this->height());
 }
 
 
@@ -218,7 +224,10 @@ void Camera::resizeEvent(QResizeEvent *event) {
     // Set the new size of the window
     qCDebug(log_ui_mainwindow) << "Resize to " << width() << "x" << new_height;
     resize(width(), new_height);
-    // resize(new_width, height());
+
+    GlobalVar::instance().setWinWidth(this->width());
+    GlobalVar::instance().setWinHeight(this->height());
+
 }
 
 
@@ -305,13 +314,20 @@ void Camera::onActionRelativeTriggered()
     QPoint globalPosition = videoPane->mapToGlobal(QPoint(0, 0));
 
     QRect globalGeometry = QRect(globalPosition, videoPane->geometry().size());
-    transWindow->showFullScreen();
-    transWindow->updateGeometry(&globalGeometry);
-    transWindow->show();
 
-    this->centralWidget()->setMouseTracking(false);
+    // move the mouse to window center
+    QPoint center = globalGeometry.center();
+    QCursor::setPos(center);
+
+    GlobalVar::instance().setAbsoluteMouseMode(false);
+    videoPane->hideHostMouse();
 
     this->popupMessage("Long press ESC to exit.");
+}
+
+void Camera::onActionAbsoluteTriggered()
+{
+    GlobalVar::instance().setAbsoluteMouseMode(true);
 }
 
 void Camera::onActionResetHIDTriggered()

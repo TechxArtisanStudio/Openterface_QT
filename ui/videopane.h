@@ -20,10 +20,14 @@
 * ========================================================================== *
 */
 
+#ifndef VIDEOPANE_H
+#define VIDEOPANE_H
+
+#include "target/mouseeventdto.h"
+
 #include <QVideoWidget>
 #include <QMouseEvent>
-#include "host/HostManager.h"
-#include "global.h"
+
 
 class VideoPane : public QVideoWidget
 {
@@ -32,6 +36,9 @@ class VideoPane : public QVideoWidget
 public:
     explicit VideoPane(QWidget *parent = nullptr);
 
+    void showHostMouse();
+    void hideHostMouse();
+
 protected:
     void mousePressEvent(QMouseEvent* event) override;
     void mouseReleaseEvent(QMouseEvent* event) override;
@@ -39,12 +46,23 @@ protected:
     void wheelEvent(QWheelEvent *event) override;
     void keyPressEvent(QKeyEvent *event) override;
     void keyReleaseEvent(QKeyEvent *event) override;
+    bool eventFilter(QObject *watched, QEvent *event) override;
+    void moveMouseToCenter();
 
 private:
-    QPoint calculateRelativePosition(QMouseEvent *event);
     int getMouseButton(QMouseEvent *event);
     int lastMouseButton = 0;
     bool isDragging = false;
     int lastX=0;
     int lastY=0;
+    bool relativeModeEnable;
+    
+    QTimer *escTimer;
+    bool holdingEsc=false;
+    
+    MouseEventDTO* calculateRelativePosition(QMouseEvent *event);
+    MouseEventDTO* calculateAbsolutePosition(QMouseEvent *event);
+    MouseEventDTO* calculateMouseEventDto(QMouseEvent *event);
 };
+
+#endif
