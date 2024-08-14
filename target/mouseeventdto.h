@@ -20,34 +20,32 @@
 * ========================================================================== *
 */
 
-#ifndef MOUSEMANAGER_H
-#define MOUSEMANAGER_H
+#ifndef MOUSEEVENTDTO_H
+#define MOUSEEVENTDTO_H
 
-
-#include "serial/SerialPortManager.h"
-#include "ui/statusevents.h"
-
-#include <QObject>
-#include <QLoggingCategory>
-
-Q_DECLARE_LOGGING_CATEGORY(log_core_mouse)
-
-class MouseManager : public QObject
-{
-    Q_OBJECT
-
+class MouseEventDTO {
 public:
-    explicit MouseManager(QObject *parent = nullptr);
+    MouseEventDTO(int x, int y, bool isAbsoluteMode, int mouseButton, int wheelDelta);
+    MouseEventDTO(int x, int y, bool isAbsoluteMode, int mouseButton);
+    MouseEventDTO(int x, int y, bool isAbsoluteMode);
 
-    void handleAbsoluteMouseAction(int x, int y, int mouse_event, int wheelMovement);
-    void handleRelativeMouseAction(int dx, int dy, int mouse_event, int wheelMovement);
-    void setEventCallback(StatusEventCallback* callback);
+    int getX() const;
+    int getY() const;
+    bool isAbsoluteMode();
+    int getMouseButton() const { return mouseButton; }
+    void setMouseButton(int button) { mouseButton = button; }
+    int getWheelDelta() const { return wheelDelta; }
+    void setWheelDelta(int delta) { wheelDelta = delta; }
 
 private:
-    bool isDragging = false; 
-    StatusEventCallback* statusEventCallback = nullptr;
+    int absX;
+    int absY;
+    int deltaX;
+    int deltaY;
+    bool _isAbsoluteMode;
 
-    uint8_t mapScrollWheel(int delta);
+    int mouseButton;
+    int wheelDelta;
 };
 
-#endif // MOUSEMANAGER_H
+#endif // MOUSEEVENTDTO_H

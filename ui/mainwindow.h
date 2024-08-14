@@ -23,9 +23,9 @@
 #ifndef CAMERA_H
 #define CAMERA_H
 
-#include "transwindow.h"
 #include "ui/statuswidget.h"
 #include "ui/statusevents.h"
+#include "ui/videopane.h"
 
 #include <QAudioInput>
 #include <QCamera>
@@ -40,6 +40,7 @@
 #include <QStackedLayout>
 #include <QLoggingCategory>
 #include <QLabel>
+
 
 Q_DECLARE_LOGGING_CATEGORY(log_ui_mainwindow)
 
@@ -113,6 +114,8 @@ protected:
     void checkCameraConnection();
     
     void onActionRelativeTriggered();
+    void onActionAbsoluteTriggered();
+
     void onActionResetHIDTriggered();
     void onActionResetSerialPortTriggered();
     void onActionFactoryResetHIDTriggered();
@@ -123,9 +126,9 @@ protected:
 
 private:
     Ui::Camera *ui;
-    TransWindow *transWindow;
+    // TransWindow *transWindow;
 
-    QVideoWidget *videoPane;
+    VideoPane *videoPane;
     QStackedLayout *stackedLayout;
     //QActionGroup *videoDevicesGroup = nullptr;
 

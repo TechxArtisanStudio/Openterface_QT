@@ -69,6 +69,9 @@ public:
 
     int getAllbarHeight() const {return title_height + menu_height + statusbar_height ;}
 
+    bool isAbsoluteMouseMode() const { return absolute_mouse_mode; }
+    void setAbsoluteMouseMode(bool mode) { absolute_mouse_mode = mode; }
+
 private:
     GlobalVar() : input_width(1920), input_height(1080), capture_width(1920), capture_height(1080), capture_fps(30) {} // Private constructor
     ~GlobalVar() {} // Private destructor
@@ -100,6 +103,8 @@ private:
     int menu_height;
     int title_height;
     int statusbar_height;
+
+    bool absolute_mouse_mode = true;
 };
 
 #endif
