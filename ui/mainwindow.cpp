@@ -23,7 +23,9 @@
 #include "mainwindow.h"
 #include "global.h"
 // #include "ui/videosettings.h"
+#include "settingdialog.h"
 #include "ui_mainwindow.h"
+#include "globalsetting.h"
 
 #include "host/HostManager.h"
 
@@ -121,7 +123,8 @@ Camera::Camera() : ui(new Ui::Camera), videoPane(new VideoPane(this)),
 
     qCDebug(log_ui_mainwindow) << "Observe reset Serial Port triggerd...";
     connect(ui->actionResetSerialPort, &QAction::triggered, this, &Camera::onActionResetSerialPortTriggered);
-
+    
+    GlobalSetting::instance().loadLogSettings();
     init();
 }
 

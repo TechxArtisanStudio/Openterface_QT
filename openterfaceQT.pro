@@ -24,6 +24,7 @@ SOURCES += main.cpp \
     ui/metadatadialog.cpp \
     ui/videopane.cpp \
     ui/videosettings.cpp \
+    ui/globalsetting.cpp \
     host/HostManager.cpp \
     serial/SerialPortManager.cpp \
     target/KeyboardManager.cpp \
@@ -43,6 +44,7 @@ HEADERS  += \
     ui/metadatadialog.h \
     ui/videopane.h \
     ui/videosettings.h \
+    ui/globalsetting.h \
     ui/statusevents.h \    
     host/HostManager.h \
     serial/ch9329.h \
