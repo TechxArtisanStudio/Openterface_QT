@@ -21,6 +21,7 @@
 */
 
 #include "ui/mainwindow.h"
+#include "global.h"
 
 
 #include <iostream>
@@ -85,9 +86,9 @@ int main(int argc, char *argv[])
 
     qInstallMessageHandler(customMessageHandler);
 
-    QLoggingCategory::setFilterRules("opf.core.*=true\n"
-                                     "opf.ui.*=true\n"
-                                     "opf.host.*=true\n"
+    QLoggingCategory::setFilterRules("opf.core.*=false\n"
+                                     "opf.ui.*=false\n"
+                                     "opf.host.*=false\n"
                                      "opf.core.serial=false\n");
 
     QCoreApplication::setApplicationName("Openterface Mini-KVM");
