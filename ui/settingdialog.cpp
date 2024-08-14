@@ -44,7 +44,7 @@
 #include <QStackedWidget>
 #include <QDebug>
 #include <QLoggingCategory>
-
+#include <QSettings>
 
 SettingDialog::SettingDialog(QCamera *_camera, QWidget *parent)
     : QDialog(parent)
@@ -58,13 +58,16 @@ SettingDialog::SettingDialog(QCamera *_camera, QWidget *parent)
     , camera(_camera)
 
 {
+
+
     ui->setupUi(this);
     createSettingTree();
     createPages();
     createButtons();
     createLayout();
     setWindowTitle(tr("Preferences"));
-
+    // loadLogSettings();
+    initLogSettings();
     // Connect the tree widget's currentItemChanged signal to a slot
     connect(settingTree, &QTreeWidget::currentItemChanged, this, &SettingDialog::changePage);
 }
@@ -87,7 +90,7 @@ void SettingDialog::createSettingTree() {
     settingTree->setRootIsDecorated(false);
     
     // QStringList names = {"Log"};
-    QStringList names = {"Log", "Video", "Audio"};
+    QStringList names = {"General", "Video", "Audio"};
     for (const QString &name : names) {     // add item to setting tree
         QTreeWidgetItem *item = new QTreeWidgetItem(settingTree);
         item->setText(0, name);
@@ -100,7 +103,7 @@ void SettingDialog::createLogPage() {
     // Create checkbox for log
     QCheckBox *coreCheckBox = new QCheckBox("Core");
     QCheckBox *serialCheckBox = new QCheckBox("Serial");
-    QCheckBox *uiCheckBox = new QCheckBox("Ui");
+    QCheckBox *uiCheckBox = new QCheckBox("User Interface");
     QCheckBox *hostCheckBox = new QCheckBox("Host");
     coreCheckBox->setObjectName("core");
     serialCheckBox->setObjectName("serial");
@@ -113,10 +116,17 @@ void SettingDialog::createLogPage() {
     logCheckboxLayout->addWidget(uiCheckBox);
     logCheckboxLayout->addWidget(hostCheckBox);
 
-    QLabel *logLabel = new QLabel("General log setting");
+    QLabel *logLabel = new QLabel(
+        "<span style=' color: black; font-weight: bold;'>General log setting</span>");
+    logLabel->setTextFormat(Qt::RichText);
+    logLabel->setStyleSheet(bigLabelFontSize);
+    QLabel *logDescription = new QLabel(
+        "Check the check box to see the corresponding log in the QT console.");
+    logDescription->setStyleSheet(commentsFontSize);
 
     QVBoxLayout *logLayout = new QVBoxLayout(logPage);
     logLayout->addWidget(logLabel);
+    logLayout->addWidget(logDescription);
     logLayout->addLayout(logCheckboxLayout);
     logLayout->addStretch();
 }
@@ -124,12 +134,20 @@ void SettingDialog::createLogPage() {
 void SettingDialog::createVideoPage() {
     videoPage = new QWidget();
 
-    QLabel *videoLabel = new QLabel("General video setting");
+    QLabel *videoLabel = new QLabel(
+        "<span style=' color: black; font-weight: bold;'>General video setting</span>");
+    videoLabel->setStyleSheet(bigLabelFontSize);
+    videoLabel->setTextFormat(Qt::RichText);
+
     QLabel *resolutionsLabel = new QLabel("Capture resolutions: ");
+    resolutionsLabel->setStyleSheet(smallLabelFontSize);
+     
     QComboBox *videoFormatBox = new QComboBox();
     videoFormatBox->setObjectName("videoFormatBox");
 
     QLabel *framerateLabel = new QLabel("Framerate: ");
+    framerateLabel->setStyleSheet(smallLabelFontSize);
+
     FpsSpinBox *fpsSpinBox = new FpsSpinBox();
     fpsSpinBox->setObjectName("fpsSpinBox");
     QSlider *fpsSlider = new QSlider();
@@ -141,6 +159,7 @@ void SettingDialog::createVideoPage() {
     hBoxLayout->addWidget(fpsSlider);
 
     QLabel *formatLabel = new QLabel("Pixel format: ");
+    formatLabel->setStyleSheet(smallLabelFontSize);
     QComboBox *pixelFormatBox = new QComboBox();
     pixelFormatBox->setObjectName("pixelFormatBox");
 
@@ -156,12 +175,6 @@ void SettingDialog::createVideoPage() {
    
     if (camera  != nullptr && !camera->cameraDevice().isNull() ){
         const QList<QCameraFormat> videoFormats = camera->cameraDevice().videoFormats();
-        // for (const QCameraFormat &format : videoFormats) {
-        //     qDebug() << "Resolution: " << format.resolution();
-        //     qDebug() << "Frame rate range: " << format.minFrameRate() << " - " << format.maxFrameRate();
-        //     qDebug() << "Pixel format: " << format.pixelFormat();
-        //     qDebug() << "--------------------------------------------------";
-        // }
         populateResolutionBox(videoFormats);
         connect(videoFormatBox, &QComboBox::currentIndexChanged, [this, videoFormatBox](int /*index*/){
             this->setFpsRange(boxValue(videoFormatBox).value<std::set<int>>());
@@ -179,11 +192,9 @@ void SettingDialog::createVideoPage() {
         QStringList resolutionParts = resolutionText.split(' ').first().split('x');
         m_currentResolution = QSize(resolutionParts[0].toInt(), resolutionParts[1].toInt());
 
-
         updatePixelFormats();
         connect(pixelFormatBox, &QComboBox::currentIndexChanged, this,
                 &SettingDialog::updatePixelFormats);
-        
     }else {
         qWarning() << "Camera or CameraDevice is not valid.";
     }
@@ -379,22 +390,31 @@ void SettingDialog::populateResolutionBox(const QList<QCameraFormat> &videoForma
 void SettingDialog::createAudioPage() {
     audioPage = new QWidget();
 
-    QLabel *audioLabel = new QLabel("General audio setting");
+    QLabel *audioLabel = new QLabel(
+        "<span style=' color: black; font-weight: bold;'>General audio setting</span>");
+    audioLabel->setStyleSheet(bigLabelFontSize);
+
     QLabel *audioCodecLabel = new QLabel("Audio Codec: ");
+    audioCodecLabel->setStyleSheet(smallLabelFontSize);
     QComboBox *audioCodecBox = new QComboBox();
     audioCodecBox->setObjectName("audioCodecBox");
 
     QLabel *audioSampleRateLabel = new QLabel("Sample Rate: ");
+    audioSampleRateLabel->setStyleSheet(smallLabelFontSize);
     QSpinBox *audioSampleRateBox = new QSpinBox();
     audioSampleRateBox->setObjectName("audioSampleRateBox");
     audioSampleRateBox->setEnabled(false);
 
     QLabel *qualityLabel = new QLabel("Quality: ");
+    qualityLabel->setStyleSheet(smallLabelFontSize);
+
     QSlider *qualitySlider = new QSlider();
     qualitySlider->setObjectName("qualitySlider");
     qualitySlider->setOrientation(Qt::Horizontal);
 
     QLabel *fileFormatLabel = new QLabel("File Format: ");
+    fileFormatLabel->setStyleSheet(smallLabelFontSize);
+
     QComboBox *containerFormatBox = new QComboBox();
     containerFormatBox->setObjectName("containerFormatBox");
 
@@ -415,7 +435,6 @@ void SettingDialog::createPages() {
     createLogPage();
     createVideoPage();
     createAudioPage();
-
 
     // Add pages to the stacked widget
     stackedWidget->addWidget(logPage);
@@ -464,7 +483,7 @@ void SettingDialog::changePage(QTreeWidgetItem *current, QTreeWidgetItem *previo
     QString itemText = current->text(0);
     qDebug() << "Selected item:" << itemText;
 
-    if (itemText == "Log") {
+    if (itemText == "General") {
         QMetaObject::invokeMethod(this, [this]() {
             stackedWidget->setCurrentIndex(0);
         }, Qt::QueuedConnection);
@@ -492,6 +511,9 @@ void SettingDialog::setLogCheckBox(){
 }
 
 void SettingDialog::readCheckBoxState() {
+
+    QSettings settings("Techxartisan", "Openterface");
+    
     QCheckBox *coreCheckBox = findChild<QCheckBox*>("core");
     QCheckBox *serialCheckBox = findChild<QCheckBox*>("serial");
     QCheckBox *uiCheckBox = findChild<QCheckBox*>("ui");
@@ -500,31 +522,33 @@ void SettingDialog::readCheckBoxState() {
     // set the log filter value by check box
     QString logFilter = "";
 
-    if (coreCheckBox && coreCheckBox->isChecked()) {
-        logFilter += "opf.core.*=true\n";
-    } else {
-        logFilter += "opf.core.*=false\n";
-    }
-
-    if (uiCheckBox && uiCheckBox->isChecked()) {
-        logFilter += "opf.ui.*=true\n";
-    } else {
-        logFilter += "opf.ui.*=false\n";
-    }
-
-    if (hostCheckBox && hostCheckBox->isChecked()) {
-        logFilter += "opf.host.*=true\n";
-    } else {
-        logFilter += "opf.host.*=false\n";
-    }
-
-    if (serialCheckBox && serialCheckBox->isChecked()) {
-        logFilter += "opf.core.serial=true\n";
-    } else {
-        logFilter += "opf.core.serial=false\n";
-    }
+    logFilter += coreCheckBox->isChecked() ? "opf.core.*=true\n" : "opf.core.*=false\n";
+    logFilter += uiCheckBox->isChecked() ? "opf.ui.*=true\n" : "opf.ui.*=false\n";
+    logFilter += hostCheckBox->isChecked() ? "opf.host.*=true\n" : "opf.host.*=false\n";
+    logFilter += serialCheckBox->isChecked() ? "opf.core.serial=true\n" : "opf.core.serial=false\n";
 
     QLoggingCategory::setFilterRules(logFilter);
+    // save the filter settings
+    settings.setValue("Log/Core", coreCheckBox->isChecked());
+    settings.setValue("Log/Serial", serialCheckBox->isChecked());
+    settings.setValue("Log/Ui", uiCheckBox->isChecked());
+    settings.setValue("Log/Host", hostCheckBox->isChecked());
+}
+
+
+
+void SettingDialog::initLogSettings(){
+
+    QSettings settings("Techxartisan", "Openterface");
+    QCheckBox *coreCheckBox = findChild<QCheckBox*>("core");
+    QCheckBox *serialCheckBox = findChild<QCheckBox*>("serial");
+    QCheckBox *uiCheckBox = findChild<QCheckBox*>("ui");
+    QCheckBox *hostCheckBox = findChild<QCheckBox*>("host");
+
+    coreCheckBox->setChecked(settings.value("Log/Core", true).toBool());
+    serialCheckBox->setChecked(settings.value("Log/Serial", true).toBool());
+    uiCheckBox->setChecked(settings.value("Log/Ui", true).toBool());
+    hostCheckBox->setChecked(settings.value("Log/Host", true).toBool());
 }
 
 void SettingDialog::applyAccrodingPage(){
