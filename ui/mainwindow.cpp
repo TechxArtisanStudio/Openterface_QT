@@ -123,8 +123,10 @@ Camera::Camera() : ui(new Ui::Camera), videoPane(new VideoPane(this)),
 
     qCDebug(log_ui_mainwindow) << "Observe reset Serial Port triggerd...";
     connect(ui->actionResetSerialPort, &QAction::triggered, this, &Camera::onActionResetSerialPortTriggered);
-    
+
+    // load the settings
     GlobalSetting::instance().loadLogSettings();
+    GlobalSetting::instance().loadVideoSettings();
     init();
 }
 

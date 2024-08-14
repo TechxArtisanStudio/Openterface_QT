@@ -1,4 +1,5 @@
 #include "globalsetting.h"
+#include "global.h"
 
 GlobalSetting::GlobalSetting(QObject *parent)
     : QObject(parent),
@@ -30,3 +31,14 @@ void GlobalSetting::loadLogSettings()
     QLoggingCategory::setFilterRules(logFilter);
 }
 
+void GlobalSetting::setVideoSettings(int width, int height, int fpd){
+    settings.setValue("video/width", width);
+    settings.setValue("video/height", height);
+    settings.setValue("video/fps", fpd);
+}
+
+void GlobalSetting::loadVideoSettings(){
+    GlobalVar::instance().setCaptureWidth(settings.value("video/width", 1920).toInt());
+    GlobalVar::instance().setCaptureHeight(settings.value("video/height", 1080).toInt());
+    GlobalVar::instance().setCaptureFps(settings.value("video/fps", 1920).toInt());
+}
