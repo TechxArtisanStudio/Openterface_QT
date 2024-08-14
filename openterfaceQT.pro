@@ -13,6 +13,7 @@ greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 
 SOURCES += main.cpp \
     target/mouseeventdto.cpp \
+    host/audiomanager.cpp \
     ui/fpsspinbox.cpp \
     ui/settingdialog.cpp \
     ui/statuswidget.cpp \
@@ -31,6 +32,7 @@ SOURCES += main.cpp \
 HEADERS  += \
     global.h \
     target/mouseeventdto.h \
+    host/audiomanager.h \
     ui/fpsspinbox.h \
     ui/settingdialog.h \
     ui/statuswidget.h \

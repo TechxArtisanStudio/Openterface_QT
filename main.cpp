@@ -23,6 +23,7 @@
 #include "ui/mainwindow.h"
 #include "global.h"
 
+
 #include <iostream>
 #include <QApplication>
 #include <QIcon>
@@ -34,6 +35,7 @@
 void customMessageHandler(QtMsgType type, const QMessageLogContext &context, const QString &msg)
 {
     Q_UNUSED(context)
+
 
     QString timestamp = QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm:ss");
     QThread *currentThread = QThread::currentThread();
@@ -83,6 +85,7 @@ int main(int argc, char *argv[])
     QApplication app(argc, argv);
 
     qInstallMessageHandler(customMessageHandler);
+
     QLoggingCategory::setFilterRules("opf.core.*=false\n"
                                      "opf.ui.*=false\n"
                                      "opf.host.*=false\n"
