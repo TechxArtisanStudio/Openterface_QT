@@ -548,5 +548,6 @@ void SettingDialog::applyAccrodingPage(){
 
 void SettingDialog::handleOkButton() {
     readCheckBoxState();
+    applyVideoSettings();
     accept();
 }

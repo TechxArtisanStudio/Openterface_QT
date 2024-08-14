@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE QtCreatorProject>
-<!-- Written by QtCreator 13.0.2, 2024-08-12T18:52:23. -->
+<!-- Written by QtCreator 13.0.2, 2024-08-13T21:54:58. -->
 <qtcreator>
  <data>
   <variable>EnvironmentId</variable>
@@ -84,7 +84,7 @@
     <value type="bool" key="ClangTools.UseGlobalSettings">true</value>
    </valuemap>
    <valuemap type="QVariantMap" key="ClangdSettings">
-    <value type="bool" key="blockIndexing">true</value>
+    <value type="bool" key="blockIndexing">false</value>
     <value type="bool" key="useGlobalSettings">true</value>
    </valuemap>
   </valuemap>
