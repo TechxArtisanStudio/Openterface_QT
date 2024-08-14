@@ -20,35 +20,32 @@
 * ========================================================================== *
 */
 
-#ifndef TRANSWINDOWS_H
-#define TRANSWINDOWS_H
+#ifndef MOUSEEVENTDTO_H
+#define MOUSEEVENTDTO_H
 
-#include <QDialog>
-#include <QTimer>
-#include <QMouseEvent>
-#include <QRect>
-
-class TransWindow: public QDialog
-{
-    Q_OBJECT
-
+class MouseEventDTO {
 public:
-    explicit TransWindow(QWidget *parent=0);
+    MouseEventDTO(int x, int y, bool isAbsoluteMode, int mouseButton, int wheelDelta);
+    MouseEventDTO(int x, int y, bool isAbsoluteMode, int mouseButton);
+    MouseEventDTO(int x, int y, bool isAbsoluteMode);
 
-    ~TransWindow();
-
-    void updateGeometry(QRect *videoPaneGeometry);
-
-protected:
-    void mouseMoveEvent(QMouseEvent *event) override;
-    void keyPressEvent(QKeyEvent *event) override;
-    void keyReleaseEvent(QKeyEvent *event) override;
-    void changeEvent(QEvent *event) override;
-
+    int getX() const;
+    int getY() const;
+    bool isAbsoluteMode();
+    int getMouseButton() const { return mouseButton; }
+    void setMouseButton(int button) { mouseButton = button; }
+    int getWheelDelta() const { return wheelDelta; }
+    void setWheelDelta(int delta) { wheelDelta = delta; }
 
 private:
-    QTimer *escTimer;
-    bool holdingEsc=false;
+    int absX;
+    int absY;
+    int deltaX;
+    int deltaY;
+    bool _isAbsoluteMode;
+
+    int mouseButton;
+    int wheelDelta;
 };
 
-#endif // TRANSPARENT_H
+#endif // MOUSEEVENTDTO_H

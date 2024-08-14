@@ -33,6 +33,7 @@
 #include <QStackedWidget>
 #include <set>
 
+
 QT_BEGIN_NAMESPACE
 class QCameraFormat;
 class QComboBox;
@@ -78,6 +79,11 @@ public:
     ~SettingDialog();
 
 private:
+    
+    const QString bigLabelFontSize = "QLabel { font-size: 14px; }";
+    const QString smallLabelFontSize = "QLabel { font-size: 12px; }";
+    const QString commentsFontSize = "QLabel { font-size: 10px; }";
+
     Ui::SettingDialog *ui;
     QTreeWidget *settingTree;
     QStackedWidget *stackedWidget;
@@ -97,6 +103,10 @@ private:
     void createSettingTree();
     void createLayout();
     void createLogPage();
+    
+    void initLogSettings(); // setting dialog load
+    void initVideoSettings();
+    
     void createAudioPage();
     void createVideoPage();
     void createPages();

@@ -21,11 +21,16 @@
 */
 
 #include "videopane.h"
+#include "host/HostManager.h"
+#include "../global.h"
+
 #include <QPainter>
 #include <QMouseEvent>
 #include <QDebug>
+#include <QGuiApplication>
+#include <QScreen>
 
-VideoPane::VideoPane(QWidget *parent) : QVideoWidget(parent)
+VideoPane::VideoPane(QWidget *parent) : QVideoWidget(parent), escTimer(new QTimer(this))
 {
     QWidget* childWidget = qobject_cast<QWidget*>(this->children()[0]);
     if(childWidget) {
@@ -34,53 +39,119 @@ VideoPane::VideoPane(QWidget *parent) : QVideoWidget(parent)
     this->setMouseTracking(true);
     this->installEventFilter(this);
     this->setFocusPolicy(Qt::StrongFocus);
+    this->relativeModeEnable = false;
+
+    // Set up the timer
+    connect(escTimer, &QTimer::timeout, this, &VideoPane::showHostMouse);
+}
+
+MouseEventDTO* VideoPane::calculateMouseEventDto(QMouseEvent *event)
+{
+    MouseEventDTO* dto = GlobalVar::instance().isAbsoluteMouseMode() ? calculateAbsolutePosition(event) : calculateRelativePosition(event);
+
+    return dto;
 }
 
 void VideoPane::mouseMoveEvent(QMouseEvent *event)
 {
-    QPoint absPos = calculateRelativePosition(event);
-    HostManager::getInstance().handleMouseMove(absPos.x(), absPos.y(), isDragging ? lastMouseButton : 0);
+    MouseEventDTO* eventDto = calculateMouseEventDto(event);
+    eventDto->setMouseButton(isDragging ? lastMouseButton : 0);
+
+    //Only handle the event if it's under absolute mouse control or relative mode is enabled
+    if(!eventDto->isAbsoluteMode() && !this->relativeModeEnable) return;
+
+    HostManager::getInstance().handleMouseMove(eventDto);
 }
 
 void VideoPane::mousePressEvent(QMouseEvent* event)
 {
-    QPoint absPos = calculateRelativePosition(event);
-    lastMouseButton = getMouseButton(event);
+    MouseEventDTO* eventDto = calculateMouseEventDto(event);
+    eventDto->setMouseButton(lastMouseButton = getMouseButton(event));
     isDragging = true;
-    lastX=absPos.x();
-    lastY=absPos.y();
-    HostManager::getInstance().handleMousePress(lastX, lastY, lastMouseButton);
+
+    if(!eventDto->isAbsoluteMode()) relativeModeEnable = true;
+
+    HostManager::getInstance().handleMousePress(eventDto);
+
+    if(eventDto->isAbsoluteMode()){
+        showHostMouse();
+    }else{
+        hideHostMouse();
+    }
 }
 
 void VideoPane::mouseReleaseEvent(QMouseEvent* event)
 {
-    QPoint absPos = calculateRelativePosition(event);
+    MouseEventDTO* eventDto = calculateMouseEventDto(event);
     isDragging = false;
-    lastX=absPos.x();
-    lastY=absPos.y();
-    HostManager::getInstance().handleMouseRelease(lastX, lastY);
+    HostManager::getInstance().handleMouseRelease(eventDto);
 }
 
 void VideoPane::wheelEvent(QWheelEvent *event)
 {
-    int delta = event->angleDelta().y();
-    HostManager::getInstance().handleMouseScroll(lastX, lastY, delta);
+    MouseEventDTO* eventDto = new MouseEventDTO(lastX, lastY, GlobalVar::instance().isAbsoluteMouseMode());
+
+    eventDto->setWheelDelta(event->angleDelta().y());
+
+    HostManager::getInstance().handleMouseScroll(eventDto);
 }
 
 void VideoPane::keyPressEvent(QKeyEvent *event)
 {
     HostManager::getInstance().handleKeyPress(event);
+
+    if(!holdingEsc && event->key() == Qt::Key_Escape && !GlobalVar::instance().isAbsoluteMouseMode()) {
+        qDebug() << "Esc Pressed, timer started";
+        holdingEsc = true;
+        escTimer->start(500); // 0.5 seconds
+    }
+
 }
 
 void VideoPane::keyReleaseEvent(QKeyEvent *event)
 {
     HostManager::getInstance().handleKeyRelease(event);
+
+    if(holdingEsc && event->key() == Qt::Key_Escape && !GlobalVar::instance().isAbsoluteMouseMode()) {
+        qDebug() << "Esc Released, timer stop";
+        escTimer->stop();
+        holdingEsc = false;
+    }
 }
 
-QPoint VideoPane::calculateRelativePosition(QMouseEvent *event) {
-    qreal relativeX = static_cast<qreal>(event->pos().x()) / this->width() * 4096;
-    qreal relativeY = static_cast<qreal>(event->pos().y()) / this->height() * 4096;
-    return QPoint(static_cast<int>(relativeX), static_cast<int>(relativeY));
+QSize getScreenResolution() {
+    QScreen *screen = QGuiApplication::primaryScreen();
+    if (screen) {
+        return screen->size();
+    } else {
+        return QSize(0, 0);
+    }
+}
+
+MouseEventDTO* VideoPane::calculateRelativePosition(QMouseEvent *event) {
+    qreal relativeX = static_cast<qreal>(event->pos().x() - lastX);
+    qreal relativeY = static_cast<qreal>(event->pos().y() - lastY);
+
+    QSize screenSize = getScreenResolution();
+
+    qreal widthRatio = static_cast<qreal>(GlobalVar::instance().getWinWidth()) / screenSize.width() ;
+    qreal heightRatio = static_cast<qreal>(GlobalVar::instance().getWinHeight()) / screenSize.height();
+
+    int relX = static_cast<int>(relativeX * widthRatio);
+    int relY = static_cast<int>(relativeY * heightRatio);
+
+    lastX=event->position().x();
+    lastY=event->position().y();
+    
+    return new MouseEventDTO(relX, relY, false);
+}
+
+MouseEventDTO* VideoPane::calculateAbsolutePosition(QMouseEvent *event) {
+    qreal absoluteX = static_cast<qreal>(event->pos().x()) / this->width() * 4096;
+    qreal absoluteY = static_cast<qreal>(event->pos().y()) / this->height() * 4096;
+    lastX = static_cast<int>(absoluteX);
+    lastY = static_cast<int>(absoluteY);
+    return new MouseEventDTO(lastX, lastY, true);
 }
 
 int VideoPane::getMouseButton(QMouseEvent *event) {
@@ -91,7 +162,42 @@ int VideoPane::getMouseButton(QMouseEvent *event) {
     } else if (event->button() == Qt::MiddleButton) {
         return 4;
     } else {
-
         return 0;
     }
 }
+
+bool VideoPane::eventFilter(QObject *watched, QEvent *event)
+{
+    if (watched == this && event->type() == QEvent::Leave && !GlobalVar::instance().isAbsoluteMouseMode() && this->relativeModeEnable) {
+        moveMouseToCenter();
+    }
+    return QWidget::eventFilter(watched, event);
+}
+
+void VideoPane::moveMouseToCenter()
+{
+    // Temporarily disable the mouse event handling
+    this->relativeModeEnable = false;
+
+    // Move the mouse to the center of the window
+    QCursor::setPos(this->mapToGlobal(QPoint(this->width() / 2, this->height() / 2)));
+    lastX= this->width() / 2;
+    lastY= this->height() / 2;
+
+    this->relativeModeEnable = true;
+}
+
+void VideoPane::showHostMouse() {
+    QCursor arrowCursor(Qt::ArrowCursor);
+    this->setCursor(arrowCursor);
+    this->relativeModeEnable = false;
+}
+
+void VideoPane::hideHostMouse() {
+    // Hide the cursor
+    QCursor blankCursor(Qt::BlankCursor);
+    this->setCursor(blankCursor);
+    this->relativeModeEnable = true;
+}
+
+

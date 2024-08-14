@@ -21,6 +21,7 @@
 */
 
 #include "HostManager.h"
+#include "../serial/SerialPortManager.h"
 #include <QProcess>
 #include <QCoreApplication>
 
@@ -56,27 +57,40 @@ void HostManager::handleKeyRelease(QKeyEvent *event)
     keyboardManager.handleKeyboardAction(event->key(), modifiers, false);
 }
 
-void HostManager::handleMousePress(int x, int y, int mouseButton)
+void HostManager::handleMousePress(MouseEventDTO *event)
 {
-    mouseManager.handleAbsoluteMouseAction(x, y, mouseButton, 0);
+    if(event->isAbsoluteMode()) {
+        mouseManager.handleAbsoluteMouseAction(event->getX(), event->getY(), event->getMouseButton(), 0);
+    } else {
+        mouseManager.handleRelativeMouseAction(event->getX(), event->getY(), event->getMouseButton(), 0);
+    }
 }
 
-void HostManager::handleMouseRelease(int x, int y)
+void HostManager::handleMouseRelease(MouseEventDTO *event)
 {
-    qCDebug(log_core_host) << "Mouse released";
-    mouseManager.handleAbsoluteMouseAction(x, y, 0, 0);
+    if(event->isAbsoluteMode()) {
+        mouseManager.handleAbsoluteMouseAction(event->getX(), event->getY(), 0, 0);
+    } else {
+        mouseManager.handleRelativeMouseAction(event->getX(), event->getY(), 0, 0);
+    }
 }
 
-void HostManager::handleMouseScroll(int x, int y, int delta)
+void HostManager::handleMouseScroll(MouseEventDTO *event)
 {
-    mouseManager.handleAbsoluteMouseAction(x, y, 0, delta);
+    if(event->isAbsoluteMode()) {
+        mouseManager.handleAbsoluteMouseAction(event->getX(), event->getY(), 0, event->getWheelDelta());
+    } else {
+        mouseManager.handleRelativeMouseAction(event->getX(), event->getY(), 0, event->getWheelDelta());
+    }
 }
 
-void HostManager::handleMouseMove(int x, int y, int mouseButton)
+void HostManager::handleMouseMove(MouseEventDTO *event)
 {
-    // Add your implementation here
-    //qCDebug(log_core_host) << "Mouse moved to (" << x << "," << y << ")";
-    mouseManager.handleAbsoluteMouseAction(x, y, mouseButton, 0);
+    if(event->isAbsoluteMode()) {
+        mouseManager.handleAbsoluteMouseAction(event->getX(), event->getY(), event->getMouseButton(), 0);
+    } else {
+        mouseManager.handleRelativeMouseAction(event->getX(), event->getY(), event->getMouseButton(), 0);
+    }
 }
 
 void HostManager::resetHid()

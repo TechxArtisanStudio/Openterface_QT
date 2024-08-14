@@ -30,8 +30,9 @@
 #include <QLoggingCategory>
 #include "../target/MouseManager.h"
 #include "../target/KeyboardManager.h"
-#include "../serial/SerialPortManager.h"
+#include "../target/mouseeventdto.h"
 #include "../ui/statusevents.h"
+
 
 Q_DECLARE_LOGGING_CATEGORY(log_core_host)
 
@@ -52,10 +53,10 @@ public:
 
     void handleKeyPress(QKeyEvent *event);
     void handleKeyRelease(QKeyEvent *event);
-    void handleMousePress(int x, int y, int mouseButton);
-    void handleMouseRelease(int x, int y);
-    void handleMouseMove(int x, int y, int mouseButton);
-    void handleMouseScroll(int x, int y, int delta);
+    void handleMousePress(MouseEventDTO *event);
+    void handleMouseRelease(MouseEventDTO *event);
+    void handleMouseMove(MouseEventDTO *event);
+    void handleMouseScroll(MouseEventDTO *event);
     
     void resetHid();
     void resetSerialPort();

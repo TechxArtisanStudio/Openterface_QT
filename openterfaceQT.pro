@@ -12,6 +12,7 @@ QT       += core gui multimedia multimediawidgets serialport concurrent
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 
 SOURCES += main.cpp \
+    target/mouseeventdto.cpp \
     host/audiomanager.cpp \
     ui/fpsspinbox.cpp \
     ui/settingdialog.cpp \
@@ -21,9 +22,9 @@ SOURCES += main.cpp \
     ui/imagesettings.cpp \
     ui/mainwindow.cpp \
     ui/metadatadialog.cpp \
-    ui/transwindow.cpp \
     ui/videopane.cpp \
     ui/videosettings.cpp \
+    ui/globalsetting.cpp \
     host/HostManager.cpp \
     serial/SerialPortManager.cpp \
     target/KeyboardManager.cpp \
@@ -31,6 +32,7 @@ SOURCES += main.cpp \
 
 HEADERS  += \
     global.h \
+    target/mouseeventdto.h \
     host/audiomanager.h \
     ui/fpsspinbox.h \
     ui/settingdialog.h \
@@ -40,9 +42,9 @@ HEADERS  += \
     ui/imagesettings.h \
     ui/mainwindow.h \
     ui/metadatadialog.h \
-    ui/transwindow.h \
     ui/videopane.h \
     ui/videosettings.h \
+    ui/globalsetting.h \
     ui/statusevents.h \    
     host/HostManager.h \
     serial/ch9329.h \
