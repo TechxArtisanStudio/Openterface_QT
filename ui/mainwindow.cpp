@@ -22,6 +22,7 @@
 
 #include "mainwindow.h"
 #include "global.h"
+// #include "ui/videosettings.h"
 #include "ui_mainwindow.h"
 
 #include "host/HostManager.h"
@@ -29,12 +30,10 @@
 #include "ui/imagesettings.h"
 #include "ui/settingdialog.h"
 #include "ui/helppane.h"
-#include "ui/videosettings.h"
+// #include "ui/videosettings.h"
 #include "ui/videopane.h"
 #include "video/videohid.h"
 
-#include <QAudioDevice>
-#include <QAudioInput>
 #include <QCameraDevice>
 #include <QMediaDevices>
 #include <QMediaFormat>
@@ -61,9 +60,9 @@ Q_LOGGING_CATEGORY(log_ui_mainwindow, "opf.ui.mainwindow")
 /*
   * QT Permissions API is not compatible with Qt < 6.5 and will cause compilation failure on
   * expanding the QT_CONFIG macro if it isn't set as a feature in qtcore-config.h. QT < 6.5
-  * is still true for a large number of linux distros in 2024. This ifdef or another 
-  * workaround needs to be used anywhere the QPermissions class is called, for distros to 
-  * be able to use their package manager's native Qt libs, if they are < 6.5. 
+  * is still true for a large number of linux distros in 2024. This ifdef or another
+  * workaround needs to be used anywhere the QPermissions class is called, for distros to
+  * be able to use their package manager's native Qt libs, if they are < 6.5.
   *
   * See qtconfigmacros.h, qtcore-config.h, etc. in the relevant Qt includes directory, and:
   * https://doc-snapshots.qt.io/qt6-6.5/whatsnew65.html
@@ -77,9 +76,9 @@ Q_LOGGING_CATEGORY(log_ui_mainwindow, "opf.ui.mainwindow")
 #endif
 
 Camera::Camera() : ui(new Ui::Camera), videoPane(new VideoPane(this)),
-                                        stackedLayout(new QStackedLayout(this)), 
-                                        // transWindow(new TransWindow()),
-                                        statusWidget(new StatusWidget(this))
+                                        stackedLayout(new QStackedLayout(this)),
+                                        statusWidget(new StatusWidget(this)),
+                                        m_audioManager(new AudioManager(this))
 {
     qCDebug(log_ui_mainwindow) << "Init camera...";
     ui->setupUi(this);
@@ -158,9 +157,6 @@ void Camera::init()
 #endif
 #endif
 
-    //m_audioInput.reset(new QAudioInput);
-    //m_captureSession.setAudioInput(m_audioInput.get());
-
     // Camera devices:
     updateCameras();
 
@@ -168,11 +164,12 @@ void Camera::init()
     GlobalVar::instance().setWinHeight(this->height());
 }
 
+
 void Camera::setCamera(const QCameraDevice &cameraDevice)
 {
     if(cameraDevice.description().contains("Openterface") == false){
-        qCDebug(log_ui_mainwindow) << "The camera("<<cameraDevice.description()<<") is not an Openterface Mini-KVM, skip it.";
-        return;
+    qCDebug(log_ui_mainwindow) << "The camera("<<cameraDevice.description()<<") is not an Openterface Mini-KVM, skip it.";
+    return;
     }
     qCDebug(log_ui_mainwindow) << "Set Camera, device name: " << cameraDevice.description();
 
@@ -182,7 +179,7 @@ void Camera::setCamera(const QCameraDevice &cameraDevice)
     connect(m_camera.get(), &QCamera::activeChanged, this, &Camera::updateCameraActive);
     connect(m_camera.get(), &QCamera::errorOccurred, this, &Camera::displayCameraError);
     qCDebug(log_ui_mainwindow) << "Observe congigure setting";
-    // connect(ui->actionsetting, &QAction::triggered, this, &Camera::configureSettings);
+    
 
     queryResolutions();
 
@@ -414,36 +411,38 @@ void Camera::processCapturedImage(int requestId, const QImage &img)
     QTimer::singleShot(4000, this, &Camera::displayViewfinder);
 }
 
-void Camera::configureCaptureSettings()
-{
-    // if (m_doImageCapture)
-    //     configureImageSettings();
-    // else
-    configureVideoSettings();
-}
+// void Camera::configureCaptureSettings()
+// {
+//     // if (m_doImageCapture)
+//     //     configureImageSettings();
+//     // else
+//     configureVideoSettings();
+    
+// }
 
-void Camera::configureVideoSettings()
-{
-    VideoSettings settingsDialog(m_camera.data());
+// void Camera::configureVideoSettings()
+// {
+//     VideoSettings settingsDialog(m_camera.data());
 
-    if (settingsDialog.exec())
-        settingsDialog.applySettings();
-}
+//     if (settingsDialog.exec())
+//         settingsDialog.applySettings();
+// }
 
-void Camera::configureImageSettings()
-{
-    ImageSettings settingsDialog(m_imageCapture.get());
+// void Camera::configureImageSettings()
+// {
+//     ImageSettings settingsDialog(m_imageCapture.get());
 
-    if (settingsDialog.exec() == QDialog::Accepted)
-        settingsDialog.applyImageSettings();
-}
+//     if (settingsDialog.exec() == QDialog::Accepted)
+//         settingsDialog.applyImageSettings();
+// }
 
 void Camera::configureSettings() {
     qDebug() << "Configuring settings...";
-    SettingDialog *setting = new SettingDialog(this);
+    SettingDialog *setting = new SettingDialog(m_camera.data());
     qDebug() << "Setting configuration... ";
     setting->show();
 }
+
 
 void Camera::record()
 {
@@ -499,7 +498,7 @@ void Camera::displayCameraError()
 }
 
 void Camera::stop(){
- 
+
     disconnect(m_camera.data());
     // m_audioInput->disconnect();
     m_captureSession.disconnect();
@@ -563,8 +562,8 @@ void Camera::updateCameras()
             } else {
                 qCDebug(log_ui_mainwindow) << "The default camera is" << QMediaDevices::defaultVideoInput().description();
             }
+            m_audioManager->initializeAudio();
             setCamera(camera);
-
             break;
         }
     }
@@ -603,3 +602,4 @@ void Camera::updateResolutions(const int input_width, const int input_height, co
     statusWidget->setInputResolution(input_width, input_height, input_fps);
     statusWidget->setCaptureResolution(capture_width, capture_height, capture_fps);
 }
+

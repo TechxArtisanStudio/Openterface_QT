@@ -32,7 +32,7 @@ HelpPane::HelpPane(QWidget *parent) : QWidget(parent)
 void HelpPane::paintEvent(QPaintEvent *event)
 {
     QPainter painter(this);
-    QColor color("#222222");
+    QColor color("#040707");
     painter.fillRect(this->rect(), color);
     QPixmap pixmap(":/images/content_dark_eng.png"); // Replace with the path to your image in the resource file
 
