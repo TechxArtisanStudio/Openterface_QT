@@ -16,6 +16,8 @@ public:
     void setLogSettings(bool core, bool serial, bool ui, bool host);
     void loadLogSettings();
 
+    void setVideoSettings(int width, int height, int fps);
+    void loadVideoSettings();
 private:
     QSettings settings;
 };

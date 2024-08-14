@@ -77,7 +77,7 @@ public:
     // explicit SettingDialog(QCamera *camera, QWidget *parent = nullptr);
     explicit SettingDialog(QCamera *camera, QWidget *parent = nullptr);
     ~SettingDialog();
-    
+
 private:
     
     const QString bigLabelFontSize = "QLabel { font-size: 14px; }";
@@ -105,6 +105,8 @@ private:
     void createLogPage();
     
     void initLogSettings(); // setting dialog load
+    void initVideoSettings();
+    
     void createAudioPage();
     void createVideoPage();
     void createPages();
