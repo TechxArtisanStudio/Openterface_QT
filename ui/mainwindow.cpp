@@ -126,6 +126,8 @@ Camera::Camera() : ui(new Ui::Camera), videoPane(new VideoPane(this)),
     qCDebug(log_ui_mainwindow) << "Observe reset Serial Port triggerd...";
     connect(ui->actionResetSerialPort, &QAction::triggered, this, &Camera::onActionResetSerialPortTriggered);
 
+    qDebug() << "Observe Hardware change Camera triggerd...";
+    
     // load the settings
     qDebug() << "Loading settings";
     GlobalSetting::instance().loadLogSettings();
@@ -466,6 +468,7 @@ void Camera::processCapturedImage(int requestId, const QImage &img)
 void Camera::configureSettings() {
     qDebug() << "Configuring settings...";
     SettingDialog *setting = new SettingDialog(m_camera.data());
+    connect(setting, &SettingDialog::hardwareSettingsApplied, this, &Camera::loadCameraSettingAndSetCamera);
     qDebug() << "Setting configuration... ";
     setting->show();
 }
