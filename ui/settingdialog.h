@@ -77,6 +77,8 @@ public:
     // explicit SettingDialog(QCamera *camera, QWidget *parent = nullptr);
     explicit SettingDialog(QCamera *camera, QWidget *parent = nullptr);
     ~SettingDialog();
+signals:
+    void hardwareSettingsApplied();
 
 private:
     

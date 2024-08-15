@@ -481,14 +481,12 @@ void SettingDialog::createHardwarePage(){
     uvcCamLabel->setStyleSheet(smallLabelFontSize);
     QComboBox *uvcCamBox = new QComboBox();
     uvcCamBox->setObjectName("uvcCamBox");
-    QLabel *uvcCamComment = new QLabel("When modify the camera source, need to restart the software to take effect.");
-    uvcCamComment->setStyleSheet(commentsFontSize);
+    
 
     QVBoxLayout *hardwareLayout = new QVBoxLayout(hardwarePage);
     hardwareLayout->addWidget(hardwareLabel);
     hardwareLayout->addWidget(uvcCamLabel);
     hardwareLayout->addWidget(uvcCamComment);
-    hardwareLayout->addWidget(uvcCamBox);
     hardwareLayout->addStretch();
     findUvcCameraDevices();
 }
@@ -519,7 +517,7 @@ void SettingDialog::applyHardwareSetting(){
     QComboBox *uvcCamBox = hardwarePage->findChild<QComboBox*>("uvcCamBox");
     
     GlobalSetting::instance().setCameraDeviceSetting(uvcCamBox->currentText());
-
+    emit hardwareSettingsApplied(); 
 }
 
 void SettingDialog::initHardwareSetting(){
