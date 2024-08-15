@@ -90,6 +90,7 @@ private:
     QWidget *logPage;
     QWidget *videoPage;
     QWidget *audioPage;
+    QWidget *hardwarePage;
     QWidget *buttonWidget;
 
     
@@ -109,11 +110,12 @@ private:
     
     void createAudioPage();
     void createVideoPage();
+    void createHardwarePage();
     void createPages();
     
     void changePage(QTreeWidgetItem *current, QTreeWidgetItem *previous);
     void createButtons();
-    void readCheckBoxState();
+    void applyLogsettings();
     void applyAccrodingPage();
     void setLogCheckBox();
     void handleOkButton();

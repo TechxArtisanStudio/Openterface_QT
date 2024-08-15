@@ -58,8 +58,9 @@ SettingDialog::SettingDialog(QCamera *_camera, QWidget *parent)
     , logPage(nullptr)
     , videoPage(nullptr)
     , audioPage(nullptr)
+    , hardwarePage(nullptr)
     , camera(_camera)
-
+    
 {
 
 
@@ -94,7 +95,7 @@ void SettingDialog::createSettingTree() {
     settingTree->setRootIsDecorated(false);
     
     // QStringList names = {"Log"};
-    QStringList names = {"General", "Video", "Audio"};
+    QStringList names = {"General", "Video", "Audio", "Hardware"};
     for (const QString &name : names) {     // add item to setting tree
         QTreeWidgetItem *item = new QTreeWidgetItem(settingTree);
         item->setText(0, name);
@@ -464,15 +465,28 @@ void SettingDialog::createAudioPage() {
     audioLayout->addStretch();
 }
 
+void SettingDialog::createHardwarePage(){
+    hardwarePage = new QWidget();
+    QLabel *hardwareLabel = new QLabel(
+        "<span style=' color: black; font-weight: bold;'>General hardware setting</span>");
+    hardwareLabel->setStyleSheet(bigLabelFontSize);
+
+    QVBoxLayout *hardwareLayout = new QVBoxLayout(hardwarePage);
+    hardwareLayout->addWidget(hardwareLabel);
+    hardwareLayout->addStretch();
+}
+
 void SettingDialog::createPages() {
     createLogPage();
     createVideoPage();
     createAudioPage();
-
+    createHardwarePage();
+    
     // Add pages to the stacked widget
     stackedWidget->addWidget(logPage);
     stackedWidget->addWidget(videoPage);
     stackedWidget->addWidget(audioPage);
+    stackedWidget->addWidget(hardwarePage);
 }
 
 void SettingDialog::createButtons(){
@@ -528,6 +542,8 @@ void SettingDialog::changePage(QTreeWidgetItem *current, QTreeWidgetItem *previo
         stackedWidget->setCurrentIndex(1);
     } else if (itemText == "Audio") {
         stackedWidget->setCurrentIndex(2);
+    } else if (itemText == "Hardware") {
+        stackedWidget->setCurrentIndex(3);
     }
 
     QTimer::singleShot(100, this, [this]() {
@@ -547,7 +563,7 @@ void SettingDialog::setLogCheckBox(){
     hostCheckBox->setChecked(true);
 }
 
-void SettingDialog::readCheckBoxState() {
+void SettingDialog::applyLogsettings() {
 
     // QSettings settings("Techxartisan", "Openterface");
     
@@ -592,7 +608,7 @@ void SettingDialog::applyAccrodingPage(){
     {
         // sequence Log Video Audio
         case 0:
-            readCheckBoxState();
+            applyLogsettings();
             break;
         case 1:
             applyVideoSettings();
@@ -606,7 +622,7 @@ void SettingDialog::applyAccrodingPage(){
 }
 
 void SettingDialog::handleOkButton() {
-    readCheckBoxState();
+    applyLogsettings();
     applyVideoSettings();
     accept();
 }
