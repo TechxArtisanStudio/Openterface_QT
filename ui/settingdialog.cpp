@@ -486,7 +486,7 @@ void SettingDialog::createHardwarePage(){
     QVBoxLayout *hardwareLayout = new QVBoxLayout(hardwarePage);
     hardwareLayout->addWidget(hardwareLabel);
     hardwareLayout->addWidget(uvcCamLabel);
-    hardwareLayout->addWidget(uvcCamComment);
+    hardwareLayout->addWidget(uvcCamBox);
     hardwareLayout->addStretch();
     findUvcCameraDevices();
 }
@@ -514,10 +514,15 @@ void SettingDialog::findUvcCameraDevices(){
 }
 
 void SettingDialog::applyHardwareSetting(){
+    QSettings settings("Techxartisan", "Openterface");
+    QString deviceDescription = settings.value("camera/device", "Openterface").toString();
     QComboBox *uvcCamBox = hardwarePage->findChild<QComboBox*>("uvcCamBox");
     
-    GlobalSetting::instance().setCameraDeviceSetting(uvcCamBox->currentText());
-    emit hardwareSettingsApplied(); 
+    if (deviceDescription != uvcCamBox->currentText()){
+        GlobalSetting::instance().setCameraDeviceSetting(uvcCamBox->currentText());
+        emit hardwareSettingsApplied(); 
+    }
+    
 }
 
 void SettingDialog::initHardwareSetting(){
