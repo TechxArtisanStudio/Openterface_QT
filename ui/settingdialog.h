@@ -32,7 +32,7 @@
 #include <QTreeWidgetItem>
 #include <QStackedWidget>
 #include <set>
-
+#include <QMediaDevices>
 
 QT_BEGIN_NAMESPACE
 class QCameraFormat;
@@ -111,6 +111,9 @@ private:
     void createAudioPage();
     void createVideoPage();
     void createHardwarePage();
+    void findUvcCameraDevices();
+    void applyHardwareSetting();
+    void initHardwareSetting();
     void createPages();
     
     void changePage(QTreeWidgetItem *current, QTreeWidgetItem *previous);

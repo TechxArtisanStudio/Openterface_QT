@@ -56,6 +56,7 @@
 #include <QDir>
 #include <QTimer>
 #include <QLabel>
+#include <QApplication>
 
 Q_LOGGING_CATEGORY(log_ui_mainwindow, "opf.ui.mainwindow")
 
@@ -81,6 +82,7 @@ Camera::Camera() : ui(new Ui::Camera), videoPane(new VideoPane(this)),
                                         stackedLayout(new QStackedLayout(this)),
                                         statusWidget(new StatusWidget(this)),
                                         m_audioManager(new AudioManager(this))
+                                        // m_fileSystemWatcher(new QFileSystemWatcher(this))
 {
     qCDebug(log_ui_mainwindow) << "Init camera...";
     ui->setupUi(this);
@@ -125,8 +127,10 @@ Camera::Camera() : ui(new Ui::Camera), videoPane(new VideoPane(this)),
     connect(ui->actionResetSerialPort, &QAction::triggered, this, &Camera::onActionResetSerialPortTriggered);
 
     // load the settings
+    qDebug() << "Loading settings";
     GlobalSetting::instance().loadLogSettings();
     GlobalSetting::instance().loadVideoSettings();
+    
     init();
 }
 
@@ -163,19 +167,37 @@ void Camera::init()
 #endif
 
     // Camera devices:
-    updateCameras();
+    // updateCameras();
+    QString configFilePath = QCoreApplication::applicationDirPath() + "/Techxartisan/Openterface.ini";
+
+    loadCameraSettingAndSetCamera();
 
     GlobalVar::instance().setWinWidth(this->width());
     GlobalVar::instance().setWinHeight(this->height());
 }
 
+void Camera::loadCameraSettingAndSetCamera(){
+    QSettings settings("Techxartisan", "Openterface");
+    QString deviceDescription = settings.value("camera/device", "Openterface").toString();
+    const QList<QCameraDevice> devices = QMediaDevices::videoInputs();
+    if (devices.isEmpty()) {
+        qDebug() << "No video input devices found.";
+    } else {
+        for (const QCameraDevice &cameraDevice : devices) {
+            if (cameraDevice.description() == deviceDescription) {
+                setCamera(cameraDevice);
+                break;
+            }
+        }
+    }
+}
 
 void Camera::setCamera(const QCameraDevice &cameraDevice)
 {
-    if(cameraDevice.description().contains("Openterface") == false){
-    qCDebug(log_ui_mainwindow) << "The camera("<<cameraDevice.description()<<") is not an Openterface Mini-KVM, skip it.";
-    return;
-    }
+    // if(cameraDevice.description().contains("Openterface") == false){
+    // qCDebug(log_ui_mainwindow) << "The camera("<<cameraDevice.description()<<") is not an Openterface Mini-KVM, skip it.";
+    // return;
+    // }
     qCDebug(log_ui_mainwindow) << "Set Camera, device name: " << cameraDevice.description();
 
     m_camera.reset(new QCamera(cameraDevice));

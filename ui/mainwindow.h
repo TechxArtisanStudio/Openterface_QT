@@ -74,6 +74,7 @@ private slots:
     void init();
 
     void setCamera(const QCameraDevice &cameraDevice);
+    void loadCameraSettingAndSetCamera();
 
     void record();
     void pause();
