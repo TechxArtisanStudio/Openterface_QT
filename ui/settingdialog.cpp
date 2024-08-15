@@ -48,6 +48,7 @@
 #include <QSettings>
 #include <QElapsedTimer>
 #include <qtimer.h>
+#include <QList>
 
 SettingDialog::SettingDialog(QCamera *_camera, QWidget *parent)
     : QDialog(parent)
@@ -73,6 +74,7 @@ SettingDialog::SettingDialog(QCamera *_camera, QWidget *parent)
     // loadLogSettings();
     initLogSettings();
     initVideoSettings();
+    initHardwareSetting();
     // Connect the tree widget's currentItemChanged signal to a slot
     connect(settingTree, &QTreeWidget::currentItemChanged, this, &SettingDialog::changePage);
 }
@@ -475,17 +477,56 @@ void SettingDialog::createHardwarePage(){
         "<span style=' color: black; font-weight: bold;'>General hardware setting</span>");
     hardwareLabel->setStyleSheet(bigLabelFontSize);
 
-    QLabel *uvcCamLabel = new QLabel("UVC Camera: ");
+    QLabel *uvcCamLabel = new QLabel("UVC Camera resource: ");
     uvcCamLabel->setStyleSheet(smallLabelFontSize);
     QComboBox *uvcCamBox = new QComboBox();
     uvcCamBox->setObjectName("uvcCamBox");
-
+    QLabel *uvcCamComment = new QLabel("When modify the camera source, need to restart the software to take effect.");
+    uvcCamComment->setStyleSheet(commentsFontSize);
 
     QVBoxLayout *hardwareLayout = new QVBoxLayout(hardwarePage);
     hardwareLayout->addWidget(hardwareLabel);
     hardwareLayout->addWidget(uvcCamLabel);
+    hardwareLayout->addWidget(uvcCamComment);
     hardwareLayout->addWidget(uvcCamBox);
     hardwareLayout->addStretch();
+    findUvcCameraDevices();
+}
+
+void SettingDialog::findUvcCameraDevices(){
+    
+    const QList<QCameraDevice> devices = QMediaDevices::videoInputs();
+    QComboBox *uvcCamBox = hardwarePage->findChild<QComboBox *>("uvcCamBox");
+
+    if (devices.isEmpty()) {
+        qDebug() << "No video input devices found.";
+    } else {
+        for (const QCameraDevice &cameraDevice : devices) {
+            uvcCamBox->addItem(cameraDevice.description());
+        }
+    }
+    // set default "Openterface"
+    int index = uvcCamBox->findText("Openterface");
+    if (index != -1) {
+        uvcCamBox->setCurrentIndex(index);
+    } else {
+        qDebug() << "Openterface device not found.";
+    }
+
+}
+
+void SettingDialog::applyHardwareSetting(){
+    QComboBox *uvcCamBox = hardwarePage->findChild<QComboBox*>("uvcCamBox");
+    
+    GlobalSetting::instance().setCameraDeviceSetting(uvcCamBox->currentText());
+
+}
+
+void SettingDialog::initHardwareSetting(){
+    QSettings settings("Techxartisan", "Openterface");
+    QComboBox *uvcCamBox = hardwarePage->findChild<QComboBox*>("uvcCamBox");
+
+    uvcCamBox->setCurrentText(settings.value("camera/device", "Openterface").toString());
 }
 
 void SettingDialog::createPages() {
@@ -533,6 +574,8 @@ void SettingDialog::createLayout() {
     
     setLayout(mainLayout);
 }
+
+
 
 void SettingDialog::changePage(QTreeWidgetItem *current, QTreeWidgetItem *previous) {
     static QElapsedTimer timer;
@@ -608,10 +651,10 @@ void SettingDialog::initLogSettings(){
     QCheckBox *uiCheckBox = findChild<QCheckBox*>("ui");
     QCheckBox *hostCheckBox = findChild<QCheckBox*>("host");
 
-    coreCheckBox->setChecked(settings.value("Log/Core", true).toBool());
-    serialCheckBox->setChecked(settings.value("Log/Serial", true).toBool());
-    uiCheckBox->setChecked(settings.value("Log/Ui", true).toBool());
-    hostCheckBox->setChecked(settings.value("Log/Host", true).toBool());
+    coreCheckBox->setChecked(settings.value("log/core", true).toBool());
+    serialCheckBox->setChecked(settings.value("log/serial", true).toBool());
+    uiCheckBox->setChecked(settings.value("log/ui", true).toBool());
+    hostCheckBox->setChecked(settings.value("log/host", true).toBool());
 }
 
 void SettingDialog::applyAccrodingPage(){
@@ -628,6 +671,9 @@ void SettingDialog::applyAccrodingPage(){
         case 2:
 
             break;
+        case 3:
+            applyHardwareSetting();
+            break;
         default:
             break;
     }
@@ -636,5 +682,6 @@ void SettingDialog::applyAccrodingPage(){
 void SettingDialog::handleOkButton() {
     applyLogsettings();
     applyVideoSettings();
+    applyHardwareSetting();
     accept();
 }

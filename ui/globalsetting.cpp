@@ -42,3 +42,7 @@ void GlobalSetting::loadVideoSettings(){
     GlobalVar::instance().setCaptureHeight(settings.value("video/height", 1080).toInt());
     GlobalVar::instance().setCaptureFps(settings.value("video/fps", 1920).toInt());
 }
+
+void GlobalSetting::setCameraDeviceSetting(QString deviceDescription){
+    settings.setValue("camera/device", deviceDescription);
+}
