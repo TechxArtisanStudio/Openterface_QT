@@ -205,6 +205,12 @@ void SettingDialog::createVideoPage() {
     }
 }
 
+QVariant SettingDialog::boxValue(const QComboBox *box) const
+{
+    const int idx = box->currentIndex();
+    return idx != -1 ? box->itemData(idx) : QVariant{};
+}
+
 void SettingDialog::updatePixelFormats()
 {   
     qDebug() << "update pixel formats";
@@ -232,11 +238,7 @@ void SettingDialog::updatePixelFormats()
     m_updatingFormats = false;
 }
 
-QVariant SettingDialog::boxValue(const QComboBox *box) const
-{
-    const int idx = box->currentIndex();
-    return idx != -1 ? box->itemData(idx) : QVariant{};
-}
+
 
 void SettingDialog::applyVideoSettings(){
     QSlider *fpsSlider = videoPage->findChild<QSlider*>("fpsSlider");
@@ -272,6 +274,8 @@ void SettingDialog::applyVideoSettings(){
              << ", FPS:" << appliedFormat.minFrameRate()
              << appliedFormat.pixelFormat();
 
+    updatePixelFormats();
+    
     GlobalSetting::instance().setVideoSettings(format.resolution().width(), format.resolution().height(),format.minFrameRate());
 }
 
@@ -471,8 +475,16 @@ void SettingDialog::createHardwarePage(){
         "<span style=' color: black; font-weight: bold;'>General hardware setting</span>");
     hardwareLabel->setStyleSheet(bigLabelFontSize);
 
+    QLabel *uvcCamLabel = new QLabel("UVC Camera: ");
+    uvcCamLabel->setStyleSheet(smallLabelFontSize);
+    QComboBox *uvcCamBox = new QComboBox();
+    uvcCamBox->setObjectName("uvcCamBox");
+
+
     QVBoxLayout *hardwareLayout = new QVBoxLayout(hardwarePage);
     hardwareLayout->addWidget(hardwareLabel);
+    hardwareLayout->addWidget(uvcCamLabel);
+    hardwareLayout->addWidget(uvcCamBox);
     hardwareLayout->addStretch();
 }
 
