@@ -276,9 +276,9 @@ void SettingDialog::applyVideoSettings(){
 
 void SettingDialog::initVideoSettings() {
     QSettings settings("Techxartisan", "Openterface");
-    int width = settings.value("Video/ResolutionWidth", 1920).toInt();
-    int height = settings.value("Video/ResolutionHeight", 1080).toInt();
-    int fps = settings.value("Video/FPS", 30).toInt();
+    int width = settings.value("video/width", 1920).toInt();
+    int height = settings.value("video/height", 1080).toInt();
+    int fps = settings.value("video/fps", 30).toInt();
 
     m_currentResolution = QSize(width, height);
 
@@ -289,6 +289,8 @@ void SettingDialog::initVideoSettings() {
     for (int i = 0; i < videoFormatBox->count(); ++i) {
         QString resolutionText = videoFormatBox->itemText(i).split(' ').first();
         QStringList resolutionParts = resolutionText.split('x');
+        qDebug() << "resolution text: "<< resolutionText;
+        qDebug() << resolutionParts[0].toInt()<< width << resolutionParts[1].toInt() << height;
         if (resolutionParts[0].toInt() == width && resolutionParts[1].toInt() == height) {
             videoFormatBox->setCurrentIndex(i);
             break;

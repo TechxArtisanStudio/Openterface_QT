@@ -31,10 +31,10 @@ void GlobalSetting::loadLogSettings()
     QLoggingCategory::setFilterRules(logFilter);
 }
 
-void GlobalSetting::setVideoSettings(int width, int height, int fpd){
+void GlobalSetting::setVideoSettings(int width, int height, int fps){
     settings.setValue("video/width", width);
     settings.setValue("video/height", height);
-    settings.setValue("video/fps", fpd);
+    settings.setValue("video/fps", fps);
 }
 
 void GlobalSetting::loadVideoSettings(){
