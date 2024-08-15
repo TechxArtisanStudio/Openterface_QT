@@ -24,10 +24,10 @@ void GlobalSetting::setLogSettings(bool core, bool serial, bool ui, bool host)
 void GlobalSetting::loadLogSettings()
 {
     QString logFilter = "";
-    logFilter += settings.value("Log/Core", true).toBool() ? "opf.core.*=true\n" : "opf.core.*=false\n";
-    logFilter += settings.value("Log/Ui", true).toBool() ? "opf.ui.*=true\n" : "opf.ui.*=false\n";
-    logFilter += settings.value("Log/Host", true).toBool() ? "opf.host.*=true\n" : "opf.host.*=false\n";
-    logFilter += settings.value("Log/Serial", true).toBool() ? "opf.core.serial=true\n" : "opf.core.serial=false\n";
+    logFilter += settings.value("log/core", true).toBool() ? "opf.core.*=true\n" : "opf.core.*=false\n";
+    logFilter += settings.value("log/ui", true).toBool() ? "opf.ui.*=true\n" : "opf.ui.*=false\n";
+    logFilter += settings.value("log/host", true).toBool() ? "opf.host.*=true\n" : "opf.host.*=false\n";
+    logFilter += settings.value("log/serial", true).toBool() ? "opf.core.serial=true\n" : "opf.core.serial=false\n";
     QLoggingCategory::setFilterRules(logFilter);
 }
 

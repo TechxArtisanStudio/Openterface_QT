@@ -18,6 +18,8 @@ public:
 
     void setVideoSettings(int width, int height, int fps);
     void loadVideoSettings();
+
+    
 private:
     QSettings settings;
 };
