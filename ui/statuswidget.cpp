@@ -23,6 +23,8 @@
 #include "statuswidget.h"
 
 StatusWidget::StatusWidget(QWidget *parent) : QWidget(parent) {
+    keyboardIndicatorsLabel = new QLabel("", this);
+    statusLabel = new QLabel("", this);
     resolutionLabel = new QLabel("💻:", this);
     inputResolutionLabel = new QLabel("INPUT(NA),", this);
     captureResolutionLabel = new QLabel("CAPTURE(NA)", this);
@@ -32,6 +34,10 @@ StatusWidget::StatusWidget(QWidget *parent) : QWidget(parent) {
     layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing(1);
 
+    layout->addWidget(statusLabel);
+    layout->addWidget(new QLabel("|", this));
+    layout->addWidget(keyboardIndicatorsLabel);
+    layout->addWidget(new QLabel("|", this));
     layout->addWidget(connectedPortLabel);
     layout->addWidget(new QLabel("|", this));
     layout->addWidget(resolutionLabel);
@@ -44,6 +50,11 @@ StatusWidget::StatusWidget(QWidget *parent) : QWidget(parent) {
 }
 
 void StatusWidget::setInputResolution(const int &width, const int &height, const float &fps) {
+    if(width == 0 || height == 0 || fps == 0) {
+        inputResolutionLabel->setText("INPUT(NA),");
+        update();
+        return;
+    }
     inputResolutionLabel->setText(QString("INPUT(%1X%2@%3),").arg(width).arg(height).arg(fps));
     update(); 
 }
@@ -56,4 +67,22 @@ void StatusWidget::setCaptureResolution(const int &width, const int &height, con
 void StatusWidget::setConnectedPort(const QString &port) {
     connectedPortLabel->setText("🔌: " + port);
     update(); 
+}
+
+void StatusWidget::setStatusUpdate(const QString &status){
+    statusLabel->setText(status);
+    update();
+}
+
+void StatusWidget::setTargetUsbConnected(const bool isConnected){
+    if(isConnected){
+        keyboardIndicatorsLabel->setText("TARGET");
+        keyboardIndicatorsLabel->setToolTip("Target Keyboard & Mouse USB connected");
+        keyboardIndicatorsLabel->setStyleSheet("color: green; border-radius: 5px;");
+    } else {
+        keyboardIndicatorsLabel->setText("TARGET");
+        keyboardIndicatorsLabel->setToolTip("Target Keyboard & Mouse USB connected");
+        keyboardIndicatorsLabel->setStyleSheet("color: white; background-color: red; border-radius: 5px; margin: 2px 0;");
+    }
+    update();
 }
