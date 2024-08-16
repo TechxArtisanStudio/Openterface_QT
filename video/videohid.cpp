@@ -2,6 +2,10 @@
 
 #include <QDebug>
 #include <QDir>
+#include <QTimer>
+
+#include "ms2109.h"
+#include "../global.h"
 
 #ifdef _WIN32
 #include <hidclass.h>
@@ -22,15 +26,38 @@ VideoHid::VideoHid(QObject *parent) : QObject(parent){
 }
 
 void VideoHid::start() {
-    qDebug() << "Current HDMI connection status:" << usbXdataRead4Byte(0xFA8C).first.toHex(' ');      //HDMI CONNECTION 0xFA8C
-    qDebug() << "Resolution:" << getResolution();    //HDMI resolution
 
-    //MS2109 firmware version
-    QString version_0 = usbXdataRead4Byte(0xCBDC).first.toHex();
-    QString version_1 = usbXdataRead4Byte(0xCBDD).first.toHex();
-    QString version_2 = usbXdataRead4Byte(0xCBDE).first.toHex();
-    QString version_3 = usbXdataRead4Byte(0xCBDF).first.toHex();
-    qDebug() << "MS2109 firmware VERSION:" << version_0 + version_1 + version_2 + version_3;    //firmware VERSION
+    std::string captureCardFirmwareVersion = getFirmwareVersion();
+    qDebug() << "MS2109 firmware VERSION:" << captureCardFirmwareVersion;    //firmware VERSION
+    GlobalVar::instance().setCaptureCardFirmwareVersion(captureCardFirmwareVersion);
+    isSwitchOnTarget = getSpdifout();
+    qDebug() << "SPDIFOUT:" << isSwitchOnTarget;    //SPDIFOUT
+    if(eventCallback){
+        eventCallback->onSwitchableUsbToggle(isSwitchOnTarget);
+        setSpdifout(isSwitchOnTarget); //Follow the hard switch by default
+    }
+
+    //start a timer to get the HDMI connection status every 1 second
+    QTimer *timer = new QTimer(this);
+    connect(timer, &QTimer::timeout, this, [=](){
+        // qDebug() << "Current HDMI connection status:" << isHdmiConnected();
+        bool gpio0 = getGpio0();
+
+        if(eventCallback){
+            if(isHdmiConnected()){
+                eventCallback->onResolutionChange(getResolution().first, getResolution().second, getFps());
+            }else{
+                eventCallback->onResolutionChange(0, 0, 0);
+            }
+
+            if(GlobalVar::instance().isFollowSwitch() && gpio0 != isSwitchOnTarget){
+                eventCallback->onSwitchableUsbToggle(gpio0);
+                setSpdifout(gpio0);    //Follow the hard switch
+                isSwitchOnTarget = gpio0;
+            }
+        }
+    });
+    timer->start(1000);
 }
 
 void VideoHid::stop() {
@@ -54,6 +81,94 @@ float VideoHid::getFps() {
     return static_cast<float>(fps) / 100;
 }
 
+/*
+ * Address: 0xDF00 bit0 indicates the hard switch status,
+ * true means switchable usb connects to the target,
+ * false means switchable usb connects to the host
+ */
+bool VideoHid::getGpio0() {
+    return usbXdataRead4Byte(ADDR_GPIO0).first.at(0) & 0x01;
+}
+
+bool VideoHid::getSpdifout() {
+    int bit = 1;
+    int mask = 0xFE;
+    if (GlobalVar::instance().getCaptureCardFirmwareVersion() < "24081309") {
+        bit = 0x10;
+        mask = 0xEF;
+    }
+    return usbXdataRead4Byte(ADDR_GPIO0).first.at(0) & mask >> bit;
+}
+
+void VideoHid::switchToHost() {
+    qDebug() << "Switch to host";
+    setSpdifout(false);
+    if(eventCallback) eventCallback->onSwitchableUsbToggle(false);
+}
+
+void VideoHid::switchToTarget() {
+    qDebug() << "Switch to target";
+    setSpdifout(true);
+    if(eventCallback) eventCallback->onSwitchableUsbToggle(true);
+}
+
+/*
+ * Address: 0xDF01 bitn indicates the soft switch status, the firmware before 24081309, it's bit5, after 24081309, it's bit0
+ * true means switchable usb connects to the target,
+ * false means switchable usb connects to the host
+ */
+void VideoHid::setSpdifout(bool enable) {
+    int bit = 1;
+    int mask = 0xFE;
+    if (GlobalVar::instance().getCaptureCardFirmwareVersion() < "24081309") {
+        qDebug() << "Firmware version is less than 24081309";
+        bit = 0x10;
+        mask = 0xEF;
+    }
+
+    if(isSwitchOnTarget == enable) {
+        qDebug() << "Soft switch is already set to" << (enable ? "Target" : "Host");
+        return;
+    }
+
+    quint8 spdifout = static_cast<quint8>(usbXdataRead4Byte(ADDR_SPDIFOUT).first.at(0));
+    if (enable) {
+        spdifout |= bit;
+    } else {
+        spdifout &= mask;
+    }
+    QByteArray data(4, 0); // Create a 4-byte array initialized to zero
+    data[0] = spdifout;
+    if(usbXdataWrite4Byte(ADDR_SPDIFOUT, data)){
+        isSwitchOnTarget = enable;
+        qDebug() << "SPDIFOUT set successfully";
+    }else{
+        qDebug() << "SPDIFOUT set failed";
+    }
+}
+
+std::string VideoHid::getFirmwareVersion() {
+    bool ok;
+    int version_0 = usbXdataRead4Byte(0xCBDC).first.toHex().toInt(&ok, 16);
+    int version_1 = usbXdataRead4Byte(0xCBDD).first.toHex().toInt(&ok, 16);
+    int version_2 = usbXdataRead4Byte(0xCBDE).first.toHex().toInt(&ok, 16);
+    int version_3 = usbXdataRead4Byte(0xCBDF).first.toHex().toInt(&ok, 16);
+    return QString("%1%2%3%4").arg(version_0, 2, 10, QChar('0'))
+                              .arg(version_1, 2, 10, QChar('0'))
+                              .arg(version_2, 2, 10, QChar('0'))
+                              .arg(version_3, 2, 10, QChar('0')).toStdString();
+}
+
+/*
+ * Address: 0xFA8C bit0 indicates the HDMI connection status
+ */
+bool VideoHid::isHdmiConnected() {
+    return usbXdataRead4Byte(ADDR_HDMI_CONNECTION_STATUS).first.at(0) & 0x01;
+}
+
+void VideoHid::setEventCallback(StatusEventCallback* callback) {
+    eventCallback = callback;
+}
 
 QPair<QByteArray, bool> VideoHid::usbXdataRead4Byte(quint16 u16_address) {
     QByteArray ctrlData(9, 0); // Initialize with 9 bytes set to 0
@@ -62,10 +177,9 @@ QPair<QByteArray, bool> VideoHid::usbXdataRead4Byte(quint16 u16_address) {
     ctrlData[1] = 0xB5;
     ctrlData[2] = static_cast<char>((u16_address >> 8) & 0xFF);
     ctrlData[3] = static_cast<char>(u16_address & 0xFF);
-    // 0: Some devices use report ID 0 to indicate that no specific report ID is used. 
+    // 0: Some devices use report ID 0 to indicate that no specific report ID is used.
     if (this->sendFeatureReport((uint8_t*)ctrlData.data(), ctrlData.size())) {
         if (this->getFeatureReport((uint8_t*)result.data(), result.size())) {
-            //qDebug() << "usbXdataRead4Byte: " << result.toHex();
             return qMakePair(result.mid(4, 1), true);
         }
     } else {
@@ -80,6 +194,19 @@ QPair<QByteArray, bool> VideoHid::usbXdataRead4Byte(quint16 u16_address) {
         }
     }
     return qMakePair(QByteArray(4, 0), false); // Return 4 bytes set to 0 and false
+}
+
+bool VideoHid::usbXdataWrite4Byte(quint16 u16_address, QByteArray data) {
+    QByteArray ctrlData(9, 0); // Initialize with 9 bytes set to 0
+
+    ctrlData[1] = 0xB6;
+    ctrlData[2] = static_cast<char>((u16_address >> 8) & 0xFF);
+    ctrlData[3] = static_cast<char>(u16_address & 0xFF);
+    ctrlData.replace(4, 4, data);
+
+    qDebug() << "usbXdataWrite4Byte: " << ctrlData.toHex();
+
+    return this->sendFeatureReport((uint8_t*)ctrlData.data(), ctrlData.size());
 }
 
 bool VideoHid::getFeatureReport(uint8_t* buffer, size_t bufferLength) {
