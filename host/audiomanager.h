@@ -16,6 +16,8 @@ public:
     ~AudioManager();
 
     void initializeAudio();
+    void disconnect();
+    
     QAudioDevice findUvcCameraAudioDevice(QString deviceName);
     QAudioDevice findSystemAudioOuptutDevice(QString deviceName);
     void fadeInVolume(int timeout, int durationInSeconds);
