@@ -48,6 +48,7 @@
 #include <QSettings>
 #include <QElapsedTimer>
 #include <qtimer.h>
+#include <QList>
 
 SettingDialog::SettingDialog(QCamera *_camera, QWidget *parent)
     : QDialog(parent)
@@ -58,8 +59,9 @@ SettingDialog::SettingDialog(QCamera *_camera, QWidget *parent)
     , logPage(nullptr)
     , videoPage(nullptr)
     , audioPage(nullptr)
+    , hardwarePage(nullptr)
     , camera(_camera)
-
+    
 {
 
 
@@ -72,6 +74,7 @@ SettingDialog::SettingDialog(QCamera *_camera, QWidget *parent)
     // loadLogSettings();
     initLogSettings();
     initVideoSettings();
+    initHardwareSetting();
     // Connect the tree widget's currentItemChanged signal to a slot
     connect(settingTree, &QTreeWidget::currentItemChanged, this, &SettingDialog::changePage);
 }
@@ -94,7 +97,7 @@ void SettingDialog::createSettingTree() {
     settingTree->setRootIsDecorated(false);
     
     // QStringList names = {"Log"};
-    QStringList names = {"General", "Video", "Audio"};
+    QStringList names = {"General", "Video", "Audio", "Hardware"};
     for (const QString &name : names) {     // add item to setting tree
         QTreeWidgetItem *item = new QTreeWidgetItem(settingTree);
         item->setText(0, name);
@@ -204,6 +207,12 @@ void SettingDialog::createVideoPage() {
     }
 }
 
+QVariant SettingDialog::boxValue(const QComboBox *box) const
+{
+    const int idx = box->currentIndex();
+    return idx != -1 ? box->itemData(idx) : QVariant{};
+}
+
 void SettingDialog::updatePixelFormats()
 {   
     qDebug() << "update pixel formats";
@@ -231,11 +240,7 @@ void SettingDialog::updatePixelFormats()
     m_updatingFormats = false;
 }
 
-QVariant SettingDialog::boxValue(const QComboBox *box) const
-{
-    const int idx = box->currentIndex();
-    return idx != -1 ? box->itemData(idx) : QVariant{};
-}
+
 
 void SettingDialog::applyVideoSettings(){
     QSlider *fpsSlider = videoPage->findChild<QSlider*>("fpsSlider");
@@ -271,14 +276,16 @@ void SettingDialog::applyVideoSettings(){
              << ", FPS:" << appliedFormat.minFrameRate()
              << appliedFormat.pixelFormat();
 
+    updatePixelFormats();
+    
     GlobalSetting::instance().setVideoSettings(format.resolution().width(), format.resolution().height(),format.minFrameRate());
 }
 
 void SettingDialog::initVideoSettings() {
     QSettings settings("Techxartisan", "Openterface");
-    int width = settings.value("Video/ResolutionWidth", 1920).toInt();
-    int height = settings.value("Video/ResolutionHeight", 1080).toInt();
-    int fps = settings.value("Video/FPS", 30).toInt();
+    int width = settings.value("video/width", 1920).toInt();
+    int height = settings.value("video/height", 1080).toInt();
+    int fps = settings.value("video/fps", 30).toInt();
 
     m_currentResolution = QSize(width, height);
 
@@ -289,6 +296,8 @@ void SettingDialog::initVideoSettings() {
     for (int i = 0; i < videoFormatBox->count(); ++i) {
         QString resolutionText = videoFormatBox->itemText(i).split(' ').first();
         QStringList resolutionParts = resolutionText.split('x');
+        qDebug() << "resolution text: "<< resolutionText;
+        qDebug() << resolutionParts[0].toInt()<< width << resolutionParts[1].toInt() << height;
         if (resolutionParts[0].toInt() == width && resolutionParts[1].toInt() == height) {
             videoFormatBox->setCurrentIndex(i);
             break;
@@ -462,15 +471,78 @@ void SettingDialog::createAudioPage() {
     audioLayout->addStretch();
 }
 
+void SettingDialog::createHardwarePage(){
+    hardwarePage = new QWidget();
+    QLabel *hardwareLabel = new QLabel(
+        "<span style=' color: black; font-weight: bold;'>General hardware setting</span>");
+    hardwareLabel->setStyleSheet(bigLabelFontSize);
+
+    QLabel *uvcCamLabel = new QLabel("UVC Camera resource: ");
+    uvcCamLabel->setStyleSheet(smallLabelFontSize);
+    QComboBox *uvcCamBox = new QComboBox();
+    uvcCamBox->setObjectName("uvcCamBox");
+    
+
+    QVBoxLayout *hardwareLayout = new QVBoxLayout(hardwarePage);
+    hardwareLayout->addWidget(hardwareLabel);
+    hardwareLayout->addWidget(uvcCamLabel);
+    hardwareLayout->addWidget(uvcCamBox);
+    hardwareLayout->addStretch();
+    findUvcCameraDevices();
+}
+
+void SettingDialog::findUvcCameraDevices(){
+    
+    const QList<QCameraDevice> devices = QMediaDevices::videoInputs();
+    QComboBox *uvcCamBox = hardwarePage->findChild<QComboBox *>("uvcCamBox");
+
+    if (devices.isEmpty()) {
+        qDebug() << "No video input devices found.";
+    } else {
+        for (const QCameraDevice &cameraDevice : devices) {
+            uvcCamBox->addItem(cameraDevice.description());
+        }
+    }
+    // set default "Openterface"
+    int index = uvcCamBox->findText("Openterface");
+    if (index != -1) {
+        uvcCamBox->setCurrentIndex(index);
+    } else {
+        qDebug() << "Openterface device not found.";
+    }
+
+}
+
+void SettingDialog::applyHardwareSetting(){
+    QSettings settings("Techxartisan", "Openterface");
+    QString deviceDescription = settings.value("camera/device", "Openterface").toString();
+    QComboBox *uvcCamBox = hardwarePage->findChild<QComboBox*>("uvcCamBox");
+    
+    if (deviceDescription != uvcCamBox->currentText()){
+        GlobalSetting::instance().setCameraDeviceSetting(uvcCamBox->currentText());
+        emit hardwareSettingsApplied(); 
+    }
+    
+}
+
+void SettingDialog::initHardwareSetting(){
+    QSettings settings("Techxartisan", "Openterface");
+    QComboBox *uvcCamBox = hardwarePage->findChild<QComboBox*>("uvcCamBox");
+
+    uvcCamBox->setCurrentText(settings.value("camera/device", "Openterface").toString());
+}
+
 void SettingDialog::createPages() {
     createLogPage();
     createVideoPage();
     createAudioPage();
-
+    createHardwarePage();
+    
     // Add pages to the stacked widget
     stackedWidget->addWidget(logPage);
     stackedWidget->addWidget(videoPage);
     stackedWidget->addWidget(audioPage);
+    stackedWidget->addWidget(hardwarePage);
 }
 
 void SettingDialog::createButtons(){
@@ -506,6 +578,8 @@ void SettingDialog::createLayout() {
     setLayout(mainLayout);
 }
 
+
+
 void SettingDialog::changePage(QTreeWidgetItem *current, QTreeWidgetItem *previous) {
     static QElapsedTimer timer;
     static bool isChanging = false;
@@ -526,6 +600,8 @@ void SettingDialog::changePage(QTreeWidgetItem *current, QTreeWidgetItem *previo
         stackedWidget->setCurrentIndex(1);
     } else if (itemText == "Audio") {
         stackedWidget->setCurrentIndex(2);
+    } else if (itemText == "Hardware") {
+        stackedWidget->setCurrentIndex(3);
     }
 
     QTimer::singleShot(100, this, [this]() {
@@ -545,7 +621,7 @@ void SettingDialog::setLogCheckBox(){
     hostCheckBox->setChecked(true);
 }
 
-void SettingDialog::readCheckBoxState() {
+void SettingDialog::applyLogsettings() {
 
     // QSettings settings("Techxartisan", "Openterface");
     
@@ -578,10 +654,10 @@ void SettingDialog::initLogSettings(){
     QCheckBox *uiCheckBox = findChild<QCheckBox*>("ui");
     QCheckBox *hostCheckBox = findChild<QCheckBox*>("host");
 
-    coreCheckBox->setChecked(settings.value("Log/Core", true).toBool());
-    serialCheckBox->setChecked(settings.value("Log/Serial", true).toBool());
-    uiCheckBox->setChecked(settings.value("Log/Ui", true).toBool());
-    hostCheckBox->setChecked(settings.value("Log/Host", true).toBool());
+    coreCheckBox->setChecked(settings.value("log/core", true).toBool());
+    serialCheckBox->setChecked(settings.value("log/serial", true).toBool());
+    uiCheckBox->setChecked(settings.value("log/ui", true).toBool());
+    hostCheckBox->setChecked(settings.value("log/host", true).toBool());
 }
 
 void SettingDialog::applyAccrodingPage(){
@@ -590,7 +666,7 @@ void SettingDialog::applyAccrodingPage(){
     {
         // sequence Log Video Audio
         case 0:
-            readCheckBoxState();
+            applyLogsettings();
             break;
         case 1:
             applyVideoSettings();
@@ -598,13 +674,17 @@ void SettingDialog::applyAccrodingPage(){
         case 2:
 
             break;
+        case 3:
+            applyHardwareSetting();
+            break;
         default:
             break;
     }
 }
 
 void SettingDialog::handleOkButton() {
-    readCheckBoxState();
+    applyLogsettings();
     applyVideoSettings();
+    applyHardwareSetting();
     accept();
 }

@@ -18,6 +18,9 @@ public:
 
     void setVideoSettings(int width, int height, int fps);
     void loadVideoSettings();
+    
+    void setCameraDeviceSetting(QString deviceDescription);
+
 private:
     QSettings settings;
 };

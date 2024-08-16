@@ -32,7 +32,7 @@
 #include <QTreeWidgetItem>
 #include <QStackedWidget>
 #include <set>
-
+#include <QMediaDevices>
 
 QT_BEGIN_NAMESPACE
 class QCameraFormat;
@@ -77,6 +77,8 @@ public:
     // explicit SettingDialog(QCamera *camera, QWidget *parent = nullptr);
     explicit SettingDialog(QCamera *camera, QWidget *parent = nullptr);
     ~SettingDialog();
+signals:
+    void hardwareSettingsApplied();
 
 private:
     
@@ -90,6 +92,7 @@ private:
     QWidget *logPage;
     QWidget *videoPage;
     QWidget *audioPage;
+    QWidget *hardwarePage;
     QWidget *buttonWidget;
 
     
@@ -109,11 +112,15 @@ private:
     
     void createAudioPage();
     void createVideoPage();
+    void createHardwarePage();
+    void findUvcCameraDevices();
+    void applyHardwareSetting();
+    void initHardwareSetting();
     void createPages();
     
     void changePage(QTreeWidgetItem *current, QTreeWidgetItem *previous);
     void createButtons();
-    void readCheckBoxState();
+    void applyLogsettings();
     void applyAccrodingPage();
     void setLogCheckBox();
     void handleOkButton();
