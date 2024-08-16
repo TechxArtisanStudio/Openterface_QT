@@ -26,6 +26,7 @@
 #include "ui_mainwindow.h"
 
 #include "host/HostManager.h"
+#include "serial/SerialPortManager.h"
 
 #include "ui/imagesettings.h"
 #include "ui/settingdialog.h"
@@ -105,8 +106,8 @@ Camera::Camera() : ui(new Ui::Camera), videoPane(new VideoPane(this)),
     HostManager::getInstance().setEventCallback(this);
 
     qCDebug(log_ui_mainwindow) << "Observe Video HID connected...";
-    VideoHid::getInstance().start();
     VideoHid::getInstance().setEventCallback(this);
+    VideoHid::getInstance().start();
 
     qCDebug(log_ui_mainwindow) << "Observe video input changed...";
     connect(&m_source, &QMediaDevices::videoInputsChanged, this, &Camera::updateCameras);
@@ -656,7 +657,6 @@ void Camera::checkCameraConnection()
         if (availableCameras.count() > m_lastCameraList.count()) {
             // A new camera has been connected
             // Find out which camera was connected
-
         }
         m_lastCameraList = availableCameras;
     }
@@ -689,6 +689,7 @@ void Camera::onSwitchableUsbToggle(const bool isToTarget) {
         ui->actionTo_Host->setChecked(true);
         ui->actionTo_Target->setChecked(false);
     }
+    // SerialPortManager::getInstance().restartSwitchableUSB();
 }
 
 void Camera::updateResolutions(const int input_width, const int input_height, const float input_fps, const int capture_width, const int capture_height, const int capture_fps)
@@ -703,6 +704,4 @@ void Camera::handlePasteFromHost()
     qCDebug(log_ui_mainwindow) << "Paste from host...";
     const QClipboard *clipboard = QGuiApplication::clipboard();
     qCDebug(log_ui_mainwindow) << "Clipboard text: " << clipboard->text();
-
-
 }

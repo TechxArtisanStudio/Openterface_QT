@@ -66,6 +66,7 @@ public:
     bool reconfigureHidChip();
     bool factoryResetHipChipV191();
     bool factoryResetHipChip();
+    void restartSwitchableUSB();
 
 signals:
     void dataReceived(const QByteArray &data);
@@ -92,8 +93,6 @@ private slots:
     //  * HIGH value means connecting to host, while LOW value means connecting to target
     //  */
     // void checkSwitchableUSB();
-
-    void restartSwitchableUSB();
 
     void onSerialPortConnected(const QString &portName);
     void onSerialPortDisconnected(const QString &portName);

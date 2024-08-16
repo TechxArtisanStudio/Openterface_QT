@@ -52,7 +52,8 @@ private:
     QPair<QByteArray, bool> usbXdataRead4Byte(quint16 u16_address);
     bool usbXdataWrite4Byte(quint16 u16_address, QByteArray data);
     QString devicePath;
-    bool softSwitchStatus = false;
+    bool isSwitchOnTarget = false;
+    
     StatusEventCallback* eventCallback = nullptr;
 
     bool getFeatureReport(uint8_t* buffer, size_t bufferLength);
