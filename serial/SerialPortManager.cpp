@@ -127,10 +127,15 @@ void SerialPortManager::checkSerialPort() {
     // Check the USB switch status only for hardware
     // checkSwitchableUSB();
 
-    // // Check target connection status when no data received in 3 seconds
-    if (isTargetUsbConnected && latestUpdateTime.secsTo(QDateTime::currentDateTime()) > 3) {
+    if (isTargetUsbConnected){
+        // Check target connection status when no data received in 3 seconds
+        if (latestUpdateTime.secsTo(QDateTime::currentDateTime()) > 3) {
+            sendAsyncCommand(CMD_GET_INFO, true);
+        }
+    }else {
         sendAsyncCommand(CMD_GET_INFO, true);
     }
+
 }
 
 /*
