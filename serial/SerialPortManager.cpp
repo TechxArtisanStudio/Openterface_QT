@@ -25,6 +25,7 @@
 #include <QTimer>
 #include <QtConcurrent>
 #include <QFuture>
+#include <QtSerialPort>
 
 Q_LOGGING_CATEGORY(log_core_serial, "opf.core.serial")
 
@@ -45,7 +46,7 @@ void SerialPortManager::observeSerialPortNotification(){
 
     connect(serialThread, &QThread::started, serialTimer, [this]() {
         connect(serialTimer, &QTimer::timeout, this, &SerialPortManager::checkSerialPort);
-        serialTimer->start(2000); // 2000 ms = 2 s
+        serialTimer->start(1000);
     });
 
     connect(serialThread, &QThread::finished, serialTimer, &QObject::deleteLater);
@@ -77,7 +78,8 @@ void SerialPortManager::checkSerialPorts() {
     }
 
     // Detect disconnected ports
-    for (const QString &portName : availablePorts) {
+    for (auto it = availablePorts.constBegin(); it != availablePorts.constEnd(); ++it) {
+        const QString &portName = *it;
         if (!currentPorts.contains(portName)) {
             emit serialPortDisconnected(portName);
         }
@@ -87,6 +89,32 @@ void SerialPortManager::checkSerialPorts() {
     availablePorts = currentPorts;
 }
 
+// void SerialPortManager::checkSwitchableUSB(){
+//     // For hardware 1.9, using MS2109 GPIO 0 to read the hard USB toggle switch state
+//     // TODO skip this checking for 1.9
+//     if(serialPort){
+//         bool newIsSwitchToHost = serialPort->pinoutSignals() & QSerialPort::DataSetReadySignal;
+//         if(newIsSwitchToHost){
+//             qCDebug(log_core_serial) << "USB switch is connecting to host, original connected to" << (isSwitchToHost?"host":"target");
+//         }else{
+//             qCDebug(log_core_serial) << "USB switch is connecting to target, original connected to" << (isSwitchToHost?"host":"target");
+//         }
+
+//         if(isSwitchToHost!=newIsSwitchToHost){
+//             qCDebug(log_core_serial) << "USB switch status changed, toggle the switch";
+//             if (isSwitchToHost) {
+//                 // Set the RTS pin to high(pin inverted) to connect to the target
+//                 serialPort->setRequestToSend(false);
+//             }else{
+//                 // Set the RTS pin to low(pin inverted) to connect to the host
+//                 serialPort->setRequestToSend(true);
+//             }
+//             isSwitchToHost = newIsSwitchToHost;
+//             restartSwitchableUSB();
+//         }
+//     }
+// }
+
 /*
  * Check the serial port connection status
  */
@@ -95,7 +123,16 @@ void SerialPortManager::checkSerialPort() {
 
     // Check if any new ports is connected, compare to the last port list
     checkSerialPorts();
+
+    // Check the USB switch status only for hardware
+    // checkSwitchableUSB();
+
+    // // Check target connection status when no data received in 3 seconds
+    if (isTargetUsbConnected && latestUpdateTime.secsTo(QDateTime::currentDateTime()) > 3) {
+        sendAsyncCommand(CMD_GET_INFO, true);
+    }
 }
+
 /*
  * Open the serial port and check the baudrate and mode
  */
@@ -173,6 +210,13 @@ void SerialPortManager::onSerialPortConnectionSuccess(const QString &portName){
     connect(serialPort, &QSerialPort::readyRead, this, &SerialPortManager::readData);
     connect(serialPort, &QSerialPort::bytesWritten, this, &SerialPortManager::bytesWritten);
     ready = true;
+
+    if(eventCallback!=nullptr) eventCallback->onPortConnected(QString("%1@%2").arg(portName).arg(serialPort->baudRate()));
+
+    qCDebug(log_core_serial) << "Enable the switchable USB now...";
+    serialPort->setDataTerminalReady(false);
+
+    sendSyncCommand(CMD_GET_INFO, true);
 }
 
 void SerialPortManager::setEventCallback(StatusEventCallback* callback) {
@@ -184,18 +228,20 @@ void SerialPortManager::setEventCallback(StatusEventCallback* callback) {
  */
 bool SerialPortManager::resetHipChip(){
     qCDebug(log_core_serial) << "Reset Hid chip now...";
-    eventCallback->onPortConnected("Reset Hid chip now...");
+    if(eventCallback) eventCallback->onStatusUpdate("Reset Hid chip now...");
 
     QByteArray retByte = sendSyncCommand(CMD_RESET, true);
     if (retByte.size() > 0) {
         qCDebug(log_core_serial) << "Reset the hid chip success.";
-        eventCallback->onPortConnected("Reset Hid chip success.");
+        eventCallback->onStatusUpdate("Reset Hid chip success.");
         return true;
     }
+    if(eventCallback) eventCallback->onStatusUpdate("Reset Hid chip failure.");
     return false;
 }
 
 /*
+ * Supported hardware 1.9 and > 1.9.1
  * Factory reset the hid chip by holding the RTS pin to low for 4 seconds
  */
 bool SerialPortManager::factoryResetHipChip(){
@@ -212,6 +258,38 @@ bool SerialPortManager::factoryResetHipChip(){
             emit serialPortConnectionSuccess(portName);
         }
     }
+    return false;
+}
+
+/*
+ * Supported hardware == 1.9.1
+ * Factory reset the hid chip by sending set default cfg command
+ */
+bool SerialPortManager::factoryResetHipChipV191(){
+    qCDebug(log_core_serial) << "Factory reset Hid chip for 1.9.1 now...";
+    if(eventCallback) eventCallback->onStatusUpdate("Factory reset Hid chip now.");
+
+    QByteArray retByte = sendSyncCommand(CMD_SET_DEFAULT_CFG, true);
+    if (retByte.size() > 0) {
+        qCDebug(log_core_serial) << "Factory reset the hid chip success.";
+        if(eventCallback) eventCallback->onStatusUpdate("Factory reset Hid chip success.");
+        return true;
+    } else{
+        qCDebug(log_core_serial) << "Factory reset the hid chip fail.";
+        // toggle to another baudrate
+        serialPort->close();
+        serialPort->setBaudRate(ORIGINAL_BAUDRATE);
+        if(eventCallback) eventCallback->onStatusUpdate("Factory reset the hid chip@9600.");
+        if(serialPort->open(QIODevice::ReadWrite)){
+            QByteArray retByte = sendSyncCommand(CMD_SET_DEFAULT_CFG, true);
+            if (retByte.size() > 0) {
+                qCDebug(log_core_serial) << "Factory reset the hid chip success.";
+                if(eventCallback) eventCallback->onStatusUpdate("Factory reset the hid chip success@9600.");
+                return true;
+            }
+        }
+    }
+    if(eventCallback) eventCallback->onStatusUpdate("Factory reset the hid chip failure.");
     return false;
 }
 
@@ -239,7 +317,7 @@ bool SerialPortManager::openPort(const QString &portName, int baudRate) {
         qCDebug(log_core_serial) << "Serial port is already opened.";
         return false;
     }
-
+    if(eventCallback!=nullptr) eventCallback->onStatusUpdate("Going to open the port");
     if(serialPort == nullptr){
         serialPort = new QSerialPort();
     }
@@ -248,11 +326,12 @@ bool SerialPortManager::openPort(const QString &portName, int baudRate) {
     if (serialPort->open(QIODevice::ReadWrite)) {
         qCDebug(log_core_serial) << "Open port" << portName + ", baudrate: " << baudRate;
         serialPort->setRequestToSend(false);
-        qCDebug(log_core_serial) << "RTS:" << serialPort->isRequestToSend();
 
-        if(eventCallback!=nullptr) eventCallback->onPortConnected(portName);
+        if(eventCallback!=nullptr) eventCallback->onStatusUpdate("");
+        if(eventCallback!=nullptr) eventCallback->onPortConnected(QString("%1@%2").arg(portName).arg(baudRate));
         return true;
     } else {
+        if(eventCallback!=nullptr) eventCallback->onStatusUpdate("Open port failure");
         return false;
     }
 }
@@ -273,7 +352,7 @@ void SerialPortManager::closePort() {
         delete serialPort;
         serialPort = nullptr;
         ready=false;
-        if(eventCallback!=nullptr) eventCallback->onPortConnected("Going to close the port");
+        if(eventCallback!=nullptr) eventCallback->onPortConnected("NA");
     } else {
         qCDebug(log_core_serial) << "Serial port is not opened.";
     }
@@ -323,13 +402,25 @@ void SerialPortManager::readData() {
                 break;
             }
         }else{
-            qCDebug(log_core_serial) << "Data read from serial port: " << data.toHex(' ');
+            qCDebug(log_core_serial) << "Receive from serial port @" << serialPort->baudRate() << ":" << data.toHex(' ');
 
+            latestUpdateTime = QDateTime::currentDateTime();
             unsigned char code = fourthByte | 0x80;
             int checkedBaudrate = 0;
             uint8_t mode = 0;
             switch (code)
             {
+            case 0x81:
+                qDebug() << "Get info result, target connected:" << (CmdGetInfoResult::fromByteArray(data).targetConnected == 0x01);
+                isTargetUsbConnected = CmdGetInfoResult::fromByteArray(data).targetConnected == 0x01;
+                eventCallback->onTargetUsbConnected(isTargetUsbConnected);
+                break;
+            case 0x84:
+                qCDebug(log_core_serial) << "Absolute mouse event sent, status" << data[5];
+                break;
+            case 0x85:
+                qCDebug(log_core_serial) << "Relative mouse event sent, status" << data[5];
+                break;
             case 0x88:
                 // get parameter configuration
                 // baud rate 8...11 bytes
@@ -342,21 +433,15 @@ void SerialPortManager::readData() {
                     ready = true;
                     serialPort->setBaudRate(checkedBaudrate);
                     if(eventCallback!=nullptr){
-                        eventCallback->onPortConnected(serialPort->portName());
+                        eventCallback->onPortConnected(QString("%1@%2").arg(serialPort->portName()).arg(serialPort->baudRate()));
                     }
                 }else{
                     reconfigureHidChip();
                     QThread::sleep(1);
-                    sendResetCommand();
+                    resetHipChip();
                     ready=false;
                 }
                 //baudrate = checkedBaudrate;
-                break;
-            case 0x84:
-                qCDebug(log_core_serial) << "Absolute mouse event sent, status" << data[5];
-                break;
-            case 0x85:
-                qCDebug(log_core_serial) << "Relative mouse event sent, status" << data[5];
                 break;
             default:
                 qCDebug(log_core_serial) << "Unknown command: " << data.toHex(' ');
@@ -416,7 +501,7 @@ bool SerialPortManager::writeData(const QByteArray &data) {
         return true;
     }
 
-    qCDebug(log_core_serial) << "Serial is not opened, " << serialPort->portName();
+    qCDebug(log_core_serial) << "Serial is not opened, cannot write data" << serialPort->portName();
     ready = false;
     return false;
 }
@@ -448,12 +533,6 @@ QByteArray SerialPortManager::sendSyncCommand(const QByteArray &data, bool force
     return QByteArray();;
 }
 
-/*
- * Send the reset command to the serial port
- */
-bool SerialPortManager::sendResetCommand(){
-    return sendAsyncCommand(CMD_RESET, true);
-}
 
 quint8 SerialPortManager::calculateChecksum(const QByteArray &data) {
     quint32 sum = 0;
@@ -461,4 +540,17 @@ quint8 SerialPortManager::calculateChecksum(const QByteArray &data) {
         sum += static_cast<unsigned char>(byte);
     }
     return sum % 256;
+}
+
+/*
+ * Restart the switchable USB port
+ * Set the DTR to high for 0.5s to restart the USB port
+ */
+void SerialPortManager::restartSwitchableUSB(){
+    if(serialPort){
+        qCDebug(log_core_serial) << "Restart the USB port now...";
+        serialPort->setDataTerminalReady(true);
+        QThread::msleep(500);
+        serialPort->setDataTerminalReady(false);
+    }
 }

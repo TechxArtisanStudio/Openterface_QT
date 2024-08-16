@@ -7,7 +7,9 @@
 const QByteArray MOUSE_ABS_ACTION_PREFIX = QByteArray::fromHex("57 AB 00 04 07 02");
 const QByteArray MOUSE_REL_ACTION_PREFIX = QByteArray::fromHex("57 AB 00 05 05 01");
 const QByteArray CMD_GET_PARA_CFG = QByteArray::fromHex("57 AB 00 08 00");
+const QByteArray CMD_GET_INFO = QByteArray::fromHex("57 AB 00 01 00");
 const QByteArray CMD_RESET = QByteArray::fromHex("57 AB 00 0F 00");
+const QByteArray CMD_SET_DEFAULT_CFG = QByteArray::fromHex("57 AB 00 0C 00");
 const QByteArray CMD_SET_PARA_CFG_PREFIX = QByteArray::fromHex("57 AB 00 09 32 82 80 00 00 01 C2 00");
 const QByteArray CMD_SET_PARA_CFG_MID = QByteArray::fromHex("08 00 00 03 86 1a 29 e1 00 00 00 01 00 0d 00 00 00 00 00 00") + QByteArray(23, 0x00) ;
 
@@ -29,6 +31,15 @@ const uint8_t DEF_CMD_ERR_OPERATE = 0xE6;
 static uint16_t toLittleEndian(uint16_t value) {
     return (value >> 8) | (value << 8);
 }
+
+static quint8 calculateChecksum(const QByteArray &data) {
+    quint32 sum = 0;
+    for (auto byte : data) {
+        sum += static_cast<unsigned char>(byte);
+    }
+    return sum % 256;
+}
+
 
 static uint32_t toLittleEndian(uint32_t value) {
     return ((value >> 24) & 0xff) | // Move byte 3 to byte 0
@@ -53,6 +64,47 @@ T fromByteArray(const QByteArray &data) {
     }
     return result;
 }
+
+struct CmdGetInfoResult {
+    uint16_t prefix;    //0x57AB
+    uint8_t addr1;      //0x00
+    uint8_t cmd;        //0x01
+    uint8_t len;        //0x00
+    uint8_t version;
+    uint8_t targetConnected;
+    uint8_t indicators;
+    uint8_t reserved1;
+    uint8_t reserved2;
+    uint8_t reserved3;
+    uint8_t reserved4;
+    uint8_t reserved5;
+    uint8_t sum;
+
+    static CmdGetInfoResult fromByteArray(const QByteArray &data) {
+        CmdGetInfoResult result;
+        if (data.size() >= static_cast<qsizetype>(sizeof(CmdGetInfoResult))) {
+            std::memcpy(&result, data.constData(), sizeof(CmdGetInfoResult));
+            // Debugging: Print the raw data
+            // qDebug() << "Raw data:" << data.toHex(' ');
+
+            // Debugging: Print the parsed fields
+            // result.dump();
+        } else {
+            qWarning() << "Data size is too small to parse CmdGetInfoResult";
+        }
+        return result;
+    }
+
+    void dump() {
+        qDebug() << "prefix:" << QString::number(prefix, 16)
+        << "| addr1:" << addr1
+        << "| cmd:" << QString::number(cmd, 16)
+        << "| len:" << len
+        << "| version:" << version
+        << "| targetConnected:" << targetConnected
+        << "| indicators:" << indicators;
+    }
+};
 
 struct CmdDataParamConfig
 {
@@ -85,7 +137,7 @@ struct CmdDataParamConfig
     static CmdDataParamConfig fromByteArray(const QByteArray &data) {
         CmdDataParamConfig config;
         // change to 3th byte value to 1
-        if (data.size() >= sizeof(CmdDataParamConfig)) {
+        if (data.size() >= static_cast<qsizetype>(sizeof(CmdDataParamConfig))) {
             std::memcpy(&config, data.constData(), sizeof(CmdDataParamConfig));
 
             config.baudrate = toLittleEndian(config.baudrate);
@@ -101,10 +153,10 @@ struct CmdDataParamConfig
             config.filter_end = toLittleEndian(config.filter_end);
 
             // Debugging: Print the raw data
-            qDebug() << "Raw data:" << data.toHex(' ');
+            // qDebug() << "Raw data:" << data.toHex(' ');
 
             // Debugging: Print the parsed fields
-            config.dump();
+            // config.dump();
         } else {
             qWarning() << "Data size is too small to parse CmdDataParamConfig";
             qWarning() << data.size() <<  sizeof(CmdDataParamConfig);
@@ -151,7 +203,7 @@ struct CmdDataResult {
 
     static CmdDataResult fromByteArray(const QByteArray &data) {
         CmdDataResult result;
-        if (data.size() >= sizeof(CmdDataResult)) {
+        if (data.size() >= static_cast<qsizetype>(sizeof(CmdDataResult))) {
             std::memcpy(&result, data.constData(), sizeof(CmdDataResult));
             // Debugging: Print the raw data
             qDebug() << "Raw data:" << data.toHex(' ');
@@ -174,16 +226,37 @@ struct CmdDataResult {
     }
 };
 
+/*
+ * Command to reset or set default cfg the device
+ * CMD_RESET or CMD_SET_DEFAULT_CFG
+ */
+struct CmdReset {
+    uint8_t prefix_high;
+    uint8_t prefix_low;
+    uint8_t addr1;
+    uint8_t cmd;
+    uint8_t len;
+
+
+    void dump() {
+        qDebug() << "prefix:" << prefix_high << prefix_low
+        << "| addr1:" << addr1
+        << "| cmd:" << cmd
+        << "| len:" << len;
+    }
+};
+
 struct CmdResetResult {
     uint16_t prefix;
     uint8_t addr1;
     uint8_t cmd;
     uint8_t len;
+    uint8_t data;    
     uint8_t sum;
 
     static CmdDataResult fromByteArray(const QByteArray &data) {
         CmdDataResult result;
-        if (data.size() >= sizeof(CmdDataResult)) {
+        if (data.size() >= static_cast<qsizetype>(sizeof(CmdDataResult))) {
             std::memcpy(&result, data.constData(), sizeof(CmdDataResult));
             // Debugging: Print the raw data
             qDebug() << "Raw data:" << data.toHex(' ');
@@ -201,6 +274,7 @@ struct CmdResetResult {
         << "| addr1:" << addr1
         << "| cmd:" << QString::number(cmd, 16)
         << "| len:" << len
+        << "| data:" << data
         << "| sum:" << QString::number(sum, 16);
     }
 };
