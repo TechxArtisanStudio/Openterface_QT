@@ -86,11 +86,6 @@ int main(int argc, char *argv[])
 
     qInstallMessageHandler(customMessageHandler);
 
-    QLoggingCategory::setFilterRules("opf.core.*=false\n"
-                                     "opf.ui.*=false\n"
-                                     "opf.host.*=false\n"
-                                     "opf.core.serial=false\n");
-
     QCoreApplication::setApplicationName("Openterface Mini-KVM");
     QCoreApplication::setOrganizationName("TechxArtisan");
     QCoreApplication::setApplicationVersion("0.0.1");
