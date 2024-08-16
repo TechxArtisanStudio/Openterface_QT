@@ -94,8 +94,7 @@ private slots:
     // void configureImageSettings();
 
     void configureSettings();
-    
-    void displayRecorderError();
+
     void displayCameraError();
 
     void updateCameraDevice(QAction *action);
@@ -121,6 +120,14 @@ private slots:
 
     void onLastMouseLocation(const QPoint& location, const QString& mouseEvent) override;
 
+    void onStatusUpdate(const QString& port) override;
+
+    void onSwitchableUsbToggle(const bool isToHost) override;
+
+    void onResolutionChange(const int& width, const int& height, const float& fps) override;
+
+    void onTargetUsbConnected(const bool isConnected) override;
+
 protected:
     void keyPressEvent(QKeyEvent *event) override;
     void closeEvent(QCloseEvent *event) override;
@@ -136,10 +143,15 @@ protected:
     void onActionResetSerialPortTriggered();
     void onActionFactoryResetHIDTriggered();
 
+    void onActionSwitchToHostTriggered();
+    void onActionSwitchToTargetTriggered();
+    void onFollowSwitchTriggered();
+
     void queryResolutions();
 
     void updateResolutions(int input_width, int input_height, float input_fps, int capture_width, int capture_height, int capture_fps);
 
+    void handlePasteFromHost();
 
 private:
     Ui::Camera *ui;

@@ -50,7 +50,7 @@
      <x>0</x>
      <y>0</y>
      <width>1280</width>
-     <height>20</height>
+     <height>21</height>
     </rect>
    </property>
    <widget class="QMenu" name="menuFile">
@@ -64,8 +64,14 @@
     <addaction name="actionExit"/>
    </widget>
    <widget class="QMenu" name="menuSource">
+    <property name="layoutDirection">
+     <enum>Qt::RightToLeft</enum>
+    </property>
     <property name="title">
      <string>Source</string>
+    </property>
+    <property name="icon">
+     <iconset theme="appointment-new"/>
     </property>
    </widget>
    <widget class="QMenu" name="menuControl">
@@ -79,10 +85,35 @@
      <addaction name="actionAbsolute"/>
      <addaction name="actionRelative"/>
     </widget>
+    <widget class="QMenu" name="menuAdvance">
+     <property name="title">
+      <string>Advance </string>
+     </property>
+     <addaction name="actionResetSerialPort"/>
+     <addaction name="actionResetHID"/>
+     <addaction name="actionFactory_reset_HID"/>
+    </widget>
+    <widget class="QMenu" name="menuBaudrate">
+     <property name="title">
+      <string>Baudrate</string>
+     </property>
+     <addaction name="action9600"/>
+     <addaction name="action115200"/>
+    </widget>
+    <widget class="QMenu" name="menuSwitchable_USB">
+     <property name="title">
+      <string>Switchable USB</string>
+     </property>
+     <addaction name="actionFollow_Switch"/>
+     <addaction name="separator"/>
+     <addaction name="actionTo_Host"/>
+     <addaction name="actionTo_Target"/>
+    </widget>
     <addaction name="menuMouse_Mode"/>
-    <addaction name="actionResetHID"/>
-    <addaction name="actionFactory_reset_HID"/>
-    <addaction name="actionResetSerialPort"/>
+    <addaction name="menuSwitchable_USB"/>
+    <addaction name="menuBaudrate"/>
+    <addaction name="separator"/>
+    <addaction name="menuAdvance"/>
    </widget>
    <widget class="QMenu" name="menuHelp">
     <property name="title">
@@ -121,12 +152,12 @@
   </action>
   <action name="actionResetHID">
    <property name="text">
-    <string>ResetHID</string>
+    <string>Reset Keyboard and Mouse</string>
    </property>
   </action>
   <action name="actionResetSerialPort">
    <property name="text">
-    <string>Reset serialport</string>
+    <string>Reset Serial Port</string>
    </property>
   </action>
   <action name="actionAutoReszie">
@@ -136,7 +167,7 @@
   </action>
   <action name="actionFactory_reset_HID">
    <property name="text">
-    <string>Factory reset HID</string>
+    <string>Factory Reset HID Chip</string>
    </property>
   </action>
   <action name="actionPreferences">
@@ -165,6 +196,53 @@
    </property>
   </action>
   <actiongroup name="actionGroup">
+  <action name="action115200">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>115200</string>
+   </property>
+  </action>
+  <action name="action9600">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>9600</string>
+   </property>
+  </action>
+  </actiongroup>
+  <action name="actionFollow_Switch">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="checked">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Follow Switch</string>
+   </property>
+  </action>
+  <actiongroup name="actionSwitchableGroup">
+   <action name="actionTo_Host">
+    <property name="checkable">
+     <bool>true</bool>
+    </property>
+    <property name="text">
+     <string>To Host</string>
+    </property>
+   </action>
+   <action name="actionTo_Target">
+    <property name="checkable">
+     <bool>true</bool>
+    </property>
+    <property name="text">
+     <string>To Target</string>
+    </property>
+   </action>
+  </actiongroup>
+  <actiongroup name="actionMouseModeGroup">
    <action name="actionAbsolute">
     <property name="checkable">
      <bool>true</bool>
