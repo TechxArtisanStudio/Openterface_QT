@@ -28,7 +28,7 @@ VideoHid::VideoHid(QObject *parent) : QObject(parent){
 void VideoHid::start() {
 
     std::string captureCardFirmwareVersion = getFirmwareVersion();
-    qDebug() << "MS2109 firmware VERSION:" << captureCardFirmwareVersion;    //firmware VERSION
+    qDebug() << "MS2109 firmware VERSION:" << QString::fromStdString(captureCardFirmwareVersion);    //firmware VERSION
     GlobalVar::instance().setCaptureCardFirmwareVersion(captureCardFirmwareVersion);
     isSwitchOnTarget = getSpdifout();
     qDebug() << "SPDIFOUT:" << isSwitchOnTarget;    //SPDIFOUT
