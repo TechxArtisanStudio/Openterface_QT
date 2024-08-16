@@ -57,6 +57,7 @@
 #include <QApplication>
 #include <QMessageBox>
 #include <QDesktopServices>
+#include <QSysInfo>
 
 Q_LOGGING_CATEGORY(log_ui_mainwindow, "opf.ui.mainwindow")
 
@@ -485,9 +486,43 @@ void Camera::aboutLink(){
     QDesktopServices::openUrl(QUrl("https://openterface.com/"));
 }
 
-void Camera::about() {
-    QMessageBox::about(this, tr("About"),
-                    tr("The about message"));
+void Camera::versionInfo() {
+    QString applicationName = QApplication::applicationName();
+    QString organizationName = QApplication::organizationName();
+    QString applicationVersion = QApplication::applicationVersion();
+    QString osVersion = QSysInfo::prettyProductName();
+    QString title = tr("%1").arg(applicationName);
+    QString message = tr("Version:\t %1 \nQT:\t %2\nOS:\t %3")
+                    .arg(applicationVersion)
+                    .arg(qVersion())
+                    .arg(osVersion);
+
+    QMessageBox msgBox;
+    msgBox.setWindowTitle(title);
+    msgBox.setText(message);
+
+    QPushButton *copyButton = msgBox.addButton(tr("Copy"), QMessageBox::ActionRole);
+    QPushButton *closeButton = msgBox.addButton(QMessageBox::Close);
+
+    msgBox.exec();
+
+    if (msgBox.clickedButton() == copyButton) {
+        copyToClipboard();
+    }
+    
+}
+
+void Camera::copyToClipboard(){
+    QString applicationName = QApplication::applicationName();
+    QString organizationName = QApplication::organizationName();
+    QString applicationVersion = QApplication::applicationVersion();
+
+    QString message = tr("Version:\t %1 \nOrganization:\t %2")
+                          .arg(applicationVersion)
+                          .arg(organizationName);
+
+    QClipboard *clipboard = QApplication::clipboard();
+    clipboard->setText(message);
 }
 
 void Camera::record()
