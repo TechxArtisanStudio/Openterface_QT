@@ -23,6 +23,8 @@
 #ifndef GLOBAL_H
 #define GLOBAL_H
 
+#include <QString>
+
 const int LOG_ = 100; // Add this line
 
 class GlobalVar {
@@ -72,6 +74,11 @@ public:
     bool isAbsoluteMouseMode() const { return absolute_mouse_mode; }
     void setAbsoluteMouseMode(bool mode) { absolute_mouse_mode = mode; }
 
+    std::string getCaptureCardFirmwareVersion() const { return captureCardFirmwareVersion; }
+    void setCaptureCardFirmwareVersion(const std::string& version) { captureCardFirmwareVersion = version; }
+
+    bool isFollowSwitch() const { return followSwitch; }
+    void setFollowSwitch(bool mode) { followSwitch = mode; }
 private:
     GlobalVar() : input_width(1920), input_height(1080), capture_width(1920), capture_height(1080), capture_fps(30) {} // Private constructor
     ~GlobalVar() {} // Private destructor
@@ -83,9 +90,6 @@ private:
     // Prevent moving
     GlobalVar(GlobalVar&&) = delete;
     GlobalVar& operator=(GlobalVar&&) = delete;
-
-    int video_x;
-    int video_y;
 
     // The target device input resolution
     int input_width;
@@ -105,6 +109,10 @@ private:
     int statusbar_height;
 
     bool absolute_mouse_mode = true;
+    std::string captureCardFirmwareVersion;
+
+
+    bool followSwitch = true;
 };
 
 #endif
