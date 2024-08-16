@@ -36,11 +36,21 @@ MouseEventDTO::MouseEventDTO(int x, int y, bool isAbsoluteMode, int mouseButton,
 MouseEventDTO::MouseEventDTO(int x, int y, bool isAbsoluteMode, int mouseButton)
     : absX(x), absY(y), _isAbsoluteMode(isAbsoluteMode) {
     MouseEventDTO(x, y, isAbsoluteMode, mouseButton, 0);
+    if (!isAbsoluteMode) {
+        // Calculate delta values if not in absolute mode
+        deltaX = x; // Assuming x is deltaX in relative mode
+        deltaY = y; // Assuming y is deltaY in relative mode
+    }
 }
 
 MouseEventDTO::MouseEventDTO(int x, int y, bool isAbsoluteMode)
     : absX(x), absY(y), _isAbsoluteMode(isAbsoluteMode) {
     MouseEventDTO(x, y, isAbsoluteMode, 0, 0);
+    if (!isAbsoluteMode) {
+        // Calculate delta values if not in absolute mode
+        deltaX = x; // Assuming x is deltaX in relative mode
+        deltaY = y; // Assuming y is deltaY in relative mode
+    }
 }
 
 int MouseEventDTO::getX() const {

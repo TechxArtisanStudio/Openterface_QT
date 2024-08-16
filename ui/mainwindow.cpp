@@ -28,6 +28,7 @@
 #include "globalsetting.h"
 
 #include "host/HostManager.h"
+#include "serial/SerialPortManager.h"
 
 #include "ui/imagesettings.h"
 #include "ui/settingdialog.h"
@@ -46,7 +47,8 @@
 #include <QLineEdit>
 #include <QMessageBox>
 #include <QImageCapture>
-
+#include <QToolBar>
+#include <QClipboard>
 #include <QAction>
 #include <QActionGroup>
 #include <QImage>
@@ -56,7 +58,9 @@
 #include <QDir>
 #include <QTimer>
 #include <QLabel>
-#include <QApplication>
+#include <QMenuBar>
+
+
 
 Q_LOGGING_CATEGORY(log_ui_mainwindow, "opf.ui.mainwindow")
 
@@ -101,11 +105,11 @@ Camera::Camera() : ui(new Ui::Camera), videoPane(new VideoPane(this)),
     centralWidget->setMouseTracking(true);
 
     setCentralWidget(centralWidget);
-
     qCDebug(log_ui_mainwindow) << "Set host manager event callback...";
     HostManager::getInstance().setEventCallback(this);
 
-    qCDebug(log_ui_mainwindow) << "Observe HID connected...";
+    qCDebug(log_ui_mainwindow) << "Observe Video HID connected...";
+    VideoHid::getInstance().setEventCallback(this);
     VideoHid::getInstance().start();
 
     qCDebug(log_ui_mainwindow) << "Observe video input changed...";
@@ -132,7 +136,12 @@ Camera::Camera() : ui(new Ui::Camera), videoPane(new VideoPane(this)),
     qDebug() << "Loading settings";
     GlobalSetting::instance().loadLogSettings();
     GlobalSetting::instance().loadVideoSettings();
-    
+
+    qCDebug(log_ui_mainwindow) << "Observe switch usb connection trigger...";
+    connect(ui->actionTo_Host, &QAction::triggered, this, &Camera::onActionSwitchToHostTriggered);
+    connect(ui->actionTo_Target, &QAction::triggered, this, &Camera::onActionSwitchToTargetTriggered);
+    connect(ui->actionFollow_Switch, &QAction::triggered, this, &Camera::onFollowSwitchTriggered);
+
     init();
 }
 
@@ -176,6 +185,7 @@ void Camera::init()
 
     GlobalVar::instance().setWinWidth(this->width());
     GlobalVar::instance().setWinHeight(this->height());
+    onFollowSwitchTriggered();
 }
 
 void Camera::loadCameraSettingAndSetCamera(){
@@ -356,20 +366,90 @@ void Camera::onActionAbsoluteTriggered()
 
 void Camera::onActionResetHIDTriggered()
 {
-    qCDebug(log_ui_mainwindow) << "onActionResetHIDTriggered";
-    HostManager::getInstance().resetHid();
+    QMessageBox::StandardButton reply;
+    reply = QMessageBox::warning(this, "Confirm Reset Keyboard and Mouse?", 
+                                        "Resetting the Keyboard & Mouse chip will apply new settings. Do you want to proceed?",
+                                  QMessageBox::Yes | QMessageBox::No);
+    
+    if (reply == QMessageBox::Yes) {
+        qCDebug(log_ui_mainwindow) << "onActionResetHIDTriggered";
+        HostManager::getInstance().resetHid();
+    } else {
+        qCDebug(log_ui_mainwindow) << "Reset HID canceled by user.";
+    }
 }
 
 void Camera::onActionFactoryResetHIDTriggered()
 {
-    qCDebug(log_ui_mainwindow) << "onActionFactoryResetHIDTriggered";
-    SerialPortManager::getInstance().factoryResetHipChip();
+    QMessageBox::StandardButton reply;
+    reply = QMessageBox::warning(this, "Confirm Factory Reset HID Chip?", 
+                                        "Factory reset the HID chip. Proceed?",
+                                  QMessageBox::Yes | QMessageBox::No);
+    
+    if (reply == QMessageBox::Yes) {
+        qCDebug(log_ui_mainwindow) << "onActionFactoryResetHIDTriggered";
+        SerialPortManager::getInstance().factoryResetHipChip();
+        // HostManager::getInstance().resetHid();
+    } else {
+        qCDebug(log_ui_mainwindow) << "Factory reset HID chip canceled by user.";
+    }
 }
 
 void Camera::onActionResetSerialPortTriggered()
 {
-    qCDebug(log_ui_mainwindow) << "onActionResetSerialPortTriggered";
-    HostManager::getInstance().resetSerialPort();
+    QMessageBox::StandardButton reply;
+    reply = QMessageBox::question(this, "Confirm Reset Serial Port?", 
+                                        "Resetting the serial port will close and re-open it without changing settings. Proceed?",
+                                  QMessageBox::Yes | QMessageBox::No);
+    
+    if (reply == QMessageBox::Yes) {
+        qCDebug(log_ui_mainwindow) << "onActionResetSerialPortTriggered";
+        HostManager::getInstance().resetSerialPort();
+    } else {
+        qCDebug(log_ui_mainwindow) << "Serial port reset canceled by user.";
+    }
+}
+
+void Camera::onActionSwitchToHostTriggered()
+{
+    qCDebug(log_ui_mainwindow) << "Switchable USB to host...";
+    VideoHid::getInstance().switchToHost();
+    ui->actionTo_Host->setChecked(true);
+    ui->actionTo_Target->setChecked(false);
+}
+
+void Camera::onActionSwitchToTargetTriggered()
+{
+    qCDebug(log_ui_mainwindow) << "Switchable USB to target...";
+    VideoHid::getInstance().switchToTarget();
+    ui->actionTo_Host->setChecked(false);
+    ui->actionTo_Target->setChecked(true);
+}
+
+void Camera::onResolutionChange(const int& width, const int& height, const float& fps)
+{
+    GlobalVar::instance().setInputWidth(width);
+    GlobalVar::instance().setInputHeight(height);
+    statusWidget->setInputResolution(width, height, fps);
+}
+
+void Camera::onTargetUsbConnected(const bool isConnected)
+{
+    statusWidget->setTargetUsbConnected(isConnected);
+}
+
+void Camera::onFollowSwitchTriggered()
+{
+    qCDebug(log_ui_mainwindow) << "Follow switch:" << ui->actionFollow_Switch->isChecked();
+    if(ui->actionFollow_Switch->isChecked()){
+        ui->actionTo_Host->setEnabled(false);
+        ui->actionTo_Target->setEnabled(false);
+        GlobalVar::instance().setFollowSwitch(true);
+    }else{
+        ui->actionTo_Host->setEnabled(true);
+        ui->actionTo_Target->setEnabled(true);
+        GlobalVar::instance().setFollowSwitch(false);
+    }
 }
 
 void Camera::popupMessage(QString message)
@@ -511,11 +591,6 @@ void Camera::setExposureCompensation(int index)
     m_camera->setExposureCompensation(index * 0.5);
 }
 
-void Camera::displayRecorderError()
-{
-    if (m_mediaRecorder->error() != QMediaRecorder::NoError)
-        QMessageBox::warning(this, tr("Capture Error"), m_mediaRecorder->errorString());
-}
 
 void Camera::displayCameraError()
 {
@@ -529,10 +604,13 @@ void Camera::displayCameraError()
 }
 
 void Camera::stop(){
-
+    qDebug() << "Stop camera...";
     disconnect(m_camera.data());
-    // m_audioInput->disconnect();
+    qDebug() << "Camera stopped.";
+    m_audioManager->disconnect();
+    qDebug() << "Audio manager stopped.";
     m_captureSession.disconnect();
+    qDebug() << "Capture session stopped.";
 }
 
 void Camera::updateCameraDevice(QAction *action)
@@ -609,7 +687,6 @@ void Camera::checkCameraConnection()
         if (availableCameras.count() > m_lastCameraList.count()) {
             // A new camera has been connected
             // Find out which camera was connected
-
         }
         m_lastCameraList = availableCameras;
     }
@@ -620,6 +697,10 @@ void Camera::onPortConnected(const QString& port) {
     statusWidget->setConnectedPort(port);
 }
 
+void Camera::onStatusUpdate(const QString& status) {
+    statusWidget->setStatusUpdate(status);
+}
+
 void Camera::onLastKeyPressed(const QString& key) {
     // Implementation...
 }
@@ -628,9 +709,29 @@ void Camera::onLastMouseLocation(const QPoint& location, const QString& mouseEve
     ui->statusbar->showMessage(QString("🖱️(%1,%2)\t%3").arg(location.x()).arg(location.y()).arg(mouseEvent));
 }
 
+void Camera::onSwitchableUsbToggle(const bool isToTarget) {
+    if (isToTarget) {
+        qDebug() << "UI Switchable USB to target...";
+        ui->actionTo_Host->setChecked(false);
+        ui->actionTo_Target->setChecked(true);
+    } else {
+        qDebug() << "UI Switchable USB to host...";
+        ui->actionTo_Host->setChecked(true);
+        ui->actionTo_Target->setChecked(false);
+    }
+    // SerialPortManager::getInstance().restartSwitchableUSB();
+}
+
 void Camera::updateResolutions(const int input_width, const int input_height, const float input_fps, const int capture_width, const int capture_height, const int capture_fps)
 {
     statusWidget->setInputResolution(input_width, input_height, input_fps);
     statusWidget->setCaptureResolution(capture_width, capture_height, capture_fps);
 }
 
+void Camera::handlePasteFromHost()
+{
+    // print the clipboard content
+    qCDebug(log_ui_mainwindow) << "Paste from host...";
+    const QClipboard *clipboard = QGuiApplication::clipboard();
+    qCDebug(log_ui_mainwindow) << "Clipboard text: " << clipboard->text();
+}
