@@ -84,9 +84,17 @@
     <addaction name="actionFactory_reset_HID"/>
     <addaction name="actionResetSerialPort"/>
    </widget>
+   <widget class="QMenu" name="menuHelp">
+    <property name="title">
+     <string>Help</string>
+    </property>
+    <addaction name="actionAbout"/>
+    <addaction name="actionAbout_us"/>
+   </widget>
    <addaction name="menuFile"/>
    <addaction name="menuControl"/>
    <addaction name="menuSource"/>
+   <addaction name="menuHelp"/>
   </widget>
   <widget class="QStatusBar" name="statusbar"/>
   <action name="actionExit">
@@ -132,6 +140,16 @@
   <action name="actionPreferences">
    <property name="text">
     <string>Preferences</string>
+   </property>
+  </action>
+  <action name="actionAbout">
+   <property name="text">
+    <string>About</string>
+   </property>
+  </action>
+  <action name="actionAbout_us">
+   <property name="text">
+    <string>About us</string>
    </property>
   </action>
   <actiongroup name="actionGroup">
@@ -222,11 +240,45 @@
     </hint>
    </hints>
   </connection>
+  <connection>
+   <sender>actionAbout</sender>
+   <signal>triggered()</signal>
+   <receiver>Camera</receiver>
+   <slot>about()</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>-1</x>
+     <y>-1</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>639</x>
+     <y>380</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>actionAbout_us</sender>
+   <signal>triggered()</signal>
+   <receiver>Camera</receiver>
+   <slot>openUrlLink()</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>-1</x>
+     <y>-1</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>639</x>
+     <y>380</y>
+    </hint>
+   </hints>
+  </connection>
  </connections>
  <slots>
   <slot>record()</slot>
   <slot>pause()</slot>
   <slot>stop()</slot>
+  <slot>about()</slot>
+  <slot>openUrlLink()</slot>
   <slot>enablePreview(bool)</slot>
   <slot>configureSettings()</slot>
   <slot>takeImage()</slot>
