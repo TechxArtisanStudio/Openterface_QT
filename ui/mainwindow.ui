@@ -89,7 +89,8 @@
      <string>Help</string>
     </property>
     <addaction name="actionAbout"/>
-    <addaction name="actionAbout_us"/>
+    <addaction name="actionPurchase"/>
+    <addaction name="actionFeedback"/>
    </widget>
    <addaction name="menuFile"/>
    <addaction name="menuControl"/>
@@ -147,9 +148,14 @@
     <string>About</string>
    </property>
   </action>
-  <action name="actionAbout_us">
+  <action name="actionPurchase">
    <property name="text">
-    <string>About us</string>
+    <string>Purchase</string>
+   </property>
+  </action>
+  <action name="actionFeedback">
+   <property name="text">
+    <string>Feedback</string>
    </property>
   </action>
   <actiongroup name="actionGroup">
@@ -244,7 +250,7 @@
    <sender>actionAbout</sender>
    <signal>triggered()</signal>
    <receiver>Camera</receiver>
-   <slot>about()</slot>
+   <slot>aboutLink()</slot>
    <hints>
     <hint type="sourcelabel">
      <x>-1</x>
@@ -257,10 +263,26 @@
    </hints>
   </connection>
   <connection>
-   <sender>actionAbout_us</sender>
+   <sender>actionPurchase</sender>
    <signal>triggered()</signal>
    <receiver>Camera</receiver>
-   <slot>openUrlLink()</slot>
+   <slot>purchaseLink()</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>-1</x>
+     <y>-1</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>639</x>
+     <y>380</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>actionFeedback</sender>
+   <signal>triggered()</signal>
+   <receiver>Camera</receiver>
+   <slot>feedbackLink()</slot>
    <hints>
     <hint type="sourcelabel">
      <x>-1</x>
@@ -278,7 +300,9 @@
   <slot>pause()</slot>
   <slot>stop()</slot>
   <slot>about()</slot>
-  <slot>openUrlLink()</slot>
+  <slot>purchaseLink()</slot>
+  <slot>aboutLink()</slot>
+  <slot>feedbackLink()</slot>
   <slot>enablePreview(bool)</slot>
   <slot>configureSettings()</slot>
   <slot>takeImage()</slot>

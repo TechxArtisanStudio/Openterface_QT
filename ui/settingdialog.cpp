@@ -49,6 +49,7 @@
 #include <QElapsedTimer>
 #include <qtimer.h>
 #include <QList>
+#include <QSerialPortInfo>
 
 SettingDialog::SettingDialog(QCamera *_camera, QWidget *parent)
     : QDialog(parent)
@@ -482,6 +483,18 @@ void SettingDialog::createHardwarePage(){
     QComboBox *uvcCamBox = new QComboBox();
     uvcCamBox->setObjectName("uvcCamBox");
     
+    QList<QSerialPortInfo> serialPorts = QSerialPortInfo::availablePorts();
+    qDebug() << "Read serial port";
+    foreach (const QSerialPortInfo &serialPortInfo, serialPorts) {
+        qDebug() << "Port Name: " << serialPortInfo.portName();
+        qDebug() << "Description: " << serialPortInfo.description();
+        qDebug() << "Manufacturer: " << serialPortInfo.manufacturer();
+        qDebug() << "Serial Number: " << serialPortInfo.serialNumber();
+        qDebug() << "System Location: " << serialPortInfo.systemLocation();
+        qDebug() << "Vendor Identifier: " << serialPortInfo.vendorIdentifier();
+        qDebug() << "Product Identifier: " << serialPortInfo.productIdentifier();
+        // qDebug() << "Busy: " << (serialPortInfo.isBusy() ? "Yes" : "No");
+    }
 
     QVBoxLayout *hardwareLayout = new QVBoxLayout(hardwarePage);
     hardwareLayout->addWidget(hardwareLabel);
