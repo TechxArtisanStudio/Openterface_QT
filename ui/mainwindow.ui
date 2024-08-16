@@ -115,9 +115,18 @@
     <addaction name="separator"/>
     <addaction name="menuAdvance"/>
    </widget>
+   <widget class="QMenu" name="menuHelp">
+    <property name="title">
+     <string>Help</string>
+    </property>
+    <addaction name="actionAbout"/>
+    <addaction name="actionPurchase"/>
+    <addaction name="actionFeedback"/>
+   </widget>
    <addaction name="menuFile"/>
    <addaction name="menuControl"/>
    <addaction name="menuSource"/>
+   <addaction name="menuHelp"/>
   </widget>
   <widget class="QStatusBar" name="statusbar"/>
   <action name="actionExit">
@@ -165,6 +174,22 @@
     <string>Preferences</string>
    </property>
   </action>
+  <action name="actionAbout">
+   <property name="text">
+    <string>About</string>
+   </property>
+  </action>
+  <action name="actionPurchase">
+   <property name="text">
+    <string>Purchase</string>
+   </property>
+  </action>
+  <action name="actionFeedback">
+   <property name="text">
+    <string>Feedback</string>
+   </property>
+  </action>
+  <actiongroup name="actionGroup">
   <action name="action115200">
    <property name="checkable">
     <bool>true</bool>
@@ -181,6 +206,7 @@
     <string>9600</string>
    </property>
   </action>
+  </actiongroup>
   <action name="actionFollow_Switch">
    <property name="checkable">
     <bool>true</bool>
@@ -298,11 +324,63 @@
     </hint>
    </hints>
   </connection>
+  <connection>
+   <sender>actionAbout</sender>
+   <signal>triggered()</signal>
+   <receiver>Camera</receiver>
+   <slot>aboutLink()</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>-1</x>
+     <y>-1</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>639</x>
+     <y>380</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>actionPurchase</sender>
+   <signal>triggered()</signal>
+   <receiver>Camera</receiver>
+   <slot>purchaseLink()</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>-1</x>
+     <y>-1</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>639</x>
+     <y>380</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>actionFeedback</sender>
+   <signal>triggered()</signal>
+   <receiver>Camera</receiver>
+   <slot>feedbackLink()</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>-1</x>
+     <y>-1</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>639</x>
+     <y>380</y>
+    </hint>
+   </hints>
+  </connection>
  </connections>
  <slots>
   <slot>record()</slot>
   <slot>pause()</slot>
   <slot>stop()</slot>
+  <slot>about()</slot>
+  <slot>purchaseLink()</slot>
+  <slot>aboutLink()</slot>
+  <slot>feedbackLink()</slot>
   <slot>enablePreview(bool)</slot>
   <slot>configureSettings()</slot>
   <slot>takeImage()</slot>

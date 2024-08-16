@@ -22,7 +22,6 @@
 
 #include "mainwindow.h"
 #include "global.h"
-// #include "ui/videosettings.h"
 #include "settingdialog.h"
 #include "ui_mainwindow.h"
 #include "globalsetting.h"
@@ -33,10 +32,9 @@
 #include "ui/imagesettings.h"
 #include "ui/settingdialog.h"
 #include "ui/helppane.h"
-// #include "ui/videosettings.h"
+
 #include "ui/videopane.h"
 #include "video/videohid.h"
-
 #include <QCameraDevice>
 #include <QMediaDevices>
 #include <QMediaFormat>
@@ -58,9 +56,10 @@
 #include <QDir>
 #include <QTimer>
 #include <QLabel>
+
+#include <QMessageBox>
+#include <QDesktopServices>
 #include <QMenuBar>
-
-
 
 Q_LOGGING_CATEGORY(log_ui_mainwindow, "opf.ui.mainwindow")
 
@@ -86,7 +85,6 @@ Camera::Camera() : ui(new Ui::Camera), videoPane(new VideoPane(this)),
                                         stackedLayout(new QStackedLayout(this)),
                                         statusWidget(new StatusWidget(this)),
                                         m_audioManager(new AudioManager(this))
-                                        // m_fileSystemWatcher(new QFileSystemWatcher(this))
 {
     qCDebug(log_ui_mainwindow) << "Init camera...";
     ui->setupUi(this);
@@ -179,7 +177,7 @@ void Camera::init()
 
     // Camera devices:
     // updateCameras();
-    QString configFilePath = QCoreApplication::applicationDirPath() + "/Techxartisan/Openterface.ini";
+    
 
     loadCameraSettingAndSetCamera();
 
@@ -554,6 +552,22 @@ void Camera::configureSettings() {
     setting->show();
 }
 
+void Camera::purchaseLink(){
+    QDesktopServices::openUrl(QUrl("https://www.crowdsupply.com/techxartisan/openterface-mini-kvm"));
+}
+
+void Camera::feedbackLink(){
+    QDesktopServices::openUrl(QUrl("https://forms.gle/KNQPTNfXCPUPybgG9"));
+}
+
+void Camera::aboutLink(){
+    QDesktopServices::openUrl(QUrl("https://openterface.com/"));
+}
+
+void Camera::about() {
+    QMessageBox::about(this, tr("About"),
+                    tr("The about message"));
+}
 
 void Camera::record()
 {
