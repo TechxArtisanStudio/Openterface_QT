@@ -95,9 +95,8 @@ void HostManager::handleMouseMove(MouseEventDTO *event)
 
 void HostManager::resetHid()
 {
-    SerialPortManager::getInstance().sendResetCommand();
+    SerialPortManager::getInstance().resetHipChip();
 }
-
 
 void HostManager::resetSerialPort()
 {

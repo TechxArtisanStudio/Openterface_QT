@@ -102,3 +102,24 @@ void AudioManager::fadeInVolume(int timeout, int durationInSeconds) {
     // Start the timer with the given interval
     volumeTimer->start(timeout);
 }
+
+void AudioManager::disconnect() {
+    qDebug() << "Disconnecting audio source and sink.";
+    if (audioSource) {
+        qDebug() << "Stopping audio source.";
+        audioSource->stop();
+        delete audioSource;
+        audioSource = nullptr;
+    }
+
+    // if (audioIODevice) {
+    //     qDebug() << "Closing audio IO device.";
+    //     audioIODevice->close();
+    //     qDebug() << "Closing audio IO device.222";
+    //     delete audioIODevice;
+    //     qDebug() << "Closing audio IO device.333";
+    //     audioIODevice = nullptr;
+    // }
+    qDebug() << "Resetting audio sink.";
+    m_audioSink.reset();
+}
