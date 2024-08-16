@@ -83,6 +83,8 @@ private slots:
     void takeImage();
     void displayCaptureError(int, QImageCapture::Error, const QString &errorString);
 
+    void about();
+    void openUrlLink();
     // void configureCaptureSettings();
     // void configureVideoSettings();
     // void configureImageSettings();

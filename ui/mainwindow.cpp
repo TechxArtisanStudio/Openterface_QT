@@ -57,6 +57,8 @@
 #include <QTimer>
 #include <QLabel>
 #include <QApplication>
+#include <QMessageBox>
+#include <QDesktopServices>
 
 Q_LOGGING_CATEGORY(log_ui_mainwindow, "opf.ui.mainwindow")
 
@@ -474,6 +476,14 @@ void Camera::configureSettings() {
     setting->show();
 }
 
+void Camera::openUrlLink(){
+    QDesktopServices::openUrl(QUrl("https://github.com/TechxArtisanStudio/Openterface_QT"));
+}
+
+void Camera::about() {
+    QMessageBox::about(this, tr("About"),
+                    tr("The about message"));
+}
 
 void Camera::record()
 {
