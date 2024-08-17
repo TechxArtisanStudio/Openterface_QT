@@ -58,20 +58,12 @@
      <string>File</string>
     </property>
     <addaction name="separator"/>
-    <addaction name="separator"/>
-    <addaction name="separator"/>
     <addaction name="actionPreferences"/>
     <addaction name="actionExit"/>
    </widget>
    <widget class="QMenu" name="menuSource">
-    <property name="layoutDirection">
-     <enum>Qt::RightToLeft</enum>
-    </property>
     <property name="title">
      <string>Source</string>
-    </property>
-    <property name="icon">
-     <iconset theme="appointment-new"/>
     </property>
    </widget>
    <widget class="QMenu" name="menuControl">

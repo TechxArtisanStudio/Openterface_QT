@@ -94,6 +94,7 @@ bool VideoHid::getSpdifout() {
     int bit = 1;
     int mask = 0xFE;
     if (GlobalVar::instance().getCaptureCardFirmwareVersion() < "24081309") {
+        qDebug() << "Firmware version is less than 24081309";
         bit = 0x10;
         mask = 0xEF;
     }
