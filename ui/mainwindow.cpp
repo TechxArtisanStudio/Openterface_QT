@@ -733,7 +733,7 @@ void Camera::onSwitchableUsbToggle(const bool isToTarget) {
         ui->actionTo_Host->setChecked(true);
         ui->actionTo_Target->setChecked(false);
     }
-    // SerialPortManager::getInstance().restartSwitchableUSB();
+    SerialPortManager::getInstance().restartSwitchableUSB();
 }
 
 void Camera::updateResolutions(const int input_width, const int input_height, const float input_fps, const int capture_width, const int capture_height, const int capture_fps)
