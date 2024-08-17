@@ -108,7 +108,6 @@ Camera::Camera() : ui(new Ui::Camera), videoPane(new VideoPane(this)),
 
     qCDebug(log_ui_mainwindow) << "Observe Video HID connected...";
     VideoHid::getInstance().setEventCallback(this);
-    VideoHid::getInstance().start();
 
     qCDebug(log_ui_mainwindow) << "Observe video input changed...";
     connect(&m_source, &QMediaDevices::videoInputsChanged, this, &Camera::updateCameras);
@@ -625,6 +624,10 @@ void Camera::stop(){
     qDebug() << "Audio manager stopped.";
     m_captureSession.disconnect();
     qDebug() << "Capture session stopped.";
+    m_camera->stop();
+    qDebug() << "Camera stopped.";
+    VideoHid::getInstance().stop();
+    qDebug() << "Video HID stopped.";
 }
 
 void Camera::updateCameraDevice(QAction *action)
@@ -687,6 +690,7 @@ void Camera::updateCameras()
             }
             m_audioManager->initializeAudio();
             setCamera(camera);
+            VideoHid::getInstance().start();
             break;
         }
     }

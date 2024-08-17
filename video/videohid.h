@@ -2,6 +2,8 @@
 #define VIDEOHID_H
 
 #include <QObject>
+#include <QTimer>
+
 #include "../ui/statusevents.h"
 #ifdef _WIN32
 #include <windows.h> 
@@ -47,6 +49,7 @@ public:
 private:
     explicit VideoHid(QObject *parent = nullptr);
 
+    QTimer *timer;
 
     QString extractPortNumberFromPath(const QString& path);
     QPair<QByteArray, bool> usbXdataRead4Byte(quint16 u16_address);
