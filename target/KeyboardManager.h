@@ -49,12 +49,20 @@ public:
      */
     bool isKeypadKeys(int keycode, int modifiers);
 
+    void pasteTextToTarget(const QString &text);
+
 private:
     static const QMap<int, uint8_t> keyMap;
+    static const QMap<uint8_t, int> charMapping;
     static const QList<int> SHIFT_KEYS;
     static const QList<int> CTRL_KEYS;
     static const QList<int> ALT_KEYS;
     static const QList<int> KEYPAD_KEYS;
+    static const QList<char> NEED_SHIFT_KEYS;
+
+    
+    void handlePastingCharacters(const QString& text, const QMap<uint8_t, int>& charMapping);
+    bool needShiftWhenPaste(const QChar character);
     
     int handleKeyModifiers(int modifierKeyCode, bool isKeyDown);
     int currentModifiers = 0;

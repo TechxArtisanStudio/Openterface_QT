@@ -73,6 +73,7 @@ signals:
     void serialPortConnected(const QString &portName);
     void serialPortDisconnected(const QString &portName);
     void serialPortConnectionSuccess(const QString &portName);
+    void sendCommandAsync(const QByteArray &command, bool waitForAck);
 
 private slots:
     void checkSerialPort();
@@ -101,6 +102,8 @@ private slots:
 private:
     SerialPortManager(QObject *parent = nullptr);
     QSerialPort *serialPort;
+
+    void sendCommand(const QByteArray &command, bool waitForAck);
 
     QSet<QString> availablePorts;
 

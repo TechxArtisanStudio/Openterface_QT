@@ -115,7 +115,15 @@
     <addaction name="actionPurchase"/>
     <addaction name="actionFeedback"/>
    </widget>
+   <widget class="QMenu" name="menuEdit">
+    <property name="title">
+     <string>Edit</string>
+    </property>
+    <addaction name="actionCopy"/>
+    <addaction name="actionPaste"/>
+   </widget>
    <addaction name="menuFile"/>
+   <addaction name="menuEdit"/>
    <addaction name="menuControl"/>
    <addaction name="menuSource"/>
    <addaction name="menuHelp"/>
@@ -181,24 +189,6 @@
     <string>Feedback</string>
    </property>
   </action>
-  <actiongroup name="actionGroup">
-  <action name="action115200">
-   <property name="checkable">
-    <bool>true</bool>
-   </property>
-   <property name="text">
-    <string>115200</string>
-   </property>
-  </action>
-  <action name="action9600">
-   <property name="checkable">
-    <bool>true</bool>
-   </property>
-   <property name="text">
-    <string>9600</string>
-   </property>
-  </action>
-  </actiongroup>
   <action name="actionFollow_Switch">
    <property name="checkable">
     <bool>true</bool>
@@ -210,6 +200,37 @@
     <string>Follow Switch</string>
    </property>
   </action>
+  <action name="actionPaste">
+   <property name="text">
+    <string>Paste</string>
+   </property>
+  </action>
+  <action name="actionCopy">
+   <property name="enabled">
+    <bool>false</bool>
+   </property>
+   <property name="text">
+    <string>Copy</string>
+   </property>
+  </action>
+  <actiongroup name="actionGroup">
+   <action name="action115200">
+    <property name="checkable">
+     <bool>true</bool>
+    </property>
+    <property name="text">
+     <string>115200</string>
+    </property>
+   </action>
+   <action name="action9600">
+    <property name="checkable">
+     <bool>true</bool>
+    </property>
+    <property name="text">
+     <string>9600</string>
+    </property>
+   </action>
+  </actiongroup>
   <actiongroup name="actionSwitchableGroup">
    <action name="actionTo_Host">
     <property name="checkable">
