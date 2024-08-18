@@ -218,8 +218,10 @@ bool SerialPortManager::resetHipChip(){
     if(reconfigureHidChip()) {
         if(resetHipChip()){
             qCDebug(log_core_serial) << "Reopen the serial port with baudrate: " << DEFAULT_BAUDRATE;
+            return true;
         }else{
             qCWarning(log_core_serial) << "Reset the hid chip fail...";
+            return false;
         }
     }else{
         qCWarning(log_core_serial) << "Set data config fail, reset the serial port now...";
@@ -227,6 +229,7 @@ bool SerialPortManager::resetHipChip(){
         restartPort();
         ready = false;
         qCDebug(log_core_serial) << "Reopen the serial port with baudrate: " << DEFAULT_BAUDRATE;
+        return false;
     }
 }
 
