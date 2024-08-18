@@ -72,7 +72,7 @@ const QMap<int, uint8_t> KeyboardManager::keyMap = {
     {Qt::Key_BracketRight, 0x30}, // ]
     {Qt::Key_Backslash, 0x31}, // Backslash
     {Qt::Key_Semicolon, 0x33}, // ;
-    // {Qt::Key_Apostrophe, 0x34}, // '
+    {Qt::Key_Apostrophe, 0x34}, // '
     {Qt::Key_QuoteLeft, 0x35}, // `
     {Qt::Key_Comma, 0x36}, // ,
     {Qt::Key_Period, 0x37}, // .
