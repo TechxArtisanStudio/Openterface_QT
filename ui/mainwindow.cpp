@@ -61,6 +61,7 @@
 #include <QDesktopServices>
 #include <QSysInfo>
 #include <QMenuBar>
+#include <QPushButton>
 
 Q_LOGGING_CATEGORY(log_ui_mainwindow, "opf.ui.mainwindow")
 
@@ -572,9 +573,9 @@ void Camera::versionInfo() {
     QString osVersion = QSysInfo::prettyProductName();
     QString title = tr("%1").arg(applicationName);
     QString message = tr("Version:\t %1 \nQT:\t %2\nOS:\t %3")
-                    .arg(applicationVersion)
-                    .arg(qVersion())
-                    .arg(osVersion);
+                          .arg(applicationVersion)
+                          .arg(qVersion())
+                          .arg(osVersion);
 
     QMessageBox msgBox;
     msgBox.setWindowTitle(title);
@@ -583,12 +584,10 @@ void Camera::versionInfo() {
     QPushButton *copyButton = msgBox.addButton(tr("Copy"), QMessageBox::ActionRole);
     QPushButton *closeButton = msgBox.addButton(QMessageBox::Close);
 
+    connect(copyButton, &QPushButton::clicked, this, &Camera::copyToClipboard);
+
     msgBox.exec();
 
-    if (msgBox.clickedButton() == copyButton) {
-        copyToClipboard();
-    }
-    
 }
 
 void Camera::copyToClipboard(){
