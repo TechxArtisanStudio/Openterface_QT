@@ -822,6 +822,9 @@ void MainWindow::versionInfo() {
 
     msgBox.exec();
 
+    if (msgBox.clickedButton() == copyButton) {
+        copyToClipboard();
+    }
 }
 
 void MainWindow::copyToClipboard(){
