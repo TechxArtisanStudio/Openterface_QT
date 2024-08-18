@@ -61,6 +61,8 @@
 #include <QDesktopServices>
 #include <QMenuBar>
 
+#include <QGuiApplication>
+
 Q_LOGGING_CATEGORY(log_ui_mainwindow, "opf.ui.mainwindow")
 
 /*
@@ -108,7 +110,6 @@ Camera::Camera() : ui(new Ui::Camera), videoPane(new VideoPane(this)),
 
     qCDebug(log_ui_mainwindow) << "Observe Video HID connected...";
     VideoHid::getInstance().setEventCallback(this);
-    VideoHid::getInstance().start();
 
     qCDebug(log_ui_mainwindow) << "Observe video input changed...";
     connect(&m_source, &QMediaDevices::videoInputsChanged, this, &Camera::updateCameras);
@@ -139,6 +140,9 @@ Camera::Camera() : ui(new Ui::Camera), videoPane(new VideoPane(this)),
     connect(ui->actionTo_Host, &QAction::triggered, this, &Camera::onActionSwitchToHostTriggered);
     connect(ui->actionTo_Target, &QAction::triggered, this, &Camera::onActionSwitchToTargetTriggered);
     connect(ui->actionFollow_Switch, &QAction::triggered, this, &Camera::onFollowSwitchTriggered);
+
+    qCDebug(log_ui_mainwindow) << "Observe action paste from host...";
+    connect(ui->actionPaste, &QAction::triggered, this, &Camera::onActionPasteToTarget);
 
     init();
 }
@@ -450,6 +454,11 @@ void Camera::onFollowSwitchTriggered()
     }
 }
 
+void Camera::onActionPasteToTarget()
+{
+    HostManager::getInstance().pasteTextToTarget(QGuiApplication::clipboard()->text());
+}
+
 void Camera::popupMessage(QString message)
 {
     QDialog dialog;
@@ -625,6 +634,10 @@ void Camera::stop(){
     qDebug() << "Audio manager stopped.";
     m_captureSession.disconnect();
     qDebug() << "Capture session stopped.";
+    m_camera->stop();
+    qDebug() << "Camera stopped.";
+    VideoHid::getInstance().stop();
+    qDebug() << "Video HID stopped.";
 }
 
 void Camera::updateCameraDevice(QAction *action)
@@ -687,6 +700,7 @@ void Camera::updateCameras()
             }
             m_audioManager->initializeAudio();
             setCamera(camera);
+            VideoHid::getInstance().start();
             break;
         }
     }
@@ -733,19 +747,11 @@ void Camera::onSwitchableUsbToggle(const bool isToTarget) {
         ui->actionTo_Host->setChecked(true);
         ui->actionTo_Target->setChecked(false);
     }
-    // SerialPortManager::getInstance().restartSwitchableUSB();
+    SerialPortManager::getInstance().restartSwitchableUSB();
 }
 
 void Camera::updateResolutions(const int input_width, const int input_height, const float input_fps, const int capture_width, const int capture_height, const int capture_fps)
 {
     statusWidget->setInputResolution(input_width, input_height, input_fps);
     statusWidget->setCaptureResolution(capture_width, capture_height, capture_fps);
-}
-
-void Camera::handlePasteFromHost()
-{
-    // print the clipboard content
-    qCDebug(log_ui_mainwindow) << "Paste from host...";
-    const QClipboard *clipboard = QGuiApplication::clipboard();
-    qCDebug(log_ui_mainwindow) << "Clipboard text: " << clipboard->text();
 }

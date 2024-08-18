@@ -63,6 +63,8 @@ public:
     void setEventCallback(StatusEventCallback* callback);
     void restartApplication();
 
+    void pasteTextToTarget(QString text);
+
 private:
     explicit HostManager(QObject *parent = nullptr);
     MouseManager mouseManager;
