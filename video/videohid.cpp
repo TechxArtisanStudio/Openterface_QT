@@ -39,7 +39,6 @@ void VideoHid::start() {
     //start a timer to get the HDMI connection status every 1 second
     timer = new QTimer(this);
     connect(timer, &QTimer::timeout, this, [=](){
-        // qDebug() << "Current HDMI connection status:" << isHdmiConnected();
         bool gpio0 = getGpio0();
 
         if(eventCallback){
