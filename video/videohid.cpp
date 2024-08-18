@@ -26,7 +26,6 @@ VideoHid::VideoHid(QObject *parent) : QObject(parent){
 }
 
 void VideoHid::start() {
-
     std::string captureCardFirmwareVersion = getFirmwareVersion();
     qDebug() << "MS2109 firmware VERSION:" << QString::fromStdString(captureCardFirmwareVersion);    //firmware VERSION
     GlobalVar::instance().setCaptureCardFirmwareVersion(captureCardFirmwareVersion);
@@ -38,9 +37,8 @@ void VideoHid::start() {
     }
 
     //start a timer to get the HDMI connection status every 1 second
-    QTimer *timer = new QTimer(this);
+    timer = new QTimer(this);
     connect(timer, &QTimer::timeout, this, [=](){
-        // qDebug() << "Current HDMI connection status:" << isHdmiConnected();
         bool gpio0 = getGpio0();
 
         if(eventCallback){
@@ -61,7 +59,12 @@ void VideoHid::start() {
 }
 
 void VideoHid::stop() {
-    // implementation
+    if (timer) {
+        timer->stop();
+        disconnect(timer, &QTimer::timeout, this, nullptr);
+        delete timer;
+        timer = nullptr;
+    }
 }
 
 QPair<int, int> VideoHid::getResolution() {
@@ -94,6 +97,7 @@ bool VideoHid::getSpdifout() {
     int bit = 1;
     int mask = 0xFE;
     if (GlobalVar::instance().getCaptureCardFirmwareVersion() < "24081309") {
+        qDebug() << "Firmware version is less than 24081309";
         bit = 0x10;
         mask = 0xEF;
     }
