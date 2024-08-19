@@ -145,9 +145,10 @@
     <property name="title">
      <string>Help</string>
     </property>
-    <addaction name="actionAbout"/>
+    <addaction name="actionOfficeWeb"/>
     <addaction name="actionPurchase"/>
     <addaction name="actionFeedback"/>
+    <addaction name="actionAbout"/>
    </widget>
    <widget class="QMenu" name="menuEdit">
     <property name="title">
@@ -208,9 +209,9 @@
     <string>Preferences</string>
    </property>
   </action>
-  <action name="actionAbout">
+  <action name="actionOfficeWeb">
    <property name="text">
-    <string>About</string>
+    <string>Office Website</string>
    </property>
   </action>
   <action name="actionPurchase">
@@ -223,7 +224,13 @@
     <string>Feedback</string>
    </property>
   </action>
-  <action name="actionFollow_Switch">
+  <action name="actionAbout">
+   <property name="text">
+    <string>About</string>
+   </property>
+  </action>
+  <actiongroup name="actionGroup">
+  <action name="action115200">
    <property name="checkable">
     <bool>true</bool>
    </property>
@@ -380,7 +387,7 @@
    </hints>
   </connection>
   <connection>
-   <sender>actionAbout</sender>
+   <sender>actionOfficeWeb</sender>
    <signal>triggered()</signal>
    <receiver>Camera</receiver>
    <slot>aboutLink()</slot>
@@ -427,12 +434,28 @@
     </hint>
    </hints>
   </connection>
+  <connection>
+   <sender>actionAbout</sender>
+   <signal>triggered()</signal>
+   <receiver>Camera</receiver>
+   <slot>versionInfo()</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>-1</x>
+     <y>-1</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>639</x>
+     <y>380</y>
+    </hint>
+   </hints>
+  </connection>
  </connections>
  <slots>
   <slot>record()</slot>
   <slot>pause()</slot>
   <slot>stop()</slot>
-  <slot>about()</slot>
+  <slot>versionInfo()</slot>
   <slot>purchaseLink()</slot>
   <slot>aboutLink()</slot>
   <slot>feedbackLink()</slot>
