@@ -222,6 +222,8 @@ void Camera::setCamera(const QCameraDevice &cameraDevice)
     m_captureSession.setVideoOutput(this->videoPane);
     qCDebug(log_ui_mainwindow) << "Camera start..";
     m_camera->start();
+
+    VideoHid::getInstance().start();
 }
 
 void Camera::queryResolutions()
@@ -690,7 +692,6 @@ void Camera::updateCameras()
             }
             m_audioManager->initializeAudio();
             setCamera(camera);
-            VideoHid::getInstance().start();
             break;
         }
     }
