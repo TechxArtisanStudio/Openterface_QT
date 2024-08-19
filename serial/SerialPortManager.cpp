@@ -552,6 +552,6 @@ void SerialPortManager::restartSwitchableUSB(){
 }
 
 void SerialPortManager::sendCommand(const QByteArray &command, bool waitForAck) {
-    qDebug() << "sendCommand:" << command.toHex(' ');
+    qCDebug(log_core_serial)  << "sendCommand:" << command.toHex(' ');
     sendAsyncCommand(command, false);
 }

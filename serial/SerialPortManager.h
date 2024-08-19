@@ -113,7 +113,7 @@ private:
     QTimer *serialTimer;
 
     QList<QSerialPortInfo> m_lastPortList;
-    bool ready = false;
+    std::atomic<bool> ready = false;
     StatusEventCallback* eventCallback = nullptr;
     bool isSwitchToHost = false;
     bool isTargetUsbConnected = false;

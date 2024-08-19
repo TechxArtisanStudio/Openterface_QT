@@ -53,6 +53,40 @@
      <height>21</height>
     </rect>
    </property>
+   <widget class="QWidget" name="cornerWidget">
+    <property name="geometry">
+     <rect>
+      <x>0</x>
+      <y>0</y>
+      <width>64</width>
+      <height>26</height>
+     </rect>
+    </property>
+    <property name="sizePolicy">
+     <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+      <horstretch>0</horstretch>
+      <verstretch>0</verstretch>
+     </sizepolicy>
+    </property>
+    <layout class="QHBoxLayout" name="horizontalLayout">
+     <item>
+      <widget class="QPushButton" name="pasteButton">
+       <property name="icon">
+        <iconset resource="mainwindow.qrc">
+         <normaloff>:/images/paste.svg</normaloff>:/images/paste.svg</iconset>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="screensaverButton">
+       <property name="icon">
+        <iconset resource="mainwindow.qrc">
+         <normaloff>:/images/screensaver.svg</normaloff>:/images/screensaver.svg</iconset>
+       </property>
+      </widget>
+     </item>
+    </layout>
+   </widget>
    <widget class="QMenu" name="menuFile">
     <property name="title">
      <string>File</string>
@@ -201,8 +235,14 @@
    </property>
   </action>
   <action name="actionPaste">
+   <property name="checkable">
+    <bool>false</bool>
+   </property>
    <property name="text">
     <string>Paste</string>
+   </property>
+   <property name="toolTip">
+    <string>Paste clipboard content to target</string>
    </property>
   </action>
   <action name="actionCopy">
@@ -271,7 +311,9 @@
    </action>
   </actiongroup>
  </widget>
- <resources/>
+ <resources>
+  <include location="mainwindow.qrc"/>
+ </resources>
  <connections>
   <connection>
    <sender>actionExit</sender>

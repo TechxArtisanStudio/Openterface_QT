@@ -25,8 +25,9 @@
 
 Q_LOGGING_CATEGORY(log_core_mouse, "opf.host.mouse")
 
-MouseManager::MouseManager(QObject *parent) : QObject(parent){
-    // Initialization code here...
+MouseManager::MouseManager(QObject *parent) : QObject(parent), mouseMoverThread(new MouseMoverThread()) {
+    qCDebug(log_core_mouse) << "MouseManager created";
+    connect(mouseMoverThread, &MouseMoverThread::finished, mouseMoverThread, &MouseMoverThread::deleteLater);
 }
 
 void MouseManager::setEventCallback(StatusEventCallback* callback) {
@@ -34,7 +35,9 @@ void MouseManager::setEventCallback(StatusEventCallback* callback) {
 }
 
 void MouseManager::handleAbsoluteMouseAction(int x, int y, int mouse_event, int wheelMovement) {
-    // build a array
+    // stop auto move if it is running
+    if(mouseMoverThread->isRunning()) stopAutoMoveMouse();
+
     QByteArray data;
     if (mouse_event > 0){
         qCDebug(log_core_mouse) << "mouse_event:" << mouse_event;
@@ -50,7 +53,7 @@ void MouseManager::handleAbsoluteMouseAction(int x, int y, int mouse_event, int 
     data.append(static_cast<char>(mappedWheelMovement & 0xFF));
 
     // send the data to serial
-    SerialPortManager::getInstance().sendAsyncCommand(data, false);
+    SerialPortManager::getInstance().sendCommandAsync(data, false);
 
     QString mouseEventStr;
     if(mouse_event == Qt::LeftButton){
@@ -81,7 +84,7 @@ void MouseManager::handleRelativeMouseAction(int dx, int dy, int mouse_event, in
     data.append(static_cast<char>(mappedWheelMovement & 0xFF));
 
     // send the data to serial
-    SerialPortManager::getInstance().sendAsyncCommand(data, false);
+    SerialPortManager::getInstance().sendCommandAsync(data, false);
 }
 
 uint8_t MouseManager::mapScrollWheel(int delta){
@@ -91,5 +94,16 @@ uint8_t MouseManager::mapScrollWheel(int delta){
         return uint8_t(delta / 100);
     }else{
         return 0xFF - uint8_t(-1*delta / 100)+1;
+    }
+}
+
+void MouseManager::startAutoMoveMouse() {
+    mouseMoverThread = new MouseMoverThread();
+    mouseMoverThread->start();
+}
+
+void MouseManager::stopAutoMoveMouse() {
+    if (mouseMoverThread->isRunning()) {
+        mouseMoverThread->stop();
     }
 }
