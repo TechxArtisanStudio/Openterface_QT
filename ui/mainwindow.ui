@@ -229,8 +229,7 @@
     <string>About</string>
    </property>
   </action>
-  <actiongroup name="actionGroup">
-  <action name="action115200">
+  <action name="actionFollow_Switch">
    <property name="checkable">
     <bool>true</bool>
    </property>
