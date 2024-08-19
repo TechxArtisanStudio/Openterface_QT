@@ -23,6 +23,7 @@
 #include "KeyboardManager.h"
 #include "target/Keymapping.h"
 
+#include <QtConcurrent/QtConcurrent>
 
 Q_LOGGING_CATEGORY(log_keyboard, "opf.host.keyboard")
 
@@ -30,10 +31,8 @@ KeyboardManager::KeyboardManager(QObject *parent) : QObject(parent){
 
 }
 
-
 void KeyboardManager::handleKeyboardAction(int keyCode, int modifiers, bool isKeyDown) {
     QByteArray keyData = QByteArray::fromHex("57 AB 00 02 08 00 00 00 00 00 00 00 00");
-
 
     unsigned int combinedModifiers = 0;
     int mappedKeyCode = mappedKeyCode = keyMap.value(keyCode, 0);
@@ -88,9 +87,11 @@ void KeyboardManager::handleKeyboardAction(int keyCode, int modifiers, bool isKe
     }else {
         if(currentModifiers!=0){
             qCDebug(log_keyboard) << "Send release command :" << keyData.toHex(' ');
-            // release previous modifier
-            SerialPortManager::getInstance().sendAsyncCommand(keyData, false);
+            emit SerialPortManager::getInstance().sendCommandAsync(keyData, false);
+            // // release previous modifier
+            // SerialPortManager::getInstance().sendAsyncCommand(keyData, false);
             currentModifiers = 0;
+            return;
         }
 
         combinedModifiers = handleKeyModifiers(modifiers, isKeyDown);
@@ -100,12 +101,11 @@ void KeyboardManager::handleKeyboardAction(int keyCode, int modifiers, bool isKe
     if (mappedKeyCode != 0) {
         keyData[5] = isKeyDown ? combinedModifiers : 0;
         keyData[7] = isKeyDown ? mappedKeyCode : 0;
-        qCDebug(log_keyboard) << "sendCommand:" << keyData.toHex(' ');
-        if(!SerialPortManager::getInstance().sendAsyncCommand(keyData, false)){
-            qCWarning(log_keyboard) << "Failed to send command";
-        }
+        emit SerialPortManager::getInstance().sendCommandAsync(keyData, false);
     }
 }
+
+
 
 int KeyboardManager::handleKeyModifiers(int modifier, bool isKeyDown) {
     // Check if the modifier key is pressed or released
@@ -144,4 +144,31 @@ bool KeyboardManager::isModiferKeys(int keycode){
 
 bool KeyboardManager::isKeypadKeys(int keycode, int modifiers){
     return KEYPAD_KEYS.contains(keycode) && modifiers == Qt::KeypadModifier;
+}
+
+void KeyboardManager::handlePastingCharacters(const QString& text, const QMap<uint8_t, int>& charMapping) {
+    for (int i = 0; i < text.length(); i++) {
+        QChar ch = text.at(i);
+        uint8_t charString = ch.unicode();
+        int key = charMapping[charString];
+        bool needShift = needShiftWhenPaste(ch);
+        int modifiers = needShift ? Qt::ShiftModifier : 0;
+        qCDebug(log_keyboard)<< "Pasting character: " << ch << " with key: " << ((int)key) << " and modifiers: " << modifiers;
+        handleKeyboardAction(key, modifiers, true);
+        QThread::msleep(1);
+        handleKeyboardAction(key, modifiers, false);
+        QThread::msleep(1);
+    }
+}
+
+void KeyboardManager::pasteTextToTarget(const QString &text) {
+    auto charMappingCopy = charMapping; // Make a copy of charMapping to capture in the lambda
+    QFuture<void> future = QtConcurrent::run([this, text, charMappingCopy]() {
+        handlePastingCharacters(text, charMappingCopy);
+    });
+}
+
+
+bool KeyboardManager::needShiftWhenPaste(const QChar character) {
+    return character.isUpper() || NEED_SHIFT_KEYS.contains(character);
 }

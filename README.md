@@ -1,24 +1,21 @@
-# 🚨 Last Chance Alert! 🚨 
-Back us now on [Crowd Supply](https://www.crowdsupply.com/techxartisan/openterface-mini-kvm) to get the Openterface Mini-KVM **at a wallet-friendly price** of $79 - $99 before the campaign ends on **June 13, 2024, at 4:59 PM PDT**. Post-campaign prices are likely to increase as the product matures. Don’t miss out – act now!
-
-# Welcome to Openterface Mini-KVM QT version (Work In Progress)
+# Welcome to Openterface Mini-KVM QT version (For Linux & Windows)
 
 > This is a preview version of the source code and presently, it does not support all the features found in the macOS version. We are in the process of optimizing the code and refining the building methods. Your feedback is invaluable to us. If you have any suggestions or recommendations, feel free to reach out to the project team via email. Alternatively, you can join our [Discord channel](https://discord.gg/sFTJD6a3R8) for direct discussions.
 
 # Current and future features
-- Basic KVM operations, **supported**
-- Mouse control absolute mode, **supported**
-- Mouse relative mode, **not yet support**
-- Audio playing from target, **not yet support**
-- Paste text to Target device, **not yet support**
-- OCR text from Target device, **not yet support**
-- Other feature request? Please join the [Discord channel](https://discord.gg/sFTJD6a3R8) and tell me
+- [x] Basic KVM operations
+- [x] Mouse control absolute mode
+- [x] Mouse relative mode
+- [x] Audio playing from target
+- [x] Paste text to Target device
+- [ ] OCR text from Target device
+- [ ] Other feature request? Please join the [Discord channel](https://discord.gg/sFTJD6a3R8) and tell me
 
 # Suppported OS
 - Window (10/11) 
 - Ubuntu 22.04
 - Linux Mint 21.3 (Need to upgrade QT to >=6.4)
-- openSUSE Tumbleweed, built by community, not yet verify
+- openSUSE Tumbleweed, built by community
 - Raspberry Pi OS (64-bit), working good
 - Raspberry Pi OS (32-bit), not yet complete testing
 
@@ -45,7 +42,7 @@ openterfaceQT
 
 # Development
 - Using QT Creator
-  1. Install [QT for opensource](https://www.qt.io/download-qt-installer-oss?hsCtaTracking=99d9dd4f-5681-48d2-b096-470725510d34%7C074ddad0-fdef-4e53-8aa8-5e8a876d6ab4), recommanded version 6.6.3
+  1. Install [QT for opensource](https://www.qt.io/download-qt-installer-oss?hsCtaTracking=99d9dd4f-5681-48d2-b096-470725510d34%7C074ddad0-fdef-4e53-8aa8-5e8a876d6ab4), recommanded version 6.4.3
   2. Use Qt Maintenance Tool to add following components
      - [QtMultiMedia](https://doc.qt.io/qt-6/qtmultimedia-index.html)
      - [QtSerialPort](https://doc.qt.io/qt-6/qtserialport-index.html)
@@ -92,12 +89,8 @@ We're hard at work developing [the host applications](https://openterface.com/qu
 
 Check out some early demos demonstrating the basic operation of our host application [here](https://openterface.com/basic-testing/).
 
-## 🛠️ Getting Ready for Release
+# Buy Openterface Mini-KVM Now!
 
-We're sprucing up our code and getting our repos in shape for everyone to use. We want to make sure everything is neat and user-friendly for you. Plus, we'll open up all repos before the end of our crowdfunding campaign! Just bear with us a little longer!
+The Openterface Mini-KVM has been successfully funded as of June 12, 2024! You can now pre-order this innovative kit on [Crowd Supply](https://www.crowdsupply.com/techxartisan/openterface-mini-kvm).
 
-## 🤝 Get Involved
-
-[Keen to contribute?](https://openterface.com/contributing/) Fancy joining our team? Drop us an [email](mailto:info@techxartisan.com)!
-
-Stay tuned for more cool stuff and a huge thanks for your support and enthusiasm for making the Openterface mini-KVM a reality!
+Secure your Openterface Mini-KVM **at a wallet-friendly price** of $89 - $109 before it hits the market at higher prices. Don’t miss out – pre-order now!

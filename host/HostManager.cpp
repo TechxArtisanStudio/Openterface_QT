@@ -24,6 +24,7 @@
 #include "../serial/SerialPortManager.h"
 #include <QProcess>
 #include <QCoreApplication>
+#include <QtConcurrent/QtConcurrent>
 
 Q_LOGGING_CATEGORY(log_core_host, "opf.core.host")
 
@@ -119,4 +120,14 @@ void HostManager::restartApplication() {
     // // Quit the current instance
     // QCoreApplication::quit();
 
+}
+
+void HostManager::pasteTextToTarget(QString text){
+    qCDebug(log_core_host) << "Paste text to target: " << text;
+    keyboardManager.pasteTextToTarget(text);
+}
+
+void HostManager::autoMoveMouse()
+{
+    mouseManager.startAutoMoveMouse();
 }
