@@ -51,7 +51,8 @@ void SerialPortManager::observeSerialPortNotification(){
 
     connect(serialThread, &QThread::finished, serialTimer, &QObject::deleteLater);
     connect(serialThread, &QThread::finished, serialThread, &QObject::deleteLater);
-
+    connect(this, &SerialPortManager::sendCommandAsync, this, &SerialPortManager::sendCommand);
+    
     serialThread->start();
 }
 
@@ -124,13 +125,15 @@ void SerialPortManager::checkSerialPort() {
     // Check if any new ports is connected, compare to the last port list
     checkSerialPorts();
 
-    // Check the USB switch status only for hardware
-    // checkSwitchableUSB();
-
-    // // Check target connection status when no data received in 3 seconds
-    if (isTargetUsbConnected && latestUpdateTime.secsTo(QDateTime::currentDateTime()) > 3) {
-        sendAsyncCommand(CMD_GET_INFO, true);
+    if (isTargetUsbConnected){
+        // Check target connection status when no data received in 3 seconds
+        if (latestUpdateTime.secsTo(QDateTime::currentDateTime()) > 3) {
+            sendAsyncCommand(CMD_GET_INFO, false);
+        }
+    }else {
+        sendAsyncCommand(CMD_GET_INFO, false);
     }
+
 }
 
 /*
@@ -144,20 +147,20 @@ void SerialPortManager::onSerialPortConnected(const QString &portName){
     QByteArray retBtye = sendSyncCommand(CMD_GET_PARA_CFG, true);
     CmdDataParamConfig config;
     if(retBtye.size() > 0){
-        qCDebug(log_core_serial) << "Data read from serial port: " << retBtye.toHex(' ');
+        qDebug() << "Data read from serial port: " << retBtye.toHex(' ');
         config = CmdDataParamConfig::fromByteArray(retBtye);
         if(config.mode == 0x82){ // the default mode is correct, TODO store the default mode to config in future
             ready = true;
         } else { // the mode is not correct, need to re-config the chip
-            //TODO
             qCWarning(log_core_serial) << "The mode is incorrect, mode:" << config.mode;
+            resetHipChip();
         }
     } else { // try 9600 baudrate
         qCDebug(log_core_serial) << "No data with 115200 baudrate, try to connect: " << portName << "with baudrate:" << ORIGINAL_BAUDRATE;
         closePort();
         openPort(portName, ORIGINAL_BAUDRATE);
         QByteArray retBtye = sendSyncCommand(CMD_GET_PARA_CFG, true);
-
+        qDebug() << "Data read from serial port with 9600: " << retBtye.toHex(' ');
         if(retBtye.size() > 0){
             config = CmdDataParamConfig::fromByteArray(retBtye);
             qCDebug(log_core_serial) << "Connect success with baudrate: " << ORIGINAL_BAUDRATE;
@@ -165,23 +168,7 @@ void SerialPortManager::onSerialPortConnected(const QString &portName){
 
             qCDebug(log_core_serial) << "Reconfigure to baudrate to 115200 and mode 0x82";
 
-            if(reconfigureHidChip()) {
-                if(resetHipChip()){
-                    QThread::sleep(1);
-                    closePort();
-                    openPort(portName, DEFAULT_BAUDRATE);
-                    qCDebug(log_core_serial) << "Reopen the serial port with baudrate: " << DEFAULT_BAUDRATE;
-                }else{
-                    qCWarning(log_core_serial) << "Reset the hid chip fail...";
-                }
-            }else{
-                qCWarning(log_core_serial) << "Set data config fail, reset the serial port now...";
-                QThread::sleep(1);
-                closePort();
-                openPort(portName, DEFAULT_BAUDRATE);
-                ready = false;
-                qCDebug(log_core_serial) << "Reopen the serial port with baudrate: " << DEFAULT_BAUDRATE;
-            }
+            resetHipChip();
         }
     }
 
@@ -227,17 +214,23 @@ void SerialPortManager::setEventCallback(StatusEventCallback* callback) {
  * Reset the hid chip
  */
 bool SerialPortManager::resetHipChip(){
-    qCDebug(log_core_serial) << "Reset Hid chip now...";
-    if(eventCallback) eventCallback->onStatusUpdate("Reset Hid chip now...");
-
-    QByteArray retByte = sendSyncCommand(CMD_RESET, true);
-    if (retByte.size() > 0) {
-        qCDebug(log_core_serial) << "Reset the hid chip success.";
-        eventCallback->onStatusUpdate("Reset Hid chip success.");
-        return true;
+    QString portName = serialPort->portName();
+    if(reconfigureHidChip()) {
+        if(resetHipChip()){
+            qCDebug(log_core_serial) << "Reopen the serial port with baudrate: " << DEFAULT_BAUDRATE;
+            return true;
+        }else{
+            qCWarning(log_core_serial) << "Reset the hid chip fail...";
+            return false;
+        }
+    }else{
+        qCWarning(log_core_serial) << "Set data config fail, reset the serial port now...";
+        QThread::sleep(1);
+        restartPort();
+        ready = false;
+        qCDebug(log_core_serial) << "Reopen the serial port with baudrate: " << DEFAULT_BAUDRATE;
+        return false;
     }
-    if(eventCallback) eventCallback->onStatusUpdate("Reset Hid chip failure.");
-    return false;
 }
 
 /*
@@ -380,25 +373,25 @@ void SerialPortManager::readData() {
             switch (code)
             {
             case 0xC1:
-                qCDebug(log_core_serial) << "Error(" + QString::number(code, 16) + "), Serial response timeout, data: " + data.toHex(' ');
+                qDebug() << "Error(" + QString::number(code, 16) + "), Serial response timeout, data: " + data.toHex(' ');
                 break;
             case 0xC2:
-                qCDebug(log_core_serial) << "Error(" + QString::number(code, 16) + "),  Packet header error, data: " + data.toHex(' ');
+                qDebug() << "Error(" + QString::number(code, 16) + "),  Packet header error, data: " + data.toHex(' ');
                 break;
             case 0xC3:
-                qCDebug(log_core_serial) << "Error(" + QString::number(code, 16) + "),  Command error, data: " + data.toHex(' ');
+                qDebug() << "Error(" + QString::number(code, 16) + "),  Command error, data: " + data.toHex(' ');
                 break;
             case 0xC4:
-                qCDebug(log_core_serial) << "Error(" + QString::number(code, 16) + "),  Checksum error, data: " + data.toHex(' ');
+                qDebug() << "Error(" + QString::number(code, 16) + "),  Checksum error, data: " + data.toHex(' ');
                 break;
             case 0xC5:
-                qCDebug(log_core_serial) << "Error(" + QString::number(code, 16) + "),  Argument error, data: " + data.toHex(' ');
+                qDebug() << "Error(" + QString::number(code, 16) + "),  Argument error, data: " + data.toHex(' ');
                 break;
             case 0xC6:
-                qCDebug(log_core_serial) << "Error(" + QString::number(code, 16) + "),  Execution error, data: " + data.toHex(' ');
+                qDebug() << "Error(" + QString::number(code, 16) + "),  Execution error, data: " + data.toHex(' ');
                 break;
             default:
-                qCDebug(log_core_serial) << "Error(" + QString::number(code, 16) + "),  Unknown error, data: " + data.toHex(' ');
+                qDebug() << "Error(" + QString::number(code, 16) + "),  Unknown error, data: " + data.toHex(' ');
                 break;
             }
         }else{
@@ -414,6 +407,9 @@ void SerialPortManager::readData() {
                 qDebug() << "Get info result, target connected:" << (CmdGetInfoResult::fromByteArray(data).targetConnected == 0x01);
                 isTargetUsbConnected = CmdGetInfoResult::fromByteArray(data).targetConnected == 0x01;
                 eventCallback->onTargetUsbConnected(isTargetUsbConnected);
+                break;
+            case 0x82:
+                qCDebug(log_core_serial) << "Keyboard event sent, status" << data[5];
                 break;
             case 0x84:
                 qCDebug(log_core_serial) << "Absolute mouse event sent, status" << data[5];
@@ -524,13 +520,13 @@ QByteArray SerialPortManager::sendSyncCommand(const QByteArray &data, bool force
     QByteArray command = data;
     command.append(calculateChecksum(command));
     writeData(command);
-    if (serialPort->waitForReadyRead(1000)) {
+    if (serialPort->waitForReadyRead(100)) {
         QByteArray responseData = serialPort->readAll();
         while (serialPort->waitForReadyRead(100))
             responseData += serialPort->readAll();
         return responseData;
     }
-    return QByteArray();;
+    return QByteArray();
 }
 
 
@@ -553,4 +549,9 @@ void SerialPortManager::restartSwitchableUSB(){
         QThread::msleep(500);
         serialPort->setDataTerminalReady(false);
     }
+}
+
+void SerialPortManager::sendCommand(const QByteArray &command, bool waitForAck) {
+    qCDebug(log_core_serial)  << "sendCommand:" << command.toHex(' ');
+    sendAsyncCommand(command, false);
 }

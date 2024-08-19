@@ -73,6 +73,7 @@ signals:
     void serialPortConnected(const QString &portName);
     void serialPortDisconnected(const QString &portName);
     void serialPortConnectionSuccess(const QString &portName);
+    void sendCommandAsync(const QByteArray &command, bool waitForAck);
 
 private slots:
     void checkSerialPort();
@@ -102,6 +103,8 @@ private:
     SerialPortManager(QObject *parent = nullptr);
     QSerialPort *serialPort;
 
+    void sendCommand(const QByteArray &command, bool waitForAck);
+
     QSet<QString> availablePorts;
 
     // int baudrate = ORIGINAL_BAUDRATE;
@@ -110,7 +113,7 @@ private:
     QTimer *serialTimer;
 
     QList<QSerialPortInfo> m_lastPortList;
-    bool ready = false;
+    std::atomic<bool> ready = false;
     StatusEventCallback* eventCallback = nullptr;
     bool isSwitchToHost = false;
     bool isTargetUsbConnected = false;

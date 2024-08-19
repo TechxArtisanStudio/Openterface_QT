@@ -72,7 +72,7 @@ const QMap<int, uint8_t> KeyboardManager::keyMap = {
     {Qt::Key_BracketRight, 0x30}, // ]
     {Qt::Key_Backslash, 0x31}, // Backslash
     {Qt::Key_Semicolon, 0x33}, // ;
-    // {Qt::Key_Apostrophe, 0x34}, // '
+    {Qt::Key_Apostrophe, 0x34}, // '
     {Qt::Key_QuoteLeft, 0x35}, // `
     {Qt::Key_Comma, 0x36}, // ,
     {Qt::Key_Period, 0x37}, // .
@@ -131,6 +131,69 @@ const QMap<int, uint8_t> KeyboardManager::keyMap = {
     {Qt::Key_Less, 0x36}, // key ,
     {Qt::Key_Greater, 0x37}, // key .
     {Qt::Key_Question, 0x38} // key /
+};
+
+/*
+ * This mapping is used to map the character code to the key code for pasting text
+ */
+const QMap<uint8_t, int> KeyboardManager::charMapping = {
+    {'a', Qt::Key_A}, {'A', Qt::Key_A},
+    {'b', Qt::Key_B}, {'B', Qt::Key_B},
+    {'c', Qt::Key_C}, {'C', Qt::Key_C},
+    {'d', Qt::Key_D}, {'D', Qt::Key_D},
+    {'e', Qt::Key_E}, {'E', Qt::Key_E},
+    {'f', Qt::Key_F}, {'F', Qt::Key_F},
+    {'g', Qt::Key_G}, {'G', Qt::Key_G},
+    {'h', Qt::Key_H}, {'H', Qt::Key_H},
+    {'i', Qt::Key_I}, {'I', Qt::Key_I},
+    {'j', Qt::Key_J}, {'J', Qt::Key_J},
+    {'k', Qt::Key_K}, {'K', Qt::Key_K},
+    {'l', Qt::Key_L}, {'L', Qt::Key_L},
+    {'m', Qt::Key_M}, {'M', Qt::Key_M},
+    {'n', Qt::Key_N}, {'N', Qt::Key_N},
+    {'o', Qt::Key_O}, {'O', Qt::Key_O},
+    {'p', Qt::Key_P}, {'P', Qt::Key_P},
+    {'q', Qt::Key_Q}, {'Q', Qt::Key_Q},
+    {'r', Qt::Key_R}, {'R', Qt::Key_R},
+    {'s', Qt::Key_S}, {'S', Qt::Key_S},
+    {'t', Qt::Key_T}, {'T', Qt::Key_T},
+    {'u', Qt::Key_U}, {'U', Qt::Key_U},
+    {'v', Qt::Key_V}, {'V', Qt::Key_V},
+    {'w', Qt::Key_W}, {'W', Qt::Key_W},
+    {'x', Qt::Key_X}, {'X', Qt::Key_X},
+    {'y', Qt::Key_Y}, {'Y', Qt::Key_Y},
+    {'z', Qt::Key_Z}, {'Z', Qt::Key_Z},
+    {'0', Qt::Key_0}, {')', Qt::Key_0},
+    {'1', Qt::Key_1}, {'!', Qt::Key_1},
+    {'2', Qt::Key_2}, {'@', Qt::Key_2},
+    {'3', Qt::Key_3}, {'#', Qt::Key_3},
+    {'4', Qt::Key_4}, {'$', Qt::Key_4},
+    {'5', Qt::Key_5}, {'%', Qt::Key_5},
+    {'6', Qt::Key_6}, {'^', Qt::Key_6},
+    {'7', Qt::Key_7}, {'&', Qt::Key_7},
+    {'8', Qt::Key_8}, {'*', Qt::Key_8},
+    {'9', Qt::Key_9}, {'(', Qt::Key_9},
+    {'-', Qt::Key_Minus}, {'_', Qt::Key_Minus},
+    {'=', Qt::Key_Equal}, {'+', Qt::Key_Equal},
+    {'[', Qt::Key_BracketLeft}, {'{', Qt::Key_BracketLeft},
+    {']', Qt::Key_BracketRight}, {'}', Qt::Key_BracketRight},
+    {'\\', Qt::Key_Backslash}, {'|', Qt::Key_Backslash},
+    {';', Qt::Key_Semicolon}, {':', Qt::Key_Semicolon},
+    {'\'', Qt::Key_QuoteLeft}, {'"', Qt::Key_QuoteLeft},
+    {',', Qt::Key_Comma}, {'<', Qt::Key_Comma},
+    {'.', Qt::Key_Period}, {'>', Qt::Key_Period},
+    {'/', Qt::Key_Slash}, {'?', Qt::Key_Slash},
+    {'`', Qt::Key_AsciiTilde}, {'~', Qt::Key_AsciiTilde},
+    {'\"', Qt::Key_QuoteDbl}, {'\'', Qt::Key_QuoteDbl},
+    {' ', Qt::Key_Space}, // Space
+    {'\n', Qt::Key_Return}, // new line
+    {'\r', Qt::Key_Return},  //  new line    
+    {10, Qt::Key_Return},  //  new line
+    {'\t', Qt::Key_Tab},  // Tab
+};
+
+const QList<char> KeyboardManager::NEED_SHIFT_KEYS = {
+    '~', '!', '@', '#', '$', '%', '^', '&', '*', '(', ')', '_', '+', '{', '}', '|', ':', '\"', '<', '>', '?'
 };
 
 const QList<int> KeyboardManager::SHIFT_KEYS = {

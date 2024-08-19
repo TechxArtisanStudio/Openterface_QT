@@ -88,7 +88,7 @@ int main(int argc, char *argv[])
 
     QCoreApplication::setApplicationName("Openterface Mini-KVM");
     QCoreApplication::setOrganizationName("TechxArtisan");
-    QCoreApplication::setApplicationVersion("0.0.1");
+    QCoreApplication::setApplicationVersion("0.0.2");
 
     app.setWindowIcon(QIcon("://images/icon_32.png"));
 
