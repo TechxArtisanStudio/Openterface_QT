@@ -62,6 +62,7 @@ public:
     void resetSerialPort();
     void setEventCallback(StatusEventCallback* callback);
     void restartApplication();
+    void autoMoveMouse();
 
     void pasteTextToTarget(QString text);
 

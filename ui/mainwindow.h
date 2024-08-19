@@ -146,6 +146,7 @@ protected:
     void onActionSwitchToTargetTriggered();
     void onFollowSwitchTriggered();
     void onActionPasteToTarget();
+    void onActionScreensaver();
 
     void queryResolutions();
 

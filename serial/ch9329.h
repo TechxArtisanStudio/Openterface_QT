@@ -45,10 +45,10 @@ T fromByteArray(const QByteArray &data) {
     if (data.size() > 0) {
         std::memcpy(&result, data.constData(), sizeof(T));
         // Debugging: Print the raw data
-        qDebug() << "Raw data:" << data.toHex(' ');
+        // qDebug() << "Raw data:" << data.toHex(' ');
 
         // Debugging: Print the parsed fields
-        result.dump();
+        // result.dump();
     } else {
         qWarning() << "Data size is too small to parse" << typeid(T).name();
         qDebug() << "Data content:" << data.toHex(' ');

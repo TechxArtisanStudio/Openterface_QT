@@ -153,7 +153,7 @@ void KeyboardManager::handlePastingCharacters(const QString& text, const QMap<ui
         int key = charMapping[charString];
         bool needShift = needShiftWhenPaste(ch);
         int modifiers = needShift ? Qt::ShiftModifier : 0;
-        qDebug() << "Pasting character: " << ch << " with key: " << ((int)key) << " and modifiers: " << modifiers;
+        qCDebug(log_keyboard)<< "Pasting character: " << ch << " with key: " << ((int)key) << " and modifiers: " << modifiers;
         handleKeyboardAction(key, modifiers, true);
         QThread::msleep(1);
         handleKeyboardAction(key, modifiers, false);
