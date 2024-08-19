@@ -126,3 +126,8 @@ void HostManager::pasteTextToTarget(QString text){
     qCDebug(log_core_host) << "Paste text to target: " << text;
     keyboardManager.pasteTextToTarget(text);
 }
+
+void HostManager::autoMoveMouse()
+{
+    mouseManager.startAutoMoveMouse();
+}

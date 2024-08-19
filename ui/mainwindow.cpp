@@ -146,6 +146,9 @@ Camera::Camera() : ui(new Ui::Camera), videoPane(new VideoPane(this)),
     qCDebug(log_ui_mainwindow) << "Observe action paste from host...";
     connect(ui->actionPaste, &QAction::triggered, this, &Camera::onActionPasteToTarget);
     connect(ui->pasteButton, &QPushButton::released, this, &Camera::onActionPasteToTarget);
+
+    connect(ui->screensaverButton, &QPushButton::released, this, &Camera::onActionScreensaver);
+
     init();
 }
 
@@ -459,6 +462,11 @@ void Camera::onFollowSwitchTriggered()
 void Camera::onActionPasteToTarget()
 {
     HostManager::getInstance().pasteTextToTarget(QGuiApplication::clipboard()->text());
+}
+
+void Camera::onActionScreensaver()
+{
+    HostManager::getInstance().autoMoveMouse();
 }
 
 void Camera::popupMessage(QString message)
