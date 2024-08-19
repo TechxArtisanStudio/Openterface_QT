@@ -78,7 +78,7 @@
       </widget>
      </item>
      <item>
-      <widget class="QPushButton" name="screensaver">
+      <widget class="QPushButton" name="screensaverButton">
        <property name="icon">
         <iconset resource="mainwindow.qrc">
          <normaloff>:/images/screensaver.svg</normaloff>:/images/screensaver.svg</iconset>
