@@ -226,9 +226,10 @@ void SerialPortManager::setEventCallback(StatusEventCallback* callback) {
 }
 
 /* 
- * Reset the hid chip
+ * Reset the hid chip, set the baudrate to 115200 and mode to 0x82 and reset the chip
  */
 bool SerialPortManager::resetHipChip(){
+<<<<<<< Updated upstream
     qCDebug(log_core_serial) << "Reset Hid chip now...";
     if(eventCallback) eventCallback->onStatusUpdate("Reset Hid chip now...");
 
@@ -237,9 +238,41 @@ bool SerialPortManager::resetHipChip(){
         qCDebug(log_core_serial) << "Reset the hid chip success.";
         eventCallback->onStatusUpdate("Reset Hid chip success.");
         return true;
+=======
+    QString portName = serialPort->portName();
+    if(reconfigureHidChip()) {
+        if(sendResetCommand()){
+            qCDebug(log_core_serial) << "Reopen the serial port with baudrate: " << DEFAULT_BAUDRATE;
+            return true;
+        }else{
+            qCWarning(log_core_serial) << "Reset the hid chip fail...";
+            return false;
+        }
+    }else{
+        qCWarning(log_core_serial) << "Set data config fail, reset the serial port now...";
+        QThread::sleep(1);
+        restartPort();
+        ready = false;
+        qCDebug(log_core_serial) << "Reopen the serial port with baudrate: " << DEFAULT_BAUDRATE;
+        return false;
+>>>>>>> Stashed changes
     }
     if(eventCallback) eventCallback->onStatusUpdate("Reset Hid chip failure.");
     return false;
+}
+
+/*
+ * Send the reset command to the hid chip
+ */
+bool SerialPortManager::sendResetCommand(){
+    QByteArray retByte = sendSyncCommand(CMD_RESET, true);
+    if(retByte.size() > 0){
+        qCDebug(log_core_serial) << "Reset the hid chip success.";
+        return true;
+    } else{
+        qCDebug(log_core_serial) << "Reset the hid chip fail.";
+        return false;
+    }
 }
 
 /*
@@ -438,7 +471,8 @@ void SerialPortManager::readData() {
                         eventCallback->onPortConnected(QString("%1@%2").arg(serialPort->portName()).arg(serialPort->baudRate()));
                     }
                 }else{
-                    reconfigureHidChip();
+                    qCDebug(log_core_serial) << "Serial is not ready for communication.";
+                    //reconfigureHidChip();
                     QThread::sleep(1);
                     resetHipChip();
                     ready=false;
@@ -467,7 +501,6 @@ bool SerialPortManager::reconfigureHidChip()
     QByteArray retBtyes = sendSyncCommand(command, true);
     if(retBtyes.size() > 0){
         CmdDataResult dataResult = fromByteArray<CmdDataResult>(retBtyes);
-        qCDebug(log_core_serial) << "Set data config result: " << dataResult.data;
         if(dataResult.data == DEF_CMD_SUCCESS){
             qCDebug(log_core_serial) << "Set data config success, reconfig to 115200 baudrate and mode 0x82";
             return true;
