@@ -229,7 +229,6 @@ void SerialPortManager::setEventCallback(StatusEventCallback* callback) {
  * Reset the hid chip, set the baudrate to 115200 and mode to 0x82 and reset the chip
  */
 bool SerialPortManager::resetHipChip(){
-<<<<<<< Updated upstream
     qCDebug(log_core_serial) << "Reset Hid chip now...";
     if(eventCallback) eventCallback->onStatusUpdate("Reset Hid chip now...");
 
@@ -238,24 +237,6 @@ bool SerialPortManager::resetHipChip(){
         qCDebug(log_core_serial) << "Reset the hid chip success.";
         eventCallback->onStatusUpdate("Reset Hid chip success.");
         return true;
-=======
-    QString portName = serialPort->portName();
-    if(reconfigureHidChip()) {
-        if(sendResetCommand()){
-            qCDebug(log_core_serial) << "Reopen the serial port with baudrate: " << DEFAULT_BAUDRATE;
-            return true;
-        }else{
-            qCWarning(log_core_serial) << "Reset the hid chip fail...";
-            return false;
-        }
-    }else{
-        qCWarning(log_core_serial) << "Set data config fail, reset the serial port now...";
-        QThread::sleep(1);
-        restartPort();
-        ready = false;
-        qCDebug(log_core_serial) << "Reopen the serial port with baudrate: " << DEFAULT_BAUDRATE;
-        return false;
->>>>>>> Stashed changes
     }
     if(eventCallback) eventCallback->onStatusUpdate("Reset Hid chip failure.");
     return false;
