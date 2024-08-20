@@ -58,7 +58,7 @@ jobs:
           mkdir -p package/DEBIAN
           # Create control file with package information
           echo "Package: ${{ env.ARTIFACT }}
-          Version: 0.0.1
+          Version: 0.0.2
           Section: base
           Priority: optional
           Architecture: all
