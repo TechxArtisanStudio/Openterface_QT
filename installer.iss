@@ -54,4 +54,4 @@ Filename: "{app}\{#MyAppExeName}"; \
     Parameters: "/silent"
 Filename: {sys}\rundll32.exe; \
     Parameters: "setupapi,InstallHinfSection DefaultInstall 128 {app}\driver\CH341SER.inf"; \
-    WorkingDir: {app}\driver; Flags: 32bit silent;
+    WorkingDir: {app}\driver; Flags: 32bit runhidden;
