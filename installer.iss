@@ -2,9 +2,9 @@
 ; SEE THE DOCUMENTATION FOR DETAILS ON CREATING INNO SETUP SCRIPT FILES!
 
 #define MyAppName "Openterface Mini-KVM"
-#define MyAppVersion GetEnv('MY_APP_VERSION')
-#define MyAppPublisher GetEnv('MY_APP_PUBLISHER')
-#define MyAppURL GetEnv('MY_APP_URL')
+#define MyAppVersion "{param:MY_APP_VERSION|0.0.1}"
+#define MyAppPublisher "{param:MY_APP_PUBLISHER|TechxArtisan Studio}"
+#define MyAppURL "{param:MY_APP_URL|https://openterface.com}"
 #define MyAppExeName "openterfaceQT.exe"
 #define MyWorkingDir "{param:WorkingDir|D:\a\_temp\build\package}"
 
