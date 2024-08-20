@@ -519,7 +519,7 @@ QByteArray SerialPortManager::sendSyncCommand(const QByteArray &data, bool force
     if(!force && !ready) return QByteArray();
     QByteArray command = data;
     command.append(calculateChecksum(command));
-
+    qDebug() <<  "Check sum" << command ;
     writeData(command);
     if (serialPort->waitForReadyRead(100)) {
         QByteArray responseData = serialPort->readAll();
@@ -557,7 +557,6 @@ void SerialPortManager::restartSwitchableUSB(){
 */
 void SerialPortManager::setVIDAndPID(QByteArray &VID, QByteArray &PID){
 
-
     QByteArray command = "";
     command.append(CMD_SET_PARA_CFG_PREFIX);
     command.append(QByteArray::fromHex("08 00 00 03"));
@@ -566,8 +565,6 @@ void SerialPortManager::setVIDAndPID(QByteArray &VID, QByteArray &PID){
     command.append(VID);
     command.append(PID);
     qDebug() <<  "no checksum" << command;
-    
-    
     
     QByteArray respon = sendSyncCommand(command, true);
     qDebug() << respon;
