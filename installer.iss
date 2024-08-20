@@ -48,7 +48,10 @@ Name: "{autoprograms}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
 Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
 
 [Run]
-Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\{#MyAppExeName}"; \
+    Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; \
+    Flags: nowait postinstall skipifsilent; \
+    Parameters: "/silent"
 Filename: {sys}\rundll32.exe; \
     Parameters: "setupapi,InstallHinfSection DefaultInstall 128 {app}\driver\CH341SER.inf"; \
-    WorkingDir: {app}\driver; Flags: 32bit;
+    WorkingDir: {app}\driver; Flags: 32bit silent;
