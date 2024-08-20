@@ -21,7 +21,7 @@ env:
 jobs:
   build:
     runs-on: windows-2019
-
+    environment: ${{ github.event.inputs.TARGET_ENV || 'Openterface_build' }}
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
