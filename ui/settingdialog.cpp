@@ -25,7 +25,7 @@
 #include "ui/fpsspinbox.h"
 #include "global.h"
 #include "globalsetting.h"
-
+#include "serial/SerialPortManager.h"
 
 #include <QCamera>
 #include <QCameraDevice>
@@ -50,6 +50,8 @@
 #include <qtimer.h>
 #include <QList>
 #include <QSerialPortInfo>
+#include <QLineEdit>
+#include <QByteArray>
 
 SettingDialog::SettingDialog(QCamera *_camera, QWidget *parent)
     : QDialog(parent)
@@ -483,25 +485,38 @@ void SettingDialog::createHardwarePage(){
     QComboBox *uvcCamBox = new QComboBox();
     uvcCamBox->setObjectName("uvcCamBox");
     
-    QList<QSerialPortInfo> serialPorts = QSerialPortInfo::availablePorts();
-    qDebug() << "Read serial port";
-    foreach (const QSerialPortInfo &serialPortInfo, serialPorts) {
-        qDebug() << "Port Name: " << serialPortInfo.portName();
-        qDebug() << "Description: " << serialPortInfo.description();
-        qDebug() << "Manufacturer: " << serialPortInfo.manufacturer();
-        qDebug() << "Serial Number: " << serialPortInfo.serialNumber();
-        qDebug() << "System Location: " << serialPortInfo.systemLocation();
-        qDebug() << "Vendor Identifier: " << serialPortInfo.vendorIdentifier();
-        qDebug() << "Product Identifier: " << serialPortInfo.productIdentifier();
-        // qDebug() << "Busy: " << (serialPortInfo.isBusy() ? "Yes" : "No");
-    }
+    QLabel *VIDPIDLabel = new QLabel(
+        "Change serial VID&PID: ");
+    QLabel *VIDLabel = new QLabel("VID :");
+    QLabel *PIDLabel = new QLabel("PID :");
+    VIDLabel->setStyleSheet(smallLabelFontSize);
+    PIDLabel->setStyleSheet(smallLabelFontSize);
+    QLineEdit *VIDLineEdit = new QLineEdit(hardwarePage);
+    QLineEdit *PIDLineEdit = new QLineEdit(hardwarePage);
+    VIDLineEdit->setMaximumWidth(100);
+    PIDLineEdit->setMaximumWidth(100);
+    VIDLineEdit->setObjectName("VIDLineEdit");
+    PIDLineEdit->setObjectName("PIDLineEdit");
+    QHBoxLayout *PIDLayout = new QHBoxLayout();
+    QHBoxLayout *VIDLayout = new QHBoxLayout();
+    VIDLayout->addWidget(VIDLabel);
+    VIDLayout->addWidget(VIDLineEdit);
+    VIDLayout->addStretch();
+    PIDLayout->addWidget(PIDLabel);
+    PIDLayout->addWidget(PIDLineEdit);
+    PIDLayout->addStretch();
 
     QVBoxLayout *hardwareLayout = new QVBoxLayout(hardwarePage);
     hardwareLayout->addWidget(hardwareLabel);
     hardwareLayout->addWidget(uvcCamLabel);
     hardwareLayout->addWidget(uvcCamBox);
+    hardwareLayout->addWidget(VIDPIDLabel);
+    hardwareLayout->addLayout(VIDLayout);
+    hardwareLayout->addLayout(PIDLayout);
+
     hardwareLayout->addStretch();
     findUvcCameraDevices();
+
 }
 
 void SettingDialog::findUvcCameraDevices(){
@@ -526,23 +541,56 @@ void SettingDialog::findUvcCameraDevices(){
 
 }
 
+QByteArray SettingDialog::convertStringToByteArray(const QString str){
+    bool ok;
+    int value = str.toInt(&ok,16);
+    QByteArray result;
+
+    result.append(static_cast<char>((value >> 8) & 0xFF)); // high byte
+    result.append(static_cast<char>(value)); // low byte
+    return result;
+}
+
 void SettingDialog::applyHardwareSetting(){
     QSettings settings("Techxartisan", "Openterface");
-    QString deviceDescription = settings.value("camera/device", "Openterface").toString();
+    QString cameraDescription = settings.value("camera/device", "Openterface").toString();
+    QString VID = settings.value("serial/vid", "86 1A").toString();
+    QString PID = settings.value("serial/pid", "29 E1").toString();
+
     QComboBox *uvcCamBox = hardwarePage->findChild<QComboBox*>("uvcCamBox");
-    
-    if (deviceDescription != uvcCamBox->currentText()){
+    QLineEdit *VIDLineEdit = hardwarePage->findChild<QLineEdit*>("VIDLineEdit");
+    QLineEdit *PIDLineEdit = hardwarePage->findChild<QLineEdit*>("PIDLineEdit");
+    QString vidstring = VIDLineEdit->text();
+    QString pidstring = PIDLineEdit->text();
+
+    QByteArray VID_byte = convertStringToByteArray(vidstring);
+    QByteArray PID_byte = convertStringToByteArray(pidstring);
+
+    if (cameraDescription != uvcCamBox->currentText()){
         GlobalSetting::instance().setCameraDeviceSetting(uvcCamBox->currentText());
-        emit hardwareSettingsApplied(); 
+        emit cameraSettingsApplied();  // emit the hardware setting signal to change the camera device
     }
+
+    GlobalSetting::instance().setVIDPID(VIDLineEdit->text(), PIDLineEdit->text());
+    SerialPortManager::getInstance().setVIDAndPID(VID_byte, PID_byte);
+    // if (VID != VIDLineEdit->text() || PID != PIDLineEdit->text()){
+    //     // GlobalSetting::instance().setVIDPID(VIDLineEdit->text(), PIDLineEdit->text());
+    //     // emit serialSettingsApplied(); // emit the hardware setting signal to change the serial device
+        
+    // }
     
 }
 
 void SettingDialog::initHardwareSetting(){
     QSettings settings("Techxartisan", "Openterface");
     QComboBox *uvcCamBox = hardwarePage->findChild<QComboBox*>("uvcCamBox");
+    QLineEdit *VIDLineEdit = hardwarePage->findChild<QLineEdit*>("VIDLineEdit");
+    QLineEdit *PIDLineEdit = hardwarePage->findChild<QLineEdit*>("PIDLineEdit");
 
     uvcCamBox->setCurrentText(settings.value("camera/device", "Openterface").toString());
+    VIDLineEdit->setText(settings.value("serial/vid", "861A").toString());
+    PIDLineEdit->setText(settings.value("serial/pid", "29E1").toString());
+
 }
 
 void SettingDialog::createPages() {
