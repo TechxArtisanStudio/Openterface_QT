@@ -10,13 +10,9 @@ const QByteArray CMD_GET_PARA_CFG = QByteArray::fromHex("57 AB 00 08 00");
 const QByteArray CMD_GET_INFO = QByteArray::fromHex("57 AB 00 01 00");
 const QByteArray CMD_RESET = QByteArray::fromHex("57 AB 00 0F 00");
 const QByteArray CMD_SET_DEFAULT_CFG = QByteArray::fromHex("57 AB 00 0C 00");
-<<<<<<< HEAD
-const QByteArray CMD_SET_PARA_CFG_PREFIX = QByteArray::fromHex("57 AB 00 09 0F 82 80 00 00 01 C2 00");
-const QByteArray CMD_SET_PARA_CFG_MID = QByteArray::fromHex("08 00 00 03 86 1a 29 e1 00 00 00 01 00 0d 00 00 00 00 00 00") + QByteArray(23, 0x00) ;
-=======
+
 const QByteArray CMD_SET_PARA_CFG_PREFIX = QByteArray::fromHex("57 AB 00 09 32 82 80 00 00 01 C2 00");
 const QByteArray CMD_SET_PARA_CFG_MID = QByteArray::fromHex("08 00 00 03 86 1a 29 e1 00 00 00 01 00 0d 00 00 00 00 00 00 00") + QByteArray(22, 0x00) ;
->>>>>>> a0f7b3629a0f59c0b38612daaac52b9c437854ea
 
 
 /* Command success */

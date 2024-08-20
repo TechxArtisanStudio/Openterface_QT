@@ -552,7 +552,6 @@ void SerialPortManager::restartSwitchableUSB(){
     }
 }
 
-<<<<<<< HEAD
 /*
 * Set the VID and PID
 */
@@ -574,9 +573,10 @@ void SerialPortManager::setVIDAndPID(QByteArray &VID, QByteArray &PID){
     qDebug() << respon;
 
     qDebug() << "After sending command";
-=======
+}
+
 void SerialPortManager::sendCommand(const QByteArray &command, bool waitForAck) {
     qCDebug(log_core_serial)  << "sendCommand:" << command.toHex(' ');
     sendAsyncCommand(command, false);
->>>>>>> a0f7b3629a0f59c0b38612daaac52b9c437854ea
+
 }
