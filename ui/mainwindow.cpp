@@ -549,7 +549,7 @@ void Camera::configureSettings() {
     qDebug() << "Configuring settings...";
     SettingDialog *setting = new SettingDialog(m_camera.data());
     // check if camera source is change
-    connect(setting, &SettingDialog::hardwareSettingsApplied, this, &Camera::loadCameraSettingAndSetCamera);
+    connect(setting, &SettingDialog::cameraSettingsApplied, this, &Camera::loadCameraSettingAndSetCamera);
     qDebug() << "Setting configuration... ";
     setting->show();
 }

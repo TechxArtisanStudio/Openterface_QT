@@ -186,7 +186,7 @@ void SerialPortManager::onSerialPortConnected(const QString &portName){
     }
 
     qCDebug(log_core_serial) << "Check serial port completed.";
-    emit serialPortConnectionSuccess(portName);
+    emit serialPortConnectionSuccess(portName); 
 }
 
 /*
@@ -523,6 +523,7 @@ QByteArray SerialPortManager::sendSyncCommand(const QByteArray &data, bool force
     if(!force && !ready) return QByteArray();
     QByteArray command = data;
     command.append(calculateChecksum(command));
+
     writeData(command);
     if (serialPort->waitForReadyRead(1000)) {
         QByteArray responseData = serialPort->readAll();
@@ -553,4 +554,27 @@ void SerialPortManager::restartSwitchableUSB(){
         QThread::msleep(500);
         serialPort->setDataTerminalReady(false);
     }
+}
+
+/*
+* Set the VID and PID
+*/
+void SerialPortManager::setVIDAndPID(QByteArray &VID, QByteArray &PID){
+
+
+    QByteArray command = "";
+    command.append(CMD_SET_PARA_CFG_PREFIX);
+    command.append(QByteArray::fromHex("08 00 00 03"));
+    qDebug() << "test" << command;
+    // command.append(QByteArray::fromHex("87 1A"));
+    command.append(VID);
+    command.append(PID);
+    qDebug() <<  "no checksum" << command;
+    
+    
+    
+    QByteArray respon = sendSyncCommand(command, true);
+    qDebug() << respon;
+
+    qDebug() << "After sending command";
 }
