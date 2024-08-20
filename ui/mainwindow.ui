@@ -53,25 +53,51 @@
      <height>21</height>
     </rect>
    </property>
+   <widget class="QWidget" name="cornerWidget">
+    <property name="geometry">
+     <rect>
+      <x>0</x>
+      <y>0</y>
+      <width>64</width>
+      <height>26</height>
+     </rect>
+    </property>
+    <property name="sizePolicy">
+     <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+      <horstretch>0</horstretch>
+      <verstretch>0</verstretch>
+     </sizepolicy>
+    </property>
+    <layout class="QHBoxLayout" name="horizontalLayout">
+     <item>
+      <widget class="QPushButton" name="pasteButton">
+       <property name="icon">
+        <iconset resource="mainwindow.qrc">
+         <normaloff>:/images/paste.svg</normaloff>:/images/paste.svg</iconset>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="screensaverButton">
+       <property name="icon">
+        <iconset resource="mainwindow.qrc">
+         <normaloff>:/images/screensaver.svg</normaloff>:/images/screensaver.svg</iconset>
+       </property>
+      </widget>
+     </item>
+    </layout>
+   </widget>
    <widget class="QMenu" name="menuFile">
     <property name="title">
      <string>File</string>
     </property>
     <addaction name="separator"/>
-    <addaction name="separator"/>
-    <addaction name="separator"/>
     <addaction name="actionPreferences"/>
     <addaction name="actionExit"/>
    </widget>
    <widget class="QMenu" name="menuSource">
-    <property name="layoutDirection">
-     <enum>Qt::RightToLeft</enum>
-    </property>
     <property name="title">
      <string>Source</string>
-    </property>
-    <property name="icon">
-     <iconset theme="appointment-new"/>
     </property>
    </widget>
    <widget class="QMenu" name="menuControl">
@@ -124,7 +150,15 @@
     <addaction name="actionFeedback"/>
     <addaction name="actionAbout"/>
    </widget>
+   <widget class="QMenu" name="menuEdit">
+    <property name="title">
+     <string>Edit</string>
+    </property>
+    <addaction name="actionCopy"/>
+    <addaction name="actionPaste"/>
+   </widget>
    <addaction name="menuFile"/>
+   <addaction name="menuEdit"/>
    <addaction name="menuControl"/>
    <addaction name="menuSource"/>
    <addaction name="menuHelp"/>
@@ -200,23 +234,6 @@
    <property name="checkable">
     <bool>true</bool>
    </property>
-   <property name="text">
-    <string>115200</string>
-   </property>
-  </action>
-  <action name="action9600">
-   <property name="checkable">
-    <bool>true</bool>
-   </property>
-   <property name="text">
-    <string>9600</string>
-   </property>
-  </action>
-  </actiongroup>
-  <action name="actionFollow_Switch">
-   <property name="checkable">
-    <bool>true</bool>
-   </property>
    <property name="checked">
     <bool>true</bool>
    </property>
@@ -224,6 +241,43 @@
     <string>Follow Switch</string>
    </property>
   </action>
+  <action name="actionPaste">
+   <property name="checkable">
+    <bool>false</bool>
+   </property>
+   <property name="text">
+    <string>Paste</string>
+   </property>
+   <property name="toolTip">
+    <string>Paste clipboard content to target</string>
+   </property>
+  </action>
+  <action name="actionCopy">
+   <property name="enabled">
+    <bool>false</bool>
+   </property>
+   <property name="text">
+    <string>Copy</string>
+   </property>
+  </action>
+  <actiongroup name="actionGroup">
+   <action name="action115200">
+    <property name="checkable">
+     <bool>true</bool>
+    </property>
+    <property name="text">
+     <string>115200</string>
+    </property>
+   </action>
+   <action name="action9600">
+    <property name="checkable">
+     <bool>true</bool>
+    </property>
+    <property name="text">
+     <string>9600</string>
+    </property>
+   </action>
+  </actiongroup>
   <actiongroup name="actionSwitchableGroup">
    <action name="actionTo_Host">
     <property name="checkable">
@@ -264,7 +318,9 @@
    </action>
   </actiongroup>
  </widget>
- <resources/>
+ <resources>
+  <include location="mainwindow.qrc"/>
+ </resources>
  <connections>
   <connection>
    <sender>actionExit</sender>

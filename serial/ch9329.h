@@ -10,8 +10,13 @@ const QByteArray CMD_GET_PARA_CFG = QByteArray::fromHex("57 AB 00 08 00");
 const QByteArray CMD_GET_INFO = QByteArray::fromHex("57 AB 00 01 00");
 const QByteArray CMD_RESET = QByteArray::fromHex("57 AB 00 0F 00");
 const QByteArray CMD_SET_DEFAULT_CFG = QByteArray::fromHex("57 AB 00 0C 00");
+<<<<<<< HEAD
 const QByteArray CMD_SET_PARA_CFG_PREFIX = QByteArray::fromHex("57 AB 00 09 0F 82 80 00 00 01 C2 00");
 const QByteArray CMD_SET_PARA_CFG_MID = QByteArray::fromHex("08 00 00 03 86 1a 29 e1 00 00 00 01 00 0d 00 00 00 00 00 00") + QByteArray(23, 0x00) ;
+=======
+const QByteArray CMD_SET_PARA_CFG_PREFIX = QByteArray::fromHex("57 AB 00 09 32 82 80 00 00 01 C2 00");
+const QByteArray CMD_SET_PARA_CFG_MID = QByteArray::fromHex("08 00 00 03 86 1a 29 e1 00 00 00 01 00 0d 00 00 00 00 00 00 00") + QByteArray(22, 0x00) ;
+>>>>>>> a0f7b3629a0f59c0b38612daaac52b9c437854ea
 
 
 /* Command success */
@@ -33,15 +38,6 @@ static uint16_t toLittleEndian(uint16_t value) {
     return (value >> 8) | (value << 8);
 }
 
-static quint8 calculateChecksum(const QByteArray &data) {
-    quint32 sum = 0;
-    for (auto byte : data) {
-        sum += static_cast<unsigned char>(byte);
-    }
-    return sum % 256;
-}
-
-
 static uint32_t toLittleEndian(uint32_t value) {
     return ((value >> 24) & 0xff) | // Move byte 3 to byte 0
            ((value << 8) & 0xff0000) | // Move byte 1 to byte 2
@@ -55,10 +51,10 @@ T fromByteArray(const QByteArray &data) {
     if (data.size() > 0) {
         std::memcpy(&result, data.constData(), sizeof(T));
         // Debugging: Print the raw data
-        qDebug() << "Raw data:" << data.toHex(' ');
+        // qDebug() << "Raw data:" << data.toHex(' ');
 
         // Debugging: Print the parsed fields
-        result.dump();
+        // result.dump();
     } else {
         qWarning() << "Data size is too small to parse" << typeid(T).name();
         qDebug() << "Data content:" << data.toHex(' ');
@@ -109,35 +105,35 @@ struct CmdGetInfoResult {
 
 struct CmdDataParamConfig
 {
-    uint16_t prefix;    //0x57AB
-    uint8_t addr1;      //0x00
-    uint8_t cmd;        //0x08
-    uint8_t len;        //0x32
-    uint8_t mode;       //0x82
-    uint8_t cfg;
-    uint8_t addr2;
-    uint32_t baudrate;
-    uint16_t reserved1;
-    uint16_t serial_interval;
-    uint16_t vid;
-    uint16_t pid;
-    uint16_t keyboard_upload_interval;
-    uint16_t keyboard_release_timeout;
-    uint8_t keyboard_auto_enter;
-    uint32_t enterkey1;
-    uint32_t enterkey2;
-    uint32_t filter_start;
-    uint32_t filter_end;
-    uint8_t custom_usb_desc;
-    uint8_t speed_mode;
-    uint16_t reserved2;
-    uint16_t reserved3;
-    uint16_t reserved4;
-    uint8_t sum;
+    uint8_t prefix1;    //0, 0x57
+    uint8_t prefix2;    //1, 0xAB
+    uint8_t addr1;      //2, 0x00
+    uint8_t cmd;        //3, 0x08
+    uint8_t len;        //4, 0x32
+    uint8_t mode;       //5, 0x82
+    uint8_t cfg;        //6
+    uint8_t addr2;      //7, 0x80
+    uint32_t baudrate;  //8-11
+    uint16_t reserved1; //12-13
+    uint16_t serial_interval;   //14-15, default 3ms
+    uint16_t vid;       //16-17
+    uint16_t pid;       //18-19
+    uint16_t keyboard_upload_interval;  //20-21
+    uint16_t keyboard_release_timeout;  //22-23
+    uint8_t keyboard_auto_enter;    //24
+    uint32_t enterkey1;             //25-28
+    uint32_t enterkey2;             //29-32    
+    uint32_t filter_start;      //33-36
+    uint32_t filter_end;        //37-40
+    uint8_t custom_usb_desc;    //41
+    uint8_t speed_mode;     //42
+    uint16_t reserved2;     //43-46
+    uint16_t reserved3;     //47-50
+    uint16_t reserved4;     //51-54
+    uint8_t sum;            
 
     static CmdDataParamConfig fromByteArray(const QByteArray &data) {
         CmdDataParamConfig config;
-        // change to 3th byte value to 1
         if (data.size() >= static_cast<qsizetype>(sizeof(CmdDataParamConfig))) {
             std::memcpy(&config, data.constData(), sizeof(CmdDataParamConfig));
 
@@ -157,7 +153,7 @@ struct CmdDataParamConfig
             // qDebug() << "Raw data:" << data.toHex(' ');
 
             // Debugging: Print the parsed fields
-            // config.dump();
+            config.dump();
         } else {
             qWarning() << "Data size is too small to parse CmdDataParamConfig";
             qWarning() << data.size() <<  sizeof(CmdDataParamConfig);
@@ -166,7 +162,7 @@ struct CmdDataParamConfig
     }
 
     void dump() {
-        qDebug() << "prefix:" << QString::number(prefix, 16)
+        qDebug() << "prefix:" << QString::number(prefix1, 16) +  QString::number(prefix2, 16)
         << "| addr1:" << addr1
         << "| cmd:" << QString::number(cmd, 16)
         << "| len:" << len

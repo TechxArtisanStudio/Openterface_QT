@@ -146,12 +146,12 @@ protected:
     void onActionSwitchToHostTriggered();
     void onActionSwitchToTargetTriggered();
     void onFollowSwitchTriggered();
+    void onActionPasteToTarget();
+    void onActionScreensaver();
 
     void queryResolutions();
 
     void updateResolutions(int input_width, int input_height, float input_fps, int capture_width, int capture_height, int capture_fps);
-
-    void handlePasteFromHost();
 
 private:
     Ui::Camera *ui;

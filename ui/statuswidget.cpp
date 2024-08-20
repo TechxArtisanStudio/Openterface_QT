@@ -81,7 +81,7 @@ void StatusWidget::setTargetUsbConnected(const bool isConnected){
         keyboardIndicatorsLabel->setStyleSheet("color: green; border-radius: 5px;");
     } else {
         keyboardIndicatorsLabel->setText("TARGET");
-        keyboardIndicatorsLabel->setToolTip("Target Keyboard & Mouse USB connected");
+        keyboardIndicatorsLabel->setToolTip("Target Keyboard & Mouse USB disconnected");
         keyboardIndicatorsLabel->setStyleSheet("color: white; background-color: red; border-radius: 5px; margin: 2px 0;");
     }
     update();
