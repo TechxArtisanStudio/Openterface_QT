@@ -83,7 +83,7 @@ jobs:
         uses: Minionguyjpro/Inno-Setup-Action@v1.2.2
         with:
           path: installer.iss
-          options: /O+ /DWorkingDir="${{ runner.temp }}\build" /DMY_APP_VERSION="${{ env.MY_APP_VERSION }}" /DMY_APP_PUBLISHER="${{ env.MY_APP_PUBLISHER }}" /DMY_APP_URL="${{ env.MY_APP_URL }}"
+          options: /O+ /DWorkingDir="${{ runner.temp }}\build" /DMY_APP_VERSION="${{ vars.MY_APP_VERSION }}" /DMY_APP_PUBLISHER="${{ vars.MY_APP_PUBLISHER }}" /DMY_APP_URL="${{ vars.MY_APP_URL }}"
 
       - name: Save build artifact
         uses: actions/upload-artifact@v4
