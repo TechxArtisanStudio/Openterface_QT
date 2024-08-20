@@ -2,16 +2,16 @@
 ; SEE THE DOCUMENTATION FOR DETAILS ON CREATING INNO SETUP SCRIPT FILES!
 
 #define MyAppName "Openterface Mini-KVM"
-#define MyAppVersion "1.0.0"
-#define MyAppPublisher "Guangzhou Billio Tech, Inc."
-#define MyAppURL "https://openterface.com/"
+#define MyAppVersion GetEnv('MY_APP_VERSION')
+#define MyAppPublisher GetEnv('MY_APP_PUBLISHER')
+#define MyAppURL GetEnv('MY_APP_URL')
 #define MyAppExeName "openterfaceQT.exe"
 #define MyWorkingDir "{param:WorkingDir|D:\a\_temp\build\package}"
 
 [Setup]
 ; NOTE: The value of AppId uniquely identifies this application. Do not use the same AppId value in installers for other applications.
 ; (To generate a new GUID, click Tools | Generate GUID inside the IDE.)
-AppId={{4200459F-8F27-46C4-BFB2-65C1447AE912}
+AppId={4200459F-8F27-46C4-BFB2-65C1447AE912}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
 ;AppVerName={#MyAppName} {#MyAppVersion}
