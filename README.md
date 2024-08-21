@@ -22,6 +22,7 @@
 # Download & Run from Github build
 1. Download the package from Github release page, and find the latest version to download according to your os and cpu architecture.
 2. For Windows user, just run the installer and it will install all required drivers and application to your windows. You can run the application from start menu.
+    - Note: If you are running under ARM architecture, an extra step is required to install "Microsoft Visual C++ Redistributable for Visual Studio" which can be downloaded here: [Microsoft Visual C++ Redistributable](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist?view=msvc-170#latest-microsoft-visual-c-redistributable-version)
 3. For Linux user, you should install the dependency first then install the package.
 
  ```bash
@@ -39,7 +40,6 @@ sudo dpkg -i openterfaceQT.deb
 # Run from terminal 
 openterfaceQT
  ```
-
 # Development
 - Using QT Creator
   1. Install [QT for opensource](https://www.qt.io/download-qt-installer-oss?hsCtaTracking=99d9dd4f-5681-48d2-b096-470725510d34%7C074ddad0-fdef-4e53-8aa8-5e8a876d6ab4), recommanded version 6.4.3
