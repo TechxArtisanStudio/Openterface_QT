@@ -33,6 +33,7 @@
 #include <QStackedWidget>
 #include <set>
 #include <QMediaDevices>
+#include <QByteArray>
 
 QT_BEGIN_NAMESPACE
 class QCameraFormat;
@@ -77,8 +78,10 @@ public:
     // explicit SettingDialog(QCamera *camera, QWidget *parent = nullptr);
     explicit SettingDialog(QCamera *camera, QWidget *parent = nullptr);
     ~SettingDialog();
+
 signals:
-    void hardwareSettingsApplied();
+    void cameraSettingsApplied();
+    void serialSettingsApplied();
 
 private:
     
@@ -115,6 +118,7 @@ private:
     void createHardwarePage();
     void findUvcCameraDevices();
     void applyHardwareSetting();
+    QByteArray convertStringToByteArray(const QString str);
     void initHardwareSetting();
     void createPages();
     
