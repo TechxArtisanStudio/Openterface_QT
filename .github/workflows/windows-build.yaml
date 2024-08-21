@@ -14,7 +14,7 @@ defaults:
     shell: cmd
 
 env:
-  ARTIFACT: OpenterfaceInstaller.exe
+  ARTIFACT: "${{ vars.MY_APP_EXE_NAME }}"
   SOURCE_DIR: ${{ github.workspace }}
   QT_VERSION: 6.4.3
 
