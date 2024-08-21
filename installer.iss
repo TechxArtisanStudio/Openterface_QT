@@ -22,6 +22,7 @@ AppSupportURL={#MyAppURL}
 AppUpdatesURL={#MyAppURL}
 DefaultDirName={autopf}\{#MyAppName}
 DisableProgramGroupPage=yes
+VersionInfoVersion={#MyAppVersion}
 VersionInfoDescription={#MyAppName} {#MyAppVersion} Installer
 VersionInfoCompany={#MyAppPublisher}
 VersionInfoCopyright=Copyright © {#MyAppPublisher} {#MyAppVersion}
