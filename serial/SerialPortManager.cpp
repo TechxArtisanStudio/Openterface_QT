@@ -21,11 +21,14 @@
 */
 
 #include "SerialPortManager.h"
+#include "../ui/globalsetting.h"
+
 #include <QSerialPortInfo>
 #include <QTimer>
 #include <QtConcurrent>
 #include <QFuture>
 #include <QtSerialPort>
+
 
 Q_LOGGING_CATEGORY(log_core_serial, "opf.core.serial")
 
@@ -564,6 +567,59 @@ void SerialPortManager::setVIDAndPID(QByteArray &VID, QByteArray &PID){
     // command.append(QByteArray::fromHex("87 1A"));
     command.append(VID);
     command.append(PID);
+    command.append(QByteArray::fromHex("00 00 00 01 00 0D 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00"));
+    
+    qDebug() <<  "no checksum" << command;
+    
+    QByteArray respon = sendSyncCommand(command, true);
+    qDebug() << respon;
+
+    qDebug() << "After sending command";
+}
+
+
+
+void SerialPortManager::enableUSBSign(bool enable) {
+    QSettings settings("Techxartisan", "Openterface");
+    QByteArray command = CMD_SET_PARA_CFG_PREFIX;
+
+    QString VID = settings.value("serial/vid", "86 1A").toString();
+    QString PID = settings.value("serial/pid", "29 E1").toString();
+    QString USBevent_release_entersign_byte = "00 00 00 00 00";
+    
+    QString USBEnterChar = "00 00 00 00 00 00 00 00";
+    QString USBfilter = "00 00 00 00 00 00 00 00";
+    QString USBEnable = "87";
+    QString USBDisable = "00";
+    QString USBQuickUploadSign = "00";
+    QString USBReserved = "00 00";
+
+    QByteArray vidbyte = GlobalSetting::instance().convertStringToByteArray(VID);
+    QByteArray pidbyte = GlobalSetting::instance().convertStringToByteArray(PID);
+    QByteArray USBEventbyte = GlobalSetting::instance().convertStringToByteArray(USBevent_release_entersign_byte);
+    QByteArray USBEnterCharByte = GlobalSetting::instance().convertStringToByteArray(USBEnterChar);
+    QByteArray USBfilterByte = GlobalSetting::instance().convertStringToByteArray(USBfilter);
+    QByteArray USBEnableByte = GlobalSetting::instance().convertStringToByteArray(USBEnable);
+    QByteArray USBDisableByte = GlobalSetting::instance().convertStringToByteArray(USBDisable);
+    QByteArray USBQuickUploadSignByte = GlobalSetting::instance().convertStringToByteArray(USBQuickUploadSign);
+    QByteArray USBReservedByte = GlobalSetting::instance().convertStringToByteArray(USBReserved);
+    
+    QByteArray disableByte = QByteArray::fromHex("00");
+    command.append(QByteArray::fromHex("08 00 00 03"));
+    command.append(vidbyte);
+    command.append(pidbyte);
+    command.append(USBEventbyte);
+    command.append(USBEnterCharByte);
+    command.append(USBfilterByte);
+
+    if (enable) {
+        command.append(USBEnableByte);
+    }else{
+        command.append(USBDisableByte);
+    }
+    command.append(USBQuickUploadSignByte);
+    command.append(USBReservedByte);
+
     qDebug() <<  "no checksum" << command;
     
     QByteArray respon = sendSyncCommand(command, true);

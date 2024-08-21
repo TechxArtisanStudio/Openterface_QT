@@ -563,8 +563,8 @@ void SettingDialog::applyHardwareSetting(){
     QString vidstring = VIDLineEdit->text();
     QString pidstring = PIDLineEdit->text();
 
-    QByteArray VID_byte = convertStringToByteArray(vidstring);
-    QByteArray PID_byte = convertStringToByteArray(pidstring);
+    QByteArray VID_byte = GlobalSetting::instance().convertStringToByteArray(vidstring);
+    QByteArray PID_byte = GlobalSetting::instance().convertStringToByteArray(pidstring);
 
     if (cameraDescription != uvcCamBox->currentText()){
         GlobalSetting::instance().setCameraDeviceSetting(uvcCamBox->currentText());
@@ -573,12 +573,7 @@ void SettingDialog::applyHardwareSetting(){
 
     GlobalSetting::instance().setVIDPID(VIDLineEdit->text(), PIDLineEdit->text());
     SerialPortManager::getInstance().setVIDAndPID(VID_byte, PID_byte);
-    // if (VID != VIDLineEdit->text() || PID != PIDLineEdit->text()){
-    //     // GlobalSetting::instance().setVIDPID(VIDLineEdit->text(), PIDLineEdit->text());
-    //     // emit serialSettingsApplied(); // emit the hardware setting signal to change the serial device
-        
-    // }
-    
+
 }
 
 void SettingDialog::initHardwareSetting(){
