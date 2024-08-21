@@ -88,6 +88,6 @@ jobs:
       - name: Save build artifact
         uses: actions/upload-artifact@v4
         with:
-          name: openterface-installer.exe
-          path: ${{ env.SOURCE_DIR }}\Output\${{ env.ARTIFACT }}
+          name: ${{ env.ARTIFACT }}
+          path: ${{ env.SOURCE_DIR }}\Output\openterface-installer.exe
           if-no-files-found: error
