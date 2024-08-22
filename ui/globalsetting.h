@@ -49,6 +49,8 @@ public:
     
     QByteArray convertStringToByteArray(QString str);
 
+    void setUSBSign(bool sign);
+
 private:
     QSettings settings;
 };

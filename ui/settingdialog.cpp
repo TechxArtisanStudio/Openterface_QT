@@ -505,6 +505,10 @@ void SettingDialog::createHardwarePage(){
     PIDLayout->addWidget(PIDLabel);
     PIDLayout->addWidget(PIDLineEdit);
     PIDLayout->addStretch();
+    QLabel *USBSignLabel = new QLabel("USB Sign: ");
+    USBSignLabel->setStyleSheet(smallLabelFontSize);
+    QCheckBox *USBSign = new QCheckBox("USB sign");
+    USBSign->setObjectName("USBSign");
 
     QVBoxLayout *hardwareLayout = new QVBoxLayout(hardwarePage);
     hardwareLayout->addWidget(hardwareLabel);
@@ -513,6 +517,8 @@ void SettingDialog::createHardwarePage(){
     hardwareLayout->addWidget(VIDPIDLabel);
     hardwareLayout->addLayout(VIDLayout);
     hardwareLayout->addLayout(PIDLayout);
+    hardwareLayout->addWidget(USBSignLabel);
+    hardwareLayout->addWidget(USBSign);
 
     hardwareLayout->addStretch();
     findUvcCameraDevices();
@@ -541,25 +547,18 @@ void SettingDialog::findUvcCameraDevices(){
 
 }
 
-QByteArray SettingDialog::convertStringToByteArray(const QString str){
-    bool ok;
-    int value = str.toInt(&ok,16);
-    QByteArray result;
-
-    result.append(static_cast<char>((value >> 8) & 0xFF)); // high byte
-    result.append(static_cast<char>(value)); // low byte
-    return result;
-}
-
 void SettingDialog::applyHardwareSetting(){
     QSettings settings("Techxartisan", "Openterface");
     QString cameraDescription = settings.value("camera/device", "Openterface").toString();
     QString VID = settings.value("serial/vid", "86 1A").toString();
     QString PID = settings.value("serial/pid", "29 E1").toString();
+    bool USBSign = settings.value("serial/usbsign", true).toBool();
 
     QComboBox *uvcCamBox = hardwarePage->findChild<QComboBox*>("uvcCamBox");
     QLineEdit *VIDLineEdit = hardwarePage->findChild<QLineEdit*>("VIDLineEdit");
     QLineEdit *PIDLineEdit = hardwarePage->findChild<QLineEdit*>("PIDLineEdit");
+    QCheckBox *USBSignCheckbox = hardwarePage->findChild<QCheckBox*>("USBSign");
+    bool usbsign = USBSignCheckbox->isChecked();
     QString vidstring = VIDLineEdit->text();
     QString pidstring = PIDLineEdit->text();
 
@@ -572,6 +571,9 @@ void SettingDialog::applyHardwareSetting(){
     }
 
     GlobalSetting::instance().setVIDPID(VIDLineEdit->text(), PIDLineEdit->text());
+
+    if (USBSign != usbsign)GlobalSetting::instance().setUSBSign(usbsign);
+
     SerialPortManager::getInstance().setVIDAndPID(VID_byte, PID_byte);
 
 }
@@ -585,7 +587,7 @@ void SettingDialog::initHardwareSetting(){
     uvcCamBox->setCurrentText(settings.value("camera/device", "Openterface").toString());
     VIDLineEdit->setText(settings.value("serial/vid", "861A").toString());
     PIDLineEdit->setText(settings.value("serial/pid", "29E1").toString());
-
+    
 }
 
 void SettingDialog::createPages() {

@@ -76,6 +76,11 @@ void GlobalSetting::setVIDPID(QString vid, QString pid){
     
 }
 
+void GlobalSetting::setUSBSign(bool sign){
+    settings.setValue("serial/usbsign", sign);
+}
+
+
 /*
 * Convert QString to ByteArray
 */
