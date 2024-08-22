@@ -118,7 +118,6 @@ private:
     void createHardwarePage();
     void findUvcCameraDevices();
     void applyHardwareSetting();
-    QByteArray convertStringToByteArray(const QString str);
     void initHardwareSetting();
     void createPages();
     
