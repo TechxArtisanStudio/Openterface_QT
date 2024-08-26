@@ -569,12 +569,13 @@ void SerialPortManager::setVIDAndPID(QByteArray &VID, QByteArray &PID){
     command.append(PID);
     command.append(QByteArray::fromHex("00 00 00 01 00 0D 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00"));
     
-    qDebug() <<  "no checksum" << command;
+    qDebug() <<  "PID VID no checksum" << command;
+    if (serialPort != nullptr && serialPort->isOpen()){
+        QByteArray respon = sendSyncCommand(command, true);
+        qDebug() << respon;
+        qDebug() << "PID VID After sending command";
+    }
     
-    QByteArray respon = sendSyncCommand(command, true);
-    qDebug() << respon;
-
-    qDebug() << "After sending command";
 }
 
 
@@ -585,14 +586,15 @@ void SerialPortManager::enableUSBSign(bool enable) {
 
     QString VID = settings.value("serial/vid", "86 1A").toString();
     QString PID = settings.value("serial/pid", "29 E1").toString();
-    QString USBevent_release_entersign_byte = "00 00 00 00 00";
+    QString USBevent_release_entersign_byte = "00 00 00 01 00";
     
-    QString USBEnterChar = "00 00 00 00 00 00 00 00";
+    QString USBEnterChar = "0D 00 00 00 00 00 00 00";
     QString USBfilter = "00 00 00 00 00 00 00 00";
     QString USBEnable = "87";
     QString USBDisable = "00";
     QString USBQuickUploadSign = "00";
-    QString USBReserved = "00 00";
+    QString USBReserved = "00 00 00 00 00 00 00 00";
+    QString USBReserved1 = "00 00 00 00";
 
     QByteArray vidbyte = GlobalSetting::instance().convertStringToByteArray(VID);
     QByteArray pidbyte = GlobalSetting::instance().convertStringToByteArray(PID);
@@ -603,8 +605,8 @@ void SerialPortManager::enableUSBSign(bool enable) {
     QByteArray USBDisableByte = GlobalSetting::instance().convertStringToByteArray(USBDisable);
     QByteArray USBQuickUploadSignByte = GlobalSetting::instance().convertStringToByteArray(USBQuickUploadSign);
     QByteArray USBReservedByte = GlobalSetting::instance().convertStringToByteArray(USBReserved);
-    
-    QByteArray disableByte = QByteArray::fromHex("00");
+    QByteArray USBReserved1Byte = GlobalSetting::instance().convertStringToByteArray(USBReserved1);
+
     command.append(QByteArray::fromHex("08 00 00 03"));
     command.append(vidbyte);
     command.append(pidbyte);
@@ -614,18 +616,22 @@ void SerialPortManager::enableUSBSign(bool enable) {
 
     if (enable) {
         command.append(USBEnableByte);
+        qDebug() << "eable test";
     }else{
         command.append(USBDisableByte);
+        qDebug() << "disable test";
     }
     command.append(USBQuickUploadSignByte);
     command.append(USBReservedByte);
+    command.append(USBReserved1Byte);
 
     qDebug() <<  "no checksum" << command;
-    
-    QByteArray respon = sendSyncCommand(command, true);
-    qDebug() << respon;
+    if (serialPort != nullptr && serialPort->isOpen()){
+        QByteArray respon = sendSyncCommand(command, true);
+        qDebug() << respon;
+        qDebug() << "After sending command";
+    }
 
-    qDebug() << "After sending command";
 }
 
 void SerialPortManager::sendCommand(const QByteArray &command, bool waitForAck) {

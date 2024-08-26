@@ -52,6 +52,7 @@
 #include <QSerialPortInfo>
 #include <QLineEdit>
 #include <QByteArray>
+#include <QThread>
 
 SettingDialog::SettingDialog(QCamera *_camera, QWidget *parent)
     : QDialog(parent)
@@ -552,7 +553,7 @@ void SettingDialog::applyHardwareSetting(){
     QString cameraDescription = settings.value("camera/device", "Openterface").toString();
     QString VID = settings.value("serial/vid", "86 1A").toString();
     QString PID = settings.value("serial/pid", "29 E1").toString();
-    bool USBSign = settings.value("serial/usbsign", true).toBool();
+    bool USBSign = settings.value("serial/usbsign", false).toBool();
 
     QComboBox *uvcCamBox = hardwarePage->findChild<QComboBox*>("uvcCamBox");
     QLineEdit *VIDLineEdit = hardwarePage->findChild<QLineEdit*>("VIDLineEdit");
@@ -572,10 +573,12 @@ void SettingDialog::applyHardwareSetting(){
 
     GlobalSetting::instance().setVIDPID(VIDLineEdit->text(), PIDLineEdit->text());
 
-    if (USBSign != usbsign)GlobalSetting::instance().setUSBSign(usbsign);
-
+    if (USBSign != usbsign)
+    GlobalSetting::instance().setUSBSign(usbsign);
+    
     SerialPortManager::getInstance().setVIDAndPID(VID_byte, PID_byte);
-
+    QThread::sleep(1);
+    SerialPortManager::getInstance().enableUSBSign(true);
 }
 
 void SettingDialog::initHardwareSetting(){
@@ -583,11 +586,12 @@ void SettingDialog::initHardwareSetting(){
     QComboBox *uvcCamBox = hardwarePage->findChild<QComboBox*>("uvcCamBox");
     QLineEdit *VIDLineEdit = hardwarePage->findChild<QLineEdit*>("VIDLineEdit");
     QLineEdit *PIDLineEdit = hardwarePage->findChild<QLineEdit*>("PIDLineEdit");
+    QCheckBox *USBSign = hardwarePage->findChild<QCheckBox*>("USBSign");
 
     uvcCamBox->setCurrentText(settings.value("camera/device", "Openterface").toString());
     VIDLineEdit->setText(settings.value("serial/vid", "861A").toString());
     PIDLineEdit->setText(settings.value("serial/pid", "29E1").toString());
-    
+    USBSign->setChecked(settings.value("serial/usbsign", false).toBool());
 }
 
 void SettingDialog::createPages() {
