@@ -11,7 +11,7 @@ const QByteArray CMD_GET_INFO = QByteArray::fromHex("57 AB 00 01 00");
 const QByteArray CMD_RESET = QByteArray::fromHex("57 AB 00 0F 00");
 const QByteArray CMD_SET_DEFAULT_CFG = QByteArray::fromHex("57 AB 00 0C 00");
 
-const QByteArray CMD_SET_PARA_CFG_PREFIX = QByteArray::fromHex("57 AB 00 09 0F 82 80 00 00 01 C2 00");
+const QByteArray CMD_SET_PARA_CFG_PREFIX = QByteArray::fromHex("57 AB 00 09 32 82 80 00 00 01 C2 00");
 const QByteArray CMD_SET_PARA_CFG_MID = QByteArray::fromHex("08 00 00 03 86 1a 29 e1 00 00 00 01 00 0d 00 00 00 00 00 00 00") + QByteArray(22, 0x00) ;
 
 
@@ -271,5 +271,37 @@ struct CmdResetResult {
         << "| sum:" << QString::number(sum, 16);
     }
 };
+
+
+static void dumpError(unsigned char status, const QByteArray &data) {
+    if (status != 0x00) {
+        switch (status)
+        {
+        case DEF_CMD_ERR_TIMEOUT:
+            qDebug() << "Error(" + QString::number(status, 16) + "), Serial response timeout, data: " + data.toHex(' ');
+            break;
+        case DEF_CMD_ERR_HEAD:
+            qDebug() << "Error(" + QString::number(status, 16) + "),  Packet header error, data: " + data.toHex(' ');
+            break;
+        case DEF_CMD_ERR_CMD:
+            qDebug() << "Error(" + QString::number(status, 16) + "),  Command error, data: " + data.toHex(' ');
+            break;
+        case DEF_CMD_ERR_SUM:
+            qDebug() << "Error(" + QString::number(status, 16) + "),  Checksum error, data: " + data.toHex(' ');
+            break;
+        case DEF_CMD_ERR_PARA:
+            qDebug() << "Error(" + QString::number(status, 16) + "),  Argument error, data: " + data.toHex(' ');
+            break;
+        case DEF_CMD_ERR_OPERATE:
+            qDebug() << "Error(" + QString::number(status, 16) + "),  Execution error, data: " + data.toHex(' ');
+            break;
+        default:
+            qDebug() << "Error(" + QString::number(status, 16) + "),  Unknown error, data: " + data.toHex(' ');
+            break;
+        }
+    }else{
+        // Handle other cases
+    }
+}
 
 #endif // CH9329_H
