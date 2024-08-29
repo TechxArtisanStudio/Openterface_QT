@@ -76,8 +76,8 @@ void GlobalSetting::setVIDPID(QString vid, QString pid){
     
 }
 
-void GlobalSetting::setUSBSign(bool sign){
-    settings.setValue("serial/usbsign", sign);
+void GlobalSetting::setUSBFlag(QString flag){
+    settings.setValue("serial/usbflag", flag);
 }
 
 
