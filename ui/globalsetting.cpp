@@ -85,11 +85,16 @@ void GlobalSetting::setUSBSign(bool sign){
 * Convert QString to ByteArray
 */
 QByteArray GlobalSetting::convertStringToByteArray(QString str) {
-    str.remove(QChar(' '));
+    QStringList hexParts = str.split(" ", Qt::SkipEmptyParts);
+
+
+    QString hexString = hexParts.join("");
+    
     bool ok;
-    int value = str.toInt(&ok, 16);
+    int value = hexString.toInt(&ok, 16);
     if (!ok) {
         // Handle the error, e.g., by returning an empty QByteArray or throwing an exception
+        qDebug() << str << "Error converting string";
         return QByteArray();
     }
 

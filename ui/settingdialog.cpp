@@ -578,7 +578,7 @@ void SettingDialog::applyHardwareSetting(){
     
     SerialPortManager::getInstance().setVIDAndPID(VID_byte, PID_byte);
     QThread::sleep(1);
-    SerialPortManager::getInstance().enableUSBSign(true);
+    SerialPortManager::getInstance().enableUSBFlag("87");
 }
 
 void SettingDialog::initHardwareSetting(){
