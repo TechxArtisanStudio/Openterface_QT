@@ -506,10 +506,15 @@ void SettingDialog::createHardwarePage(){
     PIDLayout->addWidget(PIDLabel);
     PIDLayout->addWidget(PIDLineEdit);
     PIDLayout->addStretch();
-    QLabel *USBSignLabel = new QLabel("USB Sign: ");
-    USBSignLabel->setStyleSheet(smallLabelFontSize);
-    QCheckBox *USBSign = new QCheckBox("USB sign");
-    USBSign->setObjectName("USBSign");
+    QHBoxLayout *USBFlagLayout = new QHBoxLayout();
+    QLabel *USBFlagLabel = new QLabel("USB enable flag: ");
+    USBFlagLabel->setStyleSheet(smallLabelFontSize);
+    QLineEdit *USBFlag = new QLineEdit(hardwarePage);
+    USBFlag->setObjectName("USBFlagEdit");
+    USBFlag->setMaximumWidth(100);
+    USBFlagLayout->addWidget(USBFlagLabel);
+    USBFlagLayout->addWidget(USBFlag);
+    USBFlagLayout->addStretch();
 
     QVBoxLayout *hardwareLayout = new QVBoxLayout(hardwarePage);
     hardwareLayout->addWidget(hardwareLabel);
@@ -518,8 +523,7 @@ void SettingDialog::createHardwarePage(){
     hardwareLayout->addWidget(VIDPIDLabel);
     hardwareLayout->addLayout(VIDLayout);
     hardwareLayout->addLayout(PIDLayout);
-    hardwareLayout->addWidget(USBSignLabel);
-    hardwareLayout->addWidget(USBSign);
+    hardwareLayout->addLayout(USBFlagLayout);
 
     hardwareLayout->addStretch();
     findUvcCameraDevices();
@@ -553,16 +557,16 @@ void SettingDialog::applyHardwareSetting(){
     QString cameraDescription = settings.value("camera/device", "Openterface").toString();
     QString VID = settings.value("serial/vid", "86 1A").toString();
     QString PID = settings.value("serial/pid", "29 E1").toString();
-    bool USBSign = settings.value("serial/usbsign", false).toBool();
+    QString USBFlag = settings.value("serial/usbflag", "87").toString();
 
     QComboBox *uvcCamBox = hardwarePage->findChild<QComboBox*>("uvcCamBox");
     QLineEdit *VIDLineEdit = hardwarePage->findChild<QLineEdit*>("VIDLineEdit");
     QLineEdit *PIDLineEdit = hardwarePage->findChild<QLineEdit*>("PIDLineEdit");
-    QCheckBox *USBSignCheckbox = hardwarePage->findChild<QCheckBox*>("USBSign");
-    bool usbsign = USBSignCheckbox->isChecked();
+    QLineEdit *USBFlagEdit = hardwarePage->findChild<QLineEdit*>("USBFlagEdit");
+    QString usbflag = USBFlagEdit->text();
     QString vidstring = VIDLineEdit->text();
     QString pidstring = PIDLineEdit->text();
-
+    qDebug() << "init ";
     QByteArray VID_byte = GlobalSetting::instance().convertStringToByteArray(vidstring);
     QByteArray PID_byte = GlobalSetting::instance().convertStringToByteArray(pidstring);
 
@@ -573,12 +577,14 @@ void SettingDialog::applyHardwareSetting(){
 
     GlobalSetting::instance().setVIDPID(VIDLineEdit->text(), PIDLineEdit->text());
 
-    if (USBSign != usbsign)
-    GlobalSetting::instance().setUSBSign(usbsign);
+    if (USBFlag != usbflag){
+        GlobalSetting::instance().setUSBFlag(usbflag);
+    }
+    
     
     SerialPortManager::getInstance().setVIDAndPID(VID_byte, PID_byte);
     QThread::sleep(1);
-    SerialPortManager::getInstance().enableUSBFlag("87");
+    SerialPortManager::getInstance().enableUSBFlag(USBFlagEdit->text());
 }
 
 void SettingDialog::initHardwareSetting(){
@@ -586,12 +592,12 @@ void SettingDialog::initHardwareSetting(){
     QComboBox *uvcCamBox = hardwarePage->findChild<QComboBox*>("uvcCamBox");
     QLineEdit *VIDLineEdit = hardwarePage->findChild<QLineEdit*>("VIDLineEdit");
     QLineEdit *PIDLineEdit = hardwarePage->findChild<QLineEdit*>("PIDLineEdit");
-    QCheckBox *USBSign = hardwarePage->findChild<QCheckBox*>("USBSign");
+    QLineEdit *USBFlagEdit = hardwarePage->findChild<QLineEdit*>("USBFlagEdit");
 
     uvcCamBox->setCurrentText(settings.value("camera/device", "Openterface").toString());
     VIDLineEdit->setText(settings.value("serial/vid", "861A").toString());
     PIDLineEdit->setText(settings.value("serial/pid", "29E1").toString());
-    USBSign->setChecked(settings.value("serial/usbsign", false).toBool());
+    USBFlagEdit->setText(settings.value("serial/usbflag" , "87").toString());
 }
 
 void SettingDialog::createPages() {

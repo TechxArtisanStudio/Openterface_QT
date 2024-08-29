@@ -49,7 +49,7 @@ public:
     
     QByteArray convertStringToByteArray(QString str);
 
-    void setUSBSign(bool sign);
+    void setUSBFlag(QString flag);
 
 private:
     QSettings settings;
