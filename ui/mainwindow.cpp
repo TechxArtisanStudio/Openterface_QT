@@ -22,20 +22,19 @@
 
 #include "mainwindow.h"
 #include "global.h"
-// #include "ui/videosettings.h"
 #include "settingdialog.h"
 #include "ui_mainwindow.h"
 #include "globalsetting.h"
 
 #include "host/HostManager.h"
+#include "serial/SerialPortManager.h"
 
 #include "ui/imagesettings.h"
 #include "ui/settingdialog.h"
 #include "ui/helppane.h"
-// #include "ui/videosettings.h"
+
 #include "ui/videopane.h"
 #include "video/videohid.h"
-
 #include <QCameraDevice>
 #include <QMediaDevices>
 #include <QMediaFormat>
@@ -46,7 +45,8 @@
 #include <QLineEdit>
 #include <QMessageBox>
 #include <QImageCapture>
-
+#include <QToolBar>
+#include <QClipboard>
 #include <QAction>
 #include <QActionGroup>
 #include <QImage>
@@ -56,6 +56,14 @@
 #include <QDir>
 #include <QTimer>
 #include <QLabel>
+
+#include <QMessageBox>
+#include <QDesktopServices>
+#include <QSysInfo>
+#include <QMenuBar>
+#include <QPushButton>
+
+#include <QGuiApplication>
 
 Q_LOGGING_CATEGORY(log_ui_mainwindow, "opf.ui.mainwindow")
 
@@ -98,13 +106,14 @@ Camera::Camera() : ui(new Ui::Camera), videoPane(new VideoPane(this)),
 
     centralWidget->setMouseTracking(true);
 
-    setCentralWidget(centralWidget);
+    ui->menubar->setCornerWidget(ui->cornerWidget, Qt::TopRightCorner);
 
+    setCentralWidget(centralWidget);
     qCDebug(log_ui_mainwindow) << "Set host manager event callback...";
     HostManager::getInstance().setEventCallback(this);
 
-    qCDebug(log_ui_mainwindow) << "Observe HID connected...";
-    VideoHid::getInstance().start();
+    qCDebug(log_ui_mainwindow) << "Observe Video HID connected...";
+    VideoHid::getInstance().setEventCallback(this);
 
     qCDebug(log_ui_mainwindow) << "Observe video input changed...";
     connect(&m_source, &QMediaDevices::videoInputsChanged, this, &Camera::updateCameras);
@@ -124,9 +133,24 @@ Camera::Camera() : ui(new Ui::Camera), videoPane(new VideoPane(this)),
     qCDebug(log_ui_mainwindow) << "Observe reset Serial Port triggerd...";
     connect(ui->actionResetSerialPort, &QAction::triggered, this, &Camera::onActionResetSerialPortTriggered);
 
+    qDebug() << "Observe Hardware change Camera triggerd...";
+    
     // load the settings
+    qDebug() << "Loading settings";
     GlobalSetting::instance().loadLogSettings();
     GlobalSetting::instance().loadVideoSettings();
+
+    qCDebug(log_ui_mainwindow) << "Observe switch usb connection trigger...";
+    connect(ui->actionTo_Host, &QAction::triggered, this, &Camera::onActionSwitchToHostTriggered);
+    connect(ui->actionTo_Target, &QAction::triggered, this, &Camera::onActionSwitchToTargetTriggered);
+    connect(ui->actionFollow_Switch, &QAction::triggered, this, &Camera::onFollowSwitchTriggered);
+
+    qCDebug(log_ui_mainwindow) << "Observe action paste from host...";
+    connect(ui->actionPaste, &QAction::triggered, this, &Camera::onActionPasteToTarget);
+    connect(ui->pasteButton, &QPushButton::released, this, &Camera::onActionPasteToTarget);
+
+    connect(ui->screensaverButton, &QPushButton::released, this, &Camera::onActionScreensaver);
+
     init();
 }
 
@@ -163,19 +187,38 @@ void Camera::init()
 #endif
 
     // Camera devices:
-    updateCameras();
+    // updateCameras();
+    
+
+    loadCameraSettingAndSetCamera();
 
     GlobalVar::instance().setWinWidth(this->width());
     GlobalVar::instance().setWinHeight(this->height());
+    onFollowSwitchTriggered();
 }
 
+void Camera::loadCameraSettingAndSetCamera(){
+    QSettings settings("Techxartisan", "Openterface");
+    QString deviceDescription = settings.value("camera/device", "Openterface").toString();
+    const QList<QCameraDevice> devices = QMediaDevices::videoInputs();
+    if (devices.isEmpty()) {
+        qDebug() << "No video input devices found.";
+    } else {
+        for (const QCameraDevice &cameraDevice : devices) {
+            if (cameraDevice.description() == deviceDescription) {
+                setCamera(cameraDevice);
+                break;
+            }
+        }
+    }
+}
 
 void Camera::setCamera(const QCameraDevice &cameraDevice)
 {
-    if(cameraDevice.description().contains("Openterface") == false){
-    qCDebug(log_ui_mainwindow) << "The camera("<<cameraDevice.description()<<") is not an Openterface Mini-KVM, skip it.";
-    return;
-    }
+    // if(cameraDevice.description().contains("Openterface") == false){
+    // qCDebug(log_ui_mainwindow) << "The camera("<<cameraDevice.description()<<") is not an Openterface Mini-KVM, skip it.";
+    // return;
+    // }
     qCDebug(log_ui_mainwindow) << "Set Camera, device name: " << cameraDevice.description();
 
     m_camera.reset(new QCamera(cameraDevice));
@@ -332,20 +375,100 @@ void Camera::onActionAbsoluteTriggered()
 
 void Camera::onActionResetHIDTriggered()
 {
-    qCDebug(log_ui_mainwindow) << "onActionResetHIDTriggered";
-    HostManager::getInstance().resetHid();
+    QMessageBox::StandardButton reply;
+    reply = QMessageBox::warning(this, "Confirm Reset Keyboard and Mouse?", 
+                                        "Resetting the Keyboard & Mouse chip will apply new settings. Do you want to proceed?",
+                                  QMessageBox::Yes | QMessageBox::No);
+    
+    if (reply == QMessageBox::Yes) {
+        qCDebug(log_ui_mainwindow) << "onActionResetHIDTriggered";
+        HostManager::getInstance().resetHid();
+    } else {
+        qCDebug(log_ui_mainwindow) << "Reset HID canceled by user.";
+    }
 }
 
 void Camera::onActionFactoryResetHIDTriggered()
 {
-    qCDebug(log_ui_mainwindow) << "onActionFactoryResetHIDTriggered";
-    SerialPortManager::getInstance().factoryResetHipChip();
+    QMessageBox::StandardButton reply;
+    reply = QMessageBox::warning(this, "Confirm Factory Reset HID Chip?", 
+                                        "Factory reset the HID chip. Proceed?",
+                                  QMessageBox::Yes | QMessageBox::No);
+    
+    if (reply == QMessageBox::Yes) {
+        qCDebug(log_ui_mainwindow) << "onActionFactoryResetHIDTriggered";
+        SerialPortManager::getInstance().factoryResetHipChip();
+        // HostManager::getInstance().resetHid();
+    } else {
+        qCDebug(log_ui_mainwindow) << "Factory reset HID chip canceled by user.";
+    }
 }
 
 void Camera::onActionResetSerialPortTriggered()
 {
-    qCDebug(log_ui_mainwindow) << "onActionResetSerialPortTriggered";
-    HostManager::getInstance().resetSerialPort();
+    QMessageBox::StandardButton reply;
+    reply = QMessageBox::question(this, "Confirm Reset Serial Port?", 
+                                        "Resetting the serial port will close and re-open it without changing settings. Proceed?",
+                                  QMessageBox::Yes | QMessageBox::No);
+    
+    if (reply == QMessageBox::Yes) {
+        qCDebug(log_ui_mainwindow) << "onActionResetSerialPortTriggered";
+        HostManager::getInstance().resetSerialPort();
+    } else {
+        qCDebug(log_ui_mainwindow) << "Serial port reset canceled by user.";
+    }
+}
+
+void Camera::onActionSwitchToHostTriggered()
+{
+    qCDebug(log_ui_mainwindow) << "Switchable USB to host...";
+    VideoHid::getInstance().switchToHost();
+    ui->actionTo_Host->setChecked(true);
+    ui->actionTo_Target->setChecked(false);
+}
+
+void Camera::onActionSwitchToTargetTriggered()
+{
+    qCDebug(log_ui_mainwindow) << "Switchable USB to target...";
+    VideoHid::getInstance().switchToTarget();
+    ui->actionTo_Host->setChecked(false);
+    ui->actionTo_Target->setChecked(true);
+}
+
+void Camera::onResolutionChange(const int& width, const int& height, const float& fps)
+{
+    GlobalVar::instance().setInputWidth(width);
+    GlobalVar::instance().setInputHeight(height);
+    statusWidget->setInputResolution(width, height, fps);
+}
+
+void Camera::onTargetUsbConnected(const bool isConnected)
+{
+    statusWidget->setTargetUsbConnected(isConnected);
+}
+
+void Camera::onFollowSwitchTriggered()
+{
+    qCDebug(log_ui_mainwindow) << "Follow switch:" << ui->actionFollow_Switch->isChecked();
+    if(ui->actionFollow_Switch->isChecked()){
+        ui->actionTo_Host->setEnabled(false);
+        ui->actionTo_Target->setEnabled(false);
+        GlobalVar::instance().setFollowSwitch(true);
+    }else{
+        ui->actionTo_Host->setEnabled(true);
+        ui->actionTo_Target->setEnabled(true);
+        GlobalVar::instance().setFollowSwitch(false);
+    }
+}
+
+void Camera::onActionPasteToTarget()
+{
+    HostManager::getInstance().pasteTextToTarget(QGuiApplication::clipboard()->text());
+}
+
+void Camera::onActionScreensaver()
+{
+    HostManager::getInstance().autoMoveMouse();
 }
 
 void Camera::popupMessage(QString message)
@@ -444,10 +567,60 @@ void Camera::processCapturedImage(int requestId, const QImage &img)
 void Camera::configureSettings() {
     qDebug() << "Configuring settings...";
     SettingDialog *setting = new SettingDialog(m_camera.data());
+    // check if camera source is change
+    connect(setting, &SettingDialog::cameraSettingsApplied, this, &Camera::loadCameraSettingAndSetCamera);
     qDebug() << "Setting configuration... ";
     setting->show();
 }
 
+void Camera::purchaseLink(){
+    QDesktopServices::openUrl(QUrl("https://www.crowdsupply.com/techxartisan/openterface-mini-kvm"));
+}
+
+void Camera::feedbackLink(){
+    QDesktopServices::openUrl(QUrl("https://forms.gle/KNQPTNfXCPUPybgG9"));
+}
+
+void Camera::aboutLink(){
+    QDesktopServices::openUrl(QUrl("https://openterface.com/"));
+}
+
+void Camera::versionInfo() {
+    QString applicationName = QApplication::applicationName();
+    QString organizationName = QApplication::organizationName();
+    QString applicationVersion = QApplication::applicationVersion();
+    QString osVersion = QSysInfo::prettyProductName();
+    QString title = tr("%1").arg(applicationName);
+    QString message = tr("Version:\t %1 \nQT:\t %2\nOS:\t %3")
+                          .arg(applicationVersion)
+                          .arg(qVersion())
+                          .arg(osVersion);
+
+    QMessageBox msgBox;
+    msgBox.setWindowTitle(title);
+    msgBox.setText(message);
+
+    QPushButton *copyButton = msgBox.addButton(tr("Copy"), QMessageBox::ActionRole);
+    QPushButton *closeButton = msgBox.addButton(QMessageBox::Close);
+
+    connect(copyButton, &QPushButton::clicked, this, &Camera::copyToClipboard);
+
+    msgBox.exec();
+
+}
+
+void Camera::copyToClipboard(){
+    QString applicationName = QApplication::applicationName();
+    QString organizationName = QApplication::organizationName();
+    QString applicationVersion = QApplication::applicationVersion();
+
+    QString message = tr("Version:\t %1 \nOrganization:\t %2")
+                          .arg(applicationVersion)
+                          .arg(organizationName);
+
+    QClipboard *clipboard = QApplication::clipboard();
+    clipboard->setText(message);
+}
 
 void Camera::record()
 {
@@ -485,11 +658,6 @@ void Camera::setExposureCompensation(int index)
     m_camera->setExposureCompensation(index * 0.5);
 }
 
-void Camera::displayRecorderError()
-{
-    if (m_mediaRecorder->error() != QMediaRecorder::NoError)
-        QMessageBox::warning(this, tr("Capture Error"), m_mediaRecorder->errorString());
-}
 
 void Camera::displayCameraError()
 {
@@ -503,10 +671,17 @@ void Camera::displayCameraError()
 }
 
 void Camera::stop(){
-
+    qDebug() << "Stop camera...";
     disconnect(m_camera.data());
-    // m_audioInput->disconnect();
+    qDebug() << "Camera stopped.";
+    m_audioManager->disconnect();
+    qDebug() << "Audio manager stopped.";
     m_captureSession.disconnect();
+    qDebug() << "Capture session stopped.";
+    m_camera->stop();
+    qDebug() << "Camera stopped.";
+    VideoHid::getInstance().stop();
+    qDebug() << "Video HID stopped.";
 }
 
 void Camera::updateCameraDevice(QAction *action)
@@ -569,6 +744,7 @@ void Camera::updateCameras()
             }
             m_audioManager->initializeAudio();
             setCamera(camera);
+            VideoHid::getInstance().start();
             break;
         }
     }
@@ -583,7 +759,6 @@ void Camera::checkCameraConnection()
         if (availableCameras.count() > m_lastCameraList.count()) {
             // A new camera has been connected
             // Find out which camera was connected
-
         }
         m_lastCameraList = availableCameras;
     }
@@ -594,6 +769,10 @@ void Camera::onPortConnected(const QString& port) {
     statusWidget->setConnectedPort(port);
 }
 
+void Camera::onStatusUpdate(const QString& status) {
+    statusWidget->setStatusUpdate(status);
+}
+
 void Camera::onLastKeyPressed(const QString& key) {
     // Implementation...
 }
@@ -602,9 +781,21 @@ void Camera::onLastMouseLocation(const QPoint& location, const QString& mouseEve
     ui->statusbar->showMessage(QString("🖱️(%1,%2)\t%3").arg(location.x()).arg(location.y()).arg(mouseEvent));
 }
 
+void Camera::onSwitchableUsbToggle(const bool isToTarget) {
+    if (isToTarget) {
+        qDebug() << "UI Switchable USB to target...";
+        ui->actionTo_Host->setChecked(false);
+        ui->actionTo_Target->setChecked(true);
+    } else {
+        qDebug() << "UI Switchable USB to host...";
+        ui->actionTo_Host->setChecked(true);
+        ui->actionTo_Target->setChecked(false);
+    }
+    SerialPortManager::getInstance().restartSwitchableUSB();
+}
+
 void Camera::updateResolutions(const int input_width, const int input_height, const float input_fps, const int capture_width, const int capture_height, const int capture_fps)
 {
     statusWidget->setInputResolution(input_width, input_height, input_fps);
     statusWidget->setCaptureResolution(capture_width, capture_height, capture_fps);
 }
-
