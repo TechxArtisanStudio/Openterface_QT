@@ -29,6 +29,7 @@
 #include <QThread>
 #include <QTimer>
 #include <QLoggingCategory>
+#include <QDateTime>
 
 #include "ch9329.h"
 
@@ -60,16 +61,20 @@ public:
     bool writeData(const QByteArray &data);
     bool sendAsyncCommand(const QByteArray &data, bool force);
     QByteArray sendSyncCommand(const QByteArray &data, bool force);
-    bool sendResetCommand();
+
     bool resetHipChip();
     bool reconfigureHidChip();
+    bool factoryResetHipChipV191();
     bool factoryResetHipChip();
-
+    void restartSwitchableUSB();
+    void setVIDAndPID(QByteArray &VID, QByteArray &PID);
+    void enableUSBFlag(QString enable);
 signals:
     void dataReceived(const QByteArray &data);
     void serialPortConnected(const QString &portName);
     void serialPortDisconnected(const QString &portName);
     void serialPortConnectionSuccess(const QString &portName);
+    void sendCommandAsync(const QByteArray &command, bool waitForAck);
 
 private slots:
     void checkSerialPort();
@@ -84,13 +89,23 @@ private slots:
 
     void checkSerialPorts();
 
+    // /*
+    //  * Check if the USB switch status
+    //  * CH340 DSR pin is connected to the hard USB toggle switch,
+    //  * HIGH value means connecting to host, while LOW value means connecting to target
+    //  */
+    // void checkSwitchableUSB();
+
     void onSerialPortConnected(const QString &portName);
     void onSerialPortDisconnected(const QString &portName);
     void onSerialPortConnectionSuccess(const QString &portName);
-
+    
+    
 private:
     SerialPortManager(QObject *parent = nullptr);
     QSerialPort *serialPort;
+
+    void sendCommand(const QByteArray &command, bool waitForAck);
 
     QSet<QString> availablePorts;
 
@@ -100,9 +115,13 @@ private:
     QTimer *serialTimer;
 
     QList<QSerialPortInfo> m_lastPortList;
-    bool ready = false;
+    std::atomic<bool> ready = false;
     StatusEventCallback* eventCallback = nullptr;
-
+    bool isSwitchToHost = false;
+    bool isTargetUsbConnected = false;
+    
+    // New member variable to store the latest update time
+    QDateTime latestUpdateTime;
 };
 
 #endif // SERIALPORTMANAGER_H

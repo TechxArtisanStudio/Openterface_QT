@@ -8,5 +8,7 @@
         <file>../images/icon_128.png</file>
         <file>../images/icon_128.ico</file>
         <file>../images/content_dark_eng.png</file>
+        <file>../images/paste.svg</file>
+        <file>../images/screensaver.svg</file>
     </qresource>
 </RCC>
