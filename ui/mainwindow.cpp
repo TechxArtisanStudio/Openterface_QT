@@ -187,7 +187,7 @@ void Camera::init()
 #endif
 
     // Camera devices:
-    // updateCameras();
+    updateCameras();
     
 
     loadCameraSettingAndSetCamera();
@@ -234,6 +234,8 @@ void Camera::setCamera(const QCameraDevice &cameraDevice)
     m_captureSession.setVideoOutput(this->videoPane);
     qCDebug(log_ui_mainwindow) << "Camera start..";
     m_camera->start();
+
+    VideoHid::getInstance().start();
 }
 
 void Camera::queryResolutions()
@@ -661,6 +663,7 @@ void Camera::setExposureCompensation(int index)
 
 void Camera::displayCameraError()
 {
+    qWarning() << "Camera error: " << m_camera->errorString();
     if (m_camera->error() != QCamera::NoError){
         qCDebug(log_ui_mainwindow) << "A camera has been disconnected.";
 
@@ -671,17 +674,18 @@ void Camera::displayCameraError()
 }
 
 void Camera::stop(){
-    qDebug() << "Stop camera...";
+    qDebug() << "Stop camera data...";
     disconnect(m_camera.data());
-    qDebug() << "Camera stopped.";
+    qDebug() << "Camera data stopped.";
     m_audioManager->disconnect();
     qDebug() << "Audio manager stopped.";
+
     m_captureSession.disconnect();
     qDebug() << "Capture session stopped.";
-    m_camera->stop();
-    qDebug() << "Camera stopped.";
     VideoHid::getInstance().stop();
     qDebug() << "Video HID stopped.";
+    m_camera->stop();
+    qDebug() << "Camera stopped.";
 }
 
 void Camera::updateCameraDevice(QAction *action)
@@ -744,7 +748,6 @@ void Camera::updateCameras()
             }
             m_audioManager->initializeAudio();
             setCamera(camera);
-            VideoHid::getInstance().start();
             break;
         }
     }

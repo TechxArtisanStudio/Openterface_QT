@@ -53,6 +53,8 @@
 #include <QLineEdit>
 #include <QByteArray>
 #include <QThread>
+#include <QLineEdit>
+#include <QByteArray>
 
 SettingDialog::SettingDialog(QCamera *_camera, QWidget *parent)
     : QDialog(parent)
@@ -550,6 +552,7 @@ void SettingDialog::onCheckBoxStateChanged(int state) {
             lineEdit->setReadOnly(state != Qt::Checked);
         }
     }
+
 
 }
 

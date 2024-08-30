@@ -37,6 +37,7 @@
 #include <QMap>
 #include <QCheckBox>
 #include <QLineEdit>
+#include <QByteArray>
 
 QT_BEGIN_NAMESPACE
 class QCameraFormat;
@@ -81,6 +82,7 @@ public:
     // explicit SettingDialog(QCamera *camera, QWidget *parent = nullptr);
     explicit SettingDialog(QCamera *camera, QWidget *parent = nullptr);
     ~SettingDialog();
+
 
 signals:
     void cameraSettingsApplied();
