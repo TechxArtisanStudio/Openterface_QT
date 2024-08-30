@@ -56,7 +56,9 @@
 #include <QDir>
 #include <QTimer>
 #include <QLabel>
-
+#include <QPixmap>
+#include <QSvgRenderer>
+#include <QPainter>
 #include <QMessageBox>
 #include <QDesktopServices>
 #include <QSysInfo>
@@ -151,7 +153,11 @@ Camera::Camera() : ui(new Ui::Camera), videoPane(new VideoPane(this)),
 
     connect(ui->screensaverButton, &QPushButton::released, this, &Camera::onActionScreensaver);
 
+    qDebug() << "Init...";
     init();
+
+    qDebug() << "Init status bar...";
+    initStatusBar();
 }
 
 void Camera::init()
@@ -185,16 +191,47 @@ void Camera::init()
     }
 #endif
 #endif
-
     // Camera devices:
     updateCameras();
-    
 
     loadCameraSettingAndSetCamera();
 
     GlobalVar::instance().setWinWidth(this->width());
     GlobalVar::instance().setWinHeight(this->height());
     onFollowSwitchTriggered();
+}
+
+void Camera::initStatusBar()
+{
+    qCDebug(log_ui_mainwindow) << "Init status bar...";
+
+    // Create a QLabel to hold the SVG icon
+    mouseLabel = new QLabel(this);
+    mouseLocationLabel = new QLabel(QString("(0,0)"), this);
+    mouseLocationLabel->setFixedWidth(68);
+
+    // Mouse container widget
+    QWidget *mouseContainer = new QWidget(this);
+    QHBoxLayout *mouseLayout = new QHBoxLayout(mouseContainer);
+
+    mouseLayout->setContentsMargins(0, 0, 0, 0); // Remove margins
+    mouseLayout->addWidget(mouseLabel);
+    mouseLayout->addWidget(mouseLocationLabel);
+    ui->statusbar->addWidget(mouseContainer);
+
+    onLastMouseLocation(QPoint(0, 0), nullptr);
+    keyPressedLabel = new QLabel(this);
+    keyLabel = new QLabel(this);
+    keyLabel->setFixedWidth(18);
+    // Key container widget
+    QWidget *keyContainer = new QWidget(this);
+    QHBoxLayout *keyLayout = new QHBoxLayout(keyContainer);
+    keyLayout->setContentsMargins(0, 0, 0, 0); // Remove margins
+    keyLayout->addWidget(keyPressedLabel);
+    keyLayout->addWidget(keyLabel);
+    ui->statusbar->addWidget(keyContainer);
+
+    onLastKeyPressed("");
 }
 
 void Camera::loadCameraSettingAndSetCamera(){
@@ -777,11 +814,48 @@ void Camera::onStatusUpdate(const QString& status) {
 }
 
 void Camera::onLastKeyPressed(const QString& key) {
-    // Implementation...
+    QString svgPath;
+    if(key == ""){
+        svgPath = QString(":/images/keyboard.svg");
+    }else{
+        svgPath = QString(":/images/keyboard-pressed.svg");
+    }
+
+    // Load the SVG into a QPixmap
+    QSvgRenderer svgRenderer(svgPath);
+    QPixmap pixmap(18, 18); // Adjust the size as needed
+    pixmap.fill(Qt::transparent);
+    QPainter painter(&pixmap);
+    svgRenderer.render(&painter);
+
+    // Set the QPixmap to the QLabel
+    keyPressedLabel->setPixmap(pixmap);
+    keyLabel->setText(QString("%1").arg(key));
 }
 
 void Camera::onLastMouseLocation(const QPoint& location, const QString& mouseEvent) {
-    ui->statusbar->showMessage(QString("🖱️(%1,%2)\t%3").arg(location.x()).arg(location.y()).arg(mouseEvent));
+    // Load the SVG into a QPixmap
+    QString svgPath;
+    if (mouseEvent == "L") {
+        svgPath = ":/images/mouse-left-button.svg";
+    } else if (mouseEvent == "R") {
+        svgPath = ":/images/mouse-right-button.svg";
+    } else if (mouseEvent == "M") {
+        svgPath = ":/images/mouse-middle-button.svg";
+    } else {
+        svgPath = ":/images/mouse-default.svg";
+    }
+
+    // Load the SVG into a QPixmap
+    QSvgRenderer svgRenderer(svgPath);
+    QPixmap pixmap(12, 12); // Adjust the size as needed
+    pixmap.fill(Qt::transparent);
+    QPainter painter(&pixmap);
+    svgRenderer.render(&painter);
+
+    // Set the QPixmap to the QLabel
+    mouseLabel->setPixmap(pixmap);
+    mouseLocationLabel->setText(QString("(%1,%2)").arg(location.x()).arg(location.y()));
 }
 
 void Camera::onSwitchableUsbToggle(const bool isToTarget) {

@@ -70,6 +70,8 @@ private:
     explicit HostManager(QObject *parent = nullptr);
     MouseManager mouseManager;
     KeyboardManager keyboardManager;
+    StatusEventCallback* statusEventCallback = nullptr;
+    
 };
 
 #endif // HOSTMANAGER_H
