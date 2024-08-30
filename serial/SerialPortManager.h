@@ -69,8 +69,7 @@ public:
     bool factoryResetHipChip();
     void restartSwitchableUSB();
     void setVIDAndPID(QByteArray &VID, QByteArray &PID);
-    void enableUSBFlag(QString enable);    void setVIDAndPID(QByteArray &VID, QByteArray &PID);
-
+    void enableUSBFlag(QString enable);
 signals:
     void dataReceived(const QByteArray &data);
     void serialPortConnected(const QString &portName);
