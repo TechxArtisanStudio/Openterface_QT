@@ -2,11 +2,11 @@
 ; SEE THE DOCUMENTATION FOR DETAILS ON CREATING INNO SETUP SCRIPT FILES!
 
 #define MyAppName "Openterface Mini-KVM"
-#define MyAppVersion "1.0.0"
-#define MyAppPublisher "Guangzhou Billio Tech, Inc."
-#define MyAppURL "https://openterface.com/"
 #define MyAppExeName "openterfaceQT.exe"
-#define MyWorkingDir "{param:WorkingDir|D:\a\_temp\build\package}"
+
+#pragma message "AppVersion: " + MyAppVersion
+#pragma message "MyAppPublisher: " + MyAppPublisher
+#pragma message "MyAppURL: " + MyAppURL
 
 [Setup]
 ; NOTE: The value of AppId uniquely identifies this application. Do not use the same AppId value in installers for other applications.
@@ -15,15 +15,20 @@ AppId={{4200459F-8F27-46C4-BFB2-65C1447AE912}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
 ;AppVerName={#MyAppName} {#MyAppVersion}
+VersionInfoProductTextVersion={#MyAppVersion}
 AppPublisher={#MyAppPublisher}
 AppPublisherURL={#MyAppURL}
 AppSupportURL={#MyAppURL}
 AppUpdatesURL={#MyAppURL}
 DefaultDirName={autopf}\{#MyAppName}
 DisableProgramGroupPage=yes
+VersionInfoVersion={#MyAppVersion}
+VersionInfoDescription={#MyAppName} {#MyAppVersion} Installer
+VersionInfoCompany={#MyAppPublisher}
+VersionInfoCopyright=Copyright © {#MyAppPublisher} {#MyAppVersion}
 ; Uncomment the following line to run in non administrative install mode (install for current user only.)
 ;PrivilegesRequired=lowest
-OutputBaseFilename=OpenterfaceInstaller
+OutputBaseFilename=openterface-installer
 Compression=lzma
 SolidCompression=yes
 WizardStyle=modern
@@ -48,7 +53,10 @@ Name: "{autoprograms}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
 Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
 
 [Run]
-Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\{#MyAppExeName}"; \
+    Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; \
+    Flags: nowait postinstall skipifsilent; \
+    Parameters: "/silent"
 Filename: {sys}\rundll32.exe; \
     Parameters: "setupapi,InstallHinfSection DefaultInstall 128 {app}\driver\CH341SER.inf"; \
-    WorkingDir: {app}\driver; Flags: 32bit;
+    WorkingDir: {app}\driver; Flags: 32bit runhidden;
