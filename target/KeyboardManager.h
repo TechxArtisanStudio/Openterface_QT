@@ -24,6 +24,7 @@
 #define KEYBOARDMANAGER_H
 
 #include "../serial/SerialPortManager.h"
+#include "ui/statusevents.h"
 
 #include <QObject>
 #include <QLoggingCategory>
@@ -60,7 +61,6 @@ private:
     static const QList<int> KEYPAD_KEYS;
     static const QList<char> NEED_SHIFT_KEYS;
 
-    
     void handlePastingCharacters(const QString& text, const QMap<uint8_t, int>& charMapping);
     bool needShiftWhenPaste(const QChar character);
     
