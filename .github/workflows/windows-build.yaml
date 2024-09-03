@@ -14,14 +14,14 @@ defaults:
     shell: cmd
 
 env:
-  ARTIFACT: OpenterfaceInstaller.exe
+  ARTIFACT: "${{ vars.MY_APP_EXE_NAME }}"
   SOURCE_DIR: ${{ github.workspace }}
-  QT_VERSION: 6.6.3
+  QT_VERSION: 6.4.3
 
 jobs:
   build:
     runs-on: windows-2019
-
+    environment: ${{ github.event.inputs.TARGET_ENV || 'Openterface_build' }}
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
@@ -83,11 +83,11 @@ jobs:
         uses: Minionguyjpro/Inno-Setup-Action@v1.2.2
         with:
           path: installer.iss
-          options: /O+ /DWorkingDir="${{ runner.temp }}\build"
+          options: /O+ /DWorkingDir="${{ runner.temp }}\build"  /DMyAppVersion="${{ vars.MY_APP_VERSION }}" /DMyAppPublisher="${{ vars.MY_APP_PUBLISHER }}" /DMyAppURL="${{ vars.MY_APP_URL }}"
 
       - name: Save build artifact
         uses: actions/upload-artifact@v4
         with:
-          name: openterfaceqt.exe
-          path: ${{ env.SOURCE_DIR }}\Output\${{ env.ARTIFACT }}
+          name: ${{ env.ARTIFACT }}
+          path: ${{ env.SOURCE_DIR }}\Output\openterface-installer.exe
           if-no-files-found: error

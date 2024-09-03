@@ -60,6 +60,7 @@ public:
 
     bool writeData(const QByteArray &data);
     bool sendAsyncCommand(const QByteArray &data, bool force);
+    bool sendResetCommand();
     QByteArray sendSyncCommand(const QByteArray &data, bool force);
 
     bool resetHipChip();

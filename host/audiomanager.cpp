@@ -108,18 +108,18 @@ void AudioManager::disconnect() {
     if (audioSource) {
         qDebug() << "Stopping audio source.";
         audioSource->stop();
-        delete audioSource;
-        audioSource = nullptr;
+        // delete audioSource;
+        // audioSource = nullptr;
     }
 
-    // if (audioIODevice) {
-    //     qDebug() << "Closing audio IO device.";
-    //     audioIODevice->close();
-    //     qDebug() << "Closing audio IO device.222";
-    //     delete audioIODevice;
-    //     qDebug() << "Closing audio IO device.333";
-    //     audioIODevice = nullptr;
-    // }
+    if (audioIODevice) {
+        qDebug() << "Closing audio IO device.";
+        audioIODevice->close();
+        qDebug() << "Closing audio IO device.222";
+        // delete audioIODevice;
+        // qDebug() << "Closing audio IO device.333";
+        // audioIODevice = nullptr;
+    }
     qDebug() << "Resetting audio sink.";
-    m_audioSink.reset();
+    // m_audioSink.reset();
 }

@@ -273,4 +273,36 @@ struct CmdResetResult {
     }
 };
 
+
+static void dumpError(unsigned char status, const QByteArray &data) {
+    if (status != 0x00) {
+        switch (status)
+        {
+        case DEF_CMD_ERR_TIMEOUT:
+            qDebug() << "Error(" + QString::number(status, 16) + "), Serial response timeout, data: " + data.toHex(' ');
+            break;
+        case DEF_CMD_ERR_HEAD:
+            qDebug() << "Error(" + QString::number(status, 16) + "),  Packet header error, data: " + data.toHex(' ');
+            break;
+        case DEF_CMD_ERR_CMD:
+            qDebug() << "Error(" + QString::number(status, 16) + "),  Command error, data: " + data.toHex(' ');
+            break;
+        case DEF_CMD_ERR_SUM:
+            qDebug() << "Error(" + QString::number(status, 16) + "),  Checksum error, data: " + data.toHex(' ');
+            break;
+        case DEF_CMD_ERR_PARA:
+            qDebug() << "Error(" + QString::number(status, 16) + "),  Argument error, data: " + data.toHex(' ');
+            break;
+        case DEF_CMD_ERR_OPERATE:
+            qDebug() << "Error(" + QString::number(status, 16) + "),  Execution error, data: " + data.toHex(' ');
+            break;
+        default:
+            qDebug() << "Error(" + QString::number(status, 16) + "),  Unknown error, data: " + data.toHex(' ');
+            break;
+        }
+    }else{
+        // Handle other cases
+    }
+}
+
 #endif // CH9329_H

@@ -73,6 +73,8 @@ public:
 private slots:
     void init();
 
+    void initStatusBar();
+
     void setCamera(const QCameraDevice &cameraDevice);
     void loadCameraSettingAndSetCamera();
 
@@ -158,6 +160,10 @@ private:
     AudioManager *m_audioManager;
     VideoPane *videoPane;
     QStackedLayout *stackedLayout;
+    QLabel *mouseLocationLabel;
+    QLabel *mouseLabel;
+    QLabel *keyPressedLabel;
+    QLabel *keyLabel;
     //QActionGroup *videoDevicesGroup = nullptr;
 
     QMediaDevices m_source;
@@ -165,7 +171,6 @@ private:
     QMediaCaptureSession m_captureSession;
     QScopedPointer<QCamera> m_camera;
     QScopedPointer<QMediaRecorder> m_mediaRecorder;
-
 
     bool videoReady = false;
     bool m_isCapturingImage = false;
