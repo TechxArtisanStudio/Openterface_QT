@@ -23,19 +23,19 @@
 #include "KeyboardManager.h"
 #include "target/Keymapping.h"
 
+#include <QList>
 #include <QtConcurrent/QtConcurrent>
 
 Q_LOGGING_CATEGORY(log_keyboard, "opf.host.keyboard")
 
-KeyboardManager::KeyboardManager(QObject *parent) : QObject(parent){
-
+KeyboardManager::KeyboardManager(QObject *parent) : QObject(parent), currentMappedKeyCodes(){    
 }
 
 void KeyboardManager::handleKeyboardAction(int keyCode, int modifiers, bool isKeyDown) {
-    QByteArray keyData = QByteArray::fromHex("57 AB 00 02 08 00 00 00 00 00 00 00 00");
+    QByteArray keyData = CMD_SEND_KB_GENERAL_DATA;
 
     unsigned int combinedModifiers = 0;
-    int mappedKeyCode = mappedKeyCode = keyMap.value(keyCode, 0);
+    unsigned int mappedKeyCode = mappedKeyCode = keyMap.value(keyCode, 0);
 
     if(isModiferKeys(keyCode)){
         // Distingush the left or right modifiers, the modifiers is a native event
@@ -88,8 +88,7 @@ void KeyboardManager::handleKeyboardAction(int keyCode, int modifiers, bool isKe
         if(currentModifiers!=0){
             qCDebug(log_keyboard) << "Send release command :" << keyData.toHex(' ');
             emit SerialPortManager::getInstance().sendCommandAsync(keyData, false);
-            // // release previous modifier
-            // SerialPortManager::getInstance().sendAsyncCommand(keyData, false);
+
             currentModifiers = 0;
             return;
         }
@@ -97,10 +96,32 @@ void KeyboardManager::handleKeyboardAction(int keyCode, int modifiers, bool isKe
         combinedModifiers = handleKeyModifiers(modifiers, isKeyDown);
     }
 
+
+    if(currentMappedKeyCodes.contains(mappedKeyCode)){
+        if(!isKeyDown){
+            currentMappedKeyCodes.remove(mappedKeyCode);
+        }
+    }else{
+        if(isKeyDown && currentMappedKeyCodes.size() < 6){
+            currentMappedKeyCodes.insert(mappedKeyCode);
+        }
+    }
+    
     qCDebug(log_keyboard) << "isKeyDown:" << isKeyDown << ", KeyCode:"<<keyCode<<", Mapped Keycode:" << mappedKeyCode << ", modifiers: " << combinedModifiers;
     if (mappedKeyCode != 0) {
         keyData[5] = isKeyDown ? combinedModifiers : 0;
-        keyData[7] = isKeyDown ? mappedKeyCode : 0;
+        int i = 0;
+        for (const auto &keyCode : currentMappedKeyCodes) {
+            keyData[7 + i] = keyCode;
+            i++;
+        }
+
+        if(currentMappedKeyCodes.size() == 1 && !isKeyDown){
+            for(int j = 0; j < 6; j++){
+                keyData[7 + j] = 0;
+            }
+        }
+        qDebug() << "Send command :" << keyData.toHex(' ');
         emit SerialPortManager::getInstance().sendCommandAsync(keyData, false);
     }
 }
