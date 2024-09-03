@@ -70,16 +70,35 @@ void GlobalSetting::setCameraDeviceSetting(QString deviceDescription){
     settings.setValue("camera/device", deviceDescription);
 }
 
-void GlobalSetting::setVIDPID(QString vid, QString pid){
+void GlobalSetting::setVID(QString vid){
     settings.setValue("serial/vid", vid);
+}
+
+void GlobalSetting::setPID(QString pid){
     settings.setValue("serial/pid", pid);
-    
 }
 
-void GlobalSetting::setUSBFlag(QString flag){
-    settings.setValue("serial/usbflag", flag);
+
+void GlobalSetting::setSerialNumber(QString serialNumber){
+    settings.setValue("serial/serialnumber", serialNumber);
 }
 
+
+void GlobalSetting::setUSBEnabelFlag(QString enableflag){
+    settings.setValue("serial/enableflag", enableflag);
+}
+
+void GlobalSetting::setCustomStringDescriptor(QString customStringDisctriptor){
+    settings.setValue("serial/customStringDescriptor", customStringDisctriptor);
+}
+
+void GlobalSetting::setCustomPIDDescriptor(QString customPIDDescriptor){
+    settings.setValue("serial/customPIDDescriptor",customPIDDescriptor);
+}
+
+void GlobalSetting::setCustomVIDDescriptor(QString customVIDDescriptor){
+    settings.setValue("serial/customVIDDescriptor", customVIDDescriptor);
+}
 
 /*
 * Convert QString to ByteArray

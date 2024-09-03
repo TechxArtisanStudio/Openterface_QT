@@ -128,6 +128,8 @@ private:
     void findUvcCameraDevices();
     void applyHardwareSetting();
     void onCheckBoxStateChanged(int state);
+    std::array<bool, 4> extractBits(QString hexString);
+    
     QByteArray convertCheckBoxValueToBytes();
     void initHardwareSetting();
     void createPages();

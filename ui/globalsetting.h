@@ -38,18 +38,30 @@ public:
     static GlobalSetting& instance();
 
     void setLogSettings(bool core, bool serial, bool ui, bool host);
+    
     void loadLogSettings();
 
     void setVideoSettings(int width, int height, int fps);
+
     void loadVideoSettings();
     
     void setCameraDeviceSetting(QString deviceDescription);
 
-    void setVIDPID(QString vid, QString pid);
-    
+    void setVID(QString vid);
+
+    void setPID(QString pid);
+
+    void setUSBEnabelFlag(QString enableflag);
+
     QByteArray convertStringToByteArray(QString str);
 
-    void setUSBFlag(QString flag);
+    void setSerialNumber(QString serialNumber);
+
+    void setCustomStringDescriptor(QString customStringDisctriptor);
+
+    void setCustomPIDDescriptor(QString customPIDDescriptor);
+
+    void setCustomVIDDescriptor(QString customVIDDescriptor);
 
 private:
     QSettings settings;
