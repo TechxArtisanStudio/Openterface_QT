@@ -491,7 +491,6 @@ void SettingDialog::createHardwarePage(){
     uvcCamLabel->setStyleSheet(smallLabelFontSize);
     QComboBox *uvcCamBox = new QComboBox();
     uvcCamBox->setObjectName("uvcCamBox");
-    
 
     QLabel *VIDPIDLabel = new QLabel(
         "Change serial VID&PID: ");
@@ -526,13 +525,13 @@ void SettingDialog::createHardwarePage(){
     gridLayout->addWidget(serialNumberLineEdit, 2,1, Qt::AlignLeft);
     gridLayout->addWidget(USBCustomStringDescriptorCheckBox, 3,0, Qt::AlignLeft);
     gridLayout->addWidget(customStringDescriptorLineEdit, 3,1, Qt::AlignLeft);
-    
 
     QVBoxLayout *hardwareLayout = new QVBoxLayout(hardwarePage);
     hardwareLayout->addWidget(hardwareLabel);
     hardwareLayout->addWidget(uvcCamLabel);
     hardwareLayout->addWidget(uvcCamBox);
     hardwareLayout->addWidget(VIDPIDLabel);
+
     hardwareLayout->addLayout(gridLayout);
     hardwareLayout->addStretch();
     findUvcCameraDevices();
@@ -552,8 +551,6 @@ void SettingDialog::onCheckBoxStateChanged(int state) {
             lineEdit->setReadOnly(state != Qt::Checked);
         }
     }
-
-
 }
 
 void SettingDialog::findUvcCameraDevices(){
@@ -606,13 +603,16 @@ void SettingDialog::applyHardwareSetting(){
     QComboBox *uvcCamBox = hardwarePage->findChild<QComboBox*>("uvcCamBox");
     QLineEdit *VIDLineEdit = hardwarePage->findChild<QLineEdit*>("VIDLineEdit");
     QLineEdit *PIDLineEdit = hardwarePage->findChild<QLineEdit*>("PIDLineEdit");
+
     QLineEdit *serialNumberLineEdit = hardwarePage->findChild<QLineEdit*>("serialNumberLineEdit");
     QString usbflag = serialNumberLineEdit->text();
+
     QString vidstring = VIDLineEdit->text();
     QString pidstring = PIDLineEdit->text();
     qDebug() << "init ";
     QByteArray VID_byte = GlobalSetting::instance().convertStringToByteArray(vidstring);
     QByteArray PID_byte = GlobalSetting::instance().convertStringToByteArray(pidstring);
+
     QByteArray EnableFlag = convertCheckBoxValueToBytes();
 
     if (cameraDescription != uvcCamBox->currentText()){
@@ -621,14 +621,8 @@ void SettingDialog::applyHardwareSetting(){
     }
 
     GlobalSetting::instance().setVIDPID(VIDLineEdit->text(), PIDLineEdit->text());
+
     qDebug() << "enable flag: " << EnableFlag;
-    // if (USBFlag != usbflag){
-    //     GlobalSetting::instance().setUSBFlag(usbflag);
-    // }
-    
-    // SerialPortManager::getInstance().setVIDAndPID(VID_byte, PID_byte);
-    // QThread::sleep(1);
-    // SerialPortManager::getInstance().enableUSBFlag(serialNumberLineEdit->text());
 }
 
 void SettingDialog::initHardwareSetting(){
@@ -641,6 +635,7 @@ void SettingDialog::initHardwareSetting(){
     uvcCamBox->setCurrentText(settings.value("camera/device", "Openterface").toString());
     VIDLineEdit->setText(settings.value("serial/vid", "861A").toString());
     PIDLineEdit->setText(settings.value("serial/pid", "29E1").toString());
+
     serialNumberLineEdit->setText(settings.value("serial/usbflag" , "87").toString());
 }
 
