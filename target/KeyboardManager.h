@@ -28,6 +28,7 @@
 
 #include <QObject>
 #include <QLoggingCategory>
+#include <QSet>
 
 Q_DECLARE_LOGGING_CATEGORY(log_host_keyboard)
 
@@ -60,6 +61,8 @@ private:
     static const QList<int> ALT_KEYS;
     static const QList<int> KEYPAD_KEYS;
     static const QList<char> NEED_SHIFT_KEYS;
+
+    QSet<unsigned int> currentMappedKeyCodes;
 
     void handlePastingCharacters(const QString& text, const QMap<uint8_t, int>& charMapping);
     bool needShiftWhenPaste(const QChar character);
