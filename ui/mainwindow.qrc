@@ -10,5 +10,11 @@
         <file>../images/content_dark_eng.png</file>
         <file>../images/paste.svg</file>
         <file>../images/screensaver.svg</file>
+        <file>../images/mouse-left-button.svg</file>
+        <file>../images/mouse-right-button.svg</file>
+        <file>../images/mouse-default.svg</file>
+        <file>../images/mouse-middle-button.svg</file>
+        <file>../images/keyboard.svg</file>
+        <file>../images/keyboard-pressed.svg</file>
     </qresource>
 </RCC>

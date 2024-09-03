@@ -7,7 +7,7 @@
 TARGET = openterfaceQT
 TEMPLATE = app
 
-QT       += core gui multimedia multimediawidgets serialport concurrent
+QT       += core gui multimedia multimediawidgets serialport concurrent svg
 
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 
