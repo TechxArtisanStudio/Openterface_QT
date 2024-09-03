@@ -69,7 +69,7 @@ public:
     bool factoryResetHipChip();
     void restartSwitchableUSB();
     void setVIDAndPID(QByteArray &VID, QByteArray &PID);
-
+    void enableUSBFlag(QString enable);
 signals:
     void dataReceived(const QByteArray &data);
     void serialPortConnected(const QString &portName);
@@ -100,8 +100,7 @@ private slots:
     void onSerialPortConnected(const QString &portName);
     void onSerialPortDisconnected(const QString &portName);
     void onSerialPortConnectionSuccess(const QString &portName);
-    
-    
+
 private:
     SerialPortManager(QObject *parent = nullptr);
     QSerialPort *serialPort;
