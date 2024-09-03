@@ -55,6 +55,9 @@
 #include <QThread>
 #include <QLineEdit>
 #include <QByteArray>
+#include <QThread>
+#include <QLineEdit>
+#include <QByteArray>
 #include <array>
 
 SettingDialog::SettingDialog(QCamera *_camera, QWidget *parent)
@@ -732,6 +735,7 @@ void SettingDialog::initHardwareSetting(){
     serialNumberLineEdit->setEnabled(enableFlagArray[0]);
     customStringDescriptorLineEdit->setEnabled(enableFlagArray[3]);
 
+    serialNumberLineEdit->setText(settings.value("serial/usbflag" , "87").toString());
 }
 
 void SettingDialog::createPages() {

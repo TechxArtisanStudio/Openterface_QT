@@ -39,6 +39,7 @@ void HostManager::setEventCallback(StatusEventCallback* callback)
     qCDebug(log_core_host) << "HostManager.setEventCallback";
     SerialPortManager::getInstance().setEventCallback(callback);
     mouseManager.setEventCallback(callback);
+    statusEventCallback = callback;
 }
 
 void HostManager::handleKeyPress(QKeyEvent *event)
@@ -48,6 +49,9 @@ void HostManager::handleKeyPress(QKeyEvent *event)
     int modifiers = keyboardManager.isModiferKeys(event->key()) ? event->nativeModifiers() : event->modifiers();
     qCDebug(log_core_host) << "Key press event for qt key code:" << event->key() << "(" << hexKeyCode << "), modifers:" << "0x" + QString::number(modifiers, 16);
     keyboardManager.handleKeyboardAction(event->key(), modifiers, true);
+    if(statusEventCallback != nullptr) {
+        statusEventCallback->onLastKeyPressed(event->text());
+    }
 }
 
 void HostManager::handleKeyRelease(QKeyEvent *event)
@@ -56,6 +60,9 @@ void HostManager::handleKeyRelease(QKeyEvent *event)
     int modifiers = keyboardManager.isModiferKeys(event->key()) ? event->nativeModifiers() : event->modifiers();
     qCDebug(log_core_host) << "Key release event for qt key code:" << event->key() << "(" << hexKeyCode << "), modifer:" << "0x" + QString::number(modifiers, 16);
     keyboardManager.handleKeyboardAction(event->key(), modifiers, false);
+    if(statusEventCallback != nullptr) {
+        statusEventCallback->onLastKeyPressed("");
+    }
 }
 
 void HostManager::handleMousePress(MouseEventDTO *event)

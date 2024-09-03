@@ -85,6 +85,19 @@ void MouseManager::handleRelativeMouseAction(int dx, int dy, int mouse_event, in
 
     // send the data to serial
     SerialPortManager::getInstance().sendCommandAsync(data, false);
+
+    QString mouseEventStr;
+    if(mouse_event == Qt::LeftButton){
+        mouseEventStr = "L";
+    }else if(mouse_event == Qt::RightButton){
+        mouseEventStr = "R";
+    }else if(mouse_event == Qt::MiddleButton){
+        mouseEventStr = "M";
+    } else{
+        mouseEventStr = "";
+    }
+
+    if (statusEventCallback) statusEventCallback->onLastMouseLocation(QPoint(dx, dy), mouseEventStr);
 }
 
 uint8_t MouseManager::mapScrollWheel(int delta){

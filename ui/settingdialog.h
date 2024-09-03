@@ -112,9 +112,7 @@ private:
     std::map<VideoFormatKey, QCameraFormat> videoFormatMap;
     // QCameraFormat getVideoFormat(const QSize &resolution, int frameRate, QVideoFrameFormat::PixelFormat pixelFormat) const;
     
-    // void switchWidgetShow(QString &btnName);
-
-
+    void switchWidgetShow(QString &btnName);
     void createSettingTree();
     void createLayout();
     void createLogPage();
