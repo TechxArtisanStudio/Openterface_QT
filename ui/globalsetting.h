@@ -28,6 +28,7 @@
 #include <QSettings>
 #include <QSize>
 #include <QLoggingCategory>
+#include <QByteArray>
 class GlobalSetting : public QObject
 {
     Q_OBJECT
@@ -46,6 +47,10 @@ public:
 
     void setVIDPID(QString vid, QString pid);
     
+    QByteArray convertStringToByteArray(QString str);
+
+    void setUSBFlag(QString flag);
+
 private:
     QSettings settings;
 };
