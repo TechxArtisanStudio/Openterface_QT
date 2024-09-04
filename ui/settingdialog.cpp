@@ -584,7 +584,7 @@ void SettingDialog::onCheckBoxStateChanged(int state) {
 }
 
 std::array<bool, 4> SettingDialog::extractBits(QString hexString) {
-    // convert hex string to bool array
+    // convert hex string to bool array 
     bool ok;    
     int hexValue = hexString.toInt(&ok, 16);
 
