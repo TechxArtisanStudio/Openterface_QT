@@ -96,6 +96,14 @@ void VideoPane::wheelEvent(QWheelEvent *event)
     HostManager::getInstance().handleMouseScroll(eventDto);
 }
 
+/*
+    * This function is called when the focus is on the video pane and the user presses the Tab key.
+    * This function is overridden to prevent the focus from moving to the next widget.
+*/
+bool VideoPane::focusNextPrevChild(bool next) {
+    return false;
+}
+
 void VideoPane::keyPressEvent(QKeyEvent *event)
 {
     HostManager::getInstance().handleKeyPress(event);
