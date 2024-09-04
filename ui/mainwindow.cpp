@@ -208,7 +208,7 @@ void Camera::initStatusBar()
     // Create a QLabel to hold the SVG icon
     mouseLabel = new QLabel(this);
     mouseLocationLabel = new QLabel(QString("(0,0)"), this);
-    mouseLocationLabel->setFixedWidth(68);
+    mouseLocationLabel->setFixedWidth(80);
 
     // Mouse container widget
     QWidget *mouseContainer = new QWidget(this);
