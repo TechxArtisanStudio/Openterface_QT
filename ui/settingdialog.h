@@ -39,7 +39,6 @@
 #include <QLineEdit>
 #include <QByteArray>
 
-
 QT_BEGIN_NAMESPACE
 class QCameraFormat;
 class QComboBox;
@@ -84,6 +83,7 @@ public:
     explicit SettingDialog(QCamera *camera, QWidget *parent = nullptr);
     ~SettingDialog();
 
+
 signals:
     void cameraSettingsApplied();
     void serialSettingsApplied();
@@ -112,9 +112,7 @@ private:
     std::map<VideoFormatKey, QCameraFormat> videoFormatMap;
     // QCameraFormat getVideoFormat(const QSize &resolution, int frameRate, QVideoFrameFormat::PixelFormat pixelFormat) const;
     
-    // void switchWidgetShow(QString &btnName);
-
-
+    void switchWidgetShow(QString &btnName);
     void createSettingTree();
     void createLayout();
     void createLogPage();
@@ -128,6 +126,8 @@ private:
     void findUvcCameraDevices();
     void applyHardwareSetting();
     void onCheckBoxStateChanged(int state);
+    std::array<bool, 4> extractBits(QString hexString);
+    
     QByteArray convertCheckBoxValueToBytes();
     void initHardwareSetting();
     void createPages();
