@@ -52,6 +52,9 @@
 #include <QSerialPortInfo>
 #include <QLineEdit>
 #include <QByteArray>
+#include <QThread>
+#include <QLineEdit>
+#include <QByteArray>
 
 SettingDialog::SettingDialog(QCamera *_camera, QWidget *parent)
     : QDialog(parent)
@@ -461,6 +464,8 @@ void SettingDialog::createAudioPage() {
     QComboBox *containerFormatBox = new QComboBox();
     containerFormatBox->setObjectName("containerFormatBox");
 
+    
+
     QVBoxLayout *audioLayout = new QVBoxLayout(audioPage);
     audioLayout->addWidget(audioLabel);
     audioLayout->addWidget(audioCodecLabel);
@@ -474,6 +479,8 @@ void SettingDialog::createAudioPage() {
     audioLayout->addStretch();
 }
 
+
+
 void SettingDialog::createHardwarePage(){
     hardwarePage = new QWidget();
     QLabel *hardwareLabel = new QLabel(
@@ -484,39 +491,66 @@ void SettingDialog::createHardwarePage(){
     uvcCamLabel->setStyleSheet(smallLabelFontSize);
     QComboBox *uvcCamBox = new QComboBox();
     uvcCamBox->setObjectName("uvcCamBox");
-    
+
     QLabel *VIDPIDLabel = new QLabel(
         "Change serial VID&PID: ");
-    QLabel *VIDLabel = new QLabel("VID :");
-    QLabel *PIDLabel = new QLabel("PID :");
-    VIDLabel->setStyleSheet(smallLabelFontSize);
-    PIDLabel->setStyleSheet(smallLabelFontSize);
+    QCheckBox *VIDCheckBox = new QCheckBox("Custom vender ID:");
+    QCheckBox *PIDCheckBox = new QCheckBox("Custom product  ID:");
+    QCheckBox *USBSerialNumberCheckBox = new QCheckBox("USB serial number:");
+    QCheckBox *USBCustomStringDescriptorCheckBox = new QCheckBox("USB Custom string descriptor:");
+    VIDCheckBox->setObjectName("VIDCheckBox");
+    PIDCheckBox->setObjectName("PIDCheckBox");
+    USBSerialNumberCheckBox->setObjectName("USBSerialNumberCheckBox");
+    USBCustomStringDescriptorCheckBox->setObjectName("USBCustomStringDescriptorCheckBox");
+
     QLineEdit *VIDLineEdit = new QLineEdit(hardwarePage);
     QLineEdit *PIDLineEdit = new QLineEdit(hardwarePage);
-    VIDLineEdit->setMaximumWidth(100);
-    PIDLineEdit->setMaximumWidth(100);
+    QLineEdit *serialNumberLineEdit = new QLineEdit(hardwarePage);
+    QLineEdit *customStringDescriptorLineEdit = new QLineEdit(hardwarePage);
+    VIDLineEdit->setMaximumWidth(120);
+    PIDLineEdit->setMaximumWidth(120);
+    serialNumberLineEdit->setMaximumWidth(120);
+    customStringDescriptorLineEdit->setMaximumWidth(120);
     VIDLineEdit->setObjectName("VIDLineEdit");
-    PIDLineEdit->setObjectName("PIDLineEdit");
-    QHBoxLayout *PIDLayout = new QHBoxLayout();
-    QHBoxLayout *VIDLayout = new QHBoxLayout();
-    VIDLayout->addWidget(VIDLabel);
-    VIDLayout->addWidget(VIDLineEdit);
-    VIDLayout->addStretch();
-    PIDLayout->addWidget(PIDLabel);
-    PIDLayout->addWidget(PIDLineEdit);
-    PIDLayout->addStretch();
+    PIDLineEdit->setObjectName("PIDLineEdit");    
+    serialNumberLineEdit->setObjectName("serialNumberLineEdit");
+    customStringDescriptorLineEdit->setObjectName("customStringDescriptorLineEdit");
+
+    QGridLayout *gridLayout = new QGridLayout();
+    gridLayout->addWidget(VIDCheckBox, 0,0, Qt::AlignLeft);
+    gridLayout->addWidget(VIDLineEdit, 0,1, Qt::AlignLeft);
+    gridLayout->addWidget(PIDCheckBox, 1,0, Qt::AlignLeft);
+    gridLayout->addWidget(PIDLineEdit, 1,1, Qt::AlignLeft);
+    gridLayout->addWidget(USBSerialNumberCheckBox, 2,0, Qt::AlignLeft);
+    gridLayout->addWidget(serialNumberLineEdit, 2,1, Qt::AlignLeft);
+    gridLayout->addWidget(USBCustomStringDescriptorCheckBox, 3,0, Qt::AlignLeft);
+    gridLayout->addWidget(customStringDescriptorLineEdit, 3,1, Qt::AlignLeft);
 
     QVBoxLayout *hardwareLayout = new QVBoxLayout(hardwarePage);
     hardwareLayout->addWidget(hardwareLabel);
     hardwareLayout->addWidget(uvcCamLabel);
     hardwareLayout->addWidget(uvcCamBox);
     hardwareLayout->addWidget(VIDPIDLabel);
-    hardwareLayout->addLayout(VIDLayout);
-    hardwareLayout->addLayout(PIDLayout);
 
+    hardwareLayout->addLayout(gridLayout);
     hardwareLayout->addStretch();
     findUvcCameraDevices();
 
+}
+
+void SettingDialog::addCheckBoxLineEditPair(QCheckBox *checkBox, QLineEdit *lineEdit){
+    USBCheckBoxEditMap.insert(checkBox,lineEdit);
+    connect(checkBox, &QCheckBox::stateChanged, this, &SettingDialog::onCheckBoxStateChanged);
+}
+
+void SettingDialog::onCheckBoxStateChanged(int state) {
+    QCheckBox *checkBox = qobject_cast<QCheckBox*>(sender());
+    if (checkBox){
+        QLineEdit *lineEdit = USBCheckBoxEditMap.value(checkBox);
+        if (lineEdit){
+            lineEdit->setReadOnly(state != Qt::Checked);
+        }
+    }
 }
 
 void SettingDialog::findUvcCameraDevices(){
@@ -541,14 +575,22 @@ void SettingDialog::findUvcCameraDevices(){
 
 }
 
-QByteArray SettingDialog::convertStringToByteArray(const QString str){
-    bool ok;
-    int value = str.toInt(&ok,16);
-    QByteArray result;
+QByteArray SettingDialog::convertCheckBoxValueToBytes(){
+    QCheckBox *VIDCheckBox = hardwarePage->findChild<QCheckBox *>("VIDCheckBox");
+    QCheckBox *PIDCheckBox = hardwarePage->findChild<QCheckBox *>("PIDCheckBox");
+    QCheckBox *USBSerialNumberCheckBox = hardwarePage->findChild<QCheckBox *>("USBSerialNumberCheckBox");
+    QCheckBox *USBCustomStringDescriptorCheckBox = hardwarePage->findChild<QCheckBox *>("USBCustomStringDescriptorCheckBox");
 
-    result.append(static_cast<char>((value >> 8) & 0xFF)); // high byte
-    result.append(static_cast<char>(value)); // low byte
-    return result;
+    bool bit0 = VIDCheckBox->isChecked();
+    bool bit1 = PIDCheckBox->isChecked();
+    bool bit2 = USBSerialNumberCheckBox->isChecked();
+    bool bit7 = USBCustomStringDescriptorCheckBox->isChecked();
+
+    quint8 byteValue = (bit7 << 7) | (bit2 << 2) | (bit1 << 1) | bit0;
+    QByteArray hexValue;
+    hexValue.append(byteValue);
+
+    return hexValue;
 }
 
 void SettingDialog::applyHardwareSetting(){
@@ -556,15 +598,22 @@ void SettingDialog::applyHardwareSetting(){
     QString cameraDescription = settings.value("camera/device", "Openterface").toString();
     QString VID = settings.value("serial/vid", "86 1A").toString();
     QString PID = settings.value("serial/pid", "29 E1").toString();
+    QString USBFlag = settings.value("serial/usbflag", "87").toString();
 
     QComboBox *uvcCamBox = hardwarePage->findChild<QComboBox*>("uvcCamBox");
     QLineEdit *VIDLineEdit = hardwarePage->findChild<QLineEdit*>("VIDLineEdit");
     QLineEdit *PIDLineEdit = hardwarePage->findChild<QLineEdit*>("PIDLineEdit");
+
+    QLineEdit *serialNumberLineEdit = hardwarePage->findChild<QLineEdit*>("serialNumberLineEdit");
+    QString usbflag = serialNumberLineEdit->text();
+
     QString vidstring = VIDLineEdit->text();
     QString pidstring = PIDLineEdit->text();
+    qDebug() << "init ";
+    QByteArray VID_byte = GlobalSetting::instance().convertStringToByteArray(vidstring);
+    QByteArray PID_byte = GlobalSetting::instance().convertStringToByteArray(pidstring);
 
-    QByteArray VID_byte = convertStringToByteArray(vidstring);
-    QByteArray PID_byte = convertStringToByteArray(pidstring);
+    QByteArray EnableFlag = convertCheckBoxValueToBytes();
 
     if (cameraDescription != uvcCamBox->currentText()){
         GlobalSetting::instance().setCameraDeviceSetting(uvcCamBox->currentText());
@@ -572,13 +621,8 @@ void SettingDialog::applyHardwareSetting(){
     }
 
     GlobalSetting::instance().setVIDPID(VIDLineEdit->text(), PIDLineEdit->text());
-    SerialPortManager::getInstance().setVIDAndPID(VID_byte, PID_byte);
-    // if (VID != VIDLineEdit->text() || PID != PIDLineEdit->text()){
-    //     // GlobalSetting::instance().setVIDPID(VIDLineEdit->text(), PIDLineEdit->text());
-    //     // emit serialSettingsApplied(); // emit the hardware setting signal to change the serial device
-        
-    // }
-    
+
+    qDebug() << "enable flag: " << EnableFlag;
 }
 
 void SettingDialog::initHardwareSetting(){
@@ -586,11 +630,13 @@ void SettingDialog::initHardwareSetting(){
     QComboBox *uvcCamBox = hardwarePage->findChild<QComboBox*>("uvcCamBox");
     QLineEdit *VIDLineEdit = hardwarePage->findChild<QLineEdit*>("VIDLineEdit");
     QLineEdit *PIDLineEdit = hardwarePage->findChild<QLineEdit*>("PIDLineEdit");
+    QLineEdit *serialNumberLineEdit = hardwarePage->findChild<QLineEdit*>("serialNumberLineEdit");
 
     uvcCamBox->setCurrentText(settings.value("camera/device", "Openterface").toString());
     VIDLineEdit->setText(settings.value("serial/vid", "861A").toString());
     PIDLineEdit->setText(settings.value("serial/pid", "29E1").toString());
 
+    serialNumberLineEdit->setText(settings.value("serial/usbflag" , "87").toString());
 }
 
 void SettingDialog::createPages() {

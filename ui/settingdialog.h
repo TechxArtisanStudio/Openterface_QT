@@ -34,6 +34,11 @@
 #include <set>
 #include <QMediaDevices>
 #include <QByteArray>
+#include <QMap>
+#include <QCheckBox>
+#include <QLineEdit>
+#include <QByteArray>
+
 
 QT_BEGIN_NAMESPACE
 class QCameraFormat;
@@ -98,14 +103,18 @@ private:
     QWidget *hardwarePage;
     QWidget *buttonWidget;
 
-    
+    QMap<QCheckBox *, QLineEdit *> USBCheckBoxEditMap; // map of checkboxes to line edit about VID PID etc.
+    void addCheckBoxLineEditPair(QCheckBox *checkBox, QLineEdit *lineEdit);
+
     QCamera *camera; 
     QSize m_currentResolution;
     bool m_updatingFormats = false;
     std::map<VideoFormatKey, QCameraFormat> videoFormatMap;
     // QCameraFormat getVideoFormat(const QSize &resolution, int frameRate, QVideoFrameFormat::PixelFormat pixelFormat) const;
     
-    void switchWidgetShow(QString &btnName);
+    // void switchWidgetShow(QString &btnName);
+
+
     void createSettingTree();
     void createLayout();
     void createLogPage();
@@ -118,7 +127,8 @@ private:
     void createHardwarePage();
     void findUvcCameraDevices();
     void applyHardwareSetting();
-    QByteArray convertStringToByteArray(const QString str);
+    void onCheckBoxStateChanged(int state);
+    QByteArray convertCheckBoxValueToBytes();
     void initHardwareSetting();
     void createPages();
     
