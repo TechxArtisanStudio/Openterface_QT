@@ -659,7 +659,7 @@ void SerialPortManager::changeUSBDescriptor() {
                 QByteArray hexLength_2 = QByteArray::number(descriptor_size + 2, 16).rightJustified(2, '0').toUpper();
                 QByteArray descriptor_type = QByteArray::number(0, 16).rightJustified(1, '0').toUpper() + QByteArray::number(i, 16).rightJustified(1, '0').toUpper();
                 
-                // 将十六进制字符串转换为二进制数据
+                // convert hex to bytes
                 QByteArray hexLength_2_bin = QByteArray::fromHex(hexLength_2);
                 QByteArray descriptor_type_bin = QByteArray::fromHex(descriptor_type);
                 QByteArray hexLength_bin = QByteArray::fromHex(hexLength);
