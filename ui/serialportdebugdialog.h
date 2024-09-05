@@ -3,7 +3,9 @@
 
 #include <QDialog>
 #include <QTextEdit>
-
+#include <QWidget>
+#include <QByteArray>
+#include <QString>
 namespace Ui {
 class serialPortDebugDialog;
 }
@@ -16,9 +18,19 @@ public:
     explicit serialPortDebugDialog(QWidget *parent = nullptr);
     ~serialPortDebugDialog();
 
+private slots:
+    void getRecvDataAndInsertText(const QByteArray &data);
+    void getSentDataAndInsertText(const QByteArray &data);
+
 private:
     Ui::serialPortDebugDialog *ui;
     QTextEdit *textEdit;
+    QWidget *debugButtonWidget;
+
+    void createDebugButtonWidget();
+    
+    void createLayout();
+    QString formatHexData(QString hexString);
 };
 
 #endif // SERIALPORTDEBUGDIALOG_H
