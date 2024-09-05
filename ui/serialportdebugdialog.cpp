@@ -21,11 +21,11 @@ serialPortDebugDialog::serialPortDebugDialog(QWidget *parent)
 
     SerialPortManager* serialPortManager = &SerialPortManager::getInstance();
     if (serialPortManager){
-        connect(serialPortManager, &SerialPortManager::dataReceived,
-                        this, &serialPortDebugDialog::getRecvDataAndInsertText);
-    
         connect(serialPortManager, &SerialPortManager::dataSent,
                     this, &serialPortDebugDialog::getSentDataAndInsertText);
+
+        connect(serialPortManager, &SerialPortManager::dataReceived,
+                        this, &serialPortDebugDialog::getRecvDataAndInsertText);
     }
     
     createLayout();
@@ -63,6 +63,11 @@ void serialPortDebugDialog::getRecvDataAndInsertText(const QByteArray &data){
     dataString = formatHexData(dataString);
     dataString = "<< " + dataString + "\n";
     textEdit->insertPlainText(dataString);
+
+    QTextCursor cursor = textEdit->textCursor();
+    cursor.movePosition(QTextCursor::End);
+    textEdit->setTextCursor(cursor);
+    textEdit->ensureCursorVisible();
 }
 
 void serialPortDebugDialog::getSentDataAndInsertText(const QByteArray &data){
@@ -71,6 +76,11 @@ void serialPortDebugDialog::getSentDataAndInsertText(const QByteArray &data){
     dataString = formatHexData(dataString);
     dataString = ">> " + dataString + "\n";
     textEdit->insertPlainText(dataString);
+
+    QTextCursor cursor = textEdit->textCursor();
+    cursor.movePosition(QTextCursor::End);
+    textEdit->setTextCursor(cursor);
+    textEdit->ensureCursorVisible();
 }
 
 

@@ -444,6 +444,7 @@ void SerialPortManager::readData() {
             }
         }
     }
+    qDebug() << "Recv read" << data;
     emit dataReceived(data);
 }
 
@@ -535,7 +536,9 @@ QByteArray SerialPortManager::sendSyncCommand(const QByteArray &data, bool force
         while (serialPort->waitForReadyRead(100))
             responseData += serialPort->readAll();
         qDebug() << "success";
+        emit dataReceived(responseData);
         return responseData;
+        
     }
     return QByteArray();
 }
