@@ -32,6 +32,7 @@
 #include "ui/imagesettings.h"
 #include "ui/settingdialog.h"
 #include "ui/helppane.h"
+#include "ui/serialportdebugdialog.h"
 
 #include "ui/videopane.h"
 #include "video/videohid.h"
@@ -610,6 +611,12 @@ void Camera::configureSettings() {
     connect(setting, &SettingDialog::cameraSettingsApplied, this, &Camera::loadCameraSettingAndSetCamera);
     qDebug() << "Setting configuration... ";
     setting->show();
+}
+
+void Camera::debugSerialPort() {
+    qDebug() << "debug dialog" ;
+    serialPortDebugDialog *serialPortDebug = new serialPortDebugDialog();
+    serialPortDebug->show();
 }
 
 void Camera::purchaseLink(){
