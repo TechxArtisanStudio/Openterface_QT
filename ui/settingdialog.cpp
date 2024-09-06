@@ -52,12 +52,6 @@
 #include <QSerialPortInfo>
 #include <QLineEdit>
 #include <QByteArray>
-#include <QThread>
-#include <QLineEdit>
-#include <QByteArray>
-#include <QThread>
-#include <QLineEdit>
-#include <QByteArray>
 #include <array>
 
 SettingDialog::SettingDialog(QCamera *_camera, QWidget *parent)
