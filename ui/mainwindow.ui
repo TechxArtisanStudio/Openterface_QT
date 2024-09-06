@@ -93,7 +93,6 @@
     </property>
     <addaction name="separator"/>
     <addaction name="actionPreferences"/>
-    <addaction name="actionDebug"/>
     <addaction name="actionExit"/>
    </widget>
    <widget class="QMenu" name="menuControl">

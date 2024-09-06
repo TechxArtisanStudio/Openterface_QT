@@ -116,10 +116,10 @@ void serialPortDebugDialog::getRecvDataAndInsertText(const QByteArray &data){
     dataString = "<< " + dataString + "\n";
     textEdit->insertPlainText(dataString);
 
-    QTextCursor cursor = textEdit->textCursor();
-    cursor.movePosition(QTextCursor::End);
-    textEdit->setTextCursor(cursor);
-    textEdit->ensureCursorVisible();
+    // QTextCursor cursor = textEdit->textCursor();
+    // cursor.movePosition(QTextCursor::End);
+    // textEdit->setTextCursor(cursor);
+    // textEdit->ensureCursorVisible();
 }
 
 void serialPortDebugDialog::getSentDataAndInsertText(const QByteArray &data){
