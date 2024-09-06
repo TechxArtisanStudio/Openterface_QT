@@ -505,7 +505,7 @@ void SettingDialog::createHardwarePage(){
     QCheckBox *VIDCheckBox = new QCheckBox("Custom vendor descriptor:");
     QCheckBox *PIDCheckBox = new QCheckBox("Custom product descriptor:");
     QCheckBox *USBSerialNumberCheckBox = new QCheckBox("USB serial number:");
-    QCheckBox *USBCustomStringDescriptorCheckBox = new QCheckBox("USB Custom string descriptor:");
+    QCheckBox *USBCustomStringDescriptorCheckBox = new QCheckBox("Enable USB flag");
     VIDCheckBox->setObjectName("VIDCheckBox");
     PIDCheckBox->setObjectName("PIDCheckBox");
     USBSerialNumberCheckBox->setObjectName("USBSerialNumberCheckBox");
@@ -516,19 +516,19 @@ void SettingDialog::createHardwarePage(){
     QLineEdit *VIDDescriptorLineEdit = new QLineEdit(hardwarePage);
     QLineEdit *PIDDescriptorLineEdit = new QLineEdit(hardwarePage);
     QLineEdit *serialNumberLineEdit = new QLineEdit(hardwarePage);
-    QLineEdit *customStringDescriptorLineEdit = new QLineEdit(hardwarePage);
+    // QLineEdit *customStringDescriptorLineEdit = new QLineEdit(hardwarePage);
     VIDDescriptorLineEdit->setMaximumWidth(120);
     PIDDescriptorLineEdit->setMaximumWidth(120);
     serialNumberLineEdit->setMaximumWidth(120);
     VIDLineEdit->setMaximumWidth(120);
     PIDLineEdit->setMaximumWidth(120);
-    customStringDescriptorLineEdit->setMaximumWidth(120);
+    // customStringDescriptorLineEdit->setMaximumWidth(120);
     VIDLineEdit->setObjectName("VIDLineEdit");
     PIDLineEdit->setObjectName("PIDLineEdit");
     VIDDescriptorLineEdit->setObjectName("VIDDescriptorLineEdit");
     PIDDescriptorLineEdit->setObjectName("PIDDescriptorLineEdit");    
     serialNumberLineEdit->setObjectName("serialNumberLineEdit");
-    customStringDescriptorLineEdit->setObjectName("customStringDescriptorLineEdit");
+    // customStringDescriptorLineEdit->setObjectName("customStringDescriptorLineEdit");
 
     QGridLayout *gridLayout = new QGridLayout();
     gridLayout->addWidget(VID, 0,0, Qt::AlignLeft);
@@ -536,14 +536,15 @@ void SettingDialog::createHardwarePage(){
     gridLayout->addWidget(PID, 1,0, Qt::AlignLeft);
     gridLayout->addWidget(PIDLineEdit, 1,1, Qt::AlignLeft);
     gridLayout->addWidget(USBDescriptor, 2,0, Qt::AlignLeft);
-    gridLayout->addWidget(VIDCheckBox, 3,0, Qt::AlignLeft);
-    gridLayout->addWidget(VIDDescriptorLineEdit, 3,1, Qt::AlignLeft);
-    gridLayout->addWidget(PIDCheckBox, 4,0, Qt::AlignLeft);
-    gridLayout->addWidget(PIDDescriptorLineEdit, 4,1, Qt::AlignLeft);
-    gridLayout->addWidget(USBSerialNumberCheckBox, 5,0, Qt::AlignLeft);
-    gridLayout->addWidget(serialNumberLineEdit, 5,1, Qt::AlignLeft);
-    gridLayout->addWidget(USBCustomStringDescriptorCheckBox, 6,0, Qt::AlignLeft);
-    gridLayout->addWidget(customStringDescriptorLineEdit, 6,1, Qt::AlignLeft);
+    gridLayout->addWidget(USBCustomStringDescriptorCheckBox, 3,0, Qt::AlignLeft);
+    gridLayout->addWidget(VIDCheckBox, 4,0, Qt::AlignLeft);
+    gridLayout->addWidget(VIDDescriptorLineEdit, 4,1, Qt::AlignLeft);
+    gridLayout->addWidget(PIDCheckBox, 5,0, Qt::AlignLeft);
+    gridLayout->addWidget(PIDDescriptorLineEdit, 5,1, Qt::AlignLeft);
+    gridLayout->addWidget(USBSerialNumberCheckBox, 6,0, Qt::AlignLeft);
+    gridLayout->addWidget(serialNumberLineEdit, 6,1, Qt::AlignLeft);
+    
+    // gridLayout->addWidget(customStringDescriptorLineEdit, 6,1, Qt::AlignLeft);
     
 
     QVBoxLayout *hardwareLayout = new QVBoxLayout(hardwarePage);
@@ -557,7 +558,7 @@ void SettingDialog::createHardwarePage(){
     addCheckBoxLineEditPair(VIDCheckBox, VIDDescriptorLineEdit);
     addCheckBoxLineEditPair(PIDCheckBox, PIDDescriptorLineEdit);
     addCheckBoxLineEditPair(USBSerialNumberCheckBox, serialNumberLineEdit);
-    addCheckBoxLineEditPair(USBCustomStringDescriptorCheckBox, customStringDescriptorLineEdit);
+    // addCheckBoxLineEditPair(USBCustomStringDescriptorCheckBox, customStringDescriptorLineEdit);
 
 
     findUvcCameraDevices();
@@ -583,7 +584,7 @@ void SettingDialog::onCheckBoxStateChanged(int state) {
 }
 
 std::array<bool, 4> SettingDialog::extractBits(QString hexString) {
-    // convert hex string to bool array
+    // convert hex string to bool array 
     bool ok;    
     int hexValue = hexString.toInt(&ok, 16);
 
@@ -669,7 +670,6 @@ void SettingDialog::applyHardwareSetting(){
     GlobalSetting::instance().setPID(PIDLineEdit->text());
     GlobalSetting::instance().setCustomVIDDescriptor(VIDDescriptorLineEdit->text());
     GlobalSetting::instance().setCustomPIDDescriptor(PIDDescriptorLineEdit->text());
-    qDebug() << serialNumberLineEdit->text();
     GlobalSetting::instance().setSerialNumber(serialNumberLineEdit->text());
     GlobalSetting::instance().setUSBEnabelFlag(QString(EnableFlag.toHex()));
     
@@ -694,7 +694,7 @@ void SettingDialog::initHardwareSetting(){
     QLineEdit *VIDDescriptorLineEdit = USBCheckBoxEditMap.value(VIDCheckBox);
     QLineEdit *PIDDescriptorLineEdit = USBCheckBoxEditMap.value(PIDCheckBox);
     QLineEdit *serialNumberLineEdit = USBCheckBoxEditMap.value(USBSerialNumberCheckBox);
-    QLineEdit *customStringDescriptorLineEdit = USBCheckBoxEditMap.value(USBCustomStringDescriptorCheckBox);
+    // QLineEdit *customStringDescriptorLineEdit = USBCheckBoxEditMap.value(USBCustomStringDescriptorCheckBox);
 
     QString USBFlag = settings.value("serial/enableflag", "87").toString();
     std::array<bool, 4> enableFlagArray = extractBits(USBFlag);
@@ -714,13 +714,13 @@ void SettingDialog::initHardwareSetting(){
     VIDLineEdit->setText(settings.value("serial/vid", "861A").toString());
     PIDLineEdit->setText(settings.value("serial/pid", "29E1").toString());
     serialNumberLineEdit->setText(settings.value("serial/serialnumber" , "serial number").toString());
-    customStringDescriptorLineEdit->setText(settings.value("serial/customstringdescriptor", "custom string").toString());
+    // customStringDescriptorLineEdit->setText(settings.value("serial/customstringdescriptor", "custom string").toString());
     
 
     VIDDescriptorLineEdit->setEnabled(enableFlagArray[2]);
     PIDDescriptorLineEdit->setEnabled(enableFlagArray[1]);
     serialNumberLineEdit->setEnabled(enableFlagArray[0]);
-    customStringDescriptorLineEdit->setEnabled(enableFlagArray[3]);
+    // customStringDescriptorLineEdit->setEnabled(enableFlagArray[3]);
 }
 
 void SettingDialog::createPages() {
