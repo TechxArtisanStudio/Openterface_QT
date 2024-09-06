@@ -96,6 +96,7 @@ private slots:
     // void configureImageSettings();
 
     void configureSettings();
+    void debugSerialPort();
 
     void displayCameraError();
 

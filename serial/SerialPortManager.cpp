@@ -444,6 +444,7 @@ void SerialPortManager::readData() {
             }
         }
     }
+    qDebug() << "Recv read" << data;
     emit dataReceived(data);
 }
 
@@ -512,6 +513,8 @@ bool SerialPortManager::writeData(const QByteArray &data) {
 bool SerialPortManager::sendAsyncCommand(const QByteArray &data, bool force) {
     if(!force && !ready) return false;
     QByteArray command = data;
+    // qDebug() << "Data received signal emitted";
+    // emit dataSent(data);
     command.append(calculateChecksum(command));
     return writeData(command);
 }
@@ -521,15 +524,21 @@ bool SerialPortManager::sendAsyncCommand(const QByteArray &data, bool force) {
  */
 QByteArray SerialPortManager::sendSyncCommand(const QByteArray &data, bool force) {
     if(!force && !ready) return QByteArray();
+    // qDebug() << "Data received signal emitted";
+    emit dataSent(data);
     QByteArray command = data;
+    
     command.append(calculateChecksum(command));
-    qDebug() <<  "Check sum" << command ;
+    qDebug() <<  "Check sum" << command;
     writeData(command);
     if (serialPort->waitForReadyRead(100)) {
         QByteArray responseData = serialPort->readAll();
         while (serialPort->waitForReadyRead(100))
             responseData += serialPort->readAll();
+        qDebug() << "success";
+        emit dataReceived(responseData);
         return responseData;
+        
     }
     return QByteArray();
 }
@@ -608,7 +617,7 @@ void SerialPortManager::setUSBconfiguration(){
     command.append(Reserved1Byte);
     command.append(Reserved2Byte);
     command.append(Reserved3Byte);
-
+    
     qDebug() <<  " no checksum" << command;
     if (serialPort != nullptr && serialPort->isOpen()){
         QByteArray respon = sendSyncCommand(command, true); 
@@ -659,7 +668,7 @@ void SerialPortManager::changeUSBDescriptor() {
                 QByteArray hexLength_2 = QByteArray::number(descriptor_size + 2, 16).rightJustified(2, '0').toUpper();
                 QByteArray descriptor_type = QByteArray::number(0, 16).rightJustified(1, '0').toUpper() + QByteArray::number(i, 16).rightJustified(1, '0').toUpper();
                 
-                // convert hex to bytes
+                // convert hex to binary bytes
                 QByteArray hexLength_2_bin = QByteArray::fromHex(hexLength_2);
                 QByteArray descriptor_type_bin = QByteArray::fromHex(descriptor_type);
                 QByteArray hexLength_bin = QByteArray::fromHex(hexLength);
@@ -668,6 +677,8 @@ void SerialPortManager::changeUSBDescriptor() {
                 command.append(descriptor_type_bin);
                 command.append(hexLength_bin);
                 command.append(tmp);
+
+                
                 qDebug() <<  " no checksum" << command;
                 if (serialPort != nullptr && serialPort->isOpen()){
                     QByteArray respon = sendSyncCommand(command, true);

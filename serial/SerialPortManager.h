@@ -47,6 +47,8 @@ public:
         static SerialPortManager instance; // Guaranteed to be destroyed, instantiated on first use.
         return instance;
     }
+    
+    
 
     SerialPortManager(SerialPortManager const&) = delete; // Don't Implement
     void operator=(SerialPortManager const&) = delete; // Don't implement
@@ -72,6 +74,7 @@ public:
     void changeUSBDescriptor();
 signals:
     void dataReceived(const QByteArray &data);
+    void dataSent(const QByteArray &data);
     void serialPortConnected(const QString &portName);
     void serialPortDisconnected(const QString &portName);
     void serialPortConnectionSuccess(const QString &portName);
