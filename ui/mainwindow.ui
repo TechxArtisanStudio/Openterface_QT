@@ -93,13 +93,7 @@
     </property>
     <addaction name="separator"/>
     <addaction name="actionPreferences"/>
-    <addaction name="actionDebug"/>
     <addaction name="actionExit"/>
-   </widget>
-   <widget class="QMenu" name="menuSource">
-    <property name="title">
-     <string>Source</string>
-    </property>
    </widget>
    <widget class="QMenu" name="menuControl">
     <property name="title">
@@ -119,6 +113,7 @@
      <addaction name="actionResetSerialPort"/>
      <addaction name="actionResetHID"/>
      <addaction name="actionFactory_reset_HID"/>
+     <addaction name="actionDebug"/>
     </widget>
     <widget class="QMenu" name="menuBaudrate">
      <property name="title">
@@ -161,7 +156,6 @@
    <addaction name="menuFile"/>
    <addaction name="menuEdit"/>
    <addaction name="menuControl"/>
-   <addaction name="menuSource"/>
    <addaction name="menuHelp"/>
   </widget>
   <widget class="QStatusBar" name="statusbar"/>
@@ -195,6 +189,11 @@
     <string>Reset Serial Port</string>
    </property>
   </action>
+  <action name="actionDebug">
+   <property name="text">
+    <string>Serial Console</string>
+   </property>
+  </action>
   <action name="actionAutoReszie">
    <property name="text">
     <string>AutoReszie</string>
@@ -208,11 +207,6 @@
   <action name="actionPreferences">
    <property name="text">
     <string>Preferences</string>
-   </property>
-  </action>
-  <action name="actionDebug">
-   <property name="text">
-    <string>Debug</string>
    </property>
   </action>
   <action name="actionOfficeWeb">
