@@ -93,6 +93,7 @@
     </property>
     <addaction name="separator"/>
     <addaction name="actionPreferences"/>
+    <addaction name="actionDebug"/>
     <addaction name="actionExit"/>
    </widget>
    <widget class="QMenu" name="menuControl">
@@ -207,6 +208,11 @@
   <action name="actionPreferences">
    <property name="text">
     <string>Preferences</string>
+   </property>
+  </action>
+  <action name="actionDebug">
+   <property name="text">
+    <string>Serial Console</string>
    </property>
   </action>
   <action name="actionOfficeWeb">
