@@ -26,8 +26,9 @@ private:
     Ui::serialPortDebugDialog *ui;
     QTextEdit *textEdit;
     QWidget *debugButtonWidget;
-
+    QWidget *filterCheckboxWidget;
     void createDebugButtonWidget();
+    void createFilterCheckBox();
     
     void createLayout();
     QString formatHexData(QString hexString);
