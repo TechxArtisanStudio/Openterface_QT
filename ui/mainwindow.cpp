@@ -36,6 +36,8 @@
 
 #include "ui/videopane.h"
 #include "video/videohid.h"
+#include "ui/virtualkeyboardwidget.h"
+
 #include <QCameraDevice>
 #include <QMediaDevices>
 #include <QMediaFormat>
@@ -48,6 +50,7 @@
 #include <QImageCapture>
 #include <QToolBar>
 #include <QClipboard>
+#include <QInputMethod>
 #include <QAction>
 #include <QActionGroup>
 #include <QImage>
@@ -137,7 +140,7 @@ Camera::Camera() : ui(new Ui::Camera), videoPane(new VideoPane(this)),
     connect(ui->actionResetSerialPort, &QAction::triggered, this, &Camera::onActionResetSerialPortTriggered);
 
     qDebug() << "Observe Hardware change Camera triggerd...";
-    
+
     // load the settings
     qDebug() << "Loading settings";
     GlobalSetting::instance().loadLogSettings();
@@ -153,6 +156,8 @@ Camera::Camera() : ui(new Ui::Camera), videoPane(new VideoPane(this)),
     connect(ui->pasteButton, &QPushButton::released, this, &Camera::onActionPasteToTarget);
 
     connect(ui->screensaverButton, &QPushButton::released, this, &Camera::onActionScreensaver);
+
+    connect(ui->virtualKeyboardButton, &QPushButton::released, this, &Camera::onToggleVirtualKeyboard);
 
     qDebug() << "Init...";
     init();
@@ -265,7 +270,7 @@ void Camera::setCamera(const QCameraDevice &cameraDevice)
     connect(m_camera.get(), &QCamera::activeChanged, this, &Camera::updateCameraActive);
     connect(m_camera.get(), &QCamera::errorOccurred, this, &Camera::displayCameraError);
     qCDebug(log_ui_mainwindow) << "Observe congigure setting";
-    
+
 
     queryResolutions();
 
@@ -416,10 +421,10 @@ void Camera::onActionAbsoluteTriggered()
 void Camera::onActionResetHIDTriggered()
 {
     QMessageBox::StandardButton reply;
-    reply = QMessageBox::warning(this, "Confirm Reset Keyboard and Mouse?", 
+    reply = QMessageBox::warning(this, "Confirm Reset Keyboard and Mouse?",
                                         "Resetting the Keyboard & Mouse chip will apply new settings. Do you want to proceed?",
                                   QMessageBox::Yes | QMessageBox::No);
-    
+
     if (reply == QMessageBox::Yes) {
         qCDebug(log_ui_mainwindow) << "onActionResetHIDTriggered";
         HostManager::getInstance().resetHid();
@@ -431,10 +436,10 @@ void Camera::onActionResetHIDTriggered()
 void Camera::onActionFactoryResetHIDTriggered()
 {
     QMessageBox::StandardButton reply;
-    reply = QMessageBox::warning(this, "Confirm Factory Reset HID Chip?", 
+    reply = QMessageBox::warning(this, "Confirm Factory Reset HID Chip?",
                                         "Factory reset the HID chip. Proceed?",
                                   QMessageBox::Yes | QMessageBox::No);
-    
+
     if (reply == QMessageBox::Yes) {
         qCDebug(log_ui_mainwindow) << "onActionFactoryResetHIDTriggered";
         SerialPortManager::getInstance().factoryResetHipChip();
@@ -447,10 +452,10 @@ void Camera::onActionFactoryResetHIDTriggered()
 void Camera::onActionResetSerialPortTriggered()
 {
     QMessageBox::StandardButton reply;
-    reply = QMessageBox::question(this, "Confirm Reset Serial Port?", 
+    reply = QMessageBox::question(this, "Confirm Reset Serial Port?",
                                         "Resetting the serial port will close and re-open it without changing settings. Proceed?",
                                   QMessageBox::Yes | QMessageBox::No);
-    
+
     if (reply == QMessageBox::Yes) {
         qCDebug(log_ui_mainwindow) << "onActionResetSerialPortTriggered";
         HostManager::getInstance().resetSerialPort();
@@ -509,6 +514,24 @@ void Camera::onActionPasteToTarget()
 void Camera::onActionScreensaver()
 {
     HostManager::getInstance().autoMoveMouse();
+}
+
+void Camera::onToggleVirtualKeyboard()
+{
+    QInputMethod *inputMethod = QGuiApplication::inputMethod();
+    // // Ensure the focus is on the central widget
+    // QWidget *centralWidget = this->centralWidget();
+    // if (centralWidget && !centralWidget->hasFocus()) {
+    //     centralWidget->setFocus();
+    // }
+
+    if (inputMethod->isVisible()) {
+        inputMethod->hide();
+        qDebug() << "Virtual keyboard hidden";
+    } else {
+        inputMethod->show();
+        qDebug() << "Virtual keyboard shown";
+    }
 }
 
 void Camera::popupMessage(QString message)
@@ -585,7 +608,7 @@ void Camera::processCapturedImage(int requestId, const QImage &img)
 //     //     configureImageSettings();
 //     // else
 //     configureVideoSettings();
-    
+
 // }
 
 // void Camera::configureVideoSettings()
@@ -616,7 +639,7 @@ void Camera::configureSettings() {
 void Camera::debugSerialPort() {
     // qDebug() << "debug dialog" ;
     serialPortDebugDialog *serialPortDebug = new serialPortDebugDialog();
-    
+
     serialPortDebug->show();
 }
 

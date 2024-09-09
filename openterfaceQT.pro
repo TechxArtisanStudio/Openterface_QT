@@ -7,7 +7,7 @@
 TARGET = openterfaceQT
 TEMPLATE = app
 
-QT       += core gui multimedia multimediawidgets serialport concurrent svg
+QT       += core gui multimedia multimediawidgets serialport concurrent svg virtualkeyboard
 
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 
@@ -26,6 +26,7 @@ SOURCES += main.cpp \
     ui/videopane.cpp \
     ui/videosettings.cpp \
     ui/globalsetting.cpp \
+    ui/virtualkeyboardwidget.cpp \
     # ui/serialportDebug.cpp \
     host/HostManager.cpp \
     serial/SerialPortManager.cpp \
@@ -49,6 +50,7 @@ HEADERS  += \
     ui/videosettings.h \
     ui/globalsetting.h \
     ui/statusevents.h \
+    ui/virtualkeyboardwidget.h \
     # ui/serialportDebug \
     host/HostManager.h \
     serial/ch9329.h \
