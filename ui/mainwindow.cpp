@@ -795,7 +795,7 @@ void Camera::closeEvent(QCloseEvent *event)
 void Camera::updateCameras()
 {
     qCDebug(log_ui_mainwindow) << "Update cameras...";
-    ui->menuSource->clear();
+    // ui->menuSource->clear();
     const QList<QCameraDevice> availableCameras = QMediaDevices::videoInputs();
 
     for (const QCameraDevice &camera : availableCameras) {
