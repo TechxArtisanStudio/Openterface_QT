@@ -7,18 +7,21 @@
 #include <QHBoxLayout>
 #include <QByteArray>
 #include <QCoreApplication>
+#include <QCheckBox>
+#include <QGridLayout>
 
 serialPortDebugDialog::serialPortDebugDialog(QWidget *parent)
     : QDialog(parent)
     , ui(new Ui::serialPortDebugDialog)
     , textEdit(new QTextEdit(this))
     , debugButtonWidget(new QWidget(this))
+    , filterCheckboxWidget(new QWidget(this))
 {
     ui->setupUi(this);
     setWindowTitle(tr("Serial Port Debug"));
 
     createDebugButtonWidget();
-
+    // createFilterCheckBox();
     SerialPortManager* serialPortManager = &SerialPortManager::getInstance();
     if (serialPortManager){
         connect(serialPortManager, &SerialPortManager::dataSent,
@@ -37,6 +40,30 @@ serialPortDebugDialog::~serialPortDebugDialog()
 }
 
 
+void serialPortDebugDialog::createFilterCheckBox(){
+    QCheckBox *ChipInfoFilter = new QCheckBox("Chip info filter");  //81
+    QCheckBox *keyboardPressFilter = new QCheckBox("keyboard filter");  //82
+    QCheckBox *mideaKeyboardFilter = new QCheckBox("media keyboard filter");    //83
+    QCheckBox *mouseMoveABSFilter = new QCheckBox("Mouse absolute filter"); //84
+    QCheckBox *mouseMoveRELFilter = new QCheckBox("mouse relative filter"); //85
+    QCheckBox *HIDFilter = new QCheckBox("HID filter"); //87
+    ChipInfoFilter->setObjectName("ChipInfoFilter");
+    keyboardPressFilter->setObjectName("keyboardPressFilter");
+    mideaKeyboardFilter->setObjectName("mideaKeyboardFilter");
+    mouseMoveABSFilter->setObjectName("mouseMoveABSFilter");
+    mouseMoveRELFilter->setObjectName("mouseMoveRELFilter");
+    HIDFilter->setObjectName("HIDFilter");
+
+    QGridLayout *gridLayout = new QGridLayout(filterCheckboxWidget);
+    gridLayout->addWidget(ChipInfoFilter, 0,0, Qt::AlignLeft);
+    gridLayout->addWidget(keyboardPressFilter, 0,1, Qt::AlignLeft);
+    gridLayout->addWidget(mideaKeyboardFilter, 0,2, Qt::AlignLeft);
+    gridLayout->addWidget(mouseMoveABSFilter, 1,0, Qt::AlignLeft);
+    gridLayout->addWidget(mouseMoveRELFilter, 1,1, Qt::AlignLeft);
+    gridLayout->addWidget(HIDFilter, 1,2, Qt::AlignLeft);
+    
+}
+
 void serialPortDebugDialog::createDebugButtonWidget(){
     QPushButton *clearButton = new QPushButton("Clear");
     QPushButton *closeButton = new QPushButton("Close");
@@ -52,22 +79,47 @@ void serialPortDebugDialog::createDebugButtonWidget(){
 
 void serialPortDebugDialog::createLayout(){
     QVBoxLayout *mainLayout = new QVBoxLayout;
+    // mainLayout->addWidget(filterCheckboxWidget);
     mainLayout->addWidget(textEdit);
     mainLayout->addWidget(debugButtonWidget);
     setLayout(mainLayout);
 }
 
 void serialPortDebugDialog::getRecvDataAndInsertText(const QByteArray &data){
-    qDebug() << "recv data <<- " << data;
+    // QCheckBox *ChipInfoFilter = filterCheckboxWidget->findChild<QCheckBox *>("ChipInfoFilter");
+    // QCheckBox *keyboardPressFilter = filterCheckboxWidget->findChild<QCheckBox *>("keyboardPressFilter");
+    // QCheckBox *mideaKeyboardFilter = filterCheckboxWidget->findChild<QCheckBox *>("mideaKeyboardFilter");
+    // QCheckBox *mouseMoveABSFilter = filterCheckboxWidget->findChild<QCheckBox *>("mouseMoveABSFilter");
+    // QCheckBox *mouseMoveRELFilter = filterCheckboxWidget->findChild<QCheckBox *>("mouseMoveRELFilter");
+    // QCheckBox *HIDFilter = filterCheckboxWidget->findChild<QCheckBox *>("HIDFilter");
+    // bool Chipinfo = ChipInfoFilter->isChecked();
+    // bool keyboardPress = keyboardPressFilter->isChecked();
+    // bool mideaKeyboard = mideaKeyboardFilter->isChecked();
+    // bool mouseMoveABS = mouseMoveABSFilter->isChecked();
+    // bool mouseMoveREL = mouseMoveRELFilter->isChecked();
+    // bool HID = HIDFilter->isChecked();
+    // char fourthByte = data.at(3);
+    // bool shouldShow = false;
+
+    // if ((fourthByte&& Chipinfo == 0x81) || (fourthByte&&keyboardPress==0x82) 
+    // || (fourthByte&&mideaKeyboard==0x83) || (fourthByte&&mouseMoveABS==0x84) 
+    // || (fourthByte&&mouseMoveREL==0x85) || (fourthByte&&HID == 0x87)){
+    //     shouldShow = true;
+    // }
+
+    // if (!shouldShow) {
+    //     return;
+    // }
+    
     QString dataString = data.toHex().toUpper();
     dataString = formatHexData(dataString);
     dataString = "<< " + dataString + "\n";
     textEdit->insertPlainText(dataString);
 
-    QTextCursor cursor = textEdit->textCursor();
-    cursor.movePosition(QTextCursor::End);
-    textEdit->setTextCursor(cursor);
-    textEdit->ensureCursorVisible();
+    // QTextCursor cursor = textEdit->textCursor();
+    // cursor.movePosition(QTextCursor::End);
+    // textEdit->setTextCursor(cursor);
+    // textEdit->ensureCursorVisible();
 }
 
 void serialPortDebugDialog::getSentDataAndInsertText(const QByteArray &data){
