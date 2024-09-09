@@ -120,6 +120,7 @@ void KeyboardManager::handleKeyboardAction(int keyCode, int modifiers, bool isKe
             for(int j = 0; j < 6; j++){
                 keyData[7 + j] = 0;
             }
+            currentMappedKeyCodes.clear();
         }
         qDebug() << "Send command :" << keyData.toHex(' ');
         emit SerialPortManager::getInstance().sendCommandAsync(keyData, false);
