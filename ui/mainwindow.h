@@ -151,6 +151,7 @@ protected:
     void onFollowSwitchTriggered();
     void onActionPasteToTarget();
     void onActionScreensaver();
+    void onToggleVirtualKeyboard();
 
     void queryResolutions();
 
