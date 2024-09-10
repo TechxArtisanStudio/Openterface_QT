@@ -29,6 +29,7 @@
 #include <QObject>
 #include <QLoggingCategory>
 #include <QSet>
+#include <QMap>
 
 Q_DECLARE_LOGGING_CATEGORY(log_host_keyboard)
 
@@ -53,6 +54,18 @@ public:
 
     void pasteTextToTarget(const QString &text);
 
+    /*
+     * Send F1 to F12 functional keys
+     */
+    void sendFunctionKey(int functionKeyCode);
+
+    /*
+     * Send ctrl + alt + del composite keys
+     */
+    void sendCtrlAltDel();
+
+    void sendKey(int keyCode, int modifiers, bool isKeyDown);
+
 private:
     static const QMap<int, uint8_t> keyMap;
     static const QMap<uint8_t, int> charMapping;
@@ -69,6 +82,19 @@ private:
     
     int handleKeyModifiers(int modifierKeyCode, bool isKeyDown);
     int currentModifiers = 0;
+
+    // Add this new constant
+    static const QMap<int, uint8_t> functionKeyMap;
+
+    // Add this new method
+    void sendKeyToTarget(uint8_t keyCode, bool isPressed);
+
+    // Add these new constants
+    static const uint8_t CTRL_KEY = 0xE0;
+    static const uint8_t ALT_KEY = 0xE2;
+    static const uint8_t DEL_KEY = 0x4C;
+
+private slots:
 };
 
 #endif // KEYBOARDMANAGER_H
