@@ -70,6 +70,14 @@
     </property>
     <layout class="QHBoxLayout" name="horizontalLayout">
      <item>
+      <widget class="QPushButton" name="virtualKeyboardButton">
+       <property name="icon">
+        <iconset resource="mainwindow.qrc">
+         <normaloff>:/images/keyboard.svg</normaloff>:/images/keyboard-down.svg</iconset>
+       </property>
+      </widget>
+     </item>
+     <item>
       <widget class="QPushButton" name="pasteButton">
        <property name="icon">
         <iconset resource="mainwindow.qrc">
