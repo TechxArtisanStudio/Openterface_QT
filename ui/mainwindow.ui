@@ -73,7 +73,7 @@
       <widget class="QPushButton" name="virtualKeyboardButton">
        <property name="icon">
         <iconset resource="mainwindow.qrc">
-         <normaloff>:/images/keyboard.svg</normaloff>:/images/keyboard.svg</iconset>
+         <normaloff>:/images/keyboard.svg</normaloff>:/images/keyboard-down.svg</iconset>
        </property>
       </widget>
      </item>
