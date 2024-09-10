@@ -59,11 +59,11 @@ SettingDialog::SettingDialog(QCamera *_camera, QWidget *parent)
     , ui(new Ui::SettingDialog)
     , settingTree(new QTreeWidget(this))
     , stackedWidget(new QStackedWidget(this))
-    , buttonWidget(new QWidget(this))
     , logPage(nullptr)
     , videoPage(nullptr)
     , audioPage(nullptr)
     , hardwarePage(nullptr)
+    , buttonWidget(new QWidget(this))
     , camera(_camera)
     
 {
@@ -593,10 +593,10 @@ std::array<bool, 4> SettingDialog::extractBits(QString hexString) {
 
     // get the bit
     std::array<bool, 4> bits = {
-        (hexValue >> 0) & 1,
-        (hexValue >> 1) & 1,
-        (hexValue >> 2) & 1,
-        (hexValue >> 7) & 1
+        static_cast<bool>((hexValue >> 0) & 1),
+        static_cast<bool>((hexValue >> 1) & 1),
+        static_cast<bool>((hexValue >> 2) & 1),
+        static_cast<bool>((hexValue >> 7) & 1)
     };
 
     return bits;
@@ -669,8 +669,13 @@ void SettingDialog::applyHardwareSetting(){
     GlobalSetting::instance().setSerialNumber(serialNumberLineEdit->text());
     GlobalSetting::instance().setUSBEnabelFlag(QString(EnableFlag.toHex()));
     
-    SerialPortManager::getInstance().setUSBconfiguration();
+
     SerialPortManager::getInstance().changeUSBDescriptor();
+    QThread::msleep(10);
+    SerialPortManager::getInstance().setUSBconfiguration();
+    
+    
+    // QThread::msleep(10);
 }
 
 
@@ -695,7 +700,7 @@ void SettingDialog::initHardwareSetting(){
     QString USBFlag = settings.value("serial/enableflag", "87").toString();
     std::array<bool, 4> enableFlagArray = extractBits(USBFlag);
 
-    for(int i = 0; i < enableFlagArray.size(); i++){
+    for(uint i = 0; i < enableFlagArray.size(); i++){
         qDebug() << "enable flag array: " <<enableFlagArray[i];
     }
 
@@ -768,7 +773,7 @@ void SettingDialog::createLayout() {
 
 
 void SettingDialog::changePage(QTreeWidgetItem *current, QTreeWidgetItem *previous) {
-    static QElapsedTimer timer;
+
     static bool isChanging = false;
 
     if (isChanging)
