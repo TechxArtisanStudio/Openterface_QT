@@ -123,7 +123,7 @@ void serialPortDebugDialog::getRecvDataAndInsertText(const QByteArray &data){
 }
 
 void serialPortDebugDialog::getSentDataAndInsertText(const QByteArray &data){
-    qDebug() << "send data ->> " << data;
+    // qDebug() << "send data ->> " << data;
     QString dataString = data.toHex().toUpper();
     dataString = formatHexData(dataString);
     dataString = ">> " + dataString + "\n";

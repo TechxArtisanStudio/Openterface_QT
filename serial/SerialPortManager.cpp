@@ -444,7 +444,7 @@ void SerialPortManager::readData() {
             }
         }
     }
-    qDebug() << "Recv read" << data;
+    // qDebug() << "Recv read" << data;
     emit dataReceived(data);
 }
 

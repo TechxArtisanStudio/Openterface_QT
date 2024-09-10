@@ -121,6 +121,8 @@ void SettingDialog::createLogPage() {
     uiCheckBox->setObjectName("ui");
     hostCheckBox->setObjectName("host");
 
+    // QFileDialog *fileDialog = new QFileDialog
+
     QHBoxLayout *logCheckboxLayout = new QHBoxLayout();
     logCheckboxLayout->addWidget(coreCheckBox);
     logCheckboxLayout->addWidget(serialCheckBox);
