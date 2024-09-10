@@ -232,4 +232,21 @@ const QList<int> KeyboardManager::KEYPAD_KEYS = {
     Qt::Key_Slash, // /
     Qt::Key_Period // .
 };
+
+// Define the static member outside the class
+const QMap<int, uint8_t> KeyboardManager::functionKeyMap = {
+    {Qt::Key_F1, 0x3A},
+    {Qt::Key_F2, 0x3B},
+    {Qt::Key_F3, 0x3C},
+    {Qt::Key_F4, 0x3D},
+    {Qt::Key_F5, 0x3E},
+    {Qt::Key_F6, 0x3F},
+    {Qt::Key_F7, 0x40},
+    {Qt::Key_F8, 0x41},
+    {Qt::Key_F9, 0x42},
+    {Qt::Key_F10, 0x43},
+    {Qt::Key_F11, 0x44},
+    {Qt::Key_F12, 0x45},
+    // Add more function keys if needed
+};
 #endif // WINKEYMAPPING_H

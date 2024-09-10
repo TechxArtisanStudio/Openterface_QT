@@ -16,5 +16,7 @@
         <file>../images/mouse-middle-button.svg</file>
         <file>../images/keyboard.svg</file>
         <file>../images/keyboard-pressed.svg</file>
+        <file>../images/keyboard-down.svg</file>
+        <file>../images/keyboard-up.svg</file>
     </qresource>
 </RCC>

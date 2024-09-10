@@ -25,6 +25,7 @@
 #include <QProcess>
 #include <QCoreApplication>
 #include <QtConcurrent/QtConcurrent>
+#include <QTimer>
 
 Q_LOGGING_CATEGORY(log_core_host, "opf.core.host")
 
@@ -44,25 +45,12 @@ void HostManager::setEventCallback(StatusEventCallback* callback)
 
 void HostManager::handleKeyPress(QKeyEvent *event)
 {
-    QString hexKeyCode = QString::number(event->key(), 16);
-    // In order to distingush the left or right modifiers
-    int modifiers = keyboardManager.isModiferKeys(event->key()) ? event->nativeModifiers() : event->modifiers();
-    qCDebug(log_core_host) << "Key press event for qt key code:" << event->key() << "(" << hexKeyCode << "), modifers:" << "0x" + QString::number(modifiers, 16);
-    keyboardManager.handleKeyboardAction(event->key(), modifiers, true);
-    if(statusEventCallback != nullptr) {
-        statusEventCallback->onLastKeyPressed(event->text());
-    }
+    handleKeyboardAction(event->key(), event->modifiers(), true);
 }
 
 void HostManager::handleKeyRelease(QKeyEvent *event)
 {
-    QString hexKeyCode = QString::number(event->key(), 16);
-    int modifiers = keyboardManager.isModiferKeys(event->key()) ? event->nativeModifiers() : event->modifiers();
-    qCDebug(log_core_host) << "Key release event for qt key code:" << event->key() << "(" << hexKeyCode << "), modifer:" << "0x" + QString::number(modifiers, 16);
-    keyboardManager.handleKeyboardAction(event->key(), modifiers, false);
-    if(statusEventCallback != nullptr) {
-        statusEventCallback->onLastKeyPressed("");
-    }
+    handleKeyboardAction(event->key(), event->modifiers(), false);
 }
 
 void HostManager::handleMousePress(MouseEventDTO *event)
@@ -138,3 +126,80 @@ void HostManager::autoMoveMouse()
 {
     mouseManager.startAutoMoveMouse();
 }
+
+void HostManager::sendCtrlAltDel()
+{
+    qCDebug(log_core_host) << "Sending Ctrl+Alt+Del to target";
+    keyboardManager.sendCtrlAltDel();
+}
+
+void HostManager::handleFunctionKey(int qtKeyCode)
+{
+    handleKeyboardAction(qtKeyCode, Qt::NoModifier, true);
+    QTimer::singleShot(50, this, [this, qtKeyCode]() {
+        handleKeyboardAction(qtKeyCode, Qt::NoModifier, false);
+    });
+}
+
+void HostManager::handleKeyboardAction(int keyCode, int modifiers, bool isKeyDown)
+{
+    QString hexKeyCode = QString::number(keyCode, 16);
+    int effectiveModifiers = keyboardManager.isModiferKeys(keyCode) ? modifiers : modifiers;
+    qCDebug(log_core_host) << (isKeyDown ? "Key press" : "Key release") << "event for qt key code:" << keyCode << "(" << hexKeyCode << "), modifers:" << "0x" + QString::number(effectiveModifiers, 16);
+    
+    keyboardManager.handleKeyboardAction(keyCode, effectiveModifiers, isKeyDown);
+    
+    if (isKeyDown) {
+        qCDebug(log_core_host) << "keyCode:" << keyCode << "modifiers:" << effectiveModifiers;
+        m_lastKeyCode = keyCode;
+        m_lastModifiers = effectiveModifiers;
+
+        // Update the status with the last key pressed
+        if (statusEventCallback != nullptr) {
+            QString keyText = QKeySequence(keyCode | effectiveModifiers).toString();
+            statusEventCallback->onLastKeyPressed(keyText);
+        }
+    } else {
+        // When key is released, clear the status
+        if (statusEventCallback != nullptr) {
+            statusEventCallback->onLastKeyPressed("");
+        }
+    }
+}
+
+void HostManager::setRepeatingKeystroke(int interval) {
+    m_repeatingInterval = interval;
+    if (interval > 0) {
+        if (!m_repeatingTimer) {
+            m_repeatingTimer = new QTimer(this);
+            connect(m_repeatingTimer, &QTimer::timeout, this, &HostManager::repeatLastKeystroke);
+        }
+        qCDebug(log_core_host) << "Repeating keystroke start with interval:" << interval << "ms";
+        m_repeatingTimer->start(interval);
+    } else {
+        if (m_repeatingTimer) {
+            qCDebug(log_core_host) << "Repeating keystroke stopped";
+            m_repeatingTimer->stop();
+        }
+        // Send a key release event for the last pressed key
+        if (m_lastKeyCode != 0) {
+            qCDebug(log_core_host) << "Sending key release for last pressed key:" << m_lastKeyCode;
+            handleKeyboardAction(m_lastKeyCode, m_lastModifiers, false);
+        }
+        // Clear the last key code and modifier when stopping repetition
+        m_lastKeyCode = 0;
+        m_lastModifiers = 0;
+        qCDebug(log_core_host) << "Last key code and modifier cleared";
+    }
+}
+
+void HostManager::repeatLastKeystroke() {
+    if (m_repeatingInterval > 0 && m_lastKeyCode != 0) {
+        qCDebug(log_core_host) << "Repeating keystroke, keyCode:" << m_lastKeyCode;
+        handleKeyboardAction(m_lastKeyCode, m_lastModifiers, true);
+        QTimer::singleShot(50, this, [this]() {
+            handleKeyboardAction(m_lastKeyCode, m_lastModifiers, false);
+        });
+    }
+}
+

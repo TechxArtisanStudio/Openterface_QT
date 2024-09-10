@@ -36,7 +36,6 @@
 
 #include "ui/videopane.h"
 #include "video/videohid.h"
-#include "ui/virtualkeyboardwidget.h"
 
 #include <QCameraDevice>
 #include <QMediaDevices>
@@ -45,7 +44,6 @@
 #include <QMediaRecorder>
 #include <QVideoWidget>
 #include <QStackedLayout>
-#include <QLineEdit>
 #include <QMessageBox>
 #include <QImageCapture>
 #include <QToolBar>
@@ -68,6 +66,7 @@
 #include <QSysInfo>
 #include <QMenuBar>
 #include <QPushButton>
+#include <QComboBox>
 
 #include <QGuiApplication>
 
@@ -91,10 +90,11 @@ Q_LOGGING_CATEGORY(log_ui_mainwindow, "opf.ui.mainwindow")
 #endif
 #endif
 
-Camera::Camera() : ui(new Ui::Camera), videoPane(new VideoPane(this)),
+Camera::Camera() : ui(new Ui::Camera), m_audioManager(new AudioManager(this)),
+                                        videoPane(new VideoPane(this)),
                                         stackedLayout(new QStackedLayout(this)),
-                                        statusWidget(new StatusWidget(this)),
-                                        m_audioManager(new AudioManager(this))
+                                        toolbarManager(new ToolbarManager(this)),
+                                        statusWidget(new StatusWidget(this))
 {
     qCDebug(log_ui_mainwindow) << "Init camera...";
     ui->setupUi(this);
@@ -164,6 +164,14 @@ Camera::Camera() : ui(new Ui::Camera), videoPane(new VideoPane(this)),
 
     qDebug() << "Init status bar...";
     initStatusBar();
+
+    addToolBar(Qt::TopToolBarArea, toolbarManager->getToolbar());
+    toolbarManager->getToolbar()->setVisible(false);
+
+    connect(toolbarManager, &ToolbarManager::functionKeyPressed, this, &Camera::onFunctionKeyPressed);
+    connect(toolbarManager, &ToolbarManager::ctrlAltDelPressed, this, &Camera::onCtrlAltDelPressed);
+    connect(toolbarManager, &ToolbarManager::delPressed, this, &Camera::onDelPressed);
+    connect(toolbarManager, &ToolbarManager::repeatingKeystrokeChanged, this, &Camera::onRepeatingKeystrokeChanged);
 }
 
 void Camera::init()
@@ -205,6 +213,10 @@ void Camera::init()
     GlobalVar::instance().setWinWidth(this->width());
     GlobalVar::instance().setWinHeight(this->height());
     onFollowSwitchTriggered();
+
+    // Initialize the virtual keyboard button icon
+    QIcon icon(":/images/keyboard-down.svg");
+    ui->virtualKeyboardButton->setIcon(icon);
 }
 
 void Camera::initStatusBar()
@@ -315,7 +327,6 @@ void Camera::resizeEvent(QResizeEvent *event) {
 
     GlobalVar::instance().setWinWidth(this->width());
     GlobalVar::instance().setWinHeight(this->height());
-
 }
 
 
@@ -518,20 +529,13 @@ void Camera::onActionScreensaver()
 
 void Camera::onToggleVirtualKeyboard()
 {
-    QInputMethod *inputMethod = QGuiApplication::inputMethod();
-    // // Ensure the focus is on the central widget
-    // QWidget *centralWidget = this->centralWidget();
-    // if (centralWidget && !centralWidget->hasFocus()) {
-    //     centralWidget->setFocus();
-    // }
+    bool isVisible = toolbarManager->getToolbar()->isVisible();
+    toolbarManager->getToolbar()->setVisible(!isVisible);
 
-    if (inputMethod->isVisible()) {
-        inputMethod->hide();
-        qDebug() << "Virtual keyboard hidden";
-    } else {
-        inputMethod->show();
-        qDebug() << "Virtual keyboard shown";
-    }
+    // Toggle the icon
+    QString iconPath = isVisible ? ":/images/keyboard-down.svg" : ":/images/keyboard-up.svg";
+    QIcon icon(iconPath);
+    ui->virtualKeyboardButton->setIcon(icon);
 }
 
 void Camera::popupMessage(QString message)
@@ -637,7 +641,6 @@ void Camera::configureSettings() {
 }
 
 void Camera::debugSerialPort() {
-    // qDebug() << "debug dialog" ;
     serialPortDebugDialog *serialPortDebug = new serialPortDebugDialog();
 
     serialPortDebug->show();
@@ -690,6 +693,26 @@ void Camera::copyToClipboard(){
 
     QClipboard *clipboard = QApplication::clipboard();
     clipboard->setText(message);
+}
+
+void Camera::onFunctionKeyPressed(int key)
+{
+    HostManager::getInstance().handleFunctionKey(key);
+}
+
+void Camera::onCtrlAltDelPressed()
+{
+    HostManager::getInstance().sendCtrlAltDel();
+}
+
+void Camera::onDelPressed()
+{
+    HostManager::getInstance().handleFunctionKey(Qt::Key_Delete);
+}
+
+void Camera::onRepeatingKeystrokeChanged(int interval)
+{
+    HostManager::getInstance().setRepeatingKeystroke(interval);
 }
 
 void Camera::record()
