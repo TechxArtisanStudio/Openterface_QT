@@ -103,6 +103,7 @@ private:
     QWidget *hardwarePage;
     QWidget *buttonWidget;
 
+
     QMap<QCheckBox *, QLineEdit *> USBCheckBoxEditMap; // map of checkboxes to line edit about VID PID etc.
     void addCheckBoxLineEditPair(QCheckBox *checkBox, QLineEdit *lineEdit);
 
@@ -118,6 +119,7 @@ private:
     void createLogPage();
     
     void initLogSettings(); // setting dialog load
+    void browseLogPath();
     void initVideoSettings();
     
     void createAudioPage();
