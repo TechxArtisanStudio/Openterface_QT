@@ -27,6 +27,7 @@
 #include "ui/statuswidget.h"
 #include "ui/statusevents.h"
 #include "ui/videopane.h"
+#include "toolbarmanager.h"
 
 #include <QAudioInput>
 #include <QAudioOutput>
@@ -47,7 +48,9 @@
 #include <QLoggingCategory>
 #include <QAudioBuffer>
 #include <QLabel>
-
+#include <QLineEdit>
+#include <QPushButton>
+#include <QComboBox>
 
 Q_DECLARE_LOGGING_CATEGORY(log_ui_mainwindow)
 
@@ -131,6 +134,8 @@ private slots:
 
     void onTargetUsbConnected(const bool isConnected) override;
 
+    // void toggleToolbar();
+
 protected:
     void keyPressEvent(QKeyEvent *event) override;
     void closeEvent(QCloseEvent *event) override;
@@ -151,10 +156,20 @@ protected:
     void onFollowSwitchTriggered();
     void onActionPasteToTarget();
     void onActionScreensaver();
+    void onToggleVirtualKeyboard();
 
     void queryResolutions();
 
     void updateResolutions(int input_width, int input_height, float input_fps, int capture_width, int capture_height, int capture_fps);
+
+    void onButtonClicked();
+
+private slots:
+    void onRepeatingKeystrokeChanged(int index);
+
+    void onFunctionKeyPressed(int key);
+    void onCtrlAltDelPressed();
+    void onDelPressed();
 
 private:
     Ui::Camera *ui;
@@ -165,6 +180,8 @@ private:
     QLabel *mouseLabel;
     QLabel *keyPressedLabel;
     QLabel *keyLabel;
+    QToolBar *toolbar;
+
     //QActionGroup *videoDevicesGroup = nullptr;
 
     QMediaDevices m_source;
@@ -183,6 +200,15 @@ private:
 
     MetaDataDialog *m_metaDataDialog = nullptr;
     StatusWidget *statusWidget;
+
+    QWidget *keyboardPanel = nullptr;
+
+    QPushButton* createFunctionButton(const QString &text);
+
+    void onRepeatingKeystrokeToggled(bool checked);
+    QComboBox *repeatingKeystrokeComboBox;
+
+    ToolbarManager *toolbarManager;
 };
 
 #endif

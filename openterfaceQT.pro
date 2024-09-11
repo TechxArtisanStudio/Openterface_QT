@@ -26,6 +26,7 @@ SOURCES += main.cpp \
     ui/videopane.cpp \
     ui/videosettings.cpp \
     ui/globalsetting.cpp \
+    ui/toolbarmanager.cpp \
     # ui/serialportDebug.cpp \
     host/HostManager.cpp \
     serial/SerialPortManager.cpp \
@@ -49,6 +50,7 @@ HEADERS  += \
     ui/videosettings.h \
     ui/globalsetting.h \
     ui/statusevents.h \
+    ui/toolbarmanager.h \
     # ui/serialportDebug \
     host/HostManager.h \
     serial/ch9329.h \

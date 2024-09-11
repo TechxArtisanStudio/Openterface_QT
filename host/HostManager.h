@@ -28,6 +28,7 @@
 #include <QMouseEvent>
 #include <QDebug>
 #include <QLoggingCategory>
+#include <QKeySequence>
 #include "../target/MouseManager.h"
 #include "../target/KeyboardManager.h"
 #include "../target/mouseeventdto.h"
@@ -66,12 +67,28 @@ public:
 
     void pasteTextToTarget(QString text);
 
+    void sendCtrlAltDel();
+
+    void handleFunctionKey(int qtKeyCode);
+
+    void setRepeatingKeystroke(int interval);
+
+    void handleKeyboardAction(int keyCode, int modifiers, bool isKeyDown);
+
 private:
     explicit HostManager(QObject *parent = nullptr);
     MouseManager mouseManager;
     KeyboardManager keyboardManager;
     StatusEventCallback* statusEventCallback = nullptr;
-    
+    bool m_repeatingKeystroke = false;
+    int m_lastKeyCode = 0;
+    int m_lastModifiers = 0;
+    QTimer *m_repeatingTimer = nullptr;
+    int m_repeatingInterval = 0;
+
+private slots:
+    void repeatLastKeystroke();
+
 };
 
 #endif // HOSTMANAGER_H
