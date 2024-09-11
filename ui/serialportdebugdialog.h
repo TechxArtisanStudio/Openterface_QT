@@ -7,23 +7,23 @@
 #include <QByteArray>
 #include <QString>
 namespace Ui {
-class serialPortDebugDialog;
+class SerialPortDebugDialog;
 }
 
-class serialPortDebugDialog : public QDialog
+class SerialPortDebugDialog : public QDialog
 {
     Q_OBJECT
 
 public:
-    explicit serialPortDebugDialog(QWidget *parent = nullptr);
-    ~serialPortDebugDialog();
+    explicit SerialPortDebugDialog(QWidget *parent = nullptr);
+    ~SerialPortDebugDialog();
 
 private slots:
     void getRecvDataAndInsertText(const QByteArray &data);
     void getSentDataAndInsertText(const QByteArray &data);
 
 private:
-    Ui::serialPortDebugDialog *ui;
+    Ui::SerialPortDebugDialog *ui;
     QTextEdit *textEdit;
     QWidget *debugButtonWidget;
     QWidget *filterCheckboxWidget;
