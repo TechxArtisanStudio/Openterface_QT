@@ -36,6 +36,7 @@
 
 #include "ui/videopane.h"
 #include "video/videohid.h"
+
 #include <QCameraDevice>
 #include <QMediaDevices>
 #include <QMediaFormat>
@@ -43,11 +44,11 @@
 #include <QMediaRecorder>
 #include <QVideoWidget>
 #include <QStackedLayout>
-#include <QLineEdit>
 #include <QMessageBox>
 #include <QImageCapture>
 #include <QToolBar>
 #include <QClipboard>
+#include <QInputMethod>
 #include <QAction>
 #include <QActionGroup>
 #include <QImage>
@@ -65,6 +66,7 @@
 #include <QSysInfo>
 #include <QMenuBar>
 #include <QPushButton>
+#include <QComboBox>
 
 #include <QGuiApplication>
 
@@ -88,10 +90,11 @@ Q_LOGGING_CATEGORY(log_ui_mainwindow, "opf.ui.mainwindow")
 #endif
 #endif
 
-Camera::Camera() : ui(new Ui::Camera), videoPane(new VideoPane(this)),
+Camera::Camera() : ui(new Ui::Camera), m_audioManager(new AudioManager(this)),
+                                        videoPane(new VideoPane(this)),
                                         stackedLayout(new QStackedLayout(this)),
-                                        statusWidget(new StatusWidget(this)),
-                                        m_audioManager(new AudioManager(this))
+                                        toolbarManager(new ToolbarManager(this)),
+                                        statusWidget(new StatusWidget(this))
 {
     qCDebug(log_ui_mainwindow) << "Init camera...";
     ui->setupUi(this);
@@ -137,7 +140,7 @@ Camera::Camera() : ui(new Ui::Camera), videoPane(new VideoPane(this)),
     connect(ui->actionResetSerialPort, &QAction::triggered, this, &Camera::onActionResetSerialPortTriggered);
 
     qDebug() << "Observe Hardware change Camera triggerd...";
-    
+
     // load the settings
     qDebug() << "Loading settings";
     GlobalSetting::instance().loadLogSettings();
@@ -154,11 +157,21 @@ Camera::Camera() : ui(new Ui::Camera), videoPane(new VideoPane(this)),
 
     connect(ui->screensaverButton, &QPushButton::released, this, &Camera::onActionScreensaver);
 
+    connect(ui->virtualKeyboardButton, &QPushButton::released, this, &Camera::onToggleVirtualKeyboard);
+
     qDebug() << "Init...";
     init();
 
     qDebug() << "Init status bar...";
     initStatusBar();
+
+    addToolBar(Qt::TopToolBarArea, toolbarManager->getToolbar());
+    toolbarManager->getToolbar()->setVisible(false);
+
+    connect(toolbarManager, &ToolbarManager::functionKeyPressed, this, &Camera::onFunctionKeyPressed);
+    connect(toolbarManager, &ToolbarManager::ctrlAltDelPressed, this, &Camera::onCtrlAltDelPressed);
+    connect(toolbarManager, &ToolbarManager::delPressed, this, &Camera::onDelPressed);
+    connect(toolbarManager, &ToolbarManager::repeatingKeystrokeChanged, this, &Camera::onRepeatingKeystrokeChanged);
 }
 
 void Camera::init()
@@ -200,6 +213,10 @@ void Camera::init()
     GlobalVar::instance().setWinWidth(this->width());
     GlobalVar::instance().setWinHeight(this->height());
     onFollowSwitchTriggered();
+
+    // Initialize the virtual keyboard button icon
+    QIcon icon(":/images/keyboard-down.svg");
+    ui->virtualKeyboardButton->setIcon(icon);
 }
 
 void Camera::initStatusBar()
@@ -265,7 +282,7 @@ void Camera::setCamera(const QCameraDevice &cameraDevice)
     connect(m_camera.get(), &QCamera::activeChanged, this, &Camera::updateCameraActive);
     connect(m_camera.get(), &QCamera::errorOccurred, this, &Camera::displayCameraError);
     qCDebug(log_ui_mainwindow) << "Observe congigure setting";
-    
+
 
     queryResolutions();
 
@@ -310,7 +327,6 @@ void Camera::resizeEvent(QResizeEvent *event) {
 
     GlobalVar::instance().setWinWidth(this->width());
     GlobalVar::instance().setWinHeight(this->height());
-
 }
 
 
@@ -416,10 +432,10 @@ void Camera::onActionAbsoluteTriggered()
 void Camera::onActionResetHIDTriggered()
 {
     QMessageBox::StandardButton reply;
-    reply = QMessageBox::warning(this, "Confirm Reset Keyboard and Mouse?", 
+    reply = QMessageBox::warning(this, "Confirm Reset Keyboard and Mouse?",
                                         "Resetting the Keyboard & Mouse chip will apply new settings. Do you want to proceed?",
                                   QMessageBox::Yes | QMessageBox::No);
-    
+
     if (reply == QMessageBox::Yes) {
         qCDebug(log_ui_mainwindow) << "onActionResetHIDTriggered";
         HostManager::getInstance().resetHid();
@@ -431,10 +447,10 @@ void Camera::onActionResetHIDTriggered()
 void Camera::onActionFactoryResetHIDTriggered()
 {
     QMessageBox::StandardButton reply;
-    reply = QMessageBox::warning(this, "Confirm Factory Reset HID Chip?", 
+    reply = QMessageBox::warning(this, "Confirm Factory Reset HID Chip?",
                                         "Factory reset the HID chip. Proceed?",
                                   QMessageBox::Yes | QMessageBox::No);
-    
+
     if (reply == QMessageBox::Yes) {
         qCDebug(log_ui_mainwindow) << "onActionFactoryResetHIDTriggered";
         SerialPortManager::getInstance().factoryResetHipChip();
@@ -447,10 +463,10 @@ void Camera::onActionFactoryResetHIDTriggered()
 void Camera::onActionResetSerialPortTriggered()
 {
     QMessageBox::StandardButton reply;
-    reply = QMessageBox::question(this, "Confirm Reset Serial Port?", 
+    reply = QMessageBox::question(this, "Confirm Reset Serial Port?",
                                         "Resetting the serial port will close and re-open it without changing settings. Proceed?",
                                   QMessageBox::Yes | QMessageBox::No);
-    
+
     if (reply == QMessageBox::Yes) {
         qCDebug(log_ui_mainwindow) << "onActionResetSerialPortTriggered";
         HostManager::getInstance().resetSerialPort();
@@ -509,6 +525,17 @@ void Camera::onActionPasteToTarget()
 void Camera::onActionScreensaver()
 {
     HostManager::getInstance().autoMoveMouse();
+}
+
+void Camera::onToggleVirtualKeyboard()
+{
+    bool isVisible = toolbarManager->getToolbar()->isVisible();
+    toolbarManager->getToolbar()->setVisible(!isVisible);
+
+    // Toggle the icon
+    QString iconPath = isVisible ? ":/images/keyboard-down.svg" : ":/images/keyboard-up.svg";
+    QIcon icon(iconPath);
+    ui->virtualKeyboardButton->setIcon(icon);
 }
 
 void Camera::popupMessage(QString message)
@@ -585,7 +612,7 @@ void Camera::processCapturedImage(int requestId, const QImage &img)
 //     //     configureImageSettings();
 //     // else
 //     configureVideoSettings();
-    
+
 // }
 
 // void Camera::configureVideoSettings()
@@ -667,6 +694,26 @@ void Camera::copyToClipboard(){
 
     QClipboard *clipboard = QApplication::clipboard();
     clipboard->setText(message);
+}
+
+void Camera::onFunctionKeyPressed(int key)
+{
+    HostManager::getInstance().handleFunctionKey(key);
+}
+
+void Camera::onCtrlAltDelPressed()
+{
+    HostManager::getInstance().sendCtrlAltDel();
+}
+
+void Camera::onDelPressed()
+{
+    HostManager::getInstance().handleFunctionKey(Qt::Key_Delete);
+}
+
+void Camera::onRepeatingKeystrokeChanged(int interval)
+{
+    HostManager::getInstance().setRepeatingKeystroke(interval);
 }
 
 void Camera::record()
