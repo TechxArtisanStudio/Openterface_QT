@@ -72,6 +72,8 @@ public:
     void restartSwitchableUSB();
     void setUSBconfiguration();
     void changeUSBDescriptor();
+    bool setBaudRate(int baudrate);
+    
 signals:
     void dataReceived(const QByteArray &data);
     void dataSent(const QByteArray &data);
@@ -79,6 +81,7 @@ signals:
     void serialPortDisconnected(const QString &portName);
     void serialPortConnectionSuccess(const QString &portName);
     void sendCommandAsync(const QByteArray &command, bool waitForAck);
+    void connectedPortChanged(const QString &portName, const int &baudrate);
 
 private slots:
     void checkSerialPort();
@@ -123,7 +126,7 @@ private:
     bool isSwitchToHost = false;
     bool isTargetUsbConnected = false;
     
-    // New member variable to store the latest update time
+    // Variable to store the latest update time
     QDateTime latestUpdateTime;
 };
 
