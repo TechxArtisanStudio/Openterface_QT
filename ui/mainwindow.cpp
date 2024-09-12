@@ -677,8 +677,9 @@ void Camera::configureSettings() {
 }
 
 void Camera::debugSerialPort() {
-    serialPortDebugDialog *serialPortDebug = new serialPortDebugDialog();
-
+    // qDebug() << "debug dialog" ;
+    SerialPortDebugDialog *serialPortDebug = new SerialPortDebugDialog();
+    
     serialPortDebug->show();
 }
 

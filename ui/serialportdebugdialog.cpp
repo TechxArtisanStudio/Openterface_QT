@@ -10,9 +10,9 @@
 #include <QCheckBox>
 #include <QGridLayout>
 
-serialPortDebugDialog::serialPortDebugDialog(QWidget *parent)
+SerialPortDebugDialog::SerialPortDebugDialog(QWidget *parent)
     : QDialog(parent)
-    , ui(new Ui::serialPortDebugDialog)
+    , ui(new Ui::SerialPortDebugDialog)
     , textEdit(new QTextEdit(this))
     , debugButtonWidget(new QWidget(this))
     , filterCheckboxWidget(new QWidget(this))
@@ -25,22 +25,22 @@ serialPortDebugDialog::serialPortDebugDialog(QWidget *parent)
     SerialPortManager* serialPortManager = &SerialPortManager::getInstance();
     if (serialPortManager){
         connect(serialPortManager, &SerialPortManager::dataSent,
-                    this, &serialPortDebugDialog::getSentDataAndInsertText);
+                    this, &SerialPortDebugDialog::getSentDataAndInsertText);
 
         connect(serialPortManager, &SerialPortManager::dataReceived,
-                        this, &serialPortDebugDialog::getRecvDataAndInsertText);
+                        this, &SerialPortDebugDialog::getRecvDataAndInsertText);
     }
     
     createLayout();
 }
 
-serialPortDebugDialog::~serialPortDebugDialog()
+SerialPortDebugDialog::~SerialPortDebugDialog()
 {
     delete ui;
 }
 
 
-void serialPortDebugDialog::createFilterCheckBox(){
+void SerialPortDebugDialog::createFilterCheckBox(){
     QCheckBox *ChipInfoFilter = new QCheckBox("Chip info filter");  //81
     QCheckBox *keyboardPressFilter = new QCheckBox("keyboard filter");  //82
     QCheckBox *mideaKeyboardFilter = new QCheckBox("media keyboard filter");    //83
@@ -64,7 +64,7 @@ void serialPortDebugDialog::createFilterCheckBox(){
     
 }
 
-void serialPortDebugDialog::createDebugButtonWidget(){
+void SerialPortDebugDialog::createDebugButtonWidget(){
     QPushButton *clearButton = new QPushButton("Clear");
     QPushButton *closeButton = new QPushButton("Close");
     closeButton->setFixedSize(90,30);
@@ -77,7 +77,7 @@ void serialPortDebugDialog::createDebugButtonWidget(){
     QObject::connect(clearButton, &QPushButton::clicked, textEdit, &QTextEdit::clear);
 }
 
-void serialPortDebugDialog::createLayout(){
+void SerialPortDebugDialog::createLayout(){
     QVBoxLayout *mainLayout = new QVBoxLayout;
     // mainLayout->addWidget(filterCheckboxWidget);
     mainLayout->addWidget(textEdit);
@@ -85,7 +85,7 @@ void serialPortDebugDialog::createLayout(){
     setLayout(mainLayout);
 }
 
-void serialPortDebugDialog::getRecvDataAndInsertText(const QByteArray &data){
+void SerialPortDebugDialog::getRecvDataAndInsertText(const QByteArray &data){
     // QCheckBox *ChipInfoFilter = filterCheckboxWidget->findChild<QCheckBox *>("ChipInfoFilter");
     // QCheckBox *keyboardPressFilter = filterCheckboxWidget->findChild<QCheckBox *>("keyboardPressFilter");
     // QCheckBox *mideaKeyboardFilter = filterCheckboxWidget->findChild<QCheckBox *>("mideaKeyboardFilter");
@@ -122,8 +122,8 @@ void serialPortDebugDialog::getRecvDataAndInsertText(const QByteArray &data){
     // textEdit->ensureCursorVisible();
 }
 
-void serialPortDebugDialog::getSentDataAndInsertText(const QByteArray &data){
-    qDebug() << "send data ->> " << data;
+void SerialPortDebugDialog::getSentDataAndInsertText(const QByteArray &data){
+    // qDebug() << "send data ->> " << data;
     QString dataString = data.toHex().toUpper();
     dataString = formatHexData(dataString);
     dataString = ">> " + dataString + "\n";
@@ -136,7 +136,7 @@ void serialPortDebugDialog::getSentDataAndInsertText(const QByteArray &data){
 }
 
 
-QString serialPortDebugDialog::formatHexData(QString hexString){
+QString SerialPortDebugDialog::formatHexData(QString hexString){
     QString spacedHexString;
     for (int i = 0; i < hexString.length(); i += 2) {
         if (!spacedHexString.isEmpty()) {
