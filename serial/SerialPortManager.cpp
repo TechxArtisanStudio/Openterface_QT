@@ -443,7 +443,7 @@ void SerialPortManager::readData() {
             }
         }
     }
-    qDebug() << "Recv read" << data;
+    // qDebug() << "Recv read" << data;
     emit dataReceived(data);
 }
 
@@ -528,7 +528,7 @@ QByteArray SerialPortManager::sendSyncCommand(const QByteArray &data, bool force
     QByteArray command = data;
     
     command.append(calculateChecksum(command));
-    qDebug() <<  "Check sum" << command;
+    qDebug() <<  "Check sum" << command.toHex(' ');
     writeData(command);
     if (serialPort->waitForReadyRead(100)) {
         QByteArray responseData = serialPort->readAll();
@@ -575,58 +575,35 @@ void SerialPortManager::setUSBconfiguration(){
     QString PID = settings.value("serial/pid", "29 E1").toString();
     QString enable = settings.value("serial/enableflag", "00").toString();
 
-    QString KeyboradUploadInterval = "00 00"; // 0ms interval between two packages
-    QString KeyboradReleaseTimeout = "00 03"; // 1ms timeout
-    QString KeyboradAutoEnter = "00"; // auto enter
-    QString KeyboradEnter = "0D 00 00 00 00 00 00 00"; // USB enter 
-    QString Filter = "00 00 00 00 00 00 00 00"; // USB Keyboard filter
-    
-    QString SpeedMode = "00";
-    QString Reserved1 = "00 00 00 00";
-    QString Reserved2 = "00 00 00 00";
-    QString Reserved3 = "00 00 00 00";
-
     QByteArray VIDbyte = GlobalSetting::instance().convertStringToByteArray(VID);
     QByteArray PIDbyte = GlobalSetting::instance().convertStringToByteArray(PID);
-    QByteArray KeyboradUploadIntervalByte =  GlobalSetting::instance().convertStringToByteArray(KeyboradUploadInterval);
-    QByteArray KeyboradReleaseTimeoutByte =  GlobalSetting::instance().convertStringToByteArray(KeyboradReleaseTimeout);
-    QByteArray KeyboradAutoEnterByte =  GlobalSetting::instance().convertStringToByteArray(KeyboradAutoEnter);
-    QByteArray KeyboradEnterByte =  GlobalSetting::instance().convertStringToByteArray(KeyboradEnter);
-    QByteArray FilterByte =  GlobalSetting::instance().convertStringToByteArray(Filter);
     QByteArray enableByte =  GlobalSetting::instance().convertStringToByteArray(enable);
-    QByteArray SpeedModeByte =  GlobalSetting::instance().convertStringToByteArray(SpeedMode);
-    QByteArray Reserved1Byte =  GlobalSetting::instance().convertStringToByteArray(Reserved1);
-    QByteArray Reserved2Byte =  GlobalSetting::instance().convertStringToByteArray(Reserved2);
-    QByteArray Reserved3Byte =  GlobalSetting::instance().convertStringToByteArray(Reserved3);
 
-
-    command.append(QByteArray::fromHex("08 00 00 03"));
+    command.append(RESERVED_2BYTES);
+    command.append(PACKAGE_INTERVAL);
 
     command.append(VIDbyte);
     command.append(PIDbyte);
-    command.append(KeyboradUploadIntervalByte);
-    command.append(KeyboradReleaseTimeoutByte);
-    command.append(KeyboradAutoEnterByte);
-    command.append(KeyboradEnterByte);
-    command.append(FilterByte);
+    command.append(KEYBOARD_UPLOAD_INTERVAL);
+    command.append(KEYBOARD_RELEASE_TIMEOUT);
+    command.append(KEYBOARD_AUTO_ENTER);
+    command.append(KEYBOARD_ENTER);
+    command.append(FILTER);
 
     command.append(enableByte);
 
-    command.append(SpeedModeByte);
-    command.append(Reserved1Byte);
-    command.append(Reserved2Byte);
-    command.append(Reserved3Byte);
+    command.append(SPEED_MODE);
+    command.append(RESERVED_4BYTES);
+    command.append(RESERVED_4BYTES);
+    command.append(RESERVED_4BYTES);
     
-    qDebug() <<  " no checksum" << command;
+    qDebug(log_core_serial) <<  " no checksum" << command.toHex(' ');
     if (serialPort != nullptr && serialPort->isOpen()){
         QByteArray respon = sendSyncCommand(command, true); 
-        qDebug() << respon;
-        qDebug() << " After sending command";
+        qDebug(log_core_serial) << respon;
+        qDebug(log_core_serial) << " After sending command";
     } 
 }
-
-
-
 
 /*
  * change USB Descriptor of the device
@@ -644,10 +621,10 @@ void SerialPortManager::changeUSBDescriptor() {
     bool ok;    
     int hexValue = enableflag.toInt(&ok, 16);
 
-    qDebug() << "extractBits: " << hexValue;
+    qDebug(log_core_serial) << "extractBits: " << hexValue;
 
     if (!ok) {
-        qDebug() << "Convert failed";
+        qDebug(log_core_serial) << "Convert failed";
         return ; // return empty array
     }
     
@@ -657,7 +634,7 @@ void SerialPortManager::changeUSBDescriptor() {
     bits[3] = (hexValue >> 7) & 1;
     
     if (bits[3]){
-        for(int i=0; i<sizeof(bits)/ sizeof(bits[0]) -1; i++){
+        for(uint i=0; i < sizeof(bits)/ sizeof(bits[0]) -1; i++){
             if (bits[i]){
                 QByteArray command = CMD_SET_USB_STRING_PREFIX;
                 QByteArray tmp = USBDescriptors[i].toUtf8();
@@ -677,15 +654,15 @@ void SerialPortManager::changeUSBDescriptor() {
                 command.append(hexLength_bin);
                 command.append(tmp);
 
-                
-                qDebug() <<  " no checksum" << command;
+                // qDebug() <<  "usb descriptor" << command.toHex(' ');
                 if (serialPort != nullptr && serialPort->isOpen()){
                     QByteArray respon = sendSyncCommand(command, true);
-                    qDebug() << respon;
-                    qDebug() << " After sending command";
+                    qDebug(log_core_serial) << respon;
+                    qDebug(log_core_serial) << " After sending command";
                 }
-                qDebug() << "USB descriptor:" << command;
+                qDebug() <<  "usb descriptor" << command.toHex(' ');
             }
+            QThread::msleep(10);
         }
     }
 }
