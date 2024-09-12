@@ -199,7 +199,7 @@ void SerialPortManager::onSerialPortConnectionSuccess(const QString &portName){
     connect(serialPort, &QSerialPort::bytesWritten, this, &SerialPortManager::bytesWritten);
     ready = true;
 
-    if(eventCallback!=nullptr) eventCallback->onPortConnected(QString("%1@%2").arg(portName).arg(serialPort->baudRate()));
+    if(eventCallback!=nullptr) eventCallback->onPortConnected(portName, serialPort->baudRate());
 
     qCDebug(log_core_serial) << "Enable the switchable USB now...";
     serialPort->setDataTerminalReady(false);
@@ -219,7 +219,7 @@ bool SerialPortManager::resetHipChip(){
     if(reconfigureHidChip()) {
         if(sendResetCommand()){
             qCDebug(log_core_serial) << "Reopen the serial port with baudrate: " << DEFAULT_BAUDRATE;
-            serialPort->setBaudRate(DEFAULT_BAUDRATE);
+            setBaudRate(DEFAULT_BAUDRATE);
             restartPort();
             return true;
         }else{
@@ -235,6 +235,8 @@ bool SerialPortManager::resetHipChip(){
         return false;
     }
 }
+
+
 
 /*
  * Send the reset command to the hid chip
@@ -288,7 +290,7 @@ bool SerialPortManager::factoryResetHipChipV191(){
         qCDebug(log_core_serial) << "Factory reset the hid chip fail.";
         // toggle to another baudrate
         serialPort->close();
-        serialPort->setBaudRate(ORIGINAL_BAUDRATE);
+        setBaudRate(ORIGINAL_BAUDRATE);
         if(eventCallback) eventCallback->onStatusUpdate("Factory reset the hid chip@9600.");
         if(serialPort->open(QIODevice::ReadWrite)){
             QByteArray retByte = sendSyncCommand(CMD_SET_DEFAULT_CFG, true);
@@ -338,7 +340,7 @@ bool SerialPortManager::openPort(const QString &portName, int baudRate) {
         serialPort->setRequestToSend(false);
 
         if(eventCallback!=nullptr) eventCallback->onStatusUpdate("");
-        if(eventCallback!=nullptr) eventCallback->onPortConnected(QString("%1@%2").arg(portName).arg(baudRate));
+        if(eventCallback!=nullptr) eventCallback->onPortConnected(portName, baudRate);
         return true;
     } else {
         if(eventCallback!=nullptr) eventCallback->onStatusUpdate("Open port failure");
@@ -362,7 +364,7 @@ void SerialPortManager::closePort() {
         delete serialPort;
         serialPort = nullptr;
         ready=false;
-        if(eventCallback!=nullptr) eventCallback->onPortConnected("NA");
+        if(eventCallback!=nullptr) eventCallback->onPortConnected("NA",0);
     } else {
         qCDebug(log_core_serial) << "Serial port is not opened.";
     }
@@ -425,10 +427,7 @@ void SerialPortManager::readData() {
                 if (checkedBaudrate == SerialPortManager::DEFAULT_BAUDRATE && mode == 0x82) {
                     qCDebug(log_core_serial) << "Serial is ready for communication.";
                     ready = true;
-                    serialPort->setBaudRate(checkedBaudrate);
-                    if(eventCallback!=nullptr){
-                        eventCallback->onPortConnected(QString("%1@%2").arg(serialPort->portName()).arg(serialPort->baudRate()));
-                    }
+                    setBaudRate(checkedBaudrate);
                 }else{
                     qCDebug(log_core_serial) << "Serial is not ready for communication.";
                     //reconfigureHidChip();
@@ -695,4 +694,22 @@ void SerialPortManager::sendCommand(const QByteArray &command, bool waitForAck) 
     qCDebug(log_core_serial)  << "sendCommand:" << command.toHex(' ');
     sendAsyncCommand(command, false);
 
+}
+
+bool SerialPortManager::setBaudRate(int baudRate) {
+    if (serialPort->baudRate() == baudRate) {
+        qCDebug(log_core_serial) << "Baud rate is already set to" << baudRate;
+        return true;
+    }
+
+    qCDebug(log_core_serial) << "Setting baud rate to" << baudRate;
+    
+    if (serialPort->setBaudRate(baudRate)) {
+        qCDebug(log_core_serial) << "Baud rate successfully set to" << baudRate;
+        emit connectedPortChanged(serialPort->portName(), baudRate);
+        return true;
+    } else {
+        qCWarning(log_core_serial) << "Failed to set baud rate to" << baudRate << ": " << serialPort->errorString();
+        return false;
+    }
 }

@@ -33,7 +33,7 @@ public:
     virtual ~StatusEventCallback() = default;
 
     virtual void onStatusUpdate(const QString& status) = 0;
-    virtual void onPortConnected(const QString& port) = 0;
+    virtual void onPortConnected(const QString& port, const int& baudrate) = 0;
     virtual void onLastKeyPressed(const QString& key) = 0;
     virtual void onLastMouseLocation(const QPoint& location, const QString& mouseEvent) = 0;
     virtual void onResolutionChange(const int& width, const int& height, const float& fps) = 0;
