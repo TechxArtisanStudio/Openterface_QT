@@ -140,6 +140,8 @@ private slots:
 
     // void toggleToolbar();
 
+    // void toggleToolbar();
+
 protected:
     void keyPressEvent(QKeyEvent *event) override;
     void closeEvent(QCloseEvent *event) override;
@@ -173,8 +175,9 @@ private slots:
 
     void onFunctionKeyPressed(int key);
     void onCtrlAltDelPressed();
-    void onDelPressed();
+    void onSpecialKeyPressed(const QString &keyText);
     void onBaudrateMenuTriggered(QAction* action);
+
 
 private:
     Ui::Camera *ui;
@@ -218,7 +221,6 @@ private:
     ToolbarManager *toolbarManager;
 
     void updateBaudrateMenu(int baudrate);
-
 };
 
 #endif
