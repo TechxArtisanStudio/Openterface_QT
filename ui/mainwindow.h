@@ -169,7 +169,7 @@ private slots:
 
     void onFunctionKeyPressed(int key);
     void onCtrlAltDelPressed();
-    void onDelPressed();
+    void onSpecialKeyPressed(const QString &keyText);
 
 private:
     Ui::Camera *ui;
