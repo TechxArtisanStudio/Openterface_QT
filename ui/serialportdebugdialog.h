@@ -44,6 +44,8 @@ private slots:
     void getRecvDataAndInsertText(const QByteArray &data);
     void getSentDataAndInsertText(const QByteArray &data);
 
+
+
 private:
     Ui::SerialPortDebugDialog *ui;
     QTextEdit *textEdit;
@@ -51,8 +53,10 @@ private:
     QWidget *filterCheckboxWidget;
     void createDebugButtonWidget();
     void createFilterCheckBox();
-    
+    void saveSettings();
+    void loadSettings();
     void createLayout();
+
     QString formatHexData(QString hexString);
 };
 
