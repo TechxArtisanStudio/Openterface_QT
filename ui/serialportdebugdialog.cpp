@@ -1,5 +1,4 @@
 #include "serialportdebugdialog.h"
-#include "ui_serialportdebugdialog.h"
 #include "serial/SerialPortManager.h"
 
 #include <QPushButton>
