@@ -28,6 +28,8 @@
 #include "ui/statusevents.h"
 #include "ui/videopane.h"
 #include "toolbarmanager.h"
+#include "ui/settingdialog.h"
+#include "ui/serialportdebugdialog.h"
 
 #include <QAudioInput>
 #include <QAudioOutput>
@@ -206,6 +208,8 @@ private:
 
     MetaDataDialog *m_metaDataDialog = nullptr;
     StatusWidget *statusWidget;
+    SettingDialog *settingsDialog = nullptr;
+    SerialPortDebugDialog *serialPortDebugDialog = nullptr;
 
     QWidget *keyboardPanel = nullptr;
 
