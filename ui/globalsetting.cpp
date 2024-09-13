@@ -119,7 +119,7 @@ QByteArray GlobalSetting::convertStringToByteArray(QString str) {
     QString hexString = hexParts.join("");
     
     bool ok;
-    int value = hexString.toInt(&ok, 16);
+    int64_t value = hexString.toInt(&ok, 16);
     if (!ok) {
         // Handle the error, e.g., by returning an empty QByteArray or throwing an exception
         qDebug() << str << "Error converting string";
