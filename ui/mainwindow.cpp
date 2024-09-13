@@ -217,6 +217,10 @@ void Camera::init()
     // Initialize the virtual keyboard button icon
     QIcon icon(":/images/keyboard-down.svg");
     ui->virtualKeyboardButton->setIcon(icon);
+
+    // Add this after other menu connections
+    connect(ui->menuBaudrate, &QMenu::triggered, this, &Camera::onBaudrateMenuTriggered);
+    connect(&SerialPortManager::getInstance(), &SerialPortManager::connectedPortChanged, this, &Camera::onPortConnected);
 }
 
 void Camera::initStatusBar()
@@ -501,6 +505,38 @@ void Camera::onResolutionChange(const int& width, const int& height, const float
 void Camera::onTargetUsbConnected(const bool isConnected)
 {
     statusWidget->setTargetUsbConnected(isConnected);
+}
+
+void Camera::updateBaudrateMenu(int baudrate){
+    // Find the QAction corresponding to the current baudrate and check it
+    QList<QAction*> actions = ui->menuBaudrate->actions();
+    for (QAction* action : actions) {
+        bool ok;
+        int actionBaudrate = action->text().toInt(&ok);
+        if (ok && actionBaudrate == baudrate) {
+            action->setChecked(true);
+        } else {
+            action->setChecked(false);
+        }
+    }
+
+    // If the current baudrate is not in the menu, add a new option and check it
+    bool baudrateFound = false;
+    for (QAction* action : actions) {
+        if (action->text().toInt() == baudrate) {
+            baudrateFound = true;
+            break;
+        }
+    }
+    if (!baudrateFound) {
+        QAction* newAction = new QAction(QString::number(baudrate), this);
+        newAction->setCheckable(true);
+        newAction->setChecked(true);
+        ui->menuBaudrate->addAction(newAction);
+        connect(newAction, &QAction::triggered, this, [this, newAction]() {
+            onBaudrateMenuTriggered(newAction);
+        });
+    }
 }
 
 void Camera::onFollowSwitchTriggered()
@@ -795,6 +831,15 @@ void Camera::displayCapturedImage()
     //ui->stackedWidget->setCurrentIndex(1);
 }
 
+void Camera::onBaudrateMenuTriggered(QAction* action)
+{
+    bool ok;
+    int baudrate = action->text().toInt(&ok);
+    if (ok) {
+        SerialPortManager::getInstance().setBaudRate(baudrate);
+    }
+}
+
 void Camera::imageSaved(int id, const QString &fileName)
 {
     Q_UNUSED(id);
@@ -860,8 +905,9 @@ void Camera::checkCameraConnection()
 }
 
 
-void Camera::onPortConnected(const QString& port) {
-    statusWidget->setConnectedPort(port);
+void Camera::onPortConnected(const QString& port, const int& baudrate) {
+    statusWidget->setConnectedPort(port, baudrate);
+    updateBaudrateMenu(baudrate);
 }
 
 void Camera::onStatusUpdate(const QString& status) {

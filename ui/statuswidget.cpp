@@ -64,8 +64,8 @@ void StatusWidget::setCaptureResolution(const int &width, const int &height, con
     update(); 
 }
 
-void StatusWidget::setConnectedPort(const QString &port) {
-    connectedPortLabel->setText("🔌: " + port);
+void StatusWidget::setConnectedPort(const QString &port, const int &baudrate) {
+    connectedPortLabel->setText(QString("🔌: %1@%2").arg(port).arg(baudrate));
     update(); 
 }
 
@@ -84,5 +84,12 @@ void StatusWidget::setTargetUsbConnected(const bool isConnected){
         keyboardIndicatorsLabel->setToolTip("Target Keyboard & Mouse USB disconnected");
         keyboardIndicatorsLabel->setStyleSheet("color: white; background-color: red; border-radius: 5px; margin: 2px 0;");
     }
+    update();
+}
+
+void StatusWidget::setBaudrate(int baudrate)
+{
+    // Update the UI element that displays the baudrate
+    connectedPortLabel->setText(QString("🔌: %1@%2").arg(connectedPortLabel->text().split('@').first()).arg(baudrate));
     update();
 }
