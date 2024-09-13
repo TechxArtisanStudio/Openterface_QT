@@ -41,6 +41,10 @@ void LogHandler::fileMessageHandler(QtMsgType type, const QMessageLogContext &co
     QTextStream ts(&outFile);
     QString txt;
 
+    // Get the category name
+    const char* categoryName = context.category;
+    QString category = categoryName ? QString(categoryName) : "default";
+
     switch (type)
     {
     case QtDebugMsg:
@@ -58,6 +62,6 @@ void LogHandler::fileMessageHandler(QtMsgType type, const QMessageLogContext &co
     }
 
     ts << QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss.zzz");
-    ts << txt << " (" << context.file << ":" << context.line << ", " << context.function << ")\n";
+    ts << " [" << category << "] " << txt << " (" << context.file << ":" << context.line << ", " << context.function << ")\n";
     ts.flush();
 }
