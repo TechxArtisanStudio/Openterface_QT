@@ -679,7 +679,6 @@ void Camera::configureSettings() {
         connect(settingsDialog, &SettingDialog::cameraSettingsApplied, this, &Camera::loadCameraSettingAndSetCamera);
         // connect the finished signal to the set the dialog pointer to nullptr
         connect(settingsDialog, &QDialog::finished, this, [this](){
-            // settingsDialog->deleteLater();
             settingsDialog = nullptr;
         });
         settingsDialog->show();
@@ -697,7 +696,6 @@ void Camera::debugSerialPort() {
         serialPortDebugDialog = new SerialPortDebugDialog();
         // connect the finished signal to the set the dialog pointer to nullptr
         connect(serialPortDebugDialog, &QDialog::finished, this, [this]() {
-            // serialPortDebugDialog->deleteLater();
             serialPortDebugDialog = nullptr;
         });
         serialPortDebugDialog->show();
