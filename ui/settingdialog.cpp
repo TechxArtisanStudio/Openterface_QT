@@ -1,3 +1,4 @@
+
 /*
 * ========================================================================== *
 *                                                                            *
@@ -25,6 +26,7 @@
 #include "ui/fpsspinbox.h"
 #include "global.h"
 #include "globalsetting.h"
+#include "loghandler.h"
 #include "serial/SerialPortManager.h"
 
 #include <QCamera>
@@ -65,7 +67,7 @@ SettingDialog::SettingDialog(QCamera *_camera, QWidget *parent)
     , hardwarePage(nullptr)
     , buttonWidget(new QWidget(this))
     , camera(_camera)
-    
+
 {
 
 
@@ -860,10 +862,14 @@ void SettingDialog::applyLogsettings() {
     QCheckBox *serialCheckBox = findChild<QCheckBox*>("serial");
     QCheckBox *uiCheckBox = findChild<QCheckBox*>("ui");
     QCheckBox *hostCheckBox = findChild<QCheckBox*>("host");
+    QCheckBox *storeLogCheckBox = findChild<QCheckBox*>("storeLogCheckBox");
+    QLineEdit *logFilePathLineEdit = findChild<QLineEdit*>("logFilePathLineEdit");
     bool core =  coreCheckBox->isChecked();
     bool host = hostCheckBox->isChecked();
     bool serial = serialCheckBox->isChecked();
     bool ui = uiCheckBox->isChecked();
+    bool storeLog = storeLogCheckBox->isChecked();
+    QString logFilePath = logFilePathLineEdit->text();
     // set the log filter value by check box
     QString logFilter = "";
 
@@ -874,7 +880,12 @@ void SettingDialog::applyLogsettings() {
 
     QLoggingCategory::setFilterRules(logFilter);
     // save the filter settings
+    
     GlobalSetting::instance().setLogSettings(core, serial, ui, host);
+    GlobalSetting::instance().setLogStoreSettings(storeLog, logFilePath);
+    LogHandler::instance().enableLogStore();
+    
+
 }
 
 void SettingDialog::initLogSettings(){
@@ -884,11 +895,15 @@ void SettingDialog::initLogSettings(){
     QCheckBox *serialCheckBox = findChild<QCheckBox*>("serial");
     QCheckBox *uiCheckBox = findChild<QCheckBox*>("ui");
     QCheckBox *hostCheckBox = findChild<QCheckBox*>("host");
+    QCheckBox *storeLogCheckBox = findChild<QCheckBox*>("storeLogCheckBox");
+    QLineEdit *logFilePathLineEdit = findChild<QLineEdit*>("logFilePathLineEdit");
 
     coreCheckBox->setChecked(settings.value("log/core", true).toBool());
     serialCheckBox->setChecked(settings.value("log/serial", true).toBool());
     uiCheckBox->setChecked(settings.value("log/ui", true).toBool());
     hostCheckBox->setChecked(settings.value("log/host", true).toBool());
+    storeLogCheckBox->setChecked(settings.value("log/storeLog", false).toBool());
+    logFilePathLineEdit->setText(settings.value("log/logFilePath", "").toString());
 }
 
 void SettingDialog::applyAccrodingPage(){

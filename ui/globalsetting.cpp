@@ -23,10 +23,14 @@
 
 #include "globalsetting.h"
 #include "global.h"
+#include <QMutex>
+#include <QFile>
+#include <QDateTime>
+#include <QSettings>
 
 GlobalSetting::GlobalSetting(QObject *parent)
     : QObject(parent),
-      settings("Techxartisan", "Openterface")
+      m_settings("Techxartisan", "Openterface")
 {
 }
 
@@ -38,66 +42,71 @@ GlobalSetting& GlobalSetting::instance()
 
 void GlobalSetting::setLogSettings(bool core, bool serial, bool ui, bool host)
 {
-    settings.setValue("log/core", core);
-    settings.setValue("log/serial", serial);
-    settings.setValue("log/ui", ui);
-    settings.setValue("log/host", host);
+    m_settings.setValue("log/core", core);
+    m_settings.setValue("log/serial", serial);
+    m_settings.setValue("log/ui", ui);
+    m_settings.setValue("log/host", host);
 }
 
 void GlobalSetting::loadLogSettings()
 {
     QString logFilter = "";
-    logFilter += settings.value("log/core", true).toBool() ? "opf.core.*=true\n" : "opf.core.*=false\n";
-    logFilter += settings.value("log/ui", true).toBool() ? "opf.ui.*=true\n" : "opf.ui.*=false\n";
-    logFilter += settings.value("log/host", true).toBool() ? "opf.host.*=true\n" : "opf.host.*=false\n";
-    logFilter += settings.value("log/serial", true).toBool() ? "opf.core.serial=true\n" : "opf.core.serial=false\n";
+    logFilter += m_settings.value("log/core", true).toBool() ? "opf.core.*=true\n" : "opf.core.*=false\n";
+    logFilter += m_settings.value("log/ui", true).toBool() ? "opf.ui.*=true\n" : "opf.ui.*=false\n";
+    logFilter += m_settings.value("log/host", true).toBool() ? "opf.host.*=true\n" : "opf.host.*=false\n";
+    logFilter += m_settings.value("log/serial", true).toBool() ? "opf.core.serial=true\n" : "opf.core.serial=false\n";
     QLoggingCategory::setFilterRules(logFilter);
 }
 
+void GlobalSetting::setLogStoreSettings(bool storeLog, QString logFilePath){
+    m_settings.setValue("log/storeLog", storeLog);
+    m_settings.setValue("log/logFilePath", logFilePath);
+}
+
 void GlobalSetting::setVideoSettings(int width, int height, int fps){
-    settings.setValue("video/width", width);
-    settings.setValue("video/height", height);
-    settings.setValue("video/fps", fps);
+    m_settings.setValue("video/width", width);
+    m_settings.setValue("video/height", height);
+    m_settings.setValue("video/fps", fps);
 }
 
 void GlobalSetting::loadVideoSettings(){
-    GlobalVar::instance().setCaptureWidth(settings.value("video/width", 1920).toInt());
-    GlobalVar::instance().setCaptureHeight(settings.value("video/height", 1080).toInt());
-    GlobalVar::instance().setCaptureFps(settings.value("video/fps", 1920).toInt());
+    GlobalVar::instance().setCaptureWidth(m_settings.value("video/width", 1920).toInt());
+    GlobalVar::instance().setCaptureHeight(m_settings.value("video/height", 1080).toInt());
+    GlobalVar::instance().setCaptureFps(m_settings.value("video/fps", 1920).toInt());
 }
 
 void GlobalSetting::setCameraDeviceSetting(QString deviceDescription){
-    settings.setValue("camera/device", deviceDescription);
+    m_settings.setValue("camera/device", deviceDescription);
 }
 
 void GlobalSetting::setVID(QString vid){
-    settings.setValue("serial/vid", vid);
+    m_settings.setValue("serial/vid", vid);
 }
 
 void GlobalSetting::setPID(QString pid){
-    settings.setValue("serial/pid", pid);
+    m_settings.setValue("serial/pid", pid);
 }
 
 
 void GlobalSetting::setSerialNumber(QString serialNumber){
-    settings.setValue("serial/serialnumber", serialNumber);
+    m_settings.setValue("serial/serialnumber", serialNumber);
 }
 
 
 void GlobalSetting::setUSBEnabelFlag(QString enableflag){
-    settings.setValue("serial/enableflag", enableflag);
+    m_settings.setValue("serial/enableflag", enableflag);
 }
 
 void GlobalSetting::setCustomStringDescriptor(QString customStringDisctriptor){
-    settings.setValue("serial/customStringDescriptor", customStringDisctriptor);
+    m_settings.setValue("serial/customStringDescriptor", customStringDisctriptor);
 }
 
 void GlobalSetting::setCustomPIDDescriptor(QString customPIDDescriptor){
-    settings.setValue("serial/customPIDDescriptor",customPIDDescriptor);
+    m_settings.setValue("serial/customPIDDescriptor",customPIDDescriptor);
 }
 
 void GlobalSetting::setCustomVIDDescriptor(QString customVIDDescriptor){
-    settings.setValue("serial/customVIDDescriptor", customVIDDescriptor);
+    m_settings.setValue("serial/customVIDDescriptor", customVIDDescriptor);
 }
 
 /*
@@ -110,7 +119,7 @@ QByteArray GlobalSetting::convertStringToByteArray(QString str) {
     QString hexString = hexParts.join("");
     
     bool ok;
-    int value = hexString.toInt(&ok, 16);
+    int64_t value = hexString.toInt(&ok, 16);
     if (!ok) {
         // Handle the error, e.g., by returning an empty QByteArray or throwing an exception
         qDebug() << str << "Error converting string";
