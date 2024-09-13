@@ -12,12 +12,10 @@
 
 SerialPortDebugDialog::SerialPortDebugDialog(QWidget *parent)
     : QDialog(parent)
-    , ui(new Ui::SerialPortDebugDialog)
     , textEdit(new QTextEdit(this))
     , debugButtonWidget(new QWidget(this))
     , filterCheckboxWidget(new QWidget(this))
 {
-    ui->setupUi(this);
     setWindowTitle(tr("Serial Port Debug"));
 
     createDebugButtonWidget();
@@ -36,7 +34,7 @@ SerialPortDebugDialog::SerialPortDebugDialog(QWidget *parent)
 
 SerialPortDebugDialog::~SerialPortDebugDialog()
 {
-    delete ui;
+    delete this;
 }
 
 

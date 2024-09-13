@@ -64,7 +64,6 @@ HEADERS  += \
 FORMS    += \
     ui/imagesettings.ui \
     ui/mainwindow.ui \
-    ui/serialportdebugdialog.ui \
     ui/settingdialog.ui \
     ui/videosettings.ui
 
