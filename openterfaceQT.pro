@@ -28,6 +28,7 @@ SOURCES += main.cpp \
     ui/globalsetting.cpp \
     ui/toolbarmanager.cpp \
     ui/loghandler.cpp \
+
     # ui/serialportDebug.cpp \
     host/HostManager.cpp \
     serial/SerialPortManager.cpp \
