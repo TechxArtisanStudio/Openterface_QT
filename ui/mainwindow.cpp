@@ -679,7 +679,7 @@ void Camera::configureSettings() {
 }
 
 void Camera::debugSerialPort() {
-    serialPortDebugDialog *serialPortDebug = new serialPortDebugDialog();
+    SerialPortDebugDialog *serialPortDebug = new SerialPortDebugDialog();
     serialPortDebug->show();
 }
 
@@ -824,6 +824,15 @@ void Camera::displayViewfinder()
 void Camera::displayCapturedImage()
 {
     //ui->stackedWidget->setCurrentIndex(1);
+}
+
+void Camera::onBaudrateMenuTriggered(QAction* action)
+{
+    bool ok;
+    int baudrate = action->text().toInt(&ok);
+    if (ok) {
+        SerialPortManager::getInstance().setBaudRate(baudrate);
+    }
 }
 
 void Camera::onSpecialKeyPressed(const QString &keyText)
