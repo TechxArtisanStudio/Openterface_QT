@@ -168,11 +168,11 @@ Camera::Camera() : ui(new Ui::Camera), m_audioManager(new AudioManager(this)),
 
     addToolBar(Qt::TopToolBarArea, toolbarManager->getToolbar());
     toolbarManager->getToolbar()->setVisible(false);
-    
+
     connect(toolbarManager, &ToolbarManager::functionKeyPressed, this, &Camera::onFunctionKeyPressed);
     connect(toolbarManager, &ToolbarManager::ctrlAltDelPressed, this, &Camera::onCtrlAltDelPressed);
-    connect(toolbarManager, &ToolbarManager::delPressed, this, &Camera::onDelPressed);
     connect(toolbarManager, &ToolbarManager::repeatingKeystrokeChanged, this, &Camera::onRepeatingKeystrokeChanged);
+    connect(toolbarManager, &ToolbarManager::specialKeyPressed, this, &Camera::onSpecialKeyPressed);
 }
 
 void Camera::init()
@@ -679,9 +679,7 @@ void Camera::configureSettings() {
 }
 
 void Camera::debugSerialPort() {
-    // qDebug() << "debug dialog" ;
-    SerialPortDebugDialog *serialPortDebug = new SerialPortDebugDialog();
-    
+    serialPortDebugDialog *serialPortDebug = new serialPortDebugDialog();
     serialPortDebug->show();
 }
 
@@ -742,11 +740,6 @@ void Camera::onFunctionKeyPressed(int key)
 void Camera::onCtrlAltDelPressed()
 {
     HostManager::getInstance().sendCtrlAltDel();
-}
-
-void Camera::onDelPressed()
-{
-    HostManager::getInstance().handleFunctionKey(Qt::Key_Delete);
 }
 
 void Camera::onRepeatingKeystrokeChanged(int interval)
@@ -833,12 +826,36 @@ void Camera::displayCapturedImage()
     //ui->stackedWidget->setCurrentIndex(1);
 }
 
-void Camera::onBaudrateMenuTriggered(QAction* action)
+void Camera::onSpecialKeyPressed(const QString &keyText)
 {
-    bool ok;
-    int baudrate = action->text().toInt(&ok);
-    if (ok) {
-        SerialPortManager::getInstance().setBaudRate(baudrate);
+    // Handle the special key press
+    // For example, you might want to send this key to the remote desktop connection
+    if (keyText == ToolbarManager::KEY_ESC) {
+        HostManager::getInstance().handleFunctionKey(Qt::Key_Escape);
+    } else if (keyText == ToolbarManager::KEY_INS) {
+        HostManager::getInstance().handleFunctionKey(Qt::Key_Insert);
+    } else if (keyText == ToolbarManager::KEY_DEL) {
+        HostManager::getInstance().handleFunctionKey(Qt::Key_Delete);
+    } else if (keyText == ToolbarManager::KEY_HOME) {
+        HostManager::getInstance().handleFunctionKey(Qt::Key_Home);
+    } else if (keyText == ToolbarManager::KEY_END) {
+        HostManager::getInstance().handleFunctionKey(Qt::Key_End);
+    } else if (keyText == ToolbarManager::KEY_PGUP) {
+        HostManager::getInstance().handleFunctionKey(Qt::Key_PageUp);
+    } else if (keyText == ToolbarManager::KEY_PGDN) {
+        HostManager::getInstance().handleFunctionKey(Qt::Key_PageDown);
+    } else if (keyText == ToolbarManager::KEY_PRTSC) {
+        HostManager::getInstance().handleFunctionKey(Qt::Key_Print);
+    } else if (keyText == ToolbarManager::KEY_SCRLK) {
+        HostManager::getInstance().handleFunctionKey(Qt::Key_ScrollLock);
+    } else if (keyText == ToolbarManager::KEY_PAUSE) {
+        HostManager::getInstance().handleFunctionKey(Qt::Key_Pause);
+    } else if (keyText == ToolbarManager::KEY_NUMLK) {
+        HostManager::getInstance().handleFunctionKey(Qt::Key_NumLock);
+    } else if (keyText == ToolbarManager::KEY_CAPSLK) {
+        HostManager::getInstance().handleFunctionKey(Qt::Key_CapsLock);
+    } else if (keyText == ToolbarManager::KEY_WIN) {
+        HostManager::getInstance().handleFunctionKey(Qt::Key_Meta);
     }
 }
 
