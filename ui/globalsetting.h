@@ -41,6 +41,8 @@ public:
     
     void loadLogSettings();
 
+    void setLogStoreSettings(bool storeLog, QString logFilePath);
+
     void setVideoSettings(int width, int height, int fps);
 
     void loadVideoSettings();
@@ -64,7 +66,7 @@ public:
     void setCustomVIDDescriptor(QString customVIDDescriptor);
 
 private:
-    QSettings settings;
+    QSettings m_settings;
 };
 
 #endif // GLOBALSETTING_H

@@ -12,14 +12,24 @@ const QByteArray CMD_RESET = QByteArray::fromHex("57 AB 00 0F 00");
 const QByteArray CMD_SET_DEFAULT_CFG = QByteArray::fromHex("57 AB 00 0C 00");
 const QByteArray CMD_SET_USB_STRING_PREFIX = QByteArray::fromHex("57 AB 00 0B");
 const QByteArray CMD_SEND_KB_GENERAL_DATA = QByteArray::fromHex("57 AB 00 02 08 00 00 00 00 00 00 00 00");
-
 const QByteArray CMD_SET_PARA_CFG_PREFIX = QByteArray::fromHex("57 AB 00 09 32 82 80 00 00 01 C2 00");
 // const QByteArray CMD_SET_INFO_PREFIX = QByteArray::fromHex("57 AB 00 09 32 82 80 00 00 01 C2 00");
 const QByteArray CMD_SET_PARA_CFG_MID = QByteArray::fromHex("08 00 00 03 86 1a 29 e1 00 00 00 01 00 0d 00 00 00 00 00 00 00") + QByteArray(22, 0x00) ;
 
+/* some default value while using default mode */
+const QByteArray RESERVED_2BYTES = QByteArray::fromHex("08 00");    // reserved 2 bytes
+const QByteArray PACKAGE_INTERVAL = QByteArray::fromHex("00 03");
+const QByteArray KEYBOARD_UPLOAD_INTERVAL = QByteArray::fromHex("00 00"); // 0ms interval between two packages
+const QByteArray KEYBOARD_RELEASE_TIMEOUT = QByteArray::fromHex("00 03"); // 3ms timeout
+const QByteArray KEYBOARD_AUTO_ENTER = QByteArray::fromHex("00");   // auto enter
+const QByteArray KEYBOARD_ENTER = QByteArray::fromHex("0D 00 00 00 00 00 00 00");   // USB enter 
+const QByteArray FILTER = QByteArray::fromHex("00 00 00 00 00 00 00 00");   // USB Keyboard filter
+const QByteArray SPEED_MODE = QByteArray::fromHex("00");    
+const QByteArray RESERVED_4BYTES = QByteArray::fromHex("00 00 00 00");  // reserved 4 bytes
+
 
 /* Command success */
-const uint8_t DEF_CMD_SUCCESS = 0x00;
+const uint8_t DEF_CMD_SUCCESS = 0x00; 
 /* Command error receive 1 byte timeout */
 const uint8_t DEF_CMD_ERR_TIMEOUT = 0xE1;
 /* Command error in header bytes */
