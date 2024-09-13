@@ -95,8 +95,6 @@ Camera::Camera() : ui(new Ui::Camera), m_audioManager(new AudioManager(this)),
                                         stackedLayout(new QStackedLayout(this)),
                                         toolbarManager(new ToolbarManager(this)),
                                         statusWidget(new StatusWidget(this))
-                                        // settingsDialog(new SettingDialog(this)),
-                                        // serialPortDebugDialog(new SerialPortDebugDialog())
 {
     qCDebug(log_ui_mainwindow) << "Init camera...";
     ui->setupUi(this);
@@ -671,38 +669,18 @@ void Camera::processCapturedImage(int requestId, const QImage &img)
 // }
 
 void Camera::configureSettings() {
-    qDebug() << "configureSettings";
-    qDebug() << "settingsDialog: " << settingsDialog;
-    if (!settingsDialog){
-        qDebug() << "Creating settings dialog";
-        settingsDialog = new SettingDialog(m_camera.data(), this);
-        connect(settingsDialog, &SettingDialog::cameraSettingsApplied, this, &Camera::loadCameraSettingAndSetCamera);
-        // connect the finished signal to the set the dialog pointer to nullptr
-        connect(settingsDialog, &QDialog::finished, this, [this](){
-            settingsDialog = nullptr;
-        });
-        settingsDialog->show();
-    }else{
-        settingsDialog->raise();
-        settingsDialog->activateWindow();
-    }
+    qDebug() << "Configuring settings...";
+    SettingDialog *setting = new SettingDialog(m_camera.data());
+    // check if camera source is change
+    connect(setting, &SettingDialog::cameraSettingsApplied, this, &Camera::loadCameraSettingAndSetCamera);
+    
+    qDebug() << "Setting configuration... ";
+    setting->show();
 }
 
 void Camera::debugSerialPort() {
-    qDebug() << "debug dialog" ;
-    qDebug() << "serialPortDebugDialog: " << serialPortDebugDialog;
-    if (!serialPortDebugDialog){
-        qDebug() << "Creating serial port debug dialog";
-        serialPortDebugDialog = new SerialPortDebugDialog();
-        // connect the finished signal to the set the dialog pointer to nullptr
-        connect(serialPortDebugDialog, &QDialog::finished, this, [this]() {
-            serialPortDebugDialog = nullptr;
-        });
-        serialPortDebugDialog->show();
-    }else{
-        serialPortDebugDialog->raise();
-        serialPortDebugDialog->activateWindow();
-    }
+    serialPortDebugDialog *serialPortDebug = new serialPortDebugDialog();
+    serialPortDebug->show();
 }
 
 void Camera::purchaseLink(){
