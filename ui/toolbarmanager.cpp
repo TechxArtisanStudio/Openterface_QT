@@ -1,7 +1,7 @@
 #include "toolbarmanager.h"
+#include "../global.h"
 #include <QHBoxLayout>
 #include <QWidget>
-#include "../global.h" // Add this line to include the GlobalVar class
 
 const QString ToolbarManager::commonButtonStyle = 
     "QPushButton { "
@@ -53,6 +53,7 @@ void ToolbarManager::setupToolbar()
         QString buttonText = QString("F%1").arg(i);
         QPushButton *button = createFunctionButton(buttonText);
         toolbar->addWidget(button);
+
     }
 
     // Add a spacer
@@ -84,6 +85,7 @@ void ToolbarManager::setupToolbar()
     // toolbar->addWidget(delButton);
 
     // Repeating keystroke combo box
+
     QComboBox *repeatingKeystrokeComboBox = new QComboBox(toolbar);
     repeatingKeystrokeComboBox->addItem("No repeating", 0);
     repeatingKeystrokeComboBox->addItem("Repeat every 0.5s", 500);
@@ -101,6 +103,7 @@ QPushButton* ToolbarManager::createFunctionButton(const QString &text)
     button->setStyleSheet(commonButtonStyle);
     int width = button->fontMetrics().horizontalAdvance(text) + 16; // Add some padding
     button->setFixedWidth(width);
+
     connect(button, &QPushButton::clicked, this, &ToolbarManager::onFunctionButtonClicked);
     return button;
 }
@@ -130,7 +133,6 @@ void ToolbarManager::onRepeatingKeystrokeChanged(int index)
     }
 }
 
-// Add this new slot
 void ToolbarManager::onSpecialKeyClicked()
 {
     QPushButton *button = qobject_cast<QPushButton*>(sender());

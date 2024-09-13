@@ -199,7 +199,7 @@ void SerialPortManager::onSerialPortConnectionSuccess(const QString &portName){
     connect(serialPort, &QSerialPort::bytesWritten, this, &SerialPortManager::bytesWritten);
     ready = true;
 
-    if(eventCallback!=nullptr) eventCallback->onPortConnected(QString("%1@%2").arg(portName).arg(serialPort->baudRate()));
+    if(eventCallback!=nullptr) eventCallback->onPortConnected(portName, serialPort->baudRate());
 
     qCDebug(log_core_serial) << "Enable the switchable USB now...";
     serialPort->setDataTerminalReady(false);
@@ -219,7 +219,7 @@ bool SerialPortManager::resetHipChip(){
     if(reconfigureHidChip()) {
         if(sendResetCommand()){
             qCDebug(log_core_serial) << "Reopen the serial port with baudrate: " << DEFAULT_BAUDRATE;
-            serialPort->setBaudRate(DEFAULT_BAUDRATE);
+            setBaudRate(DEFAULT_BAUDRATE);
             restartPort();
             return true;
         }else{
@@ -235,6 +235,8 @@ bool SerialPortManager::resetHipChip(){
         return false;
     }
 }
+
+
 
 /*
  * Send the reset command to the hid chip
@@ -288,7 +290,7 @@ bool SerialPortManager::factoryResetHipChipV191(){
         qCDebug(log_core_serial) << "Factory reset the hid chip fail.";
         // toggle to another baudrate
         serialPort->close();
-        serialPort->setBaudRate(ORIGINAL_BAUDRATE);
+        setBaudRate(ORIGINAL_BAUDRATE);
         if(eventCallback) eventCallback->onStatusUpdate("Factory reset the hid chip@9600.");
         if(serialPort->open(QIODevice::ReadWrite)){
             QByteArray retByte = sendSyncCommand(CMD_SET_DEFAULT_CFG, true);
@@ -338,7 +340,7 @@ bool SerialPortManager::openPort(const QString &portName, int baudRate) {
         serialPort->setRequestToSend(false);
 
         if(eventCallback!=nullptr) eventCallback->onStatusUpdate("");
-        if(eventCallback!=nullptr) eventCallback->onPortConnected(QString("%1@%2").arg(portName).arg(baudRate));
+        if(eventCallback!=nullptr) eventCallback->onPortConnected(portName, baudRate);
         return true;
     } else {
         if(eventCallback!=nullptr) eventCallback->onStatusUpdate("Open port failure");
@@ -362,7 +364,7 @@ void SerialPortManager::closePort() {
         delete serialPort;
         serialPort = nullptr;
         ready=false;
-        if(eventCallback!=nullptr) eventCallback->onPortConnected("NA");
+        if(eventCallback!=nullptr) eventCallback->onPortConnected("NA",0);
     } else {
         qCDebug(log_core_serial) << "Serial port is not opened.";
     }
@@ -425,10 +427,7 @@ void SerialPortManager::readData() {
                 if (checkedBaudrate == SerialPortManager::DEFAULT_BAUDRATE && mode == 0x82) {
                     qCDebug(log_core_serial) << "Serial is ready for communication.";
                     ready = true;
-                    serialPort->setBaudRate(checkedBaudrate);
-                    if(eventCallback!=nullptr){
-                        eventCallback->onPortConnected(QString("%1@%2").arg(serialPort->portName()).arg(serialPort->baudRate()));
-                    }
+                    setBaudRate(checkedBaudrate);
                 }else{
                     qCDebug(log_core_serial) << "Serial is not ready for communication.";
                     //reconfigureHidChip();
@@ -444,7 +443,7 @@ void SerialPortManager::readData() {
             }
         }
     }
-    qDebug() << "Recv read" << data;
+    // qDebug() << "Recv read" << data;
     emit dataReceived(data);
 }
 
@@ -529,7 +528,7 @@ QByteArray SerialPortManager::sendSyncCommand(const QByteArray &data, bool force
     QByteArray command = data;
     
     command.append(calculateChecksum(command));
-    qDebug() <<  "Check sum" << command;
+    qDebug() <<  "Check sum" << command.toHex(' ');
     writeData(command);
     if (serialPort->waitForReadyRead(100)) {
         QByteArray responseData = serialPort->readAll();
@@ -576,58 +575,35 @@ void SerialPortManager::setUSBconfiguration(){
     QString PID = settings.value("serial/pid", "29 E1").toString();
     QString enable = settings.value("serial/enableflag", "00").toString();
 
-    QString KeyboradUploadInterval = "00 00"; // 0ms interval between two packages
-    QString KeyboradReleaseTimeout = "00 03"; // 1ms timeout
-    QString KeyboradAutoEnter = "00"; // auto enter
-    QString KeyboradEnter = "0D 00 00 00 00 00 00 00"; // USB enter 
-    QString Filter = "00 00 00 00 00 00 00 00"; // USB Keyboard filter
-    
-    QString SpeedMode = "00";
-    QString Reserved1 = "00 00 00 00";
-    QString Reserved2 = "00 00 00 00";
-    QString Reserved3 = "00 00 00 00";
-
     QByteArray VIDbyte = GlobalSetting::instance().convertStringToByteArray(VID);
     QByteArray PIDbyte = GlobalSetting::instance().convertStringToByteArray(PID);
-    QByteArray KeyboradUploadIntervalByte =  GlobalSetting::instance().convertStringToByteArray(KeyboradUploadInterval);
-    QByteArray KeyboradReleaseTimeoutByte =  GlobalSetting::instance().convertStringToByteArray(KeyboradReleaseTimeout);
-    QByteArray KeyboradAutoEnterByte =  GlobalSetting::instance().convertStringToByteArray(KeyboradAutoEnter);
-    QByteArray KeyboradEnterByte =  GlobalSetting::instance().convertStringToByteArray(KeyboradEnter);
-    QByteArray FilterByte =  GlobalSetting::instance().convertStringToByteArray(Filter);
     QByteArray enableByte =  GlobalSetting::instance().convertStringToByteArray(enable);
-    QByteArray SpeedModeByte =  GlobalSetting::instance().convertStringToByteArray(SpeedMode);
-    QByteArray Reserved1Byte =  GlobalSetting::instance().convertStringToByteArray(Reserved1);
-    QByteArray Reserved2Byte =  GlobalSetting::instance().convertStringToByteArray(Reserved2);
-    QByteArray Reserved3Byte =  GlobalSetting::instance().convertStringToByteArray(Reserved3);
 
-
-    command.append(QByteArray::fromHex("08 00 00 03"));
+    command.append(RESERVED_2BYTES);
+    command.append(PACKAGE_INTERVAL);
 
     command.append(VIDbyte);
     command.append(PIDbyte);
-    command.append(KeyboradUploadIntervalByte);
-    command.append(KeyboradReleaseTimeoutByte);
-    command.append(KeyboradAutoEnterByte);
-    command.append(KeyboradEnterByte);
-    command.append(FilterByte);
+    command.append(KEYBOARD_UPLOAD_INTERVAL);
+    command.append(KEYBOARD_RELEASE_TIMEOUT);
+    command.append(KEYBOARD_AUTO_ENTER);
+    command.append(KEYBOARD_ENTER);
+    command.append(FILTER);
 
     command.append(enableByte);
 
-    command.append(SpeedModeByte);
-    command.append(Reserved1Byte);
-    command.append(Reserved2Byte);
-    command.append(Reserved3Byte);
+    command.append(SPEED_MODE);
+    command.append(RESERVED_4BYTES);
+    command.append(RESERVED_4BYTES);
+    command.append(RESERVED_4BYTES);
     
-    qDebug() <<  " no checksum" << command;
+    qDebug(log_core_serial) <<  " no checksum" << command.toHex(' ');
     if (serialPort != nullptr && serialPort->isOpen()){
         QByteArray respon = sendSyncCommand(command, true); 
-        qDebug() << respon;
-        qDebug() << " After sending command";
+        qDebug(log_core_serial) << respon;
+        qDebug(log_core_serial) << " After sending command";
     } 
 }
-
-
-
 
 /*
  * change USB Descriptor of the device
@@ -645,10 +621,10 @@ void SerialPortManager::changeUSBDescriptor() {
     bool ok;    
     int hexValue = enableflag.toInt(&ok, 16);
 
-    qDebug() << "extractBits: " << hexValue;
+    qDebug(log_core_serial) << "extractBits: " << hexValue;
 
     if (!ok) {
-        qDebug() << "Convert failed";
+        qDebug(log_core_serial) << "Convert failed";
         return ; // return empty array
     }
     
@@ -658,7 +634,7 @@ void SerialPortManager::changeUSBDescriptor() {
     bits[3] = (hexValue >> 7) & 1;
     
     if (bits[3]){
-        for(int i=0; i<sizeof(bits)/ sizeof(bits[0]) -1; i++){
+        for(uint i=0; i < sizeof(bits)/ sizeof(bits[0]) -1; i++){
             if (bits[i]){
                 QByteArray command = CMD_SET_USB_STRING_PREFIX;
                 QByteArray tmp = USBDescriptors[i].toUtf8();
@@ -678,15 +654,15 @@ void SerialPortManager::changeUSBDescriptor() {
                 command.append(hexLength_bin);
                 command.append(tmp);
 
-                
-                qDebug() <<  " no checksum" << command;
+                // qDebug() <<  "usb descriptor" << command.toHex(' ');
                 if (serialPort != nullptr && serialPort->isOpen()){
                     QByteArray respon = sendSyncCommand(command, true);
-                    qDebug() << respon;
-                    qDebug() << " After sending command";
+                    qDebug(log_core_serial) << respon;
+                    qDebug(log_core_serial) << " After sending command";
                 }
-                qDebug() << "USB descriptor:" << command;
+                qDebug() <<  "usb descriptor" << command.toHex(' ');
             }
+            QThread::msleep(10);
         }
     }
 }
@@ -695,4 +671,22 @@ void SerialPortManager::sendCommand(const QByteArray &command, bool waitForAck) 
     qCDebug(log_core_serial)  << "sendCommand:" << command.toHex(' ');
     sendAsyncCommand(command, false);
 
+}
+
+bool SerialPortManager::setBaudRate(int baudRate) {
+    if (serialPort->baudRate() == baudRate) {
+        qCDebug(log_core_serial) << "Baud rate is already set to" << baudRate;
+        return true;
+    }
+
+    qCDebug(log_core_serial) << "Setting baud rate to" << baudRate;
+    
+    if (serialPort->setBaudRate(baudRate)) {
+        qCDebug(log_core_serial) << "Baud rate successfully set to" << baudRate;
+        emit connectedPortChanged(serialPort->portName(), baudRate);
+        return true;
+    } else {
+        qCWarning(log_core_serial) << "Failed to set baud rate to" << baudRate << ": " << serialPort->errorString();
+        return false;
+    }
 }

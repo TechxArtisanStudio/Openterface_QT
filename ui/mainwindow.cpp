@@ -28,7 +28,7 @@
 
 #include "host/HostManager.h"
 #include "serial/SerialPortManager.h"
-
+#include "loghandler.h"
 #include "ui/imagesettings.h"
 #include "ui/settingdialog.h"
 #include "ui/helppane.h"
@@ -145,6 +145,7 @@ Camera::Camera() : ui(new Ui::Camera), m_audioManager(new AudioManager(this)),
     qDebug() << "Loading settings";
     GlobalSetting::instance().loadLogSettings();
     GlobalSetting::instance().loadVideoSettings();
+    LogHandler::instance().enableLogStore();
 
     qCDebug(log_ui_mainwindow) << "Observe switch usb connection trigger...";
     connect(ui->actionTo_Host, &QAction::triggered, this, &Camera::onActionSwitchToHostTriggered);
@@ -217,6 +218,10 @@ void Camera::init()
     // Initialize the virtual keyboard button icon
     QIcon icon(":/images/keyboard-down.svg");
     ui->virtualKeyboardButton->setIcon(icon);
+
+    // Add this after other menu connections
+    connect(ui->menuBaudrate, &QMenu::triggered, this, &Camera::onBaudrateMenuTriggered);
+    connect(&SerialPortManager::getInstance(), &SerialPortManager::connectedPortChanged, this, &Camera::onPortConnected);
 }
 
 void Camera::initStatusBar()
@@ -503,6 +508,38 @@ void Camera::onTargetUsbConnected(const bool isConnected)
     statusWidget->setTargetUsbConnected(isConnected);
 }
 
+void Camera::updateBaudrateMenu(int baudrate){
+    // Find the QAction corresponding to the current baudrate and check it
+    QList<QAction*> actions = ui->menuBaudrate->actions();
+    for (QAction* action : actions) {
+        bool ok;
+        int actionBaudrate = action->text().toInt(&ok);
+        if (ok && actionBaudrate == baudrate) {
+            action->setChecked(true);
+        } else {
+            action->setChecked(false);
+        }
+    }
+
+    // If the current baudrate is not in the menu, add a new option and check it
+    bool baudrateFound = false;
+    for (QAction* action : actions) {
+        if (action->text().toInt() == baudrate) {
+            baudrateFound = true;
+            break;
+        }
+    }
+    if (!baudrateFound) {
+        QAction* newAction = new QAction(QString::number(baudrate), this);
+        newAction->setCheckable(true);
+        newAction->setChecked(true);
+        ui->menuBaudrate->addAction(newAction);
+        connect(newAction, &QAction::triggered, this, [this, newAction]() {
+            onBaudrateMenuTriggered(newAction);
+        });
+    }
+}
+
 void Camera::onFollowSwitchTriggered()
 {
     qCDebug(log_ui_mainwindow) << "Follow switch:" << ui->actionFollow_Switch->isChecked();
@@ -636,13 +673,13 @@ void Camera::configureSettings() {
     SettingDialog *setting = new SettingDialog(m_camera.data());
     // check if camera source is change
     connect(setting, &SettingDialog::cameraSettingsApplied, this, &Camera::loadCameraSettingAndSetCamera);
+    
     qDebug() << "Setting configuration... ";
     setting->show();
 }
 
 void Camera::debugSerialPort() {
     serialPortDebugDialog *serialPortDebug = new serialPortDebugDialog();
-
     serialPortDebug->show();
 }
 
@@ -820,7 +857,6 @@ void Camera::onSpecialKeyPressed(const QString &keyText)
     } else if (keyText == ToolbarManager::KEY_WIN) {
         HostManager::getInstance().handleFunctionKey(Qt::Key_Meta);
     }
-    // Handle other special keys as needed
 }
 
 void Camera::imageSaved(int id, const QString &fileName)
@@ -888,8 +924,9 @@ void Camera::checkCameraConnection()
 }
 
 
-void Camera::onPortConnected(const QString& port) {
-    statusWidget->setConnectedPort(port);
+void Camera::onPortConnected(const QString& port, const int& baudrate) {
+    statusWidget->setConnectedPort(port, baudrate);
+    updateBaudrateMenu(baudrate);
 }
 
 void Camera::onStatusUpdate(const QString& status) {

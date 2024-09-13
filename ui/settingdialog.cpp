@@ -1,3 +1,4 @@
+
 /*
 * ========================================================================== *
 *                                                                            *
@@ -25,6 +26,7 @@
 #include "ui/fpsspinbox.h"
 #include "global.h"
 #include "globalsetting.h"
+#include "loghandler.h"
 #include "serial/SerialPortManager.h"
 
 #include <QCamera>
@@ -59,13 +61,13 @@ SettingDialog::SettingDialog(QCamera *_camera, QWidget *parent)
     , ui(new Ui::SettingDialog)
     , settingTree(new QTreeWidget(this))
     , stackedWidget(new QStackedWidget(this))
-    , buttonWidget(new QWidget(this))
     , logPage(nullptr)
     , videoPage(nullptr)
     , audioPage(nullptr)
     , hardwarePage(nullptr)
+    , buttonWidget(new QWidget(this))
     , camera(_camera)
-    
+
 {
 
 
@@ -116,16 +118,29 @@ void SettingDialog::createLogPage() {
     QCheckBox *serialCheckBox = new QCheckBox("Serial");
     QCheckBox *uiCheckBox = new QCheckBox("User Interface");
     QCheckBox *hostCheckBox = new QCheckBox("Host");
+    QCheckBox *storeLogCheckBox = new QCheckBox("Enable file logging");
+    QLineEdit *logFilePathLineEdit = new QLineEdit(logPage);
+    
+    QPushButton *browseButton = new QPushButton("Browse");
+
     coreCheckBox->setObjectName("core");
     serialCheckBox->setObjectName("serial");
     uiCheckBox->setObjectName("ui");
     hostCheckBox->setObjectName("host");
+    logFilePathLineEdit->setObjectName("logFilePathLineEdit");
+    browseButton->setObjectName("browseButton");
+    storeLogCheckBox->setObjectName("storeLogCheckBox");
 
+    // QFileDialog *fileDialog = new QFileDialog
     QHBoxLayout *logCheckboxLayout = new QHBoxLayout();
     logCheckboxLayout->addWidget(coreCheckBox);
     logCheckboxLayout->addWidget(serialCheckBox);
     logCheckboxLayout->addWidget(uiCheckBox);
     logCheckboxLayout->addWidget(hostCheckBox);
+
+    QHBoxLayout *logFilePathLayout = new QHBoxLayout();
+    logFilePathLayout->addWidget(logFilePathLineEdit);
+    logFilePathLayout->addWidget(browseButton);
 
     QLabel *logLabel = new QLabel(
         "<span style=' color: black; font-weight: bold;'>General log setting</span>");
@@ -135,11 +150,40 @@ void SettingDialog::createLogPage() {
         "Check the check box to see the corresponding log in the QT console.");
     logDescription->setStyleSheet(commentsFontSize);
 
+
+    connect(browseButton, &QPushButton::clicked, this, &SettingDialog::browseLogPath);
+
     QVBoxLayout *logLayout = new QVBoxLayout(logPage);
     logLayout->addWidget(logLabel);
     logLayout->addWidget(logDescription);
     logLayout->addLayout(logCheckboxLayout);
+    logLayout->addWidget(storeLogCheckBox);
+    logLayout->addLayout(logFilePathLayout);
     logLayout->addStretch();
+
+}
+
+void SettingDialog::browseLogPath() {
+    QLineEdit *logFilePathLineEdit = logPage->findChild<QLineEdit*>("logFilePathLineEdit");
+    QString exeDir = QCoreApplication::applicationDirPath();
+    QString dir = QFileDialog::getExistingDirectory(this, tr("Select Log Directory"),
+                                                    exeDir,
+                                                    QFileDialog::ShowDirsOnly
+                                                    | QFileDialog::DontResolveSymlinks);
+    if (!dir.isEmpty()) {
+        QString logPath = dir + "/openterface_log.txt";
+        logFilePathLineEdit->setText(dir);
+        QFile file(logPath);
+        if (!file.exists()) {
+            if (file.open(QIODevice::WriteOnly)) {
+                file.close();
+                qDebug() << "Created new log file:" << logPath;
+            } else {
+                qWarning() << "Failed to create log file:" << logPath;
+            }
+        }
+        logFilePathLineEdit->setText(logPath);
+    }
 }
 
 void SettingDialog::createVideoPage() {
@@ -591,10 +635,10 @@ std::array<bool, 4> SettingDialog::extractBits(QString hexString) {
 
     // get the bit
     std::array<bool, 4> bits = {
-        (hexValue >> 0) & 1,
-        (hexValue >> 1) & 1,
-        (hexValue >> 2) & 1,
-        (hexValue >> 7) & 1
+        static_cast<bool>((hexValue >> 0) & 1),
+        static_cast<bool>((hexValue >> 1) & 1),
+        static_cast<bool>((hexValue >> 2) & 1),
+        static_cast<bool>((hexValue >> 7) & 1)
     };
 
     return bits;
@@ -667,8 +711,12 @@ void SettingDialog::applyHardwareSetting(){
     GlobalSetting::instance().setSerialNumber(serialNumberLineEdit->text());
     GlobalSetting::instance().setUSBEnabelFlag(QString(EnableFlag.toHex()));
     
-    SerialPortManager::getInstance().setUSBconfiguration();
+
     SerialPortManager::getInstance().changeUSBDescriptor();
+    QThread::msleep(10);
+    SerialPortManager::getInstance().setUSBconfiguration();
+    
+    // QThread::msleep(10);
 }
 
 
@@ -693,7 +741,7 @@ void SettingDialog::initHardwareSetting(){
     QString USBFlag = settings.value("serial/enableflag", "87").toString();
     std::array<bool, 4> enableFlagArray = extractBits(USBFlag);
 
-    for(int i = 0; i < enableFlagArray.size(); i++){
+    for(uint i = 0; i < enableFlagArray.size(); i++){
         qDebug() << "enable flag array: " <<enableFlagArray[i];
     }
 
@@ -766,7 +814,7 @@ void SettingDialog::createLayout() {
 
 
 void SettingDialog::changePage(QTreeWidgetItem *current, QTreeWidgetItem *previous) {
-    static QElapsedTimer timer;
+
     static bool isChanging = false;
 
     if (isChanging)
@@ -814,10 +862,14 @@ void SettingDialog::applyLogsettings() {
     QCheckBox *serialCheckBox = findChild<QCheckBox*>("serial");
     QCheckBox *uiCheckBox = findChild<QCheckBox*>("ui");
     QCheckBox *hostCheckBox = findChild<QCheckBox*>("host");
+    QCheckBox *storeLogCheckBox = findChild<QCheckBox*>("storeLogCheckBox");
+    QLineEdit *logFilePathLineEdit = findChild<QLineEdit*>("logFilePathLineEdit");
     bool core =  coreCheckBox->isChecked();
     bool host = hostCheckBox->isChecked();
     bool serial = serialCheckBox->isChecked();
     bool ui = uiCheckBox->isChecked();
+    bool storeLog = storeLogCheckBox->isChecked();
+    QString logFilePath = logFilePathLineEdit->text();
     // set the log filter value by check box
     QString logFilter = "";
 
@@ -828,7 +880,12 @@ void SettingDialog::applyLogsettings() {
 
     QLoggingCategory::setFilterRules(logFilter);
     // save the filter settings
+    
     GlobalSetting::instance().setLogSettings(core, serial, ui, host);
+    GlobalSetting::instance().setLogStoreSettings(storeLog, logFilePath);
+    LogHandler::instance().enableLogStore();
+    
+
 }
 
 void SettingDialog::initLogSettings(){
@@ -838,11 +895,15 @@ void SettingDialog::initLogSettings(){
     QCheckBox *serialCheckBox = findChild<QCheckBox*>("serial");
     QCheckBox *uiCheckBox = findChild<QCheckBox*>("ui");
     QCheckBox *hostCheckBox = findChild<QCheckBox*>("host");
+    QCheckBox *storeLogCheckBox = findChild<QCheckBox*>("storeLogCheckBox");
+    QLineEdit *logFilePathLineEdit = findChild<QLineEdit*>("logFilePathLineEdit");
 
     coreCheckBox->setChecked(settings.value("log/core", true).toBool());
     serialCheckBox->setChecked(settings.value("log/serial", true).toBool());
     uiCheckBox->setChecked(settings.value("log/ui", true).toBool());
     hostCheckBox->setChecked(settings.value("log/host", true).toBool());
+    storeLogCheckBox->setChecked(settings.value("log/storeLog", false).toBool());
+    logFilePathLineEdit->setText(settings.value("log/logFilePath", "").toString());
 }
 
 void SettingDialog::applyAccrodingPage(){

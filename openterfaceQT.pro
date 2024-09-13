@@ -27,11 +27,13 @@ SOURCES += main.cpp \
     ui/videosettings.cpp \
     ui/globalsetting.cpp \
     ui/toolbarmanager.cpp \
+    ui/loghandler.cpp \
+
     # ui/serialportDebug.cpp \
     host/HostManager.cpp \
     serial/SerialPortManager.cpp \
     target/KeyboardManager.cpp \
-    target/MouseManager.cpp
+    target/MouseManager.cpp 
 
 HEADERS  += \
     global.h \
@@ -51,6 +53,7 @@ HEADERS  += \
     ui/globalsetting.h \
     ui/statusevents.h \
     ui/toolbarmanager.h \
+    ui/loghandler.h \
     # ui/serialportDebug \
     host/HostManager.h \
     serial/ch9329.h \
@@ -62,7 +65,6 @@ HEADERS  += \
 FORMS    += \
     ui/imagesettings.ui \
     ui/mainwindow.ui \
-    ui/serialportdebugdialog.ui \
     ui/settingdialog.ui \
     ui/videosettings.ui
 

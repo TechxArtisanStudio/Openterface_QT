@@ -120,7 +120,7 @@ private slots:
 
     void popupMessage(QString message);
 
-    void onPortConnected(const QString& port) override;
+    void onPortConnected(const QString& port, const int& baudrate) override;
 
     void onLastKeyPressed(const QString& key) override;
 
@@ -133,6 +133,10 @@ private slots:
     void onResolutionChange(const int& width, const int& height, const float& fps) override;
 
     void onTargetUsbConnected(const bool isConnected) override;
+    
+    // void toggleToolbar();
+
+    // void toggleToolbar();
 
     // void toggleToolbar();
 
@@ -170,6 +174,8 @@ private slots:
     void onFunctionKeyPressed(int key);
     void onCtrlAltDelPressed();
     void onSpecialKeyPressed(const QString &keyText);
+    void onBaudrateMenuTriggered(QAction* action);
+
 
 private:
     Ui::Camera *ui;
@@ -209,6 +215,8 @@ private:
     QComboBox *repeatingKeystrokeComboBox;
 
     ToolbarManager *toolbarManager;
+
+    void updateBaudrateMenu(int baudrate);
 };
 
 #endif

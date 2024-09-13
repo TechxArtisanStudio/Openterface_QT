@@ -9,6 +9,7 @@
 #include <QAction>
 #include <QStringList>
 
+
 class ToolbarManager : public QObject
 {
     Q_OBJECT
@@ -16,6 +17,7 @@ class ToolbarManager : public QObject
 public:
     explicit ToolbarManager(QWidget *parent = nullptr);
     QToolBar* getToolbar() { return toolbar; }
+
 
     // Define constants for all special keys
     static const QString KEY_WIN;
@@ -39,6 +41,7 @@ public:
 
 private:
     static const QString commonButtonStyle;
+
     QToolBar *toolbar;
     void setupToolbar();
     QPushButton* createFunctionButton(const QString &text);
@@ -54,6 +57,7 @@ private slots:
     void onCtrlAltDelClicked();
     void onRepeatingKeystrokeChanged(int index);
     void onSpecialKeyClicked();
+
 };
 
 #endif // TOOLBARMANAGER_H
