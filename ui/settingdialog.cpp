@@ -70,7 +70,6 @@ SettingDialog::SettingDialog(QCamera *_camera, QWidget *parent)
 
 {
 
-
     ui->setupUi(this);
     createSettingTree();
     createPages();
@@ -90,6 +89,7 @@ SettingDialog::~SettingDialog()
     delete ui;
     // Ensure all dynamically allocated memory is freed
     qDeleteAll(settingTree->invisibleRootItem()->takeChildren());
+    delete this;
 }
 
 void SettingDialog::createSettingTree() {
