@@ -28,7 +28,7 @@
 
 #include "host/HostManager.h"
 #include "serial/SerialPortManager.h"
-
+#include "loghandler.h"
 #include "ui/imagesettings.h"
 #include "ui/settingdialog.h"
 #include "ui/helppane.h"
@@ -145,6 +145,7 @@ Camera::Camera() : ui(new Ui::Camera), m_audioManager(new AudioManager(this)),
     qDebug() << "Loading settings";
     GlobalSetting::instance().loadLogSettings();
     GlobalSetting::instance().loadVideoSettings();
+    LogHandler::instance().enableLogStore();
 
     qCDebug(log_ui_mainwindow) << "Observe switch usb connection trigger...";
     connect(ui->actionTo_Host, &QAction::triggered, this, &Camera::onActionSwitchToHostTriggered);
@@ -167,7 +168,7 @@ Camera::Camera() : ui(new Ui::Camera), m_audioManager(new AudioManager(this)),
 
     addToolBar(Qt::TopToolBarArea, toolbarManager->getToolbar());
     toolbarManager->getToolbar()->setVisible(false);
-
+    
     connect(toolbarManager, &ToolbarManager::functionKeyPressed, this, &Camera::onFunctionKeyPressed);
     connect(toolbarManager, &ToolbarManager::ctrlAltDelPressed, this, &Camera::onCtrlAltDelPressed);
     connect(toolbarManager, &ToolbarManager::delPressed, this, &Camera::onDelPressed);
@@ -672,6 +673,7 @@ void Camera::configureSettings() {
     SettingDialog *setting = new SettingDialog(m_camera.data());
     // check if camera source is change
     connect(setting, &SettingDialog::cameraSettingsApplied, this, &Camera::loadCameraSettingAndSetCamera);
+    
     qDebug() << "Setting configuration... ";
     setting->show();
 }
