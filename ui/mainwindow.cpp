@@ -28,7 +28,7 @@
 
 #include "host/HostManager.h"
 #include "serial/SerialPortManager.h"
-
+#include "loghandler.h"
 #include "ui/imagesettings.h"
 #include "ui/settingdialog.h"
 #include "ui/helppane.h"
@@ -672,6 +672,7 @@ void Camera::configureSettings() {
     SettingDialog *setting = new SettingDialog(m_camera.data());
     // check if camera source is change
     connect(setting, &SettingDialog::cameraSettingsApplied, this, &Camera::loadCameraSettingAndSetCamera);
+    LogHandler::instance().enableLogStore();
     qDebug() << "Setting configuration... ";
     setting->show();
 }
