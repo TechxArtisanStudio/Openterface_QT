@@ -533,7 +533,6 @@ void SettingDialog::createHardwarePage(){
     uvcCamLabel->setStyleSheet(smallLabelFontSize);
     QComboBox *uvcCamBox = new QComboBox();
     uvcCamBox->setObjectName("uvcCamBox");
-    
 
     QLabel *VIDPIDLabel = new QLabel(
         "Change target VID&PID: ");
@@ -575,21 +574,14 @@ void SettingDialog::createHardwarePage(){
     gridLayout->addWidget(PIDLineEdit, 1,1, Qt::AlignLeft);
     gridLayout->addWidget(USBDescriptor, 2,0, Qt::AlignLeft);
     gridLayout->addWidget(USBCustomStringDescriptorCheckBox, 3,0, Qt::AlignLeft);
-    gridLayout->addWidget(VIDCheckBox, 4,0, Qt::AlignLeft);
-    gridLayout->addWidget(VIDDescriptorLineEdit, 4,1, Qt::AlignLeft);
-    gridLayout->addWidget(PIDCheckBox, 5,0, Qt::AlignLeft);
-    gridLayout->addWidget(PIDDescriptorLineEdit, 5,1, Qt::AlignLeft);
-    gridLayout->addWidget(USBSerialNumberCheckBox, 6,0, Qt::AlignLeft);
-    gridLayout->addWidget(serialNumberLineEdit, 6,1, Qt::AlignLeft);
-    
-    // gridLayout->addWidget(customStringDescriptorLineEdit, 6,1, Qt::AlignLeft);
-    
+    gridLayout->addWidget(customStringDescriptorLineEdit, 3,1, Qt::AlignLeft);
 
     QVBoxLayout *hardwareLayout = new QVBoxLayout(hardwarePage);
     hardwareLayout->addWidget(hardwareLabel);
     hardwareLayout->addWidget(uvcCamLabel);
     hardwareLayout->addWidget(uvcCamBox);
     hardwareLayout->addWidget(VIDPIDLabel);
+
     hardwareLayout->addLayout(gridLayout);
     hardwareLayout->addStretch();
     // add the 
@@ -610,38 +602,12 @@ void SettingDialog::addCheckBoxLineEditPair(QCheckBox *checkBox, QLineEdit *line
 
 void SettingDialog::onCheckBoxStateChanged(int state) {
     QCheckBox *checkBox = qobject_cast<QCheckBox*>(sender());
-    QLineEdit *lineEdit = USBCheckBoxEditMap.value(checkBox);
-    if (state == Qt::Checked) {
-        lineEdit->setEnabled(true);
+    if (checkBox){
+        QLineEdit *lineEdit = USBCheckBoxEditMap.value(checkBox);
+        if (lineEdit){
+            lineEdit->setReadOnly(state != Qt::Checked);
+        }
     }
-    else {
-        lineEdit->setEnabled(false);
-    }
-
-
-}
-
-std::array<bool, 4> SettingDialog::extractBits(QString hexString) {
-    // convert hex string to bool array 
-    bool ok;    
-    int hexValue = hexString.toInt(&ok, 16);
-
-    qDebug() << "extractBits: " << hexValue;
-
-    if (!ok) {
-        qDebug() << "Convert failed";
-        return {}; // return empty array
-    }
-
-    // get the bit
-    std::array<bool, 4> bits = {
-        static_cast<bool>((hexValue >> 0) & 1),
-        static_cast<bool>((hexValue >> 1) & 1),
-        static_cast<bool>((hexValue >> 2) & 1),
-        static_cast<bool>((hexValue >> 7) & 1)
-    };
-
-    return bits;
 }
 
 void SettingDialog::findUvcCameraDevices(){
@@ -693,9 +659,15 @@ void SettingDialog::applyHardwareSetting(){
     QComboBox *uvcCamBox = hardwarePage->findChild<QComboBox*>("uvcCamBox");
     QLineEdit *VIDLineEdit = hardwarePage->findChild<QLineEdit*>("VIDLineEdit");
     QLineEdit *PIDLineEdit = hardwarePage->findChild<QLineEdit*>("PIDLineEdit");
-    QLineEdit *VIDDescriptorLineEdit = hardwarePage->findChild<QLineEdit*>("VIDDescriptorLineEdit");
-    QLineEdit *PIDDescriptorLineEdit = hardwarePage->findChild<QLineEdit*>("PIDDescriptorLineEdit");
+
     QLineEdit *serialNumberLineEdit = hardwarePage->findChild<QLineEdit*>("serialNumberLineEdit");
+    QString usbflag = serialNumberLineEdit->text();
+
+    QString vidstring = VIDLineEdit->text();
+    QString pidstring = PIDLineEdit->text();
+    qDebug() << "init ";
+    QByteArray VID_byte = GlobalSetting::instance().convertStringToByteArray(vidstring);
+    QByteArray PID_byte = GlobalSetting::instance().convertStringToByteArray(pidstring);
 
     QByteArray EnableFlag = convertCheckBoxValueToBytes();
 
@@ -704,19 +676,9 @@ void SettingDialog::applyHardwareSetting(){
         emit cameraSettingsApplied();  // emit the hardware setting signal to change the camera device
     }
 
-    GlobalSetting::instance().setVID(VIDLineEdit->text());
-    GlobalSetting::instance().setPID(PIDLineEdit->text());
-    GlobalSetting::instance().setCustomVIDDescriptor(VIDDescriptorLineEdit->text());
-    GlobalSetting::instance().setCustomPIDDescriptor(PIDDescriptorLineEdit->text());
-    GlobalSetting::instance().setSerialNumber(serialNumberLineEdit->text());
-    GlobalSetting::instance().setUSBEnabelFlag(QString(EnableFlag.toHex()));
-    
+    GlobalSetting::instance().setVIDPID(VIDLineEdit->text(), PIDLineEdit->text());
 
-    SerialPortManager::getInstance().changeUSBDescriptor();
-    QThread::msleep(10);
-    SerialPortManager::getInstance().setUSBconfiguration();
-    
-    // QThread::msleep(10);
+    qDebug() << "enable flag: " << EnableFlag;
 }
 
 
@@ -755,14 +717,8 @@ void SettingDialog::initHardwareSetting(){
     PIDDescriptorLineEdit->setText(settings.value("serial/customPIDDescriptor", "vendor").toString());
     VIDLineEdit->setText(settings.value("serial/vid", "861A").toString());
     PIDLineEdit->setText(settings.value("serial/pid", "29E1").toString());
-    serialNumberLineEdit->setText(settings.value("serial/serialnumber" , "serial number").toString());
-    // customStringDescriptorLineEdit->setText(settings.value("serial/customstringdescriptor", "custom string").toString());
-    
 
-    VIDDescriptorLineEdit->setEnabled(enableFlagArray[2]);
-    PIDDescriptorLineEdit->setEnabled(enableFlagArray[1]);
-    serialNumberLineEdit->setEnabled(enableFlagArray[0]);
-    // customStringDescriptorLineEdit->setEnabled(enableFlagArray[3]);
+    serialNumberLineEdit->setText(settings.value("serial/usbflag" , "87").toString());
 }
 
 void SettingDialog::createPages() {
