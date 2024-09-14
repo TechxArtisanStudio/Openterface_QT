@@ -38,6 +38,8 @@ public:
     static GlobalSetting& instance();
 
     void setLogSettings(bool core, bool serial, bool ui, bool host);
+
+    void setFilterSettings(bool Chipinfo, bool keyboardPress, bool mideaKeyboard, bool mouseMoveABS, bool mouseMoveREL, bool HID);
     
     void loadLogSettings();
 

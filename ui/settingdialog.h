@@ -39,6 +39,7 @@
 #include <QLineEdit>
 #include <QByteArray>
 
+
 QT_BEGIN_NAMESPACE
 class QCameraFormat;
 class QComboBox;
@@ -82,7 +83,6 @@ public:
     // explicit SettingDialog(QCamera *camera, QWidget *parent = nullptr);
     explicit SettingDialog(QCamera *camera, QWidget *parent = nullptr);
     ~SettingDialog();
-
 
 signals:
     void cameraSettingsApplied();

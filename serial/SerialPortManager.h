@@ -106,7 +106,8 @@ private slots:
     void onSerialPortConnected(const QString &portName);
     void onSerialPortDisconnected(const QString &portName);
     void onSerialPortConnectionSuccess(const QString &portName);
-
+    
+    
 private:
     SerialPortManager(QObject *parent = nullptr);
     QSerialPort *serialPort;
