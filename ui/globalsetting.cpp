@@ -50,7 +50,7 @@ void GlobalSetting::loadLogSettings()
     logFilter += settings.value("log/core", true).toBool() ? "opf.core.*=true\n" : "opf.core.*=false\n";
     logFilter += settings.value("log/ui", true).toBool() ? "opf.ui.*=true\n" : "opf.ui.*=false\n";
     logFilter += settings.value("log/host", true).toBool() ? "opf.host.*=true\n" : "opf.host.*=false\n";
-    logFilter += settings.value("log/serial", true).toBool() ? "opf.core.serial=true\n" : "opf.core.serial=true\n";
+    logFilter += settings.value("log/serial", true).toBool() ? "opf.core.serial=true\n" : "opf.core.serial=false\n";
     QLoggingCategory::setFilterRules(logFilter);
 }
 
@@ -74,4 +74,104 @@ void GlobalSetting::setVIDPID(QString vid, QString pid){
     settings.setValue("serial/vid", vid);
     settings.setValue("serial/pid", pid);
     
+}
+
+void GlobalSetting::setUSBFlag(QString flag){
+    settings.setValue("serial/usbflag", flag);
+}
+
+
+/*
+* Convert QString to ByteArray
+*/
+QByteArray GlobalSetting::convertStringToByteArray(QString str) {
+    QStringList hexParts = str.split(" ", Qt::SkipEmptyParts);
+
+
+    QString hexString = hexParts.join("");
+    
+    bool ok;
+    int value = hexString.toInt(&ok, 16);
+    if (!ok) {
+        // Handle the error, e.g., by returning an empty QByteArray or throwing an exception
+        qDebug() << str << "Error converting string";
+        return QByteArray();
+    }
+
+    QByteArray result;
+    int hexLength = str.length();
+
+    switch (hexLength) {
+        case 1:
+        case 2:
+            result.append(static_cast<char>(value & 0xFF));
+            break;
+        case 3:
+        case 4:
+            result.append(static_cast<char>((value >> 8) & 0xFF));
+            result.append(static_cast<char>(value & 0xFF));
+            break;
+        case 5:
+        case 6:
+            result.append(static_cast<char>((value >> 16) & 0xFF)); 
+            result.append(static_cast<char>((value >> 8) & 0xFF)); 
+            result.append(static_cast<char>(value & 0xFF)); 
+            break;
+        case 7:
+        case 8:
+            result.append(static_cast<char>((value >> 24) & 0xFF)); 
+            result.append(static_cast<char>((value >> 16) & 0xFF)); 
+            result.append(static_cast<char>((value >> 8) & 0xFF)); 
+            result.append(static_cast<char>(value & 0xFF)); 
+            break;
+        case 9:
+        case 10:
+            result.append(static_cast<char>((value >> 32) & 0xFF)); 
+            result.append(static_cast<char>((value >> 24) & 0xFF)); 
+            result.append(static_cast<char>((value >> 16) & 0xFF));
+            result.append(static_cast<char>((value >> 8) & 0xFF));
+            result.append(static_cast<char>(value & 0xFF));
+            break;
+        case 11:
+        case 12:
+            result.append(static_cast<char>((value >> 40) & 0xFF)); 
+            result.append(static_cast<char>((value >> 32) & 0xFF)); 
+            result.append(static_cast<char>((value >> 24) & 0xFF)); 
+            result.append(static_cast<char>((value >> 16) & 0xFF)); 
+            result.append(static_cast<char>((value >> 8) & 0xFF)); 
+            result.append(static_cast<char>(value & 0xFF));
+            break;
+        case 13:
+        case 14:
+            result.append(static_cast<char>((value >> 48) & 0xFF));
+            result.append(static_cast<char>((value >> 40) & 0xFF));
+            result.append(static_cast<char>((value >> 32) & 0xFF));
+            result.append(static_cast<char>((value >> 24) & 0xFF));
+            result.append(static_cast<char>((value >> 16) & 0xFF));
+            result.append(static_cast<char>((value >> 8) & 0xFF)); 
+            result.append(static_cast<char>(value & 0xFF)); 
+            break;
+        case 15:
+        case 16:
+            result.append(static_cast<char>((value >> 56) & 0xFF));
+            result.append(static_cast<char>((value >> 48) & 0xFF));
+            result.append(static_cast<char>((value >> 40) & 0xFF));
+            result.append(static_cast<char>((value >> 32) & 0xFF));
+            result.append(static_cast<char>((value >> 24) & 0xFF));
+            result.append(static_cast<char>((value >> 16) & 0xFF));
+            result.append(static_cast<char>((value >> 8) & 0xFF)); 
+            result.append(static_cast<char>(value & 0xFF));
+            break;
+        default:
+            result.append(static_cast<char>((value >> 56) & 0xFF));
+            result.append(static_cast<char>((value >> 48) & 0xFF));
+            result.append(static_cast<char>((value >> 40) & 0xFF));
+            result.append(static_cast<char>((value >> 32) & 0xFF));
+            result.append(static_cast<char>((value >> 24) & 0xFF));
+            result.append(static_cast<char>((value >> 16) & 0xFF));
+            result.append(static_cast<char>((value >> 8) & 0xFF)); 
+            result.append(static_cast<char>(value & 0xFF)); 
+            break;
+    }
+    return result;
 }

@@ -27,7 +27,7 @@
 
  ```bash
 # Setup the QT 6.4.2 runtime
-sudo apt install -y libqt6core6 libqt6dbus6 libqt6gui6 libqt6network6 libqt6multimedia6 libqt6multimediawidgets6 libqt6serialport6
+sudo apt install -y libqt6core6 libqt6dbus6 libqt6gui6 libqt6network6 libqt6multimedia6 libqt6multimediawidgets6 libqt6serialport6 libqt6svg6
  ```
 
  ```bash
@@ -61,7 +61,8 @@ sudo apt-get install -y \
     qmake6 \
     qt6-base-dev \
     qt6-multimedia-dev \
-    qt6-serialport-dev
+    qt6-serialport-dev \
+    qt6-svg-dev
 ```
 ``` bash
 # Get the source
