@@ -50,7 +50,7 @@
      <x>0</x>
      <y>0</y>
      <width>1280</width>
-     <height>20</height>
+     <height>21</height>
     </rect>
    </property>
    <widget class="QWidget" name="cornerWidget">
@@ -58,7 +58,7 @@
      <rect>
       <x>0</x>
       <y>0</y>
-      <width>73</width>
+      <width>98</width>
       <height>28</height>
      </rect>
     </property>
@@ -73,7 +73,7 @@
       <widget class="QPushButton" name="virtualKeyboardButton">
        <property name="icon">
         <iconset resource="mainwindow.qrc">
-         <normaloff>:/images/keyboard.svg</normaloff>:/images/keyboard-down.svg</iconset>
+         <normaloff>:/images/keyboard.svg</normaloff>:/images/keyboard.svg</iconset>
        </property>
       </widget>
      </item>
@@ -134,8 +134,6 @@
      <property name="title">
       <string>Switchable USB</string>
      </property>
-     <addaction name="actionFollow_Switch"/>
-     <addaction name="separator"/>
      <addaction name="actionTo_Host"/>
      <addaction name="actionTo_Target"/>
     </widget>
