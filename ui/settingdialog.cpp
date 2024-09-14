@@ -70,7 +70,6 @@ SettingDialog::SettingDialog(QCamera *_camera, QWidget *parent)
 
 {
 
-
     ui->setupUi(this);
     createSettingTree();
     createPages();
@@ -90,6 +89,7 @@ SettingDialog::~SettingDialog()
     delete ui;
     // Ensure all dynamically allocated memory is freed
     qDeleteAll(settingTree->invisibleRootItem()->takeChildren());
+    delete this;
 }
 
 void SettingDialog::createSettingTree() {
@@ -98,10 +98,10 @@ void SettingDialog::createSettingTree() {
     // settingTree->setHeaderLabels(QStringList(tr("general")));
     settingTree->setHeaderHidden(true);
     settingTree->setSelectionMode(QAbstractItemView::SingleSelection);
-    
+
     settingTree->setMaximumSize(QSize(120, 1000));
     settingTree->setRootIsDecorated(false);
-    
+
     // QStringList names = {"Log"};
     QStringList names = {"General", "Video", "Audio", "Hardware"};
     for (const QString &name : names) {     // add item to setting tree
@@ -120,7 +120,7 @@ void SettingDialog::createLogPage() {
     QCheckBox *hostCheckBox = new QCheckBox("Host");
     QCheckBox *storeLogCheckBox = new QCheckBox("Enable file logging");
     QLineEdit *logFilePathLineEdit = new QLineEdit(logPage);
-    
+
     QPushButton *browseButton = new QPushButton("Browse");
 
     coreCheckBox->setObjectName("core");
@@ -169,7 +169,7 @@ void SettingDialog::browseLogPath() {
     QString dir = QFileDialog::getExistingDirectory(this, tr("Select Log Directory"),
                                                     exeDir,
                                                     QFileDialog::ShowDirsOnly
-                                                    | QFileDialog::DontResolveSymlinks);
+                                                        | QFileDialog::DontResolveSymlinks);
     if (!dir.isEmpty()) {
         QString logPath = dir + "/openterface_log.txt";
         logFilePathLineEdit->setText(dir);
@@ -196,7 +196,7 @@ void SettingDialog::createVideoPage() {
 
     QLabel *resolutionsLabel = new QLabel("Capture resolutions: ");
     resolutionsLabel->setStyleSheet(smallLabelFontSize);
-     
+
     QComboBox *videoFormatBox = new QComboBox();
     videoFormatBox->setObjectName("videoFormatBox");
 
@@ -227,7 +227,7 @@ void SettingDialog::createVideoPage() {
     videoLayout->addWidget(formatLabel);
     videoLayout->addWidget(pixelFormatBox);
     videoLayout->addStretch();
-   
+
     if (camera  != nullptr && !camera->cameraDevice().isNull() ){
         const QList<QCameraFormat> videoFormats = camera->cameraDevice().videoFormats();
         populateResolutionBox(videoFormats);
@@ -262,12 +262,12 @@ QVariant SettingDialog::boxValue(const QComboBox *box) const
 }
 
 void SettingDialog::updatePixelFormats()
-{   
+{
     qDebug() << "update pixel formats";
     if (m_updatingFormats)
         return;
     m_updatingFormats = true;
-    
+
     QMediaFormat format;
     QComboBox *pixelFormatBox = videoPage->findChild<QComboBox*>("pixelFormatBox");
     if (pixelFormatBox->count())
@@ -276,12 +276,12 @@ void SettingDialog::updatePixelFormats()
     int currentIndex = 0;
     pixelFormatBox->clear();
     pixelFormatBox->addItem(tr("Default pixel format"),
-                               QVariant::fromValue(QMediaFormat::VideoCodec::Unspecified));
+                            QVariant::fromValue(QMediaFormat::VideoCodec::Unspecified));
     for (auto codec : format.supportedVideoCodecs(QMediaFormat::Encode)) {
         if (codec == format.videoCodec())
             currentIndex = pixelFormatBox->count();
         pixelFormatBox->addItem(QMediaFormat::videoCodecDescription(codec),
-                                   QVariant::fromValue(codec));
+                                QVariant::fromValue(codec));
     }
     pixelFormatBox->setCurrentIndex(currentIndex);
 
@@ -325,7 +325,7 @@ void SettingDialog::applyVideoSettings(){
              << appliedFormat.pixelFormat();
 
     updatePixelFormats();
-    
+
     GlobalSetting::instance().setVideoSettings(format.resolution().width(), format.resolution().height(),format.minFrameRate());
 }
 
@@ -380,7 +380,7 @@ void SettingDialog::setFpsRange(const std::set<int> &fpsValues){
         fpsSpinBox->setRange(minFps, maxFps);
         fpsSpinBox->setValidValues(fpsValues);
 
-         // Adjust the current value of the slider if it's out of the new range
+        // Adjust the current value of the slider if it's out of the new range
         int currentSliderValue = fpsSlider->value();
         qDebug() << "Set fps current value" << currentSliderValue;
         if (fpsValues.find(currentSliderValue) == fpsValues.end()) {
@@ -467,7 +467,7 @@ void SettingDialog::populateResolutionBox(const QList<QCameraFormat> &videoForma
             // Convert the entire set to QVariant
             QVariant sampleRatesVariant = QVariant::fromValue<std::set<int>>(sampleRates);
 
-            
+
             QComboBox *videoFormatBox = videoPage->findChild<QComboBox*>("videoFormatBox");
             videoFormatBox->addItem(itemText, sampleRatesVariant);
         }
@@ -506,7 +506,7 @@ void SettingDialog::createAudioPage() {
     QComboBox *containerFormatBox = new QComboBox();
     containerFormatBox->setObjectName("containerFormatBox");
 
-    
+
 
     QVBoxLayout *audioLayout = new QVBoxLayout(audioPage);
     audioLayout->addWidget(audioLabel);
@@ -533,6 +533,7 @@ void SettingDialog::createHardwarePage(){
     uvcCamLabel->setStyleSheet(smallLabelFontSize);
     QComboBox *uvcCamBox = new QComboBox();
     uvcCamBox->setObjectName("uvcCamBox");
+
 
     QLabel *VIDPIDLabel = new QLabel(
         "Change target VID&PID: ");
@@ -563,7 +564,7 @@ void SettingDialog::createHardwarePage(){
     VIDLineEdit->setObjectName("VIDLineEdit");
     PIDLineEdit->setObjectName("PIDLineEdit");
     VIDDescriptorLineEdit->setObjectName("VIDDescriptorLineEdit");
-    PIDDescriptorLineEdit->setObjectName("PIDDescriptorLineEdit");    
+    PIDDescriptorLineEdit->setObjectName("PIDDescriptorLineEdit");
     serialNumberLineEdit->setObjectName("serialNumberLineEdit");
     // customStringDescriptorLineEdit->setObjectName("customStringDescriptorLineEdit");
 
@@ -574,17 +575,24 @@ void SettingDialog::createHardwarePage(){
     gridLayout->addWidget(PIDLineEdit, 1,1, Qt::AlignLeft);
     gridLayout->addWidget(USBDescriptor, 2,0, Qt::AlignLeft);
     gridLayout->addWidget(USBCustomStringDescriptorCheckBox, 3,0, Qt::AlignLeft);
-    gridLayout->addWidget(customStringDescriptorLineEdit, 3,1, Qt::AlignLeft);
+    gridLayout->addWidget(VIDCheckBox, 4,0, Qt::AlignLeft);
+    gridLayout->addWidget(VIDDescriptorLineEdit, 4,1, Qt::AlignLeft);
+    gridLayout->addWidget(PIDCheckBox, 5,0, Qt::AlignLeft);
+    gridLayout->addWidget(PIDDescriptorLineEdit, 5,1, Qt::AlignLeft);
+    gridLayout->addWidget(USBSerialNumberCheckBox, 6,0, Qt::AlignLeft);
+    gridLayout->addWidget(serialNumberLineEdit, 6,1, Qt::AlignLeft);
+
+    // gridLayout->addWidget(customStringDescriptorLineEdit, 6,1, Qt::AlignLeft);
+
 
     QVBoxLayout *hardwareLayout = new QVBoxLayout(hardwarePage);
     hardwareLayout->addWidget(hardwareLabel);
     hardwareLayout->addWidget(uvcCamLabel);
     hardwareLayout->addWidget(uvcCamBox);
     hardwareLayout->addWidget(VIDPIDLabel);
-
     hardwareLayout->addLayout(gridLayout);
     hardwareLayout->addStretch();
-    // add the 
+    // add the
     addCheckBoxLineEditPair(VIDCheckBox, VIDDescriptorLineEdit);
     addCheckBoxLineEditPair(PIDCheckBox, PIDDescriptorLineEdit);
     addCheckBoxLineEditPair(USBSerialNumberCheckBox, serialNumberLineEdit);
@@ -602,16 +610,42 @@ void SettingDialog::addCheckBoxLineEditPair(QCheckBox *checkBox, QLineEdit *line
 
 void SettingDialog::onCheckBoxStateChanged(int state) {
     QCheckBox *checkBox = qobject_cast<QCheckBox*>(sender());
-    if (checkBox){
-        QLineEdit *lineEdit = USBCheckBoxEditMap.value(checkBox);
-        if (lineEdit){
-            lineEdit->setReadOnly(state != Qt::Checked);
-        }
+    QLineEdit *lineEdit = USBCheckBoxEditMap.value(checkBox);
+    if (state == Qt::Checked) {
+        lineEdit->setEnabled(true);
     }
+    else {
+        lineEdit->setEnabled(false);
+    }
+
+
+}
+
+std::array<bool, 4> SettingDialog::extractBits(QString hexString) {
+    // convert hex string to bool array
+    bool ok;
+    int hexValue = hexString.toInt(&ok, 16);
+
+    qDebug() << "extractBits: " << hexValue;
+
+    if (!ok) {
+        qDebug() << "Convert failed";
+        return {}; // return empty array
+    }
+
+    // get the bit
+    std::array<bool, 4> bits = {
+        static_cast<bool>((hexValue >> 0) & 1),
+        static_cast<bool>((hexValue >> 1) & 1),
+        static_cast<bool>((hexValue >> 2) & 1),
+        static_cast<bool>((hexValue >> 7) & 1)
+    };
+
+    return bits;
 }
 
 void SettingDialog::findUvcCameraDevices(){
-    
+
     const QList<QCameraDevice> devices = QMediaDevices::videoInputs();
     QComboBox *uvcCamBox = hardwarePage->findChild<QComboBox *>("uvcCamBox");
 
@@ -654,20 +688,14 @@ QByteArray SettingDialog::convertCheckBoxValueToBytes(){
 void SettingDialog::applyHardwareSetting(){
     QSettings settings("Techxartisan", "Openterface");
     QString cameraDescription = settings.value("camera/device", "Openterface").toString();
-    
+
 
     QComboBox *uvcCamBox = hardwarePage->findChild<QComboBox*>("uvcCamBox");
     QLineEdit *VIDLineEdit = hardwarePage->findChild<QLineEdit*>("VIDLineEdit");
     QLineEdit *PIDLineEdit = hardwarePage->findChild<QLineEdit*>("PIDLineEdit");
-
+    QLineEdit *VIDDescriptorLineEdit = hardwarePage->findChild<QLineEdit*>("VIDDescriptorLineEdit");
+    QLineEdit *PIDDescriptorLineEdit = hardwarePage->findChild<QLineEdit*>("PIDDescriptorLineEdit");
     QLineEdit *serialNumberLineEdit = hardwarePage->findChild<QLineEdit*>("serialNumberLineEdit");
-    QString usbflag = serialNumberLineEdit->text();
-
-    QString vidstring = VIDLineEdit->text();
-    QString pidstring = PIDLineEdit->text();
-    qDebug() << "init ";
-    QByteArray VID_byte = GlobalSetting::instance().convertStringToByteArray(vidstring);
-    QByteArray PID_byte = GlobalSetting::instance().convertStringToByteArray(pidstring);
 
     QByteArray EnableFlag = convertCheckBoxValueToBytes();
 
@@ -676,9 +704,19 @@ void SettingDialog::applyHardwareSetting(){
         emit cameraSettingsApplied();  // emit the hardware setting signal to change the camera device
     }
 
-    GlobalSetting::instance().setVIDPID(VIDLineEdit->text(), PIDLineEdit->text());
+    GlobalSetting::instance().setVID(VIDLineEdit->text());
+    GlobalSetting::instance().setPID(PIDLineEdit->text());
+    GlobalSetting::instance().setCustomVIDDescriptor(VIDDescriptorLineEdit->text());
+    GlobalSetting::instance().setCustomPIDDescriptor(PIDDescriptorLineEdit->text());
+    GlobalSetting::instance().setSerialNumber(serialNumberLineEdit->text());
+    GlobalSetting::instance().setUSBEnabelFlag(QString(EnableFlag.toHex()));
 
-    qDebug() << "enable flag: " << EnableFlag;
+
+    SerialPortManager::getInstance().changeUSBDescriptor();
+    QThread::msleep(10);
+    SerialPortManager::getInstance().setUSBconfiguration();
+
+    // QThread::msleep(10);
 }
 
 
@@ -717,8 +755,14 @@ void SettingDialog::initHardwareSetting(){
     PIDDescriptorLineEdit->setText(settings.value("serial/customPIDDescriptor", "vendor").toString());
     VIDLineEdit->setText(settings.value("serial/vid", "861A").toString());
     PIDLineEdit->setText(settings.value("serial/pid", "29E1").toString());
+    serialNumberLineEdit->setText(settings.value("serial/serialnumber" , "serial number").toString());
+    // customStringDescriptorLineEdit->setText(settings.value("serial/customstringdescriptor", "custom string").toString());
 
-    serialNumberLineEdit->setText(settings.value("serial/usbflag" , "87").toString());
+
+    VIDDescriptorLineEdit->setEnabled(enableFlagArray[2]);
+    PIDDescriptorLineEdit->setEnabled(enableFlagArray[1]);
+    serialNumberLineEdit->setEnabled(enableFlagArray[0]);
+    // customStringDescriptorLineEdit->setEnabled(enableFlagArray[3]);
 }
 
 void SettingDialog::createPages() {
@@ -726,7 +770,7 @@ void SettingDialog::createPages() {
     createVideoPage();
     createAudioPage();
     createHardwarePage();
-    
+
     // Add pages to the stacked widget
     stackedWidget->addWidget(logPage);
     stackedWidget->addWidget(videoPage);
@@ -763,7 +807,7 @@ void SettingDialog::createLayout() {
     QVBoxLayout *mainLayout = new QVBoxLayout;
     mainLayout->addLayout(selectLayout);
     mainLayout->addWidget(buttonWidget);
-    
+
     setLayout(mainLayout);
 }
 
@@ -803,7 +847,7 @@ void SettingDialog::setLogCheckBox(){
     QCheckBox *serialCheckBox = findChild<QCheckBox*>("serial");
     QCheckBox *uiCheckBox = findChild<QCheckBox*>("ui");
     QCheckBox *hostCheckBox = findChild<QCheckBox*>("host");
-    
+
     coreCheckBox->setChecked(true);
     serialCheckBox->setChecked(true);
     uiCheckBox->setChecked(true);
@@ -813,7 +857,7 @@ void SettingDialog::setLogCheckBox(){
 void SettingDialog::applyLogsettings() {
 
     // QSettings settings("Techxartisan", "Openterface");
-    
+
     QCheckBox *coreCheckBox = findChild<QCheckBox*>("core");
     QCheckBox *serialCheckBox = findChild<QCheckBox*>("serial");
     QCheckBox *uiCheckBox = findChild<QCheckBox*>("ui");
@@ -836,11 +880,11 @@ void SettingDialog::applyLogsettings() {
 
     QLoggingCategory::setFilterRules(logFilter);
     // save the filter settings
-    
+
     GlobalSetting::instance().setLogSettings(core, serial, ui, host);
     GlobalSetting::instance().setLogStoreSettings(storeLog, logFilePath);
     LogHandler::instance().enableLogStore();
-    
+
 
 }
 
@@ -866,21 +910,21 @@ void SettingDialog::applyAccrodingPage(){
     int currentPageIndex = stackedWidget->currentIndex();
     switch (currentPageIndex)
     {
-        // sequence Log Video Audio
-        case 0:
-            applyLogsettings();
-            break;
-        case 1:
-            applyVideoSettings();
-            break;
-        case 2:
+    // sequence Log Video Audio
+    case 0:
+        applyLogsettings();
+        break;
+    case 1:
+        applyVideoSettings();
+        break;
+    case 2:
 
-            break;
-        case 3:
-            applyHardwareSetting();
-            break;
-        default:
-            break;
+        break;
+    case 3:
+        applyHardwareSetting();
+        break;
+    default:
+        break;
     }
 }
 
