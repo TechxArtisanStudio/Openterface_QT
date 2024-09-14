@@ -256,7 +256,7 @@ void Camera::initStatusBar()
     onLastMouseLocation(QPoint(0, 0), nullptr);
     keyPressedLabel = new QLabel(this);
     keyLabel = new QLabel(this);
-    keyLabel->setFixedWidth(18);
+    keyLabel->setFixedWidth(25);
     // Key container widget
     QWidget *keyContainer = new QWidget(this);
     QHBoxLayout *keyLayout = new QHBoxLayout(keyContainer);
