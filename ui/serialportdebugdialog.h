@@ -1,3 +1,4 @@
+
 /*
 * ========================================================================== *
 *                                                                            *
@@ -20,25 +21,38 @@
 * ========================================================================== *
 */
 
-#ifndef SERIALPORTEVENTS_H
-#define SERIALPORTEVENTS_H
 
-#include <QObject>
+#ifndef SERIALPORTDEBUGDIALOG_H
+#define SERIALPORTDEBUGDIALOG_H
+#include <QDialog>
+#include <QTextEdit>
+#include <QWidget>
+#include <QByteArray>
 #include <QString>
-#include <QPoint>
-
-class StatusEventCallback
+namespace Ui {
+class SerialPortDebugDialog;
+}
+class SerialPortDebugDialog : public QDialog
 {
+    Q_OBJECT
 public:
-    virtual ~StatusEventCallback() = default;
+    explicit SerialPortDebugDialog(QWidget *parent = nullptr);
+    ~SerialPortDebugDialog();
+private slots:
+    void getRecvDataAndInsertText(const QByteArray &data);
+    void getSentDataAndInsertText(const QByteArray &data);
 
-    virtual void onStatusUpdate(const QString& status) = 0;
-    virtual void onPortConnected(const QString& port, const int& baudrate) = 0;
-    virtual void onLastKeyPressed(const QString& key) = 0;
-    virtual void onLastMouseLocation(const QPoint& location, const QString& mouseEvent) = 0;
-    virtual void onResolutionChange(const int& width, const int& height, const float& fps) = 0;
-    virtual void onSwitchableUsbToggle(const bool isToTarget) = 0;
-    virtual void onTargetUsbConnected(const bool isConnected) = 0;
+
+private:
+    Ui::SerialPortDebugDialog *ui;
+    QTextEdit *textEdit;
+    QWidget *debugButtonWidget;
+    QWidget *filterCheckboxWidget;
+    void createDebugButtonWidget();
+    void createFilterCheckBox();
+    void saveSettings();
+    void loadSettings();
+    void createLayout();
+    QString formatHexData(QString hexString);
 };
-
-#endif
+#endif // SERIALPORTDEBUGDIALOG_H

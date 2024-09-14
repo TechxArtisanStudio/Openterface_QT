@@ -36,9 +36,12 @@ public:
     void setInputResolution(const int &width, const int &height, const float &fps);
     void setCaptureResolution(const int &width, const int &height, const float &fps);
     void setKeyboardIndicators(const QString &indicators);
-    void setConnectedPort(const QString &port);
+    void setConnectedPort(const QString &port, const int &baudrate);
     void setStatusUpdate(const QString &status);
     void setTargetUsbConnected(const bool isConnected);
+
+public slots:
+    void setBaudrate(int baudrate);
 
 private:
     QLabel *statusLabel;

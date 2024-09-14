@@ -58,8 +58,8 @@
      <rect>
       <x>0</x>
       <y>0</y>
-      <width>64</width>
-      <height>26</height>
+      <width>98</width>
+      <height>28</height>
      </rect>
     </property>
     <property name="sizePolicy">
@@ -69,6 +69,14 @@
      </sizepolicy>
     </property>
     <layout class="QHBoxLayout" name="horizontalLayout">
+     <item>
+      <widget class="QPushButton" name="virtualKeyboardButton">
+       <property name="icon">
+        <iconset resource="mainwindow.qrc">
+         <normaloff>:/images/keyboard.svg</normaloff>:/images/keyboard.svg</iconset>
+       </property>
+      </widget>
+     </item>
      <item>
       <widget class="QPushButton" name="pasteButton">
        <property name="icon">
@@ -95,11 +103,6 @@
     <addaction name="actionPreferences"/>
     <addaction name="actionExit"/>
    </widget>
-   <widget class="QMenu" name="menuSource">
-    <property name="title">
-     <string>Source</string>
-    </property>
-   </widget>
    <widget class="QMenu" name="menuControl">
     <property name="title">
      <string>Control</string>
@@ -118,6 +121,7 @@
      <addaction name="actionResetSerialPort"/>
      <addaction name="actionResetHID"/>
      <addaction name="actionFactory_reset_HID"/>
+     <addaction name="actionDebug"/>
     </widget>
     <widget class="QMenu" name="menuBaudrate">
      <property name="title">
@@ -130,8 +134,6 @@
      <property name="title">
       <string>Switchable USB</string>
      </property>
-     <addaction name="actionFollow_Switch"/>
-     <addaction name="separator"/>
      <addaction name="actionTo_Host"/>
      <addaction name="actionTo_Target"/>
     </widget>
@@ -160,7 +162,6 @@
    <addaction name="menuFile"/>
    <addaction name="menuEdit"/>
    <addaction name="menuControl"/>
-   <addaction name="menuSource"/>
    <addaction name="menuHelp"/>
   </widget>
   <widget class="QStatusBar" name="statusbar"/>
@@ -194,6 +195,11 @@
     <string>Reset Serial Port</string>
    </property>
   </action>
+  <action name="actionDebug">
+   <property name="text">
+    <string>Serial Console</string>
+   </property>
+  </action>
   <action name="actionAutoReszie">
    <property name="text">
     <string>AutoReszie</string>
@@ -207,6 +213,11 @@
   <action name="actionPreferences">
    <property name="text">
     <string>Preferences</string>
+   </property>
+  </action>
+  <action name="actionDebug">
+   <property name="text">
+    <string>Serial Console</string>
    </property>
   </action>
   <action name="actionOfficeWeb">
@@ -449,6 +460,22 @@
     </hint>
    </hints>
   </connection>
+  <connection>
+   <sender>actionDebug</sender>
+   <signal>triggered()</signal>
+   <receiver>Camera</receiver>
+   <slot>debugSerialPort()</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>-1</x>
+     <y>-1</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>639</x>
+     <y>380</y>
+    </hint>
+   </hints>
+  </connection>
  </connections>
  <slots>
   <slot>record()</slot>
@@ -460,6 +487,7 @@
   <slot>feedbackLink()</slot>
   <slot>enablePreview(bool)</slot>
   <slot>configureSettings()</slot>
+  <slot>debugSerialPort()</slot>
   <slot>takeImage()</slot>
   <slot>startCamera()</slot>
   <slot>toggleLock()</slot>

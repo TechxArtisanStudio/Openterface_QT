@@ -21,14 +21,18 @@
 */
 
 #include "KeyboardManager.h"
-#include "target/Keymapping.h"
+#include "Keymapping.h"
 
 #include <QList>
 #include <QtConcurrent/QtConcurrent>
+#include <QTimer>
 
 Q_LOGGING_CATEGORY(log_keyboard, "opf.host.keyboard")
 
-KeyboardManager::KeyboardManager(QObject *parent) : QObject(parent), currentMappedKeyCodes(){    
+KeyboardManager::KeyboardManager(QObject *parent) : QObject(parent), 
+                                            currentMappedKeyCodes()
+{
+    // Remove the timer initialization and connection
 }
 
 void KeyboardManager::handleKeyboardAction(int keyCode, int modifiers, bool isKeyDown) {
@@ -120,13 +124,12 @@ void KeyboardManager::handleKeyboardAction(int keyCode, int modifiers, bool isKe
             for(int j = 0; j < 6; j++){
                 keyData[7 + j] = 0;
             }
+            currentMappedKeyCodes.clear();
         }
         qDebug() << "Send command :" << keyData.toHex(' ');
         emit SerialPortManager::getInstance().sendCommandAsync(keyData, false);
     }
 }
-
-
 
 int KeyboardManager::handleKeyModifiers(int modifier, bool isKeyDown) {
     // Check if the modifier key is pressed or released
@@ -189,7 +192,57 @@ void KeyboardManager::pasteTextToTarget(const QString &text) {
     });
 }
 
-
 bool KeyboardManager::needShiftWhenPaste(const QChar character) {
     return character.isUpper() || NEED_SHIFT_KEYS.contains(character);
+}
+
+void KeyboardManager::sendFunctionKey(int functionKeyCode) {
+    uint8_t keyCode = functionKeyMap.value(functionKeyCode, 0);
+    if (keyCode != 0) {
+        sendKeyToTarget(keyCode, true);  // Key press
+        QThread::msleep(1);  // Small delay between press and release
+        sendKeyToTarget(keyCode, false); // Key release
+    } else {
+        qCWarning(log_keyboard) << "Unknown function key code:" << functionKeyCode;
+    }
+}
+
+void KeyboardManager::sendKeyToTarget(uint8_t keyCode, bool isPressed) {
+    QByteArray keyData = CMD_SEND_KB_GENERAL_DATA;
+    keyData[5] = isPressed ? currentModifiers : 0;
+    keyData[7] = isPressed ? keyCode : 0;
+
+    qCDebug(log_keyboard) << "Sending function key:" << (isPressed ? "press" : "release") << "keyCode:" << keyCode;
+    emit SerialPortManager::getInstance().sendCommandAsync(keyData, false);
+}
+
+void KeyboardManager::sendCtrlAltDel() {
+    QByteArray keyData = CMD_SEND_KB_GENERAL_DATA;
+
+    // Press Ctrl+Alt
+    keyData[5] = 0x05;  // 0x01 (Ctrl) | 0x04 (Alt)
+    keyData[7] = CTRL_KEY;
+    keyData[8] = ALT_KEY;
+    emit SerialPortManager::getInstance().sendCommandAsync(keyData, false);
+    QThread::msleep(1);
+
+    // Press Del
+    keyData[7] = CTRL_KEY;
+    keyData[8] = ALT_KEY;
+    keyData[9] = DEL_KEY;
+    emit SerialPortManager::getInstance().sendCommandAsync(keyData, false);
+    QThread::msleep(1);
+
+    // Release all keys
+    keyData[5] = 0x00;
+    keyData[7] = 0x00;
+    keyData[8] = 0x00;
+    keyData[9] = 0x00;
+    emit SerialPortManager::getInstance().sendCommandAsync(keyData, false);
+
+    qCDebug(log_keyboard) << "Sent Ctrl+Alt+Del compose key";
+}
+
+void KeyboardManager::sendKey(int keyCode, int modifiers, bool isKeyDown) {
+    handleKeyboardAction(keyCode, modifiers, isKeyDown);
 }

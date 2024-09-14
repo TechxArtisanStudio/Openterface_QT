@@ -77,8 +77,15 @@ public:
     std::string getCaptureCardFirmwareVersion() const { return captureCardFirmwareVersion; }
     void setCaptureCardFirmwareVersion(const std::string& version) { captureCardFirmwareVersion = version; }
 
-    bool isFollowSwitch() const { return followSwitch; }
-    void setFollowSwitch(bool mode) { followSwitch = mode; }
+    bool isSwitchOnTarget() const { return _isSwitchOnTarget; }
+    void setSwitchOnTarget(bool onTarget) { _isSwitchOnTarget = onTarget; }
+
+    bool isToolbarVisible() const { return toolbarVisible; }
+    void setToolbarVisible(bool visible) { toolbarVisible = visible; }
+    
+    int getToolbarHeight() const { return toolbarHeight; }
+    void setToolbarHeight(int height) { toolbarHeight = height; }
+
 private:
     GlobalVar() : input_width(1920), input_height(1080), capture_width(1920), capture_height(1080), capture_fps(30) {} // Private constructor
     ~GlobalVar() {} // Private destructor
@@ -111,8 +118,10 @@ private:
     bool absolute_mouse_mode = true;
     std::string captureCardFirmwareVersion;
 
+    bool _isSwitchOnTarget = true;
 
-    bool followSwitch = true;
+    bool toolbarVisible = true;
+    int toolbarHeight = 0;
 };
 
 #endif

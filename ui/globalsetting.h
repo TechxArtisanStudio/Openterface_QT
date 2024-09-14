@@ -38,21 +38,37 @@ public:
     static GlobalSetting& instance();
 
     void setLogSettings(bool core, bool serial, bool ui, bool host);
+
+    void setFilterSettings(bool Chipinfo, bool keyboardPress, bool mideaKeyboard, bool mouseMoveABS, bool mouseMoveREL, bool HID);
+    
     void loadLogSettings();
 
+    void setLogStoreSettings(bool storeLog, QString logFilePath);
+
     void setVideoSettings(int width, int height, int fps);
+
     void loadVideoSettings();
     
     void setCameraDeviceSetting(QString deviceDescription);
 
-    void setVIDPID(QString vid, QString pid);
-    
+    void setVID(QString vid);
+
+    void setPID(QString pid);
+
+    void setUSBEnabelFlag(QString enableflag);
+
     QByteArray convertStringToByteArray(QString str);
 
-    void setUSBFlag(QString flag);
+    void setSerialNumber(QString serialNumber);
+
+    void setCustomStringDescriptor(QString customStringDisctriptor);
+
+    void setCustomPIDDescriptor(QString customPIDDescriptor);
+
+    void setCustomVIDDescriptor(QString customVIDDescriptor);
 
 private:
-    QSettings settings;
+    QSettings m_settings;
 };
 
 #endif // GLOBALSETTING_H

@@ -144,10 +144,10 @@ MouseEventDTO* VideoPane::calculateRelativePosition(QMouseEvent *event) {
 
     qreal widthRatio = static_cast<qreal>(GlobalVar::instance().getWinWidth()) / screenSize.width() ;
     qreal heightRatio = static_cast<qreal>(GlobalVar::instance().getWinHeight()) / screenSize.height();
-
+    
     int relX = static_cast<int>(relativeX * widthRatio);
     int relY = static_cast<int>(relativeY * heightRatio);
-
+    
     lastX=event->position().x();
     lastY=event->position().y();
     
@@ -155,10 +155,39 @@ MouseEventDTO* VideoPane::calculateRelativePosition(QMouseEvent *event) {
 }
 
 MouseEventDTO* VideoPane::calculateAbsolutePosition(QMouseEvent *event) {
-    qreal absoluteX = static_cast<qreal>(event->pos().x()) / this->width() * 4096;
-    qreal absoluteY = static_cast<qreal>(event->pos().y()) / this->height() * 4096;
+    int effectiveWidth = this->width();
+    int effectiveHeight = this->height();
+    
+    // Calculate the video area dimensions
+    qreal aspectRatio = static_cast<qreal>(GlobalVar::instance().getCaptureWidth()) / GlobalVar::instance().getCaptureHeight();
+    
+    if (GlobalVar::instance().isToolbarVisible()) {
+        int toolbarHeight = GlobalVar::instance().getToolbarHeight();
+        effectiveHeight -= toolbarHeight;
+    }
+    
+    int videoWidth = effectiveWidth;
+    int videoHeight = static_cast<int>(videoWidth / aspectRatio);
+    
+    if (videoHeight > effectiveHeight) {
+        videoHeight = effectiveHeight;
+        videoWidth = static_cast<int>(videoHeight * aspectRatio);
+    }
+    
+    // Calculate the video area position
+    int videoX = (effectiveWidth - videoWidth) / 2;
+    int videoY = (effectiveHeight - videoHeight) / 2;
+    
+    // Adjust mouse position relative to the video area
+    qreal relativeX = static_cast<qreal>(event->pos().x() - videoX);
+    qreal relativeY = static_cast<qreal>(event->pos().y() - videoY);
+    
+    qreal absoluteX = (relativeX / videoWidth) * 4096;
+    qreal absoluteY = (relativeY / videoHeight) * 4096;
+    
     lastX = static_cast<int>(absoluteX);
     lastY = static_cast<int>(absoluteY);
+    
     return new MouseEventDTO(lastX, lastY, true);
 }
 
@@ -187,10 +216,18 @@ void VideoPane::moveMouseToCenter()
     // Temporarily disable the mouse event handling
     this->relativeModeEnable = false;
 
-    // Move the mouse to the center of the window
-    QCursor::setPos(this->mapToGlobal(QPoint(this->width() / 2, this->height() / 2)));
-    lastX= this->width() / 2;
-    lastY= this->height() / 2;
+    int effectiveWidth = this->width();
+    int effectiveHeight = this->height();
+    
+    if (GlobalVar::instance().isToolbarVisible()) {
+        effectiveHeight -= GlobalVar::instance().getToolbarHeight();
+    }
+
+    // Move the mouse to the center of the video area
+    QPoint centerPoint(effectiveWidth / 2, effectiveHeight / 2);
+    QCursor::setPos(this->mapToGlobal(centerPoint));
+    lastX = centerPoint.x();
+    lastY = centerPoint.y();
 
     this->relativeModeEnable = true;
 }

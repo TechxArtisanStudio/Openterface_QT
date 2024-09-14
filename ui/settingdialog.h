@@ -103,6 +103,7 @@ private:
     QWidget *hardwarePage;
     QWidget *buttonWidget;
 
+
     QMap<QCheckBox *, QLineEdit *> USBCheckBoxEditMap; // map of checkboxes to line edit about VID PID etc.
     void addCheckBoxLineEditPair(QCheckBox *checkBox, QLineEdit *lineEdit);
 
@@ -112,14 +113,13 @@ private:
     std::map<VideoFormatKey, QCameraFormat> videoFormatMap;
     // QCameraFormat getVideoFormat(const QSize &resolution, int frameRate, QVideoFrameFormat::PixelFormat pixelFormat) const;
     
-    // void switchWidgetShow(QString &btnName);
-
-
+    void switchWidgetShow(QString &btnName);
     void createSettingTree();
     void createLayout();
     void createLogPage();
     
     void initLogSettings(); // setting dialog load
+    void browseLogPath();
     void initVideoSettings();
     
     void createAudioPage();
@@ -128,6 +128,8 @@ private:
     void findUvcCameraDevices();
     void applyHardwareSetting();
     void onCheckBoxStateChanged(int state);
+    std::array<bool, 4> extractBits(QString hexString);
+    
     QByteArray convertCheckBoxValueToBytes();
     void initHardwareSetting();
     void createPages();

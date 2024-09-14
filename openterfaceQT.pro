@@ -15,6 +15,7 @@ SOURCES += main.cpp \
     target/mouseeventdto.cpp \
     host/audiomanager.cpp \
     ui/fpsspinbox.cpp \
+    ui/serialportdebugdialog.cpp \
     ui/settingdialog.cpp \
     ui/statuswidget.cpp \
     video/videohid.cpp \
@@ -25,16 +26,20 @@ SOURCES += main.cpp \
     ui/videopane.cpp \
     ui/videosettings.cpp \
     ui/globalsetting.cpp \
+    ui/toolbarmanager.cpp \
+    ui/toggleswitch.cpp \
+    ui/loghandler.cpp \
     host/HostManager.cpp \
     serial/SerialPortManager.cpp \
     target/KeyboardManager.cpp \
-    target/MouseManager.cpp
+    target/MouseManager.cpp 
 
 HEADERS  += \
     global.h \
     target/mouseeventdto.h \
     host/audiomanager.h \
     ui/fpsspinbox.h \
+    ui/serialportdebugdialog.h \
     ui/settingdialog.h \
     ui/statuswidget.h \
     video/videohid.h \
@@ -45,7 +50,10 @@ HEADERS  += \
     ui/videopane.h \
     ui/videosettings.h \
     ui/globalsetting.h \
-    ui/statusevents.h \    
+    ui/statusevents.h \
+    ui/toolbarmanager.h \
+    ui/toggleswitch.h \
+    ui/loghandler.h \
     host/HostManager.h \
     serial/ch9329.h \
     serial/SerialPortManager.h \

@@ -66,8 +66,8 @@ void StatusWidget::setCaptureResolution(const int &width, const int &height, con
     update(); 
 }
 
-void StatusWidget::setConnectedPort(const QString &port) {
-    connectedPortLabel->setText("🔌: " + port);
+void StatusWidget::setConnectedPort(const QString &port, const int &baudrate) {
+    connectedPortLabel->setText(QString("🔌: %1@%2").arg(port).arg(baudrate));
     update(); 
 }
 
@@ -100,5 +100,12 @@ void StatusWidget::setTargetUsbConnected(const bool isConnected){
     painter.end();
     
     keyboardIndicatorsLabel->setPixmap(combinedPixmap);
+    update();
+}
+
+void StatusWidget::setBaudrate(int baudrate)
+{
+    // Update the UI element that displays the baudrate
+    connectedPortLabel->setText(QString("🔌: %1@%2").arg(connectedPortLabel->text().split('@').first()).arg(baudrate));
     update();
 }

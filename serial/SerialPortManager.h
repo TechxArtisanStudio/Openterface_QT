@@ -47,6 +47,8 @@ public:
         static SerialPortManager instance; // Guaranteed to be destroyed, instantiated on first use.
         return instance;
     }
+    
+    
 
     SerialPortManager(SerialPortManager const&) = delete; // Don't Implement
     void operator=(SerialPortManager const&) = delete; // Don't implement
@@ -68,14 +70,18 @@ public:
     bool factoryResetHipChipV191();
     bool factoryResetHipChip();
     void restartSwitchableUSB();
-    void setVIDAndPID(QByteArray &VID, QByteArray &PID);
-    void enableUSBFlag(QString enable);
+    void setUSBconfiguration();
+    void changeUSBDescriptor();
+    bool setBaudRate(int baudrate);
+    
 signals:
     void dataReceived(const QByteArray &data);
+    void dataSent(const QByteArray &data);
     void serialPortConnected(const QString &portName);
     void serialPortDisconnected(const QString &portName);
     void serialPortConnectionSuccess(const QString &portName);
     void sendCommandAsync(const QByteArray &command, bool waitForAck);
+    void connectedPortChanged(const QString &portName, const int &baudrate);
 
 private slots:
     void checkSerialPort();
@@ -121,7 +127,7 @@ private:
     bool isSwitchToHost = false;
     bool isTargetUsbConnected = false;
     
-    // New member variable to store the latest update time
+    // Variable to store the latest update time
     QDateTime latestUpdateTime;
 };
 
