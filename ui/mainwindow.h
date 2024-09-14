@@ -29,6 +29,9 @@
 #include "ui/videopane.h"
 #include "ui/toggleswitch.h"
 #include "toolbarmanager.h"
+#include "ui/serialportdebugdialog.h"
+#include "ui/settingdialog.h"
+
 #include <QAudioInput>
 #include <QAudioOutput>
 #include <QAudioSource>
@@ -206,6 +209,8 @@ private:
 
     MetaDataDialog *m_metaDataDialog = nullptr;
     StatusWidget *statusWidget;
+    SettingDialog *settingsDialog = nullptr;
+    SerialPortDebugDialog *serialPortDebugDialog = nullptr;
 
     QWidget *keyboardPanel = nullptr;
 
