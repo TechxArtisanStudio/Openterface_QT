@@ -40,6 +40,16 @@ GlobalSetting& GlobalSetting::instance()
     return instance;
 }
 
+void GlobalSetting::setFilterSettings(bool Chipinfo, bool keyboardPress, bool mideaKeyboard, bool mouseMoveABS, bool mouseMoveREL, bool HID)
+{
+    m_settings.setValue("filter/Chipinfo", Chipinfo);
+    m_settings.setValue("filter/keyboardPress", keyboardPress);
+    m_settings.setValue("filter/mideaKeyboard", mideaKeyboard);
+    m_settings.setValue("filter/mouseMoveABS", mouseMoveABS);
+    m_settings.setValue("filter/mouseMoveREL", mouseMoveREL);
+    m_settings.setValue("filter/HID", HID);
+}
+
 void GlobalSetting::setLogSettings(bool core, bool serial, bool ui, bool host)
 {
     m_settings.setValue("log/core", core);
