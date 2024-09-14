@@ -8,7 +8,7 @@
 #include <QCoreApplication>
 #include <QCheckBox>
 #include <QGridLayout>
-#include <QCloseEvent>  // 添加头文件
+#include <QCloseEvent>
 
 SerialPortDebugDialog::SerialPortDebugDialog(QWidget *parent)
     : QDialog(parent)
