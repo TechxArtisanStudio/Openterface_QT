@@ -1,3 +1,27 @@
+
+/*
+* ========================================================================== *
+*                                                                            *
+*    This file is part of the Openterface Mini KVM App QT version            *
+*                                                                            *
+*    Copyright (C) 2024   <info@openterface.com>                             *
+*                                                                            *
+*    This program is free software: you can redistribute it and/or modify    *
+*    it under the terms of the GNU General Public License as published by    *
+*    the Free Software Foundation version 3.                                 *
+*                                                                            *
+*    This program is distributed in the hope that it will be useful, but     *
+*    WITHOUT ANY WARRANTY; without even the implied warranty of              *
+*    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU        *
+*    General Public License for more details.                                *
+*                                                                            *
+*    You should have received a copy of the GNU General Public License       *
+*    along with this program. If not, see <http://www.gnu.org/licenses/>.    *
+*                                                                            *
+* ========================================================================== *
+*/
+
+
 #include "serialportdebugdialog.h"
 #include "serial/SerialPortManager.h"
 #include "ui/globalsetting.h"
@@ -9,7 +33,6 @@
 #include <QCheckBox>
 #include <QGridLayout>
 #include <QCloseEvent>
-
 SerialPortDebugDialog::SerialPortDebugDialog(QWidget *parent)
     : QDialog(parent)
     , textEdit(new QTextEdit(this))
@@ -23,21 +46,18 @@ SerialPortDebugDialog::SerialPortDebugDialog(QWidget *parent)
     SerialPortManager* serialPortManager = &SerialPortManager::getInstance();
     if (serialPortManager){
         connect(serialPortManager, &SerialPortManager::dataSent,
-                    this, &SerialPortDebugDialog::getSentDataAndInsertText);
-
+                this, &SerialPortDebugDialog::getSentDataAndInsertText);
         connect(serialPortManager, &SerialPortManager::dataReceived,
-                        this, &SerialPortDebugDialog::getRecvDataAndInsertText);
+                this, &SerialPortDebugDialog::getRecvDataAndInsertText);
     }
-    
+
     createLayout();
     loadSettings();
 }
-
 SerialPortDebugDialog::~SerialPortDebugDialog()
 {
     delete this;
 }
-
 
 void SerialPortDebugDialog::createFilterCheckBox(){
     QCheckBox *ChipInfoFilter = new QCheckBox("Chip info filter");  //81
@@ -52,7 +72,6 @@ void SerialPortDebugDialog::createFilterCheckBox(){
     mouseMoveABSFilter->setObjectName("mouseMoveABSFilter");
     mouseMoveRELFilter->setObjectName("mouseMoveRELFilter");
     HIDFilter->setObjectName("HIDFilter");
-
     QGridLayout *gridLayout = new QGridLayout(filterCheckboxWidget);
     gridLayout->addWidget(ChipInfoFilter, 0,0, Qt::AlignLeft);
     gridLayout->addWidget(keyboardPressFilter, 0,1, Qt::AlignLeft);
@@ -60,9 +79,8 @@ void SerialPortDebugDialog::createFilterCheckBox(){
     gridLayout->addWidget(mouseMoveABSFilter, 1,0, Qt::AlignLeft);
     gridLayout->addWidget(mouseMoveRELFilter, 1,1, Qt::AlignLeft);
     gridLayout->addWidget(HIDFilter, 1,2, Qt::AlignLeft);
-    
-}
 
+}
 void SerialPortDebugDialog::createDebugButtonWidget(){
     QPushButton *clearButton = new QPushButton("Clear");
     QPushButton *closeButton = new QPushButton("Close");
@@ -75,7 +93,6 @@ void SerialPortDebugDialog::createDebugButtonWidget(){
     connect(closeButton, &QPushButton::clicked, this, &QDialog::reject);
     QObject::connect(clearButton, &QPushButton::clicked, textEdit, &QTextEdit::clear);
 }
-
 void SerialPortDebugDialog::createLayout(){
     QVBoxLayout *mainLayout = new QVBoxLayout;
     mainLayout->addWidget(filterCheckboxWidget);
@@ -175,20 +192,17 @@ void SerialPortDebugDialog::getRecvDataAndInsertText(const QByteArray &data){
     }
 
 }
-
 void SerialPortDebugDialog::getSentDataAndInsertText(const QByteArray &data){
     // qDebug() << "send data ->> " << data;
     QString dataString = data.toHex().toUpper();
     dataString = formatHexData(dataString);
     dataString = ">> " + dataString + "\n";
     textEdit->insertPlainText(dataString);
-
     QTextCursor cursor = textEdit->textCursor();
     cursor.movePosition(QTextCursor::End);
     textEdit->setTextCursor(cursor);
     textEdit->ensureCursorVisible();
 }
-
 
 QString SerialPortDebugDialog::formatHexData(QString hexString){
     QString spacedHexString;

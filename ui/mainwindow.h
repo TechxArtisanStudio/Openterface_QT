@@ -28,8 +28,8 @@
 #include "ui/statusevents.h"
 #include "ui/videopane.h"
 #include "toolbarmanager.h"
-#include "ui/settingdialog.h"
 #include "ui/serialportdebugdialog.h"
+#include "ui/settingdialog.h"
 
 #include <QAudioInput>
 #include <QAudioOutput>

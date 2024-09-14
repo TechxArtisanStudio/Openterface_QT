@@ -83,7 +83,6 @@ public:
     explicit SettingDialog(QCamera *camera, QWidget *parent = nullptr);
     ~SettingDialog();
 
-
 signals:
     void cameraSettingsApplied();
     void serialSettingsApplied();
