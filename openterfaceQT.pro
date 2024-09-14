@@ -28,7 +28,6 @@ SOURCES += main.cpp \
     ui/globalsetting.cpp \
     ui/toolbarmanager.cpp \
     ui/loghandler.cpp \
-    # ui/serialportDebug.cpp \
     host/HostManager.cpp \
     serial/SerialPortManager.cpp \
     target/KeyboardManager.cpp \
@@ -53,7 +52,6 @@ HEADERS  += \
     ui/statusevents.h \
     ui/toolbarmanager.h \
     ui/loghandler.h \
-    # ui/serialportDebug \
     host/HostManager.h \
     serial/ch9329.h \
     serial/SerialPortManager.h \
