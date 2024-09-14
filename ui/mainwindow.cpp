@@ -862,6 +862,15 @@ void Camera::onBaudrateMenuTriggered(QAction* action)
     }
 }
 
+void Camera::onSpecialKeyPressed(const QString &keyText)
+{
+    bool ok;
+    int baudrate = action->text().toInt(&ok);
+    if (ok) {
+        SerialPortManager::getInstance().setBaudRate(baudrate);
+    }
+}
+
 void Camera::imageSaved(int id, const QString &fileName)
 {
     Q_UNUSED(id);
