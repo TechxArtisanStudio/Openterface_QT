@@ -49,6 +49,19 @@ void ToolbarManager::setupToolbar()
     toolbar->addWidget(delButton);
 
     QComboBox *repeatingKeystrokeComboBox = new QComboBox(toolbar);
+    repeatingKeystrokeComboBox->setStyleSheet(
+        "QComboBox { "
+        "   border: 1px solid rgba(255, 255, 255, 150); " // Lighter border for better contrast
+        "   background-color: rgba(100, 100, 100, 255); " // Darker background for better contrast
+        "   color: white; " // White text for better contrast
+        "   padding: 2px; "
+        "   margin: 2px; "
+        "} "
+        "QComboBox QAbstractItemView { "
+        "   background-color: rgba(100, 100, 100, 255); " // Darker background for better contrast
+        "   color: white; " // White text for better contrast
+        "}"
+    );
     repeatingKeystrokeComboBox->addItem("No repeating", 0);
     repeatingKeystrokeComboBox->addItem("Repeat every 0.5s", 500);
     repeatingKeystrokeComboBox->addItem("Repeat every 1s", 1000);

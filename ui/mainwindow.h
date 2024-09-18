@@ -69,6 +69,7 @@ QT_END_NAMESPACE
 
 class MetaDataDialog;
 
+QPixmap recolorSvg(const QString &svgPath, const QColor &color, const QSize &size);
 
 class Camera : public QMainWindow, public StatusEventCallback
 {
