@@ -53,6 +53,7 @@ private:
     void saveSettings();
     void loadSettings();
     void createLayout();
+
     QString formatHexData(QString hexString);
 };
 #endif // SERIALPORTDEBUGDIALOG_H

@@ -90,16 +90,37 @@ Q_LOGGING_CATEGORY(log_ui_mainwindow, "opf.ui.mainwindow")
 #endif
 #endif
 
+QPixmap recolorSvg(const QString &svgPath, const QColor &color, const QSize &size) {
+    QSvgRenderer svgRenderer(svgPath);
+    QPixmap pixmap(size);
+    pixmap.fill(Qt::transparent);
+    QPainter painter(&pixmap);
+    svgRenderer.render(&painter);
+
+    // Create a color overlay
+    QPixmap colorOverlay(size);
+    colorOverlay.fill(color);
+
+    // Set the composition mode to SourceIn to apply the color overlay
+    painter.setCompositionMode(QPainter::CompositionMode_SourceIn);
+    painter.drawPixmap(0, 0, colorOverlay);
+
+    return pixmap;
+}
+
 Camera::Camera() : ui(new Ui::Camera), m_audioManager(new AudioManager(this)),
                                         videoPane(new VideoPane(this)),
                                         stackedLayout(new QStackedLayout(this)),
                                         toolbarManager(new ToolbarManager(this)),
-                                        statusWidget(new StatusWidget(this))
+                                        statusWidget(new StatusWidget(this)),
+                                        toggleSwitch(new ToggleSwitch(this))
 {
     qCDebug(log_ui_mainwindow) << "Init camera...";
     ui->setupUi(this);
     ui->statusbar->addPermanentWidget(statusWidget);
-
+    
+    
+    
     QWidget *centralWidget = new QWidget(this);
     centralWidget->setLayout(stackedLayout);
 
@@ -141,6 +162,18 @@ Camera::Camera() : ui(new Ui::Camera), m_audioManager(new AudioManager(this)),
 
     qDebug() << "Observe Hardware change Camera triggerd...";
 
+    qCDebug(log_ui_mainwindow) << "Creating and setting up ToggleSwitch...";
+    toggleSwitch->setFixedSize(78, 28);  // Adjust size as needed
+    connect(toggleSwitch, &ToggleSwitch::stateChanged, this, &Camera::onToggleSwitchStateChanged);
+
+    // Add the ToggleSwitch as the last button in the cornerWidget's layout
+    QHBoxLayout *cornerLayout = qobject_cast<QHBoxLayout*>(ui->cornerWidget->layout());
+    if (cornerLayout) {
+        cornerLayout->addWidget(toggleSwitch);
+    } else {
+        qCWarning(log_ui_mainwindow) << "Corner widget layout is not a QHBoxLayout. Unable to add ToggleSwitch.";
+    }
+
     // load the settings
     qDebug() << "Loading settings";
     GlobalSetting::instance().loadLogSettings();
@@ -150,7 +183,6 @@ Camera::Camera() : ui(new Ui::Camera), m_audioManager(new AudioManager(this)),
     qCDebug(log_ui_mainwindow) << "Observe switch usb connection trigger...";
     connect(ui->actionTo_Host, &QAction::triggered, this, &Camera::onActionSwitchToHostTriggered);
     connect(ui->actionTo_Target, &QAction::triggered, this, &Camera::onActionSwitchToTargetTriggered);
-    connect(ui->actionFollow_Switch, &QAction::triggered, this, &Camera::onFollowSwitchTriggered);
 
     qCDebug(log_ui_mainwindow) << "Observe action paste from host...";
     connect(ui->actionPaste, &QAction::triggered, this, &Camera::onActionPasteToTarget);
@@ -168,11 +200,11 @@ Camera::Camera() : ui(new Ui::Camera), m_audioManager(new AudioManager(this)),
 
     addToolBar(Qt::TopToolBarArea, toolbarManager->getToolbar());
     toolbarManager->getToolbar()->setVisible(false);
-
+    
     connect(toolbarManager, &ToolbarManager::functionKeyPressed, this, &Camera::onFunctionKeyPressed);
     connect(toolbarManager, &ToolbarManager::ctrlAltDelPressed, this, &Camera::onCtrlAltDelPressed);
+    connect(toolbarManager, &ToolbarManager::delPressed, this, &Camera::onDelPressed);
     connect(toolbarManager, &ToolbarManager::repeatingKeystrokeChanged, this, &Camera::onRepeatingKeystrokeChanged);
-    connect(toolbarManager, &ToolbarManager::specialKeyPressed, this, &Camera::onSpecialKeyPressed);
 }
 
 void Camera::init()
@@ -213,7 +245,6 @@ void Camera::init()
 
     GlobalVar::instance().setWinWidth(this->width());
     GlobalVar::instance().setWinHeight(this->height());
-    onFollowSwitchTriggered();
 
     // Initialize the virtual keyboard button icon
     QIcon icon(":/images/keyboard-down.svg");
@@ -245,7 +276,7 @@ void Camera::initStatusBar()
     onLastMouseLocation(QPoint(0, 0), nullptr);
     keyPressedLabel = new QLabel(this);
     keyLabel = new QLabel(this);
-    keyLabel->setFixedWidth(18);
+    keyLabel->setFixedWidth(25);
     // Key container widget
     QWidget *keyContainer = new QWidget(this);
     QHBoxLayout *keyLayout = new QHBoxLayout(keyContainer);
@@ -496,6 +527,16 @@ void Camera::onActionSwitchToTargetTriggered()
     ui->actionTo_Target->setChecked(true);
 }
 
+void Camera::onToggleSwitchStateChanged(int state)
+{
+    qCDebug(log_ui_mainwindow) << "Toggle switch state changed to:" << state;
+    if (state == Qt::Checked) {
+        onActionSwitchToTargetTriggered();
+    } else {
+        onActionSwitchToHostTriggered();
+    }
+}
+
 void Camera::onResolutionChange(const int& width, const int& height, const float& fps)
 {
     GlobalVar::instance().setInputWidth(width);
@@ -537,20 +578,6 @@ void Camera::updateBaudrateMenu(int baudrate){
         connect(newAction, &QAction::triggered, this, [this, newAction]() {
             onBaudrateMenuTriggered(newAction);
         });
-    }
-}
-
-void Camera::onFollowSwitchTriggered()
-{
-    qCDebug(log_ui_mainwindow) << "Follow switch:" << ui->actionFollow_Switch->isChecked();
-    if(ui->actionFollow_Switch->isChecked()){
-        ui->actionTo_Host->setEnabled(false);
-        ui->actionTo_Target->setEnabled(false);
-        GlobalVar::instance().setFollowSwitch(true);
-    }else{
-        ui->actionTo_Host->setEnabled(true);
-        ui->actionTo_Target->setEnabled(true);
-        GlobalVar::instance().setFollowSwitch(false);
     }
 }
 
@@ -762,6 +789,11 @@ void Camera::onCtrlAltDelPressed()
     HostManager::getInstance().sendCtrlAltDel();
 }
 
+void Camera::onDelPressed()
+{
+    HostManager::getInstance().handleFunctionKey(Qt::Key_Delete);
+}
+
 void Camera::onRepeatingKeystrokeChanged(int interval)
 {
     HostManager::getInstance().setRepeatingKeystroke(interval);
@@ -855,38 +887,7 @@ void Camera::onBaudrateMenuTriggered(QAction* action)
     }
 }
 
-void Camera::onSpecialKeyPressed(const QString &keyText)
-{
-    // Handle the special key press
-    // For example, you might want to send this key to the remote desktop connection
-    if (keyText == ToolbarManager::KEY_ESC) {
-        HostManager::getInstance().handleFunctionKey(Qt::Key_Escape);
-    } else if (keyText == ToolbarManager::KEY_INS) {
-        HostManager::getInstance().handleFunctionKey(Qt::Key_Insert);
-    } else if (keyText == ToolbarManager::KEY_DEL) {
-        HostManager::getInstance().handleFunctionKey(Qt::Key_Delete);
-    } else if (keyText == ToolbarManager::KEY_HOME) {
-        HostManager::getInstance().handleFunctionKey(Qt::Key_Home);
-    } else if (keyText == ToolbarManager::KEY_END) {
-        HostManager::getInstance().handleFunctionKey(Qt::Key_End);
-    } else if (keyText == ToolbarManager::KEY_PGUP) {
-        HostManager::getInstance().handleFunctionKey(Qt::Key_PageUp);
-    } else if (keyText == ToolbarManager::KEY_PGDN) {
-        HostManager::getInstance().handleFunctionKey(Qt::Key_PageDown);
-    } else if (keyText == ToolbarManager::KEY_PRTSC) {
-        HostManager::getInstance().handleFunctionKey(Qt::Key_Print);
-    } else if (keyText == ToolbarManager::KEY_SCRLK) {
-        HostManager::getInstance().handleFunctionKey(Qt::Key_ScrollLock);
-    } else if (keyText == ToolbarManager::KEY_PAUSE) {
-        HostManager::getInstance().handleFunctionKey(Qt::Key_Pause);
-    } else if (keyText == ToolbarManager::KEY_NUMLK) {
-        HostManager::getInstance().handleFunctionKey(Qt::Key_NumLock);
-    } else if (keyText == ToolbarManager::KEY_CAPSLK) {
-        HostManager::getInstance().handleFunctionKey(Qt::Key_CapsLock);
-    } else if (keyText == ToolbarManager::KEY_WIN) {
-        HostManager::getInstance().handleFunctionKey(Qt::Key_Meta);
-    }
-}
+
 
 void Camera::imageSaved(int id, const QString &fileName)
 {
@@ -971,11 +972,19 @@ void Camera::onLastKeyPressed(const QString& key) {
     }
 
     // Load the SVG into a QPixmap
-    QSvgRenderer svgRenderer(svgPath);
-    QPixmap pixmap(18, 18); // Adjust the size as needed
-    pixmap.fill(Qt::transparent);
-    QPainter painter(&pixmap);
-    svgRenderer.render(&painter);
+    QColor iconColor = palette().color(QPalette::WindowText);
+    QPixmap pixmap = recolorSvg(svgPath, iconColor, QSize(18, 18)); // Adjust the size as needed
+
+    // If a key is pressed, add a red dot in the middle
+    // if (!key.isEmpty()) {
+    //     QPainter painter(&pixmap);
+    //     painter.setBrush(Qt::red);
+    //     painter.setPen(Qt::NoPen);
+    //     int dotSize = 6; // Size of the red dot
+    //     int x = (pixmap.width() - dotSize) / 2;
+    //     int y = (pixmap.height() - dotSize) / 2;
+    //     painter.drawEllipse(x, y, dotSize, dotSize);
+    // }
 
     // Set the QPixmap to the QLabel
     keyPressedLabel->setPixmap(pixmap);
@@ -996,11 +1005,8 @@ void Camera::onLastMouseLocation(const QPoint& location, const QString& mouseEve
     }
 
     // Load the SVG into a QPixmap
-    QSvgRenderer svgRenderer(svgPath);
-    QPixmap pixmap(12, 12); // Adjust the size as needed
-    pixmap.fill(Qt::transparent);
-    QPainter painter(&pixmap);
-    svgRenderer.render(&painter);
+    QColor iconColor = palette().color(QPalette::WindowText);
+    QPixmap pixmap = recolorSvg(svgPath, iconColor, QSize(12, 12)); // Adjust the size as needed
 
     // Set the QPixmap to the QLabel
     mouseLabel->setPixmap(pixmap);
@@ -1012,10 +1018,12 @@ void Camera::onSwitchableUsbToggle(const bool isToTarget) {
         qDebug() << "UI Switchable USB to target...";
         ui->actionTo_Host->setChecked(false);
         ui->actionTo_Target->setChecked(true);
+        toggleSwitch->setChecked(true);
     } else {
         qDebug() << "UI Switchable USB to host...";
         ui->actionTo_Host->setChecked(true);
         ui->actionTo_Target->setChecked(false);
+        toggleSwitch->setChecked(false);
     }
     SerialPortManager::getInstance().restartSwitchableUSB();
 }

@@ -55,7 +55,7 @@ private:
     QPair<QByteArray, bool> usbXdataRead4Byte(quint16 u16_address);
     bool usbXdataWrite4Byte(quint16 u16_address, QByteArray data);
     QString devicePath;
-    bool isSwitchOnTarget = false;
+    bool isHardSwitchOnTarget = false;
     
     StatusEventCallback* eventCallback = nullptr;
 
