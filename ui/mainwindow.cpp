@@ -101,7 +101,9 @@ Camera::Camera() : ui(new Ui::Camera), m_audioManager(new AudioManager(this)),
     qCDebug(log_ui_mainwindow) << "Init camera...";
     ui->setupUi(this);
     ui->statusbar->addPermanentWidget(statusWidget);
-
+    
+    
+    
     QWidget *centralWidget = new QWidget(this);
     centralWidget->setLayout(stackedLayout);
 
