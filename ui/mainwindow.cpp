@@ -112,9 +112,8 @@ Camera::Camera() : ui(new Ui::Camera), m_audioManager(new AudioManager(this)),
                                         videoPane(new VideoPane(this)),
                                         stackedLayout(new QStackedLayout(this)),
                                         toolbarManager(new ToolbarManager(this)),
-                                        statusWidget(new StatusWidget(this))
-                                        // settingsDialog(new SettingDialog(this)),
-                                        // serialPortDebugDialog(new SerialPortDebugDialog())
+                                        statusWidget(new StatusWidget(this)),
+                                        toggleSwitch(new ToggleSwitch(this))
 {
     qCDebug(log_ui_mainwindow) << "Init camera...";
     ui->setupUi(this);
@@ -163,6 +162,18 @@ Camera::Camera() : ui(new Ui::Camera), m_audioManager(new AudioManager(this)),
 
     qDebug() << "Observe Hardware change Camera triggerd...";
 
+    qCDebug(log_ui_mainwindow) << "Creating and setting up ToggleSwitch...";
+    toggleSwitch->setFixedSize(78, 28);  // Adjust size as needed
+    connect(toggleSwitch, &ToggleSwitch::stateChanged, this, &Camera::onToggleSwitchStateChanged);
+
+    // Add the ToggleSwitch as the last button in the cornerWidget's layout
+    QHBoxLayout *cornerLayout = qobject_cast<QHBoxLayout*>(ui->cornerWidget->layout());
+    if (cornerLayout) {
+        cornerLayout->addWidget(toggleSwitch);
+    } else {
+        qCWarning(log_ui_mainwindow) << "Corner widget layout is not a QHBoxLayout. Unable to add ToggleSwitch.";
+    }
+
     // load the settings
     qDebug() << "Loading settings";
     GlobalSetting::instance().loadLogSettings();
@@ -172,7 +183,6 @@ Camera::Camera() : ui(new Ui::Camera), m_audioManager(new AudioManager(this)),
     qCDebug(log_ui_mainwindow) << "Observe switch usb connection trigger...";
     connect(ui->actionTo_Host, &QAction::triggered, this, &Camera::onActionSwitchToHostTriggered);
     connect(ui->actionTo_Target, &QAction::triggered, this, &Camera::onActionSwitchToTargetTriggered);
-    connect(ui->actionFollow_Switch, &QAction::triggered, this, &Camera::onFollowSwitchTriggered);
 
     qCDebug(log_ui_mainwindow) << "Observe action paste from host...";
     connect(ui->actionPaste, &QAction::triggered, this, &Camera::onActionPasteToTarget);
@@ -235,7 +245,6 @@ void Camera::init()
 
     GlobalVar::instance().setWinWidth(this->width());
     GlobalVar::instance().setWinHeight(this->height());
-    onFollowSwitchTriggered();
 
     // Initialize the virtual keyboard button icon
     QIcon icon(":/images/keyboard-down.svg");
@@ -267,7 +276,7 @@ void Camera::initStatusBar()
     onLastMouseLocation(QPoint(0, 0), nullptr);
     keyPressedLabel = new QLabel(this);
     keyLabel = new QLabel(this);
-    keyLabel->setFixedWidth(18);
+    keyLabel->setFixedWidth(25);
     // Key container widget
     QWidget *keyContainer = new QWidget(this);
     QHBoxLayout *keyLayout = new QHBoxLayout(keyContainer);
@@ -518,6 +527,16 @@ void Camera::onActionSwitchToTargetTriggered()
     ui->actionTo_Target->setChecked(true);
 }
 
+void Camera::onToggleSwitchStateChanged(int state)
+{
+    qCDebug(log_ui_mainwindow) << "Toggle switch state changed to:" << state;
+    if (state == Qt::Checked) {
+        onActionSwitchToTargetTriggered();
+    } else {
+        onActionSwitchToHostTriggered();
+    }
+}
+
 void Camera::onResolutionChange(const int& width, const int& height, const float& fps)
 {
     GlobalVar::instance().setInputWidth(width);
@@ -559,20 +578,6 @@ void Camera::updateBaudrateMenu(int baudrate){
         connect(newAction, &QAction::triggered, this, [this, newAction]() {
             onBaudrateMenuTriggered(newAction);
         });
-    }
-}
-
-void Camera::onFollowSwitchTriggered()
-{
-    qCDebug(log_ui_mainwindow) << "Follow switch:" << ui->actionFollow_Switch->isChecked();
-    if(ui->actionFollow_Switch->isChecked()){
-        ui->actionTo_Host->setEnabled(false);
-        ui->actionTo_Target->setEnabled(false);
-        GlobalVar::instance().setFollowSwitch(true);
-    }else{
-        ui->actionTo_Host->setEnabled(true);
-        ui->actionTo_Target->setEnabled(true);
-        GlobalVar::instance().setFollowSwitch(false);
     }
 }
 
@@ -1013,10 +1018,12 @@ void Camera::onSwitchableUsbToggle(const bool isToTarget) {
         qDebug() << "UI Switchable USB to target...";
         ui->actionTo_Host->setChecked(false);
         ui->actionTo_Target->setChecked(true);
+        toggleSwitch->setChecked(true);
     } else {
         qDebug() << "UI Switchable USB to host...";
         ui->actionTo_Host->setChecked(true);
         ui->actionTo_Target->setChecked(false);
+        toggleSwitch->setChecked(false);
     }
     SerialPortManager::getInstance().restartSwitchableUSB();
 }

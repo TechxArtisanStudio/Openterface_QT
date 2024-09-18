@@ -27,6 +27,7 @@
 #include "ui/statuswidget.h"
 #include "ui/statusevents.h"
 #include "ui/videopane.h"
+#include "ui/toggleswitch.h"
 #include "toolbarmanager.h"
 #include "ui/serialportdebugdialog.h"
 #include "ui/settingdialog.h"
@@ -162,7 +163,6 @@ protected:
 
     void onActionSwitchToHostTriggered();
     void onActionSwitchToTargetTriggered();
-    void onFollowSwitchTriggered();
     void onActionPasteToTarget();
     void onActionScreensaver();
     void onToggleVirtualKeyboard();
@@ -181,6 +181,8 @@ private slots:
     void onCtrlAltDelPressed();
     void onDelPressed();
     void onBaudrateMenuTriggered(QAction* action);
+
+    void onToggleSwitchStateChanged(int state);
 
 private:
     Ui::Camera *ui;
@@ -225,6 +227,7 @@ private:
 
     void updateBaudrateMenu(int baudrate);
 
+    ToggleSwitch *toggleSwitch;
 };
 
 #endif
