@@ -53,6 +53,10 @@
 #include <QLineEdit>
 #include <QPushButton>
 #include <QComboBox>
+#include <QApplication>
+#include <QPalette>
+#include <QStyle>
+#include <QEvent>
 
 Q_DECLARE_LOGGING_CATEGORY(log_ui_mainwindow)
 
@@ -167,6 +171,7 @@ protected:
     void updateResolutions(int input_width, int input_height, float input_fps, int capture_width, int capture_height, int capture_fps);
 
     void onButtonClicked();
+
 
 private slots:
     void onRepeatingKeystrokeChanged(int index);

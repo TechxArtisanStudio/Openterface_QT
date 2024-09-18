@@ -10,7 +10,7 @@ ToolbarManager::ToolbarManager(QWidget *parent) : QObject(parent)
 void ToolbarManager::setupToolbar()
 {
     toolbar = new QToolBar(qobject_cast<QWidget*>(parent()));
-    toolbar->setStyleSheet("QToolBar { background-color: rgba(200, 200, 200, 150); border: none; }");
+    toolbar->setStyleSheet("QToolBar { background-color: rgba(50, 50, 50, 255); border: none; }"); // Darker background for better contrast
     toolbar->setFloatable(false);
     toolbar->setMovable(false);
 
@@ -29,14 +29,15 @@ void ToolbarManager::setupToolbar()
     QPushButton *ctrlAltDelButton = new QPushButton("Ctrl+Alt+Del", toolbar);
     ctrlAltDelButton->setStyleSheet(
         "QPushButton { "
-        "   border: 1px dotted rgba(0, 0, 0, 100); "
-        "   background-color: rgba(240, 240, 240, 200); "
+        "   border: 1px solid rgba(255, 255, 255, 150); " // Lighter border for better contrast
+        "   background-color: rgba(100, 100, 100, 255); " // Darker background for better contrast
+        "   color: white; " // White text for better contrast
         "   padding: 2px; "
         "   margin: 2px; "
         "} "
         "QPushButton:pressed { "
-        "   background-color: rgba(200, 200, 200, 200); "
-        "   border: 1px solid rgba(0, 0, 0, 150); "
+        "   background-color: rgba(80, 80, 80, 255); " // Darker background for better contrast
+        "   border: 1px solid rgba(255, 255, 255, 200); " // Lighter border for better contrast
         "}"
     );
     connect(ctrlAltDelButton, &QPushButton::clicked, this, &ToolbarManager::onCtrlAltDelClicked);
@@ -63,14 +64,15 @@ QPushButton* ToolbarManager::createFunctionButton(const QString &text)
     QPushButton *button = new QPushButton(text, toolbar);
     button->setStyleSheet(
         "QPushButton { "
-        "   border: 1px dotted rgba(0, 0, 0, 100); "
-        "   background-color: rgba(240, 240, 240, 200); "
+        "   border: 1px solid rgba(255, 255, 255, 150); " // Lighter border for better contrast
+        "   background-color: rgba(100, 100, 100, 255); " // Darker background for better contrast
+        "   color: white; " // White text for better contrast
         "   padding: 2px; "
         "   margin: 2px; "
         "} "
         "QPushButton:pressed { "
-        "   background-color: rgba(200, 200, 200, 200); "
-        "   border: 1px solid rgba(0, 0, 0, 150); "
+        "   background-color: rgba(80, 80, 80, 255); " // Darker background for better contrast
+        "   border: 1px solid rgba(255, 255, 255, 200); " // Lighter border for better contrast
         "}"
     );
     button->setFixedWidth(40);
