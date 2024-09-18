@@ -230,7 +230,7 @@ void Camera::init()
     qCDebug(log_ui_mainwindow) << "Camera init...";
 #ifdef QT_FEATURE_permissions //Permissions API not compatible with Qt < 6.5 and will cause compilation failure on expanding macro in qtconfigmacros.h
 #if QT_CONFIG(permissions)
-    // camera
+    // camera 
     QCameraPermission cameraPermission;
     switch (qApp->checkPermission(cameraPermission)) {
     case Qt::PermissionStatus::Undetermined:
