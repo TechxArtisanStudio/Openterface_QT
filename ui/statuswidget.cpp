@@ -21,6 +21,8 @@
 */
 
 #include "statuswidget.h"
+#include <QSvgRenderer>
+#include <QPainter>
 
 StatusWidget::StatusWidget(QWidget *parent) : QWidget(parent) {
     keyboardIndicatorsLabel = new QLabel("", this);
@@ -35,7 +37,7 @@ StatusWidget::StatusWidget(QWidget *parent) : QWidget(parent) {
     layout->setSpacing(1);
 
     layout->addWidget(statusLabel);
-    layout->addWidget(new QLabel("|", this));
+    layout->addWidget(new QLabel("| ", this));
     layout->addWidget(keyboardIndicatorsLabel);
     layout->addWidget(new QLabel("|", this));
     layout->addWidget(connectedPortLabel);
@@ -75,15 +77,29 @@ void StatusWidget::setStatusUpdate(const QString &status){
 }
 
 void StatusWidget::setTargetUsbConnected(const bool isConnected){
-    if(isConnected){
-        keyboardIndicatorsLabel->setText("TARGET");
-        keyboardIndicatorsLabel->setToolTip("Target Keyboard & Mouse USB connected");
-        keyboardIndicatorsLabel->setStyleSheet("color: green; border-radius: 5px;");
-    } else {
-        keyboardIndicatorsLabel->setText("TARGET");
-        keyboardIndicatorsLabel->setToolTip("Target Keyboard & Mouse USB disconnected");
-        keyboardIndicatorsLabel->setStyleSheet("color: white; background-color: red; border-radius: 5px; margin: 2px 0;");
-    }
+    QString keyboardSvgPath = ":/images/keyboard.svg";
+    QString mouseSvgPath = ":/images/mouse-default.svg";
+    QColor fillColor = isConnected ? QColor(0, 255, 0, 128) : QColor(255, 0, 0, 200);
+    
+    QPixmap combinedPixmap(36, 18);
+    combinedPixmap.fill(Qt::transparent);
+    QPainter painter(&combinedPixmap);
+    
+    // Render keyboard
+    QSvgRenderer keyboardRenderer(keyboardSvgPath);
+    keyboardRenderer.render(&painter, QRectF(0, 0, 18, 18));
+    
+    // Render mouse
+    QSvgRenderer mouseRenderer(mouseSvgPath);
+    QRectF mouseRect(18, 1.8, 14.4, 14.4);  // 20% smaller, centered vertically
+    mouseRenderer.render(&painter, mouseRect);
+    
+    // Apply color overlay
+    painter.setCompositionMode(QPainter::CompositionMode_SourceAtop);
+    painter.fillRect(combinedPixmap.rect(), fillColor);
+    painter.end();
+    
+    keyboardIndicatorsLabel->setPixmap(combinedPixmap);
     update();
 }
 

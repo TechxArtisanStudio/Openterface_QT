@@ -29,17 +29,17 @@ void VideoHid::start() {
     std::string captureCardFirmwareVersion = getFirmwareVersion();
     qDebug() << "MS2109 firmware VERSION:" << QString::fromStdString(captureCardFirmwareVersion);    //firmware VERSION
     GlobalVar::instance().setCaptureCardFirmwareVersion(captureCardFirmwareVersion);
-    isSwitchOnTarget = getSpdifout();
-    qDebug() << "SPDIFOUT:" << isSwitchOnTarget;    //SPDIFOUT
+    isHardSwitchOnTarget = getSpdifout();
+    qDebug() << "SPDIFOUT:" << isHardSwitchOnTarget;    //SPDIFOUT
     if(eventCallback){
-        eventCallback->onSwitchableUsbToggle(isSwitchOnTarget);
-        setSpdifout(isSwitchOnTarget); //Follow the hard switch by default
+        eventCallback->onSwitchableUsbToggle(isHardSwitchOnTarget);
+        setSpdifout(isHardSwitchOnTarget); //Follow the hard switch by default
     }
 
     //start a timer to get the HDMI connection status every 1 second
     timer = new QTimer(this);
     connect(timer, &QTimer::timeout, this, [=](){
-        bool gpio0 = getGpio0();
+        bool currentSwitchOnTarget = getGpio0();
 
         if(eventCallback){
             if(isHdmiConnected()){
@@ -48,10 +48,11 @@ void VideoHid::start() {
                 eventCallback->onResolutionChange(0, 0, 0);
             }
 
-            if(GlobalVar::instance().isFollowSwitch() && gpio0 != isSwitchOnTarget){
-                eventCallback->onSwitchableUsbToggle(gpio0);
-                setSpdifout(gpio0);    //Follow the hard switch
-                isSwitchOnTarget = gpio0;
+            if(isHardSwitchOnTarget != currentSwitchOnTarget){ //Only handle change when hardware switch change
+                qDebug() << "isHardSwitchOnTarget" << isHardSwitchOnTarget << "currentSwitchOnTarget" << currentSwitchOnTarget;
+                eventCallback->onSwitchableUsbToggle(currentSwitchOnTarget);
+                setSpdifout(currentSwitchOnTarget); 
+                isHardSwitchOnTarget = currentSwitchOnTarget;
             }
         }
     });
@@ -107,12 +108,14 @@ bool VideoHid::getSpdifout() {
 void VideoHid::switchToHost() {
     qDebug() << "Switch to host";
     setSpdifout(false);
+    GlobalVar::instance().setSwitchOnTarget(false);
     if(eventCallback) eventCallback->onSwitchableUsbToggle(false);
 }
 
 void VideoHid::switchToTarget() {
     qDebug() << "Switch to target";
     setSpdifout(true);
+    GlobalVar::instance().setSwitchOnTarget(true);
     if(eventCallback) eventCallback->onSwitchableUsbToggle(true);
 }
 
@@ -130,11 +133,6 @@ void VideoHid::setSpdifout(bool enable) {
         mask = 0xEF;
     }
 
-    if(isSwitchOnTarget == enable) {
-        qDebug() << "Soft switch is already set to" << (enable ? "Target" : "Host");
-        return;
-    }
-
     quint8 spdifout = static_cast<quint8>(usbXdataRead4Byte(ADDR_SPDIFOUT).first.at(0));
     if (enable) {
         spdifout |= bit;
@@ -144,7 +142,6 @@ void VideoHid::setSpdifout(bool enable) {
     QByteArray data(4, 0); // Create a 4-byte array initialized to zero
     data[0] = spdifout;
     if(usbXdataWrite4Byte(ADDR_SPDIFOUT, data)){
-        isSwitchOnTarget = enable;
         qDebug() << "SPDIFOUT set successfully";
     }else{
         qDebug() << "SPDIFOUT set failed";
