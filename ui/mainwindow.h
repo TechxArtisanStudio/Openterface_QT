@@ -146,6 +146,8 @@ private slots:
 
     // void toggleToolbar();
 
+    void onPaletteChanged();
+
 protected:
     void keyPressEvent(QKeyEvent *event) override;
     void closeEvent(QCloseEvent *event) override;
@@ -228,6 +230,8 @@ private:
     void updateBaudrateMenu(int baudrate);
 
     ToggleSwitch *toggleSwitch;
+
+    QColor iconColor;
 };
 
 #endif
