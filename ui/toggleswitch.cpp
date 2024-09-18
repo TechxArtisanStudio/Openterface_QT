@@ -45,7 +45,7 @@ void ToggleSwitch::paintEvent(QPaintEvent *e)
 
     qreal trailLength = contRect.width() * m_hScale - 2 * handleRadius;
     qreal xLeft = contRect.center().x() - (trailLength + handleRadius) / 2;
-    qreal xPos = xLeft + handleRadius + trailLength * m_handlePosition - 2;
+    qreal xPos = xLeft + handleRadius + trailLength * m_handlePosition - 3;
 
     if (isChecked()) {
         p.setBrush(m_barCheckedBrush);

@@ -54,6 +54,10 @@
 #include <QLineEdit>
 #include <QPushButton>
 #include <QComboBox>
+#include <QApplication>
+#include <QPalette>
+#include <QStyle>
+#include <QEvent>
 
 Q_DECLARE_LOGGING_CATEGORY(log_ui_mainwindow)
 
@@ -66,6 +70,7 @@ QT_END_NAMESPACE
 
 class MetaDataDialog;
 
+QPixmap recolorSvg(const QString &svgPath, const QColor &color, const QSize &size);
 
 class Camera : public QMainWindow, public StatusEventCallback
 {
@@ -141,8 +146,6 @@ private slots:
 
     // void toggleToolbar();
 
-    // void toggleToolbar();
-
 protected:
     void keyPressEvent(QKeyEvent *event) override;
     void closeEvent(QCloseEvent *event) override;
@@ -170,12 +173,13 @@ protected:
 
     void onButtonClicked();
 
+
 private slots:
     void onRepeatingKeystrokeChanged(int index);
 
     void onFunctionKeyPressed(int key);
     void onCtrlAltDelPressed();
-    void onSpecialKeyPressed(const QString &keyText);
+    void onDelPressed();
     void onBaudrateMenuTriggered(QAction* action);
 
     void onToggleSwitchStateChanged(int state);

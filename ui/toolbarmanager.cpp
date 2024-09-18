@@ -1,40 +1,6 @@
 #include "toolbarmanager.h"
-#include "../global.h"
 #include <QHBoxLayout>
 #include <QWidget>
-
-const QString ToolbarManager::commonButtonStyle = 
-    "QPushButton { "
-    "   border: 1px dotted rgba(0, 0, 0, 100); "
-    "   background-color: rgba(240, 240, 240, 200); "
-    "   padding: 2px; "
-    "   margin: 2px; "
-    "} "
-    "QPushButton:pressed { "
-    "   background-color: rgba(200, 200, 200, 200); "
-    "   border: 1px solid rgba(0, 0, 0, 150); "
-    "}";
-
-// Define constants for all special keys
-const QString ToolbarManager::KEY_WIN = "Win";
-const QString ToolbarManager::KEY_PRTSC = "PrtSc";
-const QString ToolbarManager::KEY_SCRLK = "ScrLk";
-const QString ToolbarManager::KEY_PAUSE = "Pause";
-const QString ToolbarManager::KEY_INS = "Ins";
-const QString ToolbarManager::KEY_HOME = "Home";
-const QString ToolbarManager::KEY_END = "End";
-const QString ToolbarManager::KEY_PGUP = "PgUp";
-const QString ToolbarManager::KEY_PGDN = "PgDn";
-const QString ToolbarManager::KEY_NUMLK = "NumLk";
-const QString ToolbarManager::KEY_CAPSLK = "CapsLk";
-const QString ToolbarManager::KEY_ESC = "Esc";
-const QString ToolbarManager::KEY_DEL = "Del";
-
-const QStringList ToolbarManager::specialKeys = {
-    KEY_WIN, KEY_PRTSC, KEY_SCRLK, KEY_PAUSE,
-    KEY_INS, KEY_HOME, KEY_END, KEY_PGUP,
-    KEY_PGDN, KEY_NUMLK, KEY_CAPSLK, KEY_ESC, KEY_DEL
-};
 
 ToolbarManager::ToolbarManager(QWidget *parent) : QObject(parent)
 {
@@ -44,49 +10,62 @@ ToolbarManager::ToolbarManager(QWidget *parent) : QObject(parent)
 void ToolbarManager::setupToolbar()
 {
     toolbar = new QToolBar(qobject_cast<QWidget*>(parent()));
-    toolbar->setStyleSheet("QToolBar { background-color: rgba(200, 200, 200, 150); border: none; }");
+    toolbar->setStyleSheet("QToolBar { background-color: rgba(50, 50, 50, 255); border: none; }"); // Darker background for better contrast
     toolbar->setFloatable(false);
     toolbar->setMovable(false);
 
-    // Function keys
     for (int i = 1; i <= 12; i++) {
         QString buttonText = QString("F%1").arg(i);
         QPushButton *button = createFunctionButton(buttonText);
+        button->setToolTip(QString("Press Function key F%1".).arg(i));
         toolbar->addWidget(button);
 
+        if (i % 4 == 0 && i < 12) {
+            QWidget *smallSpacer = new QWidget();
+            smallSpacer->setFixedWidth(10);
+            toolbar->addWidget(smallSpacer);
+        }
     }
 
-    // Add a spacer
-    QWidget *spacer = new QWidget();
-    spacer->setFixedWidth(10);
-    toolbar->addWidget(spacer);
-
-    // Special keys
-    for (const QString &keyText : specialKeys) {
-        QPushButton *button = new QPushButton(keyText, toolbar);
-        button->setStyleSheet(commonButtonStyle);
-        int width = button->fontMetrics().horizontalAdvance(keyText) + 16; // Add some padding
-        button->setFixedWidth(width);
-        connect(button, &QPushButton::clicked, this, &ToolbarManager::onSpecialKeyClicked);
-        toolbar->addWidget(button);
-    }
-
-    // Existing special buttons
     QPushButton *ctrlAltDelButton = new QPushButton("Ctrl+Alt+Del", toolbar);
-    ctrlAltDelButton->setStyleSheet(commonButtonStyle);
-    int ctrlAltDelWidth = ctrlAltDelButton->fontMetrics().horizontalAdvance("Ctrl+Alt+Del") + 16;
-    ctrlAltDelButton->setFixedWidth(ctrlAltDelWidth);
+    ctrlAltDelButton->setStyleSheet(
+        "QPushButton { "
+        "   border: 1px solid rgba(255, 255, 255, 150); " // Lighter border for better contrast
+        "   background-color: rgba(100, 100, 100, 255); " // Darker background for better contrast
+        "   color: white; " // White text for better contrast
+        "   padding: 2px; "
+        "   margin: 2px; "
+        "} "
+        "QPushButton:pressed { "
+        "   background-color: rgba(80, 80, 80, 255); " // Darker background for better contrast
+        "   border: 1px solid rgba(255, 255, 255, 200); " // Lighter border for better contrast
+        "}"
+    );
+    ctrlAltDelButton->setToolTip("Send Ctrl+Alt+Del keystroke.");
     connect(ctrlAltDelButton, &QPushButton::clicked, this, &ToolbarManager::onCtrlAltDelClicked);
     toolbar->addWidget(ctrlAltDelButton);
 
-    // QPushButton *delButton = new QPushButton("Del", toolbar);
-    // delButton->setStyleSheet(commonButtonStyle);
-    // connect(delButton, &QPushButton::clicked, this, &ToolbarManager::onDelClicked);
-    // toolbar->addWidget(delButton);
-
-    // Repeating keystroke combo box
+    QPushButton *delButton = new QPushButton("Del", toolbar);
+    delButton->setStyleSheet(ctrlAltDelButton->styleSheet());
+    delButton->setToolTip("Send Delete keystroke.");
+    connect(delButton, &QPushButton::clicked, this, &ToolbarManager::onDelClicked);
+    toolbar->addWidget(delButton);
 
     QComboBox *repeatingKeystrokeComboBox = new QComboBox(toolbar);
+    repeatingKeystrokeComboBox->setStyleSheet(
+        "QComboBox { "
+        "   border: 1px solid rgba(255, 255, 255, 150); " // Lighter border for better contrast
+        "   background-color: rgba(100, 100, 100, 255); " // Darker background for better contrast
+        "   color: white; " // White text for better contrast
+        "   padding: 2px; "
+        "   margin: 2px; "
+        "} "
+        "QComboBox QAbstractItemView { "
+        "   background-color: rgba(100, 100, 100, 255); " // Darker background for better contrast
+        "   color: white; " // White text for better contrast
+        "}"
+    );
+    repeatingKeystrokeComboBox->setToolTip("Set keystroke repeat interval.");
     repeatingKeystrokeComboBox->addItem("No repeating", 0);
     repeatingKeystrokeComboBox->addItem("Repeat every 0.5s", 500);
     repeatingKeystrokeComboBox->addItem("Repeat every 1s", 1000);
@@ -100,10 +79,20 @@ void ToolbarManager::setupToolbar()
 QPushButton* ToolbarManager::createFunctionButton(const QString &text)
 {
     QPushButton *button = new QPushButton(text, toolbar);
-    button->setStyleSheet(commonButtonStyle);
-    int width = button->fontMetrics().horizontalAdvance(text) + 16; // Add some padding
-    button->setFixedWidth(width);
-
+    button->setStyleSheet(
+        "QPushButton { "
+        "   border: 1px solid rgba(255, 255, 255, 150); " // Lighter border for better contrast
+        "   background-color: rgba(100, 100, 100, 255); " // Darker background for better contrast
+        "   color: white; " // White text for better contrast
+        "   padding: 2px; "
+        "   margin: 2px; "
+        "} "
+        "QPushButton:pressed { "
+        "   background-color: rgba(80, 80, 80, 255); " // Darker background for better contrast
+        "   border: 1px solid rgba(255, 255, 255, 200); " // Lighter border for better contrast
+        "}"
+    );
+    button->setFixedWidth(40);
     connect(button, &QPushButton::clicked, this, &ToolbarManager::onFunctionButtonClicked);
     return button;
 }
@@ -124,31 +113,16 @@ void ToolbarManager::onCtrlAltDelClicked()
     emit ctrlAltDelPressed();
 }
 
+void ToolbarManager::onDelClicked()
+{
+    emit delPressed();
+}
+
 void ToolbarManager::onRepeatingKeystrokeChanged(int index)
 {
     QComboBox *comboBox = qobject_cast<QComboBox*>(sender());
     if (comboBox) {
         int interval = comboBox->itemData(index).toInt();
         emit repeatingKeystrokeChanged(interval);
-    }
-}
-
-void ToolbarManager::onSpecialKeyClicked()
-{
-    QPushButton *button = qobject_cast<QPushButton*>(sender());
-    if (button) {
-        QString keyText = button->text();
-        emit specialKeyPressed(keyText);
-    }
-}
-
-void ToolbarManager::toggleToolbar() {
-    if (toolbar->isVisible()) {
-        toolbar->hide();
-        GlobalVar::instance().setToolbarVisible(false);
-    } else {
-        toolbar->show();
-        GlobalVar::instance().setToolbarVisible(true);
-        GlobalVar::instance().setToolbarHeight(toolbar->height());
     }
 }
