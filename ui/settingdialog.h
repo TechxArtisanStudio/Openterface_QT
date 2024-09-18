@@ -39,6 +39,7 @@
 #include <QLineEdit>
 #include <QByteArray>
 
+
 QT_BEGIN_NAMESPACE
 class QCameraFormat;
 class QComboBox;

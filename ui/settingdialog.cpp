@@ -583,7 +583,7 @@ void SettingDialog::createHardwarePage(){
     gridLayout->addWidget(serialNumberLineEdit, 6,1, Qt::AlignLeft);
 
     // gridLayout->addWidget(customStringDescriptorLineEdit, 6,1, Qt::AlignLeft);
-    
+
 
     QVBoxLayout *hardwareLayout = new QVBoxLayout(hardwarePage);
     hardwareLayout->addWidget(hardwareLabel);
@@ -688,6 +688,7 @@ QByteArray SettingDialog::convertCheckBoxValueToBytes(){
 void SettingDialog::applyHardwareSetting(){
     QSettings settings("Techxartisan", "Openterface");
     QString cameraDescription = settings.value("camera/device", "Openterface").toString();
+    
 
     QComboBox *uvcCamBox = hardwarePage->findChild<QComboBox*>("uvcCamBox");
     QLineEdit *VIDLineEdit = hardwarePage->findChild<QLineEdit*>("VIDLineEdit");
@@ -709,7 +710,7 @@ void SettingDialog::applyHardwareSetting(){
     GlobalSetting::instance().setCustomPIDDescriptor(PIDDescriptorLineEdit->text());
     GlobalSetting::instance().setSerialNumber(serialNumberLineEdit->text());
     GlobalSetting::instance().setUSBEnabelFlag(QString(EnableFlag.toHex()));
-    
+
 
     SerialPortManager::getInstance().changeUSBDescriptor();
     QThread::msleep(10);
