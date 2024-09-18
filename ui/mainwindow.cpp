@@ -108,6 +108,18 @@ QPixmap recolorSvg(const QString &svgPath, const QColor &color, const QSize &siz
     return pixmap;
 }
 
+QColor getContrastingColor(const QColor &color) {
+    int d = 0;
+    // Calculate the perceptive luminance (Y) - human eye favors green color
+    double luminance = (0.299 * color.red() + 0.587 * color.green() + 0.114 * color.blue()) / 255;
+    if (luminance > 0.5) {
+        d = 0; // bright colors - black font
+    } else {
+        d = 255; // dark colors - white font
+    }
+    return QColor(d, d, d);
+}
+
 Camera::Camera() : ui(new Ui::Camera), m_audioManager(new AudioManager(this)),
                                         videoPane(new VideoPane(this)),
                                         stackedLayout(new QStackedLayout(this)),
@@ -118,7 +130,6 @@ Camera::Camera() : ui(new Ui::Camera), m_audioManager(new AudioManager(this)),
     qCDebug(log_ui_mainwindow) << "Init camera...";
     ui->setupUi(this);
     ui->statusbar->addPermanentWidget(statusWidget);
-    
     
     
     QWidget *centralWidget = new QWidget(this);
@@ -205,6 +216,13 @@ Camera::Camera() : ui(new Ui::Camera), m_audioManager(new AudioManager(this)),
     connect(toolbarManager, &ToolbarManager::ctrlAltDelPressed, this, &Camera::onCtrlAltDelPressed);
     connect(toolbarManager, &ToolbarManager::delPressed, this, &Camera::onDelPressed);
     connect(toolbarManager, &ToolbarManager::repeatingKeystrokeChanged, this, &Camera::onRepeatingKeystrokeChanged);
+
+    // Connect palette change signal to the slot
+    iconColor = palette().color(QPalette::WindowText);
+    onLastKeyPressed("");
+    onLastMouseLocation(QPoint(0, 0), "");
+    connect(qApp, &QApplication::paletteChanged, this, &Camera::onPaletteChanged);
+    
 }
 
 void Camera::init()
@@ -799,6 +817,13 @@ void Camera::onRepeatingKeystrokeChanged(int interval)
     HostManager::getInstance().setRepeatingKeystroke(interval);
 }
 
+void Camera::onPaletteChanged()
+{
+    iconColor = getContrastingColor(palette().color(QPalette::WindowText));
+    onLastKeyPressed("");
+    onLastMouseLocation(QPoint(0, 0), "");
+}
+
 void Camera::record()
 {
     m_mediaRecorder->record();
@@ -972,7 +997,8 @@ void Camera::onLastKeyPressed(const QString& key) {
     }
 
     // Load the SVG into a QPixmap
-    QColor iconColor = palette().color(QPalette::WindowText);
+    // iconColor = palette().color(QPalette::WindowText);
+    // qDebug() << "keyboard iconColor: " << iconColor;
     QPixmap pixmap = recolorSvg(svgPath, iconColor, QSize(18, 18)); // Adjust the size as needed
 
     // Set the QPixmap to the QLabel
@@ -994,7 +1020,8 @@ void Camera::onLastMouseLocation(const QPoint& location, const QString& mouseEve
     }
 
     // Load the SVG into a QPixmap
-    QColor iconColor = palette().color(QPalette::WindowText);
+    // iconColor = palette().color(QPalette::WindowText);
+    // qDebug() << "mouse iconColor: " << iconColor;
     QPixmap pixmap = recolorSvg(svgPath, iconColor, QSize(12, 12)); // Adjust the size as needed
 
     // Set the QPixmap to the QLabel
