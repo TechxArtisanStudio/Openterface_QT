@@ -17,6 +17,7 @@ void ToolbarManager::setupToolbar()
     for (int i = 1; i <= 12; i++) {
         QString buttonText = QString("F%1").arg(i);
         QPushButton *button = createFunctionButton(buttonText);
+        button->setToolTip(QString("Press Function key F%1".).arg(i));
         toolbar->addWidget(button);
 
         if (i % 4 == 0 && i < 12) {
@@ -40,11 +41,13 @@ void ToolbarManager::setupToolbar()
         "   border: 1px solid rgba(255, 255, 255, 200); " // Lighter border for better contrast
         "}"
     );
+    ctrlAltDelButton->setToolTip("Send Ctrl+Alt+Del keystroke.");
     connect(ctrlAltDelButton, &QPushButton::clicked, this, &ToolbarManager::onCtrlAltDelClicked);
     toolbar->addWidget(ctrlAltDelButton);
 
     QPushButton *delButton = new QPushButton("Del", toolbar);
     delButton->setStyleSheet(ctrlAltDelButton->styleSheet());
+    delButton->setToolTip("Send Delete keystroke.");
     connect(delButton, &QPushButton::clicked, this, &ToolbarManager::onDelClicked);
     toolbar->addWidget(delButton);
 
@@ -62,6 +65,7 @@ void ToolbarManager::setupToolbar()
         "   color: white; " // White text for better contrast
         "}"
     );
+    repeatingKeystrokeComboBox->setToolTip("Set keystroke repeat interval.");
     repeatingKeystrokeComboBox->addItem("No repeating", 0);
     repeatingKeystrokeComboBox->addItem("Repeat every 0.5s", 500);
     repeatingKeystrokeComboBox->addItem("Repeat every 1s", 1000);
