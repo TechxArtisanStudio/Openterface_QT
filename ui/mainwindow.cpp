@@ -975,17 +975,6 @@ void Camera::onLastKeyPressed(const QString& key) {
     QColor iconColor = palette().color(QPalette::WindowText);
     QPixmap pixmap = recolorSvg(svgPath, iconColor, QSize(18, 18)); // Adjust the size as needed
 
-    // If a key is pressed, add a red dot in the middle
-    // if (!key.isEmpty()) {
-    //     QPainter painter(&pixmap);
-    //     painter.setBrush(Qt::red);
-    //     painter.setPen(Qt::NoPen);
-    //     int dotSize = 6; // Size of the red dot
-    //     int x = (pixmap.width() - dotSize) / 2;
-    //     int y = (pixmap.height() - dotSize) / 2;
-    //     painter.drawEllipse(x, y, dotSize, dotSize);
-    // }
-
     // Set the QPixmap to the QLabel
     keyPressedLabel->setPixmap(pixmap);
     keyLabel->setText(QString("%1").arg(key));
