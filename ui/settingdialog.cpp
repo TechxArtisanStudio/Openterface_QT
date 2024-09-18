@@ -585,7 +585,6 @@ void SettingDialog::createHardwarePage(){
     // gridLayout->addWidget(customStringDescriptorLineEdit, 6,1, Qt::AlignLeft);
     
 
-
     QVBoxLayout *hardwareLayout = new QVBoxLayout(hardwarePage);
     hardwareLayout->addWidget(hardwareLabel);
     hardwareLayout->addWidget(uvcCamLabel);
@@ -689,7 +688,6 @@ QByteArray SettingDialog::convertCheckBoxValueToBytes(){
 void SettingDialog::applyHardwareSetting(){
     QSettings settings("Techxartisan", "Openterface");
     QString cameraDescription = settings.value("camera/device", "Openterface").toString();
-
 
     QComboBox *uvcCamBox = hardwarePage->findChild<QComboBox*>("uvcCamBox");
     QLineEdit *VIDLineEdit = hardwarePage->findChild<QLineEdit*>("VIDLineEdit");

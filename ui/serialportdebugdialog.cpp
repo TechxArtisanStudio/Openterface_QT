@@ -194,14 +194,17 @@ void SerialPortDebugDialog::getRecvDataAndInsertText(const QByteArray &data){
 }
 void SerialPortDebugDialog::getSentDataAndInsertText(const QByteArray &data){
     // qDebug() << "send data ->> " << data;
-    QString dataString = data.toHex().toUpper();
-    dataString = formatHexData(dataString);
-    dataString = ">> " + dataString + "\n";
-    textEdit->insertPlainText(dataString);
-    QTextCursor cursor = textEdit->textCursor();
-    cursor.movePosition(QTextCursor::End);
-    textEdit->setTextCursor(cursor);
-    textEdit->ensureCursorVisible();
+    if (data.size() >= 4){
+        QString dataString = data.toHex().toUpper();
+        dataString = formatHexData(dataString);
+        dataString =  QDateTime::currentDateTime().toString("MM-dd hh:mm:ss.zzz") + ">> " + dataString + "\n";
+        textEdit->insertPlainText(dataString);
+        QTextCursor cursor = textEdit->textCursor();
+        cursor.movePosition(QTextCursor::End);
+        textEdit->setTextCursor(cursor);
+        textEdit->ensureCursorVisible();
+    }
+    
 }
 
 QString SerialPortDebugDialog::formatHexData(QString hexString){
