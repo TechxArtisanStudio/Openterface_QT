@@ -21,20 +21,32 @@ public:
 
     // Define constants for all special keys
     static const QString KEY_WIN;
+    static const QString KEY_WIN_TOOLTIP;
     static const QString KEY_PRTSC;
+    static const QString KEY_PRTSC_TOOLTIP;
     static const QString KEY_SCRLK;
+    static const QString KEY_SCRLK_TOOLTIP;
     static const QString KEY_PAUSE;
+    static const QString KEY_PAUSE_TOOLTIP;
     static const QString KEY_INS;
+    static const QString KEY_INS_TOOLTIP;
     static const QString KEY_HOME;
+    static const QString KEY_HOME_TOOLTIP;
     static const QString KEY_END;
+    static const QString KEY_END_TOOLTIP;
     static const QString KEY_PGUP;
+    static const QString KEY_PGUP_TOOLTIP;
     static const QString KEY_PGDN;
+    static const QString KEY_PGDN_TOOLTIP;
     static const QString KEY_NUMLK;
+    static const QString KEY_NUMLK_TOOLTIP;
     static const QString KEY_CAPSLK;
+    static const QString KEY_CAPSLK_TOOLTIP;
     static const QString KEY_ESC;
+    static const QString KEY_ESC_TOOLTIP;
     static const QString KEY_DEL;
-
-    static const QStringList specialKeys;
+    static const QString KEY_DEL_TOOLTIP;
+    static const QList<QPair<QString, QString>> specialKeys;
 
     // Add this line to declare the toggleToolbar function
     void toggleToolbar();
