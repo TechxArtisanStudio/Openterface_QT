@@ -31,6 +31,7 @@
 #include <QDebug>
 #include <QThread>
 #include <QLoggingCategory>
+#include <QStyleFactory>
 
 void customMessageHandler(QtMsgType type, const QMessageLogContext &context, const QString &msg)
 {
@@ -84,6 +85,11 @@ int main(int argc, char *argv[])
     setupEnv();
     QApplication app(argc, argv);
 
+    // set style accroding to system palette
+    QPalette systemPalette = QApplication::palette();
+    app.setPalette(systemPalette);
+    app.setStyle(QStyleFactory::create("Fusion"));
+    
     qInstallMessageHandler(customMessageHandler);
 
     QCoreApplication::setApplicationName("Openterface Mini-KVM");

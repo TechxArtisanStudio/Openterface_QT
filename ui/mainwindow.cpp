@@ -90,6 +90,24 @@ Q_LOGGING_CATEGORY(log_ui_mainwindow, "opf.ui.mainwindow")
 #endif
 #endif
 
+QPixmap recolorSvg(const QString &svgPath, const QColor &color, const QSize &size) {
+    QSvgRenderer svgRenderer(svgPath);
+    QPixmap pixmap(size);
+    pixmap.fill(Qt::transparent);
+    QPainter painter(&pixmap);
+    svgRenderer.render(&painter);
+
+    // Create a color overlay
+    QPixmap colorOverlay(size);
+    colorOverlay.fill(color);
+
+    // Set the composition mode to SourceIn to apply the color overlay
+    painter.setCompositionMode(QPainter::CompositionMode_SourceIn);
+    painter.drawPixmap(0, 0, colorOverlay);
+
+    return pixmap;
+}
+
 Camera::Camera() : ui(new Ui::Camera), m_audioManager(new AudioManager(this)),
                                         videoPane(new VideoPane(this)),
                                         stackedLayout(new QStackedLayout(this)),
@@ -100,7 +118,9 @@ Camera::Camera() : ui(new Ui::Camera), m_audioManager(new AudioManager(this)),
     qCDebug(log_ui_mainwindow) << "Init camera...";
     ui->setupUi(this);
     ui->statusbar->addPermanentWidget(statusWidget);
-
+    
+    
+    
     QWidget *centralWidget = new QWidget(this);
     centralWidget->setLayout(stackedLayout);
 
@@ -180,11 +200,11 @@ Camera::Camera() : ui(new Ui::Camera), m_audioManager(new AudioManager(this)),
 
     addToolBar(Qt::TopToolBarArea, toolbarManager->getToolbar());
     toolbarManager->getToolbar()->setVisible(false);
-
+    
     connect(toolbarManager, &ToolbarManager::functionKeyPressed, this, &Camera::onFunctionKeyPressed);
     connect(toolbarManager, &ToolbarManager::ctrlAltDelPressed, this, &Camera::onCtrlAltDelPressed);
+    connect(toolbarManager, &ToolbarManager::delPressed, this, &Camera::onDelPressed);
     connect(toolbarManager, &ToolbarManager::repeatingKeystrokeChanged, this, &Camera::onRepeatingKeystrokeChanged);
-    connect(toolbarManager, &ToolbarManager::specialKeyPressed, this, &Camera::onSpecialKeyPressed);
 }
 
 void Camera::init()
@@ -769,6 +789,11 @@ void Camera::onCtrlAltDelPressed()
     HostManager::getInstance().sendCtrlAltDel();
 }
 
+void Camera::onDelPressed()
+{
+    HostManager::getInstance().handleFunctionKey(Qt::Key_Delete);
+}
+
 void Camera::onRepeatingKeystrokeChanged(int interval)
 {
     HostManager::getInstance().setRepeatingKeystroke(interval);
@@ -862,38 +887,7 @@ void Camera::onBaudrateMenuTriggered(QAction* action)
     }
 }
 
-void Camera::onSpecialKeyPressed(const QString &keyText)
-{
-    // Handle the special key press
-    // For example, you might want to send this key to the remote desktop connection
-    if (keyText == ToolbarManager::KEY_ESC) {
-        HostManager::getInstance().handleFunctionKey(Qt::Key_Escape);
-    } else if (keyText == ToolbarManager::KEY_INS) {
-        HostManager::getInstance().handleFunctionKey(Qt::Key_Insert);
-    } else if (keyText == ToolbarManager::KEY_DEL) {
-        HostManager::getInstance().handleFunctionKey(Qt::Key_Delete);
-    } else if (keyText == ToolbarManager::KEY_HOME) {
-        HostManager::getInstance().handleFunctionKey(Qt::Key_Home);
-    } else if (keyText == ToolbarManager::KEY_END) {
-        HostManager::getInstance().handleFunctionKey(Qt::Key_End);
-    } else if (keyText == ToolbarManager::KEY_PGUP) {
-        HostManager::getInstance().handleFunctionKey(Qt::Key_PageUp);
-    } else if (keyText == ToolbarManager::KEY_PGDN) {
-        HostManager::getInstance().handleFunctionKey(Qt::Key_PageDown);
-    } else if (keyText == ToolbarManager::KEY_PRTSC) {
-        HostManager::getInstance().handleFunctionKey(Qt::Key_Print);
-    } else if (keyText == ToolbarManager::KEY_SCRLK) {
-        HostManager::getInstance().handleFunctionKey(Qt::Key_ScrollLock);
-    } else if (keyText == ToolbarManager::KEY_PAUSE) {
-        HostManager::getInstance().handleFunctionKey(Qt::Key_Pause);
-    } else if (keyText == ToolbarManager::KEY_NUMLK) {
-        HostManager::getInstance().handleFunctionKey(Qt::Key_NumLock);
-    } else if (keyText == ToolbarManager::KEY_CAPSLK) {
-        HostManager::getInstance().handleFunctionKey(Qt::Key_CapsLock);
-    } else if (keyText == ToolbarManager::KEY_WIN) {
-        HostManager::getInstance().handleFunctionKey(Qt::Key_Meta);
-    }
-}
+
 
 void Camera::imageSaved(int id, const QString &fileName)
 {
@@ -978,11 +972,19 @@ void Camera::onLastKeyPressed(const QString& key) {
     }
 
     // Load the SVG into a QPixmap
-    QSvgRenderer svgRenderer(svgPath);
-    QPixmap pixmap(18, 18); // Adjust the size as needed
-    pixmap.fill(Qt::transparent);
-    QPainter painter(&pixmap);
-    svgRenderer.render(&painter);
+    QColor iconColor = palette().color(QPalette::WindowText);
+    QPixmap pixmap = recolorSvg(svgPath, iconColor, QSize(18, 18)); // Adjust the size as needed
+
+    // If a key is pressed, add a red dot in the middle
+    // if (!key.isEmpty()) {
+    //     QPainter painter(&pixmap);
+    //     painter.setBrush(Qt::red);
+    //     painter.setPen(Qt::NoPen);
+    //     int dotSize = 6; // Size of the red dot
+    //     int x = (pixmap.width() - dotSize) / 2;
+    //     int y = (pixmap.height() - dotSize) / 2;
+    //     painter.drawEllipse(x, y, dotSize, dotSize);
+    // }
 
     // Set the QPixmap to the QLabel
     keyPressedLabel->setPixmap(pixmap);
@@ -1003,11 +1005,8 @@ void Camera::onLastMouseLocation(const QPoint& location, const QString& mouseEve
     }
 
     // Load the SVG into a QPixmap
-    QSvgRenderer svgRenderer(svgPath);
-    QPixmap pixmap(12, 12); // Adjust the size as needed
-    pixmap.fill(Qt::transparent);
-    QPainter painter(&pixmap);
-    svgRenderer.render(&painter);
+    QColor iconColor = palette().color(QPalette::WindowText);
+    QPixmap pixmap = recolorSvg(svgPath, iconColor, QSize(12, 12)); // Adjust the size as needed
 
     // Set the QPixmap to the QLabel
     mouseLabel->setPixmap(pixmap);

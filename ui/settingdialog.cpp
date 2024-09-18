@@ -143,7 +143,7 @@ void SettingDialog::createLogPage() {
     logFilePathLayout->addWidget(browseButton);
 
     QLabel *logLabel = new QLabel(
-        "<span style=' color: black; font-weight: bold;'>General log setting</span>");
+        "<span style='font-weight: bold;'>General log setting</span>");
     logLabel->setTextFormat(Qt::RichText);
     logLabel->setStyleSheet(bigLabelFontSize);
     QLabel *logDescription = new QLabel(
@@ -190,7 +190,7 @@ void SettingDialog::createVideoPage() {
     videoPage = new QWidget();
 
     QLabel *videoLabel = new QLabel(
-        "<span style=' color: black; font-weight: bold;'>General video setting</span>");
+        "<span style=' font-weight: bold;'>General video setting</span>");
     videoLabel->setStyleSheet(bigLabelFontSize);
     videoLabel->setTextFormat(Qt::RichText);
 
@@ -479,7 +479,7 @@ void SettingDialog::createAudioPage() {
     audioPage = new QWidget();
 
     QLabel *audioLabel = new QLabel(
-        "<span style=' color: black; font-weight: bold;'>General audio setting</span>");
+        "<span style='  font-weight: bold;'>General audio setting</span>");
     audioLabel->setStyleSheet(bigLabelFontSize);
 
     QLabel *audioCodecLabel = new QLabel("Audio Codec: ");
@@ -526,7 +526,7 @@ void SettingDialog::createAudioPage() {
 void SettingDialog::createHardwarePage(){
     hardwarePage = new QWidget();
     QLabel *hardwareLabel = new QLabel(
-        "<span style=' color: black; font-weight: bold;'>General hardware setting</span>");
+        "<span style='  font-weight: bold;'>General hardware setting</span>");
     hardwareLabel->setStyleSheet(bigLabelFontSize);
 
     QLabel *uvcCamLabel = new QLabel("UVC Camera resource: ");
@@ -688,7 +688,7 @@ QByteArray SettingDialog::convertCheckBoxValueToBytes(){
 void SettingDialog::applyHardwareSetting(){
     QSettings settings("Techxartisan", "Openterface");
     QString cameraDescription = settings.value("camera/device", "Openterface").toString();
-
+    
 
     QComboBox *uvcCamBox = hardwarePage->findChild<QComboBox*>("uvcCamBox");
     QLineEdit *VIDLineEdit = hardwarePage->findChild<QLineEdit*>("VIDLineEdit");
