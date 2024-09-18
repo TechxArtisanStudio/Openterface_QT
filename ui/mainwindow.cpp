@@ -596,10 +596,12 @@ void Camera::onToggleVirtualKeyboard()
     bool isVisible = toolbarManager->getToolbar()->isVisible();
     toolbarManager->getToolbar()->setVisible(!isVisible);
 
-    // Toggle the icon
+    // Toggle the icon and tooltip
     QString iconPath = isVisible ? ":/images/keyboard-down.svg" : ":/images/keyboard-up.svg";
+    QString tooltip = isVisible ? "Open virtual keyboard." : "Close virtual keyboard.";
     QIcon icon(iconPath);
     ui->virtualKeyboardButton->setIcon(icon);
+    ui->virtualKeyboardButton->setToolTip(tooltip);
 }
 
 void Camera::popupMessage(QString message)
@@ -1019,11 +1021,13 @@ void Camera::onSwitchableUsbToggle(const bool isToTarget) {
         ui->actionTo_Host->setChecked(false);
         ui->actionTo_Target->setChecked(true);
         toggleSwitch->setChecked(true);
+        toggleSwitch->setToolTip("Switch USB to Host.");
     } else {
         qDebug() << "UI Switchable USB to host...";
         ui->actionTo_Host->setChecked(true);
         ui->actionTo_Target->setChecked(false);
         toggleSwitch->setChecked(false);
+        toggleSwitch->setToolTip("Switch USB to Target.");
     }
     SerialPortManager::getInstance().restartSwitchableUSB();
 }
