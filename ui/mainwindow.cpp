@@ -125,12 +125,12 @@ Camera::Camera() : ui(new Ui::Camera), m_audioManager(new AudioManager(this)),
                                         stackedLayout(new QStackedLayout(this)),
                                         toolbarManager(new ToolbarManager(this)),
                                         statusWidget(new StatusWidget(this)),
-                                        toggleSwitch(new ToggleSwitch(this))
+                                        toggleSwitch(new ToggleSwitch(this)),
+                                        scrollArea(new QScrollArea(this))
 {
     qCDebug(log_ui_mainwindow) << "Init camera...";
     ui->setupUi(this);
     ui->statusbar->addPermanentWidget(statusWidget);
-    
     
     QWidget *centralWidget = new QWidget(this);
     centralWidget->setLayout(stackedLayout);
@@ -138,7 +138,15 @@ Camera::Camera() : ui(new Ui::Camera), m_audioManager(new AudioManager(this)),
     HelpPane *helpPane = new HelpPane;
     stackedLayout->addWidget(helpPane);
 
-    stackedLayout->addWidget(videoPane);
+    // Set size policy and minimum size for videoPane
+    videoPane->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+    videoPane->setMinimumSize(800, 600); // Example size, adjust as needed
+
+    scrollArea->setWidget(videoPane);
+    scrollArea->setWidgetResizable(true);
+    scrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+    scrollArea->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+    stackedLayout->addWidget(scrollArea);
 
     stackedLayout->setCurrentIndex(0);
 
@@ -223,6 +231,25 @@ Camera::Camera() : ui(new Ui::Camera), m_audioManager(new AudioManager(this)),
     onLastMouseLocation(QPoint(0, 0), "");
     connect(qApp, &QApplication::paletteChanged, this, &Camera::onPaletteChanged);
     
+    // Connect zoom buttons
+    connect(ui->ZoomInButton, &QPushButton::clicked, this, &Camera::onZoomIn);
+    connect(ui->ZoomOutButton, &QPushButton::clicked, this, &Camera::onZoomOut);
+}
+
+void Camera::onZoomIn()
+{
+    QSize currentSize = videoPane->size();
+    videoPane->resize(currentSize.width() * 1.1, currentSize.height() * 1.1);
+    scrollArea->setGeometry(0, 0, currentSize.width() * 1.1, currentSize.height() * 1.1);
+    scrollArea->ensureVisible(currentSize.width() * 0.55, currentSize.height() * 0.55);
+}
+
+void Camera::onZoomOut()
+{
+    QSize currentSize = videoPane->size();
+    videoPane->resize(currentSize.width() * 0.9, currentSize.height() * 0.9);
+    scrollArea->setGeometry(0, 0, currentSize.width() * 0.9, currentSize.height() * 0.9);
+    scrollArea->ensureVisible(currentSize.width() * 0.45, currentSize.height() * 0.45);
 }
 
 void Camera::init()
@@ -381,6 +408,9 @@ void Camera::resizeEvent(QResizeEvent *event) {
 
     GlobalVar::instance().setWinWidth(this->width());
     GlobalVar::instance().setWinHeight(this->height());
+    
+    scrollArea->updateGeometry();
+    scrollArea->ensureVisible(videoPane->width(), videoPane->height());
 }
 
 
