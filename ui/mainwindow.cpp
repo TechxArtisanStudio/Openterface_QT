@@ -257,8 +257,8 @@ void Camera::onZoomOut()
     QSize currentSize = videoPane->size() * 0.9;
     videoPane->resize(currentSize.width(), currentSize.height());
     if (videoPane->width() <= scrollArea->width() && videoPane->height() <= scrollArea->height()) {
-        scrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-        scrollArea->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+        scrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+        scrollArea->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
     }
 }
 
