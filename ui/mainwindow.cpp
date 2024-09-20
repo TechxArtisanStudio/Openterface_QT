@@ -67,7 +67,7 @@
 #include <QMenuBar>
 #include <QPushButton>
 #include <QComboBox>
-
+#include <QScrollBar>
 #include <QGuiApplication>
 
 Q_LOGGING_CATEGORY(log_ui_mainwindow, "opf.ui.mainwindow")
@@ -125,12 +125,12 @@ Camera::Camera() : ui(new Ui::Camera), m_audioManager(new AudioManager(this)),
                                         stackedLayout(new QStackedLayout(this)),
                                         toolbarManager(new ToolbarManager(this)),
                                         statusWidget(new StatusWidget(this)),
-                                        toggleSwitch(new ToggleSwitch(this))
+                                        toggleSwitch(new ToggleSwitch(this)),
+                                        scrollArea(new QScrollArea(this))
 {
     qCDebug(log_ui_mainwindow) << "Init camera...";
     ui->setupUi(this);
     ui->statusbar->addPermanentWidget(statusWidget);
-    
     
     QWidget *centralWidget = new QWidget(this);
     centralWidget->setLayout(stackedLayout);
@@ -138,7 +138,16 @@ Camera::Camera() : ui(new Ui::Camera), m_audioManager(new AudioManager(this)),
     HelpPane *helpPane = new HelpPane;
     stackedLayout->addWidget(helpPane);
 
-    stackedLayout->addWidget(videoPane);
+    // Set size policy and minimum size for videoPane
+    // videoPane->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+    videoPane->setMinimumSize(this->frameGeometry().width(),
+    this->frameGeometry().height() - ui->statusbar->height() - ui->menubar->height()); // Example size, adjust as needed
+
+    scrollArea->setWidget(videoPane);
+    scrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    scrollArea->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    scrollArea->setBackgroundRole(QPalette::Dark);
+    stackedLayout->addWidget(scrollArea);
 
     stackedLayout->setCurrentIndex(0);
 
@@ -214,15 +223,42 @@ Camera::Camera() : ui(new Ui::Camera), m_audioManager(new AudioManager(this)),
     
     connect(toolbarManager, &ToolbarManager::functionKeyPressed, this, &Camera::onFunctionKeyPressed);
     connect(toolbarManager, &ToolbarManager::ctrlAltDelPressed, this, &Camera::onCtrlAltDelPressed);
-    connect(toolbarManager, &ToolbarManager::delPressed, this, &Camera::onDelPressed);
+    // connect(toolbarManager, &ToolbarManager::delPressed, this, &Camera::onDelPressed);
     connect(toolbarManager, &ToolbarManager::repeatingKeystrokeChanged, this, &Camera::onRepeatingKeystrokeChanged);
+    connect(toolbarManager, &ToolbarManager::specialKeyPressed, this, &Camera::onSpecialKeyPressed);
 
+    // In the Camera constructor or initialization method
+    connect(qApp, &QGuiApplication::paletteChanged, toolbarManager, &ToolbarManager::updateStyles);
     // Connect palette change signal to the slot
     iconColor = palette().color(QPalette::WindowText);
     onLastKeyPressed("");
     onLastMouseLocation(QPoint(0, 0), "");
     connect(qApp, &QApplication::paletteChanged, this, &Camera::onPaletteChanged);
     
+    // Connect zoom buttons
+    connect(ui->ZoomInButton, &QPushButton::clicked, this, &Camera::onZoomIn);
+    connect(ui->ZoomOutButton, &QPushButton::clicked, this, &Camera::onZoomOut);
+    scrollArea->ensureWidgetVisible(videoPane);
+}
+
+void Camera::onZoomIn()
+{
+    QSize currentSize = videoPane->size() * 1.1;
+    videoPane->resize(currentSize.width(), currentSize.height());
+    if (videoPane->width() > scrollArea->width() || videoPane->height() > scrollArea->height()) {
+        scrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+        scrollArea->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+    }
+}
+
+void Camera::onZoomOut()
+{
+    QSize currentSize = videoPane->size() * 0.9;
+    videoPane->resize(currentSize.width(), currentSize.height());
+    if (videoPane->width() <= scrollArea->width() && videoPane->height() <= scrollArea->height()) {
+        scrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+        scrollArea->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    }
 }
 
 void Camera::init()
@@ -381,6 +417,7 @@ void Camera::resizeEvent(QResizeEvent *event) {
 
     GlobalVar::instance().setWinWidth(this->width());
     GlobalVar::instance().setWinHeight(this->height());
+    scrollArea->ensureWidgetVisible(videoPane);
 }
 
 
@@ -912,7 +949,38 @@ void Camera::onBaudrateMenuTriggered(QAction* action)
     }
 }
 
-
+void Camera::onSpecialKeyPressed(const QString &keyText)
+{
+    // Handle the special key press
+    // For example, you might want to send this key to the remote desktop connection
+    if (keyText == ToolbarManager::KEY_ESC) {
+        HostManager::getInstance().handleFunctionKey(Qt::Key_Escape);
+    } else if (keyText == ToolbarManager::KEY_INS) {
+        HostManager::getInstance().handleFunctionKey(Qt::Key_Insert);
+    } else if (keyText == ToolbarManager::KEY_DEL) {
+        HostManager::getInstance().handleFunctionKey(Qt::Key_Delete);
+    } else if (keyText == ToolbarManager::KEY_HOME) {
+        HostManager::getInstance().handleFunctionKey(Qt::Key_Home);
+    } else if (keyText == ToolbarManager::KEY_END) {
+        HostManager::getInstance().handleFunctionKey(Qt::Key_End);
+    } else if (keyText == ToolbarManager::KEY_PGUP) {
+        HostManager::getInstance().handleFunctionKey(Qt::Key_PageUp);
+    } else if (keyText == ToolbarManager::KEY_PGDN) {
+        HostManager::getInstance().handleFunctionKey(Qt::Key_PageDown);
+    } else if (keyText == ToolbarManager::KEY_PRTSC) {
+        HostManager::getInstance().handleFunctionKey(Qt::Key_Print);
+    } else if (keyText == ToolbarManager::KEY_SCRLK) {
+        HostManager::getInstance().handleFunctionKey(Qt::Key_ScrollLock);
+    } else if (keyText == ToolbarManager::KEY_PAUSE) {
+        HostManager::getInstance().handleFunctionKey(Qt::Key_Pause);
+    } else if (keyText == ToolbarManager::KEY_NUMLK) {
+        HostManager::getInstance().handleFunctionKey(Qt::Key_NumLock);
+    } else if (keyText == ToolbarManager::KEY_CAPSLK) {
+        HostManager::getInstance().handleFunctionKey(Qt::Key_CapsLock);
+    } else if (keyText == ToolbarManager::KEY_WIN) {
+        HostManager::getInstance().handleFunctionKey(Qt::Key_Meta);
+    }
+}
 
 void Camera::imageSaved(int id, const QString &fileName)
 {

@@ -58,6 +58,7 @@
 #include <QPalette>
 #include <QStyle>
 #include <QEvent>
+#include <QScrollArea>
 
 Q_DECLARE_LOGGING_CATEGORY(log_ui_mainwindow)
 
@@ -122,6 +123,7 @@ private slots:
 
     void displayViewfinder();
     void displayCapturedImage();
+    void onSpecialKeyPressed(const QString &keyText);
     void imageSaved(int id, const QString &fileName);
 
     void updateCameras();
@@ -186,10 +188,16 @@ private slots:
 
     void onToggleSwitchStateChanged(int state);
 
+    void onZoomIn();
+    void onZoomOut();
+    
 private:
     Ui::Camera *ui;
     AudioManager *m_audioManager;
     VideoPane *videoPane;
+    QColor iconColor;
+    QScrollArea *scrollArea;
+
     QStackedLayout *stackedLayout;
     QLabel *mouseLocationLabel;
     QLabel *mouseLabel;
@@ -231,7 +239,7 @@ private:
 
     ToggleSwitch *toggleSwitch;
 
-    QColor iconColor;
+   
 };
 
 #endif
