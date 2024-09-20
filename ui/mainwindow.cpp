@@ -140,8 +140,8 @@ Camera::Camera() : ui(new Ui::Camera), m_audioManager(new AudioManager(this)),
 
     // Set size policy and minimum size for videoPane
     // videoPane->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
-    videoPane->setMinimumSize(this->frameGeometry().width(),
-    this->frameGeometry().height() - ui->statusbar->height() - ui->menubar->height()); // Example size, adjust as needed
+    videoPane->setMinimumSize(this->width(),
+    this->height() - ui->statusbar->height() - ui->menubar->height()); // must minus the statusbar and menubar height
 
     scrollArea->setWidget(videoPane);
     scrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
@@ -238,6 +238,7 @@ Camera::Camera() : ui(new Ui::Camera), m_audioManager(new AudioManager(this)),
     // Connect zoom buttons
     connect(ui->ZoomInButton, &QPushButton::clicked, this, &Camera::onZoomIn);
     connect(ui->ZoomOutButton, &QPushButton::clicked, this, &Camera::onZoomOut);
+    connect(ui->ZoomReductionButton, &QPushButton::clicked, this, &Camera::onZoomReduction);
     scrollArea->ensureWidgetVisible(videoPane);
 }
 
@@ -259,6 +260,13 @@ void Camera::onZoomOut()
         scrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
         scrollArea->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     }
+}
+
+void Camera::onZoomReduction()
+{
+    videoPane->resize(this->width() * 0.9, (this->height() - ui->statusbar->height() - ui->menubar->height()) * 0.9);
+    scrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    scrollArea->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
 }
 
 void Camera::init()
@@ -417,7 +425,11 @@ void Camera::resizeEvent(QResizeEvent *event) {
 
     GlobalVar::instance().setWinWidth(this->width());
     GlobalVar::instance().setWinHeight(this->height());
-    scrollArea->ensureWidgetVisible(videoPane);
+    videoPane->setMinimumSize(this->width(),
+        this->height() - ui->statusbar->height() - ui->menubar->height());
+    videoPane->resize(this->width(), this->height() - ui->statusbar->height() - ui->menubar->height());
+    scrollArea->resize(this->width(), this->height() - ui->statusbar->height() - ui->menubar->height());
+    // scrollArea->ensureWidgetVisible(videoPane);
 }
 
 
