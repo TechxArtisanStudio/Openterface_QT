@@ -127,7 +127,7 @@ MainWindow::MainWindow() : ui(new Ui::MainWindow), m_audioManager(new AudioManag
                                         statusWidget(new StatusWidget(this)),
                                         toggleSwitch(new ToggleSwitch(this)),
                                         m_cameraManager(new CameraManager(this)),
-                                        m_inputHandler(new InputHandler(this))
+                                        m_inputHandler(new InputHandler(this)),
                                         scrollArea(new QScrollArea(this))
 {
     qCDebug(log_ui_mainwindow) << "Init camera...";
@@ -228,32 +228,21 @@ MainWindow::MainWindow() : ui(new Ui::MainWindow), m_audioManager(new AudioManag
 
     connect(m_cameraManager, &CameraManager::cameraActiveChanged, this, &MainWindow::updateCameraActive);
     connect(m_cameraManager, &CameraManager::cameraError, this, &MainWindow::displayCameraError);
-    connect(m_cameraManager, &CameraManager::imageCaptured, this, &MainWindow::processCapturedImage);
-    
-    connect(toolbarManager, &ToolbarManager::functionKeyPressed, this, &Camera::onFunctionKeyPressed);
-    connect(toolbarManager, &ToolbarManager::ctrlAltDelPressed, this, &Camera::onCtrlAltDelPressed);
-    // connect(toolbarManager, &ToolbarManager::delPressed, this, &Camera::
-                                          
-                                          );
-    connect(toolbarManager, &ToolbarManager::repeatingKeystrokeChanged, this, &Camera::onRepeatingKeystrokeChanged);
-    connect(toolbarManager, &ToolbarManager::specialKeyPressed, this, &Camera::onSpecialKeyPressed);
+    connect(m_cameraManager, &CameraManager::imageCaptured, this, &MainWindow::processCapturedImage);                                         
 
-    // In the Camera constructor or initialization method
-    connect(qApp, &QGuiApplication::paletteChanged, toolbarManager, &ToolbarManager::updateStyles);
     // Connect palette change signal to the slot
     iconColor = palette().color(QPalette::WindowText);
     onLastKeyPressed("");
     onLastMouseLocation(QPoint(0, 0), "");
-    connect(qApp, &QApplication::paletteChanged, this, &Camera::onPaletteChanged);
-    
+
     // Connect zoom buttons
-    connect(ui->ZoomInButton, &QPushButton::clicked, this, &Camera::onZoomIn);
-    connect(ui->ZoomOutButton, &QPushButton::clicked, this, &Camera::onZoomOut);
-    connect(ui->ZoomReductionButton, &QPushButton::clicked, this, &Camera::onZoomReduction);
+    connect(ui->ZoomInButton, &QPushButton::clicked, this, &MainWindow::onZoomIn);
+    connect(ui->ZoomOutButton, &QPushButton::clicked, this, &MainWindow::onZoomOut);
+    connect(ui->ZoomReductionButton, &QPushButton::clicked, this, &MainWindow::onZoomReduction);
     scrollArea->ensureWidgetVisible(videoPane);
 }
 
-void Camera::onZoomIn()
+void MainWindow::onZoomIn()
 {
     QSize currentSize = videoPane->size() * 1.1;
     videoPane->resize(currentSize.width(), currentSize.height());
@@ -263,7 +252,7 @@ void Camera::onZoomIn()
     }
 }
 
-void Camera::onZoomOut()
+void MainWindow::onZoomOut()
 {
     QSize currentSize = videoPane->size() * 0.9;
     videoPane->resize(currentSize.width(), currentSize.height());
@@ -273,7 +262,7 @@ void Camera::onZoomOut()
     }
 }
 
-void Camera::onZoomReduction()
+void MainWindow::onZoomReduction()
 {
     videoPane->resize(this->width() * 0.9, (this->height() - ui->statusbar->height() - ui->menubar->height()) * 0.9);
     scrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
