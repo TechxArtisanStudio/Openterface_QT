@@ -131,7 +131,7 @@ private slots:
 
     void displayViewfinder();
     void displayCapturedImage();
-    void onSpecialKeyPressed(const QString &keyText);
+
     void imageSaved(int id, const QString &fileName);
 
     void updateCameras();
