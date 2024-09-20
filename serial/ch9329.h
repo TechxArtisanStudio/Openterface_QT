@@ -2,6 +2,7 @@
 #define CH9329_H
 
 #include <cstdint>
+#include <QByteArray>
 #include <QDebug>
 
 const QByteArray MOUSE_ABS_ACTION_PREFIX = QByteArray::fromHex("57 AB 00 04 07 02");
@@ -286,7 +287,7 @@ struct CmdResetResult {
 };
 
 
-static void dumpError(unsigned char status, const QByteArray &data) {
+[[maybe_unused]] static void dumpError(unsigned char status, const QByteArray &data) {
     if (status != 0x00) {
         switch (status)
         {

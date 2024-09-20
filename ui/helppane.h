@@ -20,7 +20,12 @@
 * ========================================================================== *
 */
 
+#ifndef HELPPANE_H
+#define HELPPANE_H
+
 #include <QWidget>
+#include <QVBoxLayout>
+#include <QLabel>
 
 class HelpPane : public QWidget
 {
@@ -30,5 +35,12 @@ public:
     explicit HelpPane(QWidget *parent = nullptr);
 
 protected:
-    void paintEvent(QPaintEvent *event) override;
+    void paintEvent(QPaintEvent *event) override;  // Add this line
+
+private:
+    QVBoxLayout *layout;
+    QLabel *titleLabel;
+    QLabel *contentLabel;
 };
+
+#endif // HELPPANE_H
