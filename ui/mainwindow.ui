@@ -86,6 +86,14 @@
       </widget>
      </item>
      <item>
+      <widget class="QPushButton" name="ZoomReductionButton">
+       <property name="icon">
+        <iconset resource="mainwindow.qrc">
+         <normaloff>:/images/zoom_reduction.svg</normaloff>:/images/zoom_reduction.svg</iconset>
+       </property>
+      </widget>
+     </item>
+     <item>
       <widget class="QPushButton" name="virtualKeyboardButton">
        <property name="icon">
         <iconset resource="mainwindow.qrc">
