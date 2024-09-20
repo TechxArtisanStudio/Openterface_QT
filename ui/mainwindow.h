@@ -190,6 +190,7 @@ private slots:
 
     void onZoomIn();
     void onZoomOut();
+    void onZoomReduction();
     
 private:
     Ui::Camera *ui;
