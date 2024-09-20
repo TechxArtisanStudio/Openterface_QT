@@ -67,7 +67,7 @@
 #include <QMenuBar>
 #include <QPushButton>
 #include <QComboBox>
-
+#include <QScrollBar>
 #include <QGuiApplication>
 
 Q_LOGGING_CATEGORY(log_ui_mainwindow, "opf.ui.mainwindow")
@@ -108,18 +108,29 @@ QPixmap recolorSvg(const QString &svgPath, const QColor &color, const QSize &siz
     return pixmap;
 }
 
+QColor getContrastingColor(const QColor &color) {
+    int d = 0;
+    // Calculate the perceptive luminance (Y) - human eye favors green color
+    double luminance = (0.299 * color.red() + 0.587 * color.green() + 0.114 * color.blue()) / 255;
+    if (luminance > 0.5) {
+        d = 0; // bright colors - black font
+    } else {
+        d = 255; // dark colors - white font
+    }
+    return QColor(d, d, d);
+}
+
 Camera::Camera() : ui(new Ui::Camera), m_audioManager(new AudioManager(this)),
                                         videoPane(new VideoPane(this)),
                                         stackedLayout(new QStackedLayout(this)),
                                         toolbarManager(new ToolbarManager(this)),
                                         statusWidget(new StatusWidget(this)),
-                                        toggleSwitch(new ToggleSwitch(this))
+                                        toggleSwitch(new ToggleSwitch(this)),
+                                        scrollArea(new QScrollArea(this))
 {
     qCDebug(log_ui_mainwindow) << "Init camera...";
     ui->setupUi(this);
     ui->statusbar->addPermanentWidget(statusWidget);
-    
-    
     
     QWidget *centralWidget = new QWidget(this);
     centralWidget->setLayout(stackedLayout);
@@ -127,7 +138,16 @@ Camera::Camera() : ui(new Ui::Camera), m_audioManager(new AudioManager(this)),
     HelpPane *helpPane = new HelpPane;
     stackedLayout->addWidget(helpPane);
 
-    stackedLayout->addWidget(videoPane);
+    // Set size policy and minimum size for videoPane
+    // videoPane->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+    videoPane->setMinimumSize(this->width(),
+    this->height() - ui->statusbar->height() - ui->menubar->height()); // must minus the statusbar and menubar height
+
+    scrollArea->setWidget(videoPane);
+    scrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    scrollArea->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    scrollArea->setBackgroundRole(QPalette::Dark);
+    stackedLayout->addWidget(scrollArea);
 
     stackedLayout->setCurrentIndex(0);
 
@@ -200,14 +220,53 @@ Camera::Camera() : ui(new Ui::Camera), m_audioManager(new AudioManager(this)),
 
     addToolBar(Qt::TopToolBarArea, toolbarManager->getToolbar());
     toolbarManager->getToolbar()->setVisible(false);
-
+    
     connect(toolbarManager, &ToolbarManager::functionKeyPressed, this, &Camera::onFunctionKeyPressed);
     connect(toolbarManager, &ToolbarManager::ctrlAltDelPressed, this, &Camera::onCtrlAltDelPressed);
+    // connect(toolbarManager, &ToolbarManager::delPressed, this, &Camera::onDelPressed);
     connect(toolbarManager, &ToolbarManager::repeatingKeystrokeChanged, this, &Camera::onRepeatingKeystrokeChanged);
     connect(toolbarManager, &ToolbarManager::specialKeyPressed, this, &Camera::onSpecialKeyPressed);
 
     // In the Camera constructor or initialization method
     connect(qApp, &QGuiApplication::paletteChanged, toolbarManager, &ToolbarManager::updateStyles);
+    // Connect palette change signal to the slot
+    iconColor = palette().color(QPalette::WindowText);
+    onLastKeyPressed("");
+    onLastMouseLocation(QPoint(0, 0), "");
+    connect(qApp, &QApplication::paletteChanged, this, &Camera::onPaletteChanged);
+    
+    // Connect zoom buttons
+    connect(ui->ZoomInButton, &QPushButton::clicked, this, &Camera::onZoomIn);
+    connect(ui->ZoomOutButton, &QPushButton::clicked, this, &Camera::onZoomOut);
+    connect(ui->ZoomReductionButton, &QPushButton::clicked, this, &Camera::onZoomReduction);
+    scrollArea->ensureWidgetVisible(videoPane);
+}
+
+void Camera::onZoomIn()
+{
+    QSize currentSize = videoPane->size() * 1.1;
+    videoPane->resize(currentSize.width(), currentSize.height());
+    if (videoPane->width() > scrollArea->width() || videoPane->height() > scrollArea->height()) {
+        scrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+        scrollArea->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+    }
+}
+
+void Camera::onZoomOut()
+{
+    QSize currentSize = videoPane->size() * 0.9;
+    videoPane->resize(currentSize.width(), currentSize.height());
+    if (videoPane->width() <= scrollArea->width() && videoPane->height() <= scrollArea->height()) {
+        scrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+        scrollArea->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    }
+}
+
+void Camera::onZoomReduction()
+{
+    videoPane->resize(this->width() * 0.9, (this->height() - ui->statusbar->height() - ui->menubar->height()) * 0.9);
+    scrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    scrollArea->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
 }
 
 void Camera::init()
@@ -215,7 +274,7 @@ void Camera::init()
     qCDebug(log_ui_mainwindow) << "Camera init...";
 #ifdef QT_FEATURE_permissions //Permissions API not compatible with Qt < 6.5 and will cause compilation failure on expanding macro in qtconfigmacros.h
 #if QT_CONFIG(permissions)
-    // camera
+    // camera 
     QCameraPermission cameraPermission;
     switch (qApp->checkPermission(cameraPermission)) {
     case Qt::PermissionStatus::Undetermined:
@@ -366,6 +425,11 @@ void Camera::resizeEvent(QResizeEvent *event) {
 
     GlobalVar::instance().setWinWidth(this->width());
     GlobalVar::instance().setWinHeight(this->height());
+    videoPane->setMinimumSize(this->width(),
+        this->height() - ui->statusbar->height() - ui->menubar->height());
+    videoPane->resize(this->width(), this->height() - ui->statusbar->height() - ui->menubar->height());
+    scrollArea->resize(this->width(), this->height() - ui->statusbar->height() - ui->menubar->height());
+    // scrollArea->ensureWidgetVisible(videoPane);
 }
 
 
@@ -599,12 +663,10 @@ void Camera::onToggleVirtualKeyboard()
     bool isVisible = toolbarManager->getToolbar()->isVisible();
     toolbarManager->getToolbar()->setVisible(!isVisible);
 
-    // Toggle the icon and tooltip
+    // Toggle the icon
     QString iconPath = isVisible ? ":/images/keyboard-down.svg" : ":/images/keyboard-up.svg";
-    QString tooltip = isVisible ? "Open virtual keyboard." : "Close virtual keyboard.";
     QIcon icon(iconPath);
     ui->virtualKeyboardButton->setIcon(icon);
-    ui->virtualKeyboardButton->setToolTip(tooltip);
 }
 
 void Camera::popupMessage(QString message)
@@ -794,9 +856,21 @@ void Camera::onCtrlAltDelPressed()
     HostManager::getInstance().sendCtrlAltDel();
 }
 
+void Camera::onDelPressed()
+{
+    HostManager::getInstance().handleFunctionKey(Qt::Key_Delete);
+}
+
 void Camera::onRepeatingKeystrokeChanged(int interval)
 {
     HostManager::getInstance().setRepeatingKeystroke(interval);
+}
+
+void Camera::onPaletteChanged()
+{
+    iconColor = getContrastingColor(palette().color(QPalette::WindowText));
+    onLastKeyPressed("");
+    onLastMouseLocation(QPoint(0, 0), "");
 }
 
 void Camera::record()
@@ -920,8 +994,6 @@ void Camera::onSpecialKeyPressed(const QString &keyText)
     }
 }
 
-
-
 void Camera::imageSaved(int id, const QString &fileName)
 {
     Q_UNUSED(id);
@@ -1005,19 +1077,9 @@ void Camera::onLastKeyPressed(const QString& key) {
     }
 
     // Load the SVG into a QPixmap
-    QColor iconColor = palette().color(QPalette::WindowText);
+    // iconColor = palette().color(QPalette::WindowText);
+    // qDebug() << "keyboard iconColor: " << iconColor;
     QPixmap pixmap = recolorSvg(svgPath, iconColor, QSize(18, 18)); // Adjust the size as needed
-
-    // If a key is pressed, add a red dot in the middle
-    // if (!key.isEmpty()) {
-    //     QPainter painter(&pixmap);
-    //     painter.setBrush(Qt::red);
-    //     painter.setPen(Qt::NoPen);
-    //     int dotSize = 6; // Size of the red dot
-    //     int x = (pixmap.width() - dotSize) / 2;
-    //     int y = (pixmap.height() - dotSize) / 2;
-    //     painter.drawEllipse(x, y, dotSize, dotSize);
-    // }
 
     // Set the QPixmap to the QLabel
     keyPressedLabel->setPixmap(pixmap);
@@ -1038,7 +1100,8 @@ void Camera::onLastMouseLocation(const QPoint& location, const QString& mouseEve
     }
 
     // Load the SVG into a QPixmap
-    QColor iconColor = palette().color(QPalette::WindowText);
+    // iconColor = palette().color(QPalette::WindowText);
+    // qDebug() << "mouse iconColor: " << iconColor;
     QPixmap pixmap = recolorSvg(svgPath, iconColor, QSize(12, 12)); // Adjust the size as needed
 
     // Set the QPixmap to the QLabel
@@ -1052,13 +1115,11 @@ void Camera::onSwitchableUsbToggle(const bool isToTarget) {
         ui->actionTo_Host->setChecked(false);
         ui->actionTo_Target->setChecked(true);
         toggleSwitch->setChecked(true);
-        toggleSwitch->setToolTip("Switch USB to Host.");
     } else {
         qDebug() << "UI Switchable USB to host...";
         ui->actionTo_Host->setChecked(true);
         ui->actionTo_Target->setChecked(false);
         toggleSwitch->setChecked(false);
-        toggleSwitch->setToolTip("Switch USB to Target.");
     }
     SerialPortManager::getInstance().restartSwitchableUSB();
 }
