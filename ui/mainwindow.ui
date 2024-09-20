@@ -50,7 +50,7 @@
      <x>0</x>
      <y>0</y>
      <width>1280</width>
-     <height>21</height>
+     <height>20</height>
     </rect>
    </property>
    <widget class="QWidget" name="cornerWidget">
@@ -58,7 +58,7 @@
      <rect>
       <x>0</x>
       <y>0</y>
-      <width>98</width>
+      <width>190</width>
       <height>28</height>
      </rect>
     </property>
@@ -70,10 +70,31 @@
     </property>
     <layout class="QHBoxLayout" name="horizontalLayout">
      <item>
-      <widget class="QPushButton" name="virtualKeyboardButton">
-       <property name="toolTip">
-        <string>Open virtual keyboard.</string>
+      <widget class="QPushButton" name="ZoomInButton">
+       <property name="icon">
+        <iconset resource="mainwindow.qrc">
+         <normaloff>:/images/zoom_in.svg</normaloff>:/images/zoom_in.svg</iconset>
        </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="ZoomOutButton">
+       <property name="icon">
+        <iconset resource="mainwindow.qrc">
+         <normaloff>:/images/zoom_out.svg</normaloff>:/images/zoom_out.svg</iconset>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="ZoomReductionButton">
+       <property name="icon">
+        <iconset resource="mainwindow.qrc">
+         <normaloff>:/images/zoom_reduction.svg</normaloff>:/images/zoom_reduction.svg</iconset>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="virtualKeyboardButton">
        <property name="icon">
         <iconset resource="mainwindow.qrc">
          <normaloff>:/images/keyboard.svg</normaloff>:/images/keyboard.svg</iconset>
@@ -82,9 +103,6 @@
      </item>
      <item>
       <widget class="QPushButton" name="pasteButton">
-       <property name="toolTip">
-        <string>Paste text from host clipboard to target computer.</string>
-       </property>
        <property name="icon">
         <iconset resource="mainwindow.qrc">
          <normaloff>:/images/paste.svg</normaloff>:/images/paste.svg</iconset>
@@ -93,9 +111,6 @@
      </item>
      <item>
       <widget class="QPushButton" name="screensaverButton">
-       <property name="toolTip">
-        <string>Start mouse screensaver. Move the mouse to stop.</string>
-       </property>
        <property name="icon">
         <iconset resource="mainwindow.qrc">
          <normaloff>:/images/screensaver.svg</normaloff>:/images/screensaver.svg</iconset>
