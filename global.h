@@ -118,6 +118,7 @@ private:
     bool absolute_mouse_mode = true;
     std::string captureCardFirmwareVersion;
 
+
     bool _isSwitchOnTarget = true;
 
     bool toolbarVisible = true;
