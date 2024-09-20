@@ -66,6 +66,7 @@
 #include <QPalette>
 #include <QStyle>
 #include <QEvent>
+#include <QScrollArea>
 
 Q_DECLARE_LOGGING_CATEGORY(log_ui_mainwindow)
 
@@ -130,6 +131,7 @@ private slots:
 
     void displayViewfinder();
     void displayCapturedImage();
+    void onSpecialKeyPressed(const QString &keyText);
     void imageSaved(int id, const QString &fileName);
 
     void updateCameras();
@@ -154,7 +156,7 @@ private slots:
 
     // void toggleToolbar();
 
-    // void toggleToolbar();
+    void onPaletteChanged();
 
 protected:
     void keyPressEvent(QKeyEvent *event) override;
@@ -193,14 +195,22 @@ private slots:
 
     void onFunctionKeyPressed(int key);
     void onCtrlAltDelPressed();
+    
     void onBaudrateMenuTriggered(QAction* action);
 
     void onToggleSwitchStateChanged(int state);
 
+    void onZoomIn();
+    void onZoomOut();
+    void onZoomReduction();
+    
 private:
     Ui::MainWindow *ui;
     AudioManager *m_audioManager;
     VideoPane *videoPane;
+    QColor iconColor;
+    QScrollArea *scrollArea;
+
     QStackedLayout *stackedLayout;
     QLabel *mouseLocationLabel;
     QLabel *mouseLabel;
