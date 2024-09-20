@@ -1,5 +1,6 @@
 #include "toolbarmanager.h"
 #include "../global.h"
+#include "host/HostManager.h"
 #include <QHBoxLayout>
 #include <QWidget>
 #include <QToolButton>
@@ -159,13 +160,13 @@ void ToolbarManager::onFunctionButtonClicked()
         QString buttonText = button->text();
         int functionKeyNumber = buttonText.mid(1).toInt();
         int qtKeyCode = Qt::Key_F1 + functionKeyNumber - 1;
-        emit functionKeyPressed(qtKeyCode);
+        HostManager::getInstance().handleFunctionKey(qtKeyCode);
     }
 }
 
 void ToolbarManager::onCtrlAltDelClicked()
 {
-    emit ctrlAltDelPressed();
+    HostManager::getInstance().sendCtrlAltDel();
 }
 
 void ToolbarManager::onRepeatingKeystrokeChanged(int index)
@@ -173,7 +174,7 @@ void ToolbarManager::onRepeatingKeystrokeChanged(int index)
     QComboBox *comboBox = qobject_cast<QComboBox*>(sender());
     if (comboBox) {
         int interval = comboBox->itemData(index).toInt();
-        emit repeatingKeystrokeChanged(interval);
+        HostManager::getInstance().setRepeatingKeystroke(interval);
     }
 }
 
@@ -182,7 +183,33 @@ void ToolbarManager::onSpecialKeyClicked()
     QPushButton *button = qobject_cast<QPushButton*>(sender());
     if (button) {
         QString keyText = button->text();
-        emit specialKeyPressed(keyText);
+        if (keyText == ToolbarManager::KEY_ESC) {
+            HostManager::getInstance().handleFunctionKey(Qt::Key_Escape);
+        } else if (keyText == ToolbarManager::KEY_INS) {
+            HostManager::getInstance().handleFunctionKey(Qt::Key_Insert);
+        } else if (keyText == ToolbarManager::KEY_DEL) {
+            HostManager::getInstance().handleFunctionKey(Qt::Key_Delete);
+        } else if (keyText == ToolbarManager::KEY_HOME) {
+            HostManager::getInstance().handleFunctionKey(Qt::Key_Home);
+        } else if (keyText == ToolbarManager::KEY_END) {
+            HostManager::getInstance().handleFunctionKey(Qt::Key_End);
+        } else if (keyText == ToolbarManager::KEY_PGUP) {
+            HostManager::getInstance().handleFunctionKey(Qt::Key_PageUp);
+        } else if (keyText == ToolbarManager::KEY_PGDN) {
+            HostManager::getInstance().handleFunctionKey(Qt::Key_PageDown);
+        } else if (keyText == ToolbarManager::KEY_PRTSC) {
+            HostManager::getInstance().handleFunctionKey(Qt::Key_Print);
+        } else if (keyText == ToolbarManager::KEY_SCRLK) {
+            HostManager::getInstance().handleFunctionKey(Qt::Key_ScrollLock);
+        } else if (keyText == ToolbarManager::KEY_PAUSE) {
+            HostManager::getInstance().handleFunctionKey(Qt::Key_Pause);
+        } else if (keyText == ToolbarManager::KEY_NUMLK) {
+            HostManager::getInstance().handleFunctionKey(Qt::Key_NumLock);
+        } else if (keyText == ToolbarManager::KEY_CAPSLK) {
+            HostManager::getInstance().handleFunctionKey(Qt::Key_CapsLock);
+        } else if (keyText == ToolbarManager::KEY_WIN) {
+            HostManager::getInstance().handleFunctionKey(Qt::Key_Meta);
+        }
     }
 }
 

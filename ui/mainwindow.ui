@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <ui version="4.0">
- <class>Camera</class>
- <widget class="QMainWindow" name="Camera">
+ <class>MainWindow</class>
+ <widget class="QMainWindow" name="MainWindow">
   <property name="geometry">
    <rect>
     <x>0</x>
@@ -130,7 +130,7 @@
      <addaction name="actionResetSerialPort"/>
      <addaction name="actionResetHID"/>
      <addaction name="actionFactory_reset_HID"/>
-     <addaction name="actionDebug"/>
+     <addaction name="actionSerialConsole"/>
     </widget>
     <widget class="QMenu" name="menuBaudrate">
      <property name="title">
@@ -165,7 +165,6 @@
     <property name="title">
      <string>Edit</string>
     </property>
-    <addaction name="actionCopy"/>
     <addaction name="actionPaste"/>
    </widget>
    <addaction name="menuFile"/>
@@ -204,7 +203,7 @@
     <string>Reset Serial Port</string>
    </property>
   </action>
-  <action name="actionDebug">
+  <action name="actionSerialConsole">
    <property name="text">
     <string>Serial Console</string>
    </property>
@@ -222,11 +221,6 @@
   <action name="actionPreferences">
    <property name="text">
     <string>Preferences</string>
-   </property>
-  </action>
-  <action name="actionDebug">
-   <property name="text">
-    <string>Serial Console</string>
    </property>
   </action>
   <action name="actionOfficeWeb">
@@ -271,14 +265,7 @@
     <string>Paste clipboard content to target</string>
    </property>
   </action>
-  <action name="actionCopy">
-   <property name="enabled">
-    <bool>false</bool>
-   </property>
-   <property name="text">
-    <string>Copy</string>
-   </property>
-  </action>
+
   <actiongroup name="actionGroup">
    <action name="action115200">
     <property name="checkable">
@@ -344,7 +331,7 @@
   <connection>
    <sender>actionExit</sender>
    <signal>triggered()</signal>
-   <receiver>Camera</receiver>
+   <receiver>MainWindow</receiver>
    <slot>close()</slot>
    <hints>
     <hint type="sourcelabel">
@@ -360,7 +347,7 @@
   <connection>
    <sender>actionStartCamera</sender>
    <signal>triggered()</signal>
-   <receiver>Camera</receiver>
+   <receiver>MainWindow</receiver>
    <slot>startCamera()</slot>
    <hints>
     <hint type="sourcelabel">
@@ -376,7 +363,7 @@
   <connection>
    <sender>actionStopCamera</sender>
    <signal>triggered()</signal>
-   <receiver>Camera</receiver>
+   <receiver>MainWindow</receiver>
    <slot>stopCamera()</slot>
    <hints>
     <hint type="sourcelabel">
@@ -392,7 +379,7 @@
   <connection>
    <sender>actionPreferences</sender>
    <signal>triggered()</signal>
-   <receiver>Camera</receiver>
+   <receiver>MainWindow</receiver>
    <slot>configureSettings()</slot>
    <hints>
     <hint type="sourcelabel">
@@ -408,7 +395,7 @@
   <connection>
    <sender>actionOfficeWeb</sender>
    <signal>triggered()</signal>
-   <receiver>Camera</receiver>
+   <receiver>MainWindow</receiver>
    <slot>aboutLink()</slot>
    <hints>
     <hint type="sourcelabel">
@@ -424,7 +411,7 @@
   <connection>
    <sender>actionPurchase</sender>
    <signal>triggered()</signal>
-   <receiver>Camera</receiver>
+   <receiver>MainWindow</receiver>
    <slot>purchaseLink()</slot>
    <hints>
     <hint type="sourcelabel">
@@ -440,7 +427,7 @@
   <connection>
    <sender>actionFeedback</sender>
    <signal>triggered()</signal>
-   <receiver>Camera</receiver>
+   <receiver>MainWindow</receiver>
    <slot>feedbackLink()</slot>
    <hints>
     <hint type="sourcelabel">
@@ -456,7 +443,7 @@
   <connection>
    <sender>actionAbout</sender>
    <signal>triggered()</signal>
-   <receiver>Camera</receiver>
+   <receiver>MainWindow</receiver>
    <slot>versionInfo()</slot>
    <hints>
     <hint type="sourcelabel">
@@ -470,9 +457,9 @@
    </hints>
   </connection>
   <connection>
-   <sender>actionDebug</sender>
+   <sender>actionSerialConsole</sender>
    <signal>triggered()</signal>
-   <receiver>Camera</receiver>
+   <receiver>MainWindow</receiver>
    <slot>debugSerialPort()</slot>
    <hints>
     <hint type="sourcelabel">
