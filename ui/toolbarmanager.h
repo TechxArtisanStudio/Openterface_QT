@@ -50,6 +50,7 @@ public:
 
     // Add this line to declare the toggleToolbar function
     void toggleToolbar();
+    void updateStyles();
 
 private:
     static const QString commonButtonStyle;
