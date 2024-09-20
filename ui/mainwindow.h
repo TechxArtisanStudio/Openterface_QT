@@ -20,9 +20,15 @@
 * ========================================================================== *
 */
 
-#ifndef CAMERA_H
-#define CAMERA_H
+#ifndef MAINWINDOW_H
+#define MAINWINDOW_H
 
+// Include Qt headers first
+#include <QtWidgets>
+#include <QtMultimedia>
+#include <QtMultimediaWidgets>
+
+// Then include your custom headers
 #include "../host/audiomanager.h"
 #include "ui/statuswidget.h"
 #include "ui/statusevents.h"
@@ -31,6 +37,8 @@
 #include "toolbarmanager.h"
 #include "ui/serialportdebugdialog.h"
 #include "ui/settingdialog.h"
+#include "ui/cameramanager.h"
+#include "inputhandler.h"
 
 #include <QAudioInput>
 #include <QAudioOutput>
@@ -64,7 +72,7 @@ Q_DECLARE_LOGGING_CATEGORY(log_ui_mainwindow)
 
 QT_BEGIN_NAMESPACE
 namespace Ui {
-class Camera;
+class MainWindow;
 }
 class QActionGroup;
 QT_END_NAMESPACE
@@ -73,12 +81,12 @@ class MetaDataDialog;
 
 QPixmap recolorSvg(const QString &svgPath, const QColor &color, const QSize &size);
 
-class Camera : public QMainWindow, public StatusEventCallback
+class MainWindow : public QMainWindow, public StatusEventCallback
 {
     Q_OBJECT
 
 public:
-    Camera();
+    MainWindow();
     void calculate_video_position();
     void stop();
 
@@ -152,6 +160,10 @@ private slots:
 
 protected:
     void keyPressEvent(QKeyEvent *event) override;
+    void keyReleaseEvent(QKeyEvent *event) override;  // Add this line
+    void mousePressEvent(QMouseEvent *event) override;   // Add this line
+    void mouseReleaseEvent(QMouseEvent *event) override; // Add this line
+    void mouseMoveEvent(QMouseEvent *event) override;    // Add this line
     void closeEvent(QCloseEvent *event) override;
     void resizeEvent(QResizeEvent* event) override;
     void moveEvent(QMoveEvent *event) override;
@@ -183,7 +195,7 @@ private slots:
 
     void onFunctionKeyPressed(int key);
     void onCtrlAltDelPressed();
-    void onDelPressed();
+    
     void onBaudrateMenuTriggered(QAction* action);
 
     void onToggleSwitchStateChanged(int state);
@@ -193,7 +205,7 @@ private slots:
     void onZoomReduction();
     
 private:
-    Ui::Camera *ui;
+    Ui::MainWindow *ui;
     AudioManager *m_audioManager;
     VideoPane *videoPane;
     QColor iconColor;
@@ -205,8 +217,7 @@ private:
     QLabel *keyPressedLabel;
     QLabel *keyLabel;
     QToolBar *toolbar;
-
-    //QActionGroup *videoDevicesGroup = nullptr;
+    ToolbarManager *toolbarManager; // Moved up in the declaration orde r
 
     QMediaDevices m_source;
     QScopedPointer<QImageCapture> m_imageCapture;
@@ -233,14 +244,12 @@ private:
 
     void onRepeatingKeystrokeToggled(bool checked);
     QComboBox *repeatingKeystrokeComboBox;
-
-    ToolbarManager *toolbarManager;
-
+    
     void updateBaudrateMenu(int baudrate);
-
     ToggleSwitch *toggleSwitch;
 
-   
+    CameraManager *m_cameraManager;
+    InputHandler *m_inputHandler;
 };
 
-#endif
+#endif // MAINWINDOW_H
