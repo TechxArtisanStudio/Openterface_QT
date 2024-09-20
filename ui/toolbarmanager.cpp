@@ -1,6 +1,8 @@
 #include "toolbarmanager.h"
 #include <QHBoxLayout>
 #include <QWidget>
+#include <QToolButton>
+#include <QStyle>
 
 ToolbarManager::ToolbarManager(QWidget *parent) : QObject(parent)
 {
@@ -10,7 +12,7 @@ ToolbarManager::ToolbarManager(QWidget *parent) : QObject(parent)
 void ToolbarManager::setupToolbar()
 {
     toolbar = new QToolBar(qobject_cast<QWidget*>(parent()));
-    toolbar->setStyleSheet("QToolBar { background-color: rgba(50, 50, 50, 255); border: none; }"); // Darker background for better contrast
+    toolbar->setStyleSheet("QToolBar { background-color: palette(window); border: none; }");
     toolbar->setFloatable(false);
     toolbar->setMovable(false);
 
@@ -51,15 +53,15 @@ void ToolbarManager::setupToolbar()
     QComboBox *repeatingKeystrokeComboBox = new QComboBox(toolbar);
     repeatingKeystrokeComboBox->setStyleSheet(
         "QComboBox { "
-        "   border: 1px solid rgba(255, 255, 255, 150); " // Lighter border for better contrast
-        "   background-color: rgba(100, 100, 100, 255); " // Darker background for better contrast
-        "   color: white; " // White text for better contrast
+        "   border: 1px solid palette(mid); "
+        "   background-color: palette(button); "
+        "   color: palette(text); "
         "   padding: 2px; "
         "   margin: 2px; "
         "} "
         "QComboBox QAbstractItemView { "
-        "   background-color: rgba(100, 100, 100, 255); " // Darker background for better contrast
-        "   color: white; " // White text for better contrast
+        "   background-color: palette(base); "
+        "   color: palette(text); "
         "}"
     );
     repeatingKeystrokeComboBox->addItem("No repeating", 0);

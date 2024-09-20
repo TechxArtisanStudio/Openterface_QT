@@ -256,10 +256,10 @@ void Camera::onZoomOut()
         scrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
         scrollArea->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     }
-    connect(toolbarManager, &ToolbarManager::specialKeyPressed, this, &Camera::onSpecialKeyPressed);
+    // connect(toolbarManager, &ToolbarManager::specialKeyPressed, this, &Camera::onSpecialKeyPressed);
 
     // In the Camera constructor or initialization method
-    connect(qApp, &QGuiApplication::paletteChanged, toolbarManager, &ToolbarManager::updateStyles);
+    // connect(qApp, &QGuiApplication::paletteChanged, toolbarManager, &ToolbarManager::updateStyles);
 }
 
 void Camera::init()
