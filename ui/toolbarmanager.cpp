@@ -2,18 +2,20 @@
 #include "../global.h"
 #include <QHBoxLayout>
 #include <QWidget>
+#include <QToolButton>
+#include <QStyle>
 
 const QString ToolbarManager::commonButtonStyle = 
         "QPushButton { "
-        "   border: 1px solid rgba(255, 255, 255, 150); " // Lighter border for better contrast
-        "   background-color: rgba(100, 100, 100, 255); " // Darker background for better contrast
-        "   color: white; " // White text for better contrast
+        "   border: 1px solid palette(mid); "
+        "   background-color: palette(button); "
+        "   color: palette(buttonText); "
         "   padding: 2px; "
         "   margin: 2px; "
         "} "
         "QPushButton:pressed { "
-        "   background-color: rgba(80, 80, 80, 255); " // Darker background for better contrast
-        "   border: 1px solid rgba(255, 255, 255, 200); " // Lighter border for better contrast
+        "   background-color: palette(dark); "
+        "   border: 1px solid palette(shadow); "
         "}";
 
 // Define constants for all special keys
@@ -80,7 +82,7 @@ ToolbarManager::ToolbarManager(QWidget *parent) : QObject(parent)
 void ToolbarManager::setupToolbar()
 {
     toolbar = new QToolBar(qobject_cast<QWidget*>(parent()));
-    toolbar->setStyleSheet("QToolBar { background-color: rgba(50, 50, 50, 255); border: none; }"); // Darker background for better contrast
+    toolbar->setStyleSheet("QToolBar { background-color: palette(window); border: none; }");
     toolbar->setFloatable(false);
     toolbar->setMovable(false);
 
@@ -114,20 +116,20 @@ void ToolbarManager::setupToolbar()
     ctrlAltDelButton->setToolTip("Send Ctrl+Alt+Del keystroke.");
     connect(ctrlAltDelButton, &QPushButton::clicked, this, &ToolbarManager::onCtrlAltDelClicked);
     toolbar->addWidget(ctrlAltDelButton);
+    
     // Repeating keystroke combo box
-
     QComboBox *repeatingKeystrokeComboBox = new QComboBox(toolbar);
     repeatingKeystrokeComboBox->setStyleSheet(
         "QComboBox { "
-        "   border: 1px solid rgba(255, 255, 255, 150); " // Lighter border for better contrast
-        "   background-color: rgba(100, 100, 100, 255); " // Darker background for better contrast
-        "   color: white; " // White text for better contrast
+        "   border: 1px solid palette(mid); "
+        "   background-color: palette(button); "
+        "   color: palette(text); "
         "   padding: 2px; "
         "   margin: 2px; "
         "} "
         "QComboBox QAbstractItemView { "
-        "   background-color: rgba(100, 100, 100, 255); " // Darker background for better contrast
-        "   color: white; " // White text for better contrast
+        "   background-color: palette(base); "
+        "   color: palette(text); "
         "}"
     );
     repeatingKeystrokeComboBox->setToolTip("Set keystroke repeat interval.");
@@ -195,4 +197,39 @@ void ToolbarManager::toggleToolbar() {
     }
 }
 
-
+void ToolbarManager::updateStyles()
+{
+    toolbar->setStyleSheet("QToolBar { background-color: palette(window); border: none; }");
+    
+    for (QAction *action : toolbar->actions()) {
+        QWidget *widget = toolbar->widgetForAction(action);
+        if (QPushButton *button = qobject_cast<QPushButton*>(widget)) {
+            button->setStyleSheet(commonButtonStyle);
+        } else if (QComboBox *comboBox = qobject_cast<QComboBox*>(widget)) {
+            comboBox->setStyleSheet(
+                "QComboBox { "
+                "   border: 1px solid palette(mid); "
+                "   background-color: palette(button); "
+                "   color: palette(buttonText); "
+                "   padding: 2px; "
+                "   margin: 2px; "
+                "} "
+                "QComboBox QAbstractItemView { "
+                "   background-color: palette(base); "
+                "   color: palette(text); "
+                "}"
+            );
+        } else if (QToolButton *toolButton = qobject_cast<QToolButton*>(widget)) {
+            toolButton->setStyleSheet(
+                "QToolButton { "
+                "   border: 1px solid palette(mid); "
+                "   background-color: palette(button); "
+                "   color: palette(buttonText); "
+                "   padding: 2px; "
+                "   margin: 2px; "
+                "} "
+                "QToolButton::menu-indicator { image: none; }"
+            );
+        }
+    }
+}

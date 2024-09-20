@@ -205,6 +205,9 @@ Camera::Camera() : ui(new Ui::Camera), m_audioManager(new AudioManager(this)),
     connect(toolbarManager, &ToolbarManager::ctrlAltDelPressed, this, &Camera::onCtrlAltDelPressed);
     connect(toolbarManager, &ToolbarManager::repeatingKeystrokeChanged, this, &Camera::onRepeatingKeystrokeChanged);
     connect(toolbarManager, &ToolbarManager::specialKeyPressed, this, &Camera::onSpecialKeyPressed);
+
+    // In the Camera constructor or initialization method
+    connect(qApp, &QGuiApplication::paletteChanged, toolbarManager, &ToolbarManager::updateStyles);
 }
 
 void Camera::init()
