@@ -60,7 +60,8 @@ jobs:
           print(f"Updated version to {new_version}")
 
           # Set environment variable for use in later steps
-          os.system(f'echo "NEW_VERSION={new_version}" >> $GITHUB_ENV')
+          with open(os.environ['GITHUB_ENV'], 'a') as env_file:
+              env_file.write(f"MY_APP_VERSION={new_version}\n")
         shell: python
 
       - name: Get all tags for correct version determination
