@@ -198,6 +198,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ${{ env.SOURCE_DIR }}\Output\openterface-installer.exe
-          asset_name: openterface-installer-${{ env.NEW_VERSION }}.exe
+          asset_path: ${{ env.ARTIFACT }}
+          asset_name: ${{ env.ARTIFACT }}
           asset_content_type: application/octet-stream
