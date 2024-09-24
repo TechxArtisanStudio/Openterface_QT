@@ -137,5 +137,3 @@ jobs:
           git add version.txt
           git commit -m "Bump version to ${{ env.NEW_VERSION }}" -a
           git push https://${{ secrets.PAT }}@github.com/${{ github.repository }}.git HEAD:${{ github.ref }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
