@@ -98,8 +98,8 @@ int main(int argc, char *argv[])
 
     app.setWindowIcon(QIcon("://images/icon_32.png"));
 
-    Camera camera;
-    camera.show();
+    MainWindow window;
+    window.show();
 
     return app.exec();
 };
