@@ -90,3 +90,20 @@ RC_FILE = openterfaceQT.rc
 
 INCLUDEPATH += $$PWD/''
 DEPENDPATH += $$PWD/''
+
+# Define the version file
+VERSION_FILE = version.txt
+
+# Copy the version file to the build directory
+version_file.files = $$VERSION_FILE
+version_file.path = $$OUT_PWD
+COPIES += version_file
+
+# Make sure the version file is included in the distribution
+DISTFILES += $$VERSION_FILE
+
+# Remove version.h if it's listed in your HEADERS
+# HEADERS -= version.h
+
+# Make sure global.h is included in your HEADERS if it's not already there
+HEADERS += global.h
