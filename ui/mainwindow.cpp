@@ -240,6 +240,10 @@ MainWindow::MainWindow() : ui(new Ui::MainWindow), m_audioManager(new AudioManag
     connect(ui->ZoomOutButton, &QPushButton::clicked, this, &MainWindow::onZoomOut);
     connect(ui->ZoomReductionButton, &QPushButton::clicked, this, &MainWindow::onZoomReduction);
     scrollArea->ensureWidgetVisible(videoPane);
+
+    // Set the window title with the version number
+    QString windowTitle = QString("Openterface Mini-KVM - %1").arg(APP_VERSION);
+    setWindowTitle(windowTitle);
 }
 
 void MainWindow::onZoomIn()
