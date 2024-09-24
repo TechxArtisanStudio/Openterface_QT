@@ -26,6 +26,7 @@
 #include <QCoreApplication>
 #include <QtConcurrent/QtConcurrent>
 #include <QTimer>
+#include <QRandomGenerator>
 
 Q_LOGGING_CATEGORY(log_core_host, "opf.core.host")
 
@@ -122,9 +123,14 @@ void HostManager::pasteTextToTarget(QString text){
     keyboardManager.pasteTextToTarget(text);
 }
 
-void HostManager::autoMoveMouse()
+void HostManager::startAutoMoveMouse()
 {
     mouseManager.startAutoMoveMouse();
+}
+
+void HostManager::stopAutoMoveMouse()
+{
+    mouseManager.stopAutoMoveMouse();
 }
 
 void HostManager::sendCtrlAltDel()
