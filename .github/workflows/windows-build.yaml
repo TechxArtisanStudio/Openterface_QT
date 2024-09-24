@@ -47,11 +47,11 @@ jobs:
           # Increment patch version
           patch = str(int(patch) + 1)
 
-          # Get current date
-          date = datetime.now().strftime("%Y%m%d")
+          # Get current date and use it as build number (YYDDD format)
+          build = datetime.now().strftime("%y%j")  # Year (2 digits) + Day of the year (3 digits)
 
           # Create new version string
-          new_version = f"{major}.{minor}.{patch}.{date}"
+          new_version = f"{major}.{minor}.{patch}.{build}"
 
           # Write new version to file
           with open('version.txt', 'w') as f:
@@ -59,9 +59,10 @@ jobs:
 
           print(f"Updated version to {new_version}")
 
-          # Set environment variable for use in later steps
+          # Set environment variables for use in later steps
           with open(os.environ['GITHUB_ENV'], 'a') as env_file:
               env_file.write(f"NEW_VERSION={new_version}\n")
+              env_file.write(f"VERSION_FOR_INNO={major}.{minor}.{patch}.{build}\n")
         shell: python
 
       - name: Get all tags for correct version determination
@@ -119,7 +120,7 @@ jobs:
         uses: Minionguyjpro/Inno-Setup-Action@v1.2.2
         with:
           path: installer.iss
-          options: /O+ /DWorkingDir="${{ runner.temp }}\build"  /DMyAppVersion="${{ env.NEW_VERSION }}" /DMyAppPublisher="${{ vars.MY_APP_PUBLISHER }}" /DMyAppURL="${{ vars.MY_APP_URL }}"
+          options: /O+ /DWorkingDir="${{ runner.temp }}\build"  /DMyAppVersion="${{ env.VERSION_FOR_INNO }}" /DMyAppPublisher="${{ vars.MY_APP_PUBLISHER }}" /DMyAppURL="${{ vars.MY_APP_URL }}"
 
       - name: Save build artifact
         uses: actions/upload-artifact@v4
