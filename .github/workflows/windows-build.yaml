@@ -44,7 +44,7 @@ jobs:
             version = f.read().strip()
 
           # Split version into parts
-          major, minor, patch = version.split('.')
+          major, minor, patch, build = version.split('.')
 
           # Increment patch version
           patch = str(int(patch) + 1)
