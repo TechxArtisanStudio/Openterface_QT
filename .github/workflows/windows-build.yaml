@@ -21,6 +21,8 @@ env:
 jobs:
   build:
     runs-on: windows-2019
+    permissions:
+      contents: write
     environment: ${{ github.event.inputs.TARGET_ENV || 'Openterface_build' }}
     steps:
       - uses: actions/checkout@v2
@@ -129,11 +131,13 @@ jobs:
           path: ${{ env.SOURCE_DIR }}\Output\openterface-installer.exe
           if-no-files-found: error
 
-      - name: Commit and push if build successful
+      - name: Commit and push version update
         if: success()
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
           git add version.txt
-          git commit -m "Bump version to ${{ env.NEW_VERSION }}" -a
-          git push https://ghp_liuxRisJ1uwJGimuQysHgwvDlmF2mi0JmRt@github.com/${{ github.repository }}.git HEAD:${{ github.ref }}
+          git commit -m "Bump version to ${{ env.NEW_VERSION }}" -a || echo "No changes to commit"
+          git push https://${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git HEAD:${{ github.ref }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
