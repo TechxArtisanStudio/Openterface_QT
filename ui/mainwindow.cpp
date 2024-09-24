@@ -127,7 +127,11 @@ MainWindow::MainWindow() : ui(new Ui::MainWindow), m_audioManager(new AudioManag
                                         statusWidget(new StatusWidget(this)),
                                         toggleSwitch(new ToggleSwitch(this)),
                                         m_cameraManager(new CameraManager(this)),
+<<<<<<< HEAD
                                         m_inputHandler(new InputHandler(this)),
+=======
+                                        m_inputHandler(new InputHandler(this))
+>>>>>>> 86c50df72d54e195cc5a8f5ab79311ba89b24dc9
                                         scrollArea(new QScrollArea(this))
 {
     qCDebug(log_ui_mainwindow) << "Init camera...";
