@@ -513,7 +513,7 @@ bool SerialPortManager::sendAsyncCommand(const QByteArray &data, bool force) {
     if(!force && !ready) return false;
     QByteArray command = data;
     // qDebug() << "Data received signal emitted";
-    // emit dataSent(data);
+    emit dataSent(data);
     command.append(calculateChecksum(command));
     return writeData(command);
 }

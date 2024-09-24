@@ -1,4 +1,3 @@
-
 /*
 * ========================================================================== *
 *                                                                            *
@@ -29,6 +28,9 @@
 #include <QWidget>
 #include <QByteArray>
 #include <QString>
+#include <QCheckBox>
+#include <QSettings>
+#include <QDateTime>
 namespace Ui {
 class SerialPortDebugDialog;
 }
