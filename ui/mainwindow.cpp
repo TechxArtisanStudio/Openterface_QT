@@ -646,7 +646,18 @@ void MainWindow::onActionPasteToTarget()
 
 void MainWindow::onActionScreensaver()
 {
-    HostManager::getInstance().autoMoveMouse();
+    static bool isScreensaverActive = false;
+    isScreensaverActive = !isScreensaverActive;
+
+    if (isScreensaverActive) {
+        HostManager::getInstance().startAutoMoveMouse();
+        ui->screensaverButton->setChecked(true);
+        this->popupMessage("Screensaver activated");
+    } else {
+        HostManager::getInstance().stopAutoMoveMouse();
+        ui->screensaverButton->setChecked(false);
+        this->popupMessage("Screensaver deactivated");
+    }
 }
 
 void MainWindow::onToggleVirtualKeyboard()
