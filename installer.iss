@@ -3,6 +3,7 @@
 
 #define MyAppName "Openterface Mini-KVM"
 #define MyAppExeName "openterfaceQT.exe"
+#define MyAppVersion FileRead("version.txt")
 
 #pragma message "AppVersion: " + MyAppVersion
 #pragma message "MyAppPublisher: " + MyAppPublisher
