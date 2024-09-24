@@ -195,6 +195,6 @@ jobs:
         uses: actions/upload-release-asset@v1
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ${{ env.ARTIFACT }}
-          asset_name: ${{ env.ARTIFACT }}
+          asset_path: ${{ vars.MY_APP_EXE_NAME }}
+          asset_name: ${{ vars.MY_APP_EXE_NAME }}
           asset_content_type: application/octet-stream
