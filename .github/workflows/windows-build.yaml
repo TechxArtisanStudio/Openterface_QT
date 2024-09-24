@@ -23,6 +23,7 @@ env:
   ARTIFACT: "${{ vars.MY_APP_EXE_NAME }}"
   SOURCE_DIR: ${{ github.workspace }}
   QT_VERSION: 6.4.3
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
 jobs:
   build:
@@ -144,7 +145,7 @@ jobs:
           git config --local user.name "GitHub Action"
           git add version.txt
           git commit -m "Bump version to ${{ env.NEW_VERSION }}" -a || echo "No changes to commit"
-          git push https://${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git HEAD:${{ github.ref }}
+          git push https://${{ env.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git HEAD:${{ github.ref }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -181,8 +182,6 @@ jobs:
       - name: Create Release
         id: create_release
         uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tag_name: v${{ env.NEW_VERSION }}
           release_name: Release v${{ env.NEW_VERSION }}
@@ -194,8 +193,6 @@ jobs:
 
       - name: Upload Release Asset
         uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
           asset_path: ${{ env.ARTIFACT }}
