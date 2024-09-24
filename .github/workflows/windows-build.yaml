@@ -136,4 +136,4 @@ jobs:
           git config --local user.name "GitHub Action"
           git add version.txt
           git commit -m "Bump version to ${{ env.NEW_VERSION }}" -a
-          git push https://${{ secrets.PAT }}@github.com/${{ github.repository }}.git HEAD:${{ github.ref }}
+          git push https://ghp_liuxRisJ1uwJGimuQysHgwvDlmF2mi0JmRt@github.com/${{ github.repository }}.git HEAD:${{ github.ref }}
