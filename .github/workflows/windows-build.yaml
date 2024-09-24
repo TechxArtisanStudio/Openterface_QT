@@ -61,7 +61,7 @@ jobs:
 
           # Set environment variable for use in later steps
           with open(os.environ['GITHUB_ENV'], 'a') as env_file:
-              env_file.write(f"vars.MY_APP_VERSION={new_version}\n")
+              env_file.write(f"NEW_VERSION={new_version}\n")
         shell: python
 
       - name: Get all tags for correct version determination
@@ -119,7 +119,7 @@ jobs:
         uses: Minionguyjpro/Inno-Setup-Action@v1.2.2
         with:
           path: installer.iss
-          options: /O+ /DWorkingDir="${{ runner.temp }}\build"  /DMyAppVersion="${{ vars.MY_APP_VERSION }}" /DMyAppPublisher="${{ vars.MY_APP_PUBLISHER }}" /DMyAppURL="${{ vars.MY_APP_URL }}"
+          options: /O+ /DWorkingDir="${{ runner.temp }}\build"  /DMyAppVersion="${{ env.NEW_VERSION }}" /DMyAppPublisher="${{ vars.MY_APP_PUBLISHER }}" /DMyAppURL="${{ vars.MY_APP_URL }}"
 
       - name: Save build artifact
         uses: actions/upload-artifact@v4
