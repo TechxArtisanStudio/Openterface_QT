@@ -59,12 +59,6 @@ private:
     void setupToolbar();
     QPushButton* createFunctionButton(const QString &text);
 
-signals:
-    void functionKeyPressed(int key);
-    void ctrlAltDelPressed();
-    void repeatingKeystrokeChanged(int interval);
-    void specialKeyPressed(const QString &keyText);
-
 private slots:
     void onFunctionButtonClicked();
     void onCtrlAltDelClicked();

@@ -29,6 +29,8 @@ SOURCES += main.cpp \
     ui/toolbarmanager.cpp \
     ui/toggleswitch.cpp \
     ui/loghandler.cpp \
+    ui/inputhandler.cpp \
+    ui/cameramanager.cpp \
     host/HostManager.cpp \
     serial/SerialPortManager.cpp \
     target/KeyboardManager.cpp \
@@ -54,6 +56,8 @@ HEADERS  += \
     ui/toolbarmanager.h \
     ui/toggleswitch.h \
     ui/loghandler.h \
+    ui/inputhandler.h \
+    ui/cameramanager.h \
     host/HostManager.h \
     serial/ch9329.h \
     serial/SerialPortManager.h \
