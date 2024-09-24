@@ -1,28 +1,3 @@
-
-/*
-* ========================================================================== *
-*                                                                            *
-*    This file is part of the Openterface Mini KVM App QT version            *
-*                                                                            *
-*    Copyright (C) 2024   <info@openterface.com>                             *
-*                                                                            *
-*    This program is free software: you can redistribute it and/or modify    *
-*    it under the terms of the GNU General Public License as published by    *
-*    the Free Software Foundation version 3.                                 *
-*                                                                            *
-*    This program is distributed in the hope that it will be useful, but     *
-*    WITHOUT ANY WARRANTY; without even the implied warranty of              *
-*    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU        *
-*    General Public License for more details.                                *
-*                                                                            *
-*    You should have received a copy of the GNU General Public License       *
-*    along with this program. If not, see <http://www.gnu.org/licenses/>.    *
-*                                                                            *
-* ========================================================================== *
-*/
-
-
-
 /*
 * ========================================================================== *
 *                                                                            *
@@ -57,6 +32,10 @@
 #include <QCheckBox>
 #include <QGridLayout>
 #include <QCloseEvent>
+#include <QDateTime>
+#include <QSettings>
+#include <QTextCursor>
+
 SerialPortDebugDialog::SerialPortDebugDialog(QWidget *parent)
     : QDialog(parent)
     , textEdit(new QTextEdit(this))
@@ -216,19 +195,65 @@ void SerialPortDebugDialog::getRecvDataAndInsertText(const QByteArray &data){
     }
 
 }
-void SerialPortDebugDialog::getSentDataAndInsertText(const QByteArray &data){
-    // qDebug() << "send data ->> " << data;
-    if (data.size() >= 4){
-        QString dataString = data.toHex().toUpper();
-        dataString = formatHexData(dataString);
-        dataString =  QDateTime::currentDateTime().toString("MM-dd hh:mm:ss.zzz") + ">> " + dataString + "\n";
-        textEdit->insertPlainText(dataString);
-        QTextCursor cursor = textEdit->textCursor();
-        cursor.movePosition(QTextCursor::End);
-        textEdit->setTextCursor(cursor);
-        textEdit->ensureCursorVisible();
+void SerialPortDebugDialog::getSentDataAndInsertText(const QByteArray &data) {
+    QString command_type = "";
+    QCheckBox *ChipInfoFilter = filterCheckboxWidget->findChild<QCheckBox *>("ChipInfoFilter");
+    QCheckBox *keyboardPressFilter = filterCheckboxWidget->findChild<QCheckBox *>("keyboardPressFilter");
+    QCheckBox *mideaKeyboardFilter = filterCheckboxWidget->findChild<QCheckBox *>("mideaKeyboardFilter");
+    QCheckBox *mouseMoveABSFilter = filterCheckboxWidget->findChild<QCheckBox *>("mouseMoveABSFilter");
+    QCheckBox *mouseMoveRELFilter = filterCheckboxWidget->findChild<QCheckBox *>("mouseMoveRELFilter");
+    QCheckBox *HIDFilter = filterCheckboxWidget->findChild<QCheckBox *>("HIDFilter");
+    bool Chipinfo = ChipInfoFilter->isChecked();
+    bool keyboardPress = keyboardPressFilter->isChecked();
+    bool mideaKeyboard = mideaKeyboardFilter->isChecked();
+    bool mouseMoveABS = mouseMoveABSFilter->isChecked();
+    bool mouseMoveREL = mouseMoveRELFilter->isChecked();
+    bool HID = HIDFilter->isChecked();
+
+    if (data.size() >= 4) {
+        GlobalSetting::instance().setFilterSettings(Chipinfo, keyboardPress, mideaKeyboard, mouseMoveABS, mouseMoveREL, HID);
+        unsigned char fourthByte = static_cast<unsigned char>(data[3]);
+        qDebug() << "fourthByte: " << fourthByte;
+        bool shouldShow = false;
+        switch (fourthByte) {
+        case 0x01:
+            command_type = "Chip Info ";
+            if (Chipinfo) shouldShow = true;
+            break;
+        case 0x02:
+            command_type = "Keyboard press ";
+            if (keyboardPress) shouldShow = true;
+            break;
+        case 0x03:
+            command_type = "Midea keyboard ";
+            if (mideaKeyboard) shouldShow = true;
+            break;
+        case 0x04:
+            command_type = "Mouse absolutly move ";
+            if (mouseMoveABS) shouldShow = true;
+            break;
+        case 0x05:
+            command_type = "Mouse relative move ";
+            if (mouseMoveREL) shouldShow = true;
+            break;
+        case 0x06:
+            command_type = "HID MSG SEND";
+            if (HID) shouldShow = true;
+            break;
+        default:
+            command_type = "Unknown ";
+            break;
+        }
+        if (shouldShow) {
+            QString dataString = data.toHex().toUpper();
+            dataString = formatHexData(dataString);
+            dataString = QDateTime::currentDateTime().toString("MM-dd hh:mm:ss.zzz") + " >> " + dataString + "\n";
+            
+            textEdit->moveCursor(QTextCursor::End);
+            textEdit->insertPlainText(dataString);
+            textEdit->ensureCursorVisible();
+        }
     }
-    
 }
 
 QString SerialPortDebugDialog::formatHexData(QString hexString){
