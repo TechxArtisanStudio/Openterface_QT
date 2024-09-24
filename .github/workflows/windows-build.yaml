@@ -195,6 +195,6 @@ jobs:
         uses: actions/upload-release-asset@v1
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: setup.exe
+          asset_path: ${{ env.SOURCE_DIR }}
           asset_name: setup.exe
           asset_content_type: application/octet-stream
