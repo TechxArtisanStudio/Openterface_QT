@@ -350,7 +350,7 @@ QString VideoHid::getHIDDevicePath() {
                 }
                 if (line.contains("HID_NAME")) {
                     // Check if this is the device you are looking for
-                    if (line.contains("Openterface")) { // Replace "YourDeviceName" with the actual device name
+                    if (line.contains("Openterface")) {
                         return "/dev/" + device;
                     }
                 }
@@ -361,9 +361,11 @@ QString VideoHid::getHIDDevicePath() {
 }
 
 bool VideoHid::sendFeatureReportLinux(uint8_t* reportBuffer, int bufferSize) {
-    int fd = open(getHIDDevicePath().toStdString().c_str(), O_RDWR);
+    QString devicePath = getHIDDevicePath();
+  
+    int fd = open(devicePath.toStdString().c_str(), O_RDWR);
     if (fd < 0) {
-        qDebug() << "Invalid file descriptor for sending feature report.";
+        qDebug() << "Failed to open HID device. Error:" << strerror(errno);
         return false;
     }
 
@@ -372,10 +374,12 @@ bool VideoHid::sendFeatureReportLinux(uint8_t* reportBuffer, int bufferSize) {
     int res = ioctl(fd, HIDIOCSFEATURE(buffer.size()), buffer.data());
 
     if (res < 0) {
-        qDebug() << "Failed to send feature report.";
+        qDebug() << "Failed to send feature report. Error:" << strerror(errno);
+        close(fd);
         return false;
     }
 
+    close(fd);
     return true;
 }
 
