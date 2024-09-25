@@ -34,6 +34,7 @@ VideoPane::VideoPane(QWidget *parent) : QVideoWidget(parent), escTimer(new QTime
 {
     QWidget* childWidget = qobject_cast<QWidget*>(this->children()[0]);
     if(childWidget) {
+        qDebug() << "Child widget found." << childWidget;
         childWidget->setMouseTracking(true);
     }
     this->setMouseTracking(true);
@@ -176,6 +177,7 @@ int VideoPane::getMouseButton(QMouseEvent *event) {
 
 bool VideoPane::eventFilter(QObject *watched, QEvent *event)
 {
+    qDebug() << "Event filter";
     if (watched == this && event->type() == QEvent::Leave && !GlobalVar::instance().isAbsoluteMouseMode() && this->relativeModeEnable) {
         moveMouseToCenter();
     }
