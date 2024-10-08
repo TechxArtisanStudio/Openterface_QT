@@ -240,12 +240,19 @@ MainWindow::MainWindow() : ui(new Ui::MainWindow), m_audioManager(new AudioManag
     connect(ui->ZoomOutButton, &QPushButton::clicked, this, &MainWindow::onZoomOut);
     connect(ui->ZoomReductionButton, &QPushButton::clicked, this, &MainWindow::onZoomReduction);
     scrollArea->ensureWidgetVisible(videoPane);
+
+    // Initialize the timer
+    scrollTimer = new QTimer(this);
+    connect(scrollTimer, &QTimer::timeout, this, &MainWindow::updateScrollbars);
+    scrollTimer->start(100); // Check every 50 ms
 }
 
 void MainWindow::onZoomIn()
 {
+    factorScale = 1.1 * factorScale;
     QSize currentSize = videoPane->size() * 1.1;
     videoPane->resize(currentSize.width(), currentSize.height());
+    qDebug() << "video pane size:" << videoPane->geometry();
     if (videoPane->width() > scrollArea->width() || videoPane->height() > scrollArea->height()) {
         scrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
         scrollArea->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
@@ -254,12 +261,16 @@ void MainWindow::onZoomIn()
 
 void MainWindow::onZoomOut()
 {
-    QSize currentSize = videoPane->size() * 0.9;
-    videoPane->resize(currentSize.width(), currentSize.height());
-    if (videoPane->width() <= scrollArea->width() && videoPane->height() <= scrollArea->height()) {
-        scrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
-        scrollArea->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+    if (videoPane->width() != this->width()){
+        factorScale = 0.9 * factorScale;
+        QSize currentSize = videoPane->size() * 0.9;
+        videoPane->resize(currentSize.width(), currentSize.height());
+        if (videoPane->width() <= scrollArea->width() && videoPane->height() <= scrollArea->height()) {
+            scrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+            scrollArea->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+        }
     }
+
 }
 
 void MainWindow::onZoomReduction()
@@ -424,7 +435,8 @@ void MainWindow::moveEvent(QMoveEvent *event) {
     // Get the old and new positions
     QPoint oldPos = event->oldPos();
     QPoint newPos = event->pos();
-
+    
+    scrollTimer->start(100);
     // Calculate the position delta
     QPoint delta = newPos - oldPos;
 
@@ -498,8 +510,42 @@ void MainWindow::mouseReleaseEvent(QMouseEvent *event)
 
 void MainWindow::mouseMoveEvent(QMouseEvent *event)
 {
+    
+    lastMousePos = event->pos();
+    qDebug() << "lastMousePos: " ;
     m_inputHandler->handleMouseMove(event);
     QMainWindow::mouseMoveEvent(event);
+    
+}
+
+void MainWindow::updateScrollbars() {
+    // Get the screen geometry using QScreen
+
+    // Check if the mouse is near the edges of the screen
+    const int edgeThreshold = 300; // Adjust this value as needed
+
+    int deltaX = 0;
+    int deltaY = 0;
+
+    if (lastMousePos.x() < edgeThreshold) {
+        // Move scrollbar to the left
+        deltaX = -10; // Adjust step size as needed
+    } else if (lastMousePos.x() > 4096*factorScale - edgeThreshold) {
+        // Move scrollbar to the right
+        deltaX = 10; // Adjust step size as needed
+    }
+
+    if (lastMousePos.y() < edgeThreshold) {
+        // Move scrollbar up
+        deltaY = -10; // Adjust step size as needed
+    } else if (lastMousePos.y() > 4096*factorScale - edgeThreshold) {
+        // Move scrollbar down
+        deltaY = 10; // Adjust step size as needed
+    }
+
+    // Update scrollbars
+    scrollArea->horizontalScrollBar()->setValue(scrollArea->horizontalScrollBar()->value() + deltaX);
+    scrollArea->verticalScrollBar()->setValue(scrollArea->verticalScrollBar()->value() + deltaY);
 }
 
 void MainWindow::onActionRelativeTriggered()

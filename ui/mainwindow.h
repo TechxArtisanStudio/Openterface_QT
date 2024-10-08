@@ -250,6 +250,11 @@ private:
 
     CameraManager *m_cameraManager;
     InputHandler *m_inputHandler;
+
+    void updateScrollbars();
+    QPoint lastMousePos;
+    QTimer *scrollTimer;
+    double factorScale = 1;
 };
 
 #endif // MAINWINDOW_H
