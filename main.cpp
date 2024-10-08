@@ -22,7 +22,7 @@
 
 #include "ui/mainwindow.h"
 #include "global.h"
-
+#include <QCoreApplication>
 
 #include <iostream>
 #include <QApplication>
@@ -94,7 +94,7 @@ int main(int argc, char *argv[])
 
     QCoreApplication::setApplicationName("Openterface Mini-KVM");
     QCoreApplication::setOrganizationName("TechxArtisan");
-    QCoreApplication::setApplicationVersion("0.0.2");
+    QCoreApplication::setApplicationVersion(APP_VERSION);
 
     app.setWindowIcon(QIcon("://images/icon_32.png"));
 

@@ -115,6 +115,9 @@
         <iconset resource="mainwindow.qrc">
          <normaloff>:/images/screensaver.svg</normaloff>:/images/screensaver.svg</iconset>
        </property>
+       <property name="checkable">
+      <bool>true</bool>
+      </property>
       </widget>
      </item>
     </layout>
