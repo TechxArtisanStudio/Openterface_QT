@@ -37,8 +37,10 @@ LogHandler& LogHandler::instance()
 
 void LogHandler::enableLogStore()
 {
+    qDebug() << "Enable log store now ";
     static QSettings settings("Techxartisan", "Openterface");
     bool storeLog = settings.value("log/storeLog", false).toBool();
+    qDebug() << "Store log is " << storeLog;
     if (storeLog)
     {
         qInstallMessageHandler(fileMessageHandler);
@@ -47,13 +49,14 @@ void LogHandler::enableLogStore()
     {
         qInstallMessageHandler(0);      // Reset to default handler
     }
+    qDebug() << "Enable log store done";
 }
 
 void LogHandler::fileMessageHandler(QtMsgType type, const QMessageLogContext &context, const QString &msg)
 {
     static QMutex mutex;
     QMutexLocker locker(&mutex);
-
+    // qDebug() << "Write log to file now";
     static QSettings settings("Techxartisan", "Openterface");
     QString logFilePath = settings.value("log/logFilePath").toString();
     QFile outFile(logFilePath);
@@ -64,7 +67,7 @@ void LogHandler::fileMessageHandler(QtMsgType type, const QMessageLogContext &co
 
     QTextStream ts(&outFile);
     QString txt;
-
+    // qDebug() << "Write log to file test";
     // Get the category name
     const char* categoryName = context.category;
     QString category = categoryName ? QString(categoryName) : "default";

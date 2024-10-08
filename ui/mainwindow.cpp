@@ -242,8 +242,10 @@ MainWindow::MainWindow() : ui(new Ui::MainWindow), m_audioManager(new AudioManag
     scrollArea->ensureWidgetVisible(videoPane);
 
     // Set the window title with the version number
+    qDebug() << "Set window title" << APP_VERSION;
     QString windowTitle = QString("Openterface Mini-KVM - %1").arg(APP_VERSION);
     setWindowTitle(windowTitle);
+    qDebug() << "Set window title done";
 }
 
 void MainWindow::onZoomIn()
@@ -435,7 +437,7 @@ void MainWindow::moveEvent(QMoveEvent *event) {
     QPoint oldPos = event->oldPos();
     QPoint newPos = event->pos();
     
-    scrollTimer->start(100);
+    // scrollTimer->start(100);     // problem here
     // Calculate the position delta
     QPoint delta = newPos - oldPos;
 
