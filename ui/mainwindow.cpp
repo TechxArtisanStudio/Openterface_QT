@@ -240,6 +240,10 @@ MainWindow::MainWindow() : ui(new Ui::MainWindow), m_audioManager(new AudioManag
     connect(ui->ZoomOutButton, &QPushButton::clicked, this, &MainWindow::onZoomOut);
     connect(ui->ZoomReductionButton, &QPushButton::clicked, this, &MainWindow::onZoomReduction);
     scrollArea->ensureWidgetVisible(videoPane);
+
+    // Set the window title with the version number
+    QString windowTitle = QString("Openterface Mini-KVM - %1").arg(APP_VERSION);
+    setWindowTitle(windowTitle);
 }
 
 void MainWindow::onZoomIn()
@@ -646,7 +650,18 @@ void MainWindow::onActionPasteToTarget()
 
 void MainWindow::onActionScreensaver()
 {
-    HostManager::getInstance().autoMoveMouse();
+    static bool isScreensaverActive = false;
+    isScreensaverActive = !isScreensaverActive;
+
+    if (isScreensaverActive) {
+        HostManager::getInstance().startAutoMoveMouse();
+        ui->screensaverButton->setChecked(true);
+        this->popupMessage("Screensaver activated");
+    } else {
+        HostManager::getInstance().stopAutoMoveMouse();
+        ui->screensaverButton->setChecked(false);
+        this->popupMessage("Screensaver deactivated");
+    }
 }
 
 void MainWindow::onToggleVirtualKeyboard()

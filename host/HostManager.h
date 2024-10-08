@@ -63,8 +63,8 @@ public:
     void resetSerialPort();
     void setEventCallback(StatusEventCallback* callback);
     void restartApplication();
-    void autoMoveMouse();
-
+    void startAutoMoveMouse();
+    void stopAutoMoveMouse();
     void pasteTextToTarget(QString text);
 
     void sendCtrlAltDel();
