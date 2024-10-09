@@ -246,6 +246,10 @@ MainWindow::MainWindow() : ui(new Ui::MainWindow), m_audioManager(new AudioManag
     QString windowTitle = QString("Openterface Mini-KVM - %1").arg(APP_VERSION);
     setWindowTitle(windowTitle);
     qDebug() << "Set window title done";
+
+    mouseEdgeTimer = new QTimer(this);
+    connect(mouseEdgeTimer, &QTimer::timeout, this, &MainWindow::checkMousePosition);
+    // mouseEdgeTimer->start(edgeDuration); // Start the timer with the new duration
 }
 
 void MainWindow::onZoomIn()
@@ -258,6 +262,9 @@ void MainWindow::onZoomIn()
         scrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
         scrollArea->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
     }
+
+    
+    mouseEdgeTimer->start(edgeDuration); // Check every edge Duration
 }
 
 void MainWindow::onZoomOut()
@@ -279,6 +286,9 @@ void MainWindow::onZoomReduction()
     videoPane->resize(this->width() * 0.9, (this->height() - ui->statusbar->height() - ui->menubar->height()) * 0.9);
     scrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     scrollArea->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    if (mouseEdgeTimer->isActive()) {
+        mouseEdgeTimer->stop();
+    }
 }
 
 void MainWindow::init()
@@ -1141,4 +1151,39 @@ void MainWindow::updateResolutions(const int input_width, const int input_height
 {
     statusWidget->setInputResolution(input_width, input_height, input_fps);
     statusWidget->setCaptureResolution(capture_width, capture_height, capture_fps);
+}
+
+void MainWindow::checkMousePosition()
+{
+    if (!scrollArea || !videoPane) return;
+
+    QPoint mousePos = mapFromGlobal(QCursor::pos());
+    QRect viewRect = scrollArea->viewport()->rect();
+
+    int deltaX = 0;
+    int deltaY = 0;
+
+    // Calculate the distance from the edge
+    int leftDistance = mousePos.x() - viewRect.left();
+    int rightDistance = viewRect.right() - mousePos.x();
+    int topDistance = mousePos.y() - viewRect.top();
+    int bottomDistance = viewRect.bottom() - mousePos.y();
+
+    // Adjust the scroll speed based on the distance from the edge
+    if (leftDistance <= edgeThreshold) {
+        deltaX = -maxScrollSpeed * (edgeThreshold - leftDistance) / edgeThreshold;
+    } else if (rightDistance <= edgeThreshold) {
+        deltaX = maxScrollSpeed * (edgeThreshold - rightDistance) / edgeThreshold;
+    }
+
+    if (topDistance <= edgeThreshold) {
+        deltaY = -maxScrollSpeed * (edgeThreshold - topDistance) / edgeThreshold;
+    } else if (bottomDistance <= edgeThreshold) {
+        deltaY = maxScrollSpeed * (edgeThreshold - bottomDistance) / edgeThreshold;
+    }
+
+    if (deltaX != 0 || deltaY != 0) {
+        scrollArea->horizontalScrollBar()->setValue(scrollArea->horizontalScrollBar()->value() + deltaX);
+        scrollArea->verticalScrollBar()->setValue(scrollArea->verticalScrollBar()->value() + deltaY);
+    }
 }
