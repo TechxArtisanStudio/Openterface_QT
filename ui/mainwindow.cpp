@@ -121,14 +121,14 @@ QColor getContrastingColor(const QColor &color) {
 }
 
 MainWindow::MainWindow() : ui(new Ui::MainWindow), m_audioManager(new AudioManager(this)),
-                                        videoPane(new VideoPane(this)),
-                                        scrollArea(new QScrollArea(this)),
-                                        stackedLayout(new QStackedLayout(this)),
-                                        toolbarManager(new ToolbarManager(this)),
-                                        statusWidget(new StatusWidget(this)),
-                                        toggleSwitch(new ToggleSwitch(this)),
-                                        m_cameraManager(new CameraManager(this)),
-                                        m_inputHandler(new InputHandler(this))
+                            videoPane(new VideoPane(this)),
+                            scrollArea(new QScrollArea(this)),
+                            stackedLayout(new QStackedLayout(this)),
+                            toolbarManager(new ToolbarManager(this)),
+                            statusWidget(new StatusWidget(this)),
+                            toggleSwitch(new ToggleSwitch(this)),
+                            m_cameraManager(new CameraManager(this)),
+                            m_inputHandler(new InputHandler(this))
 {
     qCDebug(log_ui_mainwindow) << "Init camera...";
     ui->setupUi(this);
@@ -136,6 +136,7 @@ MainWindow::MainWindow() : ui(new Ui::MainWindow), m_audioManager(new AudioManag
 
     QWidget *centralWidget = new QWidget(this);
     centralWidget->setLayout(stackedLayout);
+    centralWidget->setMouseTracking(true);
 
     HelpPane *helpPane = new HelpPane;
     stackedLayout->addWidget(helpPane);
@@ -153,7 +154,7 @@ MainWindow::MainWindow() : ui(new Ui::MainWindow), m_audioManager(new AudioManag
 
     stackedLayout->setCurrentIndex(0);
 
-    centralWidget->setMouseTracking(true);
+
 
     ui->menubar->setCornerWidget(ui->cornerWidget, Qt::TopRightCorner);
 
@@ -373,7 +374,7 @@ void MainWindow::loadCameraSettingAndSetCamera(){
 void MainWindow::setCamera(const QCameraDevice &cameraDevice)
 {
     m_cameraManager->setCamera(cameraDevice);
-    m_cameraManager->setVideoOutput(videoPane);  // Add this line
+    m_cameraManager->setVideoOutput(videoPane);
 
     queryResolutions();
 
@@ -742,13 +743,6 @@ void MainWindow::processCapturedImage(int requestId, const QImage &img)
     displayCapturedImage();
     QTimer::singleShot(4000, this, &MainWindow::displayViewfinder);
 }
-
-// void MainWindow::configureCaptureSettings()
-// {
-//     // if (m_doImageCapture)
-//     //     configureImageSettings();
-//     // else
-//     configureVideoSettings();
 
 // }
 

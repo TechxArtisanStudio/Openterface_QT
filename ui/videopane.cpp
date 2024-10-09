@@ -34,6 +34,7 @@ VideoPane::VideoPane(QWidget *parent) : QVideoWidget(parent), escTimer(new QTime
 {
     QWidget* childWidget = qobject_cast<QWidget*>(this->children()[0]);
     if(childWidget) {
+        qDebug() << "Child widget found." << childWidget;
         childWidget->setMouseTracking(true);
     }
     this->setMouseTracking(true);
