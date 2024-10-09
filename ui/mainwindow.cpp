@@ -243,28 +243,43 @@ MainWindow::MainWindow() : ui(new Ui::MainWindow), m_audioManager(new AudioManag
     scrollArea->ensureWidgetVisible(videoPane);
 
     // Set the window title with the version number
+    qDebug() << "Set window title" << APP_VERSION;
     QString windowTitle = QString("Openterface Mini-KVM - %1").arg(APP_VERSION);
     setWindowTitle(windowTitle);
+    qDebug() << "Set window title done";
+
+    mouseEdgeTimer = new QTimer(this);
+    connect(mouseEdgeTimer, &QTimer::timeout, this, &MainWindow::checkMousePosition);
+    // mouseEdgeTimer->start(edgeDuration); // Start the timer with the new duration
 }
 
 void MainWindow::onZoomIn()
 {
+    factorScale = 1.1 * factorScale;
     QSize currentSize = videoPane->size() * 1.1;
     videoPane->resize(currentSize.width(), currentSize.height());
+    qDebug() << "video pane size:" << videoPane->geometry();
     if (videoPane->width() > scrollArea->width() || videoPane->height() > scrollArea->height()) {
         scrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
         scrollArea->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
     }
+
+    
+    mouseEdgeTimer->start(edgeDuration); // Check every edge Duration
 }
 
 void MainWindow::onZoomOut()
 {
-    QSize currentSize = videoPane->size() * 0.9;
-    videoPane->resize(currentSize.width(), currentSize.height());
-    if (videoPane->width() <= scrollArea->width() && videoPane->height() <= scrollArea->height()) {
-        scrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
-        scrollArea->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+    if (videoPane->width() != this->width()){
+        factorScale = 0.9 * factorScale;
+        QSize currentSize = videoPane->size() * 0.9;
+        videoPane->resize(currentSize.width(), currentSize.height());
+        if (videoPane->width() <= scrollArea->width() && videoPane->height() <= scrollArea->height()) {
+            scrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+            scrollArea->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+        }
     }
+
 }
 
 void MainWindow::onZoomReduction()
@@ -272,6 +287,9 @@ void MainWindow::onZoomReduction()
     videoPane->resize(this->width() * 0.9, (this->height() - ui->statusbar->height() - ui->menubar->height()) * 0.9);
     scrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     scrollArea->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    if (mouseEdgeTimer->isActive()) {
+        mouseEdgeTimer->stop();
+    }
 }
 
 void MainWindow::init()
@@ -429,7 +447,8 @@ void MainWindow::moveEvent(QMoveEvent *event) {
     // Get the old and new positions
     QPoint oldPos = event->oldPos();
     QPoint newPos = event->pos();
-
+    
+    // scrollTimer->start(100);     // problem here
     // Calculate the position delta
     QPoint delta = newPos - oldPos;
 
@@ -503,8 +522,42 @@ void MainWindow::mouseReleaseEvent(QMouseEvent *event)
 
 void MainWindow::mouseMoveEvent(QMouseEvent *event)
 {
+    
+    lastMousePos = event->pos();
+    qDebug() << "lastMousePos: " ;
     m_inputHandler->handleMouseMove(event);
     QMainWindow::mouseMoveEvent(event);
+    
+}
+
+void MainWindow::updateScrollbars() {
+    // Get the screen geometry using QScreen
+
+    // Check if the mouse is near the edges of the screen
+    const int edgeThreshold = 300; // Adjust this value as needed
+
+    int deltaX = 0;
+    int deltaY = 0;
+
+    if (lastMousePos.x() < edgeThreshold) {
+        // Move scrollbar to the left
+        deltaX = -10; // Adjust step size as needed
+    } else if (lastMousePos.x() > 4096*factorScale - edgeThreshold) {
+        // Move scrollbar to the right
+        deltaX = 10; // Adjust step size as needed
+    }
+
+    if (lastMousePos.y() < edgeThreshold) {
+        // Move scrollbar up
+        deltaY = -10; // Adjust step size as needed
+    } else if (lastMousePos.y() > 4096*factorScale - edgeThreshold) {
+        // Move scrollbar down
+        deltaY = 10; // Adjust step size as needed
+    }
+
+    // Update scrollbars
+    scrollArea->horizontalScrollBar()->setValue(scrollArea->horizontalScrollBar()->value() + deltaX);
+    scrollArea->verticalScrollBar()->setValue(scrollArea->verticalScrollBar()->value() + deltaY);
 }
 
 void MainWindow::onActionRelativeTriggered()
@@ -1092,4 +1145,39 @@ void MainWindow::updateResolutions(const int input_width, const int input_height
 {
     statusWidget->setInputResolution(input_width, input_height, input_fps);
     statusWidget->setCaptureResolution(capture_width, capture_height, capture_fps);
+}
+
+void MainWindow::checkMousePosition()
+{
+    if (!scrollArea || !videoPane) return;
+
+    QPoint mousePos = mapFromGlobal(QCursor::pos());
+    QRect viewRect = scrollArea->viewport()->rect();
+
+    int deltaX = 0;
+    int deltaY = 0;
+
+    // Calculate the distance from the edge
+    int leftDistance = mousePos.x() - viewRect.left();
+    int rightDistance = viewRect.right() - mousePos.x();
+    int topDistance = mousePos.y() - viewRect.top();
+    int bottomDistance = viewRect.bottom() - mousePos.y();
+
+    // Adjust the scroll speed based on the distance from the edge
+    if (leftDistance <= edgeThreshold) {
+        deltaX = -maxScrollSpeed * (edgeThreshold - leftDistance) / edgeThreshold;
+    } else if (rightDistance <= edgeThreshold) {
+        deltaX = maxScrollSpeed * (edgeThreshold - rightDistance) / edgeThreshold;
+    }
+
+    if (topDistance <= edgeThreshold) {
+        deltaY = -maxScrollSpeed * (edgeThreshold - topDistance) / edgeThreshold;
+    } else if (bottomDistance <= edgeThreshold) {
+        deltaY = maxScrollSpeed * (edgeThreshold - bottomDistance) / edgeThreshold;
+    }
+
+    if (deltaX != 0 || deltaY != 0) {
+        scrollArea->horizontalScrollBar()->setValue(scrollArea->horizontalScrollBar()->value() + deltaX);
+        scrollArea->verticalScrollBar()->setValue(scrollArea->verticalScrollBar()->value() + deltaY);
+    }
 }

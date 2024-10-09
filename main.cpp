@@ -95,11 +95,11 @@ int main(int argc, char *argv[])
     QCoreApplication::setApplicationName("Openterface Mini-KVM");
     QCoreApplication::setOrganizationName("TechxArtisan");
     QCoreApplication::setApplicationVersion(APP_VERSION);
-
+    qDebug() << "Show window now";
     app.setWindowIcon(QIcon("://images/icon_32.png"));
-
+    
     MainWindow window;
     window.show();
-
+    qDebug() << "Show window done";
     return app.exec();
 };
