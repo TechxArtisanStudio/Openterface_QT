@@ -204,6 +204,9 @@ private slots:
     void onZoomOut();
     void onZoomReduction();
     
+private slots:
+    void checkMousePosition();
+
 private:
     Ui::MainWindow *ui;
     AudioManager *m_audioManager;
@@ -253,8 +256,12 @@ private:
 
     void updateScrollbars();
     QPoint lastMousePos;
-    QTimer *scrollTimer;
+
     double factorScale = 1;
+    QTimer *mouseEdgeTimer; // Add this line
+    const int edgeThreshold = 50; // Adjust this value as needed
+    const int edgeDuration = 125; // Reduced duration for more frequent checks
+    const int maxScrollSpeed = 50; // Maximum scroll speed
 };
 
 #endif // MAINWINDOW_H
