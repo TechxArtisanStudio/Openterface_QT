@@ -177,7 +177,6 @@ int VideoPane::getMouseButton(QMouseEvent *event) {
 
 bool VideoPane::eventFilter(QObject *watched, QEvent *event)
 {
-    qDebug() << "Event filter";
     if (watched == this && event->type() == QEvent::Leave && !GlobalVar::instance().isAbsoluteMouseMode() && this->relativeModeEnable) {
         moveMouseToCenter();
     }

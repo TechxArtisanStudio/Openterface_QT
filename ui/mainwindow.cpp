@@ -245,16 +245,6 @@ MainWindow::MainWindow() : ui(new Ui::MainWindow), m_audioManager(new AudioManag
     // Set the window title with the version number
     QString windowTitle = QString("Openterface Mini-KVM - %1").arg(APP_VERSION);
     setWindowTitle(windowTitle);
-
-    // Check if the menubar is visible
-    qCDebug(log_ui_mainwindow) << "Menubar visible: " << ui->menubar->isVisible();
-
-    // Force the menubar to be visible
-    ui->menubar->setVisible(true);
-
-    // Debug statements to check visibility
-    qCDebug(log_ui_mainwindow) << "videoPane visibility: " << videoPane->isVisible();
-    qCDebug(log_ui_mainwindow) << "scrollArea visibility: " << scrollArea->isVisible();
 }
 
 void MainWindow::onZoomIn()
