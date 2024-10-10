@@ -38,7 +38,6 @@
 #include "ui/serialportdebugdialog.h"
 #include "ui/settingdialog.h"
 #include "ui/cameramanager.h"
-#include "inputhandler.h"
 #include "ui/versioninfomanager.h"
 
 #include <QAudioInput>
