@@ -162,11 +162,6 @@ private slots:
     void onPaletteChanged();
 
 protected:
-    void keyPressEvent(QKeyEvent *event) override;
-    void keyReleaseEvent(QKeyEvent *event) override;  // Add this line
-    void mousePressEvent(QMouseEvent *event) override;   // Add this line
-    void mouseReleaseEvent(QMouseEvent *event) override; // Add this line
-    void mouseMoveEvent(QMouseEvent *event) override;    // Add this line
     void closeEvent(QCloseEvent *event) override;
     void resizeEvent(QResizeEvent* event) override;
     void moveEvent(QMoveEvent *event) override;
@@ -252,7 +247,6 @@ private:
     ToggleSwitch *toggleSwitch;
 
     CameraManager *m_cameraManager;
-    InputHandler *m_inputHandler;
     VersionInfoManager *m_versionInfoManager;
 };
 
