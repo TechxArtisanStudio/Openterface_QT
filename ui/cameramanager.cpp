@@ -109,3 +109,17 @@ void CameraManager::setupConnections()
         qCWarning(log_ui_camera) << "Media recorder is null";
     }
 }
+
+void CameraManager::setCameraFormat(const QCameraFormat &format) {
+    if (m_camera) {
+        m_camera->setCameraFormat(format);
+    }
+}
+
+QCameraFormat CameraManager::getCameraFormat() const {
+    return m_camera ? m_camera->cameraFormat() : QCameraFormat();
+}
+
+QList<QCameraFormat> CameraManager::getCameraFormats() const {
+    return m_camera ? m_camera->cameraDevice().videoFormats() : QList<QCameraFormat>();
+}

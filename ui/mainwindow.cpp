@@ -37,6 +37,7 @@
 #include "ui/videopane.h"
 #include "video/videohid.h"
 #include "ui/versioninfomanager.h"
+#include "ui/cameramanager.h"
 
 #include <QCameraDevice>
 #include <QMediaDevices>
@@ -122,15 +123,18 @@ QColor getContrastingColor(const QColor &color) {
     return QColor(d, d, d);
 }
 
-MainWindow::MainWindow() : ui(new Ui::MainWindow), m_audioManager(new AudioManager(this)),
-                            videoPane(new VideoPane(this)),
-                            scrollArea(new QScrollArea(this)),
-                            stackedLayout(new QStackedLayout(this)),
-                            toolbarManager(new ToolbarManager(this)),
-                            statusWidget(new StatusWidget(this)),
-                            toggleSwitch(new ToggleSwitch(this)),
-                            m_cameraManager(new CameraManager(this)),
-                            m_versionInfoManager(new VersionInfoManager(this))
+MainWindow::MainWindow(QWidget *parent)
+    : QMainWindow(parent)
+    , ui(new Ui::MainWindow)
+    , m_audioManager(new AudioManager(this))
+    , videoPane(new VideoPane(this))
+    , scrollArea(new QScrollArea(this))
+    , stackedLayout(new QStackedLayout(this))
+    , toolbarManager(new ToolbarManager(this))
+    , statusWidget(new StatusWidget(this))
+    , toggleSwitch(new ToggleSwitch(this))
+    , m_cameraManager(new CameraManager(this))
+    , m_versionInfoManager(new VersionInfoManager(this))
 {
     qCDebug(log_ui_mainwindow) << "Init camera...";
     ui->setupUi(this);
@@ -738,7 +742,7 @@ void MainWindow::configureSettings() {
     qDebug() << "settingsDialog: " << settingsDialog;
     if (!settingsDialog){
         qDebug() << "Creating settings dialog";
-        settingsDialog = new SettingDialog(m_cameraManager->getCamera(), this);
+        settingsDialog = new SettingDialog(m_cameraManager, this);
         connect(settingsDialog, &SettingDialog::cameraSettingsApplied, this, &MainWindow::loadCameraSettingAndSetCamera);
         // connect the finished signal to the set the dialog pointer to nullptr
         connect(settingsDialog, &QDialog::finished, this, [this](){

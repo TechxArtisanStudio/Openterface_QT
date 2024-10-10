@@ -24,6 +24,9 @@ public:
     void stopRecording();
     QCamera* getCamera() const { return m_camera.get(); }
     void setVideoOutput(QVideoWidget* videoOutput);  // Add this method
+    void setCameraFormat(const QCameraFormat &format);
+    QCameraFormat getCameraFormat() const;
+    QList<QCameraFormat> getCameraFormats() const;
 
 signals:
     void cameraActiveChanged(bool active);
