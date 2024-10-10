@@ -39,6 +39,7 @@
 #include "ui/settingdialog.h"
 #include "ui/cameramanager.h"
 #include "inputhandler.h"
+#include "ui/versioninfomanager.h"
 
 #include <QAudioInput>
 #include <QAudioOutput>
@@ -106,7 +107,9 @@ private slots:
     void displayCaptureError(int, QImageCapture::Error, const QString &errorString);
 
     void versionInfo();
-    void copyToClipboard();
+    // Remove the following line:
+    // void copyToClipboard();
+
     void purchaseLink();
     void feedbackLink();
     void aboutLink();
@@ -250,6 +253,7 @@ private:
 
     CameraManager *m_cameraManager;
     InputHandler *m_inputHandler;
+    VersionInfoManager *m_versionInfoManager;
 };
 
 #endif // MAINWINDOW_H

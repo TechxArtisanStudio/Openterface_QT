@@ -36,6 +36,7 @@
 
 #include "ui/videopane.h"
 #include "video/videohid.h"
+#include "ui/versioninfomanager.h"
 
 #include <QCameraDevice>
 #include <QMediaDevices>
@@ -69,6 +70,7 @@
 #include <QComboBox>
 #include <QScrollBar>
 #include <QGuiApplication>
+
 
 Q_LOGGING_CATEGORY(log_ui_mainwindow, "opf.ui.mainwindow")
 
@@ -128,7 +130,8 @@ MainWindow::MainWindow() : ui(new Ui::MainWindow), m_audioManager(new AudioManag
                             statusWidget(new StatusWidget(this)),
                             toggleSwitch(new ToggleSwitch(this)),
                             m_cameraManager(new CameraManager(this)),
-                            m_inputHandler(new InputHandler(this))
+                            m_inputHandler(new InputHandler(this)),
+                            m_versionInfoManager(new VersionInfoManager(this))
 {
     qCDebug(log_ui_mainwindow) << "Init camera...";
     ui->setupUi(this);
@@ -809,44 +812,9 @@ void MainWindow::aboutLink(){
     QDesktopServices::openUrl(QUrl("https://openterface.com/"));
 }
 
-void MainWindow::versionInfo() {
-    QString applicationName = QApplication::applicationName();
-    QString organizationName = QApplication::organizationName();
-    QString applicationVersion = QApplication::applicationVersion();
-    QString osVersion = QSysInfo::prettyProductName();
-    QString title = tr("%1").arg(applicationName);
-    QString message = tr("Version:\t %1 \nQT:\t %2\nOS:\t %3")
-                          .arg(applicationVersion)
-                          .arg(qVersion())
-                          .arg(osVersion);
-
-    QMessageBox msgBox;
-    msgBox.setWindowTitle(title);
-    msgBox.setText(message);
-
-    QPushButton *copyButton = msgBox.addButton(tr("Copy"), QMessageBox::ActionRole);
-    msgBox.addButton(QMessageBox::Close);
-
-    connect(copyButton, &QPushButton::clicked, this, &MainWindow::copyToClipboard);
-
-    msgBox.exec();
-
-    if (msgBox.clickedButton() == copyButton) {
-        copyToClipboard();
-    }
-}
-
-void MainWindow::copyToClipboard(){
-    QString applicationName = QApplication::applicationName();
-    QString organizationName = QApplication::organizationName();
-    QString applicationVersion = QApplication::applicationVersion();
-
-    QString message = tr("Version:\t %1 \nOrganization:\t %2")
-                          .arg(applicationVersion)
-                          .arg(organizationName);
-
-    QClipboard *clipboard = QApplication::clipboard();
-    clipboard->setText(message);
+void MainWindow::versionInfo()
+{
+    m_versionInfoManager->showVersionInfo();
 }
 
 void MainWindow::onFunctionKeyPressed(int key)
