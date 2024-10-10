@@ -34,8 +34,11 @@ VideoPane::VideoPane(QWidget *parent) : QVideoWidget(parent), escTimer(new QTime
 {
     QWidget* childWidget = qobject_cast<QWidget*>(this->children()[0]);
     if(childWidget) {
-        qDebug() << "Child widget found." << childWidget;
+        qDebug() << "Child widget:" << childWidget << "type:" << childWidget->metaObject()->className();
         childWidget->setMouseTracking(true);
+        // childWidget->setAttribute(Qt::WA_TransparentForMouseEvents);
+        childWidget->setStyleSheet("background-color: rgba(0, 0, 0, 50);"); // 50 is the alpha value (0-255), adjust as needed
+        childWidget->setAttribute(Qt::WA_TranslucentBackground);
     }
     this->setMouseTracking(true);
     this->installEventFilter(this);
