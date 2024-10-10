@@ -86,7 +86,7 @@ class MainWindow : public QMainWindow, public StatusEventCallback
     Q_OBJECT
 
 public:
-    MainWindow();
+    MainWindow(QWidget *parent = nullptr);  // Update this line
     void calculate_video_position();
     void stop();
 

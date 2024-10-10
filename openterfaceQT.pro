@@ -24,7 +24,6 @@ SOURCES += main.cpp \
     ui/mainwindow.cpp \
     ui/metadatadialog.cpp \
     ui/videopane.cpp \
-    ui/videosettings.cpp \
     ui/globalsetting.cpp \
     ui/toolbarmanager.cpp \
     ui/toggleswitch.cpp \
@@ -36,7 +35,6 @@ SOURCES += main.cpp \
     serial/SerialPortManager.cpp \
     target/KeyboardManager.cpp \
     target/MouseManager.cpp
-
 
 HEADERS  += \
     global.h \
@@ -52,7 +50,6 @@ HEADERS  += \
     ui/mainwindow.h \
     ui/metadatadialog.h \
     ui/videopane.h \
-    ui/videosettings.h \
     ui/globalsetting.h \
     ui/statusevents.h \
     ui/toolbarmanager.h \
@@ -68,12 +65,10 @@ HEADERS  += \
     target/MouseManager.h \
     target/Keymapping.h
 
-
 FORMS    += \
     ui/imagesettings.ui \
     ui/mainwindow.ui \
-    ui/settingdialog.ui \
-    ui/videosettings.ui
+    ui/settingdialog.ui 
 
 RESOURCES += \
     openterfaceQT.rc \
