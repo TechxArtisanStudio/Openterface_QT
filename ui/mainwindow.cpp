@@ -130,7 +130,6 @@ MainWindow::MainWindow() : ui(new Ui::MainWindow), m_audioManager(new AudioManag
                             statusWidget(new StatusWidget(this)),
                             toggleSwitch(new ToggleSwitch(this)),
                             m_cameraManager(new CameraManager(this)),
-                            m_inputHandler(new InputHandler(this)),
                             m_versionInfoManager(new VersionInfoManager(this))
 {
     qCDebug(log_ui_mainwindow) << "Init camera...";
@@ -477,37 +476,6 @@ void MainWindow::calculate_video_position(){
     QSize windowSize = this->size();
     GlobalVar::instance().setWinWidth(windowSize.width());
     GlobalVar::instance().setWinHeight(windowSize.height());
-}
-
-
-void MainWindow::keyPressEvent(QKeyEvent *event)
-{
-    m_inputHandler->handleKeyPress(event);
-    QMainWindow::keyPressEvent(event);
-}
-
-void MainWindow::keyReleaseEvent(QKeyEvent *event)
-{
-    m_inputHandler->handleKeyRelease(event);
-    QMainWindow::keyReleaseEvent(event);
-}
-
-void MainWindow::mousePressEvent(QMouseEvent *event)
-{
-    m_inputHandler->handleMousePress(event);
-    QMainWindow::mousePressEvent(event);
-}
-
-void MainWindow::mouseReleaseEvent(QMouseEvent *event)
-{
-    m_inputHandler->handleMouseRelease(event);
-    QMainWindow::mouseReleaseEvent(event);
-}
-
-void MainWindow::mouseMoveEvent(QMouseEvent *event)
-{
-    m_inputHandler->handleMouseMove(event);
-    QMainWindow::mouseMoveEvent(event);
 }
 
 void MainWindow::onActionRelativeTriggered()
