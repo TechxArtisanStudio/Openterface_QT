@@ -202,6 +202,9 @@ private slots:
 private slots:
     void checkMousePosition();
 
+private slots:
+    void onVideoSettingsChanged(int width, int height);
+
 private:
     Ui::MainWindow *ui;
     AudioManager *m_audioManager;
@@ -233,7 +236,7 @@ private:
 
     MetaDataDialog *m_metaDataDialog = nullptr;
     StatusWidget *statusWidget;
-    SettingDialog *settingsDialog = nullptr;
+    SettingDialog *settingDialog = nullptr;
     SerialPortDebugDialog *serialPortDebugDialog = nullptr;
 
     QWidget *keyboardPanel = nullptr;

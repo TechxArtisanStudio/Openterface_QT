@@ -328,6 +328,9 @@ void SettingDialog::applyVideoSettings() {
     updatePixelFormats();
 
     GlobalSetting::instance().setVideoSettings(format.resolution().width(), format.resolution().height(), fps);
+
+    // Emit the signal with the new width and height
+    emit videoSettingsChanged(format.resolution().width(), format.resolution().height());
 }
 
 void SettingDialog::initVideoSettings() {
@@ -402,8 +405,12 @@ void SettingDialog::setFpsRange(const std::set<int> &fpsValues) {
     if (!fpsValues.empty()) {
         QComboBox *fpsComboBox = videoPage->findChild<QComboBox*>("fpsComboBox");
         fpsComboBox->clear();
+        int largestFps = *fpsValues.rbegin(); // Get the largest FPS value
         for (int fps : fpsValues) {
             fpsComboBox->addItem(QString::number(fps), fps);
+            if (fps == largestFps) {
+                fpsComboBox->setCurrentIndex(fpsComboBox->count() - 1);
+            }
         }
     }
 }

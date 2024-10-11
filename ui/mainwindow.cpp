@@ -158,8 +158,6 @@ MainWindow::MainWindow() :  ui(new Ui::MainWindow),
 
     stackedLayout->setCurrentIndex(0);
 
-
-
     ui->menubar->setCornerWidget(ui->cornerWidget, Qt::TopRightCorner);
 
     setCentralWidget(centralWidget);
@@ -205,6 +203,7 @@ MainWindow::MainWindow() :  ui(new Ui::MainWindow),
     qDebug() << "Loading settings";
     GlobalSetting::instance().loadLogSettings();
     GlobalSetting::instance().loadVideoSettings();
+    // onVideoSettingsChanged(GlobalVar::instance().getCaptureWidth(), GlobalVar::instance().getCaptureHeight());
     LogHandler::instance().enableLogStore();
 
     qCDebug(log_ui_mainwindow) << "Observe switch usb connection trigger...";
@@ -365,7 +364,7 @@ void MainWindow::initStatusBar()
     onLastMouseLocation(QPoint(0, 0), nullptr);
     keyPressedLabel = new QLabel(this);
     keyLabel = new QLabel(this);
-    keyLabel->setFixedWidth(25);
+    keyLabel->setFixedWidth(60);
     // Key container widget
     QWidget *keyContainer = new QWidget(this);
     QHBoxLayout *keyLayout = new QHBoxLayout(keyContainer);
@@ -462,6 +461,11 @@ void MainWindow::moveEvent(QMoveEvent *event) {
     QWidget::moveEvent(event);
 
     //calculate_video_position();
+
+qCDebug(log_ui_mainwindow) << "Global Variables - Win Width:" << GlobalVar::instance().getWinWidth()
+                            << ", Win Height:" << GlobalVar::instance().getWinHeight()
+                            << ", Capture Width:" << GlobalVar::instance().getCaptureWidth()
+                            << ", Capture Height:" << GlobalVar::instance().getCaptureHeight();
 }
 
 void MainWindow::calculate_video_position(){
@@ -766,39 +770,21 @@ void MainWindow::processCapturedImage(int requestId, const QImage &img)
     QTimer::singleShot(4000, this, &MainWindow::displayViewfinder);
 }
 
-// }
-
-// void MainWindow::configureVideoSettings()
-// {
-//     VideoSettings settingsDialog(m_camera.data());
-
-//     if (settingsDialog.exec())
-//         settingsDialog.applySettings();
-// }
-
-// void MainWindow::configureImageSettings()
-// {
-//     ImageSettings settingsDialog(m_imageCapture.get());
-
-//     if (settingsDialog.exec() == QDialog::Accepted)
-//         settingsDialog.applyImageSettings();
-// }
-
 void MainWindow::configureSettings() {
     qDebug() << "configureSettings";
-    qDebug() << "settingsDialog: " << settingsDialog;
-    if (!settingsDialog){
+    if (!settingDialog){
         qDebug() << "Creating settings dialog";
-        settingsDialog = new SettingDialog(m_cameraManager, this);
-        connect(settingsDialog, &SettingDialog::cameraSettingsApplied, this, &MainWindow::loadCameraSettingAndSetCamera);
+        settingDialog = new SettingDialog(m_cameraManager, this);
+        connect(settingDialog, &SettingDialog::cameraSettingsApplied, this, &MainWindow::loadCameraSettingAndSetCamera);
+        connect(settingDialog, &SettingDialog::videoSettingsChanged, this, &MainWindow::onVideoSettingsChanged);
         // connect the finished signal to the set the dialog pointer to nullptr
-        connect(settingsDialog, &QDialog::finished, this, [this](){
-            settingsDialog = nullptr;
+        connect(settingDialog, &QDialog::finished, this, [this](){
+            settingDialog = nullptr;
         });
-        settingsDialog->show();
+        settingDialog->show();
     }else{
-        settingsDialog->raise();
-        settingsDialog->activateWindow();
+        settingDialog->raise();
+        settingDialog->activateWindow();
     }
 }
 
@@ -1051,13 +1037,19 @@ void MainWindow::onLastMouseLocation(const QPoint& location, const QString& mous
     }
 
     // Load the SVG into a QPixmap
-    // iconColor = palette().color(QPalette::WindowText);
-    // qDebug() << "mouse iconColor: " << iconColor;
     QPixmap pixmap = recolorSvg(svgPath, iconColor, QSize(12, 12)); // Adjust the size as needed
 
     // Set the QPixmap to the QLabel
     mouseLabel->setPixmap(pixmap);
-    mouseLocationLabel->setText(QString("(%1,%2)").arg(location.x()).arg(location.y()));
+
+    // Calculate the mouse position based on the capture resolution
+    int capture_width = GlobalVar::instance().getCaptureWidth();
+    int capture_height = GlobalVar::instance().getCaptureHeight();
+    
+    int mouse_x = static_cast<int>(location.x() / 4096.0 * capture_width);
+    int mouse_y = static_cast<int>(location.y() / 4096.0 * capture_height);
+
+    mouseLocationLabel->setText(QString("(%1,%2)").arg(mouse_x).arg(mouse_y));
 }
 
 void MainWindow::onSwitchableUsbToggle(const bool isToTarget) {
@@ -1114,4 +1106,20 @@ void MainWindow::checkMousePosition()
         scrollArea->horizontalScrollBar()->setValue(scrollArea->horizontalScrollBar()->value() + deltaX);
         scrollArea->verticalScrollBar()->setValue(scrollArea->verticalScrollBar()->value() + deltaY);
     }
+}
+
+void MainWindow::onVideoSettingsChanged(int width, int height) {
+    // Calculate new window size based on the video dimensions
+    // You might want to add some padding or adjust based on other UI elements
+    int newWidth = width + 1;  // example: add 50 pixels for padding
+    int newHeight = height + 1;  // example: add 100 pixels for menus, toolbars, etc.
+
+    // Resize the window
+    resize(newWidth, newHeight);
+
+    // Optionally, you might want to center the window on the screen
+    QRect screenGeometry = QApplication::primaryScreen()->geometry();
+    int x = (screenGeometry.width() - newWidth) / 2;
+    int y = (screenGeometry.height() - newHeight) / 2;
+    move(x, y);
 }
