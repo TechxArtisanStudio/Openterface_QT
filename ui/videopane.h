@@ -24,6 +24,7 @@
 #define VIDEOPANE_H
 
 #include "target/mouseeventdto.h"
+#include "inputhandler.h"
 
 #include <QVideoWidget>
 #include <QMouseEvent>
@@ -38,26 +39,22 @@ public:
 
     void showHostMouse();
     void hideHostMouse();
-
-protected:
-    void mousePressEvent(QMouseEvent* event) override;
-    void mouseReleaseEvent(QMouseEvent* event) override;
-    void mouseMoveEvent(QMouseEvent *event) override;
-    void wheelEvent(QWheelEvent *event) override;
-    void keyPressEvent(QKeyEvent *event) override;
-    void keyReleaseEvent(QKeyEvent *event) override;
-    bool focusNextPrevChild(bool next) override;
-    bool eventFilter(QObject *watched, QEvent *event) override;
     void moveMouseToCenter();
+    void startEscTimer();
+    void stopEscTimer();
+
+    bool focusNextPrevChild(bool next) override;
+
+    bool isRelativeModeEnabled() const { return relativeModeEnable; }
+    void setRelativeModeEnabled(bool enable) { relativeModeEnable = enable; }
 
 private:
-    int getMouseButton(QMouseEvent *event);
-    int lastMouseButton = 0;
-    bool isDragging = false;
     int lastX=0;
     int lastY=0;
     bool relativeModeEnable;
     
+    InputHandler *m_inputHandler;
+
     QTimer *escTimer;
     bool holdingEsc=false;
     

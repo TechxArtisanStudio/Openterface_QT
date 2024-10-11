@@ -36,6 +36,8 @@
 
 #include "ui/videopane.h"
 #include "video/videohid.h"
+#include "ui/versioninfomanager.h"
+#include "ui/cameramanager.h"
 
 #include <QCameraDevice>
 #include <QMediaDevices>
@@ -69,6 +71,7 @@
 #include <QComboBox>
 #include <QScrollBar>
 #include <QGuiApplication>
+
 
 Q_LOGGING_CATEGORY(log_ui_mainwindow, "opf.ui.mainwindow")
 
@@ -120,7 +123,8 @@ QColor getContrastingColor(const QColor &color) {
     return QColor(d, d, d);
 }
 
-MainWindow::MainWindow() : ui(new Ui::MainWindow), m_audioManager(new AudioManager(this)),
+MainWindow::MainWindow() :  ui(new Ui::MainWindow),
+                            m_audioManager(new AudioManager(this)),
                             videoPane(new VideoPane(this)),
                             scrollArea(new QScrollArea(this)),
                             stackedLayout(new QStackedLayout(this)),
@@ -128,7 +132,7 @@ MainWindow::MainWindow() : ui(new Ui::MainWindow), m_audioManager(new AudioManag
                             statusWidget(new StatusWidget(this)),
                             toggleSwitch(new ToggleSwitch(this)),
                             m_cameraManager(new CameraManager(this)),
-                            m_inputHandler(new InputHandler(this))
+                            m_versionInfoManager(new VersionInfoManager(this))
 {
     qCDebug(log_ui_mainwindow) << "Init camera...";
     ui->setupUi(this);
@@ -495,41 +499,6 @@ void MainWindow::calculate_video_position(){
     GlobalVar::instance().setWinHeight(windowSize.height());
 }
 
-
-void MainWindow::keyPressEvent(QKeyEvent *event)
-{
-    m_inputHandler->handleKeyPress(event);
-    QMainWindow::keyPressEvent(event);
-}
-
-void MainWindow::keyReleaseEvent(QKeyEvent *event)
-{
-    m_inputHandler->handleKeyRelease(event);
-    QMainWindow::keyReleaseEvent(event);
-}
-
-void MainWindow::mousePressEvent(QMouseEvent *event)
-{
-    m_inputHandler->handleMousePress(event);
-    QMainWindow::mousePressEvent(event);
-}
-
-void MainWindow::mouseReleaseEvent(QMouseEvent *event)
-{
-    m_inputHandler->handleMouseRelease(event);
-    QMainWindow::mouseReleaseEvent(event);
-}
-
-void MainWindow::mouseMoveEvent(QMouseEvent *event)
-{
-    
-    lastMousePos = event->pos();
-    qDebug() << "lastMousePos: " ;
-    m_inputHandler->handleMouseMove(event);
-    QMainWindow::mouseMoveEvent(event);
-    
-}
-
 void MainWindow::updateScrollbars() {
     // Get the screen geometry using QScreen
 
@@ -820,7 +789,7 @@ void MainWindow::configureSettings() {
     qDebug() << "settingsDialog: " << settingsDialog;
     if (!settingsDialog){
         qDebug() << "Creating settings dialog";
-        settingsDialog = new SettingDialog(m_cameraManager->getCamera(), this);
+        settingsDialog = new SettingDialog(m_cameraManager, this);
         connect(settingsDialog, &SettingDialog::cameraSettingsApplied, this, &MainWindow::loadCameraSettingAndSetCamera);
         // connect the finished signal to the set the dialog pointer to nullptr
         connect(settingsDialog, &QDialog::finished, this, [this](){
@@ -862,44 +831,9 @@ void MainWindow::aboutLink(){
     QDesktopServices::openUrl(QUrl("https://openterface.com/"));
 }
 
-void MainWindow::versionInfo() {
-    QString applicationName = QApplication::applicationName();
-    QString organizationName = QApplication::organizationName();
-    QString applicationVersion = QApplication::applicationVersion();
-    QString osVersion = QSysInfo::prettyProductName();
-    QString title = tr("%1").arg(applicationName);
-    QString message = tr("Version:\t %1 \nQT:\t %2\nOS:\t %3")
-                          .arg(applicationVersion)
-                          .arg(qVersion())
-                          .arg(osVersion);
-
-    QMessageBox msgBox;
-    msgBox.setWindowTitle(title);
-    msgBox.setText(message);
-
-    QPushButton *copyButton = msgBox.addButton(tr("Copy"), QMessageBox::ActionRole);
-    msgBox.addButton(QMessageBox::Close);
-
-    connect(copyButton, &QPushButton::clicked, this, &MainWindow::copyToClipboard);
-
-    msgBox.exec();
-
-    if (msgBox.clickedButton() == copyButton) {
-        copyToClipboard();
-    }
-}
-
-void MainWindow::copyToClipboard(){
-    QString applicationName = QApplication::applicationName();
-    QString organizationName = QApplication::organizationName();
-    QString applicationVersion = QApplication::applicationVersion();
-
-    QString message = tr("Version:\t %1 \nOrganization:\t %2")
-                          .arg(applicationVersion)
-                          .arg(organizationName);
-
-    QClipboard *clipboard = QApplication::clipboard();
-    clipboard->setText(message);
+void MainWindow::versionInfo()
+{
+    m_versionInfoManager->showVersionInfo();
 }
 
 void MainWindow::onFunctionKeyPressed(int key)

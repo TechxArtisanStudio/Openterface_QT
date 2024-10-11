@@ -38,7 +38,7 @@
 #include "ui/serialportdebugdialog.h"
 #include "ui/settingdialog.h"
 #include "ui/cameramanager.h"
-#include "inputhandler.h"
+#include "ui/versioninfomanager.h"
 
 #include <QAudioInput>
 #include <QAudioOutput>
@@ -106,7 +106,7 @@ private slots:
     void displayCaptureError(int, QImageCapture::Error, const QString &errorString);
 
     void versionInfo();
-    void copyToClipboard();
+
     void purchaseLink();
     void feedbackLink();
     void aboutLink();
@@ -159,11 +159,6 @@ private slots:
     void onPaletteChanged();
 
 protected:
-    void keyPressEvent(QKeyEvent *event) override;
-    void keyReleaseEvent(QKeyEvent *event) override;  // Add this line
-    void mousePressEvent(QMouseEvent *event) override;   // Add this line
-    void mouseReleaseEvent(QMouseEvent *event) override; // Add this line
-    void mouseMoveEvent(QMouseEvent *event) override;    // Add this line
     void closeEvent(QCloseEvent *event) override;
     void resizeEvent(QResizeEvent* event) override;
     void moveEvent(QMoveEvent *event) override;
@@ -262,6 +257,7 @@ private:
     const int edgeThreshold = 50; // Adjust this value as needed
     const int edgeDuration = 125; // Reduced duration for more frequent checks
     const int maxScrollSpeed = 50; // Maximum scroll speed
+    VersionInfoManager *m_versionInfoManager;
 };
 
 #endif // MAINWINDOW_H
