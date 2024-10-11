@@ -39,6 +39,8 @@ public:
     void setConnectedPort(const QString &port, const int &baudrate);
     void setStatusUpdate(const QString &status);
     void setTargetUsbConnected(const bool isConnected);
+    int getCaptureWidth() const;
+    int getCaptureHeight() const;
 
 public slots:
     void setBaudrate(int baudrate);
@@ -50,6 +52,8 @@ private:
     QLabel *inputResolutionLabel;
     QLabel *captureResolutionLabel;
     QLabel *connectedPortLabel;
+    int m_captureWidth;
+    int m_captureHeight;
 };
 
 #endif // STATUSWIDGET_H
