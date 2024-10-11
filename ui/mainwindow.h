@@ -92,10 +92,9 @@ public:
     void stop();
 
 private slots:
-    void init();
+    void initCamera();
 
     void setCamera(const QCameraDevice &cameraDevice);
-    void loadCameraSettingAndSetCamera();
 
     void record();
     void pause();
@@ -197,6 +196,7 @@ private slots:
 
 private slots:
     void onVideoSettingsChanged(int width, int height);
+    void onResolutionsUpdated(int input_width, int input_height, float input_fps, int capture_width, int capture_height, int capture_fps);
 
 protected:
     bool eventFilter(QObject *watched, QEvent *event) override;
@@ -259,5 +259,4 @@ private:
 
     StatusBarManager *m_statusBarManager;
 };
-
 #endif // MAINWINDOW_H

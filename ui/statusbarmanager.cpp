@@ -5,9 +5,9 @@
 StatusBarManager::StatusBarManager(QStatusBar *statusBar, QObject *parent)
     : QObject(parent), m_statusBar(statusBar)
 {
+    iconColor = QPalette().color(QPalette::WindowText);
     m_statusWidget = new StatusWidget(m_statusBar);
     m_statusBar->addPermanentWidget(m_statusWidget);
-
     initStatusBar();
 }
 

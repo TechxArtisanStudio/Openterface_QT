@@ -202,21 +202,14 @@ MainWindow::MainWindow() :  ui(new Ui::MainWindow),
 
     connect(ui->virtualKeyboardButton, &QPushButton::released, this, &MainWindow::onToggleVirtualKeyboard);
 
-    qDebug() << "Init...";
-    init();
-
     addToolBar(Qt::TopToolBarArea, toolbarManager->getToolbar());
     toolbarManager->getToolbar()->setVisible(false);
-
-        // In the MainWindow constructor or initialization method
-    qApp->installEventFilter(this);
     
     connect(m_cameraManager, &CameraManager::cameraActiveChanged, this, &MainWindow::updateCameraActive);
     connect(m_cameraManager, &CameraManager::cameraError, this, &MainWindow::displayCameraError);
     connect(m_cameraManager, &CameraManager::imageCaptured, this, &MainWindow::processCapturedImage);                                         
 
     // Connect palette change signal to the slot
-    iconColor = palette().color(QPalette::WindowText);
     onLastKeyPressed("");
     onLastMouseLocation(QPoint(0, 0), "");
 
@@ -235,6 +228,21 @@ MainWindow::MainWindow() :  ui(new Ui::MainWindow),
     mouseEdgeTimer = new QTimer(this);
     connect(mouseEdgeTimer, &QTimer::timeout, this, &MainWindow::checkMousePosition);
     // mouseEdgeTimer->start(edgeDuration); // Start the timer with the new duration
+
+    // Initialize the virtual keyboard button icon
+    QIcon icon(":/images/keyboard-down.svg");
+    ui->virtualKeyboardButton->setIcon(icon);
+
+    // Add this after other menu connections
+    connect(ui->menuBaudrate, &QMenu::triggered, this, &MainWindow::onBaudrateMenuTriggered);
+    connect(&SerialPortManager::getInstance(), &SerialPortManager::connectedPortChanged, this, &MainWindow::onPortConnected);
+
+    qApp->installEventFilter(this);
+    
+    qDebug() << "Init camera...";
+    initCamera();
+
+    connect(m_cameraManager, &CameraManager::resolutionsUpdated, this, &MainWindow::onResolutionsUpdated);
 }
 
 void MainWindow::onZoomIn()
@@ -248,7 +256,6 @@ void MainWindow::onZoomIn()
         scrollArea->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
     }
 
-    
     mouseEdgeTimer->start(edgeDuration); // Check every edge Duration
 }
 
@@ -276,7 +283,7 @@ void MainWindow::onZoomReduction()
     }
 }
 
-void MainWindow::init()
+void MainWindow::initCamera()
 {
     qCDebug(log_ui_mainwindow) << "MainWindow init...";
 #ifdef QT_FEATURE_permissions //Permissions API not compatible with Qt < 6.5 and will cause compilation failure on expanding macro in qtconfigmacros.h
@@ -310,34 +317,10 @@ void MainWindow::init()
     // Camera devices:
     updateCameras();
 
-    loadCameraSettingAndSetCamera();
+    m_cameraManager->loadCameraSettingAndSetCamera();
 
     GlobalVar::instance().setWinWidth(this->width());
     GlobalVar::instance().setWinHeight(this->height());
-
-    // Initialize the virtual keyboard button icon
-    QIcon icon(":/images/keyboard-down.svg");
-    ui->virtualKeyboardButton->setIcon(icon);
-
-    // Add this after other menu connections
-    connect(ui->menuBaudrate, &QMenu::triggered, this, &MainWindow::onBaudrateMenuTriggered);
-    connect(&SerialPortManager::getInstance(), &SerialPortManager::connectedPortChanged, this, &MainWindow::onPortConnected);
-}
-
-void MainWindow::loadCameraSettingAndSetCamera(){
-    QSettings settings("Techxartisan", "Openterface");
-    QString deviceDescription = settings.value("camera/device", "Openterface").toString();
-    const QList<QCameraDevice> devices = QMediaDevices::videoInputs();
-    if (devices.isEmpty()) {
-        qDebug() << "No video input devices found.";
-    } else {
-        for (const QCameraDevice &cameraDevice : devices) {
-            if (cameraDevice.description() == deviceDescription) {
-                setCamera(cameraDevice);
-                break;
-            }
-        }
-    }
 }
 
 void MainWindow::setCamera(const QCameraDevice &cameraDevice)
@@ -345,24 +328,11 @@ void MainWindow::setCamera(const QCameraDevice &cameraDevice)
     m_cameraManager->setCamera(cameraDevice);
     m_cameraManager->setVideoOutput(videoPane);
 
-    queryResolutions();
+    m_cameraManager->queryResolutions();
 
     m_cameraManager->startCamera();
 
     VideoHid::getInstance().start();
-}
-
-void MainWindow::queryResolutions()
-{
-    QPair<int, int> resolution = VideoHid::getInstance().getResolution();
-    qCDebug(log_ui_mainwindow) << "Input resolution: " << resolution;
-    GlobalVar::instance().setInputWidth(resolution.first);
-    GlobalVar::instance().setInputHeight(resolution.second);
-    video_width = GlobalVar::instance().getCaptureWidth();
-    video_height = GlobalVar::instance().getCaptureHeight();
-
-    float input_fps = VideoHid::getInstance().getFps();
-    updateResolutions(resolution.first, resolution.second, input_fps, video_width, video_height, GlobalVar::instance().getCaptureFps());
 }
 
 void MainWindow::resizeEvent(QResizeEvent *event) {
@@ -664,7 +634,7 @@ void MainWindow::updateCameraActive(bool active) {
         qCDebug(log_ui_mainwindow) << "Set index to : " << 0;
         stackedLayout->setCurrentIndex(0);
     }
-    queryResolutions();
+    m_cameraManager->queryResolutions();
 }
 
 void MainWindow::updateRecordTime()
@@ -691,7 +661,7 @@ void MainWindow::configureSettings() {
     if (!settingDialog){
         qDebug() << "Creating settings dialog";
         settingDialog = new SettingDialog(m_cameraManager, this);
-        connect(settingDialog, &SettingDialog::cameraSettingsApplied, this, &MainWindow::loadCameraSettingAndSetCamera);
+        connect(settingDialog, &SettingDialog::cameraSettingsApplied, m_cameraManager, &CameraManager::loadCameraSettingAndSetCamera);
         connect(settingDialog, &SettingDialog::videoSettingsChanged, this, &MainWindow::onVideoSettingsChanged);
         // connect the finished signal to the set the dialog pointer to nullptr
         connect(settingDialog, &QDialog::finished, this, [this](){
@@ -772,9 +742,8 @@ void MainWindow::pause()
     m_cameraManager->stopRecording();
 }
 
-void MainWindow::setMuted(bool muted)
+void MainWindow::setMuted(bool /*muted*/)
 {
-    //Q_UNUSED(muted);
     // Your implementation here
 }
 
@@ -947,12 +916,6 @@ void MainWindow::onSwitchableUsbToggle(const bool isToTarget) {
     SerialPortManager::getInstance().restartSwitchableUSB();
 }
 
-void MainWindow::updateResolutions(const int input_width, const int input_height, const float input_fps, const int capture_width, const int capture_height, const int capture_fps)
-{
-    m_statusBarManager->setInputResolution(input_width, input_height, input_fps);
-    m_statusBarManager->setCaptureResolution(capture_width, capture_height, capture_fps);
-}
-
 void MainWindow::checkMousePosition()
 {
     if (!scrollArea || !videoPane) return;
@@ -1002,4 +965,10 @@ void MainWindow::onVideoSettingsChanged(int width, int height) {
     int x = (screenGeometry.width() - newWidth) / 2;
     int y = (screenGeometry.height() - newHeight) / 2;
     move(x, y);
+}
+
+void MainWindow::onResolutionsUpdated(int input_width, int input_height, float input_fps, int capture_width, int capture_height, int capture_fps)
+{
+    m_statusBarManager->setInputResolution(input_width, input_height, input_fps);
+    m_statusBarManager->setCaptureResolution(capture_width, capture_height, capture_fps);
 }
