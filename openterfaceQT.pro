@@ -20,7 +20,6 @@ SOURCES += main.cpp \
     ui/statuswidget.cpp \
     video/videohid.cpp \
     ui/helppane.cpp \
-    ui/imagesettings.cpp \
     ui/mainwindow.cpp \
     ui/metadatadialog.cpp \
     ui/videopane.cpp \
@@ -31,6 +30,7 @@ SOURCES += main.cpp \
     ui/inputhandler.cpp \
     ui/cameramanager.cpp \
     ui/versioninfomanager.cpp \    
+    ui/statusbarmanager.cpp \
     host/HostManager.cpp \
     serial/SerialPortManager.cpp \
     target/KeyboardManager.cpp \
@@ -46,7 +46,6 @@ HEADERS  += \
     ui/statuswidget.h \
     video/videohid.h \
     ui/helppane.h \
-    ui/imagesettings.h \
     ui/mainwindow.h \
     ui/metadatadialog.h \
     ui/videopane.h \
@@ -58,6 +57,7 @@ HEADERS  += \
     ui/inputhandler.h \
     ui/cameramanager.h \
     ui/versioninfomanager.h \
+    ui/statusbarmanager.h \
     host/HostManager.h \
     serial/ch9329.h \
     serial/SerialPortManager.h \
@@ -66,7 +66,6 @@ HEADERS  += \
     target/Keymapping.h
 
 FORMS    += \
-    ui/imagesettings.ui \
     ui/mainwindow.ui \
     ui/settingdialog.ui 
 

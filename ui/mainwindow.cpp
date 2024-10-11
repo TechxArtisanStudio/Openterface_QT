@@ -25,11 +25,10 @@
 #include "settingdialog.h"
 #include "ui_mainwindow.h"
 #include "globalsetting.h"
-
+#include "statusbarmanager.h"
 #include "host/HostManager.h"
 #include "serial/SerialPortManager.h"
 #include "loghandler.h"
-#include "ui/imagesettings.h"
 #include "ui/settingdialog.h"
 #include "ui/helppane.h"
 #include "ui/serialportdebugdialog.h"
@@ -72,7 +71,6 @@
 #include <QScrollBar>
 #include <QGuiApplication>
 
-
 Q_LOGGING_CATEGORY(log_ui_mainwindow, "opf.ui.mainwindow")
 
 /*
@@ -111,33 +109,19 @@ QPixmap recolorSvg(const QString &svgPath, const QColor &color, const QSize &siz
     return pixmap;
 }
 
-QColor getContrastingColor(const QColor &color) {
-    int d = 0;
-    // Calculate the perceptive luminance (Y) - human eye favors green color
-    double luminance = (0.299 * color.red() + 0.587 * color.green() + 0.114 * color.blue()) / 255;
-    if (luminance > 0.5) {
-        d = 0; // bright colors - black font
-    } else {
-        d = 255; // dark colors - white font
-    }
-    return QColor(d, d, d);
-}
-
 MainWindow::MainWindow() :  ui(new Ui::MainWindow),
                             m_audioManager(new AudioManager(this)),
                             videoPane(new VideoPane(this)),
                             scrollArea(new QScrollArea(this)),
                             stackedLayout(new QStackedLayout(this)),
                             toolbarManager(new ToolbarManager(this)),
-                            statusWidget(new StatusWidget(this)),
                             toggleSwitch(new ToggleSwitch(this)),
                             m_cameraManager(new CameraManager(this)),
                             m_versionInfoManager(new VersionInfoManager(this))
 {
     qCDebug(log_ui_mainwindow) << "Init camera...";
     ui->setupUi(this);
-    ui->statusbar->addPermanentWidget(statusWidget);
-
+    m_statusBarManager = new StatusBarManager(ui->statusbar, this);
     QWidget *centralWidget = new QWidget(this);
     centralWidget->setLayout(stackedLayout);
     centralWidget->setMouseTracking(true);
@@ -157,8 +141,6 @@ MainWindow::MainWindow() :  ui(new Ui::MainWindow),
     stackedLayout->addWidget(scrollArea);
 
     stackedLayout->setCurrentIndex(0);
-
-
 
     ui->menubar->setCornerWidget(ui->cornerWidget, Qt::TopRightCorner);
 
@@ -205,6 +187,7 @@ MainWindow::MainWindow() :  ui(new Ui::MainWindow),
     qDebug() << "Loading settings";
     GlobalSetting::instance().loadLogSettings();
     GlobalSetting::instance().loadVideoSettings();
+    // onVideoSettingsChanged(GlobalVar::instance().getCaptureWidth(), GlobalVar::instance().getCaptureHeight());
     LogHandler::instance().enableLogStore();
 
     qCDebug(log_ui_mainwindow) << "Observe switch usb connection trigger...";
@@ -219,24 +202,14 @@ MainWindow::MainWindow() :  ui(new Ui::MainWindow),
 
     connect(ui->virtualKeyboardButton, &QPushButton::released, this, &MainWindow::onToggleVirtualKeyboard);
 
-    qDebug() << "Init...";
-    init();
-
-    qDebug() << "Init status bar...";
-    initStatusBar();
-
     addToolBar(Qt::TopToolBarArea, toolbarManager->getToolbar());
     toolbarManager->getToolbar()->setVisible(false);
-
-    // In the MainWindow constructor or initialization method
-    connect(qApp, &QGuiApplication::paletteChanged, toolbarManager, &ToolbarManager::updateStyles);
-
+    
     connect(m_cameraManager, &CameraManager::cameraActiveChanged, this, &MainWindow::updateCameraActive);
     connect(m_cameraManager, &CameraManager::cameraError, this, &MainWindow::displayCameraError);
     connect(m_cameraManager, &CameraManager::imageCaptured, this, &MainWindow::processCapturedImage);                                         
 
     // Connect palette change signal to the slot
-    iconColor = palette().color(QPalette::WindowText);
     onLastKeyPressed("");
     onLastMouseLocation(QPoint(0, 0), "");
 
@@ -255,6 +228,21 @@ MainWindow::MainWindow() :  ui(new Ui::MainWindow),
     mouseEdgeTimer = new QTimer(this);
     connect(mouseEdgeTimer, &QTimer::timeout, this, &MainWindow::checkMousePosition);
     // mouseEdgeTimer->start(edgeDuration); // Start the timer with the new duration
+
+    // Initialize the virtual keyboard button icon
+    QIcon icon(":/images/keyboard-down.svg");
+    ui->virtualKeyboardButton->setIcon(icon);
+
+    // Add this after other menu connections
+    connect(ui->menuBaudrate, &QMenu::triggered, this, &MainWindow::onBaudrateMenuTriggered);
+    connect(&SerialPortManager::getInstance(), &SerialPortManager::connectedPortChanged, this, &MainWindow::onPortConnected);
+
+    qApp->installEventFilter(this);
+    
+    qDebug() << "Init camera...";
+    initCamera();
+
+    connect(m_cameraManager, &CameraManager::resolutionsUpdated, this, &MainWindow::onResolutionsUpdated);
 }
 
 void MainWindow::onZoomIn()
@@ -268,7 +256,6 @@ void MainWindow::onZoomIn()
         scrollArea->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
     }
 
-    
     mouseEdgeTimer->start(edgeDuration); // Check every edge Duration
 }
 
@@ -296,7 +283,7 @@ void MainWindow::onZoomReduction()
     }
 }
 
-void MainWindow::init()
+void MainWindow::initCamera()
 {
     qCDebug(log_ui_mainwindow) << "MainWindow init...";
 #ifdef QT_FEATURE_permissions //Permissions API not compatible with Qt < 6.5 and will cause compilation failure on expanding macro in qtconfigmacros.h
@@ -330,67 +317,10 @@ void MainWindow::init()
     // Camera devices:
     updateCameras();
 
-    loadCameraSettingAndSetCamera();
+    m_cameraManager->loadCameraSettingAndSetCamera();
 
     GlobalVar::instance().setWinWidth(this->width());
     GlobalVar::instance().setWinHeight(this->height());
-
-    // Initialize the virtual keyboard button icon
-    QIcon icon(":/images/keyboard-down.svg");
-    ui->virtualKeyboardButton->setIcon(icon);
-
-    // Add this after other menu connections
-    connect(ui->menuBaudrate, &QMenu::triggered, this, &MainWindow::onBaudrateMenuTriggered);
-    connect(&SerialPortManager::getInstance(), &SerialPortManager::connectedPortChanged, this, &MainWindow::onPortConnected);
-}
-
-void MainWindow::initStatusBar()
-{
-    qCDebug(log_ui_mainwindow) << "Init status bar...";
-
-    // Create a QLabel to hold the SVG icon
-    mouseLabel = new QLabel(this);
-    mouseLocationLabel = new QLabel(QString("(0,0)"), this);
-    mouseLocationLabel->setFixedWidth(80);
-
-    // Mouse container widget
-    QWidget *mouseContainer = new QWidget(this);
-    QHBoxLayout *mouseLayout = new QHBoxLayout(mouseContainer);
-
-    mouseLayout->setContentsMargins(0, 0, 0, 0); // Remove margins
-    mouseLayout->addWidget(mouseLabel);
-    mouseLayout->addWidget(mouseLocationLabel);
-    ui->statusbar->addWidget(mouseContainer);
-
-    onLastMouseLocation(QPoint(0, 0), nullptr);
-    keyPressedLabel = new QLabel(this);
-    keyLabel = new QLabel(this);
-    keyLabel->setFixedWidth(25);
-    // Key container widget
-    QWidget *keyContainer = new QWidget(this);
-    QHBoxLayout *keyLayout = new QHBoxLayout(keyContainer);
-    keyLayout->setContentsMargins(0, 0, 0, 0); // Remove margins
-    keyLayout->addWidget(keyPressedLabel);
-    keyLayout->addWidget(keyLabel);
-    ui->statusbar->addWidget(keyContainer);
-
-    onLastKeyPressed("");
-}
-
-void MainWindow::loadCameraSettingAndSetCamera(){
-    QSettings settings("Techxartisan", "Openterface");
-    QString deviceDescription = settings.value("camera/device", "Openterface").toString();
-    const QList<QCameraDevice> devices = QMediaDevices::videoInputs();
-    if (devices.isEmpty()) {
-        qDebug() << "No video input devices found.";
-    } else {
-        for (const QCameraDevice &cameraDevice : devices) {
-            if (cameraDevice.description() == deviceDescription) {
-                setCamera(cameraDevice);
-                break;
-            }
-        }
-    }
 }
 
 void MainWindow::setCamera(const QCameraDevice &cameraDevice)
@@ -398,24 +328,11 @@ void MainWindow::setCamera(const QCameraDevice &cameraDevice)
     m_cameraManager->setCamera(cameraDevice);
     m_cameraManager->setVideoOutput(videoPane);
 
-    queryResolutions();
+    m_cameraManager->queryResolutions();
 
     m_cameraManager->startCamera();
 
     VideoHid::getInstance().start();
-}
-
-void MainWindow::queryResolutions()
-{
-    QPair<int, int> resolution = VideoHid::getInstance().getResolution();
-    qCDebug(log_ui_mainwindow) << "Input resolution: " << resolution;
-    GlobalVar::instance().setInputWidth(resolution.first);
-    GlobalVar::instance().setInputHeight(resolution.second);
-    video_width = GlobalVar::instance().getCaptureWidth();
-    video_height = GlobalVar::instance().getCaptureHeight();
-
-    float input_fps = VideoHid::getInstance().getFps();
-    updateResolutions(resolution.first, resolution.second, input_fps, video_width, video_height, GlobalVar::instance().getCaptureFps());
 }
 
 void MainWindow::resizeEvent(QResizeEvent *event) {
@@ -462,6 +379,11 @@ void MainWindow::moveEvent(QMoveEvent *event) {
     QWidget::moveEvent(event);
 
     //calculate_video_position();
+
+qCDebug(log_ui_mainwindow) << "Global Variables - Win Width:" << GlobalVar::instance().getWinWidth()
+                            << ", Win Height:" << GlobalVar::instance().getWinHeight()
+                            << ", Capture Width:" << GlobalVar::instance().getCaptureWidth()
+                            << ", Capture Height:" << GlobalVar::instance().getCaptureHeight();
 }
 
 void MainWindow::calculate_video_position(){
@@ -626,44 +548,12 @@ void MainWindow::onResolutionChange(const int& width, const int& height, const f
 {
     GlobalVar::instance().setInputWidth(width);
     GlobalVar::instance().setInputHeight(height);
-    statusWidget->setInputResolution(width, height, fps);
+    m_statusBarManager->setInputResolution(width, height, fps);
 }
 
 void MainWindow::onTargetUsbConnected(const bool isConnected)
 {
-    statusWidget->setTargetUsbConnected(isConnected);
-}
-
-void MainWindow::updateBaudrateMenu(int baudrate){
-    // Find the QAction corresponding to the current baudrate and check it
-    QList<QAction*> actions = ui->menuBaudrate->actions();
-    for (QAction* action : actions) {
-        bool ok;
-        int actionBaudrate = action->text().toInt(&ok);
-        if (ok && actionBaudrate == baudrate) {
-            action->setChecked(true);
-        } else {
-            action->setChecked(false);
-        }
-    }
-
-    // If the current baudrate is not in the menu, add a new option and check it
-    bool baudrateFound = false;
-    for (QAction* action : actions) {
-        if (action->text().toInt() == baudrate) {
-            baudrateFound = true;
-            break;
-        }
-    }
-    if (!baudrateFound) {
-        QAction* newAction = new QAction(QString::number(baudrate), this);
-        newAction->setCheckable(true);
-        newAction->setChecked(true);
-        ui->menuBaudrate->addAction(newAction);
-        connect(newAction, &QAction::triggered, this, [this, newAction]() {
-            onBaudrateMenuTriggered(newAction);
-        });
-    }
+    m_statusBarManager->setTargetUsbConnected(isConnected);
 }
 
 void MainWindow::onActionPasteToTarget()
@@ -744,7 +634,7 @@ void MainWindow::updateCameraActive(bool active) {
         qCDebug(log_ui_mainwindow) << "Set index to : " << 0;
         stackedLayout->setCurrentIndex(0);
     }
-    queryResolutions();
+    m_cameraManager->queryResolutions();
 }
 
 void MainWindow::updateRecordTime()
@@ -766,39 +656,21 @@ void MainWindow::processCapturedImage(int requestId, const QImage &img)
     QTimer::singleShot(4000, this, &MainWindow::displayViewfinder);
 }
 
-// }
-
-// void MainWindow::configureVideoSettings()
-// {
-//     VideoSettings settingsDialog(m_camera.data());
-
-//     if (settingsDialog.exec())
-//         settingsDialog.applySettings();
-// }
-
-// void MainWindow::configureImageSettings()
-// {
-//     ImageSettings settingsDialog(m_imageCapture.get());
-
-//     if (settingsDialog.exec() == QDialog::Accepted)
-//         settingsDialog.applyImageSettings();
-// }
-
 void MainWindow::configureSettings() {
     qDebug() << "configureSettings";
-    qDebug() << "settingsDialog: " << settingsDialog;
-    if (!settingsDialog){
+    if (!settingDialog){
         qDebug() << "Creating settings dialog";
-        settingsDialog = new SettingDialog(m_cameraManager, this);
-        connect(settingsDialog, &SettingDialog::cameraSettingsApplied, this, &MainWindow::loadCameraSettingAndSetCamera);
+        settingDialog = new SettingDialog(m_cameraManager, this);
+        connect(settingDialog, &SettingDialog::cameraSettingsApplied, m_cameraManager, &CameraManager::loadCameraSettingAndSetCamera);
+        connect(settingDialog, &SettingDialog::videoSettingsChanged, this, &MainWindow::onVideoSettingsChanged);
         // connect the finished signal to the set the dialog pointer to nullptr
-        connect(settingsDialog, &QDialog::finished, this, [this](){
-            settingsDialog = nullptr;
+        connect(settingDialog, &QDialog::finished, this, [this](){
+            settingDialog = nullptr;
         });
-        settingsDialog->show();
+        settingDialog->show();
     }else{
-        settingsDialog->raise();
-        settingsDialog->activateWindow();
+        settingDialog->raise();
+        settingDialog->activateWindow();
     }
 }
 
@@ -851,11 +723,13 @@ void MainWindow::onRepeatingKeystrokeChanged(int interval)
     HostManager::getInstance().setRepeatingKeystroke(interval);
 }
 
-void MainWindow::onPaletteChanged()
+bool MainWindow::eventFilter(QObject *watched, QEvent *event)
 {
-    iconColor = getContrastingColor(palette().color(QPalette::WindowText));
-    onLastKeyPressed("");
-    onLastMouseLocation(QPoint(0, 0), "");
+    if (watched == qApp && event->type() == QEvent::ApplicationPaletteChange) {
+        toolbarManager->updateStyles();
+        m_statusBarManager->updateIconColor();
+    }
+    return QMainWindow::eventFilter(watched, event);
 }
 
 void MainWindow::record()
@@ -868,9 +742,9 @@ void MainWindow::pause()
     m_cameraManager->stopRecording();
 }
 
-void MainWindow::setMuted(bool muted)
+void MainWindow::setMuted(bool /*muted*/)
 {
-   // m_captureSession.audioInput()->setMuted(muted);
+    // Your implementation here
 }
 
 void MainWindow::takeImage()
@@ -1011,53 +885,20 @@ void MainWindow::checkCameraConnection()
 
 
 void MainWindow::onPortConnected(const QString& port, const int& baudrate) {
-    statusWidget->setConnectedPort(port, baudrate);
-    updateBaudrateMenu(baudrate);
+    m_statusBarManager->setConnectedPort(port, baudrate);
+    m_statusBarManager->updateBaudrateMenu(baudrate);
 }
 
 void MainWindow::onStatusUpdate(const QString& status) {
-    statusWidget->setStatusUpdate(status);
+    m_statusBarManager->setStatusUpdate(status);
 }
 
 void MainWindow::onLastKeyPressed(const QString& key) {
-    QString svgPath;
-    if(key == ""){
-        svgPath = QString(":/images/keyboard.svg");
-    }else{
-        svgPath = QString(":/images/keyboard-pressed.svg");
-    }
-
-    // Load the SVG into a QPixmap
-    // iconColor = palette().color(QPalette::WindowText);
-    // qDebug() << "keyboard iconColor: " << iconColor;
-    QPixmap pixmap = recolorSvg(svgPath, iconColor, QSize(18, 18)); // Adjust the size as needed
-
-    // Set the QPixmap to the QLabel
-    keyPressedLabel->setPixmap(pixmap);
-    keyLabel->setText(QString("%1").arg(key));
+    m_statusBarManager->onLastKeyPressed(key);
 }
 
 void MainWindow::onLastMouseLocation(const QPoint& location, const QString& mouseEvent) {
-    // Load the SVG into a QPixmap
-    QString svgPath;
-    if (mouseEvent == "L") {
-        svgPath = ":/images/mouse-left-button.svg";
-    } else if (mouseEvent == "R") {
-        svgPath = ":/images/mouse-right-button.svg";
-    } else if (mouseEvent == "M") {
-        svgPath = ":/images/mouse-middle-button.svg";
-    } else {
-        svgPath = ":/images/mouse-default.svg";
-    }
-
-    // Load the SVG into a QPixmap
-    // iconColor = palette().color(QPalette::WindowText);
-    // qDebug() << "mouse iconColor: " << iconColor;
-    QPixmap pixmap = recolorSvg(svgPath, iconColor, QSize(12, 12)); // Adjust the size as needed
-
-    // Set the QPixmap to the QLabel
-    mouseLabel->setPixmap(pixmap);
-    mouseLocationLabel->setText(QString("(%1,%2)").arg(location.x()).arg(location.y()));
+    m_statusBarManager->onLastMouseLocation(location, mouseEvent);
 }
 
 void MainWindow::onSwitchableUsbToggle(const bool isToTarget) {
@@ -1073,12 +914,6 @@ void MainWindow::onSwitchableUsbToggle(const bool isToTarget) {
         toggleSwitch->setChecked(false);
     }
     SerialPortManager::getInstance().restartSwitchableUSB();
-}
-
-void MainWindow::updateResolutions(const int input_width, const int input_height, const float input_fps, const int capture_width, const int capture_height, const int capture_fps)
-{
-    statusWidget->setInputResolution(input_width, input_height, input_fps);
-    statusWidget->setCaptureResolution(capture_width, capture_height, capture_fps);
 }
 
 void MainWindow::checkMousePosition()
@@ -1114,4 +949,26 @@ void MainWindow::checkMousePosition()
         scrollArea->horizontalScrollBar()->setValue(scrollArea->horizontalScrollBar()->value() + deltaX);
         scrollArea->verticalScrollBar()->setValue(scrollArea->verticalScrollBar()->value() + deltaY);
     }
+}
+
+void MainWindow::onVideoSettingsChanged(int width, int height) {
+    // Calculate new window size based on the video dimensions
+    // You might want to add some padding or adjust based on other UI elements
+    int newWidth = width + 1;  // example: add 50 pixels for padding
+    int newHeight = height + 1;  // example: add 100 pixels for menus, toolbars, etc.
+
+    // Resize the window
+    resize(newWidth, newHeight);
+
+    // Optionally, you might want to center the window on the screen
+    QRect screenGeometry = QApplication::primaryScreen()->geometry();
+    int x = (screenGeometry.width() - newWidth) / 2;
+    int y = (screenGeometry.height() - newHeight) / 2;
+    move(x, y);
+}
+
+void MainWindow::onResolutionsUpdated(int input_width, int input_height, float input_fps, int capture_width, int capture_height, int capture_fps)
+{
+    m_statusBarManager->setInputResolution(input_width, input_height, input_fps);
+    m_statusBarManager->setCaptureResolution(capture_width, capture_height, capture_fps);
 }

@@ -91,6 +91,7 @@ public:
 signals:
     void cameraSettingsApplied();
     void serialSettingsApplied();
+    void videoSettingsChanged(int width, int height);
 
 private:
     

@@ -1,6 +1,10 @@
 #include "cameramanager.h"
 
 #include <QLoggingCategory>
+#include <QSettings>
+#include <QMediaDevices>
+#include "global.h"
+#include "video/videohid.h"
 
 Q_LOGGING_CATEGORY(log_ui_camera, "opf.ui.camera")
 
@@ -122,4 +126,39 @@ QCameraFormat CameraManager::getCameraFormat() const {
 
 QList<QCameraFormat> CameraManager::getCameraFormats() const {
     return m_camera ? m_camera->cameraDevice().videoFormats() : QList<QCameraFormat>();
+}
+
+void CameraManager::loadCameraSettingAndSetCamera()
+{
+    QSettings settings("Techxartisan", "Openterface");
+    QString deviceDescription = settings.value("camera/device", "Openterface").toString();
+    const QList<QCameraDevice> devices = QMediaDevices::videoInputs();
+    if (devices.isEmpty()) {
+        qDebug() << "No video input devices found.";
+    } else {
+        for (const QCameraDevice &cameraDevice : devices) {
+            if (cameraDevice.description() == deviceDescription) {
+                setCamera(cameraDevice);
+                break;
+            }
+        }
+    }
+}
+
+void CameraManager::queryResolutions()
+{
+    QPair<int, int> resolution = VideoHid::getInstance().getResolution();
+    qCDebug(log_ui_camera) << "Input resolution: " << resolution;
+    GlobalVar::instance().setInputWidth(resolution.first);
+    GlobalVar::instance().setInputHeight(resolution.second);
+    m_video_width = GlobalVar::instance().getCaptureWidth();
+    m_video_height = GlobalVar::instance().getCaptureHeight();
+
+    float input_fps = VideoHid::getInstance().getFps();
+    updateResolutions(resolution.first, resolution.second, input_fps, m_video_width, m_video_height, GlobalVar::instance().getCaptureFps());
+}
+
+void CameraManager::updateResolutions(int input_width, int input_height, float input_fps, int capture_width, int capture_height, int capture_fps)
+{
+    emit resolutionsUpdated(input_width, input_height, input_fps, capture_width, capture_height, capture_fps);
 }
