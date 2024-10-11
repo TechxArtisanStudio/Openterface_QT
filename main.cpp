@@ -72,10 +72,18 @@ void customMessageHandler(QtMsgType type, const QMessageLogContext &context, con
 void setupEnv(){
 #ifdef Q_OS_LINUX
     QString originalMediaBackend = qgetenv("QT_MEDIA_BACKEND");
-    qDebug() << "Oringial QT Media Backend:" << originalMediaBackend;
+    qDebug() << "Original QT Media Backend:" << originalMediaBackend;
     qputenv("QT_MEDIA_BACKEND", "ffmpeg");
     QString newMediaBackend = qgetenv("QT_MEDIA_BACKEND");
     qDebug() << "Current QT Media Backend:" << newMediaBackend;
+
+    // Check if QT_QPA_PLATFORM is not set, and set it to "xcb" if it's empty
+    if (qgetenv("QT_QPA_PLATFORM").isEmpty()) {
+        qputenv("QT_QPA_PLATFORM", "xcb");
+        qDebug() << "Set QT_QPA_PLATFORM to xcb";
+    } else {
+        qDebug() << "Current QT_QPA_PLATFORM:" << qgetenv("QT_QPA_PLATFORM");
+    }
 #endif
 }
 
