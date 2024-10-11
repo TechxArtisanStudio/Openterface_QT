@@ -25,11 +25,10 @@
 #include "settingdialog.h"
 #include "ui_mainwindow.h"
 #include "globalsetting.h"
-
+#include "statusbarmanager.h"
 #include "host/HostManager.h"
 #include "serial/SerialPortManager.h"
 #include "loghandler.h"
-#include "ui/imagesettings.h"
 #include "ui/settingdialog.h"
 #include "ui/helppane.h"
 #include "ui/serialportdebugdialog.h"
@@ -72,7 +71,6 @@
 #include <QScrollBar>
 #include <QGuiApplication>
 
-
 Q_LOGGING_CATEGORY(log_ui_mainwindow, "opf.ui.mainwindow")
 
 /*
@@ -111,33 +109,19 @@ QPixmap recolorSvg(const QString &svgPath, const QColor &color, const QSize &siz
     return pixmap;
 }
 
-QColor getContrastingColor(const QColor &color) {
-    int d = 0;
-    // Calculate the perceptive luminance (Y) - human eye favors green color
-    double luminance = (0.299 * color.red() + 0.587 * color.green() + 0.114 * color.blue()) / 255;
-    if (luminance > 0.5) {
-        d = 0; // bright colors - black font
-    } else {
-        d = 255; // dark colors - white font
-    }
-    return QColor(d, d, d);
-}
-
 MainWindow::MainWindow() :  ui(new Ui::MainWindow),
                             m_audioManager(new AudioManager(this)),
                             videoPane(new VideoPane(this)),
                             scrollArea(new QScrollArea(this)),
                             stackedLayout(new QStackedLayout(this)),
                             toolbarManager(new ToolbarManager(this)),
-                            statusWidget(new StatusWidget(this)),
                             toggleSwitch(new ToggleSwitch(this)),
                             m_cameraManager(new CameraManager(this)),
                             m_versionInfoManager(new VersionInfoManager(this))
 {
     qCDebug(log_ui_mainwindow) << "Init camera...";
     ui->setupUi(this);
-    ui->statusbar->addPermanentWidget(statusWidget);
-
+    m_statusBarManager = new StatusBarManager(ui->statusbar, this);
     QWidget *centralWidget = new QWidget(this);
     centralWidget->setLayout(stackedLayout);
     centralWidget->setMouseTracking(true);
@@ -221,15 +205,12 @@ MainWindow::MainWindow() :  ui(new Ui::MainWindow),
     qDebug() << "Init...";
     init();
 
-    qDebug() << "Init status bar...";
-    initStatusBar();
-
     addToolBar(Qt::TopToolBarArea, toolbarManager->getToolbar());
     toolbarManager->getToolbar()->setVisible(false);
 
-    // In the MainWindow constructor or initialization method
-    connect(qApp, &QGuiApplication::paletteChanged, toolbarManager, &ToolbarManager::updateStyles);
-
+        // In the MainWindow constructor or initialization method
+    qApp->installEventFilter(this);
+    
     connect(m_cameraManager, &CameraManager::cameraActiveChanged, this, &MainWindow::updateCameraActive);
     connect(m_cameraManager, &CameraManager::cameraError, this, &MainWindow::displayCameraError);
     connect(m_cameraManager, &CameraManager::imageCaptured, this, &MainWindow::processCapturedImage);                                         
@@ -341,39 +322,6 @@ void MainWindow::init()
     // Add this after other menu connections
     connect(ui->menuBaudrate, &QMenu::triggered, this, &MainWindow::onBaudrateMenuTriggered);
     connect(&SerialPortManager::getInstance(), &SerialPortManager::connectedPortChanged, this, &MainWindow::onPortConnected);
-}
-
-void MainWindow::initStatusBar()
-{
-    qCDebug(log_ui_mainwindow) << "Init status bar...";
-
-    // Create a QLabel to hold the SVG icon
-    mouseLabel = new QLabel(this);
-    mouseLocationLabel = new QLabel(QString("(0,0)"), this);
-    mouseLocationLabel->setFixedWidth(80);
-
-    // Mouse container widget
-    QWidget *mouseContainer = new QWidget(this);
-    QHBoxLayout *mouseLayout = new QHBoxLayout(mouseContainer);
-
-    mouseLayout->setContentsMargins(0, 0, 0, 0); // Remove margins
-    mouseLayout->addWidget(mouseLabel);
-    mouseLayout->addWidget(mouseLocationLabel);
-    ui->statusbar->addWidget(mouseContainer);
-
-    onLastMouseLocation(QPoint(0, 0), nullptr);
-    keyPressedLabel = new QLabel(this);
-    keyLabel = new QLabel(this);
-    keyLabel->setFixedWidth(60);
-    // Key container widget
-    QWidget *keyContainer = new QWidget(this);
-    QHBoxLayout *keyLayout = new QHBoxLayout(keyContainer);
-    keyLayout->setContentsMargins(0, 0, 0, 0); // Remove margins
-    keyLayout->addWidget(keyPressedLabel);
-    keyLayout->addWidget(keyLabel);
-    ui->statusbar->addWidget(keyContainer);
-
-    onLastKeyPressed("");
 }
 
 void MainWindow::loadCameraSettingAndSetCamera(){
@@ -630,44 +578,12 @@ void MainWindow::onResolutionChange(const int& width, const int& height, const f
 {
     GlobalVar::instance().setInputWidth(width);
     GlobalVar::instance().setInputHeight(height);
-    statusWidget->setInputResolution(width, height, fps);
+    m_statusBarManager->setInputResolution(width, height, fps);
 }
 
 void MainWindow::onTargetUsbConnected(const bool isConnected)
 {
-    statusWidget->setTargetUsbConnected(isConnected);
-}
-
-void MainWindow::updateBaudrateMenu(int baudrate){
-    // Find the QAction corresponding to the current baudrate and check it
-    QList<QAction*> actions = ui->menuBaudrate->actions();
-    for (QAction* action : actions) {
-        bool ok;
-        int actionBaudrate = action->text().toInt(&ok);
-        if (ok && actionBaudrate == baudrate) {
-            action->setChecked(true);
-        } else {
-            action->setChecked(false);
-        }
-    }
-
-    // If the current baudrate is not in the menu, add a new option and check it
-    bool baudrateFound = false;
-    for (QAction* action : actions) {
-        if (action->text().toInt() == baudrate) {
-            baudrateFound = true;
-            break;
-        }
-    }
-    if (!baudrateFound) {
-        QAction* newAction = new QAction(QString::number(baudrate), this);
-        newAction->setCheckable(true);
-        newAction->setChecked(true);
-        ui->menuBaudrate->addAction(newAction);
-        connect(newAction, &QAction::triggered, this, [this, newAction]() {
-            onBaudrateMenuTriggered(newAction);
-        });
-    }
+    m_statusBarManager->setTargetUsbConnected(isConnected);
 }
 
 void MainWindow::onActionPasteToTarget()
@@ -837,11 +753,13 @@ void MainWindow::onRepeatingKeystrokeChanged(int interval)
     HostManager::getInstance().setRepeatingKeystroke(interval);
 }
 
-void MainWindow::onPaletteChanged()
+bool MainWindow::eventFilter(QObject *watched, QEvent *event)
 {
-    iconColor = getContrastingColor(palette().color(QPalette::WindowText));
-    onLastKeyPressed("");
-    onLastMouseLocation(QPoint(0, 0), "");
+    if (watched == qApp && event->type() == QEvent::ApplicationPaletteChange) {
+        toolbarManager->updateStyles();
+        m_statusBarManager->updateIconColor();
+    }
+    return QMainWindow::eventFilter(watched, event);
 }
 
 void MainWindow::record()
@@ -856,7 +774,8 @@ void MainWindow::pause()
 
 void MainWindow::setMuted(bool muted)
 {
-   // m_captureSession.audioInput()->setMuted(muted);
+    //Q_UNUSED(muted);
+    // Your implementation here
 }
 
 void MainWindow::takeImage()
@@ -997,59 +916,20 @@ void MainWindow::checkCameraConnection()
 
 
 void MainWindow::onPortConnected(const QString& port, const int& baudrate) {
-    statusWidget->setConnectedPort(port, baudrate);
-    updateBaudrateMenu(baudrate);
+    m_statusBarManager->setConnectedPort(port, baudrate);
+    m_statusBarManager->updateBaudrateMenu(baudrate);
 }
 
 void MainWindow::onStatusUpdate(const QString& status) {
-    statusWidget->setStatusUpdate(status);
+    m_statusBarManager->setStatusUpdate(status);
 }
 
 void MainWindow::onLastKeyPressed(const QString& key) {
-    QString svgPath;
-    if(key == ""){
-        svgPath = QString(":/images/keyboard.svg");
-    }else{
-        svgPath = QString(":/images/keyboard-pressed.svg");
-    }
-
-    // Load the SVG into a QPixmap
-    // iconColor = palette().color(QPalette::WindowText);
-    // qDebug() << "keyboard iconColor: " << iconColor;
-    QPixmap pixmap = recolorSvg(svgPath, iconColor, QSize(18, 18)); // Adjust the size as needed
-
-    // Set the QPixmap to the QLabel
-    keyPressedLabel->setPixmap(pixmap);
-    keyLabel->setText(QString("%1").arg(key));
+    m_statusBarManager->onLastKeyPressed(key);
 }
 
 void MainWindow::onLastMouseLocation(const QPoint& location, const QString& mouseEvent) {
-    // Load the SVG into a QPixmap
-    QString svgPath;
-    if (mouseEvent == "L") {
-        svgPath = ":/images/mouse-left-button.svg";
-    } else if (mouseEvent == "R") {
-        svgPath = ":/images/mouse-right-button.svg";
-    } else if (mouseEvent == "M") {
-        svgPath = ":/images/mouse-middle-button.svg";
-    } else {
-        svgPath = ":/images/mouse-default.svg";
-    }
-
-    // Load the SVG into a QPixmap
-    QPixmap pixmap = recolorSvg(svgPath, iconColor, QSize(12, 12)); // Adjust the size as needed
-
-    // Set the QPixmap to the QLabel
-    mouseLabel->setPixmap(pixmap);
-
-    // Calculate the mouse position based on the capture resolution
-    int capture_width = GlobalVar::instance().getCaptureWidth();
-    int capture_height = GlobalVar::instance().getCaptureHeight();
-    
-    int mouse_x = static_cast<int>(location.x() / 4096.0 * capture_width);
-    int mouse_y = static_cast<int>(location.y() / 4096.0 * capture_height);
-
-    mouseLocationLabel->setText(QString("(%1,%2)").arg(mouse_x).arg(mouse_y));
+    m_statusBarManager->onLastMouseLocation(location, mouseEvent);
 }
 
 void MainWindow::onSwitchableUsbToggle(const bool isToTarget) {
@@ -1069,8 +949,8 @@ void MainWindow::onSwitchableUsbToggle(const bool isToTarget) {
 
 void MainWindow::updateResolutions(const int input_width, const int input_height, const float input_fps, const int capture_width, const int capture_height, const int capture_fps)
 {
-    statusWidget->setInputResolution(input_width, input_height, input_fps);
-    statusWidget->setCaptureResolution(capture_width, capture_height, capture_fps);
+    m_statusBarManager->setInputResolution(input_width, input_height, input_fps);
+    m_statusBarManager->setCaptureResolution(capture_width, capture_height, capture_fps);
 }
 
 void MainWindow::checkMousePosition()

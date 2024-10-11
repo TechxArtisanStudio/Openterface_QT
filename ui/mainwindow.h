@@ -39,6 +39,7 @@
 #include "ui/settingdialog.h"
 #include "ui/cameramanager.h"
 #include "ui/versioninfomanager.h"
+#include "statusbarmanager.h"
 
 #include <QAudioInput>
 #include <QAudioOutput>
@@ -92,8 +93,6 @@ public:
 
 private slots:
     void init();
-
-    void initStatusBar();
 
     void setCamera(const QCameraDevice &cameraDevice);
     void loadCameraSettingAndSetCamera();
@@ -152,12 +151,6 @@ private slots:
 
     void onTargetUsbConnected(const bool isConnected) override;
     
-    // void toggleToolbar();
-
-    // void toggleToolbar();
-
-    void onPaletteChanged();
-
 protected:
     void closeEvent(QCloseEvent *event) override;
     void resizeEvent(QResizeEvent* event) override;
@@ -205,6 +198,9 @@ private slots:
 private slots:
     void onVideoSettingsChanged(int width, int height);
 
+protected:
+    bool eventFilter(QObject *watched, QEvent *event) override;
+
 private:
     Ui::MainWindow *ui;
     AudioManager *m_audioManager;
@@ -235,7 +231,6 @@ private:
     QList<QCameraDevice> m_lastCameraList;
 
     MetaDataDialog *m_metaDataDialog = nullptr;
-    StatusWidget *statusWidget;
     SettingDialog *settingDialog = nullptr;
     SerialPortDebugDialog *serialPortDebugDialog = nullptr;
 
@@ -261,6 +256,8 @@ private:
     const int edgeDuration = 125; // Reduced duration for more frequent checks
     const int maxScrollSpeed = 50; // Maximum scroll speed
     VersionInfoManager *m_versionInfoManager;
+
+    StatusBarManager *m_statusBarManager;
 };
 
 #endif // MAINWINDOW_H
