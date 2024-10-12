@@ -129,7 +129,7 @@ MainWindow::MainWindow() :  ui(new Ui::MainWindow),
 
     HelpPane *helpPane = new HelpPane;
     stackedLayout->addWidget(helpPane);
-
+    
     // Set size policy and minimum size for videoPane
     // videoPane->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
     videoPane->setMinimumSize(this->width(),
@@ -767,10 +767,8 @@ void MainWindow::stop(){
     qDebug() << "Audio manager stopped.";
 
     m_captureSession.disconnect();
-    qDebug() << "Capture session stopped.";
-    VideoHid::getInstance().stop();
-    qDebug() << "Video HID stopped.";
-    m_camera->stop();
+
+    m_cameraManager->stopCamera();
     qDebug() << "Camera stopped.";
 }
 
@@ -817,13 +815,26 @@ void MainWindow::closeEvent(QCloseEvent *event)
 void MainWindow::updateCameras()
 {
     qCDebug(log_ui_mainwindow) << "Update cameras...";
-    // ui->menuSource->clear();
     const QList<QCameraDevice> availableCameras = QMediaDevices::videoInputs();
-
+    qDebug() << "availableCameras size: " << availableCameras.size();
+    // If the last camera list is not empty, check if available cameras still include the last camera
+    if (!m_lastCameraList.isEmpty()) {
+        qDebug() << "m_lastCameraList is not empty, size: " << m_lastCameraList.size();
+        for (const QCameraDevice &camera : m_lastCameraList) {
+            qDebug() << "Checking camera: " << camera.description();
+            if (!availableCameras.contains(camera)) {
+                qCDebug(log_ui_mainwindow) << "A camera has been disconnected:" << camera.description();
+                stop();
+                m_lastCameraList.clear();
+                return;
+            }
+        }
+    }
+    qDebug() << "Checking for new cameras...";
+    // Check for new cameras
     for (const QCameraDevice &camera : availableCameras) {
         if (!m_lastCameraList.contains(camera)) {
             qCDebug(log_ui_mainwindow) << "A new camera has been connected:" << camera.description();
-
             if (!camera.description().contains("Openterface"))
                 continue;
 
@@ -839,9 +850,12 @@ void MainWindow::updateCameras()
             }
             m_audioManager->initializeAudio();
             m_cameraManager->setCamera(camera, videoPane);
+            // Add the new camera to the last camera list
+            m_lastCameraList.append(camera);
             break;
         }
     }
+    qDebug() << "Update cameras done.";
 }
 
 void MainWindow::onPortConnected(const QString& port, const int& baudrate) {

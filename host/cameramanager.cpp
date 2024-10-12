@@ -63,6 +63,8 @@ void CameraManager::startCamera()
 
 void CameraManager::stopCamera()
 {
+    VideoHid::getInstance().stop();
+
     if (m_camera) {
         m_camera->stop();
         qCDebug(log_ui_camera) << "Camera stopped";
