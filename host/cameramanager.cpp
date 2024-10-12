@@ -17,7 +17,21 @@ CameraManager::CameraManager(QObject *parent)
 
 CameraManager::~CameraManager() = default;
 
-void CameraManager::setCamera(const QCameraDevice &cameraDevice)
+void CameraManager::setCamera(const QCameraDevice &cameraDevice, QVideoWidget* videoOutput)
+{
+    qCDebug(log_ui_camera) << "Set Camera to videoOutput: " << videoOutput << ", device name: " << cameraDevice.description();
+    setCameraDevice(cameraDevice);
+
+    setVideoOutput(videoOutput);
+
+    queryResolutions();
+
+    startCamera();
+
+    VideoHid::getInstance().start();
+}
+
+void CameraManager::setCameraDevice(const QCameraDevice &cameraDevice)
 {
     qCDebug(log_ui_camera) << "Set Camera, device name: " << cameraDevice.description();
     m_camera.reset(new QCamera(cameraDevice));
@@ -130,6 +144,7 @@ QList<QCameraFormat> CameraManager::getCameraFormats() const {
 
 void CameraManager::loadCameraSettingAndSetCamera()
 {
+    qCDebug(log_ui_camera) << "Load camera setting and set camera";
     QSettings settings("Techxartisan", "Openterface");
     QString deviceDescription = settings.value("camera/device", "Openterface").toString();
     const QList<QCameraDevice> devices = QMediaDevices::videoInputs();
@@ -138,7 +153,7 @@ void CameraManager::loadCameraSettingAndSetCamera()
     } else {
         for (const QCameraDevice &cameraDevice : devices) {
             if (cameraDevice.description() == deviceDescription) {
-                setCamera(cameraDevice);
+                setCameraDevice(cameraDevice);
                 break;
             }
         }

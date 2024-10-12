@@ -27,6 +27,7 @@
 #include "globalsetting.h"
 #include "statusbarmanager.h"
 #include "host/HostManager.h"
+#include "host/cameramanager.h"
 #include "serial/SerialPortManager.h"
 #include "loghandler.h"
 #include "ui/settingdialog.h"
@@ -36,7 +37,7 @@
 #include "ui/videopane.h"
 #include "video/videohid.h"
 #include "ui/versioninfomanager.h"
-#include "ui/cameramanager.h"
+
 
 #include <QCameraDevice>
 #include <QMediaDevices>
@@ -154,8 +155,6 @@ MainWindow::MainWindow() :  ui(new Ui::MainWindow),
     qCDebug(log_ui_mainwindow) << "Observe video input changed...";
     connect(&m_source, &QMediaDevices::videoInputsChanged, this, &MainWindow::updateCameras);
 
-    //connect(videoDevicesGroup, &QActionGroup::triggered, this, &MainWindow::updateCameraDevice);
-
     qCDebug(log_ui_mainwindow) << "Observe Relative/Absolute toggle...";
     connect(ui->actionRelative, &QAction::triggered, this, &MainWindow::onActionRelativeTriggered);
     connect(ui->actionAbsolute, &QAction::triggered, this, &MainWindow::onActionAbsoluteTriggered);
@@ -208,6 +207,10 @@ MainWindow::MainWindow() :  ui(new Ui::MainWindow),
     connect(m_cameraManager, &CameraManager::cameraActiveChanged, this, &MainWindow::updateCameraActive);
     connect(m_cameraManager, &CameraManager::cameraError, this, &MainWindow::displayCameraError);
     connect(m_cameraManager, &CameraManager::imageCaptured, this, &MainWindow::processCapturedImage);                                         
+    connect(m_cameraManager, &CameraManager::resolutionsUpdated, this, &MainWindow::onResolutionsUpdated);
+
+    qDebug() << "Init camera...";
+    initCamera();
 
     // Connect palette change signal to the slot
     onLastKeyPressed("");
@@ -220,10 +223,8 @@ MainWindow::MainWindow() :  ui(new Ui::MainWindow),
     scrollArea->ensureWidgetVisible(videoPane);
 
     // Set the window title with the version number
-    qDebug() << "Set window title" << APP_VERSION;
     QString windowTitle = QString("Openterface Mini-KVM - %1").arg(APP_VERSION);
     setWindowTitle(windowTitle);
-    qDebug() << "Set window title done";
 
     mouseEdgeTimer = new QTimer(this);
     connect(mouseEdgeTimer, &QTimer::timeout, this, &MainWindow::checkMousePosition);
@@ -238,11 +239,7 @@ MainWindow::MainWindow() :  ui(new Ui::MainWindow),
     connect(&SerialPortManager::getInstance(), &SerialPortManager::connectedPortChanged, this, &MainWindow::onPortConnected);
 
     qApp->installEventFilter(this);
-    
-    qDebug() << "Init camera...";
-    initCamera();
 
-    connect(m_cameraManager, &CameraManager::resolutionsUpdated, this, &MainWindow::onResolutionsUpdated);
 }
 
 void MainWindow::onZoomIn()
@@ -323,18 +320,6 @@ void MainWindow::initCamera()
     GlobalVar::instance().setWinHeight(this->height());
 }
 
-void MainWindow::setCamera(const QCameraDevice &cameraDevice)
-{
-    m_cameraManager->setCamera(cameraDevice);
-    m_cameraManager->setVideoOutput(videoPane);
-
-    m_cameraManager->queryResolutions();
-
-    m_cameraManager->startCamera();
-
-    VideoHid::getInstance().start();
-}
-
 void MainWindow::resizeEvent(QResizeEvent *event) {
     qCDebug(log_ui_mainwindow) << "Handle window resize event.";
     QMainWindow::resizeEvent(event);  // Call base class implementation
@@ -379,11 +364,6 @@ void MainWindow::moveEvent(QMoveEvent *event) {
     QWidget::moveEvent(event);
 
     //calculate_video_position();
-
-qCDebug(log_ui_mainwindow) << "Global Variables - Win Width:" << GlobalVar::instance().getWinWidth()
-                            << ", Win Height:" << GlobalVar::instance().getWinHeight()
-                            << ", Capture Width:" << GlobalVar::instance().getCaptureWidth()
-                            << ", Capture Height:" << GlobalVar::instance().getCaptureHeight();
 }
 
 void MainWindow::calculate_video_position(){
@@ -794,11 +774,6 @@ void MainWindow::stop(){
     qDebug() << "Camera stopped.";
 }
 
-void MainWindow::updateCameraDevice(QAction *action)
-{
-    setCamera(qvariant_cast<QCameraDevice>(action->data()));
-}
-
 void MainWindow::displayViewfinder()
 {
     //ui->stackedWidget->setCurrentIndex(0);
@@ -863,26 +838,11 @@ void MainWindow::updateCameras()
                 qCDebug(log_ui_mainwindow) << "The default camera is" << QMediaDevices::defaultVideoInput().description();
             }
             m_audioManager->initializeAudio();
-            setCamera(camera);
+            m_cameraManager->setCamera(camera, videoPane);
             break;
         }
     }
 }
-
-void MainWindow::checkCameraConnection()
-{
-    const QList<QCameraDevice> availableCameras = QMediaDevices::videoInputs();
-
-    if (availableCameras != m_lastCameraList) {
-        // The list of available cameras has changed
-        if (availableCameras.count() > m_lastCameraList.count()) {
-            // A new camera has been connected
-            // Find out which camera was connected
-        }
-        m_lastCameraList = availableCameras;
-    }
-}
-
 
 void MainWindow::onPortConnected(const QString& port, const int& baudrate) {
     m_statusBarManager->setConnectedPort(port, baudrate);
@@ -952,10 +912,8 @@ void MainWindow::checkMousePosition()
 }
 
 void MainWindow::onVideoSettingsChanged(int width, int height) {
-    // Calculate new window size based on the video dimensions
-    // You might want to add some padding or adjust based on other UI elements
-    int newWidth = width + 1;  // example: add 50 pixels for padding
-    int newHeight = height + 1;  // example: add 100 pixels for menus, toolbars, etc.
+    int newWidth = width + 1; 
+    int newHeight = height + 1;
 
     // Resize the window
     resize(newWidth, newHeight);

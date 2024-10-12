@@ -67,8 +67,8 @@ void StatusBarManager::onLastMouseLocation(const QPoint& location, const QString
     QPixmap pixmap = recolorSvg(svgPath, iconColor, QSize(12, 12));
     mouseLabel->setPixmap(pixmap);
 
-    int capture_width = m_statusWidget->getCaptureWidth();
-    int capture_height = m_statusWidget->getCaptureHeight();
+    int capture_width = m_statusWidget->getCaptureWidth() > 5000 ? 0 : m_statusWidget->getCaptureWidth();
+    int capture_height = m_statusWidget->getCaptureHeight() > 5000 ? 0 : m_statusWidget->getCaptureHeight();
     
     int mouse_x = static_cast<int>(location.x() / 4096.0 * capture_width);
     int mouse_y = static_cast<int>(location.y() / 4096.0 * capture_height);

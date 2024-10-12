@@ -14,6 +14,7 @@ greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 SOURCES += main.cpp \
     target/mouseeventdto.cpp \
     host/audiomanager.cpp \
+    host/cameramanager.cpp \
     ui/fpsspinbox.cpp \
     ui/serialportdebugdialog.cpp \
     ui/settingdialog.cpp \
@@ -28,7 +29,6 @@ SOURCES += main.cpp \
     ui/toggleswitch.cpp \
     ui/loghandler.cpp \
     ui/inputhandler.cpp \
-    ui/cameramanager.cpp \
     ui/versioninfomanager.cpp \    
     ui/statusbarmanager.cpp \
     host/HostManager.cpp \
@@ -40,6 +40,7 @@ HEADERS  += \
     global.h \
     target/mouseeventdto.h \
     host/audiomanager.h \
+    host/cameramanager.h \
     ui/fpsspinbox.h \
     ui/serialportdebugdialog.h \
     ui/settingdialog.h \
@@ -55,7 +56,6 @@ HEADERS  += \
     ui/toggleswitch.h \
     ui/loghandler.h \
     ui/inputhandler.h \
-    ui/cameramanager.h \
     ui/versioninfomanager.h \
     ui/statusbarmanager.h \
     host/HostManager.h \
