@@ -45,6 +45,7 @@ private:
     QMediaCaptureSession m_captureSession;
     std::unique_ptr<QImageCapture> m_imageCapture;
     std::unique_ptr<QMediaRecorder> m_mediaRecorder;
+    QVideoWidget* m_videoOutput;
     int m_video_width;
     int m_video_height;
 
