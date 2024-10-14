@@ -27,7 +27,7 @@
 #include "globalsetting.h"
 #include "loghandler.h"
 #include "serial/SerialPortManager.h"
-#include "ui/cameramanager.h"
+#include "host/cameramanager.h"
 
 #include <QCamera>
 #include <QCameraDevice>

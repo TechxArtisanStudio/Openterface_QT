@@ -38,7 +38,7 @@
 #include <QCheckBox>
 #include <QLineEdit>
 #include <QByteArray>
-#include "ui/cameramanager.h"
+#include "host/cameramanager.h"
 
 QT_BEGIN_NAMESPACE
 class QCameraFormat;

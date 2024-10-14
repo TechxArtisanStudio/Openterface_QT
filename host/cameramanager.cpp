@@ -5,6 +5,7 @@
 #include <QMediaDevices>
 #include "global.h"
 #include "video/videohid.h"
+#include <QVideoWidget>
 
 Q_LOGGING_CATEGORY(log_ui_camera, "opf.ui.camera")
 
@@ -17,21 +18,33 @@ CameraManager::CameraManager(QObject *parent)
 
 CameraManager::~CameraManager() = default;
 
-void CameraManager::setCamera(const QCameraDevice &cameraDevice)
+void CameraManager::setCamera(const QCameraDevice &cameraDevice, QVideoWidget* videoOutput)
 {
-    qCDebug(log_ui_camera) << "Set Camera, device name: " << cameraDevice.description();
+    qCDebug(log_ui_camera) << "Set Camera to videoOutput: " << videoOutput << ", device name: " << cameraDevice.description();
+    setCameraDevice(cameraDevice);
+
+    setVideoOutput(videoOutput);
+
+    queryResolutions();
+
+    startCamera();
+
+    VideoHid::getInstance().start();
+}
+
+void CameraManager::setCameraDevice(const QCameraDevice &cameraDevice)
+{
     m_camera.reset(new QCamera(cameraDevice));
     setupConnections();
     m_captureSession.setCamera(m_camera.get());
-    qCDebug(log_ui_camera) << "Camera set and connections established";
 }
 
 void CameraManager::setVideoOutput(QVideoWidget* videoOutput)
 {
     if (videoOutput) {
-        qCDebug(log_ui_camera) << "Setting video output";
+        m_videoOutput = videoOutput;
+        qCDebug(log_ui_camera) << "Setting video output to: " << videoOutput->objectName();
         m_captureSession.setVideoOutput(videoOutput);
-        qCDebug(log_ui_camera) << "Video output set";
     } else {
         qCWarning(log_ui_camera) << "Attempted to set null video output";
     }
@@ -50,6 +63,8 @@ void CameraManager::startCamera()
 
 void CameraManager::stopCamera()
 {
+    VideoHid::getInstance().stop();
+
     if (m_camera) {
         m_camera->stop();
         qCDebug(log_ui_camera) << "Camera stopped";
@@ -130,18 +145,37 @@ QList<QCameraFormat> CameraManager::getCameraFormats() const {
 
 void CameraManager::loadCameraSettingAndSetCamera()
 {
+    qCDebug(log_ui_camera) << "Load camera setting and set camera";
     QSettings settings("Techxartisan", "Openterface");
-    QString deviceDescription = settings.value("camera/device", "Openterface").toString();
-    const QList<QCameraDevice> devices = QMediaDevices::videoInputs();
-    if (devices.isEmpty()) {
-        qDebug() << "No video input devices found.";
-    } else {
-        for (const QCameraDevice &cameraDevice : devices) {
-            if (cameraDevice.description() == deviceDescription) {
-                setCamera(cameraDevice);
-                break;
+    QString configDeviceDescription = settings.value("camera/device", "Openterface").toString();
+    
+    // Get the current camera description
+    QString currentDeviceDescription = m_camera ? m_camera->cameraDevice().description() : QString();
+    
+    qCDebug(log_ui_camera) << "Config device description:" << configDeviceDescription;
+    qCDebug(log_ui_camera) << "Current device description:" << currentDeviceDescription;
+
+    // If the descriptions don't match, we need to set a new camera
+    if (currentDeviceDescription != configDeviceDescription) {
+        const QList<QCameraDevice> devices = QMediaDevices::videoInputs();
+        if (devices.isEmpty()) {
+            qCWarning(log_ui_camera) << "No video input devices found.";
+        } else {
+            bool cameraFound = false;
+            for (const QCameraDevice &cameraDevice : devices) {
+                if (cameraDevice.description() == configDeviceDescription) {
+                    setCamera(cameraDevice, m_videoOutput);
+                    cameraFound = true;
+                    qCDebug(log_ui_camera) << "Camera set to:" << configDeviceDescription;
+                    break;
+                }
+            }
+            if (!cameraFound) {
+                qCWarning(log_ui_camera) << "Configured camera not found:" << configDeviceDescription;
             }
         }
+    } else {
+        qCDebug(log_ui_camera) << "Current camera matches configuration. No change needed.";
     }
 }
 
