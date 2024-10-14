@@ -186,7 +186,6 @@ MainWindow::MainWindow() :  ui(new Ui::MainWindow),
     qDebug() << "Loading settings";
     GlobalSetting::instance().loadLogSettings();
     GlobalSetting::instance().loadVideoSettings();
-    // onVideoSettingsChanged(GlobalVar::instance().getCaptureWidth(), GlobalVar::instance().getCaptureHeight());
     LogHandler::instance().enableLogStore();
 
     qCDebug(log_ui_mainwindow) << "Observe switch usb connection trigger...";
@@ -203,7 +202,10 @@ MainWindow::MainWindow() :  ui(new Ui::MainWindow),
 
     addToolBar(Qt::TopToolBarArea, toolbarManager->getToolbar());
     toolbarManager->getToolbar()->setVisible(false);
-    
+
+    // In the MainWindow constructor or initialization method
+    connect(qApp, &QGuiApplication::paletteChanged, toolbarManager, &ToolbarManager::updateStyles);
+
     connect(m_cameraManager, &CameraManager::cameraActiveChanged, this, &MainWindow::updateCameraActive);
     connect(m_cameraManager, &CameraManager::cameraError, this, &MainWindow::displayCameraError);
     connect(m_cameraManager, &CameraManager::imageCaptured, this, &MainWindow::processCapturedImage);                                         
