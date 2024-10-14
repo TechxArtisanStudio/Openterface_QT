@@ -13,7 +13,7 @@
 
 # Suppported OS
 - Window (10/11) 
-- Ubuntu 22.04
+- Ubuntu 22.04, 24.04
 - Linux Mint 21.3 (Need to upgrade QT to >=6.4)
 - openSUSE Tumbleweed, built by community
 - Raspberry Pi OS (64-bit), working good
