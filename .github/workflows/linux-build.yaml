@@ -68,6 +68,24 @@ jobs:
           # Copy files to package directory
           mkdir -p package/usr/bin
           cp -r build/openterfaceQT package/usr/bin
+
+          # Add icon to the package
+          mkdir -p package/usr/share/icons/hicolor/256x256/apps/
+          cp ${{ github.workspace }}/images/icon_256.png package/usr/share/icons/hicolor/256x256/apps/openterfaceQT.png
+
+          # Create .desktop file
+          mkdir -p package/usr/share/applications/
+          cat > package/usr/share/applications/openterfaceQT.desktop << EOF
+          [Desktop Entry]
+          Version=1.0
+          Type=Application
+          Name=OpenterfaceQT
+          Exec=/usr/bin/openterfaceQT
+          Icon=openterfaceQT
+          Comment=OpenterfaceQT Application
+          Categories=Utility;
+          EOF
+
           # Build deb package
           mv package ${{ env.ARTIFACT }}
           dpkg-deb --build ${{ env.ARTIFACT }}
