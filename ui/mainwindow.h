@@ -37,7 +37,7 @@
 #include "toolbarmanager.h"
 #include "ui/serialportdebugdialog.h"
 #include "ui/settingdialog.h"
-#include "ui/cameramanager.h"
+#include "host/cameramanager.h"
 #include "ui/versioninfomanager.h"
 #include "statusbarmanager.h"
 
@@ -94,8 +94,6 @@ public:
 private slots:
     void initCamera();
 
-    void setCamera(const QCameraDevice &cameraDevice);
-
     void record();
     void pause();
     void setMuted(bool);
@@ -109,16 +107,10 @@ private slots:
     void feedbackLink();
     void aboutLink();
 
-    // void configureCaptureSettings();
-    // void configureVideoSettings();
-    // void configureImageSettings();
-
     void configureSettings();
     void debugSerialPort();
 
     void displayCameraError();
-
-    void updateCameraDevice(QAction *action);
 
     void updateCameraActive(bool active);
     void setExposureCompensation(int index);
@@ -154,9 +146,7 @@ protected:
     void closeEvent(QCloseEvent *event) override;
     void resizeEvent(QResizeEvent* event) override;
     void moveEvent(QMoveEvent *event) override;
-
-    void checkCameraConnection();
-    
+   
     void onActionRelativeTriggered();
     void onActionAbsoluteTriggered();
 

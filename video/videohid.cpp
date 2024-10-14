@@ -60,6 +60,7 @@ void VideoHid::start() {
 }
 
 void VideoHid::stop() {
+    qDebug() << "Stopping VideoHid timer.";
     if (timer) {
         timer->stop();
         disconnect(timer, &QTimer::timeout, this, nullptr);
