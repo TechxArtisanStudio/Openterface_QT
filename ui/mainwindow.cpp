@@ -859,8 +859,33 @@ void MainWindow::updateCameras()
 }
 
 void MainWindow::onPortConnected(const QString& port, const int& baudrate) {
-    m_statusBarManager->setConnectedPort(port, baudrate);
-    m_statusBarManager->updateBaudrateMenu(baudrate);
+    if(baudrate > 0){
+        m_statusBarManager->setConnectedPort(port, baudrate);
+        updateBaudrateMenu(baudrate);
+    }else{
+        m_statusBarManager->setConnectedPort(port, baudrate);
+        m_statusBarManager->setTargetUsbConnected(false);
+    }
+}
+
+void MainWindow::updateBaudrateMenu(int baudrate){
+    QMenu* baudrateMenu = ui->menuBaudrate;
+    if (baudrateMenu) {
+        QList<QAction*> actions = baudrateMenu->actions();
+        for (QAction* action : actions) {
+            if (baudrate == 0) {
+                action->setChecked(false);
+            } else {
+                bool ok;
+                int actionBaudrate = action->text().toInt(&ok);
+                if (ok && actionBaudrate == baudrate) {
+                    action->setChecked(true);
+                } else {
+                    action->setChecked(false);
+                }
+            }
+        }
+    }
 }
 
 void MainWindow::onStatusUpdate(const QString& status) {
