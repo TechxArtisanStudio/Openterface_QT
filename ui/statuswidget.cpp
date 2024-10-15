@@ -69,7 +69,11 @@ void StatusWidget::setCaptureResolution(const int &width, const int &height, con
 }
 
 void StatusWidget::setConnectedPort(const QString &port, const int &baudrate) {
-    connectedPortLabel->setText(QString("🔌: %1@%2").arg(port).arg(baudrate));
+    if(baudrate > 0){
+        connectedPortLabel->setText(QString("🔌: %1@%2").arg(port).arg(baudrate));
+    }else{
+        connectedPortLabel->setText(QString("🔌: N/A"));
+    }
     update(); 
 }
 
