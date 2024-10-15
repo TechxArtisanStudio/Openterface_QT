@@ -40,11 +40,6 @@ void StatusBarManager::initStatusBar()
     updateIconColor();
 }
 
-void StatusBarManager::updateBaudrateMenu(int baudrate)
-{
-    m_statusWidget->setConnectedPort(m_currentPort, baudrate);
-}
-
 void StatusBarManager::onLastKeyPressed(const QString& key)
 {
     updateKeyboardIcon(key);

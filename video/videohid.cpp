@@ -70,18 +70,18 @@ void VideoHid::stop() {
 }
 
 QPair<int, int> VideoHid::getResolution() {
-    quint8 width_h = static_cast<quint8>(usbXdataRead4Byte(0xC738).first.at(0));
-    quint8 width_l = static_cast<quint8>(usbXdataRead4Byte(0xC739).first.at(0));
+    quint8 width_h = static_cast<quint8>(usbXdataRead4Byte(ADDR_WIDTH_H).first.at(0));
+    quint8 width_l = static_cast<quint8>(usbXdataRead4Byte(ADDR_WIDTH_L).first.at(0));
     quint16 width = (width_h << 8) + width_l;
-    quint8 height_h = static_cast<quint8>(usbXdataRead4Byte(0xC73A).first.at(0));
-    quint8 height_l = static_cast<quint8>(usbXdataRead4Byte(0xC73B).first.at(0));
+    quint8 height_h = static_cast<quint8>(usbXdataRead4Byte(ADDR_HEIGHT_H).first.at(0));
+    quint8 height_l = static_cast<quint8>(usbXdataRead4Byte(ADDR_HEIGHT_L).first.at(0));
     quint16 height = (height_h << 8) + height_l;
     return qMakePair(width, height);
 }
 
 float VideoHid::getFps() {
-    quint8 fps_h = static_cast<quint8>(usbXdataRead4Byte(0xC73E).first.at(0));
-    quint8 fps_l = static_cast<quint8>(usbXdataRead4Byte(0xC73F).first.at(0));
+    quint8 fps_h = static_cast<quint8>(usbXdataRead4Byte(ADDR_FPS_H).first.at(0));
+    quint8 fps_l = static_cast<quint8>(usbXdataRead4Byte(ADDR_FPS_L).first.at(0));
     quint16 fps = (fps_h << 8) + fps_l;
     return static_cast<float>(fps) / 100;
 }
@@ -151,10 +151,10 @@ void VideoHid::setSpdifout(bool enable) {
 
 std::string VideoHid::getFirmwareVersion() {
     bool ok;
-    int version_0 = usbXdataRead4Byte(0xCBDC).first.toHex().toInt(&ok, 16);
-    int version_1 = usbXdataRead4Byte(0xCBDD).first.toHex().toInt(&ok, 16);
-    int version_2 = usbXdataRead4Byte(0xCBDE).first.toHex().toInt(&ok, 16);
-    int version_3 = usbXdataRead4Byte(0xCBDF).first.toHex().toInt(&ok, 16);
+    int version_0 = usbXdataRead4Byte(ADDR_FIRMWARE_VERSION_0).first.toHex().toInt(&ok, 16);
+    int version_1 = usbXdataRead4Byte(ADDR_FIRMWARE_VERSION_1).first.toHex().toInt(&ok, 16);
+    int version_2 = usbXdataRead4Byte(ADDR_FIRMWARE_VERSION_2).first.toHex().toInt(&ok, 16);
+    int version_3 = usbXdataRead4Byte(ADDR_FIRMWARE_VERSION_3).first.toHex().toInt(&ok, 16);
     return QString("%1%2%3%4").arg(version_0, 2, 10, QChar('0'))
                               .arg(version_1, 2, 10, QChar('0'))
                               .arg(version_2, 2, 10, QChar('0'))
@@ -338,14 +338,21 @@ QString VideoHid::getHIDDevicePath() {
 
     QStringList hidrawDevices = dir.entryList(QDir::Dirs | QDir::NoDotAndDotDot);
 
+    if (hidrawDevices.isEmpty()) {
+        qDebug() << "No Openterface device found.";
+        return QString();
+    }
+
     foreach (const QString &device, hidrawDevices) {\
         QString devicePath = "/sys/class/hidraw/" + device + "/device/uevent";
 
         QFile file(devicePath);
         if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
             QTextStream in(&file);
+            
             while (!in.atEnd()) {
                 QString line = in.readLine();
+                qDebug() << "Line: " << line;
                 if (line.isEmpty()) {
                     break;
                 }
@@ -356,53 +363,71 @@ QString VideoHid::getHIDDevicePath() {
                     }
                 }
             }
-        }
+        } else {
+            qDebug() << "Failed to open device path: " << devicePath;
+        }   
     }
+
     return QString();
 }
 
+// Open the HID device and cache the file descriptor
+bool VideoHid::openHIDDevice() {
+    if (hidFd < 0) {
+        QString devicePath = getHIDDevicePath();
+        hidFd = open(devicePath.toStdString().c_str(), O_RDWR);
+        if (hidFd < 0) {
+            qDebug() << "Failed to open HID device (" << devicePath << "). Error:" << strerror(errno);
+            return false;
+        }
+    }
+    return true;
+}
+
+// Close the cached file descriptor
+void VideoHid::closeHIDDevice() {
+    if (hidFd >= 0) {
+        close(hidFd);
+        hidFd = -1;
+    }
+}
+
 bool VideoHid::sendFeatureReportLinux(uint8_t* reportBuffer, int bufferSize) {
-    QString devicePath = getHIDDevicePath();
-  
-    int fd = open(devicePath.toStdString().c_str(), O_RDWR);
-    if (fd < 0) {
-        qDebug() << "Failed to open HID device. Error:" << strerror(errno);
+    if (!openHIDDevice()) {
         return false;
     }
 
     std::vector<uint8_t> buffer(bufferSize);
     std::copy(reportBuffer, reportBuffer + bufferSize, buffer.begin());
-    int res = ioctl(fd, HIDIOCSFEATURE(buffer.size()), buffer.data());
+    int res = ioctl(hidFd, HIDIOCSFEATURE(buffer.size()), buffer.data());
 
     if (res < 0) {
         qDebug() << "Failed to send feature report. Error:" << strerror(errno);
-        close(fd);
         return false;
     }
 
-    close(fd);
     return true;
 }
 
 bool VideoHid::getFeatureReportLinux(uint8_t* reportBuffer, int bufferSize) {
-    //qDebug() << "Getting feature report, path: " << getHIDDevicePath();
-    int fd = open(getHIDDevicePath().toStdString().c_str(), O_RDWR);
-    if (fd < 0) {
-        qDebug() << "Failed to open HID device.";
+    if (!openHIDDevice()) {
         return false;
     }
 
     std::vector<uint8_t> buffer(bufferSize);
-    int res = ioctl(fd, HIDIOCGFEATURE(buffer.size()), buffer.data());
-
-    //qDebug() << "Feature report size: " << buffer.size() << " data: " << QByteArray((char*)buffer.data(), buffer.size()).toHex();
+    int res = ioctl(hidFd, HIDIOCGFEATURE(buffer.size()), buffer.data());
 
     if (res < 0) {
-        qDebug() << "Failed to get feature report.";
+        qDebug() << "Failed to get feature report. Error:" << strerror(errno);
         return false;
     }
 
     std::copy(buffer.begin(), buffer.end(), reportBuffer);
     return true;
+}
+
+// Destructor to ensure the file descriptor is closed
+VideoHid::~VideoHid() {
+    closeHIDDevice();
 }
 #endif

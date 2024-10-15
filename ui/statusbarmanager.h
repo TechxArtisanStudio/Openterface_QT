@@ -16,7 +16,6 @@ public:
     explicit StatusBarManager(QStatusBar *statusBar, QObject *parent = nullptr);
 
     void initStatusBar();
-    void updateBaudrateMenu(int baudrate);
     void onLastKeyPressed(const QString& key);
     void onLastMouseLocation(const QPoint& location, const QString& mouseEvent);
     void setConnectedPort(const QString& port, const int& baudrate);
