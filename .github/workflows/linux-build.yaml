@@ -17,6 +17,9 @@ env:
 jobs:
   build:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        arch: [amd64, arm64]
 
     steps:
       - name: Checkout code
@@ -30,13 +33,17 @@ jobs:
           sudo apt upgrade -y
           sudo apt install build-essential
 
+      - name: Set up QEMU
+        if: matrix.arch == 'arm64'
+        uses: docker/setup-qemu-action@v3
+
       - name: Install Qt
         uses: jurplel/install-qt-action@v4
         with:
           version: ${{ env.QT_VERSION }}
           host: linux
           target: desktop
-          arch: gcc_64
+          arch: ${{ matrix.arch == 'amd64' && 'gcc_64' || 'gcc_arm64' }}
           modules: qtmultimedia qtserialport
 
       - name: Get all tags for correct version determination
@@ -65,7 +72,7 @@ jobs:
           Version: ${{ env.VERSION }}
           Section: base
           Priority: optional
-          Architecture: all
+          Architecture: ${{ matrix.arch }}
           Depends: libqt6core6 (>= 6.4.2), libqt6multimedia6 (>= 6.4.2), libqt6serialport6 (>= 6.4.2), libqt6svg6 (>= 6.4.2)
           Maintainer: TechXArtisan <info@techxartisan.com>
           Description: OpenterfaceQT Mini-KVM Linux Edition" > package/DEBIAN/control
@@ -91,12 +98,12 @@ jobs:
           EOF
 
           # Build deb package
-          mv package ${{ env.ARTIFACT }}_${{ env.VERSION }}
-          dpkg-deb --build ${{ env.ARTIFACT }}_${{ env.VERSION }}
+          mv package ${{ env.ARTIFACT }}_${{ env.VERSION }}_${{ matrix.arch }}
+          dpkg-deb --build ${{ env.ARTIFACT }}_${{ env.VERSION }}_${{ matrix.arch }}
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: openterfaceqt.deb
-          path: ${{ runner.temp }}/${{ env.ARTIFACT }}.deb
+          name: openterfaceqt_${{ matrix.arch }}.deb
+          path: ${{ runner.temp }}/${{ env.ARTIFACT }}_${{ env.VERSION }}_${{ matrix.arch }}.deb
           if-no-files-found: error
