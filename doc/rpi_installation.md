@@ -6,10 +6,38 @@ This guide provides instructions on how to install the OpenterfaceQT App on a Ra
 
 Before proceeding with the installation, ensure your Raspberry Pi meets the following requirements:
 
-- **Raspberry Pi Release Version**: Ensure you are using a compatible version of Raspberry Pi OS.
-- **Qt Version**: The app requires Qt 6.4 or higher.
+- **Raspberry Pi OS**: Ensure you are using a compatible version of Raspberry Pi OS (formerly Raspbian).
+- **Qt Framework**: The application requires Qt version 6.4 or later.
+- **FFmpeg Library**: Verify that your FFmpeg version is compatible with the Qt Multimedia backend. The recommended version is 6.1.1, which has been thoroughly tested by the project maintainers. Note that you may need to compile FFmpeg from source to meet these requirements. For more information on Qt Multimedia and its dependencies, refer to the [Qt Multimedia documentation](https://doc.qt.io/qt-6.5/qtmultimedia-index.html).
 
-## Permissions Setup
+## Pre-Installation Setup
+
+### 1. Check FFmpeg Version
+   - First, check if you already have FFmpeg installed and its version:
+     ```bash
+     ffmpeg -version
+     ```
+   - Alternatively, you can check the version of FFmpeg libraries, you will see all 6 libraries are installed and version is greater than 6.1.1:
+     ```bash
+     dpkg -l | grep -E "libavutil|libavcodec|libavformat|libswscale|libswresample|libpostproc"
+     ```
+   - If the version is 6.1.1 or higher for both the command-line tool and libraries, you can skip the next step (Build FFmpeg 6.1.1).
+   - If FFmpeg is not installed or the version is lower than 6.1.1, proceed to the next step.
+
+### 2. Build FFmpeg 6.1.1 (if needed)
+   - If your FFmpeg version is lower than 6.1.1 or not installed, download and build FFmpeg version 6.1.1 from source to ensure compatibility:
+     ```bash
+     cd ~
+     wget https://ffmpeg.org/releases/ffmpeg-6.1.1.tar.bz2
+     tar xjf ffmpeg-6.1.1.tar.bz2
+     cd ffmpeg-6.1.1
+     ./configure --enable-gpl --enable-libx264 --enable-libx265 --enable-libvpx --enable-libfdk-aac --enable-libmp3lame --enable-libopus --enable-shared
+     make -j$(nproc)
+     sudo make install
+     sudo ldconfig
+     ```
+
+### 3. Device Permissions Setup
 
 The OpenterfaceQT app requires access to serial and HID devices. To grant the necessary permissions, follow these steps:
 
@@ -84,7 +112,7 @@ The OpenterfaceQT app requires access to serial and HID devices. To grant the ne
 3. **Build the App**:
    - Navigate to the cloned directory and create a build directory:
      ```bash
-     cd Openterface_QT
+     cd ~/Openterface_QT
      mkdir build
      cd build
      ```
@@ -103,6 +131,7 @@ The OpenterfaceQT app requires access to serial and HID devices. To grant the ne
 ## Troubleshooting
 
 - If you encounter any issues during installation, ensure all environment requirements are met and dependencies are correctly installed.
+- If FFmpeg-related errors occur, verify that the manually built FFmpeg is correctly installed and accessible.
 - Check the [GitHub issues page](https://github.com/your-repo/openterface/issues) for common problems and solutions.
 
 ## Conclusion
