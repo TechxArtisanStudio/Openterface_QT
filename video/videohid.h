@@ -28,9 +28,6 @@ public:
     void start();
     void stop();
 
-    // Destructor declaration
-    ~VideoHid();
-
     //get resolution
     QPair<int, int> getResolution();
     float getFps();
