@@ -12,6 +12,7 @@ Q_LOGGING_CATEGORY(log_ui_camera, "opf.ui.camera")
 CameraManager::CameraManager(QObject *parent)
     : QObject(parent)
 {
+    qDebug() << "CameraManager init...";
     m_imageCapture = std::make_unique<QImageCapture>();
     m_mediaRecorder = std::make_unique<QMediaRecorder>();
 }

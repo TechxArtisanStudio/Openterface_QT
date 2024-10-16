@@ -33,6 +33,7 @@
 
 VideoPane::VideoPane(QWidget *parent) : QVideoWidget(parent), escTimer(new QTimer(this)), m_inputHandler(new InputHandler(this, this))
 {
+    qDebug() << "VideoPane init...";
     QWidget* childWidget = qobject_cast<QWidget*>(this->children()[0]);
     if(childWidget) {
         qDebug() << "Child widget:" << childWidget << "type:" << childWidget->metaObject()->className();
