@@ -2,7 +2,9 @@
 #include <QDebug>
 
 AudioManager::AudioManager(QObject *parent)
-    : QObject(parent) {}
+    : QObject(parent) {
+    qDebug() << "AudioManager init...";
+}
 
 AudioManager::~AudioManager() {
 
