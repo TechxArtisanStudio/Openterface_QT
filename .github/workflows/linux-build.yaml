@@ -112,6 +112,75 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: openterfaceqt_${{ matrix.arch }}.deb
+          name: openterfaceqt_${{ matrix.arch == 'arm64' && 'arm64' || matrix.arch }}.deb
           path: ${{ runner.temp }}/${{ env.ARTIFACT }}_${{ env.VERSION }}_${{ matrix.arch }}.deb
+          if-no-files-found: error
+
+  build-raspbian:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Raspbian image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile.raspbian
+          platforms: linux/arm/v7
+          push: false
+          load: true
+          tags: openterface-raspbian:latest
+
+      - name: Extract built artifact
+        run: |
+          docker create --name temp openterface-raspbian:latest
+          docker cp temp:/app/openterfaceQT ./openterfaceQT
+          docker rm temp
+
+      - name: Create Raspbian package
+        run: |
+          mkdir -p package/DEBIAN
+          echo "Package: ${{ env.ARTIFACT }}
+          Version: $(cat version.txt)
+          Section: base
+          Priority: optional
+          Architecture: armhf
+          Depends: libqt6core6 (>= 6.4.2), libqt6multimedia6 (>= 6.4.2), libqt6serialport6 (>= 6.4.2), libqt6svg6 (>= 6.4.2)
+          Maintainer: TechXArtisan <info@techxartisan.com>
+          Description: OpenterfaceQT Mini-KVM Raspbian Edition" > package/DEBIAN/control
+          
+          mkdir -p package/usr/bin
+          cp ./openterfaceQT package/usr/bin/
+          
+          mkdir -p package/usr/share/icons/hicolor/256x256/apps/
+          cp images/icon_256.png package/usr/share/icons/hicolor/256x256/apps/openterfaceQT.png
+          
+          mkdir -p package/usr/share/applications/
+          cat > package/usr/share/applications/openterfaceQT.desktop << EOF
+          [Desktop Entry]
+          Version=1.0
+          Type=Application
+          Name=OpenterfaceQT
+          Exec=/usr/bin/openterfaceQT
+          Icon=openterfaceQT
+          Comment=OpenterfaceQT Application
+          Categories=Utility;
+          EOF
+          
+          dpkg-deb --build package ${{ env.ARTIFACT }}_$(cat version.txt)_armhf.deb
+
+      - name: Upload Raspbian artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: openterfaceqt_armhf.deb
+          path: ${{ env.ARTIFACT }}_*_armhf.deb
           if-no-files-found: error

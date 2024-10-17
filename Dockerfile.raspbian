@@ -1,0 +1,18 @@
+FROM arm32v7/debian:bullseye
+
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    qt6-base-dev \
+    qt6-multimedia-dev \
+    libqt6svg6-dev \
+    libqt6serialport6-dev \
+    libgl1-mesa-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+COPY . .
+
+RUN qmake6 && make -j$(nproc)
+
+CMD ["/app/openterfaceQT"]
