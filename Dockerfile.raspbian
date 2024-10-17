@@ -1,6 +1,6 @@
 FROM arm32v7/debian:bookworm
 
-ENV QT_VERSION=6.4.2
+ENV QT_VERSION=6.5.3
 
 RUN apt-get update && apt-get install -y \
     build-essential \
@@ -30,7 +30,7 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Download and compile Qt
-RUN wget https://download.qt.io/official_releases/qt/6.4/${QT_VERSION}/single/qt-everywhere-src-${QT_VERSION}.tar.xz \
+RUN wget https://download.qt.io/official_releases/qt/6.5/${QT_VERSION}/single/qt-everywhere-src-${QT_VERSION}.tar.xz \
     && tar xf qt-everywhere-src-${QT_VERSION}.tar.xz \
     && cd qt-everywhere-src-${QT_VERSION} \
     && ./configure -prefix /opt/Qt/${QT_VERSION} -opensource -confirm-license -release -nomake examples -nomake tests \
