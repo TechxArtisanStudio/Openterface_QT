@@ -109,6 +109,10 @@ jobs:
         run: |
           qmake -r ${{ env.SOURCE_DIR }}\openterfaceQT.pro
           ${{ runner.temp }}\jom\jom -j2
+          if not exist release\openterfaceQT.exe (
+            echo "Error: Failed to build openterfaceQT.exe"
+            exit 1
+          )
           mkdir package
           mkdir package\driver
           copy release\openterfaceQT.exe package
