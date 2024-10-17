@@ -154,7 +154,7 @@ jobs:
           Section: base
           Priority: optional
           Architecture: armhf
-          Depends: libqt6core6 (>= 6.2.0), libqt6multimedia6 (>= 6.2.0), libqt6serialport6 (>= 6.2.0), libqt6svg6 (>= 6.2.0)
+          Depends: libqt6core6 (>= 6.5.3), libqt6multimedia6 (>= 6.5.3), libqt6serialport6 (>= 6.5.3), libqt6svg6 (>= 6.5.3)
           Maintainer: TechXArtisan <info@techxartisan.com>
           Description: OpenterfaceQT Mini-KVM Raspbian Edition" > package/DEBIAN/control
           
