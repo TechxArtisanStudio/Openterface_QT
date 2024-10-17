@@ -1,18 +1,34 @@
-FROM arm32v7/debian:bullseye
+FROM arm32v7/debian:bookworm
+
+ENV QT_VERSION=6.4.2
 
 RUN apt-get update && apt-get install -y \
     build-essential \
-    qt6-base-dev \
-    qt6-multimedia-dev \
-    libqt6svg6-dev \
-    libqt6serialport6-dev \
+    cmake \
+    git \
+    wget \
+    gnupg \
+    software-properties-common \
     libgl1-mesa-dev \
     && rm -rf /var/lib/apt/lists/*
+
+# Add Qt official repository
+RUN wget -O- https://download.qt.io/official_releases/qt/6.4/${QT_VERSION}/qt-opensource-linux-x64-${QT_VERSION}.run > qt-installer.run && \
+    chmod +x qt-installer.run && \
+    ./qt-installer.run --platform minimal --script /tmp/qt-installer-noninteractive.qs && \
+    rm qt-installer.run
+
+# Set Qt environment variables
+ENV PATH="/opt/Qt/${QT_VERSION}/gcc_64/bin:${PATH}"
+ENV QT_PLUGIN_PATH="/opt/Qt/${QT_VERSION}/gcc_64/plugins"
+ENV QML2_IMPORT_PATH="/opt/Qt/${QT_VERSION}/gcc_64/qml"
+ENV LD_LIBRARY_PATH="/opt/Qt/${QT_VERSION}/gcc_64/lib:${LD_LIBRARY_PATH}"
 
 WORKDIR /app
 
 COPY . .
 
-RUN qmake6 && make -j$(nproc)
+RUN cmake -B build -S . -DCMAKE_PREFIX_PATH="/opt/Qt/${QT_VERSION}/gcc_64" && \
+    cmake --build build -j$(nproc)
 
-CMD ["/app/openterfaceQT"]
+CMD ["/app/build/openterfaceQT"]
