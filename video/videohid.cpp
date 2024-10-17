@@ -425,9 +425,4 @@ bool VideoHid::getFeatureReportLinux(uint8_t* reportBuffer, int bufferSize) {
     std::copy(buffer.begin(), buffer.end(), reportBuffer);
     return true;
 }
-
-// Destructor to ensure the file descriptor is closed
-VideoHid::~VideoHid() {
-    closeHIDDevice();
-}
 #endif
