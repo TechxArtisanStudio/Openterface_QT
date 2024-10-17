@@ -7,28 +7,49 @@ RUN apt-get update && apt-get install -y \
     cmake \
     git \
     wget \
-    gnupg \
-    software-properties-common \
+    libfontconfig1-dev \
+    libfreetype6-dev \
+    libx11-dev \
+    libxext-dev \
+    libxfixes-dev \
+    libxi-dev \
+    libxrender-dev \
+    libxcb1-dev \
+    libx11-xcb-dev \
+    libxcb-glx0-dev \
+    libxkbcommon-dev \
+    libxkbcommon-x11-dev \
+    libglib2.0-dev \
     libgl1-mesa-dev \
+    libglu1-mesa-dev \
+    freeglut3-dev \
+    libegl1-mesa-dev \
+    libdbus-1-dev \
+    libssl-dev \
+    libicu-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Add Qt official repository
-RUN wget -O- https://download.qt.io/official_releases/qt/6.4/${QT_VERSION}/qt-opensource-linux-x64-${QT_VERSION}.run > qt-installer.run && \
-    chmod +x qt-installer.run && \
-    ./qt-installer.run --platform minimal --script /tmp/qt-installer-noninteractive.qs && \
-    rm qt-installer.run
+# Download and compile Qt
+RUN wget https://download.qt.io/official_releases/qt/6.4/${QT_VERSION}/single/qt-everywhere-src-${QT_VERSION}.tar.xz \
+    && tar xf qt-everywhere-src-${QT_VERSION}.tar.xz \
+    && cd qt-everywhere-src-${QT_VERSION} \
+    && ./configure -prefix /opt/Qt/${QT_VERSION} -opensource -confirm-license -release -nomake examples -nomake tests \
+    && make -j$(nproc) \
+    && make install \
+    && cd .. \
+    && rm -rf qt-everywhere-src-${QT_VERSION} qt-everywhere-src-${QT_VERSION}.tar.xz
 
 # Set Qt environment variables
-ENV PATH="/opt/Qt/${QT_VERSION}/gcc_64/bin:${PATH}"
-ENV QT_PLUGIN_PATH="/opt/Qt/${QT_VERSION}/gcc_64/plugins"
-ENV QML2_IMPORT_PATH="/opt/Qt/${QT_VERSION}/gcc_64/qml"
-ENV LD_LIBRARY_PATH="/opt/Qt/${QT_VERSION}/gcc_64/lib:${LD_LIBRARY_PATH}"
+ENV PATH="/opt/Qt/${QT_VERSION}/bin:${PATH}"
+ENV QT_PLUGIN_PATH="/opt/Qt/${QT_VERSION}/plugins"
+ENV QML2_IMPORT_PATH="/opt/Qt/${QT_VERSION}/qml"
+ENV LD_LIBRARY_PATH="/opt/Qt/${QT_VERSION}/lib:${LD_LIBRARY_PATH}"
 
 WORKDIR /app
 
 COPY . .
 
-RUN cmake -B build -S . -DCMAKE_PREFIX_PATH="/opt/Qt/${QT_VERSION}/gcc_64" && \
+RUN cmake -B build -S . -DCMAKE_PREFIX_PATH="/opt/Qt/${QT_VERSION}" && \
     cmake --build build -j$(nproc)
 
 CMD ["/app/build/openterfaceQT"]
