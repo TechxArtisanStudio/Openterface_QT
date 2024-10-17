@@ -23,19 +23,22 @@ Before proceeding with the installation, ensure your Raspberry Pi meets the foll
      ```
    - If the version is 6.1.1 or higher for both the command-line tool and libraries, you can skip the next step (Build FFmpeg 6.1.1).
    - If FFmpeg is not installed or the version is lower than 6.1.1, proceed to the next step.
-
-### 2. Build FFmpeg 6.1.1 (if needed)
-   - If your FFmpeg version is lower than 6.1.1 or not installed, download and build FFmpeg version 6.1.1 from source to ensure compatibility:
+### 2. Install FFmpeg using Qt's script
+   - To ensure compatibility with Qt, we recommend using the FFmpeg installation script provided by Qt:
      ```bash
-     cd ~
-     wget https://ffmpeg.org/releases/ffmpeg-6.1.1.tar.bz2
-     tar xjf ffmpeg-6.1.1.tar.bz2
-     cd ffmpeg-6.1.1
-     ./configure --enable-gpl --enable-libx264 --enable-libx265 --enable-libvpx --enable-libfdk-aac --enable-libmp3lame --enable-libopus --enable-shared
-     make -j$(nproc)
-     sudo make install
-     sudo ldconfig
+     # Download the script
+     wget https://code.qt.io/cgit/qt/qt5.git/plain/coin/provisioning/common/linux/install-ffmpeg.sh?h=6.4.3 -O install-ffmpeg.sh
+     
+     # Make the script executable
+     chmod +x install-ffmpeg.sh
+     
+     # Run the script (you may need to run this with sudo depending on your system configuration)
+     ./install-ffmpeg.sh
+     
+     # Verify the installation
+     ffmpeg -version
      ```
+   - This script will install the version of FFmpeg that is compatible with Qt, ensuring optimal performance with OpenterfaceQT.
 
 ### 3. Device Permissions Setup
 
