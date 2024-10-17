@@ -37,7 +37,7 @@ jobs:
         if: matrix.arch == 'arm64'
         uses: docker/setup-qemu-action@v3
 
-      - name: Install Qt
+      - name: Install Qt for AMD64
         if: matrix.arch == 'amd64'
         uses: jurplel/install-qt-action@v4
         with:
@@ -51,7 +51,7 @@ jobs:
         if: matrix.arch == 'arm64'
         run: |
           sudo apt-get update
-          sudo apt-get install -y qt6-base-dev qt6-multimedia-dev qt6-serialport-dev libgl1-mesa-dev
+          sudo apt-get install -y qt6-base-dev qt6-multimedia-dev libqt6svg6-dev libqt6serialport6-dev libgl1-mesa-dev
           echo "Qt6_DIR=/usr/lib/aarch64-linux-gnu/cmake/Qt6" >> $GITHUB_ENV
 
       - name: Get all tags for correct version determination
