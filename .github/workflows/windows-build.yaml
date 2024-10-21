@@ -70,7 +70,7 @@ jobs:
 
           # Split version into parts
           try:
-              major, minor, patch = version.split('.')
+              major, minor, patch, days = version.split('.')
           except ValueError:
               print(f"Error: Invalid version format: {version}")
               exit(1)
@@ -78,11 +78,13 @@ jobs:
           # Increment patch version
           patch = str(int(patch) + 1)
 
-          # Get current date and use it as build number (YYDDD format)
-          build = datetime.now().strftime("%y%j")  # Year (2 digits) + Day of the year (3 digits)
+          # Calculate days from start of year
+          current_date = datetime.now()
+          days_from_start = (current_date - datetime(current_date.year, 1, 1)).days + 1
+          days = str(days_from_start).zfill(3)  # Ensure it's always 3 digits
 
           # Create new version string
-          new_version = f"{major}.{minor}.{patch}.{build}"
+          new_version = f"{major}.{minor}.{patch}.{days}"
 
           # Update version.h file
           new_version_content = re.sub(
@@ -98,7 +100,7 @@ jobs:
           # Set environment variables for use in later steps
           with open(os.environ['GITHUB_ENV'], 'a') as env_file:
               env_file.write(f"NEW_VERSION={new_version}\n")
-              env_file.write(f"VERSION_FOR_INNO={major}.{minor}.{patch}.{build}\n")
+              env_file.write(f"VERSION_FOR_INNO={new_version}\n")
         shell: python
 
       - name: Get all tags for correct version determination
