@@ -7,6 +7,7 @@
 #include <QIODevice>
 #include <QTimer>
 #include <QMediaDevices>
+#include <QLoggingCategory>
 
 class AudioManager : public QObject {
     Q_OBJECT
