@@ -44,14 +44,20 @@ jobs:
       - name: Update version
         run: |
           import os
+          import re
           from datetime import datetime
 
-          # Read current version
-          with open('version.txt', 'r') as f:
-            version = f.read().strip()
+          # Read current version from version.h
+          with open('resources/version.h', 'r') as f:
+            version_content = f.read()
+            version_match = re.search(r'#define VERSION "([^"]+)"', version_content)
+            if version_match:
+              version = version_match.group(1)
+            else:
+              raise ValueError("Version not found in version.h")
 
           # Split version into parts
-          major, minor, patch, build = version.split('.')
+          major, minor, patch = version.split('.')
 
           # Increment patch version
           patch = str(int(patch) + 1)
@@ -62,9 +68,14 @@ jobs:
           # Create new version string
           new_version = f"{major}.{minor}.{patch}.{build}"
 
-          # Write new version to file
-          with open('version.txt', 'w') as f:
-            f.write(new_version)
+          # Update version.h file
+          new_version_content = re.sub(
+              r'#define VERSION "[^"]+"',
+              f'#define VERSION "{new_version}"',
+              version_content
+          )
+          with open('resources/version.h', 'w') as f:
+            f.write(new_version_content)
 
           print(f"Updated version to {new_version}")
 
@@ -139,7 +150,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ${{ env.ARTIFACT }}
-          path: ${{ env.SOURCE_DIR }}\Output\openterface-installer.exe
+          path: ${{ env.SOURCE_DIR }}\Output\setup.exe
           if-no-files-found: error
 
       - name: Commit and push version update
@@ -147,7 +158,7 @@ jobs:
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
-          git add version.txt
+          git add resources/version.h
           git commit -m "Bump version to ${{ env.NEW_VERSION }}" -a || echo "No changes to commit"
           git push https://${{ env.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git HEAD:${{ github.ref }}
         env:

@@ -27,9 +27,10 @@
 #include <QFile>
 #include <QTextStream>
 #include <QDebug>
+#include "resources/version.h"
 
 inline QString getAppVersion() {
-    return "1.0.0"; // Replace with your actual version number
+    return QString(APP_VERSION);
 }
 
 #define APP_VERSION getAppVersion()
