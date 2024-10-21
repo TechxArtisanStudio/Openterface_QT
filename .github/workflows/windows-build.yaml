@@ -47,17 +47,33 @@ jobs:
           import re
           from datetime import datetime
 
+          version_file_path = 'resources/version.h'
+
+          # Check if the file exists
+          if not os.path.exists(version_file_path):
+              print(f"Error: {version_file_path} does not exist.")
+              print("Current working directory:", os.getcwd())
+              print("Directory contents:", os.listdir())
+              exit(1)
+
           # Read current version from version.h
-          with open('resources/version.h', 'r') as f:
-            version_content = f.read()
-            version_match = re.search(r'#define VERSION "([^"]+)"', version_content)
-            if version_match:
-              version = version_match.group(1)
-            else:
-              raise ValueError("Version not found in version.h")
+          with open(version_file_path, 'r') as f:
+              version_content = f.read()
+              version_match = re.search(r'#define VERSION "([^"]+)"', version_content)
+              if version_match:
+                  version = version_match.group(1)
+              else:
+                  print(f"Error: Version not found in {version_file_path}")
+                  print("File contents:")
+                  print(version_content)
+                  exit(1)
 
           # Split version into parts
-          major, minor, patch = version.split('.')
+          try:
+              major, minor, patch = version.split('.')
+          except ValueError:
+              print(f"Error: Invalid version format: {version}")
+              exit(1)
 
           # Increment patch version
           patch = str(int(patch) + 1)
@@ -74,8 +90,8 @@ jobs:
               f'#define VERSION "{new_version}"',
               version_content
           )
-          with open('resources/version.h', 'w') as f:
-            f.write(new_version_content)
+          with open(version_file_path, 'w') as f:
+              f.write(new_version_content)
 
           print(f"Updated version to {new_version}")
 
