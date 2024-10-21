@@ -59,9 +59,11 @@ jobs:
         run: |
           git fetch --all --tags -f
 
-      - name: Read version from version.txt
+      - name: Read version from version.h
         id: read_version
-        run: echo "VERSION=$(cat version.txt)" >> $GITHUB_ENV
+        run: |
+          VERSION=$(grep -oP '#define VERSION "\K[^"]+' version.h)
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
 
       - name: Create build directory
         run: mkdir ${{ runner.temp }}/build
@@ -149,8 +151,9 @@ jobs:
       - name: Create Raspbian package
         run: |
           mkdir -p package/DEBIAN
+          VERSION=$(grep -oP '#define VERSION "\K[^"]+' version.h)
           echo "Package: ${{ env.ARTIFACT }}
-          Version: $(cat version.txt)
+          Version: $VERSION
           Section: base
           Priority: optional
           Architecture: armhf
@@ -176,7 +179,7 @@ jobs:
           Categories=Utility;
           EOF
           
-          dpkg-deb --build package ${{ env.ARTIFACT }}_$(cat version.txt)_armhf.deb
+          dpkg-deb --build package ${{ env.ARTIFACT }}_${VERSION}_armhf.deb
 
       - name: Upload Raspbian artifact
         uses: actions/upload-artifact@v4
