@@ -7,6 +7,9 @@
 #include <QProcessEnvironment>
 #include <QTextStream>
 #include <QRegularExpression>
+#include <QMediaDevices>
+#include <QAudioDevice>
+#include <QCameraDevice>
 
 VersionInfoManager::VersionInfoManager(QObject *parent)
     : QObject(parent)
@@ -16,7 +19,9 @@ VersionInfoManager::VersionInfoManager(QObject *parent)
 void VersionInfoManager::showVersionInfo()
 {
     QString applicationName = QApplication::applicationName();
-    QString message = getVersionInfoString() + "<br><br>" + getEnvironmentVariables();
+    QString message = getVersionInfoString() + "<br><br>" + 
+                      getPermissionsStatus() + "<br><br>" + 
+                      getEnvironmentVariables();
 
     QMessageBox msgBox;
     msgBox.setWindowTitle(tr("%1").arg(applicationName));
@@ -38,7 +43,9 @@ void VersionInfoManager::showVersionInfo()
 void VersionInfoManager::copyToClipboard()
 {
     QClipboard *clipboard = QApplication::clipboard();
-    QString clipboardText = getVersionInfoString().remove(QRegularExpression("<[^>]*>")) + "\n\n" + getEnvironmentVariablesPlainText();
+    QString clipboardText = getVersionInfoString().remove(QRegularExpression("<[^>]*>")) + "\n\n" +
+                            getPermissionsStatus().remove(QRegularExpression("<[^>]*>")) + "\n\n" +
+                            getEnvironmentVariablesPlainText();
     clipboard->setText(clipboardText);
 }
 
@@ -51,6 +58,20 @@ QString VersionInfoManager::getVersionInfoString() const
         .arg(applicationVersion)
         .arg(osVersion)
         .arg(qVersion());
+}
+
+QString VersionInfoManager::getPermissionsStatus() const
+{
+    QString micPermission = getMicrophonePermissionStatus();
+    QString videoPermission = getVideoPermissionStatus();
+
+    return QString("<b>Permissions:</b><br>"
+                   "<table border='1' cellspacing='0' cellpadding='5'>"
+                   "<tr><td>Microphone</td><td>%1</td></tr>"
+                   "<tr><td>Video</td><td>%2</td></tr>"
+                   "</table>")
+        .arg(micPermission)
+        .arg(videoPermission);
 }
 
 QString VersionInfoManager::getEnvironmentVariables() const
@@ -88,4 +109,16 @@ QString VersionInfoManager::getEnvironmentVariablesPlainText() const
     }
 
     return envInfo;
+}
+
+QString VersionInfoManager::getMicrophonePermissionStatus() const
+{
+    QList<QAudioDevice> audioDevices = QMediaDevices::audioInputs();
+    return audioDevices.isEmpty() ? "Not available or permission not granted" : "Available";
+}
+
+QString VersionInfoManager::getVideoPermissionStatus() const
+{
+    QList<QCameraDevice> videoDevices = QMediaDevices::videoInputs();
+    return videoDevices.isEmpty() ? "Not available or permission not granted" : "Available";
 }
