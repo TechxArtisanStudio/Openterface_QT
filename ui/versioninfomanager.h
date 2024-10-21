@@ -19,6 +19,9 @@ private slots:
 
 private:
     QString getVersionInfoString() const;
+    QString getPermissionsStatus() const;
+    QString getMicrophonePermissionStatus() const;
+    QString getVideoPermissionStatus() const;
     QString getEnvironmentVariables() const;
     QString getEnvironmentVariablesPlainText() const;
 };
