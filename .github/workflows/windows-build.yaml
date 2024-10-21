@@ -59,7 +59,7 @@ jobs:
           # Read current version from version.h
           with open(version_file_path, 'r') as f:
               version_content = f.read()
-              version_match = re.search(r'#define VERSION "([^"]+)"', version_content)
+              version_match = re.search(r'#define APP_VERSION "([^"]+)"', version_content)
               if version_match:
                   version = version_match.group(1)
               else:
@@ -86,8 +86,8 @@ jobs:
 
           # Update version.h file
           new_version_content = re.sub(
-              r'#define VERSION "[^"]+"',
-              f'#define VERSION "{new_version}"',
+              r'#define APP_VERSION "[^"]+"',
+              f'#define APP_VERSION "{new_version}"',
               version_content
           )
           with open(version_file_path, 'w') as f:
