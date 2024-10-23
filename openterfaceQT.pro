@@ -34,7 +34,8 @@ SOURCES += main.cpp \
     host/HostManager.cpp \
     serial/SerialPortManager.cpp \
     target/KeyboardManager.cpp \
-    target/MouseManager.cpp
+    target/MouseManager.cpp \
+    host/audiothread.cpp
 
 HEADERS  += \
     global.h \
@@ -64,7 +65,8 @@ HEADERS  += \
     target/KeyboardManager.h \
     target/MouseManager.h \
     target/Keymapping.h \
-    resources/version.h
+    resources/version.h \
+    host/audiothread.h
 
 FORMS    += \
     ui/mainwindow.ui \
@@ -87,5 +89,4 @@ INSTALLS += target
 
 RC_FILE = openterfaceQT.rc
 
-INCLUDEPATH += $$PWD/''
 DEPENDPATH += $$PWD/''
