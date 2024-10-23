@@ -282,7 +282,7 @@ void MainWindow::onZoomReduction()
 
 void MainWindow::initCamera()
 {
-    qCDebug(log_ui_mainwindow) << "MainWindow init...";
+    qCDebug(log_ui_mainwindow) << "Camera init...";
 #ifdef QT_FEATURE_permissions //Permissions API not compatible with Qt < 6.5 and will cause compilation failure on expanding macro in qtconfigmacros.h
 #if QT_CONFIG(permissions)
     // camera 
@@ -313,6 +313,7 @@ void MainWindow::initCamera()
 #endif
     // Camera devices:
     updateCameras();
+    
 
     m_cameraManager->loadCameraSettingAndSetCamera();
 
@@ -749,11 +750,19 @@ void MainWindow::setExposureCompensation(int index)
 
 void MainWindow::displayCameraError()
 {
-    qWarning() << "Camera error: " << m_camera->errorString();
-    if (m_camera->error() != QCamera::NoError){
-        qCDebug(log_ui_mainwindow) << "A camera has been disconnected.";
+    if (!m_camera) {
+        qCWarning(log_ui_mainwindow) << "Camera pointer is null in displayCameraError";
+        return;
+    }
 
-        stackedLayout->setCurrentIndex(0);
+    qCWarning(log_ui_mainwindow) << "Camera error: " << m_camera->errorString();
+    if (m_camera->error() != QCamera::NoError) {
+        qCDebug(log_ui_mainwindow) << "Camera error detected, switching to help pane";
+        
+        // Safely switch to help pane
+        QMetaObject::invokeMethod(this, [this]() {
+            stackedLayout->setCurrentIndex(0);
+        }, Qt::QueuedConnection);
 
         stop();
     }
@@ -769,6 +778,9 @@ void MainWindow::stop(){
     m_captureSession.disconnect();
 
     m_cameraManager->stopCamera();
+
+    SerialPortManager::getInstance().closePort();
+
     qDebug() << "Camera stopped.";
 }
 
@@ -816,14 +828,15 @@ void MainWindow::updateCameras()
 {
     qCDebug(log_ui_mainwindow) << "Update cameras...";
     const QList<QCameraDevice> availableCameras = QMediaDevices::videoInputs();
-    qDebug() << "availableCameras size: " << availableCameras.size();
+    qCDebug(log_ui_mainwindow) << "Available cameras size: " << availableCameras.size();
+
     // If the last camera list is not empty, check if available cameras still include the last camera
     if (!m_lastCameraList.isEmpty()) {
-        qDebug() << "m_lastCameraList is not empty, size: " << m_lastCameraList.size();
+        qCDebug(log_ui_mainwindow) << "Checking previously connected cameras...";
         for (const QCameraDevice &camera : m_lastCameraList) {
-            qDebug() << "Checking camera: " << camera.description();
+            qCDebug(log_ui_mainwindow) << "Checking camera: " << camera.description();
             if (!availableCameras.contains(camera)) {
-                qCDebug(log_ui_mainwindow) << "A camera has been disconnected:" << camera.description();
+                qCDebug(log_ui_mainwindow) << "Camera disconnected, stopping camera operations...";
                 stop();
                 m_lastCameraList.clear();
                 return;
@@ -969,3 +982,20 @@ void MainWindow::onResolutionsUpdated(int input_width, int input_height, float i
     m_statusBarManager->setInputResolution(input_width, input_height, input_fps);
     m_statusBarManager->setCaptureResolution(capture_width, capture_height, capture_fps);
 }
+
+MainWindow::~MainWindow()
+{
+    qCDebug(log_ui_mainwindow) << "MainWindow destructor called";
+    
+    // Stop all camera operations
+    stop();
+    
+    // Delete UI
+    if (ui) {
+        delete ui;
+        ui = nullptr;
+    }
+    
+    qCDebug(log_ui_mainwindow) << "MainWindow destroyed successfully";
+}
+

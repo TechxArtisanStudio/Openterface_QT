@@ -133,13 +133,15 @@ void SerialPortManager::checkSerialPort() {
     // Check if any new ports is connected, compare to the last port list
     checkSerialPorts();
 
-    if (isTargetUsbConnected){
-        // Check target connection status when no data received in 3 seconds
-        if (latestUpdateTime.secsTo(QDateTime::currentDateTime()) > 3) {
+    if(ready){
+        if (isTargetUsbConnected){
+            // Check target connection status when no data received in 3 seconds
+            if (latestUpdateTime.secsTo(QDateTime::currentDateTime()) > 3) {
+                sendAsyncCommand(CMD_GET_INFO, false);
+            }
+        }else {
             sendAsyncCommand(CMD_GET_INFO, false);
         }
-    }else {
-        sendAsyncCommand(CMD_GET_INFO, false);
     }
 
     // If no data received in 5 seconds, check if any port disconnected
@@ -420,7 +422,6 @@ void SerialPortManager::readData() {
             switch (code)
             {
             case 0x81:
-                qDebug() << "Get info result, target connected:" << (CmdGetInfoResult::fromByteArray(data).targetConnected == 0x01);
                 isTargetUsbConnected = CmdGetInfoResult::fromByteArray(data).targetConnected == 0x01;
                 eventCallback->onTargetUsbConnected(isTargetUsbConnected);
                 break;
@@ -551,7 +552,6 @@ QByteArray SerialPortManager::sendSyncCommand(const QByteArray &data, bool force
         QByteArray responseData = serialPort->readAll();
         while (serialPort->waitForReadyRead(100))
             responseData += serialPort->readAll();
-        qDebug() << "success";
         emit dataReceived(responseData);
         return responseData;
         
