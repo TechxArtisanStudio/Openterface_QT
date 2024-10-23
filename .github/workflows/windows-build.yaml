@@ -22,7 +22,7 @@ defaults:
 env:
   ARTIFACT: "${{ vars.MY_APP_EXE_NAME }}"
   SOURCE_DIR: ${{ github.workspace }}
-  QT_VERSION: 6.4.3
+  QT_VERSION: 6.5.3
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
 jobs:
@@ -151,14 +151,6 @@ jobs:
           copy C:\Windows\System32\concrt140.dll . 
           copy C:\Windows\System32\vccorlib140.dll .
           copy C:\Windows\System32\msvcp140.dll .
-          
-          :: Copy additional multimedia DLLs from Qt installation
-          copy %Qt6_DIR%\bin\Qt6Multimedia.dll .
-          copy %Qt6_DIR%\bin\Qt6MultimediaWidgets.dll .
-          copy %Qt6_DIR%\plugins\multimedia\* plugins\multimedia\
-          copy %Qt6_DIR%\plugins\audio\* plugins\audio\
-          
-          copy C:\Windows\System32\msvcrt140.dll .
 
       - name: Move directory
         working-directory: ${{ runner.temp }}\build
@@ -189,6 +181,12 @@ jobs:
           git push https://${{ env.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git HEAD:${{ github.ref }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install Windows Audio Components
+        run: |
+          # Ensure DirectX runtime is available
+          curl -L -o directx_jun2010_redist.exe https://download.microsoft.com/download/8/4/A/84A35BF1-DAFE-4AE8-82AF-AD2AE20B6B14/directx_Jun2010_redist.exe
+          directx_jun2010_redist.exe /Q
 
   release:
     needs: build
