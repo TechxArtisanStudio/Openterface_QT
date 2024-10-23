@@ -289,7 +289,7 @@ void MainWindow::initCamera()
     QCameraPermission cameraPermission;
     switch (qApp->checkPermission(cameraPermission)) {
     case Qt::PermissionStatus::Undetermined:
-        qApp->requestPermission(cameraPermission, this, &MainWindow::init);
+        qApp->requestPermission(cameraPermission, this, &MainWindow::initCamera);
         return;
     case Qt::PermissionStatus::Denied:
         qWarning("MainWindow permission is not granted!");
@@ -301,7 +301,7 @@ void MainWindow::initCamera()
     QMicrophonePermission microphonePermission;
     switch (qApp->checkPermission(microphonePermission)) {
     case Qt::PermissionStatus::Undetermined:
-        qApp->requestPermission(microphonePermission, this, &MainWindow::init);
+        qApp->requestPermission(microphonePermission, this, &MainWindow::initCamera);
         return;
     case Qt::PermissionStatus::Denied:
         qWarning("Microphone permission is not granted!");
