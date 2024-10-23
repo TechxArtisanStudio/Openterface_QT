@@ -43,7 +43,8 @@ void VideoHid::start() {
 
         if(eventCallback){
             if(isHdmiConnected()){
-                eventCallback->onResolutionChange(getResolution().first, getResolution().second, getFps());
+                auto resolution = getResolution();
+                eventCallback->onResolutionChange(resolution.first, resolution.second, getFps());
             }else{
                 eventCallback->onResolutionChange(0, 0, 0);
             }

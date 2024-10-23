@@ -90,6 +90,8 @@ public:
     MainWindow();
     void calculate_video_position();
     void stop();
+    // Add this line to declare the destructor
+    ~MainWindow() override;
 
 private slots:
     void initCamera();

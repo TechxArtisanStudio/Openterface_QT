@@ -1,15 +1,16 @@
 #include "audiomanager.h"
+#include "audiothread.h"
 #include <QDebug>
 
 Q_LOGGING_CATEGORY(log_core_host_audio, "opf.core.host.audio");
 
 AudioManager::AudioManager(QObject *parent)
-    : QObject(parent) {
+    : QObject(parent), m_audioThread(nullptr) {
     qCDebug(log_core_host_audio) << "AudioManager init...";
 }
 
 AudioManager::~AudioManager() {
-
+    disconnect();
 }
 
 QAudioDevice AudioManager::findUvcCameraAudioDevice(QString deviceName) {
@@ -38,6 +39,7 @@ QAudioDevice AudioManager::findSystemAudioOuptutDevice(QString deviceName) {
 }
 
 void AudioManager::initializeAudio() {
+    qDebug() << "Initializing audio...";
     QAudioDevice inputDevice = findUvcCameraAudioDevice("OpenterfaceA");
     QAudioDevice outputDevice = QMediaDevices::defaultAudioOutput();
 
@@ -47,7 +49,6 @@ void AudioManager::initializeAudio() {
     }
 
     try {
-
         QAudioFormat format = outputDevice.preferredFormat();
 
         // Log the input device and format details
@@ -57,33 +58,23 @@ void AudioManager::initializeAudio() {
         qCDebug(log_core_host_audio) << "Channel count:" << format.channelCount();
         qCDebug(log_core_host_audio) << "Sample size:" << format.bytesPerSample();
 
-        audioSource = new QAudioSource(inputDevice, format);
-        audioIODevice = audioSource->start();
-
-        if (!audioIODevice) {
-            qCWarning(log_core_host_audio) << "Failed to start audio source.";
-            delete audioSource;
-            return;
-        }
-
-        m_audioSink.reset(new QAudioSink(outputDevice, format));
-        m_audioSink->start(audioIODevice);
-
-        qCDebug(log_core_host_audio) << "Audio sink started successfully with test audio.";
+        // Create and start the audio thread
+        m_audioThread = new AudioThread(inputDevice, outputDevice, format, this);
+        connect(m_audioThread, &AudioThread::error, this, &AudioManager::handleAudioError);
+        m_audioThread->start();
 
         // Initialize volume to 0 and start fade-in
+        m_audioThread->setVolume(0.0);
         fadeInVolume(100, 3);
 
     } catch (const std::exception &e) {
         qCWarning(log_core_host_audio) << "Exception occurred during audio initialization:" << e.what();
-        delete audioSource;
         return;
     }
 }
 
 void AudioManager::fadeInVolume(int timeout, int durationInSeconds) {
-    // Initialize volume to 0
-    m_audioSink->setVolume(0.0);
+    if (!m_audioThread) return;
 
     // Calculate the number of steps and the increment per step
     int steps = (durationInSeconds * 1000) / timeout;
@@ -92,12 +83,12 @@ void AudioManager::fadeInVolume(int timeout, int durationInSeconds) {
     // Create a QTimer to handle the volume fade-in
     QTimer *volumeTimer = new QTimer(this);
     connect(volumeTimer, &QTimer::timeout, [this, volumeTimer, increment]() {
-        qreal currentVolume = m_audioSink->volume();
+        qreal currentVolume = m_audioThread->volume();
 
         if (currentVolume < 1.0) {
-            m_audioSink->setVolume(currentVolume + increment);
+            m_audioThread->setVolume(currentVolume + increment);
         } else {
-            m_audioSink->setVolume(1.0);
+            m_audioThread->setVolume(1.0);
             volumeTimer->stop();
             volumeTimer->deleteLater();
         }
@@ -108,22 +99,15 @@ void AudioManager::fadeInVolume(int timeout, int durationInSeconds) {
 }
 
 void AudioManager::disconnect() {
-    qCDebug(log_core_host_audio)<< "Disconnecting audio source and sink.";
-    if (audioSource) {
-        qCDebug(log_core_host_audio) << "Stopping audio source.";
-        //audioSource->stop();
-        // delete audioSource;
-        // audioSource = nullptr;
+    qCDebug(log_core_host_audio) << "Disconnecting audio thread.";
+    if (m_audioThread) {
+        m_audioThread->stop();
+        m_audioThread->wait();
+        delete m_audioThread;
+        m_audioThread = nullptr;
     }
+}
 
-    if (audioIODevice) {
-        qCDebug(log_core_host_audio) << "Closing audio IO device.";
-        //audioIODevice->close();
-        qCDebug(log_core_host_audio) << "Closing audio IO device.222";
-        // delete audioIODevice;
-        // qDebug() << "Closing audio IO device.333";
-        // audioIODevice = nullptr;
-    }
-    qCDebug(log_core_host_audio) << "Resetting audio sink.";
-    // m_audioSink.reset();
+void AudioManager::handleAudioError(const QString& error) {
+    qCWarning(log_core_host_audio) << "Audio error:" << error;
 }
