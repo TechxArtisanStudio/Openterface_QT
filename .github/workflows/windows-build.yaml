@@ -22,15 +22,27 @@ defaults:
 env:
   ARTIFACT: "${{ vars.MY_APP_EXE_NAME }}"
   SOURCE_DIR: ${{ github.workspace }}
-  QT_VERSION: 6.5.3
+  QT_VERSION: 6.4.3
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
 jobs:
   build:
-    runs-on: windows-2022
+    runs-on: windows-2019
     permissions:
       contents: write
     environment: ${{ github.event.inputs.TARGET_ENV || 'Openterface_build' }}
+    strategy:
+      matrix:
+        arch: [x64, x86]
+        include:
+          - arch: x64
+            qt_arch: win64_msvc2019_64
+            msvc_arch: x64
+            artifact_suffix: x64
+          - arch: x86
+            qt_arch: win32_msvc2019
+            msvc_arch: x86
+            artifact_suffix: x86
     steps:
       - uses: actions/checkout@v2
         with:
@@ -114,7 +126,7 @@ jobs:
           version: ${{ env.QT_VERSION }}
           host: windows
           target: desktop
-          arch: win64_msvc2019_64
+          arch: ${{ matrix.qt_arch }}
           dir: ${{ runner.temp }}
           modules: qtmultimedia qtserialport
           setup-python: false
@@ -131,7 +143,7 @@ jobs:
       - name: Set up Visual Studio shell
         uses: egor-tensin/vs-shell@v2
         with:
-          arch: x64
+          arch: ${{ matrix.msvc_arch }}
 
       - name: Build
         working-directory: ${{ runner.temp }}\build
@@ -162,12 +174,12 @@ jobs:
         uses: Minionguyjpro/Inno-Setup-Action@v1.2.2
         with:
           path: installer.iss
-          options: /O+ /DWorkingDir="${{ runner.temp }}\build"  /DMyAppVersion="${{ env.VERSION_FOR_INNO }}" /DMyAppPublisher="${{ vars.MY_APP_PUBLISHER }}" /DMyAppURL="${{ vars.MY_APP_URL }}"
+          options: /O+ /DWorkingDir="${{ runner.temp }}\build"  /DMyAppVersion="${{ env.VERSION_FOR_INNO }}" /DMyAppPublisher="${{ vars.MY_APP_PUBLISHER }}" /DMyAppURL="${{ vars.MY_APP_URL }}" /DArchitecture="${{ matrix.arch }}"
 
       - name: Save build artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ env.ARTIFACT }}
+          name: ${{ env.ARTIFACT }}-${{ matrix.artifact_suffix }}
           path: ${{ env.SOURCE_DIR }}\Output\setup.exe
           if-no-files-found: error
 
@@ -207,10 +219,17 @@ jobs:
           echo "$CHANGELOG" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
 
-      - name: Download artifact
+      - name: Download x64 artifact
         uses: actions/download-artifact@v4
         with:
-          name: ${{ env.ARTIFACT }}
+          name: ${{ env.ARTIFACT }}-x64
+          path: x64
+
+      - name: Download x86 artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ env.ARTIFACT }}-x86
+          path: x86
 
       - name: Create Release
         id: create_release
@@ -224,10 +243,18 @@ jobs:
           draft: true
           prerelease: false
 
-      - name: Upload Release Asset
+      - name: Upload x64 Release Asset
         uses: actions/upload-release-asset@v1
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ${{ env.SOURCE_DIR }}
-          asset_name: setup.exe
+          asset_path: x64/setup.exe
+          asset_name: setup-x64.exe
+          asset_content_type: application/octet-stream
+
+      - name: Upload x86 Release Asset
+        uses: actions/upload-release-asset@v1
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: x86/setup.exe
+          asset_name: setup-x86.exe
           asset_content_type: application/octet-stream
