@@ -62,7 +62,7 @@ jobs:
       - name: Read version from version.h
         id: read_version
         run: |
-          VERSION=$(grep -oP '#define APP_VERSION "\K[^"]+' version.h)
+          VERSION=$(grep -oP '#define APP_VERSION "\K[^"]+' resources/version.h)
           echo "VERSION=$VERSION" >> $GITHUB_ENV
 
       - name: Create build directory
