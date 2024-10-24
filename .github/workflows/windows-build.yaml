@@ -156,6 +156,7 @@ jobs:
       - name: Build
         working-directory: ${{ runner.temp }}\build
         run: |
+          call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvarsall.bat" ${{ matrix.msvc_arch }}
           if "${{ matrix.arch }}" == "arm64" (
             set QMAKE_ARGS=-spec win32-msvc -xplatform win32-arm64-msvc
           ) else (
