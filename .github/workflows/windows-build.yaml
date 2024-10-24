@@ -22,7 +22,7 @@ defaults:
 env:
   ARTIFACT: "${{ vars.MY_APP_EXE_NAME }}"
   SOURCE_DIR: ${{ github.workspace }}
-  QT_VERSION: 6.4.3
+  QT_VERSION: 6.5.3 
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
 jobs:
@@ -158,31 +158,37 @@ jobs:
         run: |
           :: Clean up PATH to reduce length
           if "${{ matrix.arch }}" == "arm64" (
-            set "PATH=C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Tools\MSVC\14.41.34120\bin\HostX64\ARM64;C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Tools\MSVC\14.41.34120\bin\HostX64\x64;C:\Program Files (x86)\Windows Kits\10\bin\10.0.22621.0\x64;C:\Program Files (x86)\Windows Kits\10\bin\x64;D:\a\_temp\Qt\6.4.3\msvc2019_arm64\bin;C:\Windows\System32;C:\Windows;%TEMP%\jom"
-            set "QTDIR=D:\a\_temp\Qt\6.4.3\msvc2019_arm64"
-            set "Qt6_DIR=D:\a\_temp\Qt\6.4.3\msvc2019_arm64\lib\cmake\Qt6"
+            set "PATH=C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Tools\MSVC\14.41.34120\bin\HostX64\ARM64;C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Tools\MSVC\14.41.34120\bin\HostX64\x64;C:\Program Files (x86)\Windows Kits\10\bin\10.0.22621.0\x64;C:\Program Files (x86)\Windows Kits\10\bin\x64;D:\a\_temp\Qt\6.5.3\msvc2019_arm64\bin;C:\Windows\System32;C:\Windows;%TEMP%\jom"
+            set "QTDIR=D:\a\_temp\Qt\6.5.3\msvc2019_arm64"
+            set "Qt6_DIR=D:\a\_temp\Qt\6.5.3\msvc2019_arm64\lib\cmake\Qt6"
           ) else (
-            set "PATH=C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Tools\MSVC\14.41.34120\bin\HostX64\x64;C:\Program Files (x86)\Windows Kits\10\bin\10.0.22621.0\x64;C:\Program Files (x86)\Windows Kits\10\bin\x64;D:\a\_temp\Qt\6.4.3\msvc2019_64\bin;C:\Windows\System32;C:\Windows;%TEMP%\jom"
-            set "QTDIR=D:\a\_temp\Qt\6.4.3\msvc2019_64"
-            set "Qt6_DIR=D:\a\_temp\Qt\6.4.3\msvc2019_64\lib\cmake\Qt6"
+            set "PATH=C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Tools\MSVC\14.41.34120\bin\HostX64\x64;C:\Program Files (x86)\Windows Kits\10\bin\10.0.22621.0\x64;C:\Program Files (x86)\Windows Kits\10\bin\x64;D:\a\_temp\Qt\6.5.3\msvc2019_64\bin;C:\Windows\System32;C:\Windows;%TEMP%\jom"
+            set "QTDIR=D:\a\_temp\Qt\6.5.3\msvc2019_64"
+            set "Qt6_DIR=D:\a\_temp\Qt\6.5.3\msvc2019_64\lib\cmake\Qt6"
           )
 
+          echo "Setting up environment..."
+
           if "${{ matrix.arch }}" == "arm64" (
+            echo "Setting up ARM64 environment..."
             call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvarsamd64_arm64.bat"
-            set QMAKE_ARGS=-spec win32-msvc
-            set VCINSTALLDIR=C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\
-            set Platform=ARM64
-            set QMAKESPEC=D:\a\_temp\Qt\6.4.3\msvc2019_arm64\mkspecs\win32-arm64-msvc
+            set "QMAKE_ARGS=-spec win32-msvc"
+            set "VCINSTALLDIR=C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\"
+            set "Platform=ARM64"
+            set "QMAKESPEC=D:\a\_temp\Qt\6.5.3\msvc2019_arm64\mkspecs\win32-arm64-msvc"
           ) else (
+            echo "Setting up x64 environment..."
             call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
-            set QMAKE_ARGS=
+            set "QMAKE_ARGS="
           )
           
+          echo "Environment setup complete."
+          
           echo "Checking cl.exe..."
-          where cl.exe
+          where cl.exe || echo "cl.exe not found in PATH"
           
           echo "Checking qmake..."
-          where qmake
+          where qmake || echo "qmake not found in PATH"
           
           echo "Checking Qt environment..."
           echo QTDIR=%QTDIR%
@@ -190,17 +196,26 @@ jobs:
           echo QMAKESPEC=%QMAKESPEC%
           
           echo "Building with qmake..."
-          qmake -v
-          echo "Running qmake with args: %QMAKE_ARGS%"
+          qmake -v || echo "qmake version check failed"
+          
+          echo "QMAKE_ARGS value is: %QMAKE_ARGS%"
+          
+          echo "Running qmake command..."
           qmake -r -d %QMAKE_ARGS% ${{ env.SOURCE_DIR }}\openterfaceQT.pro
-          if errorlevel 1 (
-            echo "qmake failed with error code %errorlevel%"
-            exit /b 1
+          set QMAKE_ERROR=%errorlevel%
+          echo "qmake exit code: %QMAKE_ERROR%"
+          if %QMAKE_ERROR% neq 0 (
+            echo "qmake failed with error code %QMAKE_ERROR%"
+            exit /b %QMAKE_ERROR%
           )
           
           echo "qmake completed successfully"
           dir
-          type .qmake.stash
+          if exist .qmake.stash (
+            type .qmake.stash
+          ) else (
+            echo ".qmake.stash file not found"
+          )
           
           echo "Building with jom..."
           ${{ runner.temp }}\jom\jom -j2
