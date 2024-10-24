@@ -27,13 +27,12 @@ env:
 
 jobs:
   build:
-    runs-on: windows-2019
+    runs-on: windows-2022
     permissions:
       contents: write
     environment: ${{ github.event.inputs.TARGET_ENV || 'Openterface_build' }}
     strategy:
       matrix:
-        arch: [x64, arm64]
         include:
           - arch: x64
             qt_arch: win64_msvc2019_64
@@ -144,6 +143,20 @@ jobs:
         uses: egor-tensin/vs-shell@v2
         with:
           arch: ${{ matrix.msvc_arch }}
+
+      - name: Enable Windows ARM64 emulation
+        if: matrix.arch == 'arm64'
+        run: |
+          dism.exe /online /enable-feature /featurename:Microsoft-Windows-Subsystem-Windows-ARM /all /norestart
+
+      - name: Install Visual Studio components for ARM64
+        if: matrix.arch == 'arm64'
+        run: |
+          curl -L -o vs_buildtools.exe https://aka.ms/vs/17/release/vs_buildtools.exe
+          vs_buildtools.exe --quiet --wait --norestart --nocache `
+            --installPath "%ProgramFiles(x86)%\Microsoft Visual Studio\2022\BuildTools" `
+            --add Microsoft.VisualStudio.Component.VC.Tools.ARM64 `
+            --add Microsoft.VisualStudio.Component.VC.Tools.x86.x64
 
       - name: Build
         working-directory: ${{ runner.temp }}\build
