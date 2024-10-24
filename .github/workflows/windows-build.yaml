@@ -40,7 +40,7 @@ jobs:
             msvc_arch: x64
             artifact_suffix: x64
           - arch: arm64
-            qt_arch: win64_arm64_msvc2019
+            qt_arch: win64_msvc2019_arm64
             msvc_arch: arm64
             artifact_suffix: arm64
     steps:
