@@ -156,35 +156,50 @@ jobs:
       - name: Build
         working-directory: ${{ runner.temp }}\build
         run: |
+          :: Clean up PATH to reduce length
+          set PATH=^
+          C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Tools\MSVC\14.41.34120\bin\HostX64\ARM64;^
+          C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Tools\MSVC\14.41.34120\bin\HostX64\x64;^
+          C:\Program Files (x86)\Windows Kits\10\bin\10.0.22621.0\x64;^
+          C:\Program Files (x86)\Windows Kits\10\bin\x64;^
+          D:\a\_temp\Qt\6.4.3\msvc2019_arm64\bin;^
+          C:\Windows\System32;^
+          C:\Windows;^
+          %TEMP%\jom
+
           if "${{ matrix.arch }}" == "arm64" (
             call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvarsamd64_arm64.bat"
+            set QMAKE_ARGS=-spec win32-msvc
+            set VCINSTALLDIR=C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\
+            set Platform=ARM64
           ) else (
             call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
-          )
-          
-          if "${{ matrix.arch }}" == "arm64" (
-            set QMAKE_ARGS=-spec win32-msvc -xplatform win32-arm64-msvc
-            set CL=/D_ARM64 /DWIN32 /D_WINDOWS
-          ) else (
             set QMAKE_ARGS=
           )
           
           echo "Checking cl.exe..."
           where cl.exe
           
-          echo "Checking environment..."
-          set PATH
-          
+          echo "Building with qmake..."
           qmake -r %QMAKE_ARGS% ${{ env.SOURCE_DIR }}\openterfaceQT.pro
+          if errorlevel 1 exit /b 1
+          
+          echo "Building with jom..."
           ${{ runner.temp }}\jom\jom -j2
+          if errorlevel 1 exit /b 1
+          
           if not exist release\openterfaceQT.exe (
             echo "Error: Failed to build openterfaceQT.exe"
             exit 1
           )
+          
+          echo "Creating package directory..."
           mkdir package
           mkdir package\driver
           copy release\openterfaceQT.exe package
           copy ${{ env.SOURCE_DIR }}\driver\windows\* package\driver
+          
+          echo "Running windeployqt..."
           cd package
           windeployqt --qmldir ${{ env.SOURCE_DIR }} openterfaceQT.exe --compiler-runtime --multimedia
           copy C:\Windows\System32\concrt140.dll . 
