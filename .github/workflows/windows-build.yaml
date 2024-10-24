@@ -36,7 +36,7 @@ jobs:
         arch: [x64, x86]
         include:
           - arch: x64
-            qt_arch: win64_msvc2019_64
+            qt_arch: win64_msvc2019
             msvc_arch: x64
             artifact_suffix: x64
           - arch: x86
