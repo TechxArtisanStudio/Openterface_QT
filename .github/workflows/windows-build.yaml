@@ -31,17 +31,6 @@ jobs:
     permissions:
       contents: write
     environment: ${{ github.event.inputs.TARGET_ENV || 'Openterface_build' }}
-    strategy:
-      matrix:
-        include:
-          - arch: x64
-            qt_arch: win64_msvc2019_64
-            msvc_arch: x64
-            artifact_suffix: x64
-          - arch: arm64
-            qt_arch: win64_msvc2019_arm64
-            msvc_arch: arm64
-            artifact_suffix: arm64
     steps:
       - uses: actions/checkout@v2
         with:
@@ -125,7 +114,7 @@ jobs:
           version: ${{ env.QT_VERSION }}
           host: windows
           target: desktop
-          arch: ${{ matrix.qt_arch }}
+          arch: win64_msvc2019_64
           dir: ${{ runner.temp }}
           modules: qtmultimedia qtserialport
           setup-python: false
@@ -142,80 +131,17 @@ jobs:
       - name: Set up Visual Studio shell
         uses: egor-tensin/vs-shell@v2
         with:
-          arch: ${{ matrix.msvc_arch }}
-
-      - name: Install Visual Studio components for ARM64
-        if: matrix.arch == 'arm64'
-        run: |
-          curl -L -o vs_buildtools.exe https://aka.ms/vs/17/release/vs_buildtools.exe
-          start /w vs_buildtools.exe --quiet --wait --norestart --nocache ^
-            --installPath "%ProgramFiles(x86)%\Microsoft Visual Studio\2022\BuildTools" ^
-            --add Microsoft.VisualStudio.Component.VC.Tools.ARM64 ^
-            --add Microsoft.VisualStudio.Component.VC.Tools.x86.x64
+          arch: x64
 
       - name: Build
         working-directory: ${{ runner.temp }}\build
         run: |
-          :: Clean up PATH to reduce length
-          if "${{ matrix.arch }}" == "arm64" (
-            set "PATH=C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Tools\MSVC\14.41.34120\bin\HostX64\ARM64;C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Tools\MSVC\14.41.34120\bin\HostX64\x64;C:\Program Files (x86)\Windows Kits\10\bin\10.0.22621.0\x64;C:\Program Files (x86)\Windows Kits\10\bin\x64;D:\a\_temp\Qt\6.5.3\msvc2019_arm64\bin;C:\Windows\System32;C:\Windows;%TEMP%\jom"
-            set "QTDIR=D:\a\_temp\Qt\6.5.3\msvc2019_arm64"
-            set "Qt6_DIR=D:\a\_temp\Qt\6.5.3\msvc2019_arm64\lib\cmake\Qt6"
-          ) else (
-            set "PATH=C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Tools\MSVC\14.41.34120\bin\HostX64\x64;C:\Program Files (x86)\Windows Kits\10\bin\10.0.22621.0\x64;C:\Program Files (x86)\Windows Kits\10\bin\x64;D:\a\_temp\Qt\6.5.3\msvc2019_64\bin;C:\Windows\System32;C:\Windows;%TEMP%\jom"
-            set "QTDIR=D:\a\_temp\Qt\6.5.3\msvc2019_64"
-            set "Qt6_DIR=D:\a\_temp\Qt\6.5.3\msvc2019_64\lib\cmake\Qt6"
-          )
-
-          echo "Setting up environment..."
-
-          if "${{ matrix.arch }}" == "arm64" (
-            echo "Setting up ARM64 environment..."
-            call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvarsamd64_arm64.bat"
-            set "QMAKE_ARGS=-spec win32-msvc"
-            set "VCINSTALLDIR=C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\"
-            set "Platform=ARM64"
-            set "QMAKESPEC=D:\a\_temp\Qt\6.5.3\msvc2019_arm64\mkspecs\win32-arm64-msvc"
-          ) else (
-            echo "Setting up x64 environment..."
-            call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
-            set "QMAKE_ARGS="
-          )
-          
-          echo "Environment setup complete."
-          
-          echo "Checking cl.exe..."
-          where cl.exe || echo "cl.exe not found in PATH"
-          
-          echo "Checking qmake..."
-          where qmake || echo "qmake not found in PATH"
-          
-          echo "Checking Qt environment..."
-          echo QTDIR=%QTDIR%
-          echo Qt6_DIR=%Qt6_DIR%
-          echo QMAKESPEC=%QMAKESPEC%
+          call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
           
           echo "Building with qmake..."
-          qmake -v || echo "qmake version check failed"
-          
-          echo "QMAKE_ARGS value is: %QMAKE_ARGS%"
-          
-          echo "Running qmake command..."
-          qmake -r -d %QMAKE_ARGS% ${{ env.SOURCE_DIR }}\openterfaceQT.pro
-          set QMAKE_ERROR=%errorlevel%
-          echo "qmake exit code: %QMAKE_ERROR%"
-          if %QMAKE_ERROR% neq 0 (
-            echo "qmake failed with error code %QMAKE_ERROR%"
-            exit /b %QMAKE_ERROR%
-          )
-          
-          echo "qmake completed successfully"
-          dir
-          if exist .qmake.stash (
-            type .qmake.stash
-          ) else (
-            echo ".qmake.stash file not found"
-          )
+          qmake -v
+          qmake -r ${{ env.SOURCE_DIR }}\openterfaceQT.pro
+          if errorlevel 1 exit /b 1
           
           echo "Building with jom..."
           ${{ runner.temp }}\jom\jom -j2
@@ -249,12 +175,12 @@ jobs:
         uses: Minionguyjpro/Inno-Setup-Action@v1.2.2
         with:
           path: installer.iss
-          options: /O+ /DWorkingDir="${{ runner.temp }}\build" /DMyAppVersion="${{ env.VERSION_FOR_INNO }}" /DMyAppPublisher="${{ vars.MY_APP_PUBLISHER }}" /DMyAppURL="${{ vars.MY_APP_URL }}" /DArchitecture="${{ matrix.arch }}"
+          options: /O+ /DWorkingDir="${{ runner.temp }}\build" /DMyAppVersion="${{ env.VERSION_FOR_INNO }}" /DMyAppPublisher="${{ vars.MY_APP_PUBLISHER }}" /DMyAppURL="${{ vars.MY_APP_URL }}"
 
       - name: Save build artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ env.ARTIFACT }}-${{ matrix.artifact_suffix }}
+          name: ${{ env.ARTIFACT }}
           path: ${{ env.SOURCE_DIR }}\Output\setup.exe
           if-no-files-found: error
 
@@ -283,17 +209,10 @@ jobs:
           echo "$CHANGELOG" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
 
-      - name: Download x64 artifact
+      - name: Download artifact
         uses: actions/download-artifact@v4
         with:
-          name: ${{ env.ARTIFACT }}-x64
-          path: x64
-
-      - name: Download arm64 artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: ${{ env.ARTIFACT }}-arm64
-          path: arm64
+          name: ${{ env.ARTIFACT }}
 
       - name: Create Release
         id: create_release
@@ -307,19 +226,10 @@ jobs:
           draft: true
           prerelease: false
 
-      - name: Upload x64 Release Asset
+      - name: Upload Release Asset
         uses: actions/upload-release-asset@v1
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: x64/setup.exe
-          asset_name: setup-x64.exe
+          asset_path: setup.exe
+          asset_name: setup.exe
           asset_content_type: application/octet-stream
-
-      - name: Upload arm64 Release Asset
-        uses: actions/upload-release-asset@v1
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: arm64/setup.exe
-          asset_name: setup-arm64.exe
-          asset_content_type: application/octet-stream
-
