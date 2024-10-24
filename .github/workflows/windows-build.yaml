@@ -31,6 +31,18 @@ jobs:
     permissions:
       contents: write
     environment: ${{ github.event.inputs.TARGET_ENV || 'Openterface_build' }}
+    strategy:
+      matrix:
+        arch: [x64, arm64]
+        include:
+          - arch: x64
+            qt_arch: win64_msvc2019_64
+            msvc_arch: x64
+            artifact_suffix: x64
+          - arch: arm64
+            qt_arch: win64_arm64_msvc2019
+            msvc_arch: arm64
+            artifact_suffix: arm64
     steps:
       - uses: actions/checkout@v2
         with:
@@ -162,7 +174,7 @@ jobs:
         uses: Minionguyjpro/Inno-Setup-Action@v1.2.2
         with:
           path: installer.iss
-          options: /O+ /DWorkingDir="${{ runner.temp }}\build"  /DMyAppVersion="${{ env.VERSION_FOR_INNO }}" /DMyAppPublisher="${{ vars.MY_APP_PUBLISHER }}" /DMyAppURL="${{ vars.MY_APP_URL }}" /DArchitecture="${{ matrix.arch }}"
+          options: /O+ /DWorkingDir="${{ runner.temp }}\build" /DMyAppVersion="${{ env.VERSION_FOR_INNO }}" /DMyAppPublisher="${{ vars.MY_APP_PUBLISHER }}" /DMyAppURL="${{ vars.MY_APP_URL }}" /DArchitecture="${{ matrix.arch }}"
 
       - name: Save build artifact
         uses: actions/upload-artifact@v4
@@ -170,17 +182,6 @@ jobs:
           name: ${{ env.ARTIFACT }}-${{ matrix.artifact_suffix }}
           path: ${{ env.SOURCE_DIR }}\Output\setup.exe
           if-no-files-found: error
-
-      - name: Commit and push version update
-        if: success()
-        run: |
-          git config --local user.email "action@github.com"
-          git config --local user.name "GitHub Action"
-          git add resources/version.h
-          git commit -m "Bump version to ${{ env.NEW_VERSION }}" -a || echo "No changes to commit"
-          git push https://${{ env.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git HEAD:${{ github.ref }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   release:
     needs: build
@@ -213,11 +214,11 @@ jobs:
           name: ${{ env.ARTIFACT }}-x64
           path: x64
 
-      - name: Download x86 artifact
+      - name: Download arm64 artifact
         uses: actions/download-artifact@v4
         with:
-          name: ${{ env.ARTIFACT }}-x86
-          path: x86
+          name: ${{ env.ARTIFACT }}-arm64
+          path: arm64
 
       - name: Create Release
         id: create_release
@@ -239,10 +240,10 @@ jobs:
           asset_name: setup-x64.exe
           asset_content_type: application/octet-stream
 
-      - name: Upload x86 Release Asset
+      - name: Upload arm64 Release Asset
         uses: actions/upload-release-asset@v1
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: x86/setup.exe
-          asset_name: setup-x86.exe
+          asset_path: arm64/setup.exe
+          asset_name: setup-arm64.exe
           asset_content_type: application/octet-stream
