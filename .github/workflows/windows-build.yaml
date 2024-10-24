@@ -156,12 +156,25 @@ jobs:
       - name: Build
         working-directory: ${{ runner.temp }}\build
         run: |
-          call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvarsall.bat" ${{ matrix.msvc_arch }}
+          if "${{ matrix.arch }}" == "arm64" (
+            call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvarsamd64_arm64.bat"
+          ) else (
+            call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
+          )
+          
           if "${{ matrix.arch }}" == "arm64" (
             set QMAKE_ARGS=-spec win32-msvc -xplatform win32-arm64-msvc
+            set CL=/D_ARM64 /DWIN32 /D_WINDOWS
           ) else (
             set QMAKE_ARGS=
           )
+          
+          echo "Checking cl.exe..."
+          where cl.exe
+          
+          echo "Checking environment..."
+          set PATH
+          
           qmake -r %QMAKE_ARGS% ${{ env.SOURCE_DIR }}\openterfaceQT.pro
           ${{ runner.temp }}\jom\jom -j2
           if not exist release\openterfaceQT.exe (
