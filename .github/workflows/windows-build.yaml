@@ -158,24 +158,9 @@ jobs:
         run: |
           :: Clean up PATH to reduce length
           if "${{ matrix.arch }}" == "arm64" (
-            set PATH=^
-            C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Tools\MSVC\14.41.34120\bin\HostX64\ARM64;^
-            C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Tools\MSVC\14.41.34120\bin\HostX64\x64;^
-            C:\Program Files (x86)\Windows Kits\10\bin\10.0.22621.0\x64;^
-            C:\Program Files (x86)\Windows Kits\10\bin\x64;^
-            D:\a\_temp\Qt\6.4.3\msvc2019_arm64\bin;^
-            C:\Windows\System32;^
-            C:\Windows;^
-            %TEMP%\jom
+            set "PATH=C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Tools\MSVC\14.41.34120\bin\HostX64\ARM64;C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Tools\MSVC\14.41.34120\bin\HostX64\x64;C:\Program Files (x86)\Windows Kits\10\bin\10.0.22621.0\x64;C:\Program Files (x86)\Windows Kits\10\bin\x64;D:\a\_temp\Qt\6.4.3\msvc2019_arm64\bin;C:\Windows\System32;C:\Windows;%TEMP%\jom"
           ) else (
-            set PATH=^
-            C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Tools\MSVC\14.41.34120\bin\HostX64\x64;^
-            C:\Program Files (x86)\Windows Kits\10\bin\10.0.22621.0\x64;^
-            C:\Program Files (x86)\Windows Kits\10\bin\x64;^
-            D:\a\_temp\Qt\6.4.3\msvc2019_64\bin;^
-            C:\Windows\System32;^
-            C:\Windows;^
-            %TEMP%\jom
+            set "PATH=C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Tools\MSVC\14.41.34120\bin\HostX64\x64;C:\Program Files (x86)\Windows Kits\10\bin\10.0.22621.0\x64;C:\Program Files (x86)\Windows Kits\10\bin\x64;D:\a\_temp\Qt\6.4.3\msvc2019_64\bin;C:\Windows\System32;C:\Windows;%TEMP%\jom"
           )
 
           if "${{ matrix.arch }}" == "arm64" (
