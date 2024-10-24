@@ -144,24 +144,24 @@ jobs:
         with:
           arch: ${{ matrix.msvc_arch }}
 
-      - name: Enable Windows ARM64 emulation
-        if: matrix.arch == 'arm64'
-        run: |
-          dism.exe /online /enable-feature /featurename:Microsoft-Windows-Subsystem-Windows-ARM /all /norestart
-
       - name: Install Visual Studio components for ARM64
         if: matrix.arch == 'arm64'
         run: |
           curl -L -o vs_buildtools.exe https://aka.ms/vs/17/release/vs_buildtools.exe
-          vs_buildtools.exe --quiet --wait --norestart --nocache `
-            --installPath "%ProgramFiles(x86)%\Microsoft Visual Studio\2022\BuildTools" `
-            --add Microsoft.VisualStudio.Component.VC.Tools.ARM64 `
+          start /w vs_buildtools.exe --quiet --wait --norestart --nocache ^
+            --installPath "%ProgramFiles(x86)%\Microsoft Visual Studio\2022\BuildTools" ^
+            --add Microsoft.VisualStudio.Component.VC.Tools.ARM64 ^
             --add Microsoft.VisualStudio.Component.VC.Tools.x86.x64
 
       - name: Build
         working-directory: ${{ runner.temp }}\build
         run: |
-          qmake -r ${{ env.SOURCE_DIR }}\openterfaceQT.pro
+          if "${{ matrix.arch }}" == "arm64" (
+            set QMAKE_ARGS=-spec win32-msvc -platform win32-arm64-msvc2019
+          ) else (
+            set QMAKE_ARGS=
+          )
+          qmake -r %QMAKE_ARGS% ${{ env.SOURCE_DIR }}\openterfaceQT.pro
           ${{ runner.temp }}\jom\jom -j2
           if not exist release\openterfaceQT.exe (
             echo "Error: Failed to build openterfaceQT.exe"
