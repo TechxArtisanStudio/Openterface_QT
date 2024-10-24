@@ -179,9 +179,22 @@ jobs:
           echo "Checking qmake..."
           where qmake
           
+          echo "Checking Qt environment..."
+          echo QTDIR=%QTDIR%
+          echo Qt6_DIR=%Qt6_DIR%
+          
           echo "Building with qmake..."
-          qmake -r %QMAKE_ARGS% ${{ env.SOURCE_DIR }}\openterfaceQT.pro
-          if errorlevel 1 exit /b 1
+          qmake -v
+          echo "Running qmake with args: %QMAKE_ARGS%"
+          qmake -r -d %QMAKE_ARGS% ${{ env.SOURCE_DIR }}\openterfaceQT.pro
+          if errorlevel 1 (
+            echo "qmake failed with error code %errorlevel%"
+            exit /b 1
+          )
+          
+          echo "qmake completed successfully"
+          dir
+          type .qmake.stash
           
           echo "Building with jom..."
           ${{ runner.temp }}\jom\jom -j2
