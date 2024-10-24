@@ -22,7 +22,7 @@ defaults:
 env:
   ARTIFACT: "${{ vars.MY_APP_EXE_NAME }}"
   SOURCE_DIR: ${{ github.workspace }}
-  QT_VERSION: 6.4.3
+  QT_VERSION: 6.5.3
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
 jobs:
