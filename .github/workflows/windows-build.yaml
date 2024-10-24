@@ -157,7 +157,7 @@ jobs:
         working-directory: ${{ runner.temp }}\build
         run: |
           if "${{ matrix.arch }}" == "arm64" (
-            set QMAKE_ARGS=-spec win32-msvc -platform win32-arm64-msvc2019
+            set QMAKE_ARGS=-spec win32-msvc -xplatform win32-arm64-msvc
           ) else (
             set QMAKE_ARGS=
           )
