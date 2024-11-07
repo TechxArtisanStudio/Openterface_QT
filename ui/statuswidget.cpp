@@ -62,12 +62,18 @@ void StatusWidget::setInputResolution(const int &width, const int &height, const
 }
 
 void StatusWidget::setCaptureResolution(const int &width, const int &height, const float &fps) {
+    m_captureWidth = width;
+    m_captureHeight = height;
     captureResolutionLabel->setText(QString("CAPTURE(%1X%2@%3)").arg(width).arg(height).arg(fps));
     update(); 
 }
 
 void StatusWidget::setConnectedPort(const QString &port, const int &baudrate) {
-    connectedPortLabel->setText(QString("🔌: %1@%2").arg(port).arg(baudrate));
+    if(baudrate > 0){
+        connectedPortLabel->setText(QString("🔌: %1@%2").arg(port).arg(baudrate));
+    }else{
+        connectedPortLabel->setText(QString("🔌: N/A"));
+    }
     update(); 
 }
 
@@ -108,4 +114,15 @@ void StatusWidget::setBaudrate(int baudrate)
     // Update the UI element that displays the baudrate
     connectedPortLabel->setText(QString("🔌: %1@%2").arg(connectedPortLabel->text().split('@').first()).arg(baudrate));
     update();
+}
+
+// Implement the new methods:
+int StatusWidget::getCaptureWidth() const
+{
+    return m_captureWidth;
+}
+
+int StatusWidget::getCaptureHeight() const
+{
+    return m_captureHeight;
 }

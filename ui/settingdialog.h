@@ -38,7 +38,7 @@
 #include <QCheckBox>
 #include <QLineEdit>
 #include <QByteArray>
-
+#include "host/cameramanager.h"
 
 QT_BEGIN_NAMESPACE
 class QCameraFormat;
@@ -49,10 +49,12 @@ class SettingDialog;
 }
 QT_END_NAMESPACE
 
-// Custom key structure
+// Struct to represent a video format key, used for comparing and sorting video formats
+// It includes resolution, frame rate range, and pixel format
 struct VideoFormatKey {
     QSize resolution;
-    int frameRate;
+    int minFrameRate;
+    int maxFrameRate;
     QVideoFrameFormat::PixelFormat pixelFormat;
 
     bool operator<(const VideoFormatKey &other) const {
@@ -60,8 +62,10 @@ struct VideoFormatKey {
             return resolution.width() < other.resolution.width();
         if (resolution.height() != other.resolution.height())
             return resolution.height() < other.resolution.height();
-        if (frameRate != other.frameRate)
-            return frameRate < other.frameRate;
+        if (minFrameRate != other.minFrameRate)
+            return minFrameRate < other.minFrameRate;
+        if (maxFrameRate != other.maxFrameRate)
+            return maxFrameRate < other.maxFrameRate;
         return pixelFormat < other.pixelFormat;
     }
 };
@@ -80,13 +84,14 @@ class SettingDialog : public QDialog
     Q_OBJECT
 
 public:
-    // explicit SettingDialog(QCamera *camera, QWidget *parent = nullptr);
-    explicit SettingDialog(QCamera *camera, QWidget *parent = nullptr);
+    // Change the constructor to accept CameraManager instead of QCamera
+    explicit SettingDialog(CameraManager *cameraManager, QWidget *parent = nullptr);
     ~SettingDialog();
 
 signals:
     void cameraSettingsApplied();
     void serialSettingsApplied();
+    void videoSettingsChanged(int width, int height);
 
 private:
     
@@ -107,7 +112,7 @@ private:
     QMap<QCheckBox *, QLineEdit *> USBCheckBoxEditMap; // map of checkboxes to line edit about VID PID etc.
     void addCheckBoxLineEditPair(QCheckBox *checkBox, QLineEdit *lineEdit);
 
-    QCamera *camera; 
+    CameraManager *m_cameraManager;
     QSize m_currentResolution;
     bool m_updatingFormats = false;
     std::map<VideoFormatKey, QCameraFormat> videoFormatMap;
@@ -145,10 +150,9 @@ private:
     void populateResolutionBox(const QList<QCameraFormat> &videoFormats);
     void setFpsRange(const std::set<int> &fpsValues);
     QVariant boxValue(const QComboBox *) const;
-    void onFpsSliderValueChanged(int value);
     void applyVideoSettings();
     void updatePixelFormats();
-    QCameraFormat getVideoFormat(const QSize &resolution, int frameRate, QVideoFrameFormat::PixelFormat pixelFormat) const;
+    QCameraFormat getVideoFormat(const QSize &resolution, int desiredFrameRate, QVideoFrameFormat::PixelFormat pixelFormat) const;
 };
 
 #endif // SETTINGDIALOG_H

@@ -27,18 +27,10 @@
 #include <QFile>
 #include <QTextStream>
 #include <QDebug>
+#include "resources/version.h"
 
 inline QString getAppVersion() {
-    QString version = "0.0.0"; // Default version
-    QFile file("version.txt");
-    if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
-        QTextStream in(&file);
-        version = in.readLine().trimmed();
-        file.close();
-    } else {
-        qWarning() << "Unable to read version.txt. Using default version.";
-    }
-    return version;
+    return QString(APP_VERSION);
 }
 
 #define APP_VERSION getAppVersion()

@@ -28,7 +28,6 @@ public:
     void start();
     void stop();
 
-
     //get resolution
     QPair<int, int> getResolution();
     float getFps();
@@ -45,6 +44,11 @@ public:
     void switchToTarget();
 
     void setEventCallback(StatusEventCallback* callback);
+    void clearDevicePathCache();
+    
+    // Add declarations for openHIDDevice and closeHIDDevice
+    bool openHIDDevice();
+    void closeHIDDevice();
 
 private:
     explicit VideoHid(QObject *parent = nullptr);
@@ -63,13 +67,16 @@ private:
     bool sendFeatureReport(uint8_t* buffer, size_t bufferLength);
 
 #ifdef _WIN32
+    std::wstring m_cachedDevicePath;
     std::wstring getHIDDevicePath();
     bool sendFeatureReportWindows(uint8_t* reportBuffer, DWORD bufferSize);
     bool getFeatureReportWindows(uint8_t* reportBuffer, DWORD bufferSize);
 #elif __linux__
+    QString m_cachedDevicePath;
     QString getHIDDevicePath();
     bool sendFeatureReportLinux(uint8_t* reportBuffer, int bufferSize);
     bool getFeatureReportLinux(uint8_t* reportBuffer, int bufferSize);
+    int hidFd = -1; // Add the file descriptor for Linux
 #endif
 
 };

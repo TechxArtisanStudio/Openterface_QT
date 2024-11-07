@@ -30,6 +30,7 @@
 #include <QTimer>
 #include <QLoggingCategory>
 #include <QDateTime>
+#include <QElapsedTimer>
 
 #include "ch9329.h"
 
@@ -73,6 +74,7 @@ public:
     void setUSBconfiguration();
     void changeUSBDescriptor();
     bool setBaudRate(int baudrate);
+    void setCommandDelay(int delayMs);  // New method to set the delay
     
 signals:
     void dataReceived(const QByteArray &data);
@@ -88,7 +90,6 @@ private slots:
 
     void observeSerialPortNotification();
     void readData();
-    void aboutToClose();
     void bytesWritten(qint64 bytes);
 
     static quint8 calculateChecksum(const QByteArray &data);
@@ -129,6 +130,10 @@ private:
     
     // Variable to store the latest update time
     QDateTime latestUpdateTime;
+    QElapsedTimer m_lastCommandTime;  // New member for timing
+    int m_commandDelayMs;  // New member for configurable delay
+
+    void enableNotifier();
 };
 
 #endif // SERIALPORTMANAGER_H
