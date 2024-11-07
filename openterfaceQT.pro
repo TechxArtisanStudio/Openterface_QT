@@ -31,6 +31,7 @@ SOURCES += main.cpp \
     ui/inputhandler.cpp \
     ui/versioninfomanager.cpp \    
     ui/statusbarmanager.cpp \
+    ui/logpage.cpp \
     host/HostManager.cpp \
     serial/SerialPortManager.cpp \
     target/KeyboardManager.cpp \
@@ -59,6 +60,7 @@ HEADERS  += \
     ui/inputhandler.h \
     ui/versioninfomanager.h \
     ui/statusbarmanager.h \
+    ui/logpage.h \
     host/HostManager.h \
     serial/ch9329.h \
     serial/SerialPortManager.h \
