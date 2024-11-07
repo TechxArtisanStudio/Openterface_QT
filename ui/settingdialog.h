@@ -123,9 +123,6 @@ private:
     void createSettingTree();
     void createLayout();
 
-    
-    void initLogSettings(); // setting dialog load
-    void browseLogPath();
     void initVideoSettings();
     
     void createAudioPage();
@@ -143,7 +140,6 @@ private:
     void changePage(QTreeWidgetItem *current, QTreeWidgetItem *previous);
     void createButtons();
     void applyAccrodingPage();
-    void setLogCheckBox();
     void handleOkButton();
 
     // video setting

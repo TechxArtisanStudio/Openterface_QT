@@ -112,7 +112,6 @@ void SettingDialog::createSettingTree() {
     }
 }
 
-
 void SettingDialog::createVideoPage() {
     videoPage = new QWidget();
 
