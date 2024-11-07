@@ -39,6 +39,7 @@
 #include <QLineEdit>
 #include <QByteArray>
 #include "host/cameramanager.h"
+#include "logpage.h"
 
 QT_BEGIN_NAMESPACE
 class QCameraFormat;
@@ -102,7 +103,7 @@ private:
     Ui::SettingDialog *ui;
     QTreeWidget *settingTree;
     QStackedWidget *stackedWidget;
-    QWidget *logPage;
+    LogPage *logPage;
     QWidget *videoPage;
     QWidget *audioPage;
     QWidget *hardwarePage;
@@ -121,7 +122,7 @@ private:
     void switchWidgetShow(QString &btnName);
     void createSettingTree();
     void createLayout();
-    void createLogPage();
+
     
     void initLogSettings(); // setting dialog load
     void browseLogPath();
@@ -141,7 +142,6 @@ private:
     
     void changePage(QTreeWidgetItem *current, QTreeWidgetItem *previous);
     void createButtons();
-    void applyLogsettings();
     void applyAccrodingPage();
     void setLogCheckBox();
     void handleOkButton();
