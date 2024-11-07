@@ -2,11 +2,14 @@
 #define AUDIOMANAGER_H
 
 #include <QObject>
-#include <QAudioSource>
-#include <QAudioSink>
-#include <QIODevice>
-#include <QTimer>
+#include <QAudioDevice>
 #include <QMediaDevices>
+#include <QLoggingCategory>
+#include <QTimer>
+
+class AudioThread;
+
+Q_DECLARE_LOGGING_CATEGORY(log_core_host_audio)
 
 class AudioManager : public QObject {
     Q_OBJECT
@@ -17,15 +20,16 @@ public:
 
     void initializeAudio();
     void disconnect();
-    
+
+private slots:
+    void handleAudioError(const QString& error);
+
+private:
     QAudioDevice findUvcCameraAudioDevice(QString deviceName);
     QAudioDevice findSystemAudioOuptutDevice(QString deviceName);
     void fadeInVolume(int timeout, int durationInSeconds);
 
-private:
-    QScopedPointer<QAudioSink> m_audioSink;
-    QAudioSource *audioSource = nullptr;
-    QIODevice *audioIODevice = nullptr;
+    AudioThread* m_audioThread;
 };
 
 #endif // AUDIOMANAGER_H

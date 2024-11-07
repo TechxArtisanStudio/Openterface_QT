@@ -37,8 +37,9 @@
 #include "toolbarmanager.h"
 #include "ui/serialportdebugdialog.h"
 #include "ui/settingdialog.h"
-#include "ui/cameramanager.h"
-#include "inputhandler.h"
+#include "host/cameramanager.h"
+#include "ui/versioninfomanager.h"
+#include "statusbarmanager.h"
 
 #include <QAudioInput>
 #include <QAudioOutput>
@@ -89,14 +90,11 @@ public:
     MainWindow();
     void calculate_video_position();
     void stop();
+    // Add this line to declare the destructor
+    ~MainWindow() override;
 
 private slots:
-    void init();
-
-    void initStatusBar();
-
-    void setCamera(const QCameraDevice &cameraDevice);
-    void loadCameraSettingAndSetCamera();
+    void initCamera();
 
     void record();
     void pause();
@@ -106,21 +104,15 @@ private slots:
     void displayCaptureError(int, QImageCapture::Error, const QString &errorString);
 
     void versionInfo();
-    void copyToClipboard();
+
     void purchaseLink();
     void feedbackLink();
     void aboutLink();
-
-    // void configureCaptureSettings();
-    // void configureVideoSettings();
-    // void configureImageSettings();
 
     void configureSettings();
     void debugSerialPort();
 
     void displayCameraError();
-
-    void updateCameraDevice(QAction *action);
 
     void updateCameraActive(bool active);
     void setExposureCompensation(int index);
@@ -152,24 +144,11 @@ private slots:
 
     void onTargetUsbConnected(const bool isConnected) override;
     
-    // void toggleToolbar();
-
-    // void toggleToolbar();
-
-    void onPaletteChanged();
-
 protected:
-    void keyPressEvent(QKeyEvent *event) override;
-    void keyReleaseEvent(QKeyEvent *event) override;  // Add this line
-    void mousePressEvent(QMouseEvent *event) override;   // Add this line
-    void mouseReleaseEvent(QMouseEvent *event) override; // Add this line
-    void mouseMoveEvent(QMouseEvent *event) override;    // Add this line
     void closeEvent(QCloseEvent *event) override;
     void resizeEvent(QResizeEvent* event) override;
     void moveEvent(QMoveEvent *event) override;
-
-    void checkCameraConnection();
-    
+   
     void onActionRelativeTriggered();
     void onActionAbsoluteTriggered();
 
@@ -207,6 +186,13 @@ private slots:
 private slots:
     void checkMousePosition();
 
+private slots:
+    void onVideoSettingsChanged(int width, int height);
+    void onResolutionsUpdated(int input_width, int input_height, float input_fps, int capture_width, int capture_height, int capture_fps);
+
+protected:
+    bool eventFilter(QObject *watched, QEvent *event) override;
+
 private:
     Ui::MainWindow *ui;
     AudioManager *m_audioManager;
@@ -237,8 +223,7 @@ private:
     QList<QCameraDevice> m_lastCameraList;
 
     MetaDataDialog *m_metaDataDialog = nullptr;
-    StatusWidget *statusWidget;
-    SettingDialog *settingsDialog = nullptr;
+    SettingDialog *settingDialog = nullptr;
     SerialPortDebugDialog *serialPortDebugDialog = nullptr;
 
     QWidget *keyboardPanel = nullptr;
@@ -262,6 +247,8 @@ private:
     const int edgeThreshold = 50; // Adjust this value as needed
     const int edgeDuration = 125; // Reduced duration for more frequent checks
     const int maxScrollSpeed = 50; // Maximum scroll speed
-};
+    VersionInfoManager *m_versionInfoManager;
 
+    StatusBarManager *m_statusBarManager;
+};
 #endif // MAINWINDOW_H

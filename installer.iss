@@ -28,7 +28,7 @@ VersionInfoCompany={#MyAppPublisher}
 VersionInfoCopyright=Copyright © {#MyAppPublisher} {#MyAppVersion}
 ; Uncomment the following line to run in non administrative install mode (install for current user only.)
 ;PrivilegesRequired=lowest
-OutputBaseFilename=openterface-installer
+OutputBaseFilename=setup
 Compression=lzma
 SolidCompression=yes
 WizardStyle=modern
