@@ -29,11 +29,11 @@
 #include <QDebug>
 #include "resources/version.h"
 
-inline QString getAppVersion() {
-    return QString(APP_VERSION);
-}
+// inline QString getAppVersion() {
+//     return QString(APP_VERSION);
+// }
 
-#define APP_VERSION getAppVersion()
+// #define APP_VERSION getAppVersion()
 
 const int LOG_ = 100; // Add this line
 
