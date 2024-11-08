@@ -40,6 +40,7 @@
 #include <QByteArray>
 #include "host/cameramanager.h"
 #include "logpage.h"
+#include "hardwarepage.h"
 
 QT_BEGIN_NAMESPACE
 class QCameraFormat;
@@ -88,10 +89,12 @@ public:
     // Change the constructor to accept CameraManager instead of QCamera
     explicit SettingDialog(CameraManager *cameraManager, QWidget *parent = nullptr);
     ~SettingDialog();
-
+    HardwarePage* getHardwarePage();
 signals:
-    void cameraSettingsApplied();
+    
     void serialSettingsApplied();
+
+    // void cameraSettingsApplied();
     void videoSettingsChanged(int width, int height);
 
 private:
@@ -106,7 +109,7 @@ private:
     LogPage *logPage;
     QWidget *videoPage;
     QWidget *audioPage;
-    QWidget *hardwarePage;
+    HardwarePage *hardwarePage;
     QWidget *buttonWidget;
 
 
@@ -127,14 +130,11 @@ private:
     
     void createAudioPage();
     void createVideoPage();
-    void createHardwarePage();
-    void findUvcCameraDevices();
-    void applyHardwareSetting();
-    void onCheckBoxStateChanged(int state);
+
+
     std::array<bool, 4> extractBits(QString hexString);
     
     QByteArray convertCheckBoxValueToBytes();
-    void initHardwareSetting();
     void createPages();
     
     void changePage(QTreeWidgetItem *current, QTreeWidgetItem *previous);
