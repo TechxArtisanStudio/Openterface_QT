@@ -20,47 +20,15 @@
 * ========================================================================== *
 */
 
-#ifndef LOGPAGE_H
-#define LOGPAGE_H
+#ifndef FONTSTYLE_H
+#define FONTSTYLE_H
 
-#include <QWidget>
-#include <QCheckBox>
-#include <QLineEdit>
-#include <QPushButton>
-#include <QVBoxLayout>
-#include <QHBoxLayout>
-#include <QLabel>
-#include <QSettings>
-#include "fontstyle.h"
+#include <QString>
 
-class LogPage : public QWidget
-{
-    Q_OBJECT
+const QString bigLabelFontSize = "QLabel { font-size: 14px; }";
+const QString smallLabelFontSize = "QLabel { font-size: 12px; }";
+const QString commentsFontSize = "QLabel { font-size: 10px; }";
 
-public:
-    explicit LogPage(QWidget *parent = nullptr);
-    ~LogPage();
-    void setupUI();
-    void browseLogPath();
-    void initLogSettings();
-    void applyLogsettings();
+#endif // FONTSTYLE_H
 
-private:
 
-    QCheckBox *coreCheckBox;
-    QCheckBox *serialCheckBox;
-    QCheckBox *uiCheckBox;
-    QCheckBox *hostCheckBox;
-    QCheckBox *storeLogCheckBox;
-    QLineEdit *logFilePathLineEdit;
-    QPushButton *browseButton;
-
-    QHBoxLayout *logCheckboxLayout;
-    QHBoxLayout *logFilePathLayout;
-    QLabel *logLabel;
-    QLabel *logDescription;
-    QVBoxLayout *logLayout;
-
-};
-
-#endif // LOGPAGE_H
