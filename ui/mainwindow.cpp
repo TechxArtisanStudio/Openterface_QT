@@ -644,9 +644,10 @@ void MainWindow::configureSettings() {
         qDebug() << "Creating settings dialog";
         settingDialog = new SettingDialog(m_cameraManager, this);
         HardwarePage* hardwarePage = settingDialog->getHardwarePage();
+        VideoPage* videoPage = settingDialog->getVideoPage();
         connect(hardwarePage, &HardwarePage::cameraSettingsApplied, m_cameraManager, &CameraManager::loadCameraSettingAndSetCamera);
         // connect(settingDialog, &SettingDialog::cameraSettingsApplied, m_cameraManager, &CameraManager::loadCameraSettingAndSetCamera);
-        connect(settingDialog, &SettingDialog::videoSettingsChanged, this, &MainWindow::onVideoSettingsChanged);
+        connect(videoPage, &VideoPage::videoSettingsChanged, this, &MainWindow::onVideoSettingsChanged);
         // connect the finished signal to the set the dialog pointer to nullptr
         connect(settingDialog, &QDialog::finished, this, [this](){
             settingDialog = nullptr;

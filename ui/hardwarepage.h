@@ -72,7 +72,7 @@ private:
     
     std::array<bool, 4> extractBits(QString hexString);
     QByteArray convertCheckBoxValueToBytes();
-    QMap<QCheckBox *, QLineEdit *> USBCheckBoxEditMap;
+        QMap<QCheckBox *, QLineEdit *> USBCheckBoxEditMap; // map of checkboxes to line edit about VID PID etc.
 
 };
 
