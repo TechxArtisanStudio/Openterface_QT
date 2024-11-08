@@ -24,6 +24,7 @@
 #include "ui_settingdialog.h"
 #include "ui/fpsspinbox.h"
 #include "ui/logpage.h"
+#include "ui/hardwarepage.h"
 #include "global.h"
 #include "globalsetting.h"
 #include "loghandler.h"
@@ -65,7 +66,7 @@ SettingDialog::SettingDialog(CameraManager *cameraManager, QWidget *parent)
     , logPage(new LogPage(this))
     , videoPage(nullptr)
     , audioPage(nullptr)
-    , hardwarePage(nullptr)
+    , hardwarePage(new HardwarePage(this))
     , buttonWidget(new QWidget(this))
     , m_cameraManager(cameraManager)
 
@@ -81,7 +82,7 @@ SettingDialog::SettingDialog(CameraManager *cameraManager, QWidget *parent)
     // loadLogSettings();
     logPage->initLogSettings();
     initVideoSettings();
-    initHardwareSetting();
+    hardwarePage->initHardwareSetting();
     // Connect the tree widget's currentItemChanged signal to a slot
     connect(settingTree, &QTreeWidget::currentItemChanged, this, &SettingDialog::changePage);
 }
@@ -434,251 +435,12 @@ void SettingDialog::createAudioPage() {
     audioLayout->addStretch();
 }
 
-void SettingDialog::createHardwarePage(){
-    hardwarePage = new QWidget();
-    QLabel *hardwareLabel = new QLabel(
-        "<span style='  font-weight: bold;'>General hardware setting</span>");
-    hardwareLabel->setStyleSheet(bigLabelFontSize);
-
-    QLabel *uvcCamLabel = new QLabel("UVC Camera resource: ");
-    uvcCamLabel->setStyleSheet(smallLabelFontSize);
-    QComboBox *uvcCamBox = new QComboBox();
-    uvcCamBox->setObjectName("uvcCamBox");
-
-
-    QLabel *VIDPIDLabel = new QLabel(
-        "Change target VID&PID: ");
-    QLabel *USBDescriptor = new QLabel("Change USB descriptor: ");
-    QLabel *VID = new QLabel("VID: ");
-    QLabel *PID = new QLabel("PID: ");
-    QCheckBox *VIDCheckBox = new QCheckBox("Custom vendor descriptor:");
-    QCheckBox *PIDCheckBox = new QCheckBox("Custom product descriptor:");
-    QCheckBox *USBSerialNumberCheckBox = new QCheckBox("USB serial number:");
-    QCheckBox *USBCustomStringDescriptorCheckBox = new QCheckBox("Enable USB flag");
-    VIDCheckBox->setObjectName("VIDCheckBox");
-    PIDCheckBox->setObjectName("PIDCheckBox");
-    USBSerialNumberCheckBox->setObjectName("USBSerialNumberCheckBox");
-    USBCustomStringDescriptorCheckBox->setObjectName("USBCustomStringDescriptorCheckBox");
-
-    QLineEdit *VIDLineEdit = new QLineEdit(hardwarePage);
-    QLineEdit *PIDLineEdit = new QLineEdit(hardwarePage);
-    QLineEdit *VIDDescriptorLineEdit = new QLineEdit(hardwarePage);
-    QLineEdit *PIDDescriptorLineEdit = new QLineEdit(hardwarePage);
-    QLineEdit *serialNumberLineEdit = new QLineEdit(hardwarePage);
-    // QLineEdit *customStringDescriptorLineEdit = new QLineEdit(hardwarePage);
-    VIDDescriptorLineEdit->setMaximumWidth(120);
-    PIDDescriptorLineEdit->setMaximumWidth(120);
-    serialNumberLineEdit->setMaximumWidth(120);
-    VIDLineEdit->setMaximumWidth(120);
-    PIDLineEdit->setMaximumWidth(120);
-    // customStringDescriptorLineEdit->setMaximumWidth(120);
-    VIDLineEdit->setObjectName("VIDLineEdit");
-    PIDLineEdit->setObjectName("PIDLineEdit");
-    VIDDescriptorLineEdit->setObjectName("VIDDescriptorLineEdit");
-    PIDDescriptorLineEdit->setObjectName("PIDDescriptorLineEdit");
-    serialNumberLineEdit->setObjectName("serialNumberLineEdit");
-    // customStringDescriptorLineEdit->setObjectName("customStringDescriptorLineEdit");
-
-    QGridLayout *gridLayout = new QGridLayout();
-    gridLayout->addWidget(VID, 0,0, Qt::AlignLeft);
-    gridLayout->addWidget(VIDLineEdit, 0,1, Qt::AlignLeft);
-    gridLayout->addWidget(PID, 1,0, Qt::AlignLeft);
-    gridLayout->addWidget(PIDLineEdit, 1,1, Qt::AlignLeft);
-    gridLayout->addWidget(USBDescriptor, 2,0, Qt::AlignLeft);
-    gridLayout->addWidget(USBCustomStringDescriptorCheckBox, 3,0, Qt::AlignLeft);
-    gridLayout->addWidget(VIDCheckBox, 4,0, Qt::AlignLeft);
-    gridLayout->addWidget(VIDDescriptorLineEdit, 4,1, Qt::AlignLeft);
-    gridLayout->addWidget(PIDCheckBox, 5,0, Qt::AlignLeft);
-    gridLayout->addWidget(PIDDescriptorLineEdit, 5,1, Qt::AlignLeft);
-    gridLayout->addWidget(USBSerialNumberCheckBox, 6,0, Qt::AlignLeft);
-    gridLayout->addWidget(serialNumberLineEdit, 6,1, Qt::AlignLeft);
-
-    // gridLayout->addWidget(customStringDescriptorLineEdit, 6,1, Qt::AlignLeft);
-
-
-    QVBoxLayout *hardwareLayout = new QVBoxLayout(hardwarePage);
-    hardwareLayout->addWidget(hardwareLabel);
-    hardwareLayout->addWidget(uvcCamLabel);
-    hardwareLayout->addWidget(uvcCamBox);
-    hardwareLayout->addWidget(VIDPIDLabel);
-    hardwareLayout->addLayout(gridLayout);
-    hardwareLayout->addStretch();
-    // add the
-    addCheckBoxLineEditPair(VIDCheckBox, VIDDescriptorLineEdit);
-    addCheckBoxLineEditPair(PIDCheckBox, PIDDescriptorLineEdit);
-    addCheckBoxLineEditPair(USBSerialNumberCheckBox, serialNumberLineEdit);
-    // addCheckBoxLineEditPair(USBCustomStringDescriptorCheckBox, customStringDescriptorLineEdit);
-
-
-    findUvcCameraDevices();
-
-}
-
-void SettingDialog::addCheckBoxLineEditPair(QCheckBox *checkBox, QLineEdit *lineEdit){
-    USBCheckBoxEditMap.insert(checkBox,lineEdit);
-    connect(checkBox, &QCheckBox::stateChanged, this, &SettingDialog::onCheckBoxStateChanged);
-}
-
-void SettingDialog::onCheckBoxStateChanged(int state) {
-    QCheckBox *checkBox = qobject_cast<QCheckBox*>(sender());
-    QLineEdit *lineEdit = USBCheckBoxEditMap.value(checkBox);
-    if (state == Qt::Checked) {
-        lineEdit->setEnabled(true);
-    }
-    else {
-        lineEdit->setEnabled(false);
-    }
-
-
-}
-
-std::array<bool, 4> SettingDialog::extractBits(QString hexString) {
-    // convert hex string to bool array
-    bool ok;
-    int hexValue = hexString.toInt(&ok, 16);
-
-    qDebug() << "extractBits: " << hexValue;
-
-    if (!ok) {
-        qDebug() << "Convert failed";
-        return {}; // return empty array
-    }
-
-    // get the bit
-    std::array<bool, 4> bits = {
-        static_cast<bool>((hexValue >> 0) & 1),
-        static_cast<bool>((hexValue >> 1) & 1),
-        static_cast<bool>((hexValue >> 2) & 1),
-        static_cast<bool>((hexValue >> 7) & 1)
-    };
-
-    return bits;
-}
-
-void SettingDialog::findUvcCameraDevices(){
-
-    const QList<QCameraDevice> devices = QMediaDevices::videoInputs();
-    QComboBox *uvcCamBox = hardwarePage->findChild<QComboBox *>("uvcCamBox");
-
-    if (devices.isEmpty()) {
-        qDebug() << "No video input devices found.";
-    } else {
-        for (const QCameraDevice &cameraDevice : devices) {
-            uvcCamBox->addItem(cameraDevice.description());
-        }
-    }
-    // set default "Openterface"
-    int index = uvcCamBox->findText("Openterface");
-    if (index != -1) {
-        uvcCamBox->setCurrentIndex(index);
-    } else {
-        qDebug() << "Openterface device not found.";
-    }
-
-}
-
-QByteArray SettingDialog::convertCheckBoxValueToBytes(){
-    QCheckBox *VIDCheckBox = hardwarePage->findChild<QCheckBox *>("VIDCheckBox");
-    QCheckBox *PIDCheckBox = hardwarePage->findChild<QCheckBox *>("PIDCheckBox");
-    QCheckBox *USBSerialNumberCheckBox = hardwarePage->findChild<QCheckBox *>("USBSerialNumberCheckBox");
-    QCheckBox *USBCustomStringDescriptorCheckBox = hardwarePage->findChild<QCheckBox *>("USBCustomStringDescriptorCheckBox");
-
-    bool bit0 = USBSerialNumberCheckBox->isChecked();
-    bool bit1 = PIDCheckBox->isChecked();
-    bool bit2 = VIDCheckBox->isChecked();
-    bool bit7 = USBCustomStringDescriptorCheckBox->isChecked();
-
-    quint8 byteValue = (bit7 << 7) | (bit2 << 2) | (bit1 << 1) | bit0;
-    QByteArray hexValue;
-    hexValue.append(byteValue);
-
-    return hexValue;
-}
-
-void SettingDialog::applyHardwareSetting(){
-    QSettings settings("Techxartisan", "Openterface");
-    QString cameraDescription = settings.value("camera/device", "Openterface").toString();
-    
-
-    QComboBox *uvcCamBox = hardwarePage->findChild<QComboBox*>("uvcCamBox");
-    QLineEdit *VIDLineEdit = hardwarePage->findChild<QLineEdit*>("VIDLineEdit");
-    QLineEdit *PIDLineEdit = hardwarePage->findChild<QLineEdit*>("PIDLineEdit");
-    QLineEdit *VIDDescriptorLineEdit = hardwarePage->findChild<QLineEdit*>("VIDDescriptorLineEdit");
-    QLineEdit *PIDDescriptorLineEdit = hardwarePage->findChild<QLineEdit*>("PIDDescriptorLineEdit");
-    QLineEdit *serialNumberLineEdit = hardwarePage->findChild<QLineEdit*>("serialNumberLineEdit");
-
-    QByteArray EnableFlag = convertCheckBoxValueToBytes();
-
-    if (cameraDescription != uvcCamBox->currentText()){
-        GlobalSetting::instance().setCameraDeviceSetting(uvcCamBox->currentText());
-        emit cameraSettingsApplied();  // emit the hardware setting signal to change the camera device
-    }
-
-    GlobalSetting::instance().setVID(VIDLineEdit->text());
-    GlobalSetting::instance().setPID(PIDLineEdit->text());
-    GlobalSetting::instance().setCustomVIDDescriptor(VIDDescriptorLineEdit->text());
-    GlobalSetting::instance().setCustomPIDDescriptor(PIDDescriptorLineEdit->text());
-    GlobalSetting::instance().setSerialNumber(serialNumberLineEdit->text());
-    GlobalSetting::instance().setUSBEnabelFlag(QString(EnableFlag.toHex()));
-
-
-    SerialPortManager::getInstance().changeUSBDescriptor();
-    QThread::msleep(10);
-    SerialPortManager::getInstance().setUSBconfiguration();
-
-    // QThread::msleep(10);
-}
-
-void SettingDialog::initHardwareSetting(){
-    QSettings settings("Techxartisan", "Openterface");
-
-    QCheckBox *VIDCheckBox = hardwarePage->findChild<QCheckBox*>("VIDCheckBox");
-    QCheckBox *PIDCheckBox = hardwarePage->findChild<QCheckBox*>("PIDCheckBox");
-    QCheckBox *USBSerialNumberCheckBox = hardwarePage->findChild<QCheckBox*>("USBSerialNumberCheckBox");
-    QCheckBox *USBCustomStringDescriptorCheckBox = hardwarePage->findChild<QCheckBox*>("USBCustomStringDescriptorCheckBox");
-
-    QComboBox *uvcCamBox = hardwarePage->findChild<QComboBox*>("uvcCamBox");
-
-    QLineEdit *VIDLineEdit = hardwarePage->findChild<QLineEdit*>("VIDLineEdit");
-    QLineEdit *PIDLineEdit = hardwarePage->findChild<QLineEdit*>("PIDLineEdit");
-    QLineEdit *VIDDescriptorLineEdit = USBCheckBoxEditMap.value(VIDCheckBox);
-    QLineEdit *PIDDescriptorLineEdit = USBCheckBoxEditMap.value(PIDCheckBox);
-    QLineEdit *serialNumberLineEdit = USBCheckBoxEditMap.value(USBSerialNumberCheckBox);
-    // QLineEdit *customStringDescriptorLineEdit = USBCheckBoxEditMap.value(USBCustomStringDescriptorCheckBox);
-
-    QString USBFlag = settings.value("serial/enableflag", "87").toString();
-    std::array<bool, 4> enableFlagArray = extractBits(USBFlag);
-
-    for(uint i = 0; i < enableFlagArray.size(); i++){
-        qDebug() << "enable flag array: " <<enableFlagArray[i];
-    }
-
-    VIDCheckBox->setChecked(enableFlagArray[2]);
-    PIDCheckBox->setChecked(enableFlagArray[1]);
-    USBSerialNumberCheckBox->setChecked(enableFlagArray[0]);
-    USBCustomStringDescriptorCheckBox->setChecked(enableFlagArray[3]);
-
-    uvcCamBox->setCurrentText(settings.value("camera/device", "Openterface").toString());
-    VIDDescriptorLineEdit->setText(settings.value("serial/customVIDDescriptor", "product").toString());
-    PIDDescriptorLineEdit->setText(settings.value("serial/customPIDDescriptor", "vendor").toString());
-    VIDLineEdit->setText(settings.value("serial/vid", "861A").toString());
-    PIDLineEdit->setText(settings.value("serial/pid", "29E1").toString());
-    serialNumberLineEdit->setText(settings.value("serial/serialnumber" , "serial number").toString());
-    // customStringDescriptorLineEdit->setText(settings.value("serial/customstringdescriptor", "custom string").toString());
-
-
-    VIDDescriptorLineEdit->setEnabled(enableFlagArray[2]);
-    PIDDescriptorLineEdit->setEnabled(enableFlagArray[1]);
-    serialNumberLineEdit->setEnabled(enableFlagArray[0]);
-    // customStringDescriptorLineEdit->setEnabled(enableFlagArray[3]);
-}
-
 void SettingDialog::createPages() {
     // logPage->setupUI();
     
     createVideoPage();
     createAudioPage();
-    createHardwarePage();
+    // createHardwarePage();
 
     // Add pages to the stacked widget
     stackedWidget->addWidget(logPage);
@@ -749,7 +511,6 @@ void SettingDialog::changePage(QTreeWidgetItem *current, QTreeWidgetItem *previo
     });
 }
 
-
 void SettingDialog::applyAccrodingPage(){
     int currentPageIndex = stackedWidget->currentIndex();
     switch (currentPageIndex)
@@ -764,7 +525,7 @@ void SettingDialog::applyAccrodingPage(){
     case 2:
         break;
     case 3:
-        applyHardwareSetting();
+        hardwarePage->applyHardwareSetting();
         break;
     default:
         break;
@@ -774,6 +535,11 @@ void SettingDialog::applyAccrodingPage(){
 void SettingDialog::handleOkButton() {
     logPage->applyLogsettings();
     applyVideoSettings();
-    applyHardwareSetting();
+    hardwarePage->applyHardwareSetting();
     accept();
 }
+
+HardwarePage* SettingDialog::getHardwarePage() {
+    return hardwarePage;
+}
+
