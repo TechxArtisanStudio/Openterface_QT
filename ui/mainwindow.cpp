@@ -241,6 +241,8 @@ MainWindow::MainWindow() :  ui(new Ui::MainWindow),
 
     qApp->installEventFilter(this);
 
+    usbControl = new USBControl(this);
+    setupCameraControls();
 }
 
 void MainWindow::onZoomIn()
@@ -985,6 +987,55 @@ void MainWindow::onResolutionsUpdated(int input_width, int input_height, float i
 {
     m_statusBarManager->setInputResolution(input_width, input_height, input_fps);
     m_statusBarManager->setCaptureResolution(capture_width, capture_height, capture_fps);
+}
+
+void MainWindow::setupCameraControls()
+{
+    // Create a widget to hold the camera controls
+    QWidget *cameraControlsWidget = new QWidget(this);
+    QHBoxLayout *controlsLayout = new QHBoxLayout(cameraControlsWidget);
+    
+    // Create and setup the contrast label
+    contrastLabel = new QLabel("Contrast:", cameraControlsWidget);
+    controlsLayout->addWidget(contrastLabel);
+    
+    // Create and setup the contrast slider
+    contrastSlider = new QSlider(Qt::Horizontal, cameraControlsWidget);
+    contrastSlider->setMinimum(0);
+    contrastSlider->setMaximum(255);
+    contrastSlider->setValue(128); // Default value
+    contrastSlider->setFixedWidth(150);
+    controlsLayout->addWidget(contrastSlider);
+    
+    // Add the camera controls widget to the corner widget
+    QHBoxLayout *cornerLayout = qobject_cast<QHBoxLayout*>(ui->cornerWidget->layout());
+    if (cornerLayout) {
+        cornerLayout->insertWidget(0, cameraControlsWidget); // Insert at the beginning
+    }
+    
+    // Connect the slider's value changed signal
+    connect(contrastSlider, &QSlider::valueChanged, this, &MainWindow::onContrastChanged);
+    
+    // Initialize with current contrast value
+    if (usbControl && usbControl->initializeUSB()) {
+        if (usbControl->findAndOpenUVCDevice()) {
+            int currentContrast = usbControl->getContrast();
+            if (currentContrast >= 0) {
+                contrastSlider->setValue(currentContrast);
+            }
+        }
+    }
+}
+
+void MainWindow::onContrastChanged(int value)
+{
+    if (usbControl) {
+        if (usbControl->setContrast(value)) {
+            qDebug() << "Contrast set to:" << value;
+        } else {
+            qDebug() << "Failed to set contrast";
+        }
+    }
 }
 
 MainWindow::~MainWindow()
