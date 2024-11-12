@@ -43,13 +43,7 @@ bool USBControl::initializeUSB()
         return false;
     }
     
-    bool success = findAndOpenUVCDevice();
-    if (success) {
-        emit deviceConnected();
-    } else {
-        emit error("No UVC device found");
-    }
-    return success;
+    return true;
 }
 
 void USBControl::closeUSB()
@@ -75,59 +69,68 @@ bool USBControl::findAndOpenUVCDevice()
     
     for (ssize_t i = 0; i < deviceCount; i++) {
         libusb_device *device = deviceList[i];
-        libusb_device_descriptor desc;
         
-        int result = libusb_get_device_descriptor(device, &desc);
-        if (result < 0) continue;
-
-        // Check for UVC devices
-        // USB Video Class code is 0x0E
-        // Interface class for video is 0x0E
-        // Some devices use class 0xEF (Miscellaneous Device Class) with subclass 2
-        if (desc.bDeviceClass == 0x0E || // USB Video Class
-            desc.bDeviceClass == LIBUSB_CLASS_VIDEO || // Standard Video Class
-            (desc.bDeviceClass == 0xEF && desc.bDeviceSubClass == 0x02)) { // Miscellaneous Device Class
-            
-            result = libusb_open(device, &deviceHandle);
-            if (result < 0) continue;
-
-            // Get configuration descriptor to verify it's a UVC device
-            libusb_config_descriptor *config;
-            result = libusb_get_config_descriptor(device, 0, &config);
-            if (result < 0) {
-                libusb_close(deviceHandle);
-                continue;
-            }
-
-            // Look for Video interface
-            bool isUVCDevice = false;
-            for (int i = 0; i < config->bNumInterfaces; i++) {
-                const libusb_interface *interface = &config->interface[i];
-                for (int j = 0; j < interface->num_altsetting; j++) {
-                    const libusb_interface_descriptor *altsetting = &interface->altsetting[j];
-                    if (altsetting->bInterfaceClass == LIBUSB_CLASS_VIDEO) {
-                        isUVCDevice = true;
-                        break;
+        if (matchUVCDevice(device)) {
+            qDebug() << "Found UVC device";
+            int result = libusb_open(device, &deviceHandle);
+            if (result >= 0) {
+                // Detach kernel driver if necessary
+                if (libusb_kernel_driver_active(deviceHandle, 0) == 1) {
+                    qDebug() << "Kernel driver active, detaching...";
+                    if (libusb_detach_kernel_driver(deviceHandle, 0) == 0) {
+                        qDebug() << "Kernel driver detached";
                     }
                 }
-                if (isUVCDevice) break;
-            }
 
-            libusb_free_config_descriptor(config);
+                // Claim interface 0
+                result = libusb_claim_interface(deviceHandle, 0);
+                if (result < 0) {
+                    qDebug() << "Failed to claim interface:" << libusb_error_name(result);
+                    libusb_close(deviceHandle);
+                    deviceHandle = nullptr;
+                    continue;
+                }
 
-            if (isUVCDevice) {
-                // Successfully found and opened a UVC device
                 found = true;
+                qDebug() << "Successfully opened UVC device and claimed interface";
+                debugControlRanges();
                 break;
             } else {
-                libusb_close(deviceHandle);
-                deviceHandle = nullptr;
+                qDebug() << "Failed to open UVC device:" << libusb_error_name(result);
             }
         }
     }
     
+    if (!found) {
+        qDebug() << "No matching UVC device found";
+    }
+    
     libusb_free_device_list(deviceList, 1);
     return found;
+}
+
+bool USBControl::matchUVCDevice(libusb_device *device)
+{
+    libusb_device_descriptor desc;
+    int result = libusb_get_device_descriptor(device, &desc);
+    if (result < 0) return false;
+    
+    qDebug() << "Device descriptor:" << QString::number(desc.idVendor, 16) << QString::number(desc.idProduct, 16);
+
+    // Match the specific vendor and product IDs
+    return (desc.idVendor == VENDOR_ID && desc.idProduct == PRODUCT_ID);
+}
+
+QString USBControl::getUSBDeviceString(libusb_device_handle *handle, uint8_t desc_index)
+{
+    if (desc_index == 0) return QString();
+    
+    unsigned char buffer[256];
+    int result = libusb_get_string_descriptor_ascii(handle, desc_index, buffer, sizeof(buffer));
+    
+    if (result < 0) return QString();
+    
+    return QString::fromLatin1(reinterpret_cast<const char*>(buffer), result);
 }
 
 int USBControl::getUVCControl(uint8_t selector, uint8_t unit, uint8_t cs)
@@ -136,16 +139,24 @@ int USBControl::getUVCControl(uint8_t selector, uint8_t unit, uint8_t cs)
     
     uint8_t data[2] = {0};
     int requestType = LIBUSB_ENDPOINT_IN | LIBUSB_REQUEST_TYPE_CLASS | LIBUSB_RECIPIENT_INTERFACE;
+    int wValue = (cs << 8) | 0x00;  // Control selector in high byte
+    int wIndex = (unit << 8) | 0x00; // Unit ID in high byte, Interface 0
     int timeout = 1000;
+    
+    qDebug() << "UVC Control Request:";
+    qDebug() << "  Request type:" << QString("0x%1").arg(requestType, 2, 16, QChar('0'));
+    qDebug() << "  Request:" << QString("0x%1").arg(selector, 2, 16, QChar('0'));
+    qDebug() << "  wValue:" << QString("0x%1").arg(wValue, 4, 16, QChar('0'));
+    qDebug() << "  wIndex:" << QString("0x%1").arg(wIndex, 4, 16, QChar('0'));
     
     int result = libusb_control_transfer(
         deviceHandle,
         requestType,
-        selector,
-        cs << 8,
-        unit << 8,
-        data,
-        sizeof(data),
+        selector,        // bRequest
+        wValue,          // wValue
+        wIndex,          // wIndex
+        data,           // data buffer
+        sizeof(data),   // wLength
         timeout
     );
     
@@ -154,36 +165,136 @@ int USBControl::getUVCControl(uint8_t selector, uint8_t unit, uint8_t cs)
         return -1;
     }
     
-    return (data[1] << 8) | data[0];
+    int value = (data[1] << 8) | data[0];
+    qDebug() << "  Response value:" << value;
+    return value;
+}
+
+int USBControl::setUVCControl(uint8_t selector, uint8_t unit, uint8_t cs, int value)
+{
+    if (!deviceHandle) return -1;
+    
+    uint8_t data[2];
+    data[0] = value & 0xFF;
+    data[1] = (value >> 8) & 0xFF;
+    
+    int requestType = LIBUSB_ENDPOINT_OUT | LIBUSB_REQUEST_TYPE_CLASS | LIBUSB_RECIPIENT_INTERFACE;
+    int wValue = (cs << 8) | 0x00;  // Control selector in high byte
+    int wIndex = (unit << 8) | 0x00; // Unit ID in high byte, Interface 0
+    int timeout = 1000;
+    
+    qDebug() << "UVC Control Set:";
+    qDebug() << "  Request type:" << QString("0x%1").arg(requestType, 2, 16, QChar('0'));
+    qDebug() << "  Request:" << QString("0x%1").arg(selector, 2, 16, QChar('0'));
+    qDebug() << "  wValue:" << QString("0x%1").arg(wValue, 4, 16, QChar('0'));
+    qDebug() << "  wIndex:" << QString("0x%1").arg(wIndex, 4, 16, QChar('0'));
+    qDebug() << "  Setting value:" << value;
+    
+    int result = libusb_control_transfer(
+        deviceHandle,
+        requestType,
+        selector,        // bRequest
+        wValue,          // wValue
+        wIndex,          // wIndex
+        data,           // data buffer
+        sizeof(data),   // wLength
+        timeout
+    );
+    
+    if (result < 0) {
+        qDebug() << "Failed to set UVC control:" << libusb_error_name(result);
+        return -1;
+    }
+    
+    return 0;
 }
 
 int USBControl::getBrightness()
 {
+    if (!isControlSupported(0)) {
+        qDebug() << "Brightness control is not supported";
+        return -1;
+    }
     return getUVCControl(UVC_GET_CUR, 2, PU_BRIGHTNESS_CONTROL);
+}
+
+bool USBControl::setBrightness(int value)
+{
+    if (!isControlSupported(0)) {
+        qDebug() << "Brightness control is not supported";
+        return false;
+    }
+    return setUVCControl(UVC_SET_CUR, 2, PU_BRIGHTNESS_CONTROL, value) >= 0;
 }
 
 int USBControl::getContrast()
 {
+    if (!isControlSupported(1)) {
+        qDebug() << "Contrast control is not supported";
+        return -1;
+    }
     return getUVCControl(UVC_GET_CUR, 2, PU_CONTRAST_CONTROL);
 }
 
-int USBControl::getSharpness()
+bool USBControl::setContrast(int value)
 {
-    return getUVCControl(UVC_GET_CUR, 2, PU_SHARPNESS_CONTROL);
+    if (!isControlSupported(1)) {
+        qDebug() << "Contrast control is not supported";
+        return false;
+    }
+    return setUVCControl(UVC_SET_CUR, 2, PU_CONTRAST_CONTROL, value) >= 0;
 }
 
-int USBControl::getSaturation()
+bool USBControl::isControlSupported(uint8_t control)
 {
-    return getUVCControl(UVC_GET_CUR, 2, PU_SATURATION_CONTROL);
+    static const uint16_t bmControls = 0x000F;
+    
+    return (bmControls & (1 << control)) != 0;
 }
 
-int USBControl::getGamma()
+int USBControl::getBrightnessMin()
 {
-    return getUVCControl(UVC_GET_CUR, 2, PU_GAMMA_CONTROL);
+    return getUVCControl(UVC_GET_MIN, 2, PU_BRIGHTNESS_CONTROL);
 }
 
-int USBControl::getBacklightCompensation()
+int USBControl::getBrightnessMax()
 {
-    return getUVCControl(UVC_GET_CUR, 2, PU_BACKLIGHT_COMPENSATION_CONTROL);
+    return getUVCControl(UVC_GET_MAX, 2, PU_BRIGHTNESS_CONTROL);
+}
+
+int USBControl::getBrightnessDef()
+{
+    return getUVCControl(UVC_GET_DEF, 2, PU_BRIGHTNESS_CONTROL);
+}
+
+int USBControl::getContrastMin()
+{
+    return getUVCControl(UVC_GET_MIN, 2, PU_CONTRAST_CONTROL);
+}
+
+int USBControl::getContrastMax()
+{
+    return getUVCControl(UVC_GET_MAX, 2, PU_CONTRAST_CONTROL);
+}
+
+int USBControl::getContrastDef()
+{
+    return getUVCControl(UVC_GET_DEF, 2, PU_CONTRAST_CONTROL);
+}
+
+void USBControl::debugControlRanges()
+{
+    qDebug() << "UVC Control Ranges:";
+    qDebug() << "Brightness:";
+    qDebug() << "  Current:" << getBrightness();
+    qDebug() << "  Min:" << getBrightnessMin();
+    qDebug() << "  Max:" << getBrightnessMax();
+    qDebug() << "  Default:" << getBrightnessDef();
+    
+    qDebug() << "Contrast:";
+    qDebug() << "  Current:" << getContrast();
+    qDebug() << "  Min:" << getContrastMin();
+    qDebug() << "  Max:" << getContrastMax();
+    qDebug() << "  Default:" << getContrastDef();
 }
 
