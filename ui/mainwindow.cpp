@@ -38,6 +38,7 @@
 #include "video/videohid.h"
 #include "ui/versioninfomanager.h"
 
+#include "ui/cameraajust.h"
 
 #include <QCameraDevice>
 #include <QMediaDevices>
@@ -118,7 +119,8 @@ MainWindow::MainWindow() :  ui(new Ui::MainWindow),
                             toolbarManager(new ToolbarManager(this)),
                             toggleSwitch(new ToggleSwitch(this)),
                             m_cameraManager(new CameraManager(this)),
-                            m_versionInfoManager(new VersionInfoManager(this))
+                            m_versionInfoManager(new VersionInfoManager(this)),
+                            cameraAdjust(new CameraAdjust(this))
 {
     qCDebug(log_ui_mainwindow) << "Init camera...";
     ui->setupUi(this);
@@ -241,6 +243,14 @@ MainWindow::MainWindow() :  ui(new Ui::MainWindow),
 
     qApp->installEventFilter(this);
 
+    usbControl = new USBControl(this);
+    connect(ui->contrastButton, &QPushButton::clicked, cameraAdjust, &CameraAdjust::toggleVisibility);
+    connect(ui->contrastButton, &QPushButton::toggled, cameraAdjust, &CameraAdjust::setVisible);
+
+    // Initial position setup
+    QPoint buttonPos = ui->contrastButton->mapToGlobal(QPoint(0, 0));
+    int menuBarHeight = buttonPos.y() - this->mapToGlobal(QPoint(0, 0)).y();
+    cameraAdjust->updatePosition(menuBarHeight, width());
 }
 
 void MainWindow::onZoomIn()
@@ -334,7 +344,6 @@ void MainWindow::resizeEvent(QResizeEvent *event) {
     qCDebug(log_ui_mainwindow) << "menuBar height:" << this->menuBar()->height() << ", statusbar height:" << ui->statusbar->height() << ", titleBarHeight" << titleBarHeight;
 
     // Calculate the new height based on the width and the aspect ratio
-    // int new_width = static_cast<int>((height() -  this->menuBar()->height() - ui->statusbar->height()) * aspect_ratio);
     int new_height = static_cast<int>(width() / aspect_ratio) + this->menuBar()->height() + ui->statusbar->height();
 
     // Set the new size of the window
@@ -347,7 +356,11 @@ void MainWindow::resizeEvent(QResizeEvent *event) {
         this->height() - ui->statusbar->height() - ui->menubar->height());
     videoPane->resize(this->width(), this->height() - ui->statusbar->height() - ui->menubar->height());
     scrollArea->resize(this->width(), this->height() - ui->statusbar->height() - ui->menubar->height());
-    // scrollArea->ensureWidgetVisible(videoPane);
+
+    // Update camera adjust position
+    if (cameraAdjust) {
+        cameraAdjust->updatePosition(menuBar()->height(), width());
+    }
 }
 
 
