@@ -16,6 +16,20 @@ VersionInfoManager::VersionInfoManager(QObject *parent)
 {
 }
 
+
+void VersionInfoManager::showAbout()
+{
+    QString message = QString("<b>Email:</b> %1<br><b>Company:</b> %2<br><b>Address:</b> %3")
+        .arg(EMAIL)
+        .arg(TEAM_NAME)
+        .arg(ADDRESS);
+    QMessageBox msgBox;
+    msgBox.setWindowTitle(tr("%1").arg(QApplication::applicationName()));
+    msgBox.setText(message);
+    msgBox.setTextFormat(Qt::RichText);
+    msgBox.exec();
+}
+
 void VersionInfoManager::showVersionInfo()
 {
     QString applicationName = QApplication::applicationName();
