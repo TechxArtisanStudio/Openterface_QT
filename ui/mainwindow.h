@@ -107,7 +107,10 @@ private slots:
 
     void purchaseLink();
     void feedbackLink();
+    void officialLink();
     void aboutLink();
+    void updateLink();
+    
 
     void configureSettings();
     void debugSerialPort();

@@ -383,7 +383,7 @@
    <sender>actionOfficeWeb</sender>
    <signal>triggered()</signal>
    <receiver>MainWindow</receiver>
-   <slot>aboutLink()</slot>
+   <slot>officialLink()</slot>
    <hints>
     <hint type="sourcelabel">
      <x>-1</x>
@@ -459,6 +459,38 @@
     </hint>
    </hints>
   </connection>
+  <connection>
+   <sender>actionUpdate</sender>
+   <signal>triggered()</signal>
+   <receiver>MainWindow</receiver>
+   <slot>updateLink()</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>-1</x>
+     <y>-1</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>639</x>
+     <y>380</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>actionAbout</sender>
+   <signal>triggered()</signal>
+   <receiver>MainWindow</receiver>
+   <slot>aboutLink()</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>-1</x>
+     <y>-1</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>639</x>
+     <y>380</y>
+    </hint>
+   </hints>
+  </connection>
  </connections>
  <slots>
   <slot>record()</slot>
@@ -467,7 +499,9 @@
   <slot>versionInfo()</slot>
   <slot>purchaseLink()</slot>
   <slot>aboutLink()</slot>
+  <slot>updateLink()</slot>
   <slot>feedbackLink()</slot>
+  <slot>officialLink()</slot>
   <slot>enablePreview(bool)</slot>
   <slot>configureSettings()</slot>
   <slot>debugSerialPort()</slot>

@@ -684,8 +684,16 @@ void MainWindow::feedbackLink(){
     QDesktopServices::openUrl(QUrl("https://forms.gle/KNQPTNfXCPUPybgG9"));
 }
 
-void MainWindow::aboutLink(){
+void MainWindow::officialLink(){
     QDesktopServices::openUrl(QUrl("https://openterface.com/"));
+}
+
+void MainWindow::updateLink(){
+    QDesktopServices::openUrl(QUrl("https://github.com/TechxArtisanStudio/Openterface_QT/releases"));
+}
+
+void MainWindow::aboutLink(){
+    m_versionInfoManager->showAbout();
 }
 
 void MainWindow::versionInfo()
