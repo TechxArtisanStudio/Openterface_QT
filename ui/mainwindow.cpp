@@ -38,6 +38,7 @@
 #include "video/videohid.h"
 #include "ui/versioninfomanager.h"
 
+#include "ui/cameraajust.h"
 
 #include <QCameraDevice>
 #include <QMediaDevices>
@@ -118,7 +119,8 @@ MainWindow::MainWindow() :  ui(new Ui::MainWindow),
                             toolbarManager(new ToolbarManager(this)),
                             toggleSwitch(new ToggleSwitch(this)),
                             m_cameraManager(new CameraManager(this)),
-                            m_versionInfoManager(new VersionInfoManager(this))
+                            m_versionInfoManager(new VersionInfoManager(this)),
+                            cameraAdjust(new CameraAdjust(this))
 {
     qCDebug(log_ui_mainwindow) << "Init camera...";
     ui->setupUi(this);
@@ -242,7 +244,13 @@ MainWindow::MainWindow() :  ui(new Ui::MainWindow),
     qApp->installEventFilter(this);
 
     usbControl = new USBControl(this);
-    setupCameraControls();
+    connect(ui->contrastButton, &QPushButton::clicked, cameraAdjust, &CameraAdjust::toggleVisibility);
+    connect(ui->contrastButton, &QPushButton::toggled, cameraAdjust, &CameraAdjust::setVisible);
+
+    // Initial position setup
+    QPoint buttonPos = ui->contrastButton->mapToGlobal(QPoint(0, 0));
+    int menuBarHeight = buttonPos.y() - this->mapToGlobal(QPoint(0, 0)).y();
+    cameraAdjust->updatePosition(menuBarHeight, width());
 }
 
 void MainWindow::onZoomIn()
@@ -336,7 +344,6 @@ void MainWindow::resizeEvent(QResizeEvent *event) {
     qCDebug(log_ui_mainwindow) << "menuBar height:" << this->menuBar()->height() << ", statusbar height:" << ui->statusbar->height() << ", titleBarHeight" << titleBarHeight;
 
     // Calculate the new height based on the width and the aspect ratio
-    // int new_width = static_cast<int>((height() -  this->menuBar()->height() - ui->statusbar->height()) * aspect_ratio);
     int new_height = static_cast<int>(width() / aspect_ratio) + this->menuBar()->height() + ui->statusbar->height();
 
     // Set the new size of the window
@@ -349,17 +356,10 @@ void MainWindow::resizeEvent(QResizeEvent *event) {
         this->height() - ui->statusbar->height() - ui->menubar->height());
     videoPane->resize(this->width(), this->height() - ui->statusbar->height() - ui->menubar->height());
     scrollArea->resize(this->width(), this->height() - ui->statusbar->height() - ui->menubar->height());
-    // scrollArea->ensureWidgetVisible(videoPane);
 
-    // Update camera controls position
-    if (cameraControlsWidget) {
-        int menuBarHeight = menuBar()->height();
-        cameraControlsWidget->setGeometry(
-            width() - cameraControlsWidget->width() - 10,
-            menuBarHeight + 5,
-            cameraControlsWidget->width(),
-            cameraControlsWidget->height()
-        );
+    // Update camera adjust position
+    if (cameraAdjust) {
+        cameraAdjust->updatePosition(menuBar()->height(), width());
     }
 }
 
@@ -1006,103 +1006,6 @@ void MainWindow::onResolutionsUpdated(int input_width, int input_height, float i
 {
     m_statusBarManager->setInputResolution(input_width, input_height, input_fps);
     m_statusBarManager->setCaptureResolution(capture_width, capture_height, capture_fps);
-}
-
-void MainWindow::setupCameraControls()
-{
-    // Create a widget to hold the camera controls
-    QWidget *cameraControlsWidget = new QWidget(this);
-    cameraControlsWidget->setFixedWidth(200); // Set fixed width for the control panel
-    QVBoxLayout *controlsLayout = new QVBoxLayout(cameraControlsWidget);
-    
-    // Set transparent background
-    cameraControlsWidget->setAttribute(Qt::WA_TranslucentBackground);
-    QPalette palette = cameraControlsWidget->palette();
-    palette.setColor(QPalette::Window, Qt::transparent);
-    cameraControlsWidget->setPalette(palette);
-    cameraControlsWidget->setAutoFillBackground(true);
-    
-    // Create and setup the contrast label with white text
-    contrastLabel = new QLabel("Contrast:", cameraControlsWidget);
-    contrastLabel->setStyleSheet("QLabel { color: white; }");
-    controlsLayout->addWidget(contrastLabel);
-    
-    // Create and setup the contrast slider
-    contrastSlider = new QSlider(Qt::Horizontal, cameraControlsWidget);
-    contrastSlider->setMinimum(0);
-    contrastSlider->setMaximum(255);
-    contrastSlider->setValue(128); // Default value
-    contrastSlider->setFixedWidth(150);
-    // Style the slider for better visibility
-    contrastSlider->setStyleSheet(
-        "QSlider::groove:horizontal {"
-        "    background: rgba(255, 255, 255, 50);"
-        "    height: 4px;"
-        "}"
-        "QSlider::handle:horizontal {"
-        "    background: white;"
-        "    width: 16px;"
-        "    margin: -6px 0;"
-        "    border-radius: 8px;"
-        "}"
-    );
-    controlsLayout->addWidget(contrastSlider);
-    
-    // Set the layout alignment and reduce margins
-    controlsLayout->setAlignment(Qt::AlignTop); // Align to top
-    controlsLayout->setContentsMargins(5, 5, 5, 5);
-    
-    // Position the widget in the top right corner, just below the menubar
-    int menuBarHeight = menuBar()->height();
-    cameraControlsWidget->setGeometry(
-        width() - cameraControlsWidget->width() - 10,  // 10 pixels from right edge
-        menuBarHeight + 5,                            // 5 pixels below menubar
-        cameraControlsWidget->width(),
-        controlsLayout->sizeHint().height()           // Use minimum height needed
-    );
-                                    
-    // Hide the controls initially
-    cameraControlsWidget->hide();
-    
-    // Store the widget pointer
-    this->cameraControlsWidget = cameraControlsWidget;
-    
-    // Connect the slider's value changed signal
-    connect(contrastSlider, &QSlider::valueChanged, this, &MainWindow::onContrastChanged);
-    
-    // Connect the contrast button clicked signal
-    connect(ui->contrastButton, &QPushButton::clicked, this, &MainWindow::toggleContrastControls);
-    
-    // Initialize with current contrast value
-    if (usbControl && usbControl->initializeUSB()) {
-        qDebug() << "USB initialized";
-        if (usbControl->findAndOpenUVCDevice()) {
-            qDebug() << "USB device found and opened";
-            int currentContrast = usbControl->getContrast();
-            if (currentContrast >= 0) {
-                contrastSlider->setValue(currentContrast);
-            }
-        }
-    }
-}
-
-void MainWindow::toggleContrastControls()
-{
-    if (cameraControlsWidget) {
-        cameraControlsWidget->setVisible(!cameraControlsWidget->isVisible());
-        ui->contrastButton->setChecked(cameraControlsWidget->isVisible());
-    }
-}
-
-void MainWindow::onContrastChanged(int value)
-{
-    if (usbControl) {
-        if (usbControl->setContrast(value)) {
-            qDebug() << "Contrast set to:" << value;
-        } else {
-            qDebug() << "Failed to set contrast";
-        }
-    }
 }
 
 MainWindow::~MainWindow()

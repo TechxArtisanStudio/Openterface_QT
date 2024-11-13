@@ -35,6 +35,7 @@ SOURCES += main.cpp \
     ui/hardwarepage.cpp \
     ui/videopage.cpp \
     ui/audiopage.cpp \
+    ui/cameraajust.cpp \
     host/HostManager.cpp \
     serial/SerialPortManager.cpp \
     target/KeyboardManager.cpp \
@@ -68,6 +69,7 @@ HEADERS  += \
     ui/hardwarepage.h \
     ui/videopage.h   \
     ui/audiopage.h \
+    ui/cameraajust.h \
     host/HostManager.h \
     serial/ch9329.h \
     serial/SerialPortManager.h \
