@@ -260,5 +260,9 @@ private:
 
     void onContrastChanged(int value);
     void setupCameraControls();
+
+    QWidget *cameraControlsWidget = nullptr;
+
+    void toggleContrastControls();
 };
 #endif // MAINWINDOW_H
