@@ -120,6 +120,14 @@
        </property>
       </widget>
      </item>
+     <item>
+      <widget class="QPushButton" name="contrastButton">
+       <property name="icon">
+        <iconset resource="mainwindow.qrc">
+         <normaloff>:/images/contrast.svg</normaloff>:/images/contrast.svg</iconset>
+       </property>
+      </widget>
+     </item>
     </layout>
    </widget>
    <widget class="QMenu" name="menuFile">
