@@ -41,6 +41,7 @@
 #include "ui/versioninfomanager.h"
 #include "statusbarmanager.h"
 #include "host/usbcontrol.h"
+#include "ui/cameraajust.h"
 
 #include <QAudioInput>
 #include <QAudioOutput>
@@ -255,14 +256,7 @@ private:
 
     StatusBarManager *m_statusBarManager;
     USBControl *usbControl;
-    QSlider *contrastSlider;
-    QLabel *contrastLabel;
 
-    void onContrastChanged(int value);
-    void setupCameraControls();
-
-    QWidget *cameraControlsWidget = nullptr;
-
-    void toggleContrastControls();
+    CameraAdjust *cameraAdjust;
 };
 #endif // MAINWINDOW_H
