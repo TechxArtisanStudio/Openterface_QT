@@ -13,11 +13,15 @@ public:
     explicit VersionInfoManager(QObject *parent = nullptr);
 
     void showVersionInfo();
-
+    void showAbout();
 private slots:
     void copyToClipboard();
 
 private:
+    const QString EMAIL = "info@techxartisan.com";
+    const QString TEAM_NAME = "TechxArtisan";
+    const QString ADDRESS = "No. 238, Ju De Road, Haizhu District, Guangzhou City, Guangdong Province, China";
+
     QString getVersionInfoString() const;
     QString getPermissionsStatus() const;
     QString getMicrophonePermissionStatus() const;

@@ -58,7 +58,7 @@
      <rect>
       <x>0</x>
       <y>0</y>
-      <width>190</width>
+      <width>229</width>
       <height>28</height>
      </rect>
     </property>
@@ -116,8 +116,8 @@
          <normaloff>:/images/screensaver.svg</normaloff>:/images/screensaver.svg</iconset>
        </property>
        <property name="checkable">
-      <bool>true</bool>
-      </property>
+        <bool>true</bool>
+       </property>
       </widget>
      </item>
     </layout>
@@ -177,6 +177,8 @@
     <addaction name="actionOfficeWeb"/>
     <addaction name="actionPurchase"/>
     <addaction name="actionFeedback"/>
+    <addaction name="actionUpdate"/>
+    <addaction name="actionEnvironment"/>
     <addaction name="actionAbout"/>
    </widget>
    <widget class="QMenu" name="menuEdit">
@@ -246,6 +248,16 @@
     <string>Feedback</string>
    </property>
   </action>
+  <action name="actionUpdate">
+   <property name="text">
+    <string>Update</string>
+   </property>
+  </action>
+  <action name="actionEnvironment">
+   <property name="text">
+    <string>Environment</string>
+   </property>
+  </action>
   <action name="actionAbout">
    <property name="text">
     <string>About</string>
@@ -273,7 +285,6 @@
     <string>Paste clipboard content to target</string>
    </property>
   </action>
-
   <actiongroup name="actionGroup">
    <action name="action115200">
     <property name="checkable">
@@ -372,7 +383,7 @@
    <sender>actionOfficeWeb</sender>
    <signal>triggered()</signal>
    <receiver>MainWindow</receiver>
-   <slot>aboutLink()</slot>
+   <slot>officialLink()</slot>
    <hints>
     <hint type="sourcelabel">
      <x>-1</x>
@@ -417,7 +428,7 @@
    </hints>
   </connection>
   <connection>
-   <sender>actionAbout</sender>
+   <sender>actionEnvironment</sender>
    <signal>triggered()</signal>
    <receiver>MainWindow</receiver>
    <slot>versionInfo()</slot>
@@ -448,6 +459,38 @@
     </hint>
    </hints>
   </connection>
+  <connection>
+   <sender>actionUpdate</sender>
+   <signal>triggered()</signal>
+   <receiver>MainWindow</receiver>
+   <slot>updateLink()</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>-1</x>
+     <y>-1</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>639</x>
+     <y>380</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>actionAbout</sender>
+   <signal>triggered()</signal>
+   <receiver>MainWindow</receiver>
+   <slot>aboutLink()</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>-1</x>
+     <y>-1</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>639</x>
+     <y>380</y>
+    </hint>
+   </hints>
+  </connection>
  </connections>
  <slots>
   <slot>record()</slot>
@@ -456,7 +499,9 @@
   <slot>versionInfo()</slot>
   <slot>purchaseLink()</slot>
   <slot>aboutLink()</slot>
+  <slot>updateLink()</slot>
   <slot>feedbackLink()</slot>
+  <slot>officialLink()</slot>
   <slot>enablePreview(bool)</slot>
   <slot>configureSettings()</slot>
   <slot>debugSerialPort()</slot>
