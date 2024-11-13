@@ -1018,7 +1018,9 @@ void MainWindow::setupCameraControls()
     
     // Initialize with current contrast value
     if (usbControl && usbControl->initializeUSB()) {
+        qDebug() << "USB initialized";
         if (usbControl->findAndOpenUVCDevice()) {
+            qDebug() << "USB device found and opened";
             int currentContrast = usbControl->getContrast();
             if (currentContrast >= 0) {
                 contrastSlider->setValue(currentContrast);
