@@ -10,12 +10,21 @@
 #include <QMediaDevices>
 #include <QAudioDevice>
 #include <QCameraDevice>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QDesktopServices>
+#include <QUrl>
+#include <QVersionNumber>
 
 VersionInfoManager::VersionInfoManager(QObject *parent)
     : QObject(parent)
+    , networkManager(new QNetworkAccessManager(this))
 {
 }
 
+VersionInfoManager::~VersionInfoManager()
+{
+}
 
 void VersionInfoManager::showAbout()
 {
@@ -135,4 +144,70 @@ QString VersionInfoManager::getVideoPermissionStatus() const
 {
     QList<QCameraDevice> videoDevices = QMediaDevices::videoInputs();
     return videoDevices.isEmpty() ? "Not available or permission not granted" : "Available";
+}
+
+void VersionInfoManager::checkForUpdates()
+{
+    QNetworkRequest request((QUrl(GITHUB_REPO_API)));
+    request.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::NoLessSafeRedirectPolicy);
+    request.setHeader(QNetworkRequest::UserAgentHeader, "Openterface_QT Update Checker");
+    
+    QNetworkReply *reply = networkManager->get(request);
+    connect(reply, &QNetworkReply::finished, reply, [this, reply]() {
+        handleUpdateCheckResponse(reply);
+        reply->deleteLater();
+    });
+}
+
+void VersionInfoManager::handleUpdateCheckResponse(QNetworkReply *reply)
+{
+    if (reply->error() == QNetworkReply::NoError) {
+        QJsonDocument doc = QJsonDocument::fromJson(reply->readAll());
+        QJsonObject releaseInfo = doc.object();
+        
+        QString latestVersion = releaseInfo["tag_name"].toString();
+        QString currentVersion = QApplication::applicationVersion();
+        QString htmlUrl = releaseInfo["html_url"].toString();
+        
+        // Remove 'v' prefix if present
+        latestVersion.remove(QRegularExpression("^v"));
+        currentVersion.remove(QRegularExpression("^v"));
+        
+        QVersionNumber latest = QVersionNumber::fromString(latestVersion);
+        QVersionNumber current = QVersionNumber::fromString(currentVersion);
+
+        qDebug() << "version latest: " << latest;
+        qDebug() << "version current: " << current;
+        
+        QMessageBox msgBox;
+        msgBox.setWindowTitle(tr("Openterface Mini KVM"));
+        
+        if (latest != current) {
+            msgBox.setText(tr("A new version is available!\nCurrent version: %1\nLatest version: %2\n")
+                          .arg(currentVersion)
+                          .arg(latestVersion));
+            QPushButton *updateButton = msgBox.addButton(tr("Update"), QMessageBox::AcceptRole);
+            msgBox.addButton(tr("Cancel"), QMessageBox::RejectRole);
+            
+            msgBox.exec();
+            
+            if (msgBox.clickedButton() == updateButton) {
+                openGitHubReleasePage(htmlUrl);
+            }
+        } else {
+            msgBox.setText(tr("You are using the latest version"));
+            msgBox.addButton(QMessageBox::Ok);
+            msgBox.exec();
+        }
+    } else {
+        QMessageBox::warning(nullptr, 
+                           tr("Update Check Failed"),
+                           tr("Failed to check for updates.\nError: %1")
+                           .arg(reply->errorString()));
+    }
+}
+
+void VersionInfoManager::openGitHubReleasePage(const QString &releaseUrl)
+{
+    QDesktopServices::openUrl(QUrl(releaseUrl));
 }
