@@ -701,8 +701,9 @@ void MainWindow::officialLink(){
     QDesktopServices::openUrl(QUrl("https://openterface.com/"));
 }
 
-void MainWindow::updateLink(){
-    QDesktopServices::openUrl(QUrl("https://github.com/TechxArtisanStudio/Openterface_QT/releases"));
+void MainWindow::updateLink()
+{
+    m_versionInfoManager->checkForUpdates();
 }
 
 void MainWindow::aboutLink(){
