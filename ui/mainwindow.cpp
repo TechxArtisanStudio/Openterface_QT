@@ -350,6 +350,17 @@ void MainWindow::resizeEvent(QResizeEvent *event) {
     videoPane->resize(this->width(), this->height() - ui->statusbar->height() - ui->menubar->height());
     scrollArea->resize(this->width(), this->height() - ui->statusbar->height() - ui->menubar->height());
     // scrollArea->ensureWidgetVisible(videoPane);
+
+    // Update camera controls position
+    if (cameraControlsWidget) {
+        int menuBarHeight = menuBar()->height();
+        cameraControlsWidget->setGeometry(
+            width() - cameraControlsWidget->width() - 10,
+            menuBarHeight + 5,
+            cameraControlsWidget->width(),
+            cameraControlsWidget->height()
+        );
+    }
 }
 
 
@@ -1001,10 +1012,19 @@ void MainWindow::setupCameraControls()
 {
     // Create a widget to hold the camera controls
     QWidget *cameraControlsWidget = new QWidget(this);
-    QHBoxLayout *controlsLayout = new QHBoxLayout(cameraControlsWidget);
+    cameraControlsWidget->setFixedWidth(200); // Set fixed width for the control panel
+    QVBoxLayout *controlsLayout = new QVBoxLayout(cameraControlsWidget);
     
-    // Create and setup the contrast label
+    // Set transparent background
+    cameraControlsWidget->setAttribute(Qt::WA_TranslucentBackground);
+    QPalette palette = cameraControlsWidget->palette();
+    palette.setColor(QPalette::Window, Qt::transparent);
+    cameraControlsWidget->setPalette(palette);
+    cameraControlsWidget->setAutoFillBackground(true);
+    
+    // Create and setup the contrast label with white text
     contrastLabel = new QLabel("Contrast:", cameraControlsWidget);
+    contrastLabel->setStyleSheet("QLabel { color: white; }");
     controlsLayout->addWidget(contrastLabel);
     
     // Create and setup the contrast slider
@@ -1013,16 +1033,45 @@ void MainWindow::setupCameraControls()
     contrastSlider->setMaximum(255);
     contrastSlider->setValue(128); // Default value
     contrastSlider->setFixedWidth(150);
+    // Style the slider for better visibility
+    contrastSlider->setStyleSheet(
+        "QSlider::groove:horizontal {"
+        "    background: rgba(255, 255, 255, 50);"
+        "    height: 4px;"
+        "}"
+        "QSlider::handle:horizontal {"
+        "    background: white;"
+        "    width: 16px;"
+        "    margin: -6px 0;"
+        "    border-radius: 8px;"
+        "}"
+    );
     controlsLayout->addWidget(contrastSlider);
     
-    // Add the camera controls widget to the corner widget
-    QHBoxLayout *cornerLayout = qobject_cast<QHBoxLayout*>(ui->cornerWidget->layout());
-    if (cornerLayout) {
-        cornerLayout->insertWidget(0, cameraControlsWidget); // Insert at the beginning
-    }
+    // Set the layout alignment and reduce margins
+    controlsLayout->setAlignment(Qt::AlignTop); // Align to top
+    controlsLayout->setContentsMargins(5, 5, 5, 5);
+    
+    // Position the widget in the top right corner, just below the menubar
+    int menuBarHeight = menuBar()->height();
+    cameraControlsWidget->setGeometry(
+        width() - cameraControlsWidget->width() - 10,  // 10 pixels from right edge
+        menuBarHeight + 5,                            // 5 pixels below menubar
+        cameraControlsWidget->width(),
+        controlsLayout->sizeHint().height()           // Use minimum height needed
+    );
+                                    
+    // Hide the controls initially
+    cameraControlsWidget->hide();
+    
+    // Store the widget pointer
+    this->cameraControlsWidget = cameraControlsWidget;
     
     // Connect the slider's value changed signal
     connect(contrastSlider, &QSlider::valueChanged, this, &MainWindow::onContrastChanged);
+    
+    // Connect the contrast button clicked signal
+    connect(ui->contrastButton, &QPushButton::clicked, this, &MainWindow::toggleContrastControls);
     
     // Initialize with current contrast value
     if (usbControl && usbControl->initializeUSB()) {
@@ -1034,6 +1083,14 @@ void MainWindow::setupCameraControls()
                 contrastSlider->setValue(currentContrast);
             }
         }
+    }
+}
+
+void MainWindow::toggleContrastControls()
+{
+    if (cameraControlsWidget) {
+        cameraControlsWidget->setVisible(!cameraControlsWidget->isVisible());
+        ui->contrastButton->setChecked(cameraControlsWidget->isVisible());
     }
 }
 
