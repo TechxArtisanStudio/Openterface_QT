@@ -19,7 +19,7 @@ VersionInfoManager::VersionInfoManager(QObject *parent)
 
 void VersionInfoManager::showAbout()
 {
-    QString message = QString("<b>Email:</b> %1<br><b>Team:</b> %2<br><b>Address:</b> %3")
+    QString message = QString("<b>Email:</b> %1<br><b>Company:</b> %2<br><b>Address:</b> %3")
         .arg(EMAIL)
         .arg(TEAM_NAME)
         .arg(ADDRESS);
