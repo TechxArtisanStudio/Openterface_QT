@@ -21,5 +21,6 @@
         <file>../images/zoom_in.svg</file>
         <file>../images/zoom_out.svg</file>
         <file>../images/zoom_reduction.svg</file>
+        <file>../images/contrast.svg</file>
     </qresource>
 </RCC>
