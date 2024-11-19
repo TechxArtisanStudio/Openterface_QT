@@ -30,6 +30,10 @@
 #include <QLoggingCategory>
 #include <QSet>
 #include <QMap>
+#include <QLocale>
+#include <QApplication>
+#include <QInputMethod>
+#include <QKeyEvent>
 
 Q_DECLARE_LOGGING_CATEGORY(log_host_keyboard)
 
@@ -68,12 +72,16 @@ public:
 
 private:
     static const QMap<int, uint8_t> keyMap;
+    static const QMap<int, uint8_t> ukKeyMap;
     static const QMap<uint8_t, int> charMapping;
+    static const QMap<uint8_t, int> ukCharMapping;
+    static const QList<char> NEED_SHIFT_KEYS;
+    static const QList<int> UK_NEED_SHIFT_KEYS;
     static const QList<int> SHIFT_KEYS;
     static const QList<int> CTRL_KEYS;
     static const QList<int> ALT_KEYS;
     static const QList<int> KEYPAD_KEYS;
-    static const QList<char> NEED_SHIFT_KEYS;
+    static const QMap<int, uint8_t> functionKeyMap;
 
     QSet<unsigned int> currentMappedKeyCodes;
 
@@ -83,9 +91,6 @@ private:
     int handleKeyModifiers(int modifierKeyCode, bool isKeyDown);
     int currentModifiers = 0;
 
-    // Add this new constant
-    static const QMap<int, uint8_t> functionKeyMap;
-
     // Add this new method
     void sendKeyToTarget(uint8_t keyCode, bool isPressed);
 
@@ -93,6 +98,10 @@ private:
     static const uint8_t CTRL_KEY = 0xE0;
     static const uint8_t ALT_KEY = 0xE2;
     static const uint8_t DEL_KEY = 0x4C;
+    
+    QLocale m_locale;
+    void getKeyboardLayout();
+    unsigned int mappedKeyCode;
 
 private slots:
 };
