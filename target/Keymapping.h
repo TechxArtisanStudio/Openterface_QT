@@ -426,7 +426,7 @@ const QList<char> KeyboardManager::NEED_SHIFT_KEYS = {
 
 // Add UK-specific shift keys list with proper hex values
 const QList<int> KeyboardManager::UK_NEED_SHIFT_KEYS = {
-    '¬', '!', '"', '£', '$', '%', '^', '&', '*', '(', ')', '_', '+', '{', '}', '|', ':', '@', '<', '>', '?'
+    0x00AC, '!', '"', 0x0A3, '$', '%', '^', '&', '*', '(', ')', '_', '+', '{', '}', '|', ':', '@', '<', '>', '?'
     //    163, 33,   34, 172,  36,  37,  94,  38,  42,  40,  41,  95,  43, 123, 125, 124,  58,  64,  60,  62,  63
 };
 
