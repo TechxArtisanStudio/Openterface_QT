@@ -103,7 +103,6 @@ void KeyboardManager::handleKeyboardAction(int keyCode, int modifiers, bool isKe
         if(currentModifiers!=0){
             qCDebug(log_keyboard) << "Send release command :" << keyData.toHex(' ');
             emit SerialPortManager::getInstance().sendCommandAsync(keyData, false);
-
             currentModifiers = 0;
             return;
         }
@@ -122,7 +121,7 @@ void KeyboardManager::handleKeyboardAction(int keyCode, int modifiers, bool isKe
         }
     }
     
-    qCDebug(log_keyboard) << "isKeyDown:" << isKeyDown << ", KeyCode:"<<keyCode<<", Mapped Keycode:" << mappedKeyCode << ", modifiers: " << combinedModifiers;
+    qCDebug(log_keyboard) << "isKeyDown:" << isKeyDown << ", KeyCode:"<< QString::number(keyCode, 16) <<", Mapped Keycode:" << QString::number(mappedKeyCode, 16) << ", modifiers: " << QString::number(combinedModifiers, 16);
     if (mappedKeyCode != 0) {
         keyData[5] = isKeyDown ? combinedModifiers : 0;
         int i = 0;
@@ -130,7 +129,7 @@ void KeyboardManager::handleKeyboardAction(int keyCode, int modifiers, bool isKe
             keyData[7 + i] = keyCode;
             i++;
         }
-
+        qCDebug(log_keyboard) << "currentMappedKeyCodes size:" << currentMappedKeyCodes.size();
         if(currentMappedKeyCodes.size() == 1 && !isKeyDown){
             for(int j = 0; j < 6; j++){
                 keyData[7 + j] = 0;
@@ -140,6 +139,8 @@ void KeyboardManager::handleKeyboardAction(int keyCode, int modifiers, bool isKe
         qDebug() << "Send command :" << keyData.toHex(' ');
         
         emit SerialPortManager::getInstance().sendCommandAsync(keyData, false);
+        currentMappedKeyCodes.clear(); //clear the mapped keycodes after send command
+
     }
 }
 
@@ -191,11 +192,10 @@ void KeyboardManager::handlePastingCharacters(const QString& text, const QMap<ui
         bool needShift = needShiftWhenPaste(ch);
         int modifiers = needShift ? Qt::ShiftModifier : 0;
         qCDebug(log_keyboard)<< "Pasting character: " << ch << " with key: 0x" << QString::number(key, 16) << " and modifiers: " << modifiers;
-        QThread::msleep(1);
         handleKeyboardAction(key, modifiers, true);
-        QThread::msleep(1);
+        // QThread::msleep(1);
         handleKeyboardAction(key, modifiers, false);
-        QThread::msleep(1);
+        // QThread::msleep(1);
     }
 }
 
@@ -222,8 +222,8 @@ bool KeyboardManager::needShiftWhenPaste(const QChar character) {
 
     switch(m_locale.country()){
         case QLocale::UnitedKingdom:
-            qDebug() << "UK need shift key:" << character.toLatin1() << UK_NEED_SHIFT_KEYS.contains(character.toLatin1());
-            return character.isUpper() || UK_NEED_SHIFT_KEYS.contains(character.toLatin1());
+            qDebug() << "UK need shift key:" << character.unicode() << UK_NEED_SHIFT_KEYS.contains(character.unicode());
+            return character.isUpper() || UK_NEED_SHIFT_KEYS.contains(character.unicode());
         default:
             return character.isUpper() || NEED_SHIFT_KEYS.contains(character);
     }
