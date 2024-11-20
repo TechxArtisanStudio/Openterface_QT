@@ -7,7 +7,7 @@
 TARGET = openterfaceQT
 TEMPLATE = app
 
-QT       += core gui multimedia multimediawidgets serialport concurrent svg
+QT       += core gui multimedia multimediawidgets serialport concurrent svg network
 
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 
@@ -31,11 +31,17 @@ SOURCES += main.cpp \
     ui/inputhandler.cpp \
     ui/versioninfomanager.cpp \    
     ui/statusbarmanager.cpp \
+    ui/logpage.cpp \
+    ui/hardwarepage.cpp \
+    ui/videopage.cpp \
+    ui/audiopage.cpp \
+    ui/cameraajust.cpp \
     host/HostManager.cpp \
     serial/SerialPortManager.cpp \
     target/KeyboardManager.cpp \
     target/MouseManager.cpp \
-    host/audiothread.cpp
+    host/audiothread.cpp \
+    host/usbcontrol.cpp
 
 HEADERS  += \
     global.h \
@@ -59,6 +65,11 @@ HEADERS  += \
     ui/inputhandler.h \
     ui/versioninfomanager.h \
     ui/statusbarmanager.h \
+    ui/logpage.h \
+    ui/hardwarepage.h \
+    ui/videopage.h   \
+    ui/audiopage.h \
+    ui/cameraajust.h \
     host/HostManager.h \
     serial/ch9329.h \
     serial/SerialPortManager.h \
@@ -66,7 +77,8 @@ HEADERS  += \
     target/MouseManager.h \
     target/Keymapping.h \
     resources/version.h \
-    host/audiothread.h
+    host/audiothread.h \
+    host/usbcontrol.h
 
 FORMS    += \
     ui/mainwindow.ui \
@@ -81,6 +93,15 @@ RESOURCES += \
 win32:LIBS += -lhid
 win32:LIBS += -lsetupapi
 
+win32 {
+    INCLUDEPATH += $$PWD/libs/libusb-1.0/includes
+    LIBS += -L$$PWD/libs/libusb-1.0/lib -llibusb-1.0
+}
+
+unix {
+    INCLUDEPATH += -lusb-1.0
+    INCLUDEPATH += /usr/include/libusb-1.0
+}
 
 # Set the target installation path to a directory within the build folder
 target.path = $$PWD/build/install

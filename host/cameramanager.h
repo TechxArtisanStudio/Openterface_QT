@@ -34,6 +34,7 @@ public:
 
 signals:
     void cameraActiveChanged(bool active);
+    void cameraSettingsApplied();
     void imageCaptured(int requestId, const QImage &img);
     void recordingStarted();
     void recordingStopped();

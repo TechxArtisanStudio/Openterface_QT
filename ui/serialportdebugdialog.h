@@ -23,39 +23,42 @@
 
 #ifndef SERIALPORTDEBUGDIALOG_H
 #define SERIALPORTDEBUGDIALOG_H
+
 #include <QDialog>
 #include <QTextEdit>
-#include <QWidget>
-#include <QByteArray>
-#include <QString>
-#include <QCheckBox>
-#include <QSettings>
-#include <QDateTime>
-namespace Ui {
-class SerialPortDebugDialog;
-}
-class SerialPortDebugDialog : public QDialog
-{
+
+class SerialPortDebugDialog : public QDialog {
     Q_OBJECT
 public:
     explicit SerialPortDebugDialog(QWidget *parent = nullptr);
     ~SerialPortDebugDialog();
-private slots:
-    void getRecvDataAndInsertText(const QByteArray &data);
-    void getSentDataAndInsertText(const QByteArray &data);
 
+private slots:
+    void handleSerialData(const QByteArray &data, bool isReceived);
+    void getRecvDataAndInsertText(const QByteArray &data) { handleSerialData(data, true); }
+    void getSentDataAndInsertText(const QByteArray &data) { handleSerialData(data, false); }
 
 private:
-    Ui::SerialPortDebugDialog *ui;
     QTextEdit *textEdit;
     QWidget *debugButtonWidget;
     QWidget *filterCheckboxWidget;
+
+    struct FilterSettings {
+        const char* name;
+        const char* label;
+        unsigned char recvCode;
+        unsigned char sendCode;
+    };
+    static const FilterSettings FILTERS[];
+
     void createDebugButtonWidget();
     void createFilterCheckBox();
+    void createLayout();
     void saveSettings();
     void loadSettings();
-    void createLayout();
-
-    QString formatHexData(QString hexString);
+    QString formatHexData(const QString &hexString);
+    bool shouldShowMessage(unsigned char code) const;
+    QString getCommandType(unsigned char code) const;
 };
+
 #endif // SERIALPORTDEBUGDIALOG_H

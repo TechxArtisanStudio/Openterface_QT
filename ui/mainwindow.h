@@ -40,6 +40,8 @@
 #include "host/cameramanager.h"
 #include "ui/versioninfomanager.h"
 #include "statusbarmanager.h"
+#include "host/usbcontrol.h"
+#include "ui/cameraajust.h"
 
 #include <QAudioInput>
 #include <QAudioOutput>
@@ -107,7 +109,10 @@ private slots:
 
     void purchaseLink();
     void feedbackLink();
+    void officialLink();
     void aboutLink();
+    void updateLink();
+    
 
     void configureSettings();
     void debugSerialPort();
@@ -250,5 +255,8 @@ private:
     VersionInfoManager *m_versionInfoManager;
 
     StatusBarManager *m_statusBarManager;
+    USBControl *usbControl;
+
+    CameraAdjust *cameraAdjust;
 };
 #endif // MAINWINDOW_H

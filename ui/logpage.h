@@ -20,71 +20,47 @@
 * ========================================================================== *
 */
 
-#ifndef SETTINGDIALOG_H
-#define SETTINGDIALOG_H
+#ifndef LOGPAGE_H
+#define LOGPAGE_H
 
-#include <QDialog>
-#include <QCamera>
-#include <QMediaFormat>
-#include <QCameraDevice>
 #include <QWidget>
-#include <QTreeWidget>
-#include <QTreeWidgetItem>
-#include <QStackedWidget>
-#include <QMediaDevices>
-#include <QByteArray>
-#include <QMap>
 #include <QCheckBox>
 #include <QLineEdit>
-#include <QByteArray>
-#include "host/cameramanager.h"
-#include "logpage.h"
-#include "hardwarepage.h"
-#include "ui/videopage.h"
-#include "ui/audiopage.h"
-QT_BEGIN_NAMESPACE
-class QCameraFormat;
-class QComboBox;
-class QCamera;
-namespace Ui {
-class SettingDialog;
-}
-QT_END_NAMESPACE
+#include <QPushButton>
+#include <QVBoxLayout>
+#include <QHBoxLayout>
+#include <QLabel>
+#include <QSettings>
+#include "fontstyle.h"
 
-class SettingDialog : public QDialog
+class LogPage : public QWidget
 {
     Q_OBJECT
 
 public:
-    // Change the constructor to accept CameraManager instead of QCamera
-    explicit SettingDialog(CameraManager *cameraManager, QWidget *parent = nullptr);
-    ~SettingDialog();
-    HardwarePage* getHardwarePage();
-    VideoPage* getVideoPage();
-// signals:
-//     // void serialSettingsApplied();
-    
+    explicit LogPage(QWidget *parent = nullptr);
+    ~LogPage();
+    void setupUI();
+    void browseLogPath();
+    void initLogSettings();
+    void applyLogsettings();
+
 private:
 
-    Ui::SettingDialog *ui;
-    CameraManager *m_cameraManager;
-    QTreeWidget *settingTree;
-    QStackedWidget *stackedWidget;
-    LogPage *logPage;
-    QWidget *audioPage;
-    VideoPage *videoPage;
-    HardwarePage *hardwarePage;
+    QCheckBox *coreCheckBox;
+    QCheckBox *serialCheckBox;
+    QCheckBox *uiCheckBox;
+    QCheckBox *hostCheckBox;
+    QCheckBox *storeLogCheckBox;
+    QLineEdit *logFilePathLineEdit;
+    QPushButton *browseButton;
 
-    QWidget *buttonWidget;
+    QHBoxLayout *logCheckboxLayout;
+    QHBoxLayout *logFilePathLayout;
+    QLabel *logLabel;
+    QLabel *logDescription;
+    QVBoxLayout *logLayout;
 
-    void createSettingTree();
-    void createLayout();
-    void createPages();
-    
-    void changePage(QTreeWidgetItem *current, QTreeWidgetItem *previous);
-    void createButtons();
-    void applyAccrodingPage();
-    void handleOkButton();
 };
 
-#endif // SETTINGDIALOG_H
+#endif // LOGPAGE_H
