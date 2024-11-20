@@ -20,71 +20,35 @@
 * ========================================================================== *
 */
 
-#ifndef SETTINGDIALOG_H
-#define SETTINGDIALOG_H
+#ifndef AUDIOPAGE_H
+#define AUDIOPAGE_H
 
-#include <QDialog>
-#include <QCamera>
-#include <QMediaFormat>
-#include <QCameraDevice>
 #include <QWidget>
-#include <QTreeWidget>
-#include <QTreeWidgetItem>
-#include <QStackedWidget>
-#include <QMediaDevices>
-#include <QByteArray>
-#include <QMap>
-#include <QCheckBox>
-#include <QLineEdit>
-#include <QByteArray>
-#include "host/cameramanager.h"
-#include "logpage.h"
-#include "hardwarepage.h"
-#include "ui/videopage.h"
-#include "ui/audiopage.h"
-QT_BEGIN_NAMESPACE
-class QCameraFormat;
-class QComboBox;
-class QCamera;
-namespace Ui {
-class SettingDialog;
-}
-QT_END_NAMESPACE
+#include <QWidget>
+#include <QLabel>
+#include <QComboBox>
+#include <QSpinBox>
+#include <QSlider>
+#include <QVBoxLayout>
+#include "fontstyle.h"
 
-class SettingDialog : public QDialog
+class AudioPage : public QWidget
 {
     Q_OBJECT
-
 public:
-    // Change the constructor to accept CameraManager instead of QCamera
-    explicit SettingDialog(CameraManager *cameraManager, QWidget *parent = nullptr);
-    ~SettingDialog();
-    HardwarePage* getHardwarePage();
-    VideoPage* getVideoPage();
-// signals:
-//     // void serialSettingsApplied();
-    
+    explicit AudioPage(QWidget *parent = nullptr);
+    ~AudioPage();
+    void setupUI();
 private:
-
-    Ui::SettingDialog *ui;
-    CameraManager *m_cameraManager;
-    QTreeWidget *settingTree;
-    QStackedWidget *stackedWidget;
-    LogPage *logPage;
-    QWidget *audioPage;
-    VideoPage *videoPage;
-    HardwarePage *hardwarePage;
-
-    QWidget *buttonWidget;
-
-    void createSettingTree();
-    void createLayout();
-    void createPages();
-    
-    void changePage(QTreeWidgetItem *current, QTreeWidgetItem *previous);
-    void createButtons();
-    void applyAccrodingPage();
-    void handleOkButton();
+    QLabel *audioLabel;
+    QLabel *audioCodecLabel;
+    QComboBox *audioCodecBox;
+    QLabel *audioSampleRateLabel;
+    QSpinBox *audioSampleRateBox;
+    QLabel *qualityLabel;
+    QSlider *qualitySlider;
+    QLabel *fileFormatLabel;
+    QComboBox *containerFormatBox;
 };
 
-#endif // SETTINGDIALOG_H
+#endif // AUDIOPAGE_H
