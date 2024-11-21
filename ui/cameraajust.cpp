@@ -131,13 +131,13 @@ void CameraAdjust::updateColors()
 void CameraAdjust::initializeControls()
 {
     if (usbControl && usbControl->initializeUSB()) {
-        qDebug() << "USB initialized";
+        // qDebug() << "USB initialized";
         if (usbControl->findAndOpenUVCDevice()) {
-            qDebug() << "USB device found and opened";
-            int currentContrast = usbControl->getContrast();
-            if (currentContrast >= 0) {
-                contrastSlider->setValue(currentContrast);
-            }
+            // qDebug() << "USB device found and opened";
+            // int currentContrast = usbControl->getContrast();
+            // if (currentContrast >= 0) {
+            //     contrastSlider->setValue(currentContrast);
+            // }
         }
     }
 }
@@ -167,11 +167,11 @@ void CameraAdjust::updatePosition(int menuBarHeight, int parentWidth)
 
 void CameraAdjust::onContrastChanged(int value)
 {
-    if (usbControl) {
-        if (usbControl->setContrast(value)) {
-            qDebug() << "Contrast set to:" << value;
-        } else {
-            qDebug() << "Failed to set contrast";
-        }
-    }
+    // if (usbControl) {
+    //     if (usbControl->setContrast(value)) {
+    //         qDebug() << "Contrast set to:" << value;
+    //     } else {
+    //         qDebug() << "Failed to set contrast";
+    //     }
+    // }
 }
