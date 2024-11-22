@@ -3,7 +3,7 @@ name: Clazy Analysis for OpenterfaceQT
 on:
   push:
     branches:
-      - main
+      - dev_20241122_add-clazy-report
   pull_request:
     branches:
       - main
