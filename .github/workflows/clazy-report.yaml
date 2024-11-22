@@ -8,6 +8,11 @@ on:
     branches:
       - main
 
+permissions:
+  contents: write
+  pull-requests: write
+  pages: write
+
 jobs:
   clazy:
     runs-on: ubuntu-latest
@@ -15,6 +20,11 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v2
 
+      - name: Configure Git Credentials
+        run: |
+            git config user.name github-actions[bot]
+            git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          
       - name: Install Qt 6.5.3
         uses: jurplel/install-qt-action@v4
         with:
