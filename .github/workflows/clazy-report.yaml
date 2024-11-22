@@ -84,6 +84,49 @@ jobs:
           import sys
           import html
           import os
+          import re
+
+          def process_clazy_output(content):
+              # Split content into lines
+              lines = content.split('\n')
+              processed_lines = []
+              
+              # Regular expressions for different types of messages
+              warning_pattern = re.compile(r'warning:', re.IGNORECASE)
+              error_pattern = re.compile(r'error:', re.IGNORECASE)
+              file_pattern = re.compile(r'^(.+\.[ch]pp):(\d+):(\d+):')
+              
+              for line in lines:
+                  if not line.strip():
+                      continue
+                      
+                  # Escape HTML characters
+                  line = html.escape(line)
+                  
+                  # Color coding based on message type
+                  if warning_pattern.search(line):
+                      # Extract file, line, and column info
+                      match = file_pattern.match(line)
+                      if match:
+                          file_path, line_num, col = match.groups()
+                          file_name = os.path.basename(file_path)
+                          line = f'<div class="warning"><span class="file">{file_name}</span>:<span class="line-num">{line_num}</span>:{col} {line[match.end():]}</div>'
+                      else:
+                          line = f'<div class="warning">{line}</div>'
+                  elif error_pattern.search(line):
+                      match = file_pattern.match(line)
+                      if match:
+                          file_path, line_num, col = match.groups()
+                          file_name = os.path.basename(file_path)
+                          line = f'<div class="error"><span class="file">{file_name}</span>:<span class="line-num">{line_num}</span>:{col} {line[match.end():]}</div>'
+                      else:
+                          line = f'<div class="error">{line}</div>'
+                  else:
+                      line = f'<div class="info">{line}</div>'
+                      
+                  processed_lines.append(line)
+                  
+              return '\n'.join(processed_lines)
 
           results_file = 'build/clazy_results.txt'
           if not os.path.exists(results_file):
@@ -93,21 +136,75 @@ jobs:
               with open(results_file, 'r') as f:
                   content = f.read() or "No issues found in the analysis."
 
+          processed_content = process_clazy_output(content)
+
           html_content = f"""
           <!DOCTYPE html>
           <html>
           <head>
               <title>Clazy Analysis Report</title>
               <style>
-                  body {{ font-family: Arial, sans-serif; margin: 40px; }}
-                  pre {{ background-color: #f5f5f5; padding: 15px; border-radius: 5px; white-space: pre-wrap; }}
-                  .warning {{ color: #856404; background-color: #fff3cd; padding: 10px; margin: 10px 0; border-radius: 5px; }}
-                  .error {{ color: #721c24; background-color: #f8d7da; padding: 10px; margin: 10px 0; border-radius: 5px; }}
+                  body {{
+                      font-family: 'Segoe UI', Arial, sans-serif;
+                      margin: 40px;
+                      background-color: #f8f9fa;
+                      color: #333;
+                  }}
+                  h1 {{
+                      color: #2c3e50;
+                      border-bottom: 2px solid #3498db;
+                      padding-bottom: 10px;
+                  }}
+                  .container {{
+                      background-color: white;
+                      padding: 20px;
+                      border-radius: 8px;
+                      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+                  }}
+                  .warning {{
+                      color: #856404;
+                      background-color: #fff3cd;
+                      padding: 10px;
+                      margin: 5px 0;
+                      border-radius: 4px;
+                      border-left: 4px solid #ffeeba;
+                  }}
+                  .error {{
+                      color: #721c24;
+                      background-color: #f8d7da;
+                      padding: 10px;
+                      margin: 5px 0;
+                      border-radius: 4px;
+                      border-left: 4px solid #f5c6cb;
+                  }}
+                  .info {{
+                      color: #0c5460;
+                      background-color: #d1ecf1;
+                      padding: 10px;
+                      margin: 5px 0;
+                      border-radius: 4px;
+                      border-left: 4px solid #bee5eb;
+                  }}
+                  .file {{
+                      font-weight: bold;
+                      color: #2c3e50;
+                  }}
+                  .line-num {{
+                      color: #e74c3c;
+                      font-weight: bold;
+                  }}
+                  pre {{
+                      margin: 0;
+                      white-space: pre-wrap;
+                      font-family: 'Consolas', 'Monaco', monospace;
+                  }}
               </style>
           </head>
           <body>
               <h1>Clazy Analysis Report</h1>
-              <pre>{html.escape(content)}</pre>
+              <div class="container">
+                  {processed_content}
+              </div>
           </body>
           </html>
           """
