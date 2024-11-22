@@ -42,19 +42,23 @@ jobs:
             libavformat-dev \
             libavutil-dev \
             libswscale-dev \
-            libavdevice-dev
+            libavdevice-dev \
+            bear
 
-      - name: Build project
+      - name: Build project with compilation database
         run: |
           mkdir build
           cd build
           qmake ..
-          make
+          bear -- make
 
       - name: Run Clazy
         run: |
           cd build
-          clazy-standalone -p . > clazy_results.txt 2>&1
+          export CLAZY_CHECKS="level0,level1,level2"
+          find .. -name "*.cpp" -o -name "*.h" | while read file; do
+            clazy-standalone -p compile_commands.json "$file" >> clazy_results.txt 2>&1
+          done
 
       - name: Convert results to HTML
         run: |
