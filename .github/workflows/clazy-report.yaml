@@ -1,0 +1,59 @@
+name: Clazy Analysis for OpenterfaceQT
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  clazy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Install Qt 6.4.2
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.4.2'
+          host: 'linux'
+          arch: 'gcc_64'
+
+      - name: Install Clazy
+        run: sudo apt-get install -y clazy
+
+      - name: Build project
+        run: |
+          mkdir build
+          cd build
+          qmake ..
+          make
+
+      - name: Run Clazy
+        run: |
+          cd build
+          clazy-standalone -p . -o clazy_results.txt
+
+      - name: Convert Clazy results to HTML
+        run: |
+          pip install clang-tidy-html
+          clang-tidy-html clazy_results.txt -o clazy_report.html
+
+      - name: Checkout gh-pages branch
+        run: |
+          git config --global user.name "github-actions"
+          git config --global user.email "github-actions@github.com"
+          git checkout --orphan gh-pages
+
+      - name: Copy HTML report
+        run: |
+          mv build/clazy_report.html clazy_report.html
+          git add clazy_report.html
+          git commit -m "Update Clazy report"
+
+      - name: Push to gh-pages
+        run: |
+          git push --force origin gh-pages
