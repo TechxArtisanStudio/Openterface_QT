@@ -46,10 +46,38 @@ jobs:
           cd build
           clazy-standalone -p . > clazy_results.txt 2>&1
 
-      - name: Convert Clazy results to HTML
+      - name: Convert results to HTML
         run: |
-          pip install clang-tidy-html
-          clang-tidy-html build/clazy_results.txt -o clazy_report.html
+          cat > convert.py << 'EOF'
+          import sys
+          import html
+
+          with open('build/clazy_results.txt', 'r') as f:
+              content = f.read()
+
+          html_content = f"""
+          <!DOCTYPE html>
+          <html>
+          <head>
+              <title>Clazy Analysis Report</title>
+              <style>
+                  body {{ font-family: Arial, sans-serif; margin: 40px; }}
+                  pre {{ background-color: #f5f5f5; padding: 15px; border-radius: 5px; }}
+                  .warning {{ color: #856404; background-color: #fff3cd; padding: 10px; margin: 10px 0; border-radius: 5px; }}
+                  .error {{ color: #721c24; background-color: #f8d7da; padding: 10px; margin: 10px 0; border-radius: 5px; }}
+              </style>
+          </head>
+          <body>
+              <h1>Clazy Analysis Report</h1>
+              <pre>{html.escape(content)}</pre>
+          </body>
+          </html>
+          """
+
+          with open('clazy_report.html', 'w') as f:
+              f.write(html_content)
+          EOF
+          python3 convert.py
 
       - name: Checkout gh-pages branch
         run: |
