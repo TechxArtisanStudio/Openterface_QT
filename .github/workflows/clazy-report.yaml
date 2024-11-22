@@ -15,15 +15,24 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v2
 
-      - name: Install Qt 6.4.2
+      - name: Install Qt 6.5.3
         uses: jurplel/install-qt-action@v4
         with:
-          version: '6.4.2'
+          version: '6.5.3'
           host: 'linux'
           arch: 'gcc_64'
+          modules: 'qtmultimedia qtserialport'
 
-      - name: Install Clazy
-        run: sudo apt-get install -y clazy
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clazy \
+            libusb-1.0-0-dev \
+            libavcodec-dev \
+            libavformat-dev \
+            libavutil-dev \
+            libswscale-dev \
+            libavdevice-dev
 
       - name: Build project
         run: |
