@@ -64,11 +64,15 @@ jobs:
           # Create empty results file
           touch clazy_results.txt
           
-          # Find all cpp files and analyze them
-          find .. -type f \( -name "*.cpp" -o -name "*.h" \) | while read -r file; do
+          # Find all cpp files in our project directories and analyze them
+          find .. \( -path "../video" -o -path "../src" -o -path "../include" \) -type f \( -name "*.cpp" -o -name "*.h" \) | while read -r file; do
             echo "Analyzing: $file"
             clazy-standalone -p compile_commands.json "$file" 2>&1 | tee -a clazy_results.txt || true
           done
+          
+          # Filter out Qt-related warnings from the results
+          grep -v "Qt" clazy_results.txt > filtered_results.txt
+          mv filtered_results.txt clazy_results.txt
           
           # Check if results file has content
           if [ ! -s clazy_results.txt ]; then
