@@ -44,12 +44,12 @@ jobs:
       - name: Run Clazy
         run: |
           cd build
-          clazy-standalone -p . -o clazy_results.txt
+          clazy-standalone -p . > clazy_results.txt 2>&1
 
       - name: Convert Clazy results to HTML
         run: |
           pip install clang-tidy-html
-          clang-tidy-html clazy_results.txt -o clazy_report.html
+          clang-tidy-html build/clazy_results.txt -o clazy_report.html
 
       - name: Checkout gh-pages branch
         run: |
@@ -59,8 +59,8 @@ jobs:
 
       - name: Copy HTML report
         run: |
-          mv build/clazy_report.html clazy_report.html
-          git add clazy_report.html
+          mv clazy_report.html index.html
+          git add index.html
           git commit -m "Update Clazy report"
 
       - name: Push to gh-pages
