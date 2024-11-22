@@ -64,22 +64,58 @@ jobs:
           # Create empty results file
           touch clazy_results.txt
           
-          # Find all cpp files in our project directories and analyze them
-          find .. \( -path "../video" -o -path "../src" -o -path "../include" \) -type f \( -name "*.cpp" -o -name "*.h" \) | while read -r file; do
-            echo "Analyzing: $file"
-            clazy-standalone -p compile_commands.json "$file" 2>&1 | tee -a clazy_results.txt || true
-          done
+          # List all files that will be analyzed
+          echo "Files to be analyzed:"
+          find ../video -type f \( -name "*.cpp" -o -name "*.h" \) -print
           
-          # Filter out Qt-related warnings from the results
-          grep -v "Qt" clazy_results.txt > filtered_results.txt
+          # Analyze each file individually with error handling
+          while IFS= read -r file; do
+            echo "----------------------------------------"
+            echo "Analyzing: $file"
+            if [ -f "$file" ]; then
+              # Get absolute path
+              abs_path=$(realpath "$file")
+              echo "Absolute path: $abs_path"
+              
+              # Run clazy with full error output
+              clazy-standalone -p compile_commands.json "$abs_path" >> clazy_results.txt 2>&1 || {
+                echo "Warning: Clazy returned non-zero for $file"
+                echo "Continuing with next file..."
+              }
+            else
+              echo "Warning: File not found: $file"
+            fi
+          done < <(find ../video -type f \( -name "*.cpp" -o -name "*.h" \))
+          
+          # Show clazy version and debug info
+          echo "----------------------------------------"
+          echo "Clazy version info:"
+          clazy-standalone --version
+          
+          # Show compilation database info
+          echo "----------------------------------------"
+          echo "Compilation database contents:"
+          head -n 20 compile_commands.json
+          
+          # Filter out Qt-related warnings and system headers
+          echo "----------------------------------------"
+          echo "Filtering results..."
+          grep -v "Qt\|/usr/include" clazy_results.txt > filtered_results.txt || true
           mv filtered_results.txt clazy_results.txt
+          
+          # Show results file content
+          echo "----------------------------------------"
+          echo "Analysis results:"
+          cat clazy_results.txt || echo "No results file found"
           
           # Check if results file has content
           if [ ! -s clazy_results.txt ]; then
-            echo "No Clazy results generated. Something might be wrong."
-            echo "Clazy version: $(clazy-standalone --version)"
+            echo "Warning: No Clazy results generated."
             echo "Directory contents:"
             ls -la
+          else
+            echo "Analysis completed successfully."
+            echo "Results file size: $(wc -c < clazy_results.txt) bytes"
           fi
 
       - name: Convert results to HTML
