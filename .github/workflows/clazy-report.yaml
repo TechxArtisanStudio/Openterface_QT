@@ -50,24 +50,48 @@ jobs:
           mkdir build
           cd build
           qmake ..
-          bear -- make
+          bear -- make -j$(nproc)
 
       - name: Run Clazy
         run: |
           cd build
           export CLAZY_CHECKS="level0,level1,level2"
-          find .. -name "*.cpp" -o -name "*.h" | while read file; do
-            clazy-standalone -p compile_commands.json "$file" >> clazy_results.txt 2>&1
+          echo "Running Clazy analysis..."
+          echo "Current directory: $(pwd)"
+          echo "Checking for compile_commands.json:"
+          ls -la compile_commands.json || echo "compile_commands.json not found!"
+          
+          # Create empty results file
+          touch clazy_results.txt
+          
+          # Find all cpp files and analyze them
+          find .. -type f \( -name "*.cpp" -o -name "*.h" \) | while read -r file; do
+            echo "Analyzing: $file"
+            clazy-standalone -p compile_commands.json "$file" 2>&1 | tee -a clazy_results.txt || true
           done
+          
+          # Check if results file has content
+          if [ ! -s clazy_results.txt ]; then
+            echo "No Clazy results generated. Something might be wrong."
+            echo "Clazy version: $(clazy-standalone --version)"
+            echo "Directory contents:"
+            ls -la
+          fi
 
       - name: Convert results to HTML
         run: |
           cat > convert.py << 'EOF'
           import sys
           import html
+          import os
 
-          with open('build/clazy_results.txt', 'r') as f:
-              content = f.read()
+          results_file = 'build/clazy_results.txt'
+          if not os.path.exists(results_file):
+              print(f"Warning: {results_file} does not exist!")
+              content = "No analysis results found."
+          else:
+              with open(results_file, 'r') as f:
+                  content = f.read() or "No issues found in the analysis."
 
           html_content = f"""
           <!DOCTYPE html>
@@ -76,7 +100,7 @@ jobs:
               <title>Clazy Analysis Report</title>
               <style>
                   body {{ font-family: Arial, sans-serif; margin: 40px; }}
-                  pre {{ background-color: #f5f5f5; padding: 15px; border-radius: 5px; }}
+                  pre {{ background-color: #f5f5f5; padding: 15px; border-radius: 5px; white-space: pre-wrap; }}
                   .warning {{ color: #856404; background-color: #fff3cd; padding: 10px; margin: 10px 0; border-radius: 5px; }}
                   .error {{ color: #721c24; background-color: #f8d7da; padding: 10px; margin: 10px 0; border-radius: 5px; }}
               </style>
