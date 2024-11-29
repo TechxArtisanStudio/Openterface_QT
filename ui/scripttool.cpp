@@ -26,14 +26,18 @@
 #include <QTextStream>
 #include <QCoreApplication>
 #include <QShortcut>
+#include <QDebug>
+#include "../scripts/Lexer.h"
+#include "../scripts/Parser.h"
+#include "../scripts/semanticAnalyzer.h"
+#include "../target/MouseManager.h"
 
 ScriptTool::ScriptTool(QWidget *parent)
     : QDialog(parent)
 {
     setWindowTitle(tr("Bash Bunny Script Tool"));
-    setFixedSize(640, 480);  // Set fixed size to 640x480
+    setFixedSize(640, 480);
 
-    // Create widgets
     filePathEdit = new QLineEdit(this);
     filePathEdit->setPlaceholderText(tr("Select payload.txt file..."));
     filePathEdit->setReadOnly(true);
@@ -42,13 +46,11 @@ ScriptTool::ScriptTool(QWidget *parent)
     runButton = new QPushButton(tr("Run Script"), this);
     runButton->setEnabled(false);
 
-    // Create text edit
     scriptEdit = new QTextEdit(this);
     scriptEdit->setReadOnly(true);
-    scriptEdit->setFont(QFont("Courier", 10));  // Use monospace font
-    scriptEdit->setLineWrapMode(QTextEdit::NoWrap);  // Disable line wrapping
+    scriptEdit->setFont(QFont("Courier", 10));
+    scriptEdit->setLineWrapMode(QTextEdit::NoWrap);
 
-    // Create layout
     QVBoxLayout *mainLayout = new QVBoxLayout(this);
     
     QHBoxLayout *fileLayout = new QHBoxLayout();
@@ -56,12 +58,14 @@ ScriptTool::ScriptTool(QWidget *parent)
     fileLayout->addWidget(selectButton);
     
     mainLayout->addLayout(fileLayout);
-    mainLayout->addWidget(scriptEdit);  // Add text edit to layout
+    mainLayout->addWidget(scriptEdit);
     mainLayout->addWidget(runButton);
 
-    // Connect signals and slots
     connect(selectButton, &QPushButton::clicked, this, &ScriptTool::selectFile);
     connect(runButton, &QPushButton::clicked, this, &ScriptTool::runScript);
+
+    mouseManager = std::make_unique<MouseManager>();
+    semanticAnalyzer = std::make_unique<SemanticAnalyzer>(mouseManager.get());
 }
 
 ScriptTool::~ScriptTool()
@@ -70,24 +74,31 @@ ScriptTool::~ScriptTool()
 
 void ScriptTool::selectFile()
 {
-    // Get the application directory path
     QString appPath = QCoreApplication::applicationDirPath();
     
     QString filePath = QFileDialog::getOpenFileName(this,
         tr("Select Payload File"),
-        appPath,  // Set the default directory to application path
-        tr("Text Files (*.txt);;All Files (*)"));
+        appPath,
+        tr("Text Files (*.ahk);;All Files (*)"));
 
     if (!filePath.isEmpty()) {
         filePathEdit->setText(filePath);
         runButton->setEnabled(true);
 
-        // Load and display file contents
         QFile file(filePath);
         if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
             QTextStream in(&file);
-            scriptEdit->setText(in.readAll());
+            fileContents = in.readAll();
+            scriptEdit->setText(fileContents);
             file.close();
+
+            lexer.setSource(fileContents.toStdString());
+            tokens = lexer.tokenize();
+            
+
+            for (const auto& token : tokens) {
+                qDebug() << "Token Type:" << static_cast<int>(token.type) << "Value:" << QString::fromStdString(token.value);
+            }
         } else {
             QMessageBox::warning(this, tr("Error"), tr("Could not open file for reading."));
         }
@@ -102,9 +113,23 @@ void ScriptTool::runScript()
         return;
     }
 
-    // TODO: Implement the script execution logic here
-    // This is where you would add the code to process and execute the payload.txt file
+    // Use the syntax tree as needed
+    // For example, you can traverse it or print it for debugging
+    Parser parser(tokens);
+    std::unique_ptr<ASTNode> syntaxTree = parser.parse();
+    qDebug() << "synctaxTree: " << syntaxTree.get();
+    // Process the AST
+    processAST(syntaxTree.get());
+
     QMessageBox::information(this, tr("Script Execution"), 
         tr("Script execution will be implemented here.\nSelected file: %1").arg(filePath));
+}
+
+void ScriptTool::processAST(ASTNode* node)
+{
+    if (!node) return;
+
+    // Use the semantic analyzer to process the AST
+    semanticAnalyzer->analyze(node);
 }
 
