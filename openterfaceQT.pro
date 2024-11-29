@@ -42,7 +42,10 @@ SOURCES += main.cpp \
     target/KeyboardManager.cpp \
     target/MouseManager.cpp \
     host/audiothread.cpp \
-    host/usbcontrol.cpp
+    host/usbcontrol.cpp \
+    scripts/Lexer.cpp \
+    scripts/Parser.cpp \
+    scripts/semanticAnalyzer.cpp
 
 HEADERS  += \
     global.h \
@@ -80,7 +83,10 @@ HEADERS  += \
     target/Keymapping.h \
     resources/version.h \
     host/audiothread.h \
-    host/usbcontrol.h
+    host/usbcontrol.h \
+    scripts/Lexer.h \
+    scripts/Parser.h \
+    scripts/semanticAnalyzer.h
 
 FORMS    += \
     ui/mainwindow.ui \
