@@ -88,7 +88,8 @@ std::unique_ptr<ASTNode> Parser::parseClickStatement() {
     std::vector<std::string> options;
     while (currentToken().type == AHKTokenType::INTEGER
             || currentToken().type == AHKTokenType::IDENTIFIER
-            || currentToken().type == AHKTokenType::SYMBOL) {
+            || currentToken().type == AHKTokenType::SYMBOL
+            || currentToken().type == AHKTokenType::WHITESPACE) {
         options.push_back(currentToken().value);
         advance();
     }
