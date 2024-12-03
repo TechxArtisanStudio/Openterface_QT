@@ -28,7 +28,7 @@ std::vector<Token> Lexer::tokenize() {
     do {
         token = nextToken();
         tokens.push_back(token);
-    } while (token.type != AHKTokenType::EndOfFile);
+    } while (token.type != AHKTokenType::ENDOFFILE);
     return tokens;
 }
 
@@ -36,7 +36,7 @@ Token Lexer::nextToken() {
     while (std::isspace(currentChar())) {
         if (currentChar() == '\n') {
             advance();
-            return {AHKTokenType::NewLine, "\\n"};
+            return {AHKTokenType::NEWLINE, "\\n"};
         }
         advance();
     }
@@ -49,8 +49,15 @@ Token Lexer::nextToken() {
         return number();
     }
 
+    for (const auto& op : operators) {
+        if (source.substr(currentIndex, op.length()) == op) {
+            advance();
+            return {AHKTokenType::OPERATOR, op};
+        }
+    }
+
     if (currentChar() == '\0') {
-        return {AHKTokenType::EndOfFile, ""};
+        return {AHKTokenType::ENDOFFILE, ""};
     }
 
     return symbol();
@@ -63,28 +70,32 @@ Token Lexer::identifier() {
         advance();
     }
 
-    if (result == "Click") {
-        return {AHKTokenType::Click, result};
-    } else if (result == "Send") {
-        return {AHKTokenType::Send, result};
-    } else if (result == "If") {
-        return {AHKTokenType::If, result};
+    if (keywords.find(result) != keywords.end()) {
+        return {AHKTokenType::KEYWORD, result};
     }
 
-    return {AHKTokenType::Identifier, result};
+    if (mouse_keyboard.find(result) != mouse_keyboard.end()){
+        return {AHKTokenType::COMMAND, result};
+    }
+
+    return {AHKTokenType::IDENTIFIER, result};
 }
 
 Token Lexer::number() {
     std::string result;
-    while (std::isdigit(currentChar())) {
+    bool hasDecimalPoint = false;
+    while (std::isdigit(currentChar()) || (currentChar() == '.' && !hasDecimalPoint)) {
+        if (currentChar() == '.') {
+            hasDecimalPoint = true;
+        }
         result += currentChar();
         advance();
     }
-    return {AHKTokenType::Number, result};
+    return {hasDecimalPoint ? AHKTokenType::FLOAT : AHKTokenType::INTEGER, result};
 }
 
 Token Lexer::symbol() {
     char current = currentChar();
     advance();
-    return {AHKTokenType::Symbol, std::string(1, current)};
+    return {AHKTokenType::SYMBOL, std::string(1, current)};
 }

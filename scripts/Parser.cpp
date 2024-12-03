@@ -3,7 +3,7 @@
 Parser::Parser(const std::vector<Token>& tokens) : tokens(tokens), currentIndex(0) {}
 
 Token Parser::currentToken() {
-    return currentIndex < tokens.size() ? tokens[currentIndex] : Token{AHKTokenType::EndOfFile, ""};
+    return currentIndex < tokens.size() ? tokens[currentIndex] : Token{AHKTokenType::ENDOFFILE, ""};
 }
 
 void Parser::advance() {
@@ -17,14 +17,14 @@ std::unique_ptr<ASTNode> Parser::parse() {
     auto root = std::make_unique<StatementListNode>();
     
     // Parse statements until we reach the end of file
-    while (currentToken().type != AHKTokenType::EndOfFile) {
+    while (currentToken().type != AHKTokenType::ENDOFFILE) {
         auto statement = parseStatement();
         if (statement) {
             root->addStatement(std::move(statement));
         }
         
         // Skip any newline tokens between statements
-        while (currentToken().type == AHKTokenType::NewLine) {
+        while (currentToken().type == AHKTokenType::NEWLINE) {
             advance();
         }
     }
@@ -39,18 +39,21 @@ std::unique_ptr<ASTNode> Parser::parseExpression() {
 
 std::unique_ptr<ASTNode> Parser::parseStatement() {
     // Skip any leading newlines
-    while (currentToken().type == AHKTokenType::NewLine) {
+    while (currentToken().type == AHKTokenType::NEWLINE) {
         advance();
     }
     
-    if (currentToken().type == AHKTokenType::Click) {
-        return parseClickStatement();
+    if (currentToken().type == AHKTokenType::COMMAND) {
+        if (currentToken().value == "Click"){
+            return parseClickStatement();
+        }
+
     }
     // Add other statement types here
     
     // Skip unknown statements until newline
-    while (currentToken().type != AHKTokenType::NewLine && 
-           currentToken().type != AHKTokenType::EndOfFile) {
+    while (currentToken().type != AHKTokenType::NEWLINE &&
+           currentToken().type != AHKTokenType::ENDOFFILE) {
         advance();
     }
     
@@ -61,9 +64,9 @@ std::unique_ptr<ASTNode> Parser::parseClickStatement() {
     advance(); // Move past the 'Click' token
 
     std::vector<std::string> options;
-    while (currentToken().type == AHKTokenType::Number 
-            || currentToken().type == AHKTokenType::Identifier 
-            || currentToken().type == AHKTokenType::Symbol) {
+    while (currentToken().type == AHKTokenType::INTEGER
+            || currentToken().type == AHKTokenType::IDENTIFIER
+            || currentToken().type == AHKTokenType::SYMBOL) {
         options.push_back(currentToken().value);
         advance();
     }
