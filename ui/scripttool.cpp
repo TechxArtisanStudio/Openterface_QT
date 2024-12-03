@@ -89,16 +89,43 @@ void ScriptTool::selectFile()
         if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
             QTextStream in(&file);
             fileContents = in.readAll();
-            scriptEdit->setText(fileContents);
             file.close();
-
             lexer.setSource(fileContents.toStdString());
             tokens = lexer.tokenize();
-            
-
+            QString styledText;
             for (const auto& token : tokens) {
-                qDebug() << "Token Type:" << static_cast<int>(token.type) << "Value:" << QString::fromStdString(token.value);
+                QString tokenText = QString::fromStdString(token.value);
+                QString color;
+                if (tokenText == "\\n")
+                tokenText = tokenText.replace("\\n", "<br>");
+                switch (token.type) {
+                    case AHKTokenType::KEYWORD:
+                        color = "green";
+                        break;
+                    case AHKTokenType::FUNCTION:
+                        color = "blue";
+                        break;
+                    case AHKTokenType::VARIABLE:
+                        color = "white";
+                        break;
+                    case AHKTokenType::INTEGER:
+                    case AHKTokenType::FLOAT:
+                        color = "DarkGoldenRod";
+                        break;
+                    case AHKTokenType::COMMAND:
+                        color = "purple";
+                        break;
+                    case AHKTokenType::COMMENT:
+                        color = "grey";
+                        break;
+                    default:
+                        color = "black"; // Default color for unrecognized tokens
+                        break;
+                }
+                styledText += QString("<span style='color:%1;'>%2</span>").arg(color, tokenText);
+                qDebug() << "Token Type:" << static_cast<int>(token.type) << "Value:" << tokenText;
             }
+            scriptEdit->setText(styledText);
         } else {
             QMessageBox::warning(this, tr("Error"), tr("Could not open file for reading."));
         }
