@@ -27,19 +27,30 @@
 #include <QtConcurrent/QtConcurrent>
 #include <QTimer>
 
+
 Q_LOGGING_CATEGORY(log_keyboard, "opf.host.keyboard")
 
 KeyboardManager::KeyboardManager(QObject *parent) : QObject(parent), 
                                             currentMappedKeyCodes()
 {
     // Remove the timer initialization and connection
+    getKeyboardLayout();
 }
 
 void KeyboardManager::handleKeyboardAction(int keyCode, int modifiers, bool isKeyDown) {
     QByteArray keyData = CMD_SEND_KB_GENERAL_DATA;
-
     unsigned int combinedModifiers = 0;
-    unsigned int mappedKeyCode = mappedKeyCode = keyMap.value(keyCode, 0);
+
+    switch(m_locale.country()){
+        case QLocale::UnitedKingdom:
+            mappedKeyCode = ukKeyMap.value(keyCode, 0);
+            qDebug(log_keyboard) << "UK key map";
+            break;
+        default:
+            mappedKeyCode = keyMap.value(keyCode, 0);
+            qDebug(log_keyboard) << "Default key map";
+            break;
+    }
 
     if(isModiferKeys(keyCode)){
         // Distingush the left or right modifiers, the modifiers is a native event
@@ -92,7 +103,6 @@ void KeyboardManager::handleKeyboardAction(int keyCode, int modifiers, bool isKe
         if(currentModifiers!=0){
             qCDebug(log_keyboard) << "Send release command :" << keyData.toHex(' ');
             emit SerialPortManager::getInstance().sendCommandAsync(keyData, false);
-
             currentModifiers = 0;
             return;
         }
@@ -111,7 +121,7 @@ void KeyboardManager::handleKeyboardAction(int keyCode, int modifiers, bool isKe
         }
     }
     
-    qCDebug(log_keyboard) << "isKeyDown:" << isKeyDown << ", KeyCode:"<<keyCode<<", Mapped Keycode:" << mappedKeyCode << ", modifiers: " << combinedModifiers;
+    qCDebug(log_keyboard) << "isKeyDown:" << isKeyDown << ", KeyCode:"<< QString::number(keyCode, 16) <<", Mapped Keycode:" << QString::number(mappedKeyCode, 16) << ", modifiers: " << QString::number(combinedModifiers, 16);
     if (mappedKeyCode != 0) {
         keyData[5] = isKeyDown ? combinedModifiers : 0;
         int i = 0;
@@ -119,7 +129,7 @@ void KeyboardManager::handleKeyboardAction(int keyCode, int modifiers, bool isKe
             keyData[7 + i] = keyCode;
             i++;
         }
-
+        qCDebug(log_keyboard) << "currentMappedKeyCodes size:" << currentMappedKeyCodes.size();
         if(currentMappedKeyCodes.size() == 1 && !isKeyDown){
             for(int j = 0; j < 6; j++){
                 keyData[7 + j] = 0;
@@ -127,7 +137,10 @@ void KeyboardManager::handleKeyboardAction(int keyCode, int modifiers, bool isKe
             currentMappedKeyCodes.clear();
         }
         qDebug() << "Send command :" << keyData.toHex(' ');
+        
         emit SerialPortManager::getInstance().sendCommandAsync(keyData, false);
+        currentMappedKeyCodes.clear(); //clear the mapped keycodes after send command
+
     }
 }
 
@@ -171,29 +184,49 @@ bool KeyboardManager::isKeypadKeys(int keycode, int modifiers){
 }
 
 void KeyboardManager::handlePastingCharacters(const QString& text, const QMap<uint8_t, int>& charMapping) {
+    qDebug(log_keyboard) << "Handle pasting characters now";
     for (int i = 0; i < text.length(); i++) {
         QChar ch = text.at(i);
         uint8_t charString = ch.unicode();
         int key = charMapping[charString];
         bool needShift = needShiftWhenPaste(ch);
         int modifiers = needShift ? Qt::ShiftModifier : 0;
-        qCDebug(log_keyboard)<< "Pasting character: " << ch << " with key: " << ((int)key) << " and modifiers: " << modifiers;
+        qCDebug(log_keyboard)<< "Pasting character: " << ch << " with key: 0x" << QString::number(key, 16) << " and modifiers: " << modifiers;
         handleKeyboardAction(key, modifiers, true);
-        QThread::msleep(1);
+        // QThread::msleep(1);
         handleKeyboardAction(key, modifiers, false);
-        QThread::msleep(1);
+        // QThread::msleep(1);
     }
 }
 
 void KeyboardManager::pasteTextToTarget(const QString &text) {
-    auto charMappingCopy = charMapping; // Make a copy of charMapping to capture in the lambda
+    QMap<uint8_t, int> charMappingCopy;
+    switch(m_locale.country()){
+        case QLocale::UnitedKingdom: {
+            charMappingCopy = ukCharMapping; // Make a copy of charMapping to capture in the lambda
+            qDebug(log_keyboard) << "UK char mapping copy";
+            break; 
+        }
+        default: {
+            charMappingCopy = charMapping; // Make a copy of charMapping to capture in the lambda
+            qDebug(log_keyboard) << "Default char mapping copy";
+            break;
+        }
+    }
     QFuture<void> future = QtConcurrent::run([this, text, charMappingCopy]() {
         handlePastingCharacters(text, charMappingCopy);
     });
 }
 
 bool KeyboardManager::needShiftWhenPaste(const QChar character) {
-    return character.isUpper() || NEED_SHIFT_KEYS.contains(character);
+
+    switch(m_locale.country()){
+        case QLocale::UnitedKingdom:
+            qDebug() << "UK need shift key:" << character.unicode() << UK_NEED_SHIFT_KEYS.contains(character.unicode());
+            return character.isUpper() || UK_NEED_SHIFT_KEYS.contains(character.unicode());
+        default:
+            return character.isUpper() || NEED_SHIFT_KEYS.contains(character);
+    }
 }
 
 void KeyboardManager::sendFunctionKey(int functionKeyCode) {
@@ -246,3 +279,10 @@ void KeyboardManager::sendCtrlAltDel() {
 void KeyboardManager::sendKey(int keyCode, int modifiers, bool isKeyDown) {
     handleKeyboardAction(keyCode, modifiers, isKeyDown);
 }
+
+void KeyboardManager::getKeyboardLayout() {
+    QInputMethod *inputMethod = QGuiApplication::inputMethod();
+    m_locale = inputMethod->locale();
+    qCDebug(log_keyboard) << "Current keyboard layout:" << m_locale.language() << m_locale.country();
+}
+
