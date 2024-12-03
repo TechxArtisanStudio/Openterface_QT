@@ -251,6 +251,9 @@ MainWindow::MainWindow() :  ui(new Ui::MainWindow),
     QPoint buttonPos = ui->contrastButton->mapToGlobal(QPoint(0, 0));
     int menuBarHeight = buttonPos.y() - this->mapToGlobal(QPoint(0, 0)).y();
     cameraAdjust->updatePosition(menuBarHeight, width());
+
+    // Add this line after ui->setupUi(this)
+    connect(ui->actionScriptTool, &QAction::triggered, this, &MainWindow::showScriptTool);
 }
 
 void MainWindow::onZoomIn()
@@ -1007,6 +1010,14 @@ void MainWindow::onResolutionsUpdated(int input_width, int input_height, float i
 {
     m_statusBarManager->setInputResolution(input_width, input_height, input_fps);
     m_statusBarManager->setCaptureResolution(capture_width, capture_height, capture_fps);
+}
+
+void MainWindow::showScriptTool()
+{
+    qDebug() << "showScriptTool called";  // Add debug output
+    ScriptTool *scriptTool = new ScriptTool(this);
+    scriptTool->setAttribute(Qt::WA_DeleteOnClose);
+    scriptTool->exec();  // Change show() to exec() for modal dialog
 }
 
 MainWindow::~MainWindow()

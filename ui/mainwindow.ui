@@ -160,6 +160,7 @@
      <addaction name="actionResetHID"/>
      <addaction name="actionFactory_reset_HID"/>
      <addaction name="actionSerialConsole"/>
+     <addaction name="actionScriptTool"/>
     </widget>
     <widget class="QMenu" name="menuBaudrate">
      <property name="title">
@@ -353,6 +354,11 @@
     </property>
    </action>
   </actiongroup>
+  <action name="actionScriptTool">
+   <property name="text">
+    <string>Script Tool</string>
+   </property>
+  </action>
  </widget>
  <resources>
   <include location="mainwindow.qrc"/>
@@ -502,6 +508,22 @@
     </hint>
    </hints>
   </connection>
+  <connection>
+   <sender>actionScriptTool</sender>
+   <signal>triggered()</signal>
+   <receiver>MainWindow</receiver>
+   <slot>showScriptTool()</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>-1</x>
+     <y>-1</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>639</x>
+     <y>380</y>
+    </hint>
+   </hints>
+  </connection>
  </connections>
  <slots>
   <slot>record()</slot>
@@ -522,5 +544,6 @@
   <slot>setMuted(bool)</slot>
   <slot>stopCamera()</slot>
   <slot>setExposureCompensation(int)</slot>
+  <slot>showScriptTool()</slot>
  </slots>
 </ui>
