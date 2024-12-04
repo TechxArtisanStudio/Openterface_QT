@@ -43,6 +43,7 @@ jobs:
             libavutil-dev \
             libswscale-dev \
             libavdevice-dev \
+            libusb-1.0-0-dev \
             bear
 
       - name: Build project with compilation database

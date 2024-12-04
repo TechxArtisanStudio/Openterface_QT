@@ -23,7 +23,7 @@
 #ifndef USBCONTROL_H
 #define USBCONTROL_H
 
-#include <libusb.h>
+#include <libusb-1.0/libusb.h>
 #include <QObject>
 #include <QLoggingCategory>
 
