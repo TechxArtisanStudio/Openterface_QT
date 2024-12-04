@@ -8,6 +8,7 @@ TARGET = openterfaceQT
 TEMPLATE = app
 
 QT       += core gui multimedia multimediawidgets serialport concurrent svg network
+QT       += core gui multimedia multimediawidgets serialport concurrent svg network
 
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 
@@ -36,12 +37,16 @@ SOURCES += main.cpp \
     ui/videopage.cpp \
     ui/audiopage.cpp \
     ui/cameraajust.cpp \
+    ui/scripttool.cpp \
     host/HostManager.cpp \
     serial/SerialPortManager.cpp \
     target/KeyboardManager.cpp \
     target/MouseManager.cpp \
     host/audiothread.cpp \
-    host/usbcontrol.cpp
+    host/usbcontrol.cpp \
+    scripts/Lexer.cpp \
+    scripts/Parser.cpp \
+    scripts/semanticAnalyzer.cpp
 
 HEADERS  += \
     global.h \
@@ -70,6 +75,7 @@ HEADERS  += \
     ui/videopage.h   \
     ui/audiopage.h \
     ui/cameraajust.h \
+    ui/scripttool.h \
     host/HostManager.h \
     serial/ch9329.h \
     serial/SerialPortManager.h \
@@ -78,7 +84,10 @@ HEADERS  += \
     target/Keymapping.h \
     resources/version.h \
     host/audiothread.h \
-    host/usbcontrol.h
+    host/usbcontrol.h \
+    scripts/Lexer.h \
+    scripts/Parser.h \
+    scripts/semanticAnalyzer.h
 
 FORMS    += \
     ui/mainwindow.ui \

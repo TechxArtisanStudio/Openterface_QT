@@ -78,15 +78,11 @@ jobs:
         working-directory: ${{ runner.temp }}
         run: |
           mkdir -p package/DEBIAN
-          # Create control file with package information
-          echo "Package: ${{ env.ARTIFACT }}
-          Version: ${{ env.VERSION }}
-          Section: base
-          Priority: optional
-          Architecture: ${{ matrix.arch }}
-          Depends: libqt6core6 (>= 6.4.2), libqt6multimedia6 (>= 6.4.2), libqt6serialport6 (>= 6.4.2), libqt6svg6 (>= 6.4.2)
-          Maintainer: TechXArtisan <info@techxartisan.com>
-          Description: OpenterfaceQT Mini-KVM Linux Edition" > package/DEBIAN/control
+          # Use sed to replace variables in the control file template
+          sed -e "s/\${VERSION}/${{ env.VERSION }}/g" \
+              -e "s/\${ARCH}/${{ matrix.arch }}/g" \
+              ${{ github.workspace }}/packaging/debian/control > package/DEBIAN/control
+          
           # Copy files to package directory
           mkdir -p package/usr/bin
           cp -r build/openterfaceQT package/usr/bin
