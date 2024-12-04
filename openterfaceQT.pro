@@ -104,15 +104,7 @@ win32:LIBS += -lsetupapi
 
 win32 {
     INCLUDEPATH += $$PWD/libs
-    LIBS += -L$$PWD/libs/ -llibusb-1.0
-
-    # Add this to ensure DLL is copied to build directory
-    CONFIG(release, debug|release) {
-        QMAKE_POST_LINK += $$quote(xcopy /y /d "$$PWD\\libs\\*.dll" "$$OUT_PWD\\release\\")
-    }
-    CONFIG(debug, debug|release) {
-        QMAKE_POST_LINK += $$quote(xcopy /y /d "$$PWD\\libs\\*.dll" "$$OUT_PWD\\debug\\")
-    }
+    LIBS += -L$$PWD/libs/ -lusb-1.0
 }
 
 unix {
