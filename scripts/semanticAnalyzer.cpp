@@ -121,7 +121,7 @@ QPoint SemanticAnalyzer::parseCoordinates(const std::vector<std::string>& option
 }
 
 int SemanticAnalyzer::parseMouseButton(const std::vector<std::string>& options) {
-    // Default to left click for each new statement
+    // Default to left click for each new statement 
     int mouseButton = Qt::LeftButton;
     
     // Look for button specification in options
