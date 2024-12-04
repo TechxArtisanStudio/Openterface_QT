@@ -136,8 +136,6 @@ int SemanticAnalyzer::parseMouseButton(const std::vector<std::string>& options) 
         }
     }
     
-
-    // qDebug() << "Parsed mouse button:" << mouseButton << "from options:" << options;
-
+    qDebug() << "Parsed mouse button:" << mouseButton << "from options:" << options;
     return mouseButton;
 }
