@@ -78,7 +78,7 @@ void SerialPortDebugDialog::createFilterCheckBox()
 {
     QGridLayout *gridLayout = new QGridLayout(filterCheckboxWidget);
     
-    for (int i = 0; i < sizeof(FILTERS)/sizeof(FILTERS[0]); i++) {
+    for (long unsigned int i = 0; i < sizeof(FILTERS)/sizeof(FILTERS[0]); i++) {
         auto* checkbox = new QCheckBox(FILTERS[i].label);
         checkbox->setObjectName(FILTERS[i].name);
         gridLayout->addWidget(checkbox, i/3, i%3, Qt::AlignLeft);
