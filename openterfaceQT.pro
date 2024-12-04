@@ -103,8 +103,8 @@ win32:LIBS += -lhid
 win32:LIBS += -lsetupapi
 
 win32 {
-    INCLUDEPATH += $$PWD/libs
-    LIBS += -L$$PWD/libs/libusb-1.0 -llibusb-1.0
+    INCLUDEPATH += $$PWD/lib
+    LIBS += -L$$PWD/lib -lusb-1.0
 }
 
 unix {
