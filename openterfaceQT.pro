@@ -108,8 +108,8 @@ win32 {
 }
 
 unix {
+    INCLUDEPATH += /usr/include/
     LIBS += -lusb-1.0
-    INCLUDEPATH += /usr/include/libusb-1.0
 }
 
 # Set the target installation path to a directory within the build folder
