@@ -104,7 +104,8 @@ win32:LIBS += -lsetupapi
 
 win32 {
     INCLUDEPATH += $$PWD/libs
-    LIBS += -L$$PWD/libs/ -lusb-1.0
+    LIBS += -L$$PWD/libs/ -llibusb-1.0
+
 }
 
 unix {
