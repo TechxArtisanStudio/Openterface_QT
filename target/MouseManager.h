@@ -131,6 +131,12 @@ public:
     void startAutoMoveMouse();
     void stopAutoMoveMouse();
 
+    void reset() {
+        // Reset any internal state
+        // For example, clear any stored coordinates or button states
+        qDebug() << "Mouse manager reset";
+    }
+
 private:
     bool isDragging = false; 
     StatusEventCallback* statusEventCallback = nullptr;

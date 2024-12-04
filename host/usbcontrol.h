@@ -48,12 +48,40 @@ public slots:
     void closeUSB();
     
     // Only keep brightness and contrast controls
+    int getBrightness();
+    int getContrast();
+    bool setBrightness(int value);
+    bool setContrast(int value);
+    
     bool findAndOpenUVCDevice();
 
+    // Add these methods
+    int getBrightnessMin();
+    int getBrightnessMax();
+    int getBrightnessDef();
+    int getContrastMin();
+    int getContrastMax();
+    int getContrastDef();
+    void debugControlRanges();  // New method to print all ranges
+    int testUSBControl();
+    int testUVCControl();
+
 private:
-    static const uint16_t VENDOR_ID = 0x534D;   // 534D
-    static const uint16_t PRODUCT_ID = 0x2109;  // 2109
-    
+    /*
+        bLength                  : 0x0B (11 bytes)
+        bDescriptorType          : 0x24 (Video Control Interface)
+        bDescriptorSubtype       : 0x05 (Processing Unit)
+        bUnitID                  : 0x02 (2)
+        bSourceID                : 0x01 (1)
+        wMaxMultiplier           : 0x0000
+        bControlSize             : 0x02 (2 bytes)
+        bmControls               : 0x0F, 0x00
+        D0                      : 1  yes -  Brightness
+        D1                      : 1  yes -  Contrast
+        D2                      : 1  yes -  Hue
+        D3                      : 1  yes -  Saturation
+    */
+    // UVC Control Constants
     static const uint8_t UVC_GET_CUR = 0x81;
     static const uint8_t UVC_GET_MIN = 0x82;
     static const uint8_t UVC_GET_MAX = 0x83;
@@ -66,22 +94,24 @@ private:
     static const uint8_t bSourceID = 0x01;
     static const uint8_t bControlSize = 0x02;
     static const uint8_t bmControls = 0x0F;
-    static const uint8_t PU_BRIGHTNESS_CONTROL = 0x01;
-    static const uint8_t PU_CONTRAST_CONTROL = 0x02;
+    static const uint8_t PU_BRIGHTNESS_CONTROL = 0xD0;
+    static const uint8_t PU_CONTRAST_CONTROL = 0xD1;
 
 
     // Define the vendor and product IDs
-    
-    static const uint8_t INTERFACE_ID = 0x24;
-    // UVC Control Constants
-    
+    static const uint16_t VENDOR_ID = 0x534D;   // 534D
+    static const uint16_t PRODUCT_ID = 0x2109;  // 2109
+    static const uint8_t INTERFACE_ID = 0x00;
     libusb_context *context;
     libusb_device_handle *deviceHandle;
-    libusb_device *device;
-    libusb_config_descriptor *config_descriptor;
-    void getConfigDescriptor();
-    void showConfigDescriptor();
-    int getBrightness();
+    
+    // Helper methods
+    int getUVCControl(uint8_t selector, uint8_t unit, uint8_t cs);
+    int setUVCControl(uint8_t selector, uint8_t unit, uint8_t cs, int value);
+    QString getUSBDeviceString(libusb_device_handle *handle, uint8_t desc_index);
+    
+
+    bool isControlSupported(uint8_t control);
 };
 
 #endif // USBCONTROL_H
