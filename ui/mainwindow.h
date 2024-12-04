@@ -42,6 +42,7 @@
 #include "statusbarmanager.h"
 #include "host/usbcontrol.h"
 #include "ui/cameraajust.h"
+#include "ui/scripttool.h"
 
 #include <QAudioInput>
 #include <QAudioOutput>
@@ -258,5 +259,7 @@ private:
     USBControl *usbControl;
 
     CameraAdjust *cameraAdjust;
+
+    void showScriptTool();
 };
 #endif // MAINWINDOW_H
