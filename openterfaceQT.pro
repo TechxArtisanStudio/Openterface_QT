@@ -103,13 +103,13 @@ win32:LIBS += -lhid
 win32:LIBS += -lsetupapi
 
 win32 {
-    INCLUDEPATH += $$PWD/libs/libusb-1.0/includes
-    LIBS += -L$$PWD/libs/libusb-1.0/lib -llibusb-1.0
+    INCLUDEPATH += $$PWD/libs
+    LIBS += -L$$PWD/libs/ -lusb-1.0
 }
 
 unix {
-    INCLUDEPATH += -lusb-1.0
-    INCLUDEPATH += /usr/include/libusb-1.0
+    INCLUDEPATH += /usr/include/
+    LIBS += -lusb-1.0
 }
 
 # Set the target installation path to a directory within the build folder
