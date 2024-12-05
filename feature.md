@@ -29,6 +29,21 @@
     - **Zoom Out**
     - **Restore Original Size**
 
+## Variable Video Resolution and Frame Rate
+- The software supports variable video resolution and frame rate settings, allowing users to customize their video output for optimal performance.
+- **Resolution Options [Frame Rate]**: 
+  - 640x480 [5 - 60 Hz]
+  - 720x480 [5 - 60 Hz]
+  - 720x576 [5 - 60 Hz]
+  - 800x600 [5 - 60 Hz]
+  - 1024x768 [10 -60 Hz]
+  - 1280x720 [10- 60 Hz]
+  - 1280x960 [5 - 50 Hz]
+  - 1280x1024 [5 - 30 Hz]
+  - 1360x768 [5 -30 Hz]
+  - 1600x1200 [5-30 Hz]
+  - 1920x1080 [5 -30 Hz]
+
 ## Basic Functions of KVM
 - The software supports basic KVM (Keyboard, Video, Mouse) functions, enabling seamless control of multiple devices.
 - **Mouse Movement Modes**:
