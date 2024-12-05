@@ -1,0 +1,8 @@
+Package: openterfaceQT
+Version: ${VERSION}
+Section: base
+Priority: optional
+Architecture: ${ARCH}
+Depends: libqt6core6 (>= 6.4.2), libqt6multimedia6 (>= 6.4.2), libqt6multimediawidgets6 (>= 6.4.2), libqt6serialport6 (>= 6.4.2), libqt6svg6 (>= 6.4.2)
+Maintainer: TechXArtisan <info@techxartisan.com>
+Description: OpenterfaceQT Mini-KVM Linux Edition
