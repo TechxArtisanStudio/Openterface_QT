@@ -25,6 +25,8 @@
 #include <cctype>
 #include <stdexcept>
 
+
+
 Lexer::Lexer() : currentIndex(0) {}
 
 void Lexer::setSource(const std::string& source) {

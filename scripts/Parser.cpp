@@ -22,6 +22,8 @@
 
 
 #include "Parser.h"
+#include <QDebug>
+
 
 Parser::Parser(const std::vector<Token>& tokens) : tokens(tokens), currentIndex(0) {}
 
@@ -67,9 +69,7 @@ std::unique_ptr<ASTNode> Parser::parseStatement() {
     }
     
     if (currentToken().type == AHKTokenType::COMMAND) {
-        if (currentToken().value == "Click"){
-            return parseClickStatement();
-        }
+        return parseCommandStatement();
     }
     // Add other statement types here
     
@@ -82,17 +82,17 @@ std::unique_ptr<ASTNode> Parser::parseStatement() {
     return nullptr;
 }
 
-std::unique_ptr<ASTNode> Parser::parseClickStatement() {
-    advance(); // Move past the 'Click' token
-
+std::unique_ptr<ASTNode> Parser::parseCommandStatement() {
+    QString tmp = QString::fromStdString(currentToken().value);
+    advance(); // Move past the COMMAND token
+    
     std::vector<std::string> options;
-    while (currentToken().type == AHKTokenType::INTEGER
-            || currentToken().type == AHKTokenType::IDENTIFIER
-            || currentToken().type == AHKTokenType::SYMBOL
-            || currentToken().type == AHKTokenType::WHITESPACE) {
+    while (currentToken().type != AHKTokenType::NEWLINE &&
+           currentToken().type != AHKTokenType::ENDOFFILE) {
         options.push_back(currentToken().value);
         advance();
     }
-
-    return std::make_unique<ClickStatementNode>(options);
+    auto commandStatementNode = std::make_unique<CommandStatementNode>(options);
+    commandStatementNode->setCommandName(tmp);
+    return commandStatementNode;
 }

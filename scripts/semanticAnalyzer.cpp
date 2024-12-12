@@ -25,30 +25,45 @@
 #include <stdexcept>
 #include <QDebug>
 #include <QString>
+#include "keyboardMouse.h"
 
-SemanticAnalyzer::SemanticAnalyzer(MouseManager* mouseManager) 
-    : mouseManager(mouseManager) {}
+Q_LOGGING_CATEGORY(log_script, "opf.scripts")
+
+SemanticAnalyzer::SemanticAnalyzer(MouseManager* mouseManager, KeyboardManager* keyboardManager) 
+    : mouseManager(mouseManager), keyboardManager(keyboardManager) {
+    if (!mouseManager) {
+        qDebug(log_script) << "MouseManager is not initialized!";
+    }
+    if (!keyboardManager) {
+        qDebug(log_script) << "KeyboardManager is not initialized!";
+    }
+}
 
 void SemanticAnalyzer::analyze(const ASTNode* node) {
-    if (!node) return;
+    if (!node) {
+        qDebug(log_script) << "Received null node in analyze method.";
+        return;
+    }
     
     switch (node->getType()) {
         case ASTNodeType::StatementList:
             // Process each statement in the list
             for (const auto& child : node->getChildren()) {
+                qDebug(log_script) << "Analyzing child node.";
                 analyze(child.get());
                 resetParameters(); // Reset after each statement
             }
             break;
             
-        case ASTNodeType::ClickStatement:
-            analyzeClickStatement(static_cast<const ClickStatementNode*>(node));
-            qDebug() << "click statement";
+        case ASTNodeType::CommandStatement:
+            qDebug(log_script) << "Analyzing command statement.";
+            analyzeCommandStetement(static_cast<const CommandStatementNode*>(node));
             break;
             
         default:
             // Process any child nodes
             for (const auto& child : node->getChildren()) {
+                qDebug(log_script) << "Analyzing default child node.";
                 analyze(child.get());
             }
             break;
@@ -56,15 +71,72 @@ void SemanticAnalyzer::analyze(const ASTNode* node) {
 }
 
 void SemanticAnalyzer::resetParameters() {
-    // Reset mouse manager state
-    mouseManager->reset();
-    qDebug() << "Reset parameters for next statement";
+    if (mouseManager) {
+        // Reset mouse manager state
+        mouseManager->reset();
+        qDebug(log_script) << "Reset parameters for next statement";
+    } else {
+        qDebug(log_script) << "MouseManager is not available for reset!";
+    }
 }
 
-void SemanticAnalyzer::analyzeClickStatement(const ClickStatementNode* node) {
+void SemanticAnalyzer::analyzeCommandStetement(const CommandStatementNode* node){
+    QString commandName = node->getCommandName();
+    
+    if(commandName == "Click"){
+        analyzeClickStatement(node);
+    }
+    if(commandName == "Send"){
+        analyzeSendStatement(node);
+    }
+}
+
+void SemanticAnalyzer::analyzeSendStatement(const CommandStatementNode* node) {
+    const auto& options = node->getOptions();
+    // Map for special keys
+    
+    
+    if (options.empty()) {
+        qDebug(log_script) << "No coordinates provided for Send command";
+        return;
+    }
+    QString tmpKeys;
+    for (const auto& token : options){
+        qDebug(log_script) << QString::fromStdString(token);
+        if (token != "\"") tmpKeys.append(QString::fromStdString(token));
+    }
+    bool hasBrace = tmpKeys.contains("{");
+    qDebug(log_script) << "tmp key:" << tmpKeys;
+    if (!hasBrace){
+        // Iterate through each character in the text to send
+        for (const QString& ch : tmpKeys) {
+            qDebug(log_script) << "Sent key:" << ch;
+            if (specialKeys.contains(ch)) {
+                int keyCode = specialKeys[ch];
+                // Send the special key
+                qDebug(log_script) << "keycode: " << keyCode; 
+                keyboardManager->handleKeyboardAction(keyCode, 0, true); // Key down
+                keyboardManager->handleKeyboardAction(keyCode, 0, false); // Key up
+                
+            } else {
+                // Check if the character is a regular key
+                if (AHKmapping.contains(ch)) {
+                    int keyCode = AHKmapping.value(ch);
+                    // Send the regular key
+                    qDebug(log_script) << "keycode: " << keyCode; 
+                    keyboardManager->handleKeyboardAction(keyCode, 0, true); // Key down
+                    keyboardManager->handleKeyboardAction(keyCode, 0, false); // Key up
+                }
+            }
+        }
+    }
+
+}
+
+void SemanticAnalyzer::analyzeClickStatement(const CommandStatementNode* node) {
     const auto& options = node->getOptions();
     if (options.empty()) {
-        qDebug() << "No coordinates provided for Click command";
+        qDebug(log_script) << "No coordinates provided for Click command";
         return;
     }
     
@@ -72,16 +144,21 @@ void SemanticAnalyzer::analyzeClickStatement(const ClickStatementNode* node) {
     QPoint coords = parseCoordinates(options);
     int mouseButton = parseMouseButton(options);  // This will be fresh for each statement
 
-    qDebug() << "Executing click at:" << coords.x() << "," << coords.y() 
+    qDebug(log_script) << "Executing click at:" << coords.x() << "," << coords.y() 
              << "with button:" << mouseButton;
 
-    // Execute the mouse action
-    mouseManager->handleAbsoluteMouseAction(coords.x(), coords.y(), mouseButton, 0);
+    try {
+        mouseManager->handleAbsoluteMouseAction(coords.x(), coords.y(), mouseButton, 0);
+    } catch (const std::exception& e) {
+        qDebug(log_script) << "Exception caught in handleAbsoluteMouseAction:" << e.what();
+    } catch (...) {
+        qDebug(log_script) << "Unknown exception caught in handleAbsoluteMouseAction.";
+    }
 }
 
 QPoint SemanticAnalyzer::parseCoordinates(const std::vector<std::string>& options) {
     if (options.empty()) {
-        qDebug() << "No coordinate components";
+        qDebug(log_script) << "No coordinate components";
         return QPoint(0, 0);
     }
     
@@ -112,11 +189,11 @@ QPoint SemanticAnalyzer::parseCoordinates(const std::vector<std::string>& option
     }
     
     if (!foundComma || (!okX && !okY)) {
-        qDebug() << "Invalid coordinate format, using defaults";
+        qDebug(log_script) << "Invalid coordinate format, using defaults";
         return QPoint(0, 0);
     }
     
-    qDebug() << "Parsed coordinates:" << x << "," << y;
+    qDebug(log_script) << "Parsed coordinates:" << x << "," << y;
     return QPoint(x, y);
 }
 
@@ -136,8 +213,7 @@ int SemanticAnalyzer::parseMouseButton(const std::vector<std::string>& options) 
         }
     }
     
-
-    // qDebug() << "Parsed mouse button:" << mouseButton << "from options:" << options;
+    // qDebug(log_script) << "Parsed mouse button:" << mouseButton << "from options:" << options;
 
     return mouseButton;
 }

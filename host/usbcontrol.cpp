@@ -67,23 +67,23 @@ bool USBControl::findAndOpenUVCDevice()
 {
     deviceHandle = libusb_open_device_with_vid_pid(context, VENDOR_ID, PRODUCT_ID);
     if (!deviceHandle) {
-        qCDebug(log_usb) << "Failed to open device with VID:" << QString("0x%1").arg(VENDOR_ID, 4, 16, QChar('0'))
+        qDebug(log_usb) << "Failed to open device with VID:" << QString("0x%1").arg(VENDOR_ID, 4, 16, QChar('0'))
                          << "PID:" << QString("0x%1").arg(PRODUCT_ID, 4, 16, QChar('0'));
         return false;
     }
     
-    qCDebug(log_usb) << "Successfully opened device with VID:" << QString("0x%1").arg(VENDOR_ID, 4, 16, QChar('0'))
+    qDebug(log_usb) << "Successfully opened device with VID:" << QString("0x%1").arg(VENDOR_ID, 4, 16, QChar('0'))
                      << "PID:" << QString("0x%1").arg(PRODUCT_ID, 4, 16, QChar('0'));
 
     libusb_device *device = libusb_get_device(deviceHandle);
     if (!device) {
-        qCDebug(log_usb) << "Failed to get device from handle";
+        qDebug(log_usb) << "Failed to get device from handle";
         libusb_close(deviceHandle);
         deviceHandle = nullptr;
         return false;
     }
 
-    qCDebug(log_usb) << "Successfully opened and configured device";
+    qDebug(log_usb) << "Successfully opened and configured device";
     debugControlRanges();
     emit deviceConnected();
     return true;
@@ -115,12 +115,12 @@ int USBControl::testUSBControl()
         1000
     );
     if (result < 0) {
-        qCDebug(log_usb) << "Test USB Control Result:" << libusb_error_name(result);
+        qDebug(log_usb) << "Test USB Control Result:" << libusb_error_name(result);
         return -1;
     }
-    qCDebug(log_usb) << "Test USB Control Result:" << result;
+    qDebug(log_usb) << "Test USB Control Result:" << result;
     for(int i = 0; i < result; i++) {
-        qCDebug(log_usb) << "Data[" << i << "]:" << QString("0x%1").arg(data[i], 2, 16, QChar('0'));
+        qDebug(log_usb) << "Data[" << i << "]:" << QString("0x%1").arg(data[i], 2, 16, QChar('0'));
     }
 }
 
@@ -135,10 +135,10 @@ int USBControl::testUVCControl()
 
     int result = libusb_control_transfer(deviceHandle, request_type, bRequest, wValue, wIndex, data, wLength, 0);
     if (result < 0) {
-        qCDebug(log_usb) << "Test UVC Control Result:" << libusb_error_name(result);
+        qDebug(log_usb) << "Test UVC Control Result:" << libusb_error_name(result);
         return -1;  
     }
-    qCDebug(log_usb) << "Test UVC Control Result:" << result;
+    qDebug(log_usb) << "Test UVC Control Result:" << result;
 
     return 0;
 }
@@ -153,11 +153,11 @@ int USBControl::getUVCControl(uint8_t selector, uint8_t unit, uint8_t cs)
     int wIndex = (unit << 8) | 0x00; // Unit ID in high byte, Interface 0
     int timeout = 1000;
     
-    qCDebug(log_usb) << "UVC Control Request:";
-    qCDebug(log_usb) << "  Request type:" << QString("0x%1").arg(requestType, 2, 16, QChar('0'));
-    qCDebug(log_usb) << "  Request:" << QString("0x%1").arg(selector, 2, 16, QChar('0'));
-    qCDebug(log_usb) << "  wValue:" << QString("0x%1").arg(wValue, 4, 16, QChar('0'));
-    qCDebug(log_usb) << "  wIndex:" << QString("0x%1").arg(wIndex, 4, 16, QChar('0'));
+    qDebug(log_usb) << "UVC Control Request:";
+    qDebug(log_usb) << "  Request type:" << QString("0x%1").arg(requestType, 2, 16, QChar('0'));
+    qDebug(log_usb) << "  Request:" << QString("0x%1").arg(selector, 2, 16, QChar('0'));
+    qDebug(log_usb) << "  wValue:" << QString("0x%1").arg(wValue, 4, 16, QChar('0'));
+    qDebug(log_usb) << "  wIndex:" << QString("0x%1").arg(wIndex, 4, 16, QChar('0'));
     
     int result = libusb_control_transfer(
         deviceHandle,
@@ -171,12 +171,12 @@ int USBControl::getUVCControl(uint8_t selector, uint8_t unit, uint8_t cs)
     );
     
     if (result < 0) {
-        qCDebug(log_usb) << "Failed to get UVC control:" << libusb_error_name(result);
+        qDebug(log_usb) << "Failed to get UVC control:" << libusb_error_name(result);
         return -1;
     }
     
     int value = (data[1] << 8) | data[0];
-    qCDebug(log_usb) << "  Response value:" << value;
+    qDebug(log_usb) << "  Response value:" << value;
     return value;
 }
 
@@ -193,12 +193,12 @@ int USBControl::setUVCControl(uint8_t selector, uint8_t unit, uint8_t cs, int va
     int wIndex = (unit << 8) | 0x00; // Unit ID in high byte, Interface 0
     int timeout = 1000;
     
-    qCDebug(log_usb) << "UVC Control Set:";
-    qCDebug(log_usb) << "  Request type:" << QString("0x%1").arg(requestType, 2, 16, QChar('0'));
-    qCDebug(log_usb) << "  Request:" << QString("0x%1").arg(selector, 2, 16, QChar('0'));
-    qCDebug(log_usb) << "  wValue:" << QString("0x%1").arg(wValue, 4, 16, QChar('0'));
-    qCDebug(log_usb) << "  wIndex:" << QString("0x%1").arg(wIndex, 4, 16, QChar('0'));
-    qCDebug(log_usb) << "  Setting value:" << value;
+    qDebug(log_usb) << "UVC Control Set:";
+    qDebug(log_usb) << "  Request type:" << QString("0x%1").arg(requestType, 2, 16, QChar('0'));
+    qDebug(log_usb) << "  Request:" << QString("0x%1").arg(selector, 2, 16, QChar('0'));
+    qDebug(log_usb) << "  wValue:" << QString("0x%1").arg(wValue, 4, 16, QChar('0'));
+    qDebug(log_usb) << "  wIndex:" << QString("0x%1").arg(wIndex, 4, 16, QChar('0'));
+    qDebug(log_usb) << "  Setting value:" << value;
     
     int result = libusb_control_transfer(
         deviceHandle,
@@ -212,7 +212,7 @@ int USBControl::setUVCControl(uint8_t selector, uint8_t unit, uint8_t cs, int va
     );
     
     if (result < 0) {
-        qCDebug(log_usb) << "Failed to set UVC control:" << libusb_error_name(result);
+        qDebug(log_usb) << "Failed to set UVC control:" << libusb_error_name(result);
         return -1;
     }
     
@@ -222,7 +222,7 @@ int USBControl::setUVCControl(uint8_t selector, uint8_t unit, uint8_t cs, int va
 int USBControl::getBrightness()
 {
     if (!isControlSupported(0)) {
-        qCDebug(log_usb) << "Brightness control is not supported";
+        qDebug(log_usb) << "Brightness control is not supported";
         return -1;
     }
     return getUVCControl(UVC_GET_CUR, 2, PU_BRIGHTNESS_CONTROL);
@@ -231,7 +231,7 @@ int USBControl::getBrightness()
 bool USBControl::setBrightness(int value)
 {
     if (!isControlSupported(0)) {
-        qCDebug(log_usb) << "Brightness control is not supported";
+        qDebug(log_usb) << "Brightness control is not supported";
         return false;
     }
     return setUVCControl(UVC_SET_CUR, 2, PU_BRIGHTNESS_CONTROL, value) >= 0;
@@ -240,7 +240,7 @@ bool USBControl::setBrightness(int value)
 int USBControl::getContrast()
 {
     if (!isControlSupported(1)) {
-        qCDebug(log_usb) << "Contrast control is not supported";
+        qDebug(log_usb) << "Contrast control is not supported";
         return -1;
     }
     return getUVCControl(UVC_GET_CUR, 2, PU_CONTRAST_CONTROL);
@@ -249,7 +249,7 @@ int USBControl::getContrast()
 bool USBControl::setContrast(int value)
 {
     if (!isControlSupported(1)) {
-        qCDebug(log_usb) << "Contrast control is not supported";
+        qDebug(log_usb) << "Contrast control is not supported";
         return false;
     }
     return setUVCControl(UVC_SET_CUR, 2, PU_CONTRAST_CONTROL, value) >= 0;
@@ -294,18 +294,18 @@ int USBControl::getContrastDef()
 
 void USBControl::debugControlRanges()
 {
-    qCDebug(log_usb) << "UVC Control Ranges:";
-    qCDebug(log_usb) << "Brightness:";
-    qCDebug(log_usb) << "  Current:" << getBrightness();
-    qCDebug(log_usb) << "  Min:" << getBrightnessMin();
-    qCDebug(log_usb) << "  Max:" << getBrightnessMax();
-    qCDebug(log_usb) << "  Default:" << getBrightnessDef();
+    qDebug(log_usb) << "UVC Control Ranges:";
+    qDebug(log_usb) << "Brightness:";
+    qDebug(log_usb) << "  Current:" << getBrightness();
+    qDebug(log_usb) << "  Min:" << getBrightnessMin();
+    qDebug(log_usb) << "  Max:" << getBrightnessMax();
+    qDebug(log_usb) << "  Default:" << getBrightnessDef();
     
-    qCDebug(log_usb) << "Contrast:";
-    qCDebug(log_usb) << "  Current:" << getContrast();
-    qCDebug(log_usb) << "  Min:" << getContrastMin();
-    qCDebug(log_usb) << "  Max:" << getContrastMax();
-    qCDebug(log_usb) << "  Default:" << getContrastDef();
+    qDebug(log_usb) << "Contrast:";
+    qDebug(log_usb) << "  Current:" << getContrast();
+    qDebug(log_usb) << "  Min:" << getContrastMin();
+    qDebug(log_usb) << "  Max:" << getContrastMax();
+    qDebug(log_usb) << "  Default:" << getContrastDef();
     
     // testUVCControl();
 }

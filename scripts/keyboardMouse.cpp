@@ -17,52 +17,15 @@
 *    You should have received a copy of the GNU General Public License       *
 *    along with this program. If not, see <http://www.gnu.org/licenses/>.    *
 *                                                                            *
+*    This program incorporates portions of the AutoHotkey source code,       *
+*    which is licensed under the GNU General Public License version 2 or     *
+*    later. The original AutoHotkey source code can be found at:             *
+*    https://github.com/Lexikos/AutoHotkey_L                                 *
+*                                                                            *
+*                                                                            *
+*    The AutoHotkey source code is copyrighted by the AutoHotkey             *
+*    development team and contributors.                                      *
+*                                                                            *
 * ========================================================================== *
-*/ 
-
-#ifndef SCRIPTTOOL_H
-#define SCRIPTTOOL_H
-
-#include <QDialog>
-#include <QLineEdit>
-#include <QPushButton>
-#include <QVBoxLayout>
-#include <QFileDialog>
-#include <QTextEdit>
-#include <QThread>
-#include <QFile>
-#include "../scripts/Lexer.h"
-#include "../scripts/Parser.h"
-#include "../scripts/semanticAnalyzer.h"
-#include "../target/MouseManager.h"
-#include "../target/KeyboardManager.h"
-
-class ScriptTool : public QDialog
-{
-    Q_OBJECT
-
-public:
-    explicit ScriptTool(QWidget *parent = nullptr);
-    ~ScriptTool();
-
-private slots:
-    void selectFile();
-    void runScript();
-
-private:
-    QLineEdit *filePathEdit;
-    QPushButton *selectButton;
-    QPushButton *runButton;
-    QTextEdit *scriptEdit;
-    QFile currentFile;
-    Lexer lexer;
-    std::vector<Token> tokens;
-    QString fileContents;
-    std::unique_ptr<MouseManager> mouseManager;
-    std::unique_ptr<KeyboardManager> keyboardManager;
-    std::unique_ptr<SemanticAnalyzer> semanticAnalyzer;
-    void processAST(ASTNode *node);
-};
-
-#endif // SCRIPTTOOL_H
+*/
 

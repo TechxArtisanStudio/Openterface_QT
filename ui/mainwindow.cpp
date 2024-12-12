@@ -243,14 +243,14 @@ MainWindow::MainWindow() :  ui(new Ui::MainWindow),
 
     qApp->installEventFilter(this);
 
-    usbControl = new USBControl(this);
-    connect(ui->contrastButton, &QPushButton::clicked, cameraAdjust, &CameraAdjust::toggleVisibility);
-    connect(ui->contrastButton, &QPushButton::toggled, cameraAdjust, &CameraAdjust::setVisible);
+    // usbControl = new USBControl(this);
+    // connect(ui->contrastButton, &QPushButton::clicked, cameraAdjust, &CameraAdjust::toggleVisibility);
+    // connect(ui->contrastButton, &QPushButton::toggled, cameraAdjust, &CameraAdjust::setVisible);
 
     // Initial position setup
-    QPoint buttonPos = ui->contrastButton->mapToGlobal(QPoint(0, 0));
-    int menuBarHeight = buttonPos.y() - this->mapToGlobal(QPoint(0, 0)).y();
-    cameraAdjust->updatePosition(menuBarHeight, width());
+    // QPoint buttonPos = ui->contrastButton->mapToGlobal(QPoint(0, 0));
+    // int menuBarHeight = buttonPos.y() - this->mapToGlobal(QPoint(0, 0)).y();
+    // cameraAdjust->updatePosition(menuBarHeight, width());
 
     // Add this line after ui->setupUi(this)
     connect(ui->actionScriptTool, &QAction::triggered, this, &MainWindow::showScriptTool);
