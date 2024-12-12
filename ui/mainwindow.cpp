@@ -119,8 +119,8 @@ MainWindow::MainWindow() :  ui(new Ui::MainWindow),
                             toolbarManager(new ToolbarManager(this)),
                             toggleSwitch(new ToggleSwitch(this)),
                             m_cameraManager(new CameraManager(this)),
-                            m_versionInfoManager(new VersionInfoManager(this)),
-                            cameraAdjust(new CameraAdjust(this))
+                            m_versionInfoManager(new VersionInfoManager(this))
+                            // cameraAdjust(new CameraAdjust(this))
 {
     qCDebug(log_ui_mainwindow) << "Init camera...";
     ui->setupUi(this);
@@ -243,14 +243,14 @@ MainWindow::MainWindow() :  ui(new Ui::MainWindow),
 
     qApp->installEventFilter(this);
 
-    usbControl = new USBControl(this);
-    connect(ui->contrastButton, &QPushButton::clicked, cameraAdjust, &CameraAdjust::toggleVisibility);
-    connect(ui->contrastButton, &QPushButton::toggled, cameraAdjust, &CameraAdjust::setVisible);
+    // usbControl = new USBControl(this);
+    // connect(ui->contrastButton, &QPushButton::clicked, cameraAdjust, &CameraAdjust::toggleVisibility);
+    // connect(ui->contrastButton, &QPushButton::toggled, cameraAdjust, &CameraAdjust::setVisible);
 
     // Initial position setup
-    QPoint buttonPos = ui->contrastButton->mapToGlobal(QPoint(0, 0));
-    int menuBarHeight = buttonPos.y() - this->mapToGlobal(QPoint(0, 0)).y();
-    cameraAdjust->updatePosition(menuBarHeight, width());
+    // QPoint buttonPos = ui->contrastButton->mapToGlobal(QPoint(0, 0));
+    // int menuBarHeight = buttonPos.y() - this->mapToGlobal(QPoint(0, 0)).y();
+    // cameraAdjust->updatePosition(menuBarHeight, width());
 
     // Add this line after ui->setupUi(this)
     connect(ui->actionScriptTool, &QAction::triggered, this, &MainWindow::showScriptTool);
@@ -361,9 +361,9 @@ void MainWindow::resizeEvent(QResizeEvent *event) {
     scrollArea->resize(this->width(), this->height() - ui->statusbar->height() - ui->menubar->height());
 
     // Update camera adjust position
-    if (cameraAdjust) {
-        cameraAdjust->updatePosition(menuBar()->height(), width());
-    }
+    // if (cameraAdjust) {
+    //     cameraAdjust->updatePosition(menuBar()->height(), width());
+    // }
 }
 
 

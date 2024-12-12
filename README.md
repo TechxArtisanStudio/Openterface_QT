@@ -79,6 +79,24 @@ make -j$(nproc)
 ./openterfaceQT
 ```
 
+``` bash
+# If you can't control the mouse and keyboard (with high probability that did not correctly recognize the serial port)
+
+# solution
+sudo apt remove brltty
+# after run this plug out the openterface and pulg in again
+ls /dev/ttyUSB*
+# if you can list the usb the serial port correctly recognized
+# Then we need give the permissions to user for control serial port you can do this:
+sudo ./openterfaceQT
+# or 
+sudo usermod -a -G dialout <your_username>
+sudo reboot
+# back to the build floder
+./openterfaceQT
+
+```
+
 # Abut the Crowdfunding Hardward
 Our [Openterface Mini-KVM](https://openterface.com/) crowdfunding campaign is now live on [Crowd Supply](https://www.crowdsupply.com/techxartisan/openterface-mini-kvm)! Check it out and please consider supporting us by backing our project. Cheers!
 
