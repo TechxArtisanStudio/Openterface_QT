@@ -26,11 +26,13 @@
 #include <memory>
 #include <string>
 #include <vector>
+#include <QString>
 
 enum class ASTNodeType {
     Expression,
     Statement,
-    ClickStatement,
+    CommandStatement,
+
     StatementList,
     // Add more node types as needed
 };
@@ -56,14 +58,19 @@ public:
     // Add statement-specific members
 };
 
-class ClickStatementNode : public ASTNode {
+class CommandStatementNode : public ASTNode {
 public:
-    ClickStatementNode(const std::vector<std::string>& options) : options(options) {}
-    ASTNodeType getType() const override { return ASTNodeType::ClickStatement; }
+    CommandStatementNode(const std::vector<std::string>& options) : options(options) {}
+    ASTNodeType getType() const override { return ASTNodeType::CommandStatement; }
     const std::vector<std::string>& getOptions() const { return options; }
+    const QString getCommandName() const { return commandName; }
+    void setCommandName(QString name) { commandName = name; }
 private:
     std::vector<std::string> options;
+    QString commandName;
 };
+
+
 
 class StatementListNode : public ASTNode {
 public:
