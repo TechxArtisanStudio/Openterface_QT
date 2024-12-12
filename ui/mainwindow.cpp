@@ -119,8 +119,8 @@ MainWindow::MainWindow() :  ui(new Ui::MainWindow),
                             toolbarManager(new ToolbarManager(this)),
                             toggleSwitch(new ToggleSwitch(this)),
                             m_cameraManager(new CameraManager(this)),
-                            m_versionInfoManager(new VersionInfoManager(this)),
-                            cameraAdjust(new CameraAdjust(this))
+                            m_versionInfoManager(new VersionInfoManager(this))
+                            // cameraAdjust(new CameraAdjust(this))
 {
     qCDebug(log_ui_mainwindow) << "Init camera...";
     ui->setupUi(this);
@@ -361,9 +361,9 @@ void MainWindow::resizeEvent(QResizeEvent *event) {
     scrollArea->resize(this->width(), this->height() - ui->statusbar->height() - ui->menubar->height());
 
     // Update camera adjust position
-    if (cameraAdjust) {
-        cameraAdjust->updatePosition(menuBar()->height(), width());
-    }
+    // if (cameraAdjust) {
+    //     cameraAdjust->updatePosition(menuBar()->height(), width());
+    // }
 }
 
 
