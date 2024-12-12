@@ -258,7 +258,7 @@ private:
     StatusBarManager *m_statusBarManager;
     USBControl *usbControl;
 
-    CameraAdjust *cameraAdjust;
+    // CameraAdjust *cameraAdjust;
 
     void showScriptTool();
 };

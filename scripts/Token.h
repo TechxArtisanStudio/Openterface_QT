@@ -33,7 +33,6 @@
 #include <sstream>
 
 
-
 enum class AHKTokenType {
     KEYWORD,
 	IDENTIFIER,

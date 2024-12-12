@@ -30,7 +30,8 @@
 #include "../scripts/Lexer.h"
 #include "../scripts/Parser.h"
 #include "../scripts/semanticAnalyzer.h"
-#include "../target/MouseManager.h"
+
+Q_DECLARE_LOGGING_CATEGORY(log_script)
 
 ScriptTool::ScriptTool(QWidget *parent)
     : QDialog(parent)
@@ -65,7 +66,8 @@ ScriptTool::ScriptTool(QWidget *parent)
     connect(runButton, &QPushButton::clicked, this, &ScriptTool::runScript);
 
     mouseManager = std::make_unique<MouseManager>();
-    semanticAnalyzer = std::make_unique<SemanticAnalyzer>(mouseManager.get());
+    keyboardManager = std::make_unique<KeyboardManager>();
+    semanticAnalyzer = std::make_unique<SemanticAnalyzer>(mouseManager.get(), keyboardManager.get());
 }
 
 ScriptTool::~ScriptTool()
@@ -123,7 +125,7 @@ void ScriptTool::selectFile()
                         break;
                 }
                 styledText += QString("<span style='color:%1;'>%2</span>").arg(color, tokenText);
-                qDebug() << "Token Type:" << static_cast<int>(token.type) << "Value:" << tokenText;
+                // qDebug(log_script) << "Token Type:" << static_cast<int>(token.type) << "Value:" << tokenText;
             }
             scriptEdit->setText(styledText);
         } else {
@@ -144,7 +146,7 @@ void ScriptTool::runScript()
     // For example, you can traverse it or print it for debugging
     Parser parser(tokens);
     std::unique_ptr<ASTNode> syntaxTree = parser.parse();
-    qDebug() << "synctaxTree: " << syntaxTree.get();
+    qDebug(log_script) << "synctaxTree: " << syntaxTree.get();
     // Process the AST
     processAST(syntaxTree.get());
 

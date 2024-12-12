@@ -41,7 +41,8 @@ private:
     void advance();
     std::unique_ptr<ASTNode> parseExpression();
     std::unique_ptr<ASTNode> parseStatement();
-    std::unique_ptr<ASTNode> parseClickStatement();
+    std::unique_ptr<ASTNode> parseCommandStatement();
+    // std::unique_ptr<ASTNode> parseSendStatement();
     // Add more parsing methods as needed
 };
 
