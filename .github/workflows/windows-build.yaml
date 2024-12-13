@@ -184,6 +184,17 @@ jobs:
           path: ${{ env.SOURCE_DIR }}\Output\setup.exe
           if-no-files-found: error
 
+      - name: Commit and push version update
+        if: success()
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add resources/version.h
+          git commit -m "Bump version to ${{ env.NEW_VERSION }}" -a || echo "No changes to commit"
+          git push https://${{ env.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git HEAD:${{ github.ref }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          
   release:
     needs: build
     if: github.event.inputs.create_release == 'true'
