@@ -1,0 +1,116 @@
+---
+name: Linux Build
+
+on:
+  push:
+    branches: ["main", "dev"]
+    tags: ["v*"]
+  pull_request:
+    branches: ["dev"]
+  workflow_dispatch:
+
+env:
+  ARTIFACT: openterfaceQT
+  SOURCE_DIR: ${{ github.workspace }}
+  QT_VERSION: 6.4.2
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        arch: [amd64, arm64]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install prerequisites
+        run: |
+          sudo apt update -y
+          sudo apt upgrade -y
+          sudo apt install build-essential
+          sudo apt-get install -y libusb-1.0-0-dev
+
+      - name: Set up QEMU
+        if: matrix.arch == 'arm64'
+        uses: docker/setup-qemu-action@v3
+
+      - name: Install Qt for AMD64
+        if: matrix.arch == 'amd64'
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: ${{ env.QT_VERSION }}
+          host: linux
+          target: desktop
+          arch: gcc_64
+          modules: qtmultimedia qtserialport
+
+      - name: Install Qt for ARM64
+        if: matrix.arch == 'arm64'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y qt6-base-dev qt6-multimedia-dev libqt6svg6-dev libqt6serialport6-dev libgl1-mesa-dev
+          echo "Qt6_DIR=/usr/lib/aarch64-linux-gnu/cmake/Qt6" >> $GITHUB_ENV
+
+      - name: Get all tags for correct version determination
+        working-directory: ${{ github.workspace }}
+        run: |
+          git fetch --all --tags -f
+
+      - name: Read version from version.h
+        id: read_version
+        run: |
+          VERSION=$(grep -oP '#define APP_VERSION "\K[^"]+' resources/version.h)
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+
+      - name: Create build directory
+        run: mkdir ${{ runner.temp }}/build
+
+      - name: Configure And Build
+        working-directory: ${{ runner.temp }}/build
+        run: |
+          qmake6 ${{ github.workspace }} && make -j$(nproc)
+
+      - name: Create deb package
+        working-directory: ${{ runner.temp }}
+        run: |
+          mkdir -p package/DEBIAN
+          # Use sed to replace variables in the control file template
+          sed -e "s/\${VERSION}/${{ env.VERSION }}/g" \
+              -e "s/\${ARCH}/${{ matrix.arch }}/g" \
+              ${{ github.workspace }}/packaging/debian/control > package/DEBIAN/control
+          
+          # Copy files to package directory
+          mkdir -p package/usr/bin
+          cp -r build/openterfaceQT package/usr/bin
+
+          # Add icon to the package
+          mkdir -p package/usr/share/icons/hicolor/256x256/apps/
+          cp ${{ github.workspace }}/images/icon_256.png package/usr/share/icons/hicolor/256x256/apps/openterfaceQT.png
+
+          # Create .desktop file
+          mkdir -p package/usr/share/applications/
+          cat > package/usr/share/applications/openterfaceQT.desktop << EOF
+          [Desktop Entry]
+          Version=1.0
+          Type=Application
+          Name=OpenterfaceQT
+          Exec=/usr/bin/openterfaceQT
+          Icon=openterfaceQT
+          Comment=OpenterfaceQT Application
+          Categories=Utility;
+          EOF
+
+          # Build deb package
+          mv package ${{ env.ARTIFACT }}_${{ env.VERSION }}_${{ matrix.arch }}
+          dpkg-deb --build ${{ env.ARTIFACT }}_${{ env.VERSION }}_${{ matrix.arch }}
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: openterfaceqt_${{ matrix.arch == 'arm64' && 'arm64' || matrix.arch }}.deb
+          path: ${{ runner.temp }}/${{ env.ARTIFACT }}_${{ env.VERSION }}_${{ matrix.arch }}.deb
+          if-no-files-found: error

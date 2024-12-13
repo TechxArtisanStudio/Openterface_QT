@@ -1,0 +1,246 @@
+---
+name: Windows Build and Release
+
+on:
+  push:
+    branches: ["main", "dev"]
+    tags: ["v*"]
+  pull_request:
+    branches: ["dev"]
+  workflow_dispatch:
+    inputs:
+      create_release:
+        description: 'Create a new release'
+        required: true
+        type: boolean
+        default: false
+
+defaults:
+  run:
+    shell: cmd
+
+env:
+  ARTIFACT: "${{ vars.MY_APP_EXE_NAME }}"
+  SOURCE_DIR: ${{ github.workspace }}
+  QT_VERSION: 6.5.3 
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+jobs:
+  build:
+    runs-on: windows-2022
+    permissions:
+      contents: write
+    environment: ${{ github.event.inputs.TARGET_ENV || 'Openterface_build' }}
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Update version
+        run: |
+          import os
+          import re
+          from datetime import datetime
+
+          version_file_path = 'resources/version.h'
+
+          # Check if the file exists
+          if not os.path.exists(version_file_path):
+              print(f"Error: {version_file_path} does not exist.")
+              print("Current working directory:", os.getcwd())
+              print("Directory contents:", os.listdir())
+              exit(1)
+
+          # Read current version from version.h
+          with open(version_file_path, 'r') as f:
+              version_content = f.read()
+              version_match = re.search(r'#define APP_VERSION "([^"]+)"', version_content)
+              if version_match:
+                  version = version_match.group(1)
+              else:
+                  print(f"Error: Version not found in {version_file_path}")
+                  print("File contents:")
+                  print(version_content)
+                  exit(1)
+
+          # Split version into parts
+          try:
+              major, minor, patch, days = version.split('.')
+          except ValueError:
+              print(f"Error: Invalid version format: {version}")
+              exit(1)
+
+          # Increment patch version
+          patch = str(int(patch) + 1)
+
+          # Calculate days from start of year
+          current_date = datetime.now()
+          days_from_start = (current_date - datetime(current_date.year, 1, 1)).days + 1
+          days = str(days_from_start).zfill(3)  # Ensure it's always 3 digits
+
+          # Create new version string
+          new_version = f"{major}.{minor}.{patch}.{days}"
+
+          # Update version.h file
+          new_version_content = re.sub(
+              r'#define APP_VERSION "[^"]+"',
+              f'#define APP_VERSION "{new_version}"',
+              version_content
+          )
+          with open(version_file_path, 'w') as f:
+              f.write(new_version_content)
+
+          print(f"Updated version to {new_version}")
+
+          # Set environment variables for use in later steps
+          with open(os.environ['GITHUB_ENV'], 'a') as env_file:
+              env_file.write(f"NEW_VERSION={new_version}\n")
+              env_file.write(f"VERSION_FOR_INNO={new_version}\n")
+        shell: python
+
+      - name: Get all tags for correct version determination
+        working-directory: ${{ github.workspace }}
+        run: |
+          git fetch --all --tags -f
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: ${{ env.QT_VERSION }}
+          host: windows
+          target: desktop
+          arch: win64_msvc2019_64
+          dir: ${{ runner.temp }}
+          modules: qtmultimedia qtserialport
+          setup-python: false
+
+      - name: Download and Unzip Jom
+        working-directory: ${{ runner.temp }}
+        run: |
+          curl -L -o jom.zip "http://download.qt.io/official_releases/jom/jom.zip"
+          7z x jom.zip -ojom
+
+      - name: Create build directory
+        run: mkdir ${{ runner.temp }}\build
+
+      - name: Set up Visual Studio shell
+        uses: egor-tensin/vs-shell@v2
+        with:
+          arch: x64
+
+      - name: Build
+        working-directory: ${{ runner.temp }}\build
+        run: |
+          call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
+          
+          echo "Building with qmake..."
+          qmake -v
+          qmake -r ${{ env.SOURCE_DIR }}\openterfaceQT.pro
+          if errorlevel 1 exit /b 1
+          
+          echo "Building with jom..."
+          ${{ runner.temp }}\jom\jom -j2
+          if errorlevel 1 exit /b 1
+          
+          if not exist release\openterfaceQT.exe (
+            echo "Error: Failed to build openterfaceQT.exe"
+            exit 1
+          )
+          
+          echo "Creating package directory..."
+          mkdir package
+          mkdir package\driver
+          copy release\openterfaceQT.exe package
+          copy ${{ env.SOURCE_DIR }}\driver\windows\* package\driver
+          
+          echo "Running windeployqt..."
+          cd package
+          windeployqt --qmldir ${{ env.SOURCE_DIR }} openterfaceQT.exe --compiler-runtime --multimedia
+          copy C:\Windows\System32\concrt140.dll . 
+          copy C:\Windows\System32\vccorlib140.dll .
+          copy C:\Windows\System32\msvcp140.dll .
+
+      - name: Move directory
+        working-directory: ${{ runner.temp }}\build
+        run: |
+          move /Y package ${{ env.SOURCE_DIR }}
+        shell: cmd
+
+      - name: Compile .ISS to .EXE Installer
+        uses: Minionguyjpro/Inno-Setup-Action@v1.2.2
+        with:
+          path: installer.iss
+          options: /O+ /DWorkingDir="${{ runner.temp }}\build" /DMyAppVersion="${{ env.VERSION_FOR_INNO }}" /DMyAppPublisher="${{ vars.MY_APP_PUBLISHER }}" /DMyAppURL="${{ vars.MY_APP_URL }}"
+
+      - name: Save build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.ARTIFACT }}
+          path: ${{ env.SOURCE_DIR }}\Output\setup.exe
+          if-no-files-found: error
+
+      - name: Commit and push version update
+        if: success()
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add resources/version.h
+          git commit -m "Bump version to ${{ env.NEW_VERSION }}" -a || echo "No changes to commit"
+          git push https://${{ env.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git HEAD:${{ github.ref }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          
+  release:
+    needs: build
+    if: github.event.inputs.create_release == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+
+      - name: Get latest tag
+        id: get_latest_tag
+        shell: bash
+        run: echo "LATEST_TAG=$(git describe --tags --abbrev=0)" >> $GITHUB_OUTPUT
+
+      - name: Generate changelog
+        id: changelog
+        shell: bash
+        run: |
+          CHANGELOG=$(git log ${{ steps.get_latest_tag.outputs.LATEST_TAG }}..HEAD --pretty=format:"- %s")
+          echo "CHANGELOG<<EOF" >> $GITHUB_OUTPUT
+          echo "$CHANGELOG" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ env.ARTIFACT }}
+
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1
+        with:
+          tag_name: v${{ env.NEW_VERSION }}
+          release_name: Release v${{ env.NEW_VERSION }}
+          body: |
+            Changes since last release:
+            ${{ steps.changelog.outputs.CHANGELOG }}
+          draft: true
+          prerelease: false
+
+      - name: Upload Release Asset
+        uses: actions/upload-release-asset@v1
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: setup.exe
+          asset_name: setup.exe
+          asset_content_type: application/octet-stream
