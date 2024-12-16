@@ -30,6 +30,7 @@
 #include "../scripts/Lexer.h"
 #include "../scripts/Parser.h"
 #include "../scripts/semanticAnalyzer.h"
+#include "../scripts/KeyboardMouse.h"
 
 Q_DECLARE_LOGGING_CATEGORY(log_script)
 
@@ -66,8 +67,8 @@ ScriptTool::ScriptTool(QWidget *parent)
     connect(runButton, &QPushButton::clicked, this, &ScriptTool::runScript);
 
     mouseManager = std::make_unique<MouseManager>();
-    keyboardManager = std::make_unique<KeyboardManager>();
-    semanticAnalyzer = std::make_unique<SemanticAnalyzer>(mouseManager.get(), keyboardManager.get());
+    keyboardMouse = std::make_unique<KeyboardMouse>();
+    semanticAnalyzer = std::make_unique<SemanticAnalyzer>(mouseManager.get(), keyboardMouse.get());
 }
 
 ScriptTool::~ScriptTool()
