@@ -42,7 +42,7 @@ ScriptTool::ScriptTool(QWidget *parent)
     setFixedSize(640, 480);
 
     filePathEdit = new QLineEdit(this);
-    filePathEdit->setPlaceholderText(tr("Select payload.txt file..."));
+    filePathEdit->setPlaceholderText(tr("Select autohotkey.ahk file..."));
     filePathEdit->setReadOnly(true);
 
     selectButton = new QPushButton(tr("Browse"), this);
@@ -81,9 +81,9 @@ void ScriptTool::selectFile()
     QString appPath = QCoreApplication::applicationDirPath();
     
     QString filePath = QFileDialog::getOpenFileName(this,
-        tr("Select Payload File"),
+        tr("Select autohotkey File"),
         appPath,
-        tr("Text Files (*.ahk);;All Files (*)"));
+        tr("Autohotkey Files (*.ahk);;All Files (*)"));
 
     if (!filePath.isEmpty()) {
         filePathEdit->setText(filePath);
