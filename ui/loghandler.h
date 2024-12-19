@@ -29,7 +29,14 @@
 #include <QTextStream>
 #include <QDateTime>
 #include <QMutex>
-
+#include <iostream>
+#include <QApplication>
+#include <QIcon>
+#include <QDateTime>
+#include <QDebug>
+#include <QThread>
+#include <QLoggingCategory>
+#include <QStyleFactory>
 
 class LogHandler : public QObject
 {
@@ -43,7 +50,7 @@ public:
     void enableLogStore();
     
     static void fileMessageHandler(QtMsgType type, const QMessageLogContext &context, const QString &msg);
-
+    static void customMessageHandler(QtMsgType type, const QMessageLogContext &context, const QString &msg);
 };
 
 

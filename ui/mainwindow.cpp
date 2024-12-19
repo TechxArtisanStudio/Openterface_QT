@@ -122,6 +122,24 @@ MainWindow::MainWindow() :  ui(new Ui::MainWindow),
                             m_versionInfoManager(new VersionInfoManager(this))
                             // cameraAdjust(new CameraAdjust(this))
 {
+    // #ifdef Q_OS_LINUX 
+    //     uint16_t hidvid = 0x534D;
+    //     uint16_t hidpid = 0x2109;
+    //     uint16_t ch34xvid = 0x1A86;
+    //     uint16_t ch34xpid = 0x7523;
+    //     bool hid = CheckDeviceAccess(hidvid, hidpid);
+    //     bool ch34x = CheckDeviceAccess(ch34xvid, ch34xpid);
+        
+    //     if (!(hid || ch34x)){
+    //         QString errorMessage = "Device access error:\n";
+    //         errorMessage += "HID: " + QString(hid ? "Accessible" : "Not accessible") + "\n";
+    //         errorMessage += "CH34X: " + QString(ch34x ? "Accessible" : "Not accessible") + "\n";
+    //         errorMessage += "Please get the hidraw and ttyUSB permission first.";
+    //         // Show the error message in a QMessageBox
+    //         QMessageBox::information(nullptr, "Device Error", errorMessage);
+    //     }
+    // #endif
+
     qCDebug(log_ui_mainwindow) << "Init camera...";
     ui->setupUi(this);
     m_statusBarManager = new StatusBarManager(ui->statusbar, this);
@@ -254,6 +272,7 @@ MainWindow::MainWindow() :  ui(new Ui::MainWindow),
 
     // Add this line after ui->setupUi(this)
     connect(ui->actionScriptTool, &QAction::triggered, this, &MainWindow::showScriptTool);
+    
 }
 
 void MainWindow::onZoomIn()
@@ -1034,5 +1053,32 @@ MainWindow::~MainWindow()
     }
     
     qCDebug(log_ui_mainwindow) << "MainWindow destroyed successfully";
+}
+
+bool MainWindow::CheckDeviceAccess(uint16_t vid, uint16_t pid) {
+    libusb_context *context;
+    int result = libusb_init(&context);
+    if (result < 0) return false;
+    libusb_device_handle *handle = libusb_open_device_with_vid_pid(context, vid, pid);
+    if (!handle) {
+        qDebug() << "Failed to open device: " << libusb_error_name(result);
+        libusb_close(handle);
+        libusb_exit(context);
+        return false;
+    }
+
+    int r = libusb_claim_interface(handle, 0);
+    if (r != LIBUSB_SUCCESS && r != LIBUSB_ERROR_BUSY) {
+        qDebug() << "Failed to claim interface: " << libusb_error_name(r);
+        libusb_close(handle);
+        
+        libusb_exit(context);
+        return false;
+    }
+    return true;
+    
+
+    libusb_exit(context);
+    
 }
 
