@@ -88,12 +88,34 @@ void SemanticAnalyzer::analyzeCommandStetement(const CommandStatementNode* node)
     if(commandName == "Send"){
         analyzeSendStatement(node);
     }
+    if(commandName == "Sleep"){
+        analyzeSleepStatement(node);
+    }
+}
+
+void SemanticAnalyzer::analyzeSleepStatement(const CommandStatementNode* node){
+    const auto& options = node->getOptions();
+
+    if (options.empty()){
+        qDebug(log_script) << "No sleep time set";
+    }
+    for (const auto& token : options){
+        // Assuming the first option is the sleep time in milliseconds
+        bool ok;
+        int sleepTime = QString::fromStdString(token).toInt(&ok);
+        
+        if (!ok || sleepTime < 0) {
+            continue; // Exit if the sleep time is invalid
+        }else{
+            qDebug(log_script) << "Sleeping for" << sleepTime << "milliseconds";
+            QThread::msleep(sleepTime); // Introduce the delay
+        }
+    }
 }
 
 void SemanticAnalyzer::analyzeSendStatement(const CommandStatementNode* node) {
     const auto& options = node->getOptions();
     // Map for special keys
-    
     
     if (options.empty()) {
         qDebug(log_script) << "No coordinates provided for Send command";
@@ -127,11 +149,9 @@ void SemanticAnalyzer::analyzeSendStatement(const CommandStatementNode* node) {
                     extractKeyFromBrace(tmpKeys, j, general, index);
                     index += 1;
                 }else if(controldata.contains(tmpKeys[j])){
-                    qDebug() << index << ": " << keydata.value(tmpKeys[j]);
                     general[index] = keydata.value(tmpKeys[j]);
                     index += 1;
                 }else{
-                    qDebug() << index << ": " << keydata.value(tmpKeys[j]);
                     general[index] = keydata.value(tmpKeys[j]);
                     i = j;
                     break;
@@ -156,11 +176,8 @@ void SemanticAnalyzer::extractKeyFromBrace(const QString& tmpKeys, int& i, std::
     for (int j = i + 1; j < tmpKeys.length(); j++) {
         if (tmpKeys[j] != '}') {
             tmpkey.append(tmpKeys[j]);
-            qDebug(log_script) << "tmpkey: " << tmpkey;
         } else {
             general[genral_index] = keydata.value(tmpkey);
-            qDebug(log_script) << "tmpkey: " << tmpkey;
-            qDebug(log_script) << "**********************";
             i = j;
             break;
         }

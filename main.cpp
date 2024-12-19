@@ -32,7 +32,6 @@
 #include <QThread>
 #include <QLoggingCategory>
 #include <QStyleFactory>
-#include <QProcess>
 
 void customMessageHandler(QtMsgType type, const QMessageLogContext &context, const QString &msg)
 {
@@ -70,37 +69,6 @@ void customMessageHandler(QtMsgType type, const QMessageLogContext &context, con
     std::cout << txt.toStdString() << std::endl;
 }
 
-QStringList getDevices(const QString &pattern){
-    QProcess process;
-    QStringList arguments;
-    arguments << "-c" << "ls " + pattern;
-
-    process.start("bash", arguments);
-    process.waitForFinished();
-
-    QString output = process.readAllStandardOutput();
-
-    return output.split('\n', Qt::SkipEmptyParts);
-}
-
-void setDevicePermissions(const QStringList &devices) {
-    QProcess process;
-    QStringList arguments;
-    arguments << "chmod" << "666"; 
-
-    // 添加所有设备
-    arguments.append(devices);
-
-    process.start("sudo", arguments);
-    process.waitForFinished();
-
-    if (process.exitCode() == 0) {
-        qDebug() << "Permissions set successfully.";
-    } else {
-        qDebug() << "Failed to set permissions:" << process.readAllStandardError();
-    }
-}
-
 void setupEnv(){
 #ifdef Q_OS_LINUX
     QString originalMediaBackend = qgetenv("QT_MEDIA_BACKEND");
@@ -116,14 +84,6 @@ void setupEnv(){
     } else {
         qDebug() << "Current QT_QPA_PLATFORM:" << qgetenv("QT_QPA_PLATFORM");
     }
-
-    QProcess process;
-    qDebug() << "**** Going to get the usb and hid device permission ****";
-    QStringList hid = getDevices("/dev/hidraw*");
-    QStringList ttyUSB = getDevices("/dev/ttyUSB*");
-    QStringList allDevices = hid + ttyUSB;
-    setDevicePermissions(allDevices);
-
 #endif
 }
 

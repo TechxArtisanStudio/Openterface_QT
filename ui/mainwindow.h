@@ -71,6 +71,8 @@
 #include <QStyle>
 #include <QEvent>
 #include <QScrollArea>
+#include <libusb-1.0/libusb.h>
+#include <QMessageBox>
 
 Q_DECLARE_LOGGING_CATEGORY(log_ui_mainwindow)
 
@@ -150,6 +152,8 @@ private slots:
 
     void onTargetUsbConnected(const bool isConnected) override;
     
+    bool CheckDeviceAccess(uint16_t vid, uint16_t pid);
+
 protected:
     void closeEvent(QCloseEvent *event) override;
     void resizeEvent(QResizeEvent* event) override;
