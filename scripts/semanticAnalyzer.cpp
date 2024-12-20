@@ -25,18 +25,17 @@
 #include <stdexcept>
 #include <QDebug>
 #include <QString>
-#include "keyboardMouse.h"
+#include "AHKKeyboard.h"
+#include "KeyboardMouse.h"
 
 Q_LOGGING_CATEGORY(log_script, "opf.scripts")
 
-SemanticAnalyzer::SemanticAnalyzer(MouseManager* mouseManager, KeyboardManager* keyboardManager) 
-    : mouseManager(mouseManager), keyboardManager(keyboardManager) {
+SemanticAnalyzer::SemanticAnalyzer(MouseManager* mouseManager, KeyboardMouse* keyboardMouse)
+    : mouseManager(mouseManager), keyboardMouse(keyboardMouse) {
     if (!mouseManager) {
         qDebug(log_script) << "MouseManager is not initialized!";
     }
-    if (!keyboardManager) {
-        qDebug(log_script) << "KeyboardManager is not initialized!";
-    }
+
 }
 
 void SemanticAnalyzer::analyze(const ASTNode* node) {
@@ -89,12 +88,34 @@ void SemanticAnalyzer::analyzeCommandStetement(const CommandStatementNode* node)
     if(commandName == "Send"){
         analyzeSendStatement(node);
     }
+    if(commandName == "Sleep"){
+        analyzeSleepStatement(node);
+    }
+}
+
+void SemanticAnalyzer::analyzeSleepStatement(const CommandStatementNode* node){
+    const auto& options = node->getOptions();
+
+    if (options.empty()){
+        qDebug(log_script) << "No sleep time set";
+    }
+    for (const auto& token : options){
+        // Assuming the first option is the sleep time in milliseconds
+        bool ok;
+        int sleepTime = QString::fromStdString(token).toInt(&ok);
+        
+        if (!ok || sleepTime < 0) {
+            continue; // Exit if the sleep time is invalid
+        }else{
+            qDebug(log_script) << "Sleeping for" << sleepTime << "milliseconds";
+            QThread::msleep(sleepTime); // Introduce the delay
+        }
+    }
 }
 
 void SemanticAnalyzer::analyzeSendStatement(const CommandStatementNode* node) {
     const auto& options = node->getOptions();
     // Map for special keys
-    
     
     if (options.empty()) {
         qDebug(log_script) << "No coordinates provided for Send command";
@@ -105,32 +126,62 @@ void SemanticAnalyzer::analyzeSendStatement(const CommandStatementNode* node) {
         qDebug(log_script) << QString::fromStdString(token);
         if (token != "\"") tmpKeys.append(QString::fromStdString(token));
     }
-    bool hasBrace = tmpKeys.contains("{");
-    qDebug(log_script) << "tmp key:" << tmpKeys;
-    if (!hasBrace){
-        // Iterate through each character in the text to send
-        for (const QString& ch : tmpKeys) {
-            qDebug(log_script) << "Sent key:" << ch;
-            if (specialKeys.contains(ch)) {
-                int keyCode = specialKeys[ch];
-                // Send the special key
-                qDebug(log_script) << "keycode: " << keyCode; 
-                keyboardManager->handleKeyboardAction(keyCode, 0, true); // Key down
-                keyboardManager->handleKeyboardAction(keyCode, 0, false); // Key up
-                
-            } else {
-                // Check if the character is a regular key
-                if (AHKmapping.contains(ch)) {
-                    int keyCode = AHKmapping.value(ch);
-                    // Send the regular key
-                    qDebug(log_script) << "keycode: " << keyCode; 
-                    keyboardManager->handleKeyboardAction(keyCode, 0, true); // Key down
-                    keyboardManager->handleKeyboardAction(keyCode, 0, false); // Key up
+    int i = 0;
+
+    std::vector<int> keys;
+    while (i<tmpKeys.length()){
+        const QChar& ch = tmpKeys[i];
+        
+        std::array<uint8_t, 6> general = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+        uint8_t control = 0x00;
+        if (ch != '{' && !controldata.contains(ch)){
+            general[0] = keydata.value(ch);
+        } else if(ch  == '{'){
+            qDebug(log_script) << "General data";
+            extractKeyFromBrace(tmpKeys, i, general);
+        } else if (controldata.contains(ch))
+        {
+            qDebug(log_script) << "control data";
+            int index = 0;
+            control = controldata.value(ch);
+            for (int j = i+1; j < tmpKeys.length(); j++){
+                if (tmpKeys[j] == '{'){
+                    extractKeyFromBrace(tmpKeys, j, general, index);
+                    index += 1;
+                }else if(controldata.contains(tmpKeys[j])){
+                    general[index] = keydata.value(tmpKeys[j]);
+                    index += 1;
+                }else{
+                    general[index] = keydata.value(tmpKeys[j]);
+                    i = j;
+                    break;
                 }
             }
         }
+        keyPacket pack(general,control);
+        keyboardMouse->addKeyPacket(pack);
+        i++;
     }
 
+    keyboardMouse->executeCommand();
+    // for (int i =0; i<keys.size(); i++){
+    //     keyboardManager->handleKeyboardAction(keys[i], 0, true);
+    //     keyboardManager->handleKeyboardAction(keys[i], 0, false);
+    // }
+
+}
+
+void SemanticAnalyzer::extractKeyFromBrace(const QString& tmpKeys, int& i, std::array<uint8_t, 6>& general, int genral_index){
+    QString tmpkey;
+    for (int j = i + 1; j < tmpKeys.length(); j++) {
+        if (tmpKeys[j] != '}') {
+            tmpkey.append(tmpKeys[j]);
+        } else {
+            general[genral_index] = keydata.value(tmpkey);
+            i = j;
+            break;
+        }
+    }
 }
 
 void SemanticAnalyzer::analyzeClickStatement(const CommandStatementNode* node) {

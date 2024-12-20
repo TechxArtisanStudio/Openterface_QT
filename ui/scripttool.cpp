@@ -27,20 +27,22 @@
 #include <QCoreApplication>
 #include <QShortcut>
 #include <QDebug>
+#include <thread>
 #include "../scripts/Lexer.h"
 #include "../scripts/Parser.h"
 #include "../scripts/semanticAnalyzer.h"
+#include "../scripts/KeyboardMouse.h"
 
 Q_DECLARE_LOGGING_CATEGORY(log_script)
 
 ScriptTool::ScriptTool(QWidget *parent)
     : QDialog(parent)
 {
-    setWindowTitle(tr("Bash Bunny Script Tool"));
+    setWindowTitle(tr("Autohotkey Script Tool"));
     setFixedSize(640, 480);
 
     filePathEdit = new QLineEdit(this);
-    filePathEdit->setPlaceholderText(tr("Select payload.txt file..."));
+    filePathEdit->setPlaceholderText(tr("Select autohotkey.ahk file..."));
     filePathEdit->setReadOnly(true);
 
     selectButton = new QPushButton(tr("Browse"), this);
@@ -66,8 +68,8 @@ ScriptTool::ScriptTool(QWidget *parent)
     connect(runButton, &QPushButton::clicked, this, &ScriptTool::runScript);
 
     mouseManager = std::make_unique<MouseManager>();
-    keyboardManager = std::make_unique<KeyboardManager>();
-    semanticAnalyzer = std::make_unique<SemanticAnalyzer>(mouseManager.get(), keyboardManager.get());
+    keyboardMouse = std::make_unique<KeyboardMouse>();
+    semanticAnalyzer = std::make_unique<SemanticAnalyzer>(mouseManager.get(), keyboardMouse.get());
 }
 
 ScriptTool::~ScriptTool()
@@ -79,9 +81,9 @@ void ScriptTool::selectFile()
     QString appPath = QCoreApplication::applicationDirPath();
     
     QString filePath = QFileDialog::getOpenFileName(this,
-        tr("Select Payload File"),
+        tr("Select autohotkey File"),
         appPath,
-        tr("Text Files (*.ahk);;All Files (*)"));
+        tr("Autohotkey Files (*.ahk);;All Files (*)"));
 
     if (!filePath.isEmpty()) {
         filePathEdit->setText(filePath);
@@ -159,6 +161,9 @@ void ScriptTool::processAST(ASTNode* node)
     if (!node) return;
 
     // Use the semantic analyzer to process the AST
-    semanticAnalyzer->analyze(node);
+    std::thread t([this, node]() {
+            semanticAnalyzer->analyze(node);
+        });
+    t.detach();
 }
 

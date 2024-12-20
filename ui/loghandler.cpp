@@ -47,7 +47,7 @@ void LogHandler::enableLogStore()
     }
     else
     {
-        qInstallMessageHandler(0);      // Reset to default handler
+        qInstallMessageHandler(customMessageHandler);      // Reset to default handler
     }
     qDebug() << "Enable log store done";
 }
@@ -66,11 +66,15 @@ void LogHandler::fileMessageHandler(QtMsgType type, const QMessageLogContext &co
     }
 
     QTextStream ts(&outFile);
-    QString txt;
+    
     // qDebug() << "Write log to file test";
     // Get the category name
     const char* categoryName = context.category;
+    QString timestamp = QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm:ss");
+    QThread *currentThread = QThread::currentThread();
+    QString threadName = currentThread->objectName().isEmpty() ? QString::number(reinterpret_cast<quintptr>(currentThread->currentThreadId())) : currentThread->objectName();
     QString category = categoryName ? QString(categoryName) : "default";
+    QString txt = QString("[%1][%2] ").arg(timestamp).arg(threadName);
 
     switch (type)
     {
@@ -91,4 +95,41 @@ void LogHandler::fileMessageHandler(QtMsgType type, const QMessageLogContext &co
     ts << QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss.zzz");
     ts << " [" << category << "] " << txt << " (" << context.file << ":" << context.line << ", " << context.function << ")\n";
     ts.flush();
+}
+
+
+void LogHandler::customMessageHandler(QtMsgType type, const QMessageLogContext &context, const QString &msg)
+{
+    Q_UNUSED(context)
+
+
+    QString timestamp = QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm:ss");
+    QThread *currentThread = QThread::currentThread();
+    QString threadName = currentThread->objectName().isEmpty() ? QString::number(reinterpret_cast<quintptr>(currentThread->currentThreadId())) : currentThread->objectName();
+    QString txt = QString("[%1][%2] ").arg(timestamp).arg(threadName);
+    
+    switch (type) {
+        case QtDebugMsg:
+            txt += QString("{Debug}: %1").arg(msg);
+            break;
+        case QtWarningMsg:
+            txt += QString("{Warning}: %1").arg(msg);
+            break;
+        case QtCriticalMsg:
+            txt += QString("{Critical}: %1").arg(msg);
+            break;
+        case QtFatalMsg:
+            txt += QString("{Fatal}: %1").arg(msg);
+            break;
+        case QtInfoMsg:
+            txt += QString("{Info}: %1").arg(msg);
+            break;
+    }
+
+    // QFile outFile("log.txt");
+    // outFile.open(QIODevice::WriteOnly | QIODevice::Append);
+    // QTextStream textStream(&outFile);
+    // textStream << txt << endl;
+    
+    std::cout << txt.toStdString() << std::endl;
 }
