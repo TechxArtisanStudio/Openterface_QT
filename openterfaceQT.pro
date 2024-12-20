@@ -46,7 +46,8 @@ SOURCES += main.cpp \
     host/usbcontrol.cpp \
     scripts/Lexer.cpp \
     scripts/Parser.cpp \
-    scripts/semanticAnalyzer.cpp
+    scripts/semanticAnalyzer.cpp \
+    scripts/KeyboardMouse.cpp 
 
 HEADERS  += \
     global.h \
@@ -87,8 +88,8 @@ HEADERS  += \
     host/usbcontrol.h \
     scripts/Lexer.h \
     scripts/Parser.h \
-    scripts/semanticAnalyzer.h
-
+    scripts/semanticAnalyzer.h \
+    scripts/KeyboardMouse.h
 FORMS    += \
     ui/mainwindow.ui \
     ui/settingdialog.ui 

@@ -26,25 +26,29 @@
 
 #include "AST.h"
 #include "target/MouseManager.h"
-#include "target/KeyboardManager.h"
+// #include "target/KeyboardManager.h"
+#include "KeyboardMouse.h"
 #include <memory>
 #include <QPoint>
 #include <QString>
 
 class SemanticAnalyzer {
 public:
-    SemanticAnalyzer(MouseManager* mouseManager, KeyboardManager* keyboardManager);
+    SemanticAnalyzer(MouseManager* mouseManager, KeyboardMouse* keyboardMouse);
     void analyze(const ASTNode* node);
 
 private:
     MouseManager* mouseManager;
-    KeyboardManager* keyboardManager;
+    // KeyboardManager* keyboardManager;
+    KeyboardMouse* keyboardMouse;
     void analyzeCommandStetement(const CommandStatementNode* node);
     void analyzeClickStatement(const CommandStatementNode* node);
     void analyzeSendStatement(const CommandStatementNode* node);
     QPoint parseCoordinates(const std::vector<std::string>& options);
     int parseMouseButton(const std::vector<std::string>& options);
     void resetParameters();
+    void extractKeyFromBrace(const QString& tmpKeys, int& i, std::array<uint8_t, 6>& general, int genral_index = 0);
+    void analyzeSleepStatement(const CommandStatementNode* node);
 };
 
 #endif // SEMANTIC_ANALYZER_H
