@@ -31,6 +31,8 @@
 #include <QTextEdit>
 #include <QThread>
 #include <QFile>
+#include <QGuiApplication>
+#include <QPalette>
 #include "../scripts/Lexer.h"
 #include "../scripts/Parser.h"
 #include "../scripts/semanticAnalyzer.h"
@@ -47,11 +49,14 @@ public:
 private slots:
     void selectFile();
     void runScript();
+    void saveScript();
 
 private:
     QLineEdit *filePathEdit;
     QPushButton *selectButton;
     QPushButton *runButton;
+    QPushButton *saveButton;
+    QPushButton *cancelButton;
     QTextEdit *scriptEdit;
     QFile currentFile;
     Lexer lexer;
@@ -61,6 +66,7 @@ private:
     std::unique_ptr<KeyboardMouse> keyboardMouse;
     std::unique_ptr<SemanticAnalyzer> semanticAnalyzer;
     void processAST(ASTNode *node);
+    QString highlightTokens(const std::vector<Token>& tokens);
 };
 
 #endif // SCRIPTTOOL_H
