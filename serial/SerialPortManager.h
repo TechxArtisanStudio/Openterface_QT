@@ -61,6 +61,10 @@ public:
     void closePort();
     bool restartPort();
 
+    bool getNumLockState(){return NumLockState;};
+    bool getCapsLockState(){return CapsLockState;};
+    bool getScrollLockState(){return ScrollLockState;};
+
     bool writeData(const QByteArray &data);
     bool sendAsyncCommand(const QByteArray &data, bool force);
     bool sendResetCommand();
@@ -127,13 +131,18 @@ private:
     StatusEventCallback* eventCallback = nullptr;
     bool isSwitchToHost = false;
     bool isTargetUsbConnected = false;
-    
+    bool NumLockState;
+    bool CapsLockState;
+    bool ScrollLockState;
+    void updateSpecialKeyState(uint8_t data);
+
     // Variable to store the latest update time
     QDateTime latestUpdateTime;
     QElapsedTimer m_lastCommandTime;  // New member for timing
     int m_commandDelayMs;  // New member for configurable delay
 
     void enableNotifier();
+    
 };
 
 #endif // SERIALPORTMANAGER_H
