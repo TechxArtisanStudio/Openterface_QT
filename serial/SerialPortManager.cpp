@@ -399,6 +399,15 @@ bool SerialPortManager::restartPort() {
         return ready;
 }
 
+
+void SerialPortManager::updateSpecialKeyState(uint8_t data){
+
+    qCDebug(log_core_serial) << "Data recived: " << data;
+    NumLockState = (data & 0b00000001) != 0; // NumLockState bit
+    CapsLockState = (data & 0b00000010) != 0; // CapsLockState bit
+    ScrollLockState = (data & 0b00000100) != 0; // ScrollLockState bit
+    
+}
 /*
  * Read the data from the serial port
  */
@@ -424,6 +433,7 @@ void SerialPortManager::readData() {
             case 0x81:
                 isTargetUsbConnected = CmdGetInfoResult::fromByteArray(data).targetConnected == 0x01;
                 eventCallback->onTargetUsbConnected(isTargetUsbConnected);
+                updateSpecialKeyState(CmdGetInfoResult::fromByteArray(data).indicators);
                 break;
             case 0x82:
                 qCDebug(log_core_serial) << "Keyboard event sent, status" << data[5];

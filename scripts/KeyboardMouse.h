@@ -71,9 +71,14 @@ public:
 
     void addKeyPacket(const keyPacket& packet);
     void executeCommand();
+    void updateNumCapsScrollLockState();
+    bool getNumLockState_();
+    bool getCapsLockState_();
+    bool getScrollLockState_();
 
 private:
     std::queue<keyPacket> keyData;
+
 };
 
 const QMap<QString, uint8_t> controldata = {
