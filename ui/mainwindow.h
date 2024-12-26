@@ -43,6 +43,9 @@
 #include "host/usbcontrol.h"
 #include "ui/cameraajust.h"
 #include "ui/scripttool.h"
+#include "ui/TaskManager.h"
+#include "../scripts/semanticAnalyzer.h"
+#include "../scripts/AST.h"
 
 #include <QAudioInput>
 #include <QAudioOutput>
@@ -97,6 +100,9 @@ public:
     void stop();
     // Add this line to declare the destructor
     ~MainWindow() override;
+
+public slots:
+    void handleSyntaxTree(std::shared_ptr<ASTNode> syntaxTree);
 
 private slots:
     void initCamera();
@@ -263,7 +269,10 @@ private:
     USBControl *usbControl;
 
     // CameraAdjust *cameraAdjust;
-
+    std::unique_ptr<MouseManager> mouseManager;
+    std::unique_ptr<KeyboardMouse> keyboardMouse;
+    std::unique_ptr<SemanticAnalyzer> semanticAnalyzer;
+    TaskManager* taskmanager;
     void showScriptTool();
 };
 #endif // MAINWINDOW_H

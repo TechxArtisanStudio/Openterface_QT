@@ -56,6 +56,8 @@ void KeyboardMouse::executeCommand(){
     }
 }
 
+
+
 void KeyboardMouse::updateNumCapsScrollLockState(){
     emit SerialPortManager::getInstance().sendCommandAsync(CMD_GET_INFO, false);
 }

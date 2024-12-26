@@ -38,6 +38,7 @@ SOURCES += main.cpp \
     ui/audiopage.cpp \
     ui/cameraajust.cpp \
     ui/scripttool.cpp \
+    ui/TaskManager.cpp \
     host/HostManager.cpp \
     serial/SerialPortManager.cpp \
     target/KeyboardManager.cpp \
@@ -77,6 +78,7 @@ HEADERS  += \
     ui/audiopage.h \
     ui/cameraajust.h \
     ui/scripttool.h \
+    ui/TaskManager.h \
     host/HostManager.h \
     serial/ch9329.h \
     serial/SerialPortManager.h \

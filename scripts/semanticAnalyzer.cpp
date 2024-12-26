@@ -91,6 +91,119 @@ void SemanticAnalyzer::analyzeCommandStetement(const CommandStatementNode* node)
     if(commandName == "Sleep"){
         analyzeSleepStatement(node);
     }
+    if(commandName == "SetCapsLockState"){
+        analyzeCapsLockState(node);
+    }
+    if(commandName == "SetNumLockState"){
+        analyzeNumLockState(node);
+    }
+    if(commandName == "SetScrollLockState"){
+        analyzeScrollLockState(node);
+    }
+}
+
+void SemanticAnalyzer::analyzeCapsLockState(const CommandStatementNode* node){
+    const auto& options = node->getOptions();
+    std::array<uint8_t, 6> general = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+    if (options.empty()){
+        qDebug(log_script) << "Please enter parameters.";
+        return;
+    }
+    QString tmpKeys;
+    for (const auto& token : options){
+        qDebug(log_script) << "cap lock token: " << token;
+        if (token != "\"") tmpKeys.append(QString::fromStdString(token));
+    }
+    if (tmpKeys.contains("True", Qt::CaseInsensitive)){
+        keyboardMouse->updateNumCapsScrollLockState();
+        if (!keyboardMouse->getCapsLockState_()){
+            general[0] = keydata.value("CapsLock");
+            keyPacket pack(general);
+            keyboardMouse->addKeyPacket(pack);
+            keyboardMouse->executeCommand();
+        }
+    }
+    if (tmpKeys.contains("False", Qt::CaseInsensitive)){
+        keyboardMouse->updateNumCapsScrollLockState();
+        if (keyboardMouse->getCapsLockState_()) {
+            general[0] = keydata.value("CapsLock");
+            keyPacket pack(general);
+            keyboardMouse->addKeyPacket(pack);
+            keyboardMouse->executeCommand();
+        }
+    }
+
+}
+
+void SemanticAnalyzer::analyzeNumLockState(const CommandStatementNode* node){
+    const auto& options = node->getOptions();
+    std::array<uint8_t, 6> general = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+    if (options.empty()){
+        qDebug(log_script) << "Please enter parameters.";
+        return;
+    }
+    QString tmpKeys;
+    for (const auto& token : options){
+        qDebug(log_script) << "num lock token: " << token;
+        if (token != "\"") tmpKeys.append(QString::fromStdString(token));
+    }
+    if (tmpKeys.contains("1", Qt::CaseInsensitive) || 
+        tmpKeys.contains("True", Qt::CaseInsensitive) || 
+        tmpKeys.contains("On", Qt::CaseInsensitive)){
+        keyboardMouse->updateNumCapsScrollLockState();
+        if (!keyboardMouse->getNumLockState_()){
+            general[0] = keydata.value("NumLock");
+            keyPacket pack(general);
+            keyboardMouse->addKeyPacket(pack);
+            keyboardMouse->executeCommand();
+        }
+
+    }
+    if (tmpKeys.contains("0", Qt::CaseInsensitive) || 
+        tmpKeys.contains("False", Qt::CaseInsensitive) || 
+        tmpKeys.contains("Off", Qt::CaseInsensitive)){
+        keyboardMouse->updateNumCapsScrollLockState();
+        if (!keyboardMouse->getNumLockState_()){
+            general[0] = keydata.value("NumLock");
+            keyPacket pack(general);
+            keyboardMouse->addKeyPacket(pack);
+            keyboardMouse->executeCommand();
+        }
+    }
+    
+}
+
+void SemanticAnalyzer::analyzeScrollLockState(const CommandStatementNode* node){
+    const auto& options = node->getOptions();
+    std::array<uint8_t, 6> general = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+    if (options.empty()){
+        qDebug(log_script) << "Please enter parameters.";
+        return;
+    }
+    QString tmpKeys;
+    for (const auto& token : options){
+        qDebug(log_script) << "scroll lock token: " << token;
+        if (token != "\"") tmpKeys.append(QString::fromStdString(token));
+    }
+    if (tmpKeys.contains("True", Qt::CaseInsensitive)){
+        keyboardMouse->updateNumCapsScrollLockState();
+        if (!keyboardMouse->getScrollLockState_()){
+            general[0] = keydata.value("ScrollLock");
+            keyPacket pack(general);
+            keyboardMouse->addKeyPacket(pack);
+            keyboardMouse->executeCommand();
+        }
+    }
+    if (tmpKeys.contains("False", Qt::CaseInsensitive)){
+        keyboardMouse->updateNumCapsScrollLockState();
+        if (keyboardMouse->getScrollLockState_()){
+            general[0] = keydata.value("ScrollLock");
+            keyPacket pack(general);
+            keyboardMouse->addKeyPacket(pack);
+            keyboardMouse->executeCommand();
+        };
+    }
+
 }
 
 void SemanticAnalyzer::analyzeSleepStatement(const CommandStatementNode* node){
@@ -98,6 +211,7 @@ void SemanticAnalyzer::analyzeSleepStatement(const CommandStatementNode* node){
 
     if (options.empty()){
         qDebug(log_script) << "No sleep time set";
+        return;
     }
     for (const auto& token : options){
         // Assuming the first option is the sleep time in milliseconds

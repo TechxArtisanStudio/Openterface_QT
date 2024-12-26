@@ -30,7 +30,7 @@
 #include <thread>
 #include "../scripts/Lexer.h"
 #include "../scripts/Parser.h"
-#include "../scripts/semanticAnalyzer.h"
+// #include "../scripts/semanticAnalyzer.h"
 #include "../scripts/KeyboardMouse.h"
 
 Q_DECLARE_LOGGING_CATEGORY(log_script)
@@ -82,9 +82,6 @@ ScriptTool::ScriptTool(QWidget *parent)
     connect(saveButton, &QPushButton::clicked, this, &ScriptTool::saveScript);
     connect(cancelButton, &QPushButton::clicked, this, &ScriptTool::close);
 
-    mouseManager = std::make_unique<MouseManager>();
-    keyboardMouse = std::make_unique<KeyboardMouse>();
-    semanticAnalyzer = std::make_unique<SemanticAnalyzer>(mouseManager.get(), keyboardMouse.get());
 }
 
 ScriptTool::~ScriptTool()
@@ -132,29 +129,25 @@ void ScriptTool::runScript()
         return;
     }
 
-    // Use the syntax tree as needed
     lexer.setSource(scriptEdit->toPlainText().toStdString());
     tokens = lexer.tokenize();
 
     Parser parser(tokens);
-    std::unique_ptr<ASTNode> syntaxTree = parser.parse();
-    qDebug(log_script) << "synctaxTree: " << syntaxTree.get();
-    // Process the AST
-    processAST(syntaxTree.get());
+    std::shared_ptr<ASTNode> syntaxTree = parser.parse();
+    // qDebug(log_script) << "synctaxTree: " << syntaxTree.get();
 
-    QMessageBox::information(this, tr("Script Execution"), 
-        tr("Script execution will be implemented here.\nSelected file: %1").arg(filePath));
+    // Emit the signal with the syntaxTree
+    emit syntaxTreeReady(syntaxTree);
+
+    // QMessageBox::information(this, tr("Script Execution"), 
+    //     tr("Script execution will be implemented here.\nSelected file: %1").arg(filePath));
 }
 
 void ScriptTool::processAST(ASTNode* node)
 {
     if (!node) return;
 
-    // Use the semantic analyzer to process the AST
-    std::thread t([this, node]() {
-            semanticAnalyzer->analyze(node);
-        });
-    t.detach();
+    
 }
 
 void ScriptTool::saveScript()
