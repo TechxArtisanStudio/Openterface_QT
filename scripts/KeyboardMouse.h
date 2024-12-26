@@ -40,6 +40,8 @@
 #include <QDebug>
 #include <QObject>
 #include "serial/SerialPortManager.h"
+#include "AST.h"
+
 
 // keyboard data packet
 struct keyPacket
