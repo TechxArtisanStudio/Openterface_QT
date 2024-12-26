@@ -206,4 +206,3 @@ QString ScriptTool::highlightTokens(const std::vector<Token>& tokens) {
     }
     return styledText;
 }
-
