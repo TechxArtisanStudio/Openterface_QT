@@ -111,7 +111,6 @@ void SemanticAnalyzer::analyzeCapsLockState(const CommandStatementNode* node){
     }
     QString tmpKeys;
     for (const auto& token : options){
-        qDebug(log_script) << "cap lock token: " << token;
         if (token != "\"") tmpKeys.append(QString::fromStdString(token));
     }
     if (tmpKeys.contains("True", Qt::CaseInsensitive)){
@@ -144,7 +143,6 @@ void SemanticAnalyzer::analyzeNumLockState(const CommandStatementNode* node){
     }
     QString tmpKeys;
     for (const auto& token : options){
-        qDebug(log_script) << "num lock token: " << token;
         if (token != "\"") tmpKeys.append(QString::fromStdString(token));
     }
     if (tmpKeys.contains("1", Qt::CaseInsensitive) || 
@@ -182,7 +180,6 @@ void SemanticAnalyzer::analyzeScrollLockState(const CommandStatementNode* node){
     }
     QString tmpKeys;
     for (const auto& token : options){
-        qDebug(log_script) << "scroll lock token: " << token;
         if (token != "\"") tmpKeys.append(QString::fromStdString(token));
     }
     if (tmpKeys.contains("True", Qt::CaseInsensitive)){
