@@ -64,3 +64,26 @@
 - The software allows for easy switching between USB ports, enhancing device management.
 - The Openterface KVM has a USB interface to connect devices such as mouse and keyboard.
 - Users can switch between the host side and the target side.
+
+## Script Execution
+- Users can run scripts using the Script Tool feature in the application.
+- To run a script:
+  1. Open the Script Tool from the main menu.
+  2. Select the desired script file (e.g., `autohotkey.ahk`).
+  3. Click on the "Run Script" button to execute the script.
+
+## Editing Scripts
+- Users can edit existing scripts directly within the Script Tool.
+- To edit a script:
+  1. Open the desired script file in the Script Tool.
+  2. Make the necessary changes in the text editor provided.
+  3. Click the "Save" button to save the changes to the file.
+
+## Supported Commands
+The following commands are supported in the scripts:
+- **Sleep**: Pauses execution for a specified duration.
+- **Send**: Sends keystrokes to the target application.
+- **Click**: Simulates mouse clicks.
+- **SetCapsLockState**: Toggles the Caps Lock state.
+- **SetNumLockState**: Toggles the Num Lock state.
+- **SetScrollLockState**: Toggles the Scroll Lock state.
