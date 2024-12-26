@@ -33,12 +33,11 @@
 #include "ui/settingdialog.h"
 #include "ui/helppane.h"
 #include "ui/serialportdebugdialog.h"
-
 #include "ui/videopane.h"
 #include "video/videohid.h"
 #include "ui/versioninfomanager.h"
-
 #include "ui/cameraajust.h"
+#include "ui/TaskManager.h"
 
 #include <QCameraDevice>
 #include <QMediaDevices>
@@ -72,6 +71,7 @@
 #include <QComboBox>
 #include <QScrollBar>
 #include <QGuiApplication>
+
 
 Q_LOGGING_CATEGORY(log_ui_mainwindow, "opf.ui.mainwindow")
 
@@ -143,6 +143,9 @@ MainWindow::MainWindow() :  ui(new Ui::MainWindow),
     qCDebug(log_ui_mainwindow) << "Init camera...";
     ui->setupUi(this);
     m_statusBarManager = new StatusBarManager(ui->statusbar, this);
+    taskmanager = TaskManager::instance();
+
+
     QWidget *centralWidget = new QWidget(this);
     centralWidget->setLayout(stackedLayout);
     centralWidget->setMouseTracking(true);
@@ -272,7 +275,12 @@ MainWindow::MainWindow() :  ui(new Ui::MainWindow),
 
     // Add this line after ui->setupUi(this)
     connect(ui->actionScriptTool, &QAction::triggered, this, &MainWindow::showScriptTool);
-    
+    mouseManager = std::make_unique<MouseManager>();
+    keyboardMouse = std::make_unique<KeyboardMouse>();
+    semanticAnalyzer = std::make_unique<SemanticAnalyzer>(mouseManager.get(), keyboardMouse.get());
+
+    ScriptTool *scriptTool = new ScriptTool(this);
+    connect(scriptTool, &ScriptTool::syntaxTreeReady, this, &MainWindow::handleSyntaxTree);
 }
 
 void MainWindow::onZoomIn()
@@ -1036,8 +1044,22 @@ void MainWindow::showScriptTool()
     qDebug() << "showScriptTool called";  // Add debug output
     ScriptTool *scriptTool = new ScriptTool(this);
     scriptTool->setAttribute(Qt::WA_DeleteOnClose);
-    scriptTool->exec();  // Change show() to exec() for modal dialog
+    
+    // Connect the syntaxTreeReady signal to the handleSyntaxTree slot
+    connect(scriptTool, &ScriptTool::syntaxTreeReady, this, &MainWindow::handleSyntaxTree);
+    
+    scriptTool->show();  // Change exec() to show() for non-modal dialog
 }
+
+void MainWindow::handleSyntaxTree(std::shared_ptr<ASTNode> syntaxTree) {
+    // Handle the received syntaxTree here
+    qCDebug(log_ui_mainwindow) << "Received syntaxTree in MainWindow";
+    // Process the syntaxTree as needed
+    qCDebug(log_ui_mainwindow) << syntaxTree.get();
+    taskmanager->addTask([this, syntaxTree]() {
+        semanticAnalyzer->analyze(syntaxTree.get());
+    });
+} 
 
 MainWindow::~MainWindow()
 {
