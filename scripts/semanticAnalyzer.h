@@ -24,7 +24,7 @@
 #ifndef SEMANTIC_ANALYZER_H
 #define SEMANTIC_ANALYZER_H
 
-#include "AST.h"
+
 #include "target/MouseManager.h"
 // #include "target/KeyboardManager.h"
 #include "KeyboardMouse.h"
@@ -49,6 +49,10 @@ private:
     void resetParameters();
     void extractKeyFromBrace(const QString& tmpKeys, int& i, std::array<uint8_t, 6>& general, int genral_index = 0);
     void analyzeSleepStatement(const CommandStatementNode* node);
+    void analyzeCapsLockState(const CommandStatementNode* node);
+    void analyzeNumLockState(const CommandStatementNode* node);
+    void analyzeScrollLockState(const CommandStatementNode* node);
+    
 };
 
 #endif // SEMANTIC_ANALYZER_H

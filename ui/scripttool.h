@@ -46,6 +46,9 @@ public:
     explicit ScriptTool(QWidget *parent = nullptr);
     ~ScriptTool();
 
+signals:
+    void syntaxTreeReady(std::shared_ptr<ASTNode> syntaxTree);
+
 private slots:
     void selectFile();
     void runScript();
@@ -62,9 +65,7 @@ private:
     Lexer lexer;
     std::vector<Token> tokens;
     QString fileContents;
-    std::unique_ptr<MouseManager> mouseManager;
-    std::unique_ptr<KeyboardMouse> keyboardMouse;
-    std::unique_ptr<SemanticAnalyzer> semanticAnalyzer;
+    
     void processAST(ASTNode *node);
     QString highlightTokens(const std::vector<Token>& tokens);
 };
