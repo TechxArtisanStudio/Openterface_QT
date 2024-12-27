@@ -92,14 +92,14 @@ struct keyPacket {
         byteArray.append(mouseMode);
         byteArray.append(mouseButton);
 
-        if (mouseMode == 0x01) { // ABS
+        if (mouseMode == 0x02) { // ABS
             for (const auto& byte : mouseCoord.abs.x) {
                 byteArray.append(byte);
             }
             for (const auto& byte : mouseCoord.abs.y) {
                 byteArray.append(byte);
             }
-        } else if (mouseMode == 0x02) { // REL
+        } else if (mouseMode == 0x01) { // REL
             byteArray.append(mouseCoord.rel.x);
             byteArray.append(mouseCoord.rel.y);
         }
