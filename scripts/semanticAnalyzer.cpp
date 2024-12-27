@@ -100,6 +100,9 @@ void SemanticAnalyzer::analyzeCommandStetement(const CommandStatementNode* node)
     if(commandName == "SetScrollLockState"){
         analyzeScrollLockState(node);
     }
+    if(commandName == "MouseMove"){
+        analyzeMouseMove(node);
+    }
 }
 
 void SemanticAnalyzer::analyzeCapsLockState(const CommandStatementNode* node){
@@ -378,4 +381,15 @@ int SemanticAnalyzer::parseMouseButton(const std::vector<std::string>& options) 
     // qDebug(log_script) << "Parsed mouse button:" << mouseButton << "from options:" << options;
 
     return mouseButton;
+}
+
+void SemanticAnalyzer::analyzeMouseMove(const CommandStatementNode* node) {
+    const auto& options = node->getOptions();
+    if (options.empty()) {
+        qDebug(log_script) << "No coordinates provided for MouseMove command";
+        return;
+    }
+    
+    // Parse coordinates and speed from options
+    QPoint coords = parseCoordinates(options);
 }

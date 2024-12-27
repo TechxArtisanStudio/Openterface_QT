@@ -47,7 +47,7 @@ void KeyboardMouse::executeCommand(){
     QByteArray data = CMD_SEND_KB_GENERAL_DATA;
     QByteArray release = CMD_SEND_KB_GENERAL_DATA;
     while(!keyData.empty()){
-        QByteArray tmpKeyData = keyData.front().toQByteArray();
+        QByteArray tmpKeyData = keyData.front().KeytoQByteArray();
         qDebug() << "Data: " << tmpKeyData;
         data.replace(data.size() - 8, 8, tmpKeyData);   // replace the last 8 byte data
         emit SerialPortManager::getInstance().sendCommandAsync(data, false);
@@ -56,7 +56,13 @@ void KeyboardMouse::executeCommand(){
     }
 }
 
+void KeyboardMouse::setMouseSpeed(int speed){
+    mouseSpeed = speed;
+}
 
+int KeyboardMouse::getMouseSpeed(){
+    return mouseSpeed;
+}
 
 void KeyboardMouse::updateNumCapsScrollLockState(){
     emit SerialPortManager::getInstance().sendCommandAsync(CMD_GET_INFO, false);
