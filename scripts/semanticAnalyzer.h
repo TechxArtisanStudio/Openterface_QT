@@ -18,7 +18,7 @@
 *    along with this program. If not, see <http://www.gnu.org/licenses/>.    *
 *                                                                            *
 * ========================================================================== *
-*/ 
+*/
 
 
 #ifndef SEMANTIC_ANALYZER_H
@@ -31,6 +31,8 @@
 #include <memory>
 #include <QPoint>
 #include <QString>
+#include <QRegularExpression>
+
 
 class SemanticAnalyzer {
 public:
@@ -49,10 +51,12 @@ private:
     void resetParameters();
     void extractKeyFromBrace(const QString& tmpKeys, int& i, std::array<uint8_t, 6>& general, int genral_index = 0);
     void analyzeSleepStatement(const CommandStatementNode* node);
-    void analyzeCapsLockState(const CommandStatementNode* node);
-    void analyzeNumLockState(const CommandStatementNode* node);
-    void analyzeScrollLockState(const CommandStatementNode* node);
+    
     void analyzeMouseMove(const CommandStatementNode* node);
+    QRegularExpression onRegex{QString("^(1|True|On)$"), QRegularExpression::CaseInsensitiveOption};
+    QRegularExpression offRegex{QString("^(0|False|Off)$"), QRegularExpression::CaseInsensitiveOption};
+    void analyzeLockState(const CommandStatementNode* node, const QString& keyName, bool (KeyboardMouse::*getStateFunc)());
+    
 };
 
 #endif // SEMANTIC_ANALYZER_H
