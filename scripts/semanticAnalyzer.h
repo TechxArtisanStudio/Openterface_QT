@@ -52,7 +52,7 @@ private:
     void analyzeCapsLockState(const CommandStatementNode* node);
     void analyzeNumLockState(const CommandStatementNode* node);
     void analyzeScrollLockState(const CommandStatementNode* node);
-    
+    void analyzeMouseMove(const CommandStatementNode* node);
 };
 
 #endif // SEMANTIC_ANALYZER_H
