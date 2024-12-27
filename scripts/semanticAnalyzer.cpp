@@ -100,9 +100,6 @@ void SemanticAnalyzer::analyzeCommandStetement(const CommandStatementNode* node)
     if(commandName == "SetScrollLockState"){
         analyzeScrollLockState(node);
     }
-    if(commandName == "MouseMove"){
-        analyzeMouseMove(node);
-    }
 }
 
 void SemanticAnalyzer::analyzeCapsLockState(const CommandStatementNode* node){
