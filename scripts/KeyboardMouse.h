@@ -44,22 +44,68 @@
 
 
 // keyboard data packet
-struct keyPacket
-{
+union Coordinate {
+    struct {
+        uint8_t x[2];
+        uint8_t y[2];
+    } abs;
+    struct {
+        uint8_t x;
+        uint8_t y;
+    } rel;
+};
+
+struct keyPacket {
+    // data of keys
     uint8_t control = 0x00;
     uint8_t constant = 0x00;
-    std::array<uint8_t, 6> general;
+    std::array<uint8_t, 6> keyGeneral;
 
+    uint8_t mouseMode = 0x00;
+    uint8_t mouseButton = 0x00;
+
+    Coordinate mouseCoord;
+    uint8_t mouseRollWheel = 0x00;
+
+    // packet key data
     keyPacket(const std::array<uint8_t, 6>& gen, uint8_t ctrl = 0x00)
-        : control(ctrl), general(gen) {}
+        : control(ctrl), keyGeneral(gen) {}
 
-    QByteArray toQByteArray() const {
+    // packet Mouse data (unified for ABS and REL)
+    keyPacket(uint8_t mouseMode, uint8_t mouseButton, const Coordinate& coord, uint8_t mouseRollWheel)
+        : mouseMode(mouseMode), mouseButton(mouseButton), mouseCoord(coord), mouseRollWheel(mouseRollWheel) {}
+
+    
+    QByteArray KeytoQByteArray() const {
         QByteArray byteArray;
         byteArray.append(control);
         byteArray.append(constant);
-        for (const auto& byte : general) {
+        for (const auto& byte : keyGeneral) {
             byteArray.append(byte);
         }
+        return byteArray;
+    }
+
+
+    QByteArray MousetoQByteArray() const {
+        QByteArray byteArray;
+        byteArray.append(mouseMode);
+        byteArray.append(mouseButton);
+
+        if (mouseMode == 0x02) { // ABS
+            for (const auto& byte : mouseCoord.abs.x) {
+                byteArray.append(byte);
+            }
+            for (const auto& byte : mouseCoord.abs.y) {
+                byteArray.append(byte);
+            }
+        } else if (mouseMode == 0x01) { // REL
+            byteArray.append(mouseCoord.rel.x);
+            byteArray.append(mouseCoord.rel.y);
+        }
+
+        byteArray.append(mouseRollWheel);
+        
         return byteArray;
     }
 };
@@ -77,9 +123,13 @@ public:
     bool getNumLockState_();
     bool getCapsLockState_();
     bool getScrollLockState_();
+    void setMouseSpeed(int speed);
+    int getMouseSpeed();
+
 
 private:
     std::queue<keyPacket> keyData;
+    int mouseSpeed;
 
 };
 
