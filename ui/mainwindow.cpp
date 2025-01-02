@@ -1051,6 +1051,7 @@ void MainWindow::showScriptTool()
     scriptTool->show();  // Change exec() to show() for non-modal dialog
 }
 
+// run the sematic analyzer
 void MainWindow::handleSyntaxTree(std::shared_ptr<ASTNode> syntaxTree) {
     // Handle the received syntaxTree here
     qCDebug(log_ui_mainwindow) << "Received syntaxTree in MainWindow";
