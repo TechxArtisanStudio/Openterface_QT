@@ -42,7 +42,6 @@
 #include "serial/SerialPortManager.h"
 #include "AST.h"
 
-
 // keyboard data packet
 union Coordinate {
     struct {
@@ -61,20 +60,23 @@ struct keyPacket {
     uint8_t constant = 0x00;
     std::array<uint8_t, 6> keyGeneral;
 
+    // Reorder the member variables
     uint8_t mouseMode = 0x00;
     uint8_t mouseButton = 0x00;
-
-    Coordinate mouseCoord;
     uint8_t mouseRollWheel = 0x00;
+    Coordinate mouseCoord;
 
+    bool mouseSend = false;
     // packet key data
     keyPacket(const std::array<uint8_t, 6>& gen, uint8_t ctrl = 0x00)
         : control(ctrl), keyGeneral(gen) {}
 
     // packet Mouse data (unified for ABS and REL)
-    keyPacket(uint8_t mouseMode, uint8_t mouseButton, const Coordinate& coord, uint8_t mouseRollWheel)
-        : mouseMode(mouseMode), mouseButton(mouseButton), mouseCoord(coord), mouseRollWheel(mouseRollWheel) {}
+    keyPacket(const std::array<uint8_t, 6>& gen, uint8_t ctrl, uint8_t mouseMode, uint8_t mouseButton, uint8_t mouseRollWheel, const Coordinate& coord)
+        : control(ctrl), keyGeneral(gen), mouseMode(mouseMode), mouseButton(mouseButton), mouseRollWheel(mouseRollWheel), mouseCoord(coord) {}
 
+    keyPacket(uint8_t mouseMode, uint8_t mouseButton, uint8_t mouseRollWheel, const Coordinate& coord, bool mouseSend)
+        : mouseMode(mouseMode), mouseButton(mouseButton), mouseRollWheel(mouseRollWheel), mouseCoord(coord), mouseSend(mouseSend) {}
     
     QByteArray KeytoQByteArray() const {
         QByteArray byteArray;
@@ -86,7 +88,6 @@ struct keyPacket {
         return byteArray;
     }
 
-
     QByteArray MousetoQByteArray() const {
         QByteArray byteArray;
         byteArray.append(mouseMode);
@@ -94,14 +95,14 @@ struct keyPacket {
 
         if (mouseMode == 0x02) { // ABS
             for (const auto& byte : mouseCoord.abs.x) {
-                byteArray.append(byte);
+                byteArray.append(byte & 0xFF);
             }
             for (const auto& byte : mouseCoord.abs.y) {
-                byteArray.append(byte);
+                byteArray.append(byte & 0xFF);
             }
         } else if (mouseMode == 0x01) { // REL
-            byteArray.append(mouseCoord.rel.x);
-            byteArray.append(mouseCoord.rel.y);
+            byteArray.append(mouseCoord.rel.x & 0xFF);
+            byteArray.append(mouseCoord.rel.y & 0xFF);
         }
 
         byteArray.append(mouseRollWheel);
@@ -118,7 +119,9 @@ public:
     explicit KeyboardMouse(QObject *parent = nullptr);
 
     void addKeyPacket(const keyPacket& packet);
-    void executeCommand();
+    void keyboardSend();
+    void mouseSend();
+    void keyboardMouseSend();
     void updateNumCapsScrollLockState();
     bool getNumLockState_();
     bool getCapsLockState_();
@@ -144,31 +147,57 @@ const QMap<QString, uint8_t> controldata = {
 
 const QMap<QString, uint8_t> keydata = {
     {"a", 0x04}, // a
+    {"A", 0x04}, // A
     {"b", 0x05}, // b
+    {"B", 0x05}, // B
     {"c", 0x06}, // c
+    {"C", 0x06}, // C
     {"d", 0x07}, // d
+    {"D", 0x07}, // D
     {"e", 0x08}, // e
+    {"E", 0x08}, // E
     {"f", 0x09}, // f
+    {"F", 0x09}, // F
     {"g", 0x0A}, // g
+    {"G", 0x0A}, // G
     {"h", 0x0B}, // h
+    {"H", 0x0B}, // H
     {"i", 0x0C}, // i
+    {"I", 0x0C}, // I
     {"j", 0x0D}, // j
+    {"J", 0x0D}, // J
     {"k", 0x0E}, // k
+    {"K", 0x0E}, // K
     {"l", 0x0F}, // l
+    {"L", 0x0F}, // L
     {"m", 0x10}, // m
+    {"M", 0x10}, // M
     {"n", 0x11}, // n
+    {"N", 0x11}, // N
     {"o", 0x12}, // o
+    {"O", 0x12}, // O
     {"p", 0x13}, // p
+    {"P", 0x13}, // P
     {"q", 0x14}, // q
+    {"Q", 0x14}, // Q
     {"r", 0x15}, // r
+    {"R", 0x15}, // R
     {"s", 0x16}, // s
+    {"S", 0x16}, // S
     {"t", 0x17}, // t
+    {"T", 0x17}, // T
     {"u", 0x18}, // u
+    {"U", 0x18}, // U
     {"v", 0x19}, // v
+    {"V", 0x19}, // V
     {"w", 0x1A}, // w
+    {"W", 0x1A}, // W
     {"x", 0x1B}, // x
+    {"X", 0x1B}, // X
     {"y", 0x1C}, // y
+    {"Y", 0x1C}, // Y
     {"z", 0x1D}, // z
+    {"Z", 0x1D}, // Z
     {"0", 0x27}, // 0
     {"1", 0x1E}, // 1
     {"2", 0x1F}, // 2

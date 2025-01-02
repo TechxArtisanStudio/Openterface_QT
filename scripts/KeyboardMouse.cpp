@@ -43,7 +43,7 @@ void KeyboardMouse::addKeyPacket(const keyPacket& packet) {
     keyData.push(packet);
 }
 
-void KeyboardMouse::executeCommand(){
+void KeyboardMouse::keyboardSend(){
     QByteArray data = CMD_SEND_KB_GENERAL_DATA;
     QByteArray release = CMD_SEND_KB_GENERAL_DATA;
     while(!keyData.empty()){
@@ -53,6 +53,49 @@ void KeyboardMouse::executeCommand(){
         emit SerialPortManager::getInstance().sendCommandAsync(data, false);
         keyData.pop();
         emit SerialPortManager::getInstance().sendCommandAsync(release, false);
+    }
+}
+
+void KeyboardMouse::mouseSend(){
+    QByteArray data;
+
+    while(!keyData.empty()){
+        if (keyData.front().mouseMode == 0x02) data.append(MOUSE_ABS_ACTION_PREFIX);
+        else data.append(MOUSE_REL_ACTION_PREFIX);
+
+        QByteArray tmpMouseData = keyData.front().MousetoQByteArray();
+        qDebug() << "Mouse Data: " << tmpMouseData;
+        data.append(tmpMouseData);
+
+        emit SerialPortManager::getInstance().sendCommandAsync(data, false);
+        keyData.pop();
+        // emit SerialPortManager::getInstance().sendCommandAsync(release, false);
+    }
+}
+
+void KeyboardMouse::keyboardMouseSend(){
+    QByteArray data;
+    QByteArray release = CMD_SEND_KB_GENERAL_DATA;
+    while(!keyData.empty()){
+        // distinguish relative & ABS move of the mouse
+        if (keyData.front().mouseMode == 0x02) data.append(MOUSE_ABS_ACTION_PREFIX);
+        if (keyData.front().mouseMode == 0x01) data.append(MOUSE_REL_ACTION_PREFIX);
+
+        if(keyData.front().mouseMode == 0x00){
+            data = CMD_SEND_KB_GENERAL_DATA;
+            QByteArray tmpKeyData = keyData.front().KeytoQByteArray();
+            data.replace(data.size() - 8, 8, tmpKeyData);   // replace the last 8 byte data
+            emit SerialPortManager::getInstance().sendCommandAsync(data, false);
+            keyData.pop();
+        }else{
+            QByteArray tmpMouseData = keyData.front().MousetoQByteArray();
+            data.append(tmpMouseData);
+            emit SerialPortManager::getInstance().sendCommandAsync(data, false);
+            keyData.pop();
+            data[6] = 0x00;
+            emit SerialPortManager::getInstance().sendCommandAsync(data, false);
+            emit SerialPortManager::getInstance().sendCommandAsync(release, false);     // release all the keyborad data
+        }
     }
 }
 
