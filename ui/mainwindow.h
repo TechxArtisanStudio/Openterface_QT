@@ -121,7 +121,7 @@ private slots:
     void officialLink();
     void aboutLink();
     void updateLink();
-    
+    void setTooltip();
 
     void configureSettings();
     void debugSerialPort();
