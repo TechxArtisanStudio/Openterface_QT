@@ -285,12 +285,12 @@ MainWindow::MainWindow() :  ui(new Ui::MainWindow),
 }
 
 void MainWindow::setTooltip(){
-    ui->ZoomInButton->setToolTip("zoom in");
-    ui->ZoomOutButton->setToolTip("zoom out");
-    ui->ZoomReductionButton->setToolTip("restore original size");
-    ui->virtualKeyboardButton->setToolTip("special & combine key");
-    ui->pasteButton->setToolTip("paste text to target");
-    ui->screensaverButton->setToolTip("mouse dance");
+    ui->ZoomInButton->setToolTip("Zoom in");
+    ui->ZoomOutButton->setToolTip("Zoom out");
+    ui->ZoomReductionButton->setToolTip("Restore original size");
+    ui->virtualKeyboardButton->setToolTip("Function key and composite key");
+    ui->pasteButton->setToolTip("Paste text to target");
+    ui->screensaverButton->setToolTip("Mouse dance");
 }
 
 void MainWindow::onZoomIn()
