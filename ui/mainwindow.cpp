@@ -71,7 +71,7 @@
 #include <QComboBox>
 #include <QScrollBar>
 #include <QGuiApplication>
-
+#include <QToolTip>
 
 Q_LOGGING_CATEGORY(log_ui_mainwindow, "opf.ui.mainwindow")
 
@@ -281,6 +281,16 @@ MainWindow::MainWindow() :  ui(new Ui::MainWindow),
 
     ScriptTool *scriptTool = new ScriptTool(this);
     connect(scriptTool, &ScriptTool::syntaxTreeReady, this, &MainWindow::handleSyntaxTree);
+    setTooltip();
+}
+
+void MainWindow::setTooltip(){
+    ui->ZoomInButton->setToolTip("Zoom in");
+    ui->ZoomOutButton->setToolTip("Zoom out");
+    ui->ZoomReductionButton->setToolTip("Restore original size");
+    ui->virtualKeyboardButton->setToolTip("Function key and composite key");
+    ui->pasteButton->setToolTip("Paste text to target");
+    ui->screensaverButton->setToolTip("Mouse dance");
 }
 
 void MainWindow::onZoomIn()

@@ -120,7 +120,7 @@
        </property>
       </widget>
      </item>
-     <item>
+     <!-- <item>
       <widget class="QPushButton" name="contrastButton">
        <property name="icon">
         <iconset resource="mainwindow.qrc">
@@ -130,7 +130,7 @@
         <bool>true</bool>
        </property>
       </widget>
-     </item>
+     </item> -->
     </layout>
    </widget>
    <widget class="QMenu" name="menuFile">
