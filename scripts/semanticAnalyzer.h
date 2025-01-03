@@ -59,13 +59,16 @@ private:
     QRegularExpression onRegex{QString("^(1|True|On)$"), QRegularExpression::CaseInsensitiveOption};
     QRegularExpression offRegex{QString("^(0|False|Off)$"), QRegularExpression::CaseInsensitiveOption};
     QRegularExpression sendEmbedRegex{QString(R"(\{Click\s*([^}]*)\})"),QRegularExpression::CaseInsensitiveOption};
-    QRegularExpression clickRegex{
-        QString(R"((?:Click\s+)?(?:\"[^\"]*\"|[^\s]+)\s*(?:\"[^\"]*\"|[^\s]+)\s*(?:\"[^\"]*\"|[^\s]+)\s*(?:\"[^\"]*\"|[^\s]+)\s*)"),
-        QRegularExpression::CaseInsensitiveOption};
+    QRegularExpression numberRegex{QString(R"(\d+)")};
+    QRegularExpression buttonRegex{QString(R"((?<![a-zA-Z])(right|R|middle|M|left|L)(?![a-zA-Z]))"), QRegularExpression::CaseInsensitiveOption};
+    QRegularExpression downUpRegex{QString(R"((?<![a-zA-Z])(down|D|Up|U)(?![a-zA-Z]))"), QRegularExpression::CaseInsensitiveOption};
+    QRegularExpression relativeRegex{QString(R"((?<![a-zA-Z])(rel|relative)(?![a-zA-Z]))"), QRegularExpression::CaseInsensitiveOption};
+
     void analyzeLockState(const CommandStatementNode* node, const QString& keyName, bool (KeyboardMouse::*getStateFunc)());
     void extractClickParameters(const QString& statement);
     QRegularExpression braceKeyRegex{QString(R"(\{([^}]+)\})"), QRegularExpression::CaseInsensitiveOption};
     QRegularExpression controlKeyRegex{QString(R"(([!^+#])((?:\{[^}]+\}|[^{])+))")};
+    void parserClickParam(const QString& command);
 };
 
 #endif // SEMANTIC_ANALYZER_H

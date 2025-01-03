@@ -216,6 +216,7 @@ const QMap<QString, uint8_t> keydata = {
     {"BS", 0x2A}, // backspace
     {"Tab", 0x2B}, // tab
     {"Space", 0x2C}, // space
+    {" ", 0x2C},    //space
     {"Minus", 0x2D}, // -
     {"Equal", 0x2E}, // =
     {"BracketLeft", 0x2F}, // [
