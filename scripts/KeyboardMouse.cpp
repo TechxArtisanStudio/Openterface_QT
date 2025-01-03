@@ -43,6 +43,10 @@ void KeyboardMouse::addKeyPacket(const keyPacket& packet) {
     keyData.push(packet);
 }
 
+// void KeyboardMouse::dataSend(){
+    
+// }
+
 void KeyboardMouse::keyboardSend(){
     QByteArray data = CMD_SEND_KB_GENERAL_DATA;
     QByteArray release = CMD_SEND_KB_GENERAL_DATA;
