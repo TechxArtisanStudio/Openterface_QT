@@ -274,5 +274,11 @@ private:
     std::unique_ptr<SemanticAnalyzer> semanticAnalyzer;
     TaskManager* taskmanager;
     void showScriptTool();
+
+    void onToolbarVisibilityChanged(bool visible);
+
+    void animateVideoPane();
+
+    void centerVideoPane();
 };
 #endif // MAINWINDOW_H
