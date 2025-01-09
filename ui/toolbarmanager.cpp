@@ -5,6 +5,8 @@
 #include <QWidget>
 #include <QToolButton>
 #include <QStyle>
+#include <QTimer>
+#include <QPropertyAnimation>
 
 const QString ToolbarManager::commonButtonStyle = 
         "QPushButton { "
@@ -87,6 +89,18 @@ void ToolbarManager::setupToolbar()
     toolbar->setFloatable(false);
     toolbar->setMovable(false);
 
+    // Add Ctrl+Alt+Del button first
+    QPushButton *ctrlAltDelButton = new QPushButton("Ctrl+Alt+Del", toolbar);
+    ctrlAltDelButton->setStyleSheet(commonButtonStyle);
+    ctrlAltDelButton->setToolTip("Send Ctrl+Alt+Del keystroke.");
+    connect(ctrlAltDelButton, &QPushButton::clicked, this, &ToolbarManager::onCtrlAltDelClicked);
+    toolbar->addWidget(ctrlAltDelButton);
+
+    // Add a spacer
+    QWidget *spacer = new QWidget();
+    spacer->setFixedWidth(10);
+    toolbar->addWidget(spacer);
+
     // Function keys
     for (int i = 1; i <= 12; i++) {
         QString buttonText = QString("F%1").arg(i);
@@ -96,9 +110,9 @@ void ToolbarManager::setupToolbar()
     }
 
     // Add a spacer
-    QWidget *spacer = new QWidget();
-    spacer->setFixedWidth(10);
-    toolbar->addWidget(spacer);
+    QWidget *spacer2 = new QWidget();
+    spacer2->setFixedWidth(10);
+    toolbar->addWidget(spacer2);
 
     // Special keys
     for (const auto &keyPair : specialKeys) {
@@ -110,13 +124,6 @@ void ToolbarManager::setupToolbar()
         connect(button, &QPushButton::clicked, this, &ToolbarManager::onSpecialKeyClicked);
         toolbar->addWidget(button);
     }
-
-    // Existing special buttons
-    QPushButton *ctrlAltDelButton = new QPushButton("Ctrl+Alt+Del", toolbar);
-    ctrlAltDelButton->setStyleSheet(commonButtonStyle);
-    ctrlAltDelButton->setToolTip("Send Ctrl+Alt+Del keystroke.");
-    connect(ctrlAltDelButton, &QPushButton::clicked, this, &ToolbarManager::onCtrlAltDelClicked);
-    toolbar->addWidget(ctrlAltDelButton);
     
     // Repeating keystroke combo box
     QComboBox *repeatingKeystrokeComboBox = new QComboBox(toolbar);
@@ -214,14 +221,33 @@ void ToolbarManager::onSpecialKeyClicked()
 }
 
 void ToolbarManager::toggleToolbar() {
+    // Prevent animation during visibility change
+    toolbar->setStyleSheet("QToolBar { background-color: palette(window); border: none; animation-duration: 0; }");
+    
+    // Use QPropertyAnimation for smooth transition
+    QPropertyAnimation *animation = new QPropertyAnimation(toolbar, "maximumHeight");
+    animation->setDuration(150); // Adjust duration as needed
+    
     if (toolbar->isVisible()) {
-        toolbar->hide();
-        GlobalVar::instance().setToolbarVisible(false);
+        animation->setStartValue(toolbar->height());
+        animation->setEndValue(0);
+        connect(animation, &QPropertyAnimation::finished, this, [this]() {
+            toolbar->hide();
+            GlobalVar::instance().setToolbarVisible(false);
+            emit toolbarVisibilityChanged(false);
+        });
     } else {
         toolbar->show();
+        animation->setStartValue(0);
+        animation->setEndValue(toolbar->sizeHint().height());
         GlobalVar::instance().setToolbarVisible(true);
-        GlobalVar::instance().setToolbarHeight(toolbar->height());
+        GlobalVar::instance().setToolbarHeight(toolbar->sizeHint().height());
+        connect(animation, &QPropertyAnimation::finished, this, [this]() {
+            emit toolbarVisibilityChanged(true);
+        });
     }
+    
+    animation->start(QAbstractAnimation::DeleteWhenStopped);
 }
 
 void ToolbarManager::updateStyles()
