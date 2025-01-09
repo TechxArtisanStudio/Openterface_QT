@@ -52,6 +52,9 @@ public:
     void toggleToolbar();
     void updateStyles();
 
+signals:
+    void toolbarVisibilityChanged(bool visible);
+
 private:
     static const QString commonButtonStyle;
 
