@@ -26,8 +26,8 @@
 3. For Linux user, you should install the dependency first then install the package.
 
  ```bash
-# Setup the QT 6.4.2 runtime
-sudo apt install -y libqt6core6 libqt6dbus6 libqt6gui6 libqt6network6 libqt6multimedia6 libqt6multimediawidgets6 libqt6serialport6 libqt6svg6
+# Setup the QT 6.4.2 or laterruntime and other dependencies
+sudo apt install -y libqt6core6 libqt6dbus6 libqt6gui6 libqt6network6 libqt6multimedia6 libqt6multimediawidgets6 libqt6serialport6 libqt6svg6 libusb-1.0-0-dev
  ```
 
  ```bash
@@ -62,7 +62,8 @@ sudo apt-get install -y \
     qt6-base-dev \
     qt6-multimedia-dev \
     qt6-serialport-dev \
-    qt6-svg-dev
+    qt6-svg-dev \
+    libusb-1.0-0-dev
 ```
 ``` bash
 # Get the source
