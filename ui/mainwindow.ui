@@ -102,6 +102,14 @@
       </widget>
      </item>
      <item>
+      <widget class="QPushButton" name="captureButton">
+       <property name="icon">
+        <iconset resource="mainwindow.qrc">
+         <normaloff>:/images/capture.svg</normaloff>:/images/capture.svg</iconset>
+       </property>
+      </widget>
+     </item>
+     <item>
       <widget class="QPushButton" name="pasteButton">
        <property name="icon">
         <iconset resource="mainwindow.qrc">
@@ -120,6 +128,7 @@
        </property>
       </widget>
      </item>
+     
      <!-- <item>
       <widget class="QPushButton" name="contrastButton">
        <property name="icon">

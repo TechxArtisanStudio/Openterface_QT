@@ -7,6 +7,7 @@
 #include "video/videohid.h"
 #include <QVideoWidget>
 
+
 Q_LOGGING_CATEGORY(log_ui_camera, "opf.ui.camera")
 
 CameraManager::CameraManager(QObject *parent)
@@ -15,6 +16,7 @@ CameraManager::CameraManager(QObject *parent)
     qDebug() << "CameraManager init...";
     m_imageCapture = std::make_unique<QImageCapture>();
     m_mediaRecorder = std::make_unique<QMediaRecorder>();
+    connect(m_imageCapture.get(), &QImageCapture::imageCaptured, this, &CameraManager::onImageCaptured);
 }
 
 CameraManager::~CameraManager() = default;
@@ -33,11 +35,14 @@ void CameraManager::setCamera(const QCameraDevice &cameraDevice, QVideoWidget* v
     VideoHid::getInstance().start();
 }
 
+
+
 void CameraManager::setCameraDevice(const QCameraDevice &cameraDevice)
 {
     m_camera.reset(new QCamera(cameraDevice));
     setupConnections();
     m_captureSession.setCamera(m_camera.get());
+    m_captureSession.setImageCapture(m_imageCapture.get());
 }
 
 void CameraManager::setVideoOutput(QVideoWidget* videoOutput)
@@ -74,10 +79,40 @@ void CameraManager::stopCamera()
     }
 }
 
+void CameraManager::onImageCaptured(int id, const QImage& img){
+    Q_UNUSED(id);
+    QString picturesPath = QStandardPaths::writableLocation(QStandardPaths::PicturesLocation);
+    if (picturesPath.isEmpty()) {
+        picturesPath = QDir::currentPath();
+    }
+    QString customFolderPath = picturesPath + "/" + "openterfaceCaptureImg";
+    QDir dir(customFolderPath);
+    if (!dir.exists()) {
+        if (!dir.mkpath(".")) {
+            qCDebug(log_ui_camera) << "Failed to create directory: " << customFolderPath;
+            return;
+        }
+    }
+    QString timestamp = QDateTime::currentDateTime().toString("yyyyMMdd_HHmmss");
+    QString saveName = customFolderPath + "/" + timestamp + ".png";
+    if(img.save(saveName)){
+        qCDebug(log_ui_camera) << "succefully save img to : " << saveName;
+    }else{
+        qCDebug(log_ui_camera) << "fail save img to : " << saveName;
+    }
+}
+
 void CameraManager::takeImage()
 {
-    if (m_imageCapture) {
-        m_imageCapture->capture();
+    if (m_imageCapture && m_camera && m_camera->isActive()) {
+        if (m_imageCapture->isReadyForCapture()) {
+            m_imageCapture->capture();
+            qCDebug(log_ui_camera) << "captured .....................";
+        } else {
+            qCWarning(log_ui_camera) << "Image capture is not ready";
+        }
+    } else {
+        qCWarning(log_ui_camera) << "Camera or image capture is not ready";
     }
 }
 
