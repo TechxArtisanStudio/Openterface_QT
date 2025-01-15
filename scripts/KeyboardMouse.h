@@ -64,19 +64,25 @@ struct keyPacket {
     uint8_t mouseMode = 0x00;
     uint8_t mouseButton = 0x00;
     uint8_t mouseRollWheel = 0x00;
-    Coordinate mouseCoord;
+    uint8_t mouseClickCount = 1;
+    union Coordinate mouseCoord;
 
-    bool mouseSend = false;
+    bool mouseSendOrNot = false;
+    bool keyboardSendOrNot = false;
+    bool keyboardMouseSendOrNot = false;
     // packet key data
     keyPacket(const std::array<uint8_t, 6>& gen, uint8_t ctrl = 0x00)
-        : control(ctrl), keyGeneral(gen) {}
+        : control(ctrl), keyGeneral(gen) 
+        {keyboardSendOrNot = true; mouseSendOrNot = false; keyboardMouseSendOrNot = false; }
 
     // packet Mouse data (unified for ABS and REL)
     keyPacket(const std::array<uint8_t, 6>& gen, uint8_t ctrl, uint8_t mouseMode, uint8_t mouseButton, uint8_t mouseRollWheel, const Coordinate& coord)
-        : control(ctrl), keyGeneral(gen), mouseMode(mouseMode), mouseButton(mouseButton), mouseRollWheel(mouseRollWheel), mouseCoord(coord) {}
+        : control(ctrl), keyGeneral(gen), mouseMode(mouseMode), mouseButton(mouseButton), mouseRollWheel(mouseRollWheel), mouseCoord(coord) 
+        {keyboardSendOrNot = false; mouseSendOrNot = false; keyboardMouseSendOrNot = true;}
 
-    keyPacket(uint8_t mouseMode, uint8_t mouseButton, uint8_t mouseRollWheel, const Coordinate& coord, bool mouseSend)
-        : mouseMode(mouseMode), mouseButton(mouseButton), mouseRollWheel(mouseRollWheel), mouseCoord(coord), mouseSend(mouseSend) {}
+    keyPacket(uint8_t mouseMode, uint8_t mouseButton, uint8_t mouseRollWheel, const Coordinate& coord)
+        : mouseMode(mouseMode), mouseButton(mouseButton), mouseRollWheel(mouseRollWheel), mouseCoord(coord) 
+        {keyboardSendOrNot = false; mouseSendOrNot = true; keyboardMouseSendOrNot = false; }
     
     QByteArray KeytoQByteArray() const {
         QByteArray byteArray;
@@ -90,7 +96,7 @@ struct keyPacket {
 
     QByteArray MousetoQByteArray() const {
         QByteArray byteArray;
-        byteArray.append(mouseMode);
+        // byteArray.append(mouseMode);
         byteArray.append(mouseButton);
 
         if (mouseMode == 0x02) { // ABS
@@ -119,6 +125,7 @@ public:
     explicit KeyboardMouse(QObject *parent = nullptr);
 
     void addKeyPacket(const keyPacket& packet);
+    void dataSend();
     void keyboardSend();
     void mouseSend();
     void keyboardMouseSend();
@@ -133,7 +140,9 @@ public:
 private:
     std::queue<keyPacket> keyData;
     int mouseSpeed;
-
+    int clickInterval = 50;
+    int keyInterval = 40;
+    uint8_t calculateChecksum(const QByteArray &data);
 };
 
 const QMap<QString, uint8_t> controldata = {
