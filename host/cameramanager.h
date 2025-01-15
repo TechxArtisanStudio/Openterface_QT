@@ -7,7 +7,9 @@
 #include <QImageCapture>
 #include <QMediaRecorder>
 #include <QVideoWidget>  // Add this include
-
+#include <QDir>
+#include <QImageCapture>
+#include <QStandardPaths>
 class CameraManager : public QObject
 {
     Q_OBJECT
@@ -20,7 +22,7 @@ public:
     void setCameraDevice(const QCameraDevice &cameraDevice);
     void startCamera();
     void stopCamera();
-    void takeImage();
+    void takeImage(const QString& file);
     void startRecording();
     void stopRecording();
     QCamera* getCamera() const { return m_camera.get(); }
@@ -35,12 +37,15 @@ public:
 signals:
     void cameraActiveChanged(bool active);
     void cameraSettingsApplied();
-    void imageCaptured(int requestId, const QImage &img);
     void recordingStarted();
     void recordingStopped();
     void cameraError(const QString &errorString);
     void resolutionsUpdated(int input_width, int input_height, float input_fps, int capture_width, int capture_height, int capture_fps);
-
+    void imageCaptured(int id, const QImage& img);
+    
+private slots:
+    void onImageCaptured(int id, const QImage& img);
+    
 private:
     std::unique_ptr<QCamera> m_camera;
     QMediaCaptureSession m_captureSession;
@@ -49,7 +54,7 @@ private:
     QVideoWidget* m_videoOutput;
     int m_video_width;
     int m_video_height;
-
+    QString filePath;
     void setupConnections();
 };
 

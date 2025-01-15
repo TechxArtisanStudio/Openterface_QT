@@ -31,12 +31,11 @@
 
 Q_LOGGING_CATEGORY(log_script, "opf.scripts")
 
-SemanticAnalyzer::SemanticAnalyzer(MouseManager* mouseManager, KeyboardMouse* keyboardMouse)
-    : mouseManager(mouseManager), keyboardMouse(keyboardMouse) {
+SemanticAnalyzer::SemanticAnalyzer(MouseManager* mouseManager, KeyboardMouse* keyboardMouse, QObject* parent)
+    : QObject(parent), mouseManager(mouseManager), keyboardMouse(keyboardMouse) {
     if (!mouseManager) {
         qDebug(log_script) << "MouseManager is not initialized!";
     }
-
 }
 
 void SemanticAnalyzer::analyze(const ASTNode* node) {
@@ -101,6 +100,24 @@ void SemanticAnalyzer::analyzeCommandStetement(const CommandStatementNode* node)
     if(commandName == "SetScrollLockState"){
         analyzeLockState(node, "ScrollLcok", &KeyboardMouse::getScrollLockState_);
     }
+    if(commandName == "FullScreenCapture"){
+        analyzeFullScreenCapture(node);
+    }
+}
+
+void SemanticAnalyzer::analyzeFullScreenCapture(const CommandStatementNode* node){
+    const auto& options = node->getOptions();
+    QString path;
+    if (options.empty()){
+        qCDebug(log_script) << "No path given";
+        QString path = "";
+        emit captureImg(path);
+        return;
+    }
+    for (const auto& token : options){
+        if (token != "\"") path.append(QString::fromStdString(token));
+    }
+    emit captureImg(path);
 }
 
 void SemanticAnalyzer::analyzeLockState(const CommandStatementNode* node, const QString& keyName, bool (KeyboardMouse::*getStateFunc)()){
