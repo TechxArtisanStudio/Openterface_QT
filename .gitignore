@@ -1,0 +1,7 @@
+*.pro.user.*
+build/*
+release/*
+aqtinstall.log
+debug/*
+.vscode
+openterfaceQT.pro.user*
