@@ -244,6 +244,8 @@ MainWindow::MainWindow() :  ui(new Ui::MainWindow),
     connect(ui->ZoomInButton, &QPushButton::clicked, this, &MainWindow::onZoomIn);
     connect(ui->ZoomOutButton, &QPushButton::clicked, this, &MainWindow::onZoomOut);
     connect(ui->ZoomReductionButton, &QPushButton::clicked, this, &MainWindow::onZoomReduction);
+    
+    connect(ui->captureButton, &QPushButton::clicked, this, &MainWindow::takeImageDefault);
     scrollArea->ensureWidgetVisible(videoPane);
 
     // Set the window title with the version number
@@ -262,7 +264,7 @@ MainWindow::MainWindow() :  ui(new Ui::MainWindow),
     // Add this after other menu connections
     connect(ui->menuBaudrate, &QMenu::triggered, this, &MainWindow::onBaudrateMenuTriggered);
     connect(&SerialPortManager::getInstance(), &SerialPortManager::connectedPortChanged, this, &MainWindow::onPortConnected);
-
+    
     qApp->installEventFilter(this);
 
     // usbControl = new USBControl(this);
@@ -279,7 +281,7 @@ MainWindow::MainWindow() :  ui(new Ui::MainWindow),
     mouseManager = std::make_unique<MouseManager>();
     keyboardMouse = std::make_unique<KeyboardMouse>();
     semanticAnalyzer = std::make_unique<SemanticAnalyzer>(mouseManager.get(), keyboardMouse.get());
-
+    connect(semanticAnalyzer.get(), SemanticAnalyzer::captureImg, this, &MainWindow::takeImage);
     ScriptTool *scriptTool = new ScriptTool(this);
     connect(scriptTool, &ScriptTool::syntaxTreeReady, this, &MainWindow::handleSyntaxTree);
     setTooltip();
@@ -296,6 +298,7 @@ void MainWindow::setTooltip(){
     ui->virtualKeyboardButton->setToolTip("Function key and composite key");
     ui->pasteButton->setToolTip("Paste text to target");
     ui->screensaverButton->setToolTip("Mouse dance");
+    ui->captureButton->setToolTip("Full screen capture");
 }
 
 void MainWindow::onZoomIn()
@@ -876,9 +879,13 @@ void MainWindow::setMuted(bool /*muted*/)
     // Your implementation here
 }
 
-void MainWindow::takeImage()
+void MainWindow::takeImageDefault(){
+    takeImage("");
+}
+
+void MainWindow::takeImage(const QString& path)
 {
-    m_cameraManager->takeImage();
+    m_cameraManager->takeImage(path);
 }
 
 void MainWindow::displayCaptureError(int id, const QImageCapture::Error error,

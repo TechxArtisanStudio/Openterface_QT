@@ -111,7 +111,8 @@ private slots:
     void pause();
     void setMuted(bool);
 
-    void takeImage();
+    void takeImage(const QString& path = "");
+    void takeImageDefault();
     void displayCaptureError(int, QImageCapture::Error, const QString &errorString);
 
     void versionInfo();
