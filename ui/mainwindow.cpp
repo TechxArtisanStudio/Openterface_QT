@@ -244,6 +244,8 @@ MainWindow::MainWindow() :  ui(new Ui::MainWindow),
     connect(ui->ZoomInButton, &QPushButton::clicked, this, &MainWindow::onZoomIn);
     connect(ui->ZoomOutButton, &QPushButton::clicked, this, &MainWindow::onZoomOut);
     connect(ui->ZoomReductionButton, &QPushButton::clicked, this, &MainWindow::onZoomReduction);
+    
+    connect(ui->captureButton, &QPushButton::clicked, this, &MainWindow::takeImage);
     scrollArea->ensureWidgetVisible(videoPane);
 
     // Set the window title with the version number
@@ -262,7 +264,7 @@ MainWindow::MainWindow() :  ui(new Ui::MainWindow),
     // Add this after other menu connections
     connect(ui->menuBaudrate, &QMenu::triggered, this, &MainWindow::onBaudrateMenuTriggered);
     connect(&SerialPortManager::getInstance(), &SerialPortManager::connectedPortChanged, this, &MainWindow::onPortConnected);
-
+    
     qApp->installEventFilter(this);
 
     // usbControl = new USBControl(this);
