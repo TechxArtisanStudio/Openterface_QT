@@ -24,7 +24,6 @@
 #ifndef SEMANTIC_ANALYZER_H
 #define SEMANTIC_ANALYZER_H
 
-
 #include "target/MouseManager.h"
 // #include "target/KeyboardManager.h"
 #include "KeyboardMouse.h"
@@ -32,16 +31,28 @@
 #include <QPoint>
 #include <QString>
 #include <QRegularExpression>
+#include <QObject>
 
+struct MouseParams{
+    uint8_t mode;
+    uint8_t mouseButton;
+    uint8_t wheelDelta;
+    Coordinate coord;
+};
+class SemanticAnalyzer : public QObject {
+    Q_OBJECT
 
-class SemanticAnalyzer {
 public:
-    SemanticAnalyzer(MouseManager* mouseManager, KeyboardMouse* keyboardMouse);
+    SemanticAnalyzer(MouseManager* mouseManager, KeyboardMouse* keyboardMouse, QObject* parent = nullptr);
     void analyze(const ASTNode* node);
 
+
+signals:
+    void captureImg(const QString& path = "");
+    void captureAreaImg(const QString& path = "", const QRect& captureArea = QRect());
+    
 private:
     MouseManager* mouseManager;
-    // KeyboardManager* keyboardManager;
     KeyboardMouse* keyboardMouse;
     void analyzeCommandStetement(const CommandStatementNode* node);
     void analyzeClickStatement(const CommandStatementNode* node);
@@ -49,13 +60,15 @@ private:
     QPoint parseCoordinates(const std::vector<std::string>& options);
     int parseMouseButton(const std::vector<std::string>& options);
     void resetParameters();
-    void extractKeyFromBrace(const QString& tmpKeys, int& i, std::array<uint8_t, 6>& general, int genral_index = 0);
+    
     void analyzeSleepStatement(const CommandStatementNode* node);
-    void analyzeCapsLockState(const CommandStatementNode* node);
-    void analyzeNumLockState(const CommandStatementNode* node);
-    void analyzeScrollLockState(const CommandStatementNode* node);
-
     void analyzeMouseMove(const CommandStatementNode* node);
+    void analyzeLockState(const CommandStatementNode* node, const QString& keyName, bool (KeyboardMouse::*getStateFunc)());
+    void analyzeFullScreenCapture(const CommandStatementNode* node);
+    void analyzeAreaScreenCapture(const CommandStatementNode* node);
+    QString extractFilePath(const QString& originText);
+
+    
     QRegularExpression onRegex{QString("^(1|True|On)$"), QRegularExpression::CaseInsensitiveOption};
     QRegularExpression offRegex{QString("^(0|False|Off)$"), QRegularExpression::CaseInsensitiveOption};
     QRegularExpression sendEmbedRegex{QString(R"(\{Click\s*([^}]*)\})"),QRegularExpression::CaseInsensitiveOption};
@@ -63,12 +76,10 @@ private:
     QRegularExpression buttonRegex{QString(R"((?<![a-zA-Z])(right|R|middle|M|left|L)(?![a-zA-Z]))"), QRegularExpression::CaseInsensitiveOption};
     QRegularExpression downUpRegex{QString(R"((?<![a-zA-Z])(down|D|Up|U)(?![a-zA-Z]))"), QRegularExpression::CaseInsensitiveOption};
     QRegularExpression relativeRegex{QString(R"((?<![a-zA-Z])(rel|relative)(?![a-zA-Z]))"), QRegularExpression::CaseInsensitiveOption};
-
-    void analyzeLockState(const CommandStatementNode* node, const QString& keyName, bool (KeyboardMouse::*getStateFunc)());
-    void extractClickParameters(const QString& statement);
     QRegularExpression braceKeyRegex{QString(R"(\{([^}]+)\})"), QRegularExpression::CaseInsensitiveOption};
     QRegularExpression controlKeyRegex{QString(R"(([!^+#])((?:\{[^}]+\}|[^{])+))")};
-    void parserClickParam(const QString& command);
+    
+    MouseParams parserClickParam(const QString& command);
 };
 
 #endif // SEMANTIC_ANALYZER_H

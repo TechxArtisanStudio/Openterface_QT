@@ -27,16 +27,16 @@
 #include <QString>
 #include "AHKKeyboard.h"
 #include "KeyboardMouse.h"
+#include "global.h"
 
 
 Q_LOGGING_CATEGORY(log_script, "opf.scripts")
 
-SemanticAnalyzer::SemanticAnalyzer(MouseManager* mouseManager, KeyboardMouse* keyboardMouse)
-    : mouseManager(mouseManager), keyboardMouse(keyboardMouse) {
+SemanticAnalyzer::SemanticAnalyzer(MouseManager* mouseManager, KeyboardMouse* keyboardMouse, QObject* parent)
+    : QObject(parent), mouseManager(mouseManager), keyboardMouse(keyboardMouse) {
     if (!mouseManager) {
         qDebug(log_script) << "MouseManager is not initialized!";
     }
-
 }
 
 void SemanticAnalyzer::analyze(const ASTNode* node) {
@@ -51,7 +51,7 @@ void SemanticAnalyzer::analyze(const ASTNode* node) {
             for (const auto& child : node->getChildren()) {
                 qDebug(log_script) << "Analyzing child node.";
                 analyze(child.get());
-                resetParameters(); // Reset after each statement
+                // resetParameters(); // Reset after each statement
             }
             break;
             
@@ -101,6 +101,77 @@ void SemanticAnalyzer::analyzeCommandStetement(const CommandStatementNode* node)
     if(commandName == "SetScrollLockState"){
         analyzeLockState(node, "ScrollLcok", &KeyboardMouse::getScrollLockState_);
     }
+    if(commandName == "FullScreenCapture"){
+        analyzeFullScreenCapture(node);
+    }
+    if(commandName == "AreaScreenCapture"){
+        analyzeAreaScreenCapture(node);
+    }
+}
+
+void SemanticAnalyzer::analyzeAreaScreenCapture(const CommandStatementNode* node){
+    const auto& options = node->getOptions();
+    if (options.empty()){
+        qCDebug(log_script) << "No param given";
+        return;
+    }
+    QString path;
+    QString tmpTxt;
+    QStringList numTmp;
+    qCDebug(log_script) << "Capturing area img";
+    for (const auto& token : options){
+        if (token != "\"") tmpTxt.append(QString::fromStdString(token));
+    }
+    path = extractFilePath(tmpTxt);
+    QRegularExpressionMatchIterator numMatchs = numberRegex.globalMatch(tmpTxt);
+    while(numMatchs.hasNext()){
+        QRegularExpressionMatch nummatch = numMatchs.next();
+        numTmp.append(nummatch.captured(0));
+    }
+    std::vector<int> numData;
+    for (const QString & num : numTmp){
+        bool ok;
+        int value = num.toInt(&ok);
+        if (ok){
+            numData.push_back(value);
+        }
+    }
+    if (numData.size()<4) {
+        qCDebug(log_script) << "the param of area rect is x y width height";
+        return;
+    }
+    QRegularExpression regex("\\\\");
+    path.replace(regex, "/");
+    QRect area = QRect(numData[0], numData[1], numData[2], numData[3]);
+    emit captureAreaImg(path, area);
+}
+
+void SemanticAnalyzer::analyzeFullScreenCapture(const CommandStatementNode* node){
+    const auto& options = node->getOptions();
+    QString path;
+    QString tmpTxt;
+    if (options.empty()){
+        qCDebug(log_script) << "No path given";
+        QString path = "";
+        emit captureImg(path);
+        return;
+    }
+    for (const auto& token : options){
+        if (token != "\"") tmpTxt.append(QString::fromStdString(token));
+    }
+    path = extractFilePath(tmpTxt);
+    QRegularExpression regex("\\\\");
+    path.replace(regex, "/");
+    emit captureImg(path);
+}
+
+QString SemanticAnalyzer::extractFilePath(const QString& originText){
+    QRegularExpression regex(R"(([a-zA-Z]:[\\\/][^\s]+|\/[^\s]+))");
+    QRegularExpressionMatch match = regex.match(originText);
+    if (match.hasMatch()){
+        return match.captured(0);
+    }
+    return QString();
 }
 
 void SemanticAnalyzer::analyzeLockState(const CommandStatementNode* node, const QString& keyName, bool (KeyboardMouse::*getStateFunc)()){
@@ -123,7 +194,7 @@ void SemanticAnalyzer::analyzeLockState(const CommandStatementNode* node, const 
             general[0] = keydata.value(keyName);
             keyPacket pack(general);
             keyboardMouse->addKeyPacket(pack);
-            keyboardMouse->keyboardSend();
+            keyboardMouse->dataSend();
         }
     }
     if (offRegex.match(tmpKeys).hasMatch()){
@@ -133,7 +204,7 @@ void SemanticAnalyzer::analyzeLockState(const CommandStatementNode* node, const 
             general[0] = keydata.value(keyName);
             keyPacket pack(general);
             keyboardMouse->addKeyPacket(pack);
-            keyboardMouse->keyboardSend();
+            keyboardMouse->dataSend();
         }
     }
 }
@@ -177,7 +248,7 @@ void SemanticAnalyzer::analyzeSendStatement(const CommandStatementNode* node) {
 
     tmpKeys.replace(QRegularExpression("^\"|\"$"), "");
 
-    qDebug(log_script) << "Processing keys:" << tmpKeys;
+    qCDebug(log_script) << "Processing keys:" << tmpKeys;
 
     int pos = 0;
     while (pos < tmpKeys.length()) {
@@ -199,19 +270,35 @@ void SemanticAnalyzer::analyzeSendStatement(const CommandStatementNode* node) {
                 if (keys[keyPos] == '{') {
                     // Handle braced key
                     QRegularExpressionMatch braceMatch = braceKeyRegex.match(keys, keyPos);
+                    QRegularExpressionMatch clickMatch;
                     if (braceMatch.hasMatch()) {
                         QString keyName = braceMatch.captured(1);
-                        general[keyIndex++] = keydata.value(keyName);
-                        keyPos = braceMatch.capturedEnd();
-                        continue;
+                        if (keydata.value(keyName)){
+                            general[keyIndex++] = keydata.value(keyName);
+                            keyPos = braceMatch.capturedEnd();
+                            continue;
+                        }else {
+                            clickMatch = sendEmbedRegex.match(keyName);
+                            keyName.remove("Click");
+                            MouseParams params =  parserClickParam(keyName);
+                            keyPacket pack(general, control, params.mode, params.mouseButton, params.wheelDelta, params.coord);
+                            keyboardMouse->addKeyPacket(pack);
+                            pos = tmpKeys.length();
+                            keyPos = braceMatch.capturedEnd();
+                            qCDebug(log_script) << "position of mouse key last" << braceMatch.capturedEnd();
+                            break;
+                        }
                     }
                 }
                 // Handle single character
                 general[keyIndex++] = keydata.value(keys[keyPos]);
                 keyPos++;
+                qCDebug(log_script) << "test for the position";
             }
+            
             keyPacket pack(general, control);
             keyboardMouse->addKeyPacket(pack);
+            
             pos = controlMatch.capturedEnd();
         } else {
             // Check for braced keys
@@ -226,11 +313,13 @@ void SemanticAnalyzer::analyzeSendStatement(const CommandStatementNode* node) {
                     keyboardMouse->addKeyPacket(pack);
                 } 
                 else {
-                    
                     clickMatch = sendEmbedRegex.match(keyName);
                     keyName.remove("Click");
                     qDebug(log_script) << "key: " << keyName;
-                    parserClickParam(keyName);
+                    MouseParams params =  parserClickParam(keyName);
+                    keyPacket pack(params.mode, params.mouseButton, params.wheelDelta, params.coord); // Last param 0x00 is mouseRollWheel
+                    qCDebug(log_script) << "after key packet";
+                    keyboardMouse->addKeyPacket(pack);
                 }
                 
                 pos = braceMatch.capturedEnd();
@@ -251,7 +340,8 @@ void SemanticAnalyzer::analyzeSendStatement(const CommandStatementNode* node) {
         // keyboardMouse->addKeyPacket(pack);
     }
 
-    keyboardMouse->keyboardSend();
+    keyboardMouse->dataSend();
+    qCDebug(log_script) << "test";
 }
 
 void SemanticAnalyzer::analyzeClickStatement(const CommandStatementNode* node) {
@@ -260,7 +350,9 @@ void SemanticAnalyzer::analyzeClickStatement(const CommandStatementNode* node) {
         qDebug(log_script) << "No coordinates provided for Click command";
         return;
     }
-    
+    for(const auto& token : options){
+        
+    }
     // Parse coordinates and mouse button from options
     QPoint coords = parseCoordinates(options);
     int mouseButton = parseMouseButton(options);  // This will be fresh for each statement
@@ -350,32 +442,85 @@ void SemanticAnalyzer::analyzeMouseMove(const CommandStatementNode* node) {
     QPoint coords = parseCoordinates(options);
 }
 
-void SemanticAnalyzer::parserClickParam(const QString& command){
+MouseParams SemanticAnalyzer::parserClickParam(const QString& command) {
     // match the number param
     QStringList numTmp;
-    
+    bool relative = false;
+    QString button;
+    QString downOrUp;
+    MouseParams params = {0x02, 0x00, 0x00, {}}; // Default to absolute mode
+
     QRegularExpressionMatch relativeMatch = relativeRegex.match(command);
     if(relativeMatch.hasMatch()){
-        QString relative = relativeMatch.captured(0);
+        relative = true;
+        params.mode = 0x01; // Relative mode
         qCDebug(log_script) << "Matched relative:" << relative;
     }
+
     QRegularExpressionMatchIterator numMatchs = numberRegex.globalMatch(command);
     while(numMatchs.hasNext()){
         QRegularExpressionMatch nummatch = numMatchs.next();
         numTmp.append(nummatch.captured(0));
     }
     qCDebug(log_script) << "Matched numbers:" << numTmp;
+    
     // check the "" content
     QRegularExpressionMatch buttonMatch = buttonRegex.match(command);
     if(buttonMatch.hasMatch()){
-        QString button = buttonMatch.captured(0);
+        button = buttonMatch.captured(0);
         qCDebug(log_script) << "Matched button:" << button;
     }
     QRegularExpressionMatch downUpMatch = downUpRegex.match(command);
     if(downUpMatch.hasMatch()){
-        QString downOrUp = downUpMatch.captured(0);
+        downOrUp = downUpMatch.captured(0);
         qCDebug(log_script) << "Matched downOrUp:" << downOrUp;
     }
     
+    // Convert numbers to integers
+    std::vector<int> numData;
+    for (const QString & num : numTmp){
+        bool ok;
+        int value = num.toInt(&ok);
+        if (ok){
+            numData.push_back(value);
+        }
+    }
+    
+    // Set mouse button based on parsed button string
+    if (button.toLower().startsWith('r')) {
+        params.mouseButton = 0x02; // Right button
+    } else if (button.toLower().startsWith('m')) {
+        params.mouseButton = 0x04; // Middle button
+    } else {
+        params.mouseButton = 0x01; // Left button (default)
+    }
 
+    // Set coordinates
+    if (numData.size() >= 2) {
+        if (relative) {
+            // Relative coordinates are single bytes
+            params.coord.rel.x = static_cast<uint8_t>(std::min(std::max(numData[0], -128), 127) & 0xFF);
+            params.coord.rel.y = static_cast<uint8_t>(std::min(std::max(numData[1], -128), 127) & 0xFF);
+            qDebug(log_script) << "rel coordinates: " << (int)params.coord.rel.x << ", " << (int)params.coord.rel.y;
+        } else {
+            // Absolute coordinates are 2 bytes each
+            int x = (numData[0] * 4096) / GlobalVar::instance().getInputWidth();
+            int y = (numData[1] * 4096) / GlobalVar::instance().getInputHeight();
+            
+            params.coord.abs.x[0] = static_cast<uint8_t>(x & 0xFF);
+            params.coord.abs.x[1] = static_cast<uint8_t>((x >> 8) & 0xFF);
+            params.coord.abs.y[0] = static_cast<uint8_t>(y & 0xFF);
+            params.coord.abs.y[1] = static_cast<uint8_t>((y >> 8) & 0xFF);
+            qDebug(log_script) << "abs coordinates: " << x << " " << GlobalVar::instance().getInputWidth() 
+                             << ", " << y << " " << GlobalVar::instance().getInputHeight();
+        }
+    }
+
+    qCDebug(log_script) << "mouse mode" << params.mode << "mouse button" << params.mouseButton;
+    return params;
+
+    // Create and add the key packet
+    // keyPacket pack(Mode, _mouseButton, 0x00, coord); // Last param 0x00 is mouseRollWheel
+    // qCDebug(log_script) << "after key packet";
+    // keyboardMouse->addKeyPacket(pack);
 }
