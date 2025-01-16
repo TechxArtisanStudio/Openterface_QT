@@ -104,11 +104,52 @@ void SemanticAnalyzer::analyzeCommandStetement(const CommandStatementNode* node)
     if(commandName == "FullScreenCapture"){
         analyzeFullScreenCapture(node);
     }
+    if(commandName == "AreaScreenCapture"){
+        analyzeAreaScreenCapture(node);
+    }
+}
+
+void SemanticAnalyzer::analyzeAreaScreenCapture(const CommandStatementNode* node){
+    const auto& options = node->getOptions();
+    if (options.empty()){
+        qCDebug(log_script) << "No param given";
+        return;
+    }
+    QString path;
+    QString tmpTxt;
+    QStringList numTmp;
+    qCDebug(log_script) << "Capturing area img";
+    for (const auto& token : options){
+        if (token != "\"") tmpTxt.append(QString::fromStdString(token));
+    }
+    path = extractFilePath(tmpTxt);
+    QRegularExpressionMatchIterator numMatchs = numberRegex.globalMatch(tmpTxt);
+    while(numMatchs.hasNext()){
+        QRegularExpressionMatch nummatch = numMatchs.next();
+        numTmp.append(nummatch.captured(0));
+    }
+    std::vector<int> numData;
+    for (const QString & num : numTmp){
+        bool ok;
+        int value = num.toInt(&ok);
+        if (ok){
+            numData.push_back(value);
+        }
+    }
+    if (numData.size()<4) {
+        qCDebug(log_script) << "the param of area rect is x y width height";
+        return;
+    }
+    QRegularExpression regex("\\\\");
+    path.replace(regex, "/");
+    QRect area = QRect(numData[0], numData[1], numData[2], numData[3]);
+    emit captureAreaImg(path, area);
 }
 
 void SemanticAnalyzer::analyzeFullScreenCapture(const CommandStatementNode* node){
     const auto& options = node->getOptions();
     QString path;
+    QString tmpTxt;
     if (options.empty()){
         qCDebug(log_script) << "No path given";
         QString path = "";
@@ -116,9 +157,21 @@ void SemanticAnalyzer::analyzeFullScreenCapture(const CommandStatementNode* node
         return;
     }
     for (const auto& token : options){
-        if (token != "\"") path.append(QString::fromStdString(token));
+        if (token != "\"") tmpTxt.append(QString::fromStdString(token));
     }
+    path = extractFilePath(tmpTxt);
+    QRegularExpression regex("\\\\");
+    path.replace(regex, "/");
     emit captureImg(path);
+}
+
+QString SemanticAnalyzer::extractFilePath(const QString& originText){
+    QRegularExpression regex(R"(([a-zA-Z]:[\\\/][^\s]+|\/[^\s]+))");
+    QRegularExpressionMatch match = regex.match(originText);
+    if (match.hasMatch()){
+        return match.captured(0);
+    }
+    return QString();
 }
 
 void SemanticAnalyzer::analyzeLockState(const CommandStatementNode* node, const QString& keyName, bool (KeyboardMouse::*getStateFunc)()){
