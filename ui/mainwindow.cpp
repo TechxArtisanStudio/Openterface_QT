@@ -281,7 +281,7 @@ MainWindow::MainWindow() :  ui(new Ui::MainWindow),
     mouseManager = std::make_unique<MouseManager>();
     keyboardMouse = std::make_unique<KeyboardMouse>();
     semanticAnalyzer = std::make_unique<SemanticAnalyzer>(mouseManager.get(), keyboardMouse.get());
-    connect(semanticAnalyzer.get(), SemanticAnalyzer::captureImg, this, &MainWindow::takeImage);
+    connect(semanticAnalyzer.get(), &SemanticAnalyzer::captureImg, this, &MainWindow::takeImage);
     ScriptTool *scriptTool = new ScriptTool(this);
     connect(scriptTool, &ScriptTool::syntaxTreeReady, this, &MainWindow::handleSyntaxTree);
     setTooltip();
