@@ -4,6 +4,7 @@
 - The software provides comprehensive logging capabilities to track user actions and system events.
 - **Types of Logging**: 
   - Host
+  - Core
   - Serial
   - User Interface
 - Users can choose the text file where the logging data will be stored.
@@ -29,6 +30,9 @@
     - **Zoom Out**
     - **Restore Original Size**
 
+##  Audio playing from target
+- The audio from the target device is directly transmitted to the host as an audio input, allowing users to adjust the volume either on the target device or the host.
+
 ## Variable Video Resolution and Frame Rate
 - The software supports variable video resolution and frame rate settings, allowing users to customize their video output for optimal performance.
 - **Resolution Options [Frame Rate]**: 
@@ -44,6 +48,9 @@
   - 1600x1200 [5-30 Hz]
   - 1920x1080 [5 -30 Hz]
 
+## Screen Capture
+- Users can save a screenshot from the target device to a folder on the host by clicking a button (the folder is the default media path in either Linux or Windows).
+
 ## Basic Functions of KVM
 - The software supports basic KVM (Keyboard, Video, Mouse) functions, enabling seamless control of multiple devices.
 - **Mouse Movement Modes**:
@@ -52,7 +59,7 @@
   - To exit the Relative mode, long press the **Esc** button.
 
 ## Modifications of Hardware Information
-- Users can modify and update hardware information directly through the software interface.
+- Users can modify and update hardware information (which display on the target) directly through the software interface.
 - **Modifiable Parameters**:
   - VID (Vendor ID)
   - PID (Product ID)
@@ -87,3 +94,5 @@ The following commands are supported in the scripts:
 - **SetCapsLockState**: Toggles the Caps Lock state.
 - **SetNumLockState**: Toggles the Num Lock state.
 - **SetScrollLockState**: Toggles the Scroll Lock state.
+- **FullScreenCapture**: Captures a full-screen image from the target device and saves it to a specified path on the host (the default path is the media directory for Windows/Linux).
+- **AreaScreenCapture**: Captures a screen image of a specified area from the target device and saves it to a designated path on the host (the default path is the media directory for Windows/Linux). The area is defined using coordinates (x, y) and dimensions (width, height).

@@ -10,6 +10,7 @@
 - [x] Paste text to Target device
 - [ ] OCR text from Target device
 - [ ] Other feature request? Please join the [Discord channel](https://discord.gg/sFTJD6a3R8) and tell me
+- [ ] For a detailed list of features, please refer to the [Features Documentation](doc/feature.md).
 
 # Suppported OS
 - Window (10/11) 
