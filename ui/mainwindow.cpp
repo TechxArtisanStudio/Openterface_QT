@@ -282,6 +282,7 @@ MainWindow::MainWindow() :  ui(new Ui::MainWindow),
     keyboardMouse = std::make_unique<KeyboardMouse>();
     semanticAnalyzer = std::make_unique<SemanticAnalyzer>(mouseManager.get(), keyboardMouse.get());
     connect(semanticAnalyzer.get(), &SemanticAnalyzer::captureImg, this, &MainWindow::takeImage);
+    connect(semanticAnalyzer.get(), &SemanticAnalyzer::captureAreaImg, this, &MainWindow::takeAreaImage);
     ScriptTool *scriptTool = new ScriptTool(this);
     connect(scriptTool, &ScriptTool::syntaxTreeReady, this, &MainWindow::handleSyntaxTree);
     setTooltip();
@@ -886,6 +887,11 @@ void MainWindow::takeImageDefault(){
 void MainWindow::takeImage(const QString& path)
 {
     m_cameraManager->takeImage(path);
+}
+
+void MainWindow::takeAreaImage(const QString& path, const QRect& captureArea){
+    qCDebug(log_ui_mainwindow) << "mainwindow capture area image";
+    m_cameraManager->takeAreaImage(path, captureArea);
 }
 
 void MainWindow::displayCaptureError(int id, const QImageCapture::Error error,

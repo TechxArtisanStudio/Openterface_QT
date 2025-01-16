@@ -10,6 +10,8 @@
 #include <QDir>
 #include <QImageCapture>
 #include <QStandardPaths>
+#include <QRect>
+
 class CameraManager : public QObject
 {
     Q_OBJECT
@@ -23,6 +25,7 @@ public:
     void startCamera();
     void stopCamera();
     void takeImage(const QString& file);
+    void takeAreaImage(const QString& file, const QRect& captureArea);
     void startRecording();
     void stopRecording();
     QCamera* getCamera() const { return m_camera.get(); }
@@ -56,6 +59,7 @@ private:
     int m_video_height;
     QString filePath;
     void setupConnections();
+    QRect copyRect;
 };
 
 #endif // CAMERAMANAGER_H
