@@ -8,6 +8,7 @@
 #include <QVideoWidget>
 
 
+
 Q_LOGGING_CATEGORY(log_ui_camera, "opf.ui.camera")
 
 CameraManager::CameraManager(QObject *parent)
@@ -16,6 +17,7 @@ CameraManager::CameraManager(QObject *parent)
     qDebug() << "CameraManager init...";
     m_imageCapture = std::make_unique<QImageCapture>();
     m_mediaRecorder = std::make_unique<QMediaRecorder>();
+    connect(m_imageCapture.get(), &QImageCapture::imageCaptured, this, &CameraManager::onImageCaptured);
     connect(m_imageCapture.get(), &QImageCapture::imageCaptured, this, &CameraManager::onImageCaptured);
 }
 
@@ -76,6 +78,29 @@ void CameraManager::stopCamera()
         qCDebug(log_ui_camera) << "Camera stopped";
     } else {
         qCWarning(log_ui_camera) << "Camera is null, cannot stop";
+    }
+}
+
+void CameraManager::onImageCaptured(int id, const QImage& img){
+    Q_UNUSED(id);
+    QString picturesPath = QStandardPaths::writableLocation(QStandardPaths::PicturesLocation);
+    if (picturesPath.isEmpty()) {
+        picturesPath = QDir::currentPath();
+    }
+    QString customFolderPath = picturesPath + "/" + "openterfaceCaptureImg";
+    QDir dir(customFolderPath);
+    if (!dir.exists()) {
+        if (!dir.mkpath(".")) {
+            qCDebug(log_ui_camera) << "Failed to create directory: " << customFolderPath;
+            return;
+        }
+    }
+    QString timestamp = QDateTime::currentDateTime().toString("yyyyMMdd_HHmmss");
+    QString saveName = customFolderPath + "/" + timestamp + ".png";
+    if(img.save(saveName)){
+        qCDebug(log_ui_camera) << "succefully save img to : " << saveName;
+    }else{
+        qCDebug(log_ui_camera) << "fail save img to : " << saveName;
     }
 }
 
