@@ -48,7 +48,9 @@ SOURCES += main.cpp \
     scripts/Lexer.cpp \
     scripts/Parser.cpp \
     scripts/semanticAnalyzer.cpp \
-    scripts/KeyboardMouse.cpp 
+    scripts/KeyboardMouse.cpp \
+    server/tcpServer.cpp
+
 
 HEADERS  += \
     global.h \
@@ -91,7 +93,9 @@ HEADERS  += \
     scripts/Lexer.h \
     scripts/Parser.h \
     scripts/semanticAnalyzer.h \
-    scripts/KeyboardMouse.h
+    scripts/KeyboardMouse.h \
+    server/tcpServer.h
+
 FORMS    += \
     ui/mainwindow.ui \
     ui/settingdialog.ui 

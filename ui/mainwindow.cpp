@@ -39,6 +39,7 @@
 #include "ui/cameraajust.h"
 #include "ui/TaskManager.h"
 
+
 #include <QCameraDevice>
 #include <QMediaDevices>
 #include <QMediaFormat>
@@ -145,7 +146,8 @@ MainWindow::MainWindow() :  ui(new Ui::MainWindow),
     ui->setupUi(this);
     m_statusBarManager = new StatusBarManager(ui->statusbar, this);
     taskmanager = TaskManager::instance();
-    
+    tcpServer = new TcpServer(this);
+    tcpServer->startServer(12345);
 
     QWidget *centralWidget = new QWidget(this);
     centralWidget->setLayout(stackedLayout);

@@ -46,6 +46,7 @@
 #include "ui/TaskManager.h"
 #include "../scripts/semanticAnalyzer.h"
 #include "../scripts/AST.h"
+#include "server/tcpServer.h"
 
 #include <QAudioInput>
 #include <QAudioOutput>
@@ -225,6 +226,8 @@ private:
     QLabel *keyLabel;
     QToolBar *toolbar;
     ToolbarManager *toolbarManager; // Moved up in the declaration orde r
+    TcpServer *tcpServer;
+
 
     QMediaDevices m_source;
     QScopedPointer<QImageCapture> m_imageCapture;
