@@ -8,8 +8,6 @@
 #include <QVideoWidget>
 
 
-
-
 Q_LOGGING_CATEGORY(log_ui_camera, "opf.ui.camera")
 
 CameraManager::CameraManager(QObject *parent)
