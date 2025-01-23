@@ -4,6 +4,16 @@
 #include <QTcpServer>
 #include <QTcpSocket>
 
+enum actionCommand {
+    FullScreenCapture,
+    AreaScreenCapture,
+    Click,
+    Send,
+    SetCapsLockState,
+    SetNumLockState,
+    SetScrollLockState
+};
+
 class TcpServer : public QTcpServer {
     Q_OBJECT
 

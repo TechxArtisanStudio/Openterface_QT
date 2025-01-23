@@ -24,6 +24,7 @@ void TcpServer::onNewConnection() {
 
 void TcpServer::onReadyRead() {
     QByteArray data = currentClient->readAll();
+    
     qCDebug(log_server_tcp) << "Received data:" << data;
 
     // Process the data (this is where you handle the incoming data)
@@ -33,6 +34,7 @@ void TcpServer::onReadyRead() {
     currentClient->write(responseData);
     currentClient->flush();
 }
+
 
 void TcpServer::captureFullScreen(){
 

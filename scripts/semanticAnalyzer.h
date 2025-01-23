@@ -25,6 +25,7 @@
 #define SEMANTIC_ANALYZER_H
 
 #include "target/MouseManager.h"
+#include "regex/RegularExpression.h"
 // #include "target/KeyboardManager.h"
 #include "KeyboardMouse.h"
 #include <memory>
@@ -68,16 +69,16 @@ private:
     void analyzeAreaScreenCapture(const CommandStatementNode* node);
     QString extractFilePath(const QString& originText);
 
-    
-    QRegularExpression onRegex{QString("^(1|True|On)$"), QRegularExpression::CaseInsensitiveOption};
-    QRegularExpression offRegex{QString("^(0|False|Off)$"), QRegularExpression::CaseInsensitiveOption};
-    QRegularExpression sendEmbedRegex{QString(R"(\{Click\s*([^}]*)\})"),QRegularExpression::CaseInsensitiveOption};
-    QRegularExpression numberRegex{QString(R"(\d+)")};
-    QRegularExpression buttonRegex{QString(R"((?<![a-zA-Z])(right|R|middle|M|left|L)(?![a-zA-Z]))"), QRegularExpression::CaseInsensitiveOption};
-    QRegularExpression downUpRegex{QString(R"((?<![a-zA-Z])(down|D|Up|U)(?![a-zA-Z]))"), QRegularExpression::CaseInsensitiveOption};
-    QRegularExpression relativeRegex{QString(R"((?<![a-zA-Z])(rel|relative)(?![a-zA-Z]))"), QRegularExpression::CaseInsensitiveOption};
-    QRegularExpression braceKeyRegex{QString(R"(\{([^}]+)\})"), QRegularExpression::CaseInsensitiveOption};
-    QRegularExpression controlKeyRegex{QString(R"(([!^+#])((?:\{[^}]+\}|[^{])+))")};
+    RegularExpression& regex = RegularExpression::instance();
+    // QRegularExpression onRegex{QString("^(1|True|On)$"), QRegularExpression::CaseInsensitiveOption};
+    // QRegularExpression offRegex{QString("^(0|False|Off)$"), QRegularExpression::CaseInsensitiveOption};
+    // QRegularExpression sendEmbedRegex{QString(R"(\{Click\s*([^}]*)\})"),QRegularExpression::CaseInsensitiveOption};
+    // QRegularExpression numberRegex{QString(R"(\d+)")};
+    // QRegularExpression buttonRegex{QString(R"((?<![a-zA-Z])(right|R|middle|M|left|L)(?![a-zA-Z]))"), QRegularExpression::CaseInsensitiveOption};
+    // QRegularExpression downUpRegex{QString(R"((?<![a-zA-Z])(down|D|Up|U)(?![a-zA-Z]))"), QRegularExpression::CaseInsensitiveOption};
+    // QRegularExpression relativeRegex{QString(R"((?<![a-zA-Z])(rel|relative)(?![a-zA-Z]))"), QRegularExpression::CaseInsensitiveOption};
+    // QRegularExpression braceKeyRegex{QString(R"(\{([^}]+)\})"), QRegularExpression::CaseInsensitiveOption};
+    // QRegularExpression controlKeyRegex{QString(R"(([!^+#])((?:\{[^}]+\}|[^{])+))")};
     
     MouseParams parserClickParam(const QString& command);
 };
