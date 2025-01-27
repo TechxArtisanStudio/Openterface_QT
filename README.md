@@ -3,12 +3,12 @@
 > This is a preview version of the source code and presently, it does not support all the features found in the macOS version. We are in the process of optimizing the code and refining the building methods. Your feedback is invaluable to us. If you have any suggestions or recommendations, feel free to reach out to the project team via email. Alternatively, you can join our [Discord channel](https://discord.gg/sFTJD6a3R8) for direct discussions.
 
 # Table of Contents
-- [Current and future features](#current-and-future-features)
-- [Suppported OS](#supported-os)
+- [Features](#features)
+- [Supported OS](#supported-os)
 - [Download & Run from Github build](#download--run-from-github-build)
-- [Development](#development)
-- [Build from source & Run](#build-from-source--run)
-- [Abut the Crowdfunding Hardward](#about-the-crowdfunding-hardward)  
+- [Build from source](#build-from-source)
+- [Asking questions and reporting issues](#asking-questions-and-reporting-issues)
+- [License](#license)
 
 ## Features
 - [x] Basic KVM operations
