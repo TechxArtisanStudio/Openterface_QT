@@ -71,7 +71,7 @@ openterfaceQT
 ## Build from source
 ### For Windows
 - Using QT Creator
-  1. Install [QT for opensource](https://www.qt.io/download-qt-installer-oss?hsCtaTracking=99d9dd4f-5681-48d2-b096-470725510d34%7C074ddad0-fdef-4e53-8aa8-5e8a876d6ab4), recommanded version 6.4.3
+  1. Install [QT for opensource](https://www.qt.io/download-qt-installer-oss?hsCtaTracking=99d9dd4f-5681-48d2-b096-470725510d34%7C074ddad0-fdef-4e53-8aa8-5e8a876d6ab4), recommanded version 6.5.3
   2. Use Qt Maintenance Tool to add following components
      - [QtMultiMedia](https://doc.qt.io/qt-6/qtmultimedia-index.html)
      - [QtSerialPort](https://doc.qt.io/qt-6/qtserialport-index.html)
