@@ -50,7 +50,9 @@ sudo apt install -y libqt6core6 libqt6dbus6 libqt6gui6 libqt6network6 libqt6mult
 ```bash
 # Setup the dialout permission for Serial port
 sudo usermod -a -G dialout $USER
+```
 
+```bash
 # Setup the hidraw permission
 echo 'KERNEL== "hidraw*", SUBSYSTEM=="hidraw", MODE="0666"' | sudo tee /etc/udev/rules.d/51-openterface.rules 
 sudo udevadm control --reload-rules
