@@ -97,6 +97,8 @@ sudo apt-get install -y \
 ```bash
 # Setup the dialout permission for Serial port
 sudo usermod -a -G dialout $USER
+# On some distros (e.g. Arch Linux) this might be called uucp
+sudo usermod -a -G uucp $USER
 
 # Setup the hidraw permission
 echo 'KERNEL== "hidraw*", SUBSYSTEM=="hidraw", MODE="0666"' | sudo tee /etc/udev/rules.d/51-openterface.rules 
@@ -129,7 +131,7 @@ ls /dev/ttyUSB*
 # if you can list the usb the serial port correctly recognized
 # Then we need give the permissions to user for control serial port you can do this:
 sudo ./openterfaceQT
-# or 
+# or (dialout/uucp)
 sudo usermod -a -G dialout <your_username>
 sudo reboot
 # back to the build floder
