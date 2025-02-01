@@ -1299,3 +1299,26 @@ void MainWindow::animateVideoPane() {
     }
 }
 
+void MainWindow::changeKeyboardLayout(const QString& layout) {
+    // Pass the layout name directly to HostManager
+    HostManager::getInstance().setKeyboardLayout(layout);
+}
+
+void MainWindow::initializeKeyboardLayouts() {
+    QStringList layouts = KeyboardLayoutManager::getInstance().getAvailableLayouts();
+    qDebug() << "Available layouts:" << layouts;
+    
+    ui->zoomComboBox->clear();
+    ui->zoomComboBox->addItems(layouts);
+    
+    // Set US QWERTY as default layout
+    QString defaultLayout = "US QWERTY";
+    if (layouts.contains(defaultLayout)) {
+        changeKeyboardLayout(defaultLayout);
+        ui->zoomComboBox->setCurrentText(defaultLayout);
+    } else if (!layouts.isEmpty()) {
+        // Fallback to first available layout if US QWERTY is not found
+        changeKeyboardLayout(layouts.first());
+    }
+}
+

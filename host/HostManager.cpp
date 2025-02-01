@@ -209,3 +209,7 @@ void HostManager::repeatLastKeystroke() {
     }
 }
 
+void HostManager::setKeyboardLayout(const QString& layoutName) {
+    qCDebug(log_core_host) << "Keyboard layout changed to" << layoutName;
+    keyboardManager.setKeyboardLayout(layoutName);
+} 

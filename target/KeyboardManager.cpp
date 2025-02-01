@@ -21,7 +21,7 @@
 */
 
 #include "KeyboardManager.h"
-#include "Keymapping.h"
+#include "KeyboardLayouts.h"
 
 #include <QList>
 #include <QtConcurrent/QtConcurrent>
@@ -30,10 +30,52 @@
 
 Q_LOGGING_CATEGORY(log_keyboard, "opf.host.keyboard")
 
+// Define static members
+const QList<int> KeyboardManager::SHIFT_KEYS = {
+    Qt::Key_Shift,
+    160, // Shift Left
+    161  // Shift Right
+};
+
+const QList<int> KeyboardManager::CTRL_KEYS = {
+    Qt::Key_Control,
+    162, // Ctrl Left
+    163  // Ctrl Right
+};
+
+const QList<int> KeyboardManager::ALT_KEYS = {
+    Qt::Key_Alt,
+    164, // Menu Left
+    165  // Menu Right
+};
+
+const QList<int> KeyboardManager::KEYPAD_KEYS = {
+    Qt::Key_0, Qt::Key_1, Qt::Key_2, Qt::Key_3, Qt::Key_4,
+    Qt::Key_5, Qt::Key_6, Qt::Key_7, Qt::Key_8, Qt::Key_9,
+    Qt::Key_Return, Qt::Key_Plus, Qt::Key_Minus,
+    Qt::Key_Asterisk, Qt::Key_Slash, Qt::Key_Period
+};
+
+const QMap<int, uint8_t> KeyboardManager::functionKeyMap = {
+    {Qt::Key_F1, 0x3A},
+    {Qt::Key_F2, 0x3B},
+    {Qt::Key_F3, 0x3C},
+    {Qt::Key_F4, 0x3D},
+    {Qt::Key_F5, 0x3E},
+    {Qt::Key_F6, 0x3F},
+    {Qt::Key_F7, 0x40},
+    {Qt::Key_F8, 0x41},
+    {Qt::Key_F9, 0x42},
+    {Qt::Key_F10, 0x43},
+    {Qt::Key_F11, 0x44},
+    {Qt::Key_F12, 0x45}
+};
+
 KeyboardManager::KeyboardManager(QObject *parent) : QObject(parent), 
                                             currentMappedKeyCodes()
 {
-    // Remove the timer initialization and connection
+    // Set US QWERTY as default layout
+    setKeyboardLayout("US QWERTY");
     getKeyboardLayout();
 }
 
@@ -41,15 +83,37 @@ void KeyboardManager::handleKeyboardAction(int keyCode, int modifiers, bool isKe
     QByteArray keyData = CMD_SEND_KB_GENERAL_DATA;
     unsigned int combinedModifiers = 0;
 
-    switch(m_locale.country()){
-        case QLocale::UnitedKingdom:
-            mappedKeyCode = ukKeyMap.value(keyCode, 0);
-            qDebug(log_keyboard) << "UK key map";
-            break;
-        default:
-            mappedKeyCode = keyMap.value(keyCode, 0);
-            qDebug(log_keyboard) << "Default key map";
-            break;
+    // Debug the incoming key code
+    qCDebug(log_keyboard) << "Processing key:" << keyCode 
+                         << "(0x" << QString::number(keyCode, 16) << ")"
+                         << "with modifiers:" << modifiers
+                         << "isKeyDown:" << isKeyDown;
+
+    // Check if it's a function key
+    if (keyCode >= Qt::Key_F1 && keyCode <= Qt::Key_F12) {
+        qCDebug(log_keyboard) << "Function key detected:" << keyCode;
+    }
+
+    // Check if it's a navigation key
+    if (keyCode >= Qt::Key_Left && keyCode <= Qt::Key_PageDown) {
+        qCDebug(log_keyboard) << "Navigation key detected:" << keyCode;
+    }
+
+    // Use current layout's keyMap instead of the static one
+    mappedKeyCode = currentLayout.keyMap.value(keyCode, 0);
+    qCDebug(log_keyboard) << "Mapped to scancode: 0x" << QString::number(mappedKeyCode, 16);
+    qCDebug(log_keyboard) << "Current layout name:" << currentLayout.name;
+    qCDebug(log_keyboard) << "Layout has" << currentLayout.keyMap.size() << "mappings";
+
+    if (mappedKeyCode == 0) {
+        qCWarning(log_keyboard) << "No mapping found for key code:" << keyCode 
+                               << "in layout:" << currentLayout.name;
+        qCDebug(log_keyboard) << "Available mappings in current layout:";
+        for (auto it = currentLayout.keyMap.begin(); it != currentLayout.keyMap.end(); ++it) {
+            qCDebug(log_keyboard) << "  Qt key:" << it.key() 
+                                 << "-> Scancode: 0x" << QString::number(it.value(), 16);
+        }
+        return;
     }
 
     if(isModiferKeys(keyCode)){
@@ -200,33 +264,11 @@ void KeyboardManager::handlePastingCharacters(const QString& text, const QMap<ui
 }
 
 void KeyboardManager::pasteTextToTarget(const QString &text) {
-    QMap<uint8_t, int> charMappingCopy;
-    switch(m_locale.country()){
-        case QLocale::UnitedKingdom: {
-            charMappingCopy = ukCharMapping; // Make a copy of charMapping to capture in the lambda
-            qDebug(log_keyboard) << "UK char mapping copy";
-            break; 
-        }
-        default: {
-            charMappingCopy = charMapping; // Make a copy of charMapping to capture in the lambda
-            qDebug(log_keyboard) << "Default char mapping copy";
-            break;
-        }
-    }
-    QFuture<void> future = QtConcurrent::run([this, text, charMappingCopy]() {
-        handlePastingCharacters(text, charMappingCopy);
-    });
+    handlePastingCharacters(text, currentLayout.charMapping);
 }
 
 bool KeyboardManager::needShiftWhenPaste(const QChar character) {
-
-    switch(m_locale.country()){
-        case QLocale::UnitedKingdom:
-            qDebug() << "UK need shift key:" << character.unicode() << UK_NEED_SHIFT_KEYS.contains(character.unicode());
-            return character.isUpper() || UK_NEED_SHIFT_KEYS.contains(character.unicode());
-        default:
-            return character.isUpper() || NEED_SHIFT_KEYS.contains(character);
-    }
+    return character.isUpper() || currentLayout.needShiftKeys.contains(character.toLatin1());
 }
 
 void KeyboardManager::sendFunctionKey(int functionKeyCode) {
@@ -284,5 +326,31 @@ void KeyboardManager::getKeyboardLayout() {
     QInputMethod *inputMethod = QGuiApplication::inputMethod();
     m_locale = inputMethod->locale();
     qCDebug(log_keyboard) << "Current keyboard layout:" << m_locale.language() << m_locale.country();
+}
+
+void KeyboardManager::setKeyboardLayout(const QString& layoutName) {
+    qCDebug(log_keyboard) << "Setting keyboard layout to:" << layoutName;
+    
+    if (layoutName.isEmpty()) {
+        qCWarning(log_keyboard) << "Empty layout name provided, using US QWERTY as default";
+        currentLayout = KeyboardLayoutManager::getInstance().getLayout("US QWERTY");
+    } else {
+        currentLayout = KeyboardLayoutManager::getInstance().getLayout(layoutName);
+    }
+    
+    if (currentLayout.name.isEmpty()) {
+        qCWarning(log_keyboard) << "Failed to load layout:" << layoutName << ", using US QWERTY as default";
+        currentLayout = KeyboardLayoutManager::getInstance().getLayout("US QWERTY");
+    }
+    
+    // Debug the loaded layout
+    qCDebug(log_keyboard) << "Loaded layout with" << currentLayout.keyMap.size() << "key mappings";
+    qCDebug(log_keyboard) << "Layout name:" << currentLayout.name;
+    qCDebug(log_keyboard) << "Available mappings:";
+    for (auto it = currentLayout.keyMap.begin(); it != currentLayout.keyMap.end(); ++it) {
+        qCDebug(log_keyboard) << "  Qt key:" << it.key() 
+                             << "(0x" << QString::number(it.key(), 16) << ")"
+                             << "-> Scancode: 0x" << QString::number(it.value(), 16);
+    }
 }
 

@@ -70,6 +70,64 @@
     </property>
     <layout class="QHBoxLayout" name="horizontalLayout">
      <item>
+      <widget class="QLabel" name="keyboardLabel">
+       <property name="minimumSize">
+        <size>
+         <width>16</width>
+         <height>16</height>
+        </size>
+       </property>
+       <property name="maximumSize">
+        <size>
+         <width>16</width>
+         <height>16</height>
+        </size>
+       </property>
+       <property name="text">
+        <string/>
+       </property>
+       <property name="pixmap">
+        <pixmap resource="mainwindow.qrc">:/images/keyboard.svg</pixmap>
+       </property>
+       <property name="scaledContents">
+        <bool>true</bool>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QComboBox" name="zoomComboBox">
+       <property name="sizePolicy">
+        <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
+         <horstretch>0</horstretch>
+         <verstretch>0</verstretch>
+        </sizepolicy>
+       </property>
+       <property name="minimumWidth">
+         <number>80</number>
+       </property>
+       <item>
+        <property name="text">
+         <string>US QWERTY</string>
+        </property>
+       </item>
+       <item>
+        <property name="text">
+         <string>French AZERTY</string>
+        </property>
+       </item>
+       <item>
+        <property name="text">
+         <string>German QWERTZ</string>
+        </property>
+       </item>
+       <item>
+        <property name="text">
+         <string>UK QWERTY</string>
+        </property>
+       </item>
+      </widget>
+     </item>
+     <item>
       <widget class="QPushButton" name="ZoomInButton">
        <property name="icon">
         <iconset resource="mainwindow.qrc">
@@ -89,7 +147,8 @@
       <widget class="QPushButton" name="ZoomReductionButton">
        <property name="icon">
         <iconset resource="mainwindow.qrc">
-         <normaloff>:/images/zoom_reduction.svg</normaloff>:/images/zoom_reduction.svg</iconset>
+         <normaloff>:/images/zoom_reduction.svg</normaloff>:/images/zoom_reductimake
+         zon.svg</iconset>
        </property>
       </widget>
      </item>
@@ -128,18 +187,16 @@
        </property>
       </widget>
      </item>
-     
-     <!-- <item>
-      <widget class="QPushButton" name="contrastButton">
-       <property name="icon">
-        <iconset resource="mainwindow.qrc">
-         <normaloff>:/images/contrast.svg</normaloff>:/images/contrast.svg</iconset>
+     <item>
+      <widget class="QComboBox" name="keyboardLayoutComboBox">
+       <property name="minimumWidth">
+        <number>120</number>
        </property>
-       <property name="checkable">
-        <bool>true</bool>
+       <property name="toolTip">
+        <string>Select Keyboard Layout</string>
        </property>
       </widget>
-     </item> -->
+     </item>
     </layout>
    </widget>
    <widget class="QMenu" name="menuFile">
@@ -533,6 +590,22 @@
     </hint>
    </hints>
   </connection>
+  <connection>
+   <sender>zoomComboBox</sender>
+   <signal>currentTextChanged(QString)</signal>
+   <receiver>MainWindow</receiver>
+   <slot>changeKeyboardLayout(QString)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>-1</x>
+     <y>-1</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>639</x>
+     <y>380</y>
+    </hint>
+   </hints>
+  </connection>
  </connections>
  <slots>
   <slot>record()</slot>
@@ -554,5 +627,6 @@
   <slot>stopCamera()</slot>
   <slot>setExposureCompensation(int)</slot>
   <slot>showScriptTool()</slot>
+  <slot>changeKeyboardLayout(QString)</slot>
  </slots>
 </ui>
