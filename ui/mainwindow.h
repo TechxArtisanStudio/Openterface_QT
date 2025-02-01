@@ -103,6 +103,8 @@ public:
 
 public slots:
     void handleSyntaxTree(std::shared_ptr<ASTNode> syntaxTree);
+    void changeKeyboardLayout(const QString& layout);
+    void initializeKeyboardLayouts();
 
 private slots:
     void initCamera();

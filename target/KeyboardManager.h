@@ -25,6 +25,7 @@
 
 #include "../serial/SerialPortManager.h"
 #include "ui/statusevents.h"
+#include "KeyboardLayouts.h"
 
 #include <QObject>
 #include <QLoggingCategory>
@@ -70,19 +71,9 @@ public:
 
     void sendKey(int keyCode, int modifiers, bool isKeyDown);
 
-private:
-    static const QMap<int, uint8_t> keyMap;
-    static const QMap<int, uint8_t> ukKeyMap;
-    static const QMap<uint8_t, int> charMapping;
-    static const QMap<uint8_t, int> ukCharMapping;
-    static const QList<char> NEED_SHIFT_KEYS;
-    static const QList<int> UK_NEED_SHIFT_KEYS;
-    static const QList<int> SHIFT_KEYS;
-    static const QList<int> CTRL_KEYS;
-    static const QList<int> ALT_KEYS;
-    static const QList<int> KEYPAD_KEYS;
-    static const QMap<int, uint8_t> functionKeyMap;
+    void setKeyboardLayout(const QString& layoutName);
 
+private:
     QSet<unsigned int> currentMappedKeyCodes;
 
     void handlePastingCharacters(const QString& text, const QMap<uint8_t, int>& charMapping);
@@ -102,6 +93,20 @@ private:
     QLocale m_locale;
     void getKeyboardLayout();
     unsigned int mappedKeyCode;
+
+    KeyboardLayoutConfig currentLayout;
+
+    // Define static members
+    static const QList<int> SHIFT_KEYS;
+    static const QList<int> CTRL_KEYS;
+    static const QList<int> ALT_KEYS;
+    static const QList<int> KEYPAD_KEYS;
+    static const QMap<int, uint8_t> functionKeyMap;
+
+    // Add these constants for key mappings
+    static const QMap<int, uint8_t> defaultKeyMap;
+    static const QMap<uint8_t, int> defaultCharMapping;
+    static const QList<char> defaultNeedShiftKeys;
 
 private slots:
 };
