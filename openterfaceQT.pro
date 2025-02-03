@@ -127,8 +127,12 @@ unix {
     LIBS += -lusb-1.0
 }
 
-# Set the target installation path to a directory within the build folder
-target.path = $$PWD/build/install
+# Set platform-specific installation paths
+win32 {
+    target.path = $$(PROGRAMFILES)/openterfaceQT
+} else {
+    target.path = /usr/local/bin
+}
 
 INSTALLS += target
 
