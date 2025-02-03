@@ -149,12 +149,36 @@ sudo reboot
 
 ## FAQ
  - Keyboard and Mouse not responding in Windows
-   - If the device driver wasn't installed properly during setup, you have two options:
+   - The CH340 serial chip driver wasn't installed properly during setup, you have two options:
      1. Download and install the driver directly from the [WCH website](https://www.wch-ic.com/downloads/CH341SER_EXE.html)
      2. Install the driver from our [source repository](https://github.com/TechxArtisanStudio/Openterface_QT/blob/main/driver/windows/CH341SER.INF) by running this command as Administrator:
-  ```
-    pnputil -a CH341SER.INF
-  ```
+      ```
+        pnputil -a CH341SER.INF
+      ```
+ - Keyboard and Mouse not responding in Linux
+   - Likely the CH340 serial chip driver is missing in your OS, you should 
+      1. **Download the driver**: Visit the driver [website](https://www.wch-ic.com/downloads/CH341SER_EXE.html) and download the appropriate driver for Linux.
+
+      2. **Install the driver**:
+         - Extract the downloaded file.
+         - Open a terminal and navigate to the extracted folder.
+         - Run the following commands to compile and install the driver:
+           ```bash
+           make
+           sudo make install
+           ```
+
+      3. **Load the driver**:
+         After installation, load the driver using:
+         ```bash
+         sudo modprobe ch341
+         ```
+
+      4. **Reconnect the device**: Unplug and reconnect the OpenTouch interface to see if the mouse and keyboard inputs are now being sent to the target.
+
+      If the issue persists, it could also be related to permissions or udev rules. Ensure that your user has the necessary permissions to access the device. Please refer to [For Linux users](#for-linux-users)
+
+
  - "This app can't run on your PC" error during installation
    - This error occurs when the required Microsoft Visual C++ Redistributable package is not installed on your Windows system
    - Visit the [Microsoft website](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist?view=msvc-170#latest-microsoft-visual-c-redistributable-version), download and install the version matching your CPU architecture (x86 or x64), then try installing the application again
