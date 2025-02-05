@@ -147,8 +147,7 @@
       <widget class="QPushButton" name="ZoomReductionButton">
        <property name="icon">
         <iconset resource="mainwindow.qrc">
-         <normaloff>:/images/zoom_reduction.svg</normaloff>:/images/zoom_reductimake
-         zon.svg</iconset>
+         <normaloff>:/images/zoom_fit.svg</normaloff>:/images/zoom_fit.svg</iconset>
        </property>
       </widget>
      </item>
