@@ -123,24 +123,6 @@ MainWindow::MainWindow() :  ui(new Ui::MainWindow),
                             m_versionInfoManager(new VersionInfoManager(this))
                             // cameraAdjust(new CameraAdjust(this))
 {
-    // #ifdef Q_OS_LINUX 
-    //     uint16_t hidvid = 0x534D;
-    //     uint16_t hidpid = 0x2109;
-    //     uint16_t ch34xvid = 0x1A86;
-    //     uint16_t ch34xpid = 0x7523;
-    //     bool hid = CheckDeviceAccess(hidvid, hidpid);
-    //     bool ch34x = CheckDeviceAccess(ch34xvid, ch34xpid);
-        
-    //     if (!(hid || ch34x)){
-    //         QString errorMessage = "Device access error:\n";
-    //         errorMessage += "HID: " + QString(hid ? "Accessible" : "Not accessible") + "\n";
-    //         errorMessage += "CH34X: " + QString(ch34x ? "Accessible" : "Not accessible") + "\n";
-    //         errorMessage += "Please get the hidraw and ttyUSB permission first.";
-    //         // Show the error message in a QMessageBox
-    //         QMessageBox::information(nullptr, "Device Error", errorMessage);
-    //     }
-    // #endif
-
     qCDebug(log_ui_mainwindow) << "Init camera...";
     ui->setupUi(this);
     m_statusBarManager = new StatusBarManager(ui->statusbar, this);
@@ -389,9 +371,6 @@ void MainWindow::resizeEvent(QResizeEvent *event) {
     }
 
     isResizing = true;
-
-    
-    
     qCDebug(log_ui_mainwindow) << "Handle window resize event.";
     QMainWindow::resizeEvent(event);  // Call base class implementation
 
@@ -430,7 +409,12 @@ void MainWindow::resizeEvent(QResizeEvent *event) {
     // Check if the current width or height exceeds the available screen size
     qCDebug(log_ui_mainwindow) << "current height: " << currentHeight << "available height: " << availableHeight;
     qCDebug(log_ui_mainwindow) << "current width: " << currentWidth << "available width: " << currentWidth;
-    if (currentWidth >= availableWidth || currentHeight >= availableHeight) {
+
+    if (currentWidth == availableWidth || currentHeight == availableHeight){
+        //If the width or height cannot increase size, then skip processing.
+        isResizing = false;
+        return;
+    } else if (currentWidth > availableWidth || currentHeight > availableHeight) {
         // Calculate the new size while maintaining the aspect ratio
         int videoHeight = maxContentHeight;
         int videoWidth = static_cast<int>(videoHeight * aspect_ratio);
