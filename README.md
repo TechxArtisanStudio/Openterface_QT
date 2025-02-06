@@ -43,6 +43,8 @@
 2. Run the installer and it will install all required drivers and application to your windows. You can run the application from start menu.
     - Note: If you are running under ARM architecture, an extra step is required to install "Microsoft Visual C++ Redistributable for Visual Studio" which can be downloaded here: [Microsoft Visual C++ Redistributable](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist?view=msvc-170#latest-microsoft-visual-c-redistributable-version) 
 
+> Note: Users have reported that the Windows installer is unable to automate driver installation correctly on Windows 11 Version 22H2. You may need to manually download and install the driver from the WCH website. For more details, please refer to this [issue](https://github.com/TechxArtisanStudio/Openterface_QT/issues/138). We are also actively working on a solution to improve driver installation for this version.
+
 ### For Linux users
 
 1. Download the package from Github release page, and find the latest version to download according to your os and cpu architecture.
