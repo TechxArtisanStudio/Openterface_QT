@@ -44,7 +44,7 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 Source: "package\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
 Source: "package\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "package\driver\CH341SER.INF"; DestDir: {app}\driver;
-Source: "package\driver\CH341SER.SYS"; DestDir: {app}\driver;
+Source: "package\driver\CH341S64.SYS"; DestDir: {app}\driver;
 
 ; NOTE: Don't use "Flags: ignoreversion" on any shared system files
 
