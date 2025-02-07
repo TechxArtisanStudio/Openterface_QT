@@ -142,11 +142,6 @@ jobs:
           modules: qtmultimedia qtserialport
           setup-python: false
 
-      - name: Set up Qt environment
-        run: |
-          echo "##[add-path]${{ runner.temp }}\\Qt\\${{ env.QT_VERSION }}\\bin" >> $GITHUB_ENV
-          echo "##[add-path]${{ runner.temp }}\\jom" >> $GITHUB_ENV
-
       - name: Download and Unzip Jom
         if: steps.cache-jom.outputs.cache-hit != 'true'
         working-directory: ${{ runner.temp }}
@@ -168,8 +163,8 @@ jobs:
           call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
           
           echo "Building with qmake..."
-          qmake -v
-          qmake -r ${{ env.SOURCE_DIR }}\openterfaceQT.pro
+          ${{ runner.temp }}\\Qt\\${{ env.QT_VERSION }}\\bin\\qmake -v
+          ${{ runner.temp }}\\Qt\\${{ env.QT_VERSION }}\\bin\\qmake -r ${{ env.SOURCE_DIR }}\openterfaceQT.pro
           if errorlevel 1 exit /b 1
           
           echo "Building with jom..."
@@ -189,7 +184,7 @@ jobs:
           
           echo "Running windeployqt..."
           cd package
-          windeployqt --qmldir ${{ env.SOURCE_DIR }} openterfaceQT.exe --compiler-runtime --multimedia
+          ${{ runner.temp }}\\Qt\\${{ env.QT_VERSION }}\\bin\\windeployqt --qmldir ${{ env.SOURCE_DIR }} openterfaceQT.exe --compiler-runtime --multimedia
           copy C:\Windows\System32\concrt140.dll . 
           copy C:\Windows\System32\vccorlib140.dll .
           copy C:\Windows\System32\msvcp140.dll .
