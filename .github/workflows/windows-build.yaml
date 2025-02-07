@@ -159,7 +159,7 @@ jobs:
 
       - name: List Qt bin directory
         run: |
-          dir D:\a\_temp\Qt\6.5.3\bin
+          dir D:\a\Openterface_QT\Openterface_QT\Qt\6.5.3\bin
 
 
       - name: Build
@@ -168,8 +168,8 @@ jobs:
           call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
           
           echo "Building with qmake..."
-          D:\a\_temp\Qt\${{ env.QT_VERSION }}\bin\qmake -v
-          D:\a\_temp\Qt\${{ env.QT_VERSION }}\bin\qmake -r ${{ env.SOURCE_DIR }}\openterfaceQT.pro
+          D:\a\Openterface_QT\Openterface_QT\Qt\6.5.3\bin\qmake -v
+          D:\a\Openterface_QT\Openterface_QT\Qt\6.5.3\bin\qmake -r ${{ env.SOURCE_DIR }}\openterfaceQT.pro
           if errorlevel 1 exit /b 1
           
           echo "Building with jom..."
@@ -189,7 +189,7 @@ jobs:
           
           echo "Running windeployqt..."
           cd package
-          D:\a\_temp\Qt\${{ env.QT_VERSION }}\bin\windeployqt --qmldir ${{ env.SOURCE_DIR }} openterfaceQT.exe --compiler-runtime --multimedia
+          D:\a\Openterface_QT\Openterface_QT\Qt\6.5.3\bin\windeployqt --qmldir ${{ env.SOURCE_DIR }} openterfaceQT.exe --compiler-runtime --multimedia
           copy C:\Windows\System32\concrt140.dll . 
           copy C:\Windows\System32\vccorlib140.dll .
           copy C:\Windows\System32\msvcp140.dll .
