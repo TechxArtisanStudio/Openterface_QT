@@ -81,9 +81,9 @@ jobs:
       - name: Update version
         run: |
           python "${{ env.SOURCE_DIR }}\update_version.py" \
-            ${{ github.event.inputs.increase_version }} \
-            ${{ github.event.inputs.increase_major }} \
-            ${{ github.event.inputs.increase_minor }}
+            ${{ github.event.inputs.increase_version && '--increase-version' }} \
+            ${{ github.event.inputs.increase_major && '--increase-major' }} \
+            ${{ github.event.inputs.increase_minor && '--increase-minor' }}
         shell: bash
 
       - name: Get all tags for correct version determination
