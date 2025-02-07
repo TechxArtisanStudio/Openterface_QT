@@ -162,6 +162,12 @@ jobs:
           echo "##[add-path]D:/a/Openterface_QT/Openterface_QT/Qt/${{ env.QT_VERSION }}/bin" >> $GITHUB_ENV
           echo "##[add-path]D:/a/Openterface_QT/Openterface_QT/jom" >> $GITHUB_ENV
 
+      - name: List Qt bin directory
+        run: |
+          dir D:/a/Openterface_QT/Openterface_QT/Qt/${{ env.QT_VERSION }}/bin
+          dir D:\a\_temp/Qt
+
+
       - name: Build
         working-directory: ${{ runner.temp }}\build
         run: |
