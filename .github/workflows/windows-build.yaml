@@ -157,17 +157,13 @@ jobs:
         with:
           arch: x64
 
-      - name: Set up Qt environment
-        run: |
-          echo "##[add-path]${{ runner.temp }}\\Qt\\${{ env.QT_VERSION }}\\msvc2019_64\\bin" >> $GITHUB_ENV
-          echo "##[add-path]D:/a/Openterface_QT/Openterface_QT/jom" >> $GITHUB_ENV
-          
       - name: Build
         working-directory: ${{ runner.temp }}\build
         run: |
           call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
           
           echo "Building with qmake..."
+          set PATH=${{ runner.temp }}\\Qt\\${{ env.QT_VERSION }}\\msvc2019_64\\bin;%PATH%
           qmake -v
           qmake -r ${{ env.SOURCE_DIR }}\openterfaceQT.pro
           if errorlevel 1 exit /b 1
