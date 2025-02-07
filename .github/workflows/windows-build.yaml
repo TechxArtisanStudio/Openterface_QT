@@ -157,18 +157,19 @@ jobs:
         with:
           arch: x64
 
-      - name: List Qt bin directory
+      - name: Set up Qt environment
         run: |
-          dir ${{ runner.temp }}\Qt\${{ env.QT_VERSION }}\msvc2019_64
-
+          echo "##[add-path]${{ runner.temp }}\\Qt\\${{ env.QT_VERSION }}\\msvc2019_64\\bin" >> $GITHUB_ENV
+          echo "##[add-path]D:/a/Openterface_QT/Openterface_QT/jom" >> $GITHUB_ENV
+          
       - name: Build
         working-directory: ${{ runner.temp }}\build
         run: |
           call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
           
           echo "Building with qmake..."
-          ${{ runner.temp }}\Qt\${{ env.QT_VERSION }}\msvc2019_64\bin\qmake -v
-          ${{ runner.temp }}\Qt\${{ env.QT_VERSION }}\msvc2019_64\bin\qmake -r ${{ env.SOURCE_DIR }}\openterfaceQT.pro
+          qmake -v
+          qmake -r ${{ env.SOURCE_DIR }}\openterfaceQT.pro
           if errorlevel 1 exit /b 1
           
           echo "Building with jom..."
@@ -188,7 +189,7 @@ jobs:
           
           echo "Running windeployqt..."
           cd package
-          ${{ runner.temp }}\Qt\${{ env.QT_VERSION }}\msvc2019_64\bin\windeployqt --qmldir ${{ env.SOURCE_DIR }} openterfaceQT.exe --compiler-runtime --multimedia
+          windeployqt --qmldir ${{ env.SOURCE_DIR }} openterfaceQT.exe --compiler-runtime --multimedia
           copy C:\Windows\System32\concrt140.dll . 
           copy C:\Windows\System32\vccorlib140.dll .
           copy C:\Windows\System32\msvcp140.dll .
