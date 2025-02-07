@@ -19,13 +19,13 @@ on:
         required: false
         type: boolean
         default: false
-      increase_major:
-        description: 'Increase the major version number'
+      increase_minor:
+        description: 'Increase the minor version number'
         required: false
         type: boolean
         default: false
-      increase_minor:
-        description: 'Increase the minor version number'
+      increase_major:
+        description: 'Increase the major version number'
         required: false
         type: boolean
         default: false
