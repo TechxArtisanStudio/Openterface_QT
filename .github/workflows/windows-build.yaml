@@ -64,7 +64,7 @@ jobs:
             jom-1.1-windows
 
       - name: Update version
-        run: python ${{ env.SOURCE_DIR }}\update_version.py
+        run: python "${{ env.SOURCE_DIR }}\update_version.py"
         shell: python
 
       - name: Get all tags for correct version determination
