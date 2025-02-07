@@ -157,6 +157,11 @@ jobs:
         with:
           arch: x64
 
+      - name: Set up Qt environment
+        run: |
+          echo "##[add-path]D:/a/Openterface_QT/Openterface_QT/Qt/${{ env.QT_VERSION }}/bin" >> $GITHUB_ENV
+          echo "##[add-path]D:/a/Openterface_QT/Openterface_QT/jom" >> $GITHUB_ENV
+
       - name: Build
         working-directory: ${{ runner.temp }}\build
         run: |
