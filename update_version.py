@@ -3,7 +3,7 @@ import re
 import argparse
 from datetime import datetime
 
-def update_version(increase_version):
+def update_version(increase_version, increase_major, increase_minor):
     version_file_path = 'resources/version.h'
 
     # Check if the file exists
@@ -31,6 +31,15 @@ def update_version(increase_version):
     except ValueError:
         print(f"Error: Invalid version format: {version}")
         exit(1)
+
+    # Increment major or minor version if specified
+    if increase_major:
+        major = str(int(major) + 1)
+        minor = '0'  # Reset minor version
+        patch = '0'  # Reset patch version
+    elif increase_minor:
+        minor = str(int(minor) + 1)
+        patch = '0'  # Reset patch version
 
     # Increment patch version if specified
     if increase_version:
@@ -62,7 +71,9 @@ def update_version(increase_version):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Update the version in version.h')
-    parser.add_argument('--increase-version', action='store_true', help='Increase the version number')
+    parser.add_argument('--increase-version', action='store_true', help='Increase the patch version number')
+    parser.add_argument('--increase-major', action='store_true', help='Increase the major version number')
+    parser.add_argument('--increase-minor', action='store_true', help='Increase the minor version number')
     args = parser.parse_args()
 
-    update_version(args.increase_version)
+    update_version(args.increase_version, args.increase_major, args.increase_minor)
