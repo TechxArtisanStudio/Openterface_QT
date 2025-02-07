@@ -57,6 +57,16 @@ Filename: "{app}\{#MyAppExeName}"; \
     Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; \
     Flags: nowait postinstall skipifsilent; \
     Parameters: "/silent"
-Filename: {sys}\rundll32.exe; \
-    Parameters: "setupapi,InstallHinfSection DefaultInstall 128 {app}\driver\CH341SER.inf"; \
-    WorkingDir: {app}\driver; Flags: 32bit runhidden;
+
+[Code]
+function GetDpinstFilename: String;
+begin
+  if Is64BitInstallMode then
+    Result := ExpandConstant('{app}\dpinst64.exe')
+  else
+    Result := ExpandConstant('{app}\dpinst32.exe');
+end;
+
+Filename: GetDpinstFilename; \
+    Parameters: "/q /se /path {app}\driver\CH341SER.inf"; \
+    WorkingDir: {app}\driver; Flags: runhidden;
