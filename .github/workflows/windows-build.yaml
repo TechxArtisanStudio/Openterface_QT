@@ -14,6 +14,11 @@ on:
         required: true
         type: boolean
         default: false
+      increase_version:
+        description: 'Increase the version number'
+        required: false
+        type: boolean
+        default: true
 
 defaults:
   run:
@@ -64,8 +69,7 @@ jobs:
             jom-1.1-windows
 
       - name: Update version
-        if: github.event.inputs.special_build == 'true'
-        run: python "D:/a/Openterface_QT/Openterface_QT/update_version.py"
+        run: python "D:/a/Openterface_QT/Openterface_QT/update_version.py" ${{ github.event.inputs.increase_version == 'true' && '--increase-version' || '' }}
         shell: python
 
       - name: Get all tags for correct version determination

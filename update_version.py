@@ -1,8 +1,9 @@
 import os
 import re
+import argparse
 from datetime import datetime
 
-def update_version():
+def update_version(increase_version):
     version_file_path = 'resources/version.h'
 
     # Check if the file exists
@@ -31,8 +32,9 @@ def update_version():
         print(f"Error: Invalid version format: {version}")
         exit(1)
 
-    # Increment patch version
-    patch = str(int(patch) + 1)
+    # Increment patch version if specified
+    if increase_version:
+        patch = str(int(patch) + 1)
 
     # Calculate days from start of year
     current_date = datetime.now()
@@ -59,4 +61,8 @@ def update_version():
         env_file.write(f"VERSION_FOR_INNO={new_version}\n")
 
 if __name__ == "__main__":
-    update_version()
+    parser = argparse.ArgumentParser(description='Update the version in version.h')
+    parser.add_argument('--increase-version', action='store_true', help='Increase the version number')
+    args = parser.parse_args()
+
+    update_version(args.increase_version)
