@@ -24,7 +24,7 @@ env:
   SOURCE_DIR: ${{ github.workspace }}
   QT_VERSION: 6.5.3 
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  QT_CACHE_KEY: qt-6.5.3-windows
+  QT_CACHE_KEY: qt-${{ env.QT_VERSION }}-windows
   JOM_CACHE_KEY: jom-1.1.3-windows
 
 jobs:
@@ -38,9 +38,6 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Set up environment variables
-        run: echo "QT_VERSION=6.5.3" >> $GITHUB_ENV
-
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -51,7 +48,7 @@ jobs:
         uses: actions/cache@v3
         with:
           path: ${{ runner.temp }}/Qt
-          key: qt-${{ env.QT_VERSION }}
+          key: ${{ env.QT_CACHE_KEY }}
           restore-keys: |
             qt-6.5.3-windows
             qt-6.5-windows
@@ -144,6 +141,11 @@ jobs:
           dir: ${{ runner.temp }}
           modules: qtmultimedia qtserialport
           setup-python: false
+
+      - name: Set up Qt environment
+        run: |
+          echo "##[add-path]${{ runner.temp }}\\Qt\\${{ env.QT_VERSION }}\\bin" >> $GITHUB_ENV
+          echo "##[add-path]${{ runner.temp }}\\jom" >> $GITHUB_ENV
 
       - name: Download and Unzip Jom
         if: steps.cache-jom.outputs.cache-hit != 'true'
