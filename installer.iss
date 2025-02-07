@@ -58,5 +58,5 @@ Filename: "{app}\{#MyAppExeName}"; \
     Flags: nowait postinstall skipifsilent; \
     Parameters: "/silent"
 Filename: {sys}\pnputil.exe; \
-    Parameters: "add-driver {app}\driver\CH341SER.INF /install"; \
+    Parameters: "add-driver CH341SER.INF /install"; \
     WorkingDir: {app}\driver; Flags: 32bit runhidden;
