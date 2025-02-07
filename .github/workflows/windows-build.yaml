@@ -64,7 +64,8 @@ jobs:
             jom-1.1-windows
 
       - name: Update version
-        run: python "${{ env.SOURCE_DIR }}\update_version.py"
+        if: github.event.inputs.special_build == 'true'
+        run: python "D:/a/Openterface_QT/Openterface_QT/update_version.py"
         shell: python
 
       - name: Get all tags for correct version determination
