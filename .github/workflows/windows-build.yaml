@@ -18,7 +18,7 @@ on:
         description: 'Increase the patch version number'
         required: false
         type: boolean
-        default: true
+        default: false
       increase_major:
         description: 'Increase the major version number'
         required: false
