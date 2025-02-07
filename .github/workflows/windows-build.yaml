@@ -24,7 +24,7 @@ env:
   SOURCE_DIR: ${{ github.workspace }}
   QT_VERSION: 6.5.3 
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  QT_CACHE_KEY: qt-${{ env.QT_VERSION }}-windows
+  QT_CACHE_KEY: qt-6.5.3-windows
   JOM_CACHE_KEY: jom-1.1.3-windows
 
 jobs:
