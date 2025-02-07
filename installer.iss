@@ -52,12 +52,6 @@ Source: "package\driver\CH341S64.SYS"; DestDir: {app}\driver;
 Name: "{autoprograms}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
 Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
 
-[Run]
-Filename: "{app}\{#MyAppExeName}"; \
-    Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; \
-    Flags: nowait postinstall skipifsilent; \
-    Parameters: "/silent"
-
 [Code]
 function GetDpinstFilename: String;
 begin
@@ -67,6 +61,11 @@ begin
     Result := ExpandConstant('{app}\dpinst32.exe');
 end;
 
+[Run]
+Filename: "{app}\{#MyAppExeName}"; \
+    Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; \
+    Flags: nowait postinstall skipifsilent; \
+    Parameters: "/silent"
 Filename: GetDpinstFilename; \
     Parameters: "/q /se /path {app}\driver\CH341SER.inf"; \
     WorkingDir: {app}\driver; Flags: runhidden;
