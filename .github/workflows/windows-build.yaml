@@ -70,7 +70,7 @@ jobs:
 
       - name: Update version
         run: |
-          python "D:/a/Openterface_QT/Openterface_QT/update_version.py" ${{ github.event.inputs.increase_version == 'true' && '--increase-version' || '' }}
+          python "${{ env.SOURCE_DIR }}\update_version.py" ${{ github.event.inputs.increase_version == 'true' && '--increase-version' || '' }}
         shell: python
 
       - name: Get all tags for correct version determination
