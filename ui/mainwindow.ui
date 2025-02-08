@@ -102,6 +102,9 @@
          <verstretch>0</verstretch>
         </sizepolicy>
        </property>
+       <property name="minimumWidth">
+         <number>80</number>
+       </property>
        <item>
         <property name="text">
          <string>US QWERTY</string>
@@ -144,7 +147,8 @@
       <widget class="QPushButton" name="ZoomReductionButton">
        <property name="icon">
         <iconset resource="mainwindow.qrc">
-         <normaloff>:/images/zoom_reduction.svg</normaloff>:/images/zoom_reduction.svg</iconset>
+         <normaloff>:/images/zoom_reduction.svg</normaloff>:/images/zoom_reductimake
+         zon.svg</iconset>
        </property>
       </widget>
      </item>
@@ -185,6 +189,9 @@
      </item>
      <item>
       <widget class="QComboBox" name="keyboardLayoutComboBox">
+       <property name="minimumWidth">
+        <number>120</number>
+       </property>
        <property name="toolTip">
         <string>Select Keyboard Layout</string>
        </property>

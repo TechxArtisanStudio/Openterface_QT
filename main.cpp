@@ -116,7 +116,6 @@ int main(int argc, char *argv[])
         QDir().mkpath(configDir.path());
     }
     
-
     // load the settings
     qDebug() << "Loading settings";
     GlobalSetting::instance().loadLogSettings();
