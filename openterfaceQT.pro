@@ -49,7 +49,9 @@ SOURCES += main.cpp \
     scripts/Parser.cpp \
     scripts/semanticAnalyzer.cpp \
     scripts/KeyboardMouse.cpp \
-    target/KeyboardLayouts.cpp
+    target/KeyboardLayouts.cpp \
+    regex/RegularExpression.cpp \
+    server/tcpServer.cpp
 
 HEADERS  += \
     global.h \
@@ -93,7 +95,10 @@ HEADERS  += \
     scripts/Parser.h \
     scripts/semanticAnalyzer.h \
     scripts/KeyboardMouse.h \
-    target/KeyboardLayouts.h
+    target/KeyboardLayouts.h \
+    regex/RegularExpression.h \ 
+    server/tcpServer.h
+
 FORMS    += \
     ui/mainwindow.ui \
     ui/settingdialog.ui 
