@@ -145,6 +145,7 @@ MainWindow::MainWindow() :  ui(new Ui::MainWindow),
     
     qCDebug(log_ui_mainwindow) << "Init camera...";
     
+    
     ui->setupUi(this);
     m_statusBarManager = new StatusBarManager(ui->statusbar, this);
     taskmanager = TaskManager::instance();
@@ -390,8 +391,9 @@ void MainWindow::initCamera()
 void MainWindow::checkInitSize(){
     QScreen *currentScreen = this->screen();
     systemScaleFactor = currentScreen->devicePixelRatio();
-    if(systemScaleFactor > 1.0){
+    if(systemScaleFactor != 1.0){
         resize(int(this->width() / systemScaleFactor), int(this->height() / systemScaleFactor));
+
         qCDebug(log_ui_mainwindow) << "Resize now: " << this->width() << this->height();
         qCDebug(log_ui_mainwindow) << "Resize now: " << this->width() / systemScaleFactor 
         << this->height() / systemScaleFactor;
@@ -1279,11 +1281,11 @@ void MainWindow::animateVideoPane() {
     }
 
     // If window is not maximized and toolbar is invisible, resize the panes
-    if (!isMaximized) {
-        videoPane->setMinimumSize(contentWidth, contentHeight);
-        videoPane->resize(contentWidth, contentHeight);
-        scrollArea->resize(contentWidth, contentHeight);
-    }
+    
+    videoPane->setMinimumSize(contentWidth, contentHeight);
+    videoPane->resize(contentWidth, contentHeight);
+    scrollArea->resize(contentWidth, contentHeight);
+    
 
     if (this->width() > videoPane->width()) {
         // Calculate new position
