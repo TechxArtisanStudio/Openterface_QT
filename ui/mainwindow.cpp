@@ -209,12 +209,6 @@ MainWindow::MainWindow() :  ui(new Ui::MainWindow),
         qCWarning(log_ui_mainwindow) << "Corner widget layout is not a QHBoxLayout. Unable to add ToggleSwitch.";
     }
 
-    // load the settings
-    qDebug() << "Loading settings";
-    GlobalSetting::instance().loadLogSettings();
-    GlobalSetting::instance().loadVideoSettings();
-    // onVideoSettingsChanged(GlobalVar::instance().getCaptureWidth(), GlobalVar::instance().getCaptureHeight());
-    LogHandler::instance().enableLogStore();
 
     qCDebug(log_ui_mainwindow) << "Observe switch usb connection trigger...";
     connect(ui->actionTo_Host, &QAction::triggered, this, &MainWindow::onActionSwitchToHostTriggered);

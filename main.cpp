@@ -21,6 +21,7 @@
 */
 
 #include "ui/mainwindow.h"
+#include "ui/loghandler.h"
 #include "global.h"
 #include "target/KeyboardLayouts.h"
 #include <QCoreApplication>
@@ -115,6 +116,14 @@ int main(int argc, char *argv[])
         QDir().mkpath(configDir.path());
     }
     
+
+    // load the settings
+    qDebug() << "Loading settings";
+    GlobalSetting::instance().loadLogSettings();
+    GlobalSetting::instance().loadVideoSettings();
+    // onVideoSettingsChanged(GlobalVar::instance().getCaptureWidth(), GlobalVar::instance().getCaptureHeight());
+    LogHandler::instance().enableLogStore();
+
     // Load keyboard layouts from the build directory
     KeyboardLayoutManager::getInstance().loadLayouts(configPath);
     
