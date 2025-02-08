@@ -20,6 +20,8 @@ AppPublisher={#MyAppPublisher}
 AppPublisherURL={#MyAppURL}
 AppSupportURL={#MyAppURL}
 AppUpdatesURL={#MyAppURL}
+AppCopyright=Copyright © All rights reserved. 2024 TechxArtisan Limited
+LicenseFile=package\LICENSE
 DefaultDirName={autopf}\{#MyAppName}
 DisableProgramGroupPage=yes
 VersionInfoVersion={#MyAppVersion}
@@ -29,10 +31,10 @@ VersionInfoCopyright=Copyright © {#MyAppPublisher} {#MyAppVersion}
 ; Uncomment the following line to run in non administrative install mode (install for current user only.)
 ;PrivilegesRequired=lowest
 OutputBaseFilename=setup
-Compression=lzma
+Compression=lzma2/max
 SolidCompression=yes
 WizardStyle=modern
-
+SetupLogging=yes
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
@@ -58,5 +60,5 @@ Filename: "{app}\{#MyAppExeName}"; \
     Flags: nowait postinstall skipifsilent; \
     Parameters: "/silent"
 Filename: {sys}\pnputil.exe; \
-    Parameters: "add-driver CH341SER.INF /install"; \
-    WorkingDir: {app}\driver; Flags: 32bit runhidden;
+    Parameters: "/add-driver CH341SER.INF /install"; \
+    WorkingDir: {app}\driver; Flags: 64bit runhidden;
