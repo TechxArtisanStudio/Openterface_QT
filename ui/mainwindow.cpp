@@ -290,7 +290,7 @@ MainWindow::MainWindow() :  ui(new Ui::MainWindow),
     ScriptTool *scriptTool = new ScriptTool(this);
     connect(scriptTool, &ScriptTool::syntaxTreeReady, this, &MainWindow::handleSyntaxTree);
     setTooltip();
-    
+
     // Add this connection after toolbarManager is created
     connect(toolbarManager, &ToolbarManager::toolbarVisibilityChanged,
             this, &MainWindow::onToolbarVisibilityChanged);
