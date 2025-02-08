@@ -74,7 +74,7 @@ bool InputHandler::eventFilter(QObject *watched, QEvent *event)
         handleMouseMoveEvent(mouseEvent);
         return true;
     }
-    if (event->type() == QEvent::MouseButtonPress) {
+    if (event->type() == QEvent::MouseButtonPress || event->type() == QEvent::MouseButtonDblClick) {
         QMouseEvent *mouseEvent = static_cast<QMouseEvent*>(event);
         handleMousePressEvent(mouseEvent);
         return true;

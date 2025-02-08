@@ -2,7 +2,22 @@
 
 > This is a preview version of the source code and presently, it does not support all the features found in the macOS version. We are in the process of optimizing the code and refining the building methods. Your feedback is invaluable to us. If you have any suggestions or recommendations, feel free to reach out to the project team via email. Alternatively, you can join our [Discord channel](https://discord.gg/sFTJD6a3R8) for direct discussions.
 
-# Current and future features
+# Table of Contents
+- [Welcome to Openterface Mini-KVM QT version (For Linux \& Windows)](#welcome-to-openterface-mini-kvm-qt-version-for-linux--windows)
+- [Table of Contents](#table-of-contents)
+  - [Features](#features)
+  - [Suppported OS](#suppported-os)
+  - [Download \& installing](#download--installing)
+    - [For Windows users](#for-windows-users)
+    - [For Linux users](#for-linux-users)
+  - [Build from source](#build-from-source)
+    - [For Windows](#for-windows)
+    - [For Linux](#for-linux)
+  - [FAQ](#faq)
+  - [Asking questions and reporting issues](#asking-questions-and-reporting-issues)
+  - [License](#license)
+
+## Features
 - [x] Basic KVM operations
 - [x] Mouse control absolute mode
 - [x] Mouse relative mode
@@ -10,26 +25,49 @@
 - [x] Paste text to Target device
 - [ ] OCR text from Target device
 - [ ] Other feature request? Please join the [Discord channel](https://discord.gg/sFTJD6a3R8) and tell me
-- [ ] For a detailed list of features, please refer to the [Features Documentation](doc/feature.md).
 
-# Suppported OS
+> For a detailed list of features, please refer to the [Features Documentation](doc/feature.md).
+
+## Suppported OS
 - Window (10/11) 
-- Ubuntu 22.04, 24.04
+- Ubuntu 22.04 (You need to upgrade QT to >=6.4)
+- Ubuntu 24.04
 - Linux Mint 21.3 (Need to upgrade QT to >=6.4)
 - openSUSE Tumbleweed, built by community
 - Raspberry Pi OS (64-bit), working good
-- Raspberry Pi OS (32-bit), not yet complete testing
+- Raspberry Pi OS (32-bit), Not supported, because the QT version is too old
 
-# Download & Run from Github build
+## Download & installing
+### For Windows users
 1. Download the package from Github release page, and find the latest version to download according to your os and cpu architecture.
-2. For Windows user, just run the installer and it will install all required drivers and application to your windows. You can run the application from start menu.
-    - Note: If you are running under ARM architecture, an extra step is required to install "Microsoft Visual C++ Redistributable for Visual Studio" which can be downloaded here: [Microsoft Visual C++ Redistributable](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist?view=msvc-170#latest-microsoft-visual-c-redistributable-version)
-3. For Linux user, you should install the dependency first then install the package.
+2. Run the installer and it will install all required drivers and application to your windows. You can run the application from start menu.
+    - Note: If you are running under ARM architecture, an extra step is required to install "Microsoft Visual C++ Redistributable for Visual Studio" which can be downloaded here: [Microsoft Visual C++ Redistributable](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist?view=msvc-170#latest-microsoft-visual-c-redistributable-version) 
+
+> Note: Users have reported that the Windows installer is unable to automate driver installation correctly on Windows 11 Version 22H2. You may need to manually download and install the driver from the WCH website. For more details, please refer to this [issue](https://github.com/TechxArtisanStudio/Openterface_QT/issues/138). We are also actively working on a solution to improve driver installation for this version.
+
+### For Linux users
+
+1. Download the package from Github release page, and find the latest version to download according to your os and cpu architecture.
+2. Install the dependency
+3. Setup dialout for Serial permissions and the hidraw permission for Switchable USB device
+4. Install the package.
 
  ```bash
 # Setup the QT 6.4.2 or laterruntime and other dependencies
 sudo apt install -y libqt6core6 libqt6dbus6 libqt6gui6 libqt6network6 libqt6multimedia6 libqt6multimediawidgets6 libqt6serialport6 libqt6svg6 libusb-1.0-0-dev
  ```
+
+```bash
+# Setup the dialout permission for Serial port
+sudo usermod -a -G dialout $USER
+```
+
+```bash
+# Setup the hidraw permission
+echo 'KERNEL== "hidraw*", SUBSYSTEM=="hidraw", MODE="0666"' | sudo tee /etc/udev/rules.d/51-openterface.rules 
+sudo udevadm control --reload-rules
+sudo udevadm trigger
+```
 
  ```bash
 # Unszip the package and install
@@ -41,19 +79,18 @@ sudo dpkg -i openterfaceQT.deb
 # Run from terminal 
 openterfaceQT
  ```
-# Development
+
+## Build from source
+### For Windows
 - Using QT Creator
-  1. Install [QT for opensource](https://www.qt.io/download-qt-installer-oss?hsCtaTracking=99d9dd4f-5681-48d2-b096-470725510d34%7C074ddad0-fdef-4e53-8aa8-5e8a876d6ab4), recommanded version 6.4.3
+  1. Install [QT for opensource](https://www.qt.io/download-qt-installer-oss), recommanded version 6.4.3
   2. Use Qt Maintenance Tool to add following components
      - [QtMultiMedia](https://doc.qt.io/qt-6/qtmultimedia-index.html)
      - [QtSerialPort](https://doc.qt.io/qt-6/qtserialport-index.html)
   3. Download the source and import the project
   4. Now you can run the project
 
-# Build from source & Run
-- For Window (TODO)
-
-- For Linux
+### For Linux
 ``` bash
 # Build environment preparation   
 sudo apt-get update -y
@@ -66,6 +103,19 @@ sudo apt-get install -y \
     qt6-svg-dev \
     libusb-1.0-0-dev
 ```
+
+```bash
+# Setup the dialout permission for Serial port
+sudo usermod -a -G dialout $USER
+# On some distros (e.g. Arch Linux) this might be called uucp
+sudo usermod -a -G uucp $USER
+
+# Setup the hidraw permission
+echo 'KERNEL== "hidraw*", SUBSYSTEM=="hidraw", MODE="0666"' | sudo tee /etc/udev/rules.d/51-openterface.rules 
+sudo udevadm control --reload-rules
+sudo udevadm trigger
+```
+
 ``` bash
 # Get the source
 git clone https://github.com/TechxArtisanStudio/Openterface_QT.git
@@ -91,7 +141,7 @@ ls /dev/ttyUSB*
 # if you can list the usb the serial port correctly recognized
 # Then we need give the permissions to user for control serial port you can do this:
 sudo ./openterfaceQT
-# or 
+# or (dialout/uucp)
 sudo usermod -a -G dialout <your_username>
 sudo reboot
 # back to the build floder
@@ -99,19 +149,50 @@ sudo reboot
 
 ```
 
-# Abut the Crowdfunding Hardward
-Our [Openterface Mini-KVM](https://openterface.com/) crowdfunding campaign is now live on [Crowd Supply](https://www.crowdsupply.com/techxartisan/openterface-mini-kvm)! Check it out and please consider supporting us by backing our project. Cheers!
+## FAQ
+ - Keyboard and Mouse not responding in Windows
+   - The CH340 serial chip driver wasn't installed properly during setup, you have two options:
+     1. Download and install the driver directly from the [WCH website](https://www.wch-ic.com/downloads/CH341SER_EXE.html)
+     2. Install the driver from our [source repository](https://github.com/TechxArtisanStudio/Openterface_QT/blob/main/driver/windows/CH341SER.INF) by running this command as Administrator:
+      ```
+        pnputil -a CH341SER.INF
+      ```
+ - Keyboard and Mouse not responding in Linux
+   - Likely the CH340 serial chip driver is missing in your OS, you should 
+      1. **Download the driver**: Visit the driver [website](https://www.wch-ic.com/downloads/CH341SER_EXE.html) and download the appropriate driver for Linux.
 
-![pre-launch-poster](https://pbs.twimg.com/media/GInpcabbYAAsP9J?format=jpg&name=medium)
+      2. **Install the driver**:
+         - Extract the downloaded file.
+         - Open a terminal and navigate to the extracted folder.
+         - Run the following commands to compile and install the driver:
+           ```bash
+           make
+           sudo make install
+           ```
 
-🚀 **Let's shake things up in KVM technology together!**
+      3. **Load the driver**:
+         After installation, load the driver using:
+         ```bash
+         sudo modprobe ch341
+         ```
 
-We're hard at work developing [the host applications](https://openterface.com/quick-start/#install-host-application) for this handy gadget. Our team is coding away and tweaking these tools to boost their performance and functionality. We’re all about open hardware and open-source software, and we'll keep sharing updates throughout our campaign.
+      4. **Reconnect the device**: Unplug and reconnect the OpenTouch interface to see if the mouse and keyboard inputs are now being sent to the target.
 
-Check out some early demos demonstrating the basic operation of our host application [here](https://openterface.com/basic-testing/).
+      If the issue persists, it could also be related to permissions or udev rules. Ensure that your user has the necessary permissions to access the device. Please refer to [For Linux users](#for-linux-users)
 
-# Buy Openterface Mini-KVM Now!
 
-The Openterface Mini-KVM has been successfully funded as of June 12, 2024! You can now pre-order this innovative kit on [Crowd Supply](https://www.crowdsupply.com/techxartisan/openterface-mini-kvm).
+ - "This app can't run on your PC" error during installation
+   - This error occurs when the required Microsoft Visual C++ Redistributable package is not installed on your Windows system
+   - Visit the [Microsoft website](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist?view=msvc-170#latest-microsoft-visual-c-redistributable-version), download and install the version matching your CPU architecture (x86 or x64), then try installing the application again
+  
 
-Secure your Openterface Mini-KVM **at a wallet-friendly price** of $89 - $109 before it hits the market at higher prices. Don’t miss out – pre-order now!
+## Asking questions and reporting issues
+
+We encourage you to engage with us.
+- On [Discord](https://discord.gg/sFTJD6a3R8) to ask questions and report issues.
+- On [Github](https://github.com/TechxArtisanStudio/Openterface_QT/issues) to report issues.
+- Email to [techxartisan@gmail.com](mailto:techxartisan@gmail.com) to ask questions and report issues.
+
+## License
+
+This project is licensed under the AGPL-3.0 - see the [LICENSE](LICENSE) file for details.

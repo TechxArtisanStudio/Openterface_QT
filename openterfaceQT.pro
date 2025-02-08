@@ -49,8 +49,7 @@ SOURCES += main.cpp \
     scripts/Parser.cpp \
     scripts/semanticAnalyzer.cpp \
     scripts/KeyboardMouse.cpp \
-    server/tcpServer.cpp \
-    regex/RegularExpression.cpp
+    target/KeyboardLayouts.cpp
 
 HEADERS  += \
     global.h \
@@ -94,17 +93,25 @@ HEADERS  += \
     scripts/Parser.h \
     scripts/semanticAnalyzer.h \
     scripts/KeyboardMouse.h \
-    server/tcpServer.h \
-    regex/RegularExpression.h
-
+    target/KeyboardLayouts.h
 FORMS    += \
     ui/mainwindow.ui \
     ui/settingdialog.ui 
 
 RESOURCES += \
     openterfaceQT.rc \
-    ui/mainwindow.qrc
+    ui/mainwindow.qrc \
+    config/keyboards/keyboard_layouts.qrc
 
+# Copy keyboard layout files to build directory
+CONFIG += file_copies
+COPIES += keyboard_layouts
+keyboard_layouts.files = $$files($$PWD/config/keyboards/*.json)
+keyboard_layouts.path = $$OUT_PWD/config/keyboards
+
+# Create directories if they don't exist
+system($$QMAKE_MKDIR $$shell_path($$PWD/config/keyboards))
+system($$QMAKE_MKDIR $$shell_path($$OUT_PWD/config/keyboards))
 
 # Link against the HID library
 win32:LIBS += -lhid
@@ -120,8 +127,12 @@ unix {
     LIBS += -lusb-1.0
 }
 
-# Set the target installation path to a directory within the build folder
-target.path = $$PWD/build/install
+# Set platform-specific installation paths
+win32 {
+    target.path = $$(PROGRAMFILES)/openterfaceQT
+} else {
+    target.path = /usr/local/bin
+}
 
 INSTALLS += target
 

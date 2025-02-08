@@ -33,6 +33,7 @@
 #include "../target/KeyboardManager.h"
 #include "../target/mouseeventdto.h"
 #include "../ui/statusevents.h"
+#include "../target/KeyboardLayouts.h"
 
 
 Q_DECLARE_LOGGING_CATEGORY(log_core_host)
@@ -75,6 +76,8 @@ public:
 
     void handleKeyboardAction(int keyCode, int modifiers, bool isKeyDown);
 
+    void setKeyboardLayout(const QString& layoutName);
+    
 private:
     explicit HostManager(QObject *parent = nullptr);
     MouseManager mouseManager;

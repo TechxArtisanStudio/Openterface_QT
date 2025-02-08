@@ -44,7 +44,7 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 Source: "package\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
 Source: "package\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "package\driver\CH341SER.INF"; DestDir: {app}\driver;
-Source: "package\driver\CH341SER.SYS"; DestDir: {app}\driver;
+Source: "package\driver\CH341S64.SYS"; DestDir: {app}\driver;
 
 ; NOTE: Don't use "Flags: ignoreversion" on any shared system files
 
@@ -57,6 +57,6 @@ Filename: "{app}\{#MyAppExeName}"; \
     Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; \
     Flags: nowait postinstall skipifsilent; \
     Parameters: "/silent"
-Filename: {sys}\rundll32.exe; \
-    Parameters: "setupapi,InstallHinfSection DefaultInstall 128 {app}\driver\CH341SER.inf"; \
+Filename: {sys}\pnputil.exe; \
+    Parameters: "add-driver CH341SER.INF /install"; \
     WorkingDir: {app}\driver; Flags: 32bit runhidden;
