@@ -50,7 +50,7 @@
      <x>0</x>
      <y>0</y>
      <width>1280</width>
-     <height>20</height>
+     <height>25</height>
     </rect>
    </property>
    <widget class="QWidget" name="cornerWidget">
@@ -58,8 +58,8 @@
      <rect>
       <x>0</x>
       <y>0</y>
-      <width>229</width>
-      <height>28</height>
+      <width>512</width>
+      <height>30</height>
      </rect>
     </property>
     <property name="sizePolicy">
@@ -227,6 +227,7 @@
      <addaction name="actionFactory_reset_HID"/>
      <addaction name="actionSerialConsole"/>
      <addaction name="actionScriptTool"/>
+     <addaction name="actionTCPServer"/>
     </widget>
     <widget class="QMenu" name="menuBaudrate">
      <property name="title">
@@ -363,6 +364,16 @@
     <string>Paste clipboard content to target</string>
    </property>
   </action>
+  <action name="actionScriptTool">
+   <property name="text">
+    <string>Script Tool</string>
+   </property>
+  </action>
+  <action name="actionTCPServer">
+   <property name="text">
+    <string>TCP Server</string>
+   </property>
+  </action>
   <actiongroup name="actionGroup">
    <action name="action115200">
     <property name="checkable">
@@ -420,11 +431,6 @@
     </property>
    </action>
   </actiongroup>
-  <action name="actionScriptTool">
-   <property name="text">
-    <string>Script Tool</string>
-   </property>
-  </action>
  </widget>
  <resources>
   <include location="mainwindow.qrc"/>

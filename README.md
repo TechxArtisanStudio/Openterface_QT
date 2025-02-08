@@ -3,12 +3,19 @@
 > This is a preview version of the source code and presently, it does not support all the features found in the macOS version. We are in the process of optimizing the code and refining the building methods. Your feedback is invaluable to us. If you have any suggestions or recommendations, feel free to reach out to the project team via email. Alternatively, you can join our [Discord channel](https://discord.gg/sFTJD6a3R8) for direct discussions.
 
 # Table of Contents
-- [Features](#features)
-- [Supported OS](#supported-os)
-- [Download & Run from Github build](#download--run-from-github-build)
-- [Build from source](#build-from-source)
-- [Asking questions and reporting issues](#asking-questions-and-reporting-issues)
-- [License](#license)
+- [Welcome to Openterface Mini-KVM QT version (For Linux \& Windows)](#welcome-to-openterface-mini-kvm-qt-version-for-linux--windows)
+- [Table of Contents](#table-of-contents)
+  - [Features](#features)
+  - [Suppported OS](#suppported-os)
+  - [Download \& installing](#download--installing)
+    - [For Windows users](#for-windows-users)
+    - [For Linux users](#for-linux-users)
+  - [Build from source](#build-from-source)
+    - [For Windows](#for-windows)
+    - [For Linux](#for-linux)
+  - [FAQ](#faq)
+  - [Asking questions and reporting issues](#asking-questions-and-reporting-issues)
+  - [License](#license)
 
 ## Features
 - [x] Basic KVM operations
@@ -23,7 +30,8 @@
 
 ## Suppported OS
 - Window (10/11) 
-- Ubuntu 22.04, 24.04
+- Ubuntu 22.04 (You need to upgrade QT to >=6.4)
+- Ubuntu 24.04
 - Linux Mint 21.3 (Need to upgrade QT to >=6.4)
 - openSUSE Tumbleweed, built by community
 - Raspberry Pi OS (64-bit), working good
@@ -33,7 +41,9 @@
 ### For Windows users
 1. Download the package from Github release page, and find the latest version to download according to your os and cpu architecture.
 2. Run the installer and it will install all required drivers and application to your windows. You can run the application from start menu.
-    - Note: If you are running under ARM architecture, an extra step is required to install "Microsoft Visual C++ Redistributable for Visual Studio" which can be downloaded here: [Microsoft Visual C++ Redistributable](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist?view=msvc-170#latest-microsoft-visual-c-redistributable-version)
+    - Note: If you are running under ARM architecture, an extra step is required to install "Microsoft Visual C++ Redistributable for Visual Studio" which can be downloaded here: [Microsoft Visual C++ Redistributable](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist?view=msvc-170#latest-microsoft-visual-c-redistributable-version) 
+
+> Note: Users have reported that the Windows installer is unable to automate driver installation correctly on Windows 11 Version 22H2. You may need to manually download and install the driver from the WCH website. For more details, please refer to this [issue](https://github.com/TechxArtisanStudio/Openterface_QT/issues/138). We are also actively working on a solution to improve driver installation for this version.
 
 ### For Linux users
 
@@ -138,6 +148,43 @@ sudo reboot
 ./openterfaceQT
 
 ```
+
+## FAQ
+ - Keyboard and Mouse not responding in Windows
+   - The CH340 serial chip driver wasn't installed properly during setup, you have two options:
+     1. Download and install the driver directly from the [WCH website](https://www.wch-ic.com/downloads/CH341SER_EXE.html)
+     2. Install the driver from our [source repository](https://github.com/TechxArtisanStudio/Openterface_QT/blob/main/driver/windows/CH341SER.INF) by running this command as Administrator:
+      ```
+        pnputil -a CH341SER.INF
+      ```
+ - Keyboard and Mouse not responding in Linux
+   - Likely the CH340 serial chip driver is missing in your OS, you should 
+      1. **Download the driver**: Visit the driver [website](https://www.wch-ic.com/downloads/CH341SER_EXE.html) and download the appropriate driver for Linux.
+
+      2. **Install the driver**:
+         - Extract the downloaded file.
+         - Open a terminal and navigate to the extracted folder.
+         - Run the following commands to compile and install the driver:
+           ```bash
+           make
+           sudo make install
+           ```
+
+      3. **Load the driver**:
+         After installation, load the driver using:
+         ```bash
+         sudo modprobe ch341
+         ```
+
+      4. **Reconnect the device**: Unplug and reconnect the OpenTouch interface to see if the mouse and keyboard inputs are now being sent to the target.
+
+      If the issue persists, it could also be related to permissions or udev rules. Ensure that your user has the necessary permissions to access the device. Please refer to [For Linux users](#for-linux-users)
+
+
+ - "This app can't run on your PC" error during installation
+   - This error occurs when the required Microsoft Visual C++ Redistributable package is not installed on your Windows system
+   - Visit the [Microsoft website](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist?view=msvc-170#latest-microsoft-visual-c-redistributable-version), download and install the version matching your CPU architecture (x86 or x64), then try installing the application again
+  
 
 ## Asking questions and reporting issues
 

@@ -28,8 +28,10 @@ sudo apt install -y --allow-change-held-packages \
     libusb-1.0-0-dev \
     ninja-build \
     cmake \
+    yasm \
     wget \
-    unzip
+    unzip \
+    git
 
 # Clean up unused packages (optional)
 sudo apt autoremove -y
@@ -121,27 +123,54 @@ for module in "${MODULES[@]}"; do
     fi
 done
 
+#############
+# Download latest release and build openterfaceQT from source
 
-# Verify installation
-echo "================"
-echo "Qt installation complete. Installation details:"
-"$INSTALL_PREFIX/bin/qmake6" -query
-echo "================"
-echo "Listing all installed Qt modules:"
-"$INSTALL_PREFIX/bin/qmake6" -query QT_INSTALL_LIBS
-echo "================"
-echo "To use the installed Qt tools, please add the following path to your system's PATH environment variable:"
-echo "$INSTALL_PREFIX/bin/"
-echo "You can do this by following these steps:"
-echo "1. Open your terminal."
-echo "2. Depending on your shell, you will need to edit the appropriate configuration file:"
-echo "   - For bash, edit ~/.bashrc or ~/.bash_profile"
-echo "   - For zsh, edit ~/.zshrc"
-echo "   - For fish, edit ~/.config/fish/config.fish"
-echo "3. Add the following line to the end of the file:"
-echo "   export PATH=$INSTALL_PREFIX/bin:\$PATH"
-echo "4. Save the file and exit the editor."
-echo "5. To apply the changes, run the following command:"
-echo "   source ~/.bashrc  # or source ~/.zshrc or source ~/.config/fish/config.fish"
-echo "6. Verify that the path has been added by running:"
-echo "   echo \$PATH"
+export PATH=$INSTALL_PREFIX/bin:$PATH
+
+cd $BUILD_DIR
+if [ ! -d "Openterface_QT" ]; then
+    git clone https://github.com/TechxArtisanStudio/Openterface_QT.git
+fi
+
+cd Openterface_QT
+#git fetch --tags
+#LATEST_TAG=$(git describe --tags $(git rev-list --tags --max-count=1))
+#git checkout ${LATEST_TAG}
+
+mkdir -p build
+cd build
+qmake6 ..
+make
+sudo make install
+
+#clean up all the build folder
+echo "Cleaning the build folder..."
+rm -rf $BUILD_DIR
+
+# Print instructions for running the program
+echo "
+==========================================================================
+Build completed successfully! 
+
+To run OpenTerface QT:
+1. First, ensure you have the necessary permissions:
+   - Add yourself to the dialout group (for serial port access):
+     sudo usermod -a -G dialout $USER
+   
+   - Set up hidraw permissions (for USB device access):
+     echo 'KERNEL== \"hidraw*\", SUBSYSTEM==\"hidraw\", MODE=\"0666\"' | sudo tee /etc/udev/rules.d/51-openterface.rules 
+     sudo udevadm control --reload-rules
+     sudo udevadm trigger
+
+2. You may need to log out and log back in for the group changes to take effect.
+
+3. You can now run OpenTerface QT by typing:
+   openterfaceQT
+
+Note: If you experience issues controlling mouse and keyboard:
+- Try removing brltty: sudo apt remove brltty
+- Unplug and replug your OpenTerface device
+- Check if the serial port is recognized: ls /dev/ttyUSB*
+==========================================================================
+"

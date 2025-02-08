@@ -49,7 +49,9 @@ SOURCES += main.cpp \
     scripts/Parser.cpp \
     scripts/semanticAnalyzer.cpp \
     scripts/KeyboardMouse.cpp \
-    target/KeyboardLayouts.cpp
+    target/KeyboardLayouts.cpp \
+    regex/RegularExpression.cpp \
+    server/tcpServer.cpp
 
 HEADERS  += \
     global.h \
@@ -93,7 +95,10 @@ HEADERS  += \
     scripts/Parser.h \
     scripts/semanticAnalyzer.h \
     scripts/KeyboardMouse.h \
-    target/KeyboardLayouts.h
+    target/KeyboardLayouts.h \
+    regex/RegularExpression.h \ 
+    server/tcpServer.h
+
 FORMS    += \
     ui/mainwindow.ui \
     ui/settingdialog.ui 
@@ -127,8 +132,12 @@ unix {
     LIBS += -lusb-1.0
 }
 
-# Set the target installation path to a directory within the build folder
-target.path = $$PWD/build/install
+# Set platform-specific installation paths
+win32 {
+    target.path = $$(PROGRAMFILES)/openterfaceQT
+} else {
+    target.path = /usr/local/bin
+}
 
 INSTALLS += target
 

@@ -140,13 +140,16 @@ MainWindow::MainWindow() :  ui(new Ui::MainWindow),
     //         QMessageBox::information(nullptr, "Device Error", errorMessage);
     //     }
     // #endif
-
+    
+    QApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
+    
     qCDebug(log_ui_mainwindow) << "Init camera...";
+    
+    
     ui->setupUi(this);
     m_statusBarManager = new StatusBarManager(ui->statusbar, this);
     taskmanager = TaskManager::instance();
     
-
     QWidget *centralWidget = new QWidget(this);
     centralWidget->setLayout(stackedLayout);
     centralWidget->setMouseTracking(true);
@@ -206,12 +209,6 @@ MainWindow::MainWindow() :  ui(new Ui::MainWindow),
         qCWarning(log_ui_mainwindow) << "Corner widget layout is not a QHBoxLayout. Unable to add ToggleSwitch.";
     }
 
-    // load the settings
-    qDebug() << "Loading settings";
-    GlobalSetting::instance().loadLogSettings();
-    GlobalSetting::instance().loadVideoSettings();
-    // onVideoSettingsChanged(GlobalVar::instance().getCaptureWidth(), GlobalVar::instance().getCaptureHeight());
-    LogHandler::instance().enableLogStore();
 
     qCDebug(log_ui_mainwindow) << "Observe switch usb connection trigger...";
     connect(ui->actionTo_Host, &QAction::triggered, this, &MainWindow::onActionSwitchToHostTriggered);
@@ -234,6 +231,7 @@ MainWindow::MainWindow() :  ui(new Ui::MainWindow),
     connect(m_cameraManager, &CameraManager::resolutionsUpdated, this, &MainWindow::onResolutionsUpdated);
 
     qDebug() << "Init camera...";
+    checkInitSize();
     initCamera();
 
     // Connect palette change signal to the slot
@@ -290,6 +288,13 @@ MainWindow::MainWindow() :  ui(new Ui::MainWindow),
     // Add this connection after toolbarManager is created
     connect(toolbarManager, &ToolbarManager::toolbarVisibilityChanged,
             this, &MainWindow::onToolbarVisibilityChanged);
+    connect(ui->actionTCPServer, &QAction::triggered, this, &MainWindow::startServer);
+}
+
+void MainWindow::startServer(){
+    tcpServer = new TcpServer(this);
+    tcpServer->startServer(12345);
+    qCDebug(log_ui_mainwindow) << "TCP Server init...";
 }
 
 void MainWindow::setTooltip(){
@@ -381,6 +386,19 @@ void MainWindow::initCamera()
     GlobalVar::instance().setWinHeight(this->height());
 }
 
+void MainWindow::checkInitSize(){
+    QScreen *currentScreen = this->screen();
+    systemScaleFactor = currentScreen->devicePixelRatio();
+    if(systemScaleFactor != 1.0){
+        resize(int(this->width() / systemScaleFactor), int(this->height() / systemScaleFactor));
+
+        qCDebug(log_ui_mainwindow) << "Resize now: " << this->width() << this->height();
+        qCDebug(log_ui_mainwindow) << "Resize now: " << this->width() / systemScaleFactor 
+        << this->height() / systemScaleFactor;
+    }
+    qCDebug(log_ui_mainwindow) << "System scale factor: " << systemScaleFactor;
+}
+
 void MainWindow::resizeEvent(QResizeEvent *event) {
     static bool isResizing = false;
 
@@ -390,8 +408,6 @@ void MainWindow::resizeEvent(QResizeEvent *event) {
 
     isResizing = true;
 
-    
-    
     qCDebug(log_ui_mainwindow) << "Handle window resize event.";
     QMainWindow::resizeEvent(event);  // Call base class implementation
 
@@ -1263,11 +1279,11 @@ void MainWindow::animateVideoPane() {
     }
 
     // If window is not maximized and toolbar is invisible, resize the panes
-    if (!isMaximized) {
-        videoPane->setMinimumSize(contentWidth, contentHeight);
-        videoPane->resize(contentWidth, contentHeight);
-        scrollArea->resize(contentWidth, contentHeight);
-    }
+    
+    videoPane->setMinimumSize(contentWidth, contentHeight);
+    videoPane->resize(contentWidth, contentHeight);
+    scrollArea->resize(contentWidth, contentHeight);
+    
 
     if (this->width() > videoPane->width()) {
         // Calculate new position
