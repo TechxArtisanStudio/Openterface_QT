@@ -147,6 +147,8 @@ MainWindow::MainWindow() :  ui(new Ui::MainWindow),
     
     
     ui->setupUi(this);
+    initializeKeyboardLayouts();
+
     m_statusBarManager = new StatusBarManager(ui->statusbar, this);
     taskmanager = TaskManager::instance();
     
@@ -1321,20 +1323,23 @@ void MainWindow::changeKeyboardLayout(const QString& layout) {
 }
 
 void MainWindow::initializeKeyboardLayouts() {
+    // Fetch available layouts from KeyboardLayoutManager
     QStringList layouts = KeyboardLayoutManager::getInstance().getAvailableLayouts();
-    qDebug() << "Available layouts:" << layouts;
+    qCDebug(log_ui_mainwindow) << "Available layouts:" << layouts;
     
-    ui->zoomComboBox->clear();
-    ui->zoomComboBox->addItems(layouts);
+    // Clear existing items in the combo box
+    ui->keyboardLayoutComboBox->clear();
     
-    // Set US QWERTY as default layout
+    // Add fetched layouts to the combo box
+    ui->keyboardLayoutComboBox->addItems(layouts);
+    
+    // Set US QWERTY as default layout if it exists
     QString defaultLayout = "US QWERTY";
     if (layouts.contains(defaultLayout)) {
         changeKeyboardLayout(defaultLayout);
-        ui->zoomComboBox->setCurrentText(defaultLayout);
+        ui->keyboardLayoutComboBox->setCurrentText(defaultLayout);
     } else if (!layouts.isEmpty()) {
-        // Fallback to first available layout if US QWERTY is not found
+        // Fallback to the first available layout if US QWERTY is not found
         changeKeyboardLayout(layouts.first());
     }
 }
-
