@@ -218,6 +218,7 @@ private:
     Ui::MainWindow *ui;
     AudioManager *m_audioManager;
     VideoPane *videoPane;
+    double systemScaleFactor;
     QColor iconColor;
     QScrollArea *scrollArea;
 
@@ -287,5 +288,6 @@ private:
     void animateVideoPane();
 
     void centerVideoPane();
+    void checkInitSize();
 };
 #endif // MAINWINDOW_H

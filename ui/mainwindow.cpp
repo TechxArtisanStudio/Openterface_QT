@@ -140,8 +140,11 @@ MainWindow::MainWindow() :  ui(new Ui::MainWindow),
     //         QMessageBox::information(nullptr, "Device Error", errorMessage);
     //     }
     // #endif
-
+    
+    QApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
+    
     qCDebug(log_ui_mainwindow) << "Init camera...";
+    
     ui->setupUi(this);
     m_statusBarManager = new StatusBarManager(ui->statusbar, this);
     taskmanager = TaskManager::instance();
@@ -235,6 +238,7 @@ MainWindow::MainWindow() :  ui(new Ui::MainWindow),
     connect(m_cameraManager, &CameraManager::resolutionsUpdated, this, &MainWindow::onResolutionsUpdated);
 
     qDebug() << "Init camera...";
+    checkInitSize();
     initCamera();
 
     // Connect palette change signal to the slot
@@ -287,11 +291,12 @@ MainWindow::MainWindow() :  ui(new Ui::MainWindow),
     ScriptTool *scriptTool = new ScriptTool(this);
     connect(scriptTool, &ScriptTool::syntaxTreeReady, this, &MainWindow::handleSyntaxTree);
     setTooltip();
-
+    
     // Add this connection after toolbarManager is created
     connect(toolbarManager, &ToolbarManager::toolbarVisibilityChanged,
             this, &MainWindow::onToolbarVisibilityChanged);
 }
+
 
 void MainWindow::setTooltip(){
     ui->ZoomInButton->setToolTip("Zoom in");
@@ -382,6 +387,18 @@ void MainWindow::initCamera()
     GlobalVar::instance().setWinHeight(this->height());
 }
 
+void MainWindow::checkInitSize(){
+    QScreen *currentScreen = this->screen();
+    systemScaleFactor = currentScreen->devicePixelRatio();
+    if(systemScaleFactor > 1.0){
+        resize(int(this->width() / systemScaleFactor), int(this->height() / systemScaleFactor));
+        qCDebug(log_ui_mainwindow) << "Resize now: " << this->width() << this->height();
+        qCDebug(log_ui_mainwindow) << "Resize now: " << this->width() / systemScaleFactor 
+        << this->height() / systemScaleFactor;
+    }
+    qCDebug(log_ui_mainwindow) << "System scale factor: " << systemScaleFactor;
+}
+
 void MainWindow::resizeEvent(QResizeEvent *event) {
     static bool isResizing = false;
 
@@ -391,8 +408,6 @@ void MainWindow::resizeEvent(QResizeEvent *event) {
 
     isResizing = true;
 
-    
-    
     qCDebug(log_ui_mainwindow) << "Handle window resize event.";
     QMainWindow::resizeEvent(event);  // Call base class implementation
 
