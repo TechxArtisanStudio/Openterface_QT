@@ -46,9 +46,25 @@ void KeyboardMouse::addKeyPacket(const keyPacket& packet) {
 
 void KeyboardMouse::dataSend(){
     while(!keyData.empty()){
-        if(keyData.front().keyboardSendOrNot) keyboardSend();
-        if(keyData.front().mouseSendOrNot) mouseSend();
-        if(keyData.front().keyboardMouseSendOrNot) keyboardMouseSend();
+        
+        qDebug() << "Sending data for key packet: " 
+            << keyData.front().keyboardSendOrNot
+            << keyData.front().mouseSendOrNot
+            << keyData.front().keyboardMouseSendOrNot;
+        if(keyData.front().keyboardSendOrNot) {
+            qDebug() << "Sending keyboard data.";
+            keyboardSend();
+        }
+        if(keyData.front().mouseSendOrNot) {
+            qDebug() << "Sending mouse data.";
+            mouseSend();
+        }
+        if(keyData.front().keyboardMouseSendOrNot) {
+            qDebug() << "Sending keyboard and mouse data.";
+            keyboardMouseSend();
+        }
+        keyData.pop();
+        qDebug() << "After" << keyData.size();
     }
 }
 
@@ -61,8 +77,9 @@ void KeyboardMouse::keyboardSend(){
     data.replace(data.size() - 8, 8, tmpKeyData);   // replace the last 8 byte data
     qDebug() << "After checksum data: " << data.toHex();
     emit SerialPortManager::getInstance().sendCommandAsync(data, false);
-    keyData.pop();
+    QThread::msleep(clickInterval);
     emit SerialPortManager::getInstance().sendCommandAsync(release, false);
+    // keyData.pop();
     // }
 }
 
@@ -105,7 +122,7 @@ void KeyboardMouse::mouseSend(){
         QThread::msleep(clickInterval);
     }
     
-    keyData.pop();
+    // keyData.pop();
         // emit SerialPortManager::getInstance().sendCommandAsync(release, false);
     // }
 }
@@ -150,7 +167,7 @@ void KeyboardMouse::keyboardMouseSend(){
     emit SerialPortManager::getInstance().sendCommandAsync(keyboardRelease, false);
     
 
-    keyData.pop();
+    
 }
 
 void KeyboardMouse::setMouseSpeed(int speed){
