@@ -149,9 +149,7 @@ MainWindow::MainWindow() :  ui(new Ui::MainWindow),
     ui->setupUi(this);
     m_statusBarManager = new StatusBarManager(ui->statusbar, this);
     taskmanager = TaskManager::instance();
-    tcpServer = new TcpServer(this);
-    tcpServer->startServer(12345);
-
+    
     QWidget *centralWidget = new QWidget(this);
     centralWidget->setLayout(stackedLayout);
     centralWidget->setMouseTracking(true);
@@ -296,8 +294,14 @@ MainWindow::MainWindow() :  ui(new Ui::MainWindow),
     // Add this connection after toolbarManager is created
     connect(toolbarManager, &ToolbarManager::toolbarVisibilityChanged,
             this, &MainWindow::onToolbarVisibilityChanged);
+    connect(ui->actionTCPServer, &QAction::triggered, this, &MainWindow::startServer);
 }
 
+void MainWindow::startServer(){
+    tcpServer = new TcpServer(this);
+    tcpServer->startServer(12345);
+    qCDebug(log_ui_mainwindow) << "TCP Server init...";
+}
 
 void MainWindow::setTooltip(){
     ui->ZoomInButton->setToolTip("Zoom in");
