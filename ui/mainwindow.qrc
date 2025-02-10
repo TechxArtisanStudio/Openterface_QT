@@ -20,8 +20,9 @@
         <file>../images/keyboard-up.svg</file>
         <file>../images/zoom_in.svg</file>
         <file>../images/zoom_out.svg</file>
-        <file>../images/zoom_reduction.svg</file>
         <file>../images/contrast.svg</file>
         <file>../images/capture.svg</file>
+        <file>../images/zoom_fit.svg</file>
+        <file>../images/fullscreen.svg</file>
     </qresource>
 </RCC>
