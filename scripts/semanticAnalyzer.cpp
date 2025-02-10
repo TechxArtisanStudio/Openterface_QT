@@ -123,7 +123,7 @@ void SemanticAnalyzer::analyzeAreaScreenCapture(const CommandStatementNode* node
         if (token != "\"") tmpTxt.append(QString::fromStdString(token));
     }
     path = extractFilePath(tmpTxt);
-    QRegularExpressionMatchIterator numMatchs = numberRegex.globalMatch(tmpTxt);
+    QRegularExpressionMatchIterator numMatchs = regex.numberRegex.globalMatch(tmpTxt);
     while(numMatchs.hasNext()){
         QRegularExpressionMatch nummatch = numMatchs.next();
         numTmp.append(nummatch.captured(0));
@@ -187,7 +187,7 @@ void SemanticAnalyzer::analyzeLockState(const CommandStatementNode* node, const 
     }
     tmpKeys.remove(' ');
     qCDebug(log_script) << tmpKeys;
-    if (onRegex.match(tmpKeys).hasMatch()){
+    if (regex.onRegex.match(tmpKeys).hasMatch()){
         qCDebug(log_script) << keyName << " on";
         keyboardMouse->updateNumCapsScrollLockState();
         if (!(keyboardMouse->*getStateFunc)()){
@@ -197,7 +197,7 @@ void SemanticAnalyzer::analyzeLockState(const CommandStatementNode* node, const 
             keyboardMouse->dataSend();
         }
     }
-    if (offRegex.match(tmpKeys).hasMatch()){
+    if (regex.offRegex.match(tmpKeys).hasMatch()){
         qCDebug(log_script) << keyName << " off";
         keyboardMouse->updateNumCapsScrollLockState();
         if ((keyboardMouse->*getStateFunc)()) {
@@ -256,7 +256,7 @@ void SemanticAnalyzer::analyzeSendStatement(const CommandStatementNode* node) {
         uint8_t control = 0x00;
         
         // Check for control characters first
-        QRegularExpressionMatch controlMatch = controlKeyRegex.match(tmpKeys, pos);
+        QRegularExpressionMatch controlMatch = regex.controlKeyRegex.match(tmpKeys, pos);
         if (controlMatch.hasMatch() && controlMatch.capturedStart() == pos) {
             // Process control key sequence
             QString controlChar = controlMatch.captured(1);
@@ -269,7 +269,7 @@ void SemanticAnalyzer::analyzeSendStatement(const CommandStatementNode* node) {
             while (keyPos < keys.length() && keyIndex < 6) {
                 if (keys[keyPos] == '{') {
                     // Handle braced key
-                    QRegularExpressionMatch braceMatch = braceKeyRegex.match(keys, keyPos);
+                    QRegularExpressionMatch braceMatch = regex.braceKeyRegex.match(keys, keyPos);
                     QRegularExpressionMatch clickMatch;
                     if (braceMatch.hasMatch()) {
                         QString keyName = braceMatch.captured(1);
@@ -278,7 +278,7 @@ void SemanticAnalyzer::analyzeSendStatement(const CommandStatementNode* node) {
                             keyPos = braceMatch.capturedEnd();
                             continue;
                         }else {
-                            clickMatch = sendEmbedRegex.match(keyName);
+                            clickMatch = regex.sendEmbedRegex.match(keyName);
                             keyName.remove("Click");
                             MouseParams params =  parserClickParam(keyName);
                             keyPacket pack(general, control, params.mode, params.mouseButton, params.wheelDelta, params.coord);
@@ -302,7 +302,7 @@ void SemanticAnalyzer::analyzeSendStatement(const CommandStatementNode* node) {
             pos = controlMatch.capturedEnd();
         } else {
             // Check for braced keys
-            QRegularExpressionMatch braceMatch = braceKeyRegex.match(tmpKeys, pos);
+            QRegularExpressionMatch braceMatch = regex.braceKeyRegex.match(tmpKeys, pos);
             QRegularExpressionMatch clickMatch;
             if (braceMatch.hasMatch() && braceMatch.capturedStart() == pos) {
                 
@@ -313,7 +313,7 @@ void SemanticAnalyzer::analyzeSendStatement(const CommandStatementNode* node) {
                     keyboardMouse->addKeyPacket(pack);
                 } 
                 else {
-                    clickMatch = sendEmbedRegex.match(keyName);
+                    clickMatch = regex.sendEmbedRegex.match(keyName);
                     keyName.remove("Click");
                     qDebug(log_script) << "key: " << keyName;
                     MouseParams params =  parserClickParam(keyName);
@@ -450,14 +450,14 @@ MouseParams SemanticAnalyzer::parserClickParam(const QString& command) {
     QString downOrUp;
     MouseParams params = {0x02, 0x00, 0x00, {}}; // Default to absolute mode
 
-    QRegularExpressionMatch relativeMatch = relativeRegex.match(command);
+    QRegularExpressionMatch relativeMatch = regex.relativeRegex.match(command);
     if(relativeMatch.hasMatch()){
         relative = true;
         params.mode = 0x01; // Relative mode
         qCDebug(log_script) << "Matched relative:" << relative;
     }
 
-    QRegularExpressionMatchIterator numMatchs = numberRegex.globalMatch(command);
+    QRegularExpressionMatchIterator numMatchs = regex.numberRegex.globalMatch(command);
     while(numMatchs.hasNext()){
         QRegularExpressionMatch nummatch = numMatchs.next();
         numTmp.append(nummatch.captured(0));
@@ -465,12 +465,12 @@ MouseParams SemanticAnalyzer::parserClickParam(const QString& command) {
     qCDebug(log_script) << "Matched numbers:" << numTmp;
     
     // check the "" content
-    QRegularExpressionMatch buttonMatch = buttonRegex.match(command);
+    QRegularExpressionMatch buttonMatch = regex.buttonRegex.match(command);
     if(buttonMatch.hasMatch()){
         button = buttonMatch.captured(0);
         qCDebug(log_script) << "Matched button:" << button;
     }
-    QRegularExpressionMatch downUpMatch = downUpRegex.match(command);
+    QRegularExpressionMatch downUpMatch = regex.downUpRegex.match(command);
     if(downUpMatch.hasMatch()){
         downOrUp = downUpMatch.captured(0);
         qCDebug(log_script) << "Matched downOrUp:" << downOrUp;

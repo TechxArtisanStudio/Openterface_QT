@@ -14,6 +14,21 @@ on:
         required: true
         type: boolean
         default: false
+      increase_version:
+        description: 'Increase the patch version number'
+        required: false
+        type: boolean
+        default: false
+      increase_minor:
+        description: 'Increase the minor version number'
+        required: false
+        type: boolean
+        default: false
+      increase_major:
+        description: 'Increase the major version number'
+        required: false
+        type: boolean
+        default: false
 
 defaults:
   run:
@@ -24,6 +39,8 @@ env:
   SOURCE_DIR: ${{ github.workspace }}
   QT_VERSION: 6.5.3 
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  QT_CACHE_KEY: qt-6.5.3-windows
+  JOM_CACHE_KEY: jom-1.1.3-windows
 
 jobs:
   build:
@@ -41,67 +58,38 @@ jobs:
         with:
           python-version: '3.10'
 
+      - name: Cache Qt
+        id: cache-qt
+        uses: actions/cache@v3
+        with:
+          path: ${{ runner.temp }}/Qt
+          key: ${{ env.QT_CACHE_KEY }}
+          restore-keys: |
+            qt-6.5.3-windows
+            qt-6.5-windows
+
+      - name: Cache Jom
+        id: cache-jom
+        uses: actions/cache@v3
+        with:
+          path: ${{ runner.temp }}/jom
+          key: jom-1.1.3-windows
+          restore-keys: |
+            jom-1.1.3-windows
+            jom-1.1-windows
+
       - name: Update version
         run: |
-          import os
-          import re
-          from datetime import datetime
-
-          version_file_path = 'resources/version.h'
-
-          # Check if the file exists
-          if not os.path.exists(version_file_path):
-              print(f"Error: {version_file_path} does not exist.")
-              print("Current working directory:", os.getcwd())
-              print("Directory contents:", os.listdir())
-              exit(1)
-
-          # Read current version from version.h
-          with open(version_file_path, 'r') as f:
-              version_content = f.read()
-              version_match = re.search(r'#define APP_VERSION "([^"]+)"', version_content)
-              if version_match:
-                  version = version_match.group(1)
-              else:
-                  print(f"Error: Version not found in {version_file_path}")
-                  print("File contents:")
-                  print(version_content)
-                  exit(1)
-
-          # Split version into parts
-          try:
-              major, minor, patch, days = version.split('.')
-          except ValueError:
-              print(f"Error: Invalid version format: {version}")
-              exit(1)
-
-          # Increment patch version
-          patch = str(int(patch) + 1)
-
-          # Calculate days from start of year
-          current_date = datetime.now()
-          days_from_start = (current_date - datetime(current_date.year, 1, 1)).days + 1
-          days = str(days_from_start).zfill(3)  # Ensure it's always 3 digits
-
-          # Create new version string
-          new_version = f"{major}.{minor}.{patch}.{days}"
-
-          # Update version.h file
-          new_version_content = re.sub(
-              r'#define APP_VERSION "[^"]+"',
-              f'#define APP_VERSION "{new_version}"',
-              version_content
-          )
-          with open(version_file_path, 'w') as f:
-              f.write(new_version_content)
-
-          print(f"Updated version to {new_version}")
-
-          # Set environment variables for use in later steps
-          with open(os.environ['GITHUB_ENV'], 'a') as env_file:
-              env_file.write(f"NEW_VERSION={new_version}\n")
-              env_file.write(f"VERSION_FOR_INNO={new_version}\n")
-        shell: python
+          if [ "${{ github.event.inputs.increase_version }}" = "true" ]; then
+            python "${{ env.SOURCE_DIR }}\update_version.py" --increase-version
+          elif [ "${{ github.event.inputs.increase_major }}" = "true" ]; then
+            python "${{ env.SOURCE_DIR }}\update_version.py" --increase-major
+          elif [ "${{ github.event.inputs.increase_minor }}" = "true" ]; then
+            python "${{ env.SOURCE_DIR }}\update_version.py" --increase-minor
+          else
+            python "${{ env.SOURCE_DIR }}\update_version.py"
+          fi
+        shell: bash
 
       - name: Get all tags for correct version determination
         working-directory: ${{ github.workspace }}
@@ -109,6 +97,7 @@ jobs:
           git fetch --all --tags -f
 
       - name: Install Qt
+        if: steps.cache-qt.outputs.cache-hit != 'true'
         uses: jurplel/install-qt-action@v4
         with:
           version: ${{ env.QT_VERSION }}
@@ -120,6 +109,7 @@ jobs:
           setup-python: false
 
       - name: Download and Unzip Jom
+        if: steps.cache-jom.outputs.cache-hit != 'true'
         working-directory: ${{ runner.temp }}
         run: |
           curl -L -o jom.zip "http://download.qt.io/official_releases/jom/jom.zip"
@@ -139,6 +129,7 @@ jobs:
           call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
           
           echo "Building with qmake..."
+          set PATH=${{ runner.temp }}\\Qt\\${{ env.QT_VERSION }}\\msvc2019_64\\bin;%PATH%
           qmake -v
           qmake -r ${{ env.SOURCE_DIR }}\openterfaceQT.pro
           if errorlevel 1 exit /b 1
@@ -156,7 +147,8 @@ jobs:
           mkdir package
           mkdir package\driver
           copy release\openterfaceQT.exe package
-          copy ${{ env.SOURCE_DIR }}\driver\windows\* package\driver
+          copy ${{ env.SOURCE_DIR }}\LICENSE package
+          copy ${{ env.SOURCE_DIR }}\driver\windows\v3.9\* package\driver
           
           echo "Running windeployqt..."
           cd package
@@ -185,7 +177,7 @@ jobs:
           if-no-files-found: error
 
       - name: Commit and push version update
-        if: success()
+        if: success() && (github.event.inputs.increase_version == 'true' || github.event.inputs.increase_major == 'true' || github.event.inputs.increase_minor == 'true')
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
