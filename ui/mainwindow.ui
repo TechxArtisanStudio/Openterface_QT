@@ -95,33 +95,16 @@
       </widget>
      </item>
      <item>
-      <widget class="QComboBox" name="zoomComboBox">
+      <widget class="QComboBox" name="keyboardLayoutComboBox">
        <property name="sizePolicy">
         <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
          <horstretch>0</horstretch>
          <verstretch>0</verstretch>
         </sizepolicy>
        </property>
-       <item>
-        <property name="text">
-         <string>US QWERTY</string>
-        </property>
-       </item>
-       <item>
-        <property name="text">
-         <string>French AZERTY</string>
-        </property>
-       </item>
-       <item>
-        <property name="text">
-         <string>German QWERTZ</string>
-        </property>
-       </item>
-       <item>
-        <property name="text">
-         <string>UK QWERTY</string>
-        </property>
-       </item>
+       <property name="minimumWidth">
+         <number>80</number>
+       </property>
       </widget>
      </item>
      <item>
@@ -144,7 +127,7 @@
       <widget class="QPushButton" name="ZoomReductionButton">
        <property name="icon">
         <iconset resource="mainwindow.qrc">
-         <normaloff>:/images/zoom_reduction.svg</normaloff>:/images/zoom_reduction.svg</iconset>
+         <normaloff>:/images/zoom_fit.svg</normaloff>:/images/zoom_fit.svg</iconset>
        </property>
       </widget>
      </item>
@@ -180,13 +163,6 @@
        </property>
        <property name="checkable">
         <bool>true</bool>
-       </property>
-      </widget>
-     </item>
-     <item>
-      <widget class="QComboBox" name="keyboardLayoutComboBox">
-       <property name="toolTip">
-        <string>Select Keyboard Layout</string>
        </property>
       </widget>
      </item>

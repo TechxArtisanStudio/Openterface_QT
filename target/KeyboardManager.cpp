@@ -79,14 +79,30 @@ KeyboardManager::KeyboardManager(QObject *parent) : QObject(parent),
     getKeyboardLayout();
 }
 
+QString KeyboardManager::mapModifierKeysToNames(int modifiers) {
+    QStringList modifierNames;
+    if (modifiers & Qt::ShiftModifier) {
+        modifierNames << "Shift";
+    }
+    if (modifiers & Qt::ControlModifier) {
+        modifierNames << "Ctrl";
+    }
+    if (modifiers & Qt::AltModifier) {
+        modifierNames << "Alt";
+    }
+    if (modifiers & Qt::MetaModifier) {
+        modifierNames << "Meta";
+    }
+    return modifierNames.join(" + ");
+}
+
 void KeyboardManager::handleKeyboardAction(int keyCode, int modifiers, bool isKeyDown) {
     QByteArray keyData = CMD_SEND_KB_GENERAL_DATA;
     unsigned int combinedModifiers = 0;
 
-    // Debug the incoming key code
-    qCDebug(log_keyboard) << "Processing key:" << keyCode 
-                         << "(0x" << QString::number(keyCode, 16) << ")"
-                         << "with modifiers:" << modifiers
+    // Debug the incoming key code with modifier names
+    qCDebug(log_keyboard) << "Processing key:" << QString::number(keyCode) + "(0x" + QString::number(keyCode, 16) + ")"
+                         << "with modifiers:" << mapModifierKeysToNames(modifiers)
                          << "isKeyDown:" << isKeyDown;
 
     // Check if it's a function key
@@ -101,20 +117,9 @@ void KeyboardManager::handleKeyboardAction(int keyCode, int modifiers, bool isKe
 
     // Use current layout's keyMap instead of the static one
     mappedKeyCode = currentLayout.keyMap.value(keyCode, 0);
-    qCDebug(log_keyboard) << "Mapped to scancode: 0x" << QString::number(mappedKeyCode, 16);
+    qCDebug(log_keyboard) << "Mapped to scancode: 0x" + QString::number(mappedKeyCode, 16);
     qCDebug(log_keyboard) << "Current layout name:" << currentLayout.name;
     qCDebug(log_keyboard) << "Layout has" << currentLayout.keyMap.size() << "mappings";
-
-    if (mappedKeyCode == 0) {
-        qCWarning(log_keyboard) << "No mapping found for key code:" << keyCode 
-                               << "in layout:" << currentLayout.name;
-        qCDebug(log_keyboard) << "Available mappings in current layout:";
-        for (auto it = currentLayout.keyMap.begin(); it != currentLayout.keyMap.end(); ++it) {
-            qCDebug(log_keyboard) << "  Qt key:" << it.key() 
-                                 << "-> Scancode: 0x" << QString::number(it.value(), 16);
-        }
-        return;
-    }
 
     if(isModiferKeys(keyCode)){
         // Distingush the left or right modifiers, the modifiers is a native event
