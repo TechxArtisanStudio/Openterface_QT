@@ -95,7 +95,7 @@
       </widget>
      </item>
      <item>
-      <widget class="QComboBox" name="zoomComboBox">
+      <widget class="QComboBox" name="keyboardLayoutComboBox">
        <property name="sizePolicy">
         <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
          <horstretch>0</horstretch>

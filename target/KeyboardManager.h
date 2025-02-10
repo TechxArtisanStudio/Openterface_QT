@@ -107,6 +107,7 @@ private:
     static const QMap<int, uint8_t> defaultKeyMap;
     static const QMap<uint8_t, int> defaultCharMapping;
     static const QList<char> defaultNeedShiftKeys;
+    QString mapModifierKeysToNames(int modifiers);
 
 private slots:
 };

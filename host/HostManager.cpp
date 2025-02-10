@@ -156,13 +156,21 @@ void HostManager::handleKeyboardAction(int keyCode, int modifiers, bool isKeyDow
     keyboardManager.handleKeyboardAction(keyCode, effectiveModifiers, isKeyDown);
     
     if (isKeyDown) {
-        qCDebug(log_core_host) << "keyCode:" << keyCode << "modifiers:" << effectiveModifiers;
+        qCDebug(log_core_host) << "Key press event detected with keyCode:" << keyCode << " and modifiers:" << effectiveModifiers;
         m_lastKeyCode = keyCode;
         m_lastModifiers = effectiveModifiers;
 
         // Update the status with the last key pressed
         if (statusEventCallback != nullptr) {
-            QString keyText = QKeySequence(keyCode | effectiveModifiers).toString();
+            QString keyText;
+            // Handle modifier keys specially
+            if (keyboardManager.isModiferKeys(keyCode)) {
+                // For modifier keys, just use the key name without combining with modifiers
+                keyText = QKeySequence(effectiveModifiers).toString();
+            } else {
+                keyText = QKeySequence(keyCode | effectiveModifiers).toString();
+            }
+            qCDebug(log_core_host) << "onLastKeyPressed:" << keyText;
             statusEventCallback->onLastKeyPressed(keyText);
         }
     } else {
@@ -212,4 +220,4 @@ void HostManager::repeatLastKeystroke() {
 void HostManager::setKeyboardLayout(const QString& layoutName) {
     qCDebug(log_core_host) << "Keyboard layout changed to" << layoutName;
     keyboardManager.setKeyboardLayout(layoutName);
-} 
+}
