@@ -165,6 +165,14 @@
       </widget>
      </item>
      <item>
+      <widget class="QPushButton" name="fullScreenButton">
+       <property name="icon">
+        <iconset resource="mainwindow.qrc">
+         <normaloff>:/images/full_screen.svg</normaloff>:/images/full_screen.svg</iconset>
+       </property>
+      </widget>
+     </item>
+     <item>
       <widget class="QPushButton" name="pasteButton">
        <property name="icon">
         <iconset resource="mainwindow.qrc">
