@@ -125,6 +125,7 @@ MainWindow::MainWindow() :  ui(new Ui::MainWindow),
 {
     QApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
 
+
     qCDebug(log_ui_mainwindow) << "Init camera...";
     
     
@@ -431,11 +432,7 @@ void MainWindow::resizeEvent(QResizeEvent *event) {
     qCDebug(log_ui_mainwindow) << "current height: " << currentHeight << "available height: " << availableHeight;
     qCDebug(log_ui_mainwindow) << "current width: " << currentWidth << "available width: " << currentWidth;
 
-    if (currentWidth == availableWidth || currentHeight == availableHeight){
-        //If the width or height cannot increase size, then skip processing.
-        isResizing = false;
-        return;
-    } else if (currentWidth > availableWidth || currentHeight > availableHeight) {
+    if (currentWidth >= availableWidth || currentHeight >= availableHeight) {
         // Calculate the new size while maintaining the aspect ratio
         int videoHeight = maxContentHeight;
         int videoWidth = static_cast<int>(videoHeight * aspect_ratio);
@@ -457,7 +454,11 @@ void MainWindow::resizeEvent(QResizeEvent *event) {
         qCDebug(log_ui_mainwindow) << "Resize to " << currentWidth << "x" << currentHeight;
         qCDebug(log_ui_mainwindow) << "available height: " << availableHeight << "video height: " << videoHeight;
         qCDebug(log_ui_mainwindow) << "video height: "<< videoHeight <<"video width: " << videoWidth;
-        resize(currentWidth, currentHeight);
+
+        if (currentWidth != availableWidth && currentHeight != availableHeight){
+            // Resize the window only when it's not maximized
+            resize(currentWidth, currentHeight);
+        }
 
         // Calculate the horizontal offset to center the videoPane
         int horizontalOffset = (currentWidth - videoWidth) / 2;
