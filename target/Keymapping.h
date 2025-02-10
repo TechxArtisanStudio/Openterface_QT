@@ -105,7 +105,6 @@ const QMap<int, uint8_t> KeyboardManager::keyMap = {
     {Qt::Key_Up, 0x52}, // up arrow
     {Qt::Key_NumLock, 0x53}, // num lock
     //{Qt::Key_Slash, 0x54}, // keypad slash
-    {Qt::Key_Asterisk, 0x55}, // keypad *
     {Qt::Key_Plus, 0x57}, // keypad +
     {Qt::Key_Shift, 0xE5}, // Right Shift
     {Qt::Key_Control, 0xE4}, // Right Ctrl
