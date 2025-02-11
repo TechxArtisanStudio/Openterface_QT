@@ -46,7 +46,10 @@
 #include "ui/TaskManager.h"
 #include "../scripts/semanticAnalyzer.h"
 #include "../scripts/AST.h"
+
+#ifdef HAS_TCPSERVER
 #include "server/tcpServer.h"
+#endif
 
 #include <QAudioInput>
 #include <QAudioOutput>
@@ -230,7 +233,7 @@ private:
     QLabel *keyLabel;
     QToolBar *toolbar;
     ToolbarManager *toolbarManager; // Moved up in the declaration orde r
-    TcpServer *tcpServer;
+    
 
 
     QMediaDevices m_source;
@@ -294,6 +297,11 @@ private:
     bool isFullScreenMode();
     bool fullScreenState = false;
     Qt::WindowStates oldWindowState;
+
+#ifdef HAS_TCPSERVER
     void startServer();
+    TcpServer *tcpServer;
+#endif
+
 };
 #endif // MAINWINDOW_H

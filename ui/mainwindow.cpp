@@ -128,9 +128,15 @@ MainWindow::MainWindow() :  ui(new Ui::MainWindow),
 
     qCDebug(log_ui_mainwindow) << "Init camera...";
     
-    
-    
     ui->setupUi(this);
+    #ifdef HAS_TCPSERVER
+        qCDebug(log_ui_mainwindow) << "Test actionTCPServer true...";
+        ui->actionTCPServer->setVisible(true);
+    #else
+        qCDebug(log_ui_mainwindow) << "Test actionTCPServer false...";
+        ui->actionTCPServer->setVisible(false);
+        
+    #endif
     initializeKeyboardLayouts();
 
     m_statusBarManager = new StatusBarManager(ui->statusbar, this);
@@ -312,7 +318,6 @@ void MainWindow::fullScreen(){
         this->showNormal();
         ui->statusbar->show();
         fullScreenState = false;
-        
     }
 }
 
