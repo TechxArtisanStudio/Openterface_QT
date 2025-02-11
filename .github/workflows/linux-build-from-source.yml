@@ -2,9 +2,6 @@
 name: Linux build from Source
 
 on: 
-  push:
-    branches: ["main", "dev"]
-    tags: ["v*"]
   workflow_dispatch:
 
 jobs:
