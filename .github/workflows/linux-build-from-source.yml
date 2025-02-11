@@ -1,6 +1,7 @@
 name: Linux build from Source
 
-on: {} 
+on: 
+  workflow_dispatch:
 
 jobs:
   build:
