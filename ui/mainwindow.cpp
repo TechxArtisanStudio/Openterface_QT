@@ -289,7 +289,9 @@ MainWindow::MainWindow() :  ui(new Ui::MainWindow),
 
 #ifdef HAS_TCPSERVER
     void MainWindow::startServer(){
-        
+        tcpServer = new TcpServer(this);
+        tcpServer->startServer(12345);
+        qCDebug(log_ui_mainwindow) << "TCP Server start at port 12345";
     }
 #endif
 
