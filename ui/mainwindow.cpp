@@ -132,11 +132,12 @@ MainWindow::MainWindow() :  ui(new Ui::MainWindow),
     #ifdef HAS_TCPSERVER
         qCDebug(log_ui_mainwindow) << "Test actionTCPServer true...";
         ui->actionTCPServer->setVisible(true);
+        connect(ui->actionTCPServer, &QAction::triggered, this, &MainWindow::startServer);
     #else
         qCDebug(log_ui_mainwindow) << "Test actionTCPServer false...";
         ui->actionTCPServer->setVisible(false);
-        
     #endif
+
     initializeKeyboardLayouts();
 
     m_statusBarManager = new StatusBarManager(ui->statusbar, this);
@@ -285,6 +286,12 @@ MainWindow::MainWindow() :  ui(new Ui::MainWindow),
     // fullScreen();
     // qCDebug(log_ui_mainwindow) << "full finished";
 }
+
+#ifdef HAS_TCPSERVER
+    void MainWindow::startServer(){
+        
+    }
+#endif
 
 bool MainWindow::isFullScreenMode() {
     // return fullScreenState;
