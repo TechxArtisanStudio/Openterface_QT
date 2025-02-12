@@ -31,7 +31,17 @@ jobs:
         with:
           python-version: '3.10'
 
+      - name: Cache Qt
+        id: cache-qt
+        uses: actions/cache@v3
+        with:
+          path: ${{ runner.temp }}/Qt
+          key: qt-6.5.3-mingw-windows
+          restore-keys: |
+            qt-6.5-mingw-windows
+
       - name: Install Qt
+        if: steps.cache-qt.outputs.cache-hit != 'true'
         uses: jurplel/install-qt-action@v4
         with:
           version: ${{ env.QT_VERSION }}
