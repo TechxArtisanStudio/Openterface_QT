@@ -112,6 +112,7 @@ jobs:
         working-directory: ${{ runner.temp }}\build
         run: |
           echo "Building with qmake..."
+          set PATH=${{ runner.temp }}\\Qt\\${{ env.QT_VERSION }}\\mingw81_64\\bin;%PATH%
           qmake -v
           qmake -r ${{ env.SOURCE_DIR }}\openterfaceQT.pro
           if errorlevel 1 exit /b 1
