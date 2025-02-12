@@ -5,7 +5,8 @@
         <file>qwerty_uk.json</file>
         <file>azerty_fr.json</file>
         <file>qwertz_de.json</file>
-        <file>qwerty_dk.json</file>
-        <file>japanese.json</file>
+		<file>qwerty_dk.json</file>
+		<file>qwerty_se.json</file>
+		<file>japanese.json</file>
     </qresource>
 </RCC> 
