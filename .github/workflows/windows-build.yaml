@@ -103,39 +103,25 @@ jobs:
           version: ${{ env.QT_VERSION }}
           host: windows
           target: desktop
-          arch: win64_msvc2019_64
+          arch: win64_mingw
           dir: ${{ runner.temp }}
           modules: qtmultimedia qtserialport
           setup-python: false
 
-      - name: Download and Unzip Jom
-        if: steps.cache-jom.outputs.cache-hit != 'true'
-        working-directory: ${{ runner.temp }}
+      - name: Set up MinGW shell
         run: |
-          curl -L -o jom.zip "http://download.qt.io/official_releases/jom/jom.zip"
-          7z x jom.zip -ojom
-
-      - name: Create build directory
-        run: mkdir ${{ runner.temp }}\build
-
-      - name: Set up Visual Studio shell
-        uses: egor-tensin/vs-shell@v2
-        with:
-          arch: x64
-
+          set PATH=${{ runner.temp }}\\Qt\\${{ env.QT_VERSION }}\\mingw81_64\\bin;%PATH%
+          
       - name: Build
         working-directory: ${{ runner.temp }}\build
         run: |
-          call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
-          
           echo "Building with qmake..."
-          set PATH=${{ runner.temp }}\\Qt\\${{ env.QT_VERSION }}\\msvc2019_64\\bin;%PATH%
           qmake -v
           qmake -r ${{ env.SOURCE_DIR }}\openterfaceQT.pro
           if errorlevel 1 exit /b 1
           
-          echo "Building with jom..."
-          ${{ runner.temp }}\jom\jom -j2
+          echo "Building with mingw32-make..."
+          mingw32-make -j2
           if errorlevel 1 exit /b 1
           
           if not exist release\openterfaceQT.exe (
