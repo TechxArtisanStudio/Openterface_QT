@@ -31,26 +31,32 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: Cache Qt
-        id: cache-qt
+      - name: Install Dependencies for Building Qt
+        run: |
+          choco install git cmake ninja
+
+      - name: Clone Qt Source
+        run: |
+          git clone https://code.qt.io/qt/qt5.git
+          cd qt5
+          git checkout v${{ env.QT_VERSION }}
+
+      - name: Build Qt Statically
+        run: |
+          cd qt5
+          mkdir build
+          cd build
+          ../configure -static -release -opensource -confirm-license -nomake examples -nomake tests -platform win32-g++ -prefix ${{ runner.temp }}/Qt
+          cmake --build . --config Release
+          cmake --install . --config Release
+
+      - name: Cache Qt Build
         uses: actions/cache@v3
         with:
           path: ${{ runner.temp }}/Qt
-          key: qt-6.5.3-mingw-windows
+          key: qt-6.5.3-mingw-windows-static
           restore-keys: |
-            qt-6.5-mingw-windows
-
-      - name: Install Qt
-        if: steps.cache-qt.outputs.cache-hit != 'true'
-        uses: jurplel/install-qt-action@v4
-        with:
-          version: ${{ env.QT_VERSION }}
-          host: windows
-          target: desktop
-          arch: win64_mingw
-          dir: ${{ runner.temp }}
-          modules: qtmultimedia qtserialport
-          setup-python: false
+            qt-6.5.3-mingw-windows-static
 
       - name: Create build directory
         run: mkdir ${{ runner.temp }}\build
