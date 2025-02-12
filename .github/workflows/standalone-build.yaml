@@ -75,11 +75,15 @@ jobs:
           echo "Creating standalone package..."
           mkdir package
           copy release\openterfaceQT.exe package
-          
+
+          echo "Copying platform plugins..."
+          mkdir platforms
+          copy D:/a/_temp/Qt/6.5.3/mingw_64/plugins/platforms/qwindows.dll platforms
+
           echo "Running windeployqt for standalone build..."
           cd package
           windeployqt --release --qmldir ${{ env.SOURCE_DIR }} openterfaceQT.exe --compiler-runtime
-
+          
       - name: Save build artifact
         uses: actions/upload-artifact@v4
         with:
