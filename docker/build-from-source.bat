@@ -1,4 +1,4 @@
-@echo off
+@echo on
 REM To install OpenTerface QT, you can run this script as an administrator.
 
 setlocal enabledelayedexpansion
