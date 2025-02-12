@@ -61,13 +61,8 @@ jobs:
         working-directory: ${{ runner.temp }}\build
         run: |
           echo "Building with qmake..."
-          set PATH=${{ runner.temp }}\Qt\bin;%PATH%
-          
-          if not exist "%PATH%\qmake.exe" (
-            echo "Error: qmake not found in PATH"
-            exit 1
-          )
-          
+          set PATH=${{ runner.temp }}\Qt6\${{ env.QT_VERSION }}\mingw_64\bin;${{ runner.temp }}\Qt6\Tools\mingw1120_64\bin;%PATH%
+
           qmake -r ${{ env.SOURCE_DIR }}\openterfaceQT.pro
           if errorlevel 1 exit /b 1
           
