@@ -40,6 +40,10 @@ jobs:
         with:
           python-version: '3.10'
 
+      - name: Install Ninja
+        run: |
+          choco install ninja -y
+
       - name: Build Qt Statically
         if: steps.cache-qt.outputs.cache-hit != 'true'
         run: |

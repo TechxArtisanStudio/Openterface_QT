@@ -11,8 +11,19 @@ set BUILD_DIR=%cd%\qt-build
 set MODULES=qtbase qtshadertools qtmultimedia qtsvg qtserialport
 set DOWNLOAD_BASE_URL=https://download.qt.io/archive/qt/%QT_MAJOR_VERSION%/%QT_VERSION%/submodules
 
-REM Update and install dependencies
-REM Note: You may need to install dependencies manually or use a package manager like vcpkg or Chocolatey.
+REM Check for Ninja
+where ninja >nul 2>nul
+if %errorlevel% neq 0 (
+    echo Ninja is not installed. Please install Ninja and ensure it is in your PATH.
+    exit /b 1
+)
+
+REM Check for C/C++ Compiler
+where g++ >nul 2>nul
+if %errorlevel% neq 0 (
+    echo g++ is not installed. Please install a C/C++ compiler (like MinGW or Visual Studio Build Tools).
+    exit /b 1
+)
 
 REM Create build directory
 mkdir "%BUILD_DIR%"
@@ -98,8 +109,8 @@ cd Openterface_QT
 mkdir build
 cd build
 qmake ..
-make
-make install
+nmake  # Use nmake instead of make for Windows
+nmake install
 
 REM Clean up all the build folder
 echo Cleaning the build folder...
