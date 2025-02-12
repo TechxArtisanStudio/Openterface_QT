@@ -98,21 +98,14 @@ jobs:
           modules: qtmultimedia qtserialport
           setup-python: false
 
-      - name: Set up MinGW shell
-        run: |
-          set PATH=${{ runner.temp }}\\Qt\\${{ env.QT_VERSION }}\\mingw81_64\\bin;%PATH%
-          
       - name: Create build directory
         run: mkdir ${{ runner.temp }}\build
-
-      - name: List Directory Contents
-        run: dir ${{ runner.temp }}\build
 
       - name: Build
         working-directory: ${{ runner.temp }}\build
         run: |
           echo "Building with qmake..."
-          set PATH=${{ runner.temp }}\\Qt\\${{ env.QT_VERSION }}\\mingw81_64\\bin;%PATH%
+          set PATH=${{ runner.temp }}\\Qt\\${{ env.QT_VERSION }}\\mingw_64\\bin;%PATH%
           qmake -v
           qmake -r ${{ env.SOURCE_DIR }}\openterfaceQT.pro
           if errorlevel 1 exit /b 1
