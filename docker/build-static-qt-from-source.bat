@@ -20,13 +20,6 @@ if %errorlevel% neq 0 (
     exit /b 1
 )
 
-REM Check for C/C++ Compiler
-where g++ >nul 2>nul
-if %errorlevel% neq 0 (
-    echo g++ is not installed. Please install a C/C++ compiler (like MinGW or Visual Studio Build Tools).
-    exit /b 1
-)
-
 REM Create build directory
 mkdir "%BUILD_DIR%"
 cd "%BUILD_DIR%"
