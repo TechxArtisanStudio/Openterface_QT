@@ -18,26 +18,6 @@ REM Create build directory
 mkdir "%BUILD_DIR%"
 cd "%BUILD_DIR%"
 
-REM Download and install FFmpeg 6.1.1
-if not exist "FFmpeg-n6.1.1" (
-    curl -L -o ffmpeg.zip https://github.com/FFmpeg/FFmpeg/archive/refs/tags/n6.1.1.zip
-    powershell -command "Expand-Archive -Path ffmpeg.zip -DestinationPath ."
-) else (
-    echo FFmpeg-n6.1.1 already exists, skipping download.
-)
-
-cd FFmpeg-n6.1.1
-REM Configure the build
-.\configure --prefix=C:\ffmpeg --enable-shared --disable-static
-REM Compile the source code
-make -j%NUMBER_OF_PROCESSORS%
-REM Install the compiled binaries
-make install
-REM Load the lib
-REM Note: Windows does not require ldconfig
-cd ..
-rmdir /s /q n6.1.1.zip
-
 REM Download and extract modules
 for %%m in (%MODULES%) do (
     if not exist "%%m" (
