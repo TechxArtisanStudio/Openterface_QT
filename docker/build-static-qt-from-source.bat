@@ -11,6 +11,8 @@ set BUILD_DIR=%cd%\qt-build
 set MODULES=qtbase qtshadertools qtmultimedia qtsvg qtserialport
 set DOWNLOAD_BASE_URL=https://download.qt.io/archive/qt/%QT_MAJOR_VERSION%/%QT_VERSION%/submodules
 
+set PATH=C:\ProgramData\chocolatey\bin;%PATH%
+
 REM Check for Ninja
 where ninja >nul 2>nul
 if %errorlevel% neq 0 (
