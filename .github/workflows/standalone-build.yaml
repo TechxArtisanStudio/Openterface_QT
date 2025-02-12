@@ -13,7 +13,7 @@ defaults:
     shell: cmd
 
 env:
-  ARTIFACT: "${{ vars.MY_APP_EXE_NAME }}"
+  ARTIFACT: openterfaceQT-standalone.exe
   SOURCE_DIR: ${{ github.workspace }}
   QT_VERSION: 6.5.3 
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
