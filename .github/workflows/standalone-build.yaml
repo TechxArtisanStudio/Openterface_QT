@@ -40,28 +40,10 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: Install Dependencies for Building Qt
-        if: steps.cache-qt.outputs.cache-hit != 'true'
-        run: |
-          choco install git cmake ninja
-
-      - name: Clone Qt Source
-        if: steps.cache-qt.outputs.cache-hit != 'true'
-        run: |
-          git clone https://code.qt.io/qt/qt5.git
-          cd qt5
-          git checkout v${{ env.QT_VERSION }}
-          git submodule update --init --recursive
-
       - name: Build Qt Statically
         if: steps.cache-qt.outputs.cache-hit != 'true'
         run: |
-          cd qt5
-          mkdir build
-          cd build
-          ../configure -static -release -opensource -confirm-license -nomake examples -nomake tests -platform win32-g++ -prefix ${{ runner.temp }}/Qt
-          cmake --build . --config Release
-          cmake --install . --config Release
+          call docker/build-from-source.bat
 
       - name: Create build directory
         run: mkdir ${{ runner.temp }}\build
@@ -70,7 +52,13 @@ jobs:
         working-directory: ${{ runner.temp }}\build
         run: |
           echo "Building with qmake..."
-          set PATH=${{ runner.temp }}\\Qt\\${{ env.QT_VERSION }}\\mingw_64\\bin;%PATH%
+          set PATH=${{ runner.temp }}\Qt\bin;%PATH%
+          
+          if not exist "%PATH%\qmake.exe" (
+            echo "Error: qmake not found in PATH"
+            exit 1
+          )
+          
           qmake -r ${{ env.SOURCE_DIR }}\openterfaceQT.pro
           if errorlevel 1 exit /b 1
           
