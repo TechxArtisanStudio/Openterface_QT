@@ -65,8 +65,8 @@ jobs:
           path: ${{ runner.temp }}/Qt
           key: ${{ env.QT_CACHE_KEY }}
           restore-keys: |
-            qt-6.5.3-windows
-            qt-6.5-windows
+            ${{ env.QT_CACHE_KEY }}
+            qt-6.5-mingw-windows
 
       - name: Update version
         run: |
