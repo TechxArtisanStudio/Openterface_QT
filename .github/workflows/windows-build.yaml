@@ -135,9 +135,6 @@ jobs:
           echo "Running windeployqt..."
           cd package
           windeployqt --qmldir ${{ env.SOURCE_DIR }} openterfaceQT.exe --compiler-runtime --multimedia
-          copy C:\Windows\System32\concrt140.dll . 
-          copy C:\Windows\System32\vccorlib140.dll .
-          copy C:\Windows\System32\msvcp140.dll .
 
       - name: Move directory
         working-directory: ${{ runner.temp }}\build
