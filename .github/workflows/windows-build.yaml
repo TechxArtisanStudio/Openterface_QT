@@ -68,6 +68,7 @@ jobs:
             ${{ env.QT_CACHE_KEY }}
             qt-6.5-mingw-windows
 
+
       - name: Update version
         run: |
           if [ "${{ github.event.inputs.increase_version }}" = "true" ]; then
