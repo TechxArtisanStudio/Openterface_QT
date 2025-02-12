@@ -1,4 +1,7 @@
 #!/bin/bash
+# To install OpenTerface QT, you can run the following command:
+# curl -sSL https://raw.githubusercontent.com/TechxArtisanStudio/Openterface_QT/refs/heads/main/docker/build-from-source.sh | sudo bash
+
 set -e  # Exit on error
 # set -x  # Show commands
 
@@ -26,6 +29,8 @@ sudo apt install -y --allow-change-held-packages \
     libpulse-dev \
     pulseaudio \
     libusb-1.0-0-dev \
+    libfontconfig1-dev \
+    libfreetype6-dev \
     ninja-build \
     cmake \
     yasm \
