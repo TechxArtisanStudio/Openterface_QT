@@ -1,0 +1,78 @@
+---
+name: Standalone Build
+
+on:
+  push:
+    branches: ["main", "dev"]
+  pull_request:
+    branches: ["dev"]
+  workflow_dispatch:
+
+defaults:
+  run:
+    shell: cmd
+
+env:
+  ARTIFACT: "${{ vars.MY_APP_EXE_NAME }}"
+  SOURCE_DIR: ${{ github.workspace }}
+  QT_VERSION: 6.5.3 
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+jobs:
+  build:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: ${{ env.QT_VERSION }}
+          host: windows
+          target: desktop
+          arch: win64_mingw
+          dir: ${{ runner.temp }}
+          modules: qtbase
+          setup-python: false
+
+      - name: Create build directory
+        run: mkdir ${{ runner.temp }}\build
+
+      - name: Build Standalone Executable
+        working-directory: ${{ runner.temp }}\build
+        run: |
+          echo "Building with qmake..."
+          set PATH=${{ runner.temp }}\\Qt\\${{ env.QT_VERSION }}\\mingw_64\\bin;%PATH%
+          qmake -r ${{ env.SOURCE_DIR }}\openterfaceQT.pro
+          if errorlevel 1 exit /b 1
+          
+          echo "Building with mingw32-make..."
+          mingw32-make -j2
+          if errorlevel 1 exit /b 1
+          
+          if not exist release\openterfaceQT.exe (
+            echo "Error: Failed to build openterfaceQT.exe"
+            exit 1
+          )
+          
+          echo "Creating standalone package..."
+          mkdir package
+          copy release\openterfaceQT.exe package
+          
+          echo "Running windeployqt for standalone build..."
+          cd package
+          windeployqt --release --qmldir ${{ env.SOURCE_DIR }} openterfaceQT.exe --compiler-runtime --no-multimedia
+
+      - name: Save build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.ARTIFACT }}
+          path: ${{ runner.temp }}\build\package\openterfaceQT.exe
+          if-no-files-found: error 
