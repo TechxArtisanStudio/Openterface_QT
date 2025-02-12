@@ -39,7 +39,7 @@ jobs:
           target: desktop
           arch: win64_mingw
           dir: ${{ runner.temp }}
-          modules: qtbase
+          modules: qtmultimedia qtserialport
           setup-python: false
 
       - name: Create build directory
