@@ -55,7 +55,11 @@ jobs:
           call docker/build-static-qt-from-source.bat
 
       - name: Create build directory
-        run: mkdir ${{ runner.temp }}\build
+        run: |
+          mkdir ${{ runner.temp }}\build
+          cd ${{ runner.temp }}
+          dir /s qmake.exe
+           
 
     #   - name: Build Standalone Executable
     #     working-directory: ${{ runner.temp }}\build
