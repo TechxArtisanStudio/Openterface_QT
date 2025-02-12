@@ -49,7 +49,7 @@ jobs:
       - name: Build Qt Statically
         if: steps.cache-qt.outputs.cache-hit != 'true'
         run: |
-          call docker/build-from-source.bat
+          call docker/build-static-qt-from-source.bat
 
       - name: Create build directory
         run: mkdir ${{ runner.temp }}\build
