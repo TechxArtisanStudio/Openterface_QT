@@ -56,6 +56,7 @@ jobs:
         run: |
           choco install mingw -y
           choco install ninja -y
+          choco install mingw-w64 -y
           echo "Setting up PATH for MinGW and Ninja"
           set PATH=C:\ProgramData\chocolatey\bin;%PATH%
           g++ --version || (echo "g++ installation failed. Please check the installation." && exit 1)
