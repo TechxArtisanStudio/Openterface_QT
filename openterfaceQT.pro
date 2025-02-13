@@ -132,6 +132,9 @@ unix {
     LIBS += -lusb-1.0
 }
 
+# Add the following line to link with oleaut32
+LIBS += -loleaut32
+
 # Set platform-specific installation paths
 win32 {
     target.path = $$(PROGRAMFILES)/openterfaceQT
