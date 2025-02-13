@@ -95,7 +95,7 @@ jobs:
 
           echo "Running windeployqt for standalone build..."
           cd package
-          C:\Qt6\bin\windeployqt --qmldir ${{ env.SOURCE_DIR }} openterfaceQT.exe --compiler-runtime
+          C:\Qt6\bin\windeployqt --qmldir ${{ env.SOURCE_DIR }} openterfaceQT.exe --compiler-runtime --no-translations
 
       - name: Save build artifact
         uses: actions/upload-artifact@v4
