@@ -129,7 +129,7 @@ MainWindow::MainWindow() :  ui(new Ui::MainWindow),
     qCDebug(log_ui_mainwindow) << "Init camera...";
     
     ui->setupUi(this);
-    #ifdef HAS_TCPSERVER
+    #ifdef ONLINE_VERSION
         qCDebug(log_ui_mainwindow) << "Test actionTCPServer true...";
         ui->actionTCPServer->setVisible(true);
         connect(ui->actionTCPServer, &QAction::triggered, this, &MainWindow::startServer);
@@ -287,7 +287,7 @@ MainWindow::MainWindow() :  ui(new Ui::MainWindow),
     // qCDebug(log_ui_mainwindow) << "full finished";
 }
 
-#ifdef HAS_TCPSERVER
+#ifdef ONLINE_VERSION
     void MainWindow::startServer(){
         tcpServer = new TcpServer(this);
         tcpServer->startServer(12345);

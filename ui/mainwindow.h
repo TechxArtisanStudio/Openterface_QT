@@ -47,7 +47,7 @@
 #include "../scripts/semanticAnalyzer.h"
 #include "../scripts/AST.h"
 
-#ifdef HAS_TCPSERVER
+#ifdef ONLINE_VERSION
 #include "server/tcpServer.h"
 #endif
 
@@ -298,7 +298,7 @@ private:
     bool fullScreenState = false;
     Qt::WindowStates oldWindowState;
 
-#ifdef HAS_TCPSERVER
+#ifdef ONLINE_VERSION
     void startServer();
     TcpServer *tcpServer;
 #endif
