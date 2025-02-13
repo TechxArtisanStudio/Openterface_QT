@@ -98,7 +98,7 @@ jobs:
           echo "Building with qmake..."
           set PATH=C:\Qt6\bin;C:\ProgramData\chocolatey\lib\mingw\tools\install\mingw64\bin;%PATH%
 
-          dir /s C:\ProgramData\chocolatey\lib\mingw\
+          dir /s C:\ProgramData\chocolatey\lib\
           qmake -v
           qmake -r "${{ env.SOURCE_DIR }}\openterfaceQT.pro" CONFIG+=release || (echo "qmake failed. Please check the .pro file and paths." && exit 1)
         
