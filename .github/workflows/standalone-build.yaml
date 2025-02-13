@@ -79,7 +79,7 @@ jobs:
           set PATH=C:\Qt6\bin;C:\ProgramData\chocolatey\lib\mingw\tools\install\mingw64\bin;%PATH%
 
           qmake -v
-          qmake -r "${{ env.SOURCE_DIR }}\openterfaceQT.pro" -static CONFIG+=static release || (echo "qmake failed. Please check the .pro file and paths." && exit 1)
+          qmake -r "${{ env.SOURCE_DIR }}\openterfaceQT.pro" CONFIG+=static release || (echo "qmake failed. Please check the .pro file and paths." && exit 1)
         
           echo "Building with mingw32-make..."
           mingw32-make -j2 || (echo "mingw32-make failed. Please check the build configuration." && exit 1)
