@@ -63,6 +63,10 @@ jobs:
           set PATH=C:\ProgramData\chocolatey\lib\mingw\tools\mingw64\bin;%PATH%
           g++ --version || (echo "g++ installation failed. Please check the installation." && exit 1)
 
+      - name: List Installed Libraries
+        shell: pwsh
+        run: Get-ChildItem -Path C:\ProgramData\mingw64 -Recurse -Filter libgcc.a
+
       - name: Build Qt Statically
         if: steps.cache-qt.outputs.cache-hit != 'true'
         run: |
