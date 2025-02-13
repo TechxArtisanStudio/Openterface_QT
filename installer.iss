@@ -50,6 +50,7 @@ Source: "{#SourcePackage}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubd
 Source: "{#SourcePackage}\driver\CH341SER.INF"; DestDir: {app}\driver;
 Source: "{#SourcePackage}\driver\CH341S64.SYS"; DestDir: {app}\driver;
 
+
 ; NOTE: Don't use "Flags: ignoreversion" on any shared system files
 
 [Icons]
