@@ -35,6 +35,13 @@ jobs:
             restore-keys: |
               qt-6.5.3-mingw-windows-static
 
+      - name: Install Chocolatey
+        shell: pwsh
+        run: |
+            Set-ExecutionPolicy Bypass -Scope Process -Force
+            [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.SecurityProtocolType]::Tls12
+            Invoke-Expression ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
+
       - name: Cache MinGW and Ninja Build
         id: cache-mingw
         uses: actions/cache@v3
@@ -59,10 +66,6 @@ jobs:
           echo "Installing MinGW-w64"
           choco install mingw -y
     
-          echo "Setting up PATH for MinGW-w64"
-          set PATH=C:\ProgramData\chocolatey\lib\mingw\tools\mingw64\bin;%PATH%
-          g++ --version || (echo "g++ installation failed. Please check the installation." && exit 1)
-
       - name: List Installed Libraries
         shell: pwsh
         run: Get-ChildItem -Path C:\ProgramData\chocolatey\lib\ -Recurse -Filter libgcc.a
