@@ -94,9 +94,8 @@ jobs:
         run: |
           echo "Checking Qt configuration..."
           C:\Qt6\bin\qmake -query
+          set PATH=C:\Qt6\bin;%PATH%
           
-          dir C:\Qt6\bin\
-
           echo "Building with qmake..."
           
           dir /s C:\ProgramData\chocolatey\lib\mingw*
