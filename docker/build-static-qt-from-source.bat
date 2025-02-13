@@ -78,9 +78,6 @@ for %%m in (%MODULES%) do (
                     -DCMAKE_INSTALL_PREFIX="%INSTALL_PREFIX%" ^
                     -DCMAKE_PREFIX_PATH="%INSTALL_PREFIX%" ^
                     -DBUILD_SHARED_LIBS=OFF ^
-                    -DFEATURE_ffmpeg=ON ^
-                    -DFFmpeg_DIR="%BUILD_DIR%\FFmpeg-n6.1.1" ^
-                    -DFEATURE_pulseaudio=ON ^
                     ..
             ) else (
                 cmake -G "Ninja" ^
