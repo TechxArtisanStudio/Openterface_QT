@@ -58,6 +58,17 @@ jobs:
         run: |
           mkdir ${{ runner.temp }}\build
            
+      - name: Check Qt path
+        run: |
+          dir C:\Qt6
+          dir C:\Qt6\${{ env.QT_VERSION }}  
+          dir C:\Qt6\${{ env.QT_VERSION }}\mingw_64
+          dir C:\Qt6\${{ env.QT_VERSION }}\mingw_64\bin
+          dir C:\Qt6\${{ env.QT_VERSION }}\mingw_64\plugins
+          dir C:\Qt6\${{ env.QT_VERSION }}\mingw_64\qml
+          dir C:\Qt6\${{ env.QT_VERSION }}\mingw_64\translations
+          
+          
 
       - name: Build Standalone Executable
         working-directory: ${{ runner.temp }}\build
