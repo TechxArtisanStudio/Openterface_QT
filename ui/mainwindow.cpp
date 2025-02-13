@@ -128,8 +128,16 @@ MainWindow::MainWindow() :  ui(new Ui::MainWindow),
 
     qCDebug(log_ui_mainwindow) << "Init camera...";
     
-    
     ui->setupUi(this);
+    #ifdef ONLINE_VERSION
+        qCDebug(log_ui_mainwindow) << "Test actionTCPServer true...";
+        ui->actionTCPServer->setVisible(true);
+        connect(ui->actionTCPServer, &QAction::triggered, this, &MainWindow::startServer);
+    #else
+        qCDebug(log_ui_mainwindow) << "Test actionTCPServer false...";
+        ui->actionTCPServer->setVisible(false);
+    #endif
+
     initializeKeyboardLayouts();
 
     m_statusBarManager = new StatusBarManager(ui->statusbar, this);
@@ -273,13 +281,53 @@ MainWindow::MainWindow() :  ui(new Ui::MainWindow),
     // Add this connection after toolbarManager is created
     connect(toolbarManager, &ToolbarManager::toolbarVisibilityChanged,
             this, &MainWindow::onToolbarVisibilityChanged);
-    connect(ui->actionTCPServer, &QAction::triggered, this, &MainWindow::startServer);
+    // qCDebug(log_ui_mainwindow) << "full screen...";
+    connect(ui->fullScreenButton, &QPushButton::clicked, this, &MainWindow::fullScreen);
+    // fullScreen();
+    // qCDebug(log_ui_mainwindow) << "full finished";
 }
 
-void MainWindow::startServer(){
-    tcpServer = new TcpServer(this);
-    tcpServer->startServer(12345);
-    qCDebug(log_ui_mainwindow) << "TCP Server init...";
+#ifdef ONLINE_VERSION
+    void MainWindow::startServer(){
+        tcpServer = new TcpServer(this);
+        tcpServer->startServer(12345);
+        qCDebug(log_ui_mainwindow) << "TCP Server start at port 12345";
+    }
+#endif
+
+bool MainWindow::isFullScreenMode() {
+    // return fullScreenState;
+    return this->isFullScreen();
+}
+
+void MainWindow::fullScreen(){
+    qreal aspect_ratio = static_cast<qreal>(video_width) / video_height;
+    QScreen *currentScreen = this->screen();
+    QRect screenGeometry = currentScreen->geometry();
+    int videoAvailibleHeight = screenGeometry.height() - ui->menubar->height();
+    int videoAvailibleWidth = videoAvailibleHeight * aspect_ratio;
+    int horizontalOffset = (screenGeometry.width() - videoAvailibleWidth) / 2;
+    if(!isFullScreenMode()){
+         
+        ui->statusbar->hide();
+        // Calculate the horizontal offset after resizing
+        
+        // Resize the videoPane and scrollArea first
+        videoPane->setMinimumSize(videoAvailibleWidth, videoAvailibleHeight);
+        videoPane->resize(videoAvailibleWidth, videoAvailibleHeight);
+        scrollArea->resize(videoAvailibleWidth, videoAvailibleHeight);
+        qCDebug(log_ui_mainwindow) << "Resize to Width " << videoAvailibleWidth << "\tHeight: " << videoAvailibleHeight;
+        // Move the videoPane and scrollArea to the center
+        fullScreenState = true;
+        this->showFullScreen();
+        qCDebug(log_ui_mainwindow) << "offset: " << horizontalOffset;
+        videoPane->move(horizontalOffset, videoPane->y());
+        scrollArea->move(horizontalOffset, videoPane->y());
+    } else {
+        this->showNormal();
+        ui->statusbar->show();
+        fullScreenState = false;
+    }
 }
 
 void MainWindow::setTooltip(){
@@ -290,6 +338,7 @@ void MainWindow::setTooltip(){
     ui->pasteButton->setToolTip("Paste text to target");
     ui->screensaverButton->setToolTip("Mouse dance");
     ui->captureButton->setToolTip("Full screen capture");
+    ui->fullScreenButton->setToolTip("Full screen mode");
 }
 
 void MainWindow::onZoomIn()
@@ -387,7 +436,7 @@ void MainWindow::checkInitSize(){
 void MainWindow::resizeEvent(QResizeEvent *event) {
     static bool isResizing = false;
 
-    if (isResizing) {
+    if (isResizing || isFullScreenMode()) {
         return;
     }
 
@@ -1256,7 +1305,10 @@ void MainWindow::animateVideoPane() {
     bool isMaximized = windowState() & Qt::WindowMaximized;
 
     // Calculate content height based on toolbar visibility
-    int contentHeight = this->height() - ui->statusbar->height() - ui->menubar->height();
+    int contentHeight;
+    if (!isFullScreenMode()) contentHeight = this->height() - ui->statusbar->height() - ui->menubar->height();
+    else contentHeight = this->height() - ui->menubar->height();
+
     int contentWidth;
     double aspect_ratio = static_cast<double>(video_width) / video_height;
     if (isToolbarVisible) {
@@ -1264,7 +1316,8 @@ void MainWindow::animateVideoPane() {
         contentWidth = static_cast<int>(contentHeight * aspect_ratio);
         qCDebug(log_ui_mainwindow) << "toolbarHeigth" << toolbarManager->getToolbar()->height() << "content height" <<contentHeight << "content width" << contentWidth;
     }else{
-        contentHeight = this->height() - ui->statusbar->height() - ui->menubar->height();
+        if (!isFullScreenMode()) contentHeight = this->height() - ui->statusbar->height() - ui->menubar->height();
+        else contentHeight = this->height() - ui->menubar->height();
         contentWidth = static_cast<int>(contentHeight * aspect_ratio);
     }
 

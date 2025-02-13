@@ -95,9 +95,10 @@ HEADERS  += \
     scripts/Parser.h \
     scripts/semanticAnalyzer.h \
     scripts/KeyboardMouse.h \
-    target/KeyboardLayouts.h \
-    regex/RegularExpression.h \ 
-    server/tcpServer.h
+    server/tcpServer.h \
+    regex/RegularExpression.h \
+    target/KeyboardLayouts.h 
+
 
 FORMS    += \
     ui/mainwindow.ui \
