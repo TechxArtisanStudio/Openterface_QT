@@ -896,11 +896,6 @@ void MainWindow::versionInfo()
     m_versionInfoManager->showVersionInfo();
 }
 
-void MainWindow::onFunctionKeyPressed(int key)
-{
-    HostManager::getInstance().handleFunctionKey(key);
-}
-
 void MainWindow::onCtrlAltDelPressed()
 {
     HostManager::getInstance().sendCtrlAltDel();
