@@ -79,7 +79,7 @@ jobs:
           findstr /C:"CONFIG += static release" "${{ env.SOURCE_DIR }}\openterfaceQT.pro" >nul
           if errorlevel 1 (
             echo "CONFIG += static release" >> "${{ env.SOURCE_DIR }}\openterfaceQT.pro"
-            echo "QMAKE_LFLAGS += -static -static-libgcc -static-libstdc++" >> "${{ env.SOURCE_DIR }}\openterfaceQT.pro"
+            echo "QMAKE_LFLAGS += -static -static-libgcc -static-libstdc++ -static-libwinpthread" >> "${{ env.SOURCE_DIR }}\openterfaceQT.pro"
             echo "Static build configuration added to .pro file."
             set ERRORLEVEL=0  # Reset error level
           ) else (
