@@ -59,7 +59,7 @@ jobs:
           mkdir ${{ runner.temp }}\build
            
 
-       - name: Build Standalone Executable
+      - name: Build Standalone Executable
          working-directory: ${{ runner.temp }}\build
          run: |
            echo "Building with qmake..."
