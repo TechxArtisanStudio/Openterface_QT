@@ -69,6 +69,17 @@ jobs:
         run: |
           mkdir ${{ runner.temp }}\build
           
+      - name: Prepare .pro File for Static Build
+        run: |
+          echo "Checking and appending static build configuration to .pro file..."
+          if ! grep -q "CONFIG += static release" "${{ env.SOURCE_DIR }}/openterfaceQT.pro"; then
+            echo "CONFIG += static release" >> "${{ env.SOURCE_DIR }}/openterfaceQT.pro"
+            echo "QMAKE_LFLAGS += -static" >> "${{ env.SOURCE_DIR }}/openterfaceQT.pro"
+            echo "Static build configuration added to .pro file."
+          else
+            echo "Static build configuration already present in .pro file."
+          fi
+
       - name: Build Standalone Executable
         working-directory: ${{ runner.temp }}\build
         run: |
