@@ -35,13 +35,24 @@ jobs:
             restore-keys: |
               qt-6.5.3-mingw-windows-static
 
+      - name: Cache MinGW and Ninja Build
+        id: cache-mingw
+        uses: actions/cache@v3
+        with:
+          path: |
+            C:\ProgramData\chocolatey\lib\mingw
+            C:\ProgramData\chocolatey\lib\ninja
+          key: mingw-ninja-windows-static
+          restore-keys: |
+            mingw-ninja-windows-static
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.10'
 
       - name: Install Build environment
-        if: steps.cache-qt.outputs.cache-hit != 'true'
+        if: steps.cache-mingw.outputs.cache-hit != 'true'
         run: |
           choco install mingw -y
           choco install ninja -y
@@ -67,10 +78,17 @@ jobs:
       - name: Build Standalone Executable
         working-directory: ${{ runner.temp }}\build
         run: |
+          echo "Checking Qt configuration..."
+          C:\Qt6\bin\qmake -query
+          
+          echo "Checking available Qt modules..."
+          dir C:\Qt6\modules
+          
           echo "Building with qmake..."
           set PATH=C:\Qt6\bin;C:\ProgramData\chocolatey\lib\mingw\tools\install\mingw64\bin;%PATH%
 
-          qmake -r ${{ env.SOURCE_DIR }}\openterfaceQT.pro
+          qmake -v
+          qmake -r ${{ env.SOURCE_DIR }}\openterfaceQT.pro CONFIG+=release
           if errorlevel 1 exit /b 1
         
           echo "Building with mingw32-make..."
