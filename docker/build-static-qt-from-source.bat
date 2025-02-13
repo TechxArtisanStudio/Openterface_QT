@@ -92,3 +92,12 @@ for %%m in (%MODULES%) do (
         )
     )
 )
+
+REM Quick fix: Add -loleaut32 to qnetworklistmanager.prl
+set PRL_FILE=%INSTALL_PREFIX%\plugins\networkinformation\qnetworklistmanager.prl
+if exist "%PRL_FILE%" (
+    echo Updating %PRL_FILE% to include -loleaut32...
+    echo QMAKE_PRL_LIBS += -loleaut32 >> "%PRL_FILE%"
+) else (
+    echo Warning: %PRL_FILE% not found. Please check the build process.
+)
