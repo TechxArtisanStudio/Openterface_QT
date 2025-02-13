@@ -83,6 +83,8 @@ void AudioManager::fadeInVolume(int timeout, int durationInSeconds) {
     // Create a QTimer to handle the volume fade-in
     QTimer *volumeTimer = new QTimer(this);
     connect(volumeTimer, &QTimer::timeout, [this, volumeTimer, increment]() {
+        if (!m_audioThread) return;
+
         qreal currentVolume = m_audioThread->volume();
 
         if (currentVolume < 1.0) {
