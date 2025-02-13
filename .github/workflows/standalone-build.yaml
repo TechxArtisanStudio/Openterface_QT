@@ -92,6 +92,8 @@ jobs:
           echo "Checking Qt configuration..."
           C:\Qt6\bin\qmake -query
           
+          dir C:\Qt6\bin\
+          
           echo "Building with qmake..."
           set PATH=C:\Qt6\bin;C:\ProgramData\chocolatey\lib\mingw\tools\install\mingw64\bin;%PATH%
 
@@ -115,7 +117,7 @@ jobs:
 
           echo "Running windeployqt for standalone build..."
           cd package
-          C:\Qt6\bin\windeployqt --qmldir ${{ env.SOURCE_DIR }} openterfaceQT.exe --compiler-runtime --no-translations --verbose 2
+          C:\Qt6\bin\windeployqt6 --qmldir ${{ env.SOURCE_DIR }} openterfaceQT.exe --compiler-runtime --no-translations --verbose 2
 
       - name: Save build artifact
         uses: actions/upload-artifact@v4
