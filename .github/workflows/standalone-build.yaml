@@ -60,38 +60,38 @@ jobs:
            
 
       - name: Build Standalone Executable
-         working-directory: ${{ runner.temp }}\build
-         run: |
-           echo "Building with qmake..."
-           set PATH=C:\Qt6\${{ env.QT_VERSION }}\mingw_64\bin;C:\Qt6\Tools\mingw1120_64\bin;%PATH%
+        working-directory: ${{ runner.temp }}\build
+        run: |
+          echo "Building with qmake..."
+          set PATH=C:\Qt6\${{ env.QT_VERSION }}\mingw_64\bin;C:\Qt6\Tools\mingw1120_64\bin;%PATH%
 
-           qmake -r ${{ env.SOURCE_DIR }}\openterfaceQT.pro
-           if errorlevel 1 exit /b 1
-          
-           echo "Building with mingw32-make..."
-           mingw32-make -j2
-           if errorlevel 1 exit /b 1
-          
-           if not exist release\openterfaceQT.exe (
-             echo "Error: Failed to build openterfaceQT.exe"
-             exit 1
-           )
-          
-           echo "Creating standalone package..."
-           mkdir package
-           copy release\openterfaceQT.exe package
+          qmake -r ${{ env.SOURCE_DIR }}\openterfaceQT.pro
+          if errorlevel 1 exit /b 1
+        
+          echo "Building with mingw32-make..."
+          mingw32-make -j2
+          if errorlevel 1 exit /b 1
+        
+          if not exist release\openterfaceQT.exe (
+            echo "Error: Failed to build openterfaceQT.exe"
+            exit 1
+          )
+        
+          echo "Creating standalone package..."
+          mkdir package
+          copy release\openterfaceQT.exe package
 
-           echo "Copying platform plugins..."
-           mkdir platforms
-           copy D:/a/_temp/Qt/6.5.3/mingw_64/plugins/platforms/qwindows.dll platforms
+          echo "Copying platform plugins..."
+          mkdir platforms
+          copy D:/a/_temp/Qt/6.5.3/mingw_64/plugins/platforms/qwindows.dll platforms
 
-           echo "Running windeployqt for standalone build..."
-           cd package
-           windeployqt --qmldir ${{ env.SOURCE_DIR }} openterfaceQT.exe --compiler-runtime
+          echo "Running windeployqt for standalone build..."
+          cd package
+          windeployqt --qmldir ${{ env.SOURCE_DIR }} openterfaceQT.exe --compiler-runtime
           
-       - name: Save build artifact
-         uses: actions/upload-artifact@v4
-         with:
-           name: ${{ env.ARTIFACT }}
-           path: ${{ runner.temp }}\build\package\openterfaceQT.exe
-           if-no-files-found: error 
+      - name: Save build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.ARTIFACT }}
+          path: ${{ runner.temp }}\build\package\openterfaceQT.exe
+          if-no-files-found: error 
