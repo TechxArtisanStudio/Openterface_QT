@@ -61,20 +61,14 @@ jobs:
       - name: Check Qt path
         run: |
           dir C:\Qt6
-          dir C:\Qt6\${{ env.QT_VERSION }}  
-          dir C:\Qt6\${{ env.QT_VERSION }}\mingw_64
-          dir C:\Qt6\${{ env.QT_VERSION }}\mingw_64\bin
-          dir C:\Qt6\${{ env.QT_VERSION }}\mingw_64\plugins
-          dir C:\Qt6\${{ env.QT_VERSION }}\mingw_64\qml
-          dir C:\Qt6\${{ env.QT_VERSION }}\mingw_64\translations
+          dir C:\Qt6\bin
+          dir C:\Qt6\plugins
           
-          
-
       - name: Build Standalone Executable
         working-directory: ${{ runner.temp }}\build
         run: |
           echo "Building with qmake..."
-          set PATH=C:\Qt6\${{ env.QT_VERSION }}\mingw_64\bin;C:\Qt6\Tools\mingw1120_64\bin;%PATH%
+          set PATH=C:\Qt6\bin;C:\ProgramData\chocolatey\lib\mingw\tools\install\mingw64\bin;%PATH%
 
           qmake -r ${{ env.SOURCE_DIR }}\openterfaceQT.pro
           if errorlevel 1 exit /b 1
@@ -93,12 +87,12 @@ jobs:
           copy release\openterfaceQT.exe package
 
           echo "Copying platform plugins..."
-          mkdir platforms
-          copy D:/a/_temp/Qt/6.5.3/mingw_64/plugins/platforms/qwindows.dll platforms
+          mkdir package\platforms
+          copy C:\Qt6\plugins\platforms\qwindows.dll package\platforms
 
           echo "Running windeployqt for standalone build..."
           cd package
-          windeployqt --qmldir ${{ env.SOURCE_DIR }} openterfaceQT.exe --compiler-runtime
+          C:\Qt6\bin\windeployqt --qmldir ${{ env.SOURCE_DIR }} openterfaceQT.exe --compiler-runtime
           
       - name: Save build artifact
         uses: actions/upload-artifact@v4
