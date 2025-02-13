@@ -81,6 +81,7 @@ jobs:
             echo "CONFIG += static release" >> "${{ env.SOURCE_DIR }}\openterfaceQT.pro"
             echo "QMAKE_LFLAGS += -static" >> "${{ env.SOURCE_DIR }}\openterfaceQT.pro"
             echo "Static build configuration added to .pro file."
+            set ERRORLEVEL=0  # Reset error level
           ) else (
             echo "Static build configuration already present in .pro file."
           )
@@ -99,7 +100,8 @@ jobs:
         
           echo "Building with mingw32-make..."
           mingw32-make -j2 || (echo "mingw32-make failed. Please check the build configuration." && exit 1)
-        
+          set ERRORLEVEL=0  # Reset error level after build
+          
           if not exist release\openterfaceQT.exe (
             echo "Error: Failed to build openterfaceQT.exe"
             exit 1
