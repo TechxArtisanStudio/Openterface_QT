@@ -69,6 +69,22 @@ jobs:
         run: |
           mkdir ${{ runner.temp }}\build
           
+      - name: Prepare .pro File for Static Build
+        run: |
+          echo "Checking and appending static build configuration to .pro file..."
+          if not exist "${{ env.SOURCE_DIR }}\openterfaceQT.pro" (
+            echo "Error: .pro file not found."
+            exit 1
+          )
+          findstr /C:"CONFIG += static release" "${{ env.SOURCE_DIR }}\openterfaceQT.pro" >nul
+          if errorlevel 1 (
+            echo "CONFIG += static release" >> "${{ env.SOURCE_DIR }}\openterfaceQT.pro"
+            echo "QMAKE_LFLAGS += -static" >> "${{ env.SOURCE_DIR }}\openterfaceQT.pro"
+            echo "Static build configuration added to .pro file."
+          ) else (
+            echo "Static build configuration already present in .pro file."
+          )
+
       - name: Build Standalone Executable
         working-directory: ${{ runner.temp }}\build
         run: |
@@ -79,7 +95,7 @@ jobs:
           set PATH=C:\Qt6\bin;C:\ProgramData\chocolatey\lib\mingw\tools\install\mingw64\bin;%PATH%
 
           qmake -v
-          qmake -r "${{ env.SOURCE_DIR }}\openterfaceQT.pro" CONFIG+=static release || (echo "qmake failed. Please check the .pro file and paths." && exit 1)
+          qmake -r "${{ env.SOURCE_DIR }}\openterfaceQT.pro" CONFIG+=release || (echo "qmake failed. Please check the .pro file and paths." && exit 1)
         
           echo "Building with mingw32-make..."
           mingw32-make -j2 || (echo "mingw32-make failed. Please check the build configuration." && exit 1)
