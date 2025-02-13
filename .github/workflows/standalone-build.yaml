@@ -51,22 +51,16 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: Install MSYS2
-        run: |
-          echo "Downloading and installing MSYS2"
-          curl -L -o msys2.exe https://github.com/msys2/msys2-installer/releases/latest/download/msys2-x86_64-latest.exe
-          start /wait msys2.exe --install --noconfirm
-          echo "MSYS2 installed"
-
       - name: Install Build environment
-
         run: |
           echo "Installing Ninja"
           choco install ninja -y
-          
-          echo "Setting up MSYS2 environment"
-          echo "Setting up PATH for MSYS2 MinGW-w64"
-          set PATH=C:\msys64\mingw64\bin;%PATH%
+    
+          echo "Installing MinGW-w64"
+          choco install mingw -y
+    
+          echo "Setting up PATH for MinGW-w64"
+          set PATH=C:\ProgramData\chocolatey\lib\mingw\tools\mingw64\bin;%PATH%
           g++ --version || (echo "g++ installation failed. Please check the installation." && exit 1)
 
       - name: Build Qt Statically
