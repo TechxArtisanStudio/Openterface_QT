@@ -35,6 +35,15 @@ jobs:
             restore-keys: |
               qt-6.5.3-mingw-windows-static
 
+      - name: Uninstall Chocolatey
+        shell: pwsh
+        run: |
+          if (Get-Command choco -ErrorAction SilentlyContinue) {
+            choco uninstall chocolatey -y
+          } else {
+            Write-Output "Chocolatey is not installed"
+          }
+
       - name: Install Chocolatey
         shell: pwsh
         run: |
