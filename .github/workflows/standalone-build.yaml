@@ -94,8 +94,13 @@ jobs:
           copy release\openterfaceQT.exe package
 
           echo "Copying platform plugins..."
-          mkdir package\platforms
-          copy C:\Qt6\plugins\platforms\qwindows.dll package\platforms
+          if exist C:\Qt6\plugins\platforms\qwindows.dll (
+              mkdir package\platforms
+              copy C:\Qt6\plugins\platforms\qwindows.dll package\platforms
+          ) else (
+              echo "Error: qwindows.dll not found in C:\Qt6\plugins\platforms"
+              exit 1
+          )
 
           echo "Running windeployqt for standalone build..."
           cd package
