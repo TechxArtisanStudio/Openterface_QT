@@ -54,13 +54,8 @@
               echo "Installing Ninja"
               choco install ninja -y
         
-              echo "Downloading pre-compiled static build of MinGW-w64"
-              curl -L -o mingw-w64.zip https://sourceforge.net/projects/mingw-w64/files/latest/download
-              mkdir C:\mingw-w64
-              tar -xf mingw-w64.zip -C C:\mingw-w64 --strip-components=1
-        
               echo "Setting up PATH for MinGW-w64"
-              set PATH=C:\mingw-w64\bin;%PATH%
+              set PATH=C:\mingw64\bin;%PATH%
               g++ --version || (echo "g++ installation failed. Please check the installation." && exit 1)
     
           - name: Build Qt Statically
@@ -88,29 +83,17 @@
                 echo "Static build configuration already present in .pro file."
               )
 
-          - name: Check for libgcc.a
-            shell: cmd
-            run: |
-                echo "Checking for libgcc.a in MinGW paths..."
-                dir /s /b C:\mingw-w64\lib\libgcc.a 2>nul || echo "Not found in mingw-w64"
-                dir /s /b "C:\ProgramData\chocolatey\lib\mingw\tools\install\mingw64\lib\libgcc.a" 2>nul || echo "Not found in chocolatey mingw"
-                
-                for /f "delims=" %%i in ('where gcc') do (
-                    echo "GCC location: %%i"
-                    echo "Checking lib directory relative to GCC..."
-                    dir /s /b "%%~dpi..\lib\libgcc.a" 2>nul || echo "Not found relative to GCC"
-                )
+
 
           - name: Build Standalone Executable
             working-directory: ${{ runner.temp }}\build
             run: |
               echo "Checking Qt configuration..."
               C:\Qt6\bin\qmake -query
-              set PATH=C:\Qt6\bin;%PATH%
+              set PATH=C:\Qt6\bin;C:\mingw64\bin;%PATH%
               
               echo "Building with qmake..."
               
-              dir /s C:\ProgramData\chocolatey\lib\mingw*
               qmake -v
               qmake -r "${{ env.SOURCE_DIR }}\openterfaceQT.pro" CONFIG+=release || (echo "qmake failed. Please check the .pro file and paths." && exit 1)
             
