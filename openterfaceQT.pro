@@ -39,6 +39,7 @@ SOURCES += main.cpp \
     ui/cameraajust.cpp \
     ui/scripttool.cpp \
     ui/TaskManager.cpp \
+    ui/driverdialog.cpp \
     host/HostManager.cpp \
     serial/SerialPortManager.cpp \
     target/KeyboardManager.cpp \
@@ -82,6 +83,7 @@ HEADERS  += \
     ui/cameraajust.h \
     ui/scripttool.h \
     ui/TaskManager.h \
+    ui/driverdialog.h \
     host/HostManager.h \
     serial/ch9329.h \
     serial/SerialPortManager.h \
@@ -101,7 +103,8 @@ HEADERS  += \
 
 FORMS    += \
     ui/mainwindow.ui \
-    ui/settingdialog.ui 
+    ui/settingdialog.ui \
+    ui/driverdialog.ui
 
 RESOURCES += \
     openterfaceQT.rc \

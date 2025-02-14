@@ -22,10 +22,11 @@
 
 #include "ui/mainwindow.h"
 #include "ui/loghandler.h"
+#include "ui/driverdialog.h"
 #include "global.h"
 #include "target/KeyboardLayouts.h"
 #include <QCoreApplication>
-#include "CH340WarningDialog.h"
+
 
 #include <iostream>
 #include <QApplication>
@@ -91,13 +92,6 @@ void setupEnv(){
 #endif
 }
 
-// Function to check if the CH340 driver is installed
-bool isCH340DriverInstalled() {
-    // Implement the logic to check for the CH340 driver
-    // This is a placeholder; actual implementation may vary
-    return false; // Assume it's not installed for demonstration
-}
-
 int main(int argc, char *argv[])
 {
     qDebug() << "Start openterface...";
@@ -135,11 +129,15 @@ int main(int argc, char *argv[])
     KeyboardLayoutManager::getInstance().loadLayouts(configPath);
     
     // Check for CH340 driver
-    if (!isCH340DriverInstalled()) {
-        CH340WarningDialog warningDialog;
-        warningDialog.exec(); // Show the warning dialog
-    }
-
+    if (!DriverDialog::isDriverInstalled()) {
+        DriverDialog driverDialog;
+        if (driverDialog.exec() == QDialog::Rejected) {
+            qDebug() << "Driver dialog rejected";
+            QApplication::quit(); // Quit the application if the dialog is rejected
+            return 0;
+        }
+    } 
+    
     MainWindow window;
     window.show();
 

@@ -1,14 +1,6 @@
 <!DOCTYPE RCC>
 <RCC version="1.0">
-    <qresource prefix="/drivers">
-        <file alias="CH341SER.INF">drivers/CH341SER.INF</file>
-        <file alias="CH341SER.CAT">drivers/CH341SER.CAT</file>
-        <file alias="CH341M64.SYS">drivers/CH341M64.SYS</file>
-        <file alias="CH341S64.SYS">drivers/CH341S64.SYS</file>
-        <file alias="CH341SER.SYS">drivers/CH341SER.SYS</file>
-        <file alias="CH341PT.DLL">drivers/CH341PT.DLL</file>
-        <file alias="CH341PTA64.DLL">drivers/CH341PTA64.DLL</file>
-        <file alias="CH341PORTS.DLL">drivers/CH341PORTS.DLL</file>
-        <file alias="CH341PORTSA64.DLL">drivers/CH341PORTSA64.DLL</file>
+    <qresource prefix="/drivers/windows">
+        <file alias="CH341SER.INF">CH341SER.INF</file>
     </qresource>
 </RCC> 
