@@ -145,4 +145,4 @@ RC_FILE = openterfaceQT.rc
 
 DEPENDPATH += $$PWD/''
 
-QMAKE_LFLAGS += -static-libgcc -static-libstdc++ -static-libwinpthread
+QMAKE_LFLAGS += -static-libgcc -static-libstdc++
