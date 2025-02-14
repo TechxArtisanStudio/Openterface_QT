@@ -42,8 +42,25 @@ jobs:
     - name: Build Application
       shell: cmd
       run: |
+        # Create a simple Qt Hello World GUI application
+        echo #include ^<QApplication^> > main.cpp
+        echo #include ^<QLabel^> >> main.cpp
+        echo int main(int argc, char *argv[]) { >> main.cpp
+        echo     QApplication app(argc, argv); >> main.cpp
+        echo     QLabel label("Hello, Static Qt World!"); >> main.cpp
+        echo     label.show(); >> main.cpp
+        echo     return app.exec(); >> main.cpp
+        echo } >> main.cpp
+
+        # Create .pro file
+        echo QT += widgets > hello.pro
+        echo TEMPLATE = app >> hello.pro
+        echo TARGET = hello >> hello.pro
+        echo SOURCES += main.cpp >> hello.pro
+        echo CONFIG += static >> hello.pro
+
         set PATH=%PATH%;C:\Qt6\bin;
-        qmake CONFIG+=release
+        qmake hello.pro CONFIG+=release
         mingw32-make -j4
     - name: Archive Binary
       uses: actions/upload-artifact@v4
