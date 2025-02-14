@@ -34,22 +34,25 @@
                 key: qt-6.5.3-mingw-windows-static
                 restore-keys: |
                   qt-6.5.3-mingw-windows-static
+
           - name: Cache MinGW and Ninja Build
             id: cache-mingw
             uses: actions/cache@v3
             with:
               path: |
-                C:\ProgramData\chocolatey\lib\mingw
+                C:\mingw64
                 C:\ProgramData\chocolatey\lib\ninja
               key: mingw-ninja-windows-static
               restore-keys: |
                 mingw-ninja-windows-static
+
           - name: Set up Python
             uses: actions/setup-python@v5
             with:
               python-version: '3.10'
     
           - name: Install Build environment
+            if: steps.cache-mingw.outputs.cache-hit != 'true'
             run: |
               echo "Installing Ninja"
               choco install ninja -y
@@ -82,8 +85,6 @@
               ) else (
                 echo "Static build configuration already present in .pro file."
               )
-
-
 
           - name: Build Standalone Executable
             working-directory: ${{ runner.temp }}\build
