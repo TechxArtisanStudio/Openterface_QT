@@ -76,8 +76,9 @@
                 echo "Error: .pro file not found."
                 exit 1
               )
-              findstr /C:"CONFIG += static release" "${{ env.SOURCE_DIR }}\openterfaceQT.pro" >nul
+             
               echo "QMAKE_LFLAGS += -static -static-libgcc -static-libstdc++ -static-libwinpthread" >> "${{ env.SOURCE_DIR }}\openterfaceQT.pro"
+              findstr /C:"CONFIG += static release" "${{ env.SOURCE_DIR }}\openterfaceQT.pro" >nul
               if errorlevel 1 (
                 echo "CONFIG += static release" >> "${{ env.SOURCE_DIR }}\openterfaceQT.pro"
                 echo "Static build configuration added to .pro file."
