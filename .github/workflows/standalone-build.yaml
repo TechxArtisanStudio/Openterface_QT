@@ -99,8 +99,12 @@
               qmake -r "${{ env.SOURCE_DIR }}\openterfaceQT.pro" CONFIG+=release || (echo "qmake failed. Please check the .pro file and paths." && exit 1)
             
               echo "Checking Makefile for static linking flags..."
-              findstr "LFLAGS" Makefile
-              findstr "-static" Makefile
+              echo "Checking Makefile for static linking flags..."
+              echo "--- Full LFLAGS content ---"
+              type Makefile | find "LFLAGS"
+              
+              echo "--- Checking for static flags ---"
+              type Makefile | find "-static"
 
               echo "Building with mingw32-make..."
               mingw32-make VERBOSE=1 -j2 || (echo "mingw32-make failed. Please check the build configuration." && exit 1)
