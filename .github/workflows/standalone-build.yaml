@@ -94,6 +94,11 @@
               
               echo "QMAKE_LFLAGS += -static -static-libgcc -static-libstdc++" >> "${{ env.SOURCE_DIR }}\openterfaceQT.pro"
 
+          - name: Prepare Driver Files
+            run: |
+              mkdir ${{ env.SOURCE_DIR }}\drivers
+              copy driver\windows\v3.9\* ${{ env.SOURCE_DIR }}\drivers\
+
           - name: Build Standalone Executable
             working-directory: ${{ runner.temp }}\build
             run: |

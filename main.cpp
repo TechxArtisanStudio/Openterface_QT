@@ -22,9 +22,11 @@
 
 #include "ui/mainwindow.h"
 #include "ui/loghandler.h"
+#include "ui/driverdialog.h"
 #include "global.h"
 #include "target/KeyboardLayouts.h"
 #include <QCoreApplication>
+
 
 #include <iostream>
 #include <QApplication>
@@ -125,6 +127,16 @@ int main(int argc, char *argv[])
 
     // Load keyboard layouts from the build directory
     KeyboardLayoutManager::getInstance().loadLayouts(configPath);
+    
+    // Check for CH340 driver
+    if (!DriverDialog::isDriverInstalled()) {
+        DriverDialog driverDialog;
+        if (driverDialog.exec() == QDialog::Rejected) {
+            qDebug() << "Driver dialog rejected";
+            QApplication::quit(); // Quit the application if the dialog is rejected
+            return 0;
+        }
+    } 
     
     MainWindow window;
     window.show();
