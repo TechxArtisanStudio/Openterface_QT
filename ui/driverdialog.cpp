@@ -165,6 +165,7 @@ bool DriverDialog::isDriverInstalled() {
 #else
     // Implement logic for other platforms if needed
     std::cout << "Driver check not implemented for this platform." << std::endl;
+
     return false; // Assume not installed for non-Windows and non-Linux platforms
 #endif
 }
