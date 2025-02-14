@@ -93,66 +93,43 @@ void DriverDialog::reject()
 
 bool DriverDialog::isDriverInstalled() {
 #ifdef _WIN32 // Check if compiling on Windows
-    // Log the start of the driver check
-    std::cout << "Checking if driver is installed on Windows." << std::endl;
-
-    // Get the GUID for USB devices
+    std::cout << "Checking if devices are present..." << std::endl;
     const GUID GUID_DEVINTERFACE_USB_DEVICE = { 0xA5DCBF10, 0x6530, 0x11D2, {0x90, 0x1F, 0x00, 0xC0, 0x4F, 0xB9, 0x51, 0xED} };
-
-    // Use SetupDiGetClassDevs to get a list of USB devices
-    HDEVINFO deviceInfoSet = SetupDiGetClassDevs(
-        &GUID_DEVINTERFACE_USB_DEVICE,
-        NULL,
-        NULL,
-        DIGCF_PRESENT | DIGCF_DEVICEINTERFACE
-    );
-
+    HDEVINFO deviceInfoSet = SetupDiGetClassDevs(&GUID_DEVINTERFACE_USB_DEVICE, NULL, NULL, DIGCF_PRESENT | DIGCF_DEVICEINTERFACE);
     if (deviceInfoSet == INVALID_HANDLE_VALUE) {
-        DWORD error = GetLastError();
-        std::cout << "Error occurred while getting device info set. Error code: " << error << std::endl;
         return false;
     }
 
     SP_DEVINFO_DATA deviceInfoData;
     deviceInfoData.cbSize = sizeof(SP_DEVINFO_DATA);
-
-    // Buffer for device hardware ID
     WCHAR hwIdBuffer[256];
+    bool captureCardFound = false;
+    bool ch341Found = false;
 
-    // Enumerate all devices
     for (DWORD i = 0; SetupDiEnumDeviceInfo(deviceInfoSet, i, &deviceInfoData); i++) {
-        // Get the hardware ID
-        if (SetupDiGetDeviceRegistryPropertyW(
-            deviceInfoSet,
-            &deviceInfoData,
-            SPDRP_HARDWAREID,
-            NULL,
-            (PBYTE)hwIdBuffer,
-            sizeof(hwIdBuffer),
-            NULL))
-        {
-            std::wcout << L"Found device with hardware ID: " << hwIdBuffer << std::endl;
-            
-            // Check if this is our device
+        if (SetupDiGetDeviceRegistryPropertyW(deviceInfoSet, &deviceInfoData, SPDRP_HARDWAREID, NULL,
+            (PBYTE)hwIdBuffer, sizeof(hwIdBuffer), NULL)) {
+            if (wcsstr(hwIdBuffer, L"USB\\VID_534D&PID_2109") != NULL) {
+                captureCardFound = true;
+            }
             if (wcsstr(hwIdBuffer, L"USB\\VID_1A86&PID_7523") != NULL) {
-                std::cout << "Found matching USB device!" << std::endl;
-                SetupDiDestroyDeviceInfoList(deviceInfoSet);
-                return true;
+                ch341Found = true;
             }
         }
     }
 
-    // Check if last error was just end of list
-    DWORD error = GetLastError();
-    if (error != ERROR_NO_MORE_ITEMS) {
-        std::cout << "Error while enumerating devices. Error code: " << error << std::endl;
-    } else {
-        std::cout << "No matching device found." << std::endl;
-    }
-
     SetupDiDestroyDeviceInfoList(deviceInfoSet);
-    return false;
 
+    if (!captureCardFound && !ch341Found) {
+        std::cout << "Neither device found - skipping driver check" << std::endl;
+        return true;
+    }
+    if (captureCardFound && !ch341Found) {
+        std::cout << "Capture card found but CH341 missing - need driver" << std::endl;
+        return false;
+    }
+    std::cout << "Devices properly detected" << std::endl;
+    return true;
 #elif defined(__linux__) // Check if compiling on Linux
     // Log the start of the driver check
     std::cout << "Checking if driver is installed on Linux." << std::endl;
