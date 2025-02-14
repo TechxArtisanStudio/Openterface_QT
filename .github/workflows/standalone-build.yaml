@@ -79,6 +79,7 @@
              
               findstr /C:"CONFIG += static release" "${{ env.SOURCE_DIR }}\openterfaceQT.pro" >nul
               if errorlevel 1 (
+                echo "" >> "${{ env.SOURCE_DIR }}\openterfaceQT.pro"
                 echo "CONFIG += static release" >> "${{ env.SOURCE_DIR }}\openterfaceQT.pro"
                 echo "Static build configuration added to .pro file."
                 set ERRORLEVEL=0  # Reset error level
