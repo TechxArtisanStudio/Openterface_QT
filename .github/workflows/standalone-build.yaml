@@ -87,6 +87,20 @@
               ) else (
                 echo "Static build configuration already present in .pro file."
               )
+
+          - name: Check for libgcc.a
+            shell: cmd
+            run: |
+                echo "Checking for libgcc.a in MinGW paths..."
+                dir /s /b C:\mingw-w64\lib\libgcc.a 2>nul || echo "Not found in mingw-w64"
+                dir /s /b "C:\ProgramData\chocolatey\lib\mingw\tools\install\mingw64\lib\libgcc.a" 2>nul || echo "Not found in chocolatey mingw"
+                
+                for /f "delims=" %%i in ('where gcc') do (
+                    echo "GCC location: %%i"
+                    echo "Checking lib directory relative to GCC..."
+                    dir /s /b "%%~dpi..\lib\libgcc.a" 2>nul || echo "Not found relative to GCC"
+                )
+
           - name: Build Standalone Executable
             working-directory: ${{ runner.temp }}\build
             run: |
