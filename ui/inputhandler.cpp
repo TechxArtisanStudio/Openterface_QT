@@ -110,24 +110,24 @@ bool InputHandler::eventFilter(QObject *watched, QEvent *event)
 
 void InputHandler::handleMouseMoveEvent(QMouseEvent *event)
 {
-    MouseEventDTO* eventDto = calculateMouseEventDto(event);   
+    QScopedPointer<MouseEventDTO> eventDto(calculateMouseEventDto(event));
     eventDto->setMouseButton(isDragging() ? lastMouseButton : 0);
 
     //Only handle the event if it's under absolute mouse control or relative mode is enabled
     if(!eventDto->isAbsoluteMode() && !m_videoPane->isRelativeModeEnabled()) return;
 
-    HostManager::getInstance().handleMouseMove(eventDto);
+    HostManager::getInstance().handleMouseMove(eventDto.get());
 }
 
 void InputHandler::handleMousePressEvent(QMouseEvent* event)
 {
-    MouseEventDTO* eventDto = calculateMouseEventDto(event);
+    QScopedPointer<MouseEventDTO> eventDto(calculateMouseEventDto(event));
     eventDto->setMouseButton(lastMouseButton = getMouseButton(event));
     setDragging(true);
 
     if(!eventDto->isAbsoluteMode()) m_videoPane->setRelativeModeEnabled(true);
 
-    HostManager::getInstance().handleMousePress(eventDto);
+    HostManager::getInstance().handleMousePress(eventDto.get());
 
     if(eventDto->isAbsoluteMode()){
         m_videoPane->showHostMouse();
@@ -138,18 +138,18 @@ void InputHandler::handleMousePressEvent(QMouseEvent* event)
 
 void InputHandler::handleMouseReleaseEvent(QMouseEvent* event)
 {
-    MouseEventDTO* eventDto = calculateMouseEventDto(event);
+    QScopedPointer<MouseEventDTO> eventDto(calculateMouseEventDto(event));
     setDragging(false);
-    HostManager::getInstance().handleMouseRelease(eventDto);
+    HostManager::getInstance().handleMouseRelease(eventDto.get());
 }
 
 void InputHandler::handleWheelEvent(QWheelEvent *event)
 {
-    MouseEventDTO* eventDto = new MouseEventDTO(lastX, lastY, GlobalVar::instance().isAbsoluteMouseMode());
+    QScopedPointer<MouseEventDTO> eventDto(new MouseEventDTO(lastX, lastY, GlobalVar::instance().isAbsoluteMouseMode()));
 
     eventDto->setWheelDelta(event->angleDelta().y());
 
-    HostManager::getInstance().handleMouseScroll(eventDto);
+    HostManager::getInstance().handleMouseScroll(eventDto.get());
 }
 
 void InputHandler::setDragging(bool dragging)

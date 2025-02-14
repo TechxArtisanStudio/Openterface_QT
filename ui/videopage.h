@@ -76,7 +76,6 @@ class VideoPage : public QWidget
     Q_OBJECT
 public:
     explicit VideoPage(CameraManager *cameraManager, QWidget *parent = nullptr);
-    ~VideoPage();
     void setupUI();
     void initVideoSettings();
     void applyVideoSettings();

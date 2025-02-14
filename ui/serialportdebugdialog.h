@@ -31,7 +31,6 @@ class SerialPortDebugDialog : public QDialog {
     Q_OBJECT
 public:
     explicit SerialPortDebugDialog(QWidget *parent = nullptr);
-    ~SerialPortDebugDialog();
 
 private slots:
     void handleSerialData(const QByteArray &data, bool isReceived);

@@ -30,11 +30,6 @@ HardwarePage::HardwarePage(QWidget *parent) : QWidget(parent)
     setupUI();
 }
 
-HardwarePage::~HardwarePage()
-{
-    delete this;
-}
-
 void HardwarePage::setupUI()
 {
     // UI setup implementation

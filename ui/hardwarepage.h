@@ -41,7 +41,6 @@ class HardwarePage : public QWidget
     Q_OBJECT
 public:
     explicit HardwarePage(QWidget *parent = nullptr);
-    ~HardwarePage();
     void setupUI();
     void applyHardwareSetting();
     void initHardwareSetting();

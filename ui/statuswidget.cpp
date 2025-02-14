@@ -24,7 +24,7 @@
 #include <QSvgRenderer>
 #include <QPainter>
 
-StatusWidget::StatusWidget(QWidget *parent) : QWidget(parent) {
+StatusWidget::StatusWidget(QWidget *parent) : QWidget(parent), m_captureWidth(0), m_captureHeight(0) {
     keyboardIndicatorsLabel = new QLabel("", this);
     statusLabel = new QLabel("", this);
     resolutionLabel = new QLabel("💻:", this);
