@@ -57,6 +57,11 @@
               echo "Installing Ninja"
               choco install ninja -y
         
+              echo "Downloading pre-compiled static build of MinGW-w64"
+              curl -L -o mingw-w64.zip https://sourceforge.net/projects/mingw-w64/files/latest/download
+              mkdir C:\mingw-w64
+              tar -xf mingw-w64.zip -C C:\mingw64 --strip-components=1
+        
               echo "Setting up PATH for MinGW-w64"
               set PATH=C:\mingw64\bin;%PATH%
               g++ --version || (echo "g++ installation failed. Please check the installation." && exit 1)
@@ -86,6 +91,8 @@
               ) else (
                 echo "Static build configuration already present in .pro file."
               )
+              
+              echo "QMAKE_LFLAGS += -static -static-libgcc -static-libstdc++" >> "${{ env.SOURCE_DIR }}\openterfaceQT.pro"
 
           - name: Build Standalone Executable
             working-directory: ${{ runner.temp }}\build

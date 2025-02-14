@@ -144,5 +144,3 @@ INSTALLS += target
 RC_FILE = openterfaceQT.rc
 
 DEPENDPATH += $$PWD/''
-
-QMAKE_LFLAGS += -static -static-libgcc -static-libstdc++
