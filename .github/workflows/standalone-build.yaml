@@ -87,18 +87,6 @@
                 echo "Static build configuration already present in .pro file."
               )
 
-          - name: Verify libwinpthread.a
-            run: |
-              echo "Checking for libwinpthread.a..."
-              for /r C:\mingw64 %%i in (libwinpthread.a) do (
-                echo "Found libwinpthread.a at: %%i"
-                set PTHREAD_PATH=%%i
-              )
-              if not defined PTHREAD_PATH (
-                echo "Error: libwinpthread.a not found in MinGW installation"
-                exit 1
-              )
-                
           - name: Build Standalone Executable
             working-directory: ${{ runner.temp }}\build
             run: |
