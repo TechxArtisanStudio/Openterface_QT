@@ -123,35 +123,18 @@ MainWindow::MainWindow() :  ui(new Ui::MainWindow),
                             m_versionInfoManager(new VersionInfoManager(this))
                             // cameraAdjust(new CameraAdjust(this))
 {
-    // #ifdef Q_OS_LINUX 
-    //     uint16_t hidvid = 0x534D;
-    //     uint16_t hidpid = 0x2109;
-    //     uint16_t ch34xvid = 0x1A86;
-    //     uint16_t ch34xpid = 0x7523;
-    //     bool hid = CheckDeviceAccess(hidvid, hidpid);
-    //     bool ch34x = CheckDeviceAccess(ch34xvid, ch34xpid);
-        
-    //     if (!(hid || ch34x)){
-    //         QString errorMessage = "Device access error:\n";
-    //         errorMessage += "HID: " + QString(hid ? "Accessible" : "Not accessible") + "\n";
-    //         errorMessage += "CH34X: " + QString(ch34x ? "Accessible" : "Not accessible") + "\n";
-    //         errorMessage += "Please get the hidraw and ttyUSB permission first.";
-    //         // Show the error message in a QMessageBox
-    //         QMessageBox::information(nullptr, "Device Error", errorMessage);
-    //     }
-    // #endif
-    
     QApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
-    
+
+
     qCDebug(log_ui_mainwindow) << "Init camera...";
     
     
     ui->setupUi(this);
+    initializeKeyboardLayouts();
+
     m_statusBarManager = new StatusBarManager(ui->statusbar, this);
     taskmanager = TaskManager::instance();
-    tcpServer = new TcpServer(this);
-    tcpServer->startServer(12345);
-
+    
     QWidget *centralWidget = new QWidget(this);
     centralWidget->setLayout(stackedLayout);
     centralWidget->setMouseTracking(true);
@@ -211,12 +194,6 @@ MainWindow::MainWindow() :  ui(new Ui::MainWindow),
         qCWarning(log_ui_mainwindow) << "Corner widget layout is not a QHBoxLayout. Unable to add ToggleSwitch.";
     }
 
-    // load the settings
-    qDebug() << "Loading settings";
-    GlobalSetting::instance().loadLogSettings();
-    GlobalSetting::instance().loadVideoSettings();
-    // onVideoSettingsChanged(GlobalVar::instance().getCaptureWidth(), GlobalVar::instance().getCaptureHeight());
-    LogHandler::instance().enableLogStore();
 
     qCDebug(log_ui_mainwindow) << "Observe switch usb connection trigger...";
     connect(ui->actionTo_Host, &QAction::triggered, this, &MainWindow::onActionSwitchToHostTriggered);
@@ -292,12 +269,18 @@ MainWindow::MainWindow() :  ui(new Ui::MainWindow),
     ScriptTool *scriptTool = new ScriptTool(this);
     connect(scriptTool, &ScriptTool::syntaxTreeReady, this, &MainWindow::handleSyntaxTree);
     setTooltip();
-    
+
     // Add this connection after toolbarManager is created
     connect(toolbarManager, &ToolbarManager::toolbarVisibilityChanged,
             this, &MainWindow::onToolbarVisibilityChanged);
+    connect(ui->actionTCPServer, &QAction::triggered, this, &MainWindow::startServer);
 }
 
+void MainWindow::startServer(){
+    tcpServer = new TcpServer(this);
+    tcpServer->startServer(12345);
+    qCDebug(log_ui_mainwindow) << "TCP Server init...";
+}
 
 void MainWindow::setTooltip(){
     ui->ZoomInButton->setToolTip("Zoom in");
@@ -448,6 +431,7 @@ void MainWindow::resizeEvent(QResizeEvent *event) {
     // Check if the current width or height exceeds the available screen size
     qCDebug(log_ui_mainwindow) << "current height: " << currentHeight << "available height: " << availableHeight;
     qCDebug(log_ui_mainwindow) << "current width: " << currentWidth << "available width: " << currentWidth;
+
     if (currentWidth >= availableWidth || currentHeight >= availableHeight) {
         // Calculate the new size while maintaining the aspect ratio
         int videoHeight = maxContentHeight;
@@ -470,7 +454,11 @@ void MainWindow::resizeEvent(QResizeEvent *event) {
         qCDebug(log_ui_mainwindow) << "Resize to " << currentWidth << "x" << currentHeight;
         qCDebug(log_ui_mainwindow) << "available height: " << availableHeight << "video height: " << videoHeight;
         qCDebug(log_ui_mainwindow) << "video height: "<< videoHeight <<"video width: " << videoWidth;
-        resize(currentWidth, currentHeight);
+
+        if (currentWidth != availableWidth && currentHeight != availableHeight){
+            // Resize the window only when it's not maximized
+            resize(currentWidth, currentHeight);
+        }
 
         // Calculate the horizontal offset to center the videoPane
         int horizontalOffset = (currentWidth - videoWidth) / 2;
@@ -1323,20 +1311,23 @@ void MainWindow::changeKeyboardLayout(const QString& layout) {
 }
 
 void MainWindow::initializeKeyboardLayouts() {
+    // Fetch available layouts from KeyboardLayoutManager
     QStringList layouts = KeyboardLayoutManager::getInstance().getAvailableLayouts();
-    qDebug() << "Available layouts:" << layouts;
+    qCDebug(log_ui_mainwindow) << "Available layouts:" << layouts;
     
-    ui->zoomComboBox->clear();
-    ui->zoomComboBox->addItems(layouts);
+    // Clear existing items in the combo box
+    ui->keyboardLayoutComboBox->clear();
     
-    // Set US QWERTY as default layout
+    // Add fetched layouts to the combo box
+    ui->keyboardLayoutComboBox->addItems(layouts);
+    
+    // Set US QWERTY as default layout if it exists
     QString defaultLayout = "US QWERTY";
     if (layouts.contains(defaultLayout)) {
         changeKeyboardLayout(defaultLayout);
-        ui->zoomComboBox->setCurrentText(defaultLayout);
+        ui->keyboardLayoutComboBox->setCurrentText(defaultLayout);
     } else if (!layouts.isEmpty()) {
-        // Fallback to first available layout if US QWERTY is not found
+        // Fallback to the first available layout if US QWERTY is not found
         changeKeyboardLayout(layouts.first());
     }
 }
-

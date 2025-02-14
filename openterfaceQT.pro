@@ -124,7 +124,7 @@ win32:LIBS += -lsetupapi
 
 win32 {
     INCLUDEPATH += $$PWD/lib
-    LIBS += -L$$PWD/lib -llibusb-1.0
+    LIBS += -L$$PWD/lib -llibusb-1.0 -loleaut32 -lwinpthread
 }
 
 unix {

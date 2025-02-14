@@ -289,5 +289,6 @@ private:
 
     void centerVideoPane();
     void checkInitSize();
+    void startServer();
 };
 #endif // MAINWINDOW_H

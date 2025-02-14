@@ -27,7 +27,7 @@ void StatusBarManager::initStatusBar()
 
     keyPressedLabel = new QLabel(m_statusBar);
     keyLabel = new QLabel(m_statusBar);
-    keyLabel->setFixedWidth(60);
+    keyLabel->setFixedWidth(120);
 
     QWidget *keyContainer = new QWidget(m_statusBar);
     QHBoxLayout *keyLayout = new QHBoxLayout(keyContainer);

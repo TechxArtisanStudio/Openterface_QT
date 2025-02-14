@@ -44,7 +44,8 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 
 [Files]
 Source: "package\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
-Source: "package\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+; Start of Selection
+Source: "package\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs;
 Source: "package\driver\CH341SER.INF"; DestDir: {app}\driver;
 Source: "package\driver\CH341S64.SYS"; DestDir: {app}\driver;
 
