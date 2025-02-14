@@ -1,0 +1,52 @@
+name: Windows Static Qt Build
+
+on: [push]
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Cache Qt Build
+      id: cache-qt
+      uses: actions/cache@v3
+      with:
+          path: C:\Qt6
+          key: qt-6.5.3-mingw-windows-static
+          restore-keys: |
+            qt-6.5.3-mingw-windows-static
+                  
+    - name: Install Dependencies
+      run: |
+        # Install Chocolatey packages
+        choco install -y ninja
+        # Use Strawberry Perl instead of Perl from Chocolatey
+        choco install -y strawberryperl
+        # Install CMake
+        choco install -y cmake
+        
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.10'
+
+    - name: Setup Environment
+      shell: cmd
+      run: |
+        setx PATH "%PATH%;C:\Qt6\bin;C:\ProgramData\chocolatey\lib\mingw\tools\install\mingw64\bin"
+        setx QT_DIR "%CD%\Qt-static"
+        
+    - name: Build Application
+      shell: cmd
+      run: |
+        set PATH=%PATH%;C:\Qt6\bin;
+        qmake CONFIG+=release
+        mingw32-make -j4
+    - name: Archive Binary
+      uses: actions/upload-artifact@v4
+      with:
+        name: Application
+        path: release/*.exe
