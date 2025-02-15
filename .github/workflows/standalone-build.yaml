@@ -92,7 +92,8 @@
                 echo "Static build configuration already present in .pro file."
               )
               
-              echo "QMAKE_LFLAGS += -static -static-libgcc -static-libstdc++" >> "${{ env.SOURCE_DIR }}\openterfaceQT.pro"
+              echo "QMAKE_LFLAGS += -static -static-libgcc -static-libstdc++ -static-libwinpthread" >> "${{ env.SOURCE_DIR }}\openterfaceQT.pro"
+              echo "QMAKE_CXXFLAGS += -static" >> "${{ env.SOURCE_DIR }}\openterfaceQT.pro"
 
           - name: Prepare Driver Files
             run: |
@@ -109,7 +110,7 @@
               
               echo "Building with qmake..."
               
-              qmake -r "${{ env.SOURCE_DIR }}\openterfaceQT.pro" || (echo "qmake failed. Please check the .pro file and paths." && exit 1)
+              qmake -r "${{ env.SOURCE_DIR }}\openterfaceQT.pro" "CONFIG+=static" || (echo "qmake failed. Please check the .pro file and paths." && exit 1)
 
               echo "Building with mingw32-make..."
               mingw32-make VERBOSE=1 -j2 || (echo "mingw32-make failed. Please check the build configuration." && exit 1)
