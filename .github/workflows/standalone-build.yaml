@@ -87,13 +87,15 @@
                 echo "" >> "${{ env.SOURCE_DIR }}\openterfaceQT.pro"
                 echo "CONFIG += static release" >> "${{ env.SOURCE_DIR }}\openterfaceQT.pro"
                 echo "Static build configuration added to .pro file."
-                set ERRORLEVEL=0  # Reset error level
+                set ERRORLEVEL=0
               ) else (
                 echo "Static build configuration already present in .pro file."
               )
               
               echo "QMAKE_LFLAGS += -static -static-libgcc -static-libstdc++ -static-libwinpthread" >> "${{ env.SOURCE_DIR }}\openterfaceQT.pro"
-              echo "QMAKE_CXXFLAGS += -static" >> "${{ env.SOURCE_DIR }}\openterfaceQT.pro"
+              echo "QMAKE_CXXFLAGS += -static -static-libgcc -static-libstdc++" >> "${{ env.SOURCE_DIR }}\openterfaceQT.pro"
+              echo "QMAKE_LINK = g++ -Wl,-subsystem,windows" >> "${{ env.SOURCE_DIR }}\openterfaceQT.pro"
+              echo "CONFIG += static staticlib" >> "${{ env.SOURCE_DIR }}\openterfaceQT.pro"
 
           - name: Prepare Driver Files
             run: |
@@ -110,11 +112,12 @@
               
               echo "Building with qmake..."
               
-              qmake -r "${{ env.SOURCE_DIR }}\openterfaceQT.pro" "CONFIG+=static" || (echo "qmake failed. Please check the .pro file and paths." && exit 1)
+              qmake -r "${{ env.SOURCE_DIR }}\openterfaceQT.pro" "CONFIG+=static staticlib" "QMAKE_LFLAGS+=-static" || (echo "qmake failed. Please check the .pro file and paths." && exit 1)
 
               echo "Building with mingw32-make..."
+              set MINGW_STATIC_BUILD=1
               mingw32-make VERBOSE=1 -j2 || (echo "mingw32-make failed. Please check the build configuration." && exit 1)
-              set ERRORLEVEL=0  # Reset error level after build
+              set ERRORLEVEL=0
               
               if not exist release\openterfaceQT.exe (
                 echo "Error: Failed to build openterfaceQT.exe"
