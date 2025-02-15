@@ -33,7 +33,7 @@
 
 Q_LOGGING_CATEGORY(log_core_serial, "opf.core.serial")
 
-SerialPortManager::SerialPortManager(QObject *parent) : QObject(parent), serialThread(new QThread(nullptr)), serialTimer(new QTimer(nullptr)){
+SerialPortManager::SerialPortManager(QObject *parent) : QObject(parent), serialPort(nullptr), serialThread(new QThread(nullptr)), serialTimer(new QTimer(nullptr)){
     qCDebug(log_core_serial) << "Initialize serial port.";
 
     connect(this, &SerialPortManager::serialPortConnected, this, &SerialPortManager::onSerialPortConnected);
@@ -334,8 +334,6 @@ SerialPortManager::~SerialPortManager() {
         serialThread->quit();
         serialThread->wait();
     }
-    delete serialTimer;
-    delete serialThread;
     delete serialPort;
 }
 

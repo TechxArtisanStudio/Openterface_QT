@@ -33,11 +33,6 @@ AudioPage::AudioPage(QWidget *parent) : QWidget(parent)
     setupUI();
 }
 
-AudioPage::~AudioPage()
-{
-    delete this;
-}
-
 void AudioPage::setupUI()
 {
     QLabel *audioLabel = new QLabel(

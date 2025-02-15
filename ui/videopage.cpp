@@ -37,11 +37,6 @@ VideoPage::VideoPage(CameraManager *cameraManager, QWidget *parent) : QWidget(pa
     setupUI();
 }
 
-VideoPage::~VideoPage()
-{
-    delete this;
-}
-
 void VideoPage::setupUI()
 {
     // UI setup implementation

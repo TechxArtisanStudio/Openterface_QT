@@ -39,7 +39,6 @@ class LogPage : public QWidget
 
 public:
     explicit LogPage(QWidget *parent = nullptr);
-    ~LogPage();
     void setupUI();
     void browseLogPath();
     void initLogSettings();

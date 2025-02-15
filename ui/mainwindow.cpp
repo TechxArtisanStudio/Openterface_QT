@@ -844,6 +844,7 @@ void MainWindow::configureSettings() {
         connect(videoPage, &VideoPage::videoSettingsChanged, this, &MainWindow::onVideoSettingsChanged);
         // connect the finished signal to the set the dialog pointer to nullptr
         connect(settingDialog, &QDialog::finished, this, [this](){
+            settingDialog->deleteLater();
             settingDialog = nullptr;
         });
         settingDialog->show();
@@ -861,6 +862,7 @@ void MainWindow::debugSerialPort() {
         serialPortDebugDialog = new SerialPortDebugDialog();
         // connect the finished signal to the set the dialog pointer to nullptr
         connect(serialPortDebugDialog, &QDialog::finished, this, [this]() {
+            serialPortDebugDialog->deleteLater();
             serialPortDebugDialog = nullptr;
         });
         serialPortDebugDialog->show();
