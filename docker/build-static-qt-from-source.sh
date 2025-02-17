@@ -6,10 +6,11 @@ set -e
 # Install required packages
 sudo apt-get update
 sudo apt-get install -y build-essential libgl1-mesa-dev libglu1-mesa-dev
-sudo apt-get install -y '^libxcb.*-dev' libx11-xcb-dev libglu1-mesa-dev libxrender-dev libxi-dev libxkbcommon-dev libxkbcommon-x11-dev
-sudo apt-get install -y libglib2.0-dev
+sudo apt-get install -y '^libxcb.*-dev' libx11-xcb-dev libglu1-mesa-dev libxrender-dev libxi-dev
+sudo apt-get install -y libglib2.0-dev meson ninja-build bison flex
 
 # Configuration
+XKBCOMMON_VERSION=1.7.0
 QT_VERSION=6.5.3
 QT_MAJOR_VERSION=6.5
 INSTALL_PREFIX=/opt/Qt6
@@ -20,9 +21,32 @@ DOWNLOAD_BASE_URL="https://download.qt.io/archive/qt/$QT_MAJOR_VERSION/$QT_VERSI
 # Check for required tools
 command -v curl >/dev/null 2>&1 || { echo "Curl is not installed. Please install Curl."; exit 1; }
 command -v cmake >/dev/null 2>&1 || { echo "CMake is not installed. Please install CMake."; exit 1; }
+command -v meson >/dev/null 2>&1 || { echo "Meson is not installed. Please install Meson."; exit 1; }
+command -v ninja >/dev/null 2>&1 || { echo "Ninja is not installed. Please install Ninja."; exit 1; }
 
 # Create build directory
 mkdir -p "$BUILD_DIR"
+cd "$BUILD_DIR"
+
+# Build libxkbcommon from source
+echo "Building libxkbcommon $XKBCOMMON_VERSION from source..."
+if [ ! -d "libxkbcommon" ]; then
+    curl -L -o libxkbcommon.tar.gz "https://xkbcommon.org/download/libxkbcommon-${XKBCOMMON_VERSION}.tar.xz"
+    tar xf libxkbcommon.tar.gz
+    mv "libxkbcommon-${XKBCOMMON_VERSION}" libxkbcommon
+    rm libxkbcommon.tar.gz
+fi
+
+cd libxkbcommon
+mkdir -p build
+cd build
+meson setup --prefix=/usr \
+    -Denable-docs=false \
+    -Denable-wayland=false \
+    -Denable-x11=true \
+    ..
+ninja
+sudo ninja install
 cd "$BUILD_DIR"
 
 # Download and extract modules
