@@ -272,6 +272,8 @@ fi
 
 cd xorg-macros
 # xorg-macros does not need to be built; it just needs to be installed
+./configure --prefix=/usr
+make -j$(nproc)
 sudo make install
 cd "$BUILD_DIR"
 
