@@ -73,21 +73,21 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y $(cat apt-packages.txt)
 
-    #   - name: Build Qt Statically
-    #     if: steps.cache-qt.outputs.cache-hit != 'true'
-    #     run: |
-    #       bash docker/build-static-qt-from-source.sh
+      - name: Build Qt Statically
+        if: steps.cache-qt.outputs.cache-hit != 'true'
+        run: |
+          bash docker/build-static-qt-from-source.sh
 
-    #   - name: Create build directory
-    #     run: |
-    #       mkdir ${{ runner.temp }}/build
+      - name: Create build directory
+        run: |
+          mkdir ${{ runner.temp }}/build
 
-    #   - name: Build Standalone Executable
-    #     working-directory: ${{ runner.temp }}/build
-    #     run: |
-    #       echo "Checking Qt configuration..."
-    #       /opt/Qt6/bin/qmake -query
-    #       echo "/opt/Qt6/bin" >> $GITHUB_ENV
+      - name: Build Standalone Executable
+        working-directory: ${{ runner.temp }}/build
+        run: |
+          echo "Checking Qt configuration..."
+          /opt/Qt6/bin/qmake -query
+          echo "/opt/Qt6/bin" >> $GITHUB_ENV
 
     #   - name: Prepare .pro File for Static Build
     #     run: |
