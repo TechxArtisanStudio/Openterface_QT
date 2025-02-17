@@ -35,7 +35,6 @@ XCB_UTIL_KEYSYMS_VERSION=0.4.1
 XCB_UTIL_XKB_VERSION=0.4.1
 XORG_MACROS_VERSION=1.19.3
 XPROTO_VERSION=7.0.31
-LIBXAU_VERSION=1.0.11
 LIBXDMCP_VERSION=1.1.4
 FFMPEG_VERSION=6.1.1
 XKB_CONFIG_VERSION=2.41
@@ -263,7 +262,7 @@ cd "$BUILD_DIR"
 
 
 # Build xorg-macros
-echo "Building xorg-macros $XORG_MACROS_VERSION from source..."
+echo "Installing xorg-macros $XORG_MACROS_VERSION..."
 if [ ! -d "xorg-macros" ]; then
     curl -L -o xorg-macros.tar.bz2 "https://www.x.org/releases/individual/util/util-macros-${XORG_MACROS_VERSION}.tar.bz2"
     tar xf xorg-macros.tar.bz2
@@ -272,8 +271,7 @@ if [ ! -d "xorg-macros" ]; then
 fi
 
 cd xorg-macros
-./configure --prefix=/usr
-make -j$(nproc)
+# xorg-macros does not need to be built; it just needs to be installed
 sudo make install
 cd "$BUILD_DIR"
 
@@ -288,21 +286,6 @@ fi
 
 cd xproto
 ./configure --prefix=/usr
-make -j$(nproc)
-sudo make install
-cd "$BUILD_DIR"
-
-# Build libXau
-echo "Building libXau $LIBXAU_VERSION from source..."
-if [ ! -d "libXau" ]; then
-    curl -L -o libXau.tar.bz2 "https://www.x.org/releases/individual/lib/libXau-${LIBXAU_VERSION}.tar.bz2"
-    tar xf libXau.tar.bz2
-    mv "libXau-${LIBXAU_VERSION}" libXau
-    rm libXau.tar.bz2
-fi
-
-cd libXau
-CFLAGS="-fPIC" ./configure --prefix=/usr --enable-static --disable-shared
 make -j$(nproc)
 sudo make install
 cd "$BUILD_DIR"
