@@ -5,7 +5,8 @@ set -e
 
 # Install minimal build requirements
 sudo apt-get update
-sudo apt-get install -y build-essential meson ninja-build bison flex pkg-config python3-pip linux-headers-$(uname -r)
+sudo apt-get install -y build-essential meson ninja-build bison flex pkg-config python3-pip linux-headers-$(uname -r) \
+    autoconf automake libtool
 pip3 install cmake
 
 # Configuration
@@ -120,7 +121,18 @@ if [ ! -d "dbus" ]; then
 fi
 
 cd dbus
-./configure --prefix=/usr --enable-static --disable-shared --disable-systemd --disable-selinux
+# Run autogen if configure doesn't exist
+if [ ! -f "./configure" ]; then
+    ./autogen.sh
+fi
+./configure --prefix=/usr \
+    --enable-static \
+    --disable-shared \
+    --disable-systemd \
+    --disable-selinux \
+    --disable-xml-docs \
+    --disable-doxygen-docs \
+    --disable-ducktype-docs
 make -j$(nproc)
 sudo make install
 cd "$BUILD_DIR"
@@ -181,9 +193,9 @@ cd ch341
 make clean
 KCPPFLAGS="-static" make
 sudo make install
-cd "$BUILD_DIR"
 
 cd "$BUILD_DIR"
+
 
 # Download and extract modules
 for module in "${MODULES[@]}"; do
