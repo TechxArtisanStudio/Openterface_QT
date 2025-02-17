@@ -38,6 +38,7 @@ XPROTO_VERSION=7.0.31
 LIBXAU_VERSION=1.0.11
 LIBXDMCP_VERSION=1.1.4
 FFMPEG_VERSION=6.1.1
+XKB_CONFIG_VERSION=2.41
 
 
 
@@ -234,7 +235,28 @@ ninja
 sudo ninja install
 cd "$BUILD_DIR"
 
-# Build libxkbcommon from source
+# Build all XCB components first, then libxkbcommon
+# After building xcb-util-xkb, add:
+
+# Update pkg-config path to find XCB
+export PKG_CONFIG_PATH="/usr/lib/pkgconfig:/usr/local/lib/pkgconfig"
+
+# Install xkeyboard-config
+echo "Installing xkeyboard-config $XKB_CONFIG_VERSION..."
+if [ ! -d "xkeyboard-config" ]; then
+    curl -L -o xkeyboard-config.tar.xz "https://www.x.org/archive/individual/data/xkeyboard-config/xkeyboard-config-${XKB_CONFIG_VERSION}.tar.xz"
+    tar xf xkeyboard-config.tar.xz
+    mv "xkeyboard-config-${XKB_CONFIG_VERSION}" xkeyboard-config
+    rm xkeyboard-config.tar.xz
+fi
+
+cd xkeyboard-config
+./configure --prefix=/usr
+make -j$(nproc)
+sudo make install
+cd "$BUILD_DIR"
+
+# Build libxkbcommon
 echo "Building libxkbcommon $XKBCOMMON_VERSION from source..."
 if [ ! -d "libxkbcommon" ]; then
     curl -L -o libxkbcommon.tar.gz "https://xkbcommon.org/download/libxkbcommon-${XKBCOMMON_VERSION}.tar.xz"
@@ -246,14 +268,18 @@ fi
 cd libxkbcommon
 mkdir -p build
 cd build
+PKG_CONFIG_PATH="/usr/lib/pkgconfig:/usr/local/lib/pkgconfig" \
 meson setup --prefix=/usr \
     -Denable-docs=false \
     -Denable-wayland=false \
     -Denable-x11=true \
     -Ddefault_library=static \
+    -Dxkb-config-root=/usr/share/X11/xkb \
+    -Dx-locale-root=/usr/share/X11/locale \
     ..
 ninja
 sudo ninja install
+cd "$BUILD_DIR"
 
 # Build xorg-macros
 echo "Building xorg-macros $XORG_MACROS_VERSION from source..."
