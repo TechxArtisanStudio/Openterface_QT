@@ -207,6 +207,7 @@ private slots:
     void onZoomIn();
     void onZoomOut();
     void onZoomReduction();
+    void onKeyboardLayoutCombobox_Changed(int index);
     
 private slots:
     void checkMousePosition();
@@ -297,7 +298,7 @@ private:
     bool isFullScreenMode();
     bool fullScreenState = false;
     Qt::WindowStates oldWindowState;
-
+    
 #ifdef ONLINE_VERSION
     void startServer();
     TcpServer *tcpServer;
