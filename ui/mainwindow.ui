@@ -191,6 +191,13 @@
        </property>
       </widget>
      </item>
+     <item>
+      <widget class="QComboBox" name="keyboardLayoutComboBox">
+       <property name="toolTip">
+        <string>Select Keyboard Layout</string>
+       </property>
+      </widget>
+     </item>
     </layout>
    </widget>
    <widget class="QMenu" name="menuFile">
