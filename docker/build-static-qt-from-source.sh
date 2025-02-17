@@ -21,12 +21,6 @@ PULSEAUDIO_VERSION=16.1
 ALSA_VERSION=1.2.10
 GLIB_VERSION=2.78.3
 SNDFILE_VERSION=1.2.0
-QT_VERSION=6.5.3
-QT_MAJOR_VERSION=6.5
-INSTALL_PREFIX=/opt/Qt6
-BUILD_DIR=$(pwd)/qt-build
-MODULES=("qtbase" "qtshadertools" "qtmultimedia" "qtsvg" "qtserialport")
-DOWNLOAD_BASE_URL="https://download.qt.io/archive/qt/$QT_MAJOR_VERSION/$QT_VERSION/submodules"
 XCB_PROTO_VERSION=1.16.0
 XCB_VERSION=1.16
 XCB_UTIL_VERSION=0.4.1
@@ -39,6 +33,12 @@ LIBXDMCP_VERSION=1.1.4
 FFMPEG_VERSION=6.1.1
 XKB_CONFIG_VERSION=2.41
 LIBXAU_VERSION=1.0.12
+QT_VERSION=6.5.3
+QT_MAJOR_VERSION=6.5
+INSTALL_PREFIX=/opt/Qt6
+BUILD_DIR=$(pwd)/qt-build
+MODULES=("qtbase" "qtshadertools" "qtmultimedia" "qtsvg" "qtserialport")
+DOWNLOAD_BASE_URL="https://download.qt.io/archive/qt/$QT_MAJOR_VERSION/$QT_VERSION/submodules"
 
 
 
@@ -311,7 +311,7 @@ cd "$BUILD_DIR"
 # Build libXau
 echo "Building libXau $LIBXAU_VERSION from source..."
 if [ ! -d "libXau" ]; then
-    curl -L -o libXau.tar.bz2 "https://www.x.org/releases/individual/lib/libXau-${LIBXAU_VERSION}.tar.bz2"
+    curl -L -o libXau.tar.bz2 "https://gitlab.freedesktop.org/xorg/lib/libxau/-/archive/libXau-${LIBXAU_VERSION}/libxau-libXau-${LIBXAU_VERSION}.tar.bz2"
     
     # Check if the download was successful
     if [ $? -ne 0 ]; then

@@ -15,7 +15,10 @@
     - [For Linux](#for-linux)
   - [FAQ](#faq)
   - [Asking questions and reporting issues](#asking-questions-and-reporting-issues)
-  - [License](#license)
+  - [License Information](#license-information)
+    - [Third-Party Libraries and Their Licenses](#third-party-libraries-and-their-licenses)
+    - [Static Linking](#static-linking)
+    - [License Compliance Details](#license-compliance-details)
 
 ## Features
 - [x] Basic KVM operations
@@ -187,63 +190,41 @@ We encourage you to engage with us.
 - On [Github](https://github.com/TechxArtisanStudio/Openterface_QT/issues) to report issues.
 - Email to [techxartisan@gmail.com](mailto:techxartisan@gmail.com) to ask questions and report issues.
 
-## License
+## License Information
 
-This project is licensed under the AGPL-3.0 - see the [LICENSE](LICENSE) file for details.
+The Openterface Mini-KVM QT project is licensed under the **AGPL-3.0** (Affero General Public License). This license allows you to use, modify, and redistribute the software under the following conditions:
 
-### Third-Party Libraries
+1. **Source Code Availability**: If you distribute the software, you must make the source code available to the recipients under the same AGPL-3.0 license.
+2. **Modification**: You are free to modify the software, but you must also distribute your modifications under the AGPL-3.0 license.
+3. **No Warranty**: The software is provided "as is", without warranty of any kind.
 
-This project uses the following third-party libraries:
+For more details, please refer to the full text of the AGPL-3.0 license: [GNU AGPL v3.0](https://www.gnu.org/licenses/agpl-3.0.en.html).
 
-#### Qt Framework
-- License: LGPL v3
-- Source: https://www.qt.io
-- Copyright: The Qt Company Ltd.
+### Third-Party Libraries and Their Licenses
 
-#### ALSA (Advanced Linux Sound Architecture)
-- License: LGPL v2.1+
-- Source: https://www.alsa-project.org
-- Copyright: The ALSA Project
+This project uses the following third-party libraries, each with its own licensing terms:
 
-#### libusb
-- License: LGPL v2.1
-- Source: https://github.com/libusb/libusb
-- Copyright: libusb developers
+- **Qt Framework**: LGPL v3
+- **ALSA (Advanced Linux Sound Architecture)**: LGPL v2.1+
+- **libusb**: LGPL v2.1
+- **FreeType**: FreeType License (BSD-style) / GPL v2
+- **Fontconfig**: MIT License
+- **D-Bus**: AFL v2.1 or GPL v2
+- **PulseAudio**: LGPL v2.1+
+- **libxkbcommon**: MIT License
+- **xorg-macros, xproto, libXdmcp, libXau, xcb, xcb-util**: Generally under permissive licenses
 
-#### FreeType
-- License: FreeType License (BSD-style) / GPL v2
-- Source: https://www.freetype.org
-- Copyright: The FreeType Project
+### Static Linking
 
-#### Fontconfig
-- License: MIT License
-- Source: https://www.freedesktop.org/wiki/Software/fontconfig
-- Copyright: Fontconfig Authors
+Most of the libraries used in this project are compatible with AGPL, especially if you provide the source code or object files for LGPL libraries. Ensure compliance with the terms of each license, especially for LGPL libraries.
 
-#### D-Bus
-- License: AFL v2.1 or GPL v2
-- Source: https://www.freedesktop.org/wiki/Software/dbus
-- Copyright: D-Bus Authors
+### License Compliance Details
 
-#### PulseAudio
-- License: LGPL v2.1+
-- Source: https://www.freedesktop.org/wiki/Software/PulseAudio
-- Copyright: PulseAudio Contributors
-
-#### libxkbcommon
-- License: MIT License
-- Source: https://xkbcommon.org
-- Copyright: xkbcommon Authors
-
-### License Compliance
-
-As this project is licensed under AGPL-3.0 and uses various LGPL and other open-source components:
-
-1. Complete source code is available in this repository
-2. Build instructions are provided above
-3. You have the right to modify and redistribute the code under the terms of the AGPL-3.0
-4. You have the right to relink with different versions of the LGPL libraries
-5. For any modifications to the code, you must make the source code available under AGPL-3.0
+1. Complete source code is available in this repository.
+2. Build instructions are provided above.
+3. You have the right to modify and redistribute the code under the terms of the AGPL-3.0.
+4. You have the right to relink with different versions of the LGPL libraries.
+5. For any modifications to the code, you must make the source code available under AGPL-3.0.
 
 The full text of all licenses can be found in the [licenses](licenses/) directory of this repository.
 
