@@ -34,6 +34,7 @@ for module in "${MODULES[@]}"; do
 done
 
 # Build qtbase first
+echo "Building qtbase..."
 cd "$BUILD_DIR/qtbase"
 mkdir build
 cd build
@@ -46,7 +47,14 @@ cmake -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" \
     -DFEATURE_opengl=ON \
     ..
 
+echo "Building qtbase..."
+cmake --build . --parallel
+echo "Installing qtbase..."
+cmake --install .
+
+
 # Build qtshadertools
+echo "Building qtshadertools..."
 cd "$BUILD_DIR/qtshadertools"
 mkdir build
 cd build
@@ -55,13 +63,18 @@ cmake -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" \
     -DBUILD_SHARED_LIBS=OFF \
     ..
 
+echo "Building qtshadertools..."
+cmake --build . --parallel
+echo "Installing qtshadertools..."
+cmake --install .
+
 # Build other modules
 for module in "${MODULES[@]}"; do
     if [[ "$module" != "qtbase" && "$module" != "qtshadertools" ]]; then
         cd "$BUILD_DIR/$module"
         mkdir build
         cd build
-        
+        echo "Building $module..."
         if [[ "$module" == "qtmultimedia" ]]; then
             # Special configuration for qtmultimedia to enable FFmpeg
             cmake -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" \
@@ -75,7 +88,9 @@ for module in "${MODULES[@]}"; do
                 ..
         fi
         
+        echo "Building $module..."
         cmake --build . --parallel
+        echo "Installing $module..."
         cmake --install .
     fi
 done
@@ -87,4 +102,10 @@ if [ -f "$PRL_FILE" ]; then
     echo "QMAKE_PRL_LIBS += -loleaut32" >> "$PRL_FILE"
 else
     echo "Warning: $PRL_FILE not found. Please check the build process."
+fi
+
+# Check for Qt6Config.cmake
+if [ ! -f "$INSTALL_PREFIX/lib/cmake/Qt6/Qt6Config.cmake" ]; then
+    echo "Error: Qt6Config.cmake not found. Please check the installation."
+    exit 1
 fi
