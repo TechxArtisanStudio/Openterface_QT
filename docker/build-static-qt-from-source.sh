@@ -292,21 +292,6 @@ make -j$(nproc)
 sudo make install
 cd "$BUILD_DIR"
 
-# Build libXdmcp
-echo "Building libXdmcp $LIBXDMCP_VERSION from source..."
-if [ ! -d "libXdmcp" ]; then
-    curl -L -o libXdmcp.tar.bz2 "https://www.x.org/releases/individual/lib/libXdmcp-${LIBXDMCP_VERSION}.tar.bz2"
-    tar xf libXdmcp.tar.bz2
-    mv "libXdmcp-${LIBXDMCP_VERSION}" libXdmcp
-    rm libXdmcp.tar.bz2
-fi
-
-cd libXdmcp
-CFLAGS="-fPIC" ./configure --prefix=/usr --enable-static --disable-shared
-make -j$(nproc)
-sudo make install
-cd "$BUILD_DIR"
-
 # Build xcb-proto
 echo "Building xcb-proto $XCB_PROTO_VERSION from source..."
 if [ ! -d "xcb-proto" ]; then
