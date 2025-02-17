@@ -6,6 +6,8 @@ set -e
 # Install required packages
 sudo apt-get update
 sudo apt-get install -y build-essential libgl1-mesa-dev libglu1-mesa-dev
+sudo apt-get install -y '^libxcb.*-dev' libx11-xcb-dev libglu1-mesa-dev libxrender-dev libxi-dev libxkbcommon-dev libxkbcommon-x11-dev
+sudo apt-get install -y libglib2.0-dev
 
 # Configuration
 QT_VERSION=6.5.3
