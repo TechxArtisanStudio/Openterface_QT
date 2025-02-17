@@ -256,30 +256,6 @@ make -j$(nproc)
 sudo make install
 cd "$BUILD_DIR"
 
-# Build libxkbcommon
-echo "Building libxkbcommon $XKBCOMMON_VERSION from source..."
-if [ ! -d "libxkbcommon" ]; then
-    curl -L -o libxkbcommon.tar.gz "https://xkbcommon.org/download/libxkbcommon-${XKBCOMMON_VERSION}.tar.xz"
-    tar xf libxkbcommon.tar.gz
-    mv "libxkbcommon-${XKBCOMMON_VERSION}" libxkbcommon
-    rm libxkbcommon.tar.gz
-fi
-
-cd libxkbcommon
-mkdir -p build
-cd build
-PKG_CONFIG_PATH="/usr/lib/pkgconfig:/usr/local/lib/pkgconfig" \
-meson setup --prefix=/usr \
-    -Denable-docs=false \
-    -Denable-wayland=false \
-    -Denable-x11=true \
-    -Ddefault_library=static \
-    -Dxkb-config-root=/usr/share/X11/xkb \
-    -Dx-locale-root=/usr/share/X11/locale \
-    ..
-ninja
-sudo ninja install
-cd "$BUILD_DIR"
 
 # Build xorg-macros
 echo "Building xorg-macros $XORG_MACROS_VERSION from source..."
@@ -429,6 +405,31 @@ cd xcb-util-xkb
 CFLAGS="-fPIC" ./configure --prefix=/usr --enable-static --disable-shared
 make -j$(nproc)
 sudo make install
+cd "$BUILD_DIR"
+
+# Build libxkbcommon
+echo "Building libxkbcommon $XKBCOMMON_VERSION from source..."
+if [ ! -d "libxkbcommon" ]; then
+    curl -L -o libxkbcommon.tar.gz "https://xkbcommon.org/download/libxkbcommon-${XKBCOMMON_VERSION}.tar.xz"
+    tar xf libxkbcommon.tar.gz
+    mv "libxkbcommon-${XKBCOMMON_VERSION}" libxkbcommon
+    rm libxkbcommon.tar.gz
+fi
+
+cd libxkbcommon
+mkdir -p build
+cd build
+PKG_CONFIG_PATH="/usr/lib/pkgconfig:/usr/local/lib/pkgconfig" \
+meson setup --prefix=/usr \
+    -Denable-docs=false \
+    -Denable-wayland=false \
+    -Denable-x11=true \
+    -Ddefault_library=static \
+    -Dxkb-config-root=/usr/share/X11/xkb \
+    -Dx-locale-root=/usr/share/X11/locale \
+    ..
+ninja
+sudo ninja install
 cd "$BUILD_DIR"
 
 # Build CH341 driver statically
