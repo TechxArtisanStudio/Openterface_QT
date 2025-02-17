@@ -6,7 +6,8 @@ set -e
 # Install minimal build requirements
 sudo apt-get update
 sudo apt-get install -y build-essential meson ninja-build bison flex pkg-config python3-pip linux-headers-$(uname -r) \
-    autoconf automake libtool autoconf-archive
+    autoconf automake libtool autoconf-archive \
+    libglib2.0-dev libsndfile1-dev
 pip3 install cmake
 
 # Configuration
@@ -24,6 +25,8 @@ INSTALL_PREFIX=/opt/Qt6
 BUILD_DIR=$(pwd)/qt-build
 MODULES=("qtbase" "qtshadertools" "qtmultimedia" "qtsvg" "qtserialport")
 DOWNLOAD_BASE_URL="https://download.qt.io/archive/qt/$QT_MAJOR_VERSION/$QT_VERSION/submodules"
+GLIB_VERSION=2.78.3
+SNDFILE_VERSION=1.2.0
 
 
 # Check for required tools
@@ -135,6 +138,41 @@ fi
     --disable-ducktype-docs
 make -j$(nproc)
 sudo make install
+cd "$BUILD_DIR"
+
+# Build libsndfile from source
+echo "Building libsndfile $SNDFILE_VERSION from source..."
+if [ ! -d "libsndfile" ]; then
+    curl -L -o sndfile.tar.xz "https://github.com/libsndfile/libsndfile/releases/download/${SNDFILE_VERSION}/libsndfile-${SNDFILE_VERSION}.tar.xz"
+    tar xf sndfile.tar.xz
+    mv "libsndfile-${SNDFILE_VERSION}" libsndfile
+    rm sndfile.tar.xz
+fi
+
+cd libsndfile
+./configure --prefix=/usr --enable-static --disable-shared
+make -j$(nproc)
+sudo make install
+cd "$BUILD_DIR"
+
+# Build GLib from source
+echo "Building GLib $GLIB_VERSION from source..."
+if [ ! -d "glib" ]; then
+    curl -L -o glib.tar.xz "https://download.gnome.org/sources/glib/2.78/glib-${GLIB_VERSION}.tar.xz"
+    tar xf glib.tar.xz
+    mv "glib-${GLIB_VERSION}" glib
+    rm glib.tar.xz
+fi
+
+cd glib
+mkdir -p build
+cd build
+meson setup --prefix=/usr \
+    -Ddefault_library=static \
+    -Dtests=false \
+    ..
+ninja
+sudo ninja install
 cd "$BUILD_DIR"
 
 # Build PulseAudio
