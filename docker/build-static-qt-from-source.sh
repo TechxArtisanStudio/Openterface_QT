@@ -27,6 +27,12 @@ INSTALL_PREFIX=/opt/Qt6
 BUILD_DIR=$(pwd)/qt-build
 MODULES=("qtbase" "qtshadertools" "qtmultimedia" "qtsvg" "qtserialport")
 DOWNLOAD_BASE_URL="https://download.qt.io/archive/qt/$QT_MAJOR_VERSION/$QT_VERSION/submodules"
+XCB_PROTO_VERSION=1.16.0
+XCB_VERSION=1.16
+XCB_UTIL_VERSION=0.4.1
+XCB_UTIL_WM_VERSION=0.4.2
+XCB_UTIL_KEYSYMS_VERSION=0.4.1
+XCB_UTIL_XKB_VERSION=0.4.1
 
 
 
@@ -243,6 +249,96 @@ meson setup --prefix=/usr \
     ..
 ninja
 sudo ninja install
+
+# Build xcb-proto
+echo "Building xcb-proto $XCB_PROTO_VERSION from source..."
+if [ ! -d "xcb-proto" ]; then
+    curl -L -o xcb-proto.tar.xz "https://xorg.freedesktop.org/archive/individual/proto/xcb-proto-${XCB_PROTO_VERSION}.tar.xz"
+    tar xf xcb-proto.tar.xz
+    mv "xcb-proto-${XCB_PROTO_VERSION}" xcb-proto
+    rm xcb-proto.tar.xz
+fi
+
+cd xcb-proto
+./configure --prefix=/usr
+make -j$(nproc)
+sudo make install
+cd "$BUILD_DIR"
+
+# Build libxcb
+echo "Building libxcb $XCB_VERSION from source..."
+if [ ! -d "libxcb" ]; then
+    curl -L -o libxcb.tar.xz "https://xorg.freedesktop.org/archive/individual/lib/libxcb-${XCB_VERSION}.tar.xz"
+    tar xf libxcb.tar.xz
+    mv "libxcb-${XCB_VERSION}" libxcb
+    rm libxcb.tar.xz
+fi
+
+cd libxcb
+CFLAGS="-fPIC" ./configure --prefix=/usr --enable-static --disable-shared
+make -j$(nproc)
+sudo make install
+cd "$BUILD_DIR"
+
+# Build xcb-util
+echo "Building xcb-util $XCB_UTIL_VERSION from source..."
+if [ ! -d "xcb-util" ]; then
+    curl -L -o xcb-util.tar.bz2 "https://xcb.freedesktop.org/dist/xcb-util-${XCB_UTIL_VERSION}.tar.bz2"
+    tar xf xcb-util.tar.bz2
+    mv "xcb-util-${XCB_UTIL_VERSION}" xcb-util
+    rm xcb-util.tar.bz2
+fi
+
+cd xcb-util
+CFLAGS="-fPIC" ./configure --prefix=/usr --enable-static --disable-shared
+make -j$(nproc)
+sudo make install
+cd "$BUILD_DIR"
+
+# Build xcb-util-wm
+echo "Building xcb-util-wm $XCB_UTIL_WM_VERSION from source..."
+if [ ! -d "xcb-util-wm" ]; then
+    curl -L -o xcb-util-wm.tar.bz2 "https://xcb.freedesktop.org/dist/xcb-util-wm-${XCB_UTIL_WM_VERSION}.tar.bz2"
+    tar xf xcb-util-wm.tar.bz2
+    mv "xcb-util-wm-${XCB_UTIL_WM_VERSION}" xcb-util-wm
+    rm xcb-util-wm.tar.bz2
+fi
+
+cd xcb-util-wm
+CFLAGS="-fPIC" ./configure --prefix=/usr --enable-static --disable-shared
+make -j$(nproc)
+sudo make install
+cd "$BUILD_DIR"
+
+# Build xcb-util-keysyms
+echo "Building xcb-util-keysyms $XCB_UTIL_KEYSYMS_VERSION from source..."
+if [ ! -d "xcb-util-keysyms" ]; then
+    curl -L -o xcb-util-keysyms.tar.bz2 "https://xcb.freedesktop.org/dist/xcb-util-keysyms-${XCB_UTIL_KEYSYMS_VERSION}.tar.bz2"
+    tar xf xcb-util-keysyms.tar.bz2
+    mv "xcb-util-keysyms-${XCB_UTIL_KEYSYMS_VERSION}" xcb-util-keysyms
+    rm xcb-util-keysyms.tar.bz2
+fi
+
+cd xcb-util-keysyms
+CFLAGS="-fPIC" ./configure --prefix=/usr --enable-static --disable-shared
+make -j$(nproc)
+sudo make install
+cd "$BUILD_DIR"
+
+# Build xcb-util-xkb
+echo "Building xcb-util-xkb $XCB_UTIL_XKB_VERSION from source..."
+if [ ! -d "xcb-util-xkb" ]; then
+    curl -L -o xcb-util-xkb.tar.bz2 "https://xcb.freedesktop.org/dist/xcb-util-xkb-${XCB_UTIL_XKB_VERSION}.tar.bz2"
+    tar xf xcb-util-xkb.tar.bz2
+    mv "xcb-util-xkb-${XCB_UTIL_XKB_VERSION}" xcb-util-xkb
+    rm xcb-util-xkb.tar.bz2
+fi
+
+cd xcb-util-xkb
+CFLAGS="-fPIC" ./configure --prefix=/usr --enable-static --disable-shared
+make -j$(nproc)
+sudo make install
+cd "$BUILD_DIR"
 
 # Build CH341 driver statically
 echo "Building CH341 driver..."
