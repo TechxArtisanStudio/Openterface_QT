@@ -37,6 +37,7 @@ XORG_MACROS_VERSION=1.19.3
 XPROTO_VERSION=7.0.31
 LIBXAU_VERSION=1.0.11
 LIBXDMCP_VERSION=1.1.4
+FFMPEG_VERSION=6.1.1
 
 
 
@@ -419,6 +420,31 @@ sudo make install
 
 cd "$BUILD_DIR"
 
+# Build FFmpeg
+echo "Building FFmpeg $FFMPEG_VERSION from source..."
+if [ ! -d "FFmpeg-n${FFMPEG_VERSION}" ]; then
+    curl -L -o ffmpeg.tar.gz "https://github.com/FFmpeg/FFmpeg/archive/refs/tags/n${FFMPEG_VERSION}.tar.gz"
+    tar -xzf ffmpeg.tar.gz
+    rm ffmpeg.tar.gz
+else
+    echo "FFmpeg-n${FFMPEG_VERSION} already exists, skipping download."
+fi
+
+cd "FFmpeg-n${FFMPEG_VERSION}"
+# Configure the build with only free components
+./configure --prefix=/usr/local \
+    --enable-shared \
+    --disable-static \
+    --enable-gpl \
+    --enable-version3 \
+    --disable-nonfree \
+    --disable-doc \
+    --disable-programs \
+    --enable-pic
+make -j$(nproc)
+sudo make install
+sudo ldconfig
+cd "$BUILD_DIR"
 
 # Download and extract modules
 for module in "${MODULES[@]}"; do
