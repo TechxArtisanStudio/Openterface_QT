@@ -39,7 +39,7 @@ jobs:
         id: cache-deps
         uses: actions/cache@v3
         with:
-            path: /opt/Qt6
+            path: /var/cache/apt/archives
             key: dependencies-cache
             restore-keys: |
               dependencies-cache
@@ -82,12 +82,12 @@ jobs:
         run: |
           mkdir ${{ runner.temp }}/build
 
-      - name: Build Standalone Executable
-        working-directory: ${{ runner.temp }}/build
-        run: |
-          echo "Checking Qt configuration..."
-          /opt/Qt6/bin/qmake -query
-          echo "/opt/Qt6/bin" >> $GITHUB_ENV
+    #   - name: Build Standalone Executable
+    #     working-directory: ${{ runner.temp }}/build
+    #     run: |
+    #       echo "Checking Qt configuration..."
+    #       /opt/Qt6/bin/qmake -query
+    #       echo "/opt/Qt6/bin" >> $GITHUB_ENV
 
     #   - name: Prepare .pro File for Static Build
     #     run: |
