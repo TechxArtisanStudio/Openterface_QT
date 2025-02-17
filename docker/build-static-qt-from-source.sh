@@ -3,14 +3,19 @@ set -e
 
 # To install OpenTerface QT, you can run this script as a user with appropriate permissions.
 
-# Install required packages
+# Install minimal build requirements
 sudo apt-get update
-sudo apt-get install -y build-essential libgl1-mesa-dev libglu1-mesa-dev
-sudo apt-get install -y '^libxcb.*-dev' libx11-xcb-dev libglu1-mesa-dev libxrender-dev libxi-dev
-sudo apt-get install -y libglib2.0-dev meson ninja-build bison flex
+sudo apt-get install -y build-essential meson ninja-build bison flex pkg-config python3-pip
+pip3 install cmake
 
 # Configuration
 XKBCOMMON_VERSION=1.7.0
+LIBUSB_VERSION=1.0.26
+DBUS_VERSION=1.15.8
+FREETYPE_VERSION=2.13.2
+FONTCONFIG_VERSION=2.14.2
+PULSEAUDIO_VERSION=16.1
+ALSA_VERSION=1.2.10
 QT_VERSION=6.5.3
 QT_MAJOR_VERSION=6.5
 INSTALL_PREFIX=/opt/Qt6
@@ -26,6 +31,104 @@ command -v ninja >/dev/null 2>&1 || { echo "Ninja is not installed. Please insta
 
 # Create build directory
 mkdir -p "$BUILD_DIR"
+cd "$BUILD_DIR"
+
+# Build ALSA lib
+echo "Building ALSA $ALSA_VERSION from source..."
+if [ ! -d "alsa-lib" ]; then
+    curl -L -o alsa.tar.bz2 "https://www.alsa-project.org/files/pub/lib/alsa-lib-${ALSA_VERSION}.tar.bz2"
+    tar xf alsa.tar.bz2
+    mv "alsa-lib-${ALSA_VERSION}" alsa-lib
+    rm alsa.tar.bz2
+fi
+
+cd alsa-lib
+./configure --prefix=/usr --enable-static --disable-shared
+make -j$(nproc)
+sudo make install
+cd "$BUILD_DIR"
+
+# Build libusb from source
+echo "Building libusb $LIBUSB_VERSION from source..."
+if [ ! -d "libusb" ]; then
+    curl -L -o libusb.tar.bz2 "https://github.com/libusb/libusb/releases/download/v${LIBUSB_VERSION}/libusb-${LIBUSB_VERSION}.tar.bz2"
+    tar xf libusb.tar.bz2
+    mv "libusb-${LIBUSB_VERSION}" libusb
+    rm libusb.tar.bz2
+fi
+
+cd libusb
+./configure --prefix=/usr --enable-static --disable-shared --disable-udev
+make -j$(nproc)
+sudo make install
+cd "$BUILD_DIR"
+
+# Build FreeType
+echo "Building FreeType $FREETYPE_VERSION from source..."
+if [ ! -d "freetype" ]; then
+    curl -L -o freetype.tar.xz "https://download.savannah.gnu.org/releases/freetype/freetype-${FREETYPE_VERSION}.tar.xz"
+    tar xf freetype.tar.xz
+    mv "freetype-${FREETYPE_VERSION}" freetype
+    rm freetype.tar.xz
+fi
+
+cd freetype
+./configure --prefix=/usr --enable-static --disable-shared
+make -j$(nproc)
+sudo make install
+cd "$BUILD_DIR"
+
+# Build Fontconfig
+echo "Building Fontconfig $FONTCONFIG_VERSION from source..."
+if [ ! -d "fontconfig" ]; then
+    curl -L -o fontconfig.tar.xz "https://www.freedesktop.org/software/fontconfig/release/fontconfig-${FONTCONFIG_VERSION}.tar.xz"
+    tar xf fontconfig.tar.xz
+    mv "fontconfig-${FONTCONFIG_VERSION}" fontconfig
+    rm fontconfig.tar.xz
+fi
+
+cd fontconfig
+./configure --prefix=/usr --enable-static --disable-shared
+make -j$(nproc)
+sudo make install
+cd "$BUILD_DIR"
+
+# Build D-Bus
+echo "Building D-Bus $DBUS_VERSION from source..."
+if [ ! -d "dbus" ]; then
+    curl -L -o dbus.tar.xz "https://dbus.freedesktop.org/releases/dbus/dbus-${DBUS_VERSION}.tar.xz"
+    tar xf dbus.tar.xz
+    mv "dbus-${DBUS_VERSION}" dbus
+    rm dbus.tar.xz
+fi
+
+cd dbus
+./configure --prefix=/usr --enable-static --disable-shared --disable-systemd --disable-selinux
+make -j$(nproc)
+sudo make install
+cd "$BUILD_DIR"
+
+# Build PulseAudio
+echo "Building PulseAudio $PULSEAUDIO_VERSION from source..."
+if [ ! -d "pulseaudio" ]; then
+    curl -L -o pulseaudio.tar.xz "https://www.freedesktop.org/software/pulseaudio/releases/pulseaudio-${PULSEAUDIO_VERSION}.tar.xz"
+    tar xf pulseaudio.tar.xz
+    mv "pulseaudio-${PULSEAUDIO_VERSION}" pulseaudio
+    rm pulseaudio.tar.xz
+fi
+
+cd pulseaudio
+mkdir -p build
+cd build
+meson setup --prefix=/usr \
+    -Ddaemon=false \
+    -Ddoxygen=false \
+    -Dman=false \
+    -Dtests=false \
+    -Ddefault_library=static \
+    ..
+ninja
+sudo ninja install
 cd "$BUILD_DIR"
 
 # Build libxkbcommon from source
