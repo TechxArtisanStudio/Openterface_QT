@@ -38,6 +38,7 @@ XPROTO_VERSION=7.0.31
 LIBXDMCP_VERSION=1.1.4
 FFMPEG_VERSION=6.1.1
 XKB_CONFIG_VERSION=2.41
+LIBXAU_VERSION=1.0.12
 
 
 
@@ -307,6 +308,28 @@ make -j$(nproc)
 sudo make install
 cd "$BUILD_DIR"
 
+# Build libXau
+echo "Building libXau $LIBXAU_VERSION from source..."
+if [ ! -d "libXau" ]; then
+    curl -L -o libXau.tar.bz2 "https://www.x.org/releases/individual/lib/libXau-${LIBXAU_VERSION}.tar.bz2"
+    
+    # Check if the download was successful
+    if [ $? -ne 0 ]; then
+        echo "Error: Failed to download libXau."
+        exit 1
+    fi
+
+    tar xf libXau.tar.bz2
+    mv "libXau-${LIBXAU_VERSION}" libXau
+    rm libXau.tar.bz2
+fi
+
+cd libXau
+CFLAGS="-fPIC" ./configure --prefix=/usr --enable-static --disable-shared
+make -j$(nproc)
+sudo make install
+cd "$BUILD_DIR"
+
 # Build libxcb
 echo "Building libxcb $XCB_VERSION from source..."
 if [ ! -d "libxcb" ]; then
@@ -407,20 +430,6 @@ ninja
 sudo ninja install
 cd "$BUILD_DIR"
 
-# Build CH341 driver statically
-echo "Building CH341 driver..."
-cd "$BUILD_DIR"
-if [ ! -d "ch341" ]; then
-    mkdir ch341
-    cp -r ../driver/linux/* ch341/
-fi
-
-cd ch341
-make clean
-KCPPFLAGS="-static" make
-sudo make install
-
-cd "$BUILD_DIR"
 
 # Build FFmpeg
 echo "Building FFmpeg $FFMPEG_VERSION from source..."
