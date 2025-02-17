@@ -251,13 +251,14 @@ if [ ! -d "xkeyboard-config" ]; then
 fi
 
 cd xkeyboard-config
-# Run autogen to create the configure script
-if [ ! -f "./configure" ]; then
-    ./autogen.sh
-fi
-./configure --prefix=/usr
-make -j$(nproc)
-sudo make install
+# Create a build directory for Meson
+mkdir -p build
+cd build
+meson setup --prefix=/usr \
+    -Ddefault_library=static \
+    ..
+ninja
+sudo ninja install
 cd "$BUILD_DIR"
 
 
@@ -471,7 +472,8 @@ cd "FFmpeg-n${FFMPEG_VERSION}"
     --disable-nonfree \
     --disable-doc \
     --disable-programs \
-    --enable-pic
+    --enable-pic \
+    --enable-static
 make -j$(nproc)
 sudo make install
 sudo ldconfig
