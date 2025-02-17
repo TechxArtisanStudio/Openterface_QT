@@ -49,16 +49,15 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: Cache APT packages
+      - name: Cache APT package lists
         uses: actions/cache@v3
         with:
-          path: /var/cache/apt/archives
+          path: /tmp/apt-cache
           key: apt-cache-${{ runner.os }}-${{ hashFiles('**/apt-packages.txt') }}
           restore-keys: |
             apt-cache-${{ runner.os }}-
 
       - name: Install required packages
-        if: steps.cache-deps.outputs.cache-hit != 'true'
         run: |
           echo "build-essential" >> apt-packages.txt
           echo "libgl1-mesa-dev" >> apt-packages.txt
@@ -70,8 +69,16 @@ jobs:
           echo "libxkbcommon-dev" >> apt-packages.txt
           echo "libxkbcommon-x11-dev" >> apt-packages.txt
           echo "libglib2.0-dev" >> apt-packages.txt
+          
+          # Update package list
           sudo apt-get update
-          sudo apt-get install -y $(cat apt-packages.txt)
+          
+          # Install packages if not already installed
+          if ! dpkg -s build-essential libgl1-mesa-dev libglu1-mesa-dev '^libxcb.*-dev' libx11-xcb-dev libxrender-dev libxi-dev libxkbcommon-dev libxkbcommon-x11-dev libglib2.0-dev >/dev/null 2>&1; then
+              sudo apt-get install -y $(cat apt-packages.txt)
+          else
+              echo "Required packages are already installed."
+          fi
 
       - name: Build Qt Statically
         if: steps.cache-qt.outputs.cache-hit != 'true'
