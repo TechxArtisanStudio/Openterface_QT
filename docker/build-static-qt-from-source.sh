@@ -251,6 +251,10 @@ if [ ! -d "xkeyboard-config" ]; then
 fi
 
 cd xkeyboard-config
+# Run autogen to create the configure script
+if [ ! -f "./configure" ]; then
+    ./autogen.sh
+fi
 ./configure --prefix=/usr
 make -j$(nproc)
 sudo make install
