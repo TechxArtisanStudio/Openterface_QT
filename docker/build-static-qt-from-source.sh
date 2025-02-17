@@ -75,8 +75,8 @@ for module in "${MODULES[@]}"; do
                 ..
         fi
         
-        make
-        make install
+        cmake --build . --parallel
+        cmake --install .
     fi
 done
 
