@@ -3,6 +3,10 @@ set -e
 
 # To install OpenTerface QT, you can run this script as a user with appropriate permissions.
 
+# Install required packages
+sudo apt-get update
+sudo apt-get install -y build-essential libgl1-mesa-dev libglu1-mesa-dev
+
 # Configuration
 QT_VERSION=6.5.3
 QT_MAJOR_VERSION=6.5
