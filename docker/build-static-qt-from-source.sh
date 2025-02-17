@@ -350,10 +350,10 @@ cd "$BUILD_DIR"
 # Build xcb-util
 echo "Building xcb-util $XCB_UTIL_VERSION from source..."
 if [ ! -d "xcb-util" ]; then
-    curl -L -o xcb-util.tar.bz2 "https://xcb.freedesktop.org/dist/xcb-util-${XCB_UTIL_VERSION}.tar.bz2"
-    tar xf xcb-util.tar.bz2
+    curl -L -o xcb-util.tar.gz "https://xcb.freedesktop.org/dist/xcb-util-${XCB_UTIL_VERSION}.tar.gz"
+    tar xf xcb-util.tar.gz
     mv "xcb-util-${XCB_UTIL_VERSION}" xcb-util
-    rm xcb-util.tar.bz2
+    rm xcb-util.tar.gz
 fi
 
 cd xcb-util
@@ -365,8 +365,8 @@ cd "$BUILD_DIR"
 # Build xcb-util-wm
 echo "Building xcb-util-wm $XCB_UTIL_WM_VERSION from source..."
 if [ ! -d "xcb-util-wm" ]; then
-    curl -L -o xcb-util-wm.tar.bz2 "https://xcb.freedesktop.org/dist/xcb-util-wm-${XCB_UTIL_WM_VERSION}.tar.bz2"
-    tar xf xcb-util-wm.tar.bz2
+    curl -L -o xcb-util-wm.tar.gz "https://xcb.freedesktop.org/dist/xcb-util-wm-${XCB_UTIL_WM_VERSION}.tar.gz"
+    tar xf xcb-util-wm.tar.gz
     mv "xcb-util-wm-${XCB_UTIL_WM_VERSION}" xcb-util-wm
     rm xcb-util-wm.tar.bz2
 fi
@@ -380,8 +380,8 @@ cd "$BUILD_DIR"
 # Build xcb-util-keysyms
 echo "Building xcb-util-keysyms $XCB_UTIL_KEYSYMS_VERSION from source..."
 if [ ! -d "xcb-util-keysyms" ]; then
-    curl -L -o xcb-util-keysyms.tar.bz2 "https://xcb.freedesktop.org/dist/xcb-util-keysyms-${XCB_UTIL_KEYSYMS_VERSION}.tar.bz2"
-    tar xf xcb-util-keysyms.tar.bz2
+    curl -L -o xcb-util-keysyms.tar.gz "https://xcb.freedesktop.org/dist/xcb-util-keysyms-${XCB_UTIL_KEYSYMS_VERSION}.tar.gz"
+    tar xf xcb-util-keysyms.tar.gz
     mv "xcb-util-keysyms-${XCB_UTIL_KEYSYMS_VERSION}" xcb-util-keysyms
     rm xcb-util-keysyms.tar.bz2
 fi
@@ -395,8 +395,8 @@ cd "$BUILD_DIR"
 # Build xcb-util-xkb
 echo "Building xcb-util-xkb $XCB_UTIL_XKB_VERSION from source..."
 if [ ! -d "xcb-util-xkb" ]; then
-    curl -L -o xcb-util-xkb.tar.bz2 "https://xcb.freedesktop.org/dist/xcb-util-xkb-${XCB_UTIL_XKB_VERSION}.tar.bz2"
-    tar xf xcb-util-xkb.tar.bz2
+    curl -L -o xcb-util-xkb.tar.gz "https://xcb.freedesktop.org/dist/xcb-util-xkb-${XCB_UTIL_XKB_VERSION}.tar.gz"
+    tar xf xcb-util-xkb.tar.gz
     mv "xcb-util-xkb-${XCB_UTIL_XKB_VERSION}" xcb-util-xkb
     rm xcb-util-xkb.tar.bz2
 fi
