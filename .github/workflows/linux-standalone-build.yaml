@@ -35,69 +35,102 @@ jobs:
           restore-keys: |
             qt-6.5.3-linux-static
 
+      - name: Cache Dependencies
+        id: cache-deps
+        uses: actions/cache@v3
+        with:
+            path: /opt/Qt6
+            key: dependencies-cache
+            restore-keys: |
+              dependencies-cache
+     
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.10'
 
-      - name: Build Qt Statically
-        if: steps.cache-qt.outputs.cache-hit != 'true'
-        run: |
-          bash docker/build-static-qt-from-source.sh
-
-      - name: Create build directory
-        run: |
-          mkdir ${{ runner.temp }}/build
-
-      - name: Build Standalone Executable
-        working-directory: ${{ runner.temp }}/build
-        run: |
-          echo "Checking Qt configuration..."
-          /opt/Qt6/bin/qmake -query
-          echo "/opt/Qt6/bin" >> $GITHUB_ENV
-
-      - name: Prepare .pro File for Static Build
-        run: |
-          echo "Checking and appending static build configuration to .pro file..."
-          if [ ! -f "${{ env.SOURCE_DIR }}/openterfaceQT.pro" ]; then
-            echo "Error: .pro file not found."
-            exit 1
-          fi
-
-          grep -q "CONFIG += static release" "${{ env.SOURCE_DIR }}/openterfaceQT.pro" || {
-            echo "" >> "${{ env.SOURCE_DIR }}/openterfaceQT.pro"
-            echo "CONFIG += static release" >> "${{ env.SOURCE_DIR }}/openterfaceQT.pro"
-            echo "Static build configuration added to .pro file."
-          }
-
-          echo "QMAKE_LFLAGS += -static -static-libgcc -static-libstdc++" >> "${{ env.SOURCE_DIR }}/openterfaceQT.pro"
-
-      - name: Prepare Driver Files
-        run: |
-          mkdir ${{ env.SOURCE_DIR }}/drivers
-          cp driver/linux/v3.9/* ${{ env.SOURCE_DIR }}/drivers/
-
-      - name: Build Standalone Executable
-        working-directory: ${{ runner.temp }}/build
-        run: |
-          echo "Building with qmake..."
-          qmake -r "${{ env.SOURCE_DIR }}/openterfaceQT.pro" || (echo "qmake failed. Please check the .pro file and paths." && exit 1)
-
-          echo "Building with make..."
-          make VERBOSE=1 -j2 || (echo "make failed. Please check the build configuration." && exit 1)
-
-          if [ ! -f release/openterfaceQT ]; then
-            echo "Error: Failed to build openterfaceQT"
-            exit 1
-          fi
-
-          echo "Creating standalone package..."
-          mkdir package
-          cp release/openterfaceQT package
-
-      - name: Save build artifact
-        uses: actions/upload-artifact@v4
+      - name: Cache APT packages
+        uses: actions/cache@v3
         with:
-          name: ${{ env.ARTIFACT }}
-          path: ${{ runner.temp }}/build/package/openterfaceQT
-          if-no-files-found: error
+          path: /var/cache/apt/archives
+          key: apt-cache-${{ runner.os }}-${{ hashFiles('**/apt-packages.txt') }}
+          restore-keys: |
+            apt-cache-${{ runner.os }}-
+
+      - name: Install required packages
+        if: steps.cache-deps.outputs.cache-hit != 'true'
+        run: |
+          echo "build-essential" >> apt-packages.txt
+          echo "libgl1-mesa-dev" >> apt-packages.txt
+          echo "libglu1-mesa-dev" >> apt-packages.txt
+          echo "^libxcb.*-dev" >> apt-packages.txt
+          echo "libx11-xcb-dev" >> apt-packages.txt
+          echo "libxrender-dev" >> apt-packages.txt
+          echo "libxi-dev" >> apt-packages.txt
+          echo "libxkbcommon-dev" >> apt-packages.txt
+          echo "libxkbcommon-x11-dev" >> apt-packages.txt
+          echo "libglib2.0-dev" >> apt-packages.txt
+          sudo apt-get update
+          sudo apt-get install -y $(cat apt-packages.txt)
+
+    #   - name: Build Qt Statically
+    #     if: steps.cache-qt.outputs.cache-hit != 'true'
+    #     run: |
+    #       bash docker/build-static-qt-from-source.sh
+
+    #   - name: Create build directory
+    #     run: |
+    #       mkdir ${{ runner.temp }}/build
+
+    #   - name: Build Standalone Executable
+    #     working-directory: ${{ runner.temp }}/build
+    #     run: |
+    #       echo "Checking Qt configuration..."
+    #       /opt/Qt6/bin/qmake -query
+    #       echo "/opt/Qt6/bin" >> $GITHUB_ENV
+
+    #   - name: Prepare .pro File for Static Build
+    #     run: |
+    #       echo "Checking and appending static build configuration to .pro file..."
+    #       if [ ! -f "${{ env.SOURCE_DIR }}/openterfaceQT.pro" ]; then
+    #         echo "Error: .pro file not found."
+    #         exit 1
+    #       fi
+
+    #       grep -q "CONFIG += static release" "${{ env.SOURCE_DIR }}/openterfaceQT.pro" || {
+    #         echo "" >> "${{ env.SOURCE_DIR }}/openterfaceQT.pro"
+    #         echo "CONFIG += static release" >> "${{ env.SOURCE_DIR }}/openterfaceQT.pro"
+    #         echo "Static build configuration added to .pro file."
+    #       }
+
+    #       echo "QMAKE_LFLAGS += -static -static-libgcc -static-libstdc++" >> "${{ env.SOURCE_DIR }}/openterfaceQT.pro"
+
+    #   - name: Prepare Driver Files
+    #     run: |
+    #       mkdir ${{ env.SOURCE_DIR }}/drivers
+    #       cp driver/linux/v3.9/* ${{ env.SOURCE_DIR }}/drivers/
+
+    #   - name: Build Standalone Executable
+    #     working-directory: ${{ runner.temp }}/build
+    #     run: |
+    #       echo "Building with qmake..."
+    #       qmake -r "${{ env.SOURCE_DIR }}/openterfaceQT.pro" || (echo "qmake failed. Please check the .pro file and paths." && exit 1)
+
+    #       echo "Building with make..."
+    #       make VERBOSE=1 -j2 || (echo "make failed. Please check the build configuration." && exit 1)
+
+    #       if [ ! -f release/openterfaceQT ]; then
+    #         echo "Error: Failed to build openterfaceQT"
+    #         exit 1
+    #       fi
+
+    #       echo "Creating standalone package..."
+    #       mkdir package
+    #       cp release/openterfaceQT package
+
+    #   - name: Save build artifact
+    #     uses: actions/upload-artifact@v4
+    #     with:
+    #       name: ${{ env.ARTIFACT }}
+    #       path: ${{ runner.temp }}/build/package/openterfaceQT
+    #       if-no-files-found: error
