@@ -50,7 +50,7 @@ cmake -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" \
     ..
 
 echo "Building qtbase..."
-cmake --build . --parallel
+cmake --build .
 echo "Installing qtbase..."
 cmake --install .
 
