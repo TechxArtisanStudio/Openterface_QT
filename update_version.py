@@ -77,3 +77,4 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     update_version(args.increase_version, args.increase_major, args.increase_minor)
+
