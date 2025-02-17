@@ -1,0 +1,86 @@
+#!/bin/bash
+set -e
+
+# To install OpenTerface QT, you can run this script as a user with appropriate permissions.
+
+# Configuration
+QT_VERSION=6.5.3
+QT_MAJOR_VERSION=6.5
+INSTALL_PREFIX=/opt/Qt6
+BUILD_DIR=$(pwd)/qt-build
+MODULES=("qtbase" "qtshadertools" "qtmultimedia" "qtsvg" "qtserialport")
+DOWNLOAD_BASE_URL="https://download.qt.io/archive/qt/$QT_MAJOR_VERSION/$QT_VERSION/submodules"
+
+# Check for required tools
+command -v curl >/dev/null 2>&1 || { echo "Curl is not installed. Please install Curl."; exit 1; }
+command -v cmake >/dev/null 2>&1 || { echo "CMake is not installed. Please install CMake."; exit 1; }
+
+# Create build directory
+mkdir -p "$BUILD_DIR"
+cd "$BUILD_DIR"
+
+# Download and extract modules
+for module in "${MODULES[@]}"; do
+    if [ ! -d "$module" ]; then
+        curl -L -o "$module.zip" "$DOWNLOAD_BASE_URL/$module-everywhere-src-$QT_VERSION.zip"
+        unzip "$module.zip"
+        mv "$module-everywhere-src-$QT_VERSION" "$module"
+        rm "$module.zip"
+    fi
+done
+
+# Build qtbase first
+cd "$BUILD_DIR/qtbase"
+mkdir build
+cd build
+cmake -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" \
+    -DBUILD_SHARED_LIBS=OFF \
+    -DFEATURE_dbus=ON \
+    -DFEATURE_sql=OFF \
+    -DFEATURE_testlib=OFF \
+    -DFEATURE_icu=OFF \
+    -DFEATURE_opengl=ON \
+    ..
+
+# Build qtshadertools
+cd "$BUILD_DIR/qtshadertools"
+mkdir build
+cd build
+cmake -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" \
+    -DCMAKE_PREFIX_PATH="$INSTALL_PREFIX" \
+    -DBUILD_SHARED_LIBS=OFF \
+    ..
+
+# Build other modules
+for module in "${MODULES[@]}"; do
+    if [[ "$module" != "qtbase" && "$module" != "qtshadertools" ]]; then
+        cd "$BUILD_DIR/$module"
+        mkdir build
+        cd build
+        
+        if [[ "$module" == "qtmultimedia" ]]; then
+            # Special configuration for qtmultimedia to enable FFmpeg
+            cmake -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" \
+                -DCMAKE_PREFIX_PATH="$INSTALL_PREFIX" \
+                -DBUILD_SHARED_LIBS=OFF \
+                ..
+        else
+            cmake -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" \
+                -DCMAKE_PREFIX_PATH="$INSTALL_PREFIX" \
+                -DBUILD_SHARED_LIBS=OFF \
+                ..
+        fi
+        
+        make
+        make install
+    fi
+done
+
+# Quick fix: Add -loleaut32 to qnetworklistmanager.prl
+PRL_FILE="$INSTALL_PREFIX/plugins/networkinformation/qnetworklistmanager.prl"
+if [ -f "$PRL_FILE" ]; then
+    echo "Updating $PRL_FILE to include -loleaut32..."
+    echo "QMAKE_PRL_LIBS += -loleaut32" >> "$PRL_FILE"
+else
+    echo "Warning: $PRL_FILE not found. Please check the build process."
+fi

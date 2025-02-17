@@ -1,0 +1,103 @@
+---
+name: Standalone Build
+
+on:
+  push:
+    branches: ["main", "dev"]
+  pull_request:
+    branches: ["dev"]
+  workflow_dispatch:
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  ARTIFACT: openterfaceQT-standalone
+  SOURCE_DIR: ${{ github.workspace }}
+  QT_VERSION: 6.5.3 
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+
+      - name: Cache Qt Build
+        id: cache-qt
+        uses: actions/cache@v3
+        with:
+          path: /opt/Qt6
+          key: qt-6.5.3-linux-static
+          restore-keys: |
+            qt-6.5.3-linux-static
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Build Qt Statically
+        if: steps.cache-qt.outputs.cache-hit != 'true'
+        run: |
+          bash docker/build-static-qt-from-source.sh
+
+      - name: Create build directory
+        run: |
+          mkdir ${{ runner.temp }}/build
+
+      - name: Build Standalone Executable
+        working-directory: ${{ runner.temp }}/build
+        run: |
+          echo "Checking Qt configuration..."
+          /opt/Qt6/bin/qmake -query
+          echo "/opt/Qt6/bin" >> $GITHUB_ENV
+
+      - name: Prepare .pro File for Static Build
+        run: |
+          echo "Checking and appending static build configuration to .pro file..."
+          if [ ! -f "${{ env.SOURCE_DIR }}/openterfaceQT.pro" ]; then
+            echo "Error: .pro file not found."
+            exit 1
+          fi
+
+          grep -q "CONFIG += static release" "${{ env.SOURCE_DIR }}/openterfaceQT.pro" || {
+            echo "" >> "${{ env.SOURCE_DIR }}/openterfaceQT.pro"
+            echo "CONFIG += static release" >> "${{ env.SOURCE_DIR }}/openterfaceQT.pro"
+            echo "Static build configuration added to .pro file."
+          }
+
+          echo "QMAKE_LFLAGS += -static -static-libgcc -static-libstdc++" >> "${{ env.SOURCE_DIR }}/openterfaceQT.pro"
+
+      - name: Prepare Driver Files
+        run: |
+          mkdir ${{ env.SOURCE_DIR }}/drivers
+          cp driver/linux/v3.9/* ${{ env.SOURCE_DIR }}/drivers/
+
+      - name: Build Standalone Executable
+        working-directory: ${{ runner.temp }}/build
+        run: |
+          echo "Building with qmake..."
+          qmake -r "${{ env.SOURCE_DIR }}/openterfaceQT.pro" || (echo "qmake failed. Please check the .pro file and paths." && exit 1)
+
+          echo "Building with make..."
+          make VERBOSE=1 -j2 || (echo "make failed. Please check the build configuration." && exit 1)
+
+          if [ ! -f release/openterfaceQT ]; then
+            echo "Error: Failed to build openterfaceQT"
+            exit 1
+          fi
+
+          echo "Creating standalone package..."
+          mkdir package
+          cp release/openterfaceQT package
+
+      - name: Save build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.ARTIFACT }}
+          path: ${{ runner.temp }}/build/package/openterfaceQT
+          if-no-files-found: error
