@@ -67,11 +67,17 @@ jobs:
           echo "libx11-xcb-dev" >> apt-packages.txt
           echo "libxrender-dev" >> apt-packages.txt
           echo "libxi-dev" >> apt-packages.txt
-          echo "libxkbcommon-dev" >> apt-packages.txt
-          echo "libxkbcommon-x11-dev" >> apt-packages.txt
+          echo "libxkbcommon-dev=1.5.0" >> apt-packages.txt
+          echo "libxkbcommon-x11-dev=1.5.0" >> apt-packages.txt
           echo "libglib2.0-dev" >> apt-packages.txt
+          
           sudo apt-get update
-          sudo apt-get install -y $(cat apt-packages.txt)
+          
+          if ! dpkg -s build-essential libgl1-mesa-dev libglu1-mesa-dev '^libxcb.*-dev' libx11-xcb-dev libxrender-dev libxi-dev libxkbcommon-dev libxkbcommon-x11-dev libglib2.0-dev >/dev/null 2>&1; then
+              sudo apt-get install -y $(cat apt-packages.txt)
+          else
+              echo "Required packages are already installed."
+          fi
 
       - name: Build Qt Statically
         if: steps.cache-qt.outputs.cache-hit != 'true'
