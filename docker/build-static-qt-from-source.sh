@@ -29,7 +29,7 @@ cd "$BUILD_DIR"
 for module in "${MODULES[@]}"; do
     if [ ! -d "$module" ]; then
         curl -L -o "$module.zip" "$DOWNLOAD_BASE_URL/$module-everywhere-src-$QT_VERSION.zip"
-        unzip "$module.zip"
+        unzip -q "$module.zip"
         mv "$module-everywhere-src-$QT_VERSION" "$module"
         rm "$module.zip"
     fi
