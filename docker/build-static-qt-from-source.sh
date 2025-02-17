@@ -44,6 +44,7 @@ meson setup --prefix=/usr \
     -Denable-docs=false \
     -Denable-wayland=false \
     -Denable-x11=true \
+    -Ddefault_library=static \
     ..
 ninja
 sudo ninja install
