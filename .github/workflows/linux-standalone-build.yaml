@@ -73,10 +73,10 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y $(cat apt-packages.txt)
 
-    #   - name: Build Qt Statically
-    #     if: steps.cache-qt.outputs.cache-hit != 'true'
-    #     run: |
-    #       bash docker/build-static-qt-from-source.sh
+      - name: Build Qt Statically
+        if: steps.cache-qt.outputs.cache-hit != 'true'
+        run: |
+          bash docker/build-static-qt-from-source.sh
 
     #   - name: Create build directory
     #     run: |
