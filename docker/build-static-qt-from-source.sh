@@ -19,14 +19,15 @@ GPERF_VERSION=3.1
 FONTCONFIG_VERSION=2.14.2
 PULSEAUDIO_VERSION=16.1
 ALSA_VERSION=1.2.10
+GLIB_VERSION=2.78.3
+SNDFILE_VERSION=1.2.0
 QT_VERSION=6.5.3
 QT_MAJOR_VERSION=6.5
 INSTALL_PREFIX=/opt/Qt6
 BUILD_DIR=$(pwd)/qt-build
 MODULES=("qtbase" "qtshadertools" "qtmultimedia" "qtsvg" "qtserialport")
 DOWNLOAD_BASE_URL="https://download.qt.io/archive/qt/$QT_MAJOR_VERSION/$QT_VERSION/submodules"
-GLIB_VERSION=2.78.3
-SNDFILE_VERSION=1.2.0
+
 
 
 # Check for required tools
@@ -128,7 +129,7 @@ cd dbus
 if [ ! -f "./configure" ]; then
     ./autogen.sh
 fi
-./configure --prefix=/usr \
+CFLAGS="-fPIC" CXXFLAGS="-fPIC" ./configure --prefix=/usr \
     --enable-static \
     --disable-shared \
     --disable-systemd \
@@ -193,6 +194,30 @@ meson setup --prefix=/usr \
     -Dman=false \
     -Dtests=false \
     -Ddefault_library=static \
+    -Ddatabase=simple \
+    -Dalsa=enabled \
+    -Dasyncns=disabled \
+    -Davahi=disabled \
+    -Dbluez5=disabled \
+    -Ddbus=enabled \
+    -Dfftw=disabled \
+    -Dglib=enabled \
+    -Dgsettings=disabled \
+    -Dgtk=disabled \
+    -Dhal-compat=false \
+    -Dipv6=false \
+    -Djack=disabled \
+    -Dlirc=disabled \
+    -Dopenssl=disabled \
+    -Dorc=disabled \
+    -Dsamplerate=disabled \
+    -Dsoxr=disabled \
+    -Dspeex=disabled \
+    -Dsystemd=disabled \
+    -Dtcpwrap=disabled \
+    -Dudev=disabled \
+    -Dwebrtc-aec=disabled \
+    -Dx11=disabled \
     ..
 ninja
 sudo ninja install
