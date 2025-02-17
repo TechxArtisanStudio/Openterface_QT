@@ -67,8 +67,6 @@ jobs:
           echo "libx11-xcb-dev" >> apt-packages.txt
           echo "libxrender-dev" >> apt-packages.txt
           echo "libxi-dev" >> apt-packages.txt
-          echo "libxkbcommon-dev=1.5.0" >> apt-packages.txt
-          echo "libxkbcommon-x11-dev=1.5.0" >> apt-packages.txt
           echo "libglib2.0-dev" >> apt-packages.txt
           
           sudo apt-get update
@@ -78,15 +76,25 @@ jobs:
           else
               echo "Required packages are already installed."
           fi
-
-      - name: Build Qt Statically
-        if: steps.cache-qt.outputs.cache-hit != 'true'
+          
+      - name: Build libxkbcommon from source
+        if: steps.cache-deps.outputs.cache-hit != 'true'
         run: |
-          bash docker/build-static-qt-from-source.sh
+          git clone https://github.com/xkbcommon/libxkbcommon.git
+          git checkout 1.6.0
+          cd libxkbcommon
+          meson build --enable-x11
+          ninja -C build
+          sudo ninja -C build install
 
-      - name: Create build directory
-        run: |
-          mkdir ${{ runner.temp }}/build
+    #   - name: Build Qt Statically
+    #     if: steps.cache-qt.outputs.cache-hit != 'true'
+    #     run: |
+    #       bash docker/build-static-qt-from-source.sh
+
+    #   - name: Create build directory
+    #     run: |
+    #       mkdir ${{ runner.temp }}/build
 
     #   - name: Build Standalone Executable
     #     working-directory: ${{ runner.temp }}/build
