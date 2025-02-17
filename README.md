@@ -226,7 +226,7 @@ Most of the libraries used in this project are compatible with AGPL, especially 
 4. You have the right to relink with different versions of the LGPL libraries.
 5. For any modifications to the code, you must make the source code available under AGPL-3.0.
 
-The full text of all licenses can be found in the [licenses](licenses/) directory of this repository.
+The full text of all licenses can be found in the [license](LICENSE) file of this repository.
 
 For more information about the licenses:
 - [GNU AGPL v3.0](https://www.gnu.org/licenses/agpl-3.0.en.html)
