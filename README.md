@@ -190,3 +190,66 @@ We encourage you to engage with us.
 ## License
 
 This project is licensed under the AGPL-3.0 - see the [LICENSE](LICENSE) file for details.
+
+### Third-Party Libraries
+
+This project uses the following third-party libraries:
+
+#### Qt Framework
+- License: LGPL v3
+- Source: https://www.qt.io
+- Copyright: The Qt Company Ltd.
+
+#### ALSA (Advanced Linux Sound Architecture)
+- License: LGPL v2.1+
+- Source: https://www.alsa-project.org
+- Copyright: The ALSA Project
+
+#### libusb
+- License: LGPL v2.1
+- Source: https://github.com/libusb/libusb
+- Copyright: libusb developers
+
+#### FreeType
+- License: FreeType License (BSD-style) / GPL v2
+- Source: https://www.freetype.org
+- Copyright: The FreeType Project
+
+#### Fontconfig
+- License: MIT License
+- Source: https://www.freedesktop.org/wiki/Software/fontconfig
+- Copyright: Fontconfig Authors
+
+#### D-Bus
+- License: AFL v2.1 or GPL v2
+- Source: https://www.freedesktop.org/wiki/Software/dbus
+- Copyright: D-Bus Authors
+
+#### PulseAudio
+- License: LGPL v2.1+
+- Source: https://www.freedesktop.org/wiki/Software/PulseAudio
+- Copyright: PulseAudio Contributors
+
+#### libxkbcommon
+- License: MIT License
+- Source: https://xkbcommon.org
+- Copyright: xkbcommon Authors
+
+### License Compliance
+
+As this project is licensed under AGPL-3.0 and uses various LGPL and other open-source components:
+
+1. Complete source code is available in this repository
+2. Build instructions are provided above
+3. You have the right to modify and redistribute the code under the terms of the AGPL-3.0
+4. You have the right to relink with different versions of the LGPL libraries
+5. For any modifications to the code, you must make the source code available under AGPL-3.0
+
+The full text of all licenses can be found in the [licenses](licenses/) directory of this repository.
+
+For more information about the licenses:
+- [GNU AGPL v3.0](https://www.gnu.org/licenses/agpl-3.0.en.html)
+- [GNU LGPL v2.1](https://www.gnu.org/licenses/lgpl-2.1.en.html)
+- [GNU LGPL v3.0](https://www.gnu.org/licenses/lgpl-3.0.en.html)
+- [MIT License](https://opensource.org/licenses/MIT)
+- [Academic Free License v2.1](https://opensource.org/licenses/AFL-2.1)

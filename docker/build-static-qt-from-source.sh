@@ -22,6 +22,7 @@ INSTALL_PREFIX=/opt/Qt6
 BUILD_DIR=$(pwd)/qt-build
 MODULES=("qtbase" "qtshadertools" "qtmultimedia" "qtsvg" "qtserialport")
 DOWNLOAD_BASE_URL="https://download.qt.io/archive/qt/$QT_MAJOR_VERSION/$QT_VERSION/submodules"
+GPERF_VERSION=3.1
 
 # Check for required tools
 command -v curl >/dev/null 2>&1 || { echo "Curl is not installed. Please install Curl."; exit 1; }
@@ -151,6 +152,21 @@ meson setup --prefix=/usr \
     ..
 ninja
 sudo ninja install
+cd "$BUILD_DIR"
+
+# Build gperf from source
+echo "Building gperf $GPERF_VERSION from source..."
+if [ ! -d "gperf" ]; then
+    curl -L -o gperf.tar.gz "https://ftp.gnu.org/gnu/gperf/gperf-${GPERF_VERSION}.tar.gz"
+    tar xf gperf.tar.gz
+    mv "gperf-${GPERF_VERSION}" gperf
+    rm gperf.tar.gz
+fi
+
+cd gperf
+./configure --prefix=/usr
+make -j$(nproc)
+sudo make install
 cd "$BUILD_DIR"
 
 # Download and extract modules
