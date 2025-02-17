@@ -67,25 +67,11 @@ jobs:
           echo "libx11-xcb-dev" >> apt-packages.txt
           echo "libxrender-dev" >> apt-packages.txt
           echo "libxi-dev" >> apt-packages.txt
+          echo "libxkbcommon-dev" >> apt-packages.txt
+          echo "libxkbcommon-x11-dev" >> apt-packages.txt
           echo "libglib2.0-dev" >> apt-packages.txt
-          
           sudo apt-get update
-          
-          if ! dpkg -s build-essential libgl1-mesa-dev libglu1-mesa-dev '^libxcb.*-dev' libx11-xcb-dev libxrender-dev libxi-dev libxkbcommon-dev libxkbcommon-x11-dev libglib2.0-dev >/dev/null 2>&1; then
-              sudo apt-get install -y $(cat apt-packages.txt)
-          else
-              echo "Required packages are already installed."
-          fi
-          
-      - name: Build libxkbcommon from source
-        if: steps.cache-deps.outputs.cache-hit != 'true'
-        run: |
-          git clone https://github.com/xkbcommon/libxkbcommon.git
-          git checkout 1.6.0
-          cd libxkbcommon
-          meson build --enable-x11
-          ninja -C build
-          sudo ninja -C build install
+          sudo apt-get install -y $(cat apt-packages.txt)
 
     #   - name: Build Qt Statically
     #     if: steps.cache-qt.outputs.cache-hit != 'true'
