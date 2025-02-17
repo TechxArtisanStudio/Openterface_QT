@@ -311,7 +311,7 @@ cd "$BUILD_DIR"
 # Build libXau
 echo "Building libXau $LIBXAU_VERSION from source..."
 if [ ! -d "libXau" ]; then
-    curl -L -o libXau.tar.bz2 "https://gitlab.freedesktop.org/xorg/lib/libxau/-/archive/libXau-${LIBXAU_VERSION}/libxau-libXau-${LIBXAU_VERSION}.tar.bz2"
+    curl -L -o libXau.tar.gz "https://www.x.org/releases/individual/lib/libXau-${LIBXAU_VERSION}.tar.gz"
     
     # Check if the download was successful
     if [ $? -ne 0 ]; then
@@ -319,9 +319,11 @@ if [ ! -d "libXau" ]; then
         exit 1
     fi
 
-    tar xf libXau.tar.bz2
+    tar xf libXau.tar.gz
+
+
     mv "libXau-${LIBXAU_VERSION}" libXau
-    rm libXau.tar.bz2
+    rm libXau.tar.gz
 fi
 
 cd libXau
