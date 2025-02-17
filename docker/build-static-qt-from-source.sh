@@ -100,10 +100,10 @@ cd "$BUILD_DIR"
 # Build FreeType
 echo "Building FreeType $FREETYPE_VERSION from source..."
 if [ ! -d "freetype" ]; then
-    curl -L -o freetype.tar.xz "https://gitlab.freedesktop.org/freetype/freetype/-/archive/VER-2-13-2/freetype-VER-2-13-2.tar.gz"
-    tar xf freetype.tar.xz
-    mv "freetype-VER-2-13-2" freetype
-    rm freetype.tar.xz
+    curl -L -o freetype.tar.gz "https://download.savannah.gnu.org/releases/freetype/freetype-${FREETYPE_VERSION}.tar.gz"
+    tar xf freetype.tar.gz
+    mv "freetype-${FREETYPE_VERSION}" freetype
+    rm freetype.tar.gz
 fi
 
 cd freetype
