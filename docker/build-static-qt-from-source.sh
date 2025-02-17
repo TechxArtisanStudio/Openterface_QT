@@ -6,7 +6,7 @@ set -e
 # Install minimal build requirements
 sudo apt-get update
 sudo apt-get install -y build-essential meson ninja-build bison flex pkg-config python3-pip linux-headers-$(uname -r) \
-    autoconf automake libtool
+    autoconf automake libtool autoconf-archive
 pip3 install cmake
 
 # Configuration
