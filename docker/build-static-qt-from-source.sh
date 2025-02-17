@@ -26,7 +26,6 @@ XCB_VERSION=1.16
 XCB_UTIL_VERSION=0.4.1
 XCB_UTIL_WM_VERSION=0.4.2
 XCB_UTIL_KEYSYMS_VERSION=0.4.1
-XCB_UTIL_XKB_VERSION=0.4.1
 XORG_MACROS_VERSION=1.19.3
 XPROTO_VERSION=7.0.31
 LIBXDMCP_VERSION=1.1.4
@@ -387,21 +386,6 @@ if [ ! -d "xcb-util-keysyms" ]; then
 fi
 
 cd xcb-util-keysyms
-CFLAGS="-fPIC" ./configure --prefix=/usr --enable-static --disable-shared
-make -j$(nproc)
-sudo make install
-cd "$BUILD_DIR"
-
-# Build xcb-util-xkb
-echo "Building xcb-util-xkb $XCB_UTIL_XKB_VERSION from source..."
-if [ ! -d "xcb-util-xkb" ]; then
-    curl -L -o xcb-util-xkb.tar.gz "https://xcb.freedesktop.org/dist/xcb-util-xkb-${XCB_UTIL_XKB_VERSION}.tar.gz"
-    tar xf xcb-util-xkb.tar.gz
-    mv "xcb-util-xkb-${XCB_UTIL_XKB_VERSION}" xcb-util-xkb
-    rm xcb-util-xkb.tar.gz
-fi
-
-cd xcb-util-xkb
 CFLAGS="-fPIC" ./configure --prefix=/usr --enable-static --disable-shared
 make -j$(nproc)
 sudo make install
