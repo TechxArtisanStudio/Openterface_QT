@@ -38,7 +38,7 @@ env:
   SOURCE_DIR: ${{ github.workspace }}
   QT_VERSION: 6.5.3
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  QT_CACHE_KEY: qt-6.5.3-windows
+  QT_CACHE_KEY: qt-6.5.3-mingw-windows
   JOM_CACHE_KEY: jom-1.1.3-windows
 
 jobs:
@@ -71,8 +71,9 @@ jobs:
           path: ${{ runner.temp }}/Qt
           key: ${{ env.QT_CACHE_KEY }}
           restore-keys: |
-            qt-6.5.3-windows
-            qt-6.5-windows
+            ${{ env.QT_CACHE_KEY }}
+            qt-6.5-mingw-windows
+
 
       - name: Update version
         run: |
@@ -155,11 +156,13 @@ jobs:
           echo "Creating package directory..."
           mkdir ${{ env.PACKAGE_DIR }}
           mkdir ${{ env.PACKAGE_DIR }}\driver
+          mkdir ${{ env.PACKAGE_DIR }}\driver\windows
 
           copy release\openterfaceQT.exe ${{ env.PACKAGE_DIR }}\${{ env.EXE_NAME }}
           copy ${{ env.SOURCE_DIR }}\LICENSE ${{ env.PACKAGE_DIR }}
-          copy ${{ env.SOURCE_DIR }}\driver\windows\v3.9\* ${{ env.PACKAGE_DIR }}\driver
+          copy ${{ env.SOURCE_DIR }}\driver\windows\* ${{ env.PACKAGE_DIR }}\driver\windows
           copy ${{ env.SOURCE_DIR }}\.github\workflows\capitalize-version.ps1 ${{ env.PACKAGE_DIR }}
+
           
           echo "Running windeployqt..."
           cd ${{ env.PACKAGE_DIR }}

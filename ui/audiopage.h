@@ -37,7 +37,6 @@ class AudioPage : public QWidget
     Q_OBJECT
 public:
     explicit AudioPage(QWidget *parent = nullptr);
-    ~AudioPage();
     void setupUI();
 private:
     QLabel *audioLabel;

@@ -124,6 +124,7 @@ class MouseManager : public QObject
 
 public:
     explicit MouseManager(QObject *parent = nullptr);
+    ~MouseManager();
 
     void handleAbsoluteMouseAction(int x, int y, int mouse_event, int wheelMovement);
     void handleRelativeMouseAction(int dx, int dy, int mouse_event, int wheelMovement);

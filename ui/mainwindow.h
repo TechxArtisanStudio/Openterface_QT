@@ -48,7 +48,10 @@
 #include "../scripts/AST.h"
 
 #ifdef ONLINE_VERSION
+
+#ifdef ONLINE_VERSION
 #include "server/tcpServer.h"
+#endif
 #endif
 
 #include <QAudioInput>

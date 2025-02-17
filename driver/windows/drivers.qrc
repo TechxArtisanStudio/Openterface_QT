@@ -1,0 +1,6 @@
+<!DOCTYPE RCC>
+<RCC version="1.0">
+    <qresource prefix="/drivers/windows">
+        <file alias="CH341SER.INF">CH341SER.INF</file>
+    </qresource>
+</RCC> 
