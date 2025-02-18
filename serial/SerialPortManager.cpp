@@ -52,7 +52,8 @@ void SerialPortManager::observeSerialPortNotification(){
 
     connect(serialThread, &QThread::started, serialTimer, [this]() {
         connect(serialTimer, &QTimer::timeout, this, &SerialPortManager::checkSerialPort);
-        serialTimer->start(5000);
+        checkSerialPort();
+        serialTimer->start(500);
     });
 
     connect(serialThread, &QThread::finished, serialTimer, &QObject::deleteLater);
@@ -128,8 +129,6 @@ void SerialPortManager::checkSerialPorts() {
  * Check the serial port connection status
  */
 void SerialPortManager::checkSerialPort() {
-    qCDebug(log_core_serial) << "Check serial port.";
-
     // Check if any new ports is connected, compare to the last port list
     checkSerialPorts();
 
