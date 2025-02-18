@@ -494,6 +494,10 @@ cmake -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" \
     -DFEATURE_opengl_desktop=OFF \
     -DFEATURE_opengles2=ON \
     -DFEATURE_xcb=ON \
+    -DFEATURE_xkbcommon=ON \
+    -DFEATURE_xkbcommon_x11=ON \
+    -DCMAKE_PREFIX_PATH="/usr" \
+    -DXCBSyslibs_FOUND=TRUE \
     ..
 
 echo "Building qtbase..."
