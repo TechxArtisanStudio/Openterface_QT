@@ -583,19 +583,6 @@ make -j$(nproc)
 sudo make install
 cd "$BUILD_DIR"
 
-# Build libxkbcommon
-echo "Building libxkbcommon $XKBCOMMON_VERSION from source..."
-if [ ! -d "libxkbcommon" ]; then
-    curl -L -o libxkbcommon.tar.gz "https://xkbcommon.org/download/libxkbcommon-${XKBCOMMON_VERSION}.tar.xz"
-    tar xf libxkbcommon.tar.gz
-    mv "libxkbcommon-${XKBCOMMON_VERSION}" libxkbcommon
-    rm libxkbcommon.tar.gz
-fi
-
-cd libxkbcommon
-mkdir -p build
-cd build
-
 # Build libXdmcp
 echo "Building libXdmcp $LIBXDMCP_VERSION from source..."
 if [ ! -d "libXdmcp" ]; then
@@ -610,6 +597,19 @@ CFLAGS="-fPIC" ./configure --prefix=/usr --enable-static --disable-shared
 make -j$(nproc)
 sudo make install
 cd "$BUILD_DIR"
+
+# Build libxkbcommon
+echo "Building libxkbcommon $XKBCOMMON_VERSION from source..."
+if [ ! -d "libxkbcommon" ]; then
+    curl -L -o libxkbcommon.tar.gz "https://xkbcommon.org/download/libxkbcommon-${XKBCOMMON_VERSION}.tar.xz"
+    tar xf libxkbcommon.tar.gz
+    mv "libxkbcommon-${XKBCOMMON_VERSION}" libxkbcommon
+    rm libxkbcommon.tar.gz
+fi
+
+cd libxkbcommon
+mkdir -p build
+cd build
 
 LIBXKBCOMMON_MESON_FILE="$BUILD_DIR/libxkbcommon/meson.build"
 # Check if the meson.build file exists
