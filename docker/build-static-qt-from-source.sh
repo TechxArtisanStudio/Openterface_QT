@@ -402,11 +402,23 @@ cd libxkbcommon
 mkdir -p build
 cd build
 
-# Set PKG_CONFIG_PATH to include directories for pkg-config
-export PKG_CONFIG_PATH="/usr/lib/pkgconfig:/usr/local/lib/pkgconfig"
+# Modify libxkbcommon/meson.build to link libXau statically
+LIBXKBCOMMON_MESON_FILE="$BUILD_DIR/libxkbcommon/meson.build"
 
-# Use pkg-config to get the necessary flags for xcb and xau
-PKG_CONFIG_FLAGS=$(pkg-config --cflags --libs xcb xau)
+# Check if the meson.build file exists
+if [ -f "$LIBXKBCOMMON_MESON_FILE" ]; then
+    echo "Modifying $LIBXKBCOMMON_MESON_FILE to link libXau statically..."
+    sed -i '/^xkbcommon_dep = dependency("xkbcommon", required: true)/a \
+    xau_dep = dependency("libXau", required: true)\n\
+    \n\
+    # Specify static linking for libXau\n\
+    libXau_static = static_library("Xau", sources: ["$BUILD_DIR/libXau"])
+    ' "$LIBXKBCOMMON_MESON_FILE"
+
+    sed -i '/^executable("xkbcli-interactive-x11"/,/^)/s/dependencies: \[.*\]/dependencies: [xkbcommon_dep],\n    link_with: [libXau_static],/' "$LIBXKBCOMMON_MESON_FILE"
+else
+    echo "Error: $LIBXKBCOMMON_MESON_FILE not found."
+fi
 
 meson setup --prefix=/usr \
     -Denable-docs=false \
@@ -419,7 +431,6 @@ meson setup --prefix=/usr \
 ninja
 sudo ninja install
 cd "$BUILD_DIR"
-
 
 # Build FFmpeg
 echo "Building FFmpeg $FFMPEG_VERSION from source..."
