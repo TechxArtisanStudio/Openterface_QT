@@ -732,7 +732,7 @@ cmake -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" \
     ..
 
 echo "Building qtshadertools..."
-cmake --build . --parallel
+cmake --build .
 echo "Installing qtshadertools..."
 cmake --install .
 
@@ -743,21 +743,15 @@ for module in "${MODULES[@]}"; do
         mkdir build
         cd build
         echo "Building $module..."
-        if [[ "$module" == "qtmultimedia" ]]; then
-            # Special configuration for qtmultimedia to enable FFmpeg
-            cmake -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" \
-                -DCMAKE_PREFIX_PATH="$INSTALL_PREFIX" \
-                -DBUILD_SHARED_LIBS=OFF \
-                ..
-        else
-            cmake -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" \
-                -DCMAKE_PREFIX_PATH="$INSTALL_PREFIX" \
-                -DBUILD_SHARED_LIBS=OFF \
-                ..
-        fi
+
+        cmake -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" \
+            -DCMAKE_PREFIX_PATH="$INSTALL_PREFIX" \
+            -DBUILD_SHARED_LIBS=OFF \
+            ..
+
         
         echo "Building $module..."
-        cmake --build . --parallel
+        cmake --build .
         echo "Installing $module..."
         cmake --install .
     fi

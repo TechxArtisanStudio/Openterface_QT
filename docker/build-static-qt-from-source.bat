@@ -72,21 +72,11 @@ for %%m in (%MODULES%) do (
             mkdir build
             cd build
             
-            if /I "%%m"=="qtmultimedia" (
-                REM Special configuration for qtmultimedia to enable FFmpeg
-                cmake -G "Ninja" ^
-                    -DCMAKE_INSTALL_PREFIX="%INSTALL_PREFIX%" ^
-                    -DCMAKE_PREFIX_PATH="%INSTALL_PREFIX%" ^
-                    -DBUILD_SHARED_LIBS=OFF ^
-                    ..
-            ) else (
-                cmake -G "Ninja" ^
-                    -DCMAKE_INSTALL_PREFIX="%INSTALL_PREFIX%" ^
-                    -DCMAKE_PREFIX_PATH="%INSTALL_PREFIX%" ^
-                    -DBUILD_SHARED_LIBS=OFF ^
-                    ..
-            )
-            
+            cmake -G "Ninja" ^
+                -DCMAKE_INSTALL_PREFIX="%INSTALL_PREFIX%" ^
+                -DCMAKE_PREFIX_PATH="%INSTALL_PREFIX%" ^
+                -DBUILD_SHARED_LIBS=OFF ^
+                ..
             ninja
             ninja install
         )
