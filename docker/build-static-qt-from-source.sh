@@ -350,7 +350,10 @@ if [ ! -d "libXrandr" ]; then
 fi
 
 cd libXrandr
-CFLAGS="-fPIC" ./configure --prefix=/usr \
+CFLAGS="-fPIC" \
+RANDR_CFLAGS="-I/usr/include" \
+RANDR_LIBS="-L/usr/lib -lX11 -lXext -lXrender" \
+./configure --prefix=/usr \
     --enable-static \
     --disable-shared \
     --with-pic
