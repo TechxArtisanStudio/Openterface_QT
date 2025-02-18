@@ -454,8 +454,7 @@ fi
 cd "FFmpeg-n${FFMPEG_VERSION}"
 # Configure the build with only free components
 ./configure --prefix=/usr/local \
-    --enable-shared \
-    --disable-static \
+    --disable-shared \
     --enable-gpl \
     --enable-version3 \
     --disable-nonfree \
