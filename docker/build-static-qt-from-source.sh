@@ -232,6 +232,21 @@ ninja
 sudo ninja install
 cd "$BUILD_DIR"
 
+# Build libXdmcp
+echo "Building libXdmcp $LIBXDMCP_VERSION from source..."
+if [ ! -d "libXdmcp" ]; then
+    curl -L -o libXdmcp.tar.gz "https://www.x.org/releases/individual/lib/libXdmcp-${LIBXDMCP_VERSION}.tar.gz"
+    tar xf libXdmcp.tar.gz
+    mv "libXdmcp-${LIBXDMCP_VERSION}" libXdmcp
+    rm libXdmcp.tar.gz
+fi
+
+cd libXdmcp
+CFLAGS="-fPIC" ./configure --prefix=/usr --enable-static --disable-shared
+make -j$(nproc)
+sudo make install
+cd "$BUILD_DIR"
+
 # Build all XCB components first, then libxkbcommon
 # After building xcb-util-xkb, add:
 
@@ -498,6 +513,11 @@ cmake -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" \
     -DFEATURE_xkbcommon_x11=ON \
     -DCMAKE_PREFIX_PATH="/usr" \
     -DXCBSyslibs_FOUND=TRUE \
+    -DFEATURE_accessibility=OFF \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DQT_BUILD_EXAMPLES=OFF \
+    -DQT_BUILD_TESTS=OFF \
+    -DFEATURE_static_runtime=ON \
     ..
 
 echo "Building qtbase..."
