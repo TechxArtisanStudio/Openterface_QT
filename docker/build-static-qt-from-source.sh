@@ -24,6 +24,7 @@ XCB_VERSION=1.16
 XCB_UTIL_VERSION=0.4.1
 XCB_UTIL_WM_VERSION=0.4.2
 XCB_UTIL_KEYSYMS_VERSION=0.4.1
+XCB_UTIL_RENDERUTIL_VERSION=0.3.10
 XORG_MACROS_VERSION=1.19.3
 XPROTO_VERSION=7.0.31
 LIBXDMCP_VERSION=1.1.4
@@ -232,6 +233,26 @@ ninja
 sudo ninja install
 cd "$BUILD_DIR"
 
+# Build libXrandr
+echo "Building libXrandr from source..."
+XRANDR_VERSION="1.5.4"
+if [ ! -d "libXrandr" ]; then
+    curl -L -o libXrandr.tar.xz "https://www.x.org/releases/individual/lib/libXrandr-${XRANDR_VERSION}.tar.xz"
+    tar xf libXrandr.tar.xz
+    mv "libXrandr-${XRANDR_VERSION}" libXrandr
+    rm libXrandr.tar.xz
+fi
+
+cd libXrandr
+CFLAGS="-fPIC" ./configure --prefix=/usr \
+    --enable-static \
+    --disable-shared \
+    --with-pic
+make -j$(nproc)
+sudo make install
+cd "$BUILD_DIR"
+
+
 # Build all XCB components first, then libxkbcommon
 # After building xcb-util-xkb, add:
 
@@ -398,6 +419,21 @@ if [ ! -d "xcb-util-keysyms" ]; then
 fi
 
 cd xcb-util-keysyms
+CFLAGS="-fPIC" ./configure --prefix=/usr --enable-static --disable-shared
+make -j$(nproc)
+sudo make install
+cd "$BUILD_DIR"
+
+# Build libxcb-randr
+echo "Building libxcb-randr from source..."
+if [ ! -d "libxcb-randr" ]; then
+    curl -L -o libxcb-randr.tar.xz "https://xcb.freedesktop.org/dist/xcb-util-renderutil-${XCB_UTIL_RENDERUTIL_VERSION}.tar.xz"
+    tar xf libxcb-randr.tar.xz
+    mv "xcb-util-renderutil-${XCB_UTIL_RENDERUTIL_VERSION}" libxcb-randr
+    rm libxcb-randr.tar.xz
+fi
+
+cd libxcb-randr
 CFLAGS="-fPIC" ./configure --prefix=/usr --enable-static --disable-shared
 make -j$(nproc)
 sudo make install
