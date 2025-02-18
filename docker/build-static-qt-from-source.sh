@@ -6,7 +6,7 @@ set -e
 # Install minimal build requirements
 sudo apt-get update
 sudo apt-get install -y build-essential meson ninja-build bison flex pkg-config python3-pip linux-headers-$(uname -r) \
-    autoconf automake libtool autoconf-archive cmake libxml2-dev
+    autoconf automake libtool autoconf-archive cmake libxml2-dev libgles2-mesa-dev
 
 # Configuration
 XKBCOMMON_VERSION=1.7.0
@@ -489,6 +489,9 @@ cmake -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" \
     -DFEATURE_testlib=OFF \
     -DFEATURE_icu=OFF \
     -DFEATURE_opengl=ON \
+    -DFEATURE_opengl_desktop=OFF \
+    -DFEATURE_opengles2=ON \
+    -DFEATURE_xcb=ON \
     ..
 
 echo "Building qtbase..."
