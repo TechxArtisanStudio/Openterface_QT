@@ -232,21 +232,6 @@ ninja
 sudo ninja install
 cd "$BUILD_DIR"
 
-# Build libXdmcp
-echo "Building libXdmcp $LIBXDMCP_VERSION from source..."
-if [ ! -d "libXdmcp" ]; then
-    curl -L -o libXdmcp.tar.gz "https://www.x.org/releases/individual/lib/libXdmcp-${LIBXDMCP_VERSION}.tar.gz"
-    tar xf libXdmcp.tar.gz
-    mv "libXdmcp-${LIBXDMCP_VERSION}" libXdmcp
-    rm libXdmcp.tar.gz
-fi
-
-cd libXdmcp
-CFLAGS="-fPIC" ./configure --prefix=/usr --enable-static --disable-shared
-make -j$(nproc)
-sudo make install
-cd "$BUILD_DIR"
-
 # Build all XCB components first, then libxkbcommon
 # After building xcb-util-xkb, add:
 
@@ -319,6 +304,22 @@ cd xcb-proto
 make -j$(nproc)
 sudo make install
 cd "$BUILD_DIR"
+
+# Build libXdmcp
+echo "Building libXdmcp $LIBXDMCP_VERSION from source..."
+if [ ! -d "libXdmcp" ]; then
+    curl -L -o libXdmcp.tar.gz "https://www.x.org/releases/individual/lib/libXdmcp-${LIBXDMCP_VERSION}.tar.gz"
+    tar xf libXdmcp.tar.gz
+    mv "libXdmcp-${LIBXDMCP_VERSION}" libXdmcp
+    rm libXdmcp.tar.gz
+fi
+
+cd libXdmcp
+CFLAGS="-fPIC" ./configure --prefix=/usr --enable-static --disable-shared
+make -j$(nproc)
+sudo make install
+cd "$BUILD_DIR"
+
 
 # Build libXau
 echo "Building libXau $LIBXAU_VERSION from source..."
