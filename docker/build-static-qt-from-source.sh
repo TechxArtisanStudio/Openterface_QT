@@ -284,6 +284,8 @@ make -j$(nproc)
 sudo make install
 cd "$BUILD_DIR"
 
+
+
 # Build all XCB components first, then libxkbcommon
 # After building xcb-util-xkb, add:
 
@@ -470,6 +472,27 @@ sudo make install
 sudo ldconfig
 cd "$BUILD_DIR"
 
+# Build libXext
+echo "Building libXext from source..."
+XEXT_VERSION="1.3.5"
+if [ ! -d "libXext" ]; then
+    curl -L -o libXext.tar.xz "https://www.x.org/releases/individual/lib/libXext-${XEXT_VERSION}.tar.xz"
+    tar xf libXext.tar.xz
+    mv "libXext-${XEXT_VERSION}" libXext
+    rm libXext.tar.xz
+fi
+
+cd libXext
+CFLAGS="-fPIC" ./configure --prefix=/usr \
+    --enable-static \
+    --disable-shared \
+    --disable-specs \
+    --without-xmlto \
+    --without-fop
+make -j$(nproc)
+sudo make install
+cd "$BUILD_DIR"
+
 # Now build libXrandr with explicit paths
 echo "Building libXrandr from source..."
 XRANDR_VERSION="1.5.4"
@@ -539,28 +562,6 @@ make -j$(nproc)
 sudo make install
 cd "$BUILD_DIR"
 
-# Build libXext
-echo "Building libXext from source..."
-XEXT_VERSION="1.3.5"
-if [ ! -d "libXext" ]; then
-    curl -L -o libXext.tar.xz "https://www.x.org/releases/individual/lib/libXext-${XEXT_VERSION}.tar.xz"
-    tar xf libXext.tar.xz
-    mv "libXext-${XEXT_VERSION}" libXext
-    rm libXext.tar.xz
-fi
-
-cd libXext
-CFLAGS="-fPIC" PKG_CONFIG_PATH="/usr/lib/pkgconfig:/usr/local/lib/pkgconfig:/usr/share/pkgconfig" \
-./configure --prefix=/usr \
-    --enable-static \
-    --disable-shared \
-    --enable-specs=no
-make -j$(nproc)
-sudo make install
-sudo ldconfig
-cd "$BUILD_DIR"
-
-
 # Verify pkg-config files are installed
 echo "Verifying pkg-config files..."
 pkg-config --exists x11 && echo "x11.pc found" || echo "x11.pc not found"
@@ -603,12 +604,7 @@ if [ -f "$LIBXKBCOMMON_MESON_FILE" ]; then
     # Add dependency for libXau
     sed -i "s/\(xcb_dep = dependency('xcb'\),[^)]*)/\1)/" "$LIBXKBCOMMON_MESON_FILE"
     sed -i "s/\(xcb_xkb_dep = dependency('xcb-xkb'\),[^)]*)/\1)/" "$LIBXKBCOMMON_MESON_FILE"
-    sed -i "/xcb_xkb_dep = dependency('xcb-xkb')/axau_dep = dependency('xau', static: true)" "$LIBXKBCOMMON_MESON_FILE"
-    sed -i "/xau_dep = dependency('xau', static: true)/axdmcp_dep = dependency('xdmcp', static: true)" "$LIBXKBCOMMON_MESON_FILE" 
-
-    # Ensure libXau is linked with xkbcli-interactive-x11
     sed -i "/xcb_xkb_dep,/axau_dep," "$LIBXKBCOMMON_MESON_FILE"
-    sed -i "/xau_dep,/axdmcp_dep," "$LIBXKBCOMMON_MESON_FILE"
 else
     echo "Error: $LIBXKBCOMMON_MESON_FILE not found."
 fi
