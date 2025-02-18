@@ -339,7 +339,25 @@ make -j$(nproc)
 sudo make install
 cd "$BUILD_DIR"
 
-# Build libXrandr
+# Build xorgproto (provides core X11 headers)
+echo "Building xorgproto from source..."
+XORGPROTO_VERSION="2023.2"
+if [ ! -d "xorgproto" ]; then
+    curl -L -o xorgproto.tar.xz "https://www.x.org/releases/individual/proto/xorgproto-${XORGPROTO_VERSION}.tar.xz"
+    tar xf xorgproto.tar.xz
+    mv "xorgproto-${XORGPROTO_VERSION}" xorgproto
+    rm xorgproto.tar.xz
+fi
+
+cd xorgproto
+CFLAGS="-fPIC" ./configure --prefix=/usr \
+    --enable-static \
+    --disable-shared
+make -j$(nproc)
+sudo make install
+cd "$BUILD_DIR"
+
+# Now update the libXrandr build to use the correct include paths
 echo "Building libXrandr from source..."
 XRANDR_VERSION="1.5.4"
 if [ ! -d "libXrandr" ]; then
@@ -350,7 +368,7 @@ if [ ! -d "libXrandr" ]; then
 fi
 
 cd libXrandr
-CFLAGS="-fPIC" \
+CFLAGS="-fPIC -I/usr/include" \
 RANDR_CFLAGS="-I/usr/include" \
 RANDR_LIBS="-L/usr/lib -lX11 -lXext -lXrender" \
 ./configure --prefix=/usr \
