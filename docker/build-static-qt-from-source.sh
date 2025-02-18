@@ -339,7 +339,7 @@ if [ ! -d "libxcb" ]; then
 fi
 
 cd libxcb
-CFLAGS="-fPIC" ./configure --prefix=/usr --enable-static --disable-shared
+CFLAGS="-fPIC" ./configure --prefix=/usr --enable-static --disable-shared --with-libXau
 make -j$(nproc)
 sudo make install
 cd "$BUILD_DIR"
@@ -402,26 +402,7 @@ cd libxkbcommon
 mkdir -p build
 cd build
 
-# Modify libxkbcommon/meson.build to link libXau statically
-LIBXKBCOMMON_MESON_FILE="$BUILD_DIR/libxkbcommon/meson.build"
-
-# Check if the meson.build file exists
-if [ -f "$LIBXKBCOMMON_MESON_FILE" ]; then
-    echo "Modifying $LIBXKBCOMMON_MESON_FILE to link libXau statically..."
-    
-    # Add dependency for libXau
-    sed -i '/^xkbcommon_dep = dependency("xkbcommon", required: true)/a \
-    xau_dep = dependency("libXau", required: true)\n\
-    ' "$LIBXKBCOMMON_MESON_FILE"
-
-    # Ensure libXau is linked with xkbcli-interactive-x11
-    sed -i '/^executable("xkbcli-interactive-x11"/,/^)/s/dependencies: \[.*\]/dependencies: [xkbcommon_dep, xau_dep],/' "$LIBXKBCOMMON_MESON_FILE"
-else
-    echo "Error: $LIBXKBCOMMON_MESON_FILE not found."
-fi
-
-cat $LIBXKBCOMMON_MESON_FILE
-
+ 
 meson setup --prefix=/usr \
     -Denable-docs=false \
     -Denable-wayland=false \
