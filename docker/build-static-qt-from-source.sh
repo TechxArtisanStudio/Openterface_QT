@@ -233,14 +233,59 @@ ninja
 sudo ninja install
 cd "$BUILD_DIR"
 
+# Update pkg-config path
+export PKG_CONFIG_PATH="/usr/lib/pkgconfig:/usr/local/lib/pkgconfig:/usr/share/pkgconfig"
 
+# Build randrproto (part of x11proto-randr)
+echo "Building randrproto from source..."
+RANDRPROTO_VERSION="1.5.0"
+if [ ! -d "randrproto" ]; then
+    curl -L -o randrproto.tar.bz2 "https://www.x.org/releases/individual/proto/randrproto-${RANDRPROTO_VERSION}.tar.bz2"
+    tar xf randrproto.tar.bz2
+    mv "randrproto-${RANDRPROTO_VERSION}" randrproto
+    rm randrproto.tar.bz2
+fi
 
+cd randrproto
+./configure --prefix=/usr
+make -j$(nproc)
+sudo make install
+cd "$BUILD_DIR"
+
+# Build renderproto
+echo "Building renderproto from source..."
+RENDERPROTO_VERSION="0.11.1"
+if [ ! -d "renderproto" ]; then
+    curl -L -o renderproto.tar.bz2 "https://www.x.org/releases/individual/proto/renderproto-${RENDERPROTO_VERSION}.tar.bz2"
+    tar xf renderproto.tar.bz2
+    mv "renderproto-${RENDERPROTO_VERSION}" renderproto
+    rm renderproto.tar.bz2
+fi
+
+cd renderproto
+./configure --prefix=/usr
+make -j$(nproc)
+sudo make install
+cd "$BUILD_DIR"
+
+# Build xextproto
+echo "Building xextproto from source..."
+XEXTPROTO_VERSION="7.3.0"
+if [ ! -d "xextproto" ]; then
+    curl -L -o xextproto.tar.bz2 "https://www.x.org/releases/individual/proto/xextproto-${XEXTPROTO_VERSION}.tar.bz2"
+    tar xf xextproto.tar.bz2
+    mv "xextproto-${XEXTPROTO_VERSION}" xextproto
+    rm xextproto.tar.bz2
+fi
+
+cd xextproto
+./configure --prefix=/usr
+make -j$(nproc)
+sudo make install
+cd "$BUILD_DIR"
 
 # Build all XCB components first, then libxkbcommon
 # After building xcb-util-xkb, add:
-
-# Update pkg-config path to find XCB
-export PKG_CONFIG_PATH="/usr/lib/pkgconfig:/usr/local/lib/pkgconfig"
 
 # Install xkeyboard-config
 echo "Installing xkeyboard-config $XKB_CONFIG_VERSION..."
