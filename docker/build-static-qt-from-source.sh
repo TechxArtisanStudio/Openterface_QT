@@ -409,7 +409,7 @@ meson setup --prefix=/usr \
     -Ddefault_library=static \
     -Dxkb-config-root=/usr/share/X11/xkb \
     -Dx-locale-root=/usr/share/X11/locale \
-    -DlibXau=enabled \
+    -Dlibxcb=enabled \
     ..
 ninja
 sudo ninja install
