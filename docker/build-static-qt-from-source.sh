@@ -357,7 +357,59 @@ make -j$(nproc)
 sudo make install
 cd "$BUILD_DIR"
 
-# Build libX11 first
+# Build xtrans
+echo "Building xtrans from source..."
+XTRANS_VERSION="1.5.0"
+if [ ! -d "xtrans" ]; then
+    curl -L -o xtrans.tar.xz "https://www.x.org/releases/individual/lib/xtrans-${XTRANS_VERSION}.tar.xz"
+    tar xf xtrans.tar.xz
+    mv "xtrans-${XTRANS_VERSION}" xtrans
+    rm xtrans.tar.xz
+fi
+
+cd xtrans
+CFLAGS="-fPIC" ./configure --prefix=/usr
+make -j$(nproc)
+sudo make install
+cd "$BUILD_DIR"
+
+# Build xcb-proto first
+echo "Building xcb-proto..."
+XCB_PROTO_VERSION="1.16.0"
+if [ ! -d "xcb-proto" ]; then
+    curl -L -o xcb-proto.tar.xz "https://xorg.freedesktop.org/archive/individual/proto/xcb-proto-${XCB_PROTO_VERSION}.tar.xz"
+    tar xf xcb-proto.tar.xz
+    mv "xcb-proto-${XCB_PROTO_VERSION}" xcb-proto
+    rm xcb-proto.tar.xz
+fi
+
+cd xcb-proto
+CFLAGS="-fPIC" ./configure --prefix=/usr
+make -j$(nproc)
+sudo make install
+cd "$BUILD_DIR"
+
+# Build libxcb
+echo "Building libxcb..."
+XCB_VERSION="1.16"
+if [ ! -d "libxcb" ]; then
+    curl -L -o libxcb.tar.xz "https://xorg.freedesktop.org/archive/individual/lib/libxcb-${XCB_VERSION}.tar.xz"
+    tar xf libxcb.tar.xz
+    mv "libxcb-${XCB_VERSION}" libxcb
+    rm libxcb.tar.xz
+fi
+
+cd libxcb
+CFLAGS="-fPIC" ./configure --prefix=/usr \
+    --enable-static \
+    --disable-shared \
+    --enable-xinput \
+    --enable-xkb
+make -j$(nproc)
+sudo make install
+cd "$BUILD_DIR"
+
+# Now continue with libX11 build
 echo "Building libX11 from source..."
 X11_VERSION="1.8.7"
 if [ ! -d "libX11" ]; then
@@ -400,81 +452,6 @@ RANDR_LIBS="-L/usr/lib -lX11 -lXext -lXrender" \
     --enable-static \
     --disable-shared \
     --with-pic
-make -j$(nproc)
-sudo make install
-cd "$BUILD_DIR"
-
-# Build xcb-proto
-echo "Building xcb-proto $XCB_PROTO_VERSION from source..."
-if [ ! -d "xcb-proto" ]; then
-    curl -L -o xcb-proto.tar.xz "https://xorg.freedesktop.org/archive/individual/proto/xcb-proto-${XCB_PROTO_VERSION}.tar.xz"
-    tar xf xcb-proto.tar.xz
-    mv "xcb-proto-${XCB_PROTO_VERSION}" xcb-proto
-    rm xcb-proto.tar.xz
-fi
-
-cd xcb-proto
-./configure --prefix=/usr
-make -j$(nproc)
-sudo make install
-cd "$BUILD_DIR"
-
-# Build libXdmcp
-echo "Building libXdmcp $LIBXDMCP_VERSION from source..."
-if [ ! -d "libXdmcp" ]; then
-    curl -L -o libXdmcp.tar.gz "https://www.x.org/releases/individual/lib/libXdmcp-${LIBXDMCP_VERSION}.tar.gz"
-    
-    # Check if the download was successful
-    if [ $? -ne 0 ]; then
-        echo "Error: Failed to download libXdmcp."
-        exit 1
-    fi
-
-    tar xf libXdmcp.tar.gz
-    mv "libXdmcp-${LIBXDMCP_VERSION}" libXdmcp
-    rm libXdmcp.tar.gz
-fi
-
-cd libXdmcp
-CFLAGS="-fPIC" ./configure --prefix=/usr --enable-static --disable-shared
-make -j$(nproc)
-sudo make install
-cd "$BUILD_DIR"
-
-
-# Build libXau
-echo "Building libXau $LIBXAU_VERSION from source..."
-if [ ! -d "libXau" ]; then
-    curl -L -o libXau.tar.gz "https://www.x.org/releases/individual/lib/libXau-${LIBXAU_VERSION}.tar.gz"
-    
-    # Check if the download was successful
-    if [ $? -ne 0 ]; then
-        echo "Error: Failed to download libXau."
-        exit 1
-    fi
-
-    tar xf libXau.tar.gz
-    mv "libXau-${LIBXAU_VERSION}" libXau
-    rm libXau.tar.gz
-fi
-
-cd libXau
-CFLAGS="-fPIC" ./configure --prefix=/usr --enable-static --disable-shared
-make -j$(nproc)
-sudo make install
-cd "$BUILD_DIR"
-
-# Build libxcb
-echo "Building libxcb $XCB_VERSION from source..."
-if [ ! -d "libxcb" ]; then
-    curl -L -o libxcb.tar.xz "https://xorg.freedesktop.org/archive/individual/lib/libxcb-${XCB_VERSION}.tar.xz"
-    tar xf libxcb.tar.xz
-    mv "libxcb-${XCB_VERSION}" libxcb
-    rm libxcb.tar.xz
-fi
-
-cd libxcb
-CFLAGS="-fPIC" ./configure --prefix=/usr --enable-static --disable-shared --with-libXau
 make -j$(nproc)
 sudo make install
 cd "$BUILD_DIR"
