@@ -6,7 +6,7 @@ set -e
 # Install minimal build requirements
 sudo apt-get update
 sudo apt-get install -y build-essential meson ninja-build bison flex pkg-config python3-pip linux-headers-$(uname -r) \
-    autoconf automake libtool autoconf-archive cmake libxml2-dev libgles2-mesa-dev
+    autoconf automake libtool autoconf-archive cmake libxml2-dev
 
 # Configuration
 XKBCOMMON_VERSION=1.7.0
@@ -476,6 +476,8 @@ for module in "${MODULES[@]}"; do
         rm "$module.zip"
     fi
 done
+
+sudo apt-get install -y libgl1-mesa-dev
 
 # Build qtbase first
 echo "Building qtbase..."
