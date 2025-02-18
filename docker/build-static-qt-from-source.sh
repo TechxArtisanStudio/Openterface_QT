@@ -596,6 +596,21 @@ cd libxkbcommon
 mkdir -p build
 cd build
 
+# Build libXdmcp
+echo "Building libXdmcp $LIBXDMCP_VERSION from source..."
+if [ ! -d "libXdmcp" ]; then
+    curl -L -o libXdmcp.tar.gz "https://www.x.org/releases/individual/lib/libXdmcp-${LIBXDMCP_VERSION}.tar.gz"
+    tar xf libXdmcp.tar.gz
+    mv "libXdmcp-${LIBXDMCP_VERSION}" libXdmcp
+    rm libXdmcp.tar.gz
+fi
+
+cd libXdmcp
+CFLAGS="-fPIC" ./configure --prefix=/usr --enable-static --disable-shared
+make -j$(nproc)
+sudo make install
+cd "$BUILD_DIR"
+
 LIBXKBCOMMON_MESON_FILE="$BUILD_DIR/libxkbcommon/meson.build"
 # Check if the meson.build file exists
 if [ -f "$LIBXKBCOMMON_MESON_FILE" ]; then
