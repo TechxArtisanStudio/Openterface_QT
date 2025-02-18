@@ -357,7 +357,30 @@ make -j$(nproc)
 sudo make install
 cd "$BUILD_DIR"
 
-# Now update the libXrandr build to use the correct include paths
+# Build libX11 first
+echo "Building libX11 from source..."
+X11_VERSION="1.8.7"
+if [ ! -d "libX11" ]; then
+    curl -L -o libX11.tar.xz "https://www.x.org/releases/individual/lib/libX11-${X11_VERSION}.tar.xz"
+    tar xf libX11.tar.xz
+    mv "libX11-${X11_VERSION}" libX11
+    rm libX11.tar.xz
+fi
+
+cd libX11
+CFLAGS="-fPIC" \
+./configure --prefix=/usr \
+    --enable-static \
+    --disable-shared \
+    --disable-specs \
+    --disable-devel-docs \
+    --without-xmlto \
+    --without-fop
+make -j$(nproc)
+sudo make install
+cd "$BUILD_DIR"
+
+# Now build libXrandr with explicit paths
 echo "Building libXrandr from source..."
 XRANDR_VERSION="1.5.4"
 if [ ! -d "libXrandr" ]; then
@@ -368,7 +391,9 @@ if [ ! -d "libXrandr" ]; then
 fi
 
 cd libXrandr
+CPPFLAGS="-I/usr/include" \
 CFLAGS="-fPIC -I/usr/include" \
+LDFLAGS="-L/usr/lib" \
 RANDR_CFLAGS="-I/usr/include" \
 RANDR_LIBS="-L/usr/lib -lX11 -lXext -lXrender" \
 ./configure --prefix=/usr \
@@ -398,6 +423,13 @@ cd "$BUILD_DIR"
 echo "Building libXdmcp $LIBXDMCP_VERSION from source..."
 if [ ! -d "libXdmcp" ]; then
     curl -L -o libXdmcp.tar.gz "https://www.x.org/releases/individual/lib/libXdmcp-${LIBXDMCP_VERSION}.tar.gz"
+    
+    # Check if the download was successful
+    if [ $? -ne 0 ]; then
+        echo "Error: Failed to download libXdmcp."
+        exit 1
+    fi
+
     tar xf libXdmcp.tar.gz
     mv "libXdmcp-${LIBXDMCP_VERSION}" libXdmcp
     rm libXdmcp.tar.gz
@@ -490,28 +522,6 @@ cd xcb-util-keysyms
 CFLAGS="-fPIC" ./configure --prefix=/usr --enable-static --disable-shared
 make -j$(nproc)
 sudo make install
-cd "$BUILD_DIR"
-
-# Build libX11
-echo "Building libX11 from source..."
-X11_VERSION="1.8.7"
-if [ ! -d "libX11" ]; then
-    curl -L -o libX11.tar.xz "https://www.x.org/releases/individual/lib/libX11-${X11_VERSION}.tar.xz"
-    tar xf libX11.tar.xz
-    mv "libX11-${X11_VERSION}" libX11
-    rm libX11.tar.xz
-fi
-
-cd libX11
-CFLAGS="-fPIC" PKG_CONFIG_PATH="/usr/lib/pkgconfig:/usr/local/lib/pkgconfig:/usr/share/pkgconfig" \
-./configure --prefix=/usr \
-    --enable-static \
-    --disable-shared \
-    --enable-specs=no \
-    --enable-devel-docs=no
-make -j$(nproc)
-sudo make install
-sudo ldconfig
 cd "$BUILD_DIR"
 
 # Build libXext
