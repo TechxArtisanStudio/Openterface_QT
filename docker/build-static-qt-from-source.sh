@@ -6,9 +6,7 @@ set -e
 # Install minimal build requirements
 sudo apt-get update
 sudo apt-get install -y build-essential meson ninja-build bison flex pkg-config python3-pip linux-headers-$(uname -r) \
-    autoconf automake libtool autoconf-archive \
-    libglib2.0-dev libsndfile1-dev
-pip3 install cmake
+    autoconf automake libtool autoconf-archive cmake libxml2-dev
 
 # Configuration
 XKBCOMMON_VERSION=1.7.0
@@ -402,6 +400,22 @@ cd libxkbcommon
 mkdir -p build
 cd build
 
+LIBXKBCOMMON_MESON_FILE="$BUILD_DIR/libxkbcommon/meson.build"
+# Check if the meson.build file exists
+if [ -f "$LIBXKBCOMMON_MESON_FILE" ]; then
+    echo "Modifying $LIBXKBCOMMON_MESON_FILE to link libXau statically..."
+    
+    # Add dependency for libXau
+    sed -i "s/\(xcb_dep = dependency('xcb'\),[^)]*)/\1)/" "$LIBXKBCOMMON_MESON_FILE"
+    sed -i "s/\(xcb_xkb_dep = dependency('xcb-xkb'\),[^)]*)/\1)/" "$LIBXKBCOMMON_MESON_FILE"
+    sed -i "/xcb_xkb_dep = dependency('xcb-xkb')/axau_dep = dependency('xau', static: true)" "$LIBXKBCOMMON_MESON_FILE"
+
+
+    # Ensure libXau is linked with xkbcli-interactive-x11
+    sed -i "/xcb_xkb_dep,/axau_dep," "$LIBXKBCOMMON_MESON_FILE"
+else
+    echo "Error: $LIBXKBCOMMON_MESON_FILE not found."
+fi
  
 meson setup --prefix=/usr \
     -Denable-docs=false \
