@@ -471,6 +471,75 @@ make -j$(nproc)
 sudo make install
 cd "$BUILD_DIR"
 
+# Build libX11
+echo "Building libX11 from source..."
+X11_VERSION="1.8.7"
+if [ ! -d "libX11" ]; then
+    curl -L -o libX11.tar.xz "https://www.x.org/releases/individual/lib/libX11-${X11_VERSION}.tar.xz"
+    tar xf libX11.tar.xz
+    mv "libX11-${X11_VERSION}" libX11
+    rm libX11.tar.xz
+fi
+
+cd libX11
+CFLAGS="-fPIC" PKG_CONFIG_PATH="/usr/lib/pkgconfig:/usr/local/lib/pkgconfig:/usr/share/pkgconfig" \
+./configure --prefix=/usr \
+    --enable-static \
+    --disable-shared \
+    --enable-specs=no \
+    --enable-devel-docs=no
+make -j$(nproc)
+sudo make install
+sudo ldconfig
+cd "$BUILD_DIR"
+
+# Build libXext
+echo "Building libXext from source..."
+XEXT_VERSION="1.3.5"
+if [ ! -d "libXext" ]; then
+    curl -L -o libXext.tar.xz "https://www.x.org/releases/individual/lib/libXext-${XEXT_VERSION}.tar.xz"
+    tar xf libXext.tar.xz
+    mv "libXext-${XEXT_VERSION}" libXext
+    rm libXext.tar.xz
+fi
+
+cd libXext
+CFLAGS="-fPIC" PKG_CONFIG_PATH="/usr/lib/pkgconfig:/usr/local/lib/pkgconfig:/usr/share/pkgconfig" \
+./configure --prefix=/usr \
+    --enable-static \
+    --disable-shared \
+    --enable-specs=no
+make -j$(nproc)
+sudo make install
+sudo ldconfig
+cd "$BUILD_DIR"
+
+# Build libXrender
+echo "Building libXrender from source..."
+XRENDER_VERSION="0.9.11"
+if [ ! -d "libXrender" ]; then
+    curl -L -o libXrender.tar.xz "https://www.x.org/releases/individual/lib/libXrender-${XRENDER_VERSION}.tar.xz"
+    tar xf libXrender.tar.xz
+    mv "libXrender-${XRENDER_VERSION}" libXrender
+    rm libXrender.tar.xz
+fi
+
+cd libXrender
+CFLAGS="-fPIC" PKG_CONFIG_PATH="/usr/lib/pkgconfig:/usr/local/lib/pkgconfig:/usr/share/pkgconfig" \
+./configure --prefix=/usr \
+    --enable-static \
+    --disable-shared
+make -j$(nproc)
+sudo make install
+sudo ldconfig
+cd "$BUILD_DIR"
+
+# Verify pkg-config files are installed
+echo "Verifying pkg-config files..."
+pkg-config --exists x11 && echo "x11.pc found" || echo "x11.pc not found"
+pkg-config --exists xext && echo "xext.pc found" || echo "xext.pc not found"
+pkg-config --exists xrender && echo "xrender.pc found" || echo "xrender.pc not found"
+
 # Build libxcb-randr
 echo "Building libxcb-randr from source..."
 if [ ! -d "libxcb-randr" ]; then
