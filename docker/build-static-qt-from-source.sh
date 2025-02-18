@@ -420,6 +420,8 @@ else
     echo "Error: $LIBXKBCOMMON_MESON_FILE not found."
 fi
 
+cat $LIBXKBCOMMON_MESON_FILE
+
 meson setup --prefix=/usr \
     -Denable-docs=false \
     -Denable-wayland=false \
