@@ -339,6 +339,24 @@ make -j$(nproc)
 sudo make install
 cd "$BUILD_DIR"
 
+# Build libXau first
+echo "Building libXau from source..."
+XAU_VERSION="1.0.11"
+if [ ! -d "libXau" ]; then
+    curl -L -o libXau.tar.xz "https://www.x.org/releases/individual/lib/libXau-${XAU_VERSION}.tar.xz"
+    tar xf libXau.tar.xz
+    mv "libXau-${XAU_VERSION}" libXau
+    rm libXau.tar.xz
+fi
+
+cd libXau
+CFLAGS="-fPIC" ./configure --prefix=/usr \
+    --enable-static \
+    --disable-shared
+make -j$(nproc)
+sudo make install
+cd "$BUILD_DIR"
+
 # Build xorgproto (provides core X11 headers)
 echo "Building xorgproto from source..."
 XORGPROTO_VERSION="2023.2"
