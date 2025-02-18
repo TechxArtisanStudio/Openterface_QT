@@ -429,6 +429,18 @@ ninja
 sudo ninja install
 cd "$BUILD_DIR"
 
+# Install NASM
+echo "Installing NASM..."
+NASM_VERSION="2.16.01"
+curl -L -o nasm.tar.xz "https://www.nasm.us/pub/nasm/releasebuilds/${NASM_VERSION}/nasm-${NASM_VERSION}.tar.xz"
+tar xf nasm.tar.xz
+cd "nasm-${NASM_VERSION}"
+./configure --prefix=/usr
+make -j$(nproc)
+sudo make install
+cd "$BUILD_DIR"
+rm -rf "nasm-${NASM_VERSION}" nasm.tar.xz
+
 # Build FFmpeg
 echo "Building FFmpeg $FFMPEG_VERSION from source..."
 if [ ! -d "FFmpeg-n${FFMPEG_VERSION}" ]; then
