@@ -494,7 +494,7 @@ for module in "${MODULES[@]}"; do
     fi
 done
 
-sudo apt-get install -y libgl1-mesa-dev libx11-xcb-dev libglu1-mesa-dev libxrender-dev libxi-dev
+sudo apt-get install -y libgl1-mesa-dev libglu1-mesa-dev libxrender-dev libxi-dev
 
 # Build qtbase first
 echo "Building qtbase..."
@@ -510,9 +510,6 @@ cmake -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" \
     -DFEATURE_opengl=ON \
     -DFEATURE_opengl_desktop=OFF \
     -DFEATURE_opengles2=ON \
-    -DFEATURE_xcb=ON \
-    -DFEATURE_xkbcommon=ON \
-    -DFEATURE_xkbcommon_x11=ON \
     -DCMAKE_PREFIX_PATH="/usr" \
     -DFEATURE_accessibility=OFF \
     -DCMAKE_BUILD_TYPE=Release \
