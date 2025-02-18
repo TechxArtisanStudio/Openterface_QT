@@ -494,7 +494,7 @@ for module in "${MODULES[@]}"; do
     fi
 done
 
-sudo apt-get install -y libgl1-mesa-dev '^libxcb.*-dev' libx11-xcb-dev libglu1-mesa-dev libxrender-dev libxi-dev libxkbcommon-dev libxkbcommon-x11-dev
+sudo apt-get install -y libgl1-mesa-dev libx11-xcb-dev libglu1-mesa-dev libxrender-dev libxi-dev
 
 # Build qtbase first
 echo "Building qtbase..."
