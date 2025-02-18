@@ -160,7 +160,7 @@ if [ ! -d "libsndfile" ]; then
 fi
 
 cd libsndfile
-./configure --prefix=/usr --enable-static --disable-shared
+CFLAGS="-fPIC" CXXFLAGS="-fPIC" ./configure --prefix=/usr --enable-static --disable-shared
 make -j$(nproc)
 sudo make install
 cd "$BUILD_DIR"
