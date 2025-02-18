@@ -402,10 +402,12 @@ cd libxkbcommon
 mkdir -p build
 cd build
 
-# Get pkg-config flags for xcb and xau
+# Set PKG_CONFIG_PATH to include directories for pkg-config
+export PKG_CONFIG_PATH="/usr/lib/pkgconfig:/usr/local/lib/pkgconfig"
+
+# Use pkg-config to get the necessary flags for xcb and xau
 PKG_CONFIG_FLAGS=$(pkg-config --cflags --libs xcb xau)
 
-PKG_CONFIG_PATH="/usr/lib/pkgconfig:/usr/local/lib/pkgconfig" \
 meson setup --prefix=/usr \
     -Denable-docs=false \
     -Denable-wayland=false \
@@ -413,7 +415,6 @@ meson setup --prefix=/usr \
     -Ddefault_library=static \
     -Dxkb-config-root=/usr/share/X11/xkb \
     -Dx-locale-root=/usr/share/X11/locale \
-    -Dpkg_config_flags="$PKG_CONFIG_FLAGS" \
     ..
 ninja
 sudo ninja install
