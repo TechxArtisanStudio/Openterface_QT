@@ -494,7 +494,7 @@ for module in "${MODULES[@]}"; do
     fi
 done
 
-sudo apt-get install -y libgl1-mesa-dev
+sudo apt-get install -y libgl1-mesa-dev '^libxcb.*-dev' libx11-xcb-dev libglu1-mesa-dev libxrender-dev libxi-dev libxkbcommon-dev libxkbcommon-x11-dev
 
 # Build qtbase first
 echo "Building qtbase..."
@@ -514,12 +514,6 @@ cmake -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" \
     -DFEATURE_xkbcommon=ON \
     -DFEATURE_xkbcommon_x11=ON \
     -DCMAKE_PREFIX_PATH="/usr" \
-    -DXCB_XCB_INCLUDE_DIR=/usr/include \
-    -DXCB_XCB_LIBRARY=/usr/lib/libxcb.a \
-    -DXCB_XKBCOMMON_INCLUDE_DIR=/usr/include \
-    -DXCB_XKBCOMMON_LIBRARY=/usr/lib/libxkbcommon.a \
-    -DXCB_XKBCOMMON_X11_INCLUDE_DIR=/usr/include \
-    -DXCB_XKBCOMMON_X11_LIBRARY=/usr/lib/libxkbcommon-x11.a \
     -DFEATURE_accessibility=OFF \
     -DCMAKE_BUILD_TYPE=Release \
     -DQT_BUILD_EXAMPLES=OFF \
