@@ -408,14 +408,14 @@ LIBXKBCOMMON_MESON_FILE="$BUILD_DIR/libxkbcommon/meson.build"
 # Check if the meson.build file exists
 if [ -f "$LIBXKBCOMMON_MESON_FILE" ]; then
     echo "Modifying $LIBXKBCOMMON_MESON_FILE to link libXau statically..."
+    
+    # Add dependency for libXau
     sed -i '/^xkbcommon_dep = dependency("xkbcommon", required: true)/a \
     xau_dep = dependency("libXau", required: true)\n\
-    \n\
-    # Specify static linking for libXau\n\
-    libXau_static = static_library("Xau", sources: ["$BUILD_DIR/libXau"])
     ' "$LIBXKBCOMMON_MESON_FILE"
 
-    sed -i '/^executable("xkbcli-interactive-x11"/,/^)/s/dependencies: \[.*\]/dependencies: [xkbcommon_dep],\n    link_with: [libXau_static],/' "$LIBXKBCOMMON_MESON_FILE"
+    # Ensure libXau is linked with xkbcli-interactive-x11
+    sed -i '/^executable("xkbcli-interactive-x11"/,/^)/s/dependencies: \[.*\]/dependencies: [xkbcommon_dep, xau_dep],/' "$LIBXKBCOMMON_MESON_FILE"
 else
     echo "Error: $LIBXKBCOMMON_MESON_FILE not found."
 fi
