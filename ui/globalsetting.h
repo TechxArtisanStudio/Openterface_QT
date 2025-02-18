@@ -69,6 +69,9 @@ public:
 
     void setCustomVIDDescriptor(QString customVIDDescriptor);
 
+    void setKeyboardLayout(QString keyboardLayout);
+
+    void getKeyboardLayout(QString &keyboardLayout);
 private:
     QSettings m_settings;
 };

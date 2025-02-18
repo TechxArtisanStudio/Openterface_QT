@@ -20,6 +20,7 @@ jobs:
     strategy:
       matrix:
         arch: [amd64, arm64]
+        version: [offline, online]
 
     steps:
       - name: Checkout code
@@ -67,31 +68,39 @@ jobs:
           echo "VERSION=$VERSION" >> $GITHUB_ENV
 
       - name: Create build directory
-        run: mkdir ${{ runner.temp }}/build
+        run: |
+          buildDir="${{ runner.temp }}/build_${{ matrix.version }}"
+          mkdir -p $buildDir
+          echo "BUILD_DIR=$buildDir" >> $GITHUB_ENV
 
       - name: Configure And Build
-        working-directory: ${{ runner.temp }}/build
+        working-directory: ${{ env.BUILD_DIR }}
         run: |
-          qmake6 ${{ github.workspace }} && make -j$(nproc)
+          if [ "${{ matrix.version }}" = "online" ]; then
+            DEFINE_FLAG="DEFINES+=ONLINE_VERSION"
+          else
+            DEFINE_FLAG=""
+          fi
+          
+          qmake6 ${{ github.workspace }} $DEFINE_FLAG && make -j$(nproc)
 
-      - name: Create deb package
+      - name: Create deb package ${{ matrix.version }} version
         working-directory: ${{ runner.temp }}
         run: |
           mkdir -p package/DEBIAN
-          # Use sed to replace variables in the control file template
+          
+          PKG_NAME="${{ env.ARTIFACT }}_${{ env.VERSION }}_${{ matrix.arch }}_${{ matrix.version }}"
+          
           sed -e "s/\${VERSION}/${{ env.VERSION }}/g" \
               -e "s/\${ARCH}/${{ matrix.arch }}/g" \
               ${{ github.workspace }}/packaging/debian/control > package/DEBIAN/control
           
-          # Copy files to package directory
           mkdir -p package/usr/bin
-          cp -r build/openterfaceQT package/usr/bin
+          cp -r ${{ env.BUILD_DIR }}/openterfaceQT package/usr/bin
 
-          # Add icon to the package
           mkdir -p package/usr/share/icons/hicolor/256x256/apps/
           cp ${{ github.workspace }}/images/icon_256.png package/usr/share/icons/hicolor/256x256/apps/openterfaceQT.png
 
-          # Create .desktop file
           mkdir -p package/usr/share/applications/
           cat > package/usr/share/applications/openterfaceQT.desktop << EOF
           [Desktop Entry]
@@ -104,13 +113,12 @@ jobs:
           Categories=Utility;
           EOF
 
-          # Build deb package
-          mv package ${{ env.ARTIFACT }}_${{ env.VERSION }}_${{ matrix.arch }}
-          dpkg-deb --build ${{ env.ARTIFACT }}_${{ env.VERSION }}_${{ matrix.arch }}
+          mv package $PKG_NAME
+          dpkg-deb --build $PKG_NAME
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: openterfaceqt_${{ matrix.arch == 'arm64' && 'arm64' || matrix.arch }}.deb
-          path: ${{ runner.temp }}/${{ env.ARTIFACT }}_${{ env.VERSION }}_${{ matrix.arch }}.deb
+          name: openterfaceqt_${{ matrix.arch }}_${{ matrix.version }}.deb
+          path: ${{ runner.temp }}/${{ env.ARTIFACT }}_${{ env.VERSION }}_${{ matrix.arch }}_${{ matrix.version }}.deb
           if-no-files-found: error

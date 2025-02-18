@@ -69,11 +69,6 @@ SerialPortDebugDialog::SerialPortDebugDialog(QWidget *parent)
     loadSettings();
 }
 
-SerialPortDebugDialog::~SerialPortDebugDialog()
-{
-    // Remove delete this - QObject hierarchy will handle cleanup
-}
-
 void SerialPortDebugDialog::createFilterCheckBox()
 {
     QGridLayout *gridLayout = new QGridLayout(filterCheckboxWidget);

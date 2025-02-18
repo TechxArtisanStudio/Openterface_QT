@@ -39,6 +39,7 @@ SOURCES += main.cpp \
     ui/cameraajust.cpp \
     ui/scripttool.cpp \
     ui/TaskManager.cpp \
+    ui/driverdialog.cpp \
     host/HostManager.cpp \
     serial/SerialPortManager.cpp \
     target/KeyboardManager.cpp \
@@ -82,6 +83,7 @@ HEADERS  += \
     ui/cameraajust.h \
     ui/scripttool.h \
     ui/TaskManager.h \
+    ui/driverdialog.h \
     host/HostManager.h \
     serial/ch9329.h \
     serial/SerialPortManager.h \
@@ -95,18 +97,21 @@ HEADERS  += \
     scripts/Parser.h \
     scripts/semanticAnalyzer.h \
     scripts/KeyboardMouse.h \
-    target/KeyboardLayouts.h \
-    regex/RegularExpression.h \ 
-    server/tcpServer.h
+    server/tcpServer.h \
+    regex/RegularExpression.h \
+    target/KeyboardLayouts.h 
+
 
 FORMS    += \
     ui/mainwindow.ui \
-    ui/settingdialog.ui 
+    ui/settingdialog.ui \
+    ui/driverdialog.ui
 
 RESOURCES += \
     openterfaceQT.rc \
     ui/mainwindow.qrc \
-    config/keyboards/keyboard_layouts.qrc
+    config/keyboards/keyboard_layouts.qrc 
+
 
 # Copy keyboard layout files to build directory
 CONFIG += file_copies
@@ -124,7 +129,9 @@ win32:LIBS += -lsetupapi
 
 win32 {
     INCLUDEPATH += $$PWD/lib
-    LIBS += -L$$PWD/lib -llibusb-1.0
+    LIBS += -L$$PWD/lib -llibusb-1.0 -loleaut32 -lwinpthread
+
+    RESOURCES += driver/windows/drivers.qrc
 }
 
 unix {

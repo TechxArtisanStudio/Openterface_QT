@@ -102,9 +102,26 @@
          <verstretch>0</verstretch>
         </sizepolicy>
        </property>
-       <property name="minimumWidth">
-         <number>80</number>
-       </property>
+       <item>
+        <property name="text">
+         <string>US QWERTY</string>
+        </property>
+       </item>
+       <item>
+        <property name="text">
+         <string>French AZERTY</string>
+        </property>
+       </item>
+       <item>
+        <property name="text">
+         <string>German QWERTZ</string>
+        </property>
+       </item>
+       <item>
+        <property name="text">
+         <string>UK QWERTY</string>
+        </property>
+       </item>
       </widget>
      </item>
      <item>
@@ -148,6 +165,14 @@
       </widget>
      </item>
      <item>
+      <widget class="QPushButton" name="fullScreenButton">
+       <property name="icon">
+        <iconset resource="mainwindow.qrc">
+         <normaloff>:/images/full_screen.svg</normaloff>:/images/full_screen.svg</iconset>
+       </property>
+      </widget>
+     </item>
+     <item>
       <widget class="QPushButton" name="pasteButton">
        <property name="icon">
         <iconset resource="mainwindow.qrc">
@@ -163,6 +188,13 @@
        </property>
        <property name="checkable">
         <bool>true</bool>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QComboBox" name="keyboardLayoutComboBox">
+       <property name="toolTip">
+        <string>Select Keyboard Layout</string>
        </property>
       </widget>
      </item>

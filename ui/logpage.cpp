@@ -44,13 +44,6 @@ LogPage::LogPage(QWidget *parent) : QWidget(parent)
     // initLogSettings();
 }
 
-LogPage::~LogPage()
-{
-    // Destructor implementation
-    delete this;
-}
-
-
 void LogPage::setupUI()
 {
     // UI setup implementation

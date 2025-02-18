@@ -46,7 +46,13 @@
 #include "ui/TaskManager.h"
 #include "../scripts/semanticAnalyzer.h"
 #include "../scripts/AST.h"
+
+#ifdef ONLINE_VERSION
+
+#ifdef ONLINE_VERSION
 #include "server/tcpServer.h"
+#endif
+#endif
 
 #include <QAudioInput>
 #include <QAudioOutput>
@@ -77,6 +83,7 @@
 #include <QScrollArea>
 #include <libusb-1.0/libusb.h>
 #include <QMessageBox>
+
 
 Q_DECLARE_LOGGING_CATEGORY(log_ui_mainwindow)
 
@@ -203,6 +210,7 @@ private slots:
     void onZoomIn();
     void onZoomOut();
     void onZoomReduction();
+    void onKeyboardLayoutCombobox_Changed(int index);
     
 private slots:
     void checkMousePosition();
@@ -229,7 +237,7 @@ private:
     QLabel *keyLabel;
     QToolBar *toolbar;
     ToolbarManager *toolbarManager; // Moved up in the declaration orde r
-    TcpServer *tcpServer;
+    
 
 
     QMediaDevices m_source;
@@ -289,6 +297,15 @@ private:
 
     void centerVideoPane();
     void checkInitSize();
+    void fullScreen();
+    bool isFullScreenMode();
+    bool fullScreenState = false;
+    Qt::WindowStates oldWindowState;
+    
+#ifdef ONLINE_VERSION
     void startServer();
+    TcpServer *tcpServer;
+#endif
+
 };
 #endif // MAINWINDOW_H

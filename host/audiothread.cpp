@@ -94,17 +94,18 @@ void AudioThread::run()
         }
 
         // Cleanup
-        if (m_audioSource) {
-            qDebug() << "Stopping audio source.";
-            m_audioSource->stop();
-            delete m_audioSource;
-            m_audioSource = nullptr;
-        }
 
         if (m_audioIODevice) {
             qDebug() << "Closing audio IO device.";
             m_audioIODevice->close();
             m_audioIODevice = nullptr;
+        }
+
+        if (m_audioSource) {
+            qDebug() << "Stopping audio source.";
+            m_audioSource->stop();
+            delete m_audioSource;
+            m_audioSource = nullptr;
         }
 
         if (m_sinkIODevice) {

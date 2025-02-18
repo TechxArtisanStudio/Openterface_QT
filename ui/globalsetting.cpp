@@ -129,6 +129,13 @@ void GlobalSetting::setCustomVIDDescriptor(QString customVIDDescriptor){
     m_settings.setValue("serial/customVIDDescriptor", customVIDDescriptor);
 }
 
+void GlobalSetting::setKeyboardLayout(QString keyboardLayout){
+    m_settings.setValue("keyboard/keyboardLayout", keyboardLayout);
+}
+
+void GlobalSetting::getKeyboardLayout(QString &keyboardLayout){
+    keyboardLayout = m_settings.value("keyboard/keyboardLayout", "US QWERTY").toString();
+}
 /*
 * Convert QString to ByteArray
 */

@@ -25,9 +25,12 @@
 
 Q_LOGGING_CATEGORY(log_core_mouse, "opf.host.mouse")
 
-MouseManager::MouseManager(QObject *parent) : QObject(parent), mouseMoverThread(new MouseMoverThread()) {
+MouseManager::MouseManager(QObject *parent) : QObject(parent), mouseMoverThread(nullptr) {
     qCDebug(log_core_mouse) << "MouseManager created";
-    connect(mouseMoverThread, &MouseMoverThread::finished, mouseMoverThread, &MouseMoverThread::deleteLater);
+}
+
+MouseManager::~MouseManager() {
+    stopAutoMoveMouse();
 }
 
 void MouseManager::setEventCallback(StatusEventCallback* callback) {
@@ -36,7 +39,7 @@ void MouseManager::setEventCallback(StatusEventCallback* callback) {
 
 void MouseManager::handleAbsoluteMouseAction(int x, int y, int mouse_event, int wheelMovement) {
     // stop auto move if it is running
-    if(mouseMoverThread->isRunning()) stopAutoMoveMouse();
+    stopAutoMoveMouse();
 
     QByteArray data;
     uint8_t mappedWheelMovement = mapScrollWheel(wheelMovement);
@@ -105,12 +108,16 @@ uint8_t MouseManager::mapScrollWheel(int delta){
 }
 
 void MouseManager::startAutoMoveMouse() {
-    mouseMoverThread = new MouseMoverThread();
-    mouseMoverThread->start();
+    if (!mouseMoverThread) {
+        mouseMoverThread = new MouseMoverThread();
+        connect(mouseMoverThread, &MouseMoverThread::finished, mouseMoverThread, &MouseMoverThread::deleteLater);
+        mouseMoverThread->start();
+    }
 }
 
 void MouseManager::stopAutoMoveMouse() {
-    if (mouseMoverThread->isRunning()) {
+    if (mouseMoverThread) {
         mouseMoverThread->stop();
+        mouseMoverThread = nullptr;
     }
 }
