@@ -450,6 +450,26 @@ make -j$(nproc)
 sudo make install
 cd "$BUILD_DIR"
 
+# Build libXrender
+echo "Building libXrender from source..."
+XRENDER_VERSION="0.9.11"
+if [ ! -d "libXrender" ]; then
+    curl -L -o libXrender.tar.xz "https://www.x.org/releases/individual/lib/libXrender-${XRENDER_VERSION}.tar.xz"
+    tar xf libXrender.tar.xz
+    mv "libXrender-${XRENDER_VERSION}" libXrender
+    rm libXrender.tar.xz
+fi
+
+cd libXrender
+CFLAGS="-fPIC" PKG_CONFIG_PATH="/usr/lib/pkgconfig:/usr/local/lib/pkgconfig:/usr/share/pkgconfig" \
+./configure --prefix=/usr \
+    --enable-static \
+    --disable-shared
+make -j$(nproc)
+sudo make install
+sudo ldconfig
+cd "$BUILD_DIR"
+
 # Now build libXrandr with explicit paths
 echo "Building libXrandr from source..."
 XRANDR_VERSION="1.5.4"
@@ -540,25 +560,6 @@ sudo make install
 sudo ldconfig
 cd "$BUILD_DIR"
 
-# Build libXrender
-echo "Building libXrender from source..."
-XRENDER_VERSION="0.9.11"
-if [ ! -d "libXrender" ]; then
-    curl -L -o libXrender.tar.xz "https://www.x.org/releases/individual/lib/libXrender-${XRENDER_VERSION}.tar.xz"
-    tar xf libXrender.tar.xz
-    mv "libXrender-${XRENDER_VERSION}" libXrender
-    rm libXrender.tar.xz
-fi
-
-cd libXrender
-CFLAGS="-fPIC" PKG_CONFIG_PATH="/usr/lib/pkgconfig:/usr/local/lib/pkgconfig:/usr/share/pkgconfig" \
-./configure --prefix=/usr \
-    --enable-static \
-    --disable-shared
-make -j$(nproc)
-sudo make install
-sudo ldconfig
-cd "$BUILD_DIR"
 
 # Verify pkg-config files are installed
 echo "Verifying pkg-config files..."
