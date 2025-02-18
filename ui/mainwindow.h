@@ -200,7 +200,6 @@ protected:
 private slots:
     void onRepeatingKeystrokeChanged(int index);
 
-    void onFunctionKeyPressed(int key);
     void onCtrlAltDelPressed();
     
     void onBaudrateMenuTriggered(QAction* action);

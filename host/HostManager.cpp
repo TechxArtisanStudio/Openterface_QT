@@ -139,11 +139,11 @@ void HostManager::sendCtrlAltDel()
     keyboardManager.sendCtrlAltDel();
 }
 
-void HostManager::handleFunctionKey(int qtKeyCode)
+void HostManager::handleFunctionKey(int keyCode, int modifiers)
 {
-    handleKeyboardAction(qtKeyCode, Qt::NoModifier, true);
-    QTimer::singleShot(50, this, [this, qtKeyCode]() {
-        handleKeyboardAction(qtKeyCode, Qt::NoModifier, false);
+    handleKeyboardAction(keyCode, modifiers, true);
+    QTimer::singleShot(50, this, [this, keyCode, modifiers]() {
+        handleKeyboardAction(keyCode, modifiers, false);
     });
 }
 

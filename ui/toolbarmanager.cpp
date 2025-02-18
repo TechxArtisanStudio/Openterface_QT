@@ -19,63 +19,39 @@ const QString ToolbarManager::commonButtonStyle =
         "QPushButton:pressed { "
         "   background-color: palette(dark); "
         "   border: 1px solid palette(shadow); "
+        "}"
+        "QPushButton[openterface_modifier] { "
+        "   color: palette(highlight); "
+        "}"
+        "QPushButton[openterface_modifier]:checked { "
+        "   background-color: palette(dark); "
         "}";
 
-// Define constants for all special keys
-const QString ToolbarManager::KEY_WIN = "Win";
-const QString ToolbarManager::KEY_WIN_TOOLTIP = "Press Windows key.";
-
-const QString ToolbarManager::KEY_PRTSC = "PrtSc";
-const QString ToolbarManager::KEY_PRTSC_TOOLTIP = "Take a screenshot.";
-
-const QString ToolbarManager::KEY_SCRLK = "ScrLk";
-const QString ToolbarManager::KEY_SCRLK_TOOLTIP = "Toggle Scroll Lock.";
-
-const QString ToolbarManager::KEY_PAUSE = "Pause";
-const QString ToolbarManager::KEY_PAUSE_TOOLTIP = "Pause the system.";
-
-const QString ToolbarManager::KEY_INS = "Ins";
-const QString ToolbarManager::KEY_INS_TOOLTIP = "Toggle Insert mode.";
-
-const QString ToolbarManager::KEY_HOME = "Home";
-const QString ToolbarManager::KEY_HOME_TOOLTIP = "Move to the beginning of the line.";
-
-const QString ToolbarManager::KEY_END = "End";
-const QString ToolbarManager::KEY_END_TOOLTIP = "Move to the end of the line.";
-
-const QString ToolbarManager::KEY_PGUP = "PgUp";
-const QString ToolbarManager::KEY_PGUP_TOOLTIP = "Move up one page.";
-
-const QString ToolbarManager::KEY_PGDN = "PgDn";
-const QString ToolbarManager::KEY_PGDN_TOOLTIP = "Move down one page.";
-
-const QString ToolbarManager::KEY_NUMLK = "NumLk";
-const QString ToolbarManager::KEY_NUMLK_TOOLTIP = "Toggle Num Lock.";
-
-const QString ToolbarManager::KEY_CAPSLK = "CapsLk";
-const QString ToolbarManager::KEY_CAPSLK_TOOLTIP = "Toggle Caps Lock.";
-
-const QString ToolbarManager::KEY_ESC = "Esc";
-const QString ToolbarManager::KEY_ESC_TOOLTIP = "Cancel or exit current operation.";
-
-const QString ToolbarManager::KEY_DEL = "Del";
-const QString ToolbarManager::KEY_DEL_TOOLTIP = "Delete the character after the cursor.";
-
-const QList<QPair<QString, QString>> ToolbarManager::specialKeys = {
-    {KEY_WIN, KEY_WIN_TOOLTIP},
-    {KEY_PRTSC, KEY_PRTSC_TOOLTIP},
-    {KEY_SCRLK, KEY_SCRLK_TOOLTIP},
-    {KEY_PAUSE, KEY_PAUSE_TOOLTIP},
-    {KEY_INS, KEY_INS_TOOLTIP},
-    {KEY_HOME, KEY_HOME_TOOLTIP},
-    {KEY_END, KEY_END_TOOLTIP},
-    {KEY_PGUP, KEY_PGUP_TOOLTIP},
-    {KEY_PGDN, KEY_PGDN_TOOLTIP},
-    {KEY_NUMLK, KEY_NUMLK_TOOLTIP},
-    {KEY_CAPSLK, KEY_CAPSLK_TOOLTIP},
-    {KEY_ESC, KEY_ESC_TOOLTIP},
-    {KEY_DEL, KEY_DEL_TOOLTIP}
+const QList<ToolbarManager::KeyInfo> ToolbarManager::modifierKeys = {
+    {"Shift", "Toggle Shift modifier.", Qt::ShiftModifier},
+    {"Ctrl", "Toggle Ctrl modifier.", Qt::ControlModifier},
+    {"Alt", "Toggle Alt modifier.", Qt::AltModifier},
+    {"Win", "Toggle Windows modifier.", Qt::MetaModifier},
 };
+
+const QList<ToolbarManager::KeyInfo> ToolbarManager::specialKeys = {
+    {"Win", "Press Windows key.", Qt::Key_Meta},
+    {"Esc", "Cancel or exit current operation.", Qt::Key_Escape},
+    {"PrtSc", "Take a screenshot.", Qt::Key_Print},
+    {"ScrLk", "Toggle Scroll Lock.", Qt::Key_ScrollLock},
+    {"NumLk", "Toggle Num Lock.", Qt::Key_NumLock},
+    {"CapsLk", "Toggle Caps Lock.", Qt::Key_CapsLock},
+    {"Pause", "Pause the system.", Qt::Key_Pause},
+    {"Ins", "Toggle Insert mode.", Qt::Key_Insert},
+    {"Del", "Delete the character after the cursor.", Qt::Key_Delete},
+    {"Home", "Move to the beginning of the line.", Qt::Key_Home},
+    {"End", "Move to the end of the line.", Qt::Key_End},
+    {"PgUp", "Move up one page.", Qt::Key_PageUp},
+    {"PgDn", "Move down one page.", Qt::Key_PageDown},
+};
+
+const char *ToolbarManager::KEYCODE_PROPERTY = "openterface_keyCode";
+const char *ToolbarManager::MODIFIER_PROPERTY = "openterface_modifier";
 
 ToolbarManager::ToolbarManager(QWidget *parent) : QObject(parent)
 {
@@ -89,42 +65,39 @@ void ToolbarManager::setupToolbar()
     toolbar->setFloatable(false);
     toolbar->setMovable(false);
 
-    // Add Ctrl+Alt+Del button first
-    QPushButton *ctrlAltDelButton = new QPushButton("Ctrl+Alt+Del", toolbar);
-    ctrlAltDelButton->setStyleSheet(commonButtonStyle);
-    ctrlAltDelButton->setToolTip("Send Ctrl+Alt+Del keystroke.");
-    connect(ctrlAltDelButton, &QPushButton::clicked, this, &ToolbarManager::onCtrlAltDelClicked);
-    toolbar->addWidget(ctrlAltDelButton);
+    // Modifier keys
+    for (const auto& keyInfo : modifierKeys) {
+        QPushButton *button = addKeyButton(keyInfo.text, keyInfo.toolTip);
+        button->setCheckable(true);
+        button->setProperty(MODIFIER_PROPERTY, keyInfo.keyCode);
+    }
 
-    // Add a spacer
-    QWidget *spacer = new QWidget();
-    spacer->setFixedWidth(10);
-    toolbar->addWidget(spacer);
+    toolbar->addSeparator();
+
+    // Add Ctrl+Alt+Del button
+    QPushButton *ctrlAltDelButton = addKeyButton("Ctrl+Alt+Del", "Send Ctrl+Alt+Del keystroke.");
+    connect(ctrlAltDelButton, &QPushButton::clicked, this, &ToolbarManager::onCtrlAltDelClicked);
+
+    toolbar->addSeparator();
 
     // Function keys
     for (int i = 1; i <= 12; i++) {
-        QString buttonText = QString("F%1").arg(i);
-        QPushButton *button = createFunctionButton(buttonText);
-        button->setToolTip(QString("Press Function key F%1.").arg(i));
-        toolbar->addWidget(button);
+        QPushButton *button = addKeyButton(QString("F%1").arg(i), QString("Press Function key F%1.").arg(i));
+        button->setProperty(KEYCODE_PROPERTY, Qt::Key_F1 + i - 1);
+        connect(button, &QPushButton::clicked, this, &ToolbarManager::onKeyButtonClicked);
     }
 
-    // Add a spacer
-    QWidget *spacer2 = new QWidget();
-    spacer2->setFixedWidth(10);
-    toolbar->addWidget(spacer2);
+    toolbar->addSeparator();
 
     // Special keys
-    for (const auto &keyPair : specialKeys) {
-        QPushButton *button = new QPushButton(keyPair.first, toolbar);
-        button->setStyleSheet(commonButtonStyle);
-        int width = button->fontMetrics().horizontalAdvance(keyPair.first) + 16; // Add some padding
-        button->setFixedWidth(width);
-        button->setToolTip(keyPair.second); // Set the tooltip
-        connect(button, &QPushButton::clicked, this, &ToolbarManager::onSpecialKeyClicked);
-        toolbar->addWidget(button);
+    for (const auto &keyInfo : specialKeys) {
+        QPushButton *button = addKeyButton(keyInfo.text, keyInfo.toolTip);
+        button->setProperty(KEYCODE_PROPERTY, keyInfo.keyCode);
+        connect(button, &QPushButton::clicked, this, &ToolbarManager::onKeyButtonClicked);
     }
-    
+
+    toolbar->addSeparator();
+
     // Repeating keystroke combo box
     QComboBox *repeatingKeystrokeComboBox = new QComboBox(toolbar);
     repeatingKeystrokeComboBox->setStyleSheet(
@@ -151,24 +124,41 @@ void ToolbarManager::setupToolbar()
             this, &ToolbarManager::onRepeatingKeystrokeChanged);
 }
 
-QPushButton* ToolbarManager::createFunctionButton(const QString &text)
+QPushButton *ToolbarManager::addKeyButton(const QString& text, const QString& toolTip)
 {
     QPushButton *button = new QPushButton(text, toolbar);
     button->setStyleSheet(commonButtonStyle);
-    button->setFixedWidth(40);
-    connect(button, &QPushButton::clicked, this, &ToolbarManager::onFunctionButtonClicked);
+    int width = button->fontMetrics().horizontalAdvance(text) + 16; // Add some padding
+    button->setFixedWidth(std::max(width, 40));
+    button->setToolTip(toolTip);
+    button->setFocusPolicy(Qt::TabFocus);
+    toolbar->addWidget(button);
     return button;
 }
 
-void ToolbarManager::onFunctionButtonClicked()
+void ToolbarManager::onKeyButtonClicked()
 {
     QPushButton *button = qobject_cast<QPushButton*>(sender());
-    if (button) {
-        QString buttonText = button->text();
-        int functionKeyNumber = buttonText.mid(1).toInt();
-        int qtKeyCode = Qt::Key_F1 + functionKeyNumber - 1;
-        HostManager::getInstance().handleFunctionKey(qtKeyCode);
+    if (!button) {
+        return;
     }
+
+    int keyCode = button->property(KEYCODE_PROPERTY).toInt();
+    if (keyCode == 0) {
+        return;
+    }
+
+    int modifiers = QGuiApplication::keyboardModifiers();
+
+    for (const auto& button : toolbar->findChildren<QPushButton*>()) {
+        int modifier = button->property(MODIFIER_PROPERTY).toInt();
+        if (modifier != 0 && button->isChecked()) {
+            button->setChecked(false);
+            modifiers |= modifier;
+        }
+    }
+
+    HostManager::getInstance().handleFunctionKey(keyCode, modifiers);
 }
 
 void ToolbarManager::onCtrlAltDelClicked()
@@ -182,41 +172,6 @@ void ToolbarManager::onRepeatingKeystrokeChanged(int index)
     if (comboBox) {
         int interval = comboBox->itemData(index).toInt();
         HostManager::getInstance().setRepeatingKeystroke(interval);
-    }
-}
-
-void ToolbarManager::onSpecialKeyClicked()
-{
-    QPushButton *button = qobject_cast<QPushButton*>(sender());
-    if (button) {
-        QString keyText = button->text();
-        if (keyText == ToolbarManager::KEY_ESC) {
-            HostManager::getInstance().handleFunctionKey(Qt::Key_Escape);
-        } else if (keyText == ToolbarManager::KEY_INS) {
-            HostManager::getInstance().handleFunctionKey(Qt::Key_Insert);
-        } else if (keyText == ToolbarManager::KEY_DEL) {
-            HostManager::getInstance().handleFunctionKey(Qt::Key_Delete);
-        } else if (keyText == ToolbarManager::KEY_HOME) {
-            HostManager::getInstance().handleFunctionKey(Qt::Key_Home);
-        } else if (keyText == ToolbarManager::KEY_END) {
-            HostManager::getInstance().handleFunctionKey(Qt::Key_End);
-        } else if (keyText == ToolbarManager::KEY_PGUP) {
-            HostManager::getInstance().handleFunctionKey(Qt::Key_PageUp);
-        } else if (keyText == ToolbarManager::KEY_PGDN) {
-            HostManager::getInstance().handleFunctionKey(Qt::Key_PageDown);
-        } else if (keyText == ToolbarManager::KEY_PRTSC) {
-            HostManager::getInstance().handleFunctionKey(Qt::Key_Print);
-        } else if (keyText == ToolbarManager::KEY_SCRLK) {
-            HostManager::getInstance().handleFunctionKey(Qt::Key_ScrollLock);
-        } else if (keyText == ToolbarManager::KEY_PAUSE) {
-            HostManager::getInstance().handleFunctionKey(Qt::Key_Pause);
-        } else if (keyText == ToolbarManager::KEY_NUMLK) {
-            HostManager::getInstance().handleFunctionKey(Qt::Key_NumLock);
-        } else if (keyText == ToolbarManager::KEY_CAPSLK) {
-            HostManager::getInstance().handleFunctionKey(Qt::Key_CapsLock);
-        } else if (keyText == ToolbarManager::KEY_WIN) {
-            HostManager::getInstance().handleFunctionKey(Qt::Key_Meta);
-        }
     }
 }
 
