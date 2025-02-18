@@ -728,7 +728,7 @@ cd build
 cmake -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" \
     -DCMAKE_PREFIX_PATH="$INSTALL_PREFIX" \
     -DBUILD_SHARED_LIBS=OFF \
-    -DCMAKE_EXE_LINKER_FLAGS="-lXau" \
+    -DCMAKE_EXE_LINKER_FLAGS="-lXau -lXdmcp" \
     ..
 
 echo "Building qtshadertools..."
@@ -756,18 +756,3 @@ for module in "${MODULES[@]}"; do
         cmake --install .
     fi
 done
-
-# Quick fix: Add -loleaut32 to qnetworklistmanager.prl
-PRL_FILE="$INSTALL_PREFIX/plugins/networkinformation/qnetworklistmanager.prl"
-if [ -f "$PRL_FILE" ]; then
-    echo "Updating $PRL_FILE to include -loleaut32..."
-    echo "QMAKE_PRL_LIBS += -loleaut32" >> "$PRL_FILE"
-else
-    echo "Warning: $PRL_FILE not found. Please check the build process."
-fi
-
-# Check for Qt6Config.cmake
-if [ ! -f "$INSTALL_PREFIX/lib/cmake/Qt6/Qt6Config.cmake" ]; then
-    echo "Error: Qt6Config.cmake not found. Please check the installation."
-    exit 1
-fi
