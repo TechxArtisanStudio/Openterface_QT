@@ -605,7 +605,7 @@ if [ -f "$LIBXKBCOMMON_MESON_FILE" ]; then
     sed -i "s/\(xcb_dep = dependency('xcb'\),[^)]*)/\1)/" "$LIBXKBCOMMON_MESON_FILE"
     sed -i "s/\(xcb_xkb_dep = dependency('xcb-xkb'\),[^)]*)/\1)/" "$LIBXKBCOMMON_MESON_FILE"
     sed -i "/xcb_xkb_dep = dependency('xcb-xkb')/axau_dep = dependency('xau', static: true)" "$LIBXKBCOMMON_MESON_FILE"
-    sed -i "/xau_dep = ependency('xau', static: true)/axdmcp_dep = dependency('xdmcp', static: true)    ," "$LIBXKBCOMMON_MESON_FILE" 
+    sed -i "/xau_dep = dependency('xau', static: true)/axdmcp_dep = dependency('xdmcp', static: true)    ," "$LIBXKBCOMMON_MESON_FILE" 
  
  
     sed -i "/xcb_xkb_dep,/axau_dep," "$LIBXKBCOMMON_MESON_FILE"
