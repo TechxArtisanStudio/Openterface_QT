@@ -401,32 +401,6 @@ make -j$(nproc)
 sudo make install
 cd "$BUILD_DIR"
 
-# Build libGLX
-echo "Building libGLX from source..."
-GLX_VERSION="1.7.0"
-if [ ! -d "libglx" ]; then
-    curl -L -o libglx.tar.xz "https://www.x.org/releases/individual/lib/libglvnd-${GLX_VERSION}.tar.xz"
-    tar xf libglx.tar.xz
-    mv "libglvnd-${GLX_VERSION}" libglx
-    rm libglx.tar.xz
-fi
-
-cd libglx
-mkdir -p build
-cd build
-meson setup --prefix=/usr \
-    -Ddefault_library=static \
-    -Dx11=enabled \
-    -Dglx=enabled \
-    -Degl=false \
-    -Dgles1=false \
-    -Dgles2=false \
-    -Dheaders=true \
-    ..
-ninja
-sudo ninja install
-cd "$BUILD_DIR"
-
 # Build xorgproto (provides core X11 headers)
 echo "Building xorgproto from source..."
 XORGPROTO_VERSION="2023.2"
