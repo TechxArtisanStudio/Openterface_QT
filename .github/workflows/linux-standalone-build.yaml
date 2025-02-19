@@ -92,12 +92,6 @@ jobs:
         run: |
           mkdir ${{ env.SOURCE_DIR }}/drivers
           cp driver/linux/* ${{ env.SOURCE_DIR }}/drivers/
-      - name: Install OpenGL ES Development Packages
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            libgles2-mesa-dev \
-            libegl1-mesa-dev
 
       - name: Build Standalone Executable
         working-directory: ${{ runner.temp }}/build
