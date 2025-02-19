@@ -95,6 +95,7 @@ jobs:
       - name: Build Standalone Executable
         working-directory: ${{ runner.temp }}/build
         run: |
+          sudo apt-get install -y libgles2-mesa-dev
           echo "Building with qmake..."
           /opt/Qt6/bin/qmake -r "${{ env.SOURCE_DIR }}/openterfaceQT.pro" || (echo "qmake failed. Please check the .pro file and paths." && exit 1)
 
