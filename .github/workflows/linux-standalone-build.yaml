@@ -59,7 +59,8 @@ jobs:
         if: steps.cache-qt.outputs.cache-hit == 'true'
         run: |
           echo "Qt dependencies already built"
-          cd /opt/qt-build
+          cd /opt
+          bash ${{ env.SOURCE_DIR }}/docker/build-static-qt-dependency.sh --no-build
           
 
 

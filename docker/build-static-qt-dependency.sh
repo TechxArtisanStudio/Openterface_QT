@@ -81,7 +81,7 @@ fi
 if $INSTALL_ENABLED; then
     echo "Installing ALSA $ALSA_VERSION..."
     cd "$BUILD_DIR"/alsa-lib
-    sudo ninja install
+    sudo make install
 fi
 cd "$BUILD_DIR"
 
