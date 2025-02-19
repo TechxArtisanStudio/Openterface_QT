@@ -97,6 +97,12 @@ jobs:
           echo "Setting LD_LIBRARY_PATH..."
           export LD_LIBRARY_PATH=/usr/lib:/usr/local/lib:$LD_LIBRARY_PATH
 
+          echo "Listing X11/extensions..."
+          ls /usr/include/X11/extensions
+          
+          echo "Finding XRenderSetSubpixelOrder..."
+          grep XRenderSetSubpixelOrder /usr/include/X11/extensions/*
+
           echo "Configuring with CMake..."
           cmake -S "${{ env.SOURCE_DIR }}" -B . \
               -DCMAKE_BUILD_TYPE=Release \
