@@ -103,6 +103,7 @@ jobs:
         working-directory: ${{ runner.temp }}/build
         run: |
           echo "Building with qmake..."
+          ls /usr/lib/libavformat*
           /opt/Qt6/bin/qmake -r "${{ env.SOURCE_DIR }}/openterfaceQT.pro" || (echo "qmake failed. Please check the .pro file and paths." && exit 1)
 
           echo "Building with make..."
