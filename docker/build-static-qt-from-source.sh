@@ -17,6 +17,16 @@ MODULES=("qtbase" "qtshadertools" "qtmultimedia" "qtsvg" "qtserialport")
 DOWNLOAD_BASE_URL="https://download.qt.io/archive/qt/$QT_MAJOR_VERSION/$QT_VERSION/submodules"
 
 
+# Download and extract modules
+for module in "${MODULES[@]}"; do
+    if [ ! -d "$module" ]; then
+        curl -L -o "$module.zip" "$DOWNLOAD_BASE_URL/$module-everywhere-src-$QT_VERSION.zip"
+        unzip -q "$module.zip"
+        mv "$module-everywhere-src-$QT_VERSION" "$module"
+        rm "$module.zip"
+    fi
+done
+
 sudo apt-get install -y libgl1-mesa-dev libglu1-mesa-dev libxrender-dev libxi-dev
 
 # Build qtbase first
