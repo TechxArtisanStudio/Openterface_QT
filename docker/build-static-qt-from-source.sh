@@ -87,10 +87,9 @@ for module in "${MODULES[@]}"; do
         cmake -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" \
             -DCMAKE_PREFIX_PATH="$INSTALL_PREFIX" \
             -DBUILD_SHARED_LIBS=OFF \
-            -DCMAKE_EXE_LINKER_FLAGS="-L/usr/local/libs -lavformat -lavcodec -lavutil -lswresample -lswscale" \
-            -DCMAKE_CXX_FLAGS="-I/usr/local/include" \
             ..
 
+        
         echo "Building $module..."
         cmake --build .
         echo "Installing $module..."

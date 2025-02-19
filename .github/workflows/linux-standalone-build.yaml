@@ -86,6 +86,9 @@ jobs:
           }
 
           echo "QMAKE_LFLAGS += -static -static-libgcc -static-libstdc++" >> "${{ env.SOURCE_DIR }}/openterfaceQT.pro"
+          echo "QMAKE_LFLAGS += -L/usr/local/lib" >> "${{ env.SOURCE_DIR }}/openterfaceQT.pro"
+          echo "QMAKE_LFLAGS += -lavformat -lavcodec -lavutil -lswresample -lswscale" >> "${{ env.SOURCE_DIR }}/openterfaceQT.pro"
+          echo "QMAKE_LFLAGS += -lXau -lXdmcp" >> "${{ env.SOURCE_DIR }}/openterfaceQT.pro"
 
       - name: Prepare Driver Files
         run: |
@@ -103,12 +106,10 @@ jobs:
         working-directory: ${{ runner.temp }}/build
         run: |
           echo "Building with qmake..."
-          export LD_LIBRARY_PATH=/usr/local/lib
+          ls /usr/local/lib
 
           /opt/Qt6/bin/qmake -r "${{ env.SOURCE_DIR }}/openterfaceQT.pro" || (echo "qmake failed. Please check the .pro file and paths." && exit 1)
 
-          # Print the generated Makefile for debugging
-          cat Makefile
 
           echo "Building with make..."
           make VERBOSE=1 -j2 || (echo "make failed. Please check the build configuration." && exit 1)
