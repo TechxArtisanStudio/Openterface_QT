@@ -86,7 +86,7 @@ jobs:
           }
 
           echo "QMAKE_LFLAGS += -static -static-libgcc -static-libstdc++" >> "${{ env.SOURCE_DIR }}/openterfaceQT.pro"
-          echo "LIBS += -L/usr/local/lib -lavformat -lavcodec -lavutil -lswresample -lswscale -lpulse -lEGL -lGLESv2" >> "${{ env.SOURCE_DIR }}/openterfaceQT.pro"
+          echo "LIBS += -L/usr/local/lib -Wl,-rpath,/usr/local/lib -lavformat -lavcodec -lavutil -lswresample -lswscale -lpulse -lEGL -lGLESv2" >> "${{ env.SOURCE_DIR }}/openterfaceQT.pro"
 
       - name: Prepare Driver Files
         run: |
@@ -105,7 +105,8 @@ jobs:
         run: |
           echo "Building with qmake..."
           export LD_LIBRARY_PATH=/usr/local/lib
-          ls /usr/local/lib/*
+          ls /usr/local/lib/*  # This will list the libraries to confirm they are present
+          cat "${{ env.SOURCE_DIR }}/openterfaceQT.pro"
           /opt/Qt6/bin/qmake -r "${{ env.SOURCE_DIR }}/openterfaceQT.pro" || (echo "qmake failed. Please check the .pro file and paths." && exit 1)
 
           echo "Building with make..."
