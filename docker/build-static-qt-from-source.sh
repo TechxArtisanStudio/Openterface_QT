@@ -18,6 +18,7 @@ DOWNLOAD_BASE_URL="https://download.qt.io/archive/qt/$QT_MAJOR_VERSION/$QT_VERSI
 
 
 # Download and extract modules
+cd "$BUILD_DIR"
 for module in "${MODULES[@]}"; do
     if [ ! -d "$module" ]; then
         curl -L -o "$module.zip" "$DOWNLOAD_BASE_URL/$module-everywhere-src-$QT_VERSION.zip"
