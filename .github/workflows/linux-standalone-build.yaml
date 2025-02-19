@@ -83,6 +83,14 @@ jobs:
             libgles2-mesa-dev \
             libegl1-mesa-dev
 
+      - name: Install Required Packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libglib2.0-dev \
+            libgobject-2.0-dev \
+            libpcre2-dev
+
       - name: Build Standalone Executable
         working-directory: ${{ runner.temp }}/build
         run: |
