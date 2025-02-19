@@ -46,6 +46,7 @@ LIBXDMCP_VERSION=1.1.4
 FFMPEG_VERSION=6.1.1
 XKB_CONFIG_VERSION=2.41
 LIBXAU_VERSION=1.0.12
+NASM_VERSION="2.16.01"
 
 # Create build directory
 BUILD_DIR=$(pwd)/qt-build
@@ -889,7 +890,6 @@ cd "$BUILD_DIR"
 # Install NASM
 if $BUILD_ENABLED; then
     echo "Installing NASM..."
-    NASM_VERSION="2.16.01"
     curl -L -o nasm.tar.xz "https://www.nasm.us/pub/nasm/releasebuilds/${NASM_VERSION}/nasm-${NASM_VERSION}.tar.xz"
     tar xf nasm.tar.xz
     rm nasm.tar.xz

@@ -62,8 +62,6 @@ jobs:
           cd /opt
           bash ${{ env.SOURCE_DIR }}/docker/build-static-qt-dependency.sh --no-build
           
-
-
       - name: Build Qt Statically
         if: steps.cache-qt.outputs.cache-hit != 'true'
         run: |
