@@ -40,11 +40,21 @@ XCB_UTIL_VERSION=0.4.1
 XCB_UTIL_WM_VERSION=0.4.2
 XCB_UTIL_KEYSYMS_VERSION=0.4.1
 XCB_UTIL_RENDERUTIL_VERSION=0.3.10
+XAU_VERSION="1.0.11"
 XORG_MACROS_VERSION=1.19.3
 XPROTO_VERSION=7.0.31
+XRANDR_VERSION="1.5.2"
+XRENDER_VERSION="0.9.11"
+XTRANS_VERSION="1.5.0"
+XEXTPROTO_VERSION="7.3.0"
+XEXT_VERSION="1.3.5"
+X11_VERSION="1.8.7"
+RANDRPROTO_VERSION="1.5.0"
+RENDERPROTO_VERSION=0.11.1
 LIBXDMCP_VERSION=1.1.4
 FFMPEG_VERSION=6.1.1
 XKB_CONFIG_VERSION=2.41
+XORGPROTO_VERSION=2023.2
 LIBXAU_VERSION=1.0.12
 NASM_VERSION="2.16.01"
 
@@ -343,7 +353,6 @@ export PKG_CONFIG_PATH="/usr/lib/pkgconfig:/usr/local/lib/pkgconfig:/usr/share/p
 # Build or Install randrproto (part of x11proto-randr)
 if $BUILD_ENABLED; then
     echo "Building randrproto from source..."
-    RANDRPROTO_VERSION="1.5.0"
     if [ ! -d "randrproto" ]; then
         curl -L -o randrproto.tar.bz2 "https://www.x.org/releases/individual/proto/randrproto-${RANDRPROTO_VERSION}.tar.bz2"
         tar xf randrproto.tar.bz2
@@ -366,7 +375,6 @@ cd "$BUILD_DIR"
 # Build or Install renderproto
 if $BUILD_ENABLED; then
     echo "Building renderproto from source..."
-    RENDERPROTO_VERSION="0.11.1"
     if [ ! -d "renderproto" ]; then
         curl -L -o renderproto.tar.bz2 "https://www.x.org/releases/individual/proto/renderproto-${RENDERPROTO_VERSION}.tar.bz2"
         tar xf renderproto.tar.bz2
@@ -389,7 +397,6 @@ cd "$BUILD_DIR"
 # Build or Install xextproto
 if $BUILD_ENABLED; then
     echo "Building xextproto from source..."
-    XEXTPROTO_VERSION="7.3.0"
     if [ ! -d "xextproto" ]; then
         curl -L -o xextproto.tar.bz2 "https://www.x.org/releases/individual/proto/xextproto-${XEXTPROTO_VERSION}.tar.bz2"
         tar xf xextproto.tar.bz2
@@ -484,7 +491,6 @@ cd "$BUILD_DIR"
 # Build or Install libXau first
 if $BUILD_ENABLED; then
     echo "Building libXau from source..."
-    XAU_VERSION="1.0.11"
     if [ ! -d "libXau" ]; then
         curl -L -o libXau.tar.xz "https://www.x.org/releases/individual/lib/libXau-${XAU_VERSION}.tar.xz"
         tar xf libXau.tar.xz
@@ -509,7 +515,6 @@ cd "$BUILD_DIR"
 # Build or Install xorgproto (provides core X11 headers)
 if $BUILD_ENABLED; then
     echo "Building xorgproto from source..."
-    XORGPROTO_VERSION="2023.2"
     if [ ! -d "xorgproto" ]; then
         curl -L -o xorgproto.tar.xz "https://www.x.org/releases/individual/proto/xorgproto-${XORGPROTO_VERSION}.tar.xz"
         tar xf xorgproto.tar.xz
@@ -534,7 +539,6 @@ cd "$BUILD_DIR"
 # Build or Install xtrans
 if $BUILD_ENABLED; then
     echo "Building xtrans from source..."
-    XTRANS_VERSION="1.5.0"
     if [ ! -d "xtrans" ]; then
         curl -L -o xtrans.tar.xz "https://www.x.org/releases/individual/lib/xtrans-${XTRANS_VERSION}.tar.xz"
         tar xf xtrans.tar.xz
@@ -557,7 +561,6 @@ cd "$BUILD_DIR"
 # Build or Install xcb-proto first
 if $BUILD_ENABLED; then
     echo "Building xcb-proto..."
-    XCB_PROTO_VERSION="1.16.0"
     if [ ! -d "xcb-proto" ]; then
         curl -L -o xcb-proto.tar.xz "https://xorg.freedesktop.org/archive/individual/proto/xcb-proto-${XCB_PROTO_VERSION}.tar.xz"
         tar xf xcb-proto.tar.xz
@@ -580,7 +583,6 @@ cd "$BUILD_DIR"
 # Build or Install libxcb
 if $BUILD_ENABLED; then
     echo "Building libxcb..."
-    XCB_VERSION="1.16"
     if [ ! -d "libxcb" ]; then
         curl -L -o libxcb.tar.xz "https://xorg.freedesktop.org/archive/individual/lib/libxcb-${XCB_VERSION}.tar.xz"
         tar xf libxcb.tar.xz
@@ -607,7 +609,6 @@ cd "$BUILD_DIR"
 # Now continue with libX11 build
 if $BUILD_ENABLED; then
     echo "Building libX11 from source..."
-    X11_VERSION="1.8.7"
     if [ ! -d "libX11" ]; then
         curl -L -o libX11.tar.xz "https://www.x.org/releases/individual/lib/libX11-${X11_VERSION}.tar.xz"
         tar xf libX11.tar.xz
@@ -637,7 +638,6 @@ cd "$BUILD_DIR"
 # Build or Install libXrender
 if $BUILD_ENABLED; then
     echo "Building libXrender from source..."
-    XRENDER_VERSION="0.9.11"
     if [ ! -d "libXrender" ]; then
         curl -L -o libXrender.tar.xz "https://www.x.org/releases/individual/lib/libXrender-${XRENDER_VERSION}.tar.xz"
         tar xf libXrender.tar.xz
@@ -664,7 +664,6 @@ cd "$BUILD_DIR"
 # Build or Install libXext
 if $BUILD_ENABLED; then
     echo "Building libXext from source..."
-    XEXT_VERSION="1.3.5"
     if [ ! -d "libXext" ]; then
         curl -L -o libXext.tar.xz "https://www.x.org/releases/individual/lib/libXext-${XEXT_VERSION}.tar.xz"
         tar xf libXext.tar.xz
@@ -692,7 +691,7 @@ cd "$BUILD_DIR"
 # Now build libXrandr with explicit paths
 if $BUILD_ENABLED; then
     echo "Building libXrandr from source..."
-    XRANDR_VERSION="1.5.2"
+
     if [ ! -d "libXrandr" ]; then
         curl -L -o libXrandr.tar.gz "https://www.x.org/releases/individual/lib/libXrandr-${XRANDR_VERSION}.tar.gz"
         tar xf libXrandr.tar.gz
