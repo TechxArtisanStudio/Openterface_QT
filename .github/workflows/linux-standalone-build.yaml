@@ -89,7 +89,11 @@ jobs:
           sudo apt-get install -y \
             libglib2.0-dev \
             libpcre2-dev \
-            libgirepository1.0-dev
+            libgirepository1.0-dev \
+            libxrandr-dev \
+            libxrender-dev \
+            libxext-dev \
+            libxi-dev
 
       - name: Build Standalone Executable
         working-directory: ${{ runner.temp }}/build
