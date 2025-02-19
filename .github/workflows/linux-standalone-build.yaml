@@ -93,7 +93,6 @@ jobs:
           mkdir ${{ env.SOURCE_DIR }}/drivers
           cp driver/linux/* ${{ env.SOURCE_DIR }}/drivers/
 
-
       - name: Install OpenGL ES Development Packages
         run: |
           sudo apt-get update
