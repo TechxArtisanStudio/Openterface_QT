@@ -109,6 +109,9 @@ jobs:
           cat "${{ env.SOURCE_DIR }}/openterfaceQT.pro"
           /opt/Qt6/bin/qmake -r "${{ env.SOURCE_DIR }}/openterfaceQT.pro" || (echo "qmake failed. Please check the .pro file and paths." && exit 1)
 
+          # Print the generated Makefile for debugging
+          cat Makefile
+
           echo "Building with make..."
           make VERBOSE=1 -j2 || (echo "make failed. Please check the build configuration." && exit 1)
 
