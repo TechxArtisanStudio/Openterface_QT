@@ -86,14 +86,15 @@ jobs:
       - name: Build Standalone Executable
         working-directory: ${{ runner.temp }}/build
         run: |
+          echo "Setting LD_LIBRARY_PATH..."
+          export LD_LIBRARY_PATH=/usr/lib:/usr/local/lib:$LD_LIBRARY_PATH
+
           echo "Configuring with CMake..."
           cmake -S "${{ env.SOURCE_DIR }}" -B . \
               -DCMAKE_BUILD_TYPE=Release \
               -DBUILD_SHARED_LIBS=OFF \
               -DCMAKE_PREFIX_PATH=/opt/Qt6 \
-              -DCMAKE_INSTALL_PREFIX=release \
-              -DCMAKE_BUILD_TYPE=Release \
-              -DCMAKE_PREFIX_PATH=/opt/Qt6 
+              -DCMAKE_INSTALL_PREFIX=release 
 
           echo "Building with CMake..."
           cmake --build . --target openterfaceQT -- -j2 || (echo "CMake build failed. Please check the build configuration." && exit 1)
