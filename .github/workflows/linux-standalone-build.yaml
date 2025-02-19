@@ -107,11 +107,12 @@ jobs:
         run: |
           echo "Building with qmake..."
           ls /usr/local/lib
-
+          export LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH
           /opt/Qt6/bin/qmake -r "${{ env.SOURCE_DIR }}/openterfaceQT.pro" || (echo "qmake failed. Please check the .pro file and paths." && exit 1)
 
 
           echo "Building with make..."
+          make clean
           make VERBOSE=1 -j2 || (echo "make failed. Please check the build configuration." && exit 1)
 
           if [ ! -f release/openterfaceQT ]; then
