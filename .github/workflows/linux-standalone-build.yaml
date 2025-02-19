@@ -71,13 +71,6 @@ jobs:
         run: |
           mkdir ${{ runner.temp }}/build
 
-      - name: Build Standalone Executable
-        working-directory: ${{ runner.temp }}/build
-        run: |
-          echo "Checking Qt configuration..."
-          /opt/Qt6/bin/qmake -query
-          echo "/opt/Qt6/bin" >> $GITHUB_ENV
-
       - name: Prepare .pro File for Static Build
         run: |
           echo "Checking and appending static build configuration to .pro file..."
@@ -103,7 +96,7 @@ jobs:
         working-directory: ${{ runner.temp }}/build
         run: |
           echo "Building with qmake..."
-          qmake -r "${{ env.SOURCE_DIR }}/openterfaceQT.pro" || (echo "qmake failed. Please check the .pro file and paths." && exit 1)
+          /opt/Qt6/bin/qmake -r "${{ env.SOURCE_DIR }}/openterfaceQT.pro" || (echo "qmake failed. Please check the .pro file and paths." && exit 1)
 
           echo "Building with make..."
           make VERBOSE=1 -j2 || (echo "make failed. Please check the build configuration." && exit 1)
