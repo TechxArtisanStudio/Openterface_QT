@@ -90,6 +90,13 @@ jobs:
             libglib2.0-dev \
             libpcre2-dev
 
+      - name: Add LIBXRENDER_LIBRARY Check to CMakeLists.txt
+        run: |
+          echo "if(DEFINED LIBXRENDER_LIBRARY)" >> "${{ env.SOURCE_DIR }}/CMakeLists.txt"
+          echo "    message(STATUS \"Using custom libXrender library: \${LIBXRENDER_LIBRARY}\")" >> "${{ env.SOURCE_DIR }}/CMakeLists.txt"
+          echo "    target_link_libraries(openterfaceQT PRIVATE \${LIBXRENDER_LIBRARY})" >> "${{ env.SOURCE_DIR }}/CMakeLists.txt"
+          echo "endif()" >> "${{ env.SOURCE_DIR }}/CMakeLists.txt"
+
       - name: Build Standalone Executable
         working-directory: ${{ runner.temp }}/build
         run: |
@@ -101,7 +108,9 @@ jobs:
               -DCMAKE_BUILD_TYPE=Release \
               -DBUILD_SHARED_LIBS=OFF \
               -DCMAKE_PREFIX_PATH=/opt/Qt6 \
-              -DCMAKE_INSTALL_PREFIX=release 
+              -DCMAKE_INSTALL_PREFIX=release \
+              -DLIBXRENDER_INCLUDE_DIR=/usr/include \
+              -DLIBXRENDER_LIBRARY=/usr/lib/libXrender.a
 
           echo "Building with CMake..."
           cmake --build . --target openterfaceQT -- -j2 || (echo "CMake build failed. Please check the build configuration." && exit 1)
