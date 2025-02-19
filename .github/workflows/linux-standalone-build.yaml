@@ -93,11 +93,18 @@ jobs:
           mkdir ${{ env.SOURCE_DIR }}/drivers
           cp driver/linux/* ${{ env.SOURCE_DIR }}/drivers/
 
+
+      - name: Install OpenGL ES Development Packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libgles2-mesa-dev \
+            libegl1-mesa-dev
+
       - name: Build Standalone Executable
         working-directory: ${{ runner.temp }}/build
         run: |
           echo "Building with qmake..."
-          ls /usr/local/lib/libavformat*
           /opt/Qt6/bin/qmake -r "${{ env.SOURCE_DIR }}/openterfaceQT.pro" || (echo "qmake failed. Please check the .pro file and paths." && exit 1)
 
           echo "Building with make..."
