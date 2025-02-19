@@ -97,7 +97,7 @@
           - name: Prepare Driver Files
             run: |
               mkdir ${{ env.SOURCE_DIR }}\drivers
-              copy driver\windows\v3.9\* ${{ env.SOURCE_DIR }}\drivers\
+              copy driver\windows\* ${{ env.SOURCE_DIR }}\drivers\
 
           - name: Build Standalone Executable
             working-directory: ${{ runner.temp }}\build

@@ -60,14 +60,15 @@ cmake --install .
 
 
 # Build qtshadertools
-echo "Building qtshadertools..."
+echo "Building x..."
 cd "$BUILD_DIR/qtshadertools"
 mkdir build
 cd build
 cmake -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" \
     -DCMAKE_PREFIX_PATH="$INSTALL_PREFIX" \
     -DBUILD_SHARED_LIBS=OFF \
-    -DCMAKE_EXE_LINKER_FLAGS="/usr/lib/libXau.a /usr/lib/libXau.a" \
+    -DFEATURE_static_runtime=ON \
+    -DCMAKE_EXE_LINKER_FLAGS="/usr/lib/libXau.a /usr/lib/libXdmcp.a" \
     ..
 
 echo "Building qtshadertools..."
