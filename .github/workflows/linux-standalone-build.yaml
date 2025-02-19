@@ -110,8 +110,8 @@ jobs:
           cp /usr/local/lib/libavutil.a ${{ runner.temp }}/build/
           cp /usr/local/lib/libswresample.a ${{ runner.temp }}/build/
           cp /usr/local/lib/libswscale.a ${{ runner.temp }}/build/
-          cp /usr/local/lib/libXau.a ${{ runner.temp }}/build/
-          cp /usr/local/lib/libXdmcp.a ${{ runner.temp }}/build/
+          cp /usr/lib/libXau.a ${{ runner.temp }}/build/
+          cp /usr/lib/libXdmcp.a ${{ runner.temp }}/build/
 
       - name: Build Standalone Executable
         working-directory: ${{ runner.temp }}/build
