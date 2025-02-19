@@ -162,7 +162,7 @@ fi
 
 if $INSTALL_ENABLED; then
     echo "Installing GLib $GLIB_VERSION..."
-    cd "$BUILD_DIR"/glib
+    cd "$BUILD_DIR"/glib/build
     sudo ninja install
 fi
 cd "$BUILD_DIR"
@@ -216,7 +216,7 @@ fi
 
 if $INSTALL_ENABLED; then
     echo "Installing PulseAudio $PULSEAUDIO_VERSION..."
-    cd "$BUILD_DIR"/pulseaudio
+    cd "$BUILD_DIR"/pulseaudio/build
     sudo ninja install
 fi
 cd "$BUILD_DIR"
@@ -331,7 +331,7 @@ fi
 
 if $INSTALL_ENABLED; then
     echo "Installing GLib $GLIB_VERSION..."
-    cd "$BUILD_DIR"/glib
+    cd "$BUILD_DIR"/glib/build
     sudo ninja install
 fi
 cd "$BUILD_DIR"
@@ -430,7 +430,7 @@ fi
 
 if $INSTALL_ENABLED; then
     echo "Installing xkeyboard-config $XKB_CONFIG_VERSION..."
-    cd "$BUILD_DIR"/xkeyboard-config
+    cd "$BUILD_DIR"/xkeyboard-config/build
     sudo ninja install
 fi
 cd "$BUILD_DIR"
