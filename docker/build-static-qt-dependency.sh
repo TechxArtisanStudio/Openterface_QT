@@ -158,8 +158,6 @@ if $BUILD_ENABLED; then
         -Dtests=false \
         ..
     ninja
-    sudo ninja install
-    cd "$BUILD_DIR"
 fi
 
 if $INSTALL_ENABLED; then
