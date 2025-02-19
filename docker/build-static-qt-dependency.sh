@@ -99,6 +99,32 @@ make -j$(nproc)
 sudo make install
 cd "$BUILD_DIR"
 
+# Build D-Bus
+echo "Building D-Bus $DBUS_VERSION from source..."
+if [ ! -d "dbus" ]; then
+    curl -L -o dbus.tar.xz "https://dbus.freedesktop.org/releases/dbus/dbus-${DBUS_VERSION}.tar.xz"
+    tar xf dbus.tar.xz
+    mv "dbus-${DBUS_VERSION}" dbus
+    rm dbus.tar.xz
+fi
+
+cd dbus
+# Run autogen if configure doesn't exist
+if [ ! -f "./configure" ]; then
+    ./autogen.sh
+fi
+CFLAGS="-fPIC" CXXFLAGS="-fPIC" ./configure --prefix=/usr \
+    --enable-static \
+    --disable-shared \
+    --disable-systemd \
+    --disable-selinux \
+    --disable-xml-docs \
+    --disable-doxygen-docs \
+    --disable-ducktype-docs
+make -j$(nproc)
+sudo make install
+cd "$BUILD_DIR"
+
 # Build PulseAudio
 echo "Building PulseAudio $PULSEAUDIO_VERSION from source..."
 if [ ! -d "pulseaudio" ]; then
@@ -204,32 +230,6 @@ fi
 
 cd fontconfig
 ./configure --prefix=/usr --enable-static --disable-shared
-make -j$(nproc)
-sudo make install
-cd "$BUILD_DIR"
-
-# Build D-Bus
-echo "Building D-Bus $DBUS_VERSION from source..."
-if [ ! -d "dbus" ]; then
-    curl -L -o dbus.tar.xz "https://dbus.freedesktop.org/releases/dbus/dbus-${DBUS_VERSION}.tar.xz"
-    tar xf dbus.tar.xz
-    mv "dbus-${DBUS_VERSION}" dbus
-    rm dbus.tar.xz
-fi
-
-cd dbus
-# Run autogen if configure doesn't exist
-if [ ! -f "./configure" ]; then
-    ./autogen.sh
-fi
-CFLAGS="-fPIC" CXXFLAGS="-fPIC" ./configure --prefix=/usr \
-    --enable-static \
-    --disable-shared \
-    --disable-systemd \
-    --disable-selinux \
-    --disable-xml-docs \
-    --disable-doxygen-docs \
-    --disable-ducktype-docs
 make -j$(nproc)
 sudo make install
 cd "$BUILD_DIR"
