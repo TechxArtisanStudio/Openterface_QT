@@ -90,7 +90,6 @@ jobs:
             libglib2.0-dev \
             libpcre2-dev \
             libgirepository1.0-dev \
-            libxrender-dev \
             libxext-dev \
             libxi-dev
 
