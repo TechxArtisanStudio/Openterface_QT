@@ -8,11 +8,6 @@ find_package(QT NAMES Qt5 Qt6 REQUIRED COMPONENTS Core)
 find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Concurrent Gui Multimedia MultimediaWidgets Network SerialPort Svg)
 find_package(Qt${QT_VERSION_MAJOR} OPTIONAL_COMPONENTS Widgets)
 
-if(DEFINED LIBXRENDER_LIBRARY)
-    message(STATUS "Using custom libXrender library: ${LIBXRENDER_LIBRARY}")
-    target_link_libraries(openterfaceQT PRIVATE ${LIBXRENDER_LIBRARY})
-endif()
-
 qt_standard_project_setup()
 
 qt_add_executable(openterfaceQT WIN32 MACOSX_BUNDLE
@@ -73,6 +68,11 @@ target_link_libraries(openterfaceQT PRIVATE
     Qt::SerialPort
     Qt::Svg
 )
+
+if(DEFINED LIBXRENDER_LIBRARY)
+    message(STATUS "Using custom libXrender library: ${LIBXRENDER_LIBRARY}")
+    target_link_libraries(openterfaceQT PRIVATE ${LIBXRENDER_LIBRARY})
+endif()
 
 
 # Resources:
