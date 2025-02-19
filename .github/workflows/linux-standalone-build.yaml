@@ -87,7 +87,13 @@ jobs:
         working-directory: ${{ runner.temp }}/build
         run: |
           echo "Configuring with CMake..."
-          cmake -S "${{ env.SOURCE_DIR }}" -B . -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF || (echo "CMake configuration failed. Please check the CMakeLists.txt and paths." && exit 1)
+          cmake -S "${{ env.SOURCE_DIR }}" -B . \
+              -DCMAKE_BUILD_TYPE=Release \
+              -DBUILD_SHARED_LIBS=OFF \
+              -DCMAKE_PREFIX_PATH=/opt/Qt6 \
+              -DCMAKE_INSTALL_PREFIX=release \
+              -DCMAKE_BUILD_TYPE=Release \
+              -DCMAKE_PREFIX_PATH=/opt/Qt6 
 
           echo "Building with CMake..."
           cmake --build . --target openterfaceQT -- -j2 || (echo "CMake build failed. Please check the build configuration." && exit 1)
