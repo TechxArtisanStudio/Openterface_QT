@@ -88,8 +88,8 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y \
             libglib2.0-dev \
-            libgobject-2.0-dev \
-            libpcre2-dev
+            libpcre2-dev \
+            libgirepository1.0-dev
 
       - name: Build Standalone Executable
         working-directory: ${{ runner.temp }}/build
