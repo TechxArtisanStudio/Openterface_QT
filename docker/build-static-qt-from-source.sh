@@ -728,7 +728,7 @@ cd build
 cmake -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" \
     -DCMAKE_PREFIX_PATH="$INSTALL_PREFIX" \
     -DBUILD_SHARED_LIBS=OFF \
-    -DCMAKE_EXE_LINKER_FLAGS="-lXau -lXdmcp" \
+    -DCMAKE_EXE_LINKER_FLAGS="/usr/lib/libXau.a /usr/lib/libXau.a" \
     ..
 
 echo "Building qtshadertools..."
