@@ -694,10 +694,10 @@ if $BUILD_ENABLED; then
     echo "Building libXrandr from source..."
     XRANDR_VERSION="1.5.2"
     if [ ! -d "libXrandr" ]; then
-        curl -L -o libXrandr.tar.xz "https://www.x.org/releases/individual/lib/libXrandr-${XRANDR_VERSION}.tar.xz"
-        tar xf libXrandr.tar.xz
+        curl -L -o libXrandr.tar.xz "https://www.x.org/releases/individual/lib/libXrandr-${XRANDR_VERSION}.tar.gz"
+        tar xf libXrandr.tar.gz
         mv "libXrandr-${XRANDR_VERSION}" libXrandr
-        rm libXrandr.tar.xz
+        rm libXrandr.tar.gz
     fi
 
     cd libXrandr
