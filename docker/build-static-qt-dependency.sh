@@ -125,6 +125,26 @@ make -j$(nproc)
 sudo make install
 cd "$BUILD_DIR"
 
+# Build GLib from source
+echo "Building GLib $GLIB_VERSION from source..."
+if [ ! -d "glib" ]; then
+    curl -L -o glib.tar.xz "https://download.gnome.org/sources/glib/2.78/glib-${GLIB_VERSION}.tar.xz"
+    tar xf glib.tar.xz
+    mv "glib-${GLIB_VERSION}" glib
+    rm glib.tar.xz
+fi
+
+cd glib
+mkdir -p build
+cd build
+meson setup --prefix=/usr \
+    -Ddefault_library=static \
+    -Dtests=false \
+    ..
+ninja
+sudo ninja install
+cd "$BUILD_DIR"
+
 # Build PulseAudio
 echo "Building PulseAudio $PULSEAUDIO_VERSION from source..."
 if [ ! -d "pulseaudio" ]; then
