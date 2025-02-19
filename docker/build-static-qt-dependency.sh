@@ -639,10 +639,10 @@ cd "$BUILD_DIR"
 if $BUILD_ENABLED; then
     echo "Building libXrender from source..."
     if [ ! -d "libXrender" ]; then
-        curl -L -o libXrender.tar.xz "https://www.x.org/releases/individual/lib/libXrender-${XRENDER_VERSION}.tar.xz"
-        tar xf libXrender.tar.xz
+        curl -L -o libXrender.tar.gz "https://www.x.org/releases/individual/lib/libXrender-${XRENDER_VERSION}.tar.gz"
+        tar xf libXrender.tar.gz
         mv "libXrender-${XRENDER_VERSION}" libXrender
-        rm libXrender.tar.xz
+        rm libXrender.tar.gz
     fi
 
     cd libXrender
