@@ -86,6 +86,7 @@ jobs:
           }
 
           echo "QMAKE_LFLAGS += -static -static-libgcc -static-libstdc++" >> "${{ env.SOURCE_DIR }}/openterfaceQT.pro"
+          echo "LIBS += -L/usr/lib -lavformat -lavcodec -lavutil -lswresample -lswscale -lpulse -lEGL -lGLESv2" >> "${{ env.SOURCE_DIR }}/openterfaceQT.pro"
 
       - name: Prepare Driver Files
         run: |
@@ -95,7 +96,6 @@ jobs:
       - name: Build Standalone Executable
         working-directory: ${{ runner.temp }}/build
         run: |
-          sudo apt-get install -y libgles2-mesa-dev
           echo "Building with qmake..."
           /opt/Qt6/bin/qmake -r "${{ env.SOURCE_DIR }}/openterfaceQT.pro" || (echo "qmake failed. Please check the .pro file and paths." && exit 1)
 
