@@ -87,8 +87,8 @@ jobs:
 
           echo "QMAKE_LFLAGS += -static -static-libgcc -static-libstdc++" >> "${{ env.SOURCE_DIR }}/openterfaceQT.pro"
           echo "QMAKE_LFLAGS += -L/usr/local/lib" >> "${{ env.SOURCE_DIR }}/openterfaceQT.pro"
-          echo "QMAKE_LFLAGS += -static-libavformat -static-libavcodec -static-libavutil -static-libswresample -static-libswscale" >> "${{ env.SOURCE_DIR }}/openterfaceQT.pro"
-          echo "QMAKE_LFLAGS += -static-libXau -static-libXdmcp" >> "${{ env.SOURCE_DIR }}/openterfaceQT.pro"
+          echo "QMAKE_LFLAGS += -lavformat -lavcodec -lavutil -lswresample -lswscale" >> "${{ env.SOURCE_DIR }}/openterfaceQT.pro"
+          echo "QMAKE_LFLAGS += -lXau -lXdmcp" >> "${{ env.SOURCE_DIR }}/openterfaceQT.pro"
 
       - name: Prepare Driver Files
         run: |
