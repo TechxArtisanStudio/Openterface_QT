@@ -792,27 +792,6 @@ pkg-config --exists x11 && echo "x11.pc found" || echo "x11.pc not found"
 pkg-config --exists xext && echo "xext.pc found" || echo "xext.pc not found"
 pkg-config --exists xrender && echo "xrender.pc found" || echo "xrender.pc not found"
 
-# Build libxcb-randr
-if $BUILD_ENABLED; then
-    echo "Building libxcb-randr from source..."
-    if [ ! -d "libxcb-randr" ]; then
-        curl -L -o libxcb-randr.tar.xz "https://xcb.freedesktop.org/dist/xcb-util-renderutil-${XCB_UTIL_RENDERUTIL_VERSION}.tar.xz"
-        tar xf libxcb-randr.tar.xz
-        mv "xcb-util-renderutil-${XCB_UTIL_RENDERUTIL_VERSION}" libxcb-randr
-        rm libxcb-randr.tar.xz
-    fi
-
-    cd libxcb-randr
-    CFLAGS="-fPIC" ./configure --prefix=/usr --enable-static --disable-shared
-    make -j$(nproc)
-fi
-
-if $INSTALL_ENABLED; then
-    echo "Installing libxcb-randr..."
-    cd "$BUILD_DIR"/libxcb-randr
-    sudo make install
-fi
-cd "$BUILD_DIR"
 
 # Build libXdmcp
 if $BUILD_ENABLED; then
