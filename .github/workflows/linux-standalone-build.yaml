@@ -102,12 +102,12 @@ jobs:
           cmake -S "${{ env.SOURCE_DIR }}" -B . \
               -DCMAKE_BUILD_TYPE=Release \
               -DBUILD_SHARED_LIBS=OFF \
-              -DCMAKE_PREFIX_PATH=/opt/Qt6 \
+              -DCMAKE_PREFIX_PATH=/opt/Qt6:/usr/local:/usr/lib:/usr/include \
               -DCMAKE_INSTALL_PREFIX=release \
               -DLIBXRENDER_LIBRARY=/usr/lib/libXrender.a \
               -DCMAKE_VERBOSE_MAKEFILE=ON \
-              -DCMAKE_INCLUDE_PATH=/usr/include \
-              -DCMAKE_PREFIX_PATH="/usr/local"
+              -DCMAKE_INCLUDE_PATH=/usr/include
+              
           cat CMakeFiles/openterfaceQT.dir/link.txt
           echo "Building with CMake..."
           cmake --build . || (echo "CMake build failed. Please check the build configuration." && exit 1)
