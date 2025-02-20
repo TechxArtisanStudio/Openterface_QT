@@ -70,7 +70,7 @@ public:
 
     void sendCtrlAltDel();
 
-    void handleFunctionKey(int qtKeyCode);
+    void handleFunctionKey(int keyCode, int modifiers);
 
     void setRepeatingKeystroke(int interval);
 
