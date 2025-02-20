@@ -11,6 +11,12 @@ find_package(Qt${QT_VERSION_MAJOR} OPTIONAL_COMPONENTS Widgets)
 # Find X11 libraries
 find_package(X11 REQUIRED COMPONENTS Xrandr Xrender)
 
+# Find FFmpeg libraries
+find_package(FFmpeg REQUIRED COMPONENTS avformat avcodec avutil swresample swscale)
+
+# Ensure static linking
+set(FFMPEG_STATIC ON)
+
 qt_standard_project_setup()
 
 qt_add_executable(openterfaceQT WIN32 MACOSX_BUNDLE
@@ -72,6 +78,7 @@ target_link_libraries(openterfaceQT PRIVATE
     Qt::Svg
     X11::Xrandr
     X11::Xrender
+    ${FFmpeg_LIBRARIES}
 )
 
 if(DEFINED LIBXRENDER_LIBRARY)
