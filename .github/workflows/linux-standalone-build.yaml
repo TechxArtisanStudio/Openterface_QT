@@ -114,7 +114,7 @@ jobs:
               -DCMAKE_INCLUDE_PATH=/usr/include
 
           echo "Building with CMake..."
-          cmake --build . --target openterfaceQT -- -j2 || (echo "CMake build failed. Please check the build configuration." && exit 1)
+          cmake --build . || (echo "CMake build failed. Please check the build configuration." && exit 1)
 
           if [ ! -f release/openterfaceQT ]; then
             echo "Error: Failed to build openterfaceQT"
