@@ -24,6 +24,7 @@ sudo apt install -y --allow-change-held-packages \
     '^libxcb.*-dev' \
     libx11-xcb-dev \
     libxrender-dev \
+    libxrandr-dev \
     libxi-dev \
     libxkbcommon-dev \
     libxkbcommon-x11-dev \
@@ -144,11 +145,16 @@ cd Openterface_QT
 #LATEST_TAG=$(git describe --tags $(git rev-list --tags --max-count=1))
 #git checkout ${LATEST_TAG}
 
-mkdir -p build
+rm -rf build
+mkdir build
 cd build
-qmake6 ..
-make
-sudo make install
+cmake  -GNinja -S .. -B . \
+-DCMAKE_BUILD_TYPE=Release \
+-DCMAKE_PREFIX_PATH=/opt/Qt6 \
+-DCMAKE_INSTALL_PREFIX=release \
+-DCMAKE_VERBOSE_MAKEFILE=ON 
+ninja -j$(nproc)
+sudo ninja install
 
 #clean up all the build folder
 echo "Cleaning the build folder..."
