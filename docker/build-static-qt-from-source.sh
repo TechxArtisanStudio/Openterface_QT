@@ -56,7 +56,7 @@ cmake -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" \
 echo "Building qtbase..."
 cmake --build .
 echo "Installing qtbase..."
-cmake --install .
+sudo cmake --install .
 
 
 # Build qtshadertools
@@ -74,7 +74,7 @@ cmake -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" \
 echo "Building qtshadertools..."
 cmake --build .
 echo "Installing qtshadertools..."
-cmake --install .
+sudo cmake --install .
 
 # Build other modules
 for module in "${MODULES[@]}"; do
@@ -93,6 +93,6 @@ for module in "${MODULES[@]}"; do
         echo "Building $module..."
         cmake --build .
         echo "Installing $module..."
-        cmake --install .
+        sudo cmake --install .
     fi
 done
