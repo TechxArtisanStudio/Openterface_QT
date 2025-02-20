@@ -86,16 +86,6 @@ jobs:
             libpcre2-dev \
             libxrandr2
 
-      - name: Install FFmpeg Development Packages
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            libavcodec-dev \
-            libavformat-dev \
-            libavutil-dev \
-            libswresample-dev \
-            libswscale-dev
-
       - name: Build Standalone Executable
         working-directory: ${{ runner.temp }}/build
         run: |
