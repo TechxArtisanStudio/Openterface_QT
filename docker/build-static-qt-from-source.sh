@@ -37,31 +37,19 @@ echo "Building qtbase..."
 cd "$BUILD_DIR/qtbase"
 mkdir -p build
 cd build
-cmake \
+
+cmake -GNinja \
     -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" \
+    -DBUILD_SHARED_LIBS=OFF \
     -DFEATURE_dbus=ON \
     -DFEATURE_sql=OFF \
-    -DFEATURE_xcb=ON \
-    -DFEATURE_xcb_xinput=ON \
     -DFEATURE_testlib=OFF \
     -DFEATURE_icu=OFF \
     -DFEATURE_opengl=ON \
-    -DFEATURE_opengl_desktop=OFF \
-    -DFEATURE_opengles2=ON \
-    -DCMAKE_PREFIX_PATH="/usr" \
-    -DCMAKE_LIBRARY_PATH="/usr/lib/x86_64-linux-gnu/:/usr/lib/:/usr/lib/pkgconfig/" \
-    -DFEATURE_accessibility=OFF \
-    -DCMAKE_BUILD_TYPE=Release \
-    -DQT_BUILD_EXAMPLES=OFF \
-    -DQT_BUILD_TESTS=OFF \
-    -DFEATURE_static_runtime=ON \
-    -DTEST_xcb_syslibs=ON \
     ..
 
-echo "Building qtbase..."
-cmake --build .
-echo "Installing qtbase..."
-sudo cmake --install .
+ninja
+sudo ninja install
 
 
 # Build qtshadertools
@@ -69,17 +57,16 @@ echo "Building x..."
 cd "$BUILD_DIR/qtshadertools"
 mkdir -p build
 cd build
-cmake -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" \
+cmake -GNinja \
+    -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" \
     -DCMAKE_PREFIX_PATH="$INSTALL_PREFIX" \
     -DBUILD_SHARED_LIBS=OFF \
     -DFEATURE_static_runtime=ON \
     -DCMAKE_EXE_LINKER_FLAGS="/usr/lib/libXau.a /usr/lib/libXdmcp.a" \
     ..
 
-echo "Building qtshadertools..."
-cmake --build .
-echo "Installing qtshadertools..."
-sudo cmake --install .
+ninja
+sudo ninja install
 
 # Build other modules
 for module in "${MODULES[@]}"; do
@@ -89,15 +76,14 @@ for module in "${MODULES[@]}"; do
         cd build
         echo "Building $module..."
 
-        cmake -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" \
+        cmake -GNinja \
+            -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" \
             -DCMAKE_PREFIX_PATH="$INSTALL_PREFIX" \
             -DBUILD_SHARED_LIBS=OFF \
             ..
 
         
-        echo "Building $module..."
-        cmake --build .
-        echo "Installing $module..."
-        sudo cmake --install .
+        ninja
+        sudo ninja install
     fi
 done
