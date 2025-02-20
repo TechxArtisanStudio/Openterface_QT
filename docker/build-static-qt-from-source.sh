@@ -6,7 +6,7 @@ set -e
 # Install minimal build requirements
 sudo apt-get update
 sudo apt-get install -y build-essential meson ninja-build bison flex pkg-config python3-pip linux-headers-$(uname -r) \
-    autoconf automake libtool autoconf-archive cmake libxml2-dev
+    autoconf automake libtool autoconf-archive cmake libxml2-dev libxrandr-dev
 
 
 QT_VERSION=6.5.3
