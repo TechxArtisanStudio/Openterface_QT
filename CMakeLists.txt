@@ -8,6 +8,9 @@ find_package(QT NAMES Qt5 Qt6 REQUIRED COMPONENTS Core)
 find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Concurrent Gui Multimedia MultimediaWidgets Network SerialPort Svg)
 find_package(Qt${QT_VERSION_MAJOR} OPTIONAL_COMPONENTS Widgets)
 
+# Find X11 libraries
+find_package(X11 REQUIRED COMPONENTS Xrandr Xrender)
+
 qt_standard_project_setup()
 
 qt_add_executable(openterfaceQT WIN32 MACOSX_BUNDLE
@@ -67,6 +70,8 @@ target_link_libraries(openterfaceQT PRIVATE
     Qt::Network
     Qt::SerialPort
     Qt::Svg
+    X11::Xrandr
+    X11::Xrender
 )
 
 if(DEFINED LIBXRENDER_LIBRARY)
