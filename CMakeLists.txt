@@ -94,7 +94,7 @@ if(DEFINED LIBXRENDER_LIBRARY)
 endif()
 
 find_library(XRENDER_LIBRARY Xrender PATHS /usr/lib)
-target_link_libraries(openterfaceQT /usr/lib/libXrender.a /usr/lib/libXrandr.a
+target_link_libraries(openterfaceQT /usr/lib/libXrender.a /usr/lib/libXrandr.a)
 
 # Resources:
 set(mainwindow_resource_files
