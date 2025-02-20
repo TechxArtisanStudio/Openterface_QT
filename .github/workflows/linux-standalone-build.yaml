@@ -105,12 +105,11 @@ jobs:
               -DCMAKE_PREFIX_PATH=/opt/Qt6 \
               -DCMAKE_INSTALL_PREFIX=release \
               -DCMAKE_VERBOSE_MAKEFILE=ON \
-              -DLIBXRENDER_INCLUDE_DIR=/usr/include \
               -DLIBXRENDER_LIBRARY=/usr/lib/libXrender.a
 
           cat CMakeFiles/openterfaceQT.dir/link.txt
           echo "Building with CMake..."
-          cmake --build . || (echo "CMake build failed. Please check the build configuration." && exit 1)
+          make VERBOSE=1 || (echo "CMake build failed. Please check the build configuration." && exit 1)
 
           if [ ! -f release/openterfaceQT ]; then
             echo "Error: Failed to build openterfaceQT"
