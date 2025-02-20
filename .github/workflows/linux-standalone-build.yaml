@@ -112,7 +112,7 @@ jobs:
               -DLIBXRENDER_LIBRARY=/usr/lib/libXrender.a \
               -DCMAKE_VERBOSE_MAKEFILE=ON \
               -DCMAKE_INCLUDE_PATH=/usr/include
-
+          cat CMakeFiles/openterfaceQT.dir/link.txt
           echo "Building with CMake..."
           cmake --build . || (echo "CMake build failed. Please check the build configuration." && exit 1)
 
