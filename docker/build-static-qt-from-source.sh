@@ -34,7 +34,7 @@ sudo apt-get install -y libgl1-mesa-dev libglu1-mesa-dev libxrender-dev libxi-de
 # Build qtbase first
 echo "Building qtbase..."
 cd "$BUILD_DIR/qtbase"
-mkdir build
+mkdir -p build
 cd build
 cmake -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" \
     -DBUILD_SHARED_LIBS=OFF \
@@ -62,7 +62,7 @@ cmake --install .
 # Build qtshadertools
 echo "Building x..."
 cd "$BUILD_DIR/qtshadertools"
-mkdir build
+mkdir -p build
 cd build
 cmake -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" \
     -DCMAKE_PREFIX_PATH="$INSTALL_PREFIX" \
@@ -80,7 +80,7 @@ cmake --install .
 for module in "${MODULES[@]}"; do
     if [[ "$module" != "qtbase" && "$module" != "qtshadertools" ]]; then
         cd "$BUILD_DIR/$module"
-        mkdir build
+        mkdir -p build
         cd build
         echo "Building $module..."
 
