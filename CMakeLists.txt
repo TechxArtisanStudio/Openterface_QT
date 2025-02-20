@@ -15,11 +15,6 @@ find_package(X11 REQUIRED COMPONENTS Xrandr Xrender)
 find_package(FFmpeg REQUIRED COMPONENTS avformat avcodec avutil swresample swscale)
 if(NOT FFmpeg_FOUND)
     message(FATAL_ERROR "FFmpeg libraries not found. Please install FFmpeg development packages.")
-else()
-    message(STATUS "Found FFmpeg: ${FFmpeg_LIBRARIES}")
-    message(STATUS "FFmpeg_INCLUDE_DIRS: ${FFmpeg_INCLUDE_DIRS}")
-    message(STATUS "FFmpeg_LIBRARIES: ${FFmpeg_LIBRARIES}")
-    set(FFmpeg_LIBRARIES "${FFmpeg_LIBRARIES}" CACHE STRING "Static FFmpeg libraries")
 endif()
 
 # Ensure static linking
