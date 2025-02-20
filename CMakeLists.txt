@@ -13,6 +13,9 @@ find_package(X11 REQUIRED COMPONENTS Xrandr Xrender)
 
 # Find FFmpeg libraries
 find_package(FFmpeg REQUIRED COMPONENTS avformat avcodec avutil swresample swscale)
+if(NOT FFmpeg_FOUND)
+    message(FATAL_ERROR "FFmpeg libraries not found. Please install FFmpeg development packages.")
+endif()
 
 # Ensure static linking
 set(FFMPEG_STATIC ON)
@@ -194,6 +197,7 @@ endif()
 if(UNIX)
     target_include_directories(openterfaceQT PRIVATE
         /usr/include
+        /usr/local/include
     )
 
     target_link_libraries(openterfaceQT PRIVATE
