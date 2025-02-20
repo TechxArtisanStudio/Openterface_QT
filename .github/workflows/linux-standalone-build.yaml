@@ -109,7 +109,7 @@ jobs:
 
           cat CMakeFiles/openterfaceQT.dir/link.txt
           echo "Building with CMake..."
-          make VERBOSE=1 || (echo "CMake build failed. Please check the build configuration." && exit 1)
+          cmake --trace-expand --build . || (echo "CMake build failed. Please check the build configuration." && exit 1)
 
           if [ ! -f release/openterfaceQT ]; then
             echo "Error: Failed to build openterfaceQT"
