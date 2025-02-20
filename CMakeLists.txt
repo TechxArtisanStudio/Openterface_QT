@@ -86,7 +86,6 @@ target_link_libraries(openterfaceQT PRIVATE
     Qt::Svg
     X11::Xrandr
     X11::Xrender
-    ${FFmpeg_LIBRARIES}
 )
 
 if(DEFINED LIBXRENDER_LIBRARY)
