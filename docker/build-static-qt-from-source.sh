@@ -39,7 +39,6 @@ mkdir -p build
 cd build
 cmake \
     -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" \
-    -DBUILD_SHARED_LIBS=OFF \
     -DFEATURE_dbus=ON \
     -DFEATURE_sql=OFF \
     -DFEATURE_xcb=ON \

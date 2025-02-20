@@ -815,28 +815,6 @@ if $INSTALL_ENABLED; then
 fi
 cd "$BUILD_DIR"
 
-# Build libxcb-cursor
-if $BUILD_ENABLED; then
-    echo "Building libxcb-cursor from source..."
-    if [ ! -d "libxcb-cursor" ]; then
-        curl -L -o xcb-util-cursor.tar.gz "https://xcb.freedesktop.org/dist/xcb-util-cursor-${XCB_CURSOR_VERSION}.tar.gz"
-        tar xf xcb-util-cursor.tar.gz
-        mv "xcb-util-cursor-${XCB_CURSOR_VERSION}" libxcb-cursor
-        rm xcb-util-cursor.tar.gz
-    fi
-
-    cd xcb-util-cursor
-    CFLAGS="-fPIC" ./configure --prefix=/usr --enable-static --disable-shared
-    make -j$(nproc)
-fi
-
-if $INSTALL_ENABLED; then
-    echo "Installing libxcb-cursor..."
-    cd "$BUILD_DIR"/xcb-util-cursor
-    sudo make install
-fi
-cd "$BUILD_DIR"
-
 # Build libxkbcommon
 if $BUILD_ENABLED; then
     echo "Building libxkbcommon $XKBCOMMON_VERSION from source..."
