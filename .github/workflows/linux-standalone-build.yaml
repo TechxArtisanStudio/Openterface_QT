@@ -110,7 +110,8 @@ jobs:
               -DCMAKE_PREFIX_PATH=/opt/Qt6 \
               -DCMAKE_INSTALL_PREFIX=release \
               -DLIBXRENDER_INCLUDE_DIR=/usr/include \
-              -DLIBXRENDER_LIBRARY=/usr/lib/libXrender.a
+              -DLIBXRENDER_LIBRARY=/usr/lib/libXrender.a \
+              -DCMAKE_VERBOSE_MAKEFILE=ON
 
           echo "Building with CMake..."
           cmake --build . --target openterfaceQT -- -j2 || (echo "CMake build failed. Please check the build configuration." && exit 1)
