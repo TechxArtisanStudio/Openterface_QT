@@ -87,7 +87,7 @@ cmake -GNinja \
     -DFEATURE_testlib=OFF \
     -DFEATURE_icu=OFF \
     -DFEATURE_opengl=ON \
-    -DFEATURE_zstd=OFF \
+    
     ..
 ninja
 sudo ninja install
