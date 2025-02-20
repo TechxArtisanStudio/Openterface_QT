@@ -62,29 +62,29 @@ jobs:
           cd /opt
           bash ${{ env.SOURCE_DIR }}/docker/build-static-qt-dependency.sh --no-build
           
-      - name: Build Qt Statically
-        if: steps.cache-qt.outputs.cache-hit != 'true'
-        run: |
-          bash docker/build-static-qt-from-source.sh
+      # - name: Build Qt Statically
+      #   if: steps.cache-qt.outputs.cache-hit != 'true'
+      #   run: |
+      #     bash docker/build-static-qt-from-source.sh
 
-      - name: Create build directory
-        run: |
-          mkdir ${{ runner.temp }}/build
+      # - name: Create build directory
+      #   run: |
+      #     mkdir ${{ runner.temp }}/build
 
-      - name: Prepare Driver Files
-        run: |
-          mkdir ${{ env.SOURCE_DIR }}/drivers
-          cp driver/linux/* ${{ env.SOURCE_DIR }}/drivers/
+      # - name: Prepare Driver Files
+      #   run: |
+      #     mkdir ${{ env.SOURCE_DIR }}/drivers
+      #     cp driver/linux/* ${{ env.SOURCE_DIR }}/drivers/
       
-      - name: Install OpenGL ES Development Packages
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            libgles2-mesa-dev \
-            libegl1-mesa-dev \
-            libglib2.0-dev \
-            libpcre2-dev \
-            libxrandr2
+      # - name: Install OpenGL ES Development Packages
+      #   run: |
+      #     sudo apt-get update
+      #     sudo apt-get install -y \
+      #       libgles2-mesa-dev \
+      #       libegl1-mesa-dev \
+      #       libglib2.0-dev \
+      #       libpcre2-dev \
+      #       libxrandr2
 
       # - name: Build Standalone Executable
       #   working-directory: ${{ runner.temp }}/build

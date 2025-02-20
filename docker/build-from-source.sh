@@ -2,7 +2,7 @@
 # To install OpenTerface QT, you can run the following command:
 # curl -sSL https://raw.githubusercontent.com/TechxArtisanStudio/Openterface_QT/refs/heads/main/docker/build-from-source.sh | sudo bash
 
-set -e  # Exit on error
+set -e  # Exit on error 
 set -x  # Show commands
 
 # Configuration
@@ -25,6 +25,8 @@ sudo apt install -y --allow-change-held-packages \
     libx11-xcb-dev \
     libxrender-dev \
     libxi-dev \
+    libxkbcommon-dev \
+    libxkbcommon-x11-dev \
     libpulse-dev \
     pulseaudio \
     libusb-1.0-0-dev \
@@ -43,53 +45,6 @@ sudo apt autoremove -y
 # Create build directory
 mkdir -p "$BUILD_DIR"
 cd "$BUILD_DIR"
-
-
-
-# Build libxkbcommon
-echo "Building libxkbcommon $XKBCOMMON_VERSION from source..."
-if [ ! -d "libxkbcommon" ]; then
-    curl -L -o libxkbcommon.tar.gz "https://xkbcommon.org/download/libxkbcommon-${XKBCOMMON_VERSION}.tar.xz"
-    tar xf libxkbcommon.tar.gz
-    mv "libxkbcommon-${XKBCOMMON_VERSION}" libxkbcommon
-    rm libxkbcommon.tar.gz
-fi
-
-cd libxkbcommon
-mkdir -p build
-cd build
-
-LIBXKBCOMMON_MESON_FILE="$BUILD_DIR/libxkbcommon/meson.build"
-# # Check if the meson.build file exists
-# if [ -f "$LIBXKBCOMMON_MESON_FILE" ]; then
-#     echo "Modifying $LIBXKBCOMMON_MESON_FILE to link libXau statically..."
-    
-#     # Add dependency for libXau
-#     sed -i "s/\(xcb_dep = dependency('xcb'\),[^)]*)/\1)/" "$LIBXKBCOMMON_MESON_FILE"
-#     sed -i "s/\(xcb_xkb_dep = dependency('xcb-xkb'\),[^)]*)/\1)/" "$LIBXKBCOMMON_MESON_FILE"
-#     sed -i "/xcb_xkb_dep = dependency('xcb-xkb')/axau_dep = dependency('xau', static: true)" "$LIBXKBCOMMON_MESON_FILE"
-#     sed -i "/xau_dep = dependency('xau', static: true)/axdmcp_dep = dependency('xdmcp', static: true)" "$LIBXKBCOMMON_MESON_FILE" 
-    
-    
-#     sed -i "/xcb_xkb_dep,/axau_dep," "$LIBXKBCOMMON_MESON_FILE"
-#     sed -i "/xau_dep,/axdmcp_dep," "$LIBXKBCOMMON_MESON_FILE"
-
-# else
-#     echo "Error: $LIBXKBCOMMON_MESON_FILE not found."
-# fi
-    
-meson setup --prefix=/usr \
-    -Denable-docs=false \
-    -Denable-wayland=false \
-    -Denable-x11=true \
-    -Dxkb-config-root=/usr/share/X11/xkb \
-    -Dx-locale-root=/usr/share/X11/locale \
-    ..
-ninja
-
-echo "Installing libxkbcommon $XKBCOMMON_VERSION..."
-cd "$BUILD_DIR"/libxkbcommon/build
-sudo ninja install
 
 # Download and install FFmpeg 6.1.1
 if [ ! -d "FFmpeg-n6.1.1" ]; then
@@ -134,7 +89,7 @@ cmake -GNinja \
     -DFEATURE_icu=OFF \
     -DFEATURE_opengl=ON \
     ..
-ninja
+ninja -j$(nproc)
 sudo ninja install
 
 # Build qtshadertools
@@ -144,7 +99,7 @@ cmake -GNinja \
     -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" \
     -DCMAKE_PREFIX_PATH="$INSTALL_PREFIX" \
     ..
-ninja
+ninja -j$(nproc)
 sudo ninja install
 
 # Build other modules
@@ -169,7 +124,7 @@ for module in "${MODULES[@]}"; do
                 ..
         fi
         
-        ninja
+        ninja -j$(nproc)
         sudo ninja install
     fi
 done
