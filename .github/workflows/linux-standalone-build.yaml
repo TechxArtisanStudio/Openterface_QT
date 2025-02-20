@@ -102,7 +102,7 @@ jobs:
           cmake -S "${{ env.SOURCE_DIR }}" -B . \
               -DCMAKE_BUILD_TYPE=Release \
               -DBUILD_SHARED_LIBS=OFF \
-              -DCMAKE_PREFIX_PATH=/opt/Qt6:/usr/lib:/usr/include:/usr/local/lib:/usr/local/include \
+              -DCMAKE_PREFIX_PATH=/opt/Qt6 \
               -DCMAKE_INSTALL_PREFIX=release \
               -DCMAKE_VERBOSE_MAKEFILE=ON \
               -DLIBXRENDER_LIBRARY=/usr/lib/libXrender.a
