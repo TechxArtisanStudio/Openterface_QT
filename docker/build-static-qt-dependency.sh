@@ -37,9 +37,11 @@ SNDFILE_VERSION=1.2.0
 XCB_PROTO_VERSION=1.16.0
 XCB_VERSION=1.16
 XCB_UTIL_VERSION=0.4.1
+XCB_CURSOR_VERSION=0.1.5
 XCB_UTIL_WM_VERSION=0.4.2
 XCB_UTIL_KEYSYMS_VERSION=0.4.1
 XCB_UTIL_RENDERUTIL_VERSION=0.3.10
+XCB_RENDER_UTIL_VERSION=0.3.10
 XAU_VERSION="1.0.11"
 XORG_MACROS_VERSION=1.19.3
 XPROTO_VERSION=7.0.31
@@ -595,7 +597,8 @@ if $BUILD_ENABLED; then
         --enable-static \
         --disable-shared \
         --enable-xinput \
-        --enable-xkb
+        --enable-xkb \
+        --enable-xcb-xinput
     make -j$(nproc)
 fi
 
@@ -652,6 +655,29 @@ if $BUILD_ENABLED; then
         --disable-shared
     make -j$(nproc)
 fi
+
+# Build or Install libxcb-render
+if $BUILD_ENABLED; then
+    echo "Building libxcb-render from source..."
+    if [ ! -d "xcb-render-util" ]; then
+        curl -L -o xcb-util-renderutil.tar.xz "https://xcb.freedesktop.org/dist/xcb-util-renderutil-${XCB_RENDER_UTIL_VERSION}.tar.xz"
+        tar xf xcb-util-renderutil.tar.xz
+        mv "xcb-util-renderutil-${XCB_RENDER_UTIL_VERSION}" xcb-util-renderutil
+        rm xcb-util-renderutil.tar.xz
+    fi
+
+    cd xcb-util-renderutil  
+    CFLAGS="-fPIC" ./configure --prefix=/usr --enable-static --disable-shared
+    make -j$(nproc)
+fi
+
+if $INSTALL_ENABLED; then
+    echo "Installing libxcb-render $XCB_RENDER_UTIL_VERSION..."
+    cd "$BUILD_DIR"/xcb-util-renderutil  
+    sudo make install
+fi
+cd "$BUILD_DIR"
+
 
 if $INSTALL_ENABLED; then
     echo "Installing libXrender $XRENDER_VERSION..."
@@ -831,6 +857,28 @@ fi
 if $INSTALL_ENABLED; then
     echo "Installing libXdmcp $LIBXDMCP_VERSION..."
     cd "$BUILD_DIR"/libXdmcp
+    sudo make install
+fi
+cd "$BUILD_DIR"
+
+# Build libxcb-cursor
+if $BUILD_ENABLED; then
+    echo "Building libxcb-cursor from source..."
+    if [ ! -d "libxcb-cursor" ]; then
+        curl -L -o xcb-util-cursor.tar.gz "https://xcb.freedesktop.org/dist/xcb-util-cursor-${XCB_CURSOR_VERSION}.tar.gz"
+        tar xf xcb-util-cursor.tar.gz
+        mv "xcb-util-cursor-${XCB_CURSOR_VERSION}" libxcb-cursor
+        rm xcb-util-cursor.tar.gz
+    fi
+
+    cd xcb-util-cursor
+    CFLAGS="-fPIC" ./configure --prefix=/usr --enable-static --disable-shared
+    make -j$(nproc)
+fi
+
+if $INSTALL_ENABLED; then
+    echo "Installing libxcb-cursor..."
+    cd "$BUILD_DIR"/xcb-util-cursor
     sudo make install
 fi
 cd "$BUILD_DIR"
