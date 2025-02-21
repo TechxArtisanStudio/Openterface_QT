@@ -39,4 +39,5 @@ private:
     static const QString driverCommands;
     static const QString groupCommands;
     static const QString udevCommands;
-#endif // ENVIRONMENTSETUPDIALOG_H
+};
+#endif
