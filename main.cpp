@@ -129,7 +129,7 @@ int main(int argc, char *argv[])
     KeyboardLayoutManager::getInstance().loadLayouts(configPath);
     
     // Check for CH340 driver
-    if (!EnvironmentSetupDialog::isDriverInstalled()) {
+    if (!EnvironmentSetupDialog::checkEnvironmentSetup()) {
         EnvironmentSetupDialog envDialog;
         if (envDialog.exec() == QDialog::Rejected) {
             qDebug() << "Driver dialog rejected";

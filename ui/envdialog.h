@@ -17,7 +17,7 @@ public:
     ~EnvironmentSetupDialog();
     
     // New static method to check if the CH340 driver is installed
-    static bool isDriverInstalled();
+    static bool checkEnvironmentSetup();
 
 protected:
     void closeEvent(QCloseEvent *event) override;
@@ -27,6 +27,7 @@ protected:
 private:
     Ui::EnvironmentSetupDialog *ui;
 
+
     // Add the new method for driver installation
     #ifdef _WIN32
     void installDriverForWindows();
@@ -34,6 +35,18 @@ private:
     void createInstallDialog(); // New method for creating the install dialog
     void extractDriverFiles(); // Declaration for extracting driver files
     void copyCommands(); // Declaration for copying commands
+
+    bool isDriverInstalled;
+    bool isInRightUserGroup;
+    bool isHidPermission;
+    bool isBrlttyRunning;
+    
+    static bool checkDriverInstalled();
+    static bool checkInRightUserGroup();
+    static bool checkHidPermission();
+    static bool checkBrlttyRunning();
+    
+    QString buildCommands();
 
     // Static command content
     static const QString driverCommands;

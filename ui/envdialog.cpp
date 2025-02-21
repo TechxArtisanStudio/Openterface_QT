@@ -41,7 +41,11 @@ const QString EnvironmentSetupDialog::udevCommands =
 
 EnvironmentSetupDialog::EnvironmentSetupDialog(QWidget *parent) :
     QDialog(parent),
-    ui(new Ui::EnvironmentSetupDialog)
+    ui(new Ui::EnvironmentSetupDialog),
+    isDriverInstalled(checkDriverInstalled()),
+    isInRightUserGroup(checkInRightUserGroup()),
+    isHidPermission(checkHidPermission()),
+    isBrlttyRunning(checkBrlttyRunning())  
 {
     ui->setupUi(this);
     
@@ -56,7 +60,7 @@ EnvironmentSetupDialog::EnvironmentSetupDialog(QWidget *parent) :
     ui->step1Label->setVisible(true);
     ui->extractButton->setVisible(true);
     ui->step2Label->setVisible(true);
-    ui->commandsTextEdit->setText(driverCommands + groupCommands + udevCommands);
+    ui->commandsTextEdit->setText(buildCommands());
     connect(ui->extractButton, &QPushButton::clicked, this, &EnvironmentSetupDialog::extractDriverFiles);
     connect(ui->copyButton, &QPushButton::clicked, this, &EnvironmentSetupDialog::copyCommands);
 #endif
@@ -111,7 +115,7 @@ void EnvironmentSetupDialog::extractDriverFiles() {
     }
 
     // Update the QTextEdit with the static commands
-    ui->commandsTextEdit->setPlainText("cd " + tempDir + "\n" + driverCommands + groupCommands + udevCommands);
+    ui->commandsTextEdit->setPlainText("cd " + tempDir + "\n" + buildCommands());
 }
 
 void EnvironmentSetupDialog::copyCommands() {
@@ -156,13 +160,37 @@ void EnvironmentSetupDialog::accept()
     QDialog::accept();
 }
 
+QString EnvironmentSetupDialog::buildCommands(){
+    QString commands = "";   
+    if (isDriverInstalled) {
+        commands += driverCommands;
+    }
+    if (isInRightUserGroup) {
+        commands += groupCommands;
+    }
+    if (isHidPermission) {
+        commands += udevCommands;
+    }
+    return commands;
+}
+
 // Override reject method
 void EnvironmentSetupDialog::reject()
 {
     QDialog::reject();
 }
 
-bool EnvironmentSetupDialog::isDriverInstalled() {
+bool EnvironmentSetupDialog::checkEnvironmentSetup() {
+    #ifdef _WIN32
+    return checkDriverInstalled();
+    #elif defined(__linux__)
+    return checkDriverInstalled() && checkInRightUserGroup() && checkHidPermission() && checkBrlttyRunning();
+    #else
+    return true;
+    #endif
+}
+
+bool EnvironmentSetupDialog::checkDriverInstalled() {
 #ifdef _WIN32 // Check if compiling on Windows
     std::cout << "Checking if devices are present..." << std::endl;
     const GUID GUID_DEVINTERFACE_USB_DEVICE = { 0xA5DCBF10, 0x6530, 0x11D2, {0x90, 0x1F, 0x00, 0xC0, 0x4F, 0xB9, 0x51, 0xED} };
@@ -222,3 +250,26 @@ bool EnvironmentSetupDialog::isDriverInstalled() {
     return false; // Assume not installed for non-Windows and non-Linux platforms
 #endif
 }
+
+#ifdef __unix__
+bool EnvironmentSetupDialog::checkInRightUserGroup() {
+    // Check if the user is in the dialout group
+    std::string command = "groups | grep -i dialout";
+    int result = system(command.c_str());
+    return result == 0; // Returns true if the user is in the dialout group
+}
+
+bool EnvironmentSetupDialog::checkHidPermission() {
+    // Check if the user has HID permission
+    std::string command = "ls -l /dev/hidraw*";
+    int result = system(command.c_str());
+    return result == 0; // Returns true if the user has HID permission
+}
+
+bool EnvironmentSetupDialog::checkBrlttyRunning() {
+    // Check if Brltty is running
+    std::string command = "pgrep brltty";
+    int result = system(command.c_str());
+    return result == 0; // Returns true if Brltty is running
+}
+#endif
