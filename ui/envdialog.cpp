@@ -205,11 +205,16 @@ bool EnvironmentSetupDialog::isDriverInstalled() {
     // Log the start of the driver check
     std::cout << "Checking if driver is installed on Linux." << std::endl;
 
-    // Check if the driver is loaded by looking for the device file
-    std::ifstream deviceFile("/dev/ttyUSB0"); // Adjust the path as necessary for your driver
-    bool isInstalled = deviceFile.good();
-    std::cout << "Driver installation status: " << (isInstalled ? "Installed" : "Not Installed") << std::endl;
-    return isInstalled; // Returns true if the device file exists
+    // If the device file does not exist, check using lsusb for VID and PID
+    std::string command = "lsusb | grep -i '1a86:7523'";
+    int result = system(command.c_str());
+    if (result == 0) {
+        std::cout << "Driver installation status: Installed (found via lsusb)" << std::endl;
+        return true; // Driver found via lsusb
+    }
+
+    std::cout << "Driver installation status: Not Installed" << std::endl;
+    return false; // Driver not found
 #else
     // Implement logic for other platforms if needed
     std::cout << "Driver check not implemented for this platform." << std::endl;
