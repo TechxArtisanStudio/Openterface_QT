@@ -66,11 +66,11 @@ EnvironmentSetupDialog::EnvironmentSetupDialog(QWidget *parent) :
 
     // Create the status summary
     QString statusSummary = "The following steps help you install the driver and add user to correct group. Current status:\n";
-    statusSummary += "Driver Installed: " + QString(isDriverInstalled ? "Yes" : "No") + "\n";
-    statusSummary += "In Dialout Group: " + QString(isInRightUserGroup ? "Yes" : "No") + "\n";
-    statusSummary += "HID Permission: " + QString(isHidPermission ? "Yes" : "No") + "\n";
+    statusSummary += "‣ Driver Installed: " + QString(isDriverInstalled ? "✓" : "✗") + "\n";
+    statusSummary += "‣ In Dialout Group: " + QString(isInRightUserGroup ? "✓" : "✗") + "\n";
+    statusSummary += "‣ HID Permission: " + QString(isHidPermission ? "✓" : "✗") + "\n";
     if (isBrlttyRunning) {
-        statusSummary += "Brltty running and blocking serial port: Yes\n";
+        statusSummary += "‣ Brltty running and blocking serial port: ✓\n";
     }
     ui->descriptionLabel->setText(statusSummary);
 #endif
