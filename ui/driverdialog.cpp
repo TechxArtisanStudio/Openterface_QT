@@ -66,6 +66,9 @@ void DriverDialog::installDriver() {
     msgBox.setDetailedText(""); // Clear any default detailed text
     msgBox.setInformativeText(""); // Clear any default informative text
 
+    // Set the fixed size for the message box
+    msgBox.setFixedSize(300, 400); // Set width to 300 and height to 400
+
     // Create a layout for the message box
     QVBoxLayout *layout = new QVBoxLayout();
 
@@ -88,7 +91,7 @@ void DriverDialog::installDriver() {
     textEdit->setReadOnly(true); // Make it read-only
     textEdit->setTextInteractionFlags(Qt::TextSelectableByMouse | Qt::TextSelectableByKeyboard); // Allow text selection
 
-    QString commands = "make & sudo make install";
+    QString commands = "make && sudo make install";
 
     textEdit->setPlainText(commands); // Set the commands text
 
