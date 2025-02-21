@@ -14,14 +14,10 @@ find_package(Qt${QT_VERSION_MAJOR} OPTIONAL_COMPONENTS Widgets)
 # Find X11 libraries
 find_package(X11 REQUIRED COMPONENTS Xrandr Xrender)
 
+set(FFmpeg_DIR "/usr/local")  # Adjust this path if necessary
+
 # Find FFmpeg libraries
-if(USE_FFMPEG_STATIC)
-    set(FFMPEG_STATIC ON)
-    find_package(FFmpeg REQUIRED COMPONENTS avformat avcodec avutil swresample swscale)
-else()
-    set(FFMPEG_STATIC OFF)
-    find_package(FFmpeg REQUIRED COMPONENTS avformat avcodec avutil swresample swscale)
-endif()
+find_package(FFmpeg REQUIRED COMPONENTS avformat avcodec avutil swresample swscale)
 
 # Check if FFmpeg libraries are found
 if(FFmpeg_FOUND)

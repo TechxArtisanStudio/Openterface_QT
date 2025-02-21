@@ -14,6 +14,9 @@ BUILD_DIR="$PWD/qt-build"
 MODULES=("qtbase" "qtshadertools" "qtmultimedia" "qtsvg" "qtserialport")
 DOWNLOAD_BASE_URL="https://download.qt.io/archive/qt/${QT_MAJOR_VERSION}/${QT_VERSION}/submodules"
 
+# Option to control static linking of FFmpeg
+USE_FFMPEG_STATIC=${1:-ON}  # Default to ON if not provided
+
 # Update and install dependencies with handling for held packages
 sudo apt update -y
 sudo apt install -y --allow-change-held-packages \
@@ -59,7 +62,11 @@ fi
 
 cd FFmpeg-n6.1.1
 # Configure the build
-./configure --prefix=/usr/local --enable-static --disable-shared
+if [ "$USE_FFMPEG_STATIC" == "ON" ]; then
+    ./configure --prefix=/usr/local --enable-static --disable-shared
+else
+    ./configure --prefix=/usr/local --enable-shared --disable-static
+fi
 # Compile the source code
 make -j$(nproc)
 # Install the compiled binaries
@@ -159,7 +166,7 @@ cmake -GNinja -S .. -B . \
 -DCMAKE_PREFIX_PATH=/opt/Qt6 \
 -DCMAKE_INSTALL_PREFIX=release \
 -DCMAKE_VERBOSE_MAKEFILE=ON \
--DUSE_FFMPEG_STATIC="$USE_FFMPEG_STATIC"
+-DUSE_FFMPEG_STATIC="$USE_FFMPEG_STATIC"  # Pass the static linking option
 ninja -j$(nproc)
 sudo ninja install
 
