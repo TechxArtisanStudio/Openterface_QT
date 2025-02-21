@@ -49,13 +49,14 @@ EnvironmentSetupDialog::EnvironmentSetupDialog(QWidget *parent) :
 {
     ui->setupUi(this);
     
+    // Check the environment setup to update status variables
+    checkEnvironmentSetup();
 
 #ifdef _WIN32
     setFixedSize(250, 120); 
     ui->descriptionLabel->setText("The driver is missing. Openterface Mini-KVM will install it automatically.");
 #else
     setFixedSize(450, 400); 
-    ui->descriptionLabel->setText("Driver Installation Instructions.\n\n The following steps help you install the driver and add user to correct group.");
     ui->commandsTextEdit->setVisible(true); 
     ui->step1Label->setVisible(true);
     ui->extractButton->setVisible(true);
@@ -63,6 +64,17 @@ EnvironmentSetupDialog::EnvironmentSetupDialog(QWidget *parent) :
     ui->commandsTextEdit->setText(buildCommands());
     connect(ui->extractButton, &QPushButton::clicked, this, &EnvironmentSetupDialog::extractDriverFiles);
     connect(ui->copyButton, &QPushButton::clicked, this, &EnvironmentSetupDialog::copyCommands);
+
+    // Create the status summary
+    QString statusSummary = "Driver Installation Instructions.\n\n The following steps help you install the driver and add user to correct group.\n";
+    statusSummary += "Driver Installed: " + QString(isDriverInstalled ? "Yes" : "No") + "\n";
+    statusSummary += "In Dialout Group: " + QString(isInRightUserGroup ? "Yes" : "No") + "\n";
+    statusSummary += "HID Permission: " + QString(isHidPermission ? "Yes" : "No") + "\n";
+    statusSummary += "Brltty Running: " + QString(isBrlttyRunning ? "Yes" : "No") + "\n";
+    ui->descriptionLabel->setText(statusSummary);
+
+    // Set the initial text for the description label
+    ui->descriptionLabel->setText("Driver Installation Instructions.\n\n" + statusSummary);
 #endif
     // Connect buttons to their respective slots
     connect(ui->okButton, &QPushButton::clicked, this, &EnvironmentSetupDialog::accept); 
@@ -127,9 +139,21 @@ void EnvironmentSetupDialog::copyCommands() {
 // Update the accept method to call the new installDriver method
 void EnvironmentSetupDialog::accept()
 {   
+    checkEnvironmentSetup(); // Ensure the status variables are updated
+
     #ifdef _WIN32
     installDriverForWindows();
     #endif
+
+    // Check the current status
+    QString statusSummary;
+    statusSummary += "Driver Installed: " + QString(isDriverInstalled ? "Yes" : "No") + "\n";
+    statusSummary += "In Dialout Group: " + QString(isInRightUserGroup ? "Yes" : "No") + "\n";
+    statusSummary += "HID Permission: " + QString(isHidPermission ? "Yes" : "No") + "\n";
+    statusSummary += "Brltty Running: " + QString(isBrlttyRunning ? "Yes" : "No") + "\n";
+
+    // Append the status summary to the description label
+    ui->descriptionLabel->setText(ui->descriptionLabel->text() + "\n" + statusSummary);
 
     // Prompt user to restart computer
     QMessageBox::StandardButton reply = QMessageBox::question(
