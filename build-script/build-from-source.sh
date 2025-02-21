@@ -1,11 +1,12 @@
 #!/bin/bash
 # To install OpenTerface QT, you can run the following command:
-# curl -sSL https://raw.githubusercontent.com/TechxArtisanStudio/Openterface_QT/refs/heads/main/docker/build-from-source.sh | sudo bash
+# curl -sSL https://raw.githubusercontent.com/TechxArtisanStudio/Openterface_QT/refs/heads/main/build-script/build-from-source.sh | sudo bash
 
-set -e  # Exit on error
-# set -x  # Show commands
+set -e  # Exit on error 
+set -x  # Show commands
 
 # Configuration
+XKBCOMMON_VERSION=1.7.0
 QT_VERSION="6.5.3"
 QT_MAJOR_VERSION="6.5"
 INSTALL_PREFIX="/opt/Qt6"
@@ -23,6 +24,7 @@ sudo apt install -y --allow-change-held-packages \
     '^libxcb.*-dev' \
     libx11-xcb-dev \
     libxrender-dev \
+    libxrandr-dev \
     libxi-dev \
     libxkbcommon-dev \
     libxkbcommon-x11-dev \
@@ -88,7 +90,7 @@ cmake -GNinja \
     -DFEATURE_icu=OFF \
     -DFEATURE_opengl=ON \
     ..
-ninja
+ninja -j$(nproc)
 sudo ninja install
 
 # Build qtshadertools
@@ -98,7 +100,7 @@ cmake -GNinja \
     -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" \
     -DCMAKE_PREFIX_PATH="$INSTALL_PREFIX" \
     ..
-ninja
+ninja -j$(nproc)
 sudo ninja install
 
 # Build other modules
@@ -123,7 +125,7 @@ for module in "${MODULES[@]}"; do
                 ..
         fi
         
-        ninja
+        ninja -j$(nproc)
         sudo ninja install
     fi
 done
@@ -138,16 +140,21 @@ if [ ! -d "Openterface_QT" ]; then
     git clone https://github.com/TechxArtisanStudio/Openterface_QT.git
 fi
 
-cd Openterface_QT
+cd $BUILD_DIR/Openterface_QT
 #git fetch --tags
 #LATEST_TAG=$(git describe --tags $(git rev-list --tags --max-count=1))
 #git checkout ${LATEST_TAG}
 
-mkdir -p build
+rm -rf build
+mkdir build
 cd build
-qmake6 ..
-make
-sudo make install
+cmake  -GNinja -S .. -B . \
+-DCMAKE_BUILD_TYPE=Release \
+-DCMAKE_PREFIX_PATH=/opt/Qt6 \
+-DCMAKE_INSTALL_PREFIX=release \
+-DCMAKE_VERBOSE_MAKEFILE=ON 
+ninja -j$(nproc)
+sudo ninja install
 
 #clean up all the build folder
 echo "Cleaning the build folder..."
