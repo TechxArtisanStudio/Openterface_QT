@@ -54,7 +54,7 @@ qt_add_executable(openterfaceQT WIN32 MACOSX_BUNDLE
     ui/TaskManager.cpp ui/TaskManager.h
     ui/audiopage.cpp ui/audiopage.h
     ui/cameraajust.cpp ui/cameraajust.h
-    ui/driverdialog.cpp ui/driverdialog.h ui/driverdialog.ui
+    ui/envdialog.cpp ui/envdialog.h ui/envdialog.ui
     ui/fpsspinbox.cpp ui/fpsspinbox.h
     ui/globalsetting.cpp ui/globalsetting.h
     ui/hardwarepage.cpp ui/hardwarepage.h
@@ -208,6 +208,22 @@ if(UNIX)
     target_link_libraries(openterfaceQT PRIVATE
         usb-1.0
     )
+
+    set(drivers_resource_files
+        "driver/linux/ch341.c"
+        "driver/linux/ch341.h"
+        "driver/linux/Makefile"
+    )
+
+    qt_add_resources(openterfaceQT "drivers"
+        PREFIX
+            "/drivers/linux"
+        BASE
+            "driver/linux"
+        FILES
+            ${drivers_resource_files}
+    )
+
 endif()
 
 install(TARGETS openterfaceQT

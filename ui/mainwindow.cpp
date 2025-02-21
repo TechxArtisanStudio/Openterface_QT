@@ -283,6 +283,8 @@ MainWindow::MainWindow() :  ui(new Ui::MainWindow),
             this, &MainWindow::onToolbarVisibilityChanged);
     // qCDebug(log_ui_mainwindow) << "full screen...";
     connect(ui->fullScreenButton, &QPushButton::clicked, this, &MainWindow::fullScreen);
+
+    connect(ui->keyboardLayoutComboBox, SIGNAL(currentIndexChanged(int)), this, SLOT(onKeyboardLayoutCombobox_Changed(int)));
     // fullScreen();
     // qCDebug(log_ui_mainwindow) << "full finished";
 }
@@ -898,11 +900,6 @@ void MainWindow::versionInfo()
     m_versionInfoManager->showVersionInfo();
 }
 
-void MainWindow::onFunctionKeyPressed(int key)
-{
-    HostManager::getInstance().handleFunctionKey(key);
-}
-
 void MainWindow::onCtrlAltDelPressed()
 {
     HostManager::getInstance().sendCtrlAltDel();
@@ -1362,7 +1359,15 @@ void MainWindow::animateVideoPane() {
 
 void MainWindow::changeKeyboardLayout(const QString& layout) {
     // Pass the layout name directly to HostManager
+    qCDebug(log_ui_mainwindow) << "Changing layout";
+    GlobalSetting::instance().setKeyboardLayout(layout);
+    qCDebug(log_ui_mainwindow) << "Set layout" << layout;
     HostManager::getInstance().setKeyboardLayout(layout);
+}
+
+void MainWindow::onKeyboardLayoutCombobox_Changed(int index){
+    QString currentLayout = ui->keyboardLayoutComboBox->currentText();
+    changeKeyboardLayout(currentLayout);
 }
 
 void MainWindow::initializeKeyboardLayouts() {
@@ -1377,7 +1382,10 @@ void MainWindow::initializeKeyboardLayouts() {
     ui->keyboardLayoutComboBox->addItems(layouts);
     
     // Set US QWERTY as default layout if it exists
-    QString defaultLayout = "US QWERTY";
+    
+    QString defaultLayout;
+    GlobalSetting::instance().getKeyboardLayout(defaultLayout);
+    qCDebug(log_ui_mainwindow) << "Read layout" << defaultLayout;
     if (layouts.contains(defaultLayout)) {
         changeKeyboardLayout(defaultLayout);
         ui->keyboardLayoutComboBox->setCurrentText(defaultLayout);

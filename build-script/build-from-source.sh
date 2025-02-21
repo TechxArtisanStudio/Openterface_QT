@@ -140,7 +140,8 @@ if [ ! -d "Openterface_QT" ]; then
     git clone https://github.com/TechxArtisanStudio/Openterface_QT.git
 fi
 
-cd Openterface_QT
+cd $BUILD_DIR/Openterface_QT
+
 #git fetch --tags
 #LATEST_TAG=$(git describe --tags $(git rev-list --tags --max-count=1))
 #git checkout ${LATEST_TAG}
