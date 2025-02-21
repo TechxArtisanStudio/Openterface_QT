@@ -58,10 +58,8 @@ else
 fi
 
 cd FFmpeg-n6.1.1
-mkdir build
-cd build
 # Configure the build
-../configure --prefix=/usr/local --enable-static --disable-shared
+./configure --prefix=/usr/local --enable-static --disable-shared
 # Compile the source code
 make -j$(nproc)
 # Install the compiled binaries
