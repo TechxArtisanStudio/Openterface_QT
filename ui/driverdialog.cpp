@@ -65,19 +65,27 @@ void DriverDialog::installDriver() {
 
     std::cout << "Files extracted to " << tempDir.toStdString() << std::endl;
 
-    // Set the working directory to the temporary drivers folder
-    QProcess process;
-    process.setWorkingDirectory(tempDir); // Set the path to the temporary drivers folder
+    // Set the working directory to the temporary drivers folder and run in a new terminal
+    QString command = "make && sudo make install";
 
-    // Compile and install the driver from source
-    std::cout << "Compiling and installing the driver from source." << std::endl;
-    process.start("make");
-    process.waitForFinished(); // Wait for the make command to finish
+    // Check for available terminal emulators
+    QStringList terminals;
+    terminals << "gnome-terminal" << "xterm" << "konsole" << "lxterminal" << "xfce4-terminal";
 
-    process.start("sudo", QStringList() << "make" << "install");
-    process.waitForFinished(); // Wait for the install command to finish
+    QString terminalToUse;
+    for (const QString &terminal : terminals) {
+        if (QProcess::execute("which", QStringList() << terminal) == 0) {
+            terminalToUse = terminal;
+            break;
+        }
+    }
 
-    std::cout << "Driver installation command executed." << std::endl;
+    if (!terminalToUse.isEmpty()) {
+        QProcess::startDetached(terminalToUse, QStringList() << "--" << "bash" << "-c" << command);
+        std::cout << "Driver installation command executed in " << terminalToUse.toStdString() << "." << std::endl;
+    } else {
+        std::cout << "No suitable terminal emulator found. Please install one of the following: gnome-terminal, xterm, konsole, lxterminal, xfce4-terminal." << std::endl;
+    }
 #else
     std::cout << "Driver installation not supported on this platform." << std::endl;
 #endif
