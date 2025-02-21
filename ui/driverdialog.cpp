@@ -32,6 +32,7 @@ DriverDialog::DriverDialog(QWidget *parent) :
     // Connect buttons to their respective slots
     connect(ui->okButton, &QPushButton::clicked, this, &DriverDialog::accept); // Close dialog on OK
     connect(ui->quitButton, &QPushButton::clicked, this, &DriverDialog::reject); // Close dialog on Quit
+    connect(ui->extractButton, &QPushButton::clicked, this, &DriverDialog::extractDriverFiles); // Connect extract button
 }
 
 DriverDialog::~DriverDialog()
@@ -89,6 +90,36 @@ void DriverDialog::installDriver() {
 #else
     std::cout << "Driver installation not supported on this platform." << std::endl;
 #endif
+}
+
+// Add the new method for extracting driver files
+void DriverDialog::extractDriverFiles() {
+    QString tempDir = "/tmp/ch341-drivers";
+    QDir().mkpath(tempDir); // Create the temporary directory if it doesn't exist
+
+    // Copy files from the resource path to the temporary directory
+    QStringList files = {":/drivers/linux/ch341.c", ":/drivers/linux/ch341.h", ":/drivers/linux/Makefile"}; // Add all necessary files
+    for (const QString &filePath : files) {
+        QFileInfo fileInfo(filePath);
+        QString targetPath = tempDir + "/" + fileInfo.fileName();
+        if (QFile::copy(filePath, targetPath)) {
+            std::cout << "Copied " << fileInfo.fileName().toStdString() << " to " << tempDir.toStdString() << std::endl;
+        } else {
+            std::cout << "Failed to copy " << fileInfo.fileName().toStdString() << std::endl;
+        }
+    }
+
+    // Inform the user how to install the driver manually
+    QString instructions = 
+        "To install the driver, please follow these steps:\n\n"
+        "1. Open a terminal.\n"
+        "2. Run the following commands:\n"
+        "   cd /tmp/ch341-drivers\n"
+        "   sudo make\n"
+        "   sudo make install\n\n"
+        "Please ensure you have the necessary build tools installed.";
+
+    QMessageBox::information(this, "Driver Installation Instructions", instructions);
 }
 
 // Update the accept method to call the new installDriver method
