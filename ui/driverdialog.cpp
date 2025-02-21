@@ -41,7 +41,6 @@ DriverDialog::DriverDialog(QWidget *parent) :
 #else
     ui->setFixedSize(400, 300); // Set width to 400 and height to 300 for Linux
     ui->descriptionLabel->setText("Driver Installation Instructions.");
-    ui->instructionsTextEdit->setVisible(true);
     ui->commandsTextEdit->setVisible(true); 
     ui->step1Label->setVisible(true);
     ui->extractButton->setVisible(true);
