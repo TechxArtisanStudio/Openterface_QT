@@ -4,6 +4,9 @@ project(openterfaceQT VERSION 1.0 LANGUAGES C CXX)
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 set(CMAKE_AUTOUIC ON)
 
+# Option to control static linking of FFmpeg
+option(USE_FFMPEG_STATIC "Use static FFmpeg libraries" ON)
+
 find_package(QT NAMES Qt5 Qt6 REQUIRED COMPONENTS Core)
 find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Concurrent Gui Multimedia MultimediaWidgets Network SerialPort Svg)
 find_package(Qt${QT_VERSION_MAJOR} OPTIONAL_COMPONENTS Widgets)
@@ -11,22 +14,26 @@ find_package(Qt${QT_VERSION_MAJOR} OPTIONAL_COMPONENTS Widgets)
 # Find X11 libraries
 find_package(X11 REQUIRED COMPONENTS Xrandr Xrender)
 
-# Explicitly set the FFmpeg libraries and include directories
-set(FFMPEG_INCLUDE_DIRS "/usr/local/include")
-set(FFMPEG_LIBRARIES "/usr/lib/local/libavcodec.a;/usr/lib/local/libavformat.a;/usr/lib/local/libavutil.a;/usr/lib/local/libswresample.a;/usr/lib/local/libswscale.a")
-
-if(NOT FFmpeg_FOUND)
-    message(FATAL_ERROR "FFmpeg libraries not found. Please install FFmpeg development packages.")
+# Find FFmpeg libraries
+if(USE_FFMPEG_STATIC)
+    set(FFMPEG_STATIC ON)
+    find_package(FFmpeg REQUIRED COMPONENTS avformat avcodec avutil swresample swscale)
 else()
-    message(STATUS "Found FFmpeg: ${FFMPEG_LIBRARIES}")
+    set(FFMPEG_STATIC OFF)
+    find_package(FFmpeg REQUIRED COMPONENTS avformat avcodec avutil swresample swscale)
 endif()
 
-# Find FFmpeg libraries
-#find_package(FFmpeg REQUIRED COMPONENTS avformat avcodec avutil swresample swscale)
+# Check if FFmpeg libraries are found
+if(FFmpeg_FOUND)
+    message(STATUS "Found FFmpeg: ${FFmpeg_LIBRARIES}")
+else()
+    message(FATAL_ERROR "FFmpeg libraries not found. Please ensure FFmpeg is installed.")
+endif()
 
-# Ensure static linking
-set(FFMPEG_STATIC ON)
+# Include FFmpeg directories
+include_directories(${FFmpeg_INCLUDE_DIRS})
 
+# Add the executable target
 qt_standard_project_setup()
 
 qt_add_executable(openterfaceQT WIN32 MACOSX_BUNDLE
@@ -77,6 +84,7 @@ qt_add_executable(openterfaceQT WIN32 MACOSX_BUNDLE
     ui/videopane.cpp ui/videopane.h
     video/videohid.cpp video/videohid.h
 )
+
 target_link_libraries(openterfaceQT PRIVATE
     Qt::Concurrent
     Qt::Core
@@ -86,6 +94,7 @@ target_link_libraries(openterfaceQT PRIVATE
     Qt::Network
     Qt::SerialPort
     Qt::Svg
+    ${FFmpeg_LIBRARIES}  # Link against FFmpeg libraries
 )
 
 if(DEFINED LIBXRENDER_LIBRARY)
@@ -132,6 +141,7 @@ qt_add_resources(openterfaceQT "mainwindow"
     FILES
         ${mainwindow_resource_files}
 )
+
 set(keyboard_layouts_resource_files
     "config/keyboards/azerty_fr.json"
     "config/keyboards/japanese.json"
@@ -149,6 +159,7 @@ qt_add_resources(openterfaceQT "keyboard_layouts"
     FILES
         ${keyboard_layouts_resource_files}
 )
+
 set(qmake_immediate_resource_files
     "openterfaceQT.rc"
 )
@@ -172,14 +183,12 @@ if(WIN32)
     )
 
     target_link_libraries(openterfaceQT PRIVATE
-        # Remove: L${CMAKE_CURRENT_SOURCE_DIR}/lib
         hid
         libusb-1.0
         oleaut32
         setupapi
         winpthread
     )
-
 
     # Resources:
     set_source_files_properties("driver/windows/CH341SER.INF"
@@ -223,7 +232,6 @@ if(UNIX)
         FILES
             ${drivers_resource_files}
     )
-
 endif()
 
 install(TARGETS openterfaceQT

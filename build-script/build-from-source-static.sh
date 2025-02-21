@@ -140,10 +140,10 @@ done
 export PATH=$INSTALL_PREFIX/bin:$PATH
 
 cd $BUILD_DIR
-if [ ! -d "Openterface_QT" ]; then
-    git clone https://github.com/TechxArtisanStudio/Openterface_QT.git
+if [ -d "Openterface_QT" ]; then
+    rm -rf Openterface_QT
 fi
-
+git clone https://github.com/TechxArtisanStudio/Openterface_QT.git
 cd $BUILD_DIR/Openterface_QT
 
 #git fetch --tags
@@ -153,12 +153,13 @@ cd $BUILD_DIR/Openterface_QT
 rm -rf build
 mkdir build
 cd build
-cmake  -GNinja -S .. -B . \
+cmake -GNinja -S .. -B . \
 -DCMAKE_BUILD_TYPE=Release \
 -DBUILD_SHARED_LIBS=OFF \
 -DCMAKE_PREFIX_PATH=/opt/Qt6 \
 -DCMAKE_INSTALL_PREFIX=release \
--DCMAKE_VERBOSE_MAKEFILE=ON 
+-DCMAKE_VERBOSE_MAKEFILE=ON \
+-DUSE_FFMPEG_STATIC="$USE_FFMPEG_STATIC"
 ninja -j$(nproc)
 sudo ninja install
 
