@@ -26,6 +26,9 @@ protected:
 
 private:
     Ui::DriverDialog *ui;
+
+    // Add the new method for driver installation
+    void installDriver(); // Declaration of the new method
 };
 
 #endif // DRIVERDIALOG_H

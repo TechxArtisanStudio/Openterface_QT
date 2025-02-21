@@ -41,20 +41,32 @@ void DriverDialog::closeEvent(QCloseEvent *event)
     event->ignore(); // Ignore the close event
 }
 
-// Override accept method
-void DriverDialog::accept()
-{
-    // Implement logic for when OK is clicked
-    QMessageBox::information(this, "Information", "Proceeding with driver installation.");
-    
-    // Log the driver installation attempt
+// Add the new method for driver installation
+void DriverDialog::installDriver() {
+#ifdef _WIN32
+    // Execute pnputil to install the driver on Windows
     std::cout << "Attempting to install driver using pnputil." << std::endl;
-
-    // Execute pnputil to install the driver
     QProcess::execute("pnputil.exe", QStringList() << "/add-driver" << "CH341SER.INF" << "/install");
-    
-    // Log the completion of the installation attempt
     std::cout << "Driver installation command executed." << std::endl;
+#elif defined(__linux__)
+    // Execute the installation command for Linux
+    std::cout << "Attempting to install driver on Linux." << std::endl;
+
+    // add the driver installation command for Linux
+    std::cout << "Compiling and installing the driver from source." << std::endl;
+    QProcess::execute("make");
+    QProcess::execute("sudo", QStringList() << "make" << "install");
+
+    std::cout << "Driver installation command executed." << std::endl;
+#else
+    std::cout << "Driver installation not supported on this platform." << std::endl;
+#endif
+}
+
+// Update the accept method to call the new installDriver method
+void DriverDialog::accept()
+{    
+    installDriver();
 
     // Prompt user to restart computer
     QMessageBox::StandardButton reply = QMessageBox::question(
