@@ -9,6 +9,11 @@
 #include <QFileInfo> // Include QFileInfo for file information
 #include <QTextEdit> // Include QTextEdit for displaying text
 #include <QSizePolicy> // Include QSizePolicy for setting size policy
+#include <QFileDialog> // Include QFileDialog for file dialog
+#include <QLabel> // Include QLabel for displaying labels
+#include <QVBoxLayout> // Include QVBoxLayout for layout management
+#include <QClipboard> // Include QClipboard for clipboard operations
+#include <QHBoxLayout> // Include QHBoxLayout for horizontal layout
 #ifdef _WIN32 // Check if compiling on Windows
 #include <windows.h> // Include Windows API header
 #include <setupapi.h> // Include SetupAPI for device installation functions
@@ -32,7 +37,6 @@ DriverDialog::DriverDialog(QWidget *parent) :
     // Connect buttons to their respective slots
     connect(ui->okButton, &QPushButton::clicked, this, &DriverDialog::accept); // Close dialog on OK
     connect(ui->quitButton, &QPushButton::clicked, this, &DriverDialog::reject); // Close dialog on Quit
-    connect(ui->extractButton, &QPushButton::clicked, this, &DriverDialog::extractDriverFiles); // Connect extract button
 }
 
 DriverDialog::~DriverDialog()
@@ -54,39 +58,64 @@ void DriverDialog::installDriver() {
     QProcess::execute("pnputil.exe", QStringList() << "/add-driver" << "CH341SER.INF" << "/install");
     std::cout << "Driver installation command executed." << std::endl;
 #elif defined(__linux__)
-    // Create a QTextEdit to display the instructions
-    QTextEdit *textEdit = new QTextEdit();
-    textEdit->setReadOnly(true); // Make it read-only
-    textEdit->setTextInteractionFlags(Qt::TextSelectableByMouse | Qt::TextSelectableByKeyboard); // Allow text selection
-
-    QString instructions = 
-        "To install the driver, please follow these steps:\n\n"
-        "1. Open a terminal.\n"
-        "2. Run the following commands:\n"
-        "   sudo mkdir -p /tmp/ch341-drivers\n"
-        "   sudo cp /path/to/drivers/linux/ch341.c /tmp/ch341-drivers/\n"
-        "   sudo cp /path/to/drivers/linux/ch341.h /tmp/ch341-drivers/\n"
-        "   sudo cp /path/to/drivers/linux/Makefile /tmp/ch341-drivers/\n"
-        "   cd /tmp/ch341-drivers\n"
-        "   sudo make\n"
-        "   sudo make install\n\n"
-        "Please replace '/path/to/drivers' with the actual path to the driver files.";
-
-    textEdit->setPlainText(instructions); // Set the instructions text
-
-    // Create a message box to display the QTextEdit
+    // Create a message box to display the instructions
     QMessageBox msgBox;
     msgBox.setWindowTitle("Driver Installation Instructions");
-    msgBox.setText("Please copy the following commands to install the driver:");
     msgBox.setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
     msgBox.setDefaultButton(QMessageBox::Ok);
     msgBox.setDetailedText(""); // Clear any default detailed text
     msgBox.setInformativeText(""); // Clear any default informative text
-    msgBox.setTextInteractionFlags(Qt::TextSelectableByMouse | Qt::TextSelectableByKeyboard); // Allow text selection
 
-    // Add the QTextEdit to the message box
-    msgBox.layout()->addWidget(textEdit);
+    // Create a layout for the message box
+    QVBoxLayout *layout = new QVBoxLayout();
+
+    // Step 1: Extract the driver to a folder
+    QLabel *step1Label = new QLabel("1. Extract the driver to a folder:");
+    QPushButton *extractButton = new QPushButton("Extract Driver");
+    layout->addWidget(step1Label);
+    layout->addWidget(extractButton);
+
+    // Step 2: Open a terminal
+    QLabel *step2Label = new QLabel("2. Open a terminal:");
+    layout->addWidget(step2Label);
+
+    // Step 3: Copy the commands below and run them in the terminal
+    QLabel *step3Label = new QLabel("3. Copy the commands below and run them in the terminal:");
+    layout->addWidget(step3Label);
+
+    // Create a QTextEdit to display the commands
+    QTextEdit *textEdit = new QTextEdit();
+    textEdit->setReadOnly(true); // Make it read-only
+    textEdit->setTextInteractionFlags(Qt::TextSelectableByMouse | Qt::TextSelectableByKeyboard); // Allow text selection
+
+    QString commands = "make & sudo make install";
+
+    textEdit->setPlainText(commands); // Set the commands text
+
+    // Set the stylesheet for the QTextEdit to change background and text color
+    textEdit->setStyleSheet("QTextEdit { background-color: white; color: black; }");
+
+    // Add the QTextEdit to the layout
+    layout->addWidget(textEdit);
+
+    // Add a "Copy Commands" button
+    QPushButton *copyButton = new QPushButton("Copy Commands");
+    layout->addWidget(copyButton);
+
+    // Set the layout for the message box
+    msgBox.setLayout(layout);
+
     msgBox.exec(); // Show the message box
+
+    // Check if the user clicked the "Copy Commands" button
+    connect(copyButton, &QPushButton::clicked, [commands]() {
+        // Copy the commands to the clipboard
+        QClipboard *clipboard = QApplication::clipboard();
+        clipboard->setText(commands); // Copy the commands to the clipboard
+    });
+
+    // Check if the user clicked the "Extract Driver" button
+    connect(extractButton, &QPushButton::clicked, this, &DriverDialog::extractDriverFiles);
 #else
     std::cout << "Driver installation not supported on this platform." << std::endl;
 #endif
@@ -94,10 +123,18 @@ void DriverDialog::installDriver() {
 
 // Add the new method for extracting driver files
 void DriverDialog::extractDriverFiles() {
-    QString tempDir = "/tmp/ch341-drivers";
+    // Open a file dialog to select the destination directory
+    QString selectedDir = QFileDialog::getExistingDirectory(this, "Select Destination Directory", QDir::homePath());
+
+    if (selectedDir.isEmpty()) {
+        // If no directory was selected, return early
+        return;
+    }
+
+    QString tempDir = selectedDir + "/ch341-drivers"; // Create a subdirectory for the drivers
     QDir().mkpath(tempDir); // Create the temporary directory if it doesn't exist
 
-    // Copy files from the resource path to the temporary directory
+    // Copy files from the resource path to the selected directory
     QStringList files = {":/drivers/linux/ch341.c", ":/drivers/linux/ch341.h", ":/drivers/linux/Makefile"}; // Add all necessary files
     for (const QString &filePath : files) {
         QFileInfo fileInfo(filePath);
@@ -108,18 +145,6 @@ void DriverDialog::extractDriverFiles() {
             std::cout << "Failed to copy " << fileInfo.fileName().toStdString() << std::endl;
         }
     }
-
-    // Inform the user how to install the driver manually
-    QString instructions = 
-        "To install the driver, please follow these steps:\n\n"
-        "1. Open a terminal.\n"
-        "2. Run the following commands:\n"
-        "   cd /tmp/ch341-drivers\n"
-        "   sudo make\n"
-        "   sudo make install\n\n"
-        "Please ensure you have the necessary build tools installed.";
-
-    QMessageBox::information(this, "Driver Installation Instructions", instructions);
 }
 
 // Update the accept method to call the new installDriver method
