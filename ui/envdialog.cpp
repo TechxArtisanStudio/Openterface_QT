@@ -70,7 +70,7 @@ EnvironmentSetupDialog::EnvironmentSetupDialog(QWidget *parent) :
     statusSummary += "In Dialout Group: " + QString(isInRightUserGroup ? "Yes" : "No") + "\n";
     statusSummary += "HID Permission: " + QString(isHidPermission ? "Yes" : "No") + "\n";
     if (isBrlttyRunning) {
-        statusSummary += "Brltty Running: Yes\n";
+        statusSummary += "Brltty running and blocking serial port: Yes\n";
     }
     ui->descriptionLabel->setText(statusSummary);
 #endif
