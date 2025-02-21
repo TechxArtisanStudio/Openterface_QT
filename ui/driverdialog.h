@@ -29,6 +29,7 @@ private:
 
     // Add the new method for driver installation
     void installDriver(); // Declaration of the new method
+    void extractDriverFiles(); // Add this line to declare the new method
 };
 
 #endif // DRIVERDIALOG_H
