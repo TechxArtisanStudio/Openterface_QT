@@ -208,6 +208,21 @@ if(UNIX)
     target_link_libraries(openterfaceQT PRIVATE
         usb-1.0
     )
+
+    set(drivers_resource_files
+        "driver/linux/ch341.c"
+        "driver/linux/ch341.h"
+        "driver/linux/Makefile"
+    )
+
+    qt_add_resources(openterfaceQT "drivers"
+        PREFIX
+            "/drivers/linux"
+        BASE
+            "driver/linux"
+        FILES
+            ${drivers_resource_files}
+    )
 endif()
 
 install(TARGETS openterfaceQT
