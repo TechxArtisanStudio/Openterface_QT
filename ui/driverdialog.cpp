@@ -14,7 +14,6 @@
 #include <QVBoxLayout> // Include QVBoxLayout for layout management
 #include <QClipboard> // Include QClipboard for clipboard operations
 #include <QHBoxLayout> // Include QHBoxLayout for horizontal layout
-#include <QIcon> // Include QIcon for setting icons
 #ifdef _WIN32 // Check if compiling on Windows
 #include <windows.h> // Include Windows API header
 #include <setupapi.h> // Include SetupAPI for device installation functions
@@ -48,15 +47,11 @@ DriverDialog::DriverDialog(QWidget *parent) :
     ui->step2Label->setVisible(true);
     ui->commandsTextEdit->setVisible(true);
     connect(ui->extractButton, &QPushButton::clicked, this, &DriverDialog::extractDriverFiles);
+    connect(ui->copyButton, &QPushButton::clicked, this, &DriverDialog::copyCommands);
 #endif
     // Connect buttons to their respective slots
     connect(ui->okButton, &QPushButton::clicked, this, &DriverDialog::accept); 
     connect(ui->quitButton, &QPushButton::clicked, this, &DriverDialog::reject); 
-
-    // After creating the copyButton
-    QPushButton *copyButton = new QPushButton("Copy Commands");
-    copyButton->setIcon(QIcon(":/icons/copy_icon.png")); // Set the icon for the button
-    ui->layout->addWidget(copyButton);
 }
 
 DriverDialog::~DriverDialog()
@@ -103,6 +98,12 @@ void DriverDialog::extractDriverFiles() {
             std::cout << "Failed to copy " << fileInfo.fileName().toStdString() << std::endl;
         }
     }
+}
+
+void DriverDialog::copyCommands() {
+    // Copy the commands to the clipboard
+    QClipboard *clipboard = QApplication::clipboard();
+    clipboard->setText(ui->commandsTextEdit->toPlainText());
 }
 
 // Update the accept method to call the new installDriver method
