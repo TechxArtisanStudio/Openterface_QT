@@ -81,7 +81,9 @@ void DriverDialog::installDriver() {
     }
 
     if (!terminalToUse.isEmpty()) {
-        QProcess::startDetached(terminalToUse, QStringList() << "--" << "bash" << "-c" << command);
+        QProcess process;
+        process.start(terminalToUse, QStringList() << "--" << "bash" << "-c" << command);
+        process.waitForFinished(); // Wait for the terminal to exit
         std::cout << "Driver installation command executed in " << terminalToUse.toStdString() << "." << std::endl;
     } else {
         std::cout << "No suitable terminal emulator found. Please install one of the following: gnome-terminal, xterm, konsole, lxterminal, xfce4-terminal." << std::endl;
