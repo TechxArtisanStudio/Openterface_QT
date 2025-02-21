@@ -55,8 +55,8 @@ EnvironmentSetupDialog::EnvironmentSetupDialog(QWidget *parent) :
 #else
     setFixedSize(450, 400); 
     ui->commandsTextEdit->setVisible(true); 
-    ui->step1Label->setVisible(true);
-    ui->extractButton->setVisible(true);
+    ui->step1Label->setVisible(!isDriverInstalled);
+    ui->extractButton->setVisible(!isDriverInstalled);
     ui->step2Label->setVisible(true);
     ui->commandsTextEdit->setText(buildCommands());
     connect(ui->extractButton, &QPushButton::clicked, this, &EnvironmentSetupDialog::extractDriverFiles);

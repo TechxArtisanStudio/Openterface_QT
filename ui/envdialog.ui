@@ -16,7 +16,7 @@
    <item>
     <widget class="QLabel" name="step1Label">
      <property name="text">
-      <string>1. Extract the driver to a folder:</string>
+      <string>‣. Extract the driver to a folder:</string>
      </property>
     </widget>
    </item>
@@ -30,7 +30,7 @@
    <item>
     <widget class="QLabel" name="step2Label">
      <property name="text">
-      <string>2. Open a terminal and run the following commands:</string>
+      <string>‣. Open a terminal and run the following commands:</string>
      </property>
     </widget>
    </item>
