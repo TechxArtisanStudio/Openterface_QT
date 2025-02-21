@@ -34,6 +34,9 @@ private:
     void createInstallDialog(); // New method for creating the install dialog
     void extractDriverFiles(); // Declaration for extracting driver files
     void copyCommands(); // Declaration for copying commands
+
+    // Static command content
+    static const QString staticCommands; // Declaration of static commands
 };
 
 #endif // DRIVERDIALOG_H
