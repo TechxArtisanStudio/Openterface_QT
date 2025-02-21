@@ -40,7 +40,7 @@ DriverDialog::DriverDialog(QWidget *parent) :
     ui->descriptionLabel->setText("The driver is missing. Openterface Mini-KVM will install it automatically.");
 #else
     setFixedSize(400, 300); // Set width to 400 and height to 250 for Linux
-    ui->descriptionLabel->setText("Driver Installation Instructions.");
+    ui->descriptionLabel->setText("Driver Installation Instructions.\n\n The following steps help you install the driver and add user to correct group.");
     ui->commandsTextEdit->setVisible(true); 
     ui->step1Label->setVisible(true);
     ui->extractButton->setVisible(true);
@@ -100,7 +100,11 @@ void DriverDialog::extractDriverFiles() {
     }
 
     // Update the commands to include the new path
-    QString commands = "cd " + tempDir + "; make ; sudo make install";
+    QString commands = "cd " + tempDir + "; make ; sudo make install\n\n";
+    commands += "sudo usermod -a -G dialout $USER";
+    commands += "echo 'KERNEL== "hidraw*", SUBSYSTEM=="hidraw", MODE="0666"' | sudo tee /etc/udev/rules.d/51-openterface.rules \n";
+    commands += "sudo udevadm control --reload-rules\n";
+    commands += "sudo udevadm trigger";
 
     // Update the QTextEdit with the new commands
     ui->commandsTextEdit->setPlainText(commands); // Assuming commandsTextEdit is the name of your QTextEdit
