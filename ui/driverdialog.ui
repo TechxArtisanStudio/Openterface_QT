@@ -23,7 +23,7 @@
    <item>
     <widget class="QPushButton" name="extractButton">
      <property name="text">
-      <string>Extract Driver</string>
+      <string>Select Folder</string>
      </property>
     </widget>
    </item>
@@ -55,7 +55,7 @@
             <item>
             <widget class="QPushButton" name="copyButton">
             <property name="text">
-            <string>Copy</string>
+            <string>⎘</string>
             </property>
             </widget>
         </item>

@@ -98,6 +98,12 @@ void DriverDialog::extractDriverFiles() {
             std::cout << "Failed to copy " << fileInfo.fileName().toStdString() << std::endl;
         }
     }
+
+    // Update the commands to include the new path
+    QString commands = "cd " + tempDir + "; make ; sudo make install";
+
+    // Update the QTextEdit with the new commands
+    ui->commandsTextEdit->setPlainText(commands); // Assuming commandsTextEdit is the name of your QTextEdit
 }
 
 void DriverDialog::copyCommands() {
