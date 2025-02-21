@@ -256,20 +256,23 @@ bool EnvironmentSetupDialog::checkInRightUserGroup() {
     // Check if the user is in the dialout group
     std::string command = "groups | grep -i dialout";
     int result = system(command.c_str());
-    return result == 0; // Returns true if the user is in the dialout group
+    isInRightUserGroup = (result == 0); 
+    return isInRightUserGroup;
 }
 
 bool EnvironmentSetupDialog::checkHidPermission() {
     // Check if the user has HID permission
     std::string command = "ls -l /dev/hidraw*";
     int result = system(command.c_str());
-    return result == 0; // Returns true if the user has HID permission
+    isHidPermission = (result == 0); // Returns true if the user has HID permission
+    return isHidPermission;
 }
 
 bool EnvironmentSetupDialog::checkBrlttyRunning() {
     // Check if Brltty is running
     std::string command = "pgrep brltty";
     int result = system(command.c_str());
-    return result == 0; // Returns true if Brltty is running
+    isBrlttyRunning = (result == 0); // Returns true if Brltty is running
+    return isBrlttyRunning;
 }
 #endif
