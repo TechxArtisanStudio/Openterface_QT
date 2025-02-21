@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <ui version="4.0">
  <class>DriverDialog</class>
- <widget class="QDialog" name="DriverDialog">
+ <widget class="QDialog" name="EnvironmentSetupDialog">
   <property name="windowTitle">
-   <string>Driver Missing</string>
+   <string>Environment Setup</string>
   </property>
   <layout class="QVBoxLayout" name="verticalLayout">
    <item>

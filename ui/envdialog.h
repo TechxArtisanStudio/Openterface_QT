@@ -1,20 +1,20 @@
-#ifndef DRIVERDIALOG_H
-#define DRIVERDIALOG_H
+#ifndef ENVIRONMENTSETUPDIALOG_H
+#define ENVIRONMENTSETUPDIALOG_H
 
 #include <QDialog>
 #include <QCloseEvent>
 
 namespace Ui {
-class DriverDialog;
+class EnvironmentSetupDialog;
 }
 
-class DriverDialog : public QDialog
+class EnvironmentSetupDialog : public QDialog
 {
     Q_OBJECT
 
 public:
-    explicit DriverDialog(QWidget *parent = nullptr);
-    ~DriverDialog();
+    explicit EnvironmentSetupDialog(QWidget *parent = nullptr);
+    ~EnvironmentSetupDialog();
     
     // New static method to check if the CH340 driver is installed
     static bool isDriverInstalled();
@@ -25,7 +25,7 @@ protected:
     void reject() override;
 
 private:
-    Ui::DriverDialog *ui;
+    Ui::EnvironmentSetupDialog *ui;
 
     // Add the new method for driver installation
     #ifdef _WIN32
@@ -36,7 +36,7 @@ private:
     void copyCommands(); // Declaration for copying commands
 
     // Static command content
-    static const QString staticCommands; // Declaration of static commands
-};
-
-#endif // DRIVERDIALOG_H
+    static const QString driverCommands;
+    static const QString groupCommands;
+    static const QString udevCommands;
+#endif // ENVIRONMENTSETUPDIALOG_H

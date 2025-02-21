@@ -54,7 +54,7 @@ qt_add_executable(openterfaceQT WIN32 MACOSX_BUNDLE
     ui/TaskManager.cpp ui/TaskManager.h
     ui/audiopage.cpp ui/audiopage.h
     ui/cameraajust.cpp ui/cameraajust.h
-    ui/driverdialog.cpp ui/driverdialog.h ui/driverdialog.ui
+    ui/envdialog.cpp ui/envdialog.h ui/envdialog.ui
     ui/fpsspinbox.cpp ui/fpsspinbox.h
     ui/globalsetting.cpp ui/globalsetting.h
     ui/hardwarepage.cpp ui/hardwarepage.h

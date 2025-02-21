@@ -1,5 +1,5 @@
-#include "ui/driverdialog.h"
-#include "ui_driverdialog.h"
+#include "ui/envdialog.h"
+#include "ui_envdialog.h"
 #include <QPushButton> // Include QPushButton header
 #include <QMessageBox> // Include QMessageBox header
 #include <QCloseEvent> // Include QCloseEvent header
@@ -14,6 +14,7 @@
 #include <QVBoxLayout> // Include QVBoxLayout for layout management
 #include <QClipboard> // Include QClipboard for clipboard operations
 #include <QHBoxLayout> // Include QHBoxLayout for horizontal layout
+#include <cstdlib>
 #ifdef _WIN32 // Check if compiling on Windows
 #include <windows.h> // Include Windows API header
 #include <setupapi.h> // Include SetupAPI for device installation functions
@@ -29,16 +30,15 @@
 #endif
 
 // Define the static commands
-const QString DriverDialog::staticCommands = 
-    "make ; sudo make install\n\n"
-    "sudo usermod -a -G dialout $USER\n"
+const QString EnvironmentSetupDialog::driverCommands = "make ; sudo make install\n";
+const QString EnvironmentSetupDialog::groupCommands = "sudo usermod -a -G dialout $USER\n";
+const QString EnvironmentSetupDialog::udevCommands =
     "echo 'KERNEL== \"hidraw*\", SUBSYSTEM==\"hidraw\", MODE=\"0666\"' | sudo tee /etc/udev/rules.d/51-openterface.rules\n"
     "sudo udevadm control --reload-rules\n"
     "sudo udevadm trigger";
 
 
-
-DriverDialog::DriverDialog(QWidget *parent) :
+EnvironmentSetupDialog::EnvironmentSetupDialog(QWidget *parent) :
     QDialog(parent),
     ui(new Ui::DriverDialog)
 {
@@ -46,37 +46,37 @@ DriverDialog::DriverDialog(QWidget *parent) :
     
 
 #ifdef _WIN32
-    setFixedSize(250, 120); // Set width to 250 and height to 120 for Windows
+    setFixedSize(250, 120); 
     ui->descriptionLabel->setText("The driver is missing. Openterface Mini-KVM will install it automatically.");
 #else
-    setFixedSize(400, 300); // Set width to 400 and height to 250 for Linux
+    setFixedSize(450, 400); 
     ui->descriptionLabel->setText("Driver Installation Instructions.\n\n The following steps help you install the driver and add user to correct group.");
     ui->commandsTextEdit->setVisible(true); 
     ui->step1Label->setVisible(true);
     ui->extractButton->setVisible(true);
     ui->step2Label->setVisible(true);
-    ui->commandsTextEdit->setText(staticCommands);
-    connect(ui->extractButton, &QPushButton::clicked, this, &DriverDialog::extractDriverFiles);
-    connect(ui->copyButton, &QPushButton::clicked, this, &DriverDialog::copyCommands);
+    ui->commandsTextEdit->setText(driverCommands + groupCommands + udevCommands);
+    connect(ui->extractButton, &QPushButton::clicked, this, &EnvironmentSetupDialog::extractDriverFiles);
+    connect(ui->copyButton, &QPushButton::clicked, this, &EnvironmentSetupDialog::copyCommands);
 #endif
     // Connect buttons to their respective slots
-    connect(ui->okButton, &QPushButton::clicked, this, &DriverDialog::accept); 
-    connect(ui->quitButton, &QPushButton::clicked, this, &DriverDialog::reject); 
+    connect(ui->okButton, &QPushButton::clicked, this, &EnvironmentSetupDialog::accept); 
+    connect(ui->quitButton, &QPushButton::clicked, this, &EnvironmentSetupDialog::reject); 
 }
 
-DriverDialog::~DriverDialog()
+EnvironmentSetupDialog::~EnvironmentSetupDialog()
 {
     delete ui;
 }
 
 // Override the closeEvent to prevent closing the dialog
-void DriverDialog::closeEvent(QCloseEvent *event)
+void EnvironmentSetupDialog::closeEvent(QCloseEvent *event)
 {
     event->ignore(); // Ignore the close event
 }
 
 #ifdef _WIN32
-void DriverDialog::installDriverForWindows() {
+void EnvironmentSetupDialog::installDriverForWindows() {
     // Windows-specific installation logic
     std::cout << "Attempting to install driver using pnputil." << std::endl;
     QProcess::execute("pnputil.exe", QStringList() << "/add-driver" << "CH341SER.INF" << "/install");
@@ -85,7 +85,7 @@ void DriverDialog::installDriverForWindows() {
 #endif
 
 // Add the new method for extracting driver files
-void DriverDialog::extractDriverFiles() {
+void EnvironmentSetupDialog::extractDriverFiles() {
     // Open a file dialog to select the destination directory
     QString selectedDir = QFileDialog::getExistingDirectory(this, "Select Destination Directory", QDir::homePath());
 
@@ -110,17 +110,17 @@ void DriverDialog::extractDriverFiles() {
     }
 
     // Update the QTextEdit with the static commands
-    ui->commandsTextEdit->setPlainText("cd " + tempDir + "\n" + staticCommands);
+    ui->commandsTextEdit->setPlainText("cd " + tempDir + "\n" + driverCommands + groupCommands + udevCommands);
 }
 
-void DriverDialog::copyCommands() {
+void EnvironmentSetupDialog::copyCommands() {
     // Copy the commands to the clipboard
     QClipboard *clipboard = QApplication::clipboard();
     clipboard->setText(ui->commandsTextEdit->toPlainText());
 }
 
 // Update the accept method to call the new installDriver method
-void DriverDialog::accept()
+void EnvironmentSetupDialog::accept()
 {   
     #ifdef _WIN32
     installDriverForWindows();
@@ -130,7 +130,7 @@ void DriverDialog::accept()
     QMessageBox::StandardButton reply = QMessageBox::question(
         this,
         "Restart Required",
-        "The driver has been installed. A system restart is required for the changes to take effect.\n\n"
+        "The driver has been installed. A system restart and device re-plugging is required for the changes to take effect.\n\n"
         "Would you like to restart your computer now?",
         QMessageBox::Yes | QMessageBox::No
     );
@@ -147,7 +147,7 @@ void DriverDialog::accept()
         QMessageBox::information(
             this,
             "Restart Later",
-            "Please remember to restart your computer for the driver to work properly."
+            "Please remember to restart your computer and re-plug the device for the driver to work properly."
         );
     }
 
@@ -156,12 +156,12 @@ void DriverDialog::accept()
 }
 
 // Override reject method
-void DriverDialog::reject()
+void EnvironmentSetupDialog::reject()
 {
     QDialog::reject();
 }
 
-bool DriverDialog::isDriverInstalled() {
+bool EnvironmentSetupDialog::isDriverInstalled() {
 #ifdef _WIN32 // Check if compiling on Windows
     std::cout << "Checking if devices are present..." << std::endl;
     const GUID GUID_DEVINTERFACE_USB_DEVICE = { 0xA5DCBF10, 0x6530, 0x11D2, {0x90, 0x1F, 0x00, 0xC0, 0x4F, 0xB9, 0x51, 0xED} };
