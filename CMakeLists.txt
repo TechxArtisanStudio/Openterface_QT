@@ -223,6 +223,7 @@ if(UNIX)
         FILES
             ${drivers_resource_files}
     )
+
 endif()
 
 install(TARGETS openterfaceQT
