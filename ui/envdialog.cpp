@@ -38,7 +38,7 @@ const QString EnvironmentSetupDialog::udevCommands =
     "echo 'KERNEL== \"hidraw*\", SUBSYSTEM==\"hidraw\", MODE=\"0666\"' | sudo tee /etc/udev/rules.d/51-openterface.rules\n"
     "sudo udevadm control --reload-rules\n"
     "sudo udevadm trigger\n\n";
-const QString EnvironmentSetupDialog::brlttyCommands = "#Stop and disable Brltty\nsudo systemctl stop brltty; sudo systemctl disable brltty; \n\n"; 
+const QString EnvironmentSetupDialog::brlttyCommands = "#Stop and disable Brltty\nsudo apt remove brltty; \n\n"; 
 
 bool EnvironmentSetupDialog::isDriverInstalled = false;
 bool EnvironmentSetupDialog::isInRightUserGroup = false;
