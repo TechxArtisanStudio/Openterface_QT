@@ -48,9 +48,6 @@ EnvironmentSetupDialog::EnvironmentSetupDialog(QWidget *parent) :
     ui(new Ui::EnvironmentSetupDialog)  
 {
     ui->setupUi(this);
-    
-    // Check the environment setup to update status variables
-    checkEnvironmentSetup();
 
 #ifdef _WIN32
     setFixedSize(250, 120); 
@@ -66,15 +63,14 @@ EnvironmentSetupDialog::EnvironmentSetupDialog(QWidget *parent) :
     connect(ui->copyButton, &QPushButton::clicked, this, &EnvironmentSetupDialog::copyCommands);
 
     // Create the status summary
-    QString statusSummary = "Driver Installation Instructions.\n\n The following steps help you install the driver and add user to correct group.\n";
+    QString statusSummary = "Driver Installation Instructions.\n\n The following steps help you install the driver and add user to correct group. Current status:\n";
     statusSummary += "Driver Installed: " + QString(isDriverInstalled ? "Yes" : "No") + "\n";
     statusSummary += "In Dialout Group: " + QString(isInRightUserGroup ? "Yes" : "No") + "\n";
     statusSummary += "HID Permission: " + QString(isHidPermission ? "Yes" : "No") + "\n";
-    statusSummary += "Brltty Running: " + QString(isBrlttyRunning ? "Yes" : "No") + "\n";
+    if (isBrlttyRunning) {
+        statusSummary += "Brltty Running: Yes\n";
+    }
     ui->descriptionLabel->setText(statusSummary);
-
-    // Set the initial text for the description label
-    ui->descriptionLabel->setText("Driver Installation Instructions.\n\n" + statusSummary);
 #endif
     // Connect buttons to their respective slots
     connect(ui->okButton, &QPushButton::clicked, this, &EnvironmentSetupDialog::accept); 
@@ -208,7 +204,7 @@ bool EnvironmentSetupDialog::checkEnvironmentSetup() {
     #ifdef _WIN32
     return checkDriverInstalled();
     #elif defined(__linux__)
-    return checkDriverInstalled() && checkInRightUserGroup() && checkHidPermission() && checkBrlttyRunning();
+    return checkDriverInstalled() && checkInRightUserGroup() && checkHidPermission() && !checkBrlttyRunning();
     #else
     return true;
     #endif
