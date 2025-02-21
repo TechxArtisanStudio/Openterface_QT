@@ -14,17 +14,8 @@ find_package(Qt${QT_VERSION_MAJOR} OPTIONAL_COMPONENTS Widgets)
 # Find X11 libraries
 find_package(X11 REQUIRED COMPONENTS Xrandr Xrender)
 
-set(FFmpeg_DIR "/usr/local")  # Adjust this path if necessary
-
-# Find FFmpeg libraries
-find_package(FFmpeg REQUIRED COMPONENTS avformat avcodec avutil swresample swscale)
-
-# Check if FFmpeg libraries are found
-if(FFmpeg_FOUND)
-    message(STATUS "Found FFmpeg: ${FFmpeg_LIBRARIES}")
-else()
-    message(FATAL_ERROR "FFmpeg libraries not found. Please ensure FFmpeg is installed.")
-endif()
+set(FFMPEG_INCLUDE_DIRS "/usr/local/include")
+set(FFMPEG_LIBRARIES "/usr/local/lib/libavformat.a;/usr/local/lib/libavcodec.a;/usr/local/lib/libavutil.a;/usr/local/lib/libswresample.a;/usr/local/lib/libswscale.a")
 
 # Include FFmpeg directories
 include_directories(${FFmpeg_INCLUDE_DIRS})
@@ -90,7 +81,7 @@ target_link_libraries(openterfaceQT PRIVATE
     Qt::Network
     Qt::SerialPort
     Qt::Svg
-    ${FFmpeg_LIBRARIES}  # Link against FFmpeg libraries
+    ${FFMPEG_LIBRARIES}
 )
 
 if(DEFINED LIBXRENDER_LIBRARY)
