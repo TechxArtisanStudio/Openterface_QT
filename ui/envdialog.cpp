@@ -53,6 +53,10 @@ EnvironmentSetupDialog::EnvironmentSetupDialog(QWidget *parent) :
 
 #ifdef _WIN32
     setFixedSize(250, 120); 
+    ui->step1Label->setVisible(false);
+    ui->extractButton->setVisible(false);
+    ui->step2Label->setVisible(false);
+    ui->commandsTextEdit->setVisible(false);
     ui->descriptionLabel->setText("The driver is missing. Openterface Mini-KVM will install it automatically.");
 #else
     setFixedSize(450, 400); 
