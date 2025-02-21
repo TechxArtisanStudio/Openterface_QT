@@ -28,8 +28,11 @@ private:
     Ui::DriverDialog *ui;
 
     // Add the new method for driver installation
-    void installDriver(); // Declaration of the new method
-    void extractDriverFiles(); // Add this line to declare the new method
+    #ifdef _WIN32
+    void installDriverForWindows();
+    #endif
+    void createInstallDialog(); // New method for creating the install dialog
+    void extractDriverFiles(); // Declaration for extracting driver files
 };
 
 #endif // DRIVERDIALOG_H

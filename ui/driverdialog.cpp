@@ -33,10 +33,25 @@ DriverDialog::DriverDialog(QWidget *parent) :
     ui(new Ui::DriverDialog)
 {
     ui->setupUi(this);
+    
 
+#ifdef _WIN32
+    ui->setFixedSize(250, 120); 
+    ui->descriptionLabel->setText("The driver is missing. Openterface Mini-KVM will install it automatically.");
+#else
+    ui->setFixedSize(400, 300); // Set width to 400 and height to 300 for Linux
+    ui->descriptionLabel->setText("Driver Installation Instructions.");
+    ui->instructionsTextEdit->setVisible(true);
+    ui->commandsTextEdit->setVisible(true); 
+    ui->step1Label->setVisible(true);
+    ui->extractButton->setVisible(true);
+    ui->step2Label->setVisible(true);
+    ui->commandsTextEdit->setVisible(true);
+    connect(ui->extractButton, &QPushButton::clicked, this, &DriverDialog::extractDriverFiles);
+#endif
     // Connect buttons to their respective slots
-    connect(ui->okButton, &QPushButton::clicked, this, &DriverDialog::accept); // Close dialog on OK
-    connect(ui->quitButton, &QPushButton::clicked, this, &DriverDialog::reject); // Close dialog on Quit
+    connect(ui->okButton, &QPushButton::clicked, this, &DriverDialog::accept); 
+    connect(ui->quitButton, &QPushButton::clicked, this, &DriverDialog::reject); 
 }
 
 DriverDialog::~DriverDialog()
@@ -50,79 +65,14 @@ void DriverDialog::closeEvent(QCloseEvent *event)
     event->ignore(); // Ignore the close event
 }
 
-// Add the new method for driver installation
-void DriverDialog::installDriver() {
 #ifdef _WIN32
-    // Execute pnputil to install the driver on Windows
+void DriverDialog::installDriverForWindows() {
+    // Windows-specific installation logic
     std::cout << "Attempting to install driver using pnputil." << std::endl;
     QProcess::execute("pnputil.exe", QStringList() << "/add-driver" << "CH341SER.INF" << "/install");
     std::cout << "Driver installation command executed." << std::endl;
-#elif defined(__linux__)
-    // Create a message box to display the instructions
-    QMessageBox msgBox;
-    msgBox.setWindowTitle("Driver Installation Instructions");
-    msgBox.setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
-    msgBox.setDefaultButton(QMessageBox::Ok);
-    msgBox.setDetailedText(""); // Clear any default detailed text
-    msgBox.setInformativeText(""); // Clear any default informative text
-
-    // Set the fixed size for the message box
-    msgBox.setFixedSize(300, 400); // Set width to 300 and height to 400
-
-    // Create a layout for the message box
-    QVBoxLayout *layout = new QVBoxLayout();
-
-    // Step 1: Extract the driver to a folder
-    QLabel *step1Label = new QLabel("1. Extract the driver to a folder:");
-    QPushButton *extractButton = new QPushButton("Extract Driver");
-    layout->addWidget(step1Label);
-    layout->addWidget(extractButton);
-
-    // Step 2: Open a terminal
-    QLabel *step2Label = new QLabel("2. Open a terminal:");
-    layout->addWidget(step2Label);
-
-    // Step 3: Copy the commands below and run them in the terminal
-    QLabel *step3Label = new QLabel("3. Copy the commands below and run them in the terminal:");
-    layout->addWidget(step3Label);
-
-    // Create a QTextEdit to display the commands
-    QTextEdit *textEdit = new QTextEdit();
-    textEdit->setReadOnly(true); // Make it read-only
-    textEdit->setTextInteractionFlags(Qt::TextSelectableByMouse | Qt::TextSelectableByKeyboard); // Allow text selection
-
-    QString commands = "make && sudo make install";
-
-    textEdit->setPlainText(commands); // Set the commands text
-
-    // Set the stylesheet for the QTextEdit to change background and text color
-    textEdit->setStyleSheet("QTextEdit { background-color: white; color: black; }");
-
-    // Add the QTextEdit to the layout
-    layout->addWidget(textEdit);
-
-    // Add a "Copy Commands" button
-    QPushButton *copyButton = new QPushButton("Copy Commands");
-    layout->addWidget(copyButton);
-
-    // Set the layout for the message box
-    msgBox.setLayout(layout);
-
-    msgBox.exec(); // Show the message box
-
-    // Check if the user clicked the "Copy Commands" button
-    connect(copyButton, &QPushButton::clicked, [commands]() {
-        // Copy the commands to the clipboard
-        QClipboard *clipboard = QApplication::clipboard();
-        clipboard->setText(commands); // Copy the commands to the clipboard
-    });
-
-    // Check if the user clicked the "Extract Driver" button
-    connect(extractButton, &QPushButton::clicked, this, &DriverDialog::extractDriverFiles);
-#else
-    std::cout << "Driver installation not supported on this platform." << std::endl;
-#endif
 }
+#endif
 
 // Add the new method for extracting driver files
 void DriverDialog::extractDriverFiles() {
@@ -152,8 +102,10 @@ void DriverDialog::extractDriverFiles() {
 
 // Update the accept method to call the new installDriver method
 void DriverDialog::accept()
-{    
-    installDriver();
+{   
+    #ifdef _WIN32
+    installDriverForWindows();
+    #endif
 
     // Prompt user to restart computer
     QMessageBox::StandardButton reply = QMessageBox::question(

@@ -5,20 +5,48 @@
   <property name="windowTitle">
    <string>Driver Missing</string>
   </property>
-  <property name="fixedSize">
-   <size>
-    <width>250</width>
-    <height>120</height>
-   </size>
-  </property>
   <layout class="QVBoxLayout" name="verticalLayout">
    <item>
-    <widget class="QLabel" name="label">
-     <property name="text">
-      <string>The driver is missing. Openterface Mini-KVM will install it automatically.</string>
-     </property>
+    <widget class="QLabel" name="descriptionLabel">
      <property name="wordWrap">
       <bool>true</bool>
+     </property>
+    </widget>
+   </item>
+   <item>
+    <widget class="QLabel" name="step1Label">
+     <property name="readOnly">
+      <bool>true</bool>
+     </property>
+     <property name="text">
+      <string>1. Extract the driver to a folder:</string>
+     </property>
+    </widget>
+   </item>
+   <item>
+    <widget class="QPushButton" name="extractButton">
+     <property name="text">
+      <string>Extract Driver</string>
+     </property>
+    </widget>
+   </item>
+   <item>
+    <widget class="QLabel" name="step2Label">
+     <property name="text">
+      <string>2. Open a terminal and run the following commands:</string>
+     </property>
+    </widget>
+   </item>
+   <item>
+    <widget class="QTextEdit" name="commandsTextEdit">
+     <property name="readOnly">
+      <bool>true</bool>
+     </property>
+     <property name="text">
+      <string></string>
+     </property>
+     <property name="visible">
+      <bool>false</bool>
      </property>
     </widget>
    </item>
