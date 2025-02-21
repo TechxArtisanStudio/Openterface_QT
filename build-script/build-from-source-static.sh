@@ -155,6 +155,7 @@ mkdir build
 cd build
 cmake  -GNinja -S .. -B . \
 -DCMAKE_BUILD_TYPE=Release \
+-DBUILD_SHARED_LIBS=OFF \
 -DCMAKE_PREFIX_PATH=/opt/Qt6 \
 -DCMAKE_INSTALL_PREFIX=release \
 -DCMAKE_VERBOSE_MAKEFILE=ON 
