@@ -1,4 +1,5 @@
 #include "ui/envdialog.h"
+#include "envdialog.h"
 #include "ui_envdialog.h"
 #include <QPushButton> // Include QPushButton header
 #include <QMessageBox> // Include QMessageBox header
@@ -40,7 +41,7 @@ const QString EnvironmentSetupDialog::udevCommands =
 
 EnvironmentSetupDialog::EnvironmentSetupDialog(QWidget *parent) :
     QDialog(parent),
-    ui(new Ui::DriverDialog)
+    ui(new Ui::EnvironmentSetupDialog)
 {
     ui->setupUi(this);
     

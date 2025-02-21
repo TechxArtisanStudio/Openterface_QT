@@ -22,7 +22,7 @@
 
 #include "ui/mainwindow.h"
 #include "ui/loghandler.h"
-#include "ui/driverdialog.h"
+#include "ui/envdialog.h"
 #include "global.h"
 #include "target/KeyboardLayouts.h"
 #include <QCoreApplication>
@@ -129,9 +129,9 @@ int main(int argc, char *argv[])
     KeyboardLayoutManager::getInstance().loadLayouts(configPath);
     
     // Check for CH340 driver
-    if (!DriverDialog::isDriverInstalled()) {
-        DriverDialog driverDialog;
-        if (driverDialog.exec() == QDialog::Rejected) {
+    if (!EnvironmentSetupDialog::isDriverInstalled()) {
+        EnvironmentSetupDialog envDialog;
+        if (envDialog.exec() == QDialog::Rejected) {
             qDebug() << "Driver dialog rejected";
             QApplication::quit(); // Quit the application if the dialog is rejected
             return 0;
