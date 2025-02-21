@@ -15,7 +15,10 @@
     - [For Linux](#for-linux)
   - [FAQ](#faq)
   - [Asking questions and reporting issues](#asking-questions-and-reporting-issues)
-  - [License](#license)
+  - [License Information](#license-information)
+    - [Third-Party Libraries and Their Licenses](#third-party-libraries-and-their-licenses)
+    - [Static Linking](#static-linking)
+    - [License Compliance Details](#license-compliance-details)
 
 ## Features
 - [x] Basic KVM operations
@@ -187,6 +190,47 @@ We encourage you to engage with us.
 - On [Github](https://github.com/TechxArtisanStudio/Openterface_QT/issues) to report issues.
 - Email to [techxartisan@gmail.com](mailto:techxartisan@gmail.com) to ask questions and report issues.
 
-## License
+## License Information
 
-This project is licensed under the AGPL-3.0 - see the [LICENSE](LICENSE) file for details.
+The Openterface Mini-KVM QT project is licensed under the **AGPL-3.0** (Affero General Public License). This license allows you to use, modify, and redistribute the software under the following conditions:
+
+1. **Source Code Availability**: If you distribute the software, you must make the source code available to the recipients under the same AGPL-3.0 license.
+2. **Modification**: You are free to modify the software, but you must also distribute your modifications under the AGPL-3.0 license.
+3. **No Warranty**: The software is provided "as is", without warranty of any kind.
+
+For more details, please refer to the full text of the AGPL-3.0 license: [GNU AGPL v3.0](https://www.gnu.org/licenses/agpl-3.0.en.html).
+
+### Third-Party Libraries and Their Licenses
+
+This project uses the following third-party libraries, each with its own licensing terms:
+
+- **Qt Framework**: LGPL v3
+- **ALSA (Advanced Linux Sound Architecture)**: LGPL v2.1+
+- **libusb**: LGPL v2.1
+- **FreeType**: FreeType License (BSD-style) / GPL v2
+- **Fontconfig**: MIT License
+- **D-Bus**: AFL v2.1 or GPL v2
+- **PulseAudio**: LGPL v2.1+
+- **libxkbcommon**: MIT License
+- **xorg-macros, xproto, libXdmcp, libXau, xcb, xcb-util**: Generally under permissive licenses
+
+### Static Linking
+
+Most of the libraries used in this project are compatible with AGPL, especially if you provide the source code or object files for LGPL libraries. Ensure compliance with the terms of each license, especially for LGPL libraries.
+
+### License Compliance Details
+
+1. Complete source code is available in this repository.
+2. Build instructions are provided above.
+3. You have the right to modify and redistribute the code under the terms of the AGPL-3.0.
+4. You have the right to relink with different versions of the LGPL libraries.
+5. For any modifications to the code, you must make the source code available under AGPL-3.0.
+
+The full text of all licenses can be found in the [license](LICENSE) file of this repository.
+
+For more information about the licenses:
+- [GNU AGPL v3.0](https://www.gnu.org/licenses/agpl-3.0.en.html)
+- [GNU LGPL v2.1](https://www.gnu.org/licenses/lgpl-2.1.en.html)
+- [GNU LGPL v3.0](https://www.gnu.org/licenses/lgpl-3.0.en.html)
+- [MIT License](https://opensource.org/licenses/MIT)
+- [Academic Free License v2.1](https://opensource.org/licenses/AFL-2.1)
