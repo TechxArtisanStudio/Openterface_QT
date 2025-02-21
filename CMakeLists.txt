@@ -4,6 +4,14 @@ project(openterfaceQT VERSION 1.0 LANGUAGES C CXX)
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 set(CMAKE_AUTOUIC ON)
 
+# Option to control static linking of FFmpeg
+option(USE_FFMPEG_STATIC "Use static FFmpeg libraries" ON)
+
+# Prefer static libraries
+if(USE_FFMPEG_STATIC)
+    set(CMAKE_FIND_STATIC_PREFER ON)
+endif()
+
 find_package(QT NAMES Qt5 Qt6 REQUIRED COMPONENTS Core)
 find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Concurrent Gui Multimedia MultimediaWidgets Network SerialPort Svg)
 find_package(Qt${QT_VERSION_MAJOR} OPTIONAL_COMPONENTS Widgets)
@@ -11,13 +19,12 @@ find_package(Qt${QT_VERSION_MAJOR} OPTIONAL_COMPONENTS Widgets)
 # Find X11 libraries
 find_package(X11 REQUIRED COMPONENTS Xrandr Xrender)
 
-if(${USE_FFMPEG_STATIC})
-    set(FFMPEG_INCLUDE_DIRS "/usr/local/include")
-    set(FFMPEG_LIBRARIES "/usr/local/lib/libavformat.a;/usr/local/lib/libavcodec.a;/usr/local/lib/libavutil.a;/usr/local/lib/libswresample.a;/usr/local/lib/libswscale.a")
-    include_directories(${FFmpeg_INCLUDE_DIRS})
-else()
-    find_package(FFmpeg REQUIRED COMPONENTS avformat avcodec avutil swresample swscale) 
-endif()
+# Set FFmpeg include and library directories
+set(FFMPEG_INCLUDE_DIRS "/usr/local/include")
+set(FFMPEG_LIBRARIES "/usr/local/lib/libavformat.a;/usr/local/lib/libavcodec.a;/usr/local/lib/libavutil.a;/usr/local/lib/libswresample.a;/usr/local/lib/libswscale.a")
+
+# Include FFmpeg directories
+include_directories(${FFMPEG_INCLUDE_DIRS})
 
 # Add the executable target
 qt_standard_project_setup()
@@ -80,11 +87,8 @@ target_link_libraries(openterfaceQT PRIVATE
     Qt::Network
     Qt::SerialPort
     Qt::Svg
+    ${FFMPEG_LIBRARIES}  # Link against FFmpeg libraries
 )
-
-if(${USE_FFMPEG_STATIC})
-    target_link_libraries(openterfaceQT PRIVATE ${FFMPEG_LIBRARIES})
-endif()
 
 if(DEFINED LIBXRENDER_LIBRARY)
     message(STATUS "Using custom libXrender library: ${LIBXRENDER_LIBRARY}")
