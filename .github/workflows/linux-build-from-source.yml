@@ -14,5 +14,5 @@ jobs:
 
       - name: Run build script
         run: |
-          chmod +x docker/build-from-source.sh
-          ./docker/build-from-source.sh 
+          chmod +x build-script/build-from-source.sh
+          ./build-script/build-from-source.sh 
