@@ -37,6 +37,7 @@ const QString EnvironmentSetupDialog::udevCommands =
     "echo 'KERNEL== \"hidraw*\", SUBSYSTEM==\"hidraw\", MODE=\"0666\"' | sudo tee /etc/udev/rules.d/51-openterface.rules\n"
     "sudo udevadm control --reload-rules\n"
     "sudo udevadm trigger";
+const QString EnvironmentSetupDialog::brlttyCommands = "sudo systemctl stop brltty; sudo systemctl disable brltty; \n"; 
 
 bool EnvironmentSetupDialog::isDriverInstalled = false;
 bool EnvironmentSetupDialog::isInRightUserGroup = false;
@@ -63,7 +64,7 @@ EnvironmentSetupDialog::EnvironmentSetupDialog(QWidget *parent) :
     connect(ui->copyButton, &QPushButton::clicked, this, &EnvironmentSetupDialog::copyCommands);
 
     // Create the status summary
-    QString statusSummary = "Driver Installation Instructions.\n\n The following steps help you install the driver and add user to correct group. Current status:\n";
+    QString statusSummary = "The following steps help you install the driver and add user to correct group. Current status:\n";
     statusSummary += "Driver Installed: " + QString(isDriverInstalled ? "Yes" : "No") + "\n";
     statusSummary += "In Dialout Group: " + QString(isInRightUserGroup ? "Yes" : "No") + "\n";
     statusSummary += "HID Permission: " + QString(isHidPermission ? "Yes" : "No") + "\n";
@@ -190,6 +191,9 @@ QString EnvironmentSetupDialog::buildCommands(){
     }
     if (isHidPermission) {
         commands += udevCommands;
+    }
+    if (isBrlttyRunning) {
+        commands += brlttyCommands;
     }
     return commands;
 }

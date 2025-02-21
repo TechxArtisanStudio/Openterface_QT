@@ -52,5 +52,6 @@ private:
     static const QString driverCommands;
     static const QString groupCommands;
     static const QString udevCommands;
+    static const QString brlttyCommands;
 };
 #endif
