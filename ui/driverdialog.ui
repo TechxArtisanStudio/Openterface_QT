@@ -15,9 +15,6 @@
    </item>
    <item>
     <widget class="QLabel" name="step1Label">
-     <property name="readOnly">
-      <bool>true</bool>
-     </property>
      <property name="text">
       <string>1. Extract the driver to a folder:</string>
      </property>
@@ -43,10 +40,13 @@
       <bool>true</bool>
      </property>
      <property name="text">
-      <string></string>
+      <string>make && sudo make install</string>
      </property>
      <property name="visible">
       <bool>false</bool>
+     </property>
+     <property name="styleSheet">
+      <string>background-color: #f0f0f0;</string>
      </property>
     </widget>
    </item>
