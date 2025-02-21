@@ -41,11 +41,7 @@ const QString EnvironmentSetupDialog::udevCommands =
 
 EnvironmentSetupDialog::EnvironmentSetupDialog(QWidget *parent) :
     QDialog(parent),
-    ui(new Ui::EnvironmentSetupDialog),
-    isDriverInstalled(checkDriverInstalled()),
-    isInRightUserGroup(checkInRightUserGroup()),
-    isHidPermission(checkHidPermission()),
-    isBrlttyRunning(checkBrlttyRunning())  
+    ui(new Ui::EnvironmentSetupDialog)  
 {
     ui->setupUi(this);
     

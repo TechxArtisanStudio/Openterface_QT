@@ -36,10 +36,10 @@ private:
     void extractDriverFiles(); // Declaration for extracting driver files
     void copyCommands(); // Declaration for copying commands
 
-    bool isDriverInstalled;
-    bool isInRightUserGroup;
-    bool isHidPermission;
-    bool isBrlttyRunning;
+    static bool isDriverInstalled;
+    static bool isInRightUserGroup;
+    static bool isHidPermission;
+    static bool isBrlttyRunning;
     
     static bool checkDriverInstalled();
     static bool checkInRightUserGroup();
