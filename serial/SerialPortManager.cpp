@@ -52,6 +52,7 @@ void SerialPortManager::observeSerialPortNotification(){
 
     connect(serialThread, &QThread::started, serialTimer, [this]() {
         connect(serialTimer, &QTimer::timeout, this, &SerialPortManager::checkSerialPort);
+        checkSerialPort();
         serialTimer->start(5000);
     });
 
