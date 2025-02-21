@@ -31,13 +31,14 @@
 #endif
 
 // Define the static commands
-const QString EnvironmentSetupDialog::driverCommands = "make ; sudo make install\n";
-const QString EnvironmentSetupDialog::groupCommands = "sudo usermod -a -G dialout $USER\n";
+const QString EnvironmentSetupDialog::driverCommands = "# Build and install the driver\n make ; sudo make install\n\n";
+const QString EnvironmentSetupDialog::groupCommands = "# Add user to dialout group\n sudo usermod -a -G dialout $USER\n\n";
 const QString EnvironmentSetupDialog::udevCommands =
+    "#Add udev rules for Openterface Mini-KVM\n"
     "echo 'KERNEL== \"hidraw*\", SUBSYSTEM==\"hidraw\", MODE=\"0666\"' | sudo tee /etc/udev/rules.d/51-openterface.rules\n"
     "sudo udevadm control --reload-rules\n"
-    "sudo udevadm trigger";
-const QString EnvironmentSetupDialog::brlttyCommands = "sudo systemctl stop brltty; sudo systemctl disable brltty; \n"; 
+    "sudo udevadm trigger\n\n";
+const QString EnvironmentSetupDialog::brlttyCommands = "#Stop and disable Brltty\nsudo systemctl stop brltty; sudo systemctl disable brltty; \n\n"; 
 
 bool EnvironmentSetupDialog::isDriverInstalled = false;
 bool EnvironmentSetupDialog::isInRightUserGroup = false;
@@ -183,13 +184,13 @@ void EnvironmentSetupDialog::accept()
 
 QString EnvironmentSetupDialog::buildCommands(){
     QString commands = "";   
-    if (isDriverInstalled) {
+    if (!isDriverInstalled) {
         commands += driverCommands;
     }
-    if (isInRightUserGroup) {
+    if (!isInRightUserGroup) {
         commands += groupCommands;
     }
-    if (isHidPermission) {
+    if (!isHidPermission) {
         commands += udevCommands;
     }
     if (isBrlttyRunning) {
