@@ -40,7 +40,7 @@
       <bool>true</bool>
      </property>
      <property name="text">
-      <string>make && sudo make install</string>
+      <string>make; sudo make install</string>
      </property>
      <property name="visible">
       <bool>false</bool>
