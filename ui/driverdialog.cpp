@@ -28,6 +28,16 @@
 #include <string> // For std::string
 #endif
 
+// Define the static commands
+const QString DriverDialog::staticCommands = 
+    "make ; sudo make install\n\n"
+    "sudo usermod -a -G dialout $USER\n"
+    "echo 'KERNEL== \"hidraw*\", SUBSYSTEM==\"hidraw\", MODE=\"0666\"' | sudo tee /etc/udev/rules.d/51-openterface.rules\n"
+    "sudo udevadm control --reload-rules\n"
+    "sudo udevadm trigger";
+
+
+
 DriverDialog::DriverDialog(QWidget *parent) :
     QDialog(parent),
     ui(new Ui::DriverDialog)
@@ -45,7 +55,7 @@ DriverDialog::DriverDialog(QWidget *parent) :
     ui->step1Label->setVisible(true);
     ui->extractButton->setVisible(true);
     ui->step2Label->setVisible(true);
-    ui->commandsTextEdit->setVisible(true);
+    ui->commandsTextEdit->setText(staticCommands);
     connect(ui->extractButton, &QPushButton::clicked, this, &DriverDialog::extractDriverFiles);
     connect(ui->copyButton, &QPushButton::clicked, this, &DriverDialog::copyCommands);
 #endif
@@ -99,15 +109,8 @@ void DriverDialog::extractDriverFiles() {
         }
     }
 
-    // Update the commands to include the new path
-    QString commands = "cd " + tempDir + "; make ; sudo make install\n\n";
-    commands += "sudo usermod -a -G dialout $USER";
-    commands += "echo 'KERNEL== \"hidraw*\", SUBSYSTEM==\"hidraw\", MODE=\"0666\"' | sudo tee /etc/udev/rules.d/51-openterface.rules \n";
-    commands += "sudo udevadm control --reload-rules\n";
-    commands += "sudo udevadm trigger";
-
-    // Update the QTextEdit with the new commands
-    ui->commandsTextEdit->setPlainText(commands); // Assuming commandsTextEdit is the name of your QTextEdit
+    // Update the QTextEdit with the static commands
+    ui->commandsTextEdit->setPlainText("cd " + tempDir + "\n" + staticCommands);
 }
 
 void DriverDialog::copyCommands() {
