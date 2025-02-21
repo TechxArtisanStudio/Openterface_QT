@@ -52,14 +52,12 @@ jobs:
       - name: Build Qt Dependencies
         if: steps.cache-deps.outputs.cache-hit != 'true'
         run: |
-          cd /opt
           bash ${{ env.SOURCE_DIR }}/build-script/build-static-qt-dependency.sh
 
       - name: Qt Dependencies Already Built
         if: steps.cache-deps.outputs.cache-hit == 'true'
         run: |
           echo "Qt dependencies already built"
-          cd /opt
           bash ${{ env.SOURCE_DIR }}/build-script/build-static-qt-dependency.sh --no-build
           
       - name: Build Qt Statically
@@ -119,3 +117,4 @@ jobs:
       #     name: ${{ env.ARTIFACT }}
       #     path: ${{ runner.temp }}/build/package/openterfaceQT
       #     if-no-files-found: error
+
