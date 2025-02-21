@@ -36,10 +36,14 @@ DriverDialog::DriverDialog(QWidget *parent) :
     
 
 #ifdef _WIN32
-    ui->setFixedSize(250, 120); 
+    ui->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed); // Set size policy to fixed for both width and height
+    ui->setMinimumSize(250, 120); // Set minimum size to 250x120 for Windows    
+    ui->setMaximumSize(250, 120); // Set maximum size to 250x120 for Windows
     ui->descriptionLabel->setText("The driver is missing. Openterface Mini-KVM will install it automatically.");
 #else
-    ui->setFixedSize(400, 300); // Set width to 400 and height to 300 for Linux
+    ui->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed); // Set size policy to fixed for both width and height
+    ui->setMinimumSize(400, 300); // Set minimum size to 400x300 for Linux
+    ui->setMaximumSize(400, 300); // Set maximum size to 400x300 for Linux
     ui->descriptionLabel->setText("Driver Installation Instructions.");
     ui->commandsTextEdit->setVisible(true); 
     ui->step1Label->setVisible(true);
