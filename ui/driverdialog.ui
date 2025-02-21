@@ -54,10 +54,7 @@
             </item>
             <item>
             <widget class="QPushButton" name="copyButton">
-            <property name="width">
-            <number>20</number>
-            </property>
-            <property name="height">
+            <property name="fixedWidth">
             <number>20</number>
             </property>
             <property name="text">

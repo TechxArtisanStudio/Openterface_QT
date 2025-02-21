@@ -102,7 +102,7 @@ void DriverDialog::extractDriverFiles() {
     // Update the commands to include the new path
     QString commands = "cd " + tempDir + "; make ; sudo make install\n\n";
     commands += "sudo usermod -a -G dialout $USER";
-    commands += "echo 'KERNEL== "hidraw*", SUBSYSTEM=="hidraw", MODE="0666"' | sudo tee /etc/udev/rules.d/51-openterface.rules \n";
+    commands += "echo 'KERNEL== \"hidraw*\", SUBSYSTEM==\"hidraw\", MODE=\"0666\"' | sudo tee /etc/udev/rules.d/51-openterface.rules \n";
     commands += "sudo udevadm control --reload-rules\n";
     commands += "sudo udevadm trigger";
 
