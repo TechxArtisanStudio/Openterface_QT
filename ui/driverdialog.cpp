@@ -5,6 +5,8 @@
 #include <QCloseEvent> // Include QCloseEvent header
 #include <QApplication> // Include QApplication header
 #include <QProcess> // Include QProcess header
+#include <QDir> // Include QDir for directory operations
+#include <QFileInfo> // Include QFileInfo for file information
 #ifdef _WIN32 // Check if compiling on Windows
 #include <windows.h> // Include Windows API header
 #include <setupapi.h> // Include SetupAPI for device installation functions
@@ -49,13 +51,31 @@ void DriverDialog::installDriver() {
     QProcess::execute("pnputil.exe", QStringList() << "/add-driver" << "CH341SER.INF" << "/install");
     std::cout << "Driver installation command executed." << std::endl;
 #elif defined(__linux__)
-    // Execute the installation command for Linux
-    std::cout << "Attempting to install driver on Linux." << std::endl;
+    // Extract files from the resource path to /tmp/drivers
+    QString tempDir = "/tmp/ch341-drivers";
+    QDir().mkpath(tempDir); // Create the temporary directory if it doesn't exist
 
-    // add the driver installation command for Linux
+    // Copy files from the resource path to the temporary directory
+    QStringList files = {":/drivers/ch341.c", ":/drivers/ch341.h", ":/drivers/Makefile"}; // Add all necessary files
+    for (const QString &filePath : files) {
+        QFileInfo fileInfo(filePath);
+        QString targetPath = tempDir + "/" + fileInfo.fileName();
+        QFile::copy(filePath, targetPath); // Copy the file to the temporary directory
+    }
+
+    std::cout << "Files extracted to " << tempDir.toStdString() << std::endl;
+
+    // Set the working directory to the temporary drivers folder
+    QProcess process;
+    process.setWorkingDirectory(tempDir); // Set the path to the temporary drivers folder
+
+    // Compile and install the driver from source
     std::cout << "Compiling and installing the driver from source." << std::endl;
-    QProcess::execute("make");
-    QProcess::execute("sudo", QStringList() << "make" << "install");
+    process.start("make");
+    process.waitForFinished(); // Wait for the make command to finish
+
+    process.start("sudo", QStringList() << "make" << "install");
+    process.waitForFinished(); // Wait for the install command to finish
 
     std::cout << "Driver installation command executed." << std::endl;
 #else
