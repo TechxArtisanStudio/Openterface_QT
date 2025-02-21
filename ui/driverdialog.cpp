@@ -7,6 +7,8 @@
 #include <QProcess> // Include QProcess header
 #include <QDir> // Include QDir for directory operations
 #include <QFileInfo> // Include QFileInfo for file information
+#include <QTextEdit> // Include QTextEdit for displaying text
+#include <QSizePolicy> // Include QSizePolicy for setting size policy
 #ifdef _WIN32 // Check if compiling on Windows
 #include <windows.h> // Include Windows API header
 #include <setupapi.h> // Include SetupAPI for device installation functions
@@ -51,43 +53,39 @@ void DriverDialog::installDriver() {
     QProcess::execute("pnputil.exe", QStringList() << "/add-driver" << "CH341SER.INF" << "/install");
     std::cout << "Driver installation command executed." << std::endl;
 #elif defined(__linux__)
-    // Extract files from the resource path to /tmp/drivers
-    QString tempDir = "/tmp/ch341-drivers";
-    QDir().mkpath(tempDir); // Create the temporary directory if it doesn't exist
+    // Create a QTextEdit to display the instructions
+    QTextEdit *textEdit = new QTextEdit();
+    textEdit->setReadOnly(true); // Make it read-only
+    textEdit->setTextInteractionFlags(Qt::TextSelectableByMouse | Qt::TextSelectableByKeyboard); // Allow text selection
 
-    // Copy files from the resource path to the temporary directory
-    QStringList files = {":/drivers/linux/ch341.c", ":/drivers/linux/ch341.h", ":/drivers/linux/Makefile"}; // Add all necessary files
-    for (const QString &filePath : files) {
-        QFileInfo fileInfo(filePath);
-        QString targetPath = tempDir + "/" + fileInfo.fileName();
-        QFile::copy(filePath, targetPath); // Copy the file to the temporary directory
-    }
+    QString instructions = 
+        "To install the driver, please follow these steps:\n\n"
+        "1. Open a terminal.\n"
+        "2. Run the following commands:\n"
+        "   sudo mkdir -p /tmp/ch341-drivers\n"
+        "   sudo cp /path/to/drivers/linux/ch341.c /tmp/ch341-drivers/\n"
+        "   sudo cp /path/to/drivers/linux/ch341.h /tmp/ch341-drivers/\n"
+        "   sudo cp /path/to/drivers/linux/Makefile /tmp/ch341-drivers/\n"
+        "   cd /tmp/ch341-drivers\n"
+        "   sudo make\n"
+        "   sudo make install\n\n"
+        "Please replace '/path/to/drivers' with the actual path to the driver files.";
 
-    std::cout << "Files extracted to " << tempDir.toStdString() << std::endl;
+    textEdit->setPlainText(instructions); // Set the instructions text
 
-    // Set the working directory to the temporary drivers folder and run in a new terminal
-    QString command = "make && sudo make install";
+    // Create a message box to display the QTextEdit
+    QMessageBox msgBox;
+    msgBox.setWindowTitle("Driver Installation Instructions");
+    msgBox.setText("Please copy the following commands to install the driver:");
+    msgBox.setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+    msgBox.setDefaultButton(QMessageBox::Ok);
+    msgBox.setDetailedText(""); // Clear any default detailed text
+    msgBox.setInformativeText(""); // Clear any default informative text
+    msgBox.setTextInteractionFlags(Qt::TextSelectableByMouse | Qt::TextSelectableByKeyboard); // Allow text selection
 
-    // Check for available terminal emulators
-    QStringList terminals;
-    terminals << "gnome-terminal" << "xterm" << "konsole" << "lxterminal" << "xfce4-terminal";
-
-    QString terminalToUse;
-    for (const QString &terminal : terminals) {
-        if (QProcess::execute("which", QStringList() << terminal) == 0) {
-            terminalToUse = terminal;
-            break;
-        }
-    }
-
-    if (!terminalToUse.isEmpty()) {
-        QProcess process;
-        process.start(terminalToUse, QStringList() << "--" << "bash" << "-c" << command);
-        process.waitForFinished(); // Wait for the terminal to exit
-        std::cout << "Driver installation command executed in " << terminalToUse.toStdString() << "." << std::endl;
-    } else {
-        std::cout << "No suitable terminal emulator found. Please install one of the following: gnome-terminal, xterm, konsole, lxterminal, xfce4-terminal." << std::endl;
-    }
+    // Add the QTextEdit to the message box
+    msgBox.layout()->addWidget(textEdit);
+    msgBox.exec(); // Show the message box
 #else
     std::cout << "Driver installation not supported on this platform." << std::endl;
 #endif
