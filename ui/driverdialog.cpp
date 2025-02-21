@@ -56,7 +56,7 @@ void DriverDialog::installDriver() {
     QDir().mkpath(tempDir); // Create the temporary directory if it doesn't exist
 
     // Copy files from the resource path to the temporary directory
-    QStringList files = {":/drivers/ch341.c", ":/drivers/ch341.h", ":/drivers/Makefile"}; // Add all necessary files
+    QStringList files = {":/drivers/linux/ch341.c", ":/drivers/linux/ch341.h", ":/drivers/linux/Makefile"}; // Add all necessary files
     for (const QString &filePath : files) {
         QFileInfo fileInfo(filePath);
         QString targetPath = tempDir + "/" + fileInfo.fileName();
