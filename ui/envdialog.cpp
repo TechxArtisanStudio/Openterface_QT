@@ -38,6 +38,10 @@ const QString EnvironmentSetupDialog::udevCommands =
     "sudo udevadm control --reload-rules\n"
     "sudo udevadm trigger";
 
+bool EnvironmentSetupDialog::isDriverInstalled = false;
+bool EnvironmentSetupDialog::isInRightUserGroup = false;
+bool EnvironmentSetupDialog::isHidPermission = false;
+bool EnvironmentSetupDialog::isBrlttyRunning = false;
 
 EnvironmentSetupDialog::EnvironmentSetupDialog(QWidget *parent) :
     QDialog(parent),
@@ -158,13 +162,13 @@ void EnvironmentSetupDialog::accept()
 
 QString EnvironmentSetupDialog::buildCommands(){
     QString commands = "";   
-    if (EnvironmentSetupDialog::isDriverInstalled) {
+    if (isDriverInstalled) {
         commands += driverCommands;
     }
-    if (EnvironmentSetupDialog::isInRightUserGroup) {
+    if (isInRightUserGroup) {
         commands += groupCommands;
     }
-    if (EnvironmentSetupDialog::isHidPermission) {
+    if (isHidPermission) {
         commands += udevCommands;
     }
     return commands;
@@ -224,6 +228,7 @@ bool EnvironmentSetupDialog::checkDriverInstalled() {
         return false;
     }
     std::cout << "Devices properly detected" << std::endl;
+    isDriverInstalled = true;
     return true;
 #elif defined(__linux__) // Check if compiling on Linux
     // Log the start of the driver check
@@ -234,10 +239,12 @@ bool EnvironmentSetupDialog::checkDriverInstalled() {
     int result = system(command.c_str());
     if (result == 0) {
         std::cout << "Driver installation status: Installed (found via lsusb)" << std::endl;
+        isDriverInstalled = true;
         return true; // Driver found via lsusb
     }
 
     std::cout << "Driver installation status: Not Installed" << std::endl;
+    isDriverInstalled = false;
     return false; // Driver not found
 #else
     // Implement logic for other platforms if needed
