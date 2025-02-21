@@ -56,7 +56,7 @@ EnvironmentSetupDialog::EnvironmentSetupDialog(QWidget *parent) :
     ui->step1Label->setVisible(false);
     ui->extractButton->setVisible(false);
     ui->step2Label->setVisible(false);
-    ui->commandLayout->setVisible(false);
+    ui->copyButton->setVisible(false);
     ui->commandsTextEdit->setVisible(false);
     ui->descriptionLabel->setText("The driver is missing. Openterface Mini-KVM will install it automatically.");
 #else
