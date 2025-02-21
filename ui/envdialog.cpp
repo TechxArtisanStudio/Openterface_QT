@@ -118,15 +118,23 @@ void EnvironmentSetupDialog::extractDriverFiles() {
     QString tempDir = selectedDir + "/ch341-drivers"; // Create a subdirectory for the drivers
     QDir().mkpath(tempDir); // Create the temporary directory if it doesn't exist
 
-    // Copy files from the resource path to the selected directory
+    // List of resource files to copy
     QStringList files = {":/drivers/linux/ch341.c", ":/drivers/linux/ch341.h", ":/drivers/linux/Makefile"}; // Add all necessary files
     for (const QString &filePath : files) {
-        QFileInfo fileInfo(filePath);
-        QString targetPath = tempDir + "/" + fileInfo.fileName();
-        if (QFile::copy(filePath, targetPath)) {
-            std::cout << "Copied " << fileInfo.fileName().toStdString() << " to " << tempDir.toStdString() << std::endl;
+        QFile resourceFile(filePath);
+        if (resourceFile.open(QIODevice::ReadOnly)) {
+            QString targetPath = tempDir + "/" + QFileInfo(filePath).fileName();
+            QFile targetFile(targetPath);
+            if (targetFile.open(QIODevice::WriteOnly)) {
+                targetFile.write(resourceFile.readAll()); // Read from resource and write to target
+                targetFile.close();
+                std::cout << "Copied " << QFileInfo(filePath).fileName().toStdString() << " to " << tempDir.toStdString() << std::endl;
+            } else {
+                std::cout << "Failed to open target file for writing: " << targetPath.toStdString() << std::endl;
+            }
+            resourceFile.close();
         } else {
-            std::cout << "Failed to copy " << fileInfo.fileName().toStdString() << std::endl;
+            std::cout << "Failed to open resource file: " << filePath.toStdString() << std::endl;
         }
     }
 
