@@ -14,6 +14,7 @@
 #include <QVBoxLayout> // Include QVBoxLayout for layout management
 #include <QClipboard> // Include QClipboard for clipboard operations
 #include <QHBoxLayout> // Include QHBoxLayout for horizontal layout
+#include <QIcon> // Include QIcon for setting icons
 #ifdef _WIN32 // Check if compiling on Windows
 #include <windows.h> // Include Windows API header
 #include <setupapi.h> // Include SetupAPI for device installation functions
@@ -39,7 +40,7 @@ DriverDialog::DriverDialog(QWidget *parent) :
     setFixedSize(250, 120); // Set width to 250 and height to 120 for Windows
     ui->descriptionLabel->setText("The driver is missing. Openterface Mini-KVM will install it automatically.");
 #else
-    setFixedSize(400, 300); // Set width to 400 and height to 300 for Linux
+    setFixedSize(400, 300); // Set width to 400 and height to 250 for Linux
     ui->descriptionLabel->setText("Driver Installation Instructions.");
     ui->commandsTextEdit->setVisible(true); 
     ui->step1Label->setVisible(true);
@@ -51,6 +52,11 @@ DriverDialog::DriverDialog(QWidget *parent) :
     // Connect buttons to their respective slots
     connect(ui->okButton, &QPushButton::clicked, this, &DriverDialog::accept); 
     connect(ui->quitButton, &QPushButton::clicked, this, &DriverDialog::reject); 
+
+    // After creating the copyButton
+    QPushButton *copyButton = new QPushButton("Copy Commands");
+    copyButton->setIcon(QIcon(":/icons/copy_icon.png")); // Set the icon for the button
+    ui->layout->addWidget(copyButton);
 }
 
 DriverDialog::~DriverDialog()

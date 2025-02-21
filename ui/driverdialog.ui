@@ -34,22 +34,31 @@
      </property>
     </widget>
    </item>
-   <item>
-    <widget class="QTextEdit" name="commandsTextEdit">
-     <property name="readOnly">
-      <bool>true</bool>
-     </property>
-     <property name="text">
-      <string>make; sudo make install</string>
-     </property>
-     <property name="visible">
-      <bool>false</bool>
-     </property>
-     <property name="styleSheet">
-      <string>background-color:black</string>
-     </property>
-    </widget>
-   </item>
+   <layout class="QHBoxLayout" name="buttonLayout">
+    <item>
+        <widget class="QTextEdit" name="commandsTextEdit">
+        <property name="readOnly">
+        <bool>true</bool>
+        </property>
+        <property name="text">
+        <string>make; sudo make install</string>
+        </property>
+        <property name="visible">
+        <bool>false</bool>
+        </property>
+        <property name="styleSheet">
+        <string>background-color:black; color:white;</string>
+        </property>
+        </widget>
+    </item>
+    <item>
+        <widget class="QPushButton" name="copyButton">
+        <property name="text">
+        <string>Copy</string>
+        </property>
+        </widget>
+    </item>
+   </layout>
    <item>
     <layout class="QHBoxLayout" name="buttonLayout">
      <item>
