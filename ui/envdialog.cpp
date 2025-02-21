@@ -158,13 +158,13 @@ void EnvironmentSetupDialog::accept()
 
 QString EnvironmentSetupDialog::buildCommands(){
     QString commands = "";   
-    if (isDriverInstalled) {
+    if (EnvironmentSetupDialog::isDriverInstalled) {
         commands += driverCommands;
     }
-    if (isInRightUserGroup) {
+    if (EnvironmentSetupDialog::isInRightUserGroup) {
         commands += groupCommands;
     }
-    if (isHidPermission) {
+    if (EnvironmentSetupDialog::isHidPermission) {
         commands += udevCommands;
     }
     return commands;
