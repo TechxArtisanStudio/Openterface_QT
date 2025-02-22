@@ -223,6 +223,17 @@ bool EnvironmentSetupDialog::checkEnvironmentSetup() {
     #ifdef _WIN32
     return checkDriverInstalled();
     #elif defined(__linux__)
+    std::cout << "Checking if MS2109 is on Linux." << std::endl;
+
+    // If the device file does not exist, check using lsusb for VID and PID
+    std::string command = "lsusb | grep -i '534d:2109'";
+    int result = system(command.c_str());
+    if (result == 0) {
+        std::cout << "MS2109 not exist, so no Openterface plugged in" << std::endl;
+        return true;
+    }
+
+
     return checkDriverInstalled() && checkInRightUserGroup() && checkHidPermission() && !checkBrlttyRunning();
     #else
     return true;

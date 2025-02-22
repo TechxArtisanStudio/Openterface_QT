@@ -128,7 +128,7 @@ int main(int argc, char *argv[])
     // Load keyboard layouts from the build directory
     KeyboardLayoutManager::getInstance().loadLayouts(configPath);
     
-    // Check for CH340 driver
+    // Check if the environment is properly set up
     if (!EnvironmentSetupDialog::checkEnvironmentSetup()) {
         EnvironmentSetupDialog envDialog;
         if (envDialog.exec() == QDialog::Rejected) {
