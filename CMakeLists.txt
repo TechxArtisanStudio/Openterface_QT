@@ -19,6 +19,9 @@ find_package(Qt${QT_VERSION_MAJOR} OPTIONAL_COMPONENTS Widgets)
 # Find X11 libraries
 find_package(X11 REQUIRED COMPONENTS Xrandr Xrender)
 
+find_package(EXPAT REQUIRED)
+find_package(Xrender REQUIRED)
+
 # Set FFmpeg include and library directories
 set(FFMPEG_INCLUDE_DIRS "/usr/local/include")
 set(FFMPEG_LIBRARIES "/usr/local/lib/libavformat.a;/usr/local/lib/libavcodec.a;/usr/local/lib/libavutil.a;/usr/local/lib/libswresample.a;/usr/local/lib/libswscale.a")
@@ -88,6 +91,8 @@ target_link_libraries(openterfaceQT PRIVATE
     Qt::SerialPort
     Qt::Svg
     ${FFMPEG_LIBRARIES}  # Link against FFmpeg libraries
+    ${EXPAT_LIBRARIES}
+    ${Xrender_LIBRARIES}
 )
 
 if(DEFINED LIBXRENDER_LIBRARY)
