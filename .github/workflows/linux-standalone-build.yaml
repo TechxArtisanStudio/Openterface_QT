@@ -82,7 +82,12 @@ jobs:
             libegl1-mesa-dev \
             libglib2.0-dev \
             libpcre2-dev \
-            libxrandr2
+            libxrandr2 \
+            libxcb1-dev \
+            libxcb-render0-dev \
+            libxcb-shape0-dev \
+            libxcb-xfixes0-dev \
+            libxcb-cursor-dev
 
       - name: Build Standalone Executable
         working-directory: ${{ runner.temp }}/build
