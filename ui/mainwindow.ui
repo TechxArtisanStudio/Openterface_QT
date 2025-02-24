@@ -102,24 +102,12 @@
          <verstretch>0</verstretch>
         </sizepolicy>
        </property>
+       <property name="toolTip">
+        <string>Select Keyboard Layout</string>
+       </property>
        <item>
         <property name="text">
          <string>US QWERTY</string>
-        </property>
-       </item>
-       <item>
-        <property name="text">
-         <string>French AZERTY</string>
-        </property>
-       </item>
-       <item>
-        <property name="text">
-         <string>German QWERTZ</string>
-        </property>
-       </item>
-       <item>
-        <property name="text">
-         <string>UK QWERTY</string>
         </property>
        </item>
       </widget>
@@ -188,13 +176,6 @@
        </property>
        <property name="checkable">
         <bool>true</bool>
-       </property>
-      </widget>
-     </item>
-     <item>
-      <widget class="QComboBox" name="keyboardLayoutComboBox">
-       <property name="toolTip">
-        <string>Select Keyboard Layout</string>
        </property>
       </widget>
      </item>

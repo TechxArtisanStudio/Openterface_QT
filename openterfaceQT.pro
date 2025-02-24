@@ -137,6 +137,8 @@ win32 {
 unix {
     INCLUDEPATH += /usr/include/
     LIBS += -lusb-1.0
+
+    RESOURCES += driver/linux/drivers.qrc
 }
 
 # Set platform-specific installation paths
