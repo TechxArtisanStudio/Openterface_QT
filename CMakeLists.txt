@@ -17,10 +17,13 @@ find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Concurrent Gui Multimedia
 find_package(Qt${QT_VERSION_MAJOR} OPTIONAL_COMPONENTS Widgets)
 
 # Find X11 libraries
-find_package(X11 REQUIRED COMPONENTS Xrandr Xrender)
+find_package(X11 REQUIRED COMPONENTS Xrandr)
 
 find_package(EXPAT REQUIRED)
-find_package(Xrender REQUIRED)
+
+# Use pkg-config to find Xrender
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(XRENDER REQUIRED xrender)
 
 # Set FFmpeg include and library directories
 set(FFMPEG_INCLUDE_DIRS "/usr/local/include")
@@ -92,7 +95,7 @@ target_link_libraries(openterfaceQT PRIVATE
     Qt::Svg
     ${FFMPEG_LIBRARIES}  # Link against FFmpeg libraries
     ${EXPAT_LIBRARIES}
-    ${Xrender_LIBRARIES}
+    ${XRENDER_LIBRARIES}
 )
 
 if(DEFINED LIBXRENDER_LIBRARY)
