@@ -49,16 +49,16 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: Build Qt Dependencies
-        if: steps.cache-deps.outputs.cache-hit != 'true'
-        run: |
-          bash ${{ env.SOURCE_DIR }}/build-script/build-static-qt-dependency.sh
+      # - name: Build Qt Dependencies
+      #   if: steps.cache-deps.outputs.cache-hit != 'true'
+      #   run: |
+      #     bash ${{ env.SOURCE_DIR }}/build-script/build-static-qt-dependency.sh
 
-      - name: Qt Dependencies Already Built
-        if: steps.cache-deps.outputs.cache-hit == 'true'
-        run: |
-          echo "Qt dependencies already built"
-          bash ${{ env.SOURCE_DIR }}/build-script/build-static-qt-dependency.sh --no-build
+      # - name: Qt Dependencies Already Built
+      #   if: steps.cache-deps.outputs.cache-hit == 'true'
+      #   run: |
+      #     echo "Qt dependencies already built"
+      #     bash ${{ env.SOURCE_DIR }}/build-script/build-static-qt-dependency.sh --no-build
           
       - name: Build Qt Statically
         if: steps.cache-qt.outputs.cache-hit != 'true'
@@ -84,17 +84,13 @@ jobs:
             libpcre2-dev \
             libxrandr2 \
             libxcb1-dev \
-            libxcb-render0-dev \
-            libxcb-shape0-dev \
-            libxcb-xfixes0-dev \
-            libxcb-cursor-dev \
-            libxml2-dev
-
-      - name: Install Additional Libraries
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
+            '^libxcb.*-dev' \
+            libx11-xcb-dev \
+            libglu1-mesa-dev \
             libxrender-dev \
+            libxi-dev \
+            libxkbcommon-dev \
+            libxkbcommon-x11-dev \
             libexpat-dev
 
       - name: Build Standalone Executable
@@ -109,18 +105,7 @@ jobs:
               -DBUILD_SHARED_LIBS=OFF \
               -DCMAKE_PREFIX_PATH=/opt/Qt6 \
               -DCMAKE_INSTALL_PREFIX=release \
-              -DCMAKE_VERBOSE_MAKEFILE=ON \
-              -DEXPAT_LIBRARY=/usr/lib/libexpat.a \
-              -DEXPAT_INCLUDE_DIR=/usr/include \
-              -DFREETYPE_LIBRARY=/usr/lib/libfreetype.a \
-              -DFREETYPE_INCLUDE_DIRS=/usr/include/freetype2 \
-              -DFONTCONFIG_LIBRARY=/usr/lib/libfontconfig.a \
-              -DFONTCONFIG_INCLUDE_DIRS=/usr/include \
-              -DBZIP2_LIBRARY=/usr/lib/libbz2.a \
-              -DBZIP2_INCLUDE_DIR=/usr/include \
-              -DBZIP2_USE_STATIC_LIBS=ON  # Disable using system libbz2.so \
-              -DXML2_LIBRARY=/usr/lib/libxml2.a \
-              -DXML2_INCLUDE_DIR=/usr/include/libxml2
+              -DCMAKE_VERBOSE_MAKEFILE=ON
 
           cat CMakeFiles/openterfaceQT.dir/link.txt
           echo "Building with CMake..."
