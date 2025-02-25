@@ -94,10 +94,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y \
             libxrender-dev \
-            libexpat-dev \
-            libfreetype6-dev \
-            libfontconfig1-dev \
-            libbz2-dev
+            libexpat-dev
 
       - name: Build Standalone Executable
         working-directory: ${{ runner.temp }}/build
@@ -119,7 +116,8 @@ jobs:
               -DFONTCONFIG_LIBRARY=/usr/lib/x86_64-linux-gnu/libfontconfig.a \
               -DFONTCONFIG_INCLUDE_DIRS=/usr/include \
               -DBZIP2_LIBRARY=/usr/lib/libbz2.a \
-              -DBZIP2_INCLUDE_DIR=/usr/include
+              -DBZIP2_INCLUDE_DIR=/usr/include \
+              -DBZIP2_USE_STATIC_LIBS=ON  # Disable using system libbz2.so
 
           cat CMakeFiles/openterfaceQT.dir/link.txt
           echo "Building with CMake..."
