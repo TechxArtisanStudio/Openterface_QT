@@ -130,13 +130,15 @@ jobs:
           export LD_LIBRARY_PATH=/usr/lib:/usr/local/lib:$LD_LIBRARY_PATH
 
           echo "Configuring with CMake..."
-          cmake -S "${{ env.SOURCE_DIR }}" -B . \
+            cmake -S "${{ env.SOURCE_DIR }}" -B . \
               -DCMAKE_BUILD_TYPE=Release \
               -DBUILD_SHARED_LIBS=OFF \
               -DCMAKE_PREFIX_PATH=/opt/Qt6 \
               -DCMAKE_INSTALL_PREFIX=release \
               -DCMAKE_VERBOSE_MAKEFILE=ON \
-              -DQT_DEBUG_FIND_PACKAGE=ON
+              -DQT_DEBUG_FIND_PACKAGE=ON \
+              -DCMAKE_CXX_FLAGS="-Os -s" \
+              -DCMAKE_C_FLAGS="-Os -s"
 
           echo "Building with CMake..."
           cmake --build . --verbose || (echo "CMake build failed. Please check the build configuration." && exit 1)
