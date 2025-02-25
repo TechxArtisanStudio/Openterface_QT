@@ -96,6 +96,45 @@ if $INSTALL_ENABLED; then
 fi
 cd "$BUILD_DIR"
 
+# Build or Install libpulse
+if $BUILD_ENABLED; then
+    echo "Building libpulse from source..."
+    if [ ! -d "libpulse" ]; then
+        curl -L -o libpulse.tar.xz "https://www.freedesktop.org/software/pulseaudio/releases/pulseaudio-${PULSEAUDIO_VERSION}.tar.xz"
+        tar xf libpulse.tar.xz
+        mv "pulseaudio-${PULSEAUDIO_VERSION}" libpulse
+        rm libpulse.tar.xz
+    fi
+
+    cd libpulse
+    mkdir -p build
+    cd build
+    meson setup --prefix=/usr \
+        -Ddefault_library=static \
+        -Ddaemon=false \
+        -Dtests=false \
+        -Dman=false \
+        -Dudev=disabled \
+        -Dsystemd=disabled \
+        -Dbluez5=disabled \
+        -Dgtk=disabled \
+        -Dopenssl=disabled \
+        -Dorc=disabled \
+        -Dsoxr=disabled \
+        -Dspeex=disabled \
+        -Dwebrtc-aec=disabled \
+        -Dx11=disabled \
+        ..
+    ninja
+fi
+
+if $INSTALL_ENABLED; then
+    echo "Installing libpulse..."
+    cd "$BUILD_DIR"/libpulse/build
+    sudo ninja install
+fi
+cd "$BUILD_DIR"
+
 # Build or Install libsndfile from source
 if $BUILD_ENABLED; then
     echo "Building libsndfile $SNDFILE_VERSION from source..."
