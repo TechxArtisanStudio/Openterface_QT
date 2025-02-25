@@ -59,6 +59,7 @@ LIBXAU_VERSION=1.0.12
 NASM_VERSION="2.16.01"
 EXPAT_VERSION=2.5.0
 BZ2_VERSION=1.0.8
+LIBXML2_VERSION=2.10.3
 
 # Create build directory
 BUILD_DIR=$(pwd)/qt-build
@@ -68,7 +69,7 @@ cd "$BUILD_DIR"
 # Install minimal build requirements
 sudo apt-get update
 sudo apt-get install -y build-essential meson ninja-build bison flex pkg-config python3-pip linux-headers-$(uname -r) \
-    autoconf automake libtool autoconf-archive cmake libxml2-dev
+    autoconf automake libtool autoconf-archive cmake
 
 # Check for required tools
 command -v curl >/dev/null 2>&1 || { echo "Curl is not installed. Please install Curl."; exit 1; }
@@ -360,6 +361,28 @@ fi
 if $INSTALL_ENABLED; then
     echo "Installing FreeType $FREETYPE_VERSION..."
     cd "$BUILD_DIR"/freetype
+    sudo make install
+fi
+cd "$BUILD_DIR"
+
+# Build or Install libxml2 from source
+if $BUILD_ENABLED; then
+    echo "Building libxml2 from source..."
+    if [ ! -d "libxml2" ]; then
+        curl -L -o libxml2.tar.gz "http://xmlsoft.org/sources/libxml2-${LIBXML2_VERSION}.tar.gz"
+        tar xf libxml2.tar.gz
+        mv "libxml2-${LIBXML2_VERSION}" libxml2
+        rm libxml2.tar.gz
+    fi
+
+    cd libxml2
+    ./configure --prefix=/usr --enable-static --disable-shared --with-pic
+    make -j$(nproc)
+fi
+
+if $INSTALL_ENABLED; then
+    echo "Installing libxml2 $LIBXML2_VERSION..."
+    cd "$BUILD_DIR"/libxml2
     sudo make install
 fi
 cd "$BUILD_DIR"
