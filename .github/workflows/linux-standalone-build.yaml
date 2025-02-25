@@ -96,7 +96,8 @@ jobs:
             libxrender-dev \
             libexpat-dev \
             libfreetype6-dev \
-            libfontconfig1-dev
+            libfontconfig1-dev \
+            libbz2-dev
 
       - name: Build Standalone Executable
         working-directory: ${{ runner.temp }}/build
@@ -116,7 +117,9 @@ jobs:
               -DFREETYPE_LIBRARY=/usr/lib/x86_64-linux-gnu/libfreetype.a \
               -DFREETYPE_INCLUDE_DIRS=/usr/include/freetype2 \
               -DFONTCONFIG_LIBRARY=/usr/lib/x86_64-linux-gnu/libfontconfig.a \
-              -DFONTCONFIG_INCLUDE_DIRS=/usr/include
+              -DFONTCONFIG_INCLUDE_DIRS=/usr/include \
+              -DBZIP2_LIBRARY=/usr/lib/x86_64-linux-gnu/libbz2.a \
+              -DBZIP2_INCLUDE_DIR=/usr/include
 
           cat CMakeFiles/openterfaceQT.dir/link.txt
           echo "Building with CMake..."

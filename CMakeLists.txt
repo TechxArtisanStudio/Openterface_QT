@@ -22,6 +22,7 @@ find_package(X11 REQUIRED COMPONENTS Xrandr)
 find_package(EXPAT REQUIRED)
 find_package(Freetype REQUIRED)
 find_package(Fontconfig REQUIRED)
+find_package(BZip2 REQUIRED)
 
 # Use pkg-config to find Xrender
 find_package(PkgConfig REQUIRED)
@@ -111,6 +112,7 @@ target_link_libraries(openterfaceQT PRIVATE
     ${FREETYPE_LIBRARIES}
     ${FONTCONFIG_LIBRARIES}
     ${XRENDER_LIBRARIES}
+    ${BZIP2_LIBRARIES}
     ${EXTRA_LIBS}
 )
 
