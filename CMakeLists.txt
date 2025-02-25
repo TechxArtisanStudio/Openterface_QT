@@ -87,6 +87,13 @@ qt_add_executable(openterfaceQT WIN32 MACOSX_BUNDLE
     video/videohid.cpp video/videohid.h
 )
 
+
+if(UNIX AND NOT APPLE)
+    set_target_properties(openterfaceQT PROPERTIES
+        ICON "ui/../images/icon_256.png"
+    )
+endif()
+
 target_link_libraries(openterfaceQT PRIVATE
     Qt::Concurrent
     Qt::Core

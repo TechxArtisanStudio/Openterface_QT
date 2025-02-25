@@ -29,31 +29,8 @@ for module in "${MODULES[@]}"; do
     fi
 done
 
-# Update and install dependencies with handling for held packages
-sudo apt update -y
-sudo apt install -y --allow-change-held-packages \
-    build-essential \
-    libdbus-1-dev \
-    libgl1-mesa-dev \
-    libasound2-dev \
-    '^libxcb.*-dev' \
-    libx11-xcb-dev \
-    libxrender-dev \
-    libxrandr-dev \
-    libxi-dev \
-    libxkbcommon-dev \
-    libxkbcommon-x11-dev \
-    libpulse-dev \
-    pulseaudio \
-    libusb-1.0-0-dev \
-    libfontconfig1-dev \
-    libfreetype6-dev \
-    ninja-build \
-    cmake \
-    yasm \
-    wget \
-    unzip \
-    git
+sudo apt-get install -y libgl1-mesa-dev libglu1-mesa-dev libxrender-dev libxi-dev \
+    libxcb-cursor-dev libxcb-icccm4-dev libxcb-keysyms1-dev
 
 # Build qtbase first
 echo "Building qtbase..."
@@ -69,10 +46,6 @@ cmake -GNinja \
     -DFEATURE_testlib=OFF \
     -DFEATURE_icu=OFF \
     -DFEATURE_opengl=ON \
-    -DFEATURE_printsupport=OFF \
-    -DFEATURE_androiddeployqt=OFF \
-    -DFEATURE_egl=OFF \
-    -DFEATURE_vnc=OFF \
     ..
 
 ninja
