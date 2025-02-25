@@ -57,6 +57,7 @@ XKB_CONFIG_VERSION=2.41
 XORGPROTO_VERSION=2023.2
 LIBXAU_VERSION=1.0.12
 NASM_VERSION="2.16.01"
+EXPAT_VERSION=2.5.0
 
 # Create build directory
 BUILD_DIR=$(pwd)/qt-build
@@ -274,7 +275,27 @@ if $INSTALL_ENABLED; then
 fi
 cd "$BUILD_DIR"
 
-# ...existing code...
+# Build or Install libexpat
+if $BUILD_ENABLED; then
+    echo "Building libexpat $EXPAT_VERSION from source..."
+    if [ ! -d "libexpat" ]; then
+        curl -L -o libexpat.tar.bz2 "https://github.com/libexpat/libexpat/releases/download/R_${EXPAT_VERSION//./_}/expat-${EXPAT_VERSION}.tar.bz2"
+        tar xf libexpat.tar.bz2
+        mv "expat-${EXPAT_VERSION}" libexpat
+        rm libexpat.tar.bz2
+    fi
+
+    cd libexpat
+    ./configure --prefix=/usr --enable-static --disable-shared
+    make -j$(nproc)
+fi
+
+if $INSTALL_ENABLED; then
+    echo "Installing libexpat $EXPAT_VERSION..."
+    cd "$BUILD_DIR"/libexpat
+    sudo make install
+fi
+cd "$BUILD_DIR"
 
 # Build or Install libusb from source
 if $BUILD_ENABLED; then
