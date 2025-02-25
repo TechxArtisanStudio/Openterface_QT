@@ -94,7 +94,8 @@ jobs:
             libexpat-dev \
             libfreetype6-dev \
             libfontconfig1-dev \
-            libx11-dev 
+            libx11-dev \
+            libdbus-1-dev 
 
       - name: Build Standalone Executable
         working-directory: ${{ runner.temp }}/build
