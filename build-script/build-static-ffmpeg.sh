@@ -24,7 +24,7 @@ for arg in "$@"; do
 done
 
 # Configuration
-BUILD_DIR="$HOME/ffmpeg-build"
+BUILD_DIR="$(pwd)/ffmpeg-build"
 NASM_VERSION="2.16.01"
 FFMPEG_VERSION=6.1.1
 
