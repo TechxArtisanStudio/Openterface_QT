@@ -25,10 +25,33 @@ done
 
 # Configuration
 BUILD_DIR="$(pwd)/ffmpeg-build"
+LIBUSB_VERSION=1.0.26
 NASM_VERSION="2.16.01"
 FFMPEG_VERSION=6.1.1
 
 mkdir -p "$BUILD_DIR"
+cd "$BUILD_DIR"
+
+# Build or Install libusb from source
+if $BUILD_ENABLED; then
+    echo "Building libusb $LIBUSB_VERSION from source..."
+    if [ ! -d "libusb" ]; then
+        curl -L -o libusb.tar.bz2 "https://github.com/libusb/libusb/releases/download/v${LIBUSB_VERSION}/libusb-${LIBUSB_VERSION}.tar.bz2"
+        tar xf libusb.tar.bz2
+        mv "libusb-${LIBUSB_VERSION}" libusb
+        rm libusb.tar.bz2
+    fi
+
+    cd libusb
+    ./configure --prefix=/usr --enable-static --disable-shared --disable-udev
+    make -j$(nproc)
+fi
+
+if $INSTALL_ENABLED; then
+    echo "Installing libusb $LIBUSB_VERSION..."
+    cd "$BUILD_DIR"/libusb
+    sudo make install
+fi
 cd "$BUILD_DIR"
 
 # Install NASM

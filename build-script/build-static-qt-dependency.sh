@@ -25,7 +25,6 @@ done
 
 # Configuration
 XKBCOMMON_VERSION=1.6.0
-LIBUSB_VERSION=1.0.26
 DBUS_VERSION=1.15.8
 FREETYPE_VERSION=2.13.2
 GPERF_VERSION=3.1
@@ -293,28 +292,6 @@ fi
 if $INSTALL_ENABLED; then
     echo "Installing libexpat $EXPAT_VERSION..."
     cd "$BUILD_DIR"/libexpat
-    sudo make install
-fi
-cd "$BUILD_DIR"
-
-# Build or Install libusb from source
-if $BUILD_ENABLED; then
-    echo "Building libusb $LIBUSB_VERSION from source..."
-    if [ ! -d "libusb" ]; then
-        curl -L -o libusb.tar.bz2 "https://github.com/libusb/libusb/releases/download/v${LIBUSB_VERSION}/libusb-${LIBUSB_VERSION}.tar.bz2"
-        tar xf libusb.tar.bz2
-        mv "libusb-${LIBUSB_VERSION}" libusb
-        rm libusb.tar.bz2
-    fi
-
-    cd libusb
-    ./configure --prefix=/usr --enable-static --disable-shared --disable-udev
-    make -j$(nproc)
-fi
-
-if $INSTALL_ENABLED; then
-    echo "Installing libusb $LIBUSB_VERSION..."
-    cd "$BUILD_DIR"/libusb
     sudo make install
 fi
 cd "$BUILD_DIR"
