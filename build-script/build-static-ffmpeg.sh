@@ -28,6 +28,9 @@ BUILD_DIR="$HOME/ffmpeg-build"
 NASM_VERSION="2.16.01"
 FFMPEG_VERSION=6.1.1
 
+mkdir -p "$BUILD_DIR"
+cd "$BUILD_DIR"
+
 # Install NASM
 if $BUILD_ENABLED; then
     echo "Installing NASM..."
