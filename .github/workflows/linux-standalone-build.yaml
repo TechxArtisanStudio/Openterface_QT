@@ -118,7 +118,9 @@ jobs:
               -DFONTCONFIG_INCLUDE_DIRS=/usr/include \
               -DBZIP2_LIBRARY=/usr/lib/libbz2.a \
               -DBZIP2_INCLUDE_DIR=/usr/include \
-              -DBZIP2_USE_STATIC_LIBS=ON  # Disable using system libbz2.so
+              -DBZIP2_USE_STATIC_LIBS=ON  # Disable using system libbz2.so \
+              -DXML2_LIBRARY=/usr/lib/x86_64-linux-gnu/libxml2.a \
+              -DXML2_INCLUDE_DIR=/usr/include/libxml2
 
           cat CMakeFiles/openterfaceQT.dir/link.txt
           echo "Building with CMake..."
