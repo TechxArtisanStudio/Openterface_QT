@@ -96,6 +96,29 @@ if $INSTALL_ENABLED; then
 fi
 cd "$BUILD_DIR"
 
+
+# Build or Install libsndfile from source
+if $BUILD_ENABLED; then
+    echo "Building libsndfile $SNDFILE_VERSION from source..."
+    if [ ! -d "libsndfile" ]; then
+        curl -L -o sndfile.tar.xz "https://github.com/libsndfile/libsndfile/releases/download/${SNDFILE_VERSION}/libsndfile-${SNDFILE_VERSION}.tar.xz"
+        tar xf sndfile.tar.xz
+        mv "libsndfile-${SNDFILE_VERSION}" libsndfile
+        rm sndfile.tar.xz
+    fi
+
+    cd libsndfile
+    CFLAGS="-fPIC" CXXFLAGS="-fPIC" ./configure --prefix=/usr --enable-static --disable-shared
+    make -j$(nproc)
+fi
+
+if $INSTALL_ENABLED; then
+    echo "Installing libsndfile $SNDFILE_VERSION..."
+    cd "$BUILD_DIR"/libsndfile
+    sudo make install
+fi
+cd "$BUILD_DIR"
+
 # Build or Install libpulse
 if $BUILD_ENABLED; then
     echo "Building libpulse from source..."
@@ -133,28 +156,6 @@ if $INSTALL_ENABLED; then
     echo "Installing libpulse..."
     cd "$BUILD_DIR"/libpulse/build
     sudo ninja install
-fi
-cd "$BUILD_DIR"
-
-# Build or Install libsndfile from source
-if $BUILD_ENABLED; then
-    echo "Building libsndfile $SNDFILE_VERSION from source..."
-    if [ ! -d "libsndfile" ]; then
-        curl -L -o sndfile.tar.xz "https://github.com/libsndfile/libsndfile/releases/download/${SNDFILE_VERSION}/libsndfile-${SNDFILE_VERSION}.tar.xz"
-        tar xf sndfile.tar.xz
-        mv "libsndfile-${SNDFILE_VERSION}" libsndfile
-        rm sndfile.tar.xz
-    fi
-
-    cd libsndfile
-    CFLAGS="-fPIC" CXXFLAGS="-fPIC" ./configure --prefix=/usr --enable-static --disable-shared
-    make -j$(nproc)
-fi
-
-if $INSTALL_ENABLED; then
-    echo "Installing libsndfile $SNDFILE_VERSION..."
-    cd "$BUILD_DIR"/libsndfile
-    sudo make install
 fi
 cd "$BUILD_DIR"
 
