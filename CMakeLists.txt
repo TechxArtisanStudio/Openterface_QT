@@ -84,6 +84,17 @@ qt_add_executable(openterfaceQT WIN32 MACOSX_BUNDLE
     video/videohid.cpp video/videohid.h
 )
 
+find_library(EXPAT_LIBRARY NAMES expat PATHS /usr/lib /usr/local/lib)
+find_path(EXPAT_INCLUDE_DIR NAMES expat.h PATHS /usr/include /usr/local/include)
+
+if(EXPAT_LIBRARY AND EXPAT_INCLUDE_DIR)
+    message(STATUS "Found Expat: ${EXPAT_LIBRARY}")
+    include_directories(${EXPAT_INCLUDE_DIR})
+    list(APPEND EXTRA_LIBS ${EXPAT_LIBRARY})
+else()
+    message(FATAL_ERROR "Expat library not found")
+endif()
+
 target_link_libraries(openterfaceQT PRIVATE
     Qt::Concurrent
     Qt::Core
@@ -96,6 +107,7 @@ target_link_libraries(openterfaceQT PRIVATE
     ${FFMPEG_LIBRARIES}  # Link against FFmpeg libraries
     ${EXPAT_LIBRARIES}
     ${XRENDER_LIBRARIES}
+    ${EXTRA_LIBS}
 )
 
 if(DEFINED LIBXRENDER_LIBRARY)

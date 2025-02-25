@@ -109,7 +109,8 @@ jobs:
               -DCMAKE_PREFIX_PATH=/opt/Qt6 \
               -DCMAKE_INSTALL_PREFIX=release \
               -DCMAKE_VERBOSE_MAKEFILE=ON \
-              -DEXPAT_LIBRARY=/usr/lib/libexpat.a
+              -DEXPAT_LIBRARY=/usr/lib/libexpat.a \
+              -DEXPAT_INCLUDE_DIR=/usr/include
 
           cat CMakeFiles/openterfaceQT.dir/link.txt
           echo "Building with CMake..."
