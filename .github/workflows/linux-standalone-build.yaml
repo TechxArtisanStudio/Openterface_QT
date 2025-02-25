@@ -141,14 +141,14 @@ jobs:
           echo "Building with CMake..."
           cmake --build . --verbose || (echo "CMake build failed. Please check the build configuration." && exit 1)
 
-          if [ ! -f release/openterfaceQT ]; then
+          if [ ! -f openterfaceQT ]; then
             echo "Error: Failed to build openterfaceQT"
             exit 1
           fi
 
           echo "Creating standalone package..."
           mkdir package
-          cp release/openterfaceQT package
+          cp openterfaceQT package
 
       - name: Save build artifact
         uses: actions/upload-artifact@v4
