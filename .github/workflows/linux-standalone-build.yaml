@@ -43,22 +43,41 @@ jobs:
             key: dependencies-cache
             restore-keys: |
               dependencies-cache
-     
+      - name: Cache FFmpeg
+        id: cache-ffmpeg
+        uses: actions/cache@v3
+        with:
+            path: ${{ env.SOURCE_DIR }}/ffmpeg-build/
+            key: ffmpeg-cache
+            restore-keys: |
+              ffmpeg-cache
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.10'
 
-      - name: Build Qt Dependencies
-        if: steps.cache-deps.outputs.cache-hit != 'true'
-        run: |
-          bash ${{ env.SOURCE_DIR }}/build-script/build-static-qt-dependency.sh
+      # - name: Build Qt Dependencies
+      #   if: steps.cache-deps.outputs.cache-hit != 'true'
+      #   run: |
+      #     bash ${{ env.SOURCE_DIR }}/build-script/build-static-qt-dependency.sh
 
-      - name: Qt Dependencies Already Built
-        if: steps.cache-deps.outputs.cache-hit == 'true'
+      # - name: Qt Dependencies Already Built
+      #   if: steps.cache-deps.outputs.cache-hit == 'true'
+      #   run: |
+      #     echo "Qt dependencies already built"
+      #     bash ${{ env.SOURCE_DIR }}/build-script/build-static-qt-dependency.sh --no-build
+      
+      - name: Build FFmpeg
+        if: steps.cache-ffmpeg.outputs.cache-hit != 'true'
         run: |
-          echo "Qt dependencies already built"
-          bash ${{ env.SOURCE_DIR }}/build-script/build-static-qt-dependency.sh --no-build
+          bash ${{ env.SOURCE_DIR }}/build-script/build-static-ffmpeg.sh
+
+      - name: FFmpeg Already Built
+        if: steps.cache-ffmpeg.outputs.cache-hit == 'true'
+        run: |
+          echo "FFmpeg already built"
+          bash ${{ env.SOURCE_DIR }}/build-script/build-static-ffmpeg.sh --no-build
           
       - name: Build Qt Statically
         if: steps.cache-qt.outputs.cache-hit != 'true'

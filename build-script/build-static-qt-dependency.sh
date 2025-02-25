@@ -52,11 +52,9 @@ X11_VERSION="1.8.7"
 RANDRPROTO_VERSION="1.5.0"
 RENDERPROTO_VERSION=0.11.1
 LIBXDMCP_VERSION=1.1.4
-FFMPEG_VERSION=6.1.1
 XKB_CONFIG_VERSION=2.41
 XORGPROTO_VERSION=2023.2
 LIBXAU_VERSION=1.0.12
-NASM_VERSION="2.16.01"
 EXPAT_VERSION=2.5.0
 BZ2_VERSION=1.0.8
 LIBXML2_VERSION=2.9.12
@@ -952,55 +950,6 @@ if $INSTALL_ENABLED; then
     echo "Installing libxkbcommon $XKBCOMMON_VERSION..."
     cd "$BUILD_DIR"/libxkbcommon/build
     sudo ninja install
-fi
-cd "$BUILD_DIR"
-
-# Install NASM
-if $BUILD_ENABLED; then
-    echo "Installing NASM..."
-    curl -L -o nasm.tar.xz "https://www.nasm.us/pub/nasm/releasebuilds/${NASM_VERSION}/nasm-${NASM_VERSION}.tar.xz"
-    tar xf nasm.tar.xz
-    rm nasm.tar.xz
-
-    cd "nasm-${NASM_VERSION}"
-    ./configure --prefix=/usr
-    make -j$(nproc)
-fi
-
-if $INSTALL_ENABLED; then
-    echo "Installing NASM..."
-    cd "$BUILD_DIR"/nasm-${NASM_VERSION}
-    sudo make install
-fi
-cd "$BUILD_DIR"
-
-# Build FFmpeg
-if $BUILD_ENABLED; then
-    echo "Building FFmpeg $FFMPEG_VERSION from source..."
-    if [ ! -d "FFmpeg-n${FFMPEG_VERSION}" ]; then
-        curl -L -o ffmpeg.tar.gz "https://github.com/FFmpeg/FFmpeg/archive/refs/tags/n${FFMPEG_VERSION}.tar.gz"
-        tar -xzf ffmpeg.tar.gz
-        rm ffmpeg.tar.gz
-    fi
-
-    cd "FFmpeg-n${FFMPEG_VERSION}"
-    ./configure --prefix=/usr/local \
-        --disable-shared \
-        --enable-gpl \
-        --enable-version3 \
-        --disable-nonfree \
-        --disable-doc \
-        --disable-programs \
-        --enable-pic \
-        --enable-static
-    make -j$(nproc)
-fi
-
-if $INSTALL_ENABLED; then
-    echo "Installing FFmpeg $FFMPEG_VERSION..."
-    cd "$BUILD_DIR"/FFmpeg-n${FFMPEG_VERSION}
-    sudo make install
-    sudo ldconfig
 fi
 cd "$BUILD_DIR"
 
