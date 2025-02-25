@@ -58,6 +58,7 @@ XORGPROTO_VERSION=2023.2
 LIBXAU_VERSION=1.0.12
 NASM_VERSION="2.16.01"
 EXPAT_VERSION=2.5.0
+BZ2_VERSION=1.0.8
 
 # Create build directory
 BUILD_DIR=$(pwd)/qt-build
@@ -977,6 +978,29 @@ if $INSTALL_ENABLED; then
     cd "$BUILD_DIR"/FFmpeg-n${FFMPEG_VERSION}
     sudo make install
     sudo ldconfig
+fi
+cd "$BUILD_DIR"
+
+# Build or Install libbz2
+if $BUILD_ENABLED; then
+    echo "Building libbz2 $BZ2_VERSION from source..."
+    if [ ! -d "libbz2" ]; then
+        curl -L -o libbz2.tar.gz "https://sourceware.org/pub/bzip2/bzip2-${BZ2_VERSION}.tar.gz"
+        tar xf libbz2.tar.gz
+        mv "bzip2-${BZ2_VERSION}" libbz2
+        rm libbz2.tar.gz
+    fi
+
+    cd libbz2
+    make -f Makefile-libbz2_so
+    make clean
+    make CFLAGS="-fPIC" -j$(nproc)
+fi
+
+if $INSTALL_ENABLED; then
+    echo "Installing libbz2 $BZ2_VERSION..."
+    cd "$BUILD_DIR"/libbz2
+    sudo make install PREFIX=/usr
 fi
 cd "$BUILD_DIR"
 
