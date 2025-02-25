@@ -39,7 +39,7 @@ jobs:
         id: cache-deps
         uses: actions/cache@v3
         with:
-            path: ${{ env.SOURCE_DIR }}/build-script/
+            path: ${{ env.SOURCE_DIR }}/qt-build/
             key: dependencies-cache
             restore-keys: |
               dependencies-cache
@@ -54,80 +54,80 @@ jobs:
         run: |
           bash ${{ env.SOURCE_DIR }}/build-script/build-static-qt-dependency.sh
 
-      - name: Qt Dependencies Already Built
-        if: steps.cache-deps.outputs.cache-hit == 'true'
-        run: |
-          echo "Qt dependencies already built"
-          bash ${{ env.SOURCE_DIR }}/build-script/build-static-qt-dependency.sh --no-build
+      # - name: Qt Dependencies Already Built
+      #   if: steps.cache-deps.outputs.cache-hit == 'true'
+      #   run: |
+      #     echo "Qt dependencies already built"
+      #     bash ${{ env.SOURCE_DIR }}/build-script/build-static-qt-dependency.sh --no-build
           
-      - name: Build Qt Statically
-        if: steps.cache-qt.outputs.cache-hit != 'true'
-        run: |
-          bash ${{ env.SOURCE_DIR }}/build-script/build-static-qt-from-source.sh
+      # - name: Build Qt Statically
+      #   if: steps.cache-qt.outputs.cache-hit != 'true'
+      #   run: |
+      #     bash ${{ env.SOURCE_DIR }}/build-script/build-static-qt-from-source.sh
 
-      - name: Create build directory
-        run: |
-          mkdir ${{ runner.temp }}/build
+      # - name: Create build directory
+      #   run: |
+      #     mkdir ${{ runner.temp }}/build
 
-      - name: Prepare Driver Files
-        run: |
-          mkdir ${{ env.SOURCE_DIR }}/drivers
-          cp driver/linux/* ${{ env.SOURCE_DIR }}/drivers/
+      # - name: Prepare Driver Files
+      #   run: |
+      #     mkdir ${{ env.SOURCE_DIR }}/drivers
+      #     cp driver/linux/* ${{ env.SOURCE_DIR }}/drivers/
       
-      - name: Install OpenGL ES Development Packages
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            libgles2-mesa-dev \
-            libegl1-mesa-dev \
-            libglib2.0-dev \
-            libpcre2-dev \
-            libxrandr2 \
-            libxcb1-dev \
-            libxcb-render0-dev \
-            libxcb-shape0-dev \
-            libxcb-xfixes0-dev \
-            libxcb-cursor-dev
+      # - name: Install OpenGL ES Development Packages
+      #   run: |
+      #     sudo apt-get update
+      #     sudo apt-get install -y \
+      #       libgles2-mesa-dev \
+      #       libegl1-mesa-dev \
+      #       libglib2.0-dev \
+      #       libpcre2-dev \
+      #       libxrandr2 \
+      #       libxcb1-dev \
+      #       libxcb-render0-dev \
+      #       libxcb-shape0-dev \
+      #       libxcb-xfixes0-dev \
+      #       libxcb-cursor-dev
 
-      - name: Install Additional Libraries
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            libxrender-dev \
-            libexpat-dev
+      # - name: Install Additional Libraries
+      #   run: |
+      #     sudo apt-get update
+      #     sudo apt-get install -y \
+      #       libxrender-dev \
+      #       libexpat-dev
 
-      - name: Build Standalone Executable
-        working-directory: ${{ runner.temp }}/build
-        run: |
-          echo "Setting LD_LIBRARY_PATH..."
-          export LD_LIBRARY_PATH=/usr/lib:/usr/local/lib:$LD_LIBRARY_PATH
+      # - name: Build Standalone Executable
+      #   working-directory: ${{ runner.temp }}/build
+      #   run: |
+      #     echo "Setting LD_LIBRARY_PATH..."
+      #     export LD_LIBRARY_PATH=/usr/lib:/usr/local/lib:$LD_LIBRARY_PATH
 
-          echo "Configuring with CMake..."
-          cmake -S "${{ env.SOURCE_DIR }}" -B . \
-              -DCMAKE_BUILD_TYPE=Release \
-              -DBUILD_SHARED_LIBS=OFF \
-              -DCMAKE_PREFIX_PATH=/opt/Qt6 \
-              -DCMAKE_INSTALL_PREFIX=release \
-              -DCMAKE_VERBOSE_MAKEFILE=ON \
-              -DEXPAT_LIBRARY=/usr/lib/libexpat.a
+      #     echo "Configuring with CMake..."
+      #     cmake -S "${{ env.SOURCE_DIR }}" -B . \
+      #         -DCMAKE_BUILD_TYPE=Release \
+      #         -DBUILD_SHARED_LIBS=OFF \
+      #         -DCMAKE_PREFIX_PATH=/opt/Qt6 \
+      #         -DCMAKE_INSTALL_PREFIX=release \
+      #         -DCMAKE_VERBOSE_MAKEFILE=ON \
+      #         -DEXPAT_LIBRARY=/usr/lib/libexpat.a
 
-          cat CMakeFiles/openterfaceQT.dir/link.txt
-          echo "Building with CMake..."
-          cmake --build . || (echo "CMake build failed. Please check the build configuration." && exit 1)
+      #     cat CMakeFiles/openterfaceQT.dir/link.txt
+      #     echo "Building with CMake..."
+      #     cmake --build . || (echo "CMake build failed. Please check the build configuration." && exit 1)
 
-          if [ ! -f release/openterfaceQT ]; then
-            echo "Error: Failed to build openterfaceQT"
-            exit 1
-          fi
+      #     if [ ! -f release/openterfaceQT ]; then
+      #       echo "Error: Failed to build openterfaceQT"
+      #       exit 1
+      #     fi
 
-          echo "Creating standalone package..."
-          mkdir package
-          cp release/openterfaceQT package
+      #     echo "Creating standalone package..."
+      #     mkdir package
+      #     cp release/openterfaceQT package
 
-      - name: Save build artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ env.ARTIFACT }}
-          path: ${{ runner.temp }}/build/package/openterfaceQT
-          if-no-files-found: error
+      # - name: Save build artifact
+      #   uses: actions/upload-artifact@v4
+      #   with:
+      #     name: ${{ env.ARTIFACT }}
+      #     path: ${{ runner.temp }}/build/package/openterfaceQT
+      #     if-no-files-found: error
 
