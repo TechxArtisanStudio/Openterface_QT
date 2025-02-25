@@ -375,7 +375,7 @@ if $BUILD_ENABLED; then
     fi
 
     cd fontconfig
-    ./configure --prefix=/usr --enable-static --disable-shared
+    ./configure --prefix=/usr --enable-static --disable-shared --enable-libxml2
     make -j$(nproc)
 fi
 
