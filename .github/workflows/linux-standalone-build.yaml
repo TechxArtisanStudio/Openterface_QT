@@ -94,7 +94,9 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y \
             libxrender-dev \
-            libexpat-dev
+            libexpat-dev \
+            libfreetype6-dev \
+            libfontconfig1-dev
 
       - name: Build Standalone Executable
         working-directory: ${{ runner.temp }}/build
@@ -110,7 +112,11 @@ jobs:
               -DCMAKE_INSTALL_PREFIX=release \
               -DCMAKE_VERBOSE_MAKEFILE=ON \
               -DEXPAT_LIBRARY=/usr/lib/libexpat.a \
-              -DEXPAT_INCLUDE_DIR=/usr/include
+              -DEXPAT_INCLUDE_DIR=/usr/include \
+              -DFREETYPE_LIBRARY=/usr/lib/x86_64-linux-gnu/libfreetype.a \
+              -DFREETYPE_INCLUDE_DIRS=/usr/include/freetype2 \
+              -DFONTCONFIG_LIBRARY=/usr/lib/x86_64-linux-gnu/libfontconfig.a \
+              -DFONTCONFIG_INCLUDE_DIRS=/usr/include
 
           cat CMakeFiles/openterfaceQT.dir/link.txt
           echo "Building with CMake..."
