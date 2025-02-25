@@ -135,11 +135,11 @@ jobs:
               -DBUILD_SHARED_LIBS=OFF \
               -DCMAKE_PREFIX_PATH=/opt/Qt6 \
               -DCMAKE_INSTALL_PREFIX=release \
-              -DCMAKE_VERBOSE_MAKEFILE=ON
+              -DCMAKE_VERBOSE_MAKEFILE=ON \
+              -DQT_DEBUG_FIND_PACKAGE=ON
 
-          cat CMakeFiles/openterfaceQT.dir/link.txt
           echo "Building with CMake..."
-          cmake --build . || (echo "CMake build failed. Please check the build configuration." && exit 1)
+          cmake --build . --verbose || (echo "CMake build failed. Please check the build configuration." && exit 1)
 
           if [ ! -f release/openterfaceQT ]; then
             echo "Error: Failed to build openterfaceQT"
