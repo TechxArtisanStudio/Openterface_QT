@@ -6,7 +6,7 @@ on:
 
 env:
   SOURCE_DIR: ${{ github.workspace }}
-  
+
 jobs:
   build:
     runs-on: ubuntu-22.04
@@ -26,5 +26,5 @@ jobs:
 
       - name: Run build script
         run: |
-          chmod +x build-script/build-from-source.sh
-          ./build-script/build-from-source.sh 
+          chmod +x build-script/build-static-qt-dependency.sh
+          ./build-script/build-static-qt-dependency.sh
