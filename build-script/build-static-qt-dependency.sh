@@ -69,7 +69,7 @@ cd "$BUILD_DIR"
 # Install minimal build requirements
 sudo apt-get update
 sudo apt-get install -y build-essential meson ninja-build bison flex pkg-config python3-pip linux-headers-$(uname -r) \
-    autoconf automake libtool autoconf-archive cmake
+    autoconf automake libtool autoconf-archive cmake libc6-dev zlib1g-dev
 
 # Check for required tools
 command -v curl >/dev/null 2>&1 || { echo "Curl is not installed. Please install Curl."; exit 1; }
@@ -376,7 +376,7 @@ if $BUILD_ENABLED; then
     fi
 
     cd libxml2
-    ./configure --prefix=/usr --enable-static --disable-shared --with-pic
+        LIBS="-lm -lz" ./configure --prefix=/usr --enable-static --disable-shared --with-pic
     make -j$(nproc)
 fi
 
