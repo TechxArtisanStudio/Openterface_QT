@@ -91,7 +91,10 @@ jobs:
             libxi-dev \
             libxkbcommon-dev \
             libxkbcommon-x11-dev \
-            libexpat-dev
+            libexpat-dev \
+            libfreetype6-dev \
+            libfontconfig1-dev \
+            libx11-dev 
 
       - name: Build Standalone Executable
         working-directory: ${{ runner.temp }}/build
