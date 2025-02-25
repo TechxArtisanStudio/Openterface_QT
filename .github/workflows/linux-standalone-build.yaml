@@ -49,16 +49,16 @@ jobs:
         with:
           python-version: '3.10'
 
-      # - name: Build Qt Dependencies
-      #   if: steps.cache-deps.outputs.cache-hit != 'true'
-      #   run: |
-      #     bash ${{ env.SOURCE_DIR }}/build-script/build-static-qt-dependency.sh
+      - name: Build Qt Dependencies
+        if: steps.cache-deps.outputs.cache-hit != 'true'
+        run: |
+          bash ${{ env.SOURCE_DIR }}/build-script/build-static-qt-dependency.sh
 
-      # - name: Qt Dependencies Already Built
-      #   if: steps.cache-deps.outputs.cache-hit == 'true'
-      #   run: |
-      #     echo "Qt dependencies already built"
-      #     bash ${{ env.SOURCE_DIR }}/build-script/build-static-qt-dependency.sh --no-build
+      - name: Qt Dependencies Already Built
+        if: steps.cache-deps.outputs.cache-hit == 'true'
+        run: |
+          echo "Qt dependencies already built"
+          bash ${{ env.SOURCE_DIR }}/build-script/build-static-qt-dependency.sh --no-build
           
       - name: Build Qt Statically
         if: steps.cache-qt.outputs.cache-hit != 'true'
