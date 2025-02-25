@@ -98,7 +98,6 @@ jobs:
             libdbus-1-dev \
             libdbus-glib-1-dev \
             libpulse-dev \
-            pluseaudio \
             libsndfile1-dev
 
 
