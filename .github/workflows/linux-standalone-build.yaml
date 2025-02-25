@@ -39,7 +39,7 @@ jobs:
         id: cache-deps
         uses: actions/cache@v3
         with:
-            path: /opt/qt-build
+            path: ${{ env.SOURCE_DIR }}/build-script/
             key: dependencies-cache
             restore-keys: |
               dependencies-cache
@@ -93,7 +93,8 @@ jobs:
       #   run: |
       #     sudo apt-get update
       #     sudo apt-get install -y \
-      #       libxrender-dev
+      #       libxrender-dev \
+      #       libexpat-dev
 
       # - name: Build Standalone Executable
       #   working-directory: ${{ runner.temp }}/build
@@ -107,7 +108,8 @@ jobs:
       #         -DBUILD_SHARED_LIBS=OFF \
       #         -DCMAKE_PREFIX_PATH=/opt/Qt6 \
       #         -DCMAKE_INSTALL_PREFIX=release \
-      #         -DCMAKE_VERBOSE_MAKEFILE=ON 
+      #         -DCMAKE_VERBOSE_MAKEFILE=ON \
+      #         -DEXPAT_LIBRARY=/usr/lib/libexpat.a
 
       #     cat CMakeFiles/openterfaceQT.dir/link.txt
       #     echo "Building with CMake..."
