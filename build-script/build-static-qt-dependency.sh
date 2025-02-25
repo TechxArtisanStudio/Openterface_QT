@@ -56,7 +56,6 @@ XORGPROTO_VERSION=2023.2
 LIBXAU_VERSION=1.0.12
 EXPAT_VERSION=2.5.0
 BZ2_VERSION=1.0.8
-LIBXML2_VERSION=2.9.12
 
 # Create build directory
 BUILD_DIR=$(pwd)/qt-build
@@ -340,28 +339,6 @@ if $INSTALL_ENABLED; then
 fi
 cd "$BUILD_DIR"
 
-# Build or Install libxml2 from source
-if $BUILD_ENABLED; then
-    echo "Building libxml2 from source..."
-    if [ ! -d "libxml2" ]; then
-        curl -L -o libxml2.tar.gz "http://xmlsoft.org/sources/libxml2-${LIBXML2_VERSION}.tar.gz"
-        tar xf libxml2.tar.gz
-        mv "libxml2-${LIBXML2_VERSION}" libxml2
-        rm libxml2.tar.gz
-    fi
-
-    cd libxml2
-        LIBS="-lm -lz" ./configure --prefix=/usr --enable-static --disable-shared --with-pic
-    make -j$(nproc)
-fi
-
-if $INSTALL_ENABLED; then
-    echo "Installing libxml2 $LIBXML2_VERSION..."
-    cd "$BUILD_DIR"/libxml2
-    sudo make install
-fi
-cd "$BUILD_DIR"
-
 # Build or Install Fontconfig
 if $BUILD_ENABLED; then
     echo "Building Fontconfig $FONTCONFIG_VERSION from source..."
@@ -373,7 +350,7 @@ if $BUILD_ENABLED; then
     fi
 
     cd fontconfig
-    ./configure --prefix=/usr --enable-static --disable-shared --enable-libxml2
+    ./configure --prefix=/usr --enable-static --disable-shared
     make -j$(nproc)
 fi
 
