@@ -111,6 +111,7 @@ if $BUILD_ENABLED; then
     cd build
     meson setup --prefix=/usr \
         -Ddefault_library=static \
+        -Ddoxygen=false \
         -Ddaemon=false \
         -Dtests=false \
         -Dman=false \
@@ -231,15 +232,10 @@ if $BUILD_ENABLED; then
     mkdir -p build
     cd build
 
-    # Modify meson.build to skip Doxygen if necessary
-    if grep -q "doxygen" ../meson.build; then
-        echo "Disabling Doxygen in meson.build..."
-        sed -i 's/.*doxygen.*//' ../meson.build
-    fi
-
     meson setup --prefix=/usr \
         -Ddaemon=false \
         -Dman=false \
+        -Ddoxygen=false \
         -Dtests=false \
         -Ddefault_library=static \
         -Ddatabase=simple \
