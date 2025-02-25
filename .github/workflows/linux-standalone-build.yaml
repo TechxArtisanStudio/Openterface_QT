@@ -87,7 +87,8 @@ jobs:
             libxcb-render0-dev \
             libxcb-shape0-dev \
             libxcb-xfixes0-dev \
-            libxcb-cursor-dev
+            libxcb-cursor-dev \
+            libxml2-dev
 
       - name: Install Additional Libraries
         run: |
