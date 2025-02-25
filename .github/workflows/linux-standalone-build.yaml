@@ -118,7 +118,7 @@ jobs:
               -DFREETYPE_INCLUDE_DIRS=/usr/include/freetype2 \
               -DFONTCONFIG_LIBRARY=/usr/lib/x86_64-linux-gnu/libfontconfig.a \
               -DFONTCONFIG_INCLUDE_DIRS=/usr/include \
-              -DBZIP2_LIBRARY=/usr/lib/x86_64-linux-gnu/libbz2.a \
+              -DBZIP2_LIBRARY=/usr/lib/libbz2.a \
               -DBZIP2_INCLUDE_DIR=/usr/include
 
           cat CMakeFiles/openterfaceQT.dir/link.txt
