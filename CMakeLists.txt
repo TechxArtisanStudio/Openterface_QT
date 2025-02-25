@@ -87,28 +87,6 @@ qt_add_executable(openterfaceQT WIN32 MACOSX_BUNDLE
     video/videohid.cpp video/videohid.h
 )
 
-find_library(EXPAT_LIBRARY NAMES expat PATHS /usr/lib /usr/local/lib)
-find_path(EXPAT_INCLUDE_DIR NAMES expat.h PATHS /usr/include /usr/local/include)
-
-if(EXPAT_LIBRARY AND EXPAT_INCLUDE_DIR)
-    message(STATUS "Found Expat: ${EXPAT_LIBRARY}")
-    include_directories(${EXPAT_INCLUDE_DIR})
-    list(APPEND EXTRA_LIBS ${EXPAT_LIBRARY})
-else()
-    message(FATAL_ERROR "Expat library not found")
-endif()
-
-find_library(XML2_LIBRARY NAMES xml2 PATHS /usr/lib/x86_64-linux-gnu /usr/local/lib)
-find_path(XML2_INCLUDE_DIR NAMES libxml/parser.h PATHS /usr/include/libxml2 /usr/local/include/libxml2)
-
-if(XML2_LIBRARY AND XML2_INCLUDE_DIR)
-    message(STATUS "Found libxml2: ${XML2_LIBRARY}")
-    include_directories(${XML2_INCLUDE_DIR})
-    list(APPEND EXTRA_LIBS ${XML2_LIBRARY})
-else()
-    message(FATAL_ERROR "libxml2 library not found")
-endif()
-
 target_link_libraries(openterfaceQT PRIVATE
     Qt::Concurrent
     Qt::Core
@@ -126,13 +104,6 @@ target_link_libraries(openterfaceQT PRIVATE
     ${BZIP2_LIBRARIES}
     ${EXTRA_LIBS}
 )
-
-if(DEFINED LIBXRENDER_LIBRARY)
-    message(STATUS "Using custom libXrender library: ${LIBXRENDER_LIBRARY}")
-    target_link_libraries(openterfaceQT PRIVATE ${LIBXRENDER_LIBRARY})
-endif()
-
-find_library(XRENDER_LIBRARY Xrender PATHS /usr/lib)
 
 # Resources:
 set(mainwindow_resource_files
