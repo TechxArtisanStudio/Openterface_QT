@@ -90,7 +90,7 @@ qt_add_executable(openterfaceQT WIN32 MACOSX_BUNDLE
 
 if(UNIX AND NOT APPLE)
     set_target_properties(openterfaceQT PROPERTIES
-        ICON "ui/../images/icon_256.png"
+        ICON "ui/../images/icon_128.png"
     )
 endif()
 
@@ -124,6 +124,8 @@ set(mainwindow_resource_files
     "ui/../images/contrast.svg"
     "ui/../images/full_screen.svg"
     "ui/../images/fullscreen.svg"
+    "ui/../images/icon_256.ico"
+    "ui/../images/icon_256.png"
     "ui/../images/icon_128.ico"
     "ui/../images/icon_128.png"
     "ui/../images/icon_32.ico"
