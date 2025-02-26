@@ -54,7 +54,6 @@ sudo ninja install
 
 # Build qtshadertools
 echo "Building qtshadertools..."
-sudo apt-get install -y libfontconfig1-dev libfreetype6-dev
 cd "$BUILD_DIR/qtshadertools"
 mkdir -p build
 cd build
@@ -63,7 +62,7 @@ cmake -GNinja \
     -DCMAKE_PREFIX_PATH="$INSTALL_PREFIX" \
     -DBUILD_SHARED_LIBS=OFF \
     -DFEATURE_static_runtime=ON \
-    -DCMAKE_EXE_LINKER_FLAGS="/usr/lib/libXau.a /usr/lib/libXdmcp.a -lfontconfig -lfreetype" \
+    -DCMAKE_EXE_LINKER_FLAGS="/usr/lib/libXau.a /usr/lib/libXdmcp.a /usr/lib/libfontconfig.a /usr/lib/libfreetype.a" \
     ..
 
 ninja
