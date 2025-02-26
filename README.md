@@ -205,14 +205,13 @@ For more details, please refer to the full text of the AGPL-3.0 license: [GNU AG
 This project uses the following third-party libraries, each with its own licensing terms:
 
 - **Qt Framework**: LGPL v3
-- **ALSA (Advanced Linux Sound Architecture)**: LGPL v2.1+
-- **libusb**: LGPL v2.1
-- **FreeType**: FreeType License (BSD-style) / GPL v2
-- **Fontconfig**: MIT License
+- **libusb (1.0.26)**: LGPL v2.1
+- **FreeType (2.13.2) **: FreeType License (BSD-style) / GPL v2
+- **Fontconfig (2.14.2)**: MIT License
 - **D-Bus**: AFL v2.1 or GPL v2
-- **PulseAudio**: LGPL v2.1+
-- **libxkbcommon**: MIT License
-- **xorg-macros, xproto, libXdmcp, libXau, xcb, xcb-util**: Generally under permissive licenses
+- **PulseAudio (16.1)**: LGPL v2.1+
+- **libxkbcommon (1.7.0)**: MIT License
+- **xproto, libXdmcp, libXau, xcb, xcb-util**: Generally under permissive licenses
 
 ### Static Linking
 

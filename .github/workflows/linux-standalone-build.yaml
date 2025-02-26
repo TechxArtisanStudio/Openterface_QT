@@ -120,8 +120,9 @@ jobs:
             libsndfile1-dev \
             libxrandr-dev \
             libxrender-dev \
-            libexpat1-dev
-
+            libexpat1-dev \
+            libfreetype6-dev \
+            libfontconfig1-dev
 
       - name: Build Standalone Executable
         working-directory: ${{ runner.temp }}/build
@@ -138,7 +139,11 @@ jobs:
               -DCMAKE_VERBOSE_MAKEFILE=ON \
               -DQT_DEBUG_FIND_PACKAGE=ON \
               -DCMAKE_CXX_FLAGS="-Os -s" \
-              -DCMAKE_C_FLAGS="-Os -s"
+              -DCMAKE_C_FLAGS="-Os -s" \
+              -DFREETYPE_INCLUDE_DIRS=/usr/include/freetype2 \
+              -DFREETYPE_LIBRARIES=/usr/lib/x86_64-linux-gnu/libfreetype.so \
+              -DFONTCONFIG_INCLUDE_DIRS=/usr/include/fontconfig \
+              -DFONTCONFIG_LIBRARIES=/usr/lib/x86_64-linux-gnu/libfontconfig.so
 
           echo "Building with CMake..."
           cmake --build . --verbose || (echo "CMake build failed. Please check the build configuration." && exit 1)

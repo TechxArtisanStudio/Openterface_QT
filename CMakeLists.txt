@@ -94,6 +94,11 @@ if(UNIX AND NOT APPLE)
     )
 endif()
 
+target_include_directories(openterfaceQT PRIVATE
+    ${FREETYPE_INCLUDE_DIRS}
+    ${FONTCONFIG_INCLUDE_DIRS}
+)
+
 target_link_libraries(openterfaceQT PRIVATE
     Qt::Concurrent
     Qt::Core
