@@ -295,6 +295,14 @@ if $INSTALL_ENABLED; then
 fi
 cd "$BUILD_DIR"
 
+# Verify xmlparse.o is included in libexpat.a
+if ar t "/usr/lib/libexpat.a" | grep -q "xmlparse.o"; then
+    echo "xmlparse.o is included in libexpat.a"
+else
+    echo "Error: xmlparse.o is not included in libexpat.a"
+    exit 1
+fi
+
 # Build or Install gperf from source
 if $BUILD_ENABLED; then
     echo "Building gperf $GPERF_VERSION from source..."
