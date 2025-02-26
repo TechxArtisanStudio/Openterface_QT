@@ -111,6 +111,17 @@ if(UNIX AND NOT APPLE)
     )
 endif()
 
+if(LINK_LIBUSB_STATICALLY)
+  message(STATUS "Linking libusb statically")
+  if(NOT DEFINED LIBUSB_LIB)
+    set(LIBUSB_LIB /usr/lib/libusb-1.0.a)
+  endif()
+  set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -static")
+else()
+  find_package(libusb-1.0 REQUIRED)
+  set(LIBUSB_LIB ${LIBUSB_1_LIBRARIES})
+endif()
+
 target_link_libraries(openterfaceQT PRIVATE
     ${EXPAT_LIBRARIES}   # Link against Expat library
     ${FREETYPE_LIBRARIES}
@@ -127,6 +138,7 @@ target_link_libraries(openterfaceQT PRIVATE
     ${XRENDER_LIBRARIES}
     ${BZIP2_LIBRARIES}
     ${EXTRA_LIBS}
+    ${LIBUSB_LIB}
 )
 
 # Resources:
