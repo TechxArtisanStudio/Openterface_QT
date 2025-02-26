@@ -106,6 +106,7 @@ jobs:
             libxrandr2 \
             libxcb1-dev \
             '^libxcb.*-dev' \
+            libxcb-glx0-dev \
             libx11-xcb-dev \
             libglu1-mesa-dev \
             libxrender-dev \
