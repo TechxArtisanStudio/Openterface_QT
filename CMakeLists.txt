@@ -252,10 +252,6 @@ if(UNIX)
         /usr/local/include
     )
 
-    target_link_libraries(openterfaceQT PRIVATE
-        usb-1.0
-    )
-
     set(drivers_resource_files
         "driver/linux/ch341.c"
         "driver/linux/ch341.h"
