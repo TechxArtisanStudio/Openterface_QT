@@ -137,6 +137,12 @@ jobs:
               -DCMAKE_CXX_FLAGS="-Os -s" \
               -DCMAKE_C_FLAGS="-Os -s" \
               -DLINK_LIBUSB_STATICALLY=ON \
+              -DFREETYPE_INCLUDE_DIRS=/usr/include/freetype2 \
+              -DFREETYPE_LIBRARIES=/usr/lib/libfreetype.a \
+              -DFONTCONFIG_INCLUDE_DIRS=/usr/include/fontconfig \
+              -DFONTCONFIG_LIBRARIES=/usr/lib/libfontconfig.a \
+              -DEXPAT_INCLUDE_DIRS=/usr/include \
+              -DEXPAT_LIBRARY_PATH=/usr/lib/libexpat.a \           
               -DLIBUSB_LIB=/usr/lib/libusb-1.0.a
               
           echo "Building with CMake..."
