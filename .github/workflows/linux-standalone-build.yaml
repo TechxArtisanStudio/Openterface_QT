@@ -117,8 +117,7 @@ jobs:
             libpulse-dev \
             libsndfile1-dev \
             libxrandr-dev \
-            libxrender-dev \
-            libexpat1-dev
+            libxrender-dev
 
       - name: Build Standalone Executable
         working-directory: ${{ runner.temp }}/build
