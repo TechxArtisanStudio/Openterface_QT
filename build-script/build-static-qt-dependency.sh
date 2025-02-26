@@ -286,8 +286,6 @@ if $BUILD_ENABLED; then
     cd libexpat
     ./configure --prefix=/usr --enable-static --disable-shared
     make -j$(nproc)
-    # Ensure xmlparse.o is included in libexpat.a
-    ar rcs lib/.libs/libexpat.a lib/xmlparse.o
 fi
 
 if $INSTALL_ENABLED; then
@@ -352,7 +350,7 @@ if $BUILD_ENABLED; then
     fi
 
     cd fontconfig
-    ./configure --prefix=/usr --enable-static --disable-shared
+    ./configure --prefix=/usr --enable-static --disable-shared --with-expat=$BUILD_DIR/libexpat
     make -j$(nproc)
 fi
 
