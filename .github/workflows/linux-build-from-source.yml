@@ -24,7 +24,7 @@ jobs:
             restore-keys: |
               dependencies-cache
 
-      - name: Run build script
+      - name: Build Qt Dependencies
+        if: steps.cache-deps.outputs.cache-hit != 'true'
         run: |
-          chmod +x build-script/build-static-qt-dependency.sh
-          ./build-script/build-static-qt-dependency.sh
+          bash ${{ env.SOURCE_DIR }}/build-script/build-static-qt-dependency.sh
