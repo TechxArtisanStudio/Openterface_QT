@@ -287,7 +287,7 @@ if $BUILD_ENABLED; then
     ./configure --prefix=/usr --enable-static --disable-shared
     make -j$(nproc)
     # Ensure xmlparse.o is included in libexpat.a
-    ar rcs libexpat.a xmlparse.o
+    ar rcs lib/.libs/libexpat.a lib/xmlparse.o
 fi
 
 if $INSTALL_ENABLED; then
