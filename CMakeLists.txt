@@ -87,6 +87,17 @@ qt_add_executable(openterfaceQT WIN32 MACOSX_BUNDLE
     video/videohid.cpp video/videohid.h
 )
 
+# Add the icon file to the resources
+set(icon_resource_files
+    "ui/../images/icon_128.png"
+)
+
+qt_add_resources(openterfaceQT "icon"
+    PREFIX
+        "/"
+    FILES
+        ${icon_resource_files}
+)
 
 if(UNIX AND NOT APPLE)
     set_target_properties(openterfaceQT PROPERTIES
@@ -124,7 +135,6 @@ set(mainwindow_resource_files
     "ui/../images/contrast.svg"
     "ui/../images/full_screen.svg"
     "ui/../images/fullscreen.svg"
-    "ui/../images/icon_256.ico"
     "ui/../images/icon_256.png"
     "ui/../images/icon_128.ico"
     "ui/../images/icon_128.png"
