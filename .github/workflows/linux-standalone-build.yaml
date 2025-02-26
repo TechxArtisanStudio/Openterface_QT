@@ -151,6 +151,9 @@ jobs:
             exit 1
           fi
 
+          echo "Check openterfaceQT dependencies..."
+          ldd openterfaceQT
+
           echo "Creating standalone package..."
           mkdir package
           cp openterfaceQT package
