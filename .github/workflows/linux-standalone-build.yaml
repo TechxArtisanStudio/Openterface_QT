@@ -110,7 +110,6 @@ jobs:
             libxi-dev \
             libxkbcommon-dev \
             libxkbcommon-x11-dev \
-            libexpat-dev \
             libx11-dev \
             libdbus-1-dev \
             libdbus-glib-1-dev \
