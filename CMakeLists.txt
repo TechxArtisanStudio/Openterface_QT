@@ -19,8 +19,6 @@ find_package(Qt${QT_VERSION_MAJOR} OPTIONAL_COMPONENTS Widgets)
 # Find X11 libraries
 find_package(X11 REQUIRED COMPONENTS Xrandr)
 
-find_package(Freetype REQUIRED)
-find_package(Fontconfig REQUIRED)
 find_package(BZip2 REQUIRED)
 
 # Use pkg-config to find Xrender
@@ -116,6 +114,7 @@ endif()
 target_include_directories(openterfaceQT PRIVATE
     ${FREETYPE_INCLUDE_DIRS}
     ${FONTCONFIG_INCLUDE_DIRS}
+    ${EXPAT_INCLUDE_DIRS}
 )
 
 target_link_libraries(openterfaceQT PRIVATE

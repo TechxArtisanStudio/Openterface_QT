@@ -139,6 +139,7 @@ jobs:
               -DFREETYPE_LIBRARIES=/usr/lib/libfreetype.a \
               -DFONTCONFIG_INCLUDE_DIRS=/usr/include/fontconfig \
               -DFONTCONFIG_LIBRARIES=/usr/lib/libfontconfig.a \
+              -DEXPAT_INCLUDE_DIRS=/usr/include \
               -DEXPAT_LIBRARY_PATH=/usr/lib/libexpat.a 
               
           echo "Building with CMake..."
