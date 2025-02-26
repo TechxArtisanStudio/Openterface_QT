@@ -1,6 +1,7 @@
 ---
 name: Standalone Build for linux
 
+
 on:
   push:
     branches: ["main", "dev"]
