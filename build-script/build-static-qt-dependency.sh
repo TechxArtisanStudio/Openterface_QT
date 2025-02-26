@@ -358,7 +358,7 @@ if $BUILD_ENABLED; then
     fi
 
     cd fontconfig
-    ./configure --prefix=/usr --enable-static --disable-shared --with-expat="$BUILD_DIR"/libexpat --with-freetype="$BUILD_DIR"/freetype
+    ./configure --prefix=/usr --enable-static --disable-shared --with-expat=/usr/lib/libexpat.a --with-freetype=/usr/lib/libfreetype.a
     make -j$(nproc)
 fi
 

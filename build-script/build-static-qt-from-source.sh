@@ -62,7 +62,7 @@ cmake -GNinja \
     -DCMAKE_PREFIX_PATH="$INSTALL_PREFIX" \
     -DBUILD_SHARED_LIBS=OFF \
     -DFEATURE_static_runtime=ON \
-    -DCMAKE_EXE_LINKER_FLAGS="/usr/lib/libXau.a /usr/lib/libXdmcp.a /usr/lib/libfontconfig.a /usr/lib/libfreetype.a" \
+    -DCMAKE_EXE_LINKER_FLAGS="/usr/lib/libXau.a /usr/lib/libXdmcp.a /usr/lib/libfreetype.a /usr/lib/libfontconfig.a" \
     ..
 
 ninja
