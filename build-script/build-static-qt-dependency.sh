@@ -335,8 +335,8 @@ if $BUILD_ENABLED; then
         rm freetype.tar.gz
     fi
 
-    cd freetype
-    ./configure --prefix=/usr --enable-static --disable-shared
+    cd "$BUILD_DIR"/freetype
+    ./configure --prefix=/usr --enable-static --disable-shared --without-zlib --without-png --without-bzip2 --without-harfbuzz
     make -j$(nproc)
 fi
 
@@ -358,7 +358,7 @@ if $BUILD_ENABLED; then
     fi
 
     cd fontconfig
-    ./configure --prefix=/usr --enable-static --disable-shared --with-expat=/usr/lib/libexpat.a
+    ./configure --prefix=/usr --enable-static --disable-shared --with-expat="$BUILD_DIR"/libexpat --with-freetype="$BUILD_DIR"/freetype
     make -j$(nproc)
 fi
 
