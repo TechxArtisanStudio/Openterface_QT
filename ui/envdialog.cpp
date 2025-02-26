@@ -36,14 +36,13 @@ const QString EnvironmentSetupDialog::groupCommands = "# Add user to dialout gro
 const QString EnvironmentSetupDialog::udevCommands =
     "#Add udev rules for Openterface Mini-KVM\n"
     "echo 'KERNEL== \"hidraw*\", SUBSYSTEM==\"hidraw\", MODE=\"0666\"' | sudo tee /etc/udev/rules.d/51-openterface.rules\n"
+    "echo 'SUBSYSTEM==\"usb\", ATTR{idVendor}==\"1a86\", ATTR{idProduct}==\"7523\", ENV{BRL TTY_BRAILLY_DRIVER}=\"none\"' | sudo tee -a /etc/udev/rules.d/51-openterface.rules"
     "sudo udevadm control --reload-rules\n"
     "sudo udevadm trigger\n\n";
-const QString EnvironmentSetupDialog::brlttyCommands = "#Stop and disable Brltty\nsudo apt remove brltty; \n\n"; 
 
 bool EnvironmentSetupDialog::isDriverInstalled = false;
 bool EnvironmentSetupDialog::isInRightUserGroup = false;
 bool EnvironmentSetupDialog::isHidPermission = false;
-bool EnvironmentSetupDialog::isBrlttyRunning = false;
 
 EnvironmentSetupDialog::EnvironmentSetupDialog(QWidget *parent) :
     QDialog(parent),
@@ -75,9 +74,6 @@ EnvironmentSetupDialog::EnvironmentSetupDialog(QWidget *parent) :
     statusSummary += "‣ Driver Installed: " + QString(isDriverInstalled ? "✓" : "✗") + "\n";
     statusSummary += "‣ In Dialout Group: " + QString(isInRightUserGroup ? "✓" : "✗") + "\n";
     statusSummary += "‣ HID Permission: " + QString(isHidPermission ? "✓" : "✗") + "\n";
-    if (isBrlttyRunning) {
-        statusSummary += "‣ Brltty running and blocking serial port: ✓\n";
-    }
     ui->descriptionLabel->setText(statusSummary);
 #endif
     // Connect buttons to their respective slots
@@ -162,7 +158,6 @@ void EnvironmentSetupDialog::accept()
     statusSummary += "Driver Installed: " + QString(isDriverInstalled ? "Yes" : "No") + "\n";
     statusSummary += "In Dialout Group: " + QString(isInRightUserGroup ? "Yes" : "No") + "\n";
     statusSummary += "HID Permission: " + QString(isHidPermission ? "Yes" : "No") + "\n";
-    statusSummary += "Brltty Running: " + QString(isBrlttyRunning ? "Yes" : "No") + "\n";
 
     // Append the status summary to the description label
     ui->descriptionLabel->setText(ui->descriptionLabel->text() + "\n" + statusSummary);
@@ -207,9 +202,7 @@ QString EnvironmentSetupDialog::buildCommands(){
     if (!isHidPermission) {
         commands += udevCommands;
     }
-    if (isBrlttyRunning) {
-        commands += brlttyCommands;
-    }
+
     return commands;
 }
 
@@ -234,7 +227,7 @@ bool EnvironmentSetupDialog::checkEnvironmentSetup() {
     }
 
 
-    return checkDriverInstalled() && checkInRightUserGroup() && checkHidPermission() && !checkBrlttyRunning();
+    return checkDriverInstalled() && checkInRightUserGroup() && checkHidPermission();
     #else
     return true;
     #endif
@@ -321,11 +314,4 @@ bool EnvironmentSetupDialog::checkHidPermission() {
     return isHidPermission;
 }
 
-bool EnvironmentSetupDialog::checkBrlttyRunning() {
-    // Check if Brltty is running
-    std::string command = "pgrep brltty";
-    int result = system(command.c_str());
-    isBrlttyRunning = (result == 0); // Returns true if Brltty is running
-    return isBrlttyRunning;
-}
 #endif

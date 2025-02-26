@@ -35,7 +35,7 @@ set(FFMPEG_LIBRARIES "/usr/local/lib/libavformat.a;/usr/local/lib/libavcodec.a;/
 if(NOT DEFINED EXPAT_LIBRARY_PATH OR NOT EXISTS ${EXPAT_LIBRARY_PATH})
     find_package(EXPAT REQUIRED)
     set(EXPAT_LIBRARIES ${EXPAT_LIBRARIES})
-else
+else()
     # Set Expat library directory
     set(EXPAT_LIBRARIES ${EXPAT_LIBRARY_PATH})
 endif()
