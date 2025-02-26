@@ -118,6 +118,9 @@ target_include_directories(openterfaceQT PRIVATE
 )
 
 target_link_libraries(openterfaceQT PRIVATE
+    ${EXPAT_LIBRARIES}   # Link against Expat library
+    ${FREETYPE_LIBRARIES}
+    ${FONTCONFIG_LIBRARIES}
     Qt::Concurrent
     Qt::Core
     Qt::Gui
@@ -127,9 +130,6 @@ target_link_libraries(openterfaceQT PRIVATE
     Qt::SerialPort
     Qt::Svg
     ${FFMPEG_LIBRARIES}  # Link against FFmpeg libraries
-    ${EXPAT_LIBRARIES}   # Link against Expat library
-    ${FREETYPE_LIBRARIES}
-    ${FONTCONFIG_LIBRARIES}
     ${XRENDER_LIBRARIES}
     ${BZIP2_LIBRARIES}
     ${EXTRA_LIBS}
