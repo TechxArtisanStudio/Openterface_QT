@@ -139,8 +139,9 @@ jobs:
               -DFREETYPE_INCLUDE_DIRS=/usr/include/freetype2 \
               -DFREETYPE_LIBRARIES=/usr/lib/libfreetype.a \
               -DFONTCONFIG_INCLUDE_DIRS=/usr/include/fontconfig \
-              -DFONTCONFIG_LIBRARIES=/usr/lib/libfontconfig.a
-
+              -DFONTCONFIG_LIBRARIES=/usr/lib/libfontconfig.a \
+              -DEXPAT_LIBRARY_PATH=/usr/lib/libexpat.a 
+              
           echo "Building with CMake..."
           cmake --build . --verbose || (echo "CMake build failed. Please check the build configuration." && exit 1)
 

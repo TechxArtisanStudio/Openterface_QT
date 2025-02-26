@@ -32,6 +32,12 @@ pkg_check_modules(XRENDER REQUIRED xrender)
 set(FFMPEG_INCLUDE_DIRS "/usr/local/include")
 set(FFMPEG_LIBRARIES "/usr/local/lib/libavformat.a;/usr/local/lib/libavcodec.a;/usr/local/lib/libavutil.a;/usr/local/lib/libswresample.a;/usr/local/lib/libswscale.a")
 
+# Option to specify the path to the Expat library
+option(EXPAT_LIBRARY_PATH "Path to the Expat library" "/usr/lib/libexpat.a")
+
+# Set Expat library directory
+set(EXPAT_LIBRARIES ${EXPAT_LIBRARY_PATH})
+
 # Include FFmpeg directories
 include_directories(${FFMPEG_INCLUDE_DIRS})
 
@@ -120,7 +126,7 @@ target_link_libraries(openterfaceQT PRIVATE
     Qt::SerialPort
     Qt::Svg
     ${FFMPEG_LIBRARIES}  # Link against FFmpeg libraries
-    ${EXPAT_LIBRARIES}
+    ${EXPAT_LIBRARIES}   # Link against Expat library
     ${FREETYPE_LIBRARIES}
     ${FONTCONFIG_LIBRARIES}
     ${XRENDER_LIBRARIES}
