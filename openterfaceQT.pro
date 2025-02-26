@@ -153,3 +153,5 @@ INSTALLS += target
 RC_FILE = openterfaceQT.rc
 
 DEPENDPATH += $$PWD/''
+
+#DEFINES += ONLINE_VERSION

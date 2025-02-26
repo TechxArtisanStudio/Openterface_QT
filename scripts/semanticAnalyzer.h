@@ -45,7 +45,7 @@ class SemanticAnalyzer : public QObject {
 
 public:
     SemanticAnalyzer(MouseManager* mouseManager, KeyboardMouse* keyboardMouse, QObject* parent = nullptr);
-    void analyze(const ASTNode* node);
+    bool analyze(const ASTNode* node);
 
 
 signals:

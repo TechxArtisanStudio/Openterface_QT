@@ -129,14 +129,7 @@ MainWindow::MainWindow() :  ui(new Ui::MainWindow),
     qCDebug(log_ui_mainwindow) << "Init camera...";
     
     ui->setupUi(this);
-    #ifdef ONLINE_VERSION
-        qCDebug(log_ui_mainwindow) << "Test actionTCPServer true...";
-        ui->actionTCPServer->setVisible(true);
-        connect(ui->actionTCPServer, &QAction::triggered, this, &MainWindow::startServer);
-    #else
-        qCDebug(log_ui_mainwindow) << "Test actionTCPServer false...";
-        ui->actionTCPServer->setVisible(false);
-    #endif
+    
 
     initializeKeyboardLayouts();
 
@@ -223,6 +216,15 @@ MainWindow::MainWindow() :  ui(new Ui::MainWindow),
     connect(m_cameraManager, &CameraManager::imageCaptured, this, &MainWindow::processCapturedImage);                                         
     connect(m_cameraManager, &CameraManager::resolutionsUpdated, this, &MainWindow::onResolutionsUpdated);
 
+    #ifdef ONLINE_VERSION
+        qCDebug(log_ui_mainwindow) << "Test actionTCPServer true...";
+        ui->actionTCPServer->setVisible(true);
+        connect(ui->actionTCPServer, &QAction::triggered, this, &MainWindow::startServer);
+    #else
+        qCDebug(log_ui_mainwindow) << "Test actionTCPServer false...";
+        ui->actionTCPServer->setVisible(false);
+    #endif
+
     qDebug() << "Init camera...";
     checkInitSize();
     initCamera();
@@ -294,6 +296,9 @@ MainWindow::MainWindow() :  ui(new Ui::MainWindow),
         tcpServer = new TcpServer(this);
         tcpServer->startServer(12345);
         qCDebug(log_ui_mainwindow) << "TCP Server start at port 12345";
+        connect(m_cameraManager, &CameraManager::lastImagePath, tcpServer, &TcpServer::handleImgPath);
+        connect(tcpServer, &TcpServer::syntaxTreeReady, this, &MainWindow::handleSyntaxTree);
+        connect(this, &MainWindow::emitTCPCommandStatus, tcpServer, &TcpServer::recvTCPCommandStatus);
     }
 #endif
 
@@ -1214,12 +1219,17 @@ void MainWindow::showScriptTool()
 
 // run the sematic analyzer
 void MainWindow::handleSyntaxTree(std::shared_ptr<ASTNode> syntaxTree) {
-    // Handle the received syntaxTree here
-    qCDebug(log_ui_mainwindow) << "Received syntaxTree in MainWindow";
-    // Process the syntaxTree as needed
-    qCDebug(log_ui_mainwindow) << syntaxTree.get();
-    taskmanager->addTask([this, syntaxTree]() {
-        semanticAnalyzer->analyze(syntaxTree.get());
+    QPointer<QObject> senderObj = sender();
+    taskmanager->addTask([this, syntaxTree, senderObj]() {
+        if (!senderObj) return;
+        bool runStatus = semanticAnalyzer->analyze(syntaxTree.get());
+        qCDebug(log_ui_mainwindow) << "Script run status: " << runStatus;
+        #ifdef ONLINE_VERSION
+            if (senderObj == tcpServer) {
+                qCDebug(log_ui_mainwindow) << "run finish: " << runStatus;
+                emit emitTCPCommandStatus(runStatus);
+            }
+        #endif
     });
 } 
 

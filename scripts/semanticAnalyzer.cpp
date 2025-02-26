@@ -39,18 +39,21 @@ SemanticAnalyzer::SemanticAnalyzer(MouseManager* mouseManager, KeyboardMouse* ke
     }
 }
 
-void SemanticAnalyzer::analyze(const ASTNode* node) {
+bool SemanticAnalyzer::analyze(const ASTNode* node) {
     if (!node) {
         qDebug(log_script) << "Received null node in analyze method.";
-        return;
+        return false;
     }
     
+    bool analysisSuccess = true;
     switch (node->getType()) {
         case ASTNodeType::StatementList:
             // Process each statement in the list
             for (const auto& child : node->getChildren()) {
                 qDebug(log_script) << "Analyzing child node.";
-                analyze(child.get());
+                if (!analyze(child.get())){
+                    analysisSuccess = false;
+                }
                 // resetParameters(); // Reset after each statement
             }
             break;
@@ -64,10 +67,13 @@ void SemanticAnalyzer::analyze(const ASTNode* node) {
             // Process any child nodes
             for (const auto& child : node->getChildren()) {
                 qDebug(log_script) << "Analyzing default child node.";
-                analyze(child.get());
+                if (!analyze(child.get())){
+                    analysisSuccess = false;
+                }
             }
             break;
     }
+    return analysisSuccess;
 }
 
 void SemanticAnalyzer::resetParameters() {
@@ -259,13 +265,14 @@ void SemanticAnalyzer::analyzeSendStatement(const CommandStatementNode* node) {
         QRegularExpressionMatch controlMatch = regex.controlKeyRegex.match(tmpKeys, pos);
         if (controlMatch.hasMatch() && controlMatch.capturedStart() == pos) {
             // Process control key sequence
+            int keyIndex = 0;
+            int keyPos = 0;
             QString controlChar = controlMatch.captured(1);
             QString keys = controlMatch.captured(2);
             control = controldata.value(controlChar[0]);
             
             // Process the keys after the control character
-            int keyIndex = 0;
-            int keyPos = 0;
+            
             while (keyPos < keys.length() && keyIndex < 6) {
                 if (keys[keyPos] == '{') {
                     // Handle braced key

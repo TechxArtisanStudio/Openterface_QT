@@ -111,6 +111,7 @@ void CameraManager::onImageCaptured(int id, const QImage& img){
     QImage coayImage = img.copy(copyRect);
     if(coayImage.save(saveName)){
         qCDebug(log_ui_camera) << "succefully save img to : " << saveName;
+        emit lastImagePath(saveName);
     }else{
         qCDebug(log_ui_camera) << "fail save img to : " << saveName;
     }
