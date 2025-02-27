@@ -51,6 +51,8 @@ sudo apt-get install -y libgl1-mesa-dev libglu1-mesa-dev libxrender-dev libxi-de
     libxcb-xinerama0-dev \
     libxcb-xinput-dev \
     libxcb-xkb-dev \
+    libxkbcommon-dev \
+    libxkbcommon-x11-dev \
     libx11-xcb-dev
 
 # Install dependencies to DEPS_INSTALL_PREFIX first if they exist there
@@ -91,6 +93,10 @@ cmake -GNinja \
     -DQT_XCB_CONFIG="system" \
     -DXCB_XCB_INCLUDE_DIR=/usr/include/xcb \
     -DXCB_XCB_LIBRARY=/usr/lib/x86_64-linux-gnu/libxcb.so \
+    -DXKBCOMMON_INCLUDE_DIR=/usr/include \
+    -DXKBCOMMON_LIBRARY=/usr/lib/x86_64-linux-gnu/libxkbcommon.so \
+    -DXKBCOMMON_X11_INCLUDE_DIR=/usr/include \
+    -DXKBCOMMON_X11_LIBRARY=/usr/lib/x86_64-linux-gnu/libxkbcommon-x11.so \
     -DQT_QMAKE_TARGET_MKSPEC=linux-g++ \
     ..
 
