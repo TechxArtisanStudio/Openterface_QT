@@ -37,6 +37,7 @@
 #include "../scripts/Parser.h"
 #include "../scripts/semanticAnalyzer.h"
 #include "../target/MouseManager.h"
+#include "../scripts/scriptEditor.h"
 
 class ScriptTool : public QDialog
 {
@@ -49,25 +50,30 @@ public:
 signals:
     void syntaxTreeReady(std::shared_ptr<ASTNode> syntaxTree);
 
+public slots:
+    void handleCommandIncrement();
+    void resetCommmandLine(bool status);
+
 private slots:
     void selectFile();
     void runScript();
     void saveScript();
-
+    
 private:
     QLineEdit *filePathEdit;
     QPushButton *selectButton;
     QPushButton *runButton;
     QPushButton *saveButton;
     QPushButton *cancelButton;
-    QTextEdit *scriptEdit;
+    ScriptEditor *scriptEdit;
     QFile currentFile;
     Lexer lexer;
     std::vector<Token> tokens;
     QString fileContents;
-    
+    int commandLine;
+    int lastHighlightedLine = -1;
     void processAST(ASTNode *node);
-    QString highlightTokens(const std::vector<Token>& tokens);
+    void highlightTokens(const std::vector<Token>& tokens);
 };
 
 #endif // SCRIPTTOOL_H

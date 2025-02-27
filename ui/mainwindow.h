@@ -110,6 +110,7 @@ public:
 
 signals:
     void emitTCPCommandStatus(bool status);
+    void emitScriptStatus(bool status);
 
 public slots:
     void handleSyntaxTree(std::shared_ptr<ASTNode> syntaxTree);
@@ -302,7 +303,7 @@ private:
     bool isFullScreenMode();
     bool fullScreenState = false;
     Qt::WindowStates oldWindowState;
-    
+    ScriptTool *scriptTool;
 #ifdef ONLINE_VERSION
     void startServer();
     TcpServer *tcpServer;
