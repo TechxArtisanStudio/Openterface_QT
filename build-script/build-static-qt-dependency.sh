@@ -246,7 +246,7 @@ if $BUILD_ENABLED; then
         -Dasyncns=disabled \
         -Davahi=disabled \
         -Dbluez5=disabled \
-        -Ddbus=enabled \
+        -Ddbus=false \
         -Dfftw=disabled \
         -Dglib=enabled \
         -Dgsettings=disabled \
