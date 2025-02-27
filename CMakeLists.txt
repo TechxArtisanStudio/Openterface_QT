@@ -13,6 +13,9 @@ option(LINK_LIBUSB_STATICALLY "Link libusb statically" ON)
 # Option to control static linking of BZip2
 option(USE_STATIC_LIBBZ2 "Use static BZip2 library" ON)
 
+# Option to control dynamic linking of libGLX
+option(USE_DYNAMIC_LIBGLX "Link libGLX dynamically while keeping other libraries static" OFF)
+
 # Prefer static libraries
 if(USE_FFMPEG_STATIC)
     set(CMAKE_FIND_STATIC_PREFER ON)
@@ -51,6 +54,17 @@ if(NOT DEFINED EXPAT_LIBRARY_PATH OR NOT EXISTS ${EXPAT_LIBRARY_PATH})
 else()
     # Set Expat library directory
     set(EXPAT_LIBRARIES ${EXPAT_LIBRARY_PATH})
+endif()
+
+# Find Freetype library
+if(NOT DEFINED FREETYPE_LIBRARIES OR NOT EXISTS ${FREETYPE_LIBRARIES})
+    find_package(Freetype REQUIRED)
+endif()
+
+# If FREETYPE_INCLUDE_DIRS is provided, add it to include directories
+if(DEFINED FREETYPE_INCLUDE_DIRS)
+    include_directories(${FREETYPE_INCLUDE_DIRS})
+    message(STATUS "Using provided FREETYPE_INCLUDE_DIRS: ${FREETYPE_INCLUDE_DIRS}")
 endif()
 
 # Include FFmpeg directories
@@ -131,7 +145,17 @@ if(LINK_LIBUSB_STATICALLY)
   if(NOT DEFINED LIBUSB_LIB)
     set(LIBUSB_LIB /usr/lib/libusb-1.0.a)
   endif()
-  set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -static")
+  
+  if(USE_DYNAMIC_LIBGLX)
+    message(STATUS "Linking libGLX dynamically while keeping other libraries static")
+    # Don't use the full static flag, we'll specify what needs to be static
+    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,-Bstatic")
+    # Append dynamic linking for GLX
+    set(EXTRA_LIBS ${EXTRA_LIBS} "-Wl,-Bdynamic -lGLX -Wl,-Bstatic")
+  else()
+    # Full static linking except for system libraries
+    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -static")
+  endif()
 else()
   find_package(libusb-1.0 REQUIRED)
   set(LIBUSB_LIB ${LIBUSB_1_LIBRARIES})
@@ -152,7 +176,7 @@ target_link_libraries(openterfaceQT PRIVATE
     ${FFMPEG_LIBRARIES}  # Link against FFmpeg libraries
     ${XRENDER_LIBRARIES}
     ${BZIP2_LIBRARIES}
-    ${EXTRA_LIBS}
+    ${EXTRA_LIBS}        # This will include our dynamic GLX linking if enabled
     ${LIBUSB_LIB}
 )
 
