@@ -19,7 +19,10 @@ find_package(Qt${QT_VERSION_MAJOR} OPTIONAL_COMPONENTS Widgets)
 # Find X11 libraries
 find_package(X11 REQUIRED COMPONENTS Xrandr)
 
-set(BZIP2_LIBRARIES /usr/lib/libbz2.a)
+find_package(EXPAT REQUIRED)
+find_package(Freetype REQUIRED)
+find_package(Fontconfig REQUIRED)
+find_package(BZip2 REQUIRED)
 
 # Use pkg-config to find Xrender
 find_package(PkgConfig REQUIRED)
@@ -28,15 +31,6 @@ pkg_check_modules(XRENDER REQUIRED xrender)
 # Set FFmpeg include and library directories
 set(FFMPEG_INCLUDE_DIRS "/usr/local/include")
 set(FFMPEG_LIBRARIES "/usr/local/lib/libavformat.a;/usr/local/lib/libavcodec.a;/usr/local/lib/libavutil.a;/usr/local/lib/libswresample.a;/usr/local/lib/libswscale.a")
-
-# Find Expat library if EXPAT_LIBRARY_PATH is not defined
-if(NOT DEFINED EXPAT_LIBRARY_PATH OR NOT EXISTS ${EXPAT_LIBRARY_PATH})
-    find_package(EXPAT REQUIRED)
-    set(EXPAT_LIBRARIES ${EXPAT_LIBRARIES})
-else()
-    # Set Expat library directory
-    set(EXPAT_LIBRARIES ${EXPAT_LIBRARY_PATH})
-endif()
 
 # Include FFmpeg directories
 include_directories(${FFMPEG_INCLUDE_DIRS})
@@ -93,32 +87,11 @@ qt_add_executable(openterfaceQT WIN32 MACOSX_BUNDLE
     video/videohid.cpp video/videohid.h
 )
 
-# Add the icon file to the resources
-set(icon_resource_files
-    "ui/../images/icon_128.png"
-)
-
-qt_add_resources(openterfaceQT "icon"
-    PREFIX
-        "/"
-    FILES
-        ${icon_resource_files}
-)
 
 if(UNIX AND NOT APPLE)
     set_target_properties(openterfaceQT PROPERTIES
-        ICON "ui/../images/icon_128.png"
+        ICON "ui/../images/icon_256.png"
     )
-endif()
-
-if(LINK_LIBUSB_STATICALLY)
-  message(STATUS "Linking libusb statically")
-  if(NOT DEFINED LIBUSB_LIB)
-    set(LIBUSB_LIB /usr/lib/libusb-1.0.a)
-  endif()
-else()
-  find_package(libusb-1.0 REQUIRED)
-  set(LIBUSB_LIB ${LIBUSB_1_LIBRARIES})
 endif()
 
 target_link_libraries(openterfaceQT PRIVATE
@@ -131,8 +104,12 @@ target_link_libraries(openterfaceQT PRIVATE
     Qt::SerialPort
     Qt::Svg
     ${FFMPEG_LIBRARIES}  # Link against FFmpeg libraries
+    ${EXPAT_LIBRARIES}
+    ${FREETYPE_LIBRARIES}
+    ${FONTCONFIG_LIBRARIES}
+    ${XRENDER_LIBRARIES}
     ${BZIP2_LIBRARIES}
-    ${LIBUSB_LIB}
+    ${EXTRA_LIBS}
 )
 
 # Resources:
@@ -142,7 +119,6 @@ set(mainwindow_resource_files
     "ui/../images/contrast.svg"
     "ui/../images/full_screen.svg"
     "ui/../images/fullscreen.svg"
-    "ui/../images/icon_256.png"
     "ui/../images/icon_128.ico"
     "ui/../images/icon_128.png"
     "ui/../images/icon_32.ico"
@@ -244,6 +220,10 @@ if(UNIX)
     target_include_directories(openterfaceQT PRIVATE
         /usr/include
         /usr/local/include
+    )
+
+    target_link_libraries(openterfaceQT PRIVATE
+        usb-1.0
     )
 
     set(drivers_resource_files

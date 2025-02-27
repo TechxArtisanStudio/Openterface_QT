@@ -24,22 +24,21 @@ for arg in "$@"; do
 done
 
 # Configuration
-XKBCOMMON_VERSION=1.7.0
+XKBCOMMON_VERSION=1.6.0
 DBUS_VERSION=1.15.8
 FREETYPE_VERSION=2.13.2
 GPERF_VERSION=3.1
-EXPAT_VERSION=2.6.1
-FONTCONFIG_VERSION=2.15.0
+FONTCONFIG_VERSION=2.14.2
 PULSEAUDIO_VERSION=16.1
 ALSA_VERSION=1.2.10
 GLIB_VERSION=2.78.3
 SNDFILE_VERSION=1.2.0
-XCB_PROTO_VERSION=1.15
-XCB_VERSION=1.15
-XCB_UTIL_VERSION=0.4.0
-XCB_CURSOR_VERSION=0.1.4
-XCB_UTIL_WM_VERSION=0.4.0
-XCB_UTIL_KEYSYMS_VERSION=0.4.0
+XCB_PROTO_VERSION=1.16.0
+XCB_VERSION=1.16
+XCB_UTIL_VERSION=0.4.1
+XCB_CURSOR_VERSION=0.1.5
+XCB_UTIL_WM_VERSION=0.4.2
+XCB_UTIL_KEYSYMS_VERSION=0.4.1
 XAU_VERSION="1.0.11"
 XORG_MACROS_VERSION=1.19.3
 XPROTO_VERSION=7.0.31
@@ -55,6 +54,7 @@ LIBXDMCP_VERSION=1.1.4
 XKB_CONFIG_VERSION=2.41
 XORGPROTO_VERSION=2023.2
 LIBXAU_VERSION=1.0.12
+EXPAT_VERSION=2.5.0
 BZ2_VERSION=1.0.8
 
 # Create build directory
@@ -295,14 +295,6 @@ if $INSTALL_ENABLED; then
 fi
 cd "$BUILD_DIR"
 
-# Verify xmlparse.o is included in libexpat.a
-if ar t "/usr/lib/libexpat.a" | grep -q "xmlparse.o"; then
-    echo "xmlparse.o is included in libexpat.a"
-else
-    echo "Error: xmlparse.o is not included in libexpat.a"
-    exit 1
-fi
-
 # Build or Install gperf from source
 if $BUILD_ENABLED; then
     echo "Building gperf $GPERF_VERSION from source..."
@@ -358,7 +350,7 @@ if $BUILD_ENABLED; then
     fi
 
     cd fontconfig
-    ./configure --prefix=/usr --enable-static --disable-shared --with-expat=/usr/lib/libexpat.a
+    ./configure --prefix=/usr --enable-static --disable-shared
     make -j$(nproc)
 fi
 
