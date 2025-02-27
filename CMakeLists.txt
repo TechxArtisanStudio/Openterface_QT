@@ -7,6 +7,12 @@ set(CMAKE_AUTOUIC ON)
 # Option to control static linking of FFmpeg
 option(USE_FFMPEG_STATIC "Use static FFmpeg libraries" ON)
 
+# Option to control static linking of libusb
+option(LINK_LIBUSB_STATICALLY "Link libusb statically" ON)
+
+# Option to control static linking of BZip2
+option(USE_STATIC_LIBBZ2 "Use static BZip2 library" ON)
+
 # Prefer static libraries
 if(USE_FFMPEG_STATIC)
     set(CMAKE_FIND_STATIC_PREFER ON)
@@ -19,7 +25,16 @@ find_package(Qt${QT_VERSION_MAJOR} OPTIONAL_COMPONENTS Widgets)
 # Find X11 libraries
 find_package(X11 REQUIRED COMPONENTS Xrandr)
 
-find_package(BZip2 REQUIRED)
+# Find or set BZip2 libraries
+if(USE_STATIC_LIBBZ2)
+    # Directly specify static library path
+    set(BZIP2_LIBRARIES "/opt/qt6-deps/lib/libbz2.a")
+    set(BZIP2_INCLUDE_DIRS "/opt/qt6-deps/include")
+    message(STATUS "Using static BZip2 library: ${BZIP2_LIBRARIES}")
+else()
+    find_package(BZip2 REQUIRED)
+    message(STATUS "Using system BZip2 library")
+endif()
 
 # Use pkg-config to find Xrender
 find_package(PkgConfig REQUIRED)
@@ -140,6 +155,11 @@ target_link_libraries(openterfaceQT PRIVATE
     ${EXTRA_LIBS}
     ${LIBUSB_LIB}
 )
+
+# 如果使用静态libbz2，需要添加include目录
+if(USE_STATIC_LIBBZ2)
+    target_include_directories(openterfaceQT PRIVATE ${BZIP2_INCLUDE_DIRS})
+endif()
 
 # Resources:
 set(mainwindow_resource_files
