@@ -639,8 +639,8 @@ if $BUILD_ENABLED; then
     fi
 
     cd libXrender
-    CFLAGS="-fPIC" PKG_CONFIG_PATH="/usr/lib/pkgconfig:/usr/local/lib/pkgconfig:/usr/share/pkgconfig" \
-    ./configure --prefix=$INSTALL_PREFIX \
+    export PKG_CONFIG_PATH="$INSTALL_PREFIX/lib/pkgconfig:$INSTALL_PREFIX/share/pkgconfig:/usr/lib/pkgconfig:/usr/local/lib/pkgconfig:/usr/share/pkgconfig"
+    CFLAGS="-fPIC" ./configure --prefix=$INSTALL_PREFIX \
         --enable-static \
         --disable-shared
     make -j$(nproc)
