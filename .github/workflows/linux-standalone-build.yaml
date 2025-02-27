@@ -100,6 +100,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y \
             libgles2-mesa-dev \
+            libglx-dev \
             libegl1-mesa-dev \
             libglib2.0-dev \
             libpcre2-dev \
@@ -127,20 +128,6 @@ jobs:
           echo "Setting LD_LIBRARY_PATH..."
           export LD_LIBRARY_PATH=/usr/lib:/usr/local/lib:$LD_LIBRARY_PATH
 
-          # Create a patch file to modify CMake linking behavior
-          cat > remove_static_flag.patch << EOF
-          --- CMakeLists.txt.orig
-          +++ CMakeLists.txt
-          @@ -1,1 +1,1 @@
-          -set(CMAKE_EXE_LINKER_FLAGS "\${CMAKE_EXE_LINKER_FLAGS} -static")
-          +set(CMAKE_EXE_LINKER_FLAGS "\${CMAKE_EXE_LINKER_FLAGS}")
-          EOF
-
-          # Apply patch if needed (check if it contains -static flag)
-          if grep -q "CMAKE_EXE_LINKER_FLAGS.*-static" "${{ env.SOURCE_DIR }}/CMakeLists.txt"; then
-            patch "${{ env.SOURCE_DIR }}/CMakeLists.txt" < remove_static_flag.patch || echo "Patch may have failed, but continuing..."
-          fi
-
           echo "Configuring with CMake..."
             cmake -S "${{ env.SOURCE_DIR }}" -B . \
               -DCMAKE_BUILD_TYPE=Release \
@@ -151,68 +138,17 @@ jobs:
               -DQT_DEBUG_FIND_PACKAGE=ON \
               -DCMAKE_CXX_FLAGS="-Os -s" \
               -DCMAKE_C_FLAGS="-Os -s" \
-              -DCMAKE_EXE_LINKER_FLAGS="-Wl,--no-as-needed" \
+              -DCMAKE_EXE_LINKER_FLAGS="-Wl,--no-as-needed -lGLX" \
+              -DUSE_DYNAMIC_LIBGLX=ON \
               -DLINK_LIBUSB_STATICALLY=ON \
               -DFREETYPE_INCLUDE_DIRS=/opt/qt6-deps/include/freetype2 \
               -DFREETYPE_LIBRARIES=/opt/qt6-deps/lib/libfreetype.a \
               -DFONTCONFIG_LIBRARIES=/opt/qt6-deps/lib/libfontconfig.a \
               -DEXPAT_LIBRARY_PATH=/opt/qt6-deps/lib/libexpat.a \
               -DLIBUSB_LIB=/usr/lib/libusb-1.0.a
-
-          # Modify the build system to create a hook for link.txt
-          cat > modify_link_command.sh << 'EOF'
-          #!/bin/bash
-          original_cmake_link_script="$1"
-          if [ ! -f "$original_cmake_link_script" ]; then
-            echo "Error: Link script not found: $original_cmake_link_script"
-            exit 1
-          fi
-          
-          # Create a backup
-          cp "$original_cmake_link_script" "${original_cmake_link_script}.bak"
-          
-          # Remove the -static flag and add -Bdynamic for system libraries
-          sed -i 's/-static//g' "$original_cmake_link_script"
-          
-          echo "Modified link script:"
-          cat "$original_cmake_link_script"
-          EOF
-          
-          chmod +x modify_link_command.sh
-          
-          # Modify the CMakeLists.txt to hook into the linking process
-          cat > inject_hook.patch << 'EOF'
-          --- CMakeLists.txt
-          +++ CMakeLists.txt
-          @@ -100,0 +101,6 @@
-          +# Custom command to modify link.txt before linking
-          +add_custom_command(
-          +  TARGET openterfaceQT
-          +  PRE_LINK
-          +  COMMAND ${CMAKE_CURRENT_BINARY_DIR}/modify_link_command.sh ${CMAKE_CURRENT_BINARY_DIR}/CMakeFiles/openterfaceQT.dir/link.txt
-          +)
-          EOF
-          
-          # Apply the patch - ignoring failures as the line numbers may vary
-          patch "${{ env.SOURCE_DIR }}/CMakeLists.txt" < inject_hook.patch || echo "Patch application might have partially failed, continuing anyway"
-          
-          # Copy the script to the build directory
-          cp modify_link_command.sh ${CMAKE_CURRENT_BINARY_DIR}/modify_link_command.sh 2>/dev/null || cp modify_link_command.sh ./modify_link_command.sh
-
+              
           echo "Building with CMake..."
-          cmake --build . --verbose || (
-            echo "First build attempt failed, trying with direct modification of link.txt"
-            if [ -f CMakeFiles/openterfaceQT.dir/link.txt ]; then
-              echo "Found link.txt, modifying it directly"
-              sed -i 's/-static//g' CMakeFiles/openterfaceQT.dir/link.txt
-              echo "Modified link.txt:"
-              cat CMakeFiles/openterfaceQT.dir/link.txt
-              cmake --build . --verbose || echo "CMake build failed even after modifying link.txt"
-            else
-              echo "CMake build failed and link.txt not found"
-              exit 1
-            fi
-          )
+          cmake --build . --verbose || (echo "CMake build failed. Please check the build configuration." && exit 1)
 
           if [ ! -f openterfaceQT ]; then
             echo "Error: Failed to build openterfaceQT"
@@ -221,10 +157,13 @@ jobs:
 
           echo "Check openterfaceQT dependencies..."
           ldd openterfaceQT
+          echo "Note: libGLX should be dynamically linked while other libraries remain static"
 
           echo "Creating standalone package..."
           mkdir package
           cp openterfaceQT package
+          # Include a note about libGLX dependency
+          echo "This build requires libGLX to be installed on the target system" > package/README.txt
 
       - name: Save build artifact
         uses: actions/upload-artifact@v4
