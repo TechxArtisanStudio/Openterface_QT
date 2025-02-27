@@ -123,38 +123,4 @@
               libexpat1-dev
   
   
-        - name: Build Standalone Executable
-          working-directory: ${{ runner.temp }}/build
-          run: |
-            echo "Setting LD_LIBRARY_PATH..."
-            export LD_LIBRARY_PATH=/usr/lib:/usr/local/lib:$LD_LIBRARY_PATH
-  
-            echo "Configuring with CMake..."
-              cmake -S "${{ env.SOURCE_DIR }}" -B . \
-                -DCMAKE_BUILD_TYPE=Release \
-                -DBUILD_SHARED_LIBS=OFF \
-                -DCMAKE_PREFIX_PATH=/opt/Qt6 \
-                -DCMAKE_INSTALL_PREFIX=release \
-                -DCMAKE_VERBOSE_MAKEFILE=ON \
-                -DQT_DEBUG_FIND_PACKAGE=ON \
-                -DCMAKE_CXX_FLAGS="-Os -s" \
-                -DCMAKE_C_FLAGS="-Os -s"
-  
-            echo "Building with CMake..."
-            cmake --build . --verbose || (echo "CMake build failed. Please check the build configuration." && exit 1)
-  
-            if [ ! -f openterfaceQT ]; then
-              echo "Error: Failed to build openterfaceQT"
-              exit 1
-            fi
-  
-            echo "Creating standalone package..."
-            mkdir package
-            cp openterfaceQT package
-  
-        - name: Save build artifact
-          uses: actions/upload-artifact@v4
-          with:
-            name: ${{ env.ARTIFACT }}
-            path: ${{ runner.temp }}/build/package/openterfaceQT
-            if-no-files-found: error
+      
