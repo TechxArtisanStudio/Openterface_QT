@@ -40,7 +40,7 @@ jobs:
         id: cache-deps
         uses: actions/cache@v3
         with:
-            path: ${{ env.SOURCE_DIR }}/qt-build/
+            path: /opt/qt6-deps/
             key: dependencies-cache
             restore-keys: |
               dependencies-cache
@@ -144,25 +144,25 @@ jobs:
       #         -DEXPAT_LIBRARY_PATH=/usr/lib/libexpat.a \
       #         -DLIBUSB_LIB=/usr/lib/libusb-1.0.a
               
-      #     echo "Building with CMake..."
-      #     cmake --build . --verbose || (echo "CMake build failed. Please check the build configuration." && exit 1)
+          echo "Building with CMake..."
+          cmake --build . --verbose || (echo "CMake build failed. Please check the build configuration." && exit 1)
 
-      #     if [ ! -f openterfaceQT ]; then
-      #       echo "Error: Failed to build openterfaceQT"
-      #       exit 1
-      #     fi
+          if [ ! -f openterfaceQT ]; then
+            echo "Error: Failed to build openterfaceQT"
+            exit 1
+          fi
 
-      #     echo "Check openterfaceQT dependencies..."
-      #     ldd openterfaceQT
+          echo "Check openterfaceQT dependencies..."
+          ldd openterfaceQT
 
-      #     echo "Creating standalone package..."
-      #     mkdir package
-      #     cp openterfaceQT package
+          echo "Creating standalone package..."
+          mkdir package
+          cp openterfaceQT package
 
-      # - name: Save build artifact
-      #   uses: actions/upload-artifact@v4
-      #   with:
-      #     name: ${{ env.ARTIFACT }}
-      #     path: ${{ runner.temp }}/build/package/openterfaceQT
-      #     if-no-files-found: error
+      - name: Save build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.ARTIFACT }}
+          path: ${{ runner.temp }}/build/package/openterfaceQT
+          if-no-files-found: error
 
