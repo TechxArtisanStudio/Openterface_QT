@@ -108,6 +108,7 @@ jobs:
             libxcb1-dev \
             '^libxcb.*-dev' \
             libxcb-glx0-dev \
+            libxcb-xinput-dev \
             libx11-xcb-dev \
             libglu1-mesa-dev \
             libxrender-dev \
