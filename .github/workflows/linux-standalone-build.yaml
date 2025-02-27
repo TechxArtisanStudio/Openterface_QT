@@ -137,12 +137,22 @@ jobs:
               -DQT_DEBUG_FIND_PACKAGE=ON \
               -DCMAKE_CXX_FLAGS="-Os -s" \
               -DCMAKE_C_FLAGS="-Os -s" \
+              -DCMAKE_EXE_LINKER_FLAGS="-Wl,--no-as-needed" \
               -DLINK_LIBUSB_STATICALLY=ON \
               -DFREETYPE_INCLUDE_DIRS=/opt/qt6-deps/include/freetype2 \
               -DFREETYPE_LIBRARIES=/opt/qt6-deps/lib/libfreetype.a \
               -DFONTCONFIG_LIBRARIES=/opt/qt6-deps/lib/libfontconfig.a \
               -DEXPAT_LIBRARY_PATH=/opt/qt6-deps/lib/libexpat.a \
               -DLIBUSB_LIB=/usr/lib/libusb-1.0.a
+              
+          # Create a custom CMake toolchain file to handle system libraries
+          cat > system_libs.cmake << EOF
+          set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+          set(CMAKE_EXE_LINKER_FLAGS "\${CMAKE_EXE_LINKER_FLAGS} -Wl,-Bdynamic -lGLX -lEGL -lOpenGL -lX11 -Wl,-Bstatic")
+          EOF
+              
+          # Apply the toolchain file
+          cmake . -DCMAKE_TOOLCHAIN_FILE=system_libs.cmake
               
           echo "Building with CMake..."
           cmake --build . --verbose || (echo "CMake build failed. Please check the build configuration." && exit 1)
