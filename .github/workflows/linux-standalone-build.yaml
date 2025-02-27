@@ -158,9 +158,61 @@ jobs:
               -DFONTCONFIG_LIBRARIES=/opt/qt6-deps/lib/libfontconfig.a \
               -DEXPAT_LIBRARY_PATH=/opt/qt6-deps/lib/libexpat.a \
               -DLIBUSB_LIB=/usr/lib/libusb-1.0.a
-              
+
+          # Modify the build system to create a hook for link.txt
+          cat > modify_link_command.sh << 'EOF'
+          #!/bin/bash
+          original_cmake_link_script="$1"
+          if [ ! -f "$original_cmake_link_script" ]; then
+            echo "Error: Link script not found: $original_cmake_link_script"
+            exit 1
+          fi
+          
+          # Create a backup
+          cp "$original_cmake_link_script" "${original_cmake_link_script}.bak"
+          
+          # Remove the -static flag and add -Bdynamic for system libraries
+          sed -i 's/-static//g' "$original_cmake_link_script"
+          
+          echo "Modified link script:"
+          cat "$original_cmake_link_script"
+          EOF
+          
+          chmod +x modify_link_command.sh
+          
+          # Modify the CMakeLists.txt to hook into the linking process
+          cat > inject_hook.patch << 'EOF'
+          --- CMakeLists.txt
+          +++ CMakeLists.txt
+          @@ -100,0 +101,6 @@
+          +# Custom command to modify link.txt before linking
+          +add_custom_command(
+          +  TARGET openterfaceQT
+          +  PRE_LINK
+          +  COMMAND ${CMAKE_CURRENT_BINARY_DIR}/modify_link_command.sh ${CMAKE_CURRENT_BINARY_DIR}/CMakeFiles/openterfaceQT.dir/link.txt
+          +)
+          EOF
+          
+          # Apply the patch - ignoring failures as the line numbers may vary
+          patch "${{ env.SOURCE_DIR }}/CMakeLists.txt" < inject_hook.patch || echo "Patch application might have partially failed, continuing anyway"
+          
+          # Copy the script to the build directory
+          cp modify_link_command.sh ${CMAKE_CURRENT_BINARY_DIR}/modify_link_command.sh 2>/dev/null || cp modify_link_command.sh ./modify_link_command.sh
+
           echo "Building with CMake..."
-          cmake --build . --verbose || (echo "CMake build failed. Please check the build configuration." && exit 1)
+          cmake --build . --verbose || (
+            echo "First build attempt failed, trying with direct modification of link.txt"
+            if [ -f CMakeFiles/openterfaceQT.dir/link.txt ]; then
+              echo "Found link.txt, modifying it directly"
+              sed -i 's/-static//g' CMakeFiles/openterfaceQT.dir/link.txt
+              echo "Modified link.txt:"
+              cat CMakeFiles/openterfaceQT.dir/link.txt
+              cmake --build . --verbose || echo "CMake build failed even after modifying link.txt"
+            else
+              echo "CMake build failed and link.txt not found"
+              exit 1
+            fi
+          )
 
           if [ ! -f openterfaceQT ]; then
             echo "Error: Failed to build openterfaceQT"
