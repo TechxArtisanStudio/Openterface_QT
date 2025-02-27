@@ -125,7 +125,19 @@
               libx11-xcb-dev \
               libxext-dev \
               libbz2-dev
-  
+
+        - name: Build static bzip2
+          run: |
+            cd /tmp
+            wget https://sourceware.org/pub/bzip2/bzip2-latest.tar.gz
+            tar xf bzip2-latest.tar.gz
+            cd bzip2-*
+            make -f Makefile-libbz2_so
+            make clean
+            make
+            sudo make install PREFIX=/usr
+            sudo ln -sf /usr/lib/libbz2.a /usr/lib/x86_64-linux-gnu/libbz2.a
+
         - name: Build Standalone Executable
           working-directory: ${{ runner.temp }}/build
           run: |
@@ -142,7 +154,7 @@
                 -DQT_DEBUG_FIND_PACKAGE=ON \
                 -DCMAKE_CXX_FLAGS="-Os -s" \
                 -DCMAKE_C_FLAGS="-Os -s" \
-                -DCMAKE_EXE_LINKER_FLAGS="-Wl,--whole-archive -Wl,--no-whole-archive -Wl,--allow-shlib-undefined -lbz2" \
+                -DCMAKE_EXE_LINKER_FLAGS="-Wl,--whole-archive -Wl,--no-whole-archive -Wl,--allow-shlib-undefined -static-libgcc -static-libstdc++" \
                 -DLINK_LIBUSB_STATICALLY=ON \
                 -DLIBUSB_LIB=/usr/lib/libusb-1.0.a
                 

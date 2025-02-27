@@ -108,6 +108,7 @@ target_link_libraries(openterfaceQT PRIVATE
     Qt::Network
     Qt::SerialPort
     Qt::Svg
+    /usr/lib/x86_64-linux-gnu/libbz2.a
     ${FFMPEG_LIBRARIES} 
     ${LIBUSB_LIB}
 )
