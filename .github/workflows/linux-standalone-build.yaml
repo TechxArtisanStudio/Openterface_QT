@@ -119,8 +119,7 @@ jobs:
             libpulse-dev \
             libsndfile1-dev \
             libxrandr-dev \
-            libxrender-dev \
-            libbz2-dev
+            libxrender-dev
 
       - name: Build Standalone Executable
         working-directory: ${{ runner.temp }}/build
@@ -138,7 +137,6 @@ jobs:
               -DQT_DEBUG_FIND_PACKAGE=ON \
               -DCMAKE_CXX_FLAGS="-Os -s" \
               -DCMAKE_C_FLAGS="-Os -s" \
-              -DUSE_STATIC_LIBBZ2=OFF \
               -DLINK_LIBUSB_STATICALLY=ON \
               -DFREETYPE_INCLUDE_DIRS=/opt/qt6-deps/include/freetype2 \
               -DFREETYPE_LIBRARIES=/opt/qt6-deps/lib/libfreetype.a \
