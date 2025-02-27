@@ -145,17 +145,6 @@ if(LINK_LIBUSB_STATICALLY)
   if(NOT DEFINED LIBUSB_LIB)
     set(LIBUSB_LIB /usr/lib/libusb-1.0.a)
   endif()
-  
-  if(USE_DYNAMIC_LIBGLX)
-    message(STATUS "Linking libGLX dynamically while keeping other libraries static")
-    # Don't use the full static flag, we'll specify what needs to be static
-    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,-Bstatic")
-    # Append dynamic linking for GLX
-    set(EXTRA_LIBS ${EXTRA_LIBS} "-Wl,-Bdynamic -lGLX -Wl,-Bstatic")
-  else()
-    # Full static linking except for system libraries
-    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -static")
-  endif()
 else()
   find_package(libusb-1.0 REQUIRED)
   set(LIBUSB_LIB ${LIBUSB_1_LIBRARIES})
