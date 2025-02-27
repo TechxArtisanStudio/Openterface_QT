@@ -31,7 +31,7 @@ for module in "${MODULES[@]}"; do
 done
 
 sudo apt-get install -y libgl1-mesa-dev libglu1-mesa-dev libxrender-dev libxi-dev \
-    libxcb-cursor-dev libxcb-icccm4-dev libxcb-keysyms1-dev
+    '^libxcb.*-dev' libx11-xcb-dev libxcb-cursor-dev libxcb-icccm4-dev libxcb-keysyms1-dev
 
 # Build qtbase first
 echo "Building qtbase..."
