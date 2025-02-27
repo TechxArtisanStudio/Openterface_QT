@@ -131,7 +131,7 @@ jobs:
             cmake -S "${{ env.SOURCE_DIR }}" -B . \
               -DCMAKE_BUILD_TYPE=Release \
               -DBUILD_SHARED_LIBS=OFF \
-              -DCMAKE_PREFIX_PATH=/opt/Qt6 \
+              -DCMAKE_PREFIX_PATH="/opt/qt6-deps;/opt/Qt6" \
               -DCMAKE_INSTALL_PREFIX=release \
               -DCMAKE_VERBOSE_MAKEFILE=ON \
               -DQT_DEBUG_FIND_PACKAGE=ON \
