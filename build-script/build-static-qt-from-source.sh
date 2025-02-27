@@ -132,6 +132,8 @@ for module in "${MODULES[@]}"; do
         cmake -GNinja \
             -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" \
             -DCMAKE_PREFIX_PATH="$INSTALL_PREFIX;$DEPS_INSTALL_PREFIX" \
+            -DXCB_XCB_INCLUDE_DIR=/usr/include/xcb \
+            -DXCB_XCB_LIBRARY=/usr/lib/x86_64-linux-gnu/libxcb.so \
             -DBUILD_SHARED_LIBS=OFF \
             -DPKG_CONFIG_USE_CMAKE_PREFIX_PATH=ON \
             ..
