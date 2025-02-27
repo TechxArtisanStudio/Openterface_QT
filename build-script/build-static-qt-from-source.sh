@@ -33,7 +33,7 @@ done
 sudo apt-get install -y libgl1-mesa-dev libglu1-mesa-dev libxrender-dev libxi-dev \
     '^libxcb.*-dev' libx11-xcb-dev libxcb-cursor-dev libxcb-icccm4-dev libxcb-keysyms1-dev \
     libxcb-xinput-dev
-
+    
 # Install more comprehensive set of XCB libraries
 sudo apt-get install -y libgl1-mesa-dev libglu1-mesa-dev libxrender-dev libxi-dev \
     libxcb1-dev \
@@ -53,8 +53,7 @@ sudo apt-get install -y libgl1-mesa-dev libglu1-mesa-dev libxrender-dev libxi-de
     libxcb-xkb-dev \
     libxkbcommon-dev \
     libxkbcommon-x11-dev \
-    libx11-xcb-dev \
-    libxau-dev
+    libx11-xcb-dev
 
 # Install dependencies to DEPS_INSTALL_PREFIX first if they exist there
 echo "Setting up dependency paths..."
@@ -114,8 +113,7 @@ cmake -GNinja \
     -DCMAKE_PREFIX_PATH="$INSTALL_PREFIX" \
     -DBUILD_SHARED_LIBS=OFF \
     -DFEATURE_static_runtime=ON \
-    -DCMAKE_EXE_LINKER_FLAGS="-L/usr/lib/x86_64-linux-gnu -lXau $DEPS_INSTALL_PREFIX/lib/libXdmcp.a $DEPS_INSTALL_PREFIX/lib/libexpat.a $DEPS_INSTALL_PREFIX/lib/libfreetype.a $DEPS_INSTALL_PREFIX/lib/libfontconfig.a" \
-    -DXCB_XAU_LIBRARY=/usr/lib/x86_64-linux-gnu/libXau.so \
+    -DCMAKE_EXE_LINKER_FLAGS=DEPS_INSTALL_PREFIX/lib/libXau.a $DEPS_INSTALL_PREFIX/lib/libXdmcp.a $DEPS_INSTALL_PREFIX/lib/libexpat.a $DEPS_INSTALL_PREFIX/lib/libfreetype.a $DEPS_INSTALL_PREFIX/lib/libfontconfig.a" \
     ..
 
 ninja
