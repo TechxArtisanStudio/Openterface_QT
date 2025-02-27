@@ -22,6 +22,33 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Cache Qt Build
+        id: cache-qt
+        uses: actions/cache@v3
+        with:
+          path: /opt/Qt6
+          key: qt-6.5.3-linux-static
+          restore-keys: |
+            qt-6.5.3-linux-static
+
+      - name: Cache Dependencies
+        id: cache-deps
+        uses: actions/cache@v3
+        with:
+            path: ${{ env.SOURCE_DIR }}/qt-build/
+            key: dependencies-cache
+            restore-keys: |
+              dependencies-cache
+              
+      - name: Cache FFmpeg
+        id: cache-ffmpeg
+        uses: actions/cache@v3
+        with:
+            path: ${{ env.SOURCE_DIR }}/ffmpeg-build/
+            key: ffmpeg-cache
+            restore-keys: |
+              ffmpeg-cache
+
       - name: Install Static BZip2 Library
         run: |
           sudo apt-get update
@@ -35,6 +62,34 @@ jobs:
         with:
           python-version: '3.10'
 
+      - name: Build Qt Dependencies
+        if: steps.cache-deps.outputs.cache-hit != 'true'
+        run: |
+          bash ${{ env.SOURCE_DIR }}/build-script/build-static-qt-dependency.sh
+  
+      - name: Qt Dependencies Already Built
+        if: steps.cache-deps.outputs.cache-hit == 'true'
+        run: |
+          echo "Qt dependencies already built"
+          bash ${{ env.SOURCE_DIR }}/build-script/build-static-qt-dependency.sh --no-build
+      
+      - name: Build FFmpeg
+        if: steps.cache-ffmpeg.outputs.cache-hit != 'true'
+        run: |
+          bash ${{ env.SOURCE_DIR }}/build-script/build-static-ffmpeg.sh
+
+      - name: FFmpeg Already Built
+        if: steps.cache-ffmpeg.outputs.cache-hit == 'true'
+        run: |
+          echo "FFmpeg already built"
+          bash ${{ env.SOURCE_DIR }}/build-script/build-static-ffmpeg.sh --no-build
+          
+      - name: Build Qt Statically
+        if: steps.cache-qt.outputs.cache-hit != 'true'
+        run: |
+          bash ${{ env.SOURCE_DIR }}/build-script/build-static-qt-from-source.sh
+
+            
       - name: Create test build directory
         run: |
           mkdir -p ${{ runner.temp }}/test-build
@@ -52,9 +107,18 @@ jobs:
           cmake -S "${{ env.SOURCE_DIR }}" -B . \
             -DCMAKE_BUILD_TYPE=Release \
             -DBUILD_SHARED_LIBS=OFF \
+            -DCMAKE_PREFIX_PATH=/opt/Qt6 \
+            -DCMAKE_INSTALL_PREFIX=release \
+            -DCMAKE_VERBOSE_MAKEFILE=ON \
+            -DQT_DEBUG_FIND_PACKAGE=ON \
             -DCMAKE_CXX_FLAGS="-Os -s" \
             -DCMAKE_C_FLAGS="-Os -s" \
             -DLINK_LIBUSB_STATICALLY=ON \
+            -DFREETYPE_INCLUDE_DIRS=/opt/qt6-deps/include/freetype2 \
+            -DFREETYPE_LIBRARIES=/opt/qt6-deps/lib/libfreetype.a \
+            -DFONTCONFIG_LIBRARIES=/opt/qt6-deps/lib/libfontconfig.a \
+            -DEXPAT_LIBRARY_PATH=/opt/qt6-deps/lib/libexpat.a \
+            -DLIBUSB_LIB=/usr/lib/libusb-1.0.a \
             -DLIBBZ2_LIBRARIES=/usr/lib/x86_64-linux-gnu/libbz2.a
           
           # Verify that CMake is using the static libbz2
