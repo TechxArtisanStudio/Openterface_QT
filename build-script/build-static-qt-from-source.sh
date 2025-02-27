@@ -32,7 +32,7 @@ done
 
 sudo apt-get install -y libgl1-mesa-dev libglu1-mesa-dev libxrender-dev libxi-dev \
     '^libxcb.*-dev' libx11-xcb-dev libxcb-cursor-dev libxcb-icccm4-dev libxcb-keysyms1-dev \
-    libxcb-xinput-dev ibfontconfig1-dev libfreetype6-dev
+    libxcb-xinput-dev libfontconfig1-dev libfreetype6-dev
     
 # Build qtbase first
 echo "Building qtbase..."
