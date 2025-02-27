@@ -59,14 +59,13 @@ BZ2_VERSION=1.0.8
 
 # Create build directory
 BUILD_DIR=$(pwd)/qt-build
-INSTALL_PREFIX=/opt/qt6-deps
 mkdir -p "$BUILD_DIR"
 cd "$BUILD_DIR"
 
 # Install minimal build requirements
 sudo apt-get update
 sudo apt-get install -y build-essential meson ninja-build bison flex pkg-config python3-pip linux-headers-$(uname -r) \
-    autoconf automake libtool autoconf-archive cmake libc6-dev zlib1g-dev gperf
+    autoconf automake libtool autoconf-archive cmake libc6-dev zlib1g-dev
 
 # Check for required tools
 command -v curl >/dev/null 2>&1 || { echo "Curl is not installed. Please install Curl."; exit 1; }
@@ -85,7 +84,7 @@ if $BUILD_ENABLED; then
     fi
 
     cd alsa-lib
-    ./configure --prefix=$INSTALL_PREFIX --enable-static --disable-shared
+    ./configure --prefix=/usr --enable-static --disable-shared
     make -j$(nproc)
 fi
 
@@ -108,7 +107,7 @@ if $BUILD_ENABLED; then
     fi
 
     cd libsndfile
-    CFLAGS="-fPIC" CXXFLAGS="-fPIC" ./configure --prefix=$INSTALL_PREFIX --enable-static --disable-shared
+    CFLAGS="-fPIC" CXXFLAGS="-fPIC" ./configure --prefix=/usr --enable-static --disable-shared
     make -j$(nproc)
 fi
 
@@ -116,6 +115,46 @@ if $INSTALL_ENABLED; then
     echo "Installing libsndfile $SNDFILE_VERSION..."
     cd "$BUILD_DIR"/libsndfile
     sudo make install
+fi
+cd "$BUILD_DIR"
+
+# Build or Install libpulse
+if $BUILD_ENABLED; then
+    echo "Building libpulse from source..."
+    if [ ! -d "libpulse" ]; then
+        curl -L -o libpulse.tar.xz "https://www.freedesktop.org/software/pulseaudio/releases/pulseaudio-${PULSEAUDIO_VERSION}.tar.xz"
+        tar xf libpulse.tar.xz
+        mv "pulseaudio-${PULSEAUDIO_VERSION}" libpulse
+        rm libpulse.tar.xz
+    fi
+
+    cd libpulse
+    mkdir -p build
+    cd build
+    meson setup --prefix=/usr \
+        -Ddefault_library=static \
+        -Ddoxygen=false \
+        -Ddaemon=false \
+        -Dtests=false \
+        -Dman=false \
+        -Dudev=disabled \
+        -Dsystemd=disabled \
+        -Dbluez5=disabled \
+        -Dgtk=disabled \
+        -Dopenssl=disabled \
+        -Dorc=disabled \
+        -Dsoxr=disabled \
+        -Dspeex=disabled \
+        -Dwebrtc-aec=disabled \
+        -Dx11=disabled \
+        ..
+    ninja
+fi
+
+if $INSTALL_ENABLED; then
+    echo "Installing libpulse..."
+    cd "$BUILD_DIR"/libpulse/build
+    sudo ninja install
 fi
 cd "$BUILD_DIR"
 
@@ -134,7 +173,7 @@ if $BUILD_ENABLED; then
     if [ ! -f "./configure" ]; then
         ./autogen.sh
     fi
-    CFLAGS="-fPIC" CXXFLAGS="-fPIC" ./configure --prefix=$INSTALL_PREFIX \
+    CFLAGS="-fPIC" CXXFLAGS="-fPIC" ./configure --prefix=/usr \
         --enable-static \
         --disable-shared \
         --disable-systemd \
@@ -165,7 +204,7 @@ if $BUILD_ENABLED; then
     cd glib
     mkdir -p build
     cd build
-    meson setup --prefix=$INSTALL_PREFIX \
+    meson setup --prefix=/usr \
         -Ddefault_library=static \
         -Dtests=false \
         ..
@@ -193,8 +232,7 @@ if $BUILD_ENABLED; then
     mkdir -p build
     cd build
 
-    export PKG_CONFIG_PATH=$INSTALL_PREFIX/lib/pkgconfig:$PKG_CONFIG_PATH
-    meson setup --prefix=$INSTALL_PREFIX \
+    meson setup --prefix=/usr \
         -Ddaemon=false \
         -Dman=false \
         -Ddoxygen=false \
@@ -207,7 +245,7 @@ if $BUILD_ENABLED; then
         -Dbluez5=disabled \
         -Ddbus=enabled \
         -Dfftw=disabled \
-        -Dglib=disabled \
+        -Dglib=enabled \
         -Dgsettings=disabled \
         -Dgtk=disabled \
         -Dhal-compat=false \
@@ -246,13 +284,43 @@ if $BUILD_ENABLED; then
     fi
 
     cd libexpat
-    ./configure --prefix=$INSTALL_PREFIX --enable-static --disable-shared
+    ./configure --prefix=/usr --enable-static --disable-shared
     make -j$(nproc)
 fi
 
 if $INSTALL_ENABLED; then
     echo "Installing libexpat $EXPAT_VERSION..."
     cd "$BUILD_DIR"/libexpat
+    sudo make install
+fi
+cd "$BUILD_DIR"
+
+# Verify xmlparse.o is included in libexpat.a
+if ar t "/usr/lib/libexpat.a" | grep -q "xmlparse.o"; then
+    echo "xmlparse.o is included in libexpat.a"
+else
+    echo "Error: xmlparse.o is not included in libexpat.a"
+    exit 1
+fi
+
+# Build or Install gperf from source
+if $BUILD_ENABLED; then
+    echo "Building gperf $GPERF_VERSION from source..."
+    if [ ! -d "gperf" ]; then
+        curl -L -o gperf.tar.gz "https://ftp.gnu.org/gnu/gperf/gperf-${GPERF_VERSION}.tar.gz"
+        tar xf gperf.tar.gz
+        mv "gperf-${GPERF_VERSION}" gperf
+        rm gperf.tar.gz
+    fi
+
+    cd gperf
+    ./configure --prefix=/usr
+    make -j$(nproc)
+fi
+
+if $INSTALL_ENABLED; then
+    echo "Installing gperf $GPERF_VERSION..."
+    cd "$BUILD_DIR"/gperf
     sudo make install
 fi
 cd "$BUILD_DIR"
@@ -267,14 +335,8 @@ if $BUILD_ENABLED; then
         rm freetype.tar.gz
     fi
 
-    cd "$BUILD_DIR"/freetype
-    ./configure --prefix=$INSTALL_PREFIX \
-        --enable-static \
-        --disable-shared \
-        --without-zlib \
-        --without-png \
-        --without-bzip2 \
-        --without-harfbuzz
+    cd freetype
+    ./configure --prefix=/usr --enable-static --disable-shared
     make -j$(nproc)
 fi
 
@@ -296,11 +358,7 @@ if $BUILD_ENABLED; then
     fi
 
     cd fontconfig
-    ./configure --prefix=$INSTALL_PREFIX \
-        --enable-static \
-        --disable-shared \
-        --with-expat=$INSTALL_PREFIX \
-        --with-freetype=$INSTALL_PREFIX
+    ./configure --prefix=/usr --enable-static --disable-shared --with-expat=/usr/lib/libexpat.a
     make -j$(nproc)
 fi
 
@@ -324,7 +382,7 @@ if $BUILD_ENABLED; then
     cd glib
     mkdir -p build
     cd build
-    meson setup --prefix=$INSTALL_PREFIX \
+    meson setup --prefix=/usr \
         -Ddefault_library=static \
         -Dtests=false \
         ..
@@ -352,7 +410,7 @@ if $BUILD_ENABLED; then
     fi
 
     cd randrproto
-    ./configure --prefix=$INSTALL_PREFIX
+    ./configure --prefix=/usr
     make -j$(nproc)
 fi
 
@@ -374,7 +432,7 @@ if $BUILD_ENABLED; then
     fi
 
     cd renderproto
-    ./configure --prefix=$INSTALL_PREFIX
+    ./configure --prefix=/usr
     make -j$(nproc)
 fi
 
@@ -396,7 +454,7 @@ if $BUILD_ENABLED; then
     fi
 
     cd xextproto
-    ./configure --prefix=$INSTALL_PREFIX
+    ./configure --prefix=/usr
     make -j$(nproc)
 fi
 
@@ -421,7 +479,7 @@ if $BUILD_ENABLED; then
     # Create a build directory for Meson
     mkdir -p build
     cd build
-    meson setup --prefix=$INSTALL_PREFIX \
+    meson setup --prefix=/usr \
         -Ddefault_library=static \
         ..
     ninja
@@ -446,7 +504,7 @@ if $BUILD_ENABLED; then
 
     cd xorg-macros
     # xorg-macros does not need to be built; it just needs to be installed
-    ./configure --prefix=$INSTALL_PREFIX
+    ./configure --prefix=/usr
     make -j$(nproc)
 fi
 
@@ -468,7 +526,7 @@ if $BUILD_ENABLED; then
     fi
 
     cd xproto
-    ./configure --prefix=$INSTALL_PREFIX
+    ./configure --prefix=/usr
     make -j$(nproc)
 fi
 
@@ -490,8 +548,7 @@ if $BUILD_ENABLED; then
     fi
 
     cd libXau
-    export PKG_CONFIG_PATH="$INSTALL_PREFIX/lib/pkgconfig:$INSTALL_PREFIX/share/pkgconfig:$PKG_CONFIG_PATH"
-    CFLAGS="-fPIC" ./configure --prefix=$INSTALL_PREFIX \
+    CFLAGS="-fPIC" ./configure --prefix=/usr \
         --enable-static \
         --disable-shared
     make -j$(nproc)
@@ -515,7 +572,7 @@ if $BUILD_ENABLED; then
     fi
 
     cd xorgproto
-    CFLAGS="-fPIC" ./configure --prefix=$INSTALL_PREFIX \
+    CFLAGS="-fPIC" ./configure --prefix=/usr \
         --enable-static \
         --disable-shared
     make -j$(nproc)
@@ -561,7 +618,7 @@ if $BUILD_ENABLED; then
     fi
 
     cd xcb-proto
-    CFLAGS="-fPIC" ./configure --prefix=$INSTALL_PREFIX --enable-static --disable-shared
+    CFLAGS="-fPIC" ./configure --prefix=/usr
     make -j$(nproc)
 fi
 
@@ -583,7 +640,7 @@ if $BUILD_ENABLED; then
     fi
 
     cd libxcb
-    CFLAGS="-fPIC" ./configure --prefix=$INSTALL_PREFIX \
+    CFLAGS="-fPIC" ./configure --prefix=/usr \
         --enable-static \
         --disable-shared \
         --enable-xinput \
@@ -611,7 +668,7 @@ if $BUILD_ENABLED; then
 
     cd libX11
     CFLAGS="-fPIC" \
-    ./configure --prefix=$INSTALL_PREFIX \
+    ./configure --prefix=/usr \
         --enable-static \
         --disable-shared \
         --disable-specs \
@@ -639,8 +696,8 @@ if $BUILD_ENABLED; then
     fi
 
     cd libXrender
-    export PKG_CONFIG_PATH="$INSTALL_PREFIX/lib/pkgconfig:$INSTALL_PREFIX/share/pkgconfig:/usr/lib/pkgconfig:/usr/local/lib/pkgconfig:/usr/share/pkgconfig"
-    CFLAGS="-fPIC" ./configure --prefix=$INSTALL_PREFIX \
+    CFLAGS="-fPIC" PKG_CONFIG_PATH="/usr/lib/pkgconfig:/usr/local/lib/pkgconfig:/usr/share/pkgconfig" \
+    ./configure --prefix=/usr \
         --enable-static \
         --disable-shared
     make -j$(nproc)
@@ -665,7 +722,7 @@ if $BUILD_ENABLED; then
     fi
 
     cd libXext
-    CFLAGS="-fPIC" ./configure --prefix=$INSTALL_PREFIX \
+    CFLAGS="-fPIC" ./configure --prefix=/usr \
         --enable-static \
         --disable-shared \
         --disable-specs \
@@ -693,12 +750,12 @@ if $BUILD_ENABLED; then
     fi
 
     cd libXrandr
-    CPPFLAGS="-I$INSTALL_PREFIX/include" \
-    CFLAGS="-fPIC -I$INSTALL_PREFIX/include" \
-    LDFLAGS="-L$INSTALL_PREFIX/lib" \
-    RANDR_CFLAGS="-I$INSTALL_PREFIX/include" \
-    RANDR_LIBS="-L$INSTALL_PREFIX/lib -lX11 -lXext -lXrender" \
-    ./configure --prefix=$INSTALL_PREFIX \
+    CPPFLAGS="-I/usr/include" \
+    CFLAGS="-fPIC -I/usr/include" \
+    LDFLAGS="-L/usr/lib" \
+    RANDR_CFLAGS="-I/usr/include" \
+    RANDR_LIBS="-L/usr/lib -lX11 -lXext -lXrender" \
+    ./configure --prefix=/usr \
         --enable-static \
         --disable-shared \
         --with-pic
@@ -723,7 +780,7 @@ if $BUILD_ENABLED; then
     fi
 
     cd xcb-util
-    CFLAGS="-fPIC" ./configure --prefix=$INSTALL_PREFIX --enable-static --disable-shared
+    CFLAGS="-fPIC" ./configure --prefix=/usr --enable-static --disable-shared
     make -j$(nproc)
 fi
 
@@ -745,7 +802,7 @@ if $BUILD_ENABLED; then
     fi
 
     cd xcb-util-wm
-    CFLAGS="-fPIC" ./configure --prefix=$INSTALL_PREFIX --enable-static --disable-shared
+    CFLAGS="-fPIC" ./configure --prefix=/usr --enable-static --disable-shared
     make -j$(nproc)
 fi
 
@@ -767,7 +824,7 @@ if $BUILD_ENABLED; then
     fi
 
     cd xcb-util-keysyms
-    CFLAGS="-fPIC" ./configure --prefix=$INSTALL_PREFIX --enable-static --disable-shared
+    CFLAGS="-fPIC" ./configure --prefix=/usr --enable-static --disable-shared
     make -j$(nproc)
 fi
 
@@ -796,7 +853,7 @@ if $BUILD_ENABLED; then
     fi
 
     cd libXdmcp
-    CFLAGS="-fPIC" ./configure --prefix=$INSTALL_PREFIX --enable-static --disable-shared
+    CFLAGS="-fPIC" ./configure --prefix=/usr --enable-static --disable-shared
     make -j$(nproc)
 fi
 
@@ -840,7 +897,7 @@ if $BUILD_ENABLED; then
         echo "Error: $LIBXKBCOMMON_MESON_FILE not found."
     fi
      
-    meson setup --prefix=$INSTALL_PREFIX \
+    meson setup --prefix=/usr \
         -Denable-docs=false \
         -Denable-wayland=false \
         -Denable-x11=true \
@@ -877,7 +934,7 @@ fi
 if $INSTALL_ENABLED; then
     echo "Installing libbz2 $BZ2_VERSION..."
     cd "$BUILD_DIR"/libbz2
-    sudo make install PREFIX=$INSTALL_PREFIX
+    sudo make install PREFIX=/usr
 fi
 cd "$BUILD_DIR"
 

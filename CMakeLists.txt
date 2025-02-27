@@ -7,15 +7,6 @@ set(CMAKE_AUTOUIC ON)
 # Option to control static linking of FFmpeg
 option(USE_FFMPEG_STATIC "Use static FFmpeg libraries" ON)
 
-# Option to control static linking of libusb
-option(LINK_LIBUSB_STATICALLY "Link libusb statically" ON)
-
-# Option to control static linking of BZip2
-option(USE_STATIC_LIBBZ2 "Use static BZip2 library" ON)
-
-# Option to control dynamic linking of libGLX
-option(USE_DYNAMIC_LIBGLX "Link libGLX dynamically while keeping other libraries static" OFF)
-
 # Prefer static libraries
 if(USE_FFMPEG_STATIC)
     set(CMAKE_FIND_STATIC_PREFER ON)
@@ -28,16 +19,7 @@ find_package(Qt${QT_VERSION_MAJOR} OPTIONAL_COMPONENTS Widgets)
 # Find X11 libraries
 find_package(X11 REQUIRED COMPONENTS Xrandr)
 
-# Find or set BZip2 libraries
-if(USE_STATIC_LIBBZ2)
-    # Directly specify static library path
-    set(BZIP2_LIBRARIES "/opt/qt6-deps/lib/libbz2.a")
-    set(BZIP2_INCLUDE_DIRS "/opt/qt6-deps/include")
-    message(STATUS "Using static BZip2 library: ${BZIP2_LIBRARIES}")
-else()
-    find_package(BZip2 REQUIRED)
-    message(STATUS "Using system BZip2 library")
-endif()
+find_package(BZip2 REQUIRED)
 
 # Use pkg-config to find Xrender
 find_package(PkgConfig REQUIRED)
@@ -54,17 +36,6 @@ if(NOT DEFINED EXPAT_LIBRARY_PATH OR NOT EXISTS ${EXPAT_LIBRARY_PATH})
 else()
     # Set Expat library directory
     set(EXPAT_LIBRARIES ${EXPAT_LIBRARY_PATH})
-endif()
-
-# Find Freetype library
-if(NOT DEFINED FREETYPE_LIBRARIES OR NOT EXISTS ${FREETYPE_LIBRARIES})
-    find_package(Freetype REQUIRED)
-endif()
-
-# If FREETYPE_INCLUDE_DIRS is provided, add it to include directories
-if(DEFINED FREETYPE_INCLUDE_DIRS)
-    include_directories(${FREETYPE_INCLUDE_DIRS})
-    message(STATUS "Using provided FREETYPE_INCLUDE_DIRS: ${FREETYPE_INCLUDE_DIRS}")
 endif()
 
 # Include FFmpeg directories
@@ -145,13 +116,13 @@ if(LINK_LIBUSB_STATICALLY)
   if(NOT DEFINED LIBUSB_LIB)
     set(LIBUSB_LIB /usr/lib/libusb-1.0.a)
   endif()
+  set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -static")
 else()
   find_package(libusb-1.0 REQUIRED)
   set(LIBUSB_LIB ${LIBUSB_1_LIBRARIES})
 endif()
 
 target_link_libraries(openterfaceQT PRIVATE
-    ${EXTRA_LIBS}     
     ${EXPAT_LIBRARIES}   # Link against Expat library
     ${FREETYPE_LIBRARIES}
     ${FONTCONFIG_LIBRARIES}
@@ -166,14 +137,9 @@ target_link_libraries(openterfaceQT PRIVATE
     ${FFMPEG_LIBRARIES}  # Link against FFmpeg libraries
     ${XRENDER_LIBRARIES}
     ${BZIP2_LIBRARIES}
-
+    ${EXTRA_LIBS}
     ${LIBUSB_LIB}
 )
-
-# 如果使用静态libbz2，需要添加include目录
-if(USE_STATIC_LIBBZ2)
-    target_include_directories(openterfaceQT PRIVATE ${BZIP2_INCLUDE_DIRS})
-endif()
 
 # Resources:
 set(mainwindow_resource_files
@@ -309,7 +275,7 @@ install(TARGETS openterfaceQT
 
 qt_generate_deploy_app_script(
     TARGET openterfaceQT
-    OUTPUT_SCRIPT deploy_script
+    FILENAME_VARIABLE deploy_script
     NO_UNSUPPORTED_PLATFORM_ERROR
 )
 install(SCRIPT ${deploy_script})
