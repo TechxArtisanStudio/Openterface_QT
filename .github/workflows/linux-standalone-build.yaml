@@ -137,6 +137,7 @@
                 -DQT_DEBUG_FIND_PACKAGE=ON \
                 -DCMAKE_CXX_FLAGS="-Os -s" \
                 -DCMAKE_C_FLAGS="-Os -s" \
+                -DCMAKE_EXE_LINKER_FLAGS="-Wl,--whole-archive -Wl,--no-whole-archive -Wl,--allow-shlib-undefined" \
                 -DLINK_LIBUSB_STATICALLY=ON \
                 -DFREETYPE_INCLUDE_DIRS=/usr/include/freetype2 \
                 -DFREETYPE_LIBRARIES=/usr/lib/libfreetype.a \
