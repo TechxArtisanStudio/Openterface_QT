@@ -693,11 +693,11 @@ if $BUILD_ENABLED; then
     fi
 
     cd libXrandr
-    CPPFLAGS="-I/usr/include" \
-    CFLAGS="-fPIC -I/usr/include" \
-    LDFLAGS="-L/usr/lib" \
-    RANDR_CFLAGS="-I/usr/include" \
-    RANDR_LIBS="-L/usr/lib -lX11 -lXext -lXrender" \
+    CPPFLAGS="-I$INSTALL_PREFIX/include" \
+    CFLAGS="-fPIC -I$INSTALL_PREFIX/include" \
+    LDFLAGS="-L$INSTALL_PREFIX/lib" \
+    RANDR_CFLAGS="-I$INSTALL_PREFIX/include" \
+    RANDR_LIBS="-L$INSTALL_PREFIX/lib -lX11 -lXext -lXrender" \
     ./configure --prefix=$INSTALL_PREFIX \
         --enable-static \
         --disable-shared \
