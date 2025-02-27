@@ -66,7 +66,7 @@ cd "$BUILD_DIR"
 # Install minimal build requirements
 sudo apt-get update
 sudo apt-get install -y build-essential meson ninja-build bison flex pkg-config python3-pip linux-headers-$(uname -r) \
-    autoconf automake libtool autoconf-archive cmake libc6-dev zlib1g-dev
+    autoconf automake libtool autoconf-archive cmake libc6-dev zlib1g-dev gperf
 
 # Check for required tools
 command -v curl >/dev/null 2>&1 || { echo "Curl is not installed. Please install Curl."; exit 1; }
@@ -257,28 +257,6 @@ if $INSTALL_ENABLED; then
 fi
 cd "$BUILD_DIR"
 
-# Build or Install gperf from source
-if $BUILD_ENABLED; then
-    echo "Building gperf $GPERF_VERSION from source..."
-    if [ ! -d "gperf" ]; then
-        curl -L -o gperf.tar.gz "https://ftp.gnu.org/gnu/gperf/gperf-${GPERF_VERSION}.tar.gz"
-        tar xf gperf.tar.gz
-        mv "gperf-${GPERF_VERSION}" gperf
-        rm gperf.tar.gz
-    fi
-
-    cd gperf
-    ./configure --prefix=$INSTALL_PREFIX
-    make -j$(nproc)
-fi
-
-if $INSTALL_ENABLED; then
-    echo "Installing gperf $GPERF_VERSION..."
-    cd "$BUILD_DIR"/gperf
-    sudo make install
-fi
-cd "$BUILD_DIR"
-
 # Build or Install FreeType
 if $BUILD_ENABLED; then
     echo "Building FreeType $FREETYPE_VERSION from source..."
@@ -290,7 +268,13 @@ if $BUILD_ENABLED; then
     fi
 
     cd "$BUILD_DIR"/freetype
-    ./configure --prefix=$INSTALL_PREFIX --enable-static --disable-shared --without-zlib --without-png --without-bzip2 --without-harfbuzz
+    ./configure --prefix=$INSTALL_PREFIX \
+        --enable-static \
+        --disable-shared \
+        --without-zlib \
+        --without-png \
+        --without-bzip2 \
+        --without-harfbuzz
     make -j$(nproc)
 fi
 
@@ -312,7 +296,11 @@ if $BUILD_ENABLED; then
     fi
 
     cd fontconfig
-    ./configure --prefix=$INSTALL_PREFIX --enable-static --disable-shared --with-expat=$INSTALL_PREFIX --with-freetype=$INSTALL_PREFIX
+    ./configure --prefix=$INSTALL_PREFIX \
+        --enable-static \
+        --disable-shared \
+        --with-expat=$INSTALL_PREFIX \
+        --with-freetype=$INSTALL_PREFIX
     make -j$(nproc)
 fi
 
