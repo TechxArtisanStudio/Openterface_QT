@@ -119,7 +119,11 @@
               libpulse-dev \
               libsndfile1-dev \
               libxrandr-dev \
-              libxrender-dev
+              libxrender-dev \
+              libfontconfig1-dev \
+              libfreetype6-dev \
+              libx11-xcb-dev \
+              libxext-dev
   
         - name: Build Standalone Executable
           working-directory: ${{ runner.temp }}/build
@@ -139,10 +143,6 @@
                 -DCMAKE_C_FLAGS="-Os -s" \
                 -DCMAKE_EXE_LINKER_FLAGS="-Wl,--whole-archive -Wl,--no-whole-archive -Wl,--allow-shlib-undefined" \
                 -DLINK_LIBUSB_STATICALLY=ON \
-                -DFREETYPE_INCLUDE_DIRS=/usr/include/freetype2 \
-                -DFREETYPE_LIBRARIES=/usr/lib/libfreetype.a \
-                -DFONTCONFIG_LIBRARIES=/usr/lib/libfontconfig.a \
-                -DEXPAT_LIBRARY_PATH=/usr/lib/libexpat.a \
                 -DLIBUSB_LIB=/usr/lib/libusb-1.0.a
                 
             echo "Building with CMake..."

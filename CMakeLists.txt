@@ -16,28 +16,6 @@ find_package(QT NAMES Qt5 Qt6 REQUIRED COMPONENTS Core)
 find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Concurrent Gui Multimedia MultimediaWidgets Network SerialPort Svg)
 find_package(Qt${QT_VERSION_MAJOR} OPTIONAL_COMPONENTS Widgets)
 
-# Find X11 libraries
-find_package(X11 REQUIRED COMPONENTS Xrandr)
-
-find_package(BZip2 REQUIRED)
-
-# Use pkg-config to find Xrender
-find_package(PkgConfig REQUIRED)
-pkg_check_modules(XRENDER REQUIRED xrender)
-
-# Set FFmpeg include and library directories
-set(FFMPEG_INCLUDE_DIRS "/usr/local/include")
-set(FFMPEG_LIBRARIES "/usr/local/lib/libavformat.a;/usr/local/lib/libavcodec.a;/usr/local/lib/libavutil.a;/usr/local/lib/libswresample.a;/usr/local/lib/libswscale.a")
-
-# Find Expat library if EXPAT_LIBRARY_PATH is not defined
-if(NOT DEFINED EXPAT_LIBRARY_PATH OR NOT EXISTS ${EXPAT_LIBRARY_PATH})
-    find_package(EXPAT REQUIRED)
-    set(EXPAT_LIBRARIES ${EXPAT_LIBRARIES})
-else()
-    # Set Expat library directory
-    set(EXPAT_LIBRARIES ${EXPAT_LIBRARY_PATH})
-endif()
-
 # Include FFmpeg directories
 include_directories(${FFMPEG_INCLUDE_DIRS})
 
@@ -122,9 +100,6 @@ else()
 endif()
 
 target_link_libraries(openterfaceQT PRIVATE
-    ${EXPAT_LIBRARIES}   # Link against Expat library
-    ${FREETYPE_LIBRARIES}
-    ${FONTCONFIG_LIBRARIES}
     Qt::Concurrent
     Qt::Core
     Qt::Gui
@@ -133,10 +108,7 @@ target_link_libraries(openterfaceQT PRIVATE
     Qt::Network
     Qt::SerialPort
     Qt::Svg
-    ${FFMPEG_LIBRARIES}  # Link against FFmpeg libraries
-    ${XRENDER_LIBRARIES}
-    ${BZIP2_LIBRARIES}
-    ${EXTRA_LIBS}
+    ${FFMPEG_LIBRARIES} 
     ${LIBUSB_LIB}
 )
 
