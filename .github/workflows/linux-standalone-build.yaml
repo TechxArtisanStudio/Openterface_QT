@@ -143,7 +143,7 @@ jobs:
               -DFREETYPE_LIBRARIES=/opt/qt6-deps/lib/libfreetype.a \
               -DFONTCONFIG_LIBRARIES=/opt/qt6-deps/lib/libfontconfig.a \
               -DEXPAT_LIBRARY_PATH=/opt/qt6-deps/lib/libexpat.a \
-              -DLIBUSB_LIB=/opt/qt6-deps/lib/libusb-1.0.a
+              -DLIBUSB_LIB=/usr/lib/libusb-1.0.a
               
           echo "Building with CMake..."
           cmake --build . --verbose || (echo "CMake build failed. Please check the build configuration." && exit 1)
