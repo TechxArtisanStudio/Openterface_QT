@@ -32,7 +32,7 @@ done
 
 sudo apt-get install -y libgl1-mesa-dev libglu1-mesa-dev libxrender-dev libxi-dev \
     '^libxcb.*-dev' libx11-xcb-dev libxcb-cursor-dev libxcb-icccm4-dev libxcb-keysyms1-dev \
-    libxcb-xinput-dev
+    libxcb-xinput-dev libxkbcommon-dev libxkbcommon-x11-dev
 
 # Build qtbase first
 echo "Building qtbase..."
@@ -49,6 +49,8 @@ cmake -GNinja \
     -DFEATURE_icu=OFF \
     -DFEATURE_opengl=ON \
     -DFEATURE_xcb=ON \
+    -DFEATURE_xkbcommon=ON \
+    -DFEATURE_xkbcommon_x11=ON \
     -DFEATURE_xcb_xinput=system \
     ..
 
