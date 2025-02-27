@@ -127,19 +127,21 @@ jobs:
         working-directory: ${{ runner.temp }}/build
         run: |
           echo "Setting LD_LIBRARY_PATH..."
-          export LD_LIBRARY_PATH=/usr/lib:/usr/local/lib:$LD_LIBRARY_PATH
+          export LD_LIBRARY_PATH="/opt/qt6-deps/lib:/usr/lib:/usr/local/lib:$LD_LIBRARY_PATH"
+          export PKG_CONFIG_PATH="/opt/qt6-deps/lib/pkgconfig:$PKG_CONFIG_PATH"
 
           echo "Configuring with CMake..."
             cmake -S "${{ env.SOURCE_DIR }}" -B . \
               -DCMAKE_BUILD_TYPE=Release \
               -DBUILD_SHARED_LIBS=OFF \
               -DCMAKE_PREFIX_PATH="/opt/qt6-deps;/opt/Qt6" \
+              -DPKG_CONFIG_USE_CMAKE_PREFIX_PATH=ON \
               -DCMAKE_INSTALL_PREFIX=release \
               -DCMAKE_VERBOSE_MAKEFILE=ON \
               -DQT_DEBUG_FIND_PACKAGE=ON \
               -DCMAKE_CXX_FLAGS="-Os -s" \
               -DCMAKE_C_FLAGS="-Os -s" \
-              -DCMAKE_EXE_LINKER_FLAGS="-lGLX" \
+              -DCMAKE_EXE_LINKER_FLAGS="-lGLX -L/opt/qt6-deps/lib" \
               -DUSE_DYNAMIC_LIBGLX=ON \
               -DLINK_LIBUSB_STATICALLY=ON \
               -DFREETYPE_INCLUDE_DIRS=/opt/qt6-deps/include/freetype2 \

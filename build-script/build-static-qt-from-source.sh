@@ -34,6 +34,12 @@ sudo apt-get install -y libgl1-mesa-dev libglu1-mesa-dev libxrender-dev libxi-de
     '^libxcb.*-dev' libx11-xcb-dev libxcb-cursor-dev libxcb-icccm4-dev libxcb-keysyms1-dev \
     libxcb-xinput-dev
 
+# Install dependencies to DEPS_INSTALL_PREFIX first if they exist there
+echo "Setting up dependency paths..."
+export PKG_CONFIG_PATH="$DEPS_INSTALL_PREFIX/lib/pkgconfig:$PKG_CONFIG_PATH"
+export LD_LIBRARY_PATH="$DEPS_INSTALL_PREFIX/lib:$LD_LIBRARY_PATH"
+export CMAKE_PREFIX_PATH="$DEPS_INSTALL_PREFIX:$CMAKE_PREFIX_PATH"
+
 # Build qtbase first
 echo "Building qtbase..."
 cd "$BUILD_DIR/qtbase"
@@ -52,6 +58,8 @@ cmake -GNinja \
     -DFEATURE_xkbcommon=ON \
     -DFEATURE_xkbcommon_x11=ON \
     -DFEATURE_xcb_xinput=system \
+    -DCMAKE_PREFIX_PATH="$DEPS_INSTALL_PREFIX" \
+    -DPKG_CONFIG_USE_CMAKE_PREFIX_PATH=ON \
     ..
 
 ninja
@@ -84,10 +92,10 @@ for module in "${MODULES[@]}"; do
 
         cmake -GNinja \
             -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" \
-            -DCMAKE_PREFIX_PATH="$INSTALL_PREFIX" \
+            -DCMAKE_PREFIX_PATH="$INSTALL_PREFIX;$DEPS_INSTALL_PREFIX" \
             -DBUILD_SHARED_LIBS=OFF \
+            -DPKG_CONFIG_USE_CMAKE_PREFIX_PATH=ON \
             ..
-
         
         ninja
         sudo ninja install
