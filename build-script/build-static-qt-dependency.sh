@@ -246,7 +246,7 @@ if $BUILD_ENABLED; then
         -Dasyncns=disabled \
         -Davahi=disabled \
         -Dbluez5=disabled \
-        -Ddbus=false \
+        -Ddbus=enabled \
         -Dfftw=disabled \
         -Dglib=enabled \
         -Dgsettings=disabled \
@@ -265,6 +265,7 @@ if $BUILD_ENABLED; then
         -Dudev=disabled \
         -Dwebrtc-aec=disabled \
         -Dx11=disabled \
+        -Dpkg_config_path=$INSTALL_PREFIX/lib/pkgconfig \
         ..
     ninja
 fi
