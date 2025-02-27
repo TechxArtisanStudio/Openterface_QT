@@ -19,7 +19,7 @@ find_package(Qt${QT_VERSION_MAJOR} OPTIONAL_COMPONENTS Widgets)
 # Find X11 libraries
 find_package(X11 REQUIRED COMPONENTS Xrandr)
 
-find_package(BZip2 REQUIRED)
+set(BZIP2_LIBRARIES /usr/lib/libbz2.a)
 
 # Use pkg-config to find Xrender
 find_package(PkgConfig REQUIRED)
