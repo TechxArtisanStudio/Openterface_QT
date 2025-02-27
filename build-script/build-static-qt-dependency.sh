@@ -132,6 +132,7 @@ if $BUILD_ENABLED; then
     cd libpulse
     mkdir -p build
     cd build
+
     meson setup --prefix=$INSTALL_PREFIX \
         -Ddefault_library=static \
         -Ddoxygen=false \
@@ -148,6 +149,7 @@ if $BUILD_ENABLED; then
         -Dspeex=disabled \
         -Dwebrtc-aec=disabled \
         -Dx11=disabled \
+        -Dpkg_config_path=$INSTALL_PREFIX/lib/pkgconfig \
         ..
     ninja
 fi
