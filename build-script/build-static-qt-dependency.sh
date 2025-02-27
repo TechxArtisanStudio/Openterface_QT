@@ -490,6 +490,7 @@ if $BUILD_ENABLED; then
     fi
 
     cd libXau
+    export PKG_CONFIG_PATH="$INSTALL_PREFIX/lib/pkgconfig:$INSTALL_PREFIX/share/pkgconfig:$PKG_CONFIG_PATH"
     CFLAGS="-fPIC" ./configure --prefix=$INSTALL_PREFIX \
         --enable-static \
         --disable-shared
