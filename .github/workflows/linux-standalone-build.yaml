@@ -121,48 +121,48 @@ jobs:
             libxrandr-dev \
             libxrender-dev
 
-      # - name: Build Standalone Executable
-      #   working-directory: ${{ runner.temp }}/build
-      #   run: |
-      #     echo "Setting LD_LIBRARY_PATH..."
-      #     export LD_LIBRARY_PATH=/usr/lib:/usr/local/lib:$LD_LIBRARY_PATH
+      - name: Build Standalone Executable
+        working-directory: ${{ runner.temp }}/build
+        run: |
+          echo "Setting LD_LIBRARY_PATH..."
+          export LD_LIBRARY_PATH=/usr/lib:/usr/local/lib:$LD_LIBRARY_PATH
 
-      #     echo "Configuring with CMake..."
-      #       cmake -S "${{ env.SOURCE_DIR }}" -B . \
-      #         -DCMAKE_BUILD_TYPE=Release \
-      #         -DBUILD_SHARED_LIBS=OFF \
-      #         -DCMAKE_PREFIX_PATH=/opt/Qt6 \
-      #         -DCMAKE_INSTALL_PREFIX=release \
-      #         -DCMAKE_VERBOSE_MAKEFILE=ON \
-      #         -DQT_DEBUG_FIND_PACKAGE=ON \
-      #         -DCMAKE_CXX_FLAGS="-Os -s" \
-      #         -DCMAKE_C_FLAGS="-Os -s" \
-      #         -DLINK_LIBUSB_STATICALLY=ON \
-      #         -DFREETYPE_INCLUDE_DIRS=/usr/include/freetype2 \
-      #         -DFREETYPE_LIBRARIES=/usr/lib/libfreetype.a \
-      #         -DFONTCONFIG_LIBRARIES=/usr/lib/libfontconfig.a \
-      #         -DEXPAT_LIBRARY_PATH=/usr/lib/libexpat.a \
-      #         -DLIBUSB_LIB=/usr/lib/libusb-1.0.a
+          echo "Configuring with CMake..."
+            cmake -S "${{ env.SOURCE_DIR }}" -B . \
+              -DCMAKE_BUILD_TYPE=Release \
+              -DBUILD_SHARED_LIBS=OFF \
+              -DCMAKE_PREFIX_PATH=/opt/Qt6 \
+              -DCMAKE_INSTALL_PREFIX=release \
+              -DCMAKE_VERBOSE_MAKEFILE=ON \
+              -DQT_DEBUG_FIND_PACKAGE=ON \
+              -DCMAKE_CXX_FLAGS="-Os -s" \
+              -DCMAKE_C_FLAGS="-Os -s" \
+              -DLINK_LIBUSB_STATICALLY=ON \
+              -DFREETYPE_INCLUDE_DIRS=/usr/include/freetype2 \
+              -DFREETYPE_LIBRARIES=/usr/lib/libfreetype.a \
+              -DFONTCONFIG_LIBRARIES=/usr/lib/libfontconfig.a \
+              -DEXPAT_LIBRARY_PATH=/usr/lib/libexpat.a \
+              -DLIBUSB_LIB=/usr/lib/libusb-1.0.a
               
-      #     echo "Building with CMake..."
-      #     cmake --build . --verbose || (echo "CMake build failed. Please check the build configuration." && exit 1)
+          echo "Building with CMake..."
+          cmake --build . --verbose || (echo "CMake build failed. Please check the build configuration." && exit 1)
 
-      #     if [ ! -f openterfaceQT ]; then
-      #       echo "Error: Failed to build openterfaceQT"
-      #       exit 1
-      #     fi
+          if [ ! -f openterfaceQT ]; then
+            echo "Error: Failed to build openterfaceQT"
+            exit 1
+          fi
 
-      #     echo "Check openterfaceQT dependencies..."
-      #     ldd openterfaceQT
+          echo "Check openterfaceQT dependencies..."
+          ldd openterfaceQT
 
-      #     echo "Creating standalone package..."
-      #     mkdir package
-      #     cp openterfaceQT package
+          echo "Creating standalone package..."
+          mkdir package
+          cp openterfaceQT package
 
-      # - name: Save build artifact
-      #   uses: actions/upload-artifact@v4
-      #   with:
-      #     name: ${{ env.ARTIFACT }}
-      #     path: ${{ runner.temp }}/build/package/openterfaceQT
-      #     if-no-files-found: error
+      - name: Save build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.ARTIFACT }}
+          path: ${{ runner.temp }}/build/package/openterfaceQT
+          if-no-files-found: error
 
