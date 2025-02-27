@@ -123,8 +123,7 @@
               libfontconfig1-dev \
               libfreetype6-dev \
               libx11-xcb-dev \
-              libxext-dev \
-              libbz2-dev
+              libxext-dev
 
         - name: Build Standalone Executable
           working-directory: ${{ runner.temp }}/build
