@@ -162,6 +162,7 @@ else()
 endif()
 
 target_link_libraries(openterfaceQT PRIVATE
+    ${EXTRA_LIBS}     
     ${EXPAT_LIBRARIES}   # Link against Expat library
     ${FREETYPE_LIBRARIES}
     ${FONTCONFIG_LIBRARIES}
@@ -176,7 +177,7 @@ target_link_libraries(openterfaceQT PRIVATE
     ${FFMPEG_LIBRARIES}  # Link against FFmpeg libraries
     ${XRENDER_LIBRARIES}
     ${BZIP2_LIBRARIES}
-    ${EXTRA_LIBS}        # This will include our dynamic GLX linking if enabled
+
     ${LIBUSB_LIB}
 )
 
