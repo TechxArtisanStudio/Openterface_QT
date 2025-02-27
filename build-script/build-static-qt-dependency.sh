@@ -149,7 +149,7 @@ if $BUILD_ENABLED; then
         -Dspeex=disabled \
         -Dwebrtc-aec=disabled \
         -Dx11=disabled \
-        -Dglib=enabled \
+        -Dglib=disabled \
         -Dpkg_config_path=$INSTALL_PREFIX/lib/pkgconfig \
         ..
     ninja
