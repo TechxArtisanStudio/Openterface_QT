@@ -131,9 +131,7 @@ target_link_libraries(openterfaceQT PRIVATE
     Qt::SerialPort
     Qt::Svg
     ${FFMPEG_LIBRARIES}  # Link against FFmpeg libraries
-    ${XRENDER_LIBRARIES}
     ${BZIP2_LIBRARIES}
-    ${EXTRA_LIBS}
     ${LIBUSB_LIB}
 )
 
