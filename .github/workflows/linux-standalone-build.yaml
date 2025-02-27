@@ -129,9 +129,9 @@
         - name: Build static bzip2
           run: |
             cd /tmp
-            wget https://sourceware.org/pub/bzip2/bzip2-latest.tar.gz
+            wget https://sourceware.org/pub/bzip2/bzip2-1.0.8.tar.gz
             tar xf bzip2-latest.tar.gz
-            cd bzip2-*
+            cd bzip2-1.0.8
             make -f Makefile-libbz2_so
             make clean
             make
