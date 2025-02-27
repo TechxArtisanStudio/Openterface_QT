@@ -119,49 +119,6 @@ if $INSTALL_ENABLED; then
 fi
 cd "$BUILD_DIR"
 
-# Build or Install libpulse
-if $BUILD_ENABLED; then
-    echo "Building libpulse from source..."
-    if [ ! -d "libpulse" ]; then
-        curl -L -o libpulse.tar.xz "https://www.freedesktop.org/software/pulseaudio/releases/pulseaudio-${PULSEAUDIO_VERSION}.tar.xz"
-        tar xf libpulse.tar.xz
-        mv "pulseaudio-${PULSEAUDIO_VERSION}" libpulse
-        rm libpulse.tar.xz
-    fi
-
-    cd libpulse
-    mkdir -p build
-    cd build
-
-    meson setup --prefix=$INSTALL_PREFIX \
-        -Ddefault_library=static \
-        -Ddoxygen=false \
-        -Ddaemon=false \
-        -Dtests=false \
-        -Dman=false \
-        -Dudev=disabled \
-        -Dsystemd=disabled \
-        -Dbluez5=disabled \
-        -Dgtk=disabled \
-        -Dopenssl=disabled \
-        -Dorc=disabled \
-        -Dsoxr=disabled \
-        -Dspeex=disabled \
-        -Dwebrtc-aec=disabled \
-        -Dx11=disabled \
-        -Dglib=disabled \
-        -Dpkg_config_path=$INSTALL_PREFIX/lib/pkgconfig \
-        ..
-    ninja
-fi
-
-if $INSTALL_ENABLED; then
-    echo "Installing libpulse..."
-    cd "$BUILD_DIR"/libpulse/build
-    sudo ninja install
-fi
-cd "$BUILD_DIR"
-
 # Build or Install D-Bus
 if $BUILD_ENABLED; then
     echo "Building D-Bus $DBUS_VERSION from source..."
