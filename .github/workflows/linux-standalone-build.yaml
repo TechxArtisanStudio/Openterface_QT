@@ -142,7 +142,7 @@
                 -DQT_DEBUG_FIND_PACKAGE=ON \
                 -DCMAKE_CXX_FLAGS="-Os -s" \
                 -DCMAKE_C_FLAGS="-Os -s" \
-                -DCMAKE_EXE_LINKER_FLAGS="-Wl,--whole-archive -Wl,--no-whole-archive -Wl,--allow-shlib-undefined" \
+                -DCMAKE_EXE_LINKER_FLAGS="-Wl,--whole-archive -Wl,--no-whole-archive -Wl,--allow-shlib-undefined -lbz2" \
                 -DLINK_LIBUSB_STATICALLY=ON \
                 -DLIBUSB_LIB=/usr/lib/libusb-1.0.a
                 

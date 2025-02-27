@@ -239,6 +239,8 @@ if(UNIX)
     )
 endif()
 
+target_link_libraries(openterfaceQT PRIVATE bz2)
+
 install(TARGETS openterfaceQT
     BUNDLE DESTINATION .
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
