@@ -106,22 +106,36 @@ jobs:
             libpcre2-dev \
             libxrandr2 \
             libxcb1-dev \
-            '^libxcb.*-dev' \
             libxcb-glx0-dev \
+            libxcb-icccm4-dev \
+            libxcb-image0-dev \
+            libxcb-keysyms1-dev \
+            libxcb-randr0-dev \
+            libxcb-render0-dev \
+            libxcb-render-util0-dev \
+            libxcb-shape0-dev \
+            libxcb-shm0-dev \
+            libxcb-sync-dev \
+            libxcb-xfixes0-dev \
+            libxcb-xinerama0-dev \
             libxcb-xinput-dev \
-            libx11-xcb-dev \
-            libglu1-mesa-dev \
-            libxrender-dev \
-            libxi-dev \
+            libxcb-xkb-dev \
             libxkbcommon-dev \
             libxkbcommon-x11-dev \
+            libx11-xcb-dev \
             libx11-dev \
             libdbus-1-dev \
             libdbus-glib-1-dev \
             libpulse-dev \
             libsndfile1-dev \
             libxrandr-dev \
-            libxrender-dev
+            libxrender-dev \
+            libxi-dev
+
+          echo "Verifying XCB libraries installation:"
+          pkg-config --exists --print-errors "xcb xcb-render xcb-shape xcb-shm xcb-icccm xcb-keysyms xcb-xinput xcb-xkb"
+          echo "Verifying xkbcommon libraries installation:"
+          pkg-config --exists --print-errors "xkbcommon xkbcommon-x11"
 
       - name: Build Standalone Executable
         working-directory: ${{ runner.temp }}/build

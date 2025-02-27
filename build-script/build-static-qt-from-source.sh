@@ -34,17 +34,45 @@ sudo apt-get install -y libgl1-mesa-dev libglu1-mesa-dev libxrender-dev libxi-de
     '^libxcb.*-dev' libx11-xcb-dev libxcb-cursor-dev libxcb-icccm4-dev libxcb-keysyms1-dev \
     libxcb-xinput-dev
 
+# Install more comprehensive set of XCB libraries
+sudo apt-get install -y libgl1-mesa-dev libglu1-mesa-dev libxrender-dev libxi-dev \
+    libxcb1-dev \
+    libxcb-glx0-dev \
+    libxcb-icccm4-dev \
+    libxcb-image0-dev \
+    libxcb-keysyms1-dev \
+    libxcb-randr0-dev \
+    libxcb-render0-dev \
+    libxcb-render-util0-dev \
+    libxcb-shape0-dev \
+    libxcb-shm0-dev \
+    libxcb-sync-dev \
+    libxcb-xfixes0-dev \
+    libxcb-xinerama0-dev \
+    libxcb-xinput-dev \
+    libxcb-xkb-dev \
+    libx11-xcb-dev
+
 # Install dependencies to DEPS_INSTALL_PREFIX first if they exist there
 echo "Setting up dependency paths..."
-export PKG_CONFIG_PATH="$DEPS_INSTALL_PREFIX/lib/pkgconfig:$PKG_CONFIG_PATH"
-export LD_LIBRARY_PATH="$DEPS_INSTALL_PREFIX/lib:$LD_LIBRARY_PATH"
+export PKG_CONFIG_PATH="$DEPS_INSTALL_PREFIX/lib/pkgconfig:/usr/lib/pkgconfig:/usr/lib/x86_64-linux-gnu/pkgconfig:$PKG_CONFIG_PATH"
+export LD_LIBRARY_PATH="$DEPS_INSTALL_PREFIX/lib:/usr/lib/x86_64-linux-gnu:$LD_LIBRARY_PATH"
 export CMAKE_PREFIX_PATH="$DEPS_INSTALL_PREFIX:$CMAKE_PREFIX_PATH"
+
+# Diagnostic: Check for XCB libraries
+echo "Checking XCB libraries with pkg-config..."
+pkg-config --exists --print-errors "xcb xcb-render xcb-shape xcb-shm xcb-icccm xcb-keysyms xcb-randr xcb-xfixes xcb-xinput xcb-xkb"
+echo "Checking xkbcommon libraries with pkg-config..."
+pkg-config --exists --print-errors "xkbcommon xkbcommon-x11"
 
 # Build qtbase first
 echo "Building qtbase..."
 cd "$BUILD_DIR/qtbase"
 mkdir -p build
 cd build
+
+# Force use of pkg-config to find XCB
+export QT_XCB_CONFIG="system"
 
 cmake -GNinja \
     -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" \
@@ -60,11 +88,14 @@ cmake -GNinja \
     -DFEATURE_xcb_xinput=system \
     -DCMAKE_PREFIX_PATH="$DEPS_INSTALL_PREFIX" \
     -DPKG_CONFIG_USE_CMAKE_PREFIX_PATH=ON \
+    -DQT_XCB_CONFIG="system" \
+    -DXCB_XCB_INCLUDE_DIR=/usr/include/xcb \
+    -DXCB_XCB_LIBRARY=/usr/lib/x86_64-linux-gnu/libxcb.so \
+    -DQT_QMAKE_TARGET_MKSPEC=linux-g++ \
     ..
 
 ninja
 sudo ninja install
-
 
 # Build qtshadertools
 echo "Building qtshadertools..."
