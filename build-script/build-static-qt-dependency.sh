@@ -235,6 +235,7 @@ if $BUILD_ENABLED; then
     mkdir -p build
     cd build
 
+    export PKG_CONFIG_PATH=$INSTALL_PREFIX/lib/pkgconfig:$PKG_CONFIG_PATH
     meson setup --prefix=$INSTALL_PREFIX \
         -Ddaemon=false \
         -Dman=false \
@@ -265,7 +266,6 @@ if $BUILD_ENABLED; then
         -Dudev=disabled \
         -Dwebrtc-aec=disabled \
         -Dx11=disabled \
-        -Dpkg_config_path=$INSTALL_PREFIX/lib/pkgconfig \
         ..
     ninja
 fi
