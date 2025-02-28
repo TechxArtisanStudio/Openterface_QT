@@ -51,9 +51,12 @@ cmake -GNinja \
     -DFEATURE_xcb_xlib=ON \
     -DFEATURE_xkbcommon=ON \
     -DFEATURE_xkbcommon_x11=ON \
+    -DTEST_xcb_syslibs=ON \
     -DFEATURE_egl=ON \
     -DFEATURE_opengl=ON \
     -DFEATURE_harfbuzz=OFF \
+    -DFEATURE_androiddeployqt=OFF \
+    -DFEATURE_vnc=OFF \
     -DFEATURE_opengl_desktop=ON \
     -DFEATURE_accessibility=ON \
     -DINPUT_opengl=desktop \
