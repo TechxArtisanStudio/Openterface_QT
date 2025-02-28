@@ -122,6 +122,47 @@ cd "$BUILD_DIR"
 # Update pkg-config path
 export PKG_CONFIG_PATH="$INSTALL_PREFIX/lib/pkgconfig:$INSTALL_PREFIX/local/lib/pkgconfig:$INSTALL_PREFIX/share/pkgconfig"
 
+# Build or Install libpulse
+if $BUILD_ENABLED; then
+    echo "Building libpulse from source..."
+    if [ ! -d "libpulse" ]; then
+        curl -L -o libpulse.tar.xz "https://www.freedesktop.org/software/pulseaudio/releases/pulseaudio-${PULSEAUDIO_VERSION}.tar.xz"
+        tar xf libpulse.tar.xz
+        mv "pulseaudio-${PULSEAUDIO_VERSION}" libpulse
+        rm libpulse.tar.xz
+    fi
+
+    cd libpulse
+    mkdir -p build
+    cd build
+    meson setup --prefix=$INSTALL_PREFIX \
+        -Ddefault_library=static \
+        -Ddoxygen=false \
+        -Ddaemon=false \
+        -Dtests=false \
+        -Dman=false \
+        -Dudev=disabled \
+        -Dsystemd=disabled \
+        -Dbluez5=disabled \
+        -Dgtk=disabled \
+        -Dopenssl=disabled \
+        -Dorc=disabled \
+        -Dsoxr=disabled \
+        -Dspeex=disabled \
+        -Dwebrtc-aec=disabled \
+        -Dx11=disabled \
+        -Dpkg_config_path=$PKG_CONFIG_PATH \
+        ..
+    ninja
+fi
+
+if $INSTALL_ENABLED; then
+    echo "Installing libpulse..."
+    cd "$BUILD_DIR"/libpulse/build
+    sudo ninja install
+fi
+cd "$BUILD_DIR"
+
 # Build or Install D-Bus
 if $BUILD_ENABLED; then
     echo "Building D-Bus $DBUS_VERSION from source..."
@@ -182,54 +223,54 @@ if $INSTALL_ENABLED; then
 fi
 cd "$BUILD_DIR"
 
-# Build or Install PulseAudio
-if $BUILD_ENABLED; then
-    echo "Building PulseAudio $PULSEAUDIO_VERSION from source..."
-    if [ ! -d "pulseaudio" ]; then
-        curl -L -o pulseaudio.tar.xz "https://www.freedesktop.org/software/pulseaudio/releases/pulseaudio-${PULSEAUDIO_VERSION}.tar.xz"
-        tar xf pulseaudio.tar.xz
-        mv "pulseaudio-${PULSEAUDIO_VERSION}" pulseaudio
-        rm pulseaudio.tar.xz
-    fi
+# # Build or Install PulseAudio
+# if $BUILD_ENABLED; then
+#     echo "Building PulseAudio $PULSEAUDIO_VERSION from source..."
+#     if [ ! -d "pulseaudio" ]; then
+#         curl -L -o pulseaudio.tar.xz "https://www.freedesktop.org/software/pulseaudio/releases/pulseaudio-${PULSEAUDIO_VERSION}.tar.xz"
+#         tar xf pulseaudio.tar.xz
+#         mv "pulseaudio-${PULSEAUDIO_VERSION}" pulseaudio
+#         rm pulseaudio.tar.xz
+#     fi
 
-    cd pulseaudio
-    mkdir -p build
-    cd build
+#     cd pulseaudio
+#     mkdir -p build
+#     cd build
 
-    meson setup --prefix=$INSTALL_PREFIX \
-        -Ddaemon=false \
-        -Dman=false \
-        -Ddoxygen=false \
-        -Dtests=false \
-        -Ddefault_library=static \
-        -Ddatabase=simple \
-        -Dalsa=enabled \
-        -Dasyncns=disabled \
-        -Davahi=disabled \
-        -Dbluez5=disabled \
-        -Ddbus=enabled \
-        -Dfftw=disabled \
-        -Dglib=enabled \
-        -Dgsettings=disabled \
-        -Dgtk=disabled \
-        -Dhal-compat=false \
-        -Dipv6=false \
-        -Djack=disabled \
-        -Dlirc=disabled \
-        -Dopenssl=disabled \
-        -Dorc=disabled \
-        -Dsamplerate=disabled \
-        -Dsoxr=disabled \
-        -Dspeex=disabled \
-        -Dsystemd=disabled \
-        -Dtcpwrap=disabled \
-        -Dudev=disabled \
-        -Dwebrtc-aec=disabled \
-        -Dx11=disabled \
-        -Dpkg_config_path=$PKG_CONFIG_PATH \
-        ..
-    ninja
-fi
+#     meson setup --prefix=$INSTALL_PREFIX \
+#         -Ddaemon=false \
+#         -Dman=false \
+#         -Ddoxygen=false \
+#         -Dtests=false \
+#         -Ddefault_library=static \
+#         -Ddatabase=simple \
+#         -Dalsa=enabled \
+#         -Dasyncns=disabled \
+#         -Davahi=disabled \
+#         -Dbluez5=disabled \
+#         -Ddbus=enabled \
+#         -Dfftw=disabled \
+#         -Dglib=enabled \
+#         -Dgsettings=disabled \
+#         -Dgtk=disabled \
+#         -Dhal-compat=false \
+#         -Dipv6=false \
+#         -Djack=disabled \
+#         -Dlirc=disabled \
+#         -Dopenssl=disabled \
+#         -Dorc=disabled \
+#         -Dsamplerate=disabled \
+#         -Dsoxr=disabled \
+#         -Dspeex=disabled \
+#         -Dsystemd=disabled \
+#         -Dtcpwrap=disabled \
+#         -Dudev=disabled \
+#         -Dwebrtc-aec=disabled \
+#         -Dx11=disabled \
+#         -Dpkg_config_path=$PKG_CONFIG_PATH \
+#         ..
+#     ninja
+# fi
 
 if $INSTALL_ENABLED; then
     echo "Installing PulseAudio $PULSEAUDIO_VERSION..."
