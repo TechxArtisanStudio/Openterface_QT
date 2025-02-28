@@ -323,50 +323,50 @@ if $INSTALL_ENABLED; then
 fi
 cd "$BUILD_DIR"
 
-# Build or Install FreeType
-if $BUILD_ENABLED; then
-    echo "Building FreeType $FREETYPE_VERSION from source..."
-    if [ ! -d "freetype" ]; then
-        curl -L -o freetype.tar.gz "https://download.savannah.gnu.org/releases/freetype/freetype-${FREETYPE_VERSION}.tar.gz"
-        tar xf freetype.tar.gz
-        mv "freetype-${FREETYPE_VERSION}" freetype
-        rm freetype.tar.gz
-    fi
+# # Build or Install FreeType
+# if $BUILD_ENABLED; then
+#     echo "Building FreeType $FREETYPE_VERSION from source..."
+#     if [ ! -d "freetype" ]; then
+#         curl -L -o freetype.tar.gz "https://download.savannah.gnu.org/releases/freetype/freetype-${FREETYPE_VERSION}.tar.gz"
+#         tar xf freetype.tar.gz
+#         mv "freetype-${FREETYPE_VERSION}" freetype
+#         rm freetype.tar.gz
+#     fi
 
-    cd freetype
-    ./configure --prefix=$INSTALL_PREFIX --enable-static --disable-shared
-    make -j$(nproc)
-fi
+#     cd freetype
+#     ./configure --prefix=$INSTALL_PREFIX --enable-static --disable-shared
+#     make -j$(nproc)
+# fi
 
-if $INSTALL_ENABLED; then
-    echo "Installing FreeType $FREETYPE_VERSION..."
-    cd "$BUILD_DIR"/freetype
-    sudo make install
-fi
-cd "$BUILD_DIR"
+# if $INSTALL_ENABLED; then
+#     echo "Installing FreeType $FREETYPE_VERSION..."
+#     cd "$BUILD_DIR"/freetype
+#     sudo make install
+# fi
+# cd "$BUILD_DIR"
 
-# Build or Install Fontconfig
-if $BUILD_ENABLED; then
-    echo "Building Fontconfig $FONTCONFIG_VERSION from source..."
-    if [ ! -d "fontconfig" ]; then
-        curl -L -o fontconfig.tar.xz "https://www.freedesktop.org/software/fontconfig/release/fontconfig-${FONTCONFIG_VERSION}.tar.xz"
-        tar xf fontconfig.tar.xz
-        mv "fontconfig-${FONTCONFIG_VERSION}" fontconfig
-        rm fontconfig.tar.xz
-    fi
+# # Build or Install Fontconfig
+# if $BUILD_ENABLED; then
+#     echo "Building Fontconfig $FONTCONFIG_VERSION from source..."
+#     if [ ! -d "fontconfig" ]; then
+#         curl -L -o fontconfig.tar.xz "https://www.freedesktop.org/software/fontconfig/release/fontconfig-${FONTCONFIG_VERSION}.tar.xz"
+#         tar xf fontconfig.tar.xz
+#         mv "fontconfig-${FONTCONFIG_VERSION}" fontconfig
+#         rm fontconfig.tar.xz
+#     fi
 
-    cd fontconfig
-    PKG_CONFIG_PATH="$INSTALL_PREFIX/lib/pkgconfig:$INSTALL_PREFIX/local/lib/pkgconfig:$INSTALL_PREFIX/share/pkgconfig" \
-    ./configure --prefix=$INSTALL_PREFIX --enable-static --disable-shared
-    make -j$(nproc)
-fi
+#     cd fontconfig
+#     PKG_CONFIG_PATH="$INSTALL_PREFIX/lib/pkgconfig:$INSTALL_PREFIX/local/lib/pkgconfig:$INSTALL_PREFIX/share/pkgconfig" \
+#     ./configure --prefix=$INSTALL_PREFIX --enable-static --disable-shared
+#     make -j$(nproc)
+# fi
 
-if $INSTALL_ENABLED; then
-    echo "Installing Fontconfig $FONTCONFIG_VERSION..."
-    cd "$BUILD_DIR"/fontconfig
-    sudo make install
-fi
-cd "$BUILD_DIR"
+# if $INSTALL_ENABLED; then
+#     echo "Installing Fontconfig $FONTCONFIG_VERSION..."
+#     cd "$BUILD_DIR"/fontconfig
+#     sudo make install
+# fi
+# cd "$BUILD_DIR"
 
 # Build or Install GLib from source
 if $BUILD_ENABLED; then
