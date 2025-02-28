@@ -125,6 +125,8 @@ jobs:
               -DBUILD_SHARED_LIBS=OFF \
               -DCMAKE_PREFIX_PATH=/opt/Qt6 \
               -DCMAKE_INSTALL_PREFIX=release \
+              -DCMAKE_POLICY_DEFAULT_CMP0177=NEW \
+              -DCMAKE_POLICY_DEFAULT_CMP0174=NEW \
               -DCMAKE_VERBOSE_MAKEFILE=ON \
               -DQT_DEBUG_FIND_PACKAGE=ON
 

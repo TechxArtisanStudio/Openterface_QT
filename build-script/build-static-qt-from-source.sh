@@ -18,8 +18,8 @@ sudo apt-get install -y build-essential meson ninja-build bison flex pkg-config 
     libxrender-dev libxcb1-dev libxcb-glx0-dev libxcb-xfixes0-dev \
     libxcb-xinerama0-dev libxcb-xkb-dev libxcb-util-dev \
     libdrm-dev libgbm-dev libatspi2.0-dev \
-    libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev \
-    libvulkan-dev libssl-dev
+    libvulkan-dev libssl-dev \
+    libpulse-dev libavcodec-dev libavformat-dev libavutil-dev libswscale-dev libavfilter-dev libavdevice-dev
 
 QT_VERSION=6.6.3
 QT_MAJOR_VERSION=6.6
@@ -41,6 +41,9 @@ for module in "${MODULES[@]}"; do
     fi
 done
 
+# Define common CMake flags to suppress warnings
+CMAKE_COMMON_FLAGS="-Wno-dev -DCMAKE_POLICY_DEFAULT_CMP0177=NEW -DCMAKE_POLICY_DEFAULT_CMP0174=NEW"
+
 # Build qtbase first
 echo "Building qtbase..."
 cd "$BUILD_DIR/qtbase"
@@ -48,7 +51,7 @@ mkdir -p build
 cd build
 
 cmake -GNinja \
-    -Wno-dev \
+    $CMAKE_COMMON_FLAGS \
     -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" \
     -DBUILD_SHARED_LIBS=OFF \
     -DFEATURE_dbus=ON \
@@ -73,6 +76,7 @@ cd "$BUILD_DIR/qtshadertools"
 mkdir -p build
 cd build
 cmake -GNinja \
+    $CMAKE_COMMON_FLAGS \
     -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" \
     -DBUILD_SHARED_LIBS=OFF \
     -DCMAKE_EXE_LINKER_FLAGS="-lfontconfig -lfreetype" \
@@ -92,6 +96,7 @@ for module in "${MODULES[@]}"; do
         # Add specific flags for qtmultimedia to enable FFmpeg and PulseAudio but disable GStreamer
         if [[ "$module" == "qtmultimedia" ]]; then
             cmake -GNinja \
+                $CMAKE_COMMON_FLAGS \
                 -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" \
                 -DCMAKE_PREFIX_PATH="$INSTALL_PREFIX" \
                 -DBUILD_SHARED_LIBS=OFF \
@@ -104,6 +109,7 @@ for module in "${MODULES[@]}"; do
                 ..
         else
             cmake -GNinja \
+                $CMAKE_COMMON_FLAGS \
                 -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" \
                 -DCMAKE_PREFIX_PATH="$INSTALL_PREFIX" \
                 -DBUILD_SHARED_LIBS=OFF \
