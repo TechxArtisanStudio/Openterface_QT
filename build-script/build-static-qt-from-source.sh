@@ -14,7 +14,7 @@ sudo apt-get install -y build-essential meson ninja-build bison flex pkg-config 
     libxcb-render-util0-dev libxcb-render0-dev libxcb-shm0-dev libxcb-util1 \
     libxfixes-dev libxi-dev libx11-dev libx11-xcb-dev libxext-dev libxfixes-dev \
     libdbus-1-dev libfontconfig1-dev libfreetype-dev libxkbcommon-dev libxkbcommon-x11-dev libxrandr2 libxrandr-dev \
-    libxcb-randr0-dev
+    libxcb-randr0-dev libxcb-shape0-dev
 
 QT_VERSION=6.5.3
 QT_MAJOR_VERSION=6.5
