@@ -360,7 +360,6 @@ if $BUILD_ENABLED; then
     ./configure --prefix=$INSTALL_PREFIX --enable-static --disable-shared
     make -j$(nproc)
 fi
-fi
 
 if $INSTALL_ENABLED; then
     echo "Installing Fontconfig $FONTCONFIG_VERSION..."
