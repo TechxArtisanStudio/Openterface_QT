@@ -57,9 +57,11 @@ cd "$BUILD_DIR"
 # Install NASM
 if $BUILD_ENABLED; then
     echo "Installing NASM..."
-    curl -L -o nasm.tar.xz "https://www.nasm.us/pub/nasm/releasebuilds/${NASM_VERSION}/nasm-${NASM_VERSION}.tar.xz"
-    tar xf nasm.tar.xz
-    rm nasm.tar.xz
+    if [ ! -d "nasm-${NASM_VERSION}" ]; then
+        curl -L -o nasm.tar.xz "https://www.nasm.us/pub/nasm/releasebuilds/${NASM_VERSION}/nasm-${NASM_VERSION}.tar.xz"
+        tar xf nasm.tar.xz
+        rm nasm.tar.xz
+    fi
 
     cd "nasm-${NASM_VERSION}"
     ./configure --prefix=/usr
