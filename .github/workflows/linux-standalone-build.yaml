@@ -73,14 +73,14 @@ jobs:
         run: |
           bash ${{ env.SOURCE_DIR }}/build-script/build-static-qt-from-source.sh
 
-      # - name: Create build directory
-      #   run: |
-      #     mkdir ${{ runner.temp }}/build
+      - name: Create build directory
+        run: |
+          mkdir ${{ runner.temp }}/build
 
-      # - name: Prepare Driver Files
-      #   run: |
-      #     mkdir ${{ env.SOURCE_DIR }}/drivers
-      #     cp driver/linux/* ${{ env.SOURCE_DIR }}/drivers/
+      - name: Prepare Driver Files
+        run: |
+          mkdir ${{ env.SOURCE_DIR }}/drivers
+          cp driver/linux/* ${{ env.SOURCE_DIR }}/drivers/
       
       - name: Install OpenGL ES Development Packages
         run: |
@@ -113,7 +113,8 @@ jobs:
 
 
       - name: Build Standalone Executable
-        working-directory: ${{ runner.temp }}
+        working-directory: ${{ runner.temp }}/build
+        
         run: |
           echo "Setting LD_LIBRARY_PATH..."
           export LD_LIBRARY_PATH=/usr/lib:/usr/local/lib:$LD_LIBRARY_PATH
