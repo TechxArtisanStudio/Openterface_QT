@@ -19,15 +19,41 @@ sudo apt-get install -y build-essential meson ninja-build bison flex pkg-config 
     libxcb-xinerama0-dev libxcb-xkb-dev libxcb-util-dev \
     libdrm-dev libgbm-dev libatspi2.0-dev \
     libvulkan-dev libssl-dev \
-    libpulse-dev libavcodec-dev libavformat-dev libavutil-dev libswscale-dev libavfilter-dev libavdevice-dev
+    libpulse-dev \
+    yasm nasm # Dependencies for FFmpeg compilation
 
 QT_VERSION=6.6.3
 QT_MAJOR_VERSION=6.6
 INSTALL_PREFIX=/opt/Qt6
 BUILD_DIR=$(pwd)/qt-build
+FFMPEG_PREFIX="$BUILD_DIR/ffmpeg-install"
 MODULES=("qtbase" "qtshadertools" "qtmultimedia" "qtsvg" "qtserialport")
 DOWNLOAD_BASE_URL="https://download.qt.io/archive/qt/$QT_MAJOR_VERSION/$QT_VERSION/submodules"
 
+# Build FFmpeg statically
+echo "Building FFmpeg statically..."
+FFMPEG_VERSION="6.1.1"
+cd "$BUILD_DIR"
+if [ ! -d "ffmpeg-$FFMPEG_VERSION" ]; then
+    curl -L -o ffmpeg.tar.bz2 "https://ffmpeg.org/releases/ffmpeg-$FFMPEG_VERSION.tar.bz2"
+    tar xjf ffmpeg.tar.bz2
+    rm ffmpeg.tar.bz2
+fi
+
+cd "ffmpeg-$FFMPEG_VERSION"
+./configure \
+    --prefix="$FFMPEG_PREFIX" \
+    --enable-static \
+    --disable-shared \
+    --disable-doc \
+    --disable-programs \
+    --disable-outdevs \
+    --enable-pic \
+    --enable-libpulse \
+    --disable-debug
+
+make -j$(nproc)
+make install
 
 # Download and extract modules
 mkdir -p "$BUILD_DIR"
@@ -95,10 +121,11 @@ for module in "${MODULES[@]}"; do
 
         # Add specific flags for qtmultimedia to enable FFmpeg and PulseAudio but disable GStreamer
         if [[ "$module" == "qtmultimedia" ]]; then
+            PKG_CONFIG_PATH="$FFMPEG_PREFIX/lib/pkgconfig:$PKG_CONFIG_PATH" \
             cmake -GNinja \
                 $CMAKE_COMMON_FLAGS \
                 -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" \
-                -DCMAKE_PREFIX_PATH="$INSTALL_PREFIX" \
+                -DCMAKE_PREFIX_PATH="$INSTALL_PREFIX;$FFMPEG_PREFIX" \
                 -DBUILD_SHARED_LIBS=OFF \
                 -DFEATURE_gstreamer=OFF \
                 -DINPUT_gstreamer=OFF \
@@ -106,6 +133,9 @@ for module in "${MODULES[@]}"; do
                 -DFEATURE_ffmpeg=ON \
                 -DINPUT_ffmpeg=ON \
                 -DFEATURE_avfoundation=OFF \
+                -DCMAKE_FIND_ROOT_PATH="$FFMPEG_PREFIX" \
+                -DCMAKE_EXE_LINKER_FLAGS="-L$FFMPEG_PREFIX/lib" \
+                -DFFMPEG_PATH="$FFMPEG_PREFIX" \
                 ..
         else
             cmake -GNinja \
