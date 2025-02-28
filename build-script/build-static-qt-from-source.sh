@@ -30,6 +30,9 @@ FFMPEG_PREFIX="$BUILD_DIR/ffmpeg-install"
 MODULES=("qtbase" "qtshadertools" "qtmultimedia" "qtsvg" "qtserialport")
 DOWNLOAD_BASE_URL="https://download.qt.io/archive/qt/$QT_MAJOR_VERSION/$QT_VERSION/submodules"
 
+# Create the build directory first
+mkdir -p "$BUILD_DIR"
+
 # Build FFmpeg statically
 echo "Building FFmpeg statically..."
 FFMPEG_VERSION="6.1.1"
@@ -56,7 +59,6 @@ make -j$(nproc)
 make install
 
 # Download and extract modules
-mkdir -p "$BUILD_DIR"
 cd "$BUILD_DIR"
 for module in "${MODULES[@]}"; do
     if [ ! -d "$module" ]; then
