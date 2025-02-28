@@ -21,8 +21,8 @@ sudo apt-get install -y build-essential meson ninja-build bison flex pkg-config 
     libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev \
     libvulkan-dev libssl-dev
 
-QT_VERSION=6.5.3
-QT_MAJOR_VERSION=6.5
+QT_VERSION=6.6.3
+QT_MAJOR_VERSION=6.6
 INSTALL_PREFIX=/opt/Qt6
 BUILD_DIR=$(pwd)/qt-build
 MODULES=("qtbase" "qtshadertools" "qtmultimedia" "qtsvg" "qtserialport")
