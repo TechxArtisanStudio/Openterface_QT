@@ -356,8 +356,10 @@ if $BUILD_ENABLED; then
     fi
 
     cd fontconfig
+    PKG_CONFIG_PATH="$INSTALL_PREFIX/lib/pkgconfig:$INSTALL_PREFIX/local/lib/pkgconfig:$INSTALL_PREFIX/share/pkgconfig" \
     ./configure --prefix=$INSTALL_PREFIX --enable-static --disable-shared
     make -j$(nproc)
+fi
 fi
 
 if $INSTALL_ENABLED; then
