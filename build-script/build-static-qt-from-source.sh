@@ -45,6 +45,7 @@ export LD_LIBRARY_PATH=/usr/lib:/usr/local/lib:$DEPS_INSTALL_PREFIX/lib:$LD_LIBR
 export PKG_CONFIG_PATH="$DEPS_INSTALL_PREFIX/lib/pkgconfig:$DEPS_INSTALL_PREFIX/share/pkgconfig:$PKG_CONFIG_PATH"
 
 cmake -GNinja \
+    -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" \
     -DCMAKE_PREFIX_PATH="$DEPS_INSTALL_PREFIX" \
     -DBUILD_SHARED_LIBS=OFF \
     -DFEATURE_xcb=ON \
@@ -59,6 +60,7 @@ cmake -GNinja \
     -DFEATURE_vnc=OFF \
     -DFEATURE_opengl_desktop=ON \
     -DFEATURE_accessibility=ON \
+    -DFEATURE_sql=OFF \
     -DINPUT_opengl=desktop \
     -DQT_QMAKE_TARGET_MKSPEC=linux-g++ \
     -DQT_BUILD_EXAMPLES=OFF \
@@ -76,7 +78,7 @@ mkdir -p build
 cd build
 cmake -GNinja \
     -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" \
-    -DCMAKE_PREFIX_PATH="$INSTALL_PREFIX" \
+    -DCMAKE_PREFIX_PATH="$DEPS_INSTALL_PREFIX" \
     -DBUILD_SHARED_LIBS=OFF \
     -DFEATURE_static_runtime=ON \
     ..
@@ -94,7 +96,7 @@ for module in "${MODULES[@]}"; do
 
         cmake -GNinja \
             -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" \
-            -DCMAKE_PREFIX_PATH="$INSTALL_PREFIX" \
+            -DCMAKE_PREFIX_PATH="$DEPS_INSTALL_PREFIX" \
             -DBUILD_SHARED_LIBS=OFF \
             ..
         
