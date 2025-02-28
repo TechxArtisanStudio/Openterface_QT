@@ -33,7 +33,7 @@ done
 
 sudo apt-get install -y libgl1-mesa-dev libglu1-mesa-dev libxrender-dev libxi-dev \
     libxcb-cursor-dev libxcb-icccm4-dev libxcb-keysyms1-dev \
-    libglib2.0-dev libglib2.0-bin libglib2.0-0 libgthread-2.0-0 libgtk-3-dev
+    libglib2.0-dev libglib2.0-bin libglib2.0-0 libgthread-2.0-0 libgtk-3-dev libxkbcommon-x11-dev
 
 # Build qtbase first
 echo "Building qtbase..."
@@ -43,35 +43,13 @@ cd build
 
 export LD_LIBRARY_PATH=/usr/lib:/usr/local/lib:$DEPS_INSTALL_PREFIX/lib:$LD_LIBRARY_PATH
 
-cmake -GNinja \
-    -Wno-dev \
-    -DBUILD_SHARED_LIBS=OFF \
-    -DFEATURE_dbus=OFF \
-    -DFEATURE_sql=OFF \
-    -DFEATURE_testlib=OFF \
-    -DFEATURE_icu=OFF \
-    -DFEATURE_opengl=ON \
-    -DFEATURE_xcb=ON \
-    -DFEATURE_xkbcommon=ON \
-    -DFEATURE_xkbcommon_x11=ON \
-    -DTEST_xcb_syslibs=ON \
-    -DFEATURE_xcb_xinput=system \
-    -DFEATURE_androiddeployqt=OFF \
-    -DFEATURE_vnc=OFF \
-    -DCMAKE_PREFIX_PATH="$DEPS_INSTALL_PREFIX" \
-    -DPKG_CONFIG_USE_CMAKE_PREFIX_PATH=ON \
-    -DQT_XCB_CONFIG="system" \
-    -DQT_QMAKE_TARGET_MKSPEC=linux-g++ \
-    -DCMAKE_EXE_LINKER_FLAGS="-lXau -lXdmcp" \
-    ..
-
 ninja
 sudo ninja install
 
 
 # Build qtshadertools
 echo "Building qtshadertools..."
-sudo apt-get install -y libfontconfig1-dev libfreetype6-dev
+sudo apt-get install -y libfontconfig1-dev libfreetype6-dev libharfbuzz-dev
 cd "$BUILD_DIR/qtshadertools"
 mkdir -p build
 cd build
