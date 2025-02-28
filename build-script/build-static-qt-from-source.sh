@@ -12,7 +12,7 @@ sudo apt-get install -y build-essential meson ninja-build bison flex pkg-config 
 QT_VERSION=6.5.3
 QT_MAJOR_VERSION=6.5
 INSTALL_PREFIX=/opt/Qt6
-DEPS_INSTALL_PREFIX=/opt/qt6-deps
+DEPS_INSTALL_PREFIX=/opt/qt-deps
 BUILD_DIR=$(pwd)/qt-build
 MODULES=("qtbase" "qtshadertools" "qtmultimedia" "qtsvg" "qtserialport")
 DOWNLOAD_BASE_URL="https://download.qt.io/archive/qt/$QT_MAJOR_VERSION/$QT_VERSION/submodules"
