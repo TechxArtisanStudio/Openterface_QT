@@ -6,7 +6,8 @@ set -e
 # Install minimal build requirements
 sudo apt-get update
 sudo apt-get install -y build-essential meson ninja-build bison flex pkg-config python3-pip linux-headers-$(uname -r) \
-    autoconf automake libtool autoconf-archive cmake libxml2-dev libxrandr-dev
+    autoconf automake libtool autoconf-archive cmake libxml2-dev libxrandr-dev \
+    libglib2.0-dev libgtk-3-dev
 
 
 QT_VERSION=6.5.3
@@ -31,7 +32,8 @@ for module in "${MODULES[@]}"; do
 done
 
 sudo apt-get install -y libgl1-mesa-dev libglu1-mesa-dev libxrender-dev libxi-dev \
-    libxcb-cursor-dev libxcb-icccm4-dev libxcb-keysyms1-dev
+    libxcb-cursor-dev libxcb-icccm4-dev libxcb-keysyms1-dev \
+    libglib2.0-dev libglib2.0-bin libglib2.0-0 libgthread-2.0-0 libgtk-3-dev
 
 # Build qtbase first
 echo "Building qtbase..."
@@ -61,6 +63,9 @@ cmake -GNinja \
     -DXKBCOMMON_X11_INCLUDE_DIR=/usr/include \
     -DXKBCOMMON_X11_LIBRARY=/usr/lib/x86_64-linux-gnu/libxkbcommon-x11.so \
     -DQT_QMAKE_TARGET_MKSPEC=linux-g++ \
+    -DGLIB2_INCLUDE_DIRS=/usr/include/glib-2.0:/usr/lib/x86_64-linux-gnu/glib-2.0/include \
+    -DGLIB2_LIBRARIES=/usr/lib/x86_64-linux-gnu/libglib-2.0.so \
+    -DGTHREAD2_LIBRARIES=/usr/lib/x86_64-linux-gnu/libgthread-2.0.so \
     ..
 
 ninja
