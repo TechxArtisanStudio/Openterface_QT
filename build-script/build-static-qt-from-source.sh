@@ -54,6 +54,7 @@ cmake -GNinja \
     -DFEATURE_xcb=ON \
     -DFEATURE_xkbcommon=ON \
     -DFEATURE_xkbcommon_x11=ON \
+    -DTEST_xcb_syslibs=ON \
     -DFEATURE_xcb_xinput=system \
     -DCMAKE_PREFIX_PATH="$DEPS_INSTALL_PREFIX" \
     -DPKG_CONFIG_USE_CMAKE_PREFIX_PATH=ON \
