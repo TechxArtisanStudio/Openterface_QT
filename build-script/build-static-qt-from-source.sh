@@ -27,14 +27,14 @@ QT_MAJOR_VERSION=6.6
 INSTALL_PREFIX=/opt/Qt6
 BUILD_DIR=$(pwd)/qt-build
 FFMPEG_PREFIX="$BUILD_DIR/ffmpeg-install"
-# Update module list to include qtdeclarative (which provides Qt Quick)
+# Only include essential modules
 MODULES=("qtbase" "qtshadertools" "qtdeclarative" "qtmultimedia" "qtsvg" "qtserialport")
 DOWNLOAD_BASE_URL="https://download.qt.io/archive/qt/$QT_MAJOR_VERSION/$QT_VERSION/submodules"
 
 # Create the build directory first
 mkdir -p "$BUILD_DIR"
 
-# Build FFmpeg statically
+# Build FFmpeg statically with minimal size
 echo "Building FFmpeg statically..."
 FFMPEG_VERSION="6.1.1"
 cd "$BUILD_DIR"
@@ -54,10 +54,21 @@ cd "ffmpeg-$FFMPEG_VERSION"
     --disable-outdevs \
     --enable-pic \
     --enable-libpulse \
-    --disable-debug
+    --disable-debug \
+    --disable-everything \
+    --enable-small \
+    --disable-iconv \
+    --disable-network \
+    --optflags="-Os -ffunction-sections -fdata-sections" \
+    --enable-decoder=aac,mp3,pcm_s16le,h264,hevc \
+    --enable-demuxer=aac,mp3,mov,matroska \
+    --enable-protocol=file \
+    --enable-parser=aac,h264,hevc
 
 make -j$(nproc)
 make install
+# Strip binaries
+find "$FFMPEG_PREFIX" -type f -name "*.a" -exec strip --strip-unneeded {} \;
 
 # Download and extract modules
 cd "$BUILD_DIR"
@@ -70,8 +81,14 @@ for module in "${MODULES[@]}"; do
     fi
 done
 
-# Define common CMake flags to suppress warnings
-CMAKE_COMMON_FLAGS="-Wno-dev -DCMAKE_POLICY_DEFAULT_CMP0177=NEW -DCMAKE_POLICY_DEFAULT_CMP0174=NEW"
+# Define common CMake flags with size optimization
+CMAKE_COMMON_FLAGS="-Wno-dev -DCMAKE_POLICY_DEFAULT_CMP0177=NEW -DCMAKE_POLICY_DEFAULT_CMP0174=NEW \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_CXX_FLAGS=\"-Os -ffunction-sections -fdata-sections\" \
+    -DCMAKE_C_FLAGS=\"-Os -ffunction-sections -fdata-sections\" \
+    -DCMAKE_EXE_LINKER_FLAGS=\"-Wl,--gc-sections\" \
+    -DCMAKE_SHARED_LINKER_FLAGS=\"-Wl,--gc-sections\" \
+    -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON"
 
 # Build qtbase first
 echo "Building qtbase..."
@@ -93,11 +110,29 @@ cmake -GNinja \
     -DFEATURE_xkbcommon=ON \
     -DFEATURE_xkbcommon_x11=ON \
     -DTEST_xcb_syslibs=ON \
+    -DFEATURE_optimize_size=ON \
+    -DFEATURE_developer_build=OFF \
+    -DFEATURE_accessibility=OFF \
+    -DFEATURE_printsupport=OFF \
+    -DFEATURE_concurrent=OFF \
+    -DFEATURE_system_zlib=ON \
+    -DFEATURE_network=OFF \
+    -DFEATURE_regularexpression=OFF \
+    -DFEATURE_imageformat_bmp=OFF \
+    -DFEATURE_imageformat_ppm=OFF \
+    -DFEATURE_imageformat_xbm=OFF \
+    -DFEATURE_widgets=ON \
+    -DFEATURE_sql_sqlite=OFF \
+    -DFEATURE_sql_mysql=OFF \
+    -DFEATURE_sql_psql=OFF \
+    -DFEATURE_vulkan=ON \
+    -DFEATURE_gif=OFF \
     ..
 
 ninja
 sudo ninja install
-
+# Strip binaries
+sudo find "$INSTALL_PREFIX" -type f -executable -exec strip --strip-unneeded {} \; 2>/dev/null || true
 
 # Build qtshadertools
 echo "Building qtshadertools..."
@@ -109,6 +144,7 @@ cmake -GNinja \
     -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" \
     -DBUILD_SHARED_LIBS=OFF \
     -DCMAKE_EXE_LINKER_FLAGS="-lfontconfig -lfreetype" \
+    -DFEATURE_optimize_size=ON \
     ..
 
 ninja
@@ -124,6 +160,9 @@ cmake -GNinja \
     -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" \
     -DCMAKE_PREFIX_PATH="$INSTALL_PREFIX" \
     -DBUILD_SHARED_LIBS=OFF \
+    -DFEATURE_optimize_size=ON \
+    -DFEATURE_qml_debug=OFF \
+    -DFEATURE_quick_designer=OFF \
     ..
 
 ninja
@@ -154,6 +193,10 @@ for module in "${MODULES[@]}"; do
                 -DCMAKE_FIND_ROOT_PATH="$FFMPEG_PREFIX" \
                 -DCMAKE_EXE_LINKER_FLAGS="-L$FFMPEG_PREFIX/lib" \
                 -DFFMPEG_PATH="$FFMPEG_PREFIX" \
+                -DFEATURE_optimize_size=ON \
+                -DFEATURE_wmf=OFF \
+                -DFEATURE_directshow=OFF \
+                -DFEATURE_videotoolbox=OFF \
                 ..
         else
             cmake -GNinja \
@@ -161,12 +204,16 @@ for module in "${MODULES[@]}"; do
                 -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" \
                 -DCMAKE_PREFIX_PATH="$INSTALL_PREFIX" \
                 -DBUILD_SHARED_LIBS=OFF \
+                -DFEATURE_optimize_size=ON \
                 ..
         fi
         
         ninja
         sudo ninja install
+        # Strip binaries after each module installation
+        sudo find "$INSTALL_PREFIX" -type f -executable -exec strip --strip-unneeded {} \; 2>/dev/null || true
     fi
 done
 
 echo "OpenTerface QT $QT_VERSION has been successfully built and installed to $INSTALL_PREFIX"
+echo "Size optimization enabled - final build should be significantly smaller"
