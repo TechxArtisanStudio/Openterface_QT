@@ -272,12 +272,12 @@ cd "$BUILD_DIR"
 #     ninja
 # fi
 
-if $INSTALL_ENABLED; then
-    echo "Installing PulseAudio $PULSEAUDIO_VERSION..."
-    cd "$BUILD_DIR"/pulseaudio/build
-    sudo ninja install
-fi
-cd "$BUILD_DIR"
+# if $INSTALL_ENABLED; then
+#     echo "Installing PulseAudio $PULSEAUDIO_VERSION..."
+#     cd "$BUILD_DIR"/pulseaudio/build
+#     sudo ninja install
+# fi
+# cd "$BUILD_DIR"
 
 # Build or Install libexpat
 if $BUILD_ENABLED; then
