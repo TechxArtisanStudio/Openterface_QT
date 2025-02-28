@@ -85,7 +85,7 @@ done
 CMAKE_COMMON_FLAGS="-Wno-dev -DCMAKE_POLICY_DEFAULT_CMP0177=NEW -DCMAKE_POLICY_DEFAULT_CMP0174=NEW \
     -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_CXX_FLAGS=\"-Os -ffunction-sections\" \
-    -DCMAKE_C_FLAGS=\"-Os -ffunction-sections -fdata-sections\" \
+    -DCMAKE_C_FLAGS=\"-Os -ffunction-sections\" \
     -DCMAKE_EXE_LINKER_FLAGS=\"-Wl,--gc-sections\" \
     -DCMAKE_SHARED_LINKER_FLAGS=\"-Wl,--gc-sections\" \
     -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON"
