@@ -312,7 +312,7 @@ if $BUILD_ENABLED; then
     fi
 
     cd gperf
-    ./configure --prefix=$INSTALL_PREFIX
+    ./configure --prefix=$INSTALL_PREFIX --enable-static --disable-shared
     make -j$(nproc)
 fi
 
