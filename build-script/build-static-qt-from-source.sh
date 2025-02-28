@@ -60,10 +60,8 @@ mkdir -p build
 cd build
 cmake -GNinja \
     -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" \
-    -DCMAKE_PREFIX_PATH="$INSTALL_PREFIX" \
     -DBUILD_SHARED_LIBS=OFF \
-    -DFEATURE_static_runtime=ON \
-    -DCMAKE_EXE_LINKER_FLAGS="/usr/lib/libXau.a /usr/lib/libXdmcp.a -lfontconfig -lfreetype" \
+    -DCMAKE_EXE_LINKER_FLAGS="-lfontconfig -lfreetype" \
     ..
 
 ninja
