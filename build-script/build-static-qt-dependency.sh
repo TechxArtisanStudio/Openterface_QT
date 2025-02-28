@@ -66,7 +66,7 @@ cd "$BUILD_DIR"
 # Install minimal build requirements
 sudo apt-get update
 sudo apt-get install -y build-essential meson ninja-build bison flex pkg-config python3-pip linux-headers-$(uname -r) \
-    autoconf automake libtool autoconf-archive cmake libc6-dev zlib1g-dev
+    autoconf automake libtool autoconf-archive cmake libc6-dev zlib1g-dev gperf
 
 # Check for required tools
 command -v curl >/dev/null 2>&1 || { echo "Curl is not installed. Please install Curl."; exit 1; }
