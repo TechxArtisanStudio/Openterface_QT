@@ -27,7 +27,8 @@ QT_MAJOR_VERSION=6.6
 INSTALL_PREFIX=/opt/Qt6
 BUILD_DIR=$(pwd)/qt-build
 FFMPEG_PREFIX="$BUILD_DIR/ffmpeg-install"
-MODULES=("qtbase" "qtshadertools" "qtmultimedia" "qtsvg" "qtserialport")
+# Update module list to include qtdeclarative (which provides Qt Quick)
+MODULES=("qtbase" "qtshadertools" "qtdeclarative" "qtmultimedia" "qtsvg" "qtserialport")
 DOWNLOAD_BASE_URL="https://download.qt.io/archive/qt/$QT_MAJOR_VERSION/$QT_VERSION/submodules"
 
 # Create the build directory first
@@ -113,9 +114,24 @@ cmake -GNinja \
 ninja
 sudo ninja install
 
+# Build qtdeclarative (Qt Quick) before qtmultimedia
+echo "Building qtdeclarative..."
+cd "$BUILD_DIR/qtdeclarative"
+mkdir -p build
+cd build
+cmake -GNinja \
+    $CMAKE_COMMON_FLAGS \
+    -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" \
+    -DCMAKE_PREFIX_PATH="$INSTALL_PREFIX" \
+    -DBUILD_SHARED_LIBS=OFF \
+    ..
+
+ninja
+sudo ninja install
+
 # Build other modules
 for module in "${MODULES[@]}"; do
-    if [[ "$module" != "qtbase" && "$module" != "qtshadertools" ]]; then
+    if [[ "$module" != "qtbase" && "$module" != "qtshadertools" && "$module" != "qtdeclarative" ]]; then
         cd "$BUILD_DIR/$module"
         mkdir -p build
         cd build
