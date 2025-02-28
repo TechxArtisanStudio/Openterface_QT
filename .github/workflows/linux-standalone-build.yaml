@@ -57,17 +57,6 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: Build Qt Dependencies
-        if: steps.cache-deps.outputs.cache-hit != 'true'
-        run: |
-          bash ${{ env.SOURCE_DIR }}/build-script/build-static-qt-dependency.sh
-
-      - name: Qt Dependencies Already Built
-        if: steps.cache-deps.outputs.cache-hit == 'true'
-        run: |
-          echo "Qt dependencies already built"
-          bash ${{ env.SOURCE_DIR }}/build-script/build-static-qt-dependency.sh --no-build
-      
       - name: Build FFmpeg
         if: steps.cache-ffmpeg.outputs.cache-hit != 'true'
         run: |
