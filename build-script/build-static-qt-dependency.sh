@@ -812,7 +812,7 @@ if $INSTALL_ENABLED; then
 fi
 cd "$BUILD_DIR"
 
-# Build xcb-util-keysyms
+# Build or Install xcb-util-keysyms
 if $BUILD_ENABLED; then
     echo "Building xcb-util-keysyms $XCB_UTIL_KEYSYMS_VERSION from source..."
     if [ ! -d "xcb-util-keysyms" ]; then
@@ -834,12 +834,80 @@ if $INSTALL_ENABLED; then
 fi
 cd "$BUILD_DIR"
 
+# Build or Install xcb-util-image
+if $BUILD_ENABLED; then
+    echo "Building xcb-util-image from source..."
+    if [ ! -d "xcb-util-image" ]; then
+        curl -L -o xcb-util-image.tar.gz "https://xcb.freedesktop.org/dist/xcb-util-image-0.4.1.tar.gz"
+        tar xf xcb-util-image.tar.gz
+        mv "xcb-util-image-0.4.1" xcb-util-image
+        rm xcb-util-image.tar.gz
+    fi
+
+    cd xcb-util-image
+    CFLAGS="-fPIC" ./configure --prefix=$INSTALL_PREFIX --enable-static --disable-shared
+    make -j$(nproc)
+fi
+
+if $INSTALL_ENABLED; then
+    echo "Installing xcb-util-image..."
+    cd "$BUILD_DIR"/xcb-util-image
+    sudo make install
+fi
+cd "$BUILD_DIR"
+
+# Build or Install xcb-util-renderutil
+if $BUILD_ENABLED; then
+    echo "Building xcb-util-renderutil from source..."
+    if [ ! -d "xcb-util-renderutil" ]; then
+        curl -L -o xcb-util-renderutil.tar.gz "https://xcb.freedesktop.org/dist/xcb-util-renderutil-0.3.10.tar.gz"
+        tar xf xcb-util-renderutil.tar.gz
+        mv "xcb-util-renderutil-0.3.10" xcb-util-renderutil
+        rm xcb-util-renderutil.tar.gz
+    fi
+
+    cd xcb-util-renderutil
+    CFLAGS="-fPIC" ./configure --prefix=$INSTALL_PREFIX --enable-static --disable-shared
+    make -j$(nproc)
+fi
+
+if $INSTALL_ENABLED; then
+    echo "Installing xcb-util-renderutil..."
+    cd "$BUILD_DIR"/xcb-util-renderutil
+    sudo make install
+fi
+cd "$BUILD_DIR"
+
+# Build or Install xcb-util-cursor
+if $BUILD_ENABLED; then
+    echo "Building xcb-util-cursor $XCB_CURSOR_VERSION from source..."
+    if [ ! -d "xcb-util-cursor" ]; then
+        curl -L -o xcb-util-cursor.tar.gz "https://xcb.freedesktop.org/dist/xcb-util-cursor-${XCB_CURSOR_VERSION}.tar.gz"
+        tar xf xcb-util-cursor.tar.gz
+        mv "xcb-util-cursor-${XCB_CURSOR_VERSION}" xcb-util-cursor
+        rm xcb-util-cursor.tar.gz
+    fi
+
+    cd xcb-util-cursor
+    CFLAGS="-fPIC" ./configure --prefix=$INSTALL_PREFIX --enable-static --disable-shared
+    make -j$(nproc)
+fi
+
+if $INSTALL_ENABLED; then
+    echo "Installing xcb-util-cursor $XCB_CURSOR_VERSION..."
+    cd "$BUILD_DIR"/xcb-util-cursor
+    sudo make install
+fi
+cd "$BUILD_DIR"
+
 # Verify pkg-config files are installed
 echo "Verifying pkg-config files..."
 pkg-config --exists x11 && echo "x11.pc found" || echo "x11.pc not found"
 pkg-config --exists xext && echo "xext.pc found" || echo "xext.pc not found"
 pkg-config --exists xrender && echo "xrender.pc found" || echo "xrender.pc not found"
-
+pkg-config --exists xcb-image && echo "xcb-image.pc found" || echo "xcb-image.pc not found"
+pkg-config --exists xcb-cursor && echo "xcb-cursor.pc found" || echo "xcb-cursor.pc not found"
+pkg-config --exists xcb-renderutil && echo "xcb-renderutil.pc found" || echo "xcb-renderutil.pc not found"
 
 # Build libXdmcp
 if $BUILD_ENABLED; then
