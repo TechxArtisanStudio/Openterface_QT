@@ -20,9 +20,9 @@ find_package(Qt${QT_VERSION_MAJOR} OPTIONAL_COMPONENTS Widgets)
 find_package(X11 REQUIRED COMPONENTS Xrandr)
 
 find_package(EXPAT REQUIRED)
+find_package(BZip2 REQUIRED)
 find_package(Freetype REQUIRED)
 find_package(Fontconfig REQUIRED)
-find_package(BZip2 REQUIRED)
 
 # Use pkg-config to find Xrender
 find_package(PkgConfig REQUIRED)
@@ -105,10 +105,10 @@ target_link_libraries(openterfaceQT PRIVATE
     Qt::Svg
     ${FFMPEG_LIBRARIES}  # Link against FFmpeg libraries
     ${EXPAT_LIBRARIES}
+    ${BZIP2_LIBRARIES}
     ${FREETYPE_LIBRARIES}
     ${FONTCONFIG_LIBRARIES}
     ${XRENDER_LIBRARIES}
-    ${BZIP2_LIBRARIES}
     ${EXTRA_LIBS}
 )
 
