@@ -12,6 +12,7 @@ sudo apt-get install -y build-essential meson ninja-build bison flex pkg-config 
 QT_VERSION=6.5.3
 QT_MAJOR_VERSION=6.5
 INSTALL_PREFIX=/opt/Qt6
+DEPS_INSTALL_PREFIX=/opt/qt6-deps
 BUILD_DIR=$(pwd)/qt-build
 MODULES=("qtbase" "qtshadertools" "qtmultimedia" "qtsvg" "qtserialport")
 DOWNLOAD_BASE_URL="https://download.qt.io/archive/qt/$QT_MAJOR_VERSION/$QT_VERSION/submodules"
@@ -63,7 +64,7 @@ cmake -GNinja \
     -DCMAKE_PREFIX_PATH="$INSTALL_PREFIX" \
     -DBUILD_SHARED_LIBS=OFF \
     -DFEATURE_static_runtime=ON \
-    -DCMAKE_EXE_LINKER_FLAGS="/usr/lib/libXau.a /usr/lib/libXdmcp.a -lfontconfig -lfreetype" \
+    -DCMAKE_EXE_LINKER_FLAGS="$DEPS_INSTALL_PREFIX/lib/libXau.a $DEPS_INSTALL_PREFIX/lib/libXdmcp.a -lfontconfig -lfreetype" \
     ..
 
 ninja
