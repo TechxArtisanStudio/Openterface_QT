@@ -1,163 +1,158 @@
 ---
-  name: Standalone Build for linux
-  
-  on:
-    push:
-      branches: ["main", "dev"]
-    pull_request:
-      branches: ["dev"]
-    workflow_dispatch:
-  
-  defaults:
-    run:
-      shell: bash
-  
-  env:
-    ARTIFACT: openterfaceQT-standalone
-    SOURCE_DIR: ${{ github.workspace }}
-    QT_VERSION: 6.5.3 
-    GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  
-  jobs:
-    build:
-      runs-on: ubuntu-latest
-      steps:
-        - uses: actions/checkout@v2
-          with:
-            fetch-depth: 0
-  
-        - name: Cache Qt Build
-          id: cache-qt
-          uses: actions/cache@v3
-          with:
-            path: /opt/Qt6
-            key: qt-6.5.3-linux-static
+name: Standalone Build for linux
+
+on:
+  push:
+    branches: ["main", "dev"]
+  pull_request:
+    branches: ["dev"]
+  workflow_dispatch:
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  ARTIFACT: openterfaceQT-standalone
+  SOURCE_DIR: ${{ github.workspace }}
+  QT_VERSION: 6.5.3 
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+
+      - name: Cache Qt Build
+        id: cache-qt
+        uses: actions/cache@v3
+        with:
+          path: /opt/Qt6
+          key: qt-6.5.3-linux-static
+          restore-keys: |
+            qt-6.5.3-linux-static
+
+      # - name: Cache Dependencies
+      #   id: cache-deps
+      #   uses: actions/cache@v3
+      #   with:
+      #       path: ${{ env.SOURCE_DIR }}/qt-build/
+      #       key: dependencies-cache
+      #       restore-keys: |
+      #         dependencies-cache
+      - name: Cache FFmpeg
+        id: cache-ffmpeg
+        uses: actions/cache@v3
+        with:
+            path: ${{ env.SOURCE_DIR }}/ffmpeg-build/
+            key: ffmpeg-cache
             restore-keys: |
-              qt-6.5.3-linux-static
-  
-        - name: Cache Dependencies
-          id: cache-deps
-          uses: actions/cache@v3
-          with:
-              path: ${{ env.SOURCE_DIR }}/qt-build/
-              key: dependencies-cache
-              restore-keys: |
-                dependencies-cache
-        - name: Cache FFmpeg
-          id: cache-ffmpeg
-          uses: actions/cache@v3
-          with:
-              path: ${{ env.SOURCE_DIR }}/ffmpeg-build/
-              key: ffmpeg-cache
-              restore-keys: |
-                ffmpeg-cache
-  
-        - name: Set up Python
-          uses: actions/setup-python@v5
-          with:
-            python-version: '3.10'
-  
-        - name: Build Qt Dependencies
-          if: steps.cache-deps.outputs.cache-hit != 'true'
-          run: |
-            bash ${{ env.SOURCE_DIR }}/build-script/build-static-qt-dependency.sh
-  
-        - name: Qt Dependencies Already Built
-          if: steps.cache-deps.outputs.cache-hit == 'true'
-          run: |
-            echo "Qt dependencies already built"
-            bash ${{ env.SOURCE_DIR }}/build-script/build-static-qt-dependency.sh --no-build
-        
-        - name: Build FFmpeg
-          if: steps.cache-ffmpeg.outputs.cache-hit != 'true'
-          run: |
-            bash ${{ env.SOURCE_DIR }}/build-script/build-static-ffmpeg.sh
-  
-        - name: FFmpeg Already Built
-          if: steps.cache-ffmpeg.outputs.cache-hit == 'true'
-          run: |
-            echo "FFmpeg already built"
-            bash ${{ env.SOURCE_DIR }}/build-script/build-static-ffmpeg.sh --no-build
-            
-        - name: Build Qt Statically
-          if: steps.cache-qt.outputs.cache-hit != 'true'
-          run: |
-            bash ${{ env.SOURCE_DIR }}/build-script/build-static-qt-from-source.sh
-  
-        # - name: Create build directory
-        #   run: |
-        #     mkdir ${{ runner.temp }}/build
-  
-        # - name: Prepare Driver Files
-        #   run: |
-        #     mkdir ${{ env.SOURCE_DIR }}/drivers
-        #     cp driver/linux/* ${{ env.SOURCE_DIR }}/drivers/
-        
-        # - name: Install OpenGL ES Development Packages
-        #   run: |
-        #     sudo apt-get update
-        #     sudo apt-get install -y \
-        #       libgles2-mesa-dev \
-        #       libegl1-mesa-dev \
-        #       libglib2.0-dev \
-        #       libpcre2-dev \
-        #       libxrandr2 \
-        #       libxcb1-dev \
-        #       '^libxcb.*-dev' \
-        #       libx11-xcb-dev \
-        #       libglu1-mesa-dev \
-        #       libxrender-dev \
-        #       libxi-dev \
-        #       libxkbcommon-dev \
-        #       libxkbcommon-x11-dev \
-        #       libexpat-dev \
-        #       libfreetype6-dev \
-        #       libfontconfig1-dev \
-        #       libx11-dev \
-        #       libdbus-1-dev \
-        #       libdbus-glib-1-dev \
-        #       libpulse-dev \
-        #       libsndfile1-dev \
-        #       libxrandr-dev \
-        #       libxrender-dev \
-        #       libexpat1-dev
-  
-        # - name: Build Standalone Executable
-        #   working-directory: ${{ runner.temp }}/build
-        #   run: |
-        #     echo "Setting LD_LIBRARY_PATH..."
-        #     export LD_LIBRARY_PATH=/usr/lib:/usr/local/lib:$LD_LIBRARY_PATH
-  
-        #     echo "Configuring with CMake..."
-        #       cmake -S "${{ env.SOURCE_DIR }}" -B . \
-        #         -DCMAKE_BUILD_TYPE=Release \
-        #         -DBUILD_SHARED_LIBS=OFF \
-        #         -DCMAKE_PREFIX_PATH=/opt/Qt6 \
-        #         -DCMAKE_INSTALL_PREFIX=release \
-        #         -DCMAKE_VERBOSE_MAKEFILE=ON \
-        #         -DQT_DEBUG_FIND_PACKAGE=ON \
-        #         -DCMAKE_CXX_FLAGS="-Os -s" \
-        #         -DCMAKE_C_FLAGS="-Os -s"
-  
-        #     echo "Building with CMake..."
-        #     cmake --build . --verbose || (echo "CMake build failed. Please check the build configuration." && exit 1)
-  
-        #     if [ ! -f openterfaceQT ]; then
-        #       echo "Error: Failed to build openterfaceQT"
-        #       exit 1
-        #     fi
+              ffmpeg-cache
 
-        #     echo "OpenterfaceQT Dependencies:"
-        #     ldd openterfaceQT
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
 
-        #     echo "Creating standalone package..."
-        #     mkdir package
-        #     cp openterfaceQT package
-  
-        # - name: Save build artifact
-        #   uses: actions/upload-artifact@v4
-        #   with:
-        #     name: ${{ env.ARTIFACT }}
-        #     path: ${{ runner.temp }}/build/package/openterfaceQT
-        #     if-no-files-found: error
+      # - name: Build Qt Dependencies
+      #   if: steps.cache-deps.outputs.cache-hit != 'true'
+      #   run: |
+      #     bash ${{ env.SOURCE_DIR }}/build-script/build-static-qt-dependency.sh
+
+      # - name: Qt Dependencies Already Built
+      #   if: steps.cache-deps.outputs.cache-hit == 'true'
+      #   run: |
+      #     echo "Qt dependencies already built"
+      #     bash ${{ env.SOURCE_DIR }}/build-script/build-static-qt-dependency.sh --no-build
       
+      - name: Build FFmpeg
+        if: steps.cache-ffmpeg.outputs.cache-hit != 'true'
+        run: |
+          bash ${{ env.SOURCE_DIR }}/build-script/build-static-ffmpeg.sh
+
+      - name: FFmpeg Already Built
+        if: steps.cache-ffmpeg.outputs.cache-hit == 'true'
+        run: |
+          echo "FFmpeg already built"
+          bash ${{ env.SOURCE_DIR }}/build-script/build-static-ffmpeg.sh --no-build
+          
+      - name: Build Qt Statically
+        if: steps.cache-qt.outputs.cache-hit != 'true'
+        run: |
+          bash ${{ env.SOURCE_DIR }}/build-script/build-static-qt-from-source.sh
+
+      - name: Create build directory
+        run: |
+          mkdir ${{ runner.temp }}/build
+
+      - name: Prepare Driver Files
+        run: |
+          mkdir ${{ env.SOURCE_DIR }}/drivers
+          cp driver/linux/* ${{ env.SOURCE_DIR }}/drivers/
+      
+      - name: Install OpenGL ES Development Packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libgles2-mesa-dev \
+            libegl1-mesa-dev \
+            libglib2.0-dev \
+            libpcre2-dev \
+            libxrandr2 \
+            libxcb1-dev \
+            '^libxcb.*-dev' \
+            libx11-xcb-dev \
+            libglu1-mesa-dev \
+            libxrender-dev \
+            libxi-dev \
+            libxkbcommon-dev \
+            libxkbcommon-x11-dev \
+            libexpat-dev \
+            libfreetype6-dev \
+            libfontconfig1-dev \
+            libx11-dev \
+            libdbus-1-dev \
+            libdbus-glib-1-dev \
+            libpulse-dev \
+            libsndfile1-dev \
+            libxrandr-dev \
+            libxrender-dev \
+            libexpat1-dev
+
+
+      - name: Build Standalone Executable
+        working-directory: ${{ runner.temp }}/build
+        run: |
+          echo "Setting LD_LIBRARY_PATH..."
+          export LD_LIBRARY_PATH=/usr/lib:/usr/local/lib:$LD_LIBRARY_PATH
+
+          echo "Configuring with CMake..."
+          cmake -S "${{ env.SOURCE_DIR }}" -B . \
+              -DCMAKE_BUILD_TYPE=Release \
+              -DBUILD_SHARED_LIBS=OFF \
+              -DCMAKE_PREFIX_PATH=/opt/Qt6 \
+              -DCMAKE_INSTALL_PREFIX=release \
+              -DCMAKE_VERBOSE_MAKEFILE=ON \
+              -DQT_DEBUG_FIND_PACKAGE=ON
+
+          echo "Building with CMake..."
+          cmake --build . --verbose || (echo "CMake build failed. Please check the build configuration." && exit 1)
+
+          if [ ! -f openterfaceQT ]; then
+            echo "Error: Failed to build openterfaceQT"
+            exit 1
+          fi
+
+          echo "Creating standalone package..."
+          mkdir package
+          cp openterfaceQT package
+
+      - name: Save build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.ARTIFACT }}
+          path: ${{ runner.temp }}/build/package/openterfaceQT
+          if-no-files-found: error

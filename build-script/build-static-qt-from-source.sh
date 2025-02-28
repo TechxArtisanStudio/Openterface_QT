@@ -6,23 +6,16 @@ set -e
 # Install minimal build requirements
 sudo apt-get update
 sudo apt-get install -y build-essential meson ninja-build bison flex pkg-config python3-pip linux-headers-$(uname -r) \
-    autoconf automake libtool autoconf-archive cmake libxml2-dev libxrandr-dev \
-    libglib2.0-dev libgtk-3-dev
+    autoconf automake libtool autoconf-archive cmake libxml2-dev libxrandr-dev
 
-# Add EGL and OpenGL dependencies
-sudo apt-get install -y libgl1-mesa-dev libgles2-mesa-dev libegl1-mesa-dev \
-    libdrm-dev libgbm-dev libxkbcommon-dev libxkbcommon-x11-dev \
-    libxcb-icccm4-dev libxcb-image0-dev libxcb-keysyms1-dev libxcb-render-util0-dev \
-    libxcb-xinerama0-dev libxcb-xkb-dev libxcb-randr0-dev libxcb-shape0-dev libx11-xcb-dev \
-    libx11-xcb1
 
 QT_VERSION=6.5.3
 QT_MAJOR_VERSION=6.5
 INSTALL_PREFIX=/opt/Qt6
-DEPS_INSTALL_PREFIX=/opt/qt-deps
 BUILD_DIR=$(pwd)/qt-build
 MODULES=("qtbase" "qtshadertools" "qtmultimedia" "qtsvg" "qtserialport")
 DOWNLOAD_BASE_URL="https://download.qt.io/archive/qt/$QT_MAJOR_VERSION/$QT_VERSION/submodules"
+
 
 # Download and extract modules
 mkdir -p "$BUILD_DIR"
@@ -36,54 +29,41 @@ for module in "${MODULES[@]}"; do
     fi
 done
 
+sudo apt-get install -y libgl1-mesa-dev libglu1-mesa-dev libxrender-dev libxi-dev \
+    libxcb-cursor-dev libxcb-icccm4-dev libxcb-keysyms1-dev
+
 # Build qtbase first
 echo "Building qtbase..."
 cd "$BUILD_DIR/qtbase"
 mkdir -p build
 cd build
 
-export LD_LIBRARY_PATH=/usr/lib:/usr/local/lib:$DEPS_INSTALL_PREFIX/lib:$LD_LIBRARY_PATH
-export PKG_CONFIG_PATH="$DEPS_INSTALL_PREFIX/lib/pkgconfig:$DEPS_INSTALL_PREFIX/share/pkgconfig:$PKG_CONFIG_PATH"
-
-# Check if XCB libraries are available
-pkg-config --exists x11-xcb && echo "x11-xcb found" || echo "x11-xcb not found"
-pkg-config --exists xcb && echo "xcb found" || echo "xcb not found"
-
 cmake -GNinja \
     -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" \
-    -DCMAKE_PREFIX_PATH="$DEPS_INSTALL_PREFIX" \
-    -DPKG_CONFIG_EXECUTABLE=/usr/bin/pkg-config \
     -DBUILD_SHARED_LIBS=OFF \
-    -DFEATURE_xcb=ON \
-    -DFEATURE_xlib=ON \
-    -DFEATURE_xcb_xlib=ON \
-    -DFEATURE_xkbcommon=ON \
-    -DFEATURE_xkbcommon_x11=ON \
-    -DTEST_xcb_syslibs=ON \
-    -DFEATURE_egl=ON \
+    -DFEATURE_dbus=ON \
+    -DFEATURE_sql=OFF \
+    -DFEATURE_testlib=OFF \
+    -DFEATURE_icu=OFF \
     -DFEATURE_opengl=ON \
-    -DFEATURE_opengl_desktop=ON \
-    -DFEATURE_accessibility=ON \
-    -DINPUT_opengl=desktop \
-    -DQT_QMAKE_TARGET_MKSPEC=linux-g++ \
-    -DQT_BUILD_EXAMPLES=OFF \
-    -DQT_BUILD_TESTS=OFF \
-    -DX11_XCB_INCLUDE_PATH="$DEPS_INSTALL_PREFIX/include" \
-    -DX11_XCB_LIBRARY="$DEPS_INSTALL_PREFIX/lib/libX11-xcb.a" \
     ..
 
 ninja
 sudo ninja install
 
+
 # Build qtshadertools
 echo "Building qtshadertools..."
-sudo apt-get install -y libfontconfig1-dev libfreetype6-dev libharfbuzz-dev
+sudo apt-get install -y libfontconfig1-dev libfreetype6-dev
 cd "$BUILD_DIR/qtshadertools"
 mkdir -p build
 cd build
 cmake -GNinja \
     -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" \
+    -DCMAKE_PREFIX_PATH="$INSTALL_PREFIX" \
     -DBUILD_SHARED_LIBS=OFF \
+    -DFEATURE_static_runtime=ON \
+    -DCMAKE_EXE_LINKER_FLAGS="/usr/lib/libXau.a /usr/lib/libXdmcp.a -lfontconfig -lfreetype" \
     ..
 
 ninja
@@ -99,12 +79,12 @@ for module in "${MODULES[@]}"; do
 
         cmake -GNinja \
             -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" \
+            -DCMAKE_PREFIX_PATH="$INSTALL_PREFIX" \
             -DBUILD_SHARED_LIBS=OFF \
             ..
+
         
         ninja
         sudo ninja install
     fi
 done
-
-echo "Qt build completed successfully."
