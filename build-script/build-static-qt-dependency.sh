@@ -119,6 +119,9 @@ if $INSTALL_ENABLED; then
 fi
 cd "$BUILD_DIR"
 
+# Update pkg-config path
+export PKG_CONFIG_PATH="$INSTALL_PREFIX/lib/pkgconfig:$INSTALL_PREFIX/local/lib/pkgconfig:$INSTALL_PREFIX/share/pkgconfig"
+
 # Build or Install libpulse
 if $BUILD_ENABLED; then
     echo "Building libpulse from source..."
@@ -148,6 +151,10 @@ if $BUILD_ENABLED; then
         -Dspeex=disabled \
         -Dwebrtc-aec=disabled \
         -Dx11=disabled \
+        -Ddbus=enabled \
+        -Dglib=enabled \
+        -Dsndfile=enabled \
+        -Dpkg_config_path=$PKG_CONFIG_PATH \
         ..
     ninja
 fi
