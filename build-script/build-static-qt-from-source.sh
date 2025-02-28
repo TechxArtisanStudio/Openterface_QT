@@ -9,6 +9,11 @@ sudo apt-get install -y build-essential meson ninja-build bison flex pkg-config 
     autoconf automake libtool autoconf-archive cmake libxml2-dev libxrandr-dev \
     libglib2.0-dev libgtk-3-dev
 
+# Add EGL and OpenGL dependencies
+sudo apt-get install -y libgl1-mesa-dev libgles2-mesa-dev libegl1-mesa-dev \
+    libdrm-dev libgbm-dev libxkbcommon-dev libxkbcommon-x11-dev \
+    libxcb-icccm4-dev libxcb-image0-dev libxcb-keysyms1-dev libxcb-render-util0-dev \
+    libxcb-xinerama0-dev libxcb-xkb-dev libxcb-randr0-dev libxcb-shape0-dev
 
 QT_VERSION=6.5.3
 QT_MAJOR_VERSION=6.5
@@ -17,7 +22,6 @@ DEPS_INSTALL_PREFIX=/opt/qt-deps
 BUILD_DIR=$(pwd)/qt-build
 MODULES=("qtbase" "qtshadertools" "qtmultimedia" "qtsvg" "qtserialport")
 DOWNLOAD_BASE_URL="https://download.qt.io/archive/qt/$QT_MAJOR_VERSION/$QT_VERSION/submodules"
-
 
 # Download and extract modules
 mkdir -p "$BUILD_DIR"
@@ -31,10 +35,6 @@ for module in "${MODULES[@]}"; do
     fi
 done
 
-sudo apt-get install -y libgl1-mesa-dev libglu1-mesa-dev libxrender-dev libxi-dev \
-    libxcb-cursor-dev libxcb-icccm4-dev libxcb-keysyms1-dev \
-    libglib2.0-dev libglib2.0-bin libglib2.0-0 libgthread-2.0-0 libgtk-3-dev libxkbcommon-x11-dev
-
 # Build qtbase first
 echo "Building qtbase..."
 cd "$BUILD_DIR/qtbase"
@@ -42,10 +42,28 @@ mkdir -p build
 cd build
 
 export LD_LIBRARY_PATH=/usr/lib:/usr/local/lib:$DEPS_INSTALL_PREFIX/lib:$LD_LIBRARY_PATH
+export PKG_CONFIG_PATH="$DEPS_INSTALL_PREFIX/lib/pkgconfig:$DEPS_INSTALL_PREFIX/share/pkgconfig:$PKG_CONFIG_PATH"
+
+cmake -GNinja \
+    -DCMAKE_PREFIX_PATH="$DEPS_INSTALL_PREFIX" \
+    -DBUILD_SHARED_LIBS=OFF \
+    -DFEATURE_xcb=ON \
+    -DFEATURE_xcb_xlib=ON \
+    -DFEATURE_xkbcommon=ON \
+    -DFEATURE_xkbcommon_x11=ON \
+    -DFEATURE_egl=ON \
+    -DFEATURE_opengl=ON \
+    -DFEATURE_harfbuzz=OFF \
+    -DFEATURE_opengl_desktop=ON \
+    -DFEATURE_accessibility=ON \
+    -DINPUT_opengl=desktop \
+    -DQT_QMAKE_TARGET_MKSPEC=linux-g++ \
+    -DQT_BUILD_EXAMPLES=OFF \
+    -DQT_BUILD_TESTS=OFF \
+    ..
 
 ninja
 sudo ninja install
-
 
 # Build qtshadertools
 echo "Building qtshadertools..."
@@ -76,9 +94,10 @@ for module in "${MODULES[@]}"; do
             -DCMAKE_PREFIX_PATH="$INSTALL_PREFIX" \
             -DBUILD_SHARED_LIBS=OFF \
             ..
-
         
         ninja
         sudo ninja install
     fi
 done
+
+echo "Qt build completed successfully."
