@@ -41,12 +41,8 @@ cd "$BUILD_DIR/qtbase"
 mkdir -p build
 cd build
 
-export LD_LIBRARY_PATH=/usr/lib:/usr/local/lib:$DEPS_INSTALL_PREFIX/lib:$LD_LIBRARY_PATH
-export PKG_CONFIG_PATH="$DEPS_INSTALL_PREFIX/lib/pkgconfig:$DEPS_INSTALL_PREFIX/share/pkgconfig:$PKG_CONFIG_PATH"
-
 cmake -GNinja \
     -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" \
-    -DCMAKE_PREFIX_PATH="$DEPS_INSTALL_PREFIX" \
     -DBUILD_SHARED_LIBS=OFF \
     -DFEATURE_xcb=ON \
     -DFEATURE_xcb_xlib=ON \
@@ -78,9 +74,7 @@ mkdir -p build
 cd build
 cmake -GNinja \
     -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" \
-    -DCMAKE_PREFIX_PATH="$DEPS_INSTALL_PREFIX" \
     -DBUILD_SHARED_LIBS=OFF \
-    -DFEATURE_static_runtime=ON \
     ..
 
 ninja
@@ -96,7 +90,6 @@ for module in "${MODULES[@]}"; do
 
         cmake -GNinja \
             -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" \
-            -DCMAKE_PREFIX_PATH="$DEPS_INSTALL_PREFIX" \
             -DBUILD_SHARED_LIBS=OFF \
             ..
         
