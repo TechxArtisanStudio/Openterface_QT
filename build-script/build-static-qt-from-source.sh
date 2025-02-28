@@ -44,6 +44,7 @@ cd build
 export LD_LIBRARY_PATH=/usr/lib:/usr/local/lib:$DEPS_INSTALL_PREFIX/lib:$LD_LIBRARY_PATH
 
 cmake -GNinja \
+    -Wno-dev \
     -DBUILD_SHARED_LIBS=OFF \
     -DFEATURE_dbus=OFF \
     -DFEATURE_sql=OFF \
@@ -55,6 +56,8 @@ cmake -GNinja \
     -DFEATURE_xkbcommon_x11=ON \
     -DTEST_xcb_syslibs=ON \
     -DFEATURE_xcb_xinput=system \
+    -DFEATURE_androiddeployqt=OFF \
+    -DFEATURE_vnc=OFF \
     -DCMAKE_PREFIX_PATH="$DEPS_INSTALL_PREFIX" \
     -DPKG_CONFIG_USE_CMAKE_PREFIX_PATH=ON \
     -DQT_XCB_CONFIG="system" \
