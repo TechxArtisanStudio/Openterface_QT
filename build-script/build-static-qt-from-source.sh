@@ -57,6 +57,7 @@ cmake -GNinja \
     -DPKG_CONFIG_USE_CMAKE_PREFIX_PATH=ON \
     -DQT_XCB_CONFIG="system" \
     -DQT_QMAKE_TARGET_MKSPEC=linux-g++ \
+    -DCMAKE_EXE_LINKER_FLAGS="-lXau -lXdmcp" \
     ..
 
 ninja
