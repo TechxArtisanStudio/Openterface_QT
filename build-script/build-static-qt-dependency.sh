@@ -154,6 +154,7 @@ if $BUILD_ENABLED; then
         -Ddbus=enabled \
         -Dglib=enabled \
         -Dpkg_config_path=$PKG_CONFIG_PATH \
+        -Ddbus_dep=$INSTALL_PREFIX/lib/pkgconfig \
         ..
     ninja
 fi
