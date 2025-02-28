@@ -79,10 +79,10 @@
             echo "FFmpeg already built"
             bash ${{ env.SOURCE_DIR }}/build-script/build-static-ffmpeg.sh --no-build
             
-        # - name: Build Qt Statically
-        #   if: steps.cache-qt.outputs.cache-hit != 'true'
-        #   run: |
-        #     bash ${{ env.SOURCE_DIR }}/build-script/build-static-qt-from-source.sh
+        - name: Build Qt Statically
+          if: steps.cache-qt.outputs.cache-hit != 'true'
+          run: |
+            bash ${{ env.SOURCE_DIR }}/build-script/build-static-qt-from-source.sh
   
         # - name: Create build directory
         #   run: |
