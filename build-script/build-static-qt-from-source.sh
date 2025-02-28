@@ -44,7 +44,6 @@ cd build
 export LD_LIBRARY_PATH=/usr/lib:/usr/local/lib:$DEPS_INSTALL_PREFIX/lib:$LD_LIBRARY_PATH
 
 cmake -GNinja \
-    -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" \
     -DBUILD_SHARED_LIBS=OFF \
     -DFEATURE_dbus=OFF \
     -DFEATURE_sql=OFF \
@@ -78,7 +77,6 @@ cmake -GNinja \
     -DCMAKE_PREFIX_PATH="$INSTALL_PREFIX" \
     -DBUILD_SHARED_LIBS=OFF \
     -DFEATURE_static_runtime=ON \
-    -DCMAKE_EXE_LINKER_FLAGS="$DEPS_INSTALL_PREFIX/lib/libXau.a $DEPS_INSTALL_PREFIX/lib/libXdmcp.a -lfontconfig -lfreetype" \
     ..
 
 ninja
