@@ -89,14 +89,42 @@ for module in "${MODULES[@]}"; do
         cd build
         echo "Building $module..."
 
-        cmake -GNinja \
-            -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" \
-            -DCMAKE_PREFIX_PATH="$INSTALL_PREFIX" \
-            -DBUILD_SHARED_LIBS=OFF \
-            ..
-
+        # Add specific flags for qtmultimedia to enable FFmpeg and PulseAudio but disable GStreamer
+        if [[ "$module" == "qtmultimedia" ]]; then
+            cmake -GNinja \
+                -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" \
+                -DCMAKE_PREFIX_PATH="$INSTALL_PREFIX" \
+                -DBUILD_SHARED_LIBS=OFF \
+                -DFEATURE_gstreamer=OFF \
+                -DINPUT_gstreamer=OFF \
+                -DFEATURE_pulseaudio=ON \
+                -DFEATURE_ffmpeg=ON \
+                -DINPUT_ffmpeg=ON \
+                -DFEATURE_avfoundation=OFF \
+                ..
+        else
+            cmake -GNinja \
+                -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" \
+                -DCMAKE_PREFIX_PATH="$INSTALL_PREFIX" \
+                -DBUILD_SHARED_LIBS=OFF \
+                ..
+        fi
         
         ninja
         sudo ninja install
     fi
 done
+
+# Find the configure section and add multimedia support
+# This part assumes there's a './configure' or similar command being executed
+# Add these options to your existing configure command:
+./configure -static \
+    -feature-multimedia \
+    -feature-ffmpeg \
+    -feature-pulseaudio \
+    -no-feature-gstreamer \
+    -no-feature-sql \
+    -no-sql-sqlite \
+    -no-feature-sqlmodel \
+    -no-feature-testlib \
+    -no-feature-concurrent

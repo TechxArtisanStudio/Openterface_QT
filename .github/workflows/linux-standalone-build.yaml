@@ -114,7 +114,7 @@ jobs:
 
       - name: Build Standalone Executable
         working-directory: ${{ runner.temp }}/build
-        
+
         run: |
           echo "Setting LD_LIBRARY_PATH..."
           export LD_LIBRARY_PATH=/usr/lib:/usr/local/lib:$LD_LIBRARY_PATH
