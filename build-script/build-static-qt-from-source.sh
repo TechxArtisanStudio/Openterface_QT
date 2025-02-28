@@ -63,8 +63,6 @@ cmake -GNinja \
     -DXKBCOMMON_X11_INCLUDE_DIR=/usr/include \
     -DXKBCOMMON_X11_LIBRARY=/usr/lib/x86_64-linux-gnu/libxkbcommon-x11.so \
     -DQT_QMAKE_TARGET_MKSPEC=linux-g++ \
-    -DGLIB2_INCLUDE_DIRS=/usr/include/glib-2.0:/usr/lib/x86_64-linux-gnu/glib-2.0/include \
-    -DGLIB2_LIBRARIES=/usr/lib/x86_64-linux-gnu/libglib-2.0.so \
     -DGTHREAD2_LIBRARIES=/usr/lib/x86_64-linux-gnu/libgthread-2.0.so \
     ..
 
