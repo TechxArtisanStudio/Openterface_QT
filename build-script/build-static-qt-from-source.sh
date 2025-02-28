@@ -169,16 +169,4 @@ for module in "${MODULES[@]}"; do
     fi
 done
 
-# Find the configure section and add multimedia support
-# This part assumes there's a './configure' or similar command being executed
-# Add these options to your existing configure command:
-./configure -static \
-    -feature-multimedia \
-    -feature-ffmpeg \
-    -feature-pulseaudio \
-    -no-feature-gstreamer \
-    -no-feature-sql \
-    -no-sql-sqlite \
-    -no-feature-sqlmodel \
-    -no-feature-testlib \
-    -no-feature-concurrent
+echo "OpenTerface QT $QT_VERSION has been successfully built and installed to $INSTALL_PREFIX"
