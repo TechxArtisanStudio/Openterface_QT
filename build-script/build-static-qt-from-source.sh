@@ -48,6 +48,11 @@ cmake -GNinja \
     -DFEATURE_testlib=OFF \
     -DFEATURE_icu=OFF \
     -DFEATURE_opengl=ON \
+    -DFEATURE_xlib=ON \
+    -DFEATURE_xcb_xlib=ON \
+    -DFEATURE_xkbcommon=ON \
+    -DFEATURE_xkbcommon_x11=ON \
+    -DTEST_xcb_syslibs=ON \
     ..
 
 ninja
