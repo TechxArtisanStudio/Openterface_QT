@@ -6,8 +6,13 @@ set -e
 # Install minimal build requirements
 sudo apt-get update
 sudo apt-get install -y build-essential meson ninja-build bison flex pkg-config python3-pip linux-headers-$(uname -r) \
-    autoconf automake libtool autoconf-archive cmake libxml2-dev libxrandr-dev
-
+    autoconf automake libtool autoconf-archive cmake libxml2-dev libxrandr-dev libegl-dev libegl-mesa0 libegl1 libgl-dev \
+    libgl1-mesa-dev libgles-dev libgles1 libgles2 libglu1-mesa libglu1-mesa-dev libglvnd-core-dev \
+    libglvnd-dev libglx-dev libopengl-dev libopengl0 libxcb-cursor-dev \
+    libxcb-cursor0 libxcb-icccm4 libxcb-icccm4-dev libxcb-image0 \
+    libxcb-image0-dev libxcb-keysyms1 libxcb-keysyms1-dev libxcb-render-util0 \
+    libxcb-render-util0-dev libxcb-render0-dev libxcb-shm0-dev libxcb-util1 \
+    libxfixes-dev libxi-dev
 
 QT_VERSION=6.5.3
 QT_MAJOR_VERSION=6.5
@@ -28,9 +33,6 @@ for module in "${MODULES[@]}"; do
         rm "$module.zip"
     fi
 done
-
-sudo apt-get install -y libgl1-mesa-dev libglu1-mesa-dev libxrender-dev libxi-dev \
-    libxcb-cursor-dev libxcb-icccm4-dev libxcb-keysyms1-dev
 
 # Build qtbase first
 echo "Building qtbase..."
