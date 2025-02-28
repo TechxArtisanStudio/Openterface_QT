@@ -153,7 +153,6 @@ if $BUILD_ENABLED; then
         -Dx11=disabled \
         -Ddbus=enabled \
         -Dglib=enabled \
-        -Dsndfile=enabled \
         -Dpkg_config_path=$PKG_CONFIG_PATH \
         ..
     ninja
