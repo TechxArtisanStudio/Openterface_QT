@@ -13,7 +13,8 @@ sudo apt-get install -y build-essential meson ninja-build bison flex pkg-config 
 sudo apt-get install -y libgl1-mesa-dev libgles2-mesa-dev libegl1-mesa-dev \
     libdrm-dev libgbm-dev libxkbcommon-dev libxkbcommon-x11-dev \
     libxcb-icccm4-dev libxcb-image0-dev libxcb-keysyms1-dev libxcb-render-util0-dev \
-    libxcb-xinerama0-dev libxcb-xkb-dev libxcb-randr0-dev libxcb-shape0-dev
+    libxcb-xinerama0-dev libxcb-xkb-dev libxcb-randr0-dev libxcb-shape0-dev libx11-xcb-dev \
+    libx11-xcb1
 
 QT_VERSION=6.5.3
 QT_MAJOR_VERSION=6.5
@@ -41,26 +42,34 @@ cd "$BUILD_DIR/qtbase"
 mkdir -p build
 cd build
 
+export LD_LIBRARY_PATH=/usr/lib:/usr/local/lib:$DEPS_INSTALL_PREFIX/lib:$LD_LIBRARY_PATH
+export PKG_CONFIG_PATH="$DEPS_INSTALL_PREFIX/lib/pkgconfig:$DEPS_INSTALL_PREFIX/share/pkgconfig:$PKG_CONFIG_PATH"
+
+# Check if XCB libraries are available
+pkg-config --exists x11-xcb && echo "x11-xcb found" || echo "x11-xcb not found"
+pkg-config --exists xcb && echo "xcb found" || echo "xcb not found"
+
 cmake -GNinja \
     -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" \
+    -DCMAKE_PREFIX_PATH="$DEPS_INSTALL_PREFIX" \
+    -DPKG_CONFIG_EXECUTABLE=/usr/bin/pkg-config \
     -DBUILD_SHARED_LIBS=OFF \
     -DFEATURE_xcb=ON \
+    -DFEATURE_xlib=ON \
     -DFEATURE_xcb_xlib=ON \
     -DFEATURE_xkbcommon=ON \
     -DFEATURE_xkbcommon_x11=ON \
     -DTEST_xcb_syslibs=ON \
     -DFEATURE_egl=ON \
     -DFEATURE_opengl=ON \
-    -DFEATURE_harfbuzz=OFF \
-    -DFEATURE_androiddeployqt=OFF \
-    -DFEATURE_vnc=OFF \
     -DFEATURE_opengl_desktop=ON \
     -DFEATURE_accessibility=ON \
-    -DFEATURE_sql=OFF \
     -DINPUT_opengl=desktop \
     -DQT_QMAKE_TARGET_MKSPEC=linux-g++ \
     -DQT_BUILD_EXAMPLES=OFF \
     -DQT_BUILD_TESTS=OFF \
+    -DX11_XCB_INCLUDE_PATH="$DEPS_INSTALL_PREFIX/include" \
+    -DX11_XCB_LIBRARY="$DEPS_INSTALL_PREFIX/lib/libX11-xcb.a" \
     ..
 
 ninja
