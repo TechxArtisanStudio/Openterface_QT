@@ -126,6 +126,11 @@ cmake -GNinja \
     -DFEATURE_sql_psql=OFF \
     -DFEATURE_vulkan=ON \
     -DFEATURE_gif=OFF \
+    -DFEATURE_harfbuzz=ON \
+    -DINPUT_harfbuzz=bundled \
+    -DFEATURE_fontconfig=ON \
+    -DFEATURE_freetype=ON \
+    -DINPUT_freetype=system \
     ..
 
 ninja
