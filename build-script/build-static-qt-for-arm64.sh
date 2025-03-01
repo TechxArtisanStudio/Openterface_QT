@@ -7,7 +7,7 @@ QT_VERSION=${QT_VERSION:-"6.6.3"}
 QT_MODULES=${QT_MODULES:-"qtbase qtdeclarative qtsvg qttools qtshadertools"}
 QT_TARGET_DIR=${QT_TARGET_DIR:-"/opt/Qt6-arm64"}
 CROSS_COMPILE=${CROSS_COMPILE:-"aarch64-linux-gnu-"}
-FFMPEG_VERSION="6.0"
+FFMPEG_VERSION="6.1.1"
 
 echo "Starting Qt ${QT_VERSION} and FFmpeg ${FFMPEG_VERSION} build for ARM64..."
 
