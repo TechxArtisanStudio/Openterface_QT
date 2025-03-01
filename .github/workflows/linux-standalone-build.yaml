@@ -86,7 +86,9 @@ jobs:
             libxrandr-dev \
             libxrender-dev \
             libexpat1-dev \
-            upx-ucl # Added UPX for compression
+            libdrm-dev \
+            libgbm-dev \
+            upx-ucl
 
       - name: Build Standalone Executable
         working-directory: ${{ runner.temp }}/build
