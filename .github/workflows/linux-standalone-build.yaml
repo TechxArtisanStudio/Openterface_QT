@@ -100,7 +100,7 @@ jobs:
           cmake -S "${{ env.SOURCE_DIR }}" -B . \
               -DCMAKE_BUILD_TYPE=MinSizeRel \
               -DBUILD_SHARED_LIBS=OFF \
-              -DCMAKE_PREFIX_PATH=/opt/Qt6 \
+              -DCMAKE_PREFIX_PATH=/opt/Qt6:/opt/Qt6/ffmpeg-install \
               -DCMAKE_INSTALL_PREFIX=release \
               -DCMAKE_CXX_FLAGS="-Os -ffunction-sections -fdata-sections" \
               -DCMAKE_C_FLAGS="-Os -ffunction-sections -fdata-sections" \
