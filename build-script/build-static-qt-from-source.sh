@@ -114,7 +114,7 @@ cmake -GNinja \
     -DFEATURE_developer_build=OFF \
     -DFEATURE_accessibility=OFF \
     -DFEATURE_printsupport=OFF \
-    -DFEATURE_concurrent=OFF \
+    -DFEATURE_concurrent=ON \
     -DFEATURE_system_zlib=ON \
     -DFEATURE_network=ON \
     -DFEATURE_imageformat_bmp=OFF \
