@@ -1,5 +1,5 @@
 ---
-name: Standalone Build for linux
+name: ARM64 Build for Linux
 
 on:
   push:
@@ -13,14 +13,14 @@ defaults:
     shell: bash
 
 env:
-  ARTIFACT: openterfaceQT-standalone
+  ARTIFACT: openterfaceQT-arm64
   SOURCE_DIR: ${{ github.workspace }}
   QT_VERSION: 6.6.3 
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-latest-arm64
     steps:
       - uses: actions/checkout@v2
         with:
@@ -31,10 +31,10 @@ jobs:
         uses: actions/cache@v3
         with:
           path: /opt/Qt6
-          key: $QT_VERSION-linux-static-optimized
+          key: $QT_VERSION-arm64-static-optimized
           restore-keys: |
-            qt-$QT_VERSION-linux-static-optimized
-            qt-$QT_VERSION-linux-static
+            qt-$QT_VERSION-arm64-static-optimized
+            qt-$QT_VERSION-arm64-static
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -47,6 +47,7 @@ jobs:
           # Build Qt with minimal modules and size optimizations
           export QT_MODULES="qtbase qtdeclarative qtsvg qttools qtshadertools"
           export QT_CONFIGURE_OPTS="-optimize-size -no-feature-testlib -no-feature-sql -no-feature-accessibility -no-feature-future -no-feature-regularexpression -no-feature-xmlstream -no-feature-sessionmanager -no-feature-graphic_system"
+          export QT_TARGET_DIR="/opt/Qt6"
           bash ${{ env.SOURCE_DIR }}/build-script/build-static-qt-from-source.sh
 
       - name: Create build directory
@@ -55,9 +56,9 @@ jobs:
 
       - name: Prepare Driver Files
         run: |
-          mkdir ${{ env.SOURCE_DIR }}/drivers
-          cp driver/linux/* ${{ env.SOURCE_DIR }}/drivers/
-      
+          mkdir -p ${{ env.SOURCE_DIR }}/drivers
+          cp driver/linux-arm64/* ${{ env.SOURCE_DIR }}/drivers/ || cp driver/linux/* ${{ env.SOURCE_DIR }}/drivers/
+
       - name: Install Build Dependencies
         run: |
           sudo apt-get update
@@ -86,15 +87,15 @@ jobs:
             libxrandr-dev \
             libxrender-dev \
             libexpat1-dev \
-            upx-ucl # Added UPX for compression
+            upx-ucl
 
-      - name: Build Standalone Executable
+      - name: Build ARM64 Executable
         working-directory: ${{ runner.temp }}/build
         run: |
           echo "Setting LD_LIBRARY_PATH..."
           export LD_LIBRARY_PATH=/usr/lib:/usr/local/lib:$LD_LIBRARY_PATH
-
-          echo "Configuring with CMake..."
+          
+          echo "Configuring with CMake for ARM64..."
           cmake -S "${{ env.SOURCE_DIR }}" -B . \
               -DCMAKE_BUILD_TYPE=MinSizeRel \
               -DBUILD_SHARED_LIBS=OFF \
@@ -122,14 +123,14 @@ jobs:
           echo "Compressing executable with UPX..."
           upx --best --lzma openterfaceQT
 
-          echo "Creating standalone package..."
+          echo "Creating ARM64 package..."
           mkdir package
           cp openterfaceQT package
           
-          echo "Final executable size:"
+          echo "Final ARM64 executable size:"
           ls -lh package/openterfaceQT
 
-      - name: Save build artifact
+      - name: Save ARM64 build artifact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ env.ARTIFACT }}
