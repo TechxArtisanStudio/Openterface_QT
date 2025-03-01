@@ -20,6 +20,7 @@ sudo apt-get install -y build-essential meson ninja-build bison flex pkg-config 
     libdrm-dev libgbm-dev libatspi2.0-dev \
     libvulkan-dev libssl-dev \
     libpulse-dev \
+    libharfbuzz-dev \
     yasm nasm # Dependencies for FFmpeg compilation
 
 QT_VERSION=6.6.3
@@ -96,6 +97,16 @@ cd "$BUILD_DIR/qtbase"
 mkdir -p build
 cd build
 
+# Create a symlink for the bundled harfbuzz if it doesn't exist
+sudo mkdir -p "$INSTALL_PREFIX/lib/cmake/Qt6"
+sudo mkdir -p "$INSTALL_PREFIX/include/harfbuzz"
+
+# Extract harfbuzz sources from Qt source tree if available
+if [ -d "../src/3rdparty/harfbuzz" ]; then
+    echo "Extracting bundled HarfBuzz..."
+    sudo cp -r ../src/3rdparty/harfbuzz/* "$INSTALL_PREFIX/include/harfbuzz/"
+fi
+
 cmake -GNinja \
     $CMAKE_COMMON_FLAGS \
     -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" \
@@ -127,7 +138,7 @@ cmake -GNinja \
     -DFEATURE_vulkan=ON \
     -DFEATURE_gif=OFF \
     -DFEATURE_harfbuzz=ON \
-    -DINPUT_harfbuzz=bundled \
+    -DINPUT_harfbuzz=system \
     -DFEATURE_fontconfig=ON \
     -DFEATURE_freetype=ON \
     -DINPUT_freetype=system \
