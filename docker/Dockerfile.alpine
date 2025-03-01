@@ -23,8 +23,6 @@ RUN apk add --no-cache \
     libxslt \
     openssl-dev \
     pulseaudio-dev \
-    gcc-aarch64-none-elf \
-    g++-aarch64-none-elf \
     # Qt依赖项
     fontconfig-dev \
     freetype-dev \
@@ -35,23 +33,26 @@ RUN apk add --no-cache \
     glib-dev \
     vulkan-headers
 
-# 安装交叉编译工具链
-RUN apk add --no-cache alpine-sdk && \
-    apk add --no-cache aarch64-alpine-linux-musl-dev
-
-# 设置工作目录
-WORKDIR /opt/build
-
 # 添加ARM64依赖的仓库
 RUN echo "https://dl-cdn.alpinelinux.org/alpine/edge/main" >> /etc/apk/repositories && \
     echo "https://dl-cdn.alpinelinux.org/alpine/edge/community" >> /etc/apk/repositories && \
     apk update
 
+# 安装交叉编译工具链
+RUN apk add --no-cache alpine-sdk && \
+    apk add --no-cache \
+    gcc-aarch64-none-elf \
+    g++-aarch64-none-elf \
+    musl-dev
+
+# 设置工作目录
+WORKDIR /opt/build
+
 # 设置环境变量
-ENV CROSS_COMPILE=aarch64-alpine-linux-musl- \
-    CC=aarch64-alpine-linux-musl-gcc \
-    CXX=aarch64-alpine-linux-musl-g++ \
-    PKG_CONFIG_PATH=/usr/aarch64-alpine-linux-musl/lib/pkgconfig \
+ENV CROSS_COMPILE=aarch64-none-elf- \
+    CC=aarch64-none-elf-gcc \
+    CXX=aarch64-none-elf-g++ \
+    PKG_CONFIG_PATH=/usr/aarch64-none-elf/lib/pkgconfig \
     CFLAGS="-Os -ffunction-sections -fdata-sections" \
     CXXFLAGS="-Os -ffunction-sections -fdata-sections" \
     LDFLAGS="-Wl,--gc-sections"

@@ -248,3 +248,41 @@ du -sh "$INSTALL_PREFIX"
 
 # Ensure output directory permissions are correct
 chmod -R 755 "$INSTALL_PREFIX"
+
+# QT version
+QT_VERSION="6.6.1"
+QT_MAJOR="6.6"
+
+# Download Qt source
+echo "Downloading Qt ${QT_VERSION}..."
+mkdir -p /opt/qt-src
+cd /opt/qt-src
+wget -q https://download.qt.io/official_releases/qt/${QT_MAJOR}/${QT_VERSION}/single/qt-everywhere-src-${QT_VERSION}.tar.xz
+tar xf qt-everywhere-src-${QT_VERSION}.tar.xz
+cd qt-everywhere-src-${QT_VERSION}
+
+# Create build directory
+mkdir -p build
+cd build
+
+# Configure Qt for cross-compilation
+echo "Configuring Qt for ARM64 cross-compilation..."
+../configure \
+    -release \
+    -opensource \
+    -confirm-license \
+    -xplatform linux-aarch64-gnu-g++ \
+    -nomake examples \
+    -nomake tests \
+    -skip qtwebengine \
+    -prefix /opt/qt6-arm64
+
+# Build Qt
+echo "Building Qt..."
+make -j$(nproc)
+
+# Install Qt
+echo "Installing Qt..."
+make install
+
+echo "Qt ${QT_VERSION} has been successfully built and installed to /opt/qt6-arm64"
