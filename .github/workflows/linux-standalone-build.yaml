@@ -31,25 +31,19 @@ jobs:
         uses: actions/cache@v3
         with:
           path: /opt/Qt6
-          key: qt-6.5.3-linux-static
+          key: qt-6.5.3-linux-static-optimized
           restore-keys: |
+            qt-6.5.3-linux-static-optimized
             qt-6.5.3-linux-static
 
-      # - name: Cache Dependencies
-      #   id: cache-deps
-      #   uses: actions/cache@v3
-      #   with:
-      #       path: ${{ env.SOURCE_DIR }}/qt-build/
-      #       key: dependencies-cache
-      #       restore-keys: |
-      #         dependencies-cache
       - name: Cache FFmpeg
         id: cache-ffmpeg
         uses: actions/cache@v3
         with:
             path: ${{ env.SOURCE_DIR }}/ffmpeg-build/
-            key: ffmpeg-cache
+            key: ffmpeg-cache-optimized
             restore-keys: |
+              ffmpeg-cache-optimized
               ffmpeg-cache
 
       - name: Set up Python
@@ -60,6 +54,8 @@ jobs:
       - name: Build FFmpeg
         if: steps.cache-ffmpeg.outputs.cache-hit != 'true'
         run: |
+          # Use optimization flags for FFmpeg
+          export EXTRA_FFMPEG_CONFIG="--enable-small --disable-debug --enable-lto"
           bash ${{ env.SOURCE_DIR }}/build-script/build-static-ffmpeg.sh
 
       - name: FFmpeg Already Built
@@ -71,6 +67,9 @@ jobs:
       - name: Build Qt Statically
         if: steps.cache-qt.outputs.cache-hit != 'true'
         run: |
+          # Build Qt with minimal modules and size optimizations
+          export QT_MODULES="qtbase qtdeclarative qtsvg qttools qtshadertools"
+          export QT_CONFIGURE_OPTS="-optimize-size -no-feature-testlib -no-feature-sql -no-feature-accessibility -no-feature-future -no-feature-regularexpression -no-feature-xmlstream -no-feature-sessionmanager -no-feature-graphic_system"
           bash ${{ env.SOURCE_DIR }}/build-script/build-static-qt-from-source.sh
 
       - name: Create build directory
@@ -82,7 +81,7 @@ jobs:
           mkdir ${{ env.SOURCE_DIR }}/drivers
           cp driver/linux/* ${{ env.SOURCE_DIR }}/drivers/
       
-      - name: Install OpenGL ES Development Packages
+      - name: Install Build Dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y \
@@ -109,25 +108,27 @@ jobs:
             libsndfile1-dev \
             libxrandr-dev \
             libxrender-dev \
-            libexpat1-dev
-
+            libexpat1-dev \
+            upx-ucl # Added UPX for compression
 
       - name: Build Standalone Executable
         working-directory: ${{ runner.temp }}/build
-
         run: |
           echo "Setting LD_LIBRARY_PATH..."
           export LD_LIBRARY_PATH=/usr/lib:/usr/local/lib:$LD_LIBRARY_PATH
 
           echo "Configuring with CMake..."
           cmake -S "${{ env.SOURCE_DIR }}" -B . \
-              -DCMAKE_BUILD_TYPE=Release \
+              -DCMAKE_BUILD_TYPE=MinSizeRel \
               -DBUILD_SHARED_LIBS=OFF \
               -DCMAKE_PREFIX_PATH=/opt/Qt6 \
               -DCMAKE_INSTALL_PREFIX=release \
+              -DCMAKE_CXX_FLAGS="-Os -ffunction-sections -fdata-sections" \
+              -DCMAKE_C_FLAGS="-Os -ffunction-sections -fdata-sections" \
+              -DCMAKE_EXE_LINKER_FLAGS="-Wl,--gc-sections -Wl,--strip-all" \
               -DCMAKE_POLICY_DEFAULT_CMP0177=NEW \
               -DCMAKE_POLICY_DEFAULT_CMP0174=NEW \
-              -DCMAKE_VERBOSE_MAKEFILE=ON \
+              -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON \
               -DQT_DEBUG_FIND_PACKAGE=ON
 
           echo "Building with CMake..."
@@ -138,9 +139,18 @@ jobs:
             exit 1
           fi
 
+          echo "Stripping executable..."
+          strip --strip-all openterfaceQT
+
+          echo "Compressing executable with UPX..."
+          upx --best --lzma openterfaceQT
+
           echo "Creating standalone package..."
           mkdir package
           cp openterfaceQT package
+          
+          echo "Final executable size:"
+          ls -lh package/openterfaceQT
 
       - name: Save build artifact
         uses: actions/upload-artifact@v4

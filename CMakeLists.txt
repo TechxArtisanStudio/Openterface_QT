@@ -1,6 +1,27 @@
 cmake_minimum_required(VERSION 3.16)
 project(openterfaceQT VERSION 1.0 LANGUAGES C CXX)
 
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+# Enable size optimizations
+if(CMAKE_BUILD_TYPE STREQUAL "MinSizeRel")
+    # Use aggressive size optimizations when in MinSizeRel mode
+    add_compile_options(-Os -ffunction-sections -fdata-sections)
+    if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+        add_link_options(-Wl,--gc-sections)
+    endif()
+    
+    # Enable Link Time Optimization
+    include(CheckIPOSupported)
+    check_ipo_supported(RESULT ipo_supported OUTPUT error)
+    if(ipo_supported)
+        set(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)
+    else()
+        message(STATUS "IPO/LTO is not supported: ${error}")
+    endif()
+endif()
+
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 set(CMAKE_AUTOUIC ON)
 
