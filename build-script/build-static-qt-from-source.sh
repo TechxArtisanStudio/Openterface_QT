@@ -128,9 +128,6 @@ cmake -GNinja \
     -DFEATURE_concurrent=ON \
     -DFEATURE_system_zlib=ON \
     -DFEATURE_network=ON \
-    -DFEATURE_imageformat_bmp=OFF \
-    -DFEATURE_imageformat_ppm=OFF \
-    -DFEATURE_imageformat_xbm=OFF \
     -DFEATURE_widgets=ON \
     -DFEATURE_sql_sqlite=OFF \
     -DFEATURE_sql_mysql=OFF \

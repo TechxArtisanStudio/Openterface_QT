@@ -44,9 +44,6 @@ jobs:
       - name: Build Qt Statically
         if: steps.cache-qt.outputs.cache-hit != 'true'
         run: |
-          # Build Qt with minimal modules and size optimizations
-          export QT_MODULES="qtbase qtdeclarative qtsvg qttools qtshadertools"
-          export QT_CONFIGURE_OPTS="-optimize-size -no-feature-testlib -no-feature-sql -no-feature-accessibility -no-feature-future -no-feature-regularexpression -no-feature-xmlstream -no-feature-sessionmanager -no-feature-graphic_system"
           bash ${{ env.SOURCE_DIR }}/build-script/build-static-qt-from-source.sh
 
       - name: Create build directory
