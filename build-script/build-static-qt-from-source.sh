@@ -117,7 +117,6 @@ cmake -GNinja \
     -DFEATURE_concurrent=OFF \
     -DFEATURE_system_zlib=ON \
     -DFEATURE_network=OFF \
-    -DFEATURE_regularexpression=OFF \
     -DFEATURE_imageformat_bmp=OFF \
     -DFEATURE_imageformat_ppm=OFF \
     -DFEATURE_imageformat_xbm=OFF \
