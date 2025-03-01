@@ -116,7 +116,7 @@ cmake -GNinja \
     -DFEATURE_printsupport=OFF \
     -DFEATURE_concurrent=OFF \
     -DFEATURE_system_zlib=ON \
-    -DFEATURE_network=OFF \
+    -DFEATURE_network=ON \
     -DFEATURE_imageformat_bmp=OFF \
     -DFEATURE_imageformat_ppm=OFF \
     -DFEATURE_imageformat_xbm=OFF \
@@ -183,19 +183,16 @@ for module in "${MODULES[@]}"; do
                 -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" \
                 -DCMAKE_PREFIX_PATH="$INSTALL_PREFIX;$FFMPEG_PREFIX" \
                 -DBUILD_SHARED_LIBS=OFF \
-                -DFEATURE_gstreamer=OFF \
-                -DINPUT_gstreamer=OFF \
-                -DFEATURE_pulseaudio=ON \
-                -DFEATURE_ffmpeg=ON \
-                -DINPUT_ffmpeg=ON \
-                -DFEATURE_avfoundation=OFF \
-                -DCMAKE_FIND_ROOT_PATH="$FFMPEG_PREFIX" \
-                -DCMAKE_EXE_LINKER_FLAGS="-L$FFMPEG_PREFIX/lib" \
-                -DFFMPEG_PATH="$FFMPEG_PREFIX" \
-                -DFEATURE_optimize_size=ON \
-                -DFEATURE_wmf=OFF \
-                -DFEATURE_directshow=OFF \
-                -DFEATURE_videotoolbox=OFF \
+                -DQT_FEATURE_gstreamer=OFF \
+                -DQT_FEATURE_pulseaudio=ON \
+                -DQT_FEATURE_ffmpeg=ON \
+                -DFFMPEG_avcodec_LIBRARY="$FFMPEG_PREFIX/lib/libavcodec.a" \
+                -DFFMPEG_avformat_LIBRARY="$FFMPEG_PREFIX/lib/libavformat.a" \
+                -DFFMPEG_avutil_LIBRARY="$FFMPEG_PREFIX/lib/libavutil.a" \
+                -DFFMPEG_swresample_LIBRARY="$FFMPEG_PREFIX/lib/libswresample.a" \
+                -DFFMPEG_swscale_LIBRARY="$FFMPEG_PREFIX/lib/libswscale.a" \
+                -DFFMPEG_INCLUDE_DIR="$FFMPEG_PREFIX/include" \
+                -DCMAKE_EXE_LINKER_FLAGS="-L$FFMPEG_PREFIX/lib -lpulse" \
                 ..
         else
             cmake -GNinja \
