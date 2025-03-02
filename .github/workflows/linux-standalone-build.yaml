@@ -31,8 +31,9 @@ jobs:
         uses: actions/cache@v3
         with:
           path: /opt/Qt6
-          key: $QT_VERSION-linux-static-optimized
+          key: $QT_VERSION-linux-static-optimized-dbus
           restore-keys: |
+            qt-$QT_VERSION-linux-static-optimized-dbus
             qt-$QT_VERSION-linux-static-optimized
             qt-$QT_VERSION-linux-static
 
@@ -41,20 +42,6 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: Build Qt Statically
-        if: steps.cache-qt.outputs.cache-hit != 'true'
-        run: |
-          bash ${{ env.SOURCE_DIR }}/build-script/build-static-qt-from-source.sh
-
-      - name: Create build directory
-        run: |
-          mkdir ${{ runner.temp }}/build
-
-      - name: Prepare Driver Files
-        run: |
-          mkdir ${{ env.SOURCE_DIR }}/drivers
-          cp driver/linux/* ${{ env.SOURCE_DIR }}/drivers/
-      
       - name: Install Build Dependencies
         run: |
           sudo apt-get update
@@ -85,8 +72,28 @@ jobs:
             libexpat1-dev \
             libdrm-dev \
             libgbm-dev \
-            upx-ucl
+            upx-ucl \
+            cmake \
+            ninja-build \
+            libgl1-mesa-dev \
+            libdbus-1-dev \
+            pkg-config \
+            qttools5-dev-tools
 
+      - name: Build Qt Statically
+        if: steps.cache-qt.outputs.cache-hit != 'true'
+        run: |
+          bash ${{ env.SOURCE_DIR }}/build-script/build-static-qt-from-source.sh
+
+      - name: Create build directory
+        run: |
+          mkdir ${{ runner.temp }}/build
+
+      - name: Prepare Driver Files
+        run: |
+          mkdir ${{ env.SOURCE_DIR }}/drivers
+          cp driver/linux/* ${{ env.SOURCE_DIR }}/drivers/
+      
       - name: Build Standalone Executable
         working-directory: ${{ runner.temp }}/build
         run: |
