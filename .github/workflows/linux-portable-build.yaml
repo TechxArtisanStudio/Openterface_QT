@@ -1,5 +1,5 @@
 ---
-  name: Standalone Build for linux
+  name: Portable Build for linux
   
   on:
     push:
@@ -13,7 +13,7 @@
       shell: bash
   
   env:
-    ARTIFACT: openterfaceQT-standalone
+    ARTIFACT: openterfaceQT-portable
     SOURCE_DIR: ${{ github.workspace }}
     QT_VERSION: 6.6.3 
     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -113,7 +113,7 @@
               ls -lh ${{ runner.temp }}/build/openterfaceQT
             fi
   
-        - name: Build Standalone Executable
+        - name: Build Portable Executable
           working-directory: ${{ runner.temp }}/build
   
           run: |
@@ -144,7 +144,7 @@
               exit 1
             fi
   
-            echo "Creating standalone package..."
+            echo "Creating portable package..."
             mkdir package
 
             echo "Analyzing binary size before compression..."
