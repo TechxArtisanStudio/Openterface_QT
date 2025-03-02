@@ -4,6 +4,7 @@ set -e
 # Default behavior is to build and install
 BUILD_ENABLED=true
 INSTALL_ENABLED=true
+INSTALL_PREFIX=/opt/qt-deps
 
 # Check for parameters
 for arg in "$@"; do
@@ -25,7 +26,6 @@ done
 
 # Configuration
 XKBCOMMON_VERSION=1.7.0
-LIBUSB_VERSION=1.0.26
 DBUS_VERSION=1.15.8
 FREETYPE_VERSION=2.13.2
 GPERF_VERSION=3.1
@@ -52,11 +52,11 @@ X11_VERSION="1.8.7"
 RANDRPROTO_VERSION="1.5.0"
 RENDERPROTO_VERSION=0.11.1
 LIBXDMCP_VERSION=1.1.4
-FFMPEG_VERSION=6.1.1
 XKB_CONFIG_VERSION=2.41
 XORGPROTO_VERSION=2023.2
 LIBXAU_VERSION=1.0.12
-NASM_VERSION="2.16.01"
+EXPAT_VERSION=2.5.0
+BZ2_VERSION=1.0.8
 
 # Create build directory
 BUILD_DIR=$(pwd)/qt-build
@@ -66,7 +66,7 @@ cd "$BUILD_DIR"
 # Install minimal build requirements
 sudo apt-get update
 sudo apt-get install -y build-essential meson ninja-build bison flex pkg-config python3-pip linux-headers-$(uname -r) \
-    autoconf automake libtool autoconf-archive cmake libxml2-dev
+    autoconf automake libtool autoconf-archive cmake libc6-dev zlib1g-dev gperf
 
 # Check for required tools
 command -v curl >/dev/null 2>&1 || { echo "Curl is not installed. Please install Curl."; exit 1; }
@@ -85,7 +85,7 @@ if $BUILD_ENABLED; then
     fi
 
     cd alsa-lib
-    ./configure --prefix=/usr --enable-static --disable-shared
+    ./configure --prefix=$INSTALL_PREFIX --enable-static --disable-shared
     make -j$(nproc)
 fi
 
@@ -95,6 +95,7 @@ if $INSTALL_ENABLED; then
     sudo make install
 fi
 cd "$BUILD_DIR"
+
 
 # Build or Install libsndfile from source
 if $BUILD_ENABLED; then
@@ -107,7 +108,7 @@ if $BUILD_ENABLED; then
     fi
 
     cd libsndfile
-    CFLAGS="-fPIC" CXXFLAGS="-fPIC" ./configure --prefix=/usr --enable-static --disable-shared
+    CFLAGS="-fPIC" CXXFLAGS="-fPIC" ./configure --prefix=$INSTALL_PREFIX --enable-static --disable-shared
     make -j$(nproc)
 fi
 
@@ -115,6 +116,50 @@ if $INSTALL_ENABLED; then
     echo "Installing libsndfile $SNDFILE_VERSION..."
     cd "$BUILD_DIR"/libsndfile
     sudo make install
+fi
+cd "$BUILD_DIR"
+
+# Update pkg-config path
+export PKG_CONFIG_PATH="$INSTALL_PREFIX/lib/pkgconfig:$INSTALL_PREFIX/local/lib/pkgconfig:$INSTALL_PREFIX/share/pkgconfig"
+
+# Build or Install libpulse
+if $BUILD_ENABLED; then
+    echo "Building libpulse from source..."
+    if [ ! -d "libpulse" ]; then
+        curl -L -o libpulse.tar.xz "https://www.freedesktop.org/software/pulseaudio/releases/pulseaudio-${PULSEAUDIO_VERSION}.tar.xz"
+        tar xf libpulse.tar.xz
+        mv "pulseaudio-${PULSEAUDIO_VERSION}" libpulse
+        rm libpulse.tar.xz
+    fi
+
+    cd libpulse
+    mkdir -p build
+    cd build
+    meson setup --prefix=$INSTALL_PREFIX \
+        -Ddefault_library=static \
+        -Ddoxygen=false \
+        -Ddaemon=false \
+        -Dtests=false \
+        -Dman=false \
+        -Dudev=disabled \
+        -Dsystemd=disabled \
+        -Dbluez5=disabled \
+        -Dgtk=disabled \
+        -Dopenssl=disabled \
+        -Dorc=disabled \
+        -Dsoxr=disabled \
+        -Dspeex=disabled \
+        -Dwebrtc-aec=disabled \
+        -Dx11=disabled \
+        -Dpkg_config_path=$PKG_CONFIG_PATH \
+        ..
+    ninja
+fi
+
+if $INSTALL_ENABLED; then
+    echo "Installing libpulse..."
+    cd "$BUILD_DIR"/libpulse/build
+    sudo ninja install
 fi
 cd "$BUILD_DIR"
 
@@ -133,7 +178,7 @@ if $BUILD_ENABLED; then
     if [ ! -f "./configure" ]; then
         ./autogen.sh
     fi
-    CFLAGS="-fPIC" CXXFLAGS="-fPIC" ./configure --prefix=/usr \
+    CFLAGS="-fPIC" CXXFLAGS="-fPIC" ./configure --prefix=$INSTALL_PREFIX \
         --enable-static \
         --disable-shared \
         --disable-systemd \
@@ -164,7 +209,7 @@ if $BUILD_ENABLED; then
     cd glib
     mkdir -p build
     cd build
-    meson setup --prefix=/usr \
+    meson setup --prefix=$INSTALL_PREFIX \
         -Ddefault_library=static \
         -Dtests=false \
         ..
@@ -178,78 +223,80 @@ if $INSTALL_ENABLED; then
 fi
 cd "$BUILD_DIR"
 
-# Build or Install PulseAudio
+# # Build or Install PulseAudio
+# if $BUILD_ENABLED; then
+#     echo "Building PulseAudio $PULSEAUDIO_VERSION from source..."
+#     if [ ! -d "pulseaudio" ]; then
+#         curl -L -o pulseaudio.tar.xz "https://www.freedesktop.org/software/pulseaudio/releases/pulseaudio-${PULSEAUDIO_VERSION}.tar.xz"
+#         tar xf pulseaudio.tar.xz
+#         mv "pulseaudio-${PULSEAUDIO_VERSION}" pulseaudio
+#         rm pulseaudio.tar.xz
+#     fi
+
+#     cd pulseaudio
+#     mkdir -p build
+#     cd build
+
+#     meson setup --prefix=$INSTALL_PREFIX \
+#         -Ddaemon=false \
+#         -Dman=false \
+#         -Ddoxygen=false \
+#         -Dtests=false \
+#         -Ddefault_library=static \
+#         -Ddatabase=simple \
+#         -Dalsa=enabled \
+#         -Dasyncns=disabled \
+#         -Davahi=disabled \
+#         -Dbluez5=disabled \
+#         -Ddbus=enabled \
+#         -Dfftw=disabled \
+#         -Dglib=enabled \
+#         -Dgsettings=disabled \
+#         -Dgtk=disabled \
+#         -Dhal-compat=false \
+#         -Dipv6=false \
+#         -Djack=disabled \
+#         -Dlirc=disabled \
+#         -Dopenssl=disabled \
+#         -Dorc=disabled \
+#         -Dsamplerate=disabled \
+#         -Dsoxr=disabled \
+#         -Dspeex=disabled \
+#         -Dsystemd=disabled \
+#         -Dtcpwrap=disabled \
+#         -Dudev=disabled \
+#         -Dwebrtc-aec=disabled \
+#         -Dx11=disabled \
+#         -Dpkg_config_path=$PKG_CONFIG_PATH \
+#         ..
+#     ninja
+# fi
+
+# if $INSTALL_ENABLED; then
+#     echo "Installing PulseAudio $PULSEAUDIO_VERSION..."
+#     cd "$BUILD_DIR"/pulseaudio/build
+#     sudo ninja install
+# fi
+# cd "$BUILD_DIR"
+
+# Build or Install libexpat
 if $BUILD_ENABLED; then
-    echo "Building PulseAudio $PULSEAUDIO_VERSION from source..."
-    if [ ! -d "pulseaudio" ]; then
-        curl -L -o pulseaudio.tar.xz "https://www.freedesktop.org/software/pulseaudio/releases/pulseaudio-${PULSEAUDIO_VERSION}.tar.xz"
-        tar xf pulseaudio.tar.xz
-        mv "pulseaudio-${PULSEAUDIO_VERSION}" pulseaudio
-        rm pulseaudio.tar.xz
+    echo "Building libexpat $EXPAT_VERSION from source..."
+    if [ ! -d "libexpat" ]; then
+        curl -L -o libexpat.tar.bz2 "https://github.com/libexpat/libexpat/releases/download/R_${EXPAT_VERSION//./_}/expat-${EXPAT_VERSION}.tar.bz2"
+        tar xf libexpat.tar.bz2
+        mv "expat-${EXPAT_VERSION}" libexpat
+        rm libexpat.tar.bz2
     fi
 
-    cd pulseaudio
-    mkdir -p build
-    cd build
-    meson setup --prefix=/usr \
-        -Ddaemon=false \
-        -Ddoxygen=false \
-        -Dman=false \
-        -Dtests=false \
-        -Ddefault_library=static \
-        -Ddatabase=simple \
-        -Dalsa=enabled \
-        -Dasyncns=disabled \
-        -Davahi=disabled \
-        -Dbluez5=disabled \
-        -Ddbus=enabled \
-        -Dfftw=disabled \
-        -Dglib=enabled \
-        -Dgsettings=disabled \
-        -Dgtk=disabled \
-        -Dhal-compat=false \
-        -Dipv6=false \
-        -Djack=disabled \
-        -Dlirc=disabled \
-        -Dopenssl=disabled \
-        -Dorc=disabled \
-        -Dsamplerate=disabled \
-        -Dsoxr=disabled \
-        -Dspeex=disabled \
-        -Dsystemd=disabled \
-        -Dtcpwrap=disabled \
-        -Dudev=disabled \
-        -Dwebrtc-aec=disabled \
-        -Dx11=disabled \
-        ..
-    ninja
-fi
-
-if $INSTALL_ENABLED; then
-    echo "Installing PulseAudio $PULSEAUDIO_VERSION..."
-    cd "$BUILD_DIR"/pulseaudio/build
-    sudo ninja install
-fi
-cd "$BUILD_DIR"
-
-# Build or Install libusb from source
-if $BUILD_ENABLED; then
-    echo "Building libusb $LIBUSB_VERSION from source..."
-    if [ ! -d "libusb" ]; then
-        curl -L -o libusb.tar.bz2 "https://github.com/libusb/libusb/releases/download/v${LIBUSB_VERSION}/libusb-${LIBUSB_VERSION}.tar.bz2"
-        tar xf libusb.tar.bz2
-        mv "libusb-${LIBUSB_VERSION}" libusb
-        rm libusb.tar.bz2
-    fi
-
-    cd libusb
-    ./configure --prefix=/usr --enable-static --disable-shared --disable-udev
+    cd libexpat
+    ./configure --prefix=$INSTALL_PREFIX --enable-static --disable-shared
     make -j$(nproc)
 fi
 
 if $INSTALL_ENABLED; then
-    echo "Installing libusb $LIBUSB_VERSION..."
-    cd "$BUILD_DIR"/libusb
+    echo "Installing libexpat $EXPAT_VERSION..."
+    cd "$BUILD_DIR"/libexpat
     sudo make install
 fi
 cd "$BUILD_DIR"
@@ -265,7 +312,7 @@ if $BUILD_ENABLED; then
     fi
 
     cd gperf
-    ./configure --prefix=/usr
+    ./configure --prefix=$INSTALL_PREFIX --enable-static --disable-shared
     make -j$(nproc)
 fi
 
@@ -276,49 +323,50 @@ if $INSTALL_ENABLED; then
 fi
 cd "$BUILD_DIR"
 
-# Build or Install FreeType
-if $BUILD_ENABLED; then
-    echo "Building FreeType $FREETYPE_VERSION from source..."
-    if [ ! -d "freetype" ]; then
-        curl -L -o freetype.tar.gz "https://download.savannah.gnu.org/releases/freetype/freetype-${FREETYPE_VERSION}.tar.gz"
-        tar xf freetype.tar.gz
-        mv "freetype-${FREETYPE_VERSION}" freetype
-        rm freetype.tar.gz
-    fi
+# # Build or Install FreeType
+# if $BUILD_ENABLED; then
+#     echo "Building FreeType $FREETYPE_VERSION from source..."
+#     if [ ! -d "freetype" ]; then
+#         curl -L -o freetype.tar.gz "https://download.savannah.gnu.org/releases/freetype/freetype-${FREETYPE_VERSION}.tar.gz"
+#         tar xf freetype.tar.gz
+#         mv "freetype-${FREETYPE_VERSION}" freetype
+#         rm freetype.tar.gz
+#     fi
 
-    cd freetype
-    ./configure --prefix=/usr --enable-static --disable-shared
-    make -j$(nproc)
-fi
+#     cd freetype
+#     ./configure --prefix=$INSTALL_PREFIX --enable-static --disable-shared
+#     make -j$(nproc)
+# fi
 
-if $INSTALL_ENABLED; then
-    echo "Installing FreeType $FREETYPE_VERSION..."
-    cd "$BUILD_DIR"/freetype
-    sudo make install
-fi
-cd "$BUILD_DIR"
+# if $INSTALL_ENABLED; then
+#     echo "Installing FreeType $FREETYPE_VERSION..."
+#     cd "$BUILD_DIR"/freetype
+#     sudo make install
+# fi
+# cd "$BUILD_DIR"
 
-# Build or Install Fontconfig
-if $BUILD_ENABLED; then
-    echo "Building Fontconfig $FONTCONFIG_VERSION from source..."
-    if [ ! -d "fontconfig" ]; then
-        curl -L -o fontconfig.tar.xz "https://www.freedesktop.org/software/fontconfig/release/fontconfig-${FONTCONFIG_VERSION}.tar.xz"
-        tar xf fontconfig.tar.xz
-        mv "fontconfig-${FONTCONFIG_VERSION}" fontconfig
-        rm fontconfig.tar.xz
-    fi
+# # Build or Install Fontconfig
+# if $BUILD_ENABLED; then
+#     echo "Building Fontconfig $FONTCONFIG_VERSION from source..."
+#     if [ ! -d "fontconfig" ]; then
+#         curl -L -o fontconfig.tar.xz "https://www.freedesktop.org/software/fontconfig/release/fontconfig-${FONTCONFIG_VERSION}.tar.xz"
+#         tar xf fontconfig.tar.xz
+#         mv "fontconfig-${FONTCONFIG_VERSION}" fontconfig
+#         rm fontconfig.tar.xz
+#     fi
 
-    cd fontconfig
-    ./configure --prefix=/usr --enable-static --disable-shared
-    make -j$(nproc)
-fi
+#     cd fontconfig
+#     PKG_CONFIG_PATH="$INSTALL_PREFIX/lib/pkgconfig:$INSTALL_PREFIX/local/lib/pkgconfig:$INSTALL_PREFIX/share/pkgconfig" \
+#     ./configure --prefix=$INSTALL_PREFIX --enable-static --disable-shared
+#     make -j$(nproc)
+# fi
 
-if $INSTALL_ENABLED; then
-    echo "Installing Fontconfig $FONTCONFIG_VERSION..."
-    cd "$BUILD_DIR"/fontconfig
-    sudo make install
-fi
-cd "$BUILD_DIR"
+# if $INSTALL_ENABLED; then
+#     echo "Installing Fontconfig $FONTCONFIG_VERSION..."
+#     cd "$BUILD_DIR"/fontconfig
+#     sudo make install
+# fi
+# cd "$BUILD_DIR"
 
 # Build or Install GLib from source
 if $BUILD_ENABLED; then
@@ -333,7 +381,7 @@ if $BUILD_ENABLED; then
     cd glib
     mkdir -p build
     cd build
-    meson setup --prefix=/usr \
+    meson setup --prefix=$INSTALL_PREFIX \
         -Ddefault_library=static \
         -Dtests=false \
         ..
@@ -348,7 +396,7 @@ fi
 cd "$BUILD_DIR"
 
 # Update pkg-config path
-export PKG_CONFIG_PATH="/usr/lib/pkgconfig:/usr/local/lib/pkgconfig:/usr/share/pkgconfig"
+export PKG_CONFIG_PATH="$INSTALL_PREFIX/lib/pkgconfig:$INSTALL_PREFIX/local/lib/pkgconfig:$INSTALL_PREFIX/share/pkgconfig"
 
 # Build or Install randrproto (part of x11proto-randr)
 if $BUILD_ENABLED; then
@@ -361,7 +409,7 @@ if $BUILD_ENABLED; then
     fi
 
     cd randrproto
-    ./configure --prefix=/usr
+    ./configure --prefix=$INSTALL_PREFIX
     make -j$(nproc)
 fi
 
@@ -383,7 +431,7 @@ if $BUILD_ENABLED; then
     fi
 
     cd renderproto
-    ./configure --prefix=/usr
+    ./configure --prefix=$INSTALL_PREFIX
     make -j$(nproc)
 fi
 
@@ -405,7 +453,7 @@ if $BUILD_ENABLED; then
     fi
 
     cd xextproto
-    ./configure --prefix=/usr
+    ./configure --prefix=$INSTALL_PREFIX
     make -j$(nproc)
 fi
 
@@ -430,7 +478,7 @@ if $BUILD_ENABLED; then
     # Create a build directory for Meson
     mkdir -p build
     cd build
-    meson setup --prefix=/usr \
+    meson setup --prefix=$INSTALL_PREFIX \
         -Ddefault_library=static \
         ..
     ninja
@@ -455,7 +503,7 @@ if $BUILD_ENABLED; then
 
     cd xorg-macros
     # xorg-macros does not need to be built; it just needs to be installed
-    ./configure --prefix=/usr
+    ./configure --prefix=$INSTALL_PREFIX
     make -j$(nproc)
 fi
 
@@ -477,7 +525,7 @@ if $BUILD_ENABLED; then
     fi
 
     cd xproto
-    ./configure --prefix=/usr
+    ./configure --prefix=$INSTALL_PREFIX
     make -j$(nproc)
 fi
 
@@ -499,7 +547,7 @@ if $BUILD_ENABLED; then
     fi
 
     cd libXau
-    CFLAGS="-fPIC" ./configure --prefix=/usr \
+    CFLAGS="-fPIC" ./configure --prefix=$INSTALL_PREFIX \
         --enable-static \
         --disable-shared
     make -j$(nproc)
@@ -523,7 +571,7 @@ if $BUILD_ENABLED; then
     fi
 
     cd xorgproto
-    CFLAGS="-fPIC" ./configure --prefix=/usr \
+    CFLAGS="-fPIC" ./configure --prefix=$INSTALL_PREFIX \
         --enable-static \
         --disable-shared
     make -j$(nproc)
@@ -547,7 +595,7 @@ if $BUILD_ENABLED; then
     fi
 
     cd xtrans
-    CFLAGS="-fPIC" ./configure --prefix=/usr
+    CFLAGS="-fPIC" ./configure --prefix=$INSTALL_PREFIX
     make -j$(nproc)
 fi
 
@@ -569,7 +617,7 @@ if $BUILD_ENABLED; then
     fi
 
     cd xcb-proto
-    CFLAGS="-fPIC" ./configure --prefix=/usr
+    CFLAGS="-fPIC" ./configure --prefix=$INSTALL_PREFIX
     make -j$(nproc)
 fi
 
@@ -591,7 +639,7 @@ if $BUILD_ENABLED; then
     fi
 
     cd libxcb
-    CFLAGS="-fPIC" ./configure --prefix=/usr \
+    CFLAGS="-fPIC" ./configure --prefix=$INSTALL_PREFIX \
         --enable-static \
         --disable-shared \
         --enable-xinput \
@@ -619,7 +667,7 @@ if $BUILD_ENABLED; then
 
     cd libX11
     CFLAGS="-fPIC" \
-    ./configure --prefix=/usr \
+    ./configure --prefix=$INSTALL_PREFIX \
         --enable-static \
         --disable-shared \
         --disable-specs \
@@ -647,8 +695,8 @@ if $BUILD_ENABLED; then
     fi
 
     cd libXrender
-    CFLAGS="-fPIC" PKG_CONFIG_PATH="/usr/lib/pkgconfig:/usr/local/lib/pkgconfig:/usr/share/pkgconfig" \
-    ./configure --prefix=/usr \
+    CFLAGS="-fPIC" PKG_CONFIG_PATH="$INSTALL_PREFIX/lib/pkgconfig:$INSTALL_PREFIX/local/lib/pkgconfig:$INSTALL_PREFIX/share/pkgconfig" \
+    ./configure --prefix=$INSTALL_PREFIX \
         --enable-static \
         --disable-shared
     make -j$(nproc)
@@ -673,7 +721,7 @@ if $BUILD_ENABLED; then
     fi
 
     cd libXext
-    CFLAGS="-fPIC" ./configure --prefix=/usr \
+    CFLAGS="-fPIC" ./configure --prefix=$INSTALL_PREFIX \
         --enable-static \
         --disable-shared \
         --disable-specs \
@@ -701,12 +749,12 @@ if $BUILD_ENABLED; then
     fi
 
     cd libXrandr
-    CPPFLAGS="-I/usr/include" \
-    CFLAGS="-fPIC -I/usr/include" \
-    LDFLAGS="-L/usr/lib" \
-    RANDR_CFLAGS="-I/usr/include" \
-    RANDR_LIBS="-L/usr/lib -lX11 -lXext -lXrender" \
-    ./configure --prefix=/usr \
+    CPPFLAGS="-I$INSTALL_PREFIX/include" \
+    CFLAGS="-fPIC -I$INSTALL_PREFIX/include" \
+    LDFLAGS="-L$INSTALL_PREFIX/lib" \
+    RANDR_CFLAGS="-I$INSTALL_PREFIX/include" \
+    RANDR_LIBS="-L$INSTALL_PREFIX/lib -lX11 -lXext -lXrender" \
+    ./configure --prefix=$INSTALL_PREFIX \
         --enable-static \
         --disable-shared \
         --with-pic
@@ -731,7 +779,7 @@ if $BUILD_ENABLED; then
     fi
 
     cd xcb-util
-    CFLAGS="-fPIC" ./configure --prefix=/usr --enable-static --disable-shared
+    CFLAGS="-fPIC" ./configure --prefix=$INSTALL_PREFIX --enable-static --disable-shared
     make -j$(nproc)
 fi
 
@@ -753,7 +801,7 @@ if $BUILD_ENABLED; then
     fi
 
     cd xcb-util-wm
-    CFLAGS="-fPIC" ./configure --prefix=/usr --enable-static --disable-shared
+    CFLAGS="-fPIC" ./configure --prefix=$INSTALL_PREFIX --enable-static --disable-shared
     make -j$(nproc)
 fi
 
@@ -764,7 +812,7 @@ if $INSTALL_ENABLED; then
 fi
 cd "$BUILD_DIR"
 
-# Build xcb-util-keysyms
+# Build or Install xcb-util-keysyms
 if $BUILD_ENABLED; then
     echo "Building xcb-util-keysyms $XCB_UTIL_KEYSYMS_VERSION from source..."
     if [ ! -d "xcb-util-keysyms" ]; then
@@ -775,7 +823,7 @@ if $BUILD_ENABLED; then
     fi
 
     cd xcb-util-keysyms
-    CFLAGS="-fPIC" ./configure --prefix=/usr --enable-static --disable-shared
+    CFLAGS="-fPIC" ./configure --prefix=$INSTALL_PREFIX --enable-static --disable-shared
     make -j$(nproc)
 fi
 
@@ -786,12 +834,80 @@ if $INSTALL_ENABLED; then
 fi
 cd "$BUILD_DIR"
 
+# Build or Install xcb-util-image
+if $BUILD_ENABLED; then
+    echo "Building xcb-util-image from source..."
+    if [ ! -d "xcb-util-image" ]; then
+        curl -L -o xcb-util-image.tar.gz "https://xcb.freedesktop.org/dist/xcb-util-image-0.4.1.tar.gz"
+        tar xf xcb-util-image.tar.gz
+        mv "xcb-util-image-0.4.1" xcb-util-image
+        rm xcb-util-image.tar.gz
+    fi
+
+    cd xcb-util-image
+    CFLAGS="-fPIC" ./configure --prefix=$INSTALL_PREFIX --enable-static --disable-shared
+    make -j$(nproc)
+fi
+
+if $INSTALL_ENABLED; then
+    echo "Installing xcb-util-image..."
+    cd "$BUILD_DIR"/xcb-util-image
+    sudo make install
+fi
+cd "$BUILD_DIR"
+
+# Build or Install xcb-util-renderutil
+if $BUILD_ENABLED; then
+    echo "Building xcb-util-renderutil from source..."
+    if [ ! -d "xcb-util-renderutil" ]; then
+        curl -L -o xcb-util-renderutil.tar.gz "https://xcb.freedesktop.org/dist/xcb-util-renderutil-0.3.10.tar.gz"
+        tar xf xcb-util-renderutil.tar.gz
+        mv "xcb-util-renderutil-0.3.10" xcb-util-renderutil
+        rm xcb-util-renderutil.tar.gz
+    fi
+
+    cd xcb-util-renderutil
+    CFLAGS="-fPIC" ./configure --prefix=$INSTALL_PREFIX --enable-static --disable-shared
+    make -j$(nproc)
+fi
+
+if $INSTALL_ENABLED; then
+    echo "Installing xcb-util-renderutil..."
+    cd "$BUILD_DIR"/xcb-util-renderutil
+    sudo make install
+fi
+cd "$BUILD_DIR"
+
+# Build or Install xcb-util-cursor
+if $BUILD_ENABLED; then
+    echo "Building xcb-util-cursor $XCB_CURSOR_VERSION from source..."
+    if [ ! -d "xcb-util-cursor" ]; then
+        curl -L -o xcb-util-cursor.tar.gz "https://xcb.freedesktop.org/dist/xcb-util-cursor-${XCB_CURSOR_VERSION}.tar.gz"
+        tar xf xcb-util-cursor.tar.gz
+        mv "xcb-util-cursor-${XCB_CURSOR_VERSION}" xcb-util-cursor
+        rm xcb-util-cursor.tar.gz
+    fi
+
+    cd xcb-util-cursor
+    CFLAGS="-fPIC" ./configure --prefix=$INSTALL_PREFIX --enable-static --disable-shared
+    make -j$(nproc)
+fi
+
+if $INSTALL_ENABLED; then
+    echo "Installing xcb-util-cursor $XCB_CURSOR_VERSION..."
+    cd "$BUILD_DIR"/xcb-util-cursor
+    sudo make install
+fi
+cd "$BUILD_DIR"
+
 # Verify pkg-config files are installed
 echo "Verifying pkg-config files..."
 pkg-config --exists x11 && echo "x11.pc found" || echo "x11.pc not found"
 pkg-config --exists xext && echo "xext.pc found" || echo "xext.pc not found"
 pkg-config --exists xrender && echo "xrender.pc found" || echo "xrender.pc not found"
-
+pkg-config --exists xcb-image && echo "xcb-image.pc found" || echo "xcb-image.pc not found"
+pkg-config --exists xcb-cursor && echo "xcb-cursor.pc found" || echo "xcb-cursor.pc not found"
+pkg-config --exists xcb-renderutil && echo "xcb-renderutil.pc found" || echo "xcb-renderutil.pc not found"
 
 # Build libXdmcp
 if $BUILD_ENABLED; then
@@ -804,7 +920,7 @@ if $BUILD_ENABLED; then
     fi
 
     cd libXdmcp
-    CFLAGS="-fPIC" ./configure --prefix=/usr --enable-static --disable-shared
+    CFLAGS="-fPIC" ./configure --prefix=$INSTALL_PREFIX --enable-static --disable-shared
     make -j$(nproc)
 fi
 
@@ -848,13 +964,13 @@ if $BUILD_ENABLED; then
         echo "Error: $LIBXKBCOMMON_MESON_FILE not found."
     fi
      
-    meson setup --prefix=/usr \
+    meson setup --prefix=$INSTALL_PREFIX \
         -Denable-docs=false \
         -Denable-wayland=false \
         -Denable-x11=true \
         -Ddefault_library=static \
-        -Dxkb-config-root=/usr/share/X11/xkb \
-        -Dx-locale-root=/usr/share/X11/locale \
+        -Dxkb-config-root=$INSTALL_PREFIX/share/X11/xkb \
+        -Dx-locale-root=$INSTALL_PREFIX/share/X11/locale \
         ..
     ninja
 fi
@@ -866,56 +982,8 @@ if $INSTALL_ENABLED; then
 fi
 cd "$BUILD_DIR"
 
-# Install NASM
-if $BUILD_ENABLED; then
-    echo "Installing NASM..."
-    curl -L -o nasm.tar.xz "https://www.nasm.us/pub/nasm/releasebuilds/${NASM_VERSION}/nasm-${NASM_VERSION}.tar.xz"
-    tar xf nasm.tar.xz
-    rm nasm.tar.xz
-
-    cd "nasm-${NASM_VERSION}"
-    ./configure --prefix=/usr
-    make -j$(nproc)
-fi
-
-if $INSTALL_ENABLED; then
-    echo "Installing NASM..."
-    cd "$BUILD_DIR"/nasm-${NASM_VERSION}
-    sudo make install
-fi
-cd "$BUILD_DIR"
-
-# Build FFmpeg
-if $BUILD_ENABLED; then
-    echo "Building FFmpeg $FFMPEG_VERSION from source..."
-    if [ ! -d "FFmpeg-n${FFMPEG_VERSION}" ]; then
-        curl -L -o ffmpeg.tar.gz "https://github.com/FFmpeg/FFmpeg/archive/refs/tags/n${FFMPEG_VERSION}.tar.gz"
-        tar -xzf ffmpeg.tar.gz
-        rm ffmpeg.tar.gz
-    fi
-
-    cd "FFmpeg-n${FFMPEG_VERSION}"
-    ./configure --prefix=/usr/local \
-        --disable-shared \
-        --enable-gpl \
-        --enable-version3 \
-        --disable-nonfree \
-        --disable-doc \
-        --disable-programs \
-        --enable-pic \
-        --enable-static
-    make -j$(nproc)
-fi
-
-if $INSTALL_ENABLED; then
-    echo "Installing FFmpeg $FFMPEG_VERSION..."
-    cd "$BUILD_DIR"/FFmpeg-n${FFMPEG_VERSION}
-    sudo make install
-    sudo ldconfig
-fi
-cd "$BUILD_DIR"
 
 # At the end, export the PKG_CONFIG_PATH
-export PKG_CONFIG_PATH="/usr/lib/pkgconfig:/usr/local/lib/pkgconfig:/usr/share/pkgconfig"
+export PKG_CONFIG_PATH="$INSTALL_PREFIX/lib/pkgconfig:$INSTALL_PREFIX/local/lib/pkgconfig:$INSTALL_PREFIX/share/pkgconfig"
 
 echo "All Qt dependencies have been processed successfully"

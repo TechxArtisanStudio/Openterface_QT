@@ -4,29 +4,38 @@ project(openterfaceQT VERSION 1.0 LANGUAGES C CXX)
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 set(CMAKE_AUTOUIC ON)
 
+# Option to control static linking of FFmpeg
+option(USE_FFMPEG_STATIC "Use static FFmpeg libraries" ON)
+
+# Prefer static libraries
+if(USE_FFMPEG_STATIC)
+    set(CMAKE_FIND_STATIC_PREFER ON)
+endif()
+
 find_package(QT NAMES Qt5 Qt6 REQUIRED COMPONENTS Core)
 find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Concurrent Gui Multimedia MultimediaWidgets Network SerialPort Svg)
 find_package(Qt${QT_VERSION_MAJOR} OPTIONAL_COMPONENTS Widgets)
 
 # Find X11 libraries
-find_package(X11 REQUIRED COMPONENTS Xrandr Xrender)
+find_package(X11 REQUIRED COMPONENTS Xrandr)
 
-# Explicitly set the FFmpeg libraries and include directories
+find_package(EXPAT REQUIRED)
+find_package(Freetype REQUIRED)
+find_package(Fontconfig REQUIRED)
+find_package(BZip2 REQUIRED)
+
+# Use pkg-config to find Xrender
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(XRENDER REQUIRED xrender)
+
+# Set FFmpeg include and library directories
 set(FFMPEG_INCLUDE_DIRS "/usr/local/include")
-set(FFMPEG_LIBRARIES "/usr/lib/local/libavcodec.a;/usr/lib/local/libavformat.a;/usr/lib/local/libavutil.a;/usr/lib/local/libswresample.a;/usr/lib/local/libswscale.a")
+set(FFMPEG_LIBRARIES "/usr/local/lib/libavformat.a;/usr/local/lib/libavcodec.a;/usr/local/lib/libavutil.a;/usr/local/lib/libswresample.a;/usr/local/lib/libswscale.a")
 
-if(NOT FFmpeg_FOUND)
-    message(FATAL_ERROR "FFmpeg libraries not found. Please install FFmpeg development packages.")
-else()
-    message(STATUS "Found FFmpeg: ${FFMPEG_LIBRARIES}")
-endif()
+# Include FFmpeg directories
+include_directories(${FFMPEG_INCLUDE_DIRS})
 
-# Find FFmpeg libraries
-#find_package(FFmpeg REQUIRED COMPONENTS avformat avcodec avutil swresample swscale)
-
-# Ensure static linking
-set(FFMPEG_STATIC ON)
-
+# Add the executable target
 qt_standard_project_setup()
 
 qt_add_executable(openterfaceQT WIN32 MACOSX_BUNDLE
@@ -77,6 +86,7 @@ qt_add_executable(openterfaceQT WIN32 MACOSX_BUNDLE
     ui/videopane.cpp ui/videopane.h
     video/videohid.cpp video/videohid.h
 )
+
 target_link_libraries(openterfaceQT PRIVATE
     Qt::Concurrent
     Qt::Core
@@ -86,14 +96,14 @@ target_link_libraries(openterfaceQT PRIVATE
     Qt::Network
     Qt::SerialPort
     Qt::Svg
+    ${FFMPEG_LIBRARIES}  # Link against FFmpeg libraries
+    ${EXPAT_LIBRARIES}
+    ${FREETYPE_LIBRARIES}
+    ${FONTCONFIG_LIBRARIES}
+    ${XRENDER_LIBRARIES}
+    ${BZIP2_LIBRARIES}
+    ${EXTRA_LIBS}
 )
-
-if(DEFINED LIBXRENDER_LIBRARY)
-    message(STATUS "Using custom libXrender library: ${LIBXRENDER_LIBRARY}")
-    target_link_libraries(openterfaceQT PRIVATE ${LIBXRENDER_LIBRARY})
-endif()
-
-find_library(XRENDER_LIBRARY Xrender PATHS /usr/lib)
 
 # Resources:
 set(mainwindow_resource_files
@@ -132,6 +142,7 @@ qt_add_resources(openterfaceQT "mainwindow"
     FILES
         ${mainwindow_resource_files}
 )
+
 set(keyboard_layouts_resource_files
     "config/keyboards/azerty_fr.json"
     "config/keyboards/japanese.json"
@@ -149,6 +160,7 @@ qt_add_resources(openterfaceQT "keyboard_layouts"
     FILES
         ${keyboard_layouts_resource_files}
 )
+
 set(qmake_immediate_resource_files
     "openterfaceQT.rc"
 )
@@ -172,14 +184,12 @@ if(WIN32)
     )
 
     target_link_libraries(openterfaceQT PRIVATE
-        # Remove: L${CMAKE_CURRENT_SOURCE_DIR}/lib
         hid
         libusb-1.0
         oleaut32
         setupapi
         winpthread
     )
-
 
     # Resources:
     set_source_files_properties("driver/windows/CH341SER.INF"
@@ -223,7 +233,6 @@ if(UNIX)
         FILES
             ${drivers_resource_files}
     )
-
 endif()
 
 install(TARGETS openterfaceQT
@@ -237,3 +246,31 @@ qt_generate_deploy_app_script(
     NO_UNSUPPORTED_PLATFORM_ERROR
 )
 install(SCRIPT ${deploy_script})
+
+# Add these lines to enable size optimization
+if(CMAKE_BUILD_TYPE STREQUAL "Release")
+    # Enable Link Time Optimization
+    include(CheckIPOSupported)
+    check_ipo_supported(RESULT LTO_SUPPORTED OUTPUT LTO_ERROR)
+    if(LTO_SUPPORTED)
+        message(STATUS "IPO / LTO enabled")
+        set(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)
+    else()
+        message(STATUS "IPO / LTO not supported: ${LTO_ERROR}")
+    endif()
+    
+    # Optimize for size
+    add_compile_options(-Os)
+    
+    # Remove unused functions and data
+    add_compile_options(-ffunction-sections -fdata-sections)
+    
+    # Strip unused symbols
+    if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+        add_link_options(-Wl,--gc-sections)
+    endif()
+endif()
+
+# Make sure to only include the necessary Qt components
+find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets Network Multimedia MultimediaWidgets)
+# Replace with only the modules you actually need

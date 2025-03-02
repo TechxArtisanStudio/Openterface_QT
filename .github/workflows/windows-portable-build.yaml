@@ -1,5 +1,5 @@
 ---
-  name: Standalone Build for windows
+  name: Portable Build for windows
   
   on:
     push:
@@ -13,7 +13,7 @@
       shell: cmd
   
   env:
-    ARTIFACT: openterfaceQT-standalone.exe
+    ARTIFACT: openterfaceQT-portable.exe
     SOURCE_DIR: ${{ github.workspace }}
     QT_VERSION: 6.5.3 
     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -101,7 +101,7 @@
             mkdir ${{ env.SOURCE_DIR }}\drivers
             mkdir ${{ env.SOURCE_DIR }}\drivers\windows
             copy driver\windows\* ${{ env.SOURCE_DIR }}\drivers\windows
-        - name: Build Standalone Executable
+        - name: Build Portable Executable
           working-directory: ${{ runner.temp }}\build
           run: |
             echo "Checking Qt configuration..."
@@ -121,7 +121,7 @@
               exit 1
             )
           
-            echo "Creating standalone package..."
+            echo "Creating portable package..."
             mkdir package
             copy release\openterfaceQT.exe package
         - name: Save build artifact

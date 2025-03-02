@@ -39,12 +39,10 @@ private:
     static bool isDriverInstalled;
     static bool isInRightUserGroup;
     static bool isHidPermission;
-    static bool isBrlttyRunning;
     
     static bool checkDriverInstalled();
     static bool checkInRightUserGroup();
     static bool checkHidPermission();
-    static bool checkBrlttyRunning();
     
     QString buildCommands();
 
@@ -52,6 +50,5 @@ private:
     static const QString driverCommands;
     static const QString groupCommands;
     static const QString udevCommands;
-    static const QString brlttyCommands;
 };
 #endif
