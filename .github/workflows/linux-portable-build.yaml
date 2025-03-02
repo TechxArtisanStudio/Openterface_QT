@@ -13,7 +13,7 @@
       shell: bash
   
   env:
-    ARTIFACT: openterfaceQT-portable
+    ARTIFACT: openterfaceQT.linux.amd64.portable
     SOURCE_DIR: ${{ github.workspace }}
     QT_VERSION: 6.6.3 
     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
