@@ -104,8 +104,14 @@
               libexpat1-dev \
               libdrm-dev \
               libgbm-dev \
-              libatspi2.0-dev
-  
+              libatspi2.0-dev \
+              upx-ucl
+
+        - name: Analyze original binary size (if exists)
+          run: |
+            if [ -f ${{ runner.temp }}/build/openterfaceQT ]; then
+              ls -lh ${{ runner.temp }}/build/openterfaceQT
+            fi
   
         - name: Build Standalone Executable
           working-directory: ${{ runner.temp }}/build
@@ -123,7 +129,12 @@
                 -DCMAKE_POLICY_DEFAULT_CMP0177=NEW \
                 -DCMAKE_POLICY_DEFAULT_CMP0174=NEW \
                 -DCMAKE_VERBOSE_MAKEFILE=ON \
-                -DQT_DEBUG_FIND_PACKAGE=ON
+                -DQT_DEBUG_FIND_PACKAGE=ON \
+                -DCMAKE_CXX_FLAGS="-Os -ffunction-sections -fdata-sections" \
+                -DCMAKE_C_FLAGS="-Os -ffunction-sections -fdata-sections" \
+                -DCMAKE_EXE_LINKER_FLAGS="-Wl,--gc-sections -Wl,--strip-all" \
+                -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON \
+                -DCMAKE_POSITION_INDEPENDENT_CODE=ON
   
             echo "Building with CMake..."
             cmake --build . --verbose || (echo "CMake build failed. Please check the build configuration." && exit 1)
@@ -135,6 +146,16 @@
   
             echo "Creating standalone package..."
             mkdir package
+
+            echo "Analyzing binary size before compression..."
+            ls -lh openterfaceQT
+            
+            echo "Compressing binary with UPX..."
+            upx --best --lzma openterfaceQT
+            
+            echo "Analyzing binary size after compression..."
+            ls -lh openterfaceQT
+            
             cp openterfaceQT package
   
         - name: Save build artifact

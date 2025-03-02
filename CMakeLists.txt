@@ -246,3 +246,31 @@ qt_generate_deploy_app_script(
     NO_UNSUPPORTED_PLATFORM_ERROR
 )
 install(SCRIPT ${deploy_script})
+
+# Add these lines to enable size optimization
+if(CMAKE_BUILD_TYPE STREQUAL "Release")
+    # Enable Link Time Optimization
+    include(CheckIPOSupported)
+    check_ipo_supported(RESULT LTO_SUPPORTED OUTPUT LTO_ERROR)
+    if(LTO_SUPPORTED)
+        message(STATUS "IPO / LTO enabled")
+        set(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)
+    else()
+        message(STATUS "IPO / LTO not supported: ${LTO_ERROR}")
+    endif()
+    
+    # Optimize for size
+    add_compile_options(-Os)
+    
+    # Remove unused functions and data
+    add_compile_options(-ffunction-sections -fdata-sections)
+    
+    # Strip unused symbols
+    if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+        add_link_options(-Wl,--gc-sections)
+    endif()
+endif()
+
+# Make sure to only include the necessary Qt components
+find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets Network Multimedia MultimediaWidgets)
+# Replace with only the modules you actually need
