@@ -31,9 +31,9 @@
           uses: actions/cache@v3
           with:
             path: /opt/Qt6
-            key: qt-${QT_VERSION}-linux-static
+            key: qt-${{ env.QT_VERSION }}-linux-static
             restore-keys: |
-              qt-${QT_VERSION}-linux-static
+              qt-${{ env.QT_VERSION }}-linux-static
 
         - name: Cache FFmpeg
           id: cache-ffmpeg
