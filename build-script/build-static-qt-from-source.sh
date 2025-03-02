@@ -20,22 +20,21 @@ sudo apt-get install -y build-essential meson ninja-build bison flex pkg-config 
     libdrm-dev libgbm-dev libatspi2.0-dev \
     libvulkan-dev libssl-dev \
     libpulse-dev \
-    libharfbuzz-dev \
     yasm nasm # Dependencies for FFmpeg compilation
 
 QT_VERSION=6.6.3
 QT_MAJOR_VERSION=6.6
 INSTALL_PREFIX=/opt/Qt6
 BUILD_DIR=$(pwd)/qt-build
-FFMPEG_PREFIX="$INSTALL_PREFIX/ffmpeg-install"
-# Only include essential modules
+FFMPEG_PREFIX="$BUILD_DIR/ffmpeg-install"
+# Update module list to include qtdeclarative (which provides Qt Quick)
 MODULES=("qtbase" "qtshadertools" "qtdeclarative" "qtmultimedia" "qtsvg" "qtserialport")
 DOWNLOAD_BASE_URL="https://download.qt.io/archive/qt/$QT_MAJOR_VERSION/$QT_VERSION/submodules"
 
 # Create the build directory first
 mkdir -p "$BUILD_DIR"
 
-# Build FFmpeg statically with minimal size
+# Build FFmpeg statically
 echo "Building FFmpeg statically..."
 FFMPEG_VERSION="6.1.1"
 cd "$BUILD_DIR"
@@ -55,21 +54,10 @@ cd "ffmpeg-$FFMPEG_VERSION"
     --disable-outdevs \
     --enable-pic \
     --enable-libpulse \
-    --disable-debug \
-    --disable-everything \
-    --enable-small \
-    --disable-iconv \
-    --disable-network \
-    --optflags="-Os -ffunction-sections -fdata-sections" \
-    --enable-decoder=aac,mp3,pcm_s16le,h264,hevc \
-    --enable-demuxer=aac,mp3,mov,matroska \
-    --enable-protocol=file \
-    --enable-parser=aac,h264,hevc
+    --disable-debug
 
 make -j$(nproc)
 make install
-# Strip binaries
-find "$FFMPEG_PREFIX" -type f -name "*.a" -exec strip --strip-unneeded {} \;
 
 # Download and extract modules
 cd "$BUILD_DIR"
@@ -82,14 +70,8 @@ for module in "${MODULES[@]}"; do
     fi
 done
 
-# Define common CMake flags with size optimization
-CMAKE_COMMON_FLAGS="-Wno-dev -DCMAKE_POLICY_DEFAULT_CMP0177=NEW -DCMAKE_POLICY_DEFAULT_CMP0174=NEW \
-    -DCMAKE_BUILD_TYPE=Release \
-    -DCMAKE_CXX_FLAGS=\"-Os\" \
-    -DCMAKE_C_FLAGS=\"-Os\" \
-    -DCMAKE_EXE_LINKER_FLAGS=\"-Wl,--gc-sections\" \
-    -DCMAKE_SHARED_LINKER_FLAGS=\"-Wl,--gc-sections\" \
-    -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON"
+# Define common CMake flags to suppress warnings
+CMAKE_COMMON_FLAGS="-Wno-dev -DCMAKE_POLICY_DEFAULT_CMP0177=NEW -DCMAKE_POLICY_DEFAULT_CMP0174=NEW"
 
 # Build qtbase first
 echo "Building qtbase..."
@@ -97,32 +79,25 @@ cd "$BUILD_DIR/qtbase"
 mkdir -p build
 cd build
 
-# Create a symlink for the bundled harfbuzz if it doesn't exist
-sudo mkdir -p "$INSTALL_PREFIX/lib/cmake/Qt6"
-sudo mkdir -p "$INSTALL_PREFIX/include/harfbuzz"
-
-# Extract harfbuzz sources from Qt source tree if available
-if [ -d "../src/3rdparty/harfbuzz" ]; then
-    echo "Extracting bundled HarfBuzz..."
-    sudo cp -r ../src/3rdparty/harfbuzz/* "$INSTALL_PREFIX/include/harfbuzz/"
-fi
-
 cmake -GNinja \
     $CMAKE_COMMON_FLAGS \
     -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" \
     -DBUILD_SHARED_LIBS=OFF \
     -DFEATURE_dbus=ON \
-    -DFEATURE_harfbuzz=ON \
-    -DINPUT_harfbuzz=system \
-    -DFEATURE_fontconfig=ON \
-    -DFEATURE_freetype=ON \
-    -DINPUT_freetype=system \
+    -DFEATURE_sql=OFF \
+    -DFEATURE_testlib=OFF \
+    -DFEATURE_icu=OFF \
+    -DFEATURE_opengl=ON \
+    -DFEATURE_xlib=ON \
+    -DFEATURE_xcb_xlib=ON \
+    -DFEATURE_xkbcommon=ON \
+    -DFEATURE_xkbcommon_x11=ON \
+    -DTEST_xcb_syslibs=ON \
     ..
 
 ninja
 sudo ninja install
-# Strip binaries
-sudo find "$INSTALL_PREFIX" -type f -executable -exec strip --strip-unneeded {} \; 2>/dev/null || true
+
 
 # Build qtshadertools
 echo "Building qtshadertools..."
@@ -134,7 +109,6 @@ cmake -GNinja \
     -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" \
     -DBUILD_SHARED_LIBS=OFF \
     -DCMAKE_EXE_LINKER_FLAGS="-lfontconfig -lfreetype" \
-    -DFEATURE_optimize_size=ON \
     ..
 
 ninja
@@ -150,9 +124,6 @@ cmake -GNinja \
     -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" \
     -DCMAKE_PREFIX_PATH="$INSTALL_PREFIX" \
     -DBUILD_SHARED_LIBS=OFF \
-    -DFEATURE_optimize_size=ON \
-    -DFEATURE_qml_debug=OFF \
-    -DFEATURE_quick_designer=OFF \
     ..
 
 ninja
@@ -174,16 +145,15 @@ for module in "${MODULES[@]}"; do
                 -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" \
                 -DCMAKE_PREFIX_PATH="$INSTALL_PREFIX;$FFMPEG_PREFIX" \
                 -DBUILD_SHARED_LIBS=OFF \
-                -DQT_FEATURE_gstreamer=OFF \
-                -DQT_FEATURE_pulseaudio=ON \
-                -DQT_FEATURE_ffmpeg=ON \
-                -DFFMPEG_avcodec_LIBRARY="$FFMPEG_PREFIX/lib/libavcodec.a" \
-                -DFFMPEG_avformat_LIBRARY="$FFMPEG_PREFIX/lib/libavformat.a" \
-                -DFFMPEG_avutil_LIBRARY="$FFMPEG_PREFIX/lib/libavutil.a" \
-                -DFFMPEG_swresample_LIBRARY="$FFMPEG_PREFIX/lib/libswresample.a" \
-                -DFFMPEG_swscale_LIBRARY="$FFMPEG_PREFIX/lib/libswscale.a" \
-                -DFFMPEG_INCLUDE_DIR="$FFMPEG_PREFIX/include" \
-                -DCMAKE_EXE_LINKER_FLAGS="-L$FFMPEG_PREFIX/lib -lpulse" \
+                -DFEATURE_gstreamer=OFF \
+                -DINPUT_gstreamer=OFF \
+                -DFEATURE_pulseaudio=ON \
+                -DFEATURE_ffmpeg=ON \
+                -DINPUT_ffmpeg=ON \
+                -DFEATURE_avfoundation=OFF \
+                -DCMAKE_FIND_ROOT_PATH="$FFMPEG_PREFIX" \
+                -DCMAKE_EXE_LINKER_FLAGS="-L$FFMPEG_PREFIX/lib" \
+                -DFFMPEG_PATH="$FFMPEG_PREFIX" \
                 ..
         else
             cmake -GNinja \
@@ -191,16 +161,12 @@ for module in "${MODULES[@]}"; do
                 -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" \
                 -DCMAKE_PREFIX_PATH="$INSTALL_PREFIX" \
                 -DBUILD_SHARED_LIBS=OFF \
-                -DFEATURE_optimize_size=ON \
                 ..
         fi
         
         ninja
         sudo ninja install
-        # Strip binaries after each module installation
-        sudo find "$INSTALL_PREFIX" -type f -executable -exec strip --strip-unneeded {} \; 2>/dev/null || true
     fi
 done
 
 echo "OpenTerface QT $QT_VERSION has been successfully built and installed to $INSTALL_PREFIX"
-echo "Size optimization enabled - final build should be significantly smaller"
