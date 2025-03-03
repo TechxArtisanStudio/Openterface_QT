@@ -49,7 +49,11 @@ const QString EnvironmentSetupDialog::brlttyCommands =
     "sudo apt-get autoremove -y\n\n";
 
 // Define the help URL
-const QString EnvironmentSetupDialog::helpUrl = "https://github.com/kevinzjpeng/openterface-qt/wiki/Driver-Installation";
+#ifdef _WIN32
+const QString EnvironmentSetupDialog::helpUrl = "https://github.com/TechxArtisanStudio/Openterface_QT/wiki/OpenterfaceQT-Windows-Environment-Setup";
+#elif defined(__linux__)
+const QString EnvironmentSetupDialog::helpUrl = "https://github.com/TechxArtisanStudio/Openterface_QT/wiki/OpenterfaceQT-Linux-Environment-Setup";
+#endif
 
 bool EnvironmentSetupDialog::isDriverInstalled = false;
 bool EnvironmentSetupDialog::isInRightUserGroup = false;
@@ -99,7 +103,6 @@ EnvironmentSetupDialog::EnvironmentSetupDialog(QWidget *parent) :
 
     // Create help link
     QLabel* helpLabel = new QLabel(this);
-    helpLabel->setText("<a href=\"#\">Need help understanding these commands?</a>");
     helpLabel->setOpenExternalLinks(false); // We'll handle the click ourselves
     helpLabel->setAlignment(Qt::AlignCenter);
 
@@ -108,10 +111,9 @@ EnvironmentSetupDialog::EnvironmentSetupDialog(QWidget *parent) :
     if (layout) {
         layout->addWidget(helpLabel);
     }
-
-    // Connect the help link to our slot
-    connect(helpLabel, &QLabel::linkActivated, this, &EnvironmentSetupDialog::openHelpLink);
 #endif
+    // Connect the help link to our slot
+    connect(ui->helpLabel, &QLabel::linkActivated, this, &EnvironmentSetupDialog::openHelpLink);
     // Connect buttons to their respective slots
     connect(ui->okButton, &QPushButton::clicked, this, &EnvironmentSetupDialog::accept);
     connect(ui->quitButton, &QPushButton::clicked, this, &EnvironmentSetupDialog::reject);
