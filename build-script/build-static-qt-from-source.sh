@@ -159,6 +159,8 @@ cmake -GNinja \
     -DXcb_XCB_LIBRARY="$XCB_PREFIX/lib/libxcb.a" \
     -DXcb_CURSOR_INCLUDE_DIR="$XCB_PREFIX/include" \
     -DXcb_CURSOR_LIBRARY="$XCB_PREFIX/lib/libxcb-cursor.a" \
+    -DXcb_UTIL_INCLUDE_DIR="$XCB_PREFIX/include" \ # Add xcb-util include directory
+    -DXcb_UTIL_LIBRARY="$XCB_PREFIX/lib/libxcb-util.a" \ # Add xcb-util library
     -DCMAKE_PREFIX_PATH="$XCB_PREFIX" \
     ..
 
@@ -225,6 +227,15 @@ for module in "${MODULES[@]}"; do
         else
             cmake -GNinja \
                 $CMAKE_COMMON_FLAGS \
+                -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" \
+                -DCMAKE_PREFIX_PATH="$INSTALL_PREFIX" \
+                -DBUILD_SHARED_LIBS=OFF \
+                ..
+        fi
+
+        ninja
+        sudo ninja install
+    fi
 done
 
 echo "OpenTerface QT $QT_VERSION has been successfully built and installed to $INSTALL_PREFIX"
