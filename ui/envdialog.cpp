@@ -104,10 +104,10 @@ EnvironmentSetupDialog::EnvironmentSetupDialog(QWidget *parent) :
 
     // Create the status summary
     QString statusSummary = "The following steps help you install the driver and add user to correct group. Current status:\n";
-    statusSummary += "‣ Driver Installed: " + QString(isDriverInstalled ? tickHtml : crossHtml) + "\n";
-    statusSummary += "‣ In Dialout Group: " + QString(isInRightUserGroup ? tickHtml : crossHtml) + "\n";
-    statusSummary += "‣ HID Permission: " + QString(isHidPermission ? tickHtml : crossHtml) + "\n";
-    statusSummary += "‣ BRLTTY checking: " + QString(isBrlttyRunning ? crossHtml + " (needs removal)" : tickHtml + " (good)") + "\n";
+    statusSummary += "‣ Driver Installed: " + QString(isDriverInstalled ? tickHtml : crossHtml) + "<br>";
+    statusSummary += "‣ In Dialout Group: " + QString(isInRightUserGroup ? tickHtml : crossHtml) + "<br>";
+    statusSummary += "‣ HID Permission: " + QString(isHidPermission ? tickHtml : crossHtml) + "<br>";
+    statusSummary += "‣ BRLTTY checking: " + QString(isBrlttyRunning ? crossHtml + " (needs removal)" : tickHtml + " (not running)");
     ui->descriptionLabel->setText(statusSummary);
 
     // Create help link
