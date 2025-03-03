@@ -333,12 +333,13 @@ void SemanticAnalyzer::analyzeSendStatement(const CommandStatementNode* node) {
                 pos = braceMatch.capturedEnd();
             } else {
                 // Handle single character
+                qCDebug(log_script) << "handling single character";
                 if (tmpKeys[pos].isUpper()){
                     control = 0x02;     // shift press let the char become upper while send data
-                }else{
-                    general[0] = keydata.value(tmpKeys[pos]);
-                    pos++;
+                    qCDebug(log_script) << "Data is Upper case";
                 }
+                general[0] = keydata.value(tmpKeys[pos]);
+                pos++;
                 keyPacket pack(general, control);
                 keyboardMouse->addKeyPacket(pack);
             }
