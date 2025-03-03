@@ -20,7 +20,8 @@ sudo apt-get install -y build-essential meson ninja-build bison flex pkg-config 
     libdrm-dev libgbm-dev libatspi2.0-dev \
     libvulkan-dev libssl-dev \
     libpulse-dev \
-    yasm nasm # Dependencies for FFmpeg compilation
+    yasm nasm \
+    xutils-dev # Add xutils-dev for xorg-macros
 
 QT_VERSION=6.6.3
 QT_MAJOR_VERSION=6.6
@@ -39,6 +40,9 @@ mkdir -p "$BUILD_DIR"
 echo "Building XCB libraries statically..."
 mkdir -p "$XCB_PREFIX"
 cd "$BUILD_DIR"
+
+# Ensure xorg-macros is installed
+sudo apt-get install -y xutils-dev
 
 # Build xcb-util
 if [ ! -d "xcb-util" ]; then
