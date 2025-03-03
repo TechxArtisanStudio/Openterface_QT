@@ -271,7 +271,7 @@ bool EnvironmentSetupDialog::checkEnvironmentSetup() {
     }
 
     checkBrlttyInstalled(); // No need to return value here
-    return checkDriverInstalled() && checkInRightUserGroup() && checkHidPermission();
+    return checkDriverInstalled() && checkInRightUserGroup() && checkHidPermission() && !isBrlttyInstalled;
     #else
     return true;
     #endif
@@ -361,7 +361,7 @@ bool EnvironmentSetupDialog::checkHidPermission() {
 bool EnvironmentSetupDialog::checkBrlttyInstalled() {
     // Check if BRLTTY is installed
     std::cout << "Checking if BRLTTY is installed." << std::endl;
-    std::string command = "dpkg -l | grep -i brltty";
+    std::string command = "dpkg -l | grep -i brltty > /dev/null";
     int result = system(command.c_str());
     isBrlttyInstalled = (result == 0);
     if (isBrlttyInstalled) {
