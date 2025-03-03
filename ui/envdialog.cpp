@@ -37,6 +37,9 @@
 bool EnvironmentSetupDialog::isDriverInstalled = false;
 
 #ifdef __linux__
+const QString EnvironmentSetupDialog::tickHtml = "<span style='color: green; font-size: 16pt'>✓</span>";
+const QString EnvironmentSetupDialog::crossHtml = "<span style='color: red; font-size: 16pt'>✗</span>";
+
 // Define the static commands
 const QString EnvironmentSetupDialog::driverCommands = "# Build and install the driver\n make ; sudo make install\n\n";
 const QString EnvironmentSetupDialog::groupCommands = "# Add user to dialout group\n sudo usermod -a -G dialout $USER\n\n";
@@ -82,9 +85,9 @@ EnvironmentSetupDialog::EnvironmentSetupDialog(QWidget *parent) :
     ui->copyButton->setVisible(false);
     ui->commandsTextEdit->setVisible(false);
     if(isDriverInstalled)
-        ui->descriptionLabel->setText("<span style='color: green; font-size: 16pt'>✓</span> The driver is installed. No further action is required.");
+        ui->descriptionLabel->setText(tickHtml + " The driver is installed. No further action is required.");
     else
-        ui->descriptionLabel->setText("<span style='color: red; font-size: 16pt'>✗</span> The driver is missing. Openterface Mini-KVM will install it automatically.");
+        ui->descriptionLabel->setText(crossHtml + " The driver is missing. Openterface Mini-KVM will install it automatically.");
 #else
     setFixedSize(450, 450);
     ui->commandsTextEdit->setVisible(true);
@@ -98,10 +101,10 @@ EnvironmentSetupDialog::EnvironmentSetupDialog(QWidget *parent) :
 
     // Create the status summary
     QString statusSummary = "The following steps help you install the driver and add user to correct group. Current status:\n";
-    statusSummary += "‣ Driver Installed: " + QString(isDriverInstalled ? "✓" : "✗") + "\n";
-    statusSummary += "‣ In Dialout Group: " + QString(isInRightUserGroup ? "✓" : "✗") + "\n";
-    statusSummary += "‣ HID Permission: " + QString(isHidPermission ? "✓" : "✗") + "\n";
-    statusSummary += "‣ BRLTTY is Running: " + QString(isBrlttyRunning ? "✓ (needs removal)" : "✗ (good)") + "\n";
+    statusSummary += "‣ Driver Installed: " + QString(isDriverInstalled ? tickHtml : crossHtml) + "\n";
+    statusSummary += "‣ In Dialout Group: " + QString(isInRightUserGroup ? tickHtml : crossHtml) + "\n";
+    statusSummary += "‣ HID Permission: " + QString(isHidPermission ? tickHtml : crossHtml) + "\n";
+    statusSummary += "‣ BRLTTY checking: " + QString(isBrlttyRunning ? crossHtml + " (needs removal)" : tickHtml + " (good)") + "\n";
     ui->descriptionLabel->setText(statusSummary);
 
     // Create help link

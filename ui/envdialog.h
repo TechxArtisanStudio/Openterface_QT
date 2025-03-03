@@ -51,6 +51,9 @@ private:
     static const QString udevCommands;
     static const QString brlttyCommands;
 
+    static const QString tickHtml;
+    static const QString crossHtml;
+
     static bool isInRightUserGroup;
     static bool isHidPermission;
     static bool isBrlttyRunning;
