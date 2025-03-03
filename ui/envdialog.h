@@ -19,6 +19,8 @@ public:
     // Static method to check if the CH340 driver is installed
     static bool checkEnvironmentSetup();
 
+    static bool autoEnvironmentCheck();
+
 protected:
     void closeEvent(QCloseEvent *event) override;
 
@@ -46,7 +48,7 @@ private:
     static const QString groupCommands;
     static const QString udevCommands;
     static const QString brlttyCommands;
-    static const QString helpUrl; // URL for help documentation
+    static const QString helpUrl;
 
     static bool isDriverInstalled;
     static bool isInRightUserGroup;

@@ -80,9 +80,16 @@
     </layout>
    </item>
    <item>
+    <widget class="QCheckBox" name="autoCheckBox">
+     <property name="text">
+      <string>Auto environment check on startup</string>
+     </property>
+    </widget>
+   </item>
+   <item>
     <widget class="QLabel" name="helpLabel">
      <property name="text">
-      <string>&lt;a href="#"&gt;Need help understanding these commands?&lt;/a&gt;</string>
+        <string>&lt;a href="#"&gt;Environment Setup Documentation&lt;/a&gt;</string>
      </property>
      <property name="alignment">
       <set>Qt::AlignCenter</set>

@@ -15,6 +15,7 @@
 #include <QVBoxLayout> // Include QVBoxLayout for layout management
 #include <QClipboard> // Include QClipboard for clipboard operations
 #include <QHBoxLayout> // Include QHBoxLayout for horizontal layout
+#include <QSettings>
 #include <cstdlib>
 #ifdef _WIN32 // Check if compiling on Windows
 #include <windows.h> // Include Windows API header
@@ -61,14 +62,22 @@ EnvironmentSetupDialog::EnvironmentSetupDialog(QWidget *parent) :
 {
     ui->setupUi(this);
 
+    checkEnvironmentSetup(); // Ensure the status variables are updated
+    QSettings settings("Openterface", "EnvironmentSetup");
+    bool autoCheck = settings.value("autoCheck", true).toBool();
+    ui->autoCheckBox->setChecked(autoCheck);
+
 #ifdef _WIN32
-    setFixedSize(250, 120); 
+    setFixedSize(250, 140); 
     ui->step1Label->setVisible(false);
     ui->extractButton->setVisible(false);
     ui->step2Label->setVisible(false);
     ui->copyButton->setVisible(false);
     ui->commandsTextEdit->setVisible(false);
-    ui->descriptionLabel->setText("The driver is missing. Openterface Mini-KVM will install it automatically.");
+    if(isDriverInstalled)
+        ui->descriptionLabel->setText("<span style='color: green; font-size: 16pt'>✓</span> The driver is installed. No further action is required.");
+    else
+        ui->descriptionLabel->setText("<span style='color: red; font-size: 16pt'>✗</span> The driver is missing. Openterface Mini-KVM will install it automatically.");
 #else
     setFixedSize(450, 450);
     ui->commandsTextEdit->setVisible(true); 
@@ -174,49 +183,53 @@ void EnvironmentSetupDialog::copyCommands() {
 // Update the accept method to call the new installDriver method
 void EnvironmentSetupDialog::accept()
 {   
-    checkEnvironmentSetup(); // Ensure the status variables are updated
+    // Update the setting
+    QSettings settings("Openterface", "EnvironmentSetup");
+    settings.setValue("autoCheck", ui->autoCheckBox->isChecked());
+    settings.sync();
 
     #ifdef _WIN32
-    installDriverForWindows();
+    if(!isDriverInstalled)
+        installDriverForWindows();
+    #elif defined(__linux__)
+        // Check the current status
+        QString statusSummary;
+        statusSummary += "Driver Installed: " + QString(isDriverInstalled ? "Yes" : "No") + "\n";
+        statusSummary += "In Dialout Group: " + QString(isInRightUserGroup ? "Yes" : "No") + "\n";
+        statusSummary += "HID Permission: " + QString(isHidPermission ? "Yes" : "No") + "\n";
+        statusSummary += "BRLTTY Installed: " + QString(isBrlttyInstalled ? "Yes (needs removal)" : "No") + "\n";
+
+        // Append the status summary to the description label
+        ui->descriptionLabel->setText(ui->descriptionLabel->text() + "\n" + statusSummary);
     #endif
 
-    // Check the current status
-    QString statusSummary;
-    statusSummary += "Driver Installed: " + QString(isDriverInstalled ? "Yes" : "No") + "\n";
-    statusSummary += "In Dialout Group: " + QString(isInRightUserGroup ? "Yes" : "No") + "\n";
-    statusSummary += "HID Permission: " + QString(isHidPermission ? "Yes" : "No") + "\n";
-    statusSummary += "BRLTTY Installed: " + QString(isBrlttyInstalled ? "Yes (needs removal)" : "No") + "\n";
-
-    // Append the status summary to the description label
-    ui->descriptionLabel->setText(ui->descriptionLabel->text() + "\n" + statusSummary);
-
-    // Prompt user to restart computer
-    QMessageBox::StandardButton reply = QMessageBox::question(
-        this,
-        "Restart Required",
-        "The driver has been installed. A system restart and device re-plugging is required for the changes to take effect.\n\n"
-        "Would you like to restart your computer now?",
-        QMessageBox::Yes | QMessageBox::No
-    );
-
-    if (reply == QMessageBox::Yes) {
-#ifdef _WIN32
-        // Execute system restart command
-        QProcess::startDetached("shutdown", QStringList() << "-r" << "-t" << "0");
-#elif defined(__linux__)
-        // For Linux systems
-        QProcess::startDetached("reboot");
-#endif
-    } else {
-        QMessageBox::information(
+    if(!isDriverInstalled){
+        QMessageBox::StandardButton reply = QMessageBox::question(
             this,
-            "Restart Later",
-            "Please remember to restart your computer and re-plug the device for the driver to work properly."
+            "Restart Required",
+            "The driver has been installed. A system restart and device re-plugging is required for the changes to take effect.\n\n"
+            "Would you like to restart your computer now?",
+            QMessageBox::Yes | QMessageBox::No
         );
+        if (reply == QMessageBox::Yes) {
+    #ifdef _WIN32
+            QProcess::startDetached("shutdown", QStringList() << "-r" << "-t" << "0");
+    #elif defined(__linux__)
+            // For Linux systems
+            QProcess::startDetached("reboot");
+    #endif
+        } else {
+            QMessageBox::information(
+                this,
+                "Restart Later",
+                "Please remember to restart your computer and re-plug the device for the driver to work properly."
+            );
+        }
     }
 
     // Call the base class accept method to close the dialog
     QDialog::accept();
+    close();
 }
 
 QString EnvironmentSetupDialog::buildCommands(){
@@ -244,6 +257,7 @@ void EnvironmentSetupDialog::reject()
 }
 
 bool EnvironmentSetupDialog::checkEnvironmentSetup() {
+    std::cout << "Checking environment setup..." << std::endl;
     #ifdef _WIN32
     return checkDriverInstalled();
     #elif defined(__linux__)
@@ -328,7 +342,7 @@ bool EnvironmentSetupDialog::checkDriverInstalled() {
 #endif
 }
 
-#ifdef __unix__
+#ifdef __linux__
 bool EnvironmentSetupDialog::checkInRightUserGroup() {
     // Check if the user is in the dialout group
     std::string command = "groups | grep -i dialout";
@@ -364,4 +378,12 @@ bool EnvironmentSetupDialog::checkBrlttyInstalled() {
 void EnvironmentSetupDialog::openHelpLink() {
     // Open the help URL in the default web browser
     QDesktopServices::openUrl(QUrl(helpUrl));
+}
+
+bool EnvironmentSetupDialog::autoEnvironmentCheck() {
+    // Check the config file for the auto-check preference
+    QSettings settings("Openterface", "EnvironmentSetup");
+    bool autoCheck = settings.value("autoCheck", true).toBool();
+    std::cout << "Auto-check preference: " << (autoCheck ? "enabled" : "disabled") << std::endl;
+    return autoCheck;
 }

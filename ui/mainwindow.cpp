@@ -38,6 +38,7 @@
 #include "ui/versioninfomanager.h"
 #include "ui/cameraajust.h"
 #include "ui/TaskManager.h"
+#include "envdialog.h"
 
 #include <QCameraDevice>
 #include <QMediaDevices>
@@ -285,6 +286,7 @@ MainWindow::MainWindow() :  ui(new Ui::MainWindow),
     connect(ui->fullScreenButton, &QPushButton::clicked, this, &MainWindow::fullScreen);
 
     connect(ui->keyboardLayoutComboBox, SIGNAL(currentIndexChanged(int)), this, SLOT(onKeyboardLayoutCombobox_Changed(int)));
+
     // fullScreen();
     // qCDebug(log_ui_mainwindow) << "full finished";
 }
@@ -1393,4 +1395,10 @@ void MainWindow::initializeKeyboardLayouts() {
         // Fallback to the first available layout if US QWERTY is not found
         changeKeyboardLayout(layouts.first());
     }
+}
+
+void MainWindow::showEnvironmentSetupDialog() {
+    qCDebug(log_ui_mainwindow) << "Show EnvironmentSetupDialog";
+    EnvironmentSetupDialog dialog(this);
+    dialog.exec();
 }

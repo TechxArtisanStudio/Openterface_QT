@@ -129,7 +129,7 @@ int main(int argc, char *argv[])
     KeyboardLayoutManager::getInstance().loadLayouts(configPath);
     
     // Check if the environment is properly set up
-    if (!EnvironmentSetupDialog::checkEnvironmentSetup()) {
+    if (EnvironmentSetupDialog::autoEnvironmentCheck() && !EnvironmentSetupDialog::checkEnvironmentSetup()) {
         EnvironmentSetupDialog envDialog;
         if (envDialog.exec() == QDialog::Rejected) {
             qDebug() << "Driver dialog rejected";
