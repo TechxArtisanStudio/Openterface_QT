@@ -21,34 +21,39 @@ public:
 
 protected:
     void closeEvent(QCloseEvent *event) override;
+
+private slots:
     void accept() override;
     void reject() override;
+    void extractDriverFiles();
+    void copyCommands();
+    void openHelpLink();
+#ifdef _WIN32
+    void installDriverForWindows();
+#endif
 
 private:
     Ui::EnvironmentSetupDialog *ui;
 
+    bool checkDriverInstalled();
+#ifdef __unix__
+    bool checkInRightUserGroup();
+    bool checkHidPermission();
+    bool checkBrlttyInstalled();
+#endif
 
-    // Add the new method for driver installation
-    #ifdef _WIN32
-    void installDriverForWindows();
-    #endif
-    void createInstallDialog(); // New method for creating the install dialog
-    void extractDriverFiles(); // Declaration for extracting driver files
-    void copyCommands(); // Declaration for copying commands
+    static const QString driverCommands;
+    static const QString groupCommands;
+    static const QString udevCommands;
+    static const QString brlttyCommands;
+    static const QString helpUrl; // URL for help documentation
 
     static bool isDriverInstalled;
     static bool isInRightUserGroup;
     static bool isHidPermission;
-    
-    static bool checkDriverInstalled();
-    static bool checkInRightUserGroup();
-    static bool checkHidPermission();
+    static bool isBrlttyInstalled;
     
     QString buildCommands();
-
-    // Static command content
-    static const QString driverCommands;
-    static const QString groupCommands;
-    static const QString udevCommands;
 };
-#endif
+
+#endif // ENVIRONMENTSETUPDIALOG_H

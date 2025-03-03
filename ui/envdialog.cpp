@@ -29,6 +29,9 @@
 #include <fstream> // For file operations
 #include <string> // For std::string
 #endif
+#include <QDesktopServices> // Add this for opening URLs
+#include <QUrl> // Add this for handling URLs
+#include <QLabel> // Already included, but noting it's used for hyperlink
 
 // Define the static commands
 const QString EnvironmentSetupDialog::driverCommands = "# Build and install the driver\n make ; sudo make install\n\n";
@@ -36,13 +39,21 @@ const QString EnvironmentSetupDialog::groupCommands = "# Add user to dialout gro
 const QString EnvironmentSetupDialog::udevCommands =
     "#Add udev rules for Openterface Mini-KVM\n"
     "echo 'KERNEL== \"hidraw*\", SUBSYSTEM==\"hidraw\", MODE=\"0666\"' | sudo tee /etc/udev/rules.d/51-openterface.rules\n"
-    "echo 'SUBSYSTEM==\"usb\", ATTR{idVendor}==\"1a86\", ATTR{idProduct}==\"7523\", ENV{BRL TTY_BRAILLY_DRIVER}=\"none\"' | sudo tee -a /etc/udev/rules.d/51-openterface.rules\n"
+    "echo 'SUBSYSTEM==\"usb\", ATTR{idVendor}==\"1a86\", ATTR{idProduct}==\"7523\", ENV{BRL TTY_BRAILLY_DRIVER}=\"none\", MODE=\"0666\"' | sudo tee -a /etc/udev/rules.d/51-openterface.rules\n"
     "sudo udevadm control --reload-rules\n"
     "sudo udevadm trigger\n\n";
+const QString EnvironmentSetupDialog::brlttyCommands =
+    "# Remove BRLTTY which may interfere with device access\n"
+    "sudo apt-get remove -y brltty\n"
+    "sudo apt-get autoremove -y\n\n";
+
+// Define the help URL
+const QString EnvironmentSetupDialog::helpUrl = "https://github.com/kevinzjpeng/openterface-qt/wiki/Driver-Installation";
 
 bool EnvironmentSetupDialog::isDriverInstalled = false;
 bool EnvironmentSetupDialog::isInRightUserGroup = false;
 bool EnvironmentSetupDialog::isHidPermission = false;
+bool EnvironmentSetupDialog::isBrlttyInstalled = false;
 
 EnvironmentSetupDialog::EnvironmentSetupDialog(QWidget *parent) :
     QDialog(parent),
@@ -59,7 +70,7 @@ EnvironmentSetupDialog::EnvironmentSetupDialog(QWidget *parent) :
     ui->commandsTextEdit->setVisible(false);
     ui->descriptionLabel->setText("The driver is missing. Openterface Mini-KVM will install it automatically.");
 #else
-    setFixedSize(450, 400); 
+    setFixedSize(450, 450);
     ui->commandsTextEdit->setVisible(true); 
     ui->step1Label->setVisible(!isDriverInstalled);
     ui->extractButton->setVisible(!isDriverInstalled);
@@ -74,7 +85,23 @@ EnvironmentSetupDialog::EnvironmentSetupDialog(QWidget *parent) :
     statusSummary += "‣ Driver Installed: " + QString(isDriverInstalled ? "✓" : "✗") + "\n";
     statusSummary += "‣ In Dialout Group: " + QString(isInRightUserGroup ? "✓" : "✗") + "\n";
     statusSummary += "‣ HID Permission: " + QString(isHidPermission ? "✓" : "✗") + "\n";
+    statusSummary += "‣ BRLTTY Installed: " + QString(isBrlttyInstalled ? "✓ (needs removal)" : "✗ (good)") + "\n";
     ui->descriptionLabel->setText(statusSummary);
+
+    // Create help link
+    QLabel* helpLabel = new QLabel(this);
+    helpLabel->setText("<a href=\"#\">Need help understanding these commands?</a>");
+    helpLabel->setOpenExternalLinks(false); // We'll handle the click ourselves
+    helpLabel->setAlignment(Qt::AlignCenter);
+    
+    // Get the layout from the UI file and add the help label
+    QVBoxLayout* layout = qobject_cast<QVBoxLayout*>(this->layout());
+    if (layout) {
+        layout->addWidget(helpLabel);
+    }
+    
+    // Connect the help link to our slot
+    connect(helpLabel, &QLabel::linkActivated, this, &EnvironmentSetupDialog::openHelpLink);
 #endif
     // Connect buttons to their respective slots
     connect(ui->okButton, &QPushButton::clicked, this, &EnvironmentSetupDialog::accept); 
@@ -158,6 +185,7 @@ void EnvironmentSetupDialog::accept()
     statusSummary += "Driver Installed: " + QString(isDriverInstalled ? "Yes" : "No") + "\n";
     statusSummary += "In Dialout Group: " + QString(isInRightUserGroup ? "Yes" : "No") + "\n";
     statusSummary += "HID Permission: " + QString(isHidPermission ? "Yes" : "No") + "\n";
+    statusSummary += "BRLTTY Installed: " + QString(isBrlttyInstalled ? "Yes (needs removal)" : "No") + "\n";
 
     // Append the status summary to the description label
     ui->descriptionLabel->setText(ui->descriptionLabel->text() + "\n" + statusSummary);
@@ -202,6 +230,9 @@ QString EnvironmentSetupDialog::buildCommands(){
     if (!isHidPermission) {
         commands += udevCommands;
     }
+    if (isBrlttyInstalled) {
+        commands += brlttyCommands;
+    }
 
     return commands;
 }
@@ -226,8 +257,7 @@ bool EnvironmentSetupDialog::checkEnvironmentSetup() {
         return true;
     }
 
-
-    return checkDriverInstalled() && checkInRightUserGroup() && checkHidPermission();
+    return checkDriverInstalled() && checkInRightUserGroup() && checkHidPermission() && checkBrlttyInstalled();
     #else
     return true;
     #endif
@@ -314,4 +344,23 @@ bool EnvironmentSetupDialog::checkHidPermission() {
     return isHidPermission;
 }
 
+bool EnvironmentSetupDialog::checkBrlttyInstalled() {
+    // Check if BRLTTY is installed
+    std::cout << "Checking if BRLTTY is installed." << std::endl;
+    std::string command = "dpkg -l | grep -i brltty";
+    int result = system(command.c_str());
+    isBrlttyInstalled = (result == 0);
+    if (isBrlttyInstalled) {
+        std::cout << "BRLTTY is installed. It may interfere with device access." << std::endl;
+    } else {
+        std::cout << "BRLTTY is not installed. Good!" << std::endl;
+    }
+    return isBrlttyInstalled;
+}
+
 #endif
+
+void EnvironmentSetupDialog::openHelpLink() {
+    // Open the help URL in the default web browser
+    QDesktopServices::openUrl(QUrl(helpUrl));
+}
