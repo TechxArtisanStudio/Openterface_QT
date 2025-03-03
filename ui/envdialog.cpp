@@ -35,11 +35,10 @@
 #include <QLabel> // Already included, but noting it's used for hyperlink
 
 bool EnvironmentSetupDialog::isDriverInstalled = false;
-
-#ifdef __linux__
 const QString EnvironmentSetupDialog::tickHtml = "<span style='color: green; font-size: 16pt'>✓</span>";
 const QString EnvironmentSetupDialog::crossHtml = "<span style='color: red; font-size: 16pt'>✗</span>";
 
+#ifdef __linux__
 // Define the static commands
 const QString EnvironmentSetupDialog::driverCommands = "# Build and install the driver\n make ; sudo make install\n\n";
 const QString EnvironmentSetupDialog::groupCommands = "# Add user to dialout group\n sudo usermod -a -G dialout $USER\n\n";

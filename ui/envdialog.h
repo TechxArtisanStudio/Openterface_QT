@@ -40,6 +40,8 @@ private:
     static const QString helpUrl;
 
     static bool isDriverInstalled;
+    static const QString tickHtml;
+    static const QString crossHtml;
     
 #ifdef __linux__
     static bool checkInRightUserGroup(); 
@@ -50,9 +52,6 @@ private:
     static const QString groupCommands;
     static const QString udevCommands;
     static const QString brlttyCommands;
-
-    static const QString tickHtml;
-    static const QString crossHtml;
 
     static bool isInRightUserGroup;
     static bool isHidPermission;
