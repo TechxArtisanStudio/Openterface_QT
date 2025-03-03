@@ -42,7 +42,10 @@ cd "$BUILD_DIR"
 
 # Build xcb-util
 if [ ! -d "xcb-util" ]; then
-    git clone --depth 1 https://gitlab.freedesktop.org/xorg/lib/libxcb-util.git xcb-util
+    curl -L -o xcb-util.tar.gz "https://xcb.freedesktop.org/dist/xcb-util-0.4.0.tar.gz"
+    tar xzf xcb-util.tar.gz
+    mv xcb-util-0.4.0 xcb-util
+    rm xcb-util.tar.gz
 fi
 cd xcb-util
 ./autogen.sh
@@ -53,7 +56,10 @@ cd "$BUILD_DIR"
 
 # Build xcb-util-image
 if [ ! -d "xcb-util-image" ]; then
-    git clone --depth 1 https://gitlab.freedesktop.org/xorg/lib/libxcb-image.git xcb-util-image
+    curl -L -o xcb-util-image.tar.gz "https://xcb.freedesktop.org/dist/xcb-util-image-0.4.0.tar.gz"
+    tar xzf xcb-util-image.tar.gz
+    mv xcb-util-image-0.4.0 xcb-util-image
+    rm xcb-util-image.tar.gz
 fi
 cd xcb-util-image
 ./autogen.sh
@@ -65,7 +71,10 @@ cd "$BUILD_DIR"
 
 # Build xcb-util-cursor
 if [ ! -d "xcb-util-cursor" ]; then
-    git clone --depth 1 https://gitlab.freedesktop.org/xorg/lib/libxcb-cursor.git xcb-util-cursor
+    curl -L -o xcb-util-cursor.tar.gz "https://xcb.freedesktop.org/dist/xcb-util-cursor-0.1.3.tar.gz"
+    tar xzf xcb-util-cursor.tar.gz
+    mv xcb-util-cursor-0.1.3 xcb-util-cursor
+    rm xcb-util-cursor.tar.gz
 fi
 cd xcb-util-cursor
 ./autogen.sh
@@ -212,15 +221,6 @@ for module in "${MODULES[@]}"; do
         else
             cmake -GNinja \
                 $CMAKE_COMMON_FLAGS \
-                -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" \
-                -DCMAKE_PREFIX_PATH="$INSTALL_PREFIX" \
-                -DBUILD_SHARED_LIBS=OFF \
-                ..
-        fi
-        
-        ninja
-        sudo ninja install
-    fi
 done
 
 echo "OpenTerface QT $QT_VERSION has been successfully built and installed to $INSTALL_PREFIX"
