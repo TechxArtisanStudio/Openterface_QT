@@ -27,12 +27,55 @@ QT_MAJOR_VERSION=6.6
 INSTALL_PREFIX=/opt/Qt6
 BUILD_DIR=$(pwd)/qt-build
 FFMPEG_PREFIX="$BUILD_DIR/ffmpeg-install"
+XCB_PREFIX="$BUILD_DIR/xcb-install"
 # Update module list to include qtdeclarative (which provides Qt Quick)
 MODULES=("qtbase" "qtshadertools" "qtdeclarative" "qtmultimedia" "qtsvg" "qtserialport")
 DOWNLOAD_BASE_URL="https://download.qt.io/archive/qt/$QT_MAJOR_VERSION/$QT_VERSION/submodules"
 
 # Create the build directory first
 mkdir -p "$BUILD_DIR"
+
+# Build XCB libraries statically
+echo "Building XCB libraries statically..."
+mkdir -p "$XCB_PREFIX"
+cd "$BUILD_DIR"
+
+# Build xcb-util
+if [ ! -d "xcb-util" ]; then
+    git clone --depth 1 https://gitlab.freedesktop.org/xorg/lib/libxcb-util.git xcb-util
+fi
+cd xcb-util
+./autogen.sh
+./configure --prefix="$XCB_PREFIX" --disable-shared --enable-static
+make -j$(nproc)
+make install
+cd "$BUILD_DIR"
+
+# Build xcb-util-image
+if [ ! -d "xcb-util-image" ]; then
+    git clone --depth 1 https://gitlab.freedesktop.org/xorg/lib/libxcb-image.git xcb-util-image
+fi
+cd xcb-util-image
+./autogen.sh
+PKG_CONFIG_PATH="$XCB_PREFIX/lib/pkgconfig:$PKG_CONFIG_PATH" \
+./configure --prefix="$XCB_PREFIX" --disable-shared --enable-static
+make -j$(nproc)
+make install
+cd "$BUILD_DIR"
+
+# Build xcb-util-cursor
+if [ ! -d "xcb-util-cursor" ]; then
+    git clone --depth 1 https://gitlab.freedesktop.org/xorg/lib/libxcb-cursor.git xcb-util-cursor
+fi
+cd xcb-util-cursor
+./autogen.sh
+PKG_CONFIG_PATH="$XCB_PREFIX/lib/pkgconfig:$PKG_CONFIG_PATH" \
+CFLAGS="-I$XCB_PREFIX/include" \
+LDFLAGS="-L$XCB_PREFIX/lib" \
+./configure --prefix="$XCB_PREFIX" --disable-shared --enable-static
+make -j$(nproc)
+make install
+cd "$BUILD_DIR"
 
 # Build FFmpeg statically
 echo "Building FFmpeg statically..."
@@ -79,6 +122,12 @@ cd "$BUILD_DIR/qtbase"
 mkdir -p build
 cd build
 
+# Set environment variables for static XCB libraries
+export PKG_CONFIG_PATH="$XCB_PREFIX/lib/pkgconfig:$PKG_CONFIG_PATH"
+export CFLAGS="-I$XCB_PREFIX/include $CFLAGS"
+export CXXFLAGS="-I$XCB_PREFIX/include $CXXFLAGS"
+export LDFLAGS="-L$XCB_PREFIX/lib $LDFLAGS"
+
 cmake -GNinja \
     $CMAKE_COMMON_FLAGS \
     -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" \
@@ -93,6 +142,11 @@ cmake -GNinja \
     -DFEATURE_xkbcommon=ON \
     -DFEATURE_xkbcommon_x11=ON \
     -DTEST_xcb_syslibs=ON \
+    -DXcb_XCB_INCLUDE_DIR="$XCB_PREFIX/include" \
+    -DXcb_XCB_LIBRARY="$XCB_PREFIX/lib/libxcb.a" \
+    -DXcb_CURSOR_INCLUDE_DIR="$XCB_PREFIX/include" \
+    -DXcb_CURSOR_LIBRARY="$XCB_PREFIX/lib/libxcb-cursor.a" \
+    -DCMAKE_PREFIX_PATH="$XCB_PREFIX" \
     ..
 
 ninja

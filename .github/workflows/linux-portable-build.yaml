@@ -31,8 +31,9 @@
           uses: actions/cache@v3
           with:
             path: /opt/Qt6
-            key: qt-${{ env.QT_VERSION }}-linux-static
+            key: qt-${{ env.QT_VERSION }}-linux-static-xcb
             restore-keys: |
+              qt-${{ env.QT_VERSION }}-linux-static-xcb
               qt-${{ env.QT_VERSION }}-linux-static
 
         - name: Cache FFmpeg
@@ -43,6 +44,15 @@
               key: ffmpeg-cache
               restore-keys: |
                 ffmpeg-cache
+
+        - name: Cache XCB Static Libraries
+          id: cache-xcb
+          uses: actions/cache@v3
+          with:
+            path: ${{ github.workspace }}/qt-build/xcb-install
+            key: xcb-static-libs
+            restore-keys: |
+              xcb-static-libs
   
         - name: Set up Python
           uses: actions/setup-python@v5
@@ -115,24 +125,27 @@
   
         - name: Build Portable Executable
           working-directory: ${{ runner.temp }}/build
-  
           run: |
             echo "Setting LD_LIBRARY_PATH..."
             export LD_LIBRARY_PATH=/usr/lib:/usr/local/lib:$LD_LIBRARY_PATH
+            
+            # Add xcb static libraries to the build environment
+            export XCB_INSTALL_PATH="${{ github.workspace }}/qt-build/xcb-install"
+            export PKG_CONFIG_PATH="$XCB_INSTALL_PATH/lib/pkgconfig:$PKG_CONFIG_PATH"
   
             echo "Configuring with CMake..."
             cmake -S "${{ env.SOURCE_DIR }}" -B . \
                 -DCMAKE_BUILD_TYPE=Release \
                 -DBUILD_SHARED_LIBS=OFF \
-                -DCMAKE_PREFIX_PATH=/opt/Qt6 \
+                -DCMAKE_PREFIX_PATH="/opt/Qt6;$XCB_INSTALL_PATH" \
                 -DCMAKE_INSTALL_PREFIX=release \
                 -DCMAKE_POLICY_DEFAULT_CMP0177=NEW \
                 -DCMAKE_POLICY_DEFAULT_CMP0174=NEW \
                 -DCMAKE_VERBOSE_MAKEFILE=ON \
                 -DQT_DEBUG_FIND_PACKAGE=ON \
-                -DCMAKE_CXX_FLAGS="-Os -ffunction-sections -fdata-sections" \
-                -DCMAKE_C_FLAGS="-Os -ffunction-sections -fdata-sections" \
-                -DCMAKE_EXE_LINKER_FLAGS="-Wl,--gc-sections -Wl,--strip-all" \
+                -DCMAKE_CXX_FLAGS="-Os -ffunction-sections -fdata-sections -I$XCB_INSTALL_PATH/include" \
+                -DCMAKE_C_FLAGS="-Os -ffunction-sections -fdata-sections -I$XCB_INSTALL_PATH/include" \
+                -DCMAKE_EXE_LINKER_FLAGS="-Wl,--gc-sections -Wl,--strip-all -L$XCB_INSTALL_PATH/lib" \
                 -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON \
                 -DCMAKE_POSITION_INDEPENDENT_CODE=ON
   
