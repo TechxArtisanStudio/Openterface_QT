@@ -270,10 +270,7 @@ bool EnvironmentSetupDialog::checkInRightUserGroup() {
     std::string command = "groups | grep -i dialout";
     int result = system(command.c_str());
     isInRightUserGroup = (result == 0);
-    if (!isInRightUserGroup) {
-        // If we update the UI after checking
-        ui->descriptionLabel->setTextFormat(Qt::RichText);
-    }
+    // Remove the UI update from the static method
     return isInRightUserGroup;
 }
 
