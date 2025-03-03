@@ -88,7 +88,7 @@ EnvironmentSetupDialog::EnvironmentSetupDialog(QWidget *parent) :
 #else
     setFixedSize(450, 450);
     ui->commandsTextEdit->setVisible(true);
-    ui->step1Label->setVisible(!);
+    ui->step1Label->setVisible(!isDriverInstalled);
     ui->extractButton->setVisible(!isDriverInstalled);
     ui->copyButton->setVisible(true);
     ui->step2Label->setVisible(true);
