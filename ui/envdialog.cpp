@@ -257,7 +257,8 @@ bool EnvironmentSetupDialog::checkEnvironmentSetup() {
         return true;
     }
 
-    return checkDriverInstalled() && checkInRightUserGroup() && checkHidPermission() && checkBrlttyInstalled();
+    checkBrlttyInstalled(); // No need to return value here
+    return checkDriverInstalled() && checkInRightUserGroup() && checkHidPermission();
     #else
     return true;
     #endif

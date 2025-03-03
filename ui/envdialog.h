@@ -16,7 +16,7 @@ public:
     explicit EnvironmentSetupDialog(QWidget *parent = nullptr);
     ~EnvironmentSetupDialog();
     
-    // New static method to check if the CH340 driver is installed
+    // Static method to check if the CH340 driver is installed
     static bool checkEnvironmentSetup();
 
 protected:
@@ -35,11 +35,11 @@ private slots:
 private:
     Ui::EnvironmentSetupDialog *ui;
 
-    bool checkDriverInstalled();
+    static bool checkDriverInstalled(); 
 #ifdef __unix__
-    bool checkInRightUserGroup();
-    bool checkHidPermission();
-    bool checkBrlttyInstalled();
+    static bool checkInRightUserGroup(); 
+    static bool checkHidPermission();
+    static bool checkBrlttyInstalled();
 #endif
 
     static const QString driverCommands;
