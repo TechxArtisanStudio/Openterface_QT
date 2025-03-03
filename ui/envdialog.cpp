@@ -58,7 +58,7 @@ bool EnvironmentSetupDialog::isBrlttyInstalled = false;
 
 EnvironmentSetupDialog::EnvironmentSetupDialog(QWidget *parent) :
     QDialog(parent),
-    ui(new Ui::EnvironmentSetupDialog)  
+    ui(new Ui::EnvironmentSetupDialog)
 {
     ui->setupUi(this);
 
@@ -68,7 +68,7 @@ EnvironmentSetupDialog::EnvironmentSetupDialog(QWidget *parent) :
     ui->autoCheckBox->setChecked(autoCheck);
 
 #ifdef _WIN32
-    setFixedSize(250, 140); 
+    setFixedSize(250, 140);
     ui->step1Label->setVisible(false);
     ui->extractButton->setVisible(false);
     ui->step2Label->setVisible(false);
@@ -80,7 +80,7 @@ EnvironmentSetupDialog::EnvironmentSetupDialog(QWidget *parent) :
         ui->descriptionLabel->setText("<span style='color: red; font-size: 16pt'>✗</span> The driver is missing. Openterface Mini-KVM will install it automatically.");
 #else
     setFixedSize(450, 450);
-    ui->commandsTextEdit->setVisible(true); 
+    ui->commandsTextEdit->setVisible(true);
     ui->step1Label->setVisible(!isDriverInstalled);
     ui->extractButton->setVisible(!isDriverInstalled);
     ui->copyButton->setVisible(true);
@@ -102,19 +102,19 @@ EnvironmentSetupDialog::EnvironmentSetupDialog(QWidget *parent) :
     helpLabel->setText("<a href=\"#\">Need help understanding these commands?</a>");
     helpLabel->setOpenExternalLinks(false); // We'll handle the click ourselves
     helpLabel->setAlignment(Qt::AlignCenter);
-    
+
     // Get the layout from the UI file and add the help label
     QVBoxLayout* layout = qobject_cast<QVBoxLayout*>(this->layout());
     if (layout) {
         layout->addWidget(helpLabel);
     }
-    
+
     // Connect the help link to our slot
     connect(helpLabel, &QLabel::linkActivated, this, &EnvironmentSetupDialog::openHelpLink);
 #endif
     // Connect buttons to their respective slots
-    connect(ui->okButton, &QPushButton::clicked, this, &EnvironmentSetupDialog::accept); 
-    connect(ui->quitButton, &QPushButton::clicked, this, &EnvironmentSetupDialog::reject); 
+    connect(ui->okButton, &QPushButton::clicked, this, &EnvironmentSetupDialog::accept);
+    connect(ui->quitButton, &QPushButton::clicked, this, &EnvironmentSetupDialog::reject);
 }
 
 EnvironmentSetupDialog::~EnvironmentSetupDialog()
@@ -182,7 +182,7 @@ void EnvironmentSetupDialog::copyCommands() {
 
 // Update the accept method to call the new installDriver method
 void EnvironmentSetupDialog::accept()
-{   
+{
     // Update the setting
     QSettings settings("Openterface", "EnvironmentSetup");
     settings.setValue("autoCheck", ui->autoCheckBox->isChecked());
@@ -233,7 +233,7 @@ void EnvironmentSetupDialog::accept()
 }
 
 QString EnvironmentSetupDialog::buildCommands(){
-    QString commands = "";   
+    QString commands = "";
     if (!isDriverInstalled) {
         commands += driverCommands;
     }
@@ -257,7 +257,6 @@ void EnvironmentSetupDialog::reject()
 }
 
 bool EnvironmentSetupDialog::checkEnvironmentSetup() {
-    std::cout << "Checking environment setup..." << std::endl;
     #ifdef _WIN32
     return checkDriverInstalled();
     #elif defined(__linux__)
@@ -347,7 +346,7 @@ bool EnvironmentSetupDialog::checkInRightUserGroup() {
     // Check if the user is in the dialout group
     std::string command = "groups | grep -i dialout";
     int result = system(command.c_str());
-    isInRightUserGroup = (result == 0); 
+    isInRightUserGroup = (result == 0);
     return isInRightUserGroup;
 }
 
