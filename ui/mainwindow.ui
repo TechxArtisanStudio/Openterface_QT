@@ -359,7 +359,7 @@
   </action>
   <action name="actionEnvironmentSetup">
    <property name="text">
-    <string>Environment Setup</string>
+    <string>Environment Checking</string>
    </property>
   </action>
   <actiongroup name="actionGroup">

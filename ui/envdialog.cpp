@@ -34,6 +34,9 @@
 #include <QUrl> // Add this for handling URLs
 #include <QLabel> // Already included, but noting it's used for hyperlink
 
+bool EnvironmentSetupDialog::isDriverInstalled = false;
+
+#ifdef __linux__
 // Define the static commands
 const QString EnvironmentSetupDialog::driverCommands = "# Build and install the driver\n make ; sudo make install\n\n";
 const QString EnvironmentSetupDialog::groupCommands = "# Add user to dialout group\n sudo usermod -a -G dialout $USER\n\n";
@@ -48,17 +51,17 @@ const QString EnvironmentSetupDialog::brlttyCommands =
     "sudo apt-get remove -y brltty\n"
     "sudo apt-get autoremove -y\n\n";
 
+bool EnvironmentSetupDialog::isInRightUserGroup = false;
+bool EnvironmentSetupDialog::isHidPermission = false;
+bool EnvironmentSetupDialog::isBrlttyRunning = false;
+#endif
+
 // Define the help URL
 #ifdef _WIN32
 const QString EnvironmentSetupDialog::helpUrl = "https://github.com/TechxArtisanStudio/Openterface_QT/wiki/OpenterfaceQT-Windows-Environment-Setup";
 #elif defined(__linux__)
 const QString EnvironmentSetupDialog::helpUrl = "https://github.com/TechxArtisanStudio/Openterface_QT/wiki/OpenterfaceQT-Linux-Environment-Setup";
 #endif
-
-bool EnvironmentSetupDialog::isDriverInstalled = false;
-bool EnvironmentSetupDialog::isInRightUserGroup = false;
-bool EnvironmentSetupDialog::isHidPermission = false;
-bool EnvironmentSetupDialog::isBrlttyRunning = false;
 
 EnvironmentSetupDialog::EnvironmentSetupDialog(QWidget *parent) :
     QDialog(parent),
@@ -85,7 +88,7 @@ EnvironmentSetupDialog::EnvironmentSetupDialog(QWidget *parent) :
 #else
     setFixedSize(450, 450);
     ui->commandsTextEdit->setVisible(true);
-    ui->step1Label->setVisible(!isDriverInstalled);
+    ui->step1Label->setVisible(!);
     ui->extractButton->setVisible(!isDriverInstalled);
     ui->copyButton->setVisible(true);
     ui->step2Label->setVisible(true);
@@ -172,8 +175,10 @@ void EnvironmentSetupDialog::extractDriverFiles() {
         }
     }
 
+#ifdef __linux__
     // Update the QTextEdit with the static commands
     ui->commandsTextEdit->setPlainText("cd " + tempDir + "\n" + buildCommands());
+#endif
 }
 
 void EnvironmentSetupDialog::copyCommands() {
@@ -234,6 +239,7 @@ void EnvironmentSetupDialog::accept()
     close();
 }
 
+#ifdef __linux__
 QString EnvironmentSetupDialog::buildCommands(){
     QString commands = "";
     if (!isDriverInstalled) {
@@ -251,6 +257,7 @@ QString EnvironmentSetupDialog::buildCommands(){
 
     return commands;
 }
+#endif
 
 // Override reject method
 void EnvironmentSetupDialog::reject()

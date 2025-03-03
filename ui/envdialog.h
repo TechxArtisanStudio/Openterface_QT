@@ -36,26 +36,27 @@ private slots:
 
 private:
     Ui::EnvironmentSetupDialog *ui;
+    static bool checkDriverInstalled();
+    static const QString helpUrl;
 
-    static bool checkDriverInstalled(); 
-#ifdef __unix__
+    static bool isDriverInstalled;
+    
+#ifdef __linux__
     static bool checkInRightUserGroup(); 
     static bool checkHidPermission();
     static bool checkBrlttyRunning();
-#endif
 
     static const QString driverCommands;
     static const QString groupCommands;
     static const QString udevCommands;
     static const QString brlttyCommands;
-    static const QString helpUrl;
 
-    static bool isDriverInstalled;
     static bool isInRightUserGroup;
     static bool isHidPermission;
     static bool isBrlttyRunning;
-    
+
     QString buildCommands();
+#endif
 };
 
 #endif // ENVIRONMENTSETUPDIALOG_H
