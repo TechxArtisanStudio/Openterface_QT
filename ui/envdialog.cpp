@@ -221,7 +221,7 @@ bool EnvironmentSetupDialog::checkEnvironmentSetup() {
     // If the device file does not exist, check using lsusb for VID and PID
     std::string command = "lsusb | grep -i '534d:2109'";
     int result = system(command.c_str());
-    if (result == 0) {
+    if (result != 0) {
         std::cout << "MS2109 not exist, so no Openterface plugged in" << std::endl;
         return true;
     }
