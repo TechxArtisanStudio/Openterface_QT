@@ -70,6 +70,10 @@ EnvironmentSetupDialog::EnvironmentSetupDialog(QWidget *parent) :
     ui(new Ui::EnvironmentSetupDialog)
 {
     ui->setupUi(this);
+    
+    // Set labels to interpret rich text
+    ui->descriptionLabel->setTextFormat(Qt::RichText);
+    ui->helpLabel->setTextFormat(Qt::RichText);
 
     checkEnvironmentSetup(); // Ensure the status variables are updated
     QSettings settings("Openterface", "EnvironmentSetup");
@@ -109,6 +113,7 @@ EnvironmentSetupDialog::EnvironmentSetupDialog(QWidget *parent) :
     // Create help link
     QLabel* helpLabel = new QLabel(this);
     helpLabel->setOpenExternalLinks(false); // We'll handle the click ourselves
+    helpLabel->setTextFormat(Qt::RichText); // Ensure this label also uses rich text
     helpLabel->setAlignment(Qt::AlignCenter);
 
     // Get the layout from the UI file and add the help label
@@ -259,6 +264,43 @@ QString EnvironmentSetupDialog::buildCommands(){
 
     return commands;
 }
+
+bool EnvironmentSetupDialog::checkInRightUserGroup() {
+    // Check if the user is in the dialout group
+    std::string command = "groups | grep -i dialout";
+    int result = system(command.c_str());
+    isInRightUserGroup = (result == 0);
+    if (!isInRightUserGroup) {
+        // If we update the UI after checking
+        ui->descriptionLabel->setTextFormat(Qt::RichText);
+    }
+    return isInRightUserGroup;
+}
+
+bool EnvironmentSetupDialog::checkHidPermission() {
+    // Check if the user has HID permission
+    std::string command = "ls -l /dev/hidraw*";
+    int result = system(command.c_str());
+    isHidPermission = (result == 0); // Returns true if the user has HID permission
+    return isHidPermission;
+}
+
+bool EnvironmentSetupDialog::checkBrlttyRunning() {
+    // Check if BRLTTY is installed
+    std::cout << "Checking if BRLTTY is installed." << std::endl;
+    std::string checkInstalled = "which brltty > /dev/null 2>&1";
+    std::string checkRunning = "pgrep brltty > /dev/null 2>&1";
+    int isInstalled = system(checkInstalled.c_str());
+    int pid = isInstalled == 0 ? system(checkRunning.c_str()) : -1;
+    isBrlttyRunning = (pid == 0);
+    if (isBrlttyRunning) {
+        std::cout << "BRLTTY is running. It may interfere with device access." << std::endl;
+    } else {
+        std::cout << "BRLTTY is not running. Good!" << std::endl;
+    }
+    return isBrlttyRunning;
+}
+
 #endif
 
 // Override reject method
@@ -351,41 +393,6 @@ bool EnvironmentSetupDialog::checkDriverInstalled() {
     return false; // Assume not installed for non-Windows and non-Linux platforms
 #endif
 }
-
-#ifdef __linux__
-bool EnvironmentSetupDialog::checkInRightUserGroup() {
-    // Check if the user is in the dialout group
-    std::string command = "groups | grep -i dialout";
-    int result = system(command.c_str());
-    isInRightUserGroup = (result == 0);
-    return isInRightUserGroup;
-}
-
-bool EnvironmentSetupDialog::checkHidPermission() {
-    // Check if the user has HID permission
-    std::string command = "ls -l /dev/hidraw*";
-    int result = system(command.c_str());
-    isHidPermission = (result == 0); // Returns true if the user has HID permission
-    return isHidPermission;
-}
-
-bool EnvironmentSetupDialog::checkBrlttyRunning() {
-    // Check if BRLTTY is installed
-    std::cout << "Checking if BRLTTY is installed." << std::endl;
-    std::string checkInstalled = "which brltty > /dev/null 2>&1";
-    std::string checkRunning = "pgrep brltty > /dev/null 2>&1";
-    int isInstalled = system(checkInstalled.c_str());
-    int pid = isInstalled == 0 ? system(checkRunning.c_str()) : -1;
-    isBrlttyRunning = (pid == 0);
-    if (isBrlttyRunning) {
-        std::cout << "BRLTTY is running. It may interfere with device access." << std::endl;
-    } else {
-        std::cout << "BRLTTY is not running. Good!" << std::endl;
-    }
-    return isBrlttyRunning;
-}
-
-#endif
 
 void EnvironmentSetupDialog::openHelpLink() {
     // Open the help URL in the default web browser
