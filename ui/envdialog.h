@@ -41,7 +41,7 @@ private:
 #ifdef __unix__
     static bool checkInRightUserGroup(); 
     static bool checkHidPermission();
-    static bool checkBrlttyInstalled();
+    static bool checkBrlttyRunning();
 #endif
 
     static const QString driverCommands;
@@ -53,7 +53,7 @@ private:
     static bool isDriverInstalled;
     static bool isInRightUserGroup;
     static bool isHidPermission;
-    static bool isBrlttyInstalled;
+    static bool isBrlttyRunning;
     
     QString buildCommands();
 };

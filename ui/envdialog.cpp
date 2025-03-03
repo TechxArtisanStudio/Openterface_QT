@@ -360,18 +360,20 @@ bool EnvironmentSetupDialog::checkHidPermission() {
     return isHidPermission;
 }
 
-bool EnvironmentSetupDialog::checkBrlttyInstalled() {
+bool EnvironmentSetupDialog::checkBrlttyRunning() {
     // Check if BRLTTY is installed
     std::cout << "Checking if BRLTTY is installed." << std::endl;
-    std::string command = "dpkg -l | grep -i brltty > /dev/null";
-    int result = system(command.c_str());
-    isBrlttyInstalled = (result == 0);
-    if (isBrlttyInstalled) {
-        std::cout << "BRLTTY is installed. It may interfere with device access." << std::endl;
+    std::string checkInstalled = "which brltty > /dev/null 2>&1";
+    std::string checkRunning = "pgrep brltty > /dev/null 2>&1";
+    int isInstalled = system(checkInstalled.c_str());
+    int pid = isInstalled == 0 ? system(checkRunning.c_str()) : -1;
+    isBrlttyRunning = (pid == 0);
+    if (isBrlttyRunning) {
+        std::cout << "BRLTTY is running. It may interfere with device access." << std::endl;
     } else {
-        std::cout << "BRLTTY is not installed. Good!" << std::endl;
+        std::cout << "BRLTTY is not running. Good!" << std::endl;
     }
-    return isBrlttyInstalled;
+    return isBrlttyRunning;
 }
 
 #endif
