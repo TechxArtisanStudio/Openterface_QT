@@ -58,7 +58,7 @@ const QString EnvironmentSetupDialog::helpUrl = "https://github.com/TechxArtisan
 bool EnvironmentSetupDialog::isDriverInstalled = false;
 bool EnvironmentSetupDialog::isInRightUserGroup = false;
 bool EnvironmentSetupDialog::isHidPermission = false;
-bool EnvironmentSetupDialog::isBrlttyInstalled = false;
+bool EnvironmentSetupDialog::isBrlttyRunning = false;
 
 EnvironmentSetupDialog::EnvironmentSetupDialog(QWidget *parent) :
     QDialog(parent),
@@ -98,7 +98,7 @@ EnvironmentSetupDialog::EnvironmentSetupDialog(QWidget *parent) :
     statusSummary += "‣ Driver Installed: " + QString(isDriverInstalled ? "✓" : "✗") + "\n";
     statusSummary += "‣ In Dialout Group: " + QString(isInRightUserGroup ? "✓" : "✗") + "\n";
     statusSummary += "‣ HID Permission: " + QString(isHidPermission ? "✓" : "✗") + "\n";
-    statusSummary += "‣ BRLTTY Installed: " + QString(isBrlttyInstalled ? "✓ (needs removal)" : "✗ (good)") + "\n";
+    statusSummary += "‣ BRLTTY is Running: " + QString(isBrlttyRunning ? "✓ (needs removal)" : "✗ (good)") + "\n";
     ui->descriptionLabel->setText(statusSummary);
 
     // Create help link
@@ -199,7 +199,7 @@ void EnvironmentSetupDialog::accept()
         statusSummary += "Driver Installed: " + QString(isDriverInstalled ? "Yes" : "No") + "\n";
         statusSummary += "In Dialout Group: " + QString(isInRightUserGroup ? "Yes" : "No") + "\n";
         statusSummary += "HID Permission: " + QString(isHidPermission ? "Yes" : "No") + "\n";
-        statusSummary += "BRLTTY Installed: " + QString(isBrlttyInstalled ? "Yes (needs removal)" : "No") + "\n";
+        statusSummary += "BRLTTY is Running: " + QString(isBrlttyRunning ? "Yes (needs removal)" : "No") + "\n";
 
         // Append the status summary to the description label
         ui->descriptionLabel->setText(ui->descriptionLabel->text() + "\n" + statusSummary);
@@ -245,7 +245,7 @@ QString EnvironmentSetupDialog::buildCommands(){
     if (!isHidPermission) {
         commands += udevCommands;
     }
-    if (isBrlttyInstalled) {
+    if (isBrlttyRunning) {
         commands += brlttyCommands;
     }
 
@@ -272,8 +272,8 @@ bool EnvironmentSetupDialog::checkEnvironmentSetup() {
         return true;
     }
 
-    checkBrlttyInstalled(); // No need to return value here
-    return checkDriverInstalled() && checkInRightUserGroup() && checkHidPermission() && !isBrlttyInstalled;
+    checkBrlttyRunning(); // No need to return value here
+    return checkDriverInstalled() && checkInRightUserGroup() && checkHidPermission() && !isBrlttyRunning;
     #else
     return true;
     #endif
