@@ -128,8 +128,7 @@ cmake -GNinja \
     $CMAKE_COMMON_FLAGS \
     -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" \
     -DBUILD_SHARED_LIBS=OFF \
-    -DCMAKE_EXE_LINKER_FLAGS="$XCB_PREFIX/lib/libXau.a -lfontconfig -lfreetype" \
-    -DCMAKE_SHARED_LINKER_FLAGS="-L$XCB_PREFIX/lib $XCB_PREFIX/lib/libXau.a" \
+    -DCMAKE_EXE_LINKER_FLAGS="-lXau -lfontconfig -lfreetype" \
     ..
 
 ninja
