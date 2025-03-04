@@ -116,6 +116,7 @@ ninja
 sudo ninja install
 
 # Build qtshadertools
+export LDFLAGS="-Wl,--copy-dt-needed-entries"
 echo "Building qtshadertools..."
 cd "$BUILD_DIR/qtshadertools"
 mkdir -p build
