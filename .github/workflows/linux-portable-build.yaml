@@ -26,15 +26,31 @@
           with:
             fetch-depth: 0
   
-        - name: Cache Qt Build
-          id: cache-qt
+        - name: Cache FFmpeg
+          id: cache-ffmpeg
           uses: actions/cache@v3
           with:
-            path: /opt/Qt6
-            key: qt-${{ env.QT_VERSION }}-linux-static
-            restore-keys: |
-              qt-${{ env.QT_VERSION }}-linux-static
-
+              path: ${{ env.SOURCE_DIR }}/ffmpeg-build/
+              key: ffmpeg-cache
+              restore-keys: |
+                ffmpeg-cache
+  
+        - name: Set up Python
+          uses: actions/setup-python@v5
+          with:
+            python-version: '3.10'
+  
+        - name: Build FFmpeg
+          if: steps.cache-ffmpeg.outputs.cache-hit != 'true'
+          run: |
+            bash ${{ env.SOURCE_DIR }}/build-script/build-static-ffmpeg.sh
+  
+        - name: FFmpeg Already Built
+          if: steps.cache-ffmpeg.outputs.cache-hit == 'true'
+          run: |
+            echo "FFmpeg already built"
+            bash ${{ env.SOURCE_DIR }}/build-script/build-static-ffmpeg.sh --no-build
+            
         - name: Set up Python
           uses: actions/setup-python@v5
           with:
