@@ -128,13 +128,13 @@ void LogPage::initLogSettings(){
     QLineEdit *logFilePathLineEdit = findChild<QLineEdit*>("logFilePathLineEdit");
     
 
-    coreCheckBox->setChecked(settings.value("log/core", true).toBool());
+    coreCheckBox->setChecked(settings.value("log/core", false).toBool());
 
-    serialCheckBox->setChecked(settings.value("log/serial", true).toBool());
+    serialCheckBox->setChecked(settings.value("log/serial", false).toBool());
 
-    uiCheckBox->setChecked(settings.value("log/ui", true).toBool());
+    uiCheckBox->setChecked(settings.value("log/ui", false).toBool());
 
-    hostCheckBox->setChecked(settings.value("log/host", true).toBool());
+    hostCheckBox->setChecked(settings.value("log/host", false).toBool());
 
     storeLogCheckBox->setChecked(settings.value("log/storeLog", false).toBool());
 

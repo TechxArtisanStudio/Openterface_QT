@@ -47,12 +47,11 @@
 #include "../scripts/semanticAnalyzer.h"
 #include "../scripts/AST.h"
 
-#ifdef ONLINE_VERSION
 
 #ifdef ONLINE_VERSION
 #include "server/tcpServer.h"
 #endif
-#endif
+
 
 #include <QAudioInput>
 #include <QAudioOutput>
@@ -108,6 +107,10 @@ public:
     void stop();
     // Add this line to declare the destructor
     ~MainWindow() override;
+
+signals:
+    void emitTCPCommandStatus(bool status);
+    void emitScriptStatus(bool status);
 
 public slots:
     void handleSyntaxTree(std::shared_ptr<ASTNode> syntaxTree);
@@ -300,7 +303,7 @@ private:
     bool isFullScreenMode();
     bool fullScreenState = false;
     Qt::WindowStates oldWindowState;
-    
+    ScriptTool *scriptTool;
 #ifdef ONLINE_VERSION
     void startServer();
     TcpServer *tcpServer;

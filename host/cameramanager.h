@@ -45,6 +45,7 @@ signals:
     void cameraError(const QString &errorString);
     void resolutionsUpdated(int input_width, int input_height, float input_fps, int capture_width, int capture_height, int capture_fps);
     void imageCaptured(int id, const QImage& img);
+    void lastImagePath(const QString& imagePath);
     
 private slots:
     void onImageCaptured(int id, const QImage& img);

@@ -79,6 +79,7 @@ void KeyboardMouse::keyboardSend(){
     emit SerialPortManager::getInstance().sendCommandAsync(data, false);
     QThread::msleep(clickInterval);
     emit SerialPortManager::getInstance().sendCommandAsync(release, false);
+    QThread::msleep(clickInterval);
     // keyData.pop();
     // }
 }
@@ -118,6 +119,7 @@ void KeyboardMouse::mouseSend(){
     qDebug() << "merged release: " << release.toHex();
     for (int i = 0; i<clickCount; i++){
         emit SerialPortManager::getInstance().sendCommandAsync(data, false);
+        QThread::msleep(clickInterval);
         emit SerialPortManager::getInstance().sendCommandAsync(release, false);
         QThread::msleep(clickInterval);
     }

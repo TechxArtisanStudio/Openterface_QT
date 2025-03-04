@@ -45,13 +45,14 @@ class SemanticAnalyzer : public QObject {
 
 public:
     SemanticAnalyzer(MouseManager* mouseManager, KeyboardMouse* keyboardMouse, QObject* parent = nullptr);
-    void analyze(const ASTNode* node);
+    bool analyze(const ASTNode* node);
 
 
 signals:
     void captureImg(const QString& path = "");
     void captureAreaImg(const QString& path = "", const QRect& captureArea = QRect());
-    
+    void commandIncrease();
+
 private:
     MouseManager* mouseManager;
     KeyboardMouse* keyboardMouse;
@@ -70,16 +71,6 @@ private:
     QString extractFilePath(const QString& originText);
 
     RegularExpression& regex = RegularExpression::instance();
-    // QRegularExpression onRegex{QString("^(1|True|On)$"), QRegularExpression::CaseInsensitiveOption};
-    // QRegularExpression offRegex{QString("^(0|False|Off)$"), QRegularExpression::CaseInsensitiveOption};
-    // QRegularExpression sendEmbedRegex{QString(R"(\{Click\s*([^}]*)\})"),QRegularExpression::CaseInsensitiveOption};
-    // QRegularExpression numberRegex{QString(R"(\d+)")};
-    // QRegularExpression buttonRegex{QString(R"((?<![a-zA-Z])(right|R|middle|M|left|L)(?![a-zA-Z]))"), QRegularExpression::CaseInsensitiveOption};
-    // QRegularExpression downUpRegex{QString(R"((?<![a-zA-Z])(down|D|Up|U)(?![a-zA-Z]))"), QRegularExpression::CaseInsensitiveOption};
-    // QRegularExpression relativeRegex{QString(R"((?<![a-zA-Z])(rel|relative)(?![a-zA-Z]))"), QRegularExpression::CaseInsensitiveOption};
-    // QRegularExpression braceKeyRegex{QString(R"(\{([^}]+)\})"), QRegularExpression::CaseInsensitiveOption};
-    // QRegularExpression controlKeyRegex{QString(R"(([!^+#])((?:\{[^}]+\}|[^{])+))")};
-    
     MouseParams parserClickParam(const QString& command);
 };
 

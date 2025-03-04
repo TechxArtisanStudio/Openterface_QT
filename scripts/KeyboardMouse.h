@@ -295,9 +295,9 @@ const QMap<QString, uint8_t> keydata = {
     {"Greater", 0x37}, // key .
     {"Question", 0x38}, // key /
     {"Win", 0xE3}, // win
-    {"^", 0xE4}, // Ctrl
+    {"^", 0xE0}, // Ctrl
     {"+", 0xE5}, // Shift
-    {"!", 0xE6}, // Alt
+    {"!", 0xE2}, // Alt
     {"#", 0xE3}  // Win
 };
 

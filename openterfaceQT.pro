@@ -52,7 +52,8 @@ SOURCES += main.cpp \
     scripts/KeyboardMouse.cpp \
     target/KeyboardLayouts.cpp \
     regex/RegularExpression.cpp \
-    server/tcpServer.cpp
+    server/tcpServer.cpp \
+    scripts/scriptEditor.cpp
 
 HEADERS  += \
     global.h \
@@ -99,7 +100,9 @@ HEADERS  += \
     scripts/KeyboardMouse.h \
     server/tcpServer.h \
     regex/RegularExpression.h \
-    target/KeyboardLayouts.h 
+    target/KeyboardLayouts.h \
+    scripts/scriptEditor.h
+
 
 
 FORMS    += \
@@ -153,3 +156,5 @@ INSTALLS += target
 RC_FILE = openterfaceQT.rc
 
 DEPENDPATH += $$PWD/''
+
+#DEFINES += ONLINE_VERSION

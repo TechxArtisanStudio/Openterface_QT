@@ -32,6 +32,7 @@
 #include "../scripts/Parser.h"
 // #include "../scripts/semanticAnalyzer.h"
 #include "../scripts/KeyboardMouse.h"
+#include <QColor>
 
 Q_DECLARE_LOGGING_CATEGORY(log_script)
 
@@ -52,7 +53,7 @@ ScriptTool::ScriptTool(QWidget *parent)
     saveButton = new QPushButton(tr("Save Script"), this);
     saveButton->setEnabled(false);
 
-    scriptEdit = new QTextEdit(this);
+    scriptEdit = new ScriptEditor(this);
     scriptEdit->setReadOnly(true);
     scriptEdit->setFont(QFont("Courier", 10));
     scriptEdit->setLineWrapMode(QTextEdit::NoWrap);
@@ -81,7 +82,7 @@ ScriptTool::ScriptTool(QWidget *parent)
     connect(runButton, &QPushButton::clicked, this, &ScriptTool::runScript);
     connect(saveButton, &QPushButton::clicked, this, &ScriptTool::saveScript);
     connect(cancelButton, &QPushButton::clicked, this, &ScriptTool::close);
-
+    commandLine = 1;
 }
 
 ScriptTool::~ScriptTool()
@@ -108,12 +109,16 @@ void ScriptTool::selectFile()
             file.close();
             lexer.setSource(fileContents.toStdString());
             tokens = lexer.tokenize();
-            QString styledText = highlightTokens(tokens);
+            
 
             // qDebug(log_script) << "Token Type:" << static_cast<int>(token.type) << "Value:" << tokenText;
             
-            scriptEdit->setText(styledText);
+            // scriptEdit->setText(styledText);
+            scriptEdit->clear();
             scriptEdit->setReadOnly(false);
+            // scriptEdit->setText(fileContents);
+            highlightTokens(tokens);
+            qCDebug(log_script) << "Content after highlightTokens:" << scriptEdit->toPlainText();
             saveButton->setEnabled(true);
         } else {
             QMessageBox::warning(this, tr("Error"), tr("Could not open file for reading."));
@@ -166,43 +171,70 @@ void ScriptTool::saveScript()
     }
 }
 
-QString ScriptTool::highlightTokens(const std::vector<Token>& tokens) {
-    QString styledText;
+void ScriptTool::highlightTokens(const std::vector<Token>& tokens) {
+    scriptEdit->clear();
+    QTextCursor cursor = scriptEdit->textCursor(); 
+    cursor.beginEditBlock();
+    
     for (const auto& token : tokens) {
         QString tokenText = QString::fromStdString(token.value);
-        QString color;
+        QTextCharFormat format;
+
         if (tokenText == "\\n") {
-            tokenText = tokenText.replace("\\n", "<br>");
+            tokenText = "\n"; 
         }
+
         switch (token.type) {
             case AHKTokenType::KEYWORD:
-                color = "green";
+                format.setForeground(Qt::green);
                 break;
             case AHKTokenType::FUNCTION:
-                color = "blue";
+                format.setForeground(Qt::blue);
                 break;
             case AHKTokenType::VARIABLE:
-                color = "white";
+                format.setForeground(Qt::white);
                 break;
             case AHKTokenType::INTEGER:
             case AHKTokenType::FLOAT:
-                color = "DarkGoldenRod";
+                format.setForeground(QColor("DarkGoldenRod"));
                 break;
             case AHKTokenType::COMMAND:
-                color = "purple";
+                format.setForeground(QColor("purple"));
                 break;
             case AHKTokenType::COMMENT:
-                color = "grey";
+                format.setForeground(Qt::gray);
                 break;
             default:
                 if (QGuiApplication::palette().color(QPalette::Window).lightness() < 128) {
-                    color = "white";
+                    format.setForeground(Qt::white);
                 } else {
-                    color = "black";
+                    format.setForeground(Qt::black);
                 }
                 break;
         }
-        styledText += QString("<span style='color:%1;'>%2</span>").arg(color, tokenText);
+
+        cursor.setCharFormat(format);
+        cursor.insertText(tokenText);
     }
-    return styledText;
+
+    cursor.endEditBlock(); 
+    scriptEdit->setTextCursor(cursor); 
+    scriptEdit->ensureCursorVisible();
+}
+
+void ScriptTool::handleCommandIncrement(){
+    // TODO: Implement command increment
+    if (lastHighlightedLine != -1) scriptEdit->resetHighlightLine(lastHighlightedLine);
+
+    scriptEdit->highlightLine(commandLine);
+    lastHighlightedLine = commandLine;
+    qCDebug(log_script) << "Command incremented" << commandLine;
+    commandLine += 1;
+}
+
+void ScriptTool::resetCommmandLine(bool status){
+    qCDebug(log_script) << "Command reset" << "script status: " << status;
+    scriptEdit->resetHighlightLine(lastHighlightedLine);
+    commandLine = 1;
+    int lastHighlightedLine = -1;
 }
