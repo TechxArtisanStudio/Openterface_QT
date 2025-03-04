@@ -79,7 +79,7 @@
               libpulse-dev \
               libsndfile1-dev \
               libxrandr-dev \
-              lib-prce2-dev \
+              libpcre2-dev \
               libxrender-dev \
               libexpat1-dev \
               libdrm-dev \

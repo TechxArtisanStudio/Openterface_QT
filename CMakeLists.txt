@@ -28,29 +28,12 @@ find_package(BZip2 REQUIRED)
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(XRENDER REQUIRED xrender)
 
-# Explicitly find PCRE2
-find_path(PCRE2_INCLUDE_DIR NAMES pcre2.h PATH_SUFFIXES pcre2)
-find_library(PCRE2_LIBRARY NAMES pcre2-16 pcre2-16-static)
-find_library(PCRE2_8BIT_LIBRARY NAMES pcre2-8 pcre2-8-static)
-
-if(PCRE2_INCLUDE_DIR AND PCRE2_LIBRARY)
-    message(STATUS "PCRE2 include dir: ${PCRE2_INCLUDE_DIR}")
-    message(STATUS "PCRE2 library: ${PCRE2_LIBRARY}")
-    if(PCRE2_8BIT_LIBRARY)
-        message(STATUS "PCRE2 8-bit library: ${PCRE2_8BIT_LIBRARY}")
-    endif()
-    set(PCRE2_FOUND TRUE)
-else()
-    message(FATAL_ERROR "PCRE2 not found. PCRE2_INCLUDE_DIR=${PCRE2_INCLUDE_DIR} PCRE2_LIBRARY=${PCRE2_LIBRARY}")
-endif()
-
 # Set FFmpeg include and library directories
 set(FFMPEG_INCLUDE_DIRS "/usr/local/include")
 set(FFMPEG_LIBRARIES "/usr/local/lib/libavformat.a;/usr/local/lib/libavcodec.a;/usr/local/lib/libavutil.a;/usr/local/lib/libswresample.a;/usr/local/lib/libswscale.a")
 
 # Include FFmpeg directories
 include_directories(${FFMPEG_INCLUDE_DIRS})
-include_directories(${PCRE2_INCLUDE_DIR})
 
 # Add the executable target
 qt_standard_project_setup()
@@ -120,12 +103,7 @@ target_link_libraries(openterfaceQT PRIVATE
     ${XRENDER_LIBRARIES}
     ${BZIP2_LIBRARIES}
     ${EXTRA_LIBS}
-    ${PCRE2_LIBRARY}
 )
-
-if(PCRE2_8BIT_LIBRARY)
-    target_link_libraries(openterfaceQT PRIVATE ${PCRE2_8BIT_LIBRARY})
-endif()
 
 # Resources:
 set(mainwindow_resource_files
