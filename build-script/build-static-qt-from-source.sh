@@ -19,7 +19,7 @@ sudo apt-get install -y build-essential meson ninja-build bison flex pkg-config 
     libxcb-xinerama0-dev libxcb-xkb-dev libxcb-util-dev \
     libdrm-dev libgbm-dev libatspi2.0-dev \
     libvulkan-dev libssl-dev \
-    libpulse-dev \
+    libpulse-dev libxau-dev\
     yasm nasm \
     xutils-dev # Add xutils-dev for xorg-macros
 
