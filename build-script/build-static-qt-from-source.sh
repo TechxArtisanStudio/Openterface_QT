@@ -159,8 +159,8 @@ cmake -GNinja \
     -DXcb_XCB_LIBRARY="$XCB_PREFIX/lib/libxcb.a" \
     -DXcb_CURSOR_INCLUDE_DIR="$XCB_PREFIX/include" \
     -DXcb_CURSOR_LIBRARY="$XCB_PREFIX/lib/libxcb-cursor.a" \
-    -DXcb_UTIL_INCLUDE_DIR="$XCB_PREFIX/include" \ # Add xcb-util include directory
-    -DXcb_UTIL_LIBRARY="$XCB_PREFIX/lib/libxcb-util.a" \ # Add xcb-util library
+    -DXcb_UTIL_INCLUDE_DIR="$XCB_PREFIX/include" \
+    -DXcb_UTIL_LIBRARY="$XCB_PREFIX/lib/libxcb-util.a" \ 
     -DCMAKE_PREFIX_PATH="$XCB_PREFIX" \
     ..
 
