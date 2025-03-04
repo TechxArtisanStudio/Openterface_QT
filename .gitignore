@@ -5,3 +5,6 @@ aqtinstall.log
 debug/*
 .vscode
 openterfaceQT.pro.user*
+build-script/drivers/*
+build-script/ffmpeg-build/*
+build-script/temp/*
