@@ -115,8 +115,6 @@
               libgles2-mesa-dev \
               libegl1-mesa-dev \
               libglib2.0-dev \
-              libpcre2-dev \
-              libpcre2-16-0 \
               libxrandr2 \
               libxcb1-dev \
               '^libxcb.*-dev' \
@@ -167,7 +165,7 @@
                 -DQT_DEBUG_FIND_PACKAGE=ON \
                 -DCMAKE_CXX_FLAGS="-Os -ffunction-sections -fdata-sections -I${{ runner.temp }}/pcre2-install/include" \
                 -DCMAKE_C_FLAGS="-Os -ffunction-sections -fdata-sections -I${{ runner.temp }}/pcre2-install/include" \
-                -DCMAKE_EXE_LINKER_FLAGS="-Wl,--gc-sections -Wl,--strip-all -L${{ runner.temp }}/pcre2-install/lib -lpcre2-16 -lpcre2-8" \
+                -DCMAKE_EXE_LINKER_FLAGS="-Wl,--gc-sections -Wl,--strip-all -L${{ runner.temp }}/pcre2-install/lib" \
                 -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON \
                 -DCMAKE_POSITION_INDEPENDENT_CODE=ON
   
