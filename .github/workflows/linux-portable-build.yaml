@@ -101,7 +101,8 @@
             cmake --install .
             
             echo "PCRE2 build complete - installed to ${{ runner.temp }}/pcre2-install"
-            ls -la ${{ runner.temp }}/pcre2-install/lib/
+            find ${{ runner.temp }}/pcre2-install -name "*.a" | sort
+            find ${{ runner.temp }}/pcre2-install -name "*.h" | sort
 
         - name: Prepare Driver Files
           run: |
@@ -152,6 +153,13 @@
           run: |
             echo "Setting LD_LIBRARY_PATH..."
             export LD_LIBRARY_PATH=/usr/lib:/usr/local/lib:$LD_LIBRARY_PATH
+            
+            # Set environment variables for PCRE2
+            export PCRE2_DIR=${{ runner.temp }}/pcre2-install
+            export CPATH=$PCRE2_DIR/include:$CPATH
+            export LIBRARY_PATH=$PCRE2_DIR/lib:$LIBRARY_PATH
+            export LD_LIBRARY_PATH=$PCRE2_DIR/lib:$LD_LIBRARY_PATH
+            export PKG_CONFIG_PATH=$PCRE2_DIR/lib/pkgconfig:$PKG_CONFIG_PATH
   
             echo "Configuring with CMake..."
             cmake -S "${{ env.SOURCE_DIR }}" -B . \
@@ -163,14 +171,22 @@
                 -DCMAKE_POLICY_DEFAULT_CMP0174=NEW \
                 -DCMAKE_VERBOSE_MAKEFILE=ON \
                 -DQT_DEBUG_FIND_PACKAGE=ON \
+                -DPCRE2_ROOT_DIR=${{ runner.temp }}/pcre2-install \
+                -DPCRE2_INCLUDE_DIR=${{ runner.temp }}/pcre2-install/include \
+                -DPCRE2_LIBRARY=${{ runner.temp }}/pcre2-install/lib/libpcre2-16.a \
+                -DPCRE2_LIBRARIES=${{ runner.temp }}/pcre2-install/lib/libpcre2-16.a \
                 -DCMAKE_CXX_FLAGS="-Os -ffunction-sections -fdata-sections -I${{ runner.temp }}/pcre2-install/include" \
                 -DCMAKE_C_FLAGS="-Os -ffunction-sections -fdata-sections -I${{ runner.temp }}/pcre2-install/include" \
-                -DCMAKE_EXE_LINKER_FLAGS="-Wl,--gc-sections -Wl,--strip-all -L${{ runner.temp }}/pcre2-install/lib" \
+                -DCMAKE_EXE_LINKER_FLAGS="-Wl,--gc-sections -Wl,--strip-all -L${{ runner.temp }}/pcre2-install/lib -Wl,-rpath-link,${{ runner.temp }}/pcre2-install/lib" \
                 -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON \
                 -DCMAKE_POSITION_INDEPENDENT_CODE=ON
+            
+            # Debug linking info
+            echo "Checking for PCRE2 libraries:"
+            find ${{ runner.temp }}/pcre2-install -name "*.a" | grep pcre2
   
             echo "Building with CMake..."
-            cmake --build . --verbose || (echo "CMake build failed. Please check the build configuration." && exit 1)
+            VERBOSE=1 cmake --build . || (echo "CMake build failed. Please check the build configuration." && exit 1)
   
             if [ ! -f openterfaceQT ]; then
               echo "Error: Failed to build openterfaceQT"
