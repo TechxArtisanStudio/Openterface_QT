@@ -82,7 +82,7 @@ if [[ "${XCBPROTO_VERSION}" == "unknown" ]]; then
     echo "Continuing build despite pkg-config issue..."
 fi
 
-# Download and build libXau (needed by libxcb)
+# Download and build libXau (needed by libxcb) - CRITICAL for XCB functionality
 if [ ! -d libXau ]; then
     echo "Downloading libXau ${LIBXAU_VERSION}..."
     curl -L -o libXau.tar.gz "https://www.x.org/releases/individual/lib/libXau-${LIBXAU_VERSION}.tar.gz"
@@ -92,12 +92,24 @@ if [ ! -d libXau ]; then
 fi
 
 cd libXau
+# Build with optimizations for static linking
 ./configure --prefix="${XCB_INSTALL_PATH}" --enable-static --disable-shared
 make -j$(nproc)
 make install
 cd ..
 
-# Download and build libxcb
+# Verify libXau was properly built
+if [ ! -f "${XCB_INSTALL_PATH}/lib/libXau.a" ]; then
+    echo "ERROR: libXau.a was not built or installed properly!"
+    exit 1
+fi
+echo "libXau successfully built: $(ls -la ${XCB_INSTALL_PATH}/lib/libXau.a)"
+
+# Set environment variables to ensure libXau is properly detected
+export XAU_CFLAGS="-I${XCB_INSTALL_PATH}/include"
+export XAU_LIBS="-L${XCB_INSTALL_PATH}/lib -lXau"
+
+# Download and build libxcb with explicit Xau support
 cd "${SOURCE_DIR}/qt-build"
 if [ ! -d libxcb ]; then
     echo "Downloading libxcb ${XCB_VERSION}..."
@@ -108,16 +120,34 @@ if [ ! -d libxcb ]; then
 fi
 
 cd libxcb
-# Pass explicit XAU flags to ensure it uses our static version
+# Explicitly enable Xau authentication support
 PYTHONPATH="${XCB_INSTALL_PATH}/lib/python3.10/site-packages:${PYTHONPATH}" \
 XCBPROTO_CFLAGS="-I${XCB_INSTALL_PATH}/include" \
 XCBPROTO_LIBS="-L${XCB_INSTALL_PATH}/lib" \
 XAU_CFLAGS="-I${XCB_INSTALL_PATH}/include" \
 XAU_LIBS="-L${XCB_INSTALL_PATH}/lib -lXau" \
-./configure --prefix="${XCB_INSTALL_PATH}" --enable-static --disable-shared
+./configure \
+    --prefix="${XCB_INSTALL_PATH}" \
+    --enable-static \
+    --disable-shared \
+    --enable-xauth \
+    --enable-xinput \
+    --enable-xkb
+
 make -j$(nproc)
 make install
 cd ..
+
+# Verify libxcb was built with Xau support
+if ! grep -q "Xau" "${XCB_INSTALL_PATH}/lib/pkgconfig/xcb.pc"; then
+    echo "WARNING: libxcb may not have Xau support properly enabled. Check build logs."
+    # Continue anyway since we explicitly passed XAU flags
+fi
+
+# Export additional flags for subsequent builds to ensure they can find libXau
+export CFLAGS="-I${XCB_INSTALL_PATH}/include ${CFLAGS}"
+export CXXFLAGS="-I${XCB_INSTALL_PATH}/include ${CXXFLAGS}"
+export LDFLAGS="-L${XCB_INSTALL_PATH}/lib ${LDFLAGS}"
 
 # Build xcb-util
 cd "${SOURCE_DIR}/qt-build"
@@ -202,6 +232,10 @@ cd ..
 echo "XCB static libraries built successfully at ${XCB_INSTALL_PATH}"
 echo "Available libraries:"
 find "${XCB_INSTALL_PATH}/lib" -name "*.a" | sort
+
+# Check for libXau linkage in libxcb
+echo "Checking libxcb for libXau symbols:"
+nm "${XCB_INSTALL_PATH}/lib/libxcb.a" | grep -i "xau"
 
 # Make script executable
 chmod +x "${SCRIPT_DIR}/build-static-xcb-utils.sh"
