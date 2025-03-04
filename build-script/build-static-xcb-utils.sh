@@ -71,6 +71,7 @@ echo "xcb-proto.pc location: $(find ${XCB_INSTALL_PATH} -name xcb-proto.pc)"
 # Verify xcb-proto version
 XCBPROTO_VERSION=$(pkg-config --modversion xcb-proto 2>/dev/null || echo "unknown")
 echo "Installed xcb-proto version: ${XCBPROTO_VERSION}"
+cd "${SOURCE_DIR}/qt-build"
 if [[ "${XCBPROTO_VERSION}" == "unknown" ]]; then
     echo "Warning: xcb-proto not found via pkg-config after installation."
     echo "Current PKG_CONFIG_PATH: ${PKG_CONFIG_PATH}"
@@ -97,6 +98,7 @@ make install
 cd ..
 
 # Download and build libxcb
+cd "${SOURCE_DIR}/qt-build"
 if [ ! -d libxcb ]; then
     echo "Downloading libxcb ${XCB_VERSION}..."
     curl -L -o libxcb.tar.xz "https://xorg.freedesktop.org/archive/individual/lib/libxcb-${XCB_VERSION}.tar.xz"
@@ -118,6 +120,7 @@ make install
 cd ..
 
 # Build xcb-util
+cd "${SOURCE_DIR}/qt-build"
 if [ ! -d xcb-util ]; then
     echo "Downloading xcb-util ${XCB_UTIL_VERSION}..."
     curl -L -o xcb-util.tar.gz "https://xcb.freedesktop.org/dist/xcb-util-${XCB_UTIL_VERSION}.tar.gz"
@@ -133,6 +136,7 @@ make install
 cd ..
 
 # Build xcb-util-image
+cd "${SOURCE_DIR}/qt-build"
 if [ ! -d xcb-util-image ]; then
     echo "Downloading xcb-util-image ${XCB_UTIL_IMAGE_VERSION}..."
     curl -L -o xcb-util-image.tar.gz "https://xcb.freedesktop.org/dist/xcb-util-image-${XCB_UTIL_IMAGE_VERSION}.tar.gz"
@@ -148,6 +152,7 @@ make install
 cd ..
 
 # Build xcb-util-keysyms
+cd "${SOURCE_DIR}/qt-build"
 if [ ! -d xcb-util-keysyms ]; then
     echo "Downloading xcb-util-keysyms ${XCB_UTIL_KEYSYMS_VERSION}..."
     curl -L -o xcb-util-keysyms.tar.gz "https://xcb.freedesktop.org/dist/xcb-util-keysyms-${XCB_UTIL_KEYSYMS_VERSION}.tar.gz"
@@ -163,6 +168,7 @@ make install
 cd ..
 
 # Build xcb-util-renderutil
+cd "${SOURCE_DIR}/qt-build"
 if [ ! -d xcb-util-renderutil ]; then
     echo "Downloading xcb-util-renderutil ${XCB_UTIL_RENDERUTIL_VERSION}..."
     curl -L -o xcb-util-renderutil.tar.gz "https://xcb.freedesktop.org/dist/xcb-util-renderutil-${XCB_UTIL_RENDERUTIL_VERSION}.tar.gz"
