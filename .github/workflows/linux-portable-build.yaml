@@ -25,7 +25,16 @@
         - uses: actions/checkout@v2
           with:
             fetch-depth: 0
-  
+
+        - name: Cache Qt Build
+          id: cache-qt
+          uses: actions/cache@v3
+          with:
+            path: /opt/Qt6
+            key: qt-${{ env.QT_VERSION }}-linux-static
+            restore-keys: |
+              qt-${{ env.QT_VERSION }}-linux-static
+
         - name: Cache FFmpeg
           id: cache-ffmpeg
           uses: actions/cache@v3
