@@ -42,7 +42,6 @@ KeyboardLayoutConfig KeyboardLayoutConfig::fromJsonFile(const QString& filePath)
     qCDebug(log_keyboard_layouts) << "File contents:" << data;
     
     QJsonDocument doc = QJsonDocument::fromJson(data);
-    
     if (doc.isNull()) {
         qWarning() << "Failed to parse JSON from file:" << filePath;
         return config;
@@ -97,11 +96,23 @@ KeyboardLayoutConfig KeyboardLayoutConfig::fromJsonFile(const QString& filePath)
     // Load char mapping
     QJsonObject charMap = json["char_mapping"].toObject();
     for (auto it = charMap.begin(); it != charMap.end(); ++it) {
-        QChar character = it.key()[0];
-        QString keyName = it.value().toString();
-        int qtKey = QKeySequence::fromString(keyName)[0];
-        
-        config.charMapping[character.toLatin1()] = qtKey;
+        QString charStr = it.key(); 
+        QChar character = charStr[0];
+        QString keyName = it.value().toString(); 
+        qCDebug(log_keyboard_layouts) << "Processing char:" << charStr << "mapped to" << keyName;
+
+        // Remove "Key_" prefix and get Qt key from keyNameToQt
+        if (keyName.startsWith("Key_")) {
+            keyName = keyName.mid(4); 
+        }
+        int qtKey = keyNameToQt.value(keyName, Qt::Key_unknown);
+        if (qtKey == Qt::Key_unknown) {
+            qCWarning(log_keyboard_layouts) << "Unknown key name in char_mapping:" << keyName << "for char:" << charStr;
+            continue;
+        }
+
+        config.charMapping[character.unicode()] = qtKey;
+        qCDebug(log_keyboard_layouts) << "Mapped char" << charStr << "to QtKey" << QString::number(qtKey, 16);
     }
 
     // Load shift keys
@@ -109,7 +120,7 @@ KeyboardLayoutConfig KeyboardLayoutConfig::fromJsonFile(const QString& filePath)
     for (const QJsonValue& value : shiftKeys) {
         QString keyStr = value.toString();
         if (keyStr.length() == 1) {
-            config.needShiftKeys.append(keyStr[0].toLatin1());
+            config.needShiftKeys.append(keyStr[0].unicode()); 
         } else {
             // Handle hex values for special characters
             config.needShiftKeys.append(keyStr.toInt(nullptr, 16));
