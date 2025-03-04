@@ -30,21 +30,43 @@ sudo apt-get install -y \
 # Create installation directory
 mkdir -p "${XCB_INSTALL_PATH}"
 
-# Download and build xcb-proto
+# Set and export PKG_CONFIG_PATH to include our custom install path
+export PKG_CONFIG_PATH="${XCB_INSTALL_PATH}/lib/pkgconfig:${PKG_CONFIG_PATH}"
+echo "Using PKG_CONFIG_PATH: ${PKG_CONFIG_PATH}"
+
+# Download and build xcb-proto (specific version to ensure 1.17.0+)
 if [ ! -d xcb-proto ]; then
-    git clone --depth 1 https://gitlab.freedesktop.org/xorg/proto/xcbproto.git xcb-proto
+    git clone https://gitlab.freedesktop.org/xorg/proto/xcbproto.git xcb-proto
+    cd xcb-proto
+    # Checkout version 1.17.0 or newer
+    git checkout 1.17.0 || git checkout master
+else
+    cd xcb-proto
+    git fetch
+    git checkout 1.17.0 || git checkout master
 fi
-cd xcb-proto
+
 ./autogen.sh --prefix="${XCB_INSTALL_PATH}"
 make -j$(nproc)
 make install
 cd ..
+
+# Verify xcb-proto version
+XCBPROTO_VERSION=$(pkg-config --modversion xcb-proto 2>/dev/null || echo "unknown")
+echo "Installed xcb-proto version: ${XCBPROTO_VERSION}"
+if [[ "${XCBPROTO_VERSION}" == "unknown" ]]; then
+    echo "Error: xcb-proto not found in pkg-config path after installation."
+    echo "Current PKG_CONFIG_PATH: ${PKG_CONFIG_PATH}"
+    exit 1
+fi
 
 # Download and build libxcb
 if [ ! -d libxcb ]; then
     git clone --depth 1 https://gitlab.freedesktop.org/xorg/lib/libxcb.git
 fi
 cd libxcb
+XCBPROTO_CFLAGS="-I${XCB_INSTALL_PATH}/include" \
+XCBPROTO_LIBS="-L${XCB_INSTALL_PATH}/lib" \
 ./autogen.sh --prefix="${XCB_INSTALL_PATH}" --enable-static --disable-shared
 make -j$(nproc)
 make install
@@ -65,7 +87,6 @@ if [ ! -d xcb-util-image ]; then
     git clone --depth 1 https://gitlab.freedesktop.org/xorg/lib/libxcb-image.git xcb-util-image
 fi
 cd xcb-util-image
-PKG_CONFIG_PATH="${XCB_INSTALL_PATH}/lib/pkgconfig:$PKG_CONFIG_PATH" \
 ./autogen.sh --prefix="${XCB_INSTALL_PATH}" --enable-static --disable-shared
 make -j$(nproc)
 make install
@@ -76,7 +97,6 @@ if [ ! -d xcb-util-keysyms ]; then
     git clone --depth 1 https://gitlab.freedesktop.org/xorg/lib/libxcb-keysyms.git xcb-util-keysyms
 fi
 cd xcb-util-keysyms
-PKG_CONFIG_PATH="${XCB_INSTALL_PATH}/lib/pkgconfig:$PKG_CONFIG_PATH" \
 ./autogen.sh --prefix="${XCB_INSTALL_PATH}" --enable-static --disable-shared
 make -j$(nproc)
 make install
@@ -87,7 +107,6 @@ if [ ! -d xcb-util-renderutil ]; then
     git clone --depth 1 https://gitlab.freedesktop.org/xorg/lib/libxcb-render-util.git xcb-util-renderutil
 fi
 cd xcb-util-renderutil
-PKG_CONFIG_PATH="${XCB_INSTALL_PATH}/lib/pkgconfig:$PKG_CONFIG_PATH" \
 ./autogen.sh --prefix="${XCB_INSTALL_PATH}" --enable-static --disable-shared
 make -j$(nproc)
 make install
@@ -98,7 +117,6 @@ if [ ! -d xcb-util-wm ]; then
     git clone --depth 1 https://gitlab.freedesktop.org/xorg/lib/libxcb-wm.git xcb-util-wm
 fi
 cd xcb-util-wm
-PKG_CONFIG_PATH="${XCB_INSTALL_PATH}/lib/pkgconfig:$PKG_CONFIG_PATH" \
 ./autogen.sh --prefix="${XCB_INSTALL_PATH}" --enable-static --disable-shared
 make -j$(nproc)
 make install
