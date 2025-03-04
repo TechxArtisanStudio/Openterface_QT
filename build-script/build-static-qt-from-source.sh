@@ -19,16 +19,14 @@ sudo apt-get install -y build-essential meson ninja-build bison flex pkg-config 
     libxcb-xinerama0-dev libxcb-xkb-dev libxcb-util-dev \
     libdrm-dev libgbm-dev libatspi2.0-dev \
     libvulkan-dev libssl-dev \
-    libpulse-dev libxau-dev\
-    yasm nasm \
-    xutils-dev # Add xutils-dev for xorg-macros
+    libpulse-dev \
+    yasm nasm # Dependencies for FFmpeg compilation
 
 QT_VERSION=6.6.3
 QT_MAJOR_VERSION=6.6
 INSTALL_PREFIX=/opt/Qt6
 BUILD_DIR=$(pwd)/qt-build
 FFMPEG_PREFIX="$BUILD_DIR/ffmpeg-install"
-XCB_PREFIX="$BUILD_DIR/xcb-install"
 # Update module list to include qtdeclarative (which provides Qt Quick)
 MODULES=("qtbase" "qtshadertools" "qtdeclarative" "qtmultimedia" "qtsvg" "qtserialport")
 DOWNLOAD_BASE_URL="https://download.qt.io/archive/qt/$QT_MAJOR_VERSION/$QT_VERSION/submodules"
@@ -81,12 +79,6 @@ cd "$BUILD_DIR/qtbase"
 mkdir -p build
 cd build
 
-# Set environment variables for static XCB libraries
-export PKG_CONFIG_PATH="$XCB_PREFIX/lib/pkgconfig:$PKG_CONFIG_PATH"
-export CFLAGS="-I$XCB_PREFIX/include $CFLAGS"
-export CXXFLAGS="-I$XCB_PREFIX/include $CXXFLAGS"
-export LDFLAGS="-L$XCB_PREFIX/lib $LDFLAGS"
-
 cmake -GNinja \
     $CMAKE_COMMON_FLAGS \
     -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" \
@@ -101,22 +93,13 @@ cmake -GNinja \
     -DFEATURE_xkbcommon=ON \
     -DFEATURE_xkbcommon_x11=ON \
     -DTEST_xcb_syslibs=ON \
-    -DXcb_XCB_INCLUDE_DIR="$XCB_PREFIX/include" \
-    -DXcb_XCB_LIBRARY="$XCB_PREFIX/lib/libxcb.a" \
-    -DXcb_CURSOR_INCLUDE_DIR="$XCB_PREFIX/include" \
-    -DXcb_CURSOR_LIBRARY="$XCB_PREFIX/lib/libxcb-cursor.a" \
-    -DXcb_UTIL_INCLUDE_DIR="$XCB_PREFIX/include" \
-    -DXcb_UTIL_LIBRARY="$XCB_PREFIX/lib/libxcb-util.a" \
-    -DCMAKE_PREFIX_PATH="$XCB_PREFIX" \
-    -DCMAKE_EXE_LINKER_FLAGS="-L$XCB_PREFIX/lib -lXau -lfontconfig -lfreetype" \
-    -DCMAKE_SHARED_LINKER_FLAGS="-L$XCB_PREFIX/lib -lXau" \
     ..
 
 ninja
 sudo ninja install
 
+
 # Build qtshadertools
-export LDFLAGS="-Wl,--copy-dt-needed-entries"
 echo "Building qtshadertools..."
 cd "$BUILD_DIR/qtshadertools"
 mkdir -p build
@@ -125,7 +108,7 @@ cmake -GNinja \
     $CMAKE_COMMON_FLAGS \
     -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" \
     -DBUILD_SHARED_LIBS=OFF \
-    -DCMAKE_EXE_LINKER_FLAGS="-lXau -lfontconfig -lfreetype" \
+    -DCMAKE_EXE_LINKER_FLAGS="-lfontconfig -lfreetype" \
     ..
 
 ninja
@@ -180,7 +163,7 @@ for module in "${MODULES[@]}"; do
                 -DBUILD_SHARED_LIBS=OFF \
                 ..
         fi
-
+        
         ninja
         sudo ninja install
     fi

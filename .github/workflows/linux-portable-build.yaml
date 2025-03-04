@@ -31,9 +31,8 @@
           uses: actions/cache@v3
           with:
             path: /opt/Qt6
-            key: qt-${{ env.QT_VERSION }}-linux-static-xcb
+            key: qt-${{ env.QT_VERSION }}-linux-static
             restore-keys: |
-              qt-${{ env.QT_VERSION }}-linux-static-xcb
               qt-${{ env.QT_VERSION }}-linux-static
 
         - name: Cache FFmpeg
@@ -44,37 +43,26 @@
               key: ffmpeg-cache
               restore-keys: |
                 ffmpeg-cache
-
-        - name: Cache XCB Static Libraries
-          id: cache-xcb
-          uses: actions/cache@v3
-          with:
-            path: ${{ github.workspace }}/qt-build/xcb-install
-            key: xcb-static-libs
-            restore-keys: |
-              xcb-static-libs
   
         - name: Set up Python
           uses: actions/setup-python@v5
           with:
             python-version: '3.10'
   
-        - name: Build XCB Static Libraries
-          if: steps.cache-xcb.outputs.cache-hit != 'true'
+        - name: Build FFmpeg
+          if: steps.cache-ffmpeg.outputs.cache-hit != 'true'
           run: |
-            bash ${{ env.SOURCE_DIR }}/build-script/build-static-xcb-utils.sh
-            
-        - name: XCB Already Built
-          if: steps.cache-xcb.outputs.cache-hit == 'true'
+            bash ${{ env.SOURCE_DIR }}/build-script/build-static-ffmpeg.sh
+  
+        - name: FFmpeg Already Built
+          if: steps.cache-ffmpeg.outputs.cache-hit == 'true'
           run: |
-            echo "XCB utilities already built"
-            bash ${{ env.SOURCE_DIR }}/build-script/build-static-xcb-utils.sh --no-build
+            echo "FFmpeg already built"
+            bash ${{ env.SOURCE_DIR }}/build-script/build-static-ffmpeg.sh --no-build
             
         - name: Build Qt Statically
           if: steps.cache-qt.outputs.cache-hit != 'true'
           run: |
-            export XCB_INSTALL_PATH="${{ github.workspace }}/qt-build/xcb-install"
-            export PKG_CONFIG_PATH="$XCB_INSTALL_PATH/lib/pkgconfig:$PKG_CONFIG_PATH"
             bash ${{ env.SOURCE_DIR }}/build-script/build-static-qt-from-source.sh
   
         - name: Create build directory
@@ -127,27 +115,24 @@
   
         - name: Build Portable Executable
           working-directory: ${{ runner.temp }}/build
+  
           run: |
             echo "Setting LD_LIBRARY_PATH..."
             export LD_LIBRARY_PATH=/usr/lib:/usr/local/lib:$LD_LIBRARY_PATH
-            
-            # Add xcb static libraries to the build environment
-            export XCB_INSTALL_PATH="${{ github.workspace }}/qt-build/xcb-install"
-            export PKG_CONFIG_PATH="$XCB_INSTALL_PATH/lib/pkgconfig:$PKG_CONFIG_PATH"
   
             echo "Configuring with CMake..."
             cmake -S "${{ env.SOURCE_DIR }}" -B . \
                 -DCMAKE_BUILD_TYPE=Release \
                 -DBUILD_SHARED_LIBS=OFF \
-                -DCMAKE_PREFIX_PATH="/opt/Qt6;$XCB_INSTALL_PATH" \
+                -DCMAKE_PREFIX_PATH=/opt/Qt6 \
                 -DCMAKE_INSTALL_PREFIX=release \
                 -DCMAKE_POLICY_DEFAULT_CMP0177=NEW \
                 -DCMAKE_POLICY_DEFAULT_CMP0174=NEW \
                 -DCMAKE_VERBOSE_MAKEFILE=ON \
                 -DQT_DEBUG_FIND_PACKAGE=ON \
-                -DCMAKE_CXX_FLAGS="-Os -ffunction-sections -fdata-sections -I$XCB_INSTALL_PATH/include" \
-                -DCMAKE_C_FLAGS="-Os -ffunction-sections -fdata-sections -I$XCB_INSTALL_PATH/include" \
-                -DCMAKE_EXE_LINKER_FLAGS="-Wl,--gc-sections -Wl,--strip-all -L$XCB_INSTALL_PATH/lib -lXau" \
+                -DCMAKE_CXX_FLAGS="-Os -ffunction-sections -fdata-sections" \
+                -DCMAKE_C_FLAGS="-Os -ffunction-sections -fdata-sections" \
+                -DCMAKE_EXE_LINKER_FLAGS="-Wl,--gc-sections -Wl,--strip-all" \
                 -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON \
                 -DCMAKE_POSITION_INDEPENDENT_CODE=ON
   

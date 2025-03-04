@@ -274,37 +274,3 @@ endif()
 # Make sure to only include the necessary Qt components
 find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets Network Multimedia MultimediaWidgets)
 # Replace with only the modules you actually need
-
-# Add this to your existing CMakeLists.txt to link the static xcb-cursor library
-
-# Find the static XCB libraries if available
-find_library(XCB_CURSOR_STATIC_LIB
-    NAMES libxcb-cursor.a
-    PATHS ${CMAKE_PREFIX_PATH}/lib
-)
-
-if(XCB_CURSOR_STATIC_LIB)
-    message(STATUS "Found static xcb-cursor library: ${XCB_CURSOR_STATIC_LIB}")
-    target_link_libraries(openterfaceQT PRIVATE ${XCB_CURSOR_STATIC_LIB})
-endif()
-
-# Make sure to link other required XCB static libs
-find_library(XCB_UTIL_STATIC_LIB
-    NAMES libxcb-util.a
-    PATHS ${CMAKE_PREFIX_PATH}/lib
-)
-
-if(XCB_UTIL_STATIC_LIB)
-    message(STATUS "Found static xcb-util library: ${XCB_UTIL_STATIC_LIB}")
-    target_link_libraries(openterfaceQT PRIVATE ${XCB_UTIL_STATIC_LIB})
-endif()
-
-find_library(XCB_IMAGE_STATIC_LIB
-    NAMES libxcb-image.a
-    PATHS ${CMAKE_PREFIX_PATH}/lib
-)
-
-if(XCB_IMAGE_STATIC_LIB)
-    message(STATUS "Found static xcb-image library: ${XCB_IMAGE_STATIC_LIB}")
-    target_link_libraries(openterfaceQT PRIVATE ${XCB_IMAGE_STATIC_LIB})
-endif()
