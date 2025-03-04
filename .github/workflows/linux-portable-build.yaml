@@ -34,32 +34,7 @@
             key: qt-${{ env.QT_VERSION }}-linux-static
             restore-keys: |
               qt-${{ env.QT_VERSION }}-linux-static
-
-        - name: Cache FFmpeg
-          id: cache-ffmpeg
-          uses: actions/cache@v3
-          with:
-              path: ${{ env.SOURCE_DIR }}/ffmpeg-build/
-              key: ffmpeg-cache
-              restore-keys: |
-                ffmpeg-cache
   
-        - name: Set up Python
-          uses: actions/setup-python@v5
-          with:
-            python-version: '3.10'
-  
-        - name: Build FFmpeg
-          if: steps.cache-ffmpeg.outputs.cache-hit != 'true'
-          run: |
-            bash ${{ env.SOURCE_DIR }}/build-script/build-static-ffmpeg.sh
-  
-        - name: FFmpeg Already Built
-          if: steps.cache-ffmpeg.outputs.cache-hit == 'true'
-          run: |
-            echo "FFmpeg already built"
-            bash ${{ env.SOURCE_DIR }}/build-script/build-static-ffmpeg.sh --no-build
-            
         - name: Set up Python
           uses: actions/setup-python@v5
           with:
@@ -74,36 +49,6 @@
           run: |
             mkdir ${{ runner.temp }}/build
             
-        - name: Build libpcre2 from source
-          run: |
-            # Create build directories
-            mkdir -p ${{ runner.temp }}/pcre2-build
-            mkdir -p ${{ runner.temp }}/pcre2-install
-            
-            # Download and extract PCRE2
-            cd ${{ runner.temp }}
-            wget https://github.com/PCRE2Project/pcre2/releases/download/pcre2-10.42/pcre2-10.42.tar.gz
-            tar xf pcre2-10.42.tar.gz
-            
-            # Build PCRE2 with 16-bit support
-            cd ${{ runner.temp }}/pcre2-build
-            cmake ${{ runner.temp }}/pcre2-10.42 \
-              -DCMAKE_BUILD_TYPE=Release \
-              -DBUILD_SHARED_LIBS=OFF \
-              -DPCRE2_BUILD_PCRE2_16=ON \
-              -DPCRE2_BUILD_PCRE2_8=ON \
-              -DPCRE2_BUILD_PCRE2_32=OFF \
-              -DPCRE2_SUPPORT_JIT=ON \
-              -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
-              -DCMAKE_INSTALL_PREFIX=${{ runner.temp }}/pcre2-install
-            
-            cmake --build . --config Release
-            cmake --install .
-            
-            echo "PCRE2 build complete - installed to ${{ runner.temp }}/pcre2-install"
-            find ${{ runner.temp }}/pcre2-install -name "*.a" | sort
-            find ${{ runner.temp }}/pcre2-install -name "*.h" | sort
-
         - name: Prepare Driver Files
           run: |
             mkdir ${{ env.SOURCE_DIR }}/drivers
@@ -134,6 +79,7 @@
               libpulse-dev \
               libsndfile1-dev \
               libxrandr-dev \
+              lib-prce2-dev \
               libxrender-dev \
               libexpat1-dev \
               libdrm-dev \
@@ -165,19 +111,15 @@
             cmake -S "${{ env.SOURCE_DIR }}" -B . \
                 -DCMAKE_BUILD_TYPE=Release \
                 -DBUILD_SHARED_LIBS=OFF \
-                -DCMAKE_PREFIX_PATH="/opt/Qt6;${{ runner.temp }}/pcre2-install" \
+                -DCMAKE_PREFIX_PATH="/opt/Qt6" \
                 -DCMAKE_INSTALL_PREFIX=release \
                 -DCMAKE_POLICY_DEFAULT_CMP0177=NEW \
                 -DCMAKE_POLICY_DEFAULT_CMP0174=NEW \
                 -DCMAKE_VERBOSE_MAKEFILE=ON \
                 -DQT_DEBUG_FIND_PACKAGE=ON \
-                -DPCRE2_ROOT_DIR=${{ runner.temp }}/pcre2-install \
-                -DPCRE2_INCLUDE_DIR=${{ runner.temp }}/pcre2-install/include \
-                -DPCRE2_LIBRARY=${{ runner.temp }}/pcre2-install/lib/libpcre2-16.a \
-                -DPCRE2_LIBRARIES=${{ runner.temp }}/pcre2-install/lib/libpcre2-16.a \
-                -DCMAKE_CXX_FLAGS="-Os -ffunction-sections -fdata-sections -I${{ runner.temp }}/pcre2-install/include" \
-                -DCMAKE_C_FLAGS="-Os -ffunction-sections -fdata-sections -I${{ runner.temp }}/pcre2-install/include" \
-                -DCMAKE_EXE_LINKER_FLAGS="-Wl,--gc-sections -Wl,--strip-all -L${{ runner.temp }}/pcre2-install/lib -Wl,-rpath-link,${{ runner.temp }}/pcre2-install/lib" \
+                -DCMAKE_CXX_FLAGS="-Os -ffunction-sections -fdata-sections" \
+                -DCMAKE_C_FLAGS="-Os -ffunction-sections -fdata-sections" \
+                -DCMAKE_EXE_LINKER_FLAGS="-Wl,--gc-sections -Wl,--strip-all" \
                 -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON \
                 -DCMAKE_POSITION_INDEPENDENT_CODE=ON
             
