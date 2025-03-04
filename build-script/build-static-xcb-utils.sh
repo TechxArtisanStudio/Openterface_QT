@@ -8,6 +8,7 @@ XCB_INSTALL_PATH="${SOURCE_DIR}/qt-build/xcb-install"
 
 # Define versions
 XCB_PROTO_VERSION=1.16.0
+LIBXAU_VERSION=1.0.11
 XCB_VERSION=1.16
 XCB_UTIL_VERSION=0.4.1
 XCB_UTIL_IMAGE_VERSION=0.4.1
@@ -80,6 +81,21 @@ if [[ "${XCBPROTO_VERSION}" == "unknown" ]]; then
     echo "Continuing build despite pkg-config issue..."
 fi
 
+# Download and build libXau (needed by libxcb)
+if [ ! -d libXau ]; then
+    echo "Downloading libXau ${LIBXAU_VERSION}..."
+    curl -L -o libXau.tar.gz "https://www.x.org/releases/individual/lib/libXau-${LIBXAU_VERSION}.tar.gz"
+    tar xf libXau.tar.gz
+    mv "libXau-${LIBXAU_VERSION}" libXau
+    rm libXau.tar.gz
+fi
+
+cd libXau
+./configure --prefix="${XCB_INSTALL_PATH}" --enable-static --disable-shared
+make -j$(nproc)
+make install
+cd ..
+
 # Download and build libxcb
 if [ ! -d libxcb ]; then
     echo "Downloading libxcb ${XCB_VERSION}..."
@@ -90,9 +106,12 @@ if [ ! -d libxcb ]; then
 fi
 
 cd libxcb
+# Pass explicit XAU flags to ensure it uses our static version
 PYTHONPATH="${XCB_INSTALL_PATH}/lib/python3.10/site-packages:${PYTHONPATH}" \
 XCBPROTO_CFLAGS="-I${XCB_INSTALL_PATH}/include" \
 XCBPROTO_LIBS="-L${XCB_INSTALL_PATH}/lib" \
+XAU_CFLAGS="-I${XCB_INSTALL_PATH}/include" \
+XAU_LIBS="-L${XCB_INSTALL_PATH}/lib -lXau" \
 ./configure --prefix="${XCB_INSTALL_PATH}" --enable-static --disable-shared
 make -j$(nproc)
 make install

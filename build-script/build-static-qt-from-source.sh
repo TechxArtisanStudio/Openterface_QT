@@ -36,60 +36,6 @@ DOWNLOAD_BASE_URL="https://download.qt.io/archive/qt/$QT_MAJOR_VERSION/$QT_VERSI
 # Create the build directory first
 mkdir -p "$BUILD_DIR"
 
-# Build XCB libraries statically
-echo "Building XCB libraries statically..."
-mkdir -p "$XCB_PREFIX"
-cd "$BUILD_DIR"
-
-# Ensure xorg-macros is installed
-sudo apt-get install -y xutils-dev
-
-# Build xcb-util
-if [ ! -d "xcb-util" ]; then
-    curl -L -o xcb-util.tar.gz "https://xcb.freedesktop.org/dist/xcb-util-0.4.0.tar.gz"
-    tar xzf xcb-util.tar.gz
-    mv xcb-util-0.4.0 xcb-util
-    rm xcb-util.tar.gz
-fi
-cd xcb-util
-./autogen.sh
-./configure --prefix="$XCB_PREFIX" --disable-shared --enable-static
-make -j$(nproc)
-make install
-cd "$BUILD_DIR"
-
-# Build xcb-util-image
-if [ ! -d "xcb-util-image" ]; then
-    curl -L -o xcb-util-image.tar.gz "https://xcb.freedesktop.org/dist/xcb-util-image-0.4.0.tar.gz"
-    tar xzf xcb-util-image.tar.gz
-    mv xcb-util-image-0.4.0 xcb-util-image
-    rm xcb-util-image.tar.gz
-fi
-cd xcb-util-image
-./autogen.sh
-PKG_CONFIG_PATH="$XCB_PREFIX/lib/pkgconfig:$PKG_CONFIG_PATH" \
-./configure --prefix="$XCB_PREFIX" --disable-shared --enable-static
-make -j$(nproc)
-make install
-cd "$BUILD_DIR"
-
-# Build xcb-util-cursor
-if [ ! -d "xcb-util-cursor" ]; then
-    curl -L -o xcb-util-cursor.tar.gz "https://xcb.freedesktop.org/dist/xcb-util-cursor-0.1.3.tar.gz"
-    tar xzf xcb-util-cursor.tar.gz
-    mv xcb-util-cursor-0.1.3 xcb-util-cursor
-    rm xcb-util-cursor.tar.gz
-fi
-cd xcb-util-cursor
-./autogen.sh
-PKG_CONFIG_PATH="$XCB_PREFIX/lib/pkgconfig:$PKG_CONFIG_PATH" \
-CFLAGS="-I$XCB_PREFIX/include" \
-LDFLAGS="-L$XCB_PREFIX/lib" \
-./configure --prefix="$XCB_PREFIX" --disable-shared --enable-static
-make -j$(nproc)
-make install
-cd "$BUILD_DIR"
-
 # Build FFmpeg statically
 echo "Building FFmpeg statically..."
 FFMPEG_VERSION="6.1.1"
@@ -141,6 +87,10 @@ export CFLAGS="-I$XCB_PREFIX/include $CFLAGS"
 export CXXFLAGS="-I$XCB_PREFIX/include $CXXFLAGS"
 export LDFLAGS="-L$XCB_PREFIX/lib $LDFLAGS"
 
+# Specify explicit link libraries including libXau
+export QMAKE_LFLAGS="-lXau $QMAKE_LFLAGS"
+export CMAKE_EXE_LINKER_FLAGS="-lXau $CMAKE_EXE_LINKER_FLAGS"
+
 cmake -GNinja \
     $CMAKE_COMMON_FLAGS \
     -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" \
@@ -162,11 +112,12 @@ cmake -GNinja \
     -DXcb_UTIL_INCLUDE_DIR="$XCB_PREFIX/include" \
     -DXcb_UTIL_LIBRARY="$XCB_PREFIX/lib/libxcb-util.a" \
     -DCMAKE_PREFIX_PATH="$XCB_PREFIX" \
+    -DCMAKE_EXE_LINKER_FLAGS="-L$XCB_PREFIX/lib -lXau -lfontconfig -lfreetype" \
+    -DCMAKE_SHARED_LINKER_FLAGS="-L$XCB_PREFIX/lib -lXau" \
     ..
 
 ninja
 sudo ninja install
-
 
 # Build qtshadertools
 echo "Building qtshadertools..."
