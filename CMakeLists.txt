@@ -52,6 +52,7 @@ qt_add_executable(openterfaceQT WIN32 MACOSX_BUNDLE
     scripts/Lexer.cpp scripts/Lexer.h
     scripts/Parser.cpp scripts/Parser.h
     scripts/semanticAnalyzer.cpp scripts/semanticAnalyzer.h
+    scripts/scriptEditor.cpp scripts/scriptEditor.h
     serial/SerialPortManager.cpp serial/SerialPortManager.h
     serial/ch9329.h
     server/tcpServer.cpp server/tcpServer.h
