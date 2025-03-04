@@ -87,10 +87,6 @@ export CFLAGS="-I$XCB_PREFIX/include $CFLAGS"
 export CXXFLAGS="-I$XCB_PREFIX/include $CXXFLAGS"
 export LDFLAGS="-L$XCB_PREFIX/lib $LDFLAGS"
 
-# Specify explicit paths to static libraries instead of using -l flags
-export QMAKE_LFLAGS="$XCB_PREFIX/lib/libXau.a $QMAKE_LFLAGS"
-export CMAKE_EXE_LINKER_FLAGS="$XCB_PREFIX/lib/libXau.a $CMAKE_EXE_LINKER_FLAGS"
-
 cmake -GNinja \
     $CMAKE_COMMON_FLAGS \
     -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" \
