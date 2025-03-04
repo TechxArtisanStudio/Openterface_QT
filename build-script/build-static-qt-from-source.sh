@@ -108,8 +108,8 @@ cmake -GNinja \
     -DXcb_UTIL_INCLUDE_DIR="$XCB_PREFIX/include" \
     -DXcb_UTIL_LIBRARY="$XCB_PREFIX/lib/libxcb-util.a" \
     -DCMAKE_PREFIX_PATH="$XCB_PREFIX" \
-    -DCMAKE_EXE_LINKER_FLAGS="-L$XCB_PREFIX/lib $XCB_PREFIX/lib/libXau.a -lfontconfig -lfreetype" \
-    -DCMAKE_SHARED_LINKER_FLAGS="-L$XCB_PREFIX/lib $XCB_PREFIX/lib/libXau.a" \
+    -DCMAKE_EXE_LINKER_FLAGS="-L$XCB_PREFIX/lib -lXau -lfontconfig -lfreetype" \
+    -DCMAKE_SHARED_LINKER_FLAGS="-L$XCB_PREFIX/lib -lXau" \
     ..
 
 ninja
