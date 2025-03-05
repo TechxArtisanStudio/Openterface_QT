@@ -123,10 +123,6 @@
                 -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON \
                 -DCMAKE_POSITION_INDEPENDENT_CODE=ON
             
-            # Debug linking info
-            echo "Checking for PCRE2 libraries:"
-            find ${{ runner.temp }}/pcre2-install -name "*.a" | grep pcre2
-  
             echo "Building with CMake..."
             VERBOSE=1 cmake --build . || (echo "CMake build failed. Please check the build configuration." && exit 1)
   
