@@ -121,7 +121,9 @@
                 -DCMAKE_C_FLAGS="-Os -ffunction-sections -fdata-sections" \
                 -DCMAKE_EXE_LINKER_FLAGS="-Wl,--gc-sections -Wl,--strip-all" \
                 -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON \
-                -DCMAKE_POSITION_INDEPENDENT_CODE=ON
+                -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
+                -DFFMPEG_LIBRARIES="/opt/Qt6/lib/libavformat.a;/opt/Qt6/lib/libavcodec.a;/opt/Qt6/lib/libavutil.a;/opt/Qt6/lib/libswresample.a;/opt/Qt6/lib/libswscale.a" \
+                -DFFMPEG_INCLUDE_DIRS="/opt/Qt6/include"
             
             echo "Building with CMake..."
             VERBOSE=1 cmake --build . || (echo "CMake build failed. Please check the build configuration." && exit 1)
