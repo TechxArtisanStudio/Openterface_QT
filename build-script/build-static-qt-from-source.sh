@@ -34,7 +34,7 @@ DOWNLOAD_BASE_URL="https://download.qt.io/archive/qt/$QT_MAJOR_VERSION/$QT_VERSI
 
 # Create the build directory first
 mkdir -p "$BUILD_DIR"
-
+cd "$BUILD_DIR"
 # Build or Install libusb from source
 if $BUILD_ENABLED; then
     echo "Building libusb $LIBUSB_VERSION from source..."
