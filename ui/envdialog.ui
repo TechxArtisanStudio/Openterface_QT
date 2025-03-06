@@ -79,8 +79,28 @@
      </item>
     </layout>
    </item>
+   <item>
+    <widget class="QCheckBox" name="autoCheckBox">
+     <property name="text">
+      <string>Auto environment check on startup</string>
+     </property>
+    </widget>
+   </item>
+   <item>
+    <widget class="QLabel" name="helpLabel">
+     <property name="text">
+        <string>&lt;a href="#"&gt;Environment Setup Documentation&lt;/a&gt;</string>
+     </property>
+     <property name="alignment">
+      <set>Qt::AlignCenter</set>
+     </property>
+     <property name="openExternalLinks">
+      <bool>false</bool>
+     </property>
+    </widget>
+   </item>
   </layout>
  </widget>
  <resources/>
  <connections/>
-</ui> 
+</ui>

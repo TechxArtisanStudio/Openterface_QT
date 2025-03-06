@@ -24,15 +24,38 @@ sudo apt-get install -y build-essential meson ninja-build bison flex pkg-config 
 
 QT_VERSION=6.6.3
 QT_MAJOR_VERSION=6.6
+LIBUSB_VERSION=1.0.26
 INSTALL_PREFIX=/opt/Qt6
 BUILD_DIR=$(pwd)/qt-build
-FFMPEG_PREFIX="$BUILD_DIR/ffmpeg-install"
+FFMPEG_PREFIX=/opt/Qt6
 # Update module list to include qtdeclarative (which provides Qt Quick)
 MODULES=("qtbase" "qtshadertools" "qtdeclarative" "qtmultimedia" "qtsvg" "qtserialport")
 DOWNLOAD_BASE_URL="https://download.qt.io/archive/qt/$QT_MAJOR_VERSION/$QT_VERSION/submodules"
 
 # Create the build directory first
 mkdir -p "$BUILD_DIR"
+cd "$BUILD_DIR"
+# Build or Install libusb from source
+if $BUILD_ENABLED; then
+    echo "Building libusb $LIBUSB_VERSION from source..."
+    if [ ! -d "libusb" ]; then
+        curl -L -o libusb.tar.bz2 "https://github.com/libusb/libusb/releases/download/v${LIBUSB_VERSION}/libusb-${LIBUSB_VERSION}.tar.bz2"
+        tar xf libusb.tar.bz2
+        mv "libusb-${LIBUSB_VERSION}" libusb
+        rm libusb.tar.bz2
+    fi
+
+    cd libusb
+    ./configure --prefix="$FFMPEG_PREFIX" --enable-static --disable-shared --disable-udev
+    make -j$(nproc)
+fi
+
+if $INSTALL_ENABLED; then
+    echo "Installing libusb $LIBUSB_VERSION..."
+    cd "$BUILD_DIR"/libusb
+    sudo make install
+fi
+cd "$BUILD_DIR"
 
 # Build FFmpeg statically
 echo "Building FFmpeg statically..."

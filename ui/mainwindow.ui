@@ -200,17 +200,6 @@
      <addaction name="actionAbsolute"/>
      <addaction name="actionRelative"/>
     </widget>
-    <widget class="QMenu" name="menuAdvance">
-     <property name="title">
-      <string>Advance </string>
-     </property>
-     <addaction name="actionResetSerialPort"/>
-     <addaction name="actionResetHID"/>
-     <addaction name="actionFactory_reset_HID"/>
-     <addaction name="actionSerialConsole"/>
-     <addaction name="actionScriptTool"/>
-     <addaction name="actionTCPServer"/>
-    </widget>
     <widget class="QMenu" name="menuBaudrate">
      <property name="title">
       <string>Baudrate</string>
@@ -229,7 +218,6 @@
     <addaction name="menuSwitchable_USB"/>
     <addaction name="menuBaudrate"/>
     <addaction name="separator"/>
-    <addaction name="menuAdvance"/>
    </widget>
    <widget class="QMenu" name="menuHelp">
     <property name="title">
@@ -248,9 +236,22 @@
     </property>
     <addaction name="actionPaste"/>
    </widget>
+   <widget class="QMenu" name="menuAdvance">
+    <property name="title">
+     <string>Advance</string>
+    </property>
+    <addaction name="actionEnvironmentSetup"/>
+    <addaction name="actionResetSerialPort"/>
+    <addaction name="actionResetHID"/>
+    <addaction name="actionFactory_reset_HID"/>
+    <addaction name="actionSerialConsole"/>
+    <addaction name="actionScriptTool"/>
+    <addaction name="actionTCPServer"/>
+   </widget>
    <addaction name="menuFile"/>
    <addaction name="menuEdit"/>
    <addaction name="menuControl"/>
+   <addaction name="menuAdvance"/>
    <addaction name="menuHelp"/>
   </widget>
   <widget class="QStatusBar" name="statusbar"/>
@@ -354,6 +355,11 @@
   <action name="actionTCPServer">
    <property name="text">
     <string>TCP Server</string>
+   </property>
+  </action>
+  <action name="actionEnvironmentSetup">
+   <property name="text">
+    <string>Environment Checking</string>
    </property>
   </action>
   <actiongroup name="actionGroup">
@@ -594,6 +600,12 @@
     </hint>
    </hints>
   </connection>
+  <connection>
+   <sender>actionEnvironmentSetup</sender>
+   <signal>triggered()</signal>
+   <receiver>MainWindow</receiver>
+   <slot>showEnvironmentSetupDialog()</slot>
+  </connection>
  </connections>
  <slots>
   <slot>record()</slot>
@@ -616,5 +628,6 @@
   <slot>setExposureCompensation(int)</slot>
   <slot>showScriptTool()</slot>
   <slot>changeKeyboardLayout(QString)</slot>
+  <slot>showEnvironmentSetupDialog()</slot>
  </slots>
 </ui>
