@@ -65,6 +65,7 @@ qt_add_executable(openterfaceQT WIN32 MACOSX_BUNDLE
     target/Keymapping.h
     target/MouseManager.cpp target/MouseManager.h
     target/mouseeventdto.cpp target/mouseeventdto.h
+    video/videohid.cpp video/videohid.h
     ui/TaskManager.cpp ui/TaskManager.h
     ui/audiopage.cpp ui/audiopage.h
     ui/cameraajust.cpp ui/cameraajust.h
@@ -89,7 +90,9 @@ qt_add_executable(openterfaceQT WIN32 MACOSX_BUNDLE
     ui/versioninfomanager.cpp ui/versioninfomanager.h
     ui/videopage.cpp ui/videopage.h
     ui/videopane.cpp ui/videopane.h
-    video/videohid.cpp video/videohid.h
+    ui/firmwareupdatedialog.cpp ui/firmwareupdatedialog.h
+    video/firmwarewriter.cpp video/firmwarewriter.h
+    video/ms2109.h
 )
 
 target_link_libraries(openterfaceQT PRIVATE

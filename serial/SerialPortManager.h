@@ -43,7 +43,8 @@ class SerialPortManager : public QObject
 public:
     static const int ORIGINAL_BAUDRATE = 9600;
     static const int DEFAULT_BAUDRATE = 115200;
-
+    static const int SERIAL_TIMER_INTERVAL = 5000;
+    
     static SerialPortManager& getInstance() {
         static SerialPortManager instance; // Guaranteed to be destroyed, instantiated on first use.
         return instance;
@@ -136,7 +137,8 @@ private:
     bool CapsLockState;
     bool ScrollLockState;
     void updateSpecialKeyState(uint8_t data);
-
+    QDateTime lastSerialPortCheckTime;
+    
     // Variable to store the latest update time
     QDateTime latestUpdateTime;
     QElapsedTimer m_lastCommandTime;  // New member for timing

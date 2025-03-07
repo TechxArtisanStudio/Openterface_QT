@@ -1,7 +1,7 @@
 #ifndef MS2109_H
 #define MS2109_H
 
-#include "qtypes.h"
+#include <QtGlobal>
 #include <cstdint>
 
 const std::string latest_ms2109_firmware_version = "19021B0D";

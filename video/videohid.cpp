@@ -229,7 +229,7 @@ bool VideoHid::getFeatureReport(uint8_t* buffer, size_t bufferLength, bool autoC
 #ifdef _WIN32
     return this->getFeatureReportWindows(buffer, bufferLength, autoCloseHandle);
 #elif __linux__
-    return this->getFeatureReportLinux(buffer, bufferLength);
+    return this->getFeatureReportLinux(buffer, bufferLength, autoCloseHandle);
 #endif
 }
 
@@ -251,7 +251,7 @@ bool VideoHid::sendFeatureReport(uint8_t* buffer, size_t bufferLength, bool auto
     // implementation
     int retries = 2;
     while (retries-- > 0) {
-        if (sendFeatureReportLinux(buffer, bufferLength)) {
+        if (sendFeatureReportLinux(buffer, bufferLength, autoCloseHandle)) {
             return true;
         }
         qDebug() << "Retrying sendFeatureReportLinux...";
@@ -262,6 +262,20 @@ bool VideoHid::sendFeatureReport(uint8_t* buffer, size_t bufferLength, bool auto
 
 bool VideoHid::sendFeatureReport(uint8_t* buffer, size_t bufferLength) {
     return this->sendFeatureReport(buffer, bufferLength, true);
+}
+
+void VideoHid::closeHIDDeviceHandle() {
+    #ifdef _WIN32
+        if (deviceHandle != INVALID_HANDLE_VALUE) {
+            CloseHandle(deviceHandle);
+            deviceHandle = INVALID_HANDLE_VALUE;
+        }
+    #elif __linux__
+        if (hidFd >= 0) {
+            close(hidFd);
+            hidFd = -1;
+        }
+    #endif
 }
 
 #ifdef _WIN32
@@ -362,13 +376,6 @@ bool VideoHid::openHIDDeviceHandle() {
     return true;
 }
 
-void VideoHid::closeHIDDeviceHandle() {
-    if (deviceHandle != INVALID_HANDLE_VALUE) {
-        CloseHandle(deviceHandle);
-        deviceHandle = INVALID_HANDLE_VALUE;
-    }
-}
-
 bool VideoHid::getFeatureReportWindows(BYTE* reportBuffer, DWORD bufferSize, bool autoCloseHandle) {
     if (!openHIDDeviceHandle()) {
         qDebug() << "Failed to open device handle for getting feature report.";
@@ -445,15 +452,7 @@ bool VideoHid::openHIDDevice() {
     return true;
 }
 
-// Close the cached file descriptor
-void VideoHid::closeHIDDevice() {
-    if (hidFd >= 0) {
-        close(hidFd);
-        hidFd = -1;
-    }
-}
-
-bool VideoHid::sendFeatureReportLinux(uint8_t* reportBuffer, int bufferSize) {
+bool VideoHid::sendFeatureReportLinux(uint8_t* reportBuffer, int bufferSize, bool autoCloseHandle) {
     if (!openHIDDevice()) {
         return false;
     }
@@ -467,10 +466,18 @@ bool VideoHid::sendFeatureReportLinux(uint8_t* reportBuffer, int bufferSize) {
         return false;
     }
 
+    if (autoCloseHandle) {
+        closeHIDDeviceHandle();
+    }
+
     return true;
 }
 
-bool VideoHid::getFeatureReportLinux(uint8_t* reportBuffer, int bufferSize) {
+bool VideoHid::sendFeatureReportLinux(uint8_t* reportBuffer, int bufferSize) {
+    return sendFeatureReportLinux(reportBuffer, bufferSize, true);
+}
+
+bool VideoHid::getFeatureReportLinux(uint8_t* reportBuffer, int bufferSize, bool autoCloseHandle) {
     if (!openHIDDevice()) {
         return false;
     }
@@ -484,7 +491,15 @@ bool VideoHid::getFeatureReportLinux(uint8_t* reportBuffer, int bufferSize) {
     }
 
     std::copy(buffer.begin(), buffer.end(), reportBuffer);
+
+    if (autoCloseHandle) {
+        closeHIDDeviceHandle();
+    }
     return true;
+}
+
+bool VideoHid::getFeatureReportLinux(uint8_t* reportBuffer, int bufferSize) {
+    return getFeatureReportLinux(reportBuffer, bufferSize, true);
 }
 #endif
 
