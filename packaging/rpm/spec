@@ -29,8 +29,6 @@ mkdir -p %{buildroot}/usr/bin
 mkdir -p %{buildroot}/usr/share/icons/hicolor/256x256/apps
 mkdir -p %{buildroot}/usr/share/applications
 
-apt install -y libqt6core6 libqt6dbus6 libqt6gui6 libqt6network6 libqt6multimedia6 libqt6multimediawidgets6 libqt6serialport6 libqt6svg6 libusb-1.0-0-dev
-
 cp -r /home/runner/work/_temp/build_online/openterfaceQT %{buildroot}/usr/bin/
 cp /home/runner/work/Openterface_QT/Openterface_QT/images/icon_256.png %{buildroot}/usr/share/icons/hicolor/256x256/apps/openterfaceQT.png
 
