@@ -140,42 +140,10 @@ jobs:
           PKG_NAME="${{ env.ARTIFACT }}_${{ env.VERSION }}_${{ matrix.arch }}_${{ matrix.version }}"
           
           # Create the spec file
-          cat > rpmbuild/SPECS/openterfaceqt.spec << EOF
-          Name:           openterfaceqt
-          Version:        ${{ env.VERSION }}
-          Release:        1%{?dist}
-          Summary:        OpenterfaceQT Application
-          
-          License:        Proprietary
-          URL:           https://github.com/kevinzjpeng/Openterface_QT
-          
-          %description
-          OpenterfaceQT Application
-          
-          %install
-          mkdir -p %{buildroot}/usr/bin
-          mkdir -p %{buildroot}/usr/share/icons/hicolor/256x256/apps
-          mkdir -p %{buildroot}/usr/share/applications
-          
-          cp -r ${{ env.BUILD_DIR }}/openterfaceQT %{buildroot}/usr/bin/
-          cp ${{ github.workspace }}/images/icon_256.png %{buildroot}/usr/share/icons/hicolor/256x256/apps/openterfaceQT.png
-          
-          cat > %{buildroot}/usr/share/applications/openterfaceQT.desktop << EOF
-          [Desktop Entry]
-          Version=1.0
-          Type=Application
-          Name=OpenterfaceQT
-          Exec=/usr/bin/openterfaceQT
-          Icon=openterfaceQT
-          Comment=OpenterfaceQT Application
-          Categories=Utility;
-          EOF
-          
-          %files
-          /usr/bin/openterfaceQT
-          /usr/share/icons/hicolor/256x256/apps/openterfaceQT.png
-          /usr/share/applications/openterfaceQT.desktop
-          EOF
+          copy ${{ github.workspace }}/packaging/rpm/spec  rpmbuild/SPECS/openterfaceqt.spec 
+          sed -e "s/\${VERSION}/${{ env.VERSION }}/g" \
+              -e "s/\${ARCH}/${{ matrix.arch }}/g" \
+              ${{ github.workspace }}/packaging/debian/control > package/DEBIAN/control
           
           # Build the RPM package
           rpmbuild --define "_topdir ${{ runner.temp }}/rpmbuild" -bb rpmbuild/SPECS/openterfaceqt.spec
