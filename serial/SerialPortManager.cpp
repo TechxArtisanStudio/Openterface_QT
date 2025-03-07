@@ -43,6 +43,7 @@ SerialPortManager::SerialPortManager(QObject *parent) : QObject(parent), serialP
     observeSerialPortNotification();
     m_lastCommandTime.start();
     m_commandDelayMs = 0;  // Default no delay
+    lastSerialPortCheckTime = QDateTime::currentDateTime().addMSecs(-SERIAL_TIMER_INTERVAL);  // Initialize check time in the past 
 }
 
 void SerialPortManager::observeSerialPortNotification(){
@@ -53,7 +54,7 @@ void SerialPortManager::observeSerialPortNotification(){
     connect(serialThread, &QThread::started, serialTimer, [this]() {
         connect(serialTimer, &QTimer::timeout, this, &SerialPortManager::checkSerialPort);
         checkSerialPort();
-        serialTimer->start(5000);
+        serialTimer->start(SERIAL_TIMER_INTERVAL);
     });
 
     connect(serialThread, &QThread::finished, serialTimer, &QObject::deleteLater);
@@ -152,6 +153,11 @@ void SerialPortManager::checkSerialPorts() {
  * Check the serial port connection status
  */
 void SerialPortManager::checkSerialPort() {
+    QDateTime currentTime = QDateTime::currentDateTime();
+    if (lastSerialPortCheckTime.isValid() && lastSerialPortCheckTime.msecsTo(currentTime) < SERIAL_TIMER_INTERVAL) {
+        return;
+    }
+    lastSerialPortCheckTime = currentTime;
     qCDebug(log_core_serial) << "Check serial port.";
 
     // Check if any new ports is connected, compare to the last port list

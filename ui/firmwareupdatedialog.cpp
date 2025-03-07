@@ -84,8 +84,11 @@ void FirmwareUpdateDialog::updateComplete(bool success)
     if (success) {
         statusLabel->setText("Firmware update completed successfully.\nThe application will close. Please restart it to apply the new firmware.");
         QMessageBox::information(this, "Firmware Update", 
-                                "Firmware update completed successfully.\n\n"
-                                "The application will now close. Please restart it to apply the new firmware.");
+                    "Firmware update completed successfully.\n\n"
+                    "The application will now close.\n"
+                    "Please:\n"
+                    "1. Restart the application\n"
+                    "2. Disconnect and reconnect all cables");
     } else {
         statusLabel->setText("Firmware update failed. Please try again.");
         QMessageBox::critical(this, "Firmware Update Failed", 
