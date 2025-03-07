@@ -20,7 +20,7 @@ jobs:
     strategy:
       matrix:
         arch: [amd64, arm64]
-        version: [offline, online]
+        version: [online]
 
     steps:
       - name: Checkout code
@@ -33,7 +33,15 @@ jobs:
           sudo apt update -y
           sudo apt upgrade -y
           sudo apt install build-essential
-          sudo apt-get install -y libusb-1.0-0-dev
+          sudo apt-get install -y libusb-1.0-0-dev rpm libfuse2
+          
+          # Download and setup AppImage tools
+          wget -O linuxdeploy-x86_64.AppImage https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
+          wget -O linuxdeploy-plugin-qt-x86_64.AppImage https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-x86_64.AppImage
+          wget -O appimagetool "https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage"
+          
+          chmod +x linuxdeploy-x86_64.AppImage linuxdeploy-plugin-qt-x86_64.AppImage appimagetool
+          sudo mv linuxdeploy-x86_64.AppImage linuxdeploy-plugin-qt-x86_64.AppImage appimagetool /usr/local/bin/
 
       - name: Set up QEMU
         if: matrix.arch == 'arm64'
@@ -121,4 +129,30 @@ jobs:
         with:
           name: openterfaceqt_${{ matrix.arch }}_${{ matrix.version }}.deb
           path: ${{ runner.temp }}/${{ env.ARTIFACT }}_${{ env.VERSION }}_${{ matrix.arch }}_${{ matrix.version }}.deb
+          if-no-files-found: error
+
+      - name: Create rpm package ${{ matrix.version }} version
+        working-directory: ${{ runner.temp }}
+        run: |
+          # Create RPM build directory structure
+          mkdir -p rpmbuild/{SPECS,SOURCES,BUILD,RPMS,SRPMS}
+          
+          PKG_NAME="${{ env.ARTIFACT }}_${{ env.VERSION }}_${{ matrix.arch }}_${{ matrix.version }}"
+          
+          # Create the spec file
+          sed -e "s/\${VERSION}/${{ env.VERSION }}/g" \
+              -e "s/\${ARCH}/${{ matrix.arch }}/g" \
+              ${{ github.workspace }}/packaging/rpm/spec > rpmbuild/SPECS/openterfaceqt.spec 
+          
+          # Build the RPM package
+          rpmbuild --define "_topdir ${{ runner.temp }}/rpmbuild" -bb rpmbuild/SPECS/openterfaceqt.spec
+          
+          # Move the RPM to the expected location
+          find rpmbuild/RPMS -name "*.rpm" -exec cp {} ./$PKG_NAME.rpm \;
+
+      - name: Upload RPM artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: openterfaceqt_${{ matrix.arch }}_${{ matrix.version }}.rpm
+          path: ${{ runner.temp }}/${{ env.ARTIFACT }}_${{ env.VERSION }}_${{ matrix.arch }}_${{ matrix.version }}.rpm
           if-no-files-found: error
