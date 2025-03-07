@@ -69,9 +69,19 @@ signals:
     
     // ...existing signals...
 
+    void loadFirmwareToEeprom();
+
+signals:
+    // Add new signals
+    void firmwareWriteProgress(int percent);
+    void firmwareWriteComplete(bool success);
+    void firmwareWriteChunkComplete(int writtenBytes);
+    
+    // ...existing signals...
+
 private:
     explicit VideoHid(QObject *parent = nullptr);
-
+    
 #ifdef _WIN32
     HANDLE deviceHandle = INVALID_HANDLE_VALUE;
 #elif __linux__
