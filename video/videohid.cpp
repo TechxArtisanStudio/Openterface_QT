@@ -264,6 +264,20 @@ bool VideoHid::sendFeatureReport(uint8_t* buffer, size_t bufferLength) {
     return this->sendFeatureReport(buffer, bufferLength, true);
 }
 
+void VideoHid::closeHIDDeviceHandle() {
+    #ifdef _WIN32
+        if (deviceHandle != INVALID_HANDLE_VALUE) {
+            CloseHandle(deviceHandle);
+            deviceHandle = INVALID_HANDLE_VALUE;
+        }
+    #elif __linux__
+        if (hidFd >= 0) {
+            close(hidFd);
+            hidFd = -1;
+        }
+    #endif
+}
+
 #ifdef _WIN32
 std::wstring VideoHid::getHIDDevicePath() {
     GUID hidGuid;
@@ -360,20 +374,6 @@ bool VideoHid::openHIDDeviceHandle() {
         }
     }
     return true;
-}
-
-void VideoHid::closeHIDDeviceHandle() {
-#ifdef _WIN32
-    if (deviceHandle != INVALID_HANDLE_VALUE) {
-        CloseHandle(deviceHandle);
-        deviceHandle = INVALID_HANDLE_VALUE;
-    }
-#elif __linux__
-    if (hidFd >= 0) {
-        close(hidFd);
-        hidFd = -1;
-    }
-#endif
 }
 
 bool VideoHid::getFeatureReportWindows(BYTE* reportBuffer, DWORD bufferSize, bool autoCloseHandle) {
