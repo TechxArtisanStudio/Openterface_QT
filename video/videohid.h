@@ -112,7 +112,6 @@ private:
     QString getHIDDevicePath();
     bool sendFeatureReportLinux(uint8_t* reportBuffer, int bufferSize);
     bool getFeatureReportLinux(uint8_t* reportBuffer, int bufferSize);
-    int hidFd = -1; // Add the file descriptor for Linux
 #endif
 
 };
