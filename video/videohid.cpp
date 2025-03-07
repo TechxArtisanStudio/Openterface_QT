@@ -229,7 +229,7 @@ bool VideoHid::getFeatureReport(uint8_t* buffer, size_t bufferLength, bool autoC
 #ifdef _WIN32
     return this->getFeatureReportWindows(buffer, bufferLength, autoCloseHandle);
 #elif __linux__
-    return this->getFeatureReportLinux(buffer, bufferLength);
+    return this->getFeatureReportLinux(buffer, bufferLength, autoCloseHandle);
 #endif
 }
 
@@ -497,6 +497,10 @@ bool VideoHid::getFeatureReportLinux(uint8_t* reportBuffer, int bufferSize, bool
         closeHIDDevice();
     }
     return true;
+}
+
+bool VideoHid::getFeatureReportLinux(uint8_t* reportBuffer, int bufferSize) {
+    return getFeatureReportLinux(reportBuffer, bufferSize, true);
 }
 #endif
 
