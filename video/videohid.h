@@ -66,10 +66,6 @@ signals:
     void firmwareWriteProgress(int percent);
     void firmwareWriteComplete(bool success);
     void firmwareWriteChunkComplete(int writtenBytes);
-    
-    // ...existing signals...
-
-    void loadFirmwareToEeprom();
 
 signals:
     // Add new signals
