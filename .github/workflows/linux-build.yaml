@@ -33,7 +33,7 @@ jobs:
           sudo apt update -y
           sudo apt upgrade -y
           sudo apt install build-essential
-          sudo apt-get install -y libusb-1.0-0-dev
+          sudo apt-get install -y libusb-1.0-0-dev rpm
 
       - name: Set up QEMU
         if: matrix.arch == 'arm64'
@@ -121,4 +121,63 @@ jobs:
         with:
           name: openterfaceqt_${{ matrix.arch }}_${{ matrix.version }}.deb
           path: ${{ runner.temp }}/${{ env.ARTIFACT }}_${{ env.VERSION }}_${{ matrix.arch }}_${{ matrix.version }}.deb
+          if-no-files-found: error
+
+      - name: Create rpm package ${{ matrix.version }} version
+        working-directory: ${{ runner.temp }}
+        run: |
+          # Create RPM build directory structure
+          mkdir -p rpmbuild/{SPECS,SOURCES,BUILD,RPMS,SRPMS}
+          
+          PKG_NAME="${{ env.ARTIFACT }}_${{ env.VERSION }}_${{ matrix.arch }}_${{ matrix.version }}"
+          
+          # Create the spec file
+          cat > rpmbuild/SPECS/openterfaceqt.spec << EOF
+          Name:           openterfaceqt
+          Version:        ${{ env.VERSION }}
+          Release:        1%{?dist}
+          Summary:        OpenterfaceQT Application
+          
+          License:        Proprietary
+          URL:           https://github.com/kevinzjpeng/Openterface_QT
+          
+          %description
+          OpenterfaceQT Application
+          
+          %install
+          mkdir -p %{buildroot}/usr/bin
+          mkdir -p %{buildroot}/usr/share/icons/hicolor/256x256/apps
+          mkdir -p %{buildroot}/usr/share/applications
+          
+          cp -r ${{ env.BUILD_DIR }}/openterfaceQT %{buildroot}/usr/bin/
+          cp ${{ github.workspace }}/images/icon_256.png %{buildroot}/usr/share/icons/hicolor/256x256/apps/openterfaceQT.png
+          
+          cat > %{buildroot}/usr/share/applications/openterfaceQT.desktop << EOF
+          [Desktop Entry]
+          Version=1.0
+          Type=Application
+          Name=OpenterfaceQT
+          Exec=/usr/bin/openterfaceQT
+          Icon=openterfaceQT
+          Comment=OpenterfaceQT Application
+          Categories=Utility;
+          EOF
+          
+          %files
+          /usr/bin/openterfaceQT
+          /usr/share/icons/hicolor/256x256/apps/openterfaceQT.png
+          /usr/share/applications/openterfaceQT.desktop
+          EOF
+          
+          # Build the RPM package
+          rpmbuild --define "_topdir ${{ runner.temp }}/rpmbuild" -bb rpmbuild/SPECS/openterfaceqt.spec
+          
+          # Move the RPM to the expected location
+          find rpmbuild/RPMS -name "*.rpm" -exec cp {} ./$PKG_NAME.rpm \;
+
+      - name: Upload RPM artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: openterfaceqt_${{ matrix.arch }}_${{ matrix.version }}.rpm
+          path: ${{ runner.temp }}/${{ env.ARTIFACT }}_${{ env.VERSION }}_${{ matrix.arch }}_${{ matrix.version }}.rpm
           if-no-files-found: error
