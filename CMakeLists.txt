@@ -29,8 +29,12 @@ find_package(PkgConfig REQUIRED)
 pkg_check_modules(XRENDER REQUIRED xrender)
 
 # Set FFmpeg include and library directories
+if(NOT FFMPEG_INCLUDE_DIRS)
 set(FFMPEG_INCLUDE_DIRS "/usr/local/include")
+endif()
+if(NOT FFMPEG_LIBRARIES)
 set(FFMPEG_LIBRARIES "/usr/local/lib/libavformat.a;/usr/local/lib/libavcodec.a;/usr/local/lib/libavutil.a;/usr/local/lib/libswresample.a;/usr/local/lib/libswscale.a")
+endif()
 
 # Include FFmpeg directories
 include_directories(${FFMPEG_INCLUDE_DIRS})
