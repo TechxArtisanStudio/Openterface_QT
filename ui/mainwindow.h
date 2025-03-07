@@ -175,6 +175,10 @@ private slots:
     
     bool CheckDeviceAccess(uint16_t vid, uint16_t pid);
 
+    void showEnvironmentSetupDialog();
+
+    void updateFirmware(); 
+
 protected:
     void closeEvent(QCloseEvent *event) override;
     void resizeEvent(QResizeEvent* event) override;

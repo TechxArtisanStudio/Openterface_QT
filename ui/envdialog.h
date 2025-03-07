@@ -16,39 +16,49 @@ public:
     explicit EnvironmentSetupDialog(QWidget *parent = nullptr);
     ~EnvironmentSetupDialog();
     
-    // New static method to check if the CH340 driver is installed
+    // Static method to check if the CH340 driver is installed
     static bool checkEnvironmentSetup();
+
+    static bool autoEnvironmentCheck();
 
 protected:
     void closeEvent(QCloseEvent *event) override;
+
+private slots:
     void accept() override;
     void reject() override;
+    void extractDriverFiles();
+    void copyCommands();
+    void openHelpLink();
+#ifdef _WIN32
+    void installDriverForWindows();
+#endif
 
 private:
     Ui::EnvironmentSetupDialog *ui;
-
-
-    // Add the new method for driver installation
-    #ifdef _WIN32
-    void installDriverForWindows();
-    #endif
-    void createInstallDialog(); // New method for creating the install dialog
-    void extractDriverFiles(); // Declaration for extracting driver files
-    void copyCommands(); // Declaration for copying commands
+    static bool checkDriverInstalled();
+    static const QString helpUrl;
 
     static bool isDriverInstalled;
-    static bool isInRightUserGroup;
-    static bool isHidPermission;
+    static const QString tickHtml;
+    static const QString crossHtml;
     
-    static bool checkDriverInstalled();
-    static bool checkInRightUserGroup();
+#ifdef __linux__
+    static bool checkInRightUserGroup(); 
     static bool checkHidPermission();
-    
-    QString buildCommands();
+    static bool checkBrlttyRunning();
 
-    // Static command content
     static const QString driverCommands;
     static const QString groupCommands;
     static const QString udevCommands;
-};
+    static const QString brlttyCommands;
+
+    static bool isInRightUserGroup;
+    static bool isHidPermission;
+    static bool isBrlttyRunning;
+
+    QString buildCommands();
 #endif
+};
+
+#endif // ENVIRONMENTSETUPDIALOG_H
