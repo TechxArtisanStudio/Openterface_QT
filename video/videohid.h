@@ -110,7 +110,9 @@ private:
 #elif __linux__
     QString m_cachedDevicePath;
     QString getHIDDevicePath();
-    bool sendFeatureReportLinux(uint8_t* reportBuffer, int bufferSize);
+    bool sendFeatureReportLinux(uint8_t* reportBuffer, int bufferSize, bool autoCloseHandle);
+    bool sendFeatureReportLinux(uint8_t* reportBuffer, int bufferSize); // Overloaded method
+    bool getFeatureReportLinux(uint8_t* reportBuffer, int bufferSize, bool autoCloseHandle);
     bool getFeatureReportLinux(uint8_t* reportBuffer, int bufferSize);
 #endif
 
