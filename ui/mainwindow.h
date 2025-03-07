@@ -177,6 +177,8 @@ private slots:
 
     void showEnvironmentSetupDialog();
 
+    void updateFirmware(); 
+
 protected:
     void closeEvent(QCloseEvent *event) override;
     void resizeEvent(QResizeEvent* event) override;

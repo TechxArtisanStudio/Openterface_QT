@@ -21,6 +21,7 @@ SOURCES += main.cpp \
     ui/settingdialog.cpp \
     ui/statuswidget.cpp \
     video/videohid.cpp \
+    video/firmwarewriter.cpp \
     ui/helppane.cpp \
     ui/mainwindow.cpp \
     ui/metadatadialog.cpp \
@@ -40,6 +41,7 @@ SOURCES += main.cpp \
     ui/scripttool.cpp \
     ui/TaskManager.cpp \
     ui/envdialog.cpp \
+    ui/firmwareupdatedialog.cpp \
     host/HostManager.cpp \
     serial/SerialPortManager.cpp \
     target/KeyboardManager.cpp \
@@ -53,7 +55,8 @@ SOURCES += main.cpp \
     target/KeyboardLayouts.cpp \
     regex/RegularExpression.cpp \
     server/tcpServer.cpp \
-    scripts/scriptEditor.cpp
+    scripts/scriptEditor.cpp 
+
 
 HEADERS  += \
     global.h \
@@ -65,6 +68,7 @@ HEADERS  += \
     ui/settingdialog.h \
     ui/statuswidget.h \
     video/videohid.h \
+    video/firmwarewriter.h \
     ui/helppane.h \
     ui/mainwindow.h \
     ui/metadatadialog.h \
@@ -85,6 +89,7 @@ HEADERS  += \
     ui/scripttool.h \
     ui/TaskManager.h \
     ui/envdialog.h \
+    ui/firmwareupdatedialog.h \
     host/HostManager.h \
     serial/ch9329.h \
     serial/SerialPortManager.h \
