@@ -14,6 +14,8 @@ mkdir -p %{buildroot}/usr/bin
 mkdir -p %{buildroot}/usr/share/icons/hicolor/256x256/apps
 mkdir -p %{buildroot}/usr/share/applications
 
+
+
 cp -r /home/runner/work/_temp/build_online/openterfaceQT %{buildroot}/usr/bin/
 cp /home/runner/work/Openterface_QT/Openterface_QT/images/icon_256.png %{buildroot}/usr/share/icons/hicolor/256x256/apps/openterfaceQT.png
 

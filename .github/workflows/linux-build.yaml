@@ -20,7 +20,7 @@ jobs:
     strategy:
       matrix:
         arch: [amd64, arm64]
-        version: [offline, online]
+        version: [online]
 
     steps:
       - name: Checkout code
@@ -140,7 +140,7 @@ jobs:
           PKG_NAME="${{ env.ARTIFACT }}_${{ env.VERSION }}_${{ matrix.arch }}_${{ matrix.version }}"
           
           # Create the spec file
-          copy ${{ github.workspace }}/packaging/rpm/spec  rpmbuild/SPECS/openterfaceqt.spec 
+          cp ${{ github.workspace }}/packaging/rpm/spec  rpmbuild/SPECS/openterfaceqt.spec 
           sed -e "s/\${VERSION}/${{ env.VERSION }}/g" \
               -e "s/\${ARCH}/${{ matrix.arch }}/g" \
               ${{ github.workspace }}/packaging/debian/control > package/DEBIAN/control
@@ -156,54 +156,4 @@ jobs:
         with:
           name: openterfaceqt_${{ matrix.arch }}_${{ matrix.version }}.rpm
           path: ${{ runner.temp }}/${{ env.ARTIFACT }}_${{ env.VERSION }}_${{ matrix.arch }}_${{ matrix.version }}.rpm
-          if-no-files-found: error
-
-      - name: Create AppImage package ${{ matrix.version }} version
-        working-directory: ${{ runner.temp }}
-        run: |
-          PKG_NAME="${{ env.ARTIFACT }}_${{ env.VERSION }}_${{ matrix.arch }}_${{ matrix.version }}"
-          
-          # Create AppDir structure
-          mkdir -p AppDir/usr/{bin,share/{applications,icons/hicolor/256x256/apps}}
-          
-          # Copy application binary
-          cp ${{ env.BUILD_DIR }}/openterfaceQT AppDir/usr/bin/
-          
-          # Copy desktop file
-          cat > AppDir/usr/share/applications/openterfaceQT.desktop << EOF
-          [Desktop Entry]
-          Version=1.0
-          Type=Application
-          Name=OpenterfaceQT
-          Exec=openterfaceQT
-          Icon=openterfaceQT
-          Comment=OpenterfaceQT Application
-          Categories=Utility;
-          EOF
-          
-          # Copy icon
-          cp ${{ github.workspace }}/images/icon_256.png AppDir/usr/share/icons/hicolor/256x256/apps/openterfaceQT.png
-          cp ${{ github.workspace }}/images/icon_256.png AppDir/openterfaceQT.png
-          
-          # Create AppRun script
-          cat > AppDir/AppRun << 'EOF'
-          #!/bin/sh
-          HERE="$(dirname "$(readlink -f "${0}")")"
-          export PATH="${HERE}/usr/bin/:${PATH}"
-          export LD_LIBRARY_PATH="${HERE}/usr/lib/:${LD_LIBRARY_PATH}"
-          exec "${HERE}/usr/bin/openterfaceQT" "$@"
-          EOF
-          chmod +x AppDir/AppRun
-          
-          # Deploy Qt dependencies
-          linuxdeploy-x86_64.AppImage --plugin qt --appdir AppDir
-          
-          # Create AppImage
-          ARCH=${{ matrix.arch }} appimagetool AppDir ${PKG_NAME}.AppImage
-
-      - name: Upload AppImage artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: openterfaceqt_${{ matrix.arch }}_${{ matrix.version }}.AppImage
-          path: ${{ runner.temp }}/${{ env.ARTIFACT }}_${{ env.VERSION }}_${{ matrix.arch }}_${{ matrix.version }}.AppImage
           if-no-files-found: error
