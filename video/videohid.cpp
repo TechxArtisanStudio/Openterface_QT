@@ -3,8 +3,10 @@
 #include <QDebug>
 #include <QDir>
 #include <QTimer>
+#include <QThread>
 
 #include "ms2109.h"
+#include "firmwarewriter.h"
 #include "../global.h"
 
 #ifdef _WIN32
@@ -162,6 +164,17 @@ std::string VideoHid::getFirmwareVersion() {
                               .arg(version_3, 2, 10, QChar('0')).toStdString();
 }
 
+std::string VideoHid::getLatestFirmwareVersion() {
+    QString qVersion = QString::fromStdString(latest_ms2109_firmware_version);
+    int version_0 = qVersion.mid(0, 2).toInt(nullptr, 16);
+    int version_1 = qVersion.mid(2, 2).toInt(nullptr, 16);
+    int version_2 = qVersion.mid(4, 2).toInt(nullptr, 16);
+    int version_3 = qVersion.mid(6, 2).toInt(nullptr, 16);
+    return QString("%1%2%3%4").arg(version_0, 2, 10, QChar('0'))
+    .arg(version_1, 2, 10, QChar('0'))
+    .arg(version_2, 2, 10, QChar('0'))
+    .arg(version_3, 2, 10, QChar('0')).toStdString();
+}
 /*
  * Address: 0xFA8C bit0 indicates the HDMI connection status
  */
@@ -202,7 +215,7 @@ QPair<QByteArray, bool> VideoHid::usbXdataRead4Byte(quint16 u16_address) {
 bool VideoHid::usbXdataWrite4Byte(quint16 u16_address, QByteArray data) {
     QByteArray ctrlData(9, 0); // Initialize with 9 bytes set to 0
 
-    ctrlData[1] = 0xB6;
+    ctrlData[1] = CMD_XDATA_WRITE;
     ctrlData[2] = static_cast<char>((u16_address >> 8) & 0xFF);
     ctrlData[3] = static_cast<char>(u16_address & 0xFF);
     ctrlData.replace(4, 4, data);
@@ -212,21 +225,43 @@ bool VideoHid::usbXdataWrite4Byte(quint16 u16_address, QByteArray data) {
     return this->sendFeatureReport((uint8_t*)ctrlData.data(), ctrlData.size());
 }
 
-bool VideoHid::getFeatureReport(uint8_t* buffer, size_t bufferLength) {
+bool VideoHid::getFeatureReport(uint8_t* buffer, size_t bufferLength, bool autoCloseHandle) {
 #ifdef _WIN32
-    return this->getFeatureReportWindows(buffer, bufferLength);
+    return this->getFeatureReportWindows(buffer, bufferLength, autoCloseHandle);
 #elif __linux__
     return this->getFeatureReportLinux(buffer, bufferLength);
 #endif
 }
 
-bool VideoHid::sendFeatureReport(uint8_t* buffer, size_t bufferLength) {
+bool VideoHid::getFeatureReport(uint8_t* buffer, size_t bufferLength) {
+    return this->getFeatureReport(buffer, bufferLength, true);
+}
+
+bool VideoHid::sendFeatureReport(uint8_t* buffer, size_t bufferLength, bool autoCloseHandle) {
 #ifdef _WIN32
-    return this->sendFeatureReportWindows(buffer, bufferLength);
+    int retries = 2;
+    while (retries-- > 0) {
+        if (sendFeatureReportWindows(buffer, bufferLength, autoCloseHandle)) {
+            return true;
+        }
+        qDebug() << "Retrying sendFeatureReportWindows...";
+    }
+    return false;
 #elif __linux__
     // implementation
-    return this->sendFeatureReportLinux(buffer, bufferLength);
+    int retries = 2;
+    while (retries-- > 0) {
+        if (sendFeatureReportLinux(buffer, bufferLength)) {
+            return true;
+        }
+        qDebug() << "Retrying sendFeatureReportLinux...";
+    }
+    return false;
 #endif
+}
+
+bool VideoHid::sendFeatureReport(uint8_t* buffer, size_t bufferLength) {
+    return this->sendFeatureReport(buffer, bufferLength, true);
 }
 
 #ifdef _WIN32
@@ -281,56 +316,81 @@ std::wstring VideoHid::getHIDDevicePath() {
     return L""; // Device not found
 }
 
-bool VideoHid::sendFeatureReportWindows(BYTE* reportBuffer, DWORD bufferSize) {
-    HANDLE deviceHandle = CreateFileW(getHIDDevicePath().c_str(),
-                                      GENERIC_READ | GENERIC_WRITE,
-                                      FILE_SHARE_READ | FILE_SHARE_WRITE,
-                                      NULL,
-                                      OPEN_EXISTING,
-                                      0,
-                                      NULL);
-    if (deviceHandle == INVALID_HANDLE_VALUE) {
+bool VideoHid::sendFeatureReportWindows(BYTE* reportBuffer, DWORD bufferSize, bool autoCloseHandle) {
+    if (!openHIDDeviceHandle()) {
         qDebug() << "Failed to open device handle for sending feature report.";
         return false;
     }
 
     // Send the Set Feature Report request
-    BOOL result = HidD_SetFeature(deviceHandle, reportBuffer, bufferSize);
-
-    CloseHandle(deviceHandle); // Always close the handle when done
+    bool result = HidD_SetFeature(deviceHandle, reportBuffer, bufferSize);
 
     if (!result) {
         qDebug() << "Failed to send feature report.";
+        if (autoCloseHandle) {
+            closeHIDDeviceHandle();
+        }
         return false;
+    }
+
+    if (autoCloseHandle) {
+        closeHIDDeviceHandle();
     }
     return true;
 }
 
-bool VideoHid::getFeatureReportWindows(BYTE* reportBuffer, DWORD bufferSize) {
-    // Assuming devicePath is a member variable containing the device path
-    HANDLE deviceHandle = CreateFileW(getHIDDevicePath().c_str(),
-                                      GENERIC_READ | GENERIC_WRITE,
-                                      FILE_SHARE_READ | FILE_SHARE_WRITE,
-                                      NULL,
-                                      OPEN_EXISTING,
-                                      0,
-                                      NULL);
+// Overload method to maintain existing calls
+bool VideoHid::sendFeatureReportWindows(BYTE* reportBuffer, DWORD bufferSize) {
+    return sendFeatureReportWindows(reportBuffer, bufferSize, true);
+}
+
+bool VideoHid::openHIDDeviceHandle() {
     if (deviceHandle == INVALID_HANDLE_VALUE) {
-        qDebug() << "Failed to open device handle.";
+        deviceHandle = CreateFileW(getHIDDevicePath().c_str(),
+                                 GENERIC_READ | GENERIC_WRITE,
+                                 FILE_SHARE_READ | FILE_SHARE_WRITE,
+                                 NULL,
+                                 OPEN_EXISTING,
+                                 0,
+                                 NULL);
+        
+        if (deviceHandle == INVALID_HANDLE_VALUE) {
+            qDebug() << "Failed to open device handle.";
+            return false;
+        }
+    }
+    return true;
+}
+
+void VideoHid::closeHIDDeviceHandle() {
+    if (deviceHandle != INVALID_HANDLE_VALUE) {
+        CloseHandle(deviceHandle);
+        deviceHandle = INVALID_HANDLE_VALUE;
+    }
+}
+
+bool VideoHid::getFeatureReportWindows(BYTE* reportBuffer, DWORD bufferSize, bool autoCloseHandle) {
+    if (!openHIDDeviceHandle()) {
+        qDebug() << "Failed to open device handle for getting feature report.";
         return false;
     }
 
     // Send the Get Feature Report request
-    BOOL result = HidD_GetFeature(deviceHandle, reportBuffer, bufferSize);
+    bool result = HidD_GetFeature(deviceHandle, reportBuffer, bufferSize);
 
     if (!result) {
         qDebug() << "Failed to get feature report.";
     }
 
-    // Close the device handle
-    CloseHandle(deviceHandle);
+    if (autoCloseHandle) {
+        closeHIDDeviceHandle();
+    }
 
     return result;
+}
+
+bool VideoHid::getFeatureReportWindows(BYTE* reportBuffer, DWORD bufferSize) {
+    return getFeatureReportWindows(reportBuffer, bufferSize, true);
 }
 
 #elif __linux__
@@ -427,3 +487,89 @@ bool VideoHid::getFeatureReportLinux(uint8_t* reportBuffer, int bufferSize) {
     return true;
 }
 #endif
+
+bool VideoHid::writeChunk(quint16 address, const QByteArray &data) {
+    const int chunkSize = 1;
+    const int REPORT_SIZE = 9;
+
+    int length = data.size();
+
+    quint16 _address = address;
+    bool status = false;
+    for (int i = 0; i < length; i += chunkSize) {
+        QByteArray chunk = data.mid(i, chunkSize);
+        int chunk_length = chunk.size();
+        QByteArray report(REPORT_SIZE, 0);
+        report[1] = CMD_EEPROM_WRITE;
+        report[2] = (_address >> 8) & 0xFF;
+        report[3] = _address & 0xFF;
+        report.replace(4, chunk_length, chunk);
+        qDebug() << "Report:" << report.toHex(' ').toUpper();
+        status = sendFeatureReport((uint8_t*)report.data(), report.size(), false);
+        if (!status) {
+            qWarning() << "Failed to write chunk to address:" << QString("0x%1").arg(_address, 4, 16, QChar('0'));
+            return false;
+        }
+        written_size += chunk_length;
+        emit firmwareWriteChunkComplete(written_size); // Add this line
+        _address += chunkSize;
+    }
+    return true;
+}
+
+bool VideoHid::writeEeprom(quint16 address, const QByteArray &data) {
+    const int MAX_CHUNK = 16;
+    QByteArray remainingData = data;
+    written_size = 0;
+    while (!remainingData.isEmpty()) {
+        QByteArray chunk = remainingData.left(MAX_CHUNK);
+        if(!writeChunk(address, chunk)){
+            return false;
+        }
+        address += chunk.size();
+        remainingData = remainingData.mid(MAX_CHUNK);
+        if (written_size % 64 == 0) {
+            qDebug() << "Written size:" << written_size;
+        }
+        QThread::msleep(100); // Add 10ms delay between writes
+    }
+    closeHIDDeviceHandle();
+    return true;
+}
+
+void VideoHid::loadFirmwareToEeprom() {
+    // Create firmware data
+    QByteArray firmware(reinterpret_cast<const char*>(ms2109_firmware), sizeof(ms2109_firmware));
+    
+    // Create a worker thread to handle firmware writing
+    QThread* thread = new QThread();
+    FirmwareWriter* worker = new FirmwareWriter(this, ADDR_EEPROM, firmware);
+    worker->moveToThread(thread);
+    
+    // Connect signals/slots
+    connect(thread, &QThread::started, worker, &FirmwareWriter::process);
+    connect(worker, &FirmwareWriter::finished, thread, &QThread::quit);
+    connect(worker, &FirmwareWriter::finished, worker, &FirmwareWriter::deleteLater);
+    connect(thread, &QThread::finished, thread, &QThread::deleteLater);
+    
+    // Connect progress and status signals if needed
+    connect(worker, &FirmwareWriter::progress, this, [this](int percent) {
+        qDebug() << "Firmware write progress: " << percent << "%";
+        emit firmwareWriteProgress(percent);
+    });
+    
+    connect(worker, &FirmwareWriter::finished, this, [this](bool success) {
+        qDebug() << "Firmware write " << (success ? "completed successfully" : "failed");
+        emit firmwareWriteComplete(success);
+    });
+    
+    // Start the thread
+    thread->start();
+}
+
+bool VideoHid::isLatestFirmware() {
+    qDebug() << "Firmware version:" << QString::fromStdString(getFirmwareVersion());
+    qDebug() << "Latest firmware version:" << QString::fromStdString(getLatestFirmwareVersion());
+    return getFirmwareVersion() == getLatestFirmwareVersion();
+}
+

@@ -63,6 +63,29 @@ void SerialPortManager::observeSerialPortNotification(){
     serialThread->start();
 }
 
+void SerialPortManager::stop() {
+    qCDebug(log_core_serial) << "Stopping serial port manager thread...";
+    
+    if (serialTimer) {
+        serialTimer->stop();
+    }
+
+    if (serialThread) {
+        if (serialThread->isRunning()) {
+            serialThread->quit();
+            // Wait for up to 5 seconds for thread to finish
+            if (!serialThread->wait(5000)) {
+                qCWarning(log_core_serial) << "Thread did not terminate in time - forcing termination";
+                serialThread->terminate();
+                serialThread->wait();
+            }
+        }
+    }
+
+    closePort();
+    qCDebug(log_core_serial) << "Serial port manager thread stopped";
+}
+
 void SerialPortManager::checkSerialPorts() {
 #ifdef __linux__
     QList<QString> acceptedPorts = {"USB Serial", "USB2.0-Serial"};
