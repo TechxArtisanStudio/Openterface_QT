@@ -254,18 +254,26 @@ bool KeyboardManager::isKeypadKeys(int keycode, int modifiers){
 
 void KeyboardManager::handlePastingCharacters(const QString& text, const QMap<uint8_t, int>& charMapping) {
     qDebug(log_keyboard) << "Handle pasting characters now";
-    for (int i = 0; i < text.length(); i++) {
-        QChar ch = text.at(i);
+    QTimer* timer = new QTimer(this);
+    int index = 0;
+    connect(timer, &QTimer::timeout, this, [=]() mutable {
+        if (index >= text.length()) {
+            timer->stop();
+            timer->deleteLater();
+            return;
+        }
+        QChar ch = text.at(index);
         uint8_t charString = ch.unicode();
         int key = charMapping[charString];
         bool needShift = needShiftWhenPaste(ch);
         int modifiers = needShift ? Qt::ShiftModifier : 0;
-        qCDebug(log_keyboard)<< "Pasting character: " << ch << " with key: 0x" << QString::number(key, 16) << " and modifiers: " << modifiers;
+        qCDebug(log_keyboard) << "Pasting character: " << ch << " with key: 0x" << QString::number(key, 16);
         handleKeyboardAction(key, modifiers, true);
-        // QThread::msleep(1);
+        QThread::msleep(2);
         handleKeyboardAction(key, modifiers, false);
-        // QThread::msleep(1);
-    }
+        index++;
+    });
+    timer->start(3);
 }
 
 void KeyboardManager::pasteTextToTarget(const QString &text) {
