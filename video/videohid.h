@@ -72,7 +72,12 @@ signals:
 private:
     explicit VideoHid(QObject *parent = nullptr);
 
+#ifdef _WIN32
     HANDLE deviceHandle = INVALID_HANDLE_VALUE;
+#elif __linux__
+    int hidFd = -1;
+#endif
+
     bool openHIDDeviceHandle();
     void closeHIDDeviceHandle();
     
