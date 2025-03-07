@@ -251,7 +251,7 @@ bool VideoHid::sendFeatureReport(uint8_t* buffer, size_t bufferLength, bool auto
     // implementation
     int retries = 2;
     while (retries-- > 0) {
-        if (sendFeatureReportLinux(buffer, bufferLength)) {
+        if (sendFeatureReportLinux(buffer, bufferLength, autoCloseHandle)) {
             return true;
         }
         qDebug() << "Retrying sendFeatureReportLinux...";
@@ -453,7 +453,7 @@ void VideoHid::closeHIDDevice() {
     }
 }
 
-bool VideoHid::sendFeatureReportLinux(uint8_t* reportBuffer, int bufferSize) {
+bool VideoHid::sendFeatureReportLinux(uint8_t* reportBuffer, int bufferSize, bool autoCloseHandle) {
     if (!openHIDDevice()) {
         return false;
     }
@@ -467,10 +467,18 @@ bool VideoHid::sendFeatureReportLinux(uint8_t* reportBuffer, int bufferSize) {
         return false;
     }
 
+    if (autoCloseHandle) {
+        closeHIDDevice();
+    }
+
     return true;
 }
 
-bool VideoHid::getFeatureReportLinux(uint8_t* reportBuffer, int bufferSize) {
+bool VideoHid::sendFeatureReportLinux(uint8_t* reportBuffer, int bufferSize) {
+    return sendFeatureReportLinux(reportBuffer, bufferSize, true);
+}
+
+bool VideoHid::getFeatureReportLinux(uint8_t* reportBuffer, int bufferSize, bool autoCloseHandle) {
     if (!openHIDDevice()) {
         return false;
     }
@@ -484,6 +492,10 @@ bool VideoHid::getFeatureReportLinux(uint8_t* reportBuffer, int bufferSize) {
     }
 
     std::copy(buffer.begin(), buffer.end(), reportBuffer);
+
+    if (autoCloseHandle) {
+        closeHIDDevice();
+    }
     return true;
 }
 #endif
