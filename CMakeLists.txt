@@ -89,7 +89,10 @@ qt_add_executable(openterfaceQT WIN32 MACOSX_BUNDLE
     ui/versioninfomanager.cpp ui/versioninfomanager.h
     ui/videopage.cpp ui/videopage.h
     ui/videopane.cpp ui/videopane.h
+    ui/firmwareupdatedialog.cpp ui/firmwareupdatedialog.h
     video/videohid.cpp video/videohid.h
+    video/firmwarewriter.cpp video/firmwarewriter.h
+    video/ms2109.h
 )
 
 target_link_libraries(openterfaceQT PRIVATE
