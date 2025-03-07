@@ -67,14 +67,6 @@ signals:
     void firmwareWriteComplete(bool success);
     void firmwareWriteChunkComplete(int writtenBytes);
 
-signals:
-    // Add new signals
-    void firmwareWriteProgress(int percent);
-    void firmwareWriteComplete(bool success);
-    void firmwareWriteChunkComplete(int writtenBytes);
-    
-    // ...existing signals...
-
 private:
     explicit VideoHid(QObject *parent = nullptr);
     
