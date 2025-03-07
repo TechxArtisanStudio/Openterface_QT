@@ -140,10 +140,9 @@ jobs:
           PKG_NAME="${{ env.ARTIFACT }}_${{ env.VERSION }}_${{ matrix.arch }}_${{ matrix.version }}"
           
           # Create the spec file
-          cp ${{ github.workspace }}/packaging/rpm/spec  rpmbuild/SPECS/openterfaceqt.spec 
           sed -e "s/\${VERSION}/${{ env.VERSION }}/g" \
               -e "s/\${ARCH}/${{ matrix.arch }}/g" \
-              ${{ github.workspace }}/packaging/debian/control > package/DEBIAN/control
+              ${{ github.workspace }}/packaging/rpm/spec > rpmbuild/SPECS/openterfaceqt.spec 
           
           # Build the RPM package
           rpmbuild --define "_topdir ${{ runner.temp }}/rpmbuild" -bb rpmbuild/SPECS/openterfaceqt.spec
