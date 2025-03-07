@@ -452,14 +452,6 @@ bool VideoHid::openHIDDevice() {
     return true;
 }
 
-// Close the cached file descriptor
-void VideoHid::closeHIDDevice() {
-    if (hidFd >= 0) {
-        close(hidFd);
-        hidFd = -1;
-    }
-}
-
 bool VideoHid::sendFeatureReportLinux(uint8_t* reportBuffer, int bufferSize, bool autoCloseHandle) {
     if (!openHIDDevice()) {
         return false;
@@ -475,7 +467,7 @@ bool VideoHid::sendFeatureReportLinux(uint8_t* reportBuffer, int bufferSize, boo
     }
 
     if (autoCloseHandle) {
-        closeHIDDevice();
+        closeHIDDeviceHandle();
     }
 
     return true;
@@ -501,7 +493,7 @@ bool VideoHid::getFeatureReportLinux(uint8_t* reportBuffer, int bufferSize, bool
     std::copy(buffer.begin(), buffer.end(), reportBuffer);
 
     if (autoCloseHandle) {
-        closeHIDDevice();
+        closeHIDDeviceHandle();
     }
     return true;
 }

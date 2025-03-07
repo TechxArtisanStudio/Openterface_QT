@@ -57,7 +57,7 @@ public:
     
     // Add declarations for openHIDDevice and closeHIDDevice
     bool openHIDDevice();
-    void closeHIDDevice();
+
 
     void loadFirmwareToEeprom();
 
