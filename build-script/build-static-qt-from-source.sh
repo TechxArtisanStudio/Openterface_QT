@@ -5,7 +5,7 @@ set -e
 
 # Install minimal build requirements
 sudo apt-get update
-sudo apt-get install -y build-essential meson ninja-build bison flex pkg-config python3-pip linux-headers-$(uname -r) \
+sudo apt-get install -y build-essential meson ninja-build bison flex pkg-config python3-pip linux-headers-6.8.0-52-generic \
     autoconf automake libtool autoconf-archive cmake libxml2-dev libxrandr-dev libegl-dev libegl-mesa0 libegl1 libgl-dev \
     libgl1-mesa-dev libgles-dev libgles1 libgles2 libglu1-mesa libglu1-mesa-dev libglvnd-core-dev \
     libglvnd-dev libglx-dev libopengl-dev libopengl0 libxcb-cursor-dev \
@@ -20,6 +20,7 @@ sudo apt-get install -y build-essential meson ninja-build bison flex pkg-config 
     libdrm-dev libgbm-dev libatspi2.0-dev \
     libvulkan-dev libssl-dev \
     libpulse-dev \
+    liblzma-dev \
     yasm nasm # Dependencies for FFmpeg compilation
 
 QT_VERSION=6.6.3
