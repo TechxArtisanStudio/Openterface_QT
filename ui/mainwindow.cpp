@@ -300,7 +300,7 @@ MainWindow::MainWindow() :  ui(new Ui::MainWindow),
 #ifdef ONLINE_VERSION
     void MainWindow::startServer(){
         tcpServer = new TcpServer(this);
-        tcpServer->startServer(12345);
+        tcpServer->startServer(SERVER_PORT);
         qCDebug(log_ui_mainwindow) << "TCP Server start at port 12345";
         connect(m_cameraManager, &CameraManager::lastImagePath, tcpServer, &TcpServer::handleImgPath);
         connect(tcpServer, &TcpServer::syntaxTreeReady, this, &MainWindow::handleSyntaxTree);
