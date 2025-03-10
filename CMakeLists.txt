@@ -65,6 +65,7 @@ qt_add_executable(openterfaceQT WIN32 MACOSX_BUNDLE
     target/Keymapping.h
     target/MouseManager.cpp target/MouseManager.h
     target/mouseeventdto.cpp target/mouseeventdto.h
+    video/videohid.cpp video/videohid.h
     ui/TaskManager.cpp ui/TaskManager.h
     ui/audiopage.cpp ui/audiopage.h
     ui/cameraajust.cpp ui/cameraajust.h
@@ -89,7 +90,9 @@ qt_add_executable(openterfaceQT WIN32 MACOSX_BUNDLE
     ui/versioninfomanager.cpp ui/versioninfomanager.h
     ui/videopage.cpp ui/videopage.h
     ui/videopane.cpp ui/videopane.h
-    video/videohid.cpp video/videohid.h
+    ui/firmwareupdatedialog.cpp ui/firmwareupdatedialog.h
+    video/firmwarewriter.cpp video/firmwarewriter.h
+    video/ms2109.h
 )
 
 target_link_libraries(openterfaceQT PRIVATE
@@ -177,6 +180,19 @@ qt_add_resources(openterfaceQT "qmake_immediate"
         ${qmake_immediate_resource_files}
 )
 
+set(app_icons_resource_files
+    "images/icon_128.png"
+    "images/icon_64.png"
+    "images/icon_32.png"
+)
+
+qt_add_resources(openterfaceQT "app_icons"
+    PREFIX
+        "/icons"
+    FILES
+        ${app_icons_resource_files}
+)
+
 if((QT_VERSION_MAJOR GREATER 4))
     target_link_libraries(openterfaceQT PRIVATE
         Qt::Widgets
@@ -239,6 +255,7 @@ if(UNIX)
             ${drivers_resource_files}
     )
 endif()
+
 
 install(TARGETS openterfaceQT
     BUNDLE DESTINATION .

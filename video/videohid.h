@@ -57,7 +57,7 @@ public:
     
     // Add declarations for openHIDDevice and closeHIDDevice
     bool openHIDDevice();
-    void closeHIDDevice();
+
 
     void loadFirmwareToEeprom();
 
@@ -66,13 +66,16 @@ signals:
     void firmwareWriteProgress(int percent);
     void firmwareWriteComplete(bool success);
     void firmwareWriteChunkComplete(int writtenBytes);
-    
-    // ...existing signals...
 
 private:
     explicit VideoHid(QObject *parent = nullptr);
-
+    
+#ifdef _WIN32
     HANDLE deviceHandle = INVALID_HANDLE_VALUE;
+#elif __linux__
+    int hidFd = -1;
+#endif
+
     bool openHIDDeviceHandle();
     void closeHIDDeviceHandle();
     
@@ -105,9 +108,10 @@ private:
 #elif __linux__
     QString m_cachedDevicePath;
     QString getHIDDevicePath();
-    bool sendFeatureReportLinux(uint8_t* reportBuffer, int bufferSize);
+    bool sendFeatureReportLinux(uint8_t* reportBuffer, int bufferSize, bool autoCloseHandle);
+    bool sendFeatureReportLinux(uint8_t* reportBuffer, int bufferSize); // Overloaded method
+    bool getFeatureReportLinux(uint8_t* reportBuffer, int bufferSize, bool autoCloseHandle);
     bool getFeatureReportLinux(uint8_t* reportBuffer, int bufferSize);
-    int hidFd = -1; // Add the file descriptor for Linux
 #endif
 
 };

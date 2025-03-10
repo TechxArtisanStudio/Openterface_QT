@@ -70,7 +70,7 @@ void LogHandler::fileMessageHandler(QtMsgType type, const QMessageLogContext &co
     // qDebug() << "Write log to file test";
     // Get the category name
     const char* categoryName = context.category;
-    QString timestamp = QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm:ss");
+    QString timestamp = QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm:ss.zzz");
     QThread *currentThread = QThread::currentThread();
     QString threadName = currentThread->objectName().isEmpty() ? QString::number(reinterpret_cast<quintptr>(currentThread->currentThreadId())) : currentThread->objectName();
     QString category = categoryName ? QString(categoryName) : "default";
@@ -79,16 +79,16 @@ void LogHandler::fileMessageHandler(QtMsgType type, const QMessageLogContext &co
     switch (type)
     {
     case QtDebugMsg:
-        txt = QString("Debug: %1").arg(msg);
+        txt = QString("[D] %1").arg(msg);
         break;
     case QtWarningMsg:
-        txt = QString("Warning: %1").arg(msg);
+        txt = QString("[W] %1").arg(msg);
         break;
     case QtCriticalMsg:
-        txt = QString("Critical: %1").arg(msg);
+        txt = QString("[C] %1").arg(msg);
         break;
     case QtFatalMsg:
-        txt = QString("Fatal: %1").arg(msg);
+        txt = QString("[F] %1").arg(msg);
         break;
     }
 
@@ -104,26 +104,26 @@ void LogHandler::customMessageHandler(QtMsgType type, const QMessageLogContext &
 
     const char* categoryName = context.category;
     QString category = categoryName ? QString(categoryName) : "opf.default.msg";
-    QString timestamp = QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm:ss");
+    QString timestamp = QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm:ss.zzz");
     QThread *currentThread = QThread::currentThread();
     QString threadName = currentThread->objectName().isEmpty() ? QString::number(reinterpret_cast<quintptr>(currentThread->currentThreadId())) : currentThread->objectName();
     QString txt = QString("[%1][%2] ").arg(timestamp).arg(threadName);
     
     switch (type) {
         case QtDebugMsg:
-            txt += QString("{Debug} [ %1 ]: %2").arg(category, msg);
+            txt += QString("[D][%1]: %2").arg(category, msg);
             break;
         case QtWarningMsg:
-            txt += QString("{Warning} [ %1 ]: %2").arg(category, msg);
+            txt += QString("[W][%1]: %2").arg(category, msg);
             break;
         case QtCriticalMsg:
-            txt += QString("{Critical} [ %1 ]: %2").arg(category, msg);
+            txt += QString("[C][%1]: %2").arg(category, msg);
             break;
         case QtFatalMsg:
-            txt += QString("{Fatal} [ %1 ]: %2").arg(category, msg);
+            txt += QString("[F][%1]: %2").arg(category, msg);
             break;
         case QtInfoMsg:
-            txt += QString("{Info} [ %1 ]: %2").arg(category, msg);
+            txt += QString("[I][%1]: %2").arg(category, msg);
             break;
     }
 
