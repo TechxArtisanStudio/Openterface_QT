@@ -180,6 +180,19 @@ qt_add_resources(openterfaceQT "qmake_immediate"
         ${qmake_immediate_resource_files}
 )
 
+set(app_icons_resource_files
+    "images/icon_128.png"
+    "images/icon_64.png"
+    "images/icon_32.png"
+)
+
+qt_add_resources(openterfaceQT "app_icons"
+    PREFIX
+        "/icons"
+    FILES
+        ${app_icons_resource_files}
+)
+
 if((QT_VERSION_MAJOR GREATER 4))
     target_link_libraries(openterfaceQT PRIVATE
         Qt::Widgets
@@ -242,6 +255,7 @@ if(UNIX)
             ${drivers_resource_files}
     )
 endif()
+
 
 install(TARGETS openterfaceQT
     BUNDLE DESTINATION .
