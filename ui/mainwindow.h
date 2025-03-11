@@ -49,6 +49,7 @@
 
 
 #ifdef ONLINE_VERSION
+#define SERVER_PORT 12345
 #include "server/tcpServer.h"
 #endif
 

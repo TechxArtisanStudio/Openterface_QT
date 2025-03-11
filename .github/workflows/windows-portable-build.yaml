@@ -17,6 +17,7 @@
     SOURCE_DIR: ${{ github.workspace }}
     QT_VERSION: 6.5.3 
     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    ORGANIZATION_NAME: "TechxArtisan"
   
   jobs:
     build:
@@ -92,7 +93,7 @@
               echo "Static build configuration already present in .pro file."
             )
             
-            echo "QMAKE_LFLAGS += -static -static-libgcc -static-libstdc++ -static-libwinpthread" >> "${{ env.SOURCE_DIR }}\openterfaceQT.pro"
+            echo "QMAKE_LFLAGS += -static -static-libgcc -static-libstdc++ -static-libgfortran" >> "${{ env.SOURCE_DIR }}\openterfaceQT.pro"
             echo "QMAKE_CXXFLAGS += -static -static-libgcc -static-libstdc++" >> "${{ env.SOURCE_DIR }}\openterfaceQT.pro"
             echo "QMAKE_LINK = g++ -Wl,-subsystem,windows" >> "${{ env.SOURCE_DIR }}\openterfaceQT.pro"
             echo "CONFIG += static staticlib" >> "${{ env.SOURCE_DIR }}\openterfaceQT.pro"
@@ -107,6 +108,7 @@
             echo "Checking Qt configuration..."
             C:\Qt6\bin\qmake -query
             set PATH=C:\Qt6\bin;C:\mingw64\bin;%PATH%
+            set INCLUDE=C:\Qt6\include;%INCLUDE%
             
             echo "Building with qmake..."
             
@@ -121,6 +123,9 @@
               exit 1
             )
           
+            echo "Stripping debug symbols from executable..."
+            strip -s release\openterfaceQT.exe || (echo "Failed to strip debug symbols" && exit 1)
+            
             echo "Creating portable package..."
             mkdir package
             copy release\openterfaceQT.exe package

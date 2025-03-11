@@ -163,3 +163,14 @@ RC_FILE = openterfaceQT.rc
 DEPENDPATH += $$PWD/''
 
 #DEFINES += ONLINE_VERSION
+
+
+win32 {
+    CONFIG += static staticlib
+    QMAKE_LFLAGS += -static -static-libgcc -static-libstdc++ -static-libgfortran
+    QMAKE_CXXFLAGS += -static -static-libgcc -static-libstdc++
+    QMAKE_LFLAGS += -static-libgcc -static-libstdc++ -Wl,-Bstatic
+    LIBS += -static -lpthread -static-libgcc -static-libstdc++
+    QTPLUGIN += qwindows qwindowsvistastyle
+    CONFIG -= shared dll
+}

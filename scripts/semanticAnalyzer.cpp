@@ -25,7 +25,6 @@
 #include <stdexcept>
 #include <QDebug>
 #include <QString>
-#include "AHKKeyboard.h"
 #include "KeyboardMouse.h"
 #include "global.h"
 
@@ -359,9 +358,9 @@ void SemanticAnalyzer::analyzeClickStatement(const CommandStatementNode* node) {
         qDebug(log_script) << "No coordinates provided for Click command";
         return;
     }
-    for(const auto& token : options){
+    // for(const auto& token : options){
         
-    }
+    // }
     // Parse coordinates and mouse button from options
     QPoint coords = parseCoordinates(options);
     int mouseButton = parseMouseButton(options);  // This will be fresh for each statement
@@ -448,7 +447,7 @@ void SemanticAnalyzer::analyzeMouseMove(const CommandStatementNode* node) {
     }
     
     // Parse coordinates and speed from options
-    QPoint coords = parseCoordinates(options);
+    // QPoint coords = parseCoordinates(options);
 }
 
 MouseParams SemanticAnalyzer::parserClickParam(const QString& command) {
