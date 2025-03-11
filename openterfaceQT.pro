@@ -164,19 +164,13 @@ DEPENDPATH += $$PWD/''
 
 #DEFINES += ONLINE_VERSION
 
-# static Link configuration
-CONFIG += static staticlib
-QMAKE_LFLAGS += -static -static-libgcc -static-libstdc++ -static-libgfortran
-QMAKE_CXXFLAGS += -static -static-libgcc -static-libstdc++
-
-# make sure qt static lib
-CONFIG += qt
-
-QTPLUGIN += qwindows qwindowsvistastyle
 
 win32 {
+    CONFIG += static staticlib
+    QMAKE_LFLAGS += -static -static-libgcc -static-libstdc++ -static-libgfortran
+    QMAKE_CXXFLAGS += -static -static-libgcc -static-libstdc++
     QMAKE_LFLAGS += -static-libgcc -static-libstdc++ -Wl,-Bstatic
     LIBS += -static -lpthread -static-libgcc -static-libstdc++
+    QTPLUGIN += qwindows qwindowsvistastyle
+    CONFIG -= shared dll
 }
-
-CONFIG -= shared dll
