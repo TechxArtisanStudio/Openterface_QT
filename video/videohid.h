@@ -3,6 +3,11 @@
 
 #include <QObject>
 #include <QTimer>
+#include <QNetworkAccessManager>
+#include <QNetworkRequest>
+#include <QNetworkReply>
+#include <QEventLoop>
+#include <vector>
 
 #include "../ui/statusevents.h"
 #ifdef _WIN32
@@ -45,7 +50,10 @@ public:
 
     bool isHdmiConnected();
     std::string getFirmwareVersion();
-    std::string getLatestFirmwareVersion();
+    inline std::string getLatestFirmwareVersion(){ return m_firmwareVersion;}
+    
+    QString getLatestFirmwareFilenName(QString &url, int timeoutMs = 5000);
+    void fetchBinFileToString(QString &url, int timeoutMs = 5000);
 
     bool isLatestFirmware();
 
@@ -69,7 +77,9 @@ signals:
 
 private:
     explicit VideoHid(QObject *parent = nullptr);
-    
+    std::vector<unsigned char> networkFirmware;
+    std::string m_firmwareVersion;
+
 #ifdef _WIN32
     HANDLE deviceHandle = INVALID_HANDLE_VALUE;
 #elif __linux__
@@ -78,9 +88,9 @@ private:
 
     bool openHIDDeviceHandle();
     void closeHIDDeviceHandle();
-    
+    using StringCallback = std::function<void(const QString&)>;
     QTimer *timer;
-
+    QString firmwareURL = "http://download.openterface.com/openterface/firmware/minikvm_latest_firmware.txt";
     QString extractPortNumberFromPath(const QString& path);
     QPair<QByteArray, bool> usbXdataRead4Byte(quint16 u16_address);
     bool usbXdataWrite4Byte(quint16 u16_address, QByteArray data);

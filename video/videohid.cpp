@@ -30,6 +30,7 @@ VideoHid::VideoHid(QObject *parent) : QObject(parent){
 void VideoHid::start() {
     std::string captureCardFirmwareVersion = getFirmwareVersion();
     qDebug() << "MS2109 firmware VERSION:" << QString::fromStdString(captureCardFirmwareVersion);    //firmware VERSION
+    
     GlobalVar::instance().setCaptureCardFirmwareVersion(captureCardFirmwareVersion);
     isHardSwitchOnTarget = getSpdifout();
     qDebug() << "SPDIFOUT:" << isHardSwitchOnTarget;    //SPDIFOUT
@@ -164,16 +165,66 @@ std::string VideoHid::getFirmwareVersion() {
                               .arg(version_3, 2, 10, QChar('0')).toStdString();
 }
 
-std::string VideoHid::getLatestFirmwareVersion() {
-    QString qVersion = QString::fromStdString(latest_ms2109_firmware_version);
-    int version_0 = qVersion.mid(0, 2).toInt(nullptr, 16);
-    int version_1 = qVersion.mid(2, 2).toInt(nullptr, 16);
-    int version_2 = qVersion.mid(4, 2).toInt(nullptr, 16);
-    int version_3 = qVersion.mid(6, 2).toInt(nullptr, 16);
-    return QString("%1%2%3%4").arg(version_0, 2, 10, QChar('0'))
-    .arg(version_1, 2, 10, QChar('0'))
-    .arg(version_2, 2, 10, QChar('0'))
-    .arg(version_3, 2, 10, QChar('0')).toStdString();
+
+
+void VideoHid::fetchBinFileToString(QString &url, int timeoutMs){
+    QNetworkAccessManager manager; // Create a network access manager
+    QNetworkRequest request(url);  // Set up the request with the given URL
+    QNetworkReply *reply = manager.get(request); // Send a GET request
+
+    // Use QEventLoop to wait for the request to complete
+    QEventLoop loop;
+    QObject::connect(reply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
+    loop.exec(); // Block until the request finishes
+
+    std::string result; // Initialize an empty std::string to hold the result
+    if (reply->error() == QNetworkReply::NoError) {
+        // Read the binary data into a QByteArray
+        QByteArray data = reply->readAll();
+        // Convert QByteArray to std::string
+        result = std::string(data.constData(), data.size());
+        networkFirmware.assign(data.begin(), data.end());
+        qDebug() << "Successfully read file, size:" << data.size() << "bytes";
+    } else {
+        qDebug() << "Failed to fetch:" << reply->errorString();
+    }
+    int version_0 = result.length() > 12 ? (unsigned char)result[12] : 0;
+    int version_1 = result.length() > 13 ? (unsigned char)result[13] : 0;
+    int version_2 = result.length() > 14 ? (unsigned char)result[14] : 0;
+    int version_3 = result.length() > 15 ? (unsigned char)result[15] : 0;
+    m_firmwareVersion = QString("%1%2%3%4").arg(version_0, 2, 10, QChar('0'))
+                                            .arg(version_1, 2, 10, QChar('0'))
+                                            .arg(version_2, 2, 10, QChar('0'))
+                                            .arg(version_3, 2, 10, QChar('0')).toStdString();
+    reply->deleteLater(); // Clean up the reply object
+}
+
+QString VideoHid::getLatestFirmwareFilenName(QString &url, int timeoutMs){
+    QNetworkAccessManager manager;
+    QNetworkRequest request(url);
+    QNetworkReply *reply = manager.get(request);
+
+    QEventLoop loop;
+    QTimer timer;
+    timer.setSingleShot(true);
+    QObject::connect(&timer, &QTimer::timeout, &loop, &QEventLoop::quit);
+    QObject::connect(reply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
+    
+    timer.start(timeoutMs); // Set the timeout duration (in milliseconds)
+    loop.exec();
+
+    QString result;
+    if (reply->isFinished() && reply->error() == QNetworkReply::NoError) {
+        result = QString::fromUtf8(reply->readAll());
+    } else if (!reply->isFinished()) {
+        qDebug() << "Request time out";
+        reply->abort(); // 超时后中止请求
+    } else {
+        qDebug() << "fail to get file name" << reply->errorString();
+    }
+
+    reply->deleteLater();
+    return result;
 }
 /*
  * Address: 0xFA8C bit0 indicates the HDMI connection status
@@ -554,7 +605,11 @@ bool VideoHid::writeEeprom(quint16 address, const QByteArray &data) {
 
 void VideoHid::loadFirmwareToEeprom() {
     // Create firmware data
-    QByteArray firmware(reinterpret_cast<const char*>(ms2109_firmware), sizeof(ms2109_firmware));
+    if (networkFirmware.empty()){
+        return;
+    }
+
+    QByteArray firmware(reinterpret_cast<const char*>(networkFirmware.data()), networkFirmware.size());
     
     // Create a worker thread to handle firmware writing
     QThread* thread = new QThread();
@@ -583,8 +638,11 @@ void VideoHid::loadFirmwareToEeprom() {
 }
 
 bool VideoHid::isLatestFirmware() {
+    QString firemwareFileName = getLatestFirmwareFilenName(firmwareURL);
+    QString newURL = firmwareURL.replace("minikvm_latest_firmware.txt", firemwareFileName);
+    fetchBinFileToString(newURL);
     qDebug() << "Firmware version:" << QString::fromStdString(getFirmwareVersion());
-    qDebug() << "Latest firmware version:" << QString::fromStdString(getLatestFirmwareVersion());
-    return getFirmwareVersion() == getLatestFirmwareVersion();
+    qDebug() << "Lateset firmware version:" << QString::fromStdString(m_firmwareVersion);
+    return getFirmwareVersion() == m_firmwareVersion;
 }
 
