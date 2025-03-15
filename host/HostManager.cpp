@@ -46,12 +46,22 @@ void HostManager::setEventCallback(StatusEventCallback* callback)
 
 void HostManager::handleKeyPress(QKeyEvent *event)
 {
-    handleKeyboardAction(event->key(), event->modifiers(), true);
+    if (event->key() == 0) {
+        qCDebug(log_core_host) << "Qt::Key is unknown, use native virtual key" << event->nativeVirtualKey();
+        handleKeyboardAction(event->nativeVirtualKey(), event->modifiers(), true, true);
+    } else {
+        handleKeyboardAction(event->key(), event->modifiers(), true, false);
+    }
 }
 
 void HostManager::handleKeyRelease(QKeyEvent *event)
 {
-    handleKeyboardAction(event->key(), event->modifiers(), false);
+    if (event->key() == 0) {
+        qCDebug(log_core_host) << "Qt::Key is unknown, use native virtual key" << event->nativeVirtualKey();
+        handleKeyboardAction(event->nativeVirtualKey(), event->modifiers(), false, true);
+    } else {
+        handleKeyboardAction(event->key(), event->modifiers(), false, false);
+    }
 }
 
 void HostManager::handleMousePress(MouseEventDTO *event)
@@ -141,19 +151,19 @@ void HostManager::sendCtrlAltDel()
 
 void HostManager::handleFunctionKey(int keyCode, int modifiers)
 {
-    handleKeyboardAction(keyCode, modifiers, true);
+    handleKeyboardAction(keyCode, modifiers, true, false);
     QTimer::singleShot(50, this, [this, keyCode, modifiers]() {
-        handleKeyboardAction(keyCode, modifiers, false);
+        handleKeyboardAction(keyCode, modifiers, false, false);
     });
 }
 
-void HostManager::handleKeyboardAction(int keyCode, int modifiers, bool isKeyDown)
+void HostManager::handleKeyboardAction(int keyCode, int modifiers, bool isKeyDown, bool isNativeVirtualKey)
 {
     QString hexKeyCode = QString::number(keyCode, 16);
     int effectiveModifiers = keyboardManager.isModiferKeys(keyCode) ? modifiers : modifiers;
     qCDebug(log_core_host) << (isKeyDown ? "Key press" : "Key release") << "event for qt key code:" << keyCode << "(" << hexKeyCode << "), modifers:" << "0x" + QString::number(effectiveModifiers, 16);
     
-    keyboardManager.handleKeyboardAction(keyCode, effectiveModifiers, isKeyDown);
+    keyboardManager.handleKeyboardAction(keyCode, effectiveModifiers, isKeyDown, isNativeVirtualKey);
     
     if (isKeyDown) {
         qCDebug(log_core_host) << "Key press event detected with keyCode:" << keyCode << " and modifiers:" << effectiveModifiers;
@@ -198,7 +208,7 @@ void HostManager::setRepeatingKeystroke(int interval) {
         // Send a key release event for the last pressed key
         if (m_lastKeyCode != 0) {
             qCDebug(log_core_host) << "Sending key release for last pressed key:" << m_lastKeyCode;
-            handleKeyboardAction(m_lastKeyCode, m_lastModifiers, false);
+            handleKeyboardAction(m_lastKeyCode, m_lastModifiers, false, false);
         }
         // Clear the last key code and modifier when stopping repetition
         m_lastKeyCode = 0;
@@ -210,9 +220,9 @@ void HostManager::setRepeatingKeystroke(int interval) {
 void HostManager::repeatLastKeystroke() {
     if (m_repeatingInterval > 0 && m_lastKeyCode != 0) {
         qCDebug(log_core_host) << "Repeating keystroke, keyCode:" << m_lastKeyCode;
-        handleKeyboardAction(m_lastKeyCode, m_lastModifiers, true);
+        handleKeyboardAction(m_lastKeyCode, m_lastModifiers, true, false);
         QTimer::singleShot(50, this, [this]() {
-            handleKeyboardAction(m_lastKeyCode, m_lastModifiers, false);
+            handleKeyboardAction(m_lastKeyCode, m_lastModifiers, false, false);
         });
     }
 }

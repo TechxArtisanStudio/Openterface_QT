@@ -74,7 +74,7 @@ public:
 
     void setRepeatingKeystroke(int interval);
 
-    void handleKeyboardAction(int keyCode, int modifiers, bool isKeyDown);
+    void handleKeyboardAction(int keyCode, int modifiers, bool isKeyDown, bool isNativeVirtualKey);
 
     void setKeyboardLayout(const QString& layoutName);
     
