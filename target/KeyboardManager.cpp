@@ -110,19 +110,48 @@ void KeyboardManager::handleKeyboardAction(int keyCode, int modifiers, bool isKe
                          << "with modifiers:" << mapModifierKeysToNames(modifiers)
                          << "isKeyDown:" << isKeyDown << " nativeVK:" << QString::number(nativeVirtualKey, 16);
 
-    
-    // Check if it's a function key
-    if (keyCode >= Qt::Key_F1 && keyCode <= Qt::Key_F12) {
-        qCDebug(log_keyboard) << "Function key detected:" << keyCode;
-    }
+    if(nativeVirtualKey == 0){
+        // Check if it's a function key
+        if (keyCode >= Qt::Key_F1 && keyCode <= Qt::Key_F12) {
+            qCDebug(log_keyboard) << "Function key detected:" << keyCode;
+        }
 
-    // Check if it's a navigation key
-    if (keyCode >= Qt::Key_Left && keyCode <= Qt::Key_PageDown) {
-        qCDebug(log_keyboard) << "Navigation key detected:" << keyCode;
+        // Check if it's a navigation key
+        if (keyCode >= Qt::Key_Left && keyCode <= Qt::Key_PageDown) {
+            qCDebug(log_keyboard) << "Navigation key detected:" << keyCode;
+        }
     }
 
     // Use current layout's keyMap instead of the static one
     mappedKeyCode = currentLayout.keyMap.value(keyCode, 0);
+
+#ifdef Q_OS_WIN
+    // Handle Japanese IME keys using Windows Virtual Key codes
+    // Only apply for Japanese keyboard layouts (JIS)
+    if (currentLayout.name.contains("Japanese") || currentLayout.name.contains("JIS")) {
+        // Windows Virtual Key codes for Japanese IME:
+        // VK_NONCONVERT (0x1D / 29) = 無変換 (Muhenkan)
+        // VK_CONVERT    (0x1C / 28) = 変換 (Henkan)
+        // VK_OEM_ATTN   (0xF0 / 240) and related = 半角/全角 (Zenkaku/Hankaku)
+        constexpr unsigned int VK_NONCONVERT = 0x1D;  // 29
+        constexpr unsigned int VK_CONVERT = 0x1C;     // 28
+        constexpr unsigned int VK_OEM_AUTO = 0xF3;    // 243
+        constexpr unsigned int VK_OEM_ENLW = 0xF4;    // 244
+
+        if (nativeVirtualKey == VK_NONCONVERT) {
+            mappedKeyCode = currentLayout.keyMap.value(Qt::Key_Muhenkan, 0);
+            qCDebug(log_keyboard) << "Muhenkan key detected: VK=" << nativeVirtualKey << "isKeyDown:" << isKeyDown;
+        } else if (nativeVirtualKey == VK_CONVERT) {
+            mappedKeyCode = currentLayout.keyMap.value(Qt::Key_Henkan, 0);
+            qCDebug(log_keyboard) << "Henkan key detected: VK=" << nativeVirtualKey << "isKeyDown:" << isKeyDown;
+        } else if (nativeVirtualKey == VK_OEM_AUTO || nativeVirtualKey == VK_OEM_ENLW) {
+            // TODO: Implement Zenkaku/Hankaku key mapping when keyMap supports it
+            // mappedKeyCode = currentLayout.keyMap.value(Qt::Key_Zenkaku_Hankaku, 0);
+            qCDebug(log_keyboard) << "ZenkakuHankaku key detected: VK=" << nativeVirtualKey << "isKeyDown:" << isKeyDown;
+        }
+    }
+#endif
+
     if (mappedKeyCode == 0) {
         uint32_t unicodeValue = keyCode;
         qDebug() << "Unicode key detected:" << QString::number(unicodeValue, 16);
@@ -141,13 +170,13 @@ void KeyboardManager::handleKeyboardAction(int keyCode, int modifiers, bool isKe
             qDebug() << "Trying Unicode mapping for U+" << QString::number(unicodeValue, 16) 
                                 << "-> scancode: 0x" << QString::number(mappedKeyCode, 16);
 
-	    if (mappedKeyCode != 0) {
-		    QChar unicodeChar(unicodeValue);
-		    if (currentLayout.needAltGrKeys.contains(unicodeValue)) {
-			    qDebug() << "Character requires AltGr, forcing modifier";
-			    modifiers |= Qt::GroupSwitchModifier;
-		    }
-	    }
+            if (mappedKeyCode != 0) {
+                QChar unicodeChar(unicodeValue);
+                if (currentLayout.needAltGrKeys.contains(unicodeValue)) {
+                    qDebug() << "Character requires AltGr, forcing modifier";
+                    modifiers |= Qt::GroupSwitchModifier;
+                }
+            }
         }
     }
     qCDebug(log_keyboard) << "Mapped to scancode: 0x" + QString::number(mappedKeyCode, 16);
@@ -219,7 +248,7 @@ void KeyboardManager::handleKeyboardAction(int keyCode, int modifiers, bool isKe
                 combinedModifiers = isKeyDown ? 0x40 : 0x00;
             }
         }
-    }else if(isKeypadKeys(keyCode, modifiers)){
+    }else if(nativeVirtualKey == 0 && isKeypadKeys(keyCode, modifiers)){
         if (keyCode == Qt::Key_NumLock) {
             mappedKeyCode = 0x53;
         }
@@ -526,4 +555,3 @@ void KeyboardManager::setKeyboardLayout(const QString& layoutName) {
                              << "-> Scancode: 0x" << QString::number(it.value(), 16);
     }
 }
-
