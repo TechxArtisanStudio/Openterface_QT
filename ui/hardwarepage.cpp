@@ -33,24 +33,23 @@ HardwarePage::HardwarePage(QWidget *parent) : QWidget(parent)
 void HardwarePage::setupUI()
 {
     // UI setup implementation
-    QLabel *hardwareLabel = new QLabel(
-        "<span style='  font-weight: bold;'>General hardware setting</span>");
+    hardwareLabel = new QLabel(
+        QString("<span style='font-weight: bold;'>%1</span>").arg(tr("General hardware setting")));
     hardwareLabel->setStyleSheet(bigLabelFontSize);
 
-    QLabel *uvcCamLabel = new QLabel("UVC Camera resource: ");
+    QLabel *uvcCamLabel = new QLabel(tr("UVC Camera resource: "));
     uvcCamLabel->setStyleSheet(smallLabelFontSize);
     QComboBox *uvcCamBox = new QComboBox();
     uvcCamBox->setObjectName("uvcCamBox");
 
-    QLabel *VIDPIDLabel = new QLabel(
-        "Change target VID&PID: ");
-    QLabel *USBDescriptor = new QLabel("Change USB descriptor: ");
-    QLabel *VID = new QLabel("VID: ");
-    QLabel *PID = new QLabel("PID: ");
-    QCheckBox *VIDCheckBox = new QCheckBox("Custom vendor descriptor:");
-    QCheckBox *PIDCheckBox = new QCheckBox("Custom product descriptor:");
-    QCheckBox *USBSerialNumberCheckBox = new QCheckBox("USB serial number:");
-    QCheckBox *USBCustomStringDescriptorCheckBox = new QCheckBox("Enable USB flag");
+    QLabel *VIDPIDLabel = new QLabel(tr("Change target VID&PID: "));
+    QLabel *USBDescriptor = new QLabel(tr("Change USB descriptor: "));
+    QLabel *VID = new QLabel(tr("VID: "));
+    QLabel *PID = new QLabel(tr("PID: "));
+    QCheckBox *VIDCheckBox = new QCheckBox(tr("Custom vendor descriptor:"));
+    QCheckBox *PIDCheckBox = new QCheckBox(tr("Custom product descriptor:"));
+    QCheckBox *USBSerialNumberCheckBox = new QCheckBox(tr("USB serial number:"));
+    QCheckBox *USBCustomStringDescriptorCheckBox = new QCheckBox(tr("Enable USB flag"));
     VIDCheckBox->setObjectName("VIDCheckBox");
     PIDCheckBox->setObjectName("PIDCheckBox");
     USBSerialNumberCheckBox->setObjectName("USBSerialNumberCheckBox");

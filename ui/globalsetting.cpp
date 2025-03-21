@@ -136,6 +136,14 @@ void GlobalSetting::setKeyboardLayout(QString keyboardLayout){
 void GlobalSetting::getKeyboardLayout(QString &keyboardLayout){
     keyboardLayout = m_settings.value("keyboard/keyboardLayout", "US QWERTY").toString();
 }
+
+void GlobalSetting::setLangeuage(QString language){
+    m_settings.setValue("language/language", language);
+}
+
+void GlobalSetting::getLanguage(QString &language){
+    language = m_settings.value("language/language", "en").toString(); 
+}
 /*
 * Convert QString to ByteArray
 */

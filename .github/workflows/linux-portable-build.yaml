@@ -106,7 +106,14 @@
             export LIBRARY_PATH=$PCRE2_DIR/lib:$LIBRARY_PATH
             export LD_LIBRARY_PATH=$PCRE2_DIR/lib:$LD_LIBRARY_PATH
             export PKG_CONFIG_PATH=$PCRE2_DIR/lib/pkgconfig:$PKG_CONFIG_PATH
-  
+
+            echo "Updating translations with lupdate..."
+            /opt/Qt6/bin/lupdate "${{ env.SOURCE_DIR }}/config/languages" -ts "${{ env.SOURCE_DIR }}/config/languages/*.ts" || true
+
+            echo "Generating binary translations with lrelease..."
+            mkdir -p package/config/languages
+            /opt/Qt6/bin/lrelease "${{ env.SOURCE_DIR }}/config/languages/*.ts" -qm "package/config/languages/*.qm" || true
+
             echo "Configuring with CMake..."
             cmake -S "${{ env.SOURCE_DIR }}" -B . \
                 -DCMAKE_BUILD_TYPE=Release \
@@ -151,5 +158,7 @@
           uses: actions/upload-artifact@v4
           with:
             name: ${{ env.ARTIFACT }}
-            path: ${{ runner.temp }}/build/package/openterfaceQT
+            path: |
+              ${{ runner.temp }}/build/package/openterfaceQT
+              ${{ runner.temp }}/build/package/config/languages/*.qm
             if-no-files-found: error

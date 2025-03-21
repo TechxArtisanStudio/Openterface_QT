@@ -114,7 +114,7 @@ QPixmap recolorSvg(const QString &svgPath, const QColor &color, const QSize &siz
     return pixmap;
 }
 
-MainWindow::MainWindow() :  ui(new Ui::MainWindow),
+MainWindow::MainWindow(LanguageManager *languageManager, QWidget *parent) :  ui(new Ui::MainWindow),
                             m_audioManager(new AudioManager(this)),
                             videoPane(new VideoPane(this)),
                             scrollArea(new QScrollArea(this)),
@@ -122,9 +122,11 @@ MainWindow::MainWindow() :  ui(new Ui::MainWindow),
                             toolbarManager(new ToolbarManager(this)),
                             toggleSwitch(new ToggleSwitch(this)),
                             m_cameraManager(new CameraManager(this)),
-                            m_versionInfoManager(new VersionInfoManager(this))
+                            m_versionInfoManager(new VersionInfoManager(this)),
+                            m_languageManager(languageManager)
                             // cameraAdjust(new CameraAdjust(this))
 {
+    Q_UNUSED(parent);
     QApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
 
 
@@ -292,6 +294,9 @@ MainWindow::MainWindow() :  ui(new Ui::MainWindow),
 
     connect(ui->keyboardLayoutComboBox, SIGNAL(currentIndexChanged(int)), this, SLOT(onKeyboardLayoutCombobox_Changed(int)));
 
+
+    connect(m_languageManager, &LanguageManager::languageChanged, this, &MainWindow::updateUI);
+    setupLanguageMenu();
     // fullScreen();
     // qCDebug(log_ui_mainwindow) << "full finished";
     
@@ -307,6 +312,53 @@ MainWindow::MainWindow() :  ui(new Ui::MainWindow),
         connect(this, &MainWindow::emitTCPCommandStatus, tcpServer, &TcpServer::recvTCPCommandStatus);
     }
 #endif
+
+void MainWindow::updateUI() {
+    ui->retranslateUi(this); // Update the UI elements
+    // this->menuBar()->clear();
+    setupLanguageMenu();
+}
+
+void MainWindow::setupLanguageMenu() {
+    // Clear existing language actions
+    ui->menuLanguages->clear();
+    QStringList languages = m_languageManager->availableLanguages();
+    for (const QString &lang : languages) {
+       qCDebug(log_ui_mainwindow) << "Available language: " << lang; 
+    }
+    if (languages.isEmpty()) {
+        languages << "en" << "fr" << "de" << "da" << "ja" << "se";
+    }
+
+    QActionGroup *languageGroup = new QActionGroup(this);
+    languageGroup->setExclusive(true);
+
+    QMap<QString, QString> languageNames = {
+        {"en", "English"},
+        {"fr", "Français"},
+        {"de", "German"},
+        {"da", "Danish"},
+        {"ja", "Japanese"},
+        {"se", "Swedish"}
+    };
+    for (const QString &lang : languages) {
+        QString displayName = languageNames.value(lang, lang);
+        QAction *action = new QAction(displayName, this);
+        action->setCheckable(true);
+        action->setData(lang);
+        if (lang == m_languageManager->currentLanguage()) {
+            action->setChecked(true);
+        }
+        ui->menuLanguages->addAction(action);
+        languageGroup->addAction(action);
+    }
+    connect(languageGroup, &QActionGroup::triggered, this, &MainWindow::onLanguageSelected);
+}
+
+void MainWindow::onLanguageSelected(QAction *action) {
+    QString language = action->data().toString();
+    m_languageManager->switchLanguage(language);
+}
 
 bool MainWindow::isFullScreenMode() {
     // return fullScreenState;
@@ -344,14 +396,14 @@ void MainWindow::fullScreen(){
 }
 
 void MainWindow::setTooltip(){
-    ui->ZoomInButton->setToolTip("Zoom in");
-    ui->ZoomOutButton->setToolTip("Zoom out");
-    ui->ZoomReductionButton->setToolTip("Restore original size");
-    ui->virtualKeyboardButton->setToolTip("Function key and composite key");
-    ui->pasteButton->setToolTip("Paste text to target");
-    ui->screensaverButton->setToolTip("Mouse dance");
-    ui->captureButton->setToolTip("Full screen capture");
-    ui->fullScreenButton->setToolTip("Full screen mode");
+    ui->ZoomInButton->setToolTip(tr("Zoom in"));
+    ui->ZoomOutButton->setToolTip(tr("Zoom out"));
+    ui->ZoomReductionButton->setToolTip(tr("Restore original size"));
+    ui->virtualKeyboardButton->setToolTip(tr("Function key and composite key"));
+    ui->pasteButton->setToolTip(tr("Paste text to target"));
+    ui->screensaverButton->setToolTip(tr("Mouse dance"));
+    ui->captureButton->setToolTip(tr("Full screen capture"));
+    ui->fullScreenButton->setToolTip(tr("Full screen mode"));
 }
 
 void MainWindow::onZoomIn()
@@ -1283,6 +1335,7 @@ bool MainWindow::CheckDeviceAccess(uint16_t vid, uint16_t pid) {
 }
 
 void MainWindow::onToolbarVisibilityChanged(bool visible) {
+    Q_UNUSED(visible);
     // Prevent repaints during animation
     setUpdatesEnabled(false);
     
@@ -1317,7 +1370,7 @@ void MainWindow::animateVideoPane() {
 
     // Get toolbar visibility and window state
     bool isToolbarVisible = toolbarManager->getToolbar()->isVisible();
-    bool isMaximized = windowState() & Qt::WindowMaximized;
+    // bool isMaximized = windowState() & Qt::WindowMaximized;
 
     // Calculate content height based on toolbar visibility
     int contentHeight;
@@ -1382,6 +1435,7 @@ void MainWindow::changeKeyboardLayout(const QString& layout) {
 }
 
 void MainWindow::onKeyboardLayoutCombobox_Changed(int index){
+    Q_UNUSED(index);
     QString currentLayout = ui->keyboardLayoutComboBox->currentText();
     changeKeyboardLayout(currentLayout);
 }
@@ -1420,7 +1474,7 @@ void MainWindow::showEnvironmentSetupDialog() {
 void MainWindow::updateFirmware() {
     // Check if it's lastest firmware
     if (VideoHid::getInstance().isLatestFirmware()) {
-        QMessageBox::information(this, "Firmware Update", "The firmware is up to date.");
+        QMessageBox::information(this, tr("Firmware Update"), tr("The firmware is up to date."));
         return;
     }
 
@@ -1428,20 +1482,21 @@ void MainWindow::updateFirmware() {
     std::string currentFirmwareVersion = VideoHid::getInstance().getFirmwareVersion();
     std::string latestFirmwareVersion = VideoHid::getInstance().getLatestFirmwareVersion();
     QMessageBox::StandardButton reply;
-    reply = QMessageBox::warning(this, "Firmware Update Confirmation",
-                                "Current firmware version: " + QString::fromStdString(currentFirmwareVersion) + "\n"
-                                "Latest firmware version: " + QString::fromStdString(latestFirmwareVersion) + "\n\n"
-                               "The update process will:\n"
-                               "1. Stop all video and USB operations\n"
-                               "2. Install new firmware\n"
-                               "3. Close the application automatically\n\n"
-                               "Important:\n"
-                               "• Use a high-quality USB cable for host connection\n"
-                               "• Disconnect the HDMI cable\n"
-                               "• Do not interrupt power during update\n"
-                               "• Restart application after completion\n\n"
-                               "Do you want to proceed with the update?",
-                               QMessageBox::Ok | QMessageBox::Cancel);
+    reply = QMessageBox::warning(this, 
+                tr("Firmware Update Confirmation"),
+                tr("Current firmware version: ") + QString::fromStdString(currentFirmwareVersion) + tr("\n") +
+                tr("Latest firmware version: ") + QString::fromStdString(latestFirmwareVersion) + tr("\n\n") +
+                tr("The update process will:\n") +
+                tr("1. Stop all video and USB operations\n"
+                "2. Install new firmware\n"
+                "3. Close the application automatically\n\n"
+                "Important:\n"
+                "• Use a high-quality USB cable for host connection\n"
+                "• Disconnect the HDMI cable\n"
+                "• Do not interrupt power during update\n"
+                "• Restart application after completion\n\n"
+                "Do you want to proceed with the update?"),
+                QMessageBox::Ok | QMessageBox::Cancel);
 
     if (reply == QMessageBox::Ok) {
         // Stop video and HID operations before firmware update

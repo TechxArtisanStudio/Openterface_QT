@@ -47,13 +47,13 @@ LogPage::LogPage(QWidget *parent) : QWidget(parent)
 void LogPage::setupUI()
 {
     // UI setup implementation
-    coreCheckBox = new QCheckBox("Core");
-    serialCheckBox = new QCheckBox("Serial");
-    uiCheckBox = new QCheckBox("User Interface");
-    hostCheckBox = new QCheckBox("Host");
-    storeLogCheckBox = new QCheckBox("Enable file logging");
+    coreCheckBox = new QCheckBox(tr("Core"));
+    serialCheckBox = new QCheckBox(tr("Serial"));
+    uiCheckBox = new QCheckBox(tr("User Interface"));
+    hostCheckBox = new QCheckBox(tr("Host"));
+    storeLogCheckBox = new QCheckBox(tr("Enable file logging"));
     logFilePathLineEdit = new QLineEdit(this);
-    browseButton = new QPushButton("Browse");
+    browseButton = new QPushButton(tr("Browse"));
 
     coreCheckBox->setObjectName("core");
     serialCheckBox->setObjectName("serial");
@@ -73,11 +73,11 @@ void LogPage::setupUI()
     logFilePathLayout->addWidget(logFilePathLineEdit);
     logFilePathLayout->addWidget(browseButton);
     
-    QLabel *logLabel = new QLabel("<span style='font-weight: bold;'>General log setting</span>");
+    QLabel *logLabel = new QLabel(QString("<span style='font-weight: bold;'>%1</span>").arg(tr("General log setting")));
     logLabel->setTextFormat(Qt::RichText);
     logLabel->setStyleSheet(bigLabelFontSize);
 
-    QLabel *logDescription = new QLabel("Check the check box to see the corresponding log in the QT console.");
+    QLabel *logDescription = new QLabel(tr("Check the check box to see the corresponding log in the QT console."));
     logDescription->setStyleSheet(commentsFontSize);
 
     connect(browseButton, &QPushButton::clicked, this, &LogPage::browseLogPath);

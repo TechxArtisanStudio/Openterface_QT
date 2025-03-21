@@ -196,11 +196,18 @@ void VersionInfoManager::handleUpdateCheckResponse(QNetworkReply *reply)
         latestVersion.remove(QRegularExpression("^v"));
         currentVersion.remove(QRegularExpression("^v"));
         
-        QVersionNumber latest = QVersionNumber::fromString(latestVersion);
-        QVersionNumber current = QVersionNumber::fromString(currentVersion);
+        // just compare the first two segments
+        QList<int> latestSegments = QVersionNumber::fromString(latestVersion).normalized().segments();
+        QList<int> currentSegments = QVersionNumber::fromString(currentVersion).normalized().segments();
 
-        qDebug() << "version latest: " << latest;
-        qDebug() << "version current: " << current;
+        while (latestSegments.size() > 2) latestSegments.removeLast();
+        while (currentSegments.size() > 2) currentSegments.removeLast();
+
+        QVersionNumber latest = QVersionNumber(latestSegments);
+        QVersionNumber current = QVersionNumber(currentSegments);
+
+        qDebug() << "version latest (first two segments): " << latest;
+        qDebug() << "version current (first two segments): " << current;
         
         QMessageBox msgBox;
         msgBox.setWindowTitle(tr("Openterface Mini KVM"));

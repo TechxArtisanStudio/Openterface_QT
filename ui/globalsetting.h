@@ -72,6 +72,10 @@ public:
     void setKeyboardLayout(QString keyboardLayout);
 
     void getKeyboardLayout(QString &keyboardLayout);
+
+    void setLangeuage(QString language);
+
+    void getLanguage(QString &language);
 private:
     QSettings m_settings;
 };

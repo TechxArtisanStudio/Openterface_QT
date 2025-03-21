@@ -25,6 +25,7 @@
 #include "ui/envdialog.h"
 #include "global.h"
 #include "target/KeyboardLayouts.h"
+#include "ui/languagemanager.h"
 #include <QCoreApplication>
 
 
@@ -37,6 +38,9 @@
 #include <QLoggingCategory>
 #include <QStyleFactory>
 #include <QDir>
+#include <QFile>
+#include <QTextStream>
+
 
 void customMessageHandler(QtMsgType type, const QMessageLogContext &context, const QString &msg)
 {
@@ -72,6 +76,18 @@ void customMessageHandler(QtMsgType type, const QMessageLogContext &context, con
     // textStream << txt << endl;
     
     std::cout << txt.toStdString() << std::endl;
+}
+
+void writeLog(const QString &message){
+    QFile logFile("startup_log.txt");
+    if (logFile.open(QIODevice::Append | QIODevice::Text)) {
+        QTextStream out(&logFile);
+        QString timestamp = QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss");
+        out << "[" << timestamp << "] " << message << "\n";
+        logFile.close();
+    } else {
+        qDebug() << "Failed to open log file:" << logFile.errorString();
+    }
 }
 
 void setupEnv(){
@@ -112,10 +128,16 @@ int main(int argc, char *argv[])
     app.setWindowIcon(QIcon("://images/icon_32.png"));
     
     // Create config directory if it doesn't exist
-    QString configPath = QCoreApplication::applicationDirPath() + "/config/keyboards";
-    QDir configDir(configPath);
-    if (!configDir.exists()) {
-        QDir().mkpath(configDir.path());
+    QString keyboardConfigPath = QCoreApplication::applicationDirPath() + "/config/keyboards";
+    QDir keyboardConfigDir(keyboardConfigPath);
+    if (!keyboardConfigDir.exists()) {
+        QDir().mkpath(keyboardConfigDir.path());
+    }
+
+    QString languagesConfigPath = QCoreApplication::applicationDirPath() + "/config/languages";
+    QDir languagesConfigDir(languagesConfigPath);
+    if (!languagesConfigDir.exists()) {
+        QDir().mkpath(languagesConfigDir.path());
     }
     
     // load the settings
@@ -126,7 +148,7 @@ int main(int argc, char *argv[])
     LogHandler::instance().enableLogStore();
 
     // Load keyboard layouts from the build directory
-    KeyboardLayoutManager::getInstance().loadLayouts(configPath);
+    KeyboardLayoutManager::getInstance().loadLayouts(keyboardConfigPath);
     
     // Check if the environment is properly set up
     if (EnvironmentSetupDialog::autoEnvironmentCheck() && !EnvironmentSetupDialog::checkEnvironmentSetup()) {
@@ -137,8 +159,12 @@ int main(int argc, char *argv[])
             return 0;
         }
     } 
-    
-    MainWindow window;
+    writeLog("Environment setup completed");
+    LanguageManager languageManager(&app);
+    languageManager.initialize("en");
+    writeLog("languageManager initialized");
+    MainWindow window(&languageManager);
+    writeLog("Application started");
     window.show();
 
     return app.exec();
