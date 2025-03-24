@@ -15,16 +15,27 @@ Now that we have a clear understanding of these terms, let's look at the specifi
 ## **III. Supported Standard Input Resolutions**  
 The Openterface Mini-KVM can receive and process a range of **standard input resolutions** from your target computer. These supported resolutions are generally **higher than 1920x1080**:
 
-* **4096 x 2160 @ 30Hz, 29.97Hz**2 ...  
-* **3840 x 2160 @ 30Hz, 29.97Hz** (This resolution has a **16:9 aspect ratio**)  
-* **2100 x 1050 @ 60Hz** (This resolution is **optimized for mobile devices**)  
-* **1920 x 1200 @ 60Hz**2 ...
+* **4096 x 2160 @ 30Hz, 29.97Hz** (Highest resolution supported by the Openterface Mini-KVM)  
+* **3840 x 2160 @ 30Hz, 29.97Hz** (**4k resolution with 16:9 aspect ratio**)  
+* **2100 x 1050 @ 60Hz** (**optimized for mobile devices with 16:9 aspect ratio**)  
+* **1920 x 1200 @ 60Hz** (**16:10 aspect ratio**) 
+* **1680 x 1050 @ 60Hz** (**16:9 aspect ratio**)  
+* **1600 x 900 @ 60Hz** (**16:9 aspect ratio**)  
+* **1440 x 900 @ 60Hz** (**16:9 aspect ratio**)  
+* **1280 x 1024 @ 60Hz** (**5:4 aspect ratio**)  
+* **1280 x 960 @ 60Hz** (**4:3 aspect ratio**)  
+* **1280 x 800 @ 60Hz** (**16:10 aspect ratio**)  
+* **1280 x 720 @ 60Hz** (**16:9 aspect ratio**)  
+* **1152 x 864 @ 60Hz** (**4:3 aspect ratio**)  
+* **1024 x 768 @ 60Hz** (**Optimized for old CRT monitors resolution with 4:3 aspect ratio**)  
+* **800 x 600 @ 60Hz** (**  Optimized for old CRT monitors resolution with 4:3 aspect ratio**)  
+* **640 x 480 @ 60Hz** (**Optimized for old CRT monitors resolution with 4:3 aspect ratio**)  
 
 These are the standard resolutions that the Openterface Mini-KVM is designed to handle as input from the connected computer
 
 ## **IV. Implications of Resolutions Higher Than Capture Resolution**
 
-It's important to understand what happens when the **input resolution from your target computer is set higher than the Openterface Mini-KVM's capture resolution**. Based on our understanding, the **implicit capture resolution of the Mini-KVM is 1920x1080**.
+It's important to understand what happens when the **input resolution from your target computer is set higher than the Openterface Mini-KVM's capture resolution**. Based on our understanding, the **implicit best capture resolution of the Mini-KVM is 1920x1080**.
 
 When the **input resolution exceeds this capture resolution**, the Openterface Mini-KVM needs to process a larger number of pixels than it can display directly at its capture resolution. This results in **multiple pixels from the target system's video output being merged into a single pixel on the host computer's display**.
 
