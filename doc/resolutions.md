@@ -19,6 +19,7 @@ The Openterface Mini-KVM can receive and process a range of **standard input res
 * **3840 x 2160 @ 30Hz, 29.97Hz** (**4k resolution with 16:9 aspect ratio**)  
 * **2100 x 1050 @ 60Hz** (**optimized for mobile devices with 16:9 aspect ratio**)  
 * **1920 x 1200 @ 60Hz** (**16:10 aspect ratio**) 
+* **1920 x 1080 @ 60Hz** (**The best display resolution with 16:9 aspect ratio**)
 * **1680 x 1050 @ 60Hz** (**16:9 aspect ratio**)  
 * **1600 x 900 @ 60Hz** (**16:9 aspect ratio**)  
 * **1440 x 900 @ 60Hz** (**16:9 aspect ratio**)  
