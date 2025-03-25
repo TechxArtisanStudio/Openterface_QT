@@ -154,16 +154,11 @@ cmake -GNinja \
 ninja
 sudo ninja install
 
-if [ -f "$INSTALL_PREFIX/bin/lupdate" ] && [ -f "$INSTALL_PREFIX/bin/lrelease" ]; then
-    echo "lupdate and lrelease built successfully at $INSTALL_PREFIX/bin"
-else
-    echo "Error: lupdate or lrelease not found in $INSTALL_PREFIX/bin"
-    exit 1
-fi
+
 
 # Build other modules
 for module in "${MODULES[@]}"; do
-    if [[ "$module" != "qtbase" && "$module" != "qtshadertools" && "$module" != "qtdeclarative"]]; then
+    if [[ "$module" != "qtbase" && "$module" != "qtshadertools" && "$module" != "qtdeclarative" ]]; then
         cd "$BUILD_DIR/$module"
         mkdir -p build
         cd build
