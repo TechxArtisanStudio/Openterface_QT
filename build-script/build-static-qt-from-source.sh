@@ -20,7 +20,7 @@ sudo apt-get install -y build-essential meson ninja-build bison flex pkg-config 
     libdrm-dev libgbm-dev libatspi2.0-dev \
     libvulkan-dev libssl-dev \
     libpulse-dev \
-    clang-15 libclang-15-dev llvm-15-dev \
+    clang-16 llvm-16-dev libclang-16-dev\
     yasm nasm # Dependencies for FFmpeg compilation
 
 QT_VERSION=6.6.3
@@ -118,7 +118,7 @@ cmake -GNinja \
     -DFEATURE_xkbcommon_x11=ON \
     -DTEST_xcb_syslibs=ON \
     -DQT_FEATURE_clang=OFF \
-    -DFEATURE_clang=OFF \
+    -DFEATURE_clang=ON \
     ..
 
 ninja
@@ -213,6 +213,27 @@ for module in "${MODULES[@]}"; do
                 -DCMAKE_EXE_LINKER_FLAGS="-L$FFMPEG_PREFIX/lib" \
                 -DFFMPEG_PATH="$FFMPEG_PREFIX" \
                 ..
+        elif [[ "$module" == "qttools" ]]; then
+            echo "Building $module..."
+            CLANG_PREFIX="/usr/lib/llvm-16"
+            cmake -GNinja \
+                $CMAKE_COMMON_FLAGS \
+                -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" \
+                -DBUILD_SHARED_LIBS=OFF \
+                -DFEATURE_linguist=ON \
+                -DFEATURE_lupdate=ON \
+                -DFEATURE_lrelease=ON \
+                -DFEATURE_designer=OFF \
+                -DFEATURE_assistant=OFF \
+                -DFEATURE_qtattributionsscanner=OFF \
+                -DFEATURE_qtdiag=OFF \
+                -DFEATURE_qtplugininfo=OFF \
+                -DFEATURE_clang=ON \
+                -DFEATURE_clangcpp=ON \
+                -DLLVM_INSTALL_DIR="$CLANG_PREFIX" \
+                -DLLVM_CMAKE_DIR="$CLANG_PREFIX/cmake" \
+                ..
+
         else
             cmake -GNinja \
                 $CMAKE_COMMON_FLAGS \

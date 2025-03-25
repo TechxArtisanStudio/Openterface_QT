@@ -46,7 +46,8 @@ const QList<int> KeyboardManager::CTRL_KEYS = {
 const QList<int> KeyboardManager::ALT_KEYS = {
     Qt::Key_Alt,
     164, // Menu Left
-    165  // Menu Right
+    165,  // Menu Right
+    Qt::Key_AltGr
 };
 
 const QList<int> KeyboardManager::KEYPAD_KEYS = {
@@ -135,6 +136,9 @@ void KeyboardManager::handleKeyboardAction(int keyCode, int modifiers, bool isKe
         } else if(modifiers == 1540){ //left alt
             mappedKeyCode = 0xe2;
             currentModifiers |= 0x04;
+        }else if(modifiers & Qt::GroupSwitchModifier){
+            mappedKeyCode = 0xE6;
+            currentModifiers |= 0x05;
         }
     }else if(isKeypadKeys(keyCode, modifiers)){
         if (keyCode == Qt::Key_NumLock) {
@@ -237,6 +241,19 @@ int KeyboardManager::handleKeyModifiers(int modifier, bool isKeyDown) {
         combinedModifiers |= 0x04;
     }
 
+    if ((modifier & Qt::ControlModifier) && (modifier & Qt::AltModifier)) {
+        // Clear Ctrl and Alt modifier，set AltGr modifier
+        combinedModifiers &= ~0x01; // clear Ctrl
+        combinedModifiers &= ~0x04; //  clear Alt
+        combinedModifiers |= 0x40;  // set AltGr
+    }
+
+    if (modifier & Qt::GroupSwitchModifier) {
+        combinedModifiers &= ~0x01;
+        combinedModifiers &= ~0x04;
+        combinedModifiers |= 0x40;  // Alt modifier
+    }
+
     // Update currentModifiers based on the modifierKeyCode and isKeyDown
     if (isKeyDown) {
         // If the key is down, add the modifier to currentModifiers
@@ -251,6 +268,9 @@ int KeyboardManager::handleKeyModifiers(int modifier, bool isKeyDown) {
 }
 
 bool KeyboardManager::isModiferKeys(int keycode){
+    if (keycode == Qt::Key_AltGr) {
+        return true;
+    }
     return SHIFT_KEYS.contains(keycode)
            || CTRL_KEYS.contains(keycode)
            || ALT_KEYS.contains(keycode); //Shift, Ctrl, Alt
@@ -274,7 +294,11 @@ void KeyboardManager::handlePastingCharacters(const QString& text, const QMap<ui
         uint8_t charString = ch.unicode();
         int key = charMapping[charString];
         bool needShift = needShiftWhenPaste(ch);
-        int modifiers = needShift ? Qt::ShiftModifier : 0;
+        bool needAltGr = needAltGrWhenPaste(ch);
+
+        int modifiers = 0;
+        if (needShift) modifiers |= Qt::ShiftModifier;
+        if (needAltGr) modifiers |= Qt::GroupSwitchModifier;
         qCDebug(log_keyboard) << "Pasting character: " << ch << " with key: 0x" << QString::number(key, 16);
         handleKeyboardAction(key, modifiers, true);
         QThread::msleep(2);
@@ -290,6 +314,10 @@ void KeyboardManager::pasteTextToTarget(const QString &text) {
 
 bool KeyboardManager::needShiftWhenPaste(const QChar character) {
     return character.isUpper() || currentLayout.needShiftKeys.contains(character.toLatin1());
+}
+
+bool KeyboardManager::needAltGrWhenPaste(const QChar character) {
+    return currentLayout.needAltGrKeys.contains(character.unicode());
 }
 
 void KeyboardManager::sendFunctionKey(int functionKeyCode) {

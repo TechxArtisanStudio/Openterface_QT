@@ -100,6 +100,7 @@
             echo "Setting LD_LIBRARY_PATH..."
             export LD_LIBRARY_PATH=/usr/lib:/usr/local/lib:$LD_LIBRARY_PATH
             
+
             # Set environment variables for PCRE2
             export PCRE2_DIR=${{ runner.temp }}/pcre2-install
             export CPATH=$PCRE2_DIR/include:$CPATH
