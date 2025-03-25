@@ -90,6 +90,7 @@ qt_add_executable(openterfaceQT WIN32 MACOSX_BUNDLE
     ui/versioninfomanager.cpp ui/versioninfomanager.h
     ui/videopage.cpp ui/videopage.h
     ui/videopane.cpp ui/videopane.h
+    ui/languagemanager.cpp ui/languagemanager.h
     ui/firmwareupdatedialog.cpp ui/firmwareupdatedialog.h
     video/firmwarewriter.cpp video/firmwarewriter.h
     video/ms2109.h
@@ -159,7 +160,7 @@ set(keyboard_layouts_resource_files
     "config/keyboards/qwerty_us.json"
     "config/keyboards/qwertz_de.json"
 )
-
+ 
 qt_add_resources(openterfaceQT "keyboard_layouts"
     PREFIX
         "/config/keyboards"
@@ -167,6 +168,24 @@ qt_add_resources(openterfaceQT "keyboard_layouts"
         "config/keyboards"
     FILES
         ${keyboard_layouts_resource_files}
+)
+
+set(languages_resources_files
+    "config/languages/openterface_da.qm"
+    "config/languages/openterface_de.qm"
+    "config/languages/openterface_en.qm"
+    "config/languages/openterface_fr.qm"
+    "config/languages/openterface_ja.qm"
+    "config/languages/openterface_se.qm"
+)
+
+qt_add_resources(openterfaceQT "languages"
+    PREFIX
+        "/config/languages"
+    BASE
+        "config/languages"
+    FILES
+        ${languages_resources_files}
 )
 
 set(qmake_immediate_resource_files

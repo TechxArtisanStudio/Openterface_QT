@@ -8,7 +8,7 @@ set QT_VERSION=6.5.3
 set QT_MAJOR_VERSION=6.5
 set INSTALL_PREFIX=C:\Qt6
 set BUILD_DIR=%cd%\qt-build
-set MODULES=qtbase qtshadertools qtmultimedia qtsvg qtserialport
+set MODULES=qtbase qtshadertools qtmultimedia qtsvg qtserialport qttools
 set DOWNLOAD_BASE_URL=https://download.qt.io/archive/qt/%QT_MAJOR_VERSION%/%QT_VERSION%/submodules
 
 set PATH=C:\ProgramData\chocolatey\bin;C:\ProgramData\chocolatey\lib\ninja\tools;C:\ProgramData\chocolatey\lib\mingw\tools\mingw64\bin;%PATH%
@@ -47,39 +47,22 @@ cmake -G "Ninja" ^
     -DFEATURE_icu=OFF ^
     -DFEATURE_opengl=ON ^
     ..
-
 ninja
 ninja install
 
-REM Build qtshadertools
-cd "%BUILD_DIR%\qtshadertools"
-mkdir build
-cd build
-cmake -G "Ninja" ^
-    -DCMAKE_INSTALL_PREFIX="%INSTALL_PREFIX%" ^
-    -DCMAKE_PREFIX_PATH="%INSTALL_PREFIX%" ^
-    -DBUILD_SHARED_LIBS=OFF ^
-    ..
-
-ninja
-ninja install
-
-REM Build other modules
+REM Build other modules (including qttools)
 for %%m in (%MODULES%) do (
     if /I not "%%m"=="qtbase" (
-        if /I not "%%m"=="qtshadertools" (
-            cd "%BUILD_DIR%\%%m"
-            mkdir build
-            cd build
-            
-            cmake -G "Ninja" ^
-                -DCMAKE_INSTALL_PREFIX="%INSTALL_PREFIX%" ^
-                -DCMAKE_PREFIX_PATH="%INSTALL_PREFIX%" ^
-                -DBUILD_SHARED_LIBS=OFF ^
-                ..
-            ninja
-            ninja install
-        )
+        cd "%BUILD_DIR%\%%m"
+        mkdir build
+        cd build
+        cmake -G "Ninja" ^
+            -DCMAKE_INSTALL_PREFIX="%INSTALL_PREFIX%" ^
+            -DCMAKE_PREFIX_PATH="%INSTALL_PREFIX%" ^
+            -DBUILD_SHARED_LIBS=OFF ^
+            ..
+        ninja
+        ninja install
     )
 )
 
@@ -90,4 +73,12 @@ if exist "%PRL_FILE%" (
     echo QMAKE_PRL_LIBS += -loleaut32 >> "%PRL_FILE%"
 ) else (
     echo Warning: %PRL_FILE% not found. Please check the build process.
+)
+
+REM Verify lupdate
+if exist "%INSTALL_PREFIX%\bin\lupdate.exe" (
+    echo lupdate.exe successfully built!
+) else (
+    echo Error: lupdate.exe not found in %INSTALL_PREFIX%\bin
+    exit /b 1
 )

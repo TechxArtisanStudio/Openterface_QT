@@ -98,7 +98,7 @@ void SettingDialog::createSettingTree() {
     settingTree->setRootIsDecorated(false);
 
     // QStringList names = {"Log"};
-    QStringList names = {"General", "Video", "Audio", "Hardware"};
+    QStringList names = {tr("General"), tr("Video"), tr("Audio"), tr("Hardware")};
     for (const QString &name : names) {     // add item to setting tree
         QTreeWidgetItem *item = new QTreeWidgetItem(settingTree);
         item->setText(0, name);
@@ -115,9 +115,9 @@ void SettingDialog::createPages() {
 }
 
 void SettingDialog::createButtons(){
-    QPushButton *okButton = new QPushButton("OK");
-    QPushButton *applyButton = new QPushButton("Apply");
-    QPushButton *cancelButton = new QPushButton("Cancel");
+    QPushButton *okButton = new QPushButton(tr("OK"));
+    QPushButton *applyButton = new QPushButton(tr("Apply"));
+    QPushButton *cancelButton = new QPushButton(tr("Cancel"));
 
     okButton->setFixedSize(80, 30);
     applyButton->setFixedSize(80, 30);
@@ -161,13 +161,13 @@ void SettingDialog::changePage(QTreeWidgetItem *current, QTreeWidgetItem *previo
     QString itemText = current->text(0);
     qDebug() << "Selected item:" << itemText;
 
-    if (itemText == "General") {
+    if (itemText == tr("General")) {
         stackedWidget->setCurrentIndex(0);
-    } else if (itemText == "Video") {
+    } else if (itemText == tr("Video")) {
         stackedWidget->setCurrentIndex(1);
-    } else if (itemText == "Audio") {
+    } else if (itemText == tr("Audio")) {
         stackedWidget->setCurrentIndex(2);
-    } else if (itemText == "Hardware") {
+    } else if (itemText == tr("Hardware")) {
         stackedWidget->setCurrentIndex(3);
     }
 

@@ -1,4 +1,3 @@
----
 name: Linux Build
 
 on:
@@ -20,7 +19,6 @@ jobs:
     strategy:
       matrix:
         arch: [amd64, arm64]
-        version: [online]
 
     steps:
       - name: Checkout code
@@ -35,7 +33,6 @@ jobs:
           sudo apt install build-essential
           sudo apt-get install -y libusb-1.0-0-dev rpm libfuse2
           
-          # Download and setup AppImage tools
           wget -O linuxdeploy-x86_64.AppImage https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
           wget -O linuxdeploy-plugin-qt-x86_64.AppImage https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-x86_64.AppImage
           wget -O appimagetool "https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage"
@@ -61,8 +58,18 @@ jobs:
         if: matrix.arch == 'arm64'
         run: |
           sudo apt-get update
-          sudo apt-get install -y qt6-base-dev qt6-multimedia-dev libqt6svg6-dev libqt6serialport6-dev libgl1-mesa-dev
+          sudo apt-get install -y qt6-base-dev qt6-multimedia-dev libqt6svg6-dev libqt6serialport6-dev libgl1-mesa-dev qt6-l10n-tools qt6-tools-dev qt6-tools-dev-tools
           echo "Qt6_DIR=/usr/lib/aarch64-linux-gnu/cmake/Qt6" >> $GITHUB_ENV
+          echo "QTDIR=/usr/lib/aarch64-linux-gnu/qt6" >> $GITHUB_ENV
+          echo "PATH=/usr/lib/qt6/bin:$PATH" >> $GITHUB_ENV
+
+      - name: Debug Qt environment
+        run: |
+          echo "PATH: $PATH"
+          echo "Qt6_DIR: $Qt6_DIR"
+          echo "QTDIR: $QTDIR"
+          which lupdate || echo "lupdate not found"
+          lupdate --version || echo "lupdate version check failed"
 
       - name: Get all tags for correct version determination
         working-directory: ${{ github.workspace }}
@@ -77,27 +84,43 @@ jobs:
 
       - name: Create build directory
         run: |
-          buildDir="${{ runner.temp }}/build_${{ matrix.version }}"
+          buildDir="${{ runner.temp }}/build"
           mkdir -p $buildDir
           echo "BUILD_DIR=$buildDir" >> $GITHUB_ENV
+
+      - name: Update translations
+        working-directory: ${{ github.workspace }}
+        run: |
+          lupdate openterfaceQT.pro -no-obsolete
+
+      - name: Release translations
+        working-directory: ${{ github.workspace }}
+        run: |
+          lrelease openterfaceQT.pro
+          mkdir -p ${{ env.BUILD_DIR }}/config/languages
+          mkdir -p ${{ env.BUILD_DIR }}/config/keyboards
+          cp config/keyboards/*.json ${{ env.BUILD_DIR }}/config/keyboards
+          cp config/languages/*.qm ${{ env.BUILD_DIR }}/config/languages
 
       - name: Configure And Build
         working-directory: ${{ env.BUILD_DIR }}
         run: |
-          if [ "${{ matrix.version }}" = "online" ]; then
-            DEFINE_FLAG="DEFINES+=ONLINE_VERSION"
+          qmake6 ${{ github.workspace }} "DEFINES+=ONLINE_VERSION" && make -j$(nproc)
+          echo "Checking build output:"
+          ls -lh ${{ env.BUILD_DIR }}
+          if [ -f ${{ env.BUILD_DIR }}/openterfaceQT ]; then
+            echo "openterfaceQT found!"
           else
-            DEFINE_FLAG=""
+            echo "Error: openterfaceQT not found in ${{ env.BUILD_DIR }}!"
+            exit 1
           fi
-          
-          qmake6 ${{ github.workspace }} $DEFINE_FLAG && make -j$(nproc)
 
-      - name: Create deb package ${{ matrix.version }} version
+      - name: Create deb package
         working-directory: ${{ runner.temp }}
         run: |
           mkdir -p package/DEBIAN
           
-          PKG_NAME="${{ env.ARTIFACT }}_${{ env.VERSION }}_${{ matrix.arch }}_${{ matrix.version }}"
+          PKG_NAME="${{ env.ARTIFACT }}_${{ env.VERSION }}_${{ matrix.arch }}"
           
           sed -e "s/\${VERSION}/${{ env.VERSION }}/g" \
               -e "s/\${ARCH}/${{ matrix.arch }}/g" \
@@ -127,32 +150,41 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: openterfaceqt_${{ matrix.arch }}_${{ matrix.version }}.deb
-          path: ${{ runner.temp }}/${{ env.ARTIFACT }}_${{ env.VERSION }}_${{ matrix.arch }}_${{ matrix.version }}.deb
+          name: openterfaceqt_${{ matrix.arch }}.deb
+          path: ${{ runner.temp }}/${{ env.ARTIFACT }}_${{ env.VERSION }}_${{ matrix.arch }}.deb
           if-no-files-found: error
 
-      - name: Create rpm package ${{ matrix.version }} version
+      - name: Create rpm package
         working-directory: ${{ runner.temp }}
         run: |
-          # Create RPM build directory structure
           mkdir -p rpmbuild/{SPECS,SOURCES,BUILD,RPMS,SRPMS}
           
-          PKG_NAME="${{ env.ARTIFACT }}_${{ env.VERSION }}_${{ matrix.arch }}_${{ matrix.version }}"
+          PKG_NAME="${{ env.ARTIFACT }}_${{ env.VERSION }}_${{ matrix.arch }}"
           
-          # Create the spec file
+          # Copy build output and icon to SOURCES
+          cp ${{ env.BUILD_DIR }}/openterfaceQT rpmbuild/SOURCES/ || { echo "Failed to copy openterfaceQT!"; exit 1; }
+          cp ${{ github.workspace }}/images/icon_256.png rpmbuild/SOURCES/ || { echo "Failed to copy icon_256.png!"; exit 1; }
+          
+          # Debug: Verify files in SOURCES
+          ls -lh rpmbuild/SOURCES/
+          
+          # Generate spec file with version and architecture substitutions
           sed -e "s/\${VERSION}/${{ env.VERSION }}/g" \
               -e "s/\${ARCH}/${{ matrix.arch }}/g" \
-              ${{ github.workspace }}/packaging/rpm/spec > rpmbuild/SPECS/openterfaceqt.spec 
+              ${{ github.workspace }}/packaging/rpm/spec > rpmbuild/SPECS/openterfaceqt.spec
           
-          # Build the RPM package
+          # Debug: Show generated spec file
+          cat rpmbuild/SPECS/openterfaceqt.spec
+          
+          # Build RPM
           rpmbuild --define "_topdir ${{ runner.temp }}/rpmbuild" -bb rpmbuild/SPECS/openterfaceqt.spec
           
-          # Move the RPM to the expected location
+          # Copy the resulting RPM
           find rpmbuild/RPMS -name "*.rpm" -exec cp {} ./$PKG_NAME.rpm \;
 
       - name: Upload RPM artifact
         uses: actions/upload-artifact@v4
         with:
-          name: openterfaceqt_${{ matrix.arch }}_${{ matrix.version }}.rpm
-          path: ${{ runner.temp }}/${{ env.ARTIFACT }}_${{ env.VERSION }}_${{ matrix.arch }}_${{ matrix.version }}.rpm
+          name: openterfaceqt_${{ matrix.arch }}.rpm
+          path: ${{ runner.temp }}/${{ env.ARTIFACT }}_${{ env.VERSION }}_${{ matrix.arch }}.rpm
           if-no-files-found: error

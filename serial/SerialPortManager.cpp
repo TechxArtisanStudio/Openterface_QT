@@ -534,6 +534,7 @@ bool SerialPortManager::reconfigureHidChip()
  */
 void SerialPortManager::bytesWritten(qint64 nBytes){
     // qCDebug(log_core_serial) << nBytes << "bytesWritten";
+    Q_UNUSED(nBytes);
 }
 
 /*
@@ -723,6 +724,7 @@ void SerialPortManager::changeUSBDescriptor() {
 }
 
 void SerialPortManager::sendCommand(const QByteArray &command, bool waitForAck) {
+    Q_UNUSED(waitForAck);
     // qCDebug(log_core_serial)  << "sendCommand:" << command.toHex(' ');
     sendAsyncCommand(command, false);
 

@@ -78,6 +78,7 @@ private:
 
     void handlePastingCharacters(const QString& text, const QMap<uint8_t, int>& charMapping);
     bool needShiftWhenPaste(const QChar character);
+    bool needAltGrWhenPaste(const QChar character);
     
     int handleKeyModifiers(int modifierKeyCode, bool isKeyDown);
     int currentModifiers = 0;

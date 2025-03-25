@@ -36,28 +36,28 @@ AudioPage::AudioPage(QWidget *parent) : QWidget(parent)
 void AudioPage::setupUI()
 {
     QLabel *audioLabel = new QLabel(
-        "<span style='  font-weight: bold;'>General audio setting</span>");
+        QString("<span style='  font-weight: bold;'>%1</span>").arg(tr("General audio setting")));
     audioLabel->setStyleSheet(bigLabelFontSize);
 
-    QLabel *audioCodecLabel = new QLabel("Audio Codec: ");
+    QLabel *audioCodecLabel = new QLabel(tr("Audio Codec: "));
     audioCodecLabel->setStyleSheet(smallLabelFontSize);
     QComboBox *audioCodecBox = new QComboBox();
     audioCodecBox->setObjectName("audioCodecBox");
 
-    QLabel *audioSampleRateLabel = new QLabel("Sample Rate: ");
+    QLabel *audioSampleRateLabel = new QLabel(tr("Sample Rate: "));
     audioSampleRateLabel->setStyleSheet(smallLabelFontSize);
     QSpinBox *audioSampleRateBox = new QSpinBox();
     audioSampleRateBox->setObjectName("audioSampleRateBox");
     audioSampleRateBox->setEnabled(false);
 
-    QLabel *qualityLabel = new QLabel("Quality: ");
+    QLabel *qualityLabel = new QLabel(tr("Quality: "));
     qualityLabel->setStyleSheet(smallLabelFontSize);
 
     QSlider *qualitySlider = new QSlider();
     qualitySlider->setObjectName("qualitySlider");
     qualitySlider->setOrientation(Qt::Horizontal);
 
-    QLabel *fileFormatLabel = new QLabel("File Format: ");
+    QLabel *fileFormatLabel = new QLabel(tr("File Format: "));
     fileFormatLabel->setStyleSheet(smallLabelFontSize);
 
     QComboBox *containerFormatBox = new QComboBox();

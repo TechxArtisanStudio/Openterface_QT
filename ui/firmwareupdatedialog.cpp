@@ -5,19 +5,19 @@
 FirmwareUpdateDialog::FirmwareUpdateDialog(QWidget *parent)
     : QDialog(parent, Qt::WindowTitleHint | Qt::CustomizeWindowHint), updateResult(false)
 {
-    setWindowTitle("Firmware Update");
+    setWindowTitle(tr("Firmware Update"));
     setMinimumWidth(400);
     setModal(true);
     
     // Create UI elements
-    statusLabel = new QLabel("Preparing firmware update...");
+    statusLabel = new QLabel(tr("Preparing firmware update..."));
     statusLabel->setWordWrap(true);
     
     progressBar = new QProgressBar();
     progressBar->setRange(0, 100);
     progressBar->setValue(0);
     
-    closeButton = new QPushButton("Close");
+    closeButton = new QPushButton(tr("Close"));
     closeButton->setEnabled(false);
     
     // Layout
@@ -62,7 +62,7 @@ void FirmwareUpdateDialog::onProgressTimerTimeout()
 
 bool FirmwareUpdateDialog::startUpdate()
 {
-    statusLabel->setText("Updating firmware... Please do not disconnect the device.");
+    statusLabel->setText(tr("Updating firmware... Please do not disconnect the device."));
 
     connect(&VideoHid::getInstance(), &VideoHid::firmwareWriteProgress, this, &FirmwareUpdateDialog::updateProgress);
     connect(&VideoHid::getInstance(), &VideoHid::firmwareWriteComplete, this, &FirmwareUpdateDialog::updateComplete);
@@ -82,18 +82,18 @@ void FirmwareUpdateDialog::updateComplete(bool success)
     updateResult = success;
     
     if (success) {
-        statusLabel->setText("Firmware update completed successfully.\nThe application will close. Please restart it to apply the new firmware.");
-        QMessageBox::information(this, "Firmware Update", 
-                    "Firmware update completed successfully.\n\n"
+        statusLabel->setText(tr("Firmware update completed successfully.\nThe application will close. Please restart it to apply the new firmware."));
+        QMessageBox::information(this, tr("Firmware Update"), 
+                    tr("Firmware update completed successfully.\n\n"
                     "The application will now close.\n"
                     "Please:\n"
                     "1. Restart the application\n"
-                    "2. Disconnect and reconnect all cables");
+                    "2. Disconnect and reconnect all cables"));
     } else {
-        statusLabel->setText("Firmware update failed. Please try again.");
-        QMessageBox::critical(this, "Firmware Update Failed", 
-                             "An error occurred during the firmware update.\n\n"
-                             "Please try again after restarting the application.");
+        statusLabel->setText(tr("Firmware update failed. Please try again."));
+        QMessageBox::critical(this, tr("Firmware Update Failed"), 
+                             tr("An error occurred during the firmware update.\n\n"
+                             "Please try again after restarting the application."));
     }
     
     closeButton->setEnabled(true);

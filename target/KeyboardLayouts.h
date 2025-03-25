@@ -18,6 +18,7 @@ struct KeyboardLayoutConfig {
     QMap<int, uint8_t> keyMap;
     QMap<uint8_t, int> charMapping;
     QList<int> needShiftKeys;
+    QList<int> needAltGrKeys;
     bool isRightToLeft;
     
     // Constructor with default values
@@ -76,49 +77,49 @@ struct KeyboardLayoutConfig {
         keyNameToQt["Control"] = Qt::Key_Control;
         keyNameToQt["Alt"] = Qt::Key_Alt;
         keyNameToQt["CapsLock"] = Qt::Key_CapsLock;
-        keyNameToQt["Minus"] = Qt::Key_Minus;
-        keyNameToQt["Equal"] = Qt::Key_Equal;
-        keyNameToQt["BracketLeft"] = Qt::Key_BracketLeft;
-        keyNameToQt["BracketRight"] = Qt::Key_BracketRight;
-        keyNameToQt["Backslash"] = Qt::Key_Backslash;
-        keyNameToQt["Semicolon"] = Qt::Key_Semicolon;
-        keyNameToQt["Apostrophe"] = Qt::Key_Apostrophe;
-        keyNameToQt["QuoteLeft"] = Qt::Key_QuoteLeft;
-        keyNameToQt["Comma"] = Qt::Key_Comma;
-        keyNameToQt["Period"] = Qt::Key_Period;
-        keyNameToQt["Slash"] = Qt::Key_Slash;
-        keyNameToQt["Hash"] = Qt::Key_NumberSign;
-        keyNameToQt["Ampersand"] = Qt::Key_Ampersand;
-        keyNameToQt["Asterisk"] = Qt::Key_Asterisk;
-        keyNameToQt["ParenLeft"] = Qt::Key_ParenLeft;
-        keyNameToQt["ParenRight"] = Qt::Key_ParenRight;
-        keyNameToQt["Exclam"] = Qt::Key_Exclam;
-        keyNameToQt["At"] = Qt::Key_At;
-        keyNameToQt["Dollar"] = Qt::Key_Dollar;
-        keyNameToQt["Percent"] = Qt::Key_Percent;
-        keyNameToQt["AsciiCircum"] = Qt::Key_AsciiCircum;
-        keyNameToQt["AsciiTilde"] = Qt::Key_AsciiTilde;
-        keyNameToQt["Underscore"] = Qt::Key_Underscore;
-        keyNameToQt["Plus"] = Qt::Key_Plus;
-        keyNameToQt["BraceLeft"] = Qt::Key_BraceLeft;
-        keyNameToQt["BraceRight"] = Qt::Key_BraceRight;
-        keyNameToQt["Bar"] = Qt::Key_Bar;
-        keyNameToQt["Colon"] = Qt::Key_Colon;
-        keyNameToQt["QuoteDbl"] = Qt::Key_QuoteDbl;
-        keyNameToQt["Less"] = Qt::Key_Less;
-        keyNameToQt["Greater"] = Qt::Key_Greater;
-        keyNameToQt["Question"] = Qt::Key_Question;
+        keyNameToQt["Minus"] = Qt::Key_Minus;           // -
+        keyNameToQt["Equal"] = Qt::Key_Equal;           // =
+        keyNameToQt["BracketLeft"] = Qt::Key_BracketLeft;    // [
+        keyNameToQt["BracketRight"] = Qt::Key_BracketRight;  // ]
+        keyNameToQt["Backslash"] = Qt::Key_Backslash;   // \
+        keyNameToQt["Semicolon"] = Qt::Key_Semicolon;   // ;
+        keyNameToQt["Apostrophe"] = Qt::Key_Apostrophe; // '
+        keyNameToQt["QuoteLeft"] = Qt::Key_QuoteLeft;   // `
+        keyNameToQt["Comma"] = Qt::Key_Comma;           // ,
+        keyNameToQt["Period"] = Qt::Key_Period;         // .
+        keyNameToQt["Slash"] = Qt::Key_Slash;           // /
+        keyNameToQt["Hash"] = Qt::Key_NumberSign;       // #
+        keyNameToQt["Ampersand"] = Qt::Key_Ampersand;   // &
+        keyNameToQt["Asterisk"] = Qt::Key_Asterisk;     // *
+        keyNameToQt["ParenLeft"] = Qt::Key_ParenLeft;   // (
+        keyNameToQt["ParenRight"] = Qt::Key_ParenRight; // )
+        keyNameToQt["Exclam"] = Qt::Key_Exclam;         // !
+        keyNameToQt["At"] = Qt::Key_At;                 // @
+        keyNameToQt["Dollar"] = Qt::Key_Dollar;         // $
+        keyNameToQt["Percent"] = Qt::Key_Percent;       // %
+        keyNameToQt["AsciiCircum"] = Qt::Key_AsciiCircum; // ^
+        keyNameToQt["AsciiTilde"] = Qt::Key_AsciiTilde; // ~
+        keyNameToQt["Underscore"] = Qt::Key_Underscore; // _
+        keyNameToQt["Plus"] = Qt::Key_Plus;             // +
+        keyNameToQt["BraceLeft"] = Qt::Key_BraceLeft;   // {
+        keyNameToQt["BraceRight"] = Qt::Key_BraceRight; // }
+        keyNameToQt["Bar"] = Qt::Key_Bar;               // |
+        keyNameToQt["Colon"] = Qt::Key_Colon;           // :
+        keyNameToQt["QuoteDbl"] = Qt::Key_QuoteDbl;     // "
+        keyNameToQt["Less"] = Qt::Key_Less;             // <
+        keyNameToQt["Greater"] = Qt::Key_Greater;       // >
+        keyNameToQt["Question"] = Qt::Key_Question;     // ?
         // UK-specific keys
-        keyNameToQt["sterling"] = Qt::Key_sterling;
+        keyNameToQt["sterling"] = Qt::Key_sterling;     // £
         keyNameToQt["AltGr"] = Qt::Key_AltGr;
         // German-specific keys
-        keyNameToQt["Udiaeresis"] = Qt::Key_Udiaeresis;
-        keyNameToQt["Adiaeresis"] = Qt::Key_Adiaeresis;
-        keyNameToQt["Odiaeresis"] = Qt::Key_Odiaeresis;
-        keyNameToQt["ssharp"] = Qt::Key_ssharp;
-        keyNameToQt["Egrave"] = Qt::Key_Egrave;
-        keyNameToQt["Eacute"] = Qt::Key_Eacute;
-        keyNameToQt["Agrave"] = Qt::Key_Agrave;
+        keyNameToQt["Udiaeresis"] = Qt::Key_Udiaeresis; // Ü
+        keyNameToQt["Adiaeresis"] = Qt::Key_Adiaeresis; // Ä
+        keyNameToQt["Odiaeresis"] = Qt::Key_Odiaeresis; // Ö
+        keyNameToQt["ssharp"] = Qt::Key_ssharp;         // ß
+        keyNameToQt["Egrave"] = Qt::Key_Egrave;         // È
+        keyNameToQt["Eacute"] = Qt::Key_Eacute;         // É
+        keyNameToQt["Agrave"] = Qt::Key_Agrave;         // À
         // Function keys
         keyNameToQt["F1"] = Qt::Key_F1;
         keyNameToQt["F2"] = Qt::Key_F2;
@@ -144,31 +145,34 @@ struct KeyboardLayoutConfig {
         keyNameToQt["Insert"] = Qt::Key_Insert;
         keyNameToQt["Delete"] = Qt::Key_Delete;
         // Japanese-specific keys
-        keyNameToQt["Henkan"] = Qt::Key_Henkan;
-        keyNameToQt["Kana"] = Qt::Key_Kanji; // Corrected from Key_Kana to Key_Kanji
-        keyNameToQt["KatakanaHiragana"] = Qt::Key_Katakana; // Corrected from Key_KatakanaHiragana to Key_Katakana
-        keyNameToQt["Muhenkan"] = Qt::Key_Muhenkan;
-        keyNameToQt["Yen"] = Qt::Key_yen;
-        keyNameToQt["ZenkakuHankaku"] = Qt::Key_Zenkaku_Hankaku; // Corrected from Key_ZenkakuHankaku to Key_Zenkaku_Hankaku
+        keyNameToQt["Henkan"] = Qt::Key_Henkan;         // 変換
+        keyNameToQt["Kana"] = Qt::Key_Kanji;            // かな/カナ
+        keyNameToQt["KatakanaHiragana"] = Qt::Key_Katakana; // カタカナ/ひらがな
+        keyNameToQt["Muhenkan"] = Qt::Key_Muhenkan;     // 無変換
+        keyNameToQt["Yen"] = Qt::Key_yen;               // ¥
+        keyNameToQt["ZenkakuHankaku"] = Qt::Key_Zenkaku_Hankaku; // 全角/半角
         // Scandinavian keys
-        keyNameToQt["AE"] = Qt::Key_AE;
-        keyNameToQt["Aring"] = Qt::Key_Aring;
-        keyNameToQt["Ooblique"] = Qt::Key_Ooblique;
-        keyNameToQt["section"] = Qt::Key_section;
-        keyNameToQt["Section"] = Qt::Key_section;
-        keyNameToQt["onehalf"] = Qt::Key_onehalf;
+        keyNameToQt["AE"] = Qt::Key_AE;                 // Æ
+        keyNameToQt["Aring"] = Qt::Key_Aring;           // Å
+        keyNameToQt["Ooblique"] = Qt::Key_Ooblique;     // Ø
+        keyNameToQt["section"] = Qt::Key_section;       // §
+        keyNameToQt["Section"] = Qt::Key_section;       // §
+        keyNameToQt["onehalf"] = Qt::Key_onehalf;       // ½
         // Dead keys
-        keyNameToQt["Dead_Acute"] = Qt::Key_Dead_Acute;
-        keyNameToQt["Dead_Circumflex"] = Qt::Key_Dead_Circumflex;
-        keyNameToQt["Dead_Diaeresis"] = Qt::Key_Dead_Diaeresis;
-        keyNameToQt["Dead_Grave"] = Qt::Key_Dead_Grave;
-        keyNameToQt["Dead_Tilde"] = Qt::Key_Dead_Tilde;
+        keyNameToQt["Dead_Acute"] = Qt::Key_Dead_Acute;       // ´ (dead key)
+        keyNameToQt["Dead_Circumflex"] = Qt::Key_Dead_Circumflex; // ^ (dead key)
+        keyNameToQt["Dead_Diaeresis"] = Qt::Key_Dead_Diaeresis;  // ¨ (dead key)
+        keyNameToQt["Dead_Grave"] = Qt::Key_Dead_Grave;      // ` (dead key)
+        keyNameToQt["Dead_Tilde"] = Qt::Key_Dead_Tilde;      // ~ (dead key)
         // Additional special characters
-        keyNameToQt["Caret"] = Qt::Key_AsciiCircum;
-        keyNameToQt["Grave"] = Qt::Key_QuoteLeft;
-        keyNameToQt["acute"] = Qt::Key_acute; // Corrected from Key_Acute to Key_acute
-        keyNameToQt["currency"] = Qt::Key_currency;
-        keyNameToQt["NumberSign"] = Qt::Key_NumberSign;
+        keyNameToQt["AsciiCircum"] = Qt::Key_AsciiCircum;     // ^
+        keyNameToQt["Grave"] = Qt::Key_QuoteLeft;       // `
+        keyNameToQt["acute"] = Qt::Key_acute;           // ´
+        keyNameToQt["currency"] = Qt::Key_currency;     // ¤
+        keyNameToQt["NumberSign"] = Qt::Key_NumberSign; // #
+        // altgr keys
+        keyNameToQt["Mu"] = 0x00B5;                     // µ
+        keyNameToQt["degree"] = Qt::Key_degree;   // ¨
     }
     
 private:

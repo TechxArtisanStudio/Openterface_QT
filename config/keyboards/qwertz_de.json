@@ -14,11 +14,11 @@
         "Key_J": "0x0D",
         "Key_K": "0x0E",
         "Key_L": "0x0F",
-        "Key_M": "0x10",
+        "Key_M": "0x10", "Key_Mu": "0x10",
         "Key_N": "0x11",
         "Key_O": "0x12",
         "Key_P": "0x13",
-        "Key_Q": "0x14",
+        "Key_Q": "0x14", "Key_At": "0x14",
         "Key_R": "0x15",
         "Key_S": "0x16",
         "Key_T": "0x17",
@@ -51,13 +51,15 @@
         "Key_NumberSign": "0x31", "Key_Apostrophe": "0x31",
         "Key_Odiaeresis": "0x33", "Key_Eacute": "0x33",
         "Key_Adiaeresis": "0x34", "Key_Agrave": "0x34",
-        "Key_QuoteLeft": "0x35",
+        "Key_degree": "0x35","Key_AsciiCircum": "0x35",
+        "key_Dead_Acute":"0x34",
         "Key_Comma": "0x36",
         "Key_Period": "0x37",
         "Key_CapsLock": "0x39",
         "Key_Shift": "0xE5",
         "Key_Control": "0xE4",
-        "Key_Alt": "0xE6",
+        "Key_Alt": "0xE2",
+        "Key_AltGr": "0xE6",
         "Key_F1": "0x3A",
         "Key_F2": "0x3B",
         "Key_F3": "0x3C",
@@ -80,6 +82,7 @@
         "Key_End": "0x4D",
         "Key_Insert": "0x49",
         "Key_Delete": "0x4C"
+        
     },
     "char_mapping": {
         "a": "Key_A", "A": "Key_A",
@@ -124,7 +127,7 @@
         "0": "Key_0", "=": "Key_0",
         " ": "Key_Space",
         "\t": "Key_Tab",
-        "\n": "Key_Return", "\r": "Key_Return"
+        "\n": "Key_Return", "\r": "Key_Return"   
     },
     "need_shift_keys": [
         "!", "\"", "§", "$", "%", "&", "/", "(", ")", "=",
@@ -132,6 +135,9 @@
         "A", "B", "C", "D", "E", "F", "G", "H", "I",
         "J", "K", "L", "M", "N", "O", "P", "Q", "R",
         "S", "T", "U", "V", "W", "X", "Y", "Z",
-        "Ä", "Ö", "Ü"
-    ]
+        "Ä", "Ö", "Ü", "°"
+    ],
+    "need_altgr_keys": [
+        "@", "€", "~", "|", "{", "}", "[", "]", "\\", "µ"
+  ]
 }

@@ -40,6 +40,8 @@ env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   QT_CACHE_KEY: qt-6.5.3-mingw-windows
   JOM_CACHE_KEY: jom-1.1.3-windows
+  PACKAGE_DIR: "package_online"
+  EXE_NAME: "openterfaceQT.exe"
 
 jobs:
   build:
@@ -47,13 +49,7 @@ jobs:
     permissions:
       contents: write
     environment: ${{ github.event.inputs.TARGET_ENV || 'Openterface_build' }}
-    strategy:
-      matrix:
-        version: [offline, online]
-    env:
-      ARTIFACT: "${{ vars.MY_APP_EXE_NAME }}-${{ matrix.version }}"
-      PACKAGE_DIR: "package_${{ matrix.version }}"
-      EXE_NAME: "openterfaceQT_${{ matrix.version }}Version.exe"
+    
     steps:
       - uses: actions/checkout@v2
         with:
@@ -73,7 +69,6 @@ jobs:
           restore-keys: |
             ${{ env.QT_CACHE_KEY }}
             qt-6.5-mingw-windows
-
 
       - name: Update version
         run: |
@@ -119,24 +114,22 @@ jobs:
       
       - name: Create build directory
         run: |
-          $buildDir = ${{ runner.temp }}\build_${{ matrix.version }}"
-          mkdir $buildDir
+          mkdir ${{ runner.temp }}\build
 
-
-      - name: Build ${{ matrix.version }} version
-        working-directory: $buildDir
+      - name: Build
+        working-directory: ${{ runner.temp }}\build
         run: |
           echo "Building with qmake..."
           set PATH=${{ runner.temp }}\\Qt\\${{ env.QT_VERSION }}\\mingw_64\\bin;%PATH%
-
-          if "${{ matrix.version }}" == "online" (
-            set DEFINE_FLAG=DEFINES+=ONLINE_VERSION
-          ) else (
-            set DEFINE_FLAG=
-          )
-
+          
+          echo "Updating translations with lupdate..."
+          lupdate ${{ env.SOURCE_DIR }}\openterfaceQT.pro
+          
+          echo "Generating .qm files with lrelease..."
+          lrelease ${{ env.SOURCE_DIR }}\openterfaceQT.pro
+          
           qmake -v
-          qmake -r ${{ env.SOURCE_DIR }}\openterfaceQT.pro %DEFINE_FLAG%
+          qmake -r ${{ env.SOURCE_DIR }}\openterfaceQT.pro
           if errorlevel 1 exit /b 1
           
           echo "Building with mingw32-make..."
@@ -145,11 +138,9 @@ jobs:
 
           echo "\n release dir:"
           dir release
-          echo "\n dir:"
-          dir
-
+          
           if not exist release\openterfaceQT.exe (
-            echo "Error: Failed to build openterfaceQT.exe
+            echo "Error: Failed to build openterfaceQT.exe"
             exit 1
           )
           
@@ -157,20 +148,24 @@ jobs:
           mkdir ${{ env.PACKAGE_DIR }}
           mkdir ${{ env.PACKAGE_DIR }}\driver
           mkdir ${{ env.PACKAGE_DIR }}\driver\windows
+          mkdir ${{ env.PACKAGE_DIR }}\config\languages
+          mkdir ${{ env.PACKAGE_DIR }}\config\keyboards
 
           copy release\openterfaceQT.exe ${{ env.PACKAGE_DIR }}\${{ env.EXE_NAME }}
           copy ${{ env.SOURCE_DIR }}\LICENSE ${{ env.PACKAGE_DIR }}
           copy ${{ env.SOURCE_DIR }}\driver\windows\* ${{ env.PACKAGE_DIR }}\driver\windows
-          copy ${{ env.SOURCE_DIR }}\.github\workflows\capitalize-version.ps1 ${{ env.PACKAGE_DIR }}
-
+          
+          echo "Copying translation & keyboard layouts files..."
+          copy ${{ env.SOURCE_DIR }}\config\keyboards\*.json ${{ env.PACKAGE_DIR }}\config\keyboards
+          copy ${{ env.SOURCE_DIR }}\config\languages\*.qm ${{ env.PACKAGE_DIR }}\config\languages
           
           echo "Running windeployqt..."
           cd ${{ env.PACKAGE_DIR }}
           windeployqt --qmldir ${{ env.SOURCE_DIR }} ${{ env.EXE_NAME }} --compiler-runtime --multimedia
+          
 
       - name: Move build artifacts
-        run: move /Y $buildDir\${{ env.PACKAGE_DIR }} ${{ env.SOURCE_DIR }}
-        shell: cmd
+        run: move /Y ${{ runner.temp }}\build\${{ env.PACKAGE_DIR }} ${{ env.SOURCE_DIR }}
 
       - name: Compile .ISS to .EXE Installer
         uses: Minionguyjpro/Inno-Setup-Action@v1.2.2
@@ -182,38 +177,20 @@ jobs:
             /DMyAppPublisher="${{ vars.MY_APP_PUBLISHER }}" 
             /DMyAppURL="${{ vars.MY_APP_URL }}" 
             /DOutputDir="${{ env.SOURCE_DIR }}\Output" 
-            /DOutputBaseFileName=setup_${{ matrix.version }} 
+            /DOutputBaseFileName=setup 
             /DMyAppExeName=${{ env.EXE_NAME }}
             /DSourcePackage=${{ env.PACKAGE_DIR }}
-      # Write-Output "::set-output name=capitalizedVersion::$capitalizedVersion"
-      - name: Convert version to capitalized format using script
-        id: convert_version
-        run: |
-          $version = "${{ matrix.version }}"
-          $scriptPath = Join-Path -Path $env:GITHUB_WORKSPACE -ChildPath "${{ env.PACKAGE_DIR }}\capitalize-version.ps1"
-          Write-Output "Script path: $scriptPath"
-          if (Test-Path $scriptPath) {
-            $capitalizedVersion = & $scriptPath -version $version
-            Write-Output "capitalizedVersion<<EOF" >> $env:GITHUB_OUTPUT
-            Write-Output "$capitalizedVersion" >> $env:GITHUB_OUTPUT
-            Write-Output "EOF" >> $env:GITHUB_OUTPUT
-          } else {
-            Write-Error "Script not found at path: $scriptPath"
-            exit 1
-          }
-        shell: pwsh
 
       - name: Save build artifacts
         uses: actions/upload-artifact@v4
         with:
           name: ${{ env.ARTIFACT }}
           path: |
-            ${{ env.SOURCE_DIR }}\Output\setup_${{ steps.convert_version.outputs.capitalizedVersion }}.exe
+            ${{ env.SOURCE_DIR }}\Output\setup.exe
           if-no-files-found: error
         
-
       - name: Commit and push version update
-        if: success() && (github.event.inputs.increase_version == 'true' || github.event.inputs.increase_major == 'true' || github.event.inputs.increase_minor == 'true') && matrix.version == 'online'
+        if: success() && (github.event.inputs.increase_version == 'true' || github.event.inputs.increase_major == 'true' || github.event.inputs.increase_minor == 'true')
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
@@ -224,7 +201,6 @@ jobs:
           git push https://${{ env.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git HEAD:${{ github.ref }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        
 
   release:
     needs: build
@@ -272,6 +248,6 @@ jobs:
         uses: actions/upload-release-asset@v1
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: setup_${{ steps.convert_version.outputs.capitalizedVersion }}.exe
-          asset_name: setup_${{ steps.convert_version.outputs.capitalizedVersion }}.exe
+          asset_path: setup.exe
+          asset_name: setup.exe
           asset_content_type: application/octet-stream

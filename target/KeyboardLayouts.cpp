@@ -126,6 +126,20 @@ KeyboardLayoutConfig KeyboardLayoutConfig::fromJsonFile(const QString& filePath)
             config.needShiftKeys.append(keyStr.toInt(nullptr, 16));
         }
     }
+
+    if (json.contains("need_altgr_keys")) {
+        QJsonArray altGrKeys = json["need_altgr_keys"].toArray();
+        for (const QJsonValue& value : altGrKeys) {
+            QString keyStr = value.toString();
+            if (keyStr.length() == 1) {
+                config.needAltGrKeys.append(keyStr[0].unicode());
+                qCDebug(log_keyboard_layouts) << "Added AltGr key:" << keyStr;
+            } else {
+                config.needAltGrKeys.append(keyStr.toInt(nullptr, 16));
+                qCDebug(log_keyboard_layouts) << "Added AltGr key (hex):" << keyStr;
+            }
+        }
+    }
     
     return config;
 }
