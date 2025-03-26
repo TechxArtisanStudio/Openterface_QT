@@ -217,6 +217,8 @@ MainWindow::MainWindow() :  ui(new Ui::MainWindow),
     connect(m_cameraManager, &CameraManager::cameraError, this, &MainWindow::displayCameraError);
     connect(m_cameraManager, &CameraManager::imageCaptured, this, &MainWindow::processCapturedImage);                                         
     connect(m_cameraManager, &CameraManager::resolutionsUpdated, this, &MainWindow::onResolutionsUpdated);
+    connect(&VideoHid::getInstance(), &VideoHid::inputResolutionChanged, this, &MainWindow::onInputResolutionChanged);
+    connect(&VideoHid::getInstance(), &VideoHid::resolutionChangeUpdate, this, &MainWindow::onResolutionChange);
 
     #ifdef ONLINE_VERSION
         qCDebug(log_ui_mainwindow) << "Test actionTCPServer true...";
@@ -457,7 +459,15 @@ void MainWindow::resizeEvent(QResizeEvent *event) {
 
     qCDebug(log_ui_mainwindow) << "Handle window resize event.";
     QMainWindow::resizeEvent(event);  // Call base class implementation
+    
+    doResize();
 
+    // Update global variables with the new window size
+    isResizing = false;
+
+} // end resize event function
+
+void MainWindow::doResize(){
     // Check if the window is maximized
     if (this->windowState() & Qt::WindowMaximized) {
         // Handle maximized state
@@ -470,8 +480,14 @@ void MainWindow::resizeEvent(QResizeEvent *event) {
     }
 
     // Define the desired aspect ratio
+    if(GlobalVar::instance().getCaptureWidth() && GlobalVar::instance().getCaptureHeight()){
+        video_width = GlobalVar::instance().getCaptureWidth();
+        video_height = GlobalVar::instance().getCaptureHeight();
+    }
     qreal aspect_ratio = static_cast<qreal>(video_width) / video_height;
-
+    if(GlobalVar::instance().getInputAspectRatio()){
+        aspect_ratio = GlobalVar::instance().getInputAspectRatio();
+    }
 
     QScreen *currentScreen = this->screen();
     QRect availableGeometry = currentScreen->availableGeometry();
@@ -529,6 +545,7 @@ void MainWindow::resizeEvent(QResizeEvent *event) {
         videoPane->setMinimumSize(videoWidth, videoHeight);
         videoPane->resize(videoWidth, videoHeight);
 
+
         // Move the videoPane to the center horizontally
         
         // Resize the scrollArea to match the videoPane size
@@ -550,19 +567,15 @@ void MainWindow::resizeEvent(QResizeEvent *event) {
         resize(currentWidth, new_height);
 
         int contentHeight = this->height() - statusBarHeight - menuBarHeight;
+        qCDebug(log_ui_mainwindow) << "this height: "<< this->height();
         videoPane->setMinimumSize(this->width(), contentHeight);
         videoPane->resize(this->width(), contentHeight);
+        qCDebug(log_ui_mainwindow) << "video height: "<< contentHeight <<"video width: " << this->width();
         scrollArea->resize(this->width(), contentHeight);
         GlobalVar::instance().setWinWidth(this->width());
         GlobalVar::instance().setWinHeight(this->height());
     }
-
-    // Update global variables with the new window size
-    
-
-    isResizing = false;
-} // end resize event function
-
+}
 
 void MainWindow::moveEvent(QMoveEvent *event) {
     // Get the old and new positions
@@ -582,8 +595,10 @@ void MainWindow::moveEvent(QMoveEvent *event) {
 }
 
 void MainWindow::calculate_video_position(){
-
     double aspect_ratio = static_cast<double>(video_width) / video_height;
+    if(GlobalVar::instance().getInputAspectRatio()){
+        aspect_ratio = GlobalVar::instance().getInputAspectRatio();
+    } 
 
     int scaled_window_width, scaled_window_height;
     int titleBarHeight = this->frameGeometry().height() - this->geometry().height();
@@ -739,11 +754,11 @@ void MainWindow::onToggleSwitchStateChanged(int state)
     }
 }
 
-void MainWindow::onResolutionChange(const int& width, const int& height, const float& fps)
+void MainWindow::onResolutionChange(const int& width, const int& height, const float& fps, const float& pixelClk)
 {
     GlobalVar::instance().setInputWidth(width);
     GlobalVar::instance().setInputHeight(height);
-    m_statusBarManager->setInputResolution(width, height, fps);
+    m_statusBarManager->setInputResolution(width, height, fps, pixelClk);
 }
 
 void MainWindow::onTargetUsbConnected(const bool isConnected)
@@ -1189,26 +1204,59 @@ void MainWindow::checkMousePosition()
     }
 }
 
-void MainWindow::onVideoSettingsChanged(int width, int height) {
-    int newWidth = width + 1; 
-    int newHeight = height + 1;
+void MainWindow::onVideoSettingsChanged() {
+    int inputWidth = GlobalVar::instance().getInputWidth();
+    int inputHeight = GlobalVar::instance().getInputHeight();
+    int captureWidth = GlobalVar::instance().getCaptureWidth();
+    int captureHeight = GlobalVar::instance().getCaptureHeight();
 
-    // Resize the window
-    resize(newWidth, newHeight);
+    // Calculate aspect ratios
+    double inputAspectRatio = static_cast<double>(inputWidth) / inputHeight;
+    double captureAspectRatio = static_cast<double>(captureWidth) / captureHeight;
+
+    // Resize the window based on aspect ratios
+    if (inputAspectRatio != captureAspectRatio) {
+        // Adjust the window size to hide black bars
+        int newWidth = static_cast<int>(captureHeight * inputAspectRatio);
+        qDebug() << "Resize to " << newWidth << captureHeight;
+        resize(newWidth, captureHeight);
+    } else {
+        // If aspect ratios are the same, just resize normally
+        resize(captureWidth + 1, captureHeight + 1);
+    }
 
     // Optionally, you might want to center the window on the screen
     QScreen *screen = this->screen();
     QRect availableGeometry = screen->availableGeometry();
-    // QRect screenGeometry = QApplication::primaryScreen()->geometry();
-    int x = (availableGeometry.width() - newWidth) / 2;
-    int y = (availableGeometry.height() - newHeight) / 2;
+    int x = (availableGeometry.width() - captureWidth) / 2;
+    int y = (availableGeometry.height() - captureHeight) / 2;
     move(x, y);
 }
 
-void MainWindow::onResolutionsUpdated(int input_width, int input_height, float input_fps, int capture_width, int capture_height, int capture_fps)
+void MainWindow::onResolutionsUpdated(int input_width, int input_height, float input_fps, int capture_width, int capture_height, int capture_fps, float pixelClk)
 {
-    m_statusBarManager->setInputResolution(input_width, input_height, input_fps);
+    m_statusBarManager->setInputResolution(input_width, input_height, input_fps, pixelClk);
     m_statusBarManager->setCaptureResolution(capture_width, capture_height, capture_fps);
+
+    video_height = GlobalVar::instance().getCaptureHeight();
+    video_width = GlobalVar::instance().getCaptureWidth();
+}
+
+void MainWindow::onInputResolutionChanged(int old_input_width, int old_input_height, int new_input_width, int new_input_height)
+{
+    doResize();
+
+    // Calculate the maximum available content height with safety checks
+    int contentHeight = this->height() - ui->statusbar->height() - ui->menubar->height();
+
+    qDebug() << "contentHeight: " << contentHeight;
+    
+    // Set the videoPane to use the full available width and height
+    videoPane->setMinimumSize(videoPane->width(), contentHeight);
+    videoPane->resize(videoPane->width(), contentHeight);
+    
+    // Ensure scrollArea is also resized appropriately
+    scrollArea->resize(videoPane->width(), contentHeight);
 }
 
 void MainWindow::showScriptTool()

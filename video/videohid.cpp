@@ -47,9 +47,24 @@ void VideoHid::start() {
         if(eventCallback){
             if(isHdmiConnected()){
                 auto resolution = getResolution();
-                eventCallback->onResolutionChange(resolution.first, resolution.second, getFps());
+                auto fps = getFps();
+                auto pixclk = getPixelclk();
+                auto aspectRatio = resolution.second ? static_cast<float>(resolution.first) / resolution.second : 0;
+                GlobalVar::instance().setInputAspectRatio(aspectRatio);
+
+                if (pixclk > 185) {
+                    resolution.first *= 2;
+                    resolution.second *= 2;
+                }
+
+                if(GlobalVar::instance().getInputWidth()!=resolution.first || GlobalVar::instance().getInputHeight()!=resolution.second){
+                    emit inputResolutionChanged(GlobalVar::instance().getInputWidth(), GlobalVar::instance().getInputHeight(), resolution.first, resolution.second);
+                }
+                // qDebug() << "onResolutionChange: " << resolution.first << "x" << resolution.second << "fps: " << fps << " pixclk: " << pixclk << "MHz, aspectRatio: " << aspectRatio;
+                // eventCallback->onResolutionChange(resolution.first, resolution.second, fps);
+                emit resolutionChangeUpdate(resolution.first, resolution.second, fps, pixclk);
             }else{
-                eventCallback->onResolutionChange(0, 0, 0);
+                emit resolutionChangeUpdate(0, 0, 0, 0);
             }
 
             if(isHardSwitchOnTarget != currentSwitchOnTarget){ //Only handle change when hardware switch change
@@ -73,19 +88,23 @@ void VideoHid::stop() {
     }
 }
 
+
+/*
+Get the input resolution from capture card. 
+*/
 QPair<int, int> VideoHid::getResolution() {
-    quint8 width_h = static_cast<quint8>(usbXdataRead4Byte(ADDR_WIDTH_H).first.at(0));
-    quint8 width_l = static_cast<quint8>(usbXdataRead4Byte(ADDR_WIDTH_L).first.at(0));
+    quint8 width_h = static_cast<quint8>(usbXdataRead4Byte(ADDR_INPUT_WIDTH_H).first.at(0));
+    quint8 width_l = static_cast<quint8>(usbXdataRead4Byte(ADDR_INPUT_WIDTH_L).first.at(0));
     quint16 width = (width_h << 8) + width_l;
-    quint8 height_h = static_cast<quint8>(usbXdataRead4Byte(ADDR_HEIGHT_H).first.at(0));
-    quint8 height_l = static_cast<quint8>(usbXdataRead4Byte(ADDR_HEIGHT_L).first.at(0));
+    quint8 height_h = static_cast<quint8>(usbXdataRead4Byte(ADDR_INPUT_HEIGHT_H).first.at(0));
+    quint8 height_l = static_cast<quint8>(usbXdataRead4Byte(ADDR_INPUT_HEIGHT_L).first.at(0));
     quint16 height = (height_h << 8) + height_l;
     return qMakePair(width, height);
 }
 
 float VideoHid::getFps() {
-    quint8 fps_h = static_cast<quint8>(usbXdataRead4Byte(ADDR_FPS_H).first.at(0));
-    quint8 fps_l = static_cast<quint8>(usbXdataRead4Byte(ADDR_FPS_L).first.at(0));
+    quint8 fps_h = static_cast<quint8>(usbXdataRead4Byte(ADDR_INPUT_FPS_H).first.at(0));
+    quint8 fps_l = static_cast<quint8>(usbXdataRead4Byte(ADDR_INPUT_FPS_L).first.at(0));
     quint16 fps = (fps_h << 8) + fps_l;
     return static_cast<float>(fps) / 100;
 }
@@ -97,6 +116,12 @@ float VideoHid::getFps() {
  */
 bool VideoHid::getGpio0() {
     return usbXdataRead4Byte(ADDR_GPIO0).first.at(0) & 0x01;
+}
+
+float VideoHid::getPixelclk() {
+    quint8 clk_h = static_cast<quint8>(usbXdataRead4Byte(ADDR_INPUT_PIXELCLK_H).first.at(0));
+    quint8 clk_l = static_cast<quint8>(usbXdataRead4Byte(ADDR_INPUT_PIXELCLK_L).first.at(0));
+    return ((clk_h << 8) + clk_l)/100.0;
 }
 
 bool VideoHid::getSpdifout() {

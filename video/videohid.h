@@ -66,6 +66,8 @@ public:
     // Add declarations for openHIDDevice and closeHIDDevice
     bool openHIDDevice();
 
+    // HDMI timing Pixel clock
+    float getPixelclk();
 
     void loadFirmwareToEeprom();
 
@@ -74,6 +76,10 @@ signals:
     void firmwareWriteProgress(int percent);
     void firmwareWriteComplete(bool success);
     void firmwareWriteChunkComplete(int writtenBytes);
+
+    void inputResolutionChanged(int old_input_width, int old_input_height, int new_input_width, int new_input_height);
+
+    void resolutionChangeUpdate(const int& width, const int& height, const float& fps, const float& pixelClk);
 
 private:
     explicit VideoHid(QObject *parent = nullptr);

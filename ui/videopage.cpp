@@ -21,6 +21,7 @@
 */
 
 #include "videopage.h"
+#include "globalsetting.h"
 #include "host/cameramanager.h"
 #include <QDebug>
 #include <QComboBox>
@@ -29,6 +30,9 @@
 #include <QLabel>
 #include <QVariant>
 #include <QMediaFormat>
+#include <QLineEdit>
+#include <QCheckBox>
+#include <QFrame>
 
 
 VideoPage::VideoPage(CameraManager *cameraManager, QWidget *parent) : QWidget(parent)
@@ -41,10 +45,49 @@ void VideoPage::setupUI()
 {
     // UI setup implementation
     QLabel *videoLabel = new QLabel(
-        "<span style=' font-weight: bold;'>General video setting</span>");
+        "<span style=' font-weight: bold;'>Video setting</span>");
     videoLabel->setStyleSheet(bigLabelFontSize);
     videoLabel->setTextFormat(Qt::RichText);
 
+    // Input Resolution Setting Section
+    QCheckBox *overrideSettingsCheckBox = new QCheckBox("Override HDMI Input Setting");
+    overrideSettingsCheckBox->setObjectName("overrideSettingsCheckBox");
+
+    QLabel *inputResolutionLabel = new QLabel("Input Resolution: ");
+    inputResolutionLabel->setStyleSheet(bigLabelFontSize);
+    QLabel *customResolutionLabel = new QLabel("Resolution: ");
+
+    // Create a QWidget to hold the custom resolution layout
+    QWidget *customInputResolutionWidget = new QWidget();
+    QHBoxLayout *customResolutionLayout = new QHBoxLayout(customInputResolutionWidget); // Set layout to the widget
+
+    QLineEdit *customInputWidthEdit = new QLineEdit();
+    customInputWidthEdit->setPlaceholderText("Enter width");
+    customInputWidthEdit->setObjectName("customInputWidthEdit");
+
+    QLineEdit *customInputHeightEdit = new QLineEdit();
+    customInputHeightEdit->setPlaceholderText("Enter height");
+    customInputHeightEdit->setObjectName("customInputHeightEdit");
+
+    customResolutionLayout->addWidget(customResolutionLabel);
+    customResolutionLayout->addWidget(customInputWidthEdit);
+    QLabel *xLabel = new QLabel("x");
+    customResolutionLayout->addWidget(xLabel);
+    customResolutionLayout->addWidget(customInputHeightEdit);
+
+    // Add the Input Resolution section to the layout
+    QVBoxLayout *videoLayout = new QVBoxLayout(this);
+    videoLayout->addWidget(videoLabel);
+    videoLayout->addWidget(overrideSettingsCheckBox);
+    videoLayout->addWidget(customInputResolutionWidget);
+
+    // Add a horizontal line separator
+    QFrame *separatorLine = new QFrame();
+    separatorLine->setFrameShape(QFrame::HLine);
+    separatorLine->setFrameShadow(QFrame::Sunken);
+    videoLayout->addWidget(separatorLine);
+
+    // Capture Resolution Setting Section
     QLabel *resolutionsLabel = new QLabel("Capture resolutions: ");
     resolutionsLabel->setStyleSheet(smallLabelFontSize);
 
@@ -65,8 +108,7 @@ void VideoPage::setupUI()
     QComboBox *pixelFormatBox = new QComboBox();
     pixelFormatBox->setObjectName("pixelFormatBox");
 
-    QVBoxLayout *videoLayout = new QVBoxLayout(this);
-    videoLayout->addWidget(videoLabel);
+    // Add Capture Resolution elements to the layout
     videoLayout->addWidget(resolutionsLabel);
     videoLayout->addWidget(videoFormatBox);
     videoLayout->addWidget(framerateLabel);
@@ -74,6 +116,12 @@ void VideoPage::setupUI()
     videoLayout->addWidget(formatLabel);
     videoLayout->addWidget(pixelFormatBox);
     videoLayout->addStretch();
+
+    // Connect the checkbox state change to the slot
+    connect(overrideSettingsCheckBox, &QCheckBox::toggled, this, &VideoPage::toggleCustomResolutionInputs);
+
+    // Initialize the state of the custom resolution inputs
+    toggleCustomResolutionInputs(overrideSettingsCheckBox->isChecked());
 
     if (m_cameraManager && m_cameraManager->getCamera()) {
         const QList<QCameraFormat> videoFormats = m_cameraManager->getCameraFormats();
@@ -92,10 +140,9 @@ void VideoPage::setupUI()
         QString resolutionText = videoFormatBox->currentText();
         QStringList resolutionParts = resolutionText.split(' ').first().split('x');
         m_currentResolution = QSize(resolutionParts[0].toInt(), resolutionParts[1].toInt());
-
         updatePixelFormats();
-        connect(pixelFormatBox, &QComboBox::currentIndexChanged, this,
-                &VideoPage::updatePixelFormats);
+        // connect(pixelFormatBox, &QComboBox::currentIndexChanged, this,
+        //         &VideoPage::updatePixelFormats);
     } else {
         qWarning() << "CameraManager or Camera is not valid.";
     }
@@ -109,11 +156,11 @@ void VideoPage::populateResolutionBox(const QList<QCameraFormat> &videoFormats) 
         QSize resolution = format.resolution();
         int minFrameRate = format.minFrameRate();
         int maxFrameRate = format.maxFrameRate();
-        QVideoFrameFormat::PixelFormat pixelFormat = format.pixelFormat();
+        // QVideoFrameFormat::PixelFormat pixelFormat = format.pixelFormat();
 
-        VideoFormatKey key = {resolution, minFrameRate, maxFrameRate, pixelFormat};
+        // VideoFormatKey key = {resolution, minFrameRate, maxFrameRate, pixelFormat};
         // Use const_cast here to avoid the const issue
-        const_cast<std::map<VideoFormatKey, QCameraFormat>&>(videoFormatMap)[key] = format;
+        // const_cast<std::map<VideoFormatKey, QCameraFormat>&>(videoFormatMap)[key] = format;
 
         resolutionSampleRates[resolution].insert(minFrameRate);
         resolutionSampleRates[resolution].insert(maxFrameRate);
@@ -169,22 +216,31 @@ void VideoPage::updatePixelFormats()
         return;
     m_updatingFormats = true;
 
-    QMediaFormat format;
     QComboBox *pixelFormatBox = this->findChild<QComboBox*>("pixelFormatBox");
-    if (pixelFormatBox->count())
-        format.setVideoCodec(boxValue(pixelFormatBox).value<QMediaFormat::VideoCodec>());
-
-    int currentIndex = 0;
     pixelFormatBox->clear();
-    pixelFormatBox->addItem(tr("Default pixel format"),
-                            QVariant::fromValue(QMediaFormat::VideoCodec::Unspecified));
-    for (auto codec : format.supportedVideoCodecs(QMediaFormat::Encode)) {
-        if (codec == format.videoCodec())
-            currentIndex = pixelFormatBox->count();
-        pixelFormatBox->addItem(QMediaFormat::videoCodecDescription(codec),
-                                QVariant::fromValue(codec));
+
+    // Retrieve supported pixel formats from the camera manager
+    if (m_cameraManager) {
+        for (const auto &format : m_cameraManager->getSupportedPixelFormats()) {
+            QString description;
+
+            // Map pixel formats to their descriptions
+            switch (format.pixelFormat()) {
+                case QVideoFrameFormat::Format_YUV420P:
+                    description = "YUV420P";
+                    break;
+                case QVideoFrameFormat::Format_Jpeg:
+                    description = "JPEG";
+                    break;
+                default:
+                    description = "Unknown Format";
+                    break;
+            }
+
+            // Add each pixel format to the combo box
+            pixelFormatBox->addItem(description, QVariant::fromValue(format.pixelFormat()));
+        }
     }
-    pixelFormatBox->setCurrentIndex(currentIndex);
 
     m_updatingFormats = false;
 }
@@ -199,8 +255,20 @@ void VideoPage::applyVideoSettings() {
     QComboBox *fpsComboBox = this->findChild<QComboBox*>("fpsComboBox");
     int fps = fpsComboBox->currentData().toInt();
     qDebug() << "fpsComboBox current data:" << fpsComboBox->currentData();
-    QCameraFormat format = getVideoFormat(m_currentResolution, fps, QVideoFrameFormat::PixelFormat::Format_Jpeg);
-    qDebug() << "After video format get";
+    
+    // Ensure pixelFormatBox is found
+    QComboBox *pixelFormatBox = this->findChild<QComboBox*>("pixelFormatBox");
+    if (!pixelFormatBox) {
+        qWarning() << "pixelFormatBox not found!";
+        return; // Early exit if pixelFormatBox is not found
+    }
+
+    // Extract the pixel format from the QVariant
+    QVariant pixelFormatVariant = boxValue(pixelFormatBox);
+    QVideoFrameFormat::PixelFormat pixelFormat = static_cast<QVideoFrameFormat::PixelFormat>(pixelFormatVariant.toInt());
+    
+    QCameraFormat format = m_cameraManager->getVideoFormat(m_currentResolution, fps, pixelFormat);
+
     if (!format.isNull()) {
         qDebug() << "Set Camera Format, resolution:" << format.resolution() << ", FPS:" << fps << format.pixelFormat();
     } else {
@@ -219,6 +287,8 @@ void VideoPage::applyVideoSettings() {
     // Set the new camera format
     m_cameraManager->setCameraFormat(format);
 
+    handleResolutionSettings();
+
     qDebug() << "Set global variable to:" << format.resolution().width() << format.resolution().height() << fps;
     GlobalVar::instance().setCaptureWidth(format.resolution().width());
     GlobalVar::instance().setCaptureHeight(format.resolution().height());
@@ -227,7 +297,7 @@ void VideoPage::applyVideoSettings() {
     qDebug() << "Start the camera";
     // Start the camera with the new settings
     m_cameraManager->startCamera();
-    qDebug() << "Camera started";
+    // qDebug() << "Camera started";
 
     // Debug output to confirm settings
     QCameraFormat appliedFormat = m_cameraManager->getCameraFormat();
@@ -238,9 +308,8 @@ void VideoPage::applyVideoSettings() {
     updatePixelFormats();
 
     GlobalSetting::instance().setVideoSettings(format.resolution().width(), format.resolution().height(), fps);
-
     // Emit the signal with the new width and height
-    emit videoSettingsChanged(format.resolution().width(), format.resolution().height());
+    emit videoSettingsChanged();
 }
 
 void VideoPage::initVideoSettings() {
@@ -272,39 +341,27 @@ void VideoPage::initVideoSettings() {
     }
 }
 
-QCameraFormat VideoPage::getVideoFormat(const QSize &resolution, int desiredFrameRate, QVideoFrameFormat::PixelFormat pixelFormat) const {
-    QCameraFormat bestMatch;
-    int closestFrameRate = INT_MAX;
+void VideoPage::handleResolutionSettings() {
+    QLineEdit *customInputWidthEdit = this->findChild<QLineEdit*>("customInputWidthEdit");
+    QLineEdit *customInputHeightEdit = this->findChild<QLineEdit*>("customInputHeightEdit");
+    QCheckBox *overrideSettingsCheckBox = this->findChild<QCheckBox*>("overrideSettingsCheckBox");
 
-    if (m_cameraManager) {
-        for (const QCameraFormat &format : m_cameraManager->getCameraFormats()) {
-            QSize formatResolution = format.resolution();
-            int minFrameRate = format.minFrameRate();
-            int maxFrameRate = format.maxFrameRate();
-            QVideoFrameFormat::PixelFormat formatPixelFormat = format.pixelFormat();
-
-            VideoFormatKey key = {formatResolution, minFrameRate, maxFrameRate, formatPixelFormat};
-            // Use const_cast here to avoid the const issue
-            const_cast<std::map<VideoFormatKey, QCameraFormat>&>(videoFormatMap)[key] = format;
-
-            if (formatResolution == resolution && formatPixelFormat == pixelFormat) {
-                if (desiredFrameRate >= minFrameRate && desiredFrameRate <= maxFrameRate) {
-                    // If we find an exact match, return it immediately
-                    qDebug() << "Exact match found" << format.minFrameRate() << format.maxFrameRate();
-                    return format;
-                }
-
-                // Find the closest frame rate within the supported range
-                int midFrameRate = (minFrameRate + maxFrameRate) / 2;
-                int frameDiff = qAbs(midFrameRate - desiredFrameRate);
-                if (frameDiff < closestFrameRate) {
-                    qDebug() << "Closest match found";
-                    closestFrameRate = frameDiff;
-                    bestMatch = format;
-                }
-            }
-        }
+    if (overrideSettingsCheckBox->isChecked()) {
+        GlobalVar::instance().setUseCustomInputResolution(true);
+        int customWidth = customInputWidthEdit->text().toInt();
+        int customHeight = customInputHeightEdit->text().toInt();
+        GlobalVar::instance().setInputWidth(customWidth);
+        GlobalVar::instance().setInputHeight(customHeight);
+    }else{
+        GlobalVar::instance().setUseCustomInputResolution(false);
     }
+}
 
-    return bestMatch;
+void VideoPage::toggleCustomResolutionInputs(bool checked) {
+    QLineEdit *customInputWidthEdit = this->findChild<QLineEdit*>("customInputWidthEdit");
+    QLineEdit *customInputHeightEdit = this->findChild<QLineEdit*>("customInputHeightEdit");
+
+    // Enable or disable the input fields based on the checkbox state
+    customInputWidthEdit->setEnabled(checked);
+    customInputHeightEdit->setEnabled(checked);
 }

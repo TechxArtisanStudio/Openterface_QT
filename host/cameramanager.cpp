@@ -32,6 +32,7 @@ void CameraManager::setCamera(const QCameraDevice &cameraDevice, QVideoWidget* v
 
     queryResolutions();
 
+    // Set camera format
     startCamera();
 
     VideoHid::getInstance().start();
@@ -67,6 +68,7 @@ void CameraManager::startCamera()
     } else {
         qCWarning(log_ui_camera) << "Camera is null, cannot start";
     }
+    VideoHid::getInstance().start();
 }
 
 void CameraManager::stopCamera()
@@ -167,6 +169,11 @@ void CameraManager::setupConnections()
     if (m_camera) {
         connect(m_camera.get(), &QCamera::activeChanged, this, [this](bool active) {
             qCDebug(log_ui_camera) << "Camera active state changed to:" << active;
+            
+            if (active) {
+                configureResolutionAndFormat();
+            }
+
             emit cameraActiveChanged(active);
         });
         connect(m_camera.get(), &QCamera::errorOccurred, this, [this](QCamera::Error error, const QString &errorString) {
@@ -195,6 +202,33 @@ void CameraManager::setupConnections()
     } else {
         qCWarning(log_ui_camera) << "Media recorder is null";
     }
+}
+
+void CameraManager::configureResolutionAndFormat()
+{
+    // Get resolution directly from camera format if available
+    QCameraFormat currentFormat = m_camera->cameraFormat();
+    QSize resolution;
+    
+    if (currentFormat.isNull() || currentFormat.resolution().isEmpty()) {
+        // If camera format is not yet available, use stored values
+        resolution = QSize(m_video_width > 0 ? m_video_width : 1920, 
+                          m_video_height > 0 ? m_video_height : 1080);
+        qCDebug(log_ui_camera) << "Using stored/default resolution:" << resolution;
+    } else {
+        resolution = currentFormat.resolution();
+        qCDebug(log_ui_camera) << "Got resolution from camera format:" << resolution;
+        
+        // Update our stored values
+        m_video_width = resolution.width();
+        m_video_height = resolution.height();
+    }
+    
+    int fps = GlobalVar::instance().getCaptureFps() > 0 ? 
+        GlobalVar::instance().getCaptureFps() : 30;
+    
+    QCameraFormat format = getVideoFormat(resolution, fps, QVideoFrameFormat::Format_Jpeg);
+    setCameraFormat(format);
 }
 
 void CameraManager::setCameraFormat(const QCameraFormat &format) {
@@ -250,17 +284,70 @@ void CameraManager::loadCameraSettingAndSetCamera()
 void CameraManager::queryResolutions()
 {
     QPair<int, int> resolution = VideoHid::getInstance().getResolution();
+
     qCDebug(log_ui_camera) << "Input resolution: " << resolution;
+
     GlobalVar::instance().setInputWidth(resolution.first);
     GlobalVar::instance().setInputHeight(resolution.second);
+
     m_video_width = GlobalVar::instance().getCaptureWidth();
     m_video_height = GlobalVar::instance().getCaptureHeight();
 
     float input_fps = VideoHid::getInstance().getFps();
-    updateResolutions(resolution.first, resolution.second, input_fps, m_video_width, m_video_height, GlobalVar::instance().getCaptureFps());
+    float pixelClk = VideoHid::getInstance().getPixelclk();
+
+    emit resolutionsUpdated(resolution.first, resolution.second, input_fps, m_video_width, m_video_height, GlobalVar::instance().getCaptureFps(), pixelClk);
 }
 
-void CameraManager::updateResolutions(int input_width, int input_height, float input_fps, int capture_width, int capture_height, int capture_fps)
-{
-    emit resolutionsUpdated(input_width, input_height, input_fps, capture_width, capture_height, capture_fps);
+
+QList<QVideoFrameFormat> CameraManager::getSupportedPixelFormats() const {
+    QList<QVideoFrameFormat> pixelFormats;
+
+    QSize defaultSize(1920, 1080); // Set a default resolution, adjust as needed
+
+    pixelFormats.append(QVideoFrameFormat(defaultSize, QVideoFrameFormat::Format_Jpeg));
+    pixelFormats.append(QVideoFrameFormat(defaultSize, QVideoFrameFormat::Format_YUV420P));
+
+    return pixelFormats;
+}
+
+
+QCameraFormat CameraManager::getVideoFormat(const QSize &resolution, int desiredFrameRate, QVideoFrameFormat::PixelFormat pixelFormat) const {
+    QCameraFormat bestMatch;
+    int closestFrameRate = INT_MAX;
+
+
+    for (const QCameraFormat &format : getCameraFormats()) {
+        QSize formatResolution = format.resolution();
+        int minFrameRate = format.minFrameRate();
+        int maxFrameRate = format.maxFrameRate();
+        QVideoFrameFormat::PixelFormat formatPixelFormat = format.pixelFormat();
+
+        VideoFormatKey key = {formatResolution, minFrameRate, maxFrameRate, formatPixelFormat};
+        // Use const_cast here to avoid the const issue
+        const_cast<std::map<VideoFormatKey, QCameraFormat>&>(videoFormatMap)[key] = format;
+
+        if (formatResolution == resolution && formatPixelFormat == pixelFormat) {
+            if (desiredFrameRate >= minFrameRate && desiredFrameRate <= maxFrameRate) {
+                // If we find an exact match, return it immediately
+                qDebug() << "Exact match found" << format.minFrameRate() << format.maxFrameRate();
+                return format;
+            }
+
+            // Find the closest frame rate within the supported range
+            int midFrameRate = (minFrameRate + maxFrameRate) / 2;
+            int frameDiff = qAbs(midFrameRate - desiredFrameRate);
+            if (frameDiff < closestFrameRate) {
+                qDebug() << "Closest match found";
+                closestFrameRate = frameDiff;
+                bestMatch = format;
+            }
+        }
+    }
+
+    return bestMatch;
+}
+
+std::map<VideoFormatKey, QCameraFormat> CameraManager::getVideoFormatMap(){
+    return videoFormatMap;
 }

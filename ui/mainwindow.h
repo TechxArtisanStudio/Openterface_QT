@@ -170,8 +170,6 @@ private slots:
 
     void onSwitchableUsbToggle(const bool isToHost) override;
 
-    void onResolutionChange(const int& width, const int& height, const float& fps) override;
-
     void onTargetUsbConnected(const bool isConnected) override;
     
     bool CheckDeviceAccess(uint16_t vid, uint16_t pid);
@@ -200,7 +198,7 @@ protected:
 
     void queryResolutions();
 
-    void updateResolutions(int input_width, int input_height, float input_fps, int capture_width, int capture_height, int capture_fps);
+    void onResolutionChange(const int& width, const int& height, const float& fps, const float& pixelClk);
 
     void onButtonClicked();
 
@@ -223,8 +221,9 @@ private slots:
     void checkMousePosition();
 
 private slots:
-    void onVideoSettingsChanged(int width, int height);
-    void onResolutionsUpdated(int input_width, int input_height, float input_fps, int capture_width, int capture_height, int capture_fps);
+    void onVideoSettingsChanged();
+    void onResolutionsUpdated(int input_width, int input_height, float input_fps, int capture_width, int capture_height, int capture_fps, float pixelClk);
+    void onInputResolutionChanged(int old_input_width, int old_input_height, int new_input_width, int new_input_height);
 
 protected:
     bool eventFilter(QObject *watched, QEvent *event) override;
@@ -301,6 +300,8 @@ private:
     void onToolbarVisibilityChanged(bool visible);
 
     void animateVideoPane();
+
+    void doResize();
 
     void centerVideoPane();
     void checkInitSize();
