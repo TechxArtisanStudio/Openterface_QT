@@ -45,6 +45,7 @@ void VideoPage::setupUI()
 {
     // UI setup implementation
     QLabel *videoLabel = new QLabel(
+
         "<span style=' font-weight: bold;'>Video setting</span>");
     videoLabel->setStyleSheet(bigLabelFontSize);
     videoLabel->setTextFormat(Qt::RichText);
@@ -89,12 +90,18 @@ void VideoPage::setupUI()
 
     // Capture Resolution Setting Section
     QLabel *resolutionsLabel = new QLabel("Capture resolutions: ");
+
+    QString("<span style=' font-weight: bold;'>%1</span>").arg(tr("General video setting")));
+    videoLabel->setStyleSheet(bigLabelFontSize);
+    videoLabel->setTextFormat(Qt::RichText);
+
+    QLabel *resolutionsLabel = new QLabel(tr("Capture resolutions: "));
     resolutionsLabel->setStyleSheet(smallLabelFontSize);
 
     QComboBox *videoFormatBox = new QComboBox();
     videoFormatBox->setObjectName("videoFormatBox");
 
-    QLabel *framerateLabel = new QLabel("Framerate: ");
+    QLabel *framerateLabel = new QLabel(tr("Framerate: "));
     framerateLabel->setStyleSheet(smallLabelFontSize);
 
     QComboBox *fpsComboBox = new QComboBox();
@@ -103,7 +110,7 @@ void VideoPage::setupUI()
     QHBoxLayout *hBoxLayout = new QHBoxLayout();
     hBoxLayout->addWidget(fpsComboBox);
 
-    QLabel *formatLabel = new QLabel("Pixel format: ");
+    QLabel *formatLabel = new QLabel(tr("Pixel format: "));
     formatLabel->setStyleSheet(smallLabelFontSize);
     QComboBox *pixelFormatBox = new QComboBox();
     pixelFormatBox->setObjectName("pixelFormatBox");

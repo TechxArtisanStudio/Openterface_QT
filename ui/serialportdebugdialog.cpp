@@ -81,8 +81,8 @@ void SerialPortDebugDialog::createFilterCheckBox()
 }
 
 void SerialPortDebugDialog::createDebugButtonWidget(){
-    QPushButton *clearButton = new QPushButton("Clear");
-    QPushButton *closeButton = new QPushButton("Close");
+    QPushButton *clearButton = new QPushButton(tr("Clear"));
+    QPushButton *closeButton = new QPushButton(tr("Close"));
     closeButton->setFixedSize(90,30);
     clearButton->setFixedSize(90,30);
     QHBoxLayout *debugButtonLayout = new QHBoxLayout(debugButtonWidget);

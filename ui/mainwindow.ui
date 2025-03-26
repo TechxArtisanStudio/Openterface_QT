@@ -189,6 +189,11 @@
     <addaction name="actionPreferences"/>
     <addaction name="actionExit"/>
    </widget>
+   <widget class="QMenu" name="menuLanguages">
+     <property name="title">
+      <string>Languages</string>
+     </property>
+    </widget>
    <widget class="QMenu" name="menuControl">
     <property name="title">
      <string>Control</string>
@@ -259,6 +264,7 @@
    </widget>
    <addaction name="menuFile"/>
    <addaction name="menuEdit"/>
+   <addaction name="menuLanguages"/>
    <addaction name="menuControl"/>
    <addaction name="menuAdvance"/>
    <addaction name="menuHelp"/>

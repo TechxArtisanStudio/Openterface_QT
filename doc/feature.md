@@ -96,3 +96,41 @@ The following commands are supported in the scripts:
 - **SetScrollLockState**: Toggles the Scroll Lock state.
 - **FullScreenCapture**: Captures a full-screen image from the target device and saves it to a specified path on the host (the default path is the media directory for Windows/Linux).
 - **AreaScreenCapture**: Captures a screen image of a specified area from the target device and saves it to a designated path on the host (the default path is the media directory for Windows/Linux). The area is defined using coordinates (x, y) and dimensions (width, height).
+
+## Supported Languages
+- The software currently supports the following languages:
+  - Danish
+  - English (default)
+  - French 
+  - German
+  - Japanese
+  - Swedish
+
+### Adding New Languages
+To add support for a new language:
+1. Add language .ts files to openterface.pro 
+  ```
+  TRANSLATIONS += config/languages/openterface_en.ts \
+                config/languages/openterface_fr.ts \
+                config/languages/openterface_da.ts \
+                config/languages/openterface_ja.ts \
+                config/languages/openterface_se.ts \
+                config/languages/openterface_de.ts 
+                # Add more languages here
+  ```
+2. Run the following command to generate the .ts files:
+command:
+   ```sh
+   lupdate openterfaceQT.pro
+   ```
+3. Translate the text in the `.ts` file.
+like:
+   ```
+   <source>hello</source>
+   <translation>你好</translation>
+   ```
+
+4. Compile the `.ts` file into a `.qm` file using the command:
+   ```sh
+   lrelease openterfaceQT.pro
+   ```

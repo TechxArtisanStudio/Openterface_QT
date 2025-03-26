@@ -46,7 +46,7 @@
 #include "ui/TaskManager.h"
 #include "../scripts/semanticAnalyzer.h"
 #include "../scripts/AST.h"
-
+#include "ui/languagemanager.h"
 
 #ifdef ONLINE_VERSION
 #define SERVER_PORT 12345
@@ -103,7 +103,7 @@ class MainWindow : public QMainWindow, public StatusEventCallback
     Q_OBJECT
 
 public:
-    MainWindow();
+    MainWindow(LanguageManager *languageManager, QWidget *parent = nullptr);
     void calculate_video_position();
     void stop();
     // Add this line to declare the destructor
@@ -247,7 +247,10 @@ private:
     QToolBar *toolbar;
     ToolbarManager *toolbarManager; // Moved up in the declaration orde r
     
-
+    LanguageManager *m_languageManager;
+    void updateUI();
+    void setupLanguageMenu();
+    void onLanguageSelected(QAction *action);
 
     QMediaDevices m_source;
     QScopedPointer<QImageCapture> m_imageCapture;

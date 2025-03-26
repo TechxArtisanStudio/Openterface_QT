@@ -88,9 +88,9 @@ EnvironmentSetupDialog::EnvironmentSetupDialog(QWidget *parent) :
     ui->copyButton->setVisible(false);
     ui->commandsTextEdit->setVisible(false);
     if(isDriverInstalled)
-        ui->descriptionLabel->setText(tickHtml + " The driver is installed. No further action is required.");
+        ui->descriptionLabel->setText(tickHtml + tr(" The driver is installed. No further action is required."));
     else
-        ui->descriptionLabel->setText(crossHtml + " The driver is missing. Openterface Mini-KVM will install it automatically.");
+        ui->descriptionLabel->setText(crossHtml + tr(" The driver is missing. Openterface Mini-KVM will install it automatically."));
 #else
     setFixedSize(450, 450);
     ui->commandsTextEdit->setVisible(true);
@@ -103,11 +103,11 @@ EnvironmentSetupDialog::EnvironmentSetupDialog(QWidget *parent) :
     connect(ui->copyButton, &QPushButton::clicked, this, &EnvironmentSetupDialog::copyCommands);
 
     // Create the status summary
-    QString statusSummary = "The following steps help you install the driver and add user to correct group. Current status:\n";
-    statusSummary += "‣ Driver Installed: " + QString(isDriverInstalled ? tickHtml : crossHtml) + "<br>";
-    statusSummary += "‣ In Dialout Group: " + QString(isInRightUserGroup ? tickHtml : crossHtml) + "<br>";
-    statusSummary += "‣ HID Permission: " + QString(isHidPermission ? tickHtml : crossHtml) + "<br>";
-    statusSummary += "‣ BRLTTY checking: " + QString(isBrlttyRunning ? crossHtml + " (needs removal)" : tickHtml + " (not running)");
+    QString statusSummary = tr("The following steps help you install the driver and add user to correct group. Current status:\n");
+    statusSummary += tr("‣ Driver Installed: ") + QString(isDriverInstalled ? tickHtml : crossHtml) + "<br>";
+    statusSummary += tr("‣ In Dialout Group: ") + QString(isInRightUserGroup ? tickHtml : crossHtml) + "<br>";
+    statusSummary += tr("‣ HID Permission: ") + QString(isHidPermission ? tickHtml : crossHtml) + "<br>";
+    statusSummary += tr("‣ BRLTTY checking: ") + QString(isBrlttyRunning ? crossHtml + tr(" (needs removal)") : tickHtml + tr(" (not running)"));
     ui->descriptionLabel->setText(statusSummary);
 
     // Create help link
@@ -152,7 +152,7 @@ void EnvironmentSetupDialog::installDriverForWindows() {
 // Add the new method for extracting driver files
 void EnvironmentSetupDialog::extractDriverFiles() {
     // Open a file dialog to select the destination directory
-    QString selectedDir = QFileDialog::getExistingDirectory(this, "Select Destination Directory", QDir::homePath());
+    QString selectedDir = QFileDialog::getExistingDirectory(this, tr("Select Destination Directory"), QDir::homePath());
 
     if (selectedDir.isEmpty()) {
         // If no directory was selected, return early
@@ -208,10 +208,10 @@ void EnvironmentSetupDialog::accept()
     #elif defined(__linux__)
         // Check the current status
         QString statusSummary;
-        statusSummary += "Driver Installed: " + QString(isDriverInstalled ? "Yes" : "No") + "\n";
-        statusSummary += "In Dialout Group: " + QString(isInRightUserGroup ? "Yes" : "No") + "\n";
-        statusSummary += "HID Permission: " + QString(isHidPermission ? "Yes" : "No") + "\n";
-        statusSummary += "BRLTTY is Running: " + QString(isBrlttyRunning ? "Yes (needs removal)" : "No") + "\n";
+        statusSummary += tr("Driver Installed: ") + QString(isDriverInstalled ? tr("Yes") : tr("No")) + "\n";
+        statusSummary += tr("In Dialout Group: ") + QString(isInRightUserGroup ? tr("Yes") : tr("No")) + "\n";
+        statusSummary += tr("HID Permission: ") + QString(isHidPermission ? tr("Yes") : tr("No")) + "\n";
+        statusSummary += tr("BRLTTY is Running: ") + QString(isBrlttyRunning ? tr("Yes (needs removal)") : tr("No")) + "\n";
 
         // Append the status summary to the description label
         ui->descriptionLabel->setText(ui->descriptionLabel->text() + "\n" + statusSummary);
@@ -220,9 +220,9 @@ void EnvironmentSetupDialog::accept()
     if(!isDriverInstalled){
         QMessageBox::StandardButton reply = QMessageBox::question(
             this,
-            "Restart Required",
-            "The driver has been installed. A system restart and device re-plugging is required for the changes to take effect.\n\n"
-            "Would you like to restart your computer now?",
+            tr("Restart Required"),
+            tr("The driver has been installed. A system restart and device re-plugging is required for the changes to take effect.\n\n"
+            "Would you like to restart your computer now?"),
             QMessageBox::Yes | QMessageBox::No
         );
         if (reply == QMessageBox::Yes) {
@@ -235,8 +235,8 @@ void EnvironmentSetupDialog::accept()
         } else {
             QMessageBox::information(
                 this,
-                "Restart Later",
-                "Please remember to restart your computer and re-plug the device for the driver to work properly."
+                tr("Restart Later"),
+                tr("Please remember to restart your computer and re-plug the device for the driver to work properly.")
             );
         }
     }

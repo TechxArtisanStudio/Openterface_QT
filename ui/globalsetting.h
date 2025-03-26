@@ -76,6 +76,11 @@ public:
     void setMouseAutoHideEnable(bool enable);
 
     bool getMouseAutoHideEnable();
+
+    void setLangeuage(QString language);
+
+    void getLanguage(QString &language);
+
 private:
     QSettings m_settings;
 };
