@@ -186,6 +186,9 @@ protected:
     void onActionRelativeTriggered();
     void onActionAbsoluteTriggered();
 
+    void onActionMouseAutoHideTriggered();
+    void onActionMouseAlwaysShowTriggered();
+
     void onActionResetHIDTriggered();
     void onActionResetSerialPortTriggered();
     void onActionFactoryResetHIDTriggered();

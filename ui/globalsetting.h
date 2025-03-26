@@ -72,6 +72,10 @@ public:
     void setKeyboardLayout(QString keyboardLayout);
 
     void getKeyboardLayout(QString &keyboardLayout);
+
+    void setMouseAutoHideEnable(bool enable);
+
+    bool getMouseAutoHideEnable();
 private:
     QSettings m_settings;
 };

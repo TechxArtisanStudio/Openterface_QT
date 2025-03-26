@@ -135,6 +135,8 @@ MainWindow::MainWindow() :  ui(new Ui::MainWindow),
 
     initializeKeyboardLayouts();
 
+    GlobalVar::instance().setMouseAutoHide(GlobalSetting::instance().getMouseAutoHideEnable());
+
     m_statusBarManager = new StatusBarManager(ui->statusbar, this);
     taskmanager = TaskManager::instance();
     
@@ -173,6 +175,9 @@ MainWindow::MainWindow() :  ui(new Ui::MainWindow),
     qCDebug(log_ui_mainwindow) << "Observe Relative/Absolute toggle...";
     connect(ui->actionRelative, &QAction::triggered, this, &MainWindow::onActionRelativeTriggered);
     connect(ui->actionAbsolute, &QAction::triggered, this, &MainWindow::onActionAbsoluteTriggered);
+
+    connect(ui->actionMouseAutoHide, &QAction::triggered, this, &MainWindow::onActionMouseAutoHideTriggered);
+    connect(ui->actionMouseAlwaysShow, &QAction::triggered, this, &MainWindow::onActionMouseAlwaysShowTriggered);
 
     qCDebug(log_ui_mainwindow) << "Observe reset HID triggerd...";
     connect(ui->actionResetHID, &QAction::triggered, this, &MainWindow::onActionResetHIDTriggered);
@@ -680,6 +685,18 @@ void MainWindow::onActionRelativeTriggered()
 void MainWindow::onActionAbsoluteTriggered()
 {
     GlobalVar::instance().setAbsoluteMouseMode(true);
+}
+
+void MainWindow::onActionMouseAutoHideTriggered()
+{
+    GlobalVar::instance().setMouseAutoHide(true);
+    GlobalSetting::instance().setMouseAutoHideEnable(true);
+}
+
+void MainWindow::onActionMouseAlwaysShowTriggered()
+{
+    GlobalVar::instance().setMouseAutoHide(false);
+    GlobalSetting::instance().setMouseAutoHideEnable(false);
 }
 
 void MainWindow::onActionResetHIDTriggered()

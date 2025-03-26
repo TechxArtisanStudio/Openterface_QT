@@ -102,6 +102,8 @@ public:
     int getToolbarHeight() const { return toolbarHeight; }
     void setToolbarHeight(int height) { toolbarHeight = height; }
 
+    bool isMouseAutoHideEnabled() const { return m_mouseAutoHide; }
+    void setMouseAutoHide(bool autoHide) { m_mouseAutoHide = autoHide; }
 private:
     GlobalVar() : input_width(1920), input_height(1080), capture_width(1920), capture_height(1080), capture_fps(30) {} // Private constructor
     ~GlobalVar() {} // Private destructor
@@ -142,6 +144,8 @@ private:
 
     bool toolbarVisible = true;
     int toolbarHeight = 0;
+
+    bool m_mouseAutoHide = true;
 };
 
 #endif

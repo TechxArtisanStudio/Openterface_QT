@@ -136,6 +136,16 @@ void GlobalSetting::setKeyboardLayout(QString keyboardLayout){
 void GlobalSetting::getKeyboardLayout(QString &keyboardLayout){
     keyboardLayout = m_settings.value("keyboard/keyboardLayout", "US QWERTY").toString();
 }
+
+void GlobalSetting::setMouseAutoHideEnable(bool enable){
+    m_settings.setValue("mouse/autoHide", enable);
+}
+
+bool GlobalSetting::getMouseAutoHideEnable(){
+    return m_settings.value("mouse/autoHide", true).toBool();
+}
+
+
 /*
 * Convert QString to ByteArray
 */

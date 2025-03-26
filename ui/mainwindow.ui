@@ -200,6 +200,13 @@
      <addaction name="actionAbsolute"/>
      <addaction name="actionRelative"/>
     </widget>
+    <widget class="QMenu" name="menuMouse_Visibility">
+     <property name="title">
+      <string>Mouse Visibility</string>
+     </property>
+     <addaction name="actionMouseAutoHide"/>
+     <addaction name="actionMouseAlwaysShow"/>
+    </widget>
     <widget class="QMenu" name="menuBaudrate">
      <property name="title">
       <string>Baudrate</string>
@@ -215,6 +222,7 @@
      <addaction name="actionTo_Target"/>
     </widget>
     <addaction name="menuMouse_Mode"/>
+    <addaction name="menuMouse_Visibility"/>
     <addaction name="menuSwitchable_USB"/>
     <addaction name="menuBaudrate"/>
     <addaction name="separator"/>
@@ -425,6 +433,33 @@
     </property>
    </action>
   </actiongroup>
+  <actiongroup name="actionMouseVisibilityGroup">
+   <action name="actionMouseAutoHide">
+    <property name="checkable">
+     <bool>true</bool>
+    </property>
+    <property name="checked">
+     <bool>true</bool>
+    </property>
+    <property name="text">
+     <string>Auto Hide</string>
+    </property>
+    <property name="toolTip">
+     <string>Auto hide mouse cursor</string>
+    </property>
+   </action>
+   <action name="actionMouseAlwaysShow">
+    <property name="checkable">
+     <bool>true</bool>
+    </property>
+    <property name="text">
+     <string>Always Show</string>
+    </property>
+    <property name="toolTip">
+     <string>Always show mouse cursor</string>
+    </property>
+  </action>
+ </actiongroup>
  </widget>
  <resources>
   <include location="mainwindow.qrc"/>
