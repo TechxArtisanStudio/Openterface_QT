@@ -91,7 +91,7 @@ void VideoPage::setupUI()
     // Capture Resolution Setting Section
     QLabel *resolutionsLabel = new QLabel("Capture resolutions: ");
 
-    QString("<span style=' font-weight: bold;'>%1</span>").arg(tr("General video setting")));
+    QString("<span style=' font-weight: bold;'>%1</span>").arg(tr("General video setting"));
     videoLabel->setStyleSheet(bigLabelFontSize);
     videoLabel->setTextFormat(Qt::RichText);
 
