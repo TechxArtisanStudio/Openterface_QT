@@ -40,27 +40,6 @@ QT_BEGIN_NAMESPACE
 class QCameraFormat;
 QT_END_NAMESPACE
 
-// Struct to represent a video format key, used for comparing and sorting video formats
-// It includes resolution, frame rate range, and pixel format
-struct VideoFormatKey {
-    QSize resolution;
-    int minFrameRate;
-    int maxFrameRate;
-    QVideoFrameFormat::PixelFormat pixelFormat;
-
-    bool operator<(const VideoFormatKey &other) const {
-        if (resolution.width() != other.resolution.width())
-            return resolution.width() < other.resolution.width();
-        if (resolution.height() != other.resolution.height())
-            return resolution.height() < other.resolution.height();
-        if (minFrameRate != other.minFrameRate)
-            return minFrameRate < other.minFrameRate;
-        if (maxFrameRate != other.maxFrameRate)
-            return maxFrameRate < other.maxFrameRate;
-        return pixelFormat < other.pixelFormat;
-    }
-};
-
 
 struct QSizeComparator {
     bool operator()(const QSize& lhs, const QSize& rhs) const {
@@ -81,13 +60,16 @@ public:
     void applyVideoSettings();
     
 signals:
-    void videoSettingsChanged(int width, int height);
+    void videoSettingsChanged();
+    void inputResolutionChanged(const QSize &resolution);
+
+private slots:
+    void toggleCustomResolutionInputs(bool checked);
 
 private:
     CameraManager *m_cameraManager;
     QSize m_currentResolution;
     bool m_updatingFormats = false;
-    std::map<VideoFormatKey, QCameraFormat> videoFormatMap;
 
     QLabel *videoLabel;
     QLabel *resolutionsLabel;
@@ -98,9 +80,9 @@ private:
     QComboBox *pixelFormatBox;
     void populateResolutionBox(const QList<QCameraFormat> &videoFormats);
     void setFpsRange(const std::set<int> &fpsValues);
+    void handleResolutionSettings();
     QVariant boxValue(const QComboBox *) const;
     void updatePixelFormats();
-    QCameraFormat getVideoFormat(const QSize &resolution, int desiredFrameRate, QVideoFrameFormat::PixelFormat pixelFormat) const;
 };
 
 #endif // VIDEOPAGE_H

@@ -43,6 +43,9 @@ public:
         static GlobalVar instance;
         return instance;
     }
+    bool isUseCustomInputResolution() const { return customInputResolution; }
+    void setUseCustomInputResolution(bool value) { customInputResolution = value; }
+
 
     int getInputWidth() const { return input_width; }
     void setInputWidth(int width) { input_width = width; }
@@ -52,6 +55,9 @@ public:
 
     float getInputFps() const { return input_fps; }
     void setInputFps(float fps) { input_fps = fps; }
+
+    float getInputAspectRatio() const { return input_aspect_ratio; }
+    void setInputAspectRatio(float aspect_ratio) { input_aspect_ratio = aspect_ratio; }
 
     int getCaptureWidth() const { return capture_width; }
     void setCaptureWidth(int width) { capture_width = width; }
@@ -96,6 +102,8 @@ public:
     int getToolbarHeight() const { return toolbarHeight; }
     void setToolbarHeight(int height) { toolbarHeight = height; }
 
+    bool isMouseAutoHideEnabled() const { return m_mouseAutoHide; }
+    void setMouseAutoHide(bool autoHide) { m_mouseAutoHide = autoHide; }
 private:
     GlobalVar() : input_width(1920), input_height(1080), capture_width(1920), capture_height(1080), capture_fps(30) {} // Private constructor
     ~GlobalVar() {} // Private destructor
@@ -112,11 +120,13 @@ private:
     int input_width;
     int input_height;
     float input_fps;
+    float input_aspect_ratio;
 
     // The capture card capture resolution
     int capture_width;
     int capture_height;
     float capture_fps;
+
 
     int win_width;
     int win_height;
@@ -128,11 +138,14 @@ private:
     bool absolute_mouse_mode = true;
     std::string captureCardFirmwareVersion;
 
+    bool customInputResolution = false;
 
     bool _isSwitchOnTarget = true;
 
     bool toolbarVisible = true;
     int toolbarHeight = 0;
+
+    bool m_mouseAutoHide = true;
 };
 
 #endif

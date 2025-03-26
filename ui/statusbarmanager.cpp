@@ -82,9 +82,9 @@ void StatusBarManager::setStatusUpdate(const QString& status)
     m_statusWidget->setStatusUpdate(status);
 }
 
-void StatusBarManager::setInputResolution(int width, int height, float fps)
+void StatusBarManager::setInputResolution(int width, int height, float fps, float pixelClk)
 {
-    m_statusWidget->setInputResolution(width, height, fps);
+    m_statusWidget->setInputResolution(width, height, fps, pixelClk);
 }
 
 void StatusBarManager::setCaptureResolution(int width, int height, int fps)

@@ -89,6 +89,18 @@ bool InputHandler::eventFilter(QObject *watched, QEvent *event)
         handleWheelEvent(wheelEvent);
         return true;
     }
+    if (event->type() == QEvent::Enter) {
+        if (GlobalVar::instance().isMouseAutoHideEnabled() && m_videoPane) {
+            m_videoPane->setCursor(Qt::BlankCursor);
+            qDebug() << "Mouse entered VideoPane - hiding cursor";
+        }
+    }
+    if (event->type() == QEvent::Leave) {
+        if (GlobalVar::instance().isMouseAutoHideEnabled() && m_videoPane) {
+            m_videoPane->setCursor(Qt::ArrowCursor);
+            qDebug() << "Mouse left VideoPane - showing cursor";
+        }
+    }
     if (watched == m_videoPane && event->type() == QEvent::KeyPress) {
         QKeyEvent *keyEvent = static_cast<QKeyEvent*>(event);
         handleKeyPressEvent(keyEvent);

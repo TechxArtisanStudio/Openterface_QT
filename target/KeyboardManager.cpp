@@ -217,7 +217,6 @@ void KeyboardManager::handleKeyboardAction(int keyCode, int modifiers, bool isKe
             }
             currentMappedKeyCodes.clear();
         }
-        qDebug() << "Send command :" << keyData.toHex(' ');
         
         emit SerialPortManager::getInstance().sendCommandAsync(keyData, false);
         currentMappedKeyCodes.clear(); //clear the mapped keycodes after send command
