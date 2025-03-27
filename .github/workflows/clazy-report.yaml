@@ -31,7 +31,7 @@ jobs:
           version: '6.5.3'
           host: 'linux'
           arch: 'gcc_64'
-          modules: 'qtmultimedia qtserialport'
+          modules: 'qtmultimedia qtserialport qttools'
 
       - name: Install dependencies
         run: |
@@ -49,6 +49,8 @@ jobs:
       - name: Build project with compilation database
         run: |
           mkdir build
+          lupdate openterfaceQT.pro
+          lrelease openterfaceQT.pro
           cd build
           qmake ..
           bear -- make -j$(nproc)
