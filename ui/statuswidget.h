@@ -33,7 +33,7 @@ class StatusWidget : public QWidget {
 public:
     explicit StatusWidget(QWidget *parent = nullptr);
 
-    void setInputResolution(const int &width, const int &height, const float &fps);
+    void setInputResolution(const int &width, const int &height, const float &fps, const float &pixelClk);
     void setCaptureResolution(const int &width, const int &height, const float &fps);
     void setKeyboardIndicators(const QString &indicators);
     void setConnectedPort(const QString &port, const int &baudrate);

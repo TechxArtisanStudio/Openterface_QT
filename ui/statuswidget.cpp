@@ -51,13 +51,16 @@ StatusWidget::StatusWidget(QWidget *parent) : QWidget(parent), m_captureWidth(0)
     update();
 }
 
-void StatusWidget::setInputResolution(const int &width, const int &height, const float &fps) {
+void StatusWidget::setInputResolution(const int &width, const int &height, const float &fps, const float &pixelClk) {
     if(width == 0 || height == 0 || fps == 0) {
         inputResolutionLabel->setText("INPUT(NA),");
+        inputResolutionLabel->setToolTip("Input video is not available");
         update();
         return;
     }
     inputResolutionLabel->setText(QString("INPUT(%1X%2@%3),").arg(width).arg(height).arg(fps));
+    QString tooltip = QString("Input Resolution: %1 x %2@%3\nPixel Clock: %4Mhz").arg(width).arg(height).arg(fps).arg(pixelClk);
+    inputResolutionLabel->setToolTip(tooltip);
     update(); 
 }
 

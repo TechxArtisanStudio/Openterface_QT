@@ -51,6 +51,15 @@ jobs:
             libusb-1.0-0-dev \
             bear
 
+      - name: Release translations
+        working-directory: ${{ github.workspace }}
+        run: |
+            lrelease openterfaceQT.pro
+            mkdir -p ${{ env.BUILD_DIR }}/config/languages
+            mkdir -p ${{ env.BUILD_DIR }}/config/keyboards
+            cp config/keyboards/*.json ${{ env.BUILD_DIR }}/config/keyboards
+            cp config/languages/*.qm ${{ env.BUILD_DIR }}/config/languages
+
       - name: Build project with compilation database
         run: |
           mkdir -p build/config/languages
