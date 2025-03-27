@@ -24,7 +24,12 @@ jobs:
         run: |
             git config user.name github-actions[bot]
             git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          
+      
+      - name: List available Qt modules (debug)
+        run: |
+          python3 -m pip install aqtinstall
+          python3 -m aqt list-qt linux desktop --modules 6.5.3 gcc_64
+
       - name: Install Qt 6.5.3
         uses: jurplel/install-qt-action@v4
         with:
@@ -58,6 +63,8 @@ jobs:
       - name: Build project with compilation database
         run: |
           mkdir build
+          lupdate openterfaceQT.pro
+          lrelease openterfaceQT.pro
           cd build
           qmake ..
           bear -- make -j$(nproc)
