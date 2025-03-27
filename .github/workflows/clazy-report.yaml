@@ -53,9 +53,9 @@ jobs:
 
       - name: Build project with compilation database
         run: |
-          mkdir build
+          mkdir -p build/config/languages
           lupdate openterfaceQT.pro
-          lrelease openterfaceQT.pro
+          lrelease openterfaceQT.pro 
           cd build
           qmake ..
           bear -- make -j$(nproc)
