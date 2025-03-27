@@ -57,7 +57,9 @@ jobs:
           ls
           mkdir build
           lupdate openterfaceQT.pro
+
           lrelease openterfaceQT.pro 
+
           cd build
           qmake ..
           bear -- make -j$(nproc)
