@@ -20,7 +20,7 @@ public:
     void onLastMouseLocation(const QPoint& location, const QString& mouseEvent);
     void setConnectedPort(const QString& port, const int& baudrate);
     void setStatusUpdate(const QString& status);
-    void setInputResolution(int width, int height, float fps);
+    void setInputResolution(int width, int height, float fps, float pixelClk);
     void setCaptureResolution(int width, int height, int fps);
     void setTargetUsbConnected(bool isConnected);
     void updateIconColor();

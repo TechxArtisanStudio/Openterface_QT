@@ -11,6 +11,31 @@
 #include <QImageCapture>
 #include <QStandardPaths>
 #include <QRect>
+#include <QList>
+#include <QSize>
+#include <QVideoFrameFormat>
+
+// Struct to represent a video format key, used for comparing and sorting video formats
+// It includes resolution, frame rate range, and pixel format
+struct VideoFormatKey {
+    QSize resolution;
+    int minFrameRate;
+    int maxFrameRate;
+    QVideoFrameFormat::PixelFormat pixelFormat;
+
+    bool operator<(const VideoFormatKey &other) const {
+        if (resolution.width() != other.resolution.width())
+            return resolution.width() < other.resolution.width();
+        if (resolution.height() != other.resolution.height())
+            return resolution.height() < other.resolution.height();
+        if (minFrameRate != other.minFrameRate)
+            return minFrameRate < other.minFrameRate;
+        if (maxFrameRate != other.maxFrameRate)
+            return maxFrameRate < other.maxFrameRate;
+        return pixelFormat < other.pixelFormat;
+    }
+};
+
 
 class CameraManager : public QObject
 {
@@ -35,15 +60,20 @@ public:
     QList<QCameraFormat> getCameraFormats() const;
     void loadCameraSettingAndSetCamera();
     void queryResolutions();
-    void updateResolutions(int input_width, int input_height, float input_fps, int capture_width, int capture_height, int capture_fps);
+    void configureResolutionAndFormat();
+    std::map<VideoFormatKey, QCameraFormat> getVideoFormatMap();
 
+    // Updated method to return supported pixel formats
+    QList<QVideoFrameFormat> getSupportedPixelFormats() const;
+    QCameraFormat getVideoFormat(const QSize &resolution, int desiredFrameRate, QVideoFrameFormat::PixelFormat pixelFormat) const;
+    
 signals:
     void cameraActiveChanged(bool active);
     void cameraSettingsApplied();
     void recordingStarted();
     void recordingStopped();
     void cameraError(const QString &errorString);
-    void resolutionsUpdated(int input_width, int input_height, float input_fps, int capture_width, int capture_height, int capture_fps);
+    void resolutionsUpdated(int input_width, int input_height, float input_fps, int capture_width, int capture_height, int capture_fps, float pixelClk);
     void imageCaptured(int id, const QImage& img);
     void lastImagePath(const QString& imagePath);
     
@@ -60,7 +90,9 @@ private:
     int m_video_height;
     QString filePath;
     void setupConnections();
+
     QRect copyRect;
+    std::map<VideoFormatKey, QCameraFormat> videoFormatMap;
 };
 
 #endif // CAMERAMANAGER_H

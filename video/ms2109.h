@@ -17,14 +17,29 @@ const uint16_t ADDR_FIRMWARE_VERSION_1 = 0xCBDD;
 const uint16_t ADDR_FIRMWARE_VERSION_2 = 0xCBDE;
 const uint16_t ADDR_FIRMWARE_VERSION_3 = 0xCBDF;
 
-const uint16_t ADDR_WIDTH_H = 0xC738;
-const uint16_t ADDR_WIDTH_L = 0xC739;
+// The patch variable address for input width and height is not correct, so we need to use the correct address
+// const uint16_t ADDR_INPUT_WIDTH_H = 0xC738;      //old address
+// const uint16_t ADDR_INPUT_WIDTH_L = 0xC739;      //old address
 
-const uint16_t ADDR_HEIGHT_H = 0xC73A;
-const uint16_t ADDR_HEIGHT_L = 0xC73B;
+const uint16_t ADDR_INPUT_WIDTH_H = 0xC6AF;
+const uint16_t ADDR_INPUT_WIDTH_L = 0xC6B0;
 
-const uint16_t ADDR_FPS_H = 0xC73E;
-const uint16_t ADDR_FPS_L = 0xC73F;
+// const uint16_t ADDR_INPUT_HEIGHT_H = 0xC73A;     //old address
+// const uint16_t ADDR_INPUT_HEIGHT_L = 0xC73B;     //old address
+const uint16_t ADDR_INPUT_HEIGHT_H = 0xC6B1;
+const uint16_t ADDR_INPUT_HEIGHT_L = 0xC6B2;
+
+// const uint16_t ADDR_FPS_H = 0xC73E;
+// const uint16_t ADDR_FPS_L = 0xC73F;
+
+const uint16_t ADDR_INPUT_FPS_H = 0xC6B5;
+const uint16_t ADDR_INPUT_FPS_L = 0xC6B6;
+
+const uint16_t ADDR_INPUT_PIXELCLK_H = 0xC73C;
+const uint16_t ADDR_INPUT_PIXELCLK_L = 0xC73D;
+
+// const uint16_t ADDR_INPUT_PIXELCLK_H = 0xC6B3;
+// const uint16_t ADDR_INPUT_PIXELCLK_L = 0xC6B4;
 
 const quint8 CMD_XDATA_WRITE = 0xB6;
 const quint8 CMD_XDATA_READ = 0xB5;

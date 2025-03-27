@@ -42,6 +42,7 @@ VideoPane::VideoPane(QWidget *parent) : QVideoWidget(parent), escTimer(new QTime
         childWidget->setStyleSheet("background-color: rgba(0, 0, 0, 50);"); // 50 is the alpha value (0-255), adjust as needed
         childWidget->setAttribute(Qt::WA_TranslucentBackground);
     }
+    this->setAspectRatioMode(Qt::IgnoreAspectRatio);
     this->setMouseTracking(true);
     this->installEventFilter(m_inputHandler);
     this->setFocusPolicy(Qt::StrongFocus);
