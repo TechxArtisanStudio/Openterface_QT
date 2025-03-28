@@ -1,0 +1,283 @@
+name: Clazy Analysis for OpenterfaceQT
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: write
+  pull-requests: write
+  pages: write
+
+jobs:
+  clazy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Configure Git Credentials
+        run: |
+            git config user.name github-actions[bot]
+            git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+      
+      - name: List available Qt modules (debug)
+        run: |
+          python3 -m pip install aqtinstall
+          python3 -m aqt list-qt linux desktop --modules 6.5.3 gcc_64
+
+      - name: Install Qt 6.5.3
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.5.3'
+          host: 'linux'
+          arch: 'gcc_64'
+          modules: 'qtmultimedia qtserialport'
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clazy \
+            libusb-1.0-0-dev \
+            libavcodec-dev \
+            libavformat-dev \
+            libavutil-dev \
+            libswscale-dev \
+            libavdevice-dev \
+            libusb-1.0-0-dev \
+            bear
+
+
+      - name: Build project with compilation database
+        run: |
+          ls
+          mkdir build
+          lupdate openterfaceQT.pro
+
+          lrelease openterfaceQT.pro 
+
+          cd build
+          qmake ..
+          bear -- make -j$(nproc)
+
+      - name: Run Clazy
+        run: |
+          cd build
+          export CLAZY_CHECKS="level0,level1,level2"
+          echo "Running Clazy analysis..."
+          echo "Current directory: $(pwd)"
+          echo "Checking for compile_commands.json:"
+          ls -la compile_commands.json || echo "compile_commands.json not found!"
+          
+          # Create empty results file
+          touch clazy_results.txt
+          
+          # List all files that will be analyzed
+          echo "Files to be analyzed:"
+          find ../video -type f \( -name "*.cpp" -o -name "*.h" \) -print
+          
+          # Analyze each file individually with error handling
+          while IFS= read -r file; do
+            echo "----------------------------------------"
+            echo "Analyzing: $file"
+            if [ -f "$file" ]; then
+              # Get absolute path
+              abs_path=$(realpath "$file")
+              echo "Absolute path: $abs_path"
+              
+              # Run clazy with full error output
+              clazy-standalone -p compile_commands.json "$abs_path" >> clazy_results.txt 2>&1 || {
+                echo "Warning: Clazy returned non-zero for $file"
+                echo "Continuing with next file..."
+              }
+            else
+              echo "Warning: File not found: $file"
+            fi
+          done < <(find ../video -type f \( -name "*.cpp" -o -name "*.h" \))
+          
+          # Show clazy version and debug info
+          echo "----------------------------------------"
+          echo "Clazy version info:"
+          clazy-standalone --version
+          
+          # Show compilation database info
+          echo "----------------------------------------"
+          echo "Compilation database contents:"
+          head -n 20 compile_commands.json
+          
+          # Filter out Qt-related warnings and system headers
+          echo "----------------------------------------"
+          echo "Filtering results..."
+          grep -v "Qt\|/usr/include" clazy_results.txt > filtered_results.txt || true
+          mv filtered_results.txt clazy_results.txt
+          
+          # Show results file content
+          echo "----------------------------------------"
+          echo "Analysis results:"
+          cat clazy_results.txt || echo "No results file found"
+          
+          # Check if results file has content
+          if [ ! -s clazy_results.txt ]; then
+            echo "Warning: No Clazy results generated."
+            echo "Directory contents:"
+            ls -la
+          else
+            echo "Analysis completed successfully."
+            echo "Results file size: $(wc -c < clazy_results.txt) bytes"
+          fi
+
+      - name: Convert results to HTML
+        run: |
+          cat > convert.py << 'EOF'
+          import sys
+          import html
+          import os
+          import re
+
+          def process_clazy_output(content):
+              # Split content into lines
+              lines = content.split('\n')
+              processed_lines = []
+              
+              # Regular expressions for different types of messages
+              warning_pattern = re.compile(r'warning:', re.IGNORECASE)
+              error_pattern = re.compile(r'error:', re.IGNORECASE)
+              file_pattern = re.compile(r'^(.+\.[ch]pp):(\d+):(\d+):')
+              
+              for line in lines:
+                  if not line.strip():
+                      continue
+                      
+                  # Escape HTML characters
+                  line = html.escape(line)
+                  
+                  # Color coding based on message type
+                  if warning_pattern.search(line):
+                      # Extract file, line, and column info
+                      match = file_pattern.match(line)
+                      if match:
+                          file_path, line_num, col = match.groups()
+                          file_name = os.path.basename(file_path)
+                          line = f'<div class="warning"><span class="file">{file_name}</span>:<span class="line-num">{line_num}</span>:{col} {line[match.end():]}</div>'
+                      else:
+                          line = f'<div class="warning">{line}</div>'
+                  elif error_pattern.search(line):
+                      match = file_pattern.match(line)
+                      if match:
+                          file_path, line_num, col = match.groups()
+                          file_name = os.path.basename(file_path)
+                          line = f'<div class="error"><span class="file">{file_name}</span>:<span class="line-num">{line_num}</span>:{col} {line[match.end():]}</div>'
+                      else:
+                          line = f'<div class="error">{line}</div>'
+                  else:
+                      line = f'<div class="info">{line}</div>'
+                      
+                  processed_lines.append(line)
+                  
+              return '\n'.join(processed_lines)
+
+          results_file = 'build/clazy_results.txt'
+          if not os.path.exists(results_file):
+              print(f"Warning: {results_file} does not exist!")
+              content = "No analysis results found."
+          else:
+              with open(results_file, 'r') as f:
+                  content = f.read() or "No issues found in the analysis."
+
+          processed_content = process_clazy_output(content)
+
+          html_content = f"""
+          <!DOCTYPE html>
+          <html>
+          <head>
+              <title>Clazy Analysis Report</title>
+              <style>
+                  body {{
+                      font-family: 'Segoe UI', Arial, sans-serif;
+                      margin: 40px;
+                      background-color: #f8f9fa;
+                      color: #333;
+                  }}
+                  h1 {{
+                      color: #2c3e50;
+                      border-bottom: 2px solid #3498db;
+                      padding-bottom: 10px;
+                  }}
+                  .container {{
+                      background-color: white;
+                      padding: 20px;
+                      border-radius: 8px;
+                      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+                  }}
+                  .warning {{
+                      color: #856404;
+                      background-color: #fff3cd;
+                      padding: 10px;
+                      margin: 5px 0;
+                      border-radius: 4px;
+                      border-left: 4px solid #ffeeba;
+                  }}
+                  .error {{
+                      color: #721c24;
+                      background-color: #f8d7da;
+                      padding: 10px;
+                      margin: 5px 0;
+                      border-radius: 4px;
+                      border-left: 4px solid #f5c6cb;
+                  }}
+                  .info {{
+                      color: #0c5460;
+                      background-color: #d1ecf1;
+                      padding: 10px;
+                      margin: 5px 0;
+                      border-radius: 4px;
+                      border-left: 4px solid #bee5eb;
+                  }}
+                  .file {{
+                      font-weight: bold;
+                      color: #2c3e50;
+                  }}
+                  .line-num {{
+                      color: #e74c3c;
+                      font-weight: bold;
+                  }}
+                  pre {{
+                      margin: 0;
+                      white-space: pre-wrap;
+                      font-family: 'Consolas', 'Monaco', monospace;
+                  }}
+              </style>
+          </head>
+          <body>
+              <h1>Clazy Analysis Report</h1>
+              <div class="container">
+                  {processed_content}
+              </div>
+          </body>
+          </html>
+          """
+
+          with open('clazy_report.html', 'w') as f:
+              f.write(html_content)
+          EOF
+          python3 convert.py
+
+      - name: Checkout gh-pages branch
+        run: |
+          git config --global user.name "github-actions"
+          git config --global user.email "github-actions@github.com"
+          git checkout --orphan gh-pages
+
+      - name: Copy HTML report
+        run: |
+          mv clazy_report.html index.html
+          git add index.html
+          git commit -m "Update Clazy report"
+
+      - name: Push to gh-pages
+        run: |
+          git push --force origin gh-pages
