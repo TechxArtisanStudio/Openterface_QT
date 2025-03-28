@@ -278,42 +278,67 @@ Veuillez réessayer après avoir redémarré l&apos;application.</translation>
         <translation type="vanished">Périphérique composite USB cible personnalisé VID et PID: </translation>
     </message>
     <message>
-        <location filename="../../ui/hardwarepage.cpp" line="40"/>
+        <location filename="../../ui/hardwarepage.cpp" line="41"/>
+        <source>Target Control Operating Mode:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/hardwarepage.cpp" line="44"/>
+        <source>Standard USB keyboard + USB mouse device + USB custom HID device</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/hardwarepage.cpp" line="45"/>
+        <source>Standard USB keyboard device</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/hardwarepage.cpp" line="46"/>
+        <source>Standard USB keyboard + USB mouse device</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/hardwarepage.cpp" line="47"/>
+        <source>Standard USB custom HID device</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/hardwarepage.cpp" line="72"/>
         <source>Custom target USB Composite Device VID and PID:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/hardwarepage.cpp" line="41"/>
+        <location filename="../../ui/hardwarepage.cpp" line="73"/>
         <source>Custom target USB descriptors: </source>
         <translation>Descripteurs USB cibles personnalisés: </translation>
     </message>
     <message>
-        <location filename="../../ui/hardwarepage.cpp" line="42"/>
+        <location filename="../../ui/hardwarepage.cpp" line="74"/>
         <source>VID: </source>
         <translation>VID : </translation>
     </message>
     <message>
-        <location filename="../../ui/hardwarepage.cpp" line="43"/>
+        <location filename="../../ui/hardwarepage.cpp" line="75"/>
         <source>PID: </source>
         <translation>PID : </translation>
     </message>
     <message>
-        <location filename="../../ui/hardwarepage.cpp" line="44"/>
+        <location filename="../../ui/hardwarepage.cpp" line="76"/>
         <source>Custom vendor descriptor:</source>
         <translation>Descripteur vendeur personnalisé :</translation>
     </message>
     <message>
-        <location filename="../../ui/hardwarepage.cpp" line="45"/>
+        <location filename="../../ui/hardwarepage.cpp" line="77"/>
         <source>Custom product descriptor:</source>
         <translation>Descripteur produit personnalisé :</translation>
     </message>
     <message>
-        <location filename="../../ui/hardwarepage.cpp" line="46"/>
+        <location filename="../../ui/hardwarepage.cpp" line="78"/>
         <source>USB serial number:</source>
         <translation>Numéro de série USB :</translation>
     </message>
     <message>
-        <location filename="../../ui/hardwarepage.cpp" line="47"/>
+        <location filename="../../ui/hardwarepage.cpp" line="79"/>
         <source>Enable custom USB flag</source>
         <translation>Activer l&apos;indicateur USB personnalisé</translation>
     </message>
@@ -878,13 +903,13 @@ Voulez-vous procéder à la mise à jour ?</translation>
     </message>
     <message>
         <location filename="../../ui/settingdialog.cpp" line="101"/>
+        <location filename="../../ui/settingdialog.cpp" line="170"/>
         <source>Target Control</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/settingdialog.cpp" line="170"/>
         <source>Hardware</source>
-        <translation>Matériel</translation>
+        <translation type="vanished">Matériel</translation>
     </message>
     <message>
         <location filename="../../ui/settingdialog.cpp" line="118"/>

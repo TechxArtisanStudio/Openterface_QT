@@ -24,6 +24,7 @@
 #include "globalsetting.h"
 #include "serial/SerialPortManager.h"
 #include <QSettings>
+#include <QMessageBox>
 
 HardwarePage::HardwarePage(QWidget *parent) : QWidget(parent)
 {
@@ -32,13 +33,45 @@ HardwarePage::HardwarePage(QWidget *parent) : QWidget(parent)
 
 void HardwarePage::setupUI()
 {
-    // UI setup implementation
+    // UI setup implementation for existing controls
     hardwareLabel = new QLabel(
         QString("<span style='font-weight: bold;'>%1</span>").arg(tr("Target control setting")));
     hardwareLabel->setStyleSheet(bigLabelFontSize);
 
-    QLabel *VIDPIDLabel = new QLabel(tr("Custom target USB Composite Device VID and PID:"));
-    QLabel *USBDescriptor = new QLabel(tr("Custom target USB descriptors: "));
+    // Operating Mode Section
+    QLabel *operatingModeLabel = new QLabel(QString("<span style='font-weight: bold;'>%1</span>").arg(tr("Target Control Operating Mode:")));
+    
+    // Create radio buttons for operating modes
+    fullModeRadio = new QRadioButton(tr("Standard USB keyboard + USB mouse device + USB custom HID device"));
+    keyboardOnlyRadio = new QRadioButton(tr("Standard USB keyboard device"));
+    keyboardMouseRadio = new QRadioButton(tr("Standard USB keyboard + USB mouse device"));
+    customHIDRadio = new QRadioButton(tr("Standard USB custom HID device"));
+    
+    // Group the radio buttons
+    operatingModeGroup = new QButtonGroup(this);
+    operatingModeGroup->addButton(fullModeRadio, 0);
+    operatingModeGroup->addButton(keyboardOnlyRadio, 1);
+    operatingModeGroup->addButton(keyboardMouseRadio, 2);
+    operatingModeGroup->addButton(customHIDRadio, 3);
+    
+    // Create layout for operating mode section
+    QVBoxLayout *operatingModeLayout = new QVBoxLayout();
+    operatingModeLayout->addWidget(operatingModeLabel);
+    operatingModeLayout->addWidget(fullModeRadio);
+    operatingModeLayout->addWidget(keyboardOnlyRadio);
+    operatingModeLayout->addWidget(keyboardMouseRadio);
+    operatingModeLayout->addWidget(customHIDRadio);
+    
+    // Create a horizontal line separator
+    QFrame *operatingModeSeparator = new QFrame();
+    operatingModeSeparator->setFrameShape(QFrame::HLine);
+    operatingModeSeparator->setFrameShadow(QFrame::Sunken);
+    operatingModeLayout->addWidget(operatingModeSeparator);
+    operatingModeLayout->addSpacing(10);
+    
+
+    QLabel *VIDPIDLabel = new QLabel(QString("<span style='font-weight: bold;'>%1</span>").arg(tr("Custom target USB Composite Device VID and PID:")));
+    QLabel *USBDescriptor = new QLabel(QString("<span style='font-weight: bold;'>%1</span>").arg(tr("Custom target USB descriptors: ")));
     QLabel *VID = new QLabel(tr("VID: "));
     QLabel *PID = new QLabel(tr("PID: "));
     QCheckBox *VIDCheckBox = new QCheckBox(tr("Custom vendor descriptor:"));
@@ -93,8 +126,9 @@ void HardwarePage::setupUI()
     gridLayout->addWidget(USBSerialNumberCheckBox, 6, 0, Qt::AlignLeft);
     gridLayout->addWidget(serialNumberLineEdit, 6, 1, Qt::AlignLeft);
 
-    QVBoxLayout *hardwareLayout = new QVBoxLayout(this);
+    QVBoxLayout *hardwareLayout = new QVBoxLayout(this);    
     hardwareLayout->addWidget(hardwareLabel);
+    hardwareLayout->addLayout(operatingModeLayout);
     hardwareLayout->addWidget(VIDPIDLabel);
     hardwareLayout->addLayout(gridLayout);
     hardwareLayout->addStretch();
@@ -149,6 +183,12 @@ void HardwarePage::onCheckBoxStateChanged(int state) {
 void HardwarePage::applyHardwareSetting()
 {
     QSettings settings("Techxartisan", "Openterface");
+    
+    // Save the selected operating mode
+    int selectedMode = operatingModeGroup->checkedId();
+    settings.setValue("hardware/operatingMode", selectedMode);
+    GlobalSetting::instance().setOperatingMode(selectedMode);
+    
     QLineEdit *VIDLineEdit = this->findChild<QLineEdit*>("VIDLineEdit");
     QLineEdit *PIDLineEdit = this->findChild<QLineEdit*>("PIDLineEdit");
     QLineEdit *VIDDescriptorLineEdit = this->findChild<QLineEdit*>("VIDDescriptorLineEdit");
@@ -167,6 +207,13 @@ void HardwarePage::applyHardwareSetting()
     SerialPortManager::getInstance().changeUSBDescriptor();
     QThread::msleep(10);
     SerialPortManager::getInstance().setUSBconfiguration();
+
+    // Check if operating mode has changed
+    if (selectedMode != originalOperatingMode) {
+        SerialPortManager::getInstance().resetHipChip();
+        QMessageBox::information(this, tr("App Restart Required"), 
+            tr("You have changed the USB operating mode. Please restart the application and re-connect the Openterface Mini-KVM for this change to take effect."));
+    }
 }
 
 QByteArray HardwarePage::convertCheckBoxValueToBytes(){
@@ -190,6 +237,19 @@ QByteArray HardwarePage::convertCheckBoxValueToBytes(){
 void HardwarePage::initHardwareSetting()
 {
     QSettings settings("Techxartisan", "Openterface");
+
+    // Initialize operating mode
+    int operatingMode = settings.value("hardware/operatingMode", 2).toInt(); // Default to keyboard+mouse mode (2)
+    QAbstractButton *button = operatingModeGroup->button(operatingMode);
+    if (button) {
+        button->setChecked(true);
+    } else {
+        keyboardMouseRadio->setChecked(true); // Default to keyboard+mouse mode
+        operatingMode = 2; // Set default value if button not found
+    }
+    
+    // Store the original operating mode for change detection
+    originalOperatingMode = operatingMode;
 
     QCheckBox *VIDCheckBox = this->findChild<QCheckBox*>("VIDCheckBox");
     QCheckBox *PIDCheckBox = this->findChild<QCheckBox*>("PIDCheckBox");

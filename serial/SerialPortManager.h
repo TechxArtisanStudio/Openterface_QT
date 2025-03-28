@@ -79,8 +79,9 @@ public:
     void setUSBconfiguration();
     void changeUSBDescriptor();
     bool setBaudRate(int baudrate);
-    void setCommandDelay(int delayMs);  // New method to set the delay
-    void stop();  // New method to stop the serial port manager
+    void setCommandDelay(int delayMs);  // set the delay
+    void stop(); //stop the serial port manager
+
     
 signals:
     void dataReceived(const QByteArray &data);

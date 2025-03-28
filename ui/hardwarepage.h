@@ -34,8 +34,11 @@
 #include <QMediaDevices>
 #include <QMap>
 #include <QCamera>
+#include <QRadioButton>
+#include <QButtonGroup>
 #include "host/cameramanager.h"
 #include "fontstyle.h"
+
 class HardwarePage : public QWidget
 {
     Q_OBJECT
@@ -65,8 +68,18 @@ private:
     
     std::array<bool, 4> extractBits(QString hexString);
     QByteArray convertCheckBoxValueToBytes();
-        QMap<QCheckBox *, QLineEdit *> USBCheckBoxEditMap; // map of checkboxes to line edit about VID PID etc.
+    QMap<QCheckBox *, QLineEdit *> USBCheckBoxEditMap; // map of checkboxes to line edit about VID PID etc.
 
+    // Operating mode widgets
+    QButtonGroup *operatingModeGroup;
+    QRadioButton *fullModeRadio;
+    QRadioButton *keyboardOnlyRadio;
+    QRadioButton *keyboardMouseRadio;
+    QRadioButton *customHIDRadio;
+
+    const QString bigLabelFontSize = "font-size: 16px;";
+
+    int originalOperatingMode;
 };
 
 #endif // HARDWAREPAGE_H

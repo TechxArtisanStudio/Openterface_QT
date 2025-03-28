@@ -279,42 +279,67 @@ Please try again after restarting the application.</source>
         <translation type="vanished">カスタムターゲット USB 複合デバイス VID と PID: </translation>
     </message>
     <message>
-        <location filename="../../ui/hardwarepage.cpp" line="40"/>
+        <location filename="../../ui/hardwarepage.cpp" line="41"/>
+        <source>Target Control Operating Mode:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/hardwarepage.cpp" line="44"/>
+        <source>Standard USB keyboard + USB mouse device + USB custom HID device</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/hardwarepage.cpp" line="45"/>
+        <source>Standard USB keyboard device</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/hardwarepage.cpp" line="46"/>
+        <source>Standard USB keyboard + USB mouse device</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/hardwarepage.cpp" line="47"/>
+        <source>Standard USB custom HID device</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/hardwarepage.cpp" line="72"/>
         <source>Custom target USB Composite Device VID and PID:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/hardwarepage.cpp" line="41"/>
+        <location filename="../../ui/hardwarepage.cpp" line="73"/>
         <source>Custom target USB descriptors: </source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/hardwarepage.cpp" line="42"/>
+        <location filename="../../ui/hardwarepage.cpp" line="74"/>
         <source>VID: </source>
         <translation>VID: </translation>
     </message>
     <message>
-        <location filename="../../ui/hardwarepage.cpp" line="43"/>
+        <location filename="../../ui/hardwarepage.cpp" line="75"/>
         <source>PID: </source>
         <translation>PID: </translation>
     </message>
     <message>
-        <location filename="../../ui/hardwarepage.cpp" line="44"/>
+        <location filename="../../ui/hardwarepage.cpp" line="76"/>
         <source>Custom vendor descriptor:</source>
         <translation>カスタムベンダーディスクリプタ:</translation>
     </message>
     <message>
-        <location filename="../../ui/hardwarepage.cpp" line="45"/>
+        <location filename="../../ui/hardwarepage.cpp" line="77"/>
         <source>Custom product descriptor:</source>
         <translation>カスタムプロダクトディスクリプタ:</translation>
     </message>
     <message>
-        <location filename="../../ui/hardwarepage.cpp" line="46"/>
+        <location filename="../../ui/hardwarepage.cpp" line="78"/>
         <source>USB serial number:</source>
         <translation>USBシリアル番号:</translation>
     </message>
     <message>
-        <location filename="../../ui/hardwarepage.cpp" line="47"/>
+        <location filename="../../ui/hardwarepage.cpp" line="79"/>
         <source>Enable custom USB flag</source>
         <translation>カスタム USB フラグを有効にする</translation>
     </message>
@@ -879,13 +904,13 @@ Do you want to proceed with the update?</source>
     </message>
     <message>
         <location filename="../../ui/settingdialog.cpp" line="101"/>
+        <location filename="../../ui/settingdialog.cpp" line="170"/>
         <source>Target Control</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/settingdialog.cpp" line="170"/>
         <source>Hardware</source>
-        <translation>ハードウェア</translation>
+        <translation type="vanished">ハードウェア</translation>
     </message>
     <message>
         <location filename="../../ui/settingdialog.cpp" line="118"/>

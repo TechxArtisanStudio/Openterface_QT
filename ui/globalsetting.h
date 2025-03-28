@@ -81,6 +81,9 @@ public:
 
     void getLanguage(QString &language);
 
+    void setOperatingMode(int mode);
+    int getOperatingMode() const;
+
 private:
     QSettings m_settings;
 };
