@@ -34,8 +34,11 @@
 #include <QMediaDevices>
 #include <QMap>
 #include <QCamera>
+#include <QRadioButton>
+#include <QButtonGroup>
 #include "host/cameramanager.h"
 #include "fontstyle.h"
+
 class HardwarePage : public QWidget
 {
     Q_OBJECT
@@ -45,13 +48,8 @@ public:
     void applyHardwareSetting();
     void initHardwareSetting();
 
-signals:
-    void cameraSettingsApplied();
-    void videoSettingsChanged(int width, int height);
 private:
     QLabel *hardwareLabel;
-    QLabel *uvcCamLabel;
-    QComboBox *uvcCamBox;
     QLabel *VIDPIDLabel;
     QLabel *VID;
     QLabel *PID;
@@ -65,14 +63,23 @@ private:
     QLineEdit *PIDDescriptorLineEdit;
     QLineEdit *serialNumberLineEdit;
 
-    void findUvcCameraDevices();
     void addCheckBoxLineEditPair(QCheckBox *checkBox, QLineEdit *lineEdit);
     void onCheckBoxStateChanged(int state);
     
     std::array<bool, 4> extractBits(QString hexString);
     QByteArray convertCheckBoxValueToBytes();
-        QMap<QCheckBox *, QLineEdit *> USBCheckBoxEditMap; // map of checkboxes to line edit about VID PID etc.
+    QMap<QCheckBox *, QLineEdit *> USBCheckBoxEditMap; // map of checkboxes to line edit about VID PID etc.
 
+    // Operating mode widgets
+    QButtonGroup *operatingModeGroup;
+    QRadioButton *fullModeRadio;
+    QRadioButton *keyboardOnlyRadio;
+    QRadioButton *keyboardMouseRadio;
+    QRadioButton *customHIDRadio;
+
+    const QString bigLabelFontSize = "font-size: 16px;";
+
+    int originalOperatingMode;
 };
 
 #endif // HARDWAREPAGE_H
