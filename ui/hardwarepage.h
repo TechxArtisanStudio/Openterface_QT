@@ -45,13 +45,8 @@ public:
     void applyHardwareSetting();
     void initHardwareSetting();
 
-signals:
-    void cameraSettingsApplied();
-    void videoSettingsChanged(int width, int height);
 private:
     QLabel *hardwareLabel;
-    QLabel *uvcCamLabel;
-    QComboBox *uvcCamBox;
     QLabel *VIDPIDLabel;
     QLabel *VID;
     QLabel *PID;
@@ -65,7 +60,6 @@ private:
     QLineEdit *PIDDescriptorLineEdit;
     QLineEdit *serialNumberLineEdit;
 
-    void findUvcCameraDevices();
     void addCheckBoxLineEditPair(QCheckBox *checkBox, QLineEdit *lineEdit);
     void onCheckBoxStateChanged(int state);
     
