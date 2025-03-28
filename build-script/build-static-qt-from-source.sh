@@ -158,7 +158,6 @@ sudo ninja install
 
 # Build other modules
 for module in "${MODULES[@]}"; do
-
     if [[ "$module" != "qtbase" && "$module" != "qtshadertools" && "$module" != "qtdeclarative" ]]; then
         cd "$BUILD_DIR/$module"
         mkdir -p build

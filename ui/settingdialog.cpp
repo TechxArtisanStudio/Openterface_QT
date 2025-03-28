@@ -149,17 +149,12 @@ void SettingDialog::createLayout() {
 
 void SettingDialog::changePage(QTreeWidgetItem *current, QTreeWidgetItem *previous) {
 
-    static bool isChanging = false;
-
-    if (isChanging)
-        return;
-
-    isChanging = true;
-    if (!current)
+    if (!current) {
         current = previous;
-
+        if (!current) return;
+    }
+    
     QString itemText = current->text(0);
-    qDebug() << "Selected item:" << itemText;
 
     if (itemText == tr("General")) {
         stackedWidget->setCurrentIndex(0);
@@ -171,9 +166,6 @@ void SettingDialog::changePage(QTreeWidgetItem *current, QTreeWidgetItem *previo
         stackedWidget->setCurrentIndex(3);
     }
 
-    QTimer::singleShot(100, this, [this]() {
-        isChanging = false;
-    });
 }
 
 void SettingDialog::applyAccrodingPage(){

@@ -22,7 +22,6 @@
 
 #include "mainwindow.h"
 #include "global.h"
-#include "settingdialog.h"
 #include "ui_mainwindow.h"
 #include "globalsetting.h"
 #include "statusbarmanager.h"
