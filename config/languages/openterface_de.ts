@@ -265,7 +265,7 @@ Bitte versuchen Sie es erneut nach einem Neustart der Anwendung.</translation>
 <context>
     <name>HardwarePage</name>
     <message>
-        <location filename="../../ui/hardwarepage.cpp" line="37"/>
+        <location filename="../../ui/hardwarepage.cpp" line="38"/>
         <source>Target control setting</source>
         <translation>Zielsteuerungseinstellung</translation>
     </message>
@@ -278,69 +278,79 @@ Bitte versuchen Sie es erneut nach einem Neustart der Anwendung.</translation>
         <translation type="vanished">Benutzerdefiniertes Ziel-USB-Composite-Gerät VID and PID: </translation>
     </message>
     <message>
-        <location filename="../../ui/hardwarepage.cpp" line="41"/>
+        <location filename="../../ui/hardwarepage.cpp" line="42"/>
         <source>Target Control Operating Mode:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/hardwarepage.cpp" line="44"/>
+        <location filename="../../ui/hardwarepage.cpp" line="45"/>
         <source>Standard USB keyboard + USB mouse device + USB custom HID device</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/hardwarepage.cpp" line="45"/>
+        <location filename="../../ui/hardwarepage.cpp" line="46"/>
         <source>Standard USB keyboard device</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/hardwarepage.cpp" line="46"/>
+        <location filename="../../ui/hardwarepage.cpp" line="47"/>
         <source>Standard USB keyboard + USB mouse device</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/hardwarepage.cpp" line="47"/>
+        <location filename="../../ui/hardwarepage.cpp" line="48"/>
         <source>Standard USB custom HID device</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/hardwarepage.cpp" line="72"/>
+        <location filename="../../ui/hardwarepage.cpp" line="73"/>
         <source>Custom target USB Composite Device VID and PID:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/hardwarepage.cpp" line="73"/>
+        <location filename="../../ui/hardwarepage.cpp" line="74"/>
         <source>Custom target USB descriptors: </source>
         <translation>Benutzerdefinierte Ziel-USB-Deskriptoren: </translation>
     </message>
     <message>
-        <location filename="../../ui/hardwarepage.cpp" line="74"/>
+        <location filename="../../ui/hardwarepage.cpp" line="75"/>
         <source>VID: </source>
         <translation>VID: </translation>
     </message>
     <message>
-        <location filename="../../ui/hardwarepage.cpp" line="75"/>
+        <location filename="../../ui/hardwarepage.cpp" line="76"/>
         <source>PID: </source>
         <translation>PID: </translation>
     </message>
     <message>
-        <location filename="../../ui/hardwarepage.cpp" line="76"/>
+        <location filename="../../ui/hardwarepage.cpp" line="77"/>
         <source>Custom vendor descriptor:</source>
         <translation>Benutzerdefinierter Hersteller-Deskriptor:</translation>
     </message>
     <message>
-        <location filename="../../ui/hardwarepage.cpp" line="77"/>
+        <location filename="../../ui/hardwarepage.cpp" line="78"/>
         <source>Custom product descriptor:</source>
         <translation>Benutzerdefinierter Produkt-Deskriptor:</translation>
     </message>
     <message>
-        <location filename="../../ui/hardwarepage.cpp" line="78"/>
+        <location filename="../../ui/hardwarepage.cpp" line="79"/>
         <source>USB serial number:</source>
         <translation>USB-Seriennummer:</translation>
     </message>
     <message>
-        <location filename="../../ui/hardwarepage.cpp" line="79"/>
+        <location filename="../../ui/hardwarepage.cpp" line="80"/>
         <source>Enable custom USB flag</source>
         <translation>Aktivieren Sie das benutzerdefinierte USB-Flag</translation>
+    </message>
+    <message>
+        <location filename="../../ui/hardwarepage.cpp" line="214"/>
+        <source>App Restart Required</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/hardwarepage.cpp" line="215"/>
+        <source>You have changed the USB operating mode. Please restart the application and re-connect the Openterface Mini-KVM for this change to take effect.</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Enable file logging</source>
@@ -618,100 +628,100 @@ Bitte versuchen Sie es erneut nach einem Neustart der Anwendung.</translation>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="406"/>
+        <location filename="../../ui/mainwindow.cpp" line="405"/>
         <source>Zoom in</source>
         <translation>Vergrößern</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="407"/>
+        <location filename="../../ui/mainwindow.cpp" line="406"/>
         <source>Zoom out</source>
         <translation>Verkleinern</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="408"/>
+        <location filename="../../ui/mainwindow.cpp" line="407"/>
         <source>Restore original size</source>
         <translation>Ursprüngliche Größe wiederherstellen</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="409"/>
+        <location filename="../../ui/mainwindow.cpp" line="408"/>
         <source>Function key and composite key</source>
         <translation>Funktionstaste und Kombinationstaste</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="410"/>
+        <location filename="../../ui/mainwindow.cpp" line="409"/>
         <source>Paste text to target</source>
         <translation>Text in Ziel einfügen</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="411"/>
+        <location filename="../../ui/mainwindow.cpp" line="410"/>
         <source>Mouse dance</source>
         <translation>Maustanz</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="412"/>
+        <location filename="../../ui/mainwindow.cpp" line="411"/>
         <source>Full screen capture</source>
         <translation>Vollbildaufnahme</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="413"/>
+        <location filename="../../ui/mainwindow.cpp" line="412"/>
         <source>Full screen mode</source>
         <translation>Vollbildmodus</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="915"/>
+        <location filename="../../ui/mainwindow.cpp" line="914"/>
         <source>Recorded %1 sec</source>
         <translation>Aufgezeichnet %1 Sek.</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1051"/>
+        <location filename="../../ui/mainwindow.cpp" line="1050"/>
         <source>Image Capture Error</source>
         <translation>Bildaufnahmefehler</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1119"/>
+        <location filename="../../ui/mainwindow.cpp" line="1118"/>
         <source>Captured &quot;%1&quot;</source>
         <translation>Erfasst &quot;%1&quot;</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1542"/>
+        <location filename="../../ui/mainwindow.cpp" line="1541"/>
         <source>Firmware Update</source>
         <translation>Firmware-Aktualisierung</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1542"/>
+        <location filename="../../ui/mainwindow.cpp" line="1541"/>
         <source>The firmware is up to date.</source>
         <translation>Die Firmware ist auf dem neuesten Stand.</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1551"/>
+        <location filename="../../ui/mainwindow.cpp" line="1550"/>
         <source>Firmware Update Confirmation</source>
         <translation>Bestätigung der Firmware-Aktualisierung</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1552"/>
+        <location filename="../../ui/mainwindow.cpp" line="1551"/>
         <source>Current firmware version: </source>
         <translation>Aktuelle Firmware-Version: </translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1552"/>
+        <location filename="../../ui/mainwindow.cpp" line="1551"/>
         <source>
 </source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1553"/>
+        <location filename="../../ui/mainwindow.cpp" line="1552"/>
         <source>Latest firmware version: </source>
         <translation>Neueste Firmware-Version: </translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1553"/>
+        <location filename="../../ui/mainwindow.cpp" line="1552"/>
         <source>
 
 </source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1554"/>
+        <location filename="../../ui/mainwindow.cpp" line="1553"/>
         <source>The update process will:
 </source>
         <translation>Der Aktualisierungsprozess wird:
@@ -722,7 +732,7 @@ Bitte versuchen Sie es erneut nach einem Neustart der Anwendung.</translation>
         <translation type="vanished">Der Aktualisierungsprozess wird:</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1555"/>
+        <location filename="../../ui/mainwindow.cpp" line="1554"/>
         <source>1. Stop all video and USB operations
 2. Install new firmware
 3. Close the application automatically
@@ -890,25 +900,25 @@ Möchten Sie mit der Aktualisierung fortfahren?</translation>
     </message>
     <message>
         <location filename="../../ui/settingdialog.cpp" line="101"/>
-        <location filename="../../ui/settingdialog.cpp" line="164"/>
+        <location filename="../../ui/settingdialog.cpp" line="159"/>
         <source>General</source>
         <translation>Allgemein</translation>
     </message>
     <message>
         <location filename="../../ui/settingdialog.cpp" line="101"/>
-        <location filename="../../ui/settingdialog.cpp" line="166"/>
+        <location filename="../../ui/settingdialog.cpp" line="161"/>
         <source>Video</source>
         <translation>Video</translation>
     </message>
     <message>
         <location filename="../../ui/settingdialog.cpp" line="101"/>
-        <location filename="../../ui/settingdialog.cpp" line="168"/>
+        <location filename="../../ui/settingdialog.cpp" line="163"/>
         <source>Audio</source>
         <translation>Audio</translation>
     </message>
     <message>
         <location filename="../../ui/settingdialog.cpp" line="101"/>
-        <location filename="../../ui/settingdialog.cpp" line="170"/>
+        <location filename="../../ui/settingdialog.cpp" line="165"/>
         <source>Target Control</source>
         <translation type="unfinished"></translation>
     </message>

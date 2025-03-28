@@ -266,7 +266,7 @@ Försök igen efter att ha startat om programmet.</translation>
 <context>
     <name>HardwarePage</name>
     <message>
-        <location filename="../../ui/hardwarepage.cpp" line="37"/>
+        <location filename="../../ui/hardwarepage.cpp" line="38"/>
         <source>Target control setting</source>
         <translation>Inställning av målstyrning</translation>
     </message>
@@ -275,69 +275,79 @@ Försök igen efter att ha startat om programmet.</translation>
         <translation type="vanished">UVC-kameraresurs: </translation>
     </message>
     <message>
-        <location filename="../../ui/hardwarepage.cpp" line="41"/>
+        <location filename="../../ui/hardwarepage.cpp" line="42"/>
         <source>Target Control Operating Mode:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/hardwarepage.cpp" line="44"/>
+        <location filename="../../ui/hardwarepage.cpp" line="45"/>
         <source>Standard USB keyboard + USB mouse device + USB custom HID device</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/hardwarepage.cpp" line="45"/>
+        <location filename="../../ui/hardwarepage.cpp" line="46"/>
         <source>Standard USB keyboard device</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/hardwarepage.cpp" line="46"/>
+        <location filename="../../ui/hardwarepage.cpp" line="47"/>
         <source>Standard USB keyboard + USB mouse device</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/hardwarepage.cpp" line="47"/>
+        <location filename="../../ui/hardwarepage.cpp" line="48"/>
         <source>Standard USB custom HID device</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/hardwarepage.cpp" line="72"/>
+        <location filename="../../ui/hardwarepage.cpp" line="73"/>
         <source>Custom target USB Composite Device VID and PID:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/hardwarepage.cpp" line="73"/>
+        <location filename="../../ui/hardwarepage.cpp" line="74"/>
         <source>Custom target USB descriptors: </source>
         <translation>Anpassat mål USB Composite Device VID and PID: </translation>
     </message>
     <message>
-        <location filename="../../ui/hardwarepage.cpp" line="74"/>
+        <location filename="../../ui/hardwarepage.cpp" line="75"/>
         <source>VID: </source>
         <translation>VID: </translation>
     </message>
     <message>
-        <location filename="../../ui/hardwarepage.cpp" line="75"/>
+        <location filename="../../ui/hardwarepage.cpp" line="76"/>
         <source>PID: </source>
         <translation>PID: </translation>
     </message>
     <message>
-        <location filename="../../ui/hardwarepage.cpp" line="76"/>
+        <location filename="../../ui/hardwarepage.cpp" line="77"/>
         <source>Custom vendor descriptor:</source>
         <translation>Anpassad leverantörsbeskrivning:</translation>
     </message>
     <message>
-        <location filename="../../ui/hardwarepage.cpp" line="77"/>
+        <location filename="../../ui/hardwarepage.cpp" line="78"/>
         <source>Custom product descriptor:</source>
         <translation>Anpassad produktbeskrivning:</translation>
     </message>
     <message>
-        <location filename="../../ui/hardwarepage.cpp" line="78"/>
+        <location filename="../../ui/hardwarepage.cpp" line="79"/>
         <source>USB serial number:</source>
         <translation>USB-serienummer:</translation>
     </message>
     <message>
-        <location filename="../../ui/hardwarepage.cpp" line="79"/>
+        <location filename="../../ui/hardwarepage.cpp" line="80"/>
         <source>Enable custom USB flag</source>
         <translation>Aktivera anpassad USB-flagga</translation>
+    </message>
+    <message>
+        <location filename="../../ui/hardwarepage.cpp" line="214"/>
+        <source>App Restart Required</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/hardwarepage.cpp" line="215"/>
+        <source>You have changed the USB operating mode. Please restart the application and re-connect the Openterface Mini-KVM for this change to take effect.</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -611,94 +621,94 @@ Försök igen efter att ha startat om programmet.</translation>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="406"/>
+        <location filename="../../ui/mainwindow.cpp" line="405"/>
         <source>Zoom in</source>
         <translation>Zooma in</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="407"/>
+        <location filename="../../ui/mainwindow.cpp" line="406"/>
         <source>Zoom out</source>
         <translation>Zooma ut</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="408"/>
+        <location filename="../../ui/mainwindow.cpp" line="407"/>
         <source>Restore original size</source>
         <translation>Återställ ursprunglig storlek</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="409"/>
+        <location filename="../../ui/mainwindow.cpp" line="408"/>
         <source>Function key and composite key</source>
         <translation>Funktionstangent och kombinationstangent</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="410"/>
+        <location filename="../../ui/mainwindow.cpp" line="409"/>
         <source>Paste text to target</source>
         <translation>Klistra in text till målet</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="411"/>
+        <location filename="../../ui/mainwindow.cpp" line="410"/>
         <source>Mouse dance</source>
         <translation>Musdans</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="412"/>
+        <location filename="../../ui/mainwindow.cpp" line="411"/>
         <source>Full screen capture</source>
         <translation>Vollbildsfångst</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="413"/>
+        <location filename="../../ui/mainwindow.cpp" line="412"/>
         <source>Full screen mode</source>
         <translation>Vollbildsläge</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="915"/>
+        <location filename="../../ui/mainwindow.cpp" line="914"/>
         <source>Recorded %1 sec</source>
         <translation>Inspelade %1 sek</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1051"/>
+        <location filename="../../ui/mainwindow.cpp" line="1050"/>
         <source>Image Capture Error</source>
         <translation>Fel vid bildfångst</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1119"/>
+        <location filename="../../ui/mainwindow.cpp" line="1118"/>
         <source>Captured &quot;%1&quot;</source>
         <translation>Fångade &quot;%1&quot;</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1542"/>
+        <location filename="../../ui/mainwindow.cpp" line="1541"/>
         <source>Firmware Update</source>
         <translation>Firmware-uppdatering</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1542"/>
+        <location filename="../../ui/mainwindow.cpp" line="1541"/>
         <source>The firmware is up to date.</source>
         <translation>Firmwaren är uppdaterad.</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1551"/>
+        <location filename="../../ui/mainwindow.cpp" line="1550"/>
         <source>Firmware Update Confirmation</source>
         <translation>Bekräftelse av firmware-uppdatering</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1552"/>
+        <location filename="../../ui/mainwindow.cpp" line="1551"/>
         <source>Current firmware version: </source>
         <translation>Aktuell firmware-version: </translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1552"/>
+        <location filename="../../ui/mainwindow.cpp" line="1551"/>
         <source>
 </source>
         <translation>
 </translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1553"/>
+        <location filename="../../ui/mainwindow.cpp" line="1552"/>
         <source>Latest firmware version: </source>
         <translation>Senaste firmware-version: </translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1553"/>
+        <location filename="../../ui/mainwindow.cpp" line="1552"/>
         <source>
 
 </source>
@@ -707,14 +717,14 @@ Försök igen efter att ha startat om programmet.</translation>
 </translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1554"/>
+        <location filename="../../ui/mainwindow.cpp" line="1553"/>
         <source>The update process will:
 </source>
         <translation>Uppdateringsprocessen kommer att:
 </translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1555"/>
+        <location filename="../../ui/mainwindow.cpp" line="1554"/>
         <source>1. Stop all video and USB operations
 2. Install new firmware
 3. Close the application automatically
@@ -882,25 +892,25 @@ Vill du fortsätta med uppdateringen?</translation>
     </message>
     <message>
         <location filename="../../ui/settingdialog.cpp" line="101"/>
-        <location filename="../../ui/settingdialog.cpp" line="164"/>
+        <location filename="../../ui/settingdialog.cpp" line="159"/>
         <source>General</source>
         <translation>Allmänt</translation>
     </message>
     <message>
         <location filename="../../ui/settingdialog.cpp" line="101"/>
-        <location filename="../../ui/settingdialog.cpp" line="166"/>
+        <location filename="../../ui/settingdialog.cpp" line="161"/>
         <source>Video</source>
         <translation>Video</translation>
     </message>
     <message>
         <location filename="../../ui/settingdialog.cpp" line="101"/>
-        <location filename="../../ui/settingdialog.cpp" line="168"/>
+        <location filename="../../ui/settingdialog.cpp" line="163"/>
         <source>Audio</source>
         <translation>Ljud</translation>
     </message>
     <message>
         <location filename="../../ui/settingdialog.cpp" line="101"/>
-        <location filename="../../ui/settingdialog.cpp" line="170"/>
+        <location filename="../../ui/settingdialog.cpp" line="165"/>
         <source>Target Control</source>
         <translation type="unfinished"></translation>
     </message>
