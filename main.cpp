@@ -159,12 +159,12 @@ int main(int argc, char *argv[])
             return 0;
         }
     } 
-    writeLog("Environment setup completed");
+    // writeLog("Environment setup completed");
     LanguageManager languageManager(&app);
     languageManager.initialize("en");
-    writeLog("languageManager initialized");
+    // writeLog("languageManager initialized");
     MainWindow window(&languageManager);
-    writeLog("Application started");
+    // writeLog("Application started");
     window.show();
 
     return app.exec();
