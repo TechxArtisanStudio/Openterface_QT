@@ -356,6 +356,18 @@ void VideoHid::closeHIDDeviceHandle() {
 
 #ifdef _WIN32
 std::wstring VideoHid::getHIDDevicePath() {
+    // Check if we have a cached path that's still valid
+    auto now = std::chrono::steady_clock::now();
+    auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(now - m_lastPathQuery).count();
+    
+    if (!m_cachedDevicePath.empty() && elapsed < 10) {
+        // Return cached path if it's less than 10 seconds old
+        return m_cachedDevicePath;
+    }
+    
+    // Update the last query time
+    m_lastPathQuery = now;
+    
     GUID hidGuid;
     HidD_GetHidGuid(&hidGuid); // Get the HID GUID
 
@@ -393,6 +405,10 @@ std::wstring VideoHid::getHIDDevicePath() {
                         CloseHandle(deviceHandle);
                         free(deviceInterfaceDetailData);
                         SetupDiDestroyDeviceInfoList(deviceInfoSet);
+                        
+                        // Cache the found device path
+                        m_cachedDevicePath = devicePath;
+                        
                         return devicePath; // Found the device
                     }
                 }
@@ -403,6 +419,10 @@ std::wstring VideoHid::getHIDDevicePath() {
     }
 
     SetupDiDestroyDeviceInfoList(deviceInfoSet);
+    
+    // Clear the cache if no device was found
+    m_cachedDevicePath.clear();
+    
     return L""; // Device not found
 }
 
@@ -478,12 +498,28 @@ bool VideoHid::getFeatureReportWindows(BYTE* reportBuffer, DWORD bufferSize) {
 
 #elif __linux__
 QString VideoHid::getHIDDevicePath() {
+    // Check if we have a cached path that's still valid
+    auto now = std::chrono::steady_clock::now();
+    auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(now - m_lastPathQuery).count();
+    
+    if (!m_cachedDevicePath.isEmpty() && elapsed < 10) {
+        // Return cached path if it's less than 10 seconds old
+        return m_cachedDevicePath;
+    }
+    
+    // Update the last query time
+    m_lastPathQuery = now;
+    
     QDir dir("/sys/class/hidraw");
 
     QStringList hidrawDevices = dir.entryList(QDir::Dirs | QDir::NoDotAndDotDot);
 
     if (hidrawDevices.isEmpty()) {
         qDebug() << "No Openterface device found.";
+        
+        // Clear the cache if no devices found
+        m_cachedDevicePath.clear();
+        
         return QString();
     }
 
@@ -503,7 +539,12 @@ QString VideoHid::getHIDDevicePath() {
                 if (line.contains("HID_NAME")) {
                     // Check if this is the device you are looking for
                     if (line.contains("Openterface")) {
-                        return "/dev/" + device;
+                        QString foundPath = "/dev/" + device;
+                        
+                        // Cache the found device path
+                        m_cachedDevicePath = foundPath;
+                        
+                        return foundPath;
                     }
                 }
             }
@@ -512,6 +553,9 @@ QString VideoHid::getHIDDevicePath() {
         }   
     }
 
+    // Clear the cache if no device was found
+    m_cachedDevicePath.clear();
+    
     return QString();
 }
 
