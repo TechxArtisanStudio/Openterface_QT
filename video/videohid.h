@@ -72,6 +72,11 @@ public:
 
     void loadFirmwareToEeprom();
 
+    // Transaction-based HID access
+    bool beginTransaction();
+    void endTransaction();
+    bool isInTransaction() const;
+
 signals:
     // Add new signals
     void firmwareWriteProgress(int percent);
@@ -108,10 +113,8 @@ private:
     
     StatusEventCallback* eventCallback = nullptr;
 
-    bool getFeatureReport(uint8_t* buffer, size_t bufferLength, bool autoCloseHandle);
-    bool getFeatureReport(uint8_t* buffer, size_t bufferLength); 
-    bool sendFeatureReport(uint8_t* buffer, size_t bufferLength, bool autoCloseHandle);
-    bool sendFeatureReport(uint8_t* buffer, size_t bufferLength); 
+    bool getFeatureReport(uint8_t* buffer, size_t bufferLength);
+    bool sendFeatureReport(uint8_t* buffer, size_t bufferLength);
 
     bool writeChunk(quint16 address, const QByteArray &data);
     bool writeEeprom(quint16 address, const QByteArray &data);
@@ -119,19 +122,16 @@ private:
 
 #ifdef _WIN32
     std::wstring getHIDDevicePath();
-    bool sendFeatureReportWindows(uint8_t* reportBuffer, DWORD bufferSize, bool autoCloseHandle);
-    bool sendFeatureReportWindows(uint8_t* reportBuffer, DWORD bufferSize); // Overloaded method
-    bool getFeatureReportWindows(uint8_t* reportBuffer, DWORD bufferSize, bool autoCloseHandle);
-    bool getFeatureReportWindows(uint8_t* reportBuffer, DWORD bufferSize); // Overloaded method
+    bool sendFeatureReportWindows(BYTE* reportBuffer, DWORD bufferSize);
+    bool getFeatureReportWindows(BYTE* reportBuffer, DWORD bufferSize);
 #elif __linux__
     QString getHIDDevicePath();
-    bool sendFeatureReportLinux(uint8_t* reportBuffer, int bufferSize, bool autoCloseHandle);
-    bool sendFeatureReportLinux(uint8_t* reportBuffer, int bufferSize); // Overloaded method
-    bool getFeatureReportLinux(uint8_t* reportBuffer, int bufferSize, bool autoCloseHandle);
+    bool sendFeatureReportLinux(uint8_t* reportBuffer, int bufferSize);
     bool getFeatureReportLinux(uint8_t* reportBuffer, int bufferSize);
 #endif
 
     std::chrono::time_point<std::chrono::steady_clock> m_lastPathQuery = std::chrono::steady_clock::now();
+    bool m_inTransaction = false;
 };
 
 #endif // VIDEOHID_H

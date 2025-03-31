@@ -34,8 +34,6 @@ void CameraManager::setCamera(const QCameraDevice &cameraDevice, QVideoWidget* v
 
     // Set camera format
     startCamera();
-
-    VideoHid::getInstance().start();
 }
 
 
