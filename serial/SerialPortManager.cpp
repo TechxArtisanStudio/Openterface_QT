@@ -192,10 +192,12 @@ void SerialPortManager::onSerialPortConnected(const QString &portName){
     // send a command to get the parameter configuration with 115200 baudrate
     QByteArray retBtye = sendSyncCommand(CMD_GET_PARA_CFG, true);
     CmdDataParamConfig config;
+    static QSettings settings("Techxartisan", "Openterface");
+    uint8_t mode = (settings.value("hardware/operatingMode", 0x02).toUInt());
     if(retBtye.size() > 0){
         qDebug() << "Data read from serial port: " << retBtye.toHex(' ');
         config = CmdDataParamConfig::fromByteArray(retBtye);
-        if(config.mode == 0x82){ // the default mode is correct, TODO store the default mode to config in future
+        if(config.mode == mode){ 
             ready = true;
         } else { // the mode is not correct, need to re-config the chip
             qCWarning(log_core_serial) << "The mode is incorrect, mode:" << config.mode;
@@ -451,11 +453,13 @@ void SerialPortManager::readData() {
         }
         else{
             qCDebug(log_core_serial) << "Receive from serial port @" << serialPort->baudRate() << ":" << data.toHex(' ');
+            static QSettings settings("Techxartisan", "Openterface");
             latestUpdateTime = QDateTime::currentDateTime();
             ready = true;
             unsigned char code = cmdCode | 0x80;
             int checkedBaudrate = 0;
-            uint8_t mode = 0;
+            uint8_t mode = (settings.value("hardware/operatingMode", 0x02).toUInt());
+            uint8_t chip_mode = data[5];
             switch (code)
             {
             case 0x81:
@@ -476,10 +480,9 @@ void SerialPortManager::readData() {
                 // get parameter configuration
                 // baud rate 8...11 bytes
                 checkedBaudrate = ((unsigned char)data[8] << 24) | ((unsigned char)data[9] << 16) | ((unsigned char)data[10] << 8) | (unsigned char)data[11];
-                mode = data[5];
 
                 qCDebug(log_core_serial) << "Current serial port baudrate rate:" << checkedBaudrate << ", Mode:" << "0x" + QString::number(mode, 16);
-                if (checkedBaudrate == SerialPortManager::DEFAULT_BAUDRATE && mode == 0x82) {
+                if (checkedBaudrate == SerialPortManager::DEFAULT_BAUDRATE && chip_mode == mode) {
                     qCDebug(log_core_serial) << "Serial is ready for communication.";
                     setBaudRate(checkedBaudrate);
                 }else{
@@ -506,17 +509,20 @@ void SerialPortManager::readData() {
  */
 bool SerialPortManager::reconfigureHidChip()
 {
-
-    qCDebug(log_core_serial) << "Reconfigure to baudrate to 115200 and mode 0x82";
+    static QSettings settings("Techxartisan", "Openterface");
+    uint8_t mode = (settings.value("hardware/operatingMode", 0x02).toUInt());
+    qCDebug(log_core_serial) << "Reconfigure to baudrate to 115200 and mode 0x" << QString::number(mode, 16);
     // replace the data with set parameter configuration prefix
     QByteArray command = CMD_SET_PARA_CFG_PREFIX;
+    command[5] = mode;  // Set mode byte at index 5 (6th byte)
+
     //append from date 12...31
     command.append(CMD_SET_PARA_CFG_MID);
     QByteArray retBtyes = sendSyncCommand(command, true);
     if(retBtyes.size() > 0){
         CmdDataResult dataResult = fromByteArray<CmdDataResult>(retBtyes);
         if(dataResult.data == DEF_CMD_SUCCESS){
-            qCDebug(log_core_serial) << "Set data config success, reconfig to 115200 baudrate and mode 0x82";
+            qCDebug(log_core_serial) << "Set data config success, reconfig to 115200 baudrate and mode 0x" << QString::number(mode, 16);
             return true;
         }else{
             qWarning() << "Set data config fail.";

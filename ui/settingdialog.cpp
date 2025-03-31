@@ -98,7 +98,7 @@ void SettingDialog::createSettingTree() {
     settingTree->setRootIsDecorated(false);
 
     // QStringList names = {"Log"};
-    QStringList names = {tr("General"), tr("Video"), tr("Audio"), tr("Hardware")};
+    QStringList names = {tr("General"), tr("Video"), tr("Audio"), tr("Target Control")};
     for (const QString &name : names) {     // add item to setting tree
         QTreeWidgetItem *item = new QTreeWidgetItem(settingTree);
         item->setText(0, name);
@@ -162,7 +162,7 @@ void SettingDialog::changePage(QTreeWidgetItem *current, QTreeWidgetItem *previo
         stackedWidget->setCurrentIndex(1);
     } else if (itemText == tr("Audio")) {
         stackedWidget->setCurrentIndex(2);
-    } else if (itemText == tr("Hardware")) {
+    } else if (itemText == tr("Target Control")) {
         stackedWidget->setCurrentIndex(3);
     }
 

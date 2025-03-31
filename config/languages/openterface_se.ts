@@ -266,54 +266,88 @@ Försök igen efter att ha startat om programmet.</translation>
 <context>
     <name>HardwarePage</name>
     <message>
-        <location filename="../../ui/hardwarepage.cpp" line="37"/>
-        <source>General hardware setting</source>
-        <translation>Allmänna hårdvaruinställningar</translation>
+        <location filename="../../ui/hardwarepage.cpp" line="38"/>
+        <source>Target control setting</source>
+        <translation>Inställning av målstyrning</translation>
     </message>
     <message>
-        <location filename="../../ui/hardwarepage.cpp" line="40"/>
         <source>UVC Camera resource: </source>
-        <translation>UVC-kameraresurs: </translation>
+        <translation type="vanished">UVC-kameraresurs: </translation>
+    </message>
+    <message>
+        <location filename="../../ui/hardwarepage.cpp" line="42"/>
+        <source>Target Control Operating Mode:</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../../ui/hardwarepage.cpp" line="45"/>
-        <source>Change target VID&amp;PID: </source>
-        <translation>Ändra målets VID&amp;PID: </translation>
+        <source>Standard USB keyboard + USB mouse device + USB custom HID device</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../../ui/hardwarepage.cpp" line="46"/>
-        <source>Change USB descriptor: </source>
-        <translation>Ändra USB-beskrivning: </translation>
+        <source>Standard USB keyboard device</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../../ui/hardwarepage.cpp" line="47"/>
+        <source>Standard USB keyboard + USB mouse device</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/hardwarepage.cpp" line="48"/>
+        <source>Standard USB custom HID device</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/hardwarepage.cpp" line="73"/>
+        <source>Custom target USB Composite Device VID and PID:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/hardwarepage.cpp" line="74"/>
+        <source>Custom target USB descriptors: </source>
+        <translation>Anpassat mål USB Composite Device VID and PID: </translation>
+    </message>
+    <message>
+        <location filename="../../ui/hardwarepage.cpp" line="75"/>
         <source>VID: </source>
         <translation>VID: </translation>
     </message>
     <message>
-        <location filename="../../ui/hardwarepage.cpp" line="48"/>
+        <location filename="../../ui/hardwarepage.cpp" line="76"/>
         <source>PID: </source>
         <translation>PID: </translation>
     </message>
     <message>
-        <location filename="../../ui/hardwarepage.cpp" line="49"/>
+        <location filename="../../ui/hardwarepage.cpp" line="77"/>
         <source>Custom vendor descriptor:</source>
         <translation>Anpassad leverantörsbeskrivning:</translation>
     </message>
     <message>
-        <location filename="../../ui/hardwarepage.cpp" line="50"/>
+        <location filename="../../ui/hardwarepage.cpp" line="78"/>
         <source>Custom product descriptor:</source>
         <translation>Anpassad produktbeskrivning:</translation>
     </message>
     <message>
-        <location filename="../../ui/hardwarepage.cpp" line="51"/>
+        <location filename="../../ui/hardwarepage.cpp" line="79"/>
         <source>USB serial number:</source>
         <translation>USB-serienummer:</translation>
     </message>
     <message>
-        <location filename="../../ui/hardwarepage.cpp" line="52"/>
-        <source>Enable USB flag</source>
-        <translation>Aktivera USB-flagga</translation>
+        <location filename="../../ui/hardwarepage.cpp" line="80"/>
+        <source>Enable custom USB flag</source>
+        <translation>Aktivera anpassad USB-flagga</translation>
+    </message>
+    <message>
+        <location filename="../../ui/hardwarepage.cpp" line="214"/>
+        <source>App Restart Required</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/hardwarepage.cpp" line="215"/>
+        <source>You have changed the USB operating mode. Please restart the application and re-connect the Openterface Mini-KVM for this change to take effect.</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -403,253 +437,278 @@ Försök igen efter att ha startat om programmet.</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="210"/>
+        <source>Mouse Visibility</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/mainwindow.ui" line="217"/>
         <source>Baudrate</source>
         <translation>Baudhastighet</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="217"/>
+        <location filename="../../ui/mainwindow.ui" line="224"/>
         <source>Switchable USB</source>
         <translation>Omkopplingsbar USB</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="229"/>
+        <location filename="../../ui/mainwindow.ui" line="237"/>
         <source>Help</source>
         <translation>Hjälp</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="240"/>
+        <location filename="../../ui/mainwindow.ui" line="248"/>
         <source>Edit</source>
         <translation>Redigera</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="246"/>
+        <location filename="../../ui/mainwindow.ui" line="254"/>
         <source>Advance</source>
         <translation>Avancerat</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="267"/>
+        <location filename="../../ui/mainwindow.ui" line="275"/>
         <source>Close</source>
         <translation>Stäng</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="272"/>
+        <location filename="../../ui/mainwindow.ui" line="280"/>
         <source>Change Settings</source>
         <translation>Ändra inställningar</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="277"/>
+        <location filename="../../ui/mainwindow.ui" line="285"/>
         <source>Reset Keyboard and Mouse</source>
         <translation>Återställ tangentbord och mus</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="282"/>
+        <location filename="../../ui/mainwindow.ui" line="290"/>
         <source>Reset Serial Port</source>
         <translation>Återställ serieport</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="287"/>
+        <location filename="../../ui/mainwindow.ui" line="295"/>
         <source>Serial Console</source>
         <translation>Seriekonsol</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="292"/>
+        <location filename="../../ui/mainwindow.ui" line="300"/>
         <source>AutoReszie</source>
         <translation>Automatisk storleksändring</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="297"/>
+        <location filename="../../ui/mainwindow.ui" line="305"/>
         <source>Factory Reset HID Chip</source>
         <translation>Återställ HID-chip till fabriksinställningar</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="302"/>
+        <location filename="../../ui/mainwindow.ui" line="310"/>
         <source>Preferences</source>
         <translation>Inställningar</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="307"/>
+        <location filename="../../ui/mainwindow.ui" line="315"/>
         <source>Office Website</source>
         <translation>Officiell webbplats</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="312"/>
+        <location filename="../../ui/mainwindow.ui" line="320"/>
         <source>Purchase</source>
         <translation>Köp</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="317"/>
+        <location filename="../../ui/mainwindow.ui" line="325"/>
         <source>Feedback</source>
         <translation>Återkoppling</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="322"/>
+        <location filename="../../ui/mainwindow.ui" line="330"/>
         <source>Update</source>
         <translation>Uppdatera</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="327"/>
+        <location filename="../../ui/mainwindow.ui" line="335"/>
         <source>Environment</source>
         <translation>Miljö</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="332"/>
+        <location filename="../../ui/mainwindow.ui" line="340"/>
         <source>About</source>
         <translation>Om</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="343"/>
+        <location filename="../../ui/mainwindow.ui" line="351"/>
         <source>Follow Switch</source>
         <translation>Följ omkopplare</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="351"/>
+        <location filename="../../ui/mainwindow.ui" line="359"/>
         <source>Paste</source>
         <translation>Klistra in</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="354"/>
+        <location filename="../../ui/mainwindow.ui" line="362"/>
         <source>Paste clipboard content to target</source>
         <translation>Klistra in urklippsinnehåll till målet</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="359"/>
+        <location filename="../../ui/mainwindow.ui" line="367"/>
         <source>Script Tool</source>
         <translation>Skriptverktyg</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="364"/>
+        <location filename="../../ui/mainwindow.ui" line="372"/>
         <source>TCP Server</source>
         <translation>TCP-server</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="369"/>
+        <location filename="../../ui/mainwindow.ui" line="377"/>
         <source>Environment Checking</source>
         <translation>Miljökontroll</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="374"/>
+        <location filename="../../ui/mainwindow.ui" line="382"/>
         <source>Firmware Update...</source>
         <translation>Firmware-uppdatering...</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="383"/>
+        <location filename="../../ui/mainwindow.ui" line="391"/>
         <source>115200</source>
         <translation>115200</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="391"/>
+        <location filename="../../ui/mainwindow.ui" line="399"/>
         <source>9600</source>
         <translation>9600</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="401"/>
+        <location filename="../../ui/mainwindow.ui" line="409"/>
         <source>To Host</source>
         <translation>Till värd</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="409"/>
+        <location filename="../../ui/mainwindow.ui" line="417"/>
         <source>To Target</source>
         <translation>Till mål</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="422"/>
+        <location filename="../../ui/mainwindow.ui" line="430"/>
         <source>Absolute</source>
         <translation>Absolut</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="430"/>
+        <location filename="../../ui/mainwindow.ui" line="438"/>
         <source>Relative</source>
         <translation>Relativ</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="399"/>
+        <location filename="../../ui/mainwindow.ui" line="451"/>
+        <source>Auto Hide</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/mainwindow.ui" line="454"/>
+        <source>Auto hide mouse cursor</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/mainwindow.ui" line="462"/>
+        <source>Always Show</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/mainwindow.ui" line="465"/>
+        <source>Always show mouse cursor</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/mainwindow.cpp" line="405"/>
         <source>Zoom in</source>
         <translation>Zooma in</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="400"/>
+        <location filename="../../ui/mainwindow.cpp" line="406"/>
         <source>Zoom out</source>
         <translation>Zooma ut</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="401"/>
+        <location filename="../../ui/mainwindow.cpp" line="407"/>
         <source>Restore original size</source>
         <translation>Återställ ursprunglig storlek</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="402"/>
+        <location filename="../../ui/mainwindow.cpp" line="408"/>
         <source>Function key and composite key</source>
         <translation>Funktionstangent och kombinationstangent</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="403"/>
+        <location filename="../../ui/mainwindow.cpp" line="409"/>
         <source>Paste text to target</source>
         <translation>Klistra in text till målet</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="404"/>
+        <location filename="../../ui/mainwindow.cpp" line="410"/>
         <source>Mouse dance</source>
         <translation>Musdans</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="405"/>
+        <location filename="../../ui/mainwindow.cpp" line="411"/>
         <source>Full screen capture</source>
         <translation>Vollbildsfångst</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="406"/>
+        <location filename="../../ui/mainwindow.cpp" line="412"/>
         <source>Full screen mode</source>
         <translation>Vollbildsläge</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="883"/>
+        <location filename="../../ui/mainwindow.cpp" line="914"/>
         <source>Recorded %1 sec</source>
         <translation>Inspelade %1 sek</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1019"/>
+        <location filename="../../ui/mainwindow.cpp" line="1050"/>
         <source>Image Capture Error</source>
         <translation>Fel vid bildfångst</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1087"/>
+        <location filename="../../ui/mainwindow.cpp" line="1118"/>
         <source>Captured &quot;%1&quot;</source>
         <translation>Fångade &quot;%1&quot;</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1477"/>
+        <location filename="../../ui/mainwindow.cpp" line="1541"/>
         <source>Firmware Update</source>
         <translation>Firmware-uppdatering</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1477"/>
+        <location filename="../../ui/mainwindow.cpp" line="1541"/>
         <source>The firmware is up to date.</source>
         <translation>Firmwaren är uppdaterad.</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1486"/>
+        <location filename="../../ui/mainwindow.cpp" line="1550"/>
         <source>Firmware Update Confirmation</source>
         <translation>Bekräftelse av firmware-uppdatering</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1487"/>
+        <location filename="../../ui/mainwindow.cpp" line="1551"/>
         <source>Current firmware version: </source>
         <translation>Aktuell firmware-version: </translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1487"/>
+        <location filename="../../ui/mainwindow.cpp" line="1551"/>
         <source>
 </source>
         <translation>
 </translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1488"/>
+        <location filename="../../ui/mainwindow.cpp" line="1552"/>
         <source>Latest firmware version: </source>
         <translation>Senaste firmware-version: </translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1488"/>
+        <location filename="../../ui/mainwindow.cpp" line="1552"/>
         <source>
 
 </source>
@@ -658,14 +717,14 @@ Försök igen efter att ha startat om programmet.</translation>
 </translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1489"/>
+        <location filename="../../ui/mainwindow.cpp" line="1553"/>
         <source>The update process will:
 </source>
         <translation>Uppdateringsprocessen kommer att:
 </translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1490"/>
+        <location filename="../../ui/mainwindow.cpp" line="1554"/>
         <source>1. Stop all video and USB operations
 2. Install new firmware
 3. Close the application automatically
@@ -833,27 +892,31 @@ Vill du fortsätta med uppdateringen?</translation>
     </message>
     <message>
         <location filename="../../ui/settingdialog.cpp" line="101"/>
-        <location filename="../../ui/settingdialog.cpp" line="164"/>
+        <location filename="../../ui/settingdialog.cpp" line="159"/>
         <source>General</source>
         <translation>Allmänt</translation>
     </message>
     <message>
         <location filename="../../ui/settingdialog.cpp" line="101"/>
-        <location filename="../../ui/settingdialog.cpp" line="166"/>
+        <location filename="../../ui/settingdialog.cpp" line="161"/>
         <source>Video</source>
         <translation>Video</translation>
     </message>
     <message>
         <location filename="../../ui/settingdialog.cpp" line="101"/>
-        <location filename="../../ui/settingdialog.cpp" line="168"/>
+        <location filename="../../ui/settingdialog.cpp" line="163"/>
         <source>Audio</source>
         <translation>Ljud</translation>
     </message>
     <message>
         <location filename="../../ui/settingdialog.cpp" line="101"/>
-        <location filename="../../ui/settingdialog.cpp" line="170"/>
+        <location filename="../../ui/settingdialog.cpp" line="165"/>
+        <source>Target Control</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Hardware</source>
-        <translation>Hårdvara</translation>
+        <translation type="vanished">Hårdvara</translation>
     </message>
     <message>
         <location filename="../../ui/settingdialog.cpp" line="118"/>
@@ -885,12 +948,12 @@ Vill du fortsätta med uppdateringen?</translation>
         <translation>Kopiera</translation>
     </message>
     <message>
-        <location filename="../../ui/versioninfomanager.cpp" line="206"/>
+        <location filename="../../ui/versioninfomanager.cpp" line="213"/>
         <source>Openterface Mini KVM</source>
         <translation>Openterface Mini KVM</translation>
     </message>
     <message>
-        <location filename="../../ui/versioninfomanager.cpp" line="209"/>
+        <location filename="../../ui/versioninfomanager.cpp" line="216"/>
         <source>A new version is available!
 Current version: %1
 Latest version: %2
@@ -901,29 +964,29 @@ Senaste version: %2
 </translation>
     </message>
     <message>
-        <location filename="../../ui/versioninfomanager.cpp" line="212"/>
+        <location filename="../../ui/versioninfomanager.cpp" line="219"/>
         <source>Update</source>
         <translation>Uppdatera</translation>
     </message>
     <message>
-        <location filename="../../ui/versioninfomanager.cpp" line="213"/>
+        <location filename="../../ui/versioninfomanager.cpp" line="220"/>
         <source>Cancel</source>
         <translation>Avbryt</translation>
     </message>
     <message>
-        <location filename="../../ui/versioninfomanager.cpp" line="221"/>
+        <location filename="../../ui/versioninfomanager.cpp" line="228"/>
         <source>You are using the latest version</source>
         <translation>Du använder den senaste versionen</translation>
     </message>
     <message>
-        <location filename="../../ui/versioninfomanager.cpp" line="227"/>
+        <location filename="../../ui/versioninfomanager.cpp" line="234"/>
         <source>Update Check Failed
 </source>
         <translation>Uppdateringskontroll misslyckades
 </translation>
     </message>
     <message>
-        <location filename="../../ui/versioninfomanager.cpp" line="228"/>
+        <location filename="../../ui/versioninfomanager.cpp" line="235"/>
         <source>Failed to check for updates.
 Error: %1
 Please check your internet connection.
@@ -937,29 +1000,33 @@ Kontrollera din internetanslutning.
 <context>
     <name>VideoPage</name>
     <message>
-        <location filename="../../ui/videopage.cpp" line="44"/>
+        <location filename="../../ui/videopage.cpp" line="54"/>
+        <source>UVC Camera resource: </source>
+        <translation type="unfinished">UVC-kameraresurs: </translation>
+    </message>
+    <message>
+        <location filename="../../ui/videopage.cpp" line="108"/>
         <source>General video setting</source>
         <translation>Allmänna videoinställningar</translation>
     </message>
     <message>
-        <location filename="../../ui/videopage.cpp" line="48"/>
+        <location filename="../../ui/videopage.cpp" line="112"/>
         <source>Capture resolutions: </source>
         <translation>Fångstupplösningar: </translation>
     </message>
     <message>
-        <location filename="../../ui/videopage.cpp" line="54"/>
+        <location filename="../../ui/videopage.cpp" line="118"/>
         <source>Framerate: </source>
         <translation>Bildfrekvens: </translation>
     </message>
     <message>
-        <location filename="../../ui/videopage.cpp" line="63"/>
+        <location filename="../../ui/videopage.cpp" line="127"/>
         <source>Pixel format: </source>
         <translation>Pixelformat: </translation>
     </message>
     <message>
-        <location filename="../../ui/videopage.cpp" line="179"/>
         <source>Default pixel format</source>
-        <translation>Standardpixelformat</translation>
+        <translation type="vanished">Standardpixelformat</translation>
     </message>
 </context>
 </TS>

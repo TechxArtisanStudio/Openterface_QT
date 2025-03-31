@@ -154,6 +154,13 @@ void GlobalSetting::getLanguage(QString &language){
     language = m_settings.value("language/language", "en").toString(); 
 }
 
+void GlobalSetting::setOperatingMode(int mode) {
+    m_settings.setValue("hardware/operatingMode", mode);
+}
+
+int GlobalSetting::getOperatingMode() const {
+    return m_settings.value("hardware/operatingMode", 2).toInt();
+}
 /*
 * Convert QString to ByteArray
 */
