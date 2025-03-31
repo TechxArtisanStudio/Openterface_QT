@@ -56,7 +56,16 @@
 
  ```bash
 # Setup the QT 6.4.2 or laterruntime and other dependencies
-sudo apt install -y libqt6core6 libqt6dbus6 libqt6gui6 libqt6network6 libqt6multimedia6 libqt6multimediawidgets6 libqt6serialport6 libqt6svg6 libusb-1.0-0-dev
+sudo apt install -y \
+    libqt6core6 \
+    libqt6dbus6 \
+    libqt6gui6 \
+    libqt6network6 \
+    libqt6multimedia6 \
+    libqt6multimediawidgets6 \
+    libqt6serialport6 \
+    libqt6svg6 \
+    libusb-1.0-0-dev
  ```
 
 ```bash
@@ -103,7 +112,8 @@ sudo apt-get install -y \
     qt6-multimedia-dev \
     qt6-serialport-dev \
     qt6-svg-dev \
-    libusb-1.0-0-dev
+    libusb-1.0-0-dev \
+    qt6-tools-dev
 ```
 
 ```bash
@@ -122,6 +132,11 @@ sudo udevadm trigger
 # Get the source
 git clone https://github.com/TechxArtisanStudio/Openterface_QT.git
 cd Openterface_QT
+
+# Generate language files (The lrelease path may vary depending on your system)
+/usr/lib/qt6/lrelease openterfaceQT.pro
+
+# Build the project
 mkdir build
 cd build
 qmake6 ..
