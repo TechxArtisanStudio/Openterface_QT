@@ -4,6 +4,7 @@
 #include <QDir>
 #include <QTimer>
 #include <QThread>
+#include <QLoggingCategory>
 
 #include "ms2109.h"
 #include "firmwarewriter.h"
@@ -23,17 +24,20 @@ extern "C"
 #include <linux/hidraw.h>
 #endif
 
-VideoHid::VideoHid(QObject *parent) : QObject(parent){
+Q_LOGGING_CATEGORY(log_host_hid , "opf.host.hid");
+
+VideoHid::VideoHid(QObject *parent) : QObject(parent), m_inTransaction(false) {
 
 }
 
+// Update the start method with improved transaction handling
 void VideoHid::start() {
     std::string captureCardFirmwareVersion = getFirmwareVersion();
-    qDebug() << "MS2109 firmware VERSION:" << QString::fromStdString(captureCardFirmwareVersion);    //firmware VERSION
+    qCDebug(log_host_hid) << "MS2109 firmware VERSION:" << QString::fromStdString(captureCardFirmwareVersion);    //firmware VERSION
     
     GlobalVar::instance().setCaptureCardFirmwareVersion(captureCardFirmwareVersion);
     isHardSwitchOnTarget = getSpdifout();
-    qDebug() << "SPDIFOUT:" << isHardSwitchOnTarget;    //SPDIFOUT
+    qCDebug(log_host_hid)  << "SPDIFOUT:" << isHardSwitchOnTarget;    //SPDIFOUT
     if(eventCallback){
         eventCallback->onSwitchableUsbToggle(isHardSwitchOnTarget);
         setSpdifout(isHardSwitchOnTarget); //Follow the hard switch by default
@@ -42,44 +46,88 @@ void VideoHid::start() {
     //start a timer to get the HDMI connection status every 1 second
     timer = new QTimer(this);
     connect(timer, &QTimer::timeout, this, [=](){
-        bool currentSwitchOnTarget = getGpio0();
+        // Begin a single transaction for all operations
+        if (beginTransaction()) {
+            try {
+                bool currentSwitchOnTarget = getGpio0();
+                bool hdmiConnected = isHdmiConnected();
 
-        if(eventCallback){
-            if(isHdmiConnected()){
-                auto resolution = getResolution();
-                auto fps = getFps();
-                auto pixclk = getPixelclk();
-                auto aspectRatio = resolution.second ? static_cast<float>(resolution.first) / resolution.second : 0;
-                GlobalVar::instance().setInputAspectRatio(aspectRatio);
+                if (eventCallback) {
+                    if (hdmiConnected) {
+                        // Get resolution-related information within the same transaction
+                        quint8 width_h = static_cast<quint8>(usbXdataRead4Byte(ADDR_INPUT_WIDTH_H).first.at(0));
+                        quint8 width_l = static_cast<quint8>(usbXdataRead4Byte(ADDR_INPUT_WIDTH_L).first.at(0));
+                        quint16 width = (width_h << 8) + width_l;
+                        
+                        quint8 height_h = static_cast<quint8>(usbXdataRead4Byte(ADDR_INPUT_HEIGHT_H).first.at(0));
+                        quint8 height_l = static_cast<quint8>(usbXdataRead4Byte(ADDR_INPUT_HEIGHT_L).first.at(0));
+                        quint16 height = (height_h << 8) + height_l;
+                        
+                        quint8 fps_h = static_cast<quint8>(usbXdataRead4Byte(ADDR_INPUT_FPS_H).first.at(0));
+                        quint8 fps_l = static_cast<quint8>(usbXdataRead4Byte(ADDR_INPUT_FPS_L).first.at(0));
+                        float fps = static_cast<float>((fps_h << 8) + fps_l) / 100;
+                        
+                        quint8 clk_h = static_cast<quint8>(usbXdataRead4Byte(ADDR_INPUT_PIXELCLK_H).first.at(0));
+                        quint8 clk_l = static_cast<quint8>(usbXdataRead4Byte(ADDR_INPUT_PIXELCLK_L).first.at(0));
+                        float pixclk = ((clk_h << 8) + clk_l) / 100.0;
+                        
+                        float aspectRatio = height ? static_cast<float>(width) / height : 0;
+                        GlobalVar::instance().setInputAspectRatio(aspectRatio);
 
-                if (pixclk > 185) {
-                    resolution.first *= 2;
-                    resolution.second *= 2;
+                        if (pixclk > 185) {
+                            width *= 2;
+                            height *= 2;
+                        }
+
+                        if (GlobalVar::instance().getInputWidth() != width || GlobalVar::instance().getInputHeight() != height) {
+                            emit inputResolutionChanged(GlobalVar::instance().getInputWidth(), GlobalVar::instance().getInputHeight(), width, height);
+                        }
+                        
+                        emit resolutionChangeUpdate(width, height, fps, pixclk);
+                    } else {
+                        emit resolutionChangeUpdate(0, 0, 0, 0);
+                    }
+
+                    // Handle hardware switch status changes
+                    if (isHardSwitchOnTarget != currentSwitchOnTarget) {
+                        qCDebug(log_host_hid)  << "isHardSwitchOnTarget" << isHardSwitchOnTarget << "currentSwitchOnTarget" << currentSwitchOnTarget;
+                        eventCallback->onSwitchableUsbToggle(currentSwitchOnTarget);
+                        
+                        // Set SPDIF out within the same transaction
+                        int bit = 1;
+                        int mask = 0xFE;
+                        if (GlobalVar::instance().getCaptureCardFirmwareVersion() < "24081309") {
+                            bit = 0x10;
+                            mask = 0xEF;
+                        }
+
+                        quint8 spdifout = static_cast<quint8>(usbXdataRead4Byte(ADDR_SPDIFOUT).first.at(0));
+                        if (currentSwitchOnTarget) {
+                            spdifout |= bit;
+                        } else {
+                            spdifout &= mask;
+                        }
+                        QByteArray data(4, 0);
+                        data[0] = spdifout;
+                        usbXdataWrite4Byte(ADDR_SPDIFOUT, data);
+                        
+                        isHardSwitchOnTarget = currentSwitchOnTarget;
+                    }
                 }
-
-                if(GlobalVar::instance().getInputWidth()!=resolution.first || GlobalVar::instance().getInputHeight()!=resolution.second){
-                    emit inputResolutionChanged(GlobalVar::instance().getInputWidth(), GlobalVar::instance().getInputHeight(), resolution.first, resolution.second);
-                }
-                // qDebug() << "onResolutionChange: " << resolution.first << "x" << resolution.second << "fps: " << fps << " pixclk: " << pixclk << "MHz, aspectRatio: " << aspectRatio;
-                // eventCallback->onResolutionChange(resolution.first, resolution.second, fps);
-                emit resolutionChangeUpdate(resolution.first, resolution.second, fps, pixclk);
-            }else{
-                emit resolutionChangeUpdate(0, 0, 0, 0);
+            }
+            catch (...) {
+                qCDebug(log_host_hid)  << "Exception occurred during timer processing";
             }
 
-            if(isHardSwitchOnTarget != currentSwitchOnTarget){ //Only handle change when hardware switch change
-                qDebug() << "isHardSwitchOnTarget" << isHardSwitchOnTarget << "currentSwitchOnTarget" << currentSwitchOnTarget;
-                eventCallback->onSwitchableUsbToggle(currentSwitchOnTarget);
-                setSpdifout(currentSwitchOnTarget); 
-                isHardSwitchOnTarget = currentSwitchOnTarget;
-            }
+            // Always end the transaction
+            endTransaction();
         }
     });
     timer->start(1000);
 }
 
 void VideoHid::stop() {
-    qDebug() << "Stopping VideoHid timer.";
+    qCDebug(log_host_hid)  << "Stopping VideoHid timer.";
     if (timer) {
         timer->stop();
         disconnect(timer, &QTimer::timeout, this, nullptr);
@@ -128,7 +176,7 @@ bool VideoHid::getSpdifout() {
     int bit = 1;
     int mask = 0xFE;
     if (GlobalVar::instance().getCaptureCardFirmwareVersion() < "24081309") {
-        qDebug() << "Firmware version is less than 24081309";
+        qCDebug(log_host_hid)  << "Firmware version is less than 24081309";
         bit = 0x10;
         mask = 0xEF;
     }
@@ -136,14 +184,14 @@ bool VideoHid::getSpdifout() {
 }
 
 void VideoHid::switchToHost() {
-    qDebug() << "Switch to host";
+    qCDebug(log_host_hid)  << "Switch to host";
     setSpdifout(false);
     GlobalVar::instance().setSwitchOnTarget(false);
     if(eventCallback) eventCallback->onSwitchableUsbToggle(false);
 }
 
 void VideoHid::switchToTarget() {
-    qDebug() << "Switch to target";
+    qCDebug(log_host_hid)  << "Switch to target";
     setSpdifout(true);
     GlobalVar::instance().setSwitchOnTarget(true);
     if(eventCallback) eventCallback->onSwitchableUsbToggle(true);
@@ -158,7 +206,7 @@ void VideoHid::setSpdifout(bool enable) {
     int bit = 1;
     int mask = 0xFE;
     if (GlobalVar::instance().getCaptureCardFirmwareVersion() < "24081309") {
-        qDebug() << "Firmware version is less than 24081309";
+        qCDebug(log_host_hid)  << "Firmware version is less than 24081309";
         bit = 0x10;
         mask = 0xEF;
     }
@@ -172,18 +220,35 @@ void VideoHid::setSpdifout(bool enable) {
     QByteArray data(4, 0); // Create a 4-byte array initialized to zero
     data[0] = spdifout;
     if(usbXdataWrite4Byte(ADDR_SPDIFOUT, data)){
-        qDebug() << "SPDIFOUT set successfully";
+        qCDebug(log_host_hid)  << "SPDIFOUT set successfully";
     }else{
-        qDebug() << "SPDIFOUT set failed";
+        qCDebug(log_host_hid)  << "SPDIFOUT set failed";
     }
 }
 
 std::string VideoHid::getFirmwareVersion() {
     bool ok;
-    int version_0 = usbXdataRead4Byte(ADDR_FIRMWARE_VERSION_0).first.toHex().toInt(&ok, 16);
-    int version_1 = usbXdataRead4Byte(ADDR_FIRMWARE_VERSION_1).first.toHex().toInt(&ok, 16);
-    int version_2 = usbXdataRead4Byte(ADDR_FIRMWARE_VERSION_2).first.toHex().toInt(&ok, 16);
-    int version_3 = usbXdataRead4Byte(ADDR_FIRMWARE_VERSION_3).first.toHex().toInt(&ok, 16);
+    int version_0 = 0, version_1 = 0, version_2 = 0, version_3 = 0;
+    
+    // Begin transaction to keep handle open during multiple reads
+    if (beginTransaction()) {
+        try {
+            // Read all version bytes in a single transaction
+            version_0 = usbXdataRead4Byte(ADDR_FIRMWARE_VERSION_0).first.toHex().toInt(&ok, 16);
+            version_1 = usbXdataRead4Byte(ADDR_FIRMWARE_VERSION_1).first.toHex().toInt(&ok, 16);
+            version_2 = usbXdataRead4Byte(ADDR_FIRMWARE_VERSION_2).first.toHex().toInt(&ok, 16);
+            version_3 = usbXdataRead4Byte(ADDR_FIRMWARE_VERSION_3).first.toHex().toInt(&ok, 16);
+        }
+        catch (...) {
+            qCDebug(log_host_hid)  << "Exception occurred during firmware version read";
+        }
+        
+        // Always end the transaction, regardless of success or failure
+        endTransaction();
+    } else {
+        qCDebug(log_host_hid)  << "Failed to begin transaction for getFirmwareVersion";
+    }
+    
     return QString("%1%2%3%4").arg(version_0, 2, 10, QChar('0'))
                               .arg(version_1, 2, 10, QChar('0'))
                               .arg(version_2, 2, 10, QChar('0'))
@@ -209,9 +274,9 @@ void VideoHid::fetchBinFileToString(QString &url, int timeoutMs){
         // Convert QByteArray to std::string
         result = std::string(data.constData(), data.size());
         networkFirmware.assign(data.begin(), data.end());
-        qDebug() << "Successfully read file, size:" << data.size() << "bytes";
+        qCDebug(log_host_hid)  << "Successfully read file, size:" << data.size() << "bytes";
     } else {
-        qDebug() << "Failed to fetch:" << reply->errorString();
+        qCDebug(log_host_hid)  << "Failed to fetch:" << reply->errorString();
     }
     int version_0 = result.length() > 12 ? (unsigned char)result[12] : 0;
     int version_1 = result.length() > 13 ? (unsigned char)result[13] : 0;
@@ -242,10 +307,10 @@ QString VideoHid::getLatestFirmwareFilenName(QString &url, int timeoutMs){
     if (reply->isFinished() && reply->error() == QNetworkReply::NoError) {
         result = QString::fromUtf8(reply->readAll());
     } else if (!reply->isFinished()) {
-        qDebug() << "Request time out";
-        reply->abort(); // 超时后中止请求
+        qCDebug(log_host_hid)  << "Request time out";
+        reply->abort(); // request timout and abort
     } else {
-        qDebug() << "fail to get file name" << reply->errorString();
+        qCDebug(log_host_hid)  << "fail to get file name" << reply->errorString();
     }
 
     reply->deleteLater();
@@ -296,53 +361,45 @@ bool VideoHid::usbXdataWrite4Byte(quint16 u16_address, QByteArray data) {
     ctrlData[3] = static_cast<char>(u16_address & 0xFF);
     ctrlData.replace(4, 4, data);
 
-    qDebug() << "usbXdataWrite4Byte: " << ctrlData.toHex();
+    qCDebug(log_host_hid)  << "usbXdataWrite4Byte: " << ctrlData.toHex();
 
     return this->sendFeatureReport((uint8_t*)ctrlData.data(), ctrlData.size());
 }
 
-bool VideoHid::getFeatureReport(uint8_t* buffer, size_t bufferLength, bool autoCloseHandle) {
-#ifdef _WIN32
-    return this->getFeatureReportWindows(buffer, bufferLength, autoCloseHandle);
-#elif __linux__
-    return this->getFeatureReportLinux(buffer, bufferLength, autoCloseHandle);
-#endif
-}
-
 bool VideoHid::getFeatureReport(uint8_t* buffer, size_t bufferLength) {
-    return this->getFeatureReport(buffer, bufferLength, true);
-}
-
-bool VideoHid::sendFeatureReport(uint8_t* buffer, size_t bufferLength, bool autoCloseHandle) {
 #ifdef _WIN32
-    int retries = 2;
-    while (retries-- > 0) {
-        if (sendFeatureReportWindows(buffer, bufferLength, autoCloseHandle)) {
-            return true;
-        }
-        qDebug() << "Retrying sendFeatureReportWindows...";
-    }
-    return false;
+    return this->getFeatureReportWindows(buffer, bufferLength);
 #elif __linux__
-    // implementation
-    int retries = 2;
-    while (retries-- > 0) {
-        if (sendFeatureReportLinux(buffer, bufferLength, autoCloseHandle)) {
-            return true;
-        }
-        qDebug() << "Retrying sendFeatureReportLinux...";
-    }
-    return false;
+    return this->getFeatureReportLinux(buffer, bufferLength);
 #endif
 }
 
 bool VideoHid::sendFeatureReport(uint8_t* buffer, size_t bufferLength) {
-    return this->sendFeatureReport(buffer, bufferLength, true);
+#ifdef _WIN32
+    int retries = 2;
+    while (retries-- > 0) {
+        if (sendFeatureReportWindows(buffer, bufferLength)) {
+            return true;
+        }
+        qCDebug(log_host_hid)  << "Retrying sendFeatureReportWindows...";
+    }
+    return false;
+#elif __linux__
+    int retries = 2;
+    while (retries-- > 0) {
+        if (sendFeatureReportLinux(buffer, bufferLength)) {
+            return true;
+        }
+        qCDebug(log_host_hid)  << "Retrying sendFeatureReportLinux...";
+    }
+    return false;
+#endif
 }
 
 void VideoHid::closeHIDDeviceHandle() {
     #ifdef _WIN32
         if (deviceHandle != INVALID_HANDLE_VALUE) {
+            qCDebug(log_host_hid) << "Closing HID device handle...";
             CloseHandle(deviceHandle);
             deviceHandle = INVALID_HANDLE_VALUE;
         }
@@ -354,8 +411,54 @@ void VideoHid::closeHIDDeviceHandle() {
     #endif
 }
 
+bool VideoHid::beginTransaction() {
+    if (m_inTransaction) {
+        qCDebug(log_host_hid)  << "Transaction already in progress";
+        return true;  // Already in a transaction
+    }
+    
+#ifdef _WIN32
+    bool success = openHIDDeviceHandle();
+#elif __linux__
+    bool success = openHIDDevice();
+#endif
+
+    if (success) {
+        m_inTransaction = true;
+        qCDebug(log_host_hid)  << "HID transaction started";
+        return true;
+    } else {
+        qCDebug(log_host_hid)  << "Failed to start HID transaction";
+        return false;
+    }
+}
+
+void VideoHid::endTransaction() {
+    if (m_inTransaction) {
+        closeHIDDeviceHandle();
+        m_inTransaction = false;
+        qCDebug(log_host_hid)  << "HID transaction ended";
+    }
+}
+
+bool VideoHid::isInTransaction() const {
+    return m_inTransaction;
+}
+
 #ifdef _WIN32
 std::wstring VideoHid::getHIDDevicePath() {
+    // Check if we have a cached path that's still valid
+    auto now = std::chrono::steady_clock::now();
+    auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(now - m_lastPathQuery).count();
+    
+    if (!m_cachedDevicePath.empty() && elapsed < 10) {
+        // Return cached path if it's less than 10 seconds old
+        return m_cachedDevicePath;
+    }
+    
+    // Update the last query time
+    m_lastPathQuery = now;
+    
     GUID hidGuid;
     HidD_GetHidGuid(&hidGuid); // Get the HID GUID
 
@@ -393,6 +496,10 @@ std::wstring VideoHid::getHIDDevicePath() {
                         CloseHandle(deviceHandle);
                         free(deviceInterfaceDetailData);
                         SetupDiDestroyDeviceInfoList(deviceInfoSet);
+                        
+                        // Cache the found device path
+                        m_cachedDevicePath = devicePath;
+                        
                         return devicePath; // Found the device
                     }
                 }
@@ -403,12 +510,18 @@ std::wstring VideoHid::getHIDDevicePath() {
     }
 
     SetupDiDestroyDeviceInfoList(deviceInfoSet);
+    
+    // Clear the cache if no device was found
+    m_cachedDevicePath.clear();
+    
     return L""; // Device not found
 }
 
-bool VideoHid::sendFeatureReportWindows(BYTE* reportBuffer, DWORD bufferSize, bool autoCloseHandle) {
-    if (!openHIDDeviceHandle()) {
-        qDebug() << "Failed to open device handle for sending feature report.";
+bool VideoHid::sendFeatureReportWindows(BYTE* reportBuffer, DWORD bufferSize) {
+    bool openedForOperation = m_inTransaction || openHIDDeviceHandle();
+    
+    if (!openedForOperation) {
+        qCDebug(log_host_hid)  << "Failed to open device handle for sending feature report.";
         return false;
     }
 
@@ -416,26 +529,22 @@ bool VideoHid::sendFeatureReportWindows(BYTE* reportBuffer, DWORD bufferSize, bo
     bool result = HidD_SetFeature(deviceHandle, reportBuffer, bufferSize);
 
     if (!result) {
-        qDebug() << "Failed to send feature report.";
-        if (autoCloseHandle) {
+        qCDebug(log_host_hid)  << "Failed to send feature report.";
+        if (!m_inTransaction) {
             closeHIDDeviceHandle();
         }
         return false;
     }
 
-    if (autoCloseHandle) {
+    if (!m_inTransaction) {
         closeHIDDeviceHandle();
     }
     return true;
 }
 
-// Overload method to maintain existing calls
-bool VideoHid::sendFeatureReportWindows(BYTE* reportBuffer, DWORD bufferSize) {
-    return sendFeatureReportWindows(reportBuffer, bufferSize, true);
-}
-
 bool VideoHid::openHIDDeviceHandle() {
     if (deviceHandle == INVALID_HANDLE_VALUE) {
+        qCDebug(log_host_hid)  << "Opening HID device handle...";
         deviceHandle = CreateFileW(getHIDDevicePath().c_str(),
                                  GENERIC_READ | GENERIC_WRITE,
                                  FILE_SHARE_READ | FILE_SHARE_WRITE,
@@ -445,16 +554,18 @@ bool VideoHid::openHIDDeviceHandle() {
                                  NULL);
         
         if (deviceHandle == INVALID_HANDLE_VALUE) {
-            qDebug() << "Failed to open device handle.";
+            qCDebug(log_host_hid)  << "Failed to open device handle.";
             return false;
         }
     }
     return true;
 }
 
-bool VideoHid::getFeatureReportWindows(BYTE* reportBuffer, DWORD bufferSize, bool autoCloseHandle) {
-    if (!openHIDDeviceHandle()) {
-        qDebug() << "Failed to open device handle for getting feature report.";
+bool VideoHid::getFeatureReportWindows(BYTE* reportBuffer, DWORD bufferSize) {
+    bool openedForOperation = m_inTransaction || openHIDDeviceHandle();
+    
+    if (!openedForOperation) {
+        qCDebug(log_host_hid)  << "Failed to open device handle for getting feature report.";
         return false;
     }
 
@@ -462,28 +573,40 @@ bool VideoHid::getFeatureReportWindows(BYTE* reportBuffer, DWORD bufferSize, boo
     bool result = HidD_GetFeature(deviceHandle, reportBuffer, bufferSize);
 
     if (!result) {
-        qDebug() << "Failed to get feature report.";
+        qCDebug(log_host_hid)  << "Failed to get feature report.";
     }
 
-    if (autoCloseHandle) {
+    if (!m_inTransaction) {
         closeHIDDeviceHandle();
     }
 
     return result;
 }
 
-bool VideoHid::getFeatureReportWindows(BYTE* reportBuffer, DWORD bufferSize) {
-    return getFeatureReportWindows(reportBuffer, bufferSize, true);
-}
-
 #elif __linux__
 QString VideoHid::getHIDDevicePath() {
+    // Check if we have a cached path that's still valid
+    auto now = std::chrono::steady_clock::now();
+    auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(now - m_lastPathQuery).count();
+    
+    if (!m_cachedDevicePath.isEmpty() && elapsed < 10) {
+        // Return cached path if it's less than 10 seconds old
+        return m_cachedDevicePath;
+    }
+    
+    // Update the last query time
+    m_lastPathQuery = now;
+    
     QDir dir("/sys/class/hidraw");
 
     QStringList hidrawDevices = dir.entryList(QDir::Dirs | QDir::NoDotAndDotDot);
 
     if (hidrawDevices.isEmpty()) {
-        qDebug() << "No Openterface device found.";
+        qCDebug(log_host_hid)  << "No Openterface device found.";
+        
+        // Clear the cache if no devices found
+        m_cachedDevicePath.clear();
+        
         return QString();
     }
 
@@ -496,22 +619,30 @@ QString VideoHid::getHIDDevicePath() {
             
             while (!in.atEnd()) {
                 QString line = in.readLine();
-                qDebug() << "Line: " << line;
+                qCDebug(log_host_hid)  << "Line: " << line;
                 if (line.isEmpty()) {
                     break;
                 }
                 if (line.contains("HID_NAME")) {
                     // Check if this is the device you are looking for
                     if (line.contains("Openterface")) {
-                        return "/dev/" + device;
+                        QString foundPath = "/dev/" + device;
+                        
+                        // Cache the found device path
+                        m_cachedDevicePath = foundPath;
+                        
+                        return foundPath;
                     }
                 }
             }
         } else {
-            qDebug() << "Failed to open device path: " << devicePath;
+            qCDebug(log_host_hid)  << "Failed to open device path: " << devicePath;
         }   
     }
 
+    // Clear the cache if no device was found
+    m_cachedDevicePath.clear();
+    
     return QString();
 }
 
@@ -521,15 +652,17 @@ bool VideoHid::openHIDDevice() {
         QString devicePath = getHIDDevicePath();
         hidFd = open(devicePath.toStdString().c_str(), O_RDWR);
         if (hidFd < 0) {
-            qDebug() << "Failed to open HID device (" << devicePath << "). Error:" << strerror(errno);
+            qCDebug(log_host_hid)  << "Failed to open HID device (" << devicePath << "). Error:" << strerror(errno);
             return false;
         }
     }
     return true;
 }
 
-bool VideoHid::sendFeatureReportLinux(uint8_t* reportBuffer, int bufferSize, bool autoCloseHandle) {
-    if (!openHIDDevice()) {
+bool VideoHid::sendFeatureReportLinux(uint8_t* reportBuffer, int bufferSize) {
+    bool openedForOperation = m_inTransaction || openHIDDevice();
+    
+    if (!openedForOperation) {
         return false;
     }
 
@@ -538,23 +671,21 @@ bool VideoHid::sendFeatureReportLinux(uint8_t* reportBuffer, int bufferSize, boo
     int res = ioctl(hidFd, HIDIOCSFEATURE(buffer.size()), buffer.data());
 
     if (res < 0) {
-        qDebug() << "Failed to send feature report. Error:" << strerror(errno);
+        qCDebug(log_host_hid)  << "Failed to send feature report. Error:" << strerror(errno);
         return false;
     }
 
-    if (autoCloseHandle) {
+    if (!m_inTransaction) {
         closeHIDDeviceHandle();
     }
 
     return true;
 }
 
-bool VideoHid::sendFeatureReportLinux(uint8_t* reportBuffer, int bufferSize) {
-    return sendFeatureReportLinux(reportBuffer, bufferSize, true);
-}
-
-bool VideoHid::getFeatureReportLinux(uint8_t* reportBuffer, int bufferSize, bool autoCloseHandle) {
-    if (!openHIDDevice()) {
+bool VideoHid::getFeatureReportLinux(uint8_t* reportBuffer, int bufferSize) {
+    bool openedForOperation = m_inTransaction || openHIDDevice();
+    
+    if (!openedForOperation) {
         return false;
     }
 
@@ -562,20 +693,16 @@ bool VideoHid::getFeatureReportLinux(uint8_t* reportBuffer, int bufferSize, bool
     int res = ioctl(hidFd, HIDIOCGFEATURE(buffer.size()), buffer.data());
 
     if (res < 0) {
-        qDebug() << "Failed to get feature report. Error:" << strerror(errno);
+        qCDebug(log_host_hid)  << "Failed to get feature report. Error:" << strerror(errno);
         return false;
     }
 
     std::copy(buffer.begin(), buffer.end(), reportBuffer);
 
-    if (autoCloseHandle) {
+    if (!m_inTransaction) {
         closeHIDDeviceHandle();
     }
     return true;
-}
-
-bool VideoHid::getFeatureReportLinux(uint8_t* reportBuffer, int bufferSize) {
-    return getFeatureReportLinux(reportBuffer, bufferSize, true);
 }
 #endif
 
@@ -595,14 +722,16 @@ bool VideoHid::writeChunk(quint16 address, const QByteArray &data) {
         report[2] = (_address >> 8) & 0xFF;
         report[3] = _address & 0xFF;
         report.replace(4, chunk_length, chunk);
-        qDebug() << "Report:" << report.toHex(' ').toUpper();
-        status = sendFeatureReport((uint8_t*)report.data(), report.size(), false);
+        qCDebug(log_host_hid)  << "Report:" << report.toHex(' ').toUpper();
+        
+        status = sendFeatureReport((uint8_t*)report.data(), report.size());
+        
         if (!status) {
             qWarning() << "Failed to write chunk to address:" << QString("0x%1").arg(_address, 4, 16, QChar('0'));
             return false;
         }
         written_size += chunk_length;
-        emit firmwareWriteChunkComplete(written_size); // Add this line
+        emit firmwareWriteChunkComplete(written_size);
         _address += chunkSize;
     }
     return true;
@@ -612,20 +741,32 @@ bool VideoHid::writeEeprom(quint16 address, const QByteArray &data) {
     const int MAX_CHUNK = 16;
     QByteArray remainingData = data;
     written_size = 0;
-    while (!remainingData.isEmpty()) {
-        QByteArray chunk = remainingData.left(MAX_CHUNK);
-        if(!writeChunk(address, chunk)){
-            return false;
-        }
-        address += chunk.size();
-        remainingData = remainingData.mid(MAX_CHUNK);
-        if (written_size % 64 == 0) {
-            qDebug() << "Written size:" << written_size;
-        }
-        QThread::msleep(100); // Add 10ms delay between writes
+    
+    // Begin transaction for the entire operation
+    if (!beginTransaction()) {
+        qCDebug(log_host_hid)  << "Failed to begin transaction for EEPROM write";
+        return false;
     }
-    closeHIDDeviceHandle();
-    return true;
+    
+    bool success = true;
+    while (!remainingData.isEmpty() && success) {
+        QByteArray chunk = remainingData.left(MAX_CHUNK);
+        success = writeChunk(address, chunk);
+        
+        if (success) {
+            address += chunk.size();
+            remainingData = remainingData.mid(MAX_CHUNK);
+            if (written_size % 64 == 0) {
+                qCDebug(log_host_hid)  << "Written size:" << written_size;
+            }
+            QThread::msleep(100); // Add 100ms delay between writes
+        }
+    }
+    
+    // End transaction
+    endTransaction();
+    
+    return success;
 }
 
 void VideoHid::loadFirmwareToEeprom() {
@@ -649,12 +790,12 @@ void VideoHid::loadFirmwareToEeprom() {
     
     // Connect progress and status signals if needed
     connect(worker, &FirmwareWriter::progress, this, [this](int percent) {
-        qDebug() << "Firmware write progress: " << percent << "%";
+        qCDebug(log_host_hid)  << "Firmware write progress: " << percent << "%";
         emit firmwareWriteProgress(percent);
     });
     
     connect(worker, &FirmwareWriter::finished, this, [this](bool success) {
-        qDebug() << "Firmware write " << (success ? "completed successfully" : "failed");
+        qCDebug(log_host_hid)  << "Firmware write " << (success ? "completed successfully" : "failed");
         emit firmwareWriteComplete(success);
     });
     
@@ -666,8 +807,8 @@ bool VideoHid::isLatestFirmware() {
     QString firemwareFileName = getLatestFirmwareFilenName(firmwareURL);
     QString newURL = firmwareURL.replace("minikvm_latest_firmware.txt", firemwareFileName);
     fetchBinFileToString(newURL);
-    qDebug() << "Firmware version:" << QString::fromStdString(getFirmwareVersion());
-    qDebug() << "Lateset firmware version:" << QString::fromStdString(m_firmwareVersion);
+    qCDebug(log_host_hid)  << "Firmware version:" << QString::fromStdString(getFirmwareVersion());
+    qCDebug(log_host_hid)  << "Lateset firmware version:" << QString::fromStdString(m_firmwareVersion);
     return getFirmwareVersion() == m_firmwareVersion;
 }
 
