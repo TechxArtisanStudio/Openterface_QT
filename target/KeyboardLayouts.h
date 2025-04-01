@@ -17,6 +17,7 @@ struct KeyboardLayoutConfig {
     QString name;
     QMap<int, uint8_t> keyMap;
     QMap<uint8_t, int> charMapping;
+    QMap<uint32_t, uint8_t> unicodeMap;
     QList<int> needShiftKeys;
     QList<int> needAltGrKeys;
     bool isRightToLeft;
@@ -81,7 +82,7 @@ struct KeyboardLayoutConfig {
         keyNameToQt["Equal"] = Qt::Key_Equal;           // =
         keyNameToQt["BracketLeft"] = Qt::Key_BracketLeft;    // [
         keyNameToQt["BracketRight"] = Qt::Key_BracketRight;  // ]
-        keyNameToQt["Backslash"] = Qt::Key_Backslash;   // \
+        keyNameToQt["Backslash"] = Qt::Key_Backslash;   //
         keyNameToQt["Semicolon"] = Qt::Key_Semicolon;   // ;
         keyNameToQt["Apostrophe"] = Qt::Key_Apostrophe; // '
         keyNameToQt["QuoteLeft"] = Qt::Key_QuoteLeft;   // `
@@ -171,7 +172,7 @@ struct KeyboardLayoutConfig {
         keyNameToQt["currency"] = Qt::Key_currency;     // ¤
         keyNameToQt["NumberSign"] = Qt::Key_NumberSign; // #
         // altgr keys
-        keyNameToQt["Mu"] = 0x00B5;                     // µ
+        
         keyNameToQt["degree"] = Qt::Key_degree;   // ¨
     }
     
