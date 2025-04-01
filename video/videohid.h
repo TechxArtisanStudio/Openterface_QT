@@ -8,6 +8,7 @@
 #include <QNetworkReply>
 #include <QEventLoop>
 #include <vector>
+#include <chrono>
 
 #include "../ui/statusevents.h"
 #ifdef _WIN32
@@ -71,6 +72,11 @@ public:
 
     void loadFirmwareToEeprom();
 
+    // Transaction-based HID access
+    bool beginTransaction();
+    void endTransaction();
+    bool isInTransaction() const;
+
 signals:
     // Add new signals
     void firmwareWriteProgress(int percent);
@@ -88,8 +94,10 @@ private:
 
 #ifdef _WIN32
     HANDLE deviceHandle = INVALID_HANDLE_VALUE;
+    std::wstring m_cachedDevicePath;
 #elif __linux__
     int hidFd = -1;
+    QString m_cachedDevicePath;
 #endif
 
     bool openHIDDeviceHandle();
@@ -105,31 +113,25 @@ private:
     
     StatusEventCallback* eventCallback = nullptr;
 
-    bool getFeatureReport(uint8_t* buffer, size_t bufferLength, bool autoCloseHandle);
-    bool getFeatureReport(uint8_t* buffer, size_t bufferLength); 
-    bool sendFeatureReport(uint8_t* buffer, size_t bufferLength, bool autoCloseHandle);
-    bool sendFeatureReport(uint8_t* buffer, size_t bufferLength); 
+    bool getFeatureReport(uint8_t* buffer, size_t bufferLength);
+    bool sendFeatureReport(uint8_t* buffer, size_t bufferLength);
 
     bool writeChunk(quint16 address, const QByteArray &data);
     bool writeEeprom(quint16 address, const QByteArray &data);
     uint16_t written_size = 0;
 
 #ifdef _WIN32
-    std::wstring m_cachedDevicePath;
     std::wstring getHIDDevicePath();
-    bool sendFeatureReportWindows(uint8_t* reportBuffer, DWORD bufferSize, bool autoCloseHandle);
-    bool sendFeatureReportWindows(uint8_t* reportBuffer, DWORD bufferSize); // Overloaded method
-    bool getFeatureReportWindows(uint8_t* reportBuffer, DWORD bufferSize, bool autoCloseHandle);
-    bool getFeatureReportWindows(uint8_t* reportBuffer, DWORD bufferSize); // Overloaded method
+    bool sendFeatureReportWindows(BYTE* reportBuffer, DWORD bufferSize);
+    bool getFeatureReportWindows(BYTE* reportBuffer, DWORD bufferSize);
 #elif __linux__
-    QString m_cachedDevicePath;
     QString getHIDDevicePath();
-    bool sendFeatureReportLinux(uint8_t* reportBuffer, int bufferSize, bool autoCloseHandle);
-    bool sendFeatureReportLinux(uint8_t* reportBuffer, int bufferSize); // Overloaded method
-    bool getFeatureReportLinux(uint8_t* reportBuffer, int bufferSize, bool autoCloseHandle);
+    bool sendFeatureReportLinux(uint8_t* reportBuffer, int bufferSize);
     bool getFeatureReportLinux(uint8_t* reportBuffer, int bufferSize);
 #endif
 
+    std::chrono::time_point<std::chrono::steady_clock> m_lastPathQuery = std::chrono::steady_clock::now();
+    bool m_inTransaction = false;
 };
 
 #endif // VIDEOHID_H
