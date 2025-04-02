@@ -168,7 +168,7 @@ jobs:
         run: move /Y ${{ runner.temp }}\build\${{ env.PACKAGE_DIR }} ${{ env.SOURCE_DIR }}
 
       - name: Compile .ISS to .EXE Installer
-        uses: Minionguyjpro/Inno-Setup-Action@v1.2.2
+        uses: robin24/Inno-Setup-Action@v1
         with:
           path: installer.iss
           options: 
