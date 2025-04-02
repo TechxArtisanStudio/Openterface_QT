@@ -1,5 +1,5 @@
 // ScreenSaverManager.cpp
-#include "ScreenSaverManager.h"
+#include "ui/screensavermanager.h"
 #include <QDebug>
 
 ScreenSaverManager::ScreenSaverManager(QObject *parent)
