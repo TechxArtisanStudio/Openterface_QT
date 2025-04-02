@@ -22,10 +22,10 @@
 
 #include "settingdialog.h"
 #include "ui_settingdialog.h"
-#include "ui/logpage.h"
-#include "ui/hardwarepage.h"
+#include "logpage.h"
+#include "targetcontrolpage.h"
+#include "videopage.h"
 #include "host/cameramanager.h"
-#include "ui/videopage.h"
 
 #include <QCamera>
 #include <QCameraDevice>
@@ -63,7 +63,7 @@ SettingDialog::SettingDialog(CameraManager *cameraManager, QWidget *parent)
     , logPage(new LogPage(this))
     , audioPage(new AudioPage(this))
     , videoPage(new VideoPage(cameraManager, this))
-    , hardwarePage(new HardwarePage(this))
+    , targetControlPage(new TargetControlPage(this))
     , buttonWidget(new QWidget(this))
 
 {
@@ -77,7 +77,7 @@ SettingDialog::SettingDialog(CameraManager *cameraManager, QWidget *parent)
     // loadLogSettings();
     logPage->initLogSettings();
     videoPage->initVideoSettings();
-    hardwarePage->initHardwareSetting();
+    targetControlPage->initHardwareSetting();
     // Connect the tree widget's currentItemChanged signal to a slot
     connect(settingTree, &QTreeWidget::currentItemChanged, this, &SettingDialog::changePage);
 }
@@ -111,7 +111,7 @@ void SettingDialog::createPages() {
     stackedWidget->addWidget(logPage);
     stackedWidget->addWidget(videoPage);
     stackedWidget->addWidget(audioPage);
-    stackedWidget->addWidget(hardwarePage);
+    stackedWidget->addWidget(targetControlPage);
 }
 
 void SettingDialog::createButtons(){
@@ -182,7 +182,7 @@ void SettingDialog::applyAccrodingPage(){
     case 2:
         break;
     case 3:
-        hardwarePage->applyHardwareSetting();
+        targetControlPage->applyHardwareSetting();
         break;
     default:
         break;
@@ -192,12 +192,12 @@ void SettingDialog::applyAccrodingPage(){
 void SettingDialog::handleOkButton() {
     logPage->applyLogsettings();
     videoPage->applyVideoSettings();
-    hardwarePage->applyHardwareSetting();
+    targetControlPage->applyHardwareSetting();
     accept();
 }
 
-HardwarePage* SettingDialog::getHardwarePage() {
-    return hardwarePage;
+TargetControlPage* SettingDialog::getTargetControlPage() {
+    return targetControlPage;
 }
 
 VideoPage* SettingDialog::getVideoPage() {

@@ -4,27 +4,27 @@
 <context>
     <name>AudioPage</name>
     <message>
-        <location filename="../../ui/audiopage.cpp" line="39"/>
+        <location filename="../../ui/preferences/audiopage.cpp" line="39"/>
         <source>General audio setting</source>
         <translation>Paramètres audio généraux</translation>
     </message>
     <message>
-        <location filename="../../ui/audiopage.cpp" line="42"/>
+        <location filename="../../ui/preferences/audiopage.cpp" line="42"/>
         <source>Audio Codec: </source>
         <translation>Codec audio : </translation>
     </message>
     <message>
-        <location filename="../../ui/audiopage.cpp" line="47"/>
+        <location filename="../../ui/preferences/audiopage.cpp" line="47"/>
         <source>Sample Rate: </source>
         <translation>Taux d&apos;échantillonnage : </translation>
     </message>
     <message>
-        <location filename="../../ui/audiopage.cpp" line="53"/>
+        <location filename="../../ui/preferences/audiopage.cpp" line="53"/>
         <source>Quality: </source>
         <translation>Qualité : </translation>
     </message>
     <message>
-        <location filename="../../ui/audiopage.cpp" line="60"/>
+        <location filename="../../ui/preferences/audiopage.cpp" line="60"/>
         <source>File Format: </source>
         <translation>Format de fichier : </translation>
     </message>
@@ -263,140 +263,49 @@ Veuillez réessayer après avoir redémarré l&apos;application.</translation>
     </message>
 </context>
 <context>
-    <name>HardwarePage</name>
-    <message>
-        <location filename="../../ui/hardwarepage.cpp" line="38"/>
-        <source>Target control setting</source>
-        <translation>Paramètre de contrôle cible</translation>
-    </message>
-    <message>
-        <source>UVC Camera resource: </source>
-        <translation type="vanished">Ressource caméra UVC : </translation>
-    </message>
-    <message>
-        <source>Custom target USB Composite Device VID and PID: </source>
-        <translation type="vanished">Périphérique composite USB cible personnalisé VID et PID: </translation>
-    </message>
-    <message>
-        <location filename="../../ui/hardwarepage.cpp" line="42"/>
-        <source>Target Control Operating Mode:</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../../ui/hardwarepage.cpp" line="45"/>
-        <source>Standard USB keyboard + USB mouse device + USB custom HID device</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../../ui/hardwarepage.cpp" line="46"/>
-        <source>Standard USB keyboard device</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../../ui/hardwarepage.cpp" line="47"/>
-        <source>Standard USB keyboard + USB mouse device</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../../ui/hardwarepage.cpp" line="48"/>
-        <source>Standard USB custom HID device</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../../ui/hardwarepage.cpp" line="73"/>
-        <source>Custom target USB Composite Device VID and PID:</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../../ui/hardwarepage.cpp" line="74"/>
-        <source>Custom target USB descriptors: </source>
-        <translation>Descripteurs USB cibles personnalisés: </translation>
-    </message>
-    <message>
-        <location filename="../../ui/hardwarepage.cpp" line="75"/>
-        <source>VID: </source>
-        <translation>VID : </translation>
-    </message>
-    <message>
-        <location filename="../../ui/hardwarepage.cpp" line="76"/>
-        <source>PID: </source>
-        <translation>PID : </translation>
-    </message>
-    <message>
-        <location filename="../../ui/hardwarepage.cpp" line="77"/>
-        <source>Custom vendor descriptor:</source>
-        <translation>Descripteur vendeur personnalisé :</translation>
-    </message>
-    <message>
-        <location filename="../../ui/hardwarepage.cpp" line="78"/>
-        <source>Custom product descriptor:</source>
-        <translation>Descripteur produit personnalisé :</translation>
-    </message>
-    <message>
-        <location filename="../../ui/hardwarepage.cpp" line="79"/>
-        <source>USB serial number:</source>
-        <translation>Numéro de série USB :</translation>
-    </message>
-    <message>
-        <location filename="../../ui/hardwarepage.cpp" line="80"/>
-        <source>Enable custom USB flag</source>
-        <translation>Activer l&apos;indicateur USB personnalisé</translation>
-    </message>
-    <message>
-        <location filename="../../ui/hardwarepage.cpp" line="214"/>
-        <source>App Restart Required</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../../ui/hardwarepage.cpp" line="215"/>
-        <source>You have changed the USB operating mode. Please restart the application and re-connect the Openterface Mini-KVM for this change to take effect.</source>
-        <translation type="unfinished"></translation>
-    </message>
-</context>
-<context>
     <name>LogPage</name>
     <message>
-        <location filename="../../ui/logpage.cpp" line="50"/>
+        <location filename="../../ui/preferences/logpage.cpp" line="50"/>
         <source>Core</source>
         <translation>Noyau</translation>
     </message>
     <message>
-        <location filename="../../ui/logpage.cpp" line="51"/>
+        <location filename="../../ui/preferences/logpage.cpp" line="51"/>
         <source>Serial</source>
         <translation>Série</translation>
     </message>
     <message>
-        <location filename="../../ui/logpage.cpp" line="52"/>
+        <location filename="../../ui/preferences/logpage.cpp" line="52"/>
         <source>User Interface</source>
         <translation>Interface utilisateur</translation>
     </message>
     <message>
-        <location filename="../../ui/logpage.cpp" line="53"/>
+        <location filename="../../ui/preferences/logpage.cpp" line="53"/>
         <source>Host</source>
         <translation>Hôte</translation>
     </message>
     <message>
-        <location filename="../../ui/logpage.cpp" line="54"/>
+        <location filename="../../ui/preferences/logpage.cpp" line="54"/>
         <source>Enable file logging</source>
         <translation>Activer l&apos;enregistrement dans un fichier</translation>
     </message>
     <message>
-        <location filename="../../ui/logpage.cpp" line="56"/>
+        <location filename="../../ui/preferences/logpage.cpp" line="56"/>
         <source>Browse</source>
         <translation>Parcourir</translation>
     </message>
     <message>
-        <location filename="../../ui/logpage.cpp" line="76"/>
+        <location filename="../../ui/preferences/logpage.cpp" line="76"/>
         <source>General log setting</source>
         <translation>Paramètres généraux du journal</translation>
     </message>
     <message>
-        <location filename="../../ui/logpage.cpp" line="80"/>
+        <location filename="../../ui/preferences/logpage.cpp" line="80"/>
         <source>Check the check box to see the corresponding log in the QT console.</source>
         <translation>Cochez la case pour voir le journal correspondant dans la console QT.</translation>
     </message>
     <message>
-        <location filename="../../ui/logpage.cpp" line="99"/>
+        <location filename="../../ui/preferences/logpage.cpp" line="99"/>
         <source>Select Log Directory</source>
         <translation>Sélectionner le répertoire des journaux</translation>
     </message>
@@ -884,36 +793,36 @@ Voulez-vous procéder à la mise à jour ?</translation>
 <context>
     <name>SettingDialog</name>
     <message>
-        <location filename="../../ui/settingdialog.ui" line="14"/>
+        <location filename="../../ui/preferences/settingdialog.ui" line="14"/>
         <source>Dialog</source>
         <translation>Dialogue</translation>
     </message>
     <message>
-        <location filename="../../ui/settingdialog.cpp" line="76"/>
+        <location filename="../../ui/preferences/settingdialog.cpp" line="76"/>
         <source>Preferences</source>
         <translation>Préférences</translation>
     </message>
     <message>
-        <location filename="../../ui/settingdialog.cpp" line="101"/>
-        <location filename="../../ui/settingdialog.cpp" line="159"/>
+        <location filename="../../ui/preferences/settingdialog.cpp" line="101"/>
+        <location filename="../../ui/preferences/settingdialog.cpp" line="159"/>
         <source>General</source>
         <translation>Général</translation>
     </message>
     <message>
-        <location filename="../../ui/settingdialog.cpp" line="101"/>
-        <location filename="../../ui/settingdialog.cpp" line="161"/>
+        <location filename="../../ui/preferences/settingdialog.cpp" line="101"/>
+        <location filename="../../ui/preferences/settingdialog.cpp" line="161"/>
         <source>Video</source>
         <translation>Vidéo</translation>
     </message>
     <message>
-        <location filename="../../ui/settingdialog.cpp" line="101"/>
-        <location filename="../../ui/settingdialog.cpp" line="163"/>
+        <location filename="../../ui/preferences/settingdialog.cpp" line="101"/>
+        <location filename="../../ui/preferences/settingdialog.cpp" line="163"/>
         <source>Audio</source>
         <translation>Audio</translation>
     </message>
     <message>
-        <location filename="../../ui/settingdialog.cpp" line="101"/>
-        <location filename="../../ui/settingdialog.cpp" line="165"/>
+        <location filename="../../ui/preferences/settingdialog.cpp" line="101"/>
+        <location filename="../../ui/preferences/settingdialog.cpp" line="165"/>
         <source>Target Control</source>
         <translation type="unfinished"></translation>
     </message>
@@ -922,19 +831,110 @@ Voulez-vous procéder à la mise à jour ?</translation>
         <translation type="vanished">Matériel</translation>
     </message>
     <message>
-        <location filename="../../ui/settingdialog.cpp" line="118"/>
+        <location filename="../../ui/preferences/settingdialog.cpp" line="118"/>
         <source>OK</source>
         <translation>OK</translation>
     </message>
     <message>
-        <location filename="../../ui/settingdialog.cpp" line="119"/>
+        <location filename="../../ui/preferences/settingdialog.cpp" line="119"/>
         <source>Apply</source>
         <translation>Appliquer</translation>
     </message>
     <message>
-        <location filename="../../ui/settingdialog.cpp" line="120"/>
+        <location filename="../../ui/preferences/settingdialog.cpp" line="120"/>
         <source>Cancel</source>
         <translation>Annuler</translation>
+    </message>
+</context>
+<context>
+    <name>TargetControlPage</name>
+    <message>
+        <location filename="../../ui/preferences/targetcontrolpage.cpp" line="38"/>
+        <source>Target control setting</source>
+        <translation>Paramètre de contrôle cible</translation>
+    </message>
+    <message>
+        <source>UVC Camera resource: </source>
+        <translation type="vanished">Ressource caméra UVC : </translation>
+    </message>
+    <message>
+        <source>Custom target USB Composite Device VID and PID: </source>
+        <translation type="vanished">Périphérique composite USB cible personnalisé VID et PID: </translation>
+    </message>
+    <message>
+        <location filename="../../ui/preferences/targetcontrolpage.cpp" line="42"/>
+        <source>Target Control Operating Mode:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/preferences/targetcontrolpage.cpp" line="45"/>
+        <source>Standard USB keyboard + USB mouse device + USB custom HID device</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/preferences/targetcontrolpage.cpp" line="46"/>
+        <source>Standard USB keyboard device</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/preferences/targetcontrolpage.cpp" line="47"/>
+        <source>Standard USB keyboard + USB mouse device</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/preferences/targetcontrolpage.cpp" line="48"/>
+        <source>Standard USB custom HID device</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/preferences/targetcontrolpage.cpp" line="73"/>
+        <source>Custom target USB Composite Device VID and PID:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/preferences/targetcontrolpage.cpp" line="74"/>
+        <source>Custom target USB descriptors: </source>
+        <translation>Descripteurs USB cibles personnalisés: </translation>
+    </message>
+    <message>
+        <location filename="../../ui/preferences/targetcontrolpage.cpp" line="75"/>
+        <source>VID: </source>
+        <translation>VID : </translation>
+    </message>
+    <message>
+        <location filename="../../ui/preferences/targetcontrolpage.cpp" line="76"/>
+        <source>PID: </source>
+        <translation>PID : </translation>
+    </message>
+    <message>
+        <location filename="../../ui/preferences/targetcontrolpage.cpp" line="77"/>
+        <source>Custom vendor descriptor:</source>
+        <translation>Descripteur vendeur personnalisé :</translation>
+    </message>
+    <message>
+        <location filename="../../ui/preferences/targetcontrolpage.cpp" line="78"/>
+        <source>Custom product descriptor:</source>
+        <translation>Descripteur produit personnalisé :</translation>
+    </message>
+    <message>
+        <location filename="../../ui/preferences/targetcontrolpage.cpp" line="79"/>
+        <source>USB serial number:</source>
+        <translation>Numéro de série USB :</translation>
+    </message>
+    <message>
+        <location filename="../../ui/preferences/targetcontrolpage.cpp" line="80"/>
+        <source>Enable custom USB flag</source>
+        <translation>Activer l&apos;indicateur USB personnalisé</translation>
+    </message>
+    <message>
+        <location filename="../../ui/preferences/targetcontrolpage.cpp" line="214"/>
+        <source>App Restart Required</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/preferences/targetcontrolpage.cpp" line="215"/>
+        <source>You have changed the USB operating mode. Please restart the application and re-connect the Openterface Mini-KVM for this change to take effect.</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -1003,27 +1003,27 @@ Veuillez vérifier votre connexion internet.
 <context>
     <name>VideoPage</name>
     <message>
-        <location filename="../../ui/videopage.cpp" line="54"/>
+        <location filename="../../ui/preferences/videopage.cpp" line="54"/>
         <source>UVC Camera resource: </source>
         <translation type="unfinished">Ressource caméra UVC : </translation>
     </message>
     <message>
-        <location filename="../../ui/videopage.cpp" line="108"/>
+        <location filename="../../ui/preferences/videopage.cpp" line="108"/>
         <source>General video setting</source>
         <translation>Paramètres généraux de la vidéo</translation>
     </message>
     <message>
-        <location filename="../../ui/videopage.cpp" line="112"/>
+        <location filename="../../ui/preferences/videopage.cpp" line="112"/>
         <source>Capture resolutions: </source>
         <translation>Résolutions de capture : </translation>
     </message>
     <message>
-        <location filename="../../ui/videopage.cpp" line="118"/>
+        <location filename="../../ui/preferences/videopage.cpp" line="118"/>
         <source>Framerate: </source>
         <translation>Fréquence d&apos;images : </translation>
     </message>
     <message>
-        <location filename="../../ui/videopage.cpp" line="127"/>
+        <location filename="../../ui/preferences/videopage.cpp" line="127"/>
         <source>Pixel format: </source>
         <translation>Format de pixel : </translation>
     </message>

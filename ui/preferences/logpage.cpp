@@ -28,8 +28,8 @@
 #include <QSettings>
 #include <QLoggingCategory>
 #include "global.h"
-#include "globalsetting.h"
-#include "loghandler.h"
+#include "ui/globalsetting.h"
+#include "ui/loghandler.h"
 #include <QCheckBox>
 #include <QHBoxLayout>
 #include <QLabel>

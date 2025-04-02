@@ -39,9 +39,9 @@
 #include <QByteArray>
 #include "host/cameramanager.h"
 #include "logpage.h"
-#include "hardwarepage.h"
-#include "ui/videopage.h"
-#include "ui/audiopage.h"
+#include "targetcontrolpage.h"
+#include "videopage.h"
+#include "audiopage.h"
 QT_BEGIN_NAMESPACE
 class QCameraFormat;
 class QComboBox;
@@ -59,7 +59,7 @@ public:
     // Change the constructor to accept CameraManager instead of QCamera
     explicit SettingDialog(CameraManager *cameraManager, QWidget *parent = nullptr);
     ~SettingDialog();
-    HardwarePage* getHardwarePage();
+    TargetControlPage* getTargetControlPage();
     VideoPage* getVideoPage();
 // signals:
 //     // void serialSettingsApplied();
@@ -73,7 +73,7 @@ private:
     LogPage *logPage;
     QWidget *audioPage;
     VideoPage *videoPage;
-    HardwarePage *hardwarePage;
+    TargetControlPage *targetControlPage;
 
     QWidget *buttonWidget;
 

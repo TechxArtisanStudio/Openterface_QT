@@ -67,28 +67,31 @@ qt_add_executable(openterfaceQT WIN32 MACOSX_BUNDLE
     target/mouseeventdto.cpp target/mouseeventdto.h
     video/videohid.cpp video/videohid.h
     ui/TaskManager.cpp ui/TaskManager.h
-    ui/audiopage.cpp ui/audiopage.h
-    ui/cameraajust.cpp ui/cameraajust.h
+
+    ui/cameraadjust.cpp ui/cameraadjust.h
     ui/envdialog.cpp ui/envdialog.h ui/envdialog.ui
     ui/fpsspinbox.cpp ui/fpsspinbox.h
     ui/globalsetting.cpp ui/globalsetting.h
-    ui/hardwarepage.cpp ui/hardwarepage.h
     ui/helppane.cpp ui/helppane.h
     ui/inputhandler.cpp ui/inputhandler.h
     ui/loghandler.cpp ui/loghandler.h
-    ui/logpage.cpp ui/logpage.h
+
     ui/mainwindow.cpp ui/mainwindow.h ui/mainwindow.ui
     ui/metadatadialog.cpp ui/metadatadialog.h
     ui/scripttool.cpp ui/scripttool.h
     ui/serialportdebugdialog.cpp ui/serialportdebugdialog.h
-    ui/settingdialog.cpp ui/settingdialog.h ui/settingdialog.ui
+
     ui/statusbarmanager.cpp ui/statusbarmanager.h
     ui/statusevents.h
     ui/statuswidget.cpp ui/statuswidget.h
     ui/toggleswitch.cpp ui/toggleswitch.h
     ui/toolbarmanager.cpp ui/toolbarmanager.h
     ui/versioninfomanager.cpp ui/versioninfomanager.h
-    ui/videopage.cpp ui/videopage.h
+    ui/preferences/settingdialog.cpp ui/preferences/settingdialog.h ui/preferences/settingdialog.ui
+    ui/preferences/logpage.cpp ui/preferences/logpage.h
+    ui/preferences/videopage.cpp ui/preferences/videopage.h
+    ui/preferences/audiopage.cpp ui/preferences/audiopage.h
+    ui/preferences/targetcontrolpage.cpp ui/preferences/targetcontrolpage.h
     ui/videopane.cpp ui/videopane.h
     ui/languagemanager.cpp ui/languagemanager.h
     ui/firmwareupdatedialog.cpp ui/firmwareupdatedialog.h

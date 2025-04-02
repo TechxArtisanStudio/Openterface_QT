@@ -20,76 +20,67 @@
 * ========================================================================== *
 */
 
-#ifndef VIDEOPAGE_H
-#define VIDEOPAGE_H
+#ifndef TARGETCONTROL_H
+#define TARGETCONTROL_H
+
 #include <QWidget>
+#include <QCameraDevice>
 #include <QComboBox>
 #include <QLabel>
+#include <QCheckBox>
+#include <QLineEdit>
+#include <QGridLayout>
 #include <QVBoxLayout>
-#include <QHBoxLayout>
-#include <QSize>
+#include <QMediaDevices>
 #include <QMap>
-#include <set>
-#include "fontstyle.h"
+#include <QCamera>
+#include <QRadioButton>
+#include <QButtonGroup>
 #include "host/cameramanager.h"
-#include <QSettings>
-#include "globalsetting.h"
-#include "global.h"
+#include "fontstyle.h"
 
-QT_BEGIN_NAMESPACE
-class QCameraFormat;
-QT_END_NAMESPACE
-
-
-struct QSizeComparator {
-    bool operator()(const QSize& lhs, const QSize& rhs) const {
-        if (lhs.width() == rhs.width()) {
-            return lhs.height() > rhs.height(); // Compare heights in descending order
-        }
-        return lhs.width() > rhs.width(); // Compare widths in descending order
-    }
-};
-
-class VideoPage : public QWidget
+class TargetControlPage : public QWidget
 {
     Q_OBJECT
 public:
-    explicit VideoPage(CameraManager *cameraManager, QWidget *parent = nullptr);
+    explicit TargetControlPage(QWidget *parent = nullptr);
     void setupUI();
-    void initVideoSettings();
-    void applyVideoSettings();
-    
-signals:
-    void videoSettingsChanged();
-    void inputResolutionChanged(const QSize &resolution);
-    void cameraSettingsApplied();
-    void cameraDeviceChanged();
-
-private slots:
-    void toggleCustomResolutionInputs(bool checked);
+    void applyHardwareSetting();
+    void initHardwareSetting();
 
 private:
-    CameraManager *m_cameraManager;
-    QSize m_currentResolution;
-    bool m_updatingFormats = false;
+    QLabel *hardwareLabel;
+    QLabel *VIDPIDLabel;
+    QLabel *VID;
+    QLabel *PID;
+    QCheckBox *VIDCheckBox;
+    QCheckBox *PIDCheckBox;
+    QCheckBox *USBSerialNumberCheckBox;
+    QCheckBox *USBCustomStringDescriptorCheckBox;
+    QLineEdit *VIDLineEdit;
+    QLineEdit *PIDLineEdit;
+    QLineEdit *VIDDescriptorLineEdit;
+    QLineEdit *PIDDescriptorLineEdit;
+    QLineEdit *serialNumberLineEdit;
 
-    QLabel *uvcCamLabel;
-    QComboBox *uvcCamBox;
-    QLabel *videoLabel;
-    QLabel *resolutionsLabel;
-    QComboBox *videoFormatBox;
-    QLabel *framerateLabel;
-    QComboBox *fpsComboBox;
-    QLabel *formatLabel;
-    QComboBox *pixelFormatBox;
-    void populateResolutionBox(const QList<QCameraFormat> &videoFormats);
-    void setFpsRange(const std::set<int> &fpsValues);
-    void handleResolutionSettings();
-    QVariant boxValue(const QComboBox *) const;
-    void updatePixelFormats();
-    void findUvcCameraDevices();
+    void addCheckBoxLineEditPair(QCheckBox *checkBox, QLineEdit *lineEdit);
+    void onCheckBoxStateChanged(int state);
     
+    std::array<bool, 4> extractBits(QString hexString);
+    QByteArray convertCheckBoxValueToBytes();
+    QMap<QCheckBox *, QLineEdit *> USBCheckBoxEditMap; // map of checkboxes to line edit about VID PID etc.
+
+    // Operating mode widgets
+    QButtonGroup *operatingModeGroup;
+    QRadioButton *fullModeRadio;
+    QRadioButton *keyboardOnlyRadio;
+    QRadioButton *keyboardMouseRadio;
+    QRadioButton *customHIDRadio;
+
+    const QString bigLabelFontSize = "font-size: 16px;";
+
+    int originalOperatingMode;
 };
 
-#endif // VIDEOPAGE_H
+#endif // TARGETCONTROL_H
 
