@@ -249,5 +249,5 @@ jobs:
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
           asset_path: setup.exe
-          asset_name: setup.exe
+          asset_name: openterfaceQT.windows.amd64.installer.zip
           asset_content_type: application/octet-stream
