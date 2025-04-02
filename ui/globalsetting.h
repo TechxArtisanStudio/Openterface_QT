@@ -84,6 +84,9 @@ public:
     void setOperatingMode(int mode);
     int getOperatingMode() const;
 
+    void setScreenSaverInhibited(bool inhibit);
+    bool getScreenSaverInhibited() const;
+
 private:
     QSettings m_settings;
 };

@@ -7,7 +7,7 @@
 TARGET = openterfaceQT
 TEMPLATE = app
 
-QT       += core gui multimedia multimediawidgets serialport concurrent svg network
+QT       += core gui multimedia multimediawidgets serialport concurrent svg network dbus
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 
 SOURCES += main.cpp \
@@ -54,7 +54,8 @@ SOURCES += main.cpp \
     regex/RegularExpression.cpp \
     server/tcpServer.cpp \
     scripts/scriptEditor.cpp \
-    ui/languagemanager.cpp
+    ui/languagemanager.cpp \
+    ui/screensavermanager.cpp
 
 
 HEADERS  += \
@@ -106,8 +107,8 @@ HEADERS  += \
     regex/RegularExpression.h \
     target/KeyboardLayouts.h \
     scripts/scriptEditor.h \
-    ui/languagemanager.h
-
+    ui/languagemanager.h \
+    ui/screensavermanager.h
 
 
 FORMS    += \

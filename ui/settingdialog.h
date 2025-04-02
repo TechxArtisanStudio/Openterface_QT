@@ -61,6 +61,7 @@ public:
     ~SettingDialog();
     HardwarePage* getHardwarePage();
     VideoPage* getVideoPage();
+    LogPage* getLogPage();
 // signals:
 //     // void serialSettingsApplied();
     
