@@ -92,6 +92,7 @@ qt_add_executable(openterfaceQT WIN32 MACOSX_BUNDLE
     ui/videopane.cpp ui/videopane.h
     ui/languagemanager.cpp ui/languagemanager.h
     ui/firmwareupdatedialog.cpp ui/firmwareupdatedialog.h
+    ui/screensavermanager.cpp ui/screensavermanager.h
     video/firmwarewriter.cpp video/firmwarewriter.h
     video/ms2109.h
 )
