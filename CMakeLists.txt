@@ -106,6 +106,7 @@ target_link_libraries(openterfaceQT PRIVATE
     Qt::Network
     Qt::SerialPort
     Qt::Svg
+    Qt::DBus
     ${FFMPEG_LIBRARIES}  # Link against FFmpeg libraries
     ${EXPAT_LIBRARIES}
     ${FREETYPE_LIBRARIES}
