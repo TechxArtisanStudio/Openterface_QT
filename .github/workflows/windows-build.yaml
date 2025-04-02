@@ -168,9 +168,9 @@ jobs:
         run: move /Y ${{ runner.temp }}\build\${{ env.PACKAGE_DIR }} ${{ env.SOURCE_DIR }}
 
       - name: Compile .ISS to .EXE Installer
-        uses: Minionguyjpro/Inno-Setup-Action@v1.2.2
+        uses: kevinzjpeng/Inno-Setup-Action@v1
         with:
-          path: installer.iss
+          filepath: installer.iss
           options: 
             /O+ /DWorkingDir="${{ env.SOURCE_DIR }}\${{ env.PACKAGE_DIR }}" 
             /DMyAppVersion="${{ env.VERSION_FOR_INNO }}" 
