@@ -92,16 +92,6 @@ EnvironmentSetupDialog::EnvironmentSetupDialog(QWidget *parent) :
     else
         ui->descriptionLabel->setText(crossHtml + tr(" The driver is missing. Openterface Mini-KVM will install it automatically."));
 #else
-    setFixedSize(450, 450);
-    ui->commandsTextEdit->setVisible(true);
-    ui->step1Label->setVisible(!isDriverInstalled);
-    ui->extractButton->setVisible(!isDriverInstalled);
-    ui->copyButton->setVisible(true);
-    ui->step2Label->setVisible(true);
-    ui->commandsTextEdit->setText(buildCommands());
-    connect(ui->extractButton, &QPushButton::clicked, this, &EnvironmentSetupDialog::extractDriverFiles);
-    connect(ui->copyButton, &QPushButton::clicked, this, &EnvironmentSetupDialog::copyCommands);
-
     if(!isDevicePlugged){
         ui->descriptionLabel->setText(crossHtml + tr(" The device is not plugged in. Please plug it in and try again."));
         ui->step1Label->setVisible(false);
@@ -110,6 +100,16 @@ EnvironmentSetupDialog::EnvironmentSetupDialog(QWidget *parent) :
         ui->copyButton->setVisible(false);
         ui->commandsTextEdit->setVisible(false);
     } else {
+        setFixedSize(450, 450);
+        ui->commandsTextEdit->setVisible(true);
+        ui->step1Label->setVisible(!isDriverInstalled);
+        ui->extractButton->setVisible(!isDriverInstalled);
+        ui->copyButton->setVisible(true);
+        ui->step2Label->setVisible(true);
+        ui->commandsTextEdit->setText(buildCommands());
+        connect(ui->extractButton, &QPushButton::clicked, this, &EnvironmentSetupDialog::extractDriverFiles);
+        connect(ui->copyButton, &QPushButton::clicked, this, &EnvironmentSetupDialog::copyCommands);
+    
         // Create the status summary
         QString statusSummary = tr("The following steps help you install the driver and add user to correct group. Current status:<br>");
         statusSummary += tr("‣ Driver Installed: ") + QString(isDriverInstalled ? tickHtml : crossHtml) + "<br>";
