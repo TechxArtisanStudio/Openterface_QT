@@ -214,9 +214,8 @@ void TargetControlPage::applyHardwareSetting()
 
     // Check if operating mode has changed
     if (selectedMode != originalOperatingMode) {
-        SerialPortManager::getInstance().resetHipChip();
-        QMessageBox::information(this, tr("App Restart Required"), 
-            tr("You have changed the USB operating mode. Please restart the application and re-connect the Openterface Mini-KVM for this change to take effect."));
+        SerialPortManager::getInstance().factoryResetHipChip();
+        originalOperatingMode = selectedMode; 
     }
 }
 
