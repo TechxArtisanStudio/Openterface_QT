@@ -277,12 +277,11 @@ bool EnvironmentSetupDialog::checkHidPermission() {
     std::cout << "Checking HID permissions..." << std::endl;
     
     // First try to list all hidraw devices
-    QProcess process;
-    process.start("ls", QStringList() << "/dev/hidraw*");
-    process.waitForFinished();
+    QDir devDir("/dev");
+    QStringList devices = devDir.entryList(QStringList() << "hidraw*", QDir::System);
     
     // Check if devices exist at all
-    if (process.exitCode() != 0) {
+    if (devices.isEmpty()) {
         // No devices found - but this could be normal if no HID devices are connected
         std::cout << "No hidraw devices found. If device is connected, may need udev rules." << std::endl;
         
