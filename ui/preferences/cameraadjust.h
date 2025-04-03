@@ -20,31 +20,41 @@
 * ========================================================================== *
 */
 
-#ifndef DIALOG_H
-#define DIALOG_H
+#ifndef CAMERAAJUST_H
+#define CAMERAAJUST_H
 
-#include <QDialog>
-#include <QMediaMetaData>
+#include <QWidget>
+#include <QSlider>
+#include <QLabel>
+#include <QVBoxLayout>
+#include <QPalette>
+#include <QDebug>
+#include "host/usbcontrol.h"
 
-QT_BEGIN_NAMESPACE
-class QLabel;
-class QLineEdit;
-QT_END_NAMESPACE
-
-//! [0]
-class MetaDataDialog : public QDialog
+class CameraAdjust : public QWidget
 {
     Q_OBJECT
 
 public:
-    explicit MetaDataDialog(QWidget *parent = nullptr);
+    explicit CameraAdjust(QWidget *parent = nullptr);
+    ~CameraAdjust();
 
-    QLineEdit *m_metaDataFields[QMediaMetaData::NumMetaData] = {};
+    void updatePosition();
+    void initializeControls();
+
+public slots:
+    void toggleVisibility();
+    void updatePosition(int menuBarHeight, int parentWidth);
+    void updateColors();
 
 private slots:
-    void openThumbnailImage();
-    void openCoverArtImage();
-};
-//! [0]
+    void onContrastChanged(int value);
 
-#endif
+private:
+    void setupUI();
+    QSlider *contrastSlider;
+    QLabel *contrastLabel;
+    USBControl *usbControl;
+};
+
+#endif // CAMERAAJUST_H

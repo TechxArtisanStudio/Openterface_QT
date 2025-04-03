@@ -56,6 +56,7 @@ void LogPage::setupUI()
     browseButton = new QPushButton(tr("Browse"));
     screenSaverCheckBox = new QCheckBox(tr("Inhibit Screen Saver"));
 
+
     coreCheckBox->setObjectName("core");
     serialCheckBox->setObjectName("serial");
     uiCheckBox->setObjectName("ui");
@@ -64,6 +65,7 @@ void LogPage::setupUI()
     browseButton->setObjectName("browseButton");
     storeLogCheckBox->setObjectName("storeLogCheckBox");
     screenSaverCheckBox->setObjectName("screenSaverCheckBox");
+
 
     QHBoxLayout *logCheckboxLayout = new QHBoxLayout();
     logCheckboxLayout->addWidget(coreCheckBox);
@@ -100,6 +102,7 @@ void LogPage::setupUI()
     logLayout->addWidget(screenSaverLabel);
     logLayout->addWidget(screenSaverDescription);
     logLayout->addWidget(screenSaverCheckBox);
+
     logLayout->addStretch();
     
 }
