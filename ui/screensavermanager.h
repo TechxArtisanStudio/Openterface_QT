@@ -25,9 +25,6 @@ public:
 public slots:
     void setScreenSaverInhibited(bool inhibit);
 
-signals:
-    void screenSaverInhibitedChanged(bool inhibited);
-
 private:
     void inhibitScreenSaver();
     void uninhibitScreenSaver();

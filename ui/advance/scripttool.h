@@ -33,11 +33,11 @@
 #include <QFile>
 #include <QGuiApplication>
 #include <QPalette>
-#include "../scripts/Lexer.h"
-#include "../scripts/Parser.h"
-#include "../scripts/semanticAnalyzer.h"
-#include "../target/MouseManager.h"
-#include "../scripts/scriptEditor.h"
+#include "scripts/Lexer.h"
+#include "scripts/Parser.h"
+#include "scripts/semanticAnalyzer.h"
+#include "target/MouseManager.h"
+#include "scripts/scriptEditor.h"
 
 class ScriptTool : public QDialog
 {

@@ -1,5 +1,5 @@
 #include "toolbarmanager.h"
-#include "../global.h"
+#include "global.h"
 #include "host/HostManager.h"
 #include <QHBoxLayout>
 #include <QWidget>
