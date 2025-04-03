@@ -102,7 +102,7 @@ EnvironmentSetupDialog::EnvironmentSetupDialog(QWidget *parent) :
     connect(ui->copyButton, &QPushButton::clicked, this, &EnvironmentSetupDialog::copyCommands);
 
     // Create the status summary
-    QString statusSummary = tr("The following steps help you install the driver and add user to correct group. Current status:\n");
+    QString statusSummary = tr("The following steps help you install the driver and add user to correct group. Current status:<br>");
     statusSummary += tr("‣ Driver Installed: ") + QString(isDriverInstalled ? tickHtml : crossHtml) + "<br>";
     statusSummary += tr("‣ In Dialout Group: ") + QString(isInRightUserGroup ? tickHtml : crossHtml) + "<br>";
     statusSummary += tr("‣ HID Permission: ") + QString(isHidPermission ? tickHtml : crossHtml) + "<br>";
@@ -385,13 +385,14 @@ bool EnvironmentSetupDialog::checkEnvironmentSetup() {
     // If the device file does not exist, check using lsusb for VID and PID
     std::string command = "lsusb | grep -i '534d:2109'";
     int result = system(command.c_str());
+    bool skipCheck = false;
     if (result != 0) {
         std::cout << "MS2109 not exist, so no Openterface plugged in" << std::endl;
-        return true;
+        skipCheck = true;
     }
 
     checkBrlttyRunning(); // No need to return value here
-    return checkDriverInstalled() && checkInRightUserGroup() && checkHidPermission() && !isBrlttyRunning;
+    return skipCheck || checkDriverInstalled() && checkInRightUserGroup() && checkHidPermission() && !isBrlttyRunning;
     #else
     return true;
     #endif
