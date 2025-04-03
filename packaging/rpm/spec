@@ -3,7 +3,7 @@ Version:        ${VERSION}
 Release:        1
 Summary:        OpenterfaceQT Mini-KVM Application
 
-License:        Proprietary
+License:        AGPL-3.0
 URL:           https://github.com/kevinzjpeng/Openterface_QT
 
 %if 0%{?fedora} || 0%{?rhel}
