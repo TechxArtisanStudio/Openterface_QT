@@ -161,6 +161,15 @@ void GlobalSetting::setOperatingMode(int mode) {
 int GlobalSetting::getOperatingMode() const {
     return m_settings.value("hardware/operatingMode", 2).toInt();
 }
+
+void GlobalSetting::setScreenSaverInhibited(bool inhibit) {
+    m_settings.setValue("ScreenSaver/Inhibited", inhibit);
+}
+
+bool GlobalSetting::getScreenSaverInhibited() const {
+    return m_settings.value("ScreenSaver/Inhibited", false).toBool();
+}
+
 /*
 * Convert QString to ByteArray
 */

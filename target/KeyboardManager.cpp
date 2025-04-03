@@ -120,6 +120,13 @@ void KeyboardManager::handleKeyboardAction(int keyCode, int modifiers, bool isKe
 
     // Use current layout's keyMap instead of the static one
     mappedKeyCode = currentLayout.keyMap.value(keyCode, 0);
+    if (mappedKeyCode == 0) {
+        uint32_t unicodeValue = keyCode;
+        qDebug() << "Unicode key detected:" << QString::number(unicodeValue, 16);
+        mappedKeyCode = currentLayout.unicodeMap.value(unicodeValue, 0);
+        qDebug() << "Trying Unicode mapping for U+" << QString::number(unicodeValue, 16) 
+                             << "-> scancode: 0x" << QString::number(mappedKeyCode, 16);
+    }
     qCDebug(log_keyboard) << "Mapped to scancode: 0x" + QString::number(mappedKeyCode, 16);
     qCDebug(log_keyboard) << "Current layout name:" << currentLayout.name;
     qCDebug(log_keyboard) << "Layout has" << currentLayout.keyMap.size() << "mappings";
@@ -136,7 +143,7 @@ void KeyboardManager::handleKeyboardAction(int keyCode, int modifiers, bool isKe
         } else if(modifiers == 1540){ //left alt
             mappedKeyCode = 0xe2;
             currentModifiers |= 0x04;
-        }else if(modifiers & Qt::GroupSwitchModifier){
+        }else if(modifiers & Qt::GroupSwitchModifier){ // altgr
             mappedKeyCode = 0xE6;
             currentModifiers |= 0x05;
         }
@@ -312,7 +319,7 @@ void KeyboardManager::pasteTextToTarget(const QString &text) {
 }
 
 bool KeyboardManager::needShiftWhenPaste(const QChar character) {
-    return character.isUpper() || currentLayout.needShiftKeys.contains(character.toLatin1());
+    return character.isUpper() || currentLayout.needShiftKeys.contains(character.unicode());
 }
 
 bool KeyboardManager::needAltGrWhenPaste(const QChar character) {

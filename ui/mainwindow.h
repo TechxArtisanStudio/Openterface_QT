@@ -47,6 +47,7 @@
 #include "../scripts/semanticAnalyzer.h"
 #include "../scripts/AST.h"
 #include "ui/languagemanager.h"
+#include "ui/screensavermanager.h"
 
 #ifdef ONLINE_VERSION
 #define SERVER_PORT 12345
@@ -316,6 +317,7 @@ private:
     bool fullScreenState = false;
     Qt::WindowStates oldWindowState;
     ScriptTool *scriptTool;
+    ScreenSaverManager *m_screenSaverManager;
 #ifdef ONLINE_VERSION
     void startServer();
     TcpServer *tcpServer;

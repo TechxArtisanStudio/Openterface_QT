@@ -203,3 +203,7 @@ HardwarePage* SettingDialog::getHardwarePage() {
 VideoPage* SettingDialog::getVideoPage() {
     return videoPage;
 }
+
+LogPage* SettingDialog::getLogPage() {
+    return logPage;
+}

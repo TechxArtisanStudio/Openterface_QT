@@ -44,6 +44,9 @@ public:
     void initLogSettings();
     void applyLogsettings();
 
+signals:
+    void ScreenSaverInhibitedChanged(bool inhibited);
+
 private:
 
     QCheckBox *coreCheckBox;
@@ -53,13 +56,13 @@ private:
     QCheckBox *storeLogCheckBox;
     QLineEdit *logFilePathLineEdit;
     QPushButton *browseButton;
+    QCheckBox *screenSaverCheckBox;
 
     QHBoxLayout *logCheckboxLayout;
     QHBoxLayout *logFilePathLayout;
     QLabel *logLabel;
     QLabel *logDescription;
     QVBoxLayout *logLayout;
-
 };
 
 #endif // LOGPAGE_H

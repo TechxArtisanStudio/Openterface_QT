@@ -387,17 +387,32 @@ Please try again after restarting the application.</source>
         <translation>参照</translation>
     </message>
     <message>
-        <location filename="../../ui/logpage.cpp" line="76"/>
+        <location filename="../../ui/logpage.cpp" line="57"/>
+        <source>Inhibit Screen Saver</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/logpage.cpp" line="78"/>
         <source>General log setting</source>
         <translation>一般的なログ設定</translation>
     </message>
     <message>
-        <location filename="../../ui/logpage.cpp" line="80"/>
+        <location filename="../../ui/logpage.cpp" line="82"/>
         <source>Check the check box to see the corresponding log in the QT console.</source>
         <translation>チェックボックスをオンにすると、QTコンソールで対応するログを確認できます。</translation>
     </message>
     <message>
-        <location filename="../../ui/logpage.cpp" line="99"/>
+        <location filename="../../ui/logpage.cpp" line="87"/>
+        <source>Screen Saver setting</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/logpage.cpp" line="91"/>
+        <source>Inhibit the screen saver when the application is running.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/logpage.cpp" line="111"/>
         <source>Select Log Directory</source>
         <translation>ログディレクトリを選択</translation>
     </message>
@@ -625,94 +640,94 @@ Please try again after restarting the application.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="405"/>
+        <location filename="../../ui/mainwindow.cpp" line="406"/>
         <source>Zoom in</source>
         <translation>ズームイン</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="406"/>
+        <location filename="../../ui/mainwindow.cpp" line="407"/>
         <source>Zoom out</source>
         <translation>ズームアウト</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="407"/>
+        <location filename="../../ui/mainwindow.cpp" line="408"/>
         <source>Restore original size</source>
         <translation>元のサイズに戻す</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="408"/>
+        <location filename="../../ui/mainwindow.cpp" line="409"/>
         <source>Function key and composite key</source>
         <translation>ファンクションキーと複合キー</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="409"/>
+        <location filename="../../ui/mainwindow.cpp" line="410"/>
         <source>Paste text to target</source>
         <translation>ターゲットにテキストを貼り付け</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="410"/>
+        <location filename="../../ui/mainwindow.cpp" line="411"/>
         <source>Mouse dance</source>
         <translation>マウスダンス</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="411"/>
+        <location filename="../../ui/mainwindow.cpp" line="412"/>
         <source>Full screen capture</source>
         <translation>フルスクリーンキャプチャ</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="412"/>
+        <location filename="../../ui/mainwindow.cpp" line="413"/>
         <source>Full screen mode</source>
         <translation>フルスクリーンモード</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="914"/>
+        <location filename="../../ui/mainwindow.cpp" line="915"/>
         <source>Recorded %1 sec</source>
         <translation>%1秒録画しました</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1050"/>
+        <location filename="../../ui/mainwindow.cpp" line="1053"/>
         <source>Image Capture Error</source>
         <translation>画像キャプチャエラー</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1118"/>
+        <location filename="../../ui/mainwindow.cpp" line="1121"/>
         <source>Captured &quot;%1&quot;</source>
         <translation>&quot;%1&quot;をキャプチャしました</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1541"/>
+        <location filename="../../ui/mainwindow.cpp" line="1544"/>
         <source>Firmware Update</source>
         <translation>ファームウェア更新</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1541"/>
+        <location filename="../../ui/mainwindow.cpp" line="1544"/>
         <source>The firmware is up to date.</source>
         <translation>ファームウェアは最新です。</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1550"/>
+        <location filename="../../ui/mainwindow.cpp" line="1553"/>
         <source>Firmware Update Confirmation</source>
         <translation>ファームウェア更新の確認</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1551"/>
+        <location filename="../../ui/mainwindow.cpp" line="1554"/>
         <source>Current firmware version: </source>
         <translation>現在のファームウェアバージョン: </translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1551"/>
+        <location filename="../../ui/mainwindow.cpp" line="1554"/>
         <source>
 </source>
         <translation>
 </translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1552"/>
+        <location filename="../../ui/mainwindow.cpp" line="1555"/>
         <source>Latest firmware version: </source>
         <translation>最新のファームウェアバージョン: </translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1552"/>
+        <location filename="../../ui/mainwindow.cpp" line="1555"/>
         <source>
 
 </source>
@@ -721,14 +736,14 @@ Please try again after restarting the application.</source>
 </translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1553"/>
+        <location filename="../../ui/mainwindow.cpp" line="1556"/>
         <source>The update process will:
 </source>
         <translation>更新プロセスでは:
 </translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1554"/>
+        <location filename="../../ui/mainwindow.cpp" line="1557"/>
         <source>1. Stop all video and USB operations
 2. Install new firmware
 3. Close the application automatically
