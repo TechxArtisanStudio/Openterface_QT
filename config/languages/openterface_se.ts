@@ -32,52 +32,52 @@
 <context>
     <name>EnvironmentSetupDialog</name>
     <message>
-        <location filename="../../ui/envdialog.ui" line="6"/>
+        <location filename="../../ui/advance/envdialog.ui" line="6"/>
         <source>Environment Setup</source>
         <translation>Miljöinställningar</translation>
     </message>
     <message>
-        <location filename="../../ui/envdialog.ui" line="19"/>
+        <location filename="../../ui/advance/envdialog.ui" line="19"/>
         <source>‣ Extract the driver to a folder:</source>
         <translation>‣ Extrahera drivrutinen till en mapp:</translation>
     </message>
     <message>
-        <location filename="../../ui/envdialog.ui" line="26"/>
+        <location filename="../../ui/advance/envdialog.ui" line="26"/>
         <source>Select Folder</source>
         <translation>Välj mapp</translation>
     </message>
     <message>
-        <location filename="../../ui/envdialog.ui" line="33"/>
+        <location filename="../../ui/advance/envdialog.ui" line="33"/>
         <source>‣ Open a terminal and run the following commands:</source>
         <translation>‣ Öppna en terminal och kör följande kommandon:</translation>
     </message>
     <message>
-        <location filename="../../ui/envdialog.ui" line="48"/>
+        <location filename="../../ui/advance/envdialog.ui" line="48"/>
         <source>background-color:black; color:white;</source>
         <translation>bakgrundsfärg: svart, textfärg: vit</translation>
     </message>
     <message>
-        <location filename="../../ui/envdialog.ui" line="58"/>
+        <location filename="../../ui/advance/envdialog.ui" line="58"/>
         <source>⎘</source>
         <translation>⎘</translation>
     </message>
     <message>
-        <location filename="../../ui/envdialog.ui" line="69"/>
+        <location filename="../../ui/advance/envdialog.ui" line="69"/>
         <source>OK</source>
         <translation>OK</translation>
     </message>
     <message>
-        <location filename="../../ui/envdialog.ui" line="76"/>
+        <location filename="../../ui/advance/envdialog.ui" line="76"/>
         <source>Quit</source>
         <translation>Avsluta</translation>
     </message>
     <message>
-        <location filename="../../ui/envdialog.ui" line="85"/>
+        <location filename="../../ui/advance/envdialog.ui" line="85"/>
         <source>Auto environment check on startup</source>
         <translation>Automatisk miljökontroll vid start</translation>
     </message>
     <message>
-        <location filename="../../ui/envdialog.ui" line="92"/>
+        <location filename="../../ui/advance/envdialog.ui" line="92"/>
         <source>&lt;a href=&quot;#&quot;&gt;Environment Setup Documentation&lt;/a&gt;</source>
         <translation>&lt;a href=&quot;#&quot;&gt;Dokumentation för miljöinställninga l&apos;environnement&lt;/a&gt;</translation>
     </message>
@@ -92,94 +92,103 @@
         <translation> Drivrutinen saknas. Openterface Mini-KVM installerar den automatiskt.</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="106"/>
         <source>The following steps help you install the driver and add user to correct group. Current status:
 </source>
-        <translation>Följande steg hjälper dig att installera drivrutinen och lägga till användaren i rätt grupp. Aktuell status:
+        <translation type="vanished">Följande steg hjälper dig att installera drivrutinen och lägga till användaren i rätt grupp. Aktuell status:
 </translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="107"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="96"/>
+        <source> The device is not plugged in. Please plug it in and try again.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/envdialog.cpp" line="117"/>
+        <source>The following steps help you install the driver and add user to correct group. Current status:&lt;br&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/envdialog.cpp" line="118"/>
         <source>‣ Driver Installed: </source>
         <translation>‣ Drivrutin installerad: </translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="108"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="119"/>
         <source>‣ In Dialout Group: </source>
         <translation>‣ I Dialout-gruppen: </translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="109"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="120"/>
         <source>‣ HID Permission: </source>
         <translation>‣ HID-behörighet: </translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="110"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="121"/>
         <source>‣ BRLTTY checking: </source>
         <translation>‣ Kontroll av BRLTTY: </translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="110"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="121"/>
         <source> (needs removal)</source>
         <translation> (måste tas bort)</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="110"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="121"/>
         <source> (not running)</source>
         <translation> (körs inte)</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="155"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="167"/>
         <source>Select Destination Directory</source>
         <translation>Välj målkatalog</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="211"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="223"/>
         <source>Driver Installed: </source>
         <translation>Drivrutin installerad: </translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="211"/>
-        <location filename="../../ui/advance/envdialog.cpp" line="212"/>
-        <location filename="../../ui/advance/envdialog.cpp" line="213"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="223"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="224"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="225"/>
         <source>Yes</source>
         <translation>Ja</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="211"/>
-        <location filename="../../ui/advance/envdialog.cpp" line="212"/>
-        <location filename="../../ui/advance/envdialog.cpp" line="213"/>
-        <location filename="../../ui/advance/envdialog.cpp" line="214"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="223"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="224"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="225"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="226"/>
         <source>No</source>
         <translation>Nej</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="212"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="224"/>
         <source>In Dialout Group: </source>
         <translation>I Dialout-gruppen: </translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="213"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="225"/>
         <source>HID Permission: </source>
         <translation>HID-behörighet: </translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="214"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="226"/>
         <source>BRLTTY is Running: </source>
         <translation>BRLTTY körs: </translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="214"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="226"/>
         <source>Yes (needs removal)</source>
         <translation>Ja (måste tas bort)</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="223"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="235"/>
         <source>Restart Required</source>
         <translation>Omstart krävs</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="224"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="236"/>
         <source>The driver has been installed. A system restart and device re-plugging is required for the changes to take effect.
 
 Would you like to restart your computer now?</source>
@@ -188,14 +197,90 @@ Would you like to restart your computer now?</source>
 Vill du starta om datorn nu?</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="238"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="250"/>
         <source>Restart Later</source>
         <translation>Starta om senare</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="239"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="251"/>
         <source>Please remember to restart your computer and re-plug the device for the driver to work properly.</source>
         <translation>Kom ihåg att starta om datorn och återansluta enheten för att drivrutinen ska fungera korrekt.</translation>
+    </message>
+</context>
+<context>
+    <name>FirmwareUpdateConfirmDialog</name>
+    <message>
+        <location filename="../../ui/advance/firmwareupdatedialog.cpp" line="113"/>
+        <source>Firmware Update Confirmation</source>
+        <translation type="unfinished">Bekräftelse av firmware-uppdatering</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/firmwareupdatedialog.cpp" line="120"/>
+        <source>Update</source>
+        <translation type="unfinished">Uppdatera</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/firmwareupdatedialog.cpp" line="121"/>
+        <source>Cancel</source>
+        <translation type="unfinished">Avbryt</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/firmwareupdatedialog.cpp" line="147"/>
+        <source>Current firmware version: </source>
+        <translation type="unfinished">Aktuell firmware-version: </translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/firmwareupdatedialog.cpp" line="147"/>
+        <source>
+</source>
+        <translation type="unfinished">
+</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/firmwareupdatedialog.cpp" line="148"/>
+        <source>Latest firmware version: </source>
+        <translation type="unfinished">Senaste firmware-version: </translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/firmwareupdatedialog.cpp" line="148"/>
+        <source>
+
+</source>
+        <translation type="unfinished">
+
+</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/firmwareupdatedialog.cpp" line="149"/>
+        <source>The update process will:
+</source>
+        <translation type="unfinished">Uppdateringsprocessen kommer att:
+</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/firmwareupdatedialog.cpp" line="150"/>
+        <source>1. Stop all video and USB operations
+2. Install new firmware
+3. Close the application automatically
+
+Important:
+• Use a high-quality USB cable for host connection
+• Disconnect the HDMI cable
+• Do not interrupt power during update
+• Restart application after completion
+
+Do you want to proceed with the update?</source>
+        <translation type="unfinished">1. Stoppa alla video- och USB-operationer
+2. Installera ny firmware
+3. Stänga programmet automatiskt
+
+Viktigt:
+• Använd en högkvalitativ USB-kabel för värdanslutning
+• Koppla bort HDMI-kabeln
+• Avbryt inte strömmen under uppdateringen
+• Starta om programmet efter slutförandet
+
+Vill du fortsätta med uppdateringen?</translation>
     </message>
 </context>
 <context>
@@ -301,27 +386,27 @@ Försök igen efter att ha startat om programmet.</translation>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/logpage.cpp" line="78"/>
+        <location filename="../../ui/preferences/logpage.cpp" line="80"/>
         <source>General log setting</source>
         <translation>Allmänna logginställningar</translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/logpage.cpp" line="80"/>
+        <location filename="../../ui/preferences/logpage.cpp" line="84"/>
         <source>Check the check box to see the corresponding log in the QT console.</source>
         <translation>Markera kryssrutan för att se motsvarande logg i QT-konsolen.</translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/logpage.cpp" line="87"/>
+        <location filename="../../ui/preferences/logpage.cpp" line="89"/>
         <source>Screen Saver setting</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/logpage.cpp" line="91"/>
+        <location filename="../../ui/preferences/logpage.cpp" line="93"/>
         <source>Inhibit the screen saver when the application is running.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/logpage.cpp" line="111"/>
+        <location filename="../../ui/preferences/logpage.cpp" line="114"/>
         <source>Select Log Directory</source>
         <translation>Välj loggkatalog</translation>
     </message>
@@ -549,57 +634,57 @@ Försök igen efter att ha startat om programmet.</translation>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="406"/>
+        <location filename="../../ui/mainwindow.cpp" line="405"/>
         <source>Zoom in</source>
         <translation>Zooma in</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="407"/>
+        <location filename="../../ui/mainwindow.cpp" line="406"/>
         <source>Zoom out</source>
         <translation>Zooma ut</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="408"/>
+        <location filename="../../ui/mainwindow.cpp" line="407"/>
         <source>Restore original size</source>
         <translation>Återställ ursprunglig storlek</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="409"/>
+        <location filename="../../ui/mainwindow.cpp" line="408"/>
         <source>Function key and composite key</source>
         <translation>Funktionstangent och kombinationstangent</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="410"/>
+        <location filename="../../ui/mainwindow.cpp" line="409"/>
         <source>Paste text to target</source>
         <translation>Klistra in text till målet</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="411"/>
+        <location filename="../../ui/mainwindow.cpp" line="410"/>
         <source>Mouse dance</source>
         <translation>Musdans</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="412"/>
+        <location filename="../../ui/mainwindow.cpp" line="411"/>
         <source>Full screen capture</source>
         <translation>Vollbildsfångst</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="413"/>
+        <location filename="../../ui/mainwindow.cpp" line="412"/>
         <source>Full screen mode</source>
         <translation>Vollbildsläge</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="915"/>
+        <location filename="../../ui/mainwindow.cpp" line="914"/>
         <source>Recorded %1 sec</source>
         <translation>Inspelade %1 sek</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1053"/>
+        <location filename="../../ui/mainwindow.cpp" line="1052"/>
         <source>Image Capture Error</source>
         <translation>Fel vid bildfångst</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1121"/>
+        <location filename="../../ui/mainwindow.cpp" line="1120"/>
         <source>Captured &quot;%1&quot;</source>
         <translation>Fångade &quot;%1&quot;</translation>
     </message>
@@ -609,50 +694,48 @@ Försök igen efter att ha startat om programmet.</translation>
         <translation>Firmware-uppdatering</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1544"/>
+        <location filename="../../ui/mainwindow.cpp" line="1545"/>
+        <source>The firmware is up to date.
+Current version: </source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>The firmware is up to date.</source>
-        <translation>Firmwaren är uppdaterad.</translation>
+        <translation type="vanished">Firmwaren är uppdaterad.</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1553"/>
         <source>Firmware Update Confirmation</source>
-        <translation>Bekräftelse av firmware-uppdatering</translation>
+        <translation type="vanished">Bekräftelse av firmware-uppdatering</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1554"/>
         <source>Current firmware version: </source>
-        <translation>Aktuell firmware-version: </translation>
+        <translation type="vanished">Aktuell firmware-version: </translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1554"/>
         <source>
 </source>
-        <translation>
+        <translation type="vanished">
 </translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1555"/>
         <source>Latest firmware version: </source>
-        <translation>Senaste firmware-version: </translation>
+        <translation type="vanished">Senaste firmware-version: </translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1555"/>
         <source>
 
 </source>
-        <translation>
+        <translation type="vanished">
 
 </translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1556"/>
         <source>The update process will:
 </source>
-        <translation>Uppdateringsprocessen kommer att:
+        <translation type="vanished">Uppdateringsprocessen kommer att:
 </translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1557"/>
         <source>1. Stop all video and USB operations
 2. Install new firmware
 3. Close the application automatically
@@ -664,7 +747,7 @@ Important:
 • Restart application after completion
 
 Do you want to proceed with the update?</source>
-        <translation>1. Stoppa alla video- och USB-operationer
+        <translation type="vanished">1. Stoppa alla video- och USB-operationer
 2. Installera ny firmware
 3. Stänga programmet automatiskt
 
@@ -680,37 +763,28 @@ Vill du fortsätta med uppdateringen?</translation>
 <context>
     <name>MetaDataDialog</name>
     <message>
-        <location filename="../../ui/metadatadialog.cpp" line="44"/>
         <source>Openterface Mini KVM</source>
-        <translation>Openterface Mini KVM</translation>
+        <translation type="vanished">Openterface Mini KVM</translation>
     </message>
     <message>
-        <location filename="../../ui/metadatadialog.cpp" line="46"/>
         <source>TechxArtisan</source>
-        <translation>TechxArtisan</translation>
+        <translation type="vanished">TechxArtisan</translation>
     </message>
     <message>
-        <location filename="../../ui/metadatadialog.cpp" line="69"/>
-        <location filename="../../ui/metadatadialog.cpp" line="79"/>
         <source>Open</source>
-        <translation>Öppna</translation>
+        <translation type="vanished">Öppna</translation>
     </message>
     <message>
-        <location filename="../../ui/metadatadialog.cpp" line="101"/>
         <source>Set Metadata</source>
-        <translation>Ange metadata</translation>
+        <translation type="vanished">Ange metadata</translation>
     </message>
     <message>
-        <location filename="../../ui/metadatadialog.cpp" line="110"/>
-        <location filename="../../ui/metadatadialog.cpp" line="118"/>
         <source>Open Image</source>
-        <translation>Öppna bild</translation>
+        <translation type="vanished">Öppna bild</translation>
     </message>
     <message>
-        <location filename="../../ui/metadatadialog.cpp" line="111"/>
-        <location filename="../../ui/metadatadialog.cpp" line="119"/>
         <source>Image Files (*.png *.jpg *.bmp)</source>
-        <translation>Bildfiler (*.png *.jpg *.bmp)</translation>
+        <translation type="vanished">Bildfiler (*.png *.jpg *.bmp)</translation>
     </message>
 </context>
 <context>
@@ -880,73 +954,83 @@ Vill du fortsätta med uppdateringen?</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/targetcontrolpage.cpp" line="45"/>
-        <source>Standard USB keyboard + USB mouse device + USB custom HID device</source>
+        <source>[Performance] Standard USB keyboard + USB mouse device + USB custom HID device</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../../ui/preferences/targetcontrolpage.cpp" line="46"/>
-        <source>Standard USB keyboard device</source>
+        <source>The target USB port is a multi-functional composite device supporting a keyboard, mouse, and custom HID device. It performs best, though the mouse may have compatibility issues with Mac OS and Linux.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../../ui/preferences/targetcontrolpage.cpp" line="47"/>
-        <source>Standard USB keyboard + USB mouse device</source>
+        <source>[Keyboard Only] Standard USB keyboard device</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../../ui/preferences/targetcontrolpage.cpp" line="48"/>
-        <source>Standard USB custom HID device</source>
+        <source>The target USB port is a standard keyboard device without multimedia keys, supporting full keyboard mode and suitable for systems that don&apos;t support composite devices.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/targetcontrolpage.cpp" line="73"/>
+        <location filename="../../ui/preferences/targetcontrolpage.cpp" line="49"/>
+        <source>[Compatiblity] Standard USB keyboard + USB mouse device</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/preferences/targetcontrolpage.cpp" line="50"/>
+        <source>The target USB port is a muti-functional composite device for keyboard and mouse. Best competibility with Mac OS, Andriod and Linux.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/preferences/targetcontrolpage.cpp" line="51"/>
+        <source>[Custom HID] Standard USB custom HID device</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/preferences/targetcontrolpage.cpp" line="52"/>
+        <source>The target USB port is a custom HID device supporting data transmission between host serial and target HID .</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/preferences/targetcontrolpage.cpp" line="77"/>
         <source>Custom target USB Composite Device VID and PID:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/targetcontrolpage.cpp" line="74"/>
+        <location filename="../../ui/preferences/targetcontrolpage.cpp" line="78"/>
         <source>Custom target USB descriptors: </source>
         <translation>Anpassat mål USB Composite Device VID and PID: </translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/targetcontrolpage.cpp" line="75"/>
+        <location filename="../../ui/preferences/targetcontrolpage.cpp" line="79"/>
         <source>VID: </source>
         <translation>VID: </translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/targetcontrolpage.cpp" line="76"/>
+        <location filename="../../ui/preferences/targetcontrolpage.cpp" line="80"/>
         <source>PID: </source>
         <translation>PID: </translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/targetcontrolpage.cpp" line="77"/>
+        <location filename="../../ui/preferences/targetcontrolpage.cpp" line="81"/>
         <source>Custom vendor descriptor:</source>
         <translation>Anpassad leverantörsbeskrivning:</translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/targetcontrolpage.cpp" line="78"/>
+        <location filename="../../ui/preferences/targetcontrolpage.cpp" line="82"/>
         <source>Custom product descriptor:</source>
         <translation>Anpassad produktbeskrivning:</translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/targetcontrolpage.cpp" line="79"/>
+        <location filename="../../ui/preferences/targetcontrolpage.cpp" line="83"/>
         <source>USB serial number:</source>
         <translation>USB-serienummer:</translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/targetcontrolpage.cpp" line="80"/>
+        <location filename="../../ui/preferences/targetcontrolpage.cpp" line="84"/>
         <source>Enable custom USB flag</source>
         <translation>Aktivera anpassad USB-flagga</translation>
-    </message>
-    <message>
-        <location filename="../../ui/preferences/targetcontrolpage.cpp" line="214"/>
-        <source>App Restart Required</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../../ui/preferences/targetcontrolpage.cpp" line="215"/>
-        <source>You have changed the USB operating mode. Please restart the application and re-connect the Openterface Mini-KVM for this change to take effect.</source>
-        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>

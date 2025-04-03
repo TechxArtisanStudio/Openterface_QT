@@ -32,52 +32,52 @@
 <context>
     <name>EnvironmentSetupDialog</name>
     <message>
-        <location filename="../../ui/envdialog.ui" line="6"/>
+        <location filename="../../ui/advance/envdialog.ui" line="6"/>
         <source>Environment Setup</source>
         <translation>Configuration de l&apos;environnement</translation>
     </message>
     <message>
-        <location filename="../../ui/envdialog.ui" line="19"/>
+        <location filename="../../ui/advance/envdialog.ui" line="19"/>
         <source>‣ Extract the driver to a folder:</source>
         <translation>‣ Extraire le pilote dans un dossier :</translation>
     </message>
     <message>
-        <location filename="../../ui/envdialog.ui" line="26"/>
+        <location filename="../../ui/advance/envdialog.ui" line="26"/>
         <source>Select Folder</source>
         <translation>Sélectionner le dossier</translation>
     </message>
     <message>
-        <location filename="../../ui/envdialog.ui" line="33"/>
+        <location filename="../../ui/advance/envdialog.ui" line="33"/>
         <source>‣ Open a terminal and run the following commands:</source>
         <translation>‣ Ouvrir un terminal et exécuter les commandes suivantes :</translation>
     </message>
     <message>
-        <location filename="../../ui/envdialog.ui" line="48"/>
+        <location filename="../../ui/advance/envdialog.ui" line="48"/>
         <source>background-color:black; color:white;</source>
         <translation>background-color:black; color:white;</translation>
     </message>
     <message>
-        <location filename="../../ui/envdialog.ui" line="58"/>
+        <location filename="../../ui/advance/envdialog.ui" line="58"/>
         <source>⎘</source>
         <translation>⎘</translation>
     </message>
     <message>
-        <location filename="../../ui/envdialog.ui" line="69"/>
+        <location filename="../../ui/advance/envdialog.ui" line="69"/>
         <source>OK</source>
         <translation>OK</translation>
     </message>
     <message>
-        <location filename="../../ui/envdialog.ui" line="76"/>
+        <location filename="../../ui/advance/envdialog.ui" line="76"/>
         <source>Quit</source>
         <translation>Quitter</translation>
     </message>
     <message>
-        <location filename="../../ui/envdialog.ui" line="85"/>
+        <location filename="../../ui/advance/envdialog.ui" line="85"/>
         <source>Auto environment check on startup</source>
         <translation>Vérification automatique de l&apos;environnement au démarrage</translation>
     </message>
     <message>
-        <location filename="../../ui/envdialog.ui" line="92"/>
+        <location filename="../../ui/advance/envdialog.ui" line="92"/>
         <source>&lt;a href=&quot;#&quot;&gt;Environment Setup Documentation&lt;/a&gt;</source>
         <translation>&lt;a href=&quot;#&quot;&gt;Documentation de configuration de l&apos;environnement&lt;/a&gt;</translation>
     </message>
@@ -92,93 +92,102 @@
         <translation>Le pilote est manquant. Openterface Mini-KVM l&apos;installera automatiquement.</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="106"/>
         <source>The following steps help you install the driver and add user to correct group. Current status:
 </source>
-        <translation>Les étapes suivantes vous aident à installer le pilote et à ajouter l&apos;utilisateur au groupe correct. Statut actuel :</translation>
+        <translation type="vanished">Les étapes suivantes vous aident à installer le pilote et à ajouter l&apos;utilisateur au groupe correct. Statut actuel :</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="107"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="96"/>
+        <source> The device is not plugged in. Please plug it in and try again.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/envdialog.cpp" line="117"/>
+        <source>The following steps help you install the driver and add user to correct group. Current status:&lt;br&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/envdialog.cpp" line="118"/>
         <source>‣ Driver Installed: </source>
         <translation>‣ Pilote installé : </translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="108"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="119"/>
         <source>‣ In Dialout Group: </source>
         <translation>‣ Dans le groupe Dialout : </translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="109"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="120"/>
         <source>‣ HID Permission: </source>
         <translation>‣ Permission HID : </translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="110"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="121"/>
         <source>‣ BRLTTY checking: </source>
         <translation>‣ Vérification BRLTTY : </translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="110"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="121"/>
         <source> (needs removal)</source>
         <translation> (doit être supprimé)</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="110"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="121"/>
         <source> (not running)</source>
         <translation> (non exécuté)</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="155"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="167"/>
         <source>Select Destination Directory</source>
         <translation>Sélectionner le répertoire de destination</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="211"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="223"/>
         <source>Driver Installed: </source>
         <translation>Pilote installé : </translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="211"/>
-        <location filename="../../ui/advance/envdialog.cpp" line="212"/>
-        <location filename="../../ui/advance/envdialog.cpp" line="213"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="223"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="224"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="225"/>
         <source>Yes</source>
         <translation>Oui</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="211"/>
-        <location filename="../../ui/advance/envdialog.cpp" line="212"/>
-        <location filename="../../ui/advance/envdialog.cpp" line="213"/>
-        <location filename="../../ui/advance/envdialog.cpp" line="214"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="223"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="224"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="225"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="226"/>
         <source>No</source>
         <translation>Non</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="212"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="224"/>
         <source>In Dialout Group: </source>
         <translation>Dans le groupe Dialout : </translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="213"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="225"/>
         <source>HID Permission: </source>
         <translation>Permission HID : </translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="214"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="226"/>
         <source>BRLTTY is Running: </source>
         <translation>BRLTTY est en cours d&apos;exécution : </translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="214"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="226"/>
         <source>Yes (needs removal)</source>
         <translation>Oui (doit être supprimé)</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="223"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="235"/>
         <source>Restart Required</source>
         <translation>Redémarrage requis</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="224"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="236"/>
         <source>The driver has been installed. A system restart and device re-plugging is required for the changes to take effect.
 
 Would you like to restart your computer now?</source>
@@ -187,14 +196,90 @@ Would you like to restart your computer now?</source>
 Souhaitez-vous redémarrer votre ordinateur maintenant ?</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="238"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="250"/>
         <source>Restart Later</source>
         <translation>Redémarrer plus tard</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="239"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="251"/>
         <source>Please remember to restart your computer and re-plug the device for the driver to work properly.</source>
         <translation>N&apos;oubliez pas de redémarrer votre ordinateur et de reconnecter l&apos;appareil pour que le pilote fonctionne correctement.</translation>
+    </message>
+</context>
+<context>
+    <name>FirmwareUpdateConfirmDialog</name>
+    <message>
+        <location filename="../../ui/advance/firmwareupdatedialog.cpp" line="113"/>
+        <source>Firmware Update Confirmation</source>
+        <translation type="unfinished">Confirmation de mise à jour du firmware</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/firmwareupdatedialog.cpp" line="120"/>
+        <source>Update</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/firmwareupdatedialog.cpp" line="121"/>
+        <source>Cancel</source>
+        <translation type="unfinished">Annuler</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/firmwareupdatedialog.cpp" line="147"/>
+        <source>Current firmware version: </source>
+        <translation type="unfinished">Version actuelle du firmware : </translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/firmwareupdatedialog.cpp" line="147"/>
+        <source>
+</source>
+        <translation type="unfinished">
+</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/firmwareupdatedialog.cpp" line="148"/>
+        <source>Latest firmware version: </source>
+        <translation type="unfinished">Dernière version du firmware : </translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/firmwareupdatedialog.cpp" line="148"/>
+        <source>
+
+</source>
+        <translation type="unfinished">
+
+</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/firmwareupdatedialog.cpp" line="149"/>
+        <source>The update process will:
+</source>
+        <translation type="unfinished">Le processus de mise à jour va :
+</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/firmwareupdatedialog.cpp" line="150"/>
+        <source>1. Stop all video and USB operations
+2. Install new firmware
+3. Close the application automatically
+
+Important:
+• Use a high-quality USB cable for host connection
+• Disconnect the HDMI cable
+• Do not interrupt power during update
+• Restart application after completion
+
+Do you want to proceed with the update?</source>
+        <translation type="unfinished">1. Arrêter toutes les opérations vidéo et USB
+2. Installer le nouveau firmware
+3. Fermer l&apos;application automatiquement
+
+Important :
+• Utilisez un câble USB de haute qualité pour la connexion hôte
+• Déconnectez le câble HDMI
+• Ne pas interrompre l&apos;alimentation pendant la mise à jour
+• Redémarrez l&apos;application après la fin
+
+Voulez-vous procéder à la mise à jour ?</translation>
     </message>
 </context>
 <context>
@@ -300,27 +385,27 @@ Veuillez réessayer après avoir redémarré l&apos;application.</translation>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/logpage.cpp" line="78"/>
+        <location filename="../../ui/preferences/logpage.cpp" line="80"/>
         <source>General log setting</source>
         <translation>Paramètres généraux du journal</translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/logpage.cpp" line="82"/>
+        <location filename="../../ui/preferences/logpage.cpp" line="84"/>
         <source>Check the check box to see the corresponding log in the QT console.</source>
         <translation>Cochez la case pour voir le journal correspondant dans la console QT.</translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/logpage.cpp" line="87"/>
+        <location filename="../../ui/preferences/logpage.cpp" line="89"/>
         <source>Screen Saver setting</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/logpage.cpp" line="91"/>
+        <location filename="../../ui/preferences/logpage.cpp" line="93"/>
         <source>Inhibit the screen saver when the application is running.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/logpage.cpp" line="111"/>
+        <location filename="../../ui/preferences/logpage.cpp" line="114"/>
         <source>Select Log Directory</source>
         <translation>Sélectionner le répertoire des journaux</translation>
     </message>
@@ -548,64 +633,69 @@ Veuillez réessayer après avoir redémarré l&apos;application.</translation>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="406"/>
+        <location filename="../../ui/mainwindow.cpp" line="405"/>
         <source>Zoom in</source>
         <translation>Zoomer</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="407"/>
+        <location filename="../../ui/mainwindow.cpp" line="406"/>
         <source>Zoom out</source>
         <translation>Dézoomer</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="408"/>
+        <location filename="../../ui/mainwindow.cpp" line="407"/>
         <source>Restore original size</source>
         <translation>Restaurer la taille originale</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="409"/>
+        <location filename="../../ui/mainwindow.cpp" line="408"/>
         <source>Function key and composite key</source>
         <translation>Touche de fonction et touche composée</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="410"/>
+        <location filename="../../ui/mainwindow.cpp" line="409"/>
         <source>Paste text to target</source>
         <translation>Coller le texte sur la cible</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="411"/>
+        <location filename="../../ui/mainwindow.cpp" line="410"/>
         <source>Mouse dance</source>
         <translation>Danse de la souris</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="412"/>
+        <location filename="../../ui/mainwindow.cpp" line="411"/>
         <source>Full screen capture</source>
         <translation>Capture plein écran</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="413"/>
+        <location filename="../../ui/mainwindow.cpp" line="412"/>
         <source>Full screen mode</source>
         <translation>Mode plein écran</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="915"/>
+        <location filename="../../ui/mainwindow.cpp" line="914"/>
         <source>Recorded %1 sec</source>
         <translation>Enregistré %1 sec</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1053"/>
+        <location filename="../../ui/mainwindow.cpp" line="1052"/>
         <source>Image Capture Error</source>
         <translation>Erreur de capture d&apos;image</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1121"/>
+        <location filename="../../ui/mainwindow.cpp" line="1120"/>
         <source>Captured &quot;%1&quot;</source>
         <translation>Capturé &quot;%1&quot;</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1544"/>
+        <location filename="../../ui/mainwindow.cpp" line="1545"/>
+        <source>The firmware is up to date.
+Current version: </source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>The firmware is up to date.</source>
-        <translation>Le firmware est à jour.</translation>
+        <translation type="vanished">Le firmware est à jour.</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.cpp" line="1544"/>
@@ -613,45 +703,38 @@ Veuillez réessayer après avoir redémarré l&apos;application.</translation>
         <translation>Mise à jour du firmware</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1553"/>
         <source>Firmware Update Confirmation</source>
-        <translation>Confirmation de mise à jour du firmware</translation>
+        <translation type="vanished">Confirmation de mise à jour du firmware</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1554"/>
         <source>Current firmware version: </source>
-        <translation>Version actuelle du firmware : </translation>
+        <translation type="vanished">Version actuelle du firmware : </translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1554"/>
         <source>
 </source>
-        <translation>
+        <translation type="vanished">
 </translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1555"/>
         <source>Latest firmware version: </source>
-        <translation>Dernière version du firmware : </translation>
+        <translation type="vanished">Dernière version du firmware : </translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1555"/>
         <source>
 
 </source>
-        <translation>
+        <translation type="vanished">
 
 </translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1556"/>
         <source>The update process will:
 </source>
-        <translation>Le processus de mise à jour va :
+        <translation type="vanished">Le processus de mise à jour va :
 </translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1557"/>
         <source>1. Stop all video and USB operations
 2. Install new firmware
 3. Close the application automatically
@@ -663,7 +746,7 @@ Important:
 • Restart application after completion
 
 Do you want to proceed with the update?</source>
-        <translation>1. Arrêter toutes les opérations vidéo et USB
+        <translation type="vanished">1. Arrêter toutes les opérations vidéo et USB
 2. Installer le nouveau firmware
 3. Fermer l&apos;application automatiquement
 
@@ -679,37 +762,28 @@ Voulez-vous procéder à la mise à jour ?</translation>
 <context>
     <name>MetaDataDialog</name>
     <message>
-        <location filename="../../ui/metadatadialog.cpp" line="44"/>
         <source>Openterface Mini KVM</source>
-        <translation>Openterface Mini KVM</translation>
+        <translation type="vanished">Openterface Mini KVM</translation>
     </message>
     <message>
-        <location filename="../../ui/metadatadialog.cpp" line="46"/>
         <source>TechxArtisan</source>
-        <translation>TechxArtisan</translation>
+        <translation type="vanished">TechxArtisan</translation>
     </message>
     <message>
-        <location filename="../../ui/metadatadialog.cpp" line="69"/>
-        <location filename="../../ui/metadatadialog.cpp" line="79"/>
         <source>Open</source>
-        <translation>Ouvrir</translation>
+        <translation type="vanished">Ouvrir</translation>
     </message>
     <message>
-        <location filename="../../ui/metadatadialog.cpp" line="101"/>
         <source>Set Metadata</source>
-        <translation>Définir les métadonnées</translation>
+        <translation type="vanished">Définir les métadonnées</translation>
     </message>
     <message>
-        <location filename="../../ui/metadatadialog.cpp" line="110"/>
-        <location filename="../../ui/metadatadialog.cpp" line="118"/>
         <source>Open Image</source>
-        <translation>Ouvrir l&apos;image</translation>
+        <translation type="vanished">Ouvrir l&apos;image</translation>
     </message>
     <message>
-        <location filename="../../ui/metadatadialog.cpp" line="111"/>
-        <location filename="../../ui/metadatadialog.cpp" line="119"/>
         <source>Image Files (*.png *.jpg *.bmp)</source>
-        <translation>Fichiers image (*.png *.jpg *.bmp)</translation>
+        <translation type="vanished">Fichiers image (*.png *.jpg *.bmp)</translation>
     </message>
 </context>
 <context>
@@ -883,73 +957,83 @@ Voulez-vous procéder à la mise à jour ?</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/targetcontrolpage.cpp" line="45"/>
-        <source>Standard USB keyboard + USB mouse device + USB custom HID device</source>
+        <source>[Performance] Standard USB keyboard + USB mouse device + USB custom HID device</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../../ui/preferences/targetcontrolpage.cpp" line="46"/>
-        <source>Standard USB keyboard device</source>
+        <source>The target USB port is a multi-functional composite device supporting a keyboard, mouse, and custom HID device. It performs best, though the mouse may have compatibility issues with Mac OS and Linux.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../../ui/preferences/targetcontrolpage.cpp" line="47"/>
-        <source>Standard USB keyboard + USB mouse device</source>
+        <source>[Keyboard Only] Standard USB keyboard device</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../../ui/preferences/targetcontrolpage.cpp" line="48"/>
-        <source>Standard USB custom HID device</source>
+        <source>The target USB port is a standard keyboard device without multimedia keys, supporting full keyboard mode and suitable for systems that don&apos;t support composite devices.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/targetcontrolpage.cpp" line="73"/>
+        <location filename="../../ui/preferences/targetcontrolpage.cpp" line="49"/>
+        <source>[Compatiblity] Standard USB keyboard + USB mouse device</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/preferences/targetcontrolpage.cpp" line="50"/>
+        <source>The target USB port is a muti-functional composite device for keyboard and mouse. Best competibility with Mac OS, Andriod and Linux.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/preferences/targetcontrolpage.cpp" line="51"/>
+        <source>[Custom HID] Standard USB custom HID device</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/preferences/targetcontrolpage.cpp" line="52"/>
+        <source>The target USB port is a custom HID device supporting data transmission between host serial and target HID .</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/preferences/targetcontrolpage.cpp" line="77"/>
         <source>Custom target USB Composite Device VID and PID:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/targetcontrolpage.cpp" line="74"/>
+        <location filename="../../ui/preferences/targetcontrolpage.cpp" line="78"/>
         <source>Custom target USB descriptors: </source>
         <translation>Descripteurs USB cibles personnalisés: </translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/targetcontrolpage.cpp" line="75"/>
+        <location filename="../../ui/preferences/targetcontrolpage.cpp" line="79"/>
         <source>VID: </source>
         <translation>VID : </translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/targetcontrolpage.cpp" line="76"/>
+        <location filename="../../ui/preferences/targetcontrolpage.cpp" line="80"/>
         <source>PID: </source>
         <translation>PID : </translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/targetcontrolpage.cpp" line="77"/>
+        <location filename="../../ui/preferences/targetcontrolpage.cpp" line="81"/>
         <source>Custom vendor descriptor:</source>
         <translation>Descripteur vendeur personnalisé :</translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/targetcontrolpage.cpp" line="78"/>
+        <location filename="../../ui/preferences/targetcontrolpage.cpp" line="82"/>
         <source>Custom product descriptor:</source>
         <translation>Descripteur produit personnalisé :</translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/targetcontrolpage.cpp" line="79"/>
+        <location filename="../../ui/preferences/targetcontrolpage.cpp" line="83"/>
         <source>USB serial number:</source>
         <translation>Numéro de série USB :</translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/targetcontrolpage.cpp" line="80"/>
+        <location filename="../../ui/preferences/targetcontrolpage.cpp" line="84"/>
         <source>Enable custom USB flag</source>
         <translation>Activer l&apos;indicateur USB personnalisé</translation>
-    </message>
-    <message>
-        <location filename="../../ui/preferences/targetcontrolpage.cpp" line="214"/>
-        <source>App Restart Required</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../../ui/preferences/targetcontrolpage.cpp" line="215"/>
-        <source>You have changed the USB operating mode. Please restart the application and re-connect the Openterface Mini-KVM for this change to take effect.</source>
-        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
