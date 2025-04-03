@@ -20,72 +20,67 @@
 * ========================================================================== *
 */
 
-#ifndef SETTINGDIALOG_H
-#define SETTINGDIALOG_H
+#ifndef TARGETCONTROL_H
+#define TARGETCONTROL_H
 
-#include <QDialog>
-#include <QCamera>
-#include <QMediaFormat>
-#include <QCameraDevice>
 #include <QWidget>
-#include <QTreeWidget>
-#include <QTreeWidgetItem>
-#include <QStackedWidget>
-#include <QMediaDevices>
-#include <QByteArray>
-#include <QMap>
+#include <QCameraDevice>
+#include <QComboBox>
+#include <QLabel>
 #include <QCheckBox>
 #include <QLineEdit>
-#include <QByteArray>
+#include <QGridLayout>
+#include <QVBoxLayout>
+#include <QMediaDevices>
+#include <QMap>
+#include <QCamera>
+#include <QRadioButton>
+#include <QButtonGroup>
 #include "host/cameramanager.h"
-#include "logpage.h"
-#include "hardwarepage.h"
-#include "ui/videopage.h"
-#include "ui/audiopage.h"
-QT_BEGIN_NAMESPACE
-class QCameraFormat;
-class QComboBox;
-class QCamera;
-namespace Ui {
-class SettingDialog;
-}
-QT_END_NAMESPACE
+#include "fontstyle.h"
 
-class SettingDialog : public QDialog
+class TargetControlPage : public QWidget
 {
     Q_OBJECT
-
 public:
-    // Change the constructor to accept CameraManager instead of QCamera
-    explicit SettingDialog(CameraManager *cameraManager, QWidget *parent = nullptr);
-    ~SettingDialog();
-    HardwarePage* getHardwarePage();
-    VideoPage* getVideoPage();
-    LogPage* getLogPage();
-// signals:
-//     // void serialSettingsApplied();
-    
+    explicit TargetControlPage(QWidget *parent = nullptr);
+    void setupUI();
+    void applyHardwareSetting();
+    void initHardwareSetting();
+
 private:
+    QLabel *hardwareLabel;
+    QLabel *VIDPIDLabel;
+    QLabel *VID;
+    QLabel *PID;
+    QCheckBox *VIDCheckBox;
+    QCheckBox *PIDCheckBox;
+    QCheckBox *USBSerialNumberCheckBox;
+    QCheckBox *USBCustomStringDescriptorCheckBox;
+    QLineEdit *VIDLineEdit;
+    QLineEdit *PIDLineEdit;
+    QLineEdit *VIDDescriptorLineEdit;
+    QLineEdit *PIDDescriptorLineEdit;
+    QLineEdit *serialNumberLineEdit;
 
-    Ui::SettingDialog *ui;
-    CameraManager *m_cameraManager;
-    QTreeWidget *settingTree;
-    QStackedWidget *stackedWidget;
-    LogPage *logPage;
-    QWidget *audioPage;
-    VideoPage *videoPage;
-    HardwarePage *hardwarePage;
-
-    QWidget *buttonWidget;
-
-    void createSettingTree();
-    void createLayout();
-    void createPages();
+    void addCheckBoxLineEditPair(QCheckBox *checkBox, QLineEdit *lineEdit);
+    void onCheckBoxStateChanged(int state);
     
-    void changePage(QTreeWidgetItem *current, QTreeWidgetItem *previous);
-    void createButtons();
-    void applyAccrodingPage();
-    void handleOkButton();
+    std::array<bool, 4> extractBits(QString hexString);
+    QByteArray convertCheckBoxValueToBytes();
+    QMap<QCheckBox *, QLineEdit *> USBCheckBoxEditMap; // map of checkboxes to line edit about VID PID etc.
+
+    // Operating mode widgets
+    QButtonGroup *operatingModeGroup;
+    QRadioButton *fullModeRadio;
+    QRadioButton *keyboardOnlyRadio;
+    QRadioButton *keyboardMouseRadio;
+    QRadioButton *customHIDRadio;
+
+    const QString bigLabelFontSize = "font-size: 16px;";
+
+    int originalOperatingMode;
 };
 
-#endif // SETTINGDIALOG_H
+#endif // TARGETCONTROL_H
+

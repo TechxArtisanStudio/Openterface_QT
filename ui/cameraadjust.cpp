@@ -20,7 +20,7 @@
 * ========================================================================== *
 */
 
-#include "cameraajust.h"
+#include "cameraadjust.h"
 #include <QApplication>
 #include <QPalette>
 
