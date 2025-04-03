@@ -200,8 +200,8 @@ void VersionInfoManager::handleUpdateCheckResponse(QNetworkReply *reply)
         QList<int> latestSegments = QVersionNumber::fromString(latestVersion).normalized().segments();
         QList<int> currentSegments = QVersionNumber::fromString(currentVersion).normalized().segments();
 
-        while (latestSegments.size() > 2) latestSegments.removeLast();
-        while (currentSegments.size() > 2) currentSegments.removeLast();
+        while (latestSegments.size() > 3) latestSegments.removeLast();
+        while (currentSegments.size() > 3) currentSegments.removeLast();
 
         QVersionNumber latest = QVersionNumber(latestSegments);
         QVersionNumber current = QVersionNumber(currentSegments);
