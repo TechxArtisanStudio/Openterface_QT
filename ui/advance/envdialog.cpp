@@ -274,11 +274,63 @@ bool EnvironmentSetupDialog::checkInRightUserGroup() {
 }
 
 bool EnvironmentSetupDialog::checkHidPermission() {
-    // Check if the user has HID permission
-    std::string command = "ls -l /dev/hidraw*";
-    int result = system(command.c_str());
-    isHidPermission = (result == 0); // Returns true if the user has HID permission
-    return isHidPermission;
+    std::cout << "Checking HID permissions..." << std::endl;
+    
+    // First check if hidraw devices exist
+    QProcess process;
+    process.start("ls", QStringList() << "/dev/hidraw*");
+    process.waitForFinished();
+    
+    if (process.exitCode() != 0) {
+        std::cout << "No hidraw devices found" << std::endl;
+        isHidPermission = false;
+        return false;
+    }
+    
+    // Get the list of hidraw devices
+    QString output = process.readAllStandardOutput();
+    QStringList devices = output.split('\n', Qt::SkipEmptyParts);
+    
+    // Check if any device has proper permissions
+    bool hasPermission = false;
+    for (const QString& device : devices) {
+        QFileInfo fileInfo(device);
+        if (!fileInfo.exists()) continue;
+        
+        // Check if the current user can read and write to the device
+        if (fileInfo.isReadable() && fileInfo.isWritable()) {
+            hasPermission = true;
+            std::cout << "Found readable and writable device: " << device.toStdString() << std::endl;
+            break;
+        }
+        
+        // Also check group permissions
+        QProcess statProcess;
+        statProcess.start("stat", QStringList() << "-c" << "%A %G" << device);
+        statProcess.waitForFinished();
+        QString statOutput = statProcess.readAllStandardOutput();
+        
+        // Check if permissions contain "rw" for group access and user is in that group
+        if (statOutput.contains("rw") && !statOutput.isEmpty()) {
+            QString groupName = statOutput.split(' ').last().trimmed();
+            
+            QProcess groupsProcess;
+            groupsProcess.start("groups");
+            groupsProcess.waitForFinished();
+            QString groupsOutput = groupsProcess.readAllStandardOutput();
+            
+            if (groupsOutput.contains(groupName)) {
+                hasPermission = true;
+                std::cout << "User is in group " << groupName.toStdString() 
+                          << " with read/write access to " << device.toStdString() << std::endl;
+                break;
+            }
+        }
+    }
+    
+    isHidPermission = hasPermission;
+    std::cout << "HID permissions check result: " << (hasPermission ? "Yes" : "No") << std::endl;
+    return hasPermission;
 }
 
 bool EnvironmentSetupDialog::checkBrlttyRunning() {
