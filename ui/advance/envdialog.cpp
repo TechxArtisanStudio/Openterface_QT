@@ -302,12 +302,10 @@ bool EnvironmentSetupDialog::checkHidPermission() {
     }
     
     // Devices exist - check permissions
-    QString output = process.readAllStandardOutput();
-    QStringList devices = output.split('\n', Qt::SkipEmptyParts);
-    
     // Check if any device has proper permissions
     bool hasPermission = false;
     for (const QString& device : devices) {
+        qDebug() << "Checking device:" << device;
         // Check file permissions using QFileInfo
         QFileInfo fileInfo(device);
         if (!fileInfo.exists()) continue;
