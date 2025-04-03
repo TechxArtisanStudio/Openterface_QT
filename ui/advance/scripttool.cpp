@@ -28,10 +28,10 @@
 #include <QShortcut>
 #include <QDebug>
 #include <thread>
-#include "../scripts/Lexer.h"
-#include "../scripts/Parser.h"
+#include "scripts/Lexer.h"
+#include "scripts/Parser.h"
 // #include "../scripts/semanticAnalyzer.h"
-#include "../scripts/KeyboardMouse.h"
+#include "scripts/KeyboardMouse.h"
 #include <QColor>
 
 Q_DECLARE_LOGGING_CATEGORY(log_script)
