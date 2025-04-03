@@ -99,37 +99,40 @@ EnvironmentSetupDialog::EnvironmentSetupDialog(QWidget *parent) :
         ui->step2Label->setVisible(false);
         ui->copyButton->setVisible(false);
         ui->commandsTextEdit->setVisible(false);
-    } else {
-        setFixedSize(450, 450);
-        ui->commandsTextEdit->setVisible(true);
-        ui->step1Label->setVisible(!isDriverInstalled);
-        ui->extractButton->setVisible(!isDriverInstalled);
-        ui->copyButton->setVisible(true);
-        ui->step2Label->setVisible(true);
-        ui->commandsTextEdit->setText(buildCommands());
-        connect(ui->extractButton, &QPushButton::clicked, this, &EnvironmentSetupDialog::extractDriverFiles);
-        connect(ui->copyButton, &QPushButton::clicked, this, &EnvironmentSetupDialog::copyCommands);
-    
-        // Create the status summary
-        QString statusSummary = tr("The following steps help you install the driver and add user to correct group. Current status:<br>");
-        statusSummary += tr("‣ Driver Installed: ") + QString(isDriverInstalled ? tickHtml : crossHtml) + "<br>";
-        statusSummary += tr("‣ In Dialout Group: ") + QString(isInRightUserGroup ? tickHtml : crossHtml) + "<br>";
-        statusSummary += tr("‣ HID Permission: ") + QString(isHidPermission ? tickHtml : crossHtml) + "<br>";
-        statusSummary += tr("‣ BRLTTY checking: ") + QString(isBrlttyRunning ? crossHtml + tr(" (needs removal)") : tickHtml + tr(" (not running)"));
-        ui->descriptionLabel->setText(statusSummary);
+        connect(ui->okButton, &QPushButton::clicked, this, &EnvironmentSetupDialog::reject);
+        connect(ui->quitButton, &QPushButton::clicked, this, &EnvironmentSetupDialog::reject);
+        return;
+    } 
+    setFixedSize(450, 450);
+    ui->commandsTextEdit->setVisible(true);
+    ui->step1Label->setVisible(!isDriverInstalled);
+    ui->extractButton->setVisible(!isDriverInstalled);
+    ui->copyButton->setVisible(true);
+    ui->step2Label->setVisible(true);
+    ui->commandsTextEdit->setText(buildCommands());
+    connect(ui->extractButton, &QPushButton::clicked, this, &EnvironmentSetupDialog::extractDriverFiles);
+    connect(ui->copyButton, &QPushButton::clicked, this, &EnvironmentSetupDialog::copyCommands);
 
-        // Create help link
-        QLabel* helpLabel = new QLabel(this);
-        helpLabel->setOpenExternalLinks(false); // We'll handle the click ourselves
-        helpLabel->setTextFormat(Qt::RichText); // Ensure this label also uses rich text
-        helpLabel->setAlignment(Qt::AlignCenter);
+    // Create the status summary
+    QString statusSummary = tr("The following steps help you install the driver and add user to correct group. Current status:<br>");
+    statusSummary += tr("‣ Driver Installed: ") + QString(isDriverInstalled ? tickHtml : crossHtml) + "<br>";
+    statusSummary += tr("‣ In Dialout Group: ") + QString(isInRightUserGroup ? tickHtml : crossHtml) + "<br>";
+    statusSummary += tr("‣ HID Permission: ") + QString(isHidPermission ? tickHtml : crossHtml) + "<br>";
+    statusSummary += tr("‣ BRLTTY checking: ") + QString(isBrlttyRunning ? crossHtml + tr(" (needs removal)") : tickHtml + tr(" (not running)"));
+    ui->descriptionLabel->setText(statusSummary);
 
-        // Get the layout from the UI file and add the help label
-        QVBoxLayout* layout = qobject_cast<QVBoxLayout*>(this->layout());
-        if (layout) {
-            layout->addWidget(helpLabel);
-        }
+    // Create help link
+    QLabel* helpLabel = new QLabel(this);
+    helpLabel->setOpenExternalLinks(false); // We'll handle the click ourselves
+    helpLabel->setTextFormat(Qt::RichText); // Ensure this label also uses rich text
+    helpLabel->setAlignment(Qt::AlignCenter);
+
+    // Get the layout from the UI file and add the help label
+    QVBoxLayout* layout = qobject_cast<QVBoxLayout*>(this->layout());
+    if (layout) {
+        layout->addWidget(helpLabel);
     }
+    
 #endif
     // Connect the help link to our slot
     connect(ui->helpLabel, &QLabel::linkActivated, this, &EnvironmentSetupDialog::openHelpLink);
