@@ -1538,33 +1538,24 @@ void MainWindow::showEnvironmentSetupDialog() {
 }
 
 void MainWindow::updateFirmware() {
-    // Check if it's lastest firmware
+    // Check if it's latest firmware
     if (VideoHid::getInstance().isLatestFirmware()) {
-        QMessageBox::information(this, tr("Firmware Update"), tr("The firmware is up to date."));
+        std::string currentFirmwareVersion = VideoHid::getInstance().getFirmwareVersion();
+        QMessageBox::information(this, tr("Firmware Update"), 
+            tr("The firmware is up to date.\nCurrent version: ") + 
+            QString::fromStdString(currentFirmwareVersion));
         return;
     }
 
 
     std::string currentFirmwareVersion = VideoHid::getInstance().getFirmwareVersion();
     std::string latestFirmwareVersion = VideoHid::getInstance().getLatestFirmwareVersion();
-    QMessageBox::StandardButton reply;
-    reply = QMessageBox::warning(this, 
-                tr("Firmware Update Confirmation"),
-                tr("Current firmware version: ") + QString::fromStdString(currentFirmwareVersion) + tr("\n") +
-                tr("Latest firmware version: ") + QString::fromStdString(latestFirmwareVersion) + tr("\n\n") +
-                tr("The update process will:\n") +
-                tr("1. Stop all video and USB operations\n"
-                "2. Install new firmware\n"
-                "3. Close the application automatically\n\n"
-                "Important:\n"
-                "• Use a high-quality USB cable for host connection\n"
-                "• Disconnect the HDMI cable\n"
-                "• Do not interrupt power during update\n"
-                "• Restart application after completion\n\n"
-                "Do you want to proceed with the update?"),
-                QMessageBox::Ok | QMessageBox::Cancel);
+    
+    // Create and show the confirmation dialog
+    FirmwareUpdateConfirmDialog confirmDialog(this);
+    bool proceed = confirmDialog.showConfirmDialog(currentFirmwareVersion, latestFirmwareVersion);
 
-    if (reply == QMessageBox::Ok) {
+    if (proceed) {
         // Stop video and HID operations before firmware update
         VideoHid::getInstance().stop();
         SerialPortManager::getInstance().stop();
@@ -1576,5 +1567,5 @@ void MainWindow::updateFirmware() {
         updateDialog->startUpdate();
         // The application will be closed by the dialog if the update is successful
         updateDialog->deleteLater();
-    } 
+    }
 }

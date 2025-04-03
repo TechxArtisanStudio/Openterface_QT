@@ -86,7 +86,8 @@ signals:
     void inputResolutionChanged(int old_input_width, int old_input_height, int new_input_width, int new_input_height);
 
     void resolutionChangeUpdate(const int& width, const int& height, const float& fps, const float& pixelClk);
-
+    void firmwareWriteError(const QString &errorMessage);
+    
 private:
     explicit VideoHid(QObject *parent = nullptr);
     std::vector<unsigned char> networkFirmware;

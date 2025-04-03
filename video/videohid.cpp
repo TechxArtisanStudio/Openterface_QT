@@ -760,6 +760,9 @@ bool VideoHid::writeEeprom(quint16 address, const QByteArray &data) {
                 qCDebug(log_host_hid)  << "Written size:" << written_size;
             }
             QThread::msleep(100); // Add 100ms delay between writes
+        } else {
+            qCDebug(log_host_hid)  << "Failed to write chunk to EEPROM";
+            break;
         }
     }
     
@@ -772,6 +775,8 @@ bool VideoHid::writeEeprom(quint16 address, const QByteArray &data) {
 void VideoHid::loadFirmwareToEeprom() {
     // Create firmware data
     if (networkFirmware.empty()){
+        qCDebug(log_host_hid) << "No firmware data available to write";
+        emit firmwareWriteComplete(false);
         return;
     }
 
@@ -790,13 +795,21 @@ void VideoHid::loadFirmwareToEeprom() {
     
     // Connect progress and status signals if needed
     connect(worker, &FirmwareWriter::progress, this, [this](int percent) {
-        qCDebug(log_host_hid)  << "Firmware write progress: " << percent << "%";
+        qCDebug(log_host_hid) << "Firmware write progress: " << percent << "%";
         emit firmwareWriteProgress(percent);
     });
     
     connect(worker, &FirmwareWriter::finished, this, [this](bool success) {
-        qCDebug(log_host_hid)  << "Firmware write " << (success ? "completed successfully" : "failed");
-        emit firmwareWriteComplete(success);
+        if (success) {
+            qCDebug(log_host_hid) << "Firmware write completed successfully";
+            emit firmwareWriteComplete(true);
+        } else {
+            qCDebug(log_host_hid) << "Firmware write failed - user should try again";
+            // Emit failure signal but don't quit the application
+            emit firmwareWriteComplete(false);
+            // You may want to add another signal specifically for retry suggestion
+            emit firmwareWriteError("Firmware update failed. Please try again.");
+        }
     });
     
     // Start the thread

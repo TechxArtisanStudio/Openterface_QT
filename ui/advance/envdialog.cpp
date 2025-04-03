@@ -66,7 +66,8 @@ const QString EnvironmentSetupDialog::helpUrl = "https://github.com/TechxArtisan
 
 EnvironmentSetupDialog::EnvironmentSetupDialog(QWidget *parent) :
     QDialog(parent),
-    ui(new Ui::EnvironmentSetupDialog)
+    ui(new Ui::EnvironmentSetupDialog),
+    isDevicePlugged(false)
 {
     ui->setupUi(this);
     
@@ -91,6 +92,17 @@ EnvironmentSetupDialog::EnvironmentSetupDialog(QWidget *parent) :
     else
         ui->descriptionLabel->setText(crossHtml + tr(" The driver is missing. Openterface Mini-KVM will install it automatically."));
 #else
+    if(!isDevicePlugged){
+        ui->descriptionLabel->setText(crossHtml + tr(" The device is not plugged in. Please plug it in and try again."));
+        ui->step1Label->setVisible(false);
+        ui->extractButton->setVisible(false);
+        ui->step2Label->setVisible(false);
+        ui->copyButton->setVisible(false);
+        ui->commandsTextEdit->setVisible(false);
+        connect(ui->okButton, &QPushButton::clicked, this, &EnvironmentSetupDialog::reject);
+        connect(ui->quitButton, &QPushButton::clicked, this, &EnvironmentSetupDialog::reject);
+        return;
+    } 
     setFixedSize(450, 450);
     ui->commandsTextEdit->setVisible(true);
     ui->step1Label->setVisible(!isDriverInstalled);
@@ -102,7 +114,7 @@ EnvironmentSetupDialog::EnvironmentSetupDialog(QWidget *parent) :
     connect(ui->copyButton, &QPushButton::clicked, this, &EnvironmentSetupDialog::copyCommands);
 
     // Create the status summary
-    QString statusSummary = tr("The following steps help you install the driver and add user to correct group. Current status:\n");
+    QString statusSummary = tr("The following steps help you install the driver and add user to correct group. Current status:<br>");
     statusSummary += tr("‣ Driver Installed: ") + QString(isDriverInstalled ? tickHtml : crossHtml) + "<br>";
     statusSummary += tr("‣ In Dialout Group: ") + QString(isInRightUserGroup ? tickHtml : crossHtml) + "<br>";
     statusSummary += tr("‣ HID Permission: ") + QString(isHidPermission ? tickHtml : crossHtml) + "<br>";
@@ -120,6 +132,7 @@ EnvironmentSetupDialog::EnvironmentSetupDialog(QWidget *parent) :
     if (layout) {
         layout->addWidget(helpLabel);
     }
+    
 #endif
     // Connect the help link to our slot
     connect(ui->helpLabel, &QLabel::linkActivated, this, &EnvironmentSetupDialog::openHelpLink);
@@ -274,11 +287,82 @@ bool EnvironmentSetupDialog::checkInRightUserGroup() {
 }
 
 bool EnvironmentSetupDialog::checkHidPermission() {
-    // Check if the user has HID permission
-    std::string command = "ls -l /dev/hidraw*";
-    int result = system(command.c_str());
-    isHidPermission = (result == 0); // Returns true if the user has HID permission
-    return isHidPermission;
+    std::cout << "Checking HID permissions..." << std::endl;
+    
+    // First try to list all hidraw devices
+    QDir devDir("/dev");
+    QStringList devices = devDir.entryList(QStringList() << "hidraw*", QDir::System);
+    
+    // Check if devices exist at all
+    if (devices.isEmpty()) {
+        // No devices found - but this could be normal if no HID devices are connected
+        std::cout << "No hidraw devices found. If device is connected, may need udev rules." << std::endl;
+        
+        // Also check if the udev rules are properly set up
+        QProcess udevProcess;
+        udevProcess.start("grep", QStringList() << "-q" << "hidraw" << "/etc/udev/rules.d/*openterface*.rules");
+        udevProcess.waitForFinished();
+        
+        if (udevProcess.exitCode() == 0) {
+            // Rules exist, which is good for future devices
+            std::cout << "Openterface udev rules found. Permissions will be correct when device is connected." << std::endl;
+            isHidPermission = true;
+            return true;
+        }
+        
+        isHidPermission = false;
+        return false;
+    }
+    
+    // Devices exist - check permissions
+    // Check if any device has proper permissions
+    bool hasPermission = false;
+    for (const QString& device : devices) {
+        qDebug() << "Checking device:" << device;
+        // Check file permissions using QFileInfo
+        QFileInfo fileInfo("/dev/" + device);
+        if (!fileInfo.exists()) continue;
+        
+        if (fileInfo.isReadable() && fileInfo.isWritable()) {
+            hasPermission = true;
+            std::cout << "Found device with RW access: " << device.toStdString() << std::endl;
+            break;
+        }
+        
+        // Get detailed permissions with stat command
+        QProcess statProcess;
+        statProcess.start("stat", QStringList() << "-c" << "%a %G" << device);
+        statProcess.waitForFinished();
+        QString statOutput = statProcess.readAllStandardOutput().trimmed();
+        std::cout << "Device " << device.toStdString() << " permissions: " << statOutput.toStdString() << std::endl;
+        
+        // Check for 666 permissions (rw for all) or 664 permissions (rw for group)
+        QString permString = statOutput.split(' ').first();
+        if (permString == "666") {
+            hasPermission = true;
+            std::cout << "Device has 666 permissions (rw for everyone)" << std::endl;
+            break;
+        } else if (permString == "664" || permString == "660") {
+            // Need to check if user belongs to the device group
+            QString groupName = statOutput.split(' ').last();
+            
+            QProcess groupsProcess;
+            groupsProcess.start("groups");
+            groupsProcess.waitForFinished();
+            QString groupsOutput = groupsProcess.readAllStandardOutput();
+            
+            if (groupsOutput.contains(groupName)) {
+                hasPermission = true;
+                std::cout << "User is in group " << groupName.toStdString() 
+                          << " with access to " << device.toStdString() << std::endl;
+                break;
+            }
+        }
+    }
+    
+    isHidPermission = hasPermission;
+    std::cout << "HID permissions check result: " << (hasPermission ? "Yes" : "No") << std::endl;
+    return hasPermission;
 }
 
 bool EnvironmentSetupDialog::checkBrlttyRunning() {
@@ -314,13 +398,14 @@ bool EnvironmentSetupDialog::checkEnvironmentSetup() {
     // If the device file does not exist, check using lsusb for VID and PID
     std::string command = "lsusb | grep -i '534d:2109'";
     int result = system(command.c_str());
+    bool skipCheck = false;
     if (result != 0) {
         std::cout << "MS2109 not exist, so no Openterface plugged in" << std::endl;
-        return true;
+        skipCheck = true;
     }
 
     checkBrlttyRunning(); // No need to return value here
-    return checkDriverInstalled() && checkInRightUserGroup() && checkHidPermission() && !isBrlttyRunning;
+    return checkDriverInstalled() && checkInRightUserGroup() && checkHidPermission() && !isBrlttyRunning || skipCheck;
     #else
     return true;
     #endif

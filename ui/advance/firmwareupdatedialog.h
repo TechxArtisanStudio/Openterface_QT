@@ -37,4 +37,22 @@ private:
     QTimer *progressTimer;
 };
 
+
+class FirmwareUpdateConfirmDialog : public QDialog
+{
+    Q_OBJECT
+
+public:
+    explicit FirmwareUpdateConfirmDialog(QWidget *parent = nullptr);
+    ~FirmwareUpdateConfirmDialog() override;
+    
+    // Show the dialog with version information and return user's choice
+    bool showConfirmDialog(const std::string& currentVersion, const std::string& latestVersion);
+
+private:
+    QLabel *messageLabel;
+    QPushButton *okButton;
+    QPushButton *cancelButton;
+};
+
 #endif // FIRMWAREUPDATEDIALOG_H
