@@ -276,43 +276,65 @@ bool EnvironmentSetupDialog::checkInRightUserGroup() {
 bool EnvironmentSetupDialog::checkHidPermission() {
     std::cout << "Checking HID permissions..." << std::endl;
     
-    // First check if hidraw devices exist
+    // First try to list all hidraw devices
     QProcess process;
     process.start("ls", QStringList() << "/dev/hidraw*");
     process.waitForFinished();
     
+    // Check if devices exist at all
     if (process.exitCode() != 0) {
-        std::cout << "No hidraw devices found" << std::endl;
+        // No devices found - but this could be normal if no HID devices are connected
+        std::cout << "No hidraw devices found. If device is connected, may need udev rules." << std::endl;
+        
+        // Also check if the udev rules are properly set up
+        QProcess udevProcess;
+        udevProcess.start("grep", QStringList() << "-q" << "hidraw" << "/etc/udev/rules.d/*openterface*.rules");
+        udevProcess.waitForFinished();
+        
+        if (udevProcess.exitCode() == 0) {
+            // Rules exist, which is good for future devices
+            std::cout << "Openterface udev rules found. Permissions will be correct when device is connected." << std::endl;
+            isHidPermission = true;
+            return true;
+        }
+        
         isHidPermission = false;
         return false;
     }
     
-    // Get the list of hidraw devices
+    // Devices exist - check permissions
     QString output = process.readAllStandardOutput();
     QStringList devices = output.split('\n', Qt::SkipEmptyParts);
     
     // Check if any device has proper permissions
     bool hasPermission = false;
     for (const QString& device : devices) {
+        // Check file permissions using QFileInfo
         QFileInfo fileInfo(device);
         if (!fileInfo.exists()) continue;
         
-        // Check if the current user can read and write to the device
         if (fileInfo.isReadable() && fileInfo.isWritable()) {
             hasPermission = true;
-            std::cout << "Found readable and writable device: " << device.toStdString() << std::endl;
+            std::cout << "Found device with RW access: " << device.toStdString() << std::endl;
             break;
         }
         
-        // Also check group permissions
+        // Get detailed permissions with stat command
         QProcess statProcess;
-        statProcess.start("stat", QStringList() << "-c" << "%A %G" << device);
+        statProcess.start("stat", QStringList() << "-c" << "%a %G" << device);
         statProcess.waitForFinished();
-        QString statOutput = statProcess.readAllStandardOutput();
+        QString statOutput = statProcess.readAllStandardOutput().trimmed();
+        std::cout << "Device " << device.toStdString() << " permissions: " << statOutput.toStdString() << std::endl;
         
-        // Check if permissions contain "rw" for group access and user is in that group
-        if (statOutput.contains("rw") && !statOutput.isEmpty()) {
-            QString groupName = statOutput.split(' ').last().trimmed();
+        // Check for 666 permissions (rw for all) or 664 permissions (rw for group)
+        QString permString = statOutput.split(' ').first();
+        if (permString == "666") {
+            hasPermission = true;
+            std::cout << "Device has 666 permissions (rw for everyone)" << std::endl;
+            break;
+        } else if (permString == "664" || permString == "660") {
+            // Need to check if user belongs to the device group
+            QString groupName = statOutput.split(' ').last();
             
             QProcess groupsProcess;
             groupsProcess.start("groups");
@@ -322,7 +344,7 @@ bool EnvironmentSetupDialog::checkHidPermission() {
             if (groupsOutput.contains(groupName)) {
                 hasPermission = true;
                 std::cout << "User is in group " << groupName.toStdString() 
-                          << " with read/write access to " << device.toStdString() << std::endl;
+                          << " with access to " << device.toStdString() << std::endl;
                 break;
             }
         }
