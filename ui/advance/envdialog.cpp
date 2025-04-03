@@ -109,26 +109,26 @@ EnvironmentSetupDialog::EnvironmentSetupDialog(QWidget *parent) :
         ui->step2Label->setVisible(false);
         ui->copyButton->setVisible(false);
         ui->commandsTextEdit->setVisible(false);
-        return;
-    } 
-    // Create the status summary
-    QString statusSummary = tr("The following steps help you install the driver and add user to correct group. Current status:<br>");
-    statusSummary += tr("‣ Driver Installed: ") + QString(isDriverInstalled ? tickHtml : crossHtml) + "<br>";
-    statusSummary += tr("‣ In Dialout Group: ") + QString(isInRightUserGroup ? tickHtml : crossHtml) + "<br>";
-    statusSummary += tr("‣ HID Permission: ") + QString(isHidPermission ? tickHtml : crossHtml) + "<br>";
-    statusSummary += tr("‣ BRLTTY checking: ") + QString(isBrlttyRunning ? crossHtml + tr(" (needs removal)") : tickHtml + tr(" (not running)"));
-    ui->descriptionLabel->setText(statusSummary);
+    } else {
+        // Create the status summary
+        QString statusSummary = tr("The following steps help you install the driver and add user to correct group. Current status:<br>");
+        statusSummary += tr("‣ Driver Installed: ") + QString(isDriverInstalled ? tickHtml : crossHtml) + "<br>";
+        statusSummary += tr("‣ In Dialout Group: ") + QString(isInRightUserGroup ? tickHtml : crossHtml) + "<br>";
+        statusSummary += tr("‣ HID Permission: ") + QString(isHidPermission ? tickHtml : crossHtml) + "<br>";
+        statusSummary += tr("‣ BRLTTY checking: ") + QString(isBrlttyRunning ? crossHtml + tr(" (needs removal)") : tickHtml + tr(" (not running)"));
+        ui->descriptionLabel->setText(statusSummary);
 
-    // Create help link
-    QLabel* helpLabel = new QLabel(this);
-    helpLabel->setOpenExternalLinks(false); // We'll handle the click ourselves
-    helpLabel->setTextFormat(Qt::RichText); // Ensure this label also uses rich text
-    helpLabel->setAlignment(Qt::AlignCenter);
+        // Create help link
+        QLabel* helpLabel = new QLabel(this);
+        helpLabel->setOpenExternalLinks(false); // We'll handle the click ourselves
+        helpLabel->setTextFormat(Qt::RichText); // Ensure this label also uses rich text
+        helpLabel->setAlignment(Qt::AlignCenter);
 
-    // Get the layout from the UI file and add the help label
-    QVBoxLayout* layout = qobject_cast<QVBoxLayout*>(this->layout());
-    if (layout) {
-        layout->addWidget(helpLabel);
+        // Get the layout from the UI file and add the help label
+        QVBoxLayout* layout = qobject_cast<QVBoxLayout*>(this->layout());
+        if (layout) {
+            layout->addWidget(helpLabel);
+        }
     }
 #endif
     // Connect the help link to our slot
