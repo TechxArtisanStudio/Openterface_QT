@@ -33,7 +33,7 @@
 #include "fontstyle.h"
 #include "host/cameramanager.h"
 #include <QSettings>
-#include "globalsetting.h"
+#include "ui/globalsetting.h"
 #include "global.h"
 
 QT_BEGIN_NAMESPACE

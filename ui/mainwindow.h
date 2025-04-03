@@ -30,24 +30,24 @@
 
 // Then include your custom headers
 #include "../host/audiomanager.h"
-#include "ui/statuswidget.h"
 #include "ui/statusevents.h"
 #include "ui/videopane.h"
-#include "ui/toggleswitch.h"
-#include "toolbarmanager.h"
-#include "ui/serialportdebugdialog.h"
-#include "ui/settingdialog.h"
-#include "host/cameramanager.h"
-#include "ui/versioninfomanager.h"
-#include "statusbarmanager.h"
-#include "host/usbcontrol.h"
-#include "ui/cameraajust.h"
-#include "ui/scripttool.h"
+#include "ui/toolbar/toggleswitch.h"
+#include "ui/preferences/settingdialog.h"
+#include "ui/advance/serialportdebugdialog.h"
+#include "ui/advance/scripttool.h"
+#include "ui/help/versioninfomanager.h"
+#include "ui/toolbar/toolbarmanager.h"
 #include "ui/TaskManager.h"
+#include "ui/languagemanager.h"
+#include "ui/statusbar/statusbarmanager.h"
+#include "host/usbcontrol.h"
+#include "host/cameramanager.h"
 #include "../scripts/semanticAnalyzer.h"
 #include "../scripts/AST.h"
 #include "ui/languagemanager.h"
 #include "ui/screensavermanager.h"
+
 
 #ifdef ONLINE_VERSION
 #define SERVER_PORT 12345

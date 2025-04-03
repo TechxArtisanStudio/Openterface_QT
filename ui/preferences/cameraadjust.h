@@ -20,72 +20,41 @@
 * ========================================================================== *
 */
 
-#ifndef SETTINGDIALOG_H
-#define SETTINGDIALOG_H
+#ifndef CAMERAAJUST_H
+#define CAMERAAJUST_H
 
-#include <QDialog>
-#include <QCamera>
-#include <QMediaFormat>
-#include <QCameraDevice>
 #include <QWidget>
-#include <QTreeWidget>
-#include <QTreeWidgetItem>
-#include <QStackedWidget>
-#include <QMediaDevices>
-#include <QByteArray>
-#include <QMap>
-#include <QCheckBox>
-#include <QLineEdit>
-#include <QByteArray>
-#include "host/cameramanager.h"
-#include "logpage.h"
-#include "hardwarepage.h"
-#include "ui/videopage.h"
-#include "ui/audiopage.h"
-QT_BEGIN_NAMESPACE
-class QCameraFormat;
-class QComboBox;
-class QCamera;
-namespace Ui {
-class SettingDialog;
-}
-QT_END_NAMESPACE
+#include <QSlider>
+#include <QLabel>
+#include <QVBoxLayout>
+#include <QPalette>
+#include <QDebug>
+#include "host/usbcontrol.h"
 
-class SettingDialog : public QDialog
+class CameraAdjust : public QWidget
 {
     Q_OBJECT
 
 public:
-    // Change the constructor to accept CameraManager instead of QCamera
-    explicit SettingDialog(CameraManager *cameraManager, QWidget *parent = nullptr);
-    ~SettingDialog();
-    HardwarePage* getHardwarePage();
-    VideoPage* getVideoPage();
-    LogPage* getLogPage();
-// signals:
-//     // void serialSettingsApplied();
-    
+    explicit CameraAdjust(QWidget *parent = nullptr);
+    ~CameraAdjust();
+
+    void updatePosition();
+    void initializeControls();
+
+public slots:
+    void toggleVisibility();
+    void updatePosition(int menuBarHeight, int parentWidth);
+    void updateColors();
+
+private slots:
+    void onContrastChanged(int value);
+
 private:
-
-    Ui::SettingDialog *ui;
-    CameraManager *m_cameraManager;
-    QTreeWidget *settingTree;
-    QStackedWidget *stackedWidget;
-    LogPage *logPage;
-    QWidget *audioPage;
-    VideoPage *videoPage;
-    HardwarePage *hardwarePage;
-
-    QWidget *buttonWidget;
-
-    void createSettingTree();
-    void createLayout();
-    void createPages();
-    
-    void changePage(QTreeWidgetItem *current, QTreeWidgetItem *previous);
-    void createButtons();
-    void applyAccrodingPage();
-    void handleOkButton();
+    void setupUI();
+    QSlider *contrastSlider;
+    QLabel *contrastLabel;
+    USBControl *usbControl;
 };
 
-#endif // SETTINGDIALOG_H
+#endif // CAMERAAJUST_H
