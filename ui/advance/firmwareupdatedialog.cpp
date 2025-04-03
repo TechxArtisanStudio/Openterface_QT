@@ -107,3 +107,58 @@ void FirmwareUpdateDialog::updateComplete(bool success)
     }
 }
 
+FirmwareUpdateConfirmDialog::FirmwareUpdateConfirmDialog(QWidget *parent)
+    : QDialog(parent)
+{
+    setWindowTitle(tr("Firmware Update Confirmation"));
+    setMinimumWidth(400);
+    
+    // Create UI elements
+    messageLabel = new QLabel();
+    messageLabel->setWordWrap(true);
+    
+    okButton = new QPushButton(tr("Update"));
+    cancelButton = new QPushButton(tr("Cancel"));
+    
+    // Layout
+    QVBoxLayout *mainLayout = new QVBoxLayout();
+    mainLayout->addWidget(messageLabel);
+    
+    QHBoxLayout *buttonLayout = new QHBoxLayout();
+    buttonLayout->addStretch();
+    buttonLayout->addWidget(okButton);
+    buttonLayout->addWidget(cancelButton);
+    
+    mainLayout->addLayout(buttonLayout);
+    setLayout(mainLayout);
+    
+    // Connect signals and slots
+    connect(okButton, &QPushButton::clicked, this, &FirmwareUpdateConfirmDialog::accept);
+    connect(cancelButton, &QPushButton::clicked, this, &FirmwareUpdateConfirmDialog::reject);
+}
+
+FirmwareUpdateConfirmDialog::~FirmwareUpdateConfirmDialog()
+{
+    // Qt handles deletion of child widgets
+}
+
+bool FirmwareUpdateConfirmDialog::showConfirmDialog(const std::string& currentVersion, const std::string& latestVersion)
+{
+    QString message = tr("Current firmware version: ") + QString::fromStdString(currentVersion) + tr("\n") +
+                     tr("Latest firmware version: ") + QString::fromStdString(latestVersion) + tr("\n\n") +
+                     tr("The update process will:\n") +
+                     tr("1. Stop all video and USB operations\n"
+                     "2. Install new firmware\n"
+                     "3. Close the application automatically\n\n"
+                     "Important:\n"
+                     "• Use a high-quality USB cable for host connection\n"
+                     "• Disconnect the HDMI cable\n"
+                     "• Do not interrupt power during update\n"
+                     "• Restart application after completion\n\n"
+                     "Do you want to proceed with the update?");
+    
+    messageLabel->setText(message);
+    
+    int result = exec();
+    return result == QDialog::Accepted;
+}
