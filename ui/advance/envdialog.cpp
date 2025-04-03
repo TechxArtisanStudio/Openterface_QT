@@ -67,6 +67,7 @@ const QString EnvironmentSetupDialog::helpUrl = "https://github.com/TechxArtisan
 EnvironmentSetupDialog::EnvironmentSetupDialog(QWidget *parent) :
     QDialog(parent),
     ui(new Ui::EnvironmentSetupDialog)
+    isDevicePlugged(false)
 {
     ui->setupUi(this);
     
@@ -101,6 +102,10 @@ EnvironmentSetupDialog::EnvironmentSetupDialog(QWidget *parent) :
     connect(ui->extractButton, &QPushButton::clicked, this, &EnvironmentSetupDialog::extractDriverFiles);
     connect(ui->copyButton, &QPushButton::clicked, this, &EnvironmentSetupDialog::copyCommands);
 
+    if(!isDevicePlugged){
+        ui->descriptionLabel->setText(crossHtml + tr(" The device is not plugged in. Please plug it in and try again."));
+        return;
+    } 
     // Create the status summary
     QString statusSummary = tr("The following steps help you install the driver and add user to correct group. Current status:<br>");
     statusSummary += tr("‣ Driver Installed: ") + QString(isDriverInstalled ? tickHtml : crossHtml) + "<br>";
