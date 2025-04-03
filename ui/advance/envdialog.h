@@ -57,7 +57,6 @@ private:
     static bool isInRightUserGroup;
     static bool isHidPermission;
     static bool isBrlttyRunning;
-    bool isDevicePlugged;
 
     QString buildCommands();
 #endif
