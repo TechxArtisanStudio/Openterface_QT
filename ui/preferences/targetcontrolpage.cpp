@@ -20,18 +20,18 @@
 * ========================================================================== *
 */
 
-#include "hardwarepage.h"
-#include "globalsetting.h"
+#include "targetcontrolpage.h"
+#include "ui/globalsetting.h"
 #include "serial/SerialPortManager.h"
 #include <QSettings>
 #include <QMessageBox>
 
-HardwarePage::HardwarePage(QWidget *parent) : QWidget(parent)
+TargetControlPage::TargetControlPage(QWidget *parent) : QWidget(parent)
 {
     setupUI();
 }
 
-void HardwarePage::setupUI()
+void TargetControlPage::setupUI()
 {
     // UI setup implementation for existing controls
     hardwareLabel = new QLabel(
@@ -133,18 +133,18 @@ void HardwarePage::setupUI()
     hardwareLayout->addLayout(gridLayout);
     hardwareLayout->addStretch();
 
-    connect(USBCustomStringDescriptorCheckBox, &QCheckBox::stateChanged, this, &HardwarePage::onCheckBoxStateChanged);
+    connect(USBCustomStringDescriptorCheckBox, &QCheckBox::stateChanged, this, &TargetControlPage::onCheckBoxStateChanged);
     addCheckBoxLineEditPair(VIDCheckBox, VIDDescriptorLineEdit);
     addCheckBoxLineEditPair(PIDCheckBox, PIDDescriptorLineEdit);
     addCheckBoxLineEditPair(USBSerialNumberCheckBox, serialNumberLineEdit);
 }
 
-void HardwarePage::addCheckBoxLineEditPair(QCheckBox *checkBox, QLineEdit *lineEdit){
+void TargetControlPage::addCheckBoxLineEditPair(QCheckBox *checkBox, QLineEdit *lineEdit){
     USBCheckBoxEditMap.insert(checkBox,lineEdit);
-    connect(checkBox, &QCheckBox::stateChanged, this, &HardwarePage::onCheckBoxStateChanged);
+    connect(checkBox, &QCheckBox::stateChanged, this, &TargetControlPage::onCheckBoxStateChanged);
 }
 
-void HardwarePage::onCheckBoxStateChanged(int state) {
+void TargetControlPage::onCheckBoxStateChanged(int state) {
     QCheckBox *checkBox = qobject_cast<QCheckBox*>(sender());
     QLineEdit *lineEdit = USBCheckBoxEditMap.value(checkBox);
     
@@ -180,7 +180,7 @@ void HardwarePage::onCheckBoxStateChanged(int state) {
     }
 }
 
-void HardwarePage::applyHardwareSetting()
+void TargetControlPage::applyHardwareSetting()
 {
     QSettings settings("Techxartisan", "Openterface");
     
@@ -216,7 +216,7 @@ void HardwarePage::applyHardwareSetting()
     }
 }
 
-QByteArray HardwarePage::convertCheckBoxValueToBytes(){
+QByteArray TargetControlPage::convertCheckBoxValueToBytes(){
     QCheckBox *VIDCheckBox = this->findChild<QCheckBox *>("VIDCheckBox");
     QCheckBox *PIDCheckBox = this->findChild<QCheckBox *>("PIDCheckBox");
     QCheckBox *USBSerialNumberCheckBox = this->findChild<QCheckBox *>("USBSerialNumberCheckBox");
@@ -234,7 +234,7 @@ QByteArray HardwarePage::convertCheckBoxValueToBytes(){
     return hexValue;
 }
 
-void HardwarePage::initHardwareSetting()
+void TargetControlPage::initHardwareSetting()
 {
     QSettings settings("Techxartisan", "Openterface");
 
@@ -299,7 +299,7 @@ void HardwarePage::initHardwareSetting()
     }
 }
 
-std::array<bool, 4> HardwarePage::extractBits(QString hexString) {
+std::array<bool, 4> TargetControlPage::extractBits(QString hexString) {
     // convert hex string to bool array
     bool ok;
     int hexValue = hexString.toInt(&ok, 16);

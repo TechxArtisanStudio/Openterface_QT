@@ -21,7 +21,7 @@
 */
 
 #include "videopage.h"
-#include "globalsetting.h"
+#include "ui/globalsetting.h"
 #include "host/cameramanager.h"
 #include <QDebug>
 #include <QComboBox>

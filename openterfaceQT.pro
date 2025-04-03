@@ -16,7 +16,6 @@ SOURCES += main.cpp \
     host/cameramanager.cpp \
     ui/fpsspinbox.cpp \
     ui/serialportdebugdialog.cpp \
-    ui/settingdialog.cpp \
     ui/statuswidget.cpp \
     video/videohid.cpp \
     video/firmwarewriter.cpp \
@@ -31,11 +30,12 @@ SOURCES += main.cpp \
     ui/inputhandler.cpp \
     ui/versioninfomanager.cpp \    
     ui/statusbarmanager.cpp \
-    ui/logpage.cpp \
-    ui/hardwarepage.cpp \
-    ui/videopage.cpp \
-    ui/audiopage.cpp \
-    ui/cameraajust.cpp \
+    ui/preferences/settingdialog.cpp \
+    ui/preferences/logpage.cpp \
+    ui/preferences/targetcontrolpage.cpp \
+    ui/preferences/videopage.cpp \
+    ui/preferences/audiopage.cpp \
+    ui/cameraadjust.cpp \
     ui/scripttool.cpp \
     ui/TaskManager.cpp \
     ui/envdialog.cpp \
@@ -65,7 +65,6 @@ HEADERS  += \
     host/cameramanager.h \
     ui/fpsspinbox.h \
     ui/serialportdebugdialog.h \
-    ui/settingdialog.h \
     ui/statuswidget.h \
     video/videohid.h \
     video/firmwarewriter.h \
@@ -81,11 +80,12 @@ HEADERS  += \
     ui/inputhandler.h \
     ui/versioninfomanager.h \
     ui/statusbarmanager.h \
-    ui/logpage.h \
-    ui/hardwarepage.h \
-    ui/videopage.h   \
-    ui/audiopage.h \
-    ui/cameraajust.h \
+    ui/preferences/settingdialog.h \
+    ui/preferences/logpage.h \
+    ui/preferences/targetcontrolpage.h \
+    ui/preferences/videopage.h   \
+    ui/preferences/audiopage.h \
+    ui/cameraadjust.h \
     ui/scripttool.h \
     ui/TaskManager.h \
     ui/envdialog.h \
@@ -110,10 +110,9 @@ HEADERS  += \
     ui/languagemanager.h \
     ui/screensavermanager.h
 
-
 FORMS    += \
     ui/mainwindow.ui \
-    ui/settingdialog.ui \
+    ui/preferences/settingdialog.ui \
     ui/envdialog.ui
 
 RESOURCES += \
