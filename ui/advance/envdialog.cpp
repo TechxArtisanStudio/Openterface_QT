@@ -392,7 +392,7 @@ bool EnvironmentSetupDialog::checkEnvironmentSetup() {
     }
 
     checkBrlttyRunning(); // No need to return value here
-    return skipCheck || checkDriverInstalled() && checkInRightUserGroup() && checkHidPermission() && !isBrlttyRunning;
+    return checkDriverInstalled() && checkInRightUserGroup() && checkHidPermission() && !isBrlttyRunning || skipCheck;
     #else
     return true;
     #endif
