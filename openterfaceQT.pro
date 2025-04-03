@@ -14,32 +14,31 @@ SOURCES += main.cpp \
     target/mouseeventdto.cpp \
     host/audiomanager.cpp \
     host/cameramanager.cpp \
-    ui/fpsspinbox.cpp \
-    ui/serialportdebugdialog.cpp \
-    ui/statuswidget.cpp \
+    ui/statusbar/statuswidget.cpp \
     video/videohid.cpp \
     video/firmwarewriter.cpp \
-    ui/helppane.cpp \
+    ui/help/helppane.cpp \
     ui/mainwindow.cpp \
-    ui/metadatadialog.cpp \
     ui/videopane.cpp \
     ui/globalsetting.cpp \
-    ui/toolbarmanager.cpp \
-    ui/toggleswitch.cpp \
+    ui/toolbar/toolbarmanager.cpp \
+    ui/toolbar/toggleswitch.cpp \
     ui/loghandler.cpp \
     ui/inputhandler.cpp \
-    ui/versioninfomanager.cpp \    
-    ui/statusbarmanager.cpp \
+    ui/TaskManager.cpp \
+    ui/statusbar/statusbarmanager.cpp \
+    ui/preferences/fpsspinbox.cpp \
     ui/preferences/settingdialog.cpp \
     ui/preferences/logpage.cpp \
     ui/preferences/targetcontrolpage.cpp \
     ui/preferences/videopage.cpp \
     ui/preferences/audiopage.cpp \
-    ui/cameraadjust.cpp \
-    ui/scripttool.cpp \
-    ui/TaskManager.cpp \
-    ui/envdialog.cpp \
-    ui/firmwareupdatedialog.cpp \
+    ui/preferences/cameraadjust.cpp \
+    ui/advance/serialportdebugdialog.cpp \
+    ui/advance/scripttool.cpp \
+    ui/help/versioninfomanager.cpp \ 
+    ui/advance/envdialog.cpp \
+    ui/advance/firmwareupdatedialog.cpp \
     host/HostManager.cpp \
     serial/SerialPortManager.cpp \
     target/KeyboardManager.cpp \
@@ -62,33 +61,32 @@ HEADERS  += \
     target/mouseeventdto.h \
     host/audiomanager.h \
     host/cameramanager.h \
-    ui/fpsspinbox.h \
-    ui/serialportdebugdialog.h \
-    ui/statuswidget.h \
+    ui/statusbar/statuswidget.h \
     video/videohid.h \
     video/firmwarewriter.h \
-    ui/helppane.h \
+    ui/help/helppane.h \
     ui/mainwindow.h \
-    ui/metadatadialog.h \
     ui/videopane.h \
     ui/globalsetting.h \
     ui/statusevents.h \
-    ui/toolbarmanager.h \
-    ui/toggleswitch.h \
+    ui/toolbar/toolbarmanager.h \
+    ui/toolbar/toggleswitch.h \
     ui/loghandler.h \
     ui/inputhandler.h \
-    ui/versioninfomanager.h \
-    ui/statusbarmanager.h \
+    ui/statusbar/statusbarmanager.h \
+    ui/help/versioninfomanager.h \
+    ui/advance/serialportdebugdialog.h \
+    ui/advance/scripttool.h \
+    ui/advance/envdialog.h \
+    ui/advance/firmwareupdatedialog.h \
+    ui/preferences/cameraadjust.h \
+    ui/preferences/fpsspinbox.h \
     ui/preferences/settingdialog.h \
     ui/preferences/logpage.h \
     ui/preferences/targetcontrolpage.h \
     ui/preferences/videopage.h   \
     ui/preferences/audiopage.h \
-    ui/cameraadjust.h \
-    ui/scripttool.h \
     ui/TaskManager.h \
-    ui/envdialog.h \
-    ui/firmwareupdatedialog.h \
     host/HostManager.h \
     serial/ch9329.h \
     serial/SerialPortManager.h \
@@ -108,11 +106,10 @@ HEADERS  += \
     scripts/scriptEditor.h \
     ui/languagemanager.h
 
-
 FORMS    += \
     ui/mainwindow.ui \
     ui/preferences/settingdialog.ui \
-    ui/envdialog.ui
+    ui/advance/envdialog.ui
 
 RESOURCES += \
     openterfaceQT.rc \

@@ -67,26 +67,23 @@ qt_add_executable(openterfaceQT WIN32 MACOSX_BUNDLE
     target/mouseeventdto.cpp target/mouseeventdto.h
     video/videohid.cpp video/videohid.h
     ui/TaskManager.cpp ui/TaskManager.h
-
-    ui/cameraadjust.cpp ui/cameraadjust.h
-    ui/envdialog.cpp ui/envdialog.h ui/envdialog.ui
-    ui/fpsspinbox.cpp ui/fpsspinbox.h
     ui/globalsetting.cpp ui/globalsetting.h
-    ui/helppane.cpp ui/helppane.h
+    ui/help/helppane.cpp ui/help/helppane.h
     ui/inputhandler.cpp ui/inputhandler.h
     ui/loghandler.cpp ui/loghandler.h
-
     ui/mainwindow.cpp ui/mainwindow.h ui/mainwindow.ui
     ui/metadatadialog.cpp ui/metadatadialog.h
-    ui/scripttool.cpp ui/scripttool.h
-    ui/serialportdebugdialog.cpp ui/serialportdebugdialog.h
-
-    ui/statusbarmanager.cpp ui/statusbarmanager.h
+    ui/advance/scripttool.cpp ui/advance/scripttool.h
+    ui/advance/serialportdebugdialog.cpp ui/advance/serialportdebugdialog.h
+    ui/advance/envdialog.cpp ui/advance/envdialog.h ui/advance/envdialog.ui
+    ui/statusbar/statusbarmanager.cpp ui/statusbar/statusbarmanager.h
+    ui/help/versioninfomanager.cpp ui/help/versioninfomanager.h
     ui/statusevents.h
-    ui/statuswidget.cpp ui/statuswidget.h
-    ui/toggleswitch.cpp ui/toggleswitch.h
-    ui/toolbarmanager.cpp ui/toolbarmanager.h
-    ui/versioninfomanager.cpp ui/versioninfomanager.h
+    ui/statusbar/statuswidget.cpp ui/statusbar/statuswidget.h
+    ui/toolbar/toggleswitch.cpp ui/toolbar/toggleswitch.eswitch.eswitch.eswitch.h
+    ui/toolbar/toolbarmanager.cpp ui/toolbar/toolbarmanager.h
+    ui/preferences/cameraadjust.cpp ui/preferences/cameraadjust.h
+    ui/preferences/fpsspinbox.cpp ui/preferences/fpsspinbox.h
     ui/preferences/settingdialog.cpp ui/preferences/settingdialog.h ui/preferences/settingdialog.ui
     ui/preferences/logpage.cpp ui/preferences/logpage.h
     ui/preferences/videopage.cpp ui/preferences/videopage.h
@@ -94,7 +91,7 @@ qt_add_executable(openterfaceQT WIN32 MACOSX_BUNDLE
     ui/preferences/targetcontrolpage.cpp ui/preferences/targetcontrolpage.h
     ui/videopane.cpp ui/videopane.h
     ui/languagemanager.cpp ui/languagemanager.h
-    ui/firmwareupdatedialog.cpp ui/firmwareupdatedialog.h
+    ui/advance/firmwareupdatedialog.cpp ui/advance/firmwareupdatedialog.h
     video/firmwarewriter.cpp video/firmwarewriter.h
     video/ms2109.h
 )

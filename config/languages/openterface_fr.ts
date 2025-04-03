@@ -82,103 +82,103 @@
         <translation>&lt;a href=&quot;#&quot;&gt;Documentation de configuration de l&apos;environnement&lt;/a&gt;</translation>
     </message>
     <message>
-        <location filename="../../ui/envdialog.cpp" line="91"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="91"/>
         <source> The driver is installed. No further action is required.</source>
         <translation>Le pilote est installé. Aucune action supplémentaire n&apos;est requise.</translation>
     </message>
     <message>
-        <location filename="../../ui/envdialog.cpp" line="93"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="93"/>
         <source> The driver is missing. Openterface Mini-KVM will install it automatically.</source>
         <translation>Le pilote est manquant. Openterface Mini-KVM l&apos;installera automatiquement.</translation>
     </message>
     <message>
-        <location filename="../../ui/envdialog.cpp" line="106"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="106"/>
         <source>The following steps help you install the driver and add user to correct group. Current status:
 </source>
         <translation>Les étapes suivantes vous aident à installer le pilote et à ajouter l&apos;utilisateur au groupe correct. Statut actuel :</translation>
     </message>
     <message>
-        <location filename="../../ui/envdialog.cpp" line="107"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="107"/>
         <source>‣ Driver Installed: </source>
         <translation>‣ Pilote installé : </translation>
     </message>
     <message>
-        <location filename="../../ui/envdialog.cpp" line="108"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="108"/>
         <source>‣ In Dialout Group: </source>
         <translation>‣ Dans le groupe Dialout : </translation>
     </message>
     <message>
-        <location filename="../../ui/envdialog.cpp" line="109"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="109"/>
         <source>‣ HID Permission: </source>
         <translation>‣ Permission HID : </translation>
     </message>
     <message>
-        <location filename="../../ui/envdialog.cpp" line="110"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="110"/>
         <source>‣ BRLTTY checking: </source>
         <translation>‣ Vérification BRLTTY : </translation>
     </message>
     <message>
-        <location filename="../../ui/envdialog.cpp" line="110"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="110"/>
         <source> (needs removal)</source>
         <translation> (doit être supprimé)</translation>
     </message>
     <message>
-        <location filename="../../ui/envdialog.cpp" line="110"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="110"/>
         <source> (not running)</source>
         <translation> (non exécuté)</translation>
     </message>
     <message>
-        <location filename="../../ui/envdialog.cpp" line="155"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="155"/>
         <source>Select Destination Directory</source>
         <translation>Sélectionner le répertoire de destination</translation>
     </message>
     <message>
-        <location filename="../../ui/envdialog.cpp" line="211"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="211"/>
         <source>Driver Installed: </source>
         <translation>Pilote installé : </translation>
     </message>
     <message>
-        <location filename="../../ui/envdialog.cpp" line="211"/>
-        <location filename="../../ui/envdialog.cpp" line="212"/>
-        <location filename="../../ui/envdialog.cpp" line="213"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="211"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="212"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="213"/>
         <source>Yes</source>
         <translation>Oui</translation>
     </message>
     <message>
-        <location filename="../../ui/envdialog.cpp" line="211"/>
-        <location filename="../../ui/envdialog.cpp" line="212"/>
-        <location filename="../../ui/envdialog.cpp" line="213"/>
-        <location filename="../../ui/envdialog.cpp" line="214"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="211"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="212"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="213"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="214"/>
         <source>No</source>
         <translation>Non</translation>
     </message>
     <message>
-        <location filename="../../ui/envdialog.cpp" line="212"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="212"/>
         <source>In Dialout Group: </source>
         <translation>Dans le groupe Dialout : </translation>
     </message>
     <message>
-        <location filename="../../ui/envdialog.cpp" line="213"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="213"/>
         <source>HID Permission: </source>
         <translation>Permission HID : </translation>
     </message>
     <message>
-        <location filename="../../ui/envdialog.cpp" line="214"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="214"/>
         <source>BRLTTY is Running: </source>
         <translation>BRLTTY est en cours d&apos;exécution : </translation>
     </message>
     <message>
-        <location filename="../../ui/envdialog.cpp" line="214"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="214"/>
         <source>Yes (needs removal)</source>
         <translation>Oui (doit être supprimé)</translation>
     </message>
     <message>
-        <location filename="../../ui/envdialog.cpp" line="223"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="223"/>
         <source>Restart Required</source>
         <translation>Redémarrage requis</translation>
     </message>
     <message>
-        <location filename="../../ui/envdialog.cpp" line="224"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="224"/>
         <source>The driver has been installed. A system restart and device re-plugging is required for the changes to take effect.
 
 Would you like to restart your computer now?</source>
@@ -187,12 +187,12 @@ Would you like to restart your computer now?</source>
 Souhaitez-vous redémarrer votre ordinateur maintenant ?</translation>
     </message>
     <message>
-        <location filename="../../ui/envdialog.cpp" line="238"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="238"/>
         <source>Restart Later</source>
         <translation>Redémarrer plus tard</translation>
     </message>
     <message>
-        <location filename="../../ui/envdialog.cpp" line="239"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="239"/>
         <source>Please remember to restart your computer and re-plug the device for the driver to work properly.</source>
         <translation>N&apos;oubliez pas de redémarrer votre ordinateur et de reconnecter l&apos;appareil pour que le pilote fonctionne correctement.</translation>
     </message>
@@ -200,35 +200,35 @@ Souhaitez-vous redémarrer votre ordinateur maintenant ?</translation>
 <context>
     <name>FirmwareUpdateDialog</name>
     <message>
-        <location filename="../../ui/firmwareupdatedialog.cpp" line="8"/>
-        <location filename="../../ui/firmwareupdatedialog.cpp" line="86"/>
+        <location filename="../../ui/advance/firmwareupdatedialog.cpp" line="8"/>
+        <location filename="../../ui/advance/firmwareupdatedialog.cpp" line="86"/>
         <source>Firmware Update</source>
         <translation>Mise à jour du firmware</translation>
     </message>
     <message>
-        <location filename="../../ui/firmwareupdatedialog.cpp" line="13"/>
+        <location filename="../../ui/advance/firmwareupdatedialog.cpp" line="13"/>
         <source>Preparing firmware update...</source>
         <translation>Préparation de la mise à jour du firmware...</translation>
     </message>
     <message>
-        <location filename="../../ui/firmwareupdatedialog.cpp" line="20"/>
+        <location filename="../../ui/advance/firmwareupdatedialog.cpp" line="20"/>
         <source>Close</source>
         <translation>Fermer</translation>
     </message>
     <message>
-        <location filename="../../ui/firmwareupdatedialog.cpp" line="65"/>
+        <location filename="../../ui/advance/firmwareupdatedialog.cpp" line="65"/>
         <source>Updating firmware... Please do not disconnect the device.</source>
         <translation>Mise à jour du firmware en cours... Veuillez ne pas déconnecter l&apos;appareil.</translation>
     </message>
     <message>
-        <location filename="../../ui/firmwareupdatedialog.cpp" line="85"/>
+        <location filename="../../ui/advance/firmwareupdatedialog.cpp" line="85"/>
         <source>Firmware update completed successfully.
 The application will close. Please restart it to apply the new firmware.</source>
         <translation>Mise à jour du firmware terminée avec succès.
 L&apos;application va se fermer. Veuillez la redémarrer pour appliquer le nouveau firmware.</translation>
     </message>
     <message>
-        <location filename="../../ui/firmwareupdatedialog.cpp" line="87"/>
+        <location filename="../../ui/advance/firmwareupdatedialog.cpp" line="87"/>
         <source>Firmware update completed successfully.
 
 The application will now close.
@@ -243,17 +243,17 @@ Veuillez :
 2. Déconnecter et reconnecter tous les câbles</translation>
     </message>
     <message>
-        <location filename="../../ui/firmwareupdatedialog.cpp" line="93"/>
+        <location filename="../../ui/advance/firmwareupdatedialog.cpp" line="93"/>
         <source>Firmware update failed. Please try again.</source>
         <translation>La mise à jour du firmware a échoué. Veuillez réessayer.</translation>
     </message>
     <message>
-        <location filename="../../ui/firmwareupdatedialog.cpp" line="94"/>
+        <location filename="../../ui/advance/firmwareupdatedialog.cpp" line="94"/>
         <source>Firmware Update Failed</source>
         <translation>Échec de la mise à jour du firmware</translation>
     </message>
     <message>
-        <location filename="../../ui/firmwareupdatedialog.cpp" line="95"/>
+        <location filename="../../ui/advance/firmwareupdatedialog.cpp" line="95"/>
         <source>An error occurred during the firmware update.
 
 Please try again after restarting the application.</source>
@@ -700,74 +700,74 @@ Voulez-vous procéder à la mise à jour ?</translation>
 <context>
     <name>ScriptTool</name>
     <message>
-        <location filename="../../ui/scripttool.cpp" line="42"/>
+        <location filename="../../ui/advance/scripttool.cpp" line="42"/>
         <source>Autohotkey Script Tool</source>
         <translation>Outil de script Autohotkey</translation>
     </message>
     <message>
-        <location filename="../../ui/scripttool.cpp" line="46"/>
+        <location filename="../../ui/advance/scripttool.cpp" line="46"/>
         <source>Select autohotkey.ahk file...</source>
         <translation>Sélectionner le fichier autohotkey.ahk...</translation>
     </message>
     <message>
-        <location filename="../../ui/scripttool.cpp" line="49"/>
+        <location filename="../../ui/advance/scripttool.cpp" line="49"/>
         <source>Browse</source>
         <translation>Parcourir</translation>
     </message>
     <message>
-        <location filename="../../ui/scripttool.cpp" line="50"/>
+        <location filename="../../ui/advance/scripttool.cpp" line="50"/>
         <source>Run Script</source>
         <translation>Exécuter le script</translation>
     </message>
     <message>
-        <location filename="../../ui/scripttool.cpp" line="53"/>
+        <location filename="../../ui/advance/scripttool.cpp" line="53"/>
         <source>Save Script</source>
         <translation>Sauvegarder le script</translation>
     </message>
     <message>
-        <location filename="../../ui/scripttool.cpp" line="68"/>
+        <location filename="../../ui/advance/scripttool.cpp" line="68"/>
         <source>Cancel</source>
         <translation>Annuler</translation>
     </message>
     <message>
-        <location filename="../../ui/scripttool.cpp" line="97"/>
+        <location filename="../../ui/advance/scripttool.cpp" line="97"/>
         <source>Select autohotkey File</source>
         <translation>Sélectionner le fichier Autohotkey</translation>
     </message>
     <message>
-        <location filename="../../ui/scripttool.cpp" line="99"/>
+        <location filename="../../ui/advance/scripttool.cpp" line="99"/>
         <source>Autohotkey Files (*.ahk);;All Files (*)</source>
         <translation>Fichiers Autohotkey (*.ahk);;Tous les fichiers (*)</translation>
     </message>
     <message>
-        <location filename="../../ui/scripttool.cpp" line="124"/>
-        <location filename="../../ui/scripttool.cpp" line="133"/>
-        <location filename="../../ui/scripttool.cpp" line="169"/>
+        <location filename="../../ui/advance/scripttool.cpp" line="124"/>
+        <location filename="../../ui/advance/scripttool.cpp" line="133"/>
+        <location filename="../../ui/advance/scripttool.cpp" line="169"/>
         <source>Error</source>
         <translation>Erreur</translation>
     </message>
     <message>
-        <location filename="../../ui/scripttool.cpp" line="124"/>
+        <location filename="../../ui/advance/scripttool.cpp" line="124"/>
         <source>Could not open file for reading.</source>
         <translation>Impossible d&apos;ouvrir le fichier en lecture.</translation>
     </message>
     <message>
-        <location filename="../../ui/scripttool.cpp" line="133"/>
+        <location filename="../../ui/advance/scripttool.cpp" line="133"/>
         <source>Please select a payload file first.</source>
         <translation>Veuillez d&apos;abord sélectionner un fichier de charge utile.</translation>
     </message>
     <message>
-        <location filename="../../ui/scripttool.cpp" line="167"/>
+        <location filename="../../ui/advance/scripttool.cpp" line="167"/>
         <source>Success</source>
         <translation>Succès</translation>
     </message>
     <message>
-        <location filename="../../ui/scripttool.cpp" line="167"/>
+        <location filename="../../ui/advance/scripttool.cpp" line="167"/>
         <source>Script saved successfully.</source>
         <translation>Script sauvegardé avec succès.</translation>
     </message>
     <message>
-        <location filename="../../ui/scripttool.cpp" line="169"/>
+        <location filename="../../ui/advance/scripttool.cpp" line="169"/>
         <source>Could not save file.</source>
         <translation>Impossible de sauvegarder le fichier.</translation>
     </message>
@@ -775,17 +775,17 @@ Voulez-vous procéder à la mise à jour ?</translation>
 <context>
     <name>SerialPortDebugDialog</name>
     <message>
-        <location filename="../../ui/serialportdebugdialog.cpp" line="55"/>
+        <location filename="../../ui/advance/serialportdebugdialog.cpp" line="55"/>
         <source>Serial Port Debug</source>
         <translation>Debug du port série</translation>
     </message>
     <message>
-        <location filename="../../ui/serialportdebugdialog.cpp" line="84"/>
+        <location filename="../../ui/advance/serialportdebugdialog.cpp" line="84"/>
         <source>Clear</source>
         <translation>Effacer</translation>
     </message>
     <message>
-        <location filename="../../ui/serialportdebugdialog.cpp" line="85"/>
+        <location filename="../../ui/advance/serialportdebugdialog.cpp" line="85"/>
         <source>Close</source>
         <translation>Fermer</translation>
     </message>
@@ -940,23 +940,23 @@ Voulez-vous procéder à la mise à jour ?</translation>
 <context>
     <name>VersionInfoManager</name>
     <message>
-        <location filename="../../ui/versioninfomanager.cpp" line="59"/>
-        <location filename="../../ui/versioninfomanager.cpp" line="73"/>
+        <location filename="../../ui/help/versioninfomanager.cpp" line="59"/>
+        <location filename="../../ui/help/versioninfomanager.cpp" line="73"/>
         <source>%1</source>
         <translation>%1</translation>
     </message>
     <message>
-        <location filename="../../ui/versioninfomanager.cpp" line="77"/>
+        <location filename="../../ui/help/versioninfomanager.cpp" line="77"/>
         <source>Copy</source>
         <translation>Copier</translation>
     </message>
     <message>
-        <location filename="../../ui/versioninfomanager.cpp" line="213"/>
+        <location filename="../../ui/help/versioninfomanager.cpp" line="213"/>
         <source>Openterface Mini KVM</source>
         <translation>Openterface Mini KVM</translation>
     </message>
     <message>
-        <location filename="../../ui/versioninfomanager.cpp" line="216"/>
+        <location filename="../../ui/help/versioninfomanager.cpp" line="216"/>
         <source>A new version is available!
 Current version: %1
 Latest version: %2
@@ -967,29 +967,29 @@ Dernière version: %2
 </translation>
     </message>
     <message>
-        <location filename="../../ui/versioninfomanager.cpp" line="219"/>
+        <location filename="../../ui/help/versioninfomanager.cpp" line="219"/>
         <source>Update</source>
         <translation>Mise à jour</translation>
     </message>
     <message>
-        <location filename="../../ui/versioninfomanager.cpp" line="220"/>
+        <location filename="../../ui/help/versioninfomanager.cpp" line="220"/>
         <source>Cancel</source>
         <translation>Annuler</translation>
     </message>
     <message>
-        <location filename="../../ui/versioninfomanager.cpp" line="228"/>
+        <location filename="../../ui/help/versioninfomanager.cpp" line="228"/>
         <source>You are using the latest version</source>
         <translation>Vous utilisez la dernière version</translation>
     </message>
     <message>
-        <location filename="../../ui/versioninfomanager.cpp" line="234"/>
+        <location filename="../../ui/help/versioninfomanager.cpp" line="234"/>
         <source>Update Check Failed
 </source>
         <translation>Echec de la vérification de mise à jour
 </translation>
     </message>
     <message>
-        <location filename="../../ui/versioninfomanager.cpp" line="235"/>
+        <location filename="../../ui/help/versioninfomanager.cpp" line="235"/>
         <source>Failed to check for updates.
 Error: %1
 Please check your internet connection.

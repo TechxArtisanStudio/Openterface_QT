@@ -22,7 +22,7 @@
 
 #include "ui/mainwindow.h"
 #include "ui/loghandler.h"
-#include "ui/envdialog.h"
+#include "ui/advance/envdialog.h"
 #include "global.h"
 #include "target/KeyboardLayouts.h"
 #include "ui/languagemanager.h"

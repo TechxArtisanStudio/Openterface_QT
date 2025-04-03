@@ -30,15 +30,14 @@
 #include "serial/SerialPortManager.h"
 #include "loghandler.h"
 #include "ui/preferences/settingdialog.h"
-#include "ui/helppane.h"
-#include "ui/serialportdebugdialog.h"
+#include "ui/help/helppane.h"
 #include "ui/videopane.h"
 #include "video/videohid.h"
-#include "ui/versioninfomanager.h"
-#include "ui/cameraadjust.h"
+#include "ui/help/versioninfomanager.h"
 #include "ui/TaskManager.h"
-#include "ui/firmwareupdatedialog.h"
-#include "envdialog.h"
+#include "ui/advance/serialportdebugdialog.h"
+#include "ui/advance/firmwareupdatedialog.h"
+#include "ui/advance/envdialog.h"
 
 #include <QCameraDevice>
 #include <QMediaDevices>

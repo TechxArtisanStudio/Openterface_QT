@@ -1,4 +1,3 @@
-#include "ui/envdialog.h"
 #include "envdialog.h"
 #include "ui_envdialog.h"
 #include <QPushButton> // Include QPushButton header
