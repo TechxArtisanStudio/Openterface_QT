@@ -307,7 +307,7 @@ bool EnvironmentSetupDialog::checkHidPermission() {
     for (const QString& device : devices) {
         qDebug() << "Checking device:" << device;
         // Check file permissions using QFileInfo
-        QFileInfo fileInfo(device);
+        QFileInfo fileInfo("/dev/" + device);
         if (!fileInfo.exists()) continue;
         
         if (fileInfo.isReadable() && fileInfo.isWritable()) {
