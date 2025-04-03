@@ -42,6 +42,7 @@ private:
     static bool isDriverInstalled;
     static const QString tickHtml;
     static const QString crossHtml;
+    bool isDevicePlugged;
     
 #ifdef __linux__
     static bool checkInRightUserGroup(); 
@@ -56,7 +57,6 @@ private:
     static bool isInRightUserGroup;
     static bool isHidPermission;
     static bool isBrlttyRunning;
-    bool isDevicePlugged;
 
     QString buildCommands();
 #endif

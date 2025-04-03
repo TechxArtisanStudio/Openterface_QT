@@ -42,7 +42,7 @@ void TargetControlPage::setupUI()
     QLabel *operatingModeLabel = new QLabel(QString("<span style='font-weight: bold;'>%1</span>").arg(tr("Target Control Operating Mode:")));
     
     // Create radio buttons for operating modes
-    fullModeRadio = new QRadioButton(tr("Standard USB keyboard + USB mouse device + USB custom HID device"));
+    fullModeRadio = new QRadioButton(tr("[Performance Mode] Standard USB keyboard + USB mouse device + USB custom HID device"));
     keyboardOnlyRadio = new QRadioButton(tr("Standard USB keyboard device"));
     keyboardMouseRadio = new QRadioButton(tr("Standard USB keyboard + USB mouse device"));
     customHIDRadio = new QRadioButton(tr("Standard USB custom HID device"));
