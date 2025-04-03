@@ -66,7 +66,7 @@ const QString EnvironmentSetupDialog::helpUrl = "https://github.com/TechxArtisan
 
 EnvironmentSetupDialog::EnvironmentSetupDialog(QWidget *parent) :
     QDialog(parent),
-    ui(new Ui::EnvironmentSetupDialog)
+    ui(new Ui::EnvironmentSetupDialog),
     isDevicePlugged(false)
 {
     ui->setupUi(this);
@@ -104,6 +104,11 @@ EnvironmentSetupDialog::EnvironmentSetupDialog(QWidget *parent) :
 
     if(!isDevicePlugged){
         ui->descriptionLabel->setText(crossHtml + tr(" The device is not plugged in. Please plug it in and try again."));
+        ui->step1Label->setVisible(false);
+        ui->extractButton->setVisible(false);
+        ui->step2Label->setVisible(false);
+        ui->copyButton->setVisible(false);
+        ui->commandsTextEdit->setVisible(false);
         return;
     } 
     // Create the status summary
