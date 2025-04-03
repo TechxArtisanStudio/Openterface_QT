@@ -24,24 +24,15 @@ SOURCES += main.cpp \
     ui/toolbar/toolbarmanager.cpp \
     ui/toolbar/toggleswitch.cpp \
     ui/loghandler.cpp \
-    ui/inputhandler.cpp \
-    ui/versioninfomanager.cpp \    
-    ui/statusbarmanager.cpp \
+    ui/inputhandler.cpp \ 
     ui/preferences/settingdialog.cpp \
     ui/preferences/logpage.cpp \
     ui/preferences/targetcontrolpage.cpp \
     ui/preferences/videopage.cpp \
     ui/preferences/audiopage.cpp \
-    ui/cameraadjust.cpp \
-    ui/scripttool.cpp \
     ui/TaskManager.cpp \
     ui/statusbar/statusbarmanager.cpp \
     ui/preferences/fpsspinbox.cpp \
-    ui/preferences/settingdialog.cpp \
-    ui/preferences/logpage.cpp \
-    ui/preferences/targetcontrolpage.cpp \
-    ui/preferences/videopage.cpp \
-    ui/preferences/audiopage.cpp \
     ui/preferences/cameraadjust.cpp \
     ui/advance/serialportdebugdialog.cpp \
     ui/advance/scripttool.cpp \

@@ -43,8 +43,8 @@
 #include "ui/statusbar/statusbarmanager.h"
 #include "host/usbcontrol.h"
 #include "host/cameramanager.h"
-#include "../scripts/semanticAnalyzer.h"
-#include "../scripts/AST.h"
+#include "scripts/semanticAnalyzer.h"
+#include "scripts/AST.h"
 #include "ui/languagemanager.h"
 #include "ui/screensavermanager.h"
 
