@@ -121,7 +121,8 @@ MainWindow::MainWindow(LanguageManager *languageManager, QWidget *parent) :  ui(
                             toggleSwitch(new ToggleSwitch(this)),
                             m_cameraManager(new CameraManager(this)),
                             m_versionInfoManager(new VersionInfoManager(this)),
-                            m_languageManager(languageManager)
+                            m_languageManager(languageManager),
+                            m_screenSaverManager(new ScreenSaverManager(this))
                             // cameraAdjust(new CameraAdjust(this))
 {
     Q_UNUSED(parent);
@@ -934,6 +935,8 @@ void MainWindow::configureSettings() {
         settingDialog = new SettingDialog(m_cameraManager, this);
 
         VideoPage* videoPage = settingDialog->getVideoPage();
+        LogPage* logPage = settingDialog->getLogPage();
+        connect(logPage, &LogPage::ScreenSaverInhibitedChanged, m_screenSaverManager, &ScreenSaverManager::setScreenSaverInhibited);
         connect(videoPage, &VideoPage::cameraSettingsApplied, m_cameraManager, &CameraManager::loadCameraSettingAndSetCamera);
         // connect(settingDialog, &SettingDialog::cameraSettingsApplied, m_cameraManager, &CameraManager::loadCameraSettingAndSetCamera);
         connect(videoPage, &VideoPage::videoSettingsChanged, this, &MainWindow::onVideoSettingsChanged);

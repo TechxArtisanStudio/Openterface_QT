@@ -203,3 +203,7 @@ TargetControlPage* SettingDialog::getTargetControlPage() {
 VideoPage* SettingDialog::getVideoPage() {
     return videoPage;
 }
+
+LogPage* SettingDialog::getLogPage() {
+    return logPage;
+}

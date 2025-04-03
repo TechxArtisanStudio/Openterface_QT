@@ -20,49 +20,41 @@
 * ========================================================================== *
 */
 
-#ifndef LOGPAGE_H
-#define LOGPAGE_H
+#ifndef CAMERAAJUST_H
+#define CAMERAAJUST_H
 
 #include <QWidget>
-#include <QCheckBox>
-#include <QLineEdit>
-#include <QPushButton>
-#include <QVBoxLayout>
-#include <QHBoxLayout>
+#include <QSlider>
 #include <QLabel>
-#include <QSettings>
-#include "fontstyle.h"
+#include <QVBoxLayout>
+#include <QPalette>
+#include <QDebug>
+#include "host/usbcontrol.h"
 
-class LogPage : public QWidget
+class CameraAdjust : public QWidget
 {
     Q_OBJECT
 
 public:
-    explicit LogPage(QWidget *parent = nullptr);
-    void setupUI();
-    void browseLogPath();
-    void initLogSettings();
-    void applyLogsettings();
+    explicit CameraAdjust(QWidget *parent = nullptr);
+    ~CameraAdjust();
 
-signals:
-    void ScreenSaverInhibitedChanged(bool inhibited);
+    void updatePosition();
+    void initializeControls();
+
+public slots:
+    void toggleVisibility();
+    void updatePosition(int menuBarHeight, int parentWidth);
+    void updateColors();
+
+private slots:
+    void onContrastChanged(int value);
 
 private:
-
-    QCheckBox *coreCheckBox;
-    QCheckBox *serialCheckBox;
-    QCheckBox *uiCheckBox;
-    QCheckBox *hostCheckBox;
-    QCheckBox *storeLogCheckBox;
-    QLineEdit *logFilePathLineEdit;
-    QPushButton *browseButton;
-    QCheckBox *screenSaverCheckBox;
-
-    QHBoxLayout *logCheckboxLayout;
-    QHBoxLayout *logFilePathLayout;
-    QLabel *logLabel;
-    QLabel *logDescription;
-    QVBoxLayout *logLayout;
+    void setupUI();
+    QSlider *contrastSlider;
+    QLabel *contrastLabel;
+    USBControl *usbControl;
 };
 
-#endif // LOGPAGE_H
+#endif // CAMERAAJUST_H

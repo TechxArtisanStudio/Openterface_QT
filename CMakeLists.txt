@@ -72,7 +72,6 @@ qt_add_executable(openterfaceQT WIN32 MACOSX_BUNDLE
     ui/inputhandler.cpp ui/inputhandler.h
     ui/loghandler.cpp ui/loghandler.h
     ui/mainwindow.cpp ui/mainwindow.h ui/mainwindow.ui
-    ui/metadatadialog.cpp ui/metadatadialog.h
     ui/advance/scripttool.cpp ui/advance/scripttool.h
     ui/advance/serialportdebugdialog.cpp ui/advance/serialportdebugdialog.h
     ui/advance/envdialog.cpp ui/advance/envdialog.h ui/advance/envdialog.ui
@@ -91,6 +90,7 @@ qt_add_executable(openterfaceQT WIN32 MACOSX_BUNDLE
     ui/preferences/targetcontrolpage.cpp ui/preferences/targetcontrolpage.h
     ui/videopane.cpp ui/videopane.h
     ui/languagemanager.cpp ui/languagemanager.h
+    ui/screensavermanager.cpp ui/screensavermanager.h
     ui/advance/firmwareupdatedialog.cpp ui/advance/firmwareupdatedialog.h
     video/firmwarewriter.cpp video/firmwarewriter.h
     video/ms2109.h
@@ -105,6 +105,7 @@ target_link_libraries(openterfaceQT PRIVATE
     Qt::Network
     Qt::SerialPort
     Qt::Svg
+    Qt::DBus
     ${FFMPEG_LIBRARIES}  # Link against FFmpeg libraries
     ${EXPAT_LIBRARIES}
     ${FREETYPE_LIBRARIES}

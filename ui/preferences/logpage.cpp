@@ -54,6 +54,8 @@ void LogPage::setupUI()
     storeLogCheckBox = new QCheckBox(tr("Enable file logging"));
     logFilePathLineEdit = new QLineEdit(this);
     browseButton = new QPushButton(tr("Browse"));
+    screenSaverCheckBox = new QCheckBox(tr("Inhibit Screen Saver"));
+
 
     coreCheckBox->setObjectName("core");
     serialCheckBox->setObjectName("serial");
@@ -62,6 +64,8 @@ void LogPage::setupUI()
     logFilePathLineEdit->setObjectName("logFilePathLineEdit");
     browseButton->setObjectName("browseButton");
     storeLogCheckBox->setObjectName("storeLogCheckBox");
+    screenSaverCheckBox->setObjectName("screenSaverCheckBox");
+
 
     QHBoxLayout *logCheckboxLayout = new QHBoxLayout();
     logCheckboxLayout->addWidget(coreCheckBox);
@@ -82,12 +86,23 @@ void LogPage::setupUI()
 
     connect(browseButton, &QPushButton::clicked, this, &LogPage::browseLogPath);
 
+    QLabel *screenSaverLabel = new QLabel(QString("<span style='font-weight: bold;'>%1</span>").arg(tr("Screen Saver setting")));
+    screenSaverLabel->setTextFormat(Qt::RichText);
+    screenSaverLabel->setStyleSheet(bigLabelFontSize);
+
+    QLabel *screenSaverDescription = new QLabel(tr("Inhibit the screen saver when the application is running."));
+    screenSaverDescription->setStyleSheet(commentsFontSize);
+
     QVBoxLayout *logLayout = new QVBoxLayout(this);
     logLayout->addWidget(logLabel);
     logLayout->addWidget(logDescription);
     logLayout->addLayout(logCheckboxLayout);
     logLayout->addWidget(storeLogCheckBox);
     logLayout->addLayout(logFilePathLayout);
+    logLayout->addWidget(screenSaverLabel);
+    logLayout->addWidget(screenSaverDescription);
+    logLayout->addWidget(screenSaverCheckBox);
+
     logLayout->addStretch();
     
 }
@@ -125,6 +140,7 @@ void LogPage::initLogSettings(){
     QCheckBox *uiCheckBox = findChild<QCheckBox*>("ui");
     QCheckBox *hostCheckBox = findChild<QCheckBox*>("host");
     QCheckBox *storeLogCheckBox = findChild<QCheckBox*>("storeLogCheckBox");
+    QCheckBox *screenSaverCheckBox = findChild<QCheckBox*>("screenSaverCheckBox");
     QLineEdit *logFilePathLineEdit = findChild<QLineEdit*>("logFilePathLineEdit");
     
 
@@ -137,6 +153,8 @@ void LogPage::initLogSettings(){
     hostCheckBox->setChecked(settings.value("log/host", false).toBool());
 
     storeLogCheckBox->setChecked(settings.value("log/storeLog", false).toBool());
+
+    screenSaverCheckBox->setChecked(settings.value("ScreenSaver/Inhibited", false).toBool());
 
     logFilePathLineEdit->setText(settings.value("log/logFilePath", "").toString());
 
@@ -151,6 +169,7 @@ void LogPage::applyLogsettings() {
     QCheckBox *uiCheckBox = findChild<QCheckBox*>("ui");
     QCheckBox *hostCheckBox = findChild<QCheckBox*>("host");
     QCheckBox *storeLogCheckBox = findChild<QCheckBox*>("storeLogCheckBox");
+    QCheckBox *screenSaverCheckBox = findChild<QCheckBox*>("screenSaverCheckBox");
     QLineEdit *logFilePathLineEdit = findChild<QLineEdit*>("logFilePathLineEdit");
     bool core =  coreCheckBox->isChecked();
     bool host = hostCheckBox->isChecked();
@@ -172,4 +191,7 @@ void LogPage::applyLogsettings() {
     GlobalSetting::instance().setLogSettings(core, serial, ui, host);
     GlobalSetting::instance().setLogStoreSettings(storeLog, logFilePath);
     LogHandler::instance().enableLogStore();
+
+    bool inhibitScreenSaver = screenSaverCheckBox->isChecked();
+    emit ScreenSaverInhibitedChanged(inhibitScreenSaver);
 }
