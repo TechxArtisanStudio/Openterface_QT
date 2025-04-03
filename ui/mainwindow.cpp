@@ -24,7 +24,7 @@
 #include "global.h"
 #include "ui_mainwindow.h"
 #include "globalsetting.h"
-#include "statusbarmanager.h"
+#include "ui/statusbar/statusbarmanager.h"
 #include "host/HostManager.h"
 #include "host/cameramanager.h"
 #include "serial/SerialPortManager.h"

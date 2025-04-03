@@ -40,7 +40,7 @@
 #include "ui/toolbar/toolbarmanager.h"
 #include "ui/TaskManager.h"
 #include "ui/languagemanager.h"
-#include "statusbarmanager.h"
+#include "ui/statusbar/statusbarmanager.h"
 #include "host/usbcontrol.h"
 #include "host/cameramanager.h"
 #include "../scripts/semanticAnalyzer.h"
