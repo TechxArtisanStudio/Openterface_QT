@@ -210,15 +210,8 @@ jobs:
           cp -r ${{ env.BUILD_DIR }}/config/keyboards/* AppDir/usr/share/openterfaceQT/config/keyboards/ || true
           cp -r ${{ env.BUILD_DIR }}/config/languages/* AppDir/usr/share/openterfaceQT/config/languages/ || true
           
-          # Create desktop file
-          cat > AppDir/usr/share/applications/openterfaceQT.desktop << EOF
-          [Desktop Entry]
-          Type=Application
-          Name=OpenterfaceQT
-          Exec=openterfaceQT
-          Icon=openterfaceQT
-          Categories=Utility;
-          EOF
+          # Copy desktop file from packaging/appimage folder
+          cp ${{ github.workspace }}/packaging/appimage/openterfaceQT.desktop AppDir/usr/share/applications/
           
           # Copy and prepare AppStream metadata
           TODAY=$(date +'%Y-%m-%d')
@@ -226,18 +219,41 @@ jobs:
               -e "s/\${DATE}/$TODAY/g" \
               ${{ github.workspace }}/packaging/appimage/openterfaceQT.appdata.xml > AppDir/usr/share/metainfo/openterfaceQT.appdata.xml
           
-          # Create AppImage using linuxdeploy
-          export QMAKE=$QTDIR/bin/qmake6
+          # Debug Qt paths and find qmake
+          echo "Debugging Qt paths:"
+          echo "QTDIR: $QTDIR"
+          echo "Qt6_DIR: $Qt6_DIR"
+          
+          # Try to find qmake in multiple locations
+          if [ -f "$QTDIR/bin/qmake6" ]; then
+            export QMAKE="$QTDIR/bin/qmake6"
+          elif [ -f "$Qt6_DIR/../../../bin/qmake6" ]; then
+            export QMAKE="$Qt6_DIR/../../../bin/qmake6"
+          elif [ -f "$IQTA_TOOLS/Qt/${{ env.QT_VERSION }}/gcc_64/bin/qmake6" ]; then
+            export QMAKE="$IQTA_TOOLS/Qt/${{ env.QT_VERSION }}/gcc_64/bin/qmake6"
+          elif [ -f "$IQTA_TOOLS/Qt/${{ env.QT_VERSION }}/gcc_64/bin/qmake" ]; then
+            export QMAKE="$IQTA_TOOLS/Qt/${{ env.QT_VERSION }}/gcc_64/bin/qmake"
+          else
+            echo "Searching for qmake in PATH..."
+            export QMAKE=$(which qmake6 || which qmake || echo "")
+          fi
+          
+          # Verify qmake exists and is executable
+          if [ -z "$QMAKE" ] || [ ! -f "$QMAKE" ]; then
+            echo "ERROR: Could not find qmake. Searching system-wide..."
+            find / -name qmake6 -o -name qmake 2>/dev/null || echo "No qmake found"
+            exit 1
+          fi
+          
+          echo "Using QMAKE: $QMAKE"
+          $QMAKE --version
+          
           export QML_SOURCES_PATHS=${{ github.workspace }}/qml
           export VERSION=${{ env.VERSION }}
           export OUTPUT="${{ env.ARTIFACT }}-${{ env.VERSION }}-x86_64.AppImage"
           
-          # Debug environment
-          echo "QMAKE: $QMAKE"
-          echo "QML_SOURCES_PATHS: $QML_SOURCES_PATHS"
-          
-          # Run linuxdeploy with Qt plugin
-          linuxdeploy-x86_64.AppImage --appdir=AppDir \
+          # Run linuxdeploy with Qt plugin, making sure QMAKE is correctly set
+          echo "QMAKE=$QMAKE" linuxdeploy-x86_64.AppImage --appdir=AppDir \
             --plugin=qt \
             --desktop-file=AppDir/usr/share/applications/openterfaceQT.desktop \
             --icon-file=AppDir/usr/share/icons/hicolor/256x256/apps/openterfaceQT.png \
