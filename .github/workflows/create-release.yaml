@@ -3,10 +3,6 @@ name: Create GitHub Release
 on:
   workflow_dispatch:
     inputs:
-      release_tag:
-        description: 'Publish a new release with this tag'
-        required: true
-        type: string
       draft:
         description: 'Create a draft release'
         required: false
@@ -17,11 +13,6 @@ on:
         required: false
         type: boolean
         default: false
-      workflows_to_wait:
-        description: 'Wait for these workflows to complete before creating the release'
-        required: true
-        type: string
-        default: 'windows-build.yaml'
 
 jobs:
   wait-for-builds:
@@ -30,14 +21,31 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
       
-      - name: Wait for workflows to complete
-        uses: blendthink/wait-for-workflows@v1.0.0
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          ref: ${{ github.ref }}
-          workflowIds: ${{ github.event.inputs.workflows_to_wait }}
-          conclusionFilter: success
+      - name: Wait for required workflows
+        run: |
+          # Fixed list of workflows to wait for
+          WORKFLOWS=("windows-build.yaml" "windows-portable-build.yaml" "linux-build.yaml" "linux-portable-build.yaml")
           
+          echo "Workflows to wait for:"
+          for workflow in "${WORKFLOWS[@]}"; do
+            echo "- $workflow"
+            
+            echo "Waiting for workflow: $workflow"
+            
+            # Wait for the workflow to complete
+            echo "Looking for recent runs of $workflow on branch ${{ github.ref_name }}..."
+            run_id=$(gh run list --workflow=$workflow --branch=${{ github.ref_name }} --limit=1 --json databaseId --jq '.[0].databaseId')
+            
+            if [ -n "$run_id" ]; then
+              echo "Found run ID: $run_id. Waiting for completion..."
+              gh run watch $run_id
+            else
+              echo "Warning: No recent runs found for $workflow on branch ${{ github.ref_name }}"
+            fi
+          done
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      
   create-release:
     needs: wait-for-builds
     runs-on: ubuntu-latest
@@ -50,12 +58,22 @@ jobs:
         uses: actions/checkout@v3
         with:
           fetch-depth: 0
+      
+      - name: Extract version from version.h
+        id: extract_version
+        shell: bash
+        run: |
+          FULL_VERSION=$(grep -oP '#define APP_VERSION "\K[^"]+' resources/version.h)
+          # Extract only the first 3 digits (e.g., "0.3.1" from "0.3.1.093")
+          APP_VERSION=$(echo $FULL_VERSION | cut -d. -f1,2,3)
+          echo "APP_VERSION=$APP_VERSION" >> $GITHUB_OUTPUT
+          echo "Using version: $APP_VERSION (from full version: $FULL_VERSION)"
           
       - name: Get previous tag
         id: get_previous_tag
         shell: bash
         run: |
-          PREVIOUS_TAG=$(git describe --tags --abbrev=0 ${{ github.event.inputs.release_tag }}^ || echo "")
+          PREVIOUS_TAG=$(git describe --tags --abbrev=0 || echo "")
           if [ -z "$PREVIOUS_TAG" ]; then
             echo "No previous tag found, using first commit"
             PREVIOUS_TAG=$(git rev-list --max-parents=0 HEAD)
@@ -66,7 +84,15 @@ jobs:
         id: changelog
         shell: bash
         run: |
-          CHANGELOG=$(git log ${{ steps.get_previous_tag.outputs.PREVIOUS_TAG }}..${{ github.event.inputs.release_tag }} --pretty=format:"- %s")
+          if [ -z "${{ steps.get_previous_tag.outputs.PREVIOUS_TAG }}" ]; then
+            CHANGELOG="Initial release"
+          else
+            CHANGELOG=$(git log ${{ steps.get_previous_tag.outputs.PREVIOUS_TAG }}..HEAD --pretty=format:"- %s")
+            if [ $? -ne 0 ]; then
+              echo "Error generating changelog, defaulting to empty changelog"
+              CHANGELOG="See commit history for changes"
+            fi
+          fi
           echo "CHANGELOG<<EOF" >> $GITHUB_OUTPUT
           echo "$CHANGELOG" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
@@ -76,17 +102,65 @@ jobs:
         with:
           workflow: windows-build.yaml
           workflow_conclusion: success
-          name: ${{ vars.MY_APP_EXE_NAME }}
+          name: openterfaceQT.windows.amd64.installer
           path: artifacts/windows
           
-      - name: Download Linux artifacts
+      - name: Download Windows portable artifacts
+        uses: dawidd6/action-download-artifact@v2
+        with:
+          workflow: windows-portable-build.yaml
+          workflow_conclusion: success
+          name: openterfaceQT.windows.amd64.portable.exe
+          path: artifacts/windows/portable
+
+      - name: Download Linux AMD64 DEB artifact
         uses: dawidd6/action-download-artifact@v2
         with:
           workflow: linux-build.yaml
           workflow_conclusion: success
-          name: linux-app
-          path: artifacts/linux
+          name: openterfaceQT.linux.amd64.deb
+          path: artifacts/linux/amd64/deb
           
+      - name: Download Linux AMD64 RPM artifact
+        uses: dawidd6/action-download-artifact@v2
+        with:
+          workflow: linux-build.yaml
+          workflow_conclusion: success
+          name: openterfaceQT.linux.amd64.rpm
+          path: artifacts/linux/amd64/rpm
+
+      - name: Download Linux AMD64 AppImage artifact
+        uses: dawidd6/action-download-artifact@v2
+        with:
+          workflow: linux-build.yaml
+          workflow_conclusion: success
+          name: openterfaceQT.linux.amd64.AppImage
+          path: artifacts/linux/amd64/appimage
+          
+      - name: Download Linux ARM64 DEB artifact
+        uses: dawidd6/action-download-artifact@v2
+        with:
+          workflow: linux-build.yaml
+          workflow_conclusion: success
+          name: openterfaceQT.linux.arm64.deb
+          path: artifacts/linux/arm64/deb
+          
+      - name: Download Linux ARM64 RPM artifact
+        uses: dawidd6/action-download-artifact@v2
+        with:
+          workflow: linux-build.yaml
+          workflow_conclusion: success
+          name: openterfaceQT.linux.arm64.rpm
+          path: artifacts/linux/arm64/rpm
+      
+      - name: Download Linux portable artifacts
+        uses: dawidd6/action-download-artifact@v2
+        with:
+          workflow: linux-portable-build.yaml
+          workflow_conclusion: success
+          name: openterfaceQT.linux.amd64.portable
+          path: artifacts/linux/portable
+
       - name: List all downloaded artifacts
         run: |
           echo "Downloaded artifacts:"
@@ -95,16 +169,13 @@ jobs:
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: ${{ github.event.inputs.release_tag }}
-          name: Release ${{ github.event.inputs.release_tag }}
+          tag_name: ${{ steps.extract_version.outputs.APP_VERSION }}
+          name: Release ${{ steps.extract_version.outputs.APP_VERSION }}
           body: |
             ## Change Log
             
             ${{ steps.changelog.outputs.CHANGELOG }}
             
-            ## Download Links
-            
-            - Windows: [setup.exe](https://github.com/${{ github.repository }}/releases/download/${{ github.event.inputs.release_tag }}/openterfaceQT.windows.amd64.installer.zip)
           draft: ${{ github.event.inputs.draft }}
           prerelease: ${{ github.event.inputs.prerelease }}
           files: |

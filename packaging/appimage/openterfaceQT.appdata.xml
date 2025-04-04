@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.openterface.OpenterfaceQT</id>
+  <name>OpenterfaceQT</name>
+  <summary>A QT-based interface for Openterface</summary>
+  <metadata_license>FSFAP</metadata_license>
+  <project_license>AGPL-3.0</project_license>
+  <developer_name>Kevin Peng</developer_name>
+  
+  <description>
+    <p>
+      OpenterfaceQT is a cross-platform application that provides a modern QT-based
+      interface for the Openterface project.
+    </p>
+    <p>
+      Key features:
+    </p>
+    <ul>
+      <li>Cross-platform compatibility (Linux, Windows, macOS)</li>
+      <li>Modern QT6-based user interface</li>
+      <li>Customizable keyboard layouts</li>
+      <li>Multi-language support</li>
+    </ul>
+  </description>
+  
+  <launchable type="desktop-id">openterfaceQT.desktop</launchable>
+  
+  <screenshots>
+    <screenshot type="default">
+      <caption>Main application window</caption>
+      <image>https://openterface.com/images/product/win_qt_app.jpg</image>
+    </screenshot>
+  </screenshots>
+  
+  <url type="homepage">https://openterface.com</url>
+  <url type="bugtracker">https://github.com/TechxArtisanStudio/OpenterfaceQT/issues</url>
+  
+  <provides>
+    <binary>openterfaceQT</binary>
+  </provides>
+  
+  <releases>
+    <release version="${VERSION}" date="${DATE}">
+      <description>
+        <p>Latest version with improvements and bug fixes</p>
+      </description>
+    </release>
+  </releases>
+  
+  <content_rating type="oars-1.1" />
+</component>

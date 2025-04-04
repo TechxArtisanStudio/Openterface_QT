@@ -29,7 +29,6 @@ defaults:
     shell: cmd
 
 env:
-  ARTIFACT: "${{ vars.MY_APP_EXE_NAME }}"
   SOURCE_DIR: ${{ github.workspace }}
   QT_VERSION: 6.5.3
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -172,16 +171,16 @@ jobs:
             /DMyAppPublisher="${{ vars.MY_APP_PUBLISHER }}" 
             /DMyAppURL="${{ vars.MY_APP_URL }}" 
             /DOutputDir="${{ env.SOURCE_DIR }}\Output" 
-            /DOutputBaseFileName=setup 
+            /DOutputBaseFileName=openterfaceQT.windows.amd64.installer
             /DMyAppExeName=${{ env.EXE_NAME }}
             /DSourcePackage=${{ env.PACKAGE_DIR }}
 
       - name: Save build artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ env.ARTIFACT }}
+          name: openterfaceQT.windows.amd64.installer
           path: |
-            ${{ env.SOURCE_DIR }}\Output\setup.exe
+            ${{ env.SOURCE_DIR }}\Output\openterfaceQT.windows.amd64.installer.exe
           if-no-files-found: error
         
       - name: Commit and push version update

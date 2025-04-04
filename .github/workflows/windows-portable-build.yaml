@@ -13,7 +13,7 @@
       shell: cmd
   
   env:
-    ARTIFACT: openterfaceQT-portable.exe
+    ARTIFACT: openterfaceQT.windows.amd64.portable.exe
     SOURCE_DIR: ${{ github.workspace }}
     QT_VERSION: 6.5.3 
     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -144,10 +144,10 @@
             
             echo "Creating portable package..."
             mkdir package
-            copy release\openterfaceQT.exe package
+            copy release\openterfaceQT.exe package\openterfaceQT-portable.exe
         - name: Save build artifact
           uses: actions/upload-artifact@v4
           with:
             name: ${{ env.ARTIFACT }}
-            path: ${{ runner.temp }}\build\package\openterfaceQT.exe
+            path: ${{ runner.temp }}\build\package\openterfaceQT-portable.exe
             if-no-files-found: error
