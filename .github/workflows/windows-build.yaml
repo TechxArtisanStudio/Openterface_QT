@@ -1,0 +1,197 @@
+name: Windows Build and Release
+
+on:
+  push:
+    branches: ["main", "dev"]
+    tags: ["v*"]
+  pull_request:
+    branches: ["dev"]
+  workflow_dispatch:
+    inputs:
+      increase_version:
+        description: 'Increase the patch version number'
+        required: false
+        type: boolean
+        default: false
+      increase_minor:
+        description: 'Increase the minor version number'
+        required: false
+        type: boolean
+        default: false
+      increase_major:
+        description: 'Increase the major version number'
+        required: false
+        type: boolean
+        default: false
+
+defaults:
+  run:
+    shell: cmd
+
+env:
+  SOURCE_DIR: ${{ github.workspace }}
+  QT_VERSION: 6.5.3
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  QT_CACHE_KEY: qt-6.5.3-mingw-windows
+  JOM_CACHE_KEY: jom-1.1.3-windows
+  PACKAGE_DIR: "package_online"
+  EXE_NAME: "openterfaceQT.exe"
+
+jobs:
+  build:
+    runs-on: windows-2022
+    permissions:
+      contents: write
+    environment: ${{ github.event.inputs.TARGET_ENV || 'Openterface_build' }}
+    
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Cache Qt
+        id: cache-qt
+        uses: actions/cache@v3
+        with:
+          path: ${{ runner.temp }}/Qt
+          key: ${{ env.QT_CACHE_KEY }}
+          restore-keys: |
+            ${{ env.QT_CACHE_KEY }}
+            qt-6.5-mingw-windows
+
+      - name: Update version
+        run: |
+          if [ "${{ github.event.inputs.increase_version }}" = "true" ]; then
+            python "${{ env.SOURCE_DIR }}\update_version.py" --increase-version
+          elif [ "${{ github.event.inputs.increase_major }}" = "true" ]; then
+            python "${{ env.SOURCE_DIR }}\update_version.py" --increase-major
+          elif [ "${{ github.event.inputs.increase_minor }}" = "true" ]; then
+            python "${{ env.SOURCE_DIR }}\update_version.py" --increase-minor
+          else
+            python "${{ env.SOURCE_DIR }}\update_version.py"
+          fi
+        shell: bash
+
+      - name: Get all tags for correct version determination
+        working-directory: ${{ github.workspace }}
+        run: |
+          git fetch --all --tags -f
+
+      - name: Install Qt
+        if: steps.cache-qt.outputs.cache-hit != 'true'
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: ${{ env.QT_VERSION }}
+          host: windows
+          target: desktop
+          arch: win64_mingw
+          dir: ${{ runner.temp }}
+          modules: qtmultimedia qtserialport
+          setup-python: false
+
+      - name: Download and Unzip Jom
+        if: steps.cache-jom.outputs.cache-hit != 'true'
+        working-directory: ${{ runner.temp }}
+        run: |
+          curl -L -o jom.zip "http://download.qt.io/official_releases/jom/jom.zip"
+          7z x jom.zip -ojom
+
+      - name: Set up Visual Studio shell
+        uses: egor-tensin/vs-shell@v2
+        with:
+          arch: x64
+      
+      - name: Create build directory
+        run: |
+          mkdir ${{ runner.temp }}\build
+
+      - name: Build
+        working-directory: ${{ runner.temp }}\build
+        run: |
+          echo "Building with qmake..."
+          set PATH=${{ runner.temp }}\\Qt\\${{ env.QT_VERSION }}\\mingw_64\\bin;%PATH%
+          
+          echo "Updating translations with lupdate..."
+          lupdate ${{ env.SOURCE_DIR }}\openterfaceQT.pro
+          
+          echo "Generating .qm files with lrelease..."
+          lrelease ${{ env.SOURCE_DIR }}\openterfaceQT.pro
+          
+          qmake -v
+          qmake -r ${{ env.SOURCE_DIR }}\openterfaceQT.pro
+          if errorlevel 1 exit /b 1
+          
+          echo "Building with mingw32-make..."
+          mingw32-make -j2
+          if errorlevel 1 exit /b 1
+
+          echo "\n release dir:"
+          dir release
+          
+          if not exist release\openterfaceQT.exe (
+            echo "Error: Failed to build openterfaceQT.exe"
+            exit 1
+          )
+          
+          echo "Creating package directory..."
+          mkdir ${{ env.PACKAGE_DIR }}
+          mkdir ${{ env.PACKAGE_DIR }}\driver
+          mkdir ${{ env.PACKAGE_DIR }}\driver\windows
+          mkdir ${{ env.PACKAGE_DIR }}\config\languages
+          mkdir ${{ env.PACKAGE_DIR }}\config\keyboards
+
+          copy release\openterfaceQT.exe ${{ env.PACKAGE_DIR }}\${{ env.EXE_NAME }}
+          copy ${{ env.SOURCE_DIR }}\LICENSE ${{ env.PACKAGE_DIR }}
+          copy ${{ env.SOURCE_DIR }}\driver\windows\* ${{ env.PACKAGE_DIR }}\driver\windows
+          
+          echo "Copying translation & keyboard layouts files..."
+          copy ${{ env.SOURCE_DIR }}\config\keyboards\*.json ${{ env.PACKAGE_DIR }}\config\keyboards
+          copy ${{ env.SOURCE_DIR }}\config\languages\*.qm ${{ env.PACKAGE_DIR }}\config\languages
+          
+          echo "Running windeployqt..."
+          cd ${{ env.PACKAGE_DIR }}
+          windeployqt --qmldir ${{ env.SOURCE_DIR }} ${{ env.EXE_NAME }} --compiler-runtime --multimedia
+          
+
+      - name: Move build artifacts
+        run: move /Y ${{ runner.temp }}\build\${{ env.PACKAGE_DIR }} ${{ env.SOURCE_DIR }}
+
+      - name: Compile .ISS to .EXE Installer
+        uses: kevinzjpeng/Inno-Setup-Action@v1
+        with:
+          filepath: installer.iss
+          options: 
+            /O+ /DWorkingDir="${{ env.SOURCE_DIR }}\${{ env.PACKAGE_DIR }}" 
+            /DMyAppVersion="${{ env.VERSION_FOR_INNO }}" 
+            /DMyAppPublisher="${{ vars.MY_APP_PUBLISHER }}" 
+            /DMyAppURL="${{ vars.MY_APP_URL }}" 
+            /DOutputDir="${{ env.SOURCE_DIR }}\Output" 
+            /DOutputBaseFileName=openterfaceQT.windows.amd64.installer
+            /DMyAppExeName=${{ env.EXE_NAME }}
+            /DSourcePackage=${{ env.PACKAGE_DIR }}
+
+      - name: Save build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: openterfaceQT.windows.amd64.installer
+          path: |
+            ${{ env.SOURCE_DIR }}\Output\openterfaceQT.windows.amd64.installer.exe
+          if-no-files-found: error
+        
+      - name: Commit and push version update
+        if: success() && (github.event.inputs.increase_version == 'true' || github.event.inputs.increase_major == 'true' || github.event.inputs.increase_minor == 'true')
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add resources/version.h
+          git commit -m "Bump version to ${{ env.NEW_VERSION }}" -a || echo "No changes to commit"
+          
+          git pull --rebase https://${{ env.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git ${{ github.ref }}
+          git push https://${{ env.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git HEAD:${{ github.ref }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
