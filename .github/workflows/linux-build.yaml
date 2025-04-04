@@ -248,20 +248,59 @@ jobs:
           echo "Using QMAKE: $QMAKE"
           $QMAKE --version
           
+          # Set environment variables for linuxdeploy
+          export QMAKE="$QMAKE"
           export QML_SOURCES_PATHS=${{ github.workspace }}/qml
           export VERSION=${{ env.VERSION }}
           export OUTPUT="${{ env.ARTIFACT }}-${{ env.VERSION }}-x86_64.AppImage"
           
-          # Run linuxdeploy with Qt plugin, making sure QMAKE is correctly set
-          echo "QMAKE=$QMAKE" linuxdeploy-x86_64.AppImage --appdir=AppDir \
+          # Create a script to run linuxdeploy with proper environment
+          cat > run_deploy.sh << 'EOF'
+          #!/bin/bash
+          set -x  # Print commands for debugging
+          env | grep -E 'QT|QMAKE|QML'  # Display Qt-related environment variables
+          
+          # Run linuxdeploy with Qt plugin
+          linuxdeploy-x86_64.AppImage \
+            --appdir=AppDir \
             --plugin=qt \
             --desktop-file=AppDir/usr/share/applications/openterfaceQT.desktop \
             --icon-file=AppDir/usr/share/icons/hicolor/256x256/apps/openterfaceQT.png \
             --output=appimage
+            
+          EXIT_CODE=$?
+          echo "linuxdeploy exit code: $EXIT_CODE"
           
-          # Move the generated AppImage to a predictable name
-          ls -la *.AppImage
-          mv ${OUTPUT} ./${{ env.ARTIFACT }}_${{ env.VERSION }}_${{ matrix.arch }}.AppImage || mv *.AppImage ./${{ env.ARTIFACT }}_${{ env.VERSION }}_${{ matrix.arch }}.AppImage
+          # List all files in current directory for debugging
+          echo "Files in current directory:"
+          ls -la
+          
+          # Exit with the linuxdeploy exit code
+          exit $EXIT_CODE
+          EOF
+          
+          chmod +x run_deploy.sh
+          ./run_deploy.sh
+          
+          # Check if any AppImage file was created
+          if ! ls -la *.AppImage 2>/dev/null; then
+            echo "ERROR: No AppImage file was created"
+            echo "Trying direct AppImage creation with appimagetool as fallback..."
+            
+            # Fallback: Try creating AppImage directly with appimagetool
+            appimagetool AppDir "${{ env.ARTIFACT }}_${{ env.VERSION }}_${{ matrix.arch }}.AppImage"
+          fi
+          
+          # Move the generated AppImage to a predictable name if it exists
+          if [ -f "${OUTPUT}" ]; then
+            mv ${OUTPUT} ./${{ env.ARTIFACT }}_${{ env.VERSION }}_${{ matrix.arch }}.AppImage
+          elif ls -la *.AppImage 2>/dev/null; then
+            # If a different named AppImage was created, use that
+            mv $(ls *.AppImage | head -1) ./${{ env.ARTIFACT }}_${{ env.VERSION }}_${{ matrix.arch }}.AppImage
+          else
+            echo "ERROR: No AppImage file could be created by any method"
+            exit 1
+          fi
 
       - name: Upload AppImage artifact
         uses: actions/upload-artifact@v4
