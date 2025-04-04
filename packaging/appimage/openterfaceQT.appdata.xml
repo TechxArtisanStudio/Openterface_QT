@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>openterfaceQT</id>
+  <name>OpenterfaceQT</name>
+  <summary>OpenterfaceQT Application</summary>
+  <description>
+    <p>OpenterfaceQT application description</p>
+  </description>
+  <launchable type="desktop-id">openterfaceQT.desktop</launchable>
+  <url type="homepage">https://github.com/kevinzjpeng/Openterface_QT</url>
+  <releases>
+    <release version="${VERSION}" date="${DATE}">
+      <description>
+        <p>Version ${VERSION}</p>
+      </description>
+    </release>
+  </releases>
+</component>

@@ -188,3 +188,69 @@ jobs:
           name: openterfaceQT.linux.${{ matrix.arch }}.rpm
           path: ${{ runner.temp }}/${{ env.ARTIFACT }}_${{ env.VERSION }}_${{ matrix.arch }}.rpm
           if-no-files-found: error
+
+      - name: Create AppImage
+        working-directory: ${{ runner.temp }}
+        if: matrix.arch == 'amd64'  # AppImage creation works best on amd64
+        run: |
+          # Create AppDir structure
+          mkdir -p AppDir/usr/bin
+          mkdir -p AppDir/usr/share/applications
+          mkdir -p AppDir/usr/share/icons/hicolor/256x256/apps
+          mkdir -p AppDir/usr/share/metainfo
+          
+          # Copy executable
+          cp ${{ env.BUILD_DIR }}/openterfaceQT AppDir/usr/bin/
+          
+          # Copy icon
+          cp ${{ github.workspace }}/images/icon_256.png AppDir/usr/share/icons/hicolor/256x256/apps/openterfaceQT.png
+          
+          # Copy config files if needed
+          mkdir -p AppDir/usr/share/openterfaceQT/config/{keyboards,languages}
+          cp -r ${{ env.BUILD_DIR }}/config/keyboards/* AppDir/usr/share/openterfaceQT/config/keyboards/ || true
+          cp -r ${{ env.BUILD_DIR }}/config/languages/* AppDir/usr/share/openterfaceQT/config/languages/ || true
+          
+          # Create desktop file
+          cat > AppDir/usr/share/applications/openterfaceQT.desktop << EOF
+          [Desktop Entry]
+          Type=Application
+          Name=OpenterfaceQT
+          Exec=openterfaceQT
+          Icon=openterfaceQT
+          Categories=Utility;
+          EOF
+          
+          # Copy and prepare AppStream metadata
+          TODAY=$(date +'%Y-%m-%d')
+          sed -e "s/\${VERSION}/${{ env.VERSION }}/g" \
+              -e "s/\${DATE}/$TODAY/g" \
+              ${{ github.workspace }}/packaging/appimage/openterfaceQT.appdata.xml > AppDir/usr/share/metainfo/openterfaceQT.appdata.xml
+          
+          # Create AppImage using linuxdeploy
+          export QMAKE=$QTDIR/bin/qmake6
+          export QML_SOURCES_PATHS=${{ github.workspace }}/qml
+          export VERSION=${{ env.VERSION }}
+          export OUTPUT="${{ env.ARTIFACT }}-${{ env.VERSION }}-x86_64.AppImage"
+          
+          # Debug environment
+          echo "QMAKE: $QMAKE"
+          echo "QML_SOURCES_PATHS: $QML_SOURCES_PATHS"
+          
+          # Run linuxdeploy with Qt plugin
+          linuxdeploy-x86_64.AppImage --appdir=AppDir \
+            --plugin=qt \
+            --desktop-file=AppDir/usr/share/applications/openterfaceQT.desktop \
+            --icon-file=AppDir/usr/share/icons/hicolor/256x256/apps/openterfaceQT.png \
+            --output=appimage
+          
+          # Move the generated AppImage to a predictable name
+          ls -la *.AppImage
+          mv ${OUTPUT} ./${{ env.ARTIFACT }}_${{ env.VERSION }}_${{ matrix.arch }}.AppImage || mv *.AppImage ./${{ env.ARTIFACT }}_${{ env.VERSION }}_${{ matrix.arch }}.AppImage
+
+      - name: Upload AppImage artifact
+        uses: actions/upload-artifact@v4
+        if: matrix.arch == 'amd64'  # Only upload if AppImage was created
+        with:
+          name: openterfaceQT.linux.${{ matrix.arch }}.AppImage
+          path: ${{ runner.temp }}/${{ env.ARTIFACT }}_${{ env.VERSION }}_${{ matrix.arch }}.AppImage
+          if-no-files-found: error
