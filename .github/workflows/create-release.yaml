@@ -160,6 +160,48 @@ jobs:
           workflow_conclusion: success
           name: openterfaceQT.linux.amd64.portable
           path: artifacts/linux/portable
+          
+      - name: Create source archives
+        run: |
+          # Create directory for source archives
+          mkdir -p artifacts/source
+          
+          # Get version for naming
+          VERSION=$(grep -oP '#define APP_VERSION "\K[^"]+' resources/version.h)
+          SOURCE_PKG_NAME="openterfaceQT_${VERSION}_source"
+          
+          # Create a temp directory for preparing the source
+          TEMP_SRC_DIR=$(mktemp -d)
+          echo "Created temp directory: $TEMP_SRC_DIR"
+          
+          # Copy source to temp directory, excluding unwanted files
+          rsync -a --exclude=".git" --exclude="build" --exclude="debug" \
+                   --exclude="release" --exclude=".DS_Store" --exclude="*.o" \
+                   --exclude="*.a" --exclude="*.so" --exclude="*.dll" \
+                   --exclude="*.dylib" --exclude="moc_*" --exclude="ui_*" \
+                   --exclude="qrc_*" --exclude=".qmake.stash" --exclude="*.user" \
+                   --exclude="Makefile*" --exclude="*.autosave" \
+                   --exclude="tmp" --exclude="*.log" \
+                   --exclude="artifacts" --exclude=".github/workflows/*.log" \
+                   . $TEMP_SRC_DIR/
+          
+          # Create source code zip from the temp directory
+          (cd $TEMP_SRC_DIR && zip -r "$GITHUB_WORKSPACE/artifacts/source/${SOURCE_PKG_NAME}.zip" .)
+          
+          # Create source code tar.gz from the temp directory
+          (cd $TEMP_SRC_DIR && tar -czf "$GITHUB_WORKSPACE/artifacts/source/${SOURCE_PKG_NAME}.tar.gz" .)
+          
+          # Check if archives were created successfully
+          if [ -f "artifacts/source/${SOURCE_PKG_NAME}.zip" ] && [ -f "artifacts/source/${SOURCE_PKG_NAME}.tar.gz" ]; then
+            echo "Created source archives successfully:"
+            ls -lh artifacts/source/
+          else
+            echo "Failed to create source archives!"
+            exit 1
+          fi
+          
+          # Clean up
+          rm -rf $TEMP_SRC_DIR
 
       - name: List all downloaded artifacts
         run: |
@@ -170,7 +212,8 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ steps.extract_version.outputs.APP_VERSION }}
-          name: Release ${{ steps.extract_version.outputs.APP_VERSION }}
+          name: v${{ steps.extract_version.outputs.APP_VERSION }}
+
           body: |
             ## Change Log
             
