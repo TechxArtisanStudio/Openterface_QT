@@ -71,7 +71,7 @@ jobs:
         id: get_previous_tag
         shell: bash
         run: |
-          PREVIOUS_TAG=$(git describe --tags --abbrev=0 ${{ github.event.inputs.release_tag }}^ || echo "")
+          PREVIOUS_TAG=$(git describe --tags --abbrev=0 || echo "")
           if [ -z "$PREVIOUS_TAG" ]; then
             echo "No previous tag found, using first commit"
             PREVIOUS_TAG=$(git rev-list --max-parents=0 HEAD)
@@ -82,7 +82,15 @@ jobs:
         id: changelog
         shell: bash
         run: |
-          CHANGELOG=$(git log ${{ steps.get_previous_tag.outputs.PREVIOUS_TAG }}..${{ github.event.inputs.release_tag }} --pretty=format:"- %s")
+          if [ -z "${{ steps.get_previous_tag.outputs.PREVIOUS_TAG }}" ]; then
+            CHANGELOG="Initial release"
+          else
+            CHANGELOG=$(git log ${{ steps.get_previous_tag.outputs.PREVIOUS_TAG }}..HEAD --pretty=format:"- %s")
+            if [ $? -ne 0 ]; then
+              echo "Error generating changelog, defaulting to empty changelog"
+              CHANGELOG="See commit history for changes"
+            fi
+          fi
           echo "CHANGELOG<<EOF" >> $GITHUB_OUTPUT
           echo "$CHANGELOG" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
