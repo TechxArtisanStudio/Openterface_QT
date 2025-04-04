@@ -180,7 +180,7 @@ jobs:
         with:
           name: openterfaceQT.windows.amd64.installer
           path: |
-            ${{ env.SOURCE_DIR }}\Output\setup.exe
+            ${{ env.SOURCE_DIR }}\Output\openterfaceQT.windows.amd64.installer.exe
           if-no-files-found: error
         
       - name: Commit and push version update
