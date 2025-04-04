@@ -108,7 +108,7 @@ jobs:
         with:
           workflow: linux-build.yaml
           workflow_conclusion: success
-          name: openterfaceqt_amd64.deb
+          name: openterfaceQT.linux.amd64.deb
           path: artifacts/linux/amd64/deb
           
       - name: Download Linux AMD64 RPM artifact
@@ -116,7 +116,7 @@ jobs:
         with:
           workflow: linux-build.yaml
           workflow_conclusion: success
-          name: openterfaceqt_amd64.rpm
+          name: openterfaceQT.linux.amd64.rpm
           path: artifacts/linux/amd64/rpm
           
       - name: Download Linux ARM64 DEB artifact
@@ -124,7 +124,7 @@ jobs:
         with:
           workflow: linux-build.yaml
           workflow_conclusion: success
-          name: openterfaceqt_arm64.deb
+          name: openterfaceQT.linux.arm64.deb
           path: artifacts/linux/arm64/deb
           
       - name: Download Linux ARM64 RPM artifact
@@ -132,7 +132,7 @@ jobs:
         with:
           workflow: linux-build.yaml
           workflow_conclusion: success
-          name: openterfaceqt_arm64.rpm
+          name: openterfaceQT.linux.arm64.rpm
           path: artifacts/linux/arm64/rpm
           
       - name: List all downloaded artifacts
