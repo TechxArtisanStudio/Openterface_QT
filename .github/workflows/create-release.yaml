@@ -3,10 +3,6 @@ name: Create GitHub Release
 on:
   workflow_dispatch:
     inputs:
-      release_tag:
-        description: 'Publish a new release with this tag'
-        required: true
-        type: string
       draft:
         description: 'Create a draft release'
         required: false
@@ -62,6 +58,16 @@ jobs:
         uses: actions/checkout@v3
         with:
           fetch-depth: 0
+      
+      - name: Extract version from version.h
+        id: extract_version
+        shell: bash
+        run: |
+          FULL_VERSION=$(grep -oP '#define APP_VERSION "\K[^"]+' resources/version.h)
+          # Extract only the first 3 digits (e.g., "0.3.1" from "0.3.1.093")
+          APP_VERSION=$(echo $FULL_VERSION | cut -d. -f1,2,3)
+          echo "APP_VERSION=$APP_VERSION" >> $GITHUB_OUTPUT
+          echo "Using version: $APP_VERSION (from full version: $FULL_VERSION)"
           
       - name: Get previous tag
         id: get_previous_tag
@@ -99,6 +105,14 @@ jobs:
           name: openterfaceQT.windows.amd64.installer
           path: artifacts/windows
           
+      - name: Download Windows portable artifacts
+        uses: dawidd6/action-download-artifact@v2
+        with:
+          workflow: windows-portable-build.yaml
+          workflow_conclusion: success
+          name: openterfaceQT.windows.amd64.portable
+          path: artifacts/windows/portable
+
       - name: Download Linux AMD64 DEB artifact
         uses: dawidd6/action-download-artifact@v2
         with:
@@ -130,7 +144,15 @@ jobs:
           workflow_conclusion: success
           name: openterfaceQT.linux.arm64.rpm
           path: artifacts/linux/arm64/rpm
-          
+      
+      - name: Download Linux portable artifacts
+        uses: dawidd6/action-download-artifact@v2
+        with:
+          workflow: linux-portable-build.yaml
+          workflow_conclusion: success
+          name: openterfaceQT.linux.amd64.portable
+          path: artifacts/linux/portable
+
       - name: List all downloaded artifacts
         run: |
           echo "Downloaded artifacts:"
@@ -139,8 +161,8 @@ jobs:
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: ${{ github.event.inputs.release_tag }}
-          name: Release ${{ github.event.inputs.release_tag }}
+          tag_name: ${{ steps.extract_version.outputs.APP_VERSION }}
+          name: Release ${{ steps.extract_version.outputs.APP_VERSION }}
           body: |
             ## Change Log
             
