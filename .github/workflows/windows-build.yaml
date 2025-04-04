@@ -29,7 +29,6 @@ defaults:
     shell: cmd
 
 env:
-  ARTIFACT: "${{ vars.MY_APP_EXE_NAME }}"
   SOURCE_DIR: ${{ github.workspace }}
   QT_VERSION: 6.5.3
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -179,7 +178,7 @@ jobs:
       - name: Save build artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ env.ARTIFACT }}
+          name: openterfaceQT.windows.amd64.installer
           path: |
             ${{ env.SOURCE_DIR }}\Output\setup.exe
           if-no-files-found: error

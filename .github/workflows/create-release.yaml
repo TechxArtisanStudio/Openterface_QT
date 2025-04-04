@@ -96,7 +96,7 @@ jobs:
         with:
           workflow: windows-build.yaml
           workflow_conclusion: success
-          name: ${{ vars.MY_APP_EXE_NAME }}
+          name: openterfaceQT.windows.amd64.installer
           path: artifacts/windows
           
       - name: Download Linux AMD64 DEB artifact
@@ -146,9 +146,6 @@ jobs:
             
             ${{ steps.changelog.outputs.CHANGELOG }}
             
-            ## Download Links
-            
-            - Windows: [setup.exe](https://github.com/${{ github.repository }}/releases/download/${{ github.event.inputs.release_tag }}/openterfaceQT.windows.amd64.installer.zip)
           draft: ${{ github.event.inputs.draft }}
           prerelease: ${{ github.event.inputs.prerelease }}
           files: |
