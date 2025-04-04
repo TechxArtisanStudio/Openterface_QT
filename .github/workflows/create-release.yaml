@@ -213,6 +213,7 @@ jobs:
         with:
           tag_name: ${{ steps.extract_version.outputs.APP_VERSION }}
           name: v${{ steps.extract_version.outputs.APP_VERSION }}
+
           body: |
             ## Change Log
             

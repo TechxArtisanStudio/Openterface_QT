@@ -187,6 +187,7 @@ jobs:
         with:
           name: openterfaceQT.linux.${{ matrix.arch }}.rpm
           path: ${{ runner.temp }}/${{ env.ARTIFACT }}.linux.${{ matrix.arch }}.rpm
+
           if-no-files-found: error
 
       - name: Create AppImage
@@ -289,6 +290,7 @@ jobs:
             
             # Fallback: Try creating AppImage directly with appimagetool
             appimagetool AppDir "${{ env.ARTIFACT }}.linux.${{ matrix.arch }}.AppImage"
+
           fi
           
           # Move the generated AppImage to a predictable name if it exists
@@ -297,6 +299,7 @@ jobs:
           elif ls -la *.AppImage 2>/dev/null; then
             # If a different named AppImage was created, use that
             mv $(ls *.AppImage | head -1) ./${{ env.ARTIFACT }}.linux.${{ matrix.arch }}.AppImage
+
           else
             echo "ERROR: No AppImage file could be created by any method"
             exit 1
@@ -308,4 +311,5 @@ jobs:
         with:
           name: openterfaceQT.linux.${{ matrix.arch }}.AppImage
           path: ${{ runner.temp }}/${{ env.ARTIFACT }}.linux.${{ matrix.arch }}.AppImage
+
           if-no-files-found: error
