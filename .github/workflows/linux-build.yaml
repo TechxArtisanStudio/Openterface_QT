@@ -120,7 +120,7 @@ jobs:
         run: |
           mkdir -p package/DEBIAN
           
-          PKG_NAME="${{ env.ARTIFACT }}_${{ env.VERSION }}_${{ matrix.arch }}"
+          PKG_NAME="${{ env.ARTIFACT }}.linux.${{ matrix.arch }}"
           
           sed -e "s/\${VERSION}/${{ env.VERSION }}/g" \
               -e "s/\${ARCH}/${{ matrix.arch }}/g" \
@@ -151,7 +151,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: openterfaceQT.linux.${{ matrix.arch }}.deb
-          path: ${{ runner.temp }}/${{ env.ARTIFACT }}_${{ env.VERSION }}_${{ matrix.arch }}.deb
+          path: ${{ runner.temp }}/${{ env.ARTIFACT }}.linux.${{ matrix.arch }}.deb
           if-no-files-found: error
 
       - name: Create rpm package
@@ -159,7 +159,7 @@ jobs:
         run: |
           mkdir -p rpmbuild/{SPECS,SOURCES,BUILD,RPMS,SRPMS}
           
-          PKG_NAME="${{ env.ARTIFACT }}_${{ env.VERSION }}_${{ matrix.arch }}"
+          PKG_NAME="${{ env.ARTIFACT }}.linux.${{ matrix.arch }}"
           
           # Copy build output and icon to SOURCES
           cp ${{ env.BUILD_DIR }}/openterfaceQT rpmbuild/SOURCES/ || { echo "Failed to copy openterfaceQT!"; exit 1; }
@@ -186,7 +186,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: openterfaceQT.linux.${{ matrix.arch }}.rpm
-          path: ${{ runner.temp }}/${{ env.ARTIFACT }}_${{ env.VERSION }}_${{ matrix.arch }}.rpm
+          path: ${{ runner.temp }}/${{ env.ARTIFACT }}.linux.${{ matrix.arch }}.rpm
           if-no-files-found: error
 
       - name: Create AppImage
@@ -288,15 +288,15 @@ jobs:
             echo "Trying direct AppImage creation with appimagetool as fallback..."
             
             # Fallback: Try creating AppImage directly with appimagetool
-            appimagetool AppDir "${{ env.ARTIFACT }}_${{ env.VERSION }}_${{ matrix.arch }}.AppImage"
+            appimagetool AppDir "${{ env.ARTIFACT }}.linux.${{ matrix.arch }}.AppImage"
           fi
           
           # Move the generated AppImage to a predictable name if it exists
           if [ -f "${OUTPUT}" ]; then
-            mv ${OUTPUT} ./${{ env.ARTIFACT }}_${{ env.VERSION }}_${{ matrix.arch }}.AppImage
+            mv ${OUTPUT} ./${{ env.ARTIFACT }}.linux.${{ matrix.arch }}.AppImage
           elif ls -la *.AppImage 2>/dev/null; then
             # If a different named AppImage was created, use that
-            mv $(ls *.AppImage | head -1) ./${{ env.ARTIFACT }}_${{ env.VERSION }}_${{ matrix.arch }}.AppImage
+            mv $(ls *.AppImage | head -1) ./${{ env.ARTIFACT }}.linux.${{ matrix.arch }}.AppImage
           else
             echo "ERROR: No AppImage file could be created by any method"
             exit 1
@@ -307,5 +307,5 @@ jobs:
         if: matrix.arch == 'amd64'  # Only upload if AppImage was created
         with:
           name: openterfaceQT.linux.${{ matrix.arch }}.AppImage
-          path: ${{ runner.temp }}/${{ env.ARTIFACT }}_${{ env.VERSION }}_${{ matrix.arch }}.AppImage
+          path: ${{ runner.temp }}/${{ env.ARTIFACT }}.linux.${{ matrix.arch }}.AppImage
           if-no-files-found: error
