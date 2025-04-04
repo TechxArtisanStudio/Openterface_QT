@@ -30,36 +30,26 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
       
-      - name: Parse workflow IDs
-        id: parse-workflows
+      - name: Parse and wait for workflows
         run: |
           IFS=',' read -ra WORKFLOWS <<< "${{ github.event.inputs.workflows_to_wait }}"
           echo "Workflows to wait for:"
           for workflow in "${WORKFLOWS[@]}"; do
             workflow_name=$(echo "$workflow" | xargs)
             echo "- $workflow_name"
-          done
-          
-          # Save the workflows as a JSON array for later steps
-          WORKFLOWS_JSON=$(printf '%s\n' "${WORKFLOWS[@]}" | jq -R . | jq -s .)
-          echo "workflows=$WORKFLOWS_JSON" >> $GITHUB_OUTPUT
-          
-      - name: Wait for each workflow
-        run: |
-          WORKFLOWS='${{ steps.parse-workflows.outputs.workflows }}'
-          WORKFLOWS_ARRAY=$(echo $WORKFLOWS | jq -c '.[]')
-          
-          for workflow in $WORKFLOWS_ARRAY; do
-            workflow_name=$(echo $workflow | jq -r '.')
+            
             echo "Waiting for workflow: $workflow_name"
             
-            # Get the workflow ID
-            check_name="${workflow_name%.yaml}"
-            echo "Check name: $check_name"
-            
             # Wait for the workflow to complete
-            gh run list --workflow=$workflow_name --branch=${{ github.ref_name }} --json databaseId --jq '.[0].databaseId' \
-              | xargs -I {} gh run watch {} || true
+            echo "Looking for recent runs of $workflow_name on branch ${{ github.ref_name }}..."
+            run_id=$(gh run list --workflow=$workflow_name --branch=${{ github.ref_name }} --limit=1 --json databaseId --jq '.[0].databaseId')
+            
+            if [ -n "$run_id" ]; then
+              echo "Found run ID: $run_id. Waiting for completion..."
+              gh run watch $run_id
+            else
+              echo "Warning: No recent runs found for $workflow_name on branch ${{ github.ref_name }}"
+            fi
           done
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
