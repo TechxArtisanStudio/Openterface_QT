@@ -34,19 +34,35 @@ jobs:
         id: parse-workflows
         run: |
           IFS=',' read -ra WORKFLOWS <<< "${{ github.event.inputs.workflows_to_wait }}"
+          echo "Workflows to wait for:"
           for workflow in "${WORKFLOWS[@]}"; do
-            echo "Waiting for workflow: $workflow"
+            workflow_name=$(echo "$workflow" | xargs)
+            echo "- $workflow_name"
           done
-          echo "workflow_names=${WORKFLOWS[*]}" >> $GITHUB_OUTPUT
           
-      - name: Wait for workflows to complete
-        uses: lewagon/wait-on-check-action@v1.3.1
-        with:
-          ref: ${{ github.ref }}
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-          wait-interval: 20
-          running-workflow-name: 'Create GitHub Release'
-          check-name: ${{ steps.parse-workflows.outputs.workflow_names }}
+          # Save the workflows as a JSON array for later steps
+          WORKFLOWS_JSON=$(printf '%s\n' "${WORKFLOWS[@]}" | jq -R . | jq -s .)
+          echo "workflows=$WORKFLOWS_JSON" >> $GITHUB_OUTPUT
+          
+      - name: Wait for each workflow
+        run: |
+          WORKFLOWS='${{ steps.parse-workflows.outputs.workflows }}'
+          WORKFLOWS_ARRAY=$(echo $WORKFLOWS | jq -c '.[]')
+          
+          for workflow in $WORKFLOWS_ARRAY; do
+            workflow_name=$(echo $workflow | jq -r '.')
+            echo "Waiting for workflow: $workflow_name"
+            
+            # Get the workflow ID
+            check_name="${workflow_name%.yaml}"
+            echo "Check name: $check_name"
+            
+            # Wait for the workflow to complete
+            gh run list --workflow=$workflow_name --branch=${{ github.ref_name }} --json databaseId --jq '.[0].databaseId' \
+              | xargs -I {} gh run watch {} || true
+          done
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       
   create-release:
     needs: wait-for-builds
