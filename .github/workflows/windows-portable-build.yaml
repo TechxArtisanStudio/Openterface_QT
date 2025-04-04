@@ -144,10 +144,10 @@
             
             echo "Creating portable package..."
             mkdir package
-            copy release\openterfaceQT.exe package
+            copy release\openterfaceQT.exe package\openterfaceQT-portable.exe
         - name: Save build artifact
           uses: actions/upload-artifact@v4
           with:
             name: ${{ env.ARTIFACT }}
-            path: ${{ runner.temp }}\build\package\openterfaceQT.exe
+            path: ${{ runner.temp }}\build\package\openterfaceQT-portable.exe
             if-no-files-found: error

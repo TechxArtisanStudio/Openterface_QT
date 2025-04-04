@@ -156,13 +156,13 @@
             echo "Analyzing binary size after compression..."
             ls -lh openterfaceQT
             
-            cp openterfaceQT package
+            cp openterfaceQT package/openterfaceQT-portable
   
         - name: Save build artifact
           uses: actions/upload-artifact@v4
           with:
             name: ${{ env.ARTIFACT }}
             path: |
-              ${{ runner.temp }}/build/package/openterfaceQT
+              ${{ runner.temp }}/build/package/openterfaceQT-portable
               ${{ runner.temp }}/build/package/config/languages/*.qm
             if-no-files-found: error
