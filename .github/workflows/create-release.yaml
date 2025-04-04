@@ -110,7 +110,7 @@ jobs:
         with:
           workflow: windows-portable-build.yaml
           workflow_conclusion: success
-          name: openterfaceQT.windows.amd64.portable
+          name: openterfaceQT.windows.amd64.portable.exe
           path: artifacts/windows/portable
 
       - name: Download Linux AMD64 DEB artifact
