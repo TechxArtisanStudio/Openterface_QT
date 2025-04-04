@@ -1,0 +1,112 @@
+name: Create GitHub Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Publish a new release with this tag'
+        required: true
+        type: string
+      draft:
+        description: 'Create a draft release'
+        required: false
+        type: boolean
+        default: true
+      prerelease:
+        description: 'Tag this release as a pre-release'
+        required: false
+        type: boolean
+        default: false
+      workflows_to_wait:
+        description: 'Wait for these workflows to complete before creating the release'
+        required: true
+        type: string
+        default: 'windows-build.yaml'
+
+jobs:
+  wait-for-builds:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      - name: Wait for workflows to complete
+        uses: blendthink/wait-for-workflows@v1.0.0
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          ref: ${{ github.ref }}
+          workflowIds: ${{ github.event.inputs.workflows_to_wait }}
+          conclusionFilter: success
+          
+  create-release:
+    needs: wait-for-builds
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: read
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+          
+      - name: Get previous tag
+        id: get_previous_tag
+        shell: bash
+        run: |
+          PREVIOUS_TAG=$(git describe --tags --abbrev=0 ${{ github.event.inputs.release_tag }}^ || echo "")
+          if [ -z "$PREVIOUS_TAG" ]; then
+            echo "No previous tag found, using first commit"
+            PREVIOUS_TAG=$(git rev-list --max-parents=0 HEAD)
+          fi
+          echo "PREVIOUS_TAG=$PREVIOUS_TAG" >> $GITHUB_OUTPUT
+      
+      - name: Generate changelog
+        id: changelog
+        shell: bash
+        run: |
+          CHANGELOG=$(git log ${{ steps.get_previous_tag.outputs.PREVIOUS_TAG }}..${{ github.event.inputs.release_tag }} --pretty=format:"- %s")
+          echo "CHANGELOG<<EOF" >> $GITHUB_OUTPUT
+          echo "$CHANGELOG" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+            
+      - name: Download Windows artifacts
+        uses: dawidd6/action-download-artifact@v2
+        with:
+          workflow: windows-build.yaml
+          workflow_conclusion: success
+          name: ${{ vars.MY_APP_EXE_NAME }}
+          path: artifacts/windows
+          
+      - name: Download Linux artifacts
+        uses: dawidd6/action-download-artifact@v2
+        with:
+          workflow: linux-build.yaml
+          workflow_conclusion: success
+          name: linux-app
+          path: artifacts/linux
+          
+      - name: List all downloaded artifacts
+        run: |
+          echo "Downloaded artifacts:"
+          find artifacts -type f | sort
+          
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ github.event.inputs.release_tag }}
+          name: Release ${{ github.event.inputs.release_tag }}
+          body: |
+            ## Change Log
+            
+            ${{ steps.changelog.outputs.CHANGELOG }}
+            
+            ## Download Links
+            
+            - Windows: [setup.exe](https://github.com/${{ github.repository }}/releases/download/${{ github.event.inputs.release_tag }}/openterfaceQT.windows.amd64.installer.zip)
+          draft: ${{ github.event.inputs.draft }}
+          prerelease: ${{ github.event.inputs.prerelease }}
+          files: |
+            artifacts/**/*
+            LICENSE

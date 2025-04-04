@@ -8,11 +8,6 @@ on:
     branches: ["dev"]
   workflow_dispatch:
     inputs:
-      create_release:
-        description: 'Create a new release'
-        required: true
-        type: boolean
-        default: false
       increase_version:
         description: 'Increase the patch version number'
         required: false
@@ -201,53 +196,3 @@ jobs:
           git push https://${{ env.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git HEAD:${{ github.ref }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-  release:
-    needs: build
-    if: github.event.inputs.create_release == 'true'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@v2
-        with:
-          fetch-depth: 0
-
-      - name: Get latest tag
-        id: get_latest_tag
-        shell: bash
-        run: echo "LATEST_TAG=$(git describe --tags --abbrev=0)" >> $GITHUB_OUTPUT
-
-      - name: Generate changelog
-        id: changelog
-        shell: bash
-        run: |
-          CHANGELOG=$(git log ${{ steps.get_latest_tag.outputs.LATEST_TAG }}..HEAD --pretty=format:"- %s")
-          echo "CHANGELOG<<EOF" >> $GITHUB_OUTPUT
-          echo "$CHANGELOG" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
-
-      - name: Download artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: ${{ env.ARTIFACT }}
-
-      - name: Create Release
-        id: create_release
-        uses: actions/create-release@v1
-        with:
-          tag_name: v${{ env.NEW_VERSION }}
-          release_name: Release v${{ env.NEW_VERSION }}
-          body: |
-            Changes since last release:
-            ${{ steps.changelog.outputs.CHANGELOG }}
-          draft: true
-          prerelease: false
-
-      - name: Upload Release Asset
-        uses: actions/upload-release-asset@v1
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: setup.exe
-          asset_name: openterfaceQT.windows.amd64.installer.zip
-          asset_content_type: application/octet-stream
