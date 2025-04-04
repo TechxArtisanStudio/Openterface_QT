@@ -160,6 +160,45 @@ jobs:
           workflow_conclusion: success
           name: openterfaceQT.linux.amd64.portable
           path: artifacts/linux/portable
+          
+      - name: Download source code zip archive
+        uses: dawidd6/action-download-artifact@v2
+        with:
+          workflow: linux-build.yaml
+          workflow_conclusion: success
+          name: openterfaceQT.source.zip
+          path: artifacts/source/zip
+
+      - name: Download source code tar.gz archive
+        uses: dawidd6/action-download-artifact@v2
+        with:
+          workflow: linux-build.yaml
+          workflow_conclusion: success
+          name: openterfaceQT.source.tar.gz
+          path: artifacts/source/tar
+          
+      - name: Create source archives if not already downloaded
+        if: ${{ failure() }}
+        run: |
+          # If the download steps failed, create the source archives directly
+          echo "Source archives not found in artifacts, creating them directly..."
+          
+          # Create directory for source archives
+          mkdir -p artifacts/source
+          
+          # Get version for naming
+          VERSION=$(grep -oP '#define APP_VERSION "\K[^"]+' resources/version.h)
+          SOURCE_PKG_NAME="openterfaceQT_${VERSION}_source"
+          
+          # Create source code zip
+          zip -r artifacts/source/${SOURCE_PKG_NAME}.zip . -x "*.git*" -x "**/build/**" -x "**/debug/**" -x "**/release/**" -x "**/.DS_Store"
+          
+          # Create source code tar.gz
+          tar --exclude=".git" --exclude="build" --exclude="debug" --exclude="release" --exclude=".DS_Store" \
+              -czf artifacts/source/${SOURCE_PKG_NAME}.tar.gz .
+              
+          echo "Created source archives directly:"
+          ls -lh artifacts/source/
 
       - name: List all downloaded artifacts
         run: |
@@ -170,7 +209,7 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ steps.extract_version.outputs.APP_VERSION }}
-          name: Release ${{ steps.extract_version.outputs.APP_VERSION }}
+          name: v${{ steps.extract_version.outputs.APP_VERSION }}
           body: |
             ## Change Log
             
