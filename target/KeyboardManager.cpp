@@ -26,6 +26,8 @@
 #include <QList>
 #include <QtConcurrent/QtConcurrent>
 #include <QTimer>
+#include <cstdint>
+#include <array>
 
 
 Q_LOGGING_CATEGORY(log_keyboard, "opf.host.keyboard")
@@ -231,6 +233,32 @@ void KeyboardManager::handleKeyboardAction(int keyCode, int modifiers, bool isKe
     }
 }
 
+void KeyboardManager::handlePasteChar(int key, int modifiers){
+    unsigned int control = 0x00;
+    QByteArray keyData = CMD_SEND_KB_GENERAL_DATA;
+    unsigned int mappedKey = currentLayout.keyMap.value(key, 0);
+    if (mappedKey == 0) {
+        uint32_t unicodeValue = key;
+        mappedKey = currentLayout.unicodeMap.value(unicodeValue, 0);
+    }
+    switch (modifiers){
+        case Qt::ShiftModifier:
+            control = 0x02;
+            break;
+        case Qt::GroupSwitchModifier:
+            control = 0x40;
+            break;
+        default:
+            control = 0x00;
+            break;
+    }
+    keyData[5] = control;
+    keyData[7] = mappedKey;
+    emit SerialPortManager::getInstance().sendCommandAsync(keyData, false);
+    QThread::msleep(2);
+    emit SerialPortManager::getInstance().sendCommandAsync(CMD_SEND_KB_GENERAL_DATA, false);
+}
+
 int KeyboardManager::handleKeyModifiers(int modifier, bool isKeyDown) {
     // Check if the modifier key is pressed or released
     int combinedModifiers = currentModifiers;
@@ -288,33 +316,26 @@ bool KeyboardManager::isKeypadKeys(int keycode, int modifiers){
 
 void KeyboardManager::handlePastingCharacters(const QString& text, const QMap<uint8_t, int>& charMapping) {
     qDebug(log_keyboard) << "Handle pasting characters now";
-    QTimer* timer = new QTimer(this);
     int index = 0;
-    connect(timer, &QTimer::timeout, this, [=]() mutable {
-        if (index >= text.length()) {
-            timer->stop();
-            timer->deleteLater();
-            return;
-        }
+    while (index < text.length()) {
         QChar ch = text.at(index);
         uint8_t charString = ch.unicode();
         int key = charMapping[charString];
+
         bool needShift = needShiftWhenPaste(ch);
         bool needAltGr = needAltGrWhenPaste(ch);
 
         int modifiers = 0;
         if (needShift) modifiers |= Qt::ShiftModifier;
         if (needAltGr) modifiers |= Qt::GroupSwitchModifier;
-        qCDebug(log_keyboard) << "Pasting character: " << ch << " with key: 0x" << QString::number(key, 16);
-        handleKeyboardAction(key, modifiers, true);
-        QThread::msleep(2);
-        handleKeyboardAction(key, modifiers, false);
+
+        handlePasteChar(key, modifiers);
         index++;
-    });
-    timer->start(3);
+    }
 }
 
 void KeyboardManager::pasteTextToTarget(const QString &text) {
+    qDebug() << "Paste text to target:" << text;
     handlePastingCharacters(text, currentLayout.charMapping);
 }
 

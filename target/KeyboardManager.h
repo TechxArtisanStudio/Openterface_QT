@@ -46,6 +46,7 @@ public:
     explicit KeyboardManager(QObject *parent = nullptr);
 
     void handleKeyboardAction(int keyCode, int modifiers, bool isKeyDown);
+    void handlePasteChar(int key, int modifiers);
 
     /*
      * Check if the key is a modifier key, eg: shift, ctrl, alt
