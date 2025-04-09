@@ -1,0 +1,29 @@
+<RCC>
+    <qresource prefix="/">
+        <file>../images/shutter.svg</file>
+        <file>../images/icon_32.png</file>
+        <file>../images/icon_32.ico</file>
+        <file>../images/icon_64.png</file>
+        <file>../images/icon_64.ico</file>
+        <file>../images/icon_128.png</file>
+        <file>../images/icon_128.ico</file>
+        <file>../images/content_dark_eng.png</file>
+        <file>../images/paste.svg</file>
+        <file>../images/screensaver.svg</file>
+        <file>../images/mouse-left-button.svg</file>
+        <file>../images/mouse-right-button.svg</file>
+        <file>../images/mouse-default.svg</file>
+        <file>../images/mouse-middle-button.svg</file>
+        <file>../images/keyboard.svg</file>
+        <file>../images/keyboard-pressed.svg</file>
+        <file>../images/keyboard-down.svg</file>
+        <file>../images/keyboard-up.svg</file>
+        <file>../images/zoom_in.svg</file>
+        <file>../images/zoom_out.svg</file>
+        <file>../images/contrast.svg</file>
+        <file>../images/capture.svg</file>
+        <file>../images/full_screen.svg</file>
+        <file>../images/zoom_fit.svg</file>
+        <file>../images/fullscreen.svg</file>
+    </qresource>
+</RCC>
