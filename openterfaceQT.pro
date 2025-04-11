@@ -159,7 +159,7 @@ win32 {
     target.path = /usr/local/bin
 }
 
-INSTALLS += target
+# INSTALLS += target
 
 RC_FILE = openterfaceQT.rc
 
