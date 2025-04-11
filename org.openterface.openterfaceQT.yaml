@@ -16,8 +16,6 @@ finish-args:
   - --filesystem=/run/udev
   - --talk-name=org.freedesktop.DBus
 
-
-
 modules:
   - name: libusb
     buildsystem: autotools

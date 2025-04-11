@@ -1,0 +1,39 @@
+name: Linux flatpak build
+
+on:
+  push:
+    branch: ["main"]
+    tags: ["v*"]
+  pull_request:
+    branchs: ["dev"]
+  workflow_dispatch:
+
+env:
+  ARTIFACT: openterfaceQT
+  SOURCE_DIR: ${{ github.workspace }}
+  FLATPAK_MANIFEST: "org.openterface.openterfaceQT.yaml"
+  FLATPAK_BUILD_DIR: "build-dir"
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    strategy:
+      matrix:
+        arch: [x86_64, aarch64]
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install prerequisites
+          sudo apt update -y
+          sudo apt install -y flatpak flatpak-builder
+          sudo apt install -y fuse libfuse2
+
+      - name: Add Flathub repository and install kde
+        run: |
+          flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
+
+          flatpak install --user --noninteractive flathub org.kde.Sdk//6.7
