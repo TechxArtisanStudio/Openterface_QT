@@ -35,6 +35,10 @@ jobs:
 
       - name: Add Flathub repository and install kde
         run: |
-          flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
+          flatpak remote-add --user --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
 
           flatpak install --user --noninteractive flathub org.kde.Sdk//6.7
+      
+      - name: Build Flathub for openterfaceQt
+        run: |
+          flatpak-builder --user --install build-dir org.openterface.openterfaceQT.yaml
