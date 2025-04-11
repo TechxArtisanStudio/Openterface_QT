@@ -38,6 +38,11 @@ jobs:
           flatpak install --user --noninteractive flathub org.kde.Sdk/${{ matrix.arch }}/6.7
           flatpak install --user --noninteractive flathub org.kde.Platform/${{ matrix.arch }}/6.7
       
+      - name: Run lupdate and lrelease
+        run: |
+          lupdate openterfaceQT.pro -no-obsolete
+          lrelease openterfaceQT.pro
+
       - name: Initialize build directory
         run: |
           flatpak build-init $FLATPAK_BUILD_DIR org.openterface.openterfaceQT org.kde.Sdk org.kde.Platform 6.7
