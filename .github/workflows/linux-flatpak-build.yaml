@@ -46,4 +46,8 @@ jobs:
       
       - name: Build Flathub for openterfaceQt
         run: |
+          ls
+          
+          echo "list "
+          pwd
           flatpak-builder --user --install build-dir org.openterface.openterfaceQT.yaml
