@@ -28,6 +28,7 @@ jobs:
           submodules: recursive
 
       - name: Install prerequisites
+        run: |
           sudo apt update -y
           sudo apt install -y flatpak flatpak-builder
           sudo apt install -y fuse libfuse2
