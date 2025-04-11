@@ -2,7 +2,7 @@ name: Linux flatpak build
 
 on:
   push:
-    branch: ["main","dev_*"]
+    branch: ["main","dev_20250410_flatpak_publish"]
     tags: ["v*"]
   pull_request:
     branchs: ["dev"]
