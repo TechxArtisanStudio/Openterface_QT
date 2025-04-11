@@ -33,11 +33,16 @@ jobs:
           sudo apt install -y flatpak flatpak-builder
           sudo apt install -y fuse libfuse2
 
+      - name:
+        run: |
+          ls
+
       - name: Add Flathub repository and install kde
         run: |
           flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
 
-          flatpak install --user --noninteractive flathub org.kde.Sdk//6.7
+          flatpak install --user --noninteractive flathub org.kde.Sdk/${{ matrix.arch }}/6.7
+          flatpak install --user --noninteractive flathub org.kde.Platform/${{ matrix.arch }}/6.7
       
       - name: Build Flathub for openterfaceQt
         run: |
