@@ -2,10 +2,10 @@ name: Linux flatpak build
 
 on:
   push:
-    branch: ["main","dev_20250410_flatpak_publish"]
+    branches: ["main","dev_20250410_flatpak_publish"]
     tags: ["v*"]
   pull_request:
-    branchs: ["dev"]
+    branches: ["dev"]
   workflow_dispatch:
 
 env:
