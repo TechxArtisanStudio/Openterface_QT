@@ -57,7 +57,10 @@ jobs:
             --arch=${{ matrix.arch }} \
             $FLATPAK_BUILD_DIR \
             $FLATPAK_MANIFEST
-      
+        env:
+            # Ensure cross-compilation for aarch64
+            FLATPAK_ARCH: ${{ matrix.arch }}
+
       - name: Export Flatpak Bundle
         run: |
           flatpak build-export repo build-dir
