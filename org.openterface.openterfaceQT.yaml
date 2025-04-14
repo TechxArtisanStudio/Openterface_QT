@@ -27,15 +27,16 @@ modules:
 
   - name: openterfaceQT
     buildsystem: simple
-    config-opts: 
-      - "CONFIG += no_install"
-      - "LIBS += -L/app/lib/ -lusb-1.0"
-      - "INCLUDEPATH += /app/include/libusb-1.0"
     sources:
       - type: git
         url: https://github.com/TechxArtisanStudio/Openterface_QT.git
         branch: main
-        
+
+    config-opts: 
+      - "CONFIG += no_install"
+      - "LIBS += -L/app/lib/ -lusb-1.0"
+      - "INCLUDEPATH += /app/include/libusb-1.0"
+      
     build-options:
       env:
         PKG_CONFIG_PATH: /app/lib/pkgconfig:${PKG_CONFIG_PATH}
