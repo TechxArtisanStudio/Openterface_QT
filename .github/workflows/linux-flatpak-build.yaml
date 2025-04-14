@@ -31,7 +31,10 @@ jobs:
       - name: Install flatpak
         run: |
           sudo apt update -y
-          sudo apt install -y flatpak flatpak-builder
+          sudo apt install -y flatpak flatpak-builder qemu-user-static
+          if [ "${{ matrix.arch }}" = "aarch64" ]; then
+            sudo apt install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
+          fi
 
       - name: Read version from version.h
         id: read_version
@@ -45,9 +48,14 @@ jobs:
           flatpak install --user --noninteractive flathub org.kde.Sdk/${{ matrix.arch }}/6.7
           flatpak install --user --noninteractive flathub org.kde.Platform/${{ matrix.arch }}/6.7
       
-      # - name: Initialize build directory
-      #   run: |
-      #     flatpak build-init $FLATPAK_BUILD_DIR org.openterface.openterfaceQT org.kde.Sdk org.kde.Platform 6.7
+      - name: Initialize build directory
+        run: |
+          flatpak build-init ${{ env.FLATPAK_BUILD_DIR }} org.openterface.openterfaceQT org.kde.Sdk//6.7 org.kde.Platform//6.7 ${{ matrix.arch }}
+
+      - name: check configure script
+        run: |
+          ls -l .flatpak-builder/build/libusb-1 || true
+          file .flatpak-builder/build/libusb-1/configure || true
 
       - name: Build Flatpak
         run: |
@@ -62,7 +70,7 @@ jobs:
         env:
           # Ensure cross-compilation for aarch64
           FLATPAK_ARCH: ${{ matrix.arch }}
-          
+
       - name: Export Flatpak Bundle
         run: |
           flatpak build-export repo build-dir
