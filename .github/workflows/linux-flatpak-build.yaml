@@ -28,6 +28,17 @@ jobs:
         with:
           submodules: recursive
 
+      - name: Install dependencies for aarch64
+        if: matrix.arch != 'x86_64'
+        run: |
+          sudo apt -y install docker
+
+      - name: Set up QEMU for aarch64
+        if: matrix.arch != 'x86_64'
+        uses: docker/setup-qemu-action@v2
+        with:
+          platforms: arm64
+
       - name: Install flatpak
         run: |
           sudo apt update -y
