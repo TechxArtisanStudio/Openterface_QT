@@ -33,56 +33,6 @@ jobs:
           sudo apt update -y
           sudo apt install -y flatpak flatpak-builder
 
-      - name: Install prerequisites
-        run: |
-          sudo apt update -y
-          sudo apt upgrade -y
-          sudo apt install build-essential
-          sudo apt-get install -y libusb-1.0-0-dev rpm libfuse2
-          
-          wget -O linuxdeploy-x86_64.AppImage https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
-          wget -O linuxdeploy-plugin-qt-x86_64.AppImage https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-x86_64.AppImage
-          wget -O appimagetool "https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage"
-          
-          chmod +x linuxdeploy-x86_64.AppImage linuxdeploy-plugin-qt-x86_64.AppImage appimagetool
-          sudo mv linuxdeploy-x86_64.AppImage linuxdeploy-plugin-qt-x86_64.AppImage appimagetool /usr/local/bin/
-
-      - name: Set up QEMU
-        if: matrix.arch == 'aarch64'
-        uses: docker/setup-qemu-action@v3
-
-      - name: Install Qt for x86_64
-        if: matrix.arch == 'x86_64'
-        uses: jurplel/install-qt-action@v4
-        with:
-          version: ${{ env.QT_VERSION }}
-          host: linux
-          target: desktop
-          arch: gcc_64
-          modules: qtmultimedia qtserialport
-
-      - name: Install Qt for aarch64
-        if: matrix.arch == 'aarch64'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y qt6-base-dev qt6-multimedia-dev libqt6svg6-dev libqt6serialport6-dev libgl1-mesa-dev qt6-l10n-tools qt6-tools-dev qt6-tools-dev-tools
-          echo "Qt6_DIR=/usr/lib/aarch64-linux-gnu/cmake/Qt6" >> $GITHUB_ENV
-          echo "QTDIR=/usr/lib/aarch64-linux-gnu/qt6" >> $GITHUB_ENV
-          echo "PATH=/usr/lib/qt6/bin:$PATH" >> $GITHUB_ENV
-      
-      - name: Debug Qt environment
-        run: |
-          echo "PATH: $PATH"
-          echo "Qt6_DIR: $Qt6_DIR"
-          echo "QTDIR: $QTDIR"
-          which lupdate || echo "lupdate not found"
-          lupdate --version || echo "lupdate version check failed"
-
-      - name: Get all tags for correct version determination
-        working-directory: ${{ github.workspace }}
-        run: |
-          git fetch --all --tags -f
-
       - name: Read version from version.h
         id: read_version
         run: |

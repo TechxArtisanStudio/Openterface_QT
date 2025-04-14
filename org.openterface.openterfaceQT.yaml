@@ -7,11 +7,7 @@ finish-args:
   - --share=ipc
   - --share=network
   - --socket=x11
-  - --socket=system-bus
-  - --socket=session-bus
   - --device=all
-  - --device=shm
-  - --filesystem=host
   - --filesystem=/sys
   - --filesystem=/run/udev
   - --talk-name=org.freedesktop.DBus
@@ -30,7 +26,7 @@ modules:
       - ls -l /app/lib
 
   - name: openterfaceQT
-    buildsystem: qmake
+    buildsystem: simple
     config-opts: 
       - "CONFIG += no_install"
       - "LIBS += -L/app/lib/ -lusb-1.0"
@@ -50,5 +46,6 @@ modules:
       - cp openterfaceQT /app/bin/  
       - cp -r config /app/bin/
     sources:
-      - type: dir
-        path: .
+      - type: git
+        url: https://github.com/TechxArtisanStudio/Openterface_QT.git
+        branch: main
