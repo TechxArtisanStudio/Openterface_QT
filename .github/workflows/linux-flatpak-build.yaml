@@ -54,8 +54,7 @@ jobs:
           flatpak-builder \
             --user \
             --install \
-            --force-clean \
-            --repo=repo \
+            --arch=${{ matrix.arch }} \
             $FLATPAK_BUILD_DIR \
             $FLATPAK_MANIFEST
       
