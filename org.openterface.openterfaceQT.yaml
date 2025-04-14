@@ -31,11 +31,17 @@ modules:
       - "CONFIG += no_install"
       - "LIBS += -L/app/lib/ -lusb-1.0"
       - "INCLUDEPATH += /app/include/libusb-1.0"
+    sources:
+      - type: git
+        url: https://github.com/TechxArtisanStudio/Openterface_QT.git
+        branch: main
+        
     build-options:
       env:
         PKG_CONFIG_PATH: /app/lib/pkgconfig:${PKG_CONFIG_PATH}
         LIBRARY_PATH: /app/lib:${LIBRARY_PATH}
         LD_LIBRARY_PATH: /app/lib:${LD_LIBRARY_PATH}
+        QT_SELECT: qt6
     build-commands:
       - lupdate openterfaceQT.pro
       - lrelease openterfaceQT.pro
@@ -45,7 +51,4 @@ modules:
       - mkdir -p /app/bin 
       - cp openterfaceQT /app/bin/  
       - cp -r config /app/bin/
-    sources:
-      - type: git
-        url: https://github.com/TechxArtisanStudio/Openterface_QT.git
-        branch: main
+    
