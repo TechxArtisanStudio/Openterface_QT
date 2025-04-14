@@ -57,6 +57,12 @@ jobs:
             --force-clean \
             --repo=repo \
             --arch=${{ matrix.arch }} \
-            --subject="Build of ${ARTIFACT}" \
             $FLATPAK_BUILD_DIR \
             $FLATPAK_MANIFEST
+      
+      - name: Export Flatpak Bundle
+        run: |
+          flatpak build-export repo build-dir
+          flatpak build-bundle repo org.openterface.openterfaceQT.flatpak org.openterface.openterfaceQT
+        
+      
