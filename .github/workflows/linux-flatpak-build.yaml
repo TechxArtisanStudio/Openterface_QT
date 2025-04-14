@@ -20,7 +20,7 @@ jobs:
     runs-on: ubuntu-22.04
     strategy:
       matrix:
-        arch: [x86_64, aarch64]
+        arch: [x86_64]
     
     steps:
       - name: Checkout code
@@ -48,10 +48,6 @@ jobs:
           flatpak install --user --noninteractive flathub org.kde.Sdk/${{ matrix.arch }}/6.7
           flatpak install --user --noninteractive flathub org.kde.Platform/${{ matrix.arch }}/6.7
       
-      - name: Debug Qt Environment
-        run: |
-          flatpak run org.kde.Sdk//6.7 sh -c "which qmake && qmake --version || echo 'qmake not found'"
-          flatpak run org.kde.Sdk//6.7 sh -c "which lupdate && lupdate --version || echo 'lupdate not found'"
 
       - name: Initialize build directory
         run: |
