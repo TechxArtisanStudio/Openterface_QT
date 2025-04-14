@@ -53,14 +53,16 @@ jobs:
         run: |
           flatpak-builder \
             --user \
-            --install \
+            --force-clean \
+            --repo=${{ env.FLATPAK_REPO }} \
             --arch=${{ matrix.arch }} \
-            $FLATPAK_BUILD_DIR \
-            $FLATPAK_MANIFEST
+            --subject="Build of ${{ env.ARTIFACT }} ${{ env.VERSION }}" \
+            ${{ env.FLATPAK_BUILD_DIR }} \
+            ${{ env.FLATPAK_MANIFEST }}
         env:
-            # Ensure cross-compilation for aarch64
-            FLATPAK_ARCH: ${{ matrix.arch }}
-
+          # Ensure cross-compilation for aarch64
+          FLATPAK_ARCH: ${{ matrix.arch }}
+          
       - name: Export Flatpak Bundle
         run: |
           flatpak build-export repo build-dir
