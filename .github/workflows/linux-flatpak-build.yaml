@@ -46,6 +46,10 @@ jobs:
           chmod +x linuxdeploy-x86_64.AppImage linuxdeploy-plugin-qt-x86_64.AppImage appimagetool
           sudo mv linuxdeploy-x86_64.AppImage linuxdeploy-plugin-qt-x86_64.AppImage appimagetool /usr/local/bin/
 
+      - name: Set up QEMU
+        if: matrix.arch == 'arm64'
+        uses: docker/setup-qemu-action@v3
+
       - name: Install Qt for AMD64
         if: matrix.arch == 'amd64'
         uses: jurplel/install-qt-action@v4
@@ -56,8 +60,6 @@ jobs:
           arch: gcc_64
           modules: qtmultimedia qtserialport
 
-      
-
       - name: Install Qt for ARM64
         if: matrix.arch == 'arm64'
         run: |
@@ -66,6 +68,25 @@ jobs:
           echo "Qt6_DIR=/usr/lib/aarch64-linux-gnu/cmake/Qt6" >> $GITHUB_ENV
           echo "QTDIR=/usr/lib/aarch64-linux-gnu/qt6" >> $GITHUB_ENV
           echo "PATH=/usr/lib/qt6/bin:$PATH" >> $GITHUB_ENV
+      
+      - name: Debug Qt environment
+        run: |
+          echo "PATH: $PATH"
+          echo "Qt6_DIR: $Qt6_DIR"
+          echo "QTDIR: $QTDIR"
+          which lupdate || echo "lupdate not found"
+          lupdate --version || echo "lupdate version check failed"
+
+      - name: Get all tags for correct version determination
+        working-directory: ${{ github.workspace }}
+        run: |
+          git fetch --all --tags -f
+
+      - name: Read version from version.h
+        id: read_version
+        run: |
+          VERSION=$(grep -oP '#define APP_VERSION "\K[^"]+' resources/version.h)
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
 
       - name: Add Flathub repository and install kde
         run: |
@@ -75,6 +96,7 @@ jobs:
       
       - name: Run lupdate and lrelease
         run: |
+          ls /usr/lib/qt6/bin/
           lupdate openterfaceQT.pro -no-obsolete
           lrelease openterfaceQT.pro
 
