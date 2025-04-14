@@ -62,7 +62,6 @@ jobs:
           flatpak-builder \
             --user \
             --force-clean \
-            --repo=${{ env.FLATPAK_REPO }} \
             --arch=${{ matrix.arch }} \
             --subject="Build of ${{ env.ARTIFACT }} ${{ env.VERSION }}" \
             ${{ env.FLATPAK_BUILD_DIR }} \
