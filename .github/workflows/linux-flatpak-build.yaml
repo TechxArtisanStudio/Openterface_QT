@@ -13,6 +13,7 @@ env:
   SOURCE_DIR: ${{ github.workspace }}
   FLATPAK_MANIFEST: "org.openterface.openterfaceQT.yaml"
   FLATPAK_BUILD_DIR: "build-dir"
+  QT_VERSION: 6.4.2
 
 jobs:
   build:
@@ -88,17 +89,18 @@ jobs:
           VERSION=$(grep -oP '#define APP_VERSION "\K[^"]+' resources/version.h)
           echo "VERSION=$VERSION" >> $GITHUB_ENV
 
+      - name: Run lupdate and lrelease
+        run: |
+          lupdate openterfaceQT.pro -no-obsolete
+          lrelease openterfaceQT.pro
+
       - name: Add Flathub repository and install kde
         run: |
           flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
           flatpak install --user --noninteractive flathub org.kde.Sdk/${{ matrix.arch }}/6.7
           flatpak install --user --noninteractive flathub org.kde.Platform/${{ matrix.arch }}/6.7
       
-      - name: Run lupdate and lrelease
-        run: |
-          ls /usr/lib/qt6/bin/
-          lupdate openterfaceQT.pro -no-obsolete
-          lrelease openterfaceQT.pro
+      
 
       - name: Initialize build directory
         run: |
