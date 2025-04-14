@@ -39,11 +39,6 @@ jobs:
           VERSION=$(grep -oP '#define APP_VERSION "\K[^"]+' resources/version.h)
           echo "VERSION=$VERSION" >> $GITHUB_ENV
 
-      - name: Run lupdate and lrelease
-        run: |
-          lupdate openterfaceQT.pro -no-obsolete
-          lrelease openterfaceQT.pro
-
       - name: Add Flathub repository and install kde
         run: |
           flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
