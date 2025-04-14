@@ -48,11 +48,11 @@ jobs:
           sudo mv linuxdeploy-x86_64.AppImage linuxdeploy-plugin-qt-x86_64.AppImage appimagetool /usr/local/bin/
 
       - name: Set up QEMU
-        if: matrix.arch == 'arm64'
+        if: matrix.arch == 'aarch64'
         uses: docker/setup-qemu-action@v3
 
-      - name: Install Qt for AMD64
-        if: matrix.arch == 'amd64'
+      - name: Install Qt for x86_64
+        if: matrix.arch == 'x86_64'
         uses: jurplel/install-qt-action@v4
         with:
           version: ${{ env.QT_VERSION }}
@@ -61,8 +61,8 @@ jobs:
           arch: gcc_64
           modules: qtmultimedia qtserialport
 
-      - name: Install Qt for ARM64
-        if: matrix.arch == 'arm64'
+      - name: Install Qt for aarch64
+        if: matrix.arch == 'aarch64'
         run: |
           sudo apt-get update
           sudo apt-get install -y qt6-base-dev qt6-multimedia-dev libqt6svg6-dev libqt6serialport6-dev libgl1-mesa-dev qt6-l10n-tools qt6-tools-dev qt6-tools-dev-tools
