@@ -90,4 +90,10 @@ jobs:
         env:
           FLATPAK_ARCH: ${{ matrix.arch }}
         
-      
+      - name: Upload flatpak artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: openterfaceQT-${{ matrix.arch }}.flatpak
+          path: org.openterface.openterfaceQT-${{ matrix.arch }}.flatpak
+
+          if-no-files-found: error
