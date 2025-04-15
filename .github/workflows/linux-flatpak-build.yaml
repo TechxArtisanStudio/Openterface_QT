@@ -85,7 +85,9 @@ jobs:
       - name: Export Flatpak Bundle
         run: |
           mkdir -p repo-${{ matrix.arch }}
-          flatpak build-export repo-${{ matrix.arch }} build-dir
+          flatpak build-export repo-${{ matrix.arch }} ${{ env.FLATPAK_BUILD_DIR }}
           flatpak build-bundle repo-${{ matrix.arch }} org.openterface.openterfaceQT-${{ matrix.arch }}.flatpak org.openterface.openterfaceQT
+        env:
+          FLATPAK_ARCH: ${{ matrix.arch }}
         
       
