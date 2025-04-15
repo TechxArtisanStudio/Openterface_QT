@@ -84,7 +84,8 @@ jobs:
 
       - name: Export Flatpak Bundle
         run: |
-          flatpak build-export repo build-dir
-          flatpak build-bundle repo org.openterface.openterfaceQT.flatpak org.openterface.openterfaceQT
+          mkdir -p repo-${{ matrix.arch }}
+          flatpak build-export repo-${{ matrix.arch }} build-dir --branch=master
+          flatpak build-bundle repo-${{ matrix.arch }} org.openterface.openterfaceQT-${{ matrix.arch }}.flatpak org.openterface.openterfaceQT --branch=master
         
       
