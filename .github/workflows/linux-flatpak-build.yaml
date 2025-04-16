@@ -11,7 +11,7 @@ on:
 env:
   ARTIFACT: openterfaceQT
   SOURCE_DIR: ${{ github.workspace }}
-  FLATPAK_MANIFEST: "org.openterface.openterfaceQT.yaml"
+  FLATPAK_MANIFEST: "org.TechxArtisan.openterfaceQT.yaml"
   FLATPAK_BUILD_DIR: "build-dir"
   QT_VERSION: 6.4.2
 

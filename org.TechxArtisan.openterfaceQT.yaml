@@ -1,4 +1,4 @@
-app-id: org.openterface.openterfaceQT
+app-id: org.TechxArtisan.openterfaceQT
 runtime: org.kde.Platform
 runtime-version: "6.7"
 sdk: org.kde.Sdk
