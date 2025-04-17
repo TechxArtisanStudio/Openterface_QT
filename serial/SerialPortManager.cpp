@@ -99,8 +99,18 @@ void SerialPortManager::checkSerialPorts() {
     QSet<QString> currentPorts;
     const auto ports = QSerialPortInfo::availablePorts();
     for (const QSerialPortInfo &port : ports) {
+        QString vidHex = port.hasVendorIdentifier() ? 
+            QString("0x%1").arg(port.vendorIdentifier(), 4, 16, QChar('0')).toUpper() : 
+            "N/A";
+        QString pidHex = port.hasProductIdentifier() ? 
+            QString("0x%1").arg(port.productIdentifier(), 4, 16, QChar('0')).toUpper() : 
+            "N/A";
+            
+        qCDebug(log_core_serial) << "Search port name" << port.portName() << "Manufacturer:" << port.manufacturer() 
+                 << "VID:" << vidHex << "PID:" << pidHex;
         if (acceptedPorts.contains(port.description())) {
             currentPorts.insert(port.portName());
+            qCDebug(log_core_serial) << "Matched port name" << port.portName();
         }
     }
 

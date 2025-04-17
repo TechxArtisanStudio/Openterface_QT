@@ -126,7 +126,7 @@ MainWindow::MainWindow(LanguageManager *languageManager, QWidget *parent) :  ui(
                             // cameraAdjust(new CameraAdjust(this))
 {
     Q_UNUSED(parent);
-    QApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
+    // QApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
 
 
     qCDebug(log_ui_mainwindow) << "Init camera...";
@@ -485,7 +485,7 @@ void MainWindow::initCamera()
     updateCameras();
     
 
-    m_cameraManager->loadCameraSettingAndSetCamera();
+    // m_cameraManager->loadCameraSettingAndSetCamera();
 
     GlobalVar::instance().setWinWidth(this->width());
     GlobalVar::instance().setWinHeight(this->height());
@@ -1369,6 +1369,9 @@ MainWindow::~MainWindow()
         delete ui;
         ui = nullptr;
     }
+
+    m_cameraManager->stopCamera();
+    delete m_cameraManager;
     
     qCDebug(log_ui_mainwindow) << "MainWindow destroyed successfully";
 }
