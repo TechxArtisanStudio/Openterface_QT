@@ -2,11 +2,10 @@
 <component type="desktop-application">
     <id>org.TechxArtisan.openterfaceQT</id>
     <name>openTerfaceQT</name>
-    <summary>A Qt-based interface for interacting with openterface-Mini-KVM, open-source software.</summary>
-
+    
     <description>
         <p>
-            openTerfaceQT is a cross-platform Qt-based application that supports both aarch64 and x86 architectures. It serves as a comprehensive control interface for openterface-Mini-KVM devices.
+            openTerfaceQT is a cross-platform application that supports both aarch64 and x86 architectures. It serves as a comprehensive control interface for openterface-Mini-KVM devices.
         </p>
         <p>
             With openTerfaceQT, users can seamlessly manage and control various operating systems through the openterface-Mini-KVM hardware, including:
@@ -20,7 +19,7 @@
     </description>
     
     <summary>
-        A Qt-based software for openterface-Mini-KVM.
+        A software for control openterface-Mini-KVM, smart KVM console for controlling any headless device via HDMI and USB.
     <summary/>
     <url type="homepage">https://openterface.com/</url>
     <project_license>AGPL-3.0</project_license>
