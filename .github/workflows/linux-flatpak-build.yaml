@@ -11,7 +11,7 @@ on:
 env:
   ARTIFACT: openterfaceQT
   SOURCE_DIR: ${{ github.workspace }}
-  FLATPAK_MANIFEST: "org.TechxArtisan.openterfaceQT.yaml"
+  FLATPAK_MANIFEST: "org.techxartisan.openterfaceQT.yaml"
   FLATPAK_BUILD_DIR: "build-dir"
   QT_VERSION: 6.4.2
 
@@ -61,7 +61,7 @@ jobs:
       
       - name: Initialize build directory
         run: |
-          flatpak build-init ${{ env.FLATPAK_BUILD_DIR }} org.TechxArtisan.openterfaceQT org.kde.Sdk//6.7 org.kde.Platform//6.7 ${{ matrix.arch }}
+          flatpak build-init ${{ env.FLATPAK_BUILD_DIR }} org.techxartisan.openterfaceQT org.kde.Sdk//6.7 org.kde.Platform//6.7 ${{ matrix.arch }}
 
       - name: check configure script
         run: |
@@ -86,7 +86,7 @@ jobs:
         run: |
           mkdir -p repo-${{ matrix.arch }}
           flatpak build-export --arch=${{ matrix.arch }} repo-${{ matrix.arch }} ${{ env.FLATPAK_BUILD_DIR }}
-          flatpak build-bundle --arch=${{ matrix.arch }} repo-${{ matrix.arch }} org.TechxArtisan.openterfaceQT-${{ matrix.arch }}.flatpak org.TechxArtisan.openterfaceQT
+          flatpak build-bundle --arch=${{ matrix.arch }} repo-${{ matrix.arch }} org.techxartisan.openterfaceQT-${{ matrix.arch }}.flatpak org.TechxArtisan.openterfaceQT
         env:
           FLATPAK_ARCH: ${{ matrix.arch }}
         
@@ -94,6 +94,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: openterfaceQT-${{ matrix.arch }}.flatpak
-          path: org.TechxArtisan.openterfaceQT-${{ matrix.arch }}.flatpak
+          path: org.techxartisan.openterfaceQT-${{ matrix.arch }}.flatpak
 
           if-no-files-found: error
