@@ -69,6 +69,10 @@ jobs:
           ls -l .flatpak-builder/build/libusb-1 || true
           file .flatpak-builder/build/libusb-1/configure || true
 
+      - name: Add flatpak shared-modules
+        run: |
+          git submodule add https://github.com/flathub/shared-modules.git
+          
       - name: Build Flatpak
         run: |
           flatpak-builder \
