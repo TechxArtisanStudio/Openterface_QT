@@ -1,0 +1,242 @@
+name: Create GitHub Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      draft:
+        description: 'Create a draft release'
+        required: false
+        type: boolean
+        default: true
+      prerelease:
+        description: 'Tag this release as a pre-release'
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  wait-for-builds:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      - name: Wait for required workflows
+        run: |
+          # Fixed list of workflows to wait for
+          WORKFLOWS=("windows-build.yaml" "windows-portable-build.yaml" "linux-build.yaml" "linux-portable-build.yaml")
+          
+          echo "Workflows to wait for:"
+          for workflow in "${WORKFLOWS[@]}"; do
+            echo "- $workflow"
+            
+            echo "Waiting for workflow: $workflow"
+            
+            # Wait for the workflow to complete
+            echo "Looking for recent runs of $workflow on branch ${{ github.ref_name }}..."
+            run_id=$(gh run list --workflow=$workflow --branch=${{ github.ref_name }} --limit=1 --json databaseId --jq '.[0].databaseId')
+            
+            if [ -n "$run_id" ]; then
+              echo "Found run ID: $run_id. Waiting for completion..."
+              gh run watch $run_id
+            else
+              echo "Warning: No recent runs found for $workflow on branch ${{ github.ref_name }}"
+            fi
+          done
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      
+  create-release:
+    needs: wait-for-builds
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: read
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      
+      - name: Extract version from version.h
+        id: extract_version
+        shell: bash
+        run: |
+          FULL_VERSION=$(grep -oP '#define APP_VERSION "\K[^"]+' resources/version.h)
+          # Extract only the first 3 digits (e.g., "0.3.1" from "0.3.1.093")
+          APP_VERSION=$(echo $FULL_VERSION | cut -d. -f1,2,3)
+          echo "APP_VERSION=$APP_VERSION" >> $GITHUB_OUTPUT
+          echo "Using version: $APP_VERSION (from full version: $FULL_VERSION)"
+          
+      - name: Get previous tag
+        id: get_previous_tag
+        shell: bash
+        run: |
+          PREVIOUS_TAG=$(git describe --tags --abbrev=0 || echo "")
+          if [ -z "$PREVIOUS_TAG" ]; then
+            echo "No previous tag found, using first commit"
+            PREVIOUS_TAG=$(git rev-list --max-parents=0 HEAD)
+          fi
+          echo "PREVIOUS_TAG=$PREVIOUS_TAG" >> $GITHUB_OUTPUT
+      
+      - name: Generate changelog
+        id: changelog
+        shell: bash
+        run: |
+          if [ -z "${{ steps.get_previous_tag.outputs.PREVIOUS_TAG }}" ]; then
+            CHANGELOG="Initial release"
+          else
+            CHANGELOG=$(git log ${{ steps.get_previous_tag.outputs.PREVIOUS_TAG }}..HEAD --pretty=format:"- %s")
+            if [ $? -ne 0 ]; then
+              echo "Error generating changelog, defaulting to empty changelog"
+              CHANGELOG="See commit history for changes"
+            fi
+          fi
+          echo "CHANGELOG<<EOF" >> $GITHUB_OUTPUT
+          echo "$CHANGELOG" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+            
+      - name: Download Windows artifacts
+        uses: dawidd6/action-download-artifact@v2
+        with:
+          workflow: windows-build.yaml
+          workflow_conclusion: success
+          name: openterfaceQT.windows.amd64.installer
+          path: artifacts/windows
+        
+      - name: Download Windows portable artifacts
+        uses: dawidd6/action-download-artifact@v2
+        with:
+          workflow: windows-portable-build.yaml
+          workflow_conclusion: success
+          name: openterfaceQT.windows.amd64.portable.exe
+          path: artifacts/windows/portable
+
+      - name: Download Linux AMD64 DEB artifact
+        uses: dawidd6/action-download-artifact@v2
+        with:
+          workflow: linux-build.yaml
+          workflow_conclusion: success
+          name: openterfaceQT.linux.amd64.deb
+          path: artifacts/linux/amd64/deb
+          
+      - name: Download Linux AMD64 RPM artifact
+        uses: dawidd6/action-download-artifact@v2
+        with:
+          workflow: linux-build.yaml
+          workflow_conclusion: success
+          name: openterfaceQT.linux.amd64.rpm
+          path: artifacts/linux/amd64/rpm
+
+      - name: Download Linux AMD64 AppImage artifact
+        uses: dawidd6/action-download-artifact@v2
+        with:
+          workflow: linux-build.yaml
+          workflow_conclusion: success
+          name: openterfaceQT.linux.amd64.AppImage
+          path: artifacts/linux/amd64/appimage
+          
+      - name: Download Linux ARM64 DEB artifact
+        uses: dawidd6/action-download-artifact@v2
+        with:
+          workflow: linux-build.yaml
+          workflow_conclusion: success
+          name: openterfaceQT.linux.arm64.deb
+          path: artifacts/linux/arm64/deb
+          
+      - name: Download Linux ARM64 RPM artifact
+        uses: dawidd6/action-download-artifact@v2
+        with:
+          workflow: linux-build.yaml
+          workflow_conclusion: success
+          name: openterfaceQT.linux.arm64.rpm
+          path: artifacts/linux/arm64/rpm
+      
+      - name: Download flatpak aarch64 artifacts
+        uses: dawidd6/action-download-artifact@v2
+        with:
+          workflow: linux-flatpak-build.yaml
+          workflow_conclusion: success
+          name: openterfaceQT.aarch64.flatpak
+
+      
+      - name: Download flatpak x86 artifacts
+        uses: dawidd6/action-download-artifact@v2
+        with:
+          workflow: linux-flatpak-build.yaml
+          workflow_conclusion: success
+          name: openterfaceQT.x86_64.flatpak
+
+      
+      - name: Download Linux portable artifacts
+        uses: dawidd6/action-download-artifact@v2
+        with:
+          workflow: linux-portable-build.yaml
+          workflow_conclusion: success
+          name: openterfaceQT.linux.amd64.portable
+          path: artifacts/linux/portable
+          
+      - name: Create source archives
+        run: |
+          # Create directory for source archives
+          mkdir -p artifacts/source
+          
+          # Get version for naming
+          VERSION=$(grep -oP '#define APP_VERSION "\K[^"]+' resources/version.h)
+          SOURCE_PKG_NAME="openterfaceQT_${VERSION}_source"
+          
+          # Create a temp directory for preparing the source
+          TEMP_SRC_DIR=$(mktemp -d)
+          echo "Created temp directory: $TEMP_SRC_DIR"
+          
+          # Copy source to temp directory, excluding unwanted files
+          rsync -a --exclude=".git" --exclude="build" --exclude="debug" \
+                   --exclude="release" --exclude=".DS_Store" --exclude="*.o" \
+                   --exclude="*.a" --exclude="*.so" --exclude="*.dll" \
+                   --exclude="*.dylib" --exclude="moc_*" --exclude="ui_*" \
+                   --exclude="qrc_*" --exclude=".qmake.stash" --exclude="*.user" \
+                   --exclude="Makefile*" --exclude="*.autosave" \
+                   --exclude="tmp" --exclude="*.log" \
+                   --exclude="artifacts" --exclude=".github/workflows/*.log" \
+                   . $TEMP_SRC_DIR/
+          
+          # Create source code zip from the temp directory
+          (cd $TEMP_SRC_DIR && zip -r "$GITHUB_WORKSPACE/artifacts/source/${SOURCE_PKG_NAME}.zip" .)
+          
+          # Create source code tar.gz from the temp directory
+          (cd $TEMP_SRC_DIR && tar -czf "$GITHUB_WORKSPACE/artifacts/source/${SOURCE_PKG_NAME}.tar.gz" .)
+          
+          # Check if archives were created successfully
+          if [ -f "artifacts/source/${SOURCE_PKG_NAME}.zip" ] && [ -f "artifacts/source/${SOURCE_PKG_NAME}.tar.gz" ]; then
+            echo "Created source archives successfully:"
+            ls -lh artifacts/source/
+          else
+            echo "Failed to create source archives!"
+            exit 1
+          fi
+          
+          # Clean up
+          rm -rf $TEMP_SRC_DIR
+
+      - name: List all downloaded artifacts
+        run: |
+          echo "Downloaded artifacts:"
+          find artifacts -type f | sort
+          
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ steps.extract_version.outputs.APP_VERSION }}
+          name: v${{ steps.extract_version.outputs.APP_VERSION }}
+
+          body: |
+            ## Change Log
+            
+            ${{ steps.changelog.outputs.CHANGELOG }}
+            
+          draft: ${{ github.event.inputs.draft }}
+          prerelease: ${{ github.event.inputs.prerelease }}
+          files: |
+            artifacts/**/*
+            LICENSE
