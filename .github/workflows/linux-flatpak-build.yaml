@@ -2,7 +2,7 @@ name: Linux flatpak build
 
 on:
   push:
-    branches: ["main","dev_20250410_flatpak_publish"]
+    branches: ["main"]
     tags: ["v*"]
   pull_request:
     branches: ["dev"]
@@ -11,8 +11,8 @@ on:
 env:
   ARTIFACT: openterfaceQT
   SOURCE_DIR: ${{ github.workspace }}
-  FLATPAK_MANIFEST: "org.techxartisan.openterfaceQT.yaml"
-  SOFTWERE_ID: "org.techxartisan.openterfaceQT"
+  FLATPAK_MANIFEST: "com.openterface.openterfaceQT.yaml"
+  SOFTWERE_ID: "com.openterface.openterfaceQT"
   FLATPAK_BUILD_DIR: "build-dir"
   QT_VERSION: 6.4.2
 
