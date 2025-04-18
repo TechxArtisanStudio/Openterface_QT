@@ -155,6 +155,7 @@ qt_add_resources(openterfaceQT "mainwindow"
 
 set(keyboard_layouts_resource_files
     "config/keyboards/azerty_fr.json"
+    "config/keyboards/azerty_be.json"
     "config/keyboards/japanese.json"
     "config/keyboards/qwerty_dk.json"
     "config/keyboards/qwerty_uk.json"
