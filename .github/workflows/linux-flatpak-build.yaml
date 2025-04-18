@@ -98,7 +98,7 @@ jobs:
       - name: Upload flatpak artifact
         uses: actions/upload-artifact@v4
         with:
-          name: openterfaceQT-${{ matrix.arch }}.flatpak
+          name: openterfaceQT.${{ matrix.arch }}.flatpak
           path: ${{ env.SOFTWERE_ID }}-${{ matrix.arch }}.flatpak
 
           if-no-files-found: error
