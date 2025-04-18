@@ -158,14 +158,14 @@ jobs:
         with:
           workflow: linux-flatpak-build.yaml
           workflow_conclusion: success
-          name: openterfaceQT-aarch64.flatpak
+          name: openterfaceQT.aarch64.flatpak
       
       - name: Download flatpak x86 artifacts
         uses: dawidd6/action-download-artifact@v2
         with:
           workflow: linux-flatpak-build.yaml
           workflow_conclusion: success
-          name: openterfaceQT-x86_64.flatpak
+          name: openterfaceQT.x86_64.flatpak
       
       - name: Download Linux portable artifacts
         uses: dawidd6/action-download-artifact@v2

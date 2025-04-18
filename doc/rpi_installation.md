@@ -11,16 +11,20 @@ sudo apt install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
 ### Set up flapak environment
 ```sh
 flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+
 flatpak install --user --noninteractive flathub org.kde.Sdk/aarch64/6.7
 flatpak install --user --noninteractive flathub org.kde.Platform/aarch64/6.7
 ```
+
 ### Download openterface flatpak file
 Now just the preview version, we're going to publish on flathub, but it need some times.
-```sh
-wget 
-flatpak --user insatll com
+Just download the lastest version of flapak,and unzip it.
+```sh 
+# This command is install for user and it may reminds you to install some pkg, just insatll it.
+flatpak --user insatll com.openterfae.openterfaceQT.yaml
+# run the openterfaceQT by flatpak
+flatpak --user run com.openterfae.openterfaceQT
 ```
-
 
 ## Build form source
 ### Environment Requirements
