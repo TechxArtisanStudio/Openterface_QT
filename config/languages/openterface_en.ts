@@ -659,12 +659,12 @@ Please try again after restarting the application.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1544"/>
+        <location filename="../../ui/mainwindow.cpp" line="1547"/>
         <source>Firmware Update</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1545"/>
+        <location filename="../../ui/mainwindow.cpp" line="1548"/>
         <source>The firmware is up to date.
 Current version: </source>
         <translation type="unfinished"></translation>
