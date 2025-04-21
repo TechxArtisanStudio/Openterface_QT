@@ -104,7 +104,7 @@ jobs:
           workflow_conclusion: success
           name: openterfaceQT.windows.amd64.installer
           path: artifacts/windows
-          
+        
       - name: Download Windows portable artifacts
         uses: dawidd6/action-download-artifact@v2
         with:
@@ -152,6 +152,22 @@ jobs:
           workflow_conclusion: success
           name: openterfaceQT.linux.arm64.rpm
           path: artifacts/linux/arm64/rpm
+      
+      - name: Download flatpak aarch64 artifacts
+        uses: dawidd6/action-download-artifact@v2
+        with:
+          workflow: linux-flatpak-build.yaml
+          workflow_conclusion: success
+          name: openterfaceQT.aarch64.flatpak
+
+      
+      - name: Download flatpak x86 artifacts
+        uses: dawidd6/action-download-artifact@v2
+        with:
+          workflow: linux-flatpak-build.yaml
+          workflow_conclusion: success
+          name: openterfaceQT.x86_64.flatpak
+
       
       - name: Download Linux portable artifacts
         uses: dawidd6/action-download-artifact@v2

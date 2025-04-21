@@ -4,9 +4,9 @@ Type=Application
 
 Name=openTerfaceQT
 
-Exec=flatpak run org.techxartisan.openterfaceQT
+Exec=flatpak run com.openterface.openterfaceQT
 
-Icon=org.techxartisan.openterfaceQT
+Icon=com.openterface.openterfaceQT
 
 Comment=A software for control openterface-Mini-KVM.
 

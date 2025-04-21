@@ -2,7 +2,32 @@
 
 This guide provides instructions on how to install the OpenterfaceQT App on a Raspberry Pi. There are two methods available: downloading from GitHub and installing the package, or building from source. Both methods require specific environment setups.
 
-## Environment Requirements
+## Use flatpak insatll
+### Download flatpak
+```sh
+sudo apt install -y flatpak flatpak-builder qemu-user-static
+sudo apt install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
+```
+### Set up flapak environment
+```sh
+flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+
+flatpak install --user --noninteractive flathub org.kde.Sdk/aarch64/6.7
+flatpak install --user --noninteractive flathub org.kde.Platform/aarch64/6.7
+```
+
+### Download openterface flatpak file
+Now just the preview version, we're going to publish on flathub, but it need some times.
+Just download the lastest version of flapak,and unzip it.
+```sh 
+# This command is install for user and it may reminds you to install some pkg, just insatll it.
+flatpak --user insatll com.openterfae.openterfaceQT.yaml
+# run the openterfaceQT by flatpak
+flatpak --user run com.openterfae.openterfaceQT
+```
+
+## Build form source
+### Environment Requirements
 
 Before proceeding with the installation, ensure your Raspberry Pi meets the following requirements:
 
@@ -10,9 +35,9 @@ Before proceeding with the installation, ensure your Raspberry Pi meets the foll
 - **Qt Framework**: The application requires Qt version 6.4 or later.
 - **FFmpeg Library**: Verify that your FFmpeg version is compatible with the Qt Multimedia backend. The recommended version is 6.1.1, which has been thoroughly tested by the project maintainers. Note that you may need to compile FFmpeg from source to meet these requirements. For more information on Qt Multimedia and its dependencies, refer to the [Qt Multimedia documentation](https://doc.qt.io/qt-6.5/qtmultimedia-index.html).
 
-## Pre-Installation Setup
+### Pre-Installation Setup
 
-### 1. Check FFmpeg Version
+#### 1. Check FFmpeg Version
    - First, check if you already have FFmpeg installed and its version:
      ```bash
      ffmpeg -version
@@ -23,7 +48,7 @@ Before proceeding with the installation, ensure your Raspberry Pi meets the foll
      ```
    - If the version is 6.1.1 or higher for both the command-line tool and libraries, you can skip the next step (Build FFmpeg 6.1.1).
    - If FFmpeg is not installed or the version is lower than 6.1.1, proceed to the next step.
-### 2. Install FFmpeg using Qt's script
+#### 2. Install FFmpeg using Qt's script
    - To ensure compatibility with Qt, we recommend using the FFmpeg installation script provided by Qt:
      ```bash
      # Download the script
@@ -40,7 +65,7 @@ Before proceeding with the installation, ensure your Raspberry Pi meets the foll
      ```
    - This script will install the version of FFmpeg that is compatible with Qt, ensuring optimal performance with OpenterfaceQT.
 
-### 3. Device Permissions Setup
+#### 3. Device Permissions Setup
 
 The OpenterfaceQT app requires access to serial and HID devices. To grant the necessary permissions, follow these steps:
 
@@ -71,7 +96,7 @@ The OpenterfaceQT app requires access to serial and HID devices. To grant the ne
 4. **Apply Changes**:
    - Log out and log back in for the changes to take effect.
 
-## Method 1: Download from GitHub and Install the Package
+### Method 1: Download from GitHub and Install the Package
 
 1. **Download the Package**:
    - Visit the [Openterface GitHub repository](https://github.com/TechxArtisanStudio/Openterface_QT/releases).
@@ -91,7 +116,7 @@ The OpenterfaceQT app requires access to serial and HID devices. To grant the ne
      openterfaceQT
      ```
 
-## Method 2: Build from Source
+### Method 2: Build from Source
 
 1. **Clone the Repository**:
    - Open a terminal and run:
@@ -131,12 +156,12 @@ The OpenterfaceQT app requires access to serial and HID devices. To grant the ne
      ./openterfaceQT
      ```
 
-## Troubleshooting
+### Troubleshooting
 
 - If you encounter any issues during installation, ensure all environment requirements are met and dependencies are correctly installed.
 - If FFmpeg-related errors occur, verify that the manually built FFmpeg is correctly installed and accessible.
 - Check the [GitHub issues page](https://github.com/your-repo/openterface/issues) for common problems and solutions.
 
-## Conclusion
+### Conclusion
 
 You have successfully installed the Openterface app on your Raspberry Pi. Choose the method that best suits your needs and enjoy using the app!

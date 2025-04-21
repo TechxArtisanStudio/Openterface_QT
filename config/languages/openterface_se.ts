@@ -689,12 +689,12 @@ Försök igen efter att ha startat om programmet.</translation>
         <translation>Fångade &quot;%1&quot;</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1544"/>
+        <location filename="../../ui/mainwindow.cpp" line="1547"/>
         <source>Firmware Update</source>
         <translation>Firmware-uppdatering</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1545"/>
+        <location filename="../../ui/mainwindow.cpp" line="1548"/>
         <source>The firmware is up to date.
 Current version: </source>
         <translation type="unfinished"></translation>
