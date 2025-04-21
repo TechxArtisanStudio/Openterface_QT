@@ -20,6 +20,7 @@ modules:
         url: https://github.com/TechxArtisanStudio/Openterface_QT.git
         tag: 0.3.3
 
+
     build-options:
       env:
         PKG_CONFIG_PATH: /app/lib/pkgconfig:${PKG_CONFIG_PATH}
