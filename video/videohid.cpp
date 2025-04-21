@@ -625,7 +625,7 @@ QString VideoHid::getHIDDevicePath() {
                 }
                 if (line.contains("HID_NAME")) {
                     // Check if this is the device you are looking for
-                    if (line.contains("Openterface")) {
+                    if (line.contains("Openterface") || line.contains("MACROSILICON")) {
                         QString foundPath = "/dev/" + device;
                         
                         // Cache the found device path
