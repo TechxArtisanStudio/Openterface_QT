@@ -18,10 +18,10 @@ flatpak install --user --noninteractive flathub org.kde.Platform/aarch64/6.7
 
 ### Download openterface flatpak file
 Now just the preview version, we're going to publish on flathub, but it need some times.
-Just download the lastest version of flapak,and unzip it.
+Just download the lastest version of flapak, and unzip it.
 ```sh 
 # This command is install for user and it may reminds you to install some pkg, just insatll it.
-flatpak --user insatll com.openterfae.openterfaceQT.yaml
+flatpak --user install com.openterface.openterfaceQT-aarch64.flatpak
 # run the openterfaceQT by flatpak
 flatpak --user run com.openterfae.openterfaceQT
 ```
