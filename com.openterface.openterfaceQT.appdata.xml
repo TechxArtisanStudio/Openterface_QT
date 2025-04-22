@@ -13,10 +13,33 @@
     </description>
     
     <summary>A software for control openterface-Mini-KVM</summary>
-    <metadata_license>CC0-1.0</metadata_license>
+    <metadata_license>MIT</metadata_license>
+
     <launchable type="desktop-id">com.openterface.openterfaceQT.desktop</launchable>
-    <url type="homepage">https://openterface.com/</url>
+
+    <developer id="com.openterface" >
+        <name>TechxArtisan Team</name>
+    </developer>
+
+    <content_rating type="oars-1.1"/>
+        <url type="bugtracker">https://github.com/TechxArtisanStudio/Openterface_QT/issues</url>
+        <url type="homepage">https://openterface.com/</url>
+        <url type="donation">https://shop.techxartisan.com</url>
+        <url type="contact">https://openterface.com/about/#our-company</url>
+        <url type="faq">https://openterface.com/faq/</url>
+        <url type="vcs-browser">https://github.com/TechxArtisanStudio/Openterface_QT</url>
+    
+
+    <releases>
+        <release version="0.3.4" date="2025-04-22">
+            <description>
+                <p>Initial release of openTerfaceQT with support for flatpak publish.</p>
+            </description>
+        </release>
+    </releases>
+
     <project_license>AGPL-3.0</project_license>
+
     <keywords>
         <keyword>openterface-Mini-KVM</keyword>
         <keyword>kvm</keyword>
