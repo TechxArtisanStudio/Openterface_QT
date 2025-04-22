@@ -9,7 +9,6 @@ finish-args:
   - --socket=x11
   - --device=all
   - --filesystem=/run/udev:ro
-  - --filesystem=/sys
 
 modules:
   - shared-modules/libusb/libusb.json
@@ -31,11 +30,11 @@ modules:
       - lupdate openterfaceQT.pro
       - lrelease openterfaceQT.pro
       - qmake "LIBS+=-L/app/lib -lusb-1.0" "INCLUDEPATH+=/app/include/libusb-1.0"
-      - make -j$(nproc)
+      - make -j$FLATPAK_BUILDER_N_JOBS
       - install -Dm755 openterfaceQT /app/bin/openterfaceQT
       - test -d config && cp -r config /app/bin/ || echo "No config directory found"
     post-install:
       - install -Dm644 com.openterface.openterfaceQT.desktop /app/share/applications/com.openterface.openterfaceQT.desktop
-      - install -Dm644 com.openterface.openterfaceQT.appdata.xml /app/share/metainfo/com.openterface.openterfaceQT.appdata.xml
+      - install -Dm644 com.openterface.openterfaceQT.appdata.xml /app/share/metainfo/com.openterface.openterfaceQT.metainfo.xml
       - install -Dm644 images/icon_128.png /app/share/icons/hicolor/128x128/apps/com.openterface.openterfaceQT.png
     
