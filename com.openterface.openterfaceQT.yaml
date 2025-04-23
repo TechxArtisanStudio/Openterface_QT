@@ -9,6 +9,8 @@ finish-args:
   - --socket=x11
   - --device=all
   - --filesystem=/run/udev:ro
+  - --filesystem=xdg-data/applications
+  - --filesystem=xdg-data/icons
 
 modules:
   - shared-modules/libusb/libusb.json
@@ -17,8 +19,8 @@ modules:
     buildsystem: simple
     sources:
       - type: git
-        url: https://github.com/TechxArtisanStudio/Openterface_QT.git
-        tag: 0.3.4
+        url: https://github.com/Chow411/Openterface_QT.git
+        branch: dev_20250410_flatpak_publish
 
     build-options:
       env:
@@ -35,6 +37,8 @@ modules:
       - test -d config && cp -r config /app/bin/ || echo "No config directory found"
     post-install:
       - install -Dm644 com.openterface.openterfaceQT.desktop /app/share/applications/com.openterface.openterfaceQT.desktop
+      - sed -i 's|Exec=.*|Exec=openterfaceQT|' /app/share/applications/com.openterface.openterfaceQT.desktop
+      - install -Dm644 com.openterface.openterfaceQT.desktop /app/export/share/applications/com.openterface.openterfaceQT.desktop
       - install -Dm644 com.openterface.openterfaceQT.appdata.xml /app/share/metainfo/com.openterface.openterfaceQT.metainfo.xml
       - install -Dm644 images/icon_128.png /app/share/icons/hicolor/128x128/apps/com.openterface.openterfaceQT.png
     
