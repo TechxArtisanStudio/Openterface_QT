@@ -9,8 +9,6 @@ finish-args:
   - --socket=x11
   - --device=all
   - --filesystem=/run/udev:ro
-  - --filesystem=xdg-data/applications
-  - --filesystem=xdg-data/icons
 
 modules:
   - shared-modules/libusb/libusb.json
@@ -20,7 +18,7 @@ modules:
     sources:
       - type: git
         url: https://github.com/Chow411/Openterface_QT.git
-        branch: dev_20250410_flatpak_publish
+        tag: 0.3.6
 
     build-options:
       env:
