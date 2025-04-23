@@ -17,15 +17,10 @@ The OpenterfaceQT app requires access to serial and HID devices. This setup is m
 
 2. **Create udev Rule for HIDRAW**:
 
-   - Create a new file `/etc/udev/rules.d/99-hidraw-permissions.rules` with the following content:
+   - Create a new file `/etc/udev/rules.d/51-openterface.rules` with the following content:
 
      ```bash
-     sudo nano /etc/udev/rules.d/99-hidraw-permissions.rules
-     ```
-   - Add the following line to the file:
-
-     ```
-     KERNEL=="hidraw*", SUBSYSTEM=="hidraw", MODE="0666"
+     echo 'KERNEL== "hidraw*", SUBSYSTEM=="hidraw", MODE="0666"' | sudo tee /etc/udev/rules.d/51-openterface.rules
      ```
 
 3. **Reload udev Rules**:
