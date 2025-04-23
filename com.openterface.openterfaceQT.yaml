@@ -18,7 +18,7 @@ modules:
     sources:
       - type: git
         url: https://github.com/Chow411/Openterface_QT.git
-        tag: 0.3.6
+        tag: 0.3.4
 
     build-options:
       env:
