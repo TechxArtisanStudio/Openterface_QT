@@ -24,6 +24,10 @@ jobs:
         arch: [x86_64, aarch64]
     
     steps:
+      - name: Add flatpak shared-modules
+        run: |
+          git submodule add https://github.com/flathub/shared-modules.git
+
       - name: Checkout code
         uses: actions/checkout@v4
         with:
@@ -69,9 +73,7 @@ jobs:
           ls -l .flatpak-builder/build/libusb-1 || true
           file .flatpak-builder/build/libusb-1/configure || true
 
-      - name: Add flatpak shared-modules
-        run: |
-          git submodule add https://github.com/flathub/shared-modules.git
+      
           
       - name: Build Flatpak
         run: |
