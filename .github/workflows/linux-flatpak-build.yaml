@@ -24,9 +24,7 @@ jobs:
         arch: [x86_64, aarch64]
     
     steps:
-      - name: Add flatpak shared-modules
-        run: |
-          git submodule add https://github.com/flathub/shared-modules.git
+      
 
       - name: Checkout code
         uses: actions/checkout@v4
@@ -51,6 +49,10 @@ jobs:
           if [ "${{ matrix.arch }}" = "aarch64" ]; then
             sudo apt install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
           fi
+
+      - name: Add flatpak shared-modules
+        run: |
+          git submodule add https://github.com/flathub/shared-modules.git
 
       - name: Read version from version.h
         id: read_version
