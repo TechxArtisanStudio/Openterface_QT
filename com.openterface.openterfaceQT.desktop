@@ -1,7 +1,7 @@
 [Desktop Entry]
 Type=Application
 Name=openterfaceQT
-Exec=flatpak run com.openterface.openterfaceQT
+Exec=openterfaceQT
 Icon=com.openterface.openterfaceQT
 Comment=A software for control openterface-Mini-KVM.
 Categories=Utility;
