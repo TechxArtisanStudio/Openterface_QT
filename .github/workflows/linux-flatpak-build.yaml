@@ -24,6 +24,8 @@ jobs:
         arch: [x86_64, aarch64]
     
     steps:
+      
+
       - name: Checkout code
         uses: actions/checkout@v4
         with:
@@ -48,6 +50,10 @@ jobs:
             sudo apt install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
           fi
 
+      - name: Add flatpak shared-modules
+        run: |
+          git submodule add https://github.com/flathub/shared-modules.git
+
       - name: Read version from version.h
         id: read_version
         run: |
@@ -69,9 +75,7 @@ jobs:
           ls -l .flatpak-builder/build/libusb-1 || true
           file .flatpak-builder/build/libusb-1/configure || true
 
-      - name: Add flatpak shared-modules
-        run: |
-          git submodule add https://github.com/flathub/shared-modules.git
+      
           
       - name: Build Flatpak
         run: |

@@ -29,6 +29,24 @@
         <url type="faq">https://openterface.com/faq/</url>
         <url type="vcs-browser">https://github.com/TechxArtisanStudio/Openterface_QT</url>
     
+    <screenshots>
+        <screenshot type="default">
+            <image>https://assets.openterface.com/images/product/win_qt_app.jpg</image>
+            <caption>App mainwindow screenshot</caption>
+        </screenshot>
+        <screenshot>
+            <image>https://assets.openterface.com/images/qt/preferenceGernal.png</image>
+            <caption>App preference screenshot</caption>
+        </screenshot>
+        <screenshot>
+            <image>https://assets.openterface.com/images/qt/advanceSerialConsole.png</image>
+            <caption>App serial console screenshot</caption>
+        </screenshot>
+        <screenshot>
+            <image>https://assets.openterface.com/images/qt/advanceScriptTool.png</image>
+            <caption>App script tool screenshot</caption>
+        </screenshot>
+    </screenshots>
 
     <releases>
         <release version="0.3.4" date="2025-04-22">
@@ -46,4 +64,5 @@
         <keyword>openterface</keyword>
         <keyword>open-source</keyword>
     </keywords>
+    
 </component>
