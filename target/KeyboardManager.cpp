@@ -323,7 +323,7 @@ void KeyboardManager::handlePastingCharacters(const QString& text, const QMap<ui
     QMap<uint8_t, int> mapping = charMapping;
     
     const int batchSize = 10;
-    const int delayBetweenBatches = 10; // Delay between batches in ms
+    const int delayBetweenBatches = 5; // Delay between batches in ms
     const int delayBetweenChars = 3;    // Delay between characters in ms
     
     QTimer* pasteTimer = new QTimer(this);
