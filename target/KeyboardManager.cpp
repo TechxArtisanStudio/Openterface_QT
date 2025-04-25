@@ -254,8 +254,9 @@ void KeyboardManager::handlePasteChar(int key, int modifiers){
     }
     keyData[5] = control;
     keyData[7] = mappedKey;
+    // QThread::msleep(2);
     emit SerialPortManager::getInstance().sendCommandAsync(keyData, false);
-    QThread::msleep(2);
+    QThread::msleep(3);
     emit SerialPortManager::getInstance().sendCommandAsync(CMD_SEND_KB_GENERAL_DATA, false);
 }
 
@@ -316,22 +317,46 @@ bool KeyboardManager::isKeypadKeys(int keycode, int modifiers){
 
 void KeyboardManager::handlePastingCharacters(const QString& text, const QMap<uint8_t, int>& charMapping) {
     qDebug(log_keyboard) << "Handle pasting characters now";
-    int index = 0;
-    while (index < text.length()) {
-        QChar ch = text.at(index);
-        uint8_t charString = ch.unicode();
-        int key = charMapping[charString];
+    
+    // Store text and mapping for processing
+    QString remainingText = text;
+    QMap<uint8_t, int> mapping = charMapping;
+    
+    const int batchSize = 10;
+    const int delayBetweenBatches = 5; // Delay between batches in ms
+    const int delayBetweenChars = 3;    // Delay between characters in ms
+    
+    QTimer* pasteTimer = new QTimer(this);
+    connect(pasteTimer, &QTimer::timeout, this, [=]() mutable {
+        // Process up to batchSize characters
+        for (int i = 0; i < batchSize && !remainingText.isEmpty(); ++i) {
+            QChar ch = remainingText.at(0);
+            uint8_t charString = ch.unicode();
+            int key = mapping[charString];
 
-        bool needShift = needShiftWhenPaste(ch);
-        bool needAltGr = needAltGrWhenPaste(ch);
+            bool needShift = needShiftWhenPaste(ch);
+            bool needAltGr = needAltGrWhenPaste(ch);
 
-        int modifiers = 0;
-        if (needShift) modifiers |= Qt::ShiftModifier;
-        if (needAltGr) modifiers |= Qt::GroupSwitchModifier;
+            int modifiers = 0;
+            if (needShift) modifiers |= Qt::ShiftModifier;
+            if (needAltGr) modifiers |= Qt::GroupSwitchModifier;
 
-        handlePasteChar(key, modifiers);
-        index++;
-    }
+            handlePasteChar(key, modifiers);
+            QThread::msleep(delayBetweenChars);
+            emit SerialPortManager::getInstance().sendCommandAsync(CMD_SEND_KB_GENERAL_DATA, false);
+            
+            remainingText.remove(0, 1);
+        }
+        
+        // Stop timer if no more characters to process
+        if (remainingText.isEmpty()) {
+            pasteTimer->stop();
+            pasteTimer->deleteLater();
+        }
+    });
+    
+    // Start timer with delay between batches
+    pasteTimer->start(delayBetweenBatches);
 }
 
 void KeyboardManager::pasteTextToTarget(const QString &text) {
