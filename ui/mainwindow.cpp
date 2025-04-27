@@ -180,16 +180,16 @@ MainWindow::MainWindow(LanguageManager *languageManager, QWidget *parent) :  ui(
     connect(ui->actionMouseAutoHide, &QAction::triggered, this, &MainWindow::onActionMouseAutoHideTriggered);
     connect(ui->actionMouseAlwaysShow, &QAction::triggered, this, &MainWindow::onActionMouseAlwaysShowTriggered);
 
-    qCDebug(log_ui_mainwindow) << "Observe reset HID triggerd...";
+    qCDebug(log_ui_mainwindow) << "Observe reset HID triggered...";
     connect(ui->actionResetHID, &QAction::triggered, this, &MainWindow::onActionResetHIDTriggered);
 
-    qCDebug(log_ui_mainwindow) << "Observe factory reset HID triggerd...";
+    qCDebug(log_ui_mainwindow) << "Observe factory reset HID triggered...";
     connect(ui->actionFactory_reset_HID, &QAction::triggered, this, &MainWindow::onActionFactoryResetHIDTriggered);
 
-    qCDebug(log_ui_mainwindow) << "Observe reset Serial Port triggerd...";
+    qCDebug(log_ui_mainwindow) << "Observe reset Serial Port triggered...";
     connect(ui->actionResetSerialPort, &QAction::triggered, this, &MainWindow::onActionResetSerialPortTriggered);
 
-    qDebug() << "Observe Hardware change MainWindow triggerd...";
+    qDebug() << "Observe Hardware change MainWindow triggered...";
 
     qCDebug(log_ui_mainwindow) << "Creating and setting up ToggleSwitch...";
     toggleSwitch->setFixedSize(78, 28);  // Adjust size as needed
@@ -1168,7 +1168,7 @@ void MainWindow::updateCameras()
 
             //If the default camera is not an Openterface camera, set the camera to the first Openterface camera
             if (!QMediaDevices::defaultVideoInput().description().contains("Openterface")) {
-                qCDebug(log_ui_mainwindow) << "Set defualt camera to the Openterface camera...";
+                qCDebug(log_ui_mainwindow) << "Set default camera to the Openterface camera...";
             } else {
                 qCDebug(log_ui_mainwindow) << "The default camera is" << QMediaDevices::defaultVideoInput().description();
             }

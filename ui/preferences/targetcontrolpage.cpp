@@ -46,7 +46,7 @@ void TargetControlPage::setupUI()
     fullModeRadio->setToolTip(tr("The target USB port is a multi-functional composite device supporting a keyboard, mouse, and custom HID device. It performs best, though the mouse may have compatibility issues with Mac OS and Linux."));
     keyboardOnlyRadio = new QRadioButton(tr("[Keyboard Only] Standard USB keyboard device"));
     keyboardOnlyRadio->setToolTip(tr("The target USB port is a standard keyboard device without multimedia keys, supporting full keyboard mode and suitable for systems that don't support composite devices."));
-    keyboardMouseRadio = new QRadioButton(tr("[Compatiblity] Standard USB keyboard + USB mouse device"));
+    keyboardMouseRadio = new QRadioButton(tr("[Compatibility] Standard USB keyboard + USB mouse device"));
     keyboardMouseRadio->setToolTip(tr("The target USB port is a muti-functional composite device for keyboard and mouse. Best competibility with Mac OS, Andriod and Linux."));
     customHIDRadio = new QRadioButton(tr("[Custom HID] Standard USB custom HID device"));
     customHIDRadio->setToolTip(tr("The target USB port is a custom HID device supporting data transmission between host serial and target HID ."));

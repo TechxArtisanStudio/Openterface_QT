@@ -442,7 +442,7 @@ bool SerialPortManager::restartPort() {
 
 void SerialPortManager::updateSpecialKeyState(uint8_t data){
 
-    qCDebug(log_core_serial) << "Data recived: " << data;
+    qCDebug(log_core_serial) << "Data received: " << data;
     NumLockState = (data & 0b00000001) != 0; // NumLockState bit
     CapsLockState = (data & 0b00000010) != 0; // CapsLockState bit
     ScrollLockState = (data & 0b00000100) != 0; // ScrollLockState bit

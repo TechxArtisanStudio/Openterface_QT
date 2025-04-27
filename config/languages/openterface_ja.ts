@@ -978,7 +978,7 @@ Do you want to proceed with the update?</source>
     </message>
     <message>
         <location filename="../../ui/preferences/targetcontrolpage.cpp" line="49"/>
-        <source>[Compatiblity] Standard USB keyboard + USB mouse device</source>
+        <source>[Compatibility] Standard USB keyboard + USB mouse device</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
