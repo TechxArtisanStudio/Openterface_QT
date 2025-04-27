@@ -7,11 +7,10 @@
 LanguageManager::LanguageManager(QApplication *app, QObject *parent)
     : QObject(parent),
       m_app(app),
-      m_translator(new QTranslator(this)),
-      m_translationPath(QCoreApplication::applicationDirPath() + "/config/languages/") {
+      m_translator(new QTranslator(this))
+     {
 
     deployTranslationFiles();
-    qDebug() << "Initial translation path:" << m_translationPath;
 }
 
 LanguageManager::~LanguageManager() {
@@ -19,41 +18,26 @@ LanguageManager::~LanguageManager() {
 }
 
 void LanguageManager::deployTranslationFiles() {
-    QDir dir;
-    if (!dir.exists(m_translationPath)) {
-        dir.mkpath(m_translationPath);
-    }
-
-    QStringList qmFiles = {
-        ":/config/languages/openterface_en.qm",
-        ":/config/languages/openterface_fr.qm",
-        ":/config/languages/openterface_da.qm",
-        ":/config/languages/openterface_ja.qm",
-        ":/config/languages/openterface_se.qm",
-        ":/config/languages/openterface_de.qm"
-    };
-
-    for (const QString &resourcePath : qmFiles) {
-        QString fileName = resourcePath.split('/').last();
-        QString targetPath = m_translationPath + fileName;
-
-        if (!QFile::exists(targetPath)) {
-            QFile resourceFile(resourcePath);
-            if (resourceFile.open(QIODevice::ReadOnly)) {
-                QFile targetFile(targetPath);
-                if (targetFile.open(QIODevice::WriteOnly)) {
-                    targetFile.write(resourceFile.readAll());
-                    targetFile.close();
-                    qDebug() << "Deployed translation file:" << targetPath;
-                } else {
-                    qWarning() << "Failed to write file:" << targetPath;
+    QDir resourceDir(":/config/languages");
+    if (resourceDir.exists()) {
+        QStringList filters;
+        filters << "openterface_*.qm";
+        QFileInfoList files = resourceDir.entryInfoList(filters, QDir::Files);
+        
+        for (const QFileInfo& file : files) {
+            QString targetPath = m_translationPath + file.fileName();
+            if (!QFile::exists(targetPath)) {
+                QFile resourceFile(file.absoluteFilePath());
+                if (resourceFile.open(QIODevice::ReadOnly)) {
+                    QFile targetFile(targetPath);
+                    if (targetFile.open(QIODevice::WriteOnly)) {
+                        targetFile.write(resourceFile.readAll());
+                        targetFile.close();
+                        qDebug() << "Deployed translation file from resources:" << targetPath;
+                    }
+                    resourceFile.close();
                 }
-                resourceFile.close();
-            } else {
-                qWarning() << "Failed to open resource:" << resourcePath;
             }
-        } else {
-            qDebug() << "Translation file already exists:" << targetPath;
         }
     }
 }
