@@ -12,7 +12,7 @@
 
     </description>
     
-    <summary>A software for control openterface-Mini-KVM</summary>
+    <summary>Software for openterface-Mini-KVM</summary>
     <metadata_license>MIT</metadata_license>
 
     <launchable type="desktop-id">com.openterface.openterfaceQT.desktop</launchable>
