@@ -689,12 +689,12 @@ Prøv igen efter at have genstartet programmet.</translation>
         <translation>Optaget &quot;%1&quot;</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1547"/>
+        <location filename="../../ui/mainwindow.cpp" line="1566"/>
         <source>Firmware Update</source>
         <translation>Firmwareopdatering</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1548"/>
+        <location filename="../../ui/mainwindow.cpp" line="1567"/>
         <source>The firmware is up to date.
 Current version: </source>
         <translation type="unfinished"></translation>
