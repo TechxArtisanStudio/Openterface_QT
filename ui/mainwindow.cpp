@@ -1279,27 +1279,46 @@ void MainWindow::onVideoSettingsChanged() {
     int inputHeight = GlobalVar::instance().getInputHeight();
     int captureWidth = GlobalVar::instance().getCaptureWidth();
     int captureHeight = GlobalVar::instance().getCaptureHeight();
+    QScreen *screen = this->screen();
+    QRect availableGeometry = screen->availableGeometry();
+    systemScaleFactor = screen->devicePixelRatio();
 
     // Calculate aspect ratios
     double inputAspectRatio = static_cast<double>(inputWidth) / inputHeight;
     double captureAspectRatio = static_cast<double>(captureWidth) / captureHeight;
-
+    
     // Resize the window based on aspect ratios
+    double scale = captureHeight >= availableGeometry.height() * 0.8 ? 0.6 : 1.0;
+    scale = captureWidth >= availableGeometry.width() * 0.8 ? 0.6 : 1.0;
+    int newWidth, newHeight;
     if (inputAspectRatio != captureAspectRatio) {
         // Adjust the window size to hide black bars
-        int newWidth = static_cast<int>(captureHeight * inputAspectRatio);
-        qDebug() << "Resize to " << newWidth << captureHeight;
-        resize(newWidth, captureHeight);
-    } else {
-        // If aspect ratios are the same, just resize normally
-        resize(captureWidth + 1, captureHeight + 1);
+        newWidth = static_cast<int>(captureHeight * inputAspectRatio * scale);
+        newHeight = captureHeight;
+    }else{
+        newWidth = captureWidth;
+        newHeight = captureHeight;
     }
+    
+    if (captureHeight > availableGeometry.height()){
+        newHeight = availableGeometry.height();
+        newWidth = static_cast<int>(newHeight * inputAspectRatio);
+    }
+    
+    if(systemScaleFactor!= 1){
+        newWidth = static_cast<int>(newWidth / systemScaleFactor);
+        newHeight = static_cast<int>(newHeight / systemScaleFactor); 
+    }else{
+        newWidth = static_cast<int>(newWidth / 1.2);
+        newHeight = static_cast<int>(newHeight / 1.2);
+    }
+    qDebug() << "Scale: " << scale;
+    qDebug() << "Resize to onVideoSettingsChanged " << captureWidth << newHeight;
+    resize(newWidth, newHeight);
 
     // Optionally, you might want to center the window on the screen
-    QScreen *screen = this->screen();
-    QRect availableGeometry = screen->availableGeometry();
-    int x = (availableGeometry.width() - captureWidth) / 2;
-    int y = (availableGeometry.height() - captureHeight) / 2;
+    int x = (availableGeometry.width() - this->width()) / 2;
+    int y = (availableGeometry.height() - this->height()) / 2;
     move(x, y);
 }
 
