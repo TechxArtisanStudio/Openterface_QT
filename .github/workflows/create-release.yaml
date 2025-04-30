@@ -147,6 +147,7 @@ jobs:
           
       - name: Download Linux ARM64 RPM artifact
         uses: dawidd6/action-download-artifact@v2
+        continue-on-error: true
         with:
           workflow: linux-build.yaml
           workflow_conclusion: success
@@ -155,6 +156,7 @@ jobs:
       
       - name: Download flatpak aarch64 artifacts
         uses: dawidd6/action-download-artifact@v2
+        continue-on-error: true
         with:
           workflow: linux-flatpak-build.yaml
           workflow_conclusion: success
