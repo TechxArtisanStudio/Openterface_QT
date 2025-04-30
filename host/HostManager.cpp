@@ -151,7 +151,7 @@ void HostManager::handleKeyboardAction(int keyCode, int modifiers, bool isKeyDow
 {
     QString hexKeyCode = QString::number(keyCode, 16);
     int effectiveModifiers = keyboardManager.isModiferKeys(keyCode) ? modifiers : modifiers;
-    qCDebug(log_core_host) << (isKeyDown ? "Key press" : "Key release") << "event for qt key code:" << keyCode << "(" << hexKeyCode << "), modifers:" << "0x" + QString::number(effectiveModifiers, 16);
+    qCDebug(log_core_host) << (isKeyDown ? "Key press" : "Key release") << "event for qt key code:" << keyCode << "(" << hexKeyCode << "), modifiers:" << "0x" + QString::number(effectiveModifiers, 16);
     
     keyboardManager.handleKeyboardAction(keyCode, effectiveModifiers, isKeyDown);
     

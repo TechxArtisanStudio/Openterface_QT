@@ -57,7 +57,7 @@ flatpak install --user --noninteractive flathub org.kde.Platform/x86_64/6.7
 
 ### Download Openterface Flatpak File
 
-Currently, only a preview version is available. We plan to publish on Flathub, but this will take some time. Download the latest version of the Flatpak file and unzip it.
+Download the latest version of the Flatpak file.
 
 ```sh
 # This command installs for the user and may prompt you to install some packages; proceed with the installation.
@@ -65,6 +65,12 @@ flatpak --user install com.openterface.openterfaceQT-aarch64.flatpak
 flatpak --user install com.openterface.openterfaceQT-x86_64.flatpak
 # Run the OpenterfaceQT app via Flatpak
 flatpak --user run com.openterface.openterfaceQT
+```
+
+### Download Openterface from flathub
+
+```sh
+flatpak install flathub com.openterface.openterfaceQT
 ```
 
 ***After you can run the app, enjoy using the OpenterfaceQT app.***

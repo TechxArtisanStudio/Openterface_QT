@@ -180,16 +180,16 @@ MainWindow::MainWindow(LanguageManager *languageManager, QWidget *parent) :  ui(
     connect(ui->actionMouseAutoHide, &QAction::triggered, this, &MainWindow::onActionMouseAutoHideTriggered);
     connect(ui->actionMouseAlwaysShow, &QAction::triggered, this, &MainWindow::onActionMouseAlwaysShowTriggered);
 
-    qCDebug(log_ui_mainwindow) << "Observe reset HID triggerd...";
+    qCDebug(log_ui_mainwindow) << "Observe reset HID triggered...";
     connect(ui->actionResetHID, &QAction::triggered, this, &MainWindow::onActionResetHIDTriggered);
 
-    qCDebug(log_ui_mainwindow) << "Observe factory reset HID triggerd...";
+    qCDebug(log_ui_mainwindow) << "Observe factory reset HID triggered...";
     connect(ui->actionFactory_reset_HID, &QAction::triggered, this, &MainWindow::onActionFactoryResetHIDTriggered);
 
-    qCDebug(log_ui_mainwindow) << "Observe reset Serial Port triggerd...";
+    qCDebug(log_ui_mainwindow) << "Observe reset Serial Port triggered...";
     connect(ui->actionResetSerialPort, &QAction::triggered, this, &MainWindow::onActionResetSerialPortTriggered);
 
-    qDebug() << "Observe Hardware change MainWindow triggerd...";
+    qDebug() << "Observe Hardware change MainWindow triggered...";
 
     qCDebug(log_ui_mainwindow) << "Creating and setting up ToggleSwitch...";
     toggleSwitch->setFixedSize(78, 28);  // Adjust size as needed
@@ -1168,7 +1168,7 @@ void MainWindow::updateCameras()
 
             //If the default camera is not an Openterface camera, set the camera to the first Openterface camera
             if (!QMediaDevices::defaultVideoInput().description().contains("Openterface")) {
-                qCDebug(log_ui_mainwindow) << "Set defualt camera to the Openterface camera...";
+                qCDebug(log_ui_mainwindow) << "Set default camera to the Openterface camera...";
             } else {
                 qCDebug(log_ui_mainwindow) << "The default camera is" << QMediaDevices::defaultVideoInput().description();
             }
@@ -1279,27 +1279,46 @@ void MainWindow::onVideoSettingsChanged() {
     int inputHeight = GlobalVar::instance().getInputHeight();
     int captureWidth = GlobalVar::instance().getCaptureWidth();
     int captureHeight = GlobalVar::instance().getCaptureHeight();
+    QScreen *screen = this->screen();
+    QRect availableGeometry = screen->availableGeometry();
+    systemScaleFactor = screen->devicePixelRatio();
 
     // Calculate aspect ratios
     double inputAspectRatio = static_cast<double>(inputWidth) / inputHeight;
     double captureAspectRatio = static_cast<double>(captureWidth) / captureHeight;
-
+    
     // Resize the window based on aspect ratios
+    double scale = captureHeight >= availableGeometry.height() * 0.8 ? 0.6 : 1.0;
+    scale = captureWidth >= availableGeometry.width() * 0.8 ? 0.6 : 1.0;
+    int newWidth, newHeight;
     if (inputAspectRatio != captureAspectRatio) {
         // Adjust the window size to hide black bars
-        int newWidth = static_cast<int>(captureHeight * inputAspectRatio);
-        qDebug() << "Resize to " << newWidth << captureHeight;
-        resize(newWidth, captureHeight);
-    } else {
-        // If aspect ratios are the same, just resize normally
-        resize(captureWidth + 1, captureHeight + 1);
+        newWidth = static_cast<int>(captureHeight * inputAspectRatio * scale);
+        newHeight = captureHeight;
+    }else{
+        newWidth = captureWidth;
+        newHeight = captureHeight;
     }
+    
+    if (captureHeight > availableGeometry.height()){
+        newHeight = availableGeometry.height();
+        newWidth = static_cast<int>(newHeight * inputAspectRatio);
+    }
+    
+    if(systemScaleFactor!= 1){
+        newWidth = static_cast<int>(newWidth / systemScaleFactor);
+        newHeight = static_cast<int>(newHeight / systemScaleFactor); 
+    }else{
+        newWidth = static_cast<int>(newWidth / 1.2);
+        newHeight = static_cast<int>(newHeight / 1.2);
+    }
+    qDebug() << "Scale: " << scale;
+    qDebug() << "Resize to onVideoSettingsChanged " << captureWidth << newHeight;
+    resize(newWidth, newHeight);
 
     // Optionally, you might want to center the window on the screen
-    QScreen *screen = this->screen();
-    QRect availableGeometry = screen->availableGeometry();
-    int x = (availableGeometry.width() - captureWidth) / 2;
-    int y = (availableGeometry.height() - captureHeight) / 2;
+    int x = (availableGeometry.width() - this->width()) / 2;
+    int y = (availableGeometry.height() - this->height()) / 2;
     move(x, y);
 }
 
