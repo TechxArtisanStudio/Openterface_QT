@@ -80,6 +80,14 @@ EnvironmentSetupDialog::EnvironmentSetupDialog(QWidget *parent) :
     bool autoCheck = settings.value("autoCheck", true).toBool();
     ui->autoCheckBox->setChecked(autoCheck);
 
+    int ret = libusb_init(&context);
+    if (ret < 0) {
+        std::cerr << "Error initializing libusb: " << libusb_error_name(ret) << std::endl;
+        return;
+    }
+    std::cout << "libusb initialized successfully." << std::endl;
+    detectDevice();
+
 #ifdef _WIN32
     setFixedSize(250, 140);
     ui->step1Label->setVisible(false);
@@ -387,6 +395,54 @@ bool EnvironmentSetupDialog::checkBrlttyRunning() {
 void EnvironmentSetupDialog::reject()
 {
     QDialog::reject();
+}
+
+bool EnvironmentSetupDialog::detectDevice() {
+    libusb_device **dev_list = nullptr;
+    size_t dev_count = libusb_get_device_list(context, &dev_list);
+    if (dev_count < 0) {
+        std::cerr << "libusb_get_device_list failed: " << libusb_error_name(static_cast<int>(dev_count)) << std::endl;
+        return false;
+    }
+
+    std::unique_ptr<libusb_device*[], void(*)(libusb_device**)> dev_list_guard(dev_list, [](libusb_device** list) {
+        libusb_free_device_list(list, 1);
+    });
+
+    bool found = false;
+
+    for (ssize_t i =0; i < dev_count; i++) {
+        libusb_device *dev = dev_list[i];
+        libusb_device_descriptor desc;
+        int ret = libusb_get_device_descriptor(dev, &desc);
+        if (ret < 0) {
+            std::cerr << "libusb_get_device_descriptor failed: " << libusb_error_name(ret) << std::endl;
+            continue;
+        }
+        if (desc.idVendor == openterfaceVID && desc.idProduct == openterfacePID) {
+            found = true;
+            break;
+
+            // check device permission
+            libusb_device_handle* handle = nullptr;
+            ret = libusb_open(dev, &handle);
+            if (ret == 0) {
+                std::cout << "Device opened successfully, you have permission to control it." << std::endl;
+                libusb_close(handle);
+            } else {
+                std::cerr << "Failed to open device: " << libusb_error_name(ret) 
+                          << " (Check permissions or if device is in use)" << std::endl;
+            }
+            break;
+        }
+    }
+
+    if (!found) {
+        std::cout << "Device with VID=0x" << std::hex << openterfaceVID 
+                  << ", PID=0x" << openterfacePID << " not found." << std::dec << std::endl;
+    }
+    std::cout << "Device detection result: " << (found? "Found" : "Not Found") << std::endl;
+    return found;
 }
 
 bool EnvironmentSetupDialog::checkEnvironmentSetup() {

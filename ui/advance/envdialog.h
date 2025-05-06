@@ -3,6 +3,7 @@
 
 #include <QDialog>
 #include <QCloseEvent>
+#include <libusb-1.0/libusb.h>
 
 namespace Ui {
 class EnvironmentSetupDialog;
@@ -43,7 +44,11 @@ private:
     static const QString tickHtml;
     static const QString crossHtml;
     bool isDevicePlugged;
-    
+    const uint16_t openterfaceVID = 0x534D;
+    const uint16_t openterfacePID = 0x2109;
+    libusb_context *context = nullptr;
+    bool detectDevice();
+
 #ifdef __linux__
     static bool checkInRightUserGroup(); 
     static bool checkHidPermission();
