@@ -688,7 +688,7 @@ Veuillez réessayer après avoir redémarré l&apos;application.</translation>
         <translation>Capturé &quot;%1&quot;</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1548"/>
+        <location filename="../../ui/mainwindow.cpp" line="1567"/>
         <source>The firmware is up to date.
 Current version: </source>
         <translation type="unfinished"></translation>
@@ -698,7 +698,7 @@ Current version: </source>
         <translation type="vanished">Le firmware est à jour.</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1547"/>
+        <location filename="../../ui/mainwindow.cpp" line="1566"/>
         <source>Firmware Update</source>
         <translation>Mise à jour du firmware</translation>
     </message>
