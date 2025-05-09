@@ -25,7 +25,6 @@ signals:
 
 
 private:
-    void deployTranslationFiles();
     
     QApplication *m_app;
     QTranslator *m_translator;
