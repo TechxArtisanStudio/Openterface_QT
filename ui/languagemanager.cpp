@@ -10,37 +10,13 @@ LanguageManager::LanguageManager(QApplication *app, QObject *parent)
       m_translator(new QTranslator(this))
      {
 
-    deployTranslationFiles();
+    // deployTranslationFiles();
 }
 
 LanguageManager::~LanguageManager() {
     delete m_translator;
 }
 
-void LanguageManager::deployTranslationFiles() {
-    QDir languageConfigPath(":/config/languages");
-    if (languageConfigPath.exists()) {
-        QStringList filters;
-        filters << "openterface_*.qm";
-        QFileInfoList files = languageConfigPath.entryInfoList(filters, QDir::Files);
-        
-        for (const QFileInfo& file : files) {
-            QString targetPath = m_translationPath + file.fileName();
-            if (!QFile::exists(targetPath)) {
-                QFile resourceFile(file.absoluteFilePath());
-                if (resourceFile.open(QIODevice::ReadOnly)) {
-                    QFile targetFile(targetPath);
-                    if (targetFile.open(QIODevice::WriteOnly)) {
-                        targetFile.write(resourceFile.readAll());
-                        targetFile.close();
-                        qDebug() << "Deployed translation file from resources:" << targetPath;
-                    }
-                    resourceFile.close();
-                }
-            }
-        }
-    }
-}
 
 void LanguageManager::initialize(const QString &defaultLanguage) {
     Q_UNUSED(defaultLanguage);
@@ -53,7 +29,7 @@ void LanguageManager::switchLanguage(const QString &language) {
         m_app->removeTranslator(m_translator);
     }
 
-    QString filePath = m_translationPath + "openterface_" + language + ".qm";
+    QString filePath = QString(":/config/languages/openterface_%1.qm").arg(language);
     if (m_translator->load(filePath)) {
         m_app->installTranslator(m_translator);
         m_currentLanguage = language;
@@ -65,7 +41,7 @@ void LanguageManager::switchLanguage(const QString &language) {
 }
 
 QStringList LanguageManager::availableLanguages() const {
-    QDir dir(m_translationPath);
+    QDir dir(":/config/languages");
     QStringList filters;
     filters << "openterface_*.qm";
     QStringList files = dir.entryList(filters, QDir::Files);
