@@ -82,12 +82,12 @@
         <translation>&lt;a href=&quot;#&quot;&gt;Dokumentation zur Umgebungseinrichtung&lt;/a&gt;</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="100"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="102"/>
         <source> The driver is installed. No further action is required.</source>
         <translation> Der Treiber ist installiert. Es sind keine weiteren Aktionen erforderlich.</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="102"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="104"/>
         <source> The driver is missing. Openterface Mini-KVM will install it automatically.</source>
         <translation> Der Treiber fehlt. Openterface Mini-KVM wird ihn automatisch installieren.</translation>
     </message>
@@ -97,97 +97,105 @@
         <translation type="vanished">Die folgenden Schritte helfen Ihnen, den Treiber zu installieren und den Benutzer zur richtigen Gruppe hinzuzufügen. Aktueller Status:</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="105"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="107"/>
         <source> The device is not plugged in. Please plug it in and try again.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="126"/>
-        <source>The following steps help you install the driver and add user to correct group. Current status:&lt;br&gt;</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="127"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="129"/>
         <source>‣ Driver Installed: </source>
         <translation>‣ Treiber installiert: </translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="128"/>
         <source>‣ In Dialout Group: </source>
-        <translation>‣ In Dialout-Gruppe: </translation>
+        <translation type="vanished">‣ In Dialout-Gruppe: </translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="129"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="128"/>
+        <source>The following steps help you install the driver and access the device permissions. Current status:&lt;br&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/envdialog.cpp" line="130"/>
+        <source>‣ In Serial Port Permission: </source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/envdialog.cpp" line="131"/>
         <source>‣ HID Permission: </source>
         <translation>‣ HID-Berechtigung: </translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="130"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="132"/>
         <source>‣ BRLTTY checking: </source>
         <translation>‣ BRLTTY-Prüfung: </translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="130"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="132"/>
         <source> (needs removal)</source>
         <translation> (muss entfernt werden)</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="130"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="132"/>
         <source> (not running)</source>
         <translation> (läuft nicht)</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="176"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="178"/>
         <source>Select Destination Directory</source>
         <translation>Zielverzeichnis auswählen</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="232"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="234"/>
         <source>Driver Installed: </source>
         <translation>Treiber installiert: </translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="232"/>
-        <location filename="../../ui/advance/envdialog.cpp" line="233"/>
         <location filename="../../ui/advance/envdialog.cpp" line="234"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="235"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="236"/>
         <source>Yes</source>
         <translation>Ja</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="232"/>
-        <location filename="../../ui/advance/envdialog.cpp" line="233"/>
         <location filename="../../ui/advance/envdialog.cpp" line="234"/>
         <location filename="../../ui/advance/envdialog.cpp" line="235"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="236"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="237"/>
         <source>No</source>
         <translation>Nein</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="233"/>
-        <source>In Dialout Group: </source>
-        <translation>In Dialout-Gruppe: </translation>
+        <location filename="../../ui/advance/envdialog.cpp" line="235"/>
+        <source>Serial port Permission: </source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="234"/>
+        <source>In Dialout Group: </source>
+        <translation type="vanished">In Dialout-Gruppe: </translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/envdialog.cpp" line="236"/>
         <source>HID Permission: </source>
         <translation>HID-Berechtigung: </translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="235"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="237"/>
         <source>BRLTTY is Running: </source>
         <translation>BRLTTY läuft: </translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="235"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="237"/>
         <source>Yes (needs removal)</source>
         <translation>Ja (muss entfernt werden)</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="244"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="246"/>
         <source>Restart Required</source>
         <translation>Neustart erforderlich</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="245"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="247"/>
         <source>The driver has been installed. A system restart and device re-plugging is required for the changes to take effect.
 
 Would you like to restart your computer now?</source>
@@ -196,12 +204,12 @@ Would you like to restart your computer now?</source>
 Möchten Sie Ihren Computer jetzt neu starten?</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="259"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="261"/>
         <source>Restart Later</source>
         <translation>Später neu starten</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="260"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="262"/>
         <source>Please remember to restart your computer and re-plug the device for the driver to work properly.</source>
         <translation>Bitte denken Sie daran, Ihren Computer neu zu starten und das Gerät erneut anzuschließen, damit der Treiber ordnungsgemäß funktioniert.</translation>
     </message>
