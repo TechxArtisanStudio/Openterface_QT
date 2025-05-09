@@ -39,12 +39,18 @@ const QString EnvironmentSetupDialog::crossHtml = "<span style='color: red; font
 
 #ifdef __linux__
 // Define the static commands
+static const uint16_t openterfaceVID = 0x534d;
+static const uint16_t openterfacePID = 0x2109;
+static const uint16_t ch341VID = 0x1a86;
+static const uint16_t ch341PID = 0x7523;
+libusb_context *context = nullptr;
+
 const QString EnvironmentSetupDialog::driverCommands = "# Build and install the driver\n make ; sudo make install\n\n";
-const QString EnvironmentSetupDialog::groupCommands = "# Add user to dialout group\n sudo usermod -a -G dialout $USER\n\n";
+// const QString EnvironmentSetupDialog::groupCommands = "# Add user to dialout group\n sudo usermod -a -G dialout $USER\n\n";
 const QString EnvironmentSetupDialog::udevCommands =
     "#Add udev rules for Openterface Mini-KVM\n"
-    "echo 'KERNEL== \"hidraw*\", SUBSYSTEM==\"hidraw\", MODE=\"0666\"' | sudo tee /etc/udev/rules.d/51-openterface.rules\n"
-    "echo 'SUBSYSTEM==\"usb\", ATTR{idVendor}==\"1a86\", ATTR{idProduct}==\"7523\", ENV{BRL TTY_BRAILLY_DRIVER}=\"none\", MODE=\"0666\"' | sudo tee -a /etc/udev/rules.d/51-openterface.rules\n"
+    "echo 'SUBSYSTEM==\"usb\", ATTRS{idVendor}==\"534d\", ATTRS{idProduct}==\"2109\", TAG+=\"uaccess\"' | sudo tee /etc/udev/rules.d/51-openterface.rules\n"
+    "echo 'SUBSYSTEM==\"usb\", ATTRS{idVendor}==\"1a86\", ATTRS{idProduct}==\"7523\", TAG+=\"uaccess\"' | sudo tee -a /etc/udev/rules.d/51-openterface.rules\n"
     "sudo udevadm control --reload-rules\n"
     "sudo udevadm trigger\n\n";
 const QString EnvironmentSetupDialog::brlttyCommands =
@@ -52,9 +58,10 @@ const QString EnvironmentSetupDialog::brlttyCommands =
     "sudo apt-get remove -y brltty\n"
     "sudo apt-get autoremove -y\n\n";
 
-bool EnvironmentSetupDialog::isInRightUserGroup = false;
+bool EnvironmentSetupDialog::isSerialPermission = false;
 bool EnvironmentSetupDialog::isHidPermission = false;
 bool EnvironmentSetupDialog::isBrlttyRunning = false;
+bool EnvironmentSetupDialog::isDevicePlugged = false;
 #endif
 
 // Define the help URL
@@ -66,19 +73,23 @@ const QString EnvironmentSetupDialog::helpUrl = "https://github.com/TechxArtisan
 
 EnvironmentSetupDialog::EnvironmentSetupDialog(QWidget *parent) :
     QDialog(parent),
-    ui(new Ui::EnvironmentSetupDialog),
-    isDevicePlugged(false)
+    ui(new Ui::EnvironmentSetupDialog)
+    // isDevicePlugged(false)
 {
     ui->setupUi(this);
     
     // Set labels to interpret rich text
     ui->descriptionLabel->setTextFormat(Qt::RichText);
     ui->helpLabel->setTextFormat(Qt::RichText);
+    
 
     checkEnvironmentSetup(); // Ensure the status variables are updated
     QSettings settings("Openterface", "EnvironmentSetup");
     bool autoCheck = settings.value("autoCheck", true).toBool();
     ui->autoCheckBox->setChecked(autoCheck);
+
+
+
 
 #ifdef _WIN32
     setFixedSize(250, 140);
@@ -114,9 +125,9 @@ EnvironmentSetupDialog::EnvironmentSetupDialog(QWidget *parent) :
     connect(ui->copyButton, &QPushButton::clicked, this, &EnvironmentSetupDialog::copyCommands);
 
     // Create the status summary
-    QString statusSummary = tr("The following steps help you install the driver and add user to correct group. Current status:<br>");
+    QString statusSummary = tr("The following steps help you install the driver and access the device permissions. Current status:<br>");
     statusSummary += tr("‣ Driver Installed: ") + QString(isDriverInstalled ? tickHtml : crossHtml) + "<br>";
-    statusSummary += tr("‣ In Dialout Group: ") + QString(isInRightUserGroup ? tickHtml : crossHtml) + "<br>";
+    statusSummary += tr("‣ In Serial Port Permission: ") + QString(isSerialPermission ? tickHtml : crossHtml) + "<br>";
     statusSummary += tr("‣ HID Permission: ") + QString(isHidPermission ? tickHtml : crossHtml) + "<br>";
     statusSummary += tr("‣ BRLTTY checking: ") + QString(isBrlttyRunning ? crossHtml + tr(" (needs removal)") : tickHtml + tr(" (not running)"));
     ui->descriptionLabel->setText(statusSummary);
@@ -221,7 +232,7 @@ void EnvironmentSetupDialog::accept()
         // Check the current status
         QString statusSummary;
         statusSummary += tr("Driver Installed: ") + QString(isDriverInstalled ? tr("Yes") : tr("No")) + "\n";
-        statusSummary += tr("In Dialout Group: ") + QString(isInRightUserGroup ? tr("Yes") : tr("No")) + "\n";
+        statusSummary += tr("Serial port Permission: ") + QString(isSerialPermission ? tr("Yes") : tr("No")) + "\n";
         statusSummary += tr("HID Permission: ") + QString(isHidPermission ? tr("Yes") : tr("No")) + "\n";
         statusSummary += tr("BRLTTY is Running: ") + QString(isBrlttyRunning ? tr("Yes (needs removal)") : tr("No")) + "\n";
 
@@ -264,10 +275,10 @@ QString EnvironmentSetupDialog::buildCommands(){
     if (!isDriverInstalled) {
         commands += driverCommands;
     }
-    if (!isInRightUserGroup) {
-        commands += groupCommands;
-    }
-    if (!isHidPermission) {
+    // if (!isSerialPermission) {
+    //     commands += groupCommands;
+    // }
+    if (!isHidPermission && !isSerialPermission) {
         commands += udevCommands;
     }
     if (isBrlttyRunning) {
@@ -277,14 +288,7 @@ QString EnvironmentSetupDialog::buildCommands(){
     return commands;
 }
 
-bool EnvironmentSetupDialog::checkInRightUserGroup() {
-    // Check if the user is in the dialout group
-    std::string command = "groups | grep -i dialout";
-    int result = system(command.c_str());
-    isInRightUserGroup = (result == 0);
-    // Remove the UI update from the static method
-    return isInRightUserGroup;
-}
+
 
 bool EnvironmentSetupDialog::checkHidPermission() {
     std::cout << "Checking HID permissions..." << std::endl;
@@ -388,6 +392,98 @@ void EnvironmentSetupDialog::reject()
 {
     QDialog::reject();
 }
+#ifdef __linux__
+bool EnvironmentSetupDialog::checkDevicePermission(uint16_t vendorID, uint16_t productID) {
+    libusb_device **dev_list = nullptr;
+    size_t dev_count = libusb_get_device_list(context, &dev_list);
+    if (dev_count < 0) {
+        std::cerr << "libusb_get_device_list failed: " << libusb_error_name(static_cast<int>(dev_count)) << std::endl;
+        return false;
+    }
+
+    std::unique_ptr<libusb_device*[], void(*)(libusb_device**)> dev_list_guard(dev_list, [](libusb_device** list) {
+        libusb_free_device_list(list, 1);
+    });
+
+    bool found = false;
+
+    for (ssize_t i =0; i < dev_count; i++) {
+        libusb_device *dev = dev_list[i];
+        libusb_device_descriptor desc;
+        int ret = libusb_get_device_descriptor(dev, &desc);
+        if (ret < 0) {
+            std::cerr << "libusb_get_device_descriptor failed: " << libusb_error_name(ret) << std::endl;
+            continue;
+        }
+        if (desc.idVendor == vendorID && desc.idProduct == productID) {
+            qDebug() << "Name of device" << desc.iProduct;
+            libusb_device_handle* handle = nullptr;
+            int ret = libusb_open(dev, &handle);
+            if (ret == LIBUSB_SUCCESS) {
+                // close the device handle
+                libusb_close(handle);
+                if (vendorID == ch341VID && productID == ch341PID) {
+                    isSerialPermission = true;
+                    qDebug() << "CH341 permission check passed.";
+                } else if (vendorID == openterfaceVID && productID == openterfacePID) {
+                    isHidPermission = true;
+                    qDebug() << "Openterface permission check passed.";
+                }
+                return true; 
+            } else if (ret == LIBUSB_ERROR_ACCESS) {
+                std::cerr << "Permission denied for the device" << std::endl;
+                return false;
+            } else if (ret == LIBUSB_ERROR_BUSY) {
+                std::cerr << "Device is busy" << std::endl;
+                return false;
+            } else {
+                std::cerr << "Failed to open device: " << libusb_error_name(ret) << std::endl;
+                return false;
+            }
+        }
+    }
+    
+}
+
+bool EnvironmentSetupDialog::detectDevice(uint16_t vendorID, uint16_t productID) {
+    qDebug() << "Device detected with VID: 0x" 
+                    << QString::number(vendorID, 16).rightJustified(4, '0')
+                    << "PID: 0x" 
+                    << QString::number(productID, 16).rightJustified(4, '0');
+    libusb_device **dev_list = nullptr;
+    size_t dev_count = libusb_get_device_list(context, &dev_list);
+    if (dev_count < 0) {
+        std::cerr << "libusb_get_device_list failed: " << libusb_error_name(static_cast<int>(dev_count)) << std::endl;
+        return false;
+    }
+
+    std::unique_ptr<libusb_device*[], void(*)(libusb_device**)> dev_list_guard(dev_list, [](libusb_device** list) {
+        libusb_free_device_list(list, 1);
+    });
+
+    bool found = false;
+
+    for (ssize_t i =0; i < dev_count; i++) {
+        libusb_device *dev = dev_list[i];
+        libusb_device_descriptor desc;
+        int ret = libusb_get_device_descriptor(dev, &desc);
+        if (ret < 0) {
+            std::cerr << "libusb_get_device_descriptor failed: " << libusb_error_name(ret) << std::endl;
+            continue;
+        }
+        if (desc.idVendor == vendorID && desc.idProduct == productID) {
+            found = true;
+            isDevicePlugged = true;
+            qDebug() << "Device detected with VID: 0x" 
+                    << QString::number(vendorID, 16).rightJustified(4, '0')
+                    << "PID: 0x" 
+                    << QString::number(productID, 16).rightJustified(4, '0');
+        }
+    }
+    return found;
+}
+
+#endif
 
 bool EnvironmentSetupDialog::checkEnvironmentSetup() {
     #ifdef _WIN32
@@ -395,17 +491,39 @@ bool EnvironmentSetupDialog::checkEnvironmentSetup() {
     #elif defined(__linux__)
     std::cout << "Checking if MS2109 is on Linux." << std::endl;
 
-    // If the device file does not exist, check using lsusb for VID and PID
-    std::string command = "lsusb | grep -i '534d:2109'";
-    int result = system(command.c_str());
+    // EnvironmentSetupDialog dialog;
+    if (context == nullptr){
+        int ret = libusb_init(&context);
+        if (ret < 0) {
+            std::cerr << "Error initializing libusb: " << libusb_error_name(ret) << std::endl;
+        }
+        std::cout << "libusb initialized successfully." << std::endl;
+    }
+
+    bool HIDret = detectDevice(openterfaceVID, openterfacePID);
     bool skipCheck = false;
-    if (result != 0) {
+    if (!HIDret) {
         std::cout << "MS2109 not exist, so no Openterface plugged in" << std::endl;
         skipCheck = true;
     }
+    bool isSerialPlugged = detectDevice(ch341VID, ch341PID);
+    if (!isSerialPlugged) {
+        std::cout << "CH341 not exist, so no Openterface plugged in" << std::endl;
+    }else{
+        std::cout << "CH341 exist, so Openterface plugged in" << std::endl;
+    }
 
+    bool checkSerialPermission = checkDevicePermission(ch341VID, ch341PID);
+    if (!checkSerialPermission) {
+        std::cout << "CH341 permission check failed." << std::endl;
+    } else {
+        std::cout << "CH341 permission check passed." << std::endl;
+    }
+    
     checkBrlttyRunning(); // No need to return value here
-    return checkDriverInstalled() && checkInRightUserGroup() && checkHidPermission() && !isBrlttyRunning || skipCheck;
+    bool checkPermission = checkDevicePermission(openterfaceVID, openterfacePID);
+    qDebug() << "Check permission result: " << checkPermission;
+    return checkDriverInstalled() && checkSerialPermission && checkPermission && !isBrlttyRunning || skipCheck;
     #else
     return true;
     #endif
@@ -455,13 +573,13 @@ bool EnvironmentSetupDialog::checkDriverInstalled() {
     // Log the start of the driver check
     std::cout << "Checking if driver is installed on Linux." << std::endl;
 
-    // If the device file does not exist, check using lsusb for VID and PID
-    std::string command = "lsusb | grep -i '1a86:7523'";
+    // If the device file does not exist, check using cat /proc/modules
+    std::string command = "cat /proc/modules | grep 'ch341'";
     int result = system(command.c_str());
     if (result == 0) {
-        std::cout << "Driver installation status: Installed (found via lsusb)" << std::endl;
+        std::cout << "Driver installation status: Installed (found via cat /proc/modules)" << std::endl;
         isDriverInstalled = true;
-        return true; // Driver found via lsusb
+        return true; // Driver found via /proc/modules
     }
 
     std::cout << "Driver installation status: Not Installed" << std::endl;

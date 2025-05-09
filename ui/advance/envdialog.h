@@ -3,6 +3,7 @@
 
 #include <QDialog>
 #include <QCloseEvent>
+#include <libusb-1.0/libusb.h>
 
 namespace Ui {
 class EnvironmentSetupDialog;
@@ -42,10 +43,13 @@ private:
     static bool isDriverInstalled;
     static const QString tickHtml;
     static const QString crossHtml;
-    bool isDevicePlugged;
+    static bool isDevicePlugged;
+    // bool isDevicePlugged;
     
+    static bool detectDevice(uint16_t vendorID, uint16_t productID);
+    static bool checkDevicePermission(uint16_t vendorID, uint16_t productID);
+
 #ifdef __linux__
-    static bool checkInRightUserGroup(); 
     static bool checkHidPermission();
     static bool checkBrlttyRunning();
 
@@ -56,6 +60,7 @@ private:
 
     static bool isInRightUserGroup;
     static bool isHidPermission;
+    static bool isSerialPermission;
     static bool isBrlttyRunning;
 
     QString buildCommands();

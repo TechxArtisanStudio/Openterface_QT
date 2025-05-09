@@ -120,20 +120,6 @@ RESOURCES += \
     config/languages/language.qrc
 
 
-# Copy keyboard layout files to build directory
-CONFIG += file_copies
-COPIES += keyboard_layouts
-keyboard_layouts.files = $$files($$PWD/config/keyboards/*.json)
-keyboard_layouts.path = $$OUT_PWD/config/keyboards
-
-COPIES += keyboard_layouts_debug
-keyboard_layouts.files = $$files($$PWD/config/keyboards/*.json)
-keyboard_layouts.path = $$OUT_PWD/debug/config/keyboards
-
-# Create directories if they don't exist
-system($$QMAKE_MKDIR $$shell_path($$PWD/config/keyboards))
-system($$QMAKE_MKDIR $$shell_path($$OUT_PWD/config/keyboards))
-
 # Link against the HID library
 win32:LIBS += -lhid
 win32:LIBS += -lsetupapi
@@ -174,10 +160,3 @@ TRANSLATIONS += config/languages/openterface_en.ts \
                 config/languages/openterface_se.ts \
                 config/languages/openterface_de.ts 
                 # Add more languages here
-
-#COPIES += translations
-#translations.files = $$files($$PWD/config/languages/*.qm)
-#translations.path = $$OUT_PWD/config/languages
-
-#system($$QMAKE_MKDIR $$shell_path($$PWD/debug/config/languages))
-#system($$QMAKE_MKDIR $$shell_path($$OUT_PWD/debug/config/languages))

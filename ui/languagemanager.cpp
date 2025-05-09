@@ -18,11 +18,11 @@ LanguageManager::~LanguageManager() {
 }
 
 void LanguageManager::deployTranslationFiles() {
-    QDir resourceDir(":/config/languages");
-    if (resourceDir.exists()) {
+    QDir languageConfigPath(":/config/languages");
+    if (languageConfigPath.exists()) {
         QStringList filters;
         filters << "openterface_*.qm";
-        QFileInfoList files = resourceDir.entryInfoList(filters, QDir::Files);
+        QFileInfoList files = languageConfigPath.entryInfoList(filters, QDir::Files);
         
         for (const QFileInfo& file : files) {
             QString targetPath = m_translationPath + file.fileName();
