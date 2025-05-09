@@ -1,0 +1,687 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>MainWindow</class>
+ <widget class="QMainWindow" name="MainWindow">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>1280</width>
+    <height>761</height>
+   </rect>
+  </property>
+  <property name="cursor">
+   <cursorShape>ArrowCursor</cursorShape>
+  </property>
+  <property name="mouseTracking">
+   <bool>true</bool>
+  </property>
+  <property name="windowTitle">
+   <string>Openterface Mini-KVM</string>
+  </property>
+  <widget class="QWidget" name="centralwidget">
+   <property name="cursor">
+    <cursorShape>ArrowCursor</cursorShape>
+   </property>
+   <property name="mouseTracking">
+    <bool>true</bool>
+   </property>
+   <layout class="QGridLayout" name="gridLayout_3">
+    <property name="leftMargin">
+     <number>0</number>
+    </property>
+    <property name="topMargin">
+     <number>0</number>
+    </property>
+    <property name="rightMargin">
+     <number>0</number>
+    </property>
+    <property name="bottomMargin">
+     <number>0</number>
+    </property>
+    <property name="spacing">
+     <number>0</number>
+    </property>
+   </layout>
+  </widget>
+  <widget class="QMenuBar" name="menubar">
+   <property name="geometry">
+    <rect>
+     <x>0</x>
+     <y>0</y>
+     <width>1280</width>
+     <height>25</height>
+    </rect>
+   </property>
+   <widget class="QWidget" name="cornerWidget">
+    <property name="geometry">
+     <rect>
+      <x>0</x>
+      <y>0</y>
+      <width>512</width>
+      <height>30</height>
+     </rect>
+    </property>
+    <property name="sizePolicy">
+     <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+      <horstretch>0</horstretch>
+      <verstretch>0</verstretch>
+     </sizepolicy>
+    </property>
+    <layout class="QHBoxLayout" name="horizontalLayout">
+     <item>
+      <widget class="QLabel" name="keyboardLabel">
+       <property name="minimumSize">
+        <size>
+         <width>16</width>
+         <height>16</height>
+        </size>
+       </property>
+       <property name="maximumSize">
+        <size>
+         <width>16</width>
+         <height>16</height>
+        </size>
+       </property>
+       <property name="text">
+        <string/>
+       </property>
+       <property name="pixmap">
+        <pixmap resource="mainwindow.qrc">:/images/keyboard.svg</pixmap>
+       </property>
+       <property name="scaledContents">
+        <bool>true</bool>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QComboBox" name="keyboardLayoutComboBox">
+       <property name="sizePolicy">
+        <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
+         <horstretch>0</horstretch>
+         <verstretch>0</verstretch>
+        </sizepolicy>
+       </property>
+       <property name="toolTip">
+        <string>Select Keyboard Layout</string>
+       </property>
+       <item>
+        <property name="text">
+         <string>US QWERTY</string>
+        </property>
+       </item>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="ZoomInButton">
+       <property name="icon">
+        <iconset resource="mainwindow.qrc">
+         <normaloff>:/images/zoom_in.svg</normaloff>:/images/zoom_in.svg</iconset>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="ZoomOutButton">
+       <property name="icon">
+        <iconset resource="mainwindow.qrc">
+         <normaloff>:/images/zoom_out.svg</normaloff>:/images/zoom_out.svg</iconset>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="ZoomReductionButton">
+       <property name="icon">
+        <iconset resource="mainwindow.qrc">
+         <normaloff>:/images/zoom_fit.svg</normaloff>:/images/zoom_fit.svg</iconset>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="virtualKeyboardButton">
+       <property name="icon">
+        <iconset resource="mainwindow.qrc">
+         <normaloff>:/images/keyboard.svg</normaloff>:/images/keyboard.svg</iconset>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="captureButton">
+       <property name="icon">
+        <iconset resource="mainwindow.qrc">
+         <normaloff>:/images/capture.svg</normaloff>:/images/capture.svg</iconset>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="fullScreenButton">
+       <property name="icon">
+        <iconset resource="mainwindow.qrc">
+         <normaloff>:/images/full_screen.svg</normaloff>:/images/full_screen.svg</iconset>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="pasteButton">
+       <property name="icon">
+        <iconset resource="mainwindow.qrc">
+         <normaloff>:/images/paste.svg</normaloff>:/images/paste.svg</iconset>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="screensaverButton">
+       <property name="icon">
+        <iconset resource="mainwindow.qrc">
+         <normaloff>:/images/screensaver.svg</normaloff>:/images/screensaver.svg</iconset>
+       </property>
+       <property name="checkable">
+        <bool>true</bool>
+       </property>
+      </widget>
+     </item>
+    </layout>
+   </widget>
+   <widget class="QMenu" name="menuFile">
+    <property name="title">
+     <string>File</string>
+    </property>
+    <addaction name="separator"/>
+    <addaction name="actionPreferences"/>
+    <addaction name="actionExit"/>
+   </widget>
+   <widget class="QMenu" name="menuLanguages">
+     <property name="title">
+      <string>Languages</string>
+     </property>
+    </widget>
+   <widget class="QMenu" name="menuControl">
+    <property name="title">
+     <string>Control</string>
+    </property>
+    <widget class="QMenu" name="menuMouse_Mode">
+     <property name="title">
+      <string>Mouse Mode</string>
+     </property>
+     <addaction name="actionAbsolute"/>
+     <addaction name="actionRelative"/>
+    </widget>
+    <widget class="QMenu" name="menuMouse_Visibility">
+     <property name="title">
+      <string>Mouse Visibility</string>
+     </property>
+     <addaction name="actionMouseAutoHide"/>
+     <addaction name="actionMouseAlwaysShow"/>
+    </widget>
+    <widget class="QMenu" name="menuBaudrate">
+     <property name="title">
+      <string>Baudrate</string>
+     </property>
+     <addaction name="action9600"/>
+     <addaction name="action115200"/>
+    </widget>
+    <widget class="QMenu" name="menuSwitchable_USB">
+     <property name="title">
+      <string>Switchable USB</string>
+     </property>
+     <addaction name="actionTo_Host"/>
+     <addaction name="actionTo_Target"/>
+    </widget>
+    <addaction name="menuMouse_Mode"/>
+    <addaction name="menuMouse_Visibility"/>
+    <addaction name="menuSwitchable_USB"/>
+    <addaction name="menuBaudrate"/>
+    <addaction name="separator"/>
+   </widget>
+   <widget class="QMenu" name="menuHelp">
+    <property name="title">
+     <string>Help</string>
+    </property>
+    <addaction name="actionOfficeWeb"/>
+    <addaction name="actionPurchase"/>
+    <addaction name="actionFeedback"/>
+    <addaction name="actionUpdate"/>
+    <addaction name="actionEnvironment"/>
+    <addaction name="actionAbout"/>
+   </widget>
+   <widget class="QMenu" name="menuEdit">
+    <property name="title">
+     <string>Edit</string>
+    </property>
+    <addaction name="actionPaste"/>
+   </widget>
+   <widget class="QMenu" name="menuAdvance">
+    <property name="title">
+     <string>Advance</string>
+    </property>
+    <addaction name="actionEnvironmentSetup"/>
+    <addaction name="actionResetSerialPort"/>
+    <addaction name="actionResetHID"/>
+    <addaction name="actionFactory_reset_HID"/>
+    <addaction name="actionSerialConsole"/>
+    <addaction name="actionScriptTool"/>
+    <addaction name="actionTCPServer"/>
+    <addaction name="actionUpdateFirmware"/>
+   </widget>
+   <addaction name="menuFile"/>
+   <addaction name="menuEdit"/>
+   <addaction name="menuControl"/>
+   <addaction name="menuAdvance"/>
+   <addaction name="menuLanguages"/>
+   <addaction name="menuHelp"/>
+  </widget>
+  <widget class="QStatusBar" name="statusbar"/>
+  <action name="actionExit">
+   <property name="text">
+    <string>Close</string>
+   </property>
+  </action>
+  <action name="actionSettings">
+   <property name="text">
+    <string>Change Settings</string>
+   </property>
+  </action>
+  <action name="actionResetHID">
+   <property name="text">
+    <string>Reset Keyboard and Mouse</string>
+   </property>
+  </action>
+  <action name="actionResetSerialPort">
+   <property name="text">
+    <string>Reset Serial Port</string>
+   </property>
+  </action>
+  <action name="actionSerialConsole">
+   <property name="text">
+    <string>Serial Console</string>
+   </property>
+  </action>
+  <action name="actionAutoReszie">
+   <property name="text">
+    <string>AutoReszie</string>
+   </property>
+  </action>
+  <action name="actionFactory_reset_HID">
+   <property name="text">
+    <string>Factory Reset HID Chip</string>
+   </property>
+  </action>
+  <action name="actionPreferences">
+   <property name="text">
+    <string>Preferences</string>
+   </property>
+  </action>
+  <action name="actionOfficeWeb">
+   <property name="text">
+    <string>Office Website</string>
+   </property>
+  </action>
+  <action name="actionPurchase">
+   <property name="text">
+    <string>Purchase</string>
+   </property>
+  </action>
+  <action name="actionFeedback">
+   <property name="text">
+    <string>Feedback</string>
+   </property>
+  </action>
+  <action name="actionUpdate">
+   <property name="text">
+    <string>Update</string>
+   </property>
+  </action>
+  <action name="actionEnvironment">
+   <property name="text">
+    <string>Environment</string>
+   </property>
+  </action>
+  <action name="actionAbout">
+   <property name="text">
+    <string>About</string>
+   </property>
+  </action>
+  <action name="actionFollow_Switch">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="checked">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Follow Switch</string>
+   </property>
+  </action>
+  <action name="actionPaste">
+   <property name="checkable">
+    <bool>false</bool>
+   </property>
+   <property name="text">
+    <string>Paste</string>
+   </property>
+   <property name="toolTip">
+    <string>Paste clipboard content to target</string>
+   </property>
+  </action>
+  <action name="actionScriptTool">
+   <property name="text">
+    <string>Script Tool</string>
+   </property>
+  </action>
+  <action name="actionTCPServer">
+   <property name="text">
+    <string>TCP Server</string>
+   </property>
+  </action>
+  <action name="actionEnvironmentSetup">
+   <property name="text">
+    <string>Environment Checking</string>
+   </property>
+  </action>
+  <action name="actionUpdateFirmware">
+   <property name="text">
+    <string>Firmware Update...</string>
+   </property>
+  </action>
+  <actiongroup name="actionGroup">
+   <action name="action115200">
+    <property name="checkable">
+     <bool>true</bool>
+    </property>
+    <property name="text">
+     <string>115200</string>
+    </property>
+   </action>
+   <action name="action9600">
+    <property name="checkable">
+     <bool>true</bool>
+    </property>
+    <property name="text">
+     <string>9600</string>
+    </property>
+   </action>
+  </actiongroup>
+  <actiongroup name="actionSwitchableGroup">
+   <action name="actionTo_Host">
+    <property name="checkable">
+     <bool>true</bool>
+    </property>
+    <property name="text">
+     <string>To Host</string>
+    </property>
+   </action>
+   <action name="actionTo_Target">
+    <property name="checkable">
+     <bool>true</bool>
+    </property>
+    <property name="text">
+     <string>To Target</string>
+    </property>
+   </action>
+  </actiongroup>
+  <actiongroup name="actionMouseModeGroup">
+   <action name="actionAbsolute">
+    <property name="checkable">
+     <bool>true</bool>
+    </property>
+    <property name="checked">
+     <bool>true</bool>
+    </property>
+    <property name="text">
+     <string>Absolute</string>
+    </property>
+   </action>
+   <action name="actionRelative">
+    <property name="checkable">
+     <bool>true</bool>
+    </property>
+    <property name="text">
+     <string>Relative</string>
+    </property>
+   </action>
+  </actiongroup>
+  <actiongroup name="actionMouseVisibilityGroup">
+   <action name="actionMouseAutoHide">
+    <property name="checkable">
+     <bool>true</bool>
+    </property>
+    <property name="checked">
+     <bool>true</bool>
+    </property>
+    <property name="text">
+     <string>Auto Hide</string>
+    </property>
+    <property name="toolTip">
+     <string>Auto hide mouse cursor</string>
+    </property>
+   </action>
+   <action name="actionMouseAlwaysShow">
+    <property name="checkable">
+     <bool>true</bool>
+    </property>
+    <property name="text">
+     <string>Always Show</string>
+    </property>
+    <property name="toolTip">
+     <string>Always show mouse cursor</string>
+    </property>
+  </action>
+ </actiongroup>
+ </widget>
+ <resources>
+  <include location="mainwindow.qrc"/>
+ </resources>
+ <connections>
+  <connection>
+   <sender>actionExit</sender>
+   <signal>triggered()</signal>
+   <receiver>MainWindow</receiver>
+   <slot>close()</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>-1</x>
+     <y>-1</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>154</x>
+     <y>130</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>actionPreferences</sender>
+   <signal>triggered()</signal>
+   <receiver>MainWindow</receiver>
+   <slot>configureSettings()</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>-1</x>
+     <y>-1</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>639</x>
+     <y>380</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>actionOfficeWeb</sender>
+   <signal>triggered()</signal>
+   <receiver>MainWindow</receiver>
+   <slot>officialLink()</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>-1</x>
+     <y>-1</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>639</x>
+     <y>380</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>actionPurchase</sender>
+   <signal>triggered()</signal>
+   <receiver>MainWindow</receiver>
+   <slot>purchaseLink()</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>-1</x>
+     <y>-1</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>639</x>
+     <y>380</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>actionFeedback</sender>
+   <signal>triggered()</signal>
+   <receiver>MainWindow</receiver>
+   <slot>feedbackLink()</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>-1</x>
+     <y>-1</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>639</x>
+     <y>380</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>actionEnvironment</sender>
+   <signal>triggered()</signal>
+   <receiver>MainWindow</receiver>
+   <slot>versionInfo()</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>-1</x>
+     <y>-1</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>639</x>
+     <y>380</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>actionSerialConsole</sender>
+   <signal>triggered()</signal>
+   <receiver>MainWindow</receiver>
+   <slot>debugSerialPort()</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>-1</x>
+     <y>-1</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>639</x>
+     <y>380</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>actionUpdate</sender>
+   <signal>triggered()</signal>
+   <receiver>MainWindow</receiver>
+   <slot>updateLink()</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>-1</x>
+     <y>-1</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>639</x>
+     <y>380</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>actionAbout</sender>
+   <signal>triggered()</signal>
+   <receiver>MainWindow</receiver>
+   <slot>aboutLink()</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>-1</x>
+     <y>-1</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>639</x>
+     <y>380</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>actionScriptTool</sender>
+   <signal>triggered()</signal>
+   <receiver>MainWindow</receiver>
+   <slot>showScriptTool()</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>-1</x>
+     <y>-1</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>639</x>
+     <y>380</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>zoomComboBox</sender>
+   <signal>currentTextChanged(QString)</signal>
+   <receiver>MainWindow</receiver>
+   <slot>changeKeyboardLayout(QString)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>-1</x>
+     <y>-1</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>639</x>
+     <y>380</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>actionEnvironmentSetup</sender>
+   <signal>triggered()</signal>
+   <receiver>MainWindow</receiver>
+   <slot>showEnvironmentSetupDialog()</slot>
+  </connection>
+  <connection>
+   <sender>actionUpdateFirmware</sender>
+   <signal>triggered()</signal>
+   <receiver>MainWindow</receiver>
+   <slot>updateFirmware()</slot>
+  </connection>
+ </connections>
+ <slots>
+  <slot>record()</slot>
+  <slot>pause()</slot>
+  <slot>stop()</slot>
+  <slot>versionInfo()</slot>
+  <slot>purchaseLink()</slot>
+  <slot>aboutLink()</slot>
+  <slot>updateLink()</slot>
+  <slot>feedbackLink()</slot>
+  <slot>officialLink()</slot>
+  <slot>enablePreview(bool)</slot>
+  <slot>configureSettings()</slot>
+  <slot>debugSerialPort()</slot>
+  <slot>takeImage()</slot>
+  <slot>startCamera()</slot>
+  <slot>toggleLock()</slot>
+  <slot>setMuted(bool)</slot>
+  <slot>stopCamera()</slot>
+  <slot>setExposureCompensation(int)</slot>
+  <slot>showScriptTool()</slot>
+  <slot>changeKeyboardLayout(QString)</slot>
+  <slot>showEnvironmentSetupDialog()</slot>
+  <slot>updateFirmware()</slot>
+ </slots>
+</ui>
