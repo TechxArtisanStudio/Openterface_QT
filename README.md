@@ -75,7 +75,7 @@ sudo usermod -a -G dialout $USER
 
 ```bash
 # Setup the hidraw permission
-echo 'KERNEL== "hidraw*", SUBSYSTEM=="hidraw", MODE="0666"' | sudo tee /etc/udev/rules.d/51-openterface.rules 
+echo 'SUBSYSTEM=="usb", ATTRS{idVendor}=="534d", ATTRS{idProduct}=="2109", TAG+="uaccess"' | sudo tee /etc/udev/rules.d/51-openterface.rules 
 sudo udevadm control --reload-rules
 sudo udevadm trigger
 ```
@@ -123,7 +123,7 @@ sudo usermod -a -G dialout $USER
 sudo usermod -a -G uucp $USER
 
 # Setup the hidraw permission
-echo 'KERNEL== "hidraw*", SUBSYSTEM=="hidraw", MODE="0666"' | sudo tee /etc/udev/rules.d/51-openterface.rules 
+echo 'SUBSYSTEM=="usb", ATTRS{idVendor}=="534d", ATTRS{idProduct}=="2109", TAG+="uaccess"' | sudo tee /etc/udev/rules.d/51-openterface.rules 
 sudo udevadm control --reload-rules
 sudo udevadm trigger
 ```

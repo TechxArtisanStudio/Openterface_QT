@@ -82,12 +82,12 @@
         <translation>&lt;a href=&quot;#&quot;&gt;環境設定ドキュメント l&apos;environnement&lt;/a&gt;</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="91"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="100"/>
         <source> The driver is installed. No further action is required.</source>
         <translation> ドライバーがインストールされています。これ以上の操作は必要ありません。</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="93"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="102"/>
         <source> The driver is missing. Openterface Mini-KVM will install it automatically.</source>
         <translation> ドライバーが不足しています。Openterface Mini-KVMが自動的にインストールします。</translation>
     </message>
@@ -98,97 +98,97 @@
 </translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="96"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="105"/>
         <source> The device is not plugged in. Please plug it in and try again.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="117"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="126"/>
         <source>The following steps help you install the driver and add user to correct group. Current status:&lt;br&gt;</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="118"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="127"/>
         <source>‣ Driver Installed: </source>
         <translation>‣ ドライバーインストール済み: </translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="119"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="128"/>
         <source>‣ In Dialout Group: </source>
         <translation>‣ Dialoutグループに所属: </translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="120"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="129"/>
         <source>‣ HID Permission: </source>
         <translation>‣ HID権限: </translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="121"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="130"/>
         <source>‣ BRLTTY checking: </source>
         <translation>‣ BRLTTY確認: </translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="121"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="130"/>
         <source> (needs removal)</source>
         <translation> (削除が必要)</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="121"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="130"/>
         <source> (not running)</source>
         <translation> (実行中ではない)</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="167"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="176"/>
         <source>Select Destination Directory</source>
         <translation>保存先ディレクトリを選択</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="223"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="232"/>
         <source>Driver Installed: </source>
         <translation>ドライバーインストール済み: </translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="223"/>
-        <location filename="../../ui/advance/envdialog.cpp" line="224"/>
-        <location filename="../../ui/advance/envdialog.cpp" line="225"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="232"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="233"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="234"/>
         <source>Yes</source>
         <translation>はい</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="223"/>
-        <location filename="../../ui/advance/envdialog.cpp" line="224"/>
-        <location filename="../../ui/advance/envdialog.cpp" line="225"/>
-        <location filename="../../ui/advance/envdialog.cpp" line="226"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="232"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="233"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="234"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="235"/>
         <source>No</source>
         <translation>いいえ</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="224"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="233"/>
         <source>In Dialout Group: </source>
         <translation>Dialoutグループに所属: </translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="225"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="234"/>
         <source>HID Permission: </source>
         <translation>HID権限: </translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="226"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="235"/>
         <source>BRLTTY is Running: </source>
         <translation>BRLTTYが実行中: </translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="226"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="235"/>
         <source>Yes (needs removal)</source>
         <translation>はい (削除が必要)</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="235"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="244"/>
         <source>Restart Required</source>
         <translation>再起動が必要です</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="236"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="245"/>
         <source>The driver has been installed. A system restart and device re-plugging is required for the changes to take effect.
 
 Would you like to restart your computer now?</source>
@@ -197,12 +197,12 @@ Would you like to restart your computer now?</source>
 今すぐコンピュータを再起動しますか？</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="250"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="259"/>
         <source>Restart Later</source>
         <translation>後で再起動</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="251"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="260"/>
         <source>Please remember to restart your computer and re-plug the device for the driver to work properly.</source>
         <translation>ドライバーが正しく動作するように、コンピュータを再起動し、デバイスを再接続してください。</translation>
     </message>
@@ -689,12 +689,12 @@ Please try again after restarting the application.</source>
         <translation>&quot;%1&quot;をキャプチャしました</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1547"/>
+        <location filename="../../ui/mainwindow.cpp" line="1566"/>
         <source>Firmware Update</source>
         <translation>ファームウェア更新</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1548"/>
+        <location filename="../../ui/mainwindow.cpp" line="1567"/>
         <source>The firmware is up to date.
 Current version: </source>
         <translation type="unfinished"></translation>

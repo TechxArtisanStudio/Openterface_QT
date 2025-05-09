@@ -127,18 +127,16 @@ int main(int argc, char *argv[])
     qDebug() << "Show window now";
     app.setWindowIcon(QIcon("://images/icon_32.png"));
     
-    // Create config directory if it doesn't exist
-    QString keyboardConfigPath = QCoreApplication::applicationDirPath() + "/config/keyboards";
-    QDir keyboardConfigDir(keyboardConfigPath);
-    if (!keyboardConfigDir.exists()) {
-        QDir().mkpath(keyboardConfigDir.path());
-    }
-
-    QString languagesConfigPath = QCoreApplication::applicationDirPath() + "/config/languages";
-    QDir languagesConfigDir(languagesConfigPath);
-    if (!languagesConfigDir.exists()) {
-        QDir().mkpath(languagesConfigDir.path());
-    }
+    // Check if the environment is properly set up
+    if (EnvironmentSetupDialog::autoEnvironmentCheck() && !EnvironmentSetupDialog::checkEnvironmentSetup()) {
+        EnvironmentSetupDialog envDialog;
+        qDebug() << "Environment setup dialog opened";
+        if (envDialog.exec() == QDialog::Rejected) {
+            qDebug() << "Driver dialog rejected";
+            QApplication::quit(); // Quit the application if the dialog is rejected
+            return 0;
+        }
+    } 
     
     // load the settings
     qDebug() << "Loading settings";
@@ -147,18 +145,11 @@ int main(int argc, char *argv[])
     // onVideoSettingsChanged(GlobalVar::instance().getCaptureWidth(), GlobalVar::instance().getCaptureHeight());
     LogHandler::instance().enableLogStore();
 
-    // Load keyboard layouts from the build directory
+    // Load keyboard layouts from resource file
+    QString keyboardConfigPath = ":/config/keyboards";
     KeyboardLayoutManager::getInstance().loadLayouts(keyboardConfigPath);
     
-    // Check if the environment is properly set up
-    if (EnvironmentSetupDialog::autoEnvironmentCheck() && !EnvironmentSetupDialog::checkEnvironmentSetup()) {
-        EnvironmentSetupDialog envDialog;
-        if (envDialog.exec() == QDialog::Rejected) {
-            qDebug() << "Driver dialog rejected";
-            QApplication::quit(); // Quit the application if the dialog is rejected
-            return 0;
-        }
-    } 
+    
     // writeLog("Environment setup completed");
     LanguageManager languageManager(&app);
     languageManager.initialize("en");
