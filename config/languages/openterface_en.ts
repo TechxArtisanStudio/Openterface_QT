@@ -82,119 +82,119 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="91"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="100"/>
         <source> The driver is installed. No further action is required.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="93"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="102"/>
         <source> The driver is missing. Openterface Mini-KVM will install it automatically.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="96"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="105"/>
         <source> The device is not plugged in. Please plug it in and try again.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="117"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="126"/>
         <source>The following steps help you install the driver and add user to correct group. Current status:&lt;br&gt;</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="118"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="127"/>
         <source>‣ Driver Installed: </source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="119"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="128"/>
         <source>‣ In Dialout Group: </source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="120"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="129"/>
         <source>‣ HID Permission: </source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="121"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="130"/>
         <source>‣ BRLTTY checking: </source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="121"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="130"/>
         <source> (needs removal)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="121"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="130"/>
         <source> (not running)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="167"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="176"/>
         <source>Select Destination Directory</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="223"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="232"/>
         <source>Driver Installed: </source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="223"/>
-        <location filename="../../ui/advance/envdialog.cpp" line="224"/>
-        <location filename="../../ui/advance/envdialog.cpp" line="225"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="232"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="233"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="234"/>
         <source>Yes</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="223"/>
-        <location filename="../../ui/advance/envdialog.cpp" line="224"/>
-        <location filename="../../ui/advance/envdialog.cpp" line="225"/>
-        <location filename="../../ui/advance/envdialog.cpp" line="226"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="232"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="233"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="234"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="235"/>
         <source>No</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="224"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="233"/>
         <source>In Dialout Group: </source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="225"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="234"/>
         <source>HID Permission: </source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="226"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="235"/>
         <source>BRLTTY is Running: </source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="226"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="235"/>
         <source>Yes (needs removal)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="235"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="244"/>
         <source>Restart Required</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="236"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="245"/>
         <source>The driver has been installed. A system restart and device re-plugging is required for the changes to take effect.
 
 Would you like to restart your computer now?</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="250"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="259"/>
         <source>Restart Later</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="251"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="260"/>
         <source>Please remember to restart your computer and re-plug the device for the driver to work properly.</source>
         <translation type="unfinished"></translation>
     </message>

@@ -42,6 +42,7 @@ jobs:
     runs-on: windows-2022
     permissions:
       contents: write
+      actions: write
     environment: ${{ github.event.inputs.TARGET_ENV || 'Openterface_build' }}
     
     steps:
@@ -195,3 +196,19 @@ jobs:
           git push https://${{ env.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git HEAD:${{ github.ref }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        
+      - name: Trigger other workflows
+        if: success() && (github.event.inputs.increase_version == 'true' || github.event.inputs.increase_major == 'true' || github.event.inputs.increase_minor == 'true')
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const workflows = ['linux-portable-build.yaml', 'linux-build.yaml','windows-portable-build.yaml'];
+            for (const workflow of workflows) {
+              await github.rest.actions.createWorkflowDispatch({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                workflow_id: workflow,
+                ref: context.ref
+              });
+            }
