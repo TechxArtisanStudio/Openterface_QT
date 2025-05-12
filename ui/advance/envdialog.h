@@ -4,6 +4,7 @@
 #include <QDialog>
 #include <QCloseEvent>
 #include <libusb-1.0/libusb.h>
+#include "video/videohid.h"
 
 namespace Ui {
 class EnvironmentSetupDialog;
@@ -43,7 +44,9 @@ private:
     static bool isDriverInstalled;
     static const QString tickHtml;
     static const QString crossHtml;
+    static QString lastestFirewareDescription;
     static bool isDevicePlugged;
+    static bool lastestFirmware;
     // bool isDevicePlugged;
     
     static bool detectDevice(uint16_t vendorID, uint16_t productID);
