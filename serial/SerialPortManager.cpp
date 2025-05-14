@@ -71,29 +71,21 @@ void SerialPortManager::stop() {
         serialTimer->stop();
     }
 
-    if (serialThread) {
-        if (serialThread->isRunning()) {
-            serialThread->quit();
-            // Wait for up to 5 seconds for thread to finish
-            if (!serialThread->wait(5000)) {
-                qCWarning(log_core_serial) << "Thread did not terminate in time - forcing termination";
-                serialThread->terminate();
-                serialThread->wait();
-            }
+    if (serialThread && serialThread->isRunning()) {
+        closePort();
+        
+        serialThread->quit();
+
+        const int maxWaitTime = 10000; 
+        if (!serialThread->wait(maxWaitTime)) {
+            qCWarning(log_core_serial) << "Thread did not terminate within" << maxWaitTime << "ms - thread may be blocked";
         }
     }
 
-    closePort();
     qCDebug(log_core_serial) << "Serial port manager thread stopped";
 }
 
 void SerialPortManager::checkSerialPorts() {
-#ifdef __linux__
-    QList<QString> acceptedPorts = {"USB Serial", "USB2.0-Serial"};
-#elif _WIN32
-    QList<QString> acceptedPorts = {"USB-SERIAL CH340"};
-#endif
-    
     if(ready) return;
     
     QSet<QString> currentPorts;
@@ -108,15 +100,28 @@ void SerialPortManager::checkSerialPorts() {
             
         qCDebug(log_core_serial) << "Search port name" << port.portName() << "Manufacturer:" << port.manufacturer() 
                  << "VID:" << vidHex << "PID:" << pidHex;
-        if (acceptedPorts.contains(port.description())) {
+        
+        // Match specific VID:PID {0x1A86, 0x7523}
+        if (port.hasVendorIdentifier() && port.hasProductIdentifier() &&
+            port.vendorIdentifier() == 0x1A86 && port.productIdentifier() == 0x7523) {
             currentPorts.insert(port.portName());
-            qCDebug(log_core_serial) << "Matched port name" << port.portName();
+            qCDebug(log_core_serial) << "Matched port name" << port.portName() << "with VID:PID 0x1A86:0x7523";
+
+            if(serialPort == nullptr) {
+                qCDebug(log_core_serial) << "The serial port is nullptr create a new serial port instance";
+                emit serialPortConnected(port.portName());
+            }else if (!serialPort->isOpen()){
+                qCDebug(log_core_serial) << "The serial port is not open create a new serial port instance";
+                emit serialPortConnected(port.portName());
+            }
         }
     }
 
     // Detect newly connected ports
     for (const QString &portName : currentPorts) {
+        qCDebug(log_core_serial) << "Current port name:" << portName;
         if (!availablePorts.contains(portName)) {
+            qCDebug(log_core_serial) << "New port connected: " << portName;
             emit serialPortConnected(portName);
         }
     }
@@ -125,6 +130,7 @@ void SerialPortManager::checkSerialPorts() {
     for (auto it = availablePorts.constBegin(); it != availablePorts.constEnd(); ++it) {
         const QString &portName = *it;
         if (!currentPorts.contains(portName)) {
+            qCDebug(log_core_serial) << "Disconnect port: " << portName;
             emit serialPortDisconnected(portName);
         }
     }
@@ -177,16 +183,18 @@ void SerialPortManager::checkSerialPort() {
         if (isTargetUsbConnected){
             // Check target connection status when no data received in 3 seconds
             if (latestUpdateTime.secsTo(QDateTime::currentDateTime()) > 3) {
-                sendAsyncCommand(CMD_GET_INFO, false);
+                ready = sendAsyncCommand(CMD_GET_INFO, false);
             }
         }else {
             sendAsyncCommand(CMD_GET_INFO, false);
+            // ready = false;
         }
     }
 
     // If no data received in 5 seconds, check if any port disconnected
     // Because the connection will regularily check every 3 seconds, if not data received
     // is received, consider the port is disconnected or not working
+    sendSyncCommand(CMD_GET_INFO, false);
     if (latestUpdateTime.secsTo(QDateTime::currentDateTime()) > 5) {
         ready = false;
     }
@@ -198,7 +206,28 @@ void SerialPortManager::checkSerialPort() {
 void SerialPortManager::onSerialPortConnected(const QString &portName){
     // Use synchronous method to check the serial port
     qCDebug(log_core_serial) << "Serial port connected: " << portName << "baudrate:" << DEFAULT_BAUDRATE;
-    openPort(portName, DEFAULT_BAUDRATE);
+    // Check if the port was successfully opened
+    const int maxRetries = 2;
+    int retryCount = 0;
+    bool openSuccess = openPort(portName, DEFAULT_BAUDRATE);
+    while (retryCount < maxRetries && !openSuccess) {
+        qCWarning(log_core_serial) << "Failed to open serial port: " << portName;
+        // Check if the port is still open (in case of partial failure)
+        if (serialPort->isOpen()) {
+            qCDebug(log_core_serial) << "Port is still open, closing it before retry";
+            closePort();
+        }
+        QThread::msleep(500 * (retryCount + 1));
+        retryCount++;
+        // Retry opening the port
+        qCDebug(log_core_serial) << "Retrying to open serial port: " << portName << "baudrate:" << DEFAULT_BAUDRATE;
+        openSuccess = openPort(portName, DEFAULT_BAUDRATE);
+    }
+    if (!openSuccess) {
+        qCWarning(log_core_serial) << "Retry failed to open serial port: " << portName;
+        return; // Exit if retry also fails
+    }
+
     // send a command to get the parameter configuration with 115200 baudrate
     QByteArray retBtye = sendSyncCommand(CMD_GET_PARA_CFG, true);
     CmdDataParamConfig config;
@@ -209,6 +238,7 @@ void SerialPortManager::onSerialPortConnected(const QString &portName){
         config = CmdDataParamConfig::fromByteArray(retBtye);
         if(config.mode == mode){ 
             ready = true;
+            qCDebug(log_core_serial) << "Connect success with baudrate: " << DEFAULT_BAUDRATE << ready;
         } else { // the mode is not correct, need to re-config the chip
             qCWarning(log_core_serial) << "The mode is incorrect, mode:" << config.mode;
             resetHipChip();
@@ -244,8 +274,11 @@ void SerialPortManager::onSerialPortDisconnected(const QString &portName){
     if (ready) {
         closePort();
         availablePorts.remove(portName);
+        QThread::msleep(500);
     }
+    
 }
+
 
 /*
  * Serial port connection success, connect the data ready and bytes written signal
@@ -411,21 +444,25 @@ bool SerialPortManager::openPort(const QString &portName, int baudRate) {
  */
 void SerialPortManager::closePort() {
     qCDebug(log_core_serial) << "Close serial port";
-    if (serialPort != nullptr && serialPort->isOpen()) {
-        serialPort->flush();
-        serialPort->clear();
-        serialPort->clearError();
-        qCDebug(log_core_serial) << "Unregister obseration of the data ready";
-        disconnect(serialPort, &QSerialPort::readyRead, this, &SerialPortManager::readData);
-        disconnect(serialPort, &QSerialPort::bytesWritten, this, &SerialPortManager::bytesWritten);
-        serialPort->close();
+    if (serialPort != nullptr) {
+        if (serialPort->isOpen()) {
+            disconnect(serialPort, &QSerialPort::readyRead, this, &SerialPortManager::readData);
+            disconnect(serialPort, &QSerialPort::bytesWritten, this, &SerialPortManager::bytesWritten);
+            serialPort->flush();
+            serialPort->clear();
+            serialPort->clearError();
+            serialPort->close();
+        }
         delete serialPort;
         serialPort = nullptr;
-        ready=false;
-        if(eventCallback!=nullptr) eventCallback->onPortConnected("NA",0);
     } else {
         qCDebug(log_core_serial) << "Serial port is not opened.";
     }
+    ready = false;
+    if (eventCallback != nullptr) {
+        eventCallback->onPortConnected("NA", 0);
+    }
+    QThread::msleep(200);
 }
 
 bool SerialPortManager::restartPort() {
@@ -435,8 +472,8 @@ bool SerialPortManager::restartPort() {
     closePort();
     QThread::sleep(1);
     openPort(portName, baudRate);
-        onSerialPortConnected(portName);
-        return ready;
+    onSerialPortConnected(portName);
+    return ready;
 }
 
 
@@ -579,15 +616,20 @@ bool SerialPortManager::sendAsyncCommand(const QByteArray &data, bool force) {
 
     // Check if less than the configured delay has passed since the last command
     if (m_lastCommandTime.isValid() && m_lastCommandTime.elapsed() < m_commandDelayMs) {
-        // If less than the configured delay has passed, delay for the remaining time
-        QThread::usleep((m_commandDelayMs - m_lastCommandTime.elapsed()) * 1000);
+        // Calculate remaining delay time
+        int remainingDelay = m_commandDelayMs - m_lastCommandTime.elapsed();
+        
+        // Use QTimer::singleShot for non-blocking delay
+        QTimer::singleShot(remainingDelay, this, [this, command]() {
+            writeData(command);
+            m_lastCommandTime.start();
+        });
+        
+        return true;
     }
 
     bool result = writeData(command);
-
-    // Reset the timer after sending the command
     m_lastCommandTime.start();
-
     return result;
 }
 
