@@ -1,0 +1,108 @@
+name: Linux flatpak build
+
+on:
+  push:
+    branches: ["main"]
+    tags: ["v*"]
+  pull_request:
+    branches: ["dev"]
+  workflow_dispatch:
+
+env:
+  ARTIFACT: openterfaceQT
+  SOURCE_DIR: ${{ github.workspace }}
+  FLATPAK_MANIFEST: "com.openterface.openterfaceQT.yaml"
+  SOFTWERE_ID: "com.openterface.openterfaceQT"
+  FLATPAK_BUILD_DIR: "build-dir"
+  QT_VERSION: 6.4.2
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    strategy:
+      matrix:
+        arch: [x86_64, aarch64]
+    
+    steps:
+      
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install dependencies for aarch64
+        if: matrix.arch != 'x86_64'
+        run: |
+          sudo apt -y install docker
+
+      - name: Set up QEMU for aarch64
+        if: matrix.arch != 'x86_64'
+        uses: docker/setup-qemu-action@v2
+        with:
+          platforms: arm64
+
+      - name: Install flatpak
+        run: |
+          sudo apt update -y
+          sudo apt install -y flatpak flatpak-builder qemu-user-static
+          if [ "${{ matrix.arch }}" = "aarch64" ]; then
+            sudo apt install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
+          fi
+
+      - name: Add flatpak shared-modules
+        run: |
+          git submodule add https://github.com/flathub/shared-modules.git
+
+      - name: Read version from version.h
+        id: read_version
+        run: |
+          VERSION=$(grep -oP '#define APP_VERSION "\K[^"]+' resources/version.h)
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+
+      - name: Add Flathub repository and install kde
+        run: |
+          flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+          flatpak install --user --noninteractive flathub org.kde.Sdk/${{ matrix.arch }}/6.9
+          flatpak install --user --noninteractive flathub org.kde.Platform/${{ matrix.arch }}/6.9
+      
+      - name: Initialize build directory
+        run: |
+          flatpak build-init ${{ env.FLATPAK_BUILD_DIR }} ${{ env.SOFTWERE_ID }} org.kde.Sdk//6.9 org.kde.Platform//6.9 ${{ matrix.arch }}
+
+      - name: check configure script
+        run: |
+          ls -l .flatpak-builder/build/libusb-1 || true
+          file .flatpak-builder/build/libusb-1/configure || true
+
+      
+          
+      - name: Build Flatpak
+        run: |
+          flatpak-builder \
+            --user \
+            --install \
+            --force-clean \
+            --arch=${{ matrix.arch }} \
+            --subject="Build of ${{ env.ARTIFACT }} ${{ env.VERSION }}" \
+            ${{ env.FLATPAK_BUILD_DIR }} \
+            ${{ env.FLATPAK_MANIFEST }}
+        env:
+          # Ensure cross-compilation for aarch64
+          FLATPAK_ARCH: ${{ matrix.arch }}
+
+      - name: Export Flatpak Bundle
+        run: |
+          mkdir -p repo-${{ matrix.arch }}
+          flatpak build-export --arch=${{ matrix.arch }} repo-${{ matrix.arch }} ${{ env.FLATPAK_BUILD_DIR }}
+          flatpak build-bundle --arch=${{ matrix.arch }} repo-${{ matrix.arch }} ${{ env.SOFTWERE_ID }}-${{ matrix.arch }}.flatpak ${{ env.SOFTWERE_ID }}
+        env:
+          FLATPAK_ARCH: ${{ matrix.arch }}
+        
+      - name: Upload flatpak artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: openterfaceQT.${{ matrix.arch }}.flatpak
+          path: ${{ env.SOFTWERE_ID }}-${{ matrix.arch }}.flatpak
+
+          if-no-files-found: error

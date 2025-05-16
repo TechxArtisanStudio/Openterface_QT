@@ -1,0 +1,610 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Clazy Analysis Report</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            margin: 40px;
+            background-color: #f8f9fa;
+            color: #333;
+        }
+        h1 {
+            color: #2c3e50;
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 10px;
+        }
+        .container {
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .warning {
+            color: #856404;
+            background-color: #fff3cd;
+            padding: 10px;
+            margin: 5px 0;
+            border-radius: 4px;
+            border-left: 4px solid #ffeeba;
+        }
+        .error {
+            color: #721c24;
+            background-color: #f8d7da;
+            padding: 10px;
+            margin: 5px 0;
+            border-radius: 4px;
+            border-left: 4px solid #f5c6cb;
+        }
+        .info {
+            color: #0c5460;
+            background-color: #d1ecf1;
+            padding: 10px;
+            margin: 5px 0;
+            border-radius: 4px;
+            border-left: 4px solid #bee5eb;
+        }
+        .file {
+            font-weight: bold;
+            color: #2c3e50;
+        }
+        .line-num {
+            color: #e74c3c;
+            font-weight: bold;
+        }
+        pre {
+            margin: 0;
+            white-space: pre-wrap;
+            font-family: 'Consolas', 'Monaco', monospace;
+        }
+    </style>
+</head>
+<body>
+    <h1>Clazy Analysis Report</h1>
+    <div class="container">
+        <div class="info">In file included from /home/runner/work/Openterface_QT/Openterface_QT/video/ms2109.h:4:</div>
+<div class="info">     ^</div>
+<div class="info">In file included from /home/runner/work/Openterface_QT/Openterface_QT/video/ms2109.h:4:</div>
+<div class="info">inline constexpr bool qIsRelocatable =  std::is_trivially_copyable_v&lt;T&gt; &amp;&amp; std::is_trivially_destructible_v&lt;T&gt;;</div>
+<div class="info">^</div>
+<div class="info">inline constexpr bool qIsRelocatable =  std::is_trivially_copyable_v&lt;T&gt; &amp;&amp; std::is_trivially_destructible_v&lt;T&gt;;</div>
+<div class="info">                                        ~~~~~^~~~~~~~~~~~~~~~~~~~~~~</div>
+<div class="info">                                             is_trivially_copyable</div>
+<div class="info">/usr/bin/../lib/gcc/x86_64-linux-gnu/14/../../../../include/c++/14/type_traits:866:12: note: &#x27;is_trivially_copyable&#x27; declared here</div>
+<div class="info">    struct is_trivially_copyable</div>
+<div class="info">           ^</div>
+<div class="info">In file included from /home/runner/work/Openterface_QT/Openterface_QT/video/ms2109.h:4:</div>
+<div class="info">inline constexpr bool qIsRelocatable =  std::is_trivially_copyable_v&lt;T&gt; &amp;&amp; std::is_trivially_destructible_v&lt;T&gt;;</div>
+<div class="info">                                        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ ^</div>
+<div class="info">inline constexpr bool qIsRelocatable =  std::is_trivially_copyable_v&lt;T&gt; &amp;&amp; std::is_trivially_destructible_v&lt;T&gt;;</div>
+<div class="info">                                                                           ~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~</div>
+<div class="info">                                                                                is_trivially_destructible</div>
+<div class="info">/usr/bin/../lib/gcc/x86_64-linux-gnu/14/../../../../include/c++/14/type_traits:1405:12: note: &#x27;is_trivially_destructible&#x27; declared here</div>
+<div class="info">    struct is_trivially_destructible</div>
+<div class="info">           ^</div>
+<div class="info">In file included from /home/runner/work/Openterface_QT/Openterface_QT/video/ms2109.h:4:</div>
+<div class="info">inline constexpr bool qIsRelocatable =  std::is_trivially_copyable_v&lt;T&gt; &amp;&amp; std::is_trivially_destructible_v&lt;T&gt;;</div>
+<div class="info">                                                                           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^</div>
+<div class="info">inline constexpr bool qIsValueInitializationBitwiseZero =</div>
+<div class="info">^</div>
+<div class="info">        std::is_scalar_v&lt;T&gt; &amp;&amp; !std::is_member_object_pointer_v&lt;T&gt;;</div>
+<div class="info">        ~~~~~^~~~~~~~~~~</div>
+<div class="info">             is_scalar</div>
+<div class="info">/usr/bin/../lib/gcc/x86_64-linux-gnu/14/../../../../include/c++/14/type_traits:746:12: note: &#x27;is_scalar&#x27; declared here</div>
+<div class="info">    struct is_scalar</div>
+<div class="info">           ^</div>
+<div class="info">In file included from /home/runner/work/Openterface_QT/Openterface_QT/video/ms2109.h:4:</div>
+<div class="info">        std::is_scalar_v&lt;T&gt; &amp;&amp; !std::is_member_object_pointer_v&lt;T&gt;;</div>
+<div class="info">        ~~~~~~~~~~~~~~~~~~~ ^</div>
+<div class="info">        std::is_scalar_v&lt;T&gt; &amp;&amp; !std::is_member_object_pointer_v&lt;T&gt;;</div>
+<div class="info">                                ~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~</div>
+<div class="info">                                     is_member_object_pointer</div>
+<div class="info">/usr/bin/../lib/gcc/x86_64-linux-gnu/14/../../../../include/c++/14/type_traits:580:12: note: &#x27;is_member_object_pointer&#x27; declared here</div>
+<div class="info">    struct is_member_object_pointer</div>
+<div class="info">           ^</div>
+<div class="info">In file included from /home/runner/work/Openterface_QT/Openterface_QT/video/ms2109.h:4:</div>
+<div class="info">        std::is_scalar_v&lt;T&gt; &amp;&amp; !std::is_member_object_pointer_v&lt;T&gt;;</div>
+<div class="info">                                ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^</div>
+<div class="info">        isPointer = std::is_pointer_v&lt;T&gt;,</div>
+<div class="info">                    ~~~~~^~~~~~~~~~~~</div>
+<div class="info">                         is_pointer</div>
+<div class="info">/usr/bin/../lib/gcc/x86_64-linux-gnu/14/../../../../include/c++/14/type_traits:555:12: note: &#x27;is_pointer&#x27; declared here</div>
+<div class="info">    struct is_pointer</div>
+<div class="info">           ^</div>
+<div class="info">In file included from /home/runner/work/Openterface_QT/Openterface_QT/video/ms2109.h:4:</div>
+<div class="info">        isPointer = std::is_pointer_v&lt;T&gt;,</div>
+<div class="info">                    ~~~~~~~~~~~~~~~~~~~~^</div>
+<div class="info">        isIntegral = std::is_integral_v&lt;T&gt;,</div>
+<div class="info">                     ~~~~~^~~~~~~~~~~~~</div>
+<div class="info">                          is_integral</div>
+<div class="info">/usr/bin/../lib/gcc/x86_64-linux-gnu/14/../../../../include/c++/14/type_traits:461:12: note: &#x27;is_integral&#x27; declared here</div>
+<div class="info">    struct is_integral</div>
+<div class="info">           ^</div>
+<div class="info">In file included from /home/runner/work/Openterface_QT/Openterface_QT/video/ms2109.h:4:</div>
+<div class="info">        isIntegral = std::is_integral_v&lt;T&gt;,</div>
+<div class="info">                     ~~~~~~~~~~~~~~~~~~~~~^</div>
+<div class="info">        isComplex = !std::is_trivial_v&lt;T&gt;,</div>
+<div class="info">                     ~~~~~^~~~~~~~~~~~</div>
+<div class="info">                          is_trivial</div>
+<div class="info">/usr/bin/../lib/gcc/x86_64-linux-gnu/14/../../../../include/c++/14/type_traits:857:12: note: &#x27;is_trivial&#x27; declared here</div>
+<div class="info">    struct is_trivial</div>
+<div class="info">           ^</div>
+<div class="info">In file included from /home/runner/work/Openterface_QT/Openterface_QT/video/ms2109.h:4:</div>
+<div class="info">        isComplex = !std::is_trivial_v&lt;T&gt;,</div>
+<div class="info">                     ~~~~~~~~~~~~~~~~~~~~^</div>
+<div class="info">    static_assert(sizeof...(Ts) &gt; 0);</div>
+<div class="info">                                   ^</div>
+<div class="info">                                   , &quot;&quot;</div>
+<div class="info">    static constexpr bool isComplex = ((QTypeInfo&lt;Ts&gt;::isComplex) || ...);</div>
+<div class="info">                                                                     ^</div>
+<div class="info">    static constexpr bool isRelocatable = ((QTypeInfo&lt;Ts&gt;::isRelocatable) &amp;&amp; ...);</div>
+<div class="info">                                                                             ^</div>
+<div class="info">Q_DECLARE_TYPEINFO_BODY(QFlags&lt;T&gt;, Q_PRIMITIVE_TYPE);</div>
+<div class="info">^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~</div>
+<div class="info">        isComplex = (((FLAGS) &amp; Q_PRIMITIVE_TYPE) == 0) &amp;&amp; !std::is_trivial_v&lt;TYPE&gt;, \</div>
+<div class="info">                                                            ~~~~~^</div>
+<div class="info">/usr/bin/../lib/gcc/x86_64-linux-gnu/14/../../../../include/c++/14/type_traits:857:12: note: &#x27;is_trivial&#x27; declared here</div>
+<div class="info">    struct is_trivial</div>
+<div class="info">           ^</div>
+<div class="info">In file included from /home/runner/work/Openterface_QT/Openterface_QT/video/ms2109.h:4:</div>
+<div class="info">Q_DECLARE_TYPEINFO_BODY(QFlags&lt;T&gt;, Q_PRIMITIVE_TYPE);</div>
+<div class="info">^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~</div>
+<div class="info">        isComplex = (((FLAGS) &amp; Q_PRIMITIVE_TYPE) == 0) &amp;&amp; !std::is_trivial_v&lt;TYPE&gt;, \</div>
+<div class="info">                                                            ~~~~~~~~~~~~~~~~~~~~~~~^</div>
+<div class="info">Q_DECLARE_TYPEINFO_BODY(QFlags&lt;T&gt;, Q_PRIMITIVE_TYPE);</div>
+<div class="info">^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~</div>
+<div class="info">        isPointer = std::is_pointer_v&lt; TYPE &gt;, \</div>
+<div class="info">                    ~~~~~^</div>
+<div class="info">/usr/bin/../lib/gcc/x86_64-linux-gnu/14/../../../../include/c++/14/type_traits:555:12: note: &#x27;is_pointer&#x27; declared here</div>
+<div class="info">    struct is_pointer</div>
+<div class="info">           ^</div>
+<div class="info">In file included from /home/runner/work/Openterface_QT/Openterface_QT/video/ms2109.h:4:</div>
+<div class="info">Q_DECLARE_TYPEINFO_BODY(QFlags&lt;T&gt;, Q_PRIMITIVE_TYPE);</div>
+<div class="info">^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~</div>
+<div class="info">        isPointer = std::is_pointer_v&lt; TYPE &gt;, \</div>
+<div class="info">                    ~~~~~~~~~~~~~~~~~~~~~~~~~^</div>
+<div class="error">fatal error: too many errors emitted, stopping now [-ferror-limit=]</div>
+<div class="info">5 warnings and 20 errors generated.</div>
+<div class="info">Error while processing /home/runner/work/Openterface_QT/Openterface_QT/video/ms2109.h.</div>
+<div class="info">In file included from /home/runner/work/Openterface_QT/Openterface_QT/video/firmwarewriter.h:4:</div>
+<div class="info">     ^</div>
+<div class="info">In file included from /home/runner/work/Openterface_QT/Openterface_QT/video/firmwarewriter.h:4:</div>
+<div class="info">inline constexpr bool qIsRelocatable =  std::is_trivially_copyable_v&lt;T&gt; &amp;&amp; std::is_trivially_destructible_v&lt;T&gt;;</div>
+<div class="info">^</div>
+<div class="info">inline constexpr bool qIsRelocatable =  std::is_trivially_copyable_v&lt;T&gt; &amp;&amp; std::is_trivially_destructible_v&lt;T&gt;;</div>
+<div class="info">                                        ~~~~~^~~~~~~~~~~~~~~~~~~~~~~</div>
+<div class="info">                                             is_trivially_copyable</div>
+<div class="info">/usr/bin/../lib/gcc/x86_64-linux-gnu/14/../../../../include/c++/14/type_traits:866:12: note: &#x27;is_trivially_copyable&#x27; declared here</div>
+<div class="info">    struct is_trivially_copyable</div>
+<div class="info">           ^</div>
+<div class="info">In file included from /home/runner/work/Openterface_QT/Openterface_QT/video/firmwarewriter.h:4:</div>
+<div class="info">inline constexpr bool qIsRelocatable =  std::is_trivially_copyable_v&lt;T&gt; &amp;&amp; std::is_trivially_destructible_v&lt;T&gt;;</div>
+<div class="info">                                        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ ^</div>
+<div class="info">inline constexpr bool qIsRelocatable =  std::is_trivially_copyable_v&lt;T&gt; &amp;&amp; std::is_trivially_destructible_v&lt;T&gt;;</div>
+<div class="info">                                                                           ~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~</div>
+<div class="info">                                                                                is_trivially_destructible</div>
+<div class="info">/usr/bin/../lib/gcc/x86_64-linux-gnu/14/../../../../include/c++/14/type_traits:1405:12: note: &#x27;is_trivially_destructible&#x27; declared here</div>
+<div class="info">    struct is_trivially_destructible</div>
+<div class="info">           ^</div>
+<div class="info">In file included from /home/runner/work/Openterface_QT/Openterface_QT/video/firmwarewriter.h:4:</div>
+<div class="info">inline constexpr bool qIsRelocatable =  std::is_trivially_copyable_v&lt;T&gt; &amp;&amp; std::is_trivially_destructible_v&lt;T&gt;;</div>
+<div class="info">                                                                           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^</div>
+<div class="info">inline constexpr bool qIsValueInitializationBitwiseZero =</div>
+<div class="info">^</div>
+<div class="info">        std::is_scalar_v&lt;T&gt; &amp;&amp; !std::is_member_object_pointer_v&lt;T&gt;;</div>
+<div class="info">        ~~~~~^~~~~~~~~~~</div>
+<div class="info">             is_scalar</div>
+<div class="info">/usr/bin/../lib/gcc/x86_64-linux-gnu/14/../../../../include/c++/14/type_traits:746:12: note: &#x27;is_scalar&#x27; declared here</div>
+<div class="info">    struct is_scalar</div>
+<div class="info">           ^</div>
+<div class="info">In file included from /home/runner/work/Openterface_QT/Openterface_QT/video/firmwarewriter.h:4:</div>
+<div class="info">        std::is_scalar_v&lt;T&gt; &amp;&amp; !std::is_member_object_pointer_v&lt;T&gt;;</div>
+<div class="info">        ~~~~~~~~~~~~~~~~~~~ ^</div>
+<div class="info">        std::is_scalar_v&lt;T&gt; &amp;&amp; !std::is_member_object_pointer_v&lt;T&gt;;</div>
+<div class="info">                                ~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~</div>
+<div class="info">                                     is_member_object_pointer</div>
+<div class="info">/usr/bin/../lib/gcc/x86_64-linux-gnu/14/../../../../include/c++/14/type_traits:580:12: note: &#x27;is_member_object_pointer&#x27; declared here</div>
+<div class="info">    struct is_member_object_pointer</div>
+<div class="info">           ^</div>
+<div class="info">In file included from /home/runner/work/Openterface_QT/Openterface_QT/video/firmwarewriter.h:4:</div>
+<div class="info">        std::is_scalar_v&lt;T&gt; &amp;&amp; !std::is_member_object_pointer_v&lt;T&gt;;</div>
+<div class="info">                                ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^</div>
+<div class="info">        isPointer = std::is_pointer_v&lt;T&gt;,</div>
+<div class="info">                    ~~~~~^~~~~~~~~~~~</div>
+<div class="info">                         is_pointer</div>
+<div class="info">/usr/bin/../lib/gcc/x86_64-linux-gnu/14/../../../../include/c++/14/type_traits:555:12: note: &#x27;is_pointer&#x27; declared here</div>
+<div class="info">    struct is_pointer</div>
+<div class="info">           ^</div>
+<div class="info">In file included from /home/runner/work/Openterface_QT/Openterface_QT/video/firmwarewriter.h:4:</div>
+<div class="info">        isPointer = std::is_pointer_v&lt;T&gt;,</div>
+<div class="info">                    ~~~~~~~~~~~~~~~~~~~~^</div>
+<div class="info">        isIntegral = std::is_integral_v&lt;T&gt;,</div>
+<div class="info">                     ~~~~~^~~~~~~~~~~~~</div>
+<div class="info">                          is_integral</div>
+<div class="info">/usr/bin/../lib/gcc/x86_64-linux-gnu/14/../../../../include/c++/14/type_traits:461:12: note: &#x27;is_integral&#x27; declared here</div>
+<div class="info">    struct is_integral</div>
+<div class="info">           ^</div>
+<div class="info">In file included from /home/runner/work/Openterface_QT/Openterface_QT/video/firmwarewriter.h:4:</div>
+<div class="info">        isIntegral = std::is_integral_v&lt;T&gt;,</div>
+<div class="info">                     ~~~~~~~~~~~~~~~~~~~~~^</div>
+<div class="info">        isComplex = !std::is_trivial_v&lt;T&gt;,</div>
+<div class="info">                     ~~~~~^~~~~~~~~~~~</div>
+<div class="info">                          is_trivial</div>
+<div class="info">/usr/bin/../lib/gcc/x86_64-linux-gnu/14/../../../../include/c++/14/type_traits:857:12: note: &#x27;is_trivial&#x27; declared here</div>
+<div class="info">    struct is_trivial</div>
+<div class="info">           ^</div>
+<div class="info">In file included from /home/runner/work/Openterface_QT/Openterface_QT/video/firmwarewriter.h:4:</div>
+<div class="info">        isComplex = !std::is_trivial_v&lt;T&gt;,</div>
+<div class="info">                     ~~~~~~~~~~~~~~~~~~~~^</div>
+<div class="info">    static_assert(sizeof...(Ts) &gt; 0);</div>
+<div class="info">                                   ^</div>
+<div class="info">                                   , &quot;&quot;</div>
+<div class="info">    static constexpr bool isComplex = ((QTypeInfo&lt;Ts&gt;::isComplex) || ...);</div>
+<div class="info">                                                                     ^</div>
+<div class="info">    static constexpr bool isRelocatable = ((QTypeInfo&lt;Ts&gt;::isRelocatable) &amp;&amp; ...);</div>
+<div class="info">                                                                             ^</div>
+<div class="info">Q_DECLARE_TYPEINFO_BODY(QFlags&lt;T&gt;, Q_PRIMITIVE_TYPE);</div>
+<div class="info">^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~</div>
+<div class="info">        isComplex = (((FLAGS) &amp; Q_PRIMITIVE_TYPE) == 0) &amp;&amp; !std::is_trivial_v&lt;TYPE&gt;, \</div>
+<div class="info">                                                            ~~~~~^</div>
+<div class="info">/usr/bin/../lib/gcc/x86_64-linux-gnu/14/../../../../include/c++/14/type_traits:857:12: note: &#x27;is_trivial&#x27; declared here</div>
+<div class="info">    struct is_trivial</div>
+<div class="info">           ^</div>
+<div class="info">In file included from /home/runner/work/Openterface_QT/Openterface_QT/video/firmwarewriter.h:4:</div>
+<div class="info">Q_DECLARE_TYPEINFO_BODY(QFlags&lt;T&gt;, Q_PRIMITIVE_TYPE);</div>
+<div class="info">^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~</div>
+<div class="info">        isComplex = (((FLAGS) &amp; Q_PRIMITIVE_TYPE) == 0) &amp;&amp; !std::is_trivial_v&lt;TYPE&gt;, \</div>
+<div class="info">                                                            ~~~~~~~~~~~~~~~~~~~~~~~^</div>
+<div class="info">Q_DECLARE_TYPEINFO_BODY(QFlags&lt;T&gt;, Q_PRIMITIVE_TYPE);</div>
+<div class="info">^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~</div>
+<div class="info">        isPointer = std::is_pointer_v&lt; TYPE &gt;, \</div>
+<div class="info">                    ~~~~~^</div>
+<div class="info">/usr/bin/../lib/gcc/x86_64-linux-gnu/14/../../../../include/c++/14/type_traits:555:12: note: &#x27;is_pointer&#x27; declared here</div>
+<div class="info">    struct is_pointer</div>
+<div class="info">           ^</div>
+<div class="info">In file included from /home/runner/work/Openterface_QT/Openterface_QT/video/firmwarewriter.h:4:</div>
+<div class="info">Q_DECLARE_TYPEINFO_BODY(QFlags&lt;T&gt;, Q_PRIMITIVE_TYPE);</div>
+<div class="info">^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~</div>
+<div class="info">        isPointer = std::is_pointer_v&lt; TYPE &gt;, \</div>
+<div class="info">                    ~~~~~~~~~~~~~~~~~~~~~~~~~^</div>
+<div class="error">fatal error: too many errors emitted, stopping now [-ferror-limit=]</div>
+<div class="info">5 warnings and 20 errors generated.</div>
+<div class="info">Error while processing /home/runner/work/Openterface_QT/Openterface_QT/video/firmwarewriter.h.</div>
+<div class="info">In file included from ../video/firmwarewriter.cpp:1:</div>
+<div class="info">In file included from ../video/firmwarewriter.h:4:</div>
+<div class="info">     ^</div>
+<div class="info">In file included from ../video/firmwarewriter.cpp:1:</div>
+<div class="info">In file included from ../video/firmwarewriter.h:4:</div>
+<div class="info">inline constexpr bool qIsRelocatable =  std::is_trivially_copyable_v&lt;T&gt; &amp;&amp; std::is_trivially_destructible_v&lt;T&gt;;</div>
+<div class="info">^</div>
+<div class="info">inline constexpr bool qIsRelocatable =  std::is_trivially_copyable_v&lt;T&gt; &amp;&amp; std::is_trivially_destructible_v&lt;T&gt;;</div>
+<div class="info">                                        ~~~~~^~~~~~~~~~~~~~~~~~~~~~~</div>
+<div class="info">                                             is_trivially_copyable</div>
+<div class="info">/usr/bin/../lib/gcc/x86_64-linux-gnu/14/../../../../include/c++/14/type_traits:866:12: note: &#x27;is_trivially_copyable&#x27; declared here</div>
+<div class="info">    struct is_trivially_copyable</div>
+<div class="info">           ^</div>
+<div class="info">In file included from ../video/firmwarewriter.cpp:1:</div>
+<div class="info">In file included from ../video/firmwarewriter.h:4:</div>
+<div class="info">inline constexpr bool qIsRelocatable =  std::is_trivially_copyable_v&lt;T&gt; &amp;&amp; std::is_trivially_destructible_v&lt;T&gt;;</div>
+<div class="info">                                        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ ^</div>
+<div class="info">inline constexpr bool qIsRelocatable =  std::is_trivially_copyable_v&lt;T&gt; &amp;&amp; std::is_trivially_destructible_v&lt;T&gt;;</div>
+<div class="info">                                                                           ~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~</div>
+<div class="info">                                                                                is_trivially_destructible</div>
+<div class="info">/usr/bin/../lib/gcc/x86_64-linux-gnu/14/../../../../include/c++/14/type_traits:1405:12: note: &#x27;is_trivially_destructible&#x27; declared here</div>
+<div class="info">    struct is_trivially_destructible</div>
+<div class="info">           ^</div>
+<div class="info">In file included from ../video/firmwarewriter.cpp:1:</div>
+<div class="info">In file included from ../video/firmwarewriter.h:4:</div>
+<div class="info">inline constexpr bool qIsRelocatable =  std::is_trivially_copyable_v&lt;T&gt; &amp;&amp; std::is_trivially_destructible_v&lt;T&gt;;</div>
+<div class="info">                                                                           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^</div>
+<div class="info">inline constexpr bool qIsValueInitializationBitwiseZero =</div>
+<div class="info">^</div>
+<div class="info">        std::is_scalar_v&lt;T&gt; &amp;&amp; !std::is_member_object_pointer_v&lt;T&gt;;</div>
+<div class="info">        ~~~~~^~~~~~~~~~~</div>
+<div class="info">             is_scalar</div>
+<div class="info">/usr/bin/../lib/gcc/x86_64-linux-gnu/14/../../../../include/c++/14/type_traits:746:12: note: &#x27;is_scalar&#x27; declared here</div>
+<div class="info">    struct is_scalar</div>
+<div class="info">           ^</div>
+<div class="info">In file included from ../video/firmwarewriter.cpp:1:</div>
+<div class="info">In file included from ../video/firmwarewriter.h:4:</div>
+<div class="info">        std::is_scalar_v&lt;T&gt; &amp;&amp; !std::is_member_object_pointer_v&lt;T&gt;;</div>
+<div class="info">        ~~~~~~~~~~~~~~~~~~~ ^</div>
+<div class="info">        std::is_scalar_v&lt;T&gt; &amp;&amp; !std::is_member_object_pointer_v&lt;T&gt;;</div>
+<div class="info">                                ~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~</div>
+<div class="info">                                     is_member_object_pointer</div>
+<div class="info">/usr/bin/../lib/gcc/x86_64-linux-gnu/14/../../../../include/c++/14/type_traits:580:12: note: &#x27;is_member_object_pointer&#x27; declared here</div>
+<div class="info">    struct is_member_object_pointer</div>
+<div class="info">           ^</div>
+<div class="info">In file included from ../video/firmwarewriter.cpp:1:</div>
+<div class="info">In file included from ../video/firmwarewriter.h:4:</div>
+<div class="info">        std::is_scalar_v&lt;T&gt; &amp;&amp; !std::is_member_object_pointer_v&lt;T&gt;;</div>
+<div class="info">                                ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^</div>
+<div class="info">        isPointer = std::is_pointer_v&lt;T&gt;,</div>
+<div class="info">                    ~~~~~^~~~~~~~~~~~</div>
+<div class="info">                         is_pointer</div>
+<div class="info">/usr/bin/../lib/gcc/x86_64-linux-gnu/14/../../../../include/c++/14/type_traits:555:12: note: &#x27;is_pointer&#x27; declared here</div>
+<div class="info">    struct is_pointer</div>
+<div class="info">           ^</div>
+<div class="info">In file included from ../video/firmwarewriter.cpp:1:</div>
+<div class="info">In file included from ../video/firmwarewriter.h:4:</div>
+<div class="info">        isPointer = std::is_pointer_v&lt;T&gt;,</div>
+<div class="info">                    ~~~~~~~~~~~~~~~~~~~~^</div>
+<div class="info">        isIntegral = std::is_integral_v&lt;T&gt;,</div>
+<div class="info">                     ~~~~~^~~~~~~~~~~~~</div>
+<div class="info">                          is_integral</div>
+<div class="info">/usr/bin/../lib/gcc/x86_64-linux-gnu/14/../../../../include/c++/14/type_traits:461:12: note: &#x27;is_integral&#x27; declared here</div>
+<div class="info">    struct is_integral</div>
+<div class="info">           ^</div>
+<div class="info">In file included from ../video/firmwarewriter.cpp:1:</div>
+<div class="info">In file included from ../video/firmwarewriter.h:4:</div>
+<div class="info">        isIntegral = std::is_integral_v&lt;T&gt;,</div>
+<div class="info">                     ~~~~~~~~~~~~~~~~~~~~~^</div>
+<div class="info">        isComplex = !std::is_trivial_v&lt;T&gt;,</div>
+<div class="info">                     ~~~~~^~~~~~~~~~~~</div>
+<div class="info">                          is_trivial</div>
+<div class="info">/usr/bin/../lib/gcc/x86_64-linux-gnu/14/../../../../include/c++/14/type_traits:857:12: note: &#x27;is_trivial&#x27; declared here</div>
+<div class="info">    struct is_trivial</div>
+<div class="info">           ^</div>
+<div class="info">In file included from ../video/firmwarewriter.cpp:1:</div>
+<div class="info">In file included from ../video/firmwarewriter.h:4:</div>
+<div class="info">        isComplex = !std::is_trivial_v&lt;T&gt;,</div>
+<div class="info">                     ~~~~~~~~~~~~~~~~~~~~^</div>
+<div class="info">    static_assert(sizeof...(Ts) &gt; 0);</div>
+<div class="info">                                   ^</div>
+<div class="info">                                   , &quot;&quot;</div>
+<div class="info">    static constexpr bool isComplex = ((QTypeInfo&lt;Ts&gt;::isComplex) || ...);</div>
+<div class="info">                                                                     ^</div>
+<div class="info">    static constexpr bool isRelocatable = ((QTypeInfo&lt;Ts&gt;::isRelocatable) &amp;&amp; ...);</div>
+<div class="info">                                                                             ^</div>
+<div class="info">Q_DECLARE_TYPEINFO_BODY(QFlags&lt;T&gt;, Q_PRIMITIVE_TYPE);</div>
+<div class="info">^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~</div>
+<div class="info">        isComplex = (((FLAGS) &amp; Q_PRIMITIVE_TYPE) == 0) &amp;&amp; !std::is_trivial_v&lt;TYPE&gt;, \</div>
+<div class="info">                                                            ~~~~~^</div>
+<div class="info">/usr/bin/../lib/gcc/x86_64-linux-gnu/14/../../../../include/c++/14/type_traits:857:12: note: &#x27;is_trivial&#x27; declared here</div>
+<div class="info">    struct is_trivial</div>
+<div class="info">           ^</div>
+<div class="info">In file included from ../video/firmwarewriter.cpp:1:</div>
+<div class="info">In file included from ../video/firmwarewriter.h:4:</div>
+<div class="info">Q_DECLARE_TYPEINFO_BODY(QFlags&lt;T&gt;, Q_PRIMITIVE_TYPE);</div>
+<div class="info">^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~</div>
+<div class="info">        isComplex = (((FLAGS) &amp; Q_PRIMITIVE_TYPE) == 0) &amp;&amp; !std::is_trivial_v&lt;TYPE&gt;, \</div>
+<div class="info">                                                            ~~~~~~~~~~~~~~~~~~~~~~~^</div>
+<div class="info">Q_DECLARE_TYPEINFO_BODY(QFlags&lt;T&gt;, Q_PRIMITIVE_TYPE);</div>
+<div class="info">^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~</div>
+<div class="info">        isPointer = std::is_pointer_v&lt; TYPE &gt;, \</div>
+<div class="info">                    ~~~~~^</div>
+<div class="info">/usr/bin/../lib/gcc/x86_64-linux-gnu/14/../../../../include/c++/14/type_traits:555:12: note: &#x27;is_pointer&#x27; declared here</div>
+<div class="info">    struct is_pointer</div>
+<div class="info">           ^</div>
+<div class="info">In file included from ../video/firmwarewriter.cpp:1:</div>
+<div class="info">In file included from ../video/firmwarewriter.h:4:</div>
+<div class="info">Q_DECLARE_TYPEINFO_BODY(QFlags&lt;T&gt;, Q_PRIMITIVE_TYPE);</div>
+<div class="info">^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~</div>
+<div class="info">        isPointer = std::is_pointer_v&lt; TYPE &gt;, \</div>
+<div class="info">                    ~~~~~~~~~~~~~~~~~~~~~~~~~^</div>
+<div class="error">fatal error: too many errors emitted, stopping now [-ferror-limit=]</div>
+<div class="info">5 warnings and 20 errors generated.</div>
+<div class="info">Error while processing /home/runner/work/Openterface_QT/Openterface_QT/video/firmwarewriter.cpp.</div>
+<div class="info">In file included from /home/runner/work/Openterface_QT/Openterface_QT/video/videohid.h:4:</div>
+<div class="info">     ^</div>
+<div class="info">In file included from /home/runner/work/Openterface_QT/Openterface_QT/video/videohid.h:4:</div>
+<div class="info">inline constexpr bool qIsRelocatable =  std::is_trivially_copyable_v&lt;T&gt; &amp;&amp; std::is_trivially_destructible_v&lt;T&gt;;</div>
+<div class="info">^</div>
+<div class="info">inline constexpr bool qIsRelocatable =  std::is_trivially_copyable_v&lt;T&gt; &amp;&amp; std::is_trivially_destructible_v&lt;T&gt;;</div>
+<div class="info">                                        ~~~~~^~~~~~~~~~~~~~~~~~~~~~~</div>
+<div class="info">                                             is_trivially_copyable</div>
+<div class="info">/usr/bin/../lib/gcc/x86_64-linux-gnu/14/../../../../include/c++/14/type_traits:866:12: note: &#x27;is_trivially_copyable&#x27; declared here</div>
+<div class="info">    struct is_trivially_copyable</div>
+<div class="info">           ^</div>
+<div class="info">In file included from /home/runner/work/Openterface_QT/Openterface_QT/video/videohid.h:4:</div>
+<div class="info">inline constexpr bool qIsRelocatable =  std::is_trivially_copyable_v&lt;T&gt; &amp;&amp; std::is_trivially_destructible_v&lt;T&gt;;</div>
+<div class="info">                                        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ ^</div>
+<div class="info">inline constexpr bool qIsRelocatable =  std::is_trivially_copyable_v&lt;T&gt; &amp;&amp; std::is_trivially_destructible_v&lt;T&gt;;</div>
+<div class="info">                                                                           ~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~</div>
+<div class="info">                                                                                is_trivially_destructible</div>
+<div class="info">/usr/bin/../lib/gcc/x86_64-linux-gnu/14/../../../../include/c++/14/type_traits:1405:12: note: &#x27;is_trivially_destructible&#x27; declared here</div>
+<div class="info">    struct is_trivially_destructible</div>
+<div class="info">           ^</div>
+<div class="info">In file included from /home/runner/work/Openterface_QT/Openterface_QT/video/videohid.h:4:</div>
+<div class="info">inline constexpr bool qIsRelocatable =  std::is_trivially_copyable_v&lt;T&gt; &amp;&amp; std::is_trivially_destructible_v&lt;T&gt;;</div>
+<div class="info">                                                                           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^</div>
+<div class="info">inline constexpr bool qIsValueInitializationBitwiseZero =</div>
+<div class="info">^</div>
+<div class="info">        std::is_scalar_v&lt;T&gt; &amp;&amp; !std::is_member_object_pointer_v&lt;T&gt;;</div>
+<div class="info">        ~~~~~^~~~~~~~~~~</div>
+<div class="info">             is_scalar</div>
+<div class="info">/usr/bin/../lib/gcc/x86_64-linux-gnu/14/../../../../include/c++/14/type_traits:746:12: note: &#x27;is_scalar&#x27; declared here</div>
+<div class="info">    struct is_scalar</div>
+<div class="info">           ^</div>
+<div class="info">In file included from /home/runner/work/Openterface_QT/Openterface_QT/video/videohid.h:4:</div>
+<div class="info">        std::is_scalar_v&lt;T&gt; &amp;&amp; !std::is_member_object_pointer_v&lt;T&gt;;</div>
+<div class="info">        ~~~~~~~~~~~~~~~~~~~ ^</div>
+<div class="info">        std::is_scalar_v&lt;T&gt; &amp;&amp; !std::is_member_object_pointer_v&lt;T&gt;;</div>
+<div class="info">                                ~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~</div>
+<div class="info">                                     is_member_object_pointer</div>
+<div class="info">/usr/bin/../lib/gcc/x86_64-linux-gnu/14/../../../../include/c++/14/type_traits:580:12: note: &#x27;is_member_object_pointer&#x27; declared here</div>
+<div class="info">    struct is_member_object_pointer</div>
+<div class="info">           ^</div>
+<div class="info">In file included from /home/runner/work/Openterface_QT/Openterface_QT/video/videohid.h:4:</div>
+<div class="info">        std::is_scalar_v&lt;T&gt; &amp;&amp; !std::is_member_object_pointer_v&lt;T&gt;;</div>
+<div class="info">                                ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^</div>
+<div class="info">        isPointer = std::is_pointer_v&lt;T&gt;,</div>
+<div class="info">                    ~~~~~^~~~~~~~~~~~</div>
+<div class="info">                         is_pointer</div>
+<div class="info">/usr/bin/../lib/gcc/x86_64-linux-gnu/14/../../../../include/c++/14/type_traits:555:12: note: &#x27;is_pointer&#x27; declared here</div>
+<div class="info">    struct is_pointer</div>
+<div class="info">           ^</div>
+<div class="info">In file included from /home/runner/work/Openterface_QT/Openterface_QT/video/videohid.h:4:</div>
+<div class="info">        isPointer = std::is_pointer_v&lt;T&gt;,</div>
+<div class="info">                    ~~~~~~~~~~~~~~~~~~~~^</div>
+<div class="info">        isIntegral = std::is_integral_v&lt;T&gt;,</div>
+<div class="info">                     ~~~~~^~~~~~~~~~~~~</div>
+<div class="info">                          is_integral</div>
+<div class="info">/usr/bin/../lib/gcc/x86_64-linux-gnu/14/../../../../include/c++/14/type_traits:461:12: note: &#x27;is_integral&#x27; declared here</div>
+<div class="info">    struct is_integral</div>
+<div class="info">           ^</div>
+<div class="info">In file included from /home/runner/work/Openterface_QT/Openterface_QT/video/videohid.h:4:</div>
+<div class="info">        isIntegral = std::is_integral_v&lt;T&gt;,</div>
+<div class="info">                     ~~~~~~~~~~~~~~~~~~~~~^</div>
+<div class="info">        isComplex = !std::is_trivial_v&lt;T&gt;,</div>
+<div class="info">                     ~~~~~^~~~~~~~~~~~</div>
+<div class="info">                          is_trivial</div>
+<div class="info">/usr/bin/../lib/gcc/x86_64-linux-gnu/14/../../../../include/c++/14/type_traits:857:12: note: &#x27;is_trivial&#x27; declared here</div>
+<div class="info">    struct is_trivial</div>
+<div class="info">           ^</div>
+<div class="info">In file included from /home/runner/work/Openterface_QT/Openterface_QT/video/videohid.h:4:</div>
+<div class="info">        isComplex = !std::is_trivial_v&lt;T&gt;,</div>
+<div class="info">                     ~~~~~~~~~~~~~~~~~~~~^</div>
+<div class="info">    static_assert(sizeof...(Ts) &gt; 0);</div>
+<div class="info">                                   ^</div>
+<div class="info">                                   , &quot;&quot;</div>
+<div class="info">    static constexpr bool isComplex = ((QTypeInfo&lt;Ts&gt;::isComplex) || ...);</div>
+<div class="info">                                                                     ^</div>
+<div class="info">    static constexpr bool isRelocatable = ((QTypeInfo&lt;Ts&gt;::isRelocatable) &amp;&amp; ...);</div>
+<div class="info">                                                                             ^</div>
+<div class="info">Q_DECLARE_TYPEINFO_BODY(QFlags&lt;T&gt;, Q_PRIMITIVE_TYPE);</div>
+<div class="info">^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~</div>
+<div class="info">        isComplex = (((FLAGS) &amp; Q_PRIMITIVE_TYPE) == 0) &amp;&amp; !std::is_trivial_v&lt;TYPE&gt;, \</div>
+<div class="info">                                                            ~~~~~^</div>
+<div class="info">/usr/bin/../lib/gcc/x86_64-linux-gnu/14/../../../../include/c++/14/type_traits:857:12: note: &#x27;is_trivial&#x27; declared here</div>
+<div class="info">    struct is_trivial</div>
+<div class="info">           ^</div>
+<div class="info">In file included from /home/runner/work/Openterface_QT/Openterface_QT/video/videohid.h:4:</div>
+<div class="info">Q_DECLARE_TYPEINFO_BODY(QFlags&lt;T&gt;, Q_PRIMITIVE_TYPE);</div>
+<div class="info">^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~</div>
+<div class="info">        isComplex = (((FLAGS) &amp; Q_PRIMITIVE_TYPE) == 0) &amp;&amp; !std::is_trivial_v&lt;TYPE&gt;, \</div>
+<div class="info">                                                            ~~~~~~~~~~~~~~~~~~~~~~~^</div>
+<div class="info">Q_DECLARE_TYPEINFO_BODY(QFlags&lt;T&gt;, Q_PRIMITIVE_TYPE);</div>
+<div class="info">^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~</div>
+<div class="info">        isPointer = std::is_pointer_v&lt; TYPE &gt;, \</div>
+<div class="info">                    ~~~~~^</div>
+<div class="info">/usr/bin/../lib/gcc/x86_64-linux-gnu/14/../../../../include/c++/14/type_traits:555:12: note: &#x27;is_pointer&#x27; declared here</div>
+<div class="info">    struct is_pointer</div>
+<div class="info">           ^</div>
+<div class="info">In file included from /home/runner/work/Openterface_QT/Openterface_QT/video/videohid.h:4:</div>
+<div class="info">Q_DECLARE_TYPEINFO_BODY(QFlags&lt;T&gt;, Q_PRIMITIVE_TYPE);</div>
+<div class="info">^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~</div>
+<div class="info">        isPointer = std::is_pointer_v&lt; TYPE &gt;, \</div>
+<div class="info">                    ~~~~~~~~~~~~~~~~~~~~~~~~~^</div>
+<div class="error">fatal error: too many errors emitted, stopping now [-ferror-limit=]</div>
+<div class="info">5 warnings and 20 errors generated.</div>
+<div class="info">Error while processing /home/runner/work/Openterface_QT/Openterface_QT/video/videohid.h.</div>
+<div class="info">In file included from ../video/videohid.cpp:1:</div>
+<div class="info">In file included from ../video/videohid.h:4:</div>
+<div class="info">     ^</div>
+<div class="info">In file included from ../video/videohid.cpp:1:</div>
+<div class="info">In file included from ../video/videohid.h:4:</div>
+<div class="info">inline constexpr bool qIsRelocatable =  std::is_trivially_copyable_v&lt;T&gt; &amp;&amp; std::is_trivially_destructible_v&lt;T&gt;;</div>
+<div class="info">^</div>
+<div class="info">inline constexpr bool qIsRelocatable =  std::is_trivially_copyable_v&lt;T&gt; &amp;&amp; std::is_trivially_destructible_v&lt;T&gt;;</div>
+<div class="info">                                        ~~~~~^~~~~~~~~~~~~~~~~~~~~~~</div>
+<div class="info">                                             is_trivially_copyable</div>
+<div class="info">/usr/bin/../lib/gcc/x86_64-linux-gnu/14/../../../../include/c++/14/type_traits:866:12: note: &#x27;is_trivially_copyable&#x27; declared here</div>
+<div class="info">    struct is_trivially_copyable</div>
+<div class="info">           ^</div>
+<div class="info">In file included from ../video/videohid.cpp:1:</div>
+<div class="info">In file included from ../video/videohid.h:4:</div>
+<div class="info">inline constexpr bool qIsRelocatable =  std::is_trivially_copyable_v&lt;T&gt; &amp;&amp; std::is_trivially_destructible_v&lt;T&gt;;</div>
+<div class="info">                                        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ ^</div>
+<div class="info">inline constexpr bool qIsRelocatable =  std::is_trivially_copyable_v&lt;T&gt; &amp;&amp; std::is_trivially_destructible_v&lt;T&gt;;</div>
+<div class="info">                                                                           ~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~</div>
+<div class="info">                                                                                is_trivially_destructible</div>
+<div class="info">/usr/bin/../lib/gcc/x86_64-linux-gnu/14/../../../../include/c++/14/type_traits:1405:12: note: &#x27;is_trivially_destructible&#x27; declared here</div>
+<div class="info">    struct is_trivially_destructible</div>
+<div class="info">           ^</div>
+<div class="info">In file included from ../video/videohid.cpp:1:</div>
+<div class="info">In file included from ../video/videohid.h:4:</div>
+<div class="info">inline constexpr bool qIsRelocatable =  std::is_trivially_copyable_v&lt;T&gt; &amp;&amp; std::is_trivially_destructible_v&lt;T&gt;;</div>
+<div class="info">                                                                           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^</div>
+<div class="info">inline constexpr bool qIsValueInitializationBitwiseZero =</div>
+<div class="info">^</div>
+<div class="info">        std::is_scalar_v&lt;T&gt; &amp;&amp; !std::is_member_object_pointer_v&lt;T&gt;;</div>
+<div class="info">        ~~~~~^~~~~~~~~~~</div>
+<div class="info">             is_scalar</div>
+<div class="info">/usr/bin/../lib/gcc/x86_64-linux-gnu/14/../../../../include/c++/14/type_traits:746:12: note: &#x27;is_scalar&#x27; declared here</div>
+<div class="info">    struct is_scalar</div>
+<div class="info">           ^</div>
+<div class="info">In file included from ../video/videohid.cpp:1:</div>
+<div class="info">In file included from ../video/videohid.h:4:</div>
+<div class="info">        std::is_scalar_v&lt;T&gt; &amp;&amp; !std::is_member_object_pointer_v&lt;T&gt;;</div>
+<div class="info">        ~~~~~~~~~~~~~~~~~~~ ^</div>
+<div class="info">        std::is_scalar_v&lt;T&gt; &amp;&amp; !std::is_member_object_pointer_v&lt;T&gt;;</div>
+<div class="info">                                ~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~</div>
+<div class="info">                                     is_member_object_pointer</div>
+<div class="info">/usr/bin/../lib/gcc/x86_64-linux-gnu/14/../../../../include/c++/14/type_traits:580:12: note: &#x27;is_member_object_pointer&#x27; declared here</div>
+<div class="info">    struct is_member_object_pointer</div>
+<div class="info">           ^</div>
+<div class="info">In file included from ../video/videohid.cpp:1:</div>
+<div class="info">In file included from ../video/videohid.h:4:</div>
+<div class="info">        std::is_scalar_v&lt;T&gt; &amp;&amp; !std::is_member_object_pointer_v&lt;T&gt;;</div>
+<div class="info">                                ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^</div>
+<div class="info">        isPointer = std::is_pointer_v&lt;T&gt;,</div>
+<div class="info">                    ~~~~~^~~~~~~~~~~~</div>
+<div class="info">                         is_pointer</div>
+<div class="info">/usr/bin/../lib/gcc/x86_64-linux-gnu/14/../../../../include/c++/14/type_traits:555:12: note: &#x27;is_pointer&#x27; declared here</div>
+<div class="info">    struct is_pointer</div>
+<div class="info">           ^</div>
+<div class="info">In file included from ../video/videohid.cpp:1:</div>
+<div class="info">In file included from ../video/videohid.h:4:</div>
+<div class="info">        isPointer = std::is_pointer_v&lt;T&gt;,</div>
+<div class="info">                    ~~~~~~~~~~~~~~~~~~~~^</div>
+<div class="info">        isIntegral = std::is_integral_v&lt;T&gt;,</div>
+<div class="info">                     ~~~~~^~~~~~~~~~~~~</div>
+<div class="info">                          is_integral</div>
+<div class="info">/usr/bin/../lib/gcc/x86_64-linux-gnu/14/../../../../include/c++/14/type_traits:461:12: note: &#x27;is_integral&#x27; declared here</div>
+<div class="info">    struct is_integral</div>
+<div class="info">           ^</div>
+<div class="info">In file included from ../video/videohid.cpp:1:</div>
+<div class="info">In file included from ../video/videohid.h:4:</div>
+<div class="info">        isIntegral = std::is_integral_v&lt;T&gt;,</div>
+<div class="info">                     ~~~~~~~~~~~~~~~~~~~~~^</div>
+<div class="info">        isComplex = !std::is_trivial_v&lt;T&gt;,</div>
+<div class="info">                     ~~~~~^~~~~~~~~~~~</div>
+<div class="info">                          is_trivial</div>
+<div class="info">/usr/bin/../lib/gcc/x86_64-linux-gnu/14/../../../../include/c++/14/type_traits:857:12: note: &#x27;is_trivial&#x27; declared here</div>
+<div class="info">    struct is_trivial</div>
+<div class="info">           ^</div>
+<div class="info">In file included from ../video/videohid.cpp:1:</div>
+<div class="info">In file included from ../video/videohid.h:4:</div>
+<div class="info">        isComplex = !std::is_trivial_v&lt;T&gt;,</div>
+<div class="info">                     ~~~~~~~~~~~~~~~~~~~~^</div>
+<div class="info">    static_assert(sizeof...(Ts) &gt; 0);</div>
+<div class="info">                                   ^</div>
+<div class="info">                                   , &quot;&quot;</div>
+<div class="info">    static constexpr bool isComplex = ((QTypeInfo&lt;Ts&gt;::isComplex) || ...);</div>
+<div class="info">                                                                     ^</div>
+<div class="info">    static constexpr bool isRelocatable = ((QTypeInfo&lt;Ts&gt;::isRelocatable) &amp;&amp; ...);</div>
+<div class="info">                                                                             ^</div>
+<div class="info">Q_DECLARE_TYPEINFO_BODY(QFlags&lt;T&gt;, Q_PRIMITIVE_TYPE);</div>
+<div class="info">^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~</div>
+<div class="info">        isComplex = (((FLAGS) &amp; Q_PRIMITIVE_TYPE) == 0) &amp;&amp; !std::is_trivial_v&lt;TYPE&gt;, \</div>
+<div class="info">                                                            ~~~~~^</div>
+<div class="info">/usr/bin/../lib/gcc/x86_64-linux-gnu/14/../../../../include/c++/14/type_traits:857:12: note: &#x27;is_trivial&#x27; declared here</div>
+<div class="info">    struct is_trivial</div>
+<div class="info">           ^</div>
+<div class="info">In file included from ../video/videohid.cpp:1:</div>
+<div class="info">In file included from ../video/videohid.h:4:</div>
+<div class="info">Q_DECLARE_TYPEINFO_BODY(QFlags&lt;T&gt;, Q_PRIMITIVE_TYPE);</div>
+<div class="info">^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~</div>
+<div class="info">        isComplex = (((FLAGS) &amp; Q_PRIMITIVE_TYPE) == 0) &amp;&amp; !std::is_trivial_v&lt;TYPE&gt;, \</div>
+<div class="info">                                                            ~~~~~~~~~~~~~~~~~~~~~~~^</div>
+<div class="info">Q_DECLARE_TYPEINFO_BODY(QFlags&lt;T&gt;, Q_PRIMITIVE_TYPE);</div>
+<div class="info">^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~</div>
+<div class="info">        isPointer = std::is_pointer_v&lt; TYPE &gt;, \</div>
+<div class="info">                    ~~~~~^</div>
+<div class="info">/usr/bin/../lib/gcc/x86_64-linux-gnu/14/../../../../include/c++/14/type_traits:555:12: note: &#x27;is_pointer&#x27; declared here</div>
+<div class="info">    struct is_pointer</div>
+<div class="info">           ^</div>
+<div class="info">In file included from ../video/videohid.cpp:1:</div>
+<div class="info">In file included from ../video/videohid.h:4:</div>
+<div class="info">Q_DECLARE_TYPEINFO_BODY(QFlags&lt;T&gt;, Q_PRIMITIVE_TYPE);</div>
+<div class="info">^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~</div>
+<div class="info">        isPointer = std::is_pointer_v&lt; TYPE &gt;, \</div>
+<div class="info">                    ~~~~~~~~~~~~~~~~~~~~~~~~~^</div>
+<div class="error">fatal error: too many errors emitted, stopping now [-ferror-limit=]</div>
+<div class="info">5 warnings and 20 errors generated.</div>
+<div class="info">Error while processing /home/runner/work/Openterface_QT/Openterface_QT/video/videohid.cpp.</div>
+    </div>
+</body>
+</html>

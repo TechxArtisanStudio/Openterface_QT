@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+    <id>com.openterface.openterfaceQT</id>
+    <name>openterfaceQT</name>
+    
+    <description>
+        <p>
+            openterfaceQT is a cross-platform application that supports both aarch64 and x86 architectures. 
+            It serves as a comprehensive control interface for openterface-Mini-KVM devices.
+            Use openterfaceQT and openterface-Mini-KVM can control any headless device via HDMI and USB.
+        </p>
+
+    </description>
+    
+    <summary>App control openterface-Mini-KVM</summary>
+    <metadata_license>MIT</metadata_license>
+
+    <launchable type="desktop-id">com.openterface.openterfaceQT.desktop</launchable>
+
+    <developer id="com.openterface" >
+        <name>TechxArtisan Team</name>
+    </developer>
+
+    <content_rating type="oars-1.1"/>
+        <url type="bugtracker">https://github.com/TechxArtisanStudio/Openterface_QT/issues</url>
+        <url type="homepage">https://openterface.com/</url>
+        <url type="donation">https://shop.techxartisan.com</url>
+        <url type="contact">https://openterface.com/about/#our-company</url>
+        <url type="faq">https://openterface.com/faq/</url>
+        <url type="vcs-browser">https://github.com/TechxArtisanStudio/Openterface_QT</url>
+    
+    <screenshots>
+        <screenshot type="default">
+            <image>https://assets.openterface.com/images/product/win_qt_app.jpg</image>
+            <caption>App mainwindow screenshot</caption>
+        </screenshot>
+        <screenshot>
+            <image>https://assets.openterface.com/images/qt/preferenceGernal.png</image>
+            <caption>App preference screenshot</caption>
+        </screenshot>
+        <screenshot>
+            <image>https://assets.openterface.com/images/qt/advanceSerialConsole.png</image>
+            <caption>App serial console screenshot</caption>
+        </screenshot>
+        <screenshot>
+            <image>https://assets.openterface.com/images/qt/advanceScriptTool.png</image>
+            <caption>App script tool screenshot</caption>
+        </screenshot>
+    </screenshots>
+
+    <releases>
+        <release version="0.3.10" date="2025-04-30">
+            <description>
+                <p>Fix the German layout match error, 
+                fix while changing the resolution in the software caused the display to become oversized and go beyond the screen boundaries. </p>
+            </description>
+        </release>
+        <release version="0.3.9" date="2025-04-26">
+            <description>
+                <p>Fix bug during the action of pasting that caused the main window to become blocked.</p>
+            </description>
+        </release>
+    </releases>
+
+    <project_license>AGPL-3.0</project_license>
+
+    <keywords>
+        <keyword>openterface-Mini-KVM</keyword>
+        <keyword>kvm</keyword>
+        <keyword>openterface</keyword>
+        <keyword>open-source</keyword>
+    </keywords>
+    
+</component>
