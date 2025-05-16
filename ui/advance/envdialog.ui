@@ -3,7 +3,7 @@
  <class>EnvironmentSetupDialog</class>
  <widget class="QDialog" name="EnvironmentSetupDialog">
   <property name="windowTitle">
-   <string>Environment Setup</string>
+   <string>Environment Helper</string>
   </property>
   <layout class="QVBoxLayout" name="verticalLayout">
    <item>
@@ -89,7 +89,7 @@
    <item>
     <widget class="QLabel" name="helpLabel">
      <property name="text">
-        <string>&lt;a href="#"&gt;Environment Setup Documentation&lt;/a&gt;</string>
+        <string>&lt;a href="#"&gt;Environment Help Documentation&lt;/a&gt;</string>
      </property>
      <property name="alignment">
       <set>Qt::AlignCenter</set>

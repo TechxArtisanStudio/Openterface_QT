@@ -94,7 +94,6 @@ signals:
 
 private slots:
     void checkSerialPort();
-
     void observeSerialPortNotification();
     void readData();
     void bytesWritten(qint64 bytes);
@@ -145,7 +144,6 @@ private:
     QElapsedTimer m_lastCommandTime;  // New member for timing
     int m_commandDelayMs;  // New member for configurable delay
 
-    void enableNotifier();
     
 };
 
