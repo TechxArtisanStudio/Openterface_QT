@@ -162,19 +162,17 @@ jobs:
       - name: Move build artifacts
         run: move /Y ${{ runner.temp }}\build\${{ env.PACKAGE_DIR }} ${{ env.SOURCE_DIR }}
 
-      - name: Compile .ISS to .EXE Installer
-        uses: kevinzjpeng/Inno-Setup-Action@v1
-        with:
-          filepath: installer.iss
-          options: 
-            /O+ /DWorkingDir="${{ env.SOURCE_DIR }}\${{ env.PACKAGE_DIR }}" 
-            /DMyAppVersion="${{ env.VERSION_FOR_INNO }}" 
-            /DMyAppPublisher="${{ vars.MY_APP_PUBLISHER }}" 
-            /DMyAppURL="${{ vars.MY_APP_URL }}" 
-            /DOutputDir="${{ env.SOURCE_DIR }}\Output" 
-            /DOutputBaseFileName=openterfaceQT.windows.amd64.installer
-            /DMyAppExeName=${{ env.EXE_NAME }}
-            /DSourcePackage=${{ env.PACKAGE_DIR }}
+      - name: Compile .NSI to .EXE Installer
+        run: |
+          echo "Compiling NSIS installer..."
+          makensis /DWorkingDir="${{ env.SOURCE_DIR }}\${{ env.PACKAGE_DIR }}" ^
+                   /DMyAppVersion="${{ env.VERSION_FOR_INNO }}" ^
+                   /DMyAppPublisher="${{ vars.MY_APP_PUBLISHER }}" ^
+                   /DMyAppURL="${{ vars.MY_APP_URL }}" ^
+                   /DOutputDir="${{ env.SOURCE_DIR }}\Output" ^
+                   /DOutputBaseFileName=openterfaceQT.windows.amd64.installer ^
+                   /DMyAppExeName=${{ env.EXE_NAME }} ^
+                   installer.nsi
 
       - name: Save build artifacts
         uses: actions/upload-artifact@v4
@@ -183,7 +181,7 @@ jobs:
           path: |
             ${{ env.SOURCE_DIR }}\Output\openterfaceQT.windows.amd64.installer.exe
           if-no-files-found: error
-        
+
       - name: Commit and push version update
         if: success() && (github.event.inputs.increase_version == 'true' || github.event.inputs.increase_major == 'true' || github.event.inputs.increase_minor == 'true')
         run: |
