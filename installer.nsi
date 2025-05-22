@@ -29,9 +29,6 @@ LicenseData "${SourcePackage}\${LicenseFile}"
 
 Icon "${SourcePackage}\images\icon_128.ico"
 
-SetCompressor /SOLID lzma
-SetCompressorDictSize 64
-
 Section "Install"
     ; Create installation directory
     SetOutPath "$INSTDIR"
