@@ -28,12 +28,9 @@ LicenseData "${SourcePackage}\${LicenseFile}"
 !insertmacro MUI_PAGE_LICENSE "${SourcePackage}\${LicenseFile}"
 !insertmacro MUI_PAGE_DIRECTORY
 !insertmacro MUI_PAGE_INSTFILES
-<<<<<<< HEAD
-=======
 !define MUI_FINISHPAGE_RUN
 !define MUI_FINISHPAGE_RUN_TEXT "Run ${MyAppName} now"
 !define MUI_FINISHPAGE_RUN_FUNCTION "LaunchApp"
->>>>>>> 568344648757ba0af7d2c2d8de594eee45dcd9da
 !insertmacro MUI_PAGE_FINISH
 !insertmacro MUI_LANGUAGE "English"
 
@@ -71,12 +68,8 @@ Section "Uninstall"
 
     ; Remove installation directory
     RMDir /r "$INSTDIR"
-<<<<<<< HEAD
-SectionEnd
-=======
 SectionEnd
 
 Function LaunchApp
     Exec "$INSTDIR\${MyAppExeName}"
 FunctionEnd
->>>>>>> 568344648757ba0af7d2c2d8de594eee45dcd9da
