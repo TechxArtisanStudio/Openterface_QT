@@ -1,11 +1,7 @@
 ; NSIS script for Openterface Mini-KVM
 ; Generated based on the provided Inno Setup script
 
-<<<<<<< HEAD
-!define MyAppName "Openterface Mini-KVM For Window"
-=======
 !define MyAppName "Openterface Mini-KVM"
->>>>>>> 568344648757ba0af7d2c2d8de594eee45dcd9da
 !define LicenseFile "LICENSE"
 !define SourcePackage "."
 
