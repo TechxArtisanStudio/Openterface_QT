@@ -16,6 +16,7 @@
 #include <QHBoxLayout> // Include QHBoxLayout for horizontal layout
 #include <QSettings>
 #include <cstdlib>
+#include <QMessageBox>
 #ifdef _WIN32 // Check if compiling on Windows
 #include <windows.h> // Include Windows API header
 #include <setupapi.h> // Include SetupAPI for device installation functions
@@ -178,7 +179,23 @@ void EnvironmentSetupDialog::closeEvent(QCloseEvent *event)
 void EnvironmentSetupDialog::installDriverForWindows() {
     // Windows-specific installation logic
     std::cout << "Attempting to install driver using pnputil." << std::endl;
-    QProcess::execute("pnputil.exe", QStringList() << "/add-driver" << "CH341SER.INF" << "/install");
+    QMessageBox msgBox(this);
+    msgBox.setWindowTitle(tr("Install Driver"));
+    msgBox.setText(tr("The driver is missing. Please insatll the driver at: https://www.wch.cn/downloads/CH341SER.EXE.html \n\n"
+        "After the driver insatll. A system restart and device re-plugging is required for the changes to take effect.\n\n"
+        "Please restart your computer after the driver installation."));
+    msgBox.setStandardButtons(QMessageBox::Yes | QMessageBox::No);
+    
+    // Add button for copy link
+    QPushButton *copyButton = msgBox.addButton(tr("Copy Link"), QMessageBox::ActionRole);
+    
+    QMessageBox::StandardButton reply = static_cast<QMessageBox::StandardButton>(msgBox.exec());
+    
+    // Check if the copy button was clicked
+    if (msgBox.clickedButton() == copyButton) {
+        QClipboard *clipboard = QApplication::clipboard();
+        clipboard->setText("https://www.wch.cn/downloads/CH341SER.EXE.html");
+    }
     std::cout << "Driver installation command executed." << std::endl;
 }
 #endif
@@ -249,9 +266,6 @@ void EnvironmentSetupDialog::accept()
 
         // Append the status summary to the description label
         ui->descriptionLabel->setText(ui->descriptionLabel->text() + "\n" + statusSummary);
-    #endif
-
-    if(!isDriverInstalled){
         QMessageBox::StandardButton reply = QMessageBox::question(
             this,
             tr("Restart Required"),
@@ -260,22 +274,17 @@ void EnvironmentSetupDialog::accept()
             QMessageBox::Yes | QMessageBox::No
         );
         if (reply == QMessageBox::Yes) {
-    #ifdef _WIN32
-            QProcess::startDetached("shutdown", QStringList() << "-r" << "-t" << "0");
-    #elif defined(__linux__)
-            // For Linux systems
             QProcess::startDetached("reboot");
-    #endif
-        } else {
+        }else{
             QMessageBox::information(
                 this,
                 tr("Restart Later"),
                 tr("Please remember to restart your computer and re-plug the device for the driver to work properly.")
             );
         }
-    }
-
+    #endif
     // Call the base class accept method to close the dialog
+
     QDialog::accept();
     close();
 }
