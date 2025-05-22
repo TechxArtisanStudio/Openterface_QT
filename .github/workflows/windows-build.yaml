@@ -141,7 +141,6 @@ jobs:
           
           echo "Creating package directory..."
           mkdir ${{ env.PACKAGE_DIR }}
-          mkdir ${{ env.PACKAGE_DIR }}\Output
           mkdir ${{ env.PACKAGE_DIR }}\driver
           mkdir ${{ env.PACKAGE_DIR }}\driver\windows
           mkdir ${{ env.PACKAGE_DIR }}\config\languages
@@ -166,6 +165,7 @@ jobs:
       - name: Compile .NSI to .EXE Installer
         run: |
           echo "Compiling NSIS installer..."
+          mkdir ${{ env.SOURCE_DIR }}\Output
           makensis /DWorkingDir="${{ env.SOURCE_DIR }}\${{ env.PACKAGE_DIR }}" ^
                    /DMyAppVersion="${{ env.VERSION_FOR_INNO }}" ^
                    /DMyAppPublisher="${{ vars.MY_APP_PUBLISHER }}" ^
