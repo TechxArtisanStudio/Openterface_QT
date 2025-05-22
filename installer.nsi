@@ -3,7 +3,6 @@
 
 !define MyAppName "Openterface Mini-KVM"
 !define MyAppExeName "openterfaceQT.exe"
-!define MyAppVersion "1.0.0" ; Replace with your version
 !define MyAppPublisher "TechxArtisan Limited"
 !define MyAppURL "https://openterface.com"
 !define LicenseFile "LICENSE"
