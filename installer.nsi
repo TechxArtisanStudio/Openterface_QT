@@ -1,7 +1,11 @@
 ; NSIS script for Openterface Mini-KVM
 ; Generated based on the provided Inno Setup script
 
+<<<<<<< HEAD
 !define MyAppName "Openterface Mini-KVM For Window"
+=======
+!define MyAppName "Openterface Mini-KVM"
+>>>>>>> 568344648757ba0af7d2c2d8de594eee45dcd9da
 !define LicenseFile "LICENSE"
 !define SourcePackage "."
 
@@ -24,6 +28,9 @@ LicenseData "${SourcePackage}\${LicenseFile}"
 !insertmacro MUI_PAGE_LICENSE "${SourcePackage}\${LicenseFile}"
 !insertmacro MUI_PAGE_DIRECTORY
 !insertmacro MUI_PAGE_INSTFILES
+!define MUI_FINISHPAGE_RUN
+!define MUI_FINISHPAGE_RUN_TEXT "Run ${MyAppName} now"
+!define MUI_FINISHPAGE_RUN_FUNCTION "LaunchApp"
 !insertmacro MUI_PAGE_FINISH
 !insertmacro MUI_LANGUAGE "English"
 
@@ -62,3 +69,7 @@ Section "Uninstall"
     ; Remove installation directory
     RMDir /r "$INSTDIR"
 SectionEnd
+
+Function LaunchApp
+    Exec "$INSTDIR\${MyAppExeName}"
+FunctionEnd
