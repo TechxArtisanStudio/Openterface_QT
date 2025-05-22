@@ -1,13 +1,8 @@
 ; NSIS script for Openterface Mini-KVM
 ; Generated based on the provided Inno Setup script
 
-!define MyAppName "Openterface Mini-KVM"
-!define MyAppExeName "openterfaceQT.exe"
-!define MyAppPublisher "TechxArtisan Limited"
-!define MyAppURL "https://openterface.com"
+!define MyAppName "Openterface Mini-KVM For Window"
 !define LicenseFile "LICENSE"
-!define OutputDir "Output"
-!define OutputBaseFileName "openterfaceQT.windows.amd64.installer"
 !define SourcePackage "package_online"
 
 ; Set output file
