@@ -27,16 +27,17 @@ LicenseData "${SourcePackage}\${LicenseFile}"
 !insertmacro MUI_PAGE_FINISH
 !insertmacro MUI_LANGUAGE "English"
 
+Icon "${SourcePackage}\images\icon_128.ico"
+
+SetCompressor /SOLID lzma
+SetCompressorDictSize 64
+
 Section "Install"
     ; Create installation directory
     SetOutPath "$INSTDIR"
 
     ; Copy application files
-    File /r "${SourcePackage}\*"
-
-    ; Copy driver files
-    File "${SourcePackage}\driver\windows\CH341SER.INF"
-    File "${SourcePackage}\driver\windows\CH341S64.SYS"
+    File /r "${WorkingDir}\*"
 
     ; Create shortcuts
     CreateShortcut "$SMPROGRAMS\${MyAppName}.lnk" "$INSTDIR\${MyAppExeName}"
