@@ -166,6 +166,7 @@ jobs:
         run: |
           echo "Compiling NSIS installer..."
           mkdir ${{ env.SOURCE_DIR }}\Output
+          dir ${{ env.SOURCE_DIR }}\Output
           makensis /DWorkingDir="${{ env.SOURCE_DIR }}\${{ env.PACKAGE_DIR }}" ^
                    /DMyAppVersion="${{ env.VERSION_FOR_INNO }}" ^
                    /DMyAppPublisher="${{ vars.MY_APP_PUBLISHER }}" ^
