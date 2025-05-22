@@ -171,7 +171,6 @@ jobs:
                    /DMyAppURL="${{ vars.MY_APP_URL }}" ^
                    /DOutputDir="${{ env.SOURCE_DIR }}\Output" ^
                    /DOutputBaseFileName=openterfaceQT.windows.amd64.installer ^
-                   /DMyAppExeName=${{ env.EXE_NAME }} ^
                    installer.nsi
 
       - name: Save build artifacts
