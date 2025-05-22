@@ -141,6 +141,7 @@ jobs:
           
           echo "Creating package directory..."
           mkdir ${{ env.PACKAGE_DIR }}
+          mkdir ${{ env.PACKAGE_DIR }}\Output
           mkdir ${{ env.PACKAGE_DIR }}\driver
           mkdir ${{ env.PACKAGE_DIR }}\driver\windows
           mkdir ${{ env.PACKAGE_DIR }}\config\languages

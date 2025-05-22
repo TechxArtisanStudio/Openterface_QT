@@ -3,7 +3,7 @@
 
 !define MyAppName "Openterface Mini-KVM For Window"
 !define LicenseFile "LICENSE"
-!define SourcePackage "package_online"
+!define SourcePackage "."
 
 ; Set output file
 OutFile "${OutputDir}\${OutputBaseFileName}.exe"
@@ -41,12 +41,12 @@ Section "Install"
     ; Create shortcuts
     CreateShortcut "$SMPROGRAMS\${MyAppName}.lnk" "$INSTDIR\${MyAppExeName}"
     CreateShortcut "$DESKTOP\${MyAppName}.lnk" "$INSTDIR\${MyAppExeName}"
-
-    ; Install driver silently
-    ExecWait '"$SYSDIR\pnputil.exe" /add-driver "$INSTDIR\driver\CH341SER.INF" /install'
-
+    
     ; Run the application after installation
     Exec "$INSTDIR\${MyAppExeName} /silent"
+
+    ; Write uninstaller
+    WriteUninstaller "$INSTDIR\Uninstall.exe"
 SectionEnd
 
 Section "Uninstall"
