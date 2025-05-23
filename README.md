@@ -75,7 +75,9 @@ sudo usermod -a -G dialout $USER
 
 ```bash
 # Setup the hidraw permission
-echo 'SUBSYSTEM=="usb", ATTRS{idVendor}=="534d", ATTRS{idProduct}=="2109", TAG+="uaccess"' | sudo tee /etc/udev/rules.d/51-openterface.rules 
+echo 'SUBSYSTEM=="usb", ATTRS{idVendor}=="534d", ATTRS{idProduct}=="2109", TAG+="uaccess"
+SUBSYSTEM=="hidraw", ATTRS{idVendor}=="534d", ATTRS{idProduct}=="2109", TAG+="uaccess"
+' | sudo tee /etc/udev/rules.d/51-openterface.rules 
 sudo udevadm control --reload-rules
 sudo udevadm trigger
 ```
@@ -122,8 +124,10 @@ sudo usermod -a -G dialout $USER
 # On some distros (e.g. Arch Linux) this might be called uucp
 sudo usermod -a -G uucp $USER
 
-# Setup the hidraw permission
-echo 'SUBSYSTEM=="usb", ATTRS{idVendor}=="534d", ATTRS{idProduct}=="2109", TAG+="uaccess"' | sudo tee /etc/udev/rules.d/51-openterface.rules 
+# Setup the serial port permission
+echo 'SUBSYSTEM=="usb", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="7523", TAG+="uaccess"
+SUBSYSTEM=="ttyUSB", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="7523", TAG+="uaccess"
+' | sudo tee /etc/udev/rules.d/51-openterface.rules 
 sudo udevadm control --reload-rules
 sudo udevadm trigger
 ```
