@@ -1,0 +1,315 @@
+name: Linux Build
+
+on:
+  push:
+    branches: ["main", "dev"]
+    tags: ["v*"]
+  pull_request:
+    branches: ["dev"]
+  workflow_dispatch:
+
+env:
+  ARTIFACT: openterfaceQT
+  SOURCE_DIR: ${{ github.workspace }}
+  QT_VERSION: 6.4.2
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    strategy:
+      matrix:
+        arch: [amd64, arm64]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install prerequisites
+        run: |
+          sudo apt update -y
+          sudo apt upgrade -y
+          sudo apt install build-essential
+          sudo apt-get install -y libusb-1.0-0-dev rpm libfuse2
+          
+          wget -O linuxdeploy-x86_64.AppImage https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
+          wget -O linuxdeploy-plugin-qt-x86_64.AppImage https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-x86_64.AppImage
+          wget -O appimagetool "https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage"
+          
+          chmod +x linuxdeploy-x86_64.AppImage linuxdeploy-plugin-qt-x86_64.AppImage appimagetool
+          sudo mv linuxdeploy-x86_64.AppImage linuxdeploy-plugin-qt-x86_64.AppImage appimagetool /usr/local/bin/
+
+      - name: Set up QEMU
+        if: matrix.arch == 'arm64'
+        uses: docker/setup-qemu-action@v3
+
+      - name: Install Qt for AMD64
+        if: matrix.arch == 'amd64'
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: ${{ env.QT_VERSION }}
+          host: linux
+          target: desktop
+          arch: gcc_64
+          modules: qtmultimedia qtserialport
+
+      - name: Install Qt for ARM64
+        if: matrix.arch == 'arm64'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y qt6-base-dev qt6-multimedia-dev libqt6svg6-dev libqt6serialport6-dev libgl1-mesa-dev qt6-l10n-tools qt6-tools-dev qt6-tools-dev-tools
+          echo "Qt6_DIR=/usr/lib/aarch64-linux-gnu/cmake/Qt6" >> $GITHUB_ENV
+          echo "QTDIR=/usr/lib/aarch64-linux-gnu/qt6" >> $GITHUB_ENV
+          echo "PATH=/usr/lib/qt6/bin:$PATH" >> $GITHUB_ENV
+
+      - name: Debug Qt environment
+        run: |
+          echo "PATH: $PATH"
+          echo "Qt6_DIR: $Qt6_DIR"
+          echo "QTDIR: $QTDIR"
+          which lupdate || echo "lupdate not found"
+          lupdate --version || echo "lupdate version check failed"
+
+      - name: Get all tags for correct version determination
+        working-directory: ${{ github.workspace }}
+        run: |
+          git fetch --all --tags -f
+
+      - name: Read version from version.h
+        id: read_version
+        run: |
+          VERSION=$(grep -oP '#define APP_VERSION "\K[^"]+' resources/version.h)
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+
+      - name: Create build directory
+        run: |
+          buildDir="${{ runner.temp }}/build"
+          mkdir -p $buildDir
+          echo "BUILD_DIR=$buildDir" >> $GITHUB_ENV
+
+      - name: Update translations
+        working-directory: ${{ github.workspace }}
+        run: |
+          lupdate openterfaceQT.pro -no-obsolete
+
+      - name: Release translations
+        working-directory: ${{ github.workspace }}
+        run: |
+          lrelease openterfaceQT.pro
+          mkdir -p ${{ env.BUILD_DIR }}/config/languages
+          mkdir -p ${{ env.BUILD_DIR }}/config/keyboards
+          cp config/keyboards/*.json ${{ env.BUILD_DIR }}/config/keyboards
+          cp config/languages/*.qm ${{ env.BUILD_DIR }}/config/languages
+
+      - name: Configure And Build
+        working-directory: ${{ env.BUILD_DIR }}
+        run: |
+          qmake6 ${{ github.workspace }} "DEFINES+=ONLINE_VERSION" && make -j$(nproc)
+          echo "Checking build output:"
+          ls -lh ${{ env.BUILD_DIR }}
+          if [ -f ${{ env.BUILD_DIR }}/openterfaceQT ]; then
+            echo "openterfaceQT found!"
+          else
+            echo "Error: openterfaceQT not found in ${{ env.BUILD_DIR }}!"
+            exit 1
+          fi
+
+      - name: Create deb package
+        working-directory: ${{ runner.temp }}
+        run: |
+          mkdir -p package/DEBIAN
+          
+          PKG_NAME="${{ env.ARTIFACT }}.linux.${{ matrix.arch }}"
+          
+          sed -e "s/\${VERSION}/${{ env.VERSION }}/g" \
+              -e "s/\${ARCH}/${{ matrix.arch }}/g" \
+              ${{ github.workspace }}/packaging/debian/control > package/DEBIAN/control
+          
+          mkdir -p package/usr/bin
+          cp -r ${{ env.BUILD_DIR }}/openterfaceQT package/usr/bin
+
+          mkdir -p package/usr/share/icons/hicolor/256x256/apps/
+          cp ${{ github.workspace }}/images/icon_256.png package/usr/share/icons/hicolor/256x256/apps/openterfaceQT.png
+
+          mkdir -p package/usr/share/applications/
+          cat > package/usr/share/applications/openterfaceQT.desktop << EOF
+          [Desktop Entry]
+          Version=1.0
+          Type=Application
+          Name=OpenterfaceQT
+          Exec=/usr/bin/openterfaceQT
+          Icon=openterfaceQT
+          Comment=OpenterfaceQT Application
+          Categories=Utility;
+          EOF
+
+          mv package $PKG_NAME
+          dpkg-deb --build $PKG_NAME
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: openterfaceQT.linux.${{ matrix.arch }}.deb
+          path: ${{ runner.temp }}/${{ env.ARTIFACT }}.linux.${{ matrix.arch }}.deb
+          if-no-files-found: error
+
+      - name: Create rpm package
+        working-directory: ${{ runner.temp }}
+        run: |
+          mkdir -p rpmbuild/{SPECS,SOURCES,BUILD,RPMS,SRPMS}
+          
+          PKG_NAME="${{ env.ARTIFACT }}.linux.${{ matrix.arch }}"
+          
+          # Copy build output and icon to SOURCES
+          cp ${{ env.BUILD_DIR }}/openterfaceQT rpmbuild/SOURCES/ || { echo "Failed to copy openterfaceQT!"; exit 1; }
+          cp ${{ github.workspace }}/images/icon_256.png rpmbuild/SOURCES/ || { echo "Failed to copy icon_256.png!"; exit 1; }
+          
+          # Debug: Verify files in SOURCES
+          ls -lh rpmbuild/SOURCES/
+          
+          # Generate spec file with version and architecture substitutions
+          sed -e "s/\${VERSION}/${{ env.VERSION }}/g" \
+              -e "s/\${ARCH}/${{ matrix.arch }}/g" \
+              ${{ github.workspace }}/packaging/rpm/spec > rpmbuild/SPECS/openterfaceqt.spec
+          
+          # Debug: Show generated spec file
+          cat rpmbuild/SPECS/openterfaceqt.spec
+          
+          # Build RPM
+          rpmbuild --define "_topdir ${{ runner.temp }}/rpmbuild" -bb rpmbuild/SPECS/openterfaceqt.spec
+          
+          # Copy the resulting RPM
+          find rpmbuild/RPMS -name "*.rpm" -exec cp {} ./$PKG_NAME.rpm \;
+
+      - name: Upload RPM artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: openterfaceQT.linux.${{ matrix.arch }}.rpm
+          path: ${{ runner.temp }}/${{ env.ARTIFACT }}.linux.${{ matrix.arch }}.rpm
+
+          if-no-files-found: error
+
+      - name: Create AppImage
+        working-directory: ${{ runner.temp }}
+        if: matrix.arch == 'amd64'  # AppImage creation works best on amd64
+        run: |
+          # Create AppDir structure
+          mkdir -p AppDir/usr/bin
+          mkdir -p AppDir/usr/share/applications
+          mkdir -p AppDir/usr/share/icons/hicolor/256x256/apps
+          mkdir -p AppDir/usr/share/metainfo
+          
+          # Copy executable
+          cp ${{ env.BUILD_DIR }}/openterfaceQT AppDir/usr/bin/
+          
+          # Copy icon
+          cp ${{ github.workspace }}/images/icon_256.png AppDir/usr/share/icons/hicolor/256x256/apps/openterfaceQT.png
+          
+          # Copy config files if needed
+          mkdir -p AppDir/usr/share/openterfaceQT/config/{keyboards,languages}
+          cp -r ${{ env.BUILD_DIR }}/config/keyboards/* AppDir/usr/share/openterfaceQT/config/keyboards/ || true
+          cp -r ${{ env.BUILD_DIR }}/config/languages/* AppDir/usr/share/openterfaceQT/config/languages/ || true
+          
+          # Copy desktop file from packaging/appimage folder
+          cp ${{ github.workspace }}/packaging/appimage/openterfaceQT.desktop AppDir/usr/share/applications/
+          
+          # Copy and prepare AppStream metadata
+          TODAY=$(date +'%Y-%m-%d')
+          sed -e "s/\${VERSION}/${{ env.VERSION }}/g" \
+              -e "s/\${DATE}/$TODAY/g" \
+              ${{ github.workspace }}/packaging/appimage/openterfaceQT.appdata.xml > AppDir/usr/share/metainfo/openterfaceQT.appdata.xml
+          
+          # Debug Qt paths and find qmake
+          echo "Debugging Qt paths:"
+          echo "QTDIR: $QTDIR"
+          echo "Qt6_DIR: $Qt6_DIR"
+          
+          # Try to find qmake in multiple locations
+          if [ -f "$QTDIR/bin/qmake6" ]; then
+            export QMAKE="$QTDIR/bin/qmake6"
+          elif [ -f "$Qt6_DIR/../../../bin/qmake6" ]; then
+            export QMAKE="$Qt6_DIR/../../../bin/qmake6"
+          elif [ -f "$IQTA_TOOLS/Qt/${{ env.QT_VERSION }}/gcc_64/bin/qmake6" ]; then
+            export QMAKE="$IQTA_TOOLS/Qt/${{ env.QT_VERSION }}/gcc_64/bin/qmake6"
+          elif [ -f "$IQTA_TOOLS/Qt/${{ env.QT_VERSION }}/gcc_64/bin/qmake" ]; then
+            export QMAKE="$IQTA_TOOLS/Qt/${{ env.QT_VERSION }}/gcc_64/bin/qmake"
+          else
+            echo "Searching for qmake in PATH..."
+            export QMAKE=$(which qmake6 || which qmake || echo "")
+          fi
+          
+          # Verify qmake exists and is executable
+          if [ -z "$QMAKE" ] || [ ! -f "$QMAKE" ]; then
+            echo "ERROR: Could not find qmake. Searching system-wide..."
+            find / -name qmake6 -o -name qmake 2>/dev/null || echo "No qmake found"
+            exit 1
+          fi
+          
+          echo "Using QMAKE: $QMAKE"
+          $QMAKE --version
+          
+          # Set environment variables for linuxdeploy
+          export QMAKE="$QMAKE"
+          export QML_SOURCES_PATHS=${{ github.workspace }}/qml
+          export VERSION=${{ env.VERSION }}
+          export OUTPUT="${{ env.ARTIFACT }}-${{ env.VERSION }}-x86_64.AppImage"
+          
+          # Create a script to run linuxdeploy with proper environment
+          cat > run_deploy.sh << 'EOF'
+          #!/bin/bash
+          set -x  # Print commands for debugging
+          env | grep -E 'QT|QMAKE|QML'  # Display Qt-related environment variables
+          
+          # Run linuxdeploy with Qt plugin
+          linuxdeploy-x86_64.AppImage \
+            --appdir=AppDir \
+            --plugin=qt \
+            --desktop-file=AppDir/usr/share/applications/openterfaceQT.desktop \
+            --icon-file=AppDir/usr/share/icons/hicolor/256x256/apps/openterfaceQT.png \
+            --output=appimage
+            
+          EXIT_CODE=$?
+          echo "linuxdeploy exit code: $EXIT_CODE"
+          
+          # List all files in current directory for debugging
+          echo "Files in current directory:"
+          ls -la
+          
+          # Exit with the linuxdeploy exit code
+          exit $EXIT_CODE
+          EOF
+          
+          chmod +x run_deploy.sh
+          ./run_deploy.sh
+          
+          # Check if any AppImage file was created
+          if ! ls -la *.AppImage 2>/dev/null; then
+            echo "ERROR: No AppImage file was created"
+            echo "Trying direct AppImage creation with appimagetool as fallback..."
+            
+            # Fallback: Try creating AppImage directly with appimagetool
+            appimagetool AppDir "${{ env.ARTIFACT }}.linux.${{ matrix.arch }}.AppImage"
+
+          fi
+          
+          # Move the generated AppImage to a predictable name if it exists
+          if [ -f "${OUTPUT}" ]; then
+            mv ${OUTPUT} ./${{ env.ARTIFACT }}.linux.${{ matrix.arch }}.AppImage
+          elif ls -la *.AppImage 2>/dev/null; then
+            # If a different named AppImage was created, use that
+            mv $(ls *.AppImage | head -1) ./${{ env.ARTIFACT }}.linux.${{ matrix.arch }}.AppImage
+
+          else
+            echo "ERROR: No AppImage file could be created by any method"
+            exit 1
+          fi
+
+      - name: Upload AppImage artifact
+        uses: actions/upload-artifact@v4
+        if: matrix.arch == 'amd64'  # Only upload if AppImage was created
+        with:
+          name: openterfaceQT.linux.${{ matrix.arch }}.AppImage
+          path: ${{ runner.temp }}/${{ env.ARTIFACT }}.linux.${{ matrix.arch }}.AppImage
+
+          if-no-files-found: error
