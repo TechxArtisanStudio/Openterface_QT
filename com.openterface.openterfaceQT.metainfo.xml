@@ -49,6 +49,17 @@
     </screenshots>
 
     <releases>
+        <release version="0.3.12" date="2025-05-09">
+            <description>
+                <p>Fix bug and update documentation:</p>
+                <ul>
+                    <li>Improved device permissions: Updated udev rules for serial and HID devices by replacing MODE="0666" with TAG+="uaccess", making device access more secure and less permissive.</li>
+                    <li>Optimized translation handling: Fixed an issue where translation and keyboard layout files were being generated automatically; these files are now loaded directly from Qt's resource system.</li>
+                    <li>Enhanced CI workflow: Updated the Windows build GitHub Action so that version updates automatically trigger dependent actions for recompilation.</li>
+                    <li>Fixed unnecessary file extraction: Resolved an issue where certain .qm files were being extracted every time the application was launched.</li>
+                </ul>
+            </description>
+        </release>
         <release version="0.3.10" date="2025-04-30">
             <description>
                 <p>Fix the German layout match error, 
