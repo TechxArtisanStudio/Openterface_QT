@@ -20,6 +20,8 @@ VIAddVersionKey "CompanyName" "TechxArtisan Limited"
 VIAddVersionKey "FileDescription" "KVM control tool"
 VIAddVersionKey "FileVersion" "${MyAppVersion}"
 
+SetCompressor zlib
+
 ; Include license
 LicenseData "${SourcePackage}\${LicenseFile}"
 
