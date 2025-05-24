@@ -14,6 +14,12 @@ InstallDir "$PROGRAMFILES\${MyAppName}"
 ShowInstDetails show
 ShowUninstDetails show
 
+VIProductVersion "${MyAppVersion}"
+VIAddVersionKey "ProductName" "Openterface Mini-KVM"
+VIAddVersionKey "CompanyName" "TechxArtisan Limited"
+VIAddVersionKey "FileDescription" "KVM control tool"
+VIAddVersionKey "FileVersion" "${MyAppVersion}"
+
 ; Include license
 LicenseData "${SourcePackage}\${LicenseFile}"
 
