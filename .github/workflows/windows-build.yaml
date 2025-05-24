@@ -107,29 +107,68 @@ jobs:
         with:
           arch: x64
       
+      - name: Build Qt Statically
+        if: steps.cache-qt.outputs.cache-hit != 'true'
+        run: |
+          call build-script/build-static-qt-from-source.bat
+
       - name: Create build directory
         run: |
           mkdir ${{ runner.temp }}\build
 
+      - name: Prepare .pro File for Static Build
+        run: |
+          echo "Checking and appending static build configuration to .pro file..."
+          if not exist "${{ env.SOURCE_DIR }}\openterfaceQT.pro" (
+            echo "Error: .pro file not found."
+            exit 1
+          )
+          
+          findstr /C:"CONFIG += static release" "${{ env.SOURCE_DIR }}\openterfaceQT.pro" >nul
+          if errorlevel 1 (
+            echo "" >> "${{ env.SOURCE_DIR }}\openterfaceQT.pro"
+            echo "CONFIG += static release" >> "${{ env.SOURCE_DIR }}\openterfaceQT.pro"
+            echo "Static build configuration added to .pro file."
+            set ERRORLEVEL=0
+          ) else (
+            echo "Static build configuration already present in .pro file."
+          )
+          
+          echo "QMAKE_LFLAGS += -static -static-libgcc -static-libstdc++ -static-libgfortran" >> "${{ env.SOURCE_DIR }}\openterfaceQT.pro"
+          echo "QMAKE_CXXFLAGS += -static -static-libgcc -static-libstdc++" >> "${{ env.SOURCE_DIR }}\openterfaceQT.pro"
+          echo "QMAKE_LINK = g++ -Wl,-subsystem,windows" >> "${{ env.SOURCE_DIR }}\openterfaceQT.pro"
+          echo "CONFIG += static staticlib" >> "${{ env.SOURCE_DIR }}\openterfaceQT.pro"
+
+      - name: Update and Release Translations
+        working-directory: ${{ runner.temp }}\build
+        run: |
+          echo "Setting up Qt tools path..."
+          set PATH=C:\Qt6\bin;C:\mingw64\bin;%PATH%
+          echo "Verifying Qt tools..."
+          if not exist "C:\Qt6\bin\lupdate.exe" (
+            echo "Error: lupdate.exe not found in C:\Qt6\bin"
+            exit 1
+          )
+          echo "Running lupdate..."
+          C:\Qt6\bin\lupdate.exe "${{ env.SOURCE_DIR }}\openterfaceQT.pro" || (echo "lupdate failed" && exit 1)
+          echo "Running lrelease..."
+          C:\Qt6\bin\lrelease.exe "${{ env.SOURCE_DIR }}\openterfaceQT.pro" || (echo "lrelease failed" && exit 1)
+
       - name: Build
         working-directory: ${{ runner.temp }}\build
         run: |
+          echo "Checking Qt configuration..."
+          C:\Qt6\bin\qmake -query
+          set PATH=C:\Qt6\bin;C:\mingw64\bin;%PATH%
+          set INCLUDE=C:\Qt6\include;%INCLUDE%
+          
           echo "Building with qmake..."
-          set PATH=${{ runner.temp }}\\Qt\\${{ env.QT_VERSION }}\\mingw_64\\bin;%PATH%
           
-          echo "Updating translations with lupdate..."
-          lupdate ${{ env.SOURCE_DIR }}\openterfaceQT.pro
-          
-          echo "Generating .qm files with lrelease..."
-          lrelease ${{ env.SOURCE_DIR }}\openterfaceQT.pro
-          
-          qmake -v
-          qmake -r ${{ env.SOURCE_DIR }}\openterfaceQT.pro
-          if errorlevel 1 exit /b 1
-          
+          qmake -r "${{ env.SOURCE_DIR }}\openterfaceQT.pro" "CONFIG+=static staticlib" "QMAKE_LFLAGS+=-static" || (echo "qmake failed. Please check the .pro file and paths." && exit 1)
           echo "Building with mingw32-make..."
-          mingw32-make -j2
-          if errorlevel 1 exit /b 1
+          set MINGW_STATIC_BUILD=1
+          mingw32-make VERBOSE=1 -j2 || (echo "mingw32-make failed. Please check the build configuration." && exit 1)
+          set ERRORLEVEL=0
 
           echo "\n release dir:"
           dir release
