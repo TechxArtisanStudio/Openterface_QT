@@ -144,7 +144,7 @@ private:
     QElapsedTimer m_lastCommandTime;  // New member for timing
     int m_commandDelayMs;  // New member for configurable delay
 
-    
+    QString statusCodeToString(uint8_t status);
 };
 
 #endif // SERIALPORTMANAGER_H

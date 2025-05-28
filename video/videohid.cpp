@@ -306,8 +306,10 @@ QString VideoHid::getLatestFirmwareFilenName(QString &url, int timeoutMs){
     QString result;
     if (reply->isFinished() && reply->error() == QNetworkReply::NoError) {
         result = QString::fromUtf8(reply->readAll());
+        fireware_result = FirewareResult::CheckSuccess;
     } else if (!reply->isFinished()) {
         qCDebug(log_host_hid)  << "Request time out";
+        fireware_result = FirewareResult::Timeout;
         reply->abort(); // request timout and abort
     } else {
         qCDebug(log_host_hid)  << "fail to get file name" << reply->errorString();
@@ -816,12 +818,23 @@ void VideoHid::loadFirmwareToEeprom() {
     thread->start();
 }
 
-bool VideoHid::isLatestFirmware() {
+FirewareResult VideoHid::isLatestFirmware() {
     QString firemwareFileName = getLatestFirmwareFilenName(firmwareURL);
+    if (fireware_result == FirewareResult::Timeout) {
+        return FirewareResult::Timeout;
+    }
     QString newURL = firmwareURL.replace("minikvm_latest_firmware.txt", firemwareFileName);
     fetchBinFileToString(newURL);
     qCDebug(log_host_hid)  << "Firmware version:" << QString::fromStdString(getFirmwareVersion());
     qCDebug(log_host_hid)  << "Lateset firmware version:" << QString::fromStdString(m_firmwareVersion);
-    return getFirmwareVersion() == m_firmwareVersion;
+    if (getFirmwareVersion() == m_firmwareVersion) {
+        fireware_result = FirewareResult::Lastest;
+        return FirewareResult::Lastest;
+    }
+    if (std::stoi(getFirmwareVersion()) >= std::stoi(m_firmwareVersion)) {
+        fireware_result = FirewareResult::Upgradable;
+        return FirewareResult::Upgradable;
+    }
+    return fireware_result;
 }
 

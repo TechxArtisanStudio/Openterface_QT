@@ -19,6 +19,14 @@
 
 class FirmwareWriter; // Forward declaration
 
+enum class FirewareResult {
+    Lastest,
+    Upgradable,
+    Timeout,
+    CheckSuccess,
+    Checking
+};
+
 class VideoHid : public QObject
 {
     Q_OBJECT
@@ -52,11 +60,12 @@ public:
     bool isHdmiConnected();
     std::string getFirmwareVersion();
     inline std::string getLatestFirmwareVersion(){ return m_firmwareVersion;}
-    
+
+    FirewareResult fireware_result;
     QString getLatestFirmwareFilenName(QString &url, int timeoutMs = 5000);
     void fetchBinFileToString(QString &url, int timeoutMs = 5000);
 
-    bool isLatestFirmware();
+    FirewareResult isLatestFirmware();
 
     void switchToHost();
     void switchToTarget();

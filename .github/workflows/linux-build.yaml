@@ -105,7 +105,7 @@ jobs:
       - name: Configure And Build
         working-directory: ${{ env.BUILD_DIR }}
         run: |
-          qmake6 ${{ github.workspace }} "DEFINES+=ONLINE_VERSION" && make -j$(nproc)
+          qmake6 ${{ github.workspace }} && make -j$(nproc)
           echo "Checking build output:"
           ls -lh ${{ env.BUILD_DIR }}
           if [ -f ${{ env.BUILD_DIR }}/openterfaceQT ]; then
