@@ -170,6 +170,14 @@ bool GlobalSetting::getScreenSaverInhibited() const {
     return m_settings.value("ScreenSaver/Inhibited", false).toBool();
 }
 
+void GlobalSetting::setScreenRatio(double ratio) {
+    m_settings.setValue("screen/ratio", ratio);
+}
+
+double GlobalSetting::getScreenRatio() const {
+    return m_settings.value("screen/ratio", 1.7778).toDouble();
+}
+
 /*
 * Convert QString to ByteArray
 */

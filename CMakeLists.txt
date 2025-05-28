@@ -78,6 +78,8 @@ qt_add_executable(openterfaceQT WIN32 MACOSX_BUNDLE
     ui/statusbar/statusbarmanager.cpp ui/statusbar/statusbarmanager.h
     ui/help/versioninfomanager.cpp ui/help/versioninfomanager.h
     ui/statusevents.h
+    ui/screenscale.h ui/screenscale.cpp
+    ui/cornerwidget/cornerwidgetmanager.h ui/cornerwidget/cornerwidgetmanager.cpp
     ui/statusbar/statuswidget.cpp ui/statusbar/statuswidget.h
     ui/toolbar/toggleswitch.cpp ui/toolbar/toggleswitch.h
     ui/toolbar/toolbarmanager.cpp ui/toolbar/toolbarmanager.h
@@ -142,6 +144,7 @@ set(mainwindow_resource_files
     "ui/../images/zoom_fit.svg"
     "ui/../images/zoom_in.svg"
     "ui/../images/zoom_out.svg"
+    "ui/../images/screen_scale.svg"
 )
 
 qt_add_resources(openterfaceQT "mainwindow"
