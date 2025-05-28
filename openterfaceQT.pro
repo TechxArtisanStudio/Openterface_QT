@@ -54,7 +54,9 @@ SOURCES += main.cpp \
     server/tcpServer.cpp \
     scripts/scriptEditor.cpp \
     ui/languagemanager.cpp \
-    ui/screensavermanager.cpp
+    ui/screensavermanager.cpp \
+    ui/screenscale.cpp \
+    ui/cornerwidget/cornerwidgetmanager.cpp
 
 
 HEADERS  += \
@@ -106,7 +108,9 @@ HEADERS  += \
     target/KeyboardLayouts.h \
     scripts/scriptEditor.h \
     ui/languagemanager.h \
-    ui/screensavermanager.h
+    ui/screensavermanager.h \
+    ui/screenscale.h \
+    ui/cornerwidget/cornerwidgetmanager.h
 
 FORMS    += \
     ui/mainwindow.ui \
@@ -150,8 +154,6 @@ win32 {
 RC_FILE = openterfaceQT.rc
 
 DEPENDPATH += $$PWD/''
-
-DEFINES += ONLINE_VERSION
 
 TRANSLATIONS += config/languages/openterface_en.ts \
                 config/languages/openterface_fr.ts \

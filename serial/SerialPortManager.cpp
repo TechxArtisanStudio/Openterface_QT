@@ -515,13 +515,13 @@ void SerialPortManager::readData() {
                 updateSpecialKeyState(CmdGetInfoResult::fromByteArray(data).indicators);
                 break;
             case 0x82:
-                qCDebug(log_core_serial) << "Keyboard event sent, status" << data[5];
+                qCDebug(log_core_serial) << "Keyboard event sent, status" << statusCodeToString(data[5]);
                 break;
             case 0x84:
-                qCDebug(log_core_serial) << "Absolute mouse event sent, status" << data[5];
+                qCDebug(log_core_serial) << "Absolute mouse event sent, status" << statusCodeToString(data[5]);
                 break;
             case 0x85:
-                qCDebug(log_core_serial) << "Relative mouse event sent, status" << data[5];
+                qCDebug(log_core_serial) << "Relative mouse event sent, status" << statusCodeToString(data[5]);
                 break;
             case 0x88:
                 // get parameter configuration
@@ -549,6 +549,25 @@ void SerialPortManager::readData() {
     }
     // qDebug() << "Recv read" << data;
     emit dataReceived(data);
+}
+
+QString SerialPortManager::statusCodeToString(uint8_t status) {
+    switch (status) {
+        case 0x00:
+            return "Success"; 
+        case 0xE1:
+            return "Serial port recived one byte timeout";
+        case 0xE2:
+            return "Serial port recived package frist byte error";
+        case 0xE3:
+            return "Serial port recived command code error";
+        case 0xE4:
+            return "Serial port recived package checksum error";
+        case 0xE5:
+            return "Command parameter error";
+        case 0xE6:
+            return "The data frame failed to execute properly";
+    } 
 }
 
 /*
