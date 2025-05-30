@@ -74,7 +74,6 @@ SettingDialog::SettingDialog(CameraManager *cameraManager, QWidget *parent)
     createLayout();
 
     setWindowTitle(tr("Preferences"));
-    // loadLogSettings();
     logPage->initLogSettings();
     videoPage->initVideoSettings();
     targetControlPage->initHardwareSetting();
@@ -90,11 +89,11 @@ SettingDialog::~SettingDialog()
 void SettingDialog::createSettingTree() {
     // qDebug() << "creating setting Tree";
     settingTree->setColumnCount(1);
-    // settingTree->setHeaderLabels(QStringList(tr("general")));
     settingTree->setHeaderHidden(true);
     settingTree->setSelectionMode(QAbstractItemView::SingleSelection);
 
-    settingTree->setMaximumSize(QSize(120, 1000));
+    settingTree->setMaximumSize(QSize(200, 1000));
+    settingTree->setMinimumWidth(110);
     settingTree->setRootIsDecorated(false);
 
     // QStringList names = {"Log"};
