@@ -1,0 +1,55 @@
+FROM arm32v7/debian:bookworm
+
+ENV QT_VERSION=6.5.3
+
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    cmake \
+    git \
+    wget \
+    libfontconfig1-dev \
+    libfreetype6-dev \
+    libx11-dev \
+    libxext-dev \
+    libxfixes-dev \
+    libxi-dev \
+    libxrender-dev \
+    libxcb1-dev \
+    libx11-xcb-dev \
+    libxcb-glx0-dev \
+    libxkbcommon-dev \
+    libxkbcommon-x11-dev \
+    libglib2.0-dev \
+    libgl1-mesa-dev \
+    libglu1-mesa-dev \
+    freeglut3-dev \
+    libegl1-mesa-dev \
+    libdbus-1-dev \
+    libssl-dev \
+    libicu-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Download and compile Qt
+RUN wget https://download.qt.io/official_releases/qt/6.5/${QT_VERSION}/single/qt-everywhere-src-${QT_VERSION}.tar.xz \
+    && tar xf qt-everywhere-src-${QT_VERSION}.tar.xz \
+    && cd qt-everywhere-src-${QT_VERSION} \
+    && ./configure -prefix /opt/Qt/${QT_VERSION} -opensource -confirm-license -release -nomake examples -nomake tests \
+    && make -j$(nproc) \
+    && make install \
+    && cd .. \
+    && rm -rf qt-everywhere-src-${QT_VERSION} qt-everywhere-src-${QT_VERSION}.tar.xz
+
+# Set Qt environment variables
+ENV PATH="/opt/Qt/${QT_VERSION}/bin:${PATH}"
+ENV QT_PLUGIN_PATH="/opt/Qt/${QT_VERSION}/plugins"
+ENV QML2_IMPORT_PATH="/opt/Qt/${QT_VERSION}/qml"
+ENV LD_LIBRARY_PATH="/opt/Qt/${QT_VERSION}/lib:${LD_LIBRARY_PATH}"
+
+WORKDIR /app
+
+COPY . .
+
+RUN cmake -B build -S . -DCMAKE_PREFIX_PATH="/opt/Qt/${QT_VERSION}" && \
+    cmake --build build -j$(nproc)
+
+CMD ["/app/build/openterfaceQT"]

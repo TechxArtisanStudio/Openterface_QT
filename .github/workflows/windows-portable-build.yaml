@@ -1,0 +1,153 @@
+---
+  name: Portable Build for windows
+  
+  on:
+    push:
+      branches: ["main", "dev"]
+    pull_request:
+      branches: ["dev"]
+    workflow_dispatch:
+  
+  defaults:
+    run:
+      shell: cmd
+  
+  env:
+    ARTIFACT: openterfaceQT.windows.amd64.portable.exe
+    SOURCE_DIR: ${{ github.workspace }}
+    QT_VERSION: 6.5.3 
+    GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    ORGANIZATION_NAME: "TechxArtisan"
+  
+  jobs:
+    build:
+      runs-on: windows-2022
+      steps:
+        - uses: actions/checkout@v2
+          with:
+            fetch-depth: 0
+  
+        - name: Cache Qt Build
+          id: cache-qt
+          uses: actions/cache@v3
+          with:
+              path: C:\Qt6
+              key: qt-6.5.3-mingw-windows-static
+              restore-keys: |
+                qt-6.5.3-mingw-windows-static
+
+        - name: Cache MinGW and Ninja Build
+          id: cache-mingw
+          uses: actions/cache@v3
+          with:
+            path: |
+              C:\mingw64
+              C:\ProgramData\chocolatey\lib\ninja
+            key: mingw-ninja-windows-static
+            restore-keys: |
+              mingw-ninja-windows-static
+              
+        - name: Set up Python
+          uses: actions/setup-python@v5
+          with:
+            python-version: '3.10'
+  
+        - name: Install Build environment
+          if: steps.cache-mingw.outputs.cache-hit != 'true'
+          run: |
+            echo "Installing Ninja"
+            choco install ninja -y
+      
+            echo "Downloading pre-compiled static build of MinGW-w64"
+            curl -L -o mingw-w64.zip https://sourceforge.net/projects/mingw-w64/files/latest/download
+            mkdir C:\mingw-w64
+            tar -xf mingw-w64.zip -C C:\mingw64 --strip-components=1
+      
+            echo "Setting up PATH for MinGW-w64"
+            set PATH=C:\mingw64\bin;%PATH%
+            g++ --version || (echo "g++ installation failed. Please check the installation." && exit 1)
+  
+        - name: Build Qt Statically
+          if: steps.cache-qt.outputs.cache-hit != 'true'
+          run: |
+            call build-script/build-static-qt-from-source.bat
+        - name: Create build directory
+          run: |
+            mkdir ${{ runner.temp }}\build
+            
+        - name: Prepare .pro File for Static Build
+          run: |
+            echo "Checking and appending static build configuration to .pro file..."
+            if not exist "${{ env.SOURCE_DIR }}\openterfaceQT.pro" (
+              echo "Error: .pro file not found."
+              exit 1
+            )
+           
+            findstr /C:"CONFIG += static release" "${{ env.SOURCE_DIR }}\openterfaceQT.pro" >nul
+            if errorlevel 1 (
+              echo "" >> "${{ env.SOURCE_DIR }}\openterfaceQT.pro"
+              echo "CONFIG += static release" >> "${{ env.SOURCE_DIR }}\openterfaceQT.pro"
+              echo "Static build configuration added to .pro file."
+              set ERRORLEVEL=0
+            ) else (
+              echo "Static build configuration already present in .pro file."
+            )
+            
+            echo "QMAKE_LFLAGS += -static -static-libgcc -static-libstdc++ -static-libgfortran" >> "${{ env.SOURCE_DIR }}\openterfaceQT.pro"
+            echo "QMAKE_CXXFLAGS += -static -static-libgcc -static-libstdc++" >> "${{ env.SOURCE_DIR }}\openterfaceQT.pro"
+            echo "QMAKE_LINK = g++ -Wl,-subsystem,windows" >> "${{ env.SOURCE_DIR }}\openterfaceQT.pro"
+            echo "CONFIG += static staticlib" >> "${{ env.SOURCE_DIR }}\openterfaceQT.pro"
+        - name: Prepare Driver Files
+          run: |
+            mkdir ${{ env.SOURCE_DIR }}\drivers
+            mkdir ${{ env.SOURCE_DIR }}\drivers\windows
+            copy driver\windows\* ${{ env.SOURCE_DIR }}\drivers\windows
+
+        - name: Update and Release Translations
+          working-directory: ${{ runner.temp }}\build
+          run: |
+            echo "Setting up Qt tools path..."
+            set PATH=C:\Qt6\bin;C:\mingw64\bin;%PATH%
+            echo "Verifying Qt tools..."
+            if not exist "C:\Qt6\bin\lupdate.exe" (
+              echo "Error: lupdate.exe not found in C:\Qt6\bin"
+              exit 1
+            )
+            echo "Running lupdate..."
+            C:\Qt6\bin\lupdate.exe "${{ env.SOURCE_DIR }}\openterfaceQT.pro" || (echo "lupdate failed" && exit 1)
+            echo "Running lrelease..."
+            C:\Qt6\bin\lrelease.exe "${{ env.SOURCE_DIR }}\openterfaceQT.pro" || (echo "lrelease failed" && exit 1)
+
+        - name: Build Portable Executable
+          working-directory: ${{ runner.temp }}\build
+          run: |
+            echo "Checking Qt configuration..."
+            C:\Qt6\bin\qmake -query
+            set PATH=C:\Qt6\bin;C:\mingw64\bin;%PATH%
+            set INCLUDE=C:\Qt6\include;%INCLUDE%
+            
+            echo "Building with qmake..."
+            
+            qmake -r "${{ env.SOURCE_DIR }}\openterfaceQT.pro" "CONFIG+=static staticlib" "QMAKE_LFLAGS+=-static" || (echo "qmake failed. Please check the .pro file and paths." && exit 1)
+            echo "Building with mingw32-make..."
+            set MINGW_STATIC_BUILD=1
+            mingw32-make VERBOSE=1 -j2 || (echo "mingw32-make failed. Please check the build configuration." && exit 1)
+            set ERRORLEVEL=0
+            
+            if not exist release\openterfaceQT.exe (
+              echo "Error: Failed to build openterfaceQT.exe"
+              exit 1
+            )
+          
+            echo "Stripping debug symbols from executable..."
+            strip -s release\openterfaceQT.exe || (echo "Failed to strip debug symbols" && exit 1)
+            
+            echo "Creating portable package..."
+            mkdir package
+            copy release\openterfaceQT.exe package\openterfaceQT-portable.exe
+        - name: Save build artifact
+          uses: actions/upload-artifact@v4
+          with:
+            name: ${{ env.ARTIFACT }}
+            path: ${{ runner.temp }}\build\package\openterfaceQT-portable.exe
+            if-no-files-found: error
