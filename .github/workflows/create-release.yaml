@@ -172,7 +172,7 @@ jobs:
 
       
       - name: Download Linux portable artifacts
-        uses: dawidd6/action-download-artifact@v2
+        uses: dawidd6/action-download-artifact@v6
         with:
           workflow: linux-portable-build.yaml
           workflow_conclusion: success
