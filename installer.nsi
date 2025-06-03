@@ -14,6 +14,14 @@ InstallDir "$PROGRAMFILES\${MyAppName}"
 ShowInstDetails show
 ShowUninstDetails show
 
+VIProductVersion "${MyAppVersion}"
+VIAddVersionKey "ProductName" "Openterface Mini-KVM"
+VIAddVersionKey "CompanyName" "TechxArtisan Limited"
+VIAddVersionKey "FileDescription" "KVM control tool"
+VIAddVersionKey "FileVersion" "${MyAppVersion}"
+
+SetCompressor /SOLID lzma
+
 ; Include license
 LicenseData "${SourcePackage}\${LicenseFile}"
 
@@ -58,9 +66,6 @@ Section "Uninstall"
     ; Remove shortcuts
     Delete "$SMPROGRAMS\${MyAppName}.lnk"
     Delete "$DESKTOP\${MyAppName}.lnk"
-
-    ; Uninstall driver
-    ExecWait '"$SYSDIR\pnputil.exe" /delete-driver CH341SER.INF /uninstall'
 
     ; Remove installation directory
     RMDir /r "$INSTDIR"
