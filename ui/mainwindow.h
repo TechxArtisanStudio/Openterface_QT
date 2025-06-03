@@ -41,19 +41,15 @@
 #include "ui/TaskManager.h"
 #include "ui/languagemanager.h"
 #include "ui/statusbar/statusbarmanager.h"
-#include "host/usbcontrol.h"
 #include "host/cameramanager.h"
 #include "scripts/semanticAnalyzer.h"
 #include "scripts/AST.h"
-#include "ui/languagemanager.h"
 #include "ui/screensavermanager.h"
+#include "ui/screenscale.h"
+#include "ui/cornerwidget/cornerwidgetmanager.h"
 
-
-#ifdef ONLINE_VERSION
 #define SERVER_PORT 12345
 #include "server/tcpServer.h"
-#endif
-
 
 #include <QAudioInput>
 #include <QAudioOutput>
@@ -99,6 +95,12 @@ class MetaDataDialog;
 
 QPixmap recolorSvg(const QString &svgPath, const QColor &color, const QSize &size);
 
+enum class ratioType{
+    EQUAL,
+    LARGER,
+    SMALLER
+};
+
 class MainWindow : public QMainWindow, public StatusEventCallback
 {
     Q_OBJECT
@@ -118,6 +120,7 @@ public slots:
     void handleSyntaxTree(std::shared_ptr<ASTNode> syntaxTree);
     void changeKeyboardLayout(const QString& layout);
     void initializeKeyboardLayouts();
+    void onScreenRatioChanged(double ratio);
 
 private slots:
     void initCamera();
@@ -138,7 +141,6 @@ private slots:
     void officialLink();
     void aboutLink();
     void updateLink();
-    void setTooltip();
 
     void configureSettings();
     void debugSerialPort();
@@ -172,12 +174,29 @@ private slots:
     void onSwitchableUsbToggle(const bool isToHost) override;
 
     void onTargetUsbConnected(const bool isConnected) override;
-    
-    bool CheckDeviceAccess(uint16_t vid, uint16_t pid);
 
     void showEnvironmentSetupDialog();
 
     void updateFirmware(); 
+
+    void onRepeatingKeystrokeChanged(int index);
+
+    void onCtrlAltDelPressed();
+    
+    void onBaudrateMenuTriggered(QAction* action);
+
+    void onToggleSwitchStateChanged(int state);
+
+    void onZoomIn();
+    void onZoomOut();
+    void onZoomReduction();
+    void onKeyboardLayoutCombobox_Changed(const QString &layout);
+    
+    void checkMousePosition();
+
+    void onVideoSettingsChanged();
+    void onResolutionsUpdated(int input_width, int input_height, float input_fps, int capture_width, int capture_height, int capture_fps, float pixelClk);
+    void onInputResolutionChanged();
 
 protected:
     void closeEvent(QCloseEvent *event) override;
@@ -200,36 +219,8 @@ protected:
     void onActionScreensaver();
     void onToggleVirtualKeyboard();
 
-    void queryResolutions();
-
     void onResolutionChange(const int& width, const int& height, const float& fps, const float& pixelClk);
 
-    void onButtonClicked();
-
-
-private slots:
-    void onRepeatingKeystrokeChanged(int index);
-
-    void onCtrlAltDelPressed();
-    
-    void onBaudrateMenuTriggered(QAction* action);
-
-    void onToggleSwitchStateChanged(int state);
-
-    void onZoomIn();
-    void onZoomOut();
-    void onZoomReduction();
-    void onKeyboardLayoutCombobox_Changed(int index);
-    
-private slots:
-    void checkMousePosition();
-
-private slots:
-    void onVideoSettingsChanged();
-    void onResolutionsUpdated(int input_width, int input_height, float input_fps, int capture_width, int capture_height, int capture_fps, float pixelClk);
-    void onInputResolutionChanged(int old_input_width, int old_input_height, int new_input_width, int new_input_height);
-
-protected:
     bool eventFilter(QObject *watched, QEvent *event) override;
 
 private:
@@ -248,7 +239,7 @@ private:
     QToolBar *toolbar;
     ToolbarManager *toolbarManager; // Moved up in the declaration orde r
     
-    LanguageManager *m_languageManager;
+    
     void updateUI();
     void setupLanguageMenu();
     void onLanguageSelected(QAction *action);
@@ -273,9 +264,6 @@ private:
 
     QWidget *keyboardPanel = nullptr;
 
-    QPushButton* createFunctionButton(const QString &text);
-
-    void onRepeatingKeystrokeToggled(bool checked);
     QComboBox *repeatingKeystrokeComboBox;
     
     void updateBaudrateMenu(int baudrate);
@@ -293,9 +281,8 @@ private:
     const int edgeDuration = 125; // Reduced duration for more frequent checks
     const int maxScrollSpeed = 50; // Maximum scroll speed
     VersionInfoManager *m_versionInfoManager;
-
+    LanguageManager *m_languageManager;
     StatusBarManager *m_statusBarManager;
-    USBControl *usbControl;
 
     // CameraAdjust *cameraAdjust;
     std::unique_ptr<MouseManager> mouseManager;
@@ -310,7 +297,7 @@ private:
 
     void doResize();
 
-    void centerVideoPane();
+    void centerVideoPane(int videoWidth, int videoHeight, int WindowWidth, int WindowHeight);
     void checkInitSize();
     void fullScreen();
     bool isFullScreenMode();
@@ -318,10 +305,13 @@ private:
     Qt::WindowStates oldWindowState;
     ScriptTool *scriptTool;
     ScreenSaverManager *m_screenSaverManager;
-#ifdef ONLINE_VERSION
+    ScreenScale *m_screenScaleDialog = nullptr;
+    CornerWidgetManager *m_cornerWidgetManager = nullptr;
+    void configScreenScale();
+    
+    ratioType currentRatioType = ratioType::EQUAL;
     void startServer();
     TcpServer *tcpServer;
-#endif
 
 };
 #endif // MAINWINDOW_H

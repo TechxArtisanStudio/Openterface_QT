@@ -59,6 +59,9 @@ public:
     float getInputAspectRatio() const { return input_aspect_ratio; }
     void setInputAspectRatio(float aspect_ratio) { input_aspect_ratio = aspect_ratio; }
 
+    float getCaptureAspectRatio() const { return capture_aspect_ratio; }
+    void setCaptureAspectRatio(float aspect_ratio) { capture_aspect_ratio = aspect_ratio; }
+
     int getCaptureWidth() const { return capture_width; }
     void setCaptureWidth(int width) { capture_width = width; }
 
@@ -126,6 +129,7 @@ private:
     int capture_width;
     int capture_height;
     float capture_fps;
+    float capture_aspect_ratio;
 
 
     int win_width;

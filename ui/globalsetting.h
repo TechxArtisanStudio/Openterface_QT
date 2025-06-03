@@ -87,6 +87,8 @@ public:
     void setScreenSaverInhibited(bool inhibit);
     bool getScreenSaverInhibited() const;
 
+    void setScreenRatio(double ratio);
+    double getScreenRatio() const;
 private:
     QSettings m_settings;
 };

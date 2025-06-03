@@ -46,7 +46,7 @@ private:
     static const QString crossHtml;
     static QString lastestFirewareDescription;
     static bool isDevicePlugged;
-    static bool lastestFirmware;
+    static FirewareResult lastestFirmware;
     // bool isDevicePlugged;
     
     static bool detectDevice(uint16_t vendorID, uint16_t productID);
