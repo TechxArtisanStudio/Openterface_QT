@@ -306,10 +306,10 @@ QString VideoHid::getLatestFirmwareFilenName(QString &url, int timeoutMs){
     QString result;
     if (reply->isFinished() && reply->error() == QNetworkReply::NoError) {
         result = QString::fromUtf8(reply->readAll());
-        fireware_result = FirewareResult::CheckSuccess;
+        fireware_result = FirmwareResult::CheckSuccess;
     } else if (!reply->isFinished()) {
         qCDebug(log_host_hid)  << "Request time out";
-        fireware_result = FirewareResult::Timeout;
+        fireware_result = FirmwareResult::Timeout;
         reply->abort(); // request timout and abort
     } else {
         qCDebug(log_host_hid)  << "fail to get file name" << reply->errorString();
@@ -818,22 +818,22 @@ void VideoHid::loadFirmwareToEeprom() {
     thread->start();
 }
 
-FirewareResult VideoHid::isLatestFirmware() {
+FirmwareResult VideoHid::isLatestFirmware() {
     QString firemwareFileName = getLatestFirmwareFilenName(firmwareURL);
-    if (fireware_result == FirewareResult::Timeout) {
-        return FirewareResult::Timeout;
+    if (fireware_result == FirmwareResult::Timeout) {
+        return FirmwareResult::Timeout;
     }
     QString newURL = firmwareURL.replace("minikvm_latest_firmware.txt", firemwareFileName);
     fetchBinFileToString(newURL);
     qCDebug(log_host_hid)  << "Firmware version:" << QString::fromStdString(getFirmwareVersion());
     qCDebug(log_host_hid)  << "Lateset firmware version:" << QString::fromStdString(m_firmwareVersion);
     if (getFirmwareVersion() == m_firmwareVersion) {
-        fireware_result = FirewareResult::Lastest;
-        return FirewareResult::Lastest;
+        fireware_result = FirmwareResult::Lastest;
+        return FirmwareResult::Lastest;
     }
-    if (std::stoi(getFirmwareVersion()) >= std::stoi(m_firmwareVersion)) {
-        fireware_result = FirewareResult::Upgradable;
-        return FirewareResult::Upgradable;
+    if (std::stoi(getFirmwareVersion()) <= std::stoi(m_firmwareVersion)) {
+        fireware_result = FirmwareResult::Upgradable;
+        return FirmwareResult::Upgradable;
     }
     return fireware_result;
 }

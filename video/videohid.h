@@ -19,7 +19,7 @@
 
 class FirmwareWriter; // Forward declaration
 
-enum class FirewareResult {
+enum class FirmwareResult {
     Lastest,
     Upgradable,
     Timeout,
@@ -61,11 +61,11 @@ public:
     std::string getFirmwareVersion();
     inline std::string getLatestFirmwareVersion(){ return m_firmwareVersion;}
 
-    FirewareResult fireware_result;
+    FirmwareResult fireware_result;
     QString getLatestFirmwareFilenName(QString &url, int timeoutMs = 5000);
     void fetchBinFileToString(QString &url, int timeoutMs = 5000);
 
-    FirewareResult isLatestFirmware();
+    FirmwareResult isLatestFirmware();
 
     void switchToHost();
     void switchToTarget();
