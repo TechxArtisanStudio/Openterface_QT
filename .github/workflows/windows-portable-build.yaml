@@ -146,8 +146,29 @@
             mkdir package
             copy release\openterfaceQT.exe package\openterfaceQT-portable.exe
         - name: Save build artifact
+          id: upload-unsigned-artifact
           uses: actions/upload-artifact@v4
           with:
             name: ${{ env.ARTIFACT }}
             path: ${{ runner.temp }}\build\package\openterfaceQT-portable.exe
+            if-no-files-found: error
+        
+        - name: Submit signing request
+          id: sign
+          uses: signpath/github-action-submit-signing-request@v1.1
+          with:
+            api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+            organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+            project-slug: Openterface_QT
+            signing-policy-slug: test-signing
+            artifact-configuration-slug: Openterface_Connect_win_installer_zip
+            github-artifact-id: ${{ steps.upload-unsigned-artifact.outputs.artifact-id }}
+            wait-for-completion: true
+            output-artifact-directory: .\Output\signed
+        
+        - name: Upload signed artifact
+          uses: actions/upload-artifact@v4
+          with:
+            name: signed-openterfaceQT-portable.exe
+            path: ${{ env.SOURCE_DIR }}/Output/signed/openterfaceQT-portable.exe
             if-no-files-found: error
