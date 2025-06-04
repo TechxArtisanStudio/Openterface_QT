@@ -177,13 +177,41 @@ jobs:
                    installer.nsi
 
       - name: Save build artifacts
+        id: upload-unsigned-artifact
         uses: actions/upload-artifact@v4
         with:
           name: openterfaceQT.windows.amd64.installer
           path: |
             ${{ env.SOURCE_DIR }}\Output\openterfaceQT.windows.amd64.installer.exe
           if-no-files-found: error
+      
+      - name: Submit signing request
+        id: sign
+        uses: signpath/github-action-submit-signing-request@v1.1
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: Openterface_QT
+          signing-policy-slug: test-signing
+          artifact-configuration-slug: Openterface_Connect_win_installer_zip
+          github-artifact-id: ${{ steps.upload-unsigned-artifact.outputs.artifact-id }}
+          wait-for-completion: true
+          output-artifact-directory: .\Output\signed
 
+      - name: unzip signed artifact
+        run: |
+          cd ${{ env.SOURCE_DIR }}/Output/signed
+          dir
+          cd ${{ env.SOURCE_DIR }}/Output/
+          dir
+      
+      - name: Upload signed artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: signed-openterfaceQT-installer
+          path: ${{ env.SOURCE_DIR }}/Output/signed/openterfaceQT.windows.amd64.installer.exe
+          if-no-files-found: error
+          
       - name: Commit and push version update
         if: success() && (github.event.inputs.increase_version == 'true' || github.event.inputs.increase_major == 'true' || github.event.inputs.increase_minor == 'true')
         run: |
