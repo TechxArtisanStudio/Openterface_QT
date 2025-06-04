@@ -39,7 +39,7 @@ const QString EnvironmentSetupDialog::tickHtml = "<span style='color: green; fon
 const QString EnvironmentSetupDialog::crossHtml = "<span style='color: red; font-size: 16pt'>✗</span>";
 QString EnvironmentSetupDialog::lastestFirewareDescription = QString("");
 // const QString EnvironmentSetupDialog::lastestFirewareDescription = "not the lastest firmware version. Please click ok then update it in Advance->Firmware Update...";
-FirewareResult EnvironmentSetupDialog::lastestFirmware = FirewareResult::Checking;
+FirmwareResult EnvironmentSetupDialog::lastestFirmware = FirmwareResult::Checking;
 
 #ifdef __linux__
 // Define the static commands
@@ -108,7 +108,7 @@ EnvironmentSetupDialog::EnvironmentSetupDialog(QWidget *parent) :
     QString lastestDescription = lastestFirewareDescription;
     qDebug() << lastestDescription;
     statusSummary += tr("‣ Driver Installed: ") + QString(isDriverInstalled? tickHtml : crossHtml) + "<br>";
-    statusSummary += tr("‣ Latest Firmware: ") + QString(lastestFirmware == FirewareResult::Lastest ? tickHtml : crossHtml) + QString(lastestFirmware == FirewareResult::Lastest ?  QString(""): lastestDescription);
+    statusSummary += tr("‣ Latest Firmware: ") + QString(lastestFirmware == FirmwareResult::Lastest ? tickHtml : crossHtml) + QString(lastestFirmware == FirmwareResult::Lastest ?  QString(""): lastestDescription);
     ui->descriptionLabel->setText(statusSummary);
 
     // if(isDriverInstalled)
@@ -143,7 +143,7 @@ EnvironmentSetupDialog::EnvironmentSetupDialog(QWidget *parent) :
     statusSummary += tr("‣ In Serial Port Permission: ") + QString(isSerialPermission ? tickHtml : crossHtml) + "<br>";
     statusSummary += tr("‣ HID Permission: ") + QString(isHidPermission ? tickHtml : crossHtml) + "<br>";
     statusSummary += tr("‣ BRLTTY checking: ") + QString(isBrlttyRunning ? crossHtml + tr(" (needs removal)") : tickHtml + tr(" (not running)")) + "<br>";
-    statusSummary += tr("‣ Latest Firmware: ") + QString(lastestFirmware == FirewareResult::Lastest ? tickHtml : crossHtml) + QString(lastestFirmware == FirewareResult::Lastest ?  QString(""): lastestFirewareDescription);
+    statusSummary += tr("‣ Latest Firmware: ") + QString(lastestFirmware == FirmwareResult::Lastest ? tickHtml : crossHtml) + QString(lastestFirmware == FirmwareResult::Lastest ?  QString(""): lastestFirewareDescription);
     ui->descriptionLabel->setText(statusSummary);
 
     // Create help link
@@ -513,14 +513,14 @@ bool EnvironmentSetupDialog::checkEnvironmentSetup() {
     std::string latestVersion = VideoHid::getInstance().getLatestFirmwareVersion();
     std::cout << "Dirver detect: " << version << std::endl;
     std::cout << "Lastest driver: " << latestVersion << std::endl;
-    std::cout << "Dirver is lastest: " << (lastestFirmware == FirewareResult::Lastest ? "yes" : "no" ) << std::endl;
+    std::cout << "Dirver is lastest: " << (lastestFirmware == FirmwareResult::Lastest ? "yes" : "no" ) << std::endl;
     lastestFirewareDescription ="<br>Current version" + QString::fromStdString(version) + 
     "<br>" + "Lastest version: " + QString::fromStdString(latestVersion) +
     "<br>" + "Please update driver to lastest version." + 
     "<br>" + "click ok then Advance->Firmware Update...";
     qDebug() << lastestFirewareDescription;
     #ifdef _WIN32
-    return checkDriverInstalled() && lastestFirmware == FirewareResult::Lastest;
+    return checkDriverInstalled() && lastestFirmware == FirmwareResult::Lastest;
     #elif defined(__linux__)
     std::cout << "Checking if MS2109 is on Linux." << std::endl;
 
@@ -556,7 +556,7 @@ bool EnvironmentSetupDialog::checkEnvironmentSetup() {
     checkBrlttyRunning(); // No need to return value here
     bool checkPermission = checkDevicePermission(openterfaceVID, openterfacePID);
     qDebug() << "Check permission result: " << checkPermission;
-    return checkDriverInstalled() && checkSerialPermission && checkPermission && (lastestFirmware == FirewareResult::Lastest) && !isBrlttyRunning || skipCheck;
+    return checkDriverInstalled() && checkSerialPermission && checkPermission && (lastestFirmware == FirmwareResult::Lastest) && !isBrlttyRunning || skipCheck;
     #else
     return true;
     #endif

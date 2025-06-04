@@ -1455,18 +1455,20 @@ void MainWindow::showEnvironmentSetupDialog() {
 
 void MainWindow::updateFirmware() {
     // Check if it's latest firmware
+    FirmwareResult firmwareStatus = VideoHid::getInstance().isLatestFirmware();
     std::string currentFirmwareVersion = VideoHid::getInstance().getFirmwareVersion();
     std::string latestFirmwareVersion = VideoHid::getInstance().getLatestFirmwareVersion();
-    if (VideoHid::getInstance().isLatestFirmware() == FirewareResult::Lastest) {
+    qDebug() << "latestFirmwareVersion" << latestFirmwareVersion.c_str();
+    if (firmwareStatus == FirmwareResult::Lastest) {
         std::string currentFirmwareVersion = VideoHid::getInstance().getFirmwareVersion();
         QMessageBox::information(this, tr("Firmware Update"), 
             tr("The firmware is up to date.\nCurrent version: ") + 
             QString::fromStdString(currentFirmwareVersion));
         return;
-    }else if(VideoHid::getInstance().isLatestFirmware() == FirewareResult::Timeout){
+    }else if(firmwareStatus == FirmwareResult::Timeout){
         QMessageBox::information(this, tr("Firmware fetch timeout"), tr("Failed to check for the latest firmware version.\n"), tr("current version: ") + QString::fromStdString(currentFirmwareVersion) + tr("\nlatest version: ") + QString::fromStdString(latestFirmwareVersion));
         return;
-    }else if(VideoHid::getInstance().isLatestFirmware() == FirewareResult::Upgradable){
+    }else if(firmwareStatus == FirmwareResult::Upgradable){
         // Create and show the confirmation dialog
         FirmwareUpdateConfirmDialog confirmDialog(this);
         bool proceed = confirmDialog.showConfirmDialog(currentFirmwareVersion, latestFirmwareVersion);

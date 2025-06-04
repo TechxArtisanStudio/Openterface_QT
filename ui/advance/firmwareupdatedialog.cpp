@@ -144,6 +144,8 @@ FirmwareUpdateConfirmDialog::~FirmwareUpdateConfirmDialog()
 
 bool FirmwareUpdateConfirmDialog::showConfirmDialog(const std::string& currentVersion, const std::string& latestVersion)
 {
+    qDebug() << "Current firmware version: " << QString::fromStdString(currentVersion);
+    qDebug() << "Latest firmware version: " << QString::fromStdString(latestVersion);
     QString message = tr("Current firmware version: ") + QString::fromStdString(currentVersion) + tr("\n") +
                      tr("Latest firmware version: ") + QString::fromStdString(latestVersion) + tr("\n\n") +
                      tr("The update process will:\n") +
