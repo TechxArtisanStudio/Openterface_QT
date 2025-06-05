@@ -128,14 +128,6 @@ jobs:
           workflow_conclusion: success
           name: openterfaceQT.linux.amd64.rpm
           path: artifacts/linux/amd64/rpm
-
-      - name: Download Linux AMD64 AppImage artifact
-        uses: dawidd6/action-download-artifact@v2
-        with:
-          workflow: linux-build.yaml
-          workflow_conclusion: success
-          name: openterfaceQT.linux.amd64.AppImage
-          path: artifacts/linux/amd64/appimage
           
       - name: Download Linux ARM64 DEB artifact
         uses: dawidd6/action-download-artifact@v2
@@ -177,6 +169,14 @@ jobs:
           workflow: linux-portable-build.yaml
           workflow_conclusion: success
           name: openterfaceQT.linux.amd64.portable
+          path: artifacts/linux/portable
+      
+      - name: Download Linux portable AppImage artifact
+        uses: dawidd6/action-download-artifact@v2
+        with:
+          workflow: linux-portable-build.yaml
+          workflow_conclusion: success
+          name: openterfaceQT.linux.amd64.portable.AppImage
           path: artifacts/linux/portable
           
       - name: Create source archives
