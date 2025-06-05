@@ -30,6 +30,14 @@
     </message>
 </context>
 <context>
+    <name>CornerWidgetManager</name>
+    <message>
+        <location filename="../../ui/cornerwidget/cornerwidgetmanager.cpp" line="57"/>
+        <source>Select Keyboard Layout</source>
+        <translation type="unfinished">Sélectionner la disposition du clavier</translation>
+    </message>
+</context>
+<context>
     <name>EnvironmentSetupDialog</name>
     <message>
         <source>Environment Setup</source>
@@ -463,279 +471,291 @@ Veuillez réessayer après avoir redémarré l&apos;application.</translation>
         <translation>Openterface Mini-KVM</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="106"/>
         <source>Select Keyboard Layout</source>
-        <translation>Sélectionner la disposition du clavier</translation>
+        <translation type="vanished">Sélectionner la disposition du clavier</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="110"/>
         <source>US QWERTY</source>
-        <translation>US QWERTY</translation>
+        <translation type="vanished">US QWERTY</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="186"/>
+        <location filename="../../ui/mainwindow.ui" line="58"/>
         <source>File</source>
         <translation>Fichier</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="194"/>
+        <location filename="../../ui/mainwindow.ui" line="66"/>
         <source>Languages</source>
         <translation>Langues</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="199"/>
+        <location filename="../../ui/mainwindow.ui" line="71"/>
         <source>Control</source>
         <translation>Contrôle</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="203"/>
+        <location filename="../../ui/mainwindow.ui" line="75"/>
         <source>Mouse Mode</source>
         <translation>Mode souris</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="210"/>
+        <location filename="../../ui/mainwindow.ui" line="82"/>
         <source>Mouse Visibility</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="217"/>
+        <location filename="../../ui/mainwindow.ui" line="89"/>
         <source>Baudrate</source>
         <translation>Débit binaire</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="224"/>
+        <location filename="../../ui/mainwindow.ui" line="96"/>
         <source>Switchable USB</source>
         <translation>USB commutables</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="237"/>
+        <location filename="../../ui/mainwindow.ui" line="109"/>
         <source>Help</source>
         <translation>Aide</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="248"/>
+        <location filename="../../ui/mainwindow.ui" line="120"/>
         <source>Edit</source>
         <translation>Modifier</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="254"/>
+        <location filename="../../ui/mainwindow.ui" line="126"/>
         <source>Advance</source>
         <translation>Avancé</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="275"/>
+        <location filename="../../ui/mainwindow.ui" line="147"/>
         <source>Close</source>
         <translation>Fermer</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="280"/>
+        <location filename="../../ui/mainwindow.ui" line="152"/>
         <source>Change Settings</source>
         <translation>Modifier les paramètres</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="285"/>
+        <location filename="../../ui/mainwindow.ui" line="157"/>
         <source>Reset Keyboard and Mouse</source>
         <translation>Réinitialiser le clavier et la souris</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="290"/>
+        <location filename="../../ui/mainwindow.ui" line="162"/>
         <source>Reset Serial Port</source>
         <translation>Réinitialiser le port série</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="295"/>
+        <location filename="../../ui/mainwindow.ui" line="167"/>
         <source>Serial Console</source>
         <translation>Console série</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="300"/>
+        <location filename="../../ui/mainwindow.ui" line="172"/>
         <source>AutoReszie</source>
         <translation>Redimensionnement automatique</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="305"/>
+        <location filename="../../ui/mainwindow.ui" line="177"/>
         <source>Factory Reset HID Chip</source>
         <translation>Réinitialisation d&apos;usine de la puce HID</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="310"/>
+        <location filename="../../ui/mainwindow.ui" line="182"/>
         <source>Preferences</source>
         <translation>Préférences</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="315"/>
+        <location filename="../../ui/mainwindow.ui" line="187"/>
         <source>Office Website</source>
         <translation>Site web officiel</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="320"/>
+        <location filename="../../ui/mainwindow.ui" line="192"/>
         <source>Purchase</source>
         <translation>Acheter</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="325"/>
+        <location filename="../../ui/mainwindow.ui" line="197"/>
         <source>Feedback</source>
         <translation>Retour d&apos;information</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="330"/>
+        <location filename="../../ui/mainwindow.ui" line="202"/>
         <source>Update</source>
         <translation>Mettre à jour</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="335"/>
+        <location filename="../../ui/mainwindow.ui" line="207"/>
         <source>Environment</source>
         <translation>Environnement</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="340"/>
+        <location filename="../../ui/mainwindow.ui" line="212"/>
         <source>About</source>
         <translation>À propos</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="351"/>
+        <location filename="../../ui/mainwindow.ui" line="223"/>
         <source>Follow Switch</source>
         <translation>Suivre le commutateur</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="359"/>
+        <location filename="../../ui/mainwindow.ui" line="231"/>
         <source>Paste</source>
         <translation>Coller</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="362"/>
+        <location filename="../../ui/mainwindow.ui" line="234"/>
         <source>Paste clipboard content to target</source>
         <translation>Coller le contenu du presse-papiers sur la cible</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="367"/>
+        <location filename="../../ui/mainwindow.ui" line="239"/>
         <source>Script Tool</source>
         <translation>Outil de script</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="372"/>
+        <location filename="../../ui/mainwindow.ui" line="244"/>
         <source>TCP Server</source>
         <translation>Serveur TCP</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="377"/>
+        <location filename="../../ui/mainwindow.ui" line="249"/>
         <source>Environment Checking</source>
         <translation>Vérification de l&apos;environnement</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="382"/>
+        <location filename="../../ui/mainwindow.ui" line="254"/>
         <source>Firmware Update...</source>
         <translation>Mise à jour du firmware...</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="391"/>
+        <location filename="../../ui/mainwindow.ui" line="263"/>
         <source>115200</source>
         <translation>115200</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="399"/>
+        <location filename="../../ui/mainwindow.ui" line="271"/>
         <source>9600</source>
         <translation>9600</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="409"/>
+        <location filename="../../ui/mainwindow.ui" line="281"/>
         <source>To Host</source>
         <translation>Vers l&apos;hôte</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="417"/>
+        <location filename="../../ui/mainwindow.ui" line="289"/>
         <source>To Target</source>
         <translation>Vers la cible</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="430"/>
+        <location filename="../../ui/mainwindow.ui" line="302"/>
         <source>Absolute</source>
         <translation>Absolu</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="438"/>
+        <location filename="../../ui/mainwindow.ui" line="310"/>
         <source>Relative</source>
         <translation>Relatif</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="451"/>
+        <location filename="../../ui/mainwindow.ui" line="323"/>
         <source>Auto Hide</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="454"/>
+        <location filename="../../ui/mainwindow.ui" line="326"/>
         <source>Auto hide mouse cursor</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="462"/>
+        <location filename="../../ui/mainwindow.ui" line="334"/>
         <source>Always Show</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="465"/>
+        <location filename="../../ui/mainwindow.ui" line="337"/>
         <source>Always show mouse cursor</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="405"/>
         <source>Zoom in</source>
-        <translation>Zoomer</translation>
+        <translation type="vanished">Zoomer</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="406"/>
         <source>Zoom out</source>
-        <translation>Dézoomer</translation>
+        <translation type="vanished">Dézoomer</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="407"/>
         <source>Restore original size</source>
-        <translation>Restaurer la taille originale</translation>
+        <translation type="vanished">Restaurer la taille originale</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="408"/>
         <source>Function key and composite key</source>
-        <translation>Touche de fonction et touche composée</translation>
+        <translation type="vanished">Touche de fonction et touche composée</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="409"/>
         <source>Paste text to target</source>
-        <translation>Coller le texte sur la cible</translation>
+        <translation type="vanished">Coller le texte sur la cible</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="410"/>
         <source>Mouse dance</source>
-        <translation>Danse de la souris</translation>
+        <translation type="vanished">Danse de la souris</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="411"/>
         <source>Full screen capture</source>
-        <translation>Capture plein écran</translation>
+        <translation type="vanished">Capture plein écran</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="412"/>
         <source>Full screen mode</source>
-        <translation>Mode plein écran</translation>
+        <translation type="vanished">Mode plein écran</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="914"/>
+        <location filename="../../ui/mainwindow.cpp" line="811"/>
         <source>Recorded %1 sec</source>
         <translation>Enregistré %1 sec</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1052"/>
+        <location filename="../../ui/mainwindow.cpp" line="993"/>
         <source>Image Capture Error</source>
         <translation>Erreur de capture d&apos;image</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1120"/>
+        <location filename="../../ui/mainwindow.cpp" line="1061"/>
         <source>Captured &quot;%1&quot;</source>
         <translation>Capturé &quot;%1&quot;</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1567"/>
+        <location filename="../../ui/mainwindow.cpp" line="1463"/>
         <source>The firmware is up to date.
 Current version: </source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/mainwindow.cpp" line="1467"/>
+        <source>Firmware fetch timeout</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/mainwindow.cpp" line="1467"/>
+        <source>Failed to check for the latest firmware version.
+</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/mainwindow.cpp" line="1467"/>
+        <source>current version: </source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/mainwindow.cpp" line="1467"/>
+        <source>
+latest version: </source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -743,7 +763,7 @@ Current version: </source>
         <translation type="vanished">Le firmware est à jour.</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1566"/>
+        <location filename="../../ui/mainwindow.cpp" line="1462"/>
         <source>Firmware Update</source>
         <translation>Mise à jour du firmware</translation>
     </message>
@@ -829,6 +849,14 @@ Voulez-vous procéder à la mise à jour ?</translation>
     <message>
         <source>Image Files (*.png *.jpg *.bmp)</source>
         <translation type="vanished">Fichiers image (*.png *.jpg *.bmp)</translation>
+    </message>
+</context>
+<context>
+    <name>ScreenScale</name>
+    <message>
+        <location filename="../../ui/screenscale.cpp" line="8"/>
+        <source>Screen Aspect Ratio</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -937,26 +965,26 @@ Voulez-vous procéder à la mise à jour ?</translation>
         <translation>Préférences</translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/settingdialog.cpp" line="101"/>
-        <location filename="../../ui/preferences/settingdialog.cpp" line="159"/>
+        <location filename="../../ui/preferences/settingdialog.cpp" line="100"/>
+        <location filename="../../ui/preferences/settingdialog.cpp" line="158"/>
         <source>General</source>
         <translation>Général</translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/settingdialog.cpp" line="101"/>
-        <location filename="../../ui/preferences/settingdialog.cpp" line="161"/>
+        <location filename="../../ui/preferences/settingdialog.cpp" line="100"/>
+        <location filename="../../ui/preferences/settingdialog.cpp" line="160"/>
         <source>Video</source>
         <translation>Vidéo</translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/settingdialog.cpp" line="101"/>
-        <location filename="../../ui/preferences/settingdialog.cpp" line="163"/>
+        <location filename="../../ui/preferences/settingdialog.cpp" line="100"/>
+        <location filename="../../ui/preferences/settingdialog.cpp" line="162"/>
         <source>Audio</source>
         <translation>Audio</translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/settingdialog.cpp" line="101"/>
-        <location filename="../../ui/preferences/settingdialog.cpp" line="165"/>
+        <location filename="../../ui/preferences/settingdialog.cpp" line="100"/>
+        <location filename="../../ui/preferences/settingdialog.cpp" line="164"/>
         <source>Target Control</source>
         <translation type="unfinished"></translation>
     </message>
@@ -965,17 +993,17 @@ Voulez-vous procéder à la mise à jour ?</translation>
         <translation type="vanished">Matériel</translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/settingdialog.cpp" line="118"/>
+        <location filename="../../ui/preferences/settingdialog.cpp" line="117"/>
         <source>OK</source>
         <translation>OK</translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/settingdialog.cpp" line="119"/>
+        <location filename="../../ui/preferences/settingdialog.cpp" line="118"/>
         <source>Apply</source>
         <translation>Appliquer</translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/settingdialog.cpp" line="120"/>
+        <location filename="../../ui/preferences/settingdialog.cpp" line="119"/>
         <source>Cancel</source>
         <translation>Annuler</translation>
     </message>

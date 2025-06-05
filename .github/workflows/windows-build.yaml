@@ -50,21 +50,47 @@ jobs:
         with:
           fetch-depth: 0
 
+            
+      - name: Cache Qt Build
+        id: cache-qt
+        uses: actions/cache@v3
+        with:
+            path: C:\Qt6
+            key: qt-6.5.3-mingw-windows-static
+            restore-keys: |
+              qt-6.5.3-mingw-windows-static
+
+      - name: Cache MinGW and Ninja Build
+        id: cache-mingw
+        uses: actions/cache@v3
+        with:
+          path: |
+            C:\mingw64
+            C:\ProgramData\chocolatey\lib\ninja
+          key: mingw-ninja-windows-static
+          restore-keys: |
+            mingw-ninja-windows-static
+            
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.10'
 
-      - name: Cache Qt
-        id: cache-qt
-        uses: actions/cache@v3
-        with:
-          path: ${{ runner.temp }}/Qt
-          key: ${{ env.QT_CACHE_KEY }}
-          restore-keys: |
-            ${{ env.QT_CACHE_KEY }}
-            qt-6.5-mingw-windows
-
+      - name: Install Build environment
+        if: steps.cache-mingw.outputs.cache-hit != 'true'
+        run: |
+          echo "Installing Ninja"
+          choco install ninja -y
+    
+          echo "Downloading pre-compiled static build of MinGW-w64"
+          curl -L -o mingw-w64.zip https://sourceforge.net/projects/mingw-w64/files/latest/download
+          mkdir C:\mingw-w64
+          tar -xf mingw-w64.zip -C C:\mingw64 --strip-components=1
+    
+          echo "Setting up PATH for MinGW-w64"
+          set PATH=C:\mingw64\bin;%PATH%
+          g++ --version || (echo "g++ installation failed. Please check the installation." && exit 1)
+  
       - name: Update version
         run: |
           if [ "${{ github.event.inputs.increase_version }}" = "true" ]; then
@@ -83,53 +109,92 @@ jobs:
         run: |
           git fetch --all --tags -f
 
-      - name: Install Qt
-        if: steps.cache-qt.outputs.cache-hit != 'true'
-        uses: jurplel/install-qt-action@v4
-        with:
-          version: ${{ env.QT_VERSION }}
-          host: windows
-          target: desktop
-          arch: win64_mingw
-          dir: ${{ runner.temp }}
-          modules: qtmultimedia qtserialport
-          setup-python: false
+      # - name: Install Qt
+      #   if: steps.cache-qt.outputs.cache-hit != 'true'
+      #   uses: jurplel/install-qt-action@v4
+      #   with:
+      #     version: ${{ env.QT_VERSION }}
+      #     host: windows
+      #     target: desktop
+      #     arch: win64_mingw
+      #     dir: ${{ runner.temp }}
+      #     modules: qtmultimedia qtserialport
+      #     setup-python: false
 
-      - name: Download and Unzip Jom
-        if: steps.cache-jom.outputs.cache-hit != 'true'
-        working-directory: ${{ runner.temp }}
-        run: |
-          curl -L -o jom.zip "http://download.qt.io/official_releases/jom/jom.zip"
-          7z x jom.zip -ojom
+      # - name: Download and Unzip Jom
+      #   if: steps.cache-jom.outputs.cache-hit != 'true'
+      #   working-directory: ${{ runner.temp }}
+      #   run: |
+      #     curl -L -o jom.zip "http://download.qt.io/official_releases/jom/jom.zip"
+      #     7z x jom.zip -ojom
 
-      - name: Set up Visual Studio shell
-        uses: egor-tensin/vs-shell@v2
-        with:
-          arch: x64
+      # - name: Set up Visual Studio shell
+      #   uses: egor-tensin/vs-shell@v2
+      #   with:
+      #     arch: x64
       
+      - name: Build Qt Statically
+        if: steps.cache-qt.outputs.cache-hit != 'true'
+        run: |
+          call build-script/build-static-qt-from-source.bat
+
       - name: Create build directory
         run: |
           mkdir ${{ runner.temp }}\build
 
+      - name: Prepare .pro File for Static Build
+        run: |
+          echo "Checking and appending static build configuration to .pro file..."
+          if not exist "${{ env.SOURCE_DIR }}\openterfaceQT.pro" (
+            echo "Error: .pro file not found."
+            exit 1
+          )
+          
+          findstr /C:"CONFIG += static release" "${{ env.SOURCE_DIR }}\openterfaceQT.pro" >nul
+          if errorlevel 1 (
+            echo "" >> "${{ env.SOURCE_DIR }}\openterfaceQT.pro"
+            echo "CONFIG += static release" >> "${{ env.SOURCE_DIR }}\openterfaceQT.pro"
+            echo "Static build configuration added to .pro file."
+            set ERRORLEVEL=0
+          ) else (
+            echo "Static build configuration already present in .pro file."
+          )
+          
+          echo "QMAKE_LFLAGS += -static -static-libgcc -static-libstdc++ -static-libgfortran" >> "${{ env.SOURCE_DIR }}\openterfaceQT.pro"
+          echo "QMAKE_CXXFLAGS += -static -static-libgcc -static-libstdc++" >> "${{ env.SOURCE_DIR }}\openterfaceQT.pro"
+          echo "QMAKE_LINK = g++ -Wl,-subsystem,windows" >> "${{ env.SOURCE_DIR }}\openterfaceQT.pro"
+          echo "CONFIG += static staticlib" >> "${{ env.SOURCE_DIR }}\openterfaceQT.pro"
+
+      - name: Update and Release Translations
+        working-directory: ${{ runner.temp }}\build
+        run: |
+          echo "Setting up Qt tools path..."
+          set PATH=C:\Qt6\bin;C:\mingw64\bin;%PATH%
+          echo "Verifying Qt tools..."
+          if not exist "C:\Qt6\bin\lupdate.exe" (
+            echo "Error: lupdate.exe not found in C:\Qt6\bin"
+            exit 1
+          )
+          echo "Running lupdate..."
+          C:\Qt6\bin\lupdate.exe "${{ env.SOURCE_DIR }}\openterfaceQT.pro" || (echo "lupdate failed" && exit 1)
+          echo "Running lrelease..."
+          C:\Qt6\bin\lrelease.exe "${{ env.SOURCE_DIR }}\openterfaceQT.pro" || (echo "lrelease failed" && exit 1)
+
       - name: Build
         working-directory: ${{ runner.temp }}\build
         run: |
+          echo "Checking Qt configuration..."
+          C:\Qt6\bin\qmake -query
+          set PATH=C:\Qt6\bin;C:\mingw64\bin;%PATH%
+          set INCLUDE=C:\Qt6\include;%INCLUDE%
+          
           echo "Building with qmake..."
-          set PATH=${{ runner.temp }}\\Qt\\${{ env.QT_VERSION }}\\mingw_64\\bin;%PATH%
           
-          echo "Updating translations with lupdate..."
-          lupdate ${{ env.SOURCE_DIR }}\openterfaceQT.pro
-          
-          echo "Generating .qm files with lrelease..."
-          lrelease ${{ env.SOURCE_DIR }}\openterfaceQT.pro
-          
-          qmake -v
-          qmake -r ${{ env.SOURCE_DIR }}\openterfaceQT.pro
-          if errorlevel 1 exit /b 1
-          
+          qmake -r "${{ env.SOURCE_DIR }}\openterfaceQT.pro" "CONFIG+=static staticlib" "QMAKE_LFLAGS+=-static" || (echo "qmake failed. Please check the .pro file and paths." && exit 1)
           echo "Building with mingw32-make..."
-          mingw32-make -j2
-          if errorlevel 1 exit /b 1
+          set MINGW_STATIC_BUILD=1
+          mingw32-make VERBOSE=1 -j2 || (echo "mingw32-make failed. Please check the build configuration." && exit 1)
+          set ERRORLEVEL=0
 
           echo "\n release dir:"
           dir release
@@ -141,24 +206,19 @@ jobs:
           
           echo "Creating package directory..."
           mkdir ${{ env.PACKAGE_DIR }}
-          mkdir ${{ env.PACKAGE_DIR }}\driver
-          mkdir ${{ env.PACKAGE_DIR }}\driver\windows
+          # mkdir ${{ env.PACKAGE_DIR }}\driver
+          # mkdir ${{ env.PACKAGE_DIR }}\driver\windows
           mkdir ${{ env.PACKAGE_DIR }}\config\languages
           mkdir ${{ env.PACKAGE_DIR }}\config\keyboards
 
           copy release\openterfaceQT.exe ${{ env.PACKAGE_DIR }}\${{ env.EXE_NAME }}
           copy ${{ env.SOURCE_DIR }}\LICENSE ${{ env.PACKAGE_DIR }}
-          copy ${{ env.SOURCE_DIR }}\driver\windows\* ${{ env.PACKAGE_DIR }}\driver\windows
+          # copy ${{ env.SOURCE_DIR }}\driver\windows\* ${{ env.PACKAGE_DIR }}\driver\windows
           
           echo "Copying translation & keyboard layouts files..."
           copy ${{ env.SOURCE_DIR }}\config\keyboards\*.json ${{ env.PACKAGE_DIR }}\config\keyboards
           copy ${{ env.SOURCE_DIR }}\config\languages\*.qm ${{ env.PACKAGE_DIR }}\config\languages
           
-          echo "Running windeployqt..."
-          cd ${{ env.PACKAGE_DIR }}
-          windeployqt --qmldir ${{ env.SOURCE_DIR }} ${{ env.EXE_NAME }} --compiler-runtime --multimedia
-          
-
       - name: Move build artifacts
         run: move /Y ${{ runner.temp }}\build\${{ env.PACKAGE_DIR }} ${{ env.SOURCE_DIR }}
 
