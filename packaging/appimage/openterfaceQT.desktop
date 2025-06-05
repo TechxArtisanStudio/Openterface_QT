@@ -1,10 +1,9 @@
 [Desktop Entry]
-Version=1.0
 Type=Application
-Name=OpenterfaceQT
+Name=openterfaceQT
 Exec=openterfaceQT
-Icon=openterfaceQT
-Comment=OpenterfaceQT Application
+Icon=com.openterface.openterfaceQT
+Comment=A software for control openterface-Mini-KVM.
 Categories=Utility;
 Terminal=false
-StartupNotify=true
+Keywords=openterface;open-source;
