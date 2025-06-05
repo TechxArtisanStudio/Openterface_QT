@@ -176,7 +176,7 @@ jobs:
         with:
           workflow: linux-portable-build.yaml
           workflow_conclusion: success
-          name: openterfaceQT.linux.amd64.AppImage
+          name: openterfaceQT.linux.amd64.portable.AppImage
           path: artifacts/linux/portable
           
       - name: Create source archives
