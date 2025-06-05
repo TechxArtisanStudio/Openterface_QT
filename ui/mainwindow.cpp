@@ -286,7 +286,7 @@ MainWindow::MainWindow(LanguageManager *languageManager, QWidget *parent) :  ui(
     connect(m_languageManager, &LanguageManager::languageChanged, this, &MainWindow::updateUI);
     setupLanguageMenu();
     // fullScreen();
-    // qCDebug(log_ui_mainwindow) << "full finished";
+    qDebug() << "finished initialization";
     
 }
 
@@ -1216,6 +1216,9 @@ void MainWindow::checkMousePosition()
 }
 
 void MainWindow::onVideoSettingsChanged() {
+    if (m_cameraManager) {
+        m_cameraManager->setVideoOutput(videoPane);
+    }
     int inputWidth = GlobalVar::instance().getInputWidth();
     int inputHeight = GlobalVar::instance().getInputHeight();
     int captureWidth = GlobalVar::instance().getCaptureWidth();
@@ -1330,7 +1333,20 @@ MainWindow::~MainWindow()
 
     m_cameraManager->stopCamera();
     delete m_cameraManager;
+    m_cameraManager = nullptr;
     
+    delete m_versionInfoManager;
+    m_versionInfoManager = nullptr;
+    
+    delete m_screenSaverManager;
+    m_screenSaverManager = nullptr;
+    
+    delete m_cornerWidgetManager;
+    m_cornerWidgetManager = nullptr;
+
+    delete m_screenScaleDialog;
+    m_screenScaleDialog = nullptr;
+
     qCDebug(log_ui_mainwindow) << "MainWindow destroyed successfully";
 }
 

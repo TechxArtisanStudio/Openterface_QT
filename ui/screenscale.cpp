@@ -74,10 +74,10 @@ QString ScreenScale::converseRatio(double ratio) {
     if (qFuzzyCompare(ratio, 5.0/3.0)) return "5:3";
     if (qFuzzyCompare(ratio, 5.0/4.0)) return "5:4";
     if (qFuzzyCompare(ratio, 21.0/9.0)) return "21:9";
-    if (qFuzzyCompare(ratio, 9.0/16.0)) return "9:16";
-    if (qFuzzyCompare(ratio, 9.0/19.5)) return "9:19.5";
-    if (qFuzzyCompare(ratio, 9.0/20.0)) return "9:20";
-    if (qFuzzyCompare(ratio, 9.0/21.0)) return "9:21";
+    // if (qFuzzyCompare(ratio, 9.0/16.0)) return "9:16";
+    // if (qFuzzyCompare(ratio, 9.0/19.5)) return "9:19.5";
+    // if (qFuzzyCompare(ratio, 9.0/20.0)) return "9:20";
+    // if (qFuzzyCompare(ratio, 9.0/21.0)) return "9:21";
     return "16:9";
 }
 
