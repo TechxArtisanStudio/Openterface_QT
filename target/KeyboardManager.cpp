@@ -128,6 +128,9 @@ void KeyboardManager::handleKeyboardAction(int keyCode, int modifiers, bool isKe
         if (unicodeValue == 0x1000002) {
             mappedKeyCode = 0x2B;
             qDebug() << "tab key detected:" << QString::number(unicodeValue, 16);
+        }else if(unicodeValue == 0x1000005){
+            mappedKeyCode = 0x58;
+            qDebug() << "enter key detected:" << QString::number(unicodeValue, 16);
         }
         else{
             mappedKeyCode = currentLayout.unicodeMap.value(unicodeValue, 0);
