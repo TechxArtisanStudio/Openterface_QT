@@ -125,9 +125,15 @@ void KeyboardManager::handleKeyboardAction(int keyCode, int modifiers, bool isKe
     if (mappedKeyCode == 0) {
         uint32_t unicodeValue = keyCode;
         qDebug() << "Unicode key detected:" << QString::number(unicodeValue, 16);
-        mappedKeyCode = currentLayout.unicodeMap.value(unicodeValue, 0);
-        qDebug() << "Trying Unicode mapping for U+" << QString::number(unicodeValue, 16) 
-                             << "-> scancode: 0x" << QString::number(mappedKeyCode, 16);
+        if (unicodeValue == 0x1000002) {
+            mappedKeyCode = 0x2B;
+            qDebug() << "tab key detected:" << QString::number(unicodeValue, 16);
+        }
+        else{
+            mappedKeyCode = currentLayout.unicodeMap.value(unicodeValue, 0);
+            qDebug() << "Trying Unicode mapping for U+" << QString::number(unicodeValue, 16) 
+                                << "-> scancode: 0x" << QString::number(mappedKeyCode, 16);
+        }
     }
     qCDebug(log_keyboard) << "Mapped to scancode: 0x" + QString::number(mappedKeyCode, 16);
     qCDebug(log_keyboard) << "Current layout name:" << currentLayout.name;
