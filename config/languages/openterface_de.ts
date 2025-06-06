@@ -277,37 +277,37 @@ Möchten Sie Ihren Computer jetzt neu starten?</translation>
         <translation type="unfinished">Abbrechen</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/firmwareupdatedialog.cpp" line="147"/>
+        <location filename="../../ui/advance/firmwareupdatedialog.cpp" line="149"/>
         <source>Current firmware version: </source>
         <translation type="unfinished">Aktuelle Firmware-Version: </translation>
     </message>
     <message>
-        <location filename="../../ui/advance/firmwareupdatedialog.cpp" line="147"/>
+        <location filename="../../ui/advance/firmwareupdatedialog.cpp" line="149"/>
         <source>
 </source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/advance/firmwareupdatedialog.cpp" line="148"/>
+        <location filename="../../ui/advance/firmwareupdatedialog.cpp" line="150"/>
         <source>Latest firmware version: </source>
         <translation type="unfinished">Neueste Firmware-Version: </translation>
     </message>
     <message>
-        <location filename="../../ui/advance/firmwareupdatedialog.cpp" line="148"/>
+        <location filename="../../ui/advance/firmwareupdatedialog.cpp" line="150"/>
         <source>
 
 </source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/advance/firmwareupdatedialog.cpp" line="149"/>
+        <location filename="../../ui/advance/firmwareupdatedialog.cpp" line="151"/>
         <source>The update process will:
 </source>
         <translation type="unfinished">Der Aktualisierungsprozess wird:
 </translation>
     </message>
     <message>
-        <location filename="../../ui/advance/firmwareupdatedialog.cpp" line="150"/>
+        <location filename="../../ui/advance/firmwareupdatedialog.cpp" line="152"/>
         <source>1. Stop all video and USB operations
 2. Install new firmware
 3. Close the application automatically
@@ -728,34 +728,34 @@ Bitte versuchen Sie es erneut nach einem Neustart der Anwendung.</translation>
         <translation>Erfasst &quot;%1&quot;</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1462"/>
+        <location filename="../../ui/mainwindow.cpp" line="1480"/>
         <source>Firmware Update</source>
         <translation>Firmware-Aktualisierung</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1463"/>
+        <location filename="../../ui/mainwindow.cpp" line="1481"/>
         <source>The firmware is up to date.
 Current version: </source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1467"/>
+        <location filename="../../ui/mainwindow.cpp" line="1485"/>
         <source>Firmware fetch timeout</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1467"/>
+        <location filename="../../ui/mainwindow.cpp" line="1485"/>
         <source>Failed to check for the latest firmware version.
 </source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1467"/>
+        <location filename="../../ui/mainwindow.cpp" line="1485"/>
         <source>current version: </source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1467"/>
+        <location filename="../../ui/mainwindow.cpp" line="1485"/>
         <source>
 latest version: </source>
         <translation type="unfinished"></translation>
@@ -1189,6 +1189,11 @@ Bitte überprüfen Sie Ihre Internetverbindung.
         <location filename="../../ui/preferences/videopage.cpp" line="127"/>
         <source>Pixel format: </source>
         <translation>Pixelformat: </translation>
+    </message>
+    <message>
+        <location filename="../../ui/preferences/videopage.cpp" line="132"/>
+        <source>Note: On linx the video may go black after OK or Apply. Please unplug and re-plug the host cable.</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Default pixel format</source>
