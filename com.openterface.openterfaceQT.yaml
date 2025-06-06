@@ -1,0 +1,35 @@
+app-id: com.openterface.openterfaceQT
+runtime: org.kde.Platform
+runtime-version: "6.9"
+sdk: org.kde.Sdk
+command: openterfaceQT
+finish-args:
+  - --share=ipc
+  - --share=network
+  - --socket=x11
+  - --device=all
+  - --filesystem=/run/udev:ro
+
+modules:
+  - shared-modules/libusb/libusb.json
+
+  - name: openterfaceQT
+    buildsystem: qmake
+    config-opts:
+      - "LIBS+=-L/app/lib -lusb-1.0"
+      - "INCLUDEPATH+=/app/include/libusb-1.0"
+    sources:
+      - type: git
+        url: https://github.com/TechxArtisanStudio/Openterface_QT.git
+        tag: 0.3.11
+        commit: d7c0114524ebdd19512c5b3cb2398ad74f3aebf0
+
+    build-options:
+      env:
+        QT_SELECT: qt6
+    post-install:
+      - install -Dm755 openterfaceQT /app/bin/openterfaceQT
+      - install -Dm644 com.openterface.openterfaceQT.desktop /app/share/applications/com.openterface.openterfaceQT.desktop
+      - install -Dm644 com.openterface.openterfaceQT.metainfo.xml /app/share/metainfo/com.openterface.openterfaceQT.metainfo.xml
+      - install -Dm644 images/icon_128.png /app/share/icons/hicolor/128x128/apps/com.openterface.openterfaceQT.png
+    
