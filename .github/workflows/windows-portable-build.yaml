@@ -163,7 +163,7 @@
             api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
             organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
             project-slug: Openterface_QT
-            signing-policy-slug: test-signing
+            signing-policy-slug: release-signing
             artifact-configuration-slug: Openterface_Connect_window_portable
             github-artifact-id: ${{ steps.upload-unsigned-artifact.outputs.artifact-id }}
             wait-for-completion: true
