@@ -45,9 +45,85 @@ jobs:
           done
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      
-  create-release:
+  
+  sign-windows:
     needs: wait-for-builds
+    runs-on: windows-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Download Windows artifacts
+        id: windows-installer
+        uses: dawidd6/action-download-artifact@v2
+        with:
+          workflow: windows-build.yaml
+          workflow_conclusion: success
+          name: openterfaceQT.windows.amd64.installer
+          path: artifacts/windows
+
+      - name: Upload Windows installer artifact
+        id: upload-installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: openterfaceQT.windows.amd.installer
+          path: artifacts/windows
+          if-no-files-found: error
+      
+      - name: Submit installer signing request
+        id: sign-installer
+        uses: signpath/github-action-submit-signing-request@v1.1
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: Openterface_QT
+          signing-policy-slug: release-signing
+          artifact-configuration-slug: Openterface_Connect_win_installer_zip
+          github-artifact-id: ${{ steps.upload-installer.outputs.artifact-id }}
+          wait-for-completion: true
+          output-artifact-directory: artifacts/windows/signed
+      
+      - name: Download Windows portable artifacts
+        id: windows-portable
+        uses: dawidd6/action-download-artifact@v2
+        with:
+          workflow: windows-portable-build.yaml
+          workflow_conclusion: success
+          name: openterfaceQT.windows.amd64.portable.exe
+          path: artifacts/windows/portable
+          
+      - name: Upload Windows portable artifact
+        id: upload-portable
+        uses: actions/upload-artifact@v4
+        with:
+          name: openterfaceQT.windows.amd.portable.exe
+          path: artifacts/windows/portable
+          if-no-files-found: error
+          
+      - name: Submit portable signing request
+        id: sign-portable
+        uses: signpath/github-action-submit-signing-request@v1.1
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: Openterface_QT
+          signing-policy-slug: release-signing
+          artifact-configuration-slug: Openterface_Connect_window_portable
+          github-artifact-id: ${{ steps.upload-portable.outputs.artifact-id }}
+          wait-for-completion: true
+          output-artifact-directory: artifacts/windows/signed
+
+      
+      - name: List all downloaded artifacts
+        run: |
+          Write-Output "Listing all files in the artifacts directory:"
+          Get-ChildItem -Path "artifacts" -Recurse | ForEach-Object {
+              Write-Output "File: $($_.FullName), Last Modified: $($_.LastWriteTime)"
+          }
+  create-release:
+    needs: [wait-for-builds, sign-windows]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -97,22 +173,6 @@ jobs:
           echo "$CHANGELOG" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
             
-      - name: Download Windows artifacts
-        uses: dawidd6/action-download-artifact@v2
-        with:
-          workflow: windows-build.yaml
-          workflow_conclusion: success
-          name: openterfaceQT.windows.amd64.installer
-          path: artifacts/windows
-        
-      - name: Download Windows portable artifacts
-        uses: dawidd6/action-download-artifact@v2
-        with:
-          workflow: windows-portable-build.yaml
-          workflow_conclusion: success
-          name: openterfaceQT.windows.amd64.portable.exe
-          path: artifacts/windows/portable
-
       - name: Download Linux AMD64 DEB artifact
         uses: dawidd6/action-download-artifact@v2
         with:
@@ -146,23 +206,6 @@ jobs:
           name: openterfaceQT.linux.arm64.rpm
           path: artifacts/linux/arm64/rpm
       
-      - name: Download flatpak aarch64 artifacts
-        uses: dawidd6/action-download-artifact@v2
-        continue-on-error: true
-        with:
-          workflow: linux-flatpak-build.yaml
-          workflow_conclusion: success
-          name: openterfaceQT.aarch64.flatpak
-
-      
-      - name: Download flatpak x86 artifacts
-        uses: dawidd6/action-download-artifact@v2
-        with:
-          workflow: linux-flatpak-build.yaml
-          workflow_conclusion: success
-          name: openterfaceQT.x86_64.flatpak
-
-      
       - name: Download Linux portable artifacts
         uses: dawidd6/action-download-artifact@v6
         with:
@@ -178,7 +221,25 @@ jobs:
           workflow_conclusion: success
           name: openterfaceQT.linux.amd64.portable.AppImage
           path: artifacts/linux/portable
-          
+
+      - name: Download signed Windows installer artifact
+        uses: dawidd6/action-download-artifact@v2
+        with:
+          workflow: ${{ github.workflow }}
+          job_name: sign-windows
+          name: openterfaceQT.windows.amd.installer
+          path: artifacts/windows/signed
+          workflow_conclusion: success
+
+      - name: Download signed Windows portable artifact
+        uses: dawidd6/action-download-artifact@v2
+        with:
+          workflow: ${{ github.workflow }}
+          job_name: sign-windows
+          name: openterfaceQT.windows.amd.portable.exe
+          path: artifacts/windows/signed
+          workflow_conclusion: success
+        
       - name: Create source archives
         run: |
           # Create directory for source archives
@@ -220,7 +281,6 @@ jobs:
           
           # Clean up
           rm -rf $TEMP_SRC_DIR
-
       - name: List all downloaded artifacts
         run: |
           echo "Downloaded artifacts:"
@@ -240,5 +300,7 @@ jobs:
           draft: ${{ github.event.inputs.draft }}
           prerelease: ${{ github.event.inputs.prerelease }}
           files: |
-            artifacts/**/*
+            artifacts/linux/**/*
+            artifacts/windows/signed/*
+            artifacts/source/**/*
             LICENSE

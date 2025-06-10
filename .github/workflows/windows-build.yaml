@@ -34,7 +34,6 @@ env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   QT_CACHE_KEY: qt-6.5.3-mingw-windows
   JOM_CACHE_KEY: jom-1.1.3-windows
-  PACKAGE_DIR: "package_online"
   EXE_NAME: "openterfaceQT.exe"
 
 jobs:
@@ -219,6 +218,8 @@ jobs:
           copy ${{ env.SOURCE_DIR }}\config\keyboards\*.json ${{ env.PACKAGE_DIR }}\config\keyboards
           copy ${{ env.SOURCE_DIR }}\config\languages\*.qm ${{ env.PACKAGE_DIR }}\config\languages
           
+          windeployqt --qmldir ${{ env.SOURCE_DIR }} ${{ env.EXE_NAME }} --compiler-runtime --multimedia
+          
       - name: Move build artifacts
         run: move /Y ${{ runner.temp }}\build\${{ env.PACKAGE_DIR }} ${{ env.SOURCE_DIR }}
 
@@ -243,33 +244,6 @@ jobs:
           name: openterfaceQT.windows.amd64.installer
           path: |
             ${{ env.SOURCE_DIR }}\Output\openterfaceQT.windows.amd64.installer.exe
-          if-no-files-found: error
-      
-      - name: Submit signing request
-        id: sign
-        uses: signpath/github-action-submit-signing-request@v1.1
-        with:
-          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
-          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
-          project-slug: Openterface_QT
-          signing-policy-slug: test-signing
-          artifact-configuration-slug: Openterface_Connect_win_installer_zip
-          github-artifact-id: ${{ steps.upload-unsigned-artifact.outputs.artifact-id }}
-          wait-for-completion: true
-          output-artifact-directory: .\Output\signed
-
-      - name: unzip signed artifact
-        run: |
-          cd ${{ env.SOURCE_DIR }}/Output/signed
-          dir
-          cd ${{ env.SOURCE_DIR }}/Output/
-          dir
-      
-      - name: Upload signed artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: signed-openterfaceQT-installer
-          path: ${{ env.SOURCE_DIR }}/Output/signed/openterfaceQT.windows.amd64.installer.exe
           if-no-files-found: error
           
       - name: Commit and push version update
