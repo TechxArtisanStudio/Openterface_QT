@@ -221,7 +221,25 @@ jobs:
           workflow_conclusion: success
           name: openterfaceQT.linux.amd64.portable.AppImage
           path: artifacts/linux/portable
-          
+
+      - name: Download signed Windows installer artifact
+        uses: dawidd6/action-download-artifact@v2
+        with:
+          workflow: ${{ github.workflow }}
+          job_name: sign-windows
+          name: openterfaceQT.windows.amd.installer
+          path: artifacts/windows/signed
+          workflow_conclusion: success
+
+      - name: Download signed Windows portable artifact
+        uses: dawidd6/action-download-artifact@v2
+        with:
+          workflow: ${{ github.workflow }}
+          job_name: sign-windows
+          name: openterfaceQT.windows.amd.portable.exe
+          path: artifacts/windows/signed
+          workflow_conclusion: success
+        
       - name: Create source archives
         run: |
           # Create directory for source archives
@@ -284,4 +302,5 @@ jobs:
           files: |
             artifacts/linux/**/*
             artifacts/windows/signed/*
+            artifacts/source/**/*
             LICENSE
