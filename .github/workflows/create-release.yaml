@@ -99,7 +99,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: openterfaceQT.windows.amd.installer
-          path: artifacts/windows
+          path: artifacts/windows/portable
           if-no-files-found: error
           
       - name: Submit portable signing request
