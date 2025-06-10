@@ -71,7 +71,6 @@
           if: steps.cache-qt.outputs.cache-hit != 'true'
           run: |
             call build-script/build-static-qt-from-source.bat
-
         - name: Create build directory
           run: |
             mkdir ${{ runner.temp }}\build
@@ -98,7 +97,6 @@
             echo "QMAKE_CXXFLAGS += -static -static-libgcc -static-libstdc++" >> "${{ env.SOURCE_DIR }}\openterfaceQT.pro"
             echo "QMAKE_LINK = g++ -Wl,-subsystem,windows" >> "${{ env.SOURCE_DIR }}\openterfaceQT.pro"
             echo "CONFIG += static staticlib" >> "${{ env.SOURCE_DIR }}\openterfaceQT.pro"
-
         - name: Prepare Driver Files
           run: |
             mkdir ${{ env.SOURCE_DIR }}\drivers
@@ -147,9 +145,7 @@
             echo "Creating portable package..."
             mkdir package
             copy release\openterfaceQT.exe package\openterfaceQT-portable.exe
-            
         - name: Save build artifact
-          id: upload-unsigned-artifact
           uses: actions/upload-artifact@v4
           with:
             name: ${{ env.ARTIFACT }}
