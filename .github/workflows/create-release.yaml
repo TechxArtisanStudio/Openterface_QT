@@ -64,11 +64,14 @@ jobs:
           name: openterfaceQT.windows.amd64.installer
           path: artifacts/windows
 
+      - name: Rename Windows installer artifact
+        run: mv artifacts/windows/openterfaceQT.windows.amd64.installer artifacts/windows/openterfaceQT.windows.amd.installer.unsigned
+
       - name: Upload Windows installer artifact
         id: upload-installer
         uses: actions/upload-artifact@v4
         with:
-          name: openterfaceQT.windows.amd.installer
+          name: openterfaceQT.windows.amd.installer.unsigned
           path: artifacts/windows
           if-no-files-found: error
       
@@ -94,11 +97,14 @@ jobs:
           name: openterfaceQT.windows.amd64.portable.exe
           path: artifacts/windows/portable
           
+      - name: Rename Windows portable artifact
+        run: mv artifacts/windows/portable/openterfaceQT.windows.amd64.portable.exe artifacts/windows/portable/openterfaceQT.windows.amd.portable.unsigned.exe
+          
       - name: Upload Windows portable artifact
         id: upload-portable
         uses: actions/upload-artifact@v4
         with:
-          name: openterfaceQT.windows.amd.portable.exe
+          name: openterfaceQT.windows.amd.portable.unsigned.exe
           path: artifacts/windows/portable
           if-no-files-found: error
           
@@ -115,7 +121,18 @@ jobs:
           wait-for-completion: true
           output-artifact-directory: artifacts/windows/signed
 
-      
+      - name: Upload signed Windows artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: openterfaceQT.windows.amd.installer
+          path: artifacts/windows/signed/openterfaceQT.windows.amd.installer
+
+      - name: Upload signed Windows portable artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: openterfaceQT.windows.amd.portable.exe
+          path: artifacts/windows/signed/openterfaceQT.windows.amd.portable.exe
+
       - name: List all downloaded artifacts
         run: |
           Write-Output "Listing all files in the artifacts directory:"
@@ -223,19 +240,15 @@ jobs:
           path: artifacts/linux/portable
 
       - name: Download signed Windows installer artifact
-        uses: dawidd6/action-download-artifact@v2
+        uses: dawidd6/action-download-artifact@v4
         with:
-          workflow: ${{ github.workflow }}
-          job_name: sign-windows
           name: openterfaceQT.windows.amd.installer
           path: artifacts/windows/signed
           workflow_conclusion: success
 
       - name: Download signed Windows portable artifact
-        uses: dawidd6/action-download-artifact@v2
+        uses: dawidd6/action-download-artifact@v4
         with:
-          workflow: ${{ github.workflow }}
-          job_name: sign-windows
           name: openterfaceQT.windows.amd.portable.exe
           path: artifacts/windows/signed
           workflow_conclusion: success
