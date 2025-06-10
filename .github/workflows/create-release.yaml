@@ -64,6 +64,12 @@ jobs:
           name: openterfaceQT.windows.amd64.installer
           path: artifacts/windows
 
+      - name: Upload Windows installer artifact
+        id: upload-installer
+        uses: actions/upload-artifact@v3
+        with:
+          name: openterfaceQT.windows.amd64.installer
+      
       - name: Submit installer signing request
         id: sign-installer
         uses: signpath/github-action-submit-signing-request@v1.1
@@ -73,7 +79,7 @@ jobs:
           project-slug: Openterface_QT
           signing-policy-slug: release-signing
           artifact-configuration-slug: Openterface_Connect_win_installer_zip
-          github-artifact-id: ${{ steps.windows-installer.outputs.artifact-id }}
+          github-artifact-id: ${{ steps.upload-installer.outputs.artifact-id }}
           wait-for-completion: true
           output-artifact-directory: .\signed
       
@@ -85,7 +91,13 @@ jobs:
           workflow_conclusion: success
           name: openterfaceQT.windows.amd64.portable.exe
           path: artifacts/windows/portable
-      
+          
+      - name: Upload Windows portable artifact
+        id: upload-portable
+        uses: actions/upload-artifact@v3
+        with:
+          name: openterfaceQT.windows.amd64.portable.exe
+          
       - name: Submit portable signing request
         id: sign-portable
         uses: signpath/github-action-submit-signing-request@v1.1
@@ -95,7 +107,7 @@ jobs:
           project-slug: Openterface_QT
           signing-policy-slug: release-signing
           artifact-configuration-slug: Openterface_Connect_win_installer_zip
-          github-artifact-id: ${{ steps.windows-portable.outputs.artifact-id }}
+          github-artifact-id: ${{ steps.upload-portable.outputs.artifact-id }}
           wait-for-completion: true
           output-artifact-directory: .\signed
       
