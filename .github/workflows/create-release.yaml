@@ -67,7 +67,7 @@ jobs:
       - name: Rename Windows installer artifact
         run: |
           dir artifacts/windows
-          mv artifacts/windows/openterfaceQT.windows.amd64.installer artifacts/windows/openterfaceQT.windows.amd.installer.unsigned
+          mv artifacts/windows/openterfaceQT.windows.amd64.installer.exe artifacts/windows/openterfaceQT.windows.amd.installer.unsigned.exe
 
       - name: Upload Windows installer artifact
         id: upload-installer
