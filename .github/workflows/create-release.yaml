@@ -98,7 +98,7 @@ jobs:
         id: upload-portable
         uses: actions/upload-artifact@v4
         with:
-          name: openterfaceQT.windows.amd.installer
+          name: openterfaceQT.windows.amd.portable.exe
           path: artifacts/windows/portable
           if-no-files-found: error
           
