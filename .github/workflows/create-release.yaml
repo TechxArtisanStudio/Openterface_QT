@@ -102,13 +102,13 @@ jobs:
       - name: Rename Windows portable artifact
         run: |
           dir artifacts/windows/portable
-          mv artifacts/windows/portable/openterfaceQT.windows.amd64.portable.exe artifacts/windows/portable/openterfaceQT.windows.amd.portable.unsigned.exe
+          mv artifacts/windows/portable/openterfaceQT-portable.exe artifacts/windows/portable/openterfaceQT-portable.unsigned.exe
           
       - name: Upload Windows portable artifact
         id: upload-portable
         uses: actions/upload-artifact@v4
         with:
-          name: openterfaceQT.windows.amd.portable.unsigned.exe
+          name: openterfaceQT-portable.unsigned.exe
           path: artifacts/windows/portable
           if-no-files-found: error
           
