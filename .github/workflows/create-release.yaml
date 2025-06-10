@@ -65,7 +65,9 @@ jobs:
           path: artifacts/windows
 
       - name: Rename Windows installer artifact
-        run: mv artifacts/windows/openterfaceQT.windows.amd64.installer artifacts/windows/openterfaceQT.windows.amd.installer.unsigned
+        run: |
+          dir artifacts/windows
+          mv artifacts/windows/openterfaceQT.windows.amd64.installer artifacts/windows/openterfaceQT.windows.amd.installer.unsigned
 
       - name: Upload Windows installer artifact
         id: upload-installer
@@ -98,7 +100,9 @@ jobs:
           path: artifacts/windows/portable
           
       - name: Rename Windows portable artifact
-        run: mv artifacts/windows/portable/openterfaceQT.windows.amd64.portable.exe artifacts/windows/portable/openterfaceQT.windows.amd.portable.unsigned.exe
+        run: |
+          dir artifacts/windows/portable
+          mv artifacts/windows/portable/openterfaceQT.windows.amd64.portable.exe artifacts/windows/portable/openterfaceQT.windows.amd.portable.unsigned.exe
           
       - name: Upload Windows portable artifact
         id: upload-portable
