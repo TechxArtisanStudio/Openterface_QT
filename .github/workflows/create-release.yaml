@@ -45,9 +45,69 @@ jobs:
           done
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      
-  create-release:
+  
+  sign-windows:
     needs: wait-for-builds
+    runs-on: windows-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Download Windows artifacts
+        id: windows-installer
+        uses: dawidd6/action-download-artifact@v2
+        with:
+          workflow: windows-build.yaml
+          workflow_conclusion: success
+          name: openterfaceQT.windows.amd64.installer
+          path: artifacts/windows
+
+      - name: Submit signing request
+        id: sign
+        uses: signpath/github-action-submit-signing-request@v1.1
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: Openterface_QT
+          signing-policy-slug: release-signing
+          artifact-configuration-slug: Openterface_Connect_win_installer_zip
+          github-artifact-id: ${{ steps.windows-installer.outputs.artifact-id }}
+          wait-for-completion: true
+          output-artifact-directory: .\signed
+      
+      - name: Download Windows portable artifacts
+        id: windows-portable
+        uses: dawidd6/action-download-artifact@v2
+        with:
+          workflow: windows-portable-build.yaml
+          workflow_conclusion: success
+          name: openterfaceQT.windows.amd64.portable.exe
+          path: artifacts/windows/portable
+      
+      - name: Submit signing request
+        id: sign
+        uses: signpath/github-action-submit-signing-request@v1.1
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: Openterface_QT
+          signing-policy-slug: release-signing
+          artifact-configuration-slug: Openterface_Connect_win_installer_zip
+          github-artifact-id: ${{ steps.windows-portable.outputs.artifact-id }}
+          wait-for-completion: true
+          output-artifact-directory: .\signed
+      
+      - name: List all downloaded artifacts
+        run: |
+          Write-Output "Listing all files in the artifacts directory:"
+          Get-ChildItem -Path "artifacts" -Recurse | ForEach-Object {
+              Write-Output "File: $($_.FullName), Last Modified: $($_.LastWriteTime)"
+          }
+
+  create-release:
+    needs: [wait-for-builds, sign-windows]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -97,22 +157,6 @@ jobs:
           echo "$CHANGELOG" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
             
-      - name: Download Windows artifacts
-        uses: dawidd6/action-download-artifact@v2
-        with:
-          workflow: windows-build.yaml
-          workflow_conclusion: success
-          name: openterfaceQT.windows.amd64.installer
-          path: artifacts/windows
-        
-      - name: Download Windows portable artifacts
-        uses: dawidd6/action-download-artifact@v2
-        with:
-          workflow: windows-portable-build.yaml
-          workflow_conclusion: success
-          name: openterfaceQT.windows.amd64.portable.exe
-          path: artifacts/windows/portable
-
       - name: Download Linux AMD64 DEB artifact
         uses: dawidd6/action-download-artifact@v2
         with:

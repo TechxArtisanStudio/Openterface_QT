@@ -34,7 +34,6 @@ env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   QT_CACHE_KEY: qt-6.5.3-mingw-windows
   JOM_CACHE_KEY: jom-1.1.3-windows
-  PACKAGE_DIR: "package_online"
   EXE_NAME: "openterfaceQT.exe"
 
 jobs:
@@ -218,6 +217,8 @@ jobs:
           echo "Copying translation & keyboard layouts files..."
           copy ${{ env.SOURCE_DIR }}\config\keyboards\*.json ${{ env.PACKAGE_DIR }}\config\keyboards
           copy ${{ env.SOURCE_DIR }}\config\languages\*.qm ${{ env.PACKAGE_DIR }}\config\languages
+          
+          windeployqt --qmldir ${{ env.SOURCE_DIR }} ${{ env.EXE_NAME }} --compiler-runtime --multimedia
           
       - name: Move build artifacts
         run: move /Y ${{ runner.temp }}\build\${{ env.PACKAGE_DIR }} ${{ env.SOURCE_DIR }}
