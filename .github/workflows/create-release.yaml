@@ -115,6 +115,17 @@ jobs:
           wait-for-completion: true
           output-artifact-directory: artifacts/windows/signed
 
+      - name: Upload signed windows insatller
+        uses: actions/upload-artifact@v4
+        with:
+          name: openterfaceQT.windows.amd.installer
+          path: artifacts/windows/signed/openterfaceQT.windows.amd.installer.exe
+
+      - name: Upload signed Windows portable artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: openterfaceQT.windows.amd.portable.exe
+          path: artifacts/windows/signed/openterfaceQT-portable.exe
       
       - name: List all downloaded artifacts
         run: |
