@@ -68,7 +68,7 @@ jobs:
         id: upload-installer
         uses: actions/upload-artifact@v4
         with:
-          name: openterfaceQT.windows.amd.installer
+          name: openterfaceQT.windows.amd.installer.unsigned
           path: artifacts/windows
           if-no-files-found: error
       
@@ -98,7 +98,7 @@ jobs:
         id: upload-portable
         uses: actions/upload-artifact@v4
         with:
-          name: openterfaceQT.windows.amd.portable.exe
+          name: openterfaceQT.windows.amd.portable.unsigned.exe
           path: artifacts/windows/portable
           if-no-files-found: error
           
