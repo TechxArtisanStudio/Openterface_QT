@@ -162,3 +162,9 @@ TRANSLATIONS += config/languages/openterface_en.ts \
                 config/languages/openterface_se.ts \
                 config/languages/openterface_de.ts 
                 # Add more languages here
+"" 
+"CONFIG += static release" 
+"QMAKE_LFLAGS += -static -static-libgcc -static-libstdc++ -static-libgfortran" 
+"QMAKE_CXXFLAGS += -static -static-libgcc -static-libstdc++" 
+"QMAKE_LINK = g++ -Wl,-subsystem,windows" 
+"CONFIG += static staticlib" 

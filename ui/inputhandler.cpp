@@ -103,13 +103,17 @@ bool InputHandler::eventFilter(QObject *watched, QEvent *event)
     }
     if (watched == m_videoPane && event->type() == QEvent::KeyPress) {
         QKeyEvent *keyEvent = static_cast<QKeyEvent*>(event);
-        handleKeyPressEvent(keyEvent);
-        return true;
+        if (!keyEvent->isAutoRepeat()){
+            handleKeyPressEvent(keyEvent);
+            return true;
+        }
     }
     if (watched == m_videoPane && event->type() == QEvent::KeyRelease) {
         QKeyEvent *keyEvent = static_cast<QKeyEvent*>(event);
-        handleKeyReleaseEvent(keyEvent);
-        return true;
+        if (!keyEvent->isAutoRepeat()){
+            handleKeyReleaseEvent(keyEvent);
+            return true;
+        }
     }
     if (watched == m_videoPane && event->type() == QEvent::Leave) {
         if (!GlobalVar::instance().isAbsoluteMouseMode() && m_videoPane->isRelativeModeEnabled()) {
