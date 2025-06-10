@@ -140,22 +140,10 @@ jobs:
           
           echo "Creating package directory..."
           mkdir ${{ env.PACKAGE_DIR }}
-          mkdir ${{ env.PACKAGE_DIR }}\driver
-          mkdir ${{ env.PACKAGE_DIR }}\driver\windows
-          mkdir ${{ env.PACKAGE_DIR }}\config\languages
-          mkdir ${{ env.PACKAGE_DIR }}\config\keyboards
-
-          copy release\openterfaceQT.exe ${{ env.PACKAGE_DIR }}\${{ env.EXE_NAME }}
+          
           copy ${{ env.SOURCE_DIR }}\LICENSE ${{ env.PACKAGE_DIR }}
-          copy ${{ env.SOURCE_DIR }}\driver\windows\* ${{ env.PACKAGE_DIR }}\driver\windows
           
-          echo "Copying translation & keyboard layouts files..."
-          copy ${{ env.SOURCE_DIR }}\config\keyboards\*.json ${{ env.PACKAGE_DIR }}\config\keyboards
-          copy ${{ env.SOURCE_DIR }}\config\languages\*.qm ${{ env.PACKAGE_DIR }}\config\languages
           
-          echo "Running windeployqt..."
-          cd ${{ env.PACKAGE_DIR }}
-          windeployqt --qmldir ${{ env.SOURCE_DIR }} ${{ env.EXE_NAME }} --compiler-runtime --multimedia
           
 
       - name: Move build artifacts
