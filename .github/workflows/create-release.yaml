@@ -244,13 +244,13 @@ jobs:
           path: artifacts/linux/portable
 
       - name: Download signed Windows installer artifact
-        uses: dawidd6/action-download-artifact@v4
+        uses: actions/download-artifact@v4
         with:
           name: openterfaceQT.windows.amd.installer
           path: artifacts/windows/signed
-
+      
       - name: Download signed Windows portable artifact
-        uses: dawidd6/action-download-artifact@v4
+        uses: actions/download-artifact@v4
         with:
           name: openterfaceQT.windows.amd.portable.exe
           path: artifacts/windows/signed
