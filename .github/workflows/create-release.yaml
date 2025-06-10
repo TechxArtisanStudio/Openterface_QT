@@ -110,7 +110,7 @@ jobs:
           organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
           project-slug: Openterface_QT
           signing-policy-slug: release-signing
-          artifact-configuration-slug: Openterface_Connect_win_installer_zip
+          artifact-configuration-slug: Openterface_Connect_window_portable
           github-artifact-id: ${{ steps.upload-portable.outputs.artifact-id }}
           wait-for-completion: true
           output-artifact-directory: .\signed
