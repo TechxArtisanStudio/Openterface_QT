@@ -64,8 +64,8 @@ jobs:
           name: openterfaceQT.windows.amd64.installer
           path: artifacts/windows
 
-      - name: Submit signing request
-        id: sign
+      - name: Submit installer signing request
+        id: sign-installer
         uses: signpath/github-action-submit-signing-request@v1.1
         with:
           api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
@@ -86,8 +86,8 @@ jobs:
           name: openterfaceQT.windows.amd64.portable.exe
           path: artifacts/windows/portable
       
-      - name: Submit signing request
-        id: sign
+      - name: Submit portable signing request
+        id: sign-portable
         uses: signpath/github-action-submit-signing-request@v1.1
         with:
           api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
