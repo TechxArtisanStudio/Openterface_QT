@@ -68,7 +68,7 @@ jobs:
         id: upload-installer
         uses: actions/upload-artifact@v4
         with:
-          name: openterfaceQT.windows.amd.installer
+          name: openterfaceQT.windows.amd.installer.unsigned
           path: artifacts/windows
           if-no-files-found: error
       
@@ -98,7 +98,7 @@ jobs:
         id: upload-portable
         uses: actions/upload-artifact@v4
         with:
-          name: openterfaceQT.windows.amd.portable.exe
+          name: openterfaceQT.windows.amd.portable.unsigned.exe
           path: artifacts/windows/portable
           if-no-files-found: error
           
@@ -115,6 +115,17 @@ jobs:
           wait-for-completion: true
           output-artifact-directory: artifacts/windows/signed
 
+      - name: Upload signed windows insatller
+        uses: actions/upload-artifact@v4
+        with:
+          name: openterfaceQT.windows.amd.installer
+          path: artifacts/windows/signed/openterfaceQT.windows.amd64.installer.exe
+
+      - name: Upload signed Windows portable artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: openterfaceQT.windows.amd.portable.exe
+          path: artifacts/windows/signed/openterfaceQT-portable.exe
       
       - name: List all downloaded artifacts
         run: |
@@ -223,22 +234,16 @@ jobs:
           path: artifacts/linux/portable
 
       - name: Download signed Windows installer artifact
-        uses: dawidd6/action-download-artifact@v2
+        uses: actions/download-artifact@v4
         with:
-          workflow: ${{ github.workflow }}
-          job_name: sign-windows
           name: openterfaceQT.windows.amd.installer
           path: artifacts/windows/signed
-          workflow_conclusion: success
-
+      
       - name: Download signed Windows portable artifact
-        uses: dawidd6/action-download-artifact@v2
+        uses: actions/download-artifact@v4
         with:
-          workflow: ${{ github.workflow }}
-          job_name: sign-windows
           name: openterfaceQT.windows.amd.portable.exe
           path: artifacts/windows/signed
-          workflow_conclusion: success
         
       - name: Create source archives
         run: |
