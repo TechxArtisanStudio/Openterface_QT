@@ -825,8 +825,9 @@ FirmwareResult VideoHid::isLatestFirmware() {
     }
     QString newURL = firmwareURL.replace("minikvm_latest_firmware.txt", firemwareFileName);
     fetchBinFileToString(newURL);
-    qCDebug(log_host_hid)  << "Firmware version:" << QString::fromStdString(getFirmwareVersion());
-    qCDebug(log_host_hid)  << "Lateset firmware version:" << QString::fromStdString(m_firmwareVersion);
+    m_currentfirmwareVersion = getFirmwareVersion();
+    qCDebug(log_host_hid)  << "Firmware version:" << QString::fromStdString(m_currentfirmwareVersion);
+    qCDebug(log_host_hid)  << "Latest firmware version:" << QString::fromStdString(m_firmwareVersion);
     if (getFirmwareVersion() == m_firmwareVersion) {
         fireware_result = FirmwareResult::Lastest;
         return FirmwareResult::Lastest;

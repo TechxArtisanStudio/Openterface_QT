@@ -558,11 +558,12 @@ void MainWindow::doResize(){
     } else {
         // When within screen bounds, adjust height according to width and aspect ratio
         int contentHeight = static_cast<int>(currentWidth / aspect_ratio) + menuBarHeight + statusBarHeight;
-        resize(currentWidth, contentHeight);
+        
         int adjustedContentHeight = contentHeight - menuBarHeight - statusBarHeight;
         videoPane->setMinimumSize(currentWidth, adjustedContentHeight);
         videoPane->resize(currentWidth, adjustedContentHeight);
         scrollArea->resize(currentWidth, adjustedContentHeight);
+        resize(currentWidth, contentHeight);
     }
     // Update global state
     GlobalVar::instance().setWinWidth(this->width());
@@ -1472,11 +1473,11 @@ void MainWindow::showEnvironmentSetupDialog() {
 void MainWindow::updateFirmware() {
     // Check if it's latest firmware
     FirmwareResult firmwareStatus = VideoHid::getInstance().isLatestFirmware();
-    std::string currentFirmwareVersion = VideoHid::getInstance().getFirmwareVersion();
+    std::string currentFirmwareVersion = VideoHid::getInstance().getCurrentFirmwareVersion();
     std::string latestFirmwareVersion = VideoHid::getInstance().getLatestFirmwareVersion();
     qDebug() << "latestFirmwareVersion" << latestFirmwareVersion.c_str();
     if (firmwareStatus == FirmwareResult::Lastest) {
-        std::string currentFirmwareVersion = VideoHid::getInstance().getFirmwareVersion();
+        std::string currentFirmwareVersion = VideoHid::getInstance().getLatestFirmwareVersion();
         QMessageBox::information(this, tr("Firmware Update"), 
             tr("The firmware is up to date.\nCurrent version: ") + 
             QString::fromStdString(currentFirmwareVersion));
