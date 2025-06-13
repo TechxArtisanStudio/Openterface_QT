@@ -69,6 +69,7 @@ jobs:
           flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
           flatpak install --user --noninteractive flathub org.kde.Sdk/${{ matrix.arch }}/6.9
           flatpak install --user --noninteractive flathub org.kde.Platform/${{ matrix.arch }}/6.9
+          flatpak install --user --noninteractive flathub org.freedesktop.AppStreamCLI//23.08
       
       - name: Initialize build directory
         run: |
