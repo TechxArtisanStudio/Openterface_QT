@@ -78,6 +78,8 @@ jobs:
         run: |
           flatpak list | grep org.kde.Sdk || echo "KDE SDK not found"
           flatpak list | grep org.kde.Platform || echo "KDE Platform not found"
+          flatpak run org.flatpak.Builder --version || echo "Flatpak Builder not found"
+          
 
       - name: Initialize build directory
         run: |
