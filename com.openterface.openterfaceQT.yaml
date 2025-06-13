@@ -20,9 +20,8 @@ modules:
       - "INCLUDEPATH+=/app/include/libusb-1.0"
     sources:
       - type: git
-        url: https://github.com/TechxArtisanStudio/Openterface_QT.git
-        tag: 0.3.11
-        commit: d7c0114524ebdd19512c5b3cb2398ad74f3aebf0
+        url: https://github.com/Chow411/Openterface_QT.git
+        branch: dev_20250611_add_vertical_screen_operate
 
     build-options:
       env:
