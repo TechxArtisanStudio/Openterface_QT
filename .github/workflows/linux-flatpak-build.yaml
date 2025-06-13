@@ -69,10 +69,16 @@ jobs:
       - name: Add Flathub repository and install kde
         run: |
           flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+          flatpak install --user --noninteractive flathub org.flatpak.Builder
           flatpak install --user --noninteractive flathub org.kde.Sdk/${{ matrix.arch }}/6.9
           flatpak install --user --noninteractive flathub org.kde.Platform/${{ matrix.arch }}/6.9
-          flatpak install --user --noninteractive flathub org.flatpak.Builder
+          
       
+      - name: Verify SDK installation
+        run: |
+          flatpak list | grep org.kde.Sdk || echo "KDE SDK not found"
+          flatpak list | grep org.kde.Platform || echo "KDE Platform not found"
+
       - name: Initialize build directory
         run: |
           flatpak build-init ${{ env.FLATPAK_BUILD_DIR }} ${{ env.SOFTWERE_ID }} org.kde.Sdk//6.9 org.kde.Platform//6.9 ${{ matrix.arch }}
