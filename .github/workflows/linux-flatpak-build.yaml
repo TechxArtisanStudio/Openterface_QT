@@ -45,7 +45,7 @@ jobs:
       - name: Install flatpak
         run: |
           sudo apt update -y
-          sudo apt install -y flatpak flatpak-builder qemu-user-static
+          sudo apt install -y flatpak flatpak-builder qemu-user-static appstream-utils
           if [ "${{ matrix.arch }}" = "aarch64" ]; then
             sudo apt install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
           fi
@@ -94,7 +94,7 @@ jobs:
       - name: Export Flatpak Bundle
         run: |
           mkdir -p repo-${{ matrix.arch }}
-          flatpak build-export --arch=${{ matrix.arch }} repo-${{ matrix.arch }} ${{ env.FLATPAK_BUILD_DIR }}
+          flatpak build-export --arch=${{ matrix.arch }} repo-${{ matrix.arch }} ${{ env.FLATPAK_BUILD_DIR }} --runtime
           flatpak build-bundle --arch=${{ matrix.arch }} repo-${{ matrix.arch }} ${{ env.SOFTWERE_ID }}-${{ matrix.arch }}.flatpak ${{ env.SOFTWERE_ID }}
         env:
           FLATPAK_ARCH: ${{ matrix.arch }}
