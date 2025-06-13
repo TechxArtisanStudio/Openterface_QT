@@ -83,8 +83,7 @@ jobs:
       
           
       - name: Build Flatpak
-        env:
-          FLATPAK_BUILDER_OPTS: "--runtime=org.freedesktop.AppStreamCLI//23.08"
+          
         run: |
           flatpak-builder \
             --user \
@@ -97,6 +96,7 @@ jobs:
         env:
           # Ensure cross-compilation for aarch64
           FLATPAK_ARCH: ${{ matrix.arch }}
+          FLATPAK_BUILDER_OPTS: "--runtime=org.freedesktop.AppStreamCLI//23.08"
 
       - name: Export Flatpak Bundle
         run: |
