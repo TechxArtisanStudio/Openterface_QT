@@ -88,6 +88,7 @@ jobs:
             --install \
             --force-clean \
             --arch=${{ matrix.arch }} \
+            --require-appstream-compose \
             --subject="Build of ${{ env.ARTIFACT }} ${{ env.VERSION }}" \
             ${{ env.FLATPAK_BUILD_DIR }} \
             ${{ env.FLATPAK_MANIFEST }}
