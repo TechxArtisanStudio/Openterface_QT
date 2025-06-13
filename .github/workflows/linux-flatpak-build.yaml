@@ -44,12 +44,13 @@ jobs:
 
       - name: Install flatpak
         run: |
-          sudo add-apt-repository ppa:alexlarsson/flatpak
           sudo apt update -y
-          sudo apt install -y flatpak flatpak-builder=1.4.4 qemu-user-static
+          sudo apt install -y flatpak flatpak-builder qemu-user-static
           if [ "${{ matrix.arch }}" = "aarch64" ]; then
             sudo apt install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
           fi
+          flatpak-builder --version || true
+          flatpak --version || true
 
       - name: Ensure flatpak user setup
         run: |
