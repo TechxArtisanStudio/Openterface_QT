@@ -45,7 +45,7 @@ jobs:
       - name: Install flatpak
         run: |
           sudo apt update -y
-          sudo apt install -y flatpak flatpak-builder qemu-user-static
+          sudo apt install -y flatpak flatpak-builder qemu-user-static appstream
           if [ "${{ matrix.arch }}" = "aarch64" ]; then
             sudo apt install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
           fi
