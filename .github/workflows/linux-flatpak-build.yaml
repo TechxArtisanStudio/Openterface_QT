@@ -85,7 +85,6 @@ jobs:
       - name: Build Flatpak
         run: |
           flatpak run org.flatpak.Builder \
-            --user \
             --install \
             --force-clean \
             --arch=${{ matrix.arch }} \
