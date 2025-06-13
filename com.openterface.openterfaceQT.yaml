@@ -9,6 +9,7 @@ finish-args:
   - --socket=x11
   - --device=all
   - --filesystem=/run/udev:ro
+  - --require-appstream-compose
 
 modules:
   - shared-modules/libusb/libusb.json
