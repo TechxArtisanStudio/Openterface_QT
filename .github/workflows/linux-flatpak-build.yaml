@@ -50,6 +50,10 @@ jobs:
             sudo apt install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
           fi
 
+      - name: Ensure flatpak user setup
+        run: |
+          flatpak --user remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
+
       - name: Add flatpak shared-modules
         run: |
           git submodule add https://github.com/flathub/shared-modules.git
