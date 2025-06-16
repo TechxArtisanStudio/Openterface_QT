@@ -1489,6 +1489,7 @@ void MainWindow::showEnvironmentSetupDialog() {
 
 void MainWindow::updateFirmware() {
     // Check if it's latest firmware
+    qDebug() << "Checking for latest firmware version...";
     FirmwareResult firmwareStatus = VideoHid::getInstance().isLatestFirmware();
     std::string currentFirmwareVersion = VideoHid::getInstance().getCurrentFirmwareVersion();
     std::string latestFirmwareVersion = VideoHid::getInstance().getLatestFirmwareVersion();

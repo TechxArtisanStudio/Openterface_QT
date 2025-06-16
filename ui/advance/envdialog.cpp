@@ -509,7 +509,7 @@ bool EnvironmentSetupDialog::detectDevice(uint16_t vendorID, uint16_t productID)
 
 bool EnvironmentSetupDialog::checkEnvironmentSetup() {
     lastestFirmware = VideoHid::getInstance().isLatestFirmware();
-    std::string version = VideoHid::getInstance().getFirmwareVersion();
+    std::string version = VideoHid::getInstance().getCurrentFirmwareVersion();
     std::string latestVersion = VideoHid::getInstance().getLatestFirmwareVersion();
     std::cout << "Dirver detect: " << version << std::endl;
     std::cout << "Lastest driver: " << latestVersion << std::endl;
