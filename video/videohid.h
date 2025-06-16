@@ -118,7 +118,7 @@ private:
     void closeHIDDeviceHandle();
     using StringCallback = std::function<void(const QString&)>;
     QTimer *timer;
-    QString firmwareURL = "https://assets.openterface.com/openterface/firmware/minikvm_latest_firmware.txt";
+    QString firmwareURL = "http://download.openterface.com/openterface/firmware/minikvm_latest_firmware.txt";
     QString extractPortNumberFromPath(const QString& path);
     QPair<QByteArray, bool> usbXdataRead4Byte(quint16 u16_address);
     bool usbXdataWrite4Byte(quint16 u16_address, QByteArray data);
