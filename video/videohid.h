@@ -89,6 +89,7 @@ public:
 
 signals:
     // Add new signals
+    int safe_stoi(std::string str, int defaultValue = 0);
     void firmwareWriteProgress(int percent);
     void firmwareWriteComplete(bool success);
     void firmwareWriteChunkComplete(int writtenBytes);

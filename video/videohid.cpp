@@ -832,10 +832,22 @@ FirmwareResult VideoHid::isLatestFirmware() {
         fireware_result = FirmwareResult::Lastest;
         return FirmwareResult::Lastest;
     }
-    if (std::stoi(getFirmwareVersion()) <= std::stoi(m_firmwareVersion)) {
+    if (safe_stoi(getFirmwareVersion()) <= safe_stoi(m_firmwareVersion)) {
         fireware_result = FirmwareResult::Upgradable;
         return FirmwareResult::Upgradable;
     }
     return fireware_result;
 }
 
+int safe_stoi(std::string str, int defaultValue) {
+    try {
+        return std::stoi(str);
+    } catch (const std::invalid_argument&) {
+        qCDebug(log_host_hid) << "Invalid argument for stoi, returning default value:" << defaultValue;
+        return defaultValue;
+    } catch (const std::out_of_range&) {
+        qCDebug(log_host_hid) << "Out of range for stoi, returning default value:" << defaultValue;
+        qCDebug(log_host_hid) << "String was:" << QString::fromStdString(str);
+        return defaultValue;
+    }
+}
