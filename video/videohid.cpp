@@ -290,36 +290,61 @@ void VideoHid::fetchBinFileToString(QString &url, int timeoutMs){
     reply->deleteLater(); // Clean up the reply object
 }
 
-QString VideoHid::getLatestFirmwareFilenName(QString &url, int timeoutMs){
+QString VideoHid::getLatestFirmwareFilenName(QString &url, int timeoutMs) {
     QNetworkAccessManager manager;
     QNetworkRequest request(url);
+    request.setRawHeader("User-Agent", "MyFirmwareChecker/1.0");
+
     QNetworkReply *reply = manager.get(request);
+    if (!reply) {
+        qCDebug(log_host_hid) << "Failed to create network reply";
+        fireware_result = FirmwareResult::CheckFailed;
+        return QString();
+    }
+
+    qCDebug(log_host_hid) << "Fetching latest firmware file name from" << url;
 
     QEventLoop loop;
     QTimer timer;
     timer.setSingleShot(true);
-    QObject::connect(&timer, &QTimer::timeout, &loop, &QEventLoop::quit);
-    QObject::connect(reply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
-    
-    timer.start(timeoutMs); // Set the timeout duration (in milliseconds)
+
+    QObject::connect(reply, &QNetworkReply::finished, &loop, [&]() {
+        loop.quit();
+    });
+
+    QObject::connect(&timer, &QTimer::timeout, &loop, [&]() {
+        qCDebug(log_host_hid) << "Request timed out";
+        fireware_result = FirmwareResult::Timeout;
+        reply->abort();
+        reply->deleteLater();
+        loop.quit();
+    });
+
+    timer.start(timeoutMs);
     loop.exec();
 
-    QString result;
-    if (reply->isFinished() && reply->error() == QNetworkReply::NoError) {
-        result = QString::fromUtf8(reply->readAll());
-        fireware_result = FirmwareResult::CheckSuccess;
-        qCDebug(log_host_hid)  << "Successfully fetched latest firmware";
-    } else if (!reply->isFinished()) {
-        qCDebug(log_host_hid)  << "Request time out";
-        fireware_result = FirmwareResult::Timeout;
-        reply->abort(); // request timout and abort
-    } else {
-        qCDebug(log_host_hid)  << "fail to get file name" << reply->errorString();
+    if (timer.isActive()) {
+        timer.stop(); // Stop the timer if not triggered
     }
 
-    reply->deleteLater();
-    return result;
+    if (fireware_result == FirmwareResult::Timeout) {
+        return QString(); // Already handled in timeout handler
+    }
+
+    if (reply->error() == QNetworkReply::NoError) {
+        qCDebug(log_host_hid) << "Successfully fetched latest firmware";
+        QString result = QString::fromUtf8(reply->readAll());
+        fireware_result = FirmwareResult::CheckSuccess;
+        reply->deleteLater();
+        return result;
+    } else {
+        qCDebug(log_host_hid) << "Fail to get file name:" << reply->errorString();
+        fireware_result = FirmwareResult::CheckFailed;
+        reply->deleteLater();
+        return QString();
+    }
 }
+
 /*
  * Address: 0xFA8C bit0 indicates the HDMI connection status
  */
