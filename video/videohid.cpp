@@ -300,31 +300,21 @@ QString VideoHid::getLatestFirmwareFilenName(QString &url, int timeoutMs){
     timer.setSingleShot(true);
     QObject::connect(&timer, &QTimer::timeout, &loop, &QEventLoop::quit);
     QObject::connect(reply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
-
+    
     timer.start(timeoutMs); // Set the timeout duration (in milliseconds)
     loop.exec();
 
     QString result;
     if (reply->isFinished() && reply->error() == QNetworkReply::NoError) {
-        QByteArray data = reply->readAll();
-        if (!data.isEmpty()) {
-            result = QString::fromUtf8(data).trimmed();
-            fireware_result = FirmwareResult::CheckSuccess;
-            qCDebug(log_host_hid)  << "Successfully fetched latest firmware";
-        } else {
-            qCDebug(log_host_hid)  << "Fetched firmware file name is empty";
-            fireware_result = FirmwareResult::CheckFailed;
-            result.clear();
-        }
+        result = QString::fromUtf8(reply->readAll());
+        fireware_result = FirmwareResult::CheckSuccess;
+        qCDebug(log_host_hid)  << "Successfully fetched latest firmware";
     } else if (!reply->isFinished()) {
         qCDebug(log_host_hid)  << "Request time out";
         fireware_result = FirmwareResult::Timeout;
-        reply->abort(); // request timeout and abort
-        result.clear();
+        reply->abort(); // request timout and abort
     } else {
         qCDebug(log_host_hid)  << "fail to get file name" << reply->errorString();
-        fireware_result = FirmwareResult::CheckFailed;
-        result.clear();
     }
 
     reply->deleteLater();
