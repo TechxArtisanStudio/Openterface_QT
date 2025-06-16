@@ -24,6 +24,7 @@ enum class FirmwareResult {
     Upgradable,
     Timeout,
     CheckSuccess,
+    CheckFailed,
     Checking
 };
 
