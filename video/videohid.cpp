@@ -300,6 +300,9 @@ QString VideoHid::getLatestFirmwareFilenName(QString &url, int timeoutMs) {
         qCDebug(log_host_hid) << "Failed to create network reply";
         fireware_result = FirmwareResult::CheckFailed;
         return QString();
+    }else {
+        fireware_result = FirmwareResult::Checking; // Set the initial state to checking
+        qCDebug(log_host_hid) << "Network reply created successfully";
     }
 
     qCDebug(log_host_hid) << "Fetching latest firmware file name from" << url;
@@ -309,6 +312,7 @@ QString VideoHid::getLatestFirmwareFilenName(QString &url, int timeoutMs) {
     timer.setSingleShot(true);
 
     QObject::connect(reply, &QNetworkReply::finished, &loop, [&]() {
+        qDebug(log_host_hid) << "Network reply finished";
         loop.quit();
     });
 
@@ -328,6 +332,7 @@ QString VideoHid::getLatestFirmwareFilenName(QString &url, int timeoutMs) {
     }
 
     if (fireware_result == FirmwareResult::Timeout) {
+        qCDebug(log_host_hid) << "Firmware check timed out";
         return QString(); // Already handled in timeout handler
     }
 
@@ -848,9 +853,11 @@ void VideoHid::loadFirmwareToEeprom() {
 FirmwareResult VideoHid::isLatestFirmware() {
     qCDebug(log_host_hid) << "Checking for latest firmware...";
     QString firemwareFileName = getLatestFirmwareFilenName(firmwareURL);
+    qCDebug(log_host_hid) << "Latest firmware file name:" << firemwareFileName;
     if (fireware_result == FirmwareResult::Timeout) {
         return FirmwareResult::Timeout;
     }
+    qCDebug(log_host_hid) << "After timeout checking: " << firmwareURL;
     QString newURL = firmwareURL.replace("minikvm_latest_firmware.txt", firemwareFileName);
     fetchBinFileToString(newURL);
     m_currentfirmwareVersion = getFirmwareVersion();
