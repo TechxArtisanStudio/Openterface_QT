@@ -88,7 +88,7 @@ jobs:
           )
           echo "Installing OpenSSL static libraries"
           %VCPKG_DIR%\vcpkg update
-          %VCPKG_DIR%\vcpkg install openssl:x64-mingw-static zlib:x64-mingw-static --clean-after-build
+          %VCPKG_DIR%\vcpkg install openssl:x64-mingw-static zlib:x64-mingw-static --triplet x64-mingw-static --host-triplet x64-mingw-static --clean-after-build
           %VCPKG_DIR%\vcpkg integrate install
 
       - name: check OpenSSL installation
