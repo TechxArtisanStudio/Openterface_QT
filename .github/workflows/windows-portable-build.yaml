@@ -184,23 +184,3 @@ jobs:
           name: ${{ env.ARTIFACT }}
           path: ${{ runner.temp }}\build\package\openterfaceQT-portable.exe
           if-no-files-found: error
-
-      - name: Verify OpenSSL Static Linking
-        working-directory: ${{ runner.temp }}\build\package
-        run: |
-          echo "Checking for OpenSSL DLL dependencies..."
-          C:\mingw64\bin\ldd.exe openterfaceQT-portable.exe > dependencies.txt
-          findstr /C:"libssl" dependencies.txt >nul
-          if errorlevel 1 (
-            echo "No OpenSSL DLL dependencies found. Static linking successful."
-          ) else (
-            echo "Error: OpenSSL DLL dependencies detected. Static linking failed."
-          )
-          findstr /C:"libcrypto" dependencies.txt >nul
-          if errorlevel 1 (
-            echo "No libcrypto DLL dependencies found. Static linking successful."
-          ) else (
-            echo "Error: libcrypto DLL dependencies detected. Static linking failed."
-          )
-
-      
