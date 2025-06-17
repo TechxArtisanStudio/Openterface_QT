@@ -26,11 +26,11 @@ if %errorlevel% neq 0 (
 
 REM Check for OpenSSL static libraries
 dir "%OPENSSL_LIB_DIR%"
-if not exist "%OPENSSL_LIB_DIR%\libcrypto.a" (
+if not exist "%OPENSSL_LIB_DIR%\libcrypto.lib" (
     echo OpenSSL static library libcrypto.a not found in %OPENSSL_LIB_DIR%. Please install OpenSSL static libraries.
     exit /b 1
 )
-if not exist "%OPENSSL_LIB_DIR%\libssl.a" (
+if not exist "%OPENSSL_LIB_DIR%\libssl.lib" (
     echo OpenSSL static library libssl.a not found in %OPENSSL_LIB_DIR%. Please install OpenSSL static libraries.
     exit /b 1
 )
