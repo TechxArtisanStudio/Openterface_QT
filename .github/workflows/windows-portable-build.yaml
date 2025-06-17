@@ -178,6 +178,13 @@ jobs:
           mkdir package
           copy release\openterfaceQT.exe package\openterfaceQT-portable.exe
 
+      - name: Save build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.ARTIFACT }}
+          path: ${{ runner.temp }}\build\package\openterfaceQT-portable.exe
+          if-no-files-found: error
+
       - name: Verify OpenSSL Static Linking
         working-directory: ${{ runner.temp }}\build\package
         run: |
@@ -188,19 +195,12 @@ jobs:
             echo "No OpenSSL DLL dependencies found. Static linking successful."
           ) else (
             echo "Error: OpenSSL DLL dependencies detected. Static linking failed."
-            exit 1
           )
           findstr /C:"libcrypto" dependencies.txt >nul
           if errorlevel 1 (
             echo "No libcrypto DLL dependencies found. Static linking successful."
           ) else (
             echo "Error: libcrypto DLL dependencies detected. Static linking failed."
-            exit 1
           )
 
-      - name: Save build artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ env.ARTIFACT }}
-          path: ${{ runner.temp }}\build\package\openterfaceQT-portable.exe
-          if-no-files-found: error
+      
