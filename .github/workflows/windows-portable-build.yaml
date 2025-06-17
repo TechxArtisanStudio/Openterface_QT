@@ -87,8 +87,21 @@ jobs:
             call bootstrap-vcpkg.bat
           )
           echo "Installing OpenSSL static libraries"
-          %VCPKG_DIR%\vcpkg install openssl:x64-windows-static
+          %VCPKG_DIR%\vcpkg install openssl:x64-windows-static --clean-after-build
           %VCPKG_DIR%\vcpkg integrate install
+          echo "Verifying OpenSSL static libraries"
+          if not exist "%OPENSSL_DIR%\lib\libcrypto.a" (
+            echo "Error: libcrypto.a not found in %OPENSSL_DIR%\lib"
+            exit 1
+          )
+          if not exist "%OPENSSL_DIR%\lib\libssl.a" (
+            echo "Error: libssl.a not found in %OPENSSL_DIR%\lib"
+            exit 1
+          )
+
+      - name: check OpenSSL installation
+        run: |
+          dir %OPENSSL_DIR%\lib
 
       - name: Build Qt Statically
         if: steps.cache-qt.outputs.cache-hit != 'true'
