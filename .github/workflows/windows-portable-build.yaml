@@ -18,7 +18,7 @@ env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   ORGANIZATION_NAME: "TechxArtisan"
   VCPKG_DIR: C:\vcpkg
-  OPENSSL_DIR: C:\vcpkg\installed\x64-windows-static
+  OPENSSL_DIR: C:\vcpkg\installed\x64-mingw-static
 
 jobs:
   build:
@@ -53,9 +53,9 @@ jobs:
         uses: actions/cache@v3
         with:
           path: C:\vcpkg
-          key: vcpkg-windows-static-openssl
+          key: vcpkg-mingw-static-openssl-v2
           restore-keys: |
-            vcpkg-windows-static-openssl
+            vcpkg-mingw-static-openssl-v2
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -87,7 +87,8 @@ jobs:
             call bootstrap-vcpkg.bat
           )
           echo "Installing OpenSSL static libraries"
-          %VCPKG_DIR%\vcpkg install openssl:x64-windows-static --clean-after-build
+          %VCPKG_DIR%\vcpkg update
+          %VCPKG_DIR%\vcpkg install openssl:x64-mingw-static zlib:x64-mingw-static --clean-after-build
           %VCPKG_DIR%\vcpkg integrate install
 
       - name: check OpenSSL installation

@@ -11,7 +11,7 @@ set BUILD_DIR=%cd%\qt-build
 set MODULES=qtbase qtshadertools qtmultimedia qtsvg qtserialport qttools
 set DOWNLOAD_BASE_URL=https://download.qt.io/archive/qt/%QT_MAJOR_VERSION%/%QT_VERSION%/submodules
 set VCPKG_DIR=C:\vcpkg
-set OPENSSL_DIR=%VCPKG_DIR%\installed\x64-windows-static
+set OPENSSL_DIR=%VCPKG_DIR%\installed\x64-mingw-static
 set OPENSSL_LIB_DIR=%OPENSSL_DIR%\lib
 set OPENSSL_INCLUDE_DIR=%OPENSSL_DIR%\include
 
@@ -26,11 +26,11 @@ if %errorlevel% neq 0 (
 
 REM Check for OpenSSL static libraries
 dir "%OPENSSL_LIB_DIR%"
-if not exist "%OPENSSL_LIB_DIR%\libcrypto.lib" (
+if not exist "%OPENSSL_LIB_DIR%\libcrypto.a" (
     echo OpenSSL static library libcrypto.a not found in %OPENSSL_LIB_DIR%. Please install OpenSSL static libraries.
     exit /b 1
 )
-if not exist "%OPENSSL_LIB_DIR%\libssl.lib" (
+if not exist "%OPENSSL_LIB_DIR%\libssl.a" (
     echo OpenSSL static library libssl.a not found in %OPENSSL_LIB_DIR%. Please install OpenSSL static libraries.
     exit /b 1
 )
