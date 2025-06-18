@@ -11,7 +11,7 @@ The OpenterfaceQT app requires access to serial and HID devices. This setup is m
      sudo usermod -aG plugdev $USER
      ```
 
-2. **Create udev Rule for HIDRAW and ttyUSB**:
+2. **Create udev Rule for HIDRAW and ttyUSB this step is same with env**:
 
    - Create a new file `/etc/udev/rules.d/51-openterface.rules` with the following content:
 
@@ -24,7 +24,7 @@ The OpenterfaceQT app requires access to serial and HID devices. This setup is m
 
 3. **Reload udev Rules**:
 
-   - Run the following command to reload the udev rules:
+   - Run the following command to reload the udev rules or reboot the machine reload the udev rules:
 
      ```bash
      sudo udevadm control --reload-rules
@@ -35,7 +35,7 @@ The OpenterfaceQT app requires access to serial and HID devices. This setup is m
 
    - Log out and log back in for the changes to take effect.
 
-## Use Flatpak Install
+## Use Flatpak Install openterfaceQT
 
 ### Download Flatpak
 
@@ -50,24 +50,12 @@ sudo apt install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
 ```sh
 flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
 # if you are using aarch64, maybe you need to install the following packages:
-flatpak install --user --noninteractive flathub org.kde.Sdk/aarch64/6.7
-flatpak install --user --noninteractive flathub org.kde.Platform/aarch64/6.7
+flatpak install --user --noninteractive flathub org.kde.Sdk/aarch64/6.9
+flatpak install --user --noninteractive flathub org.kde.Platform/aarch64/6.9
 
 # if you are using x86_64, maybe you need to install the following packages:
-flatpak install --user --noninteractive flathub org.kde.Sdk/x86_64/6.7
-flatpak install --user --noninteractive flathub org.kde.Platform/x86_64/6.7
-```
-
-### Download Openterface Flatpak File
-
-Download the latest version of the Flatpak file.
-
-```sh
-# This command installs for the user and may prompt you to install some packages; proceed with the installation.
-flatpak --user install com.openterface.openterfaceQT-aarch64.flatpak
-flatpak --user install com.openterface.openterfaceQT-x86_64.flatpak
-# Run the OpenterfaceQT app via Flatpak
-flatpak --user run com.openterface.openterfaceQT
+flatpak install --user --noninteractive flathub org.kde.Sdk/x86_64/6.9
+flatpak install --user --noninteractive flathub org.kde.Platform/x86_64/6.9
 ```
 
 ### Download Openterface from flathub
@@ -77,3 +65,16 @@ flatpak install flathub com.openterface.openterfaceQT
 ```
 
 ***After you can run the app, enjoy using the OpenterfaceQT app.***
+
+### Run the app
+
+You can run openterfaceQT from the menu bar, as shown in the picture below.
+
+![App in the raspberrypi](images/raspberrypi.png)
+
+
+Or you can run the openterfaceQT in the terminal, by command as follow.
+
+```bash
+   flatpak run --user com.openterface.openterfaceQT
+```
