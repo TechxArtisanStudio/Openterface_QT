@@ -716,46 +716,35 @@ Veuillez réessayer après avoir redémarré l&apos;application.</translation>
         <translation type="vanished">Mode plein écran</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="811"/>
+        <location filename="../../ui/mainwindow.cpp" line="829"/>
         <source>Recorded %1 sec</source>
         <translation>Enregistré %1 sec</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="993"/>
+        <location filename="../../ui/mainwindow.cpp" line="1011"/>
         <source>Image Capture Error</source>
         <translation>Erreur de capture d&apos;image</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1061"/>
+        <location filename="../../ui/mainwindow.cpp" line="1079"/>
         <source>Captured &quot;%1&quot;</source>
         <translation>Capturé &quot;%1&quot;</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1481"/>
+        <location filename="../../ui/mainwindow.cpp" line="1503"/>
         <source>The firmware is up to date.
 Current version: </source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1485"/>
+        <location filename="../../ui/mainwindow.cpp" line="1525"/>
         <source>Firmware fetch timeout</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1485"/>
-        <source>Failed to check for the latest firmware version.
-</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../../ui/mainwindow.cpp" line="1485"/>
-        <source>current version: </source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../../ui/mainwindow.cpp" line="1485"/>
-        <source>
-latest version: </source>
+        <location filename="../../ui/mainwindow.cpp" line="1526"/>
+        <source>Firmware retrieval timed out. Please check your network connection and try again.
+Current version: </source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -763,7 +752,7 @@ latest version: </source>
         <translation type="vanished">Le firmware est à jour.</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1480"/>
+        <location filename="../../ui/mainwindow.cpp" line="1502"/>
         <source>Firmware Update</source>
         <translation>Mise à jour du firmware</translation>
     </message>
