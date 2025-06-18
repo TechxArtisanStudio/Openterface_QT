@@ -12,6 +12,7 @@ Q_LOGGING_CATEGORY(log_keyboard_layouts, "opf.host.layouts")
 const KeyboardLayoutConfig QWERTY_US("US QWERTY", false);
 const KeyboardLayoutConfig QWERTY_UK("UK QWERTY", false);
 const KeyboardLayoutConfig AZERTY_FR("French AZERTY", false);
+const KeyboardLayoutConfig AZERTY_BE("Belgian AZERTY", false);
 const KeyboardLayoutConfig QWERTZ_DE("German QWERTZ", false);
 const KeyboardLayoutConfig QWERTY_DK("Danish QWERTY", false);
 const KeyboardLayoutConfig QWERTY_SE("Swedish QWERTY", false);
