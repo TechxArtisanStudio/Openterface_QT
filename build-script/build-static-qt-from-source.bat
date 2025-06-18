@@ -1,5 +1,5 @@
 @echo on
-REM To install OpenTerface QT, you can run this script as an administrator.
+REM To install OpenTerface QT with static OpenSSL support, you can run this script as an administrator.
 
 setlocal enabledelayedexpansion
 
@@ -10,13 +10,28 @@ set INSTALL_PREFIX=C:\Qt6
 set BUILD_DIR=%cd%\qt-build
 set MODULES=qtbase qtshadertools qtmultimedia qtsvg qtserialport qttools
 set DOWNLOAD_BASE_URL=https://download.qt.io/archive/qt/%QT_MAJOR_VERSION%/%QT_VERSION%/submodules
+set VCPKG_DIR=C:\vcpkg
+set OPENSSL_DIR=%VCPKG_DIR%\installed\x64-mingw-static
+set OPENSSL_LIB_DIR=%OPENSSL_DIR%\lib
+set OPENSSL_INCLUDE_DIR=%OPENSSL_DIR%\include
 
-set PATH=C:\ProgramData\chocolatey\bin;C:\ProgramData\chocolatey\lib\ninja\tools;C:\ProgramData\chocolatey\lib\mingw\tools\mingw64\bin;%PATH%
+set PATH=C:\ProgramData\chocolatey\bin;C:\ProgramData\chocolatey\lib\ninja\tools;C:\mingw64\bin;%PATH%
 
 REM Check for Ninja
 where ninja >nul 2>nul
 if %errorlevel% neq 0 (
     echo Ninja is not installed. Please install Ninja and ensure it is in your PATH.
+    exit /b 1
+)
+
+REM Check for OpenSSL static libraries
+dir "%OPENSSL_LIB_DIR%"
+if not exist "%OPENSSL_LIB_DIR%\libcrypto.a" (
+    echo OpenSSL static library libcrypto.a not found in %OPENSSL_LIB_DIR%. Please install OpenSSL static libraries.
+    exit /b 1
+)
+if not exist "%OPENSSL_LIB_DIR%\libssl.a" (
+    echo OpenSSL static library libssl.a not found in %OPENSSL_LIB_DIR%. Please install OpenSSL static libraries.
     exit /b 1
 )
 
@@ -46,6 +61,14 @@ cmake -G "Ninja" ^
     -DFEATURE_testlib=OFF ^
     -DFEATURE_icu=OFF ^
     -DFEATURE_opengl=ON ^
+    -DFEATURE_openssl=ON ^
+    -DOPENSSL_DIR="%OPENSSL_DIR%" ^
+    -DOPENSSL_INCLUDE_DIR="%OPENSSL_INCLUDE_DIR%" ^
+    -DOPENSSL_LIB_DIR="%OPENSSL_LIB_DIR%" ^
+    -DCMAKE_C_FLAGS="-I%OPENSSL_INCLUDE_DIR%" ^
+    -DCMAKE_CXX_FLAGS="-I%OPENSSL_INCLUDE_DIR%" ^
+    -DOPENSSL_LIBRARIES="%OPENSSL_LIB_DIR%\libssl.a;%OPENSSL_LIB_DIR%\libcrypto.a;-lws2_32;-lcrypt32" ^
+    -DCMAKE_TOOLCHAIN_FILE="%VCPKG_DIR%\scripts\buildsystems\vcpkg.cmake" ^
     ..
 ninja
 ninja install
@@ -60,6 +83,10 @@ for %%m in (%MODULES%) do (
             -DCMAKE_INSTALL_PREFIX="%INSTALL_PREFIX%" ^
             -DCMAKE_PREFIX_PATH="%INSTALL_PREFIX%" ^
             -DBUILD_SHARED_LIBS=OFF ^
+            -DOPENSSL_DIR="%OPENSSL_DIR%" ^
+            -DOPENSSL_INCLUDE_DIR="%OPENSSL_INCLUDE_DIR%" ^
+            -DOPENSSL_LIB_DIR="%OPENSSL_LIB_DIR%" ^
+            -DCMAKE_TOOLCHAIN_FILE="%VCPKG_DIR%\scripts\buildsystems\vcpkg.cmake" ^
             ..
         ninja
         ninja install

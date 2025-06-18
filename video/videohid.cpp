@@ -276,7 +276,8 @@ void VideoHid::fetchBinFileToString(QString &url, int timeoutMs){
         networkFirmware.assign(data.begin(), data.end());
         qCDebug(log_host_hid)  << "Successfully read file, size:" << data.size() << "bytes";
     } else {
-        qCDebug(log_host_hid)  << "Failed to fetch:" << reply->errorString();
+        qCDebug(log_host_hid)  << "Failed to fetch lastest firmware:" << reply->errorString();
+        fireware_result = FirmwareResult::Timeout; // Set the result to timeout
     }
     int version_0 = result.length() > 12 ? (unsigned char)result[12] : 0;
     int version_1 = result.length() > 13 ? (unsigned char)result[13] : 0;
@@ -289,35 +290,66 @@ void VideoHid::fetchBinFileToString(QString &url, int timeoutMs){
     reply->deleteLater(); // Clean up the reply object
 }
 
-QString VideoHid::getLatestFirmwareFilenName(QString &url, int timeoutMs){
+QString VideoHid::getLatestFirmwareFilenName(QString &url, int timeoutMs) {
     QNetworkAccessManager manager;
     QNetworkRequest request(url);
+    request.setRawHeader("User-Agent", "MyFirmwareChecker/1.0");
+
     QNetworkReply *reply = manager.get(request);
+    if (!reply) {
+        qCDebug(log_host_hid) << "Failed to create network reply";
+        fireware_result = FirmwareResult::CheckFailed;
+        return QString();
+    }else {
+        fireware_result = FirmwareResult::Checking; // Set the initial state to checking
+        qCDebug(log_host_hid) << "Network reply created successfully";
+    }
+
+    qCDebug(log_host_hid) << "Fetching latest firmware file name from" << url;
 
     QEventLoop loop;
     QTimer timer;
     timer.setSingleShot(true);
-    QObject::connect(&timer, &QTimer::timeout, &loop, &QEventLoop::quit);
-    QObject::connect(reply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
-    
-    timer.start(timeoutMs); // Set the timeout duration (in milliseconds)
+
+    QObject::connect(reply, &QNetworkReply::finished, &loop, [&]() {
+        qDebug(log_host_hid) << "Network reply finished";
+        loop.quit();
+    });
+
+    QObject::connect(&timer, &QTimer::timeout, &loop, [&]() {
+        qCDebug(log_host_hid) << "Request timed out";
+        fireware_result = FirmwareResult::Timeout;
+        reply->abort();
+        reply->deleteLater();
+        loop.quit();
+    });
+
+    timer.start(timeoutMs);
     loop.exec();
 
-    QString result;
-    if (reply->isFinished() && reply->error() == QNetworkReply::NoError) {
-        result = QString::fromUtf8(reply->readAll());
-        fireware_result = FirmwareResult::CheckSuccess;
-    } else if (!reply->isFinished()) {
-        qCDebug(log_host_hid)  << "Request time out";
-        fireware_result = FirmwareResult::Timeout;
-        reply->abort(); // request timout and abort
-    } else {
-        qCDebug(log_host_hid)  << "fail to get file name" << reply->errorString();
+    if (timer.isActive()) {
+        timer.stop(); // Stop the timer if not triggered
     }
 
-    reply->deleteLater();
-    return result;
+    if (fireware_result == FirmwareResult::Timeout) {
+        qCDebug(log_host_hid) << "Firmware check timed out";
+        return QString(); // Already handled in timeout handler
+    }
+
+    if (reply->error() == QNetworkReply::NoError) {
+        qCDebug(log_host_hid) << "Successfully fetched latest firmware";
+        QString result = QString::fromUtf8(reply->readAll());
+        fireware_result = FirmwareResult::CheckSuccess;
+        reply->deleteLater();
+        return result;
+    } else {
+        qCDebug(log_host_hid) << "Fail to get file name:" << reply->errorString();
+        fireware_result = FirmwareResult::CheckFailed;
+        reply->deleteLater();
+        return QString();
+    }
 }
+
 /*
  * Address: 0xFA8C bit0 indicates the HDMI connection status
  */
@@ -819,22 +851,38 @@ void VideoHid::loadFirmwareToEeprom() {
 }
 
 FirmwareResult VideoHid::isLatestFirmware() {
+    qCDebug(log_host_hid) << "Checking for latest firmware...";
     QString firemwareFileName = getLatestFirmwareFilenName(firmwareURL);
+    qCDebug(log_host_hid) << "Latest firmware file name:" << firemwareFileName;
     if (fireware_result == FirmwareResult::Timeout) {
         return FirmwareResult::Timeout;
     }
+    qCDebug(log_host_hid) << "After timeout checking: " << firmwareURL;
     QString newURL = firmwareURL.replace("minikvm_latest_firmware.txt", firemwareFileName);
     fetchBinFileToString(newURL);
-    qCDebug(log_host_hid)  << "Firmware version:" << QString::fromStdString(getFirmwareVersion());
-    qCDebug(log_host_hid)  << "Lateset firmware version:" << QString::fromStdString(m_firmwareVersion);
+    m_currentfirmwareVersion = getFirmwareVersion();
+    qCDebug(log_host_hid)  << "Firmware version:" << QString::fromStdString(m_currentfirmwareVersion);
+    qCDebug(log_host_hid)  << "Latest firmware version:" << QString::fromStdString(m_firmwareVersion);
     if (getFirmwareVersion() == m_firmwareVersion) {
         fireware_result = FirmwareResult::Lastest;
         return FirmwareResult::Lastest;
     }
-    if (std::stoi(getFirmwareVersion()) <= std::stoi(m_firmwareVersion)) {
+    if (safe_stoi(getFirmwareVersion()) <= safe_stoi(m_firmwareVersion)) {
         fireware_result = FirmwareResult::Upgradable;
         return FirmwareResult::Upgradable;
     }
     return fireware_result;
 }
 
+int safe_stoi(std::string str, int defaultValue) {
+    try {
+        return std::stoi(str);
+    } catch (const std::invalid_argument&) {
+        qCDebug(log_host_hid) << "Invalid argument for stoi, returning default value:" << defaultValue;
+        return defaultValue;
+    } catch (const std::out_of_range&) {
+        qCDebug(log_host_hid) << "Out of range for stoi, returning default value:" << defaultValue;
+        qCDebug(log_host_hid) << "String was:" << QString::fromStdString(str);
+        return defaultValue;
+    }
+}

@@ -504,9 +504,11 @@ void MainWindow::doResize(){
     QScreen *currentScreen = this->screen();
     QRect availableGeometry = currentScreen->availableGeometry();
     systemScaleFactor = currentScreen->devicePixelRatio();
+    double captureAspectRatio;
     if(GlobalVar::instance().getCaptureWidth() && GlobalVar::instance().getCaptureHeight()){
         video_width = GlobalVar::instance().getCaptureWidth();
         video_height = GlobalVar::instance().getCaptureHeight();
+        captureAspectRatio = static_cast<double>(video_width) / video_height;
     }
     double aspect_ratio = GlobalSetting::instance().getScreenRatio();
     
@@ -522,7 +524,7 @@ void MainWindow::doResize(){
     int menuBarHeight = this->menuBar()->height();
     int statusBarHeight = ui->statusbar->height();
     int maxContentHeight = availableHeight - titleBarHeight - menuBarHeight - statusBarHeight;
-    bool needResize = (currentWidth >= availableWidth || currentHeight >= maxContentHeight);
+    bool needResize = (currentWidth >= availableWidth || currentHeight >= availableHeight);
     if (needResize) {
         // Adjust size while maintaining aspect ratio
         if (currentWidth >= availableWidth) {
@@ -550,19 +552,35 @@ void MainWindow::doResize(){
         scrollArea->resize(newVideoWidth, newVideoHeight);
         videoPane->move(horizontalOffset, videoPane->y());
         scrollArea->move(horizontalOffset, videoPane->y());
-
+        
         // Resize main window if necessary
         if (currentWidth != availableWidth && currentHeight != availableHeight) {
             resize(currentWidth, currentHeight);
         }
+ 
     } else {
         // When within screen bounds, adjust height according to width and aspect ratio
         int contentHeight = static_cast<int>(currentWidth / aspect_ratio) + menuBarHeight + statusBarHeight;
-        resize(currentWidth, contentHeight);
         int adjustedContentHeight = contentHeight - menuBarHeight - statusBarHeight;
-        videoPane->setMinimumSize(currentWidth, adjustedContentHeight);
-        videoPane->resize(currentWidth, adjustedContentHeight);
-        scrollArea->resize(currentWidth, adjustedContentHeight);
+        if (aspect_ratio < 1.0){
+            currentWidth = static_cast<int>(currentHeight * aspect_ratio);
+            adjustedContentHeight = currentHeight - menuBarHeight - statusBarHeight;
+            int offsetX = static_cast<int>((videoPane->width()-currentWidth) /2);
+            int offsetY = static_cast<int>((videoPane->height()-adjustedContentHeight) /2);
+            int contentwidth = static_cast<int>(adjustedContentHeight * captureAspectRatio);
+            videoPane->setMinimumSize(contentwidth, adjustedContentHeight);
+            videoPane->resize(contentwidth, adjustedContentHeight);
+            qDebug() << "setDisplayRegion Resize videoPane to width: " << currentWidth << " height: " << currentHeight << " offset: " << offsetX << offsetY << "videoPane width: " << videoPane->width();
+            setMinimumSize(100, 500);
+            resize(currentWidth, currentHeight);
+        }
+        else{
+            videoPane->setMinimumSize(currentWidth, adjustedContentHeight);
+            videoPane->resize(currentWidth, adjustedContentHeight);
+            scrollArea->resize(currentWidth, adjustedContentHeight);
+            resize(currentWidth, contentHeight);
+        }
+        
     }
     // Update global state
     GlobalVar::instance().setWinWidth(this->width());
@@ -1471,36 +1489,42 @@ void MainWindow::showEnvironmentSetupDialog() {
 
 void MainWindow::updateFirmware() {
     // Check if it's latest firmware
+    qDebug() << "Checking for latest firmware version...";
     FirmwareResult firmwareStatus = VideoHid::getInstance().isLatestFirmware();
-    std::string currentFirmwareVersion = VideoHid::getInstance().getFirmwareVersion();
+    std::string currentFirmwareVersion = VideoHid::getInstance().getCurrentFirmwareVersion();
     std::string latestFirmwareVersion = VideoHid::getInstance().getLatestFirmwareVersion();
     qDebug() << "latestFirmwareVersion" << latestFirmwareVersion.c_str();
-    if (firmwareStatus == FirmwareResult::Lastest) {
-        std::string currentFirmwareVersion = VideoHid::getInstance().getFirmwareVersion();
-        QMessageBox::information(this, tr("Firmware Update"), 
+    FirmwareUpdateConfirmDialog confirmDialog(this);
+    bool proceed = false;
+    switch (firmwareStatus){
+        case FirmwareResult::Lastest:
+            qDebug() << "Firmware is up to date.";
+            QMessageBox::information(this, tr("Firmware Update"), 
             tr("The firmware is up to date.\nCurrent version: ") + 
             QString::fromStdString(currentFirmwareVersion));
-        return;
-    }else if(firmwareStatus == FirmwareResult::Timeout){
-        QMessageBox::information(this, tr("Firmware fetch timeout"), tr("Failed to check for the latest firmware version.\n"), tr("current version: ") + QString::fromStdString(currentFirmwareVersion) + tr("\nlatest version: ") + QString::fromStdString(latestFirmwareVersion));
-        return;
-    }else if(firmwareStatus == FirmwareResult::Upgradable){
-        // Create and show the confirmation dialog
-        FirmwareUpdateConfirmDialog confirmDialog(this);
-        bool proceed = confirmDialog.showConfirmDialog(currentFirmwareVersion, latestFirmwareVersion);
-
-        if (proceed) {
-            // Stop video and HID operations before firmware update
-            VideoHid::getInstance().stop();
-            SerialPortManager::getInstance().stop();
-            stop();
-            
-            close();
-            // Create and show firmware update dialog
-            FirmwareUpdateDialog *updateDialog = new FirmwareUpdateDialog(this);
-            updateDialog->startUpdate();
-            // The application will be closed by the dialog if the update is successful
-            updateDialog->deleteLater();
-        }
+            break;
+        case FirmwareResult::Upgradable:
+            qDebug() << "Firmware is upgradable.";
+            proceed = confirmDialog.showConfirmDialog(currentFirmwareVersion, latestFirmwareVersion);
+            if (proceed) {
+                // Stop video and HID operations before firmware update
+                VideoHid::getInstance().stop();
+                SerialPortManager::getInstance().stop();
+                stop();
+                
+                close();
+                // Create and show firmware update dialog
+                FirmwareUpdateDialog *updateDialog = new FirmwareUpdateDialog(this);
+                updateDialog->startUpdate();
+                // The application will be closed by the dialog if the update is successful
+                updateDialog->deleteLater();
+            }
+            break;
+        case FirmwareResult::Timeout:
+            qDebug() << "Firmware fetch timeout.";
+            QMessageBox::information(this, tr("Firmware fetch timeout"), 
+            tr("Firmware retrieval timed out. Please check your network connection and try again.\nCurrent version: ") + 
+            QString::fromStdString(currentFirmwareVersion));
+            break;
     }
 }
