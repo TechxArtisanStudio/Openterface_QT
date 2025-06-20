@@ -65,7 +65,8 @@ sudo apt install -y \
     libqt6multimediawidgets6 \
     libqt6serialport6 \
     libqt6svg6 \
-    libusb-1.0-0-dev
+    libusb-1.0-0-dev \
+    libssl-dev
  ```
 
 ```bash
@@ -115,7 +116,8 @@ sudo apt-get install -y \
     qt6-serialport-dev \
     qt6-svg-dev \
     libusb-1.0-0-dev \
-    qt6-tools-dev
+    qt6-tools-dev \
+    libssl-dev
 ```
 
 ```bash
