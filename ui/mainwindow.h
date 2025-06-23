@@ -175,6 +175,10 @@ private slots:
 
     void onTargetUsbConnected(const bool isConnected) override;
 
+    void factoryReset(bool isStarted) override;
+
+    void serialPortReset(bool isStarted) override;
+
     void showEnvironmentSetupDialog();
 
     void updateFirmware(); 

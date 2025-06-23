@@ -23,7 +23,10 @@ public:
     void setInputResolution(int width, int height, float fps, float pixelClk);
     void setCaptureResolution(int width, int height, int fps);
     void setTargetUsbConnected(bool isConnected);
+    void factoryReset(bool isStarted);
+    void serialPortReset(bool isStarted);
     void updateIconColor();
+
 
 private:
     QStatusBar *m_statusBar;
@@ -33,6 +36,7 @@ private:
     QLabel *keyPressedLabel;
     QLabel *keyLabel;
     QColor iconColor;
+    QLabel *resetLabel;
 
     QPixmap recolorSvg(const QString &svgPath, const QColor &color, const QSize &size);
     QColor getContrastingColor(const QColor &color);

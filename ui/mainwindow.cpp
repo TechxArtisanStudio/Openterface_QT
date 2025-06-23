@@ -1169,6 +1169,19 @@ void MainWindow::updateBaudrateMenu(int baudrate){
             }
         }
     }
+    else {
+        qWarning() << "Baudrate menu not found!";
+    }
+}
+
+void MainWindow::factoryReset(bool isStarted)
+{
+    m_statusBarManager->factoryReset(isStarted);
+}
+
+void MainWindow::serialPortReset(bool isStarted)
+{
+    m_statusBarManager->serialPortReset(isStarted);
 }
 
 void MainWindow::onStatusUpdate(const QString& status) {
