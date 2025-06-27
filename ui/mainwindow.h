@@ -36,6 +36,7 @@
 #include "ui/preferences/settingdialog.h"
 #include "ui/advance/serialportdebugdialog.h"
 #include "ui/advance/scripttool.h"
+#include "ui/advance/firmwaremanagerdialog.h"
 #include "ui/help/versioninfomanager.h"
 #include "ui/toolbar/toolbarmanager.h"
 #include "ui/TaskManager.h"
@@ -181,6 +182,8 @@ private slots:
 
     void showEnvironmentSetupDialog();
 
+    void showFirmwareManagerDialog();
+
     void updateFirmware(); 
 
     void onRepeatingKeystrokeChanged(int index);
@@ -265,6 +268,7 @@ private:
     MetaDataDialog *m_metaDataDialog = nullptr;
     SettingDialog *settingDialog = nullptr;
     SerialPortDebugDialog *serialPortDebugDialog = nullptr;
+    FirmwareManagerDialog *firmwareManagerDialog = nullptr;
 
     QWidget *keyboardPanel = nullptr;
 

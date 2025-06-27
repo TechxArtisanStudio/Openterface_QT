@@ -17,6 +17,7 @@ SOURCES += main.cpp \
     ui/statusbar/statuswidget.cpp \
     video/videohid.cpp \
     video/firmwarewriter.cpp \
+    video/firmwarereader.cpp \
     ui/help/helppane.cpp \
     ui/mainwindow.cpp \
     ui/videopane.cpp \
@@ -39,6 +40,7 @@ SOURCES += main.cpp \
     ui/help/versioninfomanager.cpp \ 
     ui/advance/envdialog.cpp \
     ui/advance/firmwareupdatedialog.cpp \
+    ui/advance/firmwaremanagerdialog.cpp \
     host/HostManager.cpp \
     serial/SerialPortManager.cpp \
     target/KeyboardManager.cpp \
@@ -67,6 +69,7 @@ HEADERS  += \
     ui/statusbar/statuswidget.h \
     video/videohid.h \
     video/firmwarewriter.h \
+    video/firmwarereader.h \
     ui/help/helppane.h \
     ui/mainwindow.h \
     ui/videopane.h \
@@ -82,6 +85,7 @@ HEADERS  += \
     ui/advance/scripttool.h \
     ui/advance/envdialog.h \
     ui/advance/firmwareupdatedialog.h \
+    ui/advance/firmwaremanagerdialog.h \
     ui/preferences/cameraadjust.h \
     ui/preferences/fpsspinbox.h \
     ui/preferences/settingdialog.h \

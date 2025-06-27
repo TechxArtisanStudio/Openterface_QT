@@ -132,6 +132,7 @@
     <addaction name="actionSerialConsole"/>
     <addaction name="actionScriptTool"/>
     <addaction name="actionTCPServer"/>
+    <addaction name="actionFirmwareManager"/>
     <addaction name="actionUpdateFirmware"/>
    </widget>
    <addaction name="menuFile"/>
@@ -247,6 +248,11 @@
   <action name="actionEnvironmentSetup">
    <property name="text">
     <string>Environment Checking</string>
+   </property>
+  </action>
+  <action name="actionFirmwareManager">
+   <property name="text">
+    <string>Firmware Manager</string>
    </property>
   </action>
   <action name="actionUpdateFirmware">
@@ -510,6 +516,12 @@
    <slot>showEnvironmentSetupDialog()</slot>
   </connection>
   <connection>
+   <sender>actionFirmwareManager</sender>
+   <signal>triggered()</signal>
+   <receiver>MainWindow</receiver>
+   <slot>showFirmwareManagerDialog()</slot>
+  </connection>
+  <connection>
    <sender>actionUpdateFirmware</sender>
    <signal>triggered()</signal>
    <receiver>MainWindow</receiver>
@@ -538,6 +550,7 @@
   <slot>showScriptTool()</slot>
   <slot>changeKeyboardLayout(QString)</slot>
   <slot>showEnvironmentSetupDialog()</slot>
+  <slot>showFirmwareManagerDialog()</slot>
   <slot>updateFirmware()</slot>
  </slots>
 </ui>
