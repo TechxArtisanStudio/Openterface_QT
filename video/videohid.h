@@ -64,8 +64,8 @@ public:
 
     bool isHdmiConnected();
     std::string getFirmwareVersion();
-    inline std::string getLatestFirmwareVersion() { return m_firmwareVersion; }
-    inline std::string getCurrentFirmwareVersion() { return m_currentfirmwareVersion; }
+    inline std::string getLatestFirmwareVersion(){ return m_firmwareVersion;}
+    inline std::string getCurrentFirmwareVersion(){ return m_currentfirmwareVersion;}
 
     FirmwareResult fireware_result;
     QString getLatestFirmwareFilenName(QString &url, int timeoutMs = 5000);
@@ -101,6 +101,7 @@ public:
 
 signals:
     // Add new signals
+    int safe_stoi(std::string str, int defaultValue = 0);
     void firmwareWriteProgress(int percent);
     void firmwareWriteComplete(bool success);
     void firmwareWriteChunkComplete(int writtenBytes);
@@ -117,6 +118,7 @@ private:
     std::vector<unsigned char> networkFirmware;
     std::string m_firmwareVersion;
     std::string m_currentfirmwareVersion;
+    
 
 #ifdef _WIN32
     HANDLE deviceHandle = INVALID_HANDLE_VALUE;
@@ -145,7 +147,6 @@ private:
     bool writeChunk(quint16 address, const QByteArray &data);
     bool writeEeprom(quint16 address, const QByteArray &data);
     bool readChunk(quint16 address, QByteArray &data, int chunkSize);
-    int safe_stoi(std::string str, int defaultValue = 0);
     uint16_t written_size = 0;
     uint32_t read_size = 0;
 
