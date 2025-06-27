@@ -321,7 +321,6 @@ bool SerialPortManager::resetHipChip(){
         }
     }else{
         qCWarning(log_core_serial) << "Set data config fail, reset the serial port now...";
-        QThread::sleep(1);
         restartPort();
         ready = false;
         qCDebug(log_core_serial) << "Reopen the serial port with baudrate: " << DEFAULT_BAUDRATE;
@@ -353,15 +352,15 @@ bool SerialPortManager::factoryResetHipChip(){
     qCDebug(log_core_serial) << "Factory reset Hid chip now...";
 
     if(serialPort->setRequestToSend(true)){
+        eventCallback->factoryReset(true);
         qCDebug(log_core_serial) << "Set RTS to low";
-        QThread::sleep(4);
-        if(serialPort->setRequestToSend(false)){
-            qCDebug(log_core_serial) << "Set RTS to high";
-
-            QString portName = serialPort->portName();
-            restartPort();
-            emit serialPortConnectionSuccess(portName);
-        }
+        QTimer::singleShot(4000, this, [this]() {
+            if (serialPort->setRequestToSend(false)) {
+                qCDebug(log_core_serial) << "Set RTS to high";
+                eventCallback->factoryReset(false);
+                restartPort();
+            }
+        });
     }
     return false;
 }
@@ -462,17 +461,19 @@ void SerialPortManager::closePort() {
     if (eventCallback != nullptr) {
         eventCallback->onPortConnected("NA", 0);
     }
-    QThread::msleep(200);
+    QThread::msleep(300);
 }
 
 bool SerialPortManager::restartPort() {
     QString portName = serialPort->portName();
     qint32 baudRate = serialPort->baudRate();
     qDebug() << "Restart port" << portName << "baudrate:" << baudRate;
+    eventCallback->serialPortReset(true);
     closePort();
-    QThread::sleep(1);
+    QThread::msleep(100);
     openPort(portName, baudRate);
     onSerialPortConnected(portName);
+    eventCallback->serialPortReset(false);
     return ready;
 }
 
