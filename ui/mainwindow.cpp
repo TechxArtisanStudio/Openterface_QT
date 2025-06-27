@@ -1169,6 +1169,19 @@ void MainWindow::updateBaudrateMenu(int baudrate){
             }
         }
     }
+    else {
+        qWarning() << "Baudrate menu not found!";
+    }
+}
+
+void MainWindow::factoryReset(bool isStarted)
+{
+    m_statusBarManager->factoryReset(isStarted);
+}
+
+void MainWindow::serialPortReset(bool isStarted)
+{
+    m_statusBarManager->serialPortReset(isStarted);
 }
 
 void MainWindow::onStatusUpdate(const QString& status) {
@@ -1365,6 +1378,9 @@ MainWindow::~MainWindow()
     delete m_screenScaleDialog;
     m_screenScaleDialog = nullptr;
 
+    delete firmwareManagerDialog;
+    firmwareManagerDialog = nullptr;
+
     qCDebug(log_ui_mainwindow) << "MainWindow destroyed successfully";
 }
 
@@ -1485,6 +1501,23 @@ void MainWindow::showEnvironmentSetupDialog() {
     qCDebug(log_ui_mainwindow) << "Show EnvironmentSetupDialog";
     EnvironmentSetupDialog dialog(this);
     dialog.exec();
+}
+
+void MainWindow::showFirmwareManagerDialog() {
+    if (!firmwareManagerDialog){
+        qDebug() << "Creating serial port debug dialog";
+        firmwareManagerDialog = new FirmwareManagerDialog(this);
+        // connect the finished signal to the set the dialog pointer to nullptr
+        connect(firmwareManagerDialog, &QDialog::finished, this, [this](){
+            firmwareManagerDialog->deleteLater();
+            firmwareManagerDialog = nullptr;
+        });
+        firmwareManagerDialog->show();
+    }else{
+        firmwareManagerDialog->raise();
+        firmwareManagerDialog->activateWindow();
+    }
+
 }
 
 void MainWindow::updateFirmware() {

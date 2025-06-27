@@ -1,6 +1,7 @@
 #include "statusbarmanager.h"
 #include <QPainter>
 #include <QSvgRenderer>
+#include <QTimer>
 
 StatusBarManager::StatusBarManager(QStatusBar *statusBar, QObject *parent)
     : QObject(parent), m_statusBar(statusBar)
@@ -36,8 +37,41 @@ void StatusBarManager::initStatusBar()
     keyLayout->addWidget(keyLabel);
     m_statusBar->addWidget(keyContainer);
 
+    QWidget *resetContainer = new QWidget(m_statusBar);
+    QHBoxLayout *resetLayout = new QHBoxLayout(resetContainer);
+    resetLabel = new QLabel(m_statusBar);
+
+    resetLayout->addWidget(resetLabel);
+    m_statusBar->addWidget(resetContainer);
+
     onLastKeyPressed("");
     updateIconColor();
+}
+
+void StatusBarManager::factoryReset(bool isStarted)
+{
+    if (isStarted) {
+        resetLabel->setText("Factory Reset Started, it may take a few seconds...");
+        resetLabel->setStyleSheet("color: red;");
+    }else {
+        resetLabel->clear();
+        resetLabel->setText("Factory Reset Ended");
+        resetLabel->setStyleSheet("color: green;");
+    }
+}
+
+void StatusBarManager::serialPortReset(bool isStarted)
+{
+    if (isStarted) {
+        resetLabel->clear();
+        resetLabel->setText("Serial Port Reset Started");
+        resetLabel->setStyleSheet("color: red;");
+    }else {
+        resetLabel->clear();
+        resetLabel->setText("Serial Port Reset Ended");
+        resetLabel->setStyleSheet("color: green;");
+        QTimer::singleShot(1000, resetLabel, &QLabel::clear);
+    }
 }
 
 void StatusBarManager::onLastKeyPressed(const QString& key)
