@@ -21,7 +21,7 @@ class FirmwareWriter; // Forward declaration
 class FirmwareReader; // Forward declaration
 
 enum class FirmwareResult {
-    Lastest,
+    Latest,
     Upgradable,
     Timeout,
     CheckSuccess,
