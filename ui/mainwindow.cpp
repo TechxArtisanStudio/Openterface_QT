@@ -1530,7 +1530,7 @@ void MainWindow::updateFirmware() {
     FirmwareUpdateConfirmDialog confirmDialog(this);
     bool proceed = false;
     switch (firmwareStatus){
-        case FirmwareResult::Lastest:
+        case FirmwareResult::Latest:
             qDebug() << "Firmware is up to date.";
             QMessageBox::information(this, tr("Firmware Update"), 
             tr("The firmware is up to date.\nCurrent version: ") + 
