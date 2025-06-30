@@ -55,7 +55,6 @@
 #include <QImage>
 #include <QKeyEvent>
 #include <QPalette>
-#include <QSystemTrayIcon>
 #include <QDir>
 #include <QTimer>
 #include <QLabel>
@@ -125,8 +124,6 @@ MainWindow::MainWindow(LanguageManager *languageManager, QWidget *parent) :  ui(
                             // cameraAdjust(new CameraAdjust(this))
 {
     Q_UNUSED(parent);
-    // QApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
-
 
     qCDebug(log_ui_mainwindow) << "Init camera...";
     
