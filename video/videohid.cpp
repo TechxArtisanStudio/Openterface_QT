@@ -273,7 +273,7 @@ void VideoHid::fetchBinFileToString(QString &url, int timeoutMs){
         networkFirmware.assign(data.begin(), data.end());
         qCDebug(log_host_hid)  << "Successfully read file, size:" << data.size() << "bytes";
     } else {
-        qCDebug(log_host_hid)  << "Failed to fetch lastest firmware:" << reply->errorString();
+        qCDebug(log_host_hid)  << "Failed to fetch latest firmware:" << reply->errorString();
         fireware_result = FirmwareResult::Timeout; // Set the result to timeout
     }
     int version_0 = result.length() > 12 ? (unsigned char)result[12] : 0;
@@ -985,8 +985,8 @@ FirmwareResult VideoHid::isLatestFirmware() {
     qCDebug(log_host_hid)  << "Firmware version:" << QString::fromStdString(m_currentfirmwareVersion);
     qCDebug(log_host_hid)  << "Latest firmware version:" << QString::fromStdString(m_firmwareVersion);
     if (getFirmwareVersion() == m_firmwareVersion) {
-        fireware_result = FirmwareResult::Lastest;
-        return FirmwareResult::Lastest;
+        fireware_result = FirmwareResult::Latest;
+        return FirmwareResult::Latest;
     }
     if (safe_stoi(getFirmwareVersion()) <= safe_stoi(m_firmwareVersion)) {
         fireware_result = FirmwareResult::Upgradable;
