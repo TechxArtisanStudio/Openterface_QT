@@ -6,7 +6,7 @@
 - [Welcome to Openterface Mini-KVM QT version (For Linux \& Windows)](#welcome-to-openterface-mini-kvm-qt-version-for-linux--windows)
 - [Table of Contents](#table-of-contents)
   - [Features](#features)
-  - [Suppported OS](#suppported-os)
+  - [Supported OS](#supported-os)
   - [Download \& installing](#download--installing)
     - [For Windows users](#for-windows-users)
     - [For Linux users](#for-linux-users)
@@ -31,7 +31,7 @@
 
 > For a detailed list of features, please refer to the [Features Documentation](doc/feature.md).
 
-## Suppported OS
+## Supported OS
 - Window (10/11) 
 - Ubuntu 22.04 (You need to upgrade QT to >=6.4)
 - Ubuntu 24.04
@@ -42,20 +42,20 @@
 
 ## Download & installing
 ### For Windows users
-1. Download the package from Github release page, and find the latest version to download according to your os and cpu architecture.
+1. Download the package from GitHub release page, and find the latest version to download according to your OS and CPU architecture.
 2. Run the installer and it will install all required drivers and application to your windows. You can run the application from start menu.
 
 > Note: Users have reported that the Windows installer is unable to automate driver installation correctly on Windows 11 Version 22H2. You may need to manually download and install the driver from the WCH website. For more details, please refer to this [issue](https://github.com/TechxArtisanStudio/Openterface_QT/issues/138). We are also actively working on a solution to improve driver installation for this version.
 
 ### For Linux users
 
-1. Download the package from Github release page, and find the latest version to download according to your os and cpu architecture.
+1. Download the package from GitHub release page, and find the latest version to download according to your OS and CPU architecture.
 2. Install the dependency
 3. Setup dialout for Serial permissions and the hidraw permission for Switchable USB device
 4. Install the package.
 
  ```bash
-# Setup the QT 6.4.2 or laterruntime and other dependencies
+# Setup the QT 6.4.2 or later runtime and other dependencies
 sudo apt install -y \
     libqt6core6 \
     libqt6dbus6 \
@@ -86,7 +86,7 @@ sudo udevadm trigger
 ```
 
  ```bash
-# Unszip the package and install
+# Unzip the package and install
 unzip openterfaceQT.deb.zip
 sudo dpkg -i openterfaceQT.deb
  ```
@@ -99,7 +99,7 @@ openterfaceQT
 ## Build from source
 ### For Windows
 - Using QT Creator
-  1. Install [QT for opensource](https://www.qt.io/download-qt-installer-oss), recommanded version 6.4.3
+  1. Install [QT for opensource](https://www.qt.io/download-qt-installer-oss), recommended version 6.4.3
   2. Use Qt Maintenance Tool to add following components
      - [QtMultiMedia](https://doc.qt.io/qt-6/qtmultimedia-index.html)
      - [QtSerialPort](https://doc.qt.io/qt-6/qtserialport-index.html)
@@ -163,7 +163,7 @@ make -j$(nproc)
 
 # solution
 sudo apt remove brltty
-# after run this plug out the openterface and pulg in again
+# after run this plug out the openterface and plug in again
 ls /dev/ttyUSB*
 # if you can list the usb the serial port correctly recognized
 # Then we need give the permissions to user for control serial port you can do this:
@@ -212,7 +212,7 @@ sudo reboot
 
 We encourage you to engage with us.
 - On [Discord](https://discord.gg/sFTJD6a3R8) to ask questions and report issues.
-- On [Github](https://github.com/TechxArtisanStudio/Openterface_QT/issues) to report issues.
+- On [GitHub](https://github.com/TechxArtisanStudio/Openterface_QT/issues) to report issues.
 - Email to [techxartisan@gmail.com](mailto:techxartisan@gmail.com) to ask questions and report issues.
 
 ## License Information
@@ -231,7 +231,7 @@ This project uses the following third-party libraries, each with its own licensi
 
 - **Qt Framework**: LGPL v3
 - **libusb (1.0.26)**: LGPL v2.1
-- **FreeType (2.13.2) **: FreeType License (BSD-style) / GPL v2
+- **FreeType (2.13.2)**: FreeType License (BSD-style) / GPL v2
 - **Fontconfig (2.14.2)**: MIT License
 - **D-Bus**: AFL v2.1 or GPL v2
 - **PulseAudio (16.1)**: LGPL v2.1+
