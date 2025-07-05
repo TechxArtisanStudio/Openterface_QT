@@ -36,3 +36,16 @@ sudo chmod 666 /dev/ttyUSB*
 
 > If the issue persists, go to **Advanced → Serial Console**, enable both serial and HID-related logs, and check for error messages.
 > Please send the logs to us for further analysis.
+
+----
+
+Please follow the instructions in the guide and let us know how it goes. If you’re still running into issues, you’re very welcome to:
+
+* **Email us directly** at [support@openterface.com](mailto:support@openterface.com)
+* **Report the issue on our GitHub repo**, ideally with error logs or screenshots:
+  [https://github.com/TechxArtisanStudio/Openterface\_QT](https://github.com/TechxArtisanStudio/Openterface_QT)
+
+You’re also warmly invited to join our open-source community, where our dev team and other users hang out there regularly and are happy to help:
+
+* Discord: [https://openterface.com/discord](https://openterface.com/discord)
+* Reddit: [https://openterface.com/reddit](https://openterface.com/reddit)
