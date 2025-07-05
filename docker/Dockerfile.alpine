@@ -1,0 +1,64 @@
+FROM alpine:3.19
+
+# 安装基本构建工具和交叉编译器
+RUN apk add --no-cache \
+    build-base \
+    cmake \
+    ninja \
+    pkgconfig \
+    python3 \
+    git \
+    curl \
+    unzip \
+    bison \
+    flex \
+    autoconf \
+    automake \
+    libtool \
+    linux-headers \
+    yasm \
+    nasm \
+    zip \
+    perl \
+    libxslt \
+    openssl-dev \
+    pulseaudio-dev \
+    # Qt依赖项
+    fontconfig-dev \
+    freetype-dev \
+    mesa-dev \
+    eudev-dev \
+    libinput-dev \
+    libxkbcommon-dev \
+    glib-dev \
+    vulkan-headers
+
+# 添加ARM64依赖的仓库
+RUN echo "https://dl-cdn.alpinelinux.org/alpine/edge/main" >> /etc/apk/repositories && \
+    echo "https://dl-cdn.alpinelinux.org/alpine/edge/community" >> /etc/apk/repositories && \
+    apk update
+
+# 安装交叉编译工具链
+RUN apk add --no-cache alpine-sdk && \
+    apk add --no-cache \
+    gcc-aarch64-none-elf \
+    g++-aarch64-none-elf \
+    musl-dev
+
+# 设置工作目录
+WORKDIR /opt/build
+
+# 设置环境变量
+ENV CROSS_COMPILE=aarch64-none-elf- \
+    CC=aarch64-none-elf-gcc \
+    CXX=aarch64-none-elf-g++ \
+    PKG_CONFIG_PATH=/usr/aarch64-none-elf/lib/pkgconfig \
+    CFLAGS="-Os -ffunction-sections -fdata-sections" \
+    CXXFLAGS="-Os -ffunction-sections -fdata-sections" \
+    LDFLAGS="-Wl,--gc-sections"
+
+# 复制构建脚本
+COPY build-arm64-qt-alpine.sh /opt/build/
+RUN chmod +x /opt/build/build-arm64-qt-alpine.sh
+
+CMD ["/opt/build/build-arm64-qt-alpine.sh"]
