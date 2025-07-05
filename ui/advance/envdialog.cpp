@@ -300,7 +300,7 @@ QString EnvironmentSetupDialog::buildCommands(){
     // if (!isSerialPermission) {
     //     commands += groupCommands;
     // }
-    if (!isHidPermission && !isSerialPermission) {
+    if (!isHidPermission || !isSerialPermission) {
         commands += udevCommands;
     }
     if (isBrlttyRunning) {
@@ -417,7 +417,7 @@ void EnvironmentSetupDialog::reject()
 #ifdef __linux__
 bool EnvironmentSetupDialog::checkDevicePermission(uint16_t vendorID, uint16_t productID) {
     libusb_device **dev_list = nullptr;
-    size_t dev_count = libusb_get_device_list(context, &dev_list);
+    ssize_t dev_count = libusb_get_device_list(context, &dev_list);
     if (dev_count < 0) {
         std::cerr << "libusb_get_device_list failed: " << libusb_error_name(static_cast<int>(dev_count)) << std::endl;
         return false;
@@ -426,8 +426,6 @@ bool EnvironmentSetupDialog::checkDevicePermission(uint16_t vendorID, uint16_t p
     std::unique_ptr<libusb_device*[], void(*)(libusb_device**)> dev_list_guard(dev_list, [](libusb_device** list) {
         libusb_free_device_list(list, 1);
     });
-
-    bool found = false;
 
     for (ssize_t i =0; i < dev_count; i++) {
         libusb_device *dev = dev_list[i];
@@ -464,7 +462,7 @@ bool EnvironmentSetupDialog::checkDevicePermission(uint16_t vendorID, uint16_t p
             }
         }
     }
-    
+    return false;
 }
 
 bool EnvironmentSetupDialog::detectDevice(uint16_t vendorID, uint16_t productID) {
@@ -473,7 +471,7 @@ bool EnvironmentSetupDialog::detectDevice(uint16_t vendorID, uint16_t productID)
                     << "PID: 0x" 
                     << QString::number(productID, 16).rightJustified(4, '0');
     libusb_device **dev_list = nullptr;
-    size_t dev_count = libusb_get_device_list(context, &dev_list);
+    ssize_t dev_count = libusb_get_device_list(context, &dev_list);
     if (dev_count < 0) {
         std::cerr << "libusb_get_device_list failed: " << libusb_error_name(static_cast<int>(dev_count)) << std::endl;
         return false;
@@ -514,7 +512,7 @@ bool EnvironmentSetupDialog::checkEnvironmentSetup() {
     std::cout << "Driver detect: " << version << std::endl;
     std::cout << "Latest driver: " << latestVersion << std::endl;
     std::cout << "Driver is latest: " << (latestFirmware == FirmwareResult::Latest ? "yes" : "no" ) << std::endl;
-    latestFirewareDescription ="<br>Current version" + QString::fromStdString(version) + 
+    latestFirewareDescription ="<br>Current version: " + QString::fromStdString(version) + 
     "<br>" + "Latest version: " + QString::fromStdString(latestVersion) +
     "<br>" + "Please update driver to latest version." + 
     "<br>" + "click OK then Advance->Firmware Update...";
@@ -556,7 +554,7 @@ bool EnvironmentSetupDialog::checkEnvironmentSetup() {
     checkBrlttyRunning(); // No need to return value here
     bool checkPermission = checkDevicePermission(openterfaceVID, openterfacePID);
     qDebug() << "Check permission result: " << checkPermission;
-    return checkDriverInstalled() && checkSerialPermission && checkPermission && (latestFirmware == FirmwareResult::Latest) && !isBrlttyRunning || skipCheck;
+    return (checkDriverInstalled() && checkSerialPermission && checkPermission && (latestFirmware == FirmwareResult::Latest) && !isBrlttyRunning) || skipCheck;
     #else
     return true;
     #endif
