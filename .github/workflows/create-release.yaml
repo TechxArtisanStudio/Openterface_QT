@@ -77,6 +77,7 @@ jobs:
         uses: signpath/github-action-submit-signing-request@v1.1
         with:
           api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
           organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
           project-slug: Openterface_QT
           signing-policy-slug: release-signing
@@ -107,6 +108,7 @@ jobs:
         uses: signpath/github-action-submit-signing-request@v1.1
         with:
           api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
           organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
           project-slug: Openterface_QT
           signing-policy-slug: release-signing
