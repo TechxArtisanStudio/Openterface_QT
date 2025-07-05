@@ -11,7 +11,7 @@ sudo chmod 666 /dev/ttyUSB*
 
 2. Factory Reset the HID Chip
 In the software, go to the menu: Advance → Factory Reset HID Chip.
-Confirm the reset operation.
+Confirm the reset operation, need wait few second (5-10s).
 3. Shutdown the uConsole
 After resetting, shut down the uConsole from the software.
 Wait a few seconds to ensure the KVM device powers off (screen should go black).
