@@ -36,7 +36,3 @@ sudo chmod 666 /dev/ttyUSB*
 
 > If the issue persists, go to **Advanced → Serial Console**, enable both serial and HID-related logs, and check for error messages.
 > Please send the logs to us for further analysis.
-
----
-
-Let me know if you want a more technical or casual tone, or if it's going into a user manual or helpdesk ticket!
