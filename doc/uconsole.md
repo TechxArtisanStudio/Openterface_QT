@@ -1,22 +1,42 @@
-## Debugging uconsole expansion card: Keyboard and Mouse Not Working
-If your uconsole expansion card keyboard and mouse are not functioning, please follow these steps to troubleshoot:
+## Troubleshooting uConsole Expansion Card: Keyboard and Mouse Not Working
 
-1. Check HID and Serial Port Permissions
-Ensure your user account has permission to access HID and serial devices.
-Some time you need run follow command to access device permission
+If the keyboard and mouse connected to your uConsole expansion card are not functioning, please follow the steps below to troubleshoot the issue:
+
+### 1. Check HID and Serial Port Permissions
+
+> Make sure your user account has permission to access HID and serial devices.
+
+Sometimes you may need to run the following commands to set the appropriate permissions:
+
 ```bash
 sudo chmod 666 /dev/hidraw*
 sudo chmod 666 /dev/ttyUSB*
 ```
-2. Make Sure the firmware is Up to Date
-Advance -> Firmware Update to check if the firmware is up to date.
-3. Factory Reset the HID Chip
-In the software, go to the menu: Advance → Factory Reset HID Chip.
-Confirm the reset operation, need wait few second (5-10s).
-4. Shutdown the uConsole
-After resetting, shut down the uConsole from the software.
-Wait a few seconds to ensure the KVM device powers off (screen should go black).
-5. Restart and Test
-Reopen the software.
-Check if the keyboard and mouse are now working with the KVM device.
-If the issue persists after following these steps, please in the Advance open the dialog Serial Console and check the logs.
+
+### 2. Ensure the Firmware is Up to Date
+
+> Go to **Advanced → Firmware Update** in the software menu and check if your firmware is up to date. Update it if necessary.
+
+### 3. Factory Reset the HID Chip
+
+> Navigate to **Advanced → Factory Reset HID Chip**. Confirm the reset when prompted.
+> Wait a few seconds (typically 5–10 seconds) for the reset process to complete.
+
+### 4. Shut Down the uConsole
+
+> After resetting the HID chip, shut down the uConsole from the operating system.
+> Wait a few seconds to ensure the KVM device fully powers off (the screen should go black).
+
+### 5. Restart and Test
+
+> Restart the uConsole and open the **Openterface\_QT** software.
+> Check if the keyboard and mouse are now working properly.
+
+### 6. Enable Logs and Report
+
+> If the issue persists, go to **Advanced → Serial Console**, enable both serial and HID-related logs, and check for error messages.
+> Please send the logs to us for further analysis.
+
+---
+
+Let me know if you want a more technical or casual tone, or if it's going into a user manual or helpdesk ticket!
