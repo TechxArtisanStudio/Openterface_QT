@@ -74,7 +74,7 @@ jobs:
       
       - name: Submit installer signing request
         id: sign-installer
-        uses: signpath/github-action-submit-signing-request@v1.1
+        uses: signpath/github-action-submit-signing-request@v1.2
         with:
           api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -105,7 +105,7 @@ jobs:
           
       - name: Submit portable signing request
         id: sign-portable
-        uses: signpath/github-action-submit-signing-request@v1.1
+        uses: signpath/github-action-submit-signing-request@v1.2
         with:
           api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
