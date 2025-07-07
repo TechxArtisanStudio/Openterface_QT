@@ -1,0 +1,33 @@
+version: '3.8'
+
+services:
+  qt-alpine-builder:
+    build:
+      context: .
+      dockerfile: Dockerfile.alpine
+      args:
+        QT_VERSION: ${QT_VERSION:-6.6.3}
+    volumes:
+      - qt-alpine-cache:/opt/output
+    command: /opt/build/build-arm64-qt-alpine.sh
+    environment:
+      - QT_VERSION=${QT_VERSION:-6.6.3}
+  
+  app-alpine-builder:
+    build:
+      context: .
+      dockerfile: Dockerfile.alpine
+    volumes:
+      - ..:/app
+      - qt-alpine-cache:/opt/Qt6-arm64
+    command: /opt/build/build-app-alpine.sh
+    environment:
+      - QT_INSTALL_DIR=/opt/Qt6-arm64
+      - SOURCE_DIR=/app
+      - BUILD_DIR=/app/build
+    depends_on:
+      - qt-alpine-builder
+
+volumes:
+  qt-alpine-cache:
+    driver: local
