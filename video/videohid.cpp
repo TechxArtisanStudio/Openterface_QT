@@ -8,13 +8,14 @@
 
 #include "ms2109.h"
 #include "firmwarewriter.h"
+#include "firmwarereader.h"
 #include "../global.h"
 
 #ifdef _WIN32
 #include <hidclass.h>
 extern "C"
 {
-#include<hidsdi.h>
+#include <hidsdi.h>
 #include <setupapi.h>
 }
 #elif __linux__
@@ -24,10 +25,9 @@ extern "C"
 #include <linux/hidraw.h>
 #endif
 
-Q_LOGGING_CATEGORY(log_host_hid , "opf.host.hid");
+Q_LOGGING_CATEGORY(log_host_hid, "opf.host.hid");
 
 VideoHid::VideoHid(QObject *parent) : QObject(parent), m_inTransaction(false) {
-
 }
 
 // Update the start method with improved transaction handling
@@ -136,7 +136,6 @@ void VideoHid::stop() {
     }
 }
 
-
 /*
 Get the input resolution from capture card. 
 */
@@ -180,7 +179,7 @@ bool VideoHid::getSpdifout() {
         bit = 0x10;
         mask = 0xEF;
     }
-    return usbXdataRead4Byte(ADDR_GPIO0).first.at(0) & mask >> bit;
+    return usbXdataRead4Byte(ADDR_SPDIFOUT).first.at(0) & bit;
 }
 
 void VideoHid::switchToHost() {
@@ -255,8 +254,6 @@ std::string VideoHid::getFirmwareVersion() {
                               .arg(version_3, 2, 10, QChar('0')).toStdString();
 }
 
-
-
 void VideoHid::fetchBinFileToString(QString &url, int timeoutMs){
     QNetworkAccessManager manager; // Create a network access manager
     QNetworkRequest request(url);  // Set up the request with the given URL
@@ -276,7 +273,8 @@ void VideoHid::fetchBinFileToString(QString &url, int timeoutMs){
         networkFirmware.assign(data.begin(), data.end());
         qCDebug(log_host_hid)  << "Successfully read file, size:" << data.size() << "bytes";
     } else {
-        qCDebug(log_host_hid)  << "Failed to fetch:" << reply->errorString();
+        qCDebug(log_host_hid)  << "Failed to fetch latest firmware:" << reply->errorString();
+        fireware_result = FirmwareResult::Timeout; // Set the result to timeout
     }
     int version_0 = result.length() > 12 ? (unsigned char)result[12] : 0;
     int version_1 = result.length() > 13 ? (unsigned char)result[13] : 0;
@@ -289,35 +287,66 @@ void VideoHid::fetchBinFileToString(QString &url, int timeoutMs){
     reply->deleteLater(); // Clean up the reply object
 }
 
-QString VideoHid::getLatestFirmwareFilenName(QString &url, int timeoutMs){
+QString VideoHid::getLatestFirmwareFilenName(QString &url, int timeoutMs) {
     QNetworkAccessManager manager;
     QNetworkRequest request(url);
+    request.setRawHeader("User-Agent", "MyFirmwareChecker/1.0");
+
     QNetworkReply *reply = manager.get(request);
+    if (!reply) {
+        qCDebug(log_host_hid) << "Failed to create network reply";
+        fireware_result = FirmwareResult::CheckFailed;
+        return QString();
+    }else {
+        fireware_result = FirmwareResult::Checking; // Set the initial state to checking
+        qCDebug(log_host_hid) << "Network reply created successfully";
+    }
+
+    qCDebug(log_host_hid) << "Fetching latest firmware file name from" << url;
 
     QEventLoop loop;
     QTimer timer;
     timer.setSingleShot(true);
-    QObject::connect(&timer, &QTimer::timeout, &loop, &QEventLoop::quit);
-    QObject::connect(reply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
-    
-    timer.start(timeoutMs); // Set the timeout duration (in milliseconds)
+
+    QObject::connect(reply, &QNetworkReply::finished, &loop, [&]() {
+        qDebug(log_host_hid) << "Network reply finished";
+        loop.quit();
+    });
+
+    QObject::connect(&timer, &QTimer::timeout, &loop, [&]() {
+        qCDebug(log_host_hid) << "Request timed out";
+        fireware_result = FirmwareResult::Timeout;
+        reply->abort();
+        reply->deleteLater();
+        loop.quit();
+    });
+
+    timer.start(timeoutMs);
     loop.exec();
 
-    QString result;
-    if (reply->isFinished() && reply->error() == QNetworkReply::NoError) {
-        result = QString::fromUtf8(reply->readAll());
-        fireware_result = FirmwareResult::CheckSuccess;
-    } else if (!reply->isFinished()) {
-        qCDebug(log_host_hid)  << "Request time out";
-        fireware_result = FirmwareResult::Timeout;
-        reply->abort(); // request timout and abort
-    } else {
-        qCDebug(log_host_hid)  << "fail to get file name" << reply->errorString();
+    if (timer.isActive()) {
+        timer.stop(); // Stop the timer if not triggered
     }
 
-    reply->deleteLater();
-    return result;
+    if (fireware_result == FirmwareResult::Timeout) {
+        qCDebug(log_host_hid) << "Firmware check timed out";
+        return QString(); // Already handled in timeout handler
+    }
+
+    if (reply->error() == QNetworkReply::NoError) {
+        qCDebug(log_host_hid) << "Successfully fetched latest firmware";
+        QString result = QString::fromUtf8(reply->readAll());
+        fireware_result = FirmwareResult::CheckSuccess;
+        reply->deleteLater();
+        return result;
+    } else {
+        qCDebug(log_host_hid) << "Fail to get file name:" << reply->errorString();
+        fireware_result = FirmwareResult::CheckFailed;
+        reply->deleteLater();
+        return QString();
+    }
 }
+
 /*
  * Address: 0xFA8C bit0 indicates the HDMI connection status
  */
@@ -333,7 +362,7 @@ QPair<QByteArray, bool> VideoHid::usbXdataRead4Byte(quint16 u16_address) {
     QByteArray ctrlData(9, 0); // Initialize with 9 bytes set to 0
     QByteArray result(9, 0);
 
-    ctrlData[1] = 0xB5;
+    ctrlData[1] = CMD_XDATA_READ;
     ctrlData[2] = static_cast<char>((u16_address >> 8) & 0xFF);
     ctrlData[3] = static_cast<char>(u16_address & 0xFF);
     // 0: Some devices use report ID 0 to indicate that no specific report ID is used.
@@ -445,6 +474,132 @@ void VideoHid::endTransaction() {
 
 bool VideoHid::isInTransaction() const {
     return m_inTransaction;
+}
+
+bool VideoHid::readChunk(quint16 address, QByteArray &data, int chunkSize) {
+    const int REPORT_SIZE = 9;
+    QByteArray ctrlData(REPORT_SIZE, 0);
+    QByteArray result(REPORT_SIZE, 0);
+
+    ctrlData[1] = CMD_EEPROM_READ;
+    ctrlData[2] = static_cast<char>((address >> 8) & 0xFF);
+    ctrlData[3] = static_cast<char>(address & 0xFF);
+
+    if (sendFeatureReport((uint8_t*)ctrlData.data(), ctrlData.size())) {
+        if (getFeatureReport((uint8_t*)result.data(), result.size())) {
+            data.append(result.mid(4, chunkSize));
+            read_size += chunkSize;
+            emit firmwareReadChunkComplete(read_size);
+            return true;
+        }
+    }
+    qWarning() << "Failed to read chunk from address:" << QString("0x%1").arg(address, 4, 16, QChar('0'));
+    return false;
+}
+
+QByteArray VideoHid::readEeprom(quint16 address, quint32 size) {
+    const int MAX_CHUNK = 1;
+    const int MAX_RETRIES = 3; // Number of retries for failed reads
+    QByteArray firmwareData;
+    read_size = 0;
+
+    // Begin transaction for the entire operation
+    if (!beginTransaction()) {
+        qCDebug(log_host_hid) << "Failed to begin transaction for EEPROM read";
+        emit firmwareReadError("Failed to begin transaction for EEPROM read");
+        return QByteArray();
+    }
+
+    bool success = true;
+    quint16 currentAddress = address;
+    quint32 bytesRemaining = size;
+
+    while (bytesRemaining > 0 && success) {
+        int chunkSize = qMin(MAX_CHUNK, static_cast<int>(bytesRemaining));
+        QByteArray chunk;
+        bool chunkSuccess = false;
+        int retries = MAX_RETRIES;
+
+        // Retry reading the chunk up to MAX_RETRIES times
+        while (retries > 0 && !chunkSuccess) {
+            chunkSuccess = readChunk(currentAddress, chunk, chunkSize);
+            if (!chunkSuccess) {
+                retries--;
+                qCDebug(log_host_hid) << "Retry" << (MAX_RETRIES - retries) << "of" << MAX_RETRIES
+                                      << "for reading chunk at address:" << QString("0x%1").arg(currentAddress, 4, 16, QChar('0'));
+                QThread::msleep(50); // Short delay before retrying
+            }
+        }
+
+        if (chunkSuccess) {
+            firmwareData.append(chunk);
+            currentAddress += chunkSize;
+            bytesRemaining -= chunkSize;
+            emit firmwareReadProgress((read_size * 100) / size);
+            if (read_size % 64 == 0) {
+                qCDebug(log_host_hid) << "Read size:" << read_size;
+            }
+            QThread::msleep(10); // Add 10ms delay between successful reads
+        } else {
+            qCDebug(log_host_hid) << "Failed to read chunk from EEPROM at address:" << QString("0x%1").arg(currentAddress, 4, 16, QChar('0'))
+                                  << "after" << MAX_RETRIES << "retries";
+            success = false;
+            break;
+        }
+    }
+
+    // End transaction
+    endTransaction();
+
+    if (!success) {
+        qCDebug(log_host_hid) << "EEPROM read failed";
+        emit firmwareReadError("Failed to read firmware from EEPROM");
+        return QByteArray();
+    }
+
+    return firmwareData;
+}
+
+quint32 VideoHid::readFirmwareSize(){
+    QByteArray header = readEeprom(ADDR_EEPROM, 4);
+    if (header.size() != 4) {
+        qDebug() << "Can not read firemware header form eeprom:" << header.size();
+        emit firmwareReadError("Can not read firemware header form eeprom");
+        return 0;
+    }
+
+    quint16 sizeBytes = (static_cast<quint8>(header[2]) << 8) + static_cast<quint8>(header[3]);
+    quint32 firmwareSize = sizeBytes + 52;
+    qDebug() << "Caculate firmware size:" << firmwareSize << " bytes";
+    
+    return firmwareSize;
+}
+
+void VideoHid::loadEepromToFile(const QString &filePath) {
+    quint32 firmwareSize = readFirmwareSize();
+
+    QThread* thread = new QThread();
+    FirmwareReader *worker = new FirmwareReader(this, ADDR_EEPROM, firmwareSize, filePath);
+    worker->moveToThread(thread);
+
+    connect(thread, &QThread::started, worker, &FirmwareReader::process);
+    connect(worker, &FirmwareReader::finished, thread, &QThread::quit);
+    connect(worker, &FirmwareReader::finished, worker, &FirmwareReader::deleteLater);
+    connect(thread, &QThread::finished, thread, &QThread::deleteLater);
+
+
+    connect(worker, &FirmwareReader::finished, this, [this](bool success) {
+        if (success) {
+            qCDebug(log_host_hid) << "Firmware read completed successfully";
+            emit firmwareReadComplete(true);
+        } else {
+            qCDebug(log_host_hid) << "Firmware read failed - user should try again";
+            emit firmwareReadComplete(false);
+
+        }
+    });
+    
+    thread->start();
 }
 
 #ifdef _WIN32
@@ -807,9 +962,7 @@ void VideoHid::loadFirmwareToEeprom() {
             emit firmwareWriteComplete(true);
         } else {
             qCDebug(log_host_hid) << "Firmware write failed - user should try again";
-            // Emit failure signal but don't quit the application
             emit firmwareWriteComplete(false);
-            // You may want to add another signal specifically for retry suggestion
             emit firmwareWriteError("Firmware update failed. Please try again.");
         }
     });
@@ -819,22 +972,38 @@ void VideoHid::loadFirmwareToEeprom() {
 }
 
 FirmwareResult VideoHid::isLatestFirmware() {
+    qCDebug(log_host_hid) << "Checking for latest firmware...";
     QString firemwareFileName = getLatestFirmwareFilenName(firmwareURL);
+    qCDebug(log_host_hid) << "Latest firmware file name:" << firemwareFileName;
     if (fireware_result == FirmwareResult::Timeout) {
         return FirmwareResult::Timeout;
     }
+    qCDebug(log_host_hid) << "After timeout checking: " << firmwareURL;
     QString newURL = firmwareURL.replace("minikvm_latest_firmware.txt", firemwareFileName);
     fetchBinFileToString(newURL);
-    qCDebug(log_host_hid)  << "Firmware version:" << QString::fromStdString(getFirmwareVersion());
-    qCDebug(log_host_hid)  << "Lateset firmware version:" << QString::fromStdString(m_firmwareVersion);
+    m_currentfirmwareVersion = getFirmwareVersion();
+    qCDebug(log_host_hid)  << "Firmware version:" << QString::fromStdString(m_currentfirmwareVersion);
+    qCDebug(log_host_hid)  << "Latest firmware version:" << QString::fromStdString(m_firmwareVersion);
     if (getFirmwareVersion() == m_firmwareVersion) {
-        fireware_result = FirmwareResult::Lastest;
-        return FirmwareResult::Lastest;
+        fireware_result = FirmwareResult::Latest;
+        return FirmwareResult::Latest;
     }
-    if (std::stoi(getFirmwareVersion()) <= std::stoi(m_firmwareVersion)) {
+    if (safe_stoi(getFirmwareVersion()) <= safe_stoi(m_firmwareVersion)) {
         fireware_result = FirmwareResult::Upgradable;
         return FirmwareResult::Upgradable;
     }
     return fireware_result;
 }
 
+int safe_stoi(std::string str, int defaultValue) {
+    try {
+        return std::stoi(str);
+    } catch (const std::invalid_argument&) {
+        qCDebug(log_host_hid) << "Invalid argument for stoi, returning default value:" << defaultValue;
+        return defaultValue;
+    } catch (const std::out_of_range&) {
+        qCDebug(log_host_hid) << "Out of range for stoi, returning default value:" << defaultValue;
+        qCDebug(log_host_hid) << "String was:" << QString::fromStdString(str);
+        return defaultValue;
+    }
+}

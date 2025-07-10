@@ -126,19 +126,9 @@
         <translation type="vanished">‣ Dans le groupe Dialout : </translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="107"/>
-        <source>The following steps help you install the driver and the openterface firemware update. Current status:&lt;br&gt;</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <location filename="../../ui/advance/envdialog.cpp" line="111"/>
         <location filename="../../ui/advance/envdialog.cpp" line="146"/>
         <source>‣ Latest Firmware: </source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="141"/>
-        <source>The following steps help you install the driver and access the device permissions and the openterface firemware update. Current status:&lt;br&gt;</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -169,15 +159,6 @@
     <message>
         <location filename="../../ui/advance/envdialog.cpp" line="185"/>
         <source>Install Driver</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="186"/>
-        <source>The driver is missing. Please insatll the driver at: https://www.wch.cn/downloads/CH341SER.EXE.html 
-
-After the driver insatll. A system restart and device re-plugging is required for the changes to take effect.
-
-Please restart your computer after the driver installation.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -220,6 +201,25 @@ Please restart your computer after the driver installation.</source>
         <translation type="vanished">Dans le groupe Dialout : </translation>
     </message>
     <message>
+        <location filename="../../ui/advance/envdialog.cpp" line="107"/>
+        <source>The following steps help you install the driver and the Openterface firmware update. Current status:&lt;br&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/envdialog.cpp" line="141"/>
+        <source>The following steps help you install the driver and access the device permissions and the Openterface firmware update. Current status:&lt;br&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/envdialog.cpp" line="186"/>
+        <source>The driver is missing. Please install the driver at: https://www.wch.cn/downloads/CH341SER.EXE.html 
+
+After the driver is installed, a system restart and device re-plugging is required for the changes to take effect.
+
+Please restart your computer after the driver installation.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <location filename="../../ui/advance/envdialog.cpp" line="266"/>
         <source>HID Permission: </source>
         <translation>Permission HID : </translation>
@@ -257,6 +257,65 @@ Souhaitez-vous redémarrer votre ordinateur maintenant ?</translation>
         <location filename="../../ui/advance/envdialog.cpp" line="284"/>
         <source>Please remember to restart your computer and re-plug the device for the driver to work properly.</source>
         <translation>N&apos;oubliez pas de redémarrer votre ordinateur et de reconnecter l&apos;appareil pour que le pilote fonctionne correctement.</translation>
+    </message>
+</context>
+<context>
+    <name>FirmwareManagerDialog</name>
+    <message>
+        <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="67"/>
+        <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="162"/>
+        <source>Warning</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="67"/>
+        <source>Please select a firmware file to write</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="73"/>
+        <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="110"/>
+        <source>Error</source>
+        <translation type="unfinished">Erreur</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="73"/>
+        <source>Failed to read firmware file: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="103"/>
+        <source>Success</source>
+        <translation type="unfinished">Succès</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="103"/>
+        <source>Firmware written successfully to EEPROMThe application will now close.
+Please:
+1. Restart the application
+2. Disconnect and reconnect all cables</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="110"/>
+        <source>Failed to write firmware to EEPROM
+Please try again</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="125"/>
+        <source>Cancelled</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="125"/>
+        <source>Firmware write operation was cancelled</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="162"/>
+        <source>Please select a file path</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -529,157 +588,162 @@ Veuillez réessayer après avoir redémarré l&apos;application.</translation>
         <translation>Avancé</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="147"/>
+        <location filename="../../ui/mainwindow.ui" line="148"/>
         <source>Close</source>
         <translation>Fermer</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="152"/>
+        <location filename="../../ui/mainwindow.ui" line="153"/>
         <source>Change Settings</source>
         <translation>Modifier les paramètres</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="157"/>
+        <location filename="../../ui/mainwindow.ui" line="158"/>
         <source>Reset Keyboard and Mouse</source>
         <translation>Réinitialiser le clavier et la souris</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="162"/>
+        <location filename="../../ui/mainwindow.ui" line="163"/>
         <source>Reset Serial Port</source>
         <translation>Réinitialiser le port série</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="167"/>
+        <location filename="../../ui/mainwindow.ui" line="168"/>
         <source>Serial Console</source>
         <translation>Console série</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="172"/>
+        <location filename="../../ui/mainwindow.ui" line="173"/>
         <source>AutoReszie</source>
         <translation>Redimensionnement automatique</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="177"/>
+        <location filename="../../ui/mainwindow.ui" line="178"/>
         <source>Factory Reset HID Chip</source>
         <translation>Réinitialisation d&apos;usine de la puce HID</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="182"/>
+        <location filename="../../ui/mainwindow.ui" line="183"/>
         <source>Preferences</source>
         <translation>Préférences</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="187"/>
+        <location filename="../../ui/mainwindow.ui" line="188"/>
         <source>Office Website</source>
         <translation>Site web officiel</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="192"/>
+        <location filename="../../ui/mainwindow.ui" line="193"/>
         <source>Purchase</source>
         <translation>Acheter</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="197"/>
+        <location filename="../../ui/mainwindow.ui" line="198"/>
         <source>Feedback</source>
         <translation>Retour d&apos;information</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="202"/>
+        <location filename="../../ui/mainwindow.ui" line="203"/>
         <source>Update</source>
         <translation>Mettre à jour</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="207"/>
+        <location filename="../../ui/mainwindow.ui" line="208"/>
         <source>Environment</source>
         <translation>Environnement</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="212"/>
+        <location filename="../../ui/mainwindow.ui" line="213"/>
         <source>About</source>
         <translation>À propos</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="223"/>
+        <location filename="../../ui/mainwindow.ui" line="224"/>
         <source>Follow Switch</source>
         <translation>Suivre le commutateur</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="231"/>
+        <location filename="../../ui/mainwindow.ui" line="232"/>
         <source>Paste</source>
         <translation>Coller</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="234"/>
+        <location filename="../../ui/mainwindow.ui" line="235"/>
         <source>Paste clipboard content to target</source>
         <translation>Coller le contenu du presse-papiers sur la cible</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="239"/>
+        <location filename="../../ui/mainwindow.ui" line="240"/>
         <source>Script Tool</source>
         <translation>Outil de script</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="244"/>
+        <location filename="../../ui/mainwindow.ui" line="245"/>
         <source>TCP Server</source>
         <translation>Serveur TCP</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="249"/>
+        <location filename="../../ui/mainwindow.ui" line="250"/>
         <source>Environment Checking</source>
         <translation>Vérification de l&apos;environnement</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="254"/>
+        <location filename="../../ui/mainwindow.ui" line="255"/>
+        <source>Firmware Manager</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/mainwindow.ui" line="260"/>
         <source>Firmware Update...</source>
         <translation>Mise à jour du firmware...</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="263"/>
+        <location filename="../../ui/mainwindow.ui" line="269"/>
         <source>115200</source>
         <translation>115200</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="271"/>
+        <location filename="../../ui/mainwindow.ui" line="277"/>
         <source>9600</source>
         <translation>9600</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="281"/>
+        <location filename="../../ui/mainwindow.ui" line="287"/>
         <source>To Host</source>
         <translation>Vers l&apos;hôte</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="289"/>
+        <location filename="../../ui/mainwindow.ui" line="295"/>
         <source>To Target</source>
         <translation>Vers la cible</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="302"/>
+        <location filename="../../ui/mainwindow.ui" line="308"/>
         <source>Absolute</source>
         <translation>Absolu</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="310"/>
+        <location filename="../../ui/mainwindow.ui" line="316"/>
         <source>Relative</source>
         <translation>Relatif</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="323"/>
+        <location filename="../../ui/mainwindow.ui" line="329"/>
         <source>Auto Hide</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="326"/>
+        <location filename="../../ui/mainwindow.ui" line="332"/>
         <source>Auto hide mouse cursor</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="334"/>
+        <location filename="../../ui/mainwindow.ui" line="340"/>
         <source>Always Show</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="337"/>
+        <location filename="../../ui/mainwindow.ui" line="343"/>
         <source>Always show mouse cursor</source>
         <translation type="unfinished"></translation>
     </message>
@@ -716,46 +780,35 @@ Veuillez réessayer après avoir redémarré l&apos;application.</translation>
         <translation type="vanished">Mode plein écran</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="811"/>
+        <location filename="../../ui/mainwindow.cpp" line="826"/>
         <source>Recorded %1 sec</source>
         <translation>Enregistré %1 sec</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="993"/>
+        <location filename="../../ui/mainwindow.cpp" line="1008"/>
         <source>Image Capture Error</source>
         <translation>Erreur de capture d&apos;image</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1061"/>
+        <location filename="../../ui/mainwindow.cpp" line="1076"/>
         <source>Captured &quot;%1&quot;</source>
         <translation>Capturé &quot;%1&quot;</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1481"/>
+        <location filename="../../ui/mainwindow.cpp" line="1533"/>
         <source>The firmware is up to date.
 Current version: </source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1485"/>
+        <location filename="../../ui/mainwindow.cpp" line="1555"/>
         <source>Firmware fetch timeout</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1485"/>
-        <source>Failed to check for the latest firmware version.
-</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../../ui/mainwindow.cpp" line="1485"/>
-        <source>current version: </source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../../ui/mainwindow.cpp" line="1485"/>
-        <source>
-latest version: </source>
+        <location filename="../../ui/mainwindow.cpp" line="1556"/>
+        <source>Firmware retrieval timed out. Please check your network connection and try again.
+Current version: </source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -763,7 +816,7 @@ latest version: </source>
         <translation type="vanished">Le firmware est à jour.</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1480"/>
+        <location filename="../../ui/mainwindow.cpp" line="1532"/>
         <source>Firmware Update</source>
         <translation>Mise à jour du firmware</translation>
     </message>
