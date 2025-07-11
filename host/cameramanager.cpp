@@ -3,8 +3,10 @@
 #include <QLoggingCategory>
 #include <QSettings>
 #include <QMediaDevices>
+#include <QRegularExpression>
 #include "global.h"
 #include "video/videohid.h"
+#include "serial/SerialPortManager.h"
 #include <QVideoWidget>
 
 
@@ -22,6 +24,20 @@ CameraManager::CameraManager(QObject *parent)
     // Initialize available camera devices
     m_availableCameraDevices = getAvailableCameraDevices();
     qCDebug(log_ui_camera) << "Found" << m_availableCameraDevices.size() << "available camera devices";
+    
+    // Display all camera device IDs for debugging
+    displayAllCameraDeviceIds();
+    
+    // Connect to SerialPortManager signals for device coordination
+    SerialPortManager& serialManager = SerialPortManager::getInstance();
+    connect(&serialManager, &SerialPortManager::cameraDeviceAvailable, 
+            this, &CameraManager::onCameraDevicePathAvailable);
+    connect(&serialManager, &SerialPortManager::completeDeviceSelected,
+            this, &CameraManager::onDeviceChanged);
+    connect(&serialManager, &SerialPortManager::deviceInterfacesActivated,
+            this, &CameraManager::onDeviceChanged);
+    
+    qCDebug(log_ui_camera) << "Connected to SerialPortManager signals for device coordination";
     
     // Connect to device changes - QMediaDevices in Qt 6 uses static signals
     // Note: In Qt 6, connecting to static signals may require a different approach
@@ -260,7 +276,7 @@ void CameraManager::loadCameraSettingAndSetCamera()
 {
     qCDebug(log_ui_camera) << "Load camera setting and set camera";
     QSettings settings("Techxartisan", "Openterface");
-    QString configDeviceDescription = settings.value("camera/device", "Openterface").toString();
+    QString configDeviceDescription = settings.value("camera/device", "").toString();
     QString configDeviceId = settings.value("camera/deviceId", "").toString();
     
     // Get the current camera description
@@ -280,7 +296,11 @@ void CameraManager::loadCameraSettingAndSetCamera()
         needsSwitch = true;
     }
     // Fallback to description matching
-    else if (currentDeviceDescription != configDeviceDescription) {
+    else if (!configDeviceDescription.isEmpty() && currentDeviceDescription != configDeviceDescription) {
+        needsSwitch = true;
+    }
+    // If no configuration is available or current device is null, switch to best available
+    else if ((configDeviceDescription.isEmpty() && configDeviceId.isEmpty()) || m_currentCameraDevice.isNull()) {
         needsSwitch = true;
     }
     
@@ -296,34 +316,28 @@ void CameraManager::loadCameraSettingAndSetCamera()
         }
         
         // If ID switching failed, try by description
-        if (!switchSuccess) {
+        if (!switchSuccess && !configDeviceDescription.isEmpty()) {
             switchSuccess = switchToCameraDeviceByDescription(configDeviceDescription);
             if (switchSuccess) {
                 qCDebug(log_ui_camera) << "Camera switched by description to:" << configDeviceDescription;
             }
         }
         
+        // If configured device switching failed or no config available, use port chain coordination
         if (!switchSuccess) {
-            qCWarning(log_ui_camera) << "Failed to switch to configured camera. Trying to find any Openterface camera.";
-            
-            // Try to find any Openterface-related camera as fallback
-            QList<QCameraDevice> devices = getAvailableCameraDevices();
-            for (const QCameraDevice &cameraDevice : devices) {
-                if (cameraDevice.description().contains("MacroSilicon", Qt::CaseInsensitive) ||
-                    cameraDevice.description().contains("Openterface", Qt::CaseInsensitive) ||
-                    cameraDevice.description().contains("MS2109", Qt::CaseInsensitive)) {
-                    
-                    switchSuccess = switchToCameraDevice(cameraDevice);
-                    if (switchSuccess) {
-                        qCInfo(log_ui_camera) << "Found and switched to Openterface camera:" << cameraDevice.description();
-                        break;
-                    }
-                }
-            }
-            
+            qCDebug(log_ui_camera) << "Falling back to port chain coordinated camera selection";
+            switchSuccess = ensurePortChainCoordination();
             if (!switchSuccess) {
-                qCWarning(log_ui_camera) << "No suitable camera found for Openterface device";
+                qCDebug(log_ui_camera) << "Port chain coordination failed, using automatic selection";
+                switchSuccess = switchToAvailableCamera();
             }
+            if (switchSuccess) {
+                qDebug() << "Selected camera:" << m_currentCameraDevice.description();
+            }
+        }
+        
+        if (!switchSuccess) {
+            qCWarning(log_ui_camera) << "No suitable camera found";
         }
     } else {
         qCDebug(log_ui_camera) << "Current camera matches configuration. No change needed.";
@@ -423,7 +437,7 @@ bool CameraManager::switchToCameraDevice(const QCameraDevice &cameraDevice)
     QCameraDevice previousDevice = m_currentCameraDevice;
     bool wasActive = m_camera && m_camera->isActive();
     
-    qCInfo(log_ui_camera) << "Switching camera from" << previousDevice.description() 
+    qDebug() << "Switching camera from" << previousDevice.description() 
                          << "to" << cameraDevice.description();
     
     // Stop current camera if active
@@ -455,7 +469,7 @@ bool CameraManager::switchToCameraDevice(const QCameraDevice &cameraDevice)
         emit cameraDeviceDisconnected(previousDevice);
     }
     
-    qCInfo(log_ui_camera) << "Camera device switch successful to:" << cameraDevice.description();
+    qDebug() << "Camera device switch successful to:" << cameraDevice.description();
     return true;
 }
 
@@ -515,29 +529,48 @@ void CameraManager::setCameraDeviceFromDeviceInfo(const DeviceInfo& deviceInfo)
     for (const QCameraDevice& device : devices) {
         QString deviceIdString = QString::fromUtf8(device.id());
         
-        // Try matching by device ID first
-        if (!cameraDeviceId.isEmpty() && deviceIdString.contains(cameraDeviceId, Qt::CaseInsensitive)) {
+        // Extract the shorter identifier pattern from camera device ID
+        // Pattern: extract something like "7&1FF4451E&2&0000" from the full camera ID
+        QString cameraShortId = extractShortIdentifier(deviceIdString);
+        QString deviceShortId = extractShortIdentifier(cameraDeviceId);
+        
+        qCDebug(log_ui_camera) << "Camera short ID:" << cameraShortId << "Device short ID:" << deviceShortId;
+        
+        // Try matching by the extracted short identifier first
+        if (!deviceShortId.isEmpty() && !cameraShortId.isEmpty() && 
+            cameraShortId.contains(deviceShortId, Qt::CaseInsensitive)) {
             targetDevice = device;
+            qCDebug(log_ui_camera) << "Found match using short identifier:" << deviceShortId;
             break;
         }
         
-        // Fallback: try matching by device path or description
-        if (!cameraDevicePath.isEmpty()) {
-            if (device.description().contains("MacroSilicon", Qt::CaseInsensitive) ||
-                device.description().contains("Openterface", Qt::CaseInsensitive) ||
-                deviceIdString.contains(cameraDevicePath, Qt::CaseInsensitive)) {
-                targetDevice = device;
-                break;
-            }
+        // Try matching by device ID first
+        if (!cameraDeviceId.isEmpty() && deviceIdString.contains(cameraDeviceId, Qt::CaseInsensitive)) {
+            targetDevice = device;
+            qCDebug(log_ui_camera) << "Found match using full device ID";
+            break;
+        }
+        
+        // Fallback: try matching by device path
+        if (!cameraDevicePath.isEmpty() && deviceIdString.contains(cameraDevicePath, Qt::CaseInsensitive)) {
+            targetDevice = device;
+            qCDebug(log_ui_camera) << "Found match using device path";
+            break;
         }
     }
     
+    // If no specific match found, fall back to automatic selection
     if (targetDevice.isNull()) {
-        qCWarning(log_ui_camera) << "Could not find camera device from DeviceInfo";
+        qCDebug(log_ui_camera) << "No specific device match found, falling back to automatic selection";
+        targetDevice = findBestAvailableCamera();
+    }
+    
+    if (targetDevice.isNull()) {
+        qCWarning(log_ui_camera) << "Could not find any camera device";
         return;
     }
     
-    qCInfo(log_ui_camera) << "Found camera device from DeviceInfo:" << targetDevice.description();
+    qDebug() << "Found camera device:" << targetDevice.description();
     switchToCameraDevice(targetDevice);
 }
 
@@ -609,66 +642,44 @@ QStringList CameraManager::getAvailableCameraDeviceIds() const
     return ids;
 }
 
-QCameraDevice CameraManager::findBestOpenterfaceCamera() const
+QCameraDevice CameraManager::findBestAvailableCamera() const
 {
     QList<QCameraDevice> devices = getAvailableCameraDevices();
-    QCameraDevice bestMatch;
     
-    // Priority order for matching Openterface cameras
-    QStringList priorityKeywords = {
-        "MacroSilicon",    // Most specific
-        "MS2109",          // Chip model
-        "Openterface",     // Product name
-        "534D",            // Vendor ID in hex
-        "2109"             // Product ID in hex
-    };
-    
-    for (const QString& keyword : priorityKeywords) {
-        for (const QCameraDevice& device : devices) {
-            if (device.description().contains(keyword, Qt::CaseInsensitive) ||
-                QString::fromUtf8(device.id()).contains(keyword, Qt::CaseInsensitive)) {
-                
-                qCDebug(log_ui_camera) << "Found Openterface camera by keyword" << keyword << ":" << device.description();
-                return device;
-            }
-        }
+    if (devices.isEmpty()) {
+        qCDebug(log_ui_camera) << "No camera devices available";
+        return QCameraDevice();
     }
     
-    qCDebug(log_ui_camera) << "No Openterface camera found";
-    return QCameraDevice();
+    if (devices.size() == 1) {
+        // Only one device available - connect to it
+        qCDebug(log_ui_camera) << "Single camera device found:" << devices.first().description();
+        return devices.first();
+    } else {
+        // Multiple devices available - connect to the first one
+        qCDebug(log_ui_camera) << "Multiple camera devices found (" << devices.size() << "), selecting first:" << devices.first().description();
+        return devices.first();
+    }
 }
 
-bool CameraManager::switchToOpenterfaceCamera()
+bool CameraManager::switchToAvailableCamera()
 {
-    QCameraDevice openterfaceCamera = findBestOpenterfaceCamera();
-    if (!openterfaceCamera.isNull()) {
-        return switchToCameraDevice(openterfaceCamera);
+    QCameraDevice availableCamera = findBestAvailableCamera();
+    if (!availableCamera.isNull()) {
+        return switchToCameraDevice(availableCamera);
     }
     
-    qCWarning(log_ui_camera) << "No Openterface camera available to switch to";
+    qCWarning(log_ui_camera) << "No camera devices available to switch to";
     return false;
 }
 
-QStringList CameraManager::getOpenterfaceCameraDescriptions() const
+QStringList CameraManager::getAllCameraDescriptions() const
 {
     QStringList descriptions;
     QList<QCameraDevice> devices = getAvailableCameraDevices();
     
-    QStringList keywords = {"MacroSilicon", "MS2109", "Openterface", "534D", "2109"};
-    
     for (const QCameraDevice& device : devices) {
-        bool isOpenterface = false;
-        for (const QString& keyword : keywords) {
-            if (device.description().contains(keyword, Qt::CaseInsensitive) ||
-                QString::fromUtf8(device.id()).contains(keyword, Qt::CaseInsensitive)) {
-                isOpenterface = true;
-                break;
-            }
-        }
-        
-        if (isOpenterface) {
-            descriptions.append(device.description());
-        }
+        descriptions.append(device.description());
     }
     
     return descriptions;
@@ -681,6 +692,9 @@ void CameraManager::refreshAvailableCameraDevices()
     
     qCDebug(log_ui_camera) << "Refreshed camera devices, now have" << m_availableCameraDevices.size() << "devices";
     
+    // Display all camera device IDs after refresh
+    displayAllCameraDeviceIds();
+    
     // Emit signal if device count changed
     if (previousDevices.size() != m_availableCameraDevices.size()) {
         emit availableCameraDevicesChanged(m_availableCameraDevices.size());
@@ -691,13 +705,27 @@ void CameraManager::refreshAvailableCameraDevices()
 
 void CameraManager::onDeviceChanged(const DeviceInfo& newDevice)
 {
-    qCDebug(log_ui_camera) << "Device changed signal received";
+    qCDebug(log_ui_camera) << "Device changed signal received - Port chain:" << newDevice.portChain;
     
     if (newDevice.hasCameraDevice()) {
-        qCInfo(log_ui_camera) << "New device has camera, switching camera device";
-        switchToCameraFromDeviceInfo(newDevice);
+        qDebug() << "New device has camera, switching camera device with port chain coordination";
+        
+        // First try to switch using the DeviceInfo directly
+        bool switchSuccess = switchToCameraFromDeviceInfo(newDevice);
+        
+        // If that fails, try port chain coordination
+        if (!switchSuccess && !newDevice.portChain.isEmpty()) {
+            switchSuccess = switchToCameraFromPortChain(newDevice.portChain);
+        }
+        
+        if (!switchSuccess) {
+            qCWarning(log_ui_camera) << "Failed to switch camera for device change";
+        }
     } else {
         qCDebug(log_ui_camera) << "New device does not have camera information";
+        
+        // Even if this device doesn't have a camera, ensure coordination with serial port
+        ensurePortChainCoordination();
     }
 }
 
@@ -718,24 +746,178 @@ void CameraManager::onCameraDevicePathAvailable(const QString& cameraDevicePath)
     QCameraDevice targetDevice;
     
     for (const QCameraDevice& device : devices) {
-        // Check for direct path matching first
-        if (QString::fromUtf8(device.id()).contains(cameraDevicePath, Qt::CaseInsensitive)) {
+        QString deviceIdString = QString::fromUtf8(device.id());
+        
+        // Extract the shorter identifier pattern from both IDs
+        QString cameraShortId = extractShortIdentifier(deviceIdString);
+        QString pathShortId = extractShortIdentifier(cameraDevicePath);
+        
+        qCDebug(log_ui_camera) << "Camera short ID:" << cameraShortId << "Path short ID:" << pathShortId;
+        
+        // Try matching by the extracted short identifier first
+        if (!pathShortId.isEmpty() && !cameraShortId.isEmpty() && 
+            cameraShortId.contains(pathShortId, Qt::CaseInsensitive)) {
+            targetDevice = device;
+            qCDebug(log_ui_camera) << "Found exact short identifier match:" << pathShortId;
+            break;
+        }
+        
+        // Check for direct path matching as fallback
+        if (deviceIdString.contains(cameraDevicePath, Qt::CaseInsensitive)) {
             targetDevice = device;
             qCDebug(log_ui_camera) << "Found exact path match:" << device.description();
             break;
         }
     }
     
-    // If no exact match, try to find the best Openterface camera
+    // If no exact match, first try port chain coordination before fallback
     if (targetDevice.isNull()) {
-        qCDebug(log_ui_camera) << "No exact path match, trying to find best Openterface camera";
-        targetDevice = findBestOpenterfaceCamera();
+        qCDebug(log_ui_camera) << "No exact path match, trying port chain coordination first";
+        
+        // Try to coordinate with SerialPortManager's current device
+        if (ensurePortChainCoordination()) {
+            qCDebug(log_ui_camera) << "Port chain coordination successful";
+            return;  // Successfully coordinated with current serial device
+        }
+        
+        // If coordination fails, use the new logic to find the best available camera
+        qCDebug(log_ui_camera) << "Port chain coordination failed, trying best available camera";
+        targetDevice = findBestAvailableCamera();
     }
     
     if (!targetDevice.isNull()) {
-        qCInfo(log_ui_camera) << "Switching to camera device:" << targetDevice.description();
+        qDebug() << "Switching to camera device:" << targetDevice.description();
         switchToCameraDevice(targetDevice);
     } else {
         qCWarning(log_ui_camera) << "Could not find any suitable camera device for path:" << cameraDevicePath;
     }
+}
+
+QString CameraManager::extractShortIdentifier(const QString& fullId) const
+{
+    // Extract patterns like "7&1FF4451E&2&0000" from full device IDs
+    // This pattern appears in both camera device IDs and device details
+    
+    // Look for patterns with format: digit&hexdigits&digit&hexdigits
+    // Examples: "7&1FF4451E&2&0000", "6&2ABC123F&1&0001", etc.
+    QRegularExpression regex(R"((\d+&[A-F0-9]+&\d+&[A-F0-9]+))", QRegularExpression::CaseInsensitiveOption);
+    QRegularExpressionMatch match = regex.match(fullId);
+    
+    if (match.hasMatch()) {
+        QString shortId = match.captured(1);
+        qCDebug(log_ui_camera) << "Extracted short identifier:" << shortId << "from:" << fullId;
+        return shortId;
+    }
+    
+    qCDebug(log_ui_camera) << "No short identifier pattern found in:" << fullId;
+    return QString();
+}
+
+void CameraManager::displayAllCameraDeviceIds() const
+{
+    QList<QCameraDevice> devices = getAvailableCameraDevices();
+    
+    qDebug() << "=== Available Camera Devices ===";
+    qDebug() << "Total devices found:" << devices.size();
+    
+    if (devices.isEmpty()) {
+        qDebug() << "No camera devices available";
+        return;
+    }
+    
+    for (int i = 0; i < devices.size(); ++i) {
+        const QCameraDevice& device = devices[i];
+        QByteArray deviceId = device.id();
+        QString deviceIdStr = QString::fromUtf8(deviceId);
+        
+        qDebug() << "Device" << (i + 1) << ":";
+        qDebug() << "  Description:" << device.description();
+        qDebug() << "  ID (raw QByteArray):" << deviceId;
+        qDebug() << "  ID (as QString):" << deviceIdStr;
+        qDebug() << "  ID (hex representation):" << deviceId.toHex();
+        qDebug() << "  Is Default:" << device.isDefault();
+        qDebug() << "  Position:" << static_cast<int>(device.position());
+        qDebug() << "  ---";
+    }
+    
+    qDebug() << "=== End Camera Device List ===";
+}
+
+// Port chain coordination with SerialPortManager
+bool CameraManager::switchToCameraFromPortChain(const QString& portChain)
+{
+    qCDebug(log_ui_camera) << "Switching camera based on port chain:" << portChain;
+    
+    // Get the device info from SerialPortManager for this port chain
+    SerialPortManager& serialManager = SerialPortManager::getInstance();
+    QList<DeviceInfo> availableDevices = serialManager.getAvailableDevices();
+    
+    DeviceInfo targetDeviceInfo;
+    for (const DeviceInfo& device : availableDevices) {
+        if (device.portChain == portChain && device.hasCameraDevice()) {
+            targetDeviceInfo = device;
+            break;
+        }
+    }
+    
+    if (!targetDeviceInfo.isValid() || !targetDeviceInfo.hasCameraDevice()) {
+        qCWarning(log_ui_camera) << "No camera device found for port chain:" << portChain;
+        return false;
+    }
+    
+    // Use existing method to switch to camera from device info
+    return switchToCameraFromDeviceInfo(targetDeviceInfo);
+}
+
+bool CameraManager::ensurePortChainCoordination()
+{
+    qCDebug(log_ui_camera) << "Ensuring camera and serial devices share the same port chain";
+    
+    SerialPortManager& serialManager = SerialPortManager::getInstance();
+    DeviceInfo currentSelectedDevice = serialManager.getCurrentSelectedDevice();
+    
+    if (!currentSelectedDevice.isValid()) {
+        qCDebug(log_ui_camera) << "No device selected in SerialPortManager";
+        return false;
+    }
+    
+    QString currentPortChain = currentSelectedDevice.portChain;
+    qCDebug(log_ui_camera) << "Current SerialPortManager port chain:" << currentPortChain;
+    
+    // Check if current camera device is from the same port chain
+    DeviceInfo currentCameraDevice = getCurrentCameraAsDeviceInfo();
+    if (currentCameraDevice.isValid()) {
+        // Extract port chain from camera device ID using same logic as SerialPortManager
+        QString cameraPortChain = extractPortChainFromDeviceId(currentCameraDevice.cameraDeviceId);
+        if (cameraPortChain == currentPortChain) {
+            qCDebug(log_ui_camera) << "Camera and serial devices already share the same port chain:" << currentPortChain;
+            return true;
+        }
+    }
+    
+    // Switch camera to match the serial device's port chain
+    return switchToCameraFromPortChain(currentPortChain);
+}
+
+QString CameraManager::extractPortChainFromDeviceId(const QString& deviceId) const
+{
+    // Extract port chain identifier from device ID
+    // This should match the logic used in DeviceManager/SerialPortManager
+    QString shortId = extractShortIdentifier(deviceId);
+    if (!shortId.isEmpty()) {
+        return shortId;
+    }
+    
+    // Fallback: use a portion of the device ID as port chain identifier
+    if (deviceId.length() > 20) {
+        return deviceId.mid(deviceId.length() - 20, 15);
+    }
+    
+    return deviceId;
+}
+
+bool CameraManager::coordinateWithSerialDevice()
+{
+    qCDebug(log_ui_camera) << "Manual port chain coordination requested";
+    return ensurePortChainCoordination();
 }

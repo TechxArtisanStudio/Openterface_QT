@@ -81,10 +81,10 @@ public:
     bool switchToCameraFromDeviceInfo(const DeviceInfo& deviceInfo);
     DeviceInfo getCurrentCameraAsDeviceInfo() const;
     
-    // Auto-detection methods for Openterface cameras
-    QCameraDevice findBestOpenterfaceCamera() const;
-    bool switchToOpenterfaceCamera();
-    QStringList getOpenterfaceCameraDescriptions() const;
+    // Auto-detection methods for available cameras
+    QCameraDevice findBestAvailableCamera() const;
+    bool switchToAvailableCamera();
+    QStringList getAllCameraDescriptions() const;
     
     // Manual device refresh for Qt 6 compatibility
     void refreshAvailableCameraDevices();
@@ -94,6 +94,15 @@ public:
     bool isCameraDeviceAvailable(const QString& deviceId) const;
     QStringList getAvailableCameraDeviceDescriptions() const;
     QStringList getAvailableCameraDeviceIds() const;
+    void displayAllCameraDeviceIds() const;
+    
+    // Port chain coordination methods
+    bool switchToCameraFromPortChain(const QString& portChain);
+    bool ensurePortChainCoordination();
+    QString extractPortChainFromDeviceId(const QString& deviceId) const;
+    
+    // Manual port chain coordination trigger
+    bool coordinateWithSerialDevice();
     
 signals:
     void cameraActiveChanged(bool active);
@@ -136,6 +145,9 @@ private:
     QCameraDevice m_currentCameraDevice;
     QString m_currentCameraDeviceId;
     QList<QCameraDevice> m_availableCameraDevices;
+    
+    // Helper method for device ID matching
+    QString extractShortIdentifier(const QString& fullId) const;
 };
 
 #endif // CAMERAMANAGER_H

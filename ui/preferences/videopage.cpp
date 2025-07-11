@@ -21,6 +21,7 @@
 */
 
 #include "videopage.h"
+#include "fontstyle.h"
 #include "ui/globalsetting.h"
 #include "host/cameramanager.h"
 #include <QDebug>
@@ -193,12 +194,12 @@ void VideoPage::findUvcCameraDevices()
         }
     }
 
-    // set default "Openterface"
-    int index = uvcCamBox->findText("Openterface");
-    if (index != -1) {
-        uvcCamBox->setCurrentIndex(index);
+    // Select the first available device by default
+    if (uvcCamBox->count() > 0) {
+        uvcCamBox->setCurrentIndex(0);
+        qDebug() << "Selected first available camera device:" << uvcCamBox->currentText();
     } else {
-        qDebug() << "Openterface device not found.";
+        qDebug() << "No camera devices found.";
     }
 }
 
@@ -374,10 +375,22 @@ void VideoPage::initVideoSettings() {
     QSettings settings("Techxartisan", "Openterface");
     
     // Load camera selection
-    QString cameraDescription = settings.value("camera/device", "Openterface").toString();
-    int index = uvcCamBox->findText(cameraDescription);
-    if (index != -1) {
-        uvcCamBox->setCurrentIndex(index);
+    QString cameraDescription = settings.value("camera/device", "").toString();
+    if (!cameraDescription.isEmpty()) {
+        int index = uvcCamBox->findText(cameraDescription);
+        if (index != -1) {
+            uvcCamBox->setCurrentIndex(index);
+        } else {
+            // If the saved camera is not found, select the first available one
+            if (uvcCamBox->count() > 0) {
+                uvcCamBox->setCurrentIndex(0);
+            }
+        }
+    } else {
+        // No camera preference saved, select the first available one
+        if (uvcCamBox->count() > 0) {
+            uvcCamBox->setCurrentIndex(0);
+        }
     }
     
     int width = settings.value("video/width", 1920).toInt();
