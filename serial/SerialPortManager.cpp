@@ -33,9 +33,28 @@
 
 Q_LOGGING_CATEGORY(log_core_serial, "opf.core.serial")
 
+// Define static constants
+const int SerialPortManager::ORIGINAL_BAUDRATE;
+const int SerialPortManager::DEFAULT_BAUDRATE;
+const int SerialPortManager::SERIAL_TIMER_INTERVAL;
+
 SerialPortManager::SerialPortManager(QObject *parent) : QObject(parent), serialPort(nullptr), serialThread(new QThread(nullptr)), serialTimer(new QTimer(nullptr)){
     qCDebug(log_core_serial) << "Initialize serial port.";
 
+    // Initialize device manager
+    m_deviceManager = new DeviceManager(this);
+    connect(m_deviceManager, &DeviceManager::deviceAdded, this, &SerialPortManager::onDeviceAdded);
+    connect(m_deviceManager, &DeviceManager::deviceRemoved, this, &SerialPortManager::onDeviceRemoved);
+    connect(m_deviceManager, &DeviceManager::deviceModified, this, &SerialPortManager::onDeviceModified);
+
+    // Initialize hotplug monitor with callbacks
+    m_hotplugMonitor = new HotplugMonitor(m_deviceManager, this);
+    
+    // Add callback for detailed device change handling
+    m_hotplugMonitor->addCallback([this](const DeviceChangeEvent& event) {
+        onHotplugDeviceChangeEvent(event);
+    });
+    
     connect(this, &SerialPortManager::serialPortConnected, this, &SerialPortManager::onSerialPortConnected);
     connect(this, &SerialPortManager::serialPortDisconnected, this, &SerialPortManager::onSerialPortDisconnected);
     connect(this, &SerialPortManager::serialPortConnectionSuccess, this, &SerialPortManager::onSerialPortConnectionSuccess);
@@ -44,6 +63,12 @@ SerialPortManager::SerialPortManager(QObject *parent) : QObject(parent), serialP
     m_lastCommandTime.start();
     m_commandDelayMs = 0;  // Default no delay
     lastSerialPortCheckTime = QDateTime::currentDateTime().addMSecs(-SERIAL_TIMER_INTERVAL);  // Initialize check time in the past 
+    
+    // Start enhanced hotplug monitoring with both legacy and new systems
+    m_deviceManager->startHotplugMonitoring();
+    m_hotplugMonitor->start(2000); // Check every 2 seconds
+    
+    qCDebug(log_core_serial) << "SerialPortManager initialized with enhanced hotplug detection";
 }
 
 void SerialPortManager::observeSerialPortNotification(){
@@ -66,6 +91,16 @@ void SerialPortManager::observeSerialPortNotification(){
 
 void SerialPortManager::stop() {
     qCDebug(log_core_serial) << "Stopping serial port manager thread...";
+    
+    // Stop enhanced hotplug monitoring
+    if (m_hotplugMonitor) {
+        m_hotplugMonitor->stop();
+    }
+    
+    // Stop device monitoring
+    if (m_deviceManager) {
+        m_deviceManager->stopHotplugMonitoring();
+    }
     
     if (serialTimer) {
         serialTimer->stop();
@@ -167,6 +202,7 @@ void SerialPortManager::checkSerialPorts() {
 
 /*
  * Check the serial port connection status
+ * This method now works alongside the enhanced hotplug detection system
  */
 void SerialPortManager::checkSerialPort() {
     QDateTime currentTime = QDateTime::currentDateTime();
@@ -174,10 +210,15 @@ void SerialPortManager::checkSerialPort() {
         return;
     }
     lastSerialPortCheckTime = currentTime;
-    qCDebug(log_core_serial) << "Check serial port.";
+    qCDebug(log_core_serial) << "Check serial port (legacy method alongside enhanced hotplug)";
 
-    // Check if any new ports is connected, compare to the last port list
-    checkSerialPorts();
+    // Only use legacy detection if enhanced system is not running
+    if (!m_hotplugMonitor || !m_hotplugMonitor->isRunning()) {
+        qCDebug(log_core_serial) << "Using legacy port detection as fallback";
+        checkSerialPorts();
+    } else {
+        qCDebug(log_core_serial) << "Enhanced hotplug detection is active - skipping legacy port scan";
+    }
 
     if(ready){
         if (isTargetUsbConnected){
@@ -828,4 +869,463 @@ bool SerialPortManager::setBaudRate(int baudRate) {
 
 void SerialPortManager::setCommandDelay(int delayMs) {
     m_commandDelayMs = delayMs;
+}
+
+// Device management methods
+QList<DeviceInfo> SerialPortManager::getAvailableDevices()
+{
+    if (m_deviceManager) {
+        return m_deviceManager->discoverDevices();
+    }
+    return QList<DeviceInfo>();
+}
+
+QStringList SerialPortManager::getAvailablePortChains()
+{
+    if (m_deviceManager) {
+        return m_deviceManager->getAvailablePortChains();
+    }
+    return QStringList();
+}
+
+bool SerialPortManager::selectDeviceByPortChain(const QString& portChain)
+{
+    if (!m_deviceManager) {
+        return false;
+    }
+    
+    DeviceInfo device = m_deviceManager->selectDeviceByPortChain(portChain);
+    if (device.isValid()) {
+        m_selectedDevice = device;
+        m_selectedPortChain = portChain;
+        
+        // If device has a serial port, try to connect
+        if (device.hasSerialPort()) {
+            emit serialPortConnected(device.serialPortPath);
+        }
+        
+        qCDebug(log_core_serial) << "Selected device by port chain:" << portChain;
+        return true;
+    }
+    
+    qCWarning(log_core_serial) << "Failed to select device by port chain:" << portChain;
+    return false;
+}
+
+DeviceInfo SerialPortManager::getCurrentSelectedDevice() const
+{
+    return m_selectedDevice;
+}
+
+// Device hotplug event handlers
+void SerialPortManager::onDeviceAdded(const DeviceInfo& device)
+{
+    qCDebug(log_core_serial) << "Device added:" << device.portChain;
+    
+    // If no device is currently selected, auto-select the first available
+    if (!m_selectedDevice.isValid() || m_selectedPortChain.isEmpty()) {
+        if (device.hasSerialPort()) {
+            m_selectedDevice = device;
+            m_selectedPortChain = device.portChain;
+            emit serialPortConnected(device.serialPortPath);
+            qCDebug(log_core_serial) << "Auto-selected device:" << device.portChain;
+        }
+    }
+    // If this is the previously selected device, reconnect
+    else if (device.portChain == m_selectedPortChain) {
+        m_selectedDevice = device;
+        if (device.hasSerialPort()) {
+            emit serialPortConnected(device.serialPortPath);
+            qCDebug(log_core_serial) << "Reconnected to device:" << device.portChain;
+        }
+    }
+}
+
+void SerialPortManager::onDeviceRemoved(const DeviceInfo& device)
+{
+    qCDebug(log_core_serial) << "Device removed:" << device.portChain;
+    
+    // If this was our selected device, disconnect
+    if (device.portChain == m_selectedPortChain) {
+        if (device.hasSerialPort()) {
+            emit serialPortDisconnected(device.serialPortPath);
+        }
+        // Don't clear the selected device info yet - we might reconnect
+        qCDebug(log_core_serial) << "Selected device disconnected:" << device.portChain;
+    }
+}
+
+void SerialPortManager::onDeviceModified(const DeviceInfo& oldDevice, const DeviceInfo& newDevice)
+{
+    qCDebug(log_core_serial) << "Device modified:" << newDevice.portChain;
+    
+    // Update our selected device if it was modified
+    if (newDevice.portChain == m_selectedPortChain) {
+        m_selectedDevice = newDevice;
+        qCDebug(log_core_serial) << "Updated selected device info:" << newDevice.portChain;
+    }
+}
+
+void SerialPortManager::onHotplugDeviceChangeEvent(const DeviceChangeEvent& event)
+{
+    qCDebug(log_core_serial) << "Enhanced hotplug event detected at" << event.timestamp.toString();
+    qCDebug(log_core_serial) << "  Added devices:" << event.addedDevices.size();
+    qCDebug(log_core_serial) << "  Removed devices:" << event.removedDevices.size();
+    qCDebug(log_core_serial) << "  Modified devices:" << event.modifiedDevices.size();
+    qCDebug(log_core_serial) << "  Total current devices:" << event.currentDevices.size();
+    
+    // Handle device additions with detailed port chain info
+    for (const auto& device : event.addedDevices) {
+        qCInfo(log_core_serial) << "New Openterface device detected:";
+        qCInfo(log_core_serial) << "  Port Chain:" << device.portChain;
+        qCInfo(log_core_serial) << "  Serial Port:" << device.serialPortPath;
+        qCInfo(log_core_serial) << "  HID Device:" << device.hidDevicePath;
+        qCInfo(log_core_serial) << "  Camera Device:" << device.cameraDevicePath;
+        qCInfo(log_core_serial) << "  Audio Device:" << device.audioDevicePath;
+        
+        // Auto-select if no device currently selected
+        if (!m_selectedDevice.isValid() && device.hasSerialPort()) {
+            selectDeviceByPortChain(device.portChain);
+        }
+    }
+    
+    // Handle device removals
+    for (const auto& device : event.removedDevices) {
+        qCInfo(log_core_serial) << "Openterface device removed:";
+        qCInfo(log_core_serial) << "  Port Chain:" << device.portChain;
+        
+        // If this was our selected device, handle disconnection
+        if (device.portChain == m_selectedPortChain) {
+            qCWarning(log_core_serial) << "Currently selected device was removed!";
+            handleSelectedDeviceRemoval(device);
+        }
+    }
+    
+    // Handle device modifications (e.g., device enumeration changes)
+    for (const auto& pair : event.modifiedDevices) {
+        const DeviceInfo& oldDevice = pair.first;
+        const DeviceInfo& newDevice = pair.second;
+        
+        qCDebug(log_core_serial) << "Device modified:" << newDevice.portChain;
+        
+        // Update selected device if it was modified
+        if (newDevice.portChain == m_selectedPortChain) {
+            m_selectedDevice = newDevice;
+            qCDebug(log_core_serial) << "Updated selected device info";
+        }
+    }
+    
+    // Emit summary signal for UI updates
+    emit deviceInventoryChanged(event.currentDevices.size(), m_selectedDevice.isValid());
+}
+
+void SerialPortManager::handleSelectedDeviceRemoval(const DeviceInfo& removedDevice)
+{
+    qCWarning(log_core_serial) << "Handling removal of selected device:" << removedDevice.portChain;
+    
+    // Close current connection if open
+    if (serialPort && serialPort->isOpen()) {
+        closePort();
+    }
+    
+    // Clear selection
+    m_selectedDevice = DeviceInfo();
+    m_selectedPortChain.clear();
+    
+    // Try to auto-select another available device
+    auto availableDevices = getAvailableDevices();
+    for (const auto& device : availableDevices) {
+        if (device.hasSerialPort() && device.portChain != removedDevice.portChain) {
+            qCInfo(log_core_serial) << "Auto-selecting alternative device:" << device.portChain;
+            selectDeviceByPortChain(device.portChain);
+            break;
+        }
+    }
+    
+    if (!m_selectedDevice.isValid()) {
+        qCWarning(log_core_serial) << "No alternative Openterface devices available";
+        emit noDevicesAvailable();
+    }
+}
+
+QStringList SerialPortManager::getDevicePortChains() const
+{
+    QStringList portChains;
+    if (m_deviceManager) {
+        auto devices = m_deviceManager->discoverDevices();
+        for (const auto& device : devices) {
+            portChains.append(device.portChain);
+        }
+    }
+    return portChains;
+}
+
+QString SerialPortManager::formatDeviceInfo(const DeviceInfo& device) const
+{
+    QStringList info;
+    info << QString("Port Chain: %1").arg(device.portChain);
+    
+    if (device.hasSerialPort()) {
+        info << QString("Serial: %1").arg(device.serialPortPath);
+    }
+    if (device.hasHidDevice()) {
+        info << QString("HID: %1").arg(device.hidDevicePath);
+    }
+    if (device.hasCameraDevice()) {
+        info << QString("Camera: %1").arg(device.cameraDevicePath);
+    }
+    if (device.hasAudioDevice()) {
+        info << QString("Audio: %1").arg(device.audioDevicePath);
+    }
+    
+    return info.join(", ");
+}
+
+void SerialPortManager::debugDeviceStatus() const
+{
+    qCInfo(log_core_serial) << "=== Enhanced Device Status Debug ===";
+    
+    if (!m_deviceManager) {
+        qCWarning(log_core_serial) << "No device manager available";
+        return;
+    }
+    
+    auto devices = m_deviceManager->discoverDevices();
+    qCInfo(log_core_serial) << "Total Openterface devices found:" << devices.size();
+    
+    for (int i = 0; i < devices.size(); ++i) {
+        const auto& device = devices[i];
+        qCInfo(log_core_serial) << QString("Device %1:").arg(i + 1);
+        qCInfo(log_core_serial) << "  Port Chain:" << device.portChain;
+        qCInfo(log_core_serial) << "  Instance ID:" << device.deviceInstanceId;
+        qCInfo(log_core_serial) << "  Serial Port:" << (device.hasSerialPort() ? device.serialPortPath : "None");
+        qCInfo(log_core_serial) << "  HID Device:" << (device.hasHidDevice() ? device.hidDevicePath : "None");
+        qCInfo(log_core_serial) << "  Camera:" << (device.hasCameraDevice() ? device.cameraDevicePath : "None");
+        qCInfo(log_core_serial) << "  Audio:" << (device.hasAudioDevice() ? device.audioDevicePath : "None");
+        qCInfo(log_core_serial) << "  Last Seen:" << device.lastSeen.toString("yyyy-MM-dd hh:mm:ss");
+        
+        if (device.getUniqueKey() == m_selectedDevice.getUniqueKey()) {
+            qCInfo(log_core_serial) << "  >>> CURRENTLY SELECTED <<<";
+        }
+    }
+    
+    if (m_hotplugMonitor) {
+        qCInfo(log_core_serial) << "Hotplug Monitor Status:";
+        qCInfo(log_core_serial) << "  Running:" << m_hotplugMonitor->isRunning();
+        qCInfo(log_core_serial) << "  Poll Interval:" << m_hotplugMonitor->getPollInterval() << "ms";
+        qCInfo(log_core_serial) << "  Total Events:" << m_hotplugMonitor->getChangeEventCount();
+        if (m_hotplugMonitor->getLastChangeTime().isValid()) {
+            qCInfo(log_core_serial) << "  Last Change:" << m_hotplugMonitor->getLastChangeTime().toString("hh:mm:ss");
+        }
+    }
+    
+    qCInfo(log_core_serial) << "Current Serial Port Status:";
+    qCInfo(log_core_serial) << "  Ready:" << ready;
+    if (serialPort) {
+        qCInfo(log_core_serial) << "  Port Name:" << serialPort->portName();
+        qCInfo(log_core_serial) << "  Baud Rate:" << serialPort->baudRate();
+        qCInfo(log_core_serial) << "  Is Open:" << serialPort->isOpen();
+    } else {
+        qCInfo(log_core_serial) << "  Serial Port: Not initialized";
+    }
+    
+    qCInfo(log_core_serial) << "================================";
+}
+
+// Enhanced complete device management methods
+bool SerialPortManager::selectCompleteDevice(const QString& portChain)
+{
+    if (!m_deviceManager) {
+        qCWarning(log_core_serial) << "Device manager not available";
+        return false;
+    }
+    
+    QList<DeviceInfo> devices = m_deviceManager->getDevicesByPortChain(portChain);
+    if (devices.isEmpty()) {
+        qCWarning(log_core_serial) << "No devices found for port chain:" << portChain;
+        return false;
+    }
+    
+    // Find the best device (most complete interface set)
+    DeviceInfo bestDevice;
+    int maxInterfaces = 0;
+    for (const DeviceInfo& device : devices) {
+        int interfaceCount = device.getInterfaceCount();
+        if (interfaceCount > maxInterfaces) {
+            maxInterfaces = interfaceCount;
+            bestDevice = device;
+        }
+    }
+    
+    if (!bestDevice.isValid()) {
+        qCWarning(log_core_serial) << "No valid device found for port chain:" << portChain;
+        return false;
+    }
+    
+    qCInfo(log_core_serial) << "Selecting complete physical device:" << portChain;
+    qCInfo(log_core_serial) << "Device interfaces:" << bestDevice.getInterfaceSummary();
+    
+    // Deactivate current device first if any
+    if (m_selectedDevice.isValid()) {
+        deactivateCurrentDevice();
+    }
+    
+    // Set the new device
+    m_selectedDevice = bestDevice;
+    m_selectedPortChain = portChain;
+    
+    // Activate all available interfaces
+    activateDeviceInterfaces(bestDevice);
+    
+    // Emit signals for UI updates
+    emit deviceInventoryChanged(getAvailableDevices().size(), true);
+    emit completeDeviceSelected(bestDevice);
+    
+    if (bestDevice.hasSerialPort()) {
+        emit connectedPortChanged(bestDevice.serialPortPath, DEFAULT_BAUDRATE);
+    }
+    
+    qCInfo(log_core_serial) << "Complete device selection successful for:" << portChain;
+    return true;
+}
+
+bool SerialPortManager::switchToDevice(const QString& portChain)
+{
+    if (m_selectedPortChain == portChain) {
+        qCInfo(log_core_serial) << "Device already selected:" << portChain;
+        return true;
+    }
+    
+    return selectCompleteDevice(portChain);
+}
+
+bool SerialPortManager::switchPhysicalDevice(const DeviceInfo& fromDevice, const DeviceInfo& toDevice)
+{
+    qCInfo(log_core_serial) << "Switching physical device from" << fromDevice.portChain << "to" << toDevice.portChain;
+    
+    if (fromDevice.getUniqueKey() == toDevice.getUniqueKey()) {
+        qCWarning(log_core_serial) << "Attempting to switch to the same device";
+        return false;
+    }
+    
+    // Perform graceful switch
+    deactivateCurrentDevice();
+    
+    // Brief delay to ensure clean disconnection
+    QThread::msleep(100);
+    
+    // Activate new device
+    bool success = selectCompleteDevice(toDevice.portChain);
+    
+    if (success) {
+        qCInfo(log_core_serial) << "Physical device switch successful";
+        emit physicalDeviceSwitched(fromDevice.portChain, toDevice.portChain);
+    } else {
+        qCWarning(log_core_serial) << "Physical device switch failed";
+    }
+    
+    return success;
+}
+
+DeviceInfo SerialPortManager::getCurrentCompleteDevice() const
+{
+    return m_selectedDevice;
+}
+
+QStringList SerialPortManager::getActiveDeviceInterfaces() const
+{
+    QStringList interfaces;
+    
+    if (!m_selectedDevice.isValid()) {
+        return interfaces;
+    }
+    
+    if (m_selectedDevice.hasSerialPort()) {
+        interfaces << QString("Serial: %1").arg(m_selectedDevice.serialPortPath);
+    }
+    if (m_selectedDevice.hasHidDevice()) {
+        interfaces << "HID: Available for keyboard/mouse control";
+    }
+    if (m_selectedDevice.hasCameraDevice()) {
+        interfaces << "Camera: Available for video capture";
+    }
+    if (m_selectedDevice.hasAudioDevice()) {
+        interfaces << "Audio: Available for audio capture/playback";
+    }
+    
+    return interfaces;
+}
+
+bool SerialPortManager::isDeviceCompletelyAvailable(const QString& portChain) const
+{
+    if (!m_deviceManager) {
+        return false;
+    }
+    
+    QList<DeviceInfo> devices = m_deviceManager->getDevicesByPortChain(portChain);
+    for (const DeviceInfo& device : devices) {
+        if (device.isCompleteDevice()) {
+            return true;
+        }
+    }
+    
+    return false;
+}
+
+void SerialPortManager::activateDeviceInterfaces(const DeviceInfo& device)
+{
+    qCDebug(log_core_serial) << "Activating interfaces for device:" << device.portChain;
+    
+    // Activate serial interface
+    if (device.hasSerialPort()) {
+        emit serialPortConnected(device.serialPortPath);
+        qCDebug(log_core_serial) << "✓ Serial interface activated:" << device.serialPortPath;
+    }
+    
+    // Notify other components about HID interface
+    if (device.hasHidDevice()) {
+        emit hidDeviceAvailable(device.hidDevicePath);
+        qCDebug(log_core_serial) << "✓ HID interface activated:" << device.hidDevicePath;
+    }
+    
+    // Notify about camera interface
+    if (device.hasCameraDevice()) {
+        emit cameraDeviceAvailable(device.cameraDevicePath);
+        qCDebug(log_core_serial) << "✓ Camera interface activated:" << device.cameraDevicePath;
+    }
+    
+    // Notify about audio interface
+    if (device.hasAudioDevice()) {
+        emit audioDeviceAvailable(device.audioDevicePath);
+        qCDebug(log_core_serial) << "✓ Audio interface activated:" << device.audioDevicePath;
+    }
+    
+    emit deviceInterfacesActivated(device);
+}
+
+void SerialPortManager::deactivateCurrentDevice()
+{
+    if (!m_selectedDevice.isValid()) {
+        return;
+    }
+    
+    qCInfo(log_core_serial) << "Deactivating current device:" << m_selectedDevice.portChain;
+    
+    // Close serial port
+    if (serialPort && serialPort->isOpen()) {
+        closePort();
+    }
+    
+    // Notify components to release interfaces
+    emit hidDeviceDisconnected();
+    emit cameraDeviceDisconnected();
+    emit audioDeviceDisconnected();
+    emit deviceInterfacesDeactivated(m_selectedDevice);
+    
+    qCDebug(log_core_serial) << "Device deactivated successfully";
+}
+
+bool SerialPortManager::isDeviceCurrentlyActive(const QString& portChain) const
+{
+    return m_selectedDevice.isValid() && m_selectedDevice.portChain == portChain;
 }

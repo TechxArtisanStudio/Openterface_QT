@@ -132,6 +132,7 @@
     <addaction name="actionSerialConsole"/>
     <addaction name="actionScriptTool"/>
     <addaction name="actionTCPServer"/>
+    <addaction name="actionDeviceSelector"/>
     <addaction name="actionFirmwareManager"/>
     <addaction name="actionUpdateFirmware"/>
    </widget>
@@ -258,6 +259,14 @@
   <action name="actionUpdateFirmware">
    <property name="text">
     <string>Firmware Update...</string>
+   </property>
+  </action>
+  <action name="actionDeviceSelector">
+   <property name="text">
+    <string>Device Selector</string>
+   </property>
+   <property name="toolTip">
+    <string>Open Device Selector Dialog</string>
    </property>
   </action>
   <actiongroup name="actionGroup">
@@ -527,6 +536,12 @@
    <receiver>MainWindow</receiver>
    <slot>updateFirmware()</slot>
   </connection>
+  <connection>
+   <sender>actionDeviceSelector</sender>
+   <signal>triggered()</signal>
+   <receiver>MainWindow</receiver>
+   <slot>openDeviceSelector()</slot>
+  </connection>
  </connections>
  <slots>
   <slot>record()</slot>
@@ -552,5 +567,6 @@
   <slot>showEnvironmentSetupDialog()</slot>
   <slot>showFirmwareManagerDialog()</slot>
   <slot>updateFirmware()</slot>
+  <slot>openDeviceSelector()</slot>
  </slots>
 </ui>

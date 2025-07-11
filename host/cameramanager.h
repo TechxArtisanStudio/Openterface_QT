@@ -8,12 +8,12 @@
 #include <QMediaRecorder>
 #include <QVideoWidget>  // Add this include
 #include <QDir>
-#include <QImageCapture>
 #include <QStandardPaths>
 #include <QRect>
 #include <QList>
 #include <QSize>
 #include <QVideoFrameFormat>
+#include "../device/DeviceInfo.h"
 
 // Struct to represent a video format key, used for comparing and sorting video formats
 // It includes resolution, frame rate range, and pixel format
@@ -67,6 +67,34 @@ public:
     QList<QVideoFrameFormat> getSupportedPixelFormats() const;
     QCameraFormat getVideoFormat(const QSize &resolution, int desiredFrameRate, QVideoFrameFormat::PixelFormat pixelFormat) const;
     
+    // Camera device management and switching
+    QList<QCameraDevice> getAvailableCameraDevices() const;
+    QCameraDevice getCurrentCameraDevice() const;
+    bool switchToCameraDevice(const QCameraDevice &cameraDevice);
+    bool switchToCameraDeviceById(const QString& deviceId);
+    bool switchToCameraDeviceByDescription(const QString& description);
+    QString getCurrentCameraDeviceId() const;
+    QString getCurrentCameraDeviceDescription() const;
+    
+    // Enhanced device management with DeviceInfo integration
+    void setCameraDeviceFromDeviceInfo(const DeviceInfo& deviceInfo);
+    bool switchToCameraFromDeviceInfo(const DeviceInfo& deviceInfo);
+    DeviceInfo getCurrentCameraAsDeviceInfo() const;
+    
+    // Auto-detection methods for Openterface cameras
+    QCameraDevice findBestOpenterfaceCamera() const;
+    bool switchToOpenterfaceCamera();
+    QStringList getOpenterfaceCameraDescriptions() const;
+    
+    // Manual device refresh for Qt 6 compatibility
+    void refreshAvailableCameraDevices();
+    
+    // Camera device validation and status
+    bool isCameraDeviceValid(const QCameraDevice &cameraDevice) const;
+    bool isCameraDeviceAvailable(const QString& deviceId) const;
+    QStringList getAvailableCameraDeviceDescriptions() const;
+    QStringList getAvailableCameraDeviceIds() const;
+    
 signals:
     void cameraActiveChanged(bool active);
     void cameraSettingsApplied();
@@ -76,6 +104,16 @@ signals:
     void resolutionsUpdated(int input_width, int input_height, float input_fps, int capture_width, int capture_height, int capture_fps, float pixelClk);
     void imageCaptured(int id, const QImage& img);
     void lastImagePath(const QString& imagePath);
+    void cameraDeviceChanged(const QCameraDevice& newDevice, const QCameraDevice& oldDevice);
+    void cameraDeviceSwitched(const QString& fromDeviceId, const QString& toDeviceId);
+    void cameraDeviceConnected(const QCameraDevice& device);
+    void cameraDeviceDisconnected(const QCameraDevice& device);
+    void availableCameraDevicesChanged(int deviceCount);
+    
+public slots:
+    // Device switching slot that can be connected to SerialPortManager signals
+    void onDeviceChanged(const DeviceInfo& newDevice);
+    void onCameraDevicePathAvailable(const QString& cameraDevicePath);
     
 private slots:
     void onImageCaptured(int id, const QImage& img);
@@ -93,6 +131,11 @@ private:
 
     QRect copyRect;
     std::map<VideoFormatKey, QCameraFormat> videoFormatMap;
+
+    // Camera device management member variables
+    QCameraDevice m_currentCameraDevice;
+    QString m_currentCameraDeviceId;
+    QList<QCameraDevice> m_availableCameraDevices;
 };
 
 #endif // CAMERAMANAGER_H

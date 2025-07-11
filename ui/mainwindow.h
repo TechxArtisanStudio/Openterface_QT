@@ -35,6 +35,7 @@
 #include "ui/toolbar/toggleswitch.h"
 #include "ui/preferences/settingdialog.h"
 #include "ui/advance/serialportdebugdialog.h"
+#include "ui/advance/DeviceSelectorDialog.h"
 #include "ui/advance/scripttool.h"
 #include "ui/advance/firmwaremanagerdialog.h"
 #include "ui/help/versioninfomanager.h"
@@ -145,6 +146,7 @@ private slots:
 
     void configureSettings();
     void debugSerialPort();
+    void openDeviceSelector();
 
     void displayCameraError();
 
@@ -268,6 +270,7 @@ private:
     MetaDataDialog *m_metaDataDialog = nullptr;
     SettingDialog *settingDialog = nullptr;
     SerialPortDebugDialog *serialPortDebugDialog = nullptr;
+    DeviceSelectorDialog *deviceSelectorDialog = nullptr;
     FirmwareManagerDialog *firmwareManagerDialog = nullptr;
 
     QWidget *keyboardPanel = nullptr;

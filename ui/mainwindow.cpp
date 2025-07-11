@@ -255,6 +255,16 @@ MainWindow::MainWindow(LanguageManager *languageManager, QWidget *parent) :  ui(
     connect(ui->menuBaudrate, &QMenu::triggered, this, &MainWindow::onBaudrateMenuTriggered);
     connect(&SerialPortManager::getInstance(), &SerialPortManager::connectedPortChanged, this, &MainWindow::onPortConnected);
     
+    // Connect SerialPortManager camera device signals to CameraManager for device switching
+    connect(&SerialPortManager::getInstance(), &SerialPortManager::cameraDeviceAvailable, 
+            m_cameraManager, &CameraManager::onCameraDevicePathAvailable);
+    
+    connect(&SerialPortManager::getInstance(), &SerialPortManager::cameraDeviceDisconnected,
+            this, [this]() {
+                qCDebug(log_ui_mainwindow) << "Camera device disconnected from SerialPortManager";
+                // Optional: Handle camera disconnection - maybe switch to default camera or stop camera
+            });
+    
     qApp->installEventFilter(this);
 
     // Initial position setup
@@ -1556,5 +1566,28 @@ void MainWindow::updateFirmware() {
             tr("Firmware retrieval timed out. Please check your network connection and try again.\nCurrent version: ") + 
             QString::fromStdString(currentFirmwareVersion));
             break;
+    }
+}
+
+void MainWindow::openDeviceSelector() {
+    qDebug() << "Opening device selector dialog";
+    if (!deviceSelectorDialog) {
+        qDebug() << "Creating device selector dialog";
+        deviceSelectorDialog = new DeviceSelectorDialog(this);
+        
+        // Set managers
+        deviceSelectorDialog->setDeviceManager(SerialPortManager::getInstance().getDeviceManager());
+        deviceSelectorDialog->setSerialPortManager(&SerialPortManager::getInstance());
+        
+        // Connect the finished signal to clean up
+        connect(deviceSelectorDialog, &QDialog::finished, this, [this]() {
+            deviceSelectorDialog->deleteLater();
+            deviceSelectorDialog = nullptr;
+        });
+        
+        deviceSelectorDialog->show();
+    } else {
+        deviceSelectorDialog->raise();
+        deviceSelectorDialog->activateWindow();
     }
 }

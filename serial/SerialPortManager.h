@@ -24,6 +24,9 @@
 #define SERIALPORTMANAGER_H
 
 #include "../ui/statusevents.h"
+#include "../device/DeviceManager.h"
+#include "../device/DeviceInfo.h"
+#include "../device/HotplugMonitor.h"
 #include <QObject>
 #include <QSerialPort>
 #include <QThread>
@@ -62,6 +65,29 @@ public:
     void closePort();
     bool restartPort();
 
+    // Device management methods
+    DeviceManager* getDeviceManager() const { return m_deviceManager; }
+    HotplugMonitor* getHotplugMonitor() const { return m_hotplugMonitor; }
+    QList<DeviceInfo> getAvailableDevices();
+    QStringList getAvailablePortChains();
+    QStringList getDevicePortChains() const;
+    bool selectDeviceByPortChain(const QString& portChain);
+    DeviceInfo getCurrentSelectedDevice() const;
+    QString formatDeviceInfo(const DeviceInfo& device) const;
+    
+    // Enhanced complete device management
+    bool selectCompleteDevice(const QString& portChain);
+    bool switchToDevice(const QString& portChain);
+    bool switchPhysicalDevice(const DeviceInfo& fromDevice, const DeviceInfo& toDevice);
+    DeviceInfo getCurrentCompleteDevice() const;
+    QStringList getActiveDeviceInterfaces() const;
+    bool isDeviceCompletelyAvailable(const QString& portChain) const;
+    
+    // Physical device interface management
+    void activateDeviceInterfaces(const DeviceInfo& device);
+    void deactivateCurrentDevice();
+    bool isDeviceCurrentlyActive(const QString& portChain) const;
+
     bool getNumLockState(){return NumLockState;};
     bool getCapsLockState(){return CapsLockState;};
     bool getScrollLockState(){return ScrollLockState;};
@@ -81,6 +107,9 @@ public:
     bool setBaudRate(int baudrate);
     void setCommandDelay(int delayMs);  // set the delay
     void stop(); //stop the serial port manager
+    
+    // Debug and diagnostic methods
+    void debugDeviceStatus() const;
 
     
 signals:
@@ -91,7 +120,23 @@ signals:
     void serialPortConnectionSuccess(const QString &portName);
     void sendCommandAsync(const QByteArray &command, bool waitForAck);
     void connectedPortChanged(const QString &portName, const int &baudrate);
-
+    
+    // Enhanced device management signals
+    void deviceInventoryChanged(int deviceCount, bool hasSelectedDevice);
+    void noDevicesAvailable();
+    
+    // Physical device interface signals
+    void hidDeviceAvailable(const QString& hidDevicePath);
+    void hidDeviceDisconnected();
+    void cameraDeviceAvailable(const QString& cameraDevicePath);
+    void cameraDeviceDisconnected();
+    void audioDeviceAvailable(const QString& audioDevicePath);
+    void audioDeviceDisconnected();
+    void physicalDeviceSwitched(const QString& fromPortChain, const QString& toPortChain);
+    void completeDeviceSelected(const DeviceInfo& device);
+    void deviceInterfacesActivated(const DeviceInfo& device);
+    void deviceInterfacesDeactivated(const DeviceInfo& device);
+    
 private slots:
     void checkSerialPort();
     void observeSerialPortNotification();
@@ -102,6 +147,15 @@ private slots:
     //void checkSerialPortConnection();
 
     void checkSerialPorts();
+
+    // Device hotplug event handlers
+    void onDeviceAdded(const DeviceInfo& device);
+    void onDeviceRemoved(const DeviceInfo& device);
+    void onDeviceModified(const DeviceInfo& oldDevice, const DeviceInfo& newDevice);
+    
+    // Enhanced hotplug event handler
+    void onHotplugDeviceChangeEvent(const DeviceChangeEvent& event);
+    void handleSelectedDeviceRemoval(const DeviceInfo& removedDevice);
 
     // /*
     //  * Check if the USB switch status
@@ -122,6 +176,12 @@ private:
     void sendCommand(const QByteArray &command, bool waitForAck);
 
     QSet<QString> availablePorts;
+
+    // Device management
+    DeviceManager* m_deviceManager;
+    HotplugMonitor* m_hotplugMonitor;
+    DeviceInfo m_selectedDevice;
+    QString m_selectedPortChain;
 
     // int baudrate = ORIGINAL_BAUDRATE;
 
