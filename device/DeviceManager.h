@@ -7,6 +7,7 @@
 #include <QMutex>
 #include <QLoggingCategory>
 #include "DeviceInfo.h"
+#include "HotplugMonitor.h"
 
 class AbstractPlatformDeviceManager;
 
@@ -17,8 +18,21 @@ class DeviceManager : public QObject
     Q_OBJECT
     
 public:
-    explicit DeviceManager(QObject *parent = nullptr);
+    // Singleton pattern
+    static DeviceManager& getInstance() {
+        static DeviceManager instance;
+        return instance;
+    }
+    
+    // Delete copy constructor and assignment operator
+    DeviceManager(const DeviceManager&) = delete;
+    DeviceManager& operator=(const DeviceManager&) = delete;
+    
     ~DeviceManager();
+    
+    // Force device checking (replaces SerialPortManager functionality)
+    void checkForChanges();
+    void forceRefresh();
     
     // Device discovery
     QList<DeviceInfo> discoverDevices();
@@ -37,9 +51,13 @@ public:
     // Current state
     QList<DeviceInfo> getCurrentDevices() const;
     DeviceInfo getCurrentSelectedDevice() const { return m_selectedDevice; }
+    void setCurrentSelectedDevice(const DeviceInfo& device) { m_selectedDevice = device; }
     
     // Platform manager access
     AbstractPlatformDeviceManager* getPlatformManager() const { return m_platformManager; }
+    
+    // HotplugMonitor-like functionality (replaces SerialPortManager hotplug)
+    HotplugMonitor* getHotplugMonitor() const { return m_hotplugMonitor; }
     
 signals:
     void deviceAdded(const DeviceInfo& device);
@@ -54,6 +72,9 @@ private slots:
     void onHotplugTimerTimeout();
     
 private:
+    // Private constructor for singleton
+    explicit DeviceManager();
+    
     void initializePlatformManager();
     void compareDeviceSnapshots(const QList<DeviceInfo>& current, 
                                const QList<DeviceInfo>& previous);
@@ -61,6 +82,7 @@ private:
     
     AbstractPlatformDeviceManager* m_platformManager;
     QTimer* m_hotplugTimer;
+    HotplugMonitor* m_hotplugMonitor;
     QList<DeviceInfo> m_lastSnapshot;
     QList<DeviceInfo> m_currentDevices;
     DeviceInfo m_selectedDevice;

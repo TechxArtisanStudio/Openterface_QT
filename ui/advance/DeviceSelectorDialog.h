@@ -15,6 +15,7 @@
 
 class DeviceManager;
 class SerialPortManager;
+class CameraManager;
 
 class DeviceSelectorDialog : public QDialog
 {
@@ -23,9 +24,6 @@ class DeviceSelectorDialog : public QDialog
 public:
     explicit DeviceSelectorDialog(QWidget *parent = nullptr);
     ~DeviceSelectorDialog();
-    
-    void setDeviceManager(DeviceManager* deviceManager);
-    void setSerialPortManager(SerialPortManager* serialPortManager);
     
 public slots:
     void refreshDeviceList();
@@ -76,8 +74,8 @@ private:
     QLabel* m_hotplugStatsLabel;
     
     // Data
-    DeviceManager* m_deviceManager;
     SerialPortManager* m_serialPortManager;
+    CameraManager* m_cameraManager;
     QList<DeviceInfo> m_currentDevices;
     DeviceInfo m_selectedDevice;
     

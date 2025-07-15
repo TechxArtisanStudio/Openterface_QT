@@ -89,6 +89,12 @@ public:
 
     void setScreenRatio(double ratio);
     double getScreenRatio() const;
+
+    // Port chain management for Openterface devices
+    void setOpenterfacePortChain(const QString& portChain);
+    QString getOpenterfacePortChain() const;
+    void clearOpenterfacePortChain();
+
 private:
     QSettings m_settings;
 };

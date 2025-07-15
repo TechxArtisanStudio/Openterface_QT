@@ -697,9 +697,17 @@ void WindowsDeviceManager::matchDevicePathsFromChildren(DeviceInfo& deviceInfo, 
                  deviceClass.compare("Image", Qt::CaseInsensitive) == 0 ||
                  hardwareId.contains("534D", Qt::CaseInsensitive) ||
                  friendlyName.contains("MacroSilicon", Qt::CaseInsensitive)) {
-            deviceInfo.cameraDevicePath = deviceId;
-            deviceInfo.cameraDeviceId = deviceId;
-            qCDebug(log_device_windows) << "    ✓ Found CAMERA device:" << deviceInfo.cameraDevicePath;
+            
+            qCDebug(log_device_windows) << "    → Identified as CAMERA device";
+            
+            // Verify this camera device is associated with the correct port chain
+            if (verifyCameraDeviceAssociation(deviceId, deviceInfo.deviceInstanceId, deviceInfo.portChain)) {
+                deviceInfo.cameraDevicePath = deviceId;
+                deviceInfo.cameraDeviceId = deviceId;
+                qCDebug(log_device_windows) << "    ✓ Found CAMERA device with verified association:" << deviceInfo.cameraDevicePath;
+            } else {
+                qCDebug(log_device_windows) << "    ✗ Camera device association verification failed for port chain:" << deviceInfo.portChain;
+            }
         }
         
         // Check for audio device
@@ -707,9 +715,17 @@ void WindowsDeviceManager::matchDevicePathsFromChildren(DeviceInfo& deviceInfo, 
                  deviceClass.compare("AudioEndpoint", Qt::CaseInsensitive) == 0 ||
                  hardwareId.contains("534D", Qt::CaseInsensitive) ||
                  friendlyName.contains("MacroSilicon", Qt::CaseInsensitive)) {
-            deviceInfo.audioDevicePath = deviceId;
-            deviceInfo.audioDeviceId = deviceId;
-            qCDebug(log_device_windows) << "    ✓ Found AUDIO device:" << deviceInfo.audioDevicePath;
+            
+            qCDebug(log_device_windows) << "    → Identified as AUDIO device";
+            
+            // Verify this audio device is associated with the correct port chain
+            if (verifyAudioDeviceAssociation(deviceId, deviceInfo.deviceInstanceId, deviceInfo.portChain)) {
+                deviceInfo.audioDevicePath = deviceId;
+                deviceInfo.audioDeviceId = deviceId;
+                qCDebug(log_device_windows) << "    ✓ Found AUDIO device with verified association:" << deviceInfo.audioDevicePath;
+            } else {
+                qCDebug(log_device_windows) << "    ✗ Audio device association verification failed for port chain:" << deviceInfo.portChain;
+            }
         } else {
             qCDebug(log_device_windows) << "    - No specific match found for this device";
         }
@@ -752,28 +768,60 @@ QPair<QString, QString> WindowsDeviceManager::findCameraAudioByDeviceInfo(const 
 {
     QString cameraPath, audioPath;
     
-    // Find camera devices
-    QList<QVariantMap> cameras = enumerateDevicesByClass(GUID_DEVCLASS_CAMERA);
+    qCDebug(log_device_windows) << "=== Finding camera/audio devices for port chain:" << deviceInfo.portChain << "===";
+    qCDebug(log_device_windows) << "Target device instance ID:" << deviceInfo.deviceInstanceId;
+    
+    // Find camera devices with parent device verification
+    QList<QVariantMap> cameras = enumerateDevicesByClassWithParentInfo(GUID_DEVCLASS_CAMERA);
     for (const QVariantMap& camera : cameras) {
         QString cameraDeviceId = camera.value("deviceId").toString();
+        QString parentDeviceId = camera.value("parentDeviceId").toString();
+        
+        qCDebug(log_device_windows) << "  Checking camera device:" << cameraDeviceId;
+        qCDebug(log_device_windows) << "    Parent device ID:" << parentDeviceId;
+        
+        // Check if this camera matches our hardware identifiers
         if (cameraDeviceId.contains("MacroSilicon", Qt::CaseInsensitive) ||
             cameraDeviceId.contains("534D", Qt::CaseInsensitive)) {
-            cameraPath = camera.value("devicePath").toString();
-            break;
+            
+            // Verify the parent device is associated with our target device
+            if (isDeviceAssociatedWithPortChain(parentDeviceId, deviceInfo.deviceInstanceId, deviceInfo.portChain)) {
+                cameraPath = camera.value("devicePath").toString();
+                qCDebug(log_device_windows) << "    ✓ Found matching camera device:" << cameraPath;
+                qCDebug(log_device_windows) << "      Parent verification passed for port chain:" << deviceInfo.portChain;
+                break;
+            } else {
+                qCDebug(log_device_windows) << "    ✗ Camera device parent does not match target port chain";
+            }
         }
     }
     
-    // Find audio devices  
-    QList<QVariantMap> audioDevices = enumerateDevicesByClass(GUID_DEVCLASS_MEDIA);
+    // Find audio devices with parent device verification
+    QList<QVariantMap> audioDevices = enumerateDevicesByClassWithParentInfo(GUID_DEVCLASS_MEDIA);
     for (const QVariantMap& audio : audioDevices) {
         QString audioDeviceId = audio.value("deviceId").toString();
+        QString parentDeviceId = audio.value("parentDeviceId").toString();
+        
+        qCDebug(log_device_windows) << "  Checking audio device:" << audioDeviceId;
+        qCDebug(log_device_windows) << "    Parent device ID:" << parentDeviceId;
+        
+        // Check if this audio device matches our hardware identifiers
         if (audioDeviceId.contains("MacroSilicon", Qt::CaseInsensitive) ||
             audioDeviceId.contains("534D", Qt::CaseInsensitive)) {
-            audioPath = audio.value("devicePath").toString();
-            break;
+            
+            // Verify the parent device is associated with our target device
+            if (isDeviceAssociatedWithPortChain(parentDeviceId, deviceInfo.deviceInstanceId, deviceInfo.portChain)) {
+                audioPath = audio.value("devicePath").toString();
+                qCDebug(log_device_windows) << "    ✓ Found matching audio device:" << audioPath;
+                qCDebug(log_device_windows) << "      Parent verification passed for port chain:" << deviceInfo.portChain;
+                break;
+            } else {
+                qCDebug(log_device_windows) << "    ✗ Audio device parent does not match target port chain";
+            }
         }
     }
     
+    qCDebug(log_device_windows) << "=== Camera/audio search complete ===";
     return qMakePair(cameraPath, audioPath);
 }
 
@@ -1218,6 +1266,162 @@ QString WindowsDeviceManager::getPortChainForSerialPort(const QString& portName)
     
     SetupDiDestroyDeviceInfoList(hDevInfo);
     return QString();
+}
+
+QList<QVariantMap> WindowsDeviceManager::enumerateDevicesByClassWithParentInfo(const GUID& classGuid)
+{
+    QList<QVariantMap> devices;
+    
+    HDEVINFO hDevInfo = SetupDiGetClassDevs(&classGuid, nullptr, nullptr, DIGCF_PRESENT);
+    if (hDevInfo == INVALID_HANDLE_VALUE) {
+        return devices;
+    }
+    
+    SP_DEVINFO_DATA devInfoData;
+    devInfoData.cbSize = sizeof(SP_DEVINFO_DATA);
+    
+    for (DWORD i = 0; SetupDiEnumDeviceInfo(hDevInfo, i, &devInfoData); i++) {
+        QVariantMap device;
+        device["deviceId"] = getDeviceId(devInfoData.DevInst);
+        device["friendlyName"] = getDeviceProperty(hDevInfo, &devInfoData, SPDRP_FRIENDLYNAME);
+        device["description"] = getDeviceProperty(hDevInfo, &devInfoData, SPDRP_DEVICEDESC);
+        device["locationInfo"] = getDeviceProperty(hDevInfo, &devInfoData, SPDRP_LOCATION_INFORMATION);
+        device["hardwareId"] = getDeviceProperty(hDevInfo, &devInfoData, SPDRP_HARDWAREID);
+        
+        // Get parent device instance
+        DWORD parentDevInst;
+        if (CM_Get_Parent(&parentDevInst, devInfoData.DevInst, 0) == CR_SUCCESS) {
+            device["parentDeviceId"] = getDeviceId(parentDevInst);
+        }
+        
+        devices.append(device);
+    }
+    
+    SetupDiDestroyDeviceInfoList(hDevInfo);
+    return devices;
+}
+
+bool WindowsDeviceManager::isDeviceAssociatedWithPortChain(const QString& parentDeviceId, const QString& targetDeviceInstanceId, const QString& targetPortChain)
+{
+    if (parentDeviceId.isEmpty() || targetDeviceInstanceId.isEmpty()) {
+        return false;
+    }
+    
+    qCDebug(log_device_windows) << "      Verifying device association:";
+    qCDebug(log_device_windows) << "        Parent device ID:" << parentDeviceId;
+    qCDebug(log_device_windows) << "        Target device instance ID:" << targetDeviceInstanceId;
+    qCDebug(log_device_windows) << "        Target port chain:" << targetPortChain;
+    
+    // Direct parent match
+    if (parentDeviceId == targetDeviceInstanceId) {
+        qCDebug(log_device_windows) << "        ✓ Direct parent match found";
+        return true;
+    }
+    
+    // Check if the parent device is in the same device hierarchy (port chain)
+    // Walk up the parent device tree to find a match
+    QString currentParentId = parentDeviceId;
+    int depth = 0;
+    const int maxDepth = 5; // Prevent infinite loops
+    
+    while (!currentParentId.isEmpty() && depth < maxDepth) {
+        qCDebug(log_device_windows) << "        Checking hierarchy level" << depth << ":" << currentParentId;
+        
+        if (currentParentId == targetDeviceInstanceId) {
+            qCDebug(log_device_windows) << "        ✓ Hierarchy match found at level" << depth;
+            return true;
+        }
+        
+        // Get the parent of the current parent
+        DWORD parentDevInst = getDeviceInstanceFromId(currentParentId);
+        if (parentDevInst == 0) {
+            break;
+        }
+        
+        DWORD grandParentDevInst;
+        if (CM_Get_Parent(&grandParentDevInst, parentDevInst, 0) != CR_SUCCESS) {
+            break;
+        }
+        
+        currentParentId = getDeviceId(grandParentDevInst);
+        depth++;
+    }
+    
+    // Additional verification: check if devices share the same port chain
+    if (!targetPortChain.isEmpty()) {
+        DWORD parentDevInst = getDeviceInstanceFromId(parentDeviceId);
+        if (parentDevInst != 0) {
+            QString parentPortChain = buildPythonCompatiblePortChain(parentDevInst);
+            if (parentPortChain == targetPortChain) {
+                qCDebug(log_device_windows) << "        ✓ Port chain match found:" << parentPortChain;
+                return true;
+            }
+        }
+    }
+    
+    qCDebug(log_device_windows) << "        ✗ No association found";
+    return false;
+}
+
+bool WindowsDeviceManager::verifyCameraDeviceAssociation(const QString& cameraDeviceId, const QString& targetDeviceInstanceId, const QString& targetPortChain)
+{
+    qCDebug(log_device_windows) << "      Verifying camera device association for:" << cameraDeviceId;
+    
+    // Get the camera device instance
+    DWORD cameraDevInst = getDeviceInstanceFromId(cameraDeviceId);
+    if (cameraDevInst == 0) {
+        qCDebug(log_device_windows) << "        ✗ Could not get device instance for camera";
+        return false;
+    }
+    
+    // Get the parent device of the camera
+    DWORD parentDevInst;
+    if (CM_Get_Parent(&parentDevInst, cameraDevInst, 0) != CR_SUCCESS) {
+        qCDebug(log_device_windows) << "        ✗ Could not get parent device for camera";
+        return false;
+    }
+    
+    QString parentDeviceId = getDeviceId(parentDevInst);
+    return isDeviceAssociatedWithPortChain(parentDeviceId, targetDeviceInstanceId, targetPortChain);
+}
+
+bool WindowsDeviceManager::verifyAudioDeviceAssociation(const QString& audioDeviceId, const QString& targetDeviceInstanceId, const QString& targetPortChain)
+{
+    qCDebug(log_device_windows) << "      Verifying audio device association for:" << audioDeviceId;
+    
+    // Get the audio device instance
+    DWORD audioDevInst = getDeviceInstanceFromId(audioDeviceId);
+    if (audioDevInst == 0) {
+        qCDebug(log_device_windows) << "        ✗ Could not get device instance for audio";
+        return false;
+    }
+    
+    // Get the parent device of the audio device
+    DWORD parentDevInst;
+    if (CM_Get_Parent(&parentDevInst, audioDevInst, 0) != CR_SUCCESS) {
+        qCDebug(log_device_windows) << "        ✗ Could not get parent device for audio";
+        return false;
+    }
+    
+    QString parentDeviceId = getDeviceId(parentDevInst);
+    return isDeviceAssociatedWithPortChain(parentDeviceId, targetDeviceInstanceId, targetPortChain);
+}
+
+DWORD WindowsDeviceManager::getDeviceInstanceFromId(const QString& deviceId)
+{
+    if (deviceId.isEmpty()) {
+        return 0;
+    }
+    
+    // Use CM_Locate_DevNode to get device instance from device ID
+    DWORD devInst;
+    std::wstring wDeviceId = deviceId.toStdWString();
+    
+    if (CM_Locate_DevNode(&devInst, const_cast<DEVINSTID>(wDeviceId.c_str()), CM_LOCATE_DEVNODE_NORMAL) == CR_SUCCESS) {
+        return devInst;
+    }
+    
+    return 0;
 }
 
 // ...existing code...

@@ -76,6 +76,15 @@ private:
     // Device enumeration by class
     QList<QVariantMap> enumerateDevicesByClass(const GUID& classGuid);
     
+    // Enhanced device enumeration with parent information
+    QList<QVariantMap> enumerateDevicesByClassWithParentInfo(const GUID& classGuid);
+    
+    // Device association verification methods
+    bool isDeviceAssociatedWithPortChain(const QString& parentDeviceId, const QString& targetDeviceInstanceId, const QString& targetPortChain);
+    bool verifyCameraDeviceAssociation(const QString& cameraDeviceId, const QString& targetDeviceInstanceId, const QString& targetPortChain);
+    bool verifyAudioDeviceAssociation(const QString& audioDeviceId, const QString& targetDeviceInstanceId, const QString& targetPortChain);
+    DWORD getDeviceInstanceFromId(const QString& deviceId);
+    
     // Enhanced device matching and collection
     bool matchesVidPidAdvanced(const QString& deviceInstanceId, const QString& vid, const QString& pid);
     QList<QVariantMap> collectAllDevicesByPortChain(const QString& targetPortChain);

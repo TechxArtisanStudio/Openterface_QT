@@ -27,6 +27,7 @@
 #include <QtWidgets>
 #include <QtMultimedia>
 #include <QtMultimediaWidgets>
+#include <QDateTime>
 
 // Then include your custom headers
 #include "../host/audiomanager.h"
@@ -282,6 +283,8 @@ private:
 
     CameraManager *m_cameraManager;
     InputHandler *m_inputHandler;
+    
+    // Camera coordination functionality removed - now handled by DeviceManager
 
     void updateScrollbars();
     QPoint lastMousePos;

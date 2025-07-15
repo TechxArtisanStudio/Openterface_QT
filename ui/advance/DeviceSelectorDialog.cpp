@@ -5,6 +5,8 @@
 #include "../../device/platform/WindowsDeviceManager.h"
 #endif
 #include "../../serial/SerialPortManager.h"
+#include "../../host/cameramanager.h"
+#include "../globalsetting.h"
 #include <QLoggingCategory>
 #include <QHeaderView>
 #include <QSplitter>
@@ -16,8 +18,8 @@ Q_LOGGING_CATEGORY(log_device_selector, "opf.ui.deviceselector")
 
 DeviceSelectorDialog::DeviceSelectorDialog(QWidget *parent)
     : QDialog(parent)
-    , m_deviceManager(nullptr)
     , m_serialPortManager(nullptr)
+    , m_cameraManager(nullptr)
     , m_autoRefreshTimer(new QTimer(this))
     , m_autoRefreshEnabled(false)
     , m_totalHotplugEvents(0)
@@ -25,6 +27,15 @@ DeviceSelectorDialog::DeviceSelectorDialog(QWidget *parent)
     setWindowTitle("Openterface Device Selector");
     setMinimumSize(800, 600);
     setupUI();
+    
+    // Connect to DeviceManager singleton
+    DeviceManager& deviceManager = DeviceManager::getInstance();
+    connect(&deviceManager, &DeviceManager::devicesChanged,
+            this, &DeviceSelectorDialog::refreshDeviceList);
+    connect(&deviceManager, &DeviceManager::deviceAdded,
+            this, [this](const DeviceInfo&) { refreshDeviceList(); });
+    connect(&deviceManager, &DeviceManager::deviceRemoved,
+            this, [this](const DeviceInfo&) { refreshDeviceList(); });
     
     // Setup auto-refresh timer
     m_autoRefreshTimer->setSingleShot(false);
@@ -71,26 +82,26 @@ void DeviceSelectorDialog::setupUI()
     connect(m_autoRefreshButton, &QPushButton::toggled, this, &DeviceSelectorDialog::onAutoRefreshToggled);
     connect(testHotplugButton, &QPushButton::clicked, this, [this]() {
         qCDebug(log_device_selector) << "Manual hotplug test triggered";
-        if (m_serialPortManager && m_serialPortManager->getHotplugMonitor()) {
-            m_serialPortManager->getHotplugMonitor()->checkForChanges();
-        } else {
-            qCWarning(log_device_selector) << "No hotplug monitor available for test";
-        }
+        // Use DeviceManager singleton instead of SerialPortManager
+        DeviceManager& deviceManager = DeviceManager::getInstance();
+        deviceManager.checkForChanges();
     });
     connect(clearCacheButton, &QPushButton::clicked, this, [this]() {
         qCDebug(log_device_selector) << "Clearing device cache";
-        if (m_deviceManager && m_deviceManager->getPlatformManager()) {
-            m_deviceManager->getPlatformManager()->clearCache();
+        DeviceManager& deviceManager = DeviceManager::getInstance();
+        if (deviceManager.getPlatformManager()) {
+            deviceManager.getPlatformManager()->clearCache();
             qCDebug(log_device_selector) << "Cache cleared, refreshing device list";
         } else {
-            qCWarning(log_device_selector) << "No device manager or platform manager available";
+            qCWarning(log_device_selector) << "No platform manager available";
         }
         refreshDeviceList();
     });
     connect(debugUSBButton, &QPushButton::clicked, this, [this]() {
         qCDebug(log_device_selector) << "Debug USB devices triggered";
-        if (m_deviceManager && m_deviceManager->getPlatformManager()) {
-            auto* platformManager = m_deviceManager->getPlatformManager();
+        DeviceManager& deviceManager = DeviceManager::getInstance();
+        if (deviceManager.getPlatformManager()) {
+            auto* platformManager = deviceManager.getPlatformManager();
 #ifdef _WIN32
             // Cast to Windows manager and call debug method
             auto* windowsManager = dynamic_cast<WindowsDeviceManager*>(platformManager);
@@ -175,55 +186,12 @@ void DeviceSelectorDialog::setupUI()
     m_mainLayout->addLayout(m_buttonLayout);
 }
 
-void DeviceSelectorDialog::setDeviceManager(DeviceManager* deviceManager)
-{
-    if (m_deviceManager != deviceManager) {
-        m_deviceManager = deviceManager;
-        refreshDeviceList();
-    }
-}
-
-void DeviceSelectorDialog::setSerialPortManager(SerialPortManager* serialPortManager)
-{
-    if (m_serialPortManager != serialPortManager) {
-        m_serialPortManager = serialPortManager;
-        
-        // Connect to hotplug monitor if available
-        if (m_serialPortManager && m_serialPortManager->getHotplugMonitor()) {
-            qCDebug(log_device_selector) << "Connecting to hotplug monitor";
-            connect(m_serialPortManager->getHotplugMonitor(), 
-                    &HotplugMonitor::deviceChangesDetected,
-                    this, &DeviceSelectorDialog::onHotplugEvent);
-            
-            // Also connect to monitoring signals
-            connect(m_serialPortManager->getHotplugMonitor(),
-                    &HotplugMonitor::monitoringStarted,
-                    this, [this]() {
-                        qCDebug(log_device_selector) << "Hotplug monitoring started";
-                    });
-            connect(m_serialPortManager->getHotplugMonitor(),
-                    &HotplugMonitor::monitoringStopped,
-                    this, [this]() {
-                        qCDebug(log_device_selector) << "Hotplug monitoring stopped";
-                    });
-        } else {
-            qCWarning(log_device_selector) << "No hotplug monitor available"
-                                          << "SerialPortManager:" << (m_serialPortManager ? "available" : "null")
-                                          << "HotplugMonitor:" << (m_serialPortManager && m_serialPortManager->getHotplugMonitor() ? "available" : "null");
-        }
-    }
-}
-
 void DeviceSelectorDialog::refreshDeviceList()
 {
     qCDebug(log_device_selector) << "Refreshing device list";
     
-    if (!m_deviceManager) {
-        qCWarning(log_device_selector) << "No device manager available";
-        return;
-    }
-    
-    m_currentDevices = m_deviceManager->discoverDevices();
+    DeviceManager& deviceManager = DeviceManager::getInstance();
+    m_currentDevices = deviceManager.discoverDevices();
     populateDeviceList();
     updateStatusInfo();
 }
@@ -273,8 +241,9 @@ void DeviceSelectorDialog::populateDeviceList()
         item->setIcon(deviceIcon);
         
         // Highlight if this is the currently selected device
-        if (m_serialPortManager && 
-            device.getUniqueKey() == m_serialPortManager->getCurrentCompleteDevice().getUniqueKey()) {
+        DeviceManager& deviceManager = DeviceManager::getInstance();
+        DeviceInfo currentDevice = deviceManager.getCurrentSelectedDevice();
+        if (currentDevice.isValid() && device.getUniqueKey() == currentDevice.getUniqueKey()) {
             item->setBackground(QColor(200, 255, 200)); // Light green
             item->setText(itemText + " [CURRENT]");
         }
@@ -368,8 +337,9 @@ QString DeviceSelectorDialog::getDeviceStatusText(const DeviceInfo& device)
     statusParts << QString("%1/4 interfaces").arg(subDeviceCount);
     
     // Check if device is currently in use
-    if (m_serialPortManager && 
-        device.getUniqueKey() == m_serialPortManager->getCurrentCompleteDevice().getUniqueKey()) {
+    DeviceManager& deviceManager = DeviceManager::getInstance();
+    DeviceInfo currentDevice = deviceManager.getCurrentSelectedDevice();
+    if (currentDevice.isValid() && device.getUniqueKey() == currentDevice.getUniqueKey()) {
         statusParts << "ACTIVE";
     } else {
         statusParts << "Available";
@@ -462,14 +432,14 @@ void DeviceSelectorDialog::updateStatusInfo()
         status = QString("Found %1 physical Openterface device(s)")
                     .arg(m_currentDevices.size());
         
-        if (m_serialPortManager) {
-            DeviceInfo current = m_serialPortManager->getCurrentCompleteDevice();
-            if (current.isValid()) {
-                status += QString("<br>Currently active: USB Port %1").arg(current.portChain);
-                status += QString("<br>Active interfaces: %1").arg(current.getInterfaceSummary());
-            } else {
-                status += "<br>No device currently active";
-            }
+        // Use DeviceManager to get current selected device instead of SerialPortManager
+        DeviceManager& deviceManager = DeviceManager::getInstance();
+        DeviceInfo current = deviceManager.getCurrentSelectedDevice();
+        if (current.isValid()) {
+            status += QString("<br>Currently active: USB Port %1").arg(current.portChain);
+            status += QString("<br>Active interfaces: %1").arg(current.getInterfaceSummary());
+        } else {
+            status += "<br>No device currently active";
         }
     }
     
@@ -508,8 +478,9 @@ void DeviceSelectorDialog::onDeviceSelectionChanged()
     bool deviceValid = selectedDevice.isValid();
     bool isCurrentDevice = false;
     
-    if (m_serialPortManager && deviceValid) {
-        DeviceInfo currentDevice = m_serialPortManager->getCurrentCompleteDevice();
+    if (deviceValid) {
+        DeviceManager& deviceManager = DeviceManager::getInstance();
+        DeviceInfo currentDevice = deviceManager.getCurrentSelectedDevice();
         isCurrentDevice = (currentDevice.isValid() && 
                           currentDevice.getUniqueKey() == selectedDevice.getUniqueKey());
     }
@@ -548,30 +519,31 @@ void DeviceSelectorDialog::onSelectDevice()
         return;
     }
     
-    bool success = m_serialPortManager->selectCompleteDevice(m_selectedDevice.portChain);
-    if (success) {
-        qCInfo(log_device_selector) << "Complete device selection successful";
+    // bool success = m_serialPortManager->selectCompleteDevice(m_selectedDevice.portChain);
+    // if (success) {
+    //     qCInfo(log_device_selector) << "Complete device selection successful";
         
-        // Show success message with device capabilities
-        showDeviceSelectionSuccess();
+    //     // Show success message with device capabilities
+    //     showDeviceSelectionSuccess();
         
-        populateDeviceList(); // Refresh to show current selection
-        updateStatusInfo();
-    } else {
-        qCWarning(log_device_selector) << "Complete device selection failed";
-        QMessageBox::warning(this, "Device Selection Failed", 
-                            "Failed to select the device. Please try again or check device connection.");
-    }
+    //     populateDeviceList(); // Refresh to show current selection
+    //     updateStatusInfo();
+    // } else {
+    //     qCWarning(log_device_selector) << "Complete device selection failed";
+    //     QMessageBox::warning(this, "Device Selection Failed", 
+    //                         "Failed to select the device. Please try again or check device connection.");
+    // }
 }
 
 void DeviceSelectorDialog::onSwitchToDevice()
 {
-    if (!m_selectedDevice.isValid() || !m_serialPortManager) {
-        qCWarning(log_device_selector) << "Cannot switch device - invalid device or no serial port manager";
+    if (!m_selectedDevice.isValid()) {
+        qCWarning(log_device_selector) << "Cannot switch device - invalid device";
         return;
     }
     
-    DeviceInfo currentDevice = m_serialPortManager->getCurrentCompleteDevice();
+    DeviceManager& deviceManager = DeviceManager::getInstance();
+    DeviceInfo currentDevice = deviceManager.getCurrentSelectedDevice();
     if (!currentDevice.isValid()) {
         // No current device, just select the new one
         onSelectDevice();
@@ -595,32 +567,13 @@ void DeviceSelectorDialog::onSwitchToDevice()
         return;
     }
     
-    bool success = m_serialPortManager->switchPhysicalDevice(currentDevice, m_selectedDevice);
-    if (success) {
-        qCInfo(log_device_selector) << "Physical device switch successful";
-        
-        // Show success message
-        QMessageBox::information(this, "Device Switch Successful",
-                               QString("Successfully switched to device at USB Port %1")
-                               .arg(m_selectedDevice.portChain));
-        
-        populateDeviceList(); // Refresh to show current selection
-        updateStatusInfo();
-    } else {
-        qCWarning(log_device_selector) << "Physical device switch failed";
-        QMessageBox::warning(this, "Device Switch Failed", 
-                            "Failed to switch devices. Please try again or check device connections.");
-    }
+    
 }
 
 void DeviceSelectorDialog::onDeactivateDevice()
 {
-    if (!m_serialPortManager) {
-        qCWarning(log_device_selector) << "No serial port manager available";
-        return;
-    }
-    
-    DeviceInfo currentDevice = m_serialPortManager->getCurrentCompleteDevice();
+    DeviceManager& deviceManager = DeviceManager::getInstance();
+    DeviceInfo currentDevice = deviceManager.getCurrentSelectedDevice();
     if (!currentDevice.isValid()) {
         QMessageBox::information(this, "No Active Device", "No device is currently active.");
         return;
@@ -638,7 +591,7 @@ void DeviceSelectorDialog::onDeactivateDevice()
         return;
     }
     
-    m_serialPortManager->deactivateCurrentDevice();
+    // m_serialPortManager->deactivateCurrentDevice();
     
     QMessageBox::information(this, "Device Deactivated",
                            QString("Device at port %1 has been deactivated.")
@@ -677,23 +630,19 @@ void DeviceSelectorDialog::showDeviceSelectionSuccess()
 
 void DeviceSelectorDialog::showActiveInterfaces()
 {
-    if (!m_serialPortManager) {
-        QMessageBox::information(this, "Active Interfaces", "No serial port manager available.");
-        return;
-    }
-    
-    DeviceInfo currentDevice = m_serialPortManager->getCurrentCompleteDevice();
+    DeviceManager& deviceManager = DeviceManager::getInstance();
+    DeviceInfo currentDevice = deviceManager.getCurrentSelectedDevice();
     if (!currentDevice.isValid()) {
         QMessageBox::information(this, "Active Interfaces", "No device is currently selected.");
         return;
     }
     
-    QStringList interfaces = m_serialPortManager->getActiveDeviceInterfaces();
+    // Show device interface information directly from DeviceInfo
+    QString interfaceInfo = QString("Active Device: %1\n\nInterfaces:\n%2")
+                           .arg(currentDevice.getDeviceDisplayName())
+                           .arg(currentDevice.getInterfaceSummary());
     
-    QString message = QString("Active device: Port %1\n\n").arg(currentDevice.portChain);
-    message += "Active interfaces:\n" + interfaces.join("\n");
-    
-    QMessageBox::information(this, "Active Interfaces", message);
+    QMessageBox::information(this, "Active Interfaces", interfaceInfo);
 }
 
 void DeviceSelectorDialog::onRefreshClicked()

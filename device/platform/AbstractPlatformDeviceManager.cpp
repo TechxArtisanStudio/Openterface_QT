@@ -35,15 +35,21 @@ QList<DeviceInfo> AbstractPlatformDeviceManager::filterDevicesByPortChain(
     const QList<DeviceInfo>& devices, const QString& targetPortChain)
 {
     if (targetPortChain.isEmpty()) {
-        return devices;
+        if (!devices.isEmpty()) {
+            // Return only the first device if the list is not empty
+            return { devices.first() };
+        } else {
+            // Return the original (empty) list if devices is empty
+            return devices;
+        }
     }
-    
+
     QList<DeviceInfo> filtered;
     for (const DeviceInfo& device : devices) {
         if (device.portChain == targetPortChain) {
             filtered.append(device);
         }
     }
-    
+
     return filtered;
 }

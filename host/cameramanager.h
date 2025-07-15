@@ -13,7 +13,6 @@
 #include <QList>
 #include <QSize>
 #include <QVideoFrameFormat>
-#include "../device/DeviceInfo.h"
 
 // Struct to represent a video format key, used for comparing and sorting video formats
 // It includes resolution, frame rate range, and pixel format
@@ -58,10 +57,12 @@ public:
     void setCameraFormat(const QCameraFormat &format);
     QCameraFormat getCameraFormat() const;
     QList<QCameraFormat> getCameraFormats() const;
-    void loadCameraSettingAndSetCamera();
     void queryResolutions();
     void configureResolutionAndFormat();
     std::map<VideoFormatKey, QCameraFormat> getVideoFormatMap();
+
+    // Camera initialization with video output
+    bool initializeCameraWithVideoOutput(QVideoWidget* videoOutput);
 
     // Updated method to return supported pixel formats
     QList<QVideoFrameFormat> getSupportedPixelFormats() const;
@@ -72,14 +73,8 @@ public:
     QCameraDevice getCurrentCameraDevice() const;
     bool switchToCameraDevice(const QCameraDevice &cameraDevice);
     bool switchToCameraDeviceById(const QString& deviceId);
-    bool switchToCameraDeviceByDescription(const QString& description);
     QString getCurrentCameraDeviceId() const;
     QString getCurrentCameraDeviceDescription() const;
-    
-    // Enhanced device management with DeviceInfo integration
-    void setCameraDeviceFromDeviceInfo(const DeviceInfo& deviceInfo);
-    bool switchToCameraFromDeviceInfo(const DeviceInfo& deviceInfo);
-    DeviceInfo getCurrentCameraAsDeviceInfo() const;
     
     // Auto-detection methods for available cameras
     QCameraDevice findBestAvailableCamera() const;
@@ -96,13 +91,7 @@ public:
     QStringList getAvailableCameraDeviceIds() const;
     void displayAllCameraDeviceIds() const;
     
-    // Port chain coordination methods
-    bool switchToCameraFromPortChain(const QString& portChain);
-    bool ensurePortChainCoordination();
-    QString extractPortChainFromDeviceId(const QString& deviceId) const;
-    
-    // Manual port chain coordination trigger
-    bool coordinateWithSerialDevice();
+
     
 signals:
     void cameraActiveChanged(bool active);
@@ -120,13 +109,13 @@ signals:
     void availableCameraDevicesChanged(int deviceCount);
     
 public slots:
-    // Device switching slot that can be connected to SerialPortManager signals
-    void onDeviceChanged(const DeviceInfo& newDevice);
-    void onCameraDevicePathAvailable(const QString& cameraDevicePath);
+    // Note: Automatic device coordination slots have been removed
+    // Camera devices are now managed manually through the UI only
     
 private slots:
     void onImageCaptured(int id, const QImage& img);
-    
+    void handleCameraTimeout();
+
 private:
     std::unique_ptr<QCamera> m_camera;
     QMediaCaptureSession m_captureSession;

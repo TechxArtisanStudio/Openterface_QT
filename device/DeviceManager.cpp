@@ -1,28 +1,39 @@
 #include "DeviceManager.h"
 #include "platform/DeviceFactory.h"
 #include "platform/AbstractPlatformDeviceManager.h"
+#include "HotplugMonitor.h"
 #include <QMutexLocker>
 
 Q_LOGGING_CATEGORY(log_device_manager, "opf.device.manager")
 
-DeviceManager::DeviceManager(QObject *parent)
-    : QObject(parent)
+DeviceManager::DeviceManager()
+    : QObject(nullptr)
     , m_platformManager(nullptr)
     , m_hotplugTimer(new QTimer(this))
+    , m_hotplugMonitor(nullptr)
     , m_monitoring(false)
 {
     initializePlatformManager();
+    
+    // Create HotplugMonitor instance
+    m_hotplugMonitor = new HotplugMonitor(this, this);
     
     // Setup hotplug timer
     m_hotplugTimer->setSingleShot(false);
     connect(m_hotplugTimer, &QTimer::timeout, this, &DeviceManager::onHotplugTimerTimeout);
     
-    qCDebug(log_device_manager) << "Device Manager initialized for platform:" << m_platformName;
+    // Auto-start hotplug monitoring
+    startHotplugMonitoring();
+    
+    qCDebug(log_device_manager) << "Device Manager singleton initialized for platform:" << m_platformName;
 }
 
 DeviceManager::~DeviceManager()
 {
     stopHotplugMonitoring();
+    if (m_hotplugMonitor) {
+        delete m_hotplugMonitor;
+    }
     if (m_platformManager) {
         delete m_platformManager;
     }
@@ -198,4 +209,31 @@ DeviceInfo DeviceManager::findDeviceByKey(const QList<DeviceInfo>& devices, cons
         }
     }
     return DeviceInfo(); // Invalid device
+}
+
+void DeviceManager::checkForChanges()
+{
+    if (m_hotplugMonitor) {
+        m_hotplugMonitor->checkForChanges();
+    } else {
+        // Fallback to manual check
+        onHotplugTimerTimeout();
+    }
+}
+
+void DeviceManager::forceRefresh()
+{
+    qCDebug(log_device_manager) << "Force refreshing device list";
+    
+    // Clear platform manager cache if available
+    if (m_platformManager) {
+        m_platformManager->clearCache();
+    }
+    
+    // Trigger device discovery and notify of changes
+    QList<DeviceInfo> currentDevices = discoverDevices();
+    compareDeviceSnapshots(currentDevices, m_lastSnapshot);
+    m_lastSnapshot = currentDevices;
+    
+    emit devicesChanged(currentDevices);
 }

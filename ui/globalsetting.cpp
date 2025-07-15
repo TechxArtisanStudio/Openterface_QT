@@ -178,6 +178,23 @@ double GlobalSetting::getScreenRatio() const {
     return m_settings.value("screen/ratio", 1.7778).toDouble();
 }
 
+// Port chain management for Openterface devices
+void GlobalSetting::setOpenterfacePortChain(const QString& portChain) {
+    qDebug() << "Logging Openterface port chain:" << portChain;
+    m_settings.setValue("openterface/portChain", portChain);
+    m_settings.sync(); // Ensure immediate write to storage
+}
+
+QString GlobalSetting::getOpenterfacePortChain() const {
+    return m_settings.value("openterface/portChain", "").toString();
+}
+
+void GlobalSetting::clearOpenterfacePortChain() {
+    qDebug() << "Clearing Openterface port chain";
+    m_settings.remove("openterface/portChain");
+    m_settings.sync();
+}
+
 /*
 * Convert QString to ByteArray
 */

@@ -178,7 +178,9 @@ MainWindow::MainWindow(LanguageManager *languageManager, QWidget *parent) :  ui(
     VideoHid::getInstance().setEventCallback(this);
 
     qCDebug(log_ui_mainwindow) << "Observe video input changed...";
-    connect(&m_source, &QMediaDevices::videoInputsChanged, this, &MainWindow::updateCameras);
+    // Note: Automatic camera switching on device changes has been disabled
+    // Camera devices will only be switched manually through the UI
+    // connect(&m_source, &QMediaDevices::videoInputsChanged, this, &MainWindow::updateCameras);
 
     qCDebug(log_ui_mainwindow) << "Observe Relative/Absolute toggle...";
     connect(ui->actionRelative, &QAction::triggered, this, &MainWindow::onActionRelativeTriggered);
@@ -231,6 +233,17 @@ MainWindow::MainWindow(LanguageManager *languageManager, QWidget *parent) :  ui(
     qDebug() << "Init camera...";
     checkInitSize();
     initCamera();
+    
+    // Initialize camera with video output for proper startup
+    qCDebug(log_ui_mainwindow) << "Initializing camera with video output...";
+    QTimer::singleShot(200, this, [this]() {
+        bool success = m_cameraManager->initializeCameraWithVideoOutput(videoPane);
+        if (success) {
+            qDebug() << "✓ Camera successfully initialized with video output";
+        } else {
+            qCWarning(log_ui_mainwindow) << "Failed to initialize camera with video output";
+        }
+    });
 
     // Connect palette change signal to the slot
     onLastKeyPressed("");
@@ -255,15 +268,8 @@ MainWindow::MainWindow(LanguageManager *languageManager, QWidget *parent) :  ui(
     connect(ui->menuBaudrate, &QMenu::triggered, this, &MainWindow::onBaudrateMenuTriggered);
     connect(&SerialPortManager::getInstance(), &SerialPortManager::connectedPortChanged, this, &MainWindow::onPortConnected);
     
-    // Connect SerialPortManager camera device signals to CameraManager for device switching
-    connect(&SerialPortManager::getInstance(), &SerialPortManager::cameraDeviceAvailable, 
-            m_cameraManager, &CameraManager::onCameraDevicePathAvailable);
-    
-    connect(&SerialPortManager::getInstance(), &SerialPortManager::cameraDeviceDisconnected,
-            this, [this]() {
-                qCDebug(log_ui_mainwindow) << "Camera device disconnected from SerialPortManager";
-                // Optional: Handle camera disconnection - maybe switch to default camera or stop camera
-            });
+    // Note: Automatic camera device coordination has been disabled
+    // Camera devices will only be switched manually through the UI
     
     qApp->installEventFilter(this);
 
@@ -903,8 +909,6 @@ void MainWindow::configureSettings() {
         VideoPage* videoPage = settingDialog->getVideoPage();
         LogPage* logPage = settingDialog->getLogPage();
         connect(logPage, &LogPage::ScreenSaverInhibitedChanged, m_screenSaverManager, &ScreenSaverManager::setScreenSaverInhibited);
-        connect(videoPage, &VideoPage::cameraSettingsApplied, m_cameraManager, &CameraManager::loadCameraSettingAndSetCamera);
-        // connect(settingDialog, &SettingDialog::cameraSettingsApplied, m_cameraManager, &CameraManager::loadCameraSettingAndSetCamera);
         connect(videoPage, &VideoPage::videoSettingsChanged, this, &MainWindow::onVideoSettingsChanged);
         // connect the finished signal to the set the dialog pointer to nullptr
         connect(settingDialog, &QDialog::finished, this, [this](){
@@ -1107,51 +1111,48 @@ void MainWindow::updateCameras()
     const QList<QCameraDevice> availableCameras = QMediaDevices::videoInputs();
     qCDebug(log_ui_mainwindow) << "Available cameras size: " << availableCameras.size();
 
-    // If the last camera list is not empty, check if available cameras still include the last camera
+    // Note: Automatic camera switching has been disabled
+    // This method now only refreshes the available camera list for manual selection
+    
+    // Check for disconnected cameras and update the list
     if (!m_lastCameraList.isEmpty()) {
         qCDebug(log_ui_mainwindow) << "Checking previously connected cameras...";
         for (const QCameraDevice &camera : m_lastCameraList) {
             qCDebug(log_ui_mainwindow) << "Checking camera: " << camera.description();
             if (!availableCameras.contains(camera)) {
-                qCDebug(log_ui_mainwindow) << "Camera disconnected, stopping camera operations...";
-                stop();
-                m_lastCameraList.clear();
-                return;
+                qCDebug(log_ui_mainwindow) << "Camera disconnected: " << camera.description();
+                // Note: We no longer automatically stop camera operations
+                // The user will need to manually select a different camera if needed
             }
         }
     }
-    qDebug() << "Checking for new cameras...";
-    // Check for new cameras
+    
+    // Update the camera list for reference but don't automatically switch
+    qCDebug(log_ui_mainwindow) << "Updating camera device list...";
     for (const QCameraDevice &camera : availableCameras) {
         if (!m_lastCameraList.contains(camera)) {
-            qCDebug(log_ui_mainwindow) << "A new camera has been connected:" << camera.description();
-            if (!camera.description().contains("Openterface"))
-                continue;
-
-            qCDebug(log_ui_mainwindow) << "Update openterface layer to top layer.";
-
-            stackedLayout->setCurrentIndex(1);
-
-            //If the default camera is not an Openterface camera, set the camera to the first Openterface camera
-            if (!QMediaDevices::defaultVideoInput().description().contains("Openterface")) {
-                qCDebug(log_ui_mainwindow) << "Set default camera to the Openterface camera...";
-            } else {
-                qCDebug(log_ui_mainwindow) << "The default camera is" << QMediaDevices::defaultVideoInput().description();
-            }
-            m_audioManager->initializeAudio();
-            m_cameraManager->setCamera(camera, videoPane);
-            // Add the new camera to the last camera list
-            m_lastCameraList.append(camera);
-            break;
+            qCDebug(log_ui_mainwindow) << "New camera detected:" << camera.description();
+            // Note: Camera will not automatically switch - manual selection required
         }
     }
-    qDebug() << "Update cameras done.";
+    
+    // Update the stored camera list
+    m_lastCameraList = availableCameras;
+    
+    // Refresh CameraManager's available devices list
+    m_cameraManager->refreshAvailableCameraDevices();
+    
+    qCDebug(log_ui_mainwindow) << "Camera list updated. Manual camera selection required for switching.";
 }
 
 void MainWindow::onPortConnected(const QString& port, const int& baudrate) {
     if(baudrate > 0){
         m_statusBarManager->setConnectedPort(port, baudrate);
         updateBaudrateMenu(baudrate);
+        
+        // Note: Camera coordination functionality has been removed
+        // The DeviceManager singleton now handles device coordination automatically
+        qCDebug(log_ui_mainwindow) << "Serial port connected:" << port << "at baudrate:" << baudrate;
     }else{
         m_statusBarManager->setConnectedPort(port, baudrate);
         m_statusBarManager->setTargetUsbConnected(false);
@@ -1255,7 +1256,12 @@ void MainWindow::checkMousePosition()
 
 void MainWindow::onVideoSettingsChanged() {
     if (m_cameraManager) {
-        m_cameraManager->setVideoOutput(videoPane);
+        // Reinitialize camera with video output to ensure proper connection
+        bool success = m_cameraManager->initializeCameraWithVideoOutput(videoPane);
+        if (!success) {
+            // Fallback to just setting video output
+            m_cameraManager->setVideoOutput(videoPane);
+        }
     }
     int inputWidth = GlobalVar::instance().getInputWidth();
     int inputHeight = GlobalVar::instance().getInputHeight();
@@ -1574,10 +1580,6 @@ void MainWindow::openDeviceSelector() {
     if (!deviceSelectorDialog) {
         qDebug() << "Creating device selector dialog";
         deviceSelectorDialog = new DeviceSelectorDialog(this);
-        
-        // Set managers
-        deviceSelectorDialog->setDeviceManager(SerialPortManager::getInstance().getDeviceManager());
-        deviceSelectorDialog->setSerialPortManager(&SerialPortManager::getInstance());
         
         // Connect the finished signal to clean up
         connect(deviceSelectorDialog, &QDialog::finished, this, [this]() {
