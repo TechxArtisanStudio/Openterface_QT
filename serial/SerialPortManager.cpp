@@ -205,7 +205,13 @@ void SerialPortManager::checkSerialPort() {
     qCDebug(log_core_serial) << "Check serial port";
 
     // Use new initialization logic
-    initializeSerialPortFromPortChain();
+    if (!serialPort || !serialPort->isOpen()) {
+        qCDebug(log_core_serial) << "Serial port not open, will initialize from port chain after 300ms delay";
+        QTimer::singleShot(300, this, [this]() {
+            initializeSerialPortFromPortChain();
+        });
+        return;
+    }
 
     if (ready) {
         if (isTargetUsbConnected) {

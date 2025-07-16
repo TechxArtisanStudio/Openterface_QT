@@ -1579,7 +1579,7 @@ void MainWindow::openDeviceSelector() {
     qDebug() << "Opening device selector dialog";
     if (!deviceSelectorDialog) {
         qDebug() << "Creating device selector dialog";
-        deviceSelectorDialog = new DeviceSelectorDialog(this);
+        deviceSelectorDialog = new DeviceSelectorDialog(m_cameraManager, this);
         
         // Connect the finished signal to clean up
         connect(deviceSelectorDialog, &QDialog::finished, this, [this]() {

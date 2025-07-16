@@ -44,7 +44,7 @@ public:
     DeviceInfo getFirstAvailableDevice();
     
     // Hotplug monitoring
-    void startHotplugMonitoring(int intervalMs = 2000);
+    void startHotplugMonitoring(int intervalMs = 5000);
     void stopHotplugMonitoring();
     bool isMonitoring() const { return m_monitoring; }
     

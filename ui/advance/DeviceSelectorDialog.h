@@ -22,7 +22,7 @@ class DeviceSelectorDialog : public QDialog
     Q_OBJECT
     
 public:
-    explicit DeviceSelectorDialog(QWidget *parent = nullptr);
+    explicit DeviceSelectorDialog(CameraManager *cameraManager, QWidget *parent = nullptr);
     ~DeviceSelectorDialog();
     
 public slots:

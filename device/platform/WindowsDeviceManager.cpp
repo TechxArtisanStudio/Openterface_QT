@@ -601,7 +601,7 @@ QString WindowsDeviceManager::extractPortChainFromDeviceId(const QString& device
 
 void WindowsDeviceManager::matchDevicePaths(DeviceInfo& deviceInfo)
 {
-    qCDebug(log_device_windows) << "Matching device paths for device:" << deviceInfo.deviceInstanceId;
+    // qCDebug(log_device_windows) << "Matching device paths for device:" << deviceInfo.deviceInstanceId;
     
     // This method is now primarily called from the main discovery logic
     // which already aggregates all interfaces into the physical device.
@@ -616,7 +616,7 @@ void WindowsDeviceManager::matchDevicePaths(DeviceInfo& deviceInfo)
             children.append(child.toMap());
         }
         
-        qCDebug(log_device_windows) << "Using child device data from platformSpecific (" << children.size() << " children)";
+        // qCDebug(log_device_windows) << "Using child device data from platformSpecific (" << children.size() << " children)";
         matchDevicePathsFromChildren(deviceInfo, children);
     } else {
         qCDebug(log_device_windows) << "No child device data in platformSpecific, using enhanced enumeration";
@@ -629,11 +629,11 @@ void WindowsDeviceManager::matchDevicePaths(DeviceInfo& deviceInfo)
         matchDevicePathsFromChildren(deviceInfo, childDevices);
     }
     
-    qCDebug(log_device_windows) << "Device matching complete:"
-                               << "Serial:" << deviceInfo.serialPortPath
-                               << "HID:" << deviceInfo.hidDevicePath
-                               << "Camera:" << deviceInfo.cameraDevicePath
-                               << "Audio:" << deviceInfo.audioDevicePath;
+    // qCDebug(log_device_windows) << "Device matching complete:"
+    //                            << "Serial:" << deviceInfo.serialPortPath
+    //                            << "HID:" << deviceInfo.hidDevicePath
+    //                            << "Camera:" << deviceInfo.cameraDevicePath
+    //                            << "Audio:" << deviceInfo.audioDevicePath;
 }
 
 void WindowsDeviceManager::matchDevicePathsFromChildren(DeviceInfo& deviceInfo, const QList<QVariantMap>& children)
@@ -649,19 +649,19 @@ void WindowsDeviceManager::matchDevicePathsFromChildren(DeviceInfo& deviceInfo, 
         QString deviceId = child["deviceId"].toString();
         QString description = child["description"].toString();
         
-        qCDebug(log_device_windows) << "  Child[" << i << "] Analysis:";
-        qCDebug(log_device_windows) << "    Device ID:" << deviceId;
-        qCDebug(log_device_windows) << "    Hardware ID:" << hardwareId;
-        qCDebug(log_device_windows) << "    Friendly Name:" << friendlyName;
-        qCDebug(log_device_windows) << "    Description:" << description;
-        qCDebug(log_device_windows) << "    Class:" << deviceClass;
+        // qCDebug(log_device_windows) << "  Child[" << i << "] Analysis:";
+        // qCDebug(log_device_windows) << "    Device ID:" << deviceId;
+        // qCDebug(log_device_windows) << "    Hardware ID:" << hardwareId;
+        // qCDebug(log_device_windows) << "    Friendly Name:" << friendlyName;
+        // qCDebug(log_device_windows) << "    Description:" << description;
+        // qCDebug(log_device_windows) << "    Class:" << deviceClass;
         
         // Check for serial port (COM port) - this is a child device
         if (deviceClass.compare("Ports", Qt::CaseInsensitive) == 0 ||
             friendlyName.contains("COM", Qt::CaseInsensitive) ||
             hardwareId.contains("VID_" + AbstractPlatformDeviceManager::SERIAL_VID, Qt::CaseInsensitive)) {
             
-            qCDebug(log_device_windows) << "    → Identified as SERIAL PORT device";
+            // qCDebug(log_device_windows) << "    → Identified as SERIAL PORT device";
             
             // Extract COM port number from friendly name
             QRegularExpression comRegex("\\(COM(\\d+)\\)");
@@ -669,7 +669,7 @@ void WindowsDeviceManager::matchDevicePathsFromChildren(DeviceInfo& deviceInfo, 
             if (match.hasMatch()) {
                 deviceInfo.serialPortPath = QString("COM%1").arg(match.captured(1));
                 deviceInfo.serialPortId = deviceId;
-                qCDebug(log_device_windows) << "    ✓ Found serial port (primary match):" << deviceInfo.serialPortPath << "ID:" << deviceInfo.serialPortId;
+                // qCDebug(log_device_windows) << "    ✓ Found serial port (primary match):" << deviceInfo.serialPortPath << "ID:" << deviceInfo.serialPortId;
             } else {
                 // Fallback: look for COM followed by digits anywhere in the string
                 QRegularExpression comRegex2("COM(\\d+)");
@@ -677,7 +677,7 @@ void WindowsDeviceManager::matchDevicePathsFromChildren(DeviceInfo& deviceInfo, 
                 if (match2.hasMatch()) {
                     deviceInfo.serialPortPath = QString("COM%1").arg(match2.captured(1));
                     deviceInfo.serialPortId = deviceId;
-                    qCDebug(log_device_windows) << "    ✓ Found serial port (fallback match):" << deviceInfo.serialPortPath << "ID:" << deviceInfo.serialPortId;
+                    // qCDebug(log_device_windows) << "    ✓ Found serial port (fallback match):" << deviceInfo.serialPortPath << "ID:" << deviceInfo.serialPortId;
                 } else {
                     qCDebug(log_device_windows) << "    ✗ Could not extract COM port number from:" << friendlyName;
                 }

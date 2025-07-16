@@ -16,10 +16,10 @@
 
 Q_LOGGING_CATEGORY(log_device_selector, "opf.ui.deviceselector")
 
-DeviceSelectorDialog::DeviceSelectorDialog(QWidget *parent)
+DeviceSelectorDialog::DeviceSelectorDialog(CameraManager *cameraManager, QWidget *parent)
     : QDialog(parent)
     , m_serialPortManager(nullptr)
-    , m_cameraManager(nullptr)
+    , m_cameraManager(cameraManager)
     , m_autoRefreshTimer(new QTimer(this))
     , m_autoRefreshEnabled(false)
     , m_totalHotplugEvents(0)
@@ -562,6 +562,14 @@ void DeviceSelectorDialog::onSwitchToDevice()
         .arg(currentDevice.portChain)
         .arg(m_selectedDevice.portChain),
         QMessageBox::Yes | QMessageBox::No);
+    GlobalSetting::instance().setOpenterfacePortChain(m_selectedDevice.portChain);
+    
+    bool camearSwitchSuccess = false;
+    if (m_cameraManager) {
+        camearSwitchSuccess = m_cameraManager->switchToCameraDeviceByPortChain(m_selectedDevice.portChain);
+    } else {
+        qCWarning(log_device_selector) << "CameraManager is null, cannot switch camera device";
+    }
     
     if (reply != QMessageBox::Yes) {
         return;

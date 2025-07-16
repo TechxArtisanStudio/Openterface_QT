@@ -78,7 +78,6 @@ public:
     
     // Auto-detection methods for available cameras
     QCameraDevice findBestAvailableCamera() const;
-    bool switchToAvailableCamera();
     QStringList getAllCameraDescriptions() const;
     
     // Manual device refresh for Qt 6 compatibility
@@ -91,7 +90,7 @@ public:
     QStringList getAvailableCameraDeviceIds() const;
     void displayAllCameraDeviceIds() const;
     
-
+    bool switchToCameraDeviceByPortChain(const QString &portChain);
     
 signals:
     void cameraActiveChanged(bool active);
@@ -137,6 +136,9 @@ private:
     
     // Helper method for device ID matching
     QString extractShortIdentifier(const QString& fullId) const;
+
+    // Declaration for findMatchingCameraDevice
+    QCameraDevice findMatchingCameraDevice(const QString& portChain) const;
 };
 
 #endif // CAMERAMANAGER_H
