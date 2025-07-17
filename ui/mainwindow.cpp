@@ -166,7 +166,46 @@ MainWindow::MainWindow(LanguageManager *languageManager, QWidget *parent) :  ui(
                     qCDebug(log_ui_mainwindow) << "MainWindow: Received deviceUnplugged signal for port:" << device.portChain;
                     m_statusBarManager->showDeviceUnplugged(device.portChain);
                 });
-        qCDebug(log_ui_mainwindow) << "Connected hotplug monitor to status bar manager";
+                
+        // Connect hotplug monitor to camera manager for device unplugging
+        connect(hotplugMonitor, &HotplugMonitor::deviceUnplugged,
+                this, [this](const DeviceInfo& device) {
+                    qCDebug(log_ui_mainwindow) << "MainWindow: Attempting camera deactivation for unplugged device port:" << device.portChain;
+                    
+                    // Only deactivate camera if the device has a camera component
+                    if (!device.hasCameraDevice()) {
+                        qCDebug(log_ui_mainwindow) << "Device at port" << device.portChain << "has no camera component, skipping camera deactivation";
+                        return;
+                    }
+                    
+                    bool deactivated = m_cameraManager->deactivateCameraByPortChain(device.portChain);
+                    if (deactivated) {
+                        qCInfo(log_ui_mainwindow) << "✓ Camera deactivated for unplugged device at port:" << device.portChain;
+                    } else {
+                        qCDebug(log_ui_mainwindow) << "Camera deactivation skipped or not needed for port:" << device.portChain;
+                    }
+                });
+                
+        // Connect hotplug monitor to camera manager for auto-switching
+        connect(hotplugMonitor, &HotplugMonitor::newDevicePluggedIn,
+                this, [this](const DeviceInfo& device) {
+                    qCDebug(log_ui_mainwindow) << "MainWindow: Attempting camera auto-switch for new device port:" << device.portChain;
+                    
+                    // Only attempt auto-switch if the device has a camera component
+                    if (!device.hasCameraDevice()) {
+                        qCDebug(log_ui_mainwindow) << "Device at port" << device.portChain << "has no camera component, skipping auto-switch";
+                        return;
+                    }
+                    
+                    bool switchSuccess = m_cameraManager->tryAutoSwitchToNewDevice(device.portChain);
+                    if (switchSuccess) {
+                        qCInfo(log_ui_mainwindow) << "✓ Camera auto-switched to new device at port:" << device.portChain;
+                    } else {
+                        qCDebug(log_ui_mainwindow) << "Camera auto-switch skipped or failed for port:" << device.portChain;
+                    }
+                });
+                
+        qCDebug(log_ui_mainwindow) << "Connected hotplug monitor to status bar manager and camera manager";
     } else {
         qCWarning(log_ui_mainwindow) << "Failed to get hotplug monitor from device manager";
     }
@@ -241,8 +280,12 @@ MainWindow::MainWindow(LanguageManager *languageManager, QWidget *parent) :  ui(
     
     connect(m_cameraManager, &CameraManager::cameraActiveChanged, this, &MainWindow::updateCameraActive);
     connect(m_cameraManager, &CameraManager::cameraError, this, &MainWindow::displayCameraError);
-    connect(m_cameraManager, &CameraManager::imageCaptured, this, &MainWindow::processCapturedImage);                                         
+    connect(m_cameraManager, &CameraManager::imageCaptured, this, &MainWindow::processCapturedImage);
     connect(m_cameraManager, &CameraManager::resolutionsUpdated, this, &MainWindow::onResolutionsUpdated);
+    connect(m_cameraManager, &CameraManager::newDeviceAutoConnected, this, [this](const QCameraDevice& device, const QString& portChain) {
+        qCInfo(log_ui_mainwindow) << "Camera auto-connected to new device:" << device.description() << "at port:" << portChain;
+        // popupMessage(QString("Camera connected to new device: %1").arg(device.description()));
+    });
     connect(&VideoHid::getInstance(), &VideoHid::inputResolutionChanged, this, &MainWindow::onInputResolutionChanged);
     connect(&VideoHid::getInstance(), &VideoHid::resolutionChangeUpdate, this, &MainWindow::onResolutionChange);
 

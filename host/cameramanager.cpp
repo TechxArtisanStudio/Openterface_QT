@@ -22,6 +22,7 @@ CameraManager::CameraManager(QObject *parent)
     // Initialize camera device to null state
     m_currentCameraDevice = QCameraDevice();
     m_currentCameraDeviceId.clear();
+    m_currentCameraPortChain.clear();
     
     m_imageCapture = std::make_unique<QImageCapture>();
     m_mediaRecorder = std::make_unique<QMediaRecorder>();
@@ -512,6 +513,7 @@ bool CameraManager::switchToCameraDevice(const QCameraDevice &cameraDevice)
         // Clear current device tracking before setting new one
         m_currentCameraDevice = QCameraDevice();
         m_currentCameraDeviceId.clear();
+        m_currentCameraPortChain.clear();
         
         // Wait a bit before creating new camera
         QThread::msleep(50);
@@ -565,6 +567,7 @@ bool CameraManager::switchToCameraDevice(const QCameraDevice &cameraDevice)
         m_camera.reset();
         m_currentCameraDevice = QCameraDevice();
         m_currentCameraDeviceId.clear();
+        m_currentCameraPortChain.clear();
         return false;
     } catch (...) {
         qCritical() << "Unknown exception during camera switch";
@@ -572,8 +575,23 @@ bool CameraManager::switchToCameraDevice(const QCameraDevice &cameraDevice)
         m_camera.reset();
         m_currentCameraDevice = QCameraDevice();
         m_currentCameraDeviceId.clear();
+        m_currentCameraPortChain.clear();
         return false;
     }
+}
+
+bool CameraManager::switchToCameraDevice(const QCameraDevice &cameraDevice, const QString& portChain)
+{
+    // Call the main switch method first
+    bool success = switchToCameraDevice(cameraDevice);
+    
+    if (success) {
+        // Update port chain tracking after successful switch
+        m_currentCameraPortChain = portChain;
+        qDebug() << "Camera device switch successful with port chain tracking:" << portChain;
+    }
+    
+    return success;
 }
 
 bool CameraManager::switchToCameraDeviceById(const QString& deviceId)
@@ -896,8 +914,17 @@ bool CameraManager::initializeCameraWithVideoOutput(QVideoWidget* videoOutput)
         return false;
     }
     
-    // Set the video output first
-    setVideoOutput(videoOutput);
+    // Set the video output first if it's different from current
+    if (m_videoOutput != videoOutput) {
+        setVideoOutput(videoOutput);
+    }
+    
+    // Check if we already have an active camera device
+    if (hasActiveCameraDevice()) {
+        qDebug() << "Camera already active with device:" << m_currentCameraDevice.description() 
+                 << "at port chain:" << m_currentCameraPortChain;
+        return true;
+    }
     
     bool switchSuccess = false;
     
@@ -910,19 +937,21 @@ bool CameraManager::initializeCameraWithVideoOutput(QVideoWidget* videoOutput)
         QCameraDevice matchedCamera = findMatchingCameraDevice(portChain);
         
         if (!matchedCamera.isNull()) {
-            switchSuccess = switchToCameraDevice(matchedCamera);
+            switchSuccess = switchToCameraDevice(matchedCamera, portChain);
             if (switchSuccess) {
                 qDebug() << "✓ Successfully switched to camera using port chain:" << portChain;
                 qDebug() << "✓ Selected camera:" << matchedCamera.description();
             } else {
                 qCWarning(log_ui_camera) << "Failed to switch to matched camera device:" << matchedCamera.description();
             }
+        } else {
+            qCDebug(log_ui_camera) << "No matching camera device found for port chain:" << portChain;
         }
     } else {
         qDebug() << "No port chain found in global settings, using fallback methods";
     }
     
-    // Fallback: Traditional camera selection logic
+    // Fallback: Traditional camera selection logic (without port chain tracking)
     if (!switchSuccess) {
         // Enforce camera device description to be "Openterface"
         QList<QCameraDevice> devices = getAvailableCameraDevices();
@@ -935,9 +964,9 @@ bool CameraManager::initializeCameraWithVideoOutput(QVideoWidget* videoOutput)
         }
 
         if (!openterfaceDevice.isNull()) {
-            switchSuccess = switchToCameraDevice(openterfaceDevice);
+            switchSuccess = switchToCameraDevice(openterfaceDevice);  // No port chain available for fallback
             if (switchSuccess) {
-                qDebug() << "Camera switched to device with description 'Openterface'";
+                qDebug() << "Camera switched to device with description 'Openterface' (no port chain tracked)";
             }
         } else {
             qCWarning(log_ui_camera) << "No camera device with description 'Openterface' found";
@@ -955,6 +984,115 @@ bool CameraManager::initializeCameraWithVideoOutput(QVideoWidget* videoOutput)
         return false;
     }
 
+    return switchSuccess;
+}
+
+bool CameraManager::hasActiveCameraDevice() const
+{
+    return !m_currentCameraDevice.isNull() && 
+           m_camera && 
+           m_camera->isActive();
+}
+
+QString CameraManager::getCurrentCameraPortChain() const
+{
+    return m_currentCameraPortChain;
+}
+
+bool CameraManager::deactivateCameraByPortChain(const QString& portChain)
+{
+    if (portChain.isEmpty()) {
+        qDebug() << "Cannot deactivate camera with empty port chain";
+        return false;
+    }
+    
+    // Check if we have an active camera and if its port chain matches
+    if (m_currentCameraPortChain.isEmpty()) {
+        qDebug() << "No current camera port chain tracked, cannot compare for deactivation";
+        return false;
+    }
+    
+    if (m_currentCameraPortChain != portChain) {
+        qDebug() << "Current camera port chain" << m_currentCameraPortChain 
+                 << "does not match unplugged device port chain" << portChain;
+        return false;
+    }
+    
+    qCInfo(log_ui_camera) << "Deactivating camera for unplugged device at port chain:" << portChain;
+    
+    try {
+        // Stop and reset the camera
+        if (m_camera && m_camera->isActive()) {
+            qDebug() << "Stopping active camera due to device unplugging";
+            stopCamera();
+        }
+        
+        // Clear current device tracking
+        m_currentCameraDevice = QCameraDevice();
+        m_currentCameraDeviceId.clear();
+        m_currentCameraPortChain.clear();
+        
+        // Reset camera objects
+        if (m_camera) {
+            disconnect(m_camera.get(), nullptr, this, nullptr);
+            m_camera.reset();
+        }
+        
+        // Clear capture session
+        m_captureSession.setCamera(nullptr);
+        m_captureSession.setImageCapture(nullptr);
+        m_captureSession.setVideoOutput(nullptr);
+        
+        qCInfo(log_ui_camera) << "Camera successfully deactivated for unplugged device";
+        return true;
+        
+    } catch (const std::exception& e) {
+        qCritical() << "Exception in deactivateCameraByPortChain:" << e.what();
+        return false;
+    } catch (...) {
+        qCritical() << "Unknown exception in deactivateCameraByPortChain";
+        return false;
+    }
+}
+
+bool CameraManager::tryAutoSwitchToNewDevice(const QString& portChain)
+{
+    qDebug() << "Attempting auto-switch to new device with port chain:" << portChain;
+    
+    // Check if we currently have an active camera device
+    if (hasActiveCameraDevice()) {
+        qDebug() << "Active camera device detected, skipping auto-switch to preserve user selection";
+        return false;
+    }
+    
+    qDebug() << "No active camera device found, attempting to switch to new device";
+    
+    // Try to find a matching camera device for the port chain
+    QCameraDevice matchedCamera = findMatchingCameraDevice(portChain);
+    
+    if (matchedCamera.isNull()) {
+        qDebug() << "No matching camera device found for port chain:" << portChain;
+        return false;
+    }
+    
+    qDebug() << "Found matching camera device:" << matchedCamera.description() << "for port chain:" << portChain;
+    
+    // Switch to the new camera device
+    bool switchSuccess = switchToCameraDevice(matchedCamera, portChain);
+    
+    if (switchSuccess) {
+        qDebug() << "✓ Successfully auto-switched to new camera device:" << matchedCamera.description() << "at port chain:" << portChain;
+        
+        // Start the camera if video output is available
+        if (m_videoOutput) {
+            startCamera();
+        }
+        
+        emit newDeviceAutoConnected(matchedCamera, portChain);
+    } else {
+        qCWarning(log_ui_camera) << "Failed to auto-switch to new camera device:" << matchedCamera.description();
+    }
+    
     return switchSuccess;
 }
 
@@ -978,9 +1116,9 @@ bool CameraManager::switchToCameraDeviceByPortChain(const QString &portChain)
         
         qDebug() << "Found matching camera device:" << targetCamera.description() << "for port chain:" << portChain;
         
-        bool switchSuccess = switchToCameraDevice(targetCamera);
+        bool switchSuccess = switchToCameraDevice(targetCamera, portChain);
         if (switchSuccess) {
-            qDebug() << "Successfully switched to camera device:" << targetCamera.description();
+            qDebug() << "Successfully switched to camera device:" << targetCamera.description() << "with port chain:" << portChain;
         } else {
             qCWarning(log_ui_camera) << "Failed to switch to camera device:" << targetCamera.description();
         }

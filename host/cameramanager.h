@@ -63,6 +63,18 @@ public:
 
     // Camera initialization with video output
     bool initializeCameraWithVideoOutput(QVideoWidget* videoOutput);
+    
+    // Check if there's an active camera device
+    bool hasActiveCameraDevice() const;
+    
+    // Auto-switch to new device when hotplug event occurs (only if no active device)
+    bool tryAutoSwitchToNewDevice(const QString& portChain);
+    
+    // Get the port chain of the currently active camera device (if any)
+    QString getCurrentCameraPortChain() const;
+    
+    // Deactivate camera if it matches the specified port chain
+    bool deactivateCameraByPortChain(const QString& portChain);
 
     // Updated method to return supported pixel formats
     QList<QVideoFrameFormat> getSupportedPixelFormats() const;
@@ -72,6 +84,7 @@ public:
     QList<QCameraDevice> getAvailableCameraDevices() const;
     QCameraDevice getCurrentCameraDevice() const;
     bool switchToCameraDevice(const QCameraDevice &cameraDevice);
+    bool switchToCameraDevice(const QCameraDevice &cameraDevice, const QString& portChain);
     bool switchToCameraDeviceById(const QString& deviceId);
     QString getCurrentCameraDeviceId() const;
     QString getCurrentCameraDeviceDescription() const;
@@ -106,6 +119,7 @@ signals:
     void cameraDeviceConnected(const QCameraDevice& device);
     void cameraDeviceDisconnected(const QCameraDevice& device);
     void availableCameraDevicesChanged(int deviceCount);
+    void newDeviceAutoConnected(const QCameraDevice& device, const QString& portChain);
     
 public slots:
     // Note: Automatic device coordination slots have been removed
@@ -132,6 +146,7 @@ private:
     // Camera device management member variables
     QCameraDevice m_currentCameraDevice;
     QString m_currentCameraDeviceId;
+    QString m_currentCameraPortChain;  // Track the port chain of current camera device
     QList<QCameraDevice> m_availableCameraDevices;
     
     // Helper method for device ID matching
