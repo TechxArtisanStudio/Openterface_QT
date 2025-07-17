@@ -11,6 +11,7 @@
 #include "firmwarereader.h"
 #include "../global.h"
 #include "../device/DeviceManager.h"
+#include "../device/HotplugMonitor.h"
 #include "../ui/globalsetting.h"
 
 #ifdef _WIN32
@@ -33,6 +34,9 @@ VideoHid::VideoHid(QObject *parent) : QObject(parent), m_inTransaction(false) {
     // Initialize current device tracking
     m_currentHIDDevicePath.clear();
     m_currentHIDPortChain.clear();
+    
+    // Connect to hotplug monitor for automatic device management
+    connectToHotplugMonitor();
 }
 
 // Update the start method to keep HID device continuously open
@@ -529,6 +533,87 @@ void VideoHid::endTransaction() {
 
 bool VideoHid::isInTransaction() const {
     return m_inTransaction;
+}
+
+void VideoHid::connectToHotplugMonitor()
+{
+    qCDebug(log_host_hid) << "Connecting VideoHid to hotplug monitor";
+    
+    // Get the hotplug monitor from DeviceManager
+    DeviceManager& deviceManager = DeviceManager::getInstance();
+    HotplugMonitor* hotplugMonitor = deviceManager.getHotplugMonitor();
+    
+    if (!hotplugMonitor) {
+        qCWarning(log_host_hid) << "Failed to get hotplug monitor from device manager";
+        return;
+    }
+    
+    // Connect to device unplugging signal
+    connect(hotplugMonitor, &HotplugMonitor::deviceUnplugged,
+            this, [this](const DeviceInfo& device) {
+                qCDebug(log_host_hid) << "VideoHid: Attempting HID device deactivation for unplugged device port:" << device.portChain;
+                
+                // Only deactivate HID device if the device has a HID component
+                if (!device.hasHidDevice()) {
+                    qCDebug(log_host_hid) << "Device at port" << device.portChain << "has no HID component, skipping HID deactivation";
+                    return;
+                }
+                
+                // Check if the unplugged device matches the current HID device
+                if (m_currentHIDPortChain == device.portChain) {
+                    qCInfo(log_host_hid) << "Stopping HID device for unplugged device at port:" << device.portChain;
+                    stop();
+                    qCInfo(log_host_hid) << "✓ HID device stopped for unplugged device at port:" << device.portChain;
+                } else {
+                    qCDebug(log_host_hid) << "HID device deactivation skipped - port chain mismatch. Current:" << m_currentHIDPortChain << "Unplugged:" << device.portChain;
+                }
+            });
+            
+    // Connect to new device plugged in signal
+    connect(hotplugMonitor, &HotplugMonitor::newDevicePluggedIn,
+            this, [this](const DeviceInfo& device) {
+                qCDebug(log_host_hid) << "VideoHid: Attempting HID device auto-switch for new device port:" << device.portChain;
+                
+                // Only attempt auto-switch if the device has a HID component
+                if (!device.hasHidDevice()) {
+                    qCDebug(log_host_hid) << "Device at port" << device.portChain << "has no HID component, skipping HID auto-switch";
+                    return;
+                }
+                
+                // Check if there's currently an active HID device
+                if (isInTransaction()) {
+                    qCDebug(log_host_hid) << "HID device already active, skipping auto-switch to port:" << device.portChain;
+                    return;
+                }
+                
+                qCDebug(log_host_hid) << "No active HID device found, attempting to switch to new device";
+                
+                // Switch to the new HID device
+                bool switchSuccess = switchToHIDDeviceByPortChain(device.portChain);
+                if (switchSuccess) {
+                    qCInfo(log_host_hid) << "✓ HID device auto-switched to new device at port:" << device.portChain;
+                    // Start the HID device
+                    start();
+                } else {
+                    qCDebug(log_host_hid) << "HID device auto-switch failed for port:" << device.portChain;
+                }
+            });
+            
+    qCDebug(log_host_hid) << "VideoHid successfully connected to hotplug monitor";
+}
+
+void VideoHid::disconnectFromHotplugMonitor()
+{
+    qCDebug(log_host_hid) << "Disconnecting VideoHid from hotplug monitor";
+    
+    // Get the hotplug monitor from DeviceManager
+    DeviceManager& deviceManager = DeviceManager::getInstance();
+    HotplugMonitor* hotplugMonitor = deviceManager.getHotplugMonitor();
+    
+    if (hotplugMonitor) {
+        disconnect(hotplugMonitor, nullptr, this, nullptr);
+        qCDebug(log_host_hid) << "VideoHid disconnected from hotplug monitor";
+    }
 }
 
 bool VideoHid::readChunk(quint16 address, QByteArray &data, int chunkSize) {

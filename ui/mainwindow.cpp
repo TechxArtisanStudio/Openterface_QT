@@ -205,6 +205,7 @@ MainWindow::MainWindow(LanguageManager *languageManager, QWidget *parent) :  ui(
                     }
                 });
                 
+
         qCDebug(log_ui_mainwindow) << "Connected hotplug monitor to status bar manager and camera manager";
     } else {
         qCWarning(log_ui_mainwindow) << "Failed to get hotplug monitor from device manager";

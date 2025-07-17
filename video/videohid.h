@@ -107,6 +107,10 @@ public:
     bool beginTransaction();
     void endTransaction();
     bool isInTransaction() const;
+    
+    // Hotplug monitoring integration
+    void connectToHotplugMonitor();
+    void disconnectFromHotplugMonitor();
 
 signals:
     // Add new signals
