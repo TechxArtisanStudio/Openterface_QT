@@ -88,6 +88,11 @@ public:
     // DeviceManager integration methods
     void checkDeviceConnections(const QList<DeviceInfo>& devices);
     
+    // Serial port switching by port chain (similar to CameraManager and VideoHid)
+    bool switchSerialPortByPortChain(const QString& portChain);
+    QString getCurrentSerialPortPath() const;
+    QString getCurrentSerialPortChain() const;
+    
 signals:
     void dataReceived(const QByteArray &data);
     void dataSent(const QByteArray &data);
@@ -96,6 +101,8 @@ signals:
     void serialPortConnectionSuccess(const QString &portName);
     void sendCommandAsync(const QByteArray &command, bool waitForAck);
     void connectedPortChanged(const QString &portName, const int &baudrate);
+    void serialPortSwitched(const QString& fromPortChain, const QString& toPortChain);
+    void serialPortDeviceChanged(const QString& oldPortPath, const QString& newPortPath);
     
 private slots:
     void checkSerialPort();
@@ -149,6 +156,10 @@ private:
     QDateTime latestUpdateTime;
     QElapsedTimer m_lastCommandTime;  // New member for timing
     int m_commandDelayMs;  // New member for configurable delay
+    
+    // Current serial port tracking
+    QString m_currentSerialPortPath;
+    QString m_currentSerialPortChain;
 
     QString statusCodeToString(uint8_t status);
 };

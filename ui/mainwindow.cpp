@@ -28,6 +28,8 @@
 #include "host/HostManager.h"
 #include "host/cameramanager.h"
 #include "serial/SerialPortManager.h"
+#include "device/DeviceManager.h"
+#include "device/HotplugMonitor.h"
 #include "ui/preferences/settingdialog.h"
 #include "ui/help/helppane.h"
 #include "ui/videopane.h"
@@ -149,6 +151,25 @@ MainWindow::MainWindow(LanguageManager *languageManager, QWidget *parent) :  ui(
 
     m_statusBarManager = new StatusBarManager(ui->statusbar, this);
     taskmanager = TaskManager::instance();
+    
+    // Connect DeviceManager hotplug events to StatusBarManager
+    DeviceManager& deviceManager = DeviceManager::getInstance();
+    HotplugMonitor* hotplugMonitor = deviceManager.getHotplugMonitor();
+    if (hotplugMonitor) {
+        connect(hotplugMonitor, &HotplugMonitor::newDevicePluggedIn, 
+                m_statusBarManager, [this](const DeviceInfo& device) {
+                    qCDebug(log_ui_mainwindow) << "MainWindow: Received newDevicePluggedIn signal for port:" << device.portChain;
+                    m_statusBarManager->showNewDevicePluggedIn(device.portChain);
+                });
+        connect(hotplugMonitor, &HotplugMonitor::deviceUnplugged, 
+                m_statusBarManager, [this](const DeviceInfo& device) {
+                    qCDebug(log_ui_mainwindow) << "MainWindow: Received deviceUnplugged signal for port:" << device.portChain;
+                    m_statusBarManager->showDeviceUnplugged(device.portChain);
+                });
+        qCDebug(log_ui_mainwindow) << "Connected hotplug monitor to status bar manager";
+    } else {
+        qCWarning(log_ui_mainwindow) << "Failed to get hotplug monitor from device manager";
+    }
     
     QWidget *centralWidget = new QWidget(this);
     centralWidget->setLayout(stackedLayout);
@@ -1579,7 +1600,7 @@ void MainWindow::openDeviceSelector() {
     qDebug() << "Opening device selector dialog";
     if (!deviceSelectorDialog) {
         qDebug() << "Creating device selector dialog";
-        deviceSelectorDialog = new DeviceSelectorDialog(m_cameraManager, this);
+        deviceSelectorDialog = new DeviceSelectorDialog(m_cameraManager, &VideoHid::getInstance(), this);
         
         // Connect the finished signal to clean up
         connect(deviceSelectorDialog, &QDialog::finished, this, [this]() {

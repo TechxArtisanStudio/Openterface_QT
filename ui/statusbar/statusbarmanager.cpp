@@ -74,6 +74,32 @@ void StatusBarManager::serialPortReset(bool isStarted)
     }
 }
 
+void StatusBarManager::showNewDevicePluggedIn(const QString& portChain)
+{
+    qDebug() << "StatusBarManager::showNewDevicePluggedIn called with portChain:" << portChain;
+    if (!portChain.isEmpty()) {
+        resetLabel->clear();
+        resetLabel->setText(QString("🔌 New device detected: Port %1").arg(portChain));
+        resetLabel->setStyleSheet("color: blue;");
+        
+        // Show the message for 3 seconds then clear it
+        QTimer::singleShot(3000, resetLabel, &QLabel::clear);
+    }
+}
+
+void StatusBarManager::showDeviceUnplugged(const QString& portChain)
+{
+    qDebug() << "StatusBarManager::showDeviceUnplugged called with portChain:" << portChain;
+    if (!portChain.isEmpty()) {
+        resetLabel->clear();
+        resetLabel->setText(QString("🔌 Device unplugged: Port %1").arg(portChain));
+        resetLabel->setStyleSheet("color: orange;");
+        
+        // Show the message for 3 seconds then clear it
+        QTimer::singleShot(3000, resetLabel, &QLabel::clear);
+    }
+}
+
 void StatusBarManager::onLastKeyPressed(const QString& key)
 {
     updateKeyboardIcon(key);

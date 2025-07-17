@@ -66,6 +66,7 @@ private:
     QString getDeviceId(DWORD devInst);
     QString getDeviceProperty(HDEVINFO hDevInfo, SP_DEVINFO_DATA* devInfoData, DWORD property);
     QString getHardwareId(HDEVINFO hDevInfo, SP_DEVINFO_DATA* devInfoData);
+    QString getDeviceInterfacePath(HDEVINFO hDevInfo, SP_DEVINFO_DATA* devInfoData, const GUID& interfaceGuid);
     QList<QVariantMap> getSiblingDevices(DWORD parentDevInst);
     QList<QVariantMap> getChildDevices(DWORD devInst);
     QString getPortChain(DWORD devInst);

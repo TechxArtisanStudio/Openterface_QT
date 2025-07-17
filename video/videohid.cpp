@@ -10,6 +10,8 @@
 #include "firmwarewriter.h"
 #include "firmwarereader.h"
 #include "../global.h"
+#include "../device/DeviceManager.h"
+#include "../ui/globalsetting.h"
 
 #ifdef _WIN32
 #include <hidclass.h>
@@ -25,13 +27,28 @@ extern "C"
 #include <linux/hidraw.h>
 #endif
 
-Q_LOGGING_CATEGORY(log_host_hid, "opf.host.hid");
+Q_LOGGING_CATEGORY(log_host_hid, "opf.device.hid");
 
 VideoHid::VideoHid(QObject *parent) : QObject(parent), m_inTransaction(false) {
+    // Initialize current device tracking
+    m_currentHIDDevicePath.clear();
+    m_currentHIDPortChain.clear();
 }
 
-// Update the start method with improved transaction handling
+// Update the start method to keep HID device continuously open
 void VideoHid::start() {
+    // Initialize current device tracking from global settings
+    QString currentPortChain = GlobalSetting::instance().getOpenterfacePortChain();
+    if (!currentPortChain.isEmpty()) {
+        m_currentHIDPortChain = currentPortChain;
+        QString hidPath = findMatchingHIDDevice(currentPortChain);
+        if (!hidPath.isEmpty()) {
+            m_currentHIDDevicePath = hidPath;
+            qCDebug(log_host_hid) << "Initialized HID device with port chain:" << currentPortChain 
+                                 << "device path:" << hidPath;
+        }
+    }
+    
     std::string captureCardFirmwareVersion = getFirmwareVersion();
     qCDebug(log_host_hid) << "MS2109 firmware VERSION:" << QString::fromStdString(captureCardFirmwareVersion);    //firmware VERSION
     
@@ -43,84 +60,85 @@ void VideoHid::start() {
         setSpdifout(isHardSwitchOnTarget); //Follow the hard switch by default
     }
 
+    // Open HID device once and keep it open for continuous monitoring
+    if (!beginTransaction()) {
+        qCWarning(log_host_hid) << "Failed to open HID device for continuous monitoring";
+        return;
+    }
+
     //start a timer to get the HDMI connection status every 1 second
     timer = new QTimer(this);
     connect(timer, &QTimer::timeout, this, [=](){
-        // Begin a single transaction for all operations
-        if (beginTransaction()) {
-            try {
-                bool currentSwitchOnTarget = getGpio0();
-                bool hdmiConnected = isHdmiConnected();
+        // Device is already open - no need for beginTransaction/endTransaction
+        try {
+            bool currentSwitchOnTarget = getGpio0();
+            bool hdmiConnected = isHdmiConnected();
 
-                if (eventCallback) {
-                    if (hdmiConnected) {
-                        // Get resolution-related information within the same transaction
-                        quint8 width_h = static_cast<quint8>(usbXdataRead4Byte(ADDR_INPUT_WIDTH_H).first.at(0));
-                        quint8 width_l = static_cast<quint8>(usbXdataRead4Byte(ADDR_INPUT_WIDTH_L).first.at(0));
-                        quint16 width = (width_h << 8) + width_l;
-                        
-                        quint8 height_h = static_cast<quint8>(usbXdataRead4Byte(ADDR_INPUT_HEIGHT_H).first.at(0));
-                        quint8 height_l = static_cast<quint8>(usbXdataRead4Byte(ADDR_INPUT_HEIGHT_L).first.at(0));
-                        quint16 height = (height_h << 8) + height_l;
-                        
-                        quint8 fps_h = static_cast<quint8>(usbXdataRead4Byte(ADDR_INPUT_FPS_H).first.at(0));
-                        quint8 fps_l = static_cast<quint8>(usbXdataRead4Byte(ADDR_INPUT_FPS_L).first.at(0));
-                        float fps = static_cast<float>((fps_h << 8) + fps_l) / 100;
-                        
-                        quint8 clk_h = static_cast<quint8>(usbXdataRead4Byte(ADDR_INPUT_PIXELCLK_H).first.at(0));
-                        quint8 clk_l = static_cast<quint8>(usbXdataRead4Byte(ADDR_INPUT_PIXELCLK_L).first.at(0));
-                        float pixclk = ((clk_h << 8) + clk_l) / 100.0;
-                        
-                        float aspectRatio = height ? static_cast<float>(width) / height : 0;
-                        GlobalVar::instance().setInputAspectRatio(aspectRatio);
+            if (eventCallback) {
+                if (hdmiConnected) {
+                    // Get resolution-related information
+                    quint8 width_h = static_cast<quint8>(usbXdataRead4Byte(ADDR_INPUT_WIDTH_H).first.at(0));
+                    quint8 width_l = static_cast<quint8>(usbXdataRead4Byte(ADDR_INPUT_WIDTH_L).first.at(0));
+                    quint16 width = (width_h << 8) + width_l;
+                    
+                    quint8 height_h = static_cast<quint8>(usbXdataRead4Byte(ADDR_INPUT_HEIGHT_H).first.at(0));
+                    quint8 height_l = static_cast<quint8>(usbXdataRead4Byte(ADDR_INPUT_HEIGHT_L).first.at(0));
+                    quint16 height = (height_h << 8) + height_l;
+                    
+                    quint8 fps_h = static_cast<quint8>(usbXdataRead4Byte(ADDR_INPUT_FPS_H).first.at(0));
+                    quint8 fps_l = static_cast<quint8>(usbXdataRead4Byte(ADDR_INPUT_FPS_L).first.at(0));
+                    float fps = static_cast<float>((fps_h << 8) + fps_l) / 100;
+                    
+                    quint8 clk_h = static_cast<quint8>(usbXdataRead4Byte(ADDR_INPUT_PIXELCLK_H).first.at(0));
+                    quint8 clk_l = static_cast<quint8>(usbXdataRead4Byte(ADDR_INPUT_PIXELCLK_L).first.at(0));
+                    float pixclk = ((clk_h << 8) + clk_l) / 100.0;
+                    
+                    float aspectRatio = height ? static_cast<float>(width) / height : 0;
+                    GlobalVar::instance().setInputAspectRatio(aspectRatio);
 
-                        if (pixclk > 185) {
-                            width *= 2;
-                            height *= 2;
-                        }
+                    if (pixclk > 185) {
+                        width *= 2;
+                        height *= 2;
+                    }
 
-                        if (GlobalVar::instance().getInputWidth() != width || GlobalVar::instance().getInputHeight() != height) {
-                            emit inputResolutionChanged(GlobalVar::instance().getInputWidth(), GlobalVar::instance().getInputHeight(), width, height);
-                        }
-                        
-                        emit resolutionChangeUpdate(width, height, fps, pixclk);
+                    if (GlobalVar::instance().getInputWidth() != width || GlobalVar::instance().getInputHeight() != height) {
+                        emit inputResolutionChanged(GlobalVar::instance().getInputWidth(), GlobalVar::instance().getInputHeight(), width, height);
+                    }
+                    
+                    emit resolutionChangeUpdate(width, height, fps, pixclk);
+                } else {
+                    emit resolutionChangeUpdate(0, 0, 0, 0);
+                }
+
+                // Handle hardware switch status changes
+                if (isHardSwitchOnTarget != currentSwitchOnTarget) {
+                    qCDebug(log_host_hid)  << "isHardSwitchOnTarget" << isHardSwitchOnTarget << "currentSwitchOnTarget" << currentSwitchOnTarget;
+                    eventCallback->onSwitchableUsbToggle(currentSwitchOnTarget);
+                    
+                    // Set SPDIF out
+                    int bit = 1;
+                    int mask = 0xFE;
+                    if (GlobalVar::instance().getCaptureCardFirmwareVersion() < "24081309") {
+                        bit = 0x10;
+                        mask = 0xEF;
+                    }
+
+                    quint8 spdifout = static_cast<quint8>(usbXdataRead4Byte(ADDR_SPDIFOUT).first.at(0));
+                    if (currentSwitchOnTarget) {
+                        spdifout |= bit;
                     } else {
-                        emit resolutionChangeUpdate(0, 0, 0, 0);
+                        spdifout &= mask;
                     }
-
-                    // Handle hardware switch status changes
-                    if (isHardSwitchOnTarget != currentSwitchOnTarget) {
-                        qCDebug(log_host_hid)  << "isHardSwitchOnTarget" << isHardSwitchOnTarget << "currentSwitchOnTarget" << currentSwitchOnTarget;
-                        eventCallback->onSwitchableUsbToggle(currentSwitchOnTarget);
-                        
-                        // Set SPDIF out within the same transaction
-                        int bit = 1;
-                        int mask = 0xFE;
-                        if (GlobalVar::instance().getCaptureCardFirmwareVersion() < "24081309") {
-                            bit = 0x10;
-                            mask = 0xEF;
-                        }
-
-                        quint8 spdifout = static_cast<quint8>(usbXdataRead4Byte(ADDR_SPDIFOUT).first.at(0));
-                        if (currentSwitchOnTarget) {
-                            spdifout |= bit;
-                        } else {
-                            spdifout &= mask;
-                        }
-                        QByteArray data(4, 0);
-                        data[0] = spdifout;
-                        usbXdataWrite4Byte(ADDR_SPDIFOUT, data);
-                        
-                        isHardSwitchOnTarget = currentSwitchOnTarget;
-                    }
+                    QByteArray data(4, 0);
+                    data[0] = spdifout;
+                    usbXdataWrite4Byte(ADDR_SPDIFOUT, data);
+                    
+                    isHardSwitchOnTarget = currentSwitchOnTarget;
                 }
             }
-            catch (...) {
-                qCDebug(log_host_hid)  << "Exception occurred during timer processing";
-            }
-
-            // Always end the transaction
-            endTransaction();
+        }
+        catch (...) {
+            qCDebug(log_host_hid)  << "Exception occurred during timer processing";
         }
     });
     timer->start(1000);
@@ -134,6 +152,9 @@ void VideoHid::stop() {
         delete timer;
         timer = nullptr;
     }
+    
+    // Close the HID device when stopping
+    endTransaction();
 }
 
 /*
@@ -146,6 +167,7 @@ QPair<int, int> VideoHid::getResolution() {
     quint8 height_h = static_cast<quint8>(usbXdataRead4Byte(ADDR_INPUT_HEIGHT_H).first.at(0));
     quint8 height_l = static_cast<quint8>(usbXdataRead4Byte(ADDR_INPUT_HEIGHT_L).first.at(0));
     quint16 height = (height_h << 8) + height_l;
+    
     return qMakePair(width, height);
 }
 
@@ -153,6 +175,7 @@ float VideoHid::getFps() {
     quint8 fps_h = static_cast<quint8>(usbXdataRead4Byte(ADDR_INPUT_FPS_H).first.at(0));
     quint8 fps_l = static_cast<quint8>(usbXdataRead4Byte(ADDR_INPUT_FPS_L).first.at(0));
     quint16 fps = (fps_h << 8) + fps_l;
+    
     return static_cast<float>(fps) / 100;
 }
 
@@ -162,14 +185,18 @@ float VideoHid::getFps() {
  * false means switchable usb connects to the host
  */
 bool VideoHid::getGpio0() {
-    return usbXdataRead4Byte(ADDR_GPIO0).first.at(0) & 0x01;
+    bool result = usbXdataRead4Byte(ADDR_GPIO0).first.at(0) & 0x01;
+    return result;
 }
 
 float VideoHid::getPixelclk() {
     quint8 clk_h = static_cast<quint8>(usbXdataRead4Byte(ADDR_INPUT_PIXELCLK_H).first.at(0));
     quint8 clk_l = static_cast<quint8>(usbXdataRead4Byte(ADDR_INPUT_PIXELCLK_L).first.at(0));
-    return ((clk_h << 8) + clk_l)/100.0;
+    float result = ((clk_h << 8) + clk_l)/100.0;
+    
+    return result;
 }
+
 
 bool VideoHid::getSpdifout() {
     int bit = 1;
@@ -179,7 +206,9 @@ bool VideoHid::getSpdifout() {
         bit = 0x10;
         mask = 0xEF;
     }
-    return usbXdataRead4Byte(ADDR_SPDIFOUT).first.at(0) & bit;
+    
+    bool result = usbXdataRead4Byte(ADDR_SPDIFOUT).first.at(0) & bit;
+    return result;
 }
 
 void VideoHid::switchToHost() {
@@ -228,24 +257,28 @@ void VideoHid::setSpdifout(bool enable) {
 std::string VideoHid::getFirmwareVersion() {
     bool ok;
     int version_0 = 0, version_1 = 0, version_2 = 0, version_3 = 0;
+    bool wasInTransaction = m_inTransaction;
     
-    // Begin transaction to keep handle open during multiple reads
-    if (beginTransaction()) {
-        try {
-            // Read all version bytes in a single transaction
-            version_0 = usbXdataRead4Byte(ADDR_FIRMWARE_VERSION_0).first.toHex().toInt(&ok, 16);
-            version_1 = usbXdataRead4Byte(ADDR_FIRMWARE_VERSION_1).first.toHex().toInt(&ok, 16);
-            version_2 = usbXdataRead4Byte(ADDR_FIRMWARE_VERSION_2).first.toHex().toInt(&ok, 16);
-            version_3 = usbXdataRead4Byte(ADDR_FIRMWARE_VERSION_3).first.toHex().toInt(&ok, 16);
-        }
-        catch (...) {
-            qCDebug(log_host_hid)  << "Exception occurred during firmware version read";
-        }
-        
-        // Always end the transaction, regardless of success or failure
-        endTransaction();
-    } else {
+    // Only begin transaction if not already in one
+    if (!wasInTransaction && !beginTransaction()) {
         qCDebug(log_host_hid)  << "Failed to begin transaction for getFirmwareVersion";
+        return "00000000";
+    }
+    
+    try {
+        // Read all version bytes
+        version_0 = usbXdataRead4Byte(ADDR_FIRMWARE_VERSION_0).first.toHex().toInt(&ok, 16);
+        version_1 = usbXdataRead4Byte(ADDR_FIRMWARE_VERSION_1).first.toHex().toInt(&ok, 16);
+        version_2 = usbXdataRead4Byte(ADDR_FIRMWARE_VERSION_2).first.toHex().toInt(&ok, 16);
+        version_3 = usbXdataRead4Byte(ADDR_FIRMWARE_VERSION_3).first.toHex().toInt(&ok, 16);
+    }
+    catch (...) {
+        qCDebug(log_host_hid)  << "Exception occurred during firmware version read";
+    }
+    
+    // Only end the transaction if we started it
+    if (!wasInTransaction) {
+        endTransaction();
     }
     
     return QString("%1%2%3%4").arg(version_0, 2, 10, QChar('0'))
@@ -356,6 +389,28 @@ bool VideoHid::isHdmiConnected() {
 
 void VideoHid::setEventCallback(StatusEventCallback* callback) {
     eventCallback = callback;
+}
+
+void VideoHid::clearDevicePathCache() {
+    qCDebug(log_host_hid) << "Clearing HID device path cache";
+    m_cachedDevicePath.clear();
+    m_lastPathQuery = std::chrono::steady_clock::now() - std::chrono::seconds(11); // Force refresh on next call
+}
+
+void VideoHid::refreshHIDDevice() {
+    qCDebug(log_host_hid) << "Refreshing HID device connection";
+    
+    // Clear cached device path to force re-discovery
+    clearDevicePathCache();
+    
+    // If we're currently in a transaction, restart it with the new device
+    bool wasInTransaction = m_inTransaction;
+    if (wasInTransaction) {
+        endTransaction();
+        if (!beginTransaction()) {
+            qCWarning(log_host_hid) << "Failed to restart HID transaction after refresh";
+        }
+    }
 }
 
 QPair<QByteArray, bool> VideoHid::usbXdataRead4Byte(quint16 u16_address) {
@@ -602,19 +657,188 @@ void VideoHid::loadEepromToFile(const QString &filePath) {
     thread->start();
 }
 
-#ifdef _WIN32
-std::wstring VideoHid::getHIDDevicePath() {
+QString VideoHid::findMatchingHIDDevice(const QString& portChain) const
+{
     // Check if we have a cached path that's still valid
     auto now = std::chrono::steady_clock::now();
     auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(now - m_lastPathQuery).count();
     
+#ifdef _WIN32
     if (!m_cachedDevicePath.empty() && elapsed < 10) {
         // Return cached path if it's less than 10 seconds old
+        QString cachedPath = QString::fromStdWString(m_cachedDevicePath);
+        qCDebug(log_host_hid) << "Using cached HID device path:" << cachedPath;
+        return cachedPath;
+    }
+#elif __linux__
+    if (!m_cachedDevicePath.isEmpty() && elapsed < 10) {
+        // Return cached path if it's less than 10 seconds old
+        qCDebug(log_host_hid) << "Using cached HID device path:" << m_cachedDevicePath;
         return m_cachedDevicePath;
     }
+#endif
+
+    // Update the last query time (need to cast away const since this is conceptually a const operation)
+    const_cast<VideoHid*>(this)->m_lastPathQuery = now;
+
+    if (portChain.isEmpty()) {
+        qCDebug(log_host_hid) << "Empty port chain provided";
+        return QString();
+    }
+
+    qCDebug(log_host_hid) << "Finding HID device matching port chain:" << portChain;
+
+    // Use DeviceManager to look up device information by port chain
+    DeviceManager& deviceManager = DeviceManager::getInstance();
+    QList<DeviceInfo> devices = deviceManager.getDevicesByPortChain(portChain);
     
-    // Update the last query time
-    m_lastPathQuery = now;
+    if (devices.isEmpty()) {
+        qCWarning(log_host_hid) << "No devices found for port chain:" << portChain;
+        return QString();
+    }
+
+    qCDebug(log_host_hid) << "Found" << devices.size() << "device(s) for port chain:" << portChain;
+
+    // Look for a device that has HID information
+    DeviceInfo selectedDevice;
+    for (const DeviceInfo& device : devices) {
+        if (!device.hidDevicePath.isEmpty()) {
+            selectedDevice = device;
+            qCDebug(log_host_hid) << "Found device with HID info:" 
+                     << "hidDevicePath:" << device.hidDevicePath;
+            break;
+        }
+    }
+
+    if (!selectedDevice.isValid() || selectedDevice.hidDevicePath.isEmpty()) {
+        qCWarning(log_host_hid) << "No device with HID information found for port chain:" << portChain;
+        return QString();
+    }
+
+    qCDebug(log_host_hid) << "Selected HID device path:" << selectedDevice.hidDevicePath;
+    
+    // Cache the found device path
+#ifdef _WIN32
+    const_cast<VideoHid*>(this)->m_cachedDevicePath = selectedDevice.hidDevicePath.toStdWString();
+#elif __linux__
+    const_cast<VideoHid*>(this)->m_cachedDevicePath = selectedDevice.hidDevicePath;
+#endif
+    
+    return selectedDevice.hidDevicePath;
+}
+
+QString VideoHid::getCurrentHIDDevicePath() const
+{
+    return m_currentHIDDevicePath;
+}
+
+QString VideoHid::getCurrentHIDPortChain() const
+{
+    return m_currentHIDPortChain;
+}
+
+bool VideoHid::switchToHIDDeviceByPortChain(const QString& portChain)
+{
+    if (portChain.isEmpty()) {
+        qCWarning(log_host_hid) << "Cannot switch to HID device with empty port chain";
+        return false;
+    }
+
+    qCDebug(log_host_hid) << "Attempting to switch to HID device by port chain:" << portChain;
+
+    try {
+        QString targetHIDPath = findMatchingHIDDevice(portChain);
+        
+        if (targetHIDPath.isEmpty()) {
+            qCWarning(log_host_hid) << "No matching HID device found for port chain:" << portChain;
+            return false;
+        }
+
+        qCDebug(log_host_hid) << "Found matching HID device path:" << targetHIDPath << "for port chain:" << portChain;
+
+        // Check if we're already using this device - avoid unnecessary switching
+        if (!m_currentHIDDevicePath.isEmpty() && m_currentHIDDevicePath == targetHIDPath) {
+            qCDebug(log_host_hid) << "Already using HID device:" << targetHIDPath << "- skipping switch";
+            return true;
+        }
+
+        QString previousDevicePath = m_currentHIDDevicePath;
+        QString previousPortChain = m_currentHIDPortChain;
+        
+        qCDebug(log_host_hid) << "Switching HID device from" << previousDevicePath 
+                             << "to" << targetHIDPath;
+
+        // Close current HID device if open
+        bool wasInTransaction = m_inTransaction;
+        if (wasInTransaction) {
+            qCDebug(log_host_hid) << "Closing current HID device before switch";
+            endTransaction();
+        }
+
+        // Update current device tracking
+        m_currentHIDDevicePath = targetHIDPath;
+        m_currentHIDPortChain = portChain;
+        
+        // Clear cached device path to force re-discovery with new device
+        clearDevicePathCache();
+        
+#ifdef _WIN32
+        m_cachedDevicePath = targetHIDPath.toStdWString();
+#elif __linux__
+        m_cachedDevicePath = targetHIDPath;
+#endif
+
+        // Re-open HID device with new path if it was previously open
+        bool switchSuccess = true;
+        if (wasInTransaction) {
+            qCDebug(log_host_hid) << "Re-opening HID device with new path";
+            switchSuccess = beginTransaction();
+            if (!switchSuccess) {
+                qCWarning(log_host_hid) << "Failed to re-open HID device after switch";
+                // Revert to previous device info on failure
+                m_currentHIDDevicePath = previousDevicePath;
+                m_currentHIDPortChain = previousPortChain;
+            }
+        }
+
+        if (switchSuccess) {
+            // Update global settings to remember the new device
+            GlobalSetting::instance().setOpenterfacePortChain(portChain);
+            
+            // Emit signals for HID device switching
+            emit hidDeviceChanged(previousDevicePath, targetHIDPath);
+            emit hidDeviceSwitched(previousPortChain, portChain);
+            emit hidDeviceConnected(targetHIDPath);
+            
+            if (!previousDevicePath.isEmpty()) {
+                emit hidDeviceDisconnected(previousDevicePath);
+            }
+            
+            qCDebug(log_host_hid) << "HID device switch successful to:" << targetHIDPath;
+        }
+        
+        return switchSuccess;
+
+    } catch (const std::exception& e) {
+        qCritical() << "Exception in switchToHIDDeviceByPortChain:" << e.what();
+        return false;
+    } catch (...) {
+        qCritical() << "Unknown exception in switchToHIDDeviceByPortChain";
+        return false;
+    }
+}
+
+#ifdef _WIN32
+std::wstring VideoHid::getHIDDevicePath() {
+    QString portChain = GlobalSetting::instance().getOpenterfacePortChain();
+    QString hidPath = findMatchingHIDDevice(portChain);
+    
+    if (!hidPath.isEmpty()) {
+        return hidPath.toStdWString();
+    }
+    
+    // Fallback to original VID/PID enumeration method
+    qCDebug(log_host_hid) << "Falling back to VID/PID enumeration for HID device discovery";
     
     GUID hidGuid;
     HidD_GetHidGuid(&hidGuid); // Get the HID GUID
@@ -654,9 +878,6 @@ std::wstring VideoHid::getHIDDevicePath() {
                         free(deviceInterfaceDetailData);
                         SetupDiDestroyDeviceInfoList(deviceInfoSet);
                         
-                        // Cache the found device path
-                        m_cachedDevicePath = devicePath;
-                        
                         return devicePath; // Found the device
                     }
                 }
@@ -667,9 +888,6 @@ std::wstring VideoHid::getHIDDevicePath() {
     }
 
     SetupDiDestroyDeviceInfoList(deviceInfoSet);
-    
-    // Clear the cache if no device was found
-    m_cachedDevicePath.clear();
     
     return L""; // Device not found
 }
@@ -702,6 +920,7 @@ bool VideoHid::sendFeatureReportWindows(BYTE* reportBuffer, DWORD bufferSize) {
 bool VideoHid::openHIDDeviceHandle() {
     if (deviceHandle == INVALID_HANDLE_VALUE) {
         qCDebug(log_host_hid)  << "Opening HID device handle...";
+        qCDebug(log_host_hid)  << "HID device path:" << QString::fromStdWString(getHIDDevicePath());
         deviceHandle = CreateFileW(getHIDDevicePath().c_str(),
                                  GENERIC_READ | GENERIC_WRITE,
                                  FILE_SHARE_READ | FILE_SHARE_WRITE,
@@ -742,17 +961,15 @@ bool VideoHid::getFeatureReportWindows(BYTE* reportBuffer, DWORD bufferSize) {
 
 #elif __linux__
 QString VideoHid::getHIDDevicePath() {
-    // Check if we have a cached path that's still valid
-    auto now = std::chrono::steady_clock::now();
-    auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(now - m_lastPathQuery).count();
+    QString portChain = GlobalSetting::instance().getOpenterfacePortChain();
+    QString hidPath = findMatchingHIDDevice(portChain);
     
-    if (!m_cachedDevicePath.isEmpty() && elapsed < 10) {
-        // Return cached path if it's less than 10 seconds old
-        return m_cachedDevicePath;
+    if (!hidPath.isEmpty()) {
+        return hidPath;
     }
     
-    // Update the last query time
-    m_lastPathQuery = now;
+    // Fallback to original device name enumeration method
+    qCDebug(log_host_hid) << "Falling back to device name enumeration for HID device discovery";
     
     QDir dir("/sys/class/hidraw");
 
@@ -760,9 +977,6 @@ QString VideoHid::getHIDDevicePath() {
 
     if (hidrawDevices.isEmpty()) {
         qCDebug(log_host_hid)  << "No Openterface device found.";
-        
-        // Clear the cache if no devices found
-        m_cachedDevicePath.clear();
         
         return QString();
     }
@@ -779,27 +993,20 @@ QString VideoHid::getHIDDevicePath() {
                 qCDebug(log_host_hid)  << "Line: " << line;
                 if (line.isEmpty()) {
                     break;
-                }
-                if (line.contains("HID_NAME")) {
-                    // Check if this is the device you are looking for
-                    if (line.contains("Openterface") || line.contains("MACROSILICON")) {
-                        QString foundPath = "/dev/" + device;
-                        
-                        // Cache the found device path
-                        m_cachedDevicePath = foundPath;
-                        
-                        return foundPath;
+                }                    if (line.contains("HID_NAME")) {
+                        // Check if this is the device you are looking for
+                        if (line.contains("Openterface") || line.contains("MACROSILICON")) {
+                            QString foundPath = "/dev/" + device;
+                            
+                            return foundPath;
+                        }
                     }
-                }
             }
         } else {
             qCDebug(log_host_hid)  << "Failed to open device path: " << devicePath;
         }   
     }
 
-    // Clear the cache if no device was found
-    m_cachedDevicePath.clear();
-    
     return QString();
 }
 

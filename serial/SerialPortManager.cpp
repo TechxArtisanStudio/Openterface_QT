@@ -43,6 +43,10 @@ const int SerialPortManager::SERIAL_TIMER_INTERVAL;
 SerialPortManager::SerialPortManager(QObject *parent) : QObject(parent), serialPort(nullptr), serialThread(new QThread(nullptr)), serialTimer(new QTimer(nullptr)){
     qCDebug(log_core_serial) << "Initialize serial port.";
 
+    // Initialize port chain tracking member variables
+    m_currentSerialPortPath = QString();
+    m_currentSerialPortChain = QString();
+
     connect(this, &SerialPortManager::serialPortConnected, this, &SerialPortManager::onSerialPortConnected);
     connect(this, &SerialPortManager::serialPortDisconnected, this, &SerialPortManager::onSerialPortDisconnected);
     connect(this, &SerialPortManager::serialPortConnectionSuccess, this, &SerialPortManager::onSerialPortConnectionSuccess);
@@ -164,6 +168,105 @@ void SerialPortManager::initializeSerialPortFromPortChain() {
     onSerialPortConnected(selectedDevice.serialPortPath);
     // Optionally, set the selected device in DeviceManager
     deviceManager.setCurrentSelectedDevice(selectedDevice);
+}
+
+QString SerialPortManager::getCurrentSerialPortPath() const
+{
+    return m_currentSerialPortPath;
+}
+
+QString SerialPortManager::getCurrentSerialPortChain() const
+{
+    return m_currentSerialPortChain;
+}
+
+bool SerialPortManager::switchSerialPortByPortChain(const QString& portChain)
+{
+    if (portChain.isEmpty()) {
+        qCWarning(log_core_serial) << "Cannot switch to serial port with empty port chain";
+        return false;
+    }
+
+    qCDebug(log_core_serial) << "Attempting to switch to serial port by port chain:" << portChain;
+
+    try {
+        // Use DeviceManager to look up device information by port chain
+        DeviceManager& deviceManager = DeviceManager::getInstance();
+        QList<DeviceInfo> devices = deviceManager.getDevicesByPortChain(portChain);
+        
+        if (devices.isEmpty()) {
+            qCWarning(log_core_serial) << "No devices found for port chain:" << portChain;
+            return false;
+        }
+
+        qCDebug(log_core_serial) << "Found" << devices.size() << "device(s) for port chain:" << portChain;
+
+        // Find a device with a valid serial port path
+        DeviceInfo selectedDevice;
+        for (const DeviceInfo& device : devices) {
+            if (!device.serialPortPath.isEmpty()) {
+                selectedDevice = device;
+                qCDebug(log_core_serial) << "Found device with serial port:" << device.serialPortPath;
+                break;
+            }
+        }
+
+        if (!selectedDevice.isValid() || selectedDevice.serialPortPath.isEmpty()) {
+            qCWarning(log_core_serial) << "No valid device with serial port found for port chain:" << portChain;
+            return false;
+        }
+
+        // Check if we're already using this port - avoid unnecessary switching
+        if (!m_currentSerialPortPath.isEmpty() && m_currentSerialPortPath == selectedDevice.serialPortPath) {
+            qCDebug(log_core_serial) << "Already using serial port:" << selectedDevice.serialPortPath << "- skipping switch";
+            return true;
+        }
+
+        QString previousPortPath = m_currentSerialPortPath;
+        QString previousPortChain = m_currentSerialPortChain;
+        
+        qCDebug(log_core_serial) << "Switching serial port from" << previousPortPath 
+                                << "to" << selectedDevice.serialPortPath;
+
+        // Close current serial port if open
+        if (serialPort && serialPort->isOpen()) {
+            qCDebug(log_core_serial) << "Closing current serial port before switch";
+            closePort();
+        }
+
+        // Update current device tracking
+        m_currentSerialPortPath = selectedDevice.serialPortPath;
+        m_currentSerialPortChain = portChain;
+
+        // Open the new serial port
+        bool switchSuccess = openPort(selectedDevice.serialPortPath, DEFAULT_BAUDRATE);
+        
+        if (!switchSuccess) {
+            qCWarning(log_core_serial) << "Failed to open serial port after switch:" << selectedDevice.serialPortPath;
+            // Revert to previous device info on failure
+            m_currentSerialPortPath = previousPortPath;
+            m_currentSerialPortChain = previousPortChain;
+            return false;
+        }
+
+        // Update global settings and device manager
+        GlobalSetting::instance().setOpenterfacePortChain(portChain);
+        deviceManager.setCurrentSelectedDevice(selectedDevice);
+        
+        // Emit signals for serial port switching
+        emit serialPortDeviceChanged(previousPortPath, selectedDevice.serialPortPath);
+        emit serialPortSwitched(previousPortChain, portChain);
+        
+        qCDebug(log_core_serial) << "Serial port switch successful to:" << selectedDevice.serialPortPath;
+        return true;
+
+    } catch (const std::exception& e) {
+        qCritical() << "Exception in switchSerialPortByPortChain:" << e.what();
+        return false;
+    } catch (...) {
+        qCritical() << "Unknown exception in switchSerialPortByPortChain";
+        return false;
+    }
 }
 
 // void SerialPortManager::checkSwitchableUSB(){

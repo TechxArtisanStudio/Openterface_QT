@@ -22,6 +22,12 @@ DeviceManager::DeviceManager()
     m_hotplugTimer->setSingleShot(false);
     connect(m_hotplugTimer, &QTimer::timeout, this, &DeviceManager::onHotplugTimerTimeout);
     
+    // Start the HotplugMonitor to enable signal emission
+    if (m_hotplugMonitor) {
+        m_hotplugMonitor->start(2000); // Start with 2 second interval
+        qCDebug(log_device_manager) << "HotplugMonitor started";
+    }
+    
     // Auto-start hotplug monitoring
     startHotplugMonitoring();
     
@@ -32,6 +38,7 @@ DeviceManager::~DeviceManager()
 {
     stopHotplugMonitoring();
     if (m_hotplugMonitor) {
+        m_hotplugMonitor->stop();
         delete m_hotplugMonitor;
     }
     if (m_platformManager) {

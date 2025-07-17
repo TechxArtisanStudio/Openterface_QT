@@ -118,12 +118,14 @@ void HotplugMonitor::checkForChanges()
         qCInfo(log_hotplug_monitor) << "  Removed:" << event.removedDevices.size();
         qCInfo(log_hotplug_monitor) << "  Modified:" << event.modifiedDevices.size();
         
-        // Log details
+        // Log details and emit specific signals
         for (const auto& device : event.addedDevices) {
             qCDebug(log_hotplug_monitor) << "  + Added device:" << device.portChain;
+            emit newDevicePluggedIn(device);
         }
         for (const auto& device : event.removedDevices) {
             qCDebug(log_hotplug_monitor) << "  - Removed device:" << device.portChain;
+            emit deviceUnplugged(device);
         }
         for (const auto& pair : event.modifiedDevices) {
             qCDebug(log_hotplug_monitor) << "  * Modified device:" << pair.second.portChain;

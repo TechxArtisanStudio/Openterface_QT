@@ -16,13 +16,14 @@
 class DeviceManager;
 class SerialPortManager;
 class CameraManager;
+class VideoHid;
 
 class DeviceSelectorDialog : public QDialog
 {
     Q_OBJECT
     
 public:
-    explicit DeviceSelectorDialog(CameraManager *cameraManager, QWidget *parent = nullptr);
+    explicit DeviceSelectorDialog(CameraManager *cameraManager, VideoHid *videoHid = nullptr, QWidget *parent = nullptr);
     ~DeviceSelectorDialog();
     
 public slots:
@@ -76,6 +77,7 @@ private:
     // Data
     SerialPortManager* m_serialPortManager;
     CameraManager* m_cameraManager;
+    VideoHid* m_videoHid;
     QList<DeviceInfo> m_currentDevices;
     DeviceInfo m_selectedDevice;
     

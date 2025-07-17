@@ -25,6 +25,8 @@ public:
     void setTargetUsbConnected(bool isConnected);
     void factoryReset(bool isStarted);
     void serialPortReset(bool isStarted);
+    void showNewDevicePluggedIn(const QString& portChain);
+    void showDeviceUnplugged(const QString& portChain);
     void updateIconColor();
 
 

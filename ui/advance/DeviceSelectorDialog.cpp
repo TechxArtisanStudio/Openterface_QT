@@ -6,6 +6,7 @@
 #endif
 #include "../../serial/SerialPortManager.h"
 #include "../../host/cameramanager.h"
+#include "../../video/videohid.h"
 #include "../globalsetting.h"
 #include <QLoggingCategory>
 #include <QHeaderView>
@@ -16,10 +17,11 @@
 
 Q_LOGGING_CATEGORY(log_device_selector, "opf.ui.deviceselector")
 
-DeviceSelectorDialog::DeviceSelectorDialog(CameraManager *cameraManager, QWidget *parent)
+DeviceSelectorDialog::DeviceSelectorDialog(CameraManager *cameraManager, VideoHid *videoHid, QWidget *parent)
     : QDialog(parent)
-    , m_serialPortManager(nullptr)
+    , m_serialPortManager(&SerialPortManager::getInstance())
     , m_cameraManager(cameraManager)
+    , m_videoHid(videoHid)
     , m_autoRefreshTimer(new QTimer(this))
     , m_autoRefreshEnabled(false)
     , m_totalHotplugEvents(0)
@@ -381,7 +383,20 @@ QString DeviceSelectorDialog::formatDeviceDetails(const DeviceInfo& device)
     }
     
     if (device.hasHidDevice()) {
-        details << QString("🖱️ <b>HID Interface:</b> Available");
+        // Check if this is the currently active HID device
+        QString currentHIDPath;
+        QString currentHIDPortChain;
+        if (m_videoHid) {
+            currentHIDPath = m_videoHid->getCurrentHIDDevicePath();
+            currentHIDPortChain = m_videoHid->getCurrentHIDPortChain();
+        }
+        
+        bool isActiveHID = (!currentHIDPortChain.isEmpty() && currentHIDPortChain == device.portChain) ||
+                          (!currentHIDPath.isEmpty() && currentHIDPath == device.hidDevicePath);
+        
+        QString activeStatus = isActiveHID ? " (Active)" : "";
+        details << QString("🖱️ <b>HID Interface:</b> Available%1").arg(activeStatus);
+        details << QString("   Device Path: %1").arg(device.hidDevicePath);
         details << QString("   Device ID: %1").arg(device.hidDeviceId);
         details << QString("   Function: Keyboard/mouse control");
     } else {
@@ -389,7 +404,19 @@ QString DeviceSelectorDialog::formatDeviceDetails(const DeviceInfo& device)
     }
     
     if (device.hasCameraDevice()) {
-        details << QString("📹 <b>Camera Interface:</b> Available");
+        // Check if this is the currently active camera device
+        QString currentCameraId;
+        if (m_cameraManager) {
+            currentCameraId = m_cameraManager->getCurrentCameraDeviceId();
+        }
+        
+        bool isActiveCamera = (!currentCameraId.isEmpty() && 
+                              (currentCameraId == device.cameraDeviceId || 
+                               currentCameraId.contains(device.cameraDeviceId)));
+        
+        QString activeStatus = isActiveCamera ? " (Active)" : "";
+        details << QString("📹 <b>Camera Interface:</b> Available%1").arg(activeStatus);
+        details << QString("   Device Path: %1").arg(device.cameraDevicePath);
         details << QString("   Device ID: %1").arg(device.cameraDeviceId);
         details << QString("   Function: Video capture");
     } else {
@@ -562,20 +589,72 @@ void DeviceSelectorDialog::onSwitchToDevice()
         .arg(currentDevice.portChain)
         .arg(m_selectedDevice.portChain),
         QMessageBox::Yes | QMessageBox::No);
-    GlobalSetting::instance().setOpenterfacePortChain(m_selectedDevice.portChain);
-    
-    bool camearSwitchSuccess = false;
-    if (m_cameraManager) {
-        camearSwitchSuccess = m_cameraManager->switchToCameraDeviceByPortChain(m_selectedDevice.portChain);
-    } else {
-        qCWarning(log_device_selector) << "CameraManager is null, cannot switch camera device";
-    }
     
     if (reply != QMessageBox::Yes) {
         return;
     }
     
+    // Update global settings
+    GlobalSetting::instance().setOpenterfacePortChain(m_selectedDevice.portChain);
     
+    bool cameraSuccess = false;
+    bool hidSuccess = false;
+    bool serialSuccess = false;
+    
+    // Switch camera device
+    if (m_cameraManager) {
+        cameraSuccess = m_cameraManager->switchToCameraDeviceByPortChain(m_selectedDevice.portChain);
+        if (cameraSuccess) {
+            qCDebug(log_device_selector) << "Camera device switched successfully";
+        } else {
+            qCWarning(log_device_selector) << "Failed to switch camera device";
+        }
+    } else {
+        qCWarning(log_device_selector) << "CameraManager is null, cannot switch camera device";
+    }
+    
+    // Switch HID device
+    if (m_videoHid) {
+        hidSuccess = m_videoHid->switchToHIDDeviceByPortChain(m_selectedDevice.portChain);
+        if (hidSuccess) {
+            qCDebug(log_device_selector) << "HID device switched successfully";
+        } else {
+            qCWarning(log_device_selector) << "Failed to switch HID device";
+        }
+    } else {
+        qCWarning(log_device_selector) << "VideoHid is null, cannot switch HID device";
+    }
+    
+    // Switch serial port device
+    if (m_serialPortManager) {
+        serialSuccess = m_serialPortManager->switchSerialPortByPortChain(m_selectedDevice.portChain);
+        if (serialSuccess) {
+            qCDebug(log_device_selector) << "Serial port device switched successfully";
+        } else {
+            qCWarning(log_device_selector) << "Failed to switch serial port device";
+        }
+    } else {
+        qCWarning(log_device_selector) << "SerialPortManager is null, cannot switch serial port device";
+    }
+    
+    // Update device manager selection
+    deviceManager.setCurrentSelectedDevice(m_selectedDevice);
+    
+    // Show result to user
+    QString statusMessage;
+    if (cameraSuccess && hidSuccess && serialSuccess) {
+        statusMessage = QString("Successfully switched to device at port %1").arg(m_selectedDevice.portChain);
+    } else if (cameraSuccess || hidSuccess || serialSuccess) {
+        statusMessage = QString("Partially switched to device at port %1 (some interfaces may not be available)")
+                       .arg(m_selectedDevice.portChain);
+    } else {
+        statusMessage = QString("Failed to switch to device at port %1").arg(m_selectedDevice.portChain);
+    }
+    
+    QMessageBox::information(this, "Device Switch Result", statusMessage);
+    
+    // Refresh the device list to show updated status
+    refreshDeviceList();
 }
 
 void DeviceSelectorDialog::onDeactivateDevice()

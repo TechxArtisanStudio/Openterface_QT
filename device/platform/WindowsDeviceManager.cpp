@@ -10,9 +10,23 @@
 #include <devguid.h>
 #include <cfgmgr32.h>
 #include <objbase.h>
+#include <hidclass.h>
+
+extern "C"
+{
+#include <hidsdi.h>
+}
 
 // USB Device Interface GUID definition
 DEFINE_GUID(GUID_DEVINTERFACE_USB_DEVICE, 
+    0xA5DCBF10, 0x6530, 0x11D2, 0x90, 0x1F, 0x00, 0xC0, 0x4F, 0xB9, 0x51, 0xED);
+
+// Camera interface GUID - DirectShow video capture devices
+DEFINE_GUID(GUID_DEVINTERFACE_CAMERA, 
+    0x65E8773D, 0x8F56, 0x11D0, 0xA3, 0xB9, 0x00, 0xA0, 0xC9, 0x22, 0x31, 0x96);
+
+// UVC (USB Video Class) interface GUID
+DEFINE_GUID(GUID_DEVINTERFACE_UVC, 
     0xA5DCBF10, 0x6530, 0x11D2, 0x90, 0x1F, 0x00, 0xC0, 0x4F, 0xB9, 0x51, 0xED);
 
 // Function declaration for CM_Get_Sibling (if not available in headers)
@@ -105,22 +119,19 @@ QList<DeviceInfo> WindowsDeviceManager::discoverDevices()
                 }
                 
                 // Check for HID device
-                if (hardwareId.toUpper().contains("HID")) {
-                    deviceInfo.hidDevicePath = deviceId;
+                if (hardwareId.toUpper().contains("HID") && deviceId.toUpper().contains("MI_04")) {
                     deviceInfo.hidDeviceId = deviceId;
-                    qCDebug(log_device_windows) << "  ✓ Found HID device:" << deviceId;
+                    qCDebug(log_device_windows) << "Found HID device ID:" << deviceId << "with hardware ID:" << hardwareId;
                 }
                 // Check for camera device (MI_00 interface)
                 else if (hardwareId.toUpper().contains("MI_00")) {
-                    deviceInfo.cameraDevicePath = deviceId;
                     deviceInfo.cameraDeviceId = deviceId;
-                    qCDebug(log_device_windows) << "  ✓ Found camera device:" << deviceId;
+                    qCDebug(log_device_windows) << "Found camera device ID:" << deviceId;
                 }
                 // Check for audio device (Audio in hardware ID)
                 else if (hardwareId.toUpper().contains("AUDIO")) {
-                    deviceInfo.audioDevicePath = deviceId;
                     deviceInfo.audioDeviceId = deviceId;
-                    qCDebug(log_device_windows) << "  ✓ Found audio device:" << deviceId;
+                    qCDebug(log_device_windows) << "Found audio device ID:" << deviceId;
                 }
             }
             
@@ -137,6 +148,9 @@ QList<DeviceInfo> WindowsDeviceManager::discoverDevices()
             }
             
             matchDevicePaths(deviceInfo);
+            
+            // Convert device IDs to actual device paths
+            matchDevicePathsToRealPaths(deviceInfo);
             
             devices.append(deviceInfo);
             qCDebug(log_device_windows) << "Device" << (i + 1) << "processing complete";
@@ -687,9 +701,10 @@ void WindowsDeviceManager::matchDevicePathsFromChildren(DeviceInfo& deviceInfo, 
         // Check for HID device
         else if (deviceClass.compare("HIDClass", Qt::CaseInsensitive) == 0 ||
                  hardwareId.contains(QString("VID_%1").arg(AbstractPlatformDeviceManager::HID_VID), Qt::CaseInsensitive)) {
-            deviceInfo.hidDevicePath = deviceId;
-            deviceInfo.hidDeviceId = deviceId;
-            qCDebug(log_device_windows) << "    ✓ Found HID device:" << deviceInfo.hidDevicePath;
+            if (deviceId.toUpper().contains("HID")){
+                deviceInfo.hidDeviceId = deviceId;
+                qCDebug(log_device_windows) << "Found HID device ID:" << deviceInfo.hidDeviceId << "with hardware ID:" << hardwareId;
+            }
         }
         
         // Check for camera device
@@ -702,9 +717,10 @@ void WindowsDeviceManager::matchDevicePathsFromChildren(DeviceInfo& deviceInfo, 
             
             // Verify this camera device is associated with the correct port chain
             if (verifyCameraDeviceAssociation(deviceId, deviceInfo.deviceInstanceId, deviceInfo.portChain)) {
-                deviceInfo.cameraDevicePath = deviceId;
                 deviceInfo.cameraDeviceId = deviceId;
-                qCDebug(log_device_windows) << "    ✓ Found CAMERA device with verified association:" << deviceInfo.cameraDevicePath;
+                // For camera devices, we need to find the actual device path, not just store the device ID
+                // The device path will be resolved later in matchDevicePathsToRealPaths
+                qCDebug(log_device_windows) << "    ✓ Found CAMERA device ID with verified association:" << deviceInfo.cameraDeviceId;
             } else {
                 qCDebug(log_device_windows) << "    ✗ Camera device association verification failed for port chain:" << deviceInfo.portChain;
             }
@@ -720,9 +736,10 @@ void WindowsDeviceManager::matchDevicePathsFromChildren(DeviceInfo& deviceInfo, 
             
             // Verify this audio device is associated with the correct port chain
             if (verifyAudioDeviceAssociation(deviceId, deviceInfo.deviceInstanceId, deviceInfo.portChain)) {
-                deviceInfo.audioDevicePath = deviceId;
                 deviceInfo.audioDeviceId = deviceId;
-                qCDebug(log_device_windows) << "    ✓ Found AUDIO device with verified association:" << deviceInfo.audioDevicePath;
+                // For audio devices, we need to find the actual device path, not just store the device ID
+                // The device path will be resolved later in matchDevicePathsToRealPaths
+                qCDebug(log_device_windows) << "    ✓ Found AUDIO device ID with verified association:" << deviceInfo.audioDeviceId;
             } else {
                 qCDebug(log_device_windows) << "    ✗ Audio device association verification failed for port chain:" << deviceInfo.portChain;
             }
@@ -751,16 +768,56 @@ QString WindowsDeviceManager::findComPortByLocation(const QString& location)
 
 QString WindowsDeviceManager::findHIDByDeviceId(const QString& deviceId)
 {
-    QList<QVariantMap> hidDevices = enumerateDevicesByClass(GUID_DEVCLASS_HIDCLASS);
+    // For HID devices, we need to enumerate using the HID GUID to get device interface paths
+    GUID hidGuid;
+    HidD_GetHidGuid(&hidGuid);
     
-    for (const QVariantMap& hid : hidDevices) {
-        QString hidDeviceId = hid.value("deviceId").toString();
-        if (hidDeviceId.contains(AbstractPlatformDeviceManager::HID_VID, Qt::CaseInsensitive) &&
-            hidDeviceId.contains(AbstractPlatformDeviceManager::HID_PID, Qt::CaseInsensitive)) {
-            return hid.value("devicePath").toString();
+    HDEVINFO hDevInfo = SetupDiGetClassDevs(&hidGuid, nullptr, nullptr, DIGCF_PRESENT | DIGCF_DEVICEINTERFACE);
+    if (hDevInfo == INVALID_HANDLE_VALUE) {
+        return QString();
+    }
+    
+    SP_DEVICE_INTERFACE_DATA interfaceData;
+    interfaceData.cbSize = sizeof(SP_DEVICE_INTERFACE_DATA);
+    
+    // Enumerate device interfaces
+    for (DWORD i = 0; SetupDiEnumDeviceInterfaces(hDevInfo, nullptr, &hidGuid, i, &interfaceData); i++) {
+        DWORD requiredSize = 0;
+        
+        // Get required buffer size
+        SetupDiGetDeviceInterfaceDetail(hDevInfo, &interfaceData, nullptr, 0, &requiredSize, nullptr);
+        
+        if (requiredSize == 0) {
+            continue;
+        }
+        
+        // Allocate buffer and get interface detail
+        std::vector<BYTE> buffer(requiredSize);
+        PSP_DEVICE_INTERFACE_DETAIL_DATA interfaceDetail = reinterpret_cast<PSP_DEVICE_INTERFACE_DETAIL_DATA>(buffer.data());
+        interfaceDetail->cbSize = sizeof(SP_DEVICE_INTERFACE_DETAIL_DATA);
+        
+        SP_DEVINFO_DATA interfaceDevInfoData;
+        interfaceDevInfoData.cbSize = sizeof(SP_DEVINFO_DATA);
+        
+        if (SetupDiGetDeviceInterfaceDetail(hDevInfo, &interfaceData, interfaceDetail, 
+                                          requiredSize, nullptr, &interfaceDevInfoData)) {
+            QString interfaceDeviceId = getDeviceId(interfaceDevInfoData.DevInst);
+            
+            // Check if this interface belongs to our target device
+            if (interfaceDeviceId == deviceId) {
+                // Verify this is our HID device by checking VID/PID
+                QString hardwareId = getHardwareId(hDevInfo, &interfaceDevInfoData);
+                if (hardwareId.contains(AbstractPlatformDeviceManager::HID_VID, Qt::CaseInsensitive) &&
+                    hardwareId.contains(AbstractPlatformDeviceManager::HID_PID, Qt::CaseInsensitive)) {
+                    QString devicePath = QString::fromWCharArray(interfaceDetail->DevicePath);
+                    SetupDiDestroyDeviceInfoList(hDevInfo);
+                    return devicePath;
+                }
+            }
         }
     }
     
+    SetupDiDestroyDeviceInfoList(hDevInfo);
     return QString();
 }
 
@@ -865,6 +922,56 @@ QString WindowsDeviceManager::getDeviceProperty(HDEVINFO hDevInfo, SP_DEVINFO_DA
 QString WindowsDeviceManager::getHardwareId(HDEVINFO hDevInfo, SP_DEVINFO_DATA* devInfoData)
 {
     return getDeviceProperty(hDevInfo, devInfoData, SPDRP_HARDWAREID);
+}
+
+QString WindowsDeviceManager::getDeviceInterfacePath(HDEVINFO hDevInfo, SP_DEVINFO_DATA* devInfoData, const GUID& interfaceGuid)
+{
+    // Create a new device info set for device interfaces
+    HDEVINFO hInterfaceDevInfo = SetupDiGetClassDevs(&interfaceGuid, nullptr, nullptr, 
+                                                     DIGCF_PRESENT | DIGCF_DEVICEINTERFACE);
+    if (hInterfaceDevInfo == INVALID_HANDLE_VALUE) {
+        return QString();
+    }
+    
+    SP_DEVICE_INTERFACE_DATA interfaceData;
+    interfaceData.cbSize = sizeof(SP_DEVICE_INTERFACE_DATA);
+    
+    QString targetDeviceId = getDeviceId(devInfoData->DevInst);
+    
+    // Enumerate device interfaces
+    for (DWORD i = 0; SetupDiEnumDeviceInterfaces(hInterfaceDevInfo, nullptr, &interfaceGuid, i, &interfaceData); i++) {
+        DWORD requiredSize = 0;
+        
+        // Get required buffer size
+        SetupDiGetDeviceInterfaceDetail(hInterfaceDevInfo, &interfaceData, nullptr, 0, &requiredSize, nullptr);
+        
+        if (requiredSize == 0) {
+            continue;
+        }
+        
+        // Allocate buffer and get interface detail
+        std::vector<BYTE> buffer(requiredSize);
+        PSP_DEVICE_INTERFACE_DETAIL_DATA interfaceDetail = reinterpret_cast<PSP_DEVICE_INTERFACE_DETAIL_DATA>(buffer.data());
+        interfaceDetail->cbSize = sizeof(SP_DEVICE_INTERFACE_DETAIL_DATA);
+        
+        SP_DEVINFO_DATA interfaceDevInfoData;
+        interfaceDevInfoData.cbSize = sizeof(SP_DEVINFO_DATA);
+        
+        if (SetupDiGetDeviceInterfaceDetail(hInterfaceDevInfo, &interfaceData, interfaceDetail, 
+                                          requiredSize, nullptr, &interfaceDevInfoData)) {
+            QString interfaceDeviceId = getDeviceId(interfaceDevInfoData.DevInst);
+            
+            // Check if this interface belongs to our target device
+            if (interfaceDeviceId == targetDeviceId) {
+                QString devicePath = QString::fromWCharArray(interfaceDetail->DevicePath);
+                SetupDiDestroyDeviceInfoList(hInterfaceDevInfo);
+                return devicePath;
+            }
+        }
+    }
+    
+    SetupDiDestroyDeviceInfoList(hInterfaceDevInfo);
+    return QString();
 }
 
 QList<QVariantMap> WindowsDeviceManager::getSiblingDevices(DWORD parentDevInst)
@@ -1287,6 +1394,51 @@ QList<QVariantMap> WindowsDeviceManager::enumerateDevicesByClassWithParentInfo(c
         device["description"] = getDeviceProperty(hDevInfo, &devInfoData, SPDRP_DEVICEDESC);
         device["locationInfo"] = getDeviceProperty(hDevInfo, &devInfoData, SPDRP_LOCATION_INFORMATION);
         device["hardwareId"] = getDeviceProperty(hDevInfo, &devInfoData, SPDRP_HARDWAREID);
+        
+        // Try to get device interface path for camera and audio devices
+        QString devicePath;
+        if (classGuid == GUID_DEVCLASS_CAMERA) {
+            // For camera devices, try multiple interface GUIDs
+            devicePath = getDeviceInterfacePath(hDevInfo, &devInfoData, GUID_DEVINTERFACE_CAMERA);
+            if (devicePath.isEmpty()) {
+                // Try UVC interface GUID as fallback
+                devicePath = getDeviceInterfacePath(hDevInfo, &devInfoData, GUID_DEVINTERFACE_UVC);
+            }
+            // For camera devices, if no interface path is found, we'll use a symbolic name
+            // based on the friendly name which can be used by applications like Qt's QCamera
+            if (devicePath.isEmpty()) {
+                QString friendlyName = device["friendlyName"].toString();
+                if (!friendlyName.isEmpty()) {
+                    device["devicePath"] = friendlyName; // Use friendly name as device "path" for cameras
+                } else {
+                    device["devicePath"] = device["deviceId"].toString();
+                }
+            } else {
+                device["devicePath"] = devicePath;
+            }
+        } else if (classGuid == GUID_DEVCLASS_HIDCLASS) {
+            // For HID devices, use the HID interface GUID
+            GUID hidGuid;
+            HidD_GetHidGuid(&hidGuid);
+            devicePath = getDeviceInterfacePath(hDevInfo, &devInfoData, hidGuid);
+            if (!devicePath.isEmpty()) {
+                device["devicePath"] = devicePath;
+            } else {
+                device["devicePath"] = device["deviceId"].toString();
+            }
+        } else if (classGuid == GUID_DEVCLASS_MEDIA) {
+            // For audio devices, the device ID might be sufficient
+            // Audio devices are typically accessed through Windows Audio APIs using device IDs
+            device["devicePath"] = device["deviceId"].toString();
+        } else {
+            // For other device classes, try to get interface path with the class GUID
+            devicePath = getDeviceInterfacePath(hDevInfo, &devInfoData, classGuid);
+            if (!devicePath.isEmpty()) {
+                device["devicePath"] = devicePath;
+            } else {
+                device["devicePath"] = device["deviceId"].toString();
+            }
+        }
         
         // Get parent device instance
         DWORD parentDevInst;

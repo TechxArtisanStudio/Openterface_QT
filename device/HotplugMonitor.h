@@ -55,6 +55,8 @@ public:
     
 signals:
     void deviceChangesDetected(const DeviceChangeEvent& event);
+    void newDevicePluggedIn(const DeviceInfo& device);
+    void deviceUnplugged(const DeviceInfo& device);
     void monitoringStarted();
     void monitoringStopped();
     void errorOccurred(const QString& error);
