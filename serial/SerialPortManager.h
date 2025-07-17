@@ -93,6 +93,10 @@ public:
     QString getCurrentSerialPortPath() const;
     QString getCurrentSerialPortChain() const;
     
+    // Hotplug monitoring integration
+    void connectToHotplugMonitor();
+    void disconnectFromHotplugMonitor();
+    
 signals:
     void dataReceived(const QByteArray &data);
     void dataSent(const QByteArray &data);
