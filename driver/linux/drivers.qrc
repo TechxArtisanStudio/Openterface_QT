@@ -1,0 +1,8 @@
+<!DOCTYPE RCC>
+<RCC version="1.0">
+    <qresource prefix="/drivers/linux">
+        <file alias="ch341.c">ch341.c</file>
+        <file alias="ch341.h">ch341.h</file>
+        <file alias="Makefile">Makefile</file>
+    </qresource>
+</RCC> 

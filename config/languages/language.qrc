@@ -1,0 +1,11 @@
+<!DOCTYPE RCC>
+<RCC version="1.0">
+    <qresource prefix="/config/languages">
+        <file>openterface_da.qm</file>
+        <file>openterface_de.qm</file>
+        <file>openterface_en.qm</file>
+        <file>openterface_fr.qm</file>
+		<file>openterface_ja.qm</file>
+		<file>openterface_se.qm</file>
+    </qresource>
+</RCC> 

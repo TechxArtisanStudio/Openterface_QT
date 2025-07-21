@@ -1,0 +1,33 @@
+{
+   TLS related: tls_get_addr_tail
+   Memcheck:Leak
+   match-leak-kinds: possible
+   fun:malloc
+   ...
+   fun:tls_get_addr_tail
+}
+
+{
+   TLS related: update_tls_slotinfo
+   Memcheck:Leak
+   match-leak-kinds: possible
+   fun:malloc
+   ...
+   fun:update_tls_slotinfo
+}
+
+{
+   QApplicationPrivate::init private
+   Memcheck:Leak
+   match-leak-kinds: possible
+   ...
+   fun:_ZN22QGuiApplicationPrivate4initEv
+}
+
+{
+   QApplicationPrivate::init private
+   Memcheck:Param
+   writev(vector[0])
+   ...
+   fun:_ZN22QGuiApplicationPrivate4initEv
+}

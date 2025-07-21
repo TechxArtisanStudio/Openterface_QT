@@ -1,0 +1,30 @@
+---
+name: Linux build from Source
+
+on: 
+  workflow_dispatch:
+
+env:
+  SOURCE_DIR: ${{ github.workspace }}
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Cache Dependencies
+        id: cache-deps
+        uses: actions/cache@v3
+        with:
+            path: ${{ env.SOURCE_DIR }}/qt-build/
+            key: dependencies-cache
+            restore-keys: |
+              dependencies-cache
+
+      - name: Build Qt Dependencies
+        if: steps.cache-deps.outputs.cache-hit != 'true'
+        run: |
+          bash ${{ env.SOURCE_DIR }}/build-script/build-static-qt-dependency.sh
