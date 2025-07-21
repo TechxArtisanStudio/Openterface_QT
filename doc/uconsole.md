@@ -49,3 +49,14 @@ You’re also warmly invited to join our open-source community, where our dev te
 
 * Discord: [https://openterface.com/discord](https://openterface.com/discord)
 * Reddit: [https://openterface.com/reddit](https://openterface.com/reddit)
+
+### Note
+
+Some uConsole systems may not include the CH341 driver by default, which can prevent the keyboard and mouse from functioning properly. In such cases, the driver needs to be installed manually:
+
+```sh
+  git clone https://github.com/juliagoda/CH341SER.git
+  cd CH341SER
+  make
+  sudo make load
+```
