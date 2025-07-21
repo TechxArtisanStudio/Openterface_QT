@@ -55,8 +55,10 @@ You’re also warmly invited to join our open-source community, where our dev te
 Some uConsole systems may not include the CH341 driver by default, which can prevent the keyboard and mouse from functioning properly. In such cases, the driver needs to be installed manually:
 
 ```sh
-  git clone https://github.com/juliagoda/CH341SER.git
-  cd CH341SER
+  git clone https://github.com/WCHSoftGroup/ch341ser_linux.git
+  cd ch341ser_linux/driver
+  # This one-liner checks if the Linux kernel version is not less than 6.12. If it is, it replaces the line #include <asm/unaligned.h> with #include <linux/unaligned.h> in the ch341.c file using sed.
+  KERNEL_VERSION=$(uname -r | awk -F. '{printf "%d.%d\n", $1, $2}'); if (( $(echo "$KERNEL_VERSION >= 6.12" | bc -l) )); then sed -i 's/#include <asm\/unaligned.h>/#include <linux\/unaligned.h>/' ch341.c; fi
   make
-  sudo make load
+  sudo make install
 ```
