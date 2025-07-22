@@ -289,6 +289,18 @@ MainWindow::MainWindow(LanguageManager *languageManager, QWidget *parent) :  ui(
         qCInfo(log_ui_mainwindow) << "Camera auto-connected to new device:" << device.description() << "at port:" << portChain;
         // popupMessage(QString("Camera connected to new device: %1").arg(device.description()));
     });
+    
+    // Connect camera switching status signals to status bar
+    connect(m_cameraManager, &CameraManager::cameraDeviceSwitching, 
+            m_statusBarManager, &StatusBarManager::showCameraSwitching);
+    connect(m_cameraManager, &CameraManager::cameraDeviceSwitchComplete, 
+            m_statusBarManager, &StatusBarManager::showCameraSwitchComplete);
+    
+    // Connect camera switching signals to video pane for frame preservation
+    connect(m_cameraManager, &CameraManager::cameraDeviceSwitching,
+            videoPane, &VideoPane::onCameraDeviceSwitching);
+    connect(m_cameraManager, &CameraManager::cameraDeviceSwitchComplete,
+            videoPane, &VideoPane::onCameraDeviceSwitchComplete);
     connect(&VideoHid::getInstance(), &VideoHid::inputResolutionChanged, this, &MainWindow::onInputResolutionChanged);
     connect(&VideoHid::getInstance(), &VideoHid::resolutionChangeUpdate, this, &MainWindow::onResolutionChange);
 

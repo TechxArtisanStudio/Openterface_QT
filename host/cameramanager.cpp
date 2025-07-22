@@ -118,8 +118,11 @@ void CameraManager::startCamera()
             qDebug() << "Starting camera:" << m_camera->cameraDevice().description();
             m_camera->start();
             
-            // Wait a brief moment to ensure camera starts properly
-            QThread::msleep(50);
+            // Minimal wait time to reduce transition delay
+            QThread::msleep(25);
+            
+            // Emit active state change as soon as camera starts
+            emit cameraActiveChanged(true);
             
             qDebug() << "Camera started successfully";
         } else {
@@ -127,6 +130,7 @@ void CameraManager::startCamera()
             return;
         }
         
+        // Start VideoHid after camera is active to ensure proper synchronization
         VideoHid::getInstance().start();
         
     } catch (const std::exception& e) {
@@ -480,18 +484,34 @@ bool CameraManager::switchToCameraDevice(const QCameraDevice &cameraDevice)
     QCameraDevice previousDevice = m_currentCameraDevice;
     bool wasActive = m_camera && m_camera->isActive();
     
-    QString previousDeviceDescription = previousDevice.isNull() ? "None" : previousDevice.description();
-    qDebug() << "Switching camera from" << previousDeviceDescription 
+        QString previousDeviceDescription = previousDevice.isNull() ? "None" : previousDevice.description();
+        qDebug() << "Switching camera from" << previousDeviceDescription 
                          << "to" << cameraDevice.description();
-    
-    try {
-        // Stop current camera if active
-        if (wasActive) {
-            qDebug() << "Stopping current camera before switch";
-            stopCamera();
-            
-            // Wait a bit to ensure camera is fully stopped
-            QThread::msleep(100);
+        
+        // Emit switching signal for UI feedback (this will preserve the last frame)
+        emit cameraDeviceSwitching(previousDeviceDescription, cameraDevice.description());
+        
+        try {
+        // Prepare new camera device first to minimize transition time
+        std::unique_ptr<QCamera> newCamera;
+        try {
+            qDebug() << "Creating new camera for device:" << cameraDevice.description();
+            newCamera.reset(new QCamera(cameraDevice));
+            if (!newCamera) {
+                qCritical() << "Failed to create new camera instance";
+                return false;
+            }
+        } catch (...) {
+            qCritical() << "Exception creating new camera instance";
+            return false;
+        }
+        
+        // Stop current camera if active while preserving last frame on video output
+        if (wasActive && m_camera) {
+            qDebug() << "Stopping current camera before switch (preserving last frame)";
+            m_camera->stop();
+            // Brief wait to ensure camera stops cleanly
+            QThread::msleep(30);
         }
         
         // Disconnect existing camera connections to prevent crashes
@@ -500,38 +520,34 @@ bool CameraManager::switchToCameraDevice(const QCameraDevice &cameraDevice)
             disconnect(m_camera.get(), nullptr, this, nullptr);
         }
         
-        // Clear current capture session
-        qDebug() << "Clearing capture session";
-        m_captureSession.setCamera(nullptr);
-        m_captureSession.setImageCapture(nullptr);
-        m_captureSession.setVideoOutput(nullptr);
+        // Replace camera object and update tracking immediately
+        m_camera = std::move(newCamera);
+        m_currentCameraDevice = cameraDevice;
+        m_currentCameraDeviceId = QString::fromUtf8(cameraDevice.id());
+        // Don't clear port chain here, it will be set by caller if needed
         
-        // Reset camera object
-        qDebug() << "Resetting camera object";
-        m_camera.reset();
+        // Set up connections for the new camera
+        setupConnections();
         
-        // Clear current device tracking before setting new one
-        m_currentCameraDevice = QCameraDevice();
-        m_currentCameraDeviceId.clear();
-        m_currentCameraPortChain.clear();
+        // Set up capture session with new camera (keep video output to preserve last frame)
+        qDebug() << "Setting up capture session with new camera (preserving video output)";
+        m_captureSession.setCamera(m_camera.get());
+        m_captureSession.setImageCapture(m_imageCapture.get());
         
-        // Wait a bit before creating new camera
-        QThread::msleep(50);
-        
-        // Switch to new camera device
-        qDebug() << "Creating new camera for device:" << cameraDevice.description();
-        setCameraDevice(cameraDevice);
-        
-        // Restore video output if it was set
-        if (m_videoOutput) {
+        // Video output should already be set and preserved from previous session
+        // Only restore if it's somehow lost
+        if (m_videoOutput && m_captureSession.videoOutput() != m_videoOutput) {
             qDebug() << "Restoring video output";
             m_captureSession.setVideoOutput(m_videoOutput);
         }
         
         // Restart camera if it was previously active
         if (wasActive) {
-            qDebug() << "Restarting camera after switch";
+            qDebug() << "Starting new camera after switch";
             startCamera();
+            
+            // Give a brief moment for the camera to start before declaring success
+            QThread::msleep(25);
         }
         
         // Update settings to remember the new device
@@ -558,6 +574,9 @@ bool CameraManager::switchToCameraDevice(const QCameraDevice &cameraDevice)
             emit cameraDeviceDisconnected(previousDevice);
         }
         
+        // Emit completion signal for UI feedback
+        emit cameraDeviceSwitchComplete(cameraDevice.description());
+        
         qDebug() << "Camera device switch successful to:" << newCameraID << cameraDevice.description();
         return true;
         
@@ -568,6 +587,9 @@ bool CameraManager::switchToCameraDevice(const QCameraDevice &cameraDevice)
         m_currentCameraDevice = QCameraDevice();
         m_currentCameraDeviceId.clear();
         m_currentCameraPortChain.clear();
+        
+        // Emit failure signal to clear switching state
+        emit cameraDeviceSwitchComplete("Switch Failed");
         return false;
     } catch (...) {
         qCritical() << "Unknown exception during camera switch";
@@ -576,6 +598,9 @@ bool CameraManager::switchToCameraDevice(const QCameraDevice &cameraDevice)
         m_currentCameraDevice = QCameraDevice();
         m_currentCameraDeviceId.clear();
         m_currentCameraPortChain.clear();
+        
+        // Emit failure signal to clear switching state
+        emit cameraDeviceSwitchComplete("Switch Failed");
         return false;
     }
 }
@@ -1038,10 +1063,11 @@ bool CameraManager::deactivateCameraByPortChain(const QString& portChain)
             m_camera.reset();
         }
         
-        // Clear capture session
+        // Clear capture session but keep video output to prevent flashing
         m_captureSession.setCamera(nullptr);
         m_captureSession.setImageCapture(nullptr);
-        m_captureSession.setVideoOutput(nullptr);
+        // Note: NOT clearing video output to prevent video pane flashing during device switches
+        // m_captureSession.setVideoOutput(nullptr);
         
         qCInfo(log_ui_camera) << "Camera successfully deactivated for unplugged device";
         return true;

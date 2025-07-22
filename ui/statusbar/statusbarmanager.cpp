@@ -4,11 +4,24 @@
 #include <QTimer>
 
 StatusBarManager::StatusBarManager(QStatusBar *statusBar, QObject *parent)
-    : QObject(parent), m_statusBar(statusBar)
+    : QObject(parent), m_statusBar(statusBar), m_messageTimer(new QTimer(this)), m_messageThrottleActive(false)
 {
     iconColor = QPalette().color(QPalette::WindowText);
     m_statusWidget = new StatusWidget(m_statusBar);
     m_statusBar->addPermanentWidget(m_statusWidget);
+    
+    // Setup message timer for throttling
+    m_messageTimer->setSingleShot(true);
+    connect(m_messageTimer, &QTimer::timeout, this, [this]() {
+        m_messageThrottleActive = false;
+        if (!m_pendingMessage.isEmpty()) {
+            // Show the pending message if there's one waiting
+            resetLabel->setText(m_pendingMessage);
+            m_lastMessage = m_pendingMessage;
+            m_pendingMessage.clear();
+        }
+    });
+    
     initStatusBar();
 }
 
@@ -74,16 +87,40 @@ void StatusBarManager::serialPortReset(bool isStarted)
     }
 }
 
+void StatusBarManager::showThrottledMessage(const QString& message, const QString& style, int duration)
+{
+    if (m_messageThrottleActive && m_lastMessage == message) {
+        // Same message is already being displayed, ignore
+        return;
+    }
+    
+    if (m_messageThrottleActive) {
+        // Store as pending message to show later
+        m_pendingMessage = message;
+        return;
+    }
+    
+    // Show the message immediately
+    resetLabel->clear();
+    resetLabel->setText(message);
+    resetLabel->setStyleSheet(style);
+    m_lastMessage = message;
+    m_messageThrottleActive = true;
+    
+    // Clear after duration and allow new messages
+    QTimer::singleShot(duration, this, [this]() {
+        resetLabel->clear();
+        m_messageThrottleActive = false;
+        m_lastMessage.clear();
+    });
+}
+
 void StatusBarManager::showNewDevicePluggedIn(const QString& portChain)
 {
     qDebug() << "StatusBarManager::showNewDevicePluggedIn called with portChain:" << portChain;
     if (!portChain.isEmpty()) {
-        resetLabel->clear();
-        resetLabel->setText(QString("🔌 New device detected: Port %1").arg(portChain));
-        resetLabel->setStyleSheet("color: blue;");
-        
-        // Show the message for 3 seconds then clear it
-        QTimer::singleShot(3000, resetLabel, &QLabel::clear);
+        QString message = QString("🔌 New device detected: Port %1").arg(portChain);
+        showThrottledMessage(message, "color: blue;", 3000);
     }
 }
 
@@ -91,12 +128,8 @@ void StatusBarManager::showDeviceUnplugged(const QString& portChain)
 {
     qDebug() << "StatusBarManager::showDeviceUnplugged called with portChain:" << portChain;
     if (!portChain.isEmpty()) {
-        resetLabel->clear();
-        resetLabel->setText(QString("🔌 Device unplugged: Port %1").arg(portChain));
-        resetLabel->setStyleSheet("color: orange;");
-        
-        // Show the message for 3 seconds then clear it
-        QTimer::singleShot(3000, resetLabel, &QLabel::clear);
+        QString message = QString("🔌 Device unplugged: Port %1").arg(portChain);
+        showThrottledMessage(message, "color: orange;", 3000);
     }
 }
 
@@ -185,6 +218,18 @@ void StatusBarManager::updateIconColor()
     iconColor = getContrastingColor(m_statusBar->palette().color(QPalette::Window));
     updateKeyboardIcon(keyLabel->text());
     onLastMouseLocation(QPoint(0, 0), "");
+}
+
+void StatusBarManager::showCameraSwitching(const QString& fromDevice, const QString& toDevice)
+{
+    QString message = QString("📹 Switching camera: %1 → %2").arg(fromDevice.isEmpty() ? "None" : fromDevice, toDevice);
+    showThrottledMessage(message, "color: purple;", 2000);
+}
+
+void StatusBarManager::showCameraSwitchComplete(const QString& device)
+{
+    QString message = QString("✅ Camera ready: %1").arg(device);
+    showThrottledMessage(message, "color: green;", 2000);
 }
 
 void StatusBarManager::updateKeyboardIcon(const QString& key)

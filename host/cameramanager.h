@@ -118,6 +118,8 @@ signals:
     void cameraDeviceSwitched(const QString& fromDeviceId, const QString& toDeviceId);
     void cameraDeviceConnected(const QCameraDevice& device);
     void cameraDeviceDisconnected(const QCameraDevice& device);
+    void cameraDeviceSwitching(const QString& fromDevice, const QString& toDevice);
+    void cameraDeviceSwitchComplete(const QString& device);
     void availableCameraDevicesChanged(int deviceCount);
     void newDeviceAutoConnected(const QCameraDevice& device, const QString& portChain);
     
