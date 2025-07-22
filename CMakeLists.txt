@@ -44,6 +44,13 @@ qt_standard_project_setup()
 
 qt_add_executable(openterfaceQT WIN32 MACOSX_BUNDLE
     global.h
+    # Device management
+    device/DeviceInfo.cpp device/DeviceInfo.h
+    device/DeviceManager.cpp device/DeviceManager.h
+    device/HotplugMonitor.cpp device/HotplugMonitor.h
+    device/platform/AbstractPlatformDeviceManager.cpp device/platform/AbstractPlatformDeviceManager.h
+    device/platform/DeviceFactory.cpp device/platform/DeviceFactory.h
+    # Host management
     host/HostManager.cpp host/HostManager.h
     host/audiomanager.cpp host/audiomanager.h
     host/audiothread.cpp host/audiothread.h
@@ -74,6 +81,7 @@ qt_add_executable(openterfaceQT WIN32 MACOSX_BUNDLE
     ui/mainwindow.cpp ui/mainwindow.h ui/mainwindow.ui
     ui/advance/scripttool.cpp ui/advance/scripttool.h
     ui/advance/serialportdebugdialog.cpp ui/advance/serialportdebugdialog.h
+    ui/advance/DeviceSelectorDialog.cpp ui/advance/DeviceSelectorDialog.h
     ui/advance/envdialog.cpp ui/advance/envdialog.h ui/advance/envdialog.ui
     ui/statusbar/statusbarmanager.cpp ui/statusbar/statusbarmanager.h
     ui/help/versioninfomanager.cpp ui/help/versioninfomanager.h
@@ -225,6 +233,11 @@ if((QT_VERSION_MAJOR GREATER 4))
 endif()
 
 if(WIN32)
+    # Add Windows-specific device manager
+    target_sources(openterfaceQT PRIVATE
+        device/platform/WindowsDeviceManager.cpp device/platform/WindowsDeviceManager.h
+    )
+    
     target_include_directories(openterfaceQT PRIVATE
         lib
     )
@@ -232,8 +245,10 @@ if(WIN32)
     target_link_libraries(openterfaceQT PRIVATE
         hid
         libusb-1.0
+        ole32
         oleaut32
         setupapi
+        cfgmgr32
         winpthread
     )
 
@@ -256,6 +271,11 @@ if(WIN32)
 endif()
 
 if(UNIX)
+    # Add Linux-specific device manager
+    target_sources(openterfaceQT PRIVATE
+        device/platform/LinuxDeviceManager.cpp device/platform/LinuxDeviceManager.h
+    )
+    
     target_include_directories(openterfaceQT PRIVATE
         /usr/include
         /usr/local/include
@@ -264,6 +284,17 @@ if(UNIX)
     target_link_libraries(openterfaceQT PRIVATE
         usb-1.0
     )
+    
+    # Add libudev dependency for enhanced Linux device detection
+    find_package(PkgConfig REQUIRED)
+    pkg_check_modules(UDEV REQUIRED libudev)
+    if(UDEV_FOUND)
+        target_link_libraries(openterfaceQT PRIVATE ${UDEV_LIBRARIES})
+        target_include_directories(openterfaceQT PRIVATE ${UDEV_INCLUDE_DIRS})
+        target_compile_definitions(openterfaceQT PRIVATE HAVE_LIBUDEV)
+        target_compile_options(openterfaceQT PRIVATE ${UDEV_CFLAGS_OTHER})
+        target_link_directories(openterfaceQT PRIVATE ${UDEV_LIBRARY_DIRS})
+    endif()
 
     set(drivers_resource_files
         "driver/linux/ch341.c"

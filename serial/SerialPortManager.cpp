@@ -22,6 +22,9 @@
 
 #include "SerialPortManager.h"
 #include "../ui/globalsetting.h"
+#include "../host/cameramanager.h"
+#include "../device/DeviceManager.h"
+#include "../device/HotplugMonitor.h"
 
 #include <QSerialPortInfo>
 #include <QTimer>
@@ -33,17 +36,40 @@
 
 Q_LOGGING_CATEGORY(log_core_serial, "opf.core.serial")
 
+// Define static constants
+const int SerialPortManager::ORIGINAL_BAUDRATE;
+const int SerialPortManager::DEFAULT_BAUDRATE;
+const int SerialPortManager::SERIAL_TIMER_INTERVAL;
+
 SerialPortManager::SerialPortManager(QObject *parent) : QObject(parent), serialPort(nullptr), serialThread(new QThread(nullptr)), serialTimer(new QTimer(nullptr)){
     qCDebug(log_core_serial) << "Initialize serial port.";
+
+    // Initialize port chain tracking member variables
+    m_currentSerialPortPath = QString();
+    m_currentSerialPortChain = QString();
 
     connect(this, &SerialPortManager::serialPortConnected, this, &SerialPortManager::onSerialPortConnected);
     connect(this, &SerialPortManager::serialPortDisconnected, this, &SerialPortManager::onSerialPortDisconnected);
     connect(this, &SerialPortManager::serialPortConnectionSuccess, this, &SerialPortManager::onSerialPortConnectionSuccess);
 
+    // Connect to DeviceManager for device monitoring instead of running own timer
+    DeviceManager& deviceManager = DeviceManager::getInstance();
+    // connect(&deviceManager, &DeviceManager::devicesChanged,
+    //         this, [this](const QList<DeviceInfo>& devices) {
+    //             qCDebug(log_core_serial) << "DeviceManager detected" << devices.size() << "devices";
+    //             // Check if we need to connect to a device
+    //             checkDeviceConnections(devices);
+    //         });
+
     observeSerialPortNotification();
     m_lastCommandTime.start();
     m_commandDelayMs = 0;  // Default no delay
     lastSerialPortCheckTime = QDateTime::currentDateTime().addMSecs(-SERIAL_TIMER_INTERVAL);  // Initialize check time in the past 
+    
+    // Connect to hotplug monitor for automatic device management
+    connectToHotplugMonitor();
+    
+    qCDebug(log_core_serial) << "SerialPortManager initialized with DeviceManager integration";
 }
 
 void SerialPortManager::observeSerialPortNotification(){
@@ -56,7 +82,6 @@ void SerialPortManager::observeSerialPortNotification(){
         checkSerialPort();
         serialTimer->start(SERIAL_TIMER_INTERVAL);
     });
-
     connect(serialThread, &QThread::finished, serialTimer, &QObject::deleteLater);
     connect(serialThread, &QThread::finished, serialThread, &QObject::deleteLater);
     connect(this, &SerialPortManager::sendCommandAsync, this, &SerialPortManager::sendCommand);
@@ -65,78 +90,191 @@ void SerialPortManager::observeSerialPortNotification(){
 }
 
 void SerialPortManager::stop() {
-    qCDebug(log_core_serial) << "Stopping serial port manager thread...";
+    qCDebug(log_core_serial) << "Stopping serial port manager...";
     
-    if (serialTimer) {
-        serialTimer->stop();
-    }
-
     if (serialThread && serialThread->isRunning()) {
-        closePort();
-        
         serialThread->quit();
-
-        const int maxWaitTime = 10000; 
-        if (!serialThread->wait(maxWaitTime)) {
-            qCWarning(log_core_serial) << "Thread did not terminate within" << maxWaitTime << "ms - thread may be blocked";
-        }
+        serialThread->wait(3000); // Wait up to 3 seconds
     }
-
-    qCDebug(log_core_serial) << "Serial port manager thread stopped";
+    
+    if (serialPort && serialPort->isOpen()) {
+        closePort();
+    }
+    
+    qCDebug(log_core_serial) << "Serial port manager stopped";
 }
 
-void SerialPortManager::checkSerialPorts() {
-    if(ready) return;
+// DeviceManager integration methods
+void SerialPortManager::checkDeviceConnections(const QList<DeviceInfo>& devices)
+{
+    qCDebug(log_core_serial) << "Checking device connections for" << devices.size() << "devices";
     
-    QSet<QString> currentPorts;
-    const auto ports = QSerialPortInfo::availablePorts();
-    for (const QSerialPortInfo &port : ports) {
-        QString vidHex = port.hasVendorIdentifier() ? 
-            QString("0x%1").arg(port.vendorIdentifier(), 4, 16, QChar('0')).toUpper() : 
-            "N/A";
-        QString pidHex = port.hasProductIdentifier() ? 
-            QString("0x%1").arg(port.productIdentifier(), 4, 16, QChar('0')).toUpper() : 
-            "N/A";
+    // Look for available serial ports in the devices
+    for (const DeviceInfo& device : devices) {
+        if (!device.serialPortPath.isEmpty()) {
+            qCDebug(log_core_serial) << "Found device with serial port:" << device.serialPortPath;
             
-        qCDebug(log_core_serial) << "Search port name" << port.portName() << "Manufacturer:" << port.manufacturer() 
-                 << "VID:" << vidHex << "PID:" << pidHex;
-        
-        // Match specific VID:PID {0x1A86, 0x7523}
-        if (port.hasVendorIdentifier() && port.hasProductIdentifier() &&
-            port.vendorIdentifier() == 0x1A86 && port.productIdentifier() == 0x7523) {
-            currentPorts.insert(port.portName());
-            qCDebug(log_core_serial) << "Matched port name" << port.portName() << "with VID:PID 0x1A86:0x7523";
-
-            if(serialPort == nullptr) {
-                qCDebug(log_core_serial) << "The serial port is nullptr create a new serial port instance";
-                emit serialPortConnected(port.portName());
-            }else if (!serialPort->isOpen()){
-                qCDebug(log_core_serial) << "The serial port is not open create a new serial port instance";
-                emit serialPortConnected(port.portName());
+            // If we don't have a port open, or the current port is different, connect to this one
+            if (!serialPort || !serialPort->isOpen() || serialPort->portName() != device.serialPortPath) {
+                qCDebug(log_core_serial) << "Attempting to connect to serial port:" << device.serialPortPath;
+                emit serialPortConnected(device.serialPortPath);
+                
+                // Update DeviceManager with the selected device
+                DeviceManager& deviceManager = DeviceManager::getInstance();
+                deviceManager.setCurrentSelectedDevice(device);
+                break; // Connect to the first available device
             }
         }
     }
+    
+    // If no devices have serial ports and we have a port open, disconnect
+    if (devices.isEmpty() && serialPort && serialPort->isOpen()) {
+        qCDebug(log_core_serial) << "No devices available, disconnecting serial port";
+        emit serialPortDisconnected(serialPort->portName());
+    }
+}
 
-    // Detect newly connected ports
-    for (const QString &portName : currentPorts) {
-        qCDebug(log_core_serial) << "Current port name:" << portName;
-        if (!availablePorts.contains(portName)) {
-            qCDebug(log_core_serial) << "New port connected: " << portName;
-            emit serialPortConnected(portName);
+
+// New serial port initialization logic using port chain and DeviceInfo
+void SerialPortManager::initializeSerialPortFromPortChain() {
+    // Get port chain from global settings
+    QString portChain = GlobalSetting::instance().getOpenterfacePortChain();
+    qCDebug(log_core_serial) << "Initializing serial port using port chain:" << portChain;
+    if (portChain.isEmpty()) {
+        qCWarning(log_core_serial) << "No port chain found in global settings.";
+        return;
+    }
+
+    // Use DeviceManager to look up device information by port chain
+    DeviceManager& deviceManager = DeviceManager::getInstance();
+    QList<DeviceInfo> devices = deviceManager.getDevicesByPortChain(portChain);
+    if (devices.isEmpty()) {
+        qCWarning(log_core_serial) << "No device found for port chain:" << portChain;
+        return;
+    }
+
+    // Find a device with a valid serial port path
+    DeviceInfo selectedDevice;
+    for (const DeviceInfo& device : devices) {
+        if (!device.serialPortPath.isEmpty()) {
+            selectedDevice = device;
+            qCDebug(log_core_serial) << "Found device with serial port:" << device.serialPortPath;
+            break;
         }
     }
 
-    // Detect disconnected ports
-    for (auto it = availablePorts.constBegin(); it != availablePorts.constEnd(); ++it) {
-        const QString &portName = *it;
-        if (!currentPorts.contains(portName)) {
-            qCDebug(log_core_serial) << "Disconnect port: " << portName;
-            emit serialPortDisconnected(portName);
-        }
+    if (!selectedDevice.isValid() || selectedDevice.serialPortPath.isEmpty()) {
+        qCWarning(log_core_serial) << "No valid device with serial port found for port chain:" << portChain;
+        return;
+    }
+    
+    // Open the serial port using the serialPortPath from DeviceInfo
+    onSerialPortConnected(selectedDevice.serialPortPath);
+    // Optionally, set the selected device in DeviceManager
+    deviceManager.setCurrentSelectedDevice(selectedDevice);
+    m_currentSerialPortChain = portChain;
+}
+
+QString SerialPortManager::getCurrentSerialPortPath() const
+{
+    return m_currentSerialPortPath;
+}
+
+QString SerialPortManager::getCurrentSerialPortChain() const
+{
+    return m_currentSerialPortChain;
+}
+
+bool SerialPortManager::switchSerialPortByPortChain(const QString& portChain)
+{
+    if (portChain.isEmpty()) {
+        qCWarning(log_core_serial) << "Cannot switch to serial port with empty port chain";
+        return false;
     }
 
-    // Update the availablePorts set
-    availablePorts = currentPorts;
+    qCDebug(log_core_serial) << "Attempting to switch to serial port by port chain:" << portChain;
+
+    try {
+        // Use DeviceManager to look up device information by port chain
+        DeviceManager& deviceManager = DeviceManager::getInstance();
+        QList<DeviceInfo> devices = deviceManager.getDevicesByPortChain(portChain);
+        
+        if (devices.isEmpty()) {
+            qCWarning(log_core_serial) << "No devices found for port chain:" << portChain;
+            return false;
+        }
+
+        qCDebug(log_core_serial) << "Found" << devices.size() << "device(s) for port chain:" << portChain;
+
+        // Find a device with a valid serial port path
+        DeviceInfo selectedDevice;
+        for (const DeviceInfo& device : devices) {
+            if (!device.serialPortPath.isEmpty()) {
+                selectedDevice = device;
+                qCDebug(log_core_serial) << "Found device with serial port:" << device.serialPortPath;
+                break;
+            }
+        }
+
+        if (!selectedDevice.isValid() || selectedDevice.serialPortPath.isEmpty()) {
+            qCWarning(log_core_serial) << "No valid device with serial port found for port chain:" << portChain;
+            return false;
+        }
+
+        // Check if we're already using this port - avoid unnecessary switching
+        if (!m_currentSerialPortPath.isEmpty() && m_currentSerialPortPath == selectedDevice.serialPortPath) {
+            qCDebug(log_core_serial) << "Already using serial port:" << selectedDevice.serialPortPath << "- skipping switch";
+            return true;
+        }
+
+        QString previousPortPath = m_currentSerialPortPath;
+        QString previousPortChain = m_currentSerialPortChain;
+        
+        qCDebug(log_core_serial) << "Switching serial port from" << previousPortPath 
+                                << "to" << selectedDevice.serialPortPath;
+
+        // Close current serial port if open
+        if (serialPort && serialPort->isOpen()) {
+            qCDebug(log_core_serial) << "Closing current serial port before switch";
+            closePort();
+        }
+
+        // Update current device tracking
+        m_currentSerialPortPath = selectedDevice.serialPortPath;
+        m_currentSerialPortChain = portChain;
+
+        // Use onSerialPortConnected to properly initialize the HID chip
+        // This ensures the same initialization process as during normal connection
+        qCDebug(log_core_serial) << "Initializing serial port with HID chip configuration";
+        onSerialPortConnected(selectedDevice.serialPortPath);
+        
+        if (!ready) {
+            qCWarning(log_core_serial) << "Serial port initialization failed after switch";
+            // Revert to previous device info on failure
+            m_currentSerialPortPath = previousPortPath;
+            m_currentSerialPortChain = previousPortChain;
+            return false;
+        }
+
+        // Update global settings and device manager
+        GlobalSetting::instance().setOpenterfacePortChain(portChain);
+        deviceManager.setCurrentSelectedDevice(selectedDevice);
+        
+        // Emit signals for serial port switching
+        emit serialPortDeviceChanged(previousPortPath, selectedDevice.serialPortPath);
+        emit serialPortSwitched(previousPortChain, portChain);
+        
+        qCDebug(log_core_serial) << "Serial port switch successful to:" << selectedDevice.serialPortPath 
+                                << "Ready state:" << ready;
+        return true;
+
+    } catch (const std::exception& e) {
+        qCritical() << "Exception in switchSerialPortByPortChain:" << e.what();
+        return false;
+    } catch (...) {
+        qCritical() << "Unknown exception in switchSerialPortByPortChain";
+        return false;
+    }
 }
 
 // void SerialPortManager::checkSwitchableUSB(){
@@ -167,6 +305,7 @@ void SerialPortManager::checkSerialPorts() {
 
 /*
  * Check the serial port connection status
+ * This method now works alongside the enhanced hotplug detection system
  */
 void SerialPortManager::checkSerialPort() {
     QDateTime currentTime = QDateTime::currentDateTime();
@@ -174,31 +313,35 @@ void SerialPortManager::checkSerialPort() {
         return;
     }
     lastSerialPortCheckTime = currentTime;
-    qCDebug(log_core_serial) << "Check serial port.";
+    qCDebug(log_core_serial) << "Check serial port";
 
-    // Check if any new ports is connected, compare to the last port list
-    checkSerialPorts();
+    // Use new initialization logic
+    if (!serialPort || !serialPort->isOpen()) {
+        qCDebug(log_core_serial) << "Serial port not open, will initialize from port chain after 300ms delay";
+        QTimer::singleShot(300, this, [this]() {
+            initializeSerialPortFromPortChain();
+        });
+        return;
+    }
 
-    if(ready){
-        if (isTargetUsbConnected){
+    if (ready) {
+        if (isTargetUsbConnected) {
             // Check target connection status when no data received in 3 seconds
             if (latestUpdateTime.secsTo(QDateTime::currentDateTime()) > 3) {
                 ready = sendAsyncCommand(CMD_GET_INFO, false);
             }
-        }else {
+        } else {
             sendAsyncCommand(CMD_GET_INFO, false);
-            // ready = false;
         }
     }
 
-    // If no data received in 5 seconds, check if any port disconnected
-    // Because the connection will regularily check every 3 seconds, if not data received
-    // is received, consider the port is disconnected or not working
+    // If no data received in 5 seconds, consider the port is disconnected or not working
     sendSyncCommand(CMD_GET_INFO, false);
     if (latestUpdateTime.secsTo(QDateTime::currentDateTime()) > 5) {
         ready = false;
     }
 }
+
 
 /*
  * Open the serial port and check the baudrate and mode
@@ -402,6 +545,10 @@ bool SerialPortManager::factoryResetHipChipV191(){
  */
 SerialPortManager::~SerialPortManager() {
     qCDebug(log_core_serial) << "Destroy serial port manager.";
+    
+    // Disconnect from hotplug monitor
+    disconnectFromHotplugMonitor();
+    
     closePort();
 
     if (serialThread->isRunning()) {
@@ -828,4 +975,77 @@ bool SerialPortManager::setBaudRate(int baudRate) {
 
 void SerialPortManager::setCommandDelay(int delayMs) {
     m_commandDelayMs = delayMs;
+}
+
+void SerialPortManager::connectToHotplugMonitor()
+{
+    qCDebug(log_core_serial) << "Connecting SerialPortManager to hotplug monitor";
+    
+    // Get the hotplug monitor from DeviceManager
+    DeviceManager& deviceManager = DeviceManager::getInstance();
+    HotplugMonitor* hotplugMonitor = deviceManager.getHotplugMonitor();
+    
+    if (!hotplugMonitor) {
+        qCWarning(log_core_serial) << "Failed to get hotplug monitor from device manager";
+        return;
+    }
+    
+    // Connect to device unplugging signal
+    connect(hotplugMonitor, &HotplugMonitor::deviceUnplugged,
+            this, [this](const DeviceInfo& device) {
+                qCDebug(log_core_serial) << "Device unplugged detected:" << device.portChain << "Port chain:" << m_currentSerialPortChain;
+                
+                // Check if this device has the same port chain as our current serial port
+                if (!m_currentSerialPortChain.isEmpty() && 
+                    m_currentSerialPortChain == device.portChain) {
+                    qCInfo(log_core_serial) << "Serial port device unplugged, closing connection:" << device.portChain;
+                    
+                    // Close the serial port connection
+                    if (serialPort && serialPort->isOpen()) {
+                        closePort();
+                        emit serialPortDisconnected(m_currentSerialPortPath);
+                    }
+                    
+                    // Clear current device tracking
+                    m_currentSerialPortPath.clear();
+                    m_currentSerialPortChain.clear();
+                }
+            });
+            
+    // Connect to new device plugged in signal
+    connect(hotplugMonitor, &HotplugMonitor::newDevicePluggedIn,
+            this, [this](const DeviceInfo& device) {
+                qCDebug(log_core_serial) << "New device plugged in:" << device.portChain;
+                
+                // Check if we don't have an active serial port and if this device has a serial port
+                if ((!serialPort || !serialPort->isOpen()) && !device.serialPortPath.isEmpty()) {
+                    qCInfo(log_core_serial) << "Auto-connecting to new serial device:" << device.serialPortPath;
+                    
+                    // Try to switch to this new serial port
+                    bool switchSuccess = switchSerialPortByPortChain(device.portChain);
+                    if (switchSuccess) {
+                        qCInfo(log_core_serial) << "✓ Serial port auto-switched to new device at port:" << device.portChain;
+                        emit serialPortConnected(device.serialPortPath);
+                    } else {
+                        qCDebug(log_core_serial) << "Serial port auto-switch failed for port:" << device.portChain;
+                    }
+                }
+            });
+            
+    qCDebug(log_core_serial) << "SerialPortManager successfully connected to hotplug monitor";
+}
+
+void SerialPortManager::disconnectFromHotplugMonitor()
+{
+    qCDebug(log_core_serial) << "Disconnecting SerialPortManager from hotplug monitor";
+    
+    // Get the hotplug monitor from DeviceManager
+    DeviceManager& deviceManager = DeviceManager::getInstance();
+    HotplugMonitor* hotplugMonitor = deviceManager.getHotplugMonitor();
+    
+    if (hotplugMonitor) {
+        // Disconnect all signals from hotplug monitor
+        disconnect(hotplugMonitor, nullptr, this, nullptr);
+        qCDebug(log_core_serial) << "SerialPortManager disconnected from hotplug monitor";
+    }
 }
