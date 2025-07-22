@@ -21,6 +21,7 @@
 */
 
 #include "videopage.h"
+#include "fontstyle.h"
 #include "ui/globalsetting.h"
 #include "host/cameramanager.h"
 #include <QDebug>
@@ -50,12 +51,7 @@ void VideoPage::setupUI()
     videoLabel->setStyleSheet(bigLabelFontSize);
     videoLabel->setTextFormat(Qt::RichText);
 
-    // Add UVC Camera selection at the top
-    uvcCamLabel = new QLabel(tr("UVC Camera resource: "));
-    uvcCamLabel->setStyleSheet(smallLabelFontSize);
-    uvcCamBox = new QComboBox();
-    uvcCamBox->setObjectName("uvcCamBox");
-    findUvcCameraDevices();
+
 
     // Input Resolution Setting Section
     QCheckBox *overrideSettingsCheckBox = new QCheckBox("Override HDMI Input Setting");
@@ -86,14 +82,6 @@ void VideoPage::setupUI()
     // Add the Input Resolution section to the layout
     QVBoxLayout *videoLayout = new QVBoxLayout(this);
     videoLayout->addWidget(videoLabel);
-    videoLayout->addWidget(uvcCamLabel);
-    videoLayout->addWidget(uvcCamBox);
-
-    // Add a horizontal line separator after camera selection
-    QFrame *cameraSeparatorLine = new QFrame();
-    cameraSeparatorLine->setFrameShape(QFrame::HLine);
-    cameraSeparatorLine->setFrameShadow(QFrame::Sunken);
-    videoLayout->addWidget(cameraSeparatorLine);
 
     videoLayout->addWidget(overrideSettingsCheckBox);
     videoLayout->addWidget(customInputResolutionWidget);
@@ -144,15 +132,6 @@ void VideoPage::setupUI()
     // Connect the checkbox state change to the slot
     connect(overrideSettingsCheckBox, &QCheckBox::toggled, this, &VideoPage::toggleCustomResolutionInputs);
 
-    // Connect the camera selection change
-    connect(uvcCamBox, &QComboBox::currentTextChanged, [this](const QString &text) {
-        QSettings settings("Techxartisan", "Openterface");
-        QString currentCamera = settings.value("camera/device", "").toString();
-        if (currentCamera != text) {
-            emit cameraDeviceChanged();
-        }
-    });
-
     // Initialize the state of the custom resolution inputs
     toggleCustomResolutionInputs(overrideSettingsCheckBox->isChecked());
 
@@ -181,26 +160,7 @@ void VideoPage::setupUI()
     }
 }
 
-void VideoPage::findUvcCameraDevices()
-{
-    const QList<QCameraDevice> devices = QMediaDevices::videoInputs();
-    
-    if (devices.isEmpty()) {
-        qDebug() << "No video input devices found.";
-    } else {
-        for (const QCameraDevice &cameraDevice : devices) {
-            uvcCamBox->addItem(cameraDevice.description());
-        }
-    }
 
-    // set default "Openterface"
-    int index = uvcCamBox->findText("Openterface");
-    if (index != -1) {
-        uvcCamBox->setCurrentIndex(index);
-    } else {
-        qDebug() << "Openterface device not found.";
-    }
-}
 
 void VideoPage::populateResolutionBox(const QList<QCameraFormat> &videoFormats) {
     std::map<QSize, std::set<int>, QSizeComparator> resolutionSampleRates;
@@ -306,10 +266,6 @@ QVariant VideoPage::boxValue(const QComboBox *box) const
 }
 
 void VideoPage::applyVideoSettings() {
-    // Get selected camera device
-    QString selectedCamera = uvcCamBox->currentText();
-    GlobalSetting::instance().setCameraDeviceSetting(selectedCamera);
-    
     QComboBox *fpsComboBox = this->findChild<QComboBox*>("fpsComboBox");
     int fps = fpsComboBox->currentData().toInt();
     qDebug() << "fpsComboBox current data:" << fpsComboBox->currentData();
@@ -372,13 +328,6 @@ void VideoPage::applyVideoSettings() {
 
 void VideoPage::initVideoSettings() {
     QSettings settings("Techxartisan", "Openterface");
-    
-    // Load camera selection
-    QString cameraDescription = settings.value("camera/device", "Openterface").toString();
-    int index = uvcCamBox->findText(cameraDescription);
-    if (index != -1) {
-        uvcCamBox->setCurrentIndex(index);
-    }
     
     int width = settings.value("video/width", 1920).toInt();
     int height = settings.value("video/height", 1080).toInt();
