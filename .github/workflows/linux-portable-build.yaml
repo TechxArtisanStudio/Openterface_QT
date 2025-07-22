@@ -85,6 +85,7 @@
               libdrm-dev \
               libgbm-dev \
               libatspi2.0-dev \
+              libudev-dev \
               upx-ucl
 
 
