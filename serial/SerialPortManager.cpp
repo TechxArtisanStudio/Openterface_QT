@@ -243,11 +243,13 @@ bool SerialPortManager::switchSerialPortByPortChain(const QString& portChain)
         m_currentSerialPortPath = selectedDevice.serialPortPath;
         m_currentSerialPortChain = portChain;
 
-        // Open the new serial port
-        bool switchSuccess = openPort(selectedDevice.serialPortPath, DEFAULT_BAUDRATE);
+        // Use onSerialPortConnected to properly initialize the HID chip
+        // This ensures the same initialization process as during normal connection
+        qCDebug(log_core_serial) << "Initializing serial port with HID chip configuration";
+        onSerialPortConnected(selectedDevice.serialPortPath);
         
-        if (!switchSuccess) {
-            qCWarning(log_core_serial) << "Failed to open serial port after switch:" << selectedDevice.serialPortPath;
+        if (!ready) {
+            qCWarning(log_core_serial) << "Serial port initialization failed after switch";
             // Revert to previous device info on failure
             m_currentSerialPortPath = previousPortPath;
             m_currentSerialPortChain = previousPortChain;
@@ -262,7 +264,8 @@ bool SerialPortManager::switchSerialPortByPortChain(const QString& portChain)
         emit serialPortDeviceChanged(previousPortPath, selectedDevice.serialPortPath);
         emit serialPortSwitched(previousPortChain, portChain);
         
-        qCDebug(log_core_serial) << "Serial port switch successful to:" << selectedDevice.serialPortPath;
+        qCDebug(log_core_serial) << "Serial port switch successful to:" << selectedDevice.serialPortPath 
+                                << "Ready state:" << ready;
         return true;
 
     } catch (const std::exception& e) {
