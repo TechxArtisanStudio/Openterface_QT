@@ -565,186 +565,201 @@ Prøv igen efter at have genstartet programmet.</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="89"/>
+        <source>Device</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/mainwindow.ui" line="94"/>
         <source>Baudrate</source>
         <translation>Baudrate</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="96"/>
+        <location filename="../../ui/mainwindow.ui" line="101"/>
         <source>Switchable USB</source>
         <translation>Skiftbar USB</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="109"/>
+        <location filename="../../ui/mainwindow.ui" line="115"/>
         <source>Help</source>
         <translation>Hjælp</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="120"/>
+        <location filename="../../ui/mainwindow.ui" line="126"/>
         <source>Edit</source>
         <translation>Rediger</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="126"/>
+        <location filename="../../ui/mainwindow.ui" line="132"/>
         <source>Advance</source>
         <translation>Avanceret</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="148"/>
+        <location filename="../../ui/mainwindow.ui" line="155"/>
         <source>Close</source>
         <translation>Luk</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="153"/>
+        <location filename="../../ui/mainwindow.ui" line="160"/>
         <source>Change Settings</source>
         <translation>Skift indstillinger</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="158"/>
+        <location filename="../../ui/mainwindow.ui" line="165"/>
         <source>Reset Keyboard and Mouse</source>
         <translation>Nulstil tastatur og mus</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="163"/>
+        <location filename="../../ui/mainwindow.ui" line="170"/>
         <source>Reset Serial Port</source>
         <translation>Nulstil seriel port</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="168"/>
+        <location filename="../../ui/mainwindow.ui" line="175"/>
         <source>Serial Console</source>
         <translation>Seriel konsol</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="173"/>
+        <location filename="../../ui/mainwindow.ui" line="180"/>
         <source>AutoReszie</source>
         <translation>Automatisk tilpasning</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="178"/>
+        <location filename="../../ui/mainwindow.ui" line="185"/>
         <source>Factory Reset HID Chip</source>
         <translation>Fabriksnulstil HID-chip</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="183"/>
+        <location filename="../../ui/mainwindow.ui" line="190"/>
         <source>Preferences</source>
         <translation>Præferencer</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="188"/>
+        <location filename="../../ui/mainwindow.ui" line="195"/>
         <source>Office Website</source>
         <translation>Kontorwebsite</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="193"/>
+        <location filename="../../ui/mainwindow.ui" line="200"/>
         <source>Purchase</source>
         <translation>Køb</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="198"/>
+        <location filename="../../ui/mainwindow.ui" line="205"/>
         <source>Feedback</source>
         <translation>Tilbagemelding</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="203"/>
+        <location filename="../../ui/mainwindow.ui" line="210"/>
         <source>Update</source>
         <translation>Opdater</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="208"/>
+        <location filename="../../ui/mainwindow.ui" line="215"/>
         <source>Environment</source>
         <translation>Miljø</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="213"/>
+        <location filename="../../ui/mainwindow.ui" line="220"/>
         <source>About</source>
         <translation>Om</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="224"/>
+        <location filename="../../ui/mainwindow.ui" line="231"/>
         <source>Follow Switch</source>
         <translation>Følg skift</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="232"/>
+        <location filename="../../ui/mainwindow.ui" line="239"/>
         <source>Paste</source>
         <translation>Indsæt</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="235"/>
+        <location filename="../../ui/mainwindow.ui" line="242"/>
         <source>Paste clipboard content to target</source>
         <translation>Indsæt indhold fra udklipsholder til mål</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="240"/>
+        <location filename="../../ui/mainwindow.ui" line="247"/>
         <source>Script Tool</source>
         <translation>Skriptværktøj</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="245"/>
+        <location filename="../../ui/mainwindow.ui" line="252"/>
         <source>TCP Server</source>
         <translation>TCP-server</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="250"/>
+        <location filename="../../ui/mainwindow.ui" line="257"/>
         <source>Environment Checking</source>
         <translation>Miljøtjek</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="255"/>
+        <location filename="../../ui/mainwindow.ui" line="262"/>
         <source>Firmware Manager</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="260"/>
+        <location filename="../../ui/mainwindow.ui" line="267"/>
         <source>Firmware Update...</source>
         <translation>Firmwareopdatering...</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="269"/>
+        <location filename="../../ui/mainwindow.ui" line="272"/>
+        <source>Device Selector</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/mainwindow.ui" line="275"/>
+        <source>Open Device Selector Dialog</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/mainwindow.ui" line="284"/>
         <source>115200</source>
         <translation>115200</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="277"/>
+        <location filename="../../ui/mainwindow.ui" line="292"/>
         <source>9600</source>
         <translation>9600</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="287"/>
+        <location filename="../../ui/mainwindow.ui" line="302"/>
         <source>To Host</source>
         <translation>Til vært</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="295"/>
+        <location filename="../../ui/mainwindow.ui" line="310"/>
         <source>To Target</source>
         <translation>Til mål</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="308"/>
+        <location filename="../../ui/mainwindow.ui" line="323"/>
         <source>Absolute</source>
         <translation>Absolut</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="316"/>
+        <location filename="../../ui/mainwindow.ui" line="331"/>
         <source>Relative</source>
         <translation>Relativ</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="329"/>
+        <location filename="../../ui/mainwindow.ui" line="344"/>
         <source>Auto Hide</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="332"/>
+        <location filename="../../ui/mainwindow.ui" line="347"/>
         <source>Auto hide mouse cursor</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="340"/>
+        <location filename="../../ui/mainwindow.ui" line="355"/>
         <source>Always Show</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="343"/>
+        <location filename="../../ui/mainwindow.ui" line="358"/>
         <source>Always show mouse cursor</source>
         <translation type="unfinished"></translation>
     </message>
@@ -781,38 +796,38 @@ Prøv igen efter at have genstartet programmet.</translation>
         <translation type="vanished">Fuldskærmstilstand</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="826"/>
+        <location filename="../../ui/mainwindow.cpp" line="1020"/>
         <source>Recorded %1 sec</source>
         <translation>Optaget %1 sek</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1008"/>
+        <location filename="../../ui/mainwindow.cpp" line="1200"/>
         <source>Image Capture Error</source>
         <translation>Fejl ved billedoptagelse</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1076"/>
+        <location filename="../../ui/mainwindow.cpp" line="1268"/>
         <source>Captured &quot;%1&quot;</source>
         <translation>Optaget &quot;%1&quot;</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1532"/>
+        <location filename="../../ui/mainwindow.cpp" line="1726"/>
         <source>Firmware Update</source>
         <translation>Firmwareopdatering</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1533"/>
+        <location filename="../../ui/mainwindow.cpp" line="1727"/>
         <source>The firmware is up to date.
 Current version: </source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1555"/>
+        <location filename="../../ui/mainwindow.cpp" line="1749"/>
         <source>Firmware fetch timeout</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1556"/>
+        <location filename="../../ui/mainwindow.cpp" line="1750"/>
         <source>Firmware retrieval timed out. Please check your network connection and try again.
 Current version: </source>
         <translation type="unfinished"></translation>
@@ -1229,32 +1244,31 @@ Tjek venligst din internetforbindelse.
 <context>
     <name>VideoPage</name>
     <message>
-        <location filename="../../ui/preferences/videopage.cpp" line="54"/>
         <source>UVC Camera resource: </source>
-        <translation type="unfinished">UVC-kameraressource: </translation>
+        <translation type="obsolete">UVC-kameraressource: </translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/videopage.cpp" line="108"/>
+        <location filename="../../ui/preferences/videopage.cpp" line="96"/>
         <source>General video setting</source>
         <translation>Generelle videoindstillinger</translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/videopage.cpp" line="112"/>
+        <location filename="../../ui/preferences/videopage.cpp" line="100"/>
         <source>Capture resolutions: </source>
         <translation>Optagelsesopløsninger: </translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/videopage.cpp" line="118"/>
+        <location filename="../../ui/preferences/videopage.cpp" line="106"/>
         <source>Framerate: </source>
         <translation>Billedfrekvens: </translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/videopage.cpp" line="127"/>
+        <location filename="../../ui/preferences/videopage.cpp" line="115"/>
         <source>Pixel format: </source>
         <translation>Pixelformat: </translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/videopage.cpp" line="132"/>
+        <location filename="../../ui/preferences/videopage.cpp" line="120"/>
         <source>Note: On linx the video may go black after OK or Apply. Please unplug and re-plug the host cable.</source>
         <translation type="unfinished"></translation>
     </message>
