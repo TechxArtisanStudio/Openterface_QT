@@ -4,9 +4,13 @@
 
 #include "AbstractPlatformDeviceManager.h"
 #include <QLoggingCategory>
-#include <QDir>
-#include <QProcess>
-#include <QRegularExpression>
+#include <QDateTime>
+#include <QVariantMap>
+
+#ifdef HAVE_LIBUDEV
+struct udev;
+struct udev_device;
+#endif
 
 Q_DECLARE_LOGGING_CATEGORY(log_device_linux)
 
@@ -23,46 +27,28 @@ public:
     void clearCache() override;
     
 private:
-    struct USBDeviceData {
+#ifdef HAVE_LIBUDEV
+    struct UdevDeviceData {
+        QString syspath;
         QString portChain;
-        QList<QVariantMap> siblings;
-        QList<QVariantMap> children;
-        QString devicePath;
-        QVariantMap deviceInfo;
+        QString parentSyspath;
+        QVariantMap properties;
     };
     
-    // USB device discovery
-    QList<USBDeviceData> findUSBDevicesWithVidPid(const QString& vid, const QString& pid);
-    QString buildLinuxPortChain(const QString& devpath);
+    // libudev-based device discovery
+    QList<UdevDeviceData> findUdevDevicesByVidPid(const QString& subsystem, const QString& vid, const QString& pid);
+    QList<UdevDeviceData> findUdevDevices(const QString& subsystem, const QVariantMap& filters = QVariantMap());
     
-    // Device path finding by port chain
-    QList<QVariantMap> findSerialPortsByPortChain(const QString& serialVid, const QString& serialPid, const QString& targetPortChain);
-    QList<QVariantMap> findHIDDevicesByPortChain(const QString& hidVid, const QString& hidPid, const QString& targetPortChain);
-    QList<QVariantMap> findVideoDevicesByPortChain(const QString& targetPortChain);
-    QList<QVariantMap> findAudioDevicesByPortChain(const QString& targetPortChain);
+    // libudev helper functions
+    struct udev_device* findUsbParentDevice(struct udev_device* device);
+    QVariantMap collectDeviceProperties(struct udev_device* device);
+    QString extractPortChainFromSyspath(const QString& syspath);
+    QString getPortChainFromSyspath(const QString& syspath);
+    QString extractHubPortFromDevicePort(const QString& devicePort);
     
-    // Utility methods
-    QString extractMainPortFromChain(const QString& portChain);
-    QVariantMap findChildDevices(const QString& devicePath);
-    QVariantMap findSiblingDevices(const QString& devicePath);
-    
-    // sysfs helpers
-    QString readSysfsAttribute(const QString& devicePath, const QString& attribute);
-    QStringList listSysfsDirectory(const QString& path);
-    bool deviceExists(const QString& devicePath);
-    
-    // udev helpers (if available)
-    QList<QVariantMap> enumerateUdevDevices(const QString& subsystem, const QVariantMap& filters = QVariantMap());
-    
-    // Device matching helpers
-    bool matchesVidPid(const QString& devicePath, const QString& vid, const QString& pid);
-    bool matchesVidPidAdvanced(const QString& devicePath, const QString& vid, const QString& pid);
-    QString getDeviceVendorId(const QString& devicePath);
-    QString getDeviceProductId(const QString& devicePath);
-    QString getDevicePortChain(const QString& devicePath);
-    
-    // Enhanced device collection
-    QList<QVariantMap> collectAllDevicesByPortChain(const QString& targetPortChain);
+    // udev context
+    struct udev* m_udev;
+#endif
     
     // Cache management
     QList<DeviceInfo> m_cachedDevices;

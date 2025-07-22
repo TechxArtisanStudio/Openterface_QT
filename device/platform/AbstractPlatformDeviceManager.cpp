@@ -46,7 +46,18 @@ QList<DeviceInfo> AbstractPlatformDeviceManager::filterDevicesByPortChain(
 
     QList<DeviceInfo> filtered;
     for (const DeviceInfo& device : devices) {
+        // Exact match
         if (device.portChain == targetPortChain) {
+            filtered.append(device);
+        }
+        // Also match if targetPortChain is a more specific interface port of this device
+        // e.g., device.portChain = "1-2" should match targetPortChain = "1-2.1" or "1-2.2"
+        else if (targetPortChain.startsWith(device.portChain + ".")) {
+            filtered.append(device);
+        }
+        // Also match if device.portChain is a more specific interface port of targetPortChain
+        // e.g., targetPortChain = "1-2" should match device.portChain = "1-2.1"
+        else if (device.portChain.startsWith(targetPortChain + ".")) {
             filtered.append(device);
         }
     }

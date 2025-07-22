@@ -287,11 +287,13 @@ if(UNIX)
     
     # Add libudev dependency for enhanced Linux device detection
     find_package(PkgConfig REQUIRED)
-    pkg_check_modules(UDEV libudev)
+    pkg_check_modules(UDEV REQUIRED libudev)
     if(UDEV_FOUND)
         target_link_libraries(openterfaceQT PRIVATE ${UDEV_LIBRARIES})
         target_include_directories(openterfaceQT PRIVATE ${UDEV_INCLUDE_DIRS})
         target_compile_definitions(openterfaceQT PRIVATE HAVE_LIBUDEV)
+        target_compile_options(openterfaceQT PRIVATE ${UDEV_CFLAGS_OTHER})
+        target_link_directories(openterfaceQT PRIVATE ${UDEV_LIBRARY_DIRS})
     endif()
 
     set(drivers_resource_files

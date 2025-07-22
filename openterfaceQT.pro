@@ -167,8 +167,10 @@ unix {
     
     # Add libudev for enhanced device detection
     unix:!macx {
+        CONFIG += link_pkgconfig
         PKGCONFIG += libudev
         DEFINES += HAVE_LIBUDEV
+        LIBS += -ludev
     }
 
     RESOURCES += driver/linux/drivers.qrc
