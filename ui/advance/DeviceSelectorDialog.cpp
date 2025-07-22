@@ -594,64 +594,11 @@ void DeviceSelectorDialog::onSwitchToDevice()
         return;
     }
     
-    // Update global settings
-    GlobalSetting::instance().setOpenterfacePortChain(m_selectedDevice.portChain);
-    
-    bool cameraSuccess = false;
-    bool hidSuccess = false;
-    bool serialSuccess = false;
-    
-    // Switch camera device
-    if (m_cameraManager) {
-        cameraSuccess = m_cameraManager->switchToCameraDeviceByPortChain(m_selectedDevice.portChain);
-        if (cameraSuccess) {
-            qCDebug(log_device_selector) << "Camera device switched successfully";
-        } else {
-            qCWarning(log_device_selector) << "Failed to switch camera device";
-        }
-    } else {
-        qCWarning(log_device_selector) << "CameraManager is null, cannot switch camera device";
-    }
-    
-    // Switch HID device
-    if (m_videoHid) {
-        hidSuccess = m_videoHid->switchToHIDDeviceByPortChain(m_selectedDevice.portChain);
-        if (hidSuccess) {
-            qCDebug(log_device_selector) << "HID device switched successfully";
-        } else {
-            qCWarning(log_device_selector) << "Failed to switch HID device";
-        }
-    } else {
-        qCWarning(log_device_selector) << "VideoHid is null, cannot switch HID device";
-    }
-    
-    // Switch serial port device
-    if (m_serialPortManager) {
-        serialSuccess = m_serialPortManager->switchSerialPortByPortChain(m_selectedDevice.portChain);
-        if (serialSuccess) {
-            qCDebug(log_device_selector) << "Serial port device switched successfully";
-        } else {
-            qCWarning(log_device_selector) << "Failed to switch serial port device";
-        }
-    } else {
-        qCWarning(log_device_selector) << "SerialPortManager is null, cannot switch serial port device";
-    }
-    
-    // Update device manager selection
-    deviceManager.setCurrentSelectedDevice(m_selectedDevice);
+    // Use the centralized device switching function
+    auto result = deviceManager.switchToDeviceByPortChainWithCamera(m_selectedDevice.portChain, m_cameraManager);
     
     // Show result to user
-    QString statusMessage;
-    if (cameraSuccess && hidSuccess && serialSuccess) {
-        statusMessage = QString("Successfully switched to device at port %1").arg(m_selectedDevice.portChain);
-    } else if (cameraSuccess || hidSuccess || serialSuccess) {
-        statusMessage = QString("Partially switched to device at port %1 (some interfaces may not be available)")
-                       .arg(m_selectedDevice.portChain);
-    } else {
-        statusMessage = QString("Failed to switch to device at port %1").arg(m_selectedDevice.portChain);
-    }
-    
-    QMessageBox::information(this, "Device Switch Result", statusMessage);
+    QMessageBox::information(this, "Device Switch Result", result.statusMessage);
     
     // Refresh the device list to show updated status
     refreshDeviceList();

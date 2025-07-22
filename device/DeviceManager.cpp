@@ -2,6 +2,9 @@
 #include "platform/DeviceFactory.h"
 #include "platform/AbstractPlatformDeviceManager.h"
 #include "HotplugMonitor.h"
+#include "../ui/globalsetting.h"
+#include "../video/videohid.h"
+#include "../serial/SerialPortManager.h"
 #include <QMutexLocker>
 
 Q_LOGGING_CATEGORY(log_device_manager, "opf.device.manager")
@@ -121,6 +124,96 @@ DeviceInfo DeviceManager::getFirstAvailableDevice()
     
     qCWarning(log_device_manager) << "No devices available";
     return DeviceInfo();
+}
+
+DeviceManager::DeviceSwitchResult DeviceManager::switchToDeviceByPortChain(const QString& portChain)
+{
+    DeviceSwitchResult result = {false, false, false, false, "", DeviceInfo()};
+    
+    if (portChain.isEmpty()) {
+        result.statusMessage = "Cannot switch to device with empty port chain";
+        qCWarning(log_device_manager) << result.statusMessage;
+        return result;
+    }
+    
+    qCDebug(log_device_manager) << "Switching to device by port chain:" << portChain;
+    
+    // Get the selected device info from DeviceManager
+    QList<DeviceInfo> devices = getDevicesByPortChain(portChain);
+    if (devices.isEmpty()) {
+        result.statusMessage = QString("No device found for port chain: %1").arg(portChain);
+        qCWarning(log_device_manager) << result.statusMessage;
+        return result;
+    }
+    
+    DeviceInfo selectedDevice = devices.first();
+    result.selectedDevice = selectedDevice;
+    
+    // Update global settings first
+    GlobalSetting::instance().setOpenterfacePortChain(portChain);
+    
+    QStringList successMessages;
+    QStringList failureMessages;
+    
+    // Switch camera device
+    if (selectedDevice.hasCameraDevice()) {
+        // Note: Camera switching needs to be handled by the caller since
+        // DeviceManager shouldn't have direct dependency on CameraManager
+        qCDebug(log_device_manager) << "Camera switching needs to be handled by caller";
+    }
+    
+    // Switch HID device
+    if (selectedDevice.hasHidDevice()) {
+        result.hidSuccess = VideoHid::getInstance().switchToHIDDeviceByPortChain(portChain);
+        if (result.hidSuccess) {
+            successMessages << "HID device switched";
+            qCInfo(log_device_manager) << "✓ HID device switched to device at port:" << portChain;
+        } else {
+            failureMessages << "HID device switch failed";
+            qCWarning(log_device_manager) << "Failed to switch HID device to port:" << portChain;
+        }
+    }
+    
+    // Switch serial port device
+    if (selectedDevice.hasSerialPort()) {
+        result.serialSuccess = SerialPortManager::getInstance().switchSerialPortByPortChain(portChain);
+        if (result.serialSuccess) {
+            successMessages << "Serial port switched";
+            qCInfo(log_device_manager) << "✓ Serial port switched to device at port:" << portChain;
+        } else {
+            failureMessages << "Serial port switch failed";
+            qCWarning(log_device_manager) << "Failed to switch serial port to device at port:" << portChain;
+        }
+    }
+    
+    // Update device manager selection
+    setCurrentSelectedDevice(selectedDevice);
+    
+    // Determine overall success and create status message
+    bool hasSuccess = result.hidSuccess || result.serialSuccess;
+    bool hasFailure = (!result.hidSuccess && selectedDevice.hasHidDevice()) || 
+                      (!result.serialSuccess && selectedDevice.hasSerialPort());
+    
+    if (hasSuccess && !hasFailure) {
+        result.success = true;
+        result.statusMessage = QString("Successfully switched to device at port %1. %2")
+                              .arg(portChain)
+                              .arg(successMessages.join(", "));
+    } else if (hasSuccess && hasFailure) {
+        result.success = false;  // Partial success is treated as failure
+        result.statusMessage = QString("Partially switched to device at port %1. Success: %2. Failed: %3")
+                              .arg(portChain)
+                              .arg(successMessages.join(", "))
+                              .arg(failureMessages.join(", "));
+    } else {
+        result.success = false;
+        result.statusMessage = QString("Failed to switch to device at port %1. %2")
+                              .arg(portChain)
+                              .arg(failureMessages.join(", "));
+    }
+    
+    qCDebug(log_device_manager) << result.statusMessage;
+    return result;
 }
 
 void DeviceManager::startHotplugMonitoring(int intervalMs)

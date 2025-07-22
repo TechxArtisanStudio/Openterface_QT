@@ -43,6 +43,40 @@ public:
     DeviceInfo selectDeviceByPortChain(const QString& portChain);
     DeviceInfo getFirstAvailableDevice();
     
+    // Device switching
+    struct DeviceSwitchResult {
+        bool success;
+        bool cameraSuccess;
+        bool hidSuccess; 
+        bool serialSuccess;
+        QString statusMessage;
+        DeviceInfo selectedDevice;
+    };
+    DeviceSwitchResult switchToDeviceByPortChain(const QString& portChain);
+    
+    // Complete device switching (with camera manager) - for use by UI components
+    template<typename CameraManagerType>
+    DeviceSwitchResult switchToDeviceByPortChainWithCamera(const QString& portChain, CameraManagerType* cameraManager) {
+        DeviceSwitchResult result = switchToDeviceByPortChain(portChain);
+        
+        // Handle camera switching if camera manager is provided and device has camera
+        if (cameraManager && result.selectedDevice.isValid() && result.selectedDevice.hasCameraDevice()) {
+            result.cameraSuccess = cameraManager->switchToCameraDeviceByPortChain(portChain);
+            if (result.cameraSuccess) {
+                qCInfo(log_device_manager) << "✓ Camera switched to device at port:" << portChain;
+            } else {
+                qCWarning(log_device_manager) << "Failed to switch camera to device at port:" << portChain;
+                // Update status message to include camera failure
+                if (result.success) {
+                    result.statusMessage += " (Camera switch failed)";
+                    result.success = false; // Mark as failure if camera failed
+                }
+            }
+        }
+        
+        return result;
+    }
+    
     // Hotplug monitoring
     void startHotplugMonitoring(int intervalMs = 5000);
     void stopHotplugMonitoring();

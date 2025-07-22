@@ -160,11 +160,13 @@ MainWindow::MainWindow(LanguageManager *languageManager, QWidget *parent) :  ui(
                 m_statusBarManager, [this](const DeviceInfo& device) {
                     qCDebug(log_ui_mainwindow) << "MainWindow: Received newDevicePluggedIn signal for port:" << device.portChain;
                     m_statusBarManager->showNewDevicePluggedIn(device.portChain);
+                    updateDeviceMenu(); // Update device menu when new device is plugged in
                 });
         connect(hotplugMonitor, &HotplugMonitor::deviceUnplugged, 
                 m_statusBarManager, [this](const DeviceInfo& device) {
                     qCDebug(log_ui_mainwindow) << "MainWindow: Received deviceUnplugged signal for port:" << device.portChain;
                     m_statusBarManager->showDeviceUnplugged(device.portChain);
+                    updateDeviceMenu(); // Update device menu when device is unplugged
                 });
                 
         // Connect hotplug monitor to camera manager for device unplugging
@@ -331,6 +333,7 @@ MainWindow::MainWindow(LanguageManager *languageManager, QWidget *parent) :  ui(
 
     // Add this after other menu connections
     connect(ui->menuBaudrate, &QMenu::triggered, this, &MainWindow::onBaudrateMenuTriggered);
+    connect(ui->menuDevice, &QMenu::triggered, this, &MainWindow::onDeviceSelected);
     connect(&SerialPortManager::getInstance(), &SerialPortManager::connectedPortChanged, this, &MainWindow::onPortConnected);
     
     // Note: Automatic camera device coordination has been disabled
@@ -363,6 +366,7 @@ MainWindow::MainWindow(LanguageManager *languageManager, QWidget *parent) :  ui(
     
     connect(m_languageManager, &LanguageManager::languageChanged, this, &MainWindow::updateUI);
     setupLanguageMenu();
+    setupDeviceMenu();
     // fullScreen();
     qDebug() << "finished initialization";
     
@@ -382,6 +386,7 @@ void MainWindow::updateUI() {
     ui->retranslateUi(this); // Update the UI elements
     // this->menuBar()->clear();
     setupLanguageMenu();
+    updateDeviceMenu(); // Update device menu when UI language changes
 }
 
 void MainWindow::setupLanguageMenu() {
@@ -418,6 +423,102 @@ void MainWindow::setupLanguageMenu() {
         languageGroup->addAction(action);
     }
     connect(languageGroup, &QActionGroup::triggered, this, &MainWindow::onLanguageSelected);
+}
+
+void MainWindow::setupDeviceMenu() {
+    // Initialize device menu group
+    m_deviceMenuGroup = new QActionGroup(this);
+    m_deviceMenuGroup->setExclusive(true);
+    
+    // Connect to device menu group
+    connect(m_deviceMenuGroup, &QActionGroup::triggered, this, &MainWindow::onDeviceSelected);
+    
+    // Initial population of device menu
+    updateDeviceMenu();
+}
+
+void MainWindow::updateDeviceMenu() {
+    if (!m_deviceMenuGroup) {
+        return;
+    }
+    
+    // Clear existing device actions
+    ui->menuDevice->clear();
+    qDeleteAll(m_deviceMenuGroup->actions());
+    
+    // Get available devices from DeviceManager
+    DeviceManager& deviceManager = DeviceManager::getInstance();
+    QList<DeviceInfo> devices = deviceManager.discoverDevices(); // Force discovery for up-to-date list
+    
+    // Get currently selected device port chain
+    QString currentPortChain = GlobalSetting::instance().getOpenterfacePortChain();
+    
+    qCDebug(log_ui_mainwindow) << "Updating device menu with" << devices.size() << "devices. Current port chain:" << currentPortChain;
+    
+    if (devices.isEmpty()) {
+        // Add "No devices available" placeholder
+        QAction *noDevicesAction = new QAction("No devices available", this);
+        noDevicesAction->setEnabled(false);
+        ui->menuDevice->addAction(noDevicesAction);
+        return;
+    }
+    
+    // Deduplicate devices by port chain (similar to DeviceSelectorDialog)
+    QMap<QString, DeviceInfo> uniqueDevicesByPortChain;
+    for (const auto& device : devices) {
+        if (!device.portChain.isEmpty()) {
+            if (uniqueDevicesByPortChain.contains(device.portChain)) {
+                const DeviceInfo& existing = uniqueDevicesByPortChain[device.portChain];
+                // Choose the device with more interfaces
+                if (device.getInterfaceCount() > existing.getInterfaceCount()) {
+                    uniqueDevicesByPortChain[device.portChain] = device;
+                }
+            } else {
+                uniqueDevicesByPortChain[device.portChain] = device;
+            }
+        }
+    }
+    
+    // Add action for each unique device
+    for (auto it = uniqueDevicesByPortChain.begin(); it != uniqueDevicesByPortChain.end(); ++it) {
+        const DeviceInfo& device = it.value();
+        QString displayText = QString("Port %1").arg(device.portChain);
+        QAction *deviceAction = new QAction(displayText, this);
+        deviceAction->setCheckable(true);
+        deviceAction->setData(device.portChain);
+        
+        // Mark current device with a dot
+        if (device.portChain == currentPortChain) {
+            deviceAction->setChecked(true);
+            deviceAction->setText(QString("• %1").arg(displayText));
+        }
+        
+        ui->menuDevice->addAction(deviceAction);
+        m_deviceMenuGroup->addAction(deviceAction);
+    }
+}
+
+void MainWindow::onDeviceSelected(QAction *action) {
+    QString portChain = action->data().toString();
+    qCDebug(log_ui_mainwindow) << "Device selected from menu:" << portChain;
+    
+    if (portChain.isEmpty()) {
+        return;
+    }
+    
+    // Use the centralized device switching function
+    DeviceManager& deviceManager = DeviceManager::getInstance();
+    auto result = deviceManager.switchToDeviceByPortChainWithCamera(portChain, m_cameraManager);
+    
+    // Log the result
+    if (result.success) {
+        qCInfo(log_ui_mainwindow) << "✓ Device switch successful:" << result.statusMessage;
+    } else {
+        qCWarning(log_ui_mainwindow) << "Device switch failed or partial:" << result.statusMessage;
+    }
+    
+    // Update device menu to reflect current selection
+    updateDeviceMenu();
 }
 
 void MainWindow::onLanguageSelected(QAction *action) {

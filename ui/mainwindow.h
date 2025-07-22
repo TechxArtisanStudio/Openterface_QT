@@ -252,7 +252,10 @@ private:
     
     void updateUI();
     void setupLanguageMenu();
+    void setupDeviceMenu();
+    void updateDeviceMenu();
     void onLanguageSelected(QAction *action);
+    void onDeviceSelected(QAction *action);
 
     QMediaDevices m_source;
     QScopedPointer<QImageCapture> m_imageCapture;
@@ -283,6 +286,9 @@ private:
 
     CameraManager *m_cameraManager;
     InputHandler *m_inputHandler;
+    
+    // Device menu management
+    QActionGroup *m_deviceMenuGroup;
     
     // Camera coordination functionality removed - now handled by DeviceManager
 
