@@ -60,12 +60,12 @@ void GlobalSetting::getFilterSettings(bool &Chipinfo, bool &keyboardPress, bool 
     HID = m_settings.value("filter/HID", true).toBool();
 }
 
-void GlobalSetting::setLogSettings(bool core, bool serial, bool ui, bool host)
+void GlobalSetting::setLogSettings(bool core, bool serial, bool ui, bool hostLayout)
 {
     m_settings.setValue("log/core", core);
     m_settings.setValue("log/serial", serial);
     m_settings.setValue("log/ui", ui);
-    m_settings.setValue("log/host", host);
+    m_settings.setValue("log/hostLayout", hostLayout);
 }
 
 void GlobalSetting::loadLogSettings()
@@ -176,6 +176,23 @@ void GlobalSetting::setScreenRatio(double ratio) {
 
 double GlobalSetting::getScreenRatio() const {
     return m_settings.value("screen/ratio", 1.7778).toDouble();
+}
+
+// Port chain management for Openterface devices
+void GlobalSetting::setOpenterfacePortChain(const QString& portChain) {
+    qDebug() << "Logging Openterface port chain:" << portChain;
+    m_settings.setValue("openterface/portChain", portChain);
+    m_settings.sync(); // Ensure immediate write to storage
+}
+
+QString GlobalSetting::getOpenterfacePortChain() const {
+    return m_settings.value("openterface/portChain", "").toString();
+}
+
+void GlobalSetting::clearOpenterfacePortChain() {
+    qDebug() << "Clearing Openterface port chain";
+    m_settings.remove("openterface/portChain");
+    m_settings.sync();
 }
 
 /*

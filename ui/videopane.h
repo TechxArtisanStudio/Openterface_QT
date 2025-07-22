@@ -28,6 +28,8 @@
 
 #include <QVideoWidget>
 #include <QMouseEvent>
+#include <QPixmap>
+#include <QPainter>
 
 
 class VideoPane : public QVideoWidget
@@ -48,6 +50,13 @@ public:
     bool isRelativeModeEnabled() const { return relativeModeEnable; }
     void setRelativeModeEnabled(bool enable) { relativeModeEnable = enable; }
 
+public slots:
+    void onCameraDeviceSwitching(const QString& fromDevice, const QString& toDevice);
+    void onCameraDeviceSwitchComplete(const QString& device);
+
+protected:
+    void paintEvent(QPaintEvent *event) override;
+
 private:
     int lastX=0;
     int lastY=0;
@@ -58,9 +67,15 @@ private:
     QTimer *escTimer;
     bool holdingEsc=false;
     
+    // Frame preservation during camera switching
+    QPixmap m_lastFrame;
+    bool m_isCameraSwitching;
+    
     MouseEventDTO* calculateRelativePosition(QMouseEvent *event);
     MouseEventDTO* calculateAbsolutePosition(QMouseEvent *event);
     MouseEventDTO* calculateMouseEventDto(QMouseEvent *event);
+    
+    void captureCurrentFrame();
 };
 
 #endif
