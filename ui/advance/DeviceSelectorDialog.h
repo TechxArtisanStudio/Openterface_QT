@@ -10,8 +10,10 @@
 #include <QTextEdit>
 #include <QTimer>
 #include <QGroupBox>
-#include "../device/DeviceInfo.h"
-#include "../device/HotplugMonitor.h"
+#include "../../device/DeviceInfo.h"
+#include "../../device/HotplugMonitor.h"
+
+
 
 class DeviceManager;
 class SerialPortManager;
