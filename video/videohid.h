@@ -78,6 +78,15 @@ public:
 
     void setEventCallback(StatusEventCallback* callback);
     void clearDevicePathCache();
+    void refreshHIDDevice();
+
+    // Helper method to find matching HID device by port chain
+    QString findMatchingHIDDevice(const QString& portChain) const;
+    
+    // HID device switching by port chain (similar to CameraManager)
+    bool switchToHIDDeviceByPortChain(const QString& portChain);
+    QString getCurrentHIDDevicePath() const;
+    QString getCurrentHIDPortChain() const;
 
     // Add declarations for openHIDDevice and closeHIDDevice
     bool openHIDDevice();
@@ -98,6 +107,10 @@ public:
     bool beginTransaction();
     void endTransaction();
     bool isInTransaction() const;
+    
+    // Hotplug monitoring integration
+    void connectToHotplugMonitor();
+    void disconnectFromHotplugMonitor();
 
 signals:
     // Add new signals
@@ -112,6 +125,10 @@ signals:
     void resolutionChangeUpdate(const int& width, const int& height, const float& fps, const float& pixelClk);
     void firmwareWriteError(const QString &errorMessage);
     void firmwareReadError(const QString &errorMessage);
+    void hidDeviceChanged(const QString& oldDevicePath, const QString& newDevicePath);
+    void hidDeviceSwitched(const QString& fromPortChain, const QString& toPortChain);
+    void hidDeviceConnected(const QString& devicePath);
+    void hidDeviceDisconnected(const QString& devicePath);
 
 private:
     explicit VideoHid(QObject *parent = nullptr);
@@ -162,6 +179,10 @@ private:
 
     std::chrono::time_point<std::chrono::steady_clock> m_lastPathQuery = std::chrono::steady_clock::now();
     bool m_inTransaction = false;
+    
+    // Current HID device tracking
+    QString m_currentHIDDevicePath;
+    QString m_currentHIDPortChain;
 };
 
 #endif // VIDEOHID_H

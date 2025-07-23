@@ -30,8 +30,9 @@
 #include <QDebug>
 #include <QGuiApplication>
 #include <QScreen>
+#include <QTimer>
 
-VideoPane::VideoPane(QWidget *parent) : QVideoWidget(parent), escTimer(new QTimer(this)), m_inputHandler(new InputHandler(this, this))
+VideoPane::VideoPane(QWidget *parent) : QVideoWidget(parent), escTimer(new QTimer(this)), m_inputHandler(new InputHandler(this, this)), m_isCameraSwitching(false)
 {
     qDebug() << "VideoPane init...";
     QWidget* childWidget = qobject_cast<QWidget*>(this->children()[0]);
@@ -94,6 +95,85 @@ void VideoPane::startEscTimer()
 void VideoPane::stopEscTimer()
 {
     escTimer->stop();
+}
+
+void VideoPane::onCameraDeviceSwitching(const QString& fromDevice, const QString& toDevice)
+{
+    qDebug() << "VideoPane: Camera switching from" << fromDevice << "to" << toDevice;
+    
+    // Capture the current frame before switching
+    captureCurrentFrame();
+    
+    // Set switching mode to display the last frame
+    m_isCameraSwitching = true;
+    
+    // Force a repaint to show the captured frame
+    update();
+}
+
+void VideoPane::onCameraDeviceSwitchComplete(const QString& device)
+{
+    qDebug() << "VideoPane: Camera switch complete to" << device;
+    
+    // Clear switching mode to resume normal video display
+    m_isCameraSwitching = false;
+    
+    // Clear the captured frame
+    m_lastFrame = QPixmap();
+    
+    // Force a repaint to resume normal video display
+    update();
+}
+
+void VideoPane::captureCurrentFrame()
+{
+    // Try multiple methods to capture the current frame
+    if (this->isVisible() && this->size().isValid()) {
+        // Method 1: Grab the widget content
+        m_lastFrame = this->grab();
+        
+        // Method 2: If grab() failed or returned null, try to get pixmap from render
+        if (m_lastFrame.isNull() || m_lastFrame.size().isEmpty()) {
+            m_lastFrame = QPixmap(this->size());
+            m_lastFrame.fill(Qt::black); // Fill with black as fallback
+            QPainter painter(&m_lastFrame);
+            this->render(&painter);
+        }
+        
+        qDebug() << "VideoPane: Captured frame" << m_lastFrame.size() << "for preservation during camera switch";
+    } else {
+        // Create a black fallback frame
+        m_lastFrame = QPixmap(this->size().isEmpty() ? QSize(640, 480) : this->size());
+        m_lastFrame.fill(Qt::black);
+        qDebug() << "VideoPane: Created fallback black frame for camera switch";
+    }
+}
+
+void VideoPane::paintEvent(QPaintEvent *event)
+{
+    if (m_isCameraSwitching && !m_lastFrame.isNull()) {
+        // During camera switching, paint the last captured frame
+        QPainter painter(this);
+        painter.setRenderHint(QPainter::SmoothPixmapTransform, true);
+        
+        // Scale the frame to fit the widget while maintaining aspect ratio
+        QSize widgetSize = this->size();
+        QSize frameSize = m_lastFrame.size();
+        
+        if (!frameSize.isEmpty() && !widgetSize.isEmpty()) {
+            QRect targetRect = QRect(QPoint(0, 0), frameSize.scaled(widgetSize, Qt::KeepAspectRatio));
+            targetRect.moveCenter(this->rect().center());
+            painter.drawPixmap(targetRect, m_lastFrame);
+        } else {
+            // Fallback: draw frame as-is
+            painter.drawPixmap(this->rect(), m_lastFrame);
+        }
+        
+        qDebug() << "VideoPane: Displaying preserved frame during camera switch";
+    } else {
+        // Normal video display
+        QVideoWidget::paintEvent(event);
+    }
 }
 
 

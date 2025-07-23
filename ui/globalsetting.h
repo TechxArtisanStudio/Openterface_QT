@@ -37,7 +37,7 @@ public:
 
     static GlobalSetting& instance();
 
-    void setLogSettings(bool core, bool serial, bool ui, bool host);
+    void setLogSettings(bool core, bool serial, bool ui, bool hostLayout);
 
     void setFilterSettings(bool Chipinfo, bool keyboardPress, bool mideaKeyboard, bool mouseMoveABS, bool mouseMoveREL, bool HID);
 
@@ -89,6 +89,12 @@ public:
 
     void setScreenRatio(double ratio);
     double getScreenRatio() const;
+
+    // Port chain management for Openterface devices
+    void setOpenterfacePortChain(const QString& portChain);
+    QString getOpenterfacePortChain() const;
+    void clearOpenterfacePortChain();
+
 private:
     QSettings m_settings;
 };
