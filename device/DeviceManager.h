@@ -36,6 +36,7 @@ public:
     
     // Device discovery
     QList<DeviceInfo> discoverDevices();
+    void discoverDevicesAsync(); // Non-blocking async discovery
     QList<DeviceInfo> getDevicesByPortChain(const QString& portChain);
     QStringList getAvailablePortChains();
     
