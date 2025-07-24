@@ -60,221 +60,17 @@ QList<DeviceInfo> LinuxDeviceManager::discoverDevices()
     }
 
     try {
-        // Create device map to group devices by their parent hub port chain
-        // This ensures that all devices connected to the same physical Openterface unit
-        // are grouped together regardless of their individual VID/PID
-        QMap<QString, DeviceInfo> deviceMap;
+        // Search for Generation 1 devices
+        qCDebug(log_device_linux) << "=== Searching for Generation 1 devices ===";
+        QList<DeviceInfo> gen1Devices = discoverGeneration1DevicesLinux();
+        devices.append(gen1Devices);
+        qCDebug(log_device_linux) << "Found" << gen1Devices.size() << "Generation 1 devices";
         
-        // Find USB devices with serial VID/PID (1A86:7523)
-        QList<UdevDeviceData> serialDevices = findUdevDevicesByVidPid("usb", 
-            AbstractPlatformDeviceManager::SERIAL_VID, 
-            AbstractPlatformDeviceManager::SERIAL_PID);
-        qCDebug(log_device_linux) << "Found" << serialDevices.size() << "serial USB devices";
-        for (const auto& dev : serialDevices) {
-            qCDebug(log_device_linux) << "  Serial device:" << dev.syspath << "port:" << dev.portChain;
-        }
-        
-        // Find USB devices with HID VID/PID (534D:2109)
-        QList<UdevDeviceData> hidUsbDevices = findUdevDevicesByVidPid("usb", 
-            AbstractPlatformDeviceManager::HID_VID, 
-            AbstractPlatformDeviceManager::HID_PID);
-        qCDebug(log_device_linux) << "Found" << hidUsbDevices.size() << "HID USB devices";
-        for (const auto& dev : hidUsbDevices) {
-            qCDebug(log_device_linux) << "  HID device:" << dev.syspath << "port:" << dev.portChain;
-        }
-        
-        // Create a map to track which hub ports have Openterface devices
-        QMap<QString, QString> hubPortToDevicePort;
-        
-        // Process serial devices and map them to their parent hub ports
-        for (const UdevDeviceData& serialDevice : serialDevices) {
-            QString devicePort = serialDevice.portChain; // e.g., "1-2.2"
-            QString hubPort = extractHubPortFromDevicePort(devicePort); // e.g., "1-2"
-            
-            if (!hubPort.isEmpty()) {
-                hubPortToDevicePort[hubPort] = devicePort;
-                
-                DeviceInfo deviceInfo;
-                deviceInfo.portChain = hubPort; // Use hub port as the common identifier
-                deviceInfo.deviceInstanceId = serialDevice.syspath;
-                deviceInfo.platformSpecific = serialDevice.properties;
-                deviceInfo.lastSeen = QDateTime::currentDateTime();
-                
-                deviceMap[hubPort] = deviceInfo;
-                qCDebug(log_device_linux) << "Serial device at device port" << devicePort << "-> hub port" << hubPort;
-            }
-        }
-        
-        // Process HID USB devices and add them to existing entries or create new ones
-        for (const UdevDeviceData& hidUsbDevice : hidUsbDevices) {
-            QString devicePort = hidUsbDevice.portChain; // e.g., "1-2.1"
-            QString hubPort = extractHubPortFromDevicePort(devicePort); // e.g., "1-2"
-            
-            if (!hubPort.isEmpty()) {
-                if (!deviceMap.contains(hubPort)) {
-                    DeviceInfo deviceInfo;
-                    deviceInfo.portChain = hubPort; // Use hub port as the common identifier
-                    deviceInfo.deviceInstanceId = hidUsbDevice.syspath;
-                    deviceInfo.platformSpecific = hidUsbDevice.properties;
-                    deviceInfo.lastSeen = QDateTime::currentDateTime();
-                    
-                    deviceMap[hubPort] = deviceInfo;
-                }
-                qCDebug(log_device_linux) << "HID USB device at device port" << devicePort << "-> hub port" << hubPort;
-            }
-        }
-        
-        // Find associated tty devices for serial communication
-        QList<UdevDeviceData> ttyDevices = findUdevDevices("tty", QVariantMap());
-        qCDebug(log_device_linux) << "Found" << ttyDevices.size() << "tty devices";
-        for (const UdevDeviceData& ttyDevice : ttyDevices) {
-            // Check if this tty device belongs to one of our USB devices
-            struct udev_device *device = udev_device_new_from_syspath(m_udev, ttyDevice.syspath.toLocal8Bit().constData());
-            if (device) {
-                struct udev_device *usb_device = findUsbParentDevice(device);
-                if (usb_device) {
-                    const char *vid = udev_device_get_sysattr_value(usb_device, "idVendor");
-                    const char *pid = udev_device_get_sysattr_value(usb_device, "idProduct");
-                    
-                    if (vid && pid) {
-                        QString deviceVidStr = QString(vid).toUpper();
-                        QString devicePidStr = QString(pid).toUpper();
-                        
-                        if (deviceVidStr == AbstractPlatformDeviceManager::SERIAL_VID.toUpper() && 
-                            devicePidStr == AbstractPlatformDeviceManager::SERIAL_PID.toUpper()) {
-                            
-                            QString devicePortChain = extractPortChainFromSyspath(QString(udev_device_get_syspath(usb_device)));
-                            QString hubPort = extractHubPortFromDevicePort(devicePortChain);
-                            
-                            if (!hubPort.isEmpty() && deviceMap.contains(hubPort)) {
-                                QString devNode = ttyDevice.properties.value("DEVNAME").toString();
-                                if (!devNode.isEmpty()) {
-                                    deviceMap[hubPort].serialPortPath = devNode;
-                                    deviceMap[hubPort].serialPortId = ttyDevice.syspath;
-                                    qCDebug(log_device_linux) << "Found tty device:" << devNode << "at device port:" << devicePortChain << "for hub port:" << hubPort;
-                                }
-                            }
-                        }
-                    }
-                    udev_device_unref(usb_device);
-                }
-                udev_device_unref(device);
-            }
-        }
-        
-        // Find hidraw devices for HID communication
-        QList<UdevDeviceData> hidrawDevices = findUdevDevices("hidraw", QVariantMap());
-        qCDebug(log_device_linux) << "Found" << hidrawDevices.size() << "hidraw devices";
-        for (const UdevDeviceData& hidrawDevice : hidrawDevices) {
-            // Check if this hidraw device belongs to one of our USB devices
-            struct udev_device *device = udev_device_new_from_syspath(m_udev, hidrawDevice.syspath.toLocal8Bit().constData());
-            if (device) {
-                struct udev_device *usb_device = findUsbParentDevice(device);
-                if (usb_device) {
-                    const char *vid = udev_device_get_sysattr_value(usb_device, "idVendor");
-                    const char *pid = udev_device_get_sysattr_value(usb_device, "idProduct");
-                    
-                    if (vid && pid) {
-                        QString deviceVidStr = QString(vid).toUpper();
-                        QString devicePidStr = QString(pid).toUpper();
-                        
-                        if (deviceVidStr == AbstractPlatformDeviceManager::HID_VID.toUpper() && 
-                            devicePidStr == AbstractPlatformDeviceManager::HID_PID.toUpper()) {
-                            
-                            QString devicePortChain = extractPortChainFromSyspath(QString(udev_device_get_syspath(usb_device)));
-                            QString hubPort = extractHubPortFromDevicePort(devicePortChain);
-                            
-                            if (!hubPort.isEmpty() && deviceMap.contains(hubPort)) {
-                                QString devNode = hidrawDevice.properties.value("DEVNAME").toString();
-                                if (!devNode.isEmpty()) {
-                                    deviceMap[hubPort].hidDevicePath = devNode;
-                                    deviceMap[hubPort].hidDeviceId = hidrawDevice.syspath;
-                                    qCDebug(log_device_linux) << "Found HID device:" << devNode << "at device port:" << devicePortChain << "for hub port:" << hubPort;
-                                }
-                            }
-                        }
-                    }
-                    udev_device_unref(usb_device);
-                }
-                udev_device_unref(device);
-            }
-        }
-        
-        // Find video devices
-        QList<UdevDeviceData> videoDevices = findUdevDevices("video4linux", QVariantMap());
-        qCDebug(log_device_linux) << "Found" << videoDevices.size() << "video4linux devices";
-        for (const UdevDeviceData& videoDevice : videoDevices) {
-            // Check if this video device belongs to one of our USB devices
-            struct udev_device *device = udev_device_new_from_syspath(m_udev, videoDevice.syspath.toLocal8Bit().constData());
-            if (device) {
-                struct udev_device *usb_device = findUsbParentDevice(device);
-                if (usb_device) {
-                    QString devicePortChain = extractPortChainFromSyspath(QString(udev_device_get_syspath(usb_device)));
-                    QString hubPort = extractHubPortFromDevicePort(devicePortChain);
-                    
-                    if (!hubPort.isEmpty() && deviceMap.contains(hubPort)) {
-                        QString devNode = videoDevice.properties.value("DEVNAME").toString();
-                        if (!devNode.isEmpty() && devNode.contains("video")) {
-                            // Prefer video0 over video1 for camera device
-                            if (deviceMap[hubPort].cameraDevicePath.isEmpty() || devNode.contains("video0")) {
-                                deviceMap[hubPort].cameraDevicePath = devNode;
-                                deviceMap[hubPort].cameraDeviceId = devNode;  // Use device path as ID for Linux
-                                qCDebug(log_device_linux) << "Set camera info for hub port" << hubPort 
-                                                         << "- Path:" << devNode 
-                                                         << "- ID:" << devNode;
-                            }
-                            qCDebug(log_device_linux) << "Found video device:" << devNode << "at device port:" << devicePortChain << "for hub port:" << hubPort;
-                        }
-                    }
-                    udev_device_unref(usb_device);
-                }
-                udev_device_unref(device);
-            }
-        }
-        
-        // Find audio devices
-        QList<UdevDeviceData> audioDevices = findUdevDevices("sound", QVariantMap());
-        qCDebug(log_device_linux) << "Found" << audioDevices.size() << "sound devices";
-        for (const UdevDeviceData& audioDevice : audioDevices) {
-            // Check if this audio device belongs to one of our USB devices
-            struct udev_device *device = udev_device_new_from_syspath(m_udev, audioDevice.syspath.toLocal8Bit().constData());
-            if (device) {
-                struct udev_device *usb_device = findUsbParentDevice(device);
-                if (usb_device) {
-                    QString devicePortChain = extractPortChainFromSyspath(QString(udev_device_get_syspath(usb_device)));
-                    QString hubPort = extractHubPortFromDevicePort(devicePortChain);
-                    
-                    if (!hubPort.isEmpty() && deviceMap.contains(hubPort)) {
-                        QString devNode = audioDevice.properties.value("DEVNAME").toString();
-                        if (!devNode.isEmpty() && (devNode.contains("pcm") || devNode.contains("control"))) {
-                            deviceMap[hubPort].audioDevicePath = devNode;
-                            deviceMap[hubPort].audioDeviceId = audioDevice.syspath;
-                            qCDebug(log_device_linux) << "Found audio device:" << devNode << "at device port:" << devicePortChain << "for hub port:" << hubPort;
-                        }
-                    }
-                    udev_device_unref(usb_device);
-                }
-                udev_device_unref(device);
-            }
-        }
-        
-        // Convert map to list
-        for (auto it = deviceMap.begin(); it != deviceMap.end(); ++it) {
-            if (it.value().isValid()) {
-                devices.append(it.value());
-                qCDebug(log_device_linux) << "Found complete device with port chain:" << it.value().portChain
-                                          << "serial:" << it.value().serialPortPath
-                                          << "hid:" << it.value().hidDevicePath
-                                          << "camera:" << it.value().cameraDevicePath
-                                          << "audio:" << it.value().audioDevicePath;
-            } else {
-                qCDebug(log_device_linux) << "Found incomplete device with port chain:" << it.key()
-                                          << "serial:" << it.value().serialPortPath
-                                          << "hid:" << it.value().hidDevicePath
-                                          << "camera:" << it.value().cameraDevicePath
-                                          << "audio:" << it.value().audioDevicePath;
-            }
-        }
+        // Search for Generation 2 devices
+        qCDebug(log_device_linux) << "=== Searching for Generation 2 devices ===";
+        QList<DeviceInfo> gen2Devices = discoverGeneration2DevicesLinux();
+        devices.append(gen2Devices);
+        qCDebug(log_device_linux) << "Found" << gen2Devices.size() << "Generation 2 devices";
         
     } catch (const std::exception& e) {
         qCWarning(log_device_linux) << "Error discovering devices with libudev:" << e.what();
@@ -599,6 +395,287 @@ QString LinuxDeviceManager::extractHubPortFromDevicePort(const QString& devicePo
     return hubPort;
 }
 #endif // HAVE_LIBUDEV
+
+QList<DeviceInfo> LinuxDeviceManager::discoverGeneration1DevicesLinux()
+{
+    QList<DeviceInfo> devices;
+    
+    qCDebug(log_device_linux) << "Discovering Generation 1 devices (Original VID/PID approach)...";
+    
+    // Create device map to group devices by their parent hub port chain
+    // This ensures that all devices connected to the same physical Openterface unit
+    // are grouped together regardless of their individual VID/PID
+    QMap<QString, DeviceInfo> deviceMap;
+    
+    // Find USB devices with serial VID/PID (1A86:7523)
+    QList<UdevDeviceData> serialDevices = findUdevDevicesByVidPid("usb", 
+        AbstractPlatformDeviceManager::SERIAL_VID, 
+        AbstractPlatformDeviceManager::SERIAL_PID);
+    qCDebug(log_device_linux) << "Found" << serialDevices.size() << "Gen1 serial USB devices";
+    for (const auto& dev : serialDevices) {
+        qCDebug(log_device_linux) << "  Serial device:" << dev.syspath << "port:" << dev.portChain;
+    }
+    
+    // Find USB devices with HID VID/PID (534D:2109)
+    QList<UdevDeviceData> hidUsbDevices = findUdevDevicesByVidPid("usb", 
+        AbstractPlatformDeviceManager::OPENTERFACE_VID, 
+        AbstractPlatformDeviceManager::OPENTERFACE_PID);
+    qCDebug(log_device_linux) << "Found" << hidUsbDevices.size() << "Gen1 HID USB devices";
+    for (const auto& dev : hidUsbDevices) {
+        qCDebug(log_device_linux) << "  HID device:" << dev.syspath << "port:" << dev.portChain;
+    }
+    
+    return processDeviceMap(serialDevices, hidUsbDevices, deviceMap, "Gen1");
+}
+
+QList<DeviceInfo> LinuxDeviceManager::discoverGeneration2DevicesLinux()
+{
+    QList<DeviceInfo> devices;
+    
+    qCDebug(log_device_linux) << "Discovering Generation 2 devices (Companion device approach)...";
+    
+    // Create device map to group devices by their parent hub port chain
+    QMap<QString, DeviceInfo> deviceMap;
+    
+    // Find USB devices with serial VID/PID (1A86:FE0C)
+    QList<UdevDeviceData> serialDevices = findUdevDevicesByVidPid("usb", 
+        AbstractPlatformDeviceManager::SERIAL_VID_V2, 
+        AbstractPlatformDeviceManager::SERIAL_PID_V2);
+    qCDebug(log_device_linux) << "Found" << serialDevices.size() << "Gen2 serial USB devices";
+    for (const auto& dev : serialDevices) {
+        qCDebug(log_device_linux) << "  Serial device:" << dev.syspath << "port:" << dev.portChain;
+    }
+    
+    // Find USB devices with companion VID/PID (345F:2130)
+    QList<UdevDeviceData> companionUsbDevices = findUdevDevicesByVidPid("usb", 
+        AbstractPlatformDeviceManager::OPENTERFACE_VID_V2, 
+        AbstractPlatformDeviceManager::OPENTERFACE_PID_V2);
+    qCDebug(log_device_linux) << "Found" << companionUsbDevices.size() << "Gen2 companion USB devices";
+    for (const auto& dev : companionUsbDevices) {
+        qCDebug(log_device_linux) << "  Companion device:" << dev.syspath << "port:" << dev.portChain;
+    }
+    
+    return processDeviceMap(serialDevices, companionUsbDevices, deviceMap, "Gen2");
+}
+
+QList<DeviceInfo> LinuxDeviceManager::processDeviceMap(const QList<UdevDeviceData>& serialDevices, 
+                                                      const QList<UdevDeviceData>& usbDevices, 
+                                                      QMap<QString, DeviceInfo>& deviceMap, 
+                                                      const QString& generation)
+{
+    QList<DeviceInfo> devices;
+    
+    // Create a map to track which hub ports have Openterface devices
+    QMap<QString, QString> hubPortToDevicePort;
+    
+    // Process serial devices and map them to their parent hub ports
+    for (const UdevDeviceData& serialDevice : serialDevices) {
+        QString devicePort = serialDevice.portChain; // e.g., "1-2.2"
+        QString hubPort = extractHubPortFromDevicePort(devicePort); // e.g., "1-2"
+        
+        if (!hubPort.isEmpty()) {
+            hubPortToDevicePort[hubPort] = devicePort;
+            
+            DeviceInfo deviceInfo;
+            deviceInfo.portChain = hubPort; // Use hub port as the common identifier
+            deviceInfo.deviceInstanceId = serialDevice.syspath;
+            deviceInfo.platformSpecific = serialDevice.properties;
+            deviceInfo.lastSeen = QDateTime::currentDateTime();
+            
+            deviceMap[hubPort] = deviceInfo;
+            qCDebug(log_device_linux) << generation << "Serial device at device port" << devicePort << "-> hub port" << hubPort;
+        }
+    }
+    
+    // Process USB devices and add them to existing entries or create new ones
+    for (const UdevDeviceData& usbDevice : usbDevices) {
+        QString devicePort = usbDevice.portChain; // e.g., "1-2.1"
+        QString hubPort = extractHubPortFromDevicePort(devicePort); // e.g., "1-2"
+        
+        if (!hubPort.isEmpty()) {
+            if (!deviceMap.contains(hubPort)) {
+                DeviceInfo deviceInfo;
+                deviceInfo.portChain = hubPort; // Use hub port as the common identifier
+                deviceInfo.deviceInstanceId = usbDevice.syspath;
+                deviceInfo.platformSpecific = usbDevice.properties;
+                deviceInfo.lastSeen = QDateTime::currentDateTime();
+                
+                deviceMap[hubPort] = deviceInfo;
+            }
+            qCDebug(log_device_linux) << generation << "USB device at device port" << devicePort << "-> hub port" << hubPort;
+        }
+    }
+    
+    // Find associated tty devices for serial communication
+    QList<UdevDeviceData> ttyDevices = findUdevDevices("tty", QVariantMap());
+    qCDebug(log_device_linux) << "Found" << ttyDevices.size() << "tty devices for" << generation;
+    for (const UdevDeviceData& ttyDevice : ttyDevices) {
+        // Check if this tty device belongs to one of our USB devices
+        struct udev_device *device = udev_device_new_from_syspath(m_udev, ttyDevice.syspath.toLocal8Bit().constData());
+        if (device) {
+            struct udev_device *usb_device = findUsbParentDevice(device);
+            if (usb_device) {
+                const char *vid = udev_device_get_sysattr_value(usb_device, "idVendor");
+                const char *pid = udev_device_get_sysattr_value(usb_device, "idProduct");
+                
+                if (vid && pid) {
+                    QString deviceVidStr = QString(vid).toUpper();
+                    QString devicePidStr = QString(pid).toUpper();
+                    
+                    // Check for both generation VID/PID combinations
+                    bool isMatchingSerial = false;
+                    if (generation == "Gen1") {
+                        isMatchingSerial = (deviceVidStr == AbstractPlatformDeviceManager::SERIAL_VID.toUpper() && 
+                                          devicePidStr == AbstractPlatformDeviceManager::SERIAL_PID.toUpper());
+                    } else if (generation == "Gen2") {
+                        isMatchingSerial = (deviceVidStr == AbstractPlatformDeviceManager::SERIAL_VID_V2.toUpper() && 
+                                          devicePidStr == AbstractPlatformDeviceManager::SERIAL_PID_V2.toUpper());
+                    }
+                    
+                    if (isMatchingSerial) {
+                        QString devicePortChain = extractPortChainFromSyspath(QString(udev_device_get_syspath(usb_device)));
+                        QString hubPort = extractHubPortFromDevicePort(devicePortChain);
+                        
+                        if (!hubPort.isEmpty() && deviceMap.contains(hubPort)) {
+                            QString devNode = ttyDevice.properties.value("DEVNAME").toString();
+                            if (!devNode.isEmpty()) {
+                                deviceMap[hubPort].serialPortPath = devNode;
+                                deviceMap[hubPort].serialPortId = ttyDevice.syspath;
+                                qCDebug(log_device_linux) << "Found" << generation << "tty device:" << devNode << "at device port:" << devicePortChain << "for hub port:" << hubPort;
+                            }
+                        }
+                    }
+                }
+                udev_device_unref(usb_device);
+            }
+            udev_device_unref(device);
+        }
+    }
+    
+    // Find hidraw devices for HID communication
+    QList<UdevDeviceData> hidrawDevices = findUdevDevices("hidraw", QVariantMap());
+    qCDebug(log_device_linux) << "Found" << hidrawDevices.size() << "hidraw devices for" << generation;
+    for (const UdevDeviceData& hidrawDevice : hidrawDevices) {
+        // Check if this hidraw device belongs to one of our USB devices
+        struct udev_device *device = udev_device_new_from_syspath(m_udev, hidrawDevice.syspath.toLocal8Bit().constData());
+        if (device) {
+            struct udev_device *usb_device = findUsbParentDevice(device);
+            if (usb_device) {
+                const char *vid = udev_device_get_sysattr_value(usb_device, "idVendor");
+                const char *pid = udev_device_get_sysattr_value(usb_device, "idProduct");
+                
+                if (vid && pid) {
+                    QString deviceVidStr = QString(vid).toUpper();
+                    QString devicePidStr = QString(pid).toUpper();
+                    
+                    // Check for both generation VID/PID combinations
+                    bool isMatchingHid = false;
+                    if (generation == "Gen1") {
+                        isMatchingHid = (deviceVidStr == AbstractPlatformDeviceManager::OPENTERFACE_VID.toUpper() && 
+                                       devicePidStr == AbstractPlatformDeviceManager::OPENTERFACE_PID.toUpper());
+                    } else if (generation == "Gen2") {
+                        isMatchingHid = (deviceVidStr == AbstractPlatformDeviceManager::OPENTERFACE_VID_V2.toUpper() && 
+                                       devicePidStr == AbstractPlatformDeviceManager::OPENTERFACE_PID_V2.toUpper());
+                    }
+                    
+                    if (isMatchingHid) {
+                        QString devicePortChain = extractPortChainFromSyspath(QString(udev_device_get_syspath(usb_device)));
+                        QString hubPort = extractHubPortFromDevicePort(devicePortChain);
+                        
+                        if (!hubPort.isEmpty() && deviceMap.contains(hubPort)) {
+                            QString devNode = hidrawDevice.properties.value("DEVNAME").toString();
+                            if (!devNode.isEmpty()) {
+                                deviceMap[hubPort].hidDevicePath = devNode;
+                                deviceMap[hubPort].hidDeviceId = hidrawDevice.syspath;
+                                qCDebug(log_device_linux) << "Found" << generation << "HID device:" << devNode << "at device port:" << devicePortChain << "for hub port:" << hubPort;
+                            }
+                        }
+                    }
+                }
+                udev_device_unref(usb_device);
+            }
+            udev_device_unref(device);
+        }
+    }
+    
+    // Find video devices
+    QList<UdevDeviceData> videoDevices = findUdevDevices("video4linux", QVariantMap());
+    qCDebug(log_device_linux) << "Found" << videoDevices.size() << "video4linux devices for" << generation;
+    for (const UdevDeviceData& videoDevice : videoDevices) {
+        // Check if this video device belongs to one of our USB devices
+        struct udev_device *device = udev_device_new_from_syspath(m_udev, videoDevice.syspath.toLocal8Bit().constData());
+        if (device) {
+            struct udev_device *usb_device = findUsbParentDevice(device);
+            if (usb_device) {
+                QString devicePortChain = extractPortChainFromSyspath(QString(udev_device_get_syspath(usb_device)));
+                QString hubPort = extractHubPortFromDevicePort(devicePortChain);
+                
+                if (!hubPort.isEmpty() && deviceMap.contains(hubPort)) {
+                    QString devNode = videoDevice.properties.value("DEVNAME").toString();
+                    if (!devNode.isEmpty() && devNode.contains("video")) {
+                        // Prefer video0 over video1 for camera device
+                        if (deviceMap[hubPort].cameraDevicePath.isEmpty() || devNode.contains("video0")) {
+                            deviceMap[hubPort].cameraDevicePath = devNode;
+                            deviceMap[hubPort].cameraDeviceId = devNode;  // Use device path as ID for Linux
+                            qCDebug(log_device_linux) << "Set" << generation << "camera info for hub port" << hubPort 
+                                                     << "- Path:" << devNode 
+                                                     << "- ID:" << devNode;
+                        }
+                        qCDebug(log_device_linux) << "Found" << generation << "video device:" << devNode << "at device port:" << devicePortChain << "for hub port:" << hubPort;
+                    }
+                }
+                udev_device_unref(usb_device);
+            }
+            udev_device_unref(device);
+        }
+    }
+    
+    // Find audio devices
+    QList<UdevDeviceData> audioDevices = findUdevDevices("sound", QVariantMap());
+    qCDebug(log_device_linux) << "Found" << audioDevices.size() << "sound devices for" << generation;
+    for (const UdevDeviceData& audioDevice : audioDevices) {
+        // Check if this audio device belongs to one of our USB devices
+        struct udev_device *device = udev_device_new_from_syspath(m_udev, audioDevice.syspath.toLocal8Bit().constData());
+        if (device) {
+            struct udev_device *usb_device = findUsbParentDevice(device);
+            if (usb_device) {
+                QString devicePortChain = extractPortChainFromSyspath(QString(udev_device_get_syspath(usb_device)));
+                QString hubPort = extractHubPortFromDevicePort(devicePortChain);
+                
+                if (!hubPort.isEmpty() && deviceMap.contains(hubPort)) {
+                    QString devNode = audioDevice.properties.value("DEVNAME").toString();
+                    if (!devNode.isEmpty() && (devNode.contains("pcm") || devNode.contains("control"))) {
+                        deviceMap[hubPort].audioDevicePath = devNode;
+                        deviceMap[hubPort].audioDeviceId = audioDevice.syspath;
+                        qCDebug(log_device_linux) << "Found" << generation << "audio device:" << devNode << "at device port:" << devicePortChain << "for hub port:" << hubPort;
+                    }
+                }
+                udev_device_unref(usb_device);
+            }
+            udev_device_unref(device);
+        }
+    }
+    
+    // Convert map to list
+    for (auto it = deviceMap.begin(); it != deviceMap.end(); ++it) {
+        if (it.value().isValid()) {
+            devices.append(it.value());
+            qCDebug(log_device_linux) << "Found complete" << generation << "device with port chain:" << it.value().portChain
+                                      << "serial:" << it.value().serialPortPath
+                                      << "hid:" << it.value().hidDevicePath
+                                      << "camera:" << it.value().cameraDevicePath
+                                      << "audio:" << it.value().audioDevicePath;
+        } else {
+            qCDebug(log_device_linux) << "Found incomplete" << generation << "device with port chain:" << it.key()
+                                      << "serial:" << it.value().serialPortPath
+                                      << "hid:" << it.value().hidDevicePath
+                                      << "camera:" << it.value().cameraDevicePath
+                                      << "audio:" << it.value().audioDevicePath;
+        }
+    }
+    
+    return devices;
+}
 
 void LinuxDeviceManager::clearCache()
 {

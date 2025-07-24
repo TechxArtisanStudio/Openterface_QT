@@ -46,6 +46,14 @@ private:
     QString getPortChainFromSyspath(const QString& syspath);
     QString extractHubPortFromDevicePort(const QString& devicePort);
     
+    // Generation-specific device discovery methods
+    QList<DeviceInfo> discoverGeneration1DevicesLinux();
+    QList<DeviceInfo> discoverGeneration2DevicesLinux();
+    QList<DeviceInfo> processDeviceMap(const QList<UdevDeviceData>& serialDevices, 
+                                     const QList<UdevDeviceData>& usbDevices, 
+                                     QMap<QString, DeviceInfo>& deviceMap, 
+                                     const QString& generation);
+    
     // udev context
     struct udev* m_udev;
 #endif

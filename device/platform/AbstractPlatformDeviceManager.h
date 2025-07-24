@@ -24,11 +24,17 @@ public:
     QStringList getAvailablePortChains();
     
 protected:
-    // Common VID/PID constants for all platforms
+    // Common VID/PID constants for all platforms - Original generation
     static const QString SERIAL_VID;
     static const QString SERIAL_PID; 
-    static const QString HID_VID;
-    static const QString HID_PID;
+    static const QString OPENTERFACE_VID;
+    static const QString OPENTERFACE_PID;
+    
+    // Common VID/PID constants for all platforms - New generation (Companion device)
+    static const QString SERIAL_VID_V2;
+    static const QString SERIAL_PID_V2;
+    static const QString OPENTERFACE_VID_V2;
+    static const QString OPENTERFACE_PID_V2;
     
     // Helper method for filtering devices
     QList<DeviceInfo> filterDevicesByPortChain(const QList<DeviceInfo>& devices, 

@@ -1,11 +1,5 @@
 #include "DeviceInfo.h"
 
-// Hardware identifiers for Openterface devices
-const QString DeviceInfo::SERIAL_VID = "1A86";
-const QString DeviceInfo::SERIAL_PID = "7523";
-const QString DeviceInfo::HID_VID = "534D";
-const QString DeviceInfo::HID_PID = "2109";
-
 DeviceInfo::DeviceInfo(const QString& portChain)
     : portChain(portChain)
     , lastSeen(QDateTime::currentDateTime())
