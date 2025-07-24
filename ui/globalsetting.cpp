@@ -60,12 +60,13 @@ void GlobalSetting::getFilterSettings(bool &Chipinfo, bool &keyboardPress, bool 
     HID = m_settings.value("filter/HID", true).toBool();
 }
 
-void GlobalSetting::setLogSettings(bool core, bool serial, bool ui, bool hostLayout)
+void GlobalSetting::setLogSettings(bool core, bool serial, bool ui, bool hostLayout, bool device)
 {
     m_settings.setValue("log/core", core);
     m_settings.setValue("log/serial", serial);
     m_settings.setValue("log/ui", ui);
     m_settings.setValue("log/hostLayout", hostLayout);
+    m_settings.setValue("log/device", device);
 }
 
 void GlobalSetting::loadLogSettings()
@@ -75,6 +76,7 @@ void GlobalSetting::loadLogSettings()
     logFilter += m_settings.value("log/ui", true).toBool() ? "opf.ui.*=true\n" : "opf.ui.*=false\n";
     logFilter += m_settings.value("log/host", true).toBool() ? "opf.host.*=true\n" : "opf.host.*=false\n";
     logFilter += m_settings.value("log/serial", true).toBool() ? "opf.core.serial=true\n" : "opf.core.serial=false\n";
+    logFilter += m_settings.value("log/device", true).toBool() ? "opf.device.*=true\n" : "opf.device.*=false\n";
     QLoggingCategory::setFilterRules(logFilter);
 }
 

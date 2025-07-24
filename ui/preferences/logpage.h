@@ -53,6 +53,7 @@ private:
     QCheckBox *serialCheckBox;
     QCheckBox *uiCheckBox;
     QCheckBox *hostCheckBox;
+    QCheckBox *deviceCheckBox;
     QCheckBox *storeLogCheckBox;
     QLineEdit *logFilePathLineEdit;
     QPushButton *browseButton;

@@ -55,6 +55,7 @@ private:
     void matchDevicePaths(DeviceInfo& deviceInfo);
     void matchDevicePathsFromChildren(DeviceInfo& deviceInfo, const QList<QVariantMap>& children);
     void matchDevicePathsToRealPaths(DeviceInfo& deviceInfo);
+    void matchDevicePathsToRealPathsGeneration2(DeviceInfo& deviceInfo);
     QString findComPortByLocation(const QString& location);
     QString findComPortByDeviceId(const QString& deviceId);
     QString findComPortByPortChain(const QString& portChain);
@@ -65,6 +66,7 @@ private:
     // Windows API helpers
     QString getDeviceId(DWORD devInst);
     QString getDeviceProperty(HDEVINFO hDevInfo, SP_DEVINFO_DATA* devInfoData, DWORD property);
+    QString getDeviceProperty(DWORD devInst, const QString& propertyName); // New overload for specific properties
     QString getHardwareId(HDEVINFO hDevInfo, SP_DEVINFO_DATA* devInfoData);
     QString getDeviceInterfacePath(HDEVINFO hDevInfo, SP_DEVINFO_DATA* devInfoData, const GUID& interfaceGuid);
     QList<QVariantMap> getSiblingDevices(DWORD parentDevInst);
@@ -96,6 +98,17 @@ private:
     QList<QVariantMap> findHIDDevicesByPortChain(const QString& targetPortChain);
     QList<QVariantMap> findVideoDevicesByPortChain(const QString& targetPortChain);
     QList<QVariantMap> findAudioDevicesByPortChain(const QString& targetPortChain);
+    
+    // Generation-specific device discovery methods
+    QList<DeviceInfo> discoverGeneration1Devices();
+    QList<DeviceInfo> discoverGeneration2Devices();
+    
+    // Generation 2 (Companion device) helper methods
+    QString findSerialPortByCompanionDevice(const USBDeviceData& companionDevice);
+    bool isSerialDeviceAssociatedWithCompanion(const USBDeviceData& serialDevice, const USBDeviceData& companionDevice);
+    QString extractHubPortFromChain(const QString& portChain);
+    QString calculateExpectedSerialHubPort(const QString& companionHubPort);
+    bool arePortChainsRelated(const QString& portChain1, const QString& portChain2);
     
     // Cleanup
     void cleanup();

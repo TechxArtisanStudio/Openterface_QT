@@ -1,10 +1,16 @@
 #include "AbstractPlatformDeviceManager.h"
 
-// Hardware identifiers for Openterface devices
+// Hardware identifiers for Openterface devices - Original generation
 const QString AbstractPlatformDeviceManager::SERIAL_VID = "1A86";
 const QString AbstractPlatformDeviceManager::SERIAL_PID = "7523";
-const QString AbstractPlatformDeviceManager::HID_VID = "534D";
-const QString AbstractPlatformDeviceManager::HID_PID = "2109";
+const QString AbstractPlatformDeviceManager::OPENTERFACE_VID = "534D";
+const QString AbstractPlatformDeviceManager::OPENTERFACE_PID = "2109";
+
+// Hardware identifiers for Openterface devices - New generation (Companion device)
+const QString AbstractPlatformDeviceManager::SERIAL_VID_V2 = "1A86";
+const QString AbstractPlatformDeviceManager::SERIAL_PID_V2 = "FE0C";
+const QString AbstractPlatformDeviceManager::OPENTERFACE_VID_V2 = "345F";
+const QString AbstractPlatformDeviceManager::OPENTERFACE_PID_V2 = "2130";
 
 AbstractPlatformDeviceManager::AbstractPlatformDeviceManager(QObject *parent)
     : QObject(parent)

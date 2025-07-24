@@ -386,18 +386,40 @@ void SerialPortManager::onSerialPortConnected(const QString &portName){
             qCWarning(log_core_serial) << "The mode is incorrect, mode:" << config.mode;
             resetHipChip();
         }
-    } else { // try 9600 baudrate
-        qCDebug(log_core_serial) << "No data with 115200 baudrate, try to connect: " << portName << "with baudrate:" << ORIGINAL_BAUDRATE;
-        closePort();
-        openPort(portName, ORIGINAL_BAUDRATE);
-        QByteArray retBtye = sendSyncCommand(CMD_GET_PARA_CFG, true);
-        qDebug() << "Data read from serial port with 9600: " << retBtye.toHex(' ');
-        if(retBtye.size() > 0){
-            config = CmdDataParamConfig::fromByteArray(retBtye);
-            qCDebug(log_core_serial) << "Connect success with baudrate: " << ORIGINAL_BAUDRATE;
-            qCDebug(log_core_serial) << "Current working mode is:" << "0x" + QString::number(config.mode, 16);
+    } else { 
+        // Only try 9600 baudrate for CH341 serial chip (VID:PID 1A86:7523)
+        bool isCH341SerialChip = false;
+        
+        // Check if this port has VID/PID 1A86:7523
+        QList<QSerialPortInfo> availablePorts = QSerialPortInfo::availablePorts();
+        for (const QSerialPortInfo &portInfo : availablePorts) {
+            if (portInfo.portName() == portName) {
+                QString vid = QString("%1").arg(portInfo.vendorIdentifier(), 4, 16, QChar('0')).toUpper();
+                QString pid = QString("%1").arg(portInfo.productIdentifier(), 4, 16, QChar('0')).toUpper();
+                if (vid == "1A86" && pid == "7523") {
+                    isCH341SerialChip = true;
+                    qCDebug(log_core_serial) << "Detected CH341 serial chip (VID:PID 1A86:7523), will try 9600 baudrate fallback";
+                }
+                break;
+            }
+        }
+        
+        if (isCH341SerialChip) {
+            // try 9600 baudrate only for CH341 chip
+            qCDebug(log_core_serial) << "No data with 115200 baudrate, try to connect: " << portName << "with baudrate:" << ORIGINAL_BAUDRATE;
+            closePort();
+            openPort(portName, ORIGINAL_BAUDRATE);
+            QByteArray retBtye = sendSyncCommand(CMD_GET_PARA_CFG, true);
+            qDebug() << "Data read from serial port with 9600: " << retBtye.toHex(' ');
+            if(retBtye.size() > 0){
+                config = CmdDataParamConfig::fromByteArray(retBtye);
+                qCDebug(log_core_serial) << "Connect success with baudrate: " << ORIGINAL_BAUDRATE;
+                qCDebug(log_core_serial) << "Current working mode is:" << "0x" + QString::number(config.mode, 16);
 
-            resetHipChip();
+                resetHipChip();
+            }
+        } else {
+            qCDebug(log_core_serial) << "No data received and not a CH341 serial chip, skipping 9600 baudrate fallback";
         }
     }
 

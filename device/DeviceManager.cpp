@@ -1,11 +1,15 @@
 #include "DeviceManager.h"
 #include "platform/DeviceFactory.h"
 #include "platform/AbstractPlatformDeviceManager.h"
+#ifdef __linux__
+#include "platform/LinuxDeviceManager.h"
+#endif
 #include "HotplugMonitor.h"
 #include "../ui/globalsetting.h"
 #include "../video/videohid.h"
 #include "../serial/SerialPortManager.h"
 #include <QMutexLocker>
+#include <QtConcurrent>
 
 Q_LOGGING_CATEGORY(log_device_manager, "opf.device.manager")
 
@@ -79,6 +83,44 @@ QList<DeviceInfo> DeviceManager::discoverDevices()
         qCWarning(log_device_manager) << "Error discovering devices:" << e.what();
         emit errorOccurred(QString("Device discovery failed: %1").arg(e.what()));
         return QList<DeviceInfo>();
+    }
+}
+
+void DeviceManager::discoverDevicesAsync()
+{
+    if (!m_platformManager) {
+        qCWarning(log_device_manager) << "No platform manager available for async discovery";
+        return;
+    }
+    
+#ifdef __linux__
+    // Check if the platform manager supports async discovery
+    if (auto* linuxManager = qobject_cast<LinuxDeviceManager*>(m_platformManager)) {
+        // Connect to Linux-specific async discovery signals
+        connect(linuxManager, &LinuxDeviceManager::devicesDiscovered,
+                this, [this](const QList<DeviceInfo>& devices) {
+                    QMutexLocker locker(&m_mutex);
+                    m_currentDevices = devices;
+                    qCDebug(log_device_manager) << "Async discovery completed with" << devices.size() << "devices";
+                    emit devicesChanged(devices);
+                }, Qt::UniqueConnection);
+        
+        connect(linuxManager, &LinuxDeviceManager::discoveryError,
+                this, [this](const QString& error) {
+                    qCWarning(log_device_manager) << "Async discovery error:" << error;
+                    emit errorOccurred(error);
+                }, Qt::UniqueConnection);
+        
+        linuxManager->discoverDevicesAsync();
+    } else
+#endif
+    {
+        // For other platforms, fall back to synchronous discovery
+        // but run it in a background thread to avoid blocking
+        QtConcurrent::run([this]() {
+            QList<DeviceInfo> devices = discoverDevices();
+            emit devicesChanged(devices);
+        });
     }
 }
 
