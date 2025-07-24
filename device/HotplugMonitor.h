@@ -36,7 +36,7 @@ public:
     void removeCallback(ChangeCallback callback);
     void clearCallbacks();
     
-    void start(int pollIntervalMs = 2000);
+    void start(int pollIntervalMs = 5000);
     void stop();
     
     bool isRunning() const { return m_running; }

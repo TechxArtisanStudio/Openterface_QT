@@ -83,12 +83,6 @@ public:
         }
         return QString("Port %1").arg(portChain);
     }
-    
-    // Hardware identifiers (from your Python code)
-    static const QString SERIAL_VID;
-    static const QString SERIAL_PID;
-    static const QString HID_VID;
-    static const QString HID_PID;
 };
 
 #endif // DEVICEINFO_H
