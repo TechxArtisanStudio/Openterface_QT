@@ -80,7 +80,6 @@
 #include <QPalette>
 #include <QStyle>
 #include <QEvent>
-#include <QScrollArea>
 #include <libusb-1.0/libusb.h>
 #include <QMessageBox>
 
@@ -239,7 +238,6 @@ private:
     VideoPane *videoPane;
     double systemScaleFactor;
     QColor iconColor;
-    QScrollArea *scrollArea;
 
     QStackedLayout *stackedLayout;
     QLabel *mouseLocationLabel;

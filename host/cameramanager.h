@@ -7,6 +7,7 @@
 #include <QImageCapture>
 #include <QMediaRecorder>
 #include <QVideoWidget>  // Add this include
+#include <QGraphicsVideoItem>  // Add this for graphics-based video display
 #include <QDir>
 #include <QStandardPaths>
 #include <QRect>
@@ -45,6 +46,7 @@ public:
     ~CameraManager();
 
     void setCamera(const QCameraDevice &cameraDevice, QVideoWidget* videoOutput);
+    void setCamera(const QCameraDevice &cameraDevice, QGraphicsVideoItem* videoOutput);
     void setCameraDevice(const QCameraDevice &cameraDevice);
     void startCamera();
     void stopCamera();
@@ -54,6 +56,7 @@ public:
     void stopRecording();
     QCamera* getCamera() const { return m_camera.get(); }
     void setVideoOutput(QVideoWidget* videoOutput);
+    void setVideoOutput(QGraphicsVideoItem* videoOutput);
     void setCameraFormat(const QCameraFormat &format);
     QCameraFormat getCameraFormat() const;
     QList<QCameraFormat> getCameraFormats() const;
@@ -63,6 +66,7 @@ public:
 
     // Camera initialization with video output
     bool initializeCameraWithVideoOutput(QVideoWidget* videoOutput);
+    bool initializeCameraWithVideoOutput(QGraphicsVideoItem* videoOutput);
     
     // Check if there's an active camera device
     bool hasActiveCameraDevice() const;
@@ -103,6 +107,9 @@ public:
     QStringList getAvailableCameraDeviceIds() const;
     void displayAllCameraDeviceIds() const;
     
+    // Video output refresh and hotplug support
+    void refreshVideoOutput();
+    
     bool switchToCameraDeviceByPortChain(const QString &portChain);
     
 signals:
@@ -137,6 +144,7 @@ private:
     std::unique_ptr<QImageCapture> m_imageCapture;
     std::unique_ptr<QMediaRecorder> m_mediaRecorder;
     QVideoWidget* m_videoOutput;
+    QGraphicsVideoItem* m_graphicsVideoOutput;
     int m_video_width;
     int m_video_height;
     QString filePath;
