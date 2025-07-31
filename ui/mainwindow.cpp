@@ -39,6 +39,7 @@
 #include "ui/advance/serialportdebugdialog.h"
 #include "ui/advance/firmwareupdatedialog.h"
 #include "ui/advance/envdialog.h"
+#include "ui/advance/renamedisplaydialog.h"
 
 #include <QCameraDevice>
 #include <QMediaDevices>
@@ -1819,5 +1820,24 @@ void MainWindow::openDeviceSelector() {
     } else {
         deviceSelectorDialog->raise();
         deviceSelectorDialog->activateWindow();
+    }
+}
+
+void MainWindow::showRenameDisplayDialog() {
+    qCDebug(log_ui_mainwindow) << "Opening rename display dialog";
+    if (!renameDisplayDialog) {
+        qCDebug(log_ui_mainwindow) << "Creating rename display dialog";
+        renameDisplayDialog = new RenameDisplayDialog(this);
+        
+        // Connect the finished signal to clean up
+        connect(renameDisplayDialog, &QDialog::finished, this, [this]() {
+            renameDisplayDialog->deleteLater();
+            renameDisplayDialog = nullptr;
+        });
+        
+        renameDisplayDialog->show();
+    } else {
+        renameDisplayDialog->raise();
+        renameDisplayDialog->activateWindow();
     }
 }

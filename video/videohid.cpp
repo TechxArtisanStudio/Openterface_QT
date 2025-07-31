@@ -1208,7 +1208,7 @@ bool VideoHid::writeEeprom(quint16 address, const QByteArray &data) {
             if (written_size % 64 == 0) {
                 qCDebug(log_host_hid)  << "Written size:" << written_size;
             }
-            QThread::msleep(100); // Add 100ms delay between writes
+            QThread::msleep(150); // Add 100ms delay between writes
         } else {
             qCDebug(log_host_hid)  << "Failed to write chunk to EEPROM";
             break;

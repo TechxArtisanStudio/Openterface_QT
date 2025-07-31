@@ -141,6 +141,7 @@
     <addaction name="actionDeviceSelector"/>
     <addaction name="actionFirmwareManager"/>
     <addaction name="actionUpdateFirmware"/>
+    <addaction name="actionRenameDisplay"/>
    </widget>
    <addaction name="menuFile"/>
    <addaction name="menuEdit"/>
@@ -273,6 +274,14 @@
    </property>
    <property name="toolTip">
     <string>Open Device Selector Dialog</string>
+   </property>
+  </action>
+  <action name="actionRenameDisplay">
+   <property name="text">
+    <string>Rename detected display</string>
+   </property>
+   <property name="toolTip">
+    <string>Rename the EDID display name</string>
    </property>
   </action>
   <actiongroup name="actionGroup">
@@ -548,6 +557,12 @@
    <receiver>MainWindow</receiver>
    <slot>openDeviceSelector()</slot>
   </connection>
+  <connection>
+   <sender>actionRenameDisplay</sender>
+   <signal>triggered()</signal>
+   <receiver>MainWindow</receiver>
+   <slot>showRenameDisplayDialog()</slot>
+  </connection>
  </connections>
  <slots>
   <slot>record()</slot>
@@ -574,5 +589,6 @@
   <slot>showFirmwareManagerDialog()</slot>
   <slot>updateFirmware()</slot>
   <slot>openDeviceSelector()</slot>
+  <slot>showRenameDisplayDialog()</slot>
  </slots>
 </ui>
