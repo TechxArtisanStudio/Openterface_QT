@@ -1,0 +1,9 @@
+jobs:
+  build:
+    runs-on: ubuntu-24.04-arm64
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build
+        run: |
+          uname -m
+          gcc -v  # Or your build commands
