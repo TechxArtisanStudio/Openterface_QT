@@ -7,10 +7,20 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-24.04-arm64
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Build
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - name: Build ARM64 Binary
         run: |
-          uname -m
-          gcc -v  # Or your build commands
+          docker buildx build --platform linux/arm64 -t myapp-arm64 --load .
+      - name: Export Binary
+        run: |
+          docker create --name extract myapp-arm64
+          docker cp extract:/path/to/myapp ./myapp-arm64
+          docker rm extract
+      - uses: actions/upload-artifact@v4
+        with:
+          name: myapp-arm64
+          path: myapp-arm64
