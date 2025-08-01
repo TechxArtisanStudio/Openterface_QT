@@ -46,7 +46,7 @@
     <message>
         <location filename="../../ui/advance/envdialog.ui" line="6"/>
         <source>Environment Helper</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">環境ヘルパー</translation>
     </message>
     <message>
         <location filename="../../ui/advance/envdialog.ui" line="19"/>
@@ -114,7 +114,7 @@
     <message>
         <location filename="../../ui/advance/envdialog.cpp" line="120"/>
         <source> The device is not plugged in. Please plug it in and try again.</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished"> デバイスが接続されていません。接続してから、もう一度お試しください。</translation>
     </message>
     <message>
         <location filename="../../ui/advance/envdialog.cpp" line="110"/>
@@ -130,12 +130,12 @@
         <location filename="../../ui/advance/envdialog.cpp" line="111"/>
         <location filename="../../ui/advance/envdialog.cpp" line="146"/>
         <source>‣ Latest Firmware: </source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">‣ 最新のファームウェア： </translation>
     </message>
     <message>
         <location filename="../../ui/advance/envdialog.cpp" line="143"/>
         <source>‣ In Serial Port Permission: </source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">‣ シリアルポートの権限で： </translation>
     </message>
     <message>
         <location filename="../../ui/advance/envdialog.cpp" line="144"/>
@@ -160,12 +160,12 @@
     <message>
         <location filename="../../ui/advance/envdialog.cpp" line="185"/>
         <source>Install Driver</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">ドライバーをインストール</translation>
     </message>
     <message>
         <location filename="../../ui/advance/envdialog.cpp" line="192"/>
         <source>Copy Link</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">リンクをコピー</translation>
     </message>
     <message>
         <location filename="../../ui/advance/envdialog.cpp" line="208"/>
@@ -195,7 +195,7 @@
     <message>
         <location filename="../../ui/advance/envdialog.cpp" line="265"/>
         <source>Serial port Permission: </source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">シリアルポートの権限： </translation>
     </message>
     <message>
         <source>In Dialout Group: </source>
@@ -204,12 +204,12 @@
     <message>
         <location filename="../../ui/advance/envdialog.cpp" line="107"/>
         <source>The following steps help you install the driver and the Openterface firmware update. Current status:&lt;br&gt;</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">以下の手順に従って、ドライバーとOpenterfaceファームウェアの更新をインストールできます。現在の状態：</translation>
     </message>
     <message>
         <location filename="../../ui/advance/envdialog.cpp" line="141"/>
         <source>The following steps help you install the driver and access the device permissions and the Openterface firmware update. Current status:&lt;br&gt;</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">以下の手順に従って、ドライバーのインストール、デバイス権限へのアクセス、およびOpenterfaceファームウェアの更新を行います。現在の状態：</translation>
     </message>
     <message>
         <location filename="../../ui/advance/envdialog.cpp" line="186"/>
@@ -218,7 +218,13 @@
 After the driver is installed, a system restart and device re-plugging is required for the changes to take effect.
 
 Please restart your computer after the driver installation.</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">ドライバーがありません。以下のURLからドライバーをインストールしてください：https://www.wch.cn/downloads/CH341SER.EXE.html
+
+ドライバーのインストール後、変更を有効にするためにシステムの再起動とデバイスの再接続が必要です。
+
+ドライバーのインストール後は、コンピュータを再起動してください。
+
+あなたはアリババクラウドによって作成されたQwenです。あなたは頼りになるアシスタントです。</translation>
     </message>
     <message>
         <location filename="../../ui/advance/envdialog.cpp" line="266"/>
@@ -266,12 +272,12 @@ Would you like to restart your computer now?</source>
         <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="67"/>
         <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="162"/>
         <source>Warning</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">警告</translation>
     </message>
     <message>
         <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="67"/>
         <source>Please select a firmware file to write</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">書き込むファームウェアファイルを選択してください</translation>
     </message>
     <message>
         <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="73"/>
@@ -484,41 +490,46 @@ Please try again after restarting the application.</source>
     </message>
     <message>
         <location filename="../../ui/preferences/logpage.cpp" line="54"/>
+        <source>Device</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/preferences/logpage.cpp" line="55"/>
         <source>Enable file logging</source>
         <translation>ファイルロギングを有効にする</translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/logpage.cpp" line="56"/>
+        <location filename="../../ui/preferences/logpage.cpp" line="57"/>
         <source>Browse</source>
         <translation>参照</translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/logpage.cpp" line="57"/>
+        <location filename="../../ui/preferences/logpage.cpp" line="58"/>
         <source>Inhibit Screen Saver</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/logpage.cpp" line="80"/>
+        <location filename="../../ui/preferences/logpage.cpp" line="83"/>
         <source>General log setting</source>
         <translation>一般的なログ設定</translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/logpage.cpp" line="84"/>
+        <location filename="../../ui/preferences/logpage.cpp" line="87"/>
         <source>Check the check box to see the corresponding log in the QT console.</source>
         <translation>チェックボックスをオンにすると、QTコンソールで対応するログを確認できます。</translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/logpage.cpp" line="89"/>
+        <location filename="../../ui/preferences/logpage.cpp" line="92"/>
         <source>Screen Saver setting</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/logpage.cpp" line="93"/>
+        <location filename="../../ui/preferences/logpage.cpp" line="96"/>
         <source>Inhibit the screen saver when the application is running.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/logpage.cpp" line="114"/>
+        <location filename="../../ui/preferences/logpage.cpp" line="117"/>
         <source>Select Log Directory</source>
         <translation>ログディレクトリを選択</translation>
     </message>
@@ -565,186 +576,211 @@ Please try again after restarting the application.</source>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="89"/>
+        <source>Device</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/mainwindow.ui" line="94"/>
         <source>Baudrate</source>
         <translation>ボーレート</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="96"/>
+        <location filename="../../ui/mainwindow.ui" line="101"/>
         <source>Switchable USB</source>
         <translation>切り替え可能なUSB</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="109"/>
+        <location filename="../../ui/mainwindow.ui" line="115"/>
         <source>Help</source>
         <translation>ヘルプ</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="120"/>
+        <location filename="../../ui/mainwindow.ui" line="126"/>
         <source>Edit</source>
         <translation>編集</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="126"/>
+        <location filename="../../ui/mainwindow.ui" line="132"/>
         <source>Advance</source>
         <translation>高度</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="148"/>
+        <location filename="../../ui/mainwindow.ui" line="156"/>
         <source>Close</source>
         <translation>閉じる</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="153"/>
+        <location filename="../../ui/mainwindow.ui" line="161"/>
         <source>Change Settings</source>
         <translation>設定を変更</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="158"/>
+        <location filename="../../ui/mainwindow.ui" line="166"/>
         <source>Reset Keyboard and Mouse</source>
         <translation>キーボードとマウスをリセット</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="163"/>
+        <location filename="../../ui/mainwindow.ui" line="171"/>
         <source>Reset Serial Port</source>
         <translation>シリアルポートをリセット</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="168"/>
+        <location filename="../../ui/mainwindow.ui" line="176"/>
         <source>Serial Console</source>
         <translation>シリアルコンソール</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="173"/>
+        <location filename="../../ui/mainwindow.ui" line="181"/>
         <source>AutoReszie</source>
         <translation>自動リサイズ</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="178"/>
+        <location filename="../../ui/mainwindow.ui" line="186"/>
         <source>Factory Reset HID Chip</source>
         <translation>HIDチップを工場出荷時にリセット</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="183"/>
+        <location filename="../../ui/mainwindow.ui" line="191"/>
         <source>Preferences</source>
         <translation>プリファレンス</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="188"/>
+        <location filename="../../ui/mainwindow.ui" line="196"/>
         <source>Office Website</source>
         <translation>公式ウェブサイト</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="193"/>
+        <location filename="../../ui/mainwindow.ui" line="201"/>
         <source>Purchase</source>
         <translation>購入</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="198"/>
+        <location filename="../../ui/mainwindow.ui" line="206"/>
         <source>Feedback</source>
         <translation>フィードバック</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="203"/>
+        <location filename="../../ui/mainwindow.ui" line="211"/>
         <source>Update</source>
         <translation>更新</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="208"/>
+        <location filename="../../ui/mainwindow.ui" line="216"/>
         <source>Environment</source>
         <translation>環境</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="213"/>
+        <location filename="../../ui/mainwindow.ui" line="221"/>
         <source>About</source>
         <translation>について</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="224"/>
+        <location filename="../../ui/mainwindow.ui" line="232"/>
         <source>Follow Switch</source>
         <translation>スイッチに従う</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="232"/>
+        <location filename="../../ui/mainwindow.ui" line="240"/>
         <source>Paste</source>
         <translation>貼り付け</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="235"/>
+        <location filename="../../ui/mainwindow.ui" line="243"/>
         <source>Paste clipboard content to target</source>
         <translation>クリップボードの内容をターゲットに貼り付け</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="240"/>
+        <location filename="../../ui/mainwindow.ui" line="248"/>
         <source>Script Tool</source>
         <translation>スクリプトツール</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="245"/>
+        <location filename="../../ui/mainwindow.ui" line="253"/>
         <source>TCP Server</source>
         <translation>TCPサーバー</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="250"/>
+        <location filename="../../ui/mainwindow.ui" line="258"/>
         <source>Environment Checking</source>
         <translation>環境チェック</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="255"/>
+        <location filename="../../ui/mainwindow.ui" line="263"/>
         <source>Firmware Manager</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="260"/>
+        <location filename="../../ui/mainwindow.ui" line="268"/>
         <source>Firmware Update...</source>
         <translation>ファームウェア更新...</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="269"/>
+        <location filename="../../ui/mainwindow.ui" line="273"/>
+        <source>Device Selector</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/mainwindow.ui" line="276"/>
+        <source>Open Device Selector Dialog</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/mainwindow.ui" line="281"/>
+        <source>Rename detected display</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/mainwindow.ui" line="284"/>
+        <source>Rename the EDID display name</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/mainwindow.ui" line="293"/>
         <source>115200</source>
         <translation>115200</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="277"/>
+        <location filename="../../ui/mainwindow.ui" line="301"/>
         <source>9600</source>
         <translation>9600</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="287"/>
+        <location filename="../../ui/mainwindow.ui" line="311"/>
         <source>To Host</source>
         <translation>ホストへ</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="295"/>
+        <location filename="../../ui/mainwindow.ui" line="319"/>
         <source>To Target</source>
         <translation>ターゲットへ</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="308"/>
+        <location filename="../../ui/mainwindow.ui" line="332"/>
         <source>Absolute</source>
         <translation>絶対</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="316"/>
+        <location filename="../../ui/mainwindow.ui" line="340"/>
         <source>Relative</source>
         <translation>相対</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="329"/>
+        <location filename="../../ui/mainwindow.ui" line="353"/>
         <source>Auto Hide</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="332"/>
+        <location filename="../../ui/mainwindow.ui" line="356"/>
         <source>Auto hide mouse cursor</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="340"/>
+        <location filename="../../ui/mainwindow.ui" line="364"/>
         <source>Always Show</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="343"/>
+        <location filename="../../ui/mainwindow.ui" line="367"/>
         <source>Always show mouse cursor</source>
         <translation type="unfinished"></translation>
     </message>
@@ -781,38 +817,38 @@ Please try again after restarting the application.</source>
         <translation type="vanished">フルスクリーンモード</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="826"/>
+        <location filename="../../ui/mainwindow.cpp" line="1001"/>
         <source>Recorded %1 sec</source>
         <translation>%1秒録画しました</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1008"/>
+        <location filename="../../ui/mainwindow.cpp" line="1181"/>
         <source>Image Capture Error</source>
         <translation>画像キャプチャエラー</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1076"/>
+        <location filename="../../ui/mainwindow.cpp" line="1249"/>
         <source>Captured &quot;%1&quot;</source>
         <translation>&quot;%1&quot;をキャプチャしました</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1532"/>
+        <location filename="../../ui/mainwindow.cpp" line="1777"/>
         <source>Firmware Update</source>
         <translation>ファームウェア更新</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1533"/>
+        <location filename="../../ui/mainwindow.cpp" line="1778"/>
         <source>The firmware is up to date.
 Current version: </source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1555"/>
+        <location filename="../../ui/mainwindow.cpp" line="1800"/>
         <source>Firmware fetch timeout</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1556"/>
+        <location filename="../../ui/mainwindow.cpp" line="1801"/>
         <source>Firmware retrieval timed out. Please check your network connection and try again.
 Current version: </source>
         <translation type="unfinished"></translation>
@@ -903,6 +939,142 @@ Do you want to proceed with the update?</source>
     <message>
         <source>Image Files (*.png *.jpg *.bmp)</source>
         <translation type="vanished">画像ファイル (*.png *.jpg *.bmp)</translation>
+    </message>
+</context>
+<context>
+    <name>RenameDisplayDialog</name>
+    <message>
+        <location filename="../../ui/advance/renamedisplaydialog.cpp" line="54"/>
+        <source>Rename Display</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/renamedisplaydialog.cpp" line="59"/>
+        <source>Enter new display name:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/renamedisplaydialog.cpp" line="62"/>
+        <source>Display name</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/renamedisplaydialog.cpp" line="64"/>
+        <source>Update</source>
+        <translation type="unfinished">更新</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/renamedisplaydialog.cpp" line="67"/>
+        <source>Cancel</source>
+        <translation type="unfinished">キャンセル</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/renamedisplaydialog.cpp" line="127"/>
+        <location filename="../../ui/advance/renamedisplaydialog.cpp" line="133"/>
+        <location filename="../../ui/advance/renamedisplaydialog.cpp" line="140"/>
+        <source>Warning</source>
+        <translation type="unfinished">警告</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/renamedisplaydialog.cpp" line="127"/>
+        <source>Display name cannot be empty.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/renamedisplaydialog.cpp" line="133"/>
+        <source>Display name cannot exceed 13 characters.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/renamedisplaydialog.cpp" line="140"/>
+        <source>Display name must contain only ASCII characters.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/renamedisplaydialog.cpp" line="150"/>
+        <location filename="../../ui/advance/renamedisplaydialog.cpp" line="184"/>
+        <location filename="../../ui/advance/renamedisplaydialog.cpp" line="208"/>
+        <location filename="../../ui/advance/renamedisplaydialog.cpp" line="223"/>
+        <location filename="../../ui/advance/renamedisplaydialog.cpp" line="239"/>
+        <location filename="../../ui/advance/renamedisplaydialog.cpp" line="275"/>
+        <location filename="../../ui/advance/renamedisplaydialog.cpp" line="301"/>
+        <source>Error</source>
+        <translation type="unfinished">エラー</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/renamedisplaydialog.cpp" line="150"/>
+        <source>Failed to start display name update process.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/renamedisplaydialog.cpp" line="163"/>
+        <source>Default Display</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/renamedisplaydialog.cpp" line="184"/>
+        <source>Failed to determine firmware size.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/renamedisplaydialog.cpp" line="202"/>
+        <source>Reading firmware... %1%</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/renamedisplaydialog.cpp" line="208"/>
+        <source>Failed to read firmware.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/renamedisplaydialog.cpp" line="218"/>
+        <source>Processing EDID data...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/renamedisplaydialog.cpp" line="223"/>
+        <source>Failed to read temporary firmware file.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/renamedisplaydialog.cpp" line="239"/>
+        <source>Failed to process EDID data.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/renamedisplaydialog.cpp" line="249"/>
+        <source>Writing firmware...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/renamedisplaydialog.cpp" line="260"/>
+        <source>Writing firmware... %1%</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/renamedisplaydialog.cpp" line="268"/>
+        <source>Success</source>
+        <translation type="unfinished">成功</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/renamedisplaydialog.cpp" line="269"/>
+        <source>Display name updated successfully!
+
+The application will now close.
+Please:
+1. Restart the application
+2. Disconnect and reconnect all cables</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/renamedisplaydialog.cpp" line="275"/>
+        <source>Failed to write firmware.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/renamedisplaydialog.cpp" line="301"/>
+        <source>Firmware read error: %1</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -1229,32 +1401,31 @@ Please check your internet connection.
 <context>
     <name>VideoPage</name>
     <message>
-        <location filename="../../ui/preferences/videopage.cpp" line="54"/>
         <source>UVC Camera resource: </source>
-        <translation type="unfinished">UVCカメラリソース: </translation>
+        <translation type="obsolete">UVCカメラリソース: </translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/videopage.cpp" line="108"/>
+        <location filename="../../ui/preferences/videopage.cpp" line="96"/>
         <source>General video setting</source>
         <translation>一般的なビデオ設定</translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/videopage.cpp" line="112"/>
+        <location filename="../../ui/preferences/videopage.cpp" line="100"/>
         <source>Capture resolutions: </source>
         <translation>キャプチャ解像度: </translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/videopage.cpp" line="118"/>
+        <location filename="../../ui/preferences/videopage.cpp" line="106"/>
         <source>Framerate: </source>
         <translation>フレームレート: </translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/videopage.cpp" line="127"/>
+        <location filename="../../ui/preferences/videopage.cpp" line="115"/>
         <source>Pixel format: </source>
         <translation>ピクセル形式: </translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/videopage.cpp" line="132"/>
+        <location filename="../../ui/preferences/videopage.cpp" line="120"/>
         <source>Note: On linx the video may go black after OK or Apply. Please unplug and re-plug the host cable.</source>
         <translation type="unfinished"></translation>
     </message>

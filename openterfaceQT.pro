@@ -196,5 +196,6 @@ TRANSLATIONS += config/languages/openterface_en.ts \
                 config/languages/openterface_da.ts \
                 config/languages/openterface_ja.ts \
                 config/languages/openterface_se.ts \
-                config/languages/openterface_de.ts 
+                config/languages/openterface_de.ts \
+                config/languages/openterface_zh.ts
                 # Add more languages here
