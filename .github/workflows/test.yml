@@ -1,3 +1,10 @@
+name: Test arm64 build
+
+on:
+  push:
+    branches: ["main", "dev"]
+    tags: ["v*"]
+
 jobs:
   build:
     runs-on: ubuntu-24.04-arm64
