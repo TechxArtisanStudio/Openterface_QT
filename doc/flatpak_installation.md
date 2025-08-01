@@ -40,6 +40,7 @@ The OpenterfaceQT app requires access to serial and HID devices. This setup is m
 ### Download Flatpak
 
 ```sh
+sudo apt update
 sudo apt install -y flatpak flatpak-builder qemu-user-static
 # if you are using aarch64, maybe you need to install the following packages:
 sudo apt install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
