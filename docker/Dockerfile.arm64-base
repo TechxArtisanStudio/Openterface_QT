@@ -60,7 +60,7 @@ RUN apt-get update && apt-get install -y \
 #     && rm -rf ffmpeg-6.0 ffmpeg-6.0.tar.xz
 
 # Verify FFmpeg installation
-RUN ls -la /usr/local/lib/libav* && \
-    ls -la /usr/local/include/libav*
+# RUN ls -la /usr/local/lib/libav* && \
+#     ls -la /usr/local/include/libav*
 
 WORKDIR /workspace
