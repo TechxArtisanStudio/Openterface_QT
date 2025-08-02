@@ -1,0 +1,72 @@
+name: Build ARM64 Base Environment
+
+on:
+  push:
+    branches: [ "main", "dev" ]
+    paths:
+      - 'docker/Dockerfile.arm64-base'
+      - '.github/workflows/arm64-base-build.yml'
+  pull_request:
+    branches: [ "main", "dev" ]
+    paths:
+      - 'docker/Dockerfile.arm64-base'
+  workflow_dispatch:
+
+env:
+  DOCKER_IMAGE: openterface-arm64-base
+  CACHE_BASE_KEY: arm64-base-env
+
+jobs:
+  build-base:
+    runs-on: ubuntu-latest
+    outputs:
+      image-tag: ${{ steps.meta.outputs.tags }}
+      image-digest: ${{ steps.build.outputs.digest }}
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GitHub Container Registry
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/${{ env.DOCKER_IMAGE }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=sha,prefix={{branch}}-
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push base environment
+        id: build
+        uses: docker/build-push-action@v5
+        with:
+          context: ./docker
+          file: ./docker/Dockerfile.arm64-base
+          platforms: linux/arm64
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=arm64-base
+          cache-to: type=gha,mode=max,scope=arm64-base
+
+      - name: Output image info
+        run: |
+          echo "Built base image: ${{ steps.meta.outputs.tags }}"
+          echo "Image digest: ${{ steps.build.outputs.digest }}"

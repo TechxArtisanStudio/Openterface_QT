@@ -1,0 +1,38 @@
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
+
+ARG QT_VERSION=6.5.3
+ENV QT_VERSION=${QT_VERSION}
+
+# Download and compile Qt
+RUN wget https://download.qt.io/official_releases/qt/6.5/${QT_VERSION}/single/qt-everywhere-src-${QT_VERSION}.tar.xz \
+    && tar xf qt-everywhere-src-${QT_VERSION}.tar.xz \
+    && cd qt-everywhere-src-${QT_VERSION} \
+    && ./configure -prefix /opt/Qt/${QT_VERSION} \
+        -opensource \
+        -confirm-license \
+        -release \
+        -nomake examples \
+        -nomake tests \
+        -feature-pkg-config \
+        -qt-pcre \
+        -qt-zlib \
+        -qt-libpng \
+        -qt-libjpeg \
+        -openssl-linked \
+    && make -j$(nproc) \
+    && make install \
+    && cd .. \
+    && rm -rf qt-everywhere-src-${QT_VERSION} qt-everywhere-src-${QT_VERSION}.tar.xz
+
+# Set Qt environment variables
+ENV PATH="/opt/Qt/${QT_VERSION}/bin:${PATH}"
+ENV QT_PLUGIN_PATH="/opt/Qt/${QT_VERSION}/plugins"
+ENV QML2_IMPORT_PATH="/opt/Qt/${QT_VERSION}/qml"
+ENV LD_LIBRARY_PATH="/opt/Qt/${QT_VERSION}/lib:${LD_LIBRARY_PATH}"
+
+# Verify Qt installation
+RUN qmake --version && \
+    ls -la /opt/Qt/${QT_VERSION}/bin/
+
+WORKDIR /workspace

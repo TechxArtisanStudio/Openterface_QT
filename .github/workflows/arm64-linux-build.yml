@@ -15,6 +15,13 @@ on:
       - 'scripts/**'
   pull_request:
     branches: [ "main", "dev" ]
+  workflow_call:
+    inputs:
+      qt_version:
+        description: 'Qt Version'
+        required: false
+        default: '6.5.3'
+        type: string
   workflow_dispatch:
     inputs:
       qt_version:
@@ -22,15 +29,21 @@ on:
         required: false
         default: '6.5.3'
         type: string
+  workflow_run:
+    workflows: ["Build ARM64 Qt Environment"]
+    types:
+      - completed
 
 env:
   QT_VERSION: ${{ github.event.inputs.qt_version || '6.5.3' }}
-  DOCKER_IMAGE: openterface-arm64-builder
-  CACHE_BASE_KEY: arm64-gnu-linux-${{ github.event.inputs.qt_version || '6.5.3' }}
+  QT_IMAGE: openterface-arm64-qt
+  APP_IMAGE: openterface-arm64-app
+  CACHE_BASE_KEY: arm64-app-${{ github.event.inputs.qt_version || '6.5.3' }}
 
 jobs:
-  build:
+  build-app:
     runs-on: ubuntu-latest
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     steps:
       - name: Checkout source code
         uses: actions/checkout@v4
@@ -45,14 +58,6 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Cache Docker layers
-        uses: actions/cache@v4
-        with:
-          path: /tmp/.buildx-cache
-          key: ${{ runner.os }}-buildx-${{ env.CACHE_BASE_KEY }}-${{ github.sha }}
-          restore-keys: |
-            ${{ runner.os }}-buildx-${{ env.CACHE_BASE_KEY }}-
-
       - name: Login to GitHub Container Registry
         if: github.event_name != 'pull_request'
         uses: docker/login-action@v3
@@ -65,14 +70,15 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ghcr.io/${{ github.repository_owner }}/${{ env.DOCKER_IMAGE }}
+          images: ghcr.io/${{ github.repository_owner }}/${{ env.APP_IMAGE }}
           tags: |
             type=ref,event=branch
             type=ref,event=pr
             type=sha,prefix={{branch}}-
             type=raw,value=latest,enable={{is_default_branch}}
 
-      - name: Build and push Docker image
+      - name: Build and push application
+        id: build
         uses: docker/build-push-action@v5
         with:
           context: .
@@ -81,21 +87,17 @@ jobs:
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=local,src=/tmp/.buildx-cache
-          cache-to: type=local,dest=/tmp/.buildx-cache-new,mode=max
           build-args: |
+            QT_IMAGE=ghcr.io/${{ github.repository_owner }}/${{ env.QT_IMAGE }}:${{ env.QT_VERSION }}-latest
             QT_VERSION=${{ env.QT_VERSION }}
-
-      - name: Move cache
-        run: |
-          rm -rf /tmp/.buildx-cache
-          mv /tmp/.buildx-cache-new /tmp/.buildx-cache
+          cache-from: type=gha,scope=arm64-app
+          cache-to: type=gha,mode=max,scope=arm64-app
 
       - name: Extract binary from Docker image (if built)
         if: github.event_name != 'pull_request'
         run: |
           # Create a temporary container and copy the binary
-          docker create --name temp-container ghcr.io/${{ github.repository_owner }}/${{ env.DOCKER_IMAGE }}:${{ github.sha }}
+          docker create --name temp-container ghcr.io/${{ github.repository_owner }}/${{ env.APP_IMAGE }}:${{ github.sha }}
           docker cp temp-container:/app/build/openterfaceQT ./openterfaceQT-arm64-linux
           docker rm temp-container
           

@@ -42,9 +42,9 @@ Thumbs.db
 *.msi
 *.exe
 
-# Other docker files
+# Other docker files (keep all arm64 Dockerfiles)
 docker/Dockerfile*
-!docker/Dockerfile.arm64
+!docker/Dockerfile.arm64*
 
 # CI/CD
 .github/
