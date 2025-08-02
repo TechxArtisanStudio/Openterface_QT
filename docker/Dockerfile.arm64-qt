@@ -22,7 +22,7 @@ RUN QT_VERSION=${QT_VERSION} && \
     cd "$BUILD_DIR" && \
     \
     # Download and extract required modules
-    for module in qtbase qtmultimedia qtserialport qtsvg qttools; do \
+    for module in qtbase qtshadertools qtserialport qtsvg qtmultimedia qttools; do \
         wget -O "$module.tar.xz" "$DOWNLOAD_BASE_URL/$module-everywhere-src-$QT_VERSION.tar.xz" && \
         tar xf "$module.tar.xz" && \
         mv "$module-everywhere-src-$QT_VERSION" "$module" && \
@@ -47,6 +47,20 @@ RUN QT_VERSION=${QT_VERSION} && \
         -DFEATURE_xcb_xlib=ON \
         -DFEATURE_xkbcommon=ON \
         -DFEATURE_xkbcommon_x11=ON \
+        .. && \
+    ninja && \
+    ninja install && \
+    \
+    # Build qtshadertools (required for qtmultimedia)
+    echo "Building qtshadertools..." && \
+    cd "$BUILD_DIR/qtshadertools" && \
+    mkdir -p build && \
+    cd build && \
+    cmake -GNinja \
+        $CMAKE_COMMON_FLAGS \
+        -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" \
+        -DCMAKE_PREFIX_PATH="$INSTALL_PREFIX" \
+        -DBUILD_SHARED_LIBS=OFF \
         .. && \
     ninja && \
     ninja install && \
