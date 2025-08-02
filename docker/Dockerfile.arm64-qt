@@ -14,7 +14,6 @@ RUN QT_VERSION=${QT_VERSION} && \
     QT_MAJOR_VERSION=6.5 && \
     INSTALL_PREFIX=/opt/Qt/${QT_VERSION} && \
     BUILD_DIR=/workspace/qt-build && \
-    MODULES=("qtbase" "qtmultimedia" "qtserialport" "qtsvg" "qttools") && \
     DOWNLOAD_BASE_URL="https://download.qt.io/archive/qt/$QT_MAJOR_VERSION/$QT_VERSION/submodules" && \
     CMAKE_COMMON_FLAGS="-Wno-dev -DCMAKE_POLICY_DEFAULT_CMP0177=NEW -DCMAKE_POLICY_DEFAULT_CMP0174=NEW" && \
     \
@@ -23,7 +22,7 @@ RUN QT_VERSION=${QT_VERSION} && \
     cd "$BUILD_DIR" && \
     \
     # Download and extract required modules
-    for module in "${MODULES[@]}"; do \
+    for module in qtbase qtmultimedia qtserialport qtsvg qttools; do \
         wget -O "$module.tar.xz" "$DOWNLOAD_BASE_URL/$module-everywhere-src-$QT_VERSION.tar.xz" && \
         tar xf "$module.tar.xz" && \
         mv "$module-everywhere-src-$QT_VERSION" "$module" && \
