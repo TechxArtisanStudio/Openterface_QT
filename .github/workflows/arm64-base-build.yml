@@ -12,6 +12,10 @@ on:
       - 'docker/Dockerfile.arm64-base'
   workflow_dispatch:
 
+permissions:
+  contents: read
+  packages: write
+
 env:
   DOCKER_IMAGE: openterface-arm64-base
   CACHE_BASE_KEY: arm64-base-env
@@ -46,7 +50,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ghcr.io/${{ github.repository_owner }}/${{ env.DOCKER_IMAGE }}
+          images: ghcr.io/${{ github.actor }}/${{ env.DOCKER_IMAGE }}
           tags: |
             type=ref,event=branch
             type=ref,event=pr

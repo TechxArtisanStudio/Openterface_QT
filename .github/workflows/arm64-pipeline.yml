@@ -31,6 +31,10 @@ on:
         default: false
         type: boolean
 
+permissions:
+  contents: read
+  packages: write
+
 env:
   QT_VERSION: ${{ github.event.inputs.qt_version || '6.5.3' }}
 

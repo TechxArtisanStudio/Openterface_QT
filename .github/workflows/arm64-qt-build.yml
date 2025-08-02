@@ -39,6 +39,10 @@ on:
     types:
       - completed
 
+permissions:
+  contents: read
+  packages: write
+
 env:
   QT_VERSION: ${{ github.event.inputs.qt_version || '6.5.3' }}
   BASE_IMAGE: openterface-arm64-base
@@ -76,7 +80,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ghcr.io/${{ github.repository_owner }}/${{ env.QT_IMAGE }}
+          images: ghcr.io/${{ github.actor }}/${{ env.QT_IMAGE }}
           tags: |
             type=ref,event=branch,suffix=-${{ env.QT_VERSION }}
             type=ref,event=pr,suffix=-${{ env.QT_VERSION }}
@@ -105,7 +109,7 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
-            BASE_IMAGE=ghcr.io/${{ github.repository_owner }}/${{ env.BASE_IMAGE }}:latest
+            BASE_IMAGE=ghcr.io/${{ github.actor }}/${{ env.BASE_IMAGE }}:latest
             QT_VERSION=${{ env.QT_VERSION }}
           cache-from: type=gha,scope=${{ steps.qt-cache-decision.outputs.cache-scope }}
           cache-to: type=gha,mode=max,scope=${{ steps.qt-cache-decision.outputs.cache-scope }}

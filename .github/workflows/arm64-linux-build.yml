@@ -34,6 +34,10 @@ on:
     types:
       - completed
 
+permissions:
+  contents: read
+  packages: write
+
 env:
   QT_VERSION: ${{ github.event.inputs.qt_version || '6.5.3' }}
   QT_IMAGE: openterface-arm64-qt
@@ -70,7 +74,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ghcr.io/${{ github.repository_owner }}/${{ env.APP_IMAGE }}
+          images: ghcr.io/${{ github.actor }}/${{ env.APP_IMAGE }}
           tags: |
             type=ref,event=branch
             type=ref,event=pr
@@ -88,7 +92,7 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
-            QT_IMAGE=ghcr.io/${{ github.repository_owner }}/${{ env.QT_IMAGE }}:${{ env.QT_VERSION }}-latest
+            QT_IMAGE=ghcr.io/${{ github.actor }}/${{ env.QT_IMAGE }}:${{ env.QT_VERSION }}-latest
             QT_VERSION=${{ env.QT_VERSION }}
           cache-from: type=gha,scope=arm64-app
           cache-to: type=gha,mode=max,scope=arm64-app
@@ -97,7 +101,7 @@ jobs:
         if: github.event_name != 'pull_request'
         run: |
           # Create a temporary container and copy the binary
-          docker create --name temp-container ghcr.io/${{ github.repository_owner }}/${{ env.APP_IMAGE }}:${{ github.sha }}
+          docker create --name temp-container ghcr.io/${{ github.actor }}/${{ env.APP_IMAGE }}:${{ github.sha }}
           docker cp temp-container:/app/build/openterfaceQT ./openterfaceQT-arm64-linux
           docker rm temp-container
           
