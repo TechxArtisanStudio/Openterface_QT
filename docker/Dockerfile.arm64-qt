@@ -4,55 +4,125 @@ FROM ${BASE_IMAGE}
 ARG QT_VERSION=6.5.3
 ENV QT_VERSION=${QT_VERSION}
 
-# Download Qt source and configure for static build with only required modules
-RUN wget https://download.qt.io/official_releases/qt/6.5/${QT_VERSION}/single/qt-everywhere-src-${QT_VERSION}.tar.xz \
-    && tar xf qt-everywhere-src-${QT_VERSION}.tar.xz \
-    && cd qt-everywhere-src-${QT_VERSION} \
-    && ./configure -prefix /opt/Qt/${QT_VERSION} \
-        -opensource \
-        -confirm-license \
-        -release \
-        -static \
-        -static-runtime \
-        -nomake examples \
-        -nomake tests \
-        -no-shared \
-        -no-opengl \
-        -no-dbus \
-        -feature-pkg-config \
-        -qt-pcre \
-        -qt-zlib \
-        -qt-libpng \
-        -qt-libjpeg \
-        -qt-freetype \
-        -qt-harfbuzz \
-        -openssl-linked \
-        -skip qtquick3d \
-        -skip qtwebengine \
-        -skip qtwayland \
-        -skip qtlocation \
-        -skip qtsensors \
-        -skip qtconnectivity \
-        -skip qtwebchannel \
-        -skip qtwebsockets \
-        -skip qtremoteobjects \
-        -skip qtscxml \
-        -skip qtspeech \
-        -skip qtvirtualkeyboard \
-        -skip qtcharts \
-        -skip qtdatavis3d \
-        -skip qtlottie \
-        -skip qtquicktimeline \
-        -skip qtdoc \
-        -skip qttranslations \
-        -skip qtactiveqt \
-        -skip qtimageformats \
-        -skip qtmqtt \
-        -skip qtopcua \
-    && make -j$(nproc) \
-    && make install \
-    && cd .. \
-    && rm -rf qt-everywhere-src-${QT_VERSION} qt-everywhere-src-${QT_VERSION}.tar.xz
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    cmake \
+    ninja-build
+
+# Download and build only required Qt modules using modular approach
+RUN QT_VERSION=${QT_VERSION} && \
+    QT_MAJOR_VERSION=6.5 && \
+    INSTALL_PREFIX=/opt/Qt/${QT_VERSION} && \
+    BUILD_DIR=/workspace/qt-build && \
+    MODULES=("qtbase" "qtmultimedia" "qtserialport" "qtsvg" "qttools") && \
+    DOWNLOAD_BASE_URL="https://download.qt.io/archive/qt/$QT_MAJOR_VERSION/$QT_VERSION/submodules" && \
+    CMAKE_COMMON_FLAGS="-Wno-dev -DCMAKE_POLICY_DEFAULT_CMP0177=NEW -DCMAKE_POLICY_DEFAULT_CMP0174=NEW" && \
+    \
+    # Create build directory
+    mkdir -p "$BUILD_DIR" && \
+    cd "$BUILD_DIR" && \
+    \
+    # Download and extract required modules
+    for module in "${MODULES[@]}"; do \
+        wget -O "$module.tar.xz" "$DOWNLOAD_BASE_URL/$module-everywhere-src-$QT_VERSION.tar.xz" && \
+        tar xf "$module.tar.xz" && \
+        mv "$module-everywhere-src-$QT_VERSION" "$module" && \
+        rm "$module.tar.xz"; \
+    done && \
+    \
+    # Build qtbase first (foundation)
+    echo "Building qtbase..." && \
+    cd "$BUILD_DIR/qtbase" && \
+    mkdir -p build && \
+    cd build && \
+    cmake -GNinja \
+        $CMAKE_COMMON_FLAGS \
+        -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" \
+        -DBUILD_SHARED_LIBS=OFF \
+        -DFEATURE_dbus=OFF \
+        -DFEATURE_sql=OFF \
+        -DFEATURE_testlib=OFF \
+        -DFEATURE_icu=OFF \
+        -DFEATURE_opengl=OFF \
+        -DFEATURE_xlib=ON \
+        -DFEATURE_xcb_xlib=ON \
+        -DFEATURE_xkbcommon=ON \
+        -DFEATURE_xkbcommon_x11=ON \
+        .. && \
+    ninja && \
+    ninja install && \
+    \
+    # Build qtserialport
+    echo "Building qtserialport..." && \
+    cd "$BUILD_DIR/qtserialport" && \
+    mkdir -p build && \
+    cd build && \
+    cmake -GNinja \
+        $CMAKE_COMMON_FLAGS \
+        -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" \
+        -DCMAKE_PREFIX_PATH="$INSTALL_PREFIX" \
+        -DBUILD_SHARED_LIBS=OFF \
+        .. && \
+    ninja && \
+    ninja install && \
+    \
+    # Build qtsvg
+    echo "Building qtsvg..." && \
+    cd "$BUILD_DIR/qtsvg" && \
+    mkdir -p build && \
+    cd build && \
+    cmake -GNinja \
+        $CMAKE_COMMON_FLAGS \
+        -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" \
+        -DCMAKE_PREFIX_PATH="$INSTALL_PREFIX" \
+        -DBUILD_SHARED_LIBS=OFF \
+        .. && \
+    ninja && \
+    ninja install && \
+    \
+    # Build qtmultimedia
+    echo "Building qtmultimedia..." && \
+    cd "$BUILD_DIR/qtmultimedia" && \
+    mkdir -p build && \
+    cd build && \
+    PKG_CONFIG_PATH="/usr/local/lib/pkgconfig:$PKG_CONFIG_PATH" \
+    cmake -GNinja \
+        $CMAKE_COMMON_FLAGS \
+        -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" \
+        -DCMAKE_PREFIX_PATH="$INSTALL_PREFIX;/usr/local" \
+        -DBUILD_SHARED_LIBS=OFF \
+        -DFEATURE_gstreamer=OFF \
+        -DFEATURE_pulseaudio=ON \
+        -DFEATURE_ffmpeg=ON \
+        -DFEATURE_avfoundation=OFF \
+        -DCMAKE_FIND_ROOT_PATH="/usr/local" \
+        -DCMAKE_EXE_LINKER_FLAGS="-L/usr/local/lib" \
+        .. && \
+    ninja && \
+    ninja install && \
+    \
+    # Build qttools
+    echo "Building qttools..." && \
+    cd "$BUILD_DIR/qttools" && \
+    mkdir -p build && \
+    cd build && \
+    cmake -GNinja \
+        $CMAKE_COMMON_FLAGS \
+        -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" \
+        -DCMAKE_PREFIX_PATH="$INSTALL_PREFIX" \
+        -DBUILD_SHARED_LIBS=OFF \
+        -DFEATURE_linguist=ON \
+        -DFEATURE_lupdate=ON \
+        -DFEATURE_lrelease=ON \
+        -DFEATURE_designer=OFF \
+        -DFEATURE_assistant=OFF \
+        .. && \
+    ninja && \
+    ninja install && \
+    \
+    # Cleanup
+    cd / && \
+    rm -rf "$BUILD_DIR"
 
 # Set Qt environment variables
 ENV PATH="/opt/Qt/${QT_VERSION}/bin:${PATH}"
