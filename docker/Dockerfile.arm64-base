@@ -40,27 +40,27 @@ RUN apt-get update && apt-get install -y \
     nasm \
     && rm -rf /var/lib/apt/lists/*
 
-# Build FFmpeg with static libraries
-# RUN wget https://ffmpeg.org/releases/ffmpeg-6.0.tar.xz \
-#     && tar xf ffmpeg-6.0.tar.xz \
-#     && cd ffmpeg-6.0 \
-#     && ./configure \
-#         --prefix=/usr/local \
-#         --enable-static \
-#         --disable-shared \
-#         --disable-doc \
-#         --disable-ffplay \
-#         --disable-ffprobe \
-#         --disable-network \
-#         --disable-autodetect \
-#         --enable-pic \
-#     && make -j$(nproc) \
-#     && make install \
-#     && cd .. \
-#     && rm -rf ffmpeg-6.0 ffmpeg-6.0.tar.xz
+#Build FFmpeg with static libraries
+RUN wget https://ffmpeg.org/releases/ffmpeg-6.0.tar.xz \
+    && tar xf ffmpeg-6.0.tar.xz \
+    && cd ffmpeg-6.0 \
+    && ./configure \
+        --prefix=/usr/local \
+        --enable-static \
+        --disable-shared \
+        --disable-doc \
+        --disable-ffplay \
+        --disable-ffprobe \
+        --disable-network \
+        --disable-autodetect \
+        --enable-pic \
+    && make -j$(nproc) \
+    && make install \
+    && cd .. \
+    && rm -rf ffmpeg-6.0 ffmpeg-6.0.tar.xz
 
-# Verify FFmpeg installation
-# RUN ls -la /usr/local/lib/libav* && \
-#     ls -la /usr/local/include/libav*
+Verify FFmpeg installation
+RUN ls -la /usr/local/lib/libav* && \
+    ls -la /usr/local/include/libav*
 
 WORKDIR /workspace

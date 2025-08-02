@@ -4,7 +4,7 @@ FROM ${BASE_IMAGE}
 ARG QT_VERSION=6.5.3
 ENV QT_VERSION=${QT_VERSION}
 
-# Download Qt source and configure to build only required modules
+# Download Qt source and configure for static build with only required modules
 RUN wget https://download.qt.io/official_releases/qt/6.5/${QT_VERSION}/single/qt-everywhere-src-${QT_VERSION}.tar.xz \
     && tar xf qt-everywhere-src-${QT_VERSION}.tar.xz \
     && cd qt-everywhere-src-${QT_VERSION} \
@@ -12,13 +12,20 @@ RUN wget https://download.qt.io/official_releases/qt/6.5/${QT_VERSION}/single/qt
         -opensource \
         -confirm-license \
         -release \
+        -static \
+        -static-runtime \
         -nomake examples \
         -nomake tests \
+        -no-shared \
+        -no-opengl \
+        -no-dbus \
         -feature-pkg-config \
         -qt-pcre \
         -qt-zlib \
         -qt-libpng \
         -qt-libjpeg \
+        -qt-freetype \
+        -qt-harfbuzz \
         -openssl-linked \
         -skip qtquick3d \
         -skip qtwebengine \

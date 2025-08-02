@@ -9,11 +9,14 @@ WORKDIR /app
 # Copy source code
 COPY . .
 
-# Build the application
+# Build the application with static Qt linking
 RUN cmake -B build -S . \
         -DCMAKE_PREFIX_PATH="/opt/Qt/${QT_VERSION}" \
         -DCMAKE_BUILD_TYPE=Release \
         -DUSE_FFMPEG_STATIC=ON \
+        -DCMAKE_FIND_LIBRARY_SUFFIXES=".a" \
+        -DBUILD_SHARED_LIBS=OFF \
+        -DQt6_DIR="/opt/Qt/${QT_VERSION}/lib/cmake/Qt6" \
     && cmake --build build -j$(nproc) \
     && strip build/openterfaceQT
 
