@@ -15,6 +15,9 @@ endif()
 find_package(QT NAMES Qt5 Qt6 REQUIRED COMPONENTS Core)
 find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Concurrent Gui Multimedia MultimediaWidgets Network SerialPort Svg)
 find_package(Qt${QT_VERSION_MAJOR} OPTIONAL_COMPONENTS Widgets)
+if(UNIX AND NOT APPLE)
+    find_package(Qt${QT_VERSION_MAJOR} OPTIONAL_COMPONENTS DBus)
+endif()
 
 # Find X11 libraries
 find_package(X11 REQUIRED COMPONENTS Xrandr)
@@ -107,7 +110,6 @@ target_link_libraries(openterfaceQT PRIVATE
     Qt::Network
     Qt::SerialPort
     Qt::Svg
-    Qt::DBus
     ${FFMPEG_LIBRARIES}  # Link against FFmpeg libraries
     ${EXPAT_LIBRARIES}
     ${FREETYPE_LIBRARIES}
@@ -262,6 +264,11 @@ if(UNIX)
     target_link_libraries(openterfaceQT PRIVATE
         usb-1.0
     )
+
+    # Link DBus if available and not on macOS
+    if(NOT APPLE AND TARGET Qt::DBus)
+        target_link_libraries(openterfaceQT PRIVATE Qt::DBus)
+    endif()
 
     set(drivers_resource_files
         "driver/linux/ch341.c"
