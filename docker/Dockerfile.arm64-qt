@@ -7,7 +7,8 @@ ENV QT_VERSION=${QT_VERSION}
 RUN apt-get update && apt-get install -y \
     build-essential \
     cmake \
-    ninja-build
+    ninja-build \
+    libdbus-1-dev
 
 # Download and build only required Qt modules using modular approach
 RUN QT_VERSION=${QT_VERSION} && \
@@ -38,7 +39,7 @@ RUN QT_VERSION=${QT_VERSION} && \
         $CMAKE_COMMON_FLAGS \
         -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" \
         -DBUILD_SHARED_LIBS=OFF \
-        -DFEATURE_dbus=OFF \
+        -DFEATURE_dbus=ON \
         -DFEATURE_sql=OFF \
         -DFEATURE_testlib=OFF \
         -DFEATURE_icu=OFF \

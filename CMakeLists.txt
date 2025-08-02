@@ -16,7 +16,7 @@ find_package(QT NAMES Qt5 Qt6 REQUIRED COMPONENTS Core)
 find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Concurrent Gui Multimedia MultimediaWidgets Network SerialPort Svg)
 find_package(Qt${QT_VERSION_MAJOR} OPTIONAL_COMPONENTS Widgets)
 if(UNIX AND NOT APPLE)
-    find_package(Qt${QT_VERSION_MAJOR} OPTIONAL_COMPONENTS DBus)
+    find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS DBus)
 endif()
 
 # Find X11 libraries
@@ -118,6 +118,11 @@ target_link_libraries(openterfaceQT PRIVATE
     ${BZIP2_LIBRARIES}
     ${EXTRA_LIBS}
 )
+
+# Add DBus on Unix systems (excluding macOS)
+if(UNIX AND NOT APPLE)
+    target_link_libraries(openterfaceQT PRIVATE Qt::DBus)
+endif()
 
 # Resources:
 set(mainwindow_resource_files
@@ -264,11 +269,6 @@ if(UNIX)
     target_link_libraries(openterfaceQT PRIVATE
         usb-1.0
     )
-
-    # Link DBus if available and not on macOS
-    if(NOT APPLE AND TARGET Qt::DBus)
-        target_link_libraries(openterfaceQT PRIVATE Qt::DBus)
-    endif()
 
     set(drivers_resource_files
         "driver/linux/ch341.c"
