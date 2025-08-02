@@ -4,7 +4,7 @@ FROM ${BASE_IMAGE}
 ARG QT_VERSION=6.5.3
 ENV QT_VERSION=${QT_VERSION}
 
-# Download and compile Qt
+# Download Qt source and configure to build only required modules
 RUN wget https://download.qt.io/official_releases/qt/6.5/${QT_VERSION}/single/qt-everywhere-src-${QT_VERSION}.tar.xz \
     && tar xf qt-everywhere-src-${QT_VERSION}.tar.xz \
     && cd qt-everywhere-src-${QT_VERSION} \
@@ -20,6 +20,27 @@ RUN wget https://download.qt.io/official_releases/qt/6.5/${QT_VERSION}/single/qt
         -qt-libpng \
         -qt-libjpeg \
         -openssl-linked \
+        -skip qtquick3d \
+        -skip qtwebengine \
+        -skip qtdeclarative \
+        -skip qtwayland \
+        -skip qtlocation \
+        -skip qtsensors \
+        -skip qtconnectivity \
+        -skip qtwebchannel \
+        -skip qtwebsockets \
+        -skip qtremoteobjects \
+        -skip qtscxml \
+        -skip qtspeech \
+        -skip qtvirtualkeyboard \
+        -skip qtcharts \
+        -skip qtdatavis3d \
+        -skip qtlottie \
+        -skip qtquicktimeline \
+        -skip qtdoc \
+        -skip qttranslations \
+        -skip qtactiveqt \
+        -skip qtimageformats \
     && make -j$(nproc) \
     && make install \
     && cd .. \
