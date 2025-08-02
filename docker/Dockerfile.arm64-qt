@@ -48,6 +48,7 @@ RUN wget https://download.qt.io/official_releases/qt/6.5/${QT_VERSION}/single/qt
         -skip qttranslations \
         -skip qtactiveqt \
         -skip qtimageformats \
+        -skip qtmqtt \
     && make -j$(nproc) \
     && make install \
     && cd .. \
