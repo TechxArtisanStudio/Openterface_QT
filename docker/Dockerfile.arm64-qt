@@ -29,7 +29,6 @@ RUN wget https://download.qt.io/official_releases/qt/6.5/${QT_VERSION}/single/qt
         -openssl-linked \
         -skip qtquick3d \
         -skip qtwebengine \
-        -skip qtdeclarative \
         -skip qtwayland \
         -skip qtlocation \
         -skip qtsensors \
@@ -49,6 +48,7 @@ RUN wget https://download.qt.io/official_releases/qt/6.5/${QT_VERSION}/single/qt
         -skip qtactiveqt \
         -skip qtimageformats \
         -skip qtmqtt \
+        -skip qtopcua \
     && make -j$(nproc) \
     && make install \
     && cd .. \
