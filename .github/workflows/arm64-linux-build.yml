@@ -100,8 +100,12 @@ jobs:
       - name: Extract binary from Docker image (if built)
         if: github.event_name != 'pull_request'
         run: |
+          # Use the first tag from the metadata output
+          IMAGE_TAG=$(echo '${{ steps.meta.outputs.tags }}' | head -n1)
+          echo "Using image tag: $IMAGE_TAG"
+          
           # Create a temporary container and copy the binary
-          docker create --name temp-container ghcr.io/${{ github.actor }}/${{ env.APP_IMAGE }}:${{ github.sha }}
+          docker create --name temp-container $IMAGE_TAG
           docker cp temp-container:/app/build/openterfaceQT ./openterfaceQT-arm64-linux
           docker rm temp-container
           
