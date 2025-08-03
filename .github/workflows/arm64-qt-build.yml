@@ -46,6 +46,7 @@ permissions:
 env:
   QT_VERSION: ${{ github.event.inputs.qt_version || '6.5.3' }}
   BASE_IMAGE: openterface-arm64-base
+  QT_DEPS_IMAGE: openterface-arm64-qt-deps
   QT_IMAGE: openterface-arm64-qt
   CACHE_BASE_KEY: arm64-qt-${{ github.event.inputs.qt_version || '6.5.3' }}
 
@@ -109,7 +110,7 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
-            BASE_IMAGE=ghcr.io/${{ github.actor }}/${{ env.BASE_IMAGE }}:latest
+            BASE_IMAGE=ghcr.io/${{ github.actor }}/${{ env.QT_DEPS_IMAGE }}:latest
             QT_VERSION=${{ env.QT_VERSION }}
           cache-from: type=gha,scope=${{ steps.qt-cache-decision.outputs.cache-scope }}
           cache-to: type=gha,mode=max,scope=${{ steps.qt-cache-decision.outputs.cache-scope }}

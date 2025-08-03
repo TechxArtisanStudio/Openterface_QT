@@ -1,64 +1,11 @@
-ARG BASE_IMAGE
+ARG BASE_IMAGE=ghcr.io/TechxArtisanStudio/openterface-arm64-qt-deps:latest
 FROM ${BASE_IMAGE}
 
 ARG QT_VERSION=6.5.3
 ENV QT_VERSION=${QT_VERSION}
 
-RUN apt-get update && apt-get install -y \
-    build-essential \
-    cmake \
-    ninja-build \
-    libdbus-1-dev \
-    libx11-dev \
-    libx11-xcb-dev \
-    libxcb1-dev \
-    libxcb-glx0-dev \
-    libxcb-keysyms1-dev \
-    libxcb-image0-dev \
-    libxcb-shm0-dev \
-    libxcb-icccm4-dev \
-    libxcb-sync-dev \
-    libxcb-xfixes0-dev \
-    libxcb-shape0-dev \
-    libxcb-randr0-dev \
-    libxcb-render-util0-dev \
-    libxcb-xinerama0-dev \
-    libxcb-xkb-dev \
-    libxkbcommon-dev \
-    libxkbcommon-x11-dev \
-    libxrender-dev \
-    libxi-dev \
-    libxext-dev \
-    pkg-config \
-    wget \
-    git \
-    autoconf \
-    automake \
-    libtool \
-    xorg-dev \
-    sudo \
-    curl \
-    meson \
-    bison \
-    flex \
-    python3-pip \
-    autoconf-archive \
-    libc6-dev \
-    zlib1g-dev \
-    gperf
-
-# Copy and run the static Qt dependency build script
-COPY build-script/build-static-qt-dependency.sh /tmp/build-static-qt-dependency.sh
-RUN chmod +x /tmp/build-static-qt-dependency.sh && \
-    /tmp/build-static-qt-dependency.sh && \
-    rm /tmp/build-static-qt-dependency.sh
-
-# Set environment variables for static dependencies
-ENV QT_STATIC_DEPS_PREFIX=/opt/qt-deps
-ENV PKG_CONFIG_PATH="$QT_STATIC_DEPS_PREFIX/lib/pkgconfig:$QT_STATIC_DEPS_PREFIX/share/pkgconfig"
-ENV LD_LIBRARY_PATH="$QT_STATIC_DEPS_PREFIX/lib"
-ENV CMAKE_PREFIX_PATH="$QT_STATIC_DEPS_PREFIX"
-ENV PATH="$QT_STATIC_DEPS_PREFIX/bin:$PATH"
+# Qt dependencies are already built in the base image
+# Environment variables are already set in the base image
 
 # Download and build only required Qt modules using modular approach
 RUN QT_VERSION=${QT_VERSION} && \
