@@ -38,7 +38,7 @@ RUN apt-get update && apt-get install -y \
     xorg-dev
 
 # Build and install xcb-util-cursor from source
-RUN git clone https://gitlab.freedesktop.org/xorg/lib/libxcb-util-cursor.git /tmp/xcb-util-cursor && \
+RUN git clone https://xcb.freedesktop.org/dist/xcb-util-cursor-0.1.5.tar.gz /tmp/xcb-util-cursor && \
     cd /tmp/xcb-util-cursor && \
     ./autogen.sh && \
     make && \
