@@ -22,6 +22,10 @@ RUN apt-get update && apt-get install -y \
     zlib1g-dev \
     gperf \
     sudo \
+    autotools-dev \
+    gettext \
+    libxml2-utils \
+    xsltproc \
     && rm -rf /var/lib/apt/lists/*
 
 # Set installation prefix
