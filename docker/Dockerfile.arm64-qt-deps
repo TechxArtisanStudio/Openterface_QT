@@ -26,6 +26,8 @@ RUN apt-get update && apt-get install -y \
     gettext \
     libxml2-utils \
     libxml2-dev \
+    libxkbcommon-dev \
+    libxkbcommon-x11-dev \
     xsltproc \
     && rm -rf /var/lib/apt/lists/*
 
@@ -344,24 +346,6 @@ RUN curl -L -o xkeyboard-config.tar.xz "https://www.x.org/archive/individual/dat
     ninja install && \
     cd ../.. && rm -rf xkeyboard-config.tar.xz "xkeyboard-config-${XKB_CONFIG_VERSION}"
 
-# Build libxkbcommon
-RUN curl -L -o libxkbcommon.tar.xz "https://xkbcommon.org/download/libxkbcommon-${XKBCOMMON_VERSION}.tar.xz" && \
-    tar xf libxkbcommon.tar.xz && \
-    cd "libxkbcommon-${XKBCOMMON_VERSION}" && \
-    mkdir -p build && cd build && \
-    PKG_CONFIG_ALL_STATIC=1 PKG_CONFIG_PATH="$INSTALL_PREFIX/lib/pkgconfig:$INSTALL_PREFIX/share/pkgconfig" \
-    meson setup --prefix=$INSTALL_PREFIX \
-        -Denable-docs=false \
-        -Denable-wayland=false \
-        -Denable-x11=true \
-        -Ddefault_library=static \
-        -Dxkb-config-root=$INSTALL_PREFIX/share/X11/xkb \
-        -Dx-locale-root=$INSTALL_PREFIX/share/X11/locale \
-        .. && \
-    ninja && \
-    ninja install && \
-    cd ../.. && rm -rf libxkbcommon.tar.xz "libxkbcommon-${XKBCOMMON_VERSION}"
-
 # Update PKG_CONFIG_PATH and verify installations
 ENV PKG_CONFIG_PATH="$INSTALL_PREFIX/lib/pkgconfig:$INSTALL_PREFIX/share/pkgconfig"
 ENV LD_LIBRARY_PATH="$INSTALL_PREFIX/lib"
@@ -373,8 +357,7 @@ RUN pkg-config --exists x11 && echo "✓ x11.pc found" || echo "✗ x11.pc not f
     pkg-config --exists xext && echo "✓ xext.pc found" || echo "✗ xext.pc not found" && \
     pkg-config --exists xrender && echo "✓ xrender.pc found" || echo "✗ xrender.pc not found" && \
     pkg-config --exists xcb && echo "✓ xcb.pc found" || echo "✗ xcb.pc not found" && \
-    pkg-config --exists xcb-cursor && echo "✓ xcb-cursor.pc found" || echo "✗ xcb-cursor.pc not found" && \
-    pkg-config --exists xkbcommon && echo "✓ xkbcommon.pc found" || echo "✗ xkbcommon.pc not found"
+    pkg-config --exists xcb-cursor && echo "✓ xcb-cursor.pc found" || echo "✗ xcb-cursor.pc not found"
 
 # Clean up build directory
 RUN rm -rf /tmp/qt-build
