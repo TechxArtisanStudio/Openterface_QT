@@ -61,30 +61,19 @@ RUN QT_VERSION=${QT_VERSION} && \
         $CMAKE_COMMON_FLAGS \
         -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" \
         -DBUILD_SHARED_LIBS=OFF \
+        -DBUILD_SHARED_LIBS=OFF \
         -DFEATURE_dbus=ON \
         -DFEATURE_sql=OFF \
         -DFEATURE_testlib=OFF \
         -DFEATURE_icu=OFF \
-        -DFEATURE_opengl=OFF \
+        -DFEATURE_opengl=ON \
         -DFEATURE_xlib=ON \
-        -DFEATURE_xcb=ON \
-        -DFEATURE_xcb_glx=ON \
-        -DFEATURE_xcb_keysyms=ON \
-        -DFEATURE_xcb_image=ON \
-        -DFEATURE_xcb_shm=ON \
-        -DFEATURE_xcb_icccm=ON \
-        -DFEATURE_xcb_sync=ON \
-        -DFEATURE_xcb_xfixes=ON \
-        -DFEATURE_xcb_shape=ON \
-        -DFEATURE_xcb_randr=ON \
-        -DFEATURE_xcb_render_util=ON \
-        -DFEATURE_xcb_xinerama=ON \
-        -DFEATURE_xcb_xrender=ON \
-        -DFEATURE_xcb_xinput=ON \
-        -DFEATURE_xcb_xkb=ON \
         -DFEATURE_xcb_xlib=ON \
         -DFEATURE_xkbcommon=ON \
         -DFEATURE_xkbcommon_x11=ON \
+        -DTEST_xcb_syslibs=ON \
+        -DQT_FEATURE_clang=OFF \
+        -DFEATURE_clang=ON \
         .. && \
     ninja && \
     ninja install && \
