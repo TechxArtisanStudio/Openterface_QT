@@ -113,6 +113,7 @@ RUN curl -L -o libpulse.tar.xz "https://www.freedesktop.org/software/pulseaudio/
 RUN curl -L -o dbus.tar.xz "https://dbus.freedesktop.org/releases/dbus/dbus-${DBUS_VERSION}.tar.xz" && \
     tar xf dbus.tar.xz && \
     cd "dbus-${DBUS_VERSION}" && \
+    ./autogen.sh && \
     CFLAGS="-fPIC" CXXFLAGS="-fPIC" ./configure --prefix=$INSTALL_PREFIX \
         --enable-static \
         --disable-shared \
