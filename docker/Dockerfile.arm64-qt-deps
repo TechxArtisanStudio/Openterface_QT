@@ -140,7 +140,7 @@ RUN curl -L -o glib.tar.xz "https://download.gnome.org/sources/glib/2.78/glib-${
     cd ../.. && rm -rf glib.tar.xz "glib-${GLIB_VERSION}"
 
 # Build libexpat
-RUN curl -L -o libexpat.tar.bz2 "https://github.com/libexpat/libexpat/releases/download/R_${EXPAT_VERSION//./_}/expat-${EXPAT_VERSION}.tar.bz2" && \
+RUN curl -L -o libexpat.tar.bz2 "https://github.com/libexpat/libexpat/releases/download/R_2_5_0/expat-${EXPAT_VERSION}.tar.bz2" && \
     tar xf libexpat.tar.bz2 && \
     cd "expat-${EXPAT_VERSION}" && \
     ./configure --prefix=$INSTALL_PREFIX --enable-static --disable-shared && \
