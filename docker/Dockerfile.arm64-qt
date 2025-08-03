@@ -168,7 +168,7 @@ RUN QT_VERSION=${QT_VERSION} && \
 ENV PATH="/opt/Qt/${QT_VERSION}/bin:${PATH}"
 ENV QT_PLUGIN_PATH="/opt/Qt/${QT_VERSION}/plugins"
 ENV QML2_IMPORT_PATH="/opt/Qt/${QT_VERSION}/qml"
-ENV LD_LIBRARY_PATH="/opt/Qt/${QT_VERSION}/lib:${LD_LIBRARY_PATH}"
+ENV LD_LIBRARY_PATH="/usr/lib:/usr/local/lib:/opt/Qt/${QT_VERSION}/lib"
 
 # Verify Qt installation
 RUN qmake --version && \
