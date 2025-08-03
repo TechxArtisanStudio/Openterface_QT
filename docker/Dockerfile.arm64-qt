@@ -31,7 +31,22 @@ RUN apt-get update && apt-get install -y \
     libxi-dev \
     libxext-dev \
     pkg-config \
-    wget
+    wget \
+    git \
+    autoconf \
+    automake \
+    libtool \
+    xorg-dev
+
+# Build and install xcb-util-cursor from source
+RUN git clone https://gitlab.freedesktop.org/xorg/lib/libxcb-util-cursor.git /tmp/xcb-util-cursor && \
+    cd /tmp/xcb-util-cursor && \
+    ./autogen.sh && \
+    make && \
+    make install && \
+    ldconfig && \
+    cd / && \
+    rm -rf /tmp/xcb-util-cursor
 
 # Download and build only required Qt modules using modular approach
 RUN QT_VERSION=${QT_VERSION} && \
