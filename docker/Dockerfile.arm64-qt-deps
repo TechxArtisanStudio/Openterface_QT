@@ -349,6 +349,7 @@ RUN curl -L -o libxkbcommon.tar.xz "https://xkbcommon.org/download/libxkbcommon-
     tar xf libxkbcommon.tar.xz && \
     cd "libxkbcommon-${XKBCOMMON_VERSION}" && \
     mkdir -p build && cd build && \
+    PKG_CONFIG_ALL_STATIC=1 PKG_CONFIG_PATH="$INSTALL_PREFIX/lib/pkgconfig:$INSTALL_PREFIX/share/pkgconfig" \
     meson setup --prefix=$INSTALL_PREFIX \
         -Denable-docs=false \
         -Denable-wayland=false \
