@@ -6,6 +6,9 @@ ENV QT_VERSION=${QT_VERSION}
 
 WORKDIR /app
 
+# Install file utility for binary verification
+RUN apt-get update && apt-get install -y file && rm -rf /var/lib/apt/lists/*
+
 # Copy source code
 COPY . .
 
@@ -19,6 +22,16 @@ RUN cmake -B build -S . \
         -DQt6_DIR="/opt/Qt/${QT_VERSION}/lib/cmake/Qt6" \
     && cmake --build build -j$(nproc) \
     && strip build/openterfaceQT
+
+# Debug: Show build directory contents and find openterfaceQT
+RUN echo "=== Listing build directory ===" && \
+    ls -la build/ && \
+    echo "=== Finding openterfaceQT files ===" && \
+    find /app -name "*openterface*" -type f 2>/dev/null || true && \
+    echo "=== Current working directory ===" && \
+    pwd && \
+    echo "=== Complete directory listing ===" && \
+    ls -la /app/
 
 # Verify the binary was built successfully
 RUN test -f /app/build/openterfaceQT || (echo "Binary not found!" && exit 1)
