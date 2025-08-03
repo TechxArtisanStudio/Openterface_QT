@@ -25,6 +25,7 @@ RUN apt-get update && apt-get install -y \
     autotools-dev \
     gettext \
     libxml2-utils \
+    libxml2-dev \
     xsltproc \
     && rm -rf /var/lib/apt/lists/*
 
@@ -64,7 +65,7 @@ ARG XORGPROTO_VERSION=2023.2
 ARG EXPAT_VERSION=2.5.0
 ARG GPERF_VERSION=3.1
 ARG PULSEAUDIO_VERSION=16.1
-ARG LIBXML2_VERSION=2.11.5
+
 
 # Build ALSA lib
 RUN curl -L -o alsa.tar.bz2 "https://www.alsa-project.org/files/pub/lib/alsa-lib-${ALSA_VERSION}.tar.bz2" && \
@@ -332,15 +333,6 @@ RUN curl -L -o xcb-util-cursor.tar.gz "https://xcb.freedesktop.org/dist/xcb-util
     make -j$(nproc) && \
     make install && \
     cd .. && rm -rf xcb-util-cursor.tar.gz "xcb-util-cursor-${XCB_CURSOR_VERSION}"
-
-# Build libxml2
-RUN curl -L -o libxml2.tar.xz "https://gitlab.gnome.org/GNOME/libxml2/-/archive/v${LIBXML2_VERSION}/libxml2-v${LIBXML2_VERSION}.tar.xz" && \
-    tar xf libxml2.tar.xz && \
-    cd "libxml2-v${LIBXML2_VERSION}" && \
-    ./autogen.sh --prefix=$INSTALL_PREFIX --enable-static --disable-shared --without-python && \
-    make -j$(nproc) && \
-    make install && \
-    cd .. && rm -rf libxml2.tar.xz "libxml2-v${LIBXML2_VERSION}"
 
 # Build xkeyboard-config
 RUN curl -L -o xkeyboard-config.tar.xz "https://www.x.org/archive/individual/data/xkeyboard-config/xkeyboard-config-${XKB_CONFIG_VERSION}.tar.xz" && \
