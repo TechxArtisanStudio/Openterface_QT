@@ -37,15 +37,18 @@ RUN apt-get update && apt-get install -y \
     libtool \
     xorg-dev
 
-# Build and install xcb-util-cursor from source
-RUN git clone https://xcb.freedesktop.org/dist/xcb-util-cursor-0.1.5.tar.gz /tmp/xcb-util-cursor && \
-    cd /tmp/xcb-util-cursor && \
-    ./autogen.sh && \
-    make && \
-    make install && \
-    ldconfig && \
-    cd / && \
-    rm -rf /tmp/xcb-util-cursor
+# Copy and run the static Qt dependency build script
+COPY build-script/build-static-qt-dependency.sh /tmp/build-static-qt-dependency.sh
+RUN chmod +x /tmp/build-static-qt-dependency.sh && \
+    /tmp/build-static-qt-dependency.sh && \
+    rm /tmp/build-static-qt-dependency.sh
+
+# Set environment variables for static dependencies
+ENV QT_STATIC_DEPS_PREFIX=/opt/qt-deps
+ENV PKG_CONFIG_PATH="$QT_STATIC_DEPS_PREFIX/lib/pkgconfig:$QT_STATIC_DEPS_PREFIX/share/pkgconfig:$PKG_CONFIG_PATH"
+ENV LD_LIBRARY_PATH="$QT_STATIC_DEPS_PREFIX/lib:$LD_LIBRARY_PATH"
+ENV CMAKE_PREFIX_PATH="$QT_STATIC_DEPS_PREFIX:$CMAKE_PREFIX_PATH"
+ENV PATH="$QT_STATIC_DEPS_PREFIX/bin:$PATH"
 
 # Download and build only required Qt modules using modular approach
 RUN QT_VERSION=${QT_VERSION} && \
