@@ -23,16 +23,6 @@ RUN cmake -B build -S . \
     && cmake --build build -j$(nproc) \
     && strip build/openterfaceQT
 
-# Debug: Show build directory contents and find openterfaceQT
-RUN echo "=== Listing build directory ===" && \
-    ls -la build/ && \
-    echo "=== Finding openterfaceQT files ===" && \
-    find /app -name "*openterface*" -type f 2>/dev/null || true && \
-    echo "=== Current working directory ===" && \
-    pwd && \
-    echo "=== Complete directory listing ===" && \
-    ls -la /app/
-
 # Verify the binary was built successfully
 RUN test -f /app/build/openterfaceQT || (echo "Binary not found!" && exit 1)
 RUN file /app/build/openterfaceQT
