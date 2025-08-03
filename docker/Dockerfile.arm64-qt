@@ -8,7 +8,29 @@ RUN apt-get update && apt-get install -y \
     build-essential \
     cmake \
     ninja-build \
-    libdbus-1-dev
+    libdbus-1-dev \
+    libx11-dev \
+    libx11-xcb-dev \
+    libxcb1-dev \
+    libxcb-glx0-dev \
+    libxcb-keysyms1-dev \
+    libxcb-image0-dev \
+    libxcb-shm0-dev \
+    libxcb-icccm4-dev \
+    libxcb-sync-dev \
+    libxcb-xfixes0-dev \
+    libxcb-shape0-dev \
+    libxcb-randr0-dev \
+    libxcb-render-util0-dev \
+    libxcb-xinerama0-dev \
+    libxcb-xkb-dev \
+    libxkbcommon-dev \
+    libxkbcommon-x11-dev \
+    libxrender-dev \
+    libxi-dev \
+    libxext-dev \
+    pkg-config \
+    wget
 
 # Download and build only required Qt modules using modular approach
 RUN QT_VERSION=${QT_VERSION} && \
@@ -45,6 +67,21 @@ RUN QT_VERSION=${QT_VERSION} && \
         -DFEATURE_icu=OFF \
         -DFEATURE_opengl=OFF \
         -DFEATURE_xlib=ON \
+        -DFEATURE_xcb=ON \
+        -DFEATURE_xcb_glx=ON \
+        -DFEATURE_xcb_keysyms=ON \
+        -DFEATURE_xcb_image=ON \
+        -DFEATURE_xcb_shm=ON \
+        -DFEATURE_xcb_icccm=ON \
+        -DFEATURE_xcb_sync=ON \
+        -DFEATURE_xcb_xfixes=ON \
+        -DFEATURE_xcb_shape=ON \
+        -DFEATURE_xcb_randr=ON \
+        -DFEATURE_xcb_render_util=ON \
+        -DFEATURE_xcb_xinerama=ON \
+        -DFEATURE_xcb_xrender=ON \
+        -DFEATURE_xcb_xinput=ON \
+        -DFEATURE_xcb_xkb=ON \
         -DFEATURE_xcb_xlib=ON \
         -DFEATURE_xkbcommon=ON \
         -DFEATURE_xkbcommon_x11=ON \
