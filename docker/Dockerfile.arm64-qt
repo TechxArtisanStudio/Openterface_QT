@@ -35,7 +35,17 @@ RUN apt-get update && apt-get install -y \
     autoconf \
     automake \
     libtool \
-    xorg-dev
+    xorg-dev \
+    sudo \
+    curl \
+    meson \
+    bison \
+    flex \
+    python3-pip \
+    autoconf-archive \
+    libc6-dev \
+    zlib1g-dev \
+    gperf
 
 # Copy and run the static Qt dependency build script
 COPY build-script/build-static-qt-dependency.sh /tmp/build-static-qt-dependency.sh
