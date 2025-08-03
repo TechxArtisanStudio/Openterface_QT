@@ -104,8 +104,11 @@ jobs:
           IMAGE_TAG=$(echo '${{ steps.meta.outputs.tags }}' | head -n1)
           echo "Using image tag: $IMAGE_TAG"
           
+          # Pull the image with platform specification
+          docker pull --platform linux/arm64 $IMAGE_TAG
+          
           # Create a temporary container and copy the binary
-          docker create --name temp-container $IMAGE_TAG
+          docker create --name temp-container --platform linux/arm64 $IMAGE_TAG
           docker cp temp-container:/app/build/openterfaceQT ./openterfaceQT-arm64-linux
           docker rm temp-container
           
