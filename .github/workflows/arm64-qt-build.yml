@@ -102,7 +102,7 @@ jobs:
         id: build
         uses: docker/build-push-action@v5
         with:
-          context: ./docker
+          context: .
           file: ./docker/Dockerfile.arm64-qt
           platforms: linux/arm64
           push: ${{ github.event_name != 'pull_request' }}

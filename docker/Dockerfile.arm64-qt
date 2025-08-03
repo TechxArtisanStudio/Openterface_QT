@@ -45,9 +45,9 @@ RUN chmod +x /tmp/build-static-qt-dependency.sh && \
 
 # Set environment variables for static dependencies
 ENV QT_STATIC_DEPS_PREFIX=/opt/qt-deps
-ENV PKG_CONFIG_PATH="$QT_STATIC_DEPS_PREFIX/lib/pkgconfig:$QT_STATIC_DEPS_PREFIX/share/pkgconfig:$PKG_CONFIG_PATH"
-ENV LD_LIBRARY_PATH="$QT_STATIC_DEPS_PREFIX/lib:$LD_LIBRARY_PATH"
-ENV CMAKE_PREFIX_PATH="$QT_STATIC_DEPS_PREFIX:$CMAKE_PREFIX_PATH"
+ENV PKG_CONFIG_PATH="$QT_STATIC_DEPS_PREFIX/lib/pkgconfig:$QT_STATIC_DEPS_PREFIX/share/pkgconfig"
+ENV LD_LIBRARY_PATH="$QT_STATIC_DEPS_PREFIX/lib"
+ENV CMAKE_PREFIX_PATH="$QT_STATIC_DEPS_PREFIX"
 ENV PATH="$QT_STATIC_DEPS_PREFIX/bin:$PATH"
 
 # Download and build only required Qt modules using modular approach
