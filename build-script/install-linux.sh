@@ -261,7 +261,7 @@ else
     if [ -f "resources/version.h" ]; then
         STABLE_VERSION=$(grep '#define STABLE_APP_VERSION' resources/version.h | sed 's/.*"\(.*\)".*/\1/')
         if [ -n "$STABLE_VERSION" ]; then
-            TARGET_VERSION="v$STABLE_VERSION"
+            TARGET_VERSION="$STABLE_VERSION"
             echo "🏷️  Using stable version from version.h: $TARGET_VERSION"
         else
             echo "⚠️  Could not extract STABLE_APP_VERSION from version.h"
