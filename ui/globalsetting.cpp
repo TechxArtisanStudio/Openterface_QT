@@ -72,11 +72,11 @@ void GlobalSetting::setLogSettings(bool core, bool serial, bool ui, bool hostLay
 void GlobalSetting::loadLogSettings()
 {
     QString logFilter = "";
-    logFilter += m_settings.value("log/core", true).toBool() ? "opf.core.*=true\n" : "opf.core.*=false\n";
-    logFilter += m_settings.value("log/ui", true).toBool() ? "opf.ui.*=true\n" : "opf.ui.*=false\n";
-    logFilter += m_settings.value("log/host", true).toBool() ? "opf.host.*=true\n" : "opf.host.*=false\n";
-    logFilter += m_settings.value("log/serial", true).toBool() ? "opf.core.serial=true\n" : "opf.core.serial=false\n";
-    logFilter += m_settings.value("log/device", true).toBool() ? "opf.device.*=true\n" : "opf.device.*=false\n";
+    logFilter += m_settings.value("log/core", false).toBool() ? "opf.core.*=true\n" : "opf.core.*=false\n";
+    logFilter += m_settings.value("log/ui", false).toBool() ? "opf.ui.*=true\n" : "opf.ui.*=false\n";
+    logFilter += m_settings.value("log/host", false).toBool() ? "opf.host.*=true\n" : "opf.host.*=false\n";
+    logFilter += m_settings.value("log/serial", false).toBool() ? "opf.core.serial=true\n" : "opf.core.serial=false\n";
+    logFilter += m_settings.value("log/device", false).toBool() ? "opf.device.*=true\n" : "opf.device.*=false\n";
     QLoggingCategory::setFilterRules(logFilter);
 }
 

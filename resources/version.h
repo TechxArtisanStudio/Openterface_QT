@@ -6,5 +6,6 @@
 // Please refer to update_version.py
 
 #define APP_VERSION "0.3.19.203"
+#define STABLE_APP_VERSION "0.3.19"
 
 #endif // VERSION_H
