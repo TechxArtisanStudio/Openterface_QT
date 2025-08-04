@@ -3,9 +3,10 @@
 # Openterface QT Linux Build Script (Shared Libraries)
 # =============================================================================
 #
-# This script builds the Openterface QT application using shared libraries
-# without installing it system-wide. The built binary will be available in
-# the build directory for testing and development purposes.
+# This script builds the Openterface QT application using static FFmpeg libraries
+# (when available) combined with shared Qt and system libraries. This provides
+# FFmpeg functionality without external dependencies while keeping the build
+# size reasonable for other components.
 #
 # USAGE:
 # ./build-sharedlib-app.sh [BUILD_DIR]
@@ -46,8 +47,8 @@ set -e
 # Parse command line arguments
 BUILD_DIR="${1:-build}"
 
-echo "🏗️  Openterface QT Build Script (Shared Libraries)"
-echo "=================================================="
+echo "🏗️  Openterface QT Build Script (Static FFmpeg + Shared Qt)"
+echo "========================================================"
 echo "Build directory: $BUILD_DIR"
 echo ""
 
@@ -158,17 +159,57 @@ fi
 
 echo "Using Qt6 cmake from: $QT_CMAKE_PATH"
 
-# For shared library build, we use system-installed shared FFmpeg libraries
-echo "🔍 Configuring for shared FFmpeg libraries..."
-echo "  Using system FFmpeg shared libraries (libavformat.so, libavcodec.so, etc.)"
+# For this build, we use static FFmpeg libraries but shared Qt/system libraries
+echo "🔍 Configuring for static FFmpeg + shared Qt libraries..."
 
-# Configure CMake for shared library build
+# Check if static FFmpeg libraries are available (from base image)
+if [ -f "/usr/local/lib/libavformat.a" ]; then
+    echo "  ✅ Using static FFmpeg libraries from /usr/local/lib/"
+    echo "  Static FFmpeg libraries found:"
+    ls -la /usr/local/lib/libav*.a | sed 's/^/    /'
+    USE_STATIC_FFMPEG=true
+    FFMPEG_STATIC_LIBS="/usr/local/lib/libavformat.a;/usr/local/lib/libavcodec.a;/usr/local/lib/libavutil.a;/usr/local/lib/libswresample.a;/usr/local/lib/libswscale.a"
+    FFMPEG_INCLUDE_DIRS="/usr/local/include"
+else
+    echo "  ⚠️  Static FFmpeg libraries not found, falling back to shared libraries"
+    # Check for shared FFmpeg libraries
+    echo "  Checking FFmpeg shared libraries availability:"
+    for lib in libavformat libavcodec libavutil libswresample libswscale; do
+        if pkg-config --exists $lib; then
+            VERSION=$(pkg-config --modversion $lib)
+            echo "    ✅ $lib: $VERSION"
+        else
+            echo "    ❌ $lib: NOT FOUND"
+            echo "    Please install ${lib}-dev package"
+            exit 1
+        fi
+    done
+    USE_STATIC_FFMPEG=false
+fi
+
+echo "  📦 Using shared Qt6 and system libraries"
+
+# Configure CMake
 echo "⚙️  Configuring CMake..."
-cmake .. \
-    -DCMAKE_BUILD_TYPE=Release \
-    -DCMAKE_PREFIX_PATH="$QT_CMAKE_PATH" \
-    -DCMAKE_SYSTEM_PROCESSOR="$UNAME_ARCH" \
-    -DBUILD_SHARED_LIBS=ON
+if [ "$USE_STATIC_FFMPEG" = true ]; then
+    cmake .. \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_PREFIX_PATH="$QT_CMAKE_PATH" \
+        -DCMAKE_SYSTEM_PROCESSOR="$UNAME_ARCH" \
+        -DUSE_FFMPEG_STATIC=ON \
+        -DFFMPEG_LIBRARIES="$FFMPEG_STATIC_LIBS" \
+        -DFFMPEG_INCLUDE_DIRS="$FFMPEG_INCLUDE_DIRS" \
+        -DBUILD_SHARED_LIBS=OFF
+else
+    cmake .. \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_PREFIX_PATH="$QT_CMAKE_PATH" \
+        -DCMAKE_SYSTEM_PROCESSOR="$UNAME_ARCH" \
+        -DUSE_FFMPEG_STATIC=OFF \
+        -DFFMPEG_LIBRARIES="" \
+        -DFFMPEG_INCLUDE_DIRS="" \
+        -DBUILD_SHARED_LIBS=ON
+fi
 
 echo "✅ CMake configuration completed"
 
@@ -176,22 +217,8 @@ echo "✅ CMake configuration completed"
 echo "🧹 Cleaning previous build..."
 make clean || true
 
-# Determine number of CPUs to use for make
-if [[ "$ARCH" == "arm64" || "$ARCH" == "aarch64" || "$UNAME_ARCH" == "aarch64" ]]; then
-    MAKE_JOBS=2
-    echo "Using $MAKE_JOBS parallel jobs for ARM64 build"
-else
-    CPU_COUNT=$(nproc)
-    if [ "$CPU_COUNT" -gt 1 ]; then
-        MAKE_JOBS=$((CPU_COUNT - 1))
-    else
-        MAKE_JOBS=1
-    fi
-    echo "Using $MAKE_JOBS parallel jobs (detected $CPU_COUNT CPUs)"
-fi
-
 echo "🔨 Compiling application..."
-make -j$MAKE_JOBS
+make -j$(nproc)
 
 echo "✅ Build completed successfully!"
 
@@ -237,12 +264,19 @@ fi
 
 echo ""
 echo "📋 Build Summary:"
-echo "  Build type: Release (shared libraries)"
+if [ "$USE_STATIC_FFMPEG" = true ]; then
+    echo "  Build type: Release (static FFmpeg + shared Qt)"
+    echo "  FFmpeg: Static libraries (/usr/local/lib/)"
+else
+    echo "  Build type: Release (shared libraries)"
+    echo "  FFmpeg: Shared libraries (system packages)"
+fi
+echo "  Qt Libraries: Shared libraries (system packages)"
 echo "  Architecture: $UNAME_ARCH"
 echo "  Build directory: $(pwd)"
 echo "  Binary: $(pwd)/openterfaceQT"
 echo "  Status: ✅ Ready to run"
 echo ""
-echo "💡 Note: This build uses shared libraries and is not installed system-wide."
+echo "💡 Note: This hybrid build optimizes for FFmpeg portability while keeping Qt shared."
 echo "   For CI/CD: Binary is ready for packaging or testing."
 echo "   For local use: Use the install-linux.sh script for system-wide installation."
