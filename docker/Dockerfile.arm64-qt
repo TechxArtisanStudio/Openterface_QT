@@ -1,4 +1,4 @@
-ARG BASE_IMAGE=ghcr.io/TechxArtisanStudio/openterface-arm64-qt-deps:latest
+ARG BASE_IMAGE=ghcr.io/TechxArtisanStudio/openterface-arm64-base:latest
 FROM ${BASE_IMAGE}
 
 ARG QT_MAJOR_VERSION=6.6
@@ -17,11 +17,8 @@ RUN apt-get install -y build-essential meson ninja-build bison flex pkg-config p
     libdbus-1-dev libfontconfig1-dev libfreetype-dev libxkbcommon-dev libxkbcommon-x11-dev libxrandr2 libxrandr-dev \
     libxcb-randr0-dev libxcb-shape0-dev libxcb-sync-dev \
     libxrender-dev libxcb1-dev libxcb-glx0-dev libxcb-xfixes0-dev \
-    libxcb-xinerama0-dev libxcb-xkb-dev libxcb-util-dev \
-    libdrm-dev libgbm-dev libatspi2.0-dev \
-    libvulkan-dev libssl-dev \
-    libpulse-dev \
-    clang-16 llvm-16-dev libclang-16-dev\
+    libxcb-xinerama0-dev libxcb-xkb-dev \
+    libssl-dev libpulse-dev \
     yasm nasm # Dependencies for FFmpeg compilation
 
 
