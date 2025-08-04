@@ -1,4 +1,4 @@
-ARG BASE_IMAGE=ghcr.io/TechxArtisanStudio/openterface-arm64-base:latest
+ARG BASE_IMAGE=ghcr.io/TechxArtisanStudio/openterface-arm64-qt-deps:latest
 FROM ${BASE_IMAGE}
 
 ARG QT_MAJOR_VERSION=6.6
@@ -6,15 +6,8 @@ ARG QT_VERSION=6.6.3
 ENV QT_VERSION=${QT_VERSION}
 
 # Install build dependencies
-RUN apt-get install -y build-essential meson ninja-build bison flex pkg-config python3-pip linux-headers-$(uname -r) \
-    autoconf automake libtool autoconf-archive cmake libxml2-dev libxrandr-dev libegl-dev libegl-mesa0 libegl1 libgl-dev \
-    libgl1-mesa-dev libgles-dev libgles1 libgles2 libglu1-mesa libglu1-mesa-dev libglvnd-core-dev \
-    libglvnd-dev libglx-dev libopengl-dev libopengl0 \
-    libxfixes-dev libxi-dev libx11-dev libx11-xcb-dev libxext-dev libxfixes-dev \
-    libdbus-1-dev libfontconfig1-dev libfreetype-dev libxkbcommon-dev libxkbcommon-x11-dev libxrandr2 libxrandr-dev \
-    libxrender-dev libxcb1-dev libxcb-glx0-dev \
-    libxcb-xkb-dev libssl-dev libpulse-dev \
-    yasm nasm # Dependencies for FFmpeg compilation
+RUN apt-get update && apt-get install -y \
+    libdbus-1-dev
 
 
 # Download and build only required Qt modules using modular approach
@@ -56,6 +49,7 @@ RUN QT_VERSION=${QT_VERSION} && \
         -DFEATURE_xcb_xlib=ON \
         -DFEATURE_xkbcommon=ON \
         -DFEATURE_xkbcommon_x11=ON \
+        -DFEATURE_xau=ON \
         -DTEST_xcb_syslibs=ON \
         -DQT_FEATURE_clang=OFF \
         -DFEATURE_clang=ON \
