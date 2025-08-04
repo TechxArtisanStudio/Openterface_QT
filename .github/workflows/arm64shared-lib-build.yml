@@ -51,7 +51,7 @@ jobs:
             --platform linux/arm64 \
             -v ${{ github.workspace }}:/workspace \
             -w /workspace \
-            ubuntu:22.04 \
+            ubuntu:24.04 \
             bash -c "
               # Set non-interactive mode
               export DEBIAN_FRONTEND=noninteractive
