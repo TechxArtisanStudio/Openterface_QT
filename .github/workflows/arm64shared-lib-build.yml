@@ -57,7 +57,7 @@ jobs:
               
               # Make install script executable
               chmod +x build-script/install-linux.sh
-              
+
               # Run the install script with modifications for CI
               sed -i 's/sudo usermod -a -G dialout \$USER/#sudo usermod -a -G dialout \$USER/' build-script/install-linux.sh
               sed -i 's/sudo usermod -a -G uucp \$USER/#sudo usermod -a -G uucp \$USER/' build-script/install-linux.sh
@@ -69,6 +69,7 @@ jobs:
               export CI=true
               
               # Run the modified install script
+              apt update && apt install -y sudo
               ./build-script/install-linux.sh
             "
 
