@@ -6,7 +6,7 @@ on:
     paths:
       - 'src/**'
       - 'CMakeLists.txt'
-      - 'build-script/install-linux.sh'
+      - 'build-script/build-sharedlib-app.sh'
       - 'build-script/build-missing-qt-components.sh'
       - '.github/workflows/arm64shared-lib-build.yml'
   pull_request:
@@ -14,7 +14,7 @@ on:
     paths:
       - 'src/**'
       - 'CMakeLists.txt'
-      - 'build-script/install-linux.sh'
+      - 'build-script/build-sharedlib-app.sh'
       - 'build-script/build-missing-qt-components.sh'
   workflow_call:
   workflow_dispatch:
@@ -55,12 +55,16 @@ jobs:
             bash -c "
               # Set non-interactive mode
               export DEBIAN_FRONTEND=noninteractive
-              export BUILD_VERSION=${{ github.ref_name }}
+              export CI=true
               
               # Install basic dependencies first
               apt update && apt install -y sudo build-essential cmake ninja-build \
                 curl unzip pkg-config python3-pip \
                 qt6-base-dev qt6-base-dev-tools \
+                qt6-multimedia-dev qt6-serialport-dev qt6-svg-dev qt6-tools-dev \
+                libusb-1.0-0-dev libudev-dev \
+                libavformat-dev libavcodec-dev libavutil-dev \
+                libswresample-dev libswscale-dev ffmpeg \
                 libgl-dev libxcb-cursor-dev libxkbcommon-dev \
                 libdbus-1-dev libfontconfig1-dev libfreetype-dev \
                 libx11-dev libxcb1-dev libxext-dev libxfixes-dev \
@@ -76,25 +80,16 @@ jobs:
                 libxcb-xinerama0-dev libxcb-xkb-dev libxcb-util-dev
               
               # Make scripts executable
-              chmod +x build-script/install-linux.sh
+              chmod +x build-script/build-sharedlib-app.sh
               chmod +x build-script/build-missing-qt-components.sh
               
               # Build missing Qt components first
               echo 'Building missing Qt6 components...'
               ./build-script/build-missing-qt-components.sh
               
-              # Run the install script with modifications for CI
-              sed -i 's/sudo usermod -a -G dialout \$USER/#sudo usermod -a -G dialout \$USER/' build-script/install-linux.sh
-              sed -i 's/sudo usermod -a -G uucp \$USER/#sudo usermod -a -G uucp \$USER/' build-script/install-linux.sh
-              sed -i 's/sudo udevadm control --reload-rules/#sudo udevadm control --reload-rules/' build-script/install-linux.sh
-              sed -i 's/sudo udevadm trigger/#sudo udevadm trigger/' build-script/install-linux.sh
-              sed -i 's/sudo make install/make install DESTDIR=\$PWD\/install/' build-script/install-linux.sh
-              
-              # Skip interactive prompts by setting non-interactive mode
-              export CI=true
-              
-              # Run the modified install script
-              ./build-script/install-linux.sh
+              # Run the shared library build script
+              echo 'Building application with shared libraries...'
+              ./build-script/build-sharedlib-app.sh build-arm64
             "
 
       - name: Extract built artifacts
@@ -102,15 +97,15 @@ jobs:
           # Create artifacts directory
           mkdir -p artifacts/lib artifacts/bin artifacts/include
           
-          # Find and copy the built shared library
-          find . -name "*.so*" -type f -exec cp {} artifacts/lib/ \; 2>/dev/null || true
-          find . -name "libopenterfaceQT*" -type f -exec cp {} artifacts/lib/ \; 2>/dev/null || true
+          # Find and copy the built binary from the specific build directory
+          find build-arm64 -name "openterfaceQT" -type f -executable -exec cp {} artifacts/bin/ \; 2>/dev/null || true
           
-          # Copy binary if built
-          find . -name "openterfaceQT" -type f -executable -exec cp {} artifacts/bin/ \; 2>/dev/null || true
+          # Find and copy any shared libraries built
+          find build-arm64 -name "*.so*" -type f -exec cp {} artifacts/lib/ \; 2>/dev/null || true
+          find build-arm64 -name "libopenterfaceQT*" -type f -exec cp {} artifacts/lib/ \; 2>/dev/null || true
           
-          # Copy headers
-          find . -name "*.h" -path "*/src/*" -exec cp --parents {} artifacts/include/ \; 2>/dev/null || true
+          # Copy headers from source
+          find src -name "*.h" -exec cp --parents {} artifacts/include/ \; 2>/dev/null || true
           
           # Create build info
           echo "Build Date: $(date)" > artifacts/BUILD_INFO.txt
@@ -118,6 +113,7 @@ jobs:
           echo "Git Branch: ${{ github.ref_name }}" >> artifacts/BUILD_INFO.txt
           echo "Architecture: arm64" >> artifacts/BUILD_INFO.txt
           echo "Build Type: ${{ env.BUILD_TYPE }}" >> artifacts/BUILD_INFO.txt
+          echo "Build Directory: build-arm64" >> artifacts/BUILD_INFO.txt
           
           # List what we found
           echo "=== Built Artifacts ===" >> artifacts/BUILD_INFO.txt
