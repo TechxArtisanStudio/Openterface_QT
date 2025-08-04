@@ -49,6 +49,45 @@
 
 ### For Linux users
 
+#### Option 1: One-Line Installation Script (Recommended)
+
+For a quick and automated installation, run this single command:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/TechxArtisanStudio/Openterface_QT/main/build-script/install-linux.sh | bash
+```
+
+> **Note**: By default, this script automatically builds the **stable version** (currently v0.3.19) defined in the source code. If you want to try the latest development version with the newest features, replace `main` with `dev_20250804_add_oneline_buildscript` in the URL above.
+
+This script will automatically:
+- Install all required dependencies (Qt6, FFmpeg, build tools)
+- Set up user permissions for hardware access
+- Configure device permissions (udev rules)
+- Clone and build the stable version of the source code
+- Install the application system-wide with desktop integration
+- Create proper Qt environment wrappers to avoid plugin issues
+
+**To install a specific version:**
+```bash
+# Install a specific version/tag
+BUILD_VERSION="v1.0.0" bash <(curl -fsSL https://raw.githubusercontent.com/TechxArtisanStudio/Openterface_QT/main/build-script/install-linux.sh)
+
+# Install latest development version
+BUILD_VERSION="main" bash <(curl -fsSL https://raw.githubusercontent.com/TechxArtisanStudio/Openterface_QT/main/build-script/install-linux.sh)
+```
+
+**For interactive installation with customization options:**
+```bash
+# Download the script first
+curl -o install-linux.sh https://raw.githubusercontent.com/TechxArtisanStudio/Openterface_QT/main/build-script/install-linux.sh
+
+# Make it executable and run interactively
+chmod +x install-linux.sh
+./install-linux.sh
+```
+
+#### Option 2: Manual Installation from Release Package
+
 1. Download the package from GitHub release page, and find the latest version to download according to your OS and CPU architecture.
 2. Install the dependency
 3. Setup dialout for Serial permissions and the hidraw permission for Switchable USB device
@@ -107,6 +146,31 @@ openterfaceQT
   4. Now you can run the project
 
 ### For Linux
+
+#### Option 1: Automated Build Script (Recommended)
+
+Use our automated installation script that handles the entire build process. It takes 5 - 30 minutes (Raspberry PI take longer) to complete the whole process.
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/TechxArtisanStudio/Openterface_QT/main/build-script/install-linux.sh | bash
+```
+
+> **Note**: By default, the script builds the **stable version** (currently v0.3.19) automatically detected from the source code. To build the latest development version instead, use: `BUILD_VERSION="main"` before the command.
+
+This script automatically handles dependency installation, environment setup, building, and system integration.
+
+**To build a specific version:**
+```bash
+# Build latest development version
+BUILD_VERSION="main" bash <(curl -fsSL https://raw.githubusercontent.com/TechxArtisanStudio/Openterface_QT/main/build-script/install-linux.sh)
+
+# Build a specific tag/version
+BUILD_VERSION="v1.0.0" bash <(curl -fsSL https://raw.githubusercontent.com/TechxArtisanStudio/Openterface_QT/main/build-script/install-linux.sh)
+```
+
+#### Option 2: Manual Build Process
+
+If you prefer to build manually or need to customize the build process:
 ``` bash
 # Build environment preparation   
 sudo apt-get update -y

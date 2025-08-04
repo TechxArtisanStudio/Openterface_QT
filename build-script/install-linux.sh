@@ -11,6 +11,14 @@
 # Run this command to download and execute the script directly:
 # curl -fsSL https://raw.githubusercontent.com/TechxArtisanStudio/Openterface_QT/refs/heads/dev_20250804_add_oneline_buildscript/build-script/install-linux.sh | bash
 #
+# By default, the script will checkout and build the STABLE_APP_VERSION defined in resources/version.h
+#
+# To install a specific version/tag instead:
+# BUILD_VERSION="v1.0.0" bash <(curl -fsSL https://raw.githubusercontent.com/TechxArtisanStudio/Openterface_QT/refs/heads/dev_20250804_add_oneline_buildscript/build-script/install-linux.sh)
+#
+# To use the latest development version:
+# BUILD_VERSION="main" bash <(curl -fsSL https://raw.githubusercontent.com/TechxArtisanStudio/Openterface_QT/refs/heads/dev_20250804_add_oneline_buildscript/build-script/install-linux.sh)
+#
 # OVERVIEW:
 # The script performs a comprehensive setup process including dependency
 # installation, conflict resolution, permission configuration, source code
@@ -81,6 +89,11 @@
 # =============================================================================
 
 set -e
+
+# Configuration - Version/Tag to build
+# By default, use the STABLE_APP_VERSION from version.h
+# Can be overridden by setting BUILD_VERSION environment variable
+BUILD_VERSION="${BUILD_VERSION:-}"
 
 # Check for existing system installation
 echo "🔍 Checking for existing openterfaceQT installation..."
@@ -230,9 +243,80 @@ sudo udevadm trigger
 
 echo "📥 Cloning repository..."
 if [ ! -d "Openterface_QT" ]; then
+    echo "  Cloning Openterface_QT repository..."
     git clone https://github.com/TechxArtisanStudio/Openterface_QT.git
 fi
+
 cd Openterface_QT
+
+# Determine which version to build
+TARGET_VERSION=""
+
+if [ -n "$BUILD_VERSION" ]; then
+    # Use explicitly specified version
+    TARGET_VERSION="$BUILD_VERSION"
+    echo "🏷️  Using explicitly specified version: $TARGET_VERSION"
+else
+    # Extract STABLE_APP_VERSION from version.h to use as default
+    if [ -f "resources/version.h" ]; then
+        STABLE_VERSION=$(grep '#define STABLE_APP_VERSION' resources/version.h | sed 's/.*"\(.*\)".*/\1/')
+        if [ -n "$STABLE_VERSION" ]; then
+            TARGET_VERSION="v$STABLE_VERSION"
+            echo "🏷️  Using stable version from version.h: $TARGET_VERSION"
+        else
+            echo "⚠️  Could not extract STABLE_APP_VERSION from version.h"
+        fi
+    else
+        echo "⚠️  version.h not found, using latest main branch"
+    fi
+fi
+
+# Handle version/tag checkout
+if [ -n "$TARGET_VERSION" ]; then
+    echo "📦 Checking out version: $TARGET_VERSION"
+    
+    # Fetch all tags and branches to ensure we have the target
+    git fetch --all --tags
+    
+    # Check if the version exists as a tag or branch
+    if git rev-parse --verify "refs/tags/$TARGET_VERSION" >/dev/null 2>&1; then
+        echo "  Found tag: $TARGET_VERSION"
+        git checkout "tags/$TARGET_VERSION"
+    elif git rev-parse --verify "refs/remotes/origin/$TARGET_VERSION" >/dev/null 2>&1; then
+        echo "  Found branch: $TARGET_VERSION"
+        git checkout "$TARGET_VERSION"
+    elif git rev-parse --verify "$TARGET_VERSION" >/dev/null 2>&1; then
+        echo "  Found commit: $TARGET_VERSION"
+        git checkout "$TARGET_VERSION"
+    else
+        echo "  ❌ Version '$TARGET_VERSION' not found!"
+        echo "     Available tags:"
+        git tag -l | head -10
+        echo "     Available branches:"
+        git branch -r | head -10
+        echo "     Falling back to current branch..."
+    fi
+    
+    # Show what we're building
+    CURRENT_COMMIT=$(git rev-parse HEAD)
+    CURRENT_TAG=$(git describe --tags --exact-match 2>/dev/null || echo "")
+    if [ -n "$CURRENT_TAG" ]; then
+        echo "  ✅ Building from tag: $CURRENT_TAG (commit: ${CURRENT_COMMIT:0:8})"
+    else
+        echo "  ✅ Building from commit: ${CURRENT_COMMIT:0:8}"
+    fi
+else
+    echo "  📄 Using latest version from current branch"
+    # Update to latest if we're on a branch
+    CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+    if [ "$CURRENT_BRANCH" != "HEAD" ]; then
+        echo "  Updating branch: $CURRENT_BRANCH"
+        git pull origin "$CURRENT_BRANCH" || echo "  ⚠️  Could not update branch, using current state"
+    fi
+    
+    CURRENT_COMMIT=$(git rev-parse HEAD)
+    echo "  ✅ Building from commit: ${CURRENT_COMMIT:0:8}"
+fi
 
 echo "🌐 Generating language files..."
 if [ -x "/usr/lib/qt6/bin/lrelease" ]; then
@@ -388,6 +472,19 @@ fi
 
 echo "✅ Build complete!"
 
+# Extract version from version.h
+echo "📋 Application Version Information:"
+if [ -f "../resources/version.h" ]; then
+    APP_VERSION=$(grep '#define APP_VERSION' ../resources/version.h | sed 's/.*"\(.*\)".*/\1/')
+    if [ -n "$APP_VERSION" ]; then
+        echo "   Openterface QT version: $APP_VERSION"
+    else
+        echo "   ⚠️  Could not extract version from version.h"
+    fi
+else
+    echo "   ⚠️  version.h file not found"
+fi
+
 echo "🖥️ Creating desktop integration..."
 # Create desktop entry
 DESKTOP_FILE="/usr/share/applications/openterfaceQT.desktop"
@@ -411,12 +508,22 @@ fi
 
 # Create desktop entry file
 echo "  Creating desktop entry..."
+
+# Extract version for desktop entry
+DESKTOP_VERSION="1.0"
+if [ -f "../resources/version.h" ]; then
+    EXTRACTED_VERSION=$(grep '#define APP_VERSION' ../resources/version.h | sed 's/.*"\(.*\)".*/\1/')
+    if [ -n "$EXTRACTED_VERSION" ]; then
+        DESKTOP_VERSION="$EXTRACTED_VERSION"
+    fi
+fi
+
 sudo tee "$DESKTOP_FILE" > /dev/null << EOF
 [Desktop Entry]
-Version=1.0
+Version=$DESKTOP_VERSION
 Type=Application
 Name=Openterface QT
-Comment=KVM over USB for seamless computer control
+Comment=KVM over USB for seamless computer control (v$DESKTOP_VERSION)
 GenericName=KVM over USB
 Exec=$BINARY_PATH
 Icon=$ICON_FILE
@@ -452,6 +559,9 @@ echo "✅ Desktop integration completed!"
 echo "   Application should now appear in your desktop environment's application menu"
 echo ""
 echo "🔍 System Information:"
+if [ -n "$APP_VERSION" ]; then
+    echo "Application version: $APP_VERSION"
+fi
 echo "Current system architecture: $(uname -m)"
 echo "Current system platform: $(uname -s)"
 echo "Built binary location: $(pwd)/openterfaceQT"
