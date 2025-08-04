@@ -113,23 +113,6 @@ RUN curl -L -o libpulse.tar.xz "https://www.freedesktop.org/software/pulseaudio/
     ninja install && \
     cd ../.. && rm -rf libpulse.tar.xz "pulseaudio-${PULSEAUDIO_VERSION}"
 
-# Build D-Bus
-RUN curl -L -o dbus.tar.xz "https://dbus.freedesktop.org/releases/dbus/dbus-${DBUS_VERSION}.tar.xz" && \
-    tar xf dbus.tar.xz && \
-    cd "dbus-${DBUS_VERSION}" && \
-    ./autogen.sh && \
-    CFLAGS="-fPIC" CXXFLAGS="-fPIC" ./configure --prefix=$INSTALL_PREFIX \
-        --enable-static \
-        --disable-shared \
-        --disable-systemd \
-        --disable-selinux \
-        --disable-xml-docs \
-        --disable-doxygen-docs \
-        --disable-ducktype-docs && \
-    make -j$(nproc) && \
-    make install && \
-    cd .. && rm -rf dbus.tar.xz "dbus-${DBUS_VERSION}"
-
 # Build GLib
 RUN curl -L -o glib.tar.xz "https://download.gnome.org/sources/glib/2.78/glib-${GLIB_VERSION}.tar.xz" && \
     tar xf glib.tar.xz && \
