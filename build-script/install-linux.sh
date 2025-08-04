@@ -114,15 +114,35 @@ if [ "$EXISTING_FOUND" = true ]; then
     echo ""
     echo "❌ This may cause conflicts with the new build."
     echo ""
-    echo "⚠️  IMPORTANT: Removing existing installations will permanently delete:"
-    echo "   - Binary files and executables"
-    echo "   - Desktop entries and application shortcuts"
-    echo "   - Application icons and data directories"
-    echo "   - Package manager installations (if any)"
-    echo ""
-    read -p "Do you want to remove existing installation(s)? [y/N]: " -r
-    echo
-    if [[ $REPLY =~ ^[Yy]$ ]]; then
+    
+    # Check if running in interactive mode
+    if [[ -t 0 && -t 1 ]]; then
+        # Interactive mode - prompt user
+        echo "⚠️  IMPORTANT: Removing existing installations will permanently delete:"
+        echo "   - Binary files and executables"
+        echo "   - Desktop entries and application shortcuts"
+        echo "   - Application icons and data directories"
+        echo "   - Package manager installations (if any)"
+        echo ""
+        read -p "Do you want to remove existing installation(s)? [y/N]: " -r
+        echo
+        if [[ $REPLY =~ ^[Yy]$ ]]; then
+            REMOVE_EXISTING=true
+        else
+            REMOVE_EXISTING=false
+        fi
+    else
+        # Non-interactive mode (e.g., curl | bash)
+        echo "🤖 Non-interactive mode detected (e.g., curl | bash)"
+        echo "   For security, existing installations will NOT be removed automatically."
+        echo "   If you experience conflicts, please run the script interactively:"
+        echo "   1. Download: curl -o install-linux.sh https://raw.githubusercontent.com/TechxArtisanStudio/Openterface_QT/refs/heads/dev_20250804_add_oneline_buildscript/build-script/install-linux.sh"
+        echo "   2. Run: chmod +x install-linux.sh && ./install-linux.sh"
+        echo ""
+        REMOVE_EXISTING=false
+    fi
+    
+    if [ "$REMOVE_EXISTING" = true ]; then
         echo "🗑️  Removing existing installations..."
         
         # Remove binaries
