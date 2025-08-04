@@ -7,6 +7,7 @@ on:
       - 'src/**'
       - 'CMakeLists.txt'
       - 'build-script/install-linux.sh'
+      - 'build-script/build-missing-qt-components.sh'
       - '.github/workflows/arm64shared-lib-build.yml'
   pull_request:
     branches: [ "main", "dev" ]
@@ -14,6 +15,7 @@ on:
       - 'src/**'
       - 'CMakeLists.txt'
       - 'build-script/install-linux.sh'
+      - 'build-script/build-missing-qt-components.sh'
   workflow_call:
   workflow_dispatch:
 
@@ -55,9 +57,31 @@ jobs:
               export DEBIAN_FRONTEND=noninteractive
               export BUILD_VERSION=${{ github.ref_name }}
               
-              # Make install script executable
+              # Install basic dependencies first
+              apt update && apt install -y sudo build-essential cmake ninja-build \
+                curl unzip pkg-config python3-pip \
+                libgl-dev libxcb-cursor-dev libxkbcommon-dev \
+                libdbus-1-dev libfontconfig1-dev libfreetype-dev \
+                libx11-dev libxcb1-dev libxext-dev libxfixes-dev \
+                libxrandr-dev libxrender-dev libegl-dev \
+                libxcb-cursor0 libxcb-icccm4 libxcb-icccm4-dev \
+                libxcb-image0 libxcb-image0-dev libxcb-keysyms1 \
+                libxcb-keysyms1-dev libxcb-render-util0 \
+                libxcb-render-util0-dev libxcb-render0-dev \
+                libxcb-shm0-dev libxcb-util1 libxfixes-dev \
+                libxi-dev libx11-xcb-dev libxkbcommon-x11-dev \
+                libxcb-randr0-dev libxcb-shape0-dev libxcb-sync-dev \
+                libxcb-glx0-dev libxcb-xfixes0-dev \
+                libxcb-xinerama0-dev libxcb-xkb-dev libxcb-util-dev
+              
+              # Make scripts executable
               chmod +x build-script/install-linux.sh
-
+              chmod +x build-script/build-missing-qt-components.sh
+              
+              # Build missing Qt components first
+              echo 'Building missing Qt6 components...'
+              ./build-script/build-missing-qt-components.sh
+              
               # Run the install script with modifications for CI
               sed -i 's/sudo usermod -a -G dialout \$USER/#sudo usermod -a -G dialout \$USER/' build-script/install-linux.sh
               sed -i 's/sudo usermod -a -G uucp \$USER/#sudo usermod -a -G uucp \$USER/' build-script/install-linux.sh
@@ -65,11 +89,14 @@ jobs:
               sed -i 's/sudo udevadm trigger/#sudo udevadm trigger/' build-script/install-linux.sh
               sed -i 's/sudo make install/make install DESTDIR=\$PWD\/install/' build-script/install-linux.sh
               
+              # Set environment for Qt
+              export CMAKE_PREFIX_PATH=/opt/Qt6:\$CMAKE_PREFIX_PATH
+              export PKG_CONFIG_PATH=/opt/Qt6/lib/pkgconfig:\$PKG_CONFIG_PATH
+              
               # Skip interactive prompts by setting non-interactive mode
               export CI=true
               
               # Run the modified install script
-              apt update && apt install -y sudo
               ./build-script/install-linux.sh
             "
 
