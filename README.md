@@ -112,13 +112,28 @@ openterfaceQT
 sudo apt-get update -y
 sudo apt-get install -y \
     build-essential \
-    qmake6 \
+    cmake \
     qt6-base-dev \
     qt6-multimedia-dev \
     qt6-serialport-dev \
     qt6-svg-dev \
     libusb-1.0-0-dev \
     qt6-tools-dev \
+    libudev-dev \
+    pkg-config \
+    libx11-dev \
+    libxrandr-dev \
+    libxrender-dev \
+    libexpat1-dev \
+    libfreetype6-dev \
+    libfontconfig1-dev \
+    libbz2-dev \
+    libavformat-dev \
+    libavcodec-dev \
+    libavutil-dev \
+    libswresample-dev \
+    libswscale-dev \
+    ffmpeg \
     libssl-dev
 ```
 
@@ -146,10 +161,22 @@ cd Openterface_QT
 # Generate language files (The lrelease path may vary depending on your system)
 /usr/lib/qt6/bin/lrelease openterfaceQT.pro
 
-# Build the project
+# Build the project with CMake
 mkdir build
 cd build
-qmake6 ..
+
+# For ARM64/aarch64 systems (like Raspberry Pi), use:
+# cmake .. \
+#     -DCMAKE_BUILD_TYPE=Release \
+#     -DCMAKE_PREFIX_PATH=/usr/lib/aarch64-linux-gnu/cmake/Qt6 \
+#     -DFFMPEG_LIBRARIES="/usr/lib/aarch64-linux-gnu/libavformat.a;/usr/lib/aarch64-linux-gnu/libavcodec.a;/usr/lib/aarch64-linux-gnu/libavutil.a;/usr/lib/aarch64-linux-gnu/libswresample.a;/usr/lib/aarch64-linux-gnu/libswscale.a"
+
+# For x86_64 systems, use:
+cmake .. \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_PREFIX_PATH=/usr/lib/x86_64-linux-gnu/cmake/Qt6 \
+    -DFFMPEG_LIBRARIES="/usr/lib/x86_64-linux-gnu/libavformat.a;/usr/lib/x86_64-linux-gnu/libavcodec.a;/usr/lib/x86_64-linux-gnu/libavutil.a;/usr/lib/x86_64-linux-gnu/libswresample.a;/usr/lib/x86_64-linux-gnu/libswscale.a"
+
 make -j$(nproc)
 ```
 
