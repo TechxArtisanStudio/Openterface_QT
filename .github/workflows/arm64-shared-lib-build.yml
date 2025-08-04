@@ -124,7 +124,7 @@ jobs:
           done
 
       - name: Upload build artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: ${{ env.ARTIFACT_NAME }}
           path: artifacts/
@@ -142,7 +142,7 @@ jobs:
 
       - name: Upload release archive
         if: github.event_name == 'push' && (github.ref_name == 'main' || startsWith(github.ref, 'refs/tags/'))
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: ${{ env.ARTIFACT_NAME }}-release
           path: |
