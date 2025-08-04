@@ -385,7 +385,21 @@ else
         -DCMAKE_SYSTEM_PROCESSOR="$UNAME_ARCH"
 fi
 
-make -j$(( $(nproc) - 1 ))
+make clean
+
+# Determine number of CPUs to use for make
+if [[ "$ARCH" == "arm64" || "$ARCH" == "aarch64" || "$UNAME_ARCH" == "aarch64" ]]; then
+    MAKE_JOBS=2
+else
+    CPU_COUNT=$(nproc)
+    if [ "$CPU_COUNT" -gt 1 ]; then
+        MAKE_JOBS=$((CPU_COUNT - 1))
+    else
+        MAKE_JOBS=1
+    fi
+fi
+
+make -j$MAKE_JOBS
 
 sudo make install
 
