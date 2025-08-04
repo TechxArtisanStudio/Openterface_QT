@@ -48,12 +48,12 @@ jobs:
     if: github.event.inputs.rebuild_base == 'true' || contains(github.event.head_commit.modified, 'docker/Dockerfile.arm64-base')
     uses: ./.github/workflows/arm64-base-build.yml
     
-  build-qt-deps:
-    needs: [build-base]
-    if: always() && (needs.build-base.result == 'success' || needs.build-base.result == 'skipped' || github.event.inputs.rebuild_qt_deps == 'true')
-    uses: ./.github/workflows/arm64-qt-deps-build.yml
-    with:
-      rebuild_deps: ${{ github.event.inputs.rebuild_qt_deps == 'true' }}
+  # build-qt-deps:
+  #   needs: [build-base]
+  #   if: always() && (needs.build-base.result == 'success' || needs.build-base.result == 'skipped' || github.event.inputs.rebuild_qt_deps == 'true')
+  #   uses: ./.github/workflows/arm64-qt-deps-build.yml
+  #   with:
+  #     rebuild_deps: ${{ github.event.inputs.rebuild_qt_deps == 'true' }}
     
   build-qt:
     needs: [build-base, build-qt-deps]
