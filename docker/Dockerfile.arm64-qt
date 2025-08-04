@@ -1,6 +1,7 @@
 ARG BASE_IMAGE=ghcr.io/TechxArtisanStudio/openterface-arm64-qt-deps:latest
 FROM ${BASE_IMAGE}
 
+ARG QT_MAJOR_VERSION=6.6
 ARG QT_VERSION=6.6.3
 ENV QT_VERSION=${QT_VERSION}
 
@@ -11,7 +12,7 @@ RUN apt-get update && apt-get install -y \
 
 # Download and build only required Qt modules using modular approach
 RUN QT_VERSION=${QT_VERSION} && \
-    QT_MAJOR_VERSION=6.5 && \
+    QT_MAJOR_VERSION=${QT_MAJOR_VERSION} && \
     INSTALL_PREFIX=/opt/Qt/${QT_VERSION} && \
     BUILD_DIR=/workspace/qt-build && \
     DOWNLOAD_BASE_URL="https://download.qt.io/archive/qt/$QT_MAJOR_VERSION/$QT_VERSION/submodules" && \
