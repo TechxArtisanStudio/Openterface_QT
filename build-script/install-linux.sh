@@ -9,15 +9,15 @@
 #
 # QUICK INSTALLATION:
 # Run this command to download and execute the script directly:
-# curl -fsSL https://raw.githubusercontent.com/TechxArtisanStudio/Openterface_QT/refs/heads/dev_20250804_add_oneline_buildscript/build-script/install-linux.sh | bash
+# curl -fsSL https://raw.githubusercontent.com/TechxArtisanStudio/Openterface_QT/refs/heads/main/build-script/install-linux.sh | bash
 #
 # By default, the script will checkout and build the STABLE_APP_VERSION defined in resources/version.h
 #
 # To install a specific version/tag instead:
-# BUILD_VERSION="v1.0.0" bash <(curl -fsSL https://raw.githubusercontent.com/TechxArtisanStudio/Openterface_QT/refs/heads/dev_20250804_add_oneline_buildscript/build-script/install-linux.sh)
+# BUILD_VERSION="v1.0.0" bash <(curl -fsSL https://raw.githubusercontent.com/TechxArtisanStudio/Openterface_QT/refs/heads/main/build-script/install-linux.sh)
 #
 # To use the latest development version:
-# BUILD_VERSION="main" bash <(curl -fsSL https://raw.githubusercontent.com/TechxArtisanStudio/Openterface_QT/refs/heads/dev_20250804_add_oneline_buildscript/build-script/install-linux.sh)
+# BUILD_VERSION="main" bash <(curl -fsSL https://raw.githubusercontent.com/TechxArtisanStudio/Openterface_QT/refs/heads/main/build-script/install-linux.sh)
 #
 # OVERVIEW:
 # The script performs a comprehensive setup process including dependency
