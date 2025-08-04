@@ -20,14 +20,14 @@ on:
       qt_version:
         description: 'Qt Version'
         required: false
-        default: '6.5.3'
+        default: '6.6.3'
         type: string
   workflow_dispatch:
     inputs:
       qt_version:
         description: 'Qt Version'
         required: false
-        default: '6.5.3'
+        default: '6.6.3'
         type: string
   workflow_run:
     workflows: ["Build ARM64 Qt Environment"]
@@ -39,10 +39,10 @@ permissions:
   packages: write
 
 env:
-  QT_VERSION: ${{ github.event.inputs.qt_version || '6.5.3' }}
+  QT_VERSION: ${{ github.event.inputs.qt_version || '6.6.3' }}
   QT_IMAGE: openterface-arm64-qt
   APP_IMAGE: openterface-arm64-app
-  CACHE_BASE_KEY: arm64-app-${{ github.event.inputs.qt_version || '6.5.3' }}
+  CACHE_BASE_KEY: arm64-app-${{ github.event.inputs.qt_version || '6.6.3' }}
 
 jobs:
   build-app:

@@ -18,7 +18,7 @@ on:
       qt_version:
         description: 'Qt Version'
         required: false
-        default: '6.5.3'
+        default: '6.6.3'
         type: string
       rebuild_base:
         description: 'Rebuild base environment'
@@ -41,7 +41,7 @@ permissions:
   packages: write
 
 env:
-  QT_VERSION: ${{ github.event.inputs.qt_version || '6.5.3' }}
+  QT_VERSION: ${{ github.event.inputs.qt_version || '6.6.3' }}
 
 jobs:
   build-base:
@@ -60,7 +60,7 @@ jobs:
     if: always() && (needs.build-qt-deps.result == 'success' || needs.build-qt-deps.result == 'skipped' || github.event.inputs.rebuild_qt == 'true')
     uses: ./.github/workflows/arm64-qt-build.yml
     with:
-      qt_version: ${{ github.event.inputs.qt_version || '6.5.3' }}
+      qt_version: ${{ github.event.inputs.qt_version || '6.6.3' }}
       rebuild_qt: ${{ github.event.inputs.rebuild_qt == 'true' }}
     
   build-app:
@@ -68,7 +68,7 @@ jobs:
     if: always() && (needs.build-qt.result == 'success' || needs.build-qt.result == 'skipped')
     uses: ./.github/workflows/arm64-linux-build.yml
     with:
-      qt_version: ${{ github.event.inputs.qt_version || '6.5.3' }}
+      qt_version: ${{ github.event.inputs.qt_version || '6.6.3' }}
 
   summary:
     needs: [build-base, build-qt-deps, build-qt, build-app]

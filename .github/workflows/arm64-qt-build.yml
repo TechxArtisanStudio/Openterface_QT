@@ -15,7 +15,7 @@ on:
       qt_version:
         description: 'Qt Version'
         required: false
-        default: '6.5.3'
+        default: '6.6.3'
         type: string
       rebuild_qt:
         description: 'Rebuild Qt (ignore cache)'
@@ -27,7 +27,7 @@ on:
       qt_version:
         description: 'Qt Version'
         required: false
-        default: '6.5.3'
+        default: '6.6.3'
         type: string
       rebuild_qt:
         description: 'Rebuild Qt (ignore cache)'
@@ -44,11 +44,11 @@ permissions:
   packages: write
 
 env:
-  QT_VERSION: ${{ github.event.inputs.qt_version || '6.5.3' }}
+  QT_VERSION: ${{ github.event.inputs.qt_version || '6.6.3' }}
   BASE_IMAGE: openterface-arm64-base
   QT_DEPS_IMAGE: openterface-arm64-qt-deps
   QT_IMAGE: openterface-arm64-qt
-  CACHE_BASE_KEY: arm64-qt-${{ github.event.inputs.qt_version || '6.5.3' }}
+  CACHE_BASE_KEY: arm64-qt-${{ github.event.inputs.qt_version || '6.6.3' }}
 
 jobs:
   build-qt:
