@@ -16,7 +16,7 @@ RUN QT_VERSION=${QT_VERSION} && \
     INSTALL_PREFIX=/opt/Qt/${QT_VERSION} && \
     BUILD_DIR=/workspace/qt-build && \
     DOWNLOAD_BASE_URL="https://download.qt.io/archive/qt/$QT_MAJOR_VERSION/$QT_VERSION/submodules" && \
-    CMAKE_COMMON_FLAGS="-Wno-dev -DCMAKE_POLICY_DEFAULT_CMP0177=NEW -DCMAKE_POLICY_DEFAULT_CMP0174=NEW" && \
+    CMAKE_COMMON_FLAGS="-Wno-dev" && \
 
     # Create build directory
     mkdir -p "$BUILD_DIR" && \
@@ -50,9 +50,8 @@ RUN QT_VERSION=${QT_VERSION} && \
         -DFEATURE_xkbcommon=ON \
         -DFEATURE_xkbcommon_x11=ON \
         -DFEATURE_xau=ON \
+        -DCMAKE_PREFIX_PATH="$INSTALL_PREFIX;/opt/qt-deps" \
         -DTEST_xcb_syslibs=ON \
-        -DQT_FEATURE_clang=OFF \
-        -DFEATURE_clang=ON \
         .. && \
     ninja && \
     ninja install && \
