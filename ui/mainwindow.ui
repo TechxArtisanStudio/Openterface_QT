@@ -84,6 +84,11 @@
      <addaction name="actionMouseAutoHide"/>
      <addaction name="actionMouseAlwaysShow"/>
     </widget>
+    <widget class="QMenu" name="menuDevice">
+     <property name="title">
+      <string>Device</string>
+     </property>
+    </widget>
     <widget class="QMenu" name="menuBaudrate">
      <property name="title">
       <string>Baudrate</string>
@@ -100,6 +105,7 @@
     </widget>
     <addaction name="menuMouse_Mode"/>
     <addaction name="menuMouse_Visibility"/>
+    <addaction name="menuDevice"/>
     <addaction name="menuSwitchable_USB"/>
     <addaction name="menuBaudrate"/>
     <addaction name="separator"/>
@@ -132,6 +138,8 @@
     <addaction name="actionSerialConsole"/>
     <addaction name="actionScriptTool"/>
     <addaction name="actionTCPServer"/>
+    <addaction name="actionDeviceSelector"/>
+    <addaction name="actionFirmwareManager"/>
     <addaction name="actionUpdateFirmware"/>
    </widget>
    <addaction name="menuFile"/>
@@ -249,9 +257,22 @@
     <string>Environment Checking</string>
    </property>
   </action>
+  <action name="actionFirmwareManager">
+   <property name="text">
+    <string>Firmware Manager</string>
+   </property>
+  </action>
   <action name="actionUpdateFirmware">
    <property name="text">
     <string>Firmware Update...</string>
+   </property>
+  </action>
+  <action name="actionDeviceSelector">
+   <property name="text">
+    <string>Device Selector</string>
+   </property>
+   <property name="toolTip">
+    <string>Open Device Selector Dialog</string>
    </property>
   </action>
   <actiongroup name="actionGroup">
@@ -510,10 +531,22 @@
    <slot>showEnvironmentSetupDialog()</slot>
   </connection>
   <connection>
+   <sender>actionFirmwareManager</sender>
+   <signal>triggered()</signal>
+   <receiver>MainWindow</receiver>
+   <slot>showFirmwareManagerDialog()</slot>
+  </connection>
+  <connection>
    <sender>actionUpdateFirmware</sender>
    <signal>triggered()</signal>
    <receiver>MainWindow</receiver>
    <slot>updateFirmware()</slot>
+  </connection>
+  <connection>
+   <sender>actionDeviceSelector</sender>
+   <signal>triggered()</signal>
+   <receiver>MainWindow</receiver>
+   <slot>openDeviceSelector()</slot>
   </connection>
  </connections>
  <slots>
@@ -538,6 +571,8 @@
   <slot>showScriptTool()</slot>
   <slot>changeKeyboardLayout(QString)</slot>
   <slot>showEnvironmentSetupDialog()</slot>
+  <slot>showFirmwareManagerDialog()</slot>
   <slot>updateFirmware()</slot>
+  <slot>openDeviceSelector()</slot>
  </slots>
 </ui>

@@ -60,21 +60,23 @@ void GlobalSetting::getFilterSettings(bool &Chipinfo, bool &keyboardPress, bool 
     HID = m_settings.value("filter/HID", true).toBool();
 }
 
-void GlobalSetting::setLogSettings(bool core, bool serial, bool ui, bool host)
+void GlobalSetting::setLogSettings(bool core, bool serial, bool ui, bool hostLayout, bool device)
 {
     m_settings.setValue("log/core", core);
     m_settings.setValue("log/serial", serial);
     m_settings.setValue("log/ui", ui);
-    m_settings.setValue("log/host", host);
+    m_settings.setValue("log/hostLayout", hostLayout);
+    m_settings.setValue("log/device", device);
 }
 
 void GlobalSetting::loadLogSettings()
 {
     QString logFilter = "";
-    logFilter += m_settings.value("log/core", true).toBool() ? "opf.core.*=true\n" : "opf.core.*=false\n";
-    logFilter += m_settings.value("log/ui", true).toBool() ? "opf.ui.*=true\n" : "opf.ui.*=false\n";
-    logFilter += m_settings.value("log/host", true).toBool() ? "opf.host.*=true\n" : "opf.host.*=false\n";
-    logFilter += m_settings.value("log/serial", true).toBool() ? "opf.core.serial=true\n" : "opf.core.serial=false\n";
+    logFilter += m_settings.value("log/core", false).toBool() ? "opf.core.*=true\n" : "opf.core.*=false\n";
+    logFilter += m_settings.value("log/ui", false).toBool() ? "opf.ui.*=true\n" : "opf.ui.*=false\n";
+    logFilter += m_settings.value("log/host", false).toBool() ? "opf.host.*=true\n" : "opf.host.*=false\n";
+    logFilter += m_settings.value("log/serial", false).toBool() ? "opf.core.serial=true\n" : "opf.core.serial=false\n";
+    logFilter += m_settings.value("log/device", false).toBool() ? "opf.device.*=true\n" : "opf.device.*=false\n";
     QLoggingCategory::setFilterRules(logFilter);
 }
 
@@ -176,6 +178,23 @@ void GlobalSetting::setScreenRatio(double ratio) {
 
 double GlobalSetting::getScreenRatio() const {
     return m_settings.value("screen/ratio", 1.7778).toDouble();
+}
+
+// Port chain management for Openterface devices
+void GlobalSetting::setOpenterfacePortChain(const QString& portChain) {
+    qDebug() << "Logging Openterface port chain:" << portChain;
+    m_settings.setValue("openterface/portChain", portChain);
+    m_settings.sync(); // Ensure immediate write to storage
+}
+
+QString GlobalSetting::getOpenterfacePortChain() const {
+    return m_settings.value("openterface/portChain", "").toString();
+}
+
+void GlobalSetting::clearOpenterfacePortChain() {
+    qDebug() << "Clearing Openterface port chain";
+    m_settings.remove("openterface/portChain");
+    m_settings.sync();
 }
 
 /*

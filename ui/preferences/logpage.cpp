@@ -51,6 +51,7 @@ void LogPage::setupUI()
     serialCheckBox = new QCheckBox(tr("Serial"));
     uiCheckBox = new QCheckBox(tr("User Interface"));
     hostCheckBox = new QCheckBox(tr("Host"));
+    deviceCheckBox = new QCheckBox(tr("Device"));
     storeLogCheckBox = new QCheckBox(tr("Enable file logging"));
     logFilePathLineEdit = new QLineEdit(this);
     browseButton = new QPushButton(tr("Browse"));
@@ -61,6 +62,7 @@ void LogPage::setupUI()
     serialCheckBox->setObjectName("serial");
     uiCheckBox->setObjectName("ui");
     hostCheckBox->setObjectName("host");
+    deviceCheckBox->setObjectName("device");
     logFilePathLineEdit->setObjectName("logFilePathLineEdit");
     browseButton->setObjectName("browseButton");
     storeLogCheckBox->setObjectName("storeLogCheckBox");
@@ -72,6 +74,7 @@ void LogPage::setupUI()
     logCheckboxLayout->addWidget(serialCheckBox);
     logCheckboxLayout->addWidget(uiCheckBox);
     logCheckboxLayout->addWidget(hostCheckBox);
+    logCheckboxLayout->addWidget(deviceCheckBox);
     
     QHBoxLayout *logFilePathLayout = new QHBoxLayout();
     logFilePathLayout->addWidget(logFilePathLineEdit);
@@ -139,6 +142,7 @@ void LogPage::initLogSettings(){
     QCheckBox *serialCheckBox = findChild<QCheckBox*>("serial");
     QCheckBox *uiCheckBox = findChild<QCheckBox*>("ui");
     QCheckBox *hostCheckBox = findChild<QCheckBox*>("host");
+    QCheckBox *deviceCheckBox = findChild<QCheckBox*>("device");
     QCheckBox *storeLogCheckBox = findChild<QCheckBox*>("storeLogCheckBox");
     QCheckBox *screenSaverCheckBox = findChild<QCheckBox*>("screenSaverCheckBox");
     QLineEdit *logFilePathLineEdit = findChild<QLineEdit*>("logFilePathLineEdit");
@@ -151,6 +155,8 @@ void LogPage::initLogSettings(){
     uiCheckBox->setChecked(settings.value("log/ui", false).toBool());
 
     hostCheckBox->setChecked(settings.value("log/host", false).toBool());
+
+    deviceCheckBox->setChecked(settings.value("log/device", false).toBool());
 
     storeLogCheckBox->setChecked(settings.value("log/storeLog", false).toBool());
 
@@ -168,6 +174,7 @@ void LogPage::applyLogsettings() {
     QCheckBox *serialCheckBox = findChild<QCheckBox*>("serial");
     QCheckBox *uiCheckBox = findChild<QCheckBox*>("ui");
     QCheckBox *hostCheckBox = findChild<QCheckBox*>("host");
+    QCheckBox *deviceCheckBox = findChild<QCheckBox*>("device");
     QCheckBox *storeLogCheckBox = findChild<QCheckBox*>("storeLogCheckBox");
     QCheckBox *screenSaverCheckBox = findChild<QCheckBox*>("screenSaverCheckBox");
     QLineEdit *logFilePathLineEdit = findChild<QLineEdit*>("logFilePathLineEdit");
@@ -175,6 +182,7 @@ void LogPage::applyLogsettings() {
     bool host = hostCheckBox->isChecked();
     bool serial = serialCheckBox->isChecked();
     bool ui = uiCheckBox->isChecked();
+    bool device = deviceCheckBox->isChecked();
     bool storeLog = storeLogCheckBox->isChecked();
     QString logFilePath = logFilePathLineEdit->text();
     // set the log filter value by check box
@@ -184,11 +192,12 @@ void LogPage::applyLogsettings() {
     logFilter += ui ? "opf.ui.*=true\n" : "opf.ui.*=false\n";
     logFilter += host ? "opf.host.*=true\n" : "opf.host.*=false\n";
     logFilter += serial ? "opf.core.serial=true\n" : "opf.core.serial=false\n";
+    logFilter += device ? "opf.device.*=true\n" : "opf.device.*=false\n";
 
     QLoggingCategory::setFilterRules(logFilter);
     // save the filter settings
 
-    GlobalSetting::instance().setLogSettings(core, serial, ui, host);
+    GlobalSetting::instance().setLogSettings(core, serial, ui, host, device);
     GlobalSetting::instance().setLogStoreSettings(storeLog, logFilePath);
     LogHandler::instance().enableLogStore();
 

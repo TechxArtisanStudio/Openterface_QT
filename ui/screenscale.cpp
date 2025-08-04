@@ -19,10 +19,10 @@ ScreenScale::ScreenScale(QWidget *parent) : QDialog(parent)
     ratioComboBox->addItem("5:3");
     ratioComboBox->addItem("5:4");
     ratioComboBox->addItem("21:9");
-    // ratioComboBox->addItem("9:16");
-    // ratioComboBox->addItem("9:19.5");
-    // ratioComboBox->addItem("9:20");
-    // ratioComboBox->addItem("9:21");
+    ratioComboBox->addItem("9:16");
+    ratioComboBox->addItem("9:19.5");
+    ratioComboBox->addItem("9:20");
+    ratioComboBox->addItem("9:21");
 
     setFixedSize(200, 150);
     // Set up layout

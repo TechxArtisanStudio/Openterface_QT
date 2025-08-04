@@ -2,7 +2,7 @@ name: Linux flatpak build
 
 on:
   push:
-    branches: ["main"]
+    branches: ["dev_20250611_add_vertical_screen_operate"]
     tags: ["v*"]
   pull_request:
     branches: ["dev"]
@@ -45,10 +45,16 @@ jobs:
       - name: Install flatpak
         run: |
           sudo apt update -y
-          sudo apt install -y flatpak flatpak-builder qemu-user-static 
+          sudo apt install -y flatpak flatpak-builder qemu-user-static
           if [ "${{ matrix.arch }}" = "aarch64" ]; then
             sudo apt install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
           fi
+          flatpak-builder --version || true
+          flatpak --version || true
+
+      - name: Ensure flatpak user setup
+        run: |
+          flatpak --user remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
 
       - name: Add flatpak shared-modules
         run: |
@@ -63,9 +69,18 @@ jobs:
       - name: Add Flathub repository and install kde
         run: |
           flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+          flatpak install --user --noninteractive flathub org.flatpak.Builder
           flatpak install --user --noninteractive flathub org.kde.Sdk/${{ matrix.arch }}/6.9
           flatpak install --user --noninteractive flathub org.kde.Platform/${{ matrix.arch }}/6.9
+          
       
+      - name: Verify SDK installation
+        run: |
+          flatpak list | grep org.kde.Sdk || echo "KDE SDK not found"
+          flatpak list | grep org.kde.Platform || echo "KDE Platform not found"
+          flatpak run org.flatpak.Builder --version || echo "Flatpak Builder not found"
+          
+
       - name: Initialize build directory
         run: |
           flatpak build-init ${{ env.FLATPAK_BUILD_DIR }} ${{ env.SOFTWERE_ID }} org.kde.Sdk//6.9 org.kde.Platform//6.9 ${{ matrix.arch }}
@@ -82,6 +97,7 @@ jobs:
             --install \
             --force-clean \
             --arch=${{ matrix.arch }} \
+            --subject="Build of ${{ env.ARTIFACT }} ${{ env.VERSION }}" \
             ${{ env.FLATPAK_BUILD_DIR }} \
             ${{ env.FLATPAK_MANIFEST }}
         env:
@@ -91,7 +107,7 @@ jobs:
       - name: Export Flatpak Bundle
         run: |
           mkdir -p repo-${{ matrix.arch }}
-          flatpak build-export --arch=${{ matrix.arch }} repo-${{ matrix.arch }} ${{ env.FLATPAK_BUILD_DIR }}
+          flatpak build-export --arch=${{ matrix.arch }} repo-${{ matrix.arch }} ${{ env.FLATPAK_BUILD_DIR }} --runtime
           flatpak build-bundle --arch=${{ matrix.arch }} repo-${{ matrix.arch }} ${{ env.SOFTWERE_ID }}-${{ matrix.arch }}.flatpak ${{ env.SOFTWERE_ID }}
         env:
           FLATPAK_ARCH: ${{ matrix.arch }}

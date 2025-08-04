@@ -85,7 +85,9 @@
               libdrm-dev \
               libgbm-dev \
               libatspi2.0-dev \
+              libudev-dev \
               upx-ucl
+
 
         - name: Analyze original binary size (if exists)
           run: |
@@ -158,11 +160,68 @@
             
             cp openterfaceQT package/openterfaceQT-portable
   
-        - name: Save build artifact
+        - name: Install AppImage tools
+          run: |
+            sudo apt-get update
+            sudo apt-get install -y libfuse2
+            
+            wget -O linuxdeploy-x86_64.AppImage https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
+            wget -O linuxdeploy-plugin-qt-x86_64.AppImage https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-x86_64.AppImage
+            wget -O appimagetool "https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage"
+            
+            chmod +x linuxdeploy-x86_64.AppImage linuxdeploy-plugin-qt-x86_64.AppImage appimagetool
+            sudo mv linuxdeploy-x86_64.AppImage linuxdeploy-plugin-qt-x86_64.AppImage appimagetool /usr/local/bin/
+
+        - name: Create AppImage
+          working-directory: ${{ runner.temp }}
+          run: |
+            # Create AppDir structure
+            mkdir -p AppDir/usr/bin
+            mkdir -p AppDir/usr/share/applications
+            mkdir -p AppDir/usr/share/icons/hicolor/256x256/apps
+            mkdir -p AppDir/usr/share/metainfo
+            
+            # Copy executable
+            cp ${{ runner.temp }}/build/openterfaceQT AppDir/usr/bin/
+            
+            # Copy icon
+            cp ${{ env.SOURCE_DIR }}/images/icon_256.png AppDir/usr/share/icons/hicolor/256x256/apps/com.openterface.openterfaceQT.png
+            
+            # Copy desktop file from packaging/appimage folder
+            cp ${{ env.SOURCE_DIR }}/com.openterface.openterfaceQT.desktop AppDir/usr/share/applications/
+            
+            # Copy and prepare AppStream metadata
+            TODAY=$(date +'%Y-%m-%d')
+            VERSION=$(grep -oP '#define APP_VERSION "\K[^"]+' ${{ env.SOURCE_DIR }}/resources/version.h)
+            sed -e "s/\${VERSION}/$VERSION/g" \
+                -e "s/\${DATE}/$TODAY/g" \
+                ${{ env.SOURCE_DIR }}/com.openterface.openterfaceQT.metainfo.xml > AppDir/usr/share/metainfo/com.openterface.openterfaceQT.metainfo.xml
+            
+             linuxdeploy-x86_64.AppImage \
+                --appdir=AppDir \
+                --desktop-file=AppDir/usr/share/applications/com.openterface.openterfaceQT.desktop \
+                --icon-file=AppDir/usr/share/icons/hicolor/256x256/apps/com.openterface.openterfaceQT.png 
+
+            appimagetool AppDir "openterfaceQT.linux.amd64.AppImage"
+            
+            # Check if AppImage was created
+            if [ ! -f "openterfaceQT.linux.amd64.AppImage" ]; then
+              echo "ERROR: Failed to create AppImage"
+              exit 1
+            fi
+
+        - name: Save build artifact (Portable)
           uses: actions/upload-artifact@v4
           with:
             name: ${{ env.ARTIFACT }}
             path: |
               ${{ runner.temp }}/build/package/openterfaceQT-portable
-              ${{ runner.temp }}/build/package/config/languages/*.qm
+            if-no-files-found: error
+
+        - name: Save build artifact (AppImage)
+          uses: actions/upload-artifact@v4
+          with:
+            name: ${{ env.ARTIFACT }}.AppImage
+            path: |
+              ${{ runner.temp }}/openterfaceQT.linux.amd64.AppImage
             if-no-files-found: error

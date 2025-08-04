@@ -28,6 +28,8 @@
 #include "host/HostManager.h"
 #include "host/cameramanager.h"
 #include "serial/SerialPortManager.h"
+#include "device/DeviceManager.h"
+#include "device/HotplugMonitor.h"
 #include "ui/preferences/settingdialog.h"
 #include "ui/help/helppane.h"
 #include "ui/videopane.h"
@@ -55,7 +57,6 @@
 #include <QImage>
 #include <QKeyEvent>
 #include <QPalette>
-#include <QSystemTrayIcon>
 #include <QDir>
 #include <QTimer>
 #include <QLabel>
@@ -125,8 +126,6 @@ MainWindow::MainWindow(LanguageManager *languageManager, QWidget *parent) :  ui(
                             // cameraAdjust(new CameraAdjust(this))
 {
     Q_UNUSED(parent);
-    // QApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
-
 
     qCDebug(log_ui_mainwindow) << "Init camera...";
     
@@ -152,6 +151,67 @@ MainWindow::MainWindow(LanguageManager *languageManager, QWidget *parent) :  ui(
 
     m_statusBarManager = new StatusBarManager(ui->statusbar, this);
     taskmanager = TaskManager::instance();
+    
+    // Connect DeviceManager hotplug events to StatusBarManager
+    DeviceManager& deviceManager = DeviceManager::getInstance();
+    HotplugMonitor* hotplugMonitor = deviceManager.getHotplugMonitor();
+    if (hotplugMonitor) {
+        connect(hotplugMonitor, &HotplugMonitor::newDevicePluggedIn, 
+                m_statusBarManager, [this](const DeviceInfo& device) {
+                    qCDebug(log_ui_mainwindow) << "MainWindow: Received newDevicePluggedIn signal for port:" << device.portChain;
+                    m_statusBarManager->showNewDevicePluggedIn(device.portChain);
+                    updateDeviceMenu(); // Update device menu when new device is plugged in
+                });
+        connect(hotplugMonitor, &HotplugMonitor::deviceUnplugged, 
+                m_statusBarManager, [this](const DeviceInfo& device) {
+                    qCDebug(log_ui_mainwindow) << "MainWindow: Received deviceUnplugged signal for port:" << device.portChain;
+                    m_statusBarManager->showDeviceUnplugged(device.portChain);
+                    updateDeviceMenu(); // Update device menu when device is unplugged
+                });
+                
+        // Connect hotplug monitor to camera manager for device unplugging
+        connect(hotplugMonitor, &HotplugMonitor::deviceUnplugged,
+                this, [this](const DeviceInfo& device) {
+                    qCDebug(log_ui_mainwindow) << "MainWindow: Attempting camera deactivation for unplugged device port:" << device.portChain;
+                    
+                    // Only deactivate camera if the device has a camera component
+                    if (!device.hasCameraDevice()) {
+                        qCDebug(log_ui_mainwindow) << "Device at port" << device.portChain << "has no camera component, skipping camera deactivation";
+                        return;
+                    }
+                    
+                    bool deactivated = m_cameraManager->deactivateCameraByPortChain(device.portChain);
+                    if (deactivated) {
+                        qCInfo(log_ui_mainwindow) << "✓ Camera deactivated for unplugged device at port:" << device.portChain;
+                    } else {
+                        qCDebug(log_ui_mainwindow) << "Camera deactivation skipped or not needed for port:" << device.portChain;
+                    }
+                });
+                
+        // Connect hotplug monitor to camera manager for auto-switching
+        connect(hotplugMonitor, &HotplugMonitor::newDevicePluggedIn,
+                this, [this](const DeviceInfo& device) {
+                    qCDebug(log_ui_mainwindow) << "MainWindow: Attempting camera auto-switch for new device port:" << device.portChain;
+                    
+                    // Only attempt auto-switch if the device has a camera component
+                    if (!device.hasCameraDevice()) {
+                        qCDebug(log_ui_mainwindow) << "Device at port" << device.portChain << "has no camera component, skipping auto-switch";
+                        return;
+                    }
+                    
+                    bool switchSuccess = m_cameraManager->tryAutoSwitchToNewDevice(device.portChain);
+                    if (switchSuccess) {
+                        qCInfo(log_ui_mainwindow) << "✓ Camera auto-switched to new device at port:" << device.portChain;
+                    } else {
+                        qCDebug(log_ui_mainwindow) << "Camera auto-switch skipped or failed for port:" << device.portChain;
+                    }
+                });
+                
+
+        qCDebug(log_ui_mainwindow) << "Connected hotplug monitor to status bar manager and camera manager";
+    } else {
+        qCWarning(log_ui_mainwindow) << "Failed to get hotplug monitor from device manager";
+    }
     
     QWidget *centralWidget = new QWidget(this);
     centralWidget->setLayout(stackedLayout);
@@ -181,7 +241,9 @@ MainWindow::MainWindow(LanguageManager *languageManager, QWidget *parent) :  ui(
     VideoHid::getInstance().setEventCallback(this);
 
     qCDebug(log_ui_mainwindow) << "Observe video input changed...";
-    connect(&m_source, &QMediaDevices::videoInputsChanged, this, &MainWindow::updateCameras);
+    // Note: Automatic camera switching on device changes has been disabled
+    // Camera devices will only be switched manually through the UI
+    // connect(&m_source, &QMediaDevices::videoInputsChanged, this, &MainWindow::updateCameras);
 
     qCDebug(log_ui_mainwindow) << "Observe Relative/Absolute toggle...";
     connect(ui->actionRelative, &QAction::triggered, this, &MainWindow::onActionRelativeTriggered);
@@ -221,8 +283,24 @@ MainWindow::MainWindow(LanguageManager *languageManager, QWidget *parent) :  ui(
     
     connect(m_cameraManager, &CameraManager::cameraActiveChanged, this, &MainWindow::updateCameraActive);
     connect(m_cameraManager, &CameraManager::cameraError, this, &MainWindow::displayCameraError);
-    connect(m_cameraManager, &CameraManager::imageCaptured, this, &MainWindow::processCapturedImage);                                         
+    connect(m_cameraManager, &CameraManager::imageCaptured, this, &MainWindow::processCapturedImage);
     connect(m_cameraManager, &CameraManager::resolutionsUpdated, this, &MainWindow::onResolutionsUpdated);
+    connect(m_cameraManager, &CameraManager::newDeviceAutoConnected, this, [this](const QCameraDevice& device, const QString& portChain) {
+        qCInfo(log_ui_mainwindow) << "Camera auto-connected to new device:" << device.description() << "at port:" << portChain;
+        // popupMessage(QString("Camera connected to new device: %1").arg(device.description()));
+    });
+    
+    // Connect camera switching status signals to status bar
+    connect(m_cameraManager, &CameraManager::cameraDeviceSwitching, 
+            m_statusBarManager, &StatusBarManager::showCameraSwitching);
+    connect(m_cameraManager, &CameraManager::cameraDeviceSwitchComplete, 
+            m_statusBarManager, &StatusBarManager::showCameraSwitchComplete);
+    
+    // Connect camera switching signals to video pane for frame preservation
+    connect(m_cameraManager, &CameraManager::cameraDeviceSwitching,
+            videoPane, &VideoPane::onCameraDeviceSwitching);
+    connect(m_cameraManager, &CameraManager::cameraDeviceSwitchComplete,
+            videoPane, &VideoPane::onCameraDeviceSwitchComplete);
     connect(&VideoHid::getInstance(), &VideoHid::inputResolutionChanged, this, &MainWindow::onInputResolutionChanged);
     connect(&VideoHid::getInstance(), &VideoHid::resolutionChangeUpdate, this, &MainWindow::onResolutionChange);
 
@@ -234,6 +312,17 @@ MainWindow::MainWindow(LanguageManager *languageManager, QWidget *parent) :  ui(
     qDebug() << "Init camera...";
     checkInitSize();
     initCamera();
+    
+    // Initialize camera with video output for proper startup
+    qCDebug(log_ui_mainwindow) << "Initializing camera with video output...";
+    QTimer::singleShot(200, this, [this]() {
+        bool success = m_cameraManager->initializeCameraWithVideoOutput(videoPane);
+        if (success) {
+            qDebug() << "✓ Camera successfully initialized with video output";
+        } else {
+            qCWarning(log_ui_mainwindow) << "Failed to initialize camera with video output";
+        }
+    });
 
     // Connect palette change signal to the slot
     onLastKeyPressed("");
@@ -256,7 +345,11 @@ MainWindow::MainWindow(LanguageManager *languageManager, QWidget *parent) :  ui(
 
     // Add this after other menu connections
     connect(ui->menuBaudrate, &QMenu::triggered, this, &MainWindow::onBaudrateMenuTriggered);
+    connect(ui->menuDevice, &QMenu::triggered, this, &MainWindow::onDeviceSelected);
     connect(&SerialPortManager::getInstance(), &SerialPortManager::connectedPortChanged, this, &MainWindow::onPortConnected);
+    
+    // Note: Automatic camera device coordination has been disabled
+    // Camera devices will only be switched manually through the UI
     
     qApp->installEventFilter(this);
 
@@ -285,8 +378,9 @@ MainWindow::MainWindow(LanguageManager *languageManager, QWidget *parent) :  ui(
     
     connect(m_languageManager, &LanguageManager::languageChanged, this, &MainWindow::updateUI);
     setupLanguageMenu();
+    setupDeviceMenu();
     // fullScreen();
-    // qCDebug(log_ui_mainwindow) << "full finished";
+    qDebug() << "finished initialization";
     
 }
 
@@ -304,6 +398,7 @@ void MainWindow::updateUI() {
     ui->retranslateUi(this); // Update the UI elements
     // this->menuBar()->clear();
     setupLanguageMenu();
+    updateDeviceMenu(); // Update device menu when UI language changes
 }
 
 void MainWindow::setupLanguageMenu() {
@@ -340,6 +435,102 @@ void MainWindow::setupLanguageMenu() {
         languageGroup->addAction(action);
     }
     connect(languageGroup, &QActionGroup::triggered, this, &MainWindow::onLanguageSelected);
+}
+
+void MainWindow::setupDeviceMenu() {
+    // Initialize device menu group
+    m_deviceMenuGroup = new QActionGroup(this);
+    m_deviceMenuGroup->setExclusive(true);
+    
+    // Connect to device menu group
+    connect(m_deviceMenuGroup, &QActionGroup::triggered, this, &MainWindow::onDeviceSelected);
+    
+    // Initial population of device menu
+    updateDeviceMenu();
+}
+
+void MainWindow::updateDeviceMenu() {
+    if (!m_deviceMenuGroup) {
+        return;
+    }
+    
+    // Clear existing device actions
+    ui->menuDevice->clear();
+    qDeleteAll(m_deviceMenuGroup->actions());
+    
+    // Get available devices from DeviceManager
+    DeviceManager& deviceManager = DeviceManager::getInstance();
+    QList<DeviceInfo> devices = deviceManager.discoverDevices(); // Force discovery for up-to-date list
+    
+    // Get currently selected device port chain
+    QString currentPortChain = GlobalSetting::instance().getOpenterfacePortChain();
+    
+    qCDebug(log_ui_mainwindow) << "Updating device menu with" << devices.size() << "devices. Current port chain:" << currentPortChain;
+    
+    if (devices.isEmpty()) {
+        // Add "No devices available" placeholder
+        QAction *noDevicesAction = new QAction("No devices available", this);
+        noDevicesAction->setEnabled(false);
+        ui->menuDevice->addAction(noDevicesAction);
+        return;
+    }
+    
+    // Deduplicate devices by port chain (similar to DeviceSelectorDialog)
+    QMap<QString, DeviceInfo> uniqueDevicesByPortChain;
+    for (const auto& device : devices) {
+        if (!device.portChain.isEmpty()) {
+            if (uniqueDevicesByPortChain.contains(device.portChain)) {
+                const DeviceInfo& existing = uniqueDevicesByPortChain[device.portChain];
+                // Choose the device with more interfaces
+                if (device.getInterfaceCount() > existing.getInterfaceCount()) {
+                    uniqueDevicesByPortChain[device.portChain] = device;
+                }
+            } else {
+                uniqueDevicesByPortChain[device.portChain] = device;
+            }
+        }
+    }
+    
+    // Add action for each unique device
+    for (auto it = uniqueDevicesByPortChain.begin(); it != uniqueDevicesByPortChain.end(); ++it) {
+        const DeviceInfo& device = it.value();
+        QString displayText = QString("Port %1").arg(device.portChain);
+        QAction *deviceAction = new QAction(displayText, this);
+        deviceAction->setCheckable(true);
+        deviceAction->setData(device.portChain);
+        
+        // Mark current device with a dot
+        if (device.portChain == currentPortChain) {
+            deviceAction->setChecked(true);
+            deviceAction->setText(QString("• %1").arg(displayText));
+        }
+        
+        ui->menuDevice->addAction(deviceAction);
+        m_deviceMenuGroup->addAction(deviceAction);
+    }
+}
+
+void MainWindow::onDeviceSelected(QAction *action) {
+    QString portChain = action->data().toString();
+    qCDebug(log_ui_mainwindow) << "Device selected from menu:" << portChain;
+    
+    if (portChain.isEmpty()) {
+        return;
+    }
+    
+    // Use the centralized device switching function
+    DeviceManager& deviceManager = DeviceManager::getInstance();
+    auto result = deviceManager.switchToDeviceByPortChainWithCamera(portChain, m_cameraManager);
+    
+    // Log the result
+    if (result.success) {
+        qCInfo(log_ui_mainwindow) << "✓ Device switch successful:" << result.statusMessage;
+    } else {
+        qCWarning(log_ui_mainwindow) << "Device switch failed or partial:" << result.statusMessage;
+    }
+    
+    // Update device menu to reflect current selection
+    updateDeviceMenu();
 }
 
 void MainWindow::onLanguageSelected(QAction *action) {
@@ -504,9 +695,11 @@ void MainWindow::doResize(){
     QScreen *currentScreen = this->screen();
     QRect availableGeometry = currentScreen->availableGeometry();
     systemScaleFactor = currentScreen->devicePixelRatio();
+    double captureAspectRatio;
     if(GlobalVar::instance().getCaptureWidth() && GlobalVar::instance().getCaptureHeight()){
         video_width = GlobalVar::instance().getCaptureWidth();
         video_height = GlobalVar::instance().getCaptureHeight();
+        captureAspectRatio = static_cast<double>(video_width) / video_height;
     }
     double aspect_ratio = GlobalSetting::instance().getScreenRatio();
     
@@ -522,7 +715,7 @@ void MainWindow::doResize(){
     int menuBarHeight = this->menuBar()->height();
     int statusBarHeight = ui->statusbar->height();
     int maxContentHeight = availableHeight - titleBarHeight - menuBarHeight - statusBarHeight;
-    bool needResize = (currentWidth >= availableWidth || currentHeight >= maxContentHeight);
+    bool needResize = (currentWidth >= availableWidth || currentHeight >= availableHeight);
     if (needResize) {
         // Adjust size while maintaining aspect ratio
         if (currentWidth >= availableWidth) {
@@ -550,19 +743,35 @@ void MainWindow::doResize(){
         scrollArea->resize(newVideoWidth, newVideoHeight);
         videoPane->move(horizontalOffset, videoPane->y());
         scrollArea->move(horizontalOffset, videoPane->y());
-
+        
         // Resize main window if necessary
         if (currentWidth != availableWidth && currentHeight != availableHeight) {
             resize(currentWidth, currentHeight);
         }
+ 
     } else {
         // When within screen bounds, adjust height according to width and aspect ratio
         int contentHeight = static_cast<int>(currentWidth / aspect_ratio) + menuBarHeight + statusBarHeight;
-        resize(currentWidth, contentHeight);
         int adjustedContentHeight = contentHeight - menuBarHeight - statusBarHeight;
-        videoPane->setMinimumSize(currentWidth, adjustedContentHeight);
-        videoPane->resize(currentWidth, adjustedContentHeight);
-        scrollArea->resize(currentWidth, adjustedContentHeight);
+        if (aspect_ratio < 1.0){
+            currentWidth = static_cast<int>(currentHeight * aspect_ratio);
+            adjustedContentHeight = currentHeight - menuBarHeight - statusBarHeight;
+            int offsetX = static_cast<int>((videoPane->width()-currentWidth) /2);
+            int offsetY = static_cast<int>((videoPane->height()-adjustedContentHeight) /2);
+            int contentwidth = static_cast<int>(adjustedContentHeight * captureAspectRatio);
+            videoPane->setMinimumSize(contentwidth, adjustedContentHeight);
+            videoPane->resize(contentwidth, adjustedContentHeight);
+            qDebug() << "setDisplayRegion Resize videoPane to width: " << currentWidth << " height: " << currentHeight << " offset: " << offsetX << offsetY << "videoPane width: " << videoPane->width();
+            setMinimumSize(100, 500);
+            resize(currentWidth, currentHeight);
+        }
+        else{
+            videoPane->setMinimumSize(currentWidth, adjustedContentHeight);
+            videoPane->resize(currentWidth, adjustedContentHeight);
+            scrollArea->resize(currentWidth, adjustedContentHeight);
+            resize(currentWidth, contentHeight);
+        }
+        
     }
     // Update global state
     GlobalVar::instance().setWinWidth(this->width());
@@ -878,8 +1087,6 @@ void MainWindow::configureSettings() {
         VideoPage* videoPage = settingDialog->getVideoPage();
         LogPage* logPage = settingDialog->getLogPage();
         connect(logPage, &LogPage::ScreenSaverInhibitedChanged, m_screenSaverManager, &ScreenSaverManager::setScreenSaverInhibited);
-        connect(videoPage, &VideoPage::cameraSettingsApplied, m_cameraManager, &CameraManager::loadCameraSettingAndSetCamera);
-        // connect(settingDialog, &SettingDialog::cameraSettingsApplied, m_cameraManager, &CameraManager::loadCameraSettingAndSetCamera);
         connect(videoPage, &VideoPage::videoSettingsChanged, this, &MainWindow::onVideoSettingsChanged);
         // connect the finished signal to the set the dialog pointer to nullptr
         connect(settingDialog, &QDialog::finished, this, [this](){
@@ -1082,51 +1289,48 @@ void MainWindow::updateCameras()
     const QList<QCameraDevice> availableCameras = QMediaDevices::videoInputs();
     qCDebug(log_ui_mainwindow) << "Available cameras size: " << availableCameras.size();
 
-    // If the last camera list is not empty, check if available cameras still include the last camera
+    // Note: Automatic camera switching has been disabled
+    // This method now only refreshes the available camera list for manual selection
+    
+    // Check for disconnected cameras and update the list
     if (!m_lastCameraList.isEmpty()) {
         qCDebug(log_ui_mainwindow) << "Checking previously connected cameras...";
         for (const QCameraDevice &camera : m_lastCameraList) {
             qCDebug(log_ui_mainwindow) << "Checking camera: " << camera.description();
             if (!availableCameras.contains(camera)) {
-                qCDebug(log_ui_mainwindow) << "Camera disconnected, stopping camera operations...";
-                stop();
-                m_lastCameraList.clear();
-                return;
+                qCDebug(log_ui_mainwindow) << "Camera disconnected: " << camera.description();
+                // Note: We no longer automatically stop camera operations
+                // The user will need to manually select a different camera if needed
             }
         }
     }
-    qDebug() << "Checking for new cameras...";
-    // Check for new cameras
+    
+    // Update the camera list for reference but don't automatically switch
+    qCDebug(log_ui_mainwindow) << "Updating camera device list...";
     for (const QCameraDevice &camera : availableCameras) {
         if (!m_lastCameraList.contains(camera)) {
-            qCDebug(log_ui_mainwindow) << "A new camera has been connected:" << camera.description();
-            if (!camera.description().contains("Openterface"))
-                continue;
-
-            qCDebug(log_ui_mainwindow) << "Update openterface layer to top layer.";
-
-            stackedLayout->setCurrentIndex(1);
-
-            //If the default camera is not an Openterface camera, set the camera to the first Openterface camera
-            if (!QMediaDevices::defaultVideoInput().description().contains("Openterface")) {
-                qCDebug(log_ui_mainwindow) << "Set default camera to the Openterface camera...";
-            } else {
-                qCDebug(log_ui_mainwindow) << "The default camera is" << QMediaDevices::defaultVideoInput().description();
-            }
-            m_audioManager->initializeAudio();
-            m_cameraManager->setCamera(camera, videoPane);
-            // Add the new camera to the last camera list
-            m_lastCameraList.append(camera);
-            break;
+            qCDebug(log_ui_mainwindow) << "New camera detected:" << camera.description();
+            // Note: Camera will not automatically switch - manual selection required
         }
     }
-    qDebug() << "Update cameras done.";
+    
+    // Update the stored camera list
+    m_lastCameraList = availableCameras;
+    
+    // Refresh CameraManager's available devices list
+    m_cameraManager->refreshAvailableCameraDevices();
+    
+    qCDebug(log_ui_mainwindow) << "Camera list updated. Manual camera selection required for switching.";
 }
 
 void MainWindow::onPortConnected(const QString& port, const int& baudrate) {
     if(baudrate > 0){
         m_statusBarManager->setConnectedPort(port, baudrate);
         updateBaudrateMenu(baudrate);
+        
+        // Note: Camera coordination functionality has been removed
+        // The DeviceManager singleton now handles device coordination automatically
+        qCDebug(log_ui_mainwindow) << "Serial port connected:" << port << "at baudrate:" << baudrate;
     }else{
         m_statusBarManager->setConnectedPort(port, baudrate);
         m_statusBarManager->setTargetUsbConnected(false);
@@ -1151,6 +1355,19 @@ void MainWindow::updateBaudrateMenu(int baudrate){
             }
         }
     }
+    else {
+        qWarning() << "Baudrate menu not found!";
+    }
+}
+
+void MainWindow::factoryReset(bool isStarted)
+{
+    m_statusBarManager->factoryReset(isStarted);
+}
+
+void MainWindow::serialPortReset(bool isStarted)
+{
+    m_statusBarManager->serialPortReset(isStarted);
 }
 
 void MainWindow::onStatusUpdate(const QString& status) {
@@ -1216,6 +1433,14 @@ void MainWindow::checkMousePosition()
 }
 
 void MainWindow::onVideoSettingsChanged() {
+    if (m_cameraManager) {
+        // Reinitialize camera with video output to ensure proper connection
+        bool success = m_cameraManager->initializeCameraWithVideoOutput(videoPane);
+        if (!success) {
+            // Fallback to just setting video output
+            m_cameraManager->setVideoOutput(videoPane);
+        }
+    }
     int inputWidth = GlobalVar::instance().getInputWidth();
     int inputHeight = GlobalVar::instance().getInputHeight();
     int captureWidth = GlobalVar::instance().getCaptureWidth();
@@ -1330,7 +1555,23 @@ MainWindow::~MainWindow()
 
     m_cameraManager->stopCamera();
     delete m_cameraManager;
+    m_cameraManager = nullptr;
     
+    delete m_versionInfoManager;
+    m_versionInfoManager = nullptr;
+    
+    delete m_screenSaverManager;
+    m_screenSaverManager = nullptr;
+    
+    delete m_cornerWidgetManager;
+    m_cornerWidgetManager = nullptr;
+
+    delete m_screenScaleDialog;
+    m_screenScaleDialog = nullptr;
+
+    delete firmwareManagerDialog;
+    firmwareManagerDialog = nullptr;
+
     qCDebug(log_ui_mainwindow) << "MainWindow destroyed successfully";
 }
 
@@ -1453,36 +1694,80 @@ void MainWindow::showEnvironmentSetupDialog() {
     dialog.exec();
 }
 
+void MainWindow::showFirmwareManagerDialog() {
+    if (!firmwareManagerDialog){
+        qDebug() << "Creating serial port debug dialog";
+        firmwareManagerDialog = new FirmwareManagerDialog(this);
+        // connect the finished signal to the set the dialog pointer to nullptr
+        connect(firmwareManagerDialog, &QDialog::finished, this, [this](){
+            firmwareManagerDialog->deleteLater();
+            firmwareManagerDialog = nullptr;
+        });
+        firmwareManagerDialog->show();
+    }else{
+        firmwareManagerDialog->raise();
+        firmwareManagerDialog->activateWindow();
+    }
+
+}
+
 void MainWindow::updateFirmware() {
     // Check if it's latest firmware
-    std::string currentFirmwareVersion = VideoHid::getInstance().getFirmwareVersion();
+    qDebug() << "Checking for latest firmware version...";
+    FirmwareResult firmwareStatus = VideoHid::getInstance().isLatestFirmware();
+    std::string currentFirmwareVersion = VideoHid::getInstance().getCurrentFirmwareVersion();
     std::string latestFirmwareVersion = VideoHid::getInstance().getLatestFirmwareVersion();
-    if (VideoHid::getInstance().isLatestFirmware() == FirewareResult::Lastest) {
-        std::string currentFirmwareVersion = VideoHid::getInstance().getFirmwareVersion();
-        QMessageBox::information(this, tr("Firmware Update"), 
+    qDebug() << "latestFirmwareVersion" << latestFirmwareVersion.c_str();
+    FirmwareUpdateConfirmDialog confirmDialog(this);
+    bool proceed = false;
+    switch (firmwareStatus){
+        case FirmwareResult::Latest:
+            qDebug() << "Firmware is up to date.";
+            QMessageBox::information(this, tr("Firmware Update"), 
             tr("The firmware is up to date.\nCurrent version: ") + 
             QString::fromStdString(currentFirmwareVersion));
-        return;
-    }else if(VideoHid::getInstance().isLatestFirmware() == FirewareResult::Timeout){
-        QMessageBox::information(this, tr("Firmware fetch timeout"), tr("Failed to check for the latest firmware version.\n"), tr("current version: ") + QString::fromStdString(currentFirmwareVersion) + tr("\nlatest version: ") + QString::fromStdString(latestFirmwareVersion));
-        return;
-    }else if(VideoHid::getInstance().isLatestFirmware() == FirewareResult::Upgradable){
-        // Create and show the confirmation dialog
-        FirmwareUpdateConfirmDialog confirmDialog(this);
-        bool proceed = confirmDialog.showConfirmDialog(currentFirmwareVersion, latestFirmwareVersion);
+            break;
+        case FirmwareResult::Upgradable:
+            qDebug() << "Firmware is upgradable.";
+            proceed = confirmDialog.showConfirmDialog(currentFirmwareVersion, latestFirmwareVersion);
+            if (proceed) {
+                // Stop video and HID operations before firmware update
+                VideoHid::getInstance().stop();
+                SerialPortManager::getInstance().stop();
+                stop();
+                
+                close();
+                // Create and show firmware update dialog
+                FirmwareUpdateDialog *updateDialog = new FirmwareUpdateDialog(this);
+                updateDialog->startUpdate();
+                // The application will be closed by the dialog if the update is successful
+                updateDialog->deleteLater();
+            }
+            break;
+        case FirmwareResult::Timeout:
+            qDebug() << "Firmware fetch timeout.";
+            QMessageBox::information(this, tr("Firmware fetch timeout"), 
+            tr("Firmware retrieval timed out. Please check your network connection and try again.\nCurrent version: ") + 
+            QString::fromStdString(currentFirmwareVersion));
+            break;
+    }
+}
 
-        if (proceed) {
-            // Stop video and HID operations before firmware update
-            VideoHid::getInstance().stop();
-            SerialPortManager::getInstance().stop();
-            stop();
-            
-            close();
-            // Create and show firmware update dialog
-            FirmwareUpdateDialog *updateDialog = new FirmwareUpdateDialog(this);
-            updateDialog->startUpdate();
-            // The application will be closed by the dialog if the update is successful
-            updateDialog->deleteLater();
-        }
+void MainWindow::openDeviceSelector() {
+    qDebug() << "Opening device selector dialog";
+    if (!deviceSelectorDialog) {
+        qDebug() << "Creating device selector dialog";
+        deviceSelectorDialog = new DeviceSelectorDialog(m_cameraManager, &VideoHid::getInstance(), this);
+        
+        // Connect the finished signal to clean up
+        connect(deviceSelectorDialog, &QDialog::finished, this, [this]() {
+            deviceSelectorDialog->deleteLater();
+            deviceSelectorDialog = nullptr;
+        });
+        
+        deviceSelectorDialog->show();
+    } else {
+        deviceSelectorDialog->raise();
+        deviceSelectorDialog->activateWindow();
     }
 }

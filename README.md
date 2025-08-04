@@ -6,7 +6,7 @@
 - [Welcome to Openterface Mini-KVM QT version (For Linux \& Windows)](#welcome-to-openterface-mini-kvm-qt-version-for-linux--windows)
 - [Table of Contents](#table-of-contents)
   - [Features](#features)
-  - [Suppported OS](#suppported-os)
+  - [Supported OS](#supported-os)
   - [Download \& installing](#download--installing)
     - [For Windows users](#for-windows-users)
     - [For Linux users](#for-linux-users)
@@ -31,7 +31,7 @@
 
 > For a detailed list of features, please refer to the [Features Documentation](doc/feature.md).
 
-## Suppported OS
+## Supported OS
 - Window (10/11) 
 - Ubuntu 22.04 (You need to upgrade QT to >=6.4)
 - Ubuntu 24.04
@@ -42,20 +42,59 @@
 
 ## Download & installing
 ### For Windows users
-1. Download the package from Github release page, and find the latest version to download according to your os and cpu architecture.
+1. Download the package from GitHub release page, and find the latest version to download according to your OS and CPU architecture.
 2. Run the installer and it will install all required drivers and application to your windows. You can run the application from start menu.
 
 > Note: Users have reported that the Windows installer is unable to automate driver installation correctly on Windows 11 Version 22H2. You may need to manually download and install the driver from the WCH website. For more details, please refer to this [issue](https://github.com/TechxArtisanStudio/Openterface_QT/issues/138). We are also actively working on a solution to improve driver installation for this version.
 
 ### For Linux users
 
-1. Download the package from Github release page, and find the latest version to download according to your os and cpu architecture.
+#### Option 1: One-Line Installation Script (Recommended)
+
+For a quick and automated installation, run this single command:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/TechxArtisanStudio/Openterface_QT/main/build-script/install-linux.sh | bash
+```
+
+> **Note**: By default, this script automatically builds the **stable version** (currently v0.3.19) defined in the source code. If you want to try the latest development version with the newest features, replace `main` with `dev_20250804_add_oneline_buildscript` in the URL above.
+
+This script will automatically:
+- Install all required dependencies (Qt6, FFmpeg, build tools)
+- Set up user permissions for hardware access
+- Configure device permissions (udev rules)
+- Clone and build the stable version of the source code
+- Install the application system-wide with desktop integration
+- Create proper Qt environment wrappers to avoid plugin issues
+
+**To install a specific version:**
+```bash
+# Install a specific version/tag
+BUILD_VERSION="v1.0.0" bash <(curl -fsSL https://raw.githubusercontent.com/TechxArtisanStudio/Openterface_QT/refs/heads/main/build-script/install-linux.sh)
+
+# Install latest development version
+BUILD_VERSION="main" bash <(curl -fsSL https://raw.githubusercontent.com/TechxArtisanStudio/Openterface_QT/refs/heads/main/build-script/install-linux.sh)
+```
+
+**For interactive installation with customization options:**
+```bash
+# Download the script first
+curl -o install-linux.sh https://raw.githubusercontent.com/TechxArtisanStudio/Openterface_QT/refs/heads/main/build-script/install-linux.sh
+
+# Make it executable and run interactively
+chmod +x install-linux.sh
+./install-linux.sh
+```
+
+#### Option 2: Manual Installation from Release Package
+
+1. Download the package from GitHub release page, and find the latest version to download according to your OS and CPU architecture.
 2. Install the dependency
 3. Setup dialout for Serial permissions and the hidraw permission for Switchable USB device
 4. Install the package.
 
  ```bash
-# Setup the QT 6.4.2 or laterruntime and other dependencies
+# Setup the QT 6.4.2 or later runtime and other dependencies
 sudo apt install -y \
     libqt6core6 \
     libqt6dbus6 \
@@ -65,7 +104,8 @@ sudo apt install -y \
     libqt6multimediawidgets6 \
     libqt6serialport6 \
     libqt6svg6 \
-    libusb-1.0-0-dev
+    libusb-1.0-0-dev \
+    libssl-dev
  ```
 
 ```bash
@@ -74,16 +114,18 @@ sudo usermod -a -G dialout $USER
 ```
 
 ```bash
-# Setup the hidraw permission
+# Setup the hidraw and serial port permissions
 echo 'SUBSYSTEM=="usb", ATTRS{idVendor}=="534d", ATTRS{idProduct}=="2109", TAG+="uaccess"
 SUBSYSTEM=="hidraw", ATTRS{idVendor}=="534d", ATTRS{idProduct}=="2109", TAG+="uaccess"
+SUBSYSTEM=="ttyUSB", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="7523", TAG+="uaccess"
+SUBSYSTEM=="usb", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="7523", TAG+="uaccess"
 ' | sudo tee /etc/udev/rules.d/51-openterface.rules 
 sudo udevadm control --reload-rules
 sudo udevadm trigger
 ```
 
  ```bash
-# Unszip the package and install
+# Unzip the package and install
 unzip openterfaceQT.deb.zip
 sudo dpkg -i openterfaceQT.deb
  ```
@@ -96,7 +138,7 @@ openterfaceQT
 ## Build from source
 ### For Windows
 - Using QT Creator
-  1. Install [QT for opensource](https://www.qt.io/download-qt-installer-oss), recommanded version 6.4.3
+  1. Install [QT for opensource](https://www.qt.io/download-qt-installer-oss), recommended version 6.4.3
   2. Use Qt Maintenance Tool to add following components
      - [QtMultiMedia](https://doc.qt.io/qt-6/qtmultimedia-index.html)
      - [QtSerialPort](https://doc.qt.io/qt-6/qtserialport-index.html)
@@ -104,18 +146,59 @@ openterfaceQT
   4. Now you can run the project
 
 ### For Linux
+
+#### Option 1: Automated Build Script (Recommended)
+
+Use our automated installation script that handles the entire build process. It takes 5 - 30 minutes (Raspberry PI take longer) to complete the whole process.
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/TechxArtisanStudio/Openterface_QT/main/build-script/install-linux.sh | bash
+```
+
+> **Note**: By default, the script builds the **stable version** (currently v0.3.19) automatically detected from the source code. To build the latest development version instead, use: `BUILD_VERSION="main"` before the command.
+
+This script automatically handles dependency installation, environment setup, building, and system integration.
+
+**To build a specific version:**
+```bash
+# Build latest development version
+BUILD_VERSION="main" bash <(curl -fsSL https://raw.githubusercontent.com/TechxArtisanStudio/Openterface_QT/main/build-script/install-linux.sh)
+
+# Build a specific tag/version
+BUILD_VERSION="v1.0.0" bash <(curl -fsSL https://raw.githubusercontent.com/TechxArtisanStudio/Openterface_QT/main/build-script/install-linux.sh)
+```
+
+#### Option 2: Manual Build Process
+
+If you prefer to build manually or need to customize the build process:
 ``` bash
 # Build environment preparation   
 sudo apt-get update -y
 sudo apt-get install -y \
     build-essential \
-    qmake6 \
+    cmake \
     qt6-base-dev \
     qt6-multimedia-dev \
     qt6-serialport-dev \
     qt6-svg-dev \
     libusb-1.0-0-dev \
-    qt6-tools-dev
+    qt6-tools-dev \
+    libudev-dev \
+    pkg-config \
+    libx11-dev \
+    libxrandr-dev \
+    libxrender-dev \
+    libexpat1-dev \
+    libfreetype6-dev \
+    libfontconfig1-dev \
+    libbz2-dev \
+    libavformat-dev \
+    libavcodec-dev \
+    libavutil-dev \
+    libswresample-dev \
+    libswscale-dev \
+    ffmpeg \
+    libssl-dev
 ```
 
 ```bash
@@ -124,9 +207,11 @@ sudo usermod -a -G dialout $USER
 # On some distros (e.g. Arch Linux) this might be called uucp
 sudo usermod -a -G uucp $USER
 
-# Setup the serial port permission
-echo 'SUBSYSTEM=="usb", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="7523", TAG+="uaccess"
+# Setup the hidraw and serial port permissions
+echo 'SUBSYSTEM=="usb", ATTRS{idVendor}=="534d", ATTRS{idProduct}=="2109", TAG+="uaccess"
+SUBSYSTEM=="hidraw", ATTRS{idVendor}=="534d", ATTRS{idProduct}=="2109", TAG+="uaccess"
 SUBSYSTEM=="ttyUSB", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="7523", TAG+="uaccess"
+SUBSYSTEM=="usb", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="7523", TAG+="uaccess"
 ' | sudo tee /etc/udev/rules.d/51-openterface.rules 
 sudo udevadm control --reload-rules
 sudo udevadm trigger
@@ -138,12 +223,24 @@ git clone https://github.com/TechxArtisanStudio/Openterface_QT.git
 cd Openterface_QT
 
 # Generate language files (The lrelease path may vary depending on your system)
-/usr/lib/qt6/lrelease openterfaceQT.pro
+/usr/lib/qt6/bin/lrelease openterfaceQT.pro
 
-# Build the project
+# Build the project with CMake
 mkdir build
 cd build
-qmake6 ..
+
+# For ARM64/aarch64 systems (like Raspberry Pi), use:
+# cmake .. \
+#     -DCMAKE_BUILD_TYPE=Release \
+#     -DCMAKE_PREFIX_PATH=/usr/lib/aarch64-linux-gnu/cmake/Qt6 \
+#     -DFFMPEG_LIBRARIES="/usr/lib/aarch64-linux-gnu/libavformat.a;/usr/lib/aarch64-linux-gnu/libavcodec.a;/usr/lib/aarch64-linux-gnu/libavutil.a;/usr/lib/aarch64-linux-gnu/libswresample.a;/usr/lib/aarch64-linux-gnu/libswscale.a"
+
+# For x86_64 systems, use:
+cmake .. \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_PREFIX_PATH=/usr/lib/x86_64-linux-gnu/cmake/Qt6 \
+    -DFFMPEG_LIBRARIES="/usr/lib/x86_64-linux-gnu/libavformat.a;/usr/lib/x86_64-linux-gnu/libavcodec.a;/usr/lib/x86_64-linux-gnu/libavutil.a;/usr/lib/x86_64-linux-gnu/libswresample.a;/usr/lib/x86_64-linux-gnu/libswscale.a"
+
 make -j$(nproc)
 ```
 
@@ -157,7 +254,7 @@ make -j$(nproc)
 
 # solution
 sudo apt remove brltty
-# after run this plug out the openterface and pulg in again
+# after run this plug out the openterface and plug in again
 ls /dev/ttyUSB*
 # if you can list the usb the serial port correctly recognized
 # Then we need give the permissions to user for control serial port you can do this:
@@ -206,7 +303,7 @@ sudo reboot
 
 We encourage you to engage with us.
 - On [Discord](https://discord.gg/sFTJD6a3R8) to ask questions and report issues.
-- On [Github](https://github.com/TechxArtisanStudio/Openterface_QT/issues) to report issues.
+- On [GitHub](https://github.com/TechxArtisanStudio/Openterface_QT/issues) to report issues.
 - Email to [techxartisan@gmail.com](mailto:techxartisan@gmail.com) to ask questions and report issues.
 
 ## License Information
@@ -225,7 +322,7 @@ This project uses the following third-party libraries, each with its own licensi
 
 - **Qt Framework**: LGPL v3
 - **libusb (1.0.26)**: LGPL v2.1
-- **FreeType (2.13.2) **: FreeType License (BSD-style) / GPL v2
+- **FreeType (2.13.2)**: FreeType License (BSD-style) / GPL v2
 - **Fontconfig (2.14.2)**: MIT License
 - **D-Bus**: AFL v2.1 or GPL v2
 - **PulseAudio (16.1)**: LGPL v2.1+

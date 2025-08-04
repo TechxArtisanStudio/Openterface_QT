@@ -11,12 +11,18 @@ QT       += core gui multimedia multimediawidgets serialport concurrent svg netw
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 
 SOURCES += main.cpp \
+    device/DeviceInfo.cpp \
+    device/DeviceManager.cpp \
+    device/HotplugMonitor.cpp \
+    device/platform/AbstractPlatformDeviceManager.cpp \
+    device/platform/DeviceFactory.cpp \
     target/mouseeventdto.cpp \
     host/audiomanager.cpp \
     host/cameramanager.cpp \
     ui/statusbar/statuswidget.cpp \
     video/videohid.cpp \
     video/firmwarewriter.cpp \
+    video/firmwarereader.cpp \
     ui/help/helppane.cpp \
     ui/mainwindow.cpp \
     ui/videopane.cpp \
@@ -35,10 +41,12 @@ SOURCES += main.cpp \
     ui/preferences/fpsspinbox.cpp \
     ui/preferences/cameraadjust.cpp \
     ui/advance/serialportdebugdialog.cpp \
+    ui/advance/DeviceSelectorDialog.cpp \
     ui/advance/scripttool.cpp \
     ui/help/versioninfomanager.cpp \ 
     ui/advance/envdialog.cpp \
     ui/advance/firmwareupdatedialog.cpp \
+    ui/advance/firmwaremanagerdialog.cpp \
     host/HostManager.cpp \
     serial/SerialPortManager.cpp \
     target/KeyboardManager.cpp \
@@ -61,12 +69,18 @@ SOURCES += main.cpp \
 
 HEADERS  += \
     global.h \
+    device/DeviceInfo.h \
+    device/DeviceManager.h \
+    device/HotplugMonitor.h \
+    device/platform/AbstractPlatformDeviceManager.h \
+    device/platform/DeviceFactory.h \
     target/mouseeventdto.h \
     host/audiomanager.h \
     host/cameramanager.h \
     ui/statusbar/statuswidget.h \
     video/videohid.h \
     video/firmwarewriter.h \
+    video/firmwarereader.h \
     ui/help/helppane.h \
     ui/mainwindow.h \
     ui/videopane.h \
@@ -79,9 +93,11 @@ HEADERS  += \
     ui/statusbar/statusbarmanager.h \
     ui/help/versioninfomanager.h \
     ui/advance/serialportdebugdialog.h \
+    ui/advance/DeviceSelectorDialog.h \
     ui/advance/scripttool.h \
     ui/advance/envdialog.h \
     ui/advance/firmwareupdatedialog.h \
+    ui/advance/firmwaremanagerdialog.h \
     ui/preferences/cameraadjust.h \
     ui/preferences/fpsspinbox.h \
     ui/preferences/settingdialog.h \
@@ -127,8 +143,14 @@ RESOURCES += \
 # Link against the HID library
 win32:LIBS += -lhid
 win32:LIBS += -lsetupapi
+win32:LIBS += -lcfgmgr32
+win32:LIBS += -lole32
 
 win32 {
+    # Add Windows-specific device manager
+    SOURCES += device/platform/WindowsDeviceManager.cpp
+    HEADERS += device/platform/WindowsDeviceManager.h
+    
     INCLUDEPATH += $$PWD/lib
     LIBS += -L$$PWD/lib -llibusb-1.0 -loleaut32 -lwinpthread
 
@@ -136,8 +158,20 @@ win32 {
 }
 
 unix {
+    # Add Linux-specific device manager
+    SOURCES += device/platform/LinuxDeviceManager.cpp
+    HEADERS += device/platform/LinuxDeviceManager.h
+    
     INCLUDEPATH += /usr/include/
     LIBS += -lusb-1.0
+    
+    # Add libudev for enhanced device detection
+    unix:!macx {
+        CONFIG += link_pkgconfig
+        PKGCONFIG += libudev
+        DEFINES += HAVE_LIBUDEV
+        LIBS += -ludev
+    }
 
     RESOURCES += driver/linux/drivers.qrc
 }
