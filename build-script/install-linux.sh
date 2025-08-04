@@ -305,6 +305,77 @@ make -j$(( $(nproc) - 1 ))
 
 sudo make install
 
+# Fix Qt plugin path issues for system-wide installation
+echo "🔧 Configuring Qt environment for system installation..."
+
+# Find Qt6 plugin directory
+QT_PLUGIN_PATH=""
+if [ -d "/usr/lib/x86_64-linux-gnu/qt6/plugins" ]; then
+    QT_PLUGIN_PATH="/usr/lib/x86_64-linux-gnu/qt6/plugins"
+elif [ -d "/usr/lib/aarch64-linux-gnu/qt6/plugins" ]; then
+    QT_PLUGIN_PATH="/usr/lib/aarch64-linux-gnu/qt6/plugins"
+elif [ -d "/usr/lib/qt6/plugins" ]; then
+    QT_PLUGIN_PATH="/usr/lib/qt6/plugins"
+fi
+
+if [ -n "$QT_PLUGIN_PATH" ]; then
+    echo "  Found Qt6 plugins at: $QT_PLUGIN_PATH"
+    
+    # Create a wrapper script that sets the correct environment
+    WRAPPER_SCRIPT="/usr/local/bin/openterfaceQT"
+    ACTUAL_BINARY="/usr/local/bin/openterfaceQT-bin"
+    
+    # Move the actual binary
+    if [ -f "$WRAPPER_SCRIPT" ]; then
+        echo "  Creating Qt environment wrapper..."
+        sudo mv "$WRAPPER_SCRIPT" "$ACTUAL_BINARY"
+        
+        # Create wrapper script with proper Qt environment
+        sudo tee "$WRAPPER_SCRIPT" > /dev/null << EOF
+#!/bin/bash
+# Openterface QT Wrapper Script
+# Sets proper Qt environment variables for system-wide installation
+
+export QT_PLUGIN_PATH="$QT_PLUGIN_PATH"
+export QT_QPA_PLATFORM_PLUGIN_PATH="$QT_PLUGIN_PATH/platforms"
+export QT_QPA_PLATFORM="xcb"
+
+# Add Qt library paths
+export LD_LIBRARY_PATH="/usr/lib/x86_64-linux-gnu:/usr/lib/aarch64-linux-gnu:/usr/lib:\$LD_LIBRARY_PATH"
+
+# Run the actual binary
+exec "$ACTUAL_BINARY" "\$@"
+EOF
+        
+        # Make wrapper executable
+        sudo chmod +x "$WRAPPER_SCRIPT"
+        echo "  ✅ Qt environment wrapper created"
+    else
+        echo "  ⚠️  Binary not found at expected location: $WRAPPER_SCRIPT"
+    fi
+else
+    echo "  ⚠️  Could not find Qt6 plugins directory"
+    echo "     You may need to set QT_PLUGIN_PATH manually"
+fi
+
+# Also create a desktop-friendly launcher script
+DESKTOP_LAUNCHER="/usr/local/bin/openterfaceQT-desktop"
+sudo tee "$DESKTOP_LAUNCHER" > /dev/null << EOF
+#!/bin/bash
+# Openterface QT Desktop Launcher
+# Ensures proper environment for desktop launches
+
+cd "\$HOME"
+export QT_PLUGIN_PATH="$QT_PLUGIN_PATH"
+export QT_QPA_PLATFORM_PLUGIN_PATH="$QT_PLUGIN_PATH/platforms"
+export QT_QPA_PLATFORM="xcb"
+export LD_LIBRARY_PATH="/usr/lib/x86_64-linux-gnu:/usr/lib/aarch64-linux-gnu:/usr/lib:\$LD_LIBRARY_PATH"
+
+exec /usr/local/bin/openterfaceQT "\$@"
+EOF
+
+sudo chmod +x "$DESKTOP_LAUNCHER"
+
 # Check the built binary architecture
 echo "🔍 Checking built binary architecture..."
 if [ -f "openterfaceQT" ]; then
@@ -321,7 +392,7 @@ echo "🖥️ Creating desktop integration..."
 # Create desktop entry
 DESKTOP_FILE="/usr/share/applications/openterfaceQT.desktop"
 ICON_FILE="/usr/share/pixmaps/openterfaceQT.png"
-BINARY_PATH="/usr/local/bin/openterfaceQT"
+BINARY_PATH="/usr/local/bin/openterfaceQT-desktop"
 
 # Copy icon if it exists in the project
 if [ -f "../images/icon_256.png" ]; then
@@ -384,10 +455,19 @@ echo "🔍 System Information:"
 echo "Current system architecture: $(uname -m)"
 echo "Current system platform: $(uname -s)"
 echo "Built binary location: $(pwd)/openterfaceQT"
+echo "System binary location: /usr/local/bin/openterfaceQT"
+echo "Desktop launcher: /usr/local/bin/openterfaceQT-desktop"
 echo ""
-echo "To run the application:"
-echo "  cd $(pwd)"
-echo "  ./openterfaceQT"
+echo "🚀 How to run the application:"
+echo "  Method 1 (Desktop): Search for 'Openterface QT' in your application menu"
+echo "  Method 2 (Terminal): openterfaceQT"
+echo "  Method 3 (Build dir): cd $(pwd) && ./openterfaceQT"
+echo ""
+echo "🔧 Troubleshooting Qt plugin issues:"
+echo "  If you get 'Qt platform plugin' errors:"
+echo "  1. Try: export QT_PLUGIN_PATH=$QT_PLUGIN_PATH"
+echo "  2. Try: export QT_QPA_PLATFORM=xcb"
+echo "  3. Use the desktop launcher: /usr/local/bin/openterfaceQT-desktop"
 echo ""
 echo "If you get architecture errors (like 'x86_64-binfmt-P' or 'cannot execute binary file'):"
 echo "  1. Make sure you're building on the same architecture you plan to run on"
