@@ -1,0 +1,174 @@
+name: Build ARM64 Shared Library
+
+on:
+  push:
+    branches: [ "main", "dev" ]
+    paths:
+      - 'src/**'
+      - 'CMakeLists.txt'
+      - 'build-script/install-linux.sh'
+      - '.github/workflows/arm64-shared-lib-build.yml'
+  pull_request:
+    branches: [ "main", "dev" ]
+    paths:
+      - 'src/**'
+      - 'CMakeLists.txt'
+      - 'build-script/install-linux.sh'
+  workflow_call:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  ARTIFACT_NAME: openterfaceQT-arm64-shared
+  BUILD_TYPE: Release
+
+jobs:
+  build-arm64-shared:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Fetch all history for version detection
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build ARM64 shared library in container
+        run: |
+          docker run --rm \
+            --platform linux/arm64 \
+            -v ${{ github.workspace }}:/workspace \
+            -w /workspace \
+            ubuntu:22.04 \
+            bash -c "
+              # Set non-interactive mode
+              export DEBIAN_FRONTEND=noninteractive
+              export BUILD_VERSION=${{ github.ref_name }}
+              
+              # Make install script executable
+              chmod +x build-script/install-linux.sh
+              
+              # Run the install script with modifications for CI
+              sed -i 's/sudo usermod -a -G dialout \$USER/#sudo usermod -a -G dialout \$USER/' build-script/install-linux.sh
+              sed -i 's/sudo usermod -a -G uucp \$USER/#sudo usermod -a -G uucp \$USER/' build-script/install-linux.sh
+              sed -i 's/sudo udevadm control --reload-rules/#sudo udevadm control --reload-rules/' build-script/install-linux.sh
+              sed -i 's/sudo udevadm trigger/#sudo udevadm trigger/' build-script/install-linux.sh
+              sed -i 's/sudo make install/make install DESTDIR=\$PWD\/install/' build-script/install-linux.sh
+              
+              # Skip interactive prompts by setting non-interactive mode
+              export CI=true
+              
+              # Run the modified install script
+              ./build-script/install-linux.sh
+            "
+
+      - name: Extract built artifacts
+        run: |
+          # Create artifacts directory
+          mkdir -p artifacts/lib artifacts/bin artifacts/include
+          
+          # Find and copy the built shared library
+          find . -name "*.so*" -type f -exec cp {} artifacts/lib/ \; 2>/dev/null || true
+          find . -name "libopenterfaceQT*" -type f -exec cp {} artifacts/lib/ \; 2>/dev/null || true
+          
+          # Copy binary if built
+          find . -name "openterfaceQT" -type f -executable -exec cp {} artifacts/bin/ \; 2>/dev/null || true
+          
+          # Copy headers
+          find . -name "*.h" -path "*/src/*" -exec cp --parents {} artifacts/include/ \; 2>/dev/null || true
+          
+          # Create build info
+          echo "Build Date: $(date)" > artifacts/BUILD_INFO.txt
+          echo "Git Commit: ${{ github.sha }}" >> artifacts/BUILD_INFO.txt
+          echo "Git Branch: ${{ github.ref_name }}" >> artifacts/BUILD_INFO.txt
+          echo "Architecture: arm64" >> artifacts/BUILD_INFO.txt
+          echo "Build Type: ${{ env.BUILD_TYPE }}" >> artifacts/BUILD_INFO.txt
+          
+          # List what we found
+          echo "=== Built Artifacts ===" >> artifacts/BUILD_INFO.txt
+          find artifacts -type f -exec ls -la {} \; >> artifacts/BUILD_INFO.txt
+
+      - name: Verify ARM64 binary architecture
+        run: |
+          if [ -f "artifacts/bin/openterfaceQT" ]; then
+            echo "Verifying binary architecture:"
+            file artifacts/bin/openterfaceQT
+            
+            # Check if it's actually ARM64
+            if file artifacts/bin/openterfaceQT | grep -q "aarch64\|ARM aarch64"; then
+              echo "✅ Verified ARM64 binary"
+            else
+              echo "❌ Binary is not ARM64!"
+              exit 1
+            fi
+          else
+            echo "⚠️ No binary found in artifacts"
+          fi
+          
+          # Check shared libraries
+          for lib in artifacts/lib/*.so*; do
+            if [ -f "$lib" ]; then
+              echo "Checking library: $lib"
+              file "$lib"
+            fi
+          done
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: ${{ env.ARTIFACT_NAME }}
+          path: artifacts/
+          retention-days: 30
+
+      - name: Create release archive
+        if: github.event_name == 'push' && (github.ref_name == 'main' || startsWith(github.ref, 'refs/tags/'))
+        run: |
+          cd artifacts
+          tar -czf ../${{ env.ARTIFACT_NAME }}-${{ github.ref_name }}.tar.gz .
+          cd ..
+          
+          # Generate checksums
+          sha256sum ${{ env.ARTIFACT_NAME }}-${{ github.ref_name }}.tar.gz > checksums.txt
+
+      - name: Upload release archive
+        if: github.event_name == 'push' && (github.ref_name == 'main' || startsWith(github.ref, 'refs/tags/'))
+        uses: actions/upload-artifact@v3
+        with:
+          name: ${{ env.ARTIFACT_NAME }}-release
+          path: |
+            ${{ env.ARTIFACT_NAME }}-${{ github.ref_name }}.tar.gz
+            checksums.txt
+          retention-days: 90
+
+      - name: Output build summary
+        run: |
+          echo "## ARM64 Shared Library Build Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Build Information:**" >> $GITHUB_STEP_SUMMARY
+          echo "- Architecture: ARM64 (aarch64)" >> $GITHUB_STEP_SUMMARY
+          echo "- Build Type: ${{ env.BUILD_TYPE }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Git Commit: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Git Branch: ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Artifacts:**" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          find artifacts -type f -exec ls -la {} \; >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          
+          if [ -f "artifacts/BUILD_INFO.txt" ]; then
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**Build Details:**" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            cat artifacts/BUILD_INFO.txt >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+          fi
