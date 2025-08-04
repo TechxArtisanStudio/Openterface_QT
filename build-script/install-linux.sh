@@ -1,8 +1,86 @@
 #!/bin/bash
-set -e
+# =============================================================================
+# Openterface QT Linux Installation Script
+# =============================================================================
+#
+# This script automates the complete installation of Openterface QT on Linux
+# systems, particularly optimized for Kali Linux but compatible with other
+# Debian-based distributions.
+#
+# QUICK INSTALLATION:
+# Run this command to download and execute the script directly:
+# curl -fsSL https://raw.githubusercontent.com/TechxArtisanStudio/Openterface_QT/refs/heads/dev_20250804_add_oneline_buildscript/build-script/install-linux.sh | bash
+#
+# OVERVIEW:
+# The script performs a comprehensive setup process including dependency
+# installation, conflict resolution, permission configuration, source code
+# compilation, and system integration.
+#
+# WORKFLOW:
+# 1. CLEANUP PHASE:
+#    - Scans for existing openterfaceQT installations in common locations
+#    - Offers to remove conflicting installations (binaries, desktop files, etc.)
+#    - Handles both manual installations and package manager installations
+#
+# 2. DEPENDENCY INSTALLATION:
+#    - Updates package repositories with authentication flexibility
+#    - Installs Qt6 development libraries and tools
+#    - Installs FFmpeg libraries for video/audio processing
+#    - Installs USB and hardware interface libraries
+#    - Installs build tools (cmake, build-essential, pkg-config)
+#
+# 3. PERMISSION SETUP:
+#    - Adds current user to dialout and uucp groups for serial port access
+#    - Creates udev rules for Openterface hardware devices (USB/HID access)
+#    - Configures permissions for specific vendor/product IDs:
+#      * 534d:2109 (Openterface main device)
+#      * 1a86:7523 (Serial interface chip)
+#
+# 4. SOURCE CODE ACQUISITION:
+#    - Clones the official Openterface_QT repository if not present
+#    - Switches to the project directory for build operations
+#
+# 5. LOCALIZATION:
+#    - Generates Qt translation files using lrelease tool
+#    - Handles missing lrelease gracefully with warnings
+#
+# 6. ARCHITECTURE-AWARE BUILD:
+#    - Auto-detects system architecture (x86_64, ARM64/aarch64)
+#    - Sets appropriate Qt6 CMake paths for each architecture
+#    - Locates FFmpeg static libraries automatically
+#    - Configures CMake with architecture-specific settings
+#
+# 7. COMPILATION & INSTALLATION:
+#    - Builds project using parallel compilation (nproc-1 threads)
+#    - Installs binaries system-wide using sudo make install
+#    - Verifies binary architecture matches system architecture
+#
+# 8. POST-INSTALLATION:
+#    - Provides detailed system information and build verification
+#    - Offers troubleshooting guidance for common issues
+#    - Explains permission requirements and potential conflicts
+#
+# REQUIREMENTS:
+# - Debian-based Linux distribution (Ubuntu, Kali, etc.)
+# - sudo privileges for system modifications
+# - Internet connection for package downloads and git cloning
+# - Sufficient disk space for Qt6 development tools and dependencies
+#
+# SUPPORTED ARCHITECTURES:
+# - x86_64 (Intel/AMD 64-bit)
+# - ARM64/aarch64 (ARM 64-bit, including Raspberry Pi 4+)
+#
+# TROUBLESHOOTING:
+# - Script uses 'set -e' for fail-fast behavior on errors
+# - All major operations include status reporting with emoji indicators
+# - Architecture mismatches are detected and reported
+# - Missing dependencies are handled gracefully where possible
+#
+# AUTHOR: TechxArtisan Studio
+# LICENSE: See LICENSE file in the project repository
+# =============================================================================
 
-echo "🔧 Installing dependencies for Kali Linux..."
-sudo apt-get update -y --allow-releaseinfo-change --allow-unauthenticated || true
+set -e
 
 # Check for existing system installation
 echo "🔍 Checking for existing openterfaceQT installation..."
@@ -36,12 +114,15 @@ if [ "$EXISTING_FOUND" = true ]; then
     echo ""
     echo "❌ This may cause conflicts with the new build."
     echo ""
-    read -p "Do you want to remove existing installation(s)? (Y/n): " -n 1 -r
+    echo "⚠️  IMPORTANT: Removing existing installations will permanently delete:"
+    echo "   - Binary files and executables"
+    echo "   - Desktop entries and application shortcuts"
+    echo "   - Application icons and data directories"
+    echo "   - Package manager installations (if any)"
+    echo ""
+    read -p "Do you want to remove existing installation(s)? [y/N]: " -r
     echo
-    if [[ $REPLY =~ ^[Nn]$ ]]; then
-        echo "⚠️  Continuing with existing installation present..."
-        echo "   Note: You may experience conflicts or run the wrong version."
-    else
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
         echo "🗑️  Removing existing installations..."
         
         # Remove binaries
@@ -77,10 +158,17 @@ if [ "$EXISTING_FOUND" = true ]; then
         fi
         
         echo "✅ Existing installations removed successfully"
+    else
+        echo "⚠️  Keeping existing installation(s)..."
+        echo "   Note: You may experience conflicts or run the wrong version."
+        echo "   Consider removing them manually if you encounter issues."
     fi
 else
     echo "✅ No existing system installation found"
 fi
+
+echo "🔧 Installing dependencies for Linux..."
+sudo apt-get update -y --allow-releaseinfo-change --allow-unauthenticated || true
 
 echo "📦 Installing build dependencies..."
 sudo apt-get install -y --allow-unauthenticated \
@@ -208,6 +296,69 @@ else
 fi
 
 echo "✅ Build complete!"
+
+echo "🖥️ Creating desktop integration..."
+# Create desktop entry
+DESKTOP_FILE="/usr/share/applications/openterfaceQT.desktop"
+ICON_FILE="/usr/share/pixmaps/openterfaceQT.png"
+BINARY_PATH="/usr/local/bin/openterfaceQT"
+
+# Copy icon if it exists in the project
+if [ -f "../images/icon_256.png" ]; then
+    echo "  Installing application icon..."
+    sudo cp "../images/icon_256.png" "$ICON_FILE"
+elif [ -f "../images/icon_128.png" ]; then
+    echo "  Installing application icon (128px)..."
+    sudo cp "../images/icon_128.png" "$ICON_FILE"
+elif [ -f "../images/icon_64.png" ]; then
+    echo "  Installing application icon (64px)..."
+    sudo cp "../images/icon_64.png" "$ICON_FILE"
+else
+    echo "  ⚠️  No application icon found, desktop entry will use default icon"
+    ICON_FILE="applications-system"
+fi
+
+# Create desktop entry file
+echo "  Creating desktop entry..."
+sudo tee "$DESKTOP_FILE" > /dev/null << EOF
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Openterface QT
+Comment=KVM over USB for seamless computer control
+GenericName=KVM over USB
+Exec=$BINARY_PATH
+Icon=$ICON_FILE
+Terminal=false
+Categories=System;Utility;Network;RemoteAccess;
+Keywords=KVM;USB;remote;control;openterface;
+StartupNotify=true
+StartupWMClass=openterfaceQT
+MimeType=
+Actions=
+
+[Desktop Action NewWindow]
+Name=New Window
+Exec=$BINARY_PATH
+EOF
+
+# Set proper permissions
+sudo chmod 644 "$DESKTOP_FILE"
+
+# Update desktop database
+if command -v update-desktop-database &> /dev/null; then
+    echo "  Updating desktop database..."
+    sudo update-desktop-database /usr/share/applications/
+fi
+
+# Update icon cache if available
+if command -v gtk-update-icon-cache &> /dev/null; then
+    echo "  Updating icon cache..."
+    sudo gtk-update-icon-cache -t /usr/share/pixmaps/ 2>/dev/null || true
+fi
+
+echo "✅ Desktop integration completed!"
+echo "   Application should now appear in your desktop environment's application menu"
 echo ""
 echo "🔍 System Information:"
 echo "Current system architecture: $(uname -m)"
