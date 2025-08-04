@@ -1,12 +1,13 @@
 ARG BASE_IMAGE=ghcr.io/TechxArtisanStudio/openterface-arm64-qt-deps:latest
 FROM ${BASE_IMAGE}
 
-ARG QT_VERSION=6.5.3
+ARG QT_VERSION=6.6.3
 ENV QT_VERSION=${QT_VERSION}
 
 # Install build dependencies
 RUN apt-get update && apt-get install -y \
     libdbus-1-dev
+
 
 # Download and build only required Qt modules using modular approach
 RUN QT_VERSION=${QT_VERSION} && \
