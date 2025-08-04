@@ -6,12 +6,17 @@ set -e
 
 QT_VERSION=6.6.3
 QT_MAJOR_VERSION=6.6
-INSTALL_PREFIX=/opt/Qt6
+INSTALL_PREFIX=/usr
 BUILD_DIR=$(pwd)/qt-missing-build
-MODULES=("qtbase" "qtserialport" "qtsvg")
+MODULES=("qtserialport" "qtsvg")
 DOWNLOAD_BASE_URL="https://download.qt.io/archive/qt/$QT_MAJOR_VERSION/$QT_VERSION/submodules"
 
 echo "Building missing Qt6 components: qtserialport and qtsvg"
+
+# Install Qt6 base development packages
+echo "Installing Qt6 base development packages..."
+apt update
+apt install -y qt6-base-dev qt6-base-dev-tools dpkg-dev
 
 # Create the build directory
 mkdir -p "$BUILD_DIR"
@@ -31,33 +36,6 @@ for module in "${MODULES[@]}"; do
     fi
 done
 
-# Build qtbase first (minimal build as dependency)
-echo "Building qtbase (minimal for dependencies)..."
-cd "$BUILD_DIR/qtbase"
-mkdir -p build
-cd build
-
-cmake -GNinja \
-    $CMAKE_COMMON_FLAGS \
-    -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" \
-    -DBUILD_SHARED_LIBS=OFF \
-    -DFEATURE_dbus=ON \
-    -DFEATURE_sql=OFF \
-    -DFEATURE_testlib=OFF \
-    -DFEATURE_icu=OFF \
-    -DFEATURE_opengl=ON \
-    -DFEATURE_xlib=ON \
-    -DFEATURE_xcb_xlib=ON \
-    -DFEATURE_xkbcommon=ON \
-    -DFEATURE_xkbcommon_x11=ON \
-    -DTEST_xcb_syslibs=ON \
-    -DQT_FEATURE_clang=OFF \
-    -DFEATURE_clang=ON \
-    ..
-
-ninja
-ninja install
-
 # Build qtserialport
 echo "Building qtserialport..."
 cd "$BUILD_DIR/qtserialport"
@@ -67,8 +45,8 @@ cd build
 cmake -GNinja \
     $CMAKE_COMMON_FLAGS \
     -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" \
-    -DCMAKE_PREFIX_PATH="$INSTALL_PREFIX" \
-    -DBUILD_SHARED_LIBS=OFF \
+    -DCMAKE_PREFIX_PATH="/usr/lib/$(dpkg-architecture -qDEB_HOST_MULTIARCH)/cmake/Qt6" \
+    -DBUILD_SHARED_LIBS=ON \
     ..
 
 ninja
@@ -83,8 +61,8 @@ cd build
 cmake -GNinja \
     $CMAKE_COMMON_FLAGS \
     -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" \
-    -DCMAKE_PREFIX_PATH="$INSTALL_PREFIX" \
-    -DBUILD_SHARED_LIBS=OFF \
+    -DCMAKE_PREFIX_PATH="/usr/lib/$(dpkg-architecture -qDEB_HOST_MULTIARCH)/cmake/Qt6" \
+    -DBUILD_SHARED_LIBS=ON \
     ..
 
 ninja
@@ -94,14 +72,15 @@ echo "Successfully built and installed qtserialport and qtsvg to $INSTALL_PREFIX
 
 # Verify installation
 echo "Verifying installation..."
-if [ -f "$INSTALL_PREFIX/lib/cmake/Qt6SerialPort/Qt6SerialPortConfig.cmake" ]; then
+MULTIARCH=$(dpkg-architecture -qDEB_HOST_MULTIARCH)
+if [ -f "$INSTALL_PREFIX/lib/$MULTIARCH/cmake/Qt6SerialPort/Qt6SerialPortConfig.cmake" ]; then
     echo "✅ Qt6SerialPort installed successfully"
 else
     echo "❌ Qt6SerialPort installation failed"
     exit 1
 fi
 
-if [ -f "$INSTALL_PREFIX/lib/cmake/Qt6Svg/Qt6SvgConfig.cmake" ]; then
+if [ -f "$INSTALL_PREFIX/lib/$MULTIARCH/cmake/Qt6Svg/Qt6SvgConfig.cmake" ]; then
     echo "✅ Qt6Svg installed successfully"
 else
     echo "❌ Qt6Svg installation failed"

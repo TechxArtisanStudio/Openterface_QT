@@ -60,6 +60,7 @@ jobs:
               # Install basic dependencies first
               apt update && apt install -y sudo build-essential cmake ninja-build \
                 curl unzip pkg-config python3-pip \
+                qt6-base-dev qt6-base-dev-tools \
                 libgl-dev libxcb-cursor-dev libxkbcommon-dev \
                 libdbus-1-dev libfontconfig1-dev libfreetype-dev \
                 libx11-dev libxcb1-dev libxext-dev libxfixes-dev \
@@ -88,10 +89,6 @@ jobs:
               sed -i 's/sudo udevadm control --reload-rules/#sudo udevadm control --reload-rules/' build-script/install-linux.sh
               sed -i 's/sudo udevadm trigger/#sudo udevadm trigger/' build-script/install-linux.sh
               sed -i 's/sudo make install/make install DESTDIR=\$PWD\/install/' build-script/install-linux.sh
-              
-              # Set environment for Qt
-              export CMAKE_PREFIX_PATH=/opt/Qt6:\$CMAKE_PREFIX_PATH
-              export PKG_CONFIG_PATH=/opt/Qt6/lib/pkgconfig:\$PKG_CONFIG_PATH
               
               # Skip interactive prompts by setting non-interactive mode
               export CI=true
