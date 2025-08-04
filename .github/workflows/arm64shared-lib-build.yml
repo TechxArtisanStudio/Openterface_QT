@@ -7,7 +7,7 @@ on:
       - 'src/**'
       - 'CMakeLists.txt'
       - 'build-script/install-linux.sh'
-      - '.github/workflows/arm64-shared-lib-build.yml'
+      - '.github/workflows/arm64shared-lib-build.yml'
   pull_request:
     branches: [ "main", "dev" ]
     paths:
