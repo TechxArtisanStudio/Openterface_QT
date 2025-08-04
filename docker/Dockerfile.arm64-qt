@@ -9,9 +9,7 @@ ENV QT_VERSION=${QT_VERSION}
 RUN apt-get install -y build-essential meson ninja-build bison flex pkg-config python3-pip linux-headers-$(uname -r) \
     autoconf automake libtool autoconf-archive cmake libxml2-dev libxrandr-dev libegl-dev libegl-mesa0 libegl1 libgl-dev \
     libgl1-mesa-dev libgles-dev libgles1 libgles2 libglu1-mesa libglu1-mesa-dev libglvnd-core-dev \
-    libglvnd-dev libglx-dev libopengl-dev libopengl0 libxcb-cursor-dev \
-    libxcb-cursor0 libxcb-icccm4 libxcb-icccm4-dev libxcb-image0 \
-    libxcb-image0-dev libxcb-keysyms1 libxcb-keysyms1-dev \
+    libglvnd-dev libglx-dev libopengl-dev libopengl0 \
     libxfixes-dev libxi-dev libx11-dev libx11-xcb-dev libxext-dev libxfixes-dev \
     libdbus-1-dev libfontconfig1-dev libfreetype-dev libxkbcommon-dev libxkbcommon-x11-dev libxrandr2 libxrandr-dev \
     libxrender-dev libxcb1-dev libxcb-glx0-dev \
