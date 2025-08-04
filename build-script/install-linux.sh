@@ -209,8 +209,6 @@ sudo apt-get install -y --allow-unauthenticated \
     cmake \
     qt6-base-dev \
     qt6-multimedia-dev \
-    qt6-serialport-dev \
-    qt6-svg-dev \
     libusb-1.0-0-dev \
     qt6-tools-dev \
     libudev-dev \
@@ -228,6 +226,17 @@ sudo apt-get install -y --allow-unauthenticated \
     libswresample-dev \
     libswscale-dev \
     ffmpeg
+
+echo "📦 Installing optional Qt6 dependencies..."
+# Try to install optional Qt6 packages, continue if they fail
+for package in qt6-serialport-dev qt6-svg-dev; do
+    echo "  Attempting to install $package..."
+    if sudo apt-get install -y --allow-unauthenticated $package 2>/dev/null; then
+        echo "  ✅ Successfully installed $package"
+    else
+        echo "  ⚠️  Package $package not available or failed to install, continuing without it..."
+    fi
+done
 
 echo "👥 Setting up user permissions..."
 sudo usermod -a -G dialout $USER
