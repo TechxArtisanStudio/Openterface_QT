@@ -664,6 +664,8 @@ void MainWindow::checkInitSize(){
 }
 
 void MainWindow::resizeEvent(QResizeEvent *event) {
+    qCDebug(log_ui_mainwindow) << "Resize event triggered. New size:" << event->size();
+
     static qint64 lastResizeTime = 0;
     qint64 currentTime = QDateTime::currentMSecsSinceEpoch();
     
@@ -1060,6 +1062,7 @@ void MainWindow::onScreenRatioChanged(double ratio) {
 }
 
 void MainWindow::calculate_video_position(){
+    qCDebug(log_ui_mainwindow) << "Calculate video position...";
     double currentRatio = GlobalSetting::instance().getScreenRatio();
     double input_aspect_ratio = double(GlobalVar::instance().getCaptureWidth()) / double(GlobalVar::instance().getCaptureHeight());
     
@@ -1498,6 +1501,7 @@ void MainWindow::onResolutionsUpdated(int input_width, int input_height, float i
 
 void MainWindow::onInputResolutionChanged()
 {
+    qCDebug(log_ui_mainwindow) << "Input resolution changed.";
     doResize();
 
     // Calculate the maximum available content height with safety checks
