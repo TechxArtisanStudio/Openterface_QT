@@ -767,12 +767,12 @@ void MainWindow::doResize(){
             setMinimumSize(100, 500);
             resize(currentWidth, currentHeight);
         }
-        else{
-            videoPane->setMinimumSize(currentWidth, adjustedContentHeight);
-            videoPane->resize(currentWidth, adjustedContentHeight);
-            scrollArea->resize(currentWidth, adjustedContentHeight);
-            resize(currentWidth, contentHeight);
-        }
+        // else{
+        //     videoPane->setMinimumSize(currentWidth, adjustedContentHeight);
+        //     videoPane->resize(currentWidth, adjustedContentHeight);
+        //     scrollArea->resize(currentWidth, adjustedContentHeight);
+        //     resize(currentWidth, contentHeight);
+        // }
         
     }
     // Update global state
