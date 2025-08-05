@@ -748,6 +748,8 @@ void MainWindow::doResize(){
         
         // Resize main window if necessary
         if (currentWidth != availableWidth && currentHeight != availableHeight) {
+            qCDebug(log_ui_mainwindow) << "Resize to Width " << currentWidth << "\tHeight: " << currentHeight << ", due to exceeding screen bounds.";
+            qCDebug(log_ui_mainwindow) << "Available Width " << availableWidth << "\tHeight: " << availableHeight;
             resize(currentWidth, currentHeight);
         }
  
@@ -765,12 +767,14 @@ void MainWindow::doResize(){
             videoPane->resize(contentwidth, adjustedContentHeight);
             qDebug() << "setDisplayRegion Resize videoPane to width: " << currentWidth << " height: " << currentHeight << " offset: " << offsetX << offsetY << "videoPane width: " << videoPane->width();
             setMinimumSize(100, 500);
+            qCDebug(log_ui_mainwindow) << "Resize to Width " << currentWidth << "\tHeight: " << currentHeight << ", due to aspect ratio < 1.0.";
             resize(currentWidth, currentHeight);
         }
         else{
             videoPane->setMinimumSize(currentWidth, adjustedContentHeight);
             videoPane->resize(currentWidth, adjustedContentHeight);
             scrollArea->resize(currentWidth, adjustedContentHeight);
+            qCDebug(log_ui_mainwindow) << "Resize to Width " << currentWidth << "\tHeight: " << currentHeight << ", due to aspect ratio >= 1.0.";
             resize(currentWidth, contentHeight);
         }
         
