@@ -184,19 +184,61 @@ jobs:
           mkdir -p artifacts
           cp ${DEB_NAME} artifacts/
           
-          # Create build info
+          # Create build info for Debian package
           echo "Build Date: $(date)" > artifacts/BUILD_INFO.txt
           echo "Git Commit: ${{ github.sha }}" >> artifacts/BUILD_INFO.txt
           echo "Git Branch: ${{ github.ref_name }}" >> artifacts/BUILD_INFO.txt
           echo "Architecture: arm64" >> artifacts/BUILD_INFO.txt
           echo "Build Type: ${{ env.BUILD_TYPE }}" >> artifacts/BUILD_INFO.txt
           echo "Package Version: ${VERSION}" >> artifacts/BUILD_INFO.txt
-          echo "Package Name: ${DEB_NAME}" >> artifacts/BUILD_INFO.txt
-          echo "Package Size: $(ls -lh ${DEB_NAME} | awk '{print $5}')" >> artifacts/BUILD_INFO.txt
+          echo "Debian Package Name: ${DEB_NAME}" >> artifacts/BUILD_INFO.txt
+          echo "Debian Package Size: $(ls -lh ${DEB_NAME} | awk '{print $5}')" >> artifacts/BUILD_INFO.txt
           
-          # List package contents
-          echo "=== Package Contents ===" >> artifacts/BUILD_INFO.txt
+          # List Debian package contents
+          echo "=== Debian Package Contents ===" >> artifacts/BUILD_INFO.txt
           dpkg-deb --contents ${DEB_NAME} >> artifacts/BUILD_INFO.txt
+
+      - name: Create RPM package
+        run: |
+          # Get version information from version.h
+          VERSION=$(grep -oP '#define APP_VERSION "\K[^"]+' resources/version.h || echo "1.0.0")
+          RPM_NAME="openterfaceqt-${VERSION}-1.aarch64.rpm"
+          
+          echo "Creating RPM package..."
+          
+          # Install RPM build tools
+          apt-get update && apt-get install -y rpm
+          
+          # Create RPM build structure
+          mkdir -p rpm-build/{BUILD,RPMS,SOURCES,SPECS,SRPMS}
+          
+          # Copy source files to SOURCES
+          cp -r build-arm64/openterfaceQT rpm-build/SOURCES/
+          cp images/icon_256.png rpm-build/SOURCES/
+          
+          # Process the spec file and substitute variables
+          sed -e "s/\${VERSION}/${VERSION}/g" packaging/rpm/spec > rpm-build/SPECS/openterfaceqt.spec
+          
+          # Build the RPM package
+          rpmbuild --define "_topdir $(pwd)/rpm-build" \
+                   --define "_arch aarch64" \
+                   --target aarch64 \
+                   -bb rpm-build/SPECS/openterfaceqt.spec
+          
+          # Find and copy the generated RPM
+          find rpm-build/RPMS -name "*.rpm" -exec cp {} . \;
+          
+          # Copy RPM to artifacts directory
+          cp *.rpm artifacts/ 2>/dev/null || echo "No RPM files found"
+          
+          # Add RPM info to build info
+          echo "" >> artifacts/BUILD_INFO.txt
+          echo "RPM Package Name: ${RPM_NAME}" >> artifacts/BUILD_INFO.txt
+          if [ -f "${RPM_NAME}" ]; then
+            echo "RPM Package Size: $(ls -lh ${RPM_NAME} | awk '{print $5}')" >> artifacts/BUILD_INFO.txt
+            echo "=== RPM Package Contents ===" >> artifacts/BUILD_INFO.txt
+            rpm -qlp ${RPM_NAME} >> artifacts/BUILD_INFO.txt
+          fi
 
       - name: Verify Debian package
         run: |
@@ -234,6 +276,46 @@ jobs:
             exit 1
           fi
 
+      - name: Verify RPM package
+        run: |
+          if [ -f "artifacts/"*.rpm ]; then
+            RPM_FILE=$(find artifacts -name "*.rpm" | head -n1)
+            echo "Verifying RPM package: $RPM_FILE"
+            
+            # Check package info
+            echo "=== RPM Package Information ==="
+            rpm -qip "$RPM_FILE"
+            
+            # Check package contents
+            echo "=== RPM Package Contents ==="
+            rpm -qlp "$RPM_FILE"
+            
+            # Verify binary architecture in package
+            echo "=== Binary Architecture Verification ==="
+            rpm2cpio "$RPM_FILE" | cpio -idmv ./usr/bin/openterfaceQT 2>/dev/null
+            if [ -f "./usr/bin/openterfaceQT" ]; then
+              file ./usr/bin/openterfaceQT
+              
+              if file ./usr/bin/openterfaceQT | grep -q "aarch64\|ARM aarch64"; then
+                echo "✅ Verified ARM64 binary in RPM package"
+              else
+                echo "❌ Binary in RPM package is not ARM64!"
+                exit 1
+              fi
+              
+              # Clean up extracted binary
+              rm -f ./usr/bin/openterfaceQT
+              rmdir ./usr/bin ./usr 2>/dev/null || true
+            else
+              echo "⚠️ Could not extract binary from RPM for verification"
+            fi
+            
+            echo "✅ RPM package verification successful"
+          else
+            echo "❌ No .rpm file found in artifacts"
+            exit 1
+          fi
+
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -246,18 +328,25 @@ jobs:
         run: |
           cd artifacts
           
-          # Find the deb file
+          # Find the deb and rpm files
           DEB_FILE=$(find . -name "*.deb" | head -n1)
-          if [ -n "$DEB_FILE" ]; then
-            # Create release archive with deb file
+          RPM_FILE=$(find . -name "*.rpm" | head -n1)
+          
+          if [ -n "$DEB_FILE" ] || [ -n "$RPM_FILE" ]; then
+            # Create release archive with both package types
             tar -czf ../${{ env.ARTIFACT_NAME }}-${{ github.ref_name }}.tar.gz .
             cd ..
             
-            # Generate checksums
+            # Generate checksums for all packages
             sha256sum ${{ env.ARTIFACT_NAME }}-${{ github.ref_name }}.tar.gz > checksums.txt
-            sha256sum artifacts/*.deb >> checksums.txt
+            if [ -f "artifacts/*.deb" ]; then
+              sha256sum artifacts/*.deb >> checksums.txt
+            fi
+            if [ -f "artifacts/*.rpm" ]; then
+              sha256sum artifacts/*.rpm >> checksums.txt
+            fi
           else
-            echo "No .deb file found for release"
+            echo "No .deb or .rpm files found for release"
             exit 1
           fi
 
@@ -273,19 +362,19 @@ jobs:
 
       - name: Output build summary
         run: |
-          echo "## ARM64 Debian Package Build Summary (Static FFmpeg + Shared Qt)" >> $GITHUB_STEP_SUMMARY
+          echo "## ARM64 Package Build Summary (Static FFmpeg + Shared Qt)" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Build Information:**" >> $GITHUB_STEP_SUMMARY
           echo "- Architecture: ARM64 (aarch64)" >> $GITHUB_STEP_SUMMARY
           echo "- Build Type: ${{ env.BUILD_TYPE }}" >> $GITHUB_STEP_SUMMARY
-          echo "- Package Type: Debian (.deb)" >> $GITHUB_STEP_SUMMARY
+          echo "- Package Types: Debian (.deb) and RPM (.rpm)" >> $GITHUB_STEP_SUMMARY
           echo "- FFmpeg: Static libraries (from base image)" >> $GITHUB_STEP_SUMMARY
           echo "- Qt Libraries: Shared libraries (system packages)" >> $GITHUB_STEP_SUMMARY
           echo "- Git Commit: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
           echo "- Git Branch: ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           
-          # Show package information
+          # Show Debian package information
           DEB_FILE=$(find artifacts -name "*.deb" | head -n1)
           if [ -n "$DEB_FILE" ]; then
             echo "**Debian Package Information:**" >> $GITHUB_STEP_SUMMARY
@@ -293,9 +382,24 @@ jobs:
             dpkg-deb --info "$DEB_FILE" >> $GITHUB_STEP_SUMMARY
             echo '```' >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
-            echo "**Package Contents:**" >> $GITHUB_STEP_SUMMARY
+            echo "**Debian Package Contents:**" >> $GITHUB_STEP_SUMMARY
             echo '```' >> $GITHUB_STEP_SUMMARY
             dpkg-deb --contents "$DEB_FILE" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          # Show RPM package information
+          RPM_FILE=$(find artifacts -name "*.rpm" | head -n1)
+          if [ -n "$RPM_FILE" ]; then
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**RPM Package Information:**" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            rpm -qip "$RPM_FILE" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**RPM Package Contents:**" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            rpm -qlp "$RPM_FILE" >> $GITHUB_STEP_SUMMARY
             echo '```' >> $GITHUB_STEP_SUMMARY
           fi
           
