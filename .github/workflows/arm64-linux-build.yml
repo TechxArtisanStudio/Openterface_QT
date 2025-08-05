@@ -2,7 +2,7 @@ name: ARM64 GNU/Linux Build
 
 on:
   push:
-    branches: [ "main", "dev" ]
+    branches: [ "dev" ]
     paths:
       - 'docker/Dockerfile.arm64'
       - '.github/workflows/arm64-linux-build.yml'
@@ -14,7 +14,7 @@ on:
       - 'serial/**'
       - 'scripts/**'
   pull_request:
-    branches: [ "main", "dev" ]
+    branches: [ "dev" ]
   workflow_call:
     inputs:
       qt_version:

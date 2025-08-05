@@ -2,12 +2,12 @@ name: Build ARM64 Qt Environment
 
 on:
   push:
-    branches: [ "main", "dev" ]
+    branches: [  "dev" ]
     paths:
       - 'docker/Dockerfile.arm64-qt'
       - '.github/workflows/arm64-qt-build.yml'
   pull_request:
-    branches: [ "main", "dev" ]
+    branches: [  "dev" ]
     paths:
       - 'docker/Dockerfile.arm64-qt'
   workflow_call:
