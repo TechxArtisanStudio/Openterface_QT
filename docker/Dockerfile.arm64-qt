@@ -37,6 +37,7 @@ RUN QT_VERSION=${QT_VERSION} && \
     cd build && \
     cmake -GNinja \
         $CMAKE_COMMON_FLAGS \
+        -DCMAKE_BUILD_TYPE=Release \
         -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" \
         -DBUILD_SHARED_LIBS=OFF \
         -DFEATURE_dbus=ON \
@@ -64,6 +65,7 @@ RUN QT_VERSION=${QT_VERSION} && \
     cd build && \
     cmake -GNinja \
         $CMAKE_COMMON_FLAGS \
+        -DCMAKE_BUILD_TYPE=Release \
         -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" \
         -DCMAKE_PREFIX_PATH="$INSTALL_PREFIX" \
         -DBUILD_SHARED_LIBS=OFF \
@@ -78,6 +80,7 @@ RUN QT_VERSION=${QT_VERSION} && \
     cd build && \
     cmake -GNinja \
         $CMAKE_COMMON_FLAGS \
+        -DCMAKE_BUILD_TYPE=Release \
         -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" \
         -DCMAKE_PREFIX_PATH="$INSTALL_PREFIX" \
         -DBUILD_SHARED_LIBS=OFF \
@@ -92,6 +95,7 @@ RUN QT_VERSION=${QT_VERSION} && \
     cd build && \
     cmake -GNinja \
         $CMAKE_COMMON_FLAGS \
+        -DCMAKE_BUILD_TYPE=Release \
         -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" \
         -DCMAKE_PREFIX_PATH="$INSTALL_PREFIX" \
         -DBUILD_SHARED_LIBS=OFF \
@@ -107,6 +111,7 @@ RUN QT_VERSION=${QT_VERSION} && \
     PKG_CONFIG_PATH="/usr/local/lib/pkgconfig:$PKG_CONFIG_PATH" \
     cmake -GNinja \
         $CMAKE_COMMON_FLAGS \
+        -DCMAKE_BUILD_TYPE=Release \
         -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" \
         -DCMAKE_PREFIX_PATH="$INSTALL_PREFIX;/usr/local" \
         -DBUILD_SHARED_LIBS=OFF \
@@ -127,6 +132,7 @@ RUN QT_VERSION=${QT_VERSION} && \
     cd build && \
     cmake -GNinja \
         $CMAKE_COMMON_FLAGS \
+        -DCMAKE_BUILD_TYPE=Release \
         -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" \
         -DCMAKE_PREFIX_PATH="$INSTALL_PREFIX" \
         -DBUILD_SHARED_LIBS=OFF \
