@@ -7,7 +7,6 @@ on:
       - 'docker/Dockerfile.arm64*'
       - '.github/workflows/arm64-*'
       - 'CMakeLists.txt'
-      - 'src/**'
       - 'ui/**'
       - 'host/**'
       - 'video/**'

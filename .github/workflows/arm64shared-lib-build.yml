@@ -12,7 +12,17 @@ on:
   pull_request:
     branches: [ "main", "dev" ]
     paths:
-      - 'src/**'
+      - 'device/**'
+      - 'host/**'
+      - 'video/**'
+      - 'input/**'
+      - 'network/**'
+      - 'ui/**'
+      - 'utils/**'
+      - 'serial/**'
+      - 'target/**'
+      - 'ui/**'
+      - 'usb/**'
       - 'CMakeLists.txt'
       - 'build-script/build-sharedlib-app.sh'
       - 'build-script/build-missing-qt-components.sh'
