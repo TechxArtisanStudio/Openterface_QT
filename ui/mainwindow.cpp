@@ -688,6 +688,8 @@ void MainWindow::resizeEvent(QResizeEvent *event) {
     }
 
     // Get the available screen width and height
+    QScreen *currentScreen = this->screen();
+    QRect availableGeometry = currentScreen->availableGeometry();
     int availableWidth = availableGeometry.width();
     int availableHeight = availableGeometry.height();
     if (event->size().width() >= availableWidth || event->size().height() >= availableHeight) {
