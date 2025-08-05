@@ -1,0 +1,88 @@
+name: ARM64 Complete Build Pipeline
+
+on:
+  push:
+    branches: [  "dev" ]
+    paths:
+      - 'docker/Dockerfile.arm64*'
+      - '.github/workflows/arm64-*'
+      - 'CMakeLists.txt'
+      - 'src/**'
+      - 'ui/**'
+      - 'host/**'
+      - 'video/**'
+      - 'serial/**'
+      - 'scripts/**'
+  workflow_dispatch:
+    inputs:
+      qt_version:
+        description: 'Qt Version'
+        required: false
+        default: '6.6.3'
+        type: string
+      rebuild_base:
+        description: 'Rebuild base environment'
+        required: false
+        default: false
+        type: boolean
+      rebuild_qt:
+        description: 'Rebuild Qt environment'
+        required: false
+        default: false
+        type: boolean
+      rebuild_qt_deps:
+        description: 'Rebuild Qt dependencies'
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  QT_VERSION: ${{ github.event.inputs.qt_version || '6.6.3' }}
+
+jobs:
+  build-base:
+    if: github.event.inputs.rebuild_base == 'true' || contains(github.event.head_commit.modified, 'docker/Dockerfile.arm64-base')
+    uses: ./.github/workflows/arm64-base-build.yml
+    
+  build-qt-deps:
+    needs: [build-base]
+    if: always() && (needs.build-base.result == 'success' || needs.build-base.result == 'skipped' || github.event.inputs.rebuild_qt_deps == 'true')
+    uses: ./.github/workflows/arm64-qt-deps-build.yml
+    with:
+      rebuild_deps: ${{ github.event.inputs.rebuild_qt_deps == 'true' }}
+    
+  build-qt:
+    needs: [build-base, build-qt-deps]
+    if: always() && (needs.build-qt-deps.result == 'success' || needs.build-qt-deps.result == 'skipped' || github.event.inputs.rebuild_qt == 'true')
+    uses: ./.github/workflows/arm64-qt-build.yml
+    with:
+      qt_version: ${{ github.event.inputs.qt_version || '6.6.3' }}
+      rebuild_qt: ${{ github.event.inputs.rebuild_qt == 'true' }}
+    
+  build-app:
+    needs: [build-qt]
+    if: always() && (needs.build-qt.result == 'success' || needs.build-qt.result == 'skipped')
+    uses: ./.github/workflows/arm64-linux-build.yml
+    with:
+      qt_version: ${{ github.event.inputs.qt_version || '6.6.3' }}
+
+  summary:
+    needs: [build-base, build-qt-deps, build-qt, build-app]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Build Summary
+        run: |
+          echo "## ARM64 Build Pipeline Summary" >> $GITHUB_STEP_SUMMARY
+          echo "| Stage | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Base Environment | ${{ needs.build-base.result || 'skipped' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Qt Dependencies | ${{ needs.build-qt-deps.result || 'skipped' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Qt Environment | ${{ needs.build-qt.result || 'skipped' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Application | ${{ needs.build-app.result || 'skipped' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Qt Version: ${{ env.QT_VERSION }}" >> $GITHUB_STEP_SUMMARY

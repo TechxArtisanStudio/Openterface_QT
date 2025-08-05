@@ -1,0 +1,67 @@
+FROM arm64v8/debian:bookworm
+
+# Set non-interactive frontend for apt
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install build dependencies
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    cmake \
+    ninja-build \
+    git \
+    wget \
+    pkg-config \
+    libfontconfig1-dev \
+    libfreetype6-dev \
+    libx11-dev \
+    libxext-dev \
+    libxfixes-dev \
+    libxi-dev \
+    libxrender-dev \
+    libxcb1-dev \
+    libx11-xcb-dev \
+    libxcb-glx0-dev \
+    libxkbcommon-dev \
+    libxkbcommon-x11-dev \
+    libglib2.0-dev \
+    libgl1-mesa-dev \
+    libglu1-mesa-dev \
+    freeglut3-dev \
+    libegl1-mesa-dev \
+    libdbus-1-dev \
+    libssl-dev \
+    libicu-dev \
+    libusb-1.0-0-dev \
+    libexpat1-dev \
+    libbz2-dev \
+    libxrandr-dev \
+    libasound2-dev \
+    libpulse-dev \
+    yasm \
+    nasm \
+    && rm -rf /var/lib/apt/lists/*
+
+# Build FFmpeg with static libraries
+RUN wget https://ffmpeg.org/releases/ffmpeg-6.0.tar.xz \
+    && tar xf ffmpeg-6.0.tar.xz \
+    && cd ffmpeg-6.0 \
+    && ./configure \
+        --prefix=/usr/local \
+        --enable-static \
+        --disable-shared \
+        --disable-doc \
+        --disable-ffplay \
+        --disable-ffprobe \
+        --disable-network \
+        --disable-autodetect \
+        --enable-pic \
+    && make -j$(nproc) \
+    && make install \
+    && cd .. \
+    && rm -rf ffmpeg-6.0 ffmpeg-6.0.tar.xz
+
+# Verify FFmpeg installation
+RUN ls -la /usr/local/lib/libav* && \
+    ls -la /usr/local/include/libav*
+
+WORKDIR /workspace

@@ -24,7 +24,7 @@ jobs:
       - name: Wait for required workflows
         run: |
           # Fixed list of workflows to wait for
-          WORKFLOWS=("windows-build.yaml" "windows-portable-build.yaml" "linux-build.yaml" "linux-portable-build.yaml")
+          WORKFLOWS=("windows-build.yaml" "windows-portable-build.yaml" "linux-build.yaml" "linux-portable-build.yaml" "arm64shared-lib-build.yml")
           
           echo "Workflows to wait for:"
           for workflow in "${WORKFLOWS[@]}"; do
@@ -205,19 +205,10 @@ jobs:
       - name: Download Linux ARM64 DEB artifact
         uses: dawidd6/action-download-artifact@v2
         with:
-          workflow: linux-build.yaml
+          workflow: arm64shared-lib-build.yml
           workflow_conclusion: success
-          name: openterfaceQT.linux.arm64.deb
+          name: openterface-qt.linux.arm64.deb
           path: artifacts/linux/arm64/deb
-          
-      - name: Download Linux ARM64 RPM artifact
-        uses: dawidd6/action-download-artifact@v2
-        continue-on-error: true
-        with:
-          workflow: linux-build.yaml
-          workflow_conclusion: success
-          name: openterfaceQT.linux.arm64.rpm
-          path: artifacts/linux/arm64/rpm
       
       - name: Download Linux portable artifacts
         uses: dawidd6/action-download-artifact@v6

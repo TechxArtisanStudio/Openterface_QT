@@ -42,7 +42,7 @@ Or manually:
 ```bash
 docker buildx create --use --name openterface-builder --driver docker-container
 docker buildx build --platform linux/arm64 \
-  -t ghcr.io/kevinzjpeng/openterface-alpine-qt-arm64-builder:6.6.3-alpine \
+  -t ghcr.io/TechxArtisanStudio/openterface-alpine-qt-arm64-builder:6.6.3-alpine \
   -f Dockerfile.alpine \
   --push \
   .

@@ -724,7 +724,7 @@ void MainWindow::doResize(){
             currentWidth = availableWidth;
         }
         if (currentHeight >= maxContentHeight) {
-            currentHeight = maxContentHeight + menuBarHeight + statusBarHeight;
+            currentHeight = std::min(maxContentHeight + menuBarHeight + statusBarHeight, availableHeight);
         }
 
         int newVideoHeight = std::min(currentHeight - menuBarHeight - statusBarHeight, maxContentHeight);
