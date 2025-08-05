@@ -39,7 +39,7 @@
 #include "ui/advance/DeviceSelectorDialog.h"
 #include "ui/advance/scripttool.h"
 #include "ui/advance/firmwaremanagerdialog.h"
-#include "ui/advance/renamedisplaydialog.h"
+#include "ui/advance/updatedisplaysettingsdialog.h"
 #include "ui/help/versioninfomanager.h"
 #include "ui/toolbar/toolbarmanager.h"
 #include "ui/TaskManager.h"
@@ -187,7 +187,7 @@ private slots:
 
     void showFirmwareManagerDialog();
 
-    void showRenameDisplayDialog();
+    void showUpdateDisplaySettingsDialog();
 
     void updateFirmware(); 
 
@@ -277,7 +277,7 @@ private:
     SerialPortDebugDialog *serialPortDebugDialog = nullptr;
     DeviceSelectorDialog *deviceSelectorDialog = nullptr;
     FirmwareManagerDialog *firmwareManagerDialog = nullptr;
-    RenameDisplayDialog *renameDisplayDialog = nullptr;
+    UpdateDisplaySettingsDialog *updateDisplaySettingsDialog = nullptr;
 
     QWidget *keyboardPanel = nullptr;
 

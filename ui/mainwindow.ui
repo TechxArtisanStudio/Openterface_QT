@@ -278,10 +278,10 @@
   </action>
   <action name="actionRenameDisplay">
    <property name="text">
-    <string>Rename detected display</string>
+    <string>Update Display Settings</string>
    </property>
    <property name="toolTip">
-    <string>Rename the EDID display name</string>
+    <string>Update display name and serial number in EDID</string>
    </property>
   </action>
   <actiongroup name="actionGroup">
@@ -561,7 +561,7 @@
    <sender>actionRenameDisplay</sender>
    <signal>triggered()</signal>
    <receiver>MainWindow</receiver>
-   <slot>showRenameDisplayDialog()</slot>
+   <slot>showUpdateDisplaySettingsDialog()</slot>
   </connection>
  </connections>
  <slots>
@@ -589,6 +589,6 @@
   <slot>showFirmwareManagerDialog()</slot>
   <slot>updateFirmware()</slot>
   <slot>openDeviceSelector()</slot>
-  <slot>showRenameDisplayDialog()</slot>
+  <slot>showUpdateDisplaySettingsDialog()</slot>
  </slots>
 </ui>

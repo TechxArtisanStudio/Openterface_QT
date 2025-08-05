@@ -104,6 +104,7 @@ qt_add_executable(openterfaceQT WIN32 MACOSX_BUNDLE
     ui/advance/firmwareupdatedialog.cpp ui/advance/firmwareupdatedialog.h
     ui/advance/firmwaremanagerdialog.cpp ui/advance/firmwaremanagerdialog.h
     ui/advance/renamedisplaydialog.cpp ui/advance/renamedisplaydialog.h
+    ui/advance/updatedisplaysettingsdialog.cpp ui/advance/updatedisplaysettingsdialog.h
     video/firmwarewriter.cpp video/firmwarewriter.h
     video/firmwarereader.cpp video/firmwarereader.h
     video/ms2109.h
