@@ -109,6 +109,7 @@ jobs:
           mkdir -p debian-package/usr/bin
           mkdir -p debian-package/usr/share/applications
           mkdir -p debian-package/usr/share/pixmaps
+          mkdir -p debian-package/usr/share/icons/hicolor/128x128/apps
           mkdir -p debian-package/usr/share/doc/${PACKAGE_NAME}
           
           # Copy the binary
@@ -137,9 +138,32 @@ jobs:
           EOF
           fi
           
-          # Copy icon if it exists
+          # Copy icon if it exists - check multiple possible locations
+          ICON_COPIED=false
           if [ -f "images/icon_128.png" ]; then
             cp images/icon_128.png debian-package/usr/share/pixmaps/openterface-qt.png
+            ICON_COPIED=true
+            echo "✅ Copied icon from images/icon_128.png"
+          elif [ -f "images/icon_256.png" ]; then
+            cp images/icon_256.png debian-package/usr/share/pixmaps/openterface-qt.png
+            ICON_COPIED=true
+            echo "✅ Copied icon from images/icon_256.png"
+          elif [ -f "images/icon_64.png" ]; then
+            cp images/icon_64.png debian-package/usr/share/pixmaps/openterface-qt.png
+            ICON_COPIED=true
+            echo "✅ Copied icon from images/icon_64.png"
+          elif [ -f "resources/icon_128.png" ]; then
+            cp resources/icon_128.png debian-package/usr/share/pixmaps/openterface-qt.png
+            ICON_COPIED=true
+            echo "✅ Copied icon from resources/icon_128.png"
+          else
+            echo "⚠️ Warning: No icon file found for packaging"
+          fi
+          
+          # Also copy to hicolor icon theme structure for better desktop integration
+          if [ "$ICON_COPIED" = true ]; then
+            cp debian-package/usr/share/pixmaps/openterface-qt.png debian-package/usr/share/icons/hicolor/128x128/apps/openterface-qt.png
+            echo "✅ Icon also installed to hicolor theme directory"
           fi
           
           # Copy documentation
