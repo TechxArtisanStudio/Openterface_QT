@@ -746,6 +746,8 @@ void MainWindow::doResize(){
         
         // Resize main window if necessary
         if (currentWidth != availableWidth && currentHeight != availableHeight) {
+            qCDebug(log_ui_mainwindow) << "setDisplayRegion Resize to Width " << currentWidth << "\tHeight: " << currentHeight;
+            qCDebug(log_ui_mainwindow) << "Available Width " << availableWidth << "\tHeight: " << availableHeight;
             resize(currentWidth, currentHeight);
         }
  
