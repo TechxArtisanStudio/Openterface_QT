@@ -664,6 +664,8 @@ void MainWindow::checkInitSize(){
 }
 
 void MainWindow::resizeEvent(QResizeEvent *event) {
+    qCDebug(log_ui_mainwindow) << "Resize event triggered. New size:" << event->size();
+
     static qint64 lastResizeTime = 0;
     qint64 currentTime = QDateTime::currentMSecsSinceEpoch();
     
@@ -746,7 +748,7 @@ void MainWindow::doResize(){
         
         // Resize main window if necessary
         if (currentWidth != availableWidth && currentHeight != availableHeight) {
-            qCDebug(log_ui_mainwindow) << "setDisplayRegion Resize to Width " << currentWidth << "\tHeight: " << currentHeight;
+            qCDebug(log_ui_mainwindow) << "Resize to Width " << currentWidth << "\tHeight: " << currentHeight << ", due to exceeding screen bounds.";
             qCDebug(log_ui_mainwindow) << "Available Width " << availableWidth << "\tHeight: " << availableHeight;
             resize(currentWidth, currentHeight);
         }
@@ -765,12 +767,14 @@ void MainWindow::doResize(){
             videoPane->resize(contentwidth, adjustedContentHeight);
             qDebug() << "setDisplayRegion Resize videoPane to width: " << currentWidth << " height: " << currentHeight << " offset: " << offsetX << offsetY << "videoPane width: " << videoPane->width();
             setMinimumSize(100, 500);
+            qCDebug(log_ui_mainwindow) << "Resize to Width " << currentWidth << "\tHeight: " << currentHeight << ", due to aspect ratio < 1.0.";
             resize(currentWidth, currentHeight);
         }
         else{
             videoPane->setMinimumSize(currentWidth, adjustedContentHeight);
             videoPane->resize(currentWidth, adjustedContentHeight);
             scrollArea->resize(currentWidth, adjustedContentHeight);
+            qCDebug(log_ui_mainwindow) << "Resize to Width " << currentWidth << "\tHeight: " << currentHeight << ", due to aspect ratio >= 1.0.";
             resize(currentWidth, contentHeight);
         }
         
@@ -1062,6 +1066,7 @@ void MainWindow::onScreenRatioChanged(double ratio) {
 }
 
 void MainWindow::calculate_video_position(){
+    qCDebug(log_ui_mainwindow) << "Calculate video position...";
     double currentRatio = GlobalSetting::instance().getScreenRatio();
     double input_aspect_ratio = double(GlobalVar::instance().getCaptureWidth()) / double(GlobalVar::instance().getCaptureHeight());
     
@@ -1500,6 +1505,7 @@ void MainWindow::onResolutionsUpdated(int input_width, int input_height, float i
 
 void MainWindow::onInputResolutionChanged()
 {
+    qCDebug(log_ui_mainwindow) << "Input resolution changed.";
     doResize();
 
     // Calculate the maximum available content height with safety checks
