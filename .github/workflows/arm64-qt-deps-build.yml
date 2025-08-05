@@ -2,12 +2,12 @@ name: Build ARM64 Qt Dependencies
 
 on:
   push:
-    branches: [ "dev" ]
+    branches: [ "main", "dev" ]
     paths:
       - 'docker/Dockerfile.arm64-qt-deps'
       - '.github/workflows/arm64-qt-deps-build.yml'
   pull_request:
-    branches: [ "dev" ]
+    branches: [ "main", "dev" ]
     paths:
       - 'docker/Dockerfile.arm64-qt-deps'
   workflow_call:
