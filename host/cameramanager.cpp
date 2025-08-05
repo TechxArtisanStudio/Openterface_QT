@@ -12,11 +12,23 @@
 #include <QTimer>
 #include <QThread>
 
+#if defined(__arm__) || defined(__aarch64__)
+#include "host/v4l2mjpegcapture.h"
+#endif
+
 Q_LOGGING_CATEGORY(log_ui_camera, "opf.ui.camera")
 
 CameraManager::CameraManager(QObject *parent)
     : QObject(parent), m_videoOutput(nullptr), m_video_width(0), m_video_height(0)
 {
+#if defined(__arm__) || defined(__aarch64__)
+    if (V4L2MjpegCapture::isRaspberryPi()) {
+        m_v4l2Capture = new V4L2MjpegCapture(this);
+        connect(m_v4l2Capture, &V4L2MjpegCapture::frameReady, this, [this](const QImage &frame){
+            // This is a dummy, we need to find a way to render the QImage
+        });
+    }
+#endif
     qCDebug(log_ui_camera) << "CameraManager init...";
     
     // Initialize camera device to null state
@@ -105,6 +117,12 @@ void CameraManager::setVideoOutput(QVideoWidget* videoOutput)
 
 void CameraManager::startCamera()
 {
+#if defined(__arm__) || defined(__aarch64__)
+    if (m_v4l2Capture && m_v4l2Capture->isRaspberryPi()) {
+        m_v4l2Capture->start();
+        return;
+    }
+#endif
     qCDebug(log_ui_camera) << "Camera start..";
     
     try {
@@ -142,6 +160,12 @@ void CameraManager::startCamera()
 
 void CameraManager::stopCamera()
 {
+#if defined(__arm__) || defined(__aarch64__)
+    if (m_v4l2Capture && m_v4l2Capture->isRunning()) {
+        m_v4l2Capture->stop();
+        return;
+    }
+#endif
     qCDebug(log_ui_camera) << "Stopping camera..";
     
     try {

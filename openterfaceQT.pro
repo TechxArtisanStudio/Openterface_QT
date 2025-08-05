@@ -66,6 +66,13 @@ SOURCES += main.cpp \
     ui/screenscale.cpp \
     ui/cornerwidget/cornerwidgetmanager.cpp
 
+# Raspberry Pi specific files
+arm: {
+    SOURCES += host/v4l2mjpegcapture.cpp
+    HEADERS += host/v4l2mjpegcapture.h
+    LIBS += -lavformat -lavcodec -lswscale -lavutil
+}
+
 
 HEADERS  += \
     global.h \
