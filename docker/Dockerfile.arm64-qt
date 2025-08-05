@@ -52,6 +52,7 @@ RUN QT_VERSION=${QT_VERSION} && \
         -DFEATURE_xau=ON \
         -DCMAKE_PREFIX_PATH="$INSTALL_PREFIX;/opt/qt-deps" \
         -DTEST_xcb_syslibs=ON \
+        -DCMAKE_EXE_LINKER_FLAGS="-lXau -lXdmcp" \
         .. && \
     ninja && \
     ninja install && \
