@@ -7,7 +7,6 @@ on:
       - 'src/**'
       - 'CMakeLists.txt'
       - 'build-script/build-sharedlib-app.sh'
-      - 'build-script/build-missing-qt-components.sh'
       - '.github/workflows/arm64shared-lib-build.yml'
   pull_request:
     branches: [ "main", "dev" ]
@@ -25,7 +24,6 @@ on:
       - 'usb/**'
       - 'CMakeLists.txt'
       - 'build-script/build-sharedlib-app.sh'
-      - 'build-script/build-missing-qt-components.sh'
   workflow_call:
   workflow_dispatch:
 
@@ -99,7 +97,6 @@ jobs:
               
               # Make scripts executable
               chmod +x build-script/build-sharedlib-app.sh
-              chmod +x build-script/build-missing-qt-components.sh
               
               # Run the build script with static FFmpeg + shared Qt
               echo 'Building application with static FFmpeg + shared Qt...'

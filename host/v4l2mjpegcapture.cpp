@@ -2,18 +2,33 @@
 #include <QDebug>
 #include <QFile>
 #include <QElapsedTimer>
+#include <QThread>
+#include <QMutexLocker>
 
 #include <fcntl.h>
 #include <unistd.h>
 #include <sys/ioctl.h>
 #include <sys/mman.h>
+#include <errno.h>
+#include <string.h>
+
+// V4L2 includes
+#include <linux/videodev2.h>
+
+// FFmpeg includes
+extern "C" {
+#include <libavcodec/avcodec.h>
+#include <libavformat/avformat.h>
+#include <libavutil/imgutils.h>
+#include <libswscale/swscale.h>
+}
 
 Q_LOGGING_CATEGORY(log_v4l2_mjpeg, "opf.v4l2_mjpeg")
 
 V4L2MjpegCapture::V4L2MjpegCapture(QObject *parent)
     : QObject(parent),
       m_captureThread(nullptr),
-      m_captureTimer(nullptr),
+      m_worker(nullptr),
       m_running(false),
       m_shouldStop(false),
       m_v4l2Fd(-1),
@@ -37,7 +52,7 @@ V4L2MjpegCapture::~V4L2MjpegCapture()
     qCDebug(log_v4l2_mjpeg) << "V4L2MjpegCapture destroyed";
 }
 
-bool V4L2MjpegCapture::isRaspberryPi() const
+bool V4L2MjpegCapture::isRaspberryPi()
 {
     QFile f("/proc/cpuinfo");
     if (f.open(QIODevice::ReadOnly)) {
