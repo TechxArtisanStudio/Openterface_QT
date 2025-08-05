@@ -1,4 +1,4 @@
-ARG BASE_IMAGE=ghcr.io/TechxArtisanStudio/openterface-arm64-qt-deps:latest
+ARG BASE_IMAGE=ghcr.io/kevinzjpeng/openterface-arm64-qt-deps:latest
 FROM ${BASE_IMAGE}
 
 ARG QT_MAJOR_VERSION=6.6
