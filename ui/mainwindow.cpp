@@ -653,13 +653,27 @@ void MainWindow::initCamera()
 void MainWindow::checkInitSize(){
     QScreen *currentScreen = this->screen();
     systemScaleFactor = currentScreen->devicePixelRatio();
-    if(systemScaleFactor != 1.0){
-        resize(int(this->width() / systemScaleFactor), int(this->height() / systemScaleFactor));
-
-        qCDebug(log_ui_mainwindow) << "checkInitSize Resize now: " << this->width() << this->height();
-        qCDebug(log_ui_mainwindow) << "checkInitSize Resize now: " << this->width() / systemScaleFactor 
-        << this->height() / systemScaleFactor;
-    }
+    
+    // Get screen geometry
+    QRect screenGeometry = currentScreen->geometry();
+    int screenWidth = screenGeometry.width();
+    int screenHeight = screenGeometry.height();
+    
+    // Calculate 50% of screen size
+    int windowWidth = screenWidth / 2;
+    int windowHeight = screenHeight / 2;
+    
+    // Set window size to 50% of screen size
+    resize(windowWidth, windowHeight);
+    
+    // Center the window on screen
+    int x = (screenWidth - windowWidth) / 2;
+    int y = (screenHeight - windowHeight) / 2;
+    move(x, y);
+    
+    qCDebug(log_ui_mainwindow) << "checkInitSize: Screen size:" << screenWidth << "x" << screenHeight;
+    qCDebug(log_ui_mainwindow) << "checkInitSize: Window size set to:" << windowWidth << "x" << windowHeight;
+    qCDebug(log_ui_mainwindow) << "checkInitSize: Window position:" << x << "," << y;
     qCDebug(log_ui_mainwindow) << "System scale factor: " << systemScaleFactor;
 }
 
@@ -669,7 +683,15 @@ void MainWindow::resizeEvent(QResizeEvent *event) {
     static qint64 lastResizeTime = 0;
     qint64 currentTime = QDateTime::currentMSecsSinceEpoch();
     
-    if (isFullScreenMode() || (currentTime - lastResizeTime) < 10) { // 100ms
+    if (isFullScreenMode() || (currentTime - lastResizeTime) < 50) { // 100ms
+        return;
+    }
+
+    // Get the available screen width and height
+    int availableWidth = availableGeometry.width();
+    int availableHeight = availableGeometry.height();
+    if (event->size().width() >= availableWidth || event->size().height() >= availableHeight) {
+        qCDebug(log_ui_mainwindow) << "Resize event ignored due to exceeding screen bounds.";
         return;
     }
     
