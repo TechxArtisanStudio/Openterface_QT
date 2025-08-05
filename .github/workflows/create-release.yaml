@@ -202,30 +202,13 @@ jobs:
           name: openterfaceQT.linux.amd64.rpm
           path: artifacts/linux/amd64/rpm
           
-      - name: Download Linux ARM64 packages (DEB and RPM)
+      - name: Download Linux ARM64 DEB artifact
         uses: dawidd6/action-download-artifact@v2
         with:
           workflow: arm64shared-lib-build.yml
           workflow_conclusion: success
           name: openterface-qt.linux.arm64.deb
-          path: artifacts/linux/arm64/packages
-      
-      - name: Organize ARM64 packages
-        run: |
-          # Create separate directories for DEB and RPM
-          mkdir -p artifacts/linux/arm64/deb artifacts/linux/arm64/rpm
-          
-          # Move DEB files to deb directory
-          find artifacts/linux/arm64/packages -name "*.deb" -exec mv {} artifacts/linux/arm64/deb/ \; 2>/dev/null || true
-          
-          # Move RPM files to rpm directory  
-          find artifacts/linux/arm64/packages -name "*.rpm" -exec mv {} artifacts/linux/arm64/rpm/ \; 2>/dev/null || true
-          
-          # List organized files
-          echo "ARM64 DEB files:"
-          ls -la artifacts/linux/arm64/deb/ || echo "No DEB files found"
-          echo "ARM64 RPM files:"
-          ls -la artifacts/linux/arm64/rpm/ || echo "No RPM files found"
+          path: artifacts/linux/arm64/deb
       
       - name: Download Linux portable artifacts
         uses: dawidd6/action-download-artifact@v6
