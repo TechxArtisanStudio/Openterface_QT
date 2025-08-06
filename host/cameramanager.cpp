@@ -76,6 +76,21 @@ void CameraManager::setCameraDevice(const QCameraDevice &cameraDevice)
             return;
         }
         
+        // Check if we're using GStreamer for special handling
+        QString mediaBackend = GlobalSetting::instance().getMediaBackend();
+        bool isGStreamer = (mediaBackend == "gstreamer");
+        
+        if (isGStreamer) {
+            qCDebug(log_ui_camera) << "Using GStreamer-safe camera device setup";
+            
+            // For GStreamer, ensure clean state before creating new camera
+            if (m_camera) {
+                // Disconnect from capture session first
+                m_captureSession.setCamera(nullptr);
+                QThread::msleep(25); // Allow GStreamer to clean up
+            }
+        }
+        
         // Create new camera instance
         m_camera.reset(new QCamera(cameraDevice));
         
@@ -87,7 +102,11 @@ void CameraManager::setCameraDevice(const QCameraDevice &cameraDevice)
         // Setup connections before setting up capture session
         setupConnections();
         
-        // Set up capture session
+        // Set up capture session with timing consideration for GStreamer
+        if (isGStreamer) {
+            QThread::msleep(25); // Give GStreamer time to initialize camera object
+        }
+        
         m_captureSession.setCamera(m_camera.get());
         m_captureSession.setImageCapture(m_imageCapture.get());
         
@@ -158,19 +177,46 @@ void CameraManager::startCamera()
 
             qCDebug(log_ui_camera) << "Starting camera:" << m_camera->cameraDevice().description();
             
-            // Ensure video output is connected before starting camera
-            if (m_videoOutput) {
-                qDebug() << "Ensuring widget video output is connected before starting camera";
-                m_captureSession.setVideoOutput(m_videoOutput);
-            } else if (m_graphicsVideoOutput) {
-                qDebug() << "Ensuring graphics video output is connected before starting camera";
-                m_captureSession.setVideoOutput(m_graphicsVideoOutput);
+            // Check if we're using GStreamer and apply special handling
+            QString mediaBackend = GlobalSetting::instance().getMediaBackend();
+            bool isGStreamer = (mediaBackend == "gstreamer");
+            
+            if (isGStreamer) {
+                qCDebug(log_ui_camera) << "Using GStreamer-safe camera startup procedure";
+                
+                // For GStreamer, ensure video output is properly connected with extra timing
+                if (m_videoOutput) {
+                    qDebug() << "Connecting widget video output for GStreamer";
+                    m_captureSession.setVideoOutput(static_cast<QObject*>(nullptr));
+                    QThread::msleep(25); // Brief disconnect
+                    m_captureSession.setVideoOutput(m_videoOutput);
+                    QThread::msleep(25); // Allow GStreamer to setup pipeline
+                } else if (m_graphicsVideoOutput) {
+                    qDebug() << "Connecting graphics video output for GStreamer";
+                    m_captureSession.setVideoOutput(static_cast<QObject*>(nullptr));
+                    QThread::msleep(25); // Brief disconnect
+                    m_captureSession.setVideoOutput(m_graphicsVideoOutput);
+                    QThread::msleep(25); // Allow GStreamer to setup pipeline
+                }
+            } else {
+                // Standard connection for other backends
+                if (m_videoOutput) {
+                    qDebug() << "Ensuring widget video output is connected before starting camera";
+                    m_captureSession.setVideoOutput(m_videoOutput);
+                } else if (m_graphicsVideoOutput) {
+                    qDebug() << "Ensuring graphics video output is connected before starting camera";
+                    m_captureSession.setVideoOutput(m_graphicsVideoOutput);
+                }
             }
             
             m_camera->start();
             
-            // Minimal wait time to reduce transition delay
-            QThread::msleep(25);
+            // Adjust wait time based on backend
+            if (isGStreamer) {
+                QThread::msleep(50); // More time for GStreamer pipeline setup
+            } else {
+                QThread::msleep(25); // Minimal wait for other backends
+            }
             
             // Verify camera started
             if (m_camera->isActive()) {
@@ -213,10 +259,24 @@ void CameraManager::stopCamera()
             }
             
             qCDebug(log_ui_camera) << "Stopping camera:" << m_camera->cameraDevice().description();
-            m_camera->stop();
             
-            // Wait for camera to fully stop
-            QThread::msleep(100);
+            // For GStreamer, be more careful about shutdown order
+            QString mediaBackend = GlobalSetting::instance().getMediaBackend();
+            if (mediaBackend == "gstreamer") {
+                qCDebug(log_ui_camera) << "Using GStreamer-safe camera shutdown procedure";
+                
+                // First disconnect video output to prevent object reference issues
+                m_captureSession.setVideoOutput(static_cast<QObject*>(nullptr));
+                QThread::msleep(50); // Give GStreamer time to clean up references
+                
+                // Then stop the camera
+                m_camera->stop();
+                QThread::msleep(100); // Extra time for GStreamer cleanup
+            } else {
+                // Standard shutdown for other backends
+                m_camera->stop();
+                QThread::msleep(100);
+            }
             
             qCDebug(log_ui_camera) << "Camera stopped successfully";
         } else {

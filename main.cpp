@@ -113,16 +113,25 @@ void applyMediaBackendSetting(){
     
     // Handle GStreamer-specific environment settings
     if (mediaBackend == "gstreamer") {
-        // Set GStreamer debug level to reduce verbose output
-        qputenv("GST_DEBUG", "2");
+        // Set GStreamer debug level to reduce verbose output but catch critical errors
+        qputenv("GST_DEBUG", "1,qt6media:3");
         
-        // Set GStreamer to use integer frame rates to avoid step assertion errors
+        // Disable color output for cleaner logs
         qputenv("GST_DEBUG_NO_COLOR", "1");
         
-        // Ensure proper GStreamer registry
+        // Ensure proper GStreamer registry handling
         qputenv("GST_REGISTRY_REUSE_PLUGIN_SCANNER", "no");
         
-        qDebug() << "Applied GStreamer-specific environment settings";
+        // Set GStreamer to handle object lifecycle more carefully
+        qputenv("GST_DEBUG_DUMP_DOT_DIR", "");
+        
+        // Prevent GStreamer from using problematic plugins that might cause object ref issues
+        qputenv("GST_PLUGIN_FEATURE_RANK", "qt6videosink:MAX,qt6audiosink:MAX");
+        
+        // Force proper cleanup timing
+        qputenv("G_DEBUG", "gc-friendly");
+        
+        qDebug() << "Applied GStreamer-specific environment settings for object safety";
     }
     
     qputenv("QT_MEDIA_BACKEND", mediaBackend.toUtf8());
