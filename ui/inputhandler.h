@@ -28,6 +28,7 @@ public:
 
     void handleKeyPressEvent(QKeyEvent *event);
     void handleKeyReleaseEvent(QKeyEvent *event);
+    void handleWheelEvent(QWheelEvent *event);
 
 protected:
     bool eventFilter(QObject *watched, QEvent *event) override;
@@ -48,7 +49,6 @@ private:
     void handleMouseMoveEvent(QMouseEvent *event);
     void handleMousePressEvent(QMouseEvent *event);
     void handleMouseReleaseEvent(QMouseEvent *event);
-    void handleWheelEvent(QWheelEvent *event);
 };
 
 #endif // INPUTHANDLER_H

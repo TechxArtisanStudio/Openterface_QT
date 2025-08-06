@@ -1,32 +1,32 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!DOCTYPE TS>
-<TS version="2.1" language="da_DK">
+<TS version="2.1" language="zh_CN">
 <context>
     <name>AudioPage</name>
     <message>
         <location filename="../../ui/preferences/audiopage.cpp" line="39"/>
         <source>General audio setting</source>
-        <translation>Generelle lydindstillinger</translation>
+        <translation>通用音频设置</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/audiopage.cpp" line="42"/>
         <source>Audio Codec: </source>
-        <translation>Lydkodeks: </translation>
+        <translation>音频编码方式：</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/audiopage.cpp" line="47"/>
         <source>Sample Rate: </source>
-        <translation>Samplingsfrekvens: </translation>
+        <translation>采样率:</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/audiopage.cpp" line="53"/>
         <source>Quality: </source>
-        <translation>Kvalitet: </translation>
+        <translation>音频质量：</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/audiopage.cpp" line="60"/>
         <source>File Format: </source>
-        <translation>Filformat: </translation>
+        <translation>输出文件形式：</translation>
     </message>
 </context>
 <context>
@@ -34,39 +34,35 @@
     <message>
         <location filename="../../ui/cornerwidget/cornerwidgetmanager.cpp" line="57"/>
         <source>Select Keyboard Layout</source>
-        <translation type="unfinished">Vælg tastaturlayout</translation>
+        <translation>选择键盘布局</translation>
     </message>
 </context>
 <context>
     <name>EnvironmentSetupDialog</name>
     <message>
-        <source>Environment Setup</source>
-        <translation type="vanished">Miljøopsætning</translation>
-    </message>
-    <message>
         <location filename="../../ui/advance/envdialog.ui" line="6"/>
         <source>Environment Helper</source>
-        <translation type="unfinished">Miljøhjælper</translation>
+        <translation>环境助手</translation>
     </message>
     <message>
         <location filename="../../ui/advance/envdialog.ui" line="19"/>
         <source>‣ Extract the driver to a folder:</source>
-        <translation>‣ Udpak driveren til en mappe:</translation>
+        <translation>‣ 解压驱动到文件夹：</translation>
     </message>
     <message>
         <location filename="../../ui/advance/envdialog.ui" line="26"/>
         <source>Select Folder</source>
-        <translation>Vælg mappe</translation>
+        <translation>选择文件夹</translation>
     </message>
     <message>
         <location filename="../../ui/advance/envdialog.ui" line="33"/>
         <source>‣ Open a terminal and run the following commands:</source>
-        <translation>‣ Åbn en terminal og kør følgende kommandoer:</translation>
+        <translation>‣ 打开终端并运行以下命令：</translation>
     </message>
     <message>
         <location filename="../../ui/advance/envdialog.ui" line="48"/>
         <source>background-color:black; color:white;</source>
-        <translation>baggrundsfarve:sort; farve:hvid;</translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../../ui/advance/envdialog.ui" line="58"/>
@@ -76,140 +72,79 @@
     <message>
         <location filename="../../ui/advance/envdialog.ui" line="69"/>
         <source>OK</source>
-        <translation>OK</translation>
+        <translation>确定</translation>
     </message>
     <message>
         <location filename="../../ui/advance/envdialog.ui" line="76"/>
         <source>Quit</source>
-        <translation>Afslut</translation>
+        <translation>退出</translation>
     </message>
     <message>
         <location filename="../../ui/advance/envdialog.ui" line="85"/>
         <source>Auto environment check on startup</source>
-        <translation>Automatisk miljøtjek ved opstart</translation>
+        <translation>启动时自动环境检查</translation>
     </message>
     <message>
         <location filename="../../ui/advance/envdialog.ui" line="92"/>
         <source>&lt;a href=&quot;#&quot;&gt;Environment Help Documentation&lt;/a&gt;</source>
-        <translation type="unfinished"></translation>
+        <translation>&lt;a href=&quot;#&quot;&gt;环境帮助文档&lt;/a&gt;</translation>
     </message>
     <message>
-        <source>&lt;a href=&quot;#&quot;&gt;Environment Setup Documentation&lt;/a&gt;</source>
-        <translation type="vanished">&lt;a href=&quot;#&quot;&gt;Dokumentation for miljøopsætning l&apos;environnement&lt;/a&gt;</translation>
-    </message>
-    <message>
-        <source> The driver is installed. No further action is required.</source>
-        <translation type="vanished"> Driveren er installeret. Ingen yderligere handling er påkrævet.</translation>
-    </message>
-    <message>
-        <source> The driver is missing. Openterface Mini-KVM will install it automatically.</source>
-        <translation type="vanished"> Driveren mangler. Openterface Mini-KVM vil installere den automatisk.</translation>
-    </message>
-    <message>
-        <source>The following steps help you install the driver and add user to correct group. Current status:
-</source>
-        <translation type="vanished">Følgende trin hjælper dig med at installere driveren og tilføje brugeren til den korrekte gruppe. Nuværende status:
-</translation>
-    </message>
-    <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="120"/>
-        <source> The device is not plugged in. Please plug it in and try again.</source>
-        <translation type="unfinished"> Enheten er ikke tilkoblet. Koble den til og prøv igjen.</translation>
+        <location filename="../../ui/advance/envdialog.cpp" line="107"/>
+        <source>The following steps help you install the driver and the Openterface firmware update. Current status:&lt;br&gt;</source>
+        <translation>以下步骤可帮助您安装驱动程序和 Openterface 固件更新。当前状态：&lt;br&gt;</translation>
     </message>
     <message>
         <location filename="../../ui/advance/envdialog.cpp" line="110"/>
         <location filename="../../ui/advance/envdialog.cpp" line="142"/>
         <source>‣ Driver Installed: </source>
-        <translation>‣ Driver installeret: </translation>
-    </message>
-    <message>
-        <source>‣ In Dialout Group: </source>
-        <translation type="vanished">‣ I Dialout-gruppen: </translation>
+        <translation>‣ 驱动已安装： </translation>
     </message>
     <message>
         <location filename="../../ui/advance/envdialog.cpp" line="111"/>
         <location filename="../../ui/advance/envdialog.cpp" line="146"/>
         <source>‣ Latest Firmware: </source>
-        <translation type="unfinished">‣ Seneste firmware: </translation>
+        <translation>‣ 最新固件： </translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="143"/>
-        <source>‣ In Serial Port Permission: </source>
-        <translation type="unfinished">‣ I seriel porttilladelse:</translation>
-    </message>
-    <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="144"/>
-        <source>‣ HID Permission: </source>
-        <translation>‣ HID-tilladelse: </translation>
-    </message>
-    <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="145"/>
-        <source>‣ BRLTTY checking: </source>
-        <translation>‣ BRLTTY-tjek: </translation>
-    </message>
-    <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="145"/>
-        <source> (needs removal)</source>
-        <translation> (kræver fjernelse)</translation>
-    </message>
-    <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="145"/>
-        <source> (not running)</source>
-        <translation> (kører ikke)</translation>
-    </message>
-    <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="185"/>
-        <source>Install Driver</source>
-        <translation type="unfinished">Installer driver</translation>
-    </message>
-    <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="192"/>
-        <source>Copy Link</source>
-        <translation type="unfinished">Kopier link</translation>
-    </message>
-    <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="208"/>
-        <source>Select Destination Directory</source>
-        <translation>Vælg målmappen</translation>
-    </message>
-    <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="264"/>
-        <source>Driver Installed: </source>
-        <translation>Driver installeret: </translation>
-    </message>
-    <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="264"/>
-        <location filename="../../ui/advance/envdialog.cpp" line="265"/>
-        <location filename="../../ui/advance/envdialog.cpp" line="266"/>
-        <source>Yes</source>
-        <translation>Ja</translation>
-    </message>
-    <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="264"/>
-        <location filename="../../ui/advance/envdialog.cpp" line="265"/>
-        <location filename="../../ui/advance/envdialog.cpp" line="266"/>
-        <location filename="../../ui/advance/envdialog.cpp" line="267"/>
-        <source>No</source>
-        <translation>Nej</translation>
-    </message>
-    <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="265"/>
-        <source>Serial port Permission: </source>
-        <translation type="unfinished">Serielt porttilladelse: </translation>
-    </message>
-    <message>
-        <source>In Dialout Group: </source>
-        <translation type="vanished">I Dialout-gruppen: </translation>
-    </message>
-    <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="107"/>
-        <source>The following steps help you install the driver and the Openterface firmware update. Current status:&lt;br&gt;</source>
-        <translation type="unfinished">Følgende trin hjælper dig med at installere driveren og Openterface firmware-opdateringen. Nuværende status:</translation>
+        <location filename="../../ui/advance/envdialog.cpp" line="120"/>
+        <source> The device is not plugged in. Please plug it in and try again.</source>
+        <translation> 设备未插入。请插入设备，然后重试。</translation>
     </message>
     <message>
         <location filename="../../ui/advance/envdialog.cpp" line="141"/>
         <source>The following steps help you install the driver and access the device permissions and the Openterface firmware update. Current status:&lt;br&gt;</source>
-        <translation type="unfinished">Følgende trin hjælper dig med at installere driveren og få adgang til enhedsrettighederne samt Openterface firmware-opdateringen. Nuværende status:</translation>
+        <translation>以下步骤可帮助您安装驱动程序、访问设备权限以及更新 Openterface 固件。当前状态：&lt;br&gt;</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/envdialog.cpp" line="143"/>
+        <source>‣ In Serial Port Permission: </source>
+        <translation>‣ 串行端口权限： </translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/envdialog.cpp" line="144"/>
+        <source>‣ HID Permission: </source>
+        <translation>‣ HID权限： </translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/envdialog.cpp" line="145"/>
+        <source>‣ BRLTTY checking: </source>
+        <translation>‣ BRLTTY检查： </translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/envdialog.cpp" line="145"/>
+        <source> (needs removal)</source>
+        <translation> （需要移除）</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/envdialog.cpp" line="145"/>
+        <source> (not running)</source>
+        <translation> （没有运行）</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/envdialog.cpp" line="185"/>
+        <source>Install Driver</source>
+        <translation>安装驱动</translation>
     </message>
     <message>
         <location filename="../../ui/advance/envdialog.cpp" line="186"/>
@@ -218,50 +153,85 @@
 After the driver is installed, a system restart and device re-plugging is required for the changes to take effect.
 
 Please restart your computer after the driver installation.</source>
-        <translation type="unfinished">Driveren mangler. Installer driveren fra: https://www.wch.cn/downloads/CH341SER.EXE.html
+        <translation>驱动程序缺失。请在以下位置安装驱动程序：https://www.wch.cn/downloads/CH341SER.EXE.html
 
-Når driveren er installeret, skal systemet genstartes og enheden kobles fra og til igen, før ændringerne træder i kraft.
+安装驱动程序后，需要重启系统并重新插拔设备，更改才能生效。
 
-Genstart din computer, når driveren er installeret.</translation>
+安装驱动程序后，请重启计算机。</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/envdialog.cpp" line="192"/>
+        <source>Copy Link</source>
+        <translation>复制链接</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/envdialog.cpp" line="208"/>
+        <source>Select Destination Directory</source>
+        <translation>选择目标目录</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/envdialog.cpp" line="264"/>
+        <source>Driver Installed: </source>
+        <translation>驱动已安装： </translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/envdialog.cpp" line="264"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="265"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="266"/>
+        <source>Yes</source>
+        <translation>是</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/envdialog.cpp" line="264"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="265"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="266"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="267"/>
+        <source>No</source>
+        <translation>否</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/envdialog.cpp" line="265"/>
+        <source>Serial port Permission: </source>
+        <translation>串口权限： </translation>
     </message>
     <message>
         <location filename="../../ui/advance/envdialog.cpp" line="266"/>
         <source>HID Permission: </source>
-        <translation>HID-tilladelse: </translation>
+        <translation>HID权限： </translation>
     </message>
     <message>
         <location filename="../../ui/advance/envdialog.cpp" line="267"/>
         <source>BRLTTY is Running: </source>
-        <translation>BRLTTY kører: </translation>
+        <translation>BRLTTY 正在运行： </translation>
     </message>
     <message>
         <location filename="../../ui/advance/envdialog.cpp" line="267"/>
         <source>Yes (needs removal)</source>
-        <translation>Ja (kræver fjernelse)</translation>
+        <translation>是（需要移除）</translation>
     </message>
     <message>
         <location filename="../../ui/advance/envdialog.cpp" line="273"/>
         <source>Restart Required</source>
-        <translation>Genstart påkrævet</translation>
+        <translation>需要重启</translation>
     </message>
     <message>
         <location filename="../../ui/advance/envdialog.cpp" line="274"/>
         <source>The driver has been installed. A system restart and device re-plugging is required for the changes to take effect.
 
 Would you like to restart your computer now?</source>
-        <translation>Driveren er blevet installeret. En systemgenstart og genindkobling af enheden er påkrævet for at ændringerne træder i kraft.
+        <translation>已安装驱动程序。需要重新启动系统并重新插入设备才能使更改生效。
 
-Vil du genstarte din computer nu?</translation>
+您现在要重新启动计算机吗？</translation>
     </message>
     <message>
         <location filename="../../ui/advance/envdialog.cpp" line="283"/>
         <source>Restart Later</source>
-        <translation>Genstart senere</translation>
+        <translation>稍后重启</translation>
     </message>
     <message>
         <location filename="../../ui/advance/envdialog.cpp" line="284"/>
         <source>Please remember to restart your computer and re-plug the device for the driver to work properly.</source>
-        <translation>Husk at genstarte din computer og genindkoble enheden, så driveren fungerer korrekt.</translation>
+        <translation>请记住重启电脑并重新插入设备，以便驱动程序正常工作。</translation>
     </message>
 </context>
 <context>
@@ -270,28 +240,28 @@ Vil du genstarte din computer nu?</translation>
         <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="67"/>
         <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="162"/>
         <source>Warning</source>
-        <translation type="unfinished">Advarsel</translation>
+        <translation>警告</translation>
     </message>
     <message>
         <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="67"/>
         <source>Please select a firmware file to write</source>
-        <translation type="unfinished">Vælg venligst en firmwarefil, der skal skrives</translation>
+        <translation>请选择要写入的固件文件</translation>
     </message>
     <message>
         <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="73"/>
         <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="110"/>
         <source>Error</source>
-        <translation type="unfinished">Fejl</translation>
+        <translation>错误</translation>
     </message>
     <message>
         <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="73"/>
         <source>Failed to read firmware file: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>读取固件文件失败：%1</translation>
     </message>
     <message>
         <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="103"/>
         <source>Success</source>
-        <translation type="unfinished">Succes</translation>
+        <translation>成功</translation>
     </message>
     <message>
         <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="103"/>
@@ -299,28 +269,33 @@ Vil du genstarte din computer nu?</translation>
 Please:
 1. Restart the application
 2. Disconnect and reconnect all cables</source>
-        <translation type="unfinished"></translation>
+        <translation>固件已成功写入EEPROM。
+应用程序现在将关闭。
+请：
+1. 重新启动应用程序
+2. 断开并重新连接所有电缆</translation>
     </message>
     <message>
         <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="110"/>
         <source>Failed to write firmware to EEPROM
 Please try again</source>
-        <translation type="unfinished"></translation>
+        <translation>写入固件到EEPROM失败
+请重试</translation>
     </message>
     <message>
         <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="125"/>
         <source>Cancelled</source>
-        <translation type="unfinished"></translation>
+        <translation>已取消</translation>
     </message>
     <message>
         <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="125"/>
         <source>Firmware write operation was cancelled</source>
-        <translation type="unfinished"></translation>
+        <translation>固件写入操作已取消</translation>
     </message>
     <message>
         <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="162"/>
         <source>Please select a file path</source>
-        <translation type="unfinished"></translation>
+        <translation>请选择文件路径</translation>
     </message>
 </context>
 <context>
@@ -328,41 +303,41 @@ Please try again</source>
     <message>
         <location filename="../../ui/advance/firmwareupdatedialog.cpp" line="113"/>
         <source>Firmware Update Confirmation</source>
-        <translation type="unfinished">Bekræftelse af firmwareopdatering</translation>
+        <translation>固件更新确认</translation>
     </message>
     <message>
         <location filename="../../ui/advance/firmwareupdatedialog.cpp" line="120"/>
         <source>Update</source>
-        <translation type="unfinished">Opdater</translation>
+        <translation>更新</translation>
     </message>
     <message>
         <location filename="../../ui/advance/firmwareupdatedialog.cpp" line="121"/>
         <source>Cancel</source>
-        <translation type="unfinished">Annuller</translation>
+        <translation>取消</translation>
     </message>
     <message>
         <location filename="../../ui/advance/firmwareupdatedialog.cpp" line="149"/>
         <source>Current firmware version: </source>
-        <translation type="unfinished">Nuværende firmwareversion: </translation>
+        <translation>当前固件版本：</translation>
     </message>
     <message>
         <location filename="../../ui/advance/firmwareupdatedialog.cpp" line="149"/>
         <source>
 </source>
-        <translation type="unfinished">
+        <translation>
 </translation>
     </message>
     <message>
         <location filename="../../ui/advance/firmwareupdatedialog.cpp" line="150"/>
         <source>Latest firmware version: </source>
-        <translation type="unfinished">Seneste firmwareversion: </translation>
+        <translation>最新固件版本：</translation>
     </message>
     <message>
         <location filename="../../ui/advance/firmwareupdatedialog.cpp" line="150"/>
         <source>
 
 </source>
-        <translation type="unfinished">
+        <translation>
 
 </translation>
     </message>
@@ -370,7 +345,7 @@ Please try again</source>
         <location filename="../../ui/advance/firmwareupdatedialog.cpp" line="151"/>
         <source>The update process will:
 </source>
-        <translation type="unfinished">Opdateringsprocessen vil:
+        <translation>更新过程将：
 </translation>
     </message>
     <message>
@@ -386,17 +361,17 @@ Important:
 • Restart application after completion
 
 Do you want to proceed with the update?</source>
-        <translation type="unfinished">1. Stoppe alle video- og USB-operationer
-2. Installere ny firmware
-3. Lukke programmet automatisk
+        <translation>1. 停止所有视频和USB操作
+2. 安装新固件
+3. 自动关闭应用程序
 
-Vigtigt:
-• Brug et USB-kabel af høj kvalitet til værtsforbindelsen
-• Afbryd HDMI-kablet
-• Afbryd ikke strømmen under opdateringen
-• Genstart programmet efter afslutning
+重要提示：
+• 使用高质量USB线缆连接主机
+• 断开HDMI线缆
+• 更新期间请勿断电
+• 完成后重启应用程序
 
-Vil du fortsætte med opdateringen?</translation>
+您要继续更新吗？</translation>
     </message>
 </context>
 <context>
@@ -405,29 +380,29 @@ Vil du fortsætte med opdateringen?</translation>
         <location filename="../../ui/advance/firmwareupdatedialog.cpp" line="8"/>
         <location filename="../../ui/advance/firmwareupdatedialog.cpp" line="86"/>
         <source>Firmware Update</source>
-        <translation>Firmwareopdatering</translation>
+        <translation>固件更新</translation>
     </message>
     <message>
         <location filename="../../ui/advance/firmwareupdatedialog.cpp" line="13"/>
         <source>Preparing firmware update...</source>
-        <translation>Forbereder firmwareopdatering...</translation>
+        <translation>准备固件更新...</translation>
     </message>
     <message>
         <location filename="../../ui/advance/firmwareupdatedialog.cpp" line="20"/>
         <source>Close</source>
-        <translation>Luk</translation>
+        <translation>关闭</translation>
     </message>
     <message>
         <location filename="../../ui/advance/firmwareupdatedialog.cpp" line="65"/>
         <source>Updating firmware... Please do not disconnect the device.</source>
-        <translation>Opdaterer firmware... Afbryd venligst ikke enheden.</translation>
+        <translation>正在更新固件...请勿断开设备连接。</translation>
     </message>
     <message>
         <location filename="../../ui/advance/firmwareupdatedialog.cpp" line="85"/>
         <source>Firmware update completed successfully.
 The application will close. Please restart it to apply the new firmware.</source>
-        <translation>Firmwareopdatering gennemført med succes.
-Programmet lukkes. Genstart det venligst for at anvende den nye firmware.</translation>
+        <translation>固件更新成功完成。
+应用程序将关闭。请重新启动以应用新固件。</translation>
     </message>
     <message>
         <location filename="../../ui/advance/firmwareupdatedialog.cpp" line="87"/>
@@ -437,31 +412,31 @@ The application will now close.
 Please:
 1. Restart the application
 2. Disconnect and reconnect all cables</source>
-        <translation>Firmwareopdatering gennemført med succes.
+        <translation>固件更新成功完成。
 
-Programmet lukkes nu.
-Gør venligst følgende:
-1. Genstart programmet
-2. Afbryd og tilslut alle kabler igen</translation>
+应用程序现在将关闭。
+请：
+1. 重新启动应用程序
+2. 断开并重新连接所有电缆</translation>
     </message>
     <message>
         <location filename="../../ui/advance/firmwareupdatedialog.cpp" line="93"/>
         <source>Firmware update failed. Please try again.</source>
-        <translation>Firmwareopdatering mislykkedes. Prøv igen.</translation>
+        <translation>固件更新失败。请重试。</translation>
     </message>
     <message>
         <location filename="../../ui/advance/firmwareupdatedialog.cpp" line="94"/>
         <source>Firmware Update Failed</source>
-        <translation>Firmwareopdatering mislykkedes</translation>
+        <translation>固件更新失败</translation>
     </message>
     <message>
         <location filename="../../ui/advance/firmwareupdatedialog.cpp" line="95"/>
         <source>An error occurred during the firmware update.
 
 Please try again after restarting the application.</source>
-        <translation>Der opstod en fejl under firmwareopdateringen.
+        <translation>固件更新期间发生错误。
 
-Prøv igen efter at have genstartet programmet.</translation>
+请重新启动应用程序后重试。</translation>
     </message>
 </context>
 <context>
@@ -469,67 +444,67 @@ Prøv igen efter at have genstartet programmet.</translation>
     <message>
         <location filename="../../ui/preferences/logpage.cpp" line="50"/>
         <source>Core</source>
-        <translation>Kerne</translation>
+        <translation>核心</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/logpage.cpp" line="51"/>
         <source>Serial</source>
-        <translation>Seriel</translation>
+        <translation>串口</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/logpage.cpp" line="52"/>
         <source>User Interface</source>
-        <translation>Brugergrænseflade</translation>
+        <translation>用户界面</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/logpage.cpp" line="53"/>
         <source>Host</source>
-        <translation>Vært</translation>
+        <translation>主机</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/logpage.cpp" line="54"/>
         <source>Device</source>
-        <translation type="unfinished"></translation>
+        <translation>设备</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/logpage.cpp" line="55"/>
         <source>Enable file logging</source>
-        <translation>Aktivér fillogning</translation>
+        <translation>启用文件日志</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/logpage.cpp" line="57"/>
         <source>Browse</source>
-        <translation>Gennemse</translation>
+        <translation>浏览</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/logpage.cpp" line="58"/>
         <source>Inhibit Screen Saver</source>
-        <translation type="unfinished"></translation>
+        <translation>禁用屏幕保护程序</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/logpage.cpp" line="83"/>
         <source>General log setting</source>
-        <translation>Generelle logindstillinger</translation>
+        <translation>通用日志设置</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/logpage.cpp" line="87"/>
         <source>Check the check box to see the corresponding log in the QT console.</source>
-        <translation>Markér afkrydsningsfeltet for at se den tilsvarende log i QT-konsollen.</translation>
+        <translation>勾选复选框可在QT控制台中查看相应的日志。</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/logpage.cpp" line="92"/>
         <source>Screen Saver setting</source>
-        <translation type="unfinished"></translation>
+        <translation>屏幕保护程序设置</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/logpage.cpp" line="96"/>
         <source>Inhibit the screen saver when the application is running.</source>
-        <translation type="unfinished"></translation>
+        <translation>应用程序运行时禁用屏幕保护程序。</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/logpage.cpp" line="117"/>
         <source>Select Log Directory</source>
-        <translation>Vælg logmappe</translation>
+        <translation>选择日志目录</translation>
     </message>
 </context>
 <context>
@@ -540,187 +515,179 @@ Prøv igen efter at have genstartet programmet.</translation>
         <translation>Openterface Mini-KVM</translation>
     </message>
     <message>
-        <source>Select Keyboard Layout</source>
-        <translation type="vanished">Vælg tastaturlayout</translation>
-    </message>
-    <message>
-        <source>US QWERTY</source>
-        <translation type="vanished">US QWERTY</translation>
-    </message>
-    <message>
         <location filename="../../ui/mainwindow.ui" line="50"/>
         <source>File</source>
-        <translation>Fil</translation>
+        <translation>文件</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="58"/>
         <source>Languages</source>
-        <translation>Sprog</translation>
+        <translation>语言</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="63"/>
         <source>Control</source>
-        <translation>Styring</translation>
+        <translation>控制</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="67"/>
         <source>Mouse Mode</source>
-        <translation>Musetilstand</translation>
+        <translation>鼠标模式</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="74"/>
         <source>Mouse Visibility</source>
-        <translation type="unfinished"></translation>
+        <translation>鼠标可见性</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="81"/>
         <source>Device</source>
-        <translation type="unfinished"></translation>
+        <translation>设备</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="86"/>
         <source>Baudrate</source>
-        <translation>Baudrate</translation>
+        <translation>波特率</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="93"/>
         <source>Switchable USB</source>
-        <translation>Skiftbar USB</translation>
+        <translation>可切换USB</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="107"/>
         <source>Help</source>
-        <translation>Hjælp</translation>
+        <translation>帮助</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="118"/>
         <source>Edit</source>
-        <translation>Rediger</translation>
+        <translation>编辑</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="124"/>
         <source>Advance</source>
-        <translation>Avanceret</translation>
+        <translation>高级</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="148"/>
         <source>Close</source>
-        <translation>Luk</translation>
+        <translation>关闭</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="153"/>
         <source>Change Settings</source>
-        <translation>Skift indstillinger</translation>
+        <translation>更改设置</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="158"/>
         <source>Reset Keyboard and Mouse</source>
-        <translation>Nulstil tastatur og mus</translation>
+        <translation>重置键盘和鼠标</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="163"/>
         <source>Reset Serial Port</source>
-        <translation>Nulstil seriel port</translation>
+        <translation>重置串口</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="168"/>
         <source>Serial Console</source>
-        <translation>Seriel konsol</translation>
+        <translation>串口控制台</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="173"/>
         <source>AutoReszie</source>
-        <translation>Automatisk tilpasning</translation>
+        <translation>自动调整大小</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="178"/>
         <source>Factory Reset HID Chip</source>
-        <translation>Fabriksnulstil HID-chip</translation>
+        <translation>出厂重置HID芯片</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="183"/>
         <source>Preferences</source>
-        <translation>Præferencer</translation>
+        <translation>首选项</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="188"/>
         <source>Office Website</source>
-        <translation>Kontorwebsite</translation>
+        <translation>官方网站</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="193"/>
         <source>Purchase</source>
-        <translation>Køb</translation>
+        <translation>购买</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="198"/>
         <source>Feedback</source>
-        <translation>Tilbagemelding</translation>
+        <translation>反馈</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="203"/>
         <source>Update</source>
-        <translation>Opdater</translation>
+        <translation>更新</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="208"/>
         <source>Environment</source>
-        <translation>Miljø</translation>
+        <translation>环境</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="213"/>
         <source>About</source>
-        <translation>Om</translation>
+        <translation>关于</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="224"/>
         <source>Follow Switch</source>
-        <translation>Følg skift</translation>
+        <translation>跟随切换</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="232"/>
         <source>Paste</source>
-        <translation>Indsæt</translation>
+        <translation>粘贴</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="235"/>
         <source>Paste clipboard content to target</source>
-        <translation>Indsæt indhold fra udklipsholder til mål</translation>
+        <translation>将剪贴板内容粘贴到目标</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="240"/>
         <source>Script Tool</source>
-        <translation>Skriptværktøj</translation>
+        <translation>脚本工具</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="245"/>
         <source>TCP Server</source>
-        <translation>TCP-server</translation>
+        <translation>TCP服务器</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="250"/>
         <source>Environment Checking</source>
-        <translation>Miljøtjek</translation>
+        <translation>环境检查</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="255"/>
         <source>Firmware Manager</source>
-        <translation type="unfinished"></translation>
+        <translation>固件管理器</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="260"/>
         <source>Firmware Update...</source>
-        <translation>Firmwareopdatering...</translation>
+        <translation>固件更新...</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="265"/>
         <source>Device Selector</source>
-        <translation type="unfinished"></translation>
+        <translation>设备选择器</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="268"/>
         <source>Open Device Selector Dialog</source>
-        <translation type="unfinished"></translation>
+        <translation>打开设备选择器对话框</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="273"/>
@@ -733,210 +700,101 @@ Prøv igen efter at have genstartet programmet.</translation>
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>Rename detected display</source>
+        <translation type="vanished">重命名检测到的显示器</translation>
+    </message>
+    <message>
+        <source>Rename the EDID display name</source>
+        <translation type="vanished">重命名EDID显示器名称</translation>
+    </message>
+    <message>
         <location filename="../../ui/mainwindow.ui" line="285"/>
         <source>115200</source>
-        <translation>115200</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="293"/>
         <source>9600</source>
-        <translation>9600</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="303"/>
         <source>To Host</source>
-        <translation>Til vært</translation>
+        <translation>到主机</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="311"/>
         <source>To Target</source>
-        <translation>Til mål</translation>
+        <translation>到目标</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="324"/>
         <source>Absolute</source>
-        <translation>Absolut</translation>
+        <translation>绝对</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="332"/>
         <source>Relative</source>
-        <translation>Relativ</translation>
+        <translation>相对</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="345"/>
         <source>Auto Hide</source>
-        <translation type="unfinished"></translation>
+        <translation>自动隐藏</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="348"/>
         <source>Auto hide mouse cursor</source>
-        <translation type="unfinished"></translation>
+        <translation>自动隐藏鼠标光标</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="356"/>
         <source>Always Show</source>
-        <translation type="unfinished"></translation>
+        <translation>始终显示</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="359"/>
         <source>Always show mouse cursor</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Zoom in</source>
-        <translation type="vanished">Zoom ind</translation>
-    </message>
-    <message>
-        <source>Zoom out</source>
-        <translation type="vanished">Zoom ud</translation>
-    </message>
-    <message>
-        <source>Restore original size</source>
-        <translation type="vanished">Gendan oprindelig størrelse</translation>
-    </message>
-    <message>
-        <source>Function key and composite key</source>
-        <translation type="vanished">Funktionstast og kombinationstast</translation>
-    </message>
-    <message>
-        <source>Paste text to target</source>
-        <translation type="vanished">Indsæt tekst til målet</translation>
-    </message>
-    <message>
-        <source>Mouse dance</source>
-        <translation type="vanished">Musedans</translation>
-    </message>
-    <message>
-        <source>Full screen capture</source>
-        <translation type="vanished">Fuldskærmsoptagelse</translation>
-    </message>
-    <message>
-        <source>Full screen mode</source>
-        <translation type="vanished">Fuldskærmstilstand</translation>
+        <translation>始终显示鼠标光标</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.cpp" line="1031"/>
         <source>Recorded %1 sec</source>
-        <translation>Optaget %1 sek</translation>
+        <translation>已录制 %1 秒</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.cpp" line="1212"/>
         <source>Image Capture Error</source>
-        <translation>Fejl ved billedoptagelse</translation>
+        <translation>图像捕获错误</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.cpp" line="1280"/>
         <source>Captured &quot;%1&quot;</source>
-        <translation>Optaget &quot;%1&quot;</translation>
+        <translation>已捕获 &quot;%1&quot;</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.cpp" line="1809"/>
         <source>Firmware Update</source>
-        <translation>Firmwareopdatering</translation>
+        <translation>固件更新</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.cpp" line="1810"/>
         <source>The firmware is up to date.
 Current version: </source>
-        <translation type="unfinished"></translation>
+        <translation>固件已是最新版本。
+当前版本：</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.cpp" line="1832"/>
         <source>Firmware fetch timeout</source>
-        <translation type="unfinished"></translation>
+        <translation>固件获取超时</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.cpp" line="1833"/>
         <source>Firmware retrieval timed out. Please check your network connection and try again.
 Current version: </source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>The firmware is up to date.</source>
-        <translation type="vanished">Firmwaren er opdateret.</translation>
-    </message>
-    <message>
-        <source>Firmware Update Confirmation</source>
-        <translation type="vanished">Bekræftelse af firmwareopdatering</translation>
-    </message>
-    <message>
-        <source>Current firmware version: </source>
-        <translation type="vanished">Nuværende firmwareversion: </translation>
-    </message>
-    <message>
-        <source>
-</source>
-        <translation type="vanished">
-</translation>
-    </message>
-    <message>
-        <source>Latest firmware version: </source>
-        <translation type="vanished">Seneste firmwareversion: </translation>
-    </message>
-    <message>
-        <source>
-
-</source>
-        <translation type="vanished">
-
-</translation>
-    </message>
-    <message>
-        <source>The update process will:
-</source>
-        <translation type="vanished">Opdateringsprocessen vil:
-</translation>
-    </message>
-    <message>
-        <source>1. Stop all video and USB operations
-2. Install new firmware
-3. Close the application automatically
-
-Important:
-• Use a high-quality USB cable for host connection
-• Disconnect the HDMI cable
-• Do not interrupt power during update
-• Restart application after completion
-
-Do you want to proceed with the update?</source>
-        <translation type="vanished">1. Stoppe alle video- og USB-operationer
-2. Installere ny firmware
-3. Lukke programmet automatisk
-
-Vigtigt:
-• Brug et USB-kabel af høj kvalitet til værtsforbindelsen
-• Afbryd HDMI-kablet
-• Afbryd ikke strømmen under opdateringen
-• Genstart programmet efter afslutning
-
-Vil du fortsætte med opdateringen?</translation>
-    </message>
-</context>
-<context>
-    <name>MetaDataDialog</name>
-    <message>
-        <source>Openterface Mini KVM</source>
-        <translation type="vanished">Openterface Mini KVM</translation>
-    </message>
-    <message>
-        <source>TechxArtisan</source>
-        <translation type="vanished">TechxArtisan</translation>
-    </message>
-    <message>
-        <source>Open</source>
-        <translation type="vanished">Åbn</translation>
-    </message>
-    <message>
-        <source>Set Metadata</source>
-        <translation type="vanished">Indstil metadata</translation>
-    </message>
-    <message>
-        <source>Open Image</source>
-        <translation type="vanished">Åbn billede</translation>
-    </message>
-    <message>
-        <source>Image Files (*.png *.jpg *.bmp)</source>
-        <translation type="vanished">Billedfiler (*.png *.jpg *.bmp)</translation>
+        <translation>固件检索超时。请检查您的网络连接并重试。
+当前版本：</translation>
     </message>
 </context>
 <context>
@@ -944,49 +802,49 @@ Vil du fortsætte med opdateringen?</translation>
     <message>
         <location filename="../../ui/advance/renamedisplaydialog.cpp" line="54"/>
         <source>Rename Display</source>
-        <translation type="unfinished"></translation>
+        <translation>重命名显示器</translation>
     </message>
     <message>
         <location filename="../../ui/advance/renamedisplaydialog.cpp" line="59"/>
         <source>Enter new display name:</source>
-        <translation type="unfinished"></translation>
+        <translation>输入新的显示器名称：</translation>
     </message>
     <message>
         <location filename="../../ui/advance/renamedisplaydialog.cpp" line="62"/>
         <source>Display name</source>
-        <translation type="unfinished"></translation>
+        <translation>显示器名称</translation>
     </message>
     <message>
         <location filename="../../ui/advance/renamedisplaydialog.cpp" line="64"/>
         <source>Update</source>
-        <translation type="unfinished">Opdater</translation>
+        <translation>更新</translation>
     </message>
     <message>
         <location filename="../../ui/advance/renamedisplaydialog.cpp" line="67"/>
         <source>Cancel</source>
-        <translation type="unfinished">Annuller</translation>
+        <translation>取消</translation>
     </message>
     <message>
         <location filename="../../ui/advance/renamedisplaydialog.cpp" line="127"/>
         <location filename="../../ui/advance/renamedisplaydialog.cpp" line="133"/>
         <location filename="../../ui/advance/renamedisplaydialog.cpp" line="140"/>
         <source>Warning</source>
-        <translation type="unfinished">Advarsel</translation>
+        <translation>警告</translation>
     </message>
     <message>
         <location filename="../../ui/advance/renamedisplaydialog.cpp" line="127"/>
         <source>Display name cannot be empty.</source>
-        <translation type="unfinished"></translation>
+        <translation>显示器名称不能为空。</translation>
     </message>
     <message>
         <location filename="../../ui/advance/renamedisplaydialog.cpp" line="133"/>
         <source>Display name cannot exceed 13 characters.</source>
-        <translation type="unfinished"></translation>
+        <translation>显示器名称不能超过13个字符。</translation>
     </message>
     <message>
         <location filename="../../ui/advance/renamedisplaydialog.cpp" line="140"/>
         <source>Display name must contain only ASCII characters.</source>
-        <translation type="unfinished"></translation>
+        <translation>显示器名称只能包含ASCII字符。</translation>
     </message>
     <message>
         <location filename="../../ui/advance/renamedisplaydialog.cpp" line="150"/>
@@ -997,62 +855,62 @@ Vil du fortsætte med opdateringen?</translation>
         <location filename="../../ui/advance/renamedisplaydialog.cpp" line="275"/>
         <location filename="../../ui/advance/renamedisplaydialog.cpp" line="301"/>
         <source>Error</source>
-        <translation type="unfinished">Fejl</translation>
+        <translation>错误</translation>
     </message>
     <message>
         <location filename="../../ui/advance/renamedisplaydialog.cpp" line="150"/>
         <source>Failed to start display name update process.</source>
-        <translation type="unfinished"></translation>
+        <translation>启动显示器名称更新进程失败。</translation>
     </message>
     <message>
         <location filename="../../ui/advance/renamedisplaydialog.cpp" line="163"/>
         <source>Default Display</source>
-        <translation type="unfinished"></translation>
+        <translation>默认显示器</translation>
     </message>
     <message>
         <location filename="../../ui/advance/renamedisplaydialog.cpp" line="184"/>
         <source>Failed to determine firmware size.</source>
-        <translation type="unfinished"></translation>
+        <translation>无法确定固件大小。</translation>
     </message>
     <message>
         <location filename="../../ui/advance/renamedisplaydialog.cpp" line="202"/>
         <source>Reading firmware... %1%</source>
-        <translation type="unfinished"></translation>
+        <translation>正在读取固件... %1%</translation>
     </message>
     <message>
         <location filename="../../ui/advance/renamedisplaydialog.cpp" line="208"/>
         <source>Failed to read firmware.</source>
-        <translation type="unfinished"></translation>
+        <translation>读取固件失败。</translation>
     </message>
     <message>
         <location filename="../../ui/advance/renamedisplaydialog.cpp" line="218"/>
         <source>Processing EDID data...</source>
-        <translation type="unfinished"></translation>
+        <translation>正在处理EDID数据...</translation>
     </message>
     <message>
         <location filename="../../ui/advance/renamedisplaydialog.cpp" line="223"/>
         <source>Failed to read temporary firmware file.</source>
-        <translation type="unfinished"></translation>
+        <translation>读取临时固件文件失败。</translation>
     </message>
     <message>
         <location filename="../../ui/advance/renamedisplaydialog.cpp" line="239"/>
         <source>Failed to process EDID data.</source>
-        <translation type="unfinished"></translation>
+        <translation>处理EDID数据失败。</translation>
     </message>
     <message>
         <location filename="../../ui/advance/renamedisplaydialog.cpp" line="249"/>
         <source>Writing firmware...</source>
-        <translation type="unfinished"></translation>
+        <translation>正在写入固件...</translation>
     </message>
     <message>
         <location filename="../../ui/advance/renamedisplaydialog.cpp" line="260"/>
         <source>Writing firmware... %1%</source>
-        <translation type="unfinished"></translation>
+        <translation>正在写入固件... %1%</translation>
     </message>
     <message>
         <location filename="../../ui/advance/renamedisplaydialog.cpp" line="268"/>
         <source>Success</source>
-        <translation type="unfinished">Succes</translation>
+        <translation>成功</translation>
     </message>
     <message>
         <location filename="../../ui/advance/renamedisplaydialog.cpp" line="269"/>
@@ -1062,17 +920,22 @@ The application will now close.
 Please:
 1. Restart the application
 2. Disconnect and reconnect all cables</source>
-        <translation type="unfinished"></translation>
+        <translation>显示器名称更新成功！
+
+应用程序现在将关闭。
+请：
+1. 重新启动应用程序
+2. 断开并重新连接所有电缆</translation>
     </message>
     <message>
         <location filename="../../ui/advance/renamedisplaydialog.cpp" line="275"/>
         <source>Failed to write firmware.</source>
-        <translation type="unfinished"></translation>
+        <translation>写入固件失败。</translation>
     </message>
     <message>
         <location filename="../../ui/advance/renamedisplaydialog.cpp" line="301"/>
         <source>Firmware read error: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>固件读取错误：%1</translation>
     </message>
 </context>
 <context>
@@ -1080,7 +943,7 @@ Please:
     <message>
         <location filename="../../ui/screenscale.cpp" line="8"/>
         <source>Screen Aspect Ratio</source>
-        <translation type="unfinished"></translation>
+        <translation>屏幕宽高比</translation>
     </message>
 </context>
 <context>
@@ -1088,74 +951,74 @@ Please:
     <message>
         <location filename="../../ui/advance/scripttool.cpp" line="42"/>
         <source>Autohotkey Script Tool</source>
-        <translation>Autohotkey-skriptværktøj</translation>
+        <translation>Autohotkey脚本工具</translation>
     </message>
     <message>
         <location filename="../../ui/advance/scripttool.cpp" line="46"/>
         <source>Select autohotkey.ahk file...</source>
-        <translation>Vælg autohotkey.ahk-fil...</translation>
+        <translation>选择autohotkey.ahk文件...</translation>
     </message>
     <message>
         <location filename="../../ui/advance/scripttool.cpp" line="49"/>
         <source>Browse</source>
-        <translation>Gennemse</translation>
+        <translation>浏览</translation>
     </message>
     <message>
         <location filename="../../ui/advance/scripttool.cpp" line="50"/>
         <source>Run Script</source>
-        <translation>Kør skript</translation>
+        <translation>运行脚本</translation>
     </message>
     <message>
         <location filename="../../ui/advance/scripttool.cpp" line="53"/>
         <source>Save Script</source>
-        <translation>Gem skript</translation>
+        <translation>保存脚本</translation>
     </message>
     <message>
         <location filename="../../ui/advance/scripttool.cpp" line="68"/>
         <source>Cancel</source>
-        <translation>Annuller</translation>
+        <translation>取消</translation>
     </message>
     <message>
         <location filename="../../ui/advance/scripttool.cpp" line="97"/>
         <source>Select autohotkey File</source>
-        <translation>Vælg Autohotkey-fil</translation>
+        <translation>选择autohotkey文件</translation>
     </message>
     <message>
         <location filename="../../ui/advance/scripttool.cpp" line="99"/>
         <source>Autohotkey Files (*.ahk);;All Files (*)</source>
-        <translation>Autohotkey-filer (*.ahk);;Alle filer (*)</translation>
+        <translation>Autohotkey文件 (*.ahk);;所有文件 (*)</translation>
     </message>
     <message>
         <location filename="../../ui/advance/scripttool.cpp" line="124"/>
         <location filename="../../ui/advance/scripttool.cpp" line="133"/>
         <location filename="../../ui/advance/scripttool.cpp" line="169"/>
         <source>Error</source>
-        <translation>Fejl</translation>
+        <translation>错误</translation>
     </message>
     <message>
         <location filename="../../ui/advance/scripttool.cpp" line="124"/>
         <source>Could not open file for reading.</source>
-        <translation>Kunne ikke åbne filen til læsning.</translation>
+        <translation>无法打开文件进行读取。</translation>
     </message>
     <message>
         <location filename="../../ui/advance/scripttool.cpp" line="133"/>
         <source>Please select a payload file first.</source>
-        <translation>Vælg venligst en payload-fil først.</translation>
+        <translation>请先选择一个载荷文件。</translation>
     </message>
     <message>
         <location filename="../../ui/advance/scripttool.cpp" line="167"/>
         <source>Success</source>
-        <translation>Succes</translation>
+        <translation>成功</translation>
     </message>
     <message>
         <location filename="../../ui/advance/scripttool.cpp" line="167"/>
         <source>Script saved successfully.</source>
-        <translation>Skript gemt med succes.</translation>
+        <translation>脚本保存成功。</translation>
     </message>
     <message>
         <location filename="../../ui/advance/scripttool.cpp" line="169"/>
         <source>Could not save file.</source>
-        <translation>Kunne ikke gemme filen.</translation>
+        <translation>无法保存文件。</translation>
     </message>
 </context>
 <context>
@@ -1163,17 +1026,17 @@ Please:
     <message>
         <location filename="../../ui/advance/serialportdebugdialog.cpp" line="55"/>
         <source>Serial Port Debug</source>
-        <translation>Debugging af seriel port</translation>
+        <translation>串口调试</translation>
     </message>
     <message>
         <location filename="../../ui/advance/serialportdebugdialog.cpp" line="84"/>
         <source>Clear</source>
-        <translation>Ryd</translation>
+        <translation>清除</translation>
     </message>
     <message>
         <location filename="../../ui/advance/serialportdebugdialog.cpp" line="85"/>
         <source>Close</source>
-        <translation>Luk</translation>
+        <translation>关闭</translation>
     </message>
 </context>
 <context>
@@ -1181,55 +1044,51 @@ Please:
     <message>
         <location filename="../../ui/preferences/settingdialog.ui" line="14"/>
         <source>Dialog</source>
-        <translation>Dialog</translation>
+        <translation>对话框</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/settingdialog.cpp" line="76"/>
         <source>Preferences</source>
-        <translation>Præferencer</translation>
+        <translation>首选项</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/settingdialog.cpp" line="100"/>
         <location filename="../../ui/preferences/settingdialog.cpp" line="158"/>
         <source>General</source>
-        <translation>Generelt</translation>
+        <translation>通用</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/settingdialog.cpp" line="100"/>
         <location filename="../../ui/preferences/settingdialog.cpp" line="160"/>
         <source>Video</source>
-        <translation>Video</translation>
+        <translation>视频</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/settingdialog.cpp" line="100"/>
         <location filename="../../ui/preferences/settingdialog.cpp" line="162"/>
         <source>Audio</source>
-        <translation>Lyd</translation>
+        <translation>音频</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/settingdialog.cpp" line="100"/>
         <location filename="../../ui/preferences/settingdialog.cpp" line="164"/>
         <source>Target Control</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Hardware</source>
-        <translation type="vanished">Hardware</translation>
+        <translation>目标控制</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/settingdialog.cpp" line="117"/>
         <source>OK</source>
-        <translation>OK</translation>
+        <translation>确定</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/settingdialog.cpp" line="118"/>
         <source>Apply</source>
-        <translation>Anvend</translation>
+        <translation>应用</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/settingdialog.cpp" line="119"/>
         <source>Cancel</source>
-        <translation>Annuller</translation>
+        <translation>取消</translation>
     </message>
 </context>
 <context>
@@ -1237,100 +1096,92 @@ Please:
     <message>
         <location filename="../../ui/preferences/targetcontrolpage.cpp" line="38"/>
         <source>Target control setting</source>
-        <translation>Indstilling af målstyring</translation>
-    </message>
-    <message>
-        <source>UVC Camera resource: </source>
-        <translation type="vanished">UVC-kameraressource: </translation>
-    </message>
-    <message>
-        <source>Custom target USB Composite Device VID and PID: </source>
-        <translation type="vanished">Brugerdefineret mål USB Composite Device VID and PID: </translation>
+        <translation>目标控制设置</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/targetcontrolpage.cpp" line="42"/>
         <source>Target Control Operating Mode:</source>
-        <translation type="unfinished"></translation>
+        <translation>目标控制操作模式：</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/targetcontrolpage.cpp" line="45"/>
         <source>[Performance] Standard USB keyboard + USB mouse device + USB custom HID device</source>
-        <translation type="unfinished"></translation>
+        <translation>[性能] 标准USB键盘 + USB鼠标设备 + USB自定义HID设备</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/targetcontrolpage.cpp" line="46"/>
         <source>The target USB port is a multi-functional composite device supporting a keyboard, mouse, and custom HID device. It performs best, though the mouse may have compatibility issues with Mac OS and Linux.</source>
-        <translation type="unfinished"></translation>
+        <translation>目标USB端口是支持键盘、鼠标和自定义HID设备的多功能复合设备。性能最佳，但鼠标可能与Mac OS和Linux存在兼容性问题。</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/targetcontrolpage.cpp" line="47"/>
         <source>[Keyboard Only] Standard USB keyboard device</source>
-        <translation type="unfinished"></translation>
+        <translation>[仅键盘] 标准USB键盘设备</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/targetcontrolpage.cpp" line="48"/>
         <source>The target USB port is a standard keyboard device without multimedia keys, supporting full keyboard mode and suitable for systems that don&apos;t support composite devices.</source>
-        <translation type="unfinished"></translation>
+        <translation>目标USB端口是不带多媒体键的标准键盘设备，支持完整键盘模式，适用于不支持复合设备的系统。</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/targetcontrolpage.cpp" line="49"/>
         <source>[Compatibility] Standard USB keyboard + USB mouse device</source>
-        <translation type="unfinished"></translation>
+        <translation>[兼容性] 标准USB键盘 + USB鼠标设备</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/targetcontrolpage.cpp" line="50"/>
         <source>The target USB port is a muti-functional composite device for keyboard and mouse. Best competibility with Mac OS, Andriod and Linux.</source>
-        <translation type="unfinished"></translation>
+        <translation>目标USB端口是用于键盘和鼠标的多功能复合设备。与Mac OS、Android和Linux兼容性最佳。</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/targetcontrolpage.cpp" line="51"/>
         <source>[Custom HID] Standard USB custom HID device</source>
-        <translation type="unfinished"></translation>
+        <translation>[自定义HID] 标准USB自定义HID设备</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/targetcontrolpage.cpp" line="52"/>
         <source>The target USB port is a custom HID device supporting data transmission between host serial and target HID .</source>
-        <translation type="unfinished"></translation>
+        <translation>目标USB端口是支持主机串口和目标HID之间数据传输的自定义HID设备。</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/targetcontrolpage.cpp" line="77"/>
         <source>Custom target USB Composite Device VID and PID:</source>
-        <translation type="unfinished"></translation>
+        <translation>自定义目标USB复合设备VID和PID：</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/targetcontrolpage.cpp" line="78"/>
         <source>Custom target USB descriptors: </source>
-        <translation>Brugerdefinerede USB-målbeskrivelser: </translation>
+        <translation>自定义目标USB描述符：</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/targetcontrolpage.cpp" line="79"/>
         <source>VID: </source>
-        <translation>VID: </translation>
+        <translation>VID：</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/targetcontrolpage.cpp" line="80"/>
         <source>PID: </source>
-        <translation>PID: </translation>
+        <translation>PID：</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/targetcontrolpage.cpp" line="81"/>
         <source>Custom vendor descriptor:</source>
-        <translation>Tilpasset leverandørbeskrivelse:</translation>
+        <translation>自定义供应商描述符：</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/targetcontrolpage.cpp" line="82"/>
         <source>Custom product descriptor:</source>
-        <translation>Tilpasset produktbeskrivelse:</translation>
+        <translation>自定义产品描述符：</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/targetcontrolpage.cpp" line="83"/>
         <source>USB serial number:</source>
-        <translation>USB-serienummer:</translation>
+        <translation>USB序列号：</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/targetcontrolpage.cpp" line="84"/>
         <source>Enable custom USB flag</source>
-        <translation>Aktiver brugerdefineret USB-flag</translation>
+        <translation>启用自定义USB标志</translation>
     </message>
 </context>
 <context>
@@ -1409,12 +1260,12 @@ Please:
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="265"/>
         <source>Update</source>
-        <translation type="unfinished">Opdater</translation>
+        <translation type="unfinished">更新</translation>
     </message>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="269"/>
         <source>Cancel</source>
-        <translation type="unfinished">Annuller</translation>
+        <translation type="unfinished">取消</translation>
     </message>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="307"/>
@@ -1454,12 +1305,12 @@ Please:
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="398"/>
         <source>Display name cannot exceed 13 characters.</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">显示器名称不能超过13个字符。</translation>
     </message>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="405"/>
         <source>Display name must contain only ASCII characters.</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">显示器名称只能包含ASCII字符。</translation>
     </message>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="415"/>
@@ -1662,7 +1513,7 @@ Do you want to continue?</source>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="1821"/>
         <source>Success</source>
-        <translation type="unfinished">Succes</translation>
+        <translation type="unfinished">成功</translation>
     </message>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="1821"/>
@@ -1696,7 +1547,7 @@ Do you want to continue?</source>
     <message>
         <location filename="../../ui/help/versioninfomanager.cpp" line="77"/>
         <source>Copy</source>
-        <translation>Kopiér</translation>
+        <translation>复制</translation>
     </message>
     <message>
         <location filename="../../ui/help/versioninfomanager.cpp" line="213"/>
@@ -1709,31 +1560,31 @@ Do you want to continue?</source>
 Current version: %1
 Latest version: %2
 </source>
-        <translation>En ny version er tilgængelig!
-Nuværende version: %1
-Seneste version: %2
+        <translation>有新版本可用！
+当前版本：%1
+最新版本：%2
 </translation>
     </message>
     <message>
         <location filename="../../ui/help/versioninfomanager.cpp" line="219"/>
         <source>Update</source>
-        <translation>Opdater</translation>
+        <translation>更新</translation>
     </message>
     <message>
         <location filename="../../ui/help/versioninfomanager.cpp" line="220"/>
         <source>Cancel</source>
-        <translation>Annuller</translation>
+        <translation>取消</translation>
     </message>
     <message>
         <location filename="../../ui/help/versioninfomanager.cpp" line="228"/>
         <source>You are using the latest version</source>
-        <translation>Du bruger den seneste version</translation>
+        <translation>您正在使用最新版本</translation>
     </message>
     <message>
         <location filename="../../ui/help/versioninfomanager.cpp" line="234"/>
         <source>Update Check Failed
 </source>
-        <translation>Tjek af opdatering mislykkedes
+        <translation>更新检查失败
 </translation>
     </message>
     <message>
@@ -1742,46 +1593,38 @@ Seneste version: %2
 Error: %1
 Please check your internet connection.
 </source>
-        <translation>Kunne ikke tjekke for opdateringer.
-Fejl: %1
-Tjek venligst din internetforbindelse.
+        <translation>检查更新失败。
+错误：%1
+请检查您的网络连接。
 </translation>
     </message>
 </context>
 <context>
     <name>VideoPage</name>
     <message>
-        <source>UVC Camera resource: </source>
-        <translation type="obsolete">UVC-kameraressource: </translation>
-    </message>
-    <message>
         <location filename="../../ui/preferences/videopage.cpp" line="96"/>
         <source>General video setting</source>
-        <translation>Generelle videoindstillinger</translation>
+        <translation>通用视频设置</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/videopage.cpp" line="100"/>
         <source>Capture resolutions: </source>
-        <translation>Optagelsesopløsninger: </translation>
+        <translation>捕获分辨率：</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/videopage.cpp" line="106"/>
         <source>Framerate: </source>
-        <translation>Billedfrekvens: </translation>
+        <translation>帧率：</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/videopage.cpp" line="115"/>
         <source>Pixel format: </source>
-        <translation>Pixelformat: </translation>
+        <translation>像素格式：</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/videopage.cpp" line="120"/>
         <source>Note: On linx the video may go black after OK or Apply. Please unplug and re-plug the host cable.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Default pixel format</source>
-        <translation type="vanished">Standardpixelformat</translation>
+        <translation>注意：在Linux系统中，点击确定或应用后视频可能会变黑。请拔掉并重新插入主机线缆。</translation>
     </message>
 </context>
 </TS>

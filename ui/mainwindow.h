@@ -39,6 +39,7 @@
 #include "ui/advance/DeviceSelectorDialog.h"
 #include "ui/advance/scripttool.h"
 #include "ui/advance/firmwaremanagerdialog.h"
+#include "ui/advance/updatedisplaysettingsdialog.h"
 #include "ui/help/versioninfomanager.h"
 #include "ui/toolbar/toolbarmanager.h"
 #include "ui/TaskManager.h"
@@ -80,7 +81,6 @@
 #include <QPalette>
 #include <QStyle>
 #include <QEvent>
-#include <QScrollArea>
 #include <libusb-1.0/libusb.h>
 #include <QMessageBox>
 
@@ -187,6 +187,8 @@ private slots:
 
     void showFirmwareManagerDialog();
 
+    void showUpdateDisplaySettingsDialog();
+
     void updateFirmware(); 
 
     void onRepeatingKeystrokeChanged(int index);
@@ -239,7 +241,6 @@ private:
     VideoPane *videoPane;
     double systemScaleFactor;
     QColor iconColor;
-    QScrollArea *scrollArea;
 
     QStackedLayout *stackedLayout;
     QLabel *mouseLocationLabel;
@@ -276,6 +277,7 @@ private:
     SerialPortDebugDialog *serialPortDebugDialog = nullptr;
     DeviceSelectorDialog *deviceSelectorDialog = nullptr;
     FirmwareManagerDialog *firmwareManagerDialog = nullptr;
+    UpdateDisplaySettingsDialog *updateDisplaySettingsDialog = nullptr;
 
     QWidget *keyboardPanel = nullptr;
 

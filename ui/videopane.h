@@ -26,18 +26,18 @@
 #include "target/mouseeventdto.h"
 #include "inputhandler.h"
 
-#include <QVideoWidget>
-#include <QMouseEvent>
-#include <QPixmap>
-#include <QPainter>
+#include <QtWidgets>
+#include <QtMultimedia>
+#include <QtMultimediaWidgets>
 
 
-class VideoPane : public QVideoWidget
+class VideoPane : public QGraphicsView
 {
     Q_OBJECT
 
 public:
     explicit VideoPane(QWidget *parent = nullptr);
+    ~VideoPane();
 
     void showHostMouse();
     void hideHostMouse();
@@ -50,12 +50,34 @@ public:
     bool isRelativeModeEnabled() const { return relativeModeEnable; }
     void setRelativeModeEnabled(bool enable) { relativeModeEnable = enable; }
 
+    // QVideoWidget compatibility methods
+    void setAspectRatioMode(Qt::AspectRatioMode mode);
+    Qt::AspectRatioMode aspectRatioMode() const;
+    
+    // QGraphicsView enhancement methods
+    void setVideoItem(QGraphicsVideoItem* videoItem);
+    QGraphicsVideoItem* videoItem() const;
+    QGraphicsVideoItem* getVideoItem() const { return m_videoItem; } // Convenience method for external access
+    void resetZoom();
+    void zoomIn(double factor = 1.25);
+    void zoomOut(double factor = 0.8);
+    void fitToWindow();
+    void actualSize();
+
+signals:
+    void mouseMoved(const QPoint& position, const QString& event);
+
 public slots:
     void onCameraDeviceSwitching(const QString& fromDevice, const QString& toDevice);
     void onCameraDeviceSwitchComplete(const QString& device);
 
 protected:
     void paintEvent(QPaintEvent *event) override;
+    void wheelEvent(QWheelEvent *event) override;
+    void mousePressEvent(QMouseEvent *event) override;
+    void mouseMoveEvent(QMouseEvent *event) override;
+    void mouseReleaseEvent(QMouseEvent *event) override;
+    void resizeEvent(QResizeEvent *event) override;
 
 private:
     int lastX=0;
@@ -71,11 +93,26 @@ private:
     QPixmap m_lastFrame;
     bool m_isCameraSwitching;
     
+    // Graphics framework components
+    QGraphicsScene *m_scene;
+    QGraphicsVideoItem *m_videoItem;
+    QGraphicsPixmapItem *m_pixmapItem;  // For displaying static frames
+    
+    // Aspect ratio and zoom control
+    Qt::AspectRatioMode m_aspectRatioMode;
+    double m_scaleFactor;
+    QSize m_originalVideoSize;
+    bool m_maintainAspectRatio;
+    
     MouseEventDTO* calculateRelativePosition(QMouseEvent *event);
     MouseEventDTO* calculateAbsolutePosition(QMouseEvent *event);
     MouseEventDTO* calculateMouseEventDto(QMouseEvent *event);
     
     void captureCurrentFrame();
+    void updateVideoItemTransform();
+    void centerVideoItem();
+    void setupScene();
+    QPoint getTransformedMousePosition(const QPoint& viewportPos);
 };
 
 #endif

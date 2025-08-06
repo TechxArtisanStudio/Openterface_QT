@@ -47,6 +47,8 @@ SOURCES += main.cpp \
     ui/advance/envdialog.cpp \
     ui/advance/firmwareupdatedialog.cpp \
     ui/advance/firmwaremanagerdialog.cpp \
+    ui/advance/renamedisplaydialog.cpp \
+    ui/advance/updatedisplaysettingsdialog.cpp \
     host/HostManager.cpp \
     serial/SerialPortManager.cpp \
     target/KeyboardManager.cpp \
@@ -98,6 +100,8 @@ HEADERS  += \
     ui/advance/envdialog.h \
     ui/advance/firmwareupdatedialog.h \
     ui/advance/firmwaremanagerdialog.h \
+    ui/advance/renamedisplaydialog.h \
+    ui/advance/updatedisplaysettingsdialog.h \
     ui/preferences/cameraadjust.h \
     ui/preferences/fpsspinbox.h \
     ui/preferences/settingdialog.h \
@@ -194,5 +198,6 @@ TRANSLATIONS += config/languages/openterface_en.ts \
                 config/languages/openterface_da.ts \
                 config/languages/openterface_ja.ts \
                 config/languages/openterface_se.ts \
-                config/languages/openterface_de.ts 
+                config/languages/openterface_de.ts \
+                config/languages/openterface_zh.ts
                 # Add more languages here

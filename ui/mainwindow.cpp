@@ -39,6 +39,7 @@
 #include "ui/advance/serialportdebugdialog.h"
 #include "ui/advance/firmwareupdatedialog.h"
 #include "ui/advance/envdialog.h"
+#include "ui/advance/updatedisplaysettingsdialog.h"
 
 #include <QCameraDevice>
 #include <QMediaDevices>
@@ -114,7 +115,6 @@ QPixmap recolorSvg(const QString &svgPath, const QColor &color, const QSize &siz
 MainWindow::MainWindow(LanguageManager *languageManager, QWidget *parent) :  ui(new Ui::MainWindow),
                             m_audioManager(new AudioManager(this)),
                             videoPane(new VideoPane(this)),
-                            scrollArea(new QScrollArea(this)),
                             stackedLayout(new QStackedLayout(this)),
                             toolbarManager(new ToolbarManager(this)),
                             toggleSwitch(new ToggleSwitch(this)),
@@ -183,6 +183,7 @@ MainWindow::MainWindow(LanguageManager *languageManager, QWidget *parent) :  ui(
                     bool deactivated = m_cameraManager->deactivateCameraByPortChain(device.portChain);
                     if (deactivated) {
                         qCInfo(log_ui_mainwindow) << "✓ Camera deactivated for unplugged device at port:" << device.portChain;
+                        stackedLayout->setCurrentIndex(0);
                     } else {
                         qCDebug(log_ui_mainwindow) << "Camera deactivation skipped or not needed for port:" << device.portChain;
                     }
@@ -202,6 +203,7 @@ MainWindow::MainWindow(LanguageManager *languageManager, QWidget *parent) :  ui(
                     bool switchSuccess = m_cameraManager->tryAutoSwitchToNewDevice(device.portChain);
                     if (switchSuccess) {
                         qCInfo(log_ui_mainwindow) << "✓ Camera auto-switched to new device at port:" << device.portChain;
+                        stackedLayout->setCurrentIndex(stackedLayout->indexOf(videoPane));
                     } else {
                         qCDebug(log_ui_mainwindow) << "Camera auto-switch skipped or failed for port:" << device.portChain;
                     }
@@ -220,16 +222,12 @@ MainWindow::MainWindow(LanguageManager *languageManager, QWidget *parent) :  ui(
     HelpPane *helpPane = new HelpPane;
     stackedLayout->addWidget(helpPane);
     
-    // Set size policy and minimum size for videoPane
-    // videoPane->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
-    videoPane->setMinimumSize(this->width(),
-    this->height() - ui->statusbar->height() - ui->menubar->height()); // must minus the statusbar and menubar height
-
-    scrollArea->setWidget(videoPane);
-    scrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-    scrollArea->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-    scrollArea->setBackgroundRole(QPalette::Dark);
-    stackedLayout->addWidget(scrollArea);
+    // Set size policy and minimum size for videoPane - use proper sizing
+    videoPane->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+    // videoPane->setMinimumSize(640, 480); // Set reasonable minimum size
+    
+    // Add videoPane directly to stacked layout without scroll area
+    stackedLayout->addWidget(videoPane);
 
     stackedLayout->setCurrentIndex(0);
 
@@ -301,6 +299,10 @@ MainWindow::MainWindow(LanguageManager *languageManager, QWidget *parent) :  ui(
             videoPane, &VideoPane::onCameraDeviceSwitching);
     connect(m_cameraManager, &CameraManager::cameraDeviceSwitchComplete,
             videoPane, &VideoPane::onCameraDeviceSwitchComplete);
+    
+    // Connect VideoPane mouse events to status bar
+    connect(videoPane, &VideoPane::mouseMoved,
+            m_statusBarManager, &StatusBarManager::onLastMouseLocation);
     connect(&VideoHid::getInstance(), &VideoHid::inputResolutionChanged, this, &MainWindow::onInputResolutionChanged);
     connect(&VideoHid::getInstance(), &VideoHid::resolutionChangeUpdate, this, &MainWindow::onResolutionChange);
 
@@ -316,7 +318,7 @@ MainWindow::MainWindow(LanguageManager *languageManager, QWidget *parent) :  ui(
     // Initialize camera with video output for proper startup
     qCDebug(log_ui_mainwindow) << "Initializing camera with video output...";
     QTimer::singleShot(200, this, [this]() {
-        bool success = m_cameraManager->initializeCameraWithVideoOutput(videoPane);
+        bool success = m_cameraManager->initializeCameraWithVideoOutput(videoPane->getVideoItem());
         if (success) {
             qDebug() << "✓ Camera successfully initialized with video output";
         } else {
@@ -330,8 +332,6 @@ MainWindow::MainWindow(LanguageManager *languageManager, QWidget *parent) :  ui(
 
     // Connect zoom buttons
     
-    scrollArea->ensureWidgetVisible(videoPane);
-
     // Set the window title with the version number
     qDebug() << "Set window title" << APP_VERSION;
     QString windowTitle = QString("Openterface Mini-KVM - %1").arg(APP_VERSION);
@@ -555,17 +555,15 @@ void MainWindow::fullScreen(){
         ui->statusbar->hide();
         // Calculate the horizontal offset after resizing
         
-        // Resize the videoPane and scrollArea first
-        videoPane->setMinimumSize(videoAvailibleWidth, videoAvailibleHeight);
+        // Resize and position the videoPane
+        // videoPane->setMinimumSize(videoAvailibleWidth, videoAvailibleHeight);
         videoPane->resize(videoAvailibleWidth, videoAvailibleHeight);
-        scrollArea->resize(videoAvailibleWidth, videoAvailibleHeight);
         qCDebug(log_ui_mainwindow) << "Resize to Width " << videoAvailibleWidth << "\tHeight: " << videoAvailibleHeight;
-        // Move the videoPane and scrollArea to the center
+        // Move the videoPane to the center
         fullScreenState = true;
         this->showFullScreen();
         qCDebug(log_ui_mainwindow) << "offset: " << horizontalOffset;
         videoPane->move(horizontalOffset, videoPane->y());
-        scrollArea->move(horizontalOffset, videoPane->y());
     } else {
         this->showNormal();
         ui->statusbar->show();
@@ -576,37 +574,24 @@ void MainWindow::fullScreen(){
 
 void MainWindow::onZoomIn()
 {
-    factorScale = 1.1 * factorScale;
-    QSize currentSize = videoPane->size() * 1.1;
-    videoPane->resize(currentSize.width(), currentSize.height());
-    qDebug() << "video pane size:" << videoPane->geometry();
-    if (videoPane->width() > scrollArea->width() || videoPane->height() > scrollArea->height()) {
-        scrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
-        scrollArea->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
-    }
-
+    // Use VideoPane's built-in zoom functionality
+    videoPane->zoomIn(1.1);
+    
     mouseEdgeTimer->start(edgeDuration); // Check every edge Duration
 }
 
 void MainWindow::onZoomOut()
 {
     if (videoPane->width() != this->width()){
-        factorScale = 0.9 * factorScale;
-        QSize currentSize = videoPane->size() * 0.9;
-        videoPane->resize(currentSize.width(), currentSize.height());
-        if (videoPane->width() <= scrollArea->width() && videoPane->height() <= scrollArea->height()) {
-            scrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
-            scrollArea->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
-        }
+        // Use VideoPane's built-in zoom functionality
+        videoPane->zoomOut(0.9);
     }
-
 }
 
 void MainWindow::onZoomReduction()
 {
-    videoPane->resize(this->width() * 0.9, (this->height() - ui->statusbar->height() - ui->menubar->height()) * 0.9);
-    scrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-    scrollArea->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    // Use VideoPane's fit to window functionality
+    videoPane->fitToWindow();
     if (mouseEdgeTimer->isActive()) {
         mouseEdgeTimer->stop();
     }
@@ -764,11 +749,9 @@ void MainWindow::doResize(){
         int horizontalOffset = (currentWidth - newVideoWidth) / 2;
 
         // Apply changes to UI components
-        videoPane->setMinimumSize(newVideoWidth, newVideoHeight);
+        // videoPane->setMinimumSize(newVideoWidth, newVideoHeight);
         videoPane->resize(newVideoWidth, newVideoHeight);
-        scrollArea->resize(newVideoWidth, newVideoHeight);
         videoPane->move(horizontalOffset, videoPane->y());
-        scrollArea->move(horizontalOffset, videoPane->y());
         
         // Resize main window if necessary
         if (currentWidth != availableWidth && currentHeight != availableHeight) {
@@ -787,17 +770,15 @@ void MainWindow::doResize(){
             int offsetX = static_cast<int>((videoPane->width()-currentWidth) /2);
             int offsetY = static_cast<int>((videoPane->height()-adjustedContentHeight) /2);
             int contentwidth = static_cast<int>(adjustedContentHeight * captureAspectRatio);
-            videoPane->setMinimumSize(contentwidth, adjustedContentHeight);
+            // videoPane->setMinimumSize(contentwidth, adjustedContentHeight);
             videoPane->resize(contentwidth, adjustedContentHeight);
             qDebug() << "setDisplayRegion Resize videoPane to width: " << currentWidth << " height: " << currentHeight << " offset: " << offsetX << offsetY << "videoPane width: " << videoPane->width();
             setMinimumSize(100, 500);
             qCDebug(log_ui_mainwindow) << "Resize to Width " << currentWidth << "\tHeight: " << currentHeight << ", due to aspect ratio < 1.0.";
             resize(currentWidth, currentHeight);
-        }
-        else{
-            videoPane->setMinimumSize(currentWidth, adjustedContentHeight);
+        }else{
+            // videoPane->setMinimumSize(currentWidth, adjustedContentHeight);
             videoPane->resize(currentWidth, adjustedContentHeight);
-            scrollArea->resize(currentWidth, adjustedContentHeight);
             qCDebug(log_ui_mainwindow) << "Resize to Width " << currentWidth << "\tHeight: " << currentHeight << ", due to aspect ratio >= 1.0.";
             resize(currentWidth, contentHeight);
         }
@@ -848,10 +829,10 @@ void MainWindow::updateScrollbars() {
         deltaY = 10; // Adjust step size as needed
     }
 
-    // Update scrollbars
-    scrollArea->horizontalScrollBar()->setValue(scrollArea->horizontalScrollBar()->value() + deltaX);
-    scrollArea->verticalScrollBar()->setValue(scrollArea->verticalScrollBar()->value() + deltaY);
+    // Note: scrollbars removed - VideoPane handles zooming internally via QGraphicsView
+    // No need to update scrollbars since VideoPane manages its own scroll behavior
 }
+
 
 void MainWindow::onActionRelativeTriggered()
 {
@@ -1430,46 +1411,23 @@ void MainWindow::onSwitchableUsbToggle(const bool isToTarget) {
 
 void MainWindow::checkMousePosition()
 {
-    if (!scrollArea || !videoPane) return;
+    if (!videoPane) return;
 
-    QPoint mousePos = mapFromGlobal(QCursor::pos());
-    QRect viewRect = scrollArea->viewport()->rect();
-
-    int deltaX = 0;
-    int deltaY = 0;
-
-    // Calculate the distance from the edge
-    int leftDistance = mousePos.x() - viewRect.left();
-    int rightDistance = viewRect.right() - mousePos.x();
-    int topDistance = mousePos.y() - viewRect.top();
-    int bottomDistance = viewRect.bottom() - mousePos.y();
-
-    // Adjust the scroll speed based on the distance from the edge
-    if (leftDistance <= edgeThreshold) {
-        deltaX = -maxScrollSpeed * (edgeThreshold - leftDistance) / edgeThreshold;
-    } else if (rightDistance <= edgeThreshold) {
-        deltaX = maxScrollSpeed * (edgeThreshold - rightDistance) / edgeThreshold;
-    }
-
-    if (topDistance <= edgeThreshold) {
-        deltaY = -maxScrollSpeed * (edgeThreshold - topDistance) / edgeThreshold;
-    } else if (bottomDistance <= edgeThreshold) {
-        deltaY = maxScrollSpeed * (edgeThreshold - bottomDistance) / edgeThreshold;
-    }
-
-    if (deltaX != 0 || deltaY != 0) {
-        scrollArea->horizontalScrollBar()->setValue(scrollArea->horizontalScrollBar()->value() + deltaX);
-        scrollArea->verticalScrollBar()->setValue(scrollArea->verticalScrollBar()->value() + deltaY);
-    }
+    // Since VideoPane now handles its own scrolling via QGraphicsView,
+    // we don't need to manually handle scroll area edge scrolling.
+    // The VideoPane's built-in zoom and pan functionality will handle this.
+    
+    // This method can be simplified or removed entirely if no longer needed
+    // for other mouse position tracking purposes.
 }
 
 void MainWindow::onVideoSettingsChanged() {
     if (m_cameraManager) {
-        // Reinitialize camera with video output to ensure proper connection
-        bool success = m_cameraManager->initializeCameraWithVideoOutput(videoPane);
+        // Reinitialize camera with graphics video output to ensure proper connection
+        bool success = m_cameraManager->initializeCameraWithVideoOutput(videoPane->getVideoItem());
         if (!success) {
             // Fallback to just setting video output
-            m_cameraManager->setVideoOutput(videoPane);
+            m_cameraManager->setVideoOutput(videoPane->getVideoItem());
         }
     }
     int inputWidth = GlobalVar::instance().getInputWidth();
@@ -1538,11 +1496,9 @@ void MainWindow::onInputResolutionChanged()
     qDebug() << "contentHeight: " << contentHeight;
     
     // Set the videoPane to use the full available width and height
-    videoPane->setMinimumSize(videoPane->width(), contentHeight);
+    // videoPane->setMinimumSize(videoPane->width(), contentHeight);
     videoPane->resize(videoPane->width(), contentHeight);
     
-    // Ensure scrollArea is also resized appropriately
-    scrollArea->resize(videoPane->width(), contentHeight);
 }
 
 void MainWindow::showScriptTool()
@@ -1559,15 +1515,16 @@ void MainWindow::showScriptTool()
 // run the sematic analyzer
 void MainWindow::handleSyntaxTree(std::shared_ptr<ASTNode> syntaxTree) {
     QPointer<QObject> senderObj = sender();
-    taskmanager->addTask([this, syntaxTree, senderObj]() {
-        if (!senderObj) return;
-        bool runStatus = semanticAnalyzer->analyze(syntaxTree.get());
+    QPointer<MainWindow> thisPtr(this); // Add protection for this pointer
+    taskmanager->addTask([thisPtr, syntaxTree, senderObj]() {
+        if (!senderObj || !thisPtr) return; // Check both pointers
+        bool runStatus = thisPtr->semanticAnalyzer->analyze(syntaxTree.get());
         qCDebug(log_ui_mainwindow) << "Script run status: " << runStatus;
-        emit emitScriptStatus(runStatus);
+        emit thisPtr->emitScriptStatus(runStatus);
         
-        if (senderObj == tcpServer) {
+        if (senderObj == thisPtr->tcpServer) {
             qCDebug(log_ui_mainwindow) << "run finish: " << runStatus;
-            emit emitTCPCommandStatus(runStatus);
+            emit thisPtr->emitTCPCommandStatus(runStatus);
         }
     });
 } 
@@ -1576,33 +1533,115 @@ MainWindow::~MainWindow()
 {
     qCDebug(log_ui_mainwindow) << "MainWindow destructor called";
     
-    // Stop all camera operations
+    // 0. CRITICAL: Stop any running animations before cleanup
+    QList<QPropertyAnimation*> animations = this->findChildren<QPropertyAnimation*>();
+    for (QPropertyAnimation* animation : animations) {
+        animation->stop();
+        animation->deleteLater();
+    }
+    
+    QList<QParallelAnimationGroup*> animationGroups = this->findChildren<QParallelAnimationGroup*>();
+    for (QParallelAnimationGroup* group : animationGroups) {
+        group->stop();
+        group->deleteLater();
+    }
+    
+    // Process any pending events to ensure cleanup
+    QCoreApplication::processEvents();
+    
+    // 1. Stop all operations first
     stop();
     
-    // Delete UI
+    // 2. Stop camera operations and disconnect signals
+    if (m_cameraManager) {
+        disconnect(m_cameraManager);
+        m_cameraManager->stopCamera();
+        m_cameraManager->deleteLater();
+        m_cameraManager = nullptr;
+    }
+    
+    // 3. Clean up managers in dependency order
+    if (m_versionInfoManager) {
+        m_versionInfoManager->deleteLater();
+        m_versionInfoManager = nullptr;
+        qCDebug(log_ui_mainwindow) << "m_versionInfoManager destroyed successfully";
+    }
+    
+    if (m_screenSaverManager) {
+        m_screenSaverManager->deleteLater();
+        m_screenSaverManager = nullptr;
+        qCDebug(log_ui_mainwindow) << "m_screenSaverManager destroyed successfully";
+    }
+    
+    if (m_cornerWidgetManager) {
+        m_cornerWidgetManager->deleteLater();
+        m_cornerWidgetManager = nullptr;
+        qCDebug(log_ui_mainwindow) << "m_cornerWidgetManager destroyed successfully";
+    }
+
+    if (m_screenScaleDialog) {
+        m_screenScaleDialog->deleteLater();
+        m_screenScaleDialog = nullptr;
+        qCDebug(log_ui_mainwindow) << "m_screenScaleDialog destroyed successfully";
+    }
+
+    if (firmwareManagerDialog) {
+        firmwareManagerDialog->deleteLater();
+        firmwareManagerDialog = nullptr;
+        qCDebug(log_ui_mainwindow) << "firmwareManagerDialog destroyed successfully";
+    }
+    
+    // 4. Clean up video pane and related objects - Use direct delete to ensure immediate cleanup
+    if (videoPane) {
+        // Remove videoPane from any layouts first
+        if (stackedLayout) {
+            stackedLayout->removeWidget(videoPane);
+        }
+        delete videoPane; // Direct delete instead of deleteLater
+        videoPane = nullptr;
+        qCDebug(log_ui_mainwindow) << "videoPane destroyed successfully";
+    }
+    
+    if (stackedLayout) {
+        stackedLayout->deleteLater();
+        stackedLayout = nullptr;
+    }
+    
+    // 5. Clean up other components
+    if (mouseEdgeTimer) {
+        mouseEdgeTimer->stop();
+        mouseEdgeTimer->deleteLater();
+        mouseEdgeTimer = nullptr;
+        qCDebug(log_ui_mainwindow) << "mouseEdgeTimer destroyed successfully";
+    }
+    
+    if (toolbarManager) {
+        toolbarManager->deleteLater();
+        toolbarManager = nullptr;
+        qCDebug(log_ui_mainwindow) << "toolbarManager destroyed successfully";
+    }
+    
+    if (toggleSwitch) {
+        toggleSwitch->deleteLater();
+        toggleSwitch = nullptr;
+        qCDebug(log_ui_mainwindow) << "toggleSwitch destroyed successfully";
+    }
+    
+    if (m_audioManager) {
+        m_audioManager->deleteLater();
+        m_audioManager = nullptr;
+        qCDebug(log_ui_mainwindow) << "m_audioManager destroyed successfully";
+    }
+    
+    // 6. Clean up static instances
+    VideoHid::getInstance().stop();
+    SerialPortManager::getInstance().stop();
+    
+    // 7. Delete UI last
     if (ui) {
         delete ui;
         ui = nullptr;
     }
-
-    m_cameraManager->stopCamera();
-    delete m_cameraManager;
-    m_cameraManager = nullptr;
-    
-    delete m_versionInfoManager;
-    m_versionInfoManager = nullptr;
-    
-    delete m_screenSaverManager;
-    m_screenSaverManager = nullptr;
-    
-    delete m_cornerWidgetManager;
-    m_cornerWidgetManager = nullptr;
-
-    delete m_screenScaleDialog;
-    m_screenScaleDialog = nullptr;
-
-    delete firmwareManagerDialog;
-    firmwareManagerDialog = nullptr;
 
     qCDebug(log_ui_mainwindow) << "MainWindow destroyed successfully";
 }
@@ -1623,12 +1662,16 @@ void MainWindow::onToolbarVisibilityChanged(bool visible) {
     
 
     // Use QTimer to delay the video pane repositioning
-    QTimer::singleShot(0, this, &MainWindow::animateVideoPane);
+    // Safety check: Don't schedule animation if window is being destroyed
+    if (videoPane && this->isVisible() && !this->testAttribute(Qt::WA_DeleteOnClose)) {
+        QTimer::singleShot(0, this, &MainWindow::animateVideoPane);
+    }
     
 }
 
 void MainWindow::animateVideoPane() {
-    if (!videoPane || !scrollArea) {
+    // Safety check: Don't animate if window is being destroyed
+    if (!videoPane || !this->isVisible() || this->testAttribute(Qt::WA_DeleteOnClose)) {
         setUpdatesEnabled(true);
         blockSignals(false);
         return;
@@ -1636,7 +1679,6 @@ void MainWindow::animateVideoPane() {
 
     // Get toolbar visibility and window state
     bool isToolbarVisible = toolbarManager->getToolbar()->isVisible();
-    // bool isMaximized = windowState() & Qt::WindowMaximized;
 
     // Calculate content height based on toolbar visibility
     int contentHeight;
@@ -1655,36 +1697,45 @@ void MainWindow::animateVideoPane() {
         contentWidth = static_cast<int>(contentHeight * aspect_ratio);
     }
 
-    // If window is not maximized and toolbar is invisible, resize the panes
-    
-    videoPane->setMinimumSize(contentWidth, contentHeight);
+    // Resize the video pane
+    // videoPane->setMinimumSize(contentWidth, contentHeight);
     videoPane->resize(contentWidth, contentHeight);
-    scrollArea->resize(contentWidth, contentHeight);
-    
 
     if (this->width() > videoPane->width()) {
         // Calculate new position
         int horizontalOffset = (this->width() - videoPane->width()) / 2;
         
-        // Also animate the scrollArea
-        QPropertyAnimation *scrollAnimation = new QPropertyAnimation(scrollArea, "pos");
-        scrollAnimation->setDuration(150);
-        scrollAnimation->setStartValue(scrollArea->pos());
-        scrollAnimation->setEndValue(QPoint(horizontalOffset, scrollArea->y()));
-        scrollAnimation->setEasingCurve(QEasingCurve::OutCubic);
+        // Safety check: Only create animation if videoPane is still valid and window is visible
+        if (videoPane && this->isVisible() && !this->testAttribute(Qt::WA_DeleteOnClose)) {
+            // Animate the videoPane position
+            QPropertyAnimation *videoAnimation = new QPropertyAnimation(videoPane, "pos");
+            videoAnimation->setDuration(150);
+            videoAnimation->setStartValue(videoPane->pos());
+            videoAnimation->setEndValue(QPoint(horizontalOffset, videoPane->y()));
+            videoAnimation->setEasingCurve(QEasingCurve::OutCubic);
 
-        // Create animation group
-        QParallelAnimationGroup *group = new QParallelAnimationGroup(this);
-        group->addAnimation(scrollAnimation);
-        
-        // Cleanup after animation
-        connect(group, &QParallelAnimationGroup::finished, this, [this]() {
+            // Create animation group with just video animation
+            QParallelAnimationGroup *group = new QParallelAnimationGroup(this);
+            group->addAnimation(videoAnimation);
+            
+            // Cleanup after animation
+            connect(group, &QParallelAnimationGroup::finished, this, [this]() {
+                if (this && this->isVisible() && !this->testAttribute(Qt::WA_DeleteOnClose)) {
+                    setUpdatesEnabled(true);
+                    blockSignals(false);
+                    update();
+                }
+            });
+            
+            group->start(QAbstractAnimation::DeleteWhenStopped);
+        } else {
+            // If animation can't be created safely, just move immediately
+            if (videoPane) {
+                videoPane->move(horizontalOffset, videoPane->y());
+            }
             setUpdatesEnabled(true);
             blockSignals(false);
-            update();
-        });
-        
-        group->start(QAbstractAnimation::DeleteWhenStopped);
+        }
     } else {
         setUpdatesEnabled(true);
         blockSignals(false);
@@ -1801,5 +1852,24 @@ void MainWindow::openDeviceSelector() {
     } else {
         deviceSelectorDialog->raise();
         deviceSelectorDialog->activateWindow();
+    }
+}
+
+void MainWindow::showUpdateDisplaySettingsDialog() {
+    qCDebug(log_ui_mainwindow) << "Opening update display settings dialog";
+    if (!updateDisplaySettingsDialog) {
+        qCDebug(log_ui_mainwindow) << "Creating update display settings dialog";
+        updateDisplaySettingsDialog = new UpdateDisplaySettingsDialog(this);
+        
+        // Connect the finished signal to clean up
+        connect(updateDisplaySettingsDialog, &QDialog::finished, this, [this]() {
+            updateDisplaySettingsDialog->deleteLater();
+            updateDisplaySettingsDialog = nullptr;
+        });
+        
+        updateDisplaySettingsDialog->show();
+    } else {
+        updateDisplaySettingsDialog->raise();
+        updateDisplaySettingsDialog->activateWindow();
     }
 }

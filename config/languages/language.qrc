@@ -7,5 +7,6 @@
         <file>openterface_fr.qm</file>
 		<file>openterface_ja.qm</file>
 		<file>openterface_se.qm</file>
+        <file>openterface_zh.qm</file>
     </qresource>
 </RCC> 

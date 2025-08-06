@@ -69,8 +69,14 @@ QSize InputHandler::getScreenResolution() {
 
 bool InputHandler::eventFilter(QObject *watched, QEvent *event)
 {
+    // Debug: Log all events to see what we're receiving
+    if (watched == m_videoPane) {
+        qDebug() << "InputHandler::eventFilter - Event type:" << event->type() << "watched object:" << watched;
+    }
+    
     if (event->type() == QEvent::MouseMove) {
         QMouseEvent *mouseEvent = static_cast<QMouseEvent*>(event);
+        qDebug() << "InputHandler::eventFilter - MouseMove detected, calling handleMouseMoveEvent";
         handleMouseMoveEvent(mouseEvent);
         return true;
     }
@@ -129,8 +135,16 @@ void InputHandler::handleMouseMoveEvent(QMouseEvent *event)
     QScopedPointer<MouseEventDTO> eventDto(calculateMouseEventDto(event));
     eventDto->setMouseButton(isDragging() ? lastMouseButton : 0);
 
+    qDebug() << "InputHandler::handleMouseMoveEvent - pos:" << event->pos() 
+             << "absolute mode:" << eventDto->isAbsoluteMode() 
+             << "relative mode enabled:" << m_videoPane->isRelativeModeEnabled()
+             << "x:" << eventDto->getX() << "y:" << eventDto->getY();
+
     //Only handle the event if it's under absolute mouse control or relative mode is enabled
-    if(!eventDto->isAbsoluteMode() && !m_videoPane->isRelativeModeEnabled()) return;
+    if(!eventDto->isAbsoluteMode() && !m_videoPane->isRelativeModeEnabled()) {
+        qDebug() << "InputHandler: Mouse move event rejected - not in correct mode";
+        return;
+    }
 
     HostManager::getInstance().handleMouseMove(eventDto.get());
 }
@@ -193,4 +207,30 @@ void InputHandler::handleKeyReleaseEvent(QKeyEvent *event)
         m_videoPane->stopEscTimer();
         m_holdingEsc = false;
     }
+}
+
+// Public methods that delegate to private event handlers
+void InputHandler::handleKeyPress(QKeyEvent *event)
+{
+    handleKeyPressEvent(event);
+}
+
+void InputHandler::handleKeyRelease(QKeyEvent *event)
+{
+    handleKeyReleaseEvent(event);
+}
+
+void InputHandler::handleMousePress(QMouseEvent *event)
+{
+    handleMousePressEvent(event);
+}
+
+void InputHandler::handleMouseMove(QMouseEvent *event)
+{
+    handleMouseMoveEvent(event);
+}
+
+void InputHandler::handleMouseRelease(QMouseEvent *event)
+{
+    handleMouseReleaseEvent(event);
 }
