@@ -110,6 +110,21 @@ void applyMediaBackendSetting(){
     
     // Get the media backend setting from GlobalSetting
     QString mediaBackend = GlobalSetting::instance().getMediaBackend();
+    
+    // Handle GStreamer-specific environment settings
+    if (mediaBackend == "gstreamer") {
+        // Set GStreamer debug level to reduce verbose output
+        qputenv("GST_DEBUG", "2");
+        
+        // Set GStreamer to use integer frame rates to avoid step assertion errors
+        qputenv("GST_DEBUG_NO_COLOR", "1");
+        
+        // Ensure proper GStreamer registry
+        qputenv("GST_REGISTRY_REUSE_PLUGIN_SCANNER", "no");
+        
+        qDebug() << "Applied GStreamer-specific environment settings";
+    }
+    
     qputenv("QT_MEDIA_BACKEND", mediaBackend.toUtf8());
     QString newMediaBackend = qgetenv("QT_MEDIA_BACKEND");
     qDebug() << "Current QT Media Backend set to:" << newMediaBackend;

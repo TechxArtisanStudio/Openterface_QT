@@ -449,6 +449,9 @@ QCameraFormat CameraManager::getVideoFormat(const QSize &resolution, int desired
     QCameraFormat bestMatch;
     int closestFrameRate = INT_MAX;
 
+    // Check if we're using GStreamer backend
+    QString mediaBackend = GlobalSetting::instance().getMediaBackend();
+    bool isGStreamer = (mediaBackend == "gstreamer");
 
     for (const QCameraFormat &format : getCameraFormats()) {
         QSize formatResolution = format.resolution();
@@ -461,6 +464,24 @@ QCameraFormat CameraManager::getVideoFormat(const QSize &resolution, int desired
         const_cast<std::map<VideoFormatKey, QCameraFormat>&>(videoFormatMap)[key] = format;
 
         if (formatResolution == resolution && formatPixelFormat == pixelFormat) {
+            // For GStreamer, be more conservative with frame rate selection
+            if (isGStreamer) {
+                // Use exact frame rate matches when possible for GStreamer
+                if (desiredFrameRate == minFrameRate || desiredFrameRate == maxFrameRate) {
+                    qCDebug(log_ui_camera) << "GStreamer exact match found" << format.minFrameRate() << format.maxFrameRate();
+                    return format;
+                }
+                
+                // For GStreamer, prefer standard frame rates
+                std::vector<int> standardRates = {30, 25, 24, 60, 50, 15, 10, 5};
+                for (int stdRate : standardRates) {
+                    if (stdRate >= minFrameRate && stdRate <= maxFrameRate && stdRate == desiredFrameRate) {
+                        qCDebug(log_ui_camera) << "GStreamer standard rate match found:" << stdRate;
+                        return format;
+                    }
+                }
+            }
+            
             if (desiredFrameRate >= minFrameRate && desiredFrameRate <= maxFrameRate) {
                 // If we find an exact match, return it immediately
                 qCDebug(log_ui_camera) << "Exact match found" << format.minFrameRate() << format.maxFrameRate();

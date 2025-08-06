@@ -201,12 +201,18 @@ void VideoPage::populateResolutionBox(const QList<QCameraFormat> &videoFormats) 
         QSize resolution = format.resolution();
         int minFrameRate = format.minFrameRate();
         int maxFrameRate = format.maxFrameRate();
-        // QVideoFrameFormat::PixelFormat pixelFormat = format.pixelFormat();
-
-        // VideoFormatKey key = {resolution, minFrameRate, maxFrameRate, pixelFormat};
-        // Use const_cast here to avoid the const issue
-        // const_cast<std::map<VideoFormatKey, QCameraFormat>&>(videoFormatMap)[key] = format;
-
+        
+        // For GStreamer compatibility, ensure frame rates are properly stepped
+        // Add standard frame rates within the supported range
+        std::vector<int> standardFrameRates = {5, 10, 15, 20, 24, 25, 30, 50, 60};
+        
+        for (int stdRate : standardFrameRates) {
+            if (stdRate >= minFrameRate && stdRate <= maxFrameRate) {
+                resolutionSampleRates[resolution].insert(stdRate);
+            }
+        }
+        
+        // Always include the actual min and max if they're not standard values
         resolutionSampleRates[resolution].insert(minFrameRate);
         resolutionSampleRates[resolution].insert(maxFrameRate);
     }
@@ -301,6 +307,14 @@ void VideoPage::applyVideoSettings() {
     int fps = fpsComboBox->currentData().toInt();
     qDebug() << "fpsComboBox current data:" << fpsComboBox->currentData();
     
+    // Check if we're using GStreamer
+    QString mediaBackend = GlobalSetting::instance().getMediaBackend();
+    bool isGStreamer = (mediaBackend == "gstreamer");
+    
+    if (isGStreamer) {
+        qDebug() << "Applying video settings with GStreamer backend - using conservative approach";
+    }
+    
     // Ensure pixelFormatBox is found
     QComboBox *pixelFormatBox = this->findChild<QComboBox*>("pixelFormatBox");
     if (!pixelFormatBox) {
@@ -316,8 +330,14 @@ void VideoPage::applyVideoSettings() {
 
     if (!format.isNull()) {
         qDebug() << "Set Camera Format, resolution:" << format.resolution() << ", FPS:" << fps << format.pixelFormat();
+        if (isGStreamer) {
+            qDebug() << "GStreamer format range: min=" << format.minFrameRate() << "max=" << format.maxFrameRate();
+        }
     } else {
         qWarning() << "Invalid camera format!" << m_currentResolution << fps;
+        if (isGStreamer) {
+            qWarning() << "GStreamer may have rejected the format - try a different frame rate";
+        }
         return;
     }
 
@@ -428,5 +448,10 @@ void VideoPage::onMediaBackendChanged() {
         QString selectedBackend = mediaBackendBox->currentData().toString();
         GlobalSetting::instance().setMediaBackend(selectedBackend);
         qDebug() << "Media backend changed to:" << selectedBackend;
+        
+        if (selectedBackend == "gstreamer") {
+            qDebug() << "GStreamer backend selected - using conservative frame rate handling";
+            qDebug() << "Note: GStreamer may require specific frame rate ranges to avoid assertion errors";
+        }
     }
 }
