@@ -48,14 +48,15 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Build FFmpeg with static libraries
-RUN wget https://ffmpeg.org/releases/ffmpeg-6.0.tar.xz \
-    && tar xf ffmpeg-6.0.tar.xz \
+RUN wget https://ffmpeg.org/releases/ffmpeg-6.1.1.tar.xz \
+    && tar xf ffmpeg-6.1.1.tar.xz \
     && cd ffmpeg-6.0 \
     && ./configure \
         --prefix=/usr/local \
         --enable-static \
         --enable-gpl --enable-nonfree \
         --enable-libdrm --enable-v4l2_m2m \
+        --enable-libudev\
         --disable-shared \
         --disable-doc \
         --disable-ffplay \
