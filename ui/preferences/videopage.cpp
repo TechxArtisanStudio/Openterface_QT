@@ -119,6 +119,33 @@ void VideoPage::setupUI()
 
     QLabel *hintLabel = new QLabel(tr("Note: On linx the video may go black after OK or Apply. Please unplug and re-plug the host cable."));
 
+    // Add another separator
+    QFrame *separatorLine2 = new QFrame();
+    separatorLine2->setFrameShape(QFrame::HLine);
+    separatorLine2->setFrameShadow(QFrame::Sunken);
+
+    // Media Backend Setting Section
+    QLabel *backendLabel = new QLabel(tr("Media Backend: "));
+    backendLabel->setStyleSheet(smallLabelFontSize);
+
+    QComboBox *mediaBackendBox = new QComboBox();
+    mediaBackendBox->setObjectName("mediaBackendBox");
+    mediaBackendBox->addItem("FFmpeg", "ffmpeg");
+    mediaBackendBox->addItem("GStreamer", "gstreamer");
+
+    // Set current backend from settings
+    QString currentBackend = GlobalSetting::instance().getMediaBackend();
+    int backendIndex = mediaBackendBox->findData(currentBackend);
+    if (backendIndex != -1) {
+        mediaBackendBox->setCurrentIndex(backendIndex);
+    }
+
+    QLabel *backendHintLabel = new QLabel(tr("Note: Changing media backend requires application restart to take effect."));
+    backendHintLabel->setStyleSheet("color: #666666; font-style: italic;");
+
+    // Connect the media backend change signal
+    connect(mediaBackendBox, &QComboBox::currentIndexChanged, this, &VideoPage::onMediaBackendChanged);
+
     // Add Capture Resolution elements to the layout
     videoLayout->addWidget(hintLabel);
     videoLayout->addWidget(resolutionsLabel);
@@ -127,6 +154,10 @@ void VideoPage::setupUI()
     videoLayout->addLayout(hBoxLayout);
     videoLayout->addWidget(formatLabel);
     videoLayout->addWidget(pixelFormatBox);
+    videoLayout->addWidget(separatorLine2);
+    videoLayout->addWidget(backendLabel);
+    videoLayout->addWidget(mediaBackendBox);
+    videoLayout->addWidget(backendHintLabel);
     videoLayout->addStretch();
 
     // Connect the checkbox state change to the slot
@@ -354,6 +385,16 @@ void VideoPage::initVideoSettings() {
     if (indexFps != -1) {
         fpsComboBox->setCurrentIndex(indexFps);
     }
+
+    // Set the media backend in the combo box
+    QComboBox *mediaBackendBox = this->findChild<QComboBox*>("mediaBackendBox");
+    if (mediaBackendBox) {
+        QString currentBackend = GlobalSetting::instance().getMediaBackend();
+        int backendIndex = mediaBackendBox->findData(currentBackend);
+        if (backendIndex != -1) {
+            mediaBackendBox->setCurrentIndex(backendIndex);
+        }
+    }
 }
 
 void VideoPage::handleResolutionSettings() {
@@ -379,4 +420,13 @@ void VideoPage::toggleCustomResolutionInputs(bool checked) {
     // Enable or disable the input fields based on the checkbox state
     customInputWidthEdit->setEnabled(checked);
     customInputHeightEdit->setEnabled(checked);
+}
+
+void VideoPage::onMediaBackendChanged() {
+    QComboBox *mediaBackendBox = this->findChild<QComboBox*>("mediaBackendBox");
+    if (mediaBackendBox) {
+        QString selectedBackend = mediaBackendBox->currentData().toString();
+        GlobalSetting::instance().setMediaBackend(selectedBackend);
+        qDebug() << "Media backend changed to:" << selectedBackend;
+    }
 }

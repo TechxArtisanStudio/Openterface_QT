@@ -50,6 +50,9 @@ public:
     void setVideoSettings(int width, int height, int fps);
 
     void loadVideoSettings();
+
+    void setMediaBackend(const QString &backend);
+    QString getMediaBackend() const;
     
     void setCameraDeviceSetting(QString deviceDescription);
 

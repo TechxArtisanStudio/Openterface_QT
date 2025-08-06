@@ -23,6 +23,7 @@
 #include "ui/mainwindow.h"
 #include "ui/loghandler.h"
 #include "ui/advance/envdialog.h"
+#include "ui/globalsetting.h"
 #include "global.h"
 #include "target/KeyboardLayouts.h"
 #include "ui/languagemanager.h"
@@ -92,12 +93,6 @@ void writeLog(const QString &message){
 
 void setupEnv(){
 #ifdef Q_OS_LINUX
-    QString originalMediaBackend = qgetenv("QT_MEDIA_BACKEND");
-    qDebug() << "Original QT Media Backend:" << originalMediaBackend;
-    qputenv("QT_MEDIA_BACKEND", "ffmpeg");
-    QString newMediaBackend = qgetenv("QT_MEDIA_BACKEND");
-    qDebug() << "Current QT Media Backend:" << newMediaBackend;
-
     // Check if QT_QPA_PLATFORM is not set, and set it to "xcb" if it's empty
     if (qgetenv("QT_QPA_PLATFORM").isEmpty()) {
         qputenv("QT_QPA_PLATFORM", "xcb");
@@ -105,6 +100,19 @@ void setupEnv(){
     } else {
         qDebug() << "Current QT_QPA_PLATFORM:" << qgetenv("QT_QPA_PLATFORM");
     }
+#endif
+}
+
+void applyMediaBackendSetting(){
+#ifdef Q_OS_LINUX
+    QString originalMediaBackend = qgetenv("QT_MEDIA_BACKEND");
+    qDebug() << "Original QT Media Backend:" << originalMediaBackend;
+    
+    // Get the media backend setting from GlobalSetting
+    QString mediaBackend = GlobalSetting::instance().getMediaBackend();
+    qputenv("QT_MEDIA_BACKEND", mediaBackend.toUtf8());
+    QString newMediaBackend = qgetenv("QT_MEDIA_BACKEND");
+    qDebug() << "Current QT Media Backend set to:" << newMediaBackend;
 #endif
 }
 
@@ -142,6 +150,8 @@ int main(int argc, char *argv[])
     qDebug() << "Loading settings";
     GlobalSetting::instance().loadLogSettings();
     GlobalSetting::instance().loadVideoSettings();
+    // Apply media backend setting after settings are loaded
+    applyMediaBackendSetting();
     // onVideoSettingsChanged(GlobalVar::instance().getCaptureWidth(), GlobalVar::instance().getCaptureHeight());
     LogHandler::instance().enableLogStore();
 

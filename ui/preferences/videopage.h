@@ -67,6 +67,7 @@ signals:
 
 private slots:
     void toggleCustomResolutionInputs(bool checked);
+    void onMediaBackendChanged();
 
 private:
     CameraManager *m_cameraManager;
