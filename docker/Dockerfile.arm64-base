@@ -73,8 +73,6 @@ RUN wget https://ffmpeg.org/releases/ffmpeg-${FFMPEG_VERSION}.tar.xz \
         --enable-gpl \
         --enable-libdrm \
         --enable-v4l2_m2m \
-        --enable-libx264 \
-        --enable-libx265 \
         --disable-shared \
         --disable-doc \
         --disable-ffplay \
