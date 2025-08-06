@@ -114,7 +114,7 @@ void applyMediaBackendSetting(){
     // Handle GStreamer-specific environment settings
     if (mediaBackend == "gstreamer") {
         // Set GStreamer debug level to reduce verbose output but catch critical errors
-        qputenv("GST_DEBUG", "1,qt6media:3");
+        qputenv("GST_DEBUG", "1,qt6media:3,alsa:1");
         
         // Disable color output for cleaner logs
         qputenv("GST_DEBUG_NO_COLOR", "1");
@@ -126,12 +126,24 @@ void applyMediaBackendSetting(){
         qputenv("GST_DEBUG_DUMP_DOT_DIR", "");
         
         // Prevent GStreamer from using problematic plugins that might cause object ref issues
-        qputenv("GST_PLUGIN_FEATURE_RANK", "qt6videosink:MAX,qt6audiosink:MAX");
+        qputenv("GST_PLUGIN_FEATURE_RANK", "qt6videosink:MAX,qt6audiosink:MAX,alsasink:NONE,pulsesink:PRIMARY");
         
         // Force proper cleanup timing
         qputenv("G_DEBUG", "gc-friendly");
         
-        qDebug() << "Applied GStreamer-specific environment settings for object safety";
+        // Disable problematic ALSA device scanning that causes errors
+        qputenv("GST_ALSA_DISABLE_PERIOD_ADJUSTMENT", "1");
+        
+        // Set audio policy to be more conservative
+        qputenv("GST_AUDIO_DISABLE_FORMATS", "");
+        
+        // Force PulseAudio over ALSA to avoid device access issues
+        qputenv("GST_AUDIO_SYSTEM_PULSE", "1");
+        
+        // Reduce audio device scanning verbosity
+        qputenv("PULSE_DEBUG", "0");
+        
+        qDebug() << "Applied GStreamer-specific environment settings for object safety and audio compatibility";
     }
     
     qputenv("QT_MEDIA_BACKEND", mediaBackend.toUtf8());

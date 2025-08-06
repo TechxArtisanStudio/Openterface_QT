@@ -1,4 +1,5 @@
 #include "cameramanager.h"
+#include "host/multimediabackend.h"
 
 #include <QLoggingCategory>
 #include <QSettings>
@@ -12,6 +13,8 @@
 #include <QGraphicsVideoItem>
 #include <QTimer>
 #include <QThread>
+#include <algorithm>
+#include <QSet>
 
 Q_LOGGING_CATEGORY(log_ui_camera, "opf.ui.camera")
 
@@ -24,6 +27,9 @@ CameraManager::CameraManager(QObject *parent)
     m_currentCameraDevice = QCameraDevice();
     m_currentCameraDeviceId.clear();
     m_currentCameraPortChain.clear();
+    
+    // Initialize backend handler
+    initializeBackendHandler();
     
     m_imageCapture = std::make_unique<QImageCapture>();
     m_mediaRecorder = std::make_unique<QMediaRecorder>();
@@ -39,11 +45,78 @@ CameraManager::CameraManager(QObject *parent)
 
 CameraManager::~CameraManager() = default;
 
+bool CameraManager::isGStreamerBackend() const
+{
+    return m_backendHandler && m_backendHandler->getBackendType() == MultimediaBackendType::GStreamer;
+}
+
+bool CameraManager::isFFmpegBackend() const
+{
+    return m_backendHandler && m_backendHandler->getBackendType() == MultimediaBackendType::FFmpeg;
+}
+
+void CameraManager::initializeBackendHandler()
+{
+    qCDebug(log_ui_camera) << "Initializing multimedia backend handler";
+    try {
+        m_backendHandler = MultimediaBackendFactory::createAutoDetectedHandler(this);
+        if (m_backendHandler) {
+            qCDebug(log_ui_camera) << "Backend handler initialized:" << m_backendHandler->getBackendName();
+            
+            // Connect backend signals
+            connect(m_backendHandler.get(), &MultimediaBackendHandler::backendMessage,
+                    this, [](const QString& message) {
+                        qCDebug(log_ui_camera) << "Backend message:" << message;
+                    });
+            
+            connect(m_backendHandler.get(), &MultimediaBackendHandler::backendWarning,
+                    this, [](const QString& warning) {
+                        qCWarning(log_ui_camera) << "Backend warning:" << warning;
+                    });
+            
+            connect(m_backendHandler.get(), &MultimediaBackendHandler::backendError,
+                    this, [this](const QString& error) {
+                        qCCritical(log_ui_camera) << "Backend error:" << error;
+                        emit cameraError(error);
+                    });
+        } else {
+            qCCritical(log_ui_camera) << "Failed to create backend handler";
+        }
+    } catch (const std::exception& e) {
+        qCCritical(log_ui_camera) << "Exception initializing backend handler:" << e.what();
+    } catch (...) {
+        qCCritical(log_ui_camera) << "Unknown exception initializing backend handler";
+    }
+}
+
+void CameraManager::updateBackendHandler()
+{
+    qCDebug(log_ui_camera) << "Updating multimedia backend handler";
+    
+    // Store the current backend type for comparison
+    MultimediaBackendType currentType = m_backendHandler ? m_backendHandler->getBackendType() : MultimediaBackendType::Unknown;
+    MultimediaBackendType newType = MultimediaBackendFactory::detectBackendType();
+    
+    // Only recreate if the backend type has changed
+    if (currentType != newType) {
+        qCDebug(log_ui_camera) << "Backend type changed from" << MultimediaBackendFactory::backendTypeToString(currentType)
+                               << "to" << MultimediaBackendFactory::backendTypeToString(newType);
+        
+        // Disconnect old handler signals
+        if (m_backendHandler) {
+            disconnect(m_backendHandler.get(), nullptr, this, nullptr);
+        }
+        
+        // Create new handler
+        initializeBackendHandler();
+    } else {
+        qCDebug(log_ui_camera) << "Backend type unchanged, keeping current handler";
+    }
+}
+
 void CameraManager::setCamera(const QCameraDevice &cameraDevice, QVideoWidget* videoOutput)
 {
     qCDebug(log_ui_camera) << "Set Camera to videoOutput: " << videoOutput << ", device name: " << cameraDevice.description();
-    setCameraDevice(cameraDevice);
-
     setVideoOutput(videoOutput);
 
     queryResolutions();
@@ -76,19 +149,14 @@ void CameraManager::setCameraDevice(const QCameraDevice &cameraDevice)
             return;
         }
         
-        // Check if we're using GStreamer for special handling
-        QString mediaBackend = GlobalSetting::instance().getMediaBackend();
-        bool isGStreamer = (mediaBackend == "gstreamer");
+        // Determine multimedia backend for special handling
+        bool isGStreamer = isGStreamerBackend();
         
-        if (isGStreamer) {
+        if (isGStreamer && m_backendHandler) {
             qCDebug(log_ui_camera) << "Using GStreamer-safe camera device setup";
             
-            // For GStreamer, ensure clean state before creating new camera
-            if (m_camera) {
-                // Disconnect from capture session first
-                m_captureSession.setCamera(nullptr);
-                QThread::msleep(25); // Allow GStreamer to clean up
-            }
+            // Use backend handler for GStreamer preparation
+            m_backendHandler->prepareCameraCreation(m_camera.get());
         }
         
         // Create new camera instance
@@ -102,12 +170,13 @@ void CameraManager::setCameraDevice(const QCameraDevice &cameraDevice)
         // Setup connections before setting up capture session
         setupConnections();
         
-        // Set up capture session with timing consideration for GStreamer
-        if (isGStreamer) {
-            QThread::msleep(25); // Give GStreamer time to initialize camera object
+        // Set up capture session with backend-specific timing
+        if (m_backendHandler) {
+            m_backendHandler->setupCaptureSession(&m_captureSession, m_camera.get());
+        } else {
+            // Fallback: standard setup
+            m_captureSession.setCamera(m_camera.get());
         }
-        
-        m_captureSession.setCamera(m_camera.get());
         m_captureSession.setImageCapture(m_imageCapture.get());
         
         // Update current device tracking
@@ -177,45 +246,33 @@ void CameraManager::startCamera()
 
             qCDebug(log_ui_camera) << "Starting camera:" << m_camera->cameraDevice().description();
             
-            // Check if we're using GStreamer and apply special handling
-            QString mediaBackend = GlobalSetting::instance().getMediaBackend();
-            bool isGStreamer = (mediaBackend == "gstreamer");
-            
-            if (isGStreamer) {
-                qCDebug(log_ui_camera) << "Using GStreamer-safe camera startup procedure";
+            // Use backend handler for video output setup and camera start
+            if (m_backendHandler) {
+                // Prepare video output connection
+                if (m_videoOutput) {
+                    m_backendHandler->prepareVideoOutputConnection(&m_captureSession, m_videoOutput);
+                    m_backendHandler->finalizeVideoOutputConnection(&m_captureSession, m_videoOutput);
+                } else if (m_graphicsVideoOutput) {
+                    m_backendHandler->prepareVideoOutputConnection(&m_captureSession, m_graphicsVideoOutput);
+                    m_backendHandler->finalizeVideoOutputConnection(&m_captureSession, m_graphicsVideoOutput);
+                }
                 
-                // For GStreamer, ensure video output is properly connected with extra timing
-                if (m_videoOutput) {
-                    qDebug() << "Connecting widget video output for GStreamer";
-                    m_captureSession.setVideoOutput(static_cast<QObject*>(nullptr));
-                    QThread::msleep(25); // Brief disconnect
-                    m_captureSession.setVideoOutput(m_videoOutput);
-                    QThread::msleep(25); // Allow GStreamer to setup pipeline
-                } else if (m_graphicsVideoOutput) {
-                    qDebug() << "Connecting graphics video output for GStreamer";
-                    m_captureSession.setVideoOutput(static_cast<QObject*>(nullptr));
-                    QThread::msleep(25); // Brief disconnect
-                    m_captureSession.setVideoOutput(m_graphicsVideoOutput);
-                    QThread::msleep(25); // Allow GStreamer to setup pipeline
-                }
+                // Start camera using backend handler
+                m_backendHandler->startCamera(m_camera.get());
             } else {
-                // Standard connection for other backends
+                // Fallback: standard connection and start
                 if (m_videoOutput) {
-                    qDebug() << "Ensuring widget video output is connected before starting camera";
                     m_captureSession.setVideoOutput(m_videoOutput);
                 } else if (m_graphicsVideoOutput) {
-                    qDebug() << "Ensuring graphics video output is connected before starting camera";
                     m_captureSession.setVideoOutput(m_graphicsVideoOutput);
                 }
+                m_camera->start();
+                QThread::msleep(25);
             }
             
-            m_camera->start();
-            
-            // Adjust wait time based on backend
-            if (isGStreamer) {
-                QThread::msleep(50); // More time for GStreamer pipeline setup
-            } else {
-                QThread::msleep(25); // Minimal wait for other backends
+            // Post-start operations - use a small delay for backend compatibility
+            if (m_backendHandler) {
+                QThread::msleep(25); // Standard post-start delay
             }
             
             // Verify camera started
@@ -260,23 +317,8 @@ void CameraManager::stopCamera()
             
             qCDebug(log_ui_camera) << "Stopping camera:" << m_camera->cameraDevice().description();
             
-            // For GStreamer, be more careful about shutdown order
-            QString mediaBackend = GlobalSetting::instance().getMediaBackend();
-            if (mediaBackend == "gstreamer") {
-                qCDebug(log_ui_camera) << "Using GStreamer-safe camera shutdown procedure";
-                
-                // First disconnect video output to prevent object reference issues
-                m_captureSession.setVideoOutput(static_cast<QObject*>(nullptr));
-                QThread::msleep(50); // Give GStreamer time to clean up references
-                
-                // Then stop the camera
-                m_camera->stop();
-                QThread::msleep(100); // Extra time for GStreamer cleanup
-            } else {
-                // Standard shutdown for other backends
-                m_camera->stop();
-                QThread::msleep(100);
-            }
+            // Use backend handler for camera shutdown
+            m_backendHandler->stopCamera(m_camera.get());
             
             qCDebug(log_ui_camera) << "Camera stopped successfully";
         } else {
@@ -453,16 +495,40 @@ void CameraManager::configureResolutionAndFormat()
         m_video_height = resolution.height();
     }
     
-    int fps = GlobalVar::instance().getCaptureFps() > 0 ? 
+    // Get desired frame rate and optimize it using backend handler
+    int desiredFps = GlobalVar::instance().getCaptureFps() > 0 ? 
         GlobalVar::instance().getCaptureFps() : 30;
     
-    QCameraFormat format = getVideoFormat(resolution, fps, QVideoFrameFormat::Format_Jpeg);
+    int optimalFps = getOptimalFrameRate(desiredFps);
+    if (optimalFps != desiredFps) {
+        qCDebug(log_ui_camera) << "Frame rate adjusted from" << desiredFps << "to" << optimalFps 
+                               << "for backend compatibility";
+    }
+    
+    QCameraFormat format = getVideoFormat(resolution, optimalFps, QVideoFrameFormat::Format_Jpeg);
     setCameraFormat(format);
 }
 
 void CameraManager::setCameraFormat(const QCameraFormat &format) {
     if (m_camera) {
+        qCDebug(log_ui_camera) << "Setting camera format:" 
+                               << "resolution=" << format.resolution()
+                               << "frameRate=" << format.minFrameRate() << "-" << format.maxFrameRate();
+        
+        // Validate format with backend handler if available
+        if (m_backendHandler && !format.isNull()) {
+            validateCameraFormat(format);
+        }
+        
         m_camera->setCameraFormat(format);
+        
+        // Log the actual format that was set
+        QCameraFormat actualFormat = m_camera->cameraFormat();
+        if (!actualFormat.isNull()) {
+            qCDebug(log_ui_camera) << "Actual format set:" 
+                                   << "resolution=" << actualFormat.resolution()
+                                   << "frameRate=" << actualFormat.minFrameRate() << "-" << actualFormat.maxFrameRate();
+        }
     }
 }
 
@@ -489,6 +555,18 @@ void CameraManager::queryResolutions()
     float input_fps = VideoHid::getInstance().getFps();
     float pixelClk = VideoHid::getInstance().getPixelclk();
 
+    // Get optimal capture frame rate using backend handler
+    int captureFrameRate = GlobalVar::instance().getCaptureFps();
+    if (captureFrameRate > 0) {
+        int optimalFrameRate = getOptimalFrameRate(captureFrameRate);
+        if (optimalFrameRate != captureFrameRate) {
+            qCDebug(log_ui_camera) << "Optimized capture frame rate from" << captureFrameRate 
+                                   << "to" << optimalFrameRate << "for backend compatibility";
+            // Note: We don't update GlobalVar here to preserve user preference,
+            // but the optimal rate will be used during format selection
+        }
+    }
+
     emit resolutionsUpdated(resolution.first, resolution.second, input_fps, m_video_width, m_video_height, GlobalVar::instance().getCaptureFps(), pixelClk);
 }
 
@@ -506,12 +584,31 @@ QList<QVideoFrameFormat> CameraManager::getSupportedPixelFormats() const {
 
 
 QCameraFormat CameraManager::getVideoFormat(const QSize &resolution, int desiredFrameRate, QVideoFrameFormat::PixelFormat pixelFormat) const {
+    // Use backend handler for format selection if available
+    if (m_backendHandler) {
+        qCDebug(log_ui_camera) << "Using backend handler for format selection:"
+                               << "resolution=" << resolution
+                               << "frameRate=" << desiredFrameRate
+                               << "pixelFormat=" << static_cast<int>(pixelFormat);
+        
+        QCameraFormat selectedFormat = m_backendHandler->selectOptimalFormat(getCameraFormats(), resolution, desiredFrameRate, pixelFormat);
+        
+        if (!selectedFormat.isNull()) {
+            qCDebug(log_ui_camera) << "Backend handler selected format:"
+                                   << "resolution=" << selectedFormat.resolution()
+                                   << "frameRate=" << selectedFormat.minFrameRate() << "-" << selectedFormat.maxFrameRate()
+                                   << "pixelFormat=" << static_cast<int>(selectedFormat.pixelFormat());
+            return selectedFormat;
+        } else {
+            qCWarning(log_ui_camera) << "Backend handler failed to select format, falling back to manual selection";
+        }
+    } else {
+        qCDebug(log_ui_camera) << "No backend handler available, using fallback format selection";
+    }
+    
+    // Fallback to basic format selection if no backend handler or backend selection failed
     QCameraFormat bestMatch;
     int closestFrameRate = INT_MAX;
-
-    // Check if we're using GStreamer backend
-    QString mediaBackend = GlobalSetting::instance().getMediaBackend();
-    bool isGStreamer = (mediaBackend == "gstreamer");
 
     for (const QCameraFormat &format : getCameraFormats()) {
         QSize formatResolution = format.resolution();
@@ -524,24 +621,6 @@ QCameraFormat CameraManager::getVideoFormat(const QSize &resolution, int desired
         const_cast<std::map<VideoFormatKey, QCameraFormat>&>(videoFormatMap)[key] = format;
 
         if (formatResolution == resolution && formatPixelFormat == pixelFormat) {
-            // For GStreamer, be more conservative with frame rate selection
-            if (isGStreamer) {
-                // Use exact frame rate matches when possible for GStreamer
-                if (desiredFrameRate == minFrameRate || desiredFrameRate == maxFrameRate) {
-                    qCDebug(log_ui_camera) << "GStreamer exact match found" << format.minFrameRate() << format.maxFrameRate();
-                    return format;
-                }
-                
-                // For GStreamer, prefer standard frame rates
-                std::vector<int> standardRates = {30, 25, 24, 60, 50, 15, 10, 5};
-                for (int stdRate : standardRates) {
-                    if (stdRate >= minFrameRate && stdRate <= maxFrameRate && stdRate == desiredFrameRate) {
-                        qCDebug(log_ui_camera) << "GStreamer standard rate match found:" << stdRate;
-                        return format;
-                    }
-                }
-            }
-            
             if (desiredFrameRate >= minFrameRate && desiredFrameRate <= maxFrameRate) {
                 // If we find an exact match, return it immediately
                 qCDebug(log_ui_camera) << "Exact match found" << format.minFrameRate() << format.maxFrameRate();
@@ -560,6 +639,154 @@ QCameraFormat CameraManager::getVideoFormat(const QSize &resolution, int desired
     }
 
     return bestMatch;
+}
+
+QList<int> CameraManager::getSupportedFrameRates(const QCameraFormat& format) const
+{
+    if (m_backendHandler) {
+        return m_backendHandler->getSupportedFrameRates(format);
+    }
+    
+    // Fallback: return basic frame rate range
+    QList<int> frameRates;
+    int minRate = format.minFrameRate();
+    int maxRate = format.maxFrameRate();
+    
+    if (minRate > 0 && maxRate > 0) {
+        // Common frame rates within the supported range
+        QList<int> commonRates = {5, 10, 15, 24, 25, 30, 50, 60};
+        for (int rate : commonRates) {
+            if (rate >= minRate && rate <= maxRate) {
+                frameRates.append(rate);
+            }
+        }
+        
+        // Ensure min and max are included if not already
+        if (!frameRates.contains(minRate)) {
+            frameRates.prepend(minRate);
+        }
+        if (!frameRates.contains(maxRate)) {
+            frameRates.append(maxRate);
+        }
+    }
+    
+    return frameRates;
+}
+
+bool CameraManager::isFrameRateSupported(const QCameraFormat& format, int frameRate) const
+{
+    if (m_backendHandler) {
+        return m_backendHandler->isFrameRateSupported(format, frameRate);
+    }
+    
+    // Fallback: basic range check
+    return frameRate >= format.minFrameRate() && frameRate <= format.maxFrameRate();
+}
+
+int CameraManager::getOptimalFrameRate(int desiredFrameRate) const
+{
+    if (!m_camera) {
+        qCWarning(log_ui_camera) << "No camera available for frame rate optimization";
+        return desiredFrameRate;
+    }
+    
+    QCameraFormat currentFormat = m_camera->cameraFormat();
+    if (currentFormat.isNull()) {
+        qCWarning(log_ui_camera) << "No camera format available for frame rate optimization";
+        return desiredFrameRate;
+    }
+    
+    if (m_backendHandler) {
+        // Use backend handler to get the optimal frame rate
+        QList<int> supportedRates = m_backendHandler->getSupportedFrameRates(currentFormat);
+        
+        if (supportedRates.isEmpty()) {
+            return desiredFrameRate;
+        }
+        
+        // Find the closest supported frame rate
+        int closestRate = supportedRates.first();
+        int minDiff = qAbs(closestRate - desiredFrameRate);
+        
+        for (int rate : supportedRates) {
+            int diff = qAbs(rate - desiredFrameRate);
+            if (diff < minDiff) {
+                minDiff = diff;
+                closestRate = rate;
+            }
+        }
+        
+        qCDebug(log_ui_camera) << "Optimal frame rate for desired" << desiredFrameRate << "is" << closestRate;
+        return closestRate;
+    }
+    
+    // Fallback: basic range validation
+    int minRate = currentFormat.minFrameRate();
+    int maxRate = currentFormat.maxFrameRate();
+    
+    if (desiredFrameRate < minRate) {
+        return minRate;
+    } else if (desiredFrameRate > maxRate) {
+        return maxRate;
+    } else {
+        return desiredFrameRate;
+    }
+}
+
+QList<int> CameraManager::getAllSupportedFrameRates() const
+{
+    QList<int> allFrameRates;
+    QSet<int> uniqueRates; // To avoid duplicates
+    
+    if (!m_camera) {
+        qCWarning(log_ui_camera) << "No camera available for frame rate enumeration";
+        return allFrameRates;
+    }
+    
+    QList<QCameraFormat> formats = getCameraFormats();
+    
+    for (const QCameraFormat& format : formats) {
+        QList<int> formatRates = getSupportedFrameRates(format);
+        for (int rate : formatRates) {
+            if (!uniqueRates.contains(rate)) {
+                uniqueRates.insert(rate);
+                allFrameRates.append(rate);
+            }
+        }
+    }
+    
+    // Sort frame rates
+    std::sort(allFrameRates.begin(), allFrameRates.end());
+    
+    qCDebug(log_ui_camera) << "All supported frame rates across formats:" << allFrameRates;
+    return allFrameRates;
+}
+
+void CameraManager::validateCameraFormat(const QCameraFormat& format) const
+{
+    if (format.isNull()) {
+        qCWarning(log_ui_camera) << "Camera format validation: format is null";
+        return;
+    }
+    
+    qCDebug(log_ui_camera) << "=== Camera Format Validation ===";
+    qCDebug(log_ui_camera) << "Resolution:" << format.resolution();
+    qCDebug(log_ui_camera) << "Frame rate range:" << format.minFrameRate() << "-" << format.maxFrameRate();
+    qCDebug(log_ui_camera) << "Pixel format:" << static_cast<int>(format.pixelFormat());
+    
+    if (m_backendHandler) {
+        QList<int> supportedRates = m_backendHandler->getSupportedFrameRates(format);
+        qCDebug(log_ui_camera) << "Backend supported frame rates:" << supportedRates;
+        
+        // Test some common frame rates
+        QList<int> testRates = {24, 25, 30, 60};
+        for (int rate : testRates) {
+            bool supported = m_backendHandler->isFrameRateSupported(format, rate);
+            qCDebug(log_ui_camera) << "Frame rate" << rate << "supported:" << supported;
+        }
+    }
+    
+    qCDebug(log_ui_camera) << "=== End Format Validation ===";
 }
 
 std::map<VideoFormatKey, QCameraFormat> CameraManager::getVideoFormatMap(){

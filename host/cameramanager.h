@@ -14,6 +14,7 @@
 #include <QList>
 #include <QSize>
 #include <QVideoFrameFormat>
+#include "host/multimediabackend.h"
 
 // Struct to represent a video format key, used for comparing and sorting video formats
 // It includes resolution, frame rate range, and pixel format
@@ -84,6 +85,16 @@ public:
     QList<QVideoFrameFormat> getSupportedPixelFormats() const;
     QCameraFormat getVideoFormat(const QSize &resolution, int desiredFrameRate, QVideoFrameFormat::PixelFormat pixelFormat) const;
     
+    // Frame rate handling methods using backend handler
+    QList<int> getSupportedFrameRates(const QCameraFormat& format) const;
+    bool isFrameRateSupported(const QCameraFormat& format, int frameRate) const;
+    int getOptimalFrameRate(int desiredFrameRate) const;
+    QList<int> getAllSupportedFrameRates() const;
+    void validateCameraFormat(const QCameraFormat& format) const;
+    // Helper methods to detect current multimedia backend
+    bool isGStreamerBackend() const;
+    bool isFFmpegBackend() const;
+    
     // Camera device management and switching
     QList<QCameraDevice> getAvailableCameraDevices() const;
     QCameraDevice getCurrentCameraDevice() const;
@@ -143,6 +154,7 @@ private:
     QMediaCaptureSession m_captureSession;
     std::unique_ptr<QImageCapture> m_imageCapture;
     std::unique_ptr<QMediaRecorder> m_mediaRecorder;
+    std::unique_ptr<MultimediaBackendHandler> m_backendHandler;
     QVideoWidget* m_videoOutput;
     QGraphicsVideoItem* m_graphicsVideoOutput;
     int m_video_width;
@@ -164,6 +176,10 @@ private:
 
     // Declaration for findMatchingCameraDevice
     QCameraDevice findMatchingCameraDevice(const QString& portChain) const;
+
+    // Backend handler management
+    void initializeBackendHandler();
+    void updateBackendHandler();
 };
 
 #endif // CAMERAMANAGER_H

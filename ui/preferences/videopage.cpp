@@ -196,25 +196,45 @@ void VideoPage::setupUI()
 void VideoPage::populateResolutionBox(const QList<QCameraFormat> &videoFormats) {
     std::map<QSize, std::set<int>, QSizeComparator> resolutionSampleRates;
 
+    // Check if we're using GStreamer for special handling
+    QString mediaBackend = GlobalSetting::instance().getMediaBackend();
+    bool isGStreamer = (mediaBackend == "gstreamer");
+
     // Process videoFormats to fill resolutionSampleRates and videoFormatMap
     for (const QCameraFormat &format : videoFormats) {
         QSize resolution = format.resolution();
         int minFrameRate = format.minFrameRate();
         int maxFrameRate = format.maxFrameRate();
         
-        // For GStreamer compatibility, ensure frame rates are properly stepped
-        // Add standard frame rates within the supported range
-        std::vector<int> standardFrameRates = {5, 10, 15, 20, 24, 25, 30, 50, 60};
-        
-        for (int stdRate : standardFrameRates) {
-            if (stdRate >= minFrameRate && stdRate <= maxFrameRate) {
-                resolutionSampleRates[resolution].insert(stdRate);
+        if (isGStreamer) {
+            // For GStreamer, be very conservative - only use safe standard frame rates
+            std::vector<int> safeFrameRates = {5, 10, 15, 20, 24, 25, 30, 50, 60};
+            
+            qDebug() << "GStreamer mode: Using safe frame rates for" << resolution 
+                     << "range" << minFrameRate << "-" << maxFrameRate;
+            
+            for (int safeRate : safeFrameRates) {
+                if (safeRate >= minFrameRate && safeRate <= maxFrameRate) {
+                    resolutionSampleRates[resolution].insert(safeRate);
+                }
             }
+            
+            // For GStreamer, DO NOT include actual min/max if they're not standard
+            // This prevents the step assertion error
+        } else {
+            // For other backends, use the original approach with standard rates
+            std::vector<int> standardFrameRates = {5, 10, 15, 20, 24, 25, 30, 50, 60};
+            
+            for (int stdRate : standardFrameRates) {
+                if (stdRate >= minFrameRate && stdRate <= maxFrameRate) {
+                    resolutionSampleRates[resolution].insert(stdRate);
+                }
+            }
+            
+            // Always include the actual min and max if they're not standard values
+            resolutionSampleRates[resolution].insert(minFrameRate);
+            resolutionSampleRates[resolution].insert(maxFrameRate);
         }
-        
-        // Always include the actual min and max if they're not standard values
-        resolutionSampleRates[resolution].insert(minFrameRate);
-        resolutionSampleRates[resolution].insert(maxFrameRate);
     }
 
     // Populate videoFormatBox with consolidated information
