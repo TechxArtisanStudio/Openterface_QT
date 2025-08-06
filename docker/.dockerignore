@@ -1,0 +1,55 @@
+# Git
+.git
+.gitignore
+.gitmodules
+
+# Documentation
+*.md
+doc/
+README*
+
+# Build artifacts
+build/
+build-*/
+*.o
+*.so
+*.a
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+
+# IDE files
+.vscode/
+.idea/
+*.user
+*.pro.user*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.temp
+*~
+
+# Package files
+*.deb
+*.rpm
+*.pkg
+*.dmg
+*.msi
+*.exe
+
+# Other docker files (keep all arm64 Dockerfiles)
+docker/Dockerfile*
+!docker/Dockerfile.arm64*
+
+# CI/CD
+.github/
+*.yml
+
+# Packaging
+packaging/
+appimage/

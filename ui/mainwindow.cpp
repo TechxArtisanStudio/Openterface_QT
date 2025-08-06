@@ -638,21 +638,47 @@ void MainWindow::initCamera()
 void MainWindow::checkInitSize(){
     QScreen *currentScreen = this->screen();
     systemScaleFactor = currentScreen->devicePixelRatio();
-    if(systemScaleFactor != 1.0){
-        resize(int(this->width() / systemScaleFactor), int(this->height() / systemScaleFactor));
-
-        qCDebug(log_ui_mainwindow) << "checkInitSize Resize now: " << this->width() << this->height();
-        qCDebug(log_ui_mainwindow) << "checkInitSize Resize now: " << this->width() / systemScaleFactor 
-        << this->height() / systemScaleFactor;
-    }
+    
+    // Get screen geometry
+    QRect screenGeometry = currentScreen->geometry();
+    int screenWidth = screenGeometry.width();
+    int screenHeight = screenGeometry.height();
+    
+    // Calculate 50% of screen size
+    int windowWidth = screenWidth / 2;
+    int windowHeight = screenHeight / 2;
+    
+    // Set window size to 50% of screen size
+    resize(windowWidth, windowHeight);
+    
+    // Center the window on screen
+    int x = (screenWidth - windowWidth) / 2;
+    int y = (screenHeight - windowHeight) / 2;
+    move(x, y);
+    
+    qCDebug(log_ui_mainwindow) << "checkInitSize: Screen size:" << screenWidth << "x" << screenHeight;
+    qCDebug(log_ui_mainwindow) << "checkInitSize: Window size set to:" << windowWidth << "x" << windowHeight;
+    qCDebug(log_ui_mainwindow) << "checkInitSize: Window position:" << x << "," << y;
     qCDebug(log_ui_mainwindow) << "System scale factor: " << systemScaleFactor;
 }
 
 void MainWindow::resizeEvent(QResizeEvent *event) {
+    qCDebug(log_ui_mainwindow) << "Resize event triggered. New size:" << event->size();
+
     static qint64 lastResizeTime = 0;
     qint64 currentTime = QDateTime::currentMSecsSinceEpoch();
     
-    if (isFullScreenMode() || (currentTime - lastResizeTime) < 10) { // 100ms
+    if (isFullScreenMode() || (currentTime - lastResizeTime) < 50) { // 100ms
+        return;
+    }
+
+    // Get the available screen width and height
+    QScreen *currentScreen = this->screen();
+    QRect availableGeometry = currentScreen->availableGeometry();
+    int availableWidth = availableGeometry.width();
+    int availableHeight = availableGeometry.height();
+    if (event->size().width() >= availableWidth || event->size().height() >= availableHeight) {
+        qCDebug(log_ui_mainwindow) << "Resize event ignored due to exceeding screen bounds.";
         return;
     }
     
@@ -707,7 +733,7 @@ void MainWindow::doResize(){
             currentWidth = availableWidth;
         }
         if (currentHeight >= maxContentHeight) {
-            currentHeight = maxContentHeight + menuBarHeight + statusBarHeight;
+            currentHeight = std::min(maxContentHeight + menuBarHeight + statusBarHeight, availableHeight);
         }
 
         int newVideoHeight = std::min(currentHeight - menuBarHeight - statusBarHeight, maxContentHeight);
@@ -729,6 +755,8 @@ void MainWindow::doResize(){
         
         // Resize main window if necessary
         if (currentWidth != availableWidth && currentHeight != availableHeight) {
+            qCDebug(log_ui_mainwindow) << "Resize to Width " << currentWidth << "\tHeight: " << currentHeight << ", due to exceeding screen bounds.";
+            qCDebug(log_ui_mainwindow) << "Available Width " << availableWidth << "\tHeight: " << availableHeight;
             resize(currentWidth, currentHeight);
         }
  
@@ -746,10 +774,12 @@ void MainWindow::doResize(){
             videoPane->resize(contentwidth, adjustedContentHeight);
             qDebug() << "setDisplayRegion Resize videoPane to width: " << currentWidth << " height: " << currentHeight << " offset: " << offsetX << offsetY << "videoPane width: " << videoPane->width();
             setMinimumSize(100, 500);
+            qCDebug(log_ui_mainwindow) << "Resize to Width " << currentWidth << "\tHeight: " << currentHeight << ", due to aspect ratio < 1.0.";
             resize(currentWidth, currentHeight);
         }else{
             // videoPane->setMinimumSize(currentWidth, adjustedContentHeight);
             videoPane->resize(currentWidth, adjustedContentHeight);
+            qCDebug(log_ui_mainwindow) << "Resize to Width " << currentWidth << "\tHeight: " << currentHeight << ", due to aspect ratio >= 1.0.";
             resize(currentWidth, contentHeight);
         }
         
@@ -1041,6 +1071,7 @@ void MainWindow::onScreenRatioChanged(double ratio) {
 }
 
 void MainWindow::calculate_video_position(){
+    qCDebug(log_ui_mainwindow) << "Calculate video position...";
     double currentRatio = GlobalSetting::instance().getScreenRatio();
     double input_aspect_ratio = double(GlobalVar::instance().getCaptureWidth()) / double(GlobalVar::instance().getCaptureHeight());
     
@@ -1456,6 +1487,7 @@ void MainWindow::onResolutionsUpdated(int input_width, int input_height, float i
 
 void MainWindow::onInputResolutionChanged()
 {
+    qCDebug(log_ui_mainwindow) << "Input resolution changed.";
     doResize();
 
     // Calculate the maximum available content height with safety checks

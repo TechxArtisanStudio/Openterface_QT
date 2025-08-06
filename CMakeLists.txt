@@ -15,6 +15,9 @@ endif()
 find_package(QT NAMES Qt5 Qt6 REQUIRED COMPONENTS Core)
 find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Concurrent Gui Multimedia MultimediaWidgets Network SerialPort Svg)
 find_package(Qt${QT_VERSION_MAJOR} OPTIONAL_COMPONENTS Widgets)
+if(UNIX AND NOT APPLE)
+    find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS DBus)
+endif()
 
 # Find X11 libraries
 find_package(X11 REQUIRED COMPONENTS Xrandr)
@@ -119,7 +122,6 @@ target_link_libraries(openterfaceQT PRIVATE
     Qt::Network
     Qt::SerialPort
     Qt::Svg
-    Qt::DBus
     ${FFMPEG_LIBRARIES}  # Link against FFmpeg libraries
     ${EXPAT_LIBRARIES}
     ${FREETYPE_LIBRARIES}
@@ -128,6 +130,11 @@ target_link_libraries(openterfaceQT PRIVATE
     ${BZIP2_LIBRARIES}
     ${EXTRA_LIBS}
 )
+
+# Add DBus on Unix systems (excluding macOS)
+if(UNIX AND NOT APPLE)
+    target_link_libraries(openterfaceQT PRIVATE Qt::DBus)
+endif()
 
 # Resources:
 set(mainwindow_resource_files

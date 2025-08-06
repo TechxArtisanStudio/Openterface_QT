@@ -14,6 +14,7 @@
 #include "../../device/HotplugMonitor.h"
 
 
+
 class DeviceManager;
 class SerialPortManager;
 class CameraManager;

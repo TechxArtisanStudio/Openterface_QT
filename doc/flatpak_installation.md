@@ -42,6 +42,8 @@ The OpenterfaceQT app requires access to serial and HID devices. This setup is m
 ```sh
 sudo apt update
 sudo apt install -y flatpak
+# if you are using aarch64, maybe you need to install the following packages:
+sudo apt install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
 ```
 
 ### Set up Flatpak Environment

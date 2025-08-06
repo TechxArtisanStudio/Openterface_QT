@@ -1,0 +1,102 @@
+name: Build ARM64 Qt Dependencies
+
+on:
+  push:
+    branches: [ "dev" ]
+    paths:
+      - 'docker/Dockerfile.arm64-qt-deps'
+      - '.github/workflows/arm64-qt-deps-build.yml'
+  pull_request:
+    branches: [ "dev" ]
+    paths:
+      - 'docker/Dockerfile.arm64-qt-deps'
+  workflow_call:
+    inputs:
+      rebuild_deps:
+        description: 'Rebuild Qt dependencies (ignore cache)'
+        required: false
+        default: false
+        type: boolean
+  workflow_dispatch:
+    inputs:
+      rebuild_deps:
+        description: 'Rebuild Qt dependencies (ignore cache)'
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  BASE_IMAGE: openterface-arm64-base
+  QT_DEPS_IMAGE: openterface-arm64-qt-deps
+
+jobs:
+  build-qt-deps:
+    runs-on: ubuntu-latest
+    outputs:
+      image-tag: ${{ steps.meta.outputs.tags }}
+      image-digest: ${{ steps.build.outputs.digest }}
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GitHub Container Registry
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.actor }}/${{ env.QT_DEPS_IMAGE }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=sha,prefix={{branch}}-
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Check if Qt deps cache should be used
+        id: qt-deps-cache-decision
+        run: |
+          if [ "${{ github.event.inputs.rebuild_deps }}" = "true" ]; then
+            echo "cache-scope=arm64-qt-deps-rebuild-$(date +%s)" >> $GITHUB_OUTPUT
+            echo "Using fresh Qt deps build (cache disabled)"
+          else
+            echo "cache-scope=arm64-qt-deps" >> $GITHUB_OUTPUT
+            echo "Using Qt deps cache if available"
+          fi
+
+      - name: Build and push Qt dependencies environment
+        id: build
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./docker/Dockerfile.arm64-qt-deps
+          platforms: linux/arm64
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            BASE_IMAGE=ghcr.io/${{ github.actor }}/${{ env.BASE_IMAGE }}:latest
+          cache-from: type=gha,scope=${{ steps.qt-deps-cache-decision.outputs.cache-scope }}
+          cache-to: type=gha,mode=max,scope=${{ steps.qt-deps-cache-decision.outputs.cache-scope }}
+
+      - name: Output image info
+        run: |
+          echo "Built Qt deps image: ${{ steps.meta.outputs.tags }}"
+          echo "Image digest: ${{ steps.build.outputs.digest }}"
