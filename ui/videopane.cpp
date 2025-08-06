@@ -42,7 +42,7 @@ VideoPane::VideoPane(QWidget *parent) : QGraphicsView(parent),
     m_scaleFactor(1.0),
     m_maintainAspectRatio(true)
 {
-    qDebug() << "VideoPane init...";
+    qDebug(log_ui_video) << "VideoPane init...";
     
     // Set up the graphics scene
     setupScene();
@@ -61,8 +61,7 @@ VideoPane::VideoPane(QWidget *parent) : QGraphicsView(parent),
     setRenderHint(QPainter::SmoothPixmapTransform, true);
     setOptimizationFlag(QGraphicsView::DontAdjustForAntialiasing, true);
     setViewportUpdateMode(QGraphicsView::SmartViewportUpdate);
-    
-    // Mouse and focus settings
+
     this->setMouseTracking(true);
     this->installEventFilter(m_inputHandler);
     this->setFocusPolicy(Qt::StrongFocus);
@@ -160,7 +159,7 @@ void VideoPane::stopEscTimer()
 
 void VideoPane::onCameraDeviceSwitching(const QString& fromDevice, const QString& toDevice)
 {
-    qDebug() << "VideoPane: Camera switching from" << fromDevice << "to" << toDevice;
+    qCDebug(log_ui_video) << "VideoPane: Camera switching from" << fromDevice << "to" << toDevice;
     
     // Capture the current frame before switching
     captureCurrentFrame();
@@ -174,7 +173,7 @@ void VideoPane::onCameraDeviceSwitching(const QString& fromDevice, const QString
 
 void VideoPane::onCameraDeviceSwitchComplete(const QString& device)
 {
-    qDebug() << "VideoPane: Camera switch complete to" << device;
+    qCDebug(log_ui_video) << "VideoPane: Camera switch complete to" << device;
     
     // Clear switching mode to resume normal video display
     m_isCameraSwitching = false;
@@ -218,12 +217,12 @@ void VideoPane::captureCurrentFrame()
             }
         }
         
-        qDebug() << "VideoPane: Captured frame" << m_lastFrame.size() << "for preservation during camera switch";
+        qCDebug(log_ui_video) << "VideoPane: Captured frame" << m_lastFrame.size() << "for preservation during camera switch";
     } else {
         // Create a black fallback frame
         m_lastFrame = QPixmap(this->size().isEmpty() ? QSize(640, 480) : this->size());
         m_lastFrame.fill(Qt::black);
-        qDebug() << "VideoPane: Created fallback black frame for camera switch";
+        qCDebug(log_ui_video) << "VideoPane: Created fallback black frame for camera switch";
     }
 }
 
@@ -243,7 +242,7 @@ void VideoPane::paintEvent(QPaintEvent *event)
             m_videoItem->setVisible(false);
         }
         
-        qDebug() << "VideoPane: Displaying preserved frame during camera switch";
+        qCDebug(log_ui_video) << "VideoPane: Displaying preserved frame during camera switch";
     } else {
         // Normal video display
         if (m_pixmapItem) {

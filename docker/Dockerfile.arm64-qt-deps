@@ -1,4 +1,4 @@
-ARG BASE_IMAGE=ubuntu:22.04
+ARG BASE_IMAGE=ghcr.io/kevinzjpeng/openterface-arm64-base:latest
 FROM ${BASE_IMAGE}
 
 # Install build dependencies
@@ -24,10 +24,6 @@ RUN apt-get update && apt-get install -y \
     sudo \
     autotools-dev \
     gettext \
-    libxml2-utils \
-    libxml2-dev \
-    libxkbcommon-dev \
-    libxkbcommon-x11-dev \
     xsltproc \
     && rm -rf /var/lib/apt/lists/*
 

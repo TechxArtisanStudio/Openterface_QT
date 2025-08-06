@@ -97,6 +97,14 @@ void GlobalSetting::loadVideoSettings(){
     GlobalVar::instance().setCaptureFps(m_settings.value("video/fps", 30).toInt());
 }
 
+void GlobalSetting::setMediaBackend(const QString &backend) {
+    m_settings.setValue("video/mediaBackend", backend);
+}
+
+QString GlobalSetting::getMediaBackend() const {
+    return m_settings.value("video/mediaBackend", "ffmpeg").toString();
+}
+
 void GlobalSetting::setCameraDeviceSetting(QString deviceDescription){
     m_settings.setValue("camera/device", deviceDescription);
 }
