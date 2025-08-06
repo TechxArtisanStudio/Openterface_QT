@@ -106,6 +106,8 @@ qt_add_executable(openterfaceQT WIN32 MACOSX_BUNDLE
     ui/screensavermanager.cpp ui/screensavermanager.h
     ui/advance/firmwareupdatedialog.cpp ui/advance/firmwareupdatedialog.h
     ui/advance/firmwaremanagerdialog.cpp ui/advance/firmwaremanagerdialog.h
+    ui/advance/renamedisplaydialog.cpp ui/advance/renamedisplaydialog.h
+    ui/advance/updatedisplaysettingsdialog.cpp ui/advance/updatedisplaysettingsdialog.h
     video/firmwarewriter.cpp video/firmwarewriter.h
     video/firmwarereader.cpp video/firmwarereader.h
     video/ms2109.h
@@ -198,6 +200,7 @@ set(languages_resources_files
     "config/languages/openterface_fr.qm"
     "config/languages/openterface_ja.qm"
     "config/languages/openterface_se.qm"
+    "config/languages/openterface_zh.qm"
 )
 
 qt_add_resources(openterfaceQT "languages"

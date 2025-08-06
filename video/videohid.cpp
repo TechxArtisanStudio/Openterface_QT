@@ -667,7 +667,7 @@ QByteArray VideoHid::readEeprom(quint16 address, quint32 size) {
                 retries--;
                 qCDebug(log_host_hid) << "Retry" << (MAX_RETRIES - retries) << "of" << MAX_RETRIES
                                       << "for reading chunk at address:" << QString("0x%1").arg(currentAddress, 4, 16, QChar('0'));
-                QThread::msleep(50); // Short delay before retrying
+                QThread::msleep(15); // Short delay before retrying
             }
         }
 
@@ -679,7 +679,7 @@ QByteArray VideoHid::readEeprom(quint16 address, quint32 size) {
             if (read_size % 64 == 0) {
                 qCDebug(log_host_hid) << "Read size:" << read_size;
             }
-            QThread::msleep(10); // Add 10ms delay between successful reads
+            QThread::msleep(5); // Add 5ms delay between successful reads
         } else {
             qCDebug(log_host_hid) << "Failed to read chunk from EEPROM at address:" << QString("0x%1").arg(currentAddress, 4, 16, QChar('0'))
                                   << "after" << MAX_RETRIES << "retries";
@@ -1208,7 +1208,7 @@ bool VideoHid::writeEeprom(quint16 address, const QByteArray &data) {
             if (written_size % 64 == 0) {
                 qCDebug(log_host_hid)  << "Written size:" << written_size;
             }
-            QThread::msleep(100); // Add 100ms delay between writes
+            QThread::msleep(150); // Add 100ms delay between writes
         } else {
             qCDebug(log_host_hid)  << "Failed to write chunk to EEPROM";
             break;
