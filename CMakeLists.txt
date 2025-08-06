@@ -111,19 +111,6 @@ qt_add_executable(openterfaceQT WIN32 MACOSX_BUNDLE
     video/ms2109.h
 )
 
-if(CMAKE_SYSTEM_PROCESSOR MATCHES "arm|aarch64")
-    target_sources(openterfaceQT PRIVATE
-        host/v4l2mjpegcapture.cpp
-        host/v4l2mjpegcapture.h
-    )
-    target_link_libraries(openterfaceQT PRIVATE
-        avformat
-        avcodec
-        swscale
-        avutil
-    )
-endif()
-
 target_link_libraries(openterfaceQT PRIVATE
     Qt::Concurrent
     Qt::Core

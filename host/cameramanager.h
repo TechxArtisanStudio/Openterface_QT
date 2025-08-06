@@ -14,10 +14,6 @@
 #include <QSize>
 #include <QVideoFrameFormat>
 
-#if defined(__arm__) || defined(__aarch64__)
-#include "host/v4l2mjpegcapture.h"
-#endif
-
 // Struct to represent a video format key, used for comparing and sorting video formats
 // It includes resolution, frame rate range, and pixel format
 struct VideoFormatKey {
@@ -160,10 +156,6 @@ private:
 
     // Declaration for findMatchingCameraDevice
     QCameraDevice findMatchingCameraDevice(const QString& portChain) const;
-
-#if defined(__arm__) || defined(__aarch64__)
-    V4L2MjpegCapture* m_v4l2Capture;
-#endif
 };
 
 #endif // CAMERAMANAGER_H
