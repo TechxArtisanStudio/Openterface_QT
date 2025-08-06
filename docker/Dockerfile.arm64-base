@@ -56,7 +56,6 @@ RUN wget https://ffmpeg.org/releases/ffmpeg-6.0.tar.xz \
         --enable-static \
         --enable-gpl --enable-nonfree \
         --enable-libdrm --enable-v4l2_m2m \
-        --enable-libudev\
         --disable-shared \
         --disable-doc \
         --disable-ffplay \
