@@ -464,7 +464,7 @@ QImage V4L2MjpegCapture::convertAVFrameToQImage(AVFrame* frame)
 
     QImage image(frame->width, frame->height, QImage::Format_RGB888);
     uint8_t* dstData[1] = { image.bits() };
-    int dstLinesize[1] = { image.bytesPerLine() };
+    int dstLinesize[1] = { static_cast<int>(image.bytesPerLine()) };
 
     sws_scale(m_swsCtx, (const uint8_t* const*)frame->data, frame->linesize, 0, frame->height,
               dstData, dstLinesize);

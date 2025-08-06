@@ -74,21 +74,15 @@ jobs:
               apt-get update && apt-get install -y \
                 qt6-base-dev qt6-base-dev-tools \
                 qt6-multimedia-dev qt6-serialport-dev qt6-svg-dev qt6-tools-dev \
-                libusb-1.0-0-dev libudev-dev \
-                libgl-dev libxcb-cursor-dev libxkbcommon-dev \
-                libdbus-1-dev libfontconfig1-dev libfreetype-dev \
-                libx11-dev libxcb1-dev libxext-dev libxfixes-dev \
-                libxrandr-dev libxrender-dev libegl-dev \
+                libxcb-cursor-dev  \
                 libxcb-cursor0 libxcb-icccm4 libxcb-icccm4-dev \
                 libxcb-image0 libxcb-image0-dev libxcb-keysyms1 \
                 libxcb-keysyms1-dev libxcb-render-util0 \
                 libxcb-render-util0-dev libxcb-render0-dev \
                 libxcb-shm0-dev libxcb-util1 libxfixes-dev \
-                libxi-dev libx11-xcb-dev libxkbcommon-x11-dev \
                 libxcb-randr0-dev libxcb-shape0-dev libxcb-sync-dev \
-                libxcb-glx0-dev libxcb-xfixes0-dev \
-                libxcb-xinerama0-dev libxcb-xkb-dev libxcb-util-dev \
-                dpkg-dev
+                libxcb-xfixes0-dev \
+                libxcb-xinerama0-dev libxcb-xkb-dev libxcb-util-dev
               
               # Verify static FFmpeg libraries are available
               echo 'Verifying static FFmpeg libraries...'

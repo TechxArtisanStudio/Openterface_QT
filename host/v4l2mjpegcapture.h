@@ -81,8 +81,9 @@ private:
     struct v4l2_buffer* m_buffers;
     void** m_bufferMaps;
     unsigned int m_bufferCount;
+    struct v4l2_format m_format;
 
-    AVCodec* m_codec;
+    const AVCodec* m_codec;
     AVCodecContext* m_codecCtx;
     AVFrame* m_frame;
     AVPacket* m_packet;
@@ -100,18 +101,17 @@ class V4L2CaptureWorker : public QObject
 {
     Q_OBJECT
 public:
-    V4L2CaptureWorker(V4L2MjpegCapture* capture) : m_capture(capture) {}
+    V4L2CaptureWorker(V4L2MjpegCapture* capture, QObject* parent = nullptr);
 public slots:
-    void doWork() {
-        if (m_capture) {
-            m_capture->captureLoop();
-        }
-        emit finished();
-    }
+    void startCapture();
+    void stopCapture();
 signals:
+    void frameReady(const QImage& frame);
+    void errorOccurred(const QString& error);
     void finished();
 private:
     V4L2MjpegCapture* m_capture;
+    volatile bool m_shouldStop;
 };
 
 #endif // V4L2MJPEGCAPTURE_H
