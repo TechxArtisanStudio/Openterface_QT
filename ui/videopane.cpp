@@ -31,6 +31,8 @@
 #include <QDebug>
 #include <QTimer>
 
+Q_LOGGING_CATEGORY(log_ui_video, "opf.ui.video")
+
 VideoPane::VideoPane(QWidget *parent) : QGraphicsView(parent), 
     escTimer(new QTimer(this)), 
     m_inputHandler(new InputHandler(this, this)), 
