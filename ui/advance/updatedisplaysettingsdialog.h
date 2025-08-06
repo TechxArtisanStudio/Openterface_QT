@@ -41,6 +41,7 @@
 #include <QHeaderView>
 #include <QScrollArea>
 #include <QSet>
+#include <QProgressBar>
 
 // Forward declarations
 class VideoHid;
@@ -96,6 +97,7 @@ private slots:
     void onFirmwareReadProgress(int percent);
     void onFirmwareReadFinished(bool success);
     void onFirmwareReadError(const QString& errorMessage);
+    void onCancelReadingClicked();
 
 private:
     // UI components
@@ -121,18 +123,25 @@ private:
     QPushButton *updateButton;
     QPushButton *cancelButton;
     
+    // Progress components for firmware reading
+    QGroupBox *progressGroup;
+    QProgressBar *progressBar;
+    QLabel *progressLabel;
+    QPushButton *cancelReadingButton;
+    
     // Layout
     QVBoxLayout *mainLayout;
     QVBoxLayout *displayNameLayout;
     QVBoxLayout *serialNumberLayout;
     QHBoxLayout *buttonLayout;
     
-    // Progress dialog for firmware operations
+    // Progress dialog for firmware operations (kept for compatibility)
     QProgressDialog *progressDialog;
     
     // Threading for firmware reading
     QThread *firmwareReaderThread;
     FirmwareReader *firmwareReader;
+    bool m_cleanupInProgress;  // Flag to prevent double cleanup
     
     // Resolution data
     QList<ResolutionInfo> availableResolutions;
@@ -182,6 +191,7 @@ private:
     // Helper methods
     void setupUI();
     void enableUpdateButton();
+    void cleanupFirmwareReaderThread();
 };
 
 #endif // UPDATEDISPLAYSETTINGSDIALOG_H
