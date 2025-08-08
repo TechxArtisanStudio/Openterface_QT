@@ -21,6 +21,7 @@
 */
 
 #include "gstreamerbackendhandler.h"
+#include "../../ui/videopane.h"
 #include <QThread>
 #include <QApplication>
 #include <QDebug>
@@ -171,6 +172,17 @@ void GStreamerBackendHandler::stopCamera(QCamera* camera)
     // Stop direct pipeline if running
     if (m_pipelineRunning) {
         stopGStreamerPipeline();
+    }
+    
+    // Disable GStreamer mode on VideoPane if we have a graphics video item
+    if (m_graphicsVideoItem && m_graphicsVideoItem->scene()) {
+        QList<QGraphicsView*> views = m_graphicsVideoItem->scene()->views();
+        if (!views.isEmpty()) {
+            if (auto videoPane = qobject_cast<VideoPane*>(views.first())) {
+                qCDebug(log_gstreamer_backend) << "Disabling direct GStreamer mode on VideoPane";
+                videoPane->enableDirectGStreamerMode(false);
+            }
+        }
     }
     
     // Also stop Qt camera
@@ -525,8 +537,20 @@ bool GStreamerBackendHandler::startGStreamerPipeline()
             QList<QGraphicsView*> views = m_graphicsVideoItem->scene()->views();
             if (!views.isEmpty()) {
                 QGraphicsView* view = views.first();
-                windowId = view->winId();
-                qCDebug(log_gstreamer_backend) << "Using graphics view window ID:" << windowId;
+                
+                // Check if this is a VideoPane with GStreamer mode enabled and use overlay widget
+                if (auto videoPane = qobject_cast<VideoPane*>(view)) {
+                    if (videoPane->isDirectGStreamerModeEnabled() && videoPane->getOverlayWidget()) {
+                        windowId = videoPane->getVideoOverlayWindowId();
+                        qCDebug(log_gstreamer_backend) << "Using VideoPane overlay widget window ID:" << windowId;
+                    } else {
+                        windowId = view->winId();
+                        qCDebug(log_gstreamer_backend) << "Using VideoPane window ID:" << windowId;
+                    }
+                } else {
+                    windowId = view->winId();
+                    qCDebug(log_gstreamer_backend) << "Using graphics view window ID:" << windowId;
+                }
             } else {
                 qCWarning(log_gstreamer_backend) << "Graphics video item has no associated view";
             }
@@ -661,6 +685,12 @@ void GStreamerBackendHandler::setVideoOutput(QGraphicsVideoItem* videoItem)
                 view->setAttribute(Qt::WA_NativeWindow, true);
                 view->setAttribute(Qt::WA_PaintOnScreen, true);
                 qCDebug(log_gstreamer_backend) << "Graphics view configured with native window attributes";
+                
+                // Check if this is a VideoPane and enable GStreamer mode
+                if (auto videoPane = qobject_cast<VideoPane*>(view)) {
+                    qCDebug(log_gstreamer_backend) << "Enabling direct GStreamer mode on VideoPane";
+                    videoPane->enableDirectGStreamerMode(true);
+                }
                 
                 // If pipeline is already created, set up the overlay immediately
                 if (m_pipeline) {

@@ -69,6 +69,7 @@ public:
     bool isDirectGStreamerModeEnabled() const { return m_directGStreamerMode; }
     WId getVideoOverlayWindowId() const;
     void setupForGStreamerOverlay();
+    QWidget* getOverlayWidget() const { return m_overlayWidget; }
 
 signals:
     void mouseMoved(const QPoint& position, const QString& event);

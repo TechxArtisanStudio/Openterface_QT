@@ -31,6 +31,7 @@
 // Forward declarations for Qt types
 class QGraphicsVideoItem;
 class QGraphicsView;
+class VideoPane;
 
 // Forward declarations for GStreamer types
 typedef struct _GstElement GstElement;

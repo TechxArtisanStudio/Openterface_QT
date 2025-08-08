@@ -29,6 +29,11 @@ public:
     void handleKeyPressEvent(QKeyEvent *event);
     void handleKeyReleaseEvent(QKeyEvent *event);
     void handleWheelEvent(QWheelEvent *event);
+    
+    // Methods to handle GStreamer overlay widget events
+    void updateEventFilterTarget();
+    void installOverlayEventFilter(QWidget* overlayWidget);
+    void removeOverlayEventFilter();
 
 protected:
     bool eventFilter(QObject *watched, QEvent *event) override;
@@ -40,6 +45,7 @@ private:
     int lastMouseButton = 0;
     bool m_isDragging = false;
     bool m_holdingEsc = false;
+    QWidget* m_currentEventTarget = nullptr;  // Track current event filter target
 
     MouseEventDTO* calculateRelativePosition(QMouseEvent *event);
     MouseEventDTO* calculateAbsolutePosition(QMouseEvent *event);
@@ -49,6 +55,10 @@ private:
     void handleMouseMoveEvent(QMouseEvent *event);
     void handleMousePressEvent(QMouseEvent *event);
     void handleMouseReleaseEvent(QMouseEvent *event);
+    
+    // Helper methods for coordinate transformation
+    QPoint transformMousePosition(QMouseEvent *event, QWidget* sourceWidget);
+    QWidget* getEffectiveVideoWidget() const;
 };
 
 #endif // INPUTHANDLER_H
