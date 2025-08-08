@@ -29,6 +29,9 @@
 #include "ui/languagemanager.h"
 #include <QCoreApplication>
 
+// GStreamer includes
+#include <gst/gst.h>
+
 
 #include <iostream>
 #include <QApplication>
@@ -143,7 +146,15 @@ void applyMediaBackendSetting(){
         // Reduce audio device scanning verbosity
         qputenv("PULSE_DEBUG", "0");
         
-        qDebug() << "Applied GStreamer-specific environment settings for object safety and audio compatibility";
+        // Additional GStreamer environment variables for better video handling
+        qputenv("GST_V4L2_USE_LIBV4L2", "1");
+        qputenv("GST_PLUGIN_PATH", "/usr/lib/gstreamer-1.0");
+        qputenv("GST_PLUGIN_SYSTEM_PATH", "/usr/lib/gstreamer-1.0");
+        
+        // Ensure video output works correctly
+        qputenv("GST_VIDEO_OVERLAY", "1");
+        
+        qDebug() << "Applied enhanced GStreamer-specific environment settings for video compatibility";
     }
     
     qputenv("QT_MEDIA_BACKEND", mediaBackend.toUtf8());
@@ -155,6 +166,20 @@ void applyMediaBackendSetting(){
 int main(int argc, char *argv[])
 {
     qDebug() << "Start openterface...";
+    
+    // Initialize GStreamer before Qt application
+    GError* gst_error = nullptr;
+    if (!gst_init_check(&argc, &argv, &gst_error)) {
+        if (gst_error) {
+            qCritical() << "Failed to initialize GStreamer:" << gst_error->message;
+            g_error_free(gst_error);
+        } else {
+            qCritical() << "Failed to initialize GStreamer: Unknown error";
+        }
+        return -1;
+    }
+    qDebug() << "GStreamer initialized successfully";
+    
     setupEnv();
     QApplication app(argc, argv);
 
@@ -204,5 +229,11 @@ int main(int argc, char *argv[])
     // writeLog("Application started");
     window.show();
 
-    return app.exec();
+    int result = app.exec();
+    
+    // Clean up GStreamer
+    gst_deinit();
+    qDebug() << "GStreamer deinitialized";
+    
+    return result;
 };

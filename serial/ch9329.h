@@ -4,6 +4,10 @@
 #include <cstdint>
 #include <QByteArray>
 #include <QDebug>
+#include <QLoggingCategory>
+
+Q_DECLARE_LOGGING_CATEGORY(log_core_serial)
+
 
 const QByteArray MOUSE_ABS_ACTION_PREFIX = QByteArray::fromHex("57 AB 00 04 07 02");
 const QByteArray MOUSE_REL_ACTION_PREFIX = QByteArray::fromHex("57 AB 00 05 05 01");
@@ -66,8 +70,8 @@ T fromByteArray(const QByteArray &data) {
         // Debugging: Print the parsed fields
         // result.dump();
     } else {
-        qWarning() << "Data size is too small to parse" << typeid(T).name();
-        qDebug() << "Data content:" << data.toHex(' ');
+        qWarning(log_core_serial) << "Data size is too small to parse" << typeid(T).name();
+        qDebug(log_core_serial) << "Data content:" << data.toHex(' ');
     }
     return result;
 }
@@ -97,13 +101,13 @@ struct CmdGetInfoResult {
             // Debugging: Print the parsed fields
             // result.dump();
         } else {
-            qWarning() << "Data size is too small to parse CmdGetInfoResult";
+            qWarning(log_core_serial) << "Data size is too small to parse CmdGetInfoResult";
         }
         return result;
     }
 
     void dump() {
-        qDebug() << "prefix:" << QString::number(prefix, 16)
+        qDebug(log_core_serial) << "prefix:" << QString::number(prefix, 16)
         << "| addr1:" << addr1
         << "| cmd:" << QString::number(cmd, 16)
         << "| len:" << len
@@ -165,14 +169,14 @@ struct CmdDataParamConfig
             // Debugging: Print the parsed fields
             config.dump();
         } else {
-            qWarning() << "Data size is too small to parse CmdDataParamConfig";
-            qWarning() << data.size() <<  sizeof(CmdDataParamConfig);
+            qWarning(log_core_serial) << "Data size is too small to parse CmdDataParamConfig";
+            qWarning(log_core_serial) << data.size() <<  sizeof(CmdDataParamConfig);
         }
         return config;
     }
 
     void dump() {
-        qDebug() << "prefix:" << QString::number(prefix1, 16) +  QString::number(prefix2, 16)
+        qDebug(log_core_serial) << "prefix:" << QString::number(prefix1, 16) +  QString::number(prefix2, 16)
         << "| addr1:" << addr1
         << "| cmd:" << QString::number(cmd, 16)
         << "| len:" << len
@@ -213,18 +217,18 @@ struct CmdDataResult {
         if (data.size() >= static_cast<qsizetype>(sizeof(CmdDataResult))) {
             std::memcpy(&result, data.constData(), sizeof(CmdDataResult));
             // Debugging: Print the raw data
-            qDebug() << "Raw data:" << data.toHex(' ');
+            qDebug(log_core_serial) << "Raw data:" << data.toHex(' ');
 
             // Debugging: Print the parsed fields
             result.dump();
         } else {
-            qWarning() << "Data size is too small to parse CmdDataResult";
+            qWarning(log_core_serial) << "Data size is too small to parse CmdDataResult";
         }
         return result;
     }
 
     void dump() {
-        qDebug() << "prefix:" << QString::number(prefix, 16)
+        qDebug(log_core_serial) << "prefix:" << QString::number(prefix, 16)
         << "| addr1:" << addr1
         << "| cmd:" << QString::number(cmd, 16)
         << "| len:" << len
@@ -246,7 +250,7 @@ struct CmdReset {
 
 
     void dump() {
-        qDebug() << "prefix:" << prefix_high << prefix_low
+        qDebug(log_core_serial) << "prefix:" << prefix_high << prefix_low
         << "| addr1:" << addr1
         << "| cmd:" << cmd
         << "| len:" << len;
@@ -266,18 +270,18 @@ struct CmdResetResult {
         if (data.size() >= static_cast<qsizetype>(sizeof(CmdDataResult))) {
             std::memcpy(&result, data.constData(), sizeof(CmdDataResult));
             // Debugging: Print the raw data
-            qDebug() << "Raw data:" << data.toHex(' ');
+            qDebug(log_core_serial) << "Raw data:" << data.toHex(' ');
 
             // Debugging: Print the parsed fields
             result.dump();
         } else {
-            qWarning() << "Data size is too small to parse CmdDataResult";
+            qWarning(log_core_serial) << "Data size is too small to parse CmdDataResult";
         }
         return result;
     }
 
     void dump() {
-        qDebug() << "prefix:" << QString::number(prefix, 16)
+        qDebug(log_core_serial) << "prefix:" << QString::number(prefix, 16)
         << "| addr1:" << addr1
         << "| cmd:" << QString::number(cmd, 16)
         << "| len:" << len
@@ -292,25 +296,25 @@ struct CmdResetResult {
         switch (status)
         {
         case DEF_CMD_ERR_TIMEOUT:
-            qDebug() << "Error(" + QString::number(status, 16) + "), Serial response timeout, data: " + data.toHex(' ');
+            qDebug(log_core_serial) << "Error(" + QString::number(status, 16) + "), Serial response timeout, data: " + data.toHex(' ');
             break;
         case DEF_CMD_ERR_HEAD:
-            qDebug() << "Error(" + QString::number(status, 16) + "),  Packet header error, data: " + data.toHex(' ');
+            qDebug(log_core_serial) << "Error(" + QString::number(status, 16) + "),  Packet header error, data: " + data.toHex(' ');
             break;
         case DEF_CMD_ERR_CMD:
-            qDebug() << "Error(" + QString::number(status, 16) + "),  Command error, data: " + data.toHex(' ');
+            qDebug(log_core_serial) << "Error(" + QString::number(status, 16) + "),  Command error, data: " + data.toHex(' ');
             break;
         case DEF_CMD_ERR_SUM:
-            qDebug() << "Error(" + QString::number(status, 16) + "),  Checksum error, data: " + data.toHex(' ');
+            qDebug(log_core_serial) << "Error(" + QString::number(status, 16) + "),  Checksum error, data: " + data.toHex(' ');
             break;
         case DEF_CMD_ERR_PARA:
-            qDebug() << "Error(" + QString::number(status, 16) + "),  Argument error, data: " + data.toHex(' ');
+            qDebug(log_core_serial) << "Error(" + QString::number(status, 16) + "),  Argument error, data: " + data.toHex(' ');
             break;
         case DEF_CMD_ERR_OPERATE:
-            qDebug() << "Error(" + QString::number(status, 16) + "),  Execution error, data: " + data.toHex(' ');
+            qDebug(log_core_serial) << "Error(" + QString::number(status, 16) + "),  Execution error, data: " + data.toHex(' ');
             break;
         default:
-            qDebug() << "Error(" + QString::number(status, 16) + "),  Unknown error, data: " + data.toHex(' ');
+            qDebug(log_core_serial) << "Error(" + QString::number(status, 16) + "),  Unknown error, data: " + data.toHex(' ');
             break;
         }
     }else{

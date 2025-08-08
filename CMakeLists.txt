@@ -31,6 +31,20 @@ find_package(BZip2 REQUIRED)
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(XRENDER REQUIRED xrender)
 
+# Check for GStreamer
+pkg_check_modules(GSTREAMER gstreamer-1.0)
+if(GSTREAMER_FOUND)
+    pkg_check_modules(GSTREAMER_VIDEO gstreamer-video-1.0)
+    if(GSTREAMER_VIDEO_FOUND)
+        message(STATUS "GStreamer found - enabling direct pipeline support")
+        add_definitions(-DHAVE_GSTREAMER)
+    else()
+        message(STATUS "GStreamer video not found - using fallback mode")
+    endif()
+else()
+    message(STATUS "GStreamer not found - using QProcess fallback")
+endif()
+
 # Set FFmpeg include and library directories
 if(NOT FFMPEG_INCLUDE_DIRS)
 set(FFMPEG_INCLUDE_DIRS "/usr/local/include")
@@ -59,6 +73,9 @@ qt_add_executable(openterfaceQT WIN32 MACOSX_BUNDLE
     host/audiothread.cpp host/audiothread.h
     host/cameramanager.cpp host/cameramanager.h
     host/usbcontrol.cpp host/usbcontrol.h
+    host/multimediabackend.cpp host/multimediabackend.h
+    host/backend/ffmpegbackendhandler.cpp host/backend/ffmpegbackendhandler.h
+    host/backend/gstreamerbackendhandler.cpp host/backend/gstreamerbackendhandler.h
     main.cpp
     regex/RegularExpression.cpp regex/RegularExpression.h
     resources/version.h
@@ -130,6 +147,18 @@ target_link_libraries(openterfaceQT PRIVATE
     ${BZIP2_LIBRARIES}
     ${EXTRA_LIBS}
 )
+
+# Add GStreamer libraries if available
+if(GSTREAMER_FOUND AND GSTREAMER_VIDEO_FOUND)
+    target_link_libraries(openterfaceQT PRIVATE 
+        ${GSTREAMER_LIBRARIES}
+        ${GSTREAMER_VIDEO_LIBRARIES}
+    )
+    target_include_directories(openterfaceQT PRIVATE 
+        ${GSTREAMER_INCLUDE_DIRS}
+        ${GSTREAMER_VIDEO_INCLUDE_DIRS}
+    )
+endif()
 
 # Add DBus on Unix systems (excluding macOS)
 if(UNIX AND NOT APPLE)

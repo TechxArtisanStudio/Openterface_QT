@@ -19,6 +19,9 @@ SOURCES += main.cpp \
     target/mouseeventdto.cpp \
     host/audiomanager.cpp \
     host/cameramanager.cpp \
+    host/multimediabackend.cpp \
+    host/backend/ffmpegbackendhandler.cpp \
+    host/backend/gstreamerbackendhandler.cpp \
     ui/statusbar/statuswidget.cpp \
     video/videohid.cpp \
     video/firmwarewriter.cpp \
@@ -79,6 +82,9 @@ HEADERS  += \
     target/mouseeventdto.h \
     host/audiomanager.h \
     host/cameramanager.h \
+    host/multimediabackend.h \
+    host/backend/ffmpegbackendhandler.h \
+    host/backend/gstreamerbackendhandler.h \
     ui/statusbar/statuswidget.h \
     video/videohid.h \
     video/firmwarewriter.h \

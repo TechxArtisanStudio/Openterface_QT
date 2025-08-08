@@ -16,6 +16,9 @@
 #include <QVideoFrameFormat>
 #include "host/multimediabackend.h"
 
+// Forward declarations
+class GStreamerBackendHandler;
+
 // Struct to represent a video format key, used for comparing and sorting video formats
 // It includes resolution, frame rate range, and pixel format
 struct VideoFormatKey {
@@ -46,8 +49,8 @@ public:
     explicit CameraManager(QObject *parent = nullptr);
     ~CameraManager();
 
-    void setCamera(const QCameraDevice &cameraDevice, QVideoWidget* videoOutput);
-    void setCamera(const QCameraDevice &cameraDevice, QGraphicsVideoItem* videoOutput);
+    // void setCamera(const QCameraDevice &cameraDevice, QVideoWidget* videoOutput);
+    // void setCamera(const QCameraDevice &cameraDevice, QGraphicsVideoItem* videoOutput);
     void setCameraDevice(const QCameraDevice &cameraDevice);
     void startCamera();
     void stopCamera();

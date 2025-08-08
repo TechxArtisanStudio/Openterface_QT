@@ -42,7 +42,9 @@ VideoPane::VideoPane(QWidget *parent) : QGraphicsView(parent),
     m_pixmapItem(nullptr),
     m_aspectRatioMode(Qt::KeepAspectRatio),
     m_scaleFactor(1.0),
-    m_maintainAspectRatio(true)
+    m_maintainAspectRatio(true),
+    m_directGStreamerMode(false),
+    m_overlayWidget(nullptr)
 {
     qDebug(log_ui_video) << "VideoPane init...";
     
@@ -342,6 +344,12 @@ void VideoPane::resizeEvent(QResizeEvent *event)
     }
     
     updateVideoItemTransform();
+    
+    // Update overlay widget size for direct GStreamer mode
+    if (m_directGStreamerMode && m_overlayWidget) {
+        m_overlayWidget->resize(size());
+        qDebug() << "VideoPane: Resized GStreamer overlay widget to:" << size();
+    }
 }
 
 // Helper methods
@@ -541,4 +549,53 @@ void VideoPane::mouseReleaseEvent(QMouseEvent *event)
     
     // Let the base class handle the event
     QGraphicsView::mouseReleaseEvent(event);
+}
+
+// Direct GStreamer support methods (based on widgets_main.cpp approach)
+void VideoPane::enableDirectGStreamerMode(bool enable)
+{
+    qDebug() << "VideoPane: Setting direct GStreamer mode to:" << enable;
+    m_directGStreamerMode = enable;
+    
+    if (enable) {
+        setupForGStreamerOverlay();
+    } else {
+        // Clean up overlay widget if it exists
+        if (m_overlayWidget) {
+            m_overlayWidget->deleteLater();
+            m_overlayWidget = nullptr;
+        }
+    }
+}
+
+WId VideoPane::getVideoOverlayWindowId() const
+{
+    if (m_directGStreamerMode && m_overlayWidget) {
+        return m_overlayWidget->winId();
+    }
+    // Fall back to the main widget's window ID
+    return winId();
+}
+
+void VideoPane::setupForGStreamerOverlay()
+{
+    qDebug() << "VideoPane: Setting up for GStreamer video overlay";
+    
+    // Create overlay widget if it doesn't exist
+    if (!m_overlayWidget) {
+        m_overlayWidget = new QWidget(this);
+        m_overlayWidget->setObjectName("gstreamerOverlayWidget");
+        m_overlayWidget->setStyleSheet("background-color: black; border: 2px solid white;");
+        m_overlayWidget->setMinimumSize(640, 480);
+        
+        // Enable native window for video overlay (from widgets_main.cpp approach)
+        m_overlayWidget->setAttribute(Qt::WA_NativeWindow, true);
+        m_overlayWidget->setAttribute(Qt::WA_PaintOnScreen, true);
+        
+        // Position the overlay widget to fill the viewport
+        m_overlayWidget->resize(size());
+        m_overlayWidget->show();
+        
+        qDebug() << "VideoPane: Created GStreamer overlay widget with window ID:" << m_overlayWidget->winId();
+    }
 }

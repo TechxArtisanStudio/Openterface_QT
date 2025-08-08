@@ -66,7 +66,7 @@ struct MultimediaBackendConfig {
     int retryDelay = 100;
     
     // Backend-specific flags
-    bool enableVerboseLogging = false;
+    bool enableVerboseLogging = true;
     bool useStandardFrameRatesOnly = false;
 };
 

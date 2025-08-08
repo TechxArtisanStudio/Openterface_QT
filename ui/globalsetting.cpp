@@ -67,6 +67,7 @@ void GlobalSetting::setLogSettings(bool core, bool serial, bool ui, bool hostLay
     m_settings.setValue("log/ui", ui);
     m_settings.setValue("log/hostLayout", hostLayout);
     m_settings.setValue("log/device", device);
+    m_settings.setValue("log/backend", true); // Default to false, can be changed later
 }
 
 void GlobalSetting::loadLogSettings()
@@ -77,6 +78,7 @@ void GlobalSetting::loadLogSettings()
     logFilter += m_settings.value("log/host", false).toBool() ? "opf.host.*=true\n" : "opf.host.*=false\n";
     logFilter += m_settings.value("log/serial", false).toBool() ? "opf.core.serial=true\n" : "opf.core.serial=false\n";
     logFilter += m_settings.value("log/device", false).toBool() ? "opf.device.*=true\n" : "opf.device.*=false\n";
+    logFilter += m_settings.value("log/backend", true).toBool() ? "opf.backend.*=true\n" : "opf.backend.*=false\n";
     QLoggingCategory::setFilterRules(logFilter);
 }
 

@@ -63,6 +63,12 @@ public:
     void zoomOut(double factor = 0.8);
     void fitToWindow();
     void actualSize();
+    
+    // Direct GStreamer support methods (based on widgets_main.cpp approach)
+    void enableDirectGStreamerMode(bool enable = true);
+    bool isDirectGStreamerModeEnabled() const { return m_directGStreamerMode; }
+    WId getVideoOverlayWindowId() const;
+    void setupForGStreamerOverlay();
 
 signals:
     void mouseMoved(const QPoint& position, const QString& event);
@@ -103,6 +109,10 @@ private:
     double m_scaleFactor;
     QSize m_originalVideoSize;
     bool m_maintainAspectRatio;
+    
+    // Direct GStreamer mode support
+    bool m_directGStreamerMode;
+    QWidget* m_overlayWidget; // Widget for direct video overlay
     
     MouseEventDTO* calculateRelativePosition(QMouseEvent *event);
     MouseEventDTO* calculateAbsolutePosition(QMouseEvent *event);
