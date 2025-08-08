@@ -30,8 +30,9 @@
 #include <QCoreApplication>
 
 // GStreamer includes
+#ifdef HAVE_GSTREAMER
 #include <gst/gst.h>
-
+#endif
 
 #include <iostream>
 #include <QApplication>
@@ -168,6 +169,7 @@ int main(int argc, char *argv[])
     qDebug() << "Start openterface...";
     
     // Initialize GStreamer before Qt application
+    #ifdef HAVE_GSTREAMER
     GError* gst_error = nullptr;
     if (!gst_init_check(&argc, &argv, &gst_error)) {
         if (gst_error) {
@@ -179,7 +181,7 @@ int main(int argc, char *argv[])
         return -1;
     }
     qDebug() << "GStreamer initialized successfully";
-    
+    #endif
     setupEnv();
     QApplication app(argc, argv);
 
@@ -232,8 +234,11 @@ int main(int argc, char *argv[])
     int result = app.exec();
     
     // Clean up GStreamer
+    #ifdef HAVE_GSTREAMER
     gst_deinit();
     qDebug() << "GStreamer deinitialized";
+    #endif
+    
     
     return result;
 };

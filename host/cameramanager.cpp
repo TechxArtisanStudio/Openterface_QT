@@ -10,7 +10,6 @@
 #include "video/videohid.h"
 #include "../ui/globalsetting.h"
 #include "../device/DeviceManager.h"
-#include <QVideoWidget>
 #include <QGraphicsVideoItem>
 #include <QTimer>
 #include <QThread>
@@ -20,7 +19,7 @@
 Q_LOGGING_CATEGORY(log_ui_camera, "opf.ui.camera")
 
 CameraManager::CameraManager(QObject *parent)
-    : QObject(parent), m_videoOutput(nullptr), m_graphicsVideoOutput(nullptr), m_video_width(0), m_video_height(0)
+    : QObject(parent), m_graphicsVideoOutput(nullptr), m_video_width(0), m_video_height(0)
 {
     qCDebug(log_ui_camera) << "CameraManager init...";
     
@@ -117,19 +116,6 @@ void CameraManager::updateBackendHandler()
     }
 }
 
-// void CameraManager::setCamera(const QCameraDevice &cameraDevice, QVideoWidget* videoOutput)
-// {
-//     qCDebug(log_ui_camera) << "Set Camera to videoOutput: " << videoOutput << ", device name: " << cameraDevice.description();
-//     setCameraDevice(cameraDevice);
-
-//     setVideoOutput(videoOutput);
-
-//     queryResolutions();
-
-//     // Set camera format
-//     startCamera();
-// }
-
 // void CameraManager::setCamera(const QCameraDevice &cameraDevice, QGraphicsVideoItem* videoOutput)
 // {
 //     qCDebug(log_ui_camera) << "Set Camera to graphics videoOutput: " << videoOutput << ", device name: " << cameraDevice.description();
@@ -216,30 +202,10 @@ void CameraManager::setCameraDevice(const QCameraDevice &cameraDevice)
 // Deprecated method for initializing camera with video output
 // This method is kept for compatibility but should be replaced with the new methods
 // that handle port chain tracking and improved device management
-void CameraManager::setVideoOutput(QVideoWidget* videoOutput)
-{
-    if (videoOutput) {
-        m_videoOutput = videoOutput;
-        qCDebug(log_ui_camera) << "Setting video output to: " << videoOutput->objectName();
-        m_graphicsVideoOutput = nullptr; // Clear graphics output
-        m_captureSession.setVideoOutput(videoOutput);
-        
-        // Verify the connection was successful
-        if (m_captureSession.videoOutput() == videoOutput) {
-            qDebug() << "Widget video output successfully connected to capture session";
-        } else {
-            qCWarning(log_ui_camera) << "Failed to connect widget video output to capture session";
-        }
-    } else {
-        qCWarning(log_ui_camera) << "Attempted to set null video output";
-    }
-}
-
 void CameraManager::setVideoOutput(QGraphicsVideoItem* videoOutput)
 {
     if (videoOutput) {
         m_graphicsVideoOutput = videoOutput;
-        m_videoOutput = nullptr; // Clear widget output
         qDebug() << "Setting graphics video output";
         m_captureSession.setVideoOutput(videoOutput);
         
@@ -306,10 +272,7 @@ void CameraManager::startCamera()
                     qCDebug(log_ui_camera) << "Using GStreamer backend - delegating to direct pipeline";
                     
                     // Prepare video output connection for GStreamer
-                    if (m_videoOutput) {
-                        m_backendHandler->prepareVideoOutputConnection(&m_captureSession, m_videoOutput);
-                        m_backendHandler->finalizeVideoOutputConnection(&m_captureSession, m_videoOutput);
-                    } else if (m_graphicsVideoOutput) {
+                    if (m_graphicsVideoOutput) {
                         m_backendHandler->prepareVideoOutputConnection(&m_captureSession, m_graphicsVideoOutput);
                         m_backendHandler->finalizeVideoOutputConnection(&m_captureSession, m_graphicsVideoOutput);
                     }
@@ -327,10 +290,7 @@ void CameraManager::startCamera()
                     qCDebug(log_ui_camera) << "Using standard backend approach with Qt camera";
                     
                     // Prepare video output connection
-                    if (m_videoOutput) {
-                        m_backendHandler->prepareVideoOutputConnection(&m_captureSession, m_videoOutput);
-                        m_backendHandler->finalizeVideoOutputConnection(&m_captureSession, m_videoOutput);
-                    } else if (m_graphicsVideoOutput) {
+                    if (m_graphicsVideoOutput) {
                         m_backendHandler->prepareVideoOutputConnection(&m_captureSession, m_graphicsVideoOutput);
                         m_backendHandler->finalizeVideoOutputConnection(&m_captureSession, m_graphicsVideoOutput);
                     }
@@ -350,9 +310,7 @@ void CameraManager::startCamera()
             } else {
                 // Fallback: standard connection and start when no backend handler
                 qCDebug(log_ui_camera) << "No backend handler available, using fallback approach";
-                if (m_videoOutput) {
-                    m_captureSession.setVideoOutput(m_videoOutput);
-                } else if (m_graphicsVideoOutput) {
+                if (m_graphicsVideoOutput) {
                     m_captureSession.setVideoOutput(m_graphicsVideoOutput);
                 }
                 
@@ -1079,10 +1037,7 @@ bool CameraManager::switchToCameraDevice(const QCameraDevice &cameraDevice)
         
         // Video output should already be set and preserved from previous session
         // Only restore if it's somehow lost
-        if (m_videoOutput && m_captureSession.videoOutput() != m_videoOutput) {
-            qCDebug(log_ui_camera) << "Restoring video output";
-            m_captureSession.setVideoOutput(m_videoOutput);
-        } else if (m_graphicsVideoOutput) {
+        if (m_graphicsVideoOutput) {
             qDebug() << "Re-establishing graphics video output connection after camera switch";
             m_captureSession.setVideoOutput(m_graphicsVideoOutput);
         } else {
@@ -1498,91 +1453,6 @@ QCameraDevice CameraManager::findMatchingCameraDevice(const QString& portChain) 
     return QCameraDevice();
 }
 
-// Deprecated method for initializing camera with video output
-// This method is kept for compatibility but should be replaced with the new methods
-// that handle port chain tracking and improved device management
-bool CameraManager::initializeCameraWithVideoOutput(QVideoWidget* videoOutput)
-{
-    qCDebug(log_ui_camera) << "Initializing camera with video output";
-    
-    if (!videoOutput) {
-        qCWarning(log_ui_camera) << "Cannot initialize camera with null video output";
-        return false;
-    }
-    
-    // Set the video output first if it's different from current
-    if (m_videoOutput != videoOutput) {
-        setVideoOutput(videoOutput);
-    }
-    
-    // Check if we already have an active camera device
-    if (hasActiveCameraDevice()) {
-        qCDebug(log_ui_camera) << "Camera already active with device:" << m_currentCameraDevice.description() 
-                 << "at port chain:" << m_currentCameraPortChain;
-        return true;
-    }
-    
-    bool switchSuccess = false;
-    
-    // First priority: Check for port chain in global settings
-    QString portChain = GlobalSetting::instance().getOpenterfacePortChain();
-    
-    if (!portChain.isEmpty()) {
-        qCDebug(log_ui_camera) << "Found port chain in global settings:" << portChain;
-        
-        QCameraDevice matchedCamera = findMatchingCameraDevice(portChain);
-        
-        if (!matchedCamera.isNull()) {
-            switchSuccess = switchToCameraDevice(matchedCamera, portChain);
-            if (switchSuccess) {
-                qCDebug(log_ui_camera) << "✓ Successfully switched to camera using port chain:" << portChain;
-                qCDebug(log_ui_camera) << "✓ Selected camera:" << matchedCamera.description();
-            } else {
-                qCWarning(log_ui_camera) << "Failed to switch to matched camera device:" << matchedCamera.description();
-            }
-        } else {
-            qCDebug(log_ui_camera) << "No matching camera device found for port chain:" << portChain;
-        }
-    } else {
-        qCDebug(log_ui_camera) << "No port chain found in global settings, using fallback methods";
-    }
-    
-    // Fallback: Traditional camera selection logic (without port chain tracking)
-    if (!switchSuccess) {
-        // Enforce camera device description to be "Openterface"
-        QList<QCameraDevice> devices = getAvailableCameraDevices();
-        QCameraDevice openterfaceDevice;
-        for (const QCameraDevice& device : devices) {
-            if (device.description() == "Openterface") {
-                openterfaceDevice = device;
-                break;
-            }
-        }
-
-        if (!openterfaceDevice.isNull()) {
-            switchSuccess = switchToCameraDevice(openterfaceDevice);  // No port chain available for fallback
-            if (switchSuccess) {
-                qCDebug(log_ui_camera) << "Camera switched to device with description 'Openterface' (no port chain tracked)";
-            }
-        } else {
-            qCWarning(log_ui_camera) << "No camera device with description 'Openterface' found";
-        }
-    }
-
-    // Start camera if switch was successful
-    if (switchSuccess) {
-        startCamera();
-    }
-
-    // If we still don't have a camera device, return false
-    if (m_currentCameraDevice.isNull()) {
-        qCWarning(log_ui_camera) << "No camera device available for initialization";
-        return false;
-    }
-
-    return switchSuccess;
-}
-
 bool CameraManager::initializeCameraWithVideoOutput(QGraphicsVideoItem* videoOutput)
 {
     qDebug() << "Initializing camera with graphics video output";
@@ -1763,7 +1633,7 @@ bool CameraManager::tryAutoSwitchToNewDevice(const QString& portChain)
         qCDebug(log_ui_camera) << "✓ Successfully auto-switched to new camera device:" << matchedCamera.description() << "at port chain:" << portChain;
         
         // Start the camera if video output is available
-        if (m_videoOutput) {
+        if (m_graphicsVideoOutput) {
             startCamera();
         }
         
@@ -1819,20 +1689,7 @@ void CameraManager::refreshVideoOutput()
     
     try {
         // Force re-establishment of video output connection to ensure new camera feed is displayed
-        if (m_videoOutput) {
-            qDebug() << "Forcing widget video output refresh";
-            // Temporarily disconnect and reconnect to force refresh
-            m_captureSession.setVideoOutput(nullptr);
-            QThread::msleep(10); // Brief pause
-            m_captureSession.setVideoOutput(m_videoOutput);
-            
-            // Verify reconnection
-            if (m_captureSession.videoOutput() == m_videoOutput) {
-                qDebug() << "Widget video output refresh successful";
-            } else {
-                qCWarning(log_ui_camera) << "Widget video output refresh failed";
-            }
-        } else if (m_graphicsVideoOutput) {
+        if (m_graphicsVideoOutput) {
             qDebug() << "Forcing graphics video output refresh";
             // Temporarily disconnect and reconnect to force refresh
             m_captureSession.setVideoOutput(nullptr);

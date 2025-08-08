@@ -12,7 +12,9 @@
 #include <QMessageBox>
 #include <QWindow>
 #include <QFile>
+#ifdef HAVE_GSTREAMER
 #include <gst/gst.h>
+#endif
 #include <gst/video/videooverlay.h>
 
 class VideoWidget : public QWidget

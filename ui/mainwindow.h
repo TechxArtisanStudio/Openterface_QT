@@ -67,7 +67,6 @@
 #include <QMediaMetaData>
 #include <QMediaRecorder>
 #include <QScopedPointer>
-#include <QVideoWidget>
 #include <QMainWindow>
 #include <QStackedLayout>
 #include <QMediaDevices>

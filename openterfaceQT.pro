@@ -181,6 +181,10 @@ unix {
         PKGCONFIG += libudev
         DEFINES += HAVE_LIBUDEV
         LIBS += -ludev
+        
+        # Add GStreamer support
+        PKGCONFIG += gstreamer-1.0 gstreamer-video-1.0
+        DEFINES += HAVE_GSTREAMER
     }
 
     RESOURCES += driver/linux/drivers.qrc

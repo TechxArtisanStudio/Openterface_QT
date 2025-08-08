@@ -26,7 +26,6 @@
 #include <QObject>
 #include <QCamera>
 #include <QMediaCaptureSession>
-#include <QVideoWidget>
 #include <QGraphicsVideoItem>
 #include <QCameraFormat>
 #include <QLoggingCategory>
