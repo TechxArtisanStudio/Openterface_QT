@@ -1,0 +1,275 @@
+name: Build Qt ARM64 Cross-Compilation Package
+
+on:
+  push:
+    branches: [ main, develop, dev_250806_add_custom_mediabackend ]
+    tags: [ 'v*' ]
+  pull_request:
+    branches: [ main, develop ]
+  workflow_dispatch:
+    inputs:
+      qt_version:
+        description: 'Qt Version'
+        required: false
+        default: '6.6.3'
+      ffmpeg_version:
+        description: 'FFmpeg Version'
+        required: false
+        default: '6.1.1'
+      gstreamer_version:
+        description: 'GStreamer Version'
+        required: false
+        default: '1.22.11'
+
+env:
+  QT_VERSION: ${{ github.event.inputs.qt_version || '6.6.3' }}
+  FFMPEG_VERSION: ${{ github.event.inputs.ffmpeg_version || '6.1.1' }}
+  GSTREAMER_VERSION: ${{ github.event.inputs.gstreamer_version || '1.22.11' }}
+  QT_TARGET_DIR: /opt/Qt6-arm64
+  CROSS_COMPILE: aarch64-linux-gnu-
+
+jobs:
+  build-qt-arm64:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 480  # 8 hours timeout for large builds
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      
+    - name: Free up disk space
+      run: |
+        echo "Available disk space before cleanup:"
+        df -h
+        
+        # Remove unnecessary packages to free up space
+        sudo apt-get remove -y '^dotnet-.*' '^llvm-.*' '^mongodb-.*' '^mysql-.*' '^postgresql-.*' || true
+        sudo apt-get autoremove -y
+        sudo apt-get autoclean
+        
+        # Remove Docker images
+        docker rmi $(docker images -q) || true
+        
+        # Remove large directories
+        sudo rm -rf /usr/share/dotnet
+        sudo rm -rf /usr/local/lib/android
+        sudo rm -rf /opt/ghc
+        sudo rm -rf /opt/hostedtoolcache/CodeQL
+        sudo rm -rf /usr/local/share/boost
+        sudo rm -rf /usr/local/lib/node_modules
+        
+        echo "Available disk space after cleanup:"
+        df -h
+
+    - name: Set up build environment
+      run: |
+        echo "Setting up build environment..."
+        echo "Qt Version: $QT_VERSION"
+        echo "FFmpeg Version: $FFMPEG_VERSION" 
+        echo "GStreamer Version: $GSTREAMER_VERSION"
+        echo "Target Directory: $QT_TARGET_DIR"
+        echo "Cross Compile Prefix: $CROSS_COMPILE"
+        echo "Build started at: $(date)"
+
+    - name: Make script executable
+      run: chmod +x build-script/build-static-qt-for-arm64.sh
+
+    - name: Run Qt ARM64 cross-compilation build
+      run: |
+        cd build-script
+        # Run the script with all environment variables
+        export QT_VERSION="${QT_VERSION}"
+        export FFMPEG_VERSION="${FFMPEG_VERSION}"
+        export GSTREAMER_VERSION="${GSTREAMER_VERSION}"
+        export QT_TARGET_DIR="${QT_TARGET_DIR}"
+        export CROSS_COMPILE="${CROSS_COMPILE}"
+        
+        echo "Starting build with:"
+        echo "- QT_VERSION=${QT_VERSION}"
+        echo "- FFMPEG_VERSION=${FFMPEG_VERSION}"
+        echo "- GSTREAMER_VERSION=${GSTREAMER_VERSION}"
+        echo "- QT_TARGET_DIR=${QT_TARGET_DIR}"
+        echo "- CROSS_COMPILE=${CROSS_COMPILE}"
+        
+        ./build-static-qt-for-arm64.sh
+
+    - name: Verify build artifacts
+      run: |
+        echo "Verifying build artifacts..."
+        echo "Target directory contents:"
+        ls -la $QT_TARGET_DIR/ || echo "Target directory not found"
+        
+        echo ""
+        echo "Qt libraries:"
+        find $QT_TARGET_DIR -name "libQt6*.a" -type f | head -10 || echo "No Qt libraries found"
+        
+        echo ""
+        echo "FFmpeg libraries:"
+        find $QT_TARGET_DIR -name "libav*.a" -type f || echo "No FFmpeg libraries found"
+        
+        echo ""
+        echo "GStreamer libraries:"
+        find $QT_TARGET_DIR -name "libgst*.a" -type f | head -5 || echo "No GStreamer libraries found"
+        
+        echo ""
+        echo "Architecture verification:"
+        if [ -f "$QT_TARGET_DIR/lib/libQt6Core.a" ]; then
+          echo "Qt Core library architecture:"
+          file $QT_TARGET_DIR/lib/libQt6Core.a
+        fi
+        
+        if [ -f "$QT_TARGET_DIR/lib/libavcodec.a" ]; then
+          echo "FFmpeg codec library architecture:"
+          file $QT_TARGET_DIR/lib/libavcodec.a
+        fi
+        
+        if [ -f "$QT_TARGET_DIR/lib/libgstreamer-1.0.a" ]; then
+          echo "GStreamer core library architecture:"
+          file $QT_TARGET_DIR/lib/libgstreamer-1.0.a
+        fi
+
+    - name: Create package info
+      run: |
+        sudo mkdir -p $QT_TARGET_DIR
+        sudo tee $QT_TARGET_DIR/BUILD_INFO.txt > /dev/null << EOF
+        Qt ARM64 Cross-Compilation Build
+        ================================
+        
+        Build Date: $(date -u)
+        Qt Version: $QT_VERSION
+        FFmpeg Version: $FFMPEG_VERSION
+        GStreamer Version: $GSTREAMER_VERSION
+        Target Architecture: ARM64 (aarch64)
+        Cross Compiler: $CROSS_COMPILE
+        Build Environment: Ubuntu 22.04
+        
+        Built Components:
+        - Qt6 Static Libraries (qtbase, qtdeclarative, qtsvg, qtshadertools, qtmultimedia, qtserialport, qttools)
+        - FFmpeg Static Libraries (with H.264, HEVC, AAC, MP3, Opus support)
+        - GStreamer Static Libraries (core, base, good, bad plugins)
+        
+        Installation Directory: $QT_TARGET_DIR
+        
+        Usage Instructions:
+        1. Extract the package to your desired location
+        2. In your CMake project, set: CMAKE_PREFIX_PATH=/path/to/Qt6-arm64
+        3. Use: find_package(Qt6 REQUIRED COMPONENTS Core Widgets Multimedia)
+        4. Link your ARM64 application against these static libraries
+        
+        GitHub Repository: https://github.com/TechxArtisanStudio/Openterface_QT
+        GitHub Action Build: ${{ github.run_number }}
+        Git Commit: ${{ github.sha }}
+        Git Branch: ${{ github.ref_name }}
+        EOF
+
+    - name: Create package archive
+      run: |
+        echo "Creating package archive..."
+        cd /opt
+        
+        # Create archive with compression
+        sudo tar -czf Qt6-arm64-static-${{ env.QT_VERSION }}.tar.gz Qt6-arm64/
+        sudo chown $USER:$USER Qt6-arm64-static-${{ env.QT_VERSION }}.tar.gz
+        mv Qt6-arm64-static-${{ env.QT_VERSION }}.tar.gz ${{ github.workspace }}/
+        
+        echo "Package created successfully:"
+        ls -lh ${{ github.workspace }}/Qt6-arm64-static-${{ env.QT_VERSION }}.tar.gz
+
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: qt6-arm64-static-${{ env.QT_VERSION }}-build-${{ github.run_number }}
+        path: Qt6-arm64-static-${{ env.QT_VERSION }}.tar.gz
+        retention-days: 30
+        compression-level: 6
+
+    - name: Create Release (on tag)
+      if: startsWith(github.ref, 'refs/tags/')
+      uses: softprops/action-gh-release@v1
+      with:
+        files: Qt6-arm64-static-${{ env.QT_VERSION }}.tar.gz
+        name: Qt6 ARM64 Static Build ${{ github.ref_name }}
+        body: |
+          ## Qt6 ARM64 Cross-Compilation Build
+          
+          **Components:**
+          - Qt ${{ env.QT_VERSION }} (Static ARM64 Libraries)
+          - FFmpeg ${{ env.FFMPEG_VERSION }} (Static ARM64 Libraries)  
+          - GStreamer ${{ env.GSTREAMER_VERSION }} (Static ARM64 Libraries)
+          
+          **Target Architecture:** ARM64 (aarch64)
+          **Build Type:** Static Libraries
+          
+          **Included Qt Modules:**
+          - qtbase (Core, GUI, Widgets, Network)
+          - qtdeclarative (QML, Quick)
+          - qtsvg (SVG support)
+          - qtshadertools (Shader compilation)
+          - qtmultimedia (Audio/Video with FFmpeg & GStreamer)
+          - qtserialport (Serial communication)
+          - qttools (Development tools)
+          
+          **Media Support:**
+          - FFmpeg codecs: H.264, HEVC, AAC, MP3, Opus
+          - GStreamer plugins: Core, Base, Good, Bad
+          
+          **Usage:**
+          ```bash
+          # Extract the package
+          tar -xzf Qt6-arm64-static-${{ env.QT_VERSION }}.tar.gz
+          
+          # Use in your CMake project
+          set(CMAKE_PREFIX_PATH "/path/to/Qt6-arm64")
+          find_package(Qt6 REQUIRED COMPONENTS Core Widgets Multimedia)
+          target_link_libraries(your_target Qt6::Core Qt6::Widgets Qt6::Multimedia)
+          ```
+          
+          **System Requirements:**
+          - Target: ARM64/aarch64 Linux systems
+          - Compiler: GCC with ARM64 support
+          - Static linking: No runtime Qt dependencies required
+          
+          Built on: $(date -u)  
+          Commit: ${{ github.sha }}  
+          Branch: ${{ github.ref_name }}
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Build summary
+      if: always()
+      run: |
+        echo "## 🚀 Qt ARM64 Cross-Compilation Build Summary" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        if [ -f "${{ github.workspace }}/Qt6-arm64-static-${{ env.QT_VERSION }}.tar.gz" ]; then
+          echo "✅ **Build Status:** SUCCESS" >> $GITHUB_STEP_SUMMARY
+          SIZE=$(ls -lh "${{ github.workspace }}/Qt6-arm64-static-${{ env.QT_VERSION }}.tar.gz" | awk '{print $5}')
+          echo "📦 **Package Size:** $SIZE" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "❌ **Build Status:** FAILED" >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Configuration:**" >> $GITHUB_STEP_SUMMARY
+        echo "- 🎯 Target: ARM64 (aarch64)" >> $GITHUB_STEP_SUMMARY
+        echo "- 🔧 Qt Version: $QT_VERSION" >> $GITHUB_STEP_SUMMARY
+        echo "- 🎬 FFmpeg Version: $FFMPEG_VERSION" >> $GITHUB_STEP_SUMMARY
+        echo "- 🎵 GStreamer Version: $GSTREAMER_VERSION" >> $GITHUB_STEP_SUMMARY
+        echo "- 📚 Build Type: Static Libraries" >> $GITHUB_STEP_SUMMARY
+        echo "- ⏱️ Build Time: $(date -u)" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        if [ -f "${{ github.workspace }}/Qt6-arm64-static-${{ env.QT_VERSION }}.tar.gz" ]; then
+          echo "**Artifacts:**" >> $GITHUB_STEP_SUMMARY
+          echo "- 📥 \`Qt6-arm64-static-$QT_VERSION.tar.gz\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Usage:**" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
+          echo "# Download and extract" >> $GITHUB_STEP_SUMMARY
+          echo "tar -xzf Qt6-arm64-static-$QT_VERSION.tar.gz" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "# Use in CMake" >> $GITHUB_STEP_SUMMARY
+          echo "set(CMAKE_PREFIX_PATH \"/path/to/Qt6-arm64\")" >> $GITHUB_STEP_SUMMARY
+          echo "find_package(Qt6 REQUIRED COMPONENTS Core Widgets Multimedia)" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+        fi
