@@ -6,10 +6,11 @@
 #include <QScreen>
 
 InputHandler::InputHandler(VideoPane *videoPane, QObject *parent)
-    : QObject(parent), m_videoPane(videoPane)
+    : QObject(parent), m_videoPane(videoPane), m_currentEventTarget(nullptr)
 {
     if (m_videoPane) {
         m_videoPane->installEventFilter(this);
+        m_currentEventTarget = m_videoPane;
     }
 }
 
@@ -39,8 +40,14 @@ MouseEventDTO* InputHandler::calculateRelativePosition(QMouseEvent *event) {
 }
 
 MouseEventDTO* InputHandler::calculateAbsolutePosition(QMouseEvent *event) {
-    qreal absoluteX = static_cast<qreal>(event->pos().x()) / m_videoPane->width() * 4096;
-    qreal absoluteY = static_cast<qreal>(event->pos().y()) / m_videoPane->height() * 4096;
+    // Get the effective video widget (overlay or main VideoPane)
+    QWidget* effectiveWidget = getEffectiveVideoWidget();
+    
+    // Transform mouse position if needed
+    QPoint transformedPos = transformMousePosition(event, effectiveWidget);
+    
+    qreal absoluteX = static_cast<qreal>(transformedPos.x()) / effectiveWidget->width() * 4096;
+    qreal absoluteY = static_cast<qreal>(transformedPos.y()) / effectiveWidget->height() * 4096;
     lastX = static_cast<int>(absoluteX);
     lastY = static_cast<int>(absoluteY);
     return new MouseEventDTO(lastX, lastY, true);
@@ -70,8 +77,11 @@ QSize InputHandler::getScreenResolution() {
 bool InputHandler::eventFilter(QObject *watched, QEvent *event)
 {
     // Debug: Log all events to see what we're receiving
-    if (watched == m_videoPane) {
-        qDebug() << "InputHandler::eventFilter - Event type:" << event->type() << "watched object:" << watched;
+    if (watched == m_videoPane || watched == m_currentEventTarget) {
+        qDebug() << "InputHandler::eventFilter - Event type:" << event->type() 
+                 << "watched object:" << watched 
+                 << "current target:" << m_currentEventTarget
+                 << "GStreamer mode:" << (m_videoPane ? m_videoPane->isDirectGStreamerModeEnabled() : false);
     }
     
     if (event->type() == QEvent::MouseMove) {
@@ -107,22 +117,22 @@ bool InputHandler::eventFilter(QObject *watched, QEvent *event)
             qDebug() << "Mouse left VideoPane - showing cursor";
         }
     }
-    if (watched == m_videoPane && event->type() == QEvent::KeyPress) {
+    if ((watched == m_videoPane || watched == m_currentEventTarget) && event->type() == QEvent::KeyPress) {
         QKeyEvent *keyEvent = static_cast<QKeyEvent*>(event);
         if (!keyEvent->isAutoRepeat()){
             handleKeyPressEvent(keyEvent);
             return true;
         }
     }
-    if (watched == m_videoPane && event->type() == QEvent::KeyRelease) {
+    if ((watched == m_videoPane || watched == m_currentEventTarget) && event->type() == QEvent::KeyRelease) {
         QKeyEvent *keyEvent = static_cast<QKeyEvent*>(event);
         if (!keyEvent->isAutoRepeat()){
             handleKeyReleaseEvent(keyEvent);
             return true;
         }
     }
-    if (watched == m_videoPane && event->type() == QEvent::Leave) {
-        if (!GlobalVar::instance().isAbsoluteMouseMode() && m_videoPane->isRelativeModeEnabled()) {
+    if ((watched == m_videoPane || watched == m_currentEventTarget) && event->type() == QEvent::Leave) {
+        if (!GlobalVar::instance().isAbsoluteMouseMode() && m_videoPane && m_videoPane->isRelativeModeEnabled()) {
             m_videoPane->moveMouseToCenter();
             return true;
         }
@@ -233,4 +243,89 @@ void InputHandler::handleMouseMove(QMouseEvent *event)
 void InputHandler::handleMouseRelease(QMouseEvent *event)
 {
     handleMouseReleaseEvent(event);
+}
+
+// Methods to handle GStreamer overlay widget events
+void InputHandler::updateEventFilterTarget()
+{
+    if (!m_videoPane) return;
+    
+    QWidget* overlayWidget = m_videoPane->getOverlayWidget();
+    
+    if (m_videoPane->isDirectGStreamerModeEnabled() && overlayWidget) {
+        // Switch to overlay widget if GStreamer mode is enabled
+        if (m_currentEventTarget != overlayWidget) {
+            removeOverlayEventFilter();
+            installOverlayEventFilter(overlayWidget);
+            qDebug() << "InputHandler: Switched event filter to GStreamer overlay widget";
+        }
+    } else {
+        // Switch back to main VideoPane
+        if (m_currentEventTarget != m_videoPane) {
+            removeOverlayEventFilter();
+            m_videoPane->installEventFilter(this);
+            m_currentEventTarget = m_videoPane;
+            qDebug() << "InputHandler: Switched event filter back to VideoPane";
+        }
+    }
+}
+
+void InputHandler::installOverlayEventFilter(QWidget* overlayWidget)
+{
+    if (overlayWidget && overlayWidget != m_currentEventTarget) {
+        // Remove from previous target
+        if (m_currentEventTarget) {
+            m_currentEventTarget->removeEventFilter(this);
+        }
+        
+        // Install on overlay widget
+        overlayWidget->installEventFilter(this);
+        overlayWidget->setMouseTracking(true);
+        overlayWidget->setFocusPolicy(Qt::StrongFocus);
+        m_currentEventTarget = overlayWidget;
+        
+        qDebug() << "InputHandler: Installed event filter on overlay widget";
+    }
+}
+
+void InputHandler::removeOverlayEventFilter()
+{
+    if (m_currentEventTarget) {
+        m_currentEventTarget->removeEventFilter(this);
+        m_currentEventTarget = nullptr;
+    }
+}
+
+// Helper methods for coordinate transformation
+QPoint InputHandler::transformMousePosition(QMouseEvent *event, QWidget* sourceWidget)
+{
+    if (!sourceWidget || !m_videoPane) {
+        return event->pos();
+    }
+    
+    // If the event is from the overlay widget and we need coordinates relative to VideoPane
+    if (sourceWidget != m_videoPane && m_videoPane->isDirectGStreamerModeEnabled()) {
+        // The overlay widget should have the same coordinate system as the VideoPane
+        // since it's positioned to fill the VideoPane
+        return event->pos();
+    }
+    
+    return event->pos();
+}
+
+QWidget* InputHandler::getEffectiveVideoWidget() const
+{
+    if (!m_videoPane) {
+        return nullptr;
+    }
+    
+    // Return overlay widget if in GStreamer mode, otherwise return VideoPane
+    if (m_videoPane->isDirectGStreamerModeEnabled()) {
+        QWidget* overlayWidget = m_videoPane->getOverlayWidget();
+        if (overlayWidget) {
+            return overlayWidget;
+        }
+    }
+    
+    return m_videoPane;
 }

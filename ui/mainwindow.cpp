@@ -46,7 +46,6 @@
 #include <QMediaFormat>
 #include <QMediaMetaData>
 #include <QMediaRecorder>
-#include <QVideoWidget>
 #include <QStackedLayout>
 #include <QMessageBox>
 #include <QImageCapture>

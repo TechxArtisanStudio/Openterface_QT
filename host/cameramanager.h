@@ -6,7 +6,6 @@
 #include <QMediaCaptureSession>
 #include <QImageCapture>
 #include <QMediaRecorder>
-#include <QVideoWidget>  // Add this include
 #include <QGraphicsVideoItem>  // Add this for graphics-based video display
 #include <QDir>
 #include <QStandardPaths>
@@ -49,7 +48,6 @@ public:
     explicit CameraManager(QObject *parent = nullptr);
     ~CameraManager();
 
-    // void setCamera(const QCameraDevice &cameraDevice, QVideoWidget* videoOutput);
     // void setCamera(const QCameraDevice &cameraDevice, QGraphicsVideoItem* videoOutput);
     void setCameraDevice(const QCameraDevice &cameraDevice);
     void startCamera();
@@ -59,7 +57,6 @@ public:
     void startRecording();
     void stopRecording();
     QCamera* getCamera() const { return m_camera.get(); }
-    void setVideoOutput(QVideoWidget* videoOutput);
     void setVideoOutput(QGraphicsVideoItem* videoOutput);
     void setCameraFormat(const QCameraFormat &format);
     QCameraFormat getCameraFormat() const;
@@ -69,7 +66,6 @@ public:
     std::map<VideoFormatKey, QCameraFormat> getVideoFormatMap();
 
     // Camera initialization with video output
-    bool initializeCameraWithVideoOutput(QVideoWidget* videoOutput);
     bool initializeCameraWithVideoOutput(QGraphicsVideoItem* videoOutput);
     
     // Check if there's an active camera device
@@ -158,7 +154,6 @@ private:
     std::unique_ptr<QImageCapture> m_imageCapture;
     std::unique_ptr<QMediaRecorder> m_mediaRecorder;
     std::unique_ptr<MultimediaBackendHandler> m_backendHandler;
-    QVideoWidget* m_videoOutput;
     QGraphicsVideoItem* m_graphicsVideoOutput;
     int m_video_width;
     int m_video_height;
