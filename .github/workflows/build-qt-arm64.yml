@@ -70,12 +70,31 @@ jobs:
         echo "Target Directory: $QT_TARGET_DIR"
         echo "Cross Compile Prefix: $CROSS_COMPILE"
         echo "Build started at: $(date)"
+        
+        # Update Meson to a newer version for GStreamer compatibility
+        echo "Current Meson version:"
+        meson --version || echo "Meson not found"
+        
+        echo "Installing newer Meson via pip..."
+        sudo apt-get remove -y meson || true
+        pip3 install --user meson==1.2.3
+        echo 'export PATH="$HOME/.local/bin:$PATH"' >> $GITHUB_ENV
+        
+        # Verify new Meson version
+        export PATH="$HOME/.local/bin:$PATH"
+        echo "New Meson version:"
+        meson --version
 
     - name: Make script executable
       run: chmod +x build-script/build-static-qt-for-arm64.sh
 
     - name: Run Qt ARM64 cross-compilation build
       run: |
+        # Ensure newer Meson is in PATH
+        export PATH="$HOME/.local/bin:$PATH"
+        echo "Meson version being used:"
+        meson --version
+        
         cd build-script
         # Run the script with all environment variables
         export QT_VERSION="${QT_VERSION}"
