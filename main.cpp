@@ -156,11 +156,12 @@ void applyMediaBackendSetting(){
         qputenv("GST_VIDEO_OVERLAY", "1");
         
         qDebug() << "Applied enhanced GStreamer-specific environment settings for video compatibility";
+        // gstreamer not compatible with QT_MEDIA_BACKEND, so we set it to empty
+    } else{
+        // For other media backends, we can set a default or leave it empty
+        qputenv("QT_MEDIA_BACKEND", mediaBackend.toUtf8());
+        qDebug() << "Set QT_MEDIA_BACKEND to:" << mediaBackend;
     }
-    
-    qputenv("QT_MEDIA_BACKEND", mediaBackend.toUtf8());
-    QString newMediaBackend = qgetenv("QT_MEDIA_BACKEND");
-    qDebug() << "Current QT Media Backend set to:" << newMediaBackend;
 #endif
 }
 

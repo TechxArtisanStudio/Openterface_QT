@@ -38,6 +38,14 @@ if(GSTREAMER_FOUND)
     if(GSTREAMER_VIDEO_FOUND)
         message(STATUS "GStreamer found - enabling direct pipeline support")
         add_definitions(-DHAVE_GSTREAMER)
+        
+        # Also check for system GStreamer to ensure we have all headers
+        pkg_check_modules(PC_GSTREAMER_VIDEO gstreamer-video-1.0 IMPORTED_TARGET)
+        
+        # Prefer system include directories for headers
+        if(PC_GSTREAMER_VIDEO_FOUND)
+            message(STATUS "Using system GStreamer video includes: ${PC_GSTREAMER_VIDEO_INCLUDE_DIRS}")
+        endif()
     else()
         message(STATUS "GStreamer video not found - using fallback mode")
     endif()
@@ -154,10 +162,19 @@ if(GSTREAMER_FOUND AND GSTREAMER_VIDEO_FOUND)
         ${GSTREAMER_LIBRARIES}
         ${GSTREAMER_VIDEO_LIBRARIES}
     )
-    target_include_directories(openterfaceQT PRIVATE 
-        ${GSTREAMER_INCLUDE_DIRS}
-        ${GSTREAMER_VIDEO_INCLUDE_DIRS}
-    )
+    
+    # Use system include directories for better header compatibility
+    if(PC_GSTREAMER_VIDEO_FOUND)
+        target_include_directories(openterfaceQT PRIVATE 
+            ${PC_GSTREAMER_VIDEO_INCLUDE_DIRS}
+        )
+        message(STATUS "Added system GStreamer video include directories")
+    else()
+        target_include_directories(openterfaceQT PRIVATE 
+            ${GSTREAMER_INCLUDE_DIRS}
+            ${GSTREAMER_VIDEO_INCLUDE_DIRS}
+        )
+    endif()
 endif()
 
 # Add DBus on Unix systems (excluding macOS)
