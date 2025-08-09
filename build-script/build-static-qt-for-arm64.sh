@@ -152,6 +152,19 @@ export AR="${CROSS_COMPILE}ar"
 export STRIP="${CROSS_COMPILE}strip"
 export PKG_CONFIG_PATH="${WORK_DIR}/gstreamer_build/lib/pkgconfig:${WORK_DIR}/ffmpeg_build/lib/pkgconfig"
 
+# Install ARM64 development libraries for cross-compilation
+echo "Installing ARM64 development libraries for GStreamer..."
+sudo apt-get install -y \
+  libglib2.0-dev:arm64 \
+  libgobject-2.0-dev:arm64 \
+  libgmodule-2.0-dev:arm64 \
+  libc6-dev:arm64 \
+  linux-libc-dev:arm64 || echo "ARM64 libraries installation failed, continuing with system libraries"
+
+# Set up cross-compilation sysroot
+SYSROOT="/usr/aarch64-linux-gnu"
+export PKG_CONFIG_SYSROOT_DIR="${SYSROOT}"
+
 # Build GStreamer core
 echo "Building GStreamer core..."
 cd gstreamer-${GSTREAMER_VERSION}
