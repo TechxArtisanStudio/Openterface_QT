@@ -71,6 +71,41 @@ jobs:
         echo "Cross Compile Prefix: $CROSS_COMPILE"
         echo "Build started at: $(date)"
         
+        # Enable ARM64 multiarch support for proper cross-compilation
+        echo "Setting up ARM64 multiarch support..."
+        sudo dpkg --add-architecture arm64
+        
+        # Update package lists for multiarch
+        sudo apt-get update
+        
+        # Install multiarch libraries (optional, fallback if script fails)
+        echo "Installing ARM64 development libraries (optional)..."
+        sudo apt-get install -y \
+          libglib2.0-dev:arm64 \
+          libgobject-2.0-dev:arm64 \
+          libgmodule-2.0-dev:arm64 \
+          libc6-dev:arm64 \
+          linux-libc-dev:arm64 \
+          libudev-dev:arm64 \
+          libxkbcommon-dev:arm64 \
+          libxkbcommon-x11-dev:arm64 \
+          libxcb1-dev:arm64 \
+          libxcb-xlib0-dev:arm64 \
+          libxcb-util-dev:arm64 \
+          libxcb-keysyms1-dev:arm64 \
+          libxcb-image0-dev:arm64 \
+          libxcb-shm0-dev:arm64 \
+          libxcb-icccm4-dev:arm64 \
+          libxcb-sync-dev:arm64 \
+          libxcb-xfixes0-dev:arm64 \
+          libxcb-shape0-dev:arm64 \
+          libxcb-randr0-dev:arm64 \
+          libxcb-render-util0-dev:arm64 \
+          libxcb-render0-dev:arm64 \
+          libxcb-glx0-dev:arm64 \
+          libxcb-xinerama0-dev:arm64 \
+          libxcb-xinput-dev:arm64 || echo "ARM64 libraries installation failed, script will handle fallback"
+        
         # Update Meson to a newer version for GStreamer compatibility
         echo "Current Meson version:"
         meson --version || echo "Meson not found"

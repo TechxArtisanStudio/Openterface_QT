@@ -153,13 +153,32 @@ export STRIP="${CROSS_COMPILE}strip"
 export PKG_CONFIG_PATH="${WORK_DIR}/gstreamer_build/lib/pkgconfig:${WORK_DIR}/ffmpeg_build/lib/pkgconfig"
 
 # Install ARM64 development libraries for cross-compilation
-echo "Installing ARM64 development libraries for GStreamer..."
+echo "Installing ARM64 development libraries for GStreamer and Qt..."
 sudo apt-get install -y \
   libglib2.0-dev:arm64 \
   libgobject-2.0-dev:arm64 \
   libgmodule-2.0-dev:arm64 \
   libc6-dev:arm64 \
-  linux-libc-dev:arm64 || echo "ARM64 libraries installation failed, continuing with system libraries"
+  linux-libc-dev:arm64 \
+  libudev-dev:arm64 \
+  libxkbcommon-dev:arm64 \
+  libxkbcommon-x11-dev:arm64 \
+  libxcb1-dev:arm64 \
+  libxcb-xlib0-dev:arm64 \
+  libxcb-util-dev:arm64 \
+  libxcb-keysyms1-dev:arm64 \
+  libxcb-image0-dev:arm64 \
+  libxcb-shm0-dev:arm64 \
+  libxcb-icccm4-dev:arm64 \
+  libxcb-sync-dev:arm64 \
+  libxcb-xfixes0-dev:arm64 \
+  libxcb-shape0-dev:arm64 \
+  libxcb-randr0-dev:arm64 \
+  libxcb-render-util0-dev:arm64 \
+  libxcb-render0-dev:arm64 \
+  libxcb-glx0-dev:arm64 \
+  libxcb-xinerama0-dev:arm64 \
+  libxcb-xinput-dev:arm64 || echo "Some ARM64 libraries installation failed, continuing with available libraries"
 
 # Set up cross-compilation sysroot
 SYSROOT="/usr/aarch64-linux-gnu"
@@ -178,11 +197,19 @@ ar = '${AR}'
 strip = '${STRIP}'
 pkgconfig = 'pkg-config'
 
+[properties]
+sys_root = '${SYSROOT}'
+pkg_config_libdir = '${SYSROOT}/lib/pkgconfig:${SYSROOT}/usr/lib/pkgconfig:${SYSROOT}/usr/lib/aarch64-linux-gnu/pkgconfig'
+
 [host_machine]
 system = 'linux'
 cpu_family = 'aarch64'
 cpu = 'aarch64'
 endian = 'little'
+
+[built-in options]
+c_link_args = ['-L${SYSROOT}/lib', '-L${SYSROOT}/usr/lib', '-L${SYSROOT}/usr/lib/aarch64-linux-gnu']
+cpp_link_args = ['-L${SYSROOT}/lib', '-L${SYSROOT}/usr/lib', '-L${SYSROOT}/usr/lib/aarch64-linux-gnu']
 EOF
 
 meson configure build \
@@ -193,7 +220,9 @@ meson configure build \
   -Dtests=disabled \
   -Dbenchmarks=disabled \
   -Dtools=disabled \
-  -Ddoc=disabled
+  -Ddoc=disabled \
+  -Dgst_debug=false \
+  -Dnls=disabled
 
 ninja -C build
 ninja -C build install
@@ -215,11 +244,19 @@ ar = '${AR}'
 strip = '${STRIP}'
 pkgconfig = 'pkg-config'
 
+[properties]
+sys_root = '${SYSROOT}'
+pkg_config_libdir = '${SYSROOT}/lib/pkgconfig:${SYSROOT}/usr/lib/pkgconfig:${SYSROOT}/usr/lib/aarch64-linux-gnu/pkgconfig:${WORK_DIR}/gstreamer_build/lib/pkgconfig'
+
 [host_machine]
 system = 'linux'
 cpu_family = 'aarch64'
 cpu = 'aarch64'
 endian = 'little'
+
+[built-in options]
+c_link_args = ['-L${SYSROOT}/lib', '-L${SYSROOT}/usr/lib', '-L${SYSROOT}/usr/lib/aarch64-linux-gnu']
+cpp_link_args = ['-L${SYSROOT}/lib', '-L${SYSROOT}/usr/lib', '-L${SYSROOT}/usr/lib/aarch64-linux-gnu']
 EOF
 
 meson configure build \
@@ -238,7 +275,8 @@ meson configure build \
   -Dvorbis=disabled \
   -Dx11=disabled \
   -Dxshm=disabled \
-  -Dxvideo=disabled
+  -Dxvideo=disabled \
+  -Dnls=disabled
 
 ninja -C build
 ninja -C build install
@@ -260,11 +298,19 @@ ar = '${AR}'
 strip = '${STRIP}'
 pkgconfig = 'pkg-config'
 
+[properties]
+sys_root = '${SYSROOT}'
+pkg_config_libdir = '${SYSROOT}/lib/pkgconfig:${SYSROOT}/usr/lib/pkgconfig:${SYSROOT}/usr/lib/aarch64-linux-gnu/pkgconfig:${WORK_DIR}/gstreamer_build/lib/pkgconfig'
+
 [host_machine]
 system = 'linux'
 cpu_family = 'aarch64'
 cpu = 'aarch64'
 endian = 'little'
+
+[built-in options]
+c_link_args = ['-L${SYSROOT}/lib', '-L${SYSROOT}/usr/lib', '-L${SYSROOT}/usr/lib/aarch64-linux-gnu']
+cpp_link_args = ['-L${SYSROOT}/lib', '-L${SYSROOT}/usr/lib', '-L${SYSROOT}/usr/lib/aarch64-linux-gnu']
 EOF
 
 meson configure build \
@@ -316,7 +362,8 @@ meson configure build \
   -Doss=disabled \
   -Doss4=disabled \
   -Dv4l2=disabled \
-  -Dximagesrc=disabled
+  -Dximagesrc=disabled \
+  -Dnls=disabled
 
 ninja -C build
 ninja -C build install
@@ -338,11 +385,19 @@ ar = '${AR}'
 strip = '${STRIP}'
 pkgconfig = 'pkg-config'
 
+[properties]
+sys_root = '${SYSROOT}'
+pkg_config_libdir = '${SYSROOT}/lib/pkgconfig:${SYSROOT}/usr/lib/pkgconfig:${SYSROOT}/usr/lib/aarch64-linux-gnu/pkgconfig:${WORK_DIR}/gstreamer_build/lib/pkgconfig'
+
 [host_machine]
 system = 'linux'
 cpu_family = 'aarch64'
 cpu = 'aarch64'
 endian = 'little'
+
+[built-in options]
+c_link_args = ['-L${SYSROOT}/lib', '-L${SYSROOT}/usr/lib', '-L${SYSROOT}/usr/lib/aarch64-linux-gnu']
+cpp_link_args = ['-L${SYSROOT}/lib', '-L${SYSROOT}/usr/lib', '-L${SYSROOT}/usr/lib/aarch64-linux-gnu']
 EOF
 
 meson configure build \
@@ -351,7 +406,8 @@ meson configure build \
   --default-library=static \
   -Dexamples=disabled \
   -Dtests=disabled \
-  -Ddoc=disabled
+  -Ddoc=disabled \
+  -Dnls=disabled
 
 ninja -C build
 ninja -C build install
@@ -481,6 +537,21 @@ export AR="${CROSS_COMPILE}ar"
 export STRIP="${CROSS_COMPILE}strip"
 export QT_HOST_PATH="${QT_HOST_PATH}"
 
+# Get absolute paths for cross-compilation tools
+CC_ABS=$(which ${CROSS_COMPILE}gcc)
+CXX_ABS=$(which ${CROSS_COMPILE}g++)
+AR_ABS=$(which ${CROSS_COMPILE}ar)
+STRIP_ABS=$(which ${CROSS_COMPILE}strip)
+RANLIB_ABS=$(which ${CROSS_COMPILE}ranlib)
+
+# Verify tools exist
+echo "Cross-compilation tools:"
+echo "CC: ${CC_ABS}"
+echo "CXX: ${CXX_ABS}"  
+echo "AR: ${AR_ABS}"
+echo "STRIP: ${STRIP_ABS}"
+echo "RANLIB: ${RANLIB_ABS}"
+
 # Critical: Set up pkg-config for cross-compilation to find ARM64 libraries
 export PKG_CONFIG_PATH="${WORK_DIR}/gstreamer_build/lib/pkgconfig:${WORK_DIR}/ffmpeg_build/lib/pkgconfig"
 export PKG_CONFIG_LIBDIR="${PKG_CONFIG_PATH}"
@@ -497,24 +568,53 @@ exec pkg-config "\$@"
 EOF
 chmod +x "${CROSS_PKG_CONFIG}"
 
+# Create a CMake toolchain file for cross-compilation
+TOOLCHAIN_FILE="/tmp/aarch64-toolchain.cmake"
+cat > "${TOOLCHAIN_FILE}" <<EOF
+set(CMAKE_SYSTEM_NAME Linux)
+set(CMAKE_SYSTEM_PROCESSOR aarch64)
+
+# Set cross-compilation tools with absolute paths
+set(CMAKE_C_COMPILER "${CC_ABS}")
+set(CMAKE_CXX_COMPILER "${CXX_ABS}")
+set(CMAKE_AR "${AR_ABS}")
+set(CMAKE_RANLIB "${RANLIB_ABS}")
+set(CMAKE_STRIP "${STRIP_ABS}")
+
+# Prevent CMake from overriding our tool paths
+set(CMAKE_C_COMPILER_FORCED TRUE)
+set(CMAKE_CXX_COMPILER_FORCED TRUE)
+set(CMAKE_AR_FORCED TRUE)
+set(CMAKE_RANLIB_FORCED TRUE)
+set(CMAKE_STRIP_FORCED TRUE)
+
+# Cross-compilation sysroot
+set(CMAKE_FIND_ROOT_PATH /usr/aarch64-linux-gnu)
+set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)
+set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY ONLY)
+set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)
+set(CMAKE_FIND_ROOT_PATH_MODE_PACKAGE ONLY)
+
+set(CMAKE_CROSSCOMPILING TRUE)
+EOF
+
 # Build qtbase first (required by all other modules)
 if [ ! -f "${QT_TARGET_DIR}/lib/libQt6Core.a" ]; then
   echo "Building qtbase..."
   cd qtbase
   mkdir -p build && cd build
   
+  # Set environment variables to override CMake tool detection
+  export CMAKE_C_COMPILER="${CC_ABS}"
+  export CMAKE_CXX_COMPILER="${CXX_ABS}"
+  export CMAKE_AR="${AR_ABS}"
+  export CMAKE_RANLIB="${RANLIB_ABS}"
+  export CMAKE_STRIP="${STRIP_ABS}"
+  
   cmake -GNinja \
+    -DCMAKE_TOOLCHAIN_FILE="${TOOLCHAIN_FILE}" \
     -DCMAKE_INSTALL_PREFIX="${QT_TARGET_DIR}" \
     -DCMAKE_BUILD_TYPE=Release \
-    -DCMAKE_C_COMPILER="${CC}" \
-    -DCMAKE_CXX_COMPILER="${CXX}" \
-    -DCMAKE_AR="${AR}" \
-    -DCMAKE_STRIP="${STRIP}" \
-    -DCMAKE_FIND_ROOT_PATH_MODE_PROGRAM=NEVER \
-    -DCMAKE_FIND_ROOT_PATH_MODE_LIBRARY=ONLY \
-    -DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=ONLY \
-    -DCMAKE_SYSTEM_NAME=Linux \
-    -DCMAKE_SYSTEM_PROCESSOR=aarch64 \
     -DQT_HOST_PATH="${QT_HOST_PATH}" \
     -DBUILD_SHARED_LIBS=OFF \
     -DFEATURE_static=ON \
@@ -531,6 +631,13 @@ if [ ! -f "${QT_TARGET_DIR}/lib/libQt6Core.a" ]; then
     -DFEATURE_regularexpression=OFF \
     -DFEATURE_xmlstream=OFF \
     -DFEATURE_sessionmanager=OFF \
+    -DFEATURE_libudev=ON \
+    -DFEATURE_xkbcommon=ON \
+    -DFEATURE_xkbcommon_x11=ON \
+    -DFEATURE_xcb=ON \
+    -DFEATURE_xcb_xlib=ON \
+    -DFEATURE_gui=ON \
+    -DFEATURE_widgets=ON \
     ..
   
   ninja -j$(nproc)
@@ -546,19 +653,18 @@ if [ ! -f "${QT_TARGET_DIR}/lib/libQt6ShaderTools.a" ]; then
   cd qtshadertools
   mkdir -p build && cd build
   
+  # Set environment variables to override CMake tool detection
+  export CMAKE_C_COMPILER="${CC_ABS}"
+  export CMAKE_CXX_COMPILER="${CXX_ABS}"
+  export CMAKE_AR="${AR_ABS}"
+  export CMAKE_RANLIB="${RANLIB_ABS}"
+  export CMAKE_STRIP="${STRIP_ABS}"
+  
   cmake -GNinja \
+    -DCMAKE_TOOLCHAIN_FILE="${TOOLCHAIN_FILE}" \
     -DCMAKE_INSTALL_PREFIX="${QT_TARGET_DIR}" \
     -DCMAKE_PREFIX_PATH="${QT_TARGET_DIR}" \
     -DCMAKE_BUILD_TYPE=Release \
-    -DCMAKE_C_COMPILER="${CC}" \
-    -DCMAKE_CXX_COMPILER="${CXX}" \
-    -DCMAKE_AR="${AR}" \
-    -DCMAKE_STRIP="${STRIP}" \
-    -DCMAKE_FIND_ROOT_PATH_MODE_PROGRAM=NEVER \
-    -DCMAKE_FIND_ROOT_PATH_MODE_LIBRARY=ONLY \
-    -DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=ONLY \
-    -DCMAKE_SYSTEM_NAME=Linux \
-    -DCMAKE_SYSTEM_PROCESSOR=aarch64 \
     -DQT_HOST_PATH="${QT_HOST_PATH}" \
     -DBUILD_SHARED_LIBS=OFF \
     ..
@@ -578,21 +684,20 @@ for module in $QT_MODULES; do
             cd "$module"
             mkdir -p build && cd build
             
+            # Set environment variables to override CMake tool detection
+            export CMAKE_C_COMPILER="${CC_ABS}"
+            export CMAKE_CXX_COMPILER="${CXX_ABS}"
+            export CMAKE_AR="${AR_ABS}"
+            export CMAKE_RANLIB="${RANLIB_ABS}"
+            export CMAKE_STRIP="${STRIP_ABS}"
+            
             if [[ "$module" == "qtmultimedia" ]]; then
                 # Special configuration for qtmultimedia to enable FFmpeg and GStreamer
                 cmake -GNinja \
+                    -DCMAKE_TOOLCHAIN_FILE="${TOOLCHAIN_FILE}" \
                     -DCMAKE_INSTALL_PREFIX="${QT_TARGET_DIR}" \
                     -DCMAKE_PREFIX_PATH="${QT_TARGET_DIR}" \
                     -DCMAKE_BUILD_TYPE=Release \
-                    -DCMAKE_C_COMPILER="${CC}" \
-                    -DCMAKE_CXX_COMPILER="${CXX}" \
-                    -DCMAKE_AR="${AR}" \
-                    -DCMAKE_STRIP="${STRIP}" \
-                    -DCMAKE_FIND_ROOT_PATH_MODE_PROGRAM=NEVER \
-                    -DCMAKE_FIND_ROOT_PATH_MODE_LIBRARY=ONLY \
-                    -DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=ONLY \
-                    -DCMAKE_SYSTEM_NAME=Linux \
-                    -DCMAKE_SYSTEM_PROCESSOR=aarch64 \
                     -DQT_HOST_PATH="${QT_HOST_PATH}" \
                     -DBUILD_SHARED_LIBS=OFF \
                     -DFEATURE_ffmpeg=ON \
@@ -602,18 +707,10 @@ for module in $QT_MODULES; do
                     ..
             else
                 cmake -GNinja \
+                    -DCMAKE_TOOLCHAIN_FILE="${TOOLCHAIN_FILE}" \
                     -DCMAKE_INSTALL_PREFIX="${QT_TARGET_DIR}" \
                     -DCMAKE_PREFIX_PATH="${QT_TARGET_DIR}" \
                     -DCMAKE_BUILD_TYPE=Release \
-                    -DCMAKE_C_COMPILER="${CC}" \
-                    -DCMAKE_CXX_COMPILER="${CXX}" \
-                    -DCMAKE_AR="${AR}" \
-                    -DCMAKE_STRIP="${STRIP}" \
-                    -DCMAKE_FIND_ROOT_PATH_MODE_PROGRAM=NEVER \
-                    -DCMAKE_FIND_ROOT_PATH_MODE_LIBRARY=ONLY \
-                    -DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=ONLY \
-                    -DCMAKE_SYSTEM_NAME=Linux \
-                    -DCMAKE_SYSTEM_PROCESSOR=aarch64 \
                     -DQT_HOST_PATH="${QT_HOST_PATH}" \
                     -DBUILD_SHARED_LIBS=OFF \
                     ..
@@ -667,6 +764,7 @@ sudo cp -a ${WORK_DIR}/gstreamer_build/include/. ${QT_TARGET_DIR}/include/
 cd /
 sudo rm -rf "$WORK_DIR"
 rm -f "${CROSS_PKG_CONFIG}"
+rm -f "${TOOLCHAIN_FILE}"
 
 echo "Qt ${QT_VERSION}, FFmpeg ${FFMPEG_VERSION}, and GStreamer ${GSTREAMER_VERSION} for ARM64 build completed successfully!"
 echo "Qt installed to: ${QT_TARGET_DIR}"
