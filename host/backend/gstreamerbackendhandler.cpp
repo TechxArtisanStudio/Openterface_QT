@@ -22,6 +22,7 @@
 
 #include "gstreamerbackendhandler.h"
 #include "../../ui/videopane.h"
+#include "../../ui/globalsetting.h"
 #include <QThread>
 #include <QApplication>
 #include <QDebug>
@@ -467,21 +468,28 @@ QString GStreamerBackendHandler::generatePipelineString(const QString& device, c
         return generatePipelineString(device, resolution, 30);
     }
     
-    // Use a more flexible pipeline that can negotiate formats automatically
-    // This approach allows GStreamer to choose the best available format
-    // Use a named sink so we can find it later for video overlay
-    QString pipelineStr = QString(
-        "v4l2src device=%1 ! "
-        "image/jpeg,width=%2,height=%3,framerate=%4/1 ! "
-        "jpegdec ! "
-        "videoconvert ! "
-        "xvimagesink name=videosink"
-    ).arg(device)
-     .arg(resolution.width())
-     .arg(resolution.height())
-     .arg(framerate);
+    // Use configurable pipeline template from settings
+    QString pipelineTemplate = GlobalSetting::instance().getGStreamerPipelineTemplate();
     
-    qCDebug(log_gstreamer_backend) << "Generated pipeline:" << pipelineStr;
+    // Validate the pipeline template before using it
+    if (pipelineTemplate.isEmpty() || !pipelineTemplate.contains("%DEVICE%")) {
+        qCWarning(log_gstreamer_backend) << "Invalid or empty pipeline template, using default";
+        pipelineTemplate = "v4l2src device=%DEVICE% ! "
+                          "image/jpeg,width=%WIDTH%,height=%HEIGHT%,framerate=%FRAMERATE%/1 ! "
+                          "jpegdec ! "
+                          "videoconvert ! "
+                          "xvimagesink name=videosink";
+    }
+    
+    // Replace placeholders with actual values
+    QString pipelineStr = pipelineTemplate;
+    pipelineStr.replace("%DEVICE%", device);
+    pipelineStr.replace("%WIDTH%", QString::number(resolution.width()));
+    pipelineStr.replace("%HEIGHT%", QString::number(resolution.height()));
+    pipelineStr.replace("%FRAMERATE%", QString::number(framerate));
+    
+    qCDebug(log_gstreamer_backend) << "Generated pipeline from template:" << pipelineStr;
+    qCDebug(log_gstreamer_backend) << "Template used:" << pipelineTemplate;
     
     return pipelineStr;
 }
