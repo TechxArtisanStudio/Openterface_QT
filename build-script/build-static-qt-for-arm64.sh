@@ -392,7 +392,7 @@ if [ ! -f "${HOST_QT_DIR}/bin/moc" ]; then
         cd "qtbase-everywhere-src-${QT_VERSION}"
         mkdir -p build && cd build
         
-        # Configure with D-Bus support
+        # Configure with D-Bus support but minimal GUI
         cmake -GNinja \
             -DCMAKE_INSTALL_PREFIX="${HOST_QT_DIR}" \
             -DCMAKE_BUILD_TYPE=Release \
@@ -410,6 +410,19 @@ if [ ! -f "${HOST_QT_DIR}/bin/moc" ]; then
             -DFEATURE_network=ON \
             -DFEATURE_concurrent=ON \
             -DFEATURE_xml=ON \
+            -DFEATURE_libudev=OFF \
+            -DFEATURE_xkbcommon=OFF \
+            -DFEATURE_xkbcommon_x11=OFF \
+            -DFEATURE_evdev=OFF \
+            -DFEATURE_libinput=OFF \
+            -DFEATURE_tslib=OFF \
+            -DFEATURE_xcb=OFF \
+            -DFEATURE_xcb_xlib=OFF \
+            -DFEATURE_eglfs=OFF \
+            -DFEATURE_directfb=OFF \
+            -DFEATURE_linuxfb=OFF \
+            -DFEATURE_vnc=OFF \
+            -DQT_QMLJS_TESTS=OFF \
             ..
         
         # Build core tools and D-Bus tools
