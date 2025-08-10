@@ -41,6 +41,21 @@ Q_LOGGING_CATEGORY(log_gstreamer_backend, "opf.backend.gstreamer")
 #ifdef HAVE_GSTREAMER
 #include <gst/gst.h>
 #include <gst/video/videooverlay.h>
+
+// Static plugin registration declarations for static linking
+extern "C" {
+    // Core GStreamer plugins needed for video pipeline
+    void gst_plugin_coreelements_register(void);      // queue, capsfilter, tee, etc.
+    void gst_plugin_typefindfunctions_register(void); // typefind for format detection
+    void gst_plugin_videoconvertscale_register(void); // videoconvert, videoscale
+    void gst_plugin_video4linux2_register(void);      // v4l2src plugin
+    void gst_plugin_jpeg_register(void);              // jpegdec, jpegenc
+    void gst_plugin_videofilter_register(void);       // video filter base
+    void gst_plugin_videotestsrc_register(void);      // videotestsrc for testing
+    void gst_plugin_ximagesink_register(void);        // ximagesink
+    void gst_plugin_xvimagesink_register(void);       // xvimagesink
+    void gst_plugin_autodetect_register(void);        // autovideosink
+}
 #endif
 
 GStreamerBackendHandler::GStreamerBackendHandler(QObject *parent)
@@ -749,6 +764,66 @@ bool GStreamerBackendHandler::initializeGStreamer()
     }
     
     qCDebug(log_gstreamer_backend) << "GStreamer initialized successfully";
+    
+    // Register static plugins required for video pipeline
+    qCDebug(log_gstreamer_backend) << "Registering static GStreamer plugins...";
+    
+    try {
+        // Register core elements (queue, capsfilter, tee, etc.)
+        gst_plugin_coreelements_register();
+        qCDebug(log_gstreamer_backend) << "✓ Registered coreelements plugin";
+        
+        // Register typefind functions for format detection
+        gst_plugin_typefindfunctions_register();
+        qCDebug(log_gstreamer_backend) << "✓ Registered typefindfunctions plugin";
+        
+        // Register video conversion and scaling
+        gst_plugin_videoconvertscale_register();
+        qCDebug(log_gstreamer_backend) << "✓ Registered videoconvertscale plugin";
+        
+        // Register V4L2 plugin (v4l2src)
+        gst_plugin_video4linux2_register();
+        qCDebug(log_gstreamer_backend) << "✓ Registered video4linux2 plugin (v4l2src)";
+        
+        // Register JPEG decoder/encoder
+        gst_plugin_jpeg_register();
+        qCDebug(log_gstreamer_backend) << "✓ Registered jpeg plugin";
+        
+        // Register video filter base
+        gst_plugin_videofilter_register();
+        qCDebug(log_gstreamer_backend) << "✓ Registered videofilter plugin";
+        
+        // Register video test source (for testing)
+        gst_plugin_videotestsrc_register();
+        qCDebug(log_gstreamer_backend) << "✓ Registered videotestsrc plugin";
+        
+        // Register X11 video sinks
+        gst_plugin_ximagesink_register();
+        qCDebug(log_gstreamer_backend) << "✓ Registered ximagesink plugin";
+        
+        gst_plugin_xvimagesink_register();
+        qCDebug(log_gstreamer_backend) << "✓ Registered xvimagesink plugin";
+        
+        // Register autodetect elements
+        gst_plugin_autodetect_register();
+        qCDebug(log_gstreamer_backend) << "✓ Registered autodetect plugin (autovideosink)";
+        
+        qCDebug(log_gstreamer_backend) << "All static GStreamer plugins registered successfully";
+        
+        // Verify that v4l2src element is now available
+        GstElementFactory* factory = gst_element_factory_find("v4l2src");
+        if (factory) {
+            qCDebug(log_gstreamer_backend) << "✓ v4l2src element is now available";
+            gst_object_unref(factory);
+        } else {
+            qCWarning(log_gstreamer_backend) << "✗ v4l2src element still not available after registration";
+        }
+        
+    } catch (...) {
+        qCCritical(log_gstreamer_backend) << "Exception occurred during plugin registration";
+        return false;
+    }
+    
     return true;
 #else
     qCDebug(log_gstreamer_backend) << "GStreamer not available, using QProcess fallback";
