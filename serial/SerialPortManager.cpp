@@ -92,6 +92,9 @@ void SerialPortManager::observeSerialPortNotification(){
 void SerialPortManager::stop() {
     qCDebug(log_core_serial) << "Stopping serial port manager...";
     
+    // Prevent callback access during shutdown
+    eventCallback = nullptr;
+    
     if (serialThread && serialThread->isRunning()) {
         serialThread->quit();
         serialThread->wait(3000); // Wait up to 3 seconds
@@ -517,12 +520,16 @@ bool SerialPortManager::factoryResetHipChip(){
     qCDebug(log_core_serial) << "Factory reset Hid chip now...";
 
     if(serialPort->setRequestToSend(true)){
-        eventCallback->factoryReset(true);
+        if (eventCallback != nullptr) {
+            eventCallback->factoryReset(true);
+        }
         qCDebug(log_core_serial) << "Set RTS to low";
         QTimer::singleShot(4000, this, [this]() {
             if (serialPort->setRequestToSend(false)) {
                 qCDebug(log_core_serial) << "Set RTS to high";
-                eventCallback->factoryReset(false);
+                if (eventCallback != nullptr) {
+                    eventCallback->factoryReset(false);
+                }
                 restartPort();
             }
         });
@@ -568,16 +575,20 @@ bool SerialPortManager::factoryResetHipChipV191(){
 SerialPortManager::~SerialPortManager() {
     qCDebug(log_core_serial) << "Destroy serial port manager.";
     
+    // Prevent further callback access during destruction
+    eventCallback = nullptr;
+    
+    // Properly stop the manager first
+    stop();
+    
     // Disconnect from hotplug monitor
     disconnectFromHotplugMonitor();
     
-    closePort();
-
-    if (serialThread->isRunning()) {
-        serialThread->quit();
-        serialThread->wait();
+    // Final cleanup
+    if (serialPort) {
+        delete serialPort;
+        serialPort = nullptr;
     }
-    delete serialPort;
 }
 
 /*
@@ -637,12 +648,16 @@ bool SerialPortManager::restartPort() {
     QString portName = serialPort->portName();
     qint32 baudRate = serialPort->baudRate();
     qCDebug(log_core_serial) << "Restart port" << portName << "baudrate:" << baudRate;
-    eventCallback->serialPortReset(true);
+    if (eventCallback != nullptr) {
+        eventCallback->serialPortReset(true);
+    }
     closePort();
     QThread::msleep(100);
     openPort(portName, baudRate);
     onSerialPortConnected(portName);
-    eventCallback->serialPortReset(false);
+    if (eventCallback != nullptr) {
+        eventCallback->serialPortReset(false);
+    }
     return ready;
 }
 
@@ -681,7 +696,9 @@ void SerialPortManager::readData() {
             {
             case 0x81:
                 isTargetUsbConnected = CmdGetInfoResult::fromByteArray(data).targetConnected == 0x01;
-                eventCallback->onTargetUsbConnected(isTargetUsbConnected);
+                if (eventCallback != nullptr) {
+                    eventCallback->onTargetUsbConnected(isTargetUsbConnected);
+                }
                 updateSpecialKeyState(CmdGetInfoResult::fromByteArray(data).indicators);
                 break;
             case 0x82:
