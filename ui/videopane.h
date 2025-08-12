@@ -70,6 +70,11 @@ public:
     WId getVideoOverlayWindowId() const;
     void setupForGStreamerOverlay();
     QWidget* getOverlayWidget() const { return m_overlayWidget; }
+    
+    // FFmpeg direct video frame support
+    void updateVideoFrame(const QPixmap& frame);
+    void enableDirectFFmpegMode(bool enable = true);
+    bool isDirectFFmpegModeEnabled() const { return m_directFFmpegMode; }
 
 signals:
     void mouseMoved(const QPoint& position, const QString& event);
@@ -114,6 +119,9 @@ private:
     // Direct GStreamer mode support
     bool m_directGStreamerMode;
     QWidget* m_overlayWidget; // Widget for direct video overlay
+    
+    // Direct FFmpeg mode support
+    bool m_directFFmpegMode;
     
     MouseEventDTO* calculateRelativePosition(QMouseEvent *event);
     MouseEventDTO* calculateAbsolutePosition(QMouseEvent *event);

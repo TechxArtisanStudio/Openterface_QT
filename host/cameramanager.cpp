@@ -1,6 +1,8 @@
 #include "cameramanager.h"
 #include "host/multimediabackend.h"
 #include "host/backend/gstreamerbackendhandler.h"
+#include "host/backend/ffmpegbackendhandler.h"
+#include "ui/videopane.h"
 
 #include <QLoggingCategory>
 #include <QSettings>
@@ -1533,6 +1535,86 @@ bool CameraManager::initializeCameraWithVideoOutput(QGraphicsVideoItem* videoOut
     }
 
     return switchSuccess;
+}
+
+bool CameraManager::initializeCameraWithVideoOutput(VideoPane* videoPane)
+{
+    qDebug() << "Initializing camera with VideoPane output";
+    
+    if (!videoPane) {
+        qCWarning(log_ui_camera) << "Cannot initialize camera with null VideoPane";
+        return false;
+    }
+    
+    // Check if we're using FFmpeg backend for direct capture
+    if (isFFmpegBackend() && m_backendHandler) {
+        qDebug() << "Using FFmpeg backend for direct capture";
+        
+        // Cast to FFmpegBackendHandler to access direct capture methods
+        auto* ffmpegHandler = dynamic_cast<FFmpegBackendHandler*>(m_backendHandler.get());
+        if (ffmpegHandler) {
+            // Enable direct FFmpeg mode in VideoPane
+            videoPane->enableDirectFFmpegMode(true);
+            
+            // Set VideoPane as the output for the FFmpeg backend
+            ffmpegHandler->setVideoOutput(videoPane);
+            
+            // Connect frame ready signal from FFmpeg backend to VideoPane
+            connect(ffmpegHandler, &FFmpegBackendHandler::frameReady,
+                    videoPane, &VideoPane::updateVideoFrame);
+            
+            // Connect error signal
+            connect(ffmpegHandler, &FFmpegBackendHandler::captureError,
+                    this, [this](const QString& error) {
+                        qCWarning(log_ui_camera) << "FFmpeg capture error:" << error;
+                        emit cameraError(error);
+                    });
+            
+            // Start direct capture with Openterface device
+            QString devicePath = "/dev/video0"; // Default, should be detected dynamically
+            QSize resolution(1920, 1080); // Default resolution
+            int framerate = 30; // Default framerate
+            
+            // Try to detect Openterface device path
+            QList<QCameraDevice> devices = getAvailableCameraDevices();
+            for (const QCameraDevice& device : devices) {
+                if (device.description() == "Openterface") {
+                    // Convert Qt device ID to V4L2 device path
+                    QString deviceId = device.id();
+                    if (deviceId.startsWith("/dev/video")) {
+                        devicePath = deviceId;
+                    } else {
+                        // Try to extract device number and construct path
+                        QRegularExpression re("(\\d+)");
+                        QRegularExpressionMatch match = re.match(deviceId);
+                        if (match.hasMatch()) {
+                            devicePath = "/dev/video" + match.captured(1);
+                        }
+                    }
+                    break;
+                }
+            }
+            
+            qDebug() << "Starting FFmpeg direct capture with device:" << devicePath;
+            bool captureStarted = ffmpegHandler->startDirectCapture(devicePath, resolution, framerate);
+            
+            if (captureStarted) {
+                qDebug() << "✓ FFmpeg direct capture started successfully";
+                m_currentCameraPortChain = devicePath; // Store device path as port chain
+                return true;
+            } else {
+                qCWarning(log_ui_camera) << "Failed to start FFmpeg direct capture";
+                // Fall back to standard Qt camera approach
+            }
+        } else {
+            qCWarning(log_ui_camera) << "Failed to cast to FFmpegBackendHandler";
+        }
+    }
+    
+    // Fall back to standard Qt camera approach with QGraphicsVideoItem
+    qDebug() << "Using standard Qt camera approach";
+    videoPane->enableDirectFFmpegMode(false);
+    return initializeCameraWithVideoOutput(videoPane->getVideoItem());
 }
 
 bool CameraManager::hasActiveCameraDevice() const
