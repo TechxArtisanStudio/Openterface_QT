@@ -22,6 +22,7 @@ SOURCES += main.cpp \
     host/multimediabackend.cpp \
     host/backend/ffmpegbackendhandler.cpp \
     host/backend/gstreamerbackendhandler.cpp \
+    host/backend/qtmultimediabackendhandler.cpp \
     ui/statusbar/statuswidget.cpp \
     video/videohid.cpp \
     video/firmwarewriter.cpp \
@@ -85,6 +86,7 @@ HEADERS  += \
     host/multimediabackend.h \
     host/backend/ffmpegbackendhandler.h \
     host/backend/gstreamerbackendhandler.h \
+    host/backend/qtmultimediabackendhandler.h \
     ui/statusbar/statuswidget.h \
     video/videohid.h \
     video/firmwarewriter.h \
@@ -164,13 +166,9 @@ win32 {
     INCLUDEPATH += $$PWD/lib
     LIBS += -L$$PWD/lib -llibusb-1.0 -loleaut32 -lwinpthread
 
-    # Add FFmpeg libraries for Windows
-    LIBS += -lavformat -lavcodec -lavutil -lswscale
-    DEFINES += HAVE_FFMPEG
-    
-    # Add libjpeg-turbo for Windows
-    LIBS += -ljpeg
-    DEFINES += HAVE_LIBJPEG_TURBO
+    # Add libjpeg-turbo for Windows (commented out - not available)
+    # LIBS += -ljpeg
+    # DEFINES += HAVE_LIBJPEG_TURBO
 
     RESOURCES += driver/windows/drivers.qrc
 }

@@ -8,6 +8,7 @@
 #include <QSettings>
 #include <QMediaDevices>
 #include <QRegularExpression>
+#include <QDateTime>
 #include "global.h"
 #include "video/videohid.h"
 #include "../ui/globalsetting.h"
@@ -30,8 +31,12 @@ CameraManager::CameraManager(QObject *parent)
     m_currentCameraDeviceId.clear();
     m_currentCameraPortChain.clear();
     
-    // Initialize backend handler
-    initializeBackendHandler();
+    // Initialize backend handler only if not on Windows
+    if (!isWindowsPlatform()) {
+        initializeBackendHandler();
+    } else {
+        qCDebug(log_ui_camera) << "Windows platform detected - using direct QCamera approach, skipping backend initialization";
+    }
     
     m_imageCapture = std::make_unique<QImageCapture>();
     m_mediaRecorder = std::make_unique<QMediaRecorder>();
@@ -47,13 +52,30 @@ CameraManager::CameraManager(QObject *parent)
 
 CameraManager::~CameraManager() = default;
 
+bool CameraManager::isWindowsPlatform()
+{
+#ifdef Q_OS_WIN
+    return true;
+#else
+    return false;
+#endif
+}
+
 bool CameraManager::isGStreamerBackend() const
 {
+    // On Windows, we don't use backends, so always return false
+    if (isWindowsPlatform()) {
+        return false;
+    }
     return m_backendHandler && m_backendHandler->getBackendType() == MultimediaBackendType::GStreamer;
 }
 
 bool CameraManager::isFFmpegBackend() const
 {
+    // On Windows, we don't use backends, so always return false
+    if (isWindowsPlatform()) {
+        return false;
+    }
     return m_backendHandler && m_backendHandler->getBackendType() == MultimediaBackendType::FFmpeg;
 }
 
@@ -130,6 +152,25 @@ void CameraManager::updateBackendHandler()
 //     // Set camera format
 //     startCamera();
 // }
+
+// Windows-specific direct QCamera approach
+void CameraManager::setCamera(const QCameraDevice &cameraDevice, QGraphicsVideoItem* videoOutput)
+{
+    if (isWindowsPlatform()) {
+        qCDebug(log_ui_camera) << "Windows: Set Camera to graphics videoOutput using direct QCamera approach: " << videoOutput << ", device name: " << cameraDevice.description();
+        setCameraDevice(cameraDevice);
+        setVideoOutput(videoOutput);
+        queryResolutions();
+        startCamera();
+    } else {
+        qCDebug(log_ui_camera) << "Non-Windows: Using backend approach for setCamera";
+        // For non-Windows, fall back to the existing backend implementation
+        setCameraDevice(cameraDevice);
+        setVideoOutput(videoOutput);
+        queryResolutions();
+        startCamera();
+    }
+}
 
 void CameraManager::setCameraDevice(const QCameraDevice &cameraDevice)
 {
@@ -236,8 +277,31 @@ void CameraManager::startCamera()
 
             qCDebug(log_ui_camera) << "Starting camera:" << m_camera->cameraDevice().description();
             
-            // Use backend handler for video output setup and camera start
-            if (m_backendHandler) {
+            // Use simple direct QCamera approach on Windows
+            if (isWindowsPlatform()) {
+                qCDebug(log_ui_camera) << "Windows: Using direct QCamera approach";
+                
+                // Ensure video output is connected before starting camera
+                if (m_graphicsVideoOutput) {
+                    qCDebug(log_ui_camera) << "Windows: Ensuring graphics video output is connected before starting camera";
+                    m_captureSession.setVideoOutput(m_graphicsVideoOutput);
+                }
+                
+                m_camera->start();
+                
+                // Minimal wait time to reduce transition delay
+                QThread::msleep(25);
+                
+                // Verify camera started
+                if (m_camera->isActive()) {
+                    qCDebug(log_ui_camera) << "Windows: Camera started successfully and is active";
+                    emit cameraActiveChanged(true);
+                } else {
+                    qCWarning(log_ui_camera) << "Windows: Camera start command sent but camera is not active";
+                }
+            }
+            // Use backend handler for video output setup and camera start on non-Windows
+            else if (m_backendHandler) {
                 // Ensure device is configured with backend handler
                 if (m_backendHandler) {
                     qCDebug(log_ui_camera) << "Re-configuring camera device with backend handler";
@@ -493,7 +557,34 @@ void CameraManager::setupConnections()
                 
                 if (active) {
                     try {
-                        configureResolutionAndFormat();
+                        // Use simple approach on Windows, backend approach on others
+                        if (isWindowsPlatform()) {
+                            // Windows: Simple direct QCamera format configuration
+                            QCameraFormat currentFormat = m_camera->cameraFormat();
+                            QSize resolution;
+                            
+                            if (currentFormat.isNull() || currentFormat.resolution().isEmpty()) {
+                                resolution = QSize(m_video_width > 0 ? m_video_width : 1920, 
+                                                  m_video_height > 0 ? m_video_height : 1080);
+                                qCDebug(log_ui_camera) << "Windows: Using stored/default resolution:" << resolution;
+                            } else {
+                                resolution = currentFormat.resolution();
+                                qCDebug(log_ui_camera) << "Windows: Got resolution from camera format:" << resolution;
+                                m_video_width = resolution.width();
+                                m_video_height = resolution.height();
+                            }
+                            
+                            int fps = GlobalVar::instance().getCaptureFps() > 0 ? 
+                                GlobalVar::instance().getCaptureFps() : 30;
+                            
+                            QCameraFormat format = getVideoFormat(resolution, fps, QVideoFrameFormat::Format_Jpeg);
+                            if (m_camera) {
+                                m_camera->setCameraFormat(format);
+                            }
+                        } else {
+                            // Non-Windows: Use backend handler approach
+                            configureResolutionAndFormat();
+                        }
                     } catch (...) {
                         qCritical() << "Exception in configureResolutionAndFormat";
                     }
@@ -505,9 +596,11 @@ void CameraManager::setupConnections()
             connect(m_camera.get(), &QCamera::errorOccurred, this, [this](QCamera::Error error, const QString &errorString) {
                 qCritical() << "Camera error occurred:" << static_cast<int>(error) << errorString;
                 
-                // Use backend handler for error handling if available
-                if (m_backendHandler) {
+                // Use backend handler for error handling if available (non-Windows)
+                if (!isWindowsPlatform() && m_backendHandler) {
                     m_backendHandler->handleCameraError(error, errorString);
+                } else {
+                    qCDebug(log_ui_camera) << "Windows: Using simple error handling";
                 }
                 
                 emit cameraError(errorString);
@@ -1478,6 +1571,34 @@ bool CameraManager::initializeCameraWithVideoOutput(QGraphicsVideoItem* videoOut
     
     bool switchSuccess = false;
     
+    // Windows: Use simple direct approach
+    if (isWindowsPlatform()) {
+        qDebug() << "Windows: Using simple camera initialization";
+        
+        // Find any available "Openterface" camera
+        QList<QCameraDevice> devices = getAvailableCameraDevices();
+        QCameraDevice openterfaceDevice;
+        for (const QCameraDevice& device : devices) {
+            if (device.description() == "Openterface") {
+                openterfaceDevice = device;
+                break;
+            }
+        }
+
+        if (!openterfaceDevice.isNull()) {
+            switchSuccess = switchToCameraDevice(openterfaceDevice);
+            if (switchSuccess) {
+                qDebug() << "Windows: Camera switched to Openterface device";
+                startCamera();
+            }
+        } else {
+            qCWarning(log_ui_camera) << "Windows: No Openterface camera device found";
+        }
+        
+        return switchSuccess && !m_currentCameraDevice.isNull();
+    }
+    
+    // Non-Windows: Use existing complex backend logic
     // First priority: Check for port chain in global settings
     QString portChain = GlobalSetting::instance().getOpenterfacePortChain();
     

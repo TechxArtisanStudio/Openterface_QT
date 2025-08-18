@@ -38,6 +38,7 @@ Q_DECLARE_LOGGING_CATEGORY(log_multimedia_backend)
  */
 enum class MultimediaBackendType {
     Unknown,
+    QtMultimedia,    // Qt's native multimedia backend
     FFmpeg,
     GStreamer
 };

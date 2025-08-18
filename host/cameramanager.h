@@ -50,6 +50,7 @@ public:
     ~CameraManager();
 
     // void setCamera(const QCameraDevice &cameraDevice, QGraphicsVideoItem* videoOutput);
+    void setCamera(const QCameraDevice &cameraDevice, QGraphicsVideoItem* videoOutput);
     void setCameraDevice(const QCameraDevice &cameraDevice);
     void startCamera();
     void stopCamera();
@@ -65,6 +66,9 @@ public:
     void queryResolutions();
     void configureResolutionAndFormat();
     std::map<VideoFormatKey, QCameraFormat> getVideoFormatMap();
+
+    // Platform detection - Windows uses direct QCamera approach
+    static bool isWindowsPlatform();
 
     // Camera initialization with video output
     bool initializeCameraWithVideoOutput(QGraphicsVideoItem* videoOutput);
