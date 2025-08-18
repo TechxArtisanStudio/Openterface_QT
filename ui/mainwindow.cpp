@@ -317,7 +317,7 @@ MainWindow::MainWindow(LanguageManager *languageManager, QWidget *parent) :  ui(
     // Initialize camera with video output for proper startup
     qCDebug(log_ui_mainwindow) << "Initializing camera with video output...";
     QTimer::singleShot(200, this, [this]() {
-        bool success = m_cameraManager->initializeCameraWithVideoOutput(videoPane->getVideoItem());
+        bool success = m_cameraManager->initializeCameraWithVideoOutput(videoPane);
         if (success) {
             qDebug() << "✓ Camera successfully initialized with video output";
         } else {
@@ -1481,7 +1481,7 @@ void MainWindow::checkMousePosition()
 void MainWindow::onVideoSettingsChanged() {
     if (m_cameraManager) {
         // Reinitialize camera with graphics video output to ensure proper connection
-        bool success = m_cameraManager->initializeCameraWithVideoOutput(videoPane->getVideoItem());
+        bool success = m_cameraManager->initializeCameraWithVideoOutput(videoPane);
         if (!success) {
             // Fallback to just setting video output
             m_cameraManager->setVideoOutput(videoPane->getVideoItem());

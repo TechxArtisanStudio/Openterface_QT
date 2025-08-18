@@ -17,6 +17,7 @@
 
 // Forward declarations
 class GStreamerBackendHandler;
+class VideoPane;
 
 // Struct to represent a video format key, used for comparing and sorting video formats
 // It includes resolution, frame rate range, and pixel format
@@ -67,6 +68,7 @@ public:
 
     // Camera initialization with video output
     bool initializeCameraWithVideoOutput(QGraphicsVideoItem* videoOutput);
+    bool initializeCameraWithVideoOutput(VideoPane* videoPane);
     
     // Check if there's an active camera device
     bool hasActiveCameraDevice() const;
