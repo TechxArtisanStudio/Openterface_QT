@@ -353,51 +353,51 @@ void VideoPane::resizeEvent(QResizeEvent *event)
 }
 
 // Helper methods
-void VideoPane::updateVideoItemTransform()
-{
-    if (!m_videoItem) return;
-    
-    QRectF itemRect = m_videoItem->boundingRect();
-    QRectF viewRect = viewport()->rect();
-    
-    if (itemRect.isEmpty() || viewRect.isEmpty()) return;
-    qDebug() << "Updating video item transform with itemRect:" << itemRect << "viewRect:" << viewRect;
-    
-    // Reset transform and position first
-    m_videoItem->setTransform(QTransform());
-    m_videoItem->setPos(0, 0);
-    
-    // Normalize the item rectangle to start from (0,0) to handle any offset in boundingRect
-    QRectF normalizedRect(0, 0, itemRect.width(), itemRect.height());
-    QPointF itemOffset = itemRect.topLeft(); // Store the original offset
-    
-    if (m_maintainAspectRatio) {
-        // Calculate scale to fit while maintaining aspect ratio
-        double scaleX = viewRect.width() / normalizedRect.width();
-        double scaleY = viewRect.height() / normalizedRect.height();
-        double scale = qMin(scaleX, scaleY);
+    void VideoPane::updateVideoItemTransform()
+    {
+        if (!m_videoItem) return;
         
-        // Apply transformation
-        QTransform transform;
-        transform.scale(scale, scale);
-        m_videoItem->setTransform(transform);
+        QRectF itemRect = m_videoItem->boundingRect();
+        QRectF viewRect = viewport()->rect();
         
-        // Center the item after scaling, accounting for the original offset
-        QRectF scaledRect = QRectF(0, 0, normalizedRect.width() * scale, normalizedRect.height() * scale);
-        double x = (viewRect.width() - scaledRect.width()) / 2.0 - (itemOffset.x() * scale);
-        double y = (viewRect.height() - scaledRect.height()) / 2.0 - (itemOffset.y() * scale);
-        m_videoItem->setPos(x, y);
-        qDebug() << "Video item transformed with scale:" << scale << "at position:" << QPointF(x, y) << "offset:" << itemOffset;
-    } else {
-        // Stretch to fill (ignore aspect ratio)
-        QTransform transform;
-        transform.scale(viewRect.width() / normalizedRect.width(), 
-                       viewRect.height() / normalizedRect.height());
-        m_videoItem->setTransform(transform);
-        // Account for the original offset when stretching
-        m_videoItem->setPos(-itemOffset.x(), -itemOffset.y());
+        if (itemRect.isEmpty() || viewRect.isEmpty()) return;
+        qDebug() << "Updating video item transform with itemRect:" << itemRect << "viewRect:" << viewRect;
+        
+        // Reset transform and position first
+        m_videoItem->setTransform(QTransform());
+        m_videoItem->setPos(0, 0);
+        
+        // Normalize the item rectangle to start from (0,0) to handle any offset in boundingRect
+        QRectF normalizedRect(0, 0, itemRect.width(), itemRect.height());
+        QPointF itemOffset = itemRect.topLeft(); // Store the original offset
+        
+        if (m_maintainAspectRatio) {
+            // Calculate scale to fit while maintaining aspect ratio
+            double scaleX = viewRect.width() / normalizedRect.width();
+            double scaleY = viewRect.height() / normalizedRect.height();
+            double scale = qMin(scaleX, scaleY);
+            
+            // Apply transformation
+            QTransform transform;
+            transform.scale(scale, scale);
+            m_videoItem->setTransform(transform);
+            
+            // Center the item after scaling, accounting for the original offset
+            QRectF scaledRect = QRectF(0, 0, normalizedRect.width() * scale, normalizedRect.height() * scale);
+            double x = (viewRect.width() - scaledRect.width()) / 2.0 - (itemOffset.x() * scale);
+            double y = (viewRect.height() - scaledRect.height()) / 2.0 - (itemOffset.y() * scale);
+            m_videoItem->setPos(x, y);
+            qDebug() << "Video item transformed with scale:" << scale << "at position:" << QPointF(x, y) << "offset:" << itemOffset;
+        } else {
+            // Stretch to fill (ignore aspect ratio)
+            QTransform transform;
+            transform.scale(viewRect.width() / normalizedRect.width(), 
+                        viewRect.height() / normalizedRect.height());
+            m_videoItem->setTransform(transform);
+            // Account for the original offset when stretching
+            m_videoItem->setPos(-itemOffset.x(), -itemOffset.y());
+        }
     }
-}
 
 void VideoPane::centerVideoItem()
 {
@@ -490,19 +490,18 @@ void VideoPane::wheelEvent(QWheelEvent *event)
 
 void VideoPane::mousePressEvent(QMouseEvent *event)
 {
-    qDebug() << "VideoPane::mousePressEvent - pos:" << event->pos();
+    // qDebug() << "VideoPane::mousePressEvent - pos:" << event->pos();
     
-    // Transform the mouse position to account for zoom and pan
+    // Transform the mouse position for status bar display only
     QPoint transformedPos = getTransformedMousePosition(event->pos());
-    QMouseEvent transformedEvent(event->type(), transformedPos, event->globalPos(), 
-                                event->button(), event->buttons(), event->modifiers());
     
     // Emit signal for status bar update
     emit mouseMoved(transformedPos, "Press");
     
-    // Call InputHandler's public method to process the event
+    // Call InputHandler's public method to process the original event
+    // Let InputHandler handle its own coordinate transformations
     if (m_inputHandler) {
-        m_inputHandler->handleMousePress(&transformedEvent);
+        m_inputHandler->handleMousePress(event);
     }
     
     // Let the base class handle the event
@@ -511,19 +510,18 @@ void VideoPane::mousePressEvent(QMouseEvent *event)
 
 void VideoPane::mouseMoveEvent(QMouseEvent *event)
 {
-    qDebug() << "VideoPane::mouseMoveEvent - pos:" << event->pos() << "mouse tracking:" << hasMouseTracking();
+    // qDebug() << "VideoPane::mouseMoveEvent - pos:" << event->pos() << "mouse tracking:" << hasMouseTracking();
     
-    // Transform the mouse position to account for zoom and pan
+    // Transform the mouse position for status bar display only
     QPoint transformedPos = getTransformedMousePosition(event->pos());
-    QMouseEvent transformedEvent(event->type(), transformedPos, event->globalPos(), 
-                                event->button(), event->buttons(), event->modifiers());
     
     // Emit signal for status bar update
     emit mouseMoved(transformedPos, "Move");
     
-    // Call InputHandler's public method to process the event
+    // Call InputHandler's public method to process the original event
+    // Let InputHandler handle its own coordinate transformations
     if (m_inputHandler) {
-        m_inputHandler->handleMouseMove(&transformedEvent);
+        m_inputHandler->handleMouseMove(event);
     }
     
     // Let the base class handle the event
@@ -532,19 +530,18 @@ void VideoPane::mouseMoveEvent(QMouseEvent *event)
 
 void VideoPane::mouseReleaseEvent(QMouseEvent *event)
 {
-    qDebug() << "VideoPane::mouseReleaseEvent - pos:" << event->pos();
+    // qDebug() << "VideoPane::mouseReleaseEvent - pos:" << event->pos();
     
-    // Transform the mouse position to account for zoom and pan
+    // Transform the mouse position for status bar display only
     QPoint transformedPos = getTransformedMousePosition(event->pos());
-    QMouseEvent transformedEvent(event->type(), transformedPos, event->globalPos(), 
-                                event->button(), event->buttons(), event->modifiers());
     
     // Emit signal for status bar update
     emit mouseMoved(transformedPos, "Release");
     
-    // Call InputHandler's public method to process the event
+    // Call InputHandler's public method to process the original event
+    // Let InputHandler handle its own coordinate transformations
     if (m_inputHandler) {
-        m_inputHandler->handleMouseRelease(&transformedEvent);
+        m_inputHandler->handleMouseRelease(event);
     }
     
     // Let the base class handle the event
@@ -584,7 +581,7 @@ WId VideoPane::getVideoOverlayWindowId() const
 
 void VideoPane::setupForGStreamerOverlay()
 {
-    qDebug() << "VideoPane: Setting up for GStreamer video overlay";
+    // qDebug() << "VideoPane: Setting up for GStreamer video overlay";
     
     // Create overlay widget if it doesn't exist
     if (!m_overlayWidget) {
@@ -605,7 +602,7 @@ void VideoPane::setupForGStreamerOverlay()
         m_overlayWidget->resize(size());
         m_overlayWidget->show();
         
-        qDebug() << "VideoPane: Created GStreamer overlay widget with window ID:" << m_overlayWidget->winId();
+        // qDebug() << "VideoPane: Created GStreamer overlay widget with window ID:" << m_overlayWidget->winId();
         
         // Update the InputHandler to use the overlay widget for events
         if (m_inputHandler) {

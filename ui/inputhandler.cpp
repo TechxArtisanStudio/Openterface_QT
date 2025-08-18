@@ -181,6 +181,11 @@ void InputHandler::handleMouseReleaseEvent(QMouseEvent* event)
     QScopedPointer<MouseEventDTO> eventDto(calculateMouseEventDto(event));
     setDragging(false);
     HostManager::getInstance().handleMouseRelease(eventDto.get());
+    if(eventDto->isAbsoluteMode()){
+        m_videoPane->showHostMouse();
+    }else{
+        m_videoPane->hideHostMouse();
+    }
 }
 
 void InputHandler::handleWheelEvent(QWheelEvent *event)
@@ -306,11 +311,13 @@ QPoint InputHandler::transformMousePosition(QMouseEvent *event, QWidget* sourceW
     // If the event is from the overlay widget and we need coordinates relative to VideoPane
     if (sourceWidget != m_videoPane && m_videoPane->isDirectGStreamerModeEnabled()) {
         // The overlay widget should have the same coordinate system as the VideoPane
-        // since it's positioned to fill the VideoPane
-        return event->pos();
+        // since it's positioned to fill the VideoPane, but we still need to transform
+        // the coordinates to account for video scaling, zoom, and pan
+        return m_videoPane->getTransformedMousePosition(event->pos());
     }
     
-    return event->pos();
+    // For events from the VideoPane itself, use the VideoPane's transformation
+    return m_videoPane->getTransformedMousePosition(event->pos());
 }
 
 QWidget* InputHandler::getEffectiveVideoWidget() const

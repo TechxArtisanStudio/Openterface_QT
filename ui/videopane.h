@@ -70,6 +70,9 @@ public:
     WId getVideoOverlayWindowId() const;
     void setupForGStreamerOverlay();
     QWidget* getOverlayWidget() const { return m_overlayWidget; }
+    
+    // Mouse position transformation for InputHandler
+    QPoint getTransformedMousePosition(const QPoint& viewportPos);
 
 signals:
     void mouseMoved(const QPoint& position, const QString& event);
@@ -123,7 +126,6 @@ private:
     void updateVideoItemTransform();
     void centerVideoItem();
     void setupScene();
-    QPoint getTransformedMousePosition(const QPoint& viewportPos);
 };
 
 #endif
