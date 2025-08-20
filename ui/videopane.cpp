@@ -186,15 +186,29 @@ void VideoPane::onCameraDeviceSwitchComplete(const QString& device)
     // Clear the captured frame
     m_lastFrame = QPixmap();
     
-    // Ensure video item is visible and pixmap item is hidden
-    if (m_videoItem) {
-        m_videoItem->setVisible(true);
-        qDebug() << "VideoPane: Video item made visible for new camera feed";
-    }
-    
-    if (m_pixmapItem) {
-        m_pixmapItem->setVisible(false);
-        qDebug() << "VideoPane: Pixmap item hidden to show live video";
+    // Handle visibility based on current mode
+    if (m_directFFmpegMode) {
+        // In FFmpeg mode, keep pixmap item visible and hide Qt video item
+        if (m_videoItem) {
+            m_videoItem->setVisible(false);
+            qDebug() << "VideoPane: Video item hidden - FFmpeg mode active";
+        }
+        
+        if (m_pixmapItem) {
+            m_pixmapItem->setVisible(true);
+            qDebug() << "VideoPane: Pixmap item kept visible for FFmpeg frames";
+        }
+    } else {
+        // In normal Qt mode, show video item and hide pixmap item
+        if (m_videoItem) {
+            m_videoItem->setVisible(true);
+            qDebug() << "VideoPane: Video item made visible for new camera feed";
+        }
+        
+        if (m_pixmapItem) {
+            m_pixmapItem->setVisible(false);
+            qDebug() << "VideoPane: Pixmap item hidden to show live video";
+        }
     }
     
     // Force a repaint to resume normal video display
@@ -356,17 +370,30 @@ void VideoPane::resizeEvent(QResizeEvent *event)
 // Helper methods
     void VideoPane::updateVideoItemTransform()
     {
-        if (!m_videoItem) return;
+        // Handle both Qt video item and FFmpeg pixmap item
+        QGraphicsItem* targetItem = nullptr;
+        QRectF itemRect;
         
-        QRectF itemRect = m_videoItem->boundingRect();
+        if (m_directFFmpegMode && m_pixmapItem) {
+            targetItem = m_pixmapItem;
+            itemRect = m_pixmapItem->boundingRect();
+            qDebug(log_ui_video) << "VideoPane: Updating FFmpeg pixmap transform";
+        } else if (m_videoItem) {
+            targetItem = m_videoItem;
+            itemRect = m_videoItem->boundingRect();
+            qDebug() << "VideoPane: Updating Qt video item transform";
+        }
+        
+        if (!targetItem) return;
+        
         QRectF viewRect = viewport()->rect();
         
         if (itemRect.isEmpty() || viewRect.isEmpty()) return;
-        qDebug() << "Updating video item transform with itemRect:" << itemRect << "viewRect:" << viewRect;
+        qDebug() << "Updating item transform with itemRect:" << itemRect << "viewRect:" << viewRect;
         
         // Reset transform and position first
-        m_videoItem->setTransform(QTransform());
-        m_videoItem->setPos(0, 0);
+        targetItem->setTransform(QTransform());
+        targetItem->setPos(0, 0);
         
         // Normalize the item rectangle to start from (0,0) to handle any offset in boundingRect
         QRectF normalizedRect(0, 0, itemRect.width(), itemRect.height());
@@ -381,30 +408,43 @@ void VideoPane::resizeEvent(QResizeEvent *event)
             // Apply transformation
             QTransform transform;
             transform.scale(scale, scale);
-            m_videoItem->setTransform(transform);
+            targetItem->setTransform(transform);
             
             // Center the item after scaling, accounting for the original offset
             QRectF scaledRect = QRectF(0, 0, normalizedRect.width() * scale, normalizedRect.height() * scale);
             double x = (viewRect.width() - scaledRect.width()) / 2.0 - (itemOffset.x() * scale);
             double y = (viewRect.height() - scaledRect.height()) / 2.0 - (itemOffset.y() * scale);
-            m_videoItem->setPos(x, y);
-            qDebug() << "Video item transformed with scale:" << scale << "at position:" << QPointF(x, y) << "offset:" << itemOffset;
+            targetItem->setPos(x, y);
+            qDebug() << "Item transformed with scale:" << scale << "at position:" << QPointF(x, y) << "offset:" << itemOffset;
         } else {
             // Stretch to fill (ignore aspect ratio)
             QTransform transform;
             transform.scale(viewRect.width() / normalizedRect.width(), 
                         viewRect.height() / normalizedRect.height());
-            m_videoItem->setTransform(transform);
+            targetItem->setTransform(transform);
             // Account for the original offset when stretching
-            m_videoItem->setPos(-itemOffset.x(), -itemOffset.y());
+            targetItem->setPos(-itemOffset.x(), -itemOffset.y());
         }
     }
 
 void VideoPane::centerVideoItem()
 {
-    if (!m_videoItem) return;
+    // Handle both Qt video item and FFmpeg pixmap item
+    QGraphicsItem* targetItem = nullptr;
+    QRectF itemRect;
     
-    QRectF itemRect = m_videoItem->boundingRect();
+    if (m_directFFmpegMode && m_pixmapItem) {
+        targetItem = m_pixmapItem;
+        itemRect = m_pixmapItem->boundingRect();
+        qDebug(log_ui_video) << "VideoPane: Centering FFmpeg pixmap item";
+    } else if (m_videoItem) {
+        targetItem = m_videoItem;
+        itemRect = m_videoItem->boundingRect();
+        qDebug() << "VideoPane: Centering Qt video item";
+    }
+    
+    if (!targetItem) return;
+    
     QRectF viewRect = viewport()->rect();
     
     // Normalize the item rectangle and get the original offset
@@ -412,14 +452,14 @@ void VideoPane::centerVideoItem()
     QPointF itemOffset = itemRect.topLeft();
     
     // Get the current transform to calculate the scaled size
-    QTransform transform = m_videoItem->transform();
+    QTransform transform = targetItem->transform();
     QRectF scaledRect = transform.mapRect(normalizedRect);
     
     // Center the item accounting for the original offset
     double x = (viewRect.width() - scaledRect.width()) / 2.0 - (itemOffset.x() * transform.m11());
     double y = (viewRect.height() - scaledRect.height()) / 2.0 - (itemOffset.y() * transform.m22());
     
-    m_videoItem->setPos(x, y);
+    targetItem->setPos(x, y);
 }
 
 void VideoPane::setupScene()

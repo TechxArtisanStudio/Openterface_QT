@@ -11,6 +11,15 @@ option(USE_FFMPEG_STATIC "Use static FFmpeg libraries" ON)
 if(USE_FFMPEG_STATIC)
     set(CMAKE_FIND_STATIC_PREFER ON)
 endif()
+set(CMAKE_AUTOUIC ON)
+
+# Option to control static linking of FFmpeg
+option(USE_FFMPEG_STATIC "Use static FFmpeg libraries" ON)
+
+# Prefer static libraries
+if(USE_FFMPEG_STATIC)
+    set(CMAKE_FIND_STATIC_PREFER ON)
+endif()
 
 find_package(QT NAMES Qt5 Qt6 REQUIRED COMPONENTS Core)
 find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Concurrent Gui Multimedia MultimediaWidgets Network SerialPort Svg)
@@ -31,13 +40,20 @@ find_package(BZip2 REQUIRED)
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(XRENDER REQUIRED xrender)
 
-# Check for GStreamer
+# Check for GStreamer and its dependencies
 pkg_check_modules(GSTREAMER gstreamer-1.0)
+pkg_check_modules(ORC orc-0.4)
+
 if(GSTREAMER_FOUND)
     pkg_check_modules(GSTREAMER_VIDEO gstreamer-video-1.0)
     if(GSTREAMER_VIDEO_FOUND)
         message(STATUS "GStreamer found - enabling direct pipeline support")
         add_definitions(-DHAVE_GSTREAMER)
+        if(ORC_FOUND)
+            message(STATUS "ORC library found - will link for GStreamer support")
+        else()
+            message(WARNING "ORC library not found - GStreamer may have linking issues")
+        endif()
     else()
         message(STATUS "GStreamer video not found - using fallback mode")
     endif()
@@ -45,12 +61,40 @@ else()
     message(STATUS "GStreamer not found - using QProcess fallback")
 endif()
 
+# Check for libjpeg-turbo (preferred for performance)
+find_library(TURBOJPEG_LIBRARY turbojpeg)
+find_path(TURBOJPEG_INCLUDE_DIR turbojpeg.h)
+
+if(TURBOJPEG_LIBRARY AND TURBOJPEG_INCLUDE_DIR)
+    message(STATUS "Found libjpeg-turbo: ${TURBOJPEG_LIBRARY}")
+    add_definitions(-DHAVE_LIBJPEG_TURBO)
+    set(TURBOJPEG_LIBRARIES ${TURBOJPEG_LIBRARY})
+    include_directories(${TURBOJPEG_INCLUDE_DIR})
+else()
+    message(STATUS "libjpeg-turbo not found - JPEG acceleration disabled")
+endif()
+
 # Set FFmpeg include and library directories
 if(NOT FFMPEG_INCLUDE_DIRS)
 set(FFMPEG_INCLUDE_DIRS "/usr/local/include")
 endif()
-if(NOT FFMPEG_LIBRARIES)
-set(FFMPEG_LIBRARIES "/usr/local/lib/libavformat.a;/usr/local/lib/libavcodec.a;/usr/local/lib/libavutil.a;/usr/local/lib/libswresample.a;/usr/local/lib/libswscale.a")
+# Force use of our static FFmpeg libraries
+set(FFMPEG_LIBRARIES 
+    "/usr/local/lib/libavdevice.a"
+    "/usr/local/lib/libavfilter.a"
+    "/usr/local/lib/libavformat.a"
+    "/usr/local/lib/libavcodec.a"
+    "/usr/local/lib/libswresample.a"
+    "/usr/local/lib/libswscale.a"
+    "/usr/local/lib/libavutil.a"
+)
+
+# Check if FFmpeg is available and enable it
+if(EXISTS "/usr/local/include/libavformat/avformat.h")
+    message(STATUS "FFmpeg found - enabling FFmpeg backend")
+    add_definitions(-DHAVE_FFMPEG)
+else()
+    message(STATUS "FFmpeg not found - FFmpeg backend disabled")
 endif()
 
 # Include FFmpeg directories
@@ -76,6 +120,7 @@ qt_add_executable(openterfaceQT WIN32 MACOSX_BUNDLE
     host/multimediabackend.cpp host/multimediabackend.h
     host/backend/ffmpegbackendhandler.cpp host/backend/ffmpegbackendhandler.h
     host/backend/gstreamerbackendhandler.cpp host/backend/gstreamerbackendhandler.h
+    host/backend/qtmultimediabackendhandler.cpp host/backend/qtmultimediabackendhandler.h
     main.cpp
     regex/RegularExpression.cpp regex/RegularExpression.h
     resources/version.h
@@ -148,6 +193,17 @@ target_link_libraries(openterfaceQT PRIVATE
     ${EXTRA_LIBS}
 )
 
+# Add TurboJPEG if available
+if(TURBOJPEG_LIBRARY)
+    target_link_libraries(openterfaceQT PRIVATE ${TURBOJPEG_LIBRARIES})
+endif()
+
+# Add libjpeg libraries if available
+if(LIBJPEG_FOUND)
+    target_link_libraries(openterfaceQT PRIVATE ${LIBJPEG_LIBRARIES})
+    target_include_directories(openterfaceQT PRIVATE ${LIBJPEG_INCLUDE_DIRS})
+endif()
+
 # Add GStreamer libraries if available
 if(GSTREAMER_FOUND AND GSTREAMER_VIDEO_FOUND)
     target_link_libraries(openterfaceQT PRIVATE 
@@ -158,6 +214,12 @@ if(GSTREAMER_FOUND AND GSTREAMER_VIDEO_FOUND)
         ${GSTREAMER_INCLUDE_DIRS}
         ${GSTREAMER_VIDEO_INCLUDE_DIRS}
     )
+    
+    # Add ORC library if available (required by GStreamer video components)
+    if(ORC_FOUND)
+        target_link_libraries(openterfaceQT PRIVATE ${ORC_LIBRARIES})
+        target_include_directories(openterfaceQT PRIVATE ${ORC_INCLUDE_DIRS})
+    endif()
 endif()
 
 # Add DBus on Unix systems (excluding macOS)

@@ -87,13 +87,47 @@ if $BUILD_ENABLED; then
     cd "FFmpeg-n${FFMPEG_VERSION}"
     ./configure --prefix=/usr/local \
         --disable-shared \
+        --enable-static \
+        --enable-pic \
         --enable-gpl \
         --enable-version3 \
         --disable-nonfree \
         --disable-doc \
         --disable-programs \
-        --enable-pic \
-        --enable-static
+        --disable-network \
+        --disable-everything \
+        --enable-avcodec \
+        --enable-avformat \
+        --enable-avutil \
+        --enable-swscale \
+        --enable-swresample \
+        --enable-avdevice \
+        --enable-avfilter \
+        --enable-indev=v4l2 \
+        --enable-decoder=mjpeg \
+        --enable-decoder=rawvideo \
+        --enable-decoder=h264 \
+        --enable-decoder=hevc \
+        --enable-decoder=vp8 \
+        --enable-decoder=vp9 \
+        --enable-encoder=mjpeg \
+        --enable-encoder=rawvideo \
+        --enable-demuxer=v4l2 \
+        --enable-demuxer=mjpeg \
+        --enable-demuxer=rawvideo \
+        --enable-muxer=mjpeg \
+        --enable-muxer=rawvideo \
+        --enable-parser=mjpeg \
+        --enable-parser=h264 \
+        --enable-parser=hevc \
+        --enable-protocol=file \
+        --enable-filter=scale \
+        --enable-filter=format \
+        --enable-filter=null \
+        --enable-filter=anull \
+        --extra-cflags="-I/usr/include" \
+        --extra-ldflags="-L/usr/lib/aarch64-linux-gnu" \
+        --extra-libs="-ljpeg -lturbojpeg -lpthread -lm"
     make -j$(nproc)
 fi
 

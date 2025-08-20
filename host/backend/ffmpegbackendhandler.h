@@ -46,8 +46,7 @@ struct SwsContext;
 
 // Forward declarations for libjpeg-turbo (conditional compilation)
 #ifdef HAVE_LIBJPEG_TURBO
-struct jpeg_decompress_struct;
-struct jpeg_error_mgr;
+typedef void* tjhandle;
 #endif
 
 /**
@@ -82,6 +81,9 @@ public:
     bool startDirectCapture(const QString& devicePath, const QSize& resolution, int framerate);
     void stopDirectCapture();
     bool isDirectCaptureRunning() const;
+    
+    // Resolution and framerate configuration
+    void setResolutionAndFramerate(const QSize& resolution, int framerate);
     
     // Video output management
     void setVideoOutput(QGraphicsVideoItem* videoItem);
@@ -127,9 +129,8 @@ private:
 #endif
     
 #ifdef HAVE_LIBJPEG_TURBO
-    // libjpeg-turbo components
-    jpeg_decompress_struct* m_jpegDecompressor;
-    jpeg_error_mgr* m_jpegErrorManager;
+    // TurboJPEG components
+    tjhandle m_turboJpegHandle;
 #endif
     
     // State management
