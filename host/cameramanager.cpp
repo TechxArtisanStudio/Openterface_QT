@@ -355,33 +355,6 @@ void CameraManager::startCamera()
                     // For other backends (FFmpeg, etc.), use standard Qt camera approach
                     qCDebug(log_ui_camera) << "Using standard backend approach with Qt camera";
                     
-                    // For FFmpeg backend, ensure resolution and framerate are set before starting
-                    if (isFFmpegBackend()) {
-                        qCDebug(log_ui_camera) << "Ensuring FFmpeg backend has resolution and framerate before starting";
-                        
-                        // Make sure we have resolution information
-                        if (m_video_width <= 0 || m_video_height <= 0) {
-                            qCDebug(log_ui_camera) << "Resolution not set, querying resolutions first";
-                            queryResolutions();
-                        }
-                        
-                        // Get current resolution and framerate from HID device
-                        QPair<int, int> inputResolution = VideoHid::getInstance().getResolution();
-                        float inputFps = VideoHid::getInstance().getFps();
-                        
-                        QSize resolution = QSize(inputResolution.first > 0 ? inputResolution.first : 1920, 
-                                                inputResolution.second > 0 ? inputResolution.second : 1080);
-                        int framerate = inputFps > 0 ? static_cast<int>(inputFps) : 30;
-                        
-                        qCDebug(log_ui_camera) << "Setting FFmpeg resolution:" << resolution << "framerate:" << framerate;
-                        
-                        // Cast to FFmpeg backend handler to set resolution
-                        auto* ffmpegHandler = qobject_cast<FFmpegBackendHandler*>(m_backendHandler.get());
-                        if (ffmpegHandler) {
-                            ffmpegHandler->setResolutionAndFramerate(resolution, framerate);
-                        }
-                    }
-                    
                     // Prepare video output connection
                     if (m_graphicsVideoOutput) {
                         m_backendHandler->prepareVideoOutputConnection(&m_captureSession, m_graphicsVideoOutput);
@@ -1717,16 +1690,8 @@ bool CameraManager::initializeCameraWithVideoOutput(VideoPane* videoPane)
             
             // Start direct capture with Openterface device
             QString devicePath = "/dev/video0"; // Default, should be detected dynamically
-            
-            // Get actual resolution and framerate from HID device
-            QPair<int, int> inputResolution = VideoHid::getInstance().getResolution();
-            float inputFps = VideoHid::getInstance().getFps();
-            
-            QSize resolution(inputResolution.first > 0 ? inputResolution.first : 1920, 
-                            inputResolution.second > 0 ? inputResolution.second : 1080);
-            int framerate = inputFps > 0 ? static_cast<int>(inputFps) : 30;
-            
-            qDebug() << "FFmpeg: Using HID resolution:" << resolution << "framerate:" << framerate;
+            QSize resolution(1920, 1080); // Default resolution
+            int framerate = 30; // Default framerate
             
             // Try to detect Openterface device path
             QList<QCameraDevice> devices = getAvailableCameraDevices();
