@@ -89,6 +89,18 @@ set(FFMPEG_LIBRARIES
     "/usr/local/lib/libavutil.a"
 )
 
+# Add hardware acceleration libraries required by FFmpeg
+set(HWACCEL_LIBRARIES
+    va-drm
+    va-x11
+    va
+    vdpau
+    X11
+    atomic
+    pthread
+    m
+)
+
 # Check if FFmpeg is available and enable it
 if(EXISTS "/usr/local/include/libavformat/avformat.h")
     message(STATUS "FFmpeg found - enabling FFmpeg backend")
@@ -185,6 +197,8 @@ target_link_libraries(openterfaceQT PRIVATE
     Qt::SerialPort
     Qt::Svg
     ${FFMPEG_LIBRARIES}  # Link against FFmpeg libraries
+    ${HWACCEL_LIBRARIES} # Link against hardware acceleration libraries
+    ${X11_LIBRARIES}     # Link against X11 libraries
     ${EXPAT_LIBRARIES}
     ${FREETYPE_LIBRARIES}
     ${FONTCONFIG_LIBRARIES}
