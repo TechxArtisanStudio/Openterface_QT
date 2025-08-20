@@ -82,6 +82,9 @@ public:
     void stopDirectCapture();
     bool isDirectCaptureRunning() const;
     
+    // Resolution and framerate configuration
+    void setResolutionAndFramerate(const QSize& resolution, int framerate);
+    
     // Video output management
     void setVideoOutput(QGraphicsVideoItem* videoItem);
     void setVideoOutput(VideoPane* videoPane);

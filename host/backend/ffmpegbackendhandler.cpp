@@ -1118,6 +1118,19 @@ QPixmap FFmpegBackendHandler::convertFrameToPixmap(AVFrame* frame)
 
 #endif // HAVE_FFMPEG
 
+void FFmpegBackendHandler::setResolutionAndFramerate(const QSize& resolution, int framerate)
+{
+#ifdef HAVE_FFMPEG
+    qCDebug(log_ffmpeg_backend) << "FFmpeg: Setting resolution to" << resolution << "and framerate to" << framerate;
+    m_currentResolution = resolution;
+    m_currentFramerate = framerate;
+#else
+    Q_UNUSED(resolution);
+    Q_UNUSED(framerate);
+    qCWarning(log_ffmpeg_backend) << "FFmpeg not available: cannot set resolution and framerate";
+#endif
+}
+
 // Stub implementations when FFmpeg is not available
 #ifndef HAVE_FFMPEG
 bool FFmpegBackendHandler::startDirectCapture(const QString& devicePath, const QSize& resolution, int framerate)
