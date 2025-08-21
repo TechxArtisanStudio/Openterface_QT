@@ -1,0 +1,222 @@
+# Build GStreamer components
+ARG BASE_IMAGE=ghcr.io/kevinzjpeng/openterface-qt-ffmpeg:latest
+FROM ${BASE_IMAGE}
+
+WORKDIR ${WORK_DIR}
+
+# Create GStreamer build directories
+RUN mkdir -p "${WORK_DIR}/gstreamer_sources" "${WORK_DIR}/gstreamer_build"
+
+# Set up environment for GStreamer
+ENV PKG_CONFIG_PATH="${WORK_DIR}/gstreamer_build/lib/pkgconfig:${FFMPEG_PREFIX}/lib/pkgconfig:${PKG_CONFIG_PATH}"
+
+# Build static ORC library (required for GStreamer static linking)
+RUN echo "Building static ORC library..." && \
+    mkdir -p "${WORK_DIR}/orc_sources" "${WORK_DIR}/orc_build" && \
+    cd "${WORK_DIR}/orc_sources" && \
+    wget https://gstreamer.freedesktop.org/src/orc/orc-0.4.33.tar.xz && \
+    tar -xf orc-0.4.33.tar.xz && \
+    rm orc-0.4.33.tar.xz && \
+    cd orc-0.4.33 && \
+    meson setup build --prefix=/opt/orc-static --default-library=static && \
+    ninja -C build && \
+    ninja -C build install && \
+    cd "${WORK_DIR}" && \
+    rm -rf orc_sources
+
+# Update PKG_CONFIG_PATH to include ORC
+RUN ORC_PKG_DIRS=$(find /opt/orc-static -type d -path "*/pkgconfig" 2>/dev/null || true) && \
+    for d in $ORC_PKG_DIRS; do \
+        export PKG_CONFIG_PATH="$d:${PKG_CONFIG_PATH}"; \
+    done
+
+# Download GStreamer components
+WORKDIR ${WORK_DIR}/gstreamer_sources
+
+RUN echo "Downloading GStreamer core..." && \
+    wget https://gstreamer.freedesktop.org/src/gstreamer/gstreamer-${GSTREAMER_VERSION}.tar.xz && \
+    tar xf gstreamer-${GSTREAMER_VERSION}.tar.xz && \
+    rm gstreamer-${GSTREAMER_VERSION}.tar.xz
+
+RUN echo "Downloading gst-plugins-base..." && \
+    wget https://gstreamer.freedesktop.org/src/gst-plugins-base/gst-plugins-base-${GSTREAMER_VERSION}.tar.xz && \
+    tar xf gst-plugins-base-${GSTREAMER_VERSION}.tar.xz && \
+    rm gst-plugins-base-${GSTREAMER_VERSION}.tar.xz
+
+RUN echo "Downloading gst-plugins-good..." && \
+    wget https://gstreamer.freedesktop.org/src/gst-plugins-good/gst-plugins-good-${GSTREAMER_VERSION}.tar.xz && \
+    tar xf gst-plugins-good-${GSTREAMER_VERSION}.tar.xz && \
+    rm gst-plugins-good-${GSTREAMER_VERSION}.tar.xz
+
+RUN echo "Downloading gst-plugins-bad..." && \
+    wget https://gstreamer.freedesktop.org/src/gst-plugins-bad/gst-plugins-bad-${GSTREAMER_VERSION}.tar.xz && \
+    tar xf gst-plugins-bad-${GSTREAMER_VERSION}.tar.xz && \
+    rm gst-plugins-bad-${GSTREAMER_VERSION}.tar.xz
+
+# Build GStreamer core
+RUN echo "Building GStreamer core..." && \
+    cd gstreamer-${GSTREAMER_VERSION} && \
+    meson setup build \
+        --prefix="${WORK_DIR}/gstreamer_build" \
+        --libdir=lib \
+        --default-library=static \
+        -Dexamples=disabled \
+        -Dtests=disabled \
+        -Dbenchmarks=disabled \
+        -Dtools=disabled \
+        -Ddoc=disabled \
+        -Dgst_debug=false \
+        -Dnls=disabled && \
+    ninja -C build && \
+    ninja -C build install && \
+    cd ..
+
+# Update PKG_CONFIG_PATH after GStreamer core installation
+RUN GST_PKG_DIRS=$(find "${WORK_DIR}/gstreamer_build" -type d -path "*/pkgconfig" 2>/dev/null || true) && \
+    for d in $GST_PKG_DIRS; do \
+        export PKG_CONFIG_PATH="$d:${PKG_CONFIG_PATH}"; \
+    done
+
+# Build gst-plugins-base
+RUN echo "Building gst-plugins-base..." && \
+    cd gst-plugins-base-${GSTREAMER_VERSION} && \
+    meson setup build \
+        --prefix="${WORK_DIR}/gstreamer_build" \
+        --libdir=lib \
+        --default-library=static \
+        -Dexamples=disabled \
+        -Dtests=disabled \
+        -Ddoc=disabled \
+        -Dtools=disabled \
+        -Dalsa=enabled \
+        -Dcdparanoia=disabled \
+        -Dlibvisual=disabled \
+        -Dorc=enabled \
+        -Dtremor=disabled \
+        -Dvorbis=enabled \
+        -Dx11=enabled \
+        -Dxshm=enabled \
+        -Dxvideo=enabled \
+        -Dgl=enabled \
+        -Dgl_platform=glx \
+        -Dgl_winsys=x11 \
+        -Dvideotestsrc=enabled \
+        -Dapp=enabled \
+        -Daudioconvert=enabled \
+        -Daudioresample=enabled \
+        -Dtypefind=enabled \
+        -Dplayback=enabled \
+        -Dsubparse=enabled \
+        -Dencoding=enabled \
+        -Dcompositor=enabled \
+        -Doverlaycomposition=enabled \
+        -Dpbtypes=enabled \
+        -Dnls=disabled && \
+    ninja -C build && \
+    ninja -C build install && \
+    cd ..
+
+# Build gst-plugins-good
+RUN echo "Building gst-plugins-good..." && \
+    cd gst-plugins-good-${GSTREAMER_VERSION} && \
+    meson setup build \
+        --prefix="${WORK_DIR}/gstreamer_build" \
+        --libdir=lib \
+        --default-library=static \
+        -Dexamples=disabled \
+        -Dtests=disabled \
+        -Ddoc=disabled \
+        -Dqt5=disabled \
+        -Dqt6=disabled \
+        -Dalpha=disabled \
+        -Dapetag=disabled \
+        -Daudiofx=disabled \
+        -Dcutter=disabled \
+        -Ddebugutils=disabled \
+        -Ddeinterlace=disabled \
+        -Ddtmf=disabled \
+        -Deffectv=disabled \
+        -Dequalizer=disabled \
+        -Dgoom=disabled \
+        -Dgoom2k1=disabled \
+        -Dgtk3=disabled \
+        -Dicydemux=disabled \
+        -Dimagefreeze=disabled \
+        -Dinterleave=disabled \
+        -Disomp4=disabled \
+        -Dlaw=disabled \
+        -Dlevel=disabled \
+        -Dmatroska=disabled \
+        -Dmonoscope=disabled \
+        -Dmultifile=disabled \
+        -Dmultipart=disabled \
+        -Dreplaygain=disabled \
+        -Drtp=enabled \
+        -Drtpmanager=enabled \
+        -Drtsp=enabled \
+        -Dshapewipe=disabled \
+        -Dsmpte=disabled \
+        -Dspectrum=disabled \
+        -Dudp=enabled \
+        -Dvideobox=disabled \
+        -Dvideocrop=enabled \
+        -Dvideofilter=enabled \
+        -Dvideomixer=disabled \
+        -Dwavenc=disabled \
+        -Dwavparse=disabled \
+        -Dy4m=disabled \
+        -Doss=disabled \
+        -Doss4=disabled \
+        -Dv4l2=enabled \
+        -Dximagesrc=disabled \
+        -Dnls=disabled && \
+    ninja -C build && \
+    ninja -C build install && \
+    cd ..
+
+# Build gst-plugins-bad
+RUN echo "Building gst-plugins-bad..." && \
+    cd gst-plugins-bad-${GSTREAMER_VERSION} && \
+    meson setup build \
+        --prefix="${WORK_DIR}/gstreamer_build" \
+        --libdir=lib \
+        --default-library=static \
+        -Dexamples=disabled \
+        -Dtests=disabled \
+        -Ddoc=disabled \
+        -Dnls=disabled && \
+    ninja -C build && \
+    ninja -C build install && \
+    cd ..
+
+# Copy GStreamer libraries and headers to Qt installation directory
+RUN echo "Copying GStreamer libraries to ${INSTALL_PREFIX}..." && \
+    mkdir -p ${INSTALL_PREFIX}/lib ${INSTALL_PREFIX}/include ${INSTALL_PREFIX}/lib/gstreamer-1.0 && \
+    cp -a ${WORK_DIR}/gstreamer_build/lib/. ${INSTALL_PREFIX}/lib/ && \
+    cp -a ${WORK_DIR}/gstreamer_build/include/. ${INSTALL_PREFIX}/include/ && \
+    \
+    # Copy additional headers from build directories
+    mkdir -p ${INSTALL_PREFIX}/include/gstreamer-1.0/gst/video && \
+    mkdir -p ${INSTALL_PREFIX}/include/gstreamer-1.0/gst/audio && \
+    mkdir -p ${INSTALL_PREFIX}/include/gstreamer-1.0/gst/rtp && \
+    mkdir -p ${INSTALL_PREFIX}/include/gstreamer-1.0/gst/pbutils && \
+    mkdir -p ${INSTALL_PREFIX}/include/gstreamer-1.0/gst/tag && \
+    \
+    # Copy generated headers
+    cp gst-plugins-base-${GSTREAMER_VERSION}/build/gst-libs/gst/video/video-enumtypes.h ${INSTALL_PREFIX}/include/gstreamer-1.0/gst/video/ 2>/dev/null || true && \
+    cp gst-plugins-base-${GSTREAMER_VERSION}/build/gst-libs/gst/video/video-orc.h ${INSTALL_PREFIX}/include/gstreamer-1.0/gst/video/ 2>/dev/null || true && \
+    cp gst-plugins-base-${GSTREAMER_VERSION}/build/gst-libs/gst/audio/audio-enumtypes.h ${INSTALL_PREFIX}/include/gstreamer-1.0/gst/audio/ 2>/dev/null || true && \
+    cp gst-plugins-base-${GSTREAMER_VERSION}/build/gst-libs/gst/rtp/gstrtp-enumtypes.h ${INSTALL_PREFIX}/include/gstreamer-1.0/gst/rtp/ 2>/dev/null || true && \
+    cp gst-plugins-base-${GSTREAMER_VERSION}/build/gst-libs/gst/pbutils/pbutils-enumtypes.h ${INSTALL_PREFIX}/include/gstreamer-1.0/gst/pbutils/ 2>/dev/null || true && \
+    cp gst-plugins-base-${GSTREAMER_VERSION}/build/gst-libs/gst/tag/tag-enumtypes.h ${INSTALL_PREFIX}/include/gstreamer-1.0/gst/tag/ 2>/dev/null || true && \
+    \
+    # Copy all static libraries
+    find ${WORK_DIR}/gstreamer_sources -name "libgst*.a" -exec cp {} ${INSTALL_PREFIX}/lib/gstreamer-1.0/ \; 2>/dev/null || true
+
+# Update environment for Qt building
+ENV PKG_CONFIG_PATH="${INSTALL_PREFIX}/lib/pkgconfig:${PKG_CONFIG_PATH}"
+
+# Clean up source files but keep build results
+RUN cd ${WORK_DIR} && rm -rf gstreamer_sources
+
+WORKDIR /workspace
