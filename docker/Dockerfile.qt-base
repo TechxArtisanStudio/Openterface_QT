@@ -91,21 +91,32 @@ RUN apt-get update && \
      apt-get install -y clang llvm-dev libclang-dev) \
     && rm -rf /var/lib/apt/lists/*
 
-# Install development libraries for GStreamer (optional packages)
+# Install development libraries for GStreamer (split into essential and optional)
 RUN apt-get update && apt-get install -y \
     libglib2.0-dev \
-    libgobject-2.0-dev \
     libc6-dev \
-    libudev-dev \
-    libxv-dev \
-    liborc-0.4-dev \
-    libpcre2-dev \
-    libffi-dev \
-    libmount-dev \
-    libblkid-dev \
-    libvorbis-dev \
-    libtheora-dev \
     zlib1g-dev \
+    libffi-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install additional GStreamer dependencies (with fallbacks)
+RUN apt-get update && \
+    apt-get install -y \
+        libudev-dev \
+        libpcre2-dev \
+        libmount-dev \
+        libblkid-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Try to install optional multimedia packages (continue on failure)
+RUN apt-get update && \
+    (apt-get install -y \
+        libgobject-2.0-dev \
+        libxv-dev \
+        liborc-0.4-dev \
+        libvorbis-dev \
+        libtheora-dev \
+    || echo "Some optional multimedia packages failed to install, continuing...") \
     && rm -rf /var/lib/apt/lists/*
 
 # Try to install additional optional packages (continue on failure)
