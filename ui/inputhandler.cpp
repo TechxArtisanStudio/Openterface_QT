@@ -5,6 +5,9 @@
 #include <QGuiApplication>
 #include <QScreen>
 
+
+Q_LOGGING_CATEGORY(log_ui_input, "opf.ui.input")
+
 InputHandler::InputHandler(VideoPane *videoPane, QObject *parent)
     : QObject(parent), m_videoPane(videoPane), m_currentEventTarget(nullptr)
 {
@@ -78,15 +81,15 @@ bool InputHandler::eventFilter(QObject *watched, QEvent *event)
 {
     // Debug: Log all events to see what we're receiving
     if (watched == m_videoPane || watched == m_currentEventTarget) {
-        // qDebug() << "InputHandler::eventFilter - Event type:" << event->type() 
-        //          << "watched object:" << watched 
-        //          << "current target:" << m_currentEventTarget
-        //          << "GStreamer mode:" << (m_videoPane ? m_videoPane->isDirectGStreamerModeEnabled() : false);
+        qCDebug(log_ui_input) << "InputHandler::eventFilter - Event type:" << event->type() 
+                 << "watched object:" << watched 
+                 << "current target:" << m_currentEventTarget
+                 << "GStreamer mode:" << (m_videoPane ? m_videoPane->isDirectGStreamerModeEnabled() : false);
     }
     
     if (event->type() == QEvent::MouseMove) {
         QMouseEvent *mouseEvent = static_cast<QMouseEvent*>(event);
-        qDebug() << "InputHandler::eventFilter - MouseMove detected, calling handleMouseMoveEvent";
+        qCDebug(log_ui_input) << "InputHandler::eventFilter - MouseMove detected, calling handleMouseMoveEvent";
         handleMouseMoveEvent(mouseEvent);
         return true;
     }
@@ -108,13 +111,13 @@ bool InputHandler::eventFilter(QObject *watched, QEvent *event)
     if (event->type() == QEvent::Enter) {
         if (GlobalVar::instance().isMouseAutoHideEnabled() && m_videoPane) {
             m_videoPane->setCursor(Qt::BlankCursor);
-            qDebug() << "Mouse entered VideoPane - hiding cursor";
+            qCDebug(log_ui_input) << "Mouse entered VideoPane - hiding cursor";
         }
     }
     if (event->type() == QEvent::Leave) {
         if (GlobalVar::instance().isMouseAutoHideEnabled() && m_videoPane) {
             m_videoPane->setCursor(Qt::ArrowCursor);
-            qDebug() << "Mouse left VideoPane - showing cursor";
+            qCDebug(log_ui_input) << "Mouse left VideoPane - showing cursor";
         }
     }
     if ((watched == m_videoPane || watched == m_currentEventTarget) && event->type() == QEvent::KeyPress) {
@@ -145,14 +148,14 @@ void InputHandler::handleMouseMoveEvent(QMouseEvent *event)
     QScopedPointer<MouseEventDTO> eventDto(calculateMouseEventDto(event));
     eventDto->setMouseButton(isDragging() ? lastMouseButton : 0);
 
-    qDebug() << "InputHandler::handleMouseMoveEvent - pos:" << event->pos() 
+    qCDebug(log_ui_input) << "InputHandler::handleMouseMoveEvent - pos:" << event->pos() 
              << "absolute mode:" << eventDto->isAbsoluteMode() 
              << "relative mode enabled:" << m_videoPane->isRelativeModeEnabled()
              << "x:" << eventDto->getX() << "y:" << eventDto->getY();
 
     //Only handle the event if it's under absolute mouse control or relative mode is enabled
     if(!eventDto->isAbsoluteMode() && !m_videoPane->isRelativeModeEnabled()) {
-        qDebug() << "InputHandler: Mouse move event rejected - not in correct mode";
+        qCDebug(log_ui_input) << "InputHandler: Mouse move event rejected - not in correct mode";
         return;
     }
 
@@ -207,7 +210,7 @@ void InputHandler::handleKeyPressEvent(QKeyEvent *event)
     HostManager::getInstance().handleKeyPress(event);
 
     if(!m_holdingEsc && event->key() == Qt::Key_Escape && !GlobalVar::instance().isAbsoluteMouseMode()) {
-        qDebug() << "Esc Pressed, timer started";
+        qCDebug(log_ui_input) << "Esc Pressed, timer started";
         m_holdingEsc = true;
         m_videoPane->startEscTimer();
     }
@@ -218,7 +221,7 @@ void InputHandler::handleKeyReleaseEvent(QKeyEvent *event)
     HostManager::getInstance().handleKeyRelease(event);
 
     if(m_holdingEsc && event->key() == Qt::Key_Escape && !GlobalVar::instance().isAbsoluteMouseMode()) {
-        qDebug() << "Esc Released, timer stop";
+        qCDebug(log_ui_input) << "Esc Released, timer stop";
         m_videoPane->stopEscTimer();
         m_holdingEsc = false;
     }
@@ -262,7 +265,7 @@ void InputHandler::updateEventFilterTarget()
         if (m_currentEventTarget != overlayWidget) {
             removeOverlayEventFilter();
             installOverlayEventFilter(overlayWidget);
-            qDebug() << "InputHandler: Switched event filter to GStreamer overlay widget";
+            qCDebug(log_ui_input) << "InputHandler: Switched event filter to GStreamer overlay widget";
         }
     } else {
         // Switch back to main VideoPane
@@ -270,7 +273,7 @@ void InputHandler::updateEventFilterTarget()
             removeOverlayEventFilter();
             m_videoPane->installEventFilter(this);
             m_currentEventTarget = m_videoPane;
-            qDebug() << "InputHandler: Switched event filter back to VideoPane";
+            qCDebug(log_ui_input) << "InputHandler: Switched event filter back to VideoPane";
         }
     }
 }
@@ -289,7 +292,7 @@ void InputHandler::installOverlayEventFilter(QWidget* overlayWidget)
         overlayWidget->setFocusPolicy(Qt::StrongFocus);
         m_currentEventTarget = overlayWidget;
         
-        qDebug() << "InputHandler: Installed event filter on overlay widget";
+        qCDebug(log_ui_input) << "InputHandler: Installed event filter on overlay widget";
     }
 }
 
@@ -311,13 +314,11 @@ QPoint InputHandler::transformMousePosition(QMouseEvent *event, QWidget* sourceW
     // If the event is from the overlay widget and we need coordinates relative to VideoPane
     if (sourceWidget != m_videoPane && m_videoPane->isDirectGStreamerModeEnabled()) {
         // The overlay widget should have the same coordinate system as the VideoPane
-        // since it's positioned to fill the VideoPane, but we still need to transform
-        // the coordinates to account for video scaling, zoom, and pan
-        return m_videoPane->getTransformedMousePosition(event->pos());
+        // since it's positioned to fill the VideoPane
+        return event->pos();
     }
     
-    // For events from the VideoPane itself, use the VideoPane's transformation
-    return m_videoPane->getTransformedMousePosition(event->pos());
+    return event->pos();
 }
 
 QWidget* InputHandler::getEffectiveVideoWidget() const

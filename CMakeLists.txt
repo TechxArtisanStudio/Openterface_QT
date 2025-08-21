@@ -40,25 +40,143 @@ find_package(BZip2 REQUIRED)
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(XRENDER REQUIRED xrender)
 
-# Check for GStreamer and its dependencies
-pkg_check_modules(GSTREAMER gstreamer-1.0)
+# Find additional packages required for static GStreamer linking
+pkg_check_modules(GUDEV REQUIRED gudev-1.0)
+pkg_check_modules(V4L2 REQUIRED libv4l2)
+
+# Find X11 extension libraries
+find_library(XI_LIBRARY Xi REQUIRED)
+find_library(XV_LIBRARY Xv REQUIRED)
+
+# Find ORC library for GStreamer
 pkg_check_modules(ORC orc-0.4)
 
-if(GSTREAMER_FOUND)
-    pkg_check_modules(GSTREAMER_VIDEO gstreamer-video-1.0)
-    if(GSTREAMER_VIDEO_FOUND)
-        message(STATUS "GStreamer found - enabling direct pipeline support")
-        add_definitions(-DHAVE_GSTREAMER)
-        if(ORC_FOUND)
-            message(STATUS "ORC library found - will link for GStreamer support")
+# Check for GStreamer (prefer static build from Qt6-arm64)
+if(DEFINED QT_TARGET_DIR AND QT_TARGET_DIR)
+    set(GSTREAMER_ROOT_DIR "${QT_TARGET_DIR}")
+else()
+    set(GSTREAMER_ROOT_DIR "/opt/Qt6-arm64")
+endif()
+set(GSTREAMER_INCLUDE_DIR "${GSTREAMER_ROOT_DIR}/include/gstreamer-1.0")
+set(GSTREAMER_VIDEO_INCLUDE_DIR "${GSTREAMER_ROOT_DIR}/include/gstreamer-1.0")
+set(GLIB_INCLUDE_DIR "${GSTREAMER_ROOT_DIR}/include/glib-2.0")
+set(GLIB_CONFIG_INCLUDE_DIR "${GSTREAMER_ROOT_DIR}/lib/glib-2.0/include")
+
+# Check if GStreamer headers exist in the static build location
+if(EXISTS "${GSTREAMER_INCLUDE_DIR}/gst/gst.h" AND EXISTS "${GSTREAMER_VIDEO_INCLUDE_DIR}/gst/video/videooverlay.h")
+    message(STATUS "GStreamer static build found - enabling direct pipeline support")
+    add_definitions(-DHAVE_GSTREAMER)
+    
+    # Set GStreamer variables for static linking
+    set(GSTREAMER_FOUND TRUE)
+    set(GSTREAMER_VIDEO_FOUND TRUE)
+    
+    # Set include directories for static GStreamer
+    set(GSTREAMER_INCLUDE_DIRS 
+        "${GSTREAMER_INCLUDE_DIR}"
+        "${GLIB_INCLUDE_DIR}"
+        "${GLIB_CONFIG_INCLUDE_DIR}"
+    )
+    
+    # Set static GStreamer libraries (using system GLib)
+    set(GSTREAMER_LIBRARIES
+        "${GSTREAMER_ROOT_DIR}/lib/libgstreamer-1.0.a"
+        "${GSTREAMER_ROOT_DIR}/lib/libgstbase-1.0.a"
+        "${GSTREAMER_ROOT_DIR}/lib/libgstcontroller-1.0.a"
+        "${GSTREAMER_ROOT_DIR}/lib/libgstnet-1.0.a"
+    )
+    
+    set(GSTREAMER_VIDEO_LIBRARIES
+        "${GSTREAMER_ROOT_DIR}/lib/libgstvideo-1.0.a"
+        "${GSTREAMER_ROOT_DIR}/lib/libgstaudio-1.0.a"
+        "${GSTREAMER_ROOT_DIR}/lib/libgsttag-1.0.a"
+        "${GSTREAMER_ROOT_DIR}/lib/libgstpbutils-1.0.a"
+        "${GSTREAMER_ROOT_DIR}/lib/libgstapp-1.0.a"
+        "${GSTREAMER_ROOT_DIR}/lib/libgstgl-1.0.a"
+        "${GSTREAMER_ROOT_DIR}/lib/libgstriff-1.0.a"
+        "${GSTREAMER_ROOT_DIR}/lib/libgstrtp-1.0.a"
+        "${GSTREAMER_ROOT_DIR}/lib/libgstrtsp-1.0.a"
+        "${GSTREAMER_ROOT_DIR}/lib/libgstsdp-1.0.a"
+    )
+    
+    # Add static GStreamer plugin libraries that need to be linked
+    set(GSTREAMER_PLUGIN_LIBRARIES
+        "${GSTREAMER_ROOT_DIR}/lib/gstreamer-1.0/libgstvideo4linux2.a"  # v4l2src plugin
+        "${GSTREAMER_ROOT_DIR}/lib/gstreamer-1.0/libgstcoreelements.a"  # queue, capsfilter, etc.
+        "${GSTREAMER_ROOT_DIR}/lib/gstreamer-1.0/libgstvideoconvertscale.a"  # videoconvert, videoscale
+        "${GSTREAMER_ROOT_DIR}/lib/gstreamer-1.0/libgsttypefindfunctions.a"  # typefind elements
+        "${GSTREAMER_ROOT_DIR}/lib/gstreamer-1.0/libgstvideofilter.a"    # video filter base
+        "${GSTREAMER_ROOT_DIR}/lib/gstreamer-1.0/libgstvideotestsrc.a"   # videotestsrc
+        "${GSTREAMER_ROOT_DIR}/lib/gstreamer-1.0/libgstjpeg.a"           # jpegdec, jpegenc
+        "${GSTREAMER_ROOT_DIR}/lib/gstreamer-1.0/libgstximagesink.a"     # ximagesink
+        "${GSTREAMER_ROOT_DIR}/lib/gstreamer-1.0/libgstxvimagesink.a"    # xvimagesink
+        "${GSTREAMER_ROOT_DIR}/lib/gstreamer-1.0/libgstautodetect.a"     # autovideosink
+    )
+    
+    # Add system GLib libraries using pkg-config
+    pkg_check_modules(GLIB_PKG REQUIRED glib-2.0 gobject-2.0 gio-2.0)
+    if(GLIB_PKG_FOUND)
+        list(APPEND GSTREAMER_LIBRARIES ${GLIB_PKG_LIBRARIES})
+        list(APPEND GSTREAMER_INCLUDE_DIRS ${GLIB_PKG_INCLUDE_DIRS})
+        message(STATUS "Using system GLib libraries: ${GLIB_PKG_LIBRARIES}")
+    endif()
+    
+    # Add additional system libraries that GStreamer needs
+    list(APPEND GSTREAMER_LIBRARIES
+        z
+        m
+        pthread
+        dl
+        rt
+        # Additional GStreamer dependencies for static linking
+        ffi
+        mount
+        blkid
+        resolv
+        gmodule-2.0
+        gobject-2.0
+        glib-2.0
+        pcre2-8
+        orc-0.4
+        # Required for v4l2 plugin static linking
+        ${V4L2_LIBRARIES}  # Video4Linux2 utilities
+        udev              # Device enumeration
+        ${GUDEV_LIBRARIES} # GUdev for device monitoring
+        # Required for X11 video sinks
+        ${XI_LIBRARY}     # X11 Input extension
+        ${XV_LIBRARY}     # X11 Video extension
+    )
+    
+    message(STATUS "Using static GStreamer from: ${GSTREAMER_ROOT_DIR}")
+    message(STATUS "GStreamer include dirs: ${GSTREAMER_INCLUDE_DIRS}")
+else()
+    # Fallback to system GStreamer using pkg-config
+    pkg_check_modules(GSTREAMER gstreamer-1.0)
+    if(GSTREAMER_FOUND)
+        pkg_check_modules(GSTREAMER_VIDEO gstreamer-video-1.0)
+        if(GSTREAMER_VIDEO_FOUND)
+            message(STATUS "System GStreamer found - enabling direct pipeline support")
+            add_definitions(-DHAVE_GSTREAMER)
+            
+            if(ORC_FOUND)
+                message(STATUS "ORC library found - will link for GStreamer support")
+            else()
+                message(WARNING "ORC library not found - GStreamer may have linking issues")
+            endif()
+
+            # Also check for system GStreamer to ensure we have all headers
+            pkg_check_modules(PC_GSTREAMER_VIDEO gstreamer-video-1.0 IMPORTED_TARGET)
+            
+            # Prefer system include directories for headers
+            if(PC_GSTREAMER_VIDEO_FOUND)
+                message(STATUS "Using system GStreamer video includes: ${PC_GSTREAMER_VIDEO_INCLUDE_DIRS}")
+            endif()
         else()
-            message(WARNING "ORC library not found - GStreamer may have linking issues")
+            message(STATUS "GStreamer video not found - using fallback mode")
         endif()
     else()
-        message(STATUS "GStreamer video not found - using fallback mode")
+        message(STATUS "GStreamer not found - using QProcess fallback")
     endif()
-else()
-    message(STATUS "GStreamer not found - using QProcess fallback")
 endif()
 
 # Check for libjpeg-turbo (preferred for performance)
@@ -204,6 +322,7 @@ target_link_libraries(openterfaceQT PRIVATE
     ${FONTCONFIG_LIBRARIES}
     ${XRENDER_LIBRARIES}
     ${BZIP2_LIBRARIES}
+    /opt/orc-static/lib/aarch64-linux-gnu/liborc-0.4.a  # Static ORC library
     ${EXTRA_LIBS}
 )
 
@@ -220,15 +339,50 @@ endif()
 
 # Add GStreamer libraries if available
 if(GSTREAMER_FOUND AND GSTREAMER_VIDEO_FOUND)
-    target_link_libraries(openterfaceQT PRIVATE 
-        ${GSTREAMER_LIBRARIES}
-        ${GSTREAMER_VIDEO_LIBRARIES}
-    )
-    target_include_directories(openterfaceQT PRIVATE 
-        ${GSTREAMER_INCLUDE_DIRS}
-        ${GSTREAMER_VIDEO_INCLUDE_DIRS}
-    )
-    
+    if(EXISTS "${GSTREAMER_ROOT_DIR}/include/gstreamer-1.0/gst/gst.h")
+        # Add static ORC include path and library path
+        target_include_directories(openterfaceQT PRIVATE 
+            ${GSTREAMER_INCLUDE_DIRS}
+            /opt/orc-static/include/orc-0.4
+            ${GUDEV_INCLUDE_DIRS}
+            ${V4L2_INCLUDE_DIRS}
+        )
+        
+        # Static GStreamer linking with proper library grouping
+        target_link_libraries(openterfaceQT PRIVATE 
+            -Wl,--whole-archive
+            /opt/orc-static/lib/aarch64-linux-gnu/liborc-0.4.a
+            -Wl,--no-whole-archive
+            -Wl,--start-group
+            ${GSTREAMER_LIBRARIES}
+            ${GSTREAMER_VIDEO_LIBRARIES}
+            ${GSTREAMER_PLUGIN_LIBRARIES}
+            -Wl,--end-group
+            -lm -pthread
+        )
+        
+        message(STATUS "Added static GStreamer libraries and include directories")
+    else()
+        # System GStreamer linking
+        target_link_libraries(openterfaceQT PRIVATE 
+            ${GSTREAMER_LIBRARIES}
+            ${GSTREAMER_VIDEO_LIBRARIES}
+        )
+        
+        # Use system include directories for better header compatibility
+        if(PC_GSTREAMER_VIDEO_FOUND)
+            target_include_directories(openterfaceQT PRIVATE 
+                ${PC_GSTREAMER_VIDEO_INCLUDE_DIRS}
+            )
+            message(STATUS "Added system GStreamer video include directories")
+        else()
+            target_include_directories(openterfaceQT PRIVATE 
+                ${GSTREAMER_INCLUDE_DIRS}
+                ${GSTREAMER_VIDEO_INCLUDE_DIRS}
+            )
+        endif()
+    endif()
+        
     # Add ORC library if available (required by GStreamer video components)
     if(ORC_FOUND)
         target_link_libraries(openterfaceQT PRIVATE ${ORC_LIBRARIES})
@@ -426,7 +580,6 @@ if(UNIX)
             ${drivers_resource_files}
     )
 endif()
-
 
 install(TARGETS openterfaceQT
     BUNDLE DESTINATION .

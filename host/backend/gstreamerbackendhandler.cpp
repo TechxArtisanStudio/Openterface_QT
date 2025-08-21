@@ -22,6 +22,7 @@
 
 #include "gstreamerbackendhandler.h"
 #include "../../ui/videopane.h"
+#include "../../ui/globalsetting.h"
 #include <QThread>
 #include <QApplication>
 #include <QDebug>
@@ -40,6 +41,21 @@ Q_LOGGING_CATEGORY(log_gstreamer_backend, "opf.backend.gstreamer")
 #ifdef HAVE_GSTREAMER
 #include <gst/gst.h>
 #include <gst/video/videooverlay.h>
+
+// Static plugin registration declarations for static linking
+extern "C" {
+    // Core GStreamer plugins needed for video pipeline
+    void gst_plugin_coreelements_register(void);      // queue, capsfilter, tee, etc.
+    void gst_plugin_typefindfunctions_register(void); // typefind for format detection
+    void gst_plugin_videoconvertscale_register(void); // videoconvert, videoscale
+    void gst_plugin_video4linux2_register(void);      // v4l2src plugin
+    void gst_plugin_jpeg_register(void);              // jpegdec, jpegenc
+    void gst_plugin_videofilter_register(void);       // video filter base
+    void gst_plugin_videotestsrc_register(void);      // videotestsrc for testing
+    void gst_plugin_ximagesink_register(void);        // ximagesink
+    void gst_plugin_xvimagesink_register(void);       // xvimagesink
+    void gst_plugin_autodetect_register(void);        // autovideosink
+}
 #endif
 
 GStreamerBackendHandler::GStreamerBackendHandler(QObject *parent)
@@ -351,17 +367,17 @@ bool GStreamerBackendHandler::createGStreamerPipeline(const QString& device, con
     
     if (!m_pipeline || error) {
         QString errorMsg = error ? error->message : "Unknown error creating pipeline";
-        qCWarning(log_gstreamer_backend) << "Failed to create flexible pipeline:" << errorMsg;
+        qCWarning(log_gstreamer_backend) << "Failed to create primary pipeline:" << errorMsg;
         if (error) g_error_free(error);
         
-        // Try fallback with MJPG format
+        // Try fallback with MJPG format and different sink
         qCDebug(log_gstreamer_backend) << "Trying MJPG fallback pipeline...";
         QString mjpgPipeline = QString(
             "v4l2src device=%1 ! "
             "image/jpeg,width=%2,height=%3,framerate=%4/1 ! "
             "jpegdec ! "
             "videoconvert ! "
-            "xvimagesink name=videosink"
+            "autovideosink"
         ).arg(device)
          .arg(resolution.width())
          .arg(resolution.height())
@@ -375,14 +391,14 @@ bool GStreamerBackendHandler::createGStreamerPipeline(const QString& device, con
             qCWarning(log_gstreamer_backend) << "Failed to create MJPG pipeline:" << mjpgErrorMsg;
             if (error) g_error_free(error);
             
-            // Try even more conservative pipeline with smaller resolution
+            // Try even more conservative pipeline with smaller resolution and autosink
             qCDebug(log_gstreamer_backend) << "Trying conservative 1280x720 pipeline...";
             QString conservativePipeline = QString(
                 "v4l2src device=%1 ! "
                 "image/jpeg,width=1280,height=720,framerate=30/1 ! "
                 "jpegdec ! "
                 "videoconvert ! "
-                "xvimagesink name=videosink"
+                "autovideosink"
             ).arg(device);
             
             error = nullptr;
@@ -403,14 +419,32 @@ bool GStreamerBackendHandler::createGStreamerPipeline(const QString& device, con
         qCDebug(log_gstreamer_backend) << "Flexible pipeline created successfully";
     }
     
-    // Get bus for message handling
+    // Get bus for message handling with proper validation
     m_bus = gst_element_get_bus(m_pipeline);
     if (m_bus) {
         gst_bus_add_signal_watch(m_bus);
+        qCDebug(log_gstreamer_backend) << "GStreamer bus initialized successfully";
         // Connect to Qt's signal system would require additional setup
+    } else {
+        qCWarning(log_gstreamer_backend) << "Failed to get GStreamer bus - error reporting will be limited";
     }
     
-    qCDebug(log_gstreamer_backend) << "GStreamer pipeline created successfully";
+    // Final validation - ensure pipeline is actually usable
+    if (!m_pipeline) {
+        qCCritical(log_gstreamer_backend) << "Pipeline is null after creation attempts";
+        return false;
+    }
+    
+    // Test if pipeline can reach NULL state (basic sanity check)
+    GstStateChangeReturn testRet = gst_element_set_state(m_pipeline, GST_STATE_NULL);
+    if (testRet == GST_STATE_CHANGE_FAILURE) {
+        qCCritical(log_gstreamer_backend) << "Pipeline failed basic state change test";
+        gst_object_unref(m_pipeline);
+        m_pipeline = nullptr;
+        return false;
+    }
+    
+    qCDebug(log_gstreamer_backend) << "GStreamer pipeline created and validated successfully";
     return true;
     
 #else
@@ -449,33 +483,28 @@ QString GStreamerBackendHandler::generatePipelineString(const QString& device, c
         return generatePipelineString(device, resolution, 30);
     }
     
-    // Use a more flexible pipeline that can negotiate formats automatically
-    // This approach allows GStreamer to choose the best available format
-    QString pipelineStr = QString(
-        "v4l2src device=%1 ! "
-        "video/x-raw,width=%2,height=%3,framerate=%4/1 ! "
-        "videoconvert ! "
-        "xvimagesink name=videosink"
-    ).arg(device)
-     .arg(resolution.width())
-     .arg(resolution.height())
-     .arg(framerate);
+    // Use configurable pipeline template from settings
+    QString pipelineTemplate = GlobalSetting::instance().getGStreamerPipelineTemplate();
     
-    qCDebug(log_gstreamer_backend) << "Generated flexible pipeline:" << pipelineStr;
+    // Validate the pipeline template before using it
+    if (pipelineTemplate.isEmpty() || !pipelineTemplate.contains("%DEVICE%")) {
+        qCWarning(log_gstreamer_backend) << "Invalid or empty pipeline template, using default";
+        pipelineTemplate = "v4l2src device=%DEVICE% ! "
+                          "image/jpeg,width=%WIDTH%,height=%HEIGHT%,framerate=%FRAMERATE%/1 ! "
+                          "jpegdec ! "
+                          "videoconvert ! "
+                          "xvimagesink name=videosink";
+    }
     
-    // Also provide a fallback MJPG pipeline in case the above doesn't work
-    QString mjpgFallback = QString(
-        "v4l2src device=%1 ! "
-        "image/jpeg,width=%2,height=%3,framerate=%4/1 ! "
-        "jpegdec ! "
-        "videoconvert ! "
-        "xvimagesink name=videosink"
-    ).arg(device)
-     .arg(resolution.width())
-     .arg(resolution.height())
-     .arg(framerate);
+    // Replace placeholders with actual values
+    QString pipelineStr = pipelineTemplate;
+    pipelineStr.replace("%DEVICE%", device);
+    pipelineStr.replace("%WIDTH%", QString::number(resolution.width()));
+    pipelineStr.replace("%HEIGHT%", QString::number(resolution.height()));
+    pipelineStr.replace("%FRAMERATE%", QString::number(framerate));
     
-    qCDebug(log_gstreamer_backend) << "MJPG fallback pipeline:" << mjpgFallback;
+    qCDebug(log_gstreamer_backend) << "Generated pipeline from template:" << pipelineStr;
+    qCDebug(log_gstreamer_backend) << "Template used:" << pipelineTemplate;
     
     return pipelineStr;
 }
@@ -500,17 +529,21 @@ bool GStreamerBackendHandler::startGStreamerPipeline()
     GstStateChangeReturn ret = gst_element_set_state(m_pipeline, GST_STATE_READY);
     if (ret == GST_STATE_CHANGE_FAILURE) {
         qCCritical(log_gstreamer_backend) << "Failed to set pipeline to READY state";
-        // Get more detailed error information
-        GstMessage* msg = gst_bus_pop_filtered(m_bus, GST_MESSAGE_ERROR);
-        if (msg) {
-            GError* error = nullptr;
-            gchar* debug_info = nullptr;
-            gst_message_parse_error(msg, &error, &debug_info);
-            qCCritical(log_gstreamer_backend) << "GStreamer Error:" << (error ? error->message : "Unknown");
-            qCCritical(log_gstreamer_backend) << "Debug info:" << (debug_info ? debug_info : "None");
-            if (error) g_error_free(error);
-            if (debug_info) g_free(debug_info);
-            gst_message_unref(msg);
+        // Get more detailed error information only if bus exists
+        if (m_bus) {
+            GstMessage* msg = gst_bus_pop_filtered(m_bus, GST_MESSAGE_ERROR);
+            if (msg) {
+                GError* error = nullptr;
+                gchar* debug_info = nullptr;
+                gst_message_parse_error(msg, &error, &debug_info);
+                qCCritical(log_gstreamer_backend) << "GStreamer Error:" << (error ? error->message : "Unknown");
+                qCCritical(log_gstreamer_backend) << "Debug info:" << (debug_info ? debug_info : "None");
+                if (error) g_error_free(error);
+                if (debug_info) g_free(debug_info);
+                gst_message_unref(msg);
+            }
+        } else {
+            qCCritical(log_gstreamer_backend) << "Bus not available for error details";
         }
         return false;
     }
@@ -560,14 +593,28 @@ bool GStreamerBackendHandler::startGStreamerPipeline()
     }
     
     if (windowId) {
-        // Find the video sink element
+        // Find the video sink element with better error checking
+        // First try to find named sink, then fall back to interface search
         GstElement* videoSink = gst_bin_get_by_name(GST_BIN(m_pipeline), "videosink");
+        if (!videoSink) {
+            // Fallback: find any element that supports video overlay
+            videoSink = gst_bin_get_by_interface(GST_BIN(m_pipeline), GST_TYPE_VIDEO_OVERLAY);
+            if (videoSink) {
+                qCDebug(log_gstreamer_backend) << "Found video sink by interface (autovideosink fallback)";
+            }
+        }
+        
         if (videoSink) {
-            qCDebug(log_gstreamer_backend) << "Setting up video overlay with window ID:" << windowId;
-            gst_video_overlay_set_window_handle(GST_VIDEO_OVERLAY(videoSink), windowId);
+            // Check if the element actually supports video overlay interface
+            if (GST_IS_VIDEO_OVERLAY(videoSink)) {
+                qCDebug(log_gstreamer_backend) << "Setting up video overlay with window ID:" << windowId;
+                gst_video_overlay_set_window_handle(GST_VIDEO_OVERLAY(videoSink), windowId);
+            } else {
+                qCWarning(log_gstreamer_backend) << "Video sink element does not support overlay interface";
+            }
             gst_object_unref(videoSink);
         } else {
-            qCWarning(log_gstreamer_backend) << "Could not find videosink element for overlay setup";
+            qCWarning(log_gstreamer_backend) << "Could not find any video sink element for overlay setup";
         }
     } else {
         qCWarning(log_gstreamer_backend) << "No valid window ID available, overlay setup skipped";
@@ -577,17 +624,21 @@ bool GStreamerBackendHandler::startGStreamerPipeline()
     ret = gst_element_set_state(m_pipeline, GST_STATE_PLAYING);
     if (ret == GST_STATE_CHANGE_FAILURE) {
         qCCritical(log_gstreamer_backend) << "Failed to start GStreamer pipeline to PLAYING state";
-        // Get detailed error information
-        GstMessage* msg = gst_bus_pop_filtered(m_bus, GST_MESSAGE_ERROR);
-        if (msg) {
-            GError* error = nullptr;
-            gchar* debug_info = nullptr;
-            gst_message_parse_error(msg, &error, &debug_info);
-            qCCritical(log_gstreamer_backend) << "GStreamer Error:" << (error ? error->message : "Unknown");
-            qCCritical(log_gstreamer_backend) << "Debug info:" << (debug_info ? debug_info : "None");
-            if (error) g_error_free(error);
-            if (debug_info) g_free(debug_info);
-            gst_message_unref(msg);
+        // Get detailed error information only if bus exists
+        if (m_bus) {
+            GstMessage* msg = gst_bus_pop_filtered(m_bus, GST_MESSAGE_ERROR);
+            if (msg) {
+                GError* error = nullptr;
+                gchar* debug_info = nullptr;
+                gst_message_parse_error(msg, &error, &debug_info);
+                qCCritical(log_gstreamer_backend) << "GStreamer Error:" << (error ? error->message : "Unknown");
+                qCCritical(log_gstreamer_backend) << "Debug info:" << (debug_info ? debug_info : "None");
+                if (error) g_error_free(error);
+                if (debug_info) g_free(debug_info);
+                gst_message_unref(msg);
+            }
+        } else {
+            qCCritical(log_gstreamer_backend) << "Bus not available for error details";
         }
         return false;
     }
@@ -713,6 +764,66 @@ bool GStreamerBackendHandler::initializeGStreamer()
     }
     
     qCDebug(log_gstreamer_backend) << "GStreamer initialized successfully";
+    
+    // Register static plugins required for video pipeline
+    qCDebug(log_gstreamer_backend) << "Registering static GStreamer plugins...";
+    
+    try {
+        // Register core elements (queue, capsfilter, tee, etc.)
+        gst_plugin_coreelements_register();
+        qCDebug(log_gstreamer_backend) << "✓ Registered coreelements plugin";
+        
+        // Register typefind functions for format detection
+        gst_plugin_typefindfunctions_register();
+        qCDebug(log_gstreamer_backend) << "✓ Registered typefindfunctions plugin";
+        
+        // Register video conversion and scaling
+        gst_plugin_videoconvertscale_register();
+        qCDebug(log_gstreamer_backend) << "✓ Registered videoconvertscale plugin";
+        
+        // Register V4L2 plugin (v4l2src)
+        gst_plugin_video4linux2_register();
+        qCDebug(log_gstreamer_backend) << "✓ Registered video4linux2 plugin (v4l2src)";
+        
+        // Register JPEG decoder/encoder
+        gst_plugin_jpeg_register();
+        qCDebug(log_gstreamer_backend) << "✓ Registered jpeg plugin";
+        
+        // Register video filter base
+        gst_plugin_videofilter_register();
+        qCDebug(log_gstreamer_backend) << "✓ Registered videofilter plugin";
+        
+        // Register video test source (for testing)
+        gst_plugin_videotestsrc_register();
+        qCDebug(log_gstreamer_backend) << "✓ Registered videotestsrc plugin";
+        
+        // Register X11 video sinks
+        gst_plugin_ximagesink_register();
+        qCDebug(log_gstreamer_backend) << "✓ Registered ximagesink plugin";
+        
+        gst_plugin_xvimagesink_register();
+        qCDebug(log_gstreamer_backend) << "✓ Registered xvimagesink plugin";
+        
+        // Register autodetect elements
+        gst_plugin_autodetect_register();
+        qCDebug(log_gstreamer_backend) << "✓ Registered autodetect plugin (autovideosink)";
+        
+        qCDebug(log_gstreamer_backend) << "All static GStreamer plugins registered successfully";
+        
+        // Verify that v4l2src element is now available
+        GstElementFactory* factory = gst_element_factory_find("v4l2src");
+        if (factory) {
+            qCDebug(log_gstreamer_backend) << "✓ v4l2src element is now available";
+            gst_object_unref(factory);
+        } else {
+            qCWarning(log_gstreamer_backend) << "✗ v4l2src element still not available after registration";
+        }
+        
+    } catch (...) {
+        qCCritical(log_gstreamer_backend) << "Exception occurred during plugin registration";
+        return false;
+    }
+    
     return true;
 #else
     qCDebug(log_gstreamer_backend) << "GStreamer not available, using QProcess fallback";
@@ -913,20 +1024,7 @@ bool GStreamerBackendHandler::checkCameraAvailable(const QString& device)
         qCWarning(log_gstreamer_backend) << "Error:" << deviceFile.errorString();
         return false;
     }
-    deviceFile.close();
-    
-    // Check if device is already in use by another process
-    // Only do this as an informational check, not a hard failure
-    QProcess lsofProcess;
-    lsofProcess.start("lsof", QStringList() << device);
-    lsofProcess.waitForFinished(1000);
-    
-    if (lsofProcess.exitCode() == 0 && !lsofProcess.readAllStandardOutput().isEmpty()) {
-        qCWarning(log_gstreamer_backend) << "Camera device appears to be in use by another process:" << device;
-        qCWarning(log_gstreamer_backend) << "Processes using device:" << lsofProcess.readAllStandardOutput();
-        qCDebug(log_gstreamer_backend) << "Proceeding anyway - device might still be accessible";
-        // Don't return false here - the device might still be accessible
-    }
+    // deviceFile.close();
     
     qCDebug(log_gstreamer_backend) << "Camera device is accessible:" << device;
     return true;

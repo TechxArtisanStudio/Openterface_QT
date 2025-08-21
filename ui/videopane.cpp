@@ -619,6 +619,11 @@ void VideoPane::enableDirectGStreamerMode(bool enable)
     if (m_inputHandler) {
         m_inputHandler->updateEventFilterTarget();
     }
+    
+    // Update the InputHandler's event filter target
+    if (m_inputHandler) {
+        m_inputHandler->updateEventFilterTarget();
+    }
 }
 
 WId VideoPane::getVideoOverlayWindowId() const
@@ -644,6 +649,10 @@ void VideoPane::setupForGStreamerOverlay()
         // Enable native window for video overlay (from widgets_main.cpp approach)
         m_overlayWidget->setAttribute(Qt::WA_NativeWindow, true);
         m_overlayWidget->setAttribute(Qt::WA_PaintOnScreen, true);
+        
+        // Enable mouse tracking and focus for event handling
+        m_overlayWidget->setMouseTracking(true);
+        m_overlayWidget->setFocusPolicy(Qt::StrongFocus);
         
         // Enable mouse tracking and focus for event handling
         m_overlayWidget->setMouseTracking(true);

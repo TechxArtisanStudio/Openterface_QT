@@ -54,6 +54,9 @@ public:
     void setMediaBackend(const QString &backend);
     QString getMediaBackend() const;
     
+    void setGStreamerPipelineTemplate(const QString &pipelineTemplate);
+    QString getGStreamerPipelineTemplate() const;
+    
     void setCameraDeviceSetting(QString deviceDescription);
 
     void setVID(QString vid);

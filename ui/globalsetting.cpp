@@ -104,7 +104,25 @@ void GlobalSetting::setMediaBackend(const QString &backend) {
 }
 
 QString GlobalSetting::getMediaBackend() const {
+#if defined(Q_PROCESSOR_ARM)
+    return m_settings.value("video/mediaBackend", "gstreamer").toString();
+#else
     return m_settings.value("video/mediaBackend", "ffmpeg").toString();
+#endif
+}
+
+void GlobalSetting::setGStreamerPipelineTemplate(const QString &pipelineTemplate) {
+    m_settings.setValue("video/gstreamerPipelineTemplate", pipelineTemplate);
+}
+
+QString GlobalSetting::getGStreamerPipelineTemplate() const {
+    // Default GStreamer pipeline template with placeholders
+    QString defaultTemplate = "v4l2src device=%DEVICE% ! "
+                             "image/jpeg,width=%WIDTH%,height=%HEIGHT%,framerate=%FRAMERATE%/1 ! "
+                             "jpegdec ! "
+                             "videoconvert ! "
+                             "xvimagesink name=videosink";
+    return m_settings.value("video/gstreamerPipelineTemplate", defaultTemplate).toString();
 }
 
 void GlobalSetting::setCameraDeviceSetting(QString deviceDescription){
