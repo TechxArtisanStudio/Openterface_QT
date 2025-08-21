@@ -378,64 +378,64 @@ void VideoPane::resizeEvent(QResizeEvent *event)
 }
 
 // Helper methods
-    void VideoPane::updateVideoItemTransform()
-    {
-        // Handle both Qt video item and FFmpeg pixmap item
-        QGraphicsItem* targetItem = nullptr;
-        QRectF itemRect;
-        
-        if (m_directFFmpegMode && m_pixmapItem) {
-            targetItem = m_pixmapItem;
-            itemRect = m_pixmapItem->boundingRect();
-            // qDebug(log_ui_video) << "VideoPane: Updating FFmpeg pixmap transform";
-        } else if (m_videoItem) {
-            targetItem = m_videoItem;
-            itemRect = m_videoItem->boundingRect();
-            // qDebug() << "VideoPane: Updating Qt video item transform";
-        }
-        
-        if (!targetItem) return;
-        
-        QRectF viewRect = viewport()->rect();
-        
-        if (itemRect.isEmpty() || viewRect.isEmpty()) return;
-        // qDebug() << "Updating item transform with itemRect:" << itemRect << "viewRect:" << viewRect;
-        
-        // Reset transform and position first
-        targetItem->setTransform(QTransform());
-        targetItem->setPos(0, 0);
-        
-        // Normalize the item rectangle to start from (0,0) to handle any offset in boundingRect
-        QRectF normalizedRect(0, 0, itemRect.width(), itemRect.height());
-        QPointF itemOffset = itemRect.topLeft(); // Store the original offset
-        
-        if (m_maintainAspectRatio) {
-            // Calculate scale to fit while maintaining aspect ratio
-            double scaleX = viewRect.width() / normalizedRect.width();
-            double scaleY = viewRect.height() / normalizedRect.height();
-            double scale = qMin(scaleX, scaleY);
-            
-            // Apply transformation
-            QTransform transform;
-            transform.scale(scale, scale);
-            targetItem->setTransform(transform);
-            
-            // Center the item after scaling, accounting for the original offset
-            QRectF scaledRect = QRectF(0, 0, normalizedRect.width() * scale, normalizedRect.height() * scale);
-            double x = (viewRect.width() - scaledRect.width()) / 2.0 - (itemOffset.x() * scale);
-            double y = (viewRect.height() - scaledRect.height()) / 2.0 - (itemOffset.y() * scale);
-            targetItem->setPos(x, y);
-            // qDebug() << "Item transformed with scale:" << scale << "at position:" << QPointF(x, y) << "offset:" << itemOffset;
-        } else {
-            // Stretch to fill (ignore aspect ratio)
-            QTransform transform;
-            transform.scale(viewRect.width() / normalizedRect.width(), 
-                        viewRect.height() / normalizedRect.height());
-            targetItem->setTransform(transform);
-            // Account for the original offset when stretching
-            targetItem->setPos(-itemOffset.x(), -itemOffset.y());
-        }
+void VideoPane::updateVideoItemTransform()
+{
+    // Handle both Qt video item and FFmpeg pixmap item
+    QGraphicsItem* targetItem = nullptr;
+    QRectF itemRect;
+    
+    if (m_directFFmpegMode && m_pixmapItem) {
+        targetItem = m_pixmapItem;
+        itemRect = m_pixmapItem->boundingRect();
+        // qDebug(log_ui_video) << "VideoPane: Updating FFmpeg pixmap transform";
+    } else if (m_videoItem) {
+        targetItem = m_videoItem;
+        itemRect = m_videoItem->boundingRect();
+        // qDebug() << "VideoPane: Updating Qt video item transform";
     }
+    
+    if (!targetItem) return;
+    
+    QRectF viewRect = viewport()->rect();
+    
+    if (itemRect.isEmpty() || viewRect.isEmpty()) return;
+    // qDebug() << "Updating item transform with itemRect:" << itemRect << "viewRect:" << viewRect;
+    
+    // Reset transform and position first
+    targetItem->setTransform(QTransform());
+    targetItem->setPos(0, 0);
+    
+    // Normalize the item rectangle to start from (0,0) to handle any offset in boundingRect
+    QRectF normalizedRect(0, 0, itemRect.width(), itemRect.height());
+    QPointF itemOffset = itemRect.topLeft(); // Store the original offset
+    
+    if (m_maintainAspectRatio) {
+        // Calculate scale to fit while maintaining aspect ratio
+        double scaleX = viewRect.width() / normalizedRect.width();
+        double scaleY = viewRect.height() / normalizedRect.height();
+        double scale = qMin(scaleX, scaleY);
+        
+        // Apply transformation
+        QTransform transform;
+        transform.scale(scale, scale);
+        targetItem->setTransform(transform);
+        
+        // Center the item after scaling, accounting for the original offset
+        QRectF scaledRect = QRectF(0, 0, normalizedRect.width() * scale, normalizedRect.height() * scale);
+        double x = (viewRect.width() - scaledRect.width()) / 2.0 - (itemOffset.x() * scale);
+        double y = (viewRect.height() - scaledRect.height()) / 2.0 - (itemOffset.y() * scale);
+        targetItem->setPos(x, y);
+        // qDebug() << "Item transformed with scale:" << scale << "at position:" << QPointF(x, y) << "offset:" << itemOffset;
+    } else {
+        // Stretch to fill (ignore aspect ratio)
+        QTransform transform;
+        transform.scale(viewRect.width() / normalizedRect.width(), 
+                    viewRect.height() / normalizedRect.height());
+        targetItem->setTransform(transform);
+        // Account for the original offset when stretching
+        targetItem->setPos(-itemOffset.x(), -itemOffset.y());
+    }
+}
 
 void VideoPane::centerVideoItem()
 {

@@ -170,6 +170,10 @@ win32 {
     # LIBS += -ljpeg
     # DEFINES += HAVE_LIBJPEG_TURBO
 
+    # Add libjpeg-turbo for Windows (commented out - not available)
+    # LIBS += -ljpeg
+    # DEFINES += HAVE_LIBJPEG_TURBO
+
     RESOURCES += driver/windows/drivers.qrc
 }
 

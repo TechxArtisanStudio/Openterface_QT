@@ -148,10 +148,10 @@ void InputHandler::handleMouseMoveEvent(QMouseEvent *event)
     QScopedPointer<MouseEventDTO> eventDto(calculateMouseEventDto(event));
     eventDto->setMouseButton(isDragging() ? lastMouseButton : 0);
 
-    qCDebug(log_ui_input) << "InputHandler::handleMouseMoveEvent - pos:" << event->pos() 
-             << "absolute mode:" << eventDto->isAbsoluteMode() 
-             << "relative mode enabled:" << m_videoPane->isRelativeModeEnabled()
-             << "x:" << eventDto->getX() << "y:" << eventDto->getY();
+    // qDebug() << "InputHandler::handleMouseMoveEvent - pos:" << event->pos() 
+    //          << "absolute mode:" << eventDto->isAbsoluteMode() 
+    //          << "relative mode enabled:" << m_videoPane->isRelativeModeEnabled()
+    //          << "x:" << eventDto->getX() << "y:" << eventDto->getY();
 
     //Only handle the event if it's under absolute mouse control or relative mode is enabled
     if(!eventDto->isAbsoluteMode() && !m_videoPane->isRelativeModeEnabled()) {
