@@ -209,6 +209,37 @@ fi
 
 cd "${WORK_DIR}"/gstreamer_sources
 
+# Build GStreamer core
+echo "Building GStreamer core..."
+cd gstreamer-${GSTREAMER_VERSION}
+if [ ! -f "${WORK_DIR}/gstreamer_build/lib/libgstreamer-1.0.a" ]; then
+  meson setup build \
+    --prefix="${WORK_DIR}/gstreamer_build" \
+    --libdir=lib \
+    --default-library=static \
+    -Dexamples=disabled \
+    -Dtests=disabled \
+    -Dbenchmarks=disabled \
+    -Dtools=disabled \
+    -Ddoc=disabled \
+    -Dgst_debug=false \
+    -Dnls=disabled
+
+  ninja -C build
+  ninja -C build install
+  # After installing GStreamer core, ensure any pkgconfig dirs under the
+  # build prefix are visible to pkg-config. Meson may install pc files into
+  # lib/pkgconfig or lib/<triplet>/pkgconfig.
+  GST_PKG_DIRS=$(find "${WORK_DIR}/gstreamer_build" -type d -path "*/pkgconfig" 2>/dev/null || true)
+  for d in $GST_PKG_DIRS; do
+    export PKG_CONFIG_PATH="$d:${PKG_CONFIG_PATH}"
+  done
+  echo "Updated PKG_CONFIG_PATH with GStreamer core pkgconfig dirs: $GST_PKG_DIRS"
+else
+  echo "GStreamer core already built, skipping build."
+fi
+cd ..
+
 # Build gst-plugins-base
 echo "Building gst-plugins-base..."
 cd gst-plugins-base-${GSTREAMER_VERSION}
@@ -266,37 +297,6 @@ if [ ! -f "${WORK_DIR}/gstreamer_build/lib/libgstbase-1.0.a" ]; then
     done
   fi
   echo "Final PKG_CONFIG_PATH before gst-plugins-good: $PKG_CONFIG_PATH"
-  
-# Build GStreamer core
-echo "Building GStreamer core..."
-cd gstreamer-${GSTREAMER_VERSION}
-if [ ! -f "${WORK_DIR}/gstreamer_build/lib/libgstreamer-1.0.a" ]; then
-  meson setup build \
-    --prefix="${WORK_DIR}/gstreamer_build" \
-    --libdir=lib \
-    --default-library=static \
-    -Dexamples=disabled \
-    -Dtests=disabled \
-    -Dbenchmarks=disabled \
-    -Dtools=disabled \
-    -Ddoc=disabled \
-    -Dgst_debug=false \
-    -Dnls=disabled
-
-  ninja -C build
-  ninja -C build install
-  # After installing GStreamer core, ensure any pkgconfig dirs under the
-  # build prefix are visible to pkg-config. Meson may install pc files into
-  # lib/pkgconfig or lib/<triplet>/pkgconfig.
-  GST_PKG_DIRS=$(find "${WORK_DIR}/gstreamer_build" -type d -path "*/pkgconfig" 2>/dev/null || true)
-  for d in $GST_PKG_DIRS; do
-    export PKG_CONFIG_PATH="$d:${PKG_CONFIG_PATH}"
-  done
-  echo "Updated PKG_CONFIG_PATH with GStreamer core pkgconfig dirs: $GST_PKG_DIRS"
-else
-  echo "GStreamer core already built, skipping build."
-fi
-cd ..
 
   # Copy additional headers and libraries that might be needed
   echo "Copying additional GStreamer headers to Qt installation..."
