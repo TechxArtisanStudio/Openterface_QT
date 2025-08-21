@@ -29,6 +29,8 @@ LIBUSB_VERSION=1.0.26
 INSTALL_PREFIX=/opt/Qt6
 BUILD_DIR=$(pwd)/qt-build
 FFMPEG_PREFIX=/opt/Qt6
+FFMPEG_VERSION="6.1.1"
+GSTREAMER_VERSION="1.22.11"
 # Update module list to include qtdeclarative (which provides Qt Quick)
 MODULES=("qtbase" "qtshadertools" "qtdeclarative" "qtmultimedia" "qtsvg" "qtserialport" "qttools")
 DOWNLOAD_BASE_URL="https://download.qt.io/archive/qt/$QT_MAJOR_VERSION/$QT_VERSION/submodules"
@@ -60,7 +62,6 @@ cd "$BUILD_DIR"
 
 # Build FFmpeg statically
 echo "Building FFmpeg statically..."
-FFMPEG_VERSION="6.1.1"
 cd "$BUILD_DIR"
 if [ ! -d "ffmpeg-$FFMPEG_VERSION" ]; then
     curl -L -o ffmpeg.tar.bz2 "https://ffmpeg.org/releases/ffmpeg-$FFMPEG_VERSION.tar.bz2"
