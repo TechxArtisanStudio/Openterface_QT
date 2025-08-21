@@ -26,12 +26,14 @@
 #include <QWidget>
 #include <QLabel>
 #include <QVBoxLayout>
+#include <QTimer>
 
 class StatusWidget : public QWidget {
     Q_OBJECT
 
 public:
     explicit StatusWidget(QWidget *parent = nullptr);
+    ~StatusWidget();
 
     void setInputResolution(const int &width, const int &height, const float &fps, const float &pixelClk);
     void setCaptureResolution(const int &width, const int &height, const float &fps);
@@ -42,18 +44,25 @@ public:
     int getCaptureWidth() const;
     int getCaptureHeight() const;
 
+private slots:
+    void updateCpuUsage();
+
 public slots:
     void setBaudrate(int baudrate);
 
 private:
     QLabel *statusLabel;
+    QLabel *cpuUsageLabel;
     QLabel *keyboardIndicatorsLabel;
     QLabel *resolutionLabel;
     QLabel *inputResolutionLabel;
-    QLabel *captureResolutionLabel;
     QLabel *connectedPortLabel;
+    QTimer *cpuTimer;
     int m_captureWidth;
     int m_captureHeight;
+    float m_captureFramerate;
+    
+    double getCpuUsage();
 };
 
 #endif // STATUSWIDGET_H

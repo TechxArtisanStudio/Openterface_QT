@@ -296,10 +296,36 @@ void VideoHid::fetchBinFileToString(QString &url, int timeoutMs){
     QNetworkRequest request(url);  // Set up the request with the given URL
     QNetworkReply *reply = manager.get(request); // Send a GET request
 
-    // Use QEventLoop to wait for the request to complete
+    // Use QEventLoop to wait for the request to complete with timeout
     QEventLoop loop;
-    QObject::connect(reply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
-    loop.exec(); // Block until the request finishes
+    QTimer timer;
+    timer.setSingleShot(true);
+
+    QObject::connect(reply, &QNetworkReply::finished, &loop, [&]() {
+        qCDebug(log_host_hid) << "Firmware download finished";
+        loop.quit();
+    });
+
+    QObject::connect(&timer, &QTimer::timeout, &loop, [&]() {
+        qCDebug(log_host_hid) << "Firmware download timed out";
+        fireware_result = FirmwareResult::Timeout;
+        reply->abort();
+        loop.quit();
+    });
+
+    timer.start(timeoutMs > 0 ? timeoutMs : 5000); // Use provided timeout or default to 5 seconds
+    loop.exec(); // Block until the request finishes or times out
+
+    if (timer.isActive()) {
+        timer.stop(); // Stop the timer if not triggered
+    }
+
+    // Check if timeout occurred before processing response
+    if (fireware_result == FirmwareResult::Timeout) {
+        qCDebug(log_host_hid) << "Firmware download timed out";
+        reply->deleteLater();
+        return;
+    }
 
     std::string result; // Initialize an empty std::string to hold the result
     if (reply->error() == QNetworkReply::NoError) {
@@ -311,7 +337,7 @@ void VideoHid::fetchBinFileToString(QString &url, int timeoutMs){
         qCDebug(log_host_hid)  << "Successfully read file, size:" << data.size() << "bytes";
     } else {
         qCDebug(log_host_hid)  << "Failed to fetch latest firmware:" << reply->errorString();
-        fireware_result = FirmwareResult::Timeout; // Set the result to timeout
+        fireware_result = FirmwareResult::CheckFailed; // Set the result to check failed
     }
     int version_0 = result.length() > 12 ? (unsigned char)result[12] : 0;
     int version_1 = result.length() > 13 ? (unsigned char)result[13] : 0;
@@ -1272,7 +1298,7 @@ FirmwareResult VideoHid::isLatestFirmware() {
     }
     qCDebug(log_host_hid) << "After timeout checking: " << firmwareURL;
     QString newURL = firmwareURL.replace("minikvm_latest_firmware.txt", firemwareFileName);
-    fetchBinFileToString(newURL);
+    fetchBinFileToString(newURL, 5000); // Add 5-second timeout
     m_currentfirmwareVersion = getFirmwareVersion();
     qCDebug(log_host_hid)  << "Firmware version:" << QString::fromStdString(m_currentfirmwareVersion);
     qCDebug(log_host_hid)  << "Latest firmware version:" << QString::fromStdString(m_firmwareVersion);

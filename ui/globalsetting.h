@@ -50,6 +50,12 @@ public:
     void setVideoSettings(int width, int height, int fps);
 
     void loadVideoSettings();
+
+    void setMediaBackend(const QString &backend);
+    QString getMediaBackend() const;
+    
+    void setGStreamerPipelineTemplate(const QString &pipelineTemplate);
+    QString getGStreamerPipelineTemplate() const;
     
     void setCameraDeviceSetting(QString deviceDescription);
 

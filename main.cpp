@@ -23,11 +23,16 @@
 #include "ui/mainwindow.h"
 #include "ui/loghandler.h"
 #include "ui/advance/envdialog.h"
+#include "ui/globalsetting.h"
 #include "global.h"
 #include "target/KeyboardLayouts.h"
 #include "ui/languagemanager.h"
 #include <QCoreApplication>
 
+// GStreamer includes
+#ifdef HAVE_GSTREAMER
+#include <gst/gst.h>
+#endif
 
 #include <iostream>
 #include <QApplication>
@@ -92,12 +97,6 @@ void writeLog(const QString &message){
 
 void setupEnv(){
 #ifdef Q_OS_LINUX
-    QString originalMediaBackend = qgetenv("QT_MEDIA_BACKEND");
-    qDebug() << "Original QT Media Backend:" << originalMediaBackend;
-    qputenv("QT_MEDIA_BACKEND", "ffmpeg");
-    QString newMediaBackend = qgetenv("QT_MEDIA_BACKEND");
-    qDebug() << "Current QT Media Backend:" << newMediaBackend;
-
     // Check if QT_QPA_PLATFORM is not set, and set it to "xcb" if it's empty
     if (qgetenv("QT_QPA_PLATFORM").isEmpty()) {
         qputenv("QT_QPA_PLATFORM", "xcb");
@@ -108,9 +107,82 @@ void setupEnv(){
 #endif
 }
 
+void applyMediaBackendSetting(){
+#ifdef Q_OS_LINUX
+    QString originalMediaBackend = qgetenv("QT_MEDIA_BACKEND");
+    qDebug() << "Original QT Media Backend:" << originalMediaBackend;
+    
+    // Get the media backend setting from GlobalSetting
+    QString mediaBackend = GlobalSetting::instance().getMediaBackend();
+    
+    // Handle GStreamer-specific environment settings
+    if (mediaBackend == "gstreamer") {
+        // Set GStreamer debug level to reduce verbose output but catch critical errors
+        qputenv("GST_DEBUG", "1,qt6media:3,alsa:1");
+        
+        // Disable color output for cleaner logs
+        qputenv("GST_DEBUG_NO_COLOR", "1");
+        
+        // Ensure proper GStreamer registry handling
+        qputenv("GST_REGISTRY_REUSE_PLUGIN_SCANNER", "no");
+        
+        // Set GStreamer to handle object lifecycle more carefully
+        qputenv("GST_DEBUG_DUMP_DOT_DIR", "");
+        
+        // Prevent GStreamer from using problematic plugins that might cause object ref issues
+        qputenv("GST_PLUGIN_FEATURE_RANK", "qt6videosink:MAX,qt6audiosink:MAX,alsasink:NONE,pulsesink:PRIMARY");
+        
+        // Force proper cleanup timing
+        qputenv("G_DEBUG", "gc-friendly");
+        
+        // Disable problematic ALSA device scanning that causes errors
+        qputenv("GST_ALSA_DISABLE_PERIOD_ADJUSTMENT", "1");
+        
+        // Set audio policy to be more conservative
+        qputenv("GST_AUDIO_DISABLE_FORMATS", "");
+        
+        // Force PulseAudio over ALSA to avoid device access issues
+        qputenv("GST_AUDIO_SYSTEM_PULSE", "1");
+        
+        // Reduce audio device scanning verbosity
+        qputenv("PULSE_DEBUG", "0");
+        
+        // Additional GStreamer environment variables for better video handling
+        qputenv("GST_V4L2_USE_LIBV4L2", "1");
+        qputenv("GST_PLUGIN_PATH", "/usr/lib/gstreamer-1.0");
+        qputenv("GST_PLUGIN_SYSTEM_PATH", "/usr/lib/gstreamer-1.0");
+        
+        // Ensure video output works correctly
+        qputenv("GST_VIDEO_OVERLAY", "1");
+        
+        qDebug() << "Applied enhanced GStreamer-specific environment settings for video compatibility";
+        // gstreamer not compatible with QT_MEDIA_BACKEND, so we set it to empty
+    } else{
+        // For other media backends, we can set a default or leave it empty
+        qputenv("QT_MEDIA_BACKEND", mediaBackend.toUtf8());
+        qDebug() << "Set QT_MEDIA_BACKEND to:" << mediaBackend;
+    }
+#endif
+}
+
 int main(int argc, char *argv[])
 {
     qDebug() << "Start openterface...";
+    
+    // Initialize GStreamer before Qt application
+    #ifdef HAVE_GSTREAMER
+    GError* gst_error = nullptr;
+    if (!gst_init_check(&argc, &argv, &gst_error)) {
+        if (gst_error) {
+            qCritical() << "Failed to initialize GStreamer:" << gst_error->message;
+            g_error_free(gst_error);
+        } else {
+            qCritical() << "Failed to initialize GStreamer: Unknown error";
+        }
+        return -1;
+    }
+    qDebug() << "GStreamer initialized successfully";
+    #endif
     setupEnv();
     QApplication app(argc, argv);
 
@@ -142,6 +214,8 @@ int main(int argc, char *argv[])
     qDebug() << "Loading settings";
     GlobalSetting::instance().loadLogSettings();
     GlobalSetting::instance().loadVideoSettings();
+    // Apply media backend setting after settings are loaded
+    applyMediaBackendSetting();
     // onVideoSettingsChanged(GlobalVar::instance().getCaptureWidth(), GlobalVar::instance().getCaptureHeight());
     LogHandler::instance().enableLogStore();
 
@@ -158,5 +232,14 @@ int main(int argc, char *argv[])
     // writeLog("Application started");
     window.show();
 
-    return app.exec();
+    int result = app.exec();
+    
+    // Clean up GStreamer
+    #ifdef HAVE_GSTREAMER
+    gst_deinit();
+    qDebug() << "GStreamer deinitialized";
+    #endif
+    
+    
+    return result;
 };

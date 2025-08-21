@@ -67,7 +67,6 @@
 #include <QMediaMetaData>
 #include <QMediaRecorder>
 #include <QScopedPointer>
-#include <QVideoWidget>
 #include <QMainWindow>
 #include <QStackedLayout>
 #include <QMediaDevices>
@@ -318,6 +317,13 @@ private:
     void animateVideoPane();
 
     void doResize();
+    void handleScreenBoundsResize(int &currentWidth, int &currentHeight, 
+                                 int availableWidth, int availableHeight,
+                                 int maxContentHeight, int menuBarHeight, 
+                                 int statusBarHeight, double aspectRatio);
+    void handleAspectRatioResize(int currentWidth, int currentHeight, 
+                                int menuBarHeight, int statusBarHeight,
+                                double aspectRatio, double captureAspectRatio);
 
     void centerVideoPane(int videoWidth, int videoHeight, int WindowWidth, int WindowHeight);
     void checkInitSize();
