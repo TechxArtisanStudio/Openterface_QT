@@ -4,12 +4,14 @@
 #include "../global.h"
 #include <QGuiApplication>
 #include <QScreen>
+#include <QDateTime>
 
 
 Q_LOGGING_CATEGORY(log_ui_input, "opf.ui.input")
 
 InputHandler::InputHandler(VideoPane *videoPane, QObject *parent)
-    : QObject(parent), m_videoPane(videoPane), m_currentEventTarget(nullptr)
+    : QObject(parent), m_videoPane(videoPane), m_currentEventTarget(nullptr),
+      m_lastMouseMoveTime(0), m_mouseMoveInterval(16), m_droppedMouseEvents(0)
 {
     if (m_videoPane) {
         m_videoPane->installEventFilter(this);
@@ -79,19 +81,38 @@ QSize InputHandler::getScreenResolution() {
 
 bool InputHandler::eventFilter(QObject *watched, QEvent *event)
 {
-    // Debug: Log all events to see what we're receiving
-    if (watched == m_videoPane || watched == m_currentEventTarget) {
-        qCDebug(log_ui_input) << "InputHandler::eventFilter - Event type:" << event->type() 
-                 << "watched object:" << watched 
-                 << "current target:" << m_currentEventTarget
-                 << "GStreamer mode:" << (m_videoPane ? m_videoPane->isDirectGStreamerModeEnabled() : false);
-    }
-    
+    // PERFORMANCE: Fast path for mouse move events - avoid expensive logging and checks
     if (event->type() == QEvent::MouseMove) {
         QMouseEvent *mouseEvent = static_cast<QMouseEvent*>(event);
-        qCDebug(log_ui_input) << "InputHandler::eventFilter - MouseMove detected, calling handleMouseMoveEvent";
         handleMouseMoveEvent(mouseEvent);
         return true;
+    }
+    
+    // PERFORMANCE: Reduce excessive debug logging for other mouse events
+    // Only log non-mouse events and first few mouse events for debugging
+    static int mouseEventCount = 0;
+    bool isMouseEvent = (event->type() == QEvent::MouseButtonPress || 
+                        event->type() == QEvent::MouseButtonRelease);
+    
+    if (isMouseEvent) {
+        mouseEventCount++;
+        // Only log first 10 mouse events to reduce debug spam
+        if (mouseEventCount <= 10 && (watched == m_videoPane || watched == m_currentEventTarget)) {
+            qCDebug(log_ui_input) << "InputHandler::eventFilter - Event type:" << event->type() 
+                     << "watched object:" << watched 
+                     << "current target:" << m_currentEventTarget
+                     << "GStreamer mode:" << (m_videoPane ? m_videoPane->isDirectGStreamerModeEnabled() : false)
+                     << "(logging limited for performance)";
+        }
+    } else {
+        // Log non-mouse events normally (but less frequently)
+        static int nonMouseEventCount = 0;
+        if (++nonMouseEventCount % 100 == 1 && (watched == m_videoPane || watched == m_currentEventTarget)) {
+            qCDebug(log_ui_input) << "InputHandler::eventFilter - Event type:" << event->type() 
+                     << "watched object:" << watched 
+                     << "current target:" << m_currentEventTarget
+                     << "GStreamer mode:" << (m_videoPane ? m_videoPane->isDirectGStreamerModeEnabled() : false);
+        }
     }
     if (event->type() == QEvent::MouseButtonPress || event->type() == QEvent::MouseButtonDblClick) {
         QMouseEvent *mouseEvent = static_cast<QMouseEvent*>(event);
@@ -145,6 +166,57 @@ bool InputHandler::eventFilter(QObject *watched, QEvent *event)
 
 void InputHandler::handleMouseMoveEvent(QMouseEvent *event)
 {
+    // PERFORMANCE OPTIMIZATION: Adaptive mouse throttling to reduce CPU usage
+    // High-frequency mouse movements can cause excessive CPU load, especially on Pi
+    qint64 currentTime = QDateTime::currentMSecsSinceEpoch();
+    
+    // ADAPTIVE THROTTLING: Adjust interval based on recent event frequency
+    static int recentEventCount = 0;
+    static qint64 lastIntervalAdjustment = 0;
+    recentEventCount++;
+    
+    // Every 2 seconds, adjust throttling based on event frequency
+    if (currentTime - lastIntervalAdjustment > 2000) {
+        if (recentEventCount > 200) {
+            // Very high frequency - increase throttling (reduce responsiveness to save CPU)
+            m_mouseMoveInterval = qMin(50, m_mouseMoveInterval + 5); // Max 20 FPS
+        } else if (recentEventCount > 100) {
+            // High frequency - moderate throttling
+            m_mouseMoveInterval = 25; // 40 FPS
+        } else if (recentEventCount > 50) {
+            // Normal frequency - standard throttling
+            m_mouseMoveInterval = 16; // ~62 FPS
+        } else {
+            // Low frequency - minimal throttling for better responsiveness
+            m_mouseMoveInterval = qMax(8, m_mouseMoveInterval - 2); // Max ~125 FPS
+        }
+        
+        // Log throttling adjustments occasionally
+        static int adjustmentCount = 0;
+        if (++adjustmentCount % 10 == 1) {
+            qCDebug(log_ui_input) << "InputHandler: Adaptive throttling - events in 2s:" << recentEventCount 
+                                  << "new interval:" << m_mouseMoveInterval << "ms";
+        }
+        
+        recentEventCount = 0;
+        lastIntervalAdjustment = currentTime;
+    }
+    
+    // Skip mouse move if it's too soon since the last one (throttling)
+    if (currentTime - m_lastMouseMoveTime < m_mouseMoveInterval) {
+        m_droppedMouseEvents++;
+        
+        // Log dropped events occasionally for monitoring (less frequent than before)
+        if (m_droppedMouseEvents % 2000 == 0) {
+            qCDebug(log_ui_input) << "InputHandler: Dropped" << m_droppedMouseEvents 
+                                  << "mouse move events for performance (current interval:" 
+                                  << m_mouseMoveInterval << "ms)";
+        }
+        return; // Drop this mouse move event
+    }
+    
+    m_lastMouseMoveTime = currentTime;
+    
     QScopedPointer<MouseEventDTO> eventDto(calculateMouseEventDto(event));
     eventDto->setMouseButton(isDragging() ? lastMouseButton : 0);
 

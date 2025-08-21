@@ -26,6 +26,21 @@ public:
     bool isDragging() const { return m_isDragging; }
     int getMouseButton(QMouseEvent *event);
 
+    // Mouse throttling configuration and statistics
+    void setMouseMoveInterval(int intervalMs) { m_mouseMoveInterval = qMax(17, intervalMs); } // Minimum 60 FPS
+    int getMouseMoveInterval() const { return m_mouseMoveInterval; }
+    int getDroppedMouseEvents() const { return m_droppedMouseEvents; }
+    void resetThrottlingStats() { m_droppedMouseEvents = 0; }
+    
+    struct ThrottlingStats {
+        int droppedEvents;
+        int currentInterval;
+        double effectiveFPS;
+    };
+    ThrottlingStats getThrottlingStats() const {
+        return {m_droppedMouseEvents, m_mouseMoveInterval, 1000.0 / m_mouseMoveInterval};
+    }
+
     void handleKeyPressEvent(QKeyEvent *event);
     void handleKeyReleaseEvent(QKeyEvent *event);
     void handleWheelEvent(QWheelEvent *event);
@@ -46,6 +61,11 @@ private:
     bool m_isDragging = false;
     bool m_holdingEsc = false;
     QWidget* m_currentEventTarget = nullptr;  // Track current event filter target
+
+    // Mouse throttling for performance optimization (60 FPS limit)
+    qint64 m_lastMouseMoveTime = 0;
+    int m_mouseMoveInterval = 17;  // 17ms = 60 FPS limit
+    int m_droppedMouseEvents = 0;
 
     MouseEventDTO* calculateRelativePosition(QMouseEvent *event);
     MouseEventDTO* calculateAbsolutePosition(QMouseEvent *event);

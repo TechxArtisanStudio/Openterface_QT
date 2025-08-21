@@ -247,6 +247,7 @@ void VideoPane::captureCurrentFrame()
 
 void VideoPane::paintEvent(QPaintEvent *event)
 {
+    // PERFORMANCE: Reduce redundant visibility checks and updates
     if (m_isCameraSwitching && !m_lastFrame.isNull()) {
         // During camera switching, show preserved frame using pixmap item
         if (!m_pixmapItem) {
@@ -264,20 +265,23 @@ void VideoPane::paintEvent(QPaintEvent *event)
         qCDebug(log_ui_video) << "VideoPane: Displaying preserved frame during camera switch";
     } else if (m_directFFmpegMode) {
         // In FFmpeg mode, ensure pixmap item is visible and video item is hidden
-        if (m_pixmapItem) {
+        // PERFORMANCE: Only change visibility if actually needed
+        if (m_pixmapItem && !m_pixmapItem->isVisible()) {
             m_pixmapItem->setVisible(true);
         }
-        if (m_videoItem) {
+        if (m_videoItem && m_videoItem->isVisible()) {
             m_videoItem->setVisible(false);
         }
-        qCDebug(log_ui_video) << "VideoPane: paintEvent - FFmpeg mode, pixmap visible:" 
-                              << (m_pixmapItem ? m_pixmapItem->isVisible() : false);
+        // PERFORMANCE: Remove excessive debug logging from paintEvent
+        // qCDebug(log_ui_video) << "VideoPane: paintEvent - FFmpeg mode, pixmap visible:" 
+        //                       << (m_pixmapItem ? m_pixmapItem->isVisible() : false);
     } else {
         // Normal video display mode
-        if (m_pixmapItem) {
+        // PERFORMANCE: Only change visibility if actually needed
+        if (m_pixmapItem && m_pixmapItem->isVisible()) {
             m_pixmapItem->setVisible(false);
         }
-        if (m_videoItem) {
+        if (m_videoItem && !m_videoItem->isVisible()) {
             m_videoItem->setVisible(true);
         }
     }
@@ -679,12 +683,14 @@ void VideoPane::updateVideoFrame(const QPixmap& frame)
         return;
     }
     
-    // Frame dropping logic to prevent queue buildup and maintain smooth playback
+    // RESPONSIVENESS OPTIMIZATION: Reduce frame rate limiting for better mouse response
+    // More aggressive frame dropping to prioritize mouse responsiveness
     static qint64 lastFrameTime = 0;
     qint64 currentTime = QDateTime::currentMSecsSinceEpoch();
     
-    // Only process frames at reasonable intervals (max 60 FPS in UI)
-    if (currentTime - lastFrameTime < 16) { // 16ms = ~60 FPS
+    // Reduce UI update interval for more responsive mouse handling
+    // 12ms = ~83 FPS max (was 16ms = ~60 FPS)
+    if (currentTime - lastFrameTime < 12) {
         return; // Drop frame silently for performance
     }
     lastFrameTime = currentTime;
@@ -700,26 +706,64 @@ void VideoPane::updateVideoFrame(const QPixmap& frame)
         // Skip all expensive analysis for performance
     }
     
+    // PERFORMANCE OPTIMIZATION: Track frame size changes to only update transform when needed
+    static QSize lastFrameSize;
+    static QSize lastViewportSize;
+    QSize currentFrameSize = frame.size();
+    QSize currentViewportSize = viewport()->rect().size();
+    
+    bool frameSizeChanged = (currentFrameSize != lastFrameSize);
+    bool viewportSizeChanged = (currentViewportSize != lastViewportSize);
+    bool needsTransformUpdate = frameSizeChanged || viewportSizeChanged;
+    
     // Create or update pixmap item for displaying the decoded frame
     if (!m_pixmapItem) {
         m_pixmapItem = m_scene->addPixmap(frame);
         m_pixmapItem->setZValue(2); // Above video item and GStreamer overlay
-    } else {
-        m_pixmapItem->setPixmap(frame);
-    }
-    
-    // CRITICAL FIX: Ensure pixmap item is visible and properly added to scene
-    if (m_pixmapItem) {
-        // Force visibility - this was the main issue!
         m_pixmapItem->setVisible(true);
+        
+        // CRITICAL: Hide Qt video item to prevent interference
+        if (m_videoItem) {
+            m_videoItem->setVisible(false);
+        }
+        
+        // Always update transform for the first frame
+        updateVideoItemTransform();
+        centerVideoItem();
+        needsTransformUpdate = false; // Already handled
+        
+    } else {
+        // For subsequent frames, just update the pixmap - much faster!
+        m_pixmapItem->setPixmap(frame);
+        
+        // Ensure pixmap item is visible (only if needed)
+        if (!m_pixmapItem->isVisible()) {
+            m_pixmapItem->setVisible(true);
+        }
         
         // Ensure item is properly added to scene if it somehow got removed
         if (m_pixmapItem->scene() != m_scene) {
             m_scene->addItem(m_pixmapItem);
             m_pixmapItem->setZValue(2);
         }
+    }
+    
+    // SMART OPTIMIZATION: Only update transform when frame size or viewport size changes
+    if (needsTransformUpdate) {
+        updateVideoItemTransform();
+        centerVideoItem();
         
-        // Force immediate scene invalidation and update
+        // Update cached sizes
+        lastFrameSize = currentFrameSize;
+        lastViewportSize = currentViewportSize;
+        
+        qCDebug(log_ui_video) << "VideoPane: Updated transform due to size change - frame:" 
+                              << currentFrameSize << "viewport:" << currentViewportSize;
+    }
+    
+    // PERFORMANCE: Minimize update calls - only update the pixmap item region
+    if (m_pixmapItem) {
+        // Force immediate scene invalidation for just the pixmap area - more efficient
         m_scene->invalidate(m_pixmapItem->boundingRect());
     }
     
@@ -806,3 +850,4 @@ void VideoPane::enableDirectFFmpegMode(bool enable)
                           << "- pixmap visible:" << (m_pixmapItem ? m_pixmapItem->isVisible() : false)
                           << "video visible:" << (m_videoItem ? m_videoItem->isVisible() : false);
 }
+
