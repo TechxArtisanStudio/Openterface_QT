@@ -94,7 +94,7 @@ cd gstreamer_sources
 echo "Downloading GStreamer core..."
 if [ ! -d "gstreamer-${GSTREAMER_VERSION}" ]; then
   wget https://gstreamer.freedesktop.org/src/gstreamer/gstreamer-${GSTREAMER_VERSION}.tar.xz
-  tar xf gstreamer-${GSTREAMER_VERSION}.tar.xz
+  tar xvf gstreamer-${GSTREAMER_VERSION}.tar.xz
   rm gstreamer-${GSTREAMER_VERSION}.tar.xz
 else
   echo "GStreamer core directory already exists, skipping download."
