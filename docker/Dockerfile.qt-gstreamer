@@ -6,7 +6,8 @@ WORKDIR ${WORK_DIR}
 
 # Upgrade Meson to meet GStreamer requirements (>= 0.62)
 RUN echo "Upgrading Meson to support GStreamer 1.22.11..." && \
-    pip3 install --upgrade meson>=0.62
+    pip3 install --upgrade --break-system-packages meson>=0.62 && \
+    meson --version
 
 # Set up environment for GStreamer build
 ENV PKG_CONFIG_PATH="${WORK_DIR}/gstreamer_build/lib/pkgconfig:${FFMPEG_PREFIX}/lib/pkgconfig:/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/share/pkgconfig"
