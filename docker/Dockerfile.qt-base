@@ -4,111 +4,119 @@ FROM ubuntu:22.04
 # Prevent interactive prompts during package installation
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Install basic build requirements
+# Install basic build requirements (split into multiple steps for better error diagnosis)
 RUN apt-get update && apt-get install -y \
     build-essential \
-    meson \
+    cmake \
     ninja-build \
-    bison \
-    flex \
     pkg-config \
-    python3-pip \
-    linux-headers-generic \
     autoconf \
     automake \
     libtool \
     autoconf-archive \
-    cmake \
+    meson \
+    bison \
+    flex \
+    python3-pip \
+    curl \
+    wget \
+    unzip \
+    git \
+    yasm \
+    nasm \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install development libraries
+RUN apt-get update && apt-get install -y \
     libxml2-dev \
-    libxrandr-dev \
-    libegl-dev \
-    libegl-mesa0 \
-    libegl1 \
-    libgl-dev \
-    libgl1-mesa-dev \
-    libgles-dev \
-    libgles1 \
-    libgles2 \
-    libglu1-mesa \
-    libglu1-mesa-dev \
-    libglvnd-core-dev \
-    libglvnd-dev \
-    libglx-dev \
-    libopengl-dev \
-    libopengl0 \
-    libxcb-cursor-dev \
-    libxcb-cursor0 \
-    libxcb-icccm4 \
-    libxcb-icccm4-dev \
-    libxcb-image0 \
-    libxcb-image0-dev \
-    libxcb-keysyms1 \
-    libxcb-keysyms1-dev \
-    libxcb-render-util0 \
-    libxcb-render-util0-dev \
-    libxcb-render0-dev \
-    libxcb-shm0-dev \
-    libxcb-util1 \
-    libxfixes-dev \
-    libxi-dev \
+    libssl-dev \
+    libdbus-1-dev \
+    libfontconfig1-dev \
+    libfreetype6-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install X11 and graphics libraries
+RUN apt-get update && apt-get install -y \
     libx11-dev \
     libx11-xcb-dev \
     libxext-dev \
-    libdbus-1-dev \
-    libfontconfig1-dev \
-    libfreetype-dev \
+    libxfixes-dev \
+    libxi-dev \
+    libxrandr-dev \
+    libxrender-dev \
     libxkbcommon-dev \
     libxkbcommon-x11-dev \
-    libxrandr2 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install XCB libraries
+RUN apt-get update && apt-get install -y \
+    libxcb1-dev \
+    libxcb-cursor-dev \
+    libxcb-icccm4-dev \
+    libxcb-image0-dev \
+    libxcb-keysyms1-dev \
+    libxcb-render-util0-dev \
+    libxcb-render0-dev \
+    libxcb-shm0-dev \
     libxcb-randr0-dev \
     libxcb-shape0-dev \
     libxcb-sync-dev \
-    libxrender-dev \
-    libxcb1-dev \
     libxcb-glx0-dev \
     libxcb-xfixes0-dev \
     libxcb-xinerama0-dev \
     libxcb-xkb-dev \
     libxcb-util-dev \
-    libdrm-dev \
-    libgbm-dev \
-    libatspi2.0-dev \
-    libvulkan-dev \
-    libssl-dev \
-    libpulse-dev \
-    clang-16 \
-    llvm-16-dev \
-    libclang-16-dev \
-    yasm \
-    nasm \
-    curl \
-    wget \
-    unzip \
-    git \
     && rm -rf /var/lib/apt/lists/*
 
-# Install development libraries for GStreamer
+# Install OpenGL and multimedia libraries
+RUN apt-get update && apt-get install -y \
+    libegl-dev \
+    libegl1-mesa-dev \
+    libgl-dev \
+    libgl1-mesa-dev \
+    libgles2-mesa-dev \
+    libglu1-mesa-dev \
+    libglvnd-dev \
+    libglx-dev \
+    libopengl-dev \
+    libdrm-dev \
+    libgbm-dev \
+    libvulkan-dev \
+    libpulse-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install clang (try different approach for clang-16)
+RUN apt-get update && \
+    (apt-get install -y clang-16 llvm-16-dev libclang-16-dev || \
+     apt-get install -y clang llvm-dev libclang-dev) \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install development libraries for GStreamer (optional packages)
 RUN apt-get update && apt-get install -y \
     libglib2.0-dev \
     libgobject-2.0-dev \
-    libgio-2.0-dev \
     libc6-dev \
-    linux-libc-dev \
     libudev-dev \
-    libxcb-xinput-dev \
     libxv-dev \
-    libgles2-mesa-dev \
-    libegl1-mesa-dev \
     liborc-0.4-dev \
     libpcre2-dev \
     libffi-dev \
     libmount-dev \
     libblkid-dev \
-    libselinux1-dev \
     libvorbis-dev \
-    libvorbisenc2 \
     libtheora-dev \
     zlib1g-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Try to install additional optional packages (continue on failure)
+RUN apt-get update && \
+    (apt-get install -y \
+        libatspi2.0-dev \
+        libselinux1-dev \
+        libvorbisenc2 \
+        libxcb-xinput-dev \
+        linux-headers-generic \
+    || echo "Some optional packages failed to install, continuing...") \
     && rm -rf /var/lib/apt/lists/*
 
 # Set build environment variables
