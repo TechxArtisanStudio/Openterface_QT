@@ -212,6 +212,12 @@ if [ ! -f "/opt/orc-static/lib/aarch64-linux-gnu/liborc-0.4.a" ]; then
   if [ -n "$ORC_LIB_PATH" ]; then
     echo "✓ Static ORC library successfully built and installed at: $ORC_LIB_PATH"
     ls -la "$ORC_LIB_PATH"
+    # If ORC installed .pc files, add their pkgconfig dirs to PKG_CONFIG_PATH
+    ORC_PKG_DIRS=$(find /opt/orc-static -type d -path "*/pkgconfig" 2>/dev/null || true)
+    for d in $ORC_PKG_DIRS; do
+      export PKG_CONFIG_PATH="$d:${PKG_CONFIG_PATH}"
+    done
+    echo "Updated PKG_CONFIG_PATH with ORC pkgconfig dirs: $ORC_PKG_DIRS"
   else
     echo "✗ Warning: Static ORC library not found after installation"
     echo "  Expected something like: /opt/orc-static/lib/liborc-0.4.a or /opt/orc-static/lib/*/liborc-0.4.a"
@@ -240,6 +246,14 @@ if [ ! -f "${WORK_DIR}/gstreamer_build/lib/libgstreamer-1.0.a" ]; then
 
   ninja -C build
   ninja -C build install
+  # After installing GStreamer core, ensure any pkgconfig dirs under the
+  # build prefix are visible to pkg-config. Meson may install pc files into
+  # lib/pkgconfig or lib/<triplet>/pkgconfig.
+  GST_PKG_DIRS=$(find "${WORK_DIR}/gstreamer_build" -type d -path "*/pkgconfig" 2>/dev/null || true)
+  for d in $GST_PKG_DIRS; do
+    export PKG_CONFIG_PATH="$d:${PKG_CONFIG_PATH}"
+  done
+  echo "Updated PKG_CONFIG_PATH with GStreamer core pkgconfig dirs: $GST_PKG_DIRS"
 else
   echo "GStreamer core already built, skipping build."
 fi
@@ -293,6 +307,13 @@ if [ ! -f "${WORK_DIR}/gstreamer_build/lib/libgstbase-1.0.a" ]; then
 
   ninja -C build
   ninja -C build install
+  # After installing gst-plugins-base, refresh PKG_CONFIG_PATH so subsequent
+  # meson setups (gst-plugins-good) can find gstreamer-pbutils via pkg-config
+  GST_BASE_PKG_DIRS=$(find "${WORK_DIR}/gstreamer_build" -type d -path "*/pkgconfig" 2>/dev/null || true)
+  for d in $GST_BASE_PKG_DIRS; do
+    export PKG_CONFIG_PATH="$d:${PKG_CONFIG_PATH}"
+  done
+  echo "Updated PKG_CONFIG_PATH with gst-plugins-base pkgconfig dirs: $GST_BASE_PKG_DIRS"
   
   # Copy additional headers and libraries that might be needed
   echo "Copying additional GStreamer headers to Qt installation..."
