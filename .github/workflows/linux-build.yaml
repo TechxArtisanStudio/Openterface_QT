@@ -31,7 +31,8 @@ jobs:
           sudo apt update -y
           sudo apt upgrade -y
           sudo apt install build-essential
-          sudo apt-get install -y libusb-1.0-0-dev rpm libfuse2 libudev-dev
+          sudo apt-get install -y libusb-1.0-0-dev rpm libfuse2 libudev-dev \
+            pkg-config libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev libgstreamer-plugins-good1.0-dev libglib2.0-dev
           
           wget -O linuxdeploy-x86_64.AppImage https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
           wget -O linuxdeploy-plugin-qt-x86_64.AppImage https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-x86_64.AppImage
@@ -56,6 +57,14 @@ jobs:
           echo "QTDIR: $QTDIR"
           which lupdate || echo "lupdate not found"
           lupdate --version || echo "lupdate version check failed"
+
+      - name: Verify GStreamer (pkg-config)
+        run: |
+          echo "Checking pkg-config for gstreamer..."
+          pkg-config --modversion gstreamer-1.0 || echo "gstreamer-1.0 not found by pkg-config"
+          pkg-config --modversion gstreamer-video-1.0 || echo "gstreamer-video-1.0 not found by pkg-config"
+          echo "gstreamer cflags: " $(pkg-config --cflags gstreamer-1.0 || true)
+          echo "gstreamer libs: " $(pkg-config --libs gstreamer-1.0 || true)
 
       - name: Get all tags for correct version determination
         working-directory: ${{ github.workspace }}
