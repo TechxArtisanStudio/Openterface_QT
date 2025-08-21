@@ -208,7 +208,7 @@ else
   echo "Static ORC library already built, skipping build."
 fi
 
-cd "${WORK_DIR}"
+cd "${WORK_DIR}"/gstreamer_sources
 
 # Build GStreamer core
 echo "Building GStreamer core..."
