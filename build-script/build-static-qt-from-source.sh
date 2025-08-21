@@ -89,8 +89,11 @@ make install
 
 # Build GStreamer
 echo "Building static GStreamer for ARM64..."
-mkdir -p gstreamer_sources gstreamer_build
-cd gstreamer_sources
+# Use WORK_DIR for gstreamer sources and build so later references like
+# "${WORK_DIR}/gstreamer_sources" match where we put things (CI was failing
+# because the script created these under the current BUILD_DIR instead).
+mkdir -p "${WORK_DIR}/gstreamer_sources" "${WORK_DIR}/gstreamer_build"
+cd "${WORK_DIR}/gstreamer_sources"
 
 # Download GStreamer core components
 echo "Downloading GStreamer core..."
@@ -130,7 +133,9 @@ else
 fi
 
 # Set up build environment for GStreamer
-export PKG_CONFIG_PATH="${WORK_DIR}/gstreamer_build/lib/pkgconfig:${WORK_DIR}/ffmpeg_build/lib/pkgconfig"
+# Ensure pkg-config can find GStreamer and FFmpeg pkgconfig files. FFmpeg
+# is installed into ${FFMPEG_PREFIX} by this script, so include that path.
+export PKG_CONFIG_PATH="${WORK_DIR}/gstreamer_build/lib/pkgconfig:${FFMPEG_PREFIX}/lib/pkgconfig:${PKG_CONFIG_PATH}"
 
 # Install development libraries for GStreamer and Qt (including GLib)
 echo "Installing development libraries for GStreamer and Qt..."
@@ -198,13 +203,18 @@ if [ ! -f "/opt/orc-static/lib/aarch64-linux-gnu/liborc-0.4.a" ]; then
   meson setup build --prefix=/opt/orc-static --default-library=static
   ninja -C build
   sudo ninja -C build install
-  
-  # Verify the static library was created
-  if [ -f "/opt/orc-static/lib/aarch64-linux-gnu/liborc-0.4.a" ]; then
-    echo "✓ Static ORC library successfully built and installed"
-    ls -la /opt/orc-static/lib/aarch64-linux-gnu/liborc-0.4.a
+
+  # Verify the static library was created. Meson/ninja may install libraries
+  # directly under /opt/orc-static/lib or under a triplet subdirectory
+  # (for example lib/aarch64-linux-gnu). Search for the file instead of
+  # relying on a single hard-coded path.
+  ORC_LIB_PATH=$(find /opt/orc-static -type f -name "liborc-0.4.a" 2>/dev/null | head -n1 || true)
+  if [ -n "$ORC_LIB_PATH" ]; then
+    echo "✓ Static ORC library successfully built and installed at: $ORC_LIB_PATH"
+    ls -la "$ORC_LIB_PATH"
   else
     echo "✗ Warning: Static ORC library not found after installation"
+    echo "  Expected something like: /opt/orc-static/lib/liborc-0.4.a or /opt/orc-static/lib/*/liborc-0.4.a"
   fi
 else
   echo "Static ORC library already built, skipping build."
