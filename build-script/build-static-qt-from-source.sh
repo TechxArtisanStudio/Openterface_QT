@@ -326,13 +326,22 @@ if [ ! -f "${WORK_DIR}/gstreamer_build/lib/libgstbase-1.0.a" ]; then
 
   ninja -C build
   ninja -C build install
-  # After installing gst-plugins-base, refresh PKG_CONFIG_PATH so subsequent
-  # meson setups (gst-plugins-good) can find gstreamer-pbutils via pkg-config
-  GST_BASE_PKG_DIRS=$(find "${WORK_DIR}/gstreamer_build" -type d -path "*/pkgconfig" 2>/dev/null || true)
-  for d in $GST_BASE_PKG_DIRS; do
-    export PKG_CONFIG_PATH="$d:${PKG_CONFIG_PATH}"
-  done
-  echo "Updated PKG_CONFIG_PATH with gst-plugins-base pkgconfig dirs: $GST_BASE_PKG_DIRS"
+  # After installing gst-plugins-base, print all .pc files and ensure PKG_CONFIG_PATH includes their parent dirs
+  echo "Listing all .pc files under ${WORK_DIR}/gstreamer_build after gst-plugins-base install:"
+  GST_PC_FILES=$(find "${WORK_DIR}/gstreamer_build" -name "*.pc" -print 2>/dev/null)
+  if [ -z "$GST_PC_FILES" ]; then
+    echo "  ✗ No .pc files found under ${WORK_DIR}/gstreamer_build. Check gst-plugins-base build/install log."
+  else
+    echo "$GST_PC_FILES" | while read pcfile; do
+      echo "  Found: $pcfile"
+      pcdir=$(dirname "$pcfile")
+      case ":$PKG_CONFIG_PATH:" in
+        *:"$pcdir":*) ;; # already present
+        *) export PKG_CONFIG_PATH="$pcdir:$PKG_CONFIG_PATH"; echo "  Added $pcdir to PKG_CONFIG_PATH";;
+      esac
+    done
+  fi
+  echo "Final PKG_CONFIG_PATH before gst-plugins-good: $PKG_CONFIG_PATH"
   
   # Copy additional headers and libraries that might be needed
   echo "Copying additional GStreamer headers to Qt installation..."
