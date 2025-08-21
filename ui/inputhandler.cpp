@@ -78,10 +78,10 @@ bool InputHandler::eventFilter(QObject *watched, QEvent *event)
 {
     // Debug: Log all events to see what we're receiving
     if (watched == m_videoPane || watched == m_currentEventTarget) {
-        qDebug() << "InputHandler::eventFilter - Event type:" << event->type() 
-                 << "watched object:" << watched 
-                 << "current target:" << m_currentEventTarget
-                 << "GStreamer mode:" << (m_videoPane ? m_videoPane->isDirectGStreamerModeEnabled() : false);
+        // qDebug() << "InputHandler::eventFilter - Event type:" << event->type() 
+        //          << "watched object:" << watched 
+        //          << "current target:" << m_currentEventTarget
+        //          << "GStreamer mode:" << (m_videoPane ? m_videoPane->isDirectGStreamerModeEnabled() : false);
     }
     
     if (event->type() == QEvent::MouseMove) {

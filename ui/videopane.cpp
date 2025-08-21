@@ -387,11 +387,11 @@ void VideoPane::resizeEvent(QResizeEvent *event)
         if (m_directFFmpegMode && m_pixmapItem) {
             targetItem = m_pixmapItem;
             itemRect = m_pixmapItem->boundingRect();
-            qDebug(log_ui_video) << "VideoPane: Updating FFmpeg pixmap transform";
+            // qDebug(log_ui_video) << "VideoPane: Updating FFmpeg pixmap transform";
         } else if (m_videoItem) {
             targetItem = m_videoItem;
             itemRect = m_videoItem->boundingRect();
-            qDebug() << "VideoPane: Updating Qt video item transform";
+            // qDebug() << "VideoPane: Updating Qt video item transform";
         }
         
         if (!targetItem) return;
@@ -399,7 +399,7 @@ void VideoPane::resizeEvent(QResizeEvent *event)
         QRectF viewRect = viewport()->rect();
         
         if (itemRect.isEmpty() || viewRect.isEmpty()) return;
-        qDebug() << "Updating item transform with itemRect:" << itemRect << "viewRect:" << viewRect;
+        // qDebug() << "Updating item transform with itemRect:" << itemRect << "viewRect:" << viewRect;
         
         // Reset transform and position first
         targetItem->setTransform(QTransform());
@@ -425,7 +425,7 @@ void VideoPane::resizeEvent(QResizeEvent *event)
             double x = (viewRect.width() - scaledRect.width()) / 2.0 - (itemOffset.x() * scale);
             double y = (viewRect.height() - scaledRect.height()) / 2.0 - (itemOffset.y() * scale);
             targetItem->setPos(x, y);
-            qDebug() << "Item transformed with scale:" << scale << "at position:" << QPointF(x, y) << "offset:" << itemOffset;
+            // qDebug() << "Item transformed with scale:" << scale << "at position:" << QPointF(x, y) << "offset:" << itemOffset;
         } else {
             // Stretch to fill (ignore aspect ratio)
             QTransform transform;
