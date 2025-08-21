@@ -1,15 +1,23 @@
 # Base Ubuntu image for Qt static build environment
-FROM ubuntu:22.04
+FROM ubuntu:24.04
 
 # Prevent interactive prompts during package installation
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Install basic build requirements (split into multiple steps for better error diagnosis)
+# Update package lists and install core build tools
 RUN apt-get update && apt-get install -y \
     build-essential \
     cmake \
     ninja-build \
     pkg-config \
+    curl \
+    wget \
+    git \
+    unzip \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install additional build tools
+RUN apt-get update && apt-get install -y \
     autoconf \
     automake \
     libtool \
@@ -18,24 +26,21 @@ RUN apt-get update && apt-get install -y \
     bison \
     flex \
     python3-pip \
-    curl \
-    wget \
-    unzip \
-    git \
     yasm \
     nasm \
     && rm -rf /var/lib/apt/lists/*
 
-# Install development libraries
+# Install basic development libraries  
 RUN apt-get update && apt-get install -y \
-    libxml2-dev \
     libssl-dev \
+    zlib1g-dev \
+    libxml2-dev \
     libdbus-1-dev \
     libfontconfig1-dev \
     libfreetype6-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Install X11 and graphics libraries
+# Install X11 core libraries (essential for Qt)
 RUN apt-get update && apt-get install -y \
     libx11-dev \
     libx11-xcb-dev \
@@ -44,91 +49,96 @@ RUN apt-get update && apt-get install -y \
     libxi-dev \
     libxrandr-dev \
     libxrender-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install XCB libraries (try individual packages to identify issues)
+RUN apt-get update && \
+    apt-get install -y libxcb1-dev && \
+    apt-get install -y libxcb-render0-dev && \
+    apt-get install -y libxcb-shm0-dev && \
+    apt-get install -y libxcb-randr0-dev && \
+    apt-get install -y libxcb-shape0-dev && \
+    apt-get install -y libxcb-sync0-dev && \
+    apt-get install -y libxcb-glx0-dev && \
+    apt-get install -y libxcb-xfixes0-dev && \
+    apt-get install -y libxcb-xinerama0-dev && \
+    apt-get install -y libxcb-xkb-dev && \
+    rm -rf /var/lib/apt/lists/*
+
+# Install additional XCB libraries (with error handling)
+RUN apt-get update && \
+    (apt-get install -y \
+        libxcb-cursor-dev \
+        libxcb-icccm4-dev \
+        libxcb-image0-dev \
+        libxcb-keysyms1-dev \
+        libxcb-render-util0-dev \
+        libxcb-util-dev \
+    || echo "Some XCB packages failed, continuing...") && \
+    rm -rf /var/lib/apt/lists/*
+
+# Install keyboard support
+RUN apt-get update && apt-get install -y \
     libxkbcommon-dev \
     libxkbcommon-x11-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Install XCB libraries
-RUN apt-get update && apt-get install -y \
-    libxcb1-dev \
-    libxcb-cursor-dev \
-    libxcb-icccm4-dev \
-    libxcb-image0-dev \
-    libxcb-keysyms1-dev \
-    libxcb-render-util0-dev \
-    libxcb-render0-dev \
-    libxcb-shm0-dev \
-    libxcb-randr0-dev \
-    libxcb-shape0-dev \
-    libxcb-sync-dev \
-    libxcb-glx0-dev \
-    libxcb-xfixes0-dev \
-    libxcb-xinerama0-dev \
-    libxcb-xkb-dev \
-    libxcb-util-dev \
+# Install OpenGL libraries (essential packages first)
+RUN apt-get update && \
+    apt-get install -y \
+        libgl-dev \
+        libgl1-mesa-dev \
+        libegl-dev \
+        libegl1-mesa-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Install OpenGL and multimedia libraries
+# Install additional OpenGL libraries (with error handling)
+RUN apt-get update && \
+    (apt-get install -y \
+        libgles2-mesa-dev \
+        libglu1-mesa-dev \
+        libglvnd-dev \
+        libglx-dev \
+        libopengl-dev \
+        libdrm-dev \
+        libgbm-dev \
+        libvulkan-dev \
+    || echo "Some OpenGL packages failed, continuing...") && \
+    rm -rf /var/lib/apt/lists/*
+
+# Install multimedia libraries
 RUN apt-get update && apt-get install -y \
-    libegl-dev \
-    libegl1-mesa-dev \
-    libgl-dev \
-    libgl1-mesa-dev \
-    libgles2-mesa-dev \
-    libglu1-mesa-dev \
-    libglvnd-dev \
-    libglx-dev \
-    libopengl-dev \
-    libdrm-dev \
-    libgbm-dev \
-    libvulkan-dev \
     libpulse-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Install clang (try different approach for clang-16)
-RUN apt-get update && \
-    (apt-get install -y clang-16 llvm-16-dev libclang-16-dev || \
-     apt-get install -y clang llvm-dev libclang-dev) \
-    && rm -rf /var/lib/apt/lists/*
-
-# Install development libraries for GStreamer (split into essential and optional)
+# Install GStreamer essential dependencies
 RUN apt-get update && apt-get install -y \
     libglib2.0-dev \
     libc6-dev \
-    zlib1g-dev \
     libffi-dev \
+    libpcre2-dev \
+    libmount-dev \
+    libblkid-dev \
+    libudev-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Install additional GStreamer dependencies (with fallbacks)
-RUN apt-get update && \
-    apt-get install -y \
-        libudev-dev \
-        libpcre2-dev \
-        libmount-dev \
-        libblkid-dev \
-    && rm -rf /var/lib/apt/lists/*
-
-# Try to install optional multimedia packages (continue on failure)
+# Install optional multimedia libraries (with error handling)
 RUN apt-get update && \
     (apt-get install -y \
-        libgobject-2.0-dev \
-        libxv-dev \
-        liborc-0.4-dev \
         libvorbis-dev \
         libtheora-dev \
-    || echo "Some optional multimedia packages failed to install, continuing...") \
-    && rm -rf /var/lib/apt/lists/*
+        libxv-dev \
+        liborc-0.4-dev \
+    || echo "Some multimedia packages failed, continuing...") && \
+    rm -rf /var/lib/apt/lists/*
 
-# Try to install additional optional packages (continue on failure)
+# Try to install clang (with fallback)
 RUN apt-get update && \
-    (apt-get install -y \
-        libatspi2.0-dev \
-        libselinux1-dev \
-        libvorbisenc2 \
-        libxcb-xinput-dev \
-        linux-headers-generic \
-    || echo "Some optional packages failed to install, continuing...") \
-    && rm -rf /var/lib/apt/lists/*
+    (apt-get install -y clang-16 llvm-16-dev libclang-16-dev || \
+     apt-get install -y clang-15 llvm-15-dev libclang-15-dev || \
+     apt-get install -y clang llvm-dev libclang-dev || \
+     echo "Clang installation failed, will use GCC") && \
+    rm -rf /var/lib/apt/lists/*
 
 # Set build environment variables
 ENV INSTALL_PREFIX=/opt/Qt6
