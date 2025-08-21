@@ -217,7 +217,6 @@ if [ ! -f "${WORK_DIR}/gstreamer_build/lib/libgstbase-1.0.a" ]; then
     --prefix="${WORK_DIR}/gstreamer_build" \
     --libdir=lib \
     --default-library=static \
-    -Dpkgconfigdir="${WORK_DIR}/gstreamer_build/lib/pkgconfig" \
     -Dexamples=disabled \
     -Dtests=disabled \
     -Ddoc=disabled \
@@ -235,8 +234,6 @@ if [ ! -f "${WORK_DIR}/gstreamer_build/lib/libgstbase-1.0.a" ]; then
     -Dgl_platform=glx \
     -Dgl_winsys=x11 \
     -Dvideotestsrc=enabled \
-    -Dvideoconvert=enabled \
-    -Dvideoscale=enabled \
     -Dapp=enabled \
     -Daudioconvert=enabled \
     -Daudioresample=enabled \
@@ -247,13 +244,6 @@ if [ ! -f "${WORK_DIR}/gstreamer_build/lib/libgstbase-1.0.a" ]; then
     -Dcompositor=enabled \
     -Doverlaycomposition=enabled \
     -Dpbtypes=enabled \
-    -Ddmabuf=enabled \
-    -Dvideo=enabled \
-    -Daudio=enabled \
-    -Dvideooverlay=enabled \
-    -Drtp=enabled \
-    -Dtag=enabled \
-    -Dpbutils=enabled \
     -Dnls=disabled
 
   ninja -C build
