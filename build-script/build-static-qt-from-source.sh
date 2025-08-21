@@ -83,6 +83,332 @@ cd "ffmpeg-$FFMPEG_VERSION"
 make -j$(nproc)
 make install
 
+
+# Build GStreamer
+echo "Building static GStreamer for ARM64..."
+mkdir -p gstreamer_sources gstreamer_build
+cd gstreamer_sources
+
+# Download GStreamer core components
+echo "Downloading GStreamer core..."
+if [ ! -d "gstreamer-${GSTREAMER_VERSION}" ]; then
+  wget https://gstreamer.freedesktop.org/src/gstreamer/gstreamer-${GSTREAMER_VERSION}.tar.xz
+  tar xf gstreamer-${GSTREAMER_VERSION}.tar.xz
+  rm gstreamer-${GSTREAMER_VERSION}.tar.xz
+else
+  echo "GStreamer core directory already exists, skipping download."
+fi
+
+echo "Downloading gst-plugins-base..."
+if [ ! -d "gst-plugins-base-${GSTREAMER_VERSION}" ]; then
+  wget https://gstreamer.freedesktop.org/src/gst-plugins-base/gst-plugins-base-${GSTREAMER_VERSION}.tar.xz
+  tar xf gst-plugins-base-${GSTREAMER_VERSION}.tar.xz
+  rm gst-plugins-base-${GSTREAMER_VERSION}.tar.xz
+else
+  echo "gst-plugins-base directory already exists, skipping download."
+fi
+
+echo "Downloading gst-plugins-good..."
+if [ ! -d "gst-plugins-good-${GSTREAMER_VERSION}" ]; then
+  wget https://gstreamer.freedesktop.org/src/gst-plugins-good/gst-plugins-good-${GSTREAMER_VERSION}.tar.xz
+  tar xf gst-plugins-good-${GSTREAMER_VERSION}.tar.xz
+  rm gst-plugins-good-${GSTREAMER_VERSION}.tar.xz
+else
+  echo "gst-plugins-good directory already exists, skipping download."
+fi
+
+echo "Downloading gst-plugins-bad..."
+if [ ! -d "gst-plugins-bad-${GSTREAMER_VERSION}" ]; then
+  wget https://gstreamer.freedesktop.org/src/gst-plugins-bad/gst-plugins-bad-${GSTREAMER_VERSION}.tar.xz
+  tar xf gst-plugins-bad-${GSTREAMER_VERSION}.tar.xz
+  rm gst-plugins-bad-${GSTREAMER_VERSION}.tar.xz
+else
+  echo "gst-plugins-bad directory already exists, skipping download."
+fi
+
+# Set up build environment for GStreamer
+export PKG_CONFIG_PATH="${WORK_DIR}/gstreamer_build/lib/pkgconfig:${WORK_DIR}/ffmpeg_build/lib/pkgconfig"
+
+# Install development libraries for GStreamer and Qt (including GLib)
+echo "Installing development libraries for GStreamer and Qt..."
+sudo apt-get install -y \
+  libglib2.0-dev \
+  libgobject-2.0-dev \
+  libgio-2.0-dev \
+  libc6-dev \
+  linux-libc-dev \
+  libudev-dev \
+  libxkbcommon-dev \
+  libxkbcommon-x11-dev \
+  libxcb1-dev \
+  libxcb-util-dev \
+  libxcb-keysyms1-dev \
+  libxcb-image0-dev \
+  libxcb-shm0-dev \
+  libxcb-icccm4-dev \
+  libxcb-sync-dev \
+  libxcb-xfixes0-dev \
+  libxcb-shape0-dev \
+  libxcb-randr0-dev \
+  libxcb-render-util0-dev \
+  libxcb-render0-dev \
+  libxcb-glx0-dev \
+  libxcb-xinerama0-dev \
+  libxcb-xinput-dev \
+  libx11-dev \
+  libxext-dev \
+  libxv-dev \
+  libgl1-mesa-dev \
+  libgles2-mesa-dev \
+  libegl1-mesa-dev \
+  liborc-0.4-dev \
+  libpcre2-dev \
+  libffi-dev \
+  libmount-dev \
+  libblkid-dev \
+  libselinux1-dev \
+  libvorbis-dev \
+  libvorbisenc2 \
+  libtheora-dev \
+  zlib1g-dev || echo "Some libraries installation failed, continuing with available libraries"
+
+# Build static ORC library (required for GStreamer static linking)
+echo "Building static ORC library..."
+cd "${WORK_DIR}"
+mkdir -p orc_sources orc_build
+cd orc_sources
+
+# Download ORC if not already present
+if [ ! -d "orc-0.4.33" ]; then
+  echo "Downloading ORC 0.4.33..."
+  wget https://gstreamer.freedesktop.org/src/orc/orc-0.4.33.tar.xz
+  tar -xf orc-0.4.33.tar.xz
+  rm orc-0.4.33.tar.xz
+else
+  echo "ORC source directory already exists, skipping download."
+fi
+
+# Build static ORC library
+cd orc-0.4.33
+if [ ! -f "/opt/orc-static/lib/aarch64-linux-gnu/liborc-0.4.a" ]; then
+  echo "Configuring and building static ORC library..."
+  meson setup build --prefix=/opt/orc-static --default-library=static
+  ninja -C build
+  sudo ninja -C build install
+  
+  # Verify the static library was created
+  if [ -f "/opt/orc-static/lib/aarch64-linux-gnu/liborc-0.4.a" ]; then
+    echo "✓ Static ORC library successfully built and installed"
+    ls -la /opt/orc-static/lib/aarch64-linux-gnu/liborc-0.4.a
+  else
+    echo "✗ Warning: Static ORC library not found after installation"
+  fi
+else
+  echo "Static ORC library already built, skipping build."
+fi
+
+cd "${WORK_DIR}"
+
+# Build GStreamer core
+echo "Building GStreamer core..."
+cd gstreamer-${GSTREAMER_VERSION}
+if [ ! -f "${WORK_DIR}/gstreamer_build/lib/libgstreamer-1.0.a" ]; then
+  meson setup build \
+    --prefix="${WORK_DIR}/gstreamer_build" \
+    --libdir=lib \
+    --default-library=static \
+    -Dexamples=disabled \
+    -Dtests=disabled \
+    -Dbenchmarks=disabled \
+    -Dtools=disabled \
+    -Ddoc=disabled \
+    -Dgst_debug=false \
+    -Dnls=disabled
+
+  ninja -C build
+  ninja -C build install
+else
+  echo "GStreamer core already built, skipping build."
+fi
+cd ..
+
+# Build gst-plugins-base
+echo "Building gst-plugins-base..."
+cd gst-plugins-base-${GSTREAMER_VERSION}
+if [ ! -f "${WORK_DIR}/gstreamer_build/lib/libgstbase-1.0.a" ]; then
+  meson setup build \
+    --prefix="${WORK_DIR}/gstreamer_build" \
+    --libdir=lib \
+    --default-library=static \
+    -Dexamples=disabled \
+    -Dtests=disabled \
+    -Ddoc=disabled \
+    -Dtools=disabled \
+    -Dalsa=enabled \
+    -Dcdparanoia=disabled \
+    -Dlibvisual=disabled \
+    -Dorc=enabled \
+    -Dtremor=disabled \
+    -Dvorbis=enabled \
+    -Dx11=enabled \
+    -Dxshm=enabled \
+    -Dxvideo=enabled \
+    -Dgl=enabled \
+    -Dgl_platform=glx \
+    -Dgl_winsys=x11 \
+    -Dvideotestsrc=enabled \
+    -Dvideoconvert=enabled \
+    -Dvideoscale=enabled \
+    -Dapp=enabled \
+    -Daudioconvert=enabled \
+    -Daudioresample=enabled \
+    -Dtypefind=enabled \
+    -Dplayback=enabled \
+    -Dsubparse=enabled \
+    -Dencoding=enabled \
+    -Dcompositor=enabled \
+    -Doverlaycomposition=enabled \
+    -Dpbtypes=enabled \
+    -Ddmabuf=enabled \
+    -Dvideo=enabled \
+    -Daudio=enabled \
+    -Dvideooverlay=enabled \
+    -Drtp=enabled \
+    -Dtag=enabled \
+    -Dpbutils=enabled \
+    -Dnls=disabled
+
+  ninja -C build
+  ninja -C build install
+  
+  # Copy additional headers and libraries that might be needed
+  echo "Copying additional GStreamer headers to Qt installation..."
+  sudo mkdir -p ${QT_TARGET_DIR}/include/gstreamer-1.0/gst/video
+  sudo mkdir -p ${QT_TARGET_DIR}/include/gstreamer-1.0/gst/audio
+  sudo mkdir -p ${QT_TARGET_DIR}/include/gstreamer-1.0/gst/rtp
+  sudo mkdir -p ${QT_TARGET_DIR}/include/gstreamer-1.0/gst/pbutils
+  sudo mkdir -p ${QT_TARGET_DIR}/include/gstreamer-1.0/gst/tag
+  
+  # Copy source headers
+  sudo cp gst-libs/gst/video/*.h ${QT_TARGET_DIR}/include/gstreamer-1.0/gst/video/ 2>/dev/null || true
+  sudo cp gst-libs/gst/audio/*.h ${QT_TARGET_DIR}/include/gstreamer-1.0/gst/audio/ 2>/dev/null || true
+  sudo cp gst-libs/gst/rtp/*.h ${QT_TARGET_DIR}/include/gstreamer-1.0/gst/rtp/ 2>/dev/null || true
+  sudo cp gst-libs/gst/pbutils/*.h ${QT_TARGET_DIR}/include/gstreamer-1.0/gst/pbutils/ 2>/dev/null || true
+  sudo cp gst-libs/gst/tag/*.h ${QT_TARGET_DIR}/include/gstreamer-1.0/gst/tag/ 2>/dev/null || true
+  
+  # Copy generated headers
+  sudo cp build/gst-libs/gst/video/video-enumtypes.h ${QT_TARGET_DIR}/include/gstreamer-1.0/gst/video/ 2>/dev/null || true
+  sudo cp build/gst-libs/gst/video/video-orc.h ${QT_TARGET_DIR}/include/gstreamer-1.0/gst/video/ 2>/dev/null || true
+  sudo cp build/gst-libs/gst/audio/audio-enumtypes.h ${QT_TARGET_DIR}/include/gstreamer-1.0/gst/audio/ 2>/dev/null || true
+  sudo cp build/gst-libs/gst/rtp/gstrtp-enumtypes.h ${QT_TARGET_DIR}/include/gstreamer-1.0/gst/rtp/ 2>/dev/null || true
+  sudo cp build/gst-libs/gst/pbutils/pbutils-enumtypes.h ${QT_TARGET_DIR}/include/gstreamer-1.0/gst/pbutils/ 2>/dev/null || true
+  sudo cp build/gst-libs/gst/tag/tag-enumtypes.h ${QT_TARGET_DIR}/include/gstreamer-1.0/gst/tag/ 2>/dev/null || true
+  
+  # Copy all static libraries
+  echo "Copying all GStreamer static libraries..."
+  find build -name "libgst*.a" -exec sudo cp {} ${QT_TARGET_DIR}/lib/ \; 2>/dev/null || true
+else
+  echo "gst-plugins-base already built, skipping build."
+fi
+cd ..
+
+# Build gst-plugins-good
+echo "Building gst-plugins-good..."
+cd gst-plugins-good-${GSTREAMER_VERSION}
+if [ ! -f "${WORK_DIR}/gstreamer_build/lib/gstreamer-1.0/libgstvideotestsrc.a" ]; then
+  meson setup build \
+    --prefix="${WORK_DIR}/gstreamer_build" \
+    --libdir=lib \
+    --default-library=static \
+    -Dexamples=disabled \
+    -Dtests=disabled \
+    -Ddoc=disabled \
+    -Dqt5=disabled \
+    -Dqt6=disabled \
+    -Dalpha=disabled \
+    -Dapetag=disabled \
+    -Daudiofx=disabled \
+    -Dcutter=disabled \
+    -Ddebugutils=disabled \
+    -Ddeinterlace=disabled \
+    -Ddtmf=disabled \
+    -Deffectv=disabled \
+    -Dequalizer=disabled \
+    -Dgoom=disabled \
+    -Dgoom2k1=disabled \
+    -Dgtk3=disabled \
+    -Dicydemux=disabled \
+    -Dimagefreeze=disabled \
+    -Dinterleave=disabled \
+    -Disomp4=disabled \
+    -Dlaw=disabled \
+    -Dlevel=disabled \
+    -Dmatroska=disabled \
+    -Dmonoscope=disabled \
+    -Dmultifile=disabled \
+    -Dmultipart=disabled \
+    -Dreplaygain=disabled \
+    -Drtp=enabled \
+    -Drtpmanager=enabled \
+    -Drtsp=enabled \
+    -Dshapewipe=disabled \
+    -Dsmpte=disabled \
+    -Dspectrum=disabled \
+    -Dudp=enabled \
+    -Dvideobox=disabled \
+    -Dvideocrop=enabled \
+    -Dvideofilter=enabled \
+    -Dvideomixer=disabled \
+    -Dwavenc=disabled \
+    -Dwavparse=disabled \
+    -Dy4m=disabled \
+    -Doss=disabled \
+    -Doss4=disabled \
+    -Dv4l2=enabled \
+    -Dximagesrc=disabled \
+    -Dnls=disabled
+
+  ninja -C build
+  ninja -C build install
+  
+  # Copy plugin static libraries to Qt target directory
+  echo "Copying gst-plugins-good static libraries to Qt installation..."
+  sudo mkdir -p ${QT_TARGET_DIR}/lib/gstreamer-1.0
+  find build -name "libgst*.a" -exec sudo cp {} ${QT_TARGET_DIR}/lib/gstreamer-1.0/ \; 2>/dev/null || true
+else
+  echo "gst-plugins-good already built, skipping build."
+fi
+cd ..
+
+# Build gst-plugins-bad
+echo "Building gst-plugins-bad..."
+cd gst-plugins-bad-${GSTREAMER_VERSION}
+if [ ! -f "${WORK_DIR}/gstreamer_build/lib/gstreamer-1.0/libgstvideoparsersbad.a" ]; then
+  meson setup build \
+    --prefix="${WORK_DIR}/gstreamer_build" \
+    --libdir=lib \
+    --default-library=static \
+    -Dexamples=disabled \
+    -Dtests=disabled \
+    -Ddoc=disabled \
+    -Dnls=disabled
+
+  ninja -C build
+  ninja -C build install
+  
+  # Copy plugin static libraries to Qt target directory
+  echo "Copying gst-plugins-bad static libraries to Qt installation..."
+  find build -name "libgst*.a" -exec sudo cp {} ${QT_TARGET_DIR}/lib/gstreamer-1.0/ \; 2>/dev/null || true
+else
+  echo "gst-plugins-bad already built, skipping build."
+fi
+cd ..
+
+# Update PKG_CONFIG_PATH to include GStreamer
+export PKG_CONFIG_PATH="${WORK_DIR}/gstreamer_build/lib/pkgconfig:${PKG_CONFIG_PATH}"
+cd "${WORK_DIR}"
+
+
 # Download and extract modules
 cd "$BUILD_DIR"
 for module in "${MODULES[@]}"; do

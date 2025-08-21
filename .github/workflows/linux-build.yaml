@@ -31,7 +31,8 @@ jobs:
           sudo apt update -y
           sudo apt upgrade -y
           sudo apt install build-essential
-          sudo apt-get install -y libusb-1.0-0-dev rpm libfuse2 libudev-dev
+          sudo apt-get install -y libusb-1.0-0-dev rpm libfuse2 libudev-dev \
+            pkg-config libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev libgstreamer-plugins-good1.0-dev libglib2.0-dev
           
           wget -O linuxdeploy-x86_64.AppImage https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
           wget -O linuxdeploy-plugin-qt-x86_64.AppImage https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-x86_64.AppImage
