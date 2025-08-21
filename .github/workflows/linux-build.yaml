@@ -28,16 +28,21 @@ jobs:
 
       - name: Install prerequisites
         run: |
-          sudo apt update -y
-          sudo apt upgrade -y
-          sudo apt install build-essential
-          sudo apt-get install -y libusb-1.0-0-dev rpm libfuse2 libudev-dev \
-            pkg-config libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev libgstreamer-plugins-good1.0-dev libglib2.0-dev
-          
+          # Non-interactive apt to avoid prompts in CI
+          export DEBIAN_FRONTEND=noninteractive
+          sudo apt-get update -y
+          sudo apt-get upgrade -y
+          sudo apt-get install -y --no-install-recommends build-essential libunwind-dev
+
+          # Install development packages required for building (make apt more robust against broken deps)
+          sudo apt-get install -y --no-install-recommends libusb-1.0-0-dev rpm libfuse2 libudev-dev \
+            pkg-config libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev libgstreamer-plugins-good1.0-dev libglib2.0-dev || \
+            (sudo apt-get -f install -y && sudo apt-get install -y --no-install-recommends libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev libgstreamer-plugins-good1.0-dev)
+
           wget -O linuxdeploy-x86_64.AppImage https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
           wget -O linuxdeploy-plugin-qt-x86_64.AppImage https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-x86_64.AppImage
           wget -O appimagetool "https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage"
-          
+
           chmod +x linuxdeploy-x86_64.AppImage linuxdeploy-plugin-qt-x86_64.AppImage appimagetool
           sudo mv linuxdeploy-x86_64.AppImage linuxdeploy-plugin-qt-x86_64.AppImage appimagetool /usr/local/bin/
 
