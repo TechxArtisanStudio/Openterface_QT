@@ -286,6 +286,7 @@ if [ ! -f "${WORK_DIR}/gstreamer_build/lib/libgstbase-1.0.a" ]; then
     --prefix="${WORK_DIR}/gstreamer_build" \
     --libdir=lib \
     --default-library=static \
+    -Dpkgconfigdir="${WORK_DIR}/gstreamer_build/lib/pkgconfig" \
     -Dexamples=disabled \
     -Dtests=disabled \
     -Ddoc=disabled \
@@ -326,6 +327,8 @@ if [ ! -f "${WORK_DIR}/gstreamer_build/lib/libgstbase-1.0.a" ]; then
 
   ninja -C build
   ninja -C build install
+  echo "Contents of ${WORK_DIR}/gstreamer_build/lib/pkgconfig after install:"
+  ls -l "${WORK_DIR}/gstreamer_build/lib/pkgconfig" 2>/dev/null || echo "  (Directory missing)"
   # After installing gst-plugins-base, print all .pc files and ensure PKG_CONFIG_PATH includes their parent dirs
   echo "Listing all .pc files under ${WORK_DIR}/gstreamer_build after gst-plugins-base install:"
   GST_PC_FILES=$(find "${WORK_DIR}/gstreamer_build" -name "*.pc" -print 2>/dev/null)
