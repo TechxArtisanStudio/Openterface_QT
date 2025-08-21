@@ -44,7 +44,7 @@ RUN echo "Building GStreamer core..." && \
         --prefix="${WORK_DIR}/gstreamer_build" \
         --default-library=static \
         --buildtype=release \
-        -Dgtk_doc=disabled \
+        -Ddoc=disabled \
         -Dintrospection=disabled \
         -Dexamples=disabled \
         -Dtests=disabled \
@@ -64,7 +64,7 @@ RUN echo "Building gst-plugins-base..." && \
         --prefix="${WORK_DIR}/gstreamer_build" \
         --default-library=static \
         --buildtype=release \
-        -Dgtk_doc=disabled \
+        -Ddoc=disabled \
         -Dintrospection=disabled \
         -Dexamples=disabled \
         -Dtests=disabled \
@@ -83,7 +83,7 @@ RUN echo "Building gst-plugins-good..." && \
         --prefix="${WORK_DIR}/gstreamer_build" \
         --default-library=static \
         --buildtype=release \
-        -Dgtk_doc=disabled \
+        -Ddoc=disabled \
         -Dintrospection=disabled \
         -Dexamples=disabled \
         -Dtests=disabled \
