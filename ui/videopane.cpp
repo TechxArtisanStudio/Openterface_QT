@@ -262,8 +262,18 @@ void VideoPane::paintEvent(QPaintEvent *event)
         }
         
         qCDebug(log_ui_video) << "VideoPane: Displaying preserved frame during camera switch";
+    } else if (m_directFFmpegMode) {
+        // In FFmpeg mode, ensure pixmap item is visible and video item is hidden
+        if (m_pixmapItem) {
+            m_pixmapItem->setVisible(true);
+        }
+        if (m_videoItem) {
+            m_videoItem->setVisible(false);
+        }
+        qCDebug(log_ui_video) << "VideoPane: paintEvent - FFmpeg mode, pixmap visible:" 
+                              << (m_pixmapItem ? m_pixmapItem->isVisible() : false);
     } else {
-        // Normal video display
+        // Normal video display mode
         if (m_pixmapItem) {
             m_pixmapItem->setVisible(false);
         }
@@ -655,20 +665,58 @@ void VideoPane::setupForGStreamerOverlay()
 // FFmpeg direct video frame support
 void VideoPane::updateVideoFrame(const QPixmap& frame)
 {
+    // PERFORMANCE: Eliminate per-frame logging completely
     if (!m_directFFmpegMode || frame.isNull()) {
         return;
     }
     
-    qDebug(log_ui_video) << "VideoPane: Updating video frame with FFmpeg decoded data"
-                         << "size:" << frame.size();
+    // Frame dropping logic to prevent queue buildup and maintain smooth playback
+    static qint64 lastFrameTime = 0;
+    qint64 currentTime = QDateTime::currentMSecsSinceEpoch();
+    
+    // Only process frames at reasonable intervals (max 60 FPS in UI)
+    if (currentTime - lastFrameTime < 16) { // 16ms = ~60 FPS
+        return; // Drop frame silently for performance
+    }
+    lastFrameTime = currentTime;
+    
+    // PERFORMANCE: Log only the very first frame
+    static bool firstFrameProcessed = false;
+    static int frameCounter = 0;
+    frameCounter++;
+    
+    if (!firstFrameProcessed && !frame.isNull()) {
+        firstFrameProcessed = true;
+        qCDebug(log_ui_video) << "VideoPane: First FFmpeg frame received, size:" << frame.size();
+        // Skip all expensive analysis for performance
+    }
     
     // Create or update pixmap item for displaying the decoded frame
     if (!m_pixmapItem) {
         m_pixmapItem = m_scene->addPixmap(frame);
         m_pixmapItem->setZValue(2); // Above video item and GStreamer overlay
-        qDebug(log_ui_video) << "VideoPane: Created pixmap item for FFmpeg frames";
     } else {
         m_pixmapItem->setPixmap(frame);
+    }
+    
+    // CRITICAL FIX: Ensure pixmap item is visible and properly added to scene
+    if (m_pixmapItem) {
+        // Force visibility - this was the main issue!
+        m_pixmapItem->setVisible(true);
+        
+        // Ensure item is properly added to scene if it somehow got removed
+        if (m_pixmapItem->scene() != m_scene) {
+            m_scene->addItem(m_pixmapItem);
+            m_pixmapItem->setZValue(2);
+        }
+        
+        // Force immediate scene invalidation and update
+        m_scene->invalidate(m_pixmapItem->boundingRect());
+    }
+    
+    // CRITICAL: Hide Qt video item to prevent interference
+    if (m_videoItem) {
+        m_videoItem->setVisible(false);
     }
     
     // Update video item transform to handle scaling and aspect ratio
@@ -677,21 +725,29 @@ void VideoPane::updateVideoFrame(const QPixmap& frame)
     // Center the display
     centerVideoItem();
     
-    // Update the scene to reflect the new frame
-    m_scene->update();
+    // PERFORMANCE: Minimize updates for better performance
+    if (m_scene) {
+        m_scene->update(); // Update scene
+    }
+    this->update(); // Update view
+    
+    // REMOVED: QCoreApplication::processEvents() - causes excessive CPU usage
+    // Let Qt's natural event loop handle updates
 }
 
 void VideoPane::enableDirectFFmpegMode(bool enable)
 {
-    qDebug(log_ui_video) << "VideoPane: Enabling direct FFmpeg mode:" << enable;
+    qCDebug(log_ui_video) << "VideoPane: enableDirectFFmpegMode called with:" << enable << "current mode:" << m_directFFmpegMode;
     
     m_directFFmpegMode = enable;
     
     if (enable) {
+        qCDebug(log_ui_video) << "VideoPane: Enabling FFmpeg mode";
+        
         // Hide the Qt video item when using direct FFmpeg mode
         if (m_videoItem) {
             m_videoItem->setVisible(false);
-            qDebug(log_ui_video) << "VideoPane: Hidden Qt video item for FFmpeg mode";
+            qCDebug(log_ui_video) << "VideoPane: Hidden Qt video item for FFmpeg mode";
         }
         
         // Ensure we have a pixmap item ready for frame display
@@ -700,35 +756,44 @@ void VideoPane::enableDirectFFmpegMode(bool enable)
             placeholder.fill(Qt::black);
             m_pixmapItem = m_scene->addPixmap(placeholder);
             m_pixmapItem->setZValue(2); // Above video item
-            qDebug(log_ui_video) << "VideoPane: Created pixmap item for FFmpeg frames";
+            qCDebug(log_ui_video) << "VideoPane: Created pixmap item for FFmpeg frames";
         }
         
-        // Make sure the pixmap item is visible
+        // CRITICAL: Force pixmap item to be visible
         if (m_pixmapItem) {
             m_pixmapItem->setVisible(true);
+            qCDebug(log_ui_video) << "VideoPane: Forced pixmap item visibility to true";
         }
         
         // Disable GStreamer mode if it was enabled
         if (m_directGStreamerMode) {
-            qDebug(log_ui_video) << "VideoPane: Disabling GStreamer mode for FFmpeg";
+            qCDebug(log_ui_video) << "VideoPane: Disabling GStreamer mode for FFmpeg";
             enableDirectGStreamerMode(false);
         }
         
     } else {
+        qCDebug(log_ui_video) << "VideoPane: Disabling FFmpeg mode";
+        
         // Restore Qt video item when disabling FFmpeg mode
         if (m_videoItem) {
             m_videoItem->setVisible(true);
-            qDebug(log_ui_video) << "VideoPane: Restored Qt video item";
+            qCDebug(log_ui_video) << "VideoPane: Restored Qt video item";
         }
         
         // Hide the pixmap item
         if (m_pixmapItem) {
             m_pixmapItem->setVisible(false);
+            qCDebug(log_ui_video) << "VideoPane: Hidden pixmap item";
         }
     }
     
-    // Force a scene update
+    // Force a scene update and repaint
     if (m_scene) {
         m_scene->update();
     }
+    update(); // Force view repaint
+    
+    qCDebug(log_ui_video) << "VideoPane: FFmpeg mode" << (enable ? "enabled" : "disabled") 
+                          << "- pixmap visible:" << (m_pixmapItem ? m_pixmapItem->isVisible() : false)
+                          << "video visible:" << (m_videoItem ? m_videoItem->isVisible() : false);
 }

@@ -1678,11 +1678,8 @@ bool CameraManager::initializeCameraWithVideoOutput(VideoPane* videoPane)
             videoPane->enableDirectFFmpegMode(true);
             
             // Set VideoPane as the output for the FFmpeg backend
+            // This will automatically connect the frameReady signal
             ffmpegHandler->setVideoOutput(videoPane);
-            
-            // Connect frame ready signal from FFmpeg backend to VideoPane
-            connect(ffmpegHandler, &FFmpegBackendHandler::frameReady,
-                    videoPane, &VideoPane::updateVideoFrame);
             
             // Connect error signal
             connect(ffmpegHandler, &FFmpegBackendHandler::captureError,

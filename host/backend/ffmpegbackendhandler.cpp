@@ -80,29 +80,71 @@ protected:
         qCDebug(log_ffmpeg_backend) << "FFmpeg capture thread started";
         
         QElapsedTimer frameTimer;
+        QElapsedTimer performanceTimer;
         frameTimer.start();
+        performanceTimer.start();
+        
+        int consecutiveFailures = 0;
+        int framesProcessed = 0;
+        const int maxConsecutiveFailures = 100; // Allow some tolerance
         
         while (isRunning()) {
             if (m_handler && m_handler->readFrame()) {
-                // Control frame rate - aim for the configured framerate
-                qint64 targetInterval = 1000 / qMax(1, m_handler->m_currentFramerate); // ms per frame
+                // Reset failure counter on successful read
+                consecutiveFailures = 0;
+                
+                // AGGRESSIVE CPU optimization: Target lower FPS to significantly reduce CPU load
+                // Especially important on Raspberry Pi and resource-constrained devices
+                int targetFps = qMin(m_handler->m_currentFramerate, 20); // Cap at 20 FPS for better CPU usage
+                qint64 targetInterval = 1000 / qMax(8, targetFps); // Minimum 8 FPS to maintain usability
                 qint64 elapsed = frameTimer.elapsed();
                 
-                if (elapsed < targetInterval) {
-                    msleep(targetInterval - elapsed);
+                // Enforce stricter minimum frame interval to prevent CPU overload
+                qint64 minInterval = 1000 / 25; // Never exceed 25 FPS (was 30)
+                if (elapsed < minInterval) {
+                    msleep(minInterval - elapsed);
+                    frameTimer.restart();
+                } else if (elapsed < targetInterval) {
+                    // Longer sleep if we're ahead of target
+                    msleep(qMin(10, targetInterval - elapsed)); // Increased from 5ms to 10ms
+                    frameTimer.restart();
+                } else {
+                    frameTimer.restart();
                 }
-                frameTimer.restart();
                 
                 // Process frame directly in capture thread to avoid packet invalidation
                 // This ensures packet data remains valid during processing
                 m_handler->processFrame();
+                framesProcessed++;
+                
+                // Log performance periodically
+                if (performanceTimer.elapsed() > 10000) { // Every 10 seconds
+                    double actualFps = (framesProcessed * 1000.0) / performanceTimer.elapsed();
+                    qCDebug(log_ffmpeg_backend) << "Capture thread performance:" << actualFps << "FPS, processed" << framesProcessed << "frames";
+                    performanceTimer.restart();
+                    framesProcessed = 0;
+                }
             } else {
-                // No frame available, sleep briefly to avoid busy waiting
-                msleep(1);
+                // Track consecutive failures
+                consecutiveFailures++;
+                
+                if (consecutiveFailures >= maxConsecutiveFailures) {
+                    qCWarning(log_ffmpeg_backend) << "Too many consecutive frame read failures (" << consecutiveFailures << "), may indicate device issue";
+                    consecutiveFailures = 0; // Reset to avoid spam
+                }
+                
+                // Adaptive sleep - longer sleep for repeated failures
+                if (consecutiveFailures < 10) {
+                    msleep(1); // Short sleep for occasional failures
+                } else if (consecutiveFailures < 50) {
+                    msleep(5); // Medium sleep for frequent failures
+                } else {
+                    msleep(10); // Longer sleep for persistent failures
+                }
             }
         }
         
-        qCDebug(log_ffmpeg_backend) << "FFmpeg capture thread finished";
+        qCDebug(log_ffmpeg_backend) << "FFmpeg capture thread finished, processed" << framesProcessed << "frames total";
     }
 
 private:
@@ -205,14 +247,21 @@ void FFmpegBackendHandler::prepareCameraCreation(QCamera* oldCamera)
 
 void FFmpegBackendHandler::configureCameraDevice(QCamera* camera, const QCameraDevice& device)
 {
-    qCDebug(log_ffmpeg_backend) << "FFmpeg: Configuring camera device:" << device.description();
-    
+    qCDebug(log_ffmpeg_backend) << "FFmpeg: Configuring camera device:" << device.description() << "ID:" << device.id();
+
 #ifdef HAVE_FFMPEG
     // Extract device path for direct FFmpeg usage
     QString deviceId = QString::fromUtf8(device.id());
+    QString deviceDescription = device.description();
     
+    // Special handling for Openterface devices - force /dev/video0
+    if (deviceDescription.contains("Openterface", Qt::CaseInsensitive) || 
+        deviceDescription.contains("MACROSILICON", Qt::CaseInsensitive)) {
+        qCDebug(log_ffmpeg_backend) << "Detected Openterface device, forcing /dev/video0";
+        m_currentDevice = "/dev/video0";
+    }
     // Convert Qt device ID to V4L2 device path if needed
-    if (!deviceId.startsWith("/dev/video")) {
+    else if (!deviceId.startsWith("/dev/video")) {
         // Check if deviceId is a simple number (like "0", "1", etc.)
         bool isNumber = false;
         int deviceNumber = deviceId.toInt(&isNumber);
@@ -478,6 +527,27 @@ bool FFmpegBackendHandler::openInputDevice(const QString& devicePath, const QSiz
 {
     qCDebug(log_ffmpeg_backend) << "Opening input device:" << devicePath;
     
+    // CRITICAL: Pre-configure the device using v4l2-ctl for optimal settings
+    // This is necessary because the Openterface device needs proper initialization
+    qCDebug(log_ffmpeg_backend) << "Pre-configuring device for optimal capture...";
+    
+    QString configCommand = QString("v4l2-ctl --device=%1 --set-fmt-video=width=%2,height=%3,pixelformat=MJPG")
+                           .arg(devicePath).arg(resolution.width()).arg(resolution.height());
+    int configResult = system(configCommand.toUtf8().constData());
+    
+    QString framerateCommand = QString("v4l2-ctl --device=%1 --set-parm=%2")
+                              .arg(devicePath).arg(framerate);
+    int framerateResult = system(framerateCommand.toUtf8().constData());
+    
+    if (configResult == 0 && framerateResult == 0) {
+        qCDebug(log_ffmpeg_backend) << "Device pre-configured successfully for MJPEG" << resolution << "at" << framerate << "fps";
+    } else {
+        qCWarning(log_ffmpeg_backend) << "Device pre-configuration failed, continuing with FFmpeg initialization";
+    }
+    
+    // Small delay to let device stabilize after configuration
+    QThread::msleep(200);
+    
     // Allocate format context
     m_formatContext = avformat_alloc_context();
     if (!m_formatContext) {
@@ -492,21 +562,23 @@ bool FFmpegBackendHandler::openInputDevice(const QString& devicePath, const QSiz
         return false;
     }
     
-    // Set input options
+    // Set input options - try MJPEG first (should work now due to pre-configuration)
     AVDictionary* options = nullptr;
     av_dict_set(&options, "video_size", QString("%1x%2").arg(resolution.width()).arg(resolution.height()).toUtf8().constData(), 0);
     av_dict_set(&options, "framerate", QString::number(framerate).toUtf8().constData(), 0);
-    av_dict_set(&options, "input_format", "mjpeg", 0); // Prefer MJPEG for better performance
+    av_dict_set(&options, "input_format", "mjpeg", 0); // Should work due to pre-configuration
     
-    qCDebug(log_ffmpeg_backend) << "Opening device with MJPEG format first";
+    qCDebug(log_ffmpeg_backend) << "Trying MJPEG format with resolution" << resolution << "and framerate" << framerate;
     
     // Open input
     int ret = avformat_open_input(&m_formatContext, devicePath.toUtf8().constData(), inputFormat, &options);
     av_dict_free(&options);
     
-    // If MJPEG fails, try without specifying input format
+    // If MJPEG fails, try YUYV422
     if (ret < 0) {
-        qCWarning(log_ffmpeg_backend) << "MJPEG format failed, trying default format";
+        char errbuf[AV_ERROR_MAX_STRING_SIZE];
+        av_strerror(ret, errbuf, AV_ERROR_MAX_STRING_SIZE);
+        qCWarning(log_ffmpeg_backend) << "MJPEG format failed:" << QString::fromUtf8(errbuf) << "- trying YUYV422";
         
         // Reset format context
         if (m_formatContext) {
@@ -514,7 +586,29 @@ bool FFmpegBackendHandler::openInputDevice(const QString& devicePath, const QSiz
         }
         m_formatContext = avformat_alloc_context();
         
-        // Try again without input_format specification
+        // Try YUYV422 format
+        AVDictionary* yuvOptions = nullptr;
+        av_dict_set(&yuvOptions, "video_size", QString("%1x%2").arg(resolution.width()).arg(resolution.height()).toUtf8().constData(), 0);
+        av_dict_set(&yuvOptions, "framerate", QString::number(framerate).toUtf8().constData(), 0);
+        av_dict_set(&yuvOptions, "input_format", "yuyv422", 0);
+        
+        ret = avformat_open_input(&m_formatContext, devicePath.toUtf8().constData(), inputFormat, &yuvOptions);
+        av_dict_free(&yuvOptions);
+    }
+    
+    // If that fails, try without specifying input format (auto-detect)
+    if (ret < 0) {
+        char errbuf[AV_ERROR_MAX_STRING_SIZE];
+        av_strerror(ret, errbuf, AV_ERROR_MAX_STRING_SIZE);
+        qCWarning(log_ffmpeg_backend) << "YUYV422 format failed:" << QString::fromUtf8(errbuf) << "- trying auto-detection";
+        
+        // Reset format context
+        if (m_formatContext) {
+            avformat_close_input(&m_formatContext);
+        }
+        m_formatContext = avformat_alloc_context();
+        
+        // Try again without input_format specification (auto-detect)
         AVDictionary* fallbackOptions = nullptr;
         av_dict_set(&fallbackOptions, "video_size", QString("%1x%2").arg(resolution.width()).arg(resolution.height()).toUtf8().constData(), 0);
         av_dict_set(&fallbackOptions, "framerate", QString::number(framerate).toUtf8().constData(), 0);
@@ -523,17 +617,37 @@ bool FFmpegBackendHandler::openInputDevice(const QString& devicePath, const QSiz
         av_dict_free(&fallbackOptions);
     }
     
+    // If everything fails, try minimal options
     if (ret < 0) {
         char errbuf[AV_ERROR_MAX_STRING_SIZE];
         av_strerror(ret, errbuf, AV_ERROR_MAX_STRING_SIZE);
-        qCCritical(log_ffmpeg_backend) << "Failed to open input device:" << QString::fromUtf8(errbuf);
+        qCWarning(log_ffmpeg_backend) << "Auto-detection failed:" << QString::fromUtf8(errbuf) << "- trying minimal options";
+        
+        // Reset format context
+        if (m_formatContext) {
+            avformat_close_input(&m_formatContext);
+        }
+        m_formatContext = avformat_alloc_context();
+        
+        // Try with minimal options (just the device path)
+        ret = avformat_open_input(&m_formatContext, devicePath.toUtf8().constData(), inputFormat, nullptr);
+    }
+    
+    if (ret < 0) {
+        char errbuf[AV_ERROR_MAX_STRING_SIZE];
+        av_strerror(ret, errbuf, AV_ERROR_MAX_STRING_SIZE);
+        qCCritical(log_ffmpeg_backend) << "Failed to open input device with all attempts:" << QString::fromUtf8(errbuf);
         return false;
     }
+    
+    qCDebug(log_ffmpeg_backend) << "Successfully opened device" << devicePath;
     
     // Find stream info
     ret = avformat_find_stream_info(m_formatContext, nullptr);
     if (ret < 0) {
-        qCCritical(log_ffmpeg_backend) << "Failed to find stream info";
+        char errbuf[AV_ERROR_MAX_STRING_SIZE];
+        av_strerror(ret, errbuf, AV_ERROR_MAX_STRING_SIZE);
+        qCCritical(log_ffmpeg_backend) << "Failed to find stream info:" << QString::fromUtf8(errbuf);
         return false;
     }
     
@@ -643,17 +757,35 @@ void FFmpegBackendHandler::closeInputDevice()
 bool FFmpegBackendHandler::readFrame()
 {
     if (!m_formatContext || m_videoStreamIndex == -1) {
+        static int noContextWarnings = 0;
+        if (noContextWarnings < 5) { // Limit warnings to avoid spam
+            qCWarning(log_ffmpeg_backend) << "readFrame called with invalid context or stream index";
+            noContextWarnings++;
+        }
         return false;
     }
     
-    // Read packet from input
+    // Read packet from input with timeout handling
     int ret = av_read_frame(m_formatContext, m_packet);
     if (ret < 0) {
         if (ret == AVERROR(EAGAIN)) {
             return false; // Try again later
+        } else if (ret == AVERROR_EOF) {
+            qCWarning(log_ffmpeg_backend) << "End of stream reached";
+            return false;
+        } else if (ret == AVERROR(EIO)) {
+            qCWarning(log_ffmpeg_backend) << "I/O error while reading frame - device may be disconnected";
+            return false;
+        } else {
+            char errbuf[AV_ERROR_MAX_STRING_SIZE];
+            av_strerror(ret, errbuf, AV_ERROR_MAX_STRING_SIZE);
+            static int errorCount = 0;
+            if (errorCount < 10) { // Limit error spam
+                qCWarning(log_ffmpeg_backend) << "Error reading frame:" << QString::fromUtf8(errbuf) << "error code:" << ret;
+                errorCount++;
+            }
+            return false;
         }
-        qCWarning(log_ffmpeg_backend) << "Error reading frame";
-        return false;
     }
     
     // Check if this is our video stream
@@ -678,16 +810,19 @@ void FFmpegBackendHandler::processFrame()
         av_packet_unref(m_packet);
         return;
     }
-    
-    qCDebug(log_ffmpeg_backend) << "Processing frame: packet size=" << m_packet->size 
-                               << "codec=" << m_codecContext->codec_id;
-    
     QPixmap pixmap;
     
     // Check if this is MJPEG/JPEG stream for direct libjpeg-turbo decoding
     if (m_codecContext->codec_id == AV_CODEC_ID_MJPEG) {
 #ifdef HAVE_LIBJPEG_TURBO
-        qCDebug(log_ffmpeg_backend) << "Using TurboJPEG acceleration for MJPEG frame, data size:" << m_packet->size;
+        // Use TurboJPEG for significant performance improvement on MJPEG
+        static int turbojpegFrameCount = 0;
+        turbojpegFrameCount++;
+        
+        // Only log every 1000th frame to minimize debug overhead
+        if (turbojpegFrameCount % 1000 == 1) {
+            qCDebug(log_ffmpeg_backend) << "Using TurboJPEG acceleration (frame" << turbojpegFrameCount << ")";
+        }
         
         // Additional validation for JPEG data
         if (m_packet->size < 10) { // Minimum JPEG header size
@@ -698,7 +833,9 @@ void FFmpegBackendHandler::processFrame()
             
             // If TurboJPEG failed, fall back to FFmpeg decoder
             if (pixmap.isNull()) {
-                qCDebug(log_ffmpeg_backend) << "TurboJPEG failed, falling back to FFmpeg decoder";
+                if (turbojpegFrameCount % 1000 == 1) { // Reduce fallback spam even more
+                    qCDebug(log_ffmpeg_backend) << "TurboJPEG failed, falling back to FFmpeg decoder";
+                }
                 pixmap = decodeFrame(m_packet);
             }
         }
@@ -707,7 +844,14 @@ void FFmpegBackendHandler::processFrame()
         pixmap = decodeFrame(m_packet);
 #endif
     } else {
-        qCDebug(log_ffmpeg_backend) << "Using FFmpeg decoder for non-MJPEG frame, codec:" << m_codecContext->codec_id;
+        // Non-MJPEG codecs use FFmpeg decoder
+        static int ffmpegFrameCount = 0;
+        ffmpegFrameCount++;
+        
+        // Only log every 1000th frame to minimize debug overhead
+        if (ffmpegFrameCount % 1000 == 1) {
+            qCDebug(log_ffmpeg_backend) << "Using FFmpeg decoder (frame" << ffmpegFrameCount << "), codec:" << m_codecContext->codec_id;
+        }
         pixmap = decodeFrame(m_packet);
     }
     
@@ -716,50 +860,74 @@ void FFmpegBackendHandler::processFrame()
     
     if (!pixmap.isNull()) {
         m_frameCount++;
-        qCDebug(log_ffmpeg_backend) << "Emitting frame of size:" << pixmap.size() << "Frame count:" << m_frameCount;
         
-        // Check if pixmap has actual content (not all black)
-        QImage testImage = pixmap.toImage();
-        bool hasContent = false;
-        if (!testImage.isNull() && testImage.sizeInBytes() > 0) {
-            const uchar* bits = testImage.constBits();
-            for (int i = 0; i < testImage.sizeInBytes() && !hasContent; i++) {
-                if (bits[i] != 0) {
-                    hasContent = true;
-                }
+        // Drastically reduce logging frequency for performance (only log every 1000th frame)
+        if (m_frameCount % 1000 == 1) {
+            qCDebug(log_ffmpeg_backend) << "Successfully decoded frame" << m_frameCount << "of size:" << pixmap.size();
+        }
+        
+        // CRITICAL FIX: Skip first few frames to allow device signal to stabilize
+        // Many USB video capture devices (including Openterface) output black frames initially
+        // This can be configured via environment variable if needed
+        static int startupFramesToSkip = -1;
+        if (startupFramesToSkip == -1) {
+            // Check environment variable first, otherwise use default
+            const char* envSkipFrames = qgetenv("OPENTERFACE_SKIP_FRAMES").constData();
+            if (envSkipFrames && strlen(envSkipFrames) > 0) {
+                startupFramesToSkip = QString(envSkipFrames).toInt();
+                qCDebug(log_ffmpeg_backend) << "Using environment variable OPENTERFACE_SKIP_FRAMES:" << startupFramesToSkip;
+            } else {
+                startupFramesToSkip = 5; // Default: skip first 5 frames
             }
         }
         
-        if (hasContent) {
-            qCDebug(log_ffmpeg_backend) << "Frame contains non-black pixels";
-        } else {
-            qCWarning(log_ffmpeg_backend) << "Frame appears to be all black!";
+        if (m_frameCount <= startupFramesToSkip) {
+            qCDebug(log_ffmpeg_backend) << "Skipping startup frame" << m_frameCount << "of" << startupFramesToSkip << "- waiting for signal to stabilize";
+            return; // Don't emit this frame, just continue
         }
         
+        // PERFORMANCE: Skip frame analysis completely after initialization to reduce CPU usage
+        // Frame analysis was only needed for initial debugging and is now disabled for production use
+        
+        // Reduce emission logging frequency for performance
+        if (m_frameCount % 1000 == 1) {
+            qCDebug(log_ffmpeg_backend) << "Emitting frameReady signal with pixmap size:" << pixmap.size();
+        }
+        
+        // CRITICAL: Use QueuedConnection to ensure UI thread handles frame updates properly
+        // This prevents blocking the capture thread and ensures smooth frame delivery
         emit frameReady(pixmap);
+        
+        // Reduce success logging frequency for performance
+        if (m_frameCount % 1000 == 1) {
+            qCDebug(log_ffmpeg_backend) << "frameReady signal emitted successfully for frame" << m_frameCount;
+        }
+        
+        // REMOVED: QCoreApplication::processEvents() - this was causing excessive CPU usage
+        // Let Qt's event loop handle frame processing naturally
     } else {
         qCWarning(log_ffmpeg_backend) << "Failed to decode frame - pixmap is null";
+        qCWarning(log_ffmpeg_backend) << "Frame decode failure details:";
+        qCWarning(log_ffmpeg_backend) << "  - Packet size:" << m_packet->size;
+        qCWarning(log_ffmpeg_backend) << "  - Codec ID:" << (m_codecContext ? m_codecContext->codec_id : -1);
+        qCWarning(log_ffmpeg_backend) << "  - Stream index:" << m_packet->stream_index;
     }
 }
 
 #ifdef HAVE_LIBJPEG_TURBO
 QPixmap FFmpegBackendHandler::decodeJpegFrame(const uint8_t* data, int size)
 {
+    // PERFORMANCE OPTIMIZED: Minimal validation for TurboJPEG
     if (!m_turboJpegHandle) {
-        qCWarning(log_ffmpeg_backend) << "TurboJPEG handle not initialized, falling back to FFmpeg decoder";
         return QPixmap(); // Will trigger fallback to FFmpeg decoder
     }
     
-    if (!data || size <= 0) {
-        qCWarning(log_ffmpeg_backend) << "Invalid JPEG data: data=" << (void*)data << "size=" << size;
+    if (!data || size <= 10) { // Quick size check
         return QPixmap();
     }
     
-    // Additional validation: check for JPEG magic bytes
-    if (size < 2 || data[0] != 0xFF || data[1] != 0xD8) {
-        qCWarning(log_ffmpeg_backend) << "Invalid JPEG header: first bytes are" 
-                                     << QString::number(data[0], 16) << QString::number(data[1], 16)
-                                     << "expected FF D8";
+    // Quick JPEG magic bytes check (essential for safety)
+    if (data[0] != 0xFF || data[1] != 0xD8) {
         return QPixmap();
     }
     
@@ -767,75 +935,52 @@ QPixmap FFmpegBackendHandler::decodeJpegFrame(const uint8_t* data, int size)
     
     // Get JPEG header information
     if (tjDecompressHeader3(m_turboJpegHandle, data, size, &width, &height, &subsamp, &colorspace) < 0) {
-        qCWarning(log_ffmpeg_backend) << "TurboJPEG: Failed to read JPEG header:" << tjGetErrorStr()
-                                     << "data size:" << size;
-        return QPixmap();
+        return QPixmap(); // Silent failure for performance - will trigger FFmpeg fallback
     }
     
-    qCDebug(log_ffmpeg_backend) << "TurboJPEG header: width=" << width << "height=" << height 
-                               << "subsamp=" << subsamp << "colorspace=" << colorspace;
-    
-    // Validate dimensions
-    if (width <= 0 || height <= 0 || width > 8192 || height > 8192) {
-        qCWarning(log_ffmpeg_backend) << "Invalid JPEG dimensions:" << width << "x" << height;
+    // Quick dimension validation
+    if (width <= 0 || height <= 0 || width > 4096 || height > 4096) {
         return QPixmap();
     }
     
     // Allocate buffer for RGB data
     QImage image(width, height, QImage::Format_RGB888);
     if (image.isNull()) {
-        qCWarning(log_ffmpeg_backend) << "Failed to allocate QImage for" << width << "x" << height;
         return QPixmap();
     }
     
     // Decompress JPEG directly to RGB888 format for Qt
     if (tjDecompress2(m_turboJpegHandle, data, size, image.bits(), width, 0, height, TJPF_RGB, TJFLAG_FASTDCT) < 0) {
-        qCWarning(log_ffmpeg_backend) << "TurboJPEG: Failed to decompress JPEG:" << tjGetErrorStr()
-                                     << "dimensions:" << width << "x" << height;
-        return QPixmap();
+        return QPixmap(); // Silent failure for performance
     }
     
-    qCDebug(log_ffmpeg_backend) << "TurboJPEG: Successfully decoded" << width << "x" << height << "MJPEG frame";
+    // Skip expensive pixel validation for performance - trust TurboJPEG output
+    static int turbojpegSuccessCount = 0;
+    turbojpegSuccessCount++;
     
-    // Verify the image has valid data
-    if (image.isNull()) {
-        qCWarning(log_ffmpeg_backend) << "TurboJPEG: Decoded image is null";
-        return QPixmap();
+    // Only log success every 2000th frame to confirm TurboJPEG is working
+    if (turbojpegSuccessCount % 2000 == 1) {
+        qCDebug(log_ffmpeg_backend) << "TurboJPEG: Successfully decoded" << width << "x" << height 
+                                   << "MJPEG frame (success count:" << turbojpegSuccessCount << ")";
     }
     
-    // Check if the image has actual pixel data (not all black)
-    bool hasValidData = false;
-    const uchar* bits = image.constBits();
-    int totalBytes = image.sizeInBytes();
-    for (int i = 0; i < totalBytes && !hasValidData; i++) {
-        if (bits[i] != 0) {
-            hasValidData = true;
-        }
-    }
-    
-    if (!hasValidData) {
-        qCWarning(log_ffmpeg_backend) << "TurboJPEG: Decoded image appears to be all black!";
-        // Don't return null - maybe it's actually a black frame from the source
-    } else {
-        qCDebug(log_ffmpeg_backend) << "TurboJPEG: Image contains valid pixel data";
-    }
-    
-    QPixmap result = QPixmap::fromImage(image);
-    qCDebug(log_ffmpeg_backend) << "TurboJPEG: Created pixmap of size:" << result.size();
-    return result;
+    return QPixmap::fromImage(image);
 }
 #endif // HAVE_LIBJPEG_TURBO
 
 QPixmap FFmpegBackendHandler::decodeFrame(AVPacket* packet)
 {
     if (!m_codecContext || !m_frame) {
+        qCWarning(log_ffmpeg_backend) << "decodeFrame: Missing codec context or frame";
         return QPixmap();
     }
     
     // Send packet to decoder
     int ret = avcodec_send_packet(m_codecContext, packet);
     if (ret < 0) {
-        qCWarning(log_ffmpeg_backend) << "Error sending packet to decoder";
+        char errbuf[AV_ERROR_MAX_STRING_SIZE];
+        av_strerror(ret, errbuf, AV_ERROR_MAX_STRING_SIZE);
+        qCWarning(log_ffmpeg_backend) << "Error sending packet to decoder:" << QString::fromUtf8(errbuf);
         return QPixmap();
     }
     
@@ -845,10 +990,25 @@ QPixmap FFmpegBackendHandler::decodeFrame(AVPacket* packet)
         if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF) {
             return QPixmap(); // Not an error, just no frame ready
         }
-        qCWarning(log_ffmpeg_backend) << "Error receiving frame from decoder";
+        char errbuf[AV_ERROR_MAX_STRING_SIZE];
+        av_strerror(ret, errbuf, AV_ERROR_MAX_STRING_SIZE);
+        qCWarning(log_ffmpeg_backend) << "Error receiving frame from decoder:" << QString::fromUtf8(errbuf);
         return QPixmap();
     }
     
+    // Validate frame data
+    if (!m_frame->data[0]) {
+        qCWarning(log_ffmpeg_backend) << "decodeFrame: Frame data is null";
+        return QPixmap();
+    }
+    
+    if (m_frame->width <= 0 || m_frame->height <= 0) {
+        qCWarning(log_ffmpeg_backend) << "decodeFrame: Invalid frame dimensions:" 
+                                     << m_frame->width << "x" << m_frame->height;
+        return QPixmap();
+    }
+    
+    // PERFORMANCE: Skip success logging for every frame
     return convertFrameToPixmap(m_frame);
 }
 
@@ -861,27 +1021,74 @@ QPixmap FFmpegBackendHandler::convertFrameToPixmap(AVFrame* frame)
     
     int width = frame->width;
     int height = frame->height;
+    AVPixelFormat format = static_cast<AVPixelFormat>(frame->format);
     
-    qCDebug(log_ffmpeg_backend) << "convertFrameToPixmap: frame" << width << "x" << height 
-                               << "format:" << frame->format;
+    // Validate frame dimensions and data
+    if (width <= 0 || height <= 0) {
+        qCWarning(log_ffmpeg_backend) << "convertFrameToPixmap: Invalid dimensions:" << width << "x" << height;
+        return QPixmap();
+    }
     
-    // Initialize scaling context if needed
-    if (!m_swsContext) {
+    if (!frame->data[0]) {
+        qCWarning(log_ffmpeg_backend) << "convertFrameToPixmap: Frame data pointer is null";
+        return QPixmap();
+    }
+    
+    if (frame->linesize[0] <= 0) {
+        qCWarning(log_ffmpeg_backend) << "convertFrameToPixmap: Invalid linesize:" << frame->linesize[0];
+        return QPixmap();
+    }
+    
+    // PERFORMANCE: Minimize debug logging for better performance
+    // Only log critical conversion details every 1000th frame
+    static int conversionLogCounter = 0;
+    conversionLogCounter++;
+    
+    if (conversionLogCounter % 1000 == 1) {
+        qCDebug(log_ffmpeg_backend) << "convertFrameToPixmap: frame" << width << "x" << height 
+                                   << "format:" << format << "linesize:" << frame->linesize[0];
+    }
+    
+    // Check if we need to recreate the scaling context (format or size changed)
+    static int lastWidth = -1;
+    static int lastHeight = -1;
+    static AVPixelFormat lastFormat = AV_PIX_FMT_NONE;
+    
+    if (!m_swsContext || width != lastWidth || height != lastHeight || format != lastFormat) {
+        if (m_swsContext) {
+            sws_freeContext(m_swsContext);
+            m_swsContext = nullptr;
+        }
+        
         m_swsContext = sws_getContext(
-            width, height, static_cast<AVPixelFormat>(frame->format),
+            width, height, format,
             width, height, AV_PIX_FMT_RGB24,
             SWS_BILINEAR, nullptr, nullptr, nullptr
         );
         
         if (!m_swsContext) {
-            qCWarning(log_ffmpeg_backend) << "Failed to create scaling context";
+            qCWarning(log_ffmpeg_backend) << "Failed to create scaling context for format:" << format;
             return QPixmap();
         }
-        qCDebug(log_ffmpeg_backend) << "Created scaling context for format:" << frame->format;
+        
+        lastWidth = width;
+        lastHeight = height;
+        lastFormat = format;
+        
+        // Only log scaling context creation every 1000th time for performance
+        static int scalingContextLogCounter = 0;
+        scalingContextLogCounter++;
+        if (scalingContextLogCounter % 1000 == 1) {
+            qCDebug(log_ffmpeg_backend) << "Created new scaling context for format:" << format;
+        }
     }
     
     // Allocate buffer for RGB frame
     QImage image(width, height, QImage::Format_RGB888);
+    if (image.isNull()) {
+        qCWarning(log_ffmpeg_backend) << "Failed to allocate QImage for" << width << "x" << height;
+        return QPixmap();
+    }
     
     // Set up frame data for RGB output
     uint8_t* rgbData[1] = { image.bits() };
@@ -894,26 +1101,18 @@ QPixmap FFmpegBackendHandler::convertFrameToPixmap(AVFrame* frame)
         return QPixmap();
     }
     
-    qCDebug(log_ffmpeg_backend) << "sws_scale converted" << scaleResult << "lines";
-    
-    // Check if the converted image has actual data
-    bool hasContent = false;
-    const uchar* bits = image.constBits();
-    int totalBytes = image.sizeInBytes();
-    for (int i = 0; i < totalBytes && !hasContent; i++) {
-        if (bits[i] != 0) {
-            hasContent = true;
-        }
+    if (scaleResult != height) {
+        qCWarning(log_ffmpeg_backend) << "sws_scale converted" << scaleResult << "lines, expected" << height;
+        // Continue anyway, as partial conversion might still be useful
     }
     
-    if (hasContent) {
-        qCDebug(log_ffmpeg_backend) << "convertFrameToPixmap: Converted image has content";
-    } else {
-        qCWarning(log_ffmpeg_backend) << "convertFrameToPixmap: Converted image appears to be all black!";
-    }
+    // PERFORMANCE: Skip sws_scale result logging for better performance
+    // The scale operation success/failure is already validated above
     
+    // PERFORMANCE: Skip pixel analysis completely - trust the conversion process
+    // This eliminates unnecessary CPU overhead from pixel sampling
     QPixmap result = QPixmap::fromImage(image);
-    qCDebug(log_ffmpeg_backend) << "convertFrameToPixmap: Created pixmap of size:" << result.size();
+    // PERFORMANCE: Skip pixmap creation logging for better performance
     return result;
 }
 
@@ -988,10 +1187,27 @@ void FFmpegBackendHandler::setVideoOutput(VideoPane* videoPane)
     QMutexLocker locker(&m_mutex);
 #endif
     
+    // Disconnect previous connections
+    disconnect(this, &FFmpegBackendHandler::frameReady, this, nullptr);
+    
     m_videoPane = videoPane;
     m_graphicsVideoItem = nullptr;
     
-    qCDebug(log_ffmpeg_backend) << "VideoPane set for FFmpeg direct rendering";
+    if (videoPane) {
+        qCDebug(log_ffmpeg_backend) << "VideoPane set for FFmpeg direct rendering";
+        
+        // Connect frame ready signal to VideoPane updateVideoFrame method
+        // Use QueuedConnection to ensure thread safety and prevent blocking capture thread
+        connect(this, &FFmpegBackendHandler::frameReady,
+                videoPane, &VideoPane::updateVideoFrame,
+                Qt::QueuedConnection);
+        
+        qCDebug(log_ffmpeg_backend) << "Connected frameReady signal to VideoPane::updateVideoFrame with QueuedConnection";
+        
+        // Enable direct FFmpeg mode in the VideoPane
+        videoPane->enableDirectFFmpegMode(true);
+        qCDebug(log_ffmpeg_backend) << "Enabled direct FFmpeg mode in VideoPane";
+    }
 }
     
 
