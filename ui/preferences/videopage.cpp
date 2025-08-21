@@ -35,6 +35,7 @@
 #include <QCheckBox>
 #include <QFrame>
 #include <QMediaDevices>
+#include <QWidget>
 
 
 VideoPage::VideoPage(CameraManager *cameraManager, QWidget *parent) : QWidget(parent)
@@ -119,6 +120,62 @@ void VideoPage::setupUI()
 
     QLabel *hintLabel = new QLabel(tr("Note: On linx the video may go black after OK or Apply. Please unplug and re-plug the host cable."));
 
+    // Add another separator
+    QFrame *separatorLine2 = new QFrame();
+    separatorLine2->setFrameShape(QFrame::HLine);
+    separatorLine2->setFrameShadow(QFrame::Sunken);
+
+    // Media Backend Setting Section
+    QLabel *backendLabel = new QLabel(tr("Media Backend: "));
+    backendLabel->setStyleSheet(smallLabelFontSize);
+
+    QComboBox *mediaBackendBox = new QComboBox();
+    mediaBackendBox->setObjectName("mediaBackendBox");
+    mediaBackendBox->addItem("FFmpeg", "ffmpeg");
+    mediaBackendBox->addItem("GStreamer", "gstreamer");
+
+    // Set current backend from settings
+    QString currentBackend = GlobalSetting::instance().getMediaBackend();
+    int backendIndex = mediaBackendBox->findData(currentBackend);
+    if (backendIndex != -1) {
+        mediaBackendBox->setCurrentIndex(backendIndex);
+    }
+
+    QLabel *backendHintLabel = new QLabel(tr("Note: Changing media backend requires application restart to take effect."));
+    backendHintLabel->setStyleSheet("color: #666666; font-style: italic;");
+
+    // Connect the media backend change signal
+    connect(mediaBackendBox, &QComboBox::currentIndexChanged, this, &VideoPage::onMediaBackendChanged);
+
+    // GStreamer Pipeline Configuration Section
+    QLabel *gstreamerPipelineLabel = new QLabel(tr("GStreamer Pipeline Template: "));
+    gstreamerPipelineLabel->setStyleSheet(smallLabelFontSize);
+
+    QLineEdit *gstreamerPipelineEdit = new QLineEdit();
+    gstreamerPipelineEdit->setObjectName("gstreamerPipelineEdit");
+    gstreamerPipelineEdit->setPlaceholderText("v4l2src device=%DEVICE% ! image/jpeg,width=%WIDTH%,height=%HEIGHT%,framerate=%FRAMERATE%/1 ! jpegdec ! videoconvert ! xvimagesink name=videosink");
+    
+    // Set current pipeline template from settings
+    QString currentPipeline = GlobalSetting::instance().getGStreamerPipelineTemplate();
+    gstreamerPipelineEdit->setText(currentPipeline);
+    
+    QLabel *gstreamerHintLabel = new QLabel(tr("Available placeholders: %DEVICE%, %WIDTH%, %HEIGHT%, %FRAMERATE%"));
+    gstreamerHintLabel->setStyleSheet("color: #666666; font-style: italic;");
+    
+    // Connect the pipeline change signal
+    connect(gstreamerPipelineEdit, &QLineEdit::textChanged, this, &VideoPage::onGStreamerPipelineChanged);
+
+    // Create a widget to hold the GStreamer-specific options
+    QWidget *gstreamerOptionsWidget = new QWidget();
+    gstreamerOptionsWidget->setObjectName("gstreamerOptionsWidget");
+    QVBoxLayout *gstreamerLayout = new QVBoxLayout(gstreamerOptionsWidget);
+    gstreamerLayout->addWidget(gstreamerPipelineLabel);
+    gstreamerLayout->addWidget(gstreamerPipelineEdit);
+    gstreamerLayout->addWidget(gstreamerHintLabel);
+    
+    // Initially hide GStreamer options if not using GStreamer backend
+    gstreamerOptionsWidget->setVisible(currentBackend == "gstreamer");
+
     // Add Capture Resolution elements to the layout
     videoLayout->addWidget(hintLabel);
     videoLayout->addWidget(resolutionsLabel);
@@ -127,6 +184,11 @@ void VideoPage::setupUI()
     videoLayout->addLayout(hBoxLayout);
     videoLayout->addWidget(formatLabel);
     videoLayout->addWidget(pixelFormatBox);
+    videoLayout->addWidget(separatorLine2);
+    videoLayout->addWidget(backendLabel);
+    videoLayout->addWidget(mediaBackendBox);
+    videoLayout->addWidget(backendHintLabel);
+    videoLayout->addWidget(gstreamerOptionsWidget);
     videoLayout->addStretch();
 
     // Connect the checkbox state change to the slot
@@ -165,19 +227,45 @@ void VideoPage::setupUI()
 void VideoPage::populateResolutionBox(const QList<QCameraFormat> &videoFormats) {
     std::map<QSize, std::set<int>, QSizeComparator> resolutionSampleRates;
 
+    // Check if we're using GStreamer for special handling
+    QString mediaBackend = GlobalSetting::instance().getMediaBackend();
+    bool isGStreamer = (mediaBackend == "gstreamer");
+
     // Process videoFormats to fill resolutionSampleRates and videoFormatMap
     for (const QCameraFormat &format : videoFormats) {
         QSize resolution = format.resolution();
         int minFrameRate = format.minFrameRate();
         int maxFrameRate = format.maxFrameRate();
-        // QVideoFrameFormat::PixelFormat pixelFormat = format.pixelFormat();
-
-        // VideoFormatKey key = {resolution, minFrameRate, maxFrameRate, pixelFormat};
-        // Use const_cast here to avoid the const issue
-        // const_cast<std::map<VideoFormatKey, QCameraFormat>&>(videoFormatMap)[key] = format;
-
-        resolutionSampleRates[resolution].insert(minFrameRate);
-        resolutionSampleRates[resolution].insert(maxFrameRate);
+        
+        if (isGStreamer) {
+            // For GStreamer, be very conservative - only use safe standard frame rates
+            std::vector<int> safeFrameRates = {5, 10, 15, 20, 24, 25, 30, 50, 60};
+            
+            qDebug() << "GStreamer mode: Using safe frame rates for" << resolution 
+                     << "range" << minFrameRate << "-" << maxFrameRate;
+            
+            for (int safeRate : safeFrameRates) {
+                if (safeRate >= minFrameRate && safeRate <= maxFrameRate) {
+                    resolutionSampleRates[resolution].insert(safeRate);
+                }
+            }
+            
+            // For GStreamer, DO NOT include actual min/max if they're not standard
+            // This prevents the step assertion error
+        } else {
+            // For other backends, use the original approach with standard rates
+            std::vector<int> standardFrameRates = {5, 10, 15, 20, 24, 25, 30, 50, 60};
+            
+            for (int stdRate : standardFrameRates) {
+                if (stdRate >= minFrameRate && stdRate <= maxFrameRate) {
+                    resolutionSampleRates[resolution].insert(stdRate);
+                }
+            }
+            
+            // Always include the actual min and max if they're not standard values
+            resolutionSampleRates[resolution].insert(minFrameRate);
+            resolutionSampleRates[resolution].insert(maxFrameRate);
+        }
     }
 
     // Populate videoFormatBox with consolidated information
@@ -270,6 +358,14 @@ void VideoPage::applyVideoSettings() {
     int fps = fpsComboBox->currentData().toInt();
     qDebug() << "fpsComboBox current data:" << fpsComboBox->currentData();
     
+    // Check if we're using GStreamer
+    QString mediaBackend = GlobalSetting::instance().getMediaBackend();
+    bool isGStreamer = (mediaBackend == "gstreamer");
+    
+    if (isGStreamer) {
+        qDebug() << "Applying video settings with GStreamer backend - using conservative approach";
+    }
+    
     // Ensure pixelFormatBox is found
     QComboBox *pixelFormatBox = this->findChild<QComboBox*>("pixelFormatBox");
     if (!pixelFormatBox) {
@@ -285,8 +381,14 @@ void VideoPage::applyVideoSettings() {
 
     if (!format.isNull()) {
         qDebug() << "Set Camera Format, resolution:" << format.resolution() << ", FPS:" << fps << format.pixelFormat();
+        if (isGStreamer) {
+            qDebug() << "GStreamer format range: min=" << format.minFrameRate() << "max=" << format.maxFrameRate();
+        }
     } else {
         qWarning() << "Invalid camera format!" << m_currentResolution << fps;
+        if (isGStreamer) {
+            qWarning() << "GStreamer may have rejected the format - try a different frame rate";
+        }
         return;
     }
 
@@ -354,6 +456,29 @@ void VideoPage::initVideoSettings() {
     if (indexFps != -1) {
         fpsComboBox->setCurrentIndex(indexFps);
     }
+
+    // Set the media backend in the combo box
+    QComboBox *mediaBackendBox = this->findChild<QComboBox*>("mediaBackendBox");
+    if (mediaBackendBox) {
+        QString currentBackend = GlobalSetting::instance().getMediaBackend();
+        int backendIndex = mediaBackendBox->findData(currentBackend);
+        if (backendIndex != -1) {
+            mediaBackendBox->setCurrentIndex(backendIndex);
+        }
+        
+        // Show/hide GStreamer options based on current backend
+        QWidget *gstreamerOptionsWidget = this->findChild<QWidget*>("gstreamerOptionsWidget");
+        if (gstreamerOptionsWidget) {
+            gstreamerOptionsWidget->setVisible(currentBackend == "gstreamer");
+        }
+    }
+    
+    // Set the GStreamer pipeline template
+    QLineEdit *gstreamerPipelineEdit = this->findChild<QLineEdit*>("gstreamerPipelineEdit");
+    if (gstreamerPipelineEdit) {
+        QString currentPipeline = GlobalSetting::instance().getGStreamerPipelineTemplate();
+        gstreamerPipelineEdit->setText(currentPipeline);
+    }
 }
 
 void VideoPage::handleResolutionSettings() {
@@ -379,4 +504,48 @@ void VideoPage::toggleCustomResolutionInputs(bool checked) {
     // Enable or disable the input fields based on the checkbox state
     customInputWidthEdit->setEnabled(checked);
     customInputHeightEdit->setEnabled(checked);
+}
+
+void VideoPage::onMediaBackendChanged() {
+    QComboBox *mediaBackendBox = this->findChild<QComboBox*>("mediaBackendBox");
+    if (mediaBackendBox) {
+        QString selectedBackend = mediaBackendBox->currentData().toString();
+        GlobalSetting::instance().setMediaBackend(selectedBackend);
+        qDebug() << "Media backend changed to:" << selectedBackend;
+        
+        // Show/hide GStreamer options based on selected backend
+        QWidget *gstreamerOptionsWidget = this->findChild<QWidget*>("gstreamerOptionsWidget");
+        if (gstreamerOptionsWidget) {
+            gstreamerOptionsWidget->setVisible(selectedBackend == "gstreamer");
+        }
+        
+        if (selectedBackend == "gstreamer") {
+            qDebug() << "GStreamer backend selected - using conservative frame rate handling";
+            qDebug() << "Note: GStreamer may require specific frame rate ranges to avoid assertion errors";
+        }
+    }
+}
+
+void VideoPage::onGStreamerPipelineChanged() {
+    QLineEdit *gstreamerPipelineEdit = this->findChild<QLineEdit*>("gstreamerPipelineEdit");
+    if (gstreamerPipelineEdit) {
+        QString pipelineTemplate = gstreamerPipelineEdit->text();
+        
+        // Basic validation: check if essential placeholders are present
+        bool hasDevice = pipelineTemplate.contains("%DEVICE%");
+        bool hasValidFormat = pipelineTemplate.contains("!") && !pipelineTemplate.trimmed().isEmpty();
+        
+        if (!hasDevice) {
+            qWarning() << "GStreamer pipeline template missing %DEVICE% placeholder";
+            gstreamerPipelineEdit->setStyleSheet("QLineEdit { border: 2px solid red; }");
+        } else if (!hasValidFormat) {
+            qWarning() << "GStreamer pipeline template appears to be invalid (missing ! separators or empty)";
+            gstreamerPipelineEdit->setStyleSheet("QLineEdit { border: 2px solid orange; }");
+        } else {
+            // Pipeline looks valid
+            gstreamerPipelineEdit->setStyleSheet("");
+            GlobalSetting::instance().setGStreamerPipelineTemplate(pipelineTemplate);
+            qDebug() << "GStreamer pipeline template updated:" << pipelineTemplate;
+        }
+    }
 }

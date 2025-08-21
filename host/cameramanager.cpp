@@ -1,29 +1,42 @@
 #include "cameramanager.h"
+#include "host/multimediabackend.h"
+#include "host/backend/gstreamerbackendhandler.h"
+#include "host/backend/ffmpegbackendhandler.h"
+#include "ui/videopane.h"
 
 #include <QLoggingCategory>
 #include <QSettings>
 #include <QMediaDevices>
 #include <QRegularExpression>
+#include <QDateTime>
 #include "global.h"
 #include "video/videohid.h"
 #include "../ui/globalsetting.h"
 #include "../device/DeviceManager.h"
-#include <QVideoWidget>
 #include <QGraphicsVideoItem>
 #include <QTimer>
 #include <QThread>
+#include <algorithm>
+#include <QSet>
 
 Q_LOGGING_CATEGORY(log_ui_camera, "opf.ui.camera")
 
 CameraManager::CameraManager(QObject *parent)
-    : QObject(parent), m_videoOutput(nullptr), m_graphicsVideoOutput(nullptr), m_video_width(0), m_video_height(0)
+    : QObject(parent), m_graphicsVideoOutput(nullptr), m_video_width(0), m_video_height(0)
 {
-    qDebug() << "CameraManager init...";
+    qCDebug(log_ui_camera) << "CameraManager init...";
     
     // Initialize camera device to null state
     m_currentCameraDevice = QCameraDevice();
     m_currentCameraDeviceId.clear();
     m_currentCameraPortChain.clear();
+    
+    // Initialize backend handler only if not on Windows
+    if (!isWindowsPlatform()) {
+        initializeBackendHandler();
+    } else {
+        qCDebug(log_ui_camera) << "Windows platform detected - using direct QCamera approach, skipping backend initialization";
+    }
     
     m_imageCapture = std::make_unique<QImageCapture>();
     m_mediaRecorder = std::make_unique<QMediaRecorder>();
@@ -31,7 +44,7 @@ CameraManager::CameraManager(QObject *parent)
 
     // Initialize available camera devices
     m_availableCameraDevices = getAvailableCameraDevices();
-    qDebug() << "Found" << m_availableCameraDevices.size() << "available camera devices";
+    qCDebug(log_ui_camera) << "Found" << m_availableCameraDevices.size() << "available camera devices";
     
     // Display all camera device IDs for debugging
     displayAllCameraDeviceIds();
@@ -39,41 +52,141 @@ CameraManager::CameraManager(QObject *parent)
 
 CameraManager::~CameraManager() = default;
 
-void CameraManager::setCamera(const QCameraDevice &cameraDevice, QVideoWidget* videoOutput)
+bool CameraManager::isWindowsPlatform()
 {
-    qDebug() << "Set Camera to videoOutput: " << videoOutput << ", device name: " << cameraDevice.description();
-    setCameraDevice(cameraDevice);
-
-    setVideoOutput(videoOutput);
-
-    queryResolutions();
-
-    // Set camera format
-    startCamera();
+#ifdef Q_OS_WIN
+    return true;
+#else
+    return false;
+#endif
 }
 
+bool CameraManager::isGStreamerBackend() const
+{
+    // On Windows, we don't use backends, so always return false
+    if (isWindowsPlatform()) {
+        return false;
+    }
+    return m_backendHandler && m_backendHandler->getBackendType() == MultimediaBackendType::GStreamer;
+}
+
+bool CameraManager::isFFmpegBackend() const
+{
+    // On Windows, we don't use backends, so always return false
+    if (isWindowsPlatform()) {
+        return false;
+    }
+    return m_backendHandler && m_backendHandler->getBackendType() == MultimediaBackendType::FFmpeg;
+}
+
+void CameraManager::initializeBackendHandler()
+{
+    qCDebug(log_ui_camera) << "Initializing multimedia backend handler";
+    try {
+        m_backendHandler = MultimediaBackendFactory::createAutoDetectedHandler(this);
+        if (m_backendHandler) {
+            qCDebug(log_ui_camera) << "Backend handler initialized:" << m_backendHandler->getBackendName();
+            qCDebug(log_ui_camera) << "Backend handler type:" << static_cast<int>(m_backendHandler->getBackendType());
+            qCDebug(log_ui_camera) << "Backend handler pointer:" << m_backendHandler.get();
+            
+            // Connect backend signals
+            connect(m_backendHandler.get(), &MultimediaBackendHandler::backendMessage,
+                    this, [](const QString& message) {
+                        qCDebug(log_ui_camera) << "Backend message:" << message;
+                    });
+            
+            connect(m_backendHandler.get(), &MultimediaBackendHandler::backendWarning,
+                    this, [](const QString& warning) {
+                        qCWarning(log_ui_camera) << "Backend warning:" << warning;
+                    });
+            
+            connect(m_backendHandler.get(), &MultimediaBackendHandler::backendError,
+                    this, [this](const QString& error) {
+                        qCCritical(log_ui_camera) << "Backend error:" << error;
+                        emit cameraError(error);
+                    });
+        } else {
+            qCCritical(log_ui_camera) << "Failed to create backend handler - returned nullptr";
+        }
+    } catch (const std::exception& e) {
+        qCCritical(log_ui_camera) << "Exception initializing backend handler:" << e.what();
+    } catch (...) {
+        qCCritical(log_ui_camera) << "Unknown exception initializing backend handler";
+    }
+}
+
+void CameraManager::updateBackendHandler()
+{
+    qCDebug(log_ui_camera) << "Updating multimedia backend handler";
+    
+    // Store the current backend type for comparison
+    MultimediaBackendType currentType = m_backendHandler ? m_backendHandler->getBackendType() : MultimediaBackendType::Unknown;
+    MultimediaBackendType newType = MultimediaBackendFactory::detectBackendType();
+    
+    // Only recreate if the backend type has changed
+    if (currentType != newType) {
+        qCDebug(log_ui_camera) << "Backend type changed from" << MultimediaBackendFactory::backendTypeToString(currentType)
+                               << "to" << MultimediaBackendFactory::backendTypeToString(newType);
+        
+        // Disconnect old handler signals
+        if (m_backendHandler) {
+            disconnect(m_backendHandler.get(), nullptr, this, nullptr);
+        }
+        
+        // Create new handler
+        initializeBackendHandler();
+    } else {
+        qCDebug(log_ui_camera) << "Backend type unchanged, keeping current handler";
+    }
+}
+
+// void CameraManager::setCamera(const QCameraDevice &cameraDevice, QGraphicsVideoItem* videoOutput)
+// {
+//     qCDebug(log_ui_camera) << "Set Camera to graphics videoOutput: " << videoOutput << ", device name: " << cameraDevice.description();
+//     setCameraDevice(cameraDevice);
+
+//     setVideoOutput(videoOutput);
+
+//     queryResolutions();
+
+//     // Set camera format
+//     startCamera();
+// }
+
+// Windows-specific direct QCamera approach
 void CameraManager::setCamera(const QCameraDevice &cameraDevice, QGraphicsVideoItem* videoOutput)
 {
-    qDebug() << "Set Camera to graphics videoOutput: " << videoOutput << ", device name: " << cameraDevice.description();
-    setCameraDevice(cameraDevice);
-
-    setVideoOutput(videoOutput);
-
-    queryResolutions();
-
-    // Set camera format
-    startCamera();
+    if (isWindowsPlatform()) {
+        qCDebug(log_ui_camera) << "Windows: Set Camera to graphics videoOutput using direct QCamera approach: " << videoOutput << ", device name: " << cameraDevice.description();
+        setCameraDevice(cameraDevice);
+        setVideoOutput(videoOutput);
+        queryResolutions();
+        startCamera();
+    } else {
+        qCDebug(log_ui_camera) << "Non-Windows: Using backend approach for setCamera";
+        // For non-Windows, fall back to the existing backend implementation
+        setCameraDevice(cameraDevice);
+        setVideoOutput(videoOutput);
+        queryResolutions();
+        startCamera();
+    }
 }
 
 void CameraManager::setCameraDevice(const QCameraDevice &cameraDevice)
 {
     try {
-        qDebug() << "Setting camera device to:" << cameraDevice.description();
+        qCDebug(log_ui_camera) << "Setting camera device to:" << cameraDevice.description();
         
         // Validate the camera device
         if (!isCameraDeviceValid(cameraDevice)) {
             qCWarning(log_ui_camera) << "Cannot set invalid camera device";
             return;
+        }
+        
+        // Use backend handler for camera preparation if available
+        if (m_backendHandler) {
+            qCDebug(log_ui_camera) << "Using backend handler for camera device setup";
+            m_backendHandler->prepareCameraCreation(m_camera.get());
         }
         
         // Create new camera instance
@@ -84,18 +197,41 @@ void CameraManager::setCameraDevice(const QCameraDevice &cameraDevice)
             return;
         }
         
+        // Configure camera device with backend handler (this will set up device paths for GStreamer)
+        if (m_backendHandler) {
+            qCDebug(log_ui_camera) << "Calling configureCameraDevice on backend handler:" << m_backendHandler->getBackendName();
+            m_backendHandler->configureCameraDevice(m_camera.get(), cameraDevice);
+            qCDebug(log_ui_camera) << "configureCameraDevice call completed";
+        } else {
+            qCWarning(log_ui_camera) << "No backend handler available for configureCameraDevice";
+        }
+        
         // Setup connections before setting up capture session
         setupConnections();
         
-        // Set up capture session
-        m_captureSession.setCamera(m_camera.get());
-        m_captureSession.setImageCapture(m_imageCapture.get());
+        // Set up capture session with backend-specific timing
+        if (m_backendHandler) {
+            m_backendHandler->setupCaptureSession(&m_captureSession, m_camera.get());
+            
+            // For GStreamer direct pipeline, skip image capture setup to avoid device conflicts
+            if (isGStreamerBackend()) {
+                qCDebug(log_ui_camera) << "GStreamer backend detected - skipping image capture setup to avoid device conflicts";
+                // Don't connect image capture for GStreamer direct pipeline to prevent device access
+                // The GStreamer pipeline will handle video directly without Qt camera/capture
+            } else {
+                m_captureSession.setImageCapture(m_imageCapture.get());
+            }
+        } else {
+            // Fallback: standard setup
+            m_captureSession.setCamera(m_camera.get());
+            m_captureSession.setImageCapture(m_imageCapture.get());
+        }
         
         // Update current device tracking
         m_currentCameraDevice = cameraDevice;
         m_currentCameraDeviceId = QString::fromUtf8(cameraDevice.id());
         
-        qDebug() << "Camera device successfully set to:" << cameraDevice.description();
+        qCDebug(log_ui_camera) << "Camera device successfully set to:" << cameraDevice.description();
         
     } catch (const std::exception& e) {
         qCritical() << "Exception in setCameraDevice:" << e.what();
@@ -106,30 +242,13 @@ void CameraManager::setCameraDevice(const QCameraDevice &cameraDevice)
     }
 }
 
-void CameraManager::setVideoOutput(QVideoWidget* videoOutput)
-{
-    if (videoOutput) {
-        m_videoOutput = videoOutput;
-        m_graphicsVideoOutput = nullptr; // Clear graphics output
-        qDebug() << "Setting video output to: " << videoOutput->objectName();
-        m_captureSession.setVideoOutput(videoOutput);
-        
-        // Verify the connection was successful
-        if (m_captureSession.videoOutput() == videoOutput) {
-            qDebug() << "Widget video output successfully connected to capture session";
-        } else {
-            qCWarning(log_ui_camera) << "Failed to connect widget video output to capture session";
-        }
-    } else {
-        qCWarning(log_ui_camera) << "Attempted to set null video output";
-    }
-}
-
+// Deprecated method for initializing camera with video output
+// This method is kept for compatibility but should be replaced with the new methods
+// that handle port chain tracking and improved device management
 void CameraManager::setVideoOutput(QGraphicsVideoItem* videoOutput)
 {
     if (videoOutput) {
         m_graphicsVideoOutput = videoOutput;
-        m_videoOutput = nullptr; // Clear widget output
         qDebug() << "Setting graphics video output";
         m_captureSession.setVideoOutput(videoOutput);
         
@@ -146,39 +265,138 @@ void CameraManager::setVideoOutput(QGraphicsVideoItem* videoOutput)
 
 void CameraManager::startCamera()
 {
-    qDebug() << "Camera start..";
+    qCDebug(log_ui_camera) << "Camera start..";
     
     try {
         if (m_camera) {
             // Check if camera is already active to avoid redundant starts
             if (m_camera->isActive()) {
-                qDebug() << "Camera is already active, skipping start";
+                qCDebug(log_ui_camera) << "Camera is already active, skipping start";
                 return;
             }
+
+            qCDebug(log_ui_camera) << "Starting camera:" << m_camera->cameraDevice().description();
             
-            qDebug() << "Starting camera:" << m_camera->cameraDevice().description();
-            
-            // Ensure video output is connected before starting camera
-            if (m_videoOutput) {
-                qDebug() << "Ensuring widget video output is connected before starting camera";
-                m_captureSession.setVideoOutput(m_videoOutput);
-            } else if (m_graphicsVideoOutput) {
-                qDebug() << "Ensuring graphics video output is connected before starting camera";
-                m_captureSession.setVideoOutput(m_graphicsVideoOutput);
+            // Use simple direct QCamera approach on Windows
+            if (isWindowsPlatform()) {
+                qCDebug(log_ui_camera) << "Windows: Using direct QCamera approach";
+                
+                // Ensure video output is connected before starting camera
+                if (m_graphicsVideoOutput) {
+                    qCDebug(log_ui_camera) << "Windows: Ensuring graphics video output is connected before starting camera";
+                    m_captureSession.setVideoOutput(m_graphicsVideoOutput);
+                }
+                
+                m_camera->start();
+                
+                // Minimal wait time to reduce transition delay
+                QThread::msleep(25);
+                
+                // Verify camera started
+                if (m_camera->isActive()) {
+                    qCDebug(log_ui_camera) << "Windows: Camera started successfully and is active";
+                    emit cameraActiveChanged(true);
+                } else {
+                    qCWarning(log_ui_camera) << "Windows: Camera start command sent but camera is not active";
+                }
             }
-            
-            m_camera->start();
-            
-            // Minimal wait time to reduce transition delay
-            QThread::msleep(25);
-            
-            // Verify camera started
-            if (m_camera->isActive()) {
-                qDebug() << "Camera started successfully and is active";
-                // Emit active state change as soon as camera starts
-                emit cameraActiveChanged(true);
+            // Use backend handler for video output setup and camera start on non-Windows
+            else if (m_backendHandler) {
+                // Ensure device is configured with backend handler
+                if (m_backendHandler) {
+                    qCDebug(log_ui_camera) << "Re-configuring camera device with backend handler";
+                    m_backendHandler->configureCameraDevice(m_camera.get(), m_currentCameraDevice);
+                }
+                
+                // For GStreamer backend, ensure resolution and framerate are set before starting
+                if (isGStreamerBackend()) {
+                    qCDebug(log_ui_camera) << "Ensuring GStreamer backend has resolution and framerate before starting";
+                    
+                    // Make sure we have resolution information
+                    if (m_video_width <= 0 || m_video_height <= 0) {
+                        qCDebug(log_ui_camera) << "Resolution not set, querying resolutions first";
+                        queryResolutions();
+                    }
+                    
+                    // Get current resolution and framerate
+                    QSize resolution = QSize(m_video_width > 0 ? m_video_width : 1920, 
+                                            m_video_height > 0 ? m_video_height : 1080);
+                    int framerate = GlobalVar::instance().getCaptureFps() > 0 ? 
+                                   GlobalVar::instance().getCaptureFps() : 30;
+                    
+                    qCDebug(log_ui_camera) << "Setting GStreamer resolution:" << resolution << "framerate:" << framerate;
+                    
+                    // Cast to GStreamer backend handler to set resolution
+                    auto* gstreamerHandler = qobject_cast<GStreamerBackendHandler*>(m_backendHandler.get());
+                    if (gstreamerHandler) {
+                        gstreamerHandler->setResolutionAndFramerate(resolution, framerate);
+                    }
+                }
+                
+                // For GStreamer backend, let it handle the entire video pipeline
+                if (isGStreamerBackend()) {
+                    qCDebug(log_ui_camera) << "Using GStreamer backend - delegating to direct pipeline";
+                    
+                    // Prepare video output connection for GStreamer
+                    if (m_graphicsVideoOutput) {
+                        m_backendHandler->prepareVideoOutputConnection(&m_captureSession, m_graphicsVideoOutput);
+                        m_backendHandler->finalizeVideoOutputConnection(&m_captureSession, m_graphicsVideoOutput);
+                    }
+                    
+                    // Let GStreamer backend handle camera startup (will use direct pipeline if available)
+                    m_backendHandler->startCamera(m_camera.get());
+                    
+                    // For GStreamer backend with direct pipeline, we consider it "active" if the backend says so
+                    // The Qt camera might not report as active since we're bypassing it
+                    emit cameraActiveChanged(true);
+                    qCDebug(log_ui_camera) << "GStreamer backend camera startup delegated";
+                    
+                } else {
+                    // For other backends (FFmpeg, etc.), use standard Qt camera approach
+                    qCDebug(log_ui_camera) << "Using standard backend approach with Qt camera";
+                    
+                    // Prepare video output connection
+                    if (m_graphicsVideoOutput) {
+                        m_backendHandler->prepareVideoOutputConnection(&m_captureSession, m_graphicsVideoOutput);
+                        m_backendHandler->finalizeVideoOutputConnection(&m_captureSession, m_graphicsVideoOutput);
+                    }
+                    
+                    // Start camera using backend handler (standard Qt approach)
+                    m_backendHandler->startCamera(m_camera.get());
+                    
+                    // Verify camera started for non-GStreamer backends
+                    if (m_camera->isActive()) {
+                        qDebug() << "Camera started successfully and is active";
+                        emit cameraActiveChanged(true);
+                        qCDebug(log_ui_camera) << "Camera started successfully";
+                    } else {
+                        qCWarning(log_ui_camera) << "Camera start command sent but camera is not active";
+                    }
+                }
             } else {
-                qCWarning(log_ui_camera) << "Camera start command sent but camera is not active";
+                // Fallback: standard connection and start when no backend handler
+                qCDebug(log_ui_camera) << "No backend handler available, using fallback approach";
+                if (m_graphicsVideoOutput) {
+                    m_captureSession.setVideoOutput(m_graphicsVideoOutput);
+                }
+                
+                // Only start Qt camera if not using GStreamer backend to avoid device conflicts
+                if (!isGStreamerBackend()) {
+                    m_camera->start();
+                    
+                    // Verify camera started
+                    if (m_camera->isActive()) {
+                        qDebug() << "Camera started successfully and is active (fallback)";
+                        emit cameraActiveChanged(true);
+                        qCDebug(log_ui_camera) << "Camera started successfully (fallback)";
+                    } else {
+                        qCWarning(log_ui_camera) << "Camera start command sent but camera is not active (fallback)";
+                    }
+                } else {
+                    qCDebug(log_ui_camera) << "Skipping Qt camera start in fallback - GStreamer backend will handle camera";
+                    // For GStreamer, we consider it active if the backend handled it
+                    emit cameraActiveChanged(true);
+                }
             }
             
         } else {
@@ -198,7 +416,7 @@ void CameraManager::startCamera()
 
 void CameraManager::stopCamera()
 {
-    qDebug() << "Stopping camera..";
+    qCDebug(log_ui_camera) << "Stopping camera..";
     
     try {
         // Stop VideoHid first
@@ -206,18 +424,35 @@ void CameraManager::stopCamera()
 
         if (m_camera) {
             // Check if camera is already stopped to avoid redundant stops
-            if (!m_camera->isActive()) {
-                qDebug() << "Camera is already stopped";
+            if (!m_camera->isActive() && (!m_backendHandler || !isGStreamerBackend())) {
+                qCDebug(log_ui_camera) << "Camera is already stopped";
                 return;
             }
             
-            qDebug() << "Stopping camera:" << m_camera->cameraDevice().description();
-            m_camera->stop();
+            qCDebug(log_ui_camera) << "Stopping camera:" << m_camera->cameraDevice().description();
             
-            // Wait for camera to fully stop
-            QThread::msleep(100);
+            // Use backend handler for camera shutdown
+            if (m_backendHandler) {
+                if (isGStreamerBackend()) {
+                    qCDebug(log_ui_camera) << "Using GStreamer backend - stopping direct pipeline";
+                    // GStreamer backend will handle stopping both direct pipeline and Qt camera
+                    m_backendHandler->stopCamera(m_camera.get());
+                    emit cameraActiveChanged(false);
+                    qCDebug(log_ui_camera) << "GStreamer backend camera shutdown completed";
+                } else {
+                    qCDebug(log_ui_camera) << "Using standard backend camera shutdown";
+                    m_backendHandler->stopCamera(m_camera.get());
+                    emit cameraActiveChanged(false);
+                    qCDebug(log_ui_camera) << "Standard backend camera shutdown completed";
+                }
+            } else {
+                // Fallback: direct camera stop
+                qCDebug(log_ui_camera) << "No backend handler, using direct camera stop";
+                m_camera->stop();
+                emit cameraActiveChanged(false);
+            }
             
-            qDebug() << "Camera stopped successfully";
+            qCDebug(log_ui_camera) << "Camera stopped successfully";
         } else {
             qCWarning(log_ui_camera) << "Camera is null, cannot stop";
         }
@@ -247,9 +482,9 @@ void CameraManager::onImageCaptured(int id, const QImage& img){
     
     QDir dir(customFolderPath);
     if (!dir.exists() && filePath=="") {
-        qDebug() << "Directory do not exist";
+        qCDebug(log_ui_camera) << "Directory do not exist";
         if (!dir.mkpath(".")) {
-            qDebug() << "Failed to create directory: " << customFolderPath;
+            qCDebug(log_ui_camera) << "Failed to create directory: " << customFolderPath;
             return;
         }
     }
@@ -258,10 +493,10 @@ void CameraManager::onImageCaptured(int id, const QImage& img){
 
     QImage coayImage = img.copy(copyRect);
     if(coayImage.save(saveName)){
-        qDebug() << "succefully save img to : " << saveName;
+        qCDebug(log_ui_camera) << "succefully save img to : " << saveName;
         emit lastImagePath(saveName);
     }else{
-        qDebug() << "fail save img to : " << saveName;
+        qCDebug(log_ui_camera) << "fail save img to : " << saveName;
     }
     copyRect = QRect(0, 0, m_video_width, m_video_height);
 }
@@ -272,7 +507,7 @@ void CameraManager::takeImage(const QString& file)
         if (m_imageCapture->isReadyForCapture()) {
             filePath = file;
             m_imageCapture->capture();
-            qDebug() << "captured .....................";
+            qCDebug(log_ui_camera) << "captured .....................";
         } else {
             qCWarning(log_ui_camera) << "Image capture is not ready";
         }
@@ -287,7 +522,7 @@ void CameraManager::takeAreaImage(const QString& file, const QRect& captureArea)
             filePath = file;
             copyRect = captureArea;
             m_imageCapture->capture();
-            qDebug() << "captured .....................";
+            qCDebug(log_ui_camera) << "captured .....................";
         } else {
             qCWarning(log_ui_camera) << "Image capture is not ready";
         }
@@ -318,11 +553,38 @@ void CameraManager::setupConnections()
             disconnect(m_camera.get(), nullptr, this, nullptr);
             
             connect(m_camera.get(), &QCamera::activeChanged, this, [this](bool active) {
-                qDebug() << "Camera active state changed to:" << active;
+                qCDebug(log_ui_camera) << "Camera active state changed to:" << active;
                 
                 if (active) {
                     try {
-                        configureResolutionAndFormat();
+                        // Use simple approach on Windows, backend approach on others
+                        if (isWindowsPlatform()) {
+                            // Windows: Simple direct QCamera format configuration
+                            QCameraFormat currentFormat = m_camera->cameraFormat();
+                            QSize resolution;
+                            
+                            if (currentFormat.isNull() || currentFormat.resolution().isEmpty()) {
+                                resolution = QSize(m_video_width > 0 ? m_video_width : 1920, 
+                                                  m_video_height > 0 ? m_video_height : 1080);
+                                qCDebug(log_ui_camera) << "Windows: Using stored/default resolution:" << resolution;
+                            } else {
+                                resolution = currentFormat.resolution();
+                                qCDebug(log_ui_camera) << "Windows: Got resolution from camera format:" << resolution;
+                                m_video_width = resolution.width();
+                                m_video_height = resolution.height();
+                            }
+                            
+                            int fps = GlobalVar::instance().getCaptureFps() > 0 ? 
+                                GlobalVar::instance().getCaptureFps() : 30;
+                            
+                            QCameraFormat format = getVideoFormat(resolution, fps, QVideoFrameFormat::Format_Jpeg);
+                            if (m_camera) {
+                                m_camera->setCameraFormat(format);
+                            }
+                        } else {
+                            // Non-Windows: Use backend handler approach
+                            configureResolutionAndFormat();
+                        }
                     } catch (...) {
                         qCritical() << "Exception in configureResolutionAndFormat";
                     }
@@ -333,10 +595,18 @@ void CameraManager::setupConnections()
             
             connect(m_camera.get(), &QCamera::errorOccurred, this, [this](QCamera::Error error, const QString &errorString) {
                 qCritical() << "Camera error occurred:" << static_cast<int>(error) << errorString;
+                
+                // Use backend handler for error handling if available (non-Windows)
+                if (!isWindowsPlatform() && m_backendHandler) {
+                    m_backendHandler->handleCameraError(error, errorString);
+                } else {
+                    qCDebug(log_ui_camera) << "Windows: Using simple error handling";
+                }
+                
                 emit cameraError(errorString);
             });
             
-            qDebug() << "Camera connections set up successfully";
+            qCDebug(log_ui_camera) << "Camera connections set up successfully";
         } else {
             qCWarning(log_ui_camera) << "Camera is null, cannot set up connections";
         }
@@ -374,6 +644,29 @@ void CameraManager::setupConnections()
 
 void CameraManager::configureResolutionAndFormat()
 {
+    // For GStreamer backend using direct pipeline, avoid all Qt camera interactions
+    if (m_backendHandler && isGStreamerBackend()) {
+        qCDebug(log_ui_camera) << "GStreamer backend detected - skipping all Qt camera format operations to avoid device conflicts";
+        
+        // Just set GStreamer backend configuration without accessing Qt camera
+        QSize resolution = QSize(m_video_width > 0 ? m_video_width : 1920, 
+                                m_video_height > 0 ? m_video_height : 1080);
+        int desiredFps = GlobalVar::instance().getCaptureFps() > 0 ? 
+            GlobalVar::instance().getCaptureFps() : 30;
+        
+        qCDebug(log_ui_camera) << "Configuring GStreamer backend with resolution:" << resolution << "fps:" << desiredFps;
+        
+        // Cast to GStreamer backend handler to access specific methods
+        auto* gstreamerHandler = qobject_cast<GStreamerBackendHandler*>(m_backendHandler.get());
+        if (gstreamerHandler) {
+            gstreamerHandler->setResolutionAndFramerate(resolution, desiredFps);
+        } else {
+            qCWarning(log_ui_camera) << "Failed to cast to GStreamer backend handler";
+        }
+        
+        return; // Exit early for GStreamer to avoid all Qt camera access
+    }
+    
     // Get resolution directly from camera format if available
     QCameraFormat currentFormat = m_camera->cameraFormat();
     QSize resolution;
@@ -382,26 +675,68 @@ void CameraManager::configureResolutionAndFormat()
         // If camera format is not yet available, use stored values
         resolution = QSize(m_video_width > 0 ? m_video_width : 1920, 
                           m_video_height > 0 ? m_video_height : 1080);
-        qDebug() << "Using stored/default resolution:" << resolution;
+        qCDebug(log_ui_camera) << "Using stored/default resolution:" << resolution;
     } else {
         resolution = currentFormat.resolution();
-        qDebug() << "Got resolution from camera format:" << resolution;
+        qCDebug(log_ui_camera) << "Got resolution from camera format:" << resolution;
         
         // Update our stored values
         m_video_width = resolution.width();
         m_video_height = resolution.height();
     }
     
-    int fps = GlobalVar::instance().getCaptureFps() > 0 ? 
+    // Get desired frame rate and optimize it using backend handler
+    int desiredFps = GlobalVar::instance().getCaptureFps() > 0 ? 
         GlobalVar::instance().getCaptureFps() : 30;
     
-    QCameraFormat format = getVideoFormat(resolution, fps, QVideoFrameFormat::Format_Jpeg);
+    int optimalFps = getOptimalFrameRate(desiredFps);
+    if (optimalFps != desiredFps) {
+        qCDebug(log_ui_camera) << "Frame rate adjusted from" << desiredFps << "to" << optimalFps 
+                               << "for backend compatibility";
+    }
+    
+    // For GStreamer backend, pass resolution and framerate information
+    if (m_backendHandler && isGStreamerBackend()) {
+        qCDebug(log_ui_camera) << "Configuring GStreamer backend with resolution:" << resolution << "fps:" << optimalFps;
+        
+        // Cast to GStreamer backend handler to access specific methods
+        auto* gstreamerHandler = qobject_cast<GStreamerBackendHandler*>(m_backendHandler.get());
+        if (gstreamerHandler) {
+            gstreamerHandler->setResolutionAndFramerate(resolution, optimalFps);
+        } else {
+            qCWarning(log_ui_camera) << "Failed to cast to GStreamer backend handler";
+        }
+        
+        // For GStreamer direct pipeline mode, skip Qt camera format setting to avoid device conflicts
+        qCDebug(log_ui_camera) << "Skipping Qt camera format setting for GStreamer direct pipeline";
+        return;
+    }
+    
+    // For non-GStreamer backends, set Qt camera format for compatibility
+    QCameraFormat format = getVideoFormat(resolution, optimalFps, QVideoFrameFormat::Format_Jpeg);
     setCameraFormat(format);
 }
 
 void CameraManager::setCameraFormat(const QCameraFormat &format) {
     if (m_camera) {
+        qCDebug(log_ui_camera) << "Setting camera format:" 
+                               << "resolution=" << format.resolution()
+                               << "frameRate=" << format.minFrameRate() << "-" << format.maxFrameRate();
+        
+        // Validate format with backend handler if available
+        if (m_backendHandler && !format.isNull()) {
+            validateCameraFormat(format);
+        }
+        
         m_camera->setCameraFormat(format);
+        
+        // Log the actual format that was set
+        QCameraFormat actualFormat = m_camera->cameraFormat();
+        if (!actualFormat.isNull()) {
+            qCDebug(log_ui_camera) << "Actual format set:" 
+                                   << "resolution=" << actualFormat.resolution()
+                                   << "frameRate=" << actualFormat.minFrameRate() << "-" << actualFormat.maxFrameRate();
+        }
     }
 }
 
@@ -417,7 +752,7 @@ void CameraManager::queryResolutions()
 {
     QPair<int, int> resolution = VideoHid::getInstance().getResolution();
 
-    qDebug() << "Input resolution: " << resolution;
+    qCDebug(log_ui_camera) << "Input resolution: " << resolution;
 
     GlobalVar::instance().setInputWidth(resolution.first);
     GlobalVar::instance().setInputHeight(resolution.second);
@@ -427,6 +762,18 @@ void CameraManager::queryResolutions()
 
     float input_fps = VideoHid::getInstance().getFps();
     float pixelClk = VideoHid::getInstance().getPixelclk();
+
+    // Get optimal capture frame rate using backend handler
+    int captureFrameRate = GlobalVar::instance().getCaptureFps();
+    if (captureFrameRate > 0) {
+        int optimalFrameRate = getOptimalFrameRate(captureFrameRate);
+        if (optimalFrameRate != captureFrameRate) {
+            qCDebug(log_ui_camera) << "Optimized capture frame rate from" << captureFrameRate 
+                                   << "to" << optimalFrameRate << "for backend compatibility";
+            // Note: We don't update GlobalVar here to preserve user preference,
+            // but the optimal rate will be used during format selection
+        }
+    }
 
     emit resolutionsUpdated(resolution.first, resolution.second, input_fps, m_video_width, m_video_height, GlobalVar::instance().getCaptureFps(), pixelClk);
 }
@@ -445,9 +792,31 @@ QList<QVideoFrameFormat> CameraManager::getSupportedPixelFormats() const {
 
 
 QCameraFormat CameraManager::getVideoFormat(const QSize &resolution, int desiredFrameRate, QVideoFrameFormat::PixelFormat pixelFormat) const {
+    // Use backend handler for format selection if available
+    if (m_backendHandler) {
+        qCDebug(log_ui_camera) << "Using backend handler for format selection:"
+                               << "resolution=" << resolution
+                               << "frameRate=" << desiredFrameRate
+                               << "pixelFormat=" << static_cast<int>(pixelFormat);
+        
+        QCameraFormat selectedFormat = m_backendHandler->selectOptimalFormat(getCameraFormats(), resolution, desiredFrameRate, pixelFormat);
+        
+        if (!selectedFormat.isNull()) {
+            qCDebug(log_ui_camera) << "Backend handler selected format:"
+                                   << "resolution=" << selectedFormat.resolution()
+                                   << "frameRate=" << selectedFormat.minFrameRate() << "-" << selectedFormat.maxFrameRate()
+                                   << "pixelFormat=" << static_cast<int>(selectedFormat.pixelFormat());
+            return selectedFormat;
+        } else {
+            qCWarning(log_ui_camera) << "Backend handler failed to select format, falling back to manual selection";
+        }
+    } else {
+        qCDebug(log_ui_camera) << "No backend handler available, using fallback format selection";
+    }
+    
+    // Fallback to basic format selection if no backend handler or backend selection failed
     QCameraFormat bestMatch;
     int closestFrameRate = INT_MAX;
-
 
     for (const QCameraFormat &format : getCameraFormats()) {
         QSize formatResolution = format.resolution();
@@ -462,7 +831,7 @@ QCameraFormat CameraManager::getVideoFormat(const QSize &resolution, int desired
         if (formatResolution == resolution && formatPixelFormat == pixelFormat) {
             if (desiredFrameRate >= minFrameRate && desiredFrameRate <= maxFrameRate) {
                 // If we find an exact match, return it immediately
-                qDebug() << "Exact match found" << format.minFrameRate() << format.maxFrameRate();
+                qCDebug(log_ui_camera) << "Exact match found" << format.minFrameRate() << format.maxFrameRate();
                 return format;
             }
 
@@ -470,7 +839,7 @@ QCameraFormat CameraManager::getVideoFormat(const QSize &resolution, int desired
             int midFrameRate = (minFrameRate + maxFrameRate) / 2;
             int frameDiff = qAbs(midFrameRate - desiredFrameRate);
             if (frameDiff < closestFrameRate) {
-                qDebug() << "Closest match found";
+                qCDebug(log_ui_camera) << "Closest match found";
                 closestFrameRate = frameDiff;
                 bestMatch = format;
             }
@@ -478,6 +847,154 @@ QCameraFormat CameraManager::getVideoFormat(const QSize &resolution, int desired
     }
 
     return bestMatch;
+}
+
+QList<int> CameraManager::getSupportedFrameRates(const QCameraFormat& format) const
+{
+    if (m_backendHandler) {
+        return m_backendHandler->getSupportedFrameRates(format);
+    }
+    
+    // Fallback: return basic frame rate range
+    QList<int> frameRates;
+    int minRate = format.minFrameRate();
+    int maxRate = format.maxFrameRate();
+    
+    if (minRate > 0 && maxRate > 0) {
+        // Common frame rates within the supported range
+        QList<int> commonRates = {5, 10, 15, 24, 25, 30, 50, 60};
+        for (int rate : commonRates) {
+            if (rate >= minRate && rate <= maxRate) {
+                frameRates.append(rate);
+            }
+        }
+        
+        // Ensure min and max are included if not already
+        if (!frameRates.contains(minRate)) {
+            frameRates.prepend(minRate);
+        }
+        if (!frameRates.contains(maxRate)) {
+            frameRates.append(maxRate);
+        }
+    }
+    
+    return frameRates;
+}
+
+bool CameraManager::isFrameRateSupported(const QCameraFormat& format, int frameRate) const
+{
+    if (m_backendHandler) {
+        return m_backendHandler->isFrameRateSupported(format, frameRate);
+    }
+    
+    // Fallback: basic range check
+    return frameRate >= format.minFrameRate() && frameRate <= format.maxFrameRate();
+}
+
+int CameraManager::getOptimalFrameRate(int desiredFrameRate) const
+{
+    if (!m_camera) {
+        qCWarning(log_ui_camera) << "No camera available for frame rate optimization";
+        return desiredFrameRate;
+    }
+    
+    QCameraFormat currentFormat = m_camera->cameraFormat();
+    if (currentFormat.isNull()) {
+        qCWarning(log_ui_camera) << "No camera format available for frame rate optimization";
+        return desiredFrameRate;
+    }
+    
+    if (m_backendHandler) {
+        // Use backend handler to get the optimal frame rate
+        QList<int> supportedRates = m_backendHandler->getSupportedFrameRates(currentFormat);
+        
+        if (supportedRates.isEmpty()) {
+            return desiredFrameRate;
+        }
+        
+        // Find the closest supported frame rate
+        int closestRate = supportedRates.first();
+        int minDiff = qAbs(closestRate - desiredFrameRate);
+        
+        for (int rate : supportedRates) {
+            int diff = qAbs(rate - desiredFrameRate);
+            if (diff < minDiff) {
+                minDiff = diff;
+                closestRate = rate;
+            }
+        }
+        
+        qCDebug(log_ui_camera) << "Optimal frame rate for desired" << desiredFrameRate << "is" << closestRate;
+        return closestRate;
+    }
+    
+    // Fallback: basic range validation
+    int minRate = currentFormat.minFrameRate();
+    int maxRate = currentFormat.maxFrameRate();
+    
+    if (desiredFrameRate < minRate) {
+        return minRate;
+    } else if (desiredFrameRate > maxRate) {
+        return maxRate;
+    } else {
+        return desiredFrameRate;
+    }
+}
+
+QList<int> CameraManager::getAllSupportedFrameRates() const
+{
+    QList<int> allFrameRates;
+    QSet<int> uniqueRates; // To avoid duplicates
+    
+    if (!m_camera) {
+        qCWarning(log_ui_camera) << "No camera available for frame rate enumeration";
+        return allFrameRates;
+    }
+    
+    QList<QCameraFormat> formats = getCameraFormats();
+    
+    for (const QCameraFormat& format : formats) {
+        QList<int> formatRates = getSupportedFrameRates(format);
+        for (int rate : formatRates) {
+            if (!uniqueRates.contains(rate)) {
+                uniqueRates.insert(rate);
+                allFrameRates.append(rate);
+            }
+        }
+    }
+    
+    // Sort frame rates
+    std::sort(allFrameRates.begin(), allFrameRates.end());
+    
+    qCDebug(log_ui_camera) << "All supported frame rates across formats:" << allFrameRates;
+    return allFrameRates;
+}
+
+void CameraManager::validateCameraFormat(const QCameraFormat& format) const
+{
+    if (format.isNull()) {
+        qCWarning(log_ui_camera) << "Camera format validation: format is null";
+        return;
+    }
+    
+    qCDebug(log_ui_camera) << "=== Camera Format Validation ===";
+    qCDebug(log_ui_camera) << "Resolution:" << format.resolution();
+    qCDebug(log_ui_camera) << "Frame rate range:" << format.minFrameRate() << "-" << format.maxFrameRate();
+    qCDebug(log_ui_camera) << "Pixel format:" << static_cast<int>(format.pixelFormat());
+    
+    if (m_backendHandler) {
+        QList<int> supportedRates = m_backendHandler->getSupportedFrameRates(format);
+        qCDebug(log_ui_camera) << "Backend supported frame rates:" << supportedRates;
+        
+        // Test some common frame rates
+        QList<int> testRates = {24, 25, 30, 60};
+        for (int rate : testRates) {
+            bool supported = m_backendHandler->isFrameRateSupported(format, rate);
+            qCDebug(log_ui_camera) << "Frame rate" << rate << "supported:" << supported;
+        }
+    }
+    
+    qCDebug(log_ui_camera) << "=== End Format Validation ===";
 }
 
 std::map<VideoFormatKey, QCameraFormat> CameraManager::getVideoFormatMap(){
@@ -503,12 +1020,16 @@ bool CameraManager::switchToCameraDevice(const QCameraDevice &cameraDevice)
         return false;
     }
     
-    qDebug() << "Switching to camera device:" << cameraDevice.description();
+    qCDebug(log_ui_camera) << "Switching to camera device:" << cameraDevice.description();
     
     QString newCameraID;
     try {
         newCameraID = QString::fromUtf8(cameraDevice.id());
-        qDebug() << "New camera ID:" << newCameraID;
+        if (newCameraID.toInt() != 0 || newCameraID == "0") {
+            newCameraID = "/dev/video" + newCameraID;
+        }
+
+        qCDebug(log_ui_camera) << "New camera ID:" << newCameraID;
     } catch (...) {
         qCritical() << "Failed to get new camera device ID";
         return false;
@@ -521,18 +1042,18 @@ bool CameraManager::switchToCameraDevice(const QCameraDevice &cameraDevice)
         try {
             currentCameraID = QString::fromUtf8(m_currentCameraDevice.id());
             hasCurrentDevice = true;
-            qDebug() << "Current camera ID:" << currentCameraID;
+            qCDebug(log_ui_camera) << "Current camera ID:" << currentCameraID;
         } catch (...) {
             qCWarning(log_ui_camera) << "Failed to get current camera device ID, treating as no current device";
             hasCurrentDevice = false;
         }
     } else {
-        qDebug() << "No current camera device (null)";
+        qCDebug(log_ui_camera) << "No current camera device (null)";
     }
     
     // Check if we're already using this device - avoid unnecessary switching
     if (hasCurrentDevice && currentCameraID == newCameraID) {
-        qDebug() << "Already using camera device:" << cameraDevice.description() 
+        qCDebug(log_ui_camera) << "Already using camera device:" << cameraDevice.description() 
                               << "- skipping switch";
         return true;
     }
@@ -541,7 +1062,7 @@ bool CameraManager::switchToCameraDevice(const QCameraDevice &cameraDevice)
     bool wasActive = m_camera && m_camera->isActive();
     
         QString previousDeviceDescription = previousDevice.isNull() ? "None" : previousDevice.description();
-        qDebug() << "Switching camera from" << previousDeviceDescription 
+        qCDebug(log_ui_camera) << "Switching camera from" << previousDeviceDescription 
                          << "to" << cameraDevice.description();
         
         // Emit switching signal for UI feedback (this will preserve the last frame)
@@ -551,7 +1072,7 @@ bool CameraManager::switchToCameraDevice(const QCameraDevice &cameraDevice)
         // Prepare new camera device first to minimize transition time
         std::unique_ptr<QCamera> newCamera;
         try {
-            qDebug() << "Creating new camera for device:" << cameraDevice.description();
+            qCDebug(log_ui_camera) << "Creating new camera for device:" << cameraDevice.description();
             newCamera.reset(new QCamera(cameraDevice));
             if (!newCamera) {
                 qCritical() << "Failed to create new camera instance";
@@ -564,15 +1085,17 @@ bool CameraManager::switchToCameraDevice(const QCameraDevice &cameraDevice)
         
         // Stop current camera if active while preserving last frame on video output
         if (wasActive && m_camera) {
-            qDebug() << "Stopping current camera before switch (preserving last frame)";
-            m_camera->stop();
-            // Brief wait to ensure camera stops cleanly
-            QThread::msleep(30);
+            qCDebug(log_ui_camera) << "Stopping current camera before switch (preserving last frame)";
+            if (m_backendHandler) {
+                m_backendHandler->stopCamera(m_camera.get());
+            } else {
+                m_camera->stop();
+            }
         }
         
         // Disconnect existing camera connections to prevent crashes
         if (m_camera) {
-            qDebug() << "Disconnecting existing camera connections";
+            qCDebug(log_ui_camera) << "Disconnecting existing camera connections";
             disconnect(m_camera.get(), nullptr, this, nullptr);
         }
         
@@ -585,17 +1108,31 @@ bool CameraManager::switchToCameraDevice(const QCameraDevice &cameraDevice)
         // Set up connections for the new camera
         setupConnections();
         
-        // Set up capture session with new camera (keep video output to preserve last frame)
-        qDebug() << "Setting up capture session with new camera (preserving video output)";
-        m_captureSession.setCamera(m_camera.get());
-        m_captureSession.setImageCapture(m_imageCapture.get());
+        // Set up capture session with new camera using backend handler (keep video output to preserve last frame)
+        qCDebug(log_ui_camera) << "Setting up capture session with new camera (preserving video output)";
         
-        // IMPORTANT: Always re-establish video output connection after camera change
-        // This ensures the new camera feed is properly displayed
-        if (m_videoOutput) {
-            qDebug() << "Re-establishing widget video output connection after camera switch";
-            m_captureSession.setVideoOutput(m_videoOutput);
-        } else if (m_graphicsVideoOutput) {
+        // Use backend handler for capture session setup to respect GStreamer direct pipeline mode
+        if (m_backendHandler) {
+            qCDebug(log_ui_camera) << "Using backend handler for capture session setup during camera switch";
+            m_backendHandler->setupCaptureSession(&m_captureSession, m_camera.get());
+            
+            // For GStreamer direct pipeline, skip image capture setup to avoid device conflicts
+            if (isGStreamerBackend()) {
+                qCDebug(log_ui_camera) << "GStreamer backend detected - skipping image capture setup during switch to avoid device conflicts";
+                // Don't set image capture for GStreamer to prevent Qt from accessing the V4L2 device
+            } else {
+                m_captureSession.setImageCapture(m_imageCapture.get());
+            }
+        } else {
+            // Fallback: direct setup only if no backend handler
+            qCDebug(log_ui_camera) << "No backend handler available, using direct capture session setup";
+            m_captureSession.setCamera(m_camera.get());
+            m_captureSession.setImageCapture(m_imageCapture.get());
+        }
+        
+        // Video output should already be set and preserved from previous session
+        // Only restore if it's somehow lost
+        if (m_graphicsVideoOutput) {
             qDebug() << "Re-establishing graphics video output connection after camera switch";
             m_captureSession.setVideoOutput(m_graphicsVideoOutput);
         } else {
@@ -604,11 +1141,9 @@ bool CameraManager::switchToCameraDevice(const QCameraDevice &cameraDevice)
         
         // Restart camera if it was previously active
         if (wasActive) {
-            qDebug() << "Starting new camera after switch";
+            qCDebug(log_ui_camera) << "Starting new camera after switch";
             startCamera();
             
-            // Give a brief moment for the camera to start before declaring success
-            QThread::msleep(25);
             
             // Force refresh of video output to ensure new camera feed is displayed
             refreshVideoOutput();
@@ -644,7 +1179,7 @@ bool CameraManager::switchToCameraDevice(const QCameraDevice &cameraDevice)
             qDebug() << "Camera switch completion signal sent for:" << cameraDevice.description();
         });
         
-        qDebug() << "Camera device switch successful to:" << newCameraID << cameraDevice.description();
+        qCDebug(log_ui_camera) << "Camera device switch successful to:" << newCameraID << cameraDevice.description();
         return true;
         
     } catch (const std::exception& e) {
@@ -680,7 +1215,7 @@ bool CameraManager::switchToCameraDevice(const QCameraDevice &cameraDevice, cons
     if (success) {
         // Update port chain tracking after successful switch
         m_currentCameraPortChain = portChain;
-        qDebug() << "Camera device switch successful with port chain tracking:" << portChain;
+        qCDebug(log_ui_camera) << "Camera device switch successful with port chain tracking:" << portChain;
     }
     
     return success;
@@ -691,7 +1226,7 @@ bool CameraManager::switchToCameraDeviceById(const QString& deviceId)
     QList<QCameraDevice> devices = getAvailableCameraDevices();
     for (const QCameraDevice& device : devices) {
         if (QString::fromUtf8(device.id()) == deviceId) {
-            qDebug() << "Found camera device by ID:" << device.description() 
+            qCDebug(log_ui_camera) << "Found camera device by ID:" << device.description() 
                               << "ID:" << deviceId;
             return switchToCameraDevice(device);
         }
@@ -705,24 +1240,24 @@ bool CameraManager::switchToCameraDeviceById(const QString& deviceId)
 QString CameraManager::getCurrentCameraDeviceId() const
 {
     if (m_currentCameraDeviceId.isEmpty()) {
-        qDebug() << "Current camera device ID is empty";
+        qCDebug(log_ui_camera) << "Current camera device ID is empty";
         return QString();
     }
     
-    qDebug() << "Current camera device ID:" << m_currentCameraDeviceId;
+    qCDebug(log_ui_camera) << "Current camera device ID:" << m_currentCameraDeviceId;
     return m_currentCameraDeviceId;
 }
 
 QString CameraManager::getCurrentCameraDeviceDescription() const
 {
     if (m_currentCameraDevice.isNull()) {
-        qDebug() << "Current camera device is null, returning empty string";
+        qCDebug(log_ui_camera) << "Current camera device is null, returning empty string";
         return QString();
     }
     
     try {
         QString description = m_currentCameraDevice.description();
-        qDebug() << "Current camera device description:" << description;
+        qCDebug(log_ui_camera) << "Current camera device description:" << description;
         return description;
     } catch (const std::exception& e) {
         qCritical() << "Exception getting camera device description:" << e.what();
@@ -778,17 +1313,17 @@ QCameraDevice CameraManager::findBestAvailableCamera() const
     QList<QCameraDevice> devices = getAvailableCameraDevices();
     
     if (devices.isEmpty()) {
-        qDebug() << "No camera devices available";
+        qCDebug(log_ui_camera) << "No camera devices available";
         return QCameraDevice();
     }
     
     if (devices.size() == 1) {
         // Only one device available - connect to it
-        qDebug() << "Single camera device found:" << devices.first().description();
+        qCDebug(log_ui_camera) << "Single camera device found:" << devices.first().description();
         return devices.first();
     } else {
         // Multiple devices available - just select the first one
-        qDebug() << "Multiple camera devices found (" << devices.size() << "), selecting first available:" << devices.first().description();
+        qCDebug(log_ui_camera) << "Multiple camera devices found (" << devices.size() << "), selecting first available:" << devices.first().description();
         return devices.first();
     }
 }
@@ -810,7 +1345,7 @@ void CameraManager::refreshAvailableCameraDevices()
     QList<QCameraDevice> previousDevices = m_availableCameraDevices;
     m_availableCameraDevices = getAvailableCameraDevices();
     
-    qDebug() << "Refreshed camera devices, now have" << m_availableCameraDevices.size() << "devices";
+    qCDebug(log_ui_camera) << "Refreshed camera devices, now have" << m_availableCameraDevices.size() << "devices";
     
     // Display all camera device IDs after refresh
     displayAllCameraDeviceIds();
@@ -818,7 +1353,7 @@ void CameraManager::refreshAvailableCameraDevices()
     // Emit signal if device count changed
     if (previousDevices.size() != m_availableCameraDevices.size()) {
         emit availableCameraDevicesChanged(m_availableCameraDevices.size());
-        qDebug() << "Camera device count changed from" << previousDevices.size() 
+        qCDebug(log_ui_camera) << "Camera device count changed from" << previousDevices.size() 
                                << "to" << m_availableCameraDevices.size();
     }
 }
@@ -828,22 +1363,33 @@ void CameraManager::refreshAvailableCameraDevices()
 
 QString CameraManager::extractShortIdentifier(const QString& fullId) const
 {
-    // Extract patterns like "7&1FF4451E&2&0000" from full device IDs
-    // This pattern appears in both camera device IDs and device details
+    // Extract patterns like "7&1FF4451E&2&0000" from full device IDs (Windows)
+    // or video device numbers from /dev/video paths (Linux)
     
-    // Look for patterns with format: digit&hexdigits&digit&hexdigits
-    // Examples: "7&1FF4451E&2&0000", "6&2ABC123F&1&0001", etc.
-    QRegularExpression regex(R"((\d+&[A-F0-9]+&\d+&[A-F0-9]+))", QRegularExpression::CaseInsensitiveOption);
-    QRegularExpressionMatch match = regex.match(fullId);
+    // First, check for Linux V4L device pattern: /dev/video<number>
+    QRegularExpression linuxRegex(R"(/dev/video(\d+))", QRegularExpression::CaseInsensitiveOption);
+    QRegularExpressionMatch linuxMatch = linuxRegex.match(fullId);
     
-    if (match.hasMatch()) {
-        QString shortId = match.captured(1);
-        qDebug() << "Extracted short identifier:" << shortId << "from:" << fullId;
+    if (linuxMatch.hasMatch()) {
+        QString shortId = linuxMatch.captured(1);
+        qCDebug(log_ui_camera) << "Extracted Linux V4L short identifier:" << shortId << "from:" << fullId;
         return shortId;
     }
     
-    qDebug() << "No short identifier pattern found in:" << fullId;
-    return QString();
+    // Look for Windows patterns with format: digit&hexdigits&digit&hexdigits
+    // Examples: "7&1FF4451E&2&0000", "6&2ABC123F&1&0001", etc.
+    QRegularExpression windowsRegex(R"((\d+&[A-F0-9]+&\d+&[A-F0-9]+))", QRegularExpression::CaseInsensitiveOption);
+    QRegularExpressionMatch windowsMatch = windowsRegex.match(fullId);
+    
+    if (windowsMatch.hasMatch()) {
+        QString shortId = windowsMatch.captured(1);
+        qCDebug(log_ui_camera) << "Extracted Windows short identifier:" << shortId << "from:" << fullId;
+        return shortId;
+    }
+    
+    qCDebug(log_ui_camera) << "No short identifier pattern found in:" << fullId;
+    return fullId;
+    // return QString();
 }
 
 void CameraManager::displayAllCameraDeviceIds() const
@@ -851,11 +1397,11 @@ void CameraManager::displayAllCameraDeviceIds() const
     try {
         QList<QCameraDevice> devices = getAvailableCameraDevices();
         
-        qDebug() << "=== Available Camera Devices ===";
-        qDebug() << "Total devices found:" << devices.size();
+        qCDebug(log_ui_camera) << "=== Available Camera Devices ===";
+        qCDebug(log_ui_camera) << "Total devices found:" << devices.size();
         
         if (devices.isEmpty()) {
-            qDebug() << "No camera devices available";
+            qCDebug(log_ui_camera) << "No camera devices available";
             return;
         }
         
@@ -867,14 +1413,14 @@ void CameraManager::displayAllCameraDeviceIds() const
                 QString deviceIdStr = QString::fromUtf8(deviceId);
                 QString deviceDescription = device.description();
                 
-                qDebug() << "Device" << (i + 1) << ":";
-                qDebug() << "  Description:" << deviceDescription;
-                qDebug() << "  ID (raw QByteArray):" << deviceId;
-                qDebug() << "  ID (as QString):" << deviceIdStr;
-                qDebug() << "  ID (hex representation):" << deviceId.toHex();
-                qDebug() << "  Is Default:" << device.isDefault();
-                qDebug() << "  Position:" << static_cast<int>(device.position());
-                qDebug() << "  ---";
+                qCDebug(log_ui_camera) << "Device" << (i + 1) << ":";
+                qCDebug(log_ui_camera) << "  Description:" << deviceDescription;
+                qCDebug(log_ui_camera) << "  ID (raw QByteArray):" << deviceId;
+                qCDebug(log_ui_camera) << "  ID (as QString):" << deviceIdStr;
+                qCDebug(log_ui_camera) << "  ID (hex representation):" << deviceId.toHex();
+                qCDebug(log_ui_camera) << "  Is Default:" << device.isDefault();
+                qCDebug(log_ui_camera) << "  Position:" << static_cast<int>(device.position());
+                qCDebug(log_ui_camera) << "  ---";
                 
             } catch (const std::exception& e) {
                 qCWarning(log_ui_camera) << "Exception accessing device" << (i + 1) << "details:" << e.what();
@@ -883,7 +1429,7 @@ void CameraManager::displayAllCameraDeviceIds() const
             }
         }
         
-        qDebug() << "=== End Camera Device List ===";
+        qCDebug(log_ui_camera) << "=== End Camera Device List ===";
         
     } catch (const std::exception& e) {
         qCritical() << "Exception in displayAllCameraDeviceIds:" << e.what();
@@ -894,23 +1440,23 @@ void CameraManager::displayAllCameraDeviceIds() const
 
 void CameraManager::handleCameraTimeout()
 {
-    qDebug() << "Camera timeout occurred, attempting to recover connection";
+    qCDebug(log_ui_camera) << "Camera timeout occurred, attempting to recover connection";
     
     if (m_camera && m_camera->isActive()) {
-        qDebug() << "Camera is still active, stopping and restarting";
+        qCDebug(log_ui_camera) << "Camera is still active, stopping and restarting";
         stopCamera();
         
         // Brief delay before restart
         QTimer::singleShot(500, this, [this]() {
             startCamera();
-            qDebug() << "Camera restart attempted after timeout";
+            qCDebug(log_ui_camera) << "Camera restart attempted after timeout";
         });
     } else {
         qCWarning(log_ui_camera) << "Camera timeout: camera is not active";
         
         // Try to reinitialize camera if available
         if (!m_currentCameraDevice.isNull()) {
-            qDebug() << "Attempting to reinitialize camera device";
+            qCDebug(log_ui_camera) << "Attempting to reinitialize camera device";
             setCameraDevice(m_currentCameraDevice);
             startCamera();
         } else {
@@ -922,11 +1468,11 @@ void CameraManager::handleCameraTimeout()
 QCameraDevice CameraManager::findMatchingCameraDevice(const QString& portChain) const
 {
     if (portChain.isEmpty()) {
-        qDebug() << "Empty port chain provided";
+        qCDebug(log_ui_camera) << "Empty port chain provided";
         return QCameraDevice();
     }
 
-    qDebug() << "Finding camera device matching port chain:" << portChain;
+    qCDebug(log_ui_camera) << "Finding camera device matching port chain:" << portChain;
 
     // Use DeviceManager to look up device information by port chain
     DeviceManager& deviceManager = DeviceManager::getInstance();
@@ -937,14 +1483,14 @@ QCameraDevice CameraManager::findMatchingCameraDevice(const QString& portChain) 
         return QCameraDevice();
     }
 
-    qDebug() << "Found" << devices.size() << "device(s) for port chain:" << portChain;
+    qCDebug(log_ui_camera) << "Found" << devices.size() << "device(s) for port chain:" << portChain;
 
     // Look for a device that has camera information
     DeviceInfo selectedDevice;
     for (const DeviceInfo& device : devices) {
         if (!device.cameraDeviceId.isEmpty() || !device.cameraDevicePath.isEmpty()) {
             selectedDevice = device;
-            qDebug() << "Found device with camera info:" 
+            qCDebug(log_ui_camera) << "Found device with camera info:" 
                      << "cameraDeviceId:" << device.cameraDeviceId
                      << "cameraDevicePath:" << device.cameraDevicePath;
             break;
@@ -960,34 +1506,39 @@ QCameraDevice CameraManager::findMatchingCameraDevice(const QString& portChain) 
     QString targetShortId;
     if (!selectedDevice.cameraDeviceId.isEmpty()) {
         targetShortId = extractShortIdentifier(selectedDevice.cameraDeviceId);
-        qDebug() << "Extracted target short identifier:" << targetShortId;
+        qCDebug(log_ui_camera) << "Extracted target short identifier:" << targetShortId;
     }
 
     QList<QCameraDevice> availableCameras = getAvailableCameraDevices();
 
     for (const QCameraDevice& camera : availableCameras) {
         QString cameraId = QString::fromUtf8(camera.id());
+        // if cameraId is a number, append /dev/video as prefix
+        if (cameraId.toInt() != 0 || cameraId == "0") {
+            cameraId = "/dev/video" + cameraId;
+        }
+
         QString cameraDescription = camera.description();
 
-        qDebug() << "Checking camera device:" << cameraDescription 
+        qCDebug(log_ui_camera) << "Checking camera device:" << cameraDescription 
                  << "ID:" << cameraId;
 
         // Try multiple matching strategies
         // Strategy 1: Short identifier match (preferred method)
         if (!targetShortId.isEmpty() && cameraId.contains(targetShortId, Qt::CaseInsensitive)) {
-            qDebug() << "Matched camera by short identifier:" << targetShortId;
+            qCDebug(log_ui_camera) << "Matched camera by short identifier:" << targetShortId;
             deviceManager.setCurrentSelectedDevice(selectedDevice);
             return camera;
         }
         // Strategy 2: Direct ID match
         if (!selectedDevice.cameraDeviceId.isEmpty() && cameraId == selectedDevice.cameraDeviceId) {
-            qDebug() << "Matched camera by exact ID:" << selectedDevice.cameraDeviceId;
+            qCDebug(log_ui_camera) << "Matched camera by exact ID:" << selectedDevice.cameraDeviceId;
             deviceManager.setCurrentSelectedDevice(selectedDevice);
             return camera;
         }
         // Strategy 3: Path match (if applicable)
         if (!selectedDevice.cameraDevicePath.isEmpty() && cameraId.contains(selectedDevice.cameraDevicePath, Qt::CaseInsensitive)) {
-            qDebug() << "Matched camera by path:" << selectedDevice.cameraDevicePath;
+            qCDebug(log_ui_camera) << "Matched camera by path:" << selectedDevice.cameraDevicePath;
             deviceManager.setCurrentSelectedDevice(selectedDevice);
             return camera;
         }
@@ -995,88 +1546,6 @@ QCameraDevice CameraManager::findMatchingCameraDevice(const QString& portChain) 
 
     qCWarning(log_ui_camera) << "Could not find matching Qt camera device for port chain:" << portChain;
     return QCameraDevice();
-}
-
-bool CameraManager::initializeCameraWithVideoOutput(QVideoWidget* videoOutput)
-{
-    qDebug() << "Initializing camera with video output";
-    
-    if (!videoOutput) {
-        qCWarning(log_ui_camera) << "Cannot initialize camera with null video output";
-        return false;
-    }
-    
-    // Set the video output first if it's different from current
-    if (m_videoOutput != videoOutput) {
-        setVideoOutput(videoOutput);
-    }
-    
-    // Check if we already have an active camera device
-    if (hasActiveCameraDevice()) {
-        qDebug() << "Camera already active with device:" << m_currentCameraDevice.description() 
-                 << "at port chain:" << m_currentCameraPortChain;
-        return true;
-    }
-    
-    bool switchSuccess = false;
-    
-    // First priority: Check for port chain in global settings
-    QString portChain = GlobalSetting::instance().getOpenterfacePortChain();
-    
-    if (!portChain.isEmpty()) {
-        qDebug() << "Found port chain in global settings:" << portChain;
-        
-        QCameraDevice matchedCamera = findMatchingCameraDevice(portChain);
-        
-        if (!matchedCamera.isNull()) {
-            switchSuccess = switchToCameraDevice(matchedCamera, portChain);
-            if (switchSuccess) {
-                qDebug() << "✓ Successfully switched to camera using port chain:" << portChain;
-                qDebug() << "✓ Selected camera:" << matchedCamera.description();
-            } else {
-                qCWarning(log_ui_camera) << "Failed to switch to matched camera device:" << matchedCamera.description();
-            }
-        } else {
-            qCDebug(log_ui_camera) << "No matching camera device found for port chain:" << portChain;
-        }
-    } else {
-        qDebug() << "No port chain found in global settings, using fallback methods";
-    }
-    
-    // Fallback: Traditional camera selection logic (without port chain tracking)
-    if (!switchSuccess) {
-        // Enforce camera device description to be "Openterface"
-        QList<QCameraDevice> devices = getAvailableCameraDevices();
-        QCameraDevice openterfaceDevice;
-        for (const QCameraDevice& device : devices) {
-            if (device.description() == "Openterface") {
-                openterfaceDevice = device;
-                break;
-            }
-        }
-
-        if (!openterfaceDevice.isNull()) {
-            switchSuccess = switchToCameraDevice(openterfaceDevice);  // No port chain available for fallback
-            if (switchSuccess) {
-                qDebug() << "Camera switched to device with description 'Openterface' (no port chain tracked)";
-            }
-        } else {
-            qCWarning(log_ui_camera) << "No camera device with description 'Openterface' found";
-        }
-    }
-
-    // Start camera if switch was successful
-    if (switchSuccess) {
-        startCamera();
-    }
-
-    // If we still don't have a camera device, return false
-    if (m_currentCameraDevice.isNull()) {
-        qCWarning(log_ui_camera) << "No camera device available for initialization";
-        return false;
-    }
-
-    return switchSuccess;
 }
 
 bool CameraManager::initializeCameraWithVideoOutput(QGraphicsVideoItem* videoOutput)
@@ -1102,6 +1571,34 @@ bool CameraManager::initializeCameraWithVideoOutput(QGraphicsVideoItem* videoOut
     
     bool switchSuccess = false;
     
+    // Windows: Use simple direct approach
+    if (isWindowsPlatform()) {
+        qDebug() << "Windows: Using simple camera initialization";
+        
+        // Find any available "Openterface" camera
+        QList<QCameraDevice> devices = getAvailableCameraDevices();
+        QCameraDevice openterfaceDevice;
+        for (const QCameraDevice& device : devices) {
+            if (device.description() == "Openterface") {
+                openterfaceDevice = device;
+                break;
+            }
+        }
+
+        if (!openterfaceDevice.isNull()) {
+            switchSuccess = switchToCameraDevice(openterfaceDevice);
+            if (switchSuccess) {
+                qDebug() << "Windows: Camera switched to Openterface device";
+                startCamera();
+            }
+        } else {
+            qCWarning(log_ui_camera) << "Windows: No Openterface camera device found";
+        }
+        
+        return switchSuccess && !m_currentCameraDevice.isNull();
+    }
+    
+    // Non-Windows: Use existing complex backend logic
     // First priority: Check for port chain in global settings
     QString portChain = GlobalSetting::instance().getOpenterfacePortChain();
     
@@ -1161,6 +1658,88 @@ bool CameraManager::initializeCameraWithVideoOutput(QGraphicsVideoItem* videoOut
     return switchSuccess;
 }
 
+bool CameraManager::initializeCameraWithVideoOutput(VideoPane* videoPane)
+{
+    qDebug() << "Initializing camera with VideoPane output";
+    
+    if (!videoPane) {
+        qCWarning(log_ui_camera) << "Cannot initialize camera with null VideoPane";
+        return false;
+    }
+    
+    // Check if we're using FFmpeg backend for direct capture
+    if (isFFmpegBackend() && m_backendHandler) {
+        qDebug() << "Using FFmpeg backend for direct capture";
+        
+        // Cast to FFmpegBackendHandler to access direct capture methods
+        auto* ffmpegHandler = dynamic_cast<FFmpegBackendHandler*>(m_backendHandler.get());
+        if (ffmpegHandler) {
+            // Enable direct FFmpeg mode in VideoPane
+            videoPane->enableDirectFFmpegMode(true);
+            
+            // Set VideoPane as the output for the FFmpeg backend
+            // This will automatically connect the frameReady signal
+            ffmpegHandler->setVideoOutput(videoPane);
+            
+            // Connect error signal
+            connect(ffmpegHandler, &FFmpegBackendHandler::captureError,
+                    this, [this](const QString& error) {
+                        qCWarning(log_ui_camera) << "FFmpeg capture error:" << error;
+                        emit cameraError(error);
+                    });
+            
+            // Start direct capture with Openterface device
+            QString devicePath = "/dev/video0"; // Default, should be detected dynamically
+            QSize resolution(1920, 1080); // Default resolution
+            int framerate = 30; // Default framerate
+            
+            // Try to detect Openterface device path
+            QList<QCameraDevice> devices = getAvailableCameraDevices();
+            for (const QCameraDevice& device : devices) {
+                if (device.description() == "Openterface") {
+                    // Convert Qt device ID to V4L2 device path
+                    QString deviceId = device.id();
+                    if (deviceId.startsWith("/dev/video")) {
+                        devicePath = deviceId;
+                    } else {
+                        // Try to extract device number and construct path
+                        QRegularExpression re("(\\d+)");
+                        QRegularExpressionMatch match = re.match(deviceId);
+                        if (match.hasMatch()) {
+                            devicePath = "/dev/video" + match.captured(1);
+                        }
+                    }
+                    break;
+                }
+            }
+            
+            qDebug() << "Starting FFmpeg direct capture with device:" << devicePath;
+            bool captureStarted = ffmpegHandler->startDirectCapture(devicePath, resolution, framerate);
+            
+            if (captureStarted) {
+                qDebug() << "✓ FFmpeg direct capture started successfully";
+                qDebug() << "✓ Camera successfully initialized with video output";
+                m_currentCameraPortChain = devicePath; // Store device path as port chain
+                
+                // Emit camera active signal to trigger UI updates (e.g., switch to VideoPane)
+                emit cameraActiveChanged(true);
+                
+                return true;
+            } else {
+                qCWarning(log_ui_camera) << "Failed to start FFmpeg direct capture";
+                // Fall back to standard Qt camera approach
+            }
+        } else {
+            qCWarning(log_ui_camera) << "Failed to cast to FFmpegBackendHandler";
+        }
+    }
+    
+    // Fall back to standard Qt camera approach with QGraphicsVideoItem
+    qDebug() << "Using standard Qt camera approach";
+    videoPane->enableDirectFFmpegMode(false);
+    return initializeCameraWithVideoOutput(videoPane->getVideoItem());
+}
+
 bool CameraManager::hasActiveCameraDevice() const
 {
     return !m_currentCameraDevice.isNull() && 
@@ -1176,18 +1755,18 @@ QString CameraManager::getCurrentCameraPortChain() const
 bool CameraManager::deactivateCameraByPortChain(const QString& portChain)
 {
     if (portChain.isEmpty()) {
-        qDebug() << "Cannot deactivate camera with empty port chain";
+        qCDebug(log_ui_camera) << "Cannot deactivate camera with empty port chain";
         return false;
     }
     
     // Check if we have an active camera and if its port chain matches
     if (m_currentCameraPortChain.isEmpty()) {
-        qDebug() << "No current camera port chain tracked, cannot compare for deactivation";
+        qCDebug(log_ui_camera) << "No current camera port chain tracked, cannot compare for deactivation";
         return false;
     }
     
     if (m_currentCameraPortChain != portChain) {
-        qDebug() << "Current camera port chain" << m_currentCameraPortChain 
+        qCDebug(log_ui_camera) << "Current camera port chain" << m_currentCameraPortChain 
                  << "does not match unplugged device port chain" << portChain;
         return false;
     }
@@ -1197,7 +1776,7 @@ bool CameraManager::deactivateCameraByPortChain(const QString& portChain)
     try {
         // Stop and reset the camera
         if (m_camera && m_camera->isActive()) {
-            qDebug() << "Stopping active camera due to device unplugging";
+            qCDebug(log_ui_camera) << "Stopping active camera due to device unplugging";
             stopCamera();
         }
         
@@ -1232,34 +1811,34 @@ bool CameraManager::deactivateCameraByPortChain(const QString& portChain)
 
 bool CameraManager::tryAutoSwitchToNewDevice(const QString& portChain)
 {
-    qDebug() << "Attempting auto-switch to new device with port chain:" << portChain;
+    qCDebug(log_ui_camera) << "Attempting auto-switch to new device with port chain:" << portChain;
     
     // Check if we currently have an active camera device
     if (hasActiveCameraDevice()) {
-        qDebug() << "Active camera device detected, skipping auto-switch to preserve user selection";
+        qCDebug(log_ui_camera) << "Active camera device detected, skipping auto-switch to preserve user selection";
         return false;
     }
     
-    qDebug() << "No active camera device found, attempting to switch to new device";
+    qCDebug(log_ui_camera) << "No active camera device found, attempting to switch to new device";
     
     // Try to find a matching camera device for the port chain
     QCameraDevice matchedCamera = findMatchingCameraDevice(portChain);
     
     if (matchedCamera.isNull()) {
-        qDebug() << "No matching camera device found for port chain:" << portChain;
+        qCDebug(log_ui_camera) << "No matching camera device found for port chain:" << portChain;
         return false;
     }
     
-    qDebug() << "Found matching camera device:" << matchedCamera.description() << "for port chain:" << portChain;
+    qCDebug(log_ui_camera) << "Found matching camera device:" << matchedCamera.description() << "for port chain:" << portChain;
     
     // Switch to the new camera device
     bool switchSuccess = switchToCameraDevice(matchedCamera, portChain);
     
     if (switchSuccess) {
-        qDebug() << "Successfully auto-switched to new camera device:" << matchedCamera.description() << "at port chain:" << portChain;
+        qCDebug(log_ui_camera) << "✓ Successfully auto-switched to new camera device:" << matchedCamera.description() << "at port chain:" << portChain;
         
         // Start the camera if video output is available
-        if (m_videoOutput) {
+        if (m_graphicsVideoOutput) {
             startCamera();
         }
         
@@ -1279,7 +1858,7 @@ bool CameraManager::switchToCameraDeviceByPortChain(const QString &portChain)
         return false;
     }
     
-    qDebug() << "Attempting to switch to camera by port chain:" << portChain;
+    qCDebug(log_ui_camera) << "Attempting to switch to camera by port chain:" << portChain;
     
     try {
         QCameraDevice targetCamera = findMatchingCameraDevice(portChain);
@@ -1289,11 +1868,11 @@ bool CameraManager::switchToCameraDeviceByPortChain(const QString &portChain)
             return false;
         }
         
-        qDebug() << "Found matching camera device:" << targetCamera.description() << "for port chain:" << portChain;
+        qCDebug(log_ui_camera) << "Found matching camera device:" << targetCamera.description() << "for port chain:" << portChain;
         
         bool switchSuccess = switchToCameraDevice(targetCamera, portChain);
         if (switchSuccess) {
-            qDebug() << "Successfully switched to camera device:" << targetCamera.description() << "with port chain:" << portChain;
+            qCDebug(log_ui_camera) << "Successfully switched to camera device:" << targetCamera.description() << "with port chain:" << portChain;
         } else {
             qCWarning(log_ui_camera) << "Failed to switch to camera device:" << targetCamera.description();
         }
@@ -1315,20 +1894,7 @@ void CameraManager::refreshVideoOutput()
     
     try {
         // Force re-establishment of video output connection to ensure new camera feed is displayed
-        if (m_videoOutput) {
-            qDebug() << "Forcing widget video output refresh";
-            // Temporarily disconnect and reconnect to force refresh
-            m_captureSession.setVideoOutput(nullptr);
-            QThread::msleep(10); // Brief pause
-            m_captureSession.setVideoOutput(m_videoOutput);
-            
-            // Verify reconnection
-            if (m_captureSession.videoOutput() == m_videoOutput) {
-                qDebug() << "Widget video output refresh successful";
-            } else {
-                qCWarning(log_ui_camera) << "Widget video output refresh failed";
-            }
-        } else if (m_graphicsVideoOutput) {
+        if (m_graphicsVideoOutput) {
             qDebug() << "Forcing graphics video output refresh";
             // Temporarily disconnect and reconnect to force refresh
             m_captureSession.setVideoOutput(nullptr);

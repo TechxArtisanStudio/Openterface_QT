@@ -6,7 +6,6 @@
 #include <QMediaCaptureSession>
 #include <QImageCapture>
 #include <QMediaRecorder>
-#include <QVideoWidget>  // Add this include
 #include <QGraphicsVideoItem>  // Add this for graphics-based video display
 #include <QDir>
 #include <QStandardPaths>
@@ -14,6 +13,11 @@
 #include <QList>
 #include <QSize>
 #include <QVideoFrameFormat>
+#include "host/multimediabackend.h"
+
+// Forward declarations
+class GStreamerBackendHandler;
+class VideoPane;
 
 // Struct to represent a video format key, used for comparing and sorting video formats
 // It includes resolution, frame rate range, and pixel format
@@ -45,7 +49,7 @@ public:
     explicit CameraManager(QObject *parent = nullptr);
     ~CameraManager();
 
-    void setCamera(const QCameraDevice &cameraDevice, QVideoWidget* videoOutput);
+    // void setCamera(const QCameraDevice &cameraDevice, QGraphicsVideoItem* videoOutput);
     void setCamera(const QCameraDevice &cameraDevice, QGraphicsVideoItem* videoOutput);
     void setCameraDevice(const QCameraDevice &cameraDevice);
     void startCamera();
@@ -55,7 +59,6 @@ public:
     void startRecording();
     void stopRecording();
     QCamera* getCamera() const { return m_camera.get(); }
-    void setVideoOutput(QVideoWidget* videoOutput);
     void setVideoOutput(QGraphicsVideoItem* videoOutput);
     void setCameraFormat(const QCameraFormat &format);
     QCameraFormat getCameraFormat() const;
@@ -64,9 +67,12 @@ public:
     void configureResolutionAndFormat();
     std::map<VideoFormatKey, QCameraFormat> getVideoFormatMap();
 
+    // Platform detection - Windows uses direct QCamera approach
+    static bool isWindowsPlatform();
+
     // Camera initialization with video output
-    bool initializeCameraWithVideoOutput(QVideoWidget* videoOutput);
     bool initializeCameraWithVideoOutput(QGraphicsVideoItem* videoOutput);
+    bool initializeCameraWithVideoOutput(VideoPane* videoPane);
     
     // Check if there's an active camera device
     bool hasActiveCameraDevice() const;
@@ -83,6 +89,16 @@ public:
     // Updated method to return supported pixel formats
     QList<QVideoFrameFormat> getSupportedPixelFormats() const;
     QCameraFormat getVideoFormat(const QSize &resolution, int desiredFrameRate, QVideoFrameFormat::PixelFormat pixelFormat) const;
+    
+    // Frame rate handling methods using backend handler
+    QList<int> getSupportedFrameRates(const QCameraFormat& format) const;
+    bool isFrameRateSupported(const QCameraFormat& format, int frameRate) const;
+    int getOptimalFrameRate(int desiredFrameRate) const;
+    QList<int> getAllSupportedFrameRates() const;
+    void validateCameraFormat(const QCameraFormat& format) const;
+    // Helper methods to detect current multimedia backend
+    bool isGStreamerBackend() const;
+    bool isFFmpegBackend() const;
     
     // Camera device management and switching
     QList<QCameraDevice> getAvailableCameraDevices() const;
@@ -143,7 +159,7 @@ private:
     QMediaCaptureSession m_captureSession;
     std::unique_ptr<QImageCapture> m_imageCapture;
     std::unique_ptr<QMediaRecorder> m_mediaRecorder;
-    QVideoWidget* m_videoOutput;
+    std::unique_ptr<MultimediaBackendHandler> m_backendHandler;
     QGraphicsVideoItem* m_graphicsVideoOutput;
     int m_video_width;
     int m_video_height;
@@ -164,6 +180,10 @@ private:
 
     // Declaration for findMatchingCameraDevice
     QCameraDevice findMatchingCameraDevice(const QString& portChain) const;
+
+    // Backend handler management
+    void initializeBackendHandler();
+    void updateBackendHandler();
 };
 
 #endif // CAMERAMANAGER_H

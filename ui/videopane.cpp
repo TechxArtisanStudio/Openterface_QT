@@ -31,6 +31,8 @@
 #include <QDebug>
 #include <QTimer>
 
+Q_LOGGING_CATEGORY(log_ui_video, "opf.ui.video")
+
 VideoPane::VideoPane(QWidget *parent) : QGraphicsView(parent), 
     escTimer(new QTimer(this)), 
     m_inputHandler(new InputHandler(this, this)), 
@@ -40,9 +42,12 @@ VideoPane::VideoPane(QWidget *parent) : QGraphicsView(parent),
     m_pixmapItem(nullptr),
     m_aspectRatioMode(Qt::KeepAspectRatio),
     m_scaleFactor(1.0),
-    m_maintainAspectRatio(true)
+    m_maintainAspectRatio(true),
+    m_directGStreamerMode(false),
+    m_overlayWidget(nullptr),
+    m_directFFmpegMode(false)
 {
-    qDebug() << "VideoPane init...";
+    qDebug(log_ui_video) << "VideoPane init...";
     
     // Set up the graphics scene
     setupScene();
@@ -61,8 +66,7 @@ VideoPane::VideoPane(QWidget *parent) : QGraphicsView(parent),
     setRenderHint(QPainter::SmoothPixmapTransform, true);
     setOptimizationFlag(QGraphicsView::DontAdjustForAntialiasing, true);
     setViewportUpdateMode(QGraphicsView::SmartViewportUpdate);
-    
-    // Mouse and focus settings
+
     this->setMouseTracking(true);
     this->installEventFilter(m_inputHandler);
     this->setFocusPolicy(Qt::StrongFocus);
@@ -160,7 +164,7 @@ void VideoPane::stopEscTimer()
 
 void VideoPane::onCameraDeviceSwitching(const QString& fromDevice, const QString& toDevice)
 {
-    qDebug() << "VideoPane: Camera switching from" << fromDevice << "to" << toDevice;
+    qCDebug(log_ui_video) << "VideoPane: Camera switching from" << fromDevice << "to" << toDevice;
     
     // Capture the current frame before switching
     captureCurrentFrame();
@@ -174,7 +178,7 @@ void VideoPane::onCameraDeviceSwitching(const QString& fromDevice, const QString
 
 void VideoPane::onCameraDeviceSwitchComplete(const QString& device)
 {
-    qDebug() << "VideoPane: Camera switch complete to" << device;
+    qCDebug(log_ui_video) << "VideoPane: Camera switch complete to" << device;
     
     // Clear switching mode to resume normal video display
     m_isCameraSwitching = false;
@@ -182,15 +186,29 @@ void VideoPane::onCameraDeviceSwitchComplete(const QString& device)
     // Clear the captured frame
     m_lastFrame = QPixmap();
     
-    // Ensure video item is visible and pixmap item is hidden
-    if (m_videoItem) {
-        m_videoItem->setVisible(true);
-        qDebug() << "VideoPane: Video item made visible for new camera feed";
-    }
-    
-    if (m_pixmapItem) {
-        m_pixmapItem->setVisible(false);
-        qDebug() << "VideoPane: Pixmap item hidden to show live video";
+    // Handle visibility based on current mode
+    if (m_directFFmpegMode) {
+        // In FFmpeg mode, keep pixmap item visible and hide Qt video item
+        if (m_videoItem) {
+            m_videoItem->setVisible(false);
+            qDebug() << "VideoPane: Video item hidden - FFmpeg mode active";
+        }
+        
+        if (m_pixmapItem) {
+            m_pixmapItem->setVisible(true);
+            qDebug() << "VideoPane: Pixmap item kept visible for FFmpeg frames";
+        }
+    } else {
+        // In normal Qt mode, show video item and hide pixmap item
+        if (m_videoItem) {
+            m_videoItem->setVisible(true);
+            qDebug() << "VideoPane: Video item made visible for new camera feed";
+        }
+        
+        if (m_pixmapItem) {
+            m_pixmapItem->setVisible(false);
+            qDebug() << "VideoPane: Pixmap item hidden to show live video";
+        }
     }
     
     // Force a repaint to resume normal video display
@@ -218,17 +236,18 @@ void VideoPane::captureCurrentFrame()
             }
         }
         
-        qDebug() << "VideoPane: Captured frame" << m_lastFrame.size() << "for preservation during camera switch";
+        qCDebug(log_ui_video) << "VideoPane: Captured frame" << m_lastFrame.size() << "for preservation during camera switch";
     } else {
         // Create a black fallback frame
         m_lastFrame = QPixmap(this->size().isEmpty() ? QSize(640, 480) : this->size());
         m_lastFrame.fill(Qt::black);
-        qDebug() << "VideoPane: Created fallback black frame for camera switch";
+        qCDebug(log_ui_video) << "VideoPane: Created fallback black frame for camera switch";
     }
 }
 
 void VideoPane::paintEvent(QPaintEvent *event)
 {
+    // PERFORMANCE: Reduce redundant visibility checks and updates
     if (m_isCameraSwitching && !m_lastFrame.isNull()) {
         // During camera switching, show preserved frame using pixmap item
         if (!m_pixmapItem) {
@@ -243,13 +262,26 @@ void VideoPane::paintEvent(QPaintEvent *event)
             m_videoItem->setVisible(false);
         }
         
-        qDebug() << "VideoPane: Displaying preserved frame during camera switch";
+        qCDebug(log_ui_video) << "VideoPane: Displaying preserved frame during camera switch";
+    } else if (m_directFFmpegMode) {
+        // In FFmpeg mode, ensure pixmap item is visible and video item is hidden
+        // PERFORMANCE: Only change visibility if actually needed
+        if (m_pixmapItem && !m_pixmapItem->isVisible()) {
+            m_pixmapItem->setVisible(true);
+        }
+        if (m_videoItem && m_videoItem->isVisible()) {
+            m_videoItem->setVisible(false);
+        }
+        // PERFORMANCE: Remove excessive debug logging from paintEvent
+        // qCDebug(log_ui_video) << "VideoPane: paintEvent - FFmpeg mode, pixmap visible:" 
+        //                       << (m_pixmapItem ? m_pixmapItem->isVisible() : false);
     } else {
-        // Normal video display
-        if (m_pixmapItem) {
+        // Normal video display mode
+        // PERFORMANCE: Only change visibility if actually needed
+        if (m_pixmapItem && m_pixmapItem->isVisible()) {
             m_pixmapItem->setVisible(false);
         }
-        if (m_videoItem) {
+        if (m_videoItem && !m_videoItem->isVisible()) {
             m_videoItem->setVisible(true);
         }
     }
@@ -341,22 +373,41 @@ void VideoPane::resizeEvent(QResizeEvent *event)
     }
     
     updateVideoItemTransform();
+    
+    // Update overlay widget size for direct GStreamer mode
+    if (m_directGStreamerMode && m_overlayWidget) {
+        m_overlayWidget->resize(size());
+        qDebug() << "VideoPane: Resized GStreamer overlay widget to:" << size();
+    }
 }
 
 // Helper methods
 void VideoPane::updateVideoItemTransform()
 {
-    if (!m_videoItem) return;
+    // Handle both Qt video item and FFmpeg pixmap item
+    QGraphicsItem* targetItem = nullptr;
+    QRectF itemRect;
     
-    QRectF itemRect = m_videoItem->boundingRect();
+    if (m_directFFmpegMode && m_pixmapItem) {
+        targetItem = m_pixmapItem;
+        itemRect = m_pixmapItem->boundingRect();
+        // qDebug(log_ui_video) << "VideoPane: Updating FFmpeg pixmap transform";
+    } else if (m_videoItem) {
+        targetItem = m_videoItem;
+        itemRect = m_videoItem->boundingRect();
+        // qDebug() << "VideoPane: Updating Qt video item transform";
+    }
+    
+    if (!targetItem) return;
+    
     QRectF viewRect = viewport()->rect();
     
     if (itemRect.isEmpty() || viewRect.isEmpty()) return;
-    qDebug() << "Updating video item transform with itemRect:" << itemRect << "viewRect:" << viewRect;
+    // qDebug() << "Updating item transform with itemRect:" << itemRect << "viewRect:" << viewRect;
     
     // Reset transform and position first
-    m_videoItem->setTransform(QTransform());
-    m_videoItem->setPos(0, 0);
+    targetItem->setTransform(QTransform());
+    targetItem->setPos(0, 0);
     
     // Normalize the item rectangle to start from (0,0) to handle any offset in boundingRect
     QRectF normalizedRect(0, 0, itemRect.width(), itemRect.height());
@@ -371,30 +422,43 @@ void VideoPane::updateVideoItemTransform()
         // Apply transformation
         QTransform transform;
         transform.scale(scale, scale);
-        m_videoItem->setTransform(transform);
+        targetItem->setTransform(transform);
         
         // Center the item after scaling, accounting for the original offset
         QRectF scaledRect = QRectF(0, 0, normalizedRect.width() * scale, normalizedRect.height() * scale);
         double x = (viewRect.width() - scaledRect.width()) / 2.0 - (itemOffset.x() * scale);
         double y = (viewRect.height() - scaledRect.height()) / 2.0 - (itemOffset.y() * scale);
-        m_videoItem->setPos(x, y);
-        qDebug() << "Video item transformed with scale:" << scale << "at position:" << QPointF(x, y) << "offset:" << itemOffset;
+        targetItem->setPos(x, y);
+        // qDebug() << "Item transformed with scale:" << scale << "at position:" << QPointF(x, y) << "offset:" << itemOffset;
     } else {
         // Stretch to fill (ignore aspect ratio)
         QTransform transform;
         transform.scale(viewRect.width() / normalizedRect.width(), 
-                       viewRect.height() / normalizedRect.height());
-        m_videoItem->setTransform(transform);
+                    viewRect.height() / normalizedRect.height());
+        targetItem->setTransform(transform);
         // Account for the original offset when stretching
-        m_videoItem->setPos(-itemOffset.x(), -itemOffset.y());
+        targetItem->setPos(-itemOffset.x(), -itemOffset.y());
     }
 }
 
 void VideoPane::centerVideoItem()
 {
-    if (!m_videoItem) return;
+    // Handle both Qt video item and FFmpeg pixmap item
+    QGraphicsItem* targetItem = nullptr;
+    QRectF itemRect;
     
-    QRectF itemRect = m_videoItem->boundingRect();
+    if (m_directFFmpegMode && m_pixmapItem) {
+        targetItem = m_pixmapItem;
+        itemRect = m_pixmapItem->boundingRect();
+        qDebug(log_ui_video) << "VideoPane: Centering FFmpeg pixmap item";
+    } else if (m_videoItem) {
+        targetItem = m_videoItem;
+        itemRect = m_videoItem->boundingRect();
+        qDebug() << "VideoPane: Centering Qt video item";
+    }
+    
+    if (!targetItem) return;
+    
     QRectF viewRect = viewport()->rect();
     
     // Normalize the item rectangle and get the original offset
@@ -402,14 +466,14 @@ void VideoPane::centerVideoItem()
     QPointF itemOffset = itemRect.topLeft();
     
     // Get the current transform to calculate the scaled size
-    QTransform transform = m_videoItem->transform();
+    QTransform transform = targetItem->transform();
     QRectF scaledRect = transform.mapRect(normalizedRect);
     
     // Center the item accounting for the original offset
     double x = (viewRect.width() - scaledRect.width()) / 2.0 - (itemOffset.x() * transform.m11());
     double y = (viewRect.height() - scaledRect.height()) / 2.0 - (itemOffset.y() * transform.m22());
     
-    m_videoItem->setPos(x, y);
+    targetItem->setPos(x, y);
 }
 
 void VideoPane::setupScene()
@@ -481,19 +545,18 @@ void VideoPane::wheelEvent(QWheelEvent *event)
 
 void VideoPane::mousePressEvent(QMouseEvent *event)
 {
-    qDebug() << "VideoPane::mousePressEvent - pos:" << event->pos();
+    // qDebug() << "VideoPane::mousePressEvent - pos:" << event->pos();
     
-    // Transform the mouse position to account for zoom and pan
+    // Transform the mouse position for status bar display only
     QPoint transformedPos = getTransformedMousePosition(event->pos());
-    QMouseEvent transformedEvent(event->type(), transformedPos, event->globalPos(), 
-                                event->button(), event->buttons(), event->modifiers());
     
     // Emit signal for status bar update
     emit mouseMoved(transformedPos, "Press");
     
-    // Call InputHandler's public method to process the event
+    // Call InputHandler's public method to process the original event
+    // Let InputHandler handle its own coordinate transformations
     if (m_inputHandler) {
-        m_inputHandler->handleMousePress(&transformedEvent);
+        m_inputHandler->handleMousePress(event);
     }
     
     // Let the base class handle the event
@@ -502,19 +565,18 @@ void VideoPane::mousePressEvent(QMouseEvent *event)
 
 void VideoPane::mouseMoveEvent(QMouseEvent *event)
 {
-    qDebug() << "VideoPane::mouseMoveEvent - pos:" << event->pos() << "mouse tracking:" << hasMouseTracking();
+    // qDebug() << "VideoPane::mouseMoveEvent - pos:" << event->pos() << "mouse tracking:" << hasMouseTracking();
     
-    // Transform the mouse position to account for zoom and pan
+    // Transform the mouse position for status bar display only
     QPoint transformedPos = getTransformedMousePosition(event->pos());
-    QMouseEvent transformedEvent(event->type(), transformedPos, event->globalPos(), 
-                                event->button(), event->buttons(), event->modifiers());
     
     // Emit signal for status bar update
     emit mouseMoved(transformedPos, "Move");
     
-    // Call InputHandler's public method to process the event
+    // Call InputHandler's public method to process the original event
+    // Let InputHandler handle its own coordinate transformations
     if (m_inputHandler) {
-        m_inputHandler->handleMouseMove(&transformedEvent);
+        m_inputHandler->handleMouseMove(event);
     }
     
     // Let the base class handle the event
@@ -523,21 +585,269 @@ void VideoPane::mouseMoveEvent(QMouseEvent *event)
 
 void VideoPane::mouseReleaseEvent(QMouseEvent *event)
 {
-    qDebug() << "VideoPane::mouseReleaseEvent - pos:" << event->pos();
+    // qDebug() << "VideoPane::mouseReleaseEvent - pos:" << event->pos();
     
-    // Transform the mouse position to account for zoom and pan
+    // Transform the mouse position for status bar display only
     QPoint transformedPos = getTransformedMousePosition(event->pos());
-    QMouseEvent transformedEvent(event->type(), transformedPos, event->globalPos(), 
-                                event->button(), event->buttons(), event->modifiers());
     
     // Emit signal for status bar update
     emit mouseMoved(transformedPos, "Release");
     
-    // Call InputHandler's public method to process the event
+    // Call InputHandler's public method to process the original event
+    // Let InputHandler handle its own coordinate transformations
     if (m_inputHandler) {
-        m_inputHandler->handleMouseRelease(&transformedEvent);
+        m_inputHandler->handleMouseRelease(event);
     }
     
     // Let the base class handle the event
     QGraphicsView::mouseReleaseEvent(event);
 }
+
+// Direct GStreamer support methods (based on widgets_main.cpp approach)
+void VideoPane::enableDirectGStreamerMode(bool enable)
+{
+    qDebug() << "VideoPane: Setting direct GStreamer mode to:" << enable;
+    m_directGStreamerMode = enable;
+    
+    if (enable) {
+        setupForGStreamerOverlay();
+    } else {
+        // Clean up overlay widget if it exists
+        if (m_overlayWidget) {
+            m_overlayWidget->deleteLater();
+            m_overlayWidget = nullptr;
+        }
+    }
+    
+    // Update the InputHandler's event filter target
+    if (m_inputHandler) {
+        m_inputHandler->updateEventFilterTarget();
+    }
+    
+    // Update the InputHandler's event filter target
+    if (m_inputHandler) {
+        m_inputHandler->updateEventFilterTarget();
+    }
+}
+
+WId VideoPane::getVideoOverlayWindowId() const
+{
+    if (m_directGStreamerMode && m_overlayWidget) {
+        return m_overlayWidget->winId();
+    }
+    // Fall back to the main widget's window ID
+    return winId();
+}
+
+void VideoPane::setupForGStreamerOverlay()
+{
+    // qDebug() << "VideoPane: Setting up for GStreamer video overlay";
+    
+    // Create overlay widget if it doesn't exist
+    if (!m_overlayWidget) {
+        m_overlayWidget = new QWidget(this);
+        m_overlayWidget->setObjectName("gstreamerOverlayWidget");
+        m_overlayWidget->setStyleSheet("background-color: black; border: 2px solid white;");
+        m_overlayWidget->setMinimumSize(640, 480);
+        
+        // Enable native window for video overlay (from widgets_main.cpp approach)
+        m_overlayWidget->setAttribute(Qt::WA_NativeWindow, true);
+        m_overlayWidget->setAttribute(Qt::WA_PaintOnScreen, true);
+        
+        // Enable mouse tracking and focus for event handling
+        m_overlayWidget->setMouseTracking(true);
+        m_overlayWidget->setFocusPolicy(Qt::StrongFocus);
+        
+        // Enable mouse tracking and focus for event handling
+        m_overlayWidget->setMouseTracking(true);
+        m_overlayWidget->setFocusPolicy(Qt::StrongFocus);
+        
+        // Position the overlay widget to fill the viewport
+        m_overlayWidget->resize(size());
+        m_overlayWidget->show();
+        
+        // qDebug() << "VideoPane: Created GStreamer overlay widget with window ID:" << m_overlayWidget->winId();
+        
+        // Update the InputHandler to use the overlay widget for events
+        if (m_inputHandler) {
+            m_inputHandler->updateEventFilterTarget();
+        }
+    }
+}
+
+// FFmpeg direct video frame support
+void VideoPane::updateVideoFrame(const QPixmap& frame)
+{
+    // PERFORMANCE: Eliminate per-frame logging completely
+    if (!m_directFFmpegMode || frame.isNull()) {
+        return;
+    }
+    
+    // RESPONSIVENESS OPTIMIZATION: Reduce frame rate limiting for better mouse response
+    // More aggressive frame dropping to prioritize mouse responsiveness
+    static qint64 lastFrameTime = 0;
+    qint64 currentTime = QDateTime::currentMSecsSinceEpoch();
+    
+    // Reduce UI update interval for more responsive mouse handling
+    // 12ms = ~83 FPS max (was 16ms = ~60 FPS)
+    if (currentTime - lastFrameTime < 12) {
+        return; // Drop frame silently for performance
+    }
+    lastFrameTime = currentTime;
+    
+    // PERFORMANCE: Log only the very first frame
+    static bool firstFrameProcessed = false;
+    static int frameCounter = 0;
+    frameCounter++;
+    
+    if (!firstFrameProcessed && !frame.isNull()) {
+        firstFrameProcessed = true;
+        qCDebug(log_ui_video) << "VideoPane: First FFmpeg frame received, size:" << frame.size();
+        // Skip all expensive analysis for performance
+    }
+    
+    // PERFORMANCE OPTIMIZATION: Track frame size changes to only update transform when needed
+    static QSize lastFrameSize;
+    static QSize lastViewportSize;
+    QSize currentFrameSize = frame.size();
+    QSize currentViewportSize = viewport()->rect().size();
+    
+    bool frameSizeChanged = (currentFrameSize != lastFrameSize);
+    bool viewportSizeChanged = (currentViewportSize != lastViewportSize);
+    bool needsTransformUpdate = frameSizeChanged || viewportSizeChanged;
+    
+    // Create or update pixmap item for displaying the decoded frame
+    if (!m_pixmapItem) {
+        m_pixmapItem = m_scene->addPixmap(frame);
+        m_pixmapItem->setZValue(2); // Above video item and GStreamer overlay
+        m_pixmapItem->setVisible(true);
+        
+        // CRITICAL: Hide Qt video item to prevent interference
+        if (m_videoItem) {
+            m_videoItem->setVisible(false);
+        }
+        
+        // Always update transform for the first frame
+        updateVideoItemTransform();
+        centerVideoItem();
+        needsTransformUpdate = false; // Already handled
+        
+    } else {
+        // For subsequent frames, just update the pixmap - much faster!
+        m_pixmapItem->setPixmap(frame);
+        
+        // Ensure pixmap item is visible (only if needed)
+        if (!m_pixmapItem->isVisible()) {
+            m_pixmapItem->setVisible(true);
+        }
+        
+        // Ensure item is properly added to scene if it somehow got removed
+        if (m_pixmapItem->scene() != m_scene) {
+            m_scene->addItem(m_pixmapItem);
+            m_pixmapItem->setZValue(2);
+        }
+    }
+    
+    // SMART OPTIMIZATION: Only update transform when frame size or viewport size changes
+    if (needsTransformUpdate) {
+        updateVideoItemTransform();
+        centerVideoItem();
+        
+        // Update cached sizes
+        lastFrameSize = currentFrameSize;
+        lastViewportSize = currentViewportSize;
+        
+        qCDebug(log_ui_video) << "VideoPane: Updated transform due to size change - frame:" 
+                              << currentFrameSize << "viewport:" << currentViewportSize;
+    }
+    
+    // PERFORMANCE: Minimize update calls - only update the pixmap item region
+    if (m_pixmapItem) {
+        // Force immediate scene invalidation for just the pixmap area - more efficient
+        m_scene->invalidate(m_pixmapItem->boundingRect());
+    }
+    
+    // CRITICAL: Hide Qt video item to prevent interference
+    if (m_videoItem) {
+        m_videoItem->setVisible(false);
+    }
+    
+    // Update video item transform to handle scaling and aspect ratio
+    updateVideoItemTransform();
+    
+    // Center the display
+    centerVideoItem();
+    
+    // PERFORMANCE: Minimize updates for better performance
+    if (m_scene) {
+        m_scene->update(); // Update scene
+    }
+    this->update(); // Update view
+    
+    // REMOVED: QCoreApplication::processEvents() - causes excessive CPU usage
+    // Let Qt's natural event loop handle updates
+}
+
+void VideoPane::enableDirectFFmpegMode(bool enable)
+{
+    qCDebug(log_ui_video) << "VideoPane: enableDirectFFmpegMode called with:" << enable << "current mode:" << m_directFFmpegMode;
+    
+    m_directFFmpegMode = enable;
+    
+    if (enable) {
+        qCDebug(log_ui_video) << "VideoPane: Enabling FFmpeg mode";
+        
+        // Hide the Qt video item when using direct FFmpeg mode
+        if (m_videoItem) {
+            m_videoItem->setVisible(false);
+            qCDebug(log_ui_video) << "VideoPane: Hidden Qt video item for FFmpeg mode";
+        }
+        
+        // Ensure we have a pixmap item ready for frame display
+        if (!m_pixmapItem) {
+            QPixmap placeholder(640, 480);
+            placeholder.fill(Qt::black);
+            m_pixmapItem = m_scene->addPixmap(placeholder);
+            m_pixmapItem->setZValue(2); // Above video item
+            qCDebug(log_ui_video) << "VideoPane: Created pixmap item for FFmpeg frames";
+        }
+        
+        // CRITICAL: Force pixmap item to be visible
+        if (m_pixmapItem) {
+            m_pixmapItem->setVisible(true);
+            qCDebug(log_ui_video) << "VideoPane: Forced pixmap item visibility to true";
+        }
+        
+        // Disable GStreamer mode if it was enabled
+        if (m_directGStreamerMode) {
+            qCDebug(log_ui_video) << "VideoPane: Disabling GStreamer mode for FFmpeg";
+            enableDirectGStreamerMode(false);
+        }
+        
+    } else {
+        qCDebug(log_ui_video) << "VideoPane: Disabling FFmpeg mode";
+        
+        // Restore Qt video item when disabling FFmpeg mode
+        if (m_videoItem) {
+            m_videoItem->setVisible(true);
+            qCDebug(log_ui_video) << "VideoPane: Restored Qt video item";
+        }
+        
+        // Hide the pixmap item
+        if (m_pixmapItem) {
+            m_pixmapItem->setVisible(false);
+            qCDebug(log_ui_video) << "VideoPane: Hidden pixmap item";
+        }
+    }
+    
+    // Force a scene update and repaint
+    if (m_scene) {
+        m_scene->update();
+    }
+    update(); // Force view repaint
+    
+    qCDebug(log_ui_video) << "VideoPane: FFmpeg mode" << (enable ? "enabled" : "disabled") 
+                          << "- pixmap visible:" << (m_pixmapItem ? m_pixmapItem->isVisible() : false)
+                          << "video visible:" << (m_videoItem ? m_videoItem->isVisible() : false);
+}
+

@@ -3,16 +3,29 @@ FROM arm64v8/debian:bookworm
 # Set non-interactive frontend for apt
 ENV DEBIAN_FRONTEND=noninteractive
 
+# FFmpeg version
+ARG FFMPEG_VERSION=6.1.1
+
 # Install build dependencies
 RUN apt-get update && apt-get install -y \
     build-essential \
     cmake \
     ninja-build \
+    meson \
     git \
     wget \
+    texinfo \
     pkg-config \
     libfontconfig1-dev \
     libfreetype6-dev \
+    libgnutls28-dev \
+    libfreetype-dev \
+    libmp3lame-dev \
+    libsdl2-dev \
+    libtool \
+    libva-dev \
+    libvdpau-dev \
+    libvorbis-dev \
     libx11-dev \
     libxext-dev \
     libxfixes-dev \
@@ -20,6 +33,8 @@ RUN apt-get update && apt-get install -y \
     libxrender-dev \
     libxcb1-dev \
     libx11-xcb-dev \
+    libxcb-shm0-dev \
+    libxcb-xfixes0-dev \
     libxcb-glx0-dev \
     libxkbcommon-dev \
     libxkbcommon-x11-dev \
@@ -28,26 +43,36 @@ RUN apt-get update && apt-get install -y \
     libglu1-mesa-dev \
     freeglut3-dev \
     libegl1-mesa-dev \
+    libxml2-dev \
+    libxml2-utils \
     libdbus-1-dev \
+    libgl-dev \
+    libegl-dev \
     libssl-dev \
     libicu-dev \
     libusb-1.0-0-dev \
+    libudev-dev \
     libexpat1-dev \
     libbz2-dev \
     libxrandr-dev \
     libasound2-dev \
     libpulse-dev \
+    libass-dev \
+    zlib1g-dev \
     yasm \
     nasm \
     && rm -rf /var/lib/apt/lists/*
 
 # Build FFmpeg with static libraries
-RUN wget https://ffmpeg.org/releases/ffmpeg-6.0.tar.xz \
-    && tar xf ffmpeg-6.0.tar.xz \
-    && cd ffmpeg-6.0 \
+RUN wget https://ffmpeg.org/releases/ffmpeg-${FFMPEG_VERSION}.tar.xz \
+    && tar xf ffmpeg-${FFMPEG_VERSION}.tar.xz \
+    && cd ffmpeg-${FFMPEG_VERSION} \
     && ./configure \
         --prefix=/usr/local \
         --enable-static \
+        --enable-gpl \
+        --enable-libdrm \
+        --enable-v4l2_m2m \
         --disable-shared \
         --disable-doc \
         --disable-ffplay \
@@ -58,7 +83,7 @@ RUN wget https://ffmpeg.org/releases/ffmpeg-6.0.tar.xz \
     && make -j$(nproc) \
     && make install \
     && cd .. \
-    && rm -rf ffmpeg-6.0 ffmpeg-6.0.tar.xz
+    && rm -rf ffmpeg-${FFMPEG_VERSION} ffmpeg-${FFMPEG_VERSION}.tar.xz
 
 # Verify FFmpeg installation
 RUN ls -la /usr/local/lib/libav* && \
