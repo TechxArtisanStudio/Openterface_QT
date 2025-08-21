@@ -99,7 +99,7 @@ cd "${WORK_DIR}/gstreamer_sources"
 echo "Downloading GStreamer core..."
 if [ ! -d "gstreamer-${GSTREAMER_VERSION}" ]; then
   wget https://gstreamer.freedesktop.org/src/gstreamer/gstreamer-${GSTREAMER_VERSION}.tar.xz
-  tar xvf gstreamer-${GSTREAMER_VERSION}.tar.xz
+  tar xf gstreamer-${GSTREAMER_VERSION}.tar.xz
   rm gstreamer-${GSTREAMER_VERSION}.tar.xz
 else
   echo "GStreamer core directory already exists, skipping download."
@@ -131,25 +131,6 @@ if [ ! -d "gst-plugins-bad-${GSTREAMER_VERSION}" ]; then
 else
   echo "gst-plugins-bad directory already exists, skipping download."
 fi
-  
-  # Early check: ensure pkg-config can find gstreamer-pbutils-1.0. If this
-  # fails, Meson will try to use a fallback subproject which requires a
-  # gst-plugins-base.wrap; fail early with diagnostics to make CI errors
-  # clearer.
-  echo "Checking pkg-config for gstreamer-pbutils-1.0..."
-  if pkg-config --modversion gstreamer-pbutils-1.0 >/dev/null 2>&1; then
-    echo "  ✓ gstreamer-pbutils-1.0 found: $(pkg-config --modversion gstreamer-pbutils-1.0)"
-  else
-    echo "\n✗ ERROR: pkg-config cannot find gstreamer-pbutils-1.0 - Meson build for gst-plugins-good will fail"
-    echo "PKG_CONFIG_PATH=$PKG_CONFIG_PATH"
-    echo "Searching for .pc files under ${WORK_DIR}/gstreamer_build and /opt/orc-static (if present):"
-    find "${WORK_DIR}/gstreamer_build" -name "*.pc" -print 2>/dev/null || true
-    find /opt/orc-static -name "*.pc" -print 2>/dev/null || true
-    echo "Available pkg-config entries that mention 'gstreamer' (if any):"
-    pkg-config --list-all 2>/dev/null | grep -i gstreamer || true
-    echo "\nIf missing, ensure gst-plugins-base installation completed and its pkgconfig directory is added to PKG_CONFIG_PATH. Exiting."
-    exit 1
-  fi
 
 # Set up build environment for GStreamer
 # Ensure pkg-config can find GStreamer and FFmpeg pkgconfig files. FFmpeg
@@ -165,27 +146,8 @@ sudo apt-get install -y \
   libc6-dev \
   linux-libc-dev \
   libudev-dev \
-  libxkbcommon-dev \
-  libxkbcommon-x11-dev \
-  libxcb1-dev \
-  libxcb-util-dev \
-  libxcb-keysyms1-dev \
-  libxcb-image0-dev \
-  libxcb-shm0-dev \
-  libxcb-icccm4-dev \
-  libxcb-sync-dev \
-  libxcb-xfixes0-dev \
-  libxcb-shape0-dev \
-  libxcb-randr0-dev \
-  libxcb-render-util0-dev \
-  libxcb-render0-dev \
-  libxcb-glx0-dev \
-  libxcb-xinerama0-dev \
   libxcb-xinput-dev \
-  libx11-dev \
-  libxext-dev \
   libxv-dev \
-  libgl1-mesa-dev \
   libgles2-mesa-dev \
   libegl1-mesa-dev \
   liborc-0.4-dev \
