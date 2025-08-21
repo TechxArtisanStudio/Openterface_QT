@@ -31,6 +31,7 @@ BUILD_DIR=$(pwd)/qt-build
 FFMPEG_PREFIX=/opt/Qt6
 FFMPEG_VERSION="6.1.1"
 GSTREAMER_VERSION="1.22.11"
+WORK_DIR="${HOME}/qt-amd64-build"
 # Update module list to include qtdeclarative (which provides Qt Quick)
 MODULES=("qtbase" "qtshadertools" "qtdeclarative" "qtmultimedia" "qtsvg" "qtserialport" "qttools")
 DOWNLOAD_BASE_URL="https://download.qt.io/archive/qt/$QT_MAJOR_VERSION/$QT_VERSION/submodules"
@@ -543,5 +544,379 @@ for module in "${MODULES[@]}"; do
         sudo ninja install
     fi
 done
+
+
+# Verify architecture of built libraries
+echo "Verifying architecture of built libraries..."
+
+echo "FFmpeg library architecture:"
+if [ -f "${WORK_DIR}/ffmpeg_build/lib/libavcodec.a" ]; then
+    file "${WORK_DIR}/ffmpeg_build/lib/libavcodec.a" | head -1
+else
+    echo "Warning: FFmpeg libavcodec.a not found"
+fi
+
+echo "GStreamer library architecture:"
+if [ -f "${WORK_DIR}/gstreamer_build/lib/libgstreamer-1.0.a" ]; then
+    file "${WORK_DIR}/gstreamer_build/lib/libgstreamer-1.0.a" | head -1
+else
+    echo "Warning: GStreamer libgstreamer-1.0.a not found"
+fi
+
+echo "Qt Core library architecture:"
+if [ -f "${QT_TARGET_DIR}/lib/libQt6Core.a" ]; then
+    file "${QT_TARGET_DIR}/lib/libQt6Core.a" | head -1
+else
+    echo "Warning: Qt libQt6Core.a not found"
+fi
+
+echo "Verifying specific Qt modules..."
+echo "Qt Multimedia:"
+if [ -f "${QT_TARGET_DIR}/lib/libQt6Multimedia.a" ]; then
+    echo "  ✓ libQt6Multimedia.a found"
+    file "${QT_TARGET_DIR}/lib/libQt6Multimedia.a" | head -1
+else
+    echo "  ✗ libQt6Multimedia.a not found"
+fi
+
+echo "Qt MultimediaWidgets:"
+if [ -f "${QT_TARGET_DIR}/lib/libQt6MultimediaWidgets.a" ]; then
+    echo "  ✓ libQt6MultimediaWidgets.a found"
+    file "${QT_TARGET_DIR}/lib/libQt6MultimediaWidgets.a" | head -1
+else
+    echo "  ✗ libQt6MultimediaWidgets.a not found"
+fi
+
+echo "Qt SerialPort:"
+if [ -f "${QT_TARGET_DIR}/lib/libQt6SerialPort.a" ]; then
+    echo "  ✓ libQt6SerialPort.a found"
+    file "${QT_TARGET_DIR}/lib/libQt6SerialPort.a" | head -1
+else
+    echo "  ✗ libQt6SerialPort.a not found"
+fi
+
+echo "Qt Svg:"
+if [ -f "${QT_TARGET_DIR}/lib/libQt6Svg.a" ]; then
+    echo "  ✓ libQt6Svg.a found"
+    file "${QT_TARGET_DIR}/lib/libQt6Svg.a" | head -1
+else
+    echo "  ✗ libQt6Svg.a not found"
+fi
+
+echo "Qt SvgWidgets:"
+if [ -f "${QT_TARGET_DIR}/lib/libQt6SvgWidgets.a" ]; then
+    echo "  ✓ libQt6SvgWidgets.a found"
+    file "${QT_TARGET_DIR}/lib/libQt6SvgWidgets.a" | head -1
+else
+    echo "  ✗ libQt6SvgWidgets.a not found"
+fi
+
+# Copy FFmpeg and GStreamer libraries to the Qt target directory
+echo "Copying FFmpeg libraries to ${QT_TARGET_DIR}..."
+sudo mkdir -p ${QT_TARGET_DIR}/lib
+sudo mkdir -p ${QT_TARGET_DIR}/include
+sudo mkdir -p ${QT_TARGET_DIR}/bin
+sudo cp -a ${WORK_DIR}/ffmpeg_build/lib/. ${QT_TARGET_DIR}/lib/
+sudo cp -a ${WORK_DIR}/ffmpeg_build/include/. ${QT_TARGET_DIR}/include/
+
+echo "Copying GStreamer libraries to ${QT_TARGET_DIR}..."
+sudo cp -a ${WORK_DIR}/gstreamer_build/lib/. ${QT_TARGET_DIR}/lib/
+sudo cp -a ${WORK_DIR}/gstreamer_build/include/. ${QT_TARGET_DIR}/include/
+
+# Verify GStreamer installation completeness
+echo "Verifying GStreamer installation..."
+echo "Checking critical GStreamer components:"
+
+# Check for required headers
+REQUIRED_HEADERS="gst/video/videooverlay.h gst/video/video-enumtypes.h gst/audio/audio-enumtypes.h gst/rtp/gstrtp-enumtypes.h gst/pbutils/pbutils-enumtypes.h gst/tag/tag-enumtypes.h"
+
+for header in $REQUIRED_HEADERS; do
+  if [ -f "${QT_TARGET_DIR}/include/gstreamer-1.0/${header}" ]; then
+    echo "  ✓ ${header} found"
+  else
+    echo "  ✗ ${header} missing"
+  fi
+done
+
+# Check for required libraries
+REQUIRED_LIBS="libgstvideo-1.0.a libgstaudio-1.0.a libgsttag-1.0.a libgstrtp-1.0.a libgstpbutils-1.0.a libgstbase-1.0.a libgstreamer-1.0.a"
+
+for lib in $REQUIRED_LIBS; do
+  if [ -f "${QT_TARGET_DIR}/lib/${lib}" ]; then
+    echo "  ✓ ${lib} found"
+  else
+    echo "  ✗ ${lib} missing"
+  fi
+done
+
+# Create GStreamer verification script
+# Ensure the bin directory exists
+sudo mkdir -p "${QT_TARGET_DIR}/bin"
+
+# Create the comprehensive verification script using sudo tee
+sudo tee "${QT_TARGET_DIR}/bin/verify-gstreamer.sh" > /dev/null << 'EOF'
+#!/bin/bash
+echo "GStreamer Installation Verification"
+echo "===================================="
+
+QT_TARGET_DIR="/opt/Qt6-arm64"
+
+# Test for required header file
+VIDEO_OVERLAY_HEADER="${QT_TARGET_DIR}/include/gstreamer-1.0/gst/video/videooverlay.h"
+if [ -f "$VIDEO_OVERLAY_HEADER" ]; then
+    echo "✓ gst/video/videooverlay.h found"
+else
+    echo "✗ gst/video/videooverlay.h NOT found"
+    echo "  Expected at: $VIDEO_OVERLAY_HEADER"
+fi
+
+# Test for required libraries
+echo -e "\nChecking GStreamer core static libraries:"
+CORE_LIBS="libgstvideo-1.0.a libgstaudio-1.0.a libgstpbutils-1.0.a libgstrtp-1.0.a libgsttag-1.0.a libgstbase-1.0.a libgstreamer-1.0.a"
+for lib in $CORE_LIBS; do
+    if [ -f "${QT_TARGET_DIR}/lib/$lib" ]; then
+        echo "✓ $lib found"
+    else
+        echo "✗ $lib NOT found"
+    fi
+done
+
+# Test for GStreamer core headers
+GSTREAMER_H="${QT_TARGET_DIR}/include/gstreamer-1.0/gst/gst.h"
+if [ -f "$GSTREAMER_H" ]; then
+    echo "✓ GStreamer core headers found"
+else
+    echo "✗ GStreamer core headers NOT found"
+fi
+
+# Check for GStreamer plugin libraries
+echo -e "\nChecking GStreamer plugin libraries:"
+echo "Looking for plugins in: ${QT_TARGET_DIR}/lib/gstreamer-1.0/"
+
+if [ -d "${QT_TARGET_DIR}/lib/gstreamer-1.0" ]; then
+    echo "Plugin directory exists"
+    
+    # Check for specific plugins we enabled
+    PLUGIN_LIBS="
+    libgstv4l2.a
+    libgstrtp.a
+    libgstrtpmanager.a
+    libgstrtsp.a
+    libgstudp.a
+    libgstvideocrop.a
+    libgstvideofilter.a
+    libgstvideotestsrc.a
+    "
+    
+    for plugin in $PLUGIN_LIBS; do
+        if [ -f "${QT_TARGET_DIR}/lib/gstreamer-1.0/$plugin" ]; then
+            echo "✓ Plugin: $plugin found"
+        else
+            echo "✗ Plugin: $plugin NOT found"
+        fi
+    done
+    
+    echo -e "\nAll available plugins:"
+    ls -la "${QT_TARGET_DIR}/lib/gstreamer-1.0/" 2>/dev/null | grep "\.a$" || echo "No .a files found in plugin directory"
+    
+else
+    echo "✗ Plugin directory ${QT_TARGET_DIR}/lib/gstreamer-1.0/ does not exist"
+    echo "  Checking alternative locations..."
+    
+    # Check if plugins are in main lib directory
+    echo -e "\nChecking for plugins in main lib directory:"
+    find "${QT_TARGET_DIR}/lib" -name "libgstv4l2*" -type f 2>/dev/null || echo "No v4l2 plugins found"
+    find "${QT_TARGET_DIR}/lib" -name "libgst*rtp*" -type f 2>/dev/null || echo "No RTP plugins found"
+    
+    echo -e "\nAll GStreamer-related files in lib directory:"
+    find "${QT_TARGET_DIR}/lib" -name "libgst*" -type f 2>/dev/null | head -20
+fi
+
+# Check build directory for verification
+WORK_DIR="${HOME}/qt-arm64-build"
+if [ -d "${WORK_DIR}/gstreamer_build" ]; then
+    echo -e "\n=== Checking original build directory ==="
+    echo "Build directory: ${WORK_DIR}/gstreamer_build"
+    
+    if [ -d "${WORK_DIR}/gstreamer_build/lib/gstreamer-1.0" ]; then
+        echo -e "\nPlugins in build directory:"
+        ls -la "${WORK_DIR}/gstreamer_build/lib/gstreamer-1.0/" 2>/dev/null | grep "\.a$" || echo "No .a files in build plugin directory"
+        
+        # Specifically check for v4l2
+        if [ -f "${WORK_DIR}/gstreamer_build/lib/gstreamer-1.0/libgstv4l2.a" ]; then
+            echo "✓ v4l2 plugin found in build directory"
+            file "${WORK_DIR}/gstreamer_build/lib/gstreamer-1.0/libgstv4l2.a"
+        else
+            echo "✗ v4l2 plugin NOT found in build directory"
+        fi
+    else
+        echo "No plugin directory in build area"
+    fi
+fi
+
+# Test if we can find v4l2 symbols in any static library
+echo -e "\n=== Searching for v4l2 symbols ==="
+echo "Searching for v4l2src symbol in static libraries..."
+
+# Search in Qt target directory
+V4L2_FOUND=false
+for lib in $(find "${QT_TARGET_DIR}/lib" -name "*.a" -type f 2>/dev/null); do
+    if nm "$lib" 2>/dev/null | grep -q "v4l2src\|gst_v4l2"; then
+        echo "✓ v4l2 symbols found in: $(basename $lib)"
+        V4L2_FOUND=true
+    fi
+done
+
+if [ "$V4L2_FOUND" = "false" ]; then
+    echo "✗ No v4l2 symbols found in any static library"
+    
+    # Check if v4l2 was actually built
+    if [ -d "${WORK_DIR}/gstreamer_sources/gst-plugins-good-1.22.11" ]; then
+        echo -e "\nChecking gst-plugins-good build configuration..."
+        BUILD_DIR="${WORK_DIR}/gstreamer_sources/gst-plugins-good-1.22.11/build"
+        if [ -f "${BUILD_DIR}/meson-info/intro-buildoptions.json" ]; then
+            echo "Build options for v4l2:"
+            cat "${BUILD_DIR}/meson-info/intro-buildoptions.json" | grep -A5 -B5 "v4l2" || echo "v4l2 option not found in build config"
+        fi
+        
+        if [ -f "${BUILD_DIR}/meson-logs/meson-log.txt" ]; then
+            echo -e "\nChecking build log for v4l2:"
+            tail -50 "${BUILD_DIR}/meson-logs/meson-log.txt" | grep -i "v4l2" || echo "No v4l2 mentions in recent build log"
+        fi
+    fi
+fi
+
+echo -e "\n=== System V4L2 Check ==="
+echo "Checking if V4L2 development headers are available:"
+if [ -f "/usr/include/linux/videodev2.h" ]; then
+    echo "✓ V4L2 system headers found at /usr/include/linux/videodev2.h"
+elif [ -f "/usr/include/videodev2.h" ]; then
+    echo "✓ V4L2 system headers found at /usr/include/videodev2.h"
+else
+    echo "✗ V4L2 system headers NOT found"
+    echo "  Install with: sudo apt-get install linux-libc-dev"
+fi
+
+echo -e "\nChecking for V4L2 devices:"
+if [ -d "/dev" ]; then
+    ls -la /dev/video* 2>/dev/null || echo "No video devices found"
+fi
+
+echo -e "\nDone."
+EOF
+
+sudo chmod +x "${QT_TARGET_DIR}/bin/verify-gstreamer.sh"
+echo "GStreamer verification script created at: ${QT_TARGET_DIR}/bin/verify-gstreamer.sh"
+
+# Clean up
+cd /
+# sudo rm -rf "$WORK_DIR"
+
+echo "Qt ${QT_VERSION}, FFmpeg ${FFMPEG_VERSION}, and GStreamer ${GSTREAMER_VERSION} for ARM64 build completed successfully!"
+echo "Qt installed to: ${QT_TARGET_DIR}"
+echo "FFmpeg libraries installed to: ${QT_TARGET_DIR}/lib"
+echo "FFmpeg headers installed to: ${QT_TARGET_DIR}/include"
+echo "GStreamer libraries installed to: ${QT_TARGET_DIR}/lib"
+echo "GStreamer headers installed to: ${QT_TARGET_DIR}/include"
+echo "Static ORC library installed to: /opt/orc-static/lib/aarch64-linux-gnu/"
+echo "Verification script available at: ${QT_TARGET_DIR}/bin/verify-gstreamer.sh"
+
+echo ""
+echo "========================================================================================="
+echo "BUILD INSTRUCTIONS FOR OPENTERFACE QT APPLICATION"
+echo "========================================================================================="
+echo ""
+echo "This build environment includes:"
+echo "  - Qt ${QT_VERSION} with multimedia support"
+echo "  - FFmpeg ${FFMPEG_VERSION} static libraries"
+echo "  - GStreamer ${GSTREAMER_VERSION} with video overlay support"
+echo "  - Static ORC library 0.4.33 for GStreamer optimization"
+echo "  - All necessary headers and enumtypes for GStreamer video components"
+echo ""
+echo "To build the static OpenTerface QT application using this environment, run:"
+echo ""
+echo "1. Navigate to the OpenTerface QT project directory:"
+echo "   cd /path/to/Openterface_QT"
+echo ""
+echo "2. Create a build directory:"
+echo "   mkdir -p build && cd build"
+echo ""
+echo "3. Set environment variables before configuring:"
+echo "   export PKG_CONFIG_PATH=\"${QT_TARGET_DIR}/lib/pkgconfig:/usr/lib/aarch64-linux-gnu/pkgconfig:/usr/share/pkgconfig:\$PKG_CONFIG_PATH\""
+echo ""
+echo "4. Configure with CMake using the static Qt installation:"
+echo "   cmake -DCMAKE_PREFIX_PATH=\"${QT_TARGET_DIR}\" \\"
+echo "         -DCMAKE_BUILD_TYPE=Release \\"
+echo "         -DBUILD_SHARED_LIBS=OFF \\"
+echo "         -DQt6_DIR=\"${QT_TARGET_DIR}/lib/cmake/Qt6\" \\"
+echo "         -DQt6Multimedia_DIR=\"${QT_TARGET_DIR}/lib/cmake/Qt6Multimedia\" \\"
+echo "         -DQt6MultimediaWidgets_DIR=\"${QT_TARGET_DIR}/lib/cmake/Qt6MultimediaWidgets\" \\"
+echo "         -DQt6SerialPort_DIR=\"${QT_TARGET_DIR}/lib/cmake/Qt6SerialPort\" \\"
+echo "         -DQt6Svg_DIR=\"${QT_TARGET_DIR}/lib/cmake/Qt6Svg\" \\"
+echo "         .."
+echo ""
+echo "5. Build the application:"
+echo "   make -j\$(nproc)"
+echo ""
+echo "5. The static binary will be available in the build directory."
+echo ""
+echo "Alternative using Ninja (if preferred):"
+echo "   cmake -GNinja -DCMAKE_PREFIX_PATH=\"${QT_TARGET_DIR}\" \\"
+echo "         -DCMAKE_BUILD_TYPE=Release \\"
+echo "         -DBUILD_SHARED_LIBS=OFF \\"
+echo "         -DQT_STATIC_BUILD=ON \\"
+echo "         -DQT_TARGET_DIR=\"${QT_TARGET_DIR}\" \\"
+echo "         -DQt6_DIR=\"${QT_TARGET_DIR}/lib/cmake/Qt6\" \\"
+echo "         -DQt6Multimedia_DIR=\"${QT_TARGET_DIR}/lib/cmake/Qt6Multimedia\" \\"
+echo "         -DQt6MultimediaWidgets_DIR=\"${QT_TARGET_DIR}/lib/cmake/Qt6MultimediaWidgets\" \\"
+echo "         -DQt6SerialPort_DIR=\"${QT_TARGET_DIR}/lib/cmake/Qt6SerialPort\" \\"
+echo "         -DQt6Svg_DIR=\"${QT_TARGET_DIR}/lib/cmake/Qt6Svg\" \\"
+echo "         -DPKG_CONFIG_PATH=\"${QT_TARGET_DIR}/lib/pkgconfig\" \\"
+echo "         .."
+echo "   ninja"
+echo ""
+echo "Note: The resulting binary will be statically linked and can run on other ARM64"
+echo "      systems without requiring Qt or multimedia libraries to be installed."
+echo ""
+echo "TROUBLESHOOTING:"
+echo "If you encounter 'Could NOT find Qt6Multimedia' or similar errors:"
+echo "1. Verify the Qt modules were built successfully by checking:"
+echo "   ls -la ${QT_TARGET_DIR}/lib/cmake/"
+echo "2. Ensure all required Qt module directories exist:"
+echo "   ls -la ${QT_TARGET_DIR}/lib/cmake/Qt6*"
+echo "3. Set environment variables before running cmake:"
+echo "   export PKG_CONFIG_PATH=\"${QT_TARGET_DIR}/lib/pkgconfig:\$PKG_CONFIG_PATH\""
+echo "   export CMAKE_PREFIX_PATH=\"${QT_TARGET_DIR}:\$CMAKE_PREFIX_PATH\""
+echo ""
+echo "If you encounter GStreamer-related build errors:"
+echo "1. Run the GStreamer verification script:"
+echo "   ${QT_TARGET_DIR}/bin/verify-gstreamer.sh"
+echo "2. Check if videooverlay.h header is available:"
+echo "   ls -la ${QT_TARGET_DIR}/include/gstreamer-1.0/gst/video/videooverlay.h"
+echo "3. Verify all required GStreamer libraries are present:"
+echo "   ls -la ${QT_TARGET_DIR}/lib/libgst*.a | grep -E '(video|audio|tag|rtp|pbutils)'"
+echo "4. If you encounter ORC library linking errors (undefined reference to orc_program_take_code):"
+echo "   Verify the static ORC library is installed:"
+echo "   ls -la /opt/orc-static/lib/aarch64-linux-gnu/liborc-0.4.a"
+echo "   If missing, rebuild with the static ORC library section of this script"
+echo ""
+echo "If you encounter 'gst/video/video-enumtypes.h: No such file' errors:"
+echo "1. The build script should have copied all generated headers automatically"
+echo "2. If missing, they are available in the build directory:"
+echo "   find ${WORK_DIR}/gstreamer_sources -name '*enumtypes.h'"
+echo "3. Copy them manually if needed:"
+echo "   sudo cp \${WORK_DIR}/gstreamer_sources/gst-plugins-base-${GSTREAMER_VERSION}/build/gst-libs/gst/video/video-enumtypes.h ${QT_TARGET_DIR}/include/gstreamer-1.0/gst/video/"
+echo ""
+echo "If you encounter 'PkgConfig::Libudev' target not found errors:"
+echo "1. Install pkg-config and libudev development packages:"
+echo "   sudo apt-get install -y pkg-config libudev-dev"
+echo "2. Ensure PKG_CONFIG_PATH is set correctly before cmake:"
+echo "   export PKG_CONFIG_PATH=\"${QT_TARGET_DIR}/lib/pkgconfig:/usr/lib/aarch64-linux-gnu/pkgconfig:/usr/share/pkgconfig:\$PKG_CONFIG_PATH\""
+echo "3. Check if libudev.pc exists:"
+echo "   pkg-config --exists libudev && echo 'libudev found' || echo 'libudev not found'"
+echo ""
+echo "4. If issues persist, try cleaning the build directory and reconfiguring."
+echo "========================================================================================="
+
 
 echo "OpenTerface QT $QT_VERSION has been successfully built and installed to $INSTALL_PREFIX"
