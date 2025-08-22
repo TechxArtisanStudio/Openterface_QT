@@ -1,0 +1,188 @@
+# Build Qt components
+ARG BASE_IMAGE=ghcr.io/kevinzjpeng/openterface-qt-gstreamer:latest
+FROM ${BASE_IMAGE}
+
+WORKDIR ${BUILD_DIR}
+
+# Define modules to build
+ENV MODULES="qtbase qtshadertools qtdeclarative qtmultimedia qtsvg qtserialport qttools"
+ENV DOWNLOAD_BASE_URL="https://download.qt.io/archive/qt/${QT_MAJOR_VERSION}/${QT_VERSION}/submodules"
+ENV CMAKE_COMMON_FLAGS="-Wno-dev -DCMAKE_POLICY_DEFAULT_CMP0177=NEW -DCMAKE_POLICY_DEFAULT_CMP0174=NEW"
+
+# Download and extract Qt modules
+RUN for module in ${MODULES}; do \
+        echo "Downloading $module..."; \
+        curl -L -o "$module.zip" "${DOWNLOAD_BASE_URL}/$module-everywhere-src-${QT_VERSION}.zip" && \
+        unzip -q "$module.zip" && \
+        mv "$module-everywhere-src-${QT_VERSION}" "$module" && \
+        rm "$module.zip"; \
+    done
+
+# Build qtbase first (foundation)
+RUN echo "Building qtbase..." && \
+    cd ${BUILD_DIR}/qtbase && \
+    mkdir -p build && \
+    cd build && \
+    cmake -GNinja \
+        ${CMAKE_COMMON_FLAGS} \
+        -DCMAKE_INSTALL_PREFIX="${INSTALL_PREFIX}" \
+        -DBUILD_SHARED_LIBS=OFF \
+        -DFEATURE_dbus=ON \
+        -DFEATURE_sql=OFF \
+        -DFEATURE_testlib=OFF \
+        -DFEATURE_icu=OFF \
+        -DFEATURE_opengl=ON \
+        -DFEATURE_xlib=ON \
+        -DFEATURE_xcb_xlib=ON \
+        -DFEATURE_xkbcommon=ON \
+        -DFEATURE_xkbcommon_x11=ON \
+        -DTEST_xcb_syslibs=ON \
+        -DQT_FEATURE_clang=OFF \
+        -DFEATURE_clang=ON \
+        .. && \
+    ninja && \
+    ninja install
+
+# Build qtshadertools
+RUN echo "Building qtshadertools..." && \
+    cd ${BUILD_DIR}/qtshadertools && \
+    mkdir -p build && \
+    cd build && \
+    cmake -GNinja \
+        ${CMAKE_COMMON_FLAGS} \
+        -DCMAKE_INSTALL_PREFIX="${INSTALL_PREFIX}" \
+        -DBUILD_SHARED_LIBS=OFF \
+        -DCMAKE_EXE_LINKER_FLAGS="-lfontconfig -lfreetype" \
+        .. && \
+    ninja && \
+    ninja install
+
+# Build qtdeclarative (Qt Quick) before qtmultimedia
+RUN echo "Building qtdeclarative..." && \
+    cd ${BUILD_DIR}/qtdeclarative && \
+    mkdir -p build && \
+    cd build && \
+    cmake -GNinja \
+        ${CMAKE_COMMON_FLAGS} \
+        -DCMAKE_INSTALL_PREFIX="${INSTALL_PREFIX}" \
+        -DCMAKE_PREFIX_PATH="${INSTALL_PREFIX}" \
+        -DBUILD_SHARED_LIBS=OFF \
+        .. && \
+    ninja && \
+    ninja install
+
+# Build qtmultimedia with FFmpeg
+RUN echo "Building qtmultimedia..." && \
+    cd ${BUILD_DIR}/qtmultimedia && \
+    mkdir -p build && \
+    cd build && \
+    PKG_CONFIG_PATH="${FFMPEG_PREFIX}/lib/pkgconfig:$PKG_CONFIG_PATH" \
+    cmake -GNinja \
+        ${CMAKE_COMMON_FLAGS} \
+        -DCMAKE_INSTALL_PREFIX="${INSTALL_PREFIX}" \
+        -DCMAKE_PREFIX_PATH="${INSTALL_PREFIX};${FFMPEG_PREFIX}" \
+        -DBUILD_SHARED_LIBS=OFF \
+        -DFEATURE_gstreamer=OFF \
+        -DINPUT_gstreamer=OFF \
+        -DFEATURE_pulseaudio=ON \
+        -DFEATURE_ffmpeg=ON \
+        -DINPUT_ffmpeg=ON \
+        -DFEATURE_avfoundation=OFF \
+        -DCMAKE_FIND_ROOT_PATH="${FFMPEG_PREFIX}" \
+        -DCMAKE_EXE_LINKER_FLAGS="-L${FFMPEG_PREFIX}/lib" \
+        -DFFMPEG_PATH="${FFMPEG_PREFIX}" \
+        .. && \
+    ninja && \
+    ninja install
+
+# Build qtsvg
+RUN echo "Building qtsvg..." && \
+    cd ${BUILD_DIR}/qtsvg && \
+    mkdir -p build && \
+    cd build && \
+    cmake -GNinja \
+        ${CMAKE_COMMON_FLAGS} \
+        -DCMAKE_INSTALL_PREFIX="${INSTALL_PREFIX}" \
+        -DCMAKE_PREFIX_PATH="${INSTALL_PREFIX}" \
+        -DBUILD_SHARED_LIBS=OFF \
+        .. && \
+    ninja && \
+    ninja install
+
+# Build qtserialport
+RUN echo "Building qtserialport..." && \
+    cd ${BUILD_DIR}/qtserialport && \
+    mkdir -p build && \
+    cd build && \
+    cmake -GNinja \
+        ${CMAKE_COMMON_FLAGS} \
+        -DCMAKE_INSTALL_PREFIX="${INSTALL_PREFIX}" \
+        -DCMAKE_PREFIX_PATH="${INSTALL_PREFIX}" \
+        -DBUILD_SHARED_LIBS=OFF \
+        .. && \
+    ninja && \
+    ninja install
+
+# Build qttools
+RUN echo "Building qttools..." && \
+    cd ${BUILD_DIR}/qttools && \
+    mkdir -p build && \
+    cd build && \
+    CLANG_PREFIX="/usr/lib/llvm-16" && \
+    cmake -GNinja \
+        ${CMAKE_COMMON_FLAGS} \
+        -DCMAKE_INSTALL_PREFIX="${INSTALL_PREFIX}" \
+        -DBUILD_SHARED_LIBS=OFF \
+        -DFEATURE_linguist=ON \
+        -DFEATURE_lupdate=ON \
+        -DFEATURE_lrelease=ON \
+        -DFEATURE_designer=OFF \
+        -DFEATURE_assistant=OFF \
+        -DFEATURE_qtattributionsscanner=OFF \
+        -DFEATURE_qtdiag=OFF \
+        -DFEATURE_qtplugininfo=OFF \
+        -DFEATURE_clang=ON \
+        -DFEATURE_clangcpp=ON \
+        -DLLVM_INSTALL_DIR="$CLANG_PREFIX" \
+        -DLLVM_CMAKE_DIR="$CLANG_PREFIX/cmake" \
+        .. && \
+    ninja && \
+    ninja install
+
+# Create verification script
+RUN mkdir -p ${INSTALL_PREFIX}/bin && \
+    echo '#!/bin/bash' > ${INSTALL_PREFIX}/bin/verify-qt-installation.sh && \
+    echo 'echo "Qt Installation Verification"' >> ${INSTALL_PREFIX}/bin/verify-qt-installation.sh && \
+    echo 'echo "============================="' >> ${INSTALL_PREFIX}/bin/verify-qt-installation.sh && \
+    echo 'QT_DIR="/opt/Qt6"' >> ${INSTALL_PREFIX}/bin/verify-qt-installation.sh && \
+    echo 'echo "Qt version: $(${QT_DIR}/bin/qmake -query QT_VERSION)"' >> ${INSTALL_PREFIX}/bin/verify-qt-installation.sh && \
+    echo 'echo "Qt installation prefix: $(${QT_DIR}/bin/qmake -query QT_INSTALL_PREFIX)"' >> ${INSTALL_PREFIX}/bin/verify-qt-installation.sh && \
+    echo 'echo -e "\nChecking Qt modules:"' >> ${INSTALL_PREFIX}/bin/verify-qt-installation.sh && \
+    echo 'MODULES="Core Widgets Gui Multimedia MultimediaWidgets SerialPort Svg SvgWidgets"' >> ${INSTALL_PREFIX}/bin/verify-qt-installation.sh && \
+    echo 'for module in $MODULES; do' >> ${INSTALL_PREFIX}/bin/verify-qt-installation.sh && \
+    echo '    if [ -f "${QT_DIR}/lib/libQt6${module}.a" ]; then' >> ${INSTALL_PREFIX}/bin/verify-qt-installation.sh && \
+    echo '        echo "✓ Qt${module} static library found"' >> ${INSTALL_PREFIX}/bin/verify-qt-installation.sh && \
+    echo '    else' >> ${INSTALL_PREFIX}/bin/verify-qt-installation.sh && \
+    echo '        echo "✗ Qt${module} static library NOT found"' >> ${INSTALL_PREFIX}/bin/verify-qt-installation.sh && \
+    echo '    fi' >> ${INSTALL_PREFIX}/bin/verify-qt-installation.sh && \
+    echo 'done' >> ${INSTALL_PREFIX}/bin/verify-qt-installation.sh && \
+    echo 'echo -e "\nBuild environment ready!"' >> ${INSTALL_PREFIX}/bin/verify-qt-installation.sh && \
+    chmod +x ${INSTALL_PREFIX}/bin/verify-qt-installation.sh
+
+# Set Qt environment variables
+ENV PATH="${INSTALL_PREFIX}/bin:${PATH}"
+ENV QT_PLUGIN_PATH="${INSTALL_PREFIX}/plugins"
+ENV QML2_IMPORT_PATH="${INSTALL_PREFIX}/qml"
+ENV LD_LIBRARY_PATH="${INSTALL_PREFIX}/lib"
+ENV PKG_CONFIG_PATH="${INSTALL_PREFIX}/lib/pkgconfig:${PKG_CONFIG_PATH}"
+
+# Verify Qt installation
+RUN ${INSTALL_PREFIX}/bin/verify-qt-installation.sh
+
+# Clean up source files
+RUN cd ${BUILD_DIR} && \
+    for module in ${MODULES}; do \
+        rm -rf "$module"; \
+    done
+
+WORKDIR /workspace

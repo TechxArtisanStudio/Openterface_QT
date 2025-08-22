@@ -12,169 +12,116 @@
     run:
       shell: bash
   
-  env:
-    ARTIFACT: openterfaceQT.linux.amd64.portable
-    SOURCE_DIR: ${{ github.workspace }}
-    QT_VERSION: 6.6.3 
-    GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  
-  jobs:
-    build:
-      runs-on: ubuntu-latest
-      steps:
-        - uses: actions/checkout@v2
-          with:
-            fetch-depth: 0
+env:
+  ARTIFACT: openterfaceQT.linux.amd64.portable
+  SOURCE_DIR: ${{ github.workspace }}
+  QT_VERSION: 6.6.3 
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository_owner }}/openterface-qt
 
-        - name: Cache Qt Build
-          id: cache-qt
-          uses: actions/cache@v3
-          with:
-            path: /opt/Qt6
-            key: qt-${{ env.QT_VERSION }}-linux-static
-            restore-keys: |
-              qt-${{ env.QT_VERSION }}-linux-static
-  
-        - name: Set up Python
-          uses: actions/setup-python@v5
-          with:
-            python-version: '3.10'
-  
-        - name: Build Qt Statically
-          if: steps.cache-qt.outputs.cache-hit != 'true'
-          run: |
-            bash ${{ env.SOURCE_DIR }}/build-script/build-static-qt-from-source.sh
-  
-        - name: Create build directory
-          run: |
-            mkdir ${{ runner.temp }}/build
-            
-        - name: Prepare Driver Files
-          run: |
-            mkdir ${{ env.SOURCE_DIR }}/drivers
-            cp driver/linux/* ${{ env.SOURCE_DIR }}/drivers/
-        
-        - name: Install OpenGL ES Development Packages
-          run: |
-            sudo apt-get update
-            sudo apt-get install -y \
-              libgles2-mesa-dev \
-              libegl1-mesa-dev \
-              libglib2.0-dev \
-              libxrandr2 \
-              libxcb1-dev \
-              '^libxcb.*-dev' \
-              libx11-xcb-dev \
-              libglu1-mesa-dev \
-              libxrender-dev \
-              libxi-dev \
-              libxkbcommon-dev \
-              libxkbcommon-x11-dev \
-              libexpat-dev \
-              libfreetype6-dev \
-              libfontconfig1-dev \
-              libx11-dev \
-              libdbus-1-dev \
-              libdbus-glib-1-dev \
-              libpulse-dev \
-              libsndfile1-dev \
-              libxrandr-dev \
-              libpcre2-dev \
-              libxrender-dev \
-              libexpat1-dev \
-              libdrm-dev \
-              libgbm-dev \
-              libatspi2.0-dev \
-              libudev-dev \
-              upx-ucl
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
-        - name: Analyze original binary size (if exists)
-          run: |
-            if [ -f ${{ runner.temp }}/build/openterfaceQT ]; then
-              ls -lh ${{ runner.temp }}/build/openterfaceQT
-            fi
-  
-        - name: Build Portable Executable
-          working-directory: ${{ runner.temp }}/build
-  
-          run: |
-            echo "Setting LD_LIBRARY_PATH..."
-            export LD_LIBRARY_PATH=/usr/lib:/usr/local/lib:$LD_LIBRARY_PATH
-            
+      - name: Pull Static Qt Docker Image
+        run: |
+          docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-complete:latest
 
-            # Set environment variables for PCRE2
-            export PCRE2_DIR=${{ runner.temp }}/pcre2-install
-            export CPATH=$PCRE2_DIR/include:$CPATH
-            export LIBRARY_PATH=$PCRE2_DIR/lib:$LIBRARY_PATH
-            export LD_LIBRARY_PATH=$PCRE2_DIR/lib:$LD_LIBRARY_PATH
-            export PKG_CONFIG_PATH=$PCRE2_DIR/lib/pkgconfig:$PKG_CONFIG_PATH
+      - name: Install host tools for packaging
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libfuse2 upx-ucl
 
-            ls "${{ env.SOURCE_DIR }}/config/languages"
+      - name: Build Portable Executable in Docker
+        run: |
+          # Create build directory on host for artifact collection
+          mkdir -p ${{ runner.temp }}/build
+          
+          # Build application using Static Qt Docker environment
+          docker run --rm \
+            -v ${{ github.workspace }}:/workspace/src \
+            -v ${{ runner.temp }}/build:/workspace/build \
+            -w /workspace/src \
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-complete:latest \
+            bash -c "
+              echo 'Building Openterface QT Application (Static Qt)...'
+              
+              # Update translations
+              /opt/Qt6/bin/lupdate openterfaceQT.pro -no-obsolete || echo 'lupdate failed, continuing...'
+              
+              # Release translations
+              /opt/Qt6/bin/lrelease openterfaceQT.pro || echo 'lrelease failed, continuing...'
+              
+              # Configure and build with CMake (static linking)
+              cd /workspace/build
+              cmake -S /workspace/src -B . \\
+                  -DCMAKE_BUILD_TYPE=Release \\
+                  -DBUILD_SHARED_LIBS=OFF \\
+                  -DCMAKE_PREFIX_PATH=/opt/Qt6 \\
+                  -DCMAKE_INSTALL_PREFIX=release \\
+                  -DCMAKE_POLICY_DEFAULT_CMP0177=NEW \\
+                  -DCMAKE_POLICY_DEFAULT_CMP0174=NEW \\
+                  -DCMAKE_VERBOSE_MAKEFILE=ON \\
+                  -DQT_DEBUG_FIND_PACKAGE=ON \\
+                  -DCMAKE_CXX_FLAGS='-Os -ffunction-sections -fdata-sections' \\
+                  -DCMAKE_C_FLAGS='-Os -ffunction-sections -fdata-sections' \\
+                  -DCMAKE_EXE_LINKER_FLAGS='-Wl,--gc-sections -Wl,--strip-all' \\
+                  -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON \\
+                  -DCMAKE_POSITION_INDEPENDENT_CODE=ON \\
+                  -DFFMPEG_LIBRARIES='/opt/Qt6/lib/libavformat.a;/opt/Qt6/lib/libavcodec.a;/opt/Qt6/lib/libavutil.a;/opt/Qt6/lib/libswresample.a;/opt/Qt6/lib/libswscale.a' \\
+                  -DFFMPEG_INCLUDE_DIRS=/opt/Qt6/include
+              
+              # Build the application
+              VERBOSE=1 cmake --build . || { echo 'CMake build failed'; exit 1; }
+              
+              # Verify build output
+              if [ ! -f openterfaceQT ]; then
+                echo 'Error: Failed to build openterfaceQT'
+                exit 1
+              fi
+              
+              echo 'Analyzing binary size before compression...'
+              ls -lh openterfaceQT
+            "
+          
+          # Compress the binary on the host (since UPX may not be in Docker)
+          echo "Compressing binary with UPX..."
+          upx --best --lzma ${{ runner.temp }}/build/openterfaceQT
+          
+          echo "Analyzing binary size after compression..."
+          ls -lh ${{ runner.temp }}/build/openterfaceQT
+          
+          # Create portable package
+          mkdir -p ${{ runner.temp }}/build/package
+          cp ${{ runner.temp }}/build/openterfaceQT ${{ runner.temp }}/build/package/openterfaceQT-portable
 
-            echo "Updating translations with lupdate..."
-            /opt/Qt6/bin/lupdate "${{ env.SOURCE_DIR }}/openterfaceQT.pro"
+      - name: Install AppImage tools
+        run: |
+          wget -O linuxdeploy-x86_64.AppImage https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
+          wget -O linuxdeploy-plugin-qt-x86_64.AppImage https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-x86_64.AppImage
+          wget -O appimagetool "https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage"
+          
+          chmod +x linuxdeploy-x86_64.AppImage linuxdeploy-plugin-qt-x86_64.AppImage appimagetool
+          sudo mv linuxdeploy-x86_64.AppImage linuxdeploy-plugin-qt-x86_64.AppImage appimagetool /usr/local/bin/
 
-            echo "Generating binary translations with lrelease..."
-            /opt/Qt6/bin/lrelease "${{ env.SOURCE_DIR }}/openterfaceQT.pro" 
-
-            ls "${{ env.SOURCE_DIR }}/config/languages"
-
-            echo "Configuring with CMake..."
-            cmake -S "${{ env.SOURCE_DIR }}" -B . \
-                -DCMAKE_BUILD_TYPE=Release \
-                -DBUILD_SHARED_LIBS=OFF \
-                -DCMAKE_PREFIX_PATH="/opt/Qt6" \
-                -DCMAKE_INSTALL_PREFIX=release \
-                -DCMAKE_POLICY_DEFAULT_CMP0177=NEW \
-                -DCMAKE_POLICY_DEFAULT_CMP0174=NEW \
-                -DCMAKE_VERBOSE_MAKEFILE=ON \
-                -DQT_DEBUG_FIND_PACKAGE=ON \
-                -DCMAKE_CXX_FLAGS="-Os -ffunction-sections -fdata-sections" \
-                -DCMAKE_C_FLAGS="-Os -ffunction-sections -fdata-sections" \
-                -DCMAKE_EXE_LINKER_FLAGS="-Wl,--gc-sections -Wl,--strip-all" \
-                -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON \
-                -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
-                -DFFMPEG_LIBRARIES="/opt/Qt6/lib/libavformat.a;/opt/Qt6/lib/libavcodec.a;/opt/Qt6/lib/libavutil.a;/opt/Qt6/lib/libswresample.a;/opt/Qt6/lib/libswscale.a" \
-                -DFFMPEG_INCLUDE_DIRS="/opt/Qt6/include"
-            
-            echo "Building with CMake..."
-            VERBOSE=1 cmake --build . || (echo "CMake build failed. Please check the build configuration." && exit 1)
-  
-            if [ ! -f openterfaceQT ]; then
-              echo "Error: Failed to build openterfaceQT"
-              exit 1
-            fi
-  
-            echo "Creating portable package..."
-            mkdir package
-
-            echo "Analyzing binary size before compression..."
-            ls -lh openterfaceQT
-            
-            echo "Compressing binary with UPX..."
-            upx --best --lzma openterfaceQT
-            
-            echo "Analyzing binary size after compression..."
-            ls -lh openterfaceQT
-            
-            cp openterfaceQT package/openterfaceQT-portable
-  
-        - name: Install AppImage tools
-          run: |
-            sudo apt-get update
-            sudo apt-get install -y libfuse2
-            
-            wget -O linuxdeploy-x86_64.AppImage https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
-            wget -O linuxdeploy-plugin-qt-x86_64.AppImage https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-x86_64.AppImage
-            wget -O appimagetool "https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage"
-            
-            chmod +x linuxdeploy-x86_64.AppImage linuxdeploy-plugin-qt-x86_64.AppImage appimagetool
-            sudo mv linuxdeploy-x86_64.AppImage linuxdeploy-plugin-qt-x86_64.AppImage appimagetool /usr/local/bin/
-
-        - name: Create AppImage
-          working-directory: ${{ runner.temp }}
-          run: |
+      - name: Create AppImage
+        working-directory: ${{ runner.temp }}
+        run: |
             # Create AppDir structure
             mkdir -p AppDir/usr/bin
             mkdir -p AppDir/usr/share/applications
@@ -210,17 +157,17 @@
               exit 1
             fi
 
-        - name: Save build artifact (Portable)
-          uses: actions/upload-artifact@v4
-          with:
+      - name: Save build artifact (Portable)
+        uses: actions/upload-artifact@v4
+        with:
             name: ${{ env.ARTIFACT }}
             path: |
               ${{ runner.temp }}/build/package/openterfaceQT-portable
             if-no-files-found: error
 
-        - name: Save build artifact (AppImage)
-          uses: actions/upload-artifact@v4
-          with:
+      - name: Save build artifact (AppImage)
+        uses: actions/upload-artifact@v4
+        with:
             name: ${{ env.ARTIFACT }}.AppImage
             path: |
               ${{ runner.temp }}/openterfaceQT.linux.amd64.AppImage

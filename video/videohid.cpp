@@ -204,12 +204,13 @@ float VideoHid::getPixelclk() {
 
 bool VideoHid::getSpdifout() {
     int bit = 1;
-    int mask = 0xFE;
+    int mask = 0xFE;  // Mask for potential future use
     if (GlobalVar::instance().getCaptureCardFirmwareVersion() < "24081309") {
         qCDebug(log_host_hid)  << "Firmware version is less than 24081309";
         bit = 0x10;
         mask = 0xEF;
     }
+    Q_UNUSED(mask)  // Suppress unused variable warning
     
     bool result = usbXdataRead4Byte(ADDR_SPDIFOUT).first.at(0) & bit;
     return result;

@@ -1,0 +1,136 @@
+# Build GStreamer components (simplified version for better reliability)
+ARG BASE_IMAGE=ghcr.io/kevinzjpeng/openterface-qt-ffmpeg:latest
+FROM ${BASE_IMAGE}
+
+WORKDIR ${WORK_DIR}
+
+# Upgrade Meson to meet GStreamer requirements (>= 0.62)
+RUN echo "Upgrading Meson to support GStreamer 1.22.11..." && \
+    pip3 install --upgrade --break-system-packages meson>=0.62 && \
+    meson --version
+
+# Set up environment for GStreamer build
+ENV PKG_CONFIG_PATH="${WORK_DIR}/gstreamer_build/lib/pkgconfig:${FFMPEG_PREFIX}/lib/pkgconfig:/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/share/pkgconfig"
+ENV LD_LIBRARY_PATH="${WORK_DIR}/gstreamer_build/lib:${FFMPEG_PREFIX}/lib"
+
+# Create GStreamer build directories
+RUN mkdir -p "${WORK_DIR}/gstreamer_sources" "${WORK_DIR}/gstreamer_build"
+
+# Download GStreamer components (only essential ones)
+WORKDIR ${WORK_DIR}/gstreamer_sources
+
+RUN echo "Downloading GStreamer core..." && \
+    wget -O gstreamer-${GSTREAMER_VERSION}.tar.xz \
+    https://gstreamer.freedesktop.org/src/gstreamer/gstreamer-${GSTREAMER_VERSION}.tar.xz && \
+    tar -xf gstreamer-${GSTREAMER_VERSION}.tar.xz && \
+    rm gstreamer-${GSTREAMER_VERSION}.tar.xz
+
+RUN echo "Downloading gst-plugins-base..." && \
+    wget -O gst-plugins-base-${GSTREAMER_VERSION}.tar.xz \
+    https://gstreamer.freedesktop.org/src/gst-plugins-base/gst-plugins-base-${GSTREAMER_VERSION}.tar.xz && \
+    tar -xf gst-plugins-base-${GSTREAMER_VERSION}.tar.xz && \
+    rm gst-plugins-base-${GSTREAMER_VERSION}.tar.xz
+
+RUN echo "Downloading gst-plugins-good..." && \
+    wget -O gst-plugins-good-${GSTREAMER_VERSION}.tar.xz \
+    https://gstreamer.freedesktop.org/src/gst-plugins-good/gst-plugins-good-${GSTREAMER_VERSION}.tar.xz && \
+    tar -xf gst-plugins-good-${GSTREAMER_VERSION}.tar.xz && \
+    rm gst-plugins-good-${GSTREAMER_VERSION}.tar.xz
+
+# Build GStreamer core
+RUN echo "Building GStreamer core..." && \
+    cd "${WORK_DIR}/gstreamer_sources/gstreamer-${GSTREAMER_VERSION}" && \
+    meson setup build \
+        --prefix="${WORK_DIR}/gstreamer_build" \
+        --default-library=static \
+        --buildtype=release \
+        -Ddoc=disabled \
+        -Dintrospection=disabled \
+        -Dexamples=disabled \
+        -Dtests=disabled \
+        -Dbenchmarks=disabled \
+        -Dtools=disabled \
+        -Dnls=disabled && \
+    ninja -C build && \
+    ninja -C build install && \
+    echo "GStreamer core installation completed" && \
+    echo "Searching for pkg-config files..." && \
+    find "${WORK_DIR}/gstreamer_build" -name "*.pc" -type f 2>/dev/null || echo "No .pc files found" && \
+    echo "Directory structure:" && \
+    find "${WORK_DIR}/gstreamer_build" -type d -name "*pkgconfig*" 2>/dev/null || echo "No pkgconfig directories found"
+
+# Update PKG_CONFIG_PATH after GStreamer core installation
+ENV PKG_CONFIG_PATH="${WORK_DIR}/gstreamer_build/lib/pkgconfig:${PKG_CONFIG_PATH}"
+
+# Build gst-plugins-base (essential plugins)
+RUN echo "Building gst-plugins-base..." && \
+    echo "Locating GStreamer pkg-config files..." && \
+    GSTREAMER_PC_DIR=$(find "${WORK_DIR}/gstreamer_build" -name "gstreamer-1.0.pc" -type f -exec dirname {} \; 2>/dev/null | head -1) && \
+    if [ -n "$GSTREAMER_PC_DIR" ]; then \
+        echo "Found GStreamer pkg-config files in: $GSTREAMER_PC_DIR"; \
+        export PKG_CONFIG_PATH="$GSTREAMER_PC_DIR:${FFMPEG_PREFIX}/lib/pkgconfig:/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/share/pkgconfig"; \
+    else \
+        echo "GStreamer pkg-config files not found, using default path"; \
+        export PKG_CONFIG_PATH="${WORK_DIR}/gstreamer_build/lib/pkgconfig:${FFMPEG_PREFIX}/lib/pkgconfig:/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/share/pkgconfig"; \
+    fi && \
+    echo "PKG_CONFIG_PATH=$PKG_CONFIG_PATH" && \
+    pkg-config --exists gstreamer-1.0 && echo "GStreamer-1.0 found via pkg-config" || echo "ERROR: GStreamer-1.0 NOT found" && \
+    cd "${WORK_DIR}/gstreamer_sources/gst-plugins-base-${GSTREAMER_VERSION}" && \
+    meson setup build \
+        --prefix="${WORK_DIR}/gstreamer_build" \
+        --default-library=static \
+        --buildtype=release \
+        -Ddoc=disabled \
+        -Dintrospection=disabled \
+        -Dexamples=disabled \
+        -Dtests=disabled \
+        -Dtools=disabled \
+        -Dnls=disabled \
+        -Dorc=disabled \
+        -Dx11=enabled \
+        -Dgl=disabled && \
+    ninja -C build && \
+    ninja -C build install
+
+# Build gst-plugins-good (minimal set)
+RUN echo "Building gst-plugins-good..." && \
+    GSTREAMER_PC_DIR=$(find "${WORK_DIR}/gstreamer_build" -name "gstreamer-1.0.pc" -type f -exec dirname {} \; 2>/dev/null | head -1) && \
+    if [ -n "$GSTREAMER_PC_DIR" ]; then \
+        export PKG_CONFIG_PATH="$GSTREAMER_PC_DIR:${FFMPEG_PREFIX}/lib/pkgconfig:/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/share/pkgconfig"; \
+    else \
+        export PKG_CONFIG_PATH="${WORK_DIR}/gstreamer_build/lib/pkgconfig:${FFMPEG_PREFIX}/lib/pkgconfig:/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/share/pkgconfig"; \
+    fi && \
+    cd "${WORK_DIR}/gstreamer_sources/gst-plugins-good-${GSTREAMER_VERSION}" && \
+    meson setup build \
+        --prefix="${WORK_DIR}/gstreamer_build" \
+        --default-library=static \
+        --buildtype=release \
+        -Ddoc=disabled \
+        -Dexamples=disabled \
+        -Dtests=disabled \
+        -Dqt5=disabled \
+        -Dqt6=disabled \
+        -Dnls=disabled \
+        -Drtp=enabled \
+        -Drtpmanager=enabled \
+        -Drtsp=enabled \
+        -Dudp=enabled \
+        -Dv4l2=enabled \
+        -Dvideocrop=enabled \
+        -Dvideofilter=enabled && \
+    ninja -C build && \
+    ninja -C build install
+
+# Copy GStreamer to Qt installation directory
+RUN echo "Installing GStreamer to ${INSTALL_PREFIX}..." && \
+    mkdir -p ${INSTALL_PREFIX}/lib ${INSTALL_PREFIX}/include && \
+    cp -a ${WORK_DIR}/gstreamer_build/lib/. ${INSTALL_PREFIX}/lib/ && \
+    cp -a ${WORK_DIR}/gstreamer_build/include/. ${INSTALL_PREFIX}/include/
+
+# Update final environment
+ENV PKG_CONFIG_PATH="${INSTALL_PREFIX}/lib/pkgconfig:${PKG_CONFIG_PATH}"
+
+# Clean up to reduce image size
+RUN cd ${WORK_DIR} && rm -rf gstreamer_sources
+
+WORKDIR /workspace

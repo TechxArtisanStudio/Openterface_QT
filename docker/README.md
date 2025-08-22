@@ -1,10 +1,193 @@
-# OpenTerface Alpine QT ARM64 Builder
+# Docker-based Qt Static Build Environment
 
-This directory contains Docker configurations for building Qt for ARM64 architecture using Alpine Linux.
+This directory contains Docker configurations for building a complete Qt static build environment based on the original `build-static-qt-from-source.sh` script.
+
+## Overview
+
+The Docker setup is divided into multiple stages to enable efficient caching and step-by-step building:
+
+1. **qt-base**: Ubuntu base with all build tools and development libraries
+2. **qt-ffmpeg**: Base + libusb + FFmpeg static libraries
+3. **qt-gstreamer**: FFmpeg + GStreamer components and static libraries
+4. **qt-complete**: Complete Qt 6.6.3 static build environment
+
+## Quick Start
+
+### Option 1: Using GitHub Actions (Recommended)
+
+1. Go to your repository's Actions tab
+2. Select "Build Qt Environment (Step by Step)"
+3. Run workflow with:
+   - Step: "all" (builds all components)
+   - Push to registry: true
+
+### Option 2: Local Build
+
+```bash
+# Build all components step by step
+./scripts/build-qt-docker.sh all
+
+# Or build individual components
+./scripts/build-qt-docker.sh base
+./scripts/build-qt-docker.sh ffmpeg
+./scripts/build-qt-docker.sh gstreamer
+./scripts/build-qt-docker.sh complete
+```
+
+### Option 3: Pull from Registry
+
+```bash
+docker pull ghcr.io/kevinzjpeng/openterface-qt-complete:latest
+```
+
+## Building Your Application
+
+Once you have the Qt environment, you can build your application:
+
+```bash
+# Using the provided script
+./scripts/docker-build-app.sh
+
+# Or manually
+docker run --rm \
+  -v $(pwd):/workspace/src \
+  -w /workspace/src \
+  ghcr.io/kevinzjpeng/openterface-qt-complete:latest \
+  bash -c "
+    mkdir -p build && cd build
+    cmake -DCMAKE_PREFIX_PATH=/opt/Qt6 \
+          -DCMAKE_BUILD_TYPE=Release \
+          -DBUILD_SHARED_LIBS=OFF \
+          ..
+    make -j\$(nproc)
+  "
+```
+
+## Docker Images
+
+### Base Image (`qt-base`)
+- **Size**: ~2GB
+- **Contents**: Ubuntu 22.04 with build tools, X11 libraries, development headers
+- **Use case**: Foundation for Qt builds
+
+### FFmpeg Image (`qt-ffmpeg`) 
+- **Size**: ~2.5GB
+- **Contents**: Base + libusb 1.0.26 + FFmpeg 6.1.1 static libraries
+- **Use case**: Multimedia support foundation
+
+### GStreamer Image (`qt-gstreamer`)
+- **Size**: ~3GB  
+- **Contents**: FFmpeg + GStreamer 1.22.11 + ORC static libraries
+- **Use case**: Advanced multimedia pipeline support
+
+### Complete Image (`qt-complete`)
+- **Size**: ~4GB
+- **Contents**: Full Qt 6.6.3 static build with all modules
+- **Use case**: Ready-to-use Qt development environment
+
+## Environment Variables
+
+The complete image sets these environment variables:
+
+```bash
+QT_VERSION=6.6.3
+INSTALL_PREFIX=/opt/Qt6
+PATH=/opt/Qt6/bin:$PATH
+PKG_CONFIG_PATH=/opt/Qt6/lib/pkgconfig:$PKG_CONFIG_PATH
+```
+
+## Qt Modules Included
+
+- **qtbase**: Core Qt functionality
+- **qtshadertools**: Shader compilation tools
+- **qtdeclarative**: Qt Quick/QML support
+- **qtmultimedia**: Audio/video support (with FFmpeg backend)
+- **qtsvg**: SVG support
+- **qtserialport**: Serial port communication
+- **qttools**: Development tools (linguist, etc.)
+
+## Build Features
+
+### Enabled Features
+- Static linking (`-DBUILD_SHARED_LIBS=OFF`)
+- FFmpeg multimedia backend
+- PulseAudio support
+- X11/XCB support
+- OpenGL support
+- D-Bus integration
+- SVG rendering
+
+### Disabled Features
+- GStreamer backend (FFmpeg is used instead)
+- SQL modules
+- Test frameworks
+- ICU (to reduce size)
+
+## Troubleshooting
+
+### Build Failures
+
+1. **Package installation errors**: Some packages may not be available on all Ubuntu variants. The Dockerfile includes fallback options.
+
+2. **Memory issues**: Qt compilation is memory-intensive. Ensure Docker has at least 4GB RAM allocated.
+
+3. **Cache issues**: If builds fail unexpectedly, clear Docker cache:
+   ```bash
+   docker builder prune -a
+   ```
+
+### Application Build Issues
+
+1. **CMake configuration errors**: Ensure all Qt module paths are correctly specified:
+   ```bash
+   -DQt6_DIR="/opt/Qt6/lib/cmake/Qt6"
+   -DQt6Multimedia_DIR="/opt/Qt6/lib/cmake/Qt6Multimedia"
+   # ... etc
+   ```
+
+2. **Missing libraries**: Verify the environment with:
+   ```bash
+   docker run --rm ghcr.io/kevinzjpeng/openterface-qt-complete:latest \
+     /opt/Qt6/bin/verify-qt-installation.sh
+   ```
+
+3. **Runtime dependencies**: Static builds should have minimal dependencies. Check with:
+   ```bash
+   ldd ./build/your-application
+   ```
+
+## Development Workflow
+
+### Step-by-step Testing
+
+To avoid long rebuild times, you can test each component individually:
+
+```bash
+# Test base image
+./scripts/test-base-docker.sh
+
+# Build and test each step
+./scripts/build-qt-docker.sh base
+./scripts/build-qt-docker.sh ffmpeg  
+./scripts/build-qt-docker.sh gstreamer
+./scripts/build-qt-docker.sh complete
+```
+
+### GitHub Actions Integration
+
+The workflow supports building individual steps:
+
+- `base`: Just the base Ubuntu image with tools
+- `ffmpeg`: Base + FFmpeg libraries  
+- `gstreamer`: FFmpeg + GStreamer
+- `qt-complete`: Full Qt environment
+- `all`: Build everything in sequence
+
+This allows you to debug build issues step by step without rebuilding everything.
 
 ## Authentication with GitHub Container Registry
 
-Before you can push images to GitHub Container Registry (ghcr.io), you need to authenticate properly. The 403 Forbidden error indicates that there's an issue with authentication or permissions.
+Before you can push images to GitHub Container Registry (ghcr.io), you need to authenticate properly.
 
 ### Step 1: Create a GitHub Personal Access Token (PAT)
 
@@ -28,42 +211,27 @@ export GITHUB_USERNAME=your_github_username
 echo $GITHUB_TOKEN | docker login ghcr.io -u $GITHUB_USERNAME --password-stdin
 ```
 
-### Step 3: Build and Push the Image
+## Comparison with Original Script
 
-Use the provided script:
+| Aspect | Original Script | Docker Approach |
+|--------|----------------|-----------------|
+| **Caching** | No caching | Layer-based caching |
+| **Reproducibility** | Environment-dependent | Containerized |
+| **Debugging** | Full rebuild needed | Step-by-step builds |
+| **CI/CD** | Manual setup | GitHub Actions ready |
+| **Distribution** | Script sharing | Container registry |
 
-```bash
-chmod +x build-and-push.sh
-./build-and-push.sh
-```
+## Performance Notes
 
-Or manually:
+- **Build time**: Initial build ~2-3 hours, subsequent builds with cache ~30-60 minutes
+- **Size**: Final image ~4GB (reasonable for a complete Qt environment)
+- **Memory**: Requires 4GB+ RAM during build, 2GB+ during use
 
-```bash
-docker buildx create --use --name openterface-builder --driver docker-container
-docker buildx build --platform linux/arm64 \
-  -t ghcr.io/TechxArtisanStudio/openterface-alpine-qt-arm64-builder:6.6.3-alpine \
-  -f Dockerfile.alpine \
-  --push \
-  .
-```
+## Contributing
 
-## Common Issues
+When modifying the Docker setup:
 
-### 403 Forbidden Error
-
-If you encounter a "403 Forbidden" error when pushing to ghcr.io:
-
-1. Ensure your Personal Access Token has the correct scopes (write:packages)
-2. Verify that you're properly authenticated with `docker login ghcr.io`
-3. Check if you have the necessary permissions to push to the repository
-4. Make sure the repository exists and is properly configured to accept packages
-
-### Repository Visibility
-
-By default, GitHub packages inherit the visibility of their repository. If you're pushing to a repository that doesn't exist yet, make sure to create it first or adjust the visibility settings.
-
-## Reference
-
-- [GitHub Container Registry Documentation](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry)
-- [Pushing and pulling Docker images](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry#pushing-container-images)
+1. Test each stage individually
+2. Update version numbers in environment variables
+3. Ensure backward compatibility
+4. Update documentation
