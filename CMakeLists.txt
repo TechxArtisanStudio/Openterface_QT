@@ -17,6 +17,10 @@ option(USE_USB "Enable USB functionality via libusb" ON)
 option(USE_GSTREAMER "Enable GStreamer multimedia backend" ON)
 
 # Option to disable static GStreamer plugins (for debugging)
+# Note: Static plugins are embedded in the binary for standalone deployment
+# If static plugins are not found, the application will use system plugins at runtime
+# This requires GStreamer to be installed on the target system
+# If you encounter linking errors with static plugins, try setting this to OFF
 option(USE_GSTREAMER_STATIC_PLUGINS "Link GStreamer plugins statically" ON)
 
 # Prefer static libraries
@@ -115,6 +119,7 @@ if(USE_GSTREAMER AND EXISTS "${GSTREAMER_INCLUDE_DIR}/gst/gst.h" AND EXISTS "${G
         "libgstbase-1.0.a"
         "libgstcontroller-1.0.a"
         "libgstnet-1.0.a"
+        "libgstallocators-1.0.a"  # Contains dmabuf and fd allocator functions
     )
     
     # Check for each core library and add if found
@@ -207,6 +212,7 @@ if(USE_GSTREAMER AND EXISTS "${GSTREAMER_INCLUDE_DIR}/gst/gst.h" AND EXISTS "${G
         set(ESSENTIAL_PLUGIN_CANDIDATES
             "gstvideo4linux2"     # v4l2src plugin - required for video input
             "gstcoreelements"     # queue, capsfilter, etc. - essential elements
+            "gstjpeg"             # JPEG codec support - often required
         )
         
         # Optional plugins - enhanced functionality
@@ -215,10 +221,12 @@ if(USE_GSTREAMER AND EXISTS "${GSTREAMER_INCLUDE_DIR}/gst/gst.h" AND EXISTS "${G
             "gsttypefindfunctions" # typefind elements
             "gstvideofilter"      # video filter base
             "gstvideotestsrc"     # videotestsrc
-            "gstjpeg"             # jpegdec, jpegenc
             "gstximagesink"       # ximagesink
             "gstxvimagesink"      # xvimagesink
             "gstautodetect"       # autovideosink
+            "gstplayback"         # playback elements
+            "gstdmabuf"          # DMA buffer support
+            "gstalloc"           # Memory allocators
         )
         
         # Combine all plugins for searching
@@ -583,6 +591,24 @@ if(GSTREAMER_FOUND AND GSTREAMER_VIDEO_FOUND)
         
         # Static GStreamer linking with proper library grouping
         if(USE_GSTREAMER_STATIC_PLUGINS AND GSTREAMER_PLUGIN_LIBRARIES)
+            # Find the correct ORC library path
+            set(ORC_LIB_CANDIDATES
+                "/opt/orc-static/lib/x86_64-linux-gnu/liborc-0.4.a"
+                "/opt/orc-static/lib/aarch64-linux-gnu/liborc-0.4.a"
+                "/opt/orc-static/lib/liborc-0.4.a"
+                "/usr/lib/x86_64-linux-gnu/liborc-0.4.a"
+                "/usr/lib/aarch64-linux-gnu/liborc-0.4.a"
+            )
+            
+            set(ORC_LIB "")
+            foreach(ORC_PATH ${ORC_LIB_CANDIDATES})
+                if(EXISTS "${ORC_PATH}")
+                    set(ORC_LIB "${ORC_PATH}")
+                    message(STATUS "Found ORC library: ${ORC_LIB}")
+                    break()
+                endif()
+            endforeach()
+            
             # Link with static plugins
             target_link_libraries(openterfaceQT PRIVATE 
                 -Wl,--start-group
@@ -591,19 +617,37 @@ if(GSTREAMER_FOUND AND GSTREAMER_VIDEO_FOUND)
                 -Wl,--end-group
                 -Wl,--whole-archive
                 ${GSTREAMER_PLUGIN_LIBRARIES}
-                /opt/orc-static/lib/aarch64-linux-gnu/liborc-0.4.a
                 -Wl,--no-whole-archive
+                ${ORC_LIB}
                 -lm -pthread
             )
             message(STATUS "Added static GStreamer libraries with static plugins")
         else()
+            # Find the correct ORC library path
+            set(ORC_LIB_CANDIDATES
+                "/opt/orc-static/lib/x86_64-linux-gnu/liborc-0.4.a"
+                "/opt/orc-static/lib/aarch64-linux-gnu/liborc-0.4.a"
+                "/opt/orc-static/lib/liborc-0.4.a"
+                "/usr/lib/x86_64-linux-gnu/liborc-0.4.a"
+                "/usr/lib/aarch64-linux-gnu/liborc-0.4.a"
+            )
+            
+            set(ORC_LIB "")
+            foreach(ORC_PATH ${ORC_LIB_CANDIDATES})
+                if(EXISTS "${ORC_PATH}")
+                    set(ORC_LIB "${ORC_PATH}")
+                    message(STATUS "Found ORC library: ${ORC_LIB}")
+                    break()
+                endif()
+            endforeach()
+            
             # Link without static plugins (will use system plugins)
             target_link_libraries(openterfaceQT PRIVATE 
                 -Wl,--start-group
                 ${GSTREAMER_LIBRARIES}
                 ${GSTREAMER_VIDEO_LIBRARIES}
                 -Wl,--end-group
-                /opt/orc-static/lib/aarch64-linux-gnu/liborc-0.4.a
+                ${ORC_LIB}
                 -lm -pthread
             )
             message(STATUS "Added static GStreamer libraries without static plugins")
