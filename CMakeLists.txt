@@ -179,10 +179,38 @@ if(USE_GSTREAMER AND EXISTS "${GSTREAMER_INCLUDE_DIR}/gst/gst.h" AND EXISTS "${G
     set(GSTREAMER_PLUGIN_LIBRARIES)
     
     if(USE_GSTREAMER_STATIC_PLUGINS)
+        # First, let's check what plugin directories exist
+        set(PLUGIN_SEARCH_DIRS
+            "${GSTREAMER_ROOT_DIR}/lib/gstreamer-1.0"
+            "${GSTREAMER_ROOT_DIR}/lib/x86_64-linux-gnu/gstreamer-1.0"
+            "${GSTREAMER_ROOT_DIR}/lib/aarch64-linux-gnu/gstreamer-1.0"
+            "/usr/lib/x86_64-linux-gnu/gstreamer-1.0"
+            "/usr/lib/aarch64-linux-gnu/gstreamer-1.0"
+            "/usr/local/lib/gstreamer-1.0"
+        )
+        
+        message(STATUS "Searching for GStreamer plugins in:")
+        foreach(PLUGIN_DIR ${PLUGIN_SEARCH_DIRS})
+            if(EXISTS "${PLUGIN_DIR}")
+                message(STATUS "  - ${PLUGIN_DIR} (exists)")
+                file(GLOB AVAILABLE_PLUGINS "${PLUGIN_DIR}/lib*.a")
+                if(AVAILABLE_PLUGINS)
+                    message(STATUS "    Found static plugins: ${AVAILABLE_PLUGINS}")
+                endif()
+            else()
+                message(STATUS "  - ${PLUGIN_DIR} (not found)")
+            endif()
+        endforeach()
+        
         # List of plugins to try to find
-        set(PLUGIN_CANDIDATES
-            "gstvideo4linux2"     # v4l2src plugin
-            "gstcoreelements"     # queue, capsfilter, etc.
+        # Essential plugins - core functionality
+        set(ESSENTIAL_PLUGIN_CANDIDATES
+            "gstvideo4linux2"     # v4l2src plugin - required for video input
+            "gstcoreelements"     # queue, capsfilter, etc. - essential elements
+        )
+        
+        # Optional plugins - enhanced functionality
+        set(OPTIONAL_PLUGIN_CANDIDATES
             "gstvideoconvertscale" # videoconvert, videoscale
             "gsttypefindfunctions" # typefind elements
             "gstvideofilter"      # video filter base
@@ -193,23 +221,50 @@ if(USE_GSTREAMER AND EXISTS "${GSTREAMER_INCLUDE_DIR}/gst/gst.h" AND EXISTS "${G
             "gstautodetect"       # autovideosink
         )
         
+        # Combine all plugins for searching
+        set(PLUGIN_CANDIDATES ${ESSENTIAL_PLUGIN_CANDIDATES} ${OPTIONAL_PLUGIN_CANDIDATES})
+        
         # Check for each plugin and add if found
         foreach(PLUGIN ${PLUGIN_CANDIDATES})
-            set(PLUGIN_PATH "${GSTREAMER_ROOT_DIR}/lib/gstreamer-1.0/lib${PLUGIN}.a")
-            if(EXISTS "${PLUGIN_PATH}")
-                list(APPEND GSTREAMER_PLUGIN_LIBRARIES "${PLUGIN_PATH}")
-                message(STATUS "Found GStreamer plugin: ${PLUGIN_PATH}")
-            else()
-                message(WARNING "GStreamer plugin not found: ${PLUGIN_PATH}")
+            # Try multiple possible locations for GStreamer plugins
+            set(PLUGIN_PATH_CANDIDATES
+                "${GSTREAMER_ROOT_DIR}/lib/gstreamer-1.0/lib${PLUGIN}.a"
+                "${GSTREAMER_ROOT_DIR}/lib/x86_64-linux-gnu/gstreamer-1.0/lib${PLUGIN}.a"
+                "${GSTREAMER_ROOT_DIR}/lib/aarch64-linux-gnu/gstreamer-1.0/lib${PLUGIN}.a"
+                "/usr/lib/x86_64-linux-gnu/gstreamer-1.0/lib${PLUGIN}.a"
+                "/usr/lib/aarch64-linux-gnu/gstreamer-1.0/lib${PLUGIN}.a"
+                "/usr/local/lib/gstreamer-1.0/lib${PLUGIN}.a"
+            )
+            
+            set(PLUGIN_FOUND FALSE)
+            foreach(PLUGIN_PATH ${PLUGIN_PATH_CANDIDATES})
+                if(EXISTS "${PLUGIN_PATH}")
+                    list(APPEND GSTREAMER_PLUGIN_LIBRARIES "${PLUGIN_PATH}")
+                    message(STATUS "Found GStreamer plugin: ${PLUGIN_PATH}")
+                    set(PLUGIN_FOUND TRUE)
+                    break()
+                endif()
+            endforeach()
+            
+            if(NOT PLUGIN_FOUND)
+                message(WARNING "GStreamer plugin not found: ${PLUGIN} (searched multiple locations)")
             endif()
         endforeach()
         
         if(NOT GSTREAMER_PLUGIN_LIBRARIES)
             message(WARNING "No GStreamer static plugins found - disabling static plugin linking")
+            message(STATUS "Will rely on system GStreamer plugins at runtime")
             set(USE_GSTREAMER_STATIC_PLUGINS OFF)
+        else()
+            list(LENGTH GSTREAMER_PLUGIN_LIBRARIES PLUGIN_COUNT)
+            message(STATUS "Found ${PLUGIN_COUNT} GStreamer static plugins for linking:")
+            foreach(FOUND_PLUGIN ${GSTREAMER_PLUGIN_LIBRARIES})
+                message(STATUS "  - ${FOUND_PLUGIN}")
+            endforeach()
         endif()
     else()
         message(STATUS "GStreamer static plugins disabled by USE_GSTREAMER_STATIC_PLUGINS=OFF")
+        message(STATUS "Will rely on system GStreamer plugins at runtime")
     endif()
     
     # Add system GLib libraries using pkg-config
