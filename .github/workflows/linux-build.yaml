@@ -318,7 +318,41 @@ jobs:
                 libv4l-dev \\
                 libxi-dev \\
                 libxv-dev \\
+                libavdevice-dev \\
+                libavcodec-dev \\
+                libavformat-dev \\
+                libavutil-dev \\
+                libswresample-dev \\
+                libswscale-dev \\
                 || echo 'Some packages may not be available, continuing...'
+              
+              # Fix FFmpeg library paths for CMake
+              echo 'Setting up FFmpeg libraries for static linking...'
+              mkdir -p /usr/local/lib /usr/local/include
+              
+              # Find and link FFmpeg libraries to expected locations
+              for lib in avdevice avfilter avformat avcodec swresample swscale avutil; do
+                # Try to find static libraries first, then shared
+                STATIC_LIB=\$(find /usr -name \"lib\${lib}.a\" 2>/dev/null | head -1)
+                SHARED_LIB=\$(find /usr -name \"lib\${lib}.so*\" 2>/dev/null | head -1)
+                
+                if [ -n \"\$STATIC_LIB\" ]; then
+                  echo \"Linking static \$lib: \$STATIC_LIB -> /usr/local/lib/lib\${lib}.a\"
+                  ln -sf \"\$STATIC_LIB\" \"/usr/local/lib/lib\${lib}.a\"
+                elif [ -n \"\$SHARED_LIB\" ]; then
+                  echo \"Linking shared \$lib: \$SHARED_LIB -> /usr/local/lib/lib\${lib}.a\"
+                  ln -sf \"\$SHARED_LIB\" \"/usr/local/lib/lib\${lib}.a\"
+                else
+                  echo \"Warning: lib\${lib} not found\"
+                fi
+              done
+              
+              # Link FFmpeg headers
+              FFMPEG_INCLUDE=\$(find /usr/include -name \"libavcodec\" -type d 2>/dev/null | head -1 | xargs dirname)
+              if [ -n \"\$FFMPEG_INCLUDE\" ]; then
+                echo \"Linking FFmpeg headers: \$FFMPEG_INCLUDE -> /usr/local/include\"
+                cp -r \"\$FFMPEG_INCLUDE\"/* /usr/local/include/ 2>/dev/null || true
+              fi
               
               # Update translations
               /opt/Qt6/bin/lupdate openterfaceQT.pro -no-obsolete || echo 'lupdate failed, continuing...'
@@ -333,18 +367,62 @@ jobs:
               # Configure and build with cmake (static linking)
               cd /workspace/build
               
+              # Check available FFmpeg libraries
+              echo 'Available FFmpeg libraries:'
+              find /usr -name 'libav*.a' -o -name 'libav*.so' 2>/dev/null | head -10
+              find /opt -name 'libav*.a' -o -name 'libav*.so' 2>/dev/null | head -10
+              find /usr/local -name 'libav*.a' -o -name 'libav*.so' 2>/dev/null | head -10
+              
+              echo 'Checking /usr/local/lib contents:'
+              ls -la /usr/local/lib/ | grep -E '(av|sw)' || echo 'No FFmpeg libraries in /usr/local/lib'
+              
+              echo 'Checking pkg-config for FFmpeg:'
+              pkg-config --list-all | grep -E '(libav|ffmpeg)' || echo 'No FFmpeg pkg-config files found'
+              
               # Try cmake first for static linking
               if cmake -DCMAKE_PREFIX_PATH=/opt/Qt6 \\
                        -DBUILD_SHARED_LIBS=OFF \\
                        -DCMAKE_BUILD_TYPE=Release \\
+                       -DCMAKE_FIND_LIBRARY_SUFFIXES='.a;.so' \\
+                       -DFFMPEG_ROOT=/usr/local \\
+                       -DFFMPEG_INCLUDE_DIRS=/usr/local/include \\
+                       -DPkgConfig_EXECUTABLE=\$(which pkg-config) \\
                        /workspace/src; then
                 echo 'CMake configuration successful, building with make...'
-                make -j\$(nproc)
+                if make -j\$(nproc); then
+                  echo 'CMake build completed successfully'
+                else
+                  echo 'CMake build failed, trying fallback...'
+                  FALLBACK=true
+                fi
               else
-                echo 'CMake configuration failed, falling back to qmake...'
-                # Fallback to qmake if cmake fails
-                /opt/Qt6/bin/qmake /workspace/src CONFIG+=staticlib CONFIG+=static
-                make -j\$(nproc)
+                echo 'CMake configuration failed, trying fallback...'
+                FALLBACK=true
+              fi
+              
+              # Fallback to qmake if cmake fails
+              if [ \"\$FALLBACK\" = \"true\" ]; then
+                echo 'Using qmake fallback for static build...'
+                cd /workspace/build
+                rm -rf * 2>/dev/null || true
+                
+                # Use qmake with static configuration
+                if /opt/Qt6/bin/qmake /workspace/src \\
+                   CONFIG+=staticlib \\
+                   CONFIG+=static \\
+                   'LIBS+=-static-libgcc -static-libstdc++'; then
+                  echo 'qmake configuration successful, building...'
+                  make -j\$(nproc) || {
+                    echo 'Static build failed, trying dynamic linking in static environment...'
+                    cd /workspace/build
+                    rm -rf * 2>/dev/null || true
+                    /opt/Qt6/bin/qmake /workspace/src
+                    make -j\$(nproc)
+                  }
+                else
+                  echo 'qmake configuration also failed!'
+                  exit 1
+                fi
               fi
               
               # Verify build output
