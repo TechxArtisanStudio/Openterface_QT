@@ -318,13 +318,18 @@ jobs:
                 libv4l-dev \\
                 libxi-dev \\
                 libxv-dev \\
-                libavdevice-dev \\
-                libavcodec-dev \\
-                libavformat-dev \\
-                libavutil-dev \\
-                libswresample-dev \\
-                libswscale-dev \\
                 || echo 'Some packages may not be available, continuing...'
+              
+              # Check for pre-existing TurboJPEG in Docker environment
+              echo 'Checking for TurboJPEG in Docker environment...'
+              find /opt -name '*turbojpeg*' 2>/dev/null | head -10
+              find /opt -name 'turbojpeg.h' 2>/dev/null | head -5
+              find /usr/local -name '*turbojpeg*' 2>/dev/null | head -10
+              find /usr/local -name 'turbojpeg.h' 2>/dev/null | head -5
+              
+              # Check if TurboJPEG is in the Qt6 installation
+              ls -la /opt/Qt6/include/ | grep -i jpeg || echo 'No JPEG headers in Qt6 include'
+              ls -la /opt/Qt6/lib/ | grep -i jpeg || echo 'No JPEG libraries in Qt6 lib'
               
               # Fix FFmpeg library paths for CMake
               echo 'Setting up FFmpeg libraries for static linking...'
@@ -346,6 +351,58 @@ jobs:
                   echo \"Warning: lib\${lib} not found\"
                 fi
               done
+              
+              # Set up TurboJPEG headers and libraries
+              echo 'Setting up TurboJPEG for compilation...'
+              
+              # First, check if TurboJPEG is already available in the Docker environment
+              TURBOJPEG_HEADER=\$(find /opt -name \"turbojpeg.h\" 2>/dev/null | head -1)
+              if [ -z \"\$TURBOJPEG_HEADER\" ]; then
+                TURBOJPEG_HEADER=\$(find /usr/local -name \"turbojpeg.h\" 2>/dev/null | head -1)
+              fi
+              if [ -z \"\$TURBOJPEG_HEADER\" ]; then
+                TURBOJPEG_HEADER=\$(find /usr/include -name \"turbojpeg.h\" 2>/dev/null | head -1)
+              fi
+              
+              # Check for TurboJPEG library
+              TURBOJPEG_LIB=\$(find /opt -name \"libturbojpeg.so*\" -o -name \"libturbojpeg.a\" 2>/dev/null | head -1)
+              if [ -z \"\$TURBOJPEG_LIB\" ]; then
+                TURBOJPEG_LIB=\$(find /usr/local -name \"libturbojpeg.so*\" -o -name \"libturbojpeg.a\" 2>/dev/null | head -1)
+              fi
+              if [ -z \"\$TURBOJPEG_LIB\" ]; then
+                TURBOJPEG_LIB=\$(find /usr -name \"libturbojpeg.so*\" -o -name \"libturbojpeg.a\" 2>/dev/null | head -1)
+              fi
+              
+              if [ -n \"\$TURBOJPEG_HEADER\" ] && [ -n \"\$TURBOJPEG_LIB\" ]; then
+                echo \"Found TurboJPEG header: \$TURBOJPEG_HEADER\"
+                echo \"Found TurboJPEG library: \$TURBOJPEG_LIB\"
+                
+                # Create symlinks to standard locations
+                cp \"\$TURBOJPEG_HEADER\" /usr/local/include/ 2>/dev/null || true
+                cp \"\$TURBOJPEG_HEADER\" /opt/Qt6/include/ 2>/dev/null || true
+                ln -sf \"\$TURBOJPEG_LIB\" \"/usr/local/lib/libturbojpeg.a\" 2>/dev/null || true
+                ln -sf \"\$TURBOJPEG_LIB\" \"/usr/local/lib/libturbojpeg.so\" 2>/dev/null || true
+                
+                echo \"TurboJPEG setup completed using existing installation\"
+              else
+                echo \"TurboJPEG not found in Docker environment, installing...\"
+                apt-get install -y libturbojpeg0-dev libjpeg-turbo8-dev || true
+                
+                # Try detection again after installation
+                TURBOJPEG_HEADER=\$(find /usr/include -name \"turbojpeg.h\" 2>/dev/null | head -1)
+                TURBOJPEG_LIB=\$(find /usr -name \"libturbojpeg.so*\" -o -name \"libturbojpeg.a\" 2>/dev/null | head -1)
+                
+                if [ -n \"\$TURBOJPEG_HEADER\" ] && [ -n \"\$TURBOJPEG_LIB\" ]; then
+                  echo \"Found TurboJPEG after installation: header=\$TURBOJPEG_HEADER, lib=\$TURBOJPEG_LIB\"
+                  cp \"\$TURBOJPEG_HEADER\" /usr/local/include/ 2>/dev/null || true
+                  cp \"\$TURBOJPEG_HEADER\" /opt/Qt6/include/ 2>/dev/null || true
+                  ln -sf \"\$TURBOJPEG_LIB\" \"/usr/local/lib/libturbojpeg.a\" 2>/dev/null || true
+                  ln -sf \"\$TURBOJPEG_LIB\" \"/usr/local/lib/libturbojpeg.so\" 2>/dev/null || true
+                else
+                  echo \"Warning: TurboJPEG still not found after installation\"
+                  find /usr -name \"*turbojpeg*\" 2>/dev/null | head -10
+                fi
+              fi
               
               # Link FFmpeg headers
               FFMPEG_INCLUDE=\$(find /usr/include -name \"libavcodec\" -type d 2>/dev/null | head -1 | xargs dirname)
@@ -428,6 +485,11 @@ jobs:
               echo 'Checking pkg-config for FFmpeg:'
               pkg-config --list-all | grep -E '(libav|ffmpeg)' || echo 'No FFmpeg pkg-config files found'
               
+              echo 'Checking for TurboJPEG:'
+              find /usr -name '*turbojpeg*' 2>/dev/null | head -10
+              find /usr -name 'turbojpeg.h' 2>/dev/null || echo 'turbojpeg.h not found'
+              pkg-config --list-all | grep -i jpeg || echo 'No JPEG pkg-config found'
+              
               echo 'Checking for ORC libraries:'
               find /opt -name '*orc*' 2>/dev/null | head -10
               find /usr -name '*orc*' 2>/dev/null | head -10
@@ -454,6 +516,8 @@ jobs:
                        -DCMAKE_LIBRARY_PATH=\"/opt/Qt6/lib:/usr/local/lib:/usr/lib/x86_64-linux-gnu:/opt/orc-static/lib/x86_64-linux-gnu\" \\
                        -DCMAKE_INCLUDE_PATH=\"/opt/Qt6/include:/usr/local/include:/usr/include\" \\
                        -DORC_ROOT=/opt/orc-static \\
+                       -DTurboJPEG_ROOT=/usr/local \\
+                       -DTurboJPEG_INCLUDE_DIR=/usr/local/include \\
                        /workspace/src; then
                 echo 'CMake configuration successful, building with make...'
                 if make -j\$(nproc); then
@@ -475,8 +539,8 @@ jobs:
                 
                 # Set up environment for qmake
                 export PKG_CONFIG_PATH=\"/opt/Qt6/lib/pkgconfig:\$PKG_CONFIG_PATH\"
-                export CPLUS_INCLUDE_PATH=\"/opt/Qt6/include:/usr/include/gstreamer-1.0:/usr/include/glib-2.0:/usr/lib/x86_64-linux-gnu/glib-2.0/include\"
-                export LIBRARY_PATH=\"/opt/Qt6/lib:/usr/lib/x86_64-linux-gnu:/opt/orc-static/lib/x86_64-linux-gnu\"
+                export CPLUS_INCLUDE_PATH=\"/opt/Qt6/include:/usr/local/include:/usr/include/gstreamer-1.0:/usr/include/glib-2.0:/usr/lib/x86_64-linux-gnu/glib-2.0/include\"
+                export LIBRARY_PATH=\"/opt/Qt6/lib:/usr/local/lib:/usr/lib/x86_64-linux-gnu:/opt/orc-static/lib/x86_64-linux-gnu\"
                 export LC_ALL=C.UTF-8
                 export LANG=C.UTF-8
                 
@@ -493,6 +557,7 @@ jobs:
                    CONFIG+=staticlib \\
                    CONFIG+=static \\
                    'LIBS+=-static-libgcc -static-libstdc++' \\
+                   'INCLUDEPATH+=/usr/local/include' \\
                    'INCLUDEPATH+=/usr/include/gstreamer-1.0' \\
                    'INCLUDEPATH+=/usr/include/glib-2.0' \\
                    'INCLUDEPATH+=/usr/lib/x86_64-linux-gnu/glib-2.0/include'; then
