@@ -46,7 +46,6 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository_owner }}/openterface-qt
 
 jobs:
   # Dynamic Qt Environment Build
@@ -61,6 +60,9 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Set lowercase image name
+        run: echo "IMAGE_NAME_LOWER=$(echo '${{ github.repository_owner }}/openterface-qt' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -77,7 +79,7 @@ jobs:
         id: meta-dynamic
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-dynamic
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-dynamic
           tags: |
             type=ref,event=branch
             type=ref,event=pr
@@ -91,7 +93,7 @@ jobs:
             echo "Force rebuild requested, will build dynamic image"
             echo "should_build=true" >> $GITHUB_OUTPUT
           else
-            if docker manifest inspect ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-dynamic:latest > /dev/null 2>&1; then
+            if docker manifest inspect ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-dynamic:latest > /dev/null 2>&1; then
               echo "Dynamic image already exists, skipping build"
               echo "should_build=false" >> $GITHUB_OUTPUT
             else
@@ -116,7 +118,7 @@ jobs:
 
       - name: Test Dynamic Qt Environment
         run: |
-          docker run --rm ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-dynamic:latest \
+          docker run --rm ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-dynamic:latest \
             /opt/verify/verify-qt-dynamic.sh
 
   # Static Qt Environment Build (existing multi-stage process)
