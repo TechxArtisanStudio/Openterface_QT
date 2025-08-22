@@ -161,7 +161,7 @@ if(USE_GSTREAMER AND EXISTS "${GSTREAMER_INCLUDE_DIR}/gst/gst.h" AND EXISTS "${G
         
         # Check for each plugin and add if found
         foreach(PLUGIN ${PLUGIN_CANDIDATES})
-            set(PLUGIN_PATH "${GSTREAMER_ROOT_DIR}/lib/gstreamer-1.0/lib${PLUGIN}.a")
+            set(PLUGIN_PATH "${GSTREAMER_LIB_DIR}/gstreamer-1.0/lib${PLUGIN}.a")
             if(EXISTS "${PLUGIN_PATH}")
                 list(APPEND GSTREAMER_PLUGIN_LIBRARIES "${PLUGIN_PATH}")
                 message(STATUS "Found GStreamer plugin: ${PLUGIN_PATH}")
