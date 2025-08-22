@@ -106,7 +106,6 @@ RUN echo "Building gst-plugins-good..." && \
         --default-library=static \
         --buildtype=release \
         -Ddoc=disabled \
-        -Dintrospection=disabled \
         -Dexamples=disabled \
         -Dtests=disabled \
         -Dqt5=disabled \
