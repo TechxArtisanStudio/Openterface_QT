@@ -26,7 +26,6 @@ env:
   SOURCE_DIR: ${{ github.workspace }}
   QT_VERSION: 6.6.3
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository_owner }}/openterface-qt
 
 jobs:
   build-dynamic:
@@ -45,6 +44,9 @@ jobs:
         with:
           submodules: recursive
 
+      - name: Set lowercase image name
+        run: echo "IMAGE_NAME_LOWER=$(echo '${{ github.repository_owner }}/openterface-qt' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
+        
       - name: Log in to Container Registry
         uses: docker/login-action@v3
         with:
@@ -57,9 +59,10 @@ jobs:
           echo "Pulling pre-built Dynamic Qt Docker image..."
           
           # Check if image exists in registry
-          if docker manifest inspect ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-dynamic:latest > /dev/null 2>&1; then
+          if docker manifest inspect ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-dynamic:latest > /dev/null 2>&1; then
             echo "Pre-built image found, pulling..."
-            docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-dynamic:latest
+            docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-dynamic:latest
+
             echo "Successfully pulled pre-built Dynamic Qt Docker image"
           else
             echo "Error: Pre-built Dynamic Qt Docker image not found in registry"
@@ -102,7 +105,7 @@ jobs:
             -v ${{ github.workspace }}:/workspace/src \
             -v ${{ runner.temp }}/build-dynamic:/workspace/build \
             -w /workspace/src \
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-dynamic:latest \
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-dynamic:latest \
             bash -c "
               echo 'Building Openterface QT Application (Dynamic Qt)...'
               
@@ -248,6 +251,10 @@ jobs:
         with:
           submodules: recursive
 
+
+      - name: Set lowercase image name
+        run: echo "IMAGE_NAME_LOWER=$(echo '${{ github.repository_owner }}/openterface-qt' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
+
       - name: Log in to Container Registry
         uses: docker/login-action@v3
         with:
@@ -260,9 +267,9 @@ jobs:
           echo "Pulling pre-built Static Qt Docker image..."
           
           # Check if image exists in registry
-          if docker manifest inspect ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-complete:latest > /dev/null 2>&1; then
+          if docker manifest inspect ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-complete:latest > /dev/null 2>&1; then
             echo "Pre-built image found, pulling..."
-            docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-complete:latest
+            docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-complete:latest
             echo "Successfully pulled pre-built Static Qt Docker image"
           else
             echo "Error: Pre-built Static Qt Docker image not found in registry"
@@ -305,7 +312,8 @@ jobs:
             -v ${{ github.workspace }}:/workspace/src \
             -v ${{ runner.temp }}/build-static:/workspace/build \
             -w /workspace/src \
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-complete:latest \
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-complete:latest \
+
             bash -c "
               echo 'Building Openterface QT Application (Static Qt)...'
               
