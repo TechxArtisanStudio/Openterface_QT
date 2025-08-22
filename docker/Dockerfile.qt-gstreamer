@@ -54,27 +54,27 @@ RUN echo "Building GStreamer core..." && \
     ninja -C build && \
     ninja -C build install && \
     echo "GStreamer core installation completed" && \
-    ls -la "${WORK_DIR}/gstreamer_build/lib/pkgconfig/" && \
-    pkg-config --exists gstreamer-1.0 && echo "GStreamer pkg-config found" || echo "GStreamer pkg-config NOT found"
+    echo "Searching for pkg-config files..." && \
+    find "${WORK_DIR}/gstreamer_build" -name "*.pc" -type f 2>/dev/null || echo "No .pc files found" && \
+    echo "Directory structure:" && \
+    find "${WORK_DIR}/gstreamer_build" -type d -name "*pkgconfig*" 2>/dev/null || echo "No pkgconfig directories found"
 
 # Update PKG_CONFIG_PATH after GStreamer core installation
 ENV PKG_CONFIG_PATH="${WORK_DIR}/gstreamer_build/lib/pkgconfig:${PKG_CONFIG_PATH}"
 
 # Build gst-plugins-base (essential plugins)
 RUN echo "Building gst-plugins-base..." && \
-    echo "Checking GStreamer installation..." && \
-    ls -la "${WORK_DIR}/gstreamer_build/" && \
-    ls -la "${WORK_DIR}/gstreamer_build/lib/" && \
-    ls -la "${WORK_DIR}/gstreamer_build/lib/pkgconfig/" && \
-    echo "Contents of gstreamer-1.0.pc:" && \
-    cat "${WORK_DIR}/gstreamer_build/lib/pkgconfig/gstreamer-1.0.pc" && \
-    export PKG_CONFIG_PATH="${WORK_DIR}/gstreamer_build/lib/pkgconfig:${FFMPEG_PREFIX}/lib/pkgconfig:/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/share/pkgconfig" && \
+    echo "Locating GStreamer pkg-config files..." && \
+    GSTREAMER_PC_DIR=$(find "${WORK_DIR}/gstreamer_build" -name "gstreamer-1.0.pc" -type f -exec dirname {} \; 2>/dev/null | head -1) && \
+    if [ -n "$GSTREAMER_PC_DIR" ]; then \
+        echo "Found GStreamer pkg-config files in: $GSTREAMER_PC_DIR"; \
+        export PKG_CONFIG_PATH="$GSTREAMER_PC_DIR:${FFMPEG_PREFIX}/lib/pkgconfig:/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/share/pkgconfig"; \
+    else \
+        echo "GStreamer pkg-config files not found, using default path"; \
+        export PKG_CONFIG_PATH="${WORK_DIR}/gstreamer_build/lib/pkgconfig:${FFMPEG_PREFIX}/lib/pkgconfig:/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/share/pkgconfig"; \
+    fi && \
     echo "PKG_CONFIG_PATH=$PKG_CONFIG_PATH" && \
-    echo "Testing pkg-config directly:" && \
-    pkg-config --list-all | grep gstreamer && \
     pkg-config --exists gstreamer-1.0 && echo "GStreamer-1.0 found via pkg-config" || echo "ERROR: GStreamer-1.0 NOT found" && \
-    echo "Running ldconfig to update library cache..." && \
-    ldconfig && \
     cd "${WORK_DIR}/gstreamer_sources/gst-plugins-base-${GSTREAMER_VERSION}" && \
     meson setup build \
         --prefix="${WORK_DIR}/gstreamer_build" \
@@ -94,7 +94,12 @@ RUN echo "Building gst-plugins-base..." && \
 
 # Build gst-plugins-good (minimal set)
 RUN echo "Building gst-plugins-good..." && \
-    export PKG_CONFIG_PATH="${WORK_DIR}/gstreamer_build/lib/pkgconfig:${FFMPEG_PREFIX}/lib/pkgconfig:/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/share/pkgconfig" && \
+    GSTREAMER_PC_DIR=$(find "${WORK_DIR}/gstreamer_build" -name "gstreamer-1.0.pc" -type f -exec dirname {} \; 2>/dev/null | head -1) && \
+    if [ -n "$GSTREAMER_PC_DIR" ]; then \
+        export PKG_CONFIG_PATH="$GSTREAMER_PC_DIR:${FFMPEG_PREFIX}/lib/pkgconfig:/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/share/pkgconfig"; \
+    else \
+        export PKG_CONFIG_PATH="${WORK_DIR}/gstreamer_build/lib/pkgconfig:${FFMPEG_PREFIX}/lib/pkgconfig:/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/share/pkgconfig"; \
+    fi && \
     cd "${WORK_DIR}/gstreamer_sources/gst-plugins-good-${GSTREAMER_VERSION}" && \
     meson setup build \
         --prefix="${WORK_DIR}/gstreamer_build" \
