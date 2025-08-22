@@ -76,24 +76,10 @@ if(CMAKE_PREFIX_PATH)
 endif()
 
 # Find GStreamer installation
-set(GSTREAMER_ROOT_DIR "/opt/Qt6-arm64")  # Default fallback
-set(GSTREAMER_LIB_DIR "")
+set(GSTREAMER_ROOT_DIR "/opt/Qt6")  # Default fallback
 foreach(SEARCH_PATH ${GSTREAMER_SEARCH_PATHS})
     if(EXISTS "${SEARCH_PATH}/include/gstreamer-1.0/gst/gst.h")
         set(GSTREAMER_ROOT_DIR "${SEARCH_PATH}")
-        
-        # Check for architecture-specific lib directories
-        if(EXISTS "${SEARCH_PATH}/lib/x86_64-linux-gnu/libgstreamer-1.0.a")
-            set(GSTREAMER_LIB_DIR "${SEARCH_PATH}/lib/x86_64-linux-gnu")
-            message(STATUS "Found GStreamer in: ${GSTREAMER_LIB_DIR}")
-        elseif(EXISTS "${SEARCH_PATH}/lib/aarch64-linux-gnu/libgstreamer-1.0.a")
-            set(GSTREAMER_LIB_DIR "${SEARCH_PATH}/lib/aarch64-linux-gnu")
-            message(STATUS "Found GStreamer in: ${GSTREAMER_LIB_DIR}")
-        elseif(EXISTS "${SEARCH_PATH}/lib/libgstreamer-1.0.a")
-            set(GSTREAMER_LIB_DIR "${SEARCH_PATH}/lib")
-            message(STATUS "Found GStreamer in: ${GSTREAMER_LIB_DIR}")
-        endif()
-        
         message(STATUS "Found GStreamer installation at: ${GSTREAMER_ROOT_DIR}")
         break()
     endif()
@@ -120,26 +106,74 @@ if(USE_GSTREAMER AND EXISTS "${GSTREAMER_INCLUDE_DIR}/gst/gst.h" AND EXISTS "${G
         "${GLIB_CONFIG_INCLUDE_DIR}"
     )
     
-    # Set static GStreamer libraries (using detected lib directory)
-    set(GSTREAMER_LIBRARIES
-        "${GSTREAMER_LIB_DIR}/libgstreamer-1.0.a"
-        "${GSTREAMER_LIB_DIR}/libgstbase-1.0.a"
-        "${GSTREAMER_LIB_DIR}/libgstcontroller-1.0.a"
-        "${GSTREAMER_LIB_DIR}/libgstnet-1.0.a"
+    # Set static GStreamer libraries (using system GLib)
+    set(GSTREAMER_LIBRARIES)
+    
+    # List of core GStreamer libraries to check
+    set(GSTREAMER_CORE_LIB_CANDIDATES
+        "libgstreamer-1.0.a"
+        "libgstbase-1.0.a"
+        "libgstcontroller-1.0.a"
+        "libgstnet-1.0.a"
     )
     
-    set(GSTREAMER_VIDEO_LIBRARIES
-        "${GSTREAMER_LIB_DIR}/libgstvideo-1.0.a"
-        "${GSTREAMER_LIB_DIR}/libgstaudio-1.0.a"
-        "${GSTREAMER_LIB_DIR}/libgsttag-1.0.a"
-        "${GSTREAMER_LIB_DIR}/libgstpbutils-1.0.a"
-        "${GSTREAMER_LIB_DIR}/libgstapp-1.0.a"
-        "${GSTREAMER_LIB_DIR}/libgstgl-1.0.a"
-        "${GSTREAMER_LIB_DIR}/libgstriff-1.0.a"
-        "${GSTREAMER_LIB_DIR}/libgstrtp-1.0.a"
-        "${GSTREAMER_LIB_DIR}/libgstrtsp-1.0.a"
-        "${GSTREAMER_LIB_DIR}/libgstsdp-1.0.a"
+    # Check for each core library and add if found
+    foreach(LIB_NAME ${GSTREAMER_CORE_LIB_CANDIDATES})
+        set(LIB_PATH "${GSTREAMER_ROOT_DIR}/lib/${LIB_NAME}")
+        # Also check architecture-specific subdirectories
+        set(LIB_PATH_ARCH "${GSTREAMER_ROOT_DIR}/lib/x86_64-linux-gnu/${LIB_NAME}")
+        set(LIB_PATH_AARCH64 "${GSTREAMER_ROOT_DIR}/lib/aarch64-linux-gnu/${LIB_NAME}")
+        
+        if(EXISTS "${LIB_PATH}")
+            list(APPEND GSTREAMER_LIBRARIES "${LIB_PATH}")
+            message(STATUS "Found GStreamer core library: ${LIB_PATH}")
+        elseif(EXISTS "${LIB_PATH_ARCH}")
+            list(APPEND GSTREAMER_LIBRARIES "${LIB_PATH_ARCH}")
+            message(STATUS "Found GStreamer core library: ${LIB_PATH_ARCH}")
+        elseif(EXISTS "${LIB_PATH_AARCH64}")
+            list(APPEND GSTREAMER_LIBRARIES "${LIB_PATH_AARCH64}")
+            message(STATUS "Found GStreamer core library: ${LIB_PATH_AARCH64}")
+        else()
+            message(WARNING "GStreamer core library not found: ${LIB_PATH}")
+        endif()
+    endforeach()
+    
+    set(GSTREAMER_VIDEO_LIBRARIES)
+    
+    # List of potential GStreamer video libraries to check
+    set(GSTREAMER_VIDEO_LIB_CANDIDATES
+        "libgstvideo-1.0.a"
+        "libgstaudio-1.0.a"
+        "libgsttag-1.0.a"
+        "libgstpbutils-1.0.a"
+        "libgstapp-1.0.a"
+        "libgstgl-1.0.a"
+        "libgstriff-1.0.a"
+        "libgstrtp-1.0.a"
+        "libgstrtsp-1.0.a"
+        "libgstsdp-1.0.a"
     )
+    
+    # Check for each library and add if found
+    foreach(LIB_NAME ${GSTREAMER_VIDEO_LIB_CANDIDATES})
+        set(LIB_PATH "${GSTREAMER_ROOT_DIR}/lib/${LIB_NAME}")
+        # Also check architecture-specific subdirectories
+        set(LIB_PATH_ARCH "${GSTREAMER_ROOT_DIR}/lib/x86_64-linux-gnu/${LIB_NAME}")
+        set(LIB_PATH_AARCH64 "${GSTREAMER_ROOT_DIR}/lib/aarch64-linux-gnu/${LIB_NAME}")
+        
+        if(EXISTS "${LIB_PATH}")
+            list(APPEND GSTREAMER_VIDEO_LIBRARIES "${LIB_PATH}")
+            message(STATUS "Found GStreamer video library: ${LIB_PATH}")
+        elseif(EXISTS "${LIB_PATH_ARCH}")
+            list(APPEND GSTREAMER_VIDEO_LIBRARIES "${LIB_PATH_ARCH}")
+            message(STATUS "Found GStreamer video library: ${LIB_PATH_ARCH}")
+        elseif(EXISTS "${LIB_PATH_AARCH64}")
+            list(APPEND GSTREAMER_VIDEO_LIBRARIES "${LIB_PATH_AARCH64}")
+            message(STATUS "Found GStreamer video library: ${LIB_PATH_AARCH64}")
+        else()
+            message(WARNING "GStreamer video library not found: ${LIB_PATH}")
+        endif()
+    endforeach()
     
     # Add static GStreamer plugin libraries that need to be linked
     set(GSTREAMER_PLUGIN_LIBRARIES)
@@ -161,7 +195,7 @@ if(USE_GSTREAMER AND EXISTS "${GSTREAMER_INCLUDE_DIR}/gst/gst.h" AND EXISTS "${G
         
         # Check for each plugin and add if found
         foreach(PLUGIN ${PLUGIN_CANDIDATES})
-            set(PLUGIN_PATH "${GSTREAMER_LIB_DIR}/gstreamer-1.0/lib${PLUGIN}.a")
+            set(PLUGIN_PATH "${GSTREAMER_ROOT_DIR}/lib/gstreamer-1.0/lib${PLUGIN}.a")
             if(EXISTS "${PLUGIN_PATH}")
                 list(APPEND GSTREAMER_PLUGIN_LIBRARIES "${PLUGIN_PATH}")
                 message(STATUS "Found GStreamer plugin: ${PLUGIN_PATH}")
