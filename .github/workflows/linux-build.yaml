@@ -30,7 +30,7 @@ env:
 
 jobs:
   build-dynamic:
-    if: ${{ github.event.inputs.build_type == 'dynamic' || github.event.inputs.build_type == 'both' }}
+    if: ${{ github.event.inputs.build_type == 'dynamic' || github.event.inputs.build_type == 'both' || github.event_name != 'workflow_dispatch' }}
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -233,7 +233,7 @@ jobs:
           if-no-files-found: error
 
   build-static:
-    if: ${{ github.event.inputs.build_type == 'static' || github.event.inputs.build_type == 'both' }}
+    if: ${{ github.event.inputs.build_type == 'static' || github.event.inputs.build_type == 'both' || github.event_name != 'workflow_dispatch' }}
     runs-on: ubuntu-24.04
     permissions:
       contents: read
