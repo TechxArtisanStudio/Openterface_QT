@@ -46,7 +46,7 @@ jobs:
 
       - name: Set lowercase image name
         run: echo "IMAGE_NAME_LOWER=$(echo '${{ github.repository_owner }}/openterface-qt' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
-
+        
       - name: Log in to Container Registry
         uses: docker/login-action@v3
         with:
@@ -62,6 +62,7 @@ jobs:
           if docker manifest inspect ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-dynamic:latest > /dev/null 2>&1; then
             echo "Pre-built image found, pulling..."
             docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-dynamic:latest
+
             echo "Successfully pulled pre-built Dynamic Qt Docker image"
           else
             echo "Error: Pre-built Dynamic Qt Docker image not found in registry"
@@ -250,6 +251,7 @@ jobs:
         with:
           submodules: recursive
 
+
       - name: Set lowercase image name
         run: echo "IMAGE_NAME_LOWER=$(echo '${{ github.repository_owner }}/openterface-qt' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
 
@@ -311,6 +313,7 @@ jobs:
             -v ${{ runner.temp }}/build-static:/workspace/build \
             -w /workspace/src \
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-complete:latest \
+
             bash -c "
               echo 'Building Openterface QT Application (Static Qt)...'
               
