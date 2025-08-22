@@ -538,6 +538,7 @@ jobs:
                        -DCMAKE_LIBRARY_PATH=\"/opt/Qt6/lib:/usr/local/lib:/usr/lib/x86_64-linux-gnu:/opt/orc-static/lib/x86_64-linux-gnu\" \\
                        -DCMAKE_INCLUDE_PATH=\"/opt/Qt6/include:/usr/local/include:/usr/include\" \\
                        -DORC_ROOT=/opt/orc-static \\
+                       -DUSE_GSTREAMER_STATIC_PLUGINS=ON \\
                        -DTurboJPEG_ROOT=/usr/local \\
                        -DTurboJPEG_INCLUDE_DIR=/usr/local/include \\
                        /workspace/src; then
