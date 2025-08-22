@@ -121,13 +121,29 @@ jobs:
               # Release translations
               lrelease openterfaceQT.pro || echo 'lrelease failed, continuing...'
               
+              # Check for compilation issues in source files
+              echo 'Checking for potential compilation issues...'
+              grep -n 'catch' host/backend/gstreamerbackendhandler.cpp | head -5 || echo 'No catch blocks found'
+              
               # Copy configuration files
               cp -r config/keyboards/*.json /workspace/build/config/keyboards/ 2>/dev/null || echo 'No keyboard configs found'
               cp -r config/languages/*.qm /workspace/build/config/languages/ 2>/dev/null || echo 'No language files found'
               
               # Configure and build with qmake
               cd /workspace/build
-              qmake6 /workspace/src && make -j\$(nproc)
+              if qmake6 /workspace/src; then
+                echo 'qmake configuration successful, building...'
+                if make -j\$(nproc); then
+                  echo 'Build completed successfully'
+                else
+                  echo 'Build failed, showing errors:'
+                  make -j1 || true
+                  exit 1
+                fi
+              else
+                echo 'qmake configuration failed!'
+                exit 1
+              fi
               
               # Verify build output
               echo 'Checking build output:'
@@ -285,7 +301,7 @@ jobs:
           mkdir -p ${{ runner.temp }}/build-static/config/keyboards
           
           # Build application using Static Qt Docker environment
-          docker run --rm \
+          docker run --rm --user root \
             -v ${{ github.workspace }}:/workspace/src \
             -v ${{ runner.temp }}/build-static:/workspace/build \
             -w /workspace/src \
@@ -295,6 +311,14 @@ jobs:
               
               # Verify Docker environment
               /opt/Qt6/bin/verify-qt-installation.sh
+              
+              # Install missing dependencies for static build
+              apt-get update && apt-get install -y \\
+                libgudev-1.0-dev \\
+                libv4l-dev \\
+                libxi-dev \\
+                libxv-dev \\
+                || echo 'Some packages may not be available, continuing...'
               
               # Update translations
               /opt/Qt6/bin/lupdate openterfaceQT.pro -no-obsolete || echo 'lupdate failed, continuing...'
@@ -308,11 +332,20 @@ jobs:
               
               # Configure and build with cmake (static linking)
               cd /workspace/build
-              cmake -DCMAKE_PREFIX_PATH=/opt/Qt6 \\
-                    -DBUILD_SHARED_LIBS=OFF \\
-                    -DCMAKE_BUILD_TYPE=Release \\
-                    /workspace/src
-              make -j\$(nproc)
+              
+              # Try cmake first for static linking
+              if cmake -DCMAKE_PREFIX_PATH=/opt/Qt6 \\
+                       -DBUILD_SHARED_LIBS=OFF \\
+                       -DCMAKE_BUILD_TYPE=Release \\
+                       /workspace/src; then
+                echo 'CMake configuration successful, building with make...'
+                make -j\$(nproc)
+              else
+                echo 'CMake configuration failed, falling back to qmake...'
+                # Fallback to qmake if cmake fails
+                /opt/Qt6/bin/qmake /workspace/src CONFIG+=staticlib CONFIG+=static
+                make -j\$(nproc)
+              fi
               
               # Verify build output
               echo 'Checking build output:'
