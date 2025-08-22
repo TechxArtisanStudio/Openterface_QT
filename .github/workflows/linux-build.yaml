@@ -553,49 +553,6 @@ jobs:
                 FALLBACK=true
               fi
               
-              # Fallback to qmake if cmake fails
-              if [ \"\$FALLBACK\" = \"true\" ]; then
-                echo 'Using qmake fallback for static build...'
-                cd /workspace/build
-                rm -rf * 2>/dev/null || true
-                
-                # Set up environment for qmake
-                export PKG_CONFIG_PATH=\"/opt/Qt6/lib/pkgconfig:\$PKG_CONFIG_PATH\"
-                export CPLUS_INCLUDE_PATH=\"/opt/Qt6/include:/usr/local/include:/usr/include/gstreamer-1.0:/usr/include/glib-2.0:/usr/lib/x86_64-linux-gnu/glib-2.0/include\"
-                export LIBRARY_PATH=\"/opt/Qt6/lib:/usr/local/lib:/usr/lib/x86_64-linux-gnu:/opt/orc-static/lib/x86_64-linux-gnu\"
-                export LC_ALL=C.UTF-8
-                export LANG=C.UTF-8
-                
-                echo 'Environment setup for qmake:'
-                echo \"PKG_CONFIG_PATH=\$PKG_CONFIG_PATH\"
-                echo \"CPLUS_INCLUDE_PATH=\$CPLUS_INCLUDE_PATH\"
-                echo \"LIBRARY_PATH=\$LIBRARY_PATH\"
-                
-                # Test GStreamer detection
-                pkg-config --exists gstreamer-1.0 && echo 'GStreamer-1.0 detected' || echo 'GStreamer-1.0 NOT detected'
-                
-                # Use qmake with static configuration
-                if /opt/Qt6/bin/qmake /workspace/src \\
-                   CONFIG+=staticlib \\
-                   CONFIG+=static \\
-                   'LIBS+=-static-libgcc -static-libstdc++' \\
-                   'INCLUDEPATH+=/usr/local/include' \\
-                   'INCLUDEPATH+=/usr/include/gstreamer-1.0' \\
-                   'INCLUDEPATH+=/usr/include/glib-2.0' \\
-                   'INCLUDEPATH+=/usr/lib/x86_64-linux-gnu/glib-2.0/include'; then
-                  echo 'qmake configuration successful, building...'
-                  make -j\$(nproc) || {
-                    echo 'Static build failed, trying dynamic linking in static environment...'
-                    cd /workspace/build
-                    rm -rf * 2>/dev/null || true
-                    /opt/Qt6/bin/qmake /workspace/src
-                    make -j\$(nproc)
-                  }
-                else
-                  echo 'qmake configuration also failed!'
-                  exit 1
-                fi
-              fi
               
               # Verify build output
               echo 'Checking build output:'
