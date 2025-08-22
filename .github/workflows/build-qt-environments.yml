@@ -152,7 +152,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-base
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-base
           tags: |
             type=ref,event=branch
             type=ref,event=pr
@@ -166,7 +166,7 @@ jobs:
             echo "Force rebuild requested, will build base image"
             echo "should_build=true" >> $GITHUB_OUTPUT
           else
-            if docker manifest inspect ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-base:latest > /dev/null 2>&1; then
+            if docker manifest inspect ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-base:latest > /dev/null 2>&1; then
               echo "Base image already exists, skipping build"
               echo "should_build=false" >> $GITHUB_OUTPUT
             else
@@ -202,6 +202,9 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Set lowercase image name
+        run: echo "IMAGE_NAME_LOWER=$(echo '${{ github.repository_owner }}/openterface-qt' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -217,7 +220,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-ffmpeg
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-ffmpeg
           tags: |
             type=ref,event=branch
             type=ref,event=pr
@@ -231,7 +234,7 @@ jobs:
           context: .
           file: ./docker/Dockerfile.qt-ffmpeg
           build-args: |
-            BASE_IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-base:latest
+            BASE_IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-base:latest
           push: ${{ github.event_name != 'pull_request' && (github.event.inputs.push_to_registry == 'true' || github.event.inputs.push_to_registry == '') }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
@@ -252,6 +255,9 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Set lowercase image name
+        run: echo "IMAGE_NAME_LOWER=$(echo '${{ github.repository_owner }}/openterface-qt' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -267,7 +273,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-gstreamer
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-gstreamer
           tags: |
             type=ref,event=branch
             type=ref,event=pr
@@ -281,7 +287,7 @@ jobs:
           context: .
           file: ./docker/Dockerfile.qt-gstreamer
           build-args: |
-            BASE_IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-ffmpeg:latest
+            BASE_IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-ffmpeg:latest
           push: ${{ github.event_name != 'pull_request' && (github.event.inputs.push_to_registry == 'true' || github.event.inputs.push_to_registry == '') }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
@@ -302,6 +308,9 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Set lowercase image name
+        run: echo "IMAGE_NAME_LOWER=$(echo '${{ github.repository_owner }}/openterface-qt' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -317,7 +326,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-complete
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-complete
           tags: |
             type=ref,event=branch
             type=ref,event=pr
@@ -331,7 +340,7 @@ jobs:
           context: .
           file: ./docker/Dockerfile.qt-complete
           build-args: |
-            BASE_IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-gstreamer:latest
+            BASE_IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-gstreamer:latest
           push: ${{ github.event_name != 'pull_request' && (github.event.inputs.push_to_registry == 'true' || github.event.inputs.push_to_registry == '') }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
@@ -341,7 +350,7 @@ jobs:
 
       - name: Test Static Qt Environment
         run: |
-          docker run --rm ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-complete:latest \
+          docker run --rm ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-complete:latest \
             /opt/Qt6/bin/verify-qt-installation.sh
 
   # Build applications with both environments to verify they work
@@ -356,14 +365,17 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Set lowercase image name
+        run: echo "IMAGE_NAME_LOWER=$(echo '${{ github.repository_owner }}/openterface-qt' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
+
       - name: Test ${{ matrix.build_type }} build
         run: |
           if [ "${{ matrix.build_type }}" = "static" ]; then
-            IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-complete:latest"
+            IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-complete:latest"
             CMAKE_ARGS="-DCMAKE_PREFIX_PATH=/opt/Qt6 -DBUILD_SHARED_LIBS=OFF"
             BUILD_TYPE="Static"
           else
-            IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-dynamic:latest"
+            IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-dynamic:latest"
             CMAKE_ARGS="-DCMAKE_PREFIX_PATH=/usr/lib/x86_64-linux-gnu/cmake/Qt6 -DBUILD_SHARED_LIBS=ON"
             BUILD_TYPE="Dynamic"
           fi
@@ -411,6 +423,8 @@ jobs:
     needs: [build-dynamic, build-static-complete]
     if: always()
     steps:
+      - name: Set lowercase image name
+        run: echo "IMAGE_NAME_LOWER=$(echo '${{ github.repository_owner }}/openterface-qt' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
       - name: Build Summary
         run: |
           echo "## Qt Build Environment Summary" >> $GITHUB_STEP_SUMMARY
@@ -419,13 +433,13 @@ jobs:
           echo "|-------------|--------|-------|" >> $GITHUB_STEP_SUMMARY
           
           if [ "${{ needs.build-dynamic.result }}" = "success" ]; then
-            echo "| Dynamic Qt | ✅ Success | \`${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-dynamic:latest\` |" >> $GITHUB_STEP_SUMMARY
+            echo "| Dynamic Qt | ✅ Success | \`${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-dynamic:latest\` |" >> $GITHUB_STEP_SUMMARY
           else
             echo "| Dynamic Qt | ❌ Failed/Skipped | - |" >> $GITHUB_STEP_SUMMARY
           fi
           
           if [ "${{ needs.build-static-complete.result }}" = "success" ]; then
-            echo "| Static Qt Complete | ✅ Success | \`${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-complete:latest\` |" >> $GITHUB_STEP_SUMMARY
+            echo "| Static Qt Complete | ✅ Success | \`${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-complete:latest\` |" >> $GITHUB_STEP_SUMMARY
           else
             echo "| Static Qt Complete | ❌ Failed/Skipped | - |" >> $GITHUB_STEP_SUMMARY
           fi
@@ -436,13 +450,13 @@ jobs:
           echo "**Dynamic Build:**" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
           echo "docker run --rm -v \$(pwd):/workspace/src -w /workspace/src \\" >> $GITHUB_STEP_SUMMARY
-          echo "  ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-dynamic:latest \\" >> $GITHUB_STEP_SUMMARY
+          echo "  ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-dynamic:latest \\" >> $GITHUB_STEP_SUMMARY
           echo "  bash -c 'mkdir build && cd build && cmake -DBUILD_SHARED_LIBS=ON .. && make -j\$(nproc)'" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Static Build:**" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
           echo "docker run --rm -v \$(pwd):/workspace/src -w /workspace/src \\" >> $GITHUB_STEP_SUMMARY
-          echo "  ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-complete:latest \\" >> $GITHUB_STEP_SUMMARY
+          echo "  ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-complete:latest \\" >> $GITHUB_STEP_SUMMARY
           echo "  bash -c 'mkdir build && cd build && cmake -DCMAKE_PREFIX_PATH=/opt/Qt6 -DBUILD_SHARED_LIBS=OFF .. && make -j\$(nproc)'" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
