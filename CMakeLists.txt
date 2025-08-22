@@ -10,6 +10,9 @@ option(USE_FFMPEG_STATIC "Use static FFmpeg libraries" ON)
 # Option to control hardware acceleration libraries
 option(USE_HWACCEL "Enable hardware acceleration libraries (VA-API, VDPAU)" ON)
 
+# Option to control USB functionality
+option(USE_USB "Enable USB functionality via libusb" ON)
+
 # Prefer static libraries
 if(USE_FFMPEG_STATIC)
     set(CMAKE_FIND_STATIC_PREFER ON)
@@ -580,15 +583,47 @@ if(WIN32)
         lib
     )
 
-    target_link_libraries(openterfaceQT PRIVATE
-        hid
-        libusb-1.0
-        ole32
-        oleaut32
-        setupapi
-        cfgmgr32
-        winpthread
-    )
+    # Find libusb-1.0 library for Windows
+    if(USE_USB)
+        find_library(LIBUSB_LIBRARY 
+            NAMES libusb-1.0 usb-1.0
+            PATHS ${CMAKE_CURRENT_SOURCE_DIR}/lib
+        )
+        
+        if(LIBUSB_LIBRARY)
+            message(STATUS "Found libusb-1.0 for Windows: ${LIBUSB_LIBRARY}")
+            target_link_libraries(openterfaceQT PRIVATE
+                hid
+                ${LIBUSB_LIBRARY}
+                ole32
+                oleaut32
+                setupapi
+                cfgmgr32
+                winpthread
+            )
+        else()
+            message(WARNING "libusb-1.0 not found for Windows - trying with default name")
+            target_link_libraries(openterfaceQT PRIVATE
+                hid
+                libusb-1.0
+                ole32
+                oleaut32
+                setupapi
+                cfgmgr32
+                winpthread
+            )
+        endif()
+    else()
+        message(STATUS "USB functionality disabled by USE_USB=OFF")
+        target_link_libraries(openterfaceQT PRIVATE
+            hid
+            ole32
+            oleaut32
+            setupapi
+            cfgmgr32
+            winpthread
+        )
+    endif()
 
     # Resources:
     set_source_files_properties("driver/windows/CH341SER.INF"
@@ -619,9 +654,27 @@ if(UNIX)
         /usr/local/include
     )
 
-    target_link_libraries(openterfaceQT PRIVATE
-        usb-1.0
-    )
+    # Find libusb-1.0 library
+    if(USE_USB)
+        # Search in the same locations where we found FFmpeg, since libusb may be built there too
+        find_library(LIBUSB_LIBRARY 
+            NAMES usb-1.0 libusb-1.0
+            PATHS ${FFMPEG_PREFIX}/lib /usr/lib /usr/local/lib
+            PATH_SUFFIXES x86_64-linux-gnu aarch64-linux-gnu arm-linux-gnueabihf
+        )
+        
+        if(LIBUSB_LIBRARY)
+            message(STATUS "Found libusb-1.0: ${LIBUSB_LIBRARY}")
+            target_link_libraries(openterfaceQT PRIVATE ${LIBUSB_LIBRARY})
+        else()
+            message(WARNING "libusb-1.0 not found - USB functionality may be limited")
+            message(STATUS "Searched paths: ${FFMPEG_PREFIX}/lib, /usr/lib, /usr/local/lib")
+            # Try to link with the simple name as fallback
+            target_link_libraries(openterfaceQT PRIVATE usb-1.0)
+        endif()
+    else()
+        message(STATUS "USB functionality disabled by USE_USB=OFF")
+    endif()
     
     # Add libudev dependency for enhanced Linux device detection
     find_package(PkgConfig REQUIRED)
