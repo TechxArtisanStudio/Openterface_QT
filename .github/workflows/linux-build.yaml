@@ -354,6 +354,55 @@ jobs:
                 cp -r \"\$FFMPEG_INCLUDE\"/* /usr/local/include/ 2>/dev/null || true
               fi
               
+              # Fix ORC library paths and architecture issues
+              echo 'Setting up ORC libraries...'
+              
+              # Find ORC libraries in the system
+              ORC_LIB=\$(find /opt -name \"liborc-*.a\" 2>/dev/null | head -1)
+              if [ -z \"\$ORC_LIB\" ]; then
+                ORC_LIB=\$(find /usr -name \"liborc-*.so*\" 2>/dev/null | head -1)
+              fi
+              
+              if [ -n \"\$ORC_LIB\" ]; then
+                echo \"Found ORC library: \$ORC_LIB\"
+                # Create the expected directory structure
+                mkdir -p /opt/orc-static/lib/x86_64-linux-gnu /opt/orc-static/lib/aarch64-linux-gnu
+                
+                # Link to both architectures to avoid path issues
+                ln -sf \"\$ORC_LIB\" \"/opt/orc-static/lib/x86_64-linux-gnu/liborc-0.4.a\"
+                ln -sf \"\$ORC_LIB\" \"/opt/orc-static/lib/aarch64-linux-gnu/liborc-0.4.a\"
+                echo \"Created ORC library links\"
+              else
+                echo \"Warning: ORC library not found, installing...\"
+                apt-get install -y liborc-0.4-dev || true
+                # Try again after installation
+                ORC_LIB=\$(find /usr -name \"liborc-*.so*\" 2>/dev/null | head -1)
+                if [ -n \"\$ORC_LIB\" ]; then
+                  mkdir -p /opt/orc-static/lib/x86_64-linux-gnu /opt/orc-static/lib/aarch64-linux-gnu
+                  ln -sf \"\$ORC_LIB\" \"/opt/orc-static/lib/x86_64-linux-gnu/liborc-0.4.a\"
+                  ln -sf \"\$ORC_LIB\" \"/opt/orc-static/lib/aarch64-linux-gnu/liborc-0.4.a\"
+                fi
+              fi
+              
+              # Set up GStreamer development files for qmake fallback
+              echo 'Setting up GStreamer for qmake...'
+              
+              # Find GStreamer installation in the static environment
+              GSTREAMER_PREFIX=\$(find /opt -name \"gstreamer-1.0.pc\" -exec dirname {} \; 2>/dev/null | head -1 | xargs dirname 2>/dev/null)
+              if [ -n \"\$GSTREAMER_PREFIX\" ]; then
+                echo \"Found GStreamer in: \$GSTREAMER_PREFIX\"
+                export PKG_CONFIG_PATH=\"\$GSTREAMER_PREFIX/pkgconfig:\$PKG_CONFIG_PATH\"
+                
+                # Also link to system locations for qmake
+                if [ -d \"\$GSTREAMER_PREFIX/../include\" ]; then
+                  ln -sf \"\$GSTREAMER_PREFIX\"/../include/gstreamer-1.0 /usr/include/gstreamer-1.0 2>/dev/null || true
+                fi
+                if [ -d \"\$GSTREAMER_PREFIX\" ]; then
+                  ln -sf \"\$GSTREAMER_PREFIX\"/*.so* /usr/lib/x86_64-linux-gnu/ 2>/dev/null || true
+                  ln -sf \"\$GSTREAMER_PREFIX\"/*.a /usr/lib/x86_64-linux-gnu/ 2>/dev/null || true
+                fi
+              fi
+              
               # Update translations
               /opt/Qt6/bin/lupdate openterfaceQT.pro -no-obsolete || echo 'lupdate failed, continuing...'
               
@@ -379,6 +428,21 @@ jobs:
               echo 'Checking pkg-config for FFmpeg:'
               pkg-config --list-all | grep -E '(libav|ffmpeg)' || echo 'No FFmpeg pkg-config files found'
               
+              echo 'Checking for ORC libraries:'
+              find /opt -name '*orc*' 2>/dev/null | head -10
+              find /usr -name '*orc*' 2>/dev/null | head -10
+              
+              echo 'Checking GStreamer installation:'
+              find /opt -name '*gstreamer*' -type d 2>/dev/null | head -10
+              pkg-config --list-all | grep gstreamer || echo 'No GStreamer pkg-config found'
+              
+              echo 'Architecture and system info:'
+              uname -m
+              dpkg --print-architecture 2>/dev/null || echo 'dpkg not available'
+              
+              echo 'Current PKG_CONFIG_PATH:'
+              echo \$PKG_CONFIG_PATH
+              
               # Try cmake first for static linking
               if cmake -DCMAKE_PREFIX_PATH=/opt/Qt6 \\
                        -DBUILD_SHARED_LIBS=OFF \\
@@ -387,6 +451,9 @@ jobs:
                        -DFFMPEG_ROOT=/usr/local \\
                        -DFFMPEG_INCLUDE_DIRS=/usr/local/include \\
                        -DPkgConfig_EXECUTABLE=\$(which pkg-config) \\
+                       -DCMAKE_LIBRARY_PATH=\"/opt/Qt6/lib:/usr/local/lib:/usr/lib/x86_64-linux-gnu:/opt/orc-static/lib/x86_64-linux-gnu\" \\
+                       -DCMAKE_INCLUDE_PATH=\"/opt/Qt6/include:/usr/local/include:/usr/include\" \\
+                       -DORC_ROOT=/opt/orc-static \\
                        /workspace/src; then
                 echo 'CMake configuration successful, building with make...'
                 if make -j\$(nproc); then
@@ -406,11 +473,29 @@ jobs:
                 cd /workspace/build
                 rm -rf * 2>/dev/null || true
                 
+                # Set up environment for qmake
+                export PKG_CONFIG_PATH=\"/opt/Qt6/lib/pkgconfig:\$PKG_CONFIG_PATH\"
+                export CPLUS_INCLUDE_PATH=\"/opt/Qt6/include:/usr/include/gstreamer-1.0:/usr/include/glib-2.0:/usr/lib/x86_64-linux-gnu/glib-2.0/include\"
+                export LIBRARY_PATH=\"/opt/Qt6/lib:/usr/lib/x86_64-linux-gnu:/opt/orc-static/lib/x86_64-linux-gnu\"
+                export LC_ALL=C.UTF-8
+                export LANG=C.UTF-8
+                
+                echo 'Environment setup for qmake:'
+                echo \"PKG_CONFIG_PATH=\$PKG_CONFIG_PATH\"
+                echo \"CPLUS_INCLUDE_PATH=\$CPLUS_INCLUDE_PATH\"
+                echo \"LIBRARY_PATH=\$LIBRARY_PATH\"
+                
+                # Test GStreamer detection
+                pkg-config --exists gstreamer-1.0 && echo 'GStreamer-1.0 detected' || echo 'GStreamer-1.0 NOT detected'
+                
                 # Use qmake with static configuration
                 if /opt/Qt6/bin/qmake /workspace/src \\
                    CONFIG+=staticlib \\
                    CONFIG+=static \\
-                   'LIBS+=-static-libgcc -static-libstdc++'; then
+                   'LIBS+=-static-libgcc -static-libstdc++' \\
+                   'INCLUDEPATH+=/usr/include/gstreamer-1.0' \\
+                   'INCLUDEPATH+=/usr/include/glib-2.0' \\
+                   'INCLUDEPATH+=/usr/lib/x86_64-linux-gnu/glib-2.0/include'; then
                   echo 'qmake configuration successful, building...'
                   make -j\$(nproc) || {
                     echo 'Static build failed, trying dynamic linking in static environment...'
