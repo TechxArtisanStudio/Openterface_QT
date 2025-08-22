@@ -71,8 +71,8 @@ GStreamerBackendHandler::GStreamerBackendHandler(QObject *parent)
       m_healthCheckTimer(new QTimer(this)),
       m_gstProcess(nullptr),
       m_pipelineRunning(false),
-      m_currentFramerate(30),
-      m_currentResolution(1280, 720)  // Initialize with a valid default resolution
+      m_currentResolution(1280, 720),  // Initialize with a valid default resolution
+      m_currentFramerate(30)
 {
     m_config = getDefaultConfig();
     
@@ -122,6 +122,9 @@ void GStreamerBackendHandler::prepareCameraCreation(QCamera* oldCamera)
 
 void GStreamerBackendHandler::setupCaptureSession(QMediaCaptureSession* session, QCamera* camera)
 {
+    Q_UNUSED(session)
+    Q_UNUSED(camera)
+    
     // For GStreamer backend, always use direct pipeline and never set up Qt camera
     // This prevents Qt from accessing the V4L2 device and causing conflicts
     qCDebug(log_gstreamer_backend) << "GStreamer: Skipping Qt capture session setup - always use direct pipeline to avoid device conflicts";
@@ -132,6 +135,9 @@ void GStreamerBackendHandler::setupCaptureSession(QMediaCaptureSession* session,
 
 void GStreamerBackendHandler::finalizeVideoOutputConnection(QMediaCaptureSession* session, QObject* videoOutput)
 {
+    Q_UNUSED(session)
+    Q_UNUSED(videoOutput)
+    
     // For GStreamer backend, always use direct rendering and never set up Qt video output
     // This prevents Qt from accessing the V4L2 device and causing conflicts
     qCDebug(log_gstreamer_backend) << "GStreamer: Skipping Qt video output setup - always use direct GStreamer rendering to avoid device conflicts";
@@ -826,11 +832,6 @@ bool GStreamerBackendHandler::initializeGStreamer()
         gst_object_unref(factory);
     } else {
         qCWarning(log_gstreamer_backend) << "✗ v4l2src element not available - check GStreamer plugins installation";
-    }
-        
-    } catch (...) {
-        qCCritical(log_gstreamer_backend) << "Exception occurred during plugin registration";
-        return false;
     }
     
     return true;
