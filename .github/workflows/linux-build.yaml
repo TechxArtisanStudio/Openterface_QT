@@ -1,5 +1,8 @@
 name: Linux Build
 
+# This workflow depends on pre-built Docker images from build-qt-environments.yml
+# Ensure that workflow has been run successfully before running this build
+
 on:
   push:
     branches: ["main", "dev"]
@@ -7,15 +10,31 @@ on:
   pull_request:
     branches: ["dev"]
   workflow_dispatch:
+    inputs:
+      build_type:
+        description: 'Type of Qt build to use'
+        required: true
+        default: 'static'
+        type: choice
+        options:
+        - 'dynamic'
+        - 'static'
+        - 'both'
 
 env:
   ARTIFACT: openterfaceQT
   SOURCE_DIR: ${{ github.workspace }}
-  QT_VERSION: 6.4.2
+  QT_VERSION: 6.6.3
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository_owner }}/openterface-qt
 
 jobs:
-  build:
-    runs-on: ubuntu-22.04
+  build-dynamic:
+    if: ${{ github.event.inputs.build_type == 'dynamic' || github.event.inputs.build_type == 'both' || github.event_name != 'workflow_dispatch' }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: read
     strategy:
       matrix:
         arch: [amd64]
@@ -26,42 +45,39 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Install prerequisites
-        run: |
-          # Non-interactive apt to avoid prompts in CI
-          export DEBIAN_FRONTEND=noninteractive
-          sudo apt-get update -y
-          sudo apt-get upgrade -y
-          sudo apt-get install -y --no-install-recommends build-essential libunwind-dev
-
-          # Install development packages required for building (make apt more robust against broken deps)
-          sudo apt-get install -y --no-install-recommends libusb-1.0-0-dev rpm libfuse2 libudev-dev \
-            pkg-config libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev libgstreamer-plugins-good1.0-dev libglib2.0-dev || \
-            (sudo apt-get -f install -y && sudo apt-get install -y --no-install-recommends libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev libgstreamer-plugins-good1.0-dev)
-
-          wget -O linuxdeploy-x86_64.AppImage https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
-          wget -O linuxdeploy-plugin-qt-x86_64.AppImage https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-x86_64.AppImage
-          wget -O appimagetool "https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage"
-
-          chmod +x linuxdeploy-x86_64.AppImage linuxdeploy-plugin-qt-x86_64.AppImage appimagetool
-          sudo mv linuxdeploy-x86_64.AppImage linuxdeploy-plugin-qt-x86_64.AppImage appimagetool /usr/local/bin/
-
-      - name: Install Qt for AMD64
-        uses: jurplel/install-qt-action@v4
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
         with:
-          version: ${{ env.QT_VERSION }}
-          host: linux
-          target: desktop
-          arch: gcc_64
-          modules: qtmultimedia qtserialport
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Debug Qt environment
+      - name: Pull pre-built Dynamic Qt Docker Image
         run: |
-          echo "PATH: $PATH"
-          echo "Qt6_DIR: $Qt6_DIR"
-          echo "QTDIR: $QTDIR"
-          which lupdate || echo "lupdate not found"
-          lupdate --version || echo "lupdate version check failed"
+          echo "Pulling pre-built Dynamic Qt Docker image..."
+          
+          # Check if image exists in registry
+          if docker manifest inspect ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-dynamic:latest > /dev/null 2>&1; then
+            echo "Pre-built image found, pulling..."
+            docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-dynamic:latest
+            echo "Successfully pulled pre-built Dynamic Qt Docker image"
+          else
+            echo "Error: Pre-built Dynamic Qt Docker image not found in registry"
+            echo "Please run the 'Build Qt Environments' workflow first to build the required Docker images"
+            echo "Workflow URL: https://github.com/${{ github.repository }}/actions/workflows/build-qt-environments.yml"
+            exit 1
+          fi
+          
+          # Verify the image was pulled successfully
+          docker images | grep openterface-qt-dynamic || {
+            echo "Error: Failed to verify Dynamic Qt Docker image"
+            exit 1
+          }
+
+      - name: Install packaging tools
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y rpm
 
       - name: Get all tags for correct version determination
         working-directory: ${{ github.workspace }}
@@ -74,58 +90,93 @@ jobs:
           VERSION=$(grep -oP '#define APP_VERSION "\K[^"]+' resources/version.h)
           echo "VERSION=$VERSION" >> $GITHUB_ENV
 
-      - name: Create build directory
+      - name: Build in Docker Container (Dynamic Qt)
         run: |
-          buildDir="${{ runner.temp }}/build"
-          mkdir -p $buildDir
-          echo "BUILD_DIR=$buildDir" >> $GITHUB_ENV
+          # Create build directory in host for artifact collection
+          mkdir -p ${{ runner.temp }}/build-dynamic
+          mkdir -p ${{ runner.temp }}/build-dynamic/config/languages
+          mkdir -p ${{ runner.temp }}/build-dynamic/config/keyboards
+          
+          # Build application using Dynamic Qt Docker environment
+          docker run --rm \
+            -v ${{ github.workspace }}:/workspace/src \
+            -v ${{ runner.temp }}/build-dynamic:/workspace/build \
+            -w /workspace/src \
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-dynamic:latest \
+            bash -c "
+              echo 'Building Openterface QT Application (Dynamic Qt)...'
+              
+              # Verify Docker environment
+              /opt/verify/verify-qt-dynamic.sh
+              
+              # Check TurboJPEG and GStreamer availability
+              echo 'Checking library availability:'
+              find /usr/lib -name '*turbojpeg*' -o -name '*jpeg*' | grep -E '\.(so|a)$' | sort
+              ldconfig -p | grep -i jpeg
+              pkg-config --list-all | grep -E 'gst|jpeg'
+              
+              # Update translations
+              lupdate openterfaceQT.pro -no-obsolete || echo 'lupdate failed, continuing...'
+              
+              # Release translations
+              lrelease openterfaceQT.pro || echo 'lrelease failed, continuing...'
+              
+              # Check for compilation issues in source files
+              echo 'Checking for potential compilation issues...'
+              grep -n 'catch' host/backend/gstreamerbackendhandler.cpp | head -5 || echo 'No catch blocks found'
+              
+              # Copy configuration files
+              cp -r config/keyboards/*.json /workspace/build/config/keyboards/ 2>/dev/null || echo 'No keyboard configs found'
+              cp -r config/languages/*.qm /workspace/build/config/languages/ 2>/dev/null || echo 'No language files found'
+              
+              # Configure and build with qmake
+              cd /workspace/build
+              if qmake6 /workspace/src; then
+                echo 'qmake configuration successful, building...'
+                if make -j\$(nproc); then
+                  echo 'Build completed successfully'
+                else
+                  echo 'Build failed, showing errors:'
+                  make -j1 || true
+                  exit 1
+                fi
+              else
+                echo 'qmake configuration failed!'
+                exit 1
+              fi
+              
+              # Verify build output
+              echo 'Checking build output:'
+              ls -lh /workspace/build
+              if [ -f '/workspace/build/openterfaceQT' ]; then
+                echo 'openterfaceQT found!'
+              else
+                echo 'Error: openterfaceQT not found!'
+                exit 1
+              fi
+            "
+          
+          echo "BUILD_DIR=${{ runner.temp }}/build-dynamic" >> $GITHUB_ENV
 
-      - name: Update translations
-        working-directory: ${{ github.workspace }}
-        run: |
-          lupdate openterfaceQT.pro -no-obsolete
-
-      - name: Release translations
-        working-directory: ${{ github.workspace }}
-        run: |
-          lrelease openterfaceQT.pro
-          mkdir -p ${{ env.BUILD_DIR }}/config/languages
-          mkdir -p ${{ env.BUILD_DIR }}/config/keyboards
-          cp config/keyboards/*.json ${{ env.BUILD_DIR }}/config/keyboards
-          cp config/languages/*.qm ${{ env.BUILD_DIR }}/config/languages
-
-      - name: Configure And Build
-        working-directory: ${{ env.BUILD_DIR }}
-        run: |
-          qmake6 ${{ github.workspace }} && make -j$(nproc)
-          echo "Checking build output:"
-          ls -lh ${{ env.BUILD_DIR }}
-          if [ -f ${{ env.BUILD_DIR }}/openterfaceQT ]; then
-            echo "openterfaceQT found!"
-          else
-            echo "Error: openterfaceQT not found in ${{ env.BUILD_DIR }}!"
-            exit 1
-          fi
-
-      - name: Create deb package
+      - name: Create deb package (Dynamic)
         working-directory: ${{ runner.temp }}
         run: |
-          mkdir -p package/DEBIAN
+          mkdir -p package-dynamic/DEBIAN
           
-          PKG_NAME="${{ env.ARTIFACT }}.linux.${{ matrix.arch }}"
+          PKG_NAME="${{ env.ARTIFACT }}.linux.${{ matrix.arch }}.dynamic"
           
           sed -e "s/\${VERSION}/${{ env.VERSION }}/g" \
               -e "s/\${ARCH}/${{ matrix.arch }}/g" \
-              ${{ github.workspace }}/packaging/debian/control > package/DEBIAN/control
+              ${{ github.workspace }}/packaging/debian/control > package-dynamic/DEBIAN/control
           
-          mkdir -p package/usr/bin
-          cp -r ${{ env.BUILD_DIR }}/openterfaceQT package/usr/bin
+          mkdir -p package-dynamic/usr/bin
+          cp -r ${{ env.BUILD_DIR }}/openterfaceQT package-dynamic/usr/bin
 
-          mkdir -p package/usr/share/icons/hicolor/256x256/apps/
-          cp ${{ github.workspace }}/images/icon_256.png package/usr/share/icons/hicolor/256x256/apps/openterfaceQT.png
+          mkdir -p package-dynamic/usr/share/icons/hicolor/256x256/apps/
+          cp ${{ github.workspace }}/images/icon_256.png package-dynamic/usr/share/icons/hicolor/256x256/apps/openterfaceQT.png
 
-          mkdir -p package/usr/share/applications/
-          cat > package/usr/share/applications/openterfaceQT.desktop << EOF
+          mkdir -p package-dynamic/usr/share/applications/
+          cat > package-dynamic/usr/share/applications/openterfaceQT.desktop << EOF
           [Desktop Entry]
           Version=1.0
           Type=Application
@@ -136,48 +187,459 @@ jobs:
           Categories=Utility;
           EOF
 
-          mv package $PKG_NAME
+          mv package-dynamic $PKG_NAME
           dpkg-deb --build $PKG_NAME
 
-      - name: Upload artifact
+      - name: Upload artifact (Dynamic deb)
         uses: actions/upload-artifact@v4
         with:
-          name: openterfaceQT.linux.${{ matrix.arch }}.deb
-          path: ${{ runner.temp }}/${{ env.ARTIFACT }}.linux.${{ matrix.arch }}.deb
+          name: openterfaceQT.linux.${{ matrix.arch }}.dynamic.deb
+          path: ${{ runner.temp }}/${{ env.ARTIFACT }}.linux.${{ matrix.arch }}.dynamic.deb
           if-no-files-found: error
 
-      - name: Create rpm package
+      - name: Create rpm package (Dynamic)
         working-directory: ${{ runner.temp }}
         run: |
-          mkdir -p rpmbuild/{SPECS,SOURCES,BUILD,RPMS,SRPMS}
+          mkdir -p rpmbuild-dynamic/{SPECS,SOURCES,BUILD,RPMS,SRPMS}
           
-          PKG_NAME="${{ env.ARTIFACT }}.linux.${{ matrix.arch }}"
+          PKG_NAME="${{ env.ARTIFACT }}.linux.${{ matrix.arch }}.dynamic"
           
           # Copy build output and icon to SOURCES
-          cp ${{ env.BUILD_DIR }}/openterfaceQT rpmbuild/SOURCES/ || { echo "Failed to copy openterfaceQT!"; exit 1; }
-          cp ${{ github.workspace }}/images/icon_256.png rpmbuild/SOURCES/ || { echo "Failed to copy icon_256.png!"; exit 1; }
+          cp ${{ env.BUILD_DIR }}/openterfaceQT rpmbuild-dynamic/SOURCES/ || { echo "Failed to copy openterfaceQT!"; exit 1; }
+          cp ${{ github.workspace }}/images/icon_256.png rpmbuild-dynamic/SOURCES/ || { echo "Failed to copy icon_256.png!"; exit 1; }
           
           # Debug: Verify files in SOURCES
-          ls -lh rpmbuild/SOURCES/
+          ls -lh rpmbuild-dynamic/SOURCES/
           
           # Generate spec file with version and architecture substitutions
           sed -e "s/\${VERSION}/${{ env.VERSION }}/g" \
               -e "s/\${ARCH}/${{ matrix.arch }}/g" \
-              ${{ github.workspace }}/packaging/rpm/spec > rpmbuild/SPECS/openterfaceqt.spec
+              ${{ github.workspace }}/packaging/rpm/spec > rpmbuild-dynamic/SPECS/openterfaceqt.spec
           
           # Debug: Show generated spec file
-          cat rpmbuild/SPECS/openterfaceqt.spec
+          cat rpmbuild-dynamic/SPECS/openterfaceqt.spec
           
           # Build RPM
-          rpmbuild --define "_topdir ${{ runner.temp }}/rpmbuild" -bb rpmbuild/SPECS/openterfaceqt.spec
+          rpmbuild --define "_topdir ${{ runner.temp }}/rpmbuild-dynamic" -bb rpmbuild-dynamic/SPECS/openterfaceqt.spec
           
           # Copy the resulting RPM
-          find rpmbuild/RPMS -name "*.rpm" -exec cp {} ./$PKG_NAME.rpm \;
+          find rpmbuild-dynamic/RPMS -name "*.rpm" -exec cp {} ./$PKG_NAME.rpm \;
 
-      - name: Upload RPM artifact
+      - name: Upload RPM artifact (Dynamic)
         uses: actions/upload-artifact@v4
         with:
-          name: openterfaceQT.linux.${{ matrix.arch }}.rpm
-          path: ${{ runner.temp }}/${{ env.ARTIFACT }}.linux.${{ matrix.arch }}.rpm
+          name: openterfaceQT.linux.${{ matrix.arch }}.dynamic.rpm
+          path: ${{ runner.temp }}/${{ env.ARTIFACT }}.linux.${{ matrix.arch }}.dynamic.rpm
+          if-no-files-found: error
 
+  build-static:
+    if: ${{ github.event.inputs.build_type == 'static' || github.event.inputs.build_type == 'both' || github.event_name != 'workflow_dispatch' }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: read
+    strategy:
+      matrix:
+        arch: [amd64]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pull pre-built Static Qt Docker Image
+        run: |
+          echo "Pulling pre-built Static Qt Docker image..."
+          
+          # Check if image exists in registry
+          if docker manifest inspect ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-complete:latest > /dev/null 2>&1; then
+            echo "Pre-built image found, pulling..."
+            docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-complete:latest
+            echo "Successfully pulled pre-built Static Qt Docker image"
+          else
+            echo "Error: Pre-built Static Qt Docker image not found in registry"
+            echo "Please run the 'Build Qt Environments' workflow first to build the required Docker images"
+            echo "Workflow URL: https://github.com/${{ github.repository }}/actions/workflows/build-qt-environments.yml"
+            exit 1
+          fi
+          
+          # Verify the image was pulled successfully
+          docker images | grep openterface-qt-complete || {
+            echo "Error: Failed to verify Static Qt Docker image"
+            exit 1
+          }
+
+      - name: Install packaging tools
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y rpm
+
+      - name: Get all tags for correct version determination
+        working-directory: ${{ github.workspace }}
+        run: |
+          git fetch --all --tags -f
+
+      - name: Read version from version.h
+        id: read_version
+        run: |
+          VERSION=$(grep -oP '#define APP_VERSION "\K[^"]+' resources/version.h)
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+
+      - name: Build in Docker Container (Static Qt)
+        run: |
+          # Create build directory in host for artifact collection
+          mkdir -p ${{ runner.temp }}/build-static
+          mkdir -p ${{ runner.temp }}/build-static/config/languages
+          mkdir -p ${{ runner.temp }}/build-static/config/keyboards
+          
+          # Build application using Static Qt Docker environment
+          docker run --rm --user root \
+            -v ${{ github.workspace }}:/workspace/src \
+            -v ${{ runner.temp }}/build-static:/workspace/build \
+            -w /workspace/src \
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-complete:latest \
+            bash -c "
+              echo 'Building Openterface QT Application (Static Qt)...'
+              
+              # Verify Docker environment
+              /opt/Qt6/bin/verify-qt-installation.sh
+              
+              # Install missing dependencies for static build
+              apt-get update && apt-get install -y \\
+                libgudev-1.0-dev \\
+                libv4l-dev \\
+                libxi-dev \\
+                libxv-dev \\
+                || echo 'Some packages may not be available, continuing...'
+              
+              # Check for pre-existing TurboJPEG in Docker environment
+              echo 'Checking for TurboJPEG in Docker environment...'
+              find /opt -name '*turbojpeg*' 2>/dev/null | head -10
+              find /opt -name 'turbojpeg.h' 2>/dev/null | head -5
+              find /usr/local -name '*turbojpeg*' 2>/dev/null | head -10
+              find /usr/local -name 'turbojpeg.h' 2>/dev/null | head -5
+              
+              # Check if TurboJPEG is in the Qt6 installation
+              ls -la /opt/Qt6/include/ | grep -i jpeg || echo 'No JPEG headers in Qt6 include'
+              ls -la /opt/Qt6/lib/ | grep -i jpeg || echo 'No JPEG libraries in Qt6 lib'
+              
+              # Fix FFmpeg library paths for CMake
+              echo 'Setting up FFmpeg libraries for static linking...'
+              mkdir -p /usr/local/lib /usr/local/include
+              
+              # Find and link FFmpeg libraries to expected locations
+              for lib in avdevice avfilter avformat avcodec swresample swscale avutil; do
+                # Check Qt6 installation first (where they actually are)
+                QT6_LIB=\"/opt/Qt6/lib/lib\${lib}.a\"
+                if [ -f \"\$QT6_LIB\" ]; then
+                  echo \"Found \$lib in Qt6: \$QT6_LIB\"
+                  ln -sf \"\$QT6_LIB\" \"/usr/local/lib/lib\${lib}.a\"
+                else
+                  # Fallback to system search
+                  STATIC_LIB=\$(find /usr -name \"lib\${lib}.a\" 2>/dev/null | head -1)
+                  SHARED_LIB=\$(find /usr -name \"lib\${lib}.so*\" 2>/dev/null | head -1)
+                  
+                  if [ -n \"\$STATIC_LIB\" ]; then
+                    echo \"Linking static \$lib: \$STATIC_LIB -> /usr/local/lib/lib\${lib}.a\"
+                    ln -sf \"\$STATIC_LIB\" \"/usr/local/lib/lib\${lib}.a\"
+                  elif [ -n \"\$SHARED_LIB\" ]; then
+                    echo \"Linking shared \$lib: \$SHARED_LIB -> /usr/local/lib/lib\${lib}.a\"
+                    ln -sf \"\$SHARED_LIB\" \"/usr/local/lib/lib\${lib}.a\"
+                  else
+                    echo \"Warning: lib\${lib} not found\"
+                  fi
+                fi
+              done
+              
+              # Set up TurboJPEG headers and libraries
+              echo 'Setting up TurboJPEG for compilation...'
+              
+              # First, check if TurboJPEG is already available in the Docker environment
+              TURBOJPEG_HEADER=\$(find /opt -name \"turbojpeg.h\" 2>/dev/null | head -1)
+              if [ -z \"\$TURBOJPEG_HEADER\" ]; then
+                TURBOJPEG_HEADER=\$(find /usr/local -name \"turbojpeg.h\" 2>/dev/null | head -1)
+              fi
+              if [ -z \"\$TURBOJPEG_HEADER\" ]; then
+                TURBOJPEG_HEADER=\$(find /usr/include -name \"turbojpeg.h\" 2>/dev/null | head -1)
+              fi
+              
+              # Check for TurboJPEG library
+              TURBOJPEG_LIB=\$(find /opt -name \"libturbojpeg.so*\" -o -name \"libturbojpeg.a\" 2>/dev/null | head -1)
+              if [ -z \"\$TURBOJPEG_LIB\" ]; then
+                TURBOJPEG_LIB=\$(find /usr/local -name \"libturbojpeg.so*\" -o -name \"libturbojpeg.a\" 2>/dev/null | head -1)
+              fi
+              if [ -z \"\$TURBOJPEG_LIB\" ]; then
+                TURBOJPEG_LIB=\$(find /usr -name \"libturbojpeg.so*\" -o -name \"libturbojpeg.a\" 2>/dev/null | head -1)
+              fi
+              
+              if [ -n \"\$TURBOJPEG_HEADER\" ] && [ -n \"\$TURBOJPEG_LIB\" ]; then
+                echo \"Found TurboJPEG header: \$TURBOJPEG_HEADER\"
+                echo \"Found TurboJPEG library: \$TURBOJPEG_LIB\"
+                
+                # Create symlinks to standard locations
+                cp \"\$TURBOJPEG_HEADER\" /usr/local/include/ 2>/dev/null || true
+                cp \"\$TURBOJPEG_HEADER\" /opt/Qt6/include/ 2>/dev/null || true
+                ln -sf \"\$TURBOJPEG_LIB\" \"/usr/local/lib/libturbojpeg.a\" 2>/dev/null || true
+                ln -sf \"\$TURBOJPEG_LIB\" \"/usr/local/lib/libturbojpeg.so\" 2>/dev/null || true
+                
+                echo \"TurboJPEG setup completed using existing installation\"
+              else
+                echo \"TurboJPEG not found in Docker environment, installing...\"
+                apt-get install -y libturbojpeg0-dev libjpeg-turbo8-dev || true
+                
+                # Try detection again after installation
+                TURBOJPEG_HEADER=\$(find /usr/include -name \"turbojpeg.h\" 2>/dev/null | head -1)
+                TURBOJPEG_LIB=\$(find /usr -name \"libturbojpeg.so*\" -o -name \"libturbojpeg.a\" 2>/dev/null | head -1)
+                
+                if [ -n \"\$TURBOJPEG_HEADER\" ] && [ -n \"\$TURBOJPEG_LIB\" ]; then
+                  echo \"Found TurboJPEG after installation: header=\$TURBOJPEG_HEADER, lib=\$TURBOJPEG_LIB\"
+                  cp \"\$TURBOJPEG_HEADER\" /usr/local/include/ 2>/dev/null || true
+                  cp \"\$TURBOJPEG_HEADER\" /opt/Qt6/include/ 2>/dev/null || true
+                  ln -sf \"\$TURBOJPEG_LIB\" \"/usr/local/lib/libturbojpeg.a\" 2>/dev/null || true
+                  ln -sf \"\$TURBOJPEG_LIB\" \"/usr/local/lib/libturbojpeg.so\" 2>/dev/null || true
+                else
+                  echo \"Warning: TurboJPEG still not found after installation\"
+                  find /usr -name \"*turbojpeg*\" 2>/dev/null | head -10
+                fi
+              fi
+              
+              # Link FFmpeg headers
+              echo 'Setting up FFmpeg headers...'
+              # Check Qt6 installation first
+              if [ -d \"/opt/Qt6/include/libavcodec\" ]; then
+                echo \"Found FFmpeg headers in Qt6: /opt/Qt6/include\"
+                cp -r /opt/Qt6/include/libav* /usr/local/include/ 2>/dev/null || true
+                cp -r /opt/Qt6/include/libsw* /usr/local/include/ 2>/dev/null || true
+              else
+                # Fallback to system search
+                FFMPEG_INCLUDE=\$(find /usr/include -name \"libavcodec\" -type d 2>/dev/null | head -1 | xargs dirname)
+                if [ -n \"\$FFMPEG_INCLUDE\" ]; then
+                  echo \"Linking FFmpeg headers: \$FFMPEG_INCLUDE -> /usr/local/include\"
+                  cp -r \"\$FFMPEG_INCLUDE\"/* /usr/local/include/ 2>/dev/null || true
+                fi
+              fi
+              
+              # Fix ORC library paths and architecture issues
+              echo 'Setting up ORC libraries...'
+              
+              # Find ORC libraries in the system
+              ORC_LIB=\$(find /opt -name \"liborc-*.a\" 2>/dev/null | head -1)
+              if [ -z \"\$ORC_LIB\" ]; then
+                ORC_LIB=\$(find /usr -name \"liborc-*.so*\" 2>/dev/null | head -1)
+              fi
+              
+              if [ -n \"\$ORC_LIB\" ]; then
+                echo \"Found ORC library: \$ORC_LIB\"
+                # Create the expected directory structure
+                mkdir -p /opt/orc-static/lib/x86_64-linux-gnu /opt/orc-static/lib/aarch64-linux-gnu
+                
+                # Link to both architectures to avoid path issues
+                ln -sf \"\$ORC_LIB\" \"/opt/orc-static/lib/x86_64-linux-gnu/liborc-0.4.a\"
+                ln -sf \"\$ORC_LIB\" \"/opt/orc-static/lib/aarch64-linux-gnu/liborc-0.4.a\"
+                echo \"Created ORC library links\"
+              else
+                echo \"Warning: ORC library not found, installing...\"
+                apt-get install -y liborc-0.4-dev || true
+                # Try again after installation
+                ORC_LIB=\$(find /usr -name \"liborc-*.so*\" 2>/dev/null | head -1)
+                if [ -n \"\$ORC_LIB\" ]; then
+                  mkdir -p /opt/orc-static/lib/x86_64-linux-gnu /opt/orc-static/lib/aarch64-linux-gnu
+                  ln -sf \"\$ORC_LIB\" \"/opt/orc-static/lib/x86_64-linux-gnu/liborc-0.4.a\"
+                  ln -sf \"\$ORC_LIB\" \"/opt/orc-static/lib/aarch64-linux-gnu/liborc-0.4.a\"
+                fi
+              fi
+              
+              # Set up GStreamer development files for qmake fallback
+              echo 'Setting up GStreamer for qmake...'
+              
+              # Find GStreamer installation in the static environment
+              GSTREAMER_PREFIX=\$(find /opt -name \"gstreamer-1.0.pc\" -exec dirname {} \; 2>/dev/null | head -1 | xargs dirname 2>/dev/null)
+              if [ -n \"\$GSTREAMER_PREFIX\" ]; then
+                echo \"Found GStreamer in: \$GSTREAMER_PREFIX\"
+                export PKG_CONFIG_PATH=\"\$GSTREAMER_PREFIX/pkgconfig:\$PKG_CONFIG_PATH\"
+                
+                # Also link to system locations for qmake
+                if [ -d \"\$GSTREAMER_PREFIX/../include\" ]; then
+                  ln -sf \"\$GSTREAMER_PREFIX\"/../include/gstreamer-1.0 /usr/include/gstreamer-1.0 2>/dev/null || true
+                fi
+                if [ -d \"\$GSTREAMER_PREFIX\" ]; then
+                  ln -sf \"\$GSTREAMER_PREFIX\"/*.so* /usr/lib/x86_64-linux-gnu/ 2>/dev/null || true
+                  ln -sf \"\$GSTREAMER_PREFIX\"/*.a /usr/lib/x86_64-linux-gnu/ 2>/dev/null || true
+                fi
+              fi
+              
+              # Update translations
+              /opt/Qt6/bin/lupdate openterfaceQT.pro -no-obsolete || echo 'lupdate failed, continuing...'
+              
+              # Release translations
+              /opt/Qt6/bin/lrelease openterfaceQT.pro || echo 'lrelease failed, continuing...'
+              
+              # Copy configuration files
+              cp -r config/keyboards/*.json /workspace/build/config/keyboards/ 2>/dev/null || echo 'No keyboard configs found'
+              cp -r config/languages/*.qm /workspace/build/config/languages/ 2>/dev/null || echo 'No language files found'
+              
+              # Configure and build with cmake (static linking)
+              cd /workspace/build
+              
+              # Check available FFmpeg libraries
+              echo 'Available FFmpeg libraries:'
+              find /usr -name 'libav*.a' -o -name 'libav*.so' 2>/dev/null | head -10
+              find /opt -name 'libav*.a' -o -name 'libav*.so' 2>/dev/null | head -10
+              find /usr/local -name 'libav*.a' -o -name 'libav*.so' 2>/dev/null | head -10
+              
+              echo 'Checking /usr/local/lib contents:'
+              ls -la /usr/local/lib/ | grep -E '(av|sw)' || echo 'No FFmpeg libraries in /usr/local/lib'
+              
+              echo 'Verifying FFmpeg symlinks:'
+              ls -la /usr/local/lib/libav* 2>/dev/null || echo 'No FFmpeg symlinks in /usr/local/lib'
+              
+              echo 'Checking FFmpeg headers:'
+              ls -la /usr/local/include/libav* 2>/dev/null | head -5 || echo 'No FFmpeg headers in /usr/local/include'
+              
+              echo 'Checking pkg-config for FFmpeg:'
+              pkg-config --list-all | grep -E '(libav|ffmpeg)' || echo 'No FFmpeg pkg-config files found'
+              
+              echo 'Checking for TurboJPEG:'
+              find /usr -name '*turbojpeg*' 2>/dev/null | head -10
+              find /usr -name 'turbojpeg.h' 2>/dev/null || echo 'turbojpeg.h not found'
+              pkg-config --list-all | grep -i jpeg || echo 'No JPEG pkg-config found'
+              
+              echo 'Checking for ORC libraries:'
+              find /opt -name '*orc*' 2>/dev/null | head -10
+              find /usr -name '*orc*' 2>/dev/null | head -10
+              
+              echo 'Checking GStreamer installation:'
+              find /opt -name '*gstreamer*' -type d 2>/dev/null | head -10
+              pkg-config --list-all | grep gstreamer || echo 'No GStreamer pkg-config found'
+              
+              echo 'Architecture and system info:'
+              uname -m
+              dpkg --print-architecture 2>/dev/null || echo 'dpkg not available'
+              
+              echo 'Current PKG_CONFIG_PATH:'
+              echo \$PKG_CONFIG_PATH
+              
+              # Try cmake first for static linking
+              if cmake -DCMAKE_PREFIX_PATH=/opt/Qt6 \\
+                       -DBUILD_SHARED_LIBS=OFF \\
+                       -DCMAKE_BUILD_TYPE=Release \\
+                       -DCMAKE_FIND_LIBRARY_SUFFIXES='.a;.so' \\
+                       -DFFMPEG_ROOT=/usr/local \\
+                       -DFFMPEG_INCLUDE_DIRS=\"/usr/local/include;/opt/Qt6/include\" \\
+                       -DPkgConfig_EXECUTABLE=\$(which pkg-config) \\
+                       -DCMAKE_LIBRARY_PATH=\"/opt/Qt6/lib:/usr/local/lib:/usr/lib/x86_64-linux-gnu:/opt/orc-static/lib/x86_64-linux-gnu\" \\
+                       -DCMAKE_INCLUDE_PATH=\"/opt/Qt6/include:/usr/local/include:/usr/include\" \\
+                       -DORC_ROOT=/opt/orc-static \\
+                       -DUSE_GSTREAMER_STATIC_PLUGINS=ON \\
+                       -DTurboJPEG_ROOT=/usr/local \\
+                       -DTurboJPEG_INCLUDE_DIR=/usr/local/include \\
+                       /workspace/src; then
+                echo 'CMake configuration successful, building with make...'
+                if make -j\$(nproc); then
+                  echo 'CMake build completed successfully'
+                else
+                  echo 'CMake build failed, trying fallback...'
+                  FALLBACK=true
+                fi
+              else
+                echo 'CMake configuration failed, trying fallback...'
+                FALLBACK=true
+              fi
+              
+              
+              # Verify build output
+              echo 'Checking build output:'
+              ls -lh /workspace/build
+              if [ -f '/workspace/build/openterfaceQT' ]; then
+                echo 'openterfaceQT found!'
+                echo 'Checking static linking:'
+                ldd /workspace/build/openterfaceQT | head -10 || echo 'Binary is statically linked'
+              else
+                echo 'Error: openterfaceQT not found!'
+                exit 1
+              fi
+            "
+          
+          echo "BUILD_DIR=${{ runner.temp }}/build-static" >> $GITHUB_ENV
+
+      - name: Create deb package (Static)
+        working-directory: ${{ runner.temp }}
+        run: |
+          mkdir -p package-static/DEBIAN
+          
+          PKG_NAME="${{ env.ARTIFACT }}.linux.${{ matrix.arch }}.static"
+          
+          sed -e "s/\${VERSION}/${{ env.VERSION }}/g" \
+              -e "s/\${ARCH}/${{ matrix.arch }}/g" \
+              ${{ github.workspace }}/packaging/debian/control > package-static/DEBIAN/control
+          
+          mkdir -p package-static/usr/bin
+          cp -r ${{ env.BUILD_DIR }}/openterfaceQT package-static/usr/bin
+
+          mkdir -p package-static/usr/share/icons/hicolor/256x256/apps/
+          cp ${{ github.workspace }}/images/icon_256.png package-static/usr/share/icons/hicolor/256x256/apps/openterfaceQT.png
+
+          mkdir -p package-static/usr/share/applications/
+          cat > package-static/usr/share/applications/openterfaceQT.desktop << EOF
+          [Desktop Entry]
+          Version=1.0
+          Type=Application
+          Name=OpenterfaceQT
+          Exec=/usr/bin/openterfaceQT
+          Icon=openterfaceQT
+          Comment=OpenterfaceQT Application
+          Categories=Utility;
+          EOF
+
+          mv package-static $PKG_NAME
+          dpkg-deb --build $PKG_NAME
+
+      - name: Upload artifact (Static deb)
+        uses: actions/upload-artifact@v4
+        with:
+          name: openterfaceQT.linux.${{ matrix.arch }}.static.deb
+          path: ${{ runner.temp }}/${{ env.ARTIFACT }}.linux.${{ matrix.arch }}.static.deb
+          if-no-files-found: error
+
+      - name: Create rpm package (Static)
+        working-directory: ${{ runner.temp }}
+        run: |
+          mkdir -p rpmbuild-static/{SPECS,SOURCES,BUILD,RPMS,SRPMS}
+          
+          PKG_NAME="${{ env.ARTIFACT }}.linux.${{ matrix.arch }}.static"
+          
+          # Copy build output and icon to SOURCES
+          cp ${{ env.BUILD_DIR }}/openterfaceQT rpmbuild-static/SOURCES/ || { echo "Failed to copy openterfaceQT!"; exit 1; }
+          cp ${{ github.workspace }}/images/icon_256.png rpmbuild-static/SOURCES/ || { echo "Failed to copy icon_256.png!"; exit 1; }
+          
+          # Debug: Verify files in SOURCES
+          ls -lh rpmbuild-static/SOURCES/
+          
+          # Generate spec file with version and architecture substitutions
+          sed -e "s/\${VERSION}/${{ env.VERSION }}/g" \
+              -e "s/\${ARCH}/${{ matrix.arch }}/g" \
+              ${{ github.workspace }}/packaging/rpm/spec > rpmbuild-static/SPECS/openterfaceqt.spec
+          
+          # Debug: Show generated spec file
+          cat rpmbuild-static/SPECS/openterfaceqt.spec
+          
+          # Build RPM
+          rpmbuild --define "_topdir ${{ runner.temp }}/rpmbuild-static" -bb rpmbuild-static/SPECS/openterfaceqt.spec
+          
+          # Copy the resulting RPM
+          find rpmbuild-static/RPMS -name "*.rpm" -exec cp {} ./$PKG_NAME.rpm \;
+
+      - name: Upload RPM artifact (Static)
+        uses: actions/upload-artifact@v4
+        with:
+          name: openterfaceQT.linux.${{ matrix.arch }}.static.rpm
+          path: ${{ runner.temp }}/${{ env.ARTIFACT }}.linux.${{ matrix.arch }}.static.rpm
           if-no-files-found: error

@@ -1,0 +1,46 @@
+# Build libusb and FFmpeg
+ARG BASE_IMAGE=ghcr.io/kevinzjpeng/openterface-qt-base:latest
+FROM ${BASE_IMAGE}
+
+WORKDIR ${BUILD_DIR}
+
+# Build libusb from source
+RUN echo "Building libusb ${LIBUSB_VERSION} from source..." && \
+    curl -L -o libusb.tar.bz2 "https://github.com/libusb/libusb/releases/download/v${LIBUSB_VERSION}/libusb-${LIBUSB_VERSION}.tar.bz2" && \
+    tar xf libusb.tar.bz2 && \
+    mv "libusb-${LIBUSB_VERSION}" libusb && \
+    rm libusb.tar.bz2 && \
+    cd libusb && \
+    ./configure --prefix="${FFMPEG_PREFIX}" --enable-static --disable-shared --disable-udev && \
+    make -j$(nproc) && \
+    make install && \
+    cd ${BUILD_DIR} && \
+    rm -rf libusb
+
+# Build FFmpeg statically
+RUN echo "Building FFmpeg ${FFMPEG_VERSION} statically..." && \
+    curl -L -o ffmpeg.tar.bz2 "https://ffmpeg.org/releases/ffmpeg-${FFMPEG_VERSION}.tar.bz2" && \
+    tar xjf ffmpeg.tar.bz2 && \
+    rm ffmpeg.tar.bz2 && \
+    cd "ffmpeg-${FFMPEG_VERSION}" && \
+    ./configure \
+        --prefix="${FFMPEG_PREFIX}" \
+        --enable-static \
+        --disable-shared \
+        --disable-doc \
+        --disable-programs \
+        --disable-outdevs \
+        --enable-pic \
+        --enable-libpulse \
+        --disable-debug && \
+    make -j$(nproc) && \
+    make install && \
+    cd ${BUILD_DIR} && \
+    rm -rf "ffmpeg-${FFMPEG_VERSION}"
+
+# Verify FFmpeg installation
+RUN echo "Verifying FFmpeg installation..." && \
+    ls -la ${FFMPEG_PREFIX}/lib/libav*.a && \
+    ls -la ${FFMPEG_PREFIX}/include/libav*/
+
+WORKDIR /workspace

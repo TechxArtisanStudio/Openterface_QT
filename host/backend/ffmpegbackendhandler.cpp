@@ -21,8 +21,8 @@
 */
 
 #include "ffmpegbackendhandler.h"
-#include "../ui/videopane.h"
-#include "../global.h"
+#include "../../ui/videopane.h"
+#include "../../global.h"
 
 #include <QThread>
 #include <QDebug>
@@ -44,6 +44,13 @@ extern "C" {
 #include <libswscale/swscale.h>
 #include <libavdevice/avdevice.h>
 }
+// Helper to convert const AVInputFormat* to AVInputFormat* where FFmpeg API expects a non-const pointer.
+// This makes the intent explicit and centralizes the const_cast usage.
+#ifdef __cplusplus
+static inline AVInputFormat* ffmpeg_cast(const AVInputFormat* f) { return const_cast<AVInputFormat*>(f); }
+#else
+#define ffmpeg_cast(f) ((AVInputFormat*)(f))
+#endif
 #endif
 
 // libjpeg-turbo includes (conditional compilation)
@@ -578,7 +585,7 @@ bool FFmpegBackendHandler::openInputDevice(const QString& devicePath, const QSiz
     qCDebug(log_ffmpeg_backend) << "Trying low-latency MJPEG format with resolution" << resolution << "and framerate" << framerate;
     
     // Open input
-    int ret = avformat_open_input(&m_formatContext, devicePath.toUtf8().constData(), inputFormat, &options);
+    int ret = avformat_open_input(&m_formatContext, devicePath.toUtf8().constData(), ffmpeg_cast(inputFormat), &options);
     av_dict_free(&options);
     
     // If MJPEG fails, try YUYV422
@@ -599,7 +606,7 @@ bool FFmpegBackendHandler::openInputDevice(const QString& devicePath, const QSiz
         av_dict_set(&yuvOptions, "framerate", QString::number(framerate).toUtf8().constData(), 0);
         av_dict_set(&yuvOptions, "input_format", "yuyv422", 0);
         
-        ret = avformat_open_input(&m_formatContext, devicePath.toUtf8().constData(), inputFormat, &yuvOptions);
+    ret = avformat_open_input(&m_formatContext, devicePath.toUtf8().constData(), ffmpeg_cast(inputFormat), &yuvOptions);
         av_dict_free(&yuvOptions);
     }
     
@@ -620,7 +627,7 @@ bool FFmpegBackendHandler::openInputDevice(const QString& devicePath, const QSiz
         av_dict_set(&fallbackOptions, "video_size", QString("%1x%2").arg(resolution.width()).arg(resolution.height()).toUtf8().constData(), 0);
         av_dict_set(&fallbackOptions, "framerate", QString::number(framerate).toUtf8().constData(), 0);
         
-        ret = avformat_open_input(&m_formatContext, devicePath.toUtf8().constData(), inputFormat, &fallbackOptions);
+    ret = avformat_open_input(&m_formatContext, devicePath.toUtf8().constData(), ffmpeg_cast(inputFormat), &fallbackOptions);
         av_dict_free(&fallbackOptions);
     }
     
@@ -637,7 +644,7 @@ bool FFmpegBackendHandler::openInputDevice(const QString& devicePath, const QSiz
         m_formatContext = avformat_alloc_context();
         
         // Try with minimal options (just the device path)
-        ret = avformat_open_input(&m_formatContext, devicePath.toUtf8().constData(), inputFormat, nullptr);
+    ret = avformat_open_input(&m_formatContext, devicePath.toUtf8().constData(), ffmpeg_cast(inputFormat), nullptr);
     }
     
     if (ret < 0) {
