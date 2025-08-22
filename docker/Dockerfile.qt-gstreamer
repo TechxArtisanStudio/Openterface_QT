@@ -52,13 +52,19 @@ RUN echo "Building GStreamer core..." && \
         -Dtools=disabled \
         -Dnls=disabled && \
     ninja -C build && \
-    ninja -C build install
+    ninja -C build install && \
+    echo "GStreamer core installation completed" && \
+    ls -la "${WORK_DIR}/gstreamer_build/lib/pkgconfig/" && \
+    pkg-config --exists gstreamer-1.0 && echo "GStreamer pkg-config found" || echo "GStreamer pkg-config NOT found"
 
 # Update PKG_CONFIG_PATH after GStreamer core installation
 ENV PKG_CONFIG_PATH="${WORK_DIR}/gstreamer_build/lib/pkgconfig:${PKG_CONFIG_PATH}"
 
 # Build gst-plugins-base (essential plugins)
 RUN echo "Building gst-plugins-base..." && \
+    export PKG_CONFIG_PATH="${WORK_DIR}/gstreamer_build/lib/pkgconfig:${FFMPEG_PREFIX}/lib/pkgconfig:/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/share/pkgconfig" && \
+    echo "PKG_CONFIG_PATH=$PKG_CONFIG_PATH" && \
+    pkg-config --exists gstreamer-1.0 && echo "GStreamer-1.0 found via pkg-config" || echo "ERROR: GStreamer-1.0 NOT found" && \
     cd "${WORK_DIR}/gstreamer_sources/gst-plugins-base-${GSTREAMER_VERSION}" && \
     meson setup build \
         --prefix="${WORK_DIR}/gstreamer_build" \
@@ -78,6 +84,7 @@ RUN echo "Building gst-plugins-base..." && \
 
 # Build gst-plugins-good (minimal set)
 RUN echo "Building gst-plugins-good..." && \
+    export PKG_CONFIG_PATH="${WORK_DIR}/gstreamer_build/lib/pkgconfig:${FFMPEG_PREFIX}/lib/pkgconfig:/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/share/pkgconfig" && \
     cd "${WORK_DIR}/gstreamer_sources/gst-plugins-good-${GSTREAMER_VERSION}" && \
     meson setup build \
         --prefix="${WORK_DIR}/gstreamer_build" \
