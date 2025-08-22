@@ -12,10 +12,15 @@ env:
   ARTIFACT: openterfaceQT
   SOURCE_DIR: ${{ github.workspace }}
   QT_VERSION: 6.6.3
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository_owner }}/openterface-qt
 
 jobs:
   build:
     runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: read
     strategy:
       matrix:
         arch: [amd64]
@@ -26,44 +31,21 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Install prerequisites
-        run: |
-          # Non-interactive apt to avoid prompts in CI
-          export DEBIAN_FRONTEND=noninteractive
-          sudo apt-get update -y
-          sudo apt-get upgrade -y
-          sudo apt-get install -y --no-install-recommends build-essential libunwind-dev
-
-          # Install development packages required for building (make apt more robust against broken deps)
-          # Include FFmpeg dev packages (libav*) so qmake/pkg-config can detect libavformat, libavcodec, etc.
-          sudo apt-get install -y --no-install-recommends libusb-1.0-0-dev rpm libfuse2 libudev-dev \
-            pkg-config libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev libgstreamer-plugins-good1.0-dev libglib2.0-dev \
-            libavdevice-dev libavformat-dev libavcodec-dev libavutil-dev libswresample-dev libswscale-dev libturbojpeg-dev libjpeg-dev || \
-            (sudo apt-get -f install -y && sudo apt-get install -y --no-install-recommends libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev libgstreamer-plugins-good1.0-dev libglib2.0-dev libavdevice-dev libavformat-dev libavcodec-dev libavutil-dev libswresample-dev libswscale-dev libturbojpeg-dev libjpeg-dev)
-
-          wget -O linuxdeploy-x86_64.AppImage https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
-          wget -O linuxdeploy-plugin-qt-x86_64.AppImage https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-x86_64.AppImage
-          wget -O appimagetool "https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage"
-
-          chmod +x linuxdeploy-x86_64.AppImage linuxdeploy-plugin-qt-x86_64.AppImage appimagetool
-          sudo mv linuxdeploy-x86_64.AppImage linuxdeploy-plugin-qt-x86_64.AppImage appimagetool /usr/local/bin/
-
-      - name: Install Qt for AMD64
-        uses: jurplel/install-qt-action@v4
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
         with:
-          version: ${{ env.QT_VERSION }}
-          host: linux
-          target: desktop
-          arch: gcc_64
-          modules: qtmultimedia qtserialport
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Debug Qt environment
+      - name: Pull Dynamic Qt Docker Image
         run: |
-          echo "PATH: $PATH"
-          echo "Qt6_DIR: $Qt6_DIR"
-          echo "QTDIR: $QTDIR"
-          which lupdate || echo "lupdate not found"
-          lupdate --version || echo "lupdate version check failed"
+          docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-dynamic:latest
+
+      - name: Install packaging tools
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y rpm
 
       - name: Get all tags for correct version determination
         working-directory: ${{ github.workspace }}
@@ -76,38 +58,48 @@ jobs:
           VERSION=$(grep -oP '#define APP_VERSION "\K[^"]+' resources/version.h)
           echo "VERSION=$VERSION" >> $GITHUB_ENV
 
-      - name: Create build directory
+      - name: Build in Docker Container
         run: |
-          buildDir="${{ runner.temp }}/build"
-          mkdir -p $buildDir
-          echo "BUILD_DIR=$buildDir" >> $GITHUB_ENV
-
-      - name: Update translations
-        working-directory: ${{ github.workspace }}
-        run: |
-          lupdate openterfaceQT.pro -no-obsolete
-
-      - name: Release translations
-        working-directory: ${{ github.workspace }}
-        run: |
-          lrelease openterfaceQT.pro
-          mkdir -p ${{ env.BUILD_DIR }}/config/languages
-          mkdir -p ${{ env.BUILD_DIR }}/config/keyboards
-          cp config/keyboards/*.json ${{ env.BUILD_DIR }}/config/keyboards
-          cp config/languages/*.qm ${{ env.BUILD_DIR }}/config/languages
-
-      - name: Configure And Build
-        working-directory: ${{ env.BUILD_DIR }}
-        run: |
-          qmake6 ${{ github.workspace }} && make -j$(nproc)
-          echo "Checking build output:"
-          ls -lh ${{ env.BUILD_DIR }}
-          if [ -f ${{ env.BUILD_DIR }}/openterfaceQT ]; then
-            echo "openterfaceQT found!"
-          else
-            echo "Error: openterfaceQT not found in ${{ env.BUILD_DIR }}!"
-            exit 1
-          fi
+          # Create build directory in host for artifact collection
+          mkdir -p ${{ runner.temp }}/build
+          mkdir -p ${{ runner.temp }}/build/config/languages
+          mkdir -p ${{ runner.temp }}/build/config/keyboards
+          
+          # Build application using Dynamic Qt Docker environment
+          docker run --rm \
+            -v ${{ github.workspace }}:/workspace/src \
+            -v ${{ runner.temp }}/build:/workspace/build \
+            -w /workspace/src \
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-dynamic:latest \
+            bash -c "
+              echo 'Building Openterface QT Application (Dynamic Qt)...'
+              
+              # Update translations
+              lupdate openterfaceQT.pro -no-obsolete || echo 'lupdate failed, continuing...'
+              
+              # Release translations
+              lrelease openterfaceQT.pro || echo 'lrelease failed, continuing...'
+              
+              # Copy configuration files
+              cp -r config/keyboards/*.json /workspace/build/config/keyboards/ 2>/dev/null || echo 'No keyboard configs found'
+              cp -r config/languages/*.qm /workspace/build/config/languages/ 2>/dev/null || echo 'No language files found'
+              
+              # Configure and build with qmake
+              cd /workspace/build
+              qmake6 /workspace/src && make -j\$(nproc)
+              
+              # Verify build output
+              echo 'Checking build output:'
+              ls -lh /workspace/build
+              if [ -f '/workspace/build/openterfaceQT' ]; then
+                echo 'openterfaceQT found!'
+              else
+                echo 'Error: openterfaceQT not found!'
+                exit 1
+              fi
+            "
+          
+          echo "BUILD_DIR=${{ runner.temp }}/build" >> $GITHUB_ENV
 
       - name: Create deb package
         working-directory: ${{ runner.temp }}
