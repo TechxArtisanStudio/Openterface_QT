@@ -1,5 +1,8 @@
 name: Linux Build
 
+# This workflow depends on pre-built Docker images from build-qt-environments.yml
+# Ensure that workflow has been run successfully before running this build
+
 on:
   push:
     branches: ["main", "dev"]
@@ -7,6 +10,16 @@ on:
   pull_request:
     branches: ["dev"]
   workflow_dispatch:
+    inputs:
+      build_type:
+        description: 'Type of Qt build to use'
+        required: true
+        default: 'dynamic'
+        type: choice
+        options:
+        - 'dynamic'
+        - 'static'
+        - 'both'
 
 env:
   ARTIFACT: openterfaceQT
@@ -16,7 +29,8 @@ env:
   IMAGE_NAME: ${{ github.repository_owner }}/openterface-qt
 
 jobs:
-  build:
+  build-dynamic:
+    if: ${{ github.event.inputs.build_type == 'dynamic' || github.event.inputs.build_type == 'both' || github.event.inputs.build_type == '' || github.event_name != 'workflow_dispatch' }}
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -38,10 +52,27 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and use Dynamic Qt Docker Image
+      - name: Pull pre-built Dynamic Qt Docker Image
         run: |
-          # Build updated Docker image with latest dependencies
-          docker build -f docker/Dockerfile.qt-dynamic -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-dynamic:latest .
+          echo "Pulling pre-built Dynamic Qt Docker image..."
+          
+          # Check if image exists in registry
+          if docker manifest inspect ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-dynamic:latest > /dev/null 2>&1; then
+            echo "Pre-built image found, pulling..."
+            docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-dynamic:latest
+            echo "Successfully pulled pre-built Dynamic Qt Docker image"
+          else
+            echo "Error: Pre-built Dynamic Qt Docker image not found in registry"
+            echo "Please run the 'Build Qt Environments' workflow first to build the required Docker images"
+            echo "Workflow URL: https://github.com/${{ github.repository }}/actions/workflows/build-qt-environments.yml"
+            exit 1
+          fi
+          
+          # Verify the image was pulled successfully
+          docker images | grep openterface-qt-dynamic || {
+            echo "Error: Failed to verify Dynamic Qt Docker image"
+            exit 1
+          }
 
       - name: Install packaging tools
         run: |
@@ -59,17 +90,17 @@ jobs:
           VERSION=$(grep -oP '#define APP_VERSION "\K[^"]+' resources/version.h)
           echo "VERSION=$VERSION" >> $GITHUB_ENV
 
-      - name: Build in Docker Container
+      - name: Build in Docker Container (Dynamic Qt)
         run: |
           # Create build directory in host for artifact collection
-          mkdir -p ${{ runner.temp }}/build
-          mkdir -p ${{ runner.temp }}/build/config/languages
-          mkdir -p ${{ runner.temp }}/build/config/keyboards
+          mkdir -p ${{ runner.temp }}/build-dynamic
+          mkdir -p ${{ runner.temp }}/build-dynamic/config/languages
+          mkdir -p ${{ runner.temp }}/build-dynamic/config/keyboards
           
           # Build application using Dynamic Qt Docker environment
           docker run --rm \
             -v ${{ github.workspace }}:/workspace/src \
-            -v ${{ runner.temp }}/build:/workspace/build \
+            -v ${{ runner.temp }}/build-dynamic:/workspace/build \
             -w /workspace/src \
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-dynamic:latest \
             bash -c "
@@ -109,27 +140,27 @@ jobs:
               fi
             "
           
-          echo "BUILD_DIR=${{ runner.temp }}/build" >> $GITHUB_ENV
+          echo "BUILD_DIR=${{ runner.temp }}/build-dynamic" >> $GITHUB_ENV
 
-      - name: Create deb package
+      - name: Create deb package (Dynamic)
         working-directory: ${{ runner.temp }}
         run: |
-          mkdir -p package/DEBIAN
+          mkdir -p package-dynamic/DEBIAN
           
-          PKG_NAME="${{ env.ARTIFACT }}.linux.${{ matrix.arch }}"
+          PKG_NAME="${{ env.ARTIFACT }}.linux.${{ matrix.arch }}.dynamic"
           
           sed -e "s/\${VERSION}/${{ env.VERSION }}/g" \
               -e "s/\${ARCH}/${{ matrix.arch }}/g" \
-              ${{ github.workspace }}/packaging/debian/control > package/DEBIAN/control
+              ${{ github.workspace }}/packaging/debian/control > package-dynamic/DEBIAN/control
           
-          mkdir -p package/usr/bin
-          cp -r ${{ env.BUILD_DIR }}/openterfaceQT package/usr/bin
+          mkdir -p package-dynamic/usr/bin
+          cp -r ${{ env.BUILD_DIR }}/openterfaceQT package-dynamic/usr/bin
 
-          mkdir -p package/usr/share/icons/hicolor/256x256/apps/
-          cp ${{ github.workspace }}/images/icon_256.png package/usr/share/icons/hicolor/256x256/apps/openterfaceQT.png
+          mkdir -p package-dynamic/usr/share/icons/hicolor/256x256/apps/
+          cp ${{ github.workspace }}/images/icon_256.png package-dynamic/usr/share/icons/hicolor/256x256/apps/openterfaceQT.png
 
-          mkdir -p package/usr/share/applications/
-          cat > package/usr/share/applications/openterfaceQT.desktop << EOF
+          mkdir -p package-dynamic/usr/share/applications/
+          cat > package-dynamic/usr/share/applications/openterfaceQT.desktop << EOF
           [Desktop Entry]
           Version=1.0
           Type=Application
@@ -140,48 +171,234 @@ jobs:
           Categories=Utility;
           EOF
 
-          mv package $PKG_NAME
+          mv package-dynamic $PKG_NAME
           dpkg-deb --build $PKG_NAME
 
-      - name: Upload artifact
+      - name: Upload artifact (Dynamic deb)
         uses: actions/upload-artifact@v4
         with:
-          name: openterfaceQT.linux.${{ matrix.arch }}.deb
-          path: ${{ runner.temp }}/${{ env.ARTIFACT }}.linux.${{ matrix.arch }}.deb
+          name: openterfaceQT.linux.${{ matrix.arch }}.dynamic.deb
+          path: ${{ runner.temp }}/${{ env.ARTIFACT }}.linux.${{ matrix.arch }}.dynamic.deb
           if-no-files-found: error
 
-      - name: Create rpm package
+      - name: Create rpm package (Dynamic)
         working-directory: ${{ runner.temp }}
         run: |
-          mkdir -p rpmbuild/{SPECS,SOURCES,BUILD,RPMS,SRPMS}
+          mkdir -p rpmbuild-dynamic/{SPECS,SOURCES,BUILD,RPMS,SRPMS}
           
-          PKG_NAME="${{ env.ARTIFACT }}.linux.${{ matrix.arch }}"
+          PKG_NAME="${{ env.ARTIFACT }}.linux.${{ matrix.arch }}.dynamic"
           
           # Copy build output and icon to SOURCES
-          cp ${{ env.BUILD_DIR }}/openterfaceQT rpmbuild/SOURCES/ || { echo "Failed to copy openterfaceQT!"; exit 1; }
-          cp ${{ github.workspace }}/images/icon_256.png rpmbuild/SOURCES/ || { echo "Failed to copy icon_256.png!"; exit 1; }
+          cp ${{ env.BUILD_DIR }}/openterfaceQT rpmbuild-dynamic/SOURCES/ || { echo "Failed to copy openterfaceQT!"; exit 1; }
+          cp ${{ github.workspace }}/images/icon_256.png rpmbuild-dynamic/SOURCES/ || { echo "Failed to copy icon_256.png!"; exit 1; }
           
           # Debug: Verify files in SOURCES
-          ls -lh rpmbuild/SOURCES/
+          ls -lh rpmbuild-dynamic/SOURCES/
           
           # Generate spec file with version and architecture substitutions
           sed -e "s/\${VERSION}/${{ env.VERSION }}/g" \
               -e "s/\${ARCH}/${{ matrix.arch }}/g" \
-              ${{ github.workspace }}/packaging/rpm/spec > rpmbuild/SPECS/openterfaceqt.spec
+              ${{ github.workspace }}/packaging/rpm/spec > rpmbuild-dynamic/SPECS/openterfaceqt.spec
           
           # Debug: Show generated spec file
-          cat rpmbuild/SPECS/openterfaceqt.spec
+          cat rpmbuild-dynamic/SPECS/openterfaceqt.spec
           
           # Build RPM
-          rpmbuild --define "_topdir ${{ runner.temp }}/rpmbuild" -bb rpmbuild/SPECS/openterfaceqt.spec
+          rpmbuild --define "_topdir ${{ runner.temp }}/rpmbuild-dynamic" -bb rpmbuild-dynamic/SPECS/openterfaceqt.spec
           
           # Copy the resulting RPM
-          find rpmbuild/RPMS -name "*.rpm" -exec cp {} ./$PKG_NAME.rpm \;
+          find rpmbuild-dynamic/RPMS -name "*.rpm" -exec cp {} ./$PKG_NAME.rpm \;
 
-      - name: Upload RPM artifact
+      - name: Upload RPM artifact (Dynamic)
         uses: actions/upload-artifact@v4
         with:
-          name: openterfaceQT.linux.${{ matrix.arch }}.rpm
-          path: ${{ runner.temp }}/${{ env.ARTIFACT }}.linux.${{ matrix.arch }}.rpm
+          name: openterfaceQT.linux.${{ matrix.arch }}.dynamic.rpm
+          path: ${{ runner.temp }}/${{ env.ARTIFACT }}.linux.${{ matrix.arch }}.dynamic.rpm
+          if-no-files-found: error
 
+  build-static:
+    if: ${{ github.event.inputs.build_type == 'static' || github.event.inputs.build_type == 'both' }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: read
+    strategy:
+      matrix:
+        arch: [amd64]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pull pre-built Static Qt Docker Image
+        run: |
+          echo "Pulling pre-built Static Qt Docker image..."
+          
+          # Check if image exists in registry
+          if docker manifest inspect ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-complete:latest > /dev/null 2>&1; then
+            echo "Pre-built image found, pulling..."
+            docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-complete:latest
+            echo "Successfully pulled pre-built Static Qt Docker image"
+          else
+            echo "Error: Pre-built Static Qt Docker image not found in registry"
+            echo "Please run the 'Build Qt Environments' workflow first to build the required Docker images"
+            echo "Workflow URL: https://github.com/${{ github.repository }}/actions/workflows/build-qt-environments.yml"
+            exit 1
+          fi
+          
+          # Verify the image was pulled successfully
+          docker images | grep openterface-qt-complete || {
+            echo "Error: Failed to verify Static Qt Docker image"
+            exit 1
+          }
+
+      - name: Install packaging tools
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y rpm
+
+      - name: Get all tags for correct version determination
+        working-directory: ${{ github.workspace }}
+        run: |
+          git fetch --all --tags -f
+
+      - name: Read version from version.h
+        id: read_version
+        run: |
+          VERSION=$(grep -oP '#define APP_VERSION "\K[^"]+' resources/version.h)
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+
+      - name: Build in Docker Container (Static Qt)
+        run: |
+          # Create build directory in host for artifact collection
+          mkdir -p ${{ runner.temp }}/build-static
+          mkdir -p ${{ runner.temp }}/build-static/config/languages
+          mkdir -p ${{ runner.temp }}/build-static/config/keyboards
+          
+          # Build application using Static Qt Docker environment
+          docker run --rm \
+            -v ${{ github.workspace }}:/workspace/src \
+            -v ${{ runner.temp }}/build-static:/workspace/build \
+            -w /workspace/src \
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-complete:latest \
+            bash -c "
+              echo 'Building Openterface QT Application (Static Qt)...'
+              
+              # Verify Docker environment
+              /opt/Qt6/bin/verify-qt-installation.sh
+              
+              # Update translations
+              /opt/Qt6/bin/lupdate openterfaceQT.pro -no-obsolete || echo 'lupdate failed, continuing...'
+              
+              # Release translations
+              /opt/Qt6/bin/lrelease openterfaceQT.pro || echo 'lrelease failed, continuing...'
+              
+              # Copy configuration files
+              cp -r config/keyboards/*.json /workspace/build/config/keyboards/ 2>/dev/null || echo 'No keyboard configs found'
+              cp -r config/languages/*.qm /workspace/build/config/languages/ 2>/dev/null || echo 'No language files found'
+              
+              # Configure and build with cmake (static linking)
+              cd /workspace/build
+              cmake -DCMAKE_PREFIX_PATH=/opt/Qt6 \\
+                    -DBUILD_SHARED_LIBS=OFF \\
+                    -DCMAKE_BUILD_TYPE=Release \\
+                    /workspace/src
+              make -j\$(nproc)
+              
+              # Verify build output
+              echo 'Checking build output:'
+              ls -lh /workspace/build
+              if [ -f '/workspace/build/openterfaceQT' ]; then
+                echo 'openterfaceQT found!'
+                echo 'Checking static linking:'
+                ldd /workspace/build/openterfaceQT | head -10 || echo 'Binary is statically linked'
+              else
+                echo 'Error: openterfaceQT not found!'
+                exit 1
+              fi
+            "
+          
+          echo "BUILD_DIR=${{ runner.temp }}/build-static" >> $GITHUB_ENV
+
+      - name: Create deb package (Static)
+        working-directory: ${{ runner.temp }}
+        run: |
+          mkdir -p package-static/DEBIAN
+          
+          PKG_NAME="${{ env.ARTIFACT }}.linux.${{ matrix.arch }}.static"
+          
+          sed -e "s/\${VERSION}/${{ env.VERSION }}/g" \
+              -e "s/\${ARCH}/${{ matrix.arch }}/g" \
+              ${{ github.workspace }}/packaging/debian/control > package-static/DEBIAN/control
+          
+          mkdir -p package-static/usr/bin
+          cp -r ${{ env.BUILD_DIR }}/openterfaceQT package-static/usr/bin
+
+          mkdir -p package-static/usr/share/icons/hicolor/256x256/apps/
+          cp ${{ github.workspace }}/images/icon_256.png package-static/usr/share/icons/hicolor/256x256/apps/openterfaceQT.png
+
+          mkdir -p package-static/usr/share/applications/
+          cat > package-static/usr/share/applications/openterfaceQT.desktop << EOF
+          [Desktop Entry]
+          Version=1.0
+          Type=Application
+          Name=OpenterfaceQT
+          Exec=/usr/bin/openterfaceQT
+          Icon=openterfaceQT
+          Comment=OpenterfaceQT Application
+          Categories=Utility;
+          EOF
+
+          mv package-static $PKG_NAME
+          dpkg-deb --build $PKG_NAME
+
+      - name: Upload artifact (Static deb)
+        uses: actions/upload-artifact@v4
+        with:
+          name: openterfaceQT.linux.${{ matrix.arch }}.static.deb
+          path: ${{ runner.temp }}/${{ env.ARTIFACT }}.linux.${{ matrix.arch }}.static.deb
+          if-no-files-found: error
+
+      - name: Create rpm package (Static)
+        working-directory: ${{ runner.temp }}
+        run: |
+          mkdir -p rpmbuild-static/{SPECS,SOURCES,BUILD,RPMS,SRPMS}
+          
+          PKG_NAME="${{ env.ARTIFACT }}.linux.${{ matrix.arch }}.static"
+          
+          # Copy build output and icon to SOURCES
+          cp ${{ env.BUILD_DIR }}/openterfaceQT rpmbuild-static/SOURCES/ || { echo "Failed to copy openterfaceQT!"; exit 1; }
+          cp ${{ github.workspace }}/images/icon_256.png rpmbuild-static/SOURCES/ || { echo "Failed to copy icon_256.png!"; exit 1; }
+          
+          # Debug: Verify files in SOURCES
+          ls -lh rpmbuild-static/SOURCES/
+          
+          # Generate spec file with version and architecture substitutions
+          sed -e "s/\${VERSION}/${{ env.VERSION }}/g" \
+              -e "s/\${ARCH}/${{ matrix.arch }}/g" \
+              ${{ github.workspace }}/packaging/rpm/spec > rpmbuild-static/SPECS/openterfaceqt.spec
+          
+          # Debug: Show generated spec file
+          cat rpmbuild-static/SPECS/openterfaceqt.spec
+          
+          # Build RPM
+          rpmbuild --define "_topdir ${{ runner.temp }}/rpmbuild-static" -bb rpmbuild-static/SPECS/openterfaceqt.spec
+          
+          # Copy the resulting RPM
+          find rpmbuild-static/RPMS -name "*.rpm" -exec cp {} ./$PKG_NAME.rpm \;
+
+      - name: Upload RPM artifact (Static)
+        uses: actions/upload-artifact@v4
+        with:
+          name: openterfaceQT.linux.${{ matrix.arch }}.static.rpm
+          path: ${{ runner.temp }}/${{ env.ARTIFACT }}.linux.${{ matrix.arch }}.static.rpm
           if-no-files-found: error
