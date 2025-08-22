@@ -69,6 +69,8 @@ RUN apt-get update && apt-get install -y \
     libswresample-dev \
     libavdevice-dev \
     libavfilter-dev \
+    libjpeg-dev \
+    libturbojpeg0-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Set environment variables for Qt6
@@ -105,6 +107,9 @@ RUN mkdir -p /opt/verify && \
     echo '        echo "✗ $module pkg-config: FAILED"' >> /opt/verify/verify-qt-dynamic.sh && \
     echo '    fi' >> /opt/verify/verify-qt-dynamic.sh && \
     echo 'done' >> /opt/verify/verify-qt-dynamic.sh && \
+    echo 'echo -e "\nChecking additional libraries:"' >> /opt/verify/verify-qt-dynamic.sh && \
+    echo 'echo "JPEG library: $(pkg-config --exists libjpeg && echo "✓ Found" || echo "✗ Not found")"' >> /opt/verify/verify-qt-dynamic.sh && \
+    echo 'echo "TurboJPEG library: $(find /usr/lib -name "*turbojpeg*" -type f | head -1 | xargs -I {} echo "✓ Found: {}" || echo "✗ Not found")"' >> /opt/verify/verify-qt-dynamic.sh && \
     echo 'echo -e "\nDynamic build environment ready!"' >> /opt/verify/verify-qt-dynamic.sh && \
     chmod +x /opt/verify/verify-qt-dynamic.sh
 
