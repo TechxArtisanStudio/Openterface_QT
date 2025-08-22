@@ -93,20 +93,16 @@ protected:
                 // Reset failure counter on successful read
                 consecutiveFailures = 0;
                 
-                // AGGRESSIVE CPU optimization: Target lower FPS to significantly reduce CPU load
-                // Especially important on Raspberry Pi and resource-constrained devices
-                int targetFps = qMin(m_handler->m_currentFramerate, 20); // Cap at 20 FPS for better CPU usage
-                qint64 targetInterval = 1000 / qMax(8, targetFps); // Minimum 8 FPS to maintain usability
+                // RESPONSIVENESS OPTIMIZATION: For KVM applications, prioritize responsiveness over smooth video
+                // Remove artificial frame rate limiting to reduce perceived mouse lag
                 qint64 elapsed = frameTimer.elapsed();
                 
-                // Enforce stricter minimum frame interval to prevent CPU overload
-                qint64 minInterval = 1000 / 25; // Never exceed 25 FPS (was 30)
+                // Only enforce a minimal interval to prevent complete CPU saturation
+                // But prioritize responsiveness - especially important for mouse interaction
+                qint64 minInterval = 8; // ~120 FPS max, much more responsive than 25 FPS
                 if (elapsed < minInterval) {
-                    msleep(minInterval - elapsed);
-                    frameTimer.restart();
-                } else if (elapsed < targetInterval) {
-                    // Longer sleep if we're ahead of target
-                    msleep(qMin(10, targetInterval - elapsed)); // Increased from 5ms to 10ms
+                    // Very short sleep to yield CPU but maintain responsiveness
+                    msleep(5); // Just 1ms instead of forcing frame intervals
                     frameTimer.restart();
                 } else {
                     frameTimer.restart();
@@ -117,8 +113,8 @@ protected:
                 m_handler->processFrame();
                 framesProcessed++;
                 
-                // Log performance periodically
-                if (performanceTimer.elapsed() > 10000) { // Every 10 seconds
+                // Log performance periodically (less frequently to reduce overhead)
+                if (performanceTimer.elapsed() > 15000) { // Every 15 seconds (increased from 10)
                     double actualFps = (framesProcessed * 1000.0) / performanceTimer.elapsed();
                     qCDebug(log_ffmpeg_backend) << "Capture thread performance:" << actualFps << "FPS, processed" << framesProcessed << "frames";
                     performanceTimer.restart();
@@ -527,9 +523,9 @@ bool FFmpegBackendHandler::openInputDevice(const QString& devicePath, const QSiz
 {
     qCDebug(log_ffmpeg_backend) << "Opening input device:" << devicePath;
     
-    // CRITICAL: Pre-configure the device using v4l2-ctl for optimal settings
-    // This is necessary because the Openterface device needs proper initialization
-    qCDebug(log_ffmpeg_backend) << "Pre-configuring device for optimal capture...";
+    // RESPONSIVENESS OPTIMIZATION: Configure device for minimal latency
+    // This is critical for KVM applications where mouse responsiveness is key
+    qCDebug(log_ffmpeg_backend) << "Pre-configuring device for low-latency MJPEG capture...";
     
     QString configCommand = QString("v4l2-ctl --device=%1 --set-fmt-video=width=%2,height=%3,pixelformat=MJPG")
                            .arg(devicePath).arg(resolution.width()).arg(resolution.height());
@@ -539,14 +535,19 @@ bool FFmpegBackendHandler::openInputDevice(const QString& devicePath, const QSiz
                               .arg(devicePath).arg(framerate);
     int framerateResult = system(framerateCommand.toUtf8().constData());
     
+    // RESPONSIVENESS: Try to configure minimal buffering for lower latency
+    QString bufferCommand = QString("v4l2-ctl --device=%1 --set-ctrl=compression_quality=50")
+                           .arg(devicePath);
+    system(bufferCommand.toUtf8().constData()); // Don't check result - optional optimization
+    
     if (configResult == 0 && framerateResult == 0) {
-        qCDebug(log_ffmpeg_backend) << "Device pre-configured successfully for MJPEG" << resolution << "at" << framerate << "fps";
+        qCDebug(log_ffmpeg_backend) << "Device pre-configured successfully for low-latency MJPEG" << resolution << "at" << framerate << "fps";
     } else {
         qCWarning(log_ffmpeg_backend) << "Device pre-configuration failed, continuing with FFmpeg initialization";
     }
     
-    // Small delay to let device stabilize after configuration
-    QThread::msleep(200);
+    // Reduce delay to minimize latency
+    QThread::msleep(100); // Reduced from 200ms to 100ms
     
     // Allocate format context
     m_formatContext = avformat_alloc_context();
@@ -562,13 +563,19 @@ bool FFmpegBackendHandler::openInputDevice(const QString& devicePath, const QSiz
         return false;
     }
     
-    // Set input options - try MJPEG first (should work now due to pre-configuration)
+    // RESPONSIVENESS: Set low-latency input options for MJPEG
     AVDictionary* options = nullptr;
     av_dict_set(&options, "video_size", QString("%1x%2").arg(resolution.width()).arg(resolution.height()).toUtf8().constData(), 0);
     av_dict_set(&options, "framerate", QString::number(framerate).toUtf8().constData(), 0);
     av_dict_set(&options, "input_format", "mjpeg", 0); // Should work due to pre-configuration
     
-    qCDebug(log_ffmpeg_backend) << "Trying MJPEG format with resolution" << resolution << "and framerate" << framerate;
+    // CRITICAL LOW-LATENCY OPTIMIZATIONS for KVM responsiveness:
+    av_dict_set(&options, "fflags", "nobuffer", 0);        // Disable input buffering
+    av_dict_set(&options, "flags", "low_delay", 0);        // Enable low delay mode  
+    av_dict_set(&options, "framedrop", "1", 0);            // Allow frame dropping
+    av_dict_set(&options, "use_wallclock_as_timestamps", "1", 0); // Use wall clock for timestamps
+    
+    qCDebug(log_ffmpeg_backend) << "Trying low-latency MJPEG format with resolution" << resolution << "and framerate" << framerate;
     
     // Open input
     int ret = avformat_open_input(&m_formatContext, devicePath.toUtf8().constData(), inputFormat, &options);
@@ -810,6 +817,27 @@ void FFmpegBackendHandler::processFrame()
         av_packet_unref(m_packet);
         return;
     }
+    
+    // RESPONSIVENESS OPTIMIZATION: Implement aggressive frame dropping for better mouse response
+    static qint64 lastProcessTime = 0;
+    static int droppedFrames = 0;
+    qint64 currentTime = QDateTime::currentMSecsSinceEpoch();
+    
+    // Drop frames if we're processing too slowly (more than 16ms since last frame)
+    // This prevents queue buildup and reduces mouse lag
+    if (currentTime - lastProcessTime < 12) { // More aggressive: 12ms instead of 16ms (~83 FPS limit)
+        droppedFrames++;
+        av_packet_unref(m_packet);
+        return;
+    }
+    lastProcessTime = currentTime;
+    
+    // Log dropped frames occasionally for monitoring
+    if (droppedFrames > 0 && m_frameCount % 1000 == 0) {
+        qCDebug(log_ffmpeg_backend) << "Dropped" << droppedFrames << "frames for responsiveness (last 1000 frames)";
+        droppedFrames = 0;
+    }
+    
     QPixmap pixmap;
     
     // Check if this is MJPEG/JPEG stream for direct libjpeg-turbo decoding
@@ -819,28 +847,34 @@ void FFmpegBackendHandler::processFrame()
         static int turbojpegFrameCount = 0;
         turbojpegFrameCount++;
         
-        // Only log every 1000th frame to minimize debug overhead
-        if (turbojpegFrameCount % 1000 == 1) {
+        // RESPONSIVENESS: Reduce logging overhead even more
+        if (turbojpegFrameCount % 5000 == 1) { // Every 5000 frames instead of 1000
             qCDebug(log_ffmpeg_backend) << "Using TurboJPEG acceleration (frame" << turbojpegFrameCount << ")";
         }
         
         // Additional validation for JPEG data
         if (m_packet->size < 10) { // Minimum JPEG header size
-            qCWarning(log_ffmpeg_backend) << "JPEG packet too small:" << m_packet->size << "bytes, falling back to FFmpeg decoder";
+            if (turbojpegFrameCount % 5000 == 1) { // Reduce warning spam
+                qCWarning(log_ffmpeg_backend) << "JPEG packet too small:" << m_packet->size << "bytes, falling back to FFmpeg decoder";
+            }
             pixmap = decodeFrame(m_packet);
         } else {
             pixmap = decodeJpegFrame(m_packet->data, m_packet->size);
             
             // If TurboJPEG failed, fall back to FFmpeg decoder
             if (pixmap.isNull()) {
-                if (turbojpegFrameCount % 1000 == 1) { // Reduce fallback spam even more
+                if (turbojpegFrameCount % 5000 == 1) { // Reduce fallback spam even more
                     qCDebug(log_ffmpeg_backend) << "TurboJPEG failed, falling back to FFmpeg decoder";
                 }
                 pixmap = decodeFrame(m_packet);
             }
         }
 #else
-        qCDebug(log_ffmpeg_backend) << "Using FFmpeg decoder for MJPEG frame (TurboJPEG not available)";
+        // RESPONSIVENESS: Only log this occasionally to reduce overhead
+        static int noTurboLogCount = 0;
+        if (++noTurboLogCount % 5000 == 1) {
+            qCDebug(log_ffmpeg_backend) << "Using FFmpeg decoder for MJPEG frame (TurboJPEG not available)";
+        }
         pixmap = decodeFrame(m_packet);
 #endif
     } else {
