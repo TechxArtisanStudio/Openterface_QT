@@ -269,6 +269,16 @@ if(USE_GSTREAMER AND EXISTS "${GSTREAMER_INCLUDE_DIR}/gst/gst.h" AND EXISTS "${G
             foreach(FOUND_PLUGIN ${GSTREAMER_PLUGIN_LIBRARIES})
                 message(STATUS "  - ${FOUND_PLUGIN}")
             endforeach()
+            
+            # Check if any problematic plugins are found that might cause linking issues
+            set(PROBLEMATIC_PLUGINS FALSE)
+            foreach(FOUND_PLUGIN ${GSTREAMER_PLUGIN_LIBRARIES})
+                if(FOUND_PLUGIN MATCHES ".*gstjpeg.*")
+                    message(WARNING "JPEG plugin found - this may cause linking issues with missing registration functions")
+                    message(WARNING "If build fails, try: cmake -DUSE_GSTREAMER_STATIC_PLUGINS=OFF ..")
+                    set(PROBLEMATIC_PLUGINS TRUE)
+                endif()
+            endforeach()
         endif()
     else()
         message(STATUS "GStreamer static plugins disabled by USE_GSTREAMER_STATIC_PLUGINS=OFF")
