@@ -38,9 +38,10 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Pull Dynamic Qt Docker Image
+      - name: Build and use Dynamic Qt Docker Image
         run: |
-          docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-dynamic:latest
+          # Build updated Docker image with latest dependencies
+          docker build -f docker/Dockerfile.qt-dynamic -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-dynamic:latest .
 
       - name: Install packaging tools
         run: |
@@ -73,6 +74,15 @@ jobs:
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-dynamic:latest \
             bash -c "
               echo 'Building Openterface QT Application (Dynamic Qt)...'
+              
+              # Verify Docker environment
+              /opt/verify/verify-qt-dynamic.sh
+              
+              # Check TurboJPEG and GStreamer availability
+              echo 'Checking library availability:'
+              find /usr/lib -name '*turbojpeg*' -o -name '*jpeg*' | grep -E '\.(so|a)$' | sort
+              ldconfig -p | grep -i jpeg
+              pkg-config --list-all | grep -E 'gst|jpeg'
               
               # Update translations
               lupdate openterfaceQT.pro -no-obsolete || echo 'lupdate failed, continuing...'

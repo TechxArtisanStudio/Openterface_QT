@@ -42,6 +42,7 @@ Q_LOGGING_CATEGORY(log_gstreamer_backend, "opf.backend.gstreamer")
 #include <gst/gst.h>
 #include <gst/video/videooverlay.h>
 
+#ifndef GSTREAMER_DYNAMIC_LINKING
 // Static plugin registration declarations for static linking
 extern "C" {
     // Core GStreamer plugins needed for video pipeline
@@ -56,6 +57,7 @@ extern "C" {
     void gst_plugin_xvimagesink_register(void);       // xvimagesink
     void gst_plugin_autodetect_register(void);        // autovideosink
 }
+#endif // GSTREAMER_DYNAMIC_LINKING
 #endif
 
 GStreamerBackendHandler::GStreamerBackendHandler(QObject *parent)
@@ -765,7 +767,8 @@ bool GStreamerBackendHandler::initializeGStreamer()
     
     qCDebug(log_gstreamer_backend) << "GStreamer initialized successfully";
     
-    // Register static plugins required for video pipeline
+    // Register static plugins required for video pipeline (only for static builds)
+#ifndef GSTREAMER_DYNAMIC_LINKING
     qCDebug(log_gstreamer_backend) << "Registering static GStreamer plugins...";
     
     try {
@@ -809,15 +812,21 @@ bool GStreamerBackendHandler::initializeGStreamer()
         qCDebug(log_gstreamer_backend) << "✓ Registered autodetect plugin (autovideosink)";
         
         qCDebug(log_gstreamer_backend) << "All static GStreamer plugins registered successfully";
-        
-        // Verify that v4l2src element is now available
-        GstElementFactory* factory = gst_element_factory_find("v4l2src");
-        if (factory) {
-            qCDebug(log_gstreamer_backend) << "✓ v4l2src element is now available";
-            gst_object_unref(factory);
-        } else {
-            qCWarning(log_gstreamer_backend) << "✗ v4l2src element still not available after registration";
-        }
+    } catch (...) {
+        qCWarning(log_gstreamer_backend) << "Exception occurred during static plugin registration";
+    }
+#else
+    qCDebug(log_gstreamer_backend) << "Using dynamic GStreamer plugins (no static registration needed)";
+#endif
+    
+    // Verify that v4l2src element is now available
+    GstElementFactory* factory = gst_element_factory_find("v4l2src");
+    if (factory) {
+        qCDebug(log_gstreamer_backend) << "✓ v4l2src element is available";
+        gst_object_unref(factory);
+    } else {
+        qCWarning(log_gstreamer_backend) << "✗ v4l2src element not available - check GStreamer plugins installation";
+    }
         
     } catch (...) {
         qCCritical(log_gstreamer_backend) << "Exception occurred during plugin registration";
