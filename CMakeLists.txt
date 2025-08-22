@@ -193,18 +193,50 @@ else()
 endif()
 
 # Set FFmpeg include and library directories
-if(NOT FFMPEG_INCLUDE_DIRS)
-set(FFMPEG_INCLUDE_DIRS "/usr/local/include")
+# Try to find FFmpeg in Qt6 installation first, then fallback to system locations
+set(FFMPEG_SEARCH_PATHS 
+    "/opt/Qt6"
+    "/usr/local"
+    "/usr"
+)
+
+# Also check if FFMPEG_PREFIX was set via CMAKE_PREFIX_PATH or environment
+if(DEFINED ENV{FFMPEG_PREFIX})
+    list(INSERT FFMPEG_SEARCH_PATHS 0 "$ENV{FFMPEG_PREFIX}")
 endif()
-# Force use of our static FFmpeg libraries
+
+# Check CMAKE_PREFIX_PATH for potential FFmpeg locations
+if(CMAKE_PREFIX_PATH)
+    foreach(PREFIX_PATH ${CMAKE_PREFIX_PATH})
+        list(INSERT FFMPEG_SEARCH_PATHS 0 "${PREFIX_PATH}")
+    endforeach()
+endif()
+
+# Find FFmpeg installation
+foreach(SEARCH_PATH ${FFMPEG_SEARCH_PATHS})
+    if(EXISTS "${SEARCH_PATH}/lib/libavformat.a" AND EXISTS "${SEARCH_PATH}/include/libavformat/avformat.h")
+        set(FFMPEG_PREFIX "${SEARCH_PATH}")
+        message(STATUS "Found FFmpeg installation at: ${FFMPEG_PREFIX}")
+        break()
+    endif()
+endforeach()
+
+# Set default if not found
+if(NOT FFMPEG_PREFIX)
+    set(FFMPEG_PREFIX "/usr/local")
+    message(WARNING "FFmpeg not found in standard locations, defaulting to: ${FFMPEG_PREFIX}")
+endif()
+
+# Set include and library directories based on found prefix
+set(FFMPEG_INCLUDE_DIRS "${FFMPEG_PREFIX}/include")
 set(FFMPEG_LIBRARIES 
-    "/usr/local/lib/libavdevice.a"
-    "/usr/local/lib/libavfilter.a"
-    "/usr/local/lib/libavformat.a"
-    "/usr/local/lib/libavcodec.a"
-    "/usr/local/lib/libswresample.a"
-    "/usr/local/lib/libswscale.a"
-    "/usr/local/lib/libavutil.a"
+    "${FFMPEG_PREFIX}/lib/libavdevice.a"
+    "${FFMPEG_PREFIX}/lib/libavfilter.a"
+    "${FFMPEG_PREFIX}/lib/libavformat.a"
+    "${FFMPEG_PREFIX}/lib/libavcodec.a"
+    "${FFMPEG_PREFIX}/lib/libswresample.a"
+    "${FFMPEG_PREFIX}/lib/libswscale.a"
+    "${FFMPEG_PREFIX}/lib/libavutil.a"
 )
 
 # Add hardware acceleration libraries required by FFmpeg
@@ -220,11 +252,14 @@ set(HWACCEL_LIBRARIES
 )
 
 # Check if FFmpeg is available and enable it
-if(EXISTS "/usr/local/include/libavformat/avformat.h")
+if(EXISTS "${FFMPEG_PREFIX}/include/libavformat/avformat.h")
     message(STATUS "FFmpeg found - enabling FFmpeg backend")
+    message(STATUS "FFmpeg include directory: ${FFMPEG_INCLUDE_DIRS}")
+    message(STATUS "FFmpeg libraries: ${FFMPEG_LIBRARIES}")
     add_definitions(-DHAVE_FFMPEG)
 else()
     message(STATUS "FFmpeg not found - FFmpeg backend disabled")
+    message(STATUS "Checked path: ${FFMPEG_PREFIX}/include/libavformat/avformat.h")
 endif()
 
 # Include FFmpeg directories
