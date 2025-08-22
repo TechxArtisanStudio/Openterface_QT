@@ -630,8 +630,6 @@ if(GSTREAMER_FOUND AND GSTREAMER_VIDEO_FOUND)
             -lm -pthread
         )
         message(STATUS "Added static GStreamer core libraries (plugins will be loaded dynamically)")
-    endif()
-        
         message(STATUS "Added static GStreamer libraries and include directories")
     else()
         # System GStreamer linking
