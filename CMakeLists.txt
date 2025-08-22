@@ -7,14 +7,8 @@ set(CMAKE_AUTOUIC ON)
 # Option to control static linking of FFmpeg
 option(USE_FFMPEG_STATIC "Use static FFmpeg libraries" ON)
 
-# Prefer static libraries
-if(USE_FFMPEG_STATIC)
-    set(CMAKE_FIND_STATIC_PREFER ON)
-endif()
-set(CMAKE_AUTOUIC ON)
-
-# Option to control static linking of FFmpeg
-option(USE_FFMPEG_STATIC "Use static FFmpeg libraries" ON)
+# Option to control hardware acceleration libraries
+option(USE_HWACCEL "Enable hardware acceleration libraries (VA-API, VDPAU)" ON)
 
 # Prefer static libraries
 if(USE_FFMPEG_STATIC)
@@ -239,12 +233,49 @@ set(FFMPEG_LIBRARIES
     "${FFMPEG_PREFIX}/lib/libavutil.a"
 )
 
-# Add hardware acceleration libraries required by FFmpeg
-set(HWACCEL_LIBRARIES
-    va-drm
-    va-x11
-    va
-    vdpau
+# Add hardware acceleration libraries required by FFmpeg (optional)
+set(HWACCEL_LIBRARIES)
+
+if(USE_HWACCEL)
+    # Check for hardware acceleration libraries and add them if available
+    find_library(VADRM_LIB va-drm)
+    find_library(VAX11_LIB va-x11) 
+    find_library(VA_LIB va)
+    find_library(VDPAU_LIB vdpau)
+
+    if(VADRM_LIB)
+        list(APPEND HWACCEL_LIBRARIES ${VADRM_LIB})
+        message(STATUS "Found VA-DRM library: ${VADRM_LIB}")
+    else()
+        message(STATUS "VA-DRM library not found - hardware acceleration may be limited")
+    endif()
+
+    if(VAX11_LIB)
+        list(APPEND HWACCEL_LIBRARIES ${VAX11_LIB})
+        message(STATUS "Found VA-X11 library: ${VAX11_LIB}")
+    else()
+        message(STATUS "VA-X11 library not found - hardware acceleration may be limited")
+    endif()
+
+    if(VA_LIB)
+        list(APPEND HWACCEL_LIBRARIES ${VA_LIB})
+        message(STATUS "Found VA library: ${VA_LIB}")
+    else()
+        message(STATUS "VA library not found - hardware acceleration may be limited")
+    endif()
+
+    if(VDPAU_LIB)
+        list(APPEND HWACCEL_LIBRARIES ${VDPAU_LIB})
+        message(STATUS "Found VDPAU library: ${VDPAU_LIB}")
+    else()
+        message(STATUS "VDPAU library not found - hardware acceleration may be limited")
+    endif()
+else()
+    message(STATUS "Hardware acceleration disabled by USE_HWACCEL=OFF")
+endif()
+
+# Always include these essential libraries
+list(APPEND HWACCEL_LIBRARIES
     X11
     atomic
     pthread
@@ -339,6 +370,9 @@ qt_add_executable(openterfaceQT WIN32 MACOSX_BUNDLE
     video/firmwarereader.cpp video/firmwarereader.h
     video/ms2109.h
 )
+
+# Debug output for linking
+message(STATUS "Hardware acceleration libraries to link: ${HWACCEL_LIBRARIES}")
 
 target_link_libraries(openterfaceQT PRIVATE
     Qt::Concurrent
