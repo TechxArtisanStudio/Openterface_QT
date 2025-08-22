@@ -14,7 +14,7 @@ on:
       build_type:
         description: 'Type of Qt build to use'
         required: true
-        default: 'dynamic'
+        default: 'static'
         type: choice
         options:
         - 'dynamic'
@@ -337,18 +337,25 @@ jobs:
               
               # Find and link FFmpeg libraries to expected locations
               for lib in avdevice avfilter avformat avcodec swresample swscale avutil; do
-                # Try to find static libraries first, then shared
-                STATIC_LIB=\$(find /usr -name \"lib\${lib}.a\" 2>/dev/null | head -1)
-                SHARED_LIB=\$(find /usr -name \"lib\${lib}.so*\" 2>/dev/null | head -1)
-                
-                if [ -n \"\$STATIC_LIB\" ]; then
-                  echo \"Linking static \$lib: \$STATIC_LIB -> /usr/local/lib/lib\${lib}.a\"
-                  ln -sf \"\$STATIC_LIB\" \"/usr/local/lib/lib\${lib}.a\"
-                elif [ -n \"\$SHARED_LIB\" ]; then
-                  echo \"Linking shared \$lib: \$SHARED_LIB -> /usr/local/lib/lib\${lib}.a\"
-                  ln -sf \"\$SHARED_LIB\" \"/usr/local/lib/lib\${lib}.a\"
+                # Check Qt6 installation first (where they actually are)
+                QT6_LIB=\"/opt/Qt6/lib/lib\${lib}.a\"
+                if [ -f \"\$QT6_LIB\" ]; then
+                  echo \"Found \$lib in Qt6: \$QT6_LIB\"
+                  ln -sf \"\$QT6_LIB\" \"/usr/local/lib/lib\${lib}.a\"
                 else
-                  echo \"Warning: lib\${lib} not found\"
+                  # Fallback to system search
+                  STATIC_LIB=\$(find /usr -name \"lib\${lib}.a\" 2>/dev/null | head -1)
+                  SHARED_LIB=\$(find /usr -name \"lib\${lib}.so*\" 2>/dev/null | head -1)
+                  
+                  if [ -n \"\$STATIC_LIB\" ]; then
+                    echo \"Linking static \$lib: \$STATIC_LIB -> /usr/local/lib/lib\${lib}.a\"
+                    ln -sf \"\$STATIC_LIB\" \"/usr/local/lib/lib\${lib}.a\"
+                  elif [ -n \"\$SHARED_LIB\" ]; then
+                    echo \"Linking shared \$lib: \$SHARED_LIB -> /usr/local/lib/lib\${lib}.a\"
+                    ln -sf \"\$SHARED_LIB\" \"/usr/local/lib/lib\${lib}.a\"
+                  else
+                    echo \"Warning: lib\${lib} not found\"
+                  fi
                 fi
               done
               
@@ -405,10 +412,19 @@ jobs:
               fi
               
               # Link FFmpeg headers
-              FFMPEG_INCLUDE=\$(find /usr/include -name \"libavcodec\" -type d 2>/dev/null | head -1 | xargs dirname)
-              if [ -n \"\$FFMPEG_INCLUDE\" ]; then
-                echo \"Linking FFmpeg headers: \$FFMPEG_INCLUDE -> /usr/local/include\"
-                cp -r \"\$FFMPEG_INCLUDE\"/* /usr/local/include/ 2>/dev/null || true
+              echo 'Setting up FFmpeg headers...'
+              # Check Qt6 installation first
+              if [ -d \"/opt/Qt6/include/libavcodec\" ]; then
+                echo \"Found FFmpeg headers in Qt6: /opt/Qt6/include\"
+                cp -r /opt/Qt6/include/libav* /usr/local/include/ 2>/dev/null || true
+                cp -r /opt/Qt6/include/libsw* /usr/local/include/ 2>/dev/null || true
+              else
+                # Fallback to system search
+                FFMPEG_INCLUDE=\$(find /usr/include -name \"libavcodec\" -type d 2>/dev/null | head -1 | xargs dirname)
+                if [ -n \"\$FFMPEG_INCLUDE\" ]; then
+                  echo \"Linking FFmpeg headers: \$FFMPEG_INCLUDE -> /usr/local/include\"
+                  cp -r \"\$FFMPEG_INCLUDE\"/* /usr/local/include/ 2>/dev/null || true
+                fi
               fi
               
               # Fix ORC library paths and architecture issues
@@ -482,6 +498,12 @@ jobs:
               echo 'Checking /usr/local/lib contents:'
               ls -la /usr/local/lib/ | grep -E '(av|sw)' || echo 'No FFmpeg libraries in /usr/local/lib'
               
+              echo 'Verifying FFmpeg symlinks:'
+              ls -la /usr/local/lib/libav* 2>/dev/null || echo 'No FFmpeg symlinks in /usr/local/lib'
+              
+              echo 'Checking FFmpeg headers:'
+              ls -la /usr/local/include/libav* 2>/dev/null | head -5 || echo 'No FFmpeg headers in /usr/local/include'
+              
               echo 'Checking pkg-config for FFmpeg:'
               pkg-config --list-all | grep -E '(libav|ffmpeg)' || echo 'No FFmpeg pkg-config files found'
               
@@ -511,7 +533,7 @@ jobs:
                        -DCMAKE_BUILD_TYPE=Release \\
                        -DCMAKE_FIND_LIBRARY_SUFFIXES='.a;.so' \\
                        -DFFMPEG_ROOT=/usr/local \\
-                       -DFFMPEG_INCLUDE_DIRS=/usr/local/include \\
+                       -DFFMPEG_INCLUDE_DIRS=\"/usr/local/include;/opt/Qt6/include\" \\
                        -DPkgConfig_EXECUTABLE=\$(which pkg-config) \\
                        -DCMAKE_LIBRARY_PATH=\"/opt/Qt6/lib:/usr/local/lib:/usr/lib/x86_64-linux-gnu:/opt/orc-static/lib/x86_64-linux-gnu\" \\
                        -DCMAKE_INCLUDE_PATH=\"/opt/Qt6/include:/usr/local/include:/usr/include\" \\
