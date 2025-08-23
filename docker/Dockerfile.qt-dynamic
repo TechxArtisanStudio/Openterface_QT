@@ -51,13 +51,17 @@ RUN apt-get update && apt-get install -y \
     libxi-dev \
     libxrandr-dev \
     libxrender-dev \
+    libxv-dev \
     libxss1 \
     libgstreamer1.0-dev \
     libgstreamer-plugins-base1.0-dev \
     libpulse-dev \
     libdbus-1-dev \
     libudev-dev \
+    libgudev-1.0-dev \
     libusb-1.0-0-dev \
+    libv4l-dev \
+    liborc-0.4-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Install FFmpeg development libraries and GStreamer plugins
