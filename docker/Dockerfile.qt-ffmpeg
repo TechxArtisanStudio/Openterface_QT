@@ -1,5 +1,6 @@
 # Build libusb and FFmpeg
-ARG BASE_IMAGE=ghcr.io/kevinzjpeng/openterface-qt-base:latest
+ARG BASE_IMAGE=ghcr.io/kevinzjpeng/openterface-qt-base:ubuntu-24.04-amd64
+ARG UBUNTU_VERSION=24.04
 FROM ${BASE_IMAGE}
 
 WORKDIR ${BUILD_DIR}

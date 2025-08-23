@@ -1,5 +1,6 @@
 # Build Qt components
-ARG BASE_IMAGE=ghcr.io/kevinzjpeng/openterface-qt-gstreamer:latest
+ARG BASE_IMAGE=ghcr.io/kevinzjpeng/openterface-qt-gstreamer:ubuntu-24.04-amd64
+ARG UBUNTU_VERSION=24.04
 FROM ${BASE_IMAGE}
 
 WORKDIR ${BUILD_DIR}

@@ -260,6 +260,22 @@ jobs:
       - name: Set lowercase image name
         run: echo "IMAGE_NAME_LOWER=$(echo '${{ github.repository_owner }}/openterface-qt' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
 
+      - name: Set architecture suffix
+        id: arch-suffix
+        run: |
+          ARCH_INPUT="${{ github.event.inputs.architecture || 'linux/amd64' }}"
+          if [[ "$ARCH_INPUT" == "linux/amd64" ]]; then
+            echo "arch_suffix=amd64" >> $GITHUB_OUTPUT
+            echo "arch_tag_suffix=-amd64" >> $GITHUB_OUTPUT
+          elif [[ "$ARCH_INPUT" == "linux/arm64" ]]; then
+            echo "arch_suffix=arm64" >> $GITHUB_OUTPUT  
+            echo "arch_tag_suffix=-arm64" >> $GITHUB_OUTPUT
+          else
+            # Multi-arch build, no suffix for multi-arch manifest
+            echo "arch_suffix=multi" >> $GITHUB_OUTPUT
+            echo "arch_tag_suffix=" >> $GITHUB_OUTPUT
+          fi
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -277,10 +293,11 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-ffmpeg
           tags: |
-            type=ref,event=branch
-            type=ref,event=pr
-            type=sha
-            type=raw,value=latest
+            type=ref,event=branch,suffix=${{ steps.arch-suffix.outputs.arch_tag_suffix }}
+            type=ref,event=pr,suffix=${{ steps.arch-suffix.outputs.arch_tag_suffix }}
+            type=sha,suffix=${{ steps.arch-suffix.outputs.arch_tag_suffix }}
+            type=raw,value=latest${{ steps.arch-suffix.outputs.arch_tag_suffix }}
+            type=raw,value=ubuntu-${{ github.event.inputs.ubuntu_version || '24.04' }}${{ steps.arch-suffix.outputs.arch_tag_suffix }}
 
       - name: Build and push FFmpeg image
         id: build
@@ -289,7 +306,7 @@ jobs:
           context: .
           file: ./docker/Dockerfile.qt-ffmpeg
           build-args: |
-            BASE_IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-base:latest
+            BASE_IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-base:ubuntu-${{ github.event.inputs.ubuntu_version || '24.04' }}${{ steps.arch-suffix.outputs.arch_tag_suffix }}
             UBUNTU_VERSION=${{ github.event.inputs.ubuntu_version || '24.04' }}
           push: ${{ github.event_name != 'pull_request' && (github.event.inputs.push_to_registry == 'true' || github.event.inputs.push_to_registry == '') }}
           tags: ${{ steps.meta.outputs.tags }}

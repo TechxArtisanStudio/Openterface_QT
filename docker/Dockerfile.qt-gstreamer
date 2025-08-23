@@ -1,6 +1,15 @@
 # Build GStreamer components (simplified version for better reliability)
-ARG BASE_IMAGE=ghcr.io/kevinzjpeng/openterface-qt-ffmpeg:latest
+ARG BASE_IMAGE=ghcr.io/kevinzjpeng/openterface-qt-ffmpeg:ubuntu-24.04-amd64
+ARG UBUNTU_VERSION=24.04
+ARG TARGETARCH=amd64
 FROM ${BASE_IMAGE}
+
+# Set architecture-aware library path
+RUN if [ "$TARGETARCH" = "arm64" ]; then \
+        echo "export MULTIARCH_PATH=/usr/lib/aarch64-linux-gnu" >> /etc/environment; \
+    else \
+        echo "export MULTIARCH_PATH=/usr/lib/x86_64-linux-gnu" >> /etc/environment; \
+    fi
 
 WORKDIR ${WORK_DIR}
 
@@ -10,7 +19,16 @@ RUN echo "Upgrading Meson to support GStreamer 1.22.11..." && \
     meson --version
 
 # Set up environment for GStreamer build
-ENV PKG_CONFIG_PATH="${WORK_DIR}/gstreamer_build/lib/pkgconfig:${FFMPEG_PREFIX}/lib/pkgconfig:/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/share/pkgconfig"
+# Use TARGETARCH to determine the correct library path
+ARG TARGETARCH=amd64
+RUN if [ "$TARGETARCH" = "arm64" ]; then \
+        MULTIARCH_PATH="/usr/lib/aarch64-linux-gnu"; \
+    else \
+        MULTIARCH_PATH="/usr/lib/x86_64-linux-gnu"; \
+    fi && \
+    echo "export MULTIARCH_PATH=$MULTIARCH_PATH" >> /etc/environment
+
+ENV PKG_CONFIG_PATH="${WORK_DIR}/gstreamer_build/lib/pkgconfig:${FFMPEG_PREFIX}/lib/pkgconfig:/usr/share/pkgconfig"
 ENV LD_LIBRARY_PATH="${WORK_DIR}/gstreamer_build/lib:${FFMPEG_PREFIX}/lib"
 
 # Create GStreamer build directories
@@ -64,14 +82,15 @@ ENV PKG_CONFIG_PATH="${WORK_DIR}/gstreamer_build/lib/pkgconfig:${PKG_CONFIG_PATH
 
 # Build gst-plugins-base (essential plugins)
 RUN echo "Building gst-plugins-base..." && \
+    . /etc/environment && \
     echo "Locating GStreamer pkg-config files..." && \
     GSTREAMER_PC_DIR=$(find "${WORK_DIR}/gstreamer_build" -name "gstreamer-1.0.pc" -type f -exec dirname {} \; 2>/dev/null | head -1) && \
     if [ -n "$GSTREAMER_PC_DIR" ]; then \
         echo "Found GStreamer pkg-config files in: $GSTREAMER_PC_DIR"; \
-        export PKG_CONFIG_PATH="$GSTREAMER_PC_DIR:${FFMPEG_PREFIX}/lib/pkgconfig:/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/share/pkgconfig"; \
+        export PKG_CONFIG_PATH="$GSTREAMER_PC_DIR:${FFMPEG_PREFIX}/lib/pkgconfig:$MULTIARCH_PATH/pkgconfig:/usr/share/pkgconfig"; \
     else \
         echo "GStreamer pkg-config files not found, using default path"; \
-        export PKG_CONFIG_PATH="${WORK_DIR}/gstreamer_build/lib/pkgconfig:${FFMPEG_PREFIX}/lib/pkgconfig:/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/share/pkgconfig"; \
+        export PKG_CONFIG_PATH="${WORK_DIR}/gstreamer_build/lib/pkgconfig:${FFMPEG_PREFIX}/lib/pkgconfig:$MULTIARCH_PATH/pkgconfig:/usr/share/pkgconfig"; \
     fi && \
     echo "PKG_CONFIG_PATH=$PKG_CONFIG_PATH" && \
     pkg-config --exists gstreamer-1.0 && echo "GStreamer-1.0 found via pkg-config" || echo "ERROR: GStreamer-1.0 NOT found" && \
@@ -94,11 +113,12 @@ RUN echo "Building gst-plugins-base..." && \
 
 # Build gst-plugins-good (minimal set)
 RUN echo "Building gst-plugins-good..." && \
+    . /etc/environment && \
     GSTREAMER_PC_DIR=$(find "${WORK_DIR}/gstreamer_build" -name "gstreamer-1.0.pc" -type f -exec dirname {} \; 2>/dev/null | head -1) && \
     if [ -n "$GSTREAMER_PC_DIR" ]; then \
-        export PKG_CONFIG_PATH="$GSTREAMER_PC_DIR:${FFMPEG_PREFIX}/lib/pkgconfig:/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/share/pkgconfig"; \
+        export PKG_CONFIG_PATH="$GSTREAMER_PC_DIR:${FFMPEG_PREFIX}/lib/pkgconfig:$MULTIARCH_PATH/pkgconfig:/usr/share/pkgconfig"; \
     else \
-        export PKG_CONFIG_PATH="${WORK_DIR}/gstreamer_build/lib/pkgconfig:${FFMPEG_PREFIX}/lib/pkgconfig:/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/share/pkgconfig"; \
+        export PKG_CONFIG_PATH="${WORK_DIR}/gstreamer_build/lib/pkgconfig:${FFMPEG_PREFIX}/lib/pkgconfig:$MULTIARCH_PATH/pkgconfig:/usr/share/pkgconfig"; \
     fi && \
     cd "${WORK_DIR}/gstreamer_sources/gst-plugins-good-${GSTREAMER_VERSION}" && \
     meson setup build \
