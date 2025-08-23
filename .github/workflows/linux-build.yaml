@@ -349,9 +349,6 @@ jobs:
                 libv4l-dev \\
                 libxi-dev \\
                 libxv-dev \\
-                libturbojpeg0-dev \\
-                libjpeg-turbo8-dev \\
-                liborc-0.4-dev \\
                 || echo 'Some packages may not be available, continuing...'
               
               # Check for pre-existing TurboJPEG in Docker environment (built from source)
