@@ -107,13 +107,34 @@ build_image() {
     local build_args="$3"
     local base_image="$4"
 
+    # Determine architecture suffix for image tags
+    local arch_suffix=""
+    local ubuntu_suffix="-ubuntu-$UBUNTU_VERSION"
+    
+    if [[ "$ARCHITECTURE" == "linux/amd64" ]]; then
+        arch_suffix="-amd64"
+    elif [[ "$ARCHITECTURE" == "linux/arm64" ]]; then
+        arch_suffix="-arm64"
+    else
+        # Multi-arch build, no suffix for manifest
+        arch_suffix=""
+    fi
+
     log "Building $image_name for $ARCHITECTURE with Ubuntu $UBUNTU_VERSION..."
     
     local docker_args="docker buildx build"
     docker_args+=" --platform $ARCHITECTURE"
     docker_args+=" --file $dockerfile"
-    docker_args+=" --tag $REGISTRY/openterface-qt-$image_name:ubuntu-$UBUNTU_VERSION"
-    docker_args+=" --tag $REGISTRY/openterface-qt-$image_name:latest"
+    
+    # Create architecture-specific tags to prevent overwrites
+    docker_args+=" --tag $REGISTRY/openterface-qt-$image_name:latest$arch_suffix"
+    docker_args+=" --tag $REGISTRY/openterface-qt-$image_name$ubuntu_suffix$arch_suffix"
+    
+    # Also create a tag without architecture suffix for multi-arch manifests
+    if [[ "$ARCHITECTURE" == *","* ]]; then
+        docker_args+=" --tag $REGISTRY/openterface-qt-$image_name:latest"
+        docker_args+=" --tag $REGISTRY/openterface-qt-$image_name$ubuntu_suffix"
+    fi
     
     # Add build arguments
     docker_args+=" --build-arg UBUNTU_VERSION=$UBUNTU_VERSION"
@@ -137,7 +158,7 @@ build_image() {
     eval $docker_args
     
     if [[ $? -eq 0 ]]; then
-        log "Successfully built $image_name"
+        log "Successfully built $image_name with tags: latest$arch_suffix, $ubuntu_suffix$arch_suffix"
     else
         error "Failed to build $image_name"
     fi
@@ -155,28 +176,61 @@ case "$BUILD_TYPE" in
         build_image "docker/Dockerfile.qt-dynamic" "dynamic"
         ;;
     ffmpeg)
-        BASE_IMAGE="$REGISTRY/openterface-qt-base:ubuntu-$UBUNTU_VERSION"
+        # Determine architecture suffix for base image reference
+        local arch_suffix=""
+        if [[ "$ARCHITECTURE" == "linux/amd64" ]]; then
+            arch_suffix="-amd64"
+        elif [[ "$ARCHITECTURE" == "linux/arm64" ]]; then
+            arch_suffix="-arm64"
+        fi
+        
+        BASE_IMAGE="$REGISTRY/openterface-qt-base-ubuntu-$UBUNTU_VERSION$arch_suffix"
         build_image "docker/Dockerfile.qt-ffmpeg" "ffmpeg" "" "$BASE_IMAGE"
         ;;
     gstreamer)
-        BASE_IMAGE="$REGISTRY/openterface-qt-ffmpeg:ubuntu-$UBUNTU_VERSION"
+        # Determine architecture suffix for base image reference
+        local arch_suffix=""
+        if [[ "$ARCHITECTURE" == "linux/amd64" ]]; then
+            arch_suffix="-amd64"
+        elif [[ "$ARCHITECTURE" == "linux/arm64" ]]; then
+            arch_suffix="-arm64"
+        fi
+        
+        BASE_IMAGE="$REGISTRY/openterface-qt-ffmpeg-ubuntu-$UBUNTU_VERSION$arch_suffix"
         build_image "docker/Dockerfile.qt-gstreamer" "gstreamer" "" "$BASE_IMAGE"
         ;;
     complete)
-        BASE_IMAGE="$REGISTRY/openterface-qt-gstreamer:ubuntu-$UBUNTU_VERSION"
+        # Determine architecture suffix for base image reference
+        local arch_suffix=""
+        if [[ "$ARCHITECTURE" == "linux/amd64" ]]; then
+            arch_suffix="-amd64"
+        elif [[ "$ARCHITECTURE" == "linux/arm64" ]]; then
+            arch_suffix="-arm64"
+        fi
+        
+        BASE_IMAGE="$REGISTRY/openterface-qt-gstreamer-ubuntu-$UBUNTU_VERSION$arch_suffix"
         build_image "docker/Dockerfile.qt-complete" "complete" "" "$BASE_IMAGE"
         ;;
     all)
         log "Building all static images in sequence..."
+        
+        # Determine architecture suffix for image references
+        local arch_suffix=""
+        if [[ "$ARCHITECTURE" == "linux/amd64" ]]; then
+            arch_suffix="-amd64"
+        elif [[ "$ARCHITECTURE" == "linux/arm64" ]]; then
+            arch_suffix="-arm64"
+        fi
+        
         build_image "docker/Dockerfile.qt-base" "base"
         
-        BASE_IMAGE="$REGISTRY/openterface-qt-base:ubuntu-$UBUNTU_VERSION"
+        BASE_IMAGE="$REGISTRY/openterface-qt-base-ubuntu-$UBUNTU_VERSION$arch_suffix"
         build_image "docker/Dockerfile.qt-ffmpeg" "ffmpeg" "" "$BASE_IMAGE"
         
-        BASE_IMAGE="$REGISTRY/openterface-qt-ffmpeg:ubuntu-$UBUNTU_VERSION"
+        BASE_IMAGE="$REGISTRY/openterface-qt-ffmpeg-ubuntu-$UBUNTU_VERSION$arch_suffix"
         build_image "docker/Dockerfile.qt-gstreamer" "gstreamer" "" "$BASE_IMAGE"
         
-        BASE_IMAGE="$REGISTRY/openterface-qt-gstreamer:ubuntu-$UBUNTU_VERSION"
+        BASE_IMAGE="$REGISTRY/openterface-qt-gstreamer-ubuntu-$UBUNTU_VERSION$arch_suffix"
         build_image "docker/Dockerfile.qt-complete" "complete" "" "$BASE_IMAGE"
         
         log "Building dynamic image..."
@@ -191,5 +245,12 @@ log "Build completed successfully!"
 # Show available images
 if [[ "$PUSH" != "true" ]]; then
     log "Available local images:"
-    docker images | grep "openterface-qt" | grep "ubuntu-$UBUNTU_VERSION"
+    echo "Architecture-specific images:"
+    if [[ "$ARCHITECTURE" == "linux/amd64" ]]; then
+        docker images | grep "openterface-qt" | grep -E "(amd64|ubuntu-$UBUNTU_VERSION-amd64)"
+    elif [[ "$ARCHITECTURE" == "linux/arm64" ]]; then
+        docker images | grep "openterface-qt" | grep -E "(arm64|ubuntu-$UBUNTU_VERSION-arm64)"
+    else
+        docker images | grep "openterface-qt" | grep "ubuntu-$UBUNTU_VERSION"
+    fi
 fi
