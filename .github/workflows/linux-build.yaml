@@ -312,263 +312,309 @@ jobs:
             -v ${{ github.workspace }}:/workspace/src \
             -v ${{ runner.temp }}/build-static:/workspace/build \
             -w /workspace/src \
+            --user root \
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-complete:latest \
-
             bash -c "
               echo 'Building Openterface QT Application (Static Qt)...'
               
-              # Install missing dependencies for static build
-              apt-get update && apt-get install -y \\
+              # Verify Qt6 installation and fix if missing
+              if [ ! -d '/opt/Qt6' ]; then
+                echo 'ERROR: Qt6 static installation not found at /opt/Qt6'
+                echo 'Available directories in /opt:'
+                ls -la /opt/ || true
+                echo 'Searching for Qt installations:'
+                find /opt /usr/local -name 'qmake*' -o -name 'lupdate*' 2>/dev/null | head -10 || true
+                echo 'Available Qt in PATH:'
+                which qmake6 || which qmake || echo 'No qmake found in PATH'
+                exit 1
+              fi
+              
+              echo 'Qt6 static installation verification:'
+              if [ -f '/opt/Qt6/bin/verify-qt-installation.sh' ]; then
+                /opt/Qt6/bin/verify-qt-installation.sh
+              else
+                echo 'Manual Qt6 verification:'
+                ls -la /opt/Qt6/bin/ | head -10
+                echo 'Qt6 libraries:'
+                ls -la /opt/Qt6/lib/libQt6*.a | head -10 || echo 'No static Qt6 libraries found'
+                echo 'Qt6 version:'
+                /opt/Qt6/bin/qmake -query QT_VERSION 2>/dev/null || echo 'Cannot query Qt version'
+              fi
+              
+              # Ensure we have proper permissions and tools
+              apt-get update || echo 'Warning: apt update failed'
+              apt-get install -y \\
+                sudo \\
                 libgudev-1.0-dev \\
                 libv4l-dev \\
                 libxi-dev \\
                 libxv-dev \\
                 || echo 'Some packages may not be available, continuing...'
               
-              # Check for pre-existing TurboJPEG in Docker environment
+              # Check for pre-existing TurboJPEG in Docker environment (built from source)
               echo 'Checking for TurboJPEG in Docker environment...'
-              find /opt -name '*turbojpeg*' 2>/dev/null | head -10
-              find /opt -name 'turbojpeg.h' 2>/dev/null | head -5
-              find /usr/local -name '*turbojpeg*' 2>/dev/null | head -10
-              find /usr/local -name 'turbojpeg.h' 2>/dev/null | head -5
+              echo 'Searching for pre-built TurboJPEG from Docker build process:'
+              find /usr/local -name '*turbojpeg*' 2>/dev/null | head -10 || true
+              find /opt -name '*turbojpeg*' 2>/dev/null | head -10 || true
+              echo 'Searching for TurboJPEG headers:'
+              find /usr/local/include -name 'turbojpeg.h' 2>/dev/null | head -5 || true
+              find /opt -name 'turbojpeg.h' 2>/dev/null | head -5 || true
+              echo 'Searching for TurboJPEG libraries:'
+              find /usr/local/lib -name '*turbojpeg*' 2>/dev/null | head -10 || true
+              find /opt -name '*turbojpeg*' -path '*/lib/*' 2>/dev/null | head -10 || true
               
-              # Check if TurboJPEG is in the Qt6 installation
-              ls -la /opt/Qt6/include/ | grep -i jpeg || echo 'No JPEG headers in Qt6 include'
-              ls -la /opt/Qt6/lib/ | grep -i jpeg || echo 'No JPEG libraries in Qt6 lib'
-              
-              # Fix FFmpeg library paths for CMake
+              # Verify FFmpeg libraries are available (pre-built in Docker environment)
               echo 'Setting up FFmpeg libraries for static linking...'
+              
+              # FFmpeg was built from source in the Docker environment and installed to FFMPEG_PREFIX
+              # Check common installation prefixes used in the Docker build
+              FFMPEG_PREFIXES=(\"/usr/local\" \"/opt/ffmpeg\" \"/opt/Qt6\")
+              FFMPEG_FOUND=false
+              
               mkdir -p /usr/local/lib /usr/local/include
               
-              # Find and link FFmpeg libraries to expected locations
-              for lib in avdevice avfilter avformat avcodec swresample swscale avutil; do
-                # Check Qt6 installation first (where they actually are)
-                QT6_LIB=\"/opt/Qt6/lib/lib\${lib}.a\"
-                if [ -f \"\$QT6_LIB\" ]; then
-                  echo \"Found \$lib in Qt6: \$QT6_LIB\"
-                  ln -sf \"\$QT6_LIB\" \"/usr/local/lib/lib\${lib}.a\"
-                else
-                  # Fallback to system search
-                  STATIC_LIB=\$(find /usr -name \"lib\${lib}.a\" 2>/dev/null | head -1)
-                  SHARED_LIB=\$(find /usr -name \"lib\${lib}.so*\" 2>/dev/null | head -1)
+              for prefix in \"\${FFMPEG_PREFIXES[@]}\"; do
+                if [ -d \"\$prefix/lib\" ] && [ -d \"\$prefix/include\" ]; then
+                  echo \"Checking for FFmpeg at \$prefix\"
+                  FFMPEG_LIBS_FOUND=0
                   
-                  if [ -n \"\$STATIC_LIB\" ]; then
-                    echo \"Linking static \$lib: \$STATIC_LIB -> /usr/local/lib/lib\${lib}.a\"
-                    ln -sf \"\$STATIC_LIB\" \"/usr/local/lib/lib\${lib}.a\"
-                  elif [ -n \"\$SHARED_LIB\" ]; then
-                    echo \"Linking shared \$lib: \$SHARED_LIB -> /usr/local/lib/lib\${lib}.a\"
-                    ln -sf \"\$SHARED_LIB\" \"/usr/local/lib/lib\${lib}.a\"
-                  else
-                    echo \"Warning: lib\${lib} not found\"
+                  for lib in avdevice avfilter avformat avcodec swresample swscale avutil; do
+                    FFMPEG_LIB=\"\$prefix/lib/lib\${lib}.a\"
+                    if [ -f \"\$FFMPEG_LIB\" ]; then
+                      echo \"Found pre-built \$lib: \$FFMPEG_LIB\"
+                      ln -sf \"\$FFMPEG_LIB\" \"/usr/local/lib/lib\${lib}.a\"
+                      FFMPEG_LIBS_FOUND=\$((FFMPEG_LIBS_FOUND + 1))
+                    fi
+                  done
+                  
+                  # Check for FFmpeg headers
+                  if [ -d \"\$prefix/include/libavformat\" ]; then
+                    echo \"Found pre-built FFmpeg headers at \$prefix/include\"
+                    cp -r \"\$prefix/include\"/libav* /usr/local/include/ 2>/dev/null || true
+                    cp -r \"\$prefix/include\"/libsw* /usr/local/include/ 2>/dev/null || true
+                    FFMPEG_FOUND=true
+                    echo \"FFmpeg setup completed using pre-built libraries from \$prefix (found \$FFMPEG_LIBS_FOUND libraries)\"
+                    break
                   fi
                 fi
               done
               
-              # Set up TurboJPEG headers and libraries
+              # Fallback: Check Qt6 installation directory (legacy compatibility)
+              if [ \"\$FFMPEG_FOUND\" != \"true\" ] && [ -d '/opt/Qt6/lib' ]; then
+                echo \"Fallback: Checking Qt6 lib directory for FFmpeg libraries\"
+                ls -la /opt/Qt6/lib/libav* /opt/Qt6/lib/libsw* 2>/dev/null | head -10 || echo 'No FFmpeg libraries in Qt6 lib'
+                
+                for lib in avdevice avfilter avformat avcodec swresample swscale avutil; do
+                  QT6_LIB=\"/opt/Qt6/lib/lib\${lib}.a\"
+                  if [ -f \"\$QT6_LIB\" ]; then
+                    echo \"Linking \$lib: \$QT6_LIB -> /usr/local/lib/lib\${lib}.a\"
+                    ln -sf \"\$QT6_LIB\" \"/usr/local/lib/lib\${lib}.a\"
+                    FFMPEG_FOUND=true
+                  fi
+                done
+                
+                # Link headers if available
+                if [ -d '/opt/Qt6/include' ]; then
+                  cp -r /opt/Qt6/include/libav* /usr/local/include/ 2>/dev/null || true
+                  cp -r /opt/Qt6/include/libsw* /usr/local/include/ 2>/dev/null || true
+                fi
+              fi
+              
+              if [ \"\$FFMPEG_FOUND\" != \"true\" ]; then
+                echo 'Warning: Pre-built FFmpeg libraries not found in expected locations'
+                echo 'Available directories:'
+                ls -la /usr/local/ /opt/ 2>/dev/null | grep -E '(ffmpeg|Qt6)' || true
+              fi
+              
+              # Set up TurboJPEG for compilation (pre-built in Docker environment)
               echo 'Setting up TurboJPEG for compilation...'
               
-              # First, check if TurboJPEG is already available in the Docker environment
-              TURBOJPEG_HEADER=\$(find /opt -name \"turbojpeg.h\" 2>/dev/null | head -1)
-              if [ -z \"\$TURBOJPEG_HEADER\" ]; then
-                TURBOJPEG_HEADER=\$(find /usr/local -name \"turbojpeg.h\" 2>/dev/null | head -1)
-              fi
-              if [ -z \"\$TURBOJPEG_HEADER\" ]; then
-                TURBOJPEG_HEADER=\$(find /usr/include -name \"turbojpeg.h\" 2>/dev/null | head -1)
-              fi
+              # TurboJPEG was built from source in the Docker environment and installed to FFMPEG_PREFIX
+              # Check common installation prefixes used in the Docker build
+              FFMPEG_PREFIXES=(\"/usr/local\" \"/opt/ffmpeg\" \"/opt/Qt6\")
+              TURBOJPEG_FOUND=false
               
-              # Check for TurboJPEG library
-              TURBOJPEG_LIB=\$(find /opt -name \"libturbojpeg.so*\" -o -name \"libturbojpeg.a\" 2>/dev/null | head -1)
-              if [ -z \"\$TURBOJPEG_LIB\" ]; then
-                TURBOJPEG_LIB=\$(find /usr/local -name \"libturbojpeg.so*\" -o -name \"libturbojpeg.a\" 2>/dev/null | head -1)
-              fi
-              if [ -z \"\$TURBOJPEG_LIB\" ]; then
-                TURBOJPEG_LIB=\$(find /usr -name \"libturbojpeg.so*\" -o -name \"libturbojpeg.a\" 2>/dev/null | head -1)
-              fi
+              for prefix in \"\${FFMPEG_PREFIXES[@]}\"; do
+                TURBOJPEG_HEADER=\"\$prefix/include/turbojpeg.h\"
+                TURBOJPEG_LIB_STATIC=\"\$prefix/lib/libturbojpeg.a\"
+                TURBOJPEG_LIB_SHARED=\"\$prefix/lib/libturbojpeg.so\"
+                
+                if [ -f \"\$TURBOJPEG_HEADER\" ] && [ -f \"\$TURBOJPEG_LIB_STATIC\" ]; then
+                  echo \"Found pre-built TurboJPEG at \$prefix: header=\$TURBOJPEG_HEADER, lib=\$TURBOJPEG_LIB_STATIC\"
+                  # Create symlinks to standard locations for CMake
+                  cp \"\$TURBOJPEG_HEADER\" /usr/local/include/ 2>/dev/null || true
+                  ln -sf \"\$TURBOJPEG_LIB_STATIC\" \"/usr/local/lib/libturbojpeg.a\" 2>/dev/null || true
+                  if [ -f \"\$TURBOJPEG_LIB_SHARED\" ]; then
+                    ln -sf \"\$TURBOJPEG_LIB_SHARED\" \"/usr/local/lib/libturbojpeg.so\" 2>/dev/null || true
+                  fi
+                  echo \"TurboJPEG setup completed using pre-built static library\"
+                  TURBOJPEG_FOUND=true
+                  break
+                fi
+              done
               
-              if [ -n \"\$TURBOJPEG_HEADER\" ] && [ -n \"\$TURBOJPEG_LIB\" ]; then
-                echo \"Found TurboJPEG header: \$TURBOJPEG_HEADER\"
-                echo \"Found TurboJPEG library: \$TURBOJPEG_LIB\"
-                
-                # Create symlinks to standard locations
-                cp \"\$TURBOJPEG_HEADER\" /usr/local/include/ 2>/dev/null || true
-                cp \"\$TURBOJPEG_HEADER\" /opt/Qt6/include/ 2>/dev/null || true
-                ln -sf \"\$TURBOJPEG_LIB\" \"/usr/local/lib/libturbojpeg.a\" 2>/dev/null || true
-                ln -sf \"\$TURBOJPEG_LIB\" \"/usr/local/lib/libturbojpeg.so\" 2>/dev/null || true
-                
-                echo \"TurboJPEG setup completed using existing installation\"
-              else
-                echo \"TurboJPEG not found in Docker environment, installing...\"
-                apt-get install -y libturbojpeg0-dev libjpeg-turbo8-dev || true
-                
-                # Try detection again after installation
+              # Fallback to system packages if pre-built not found
+              if [ \"\$TURBOJPEG_FOUND\" != \"true\" ]; then
+                echo \"Pre-built TurboJPEG not found, checking system installation...\"
                 TURBOJPEG_HEADER=\$(find /usr/include -name \"turbojpeg.h\" 2>/dev/null | head -1)
-                TURBOJPEG_LIB=\$(find /usr -name \"libturbojpeg.so*\" -o -name \"libturbojpeg.a\" 2>/dev/null | head -1)
+                TURBOJPEG_LIB=\$(find /usr/lib -name \"libturbojpeg.so*\" -o -name \"libturbojpeg.a\" 2>/dev/null | head -1)
                 
                 if [ -n \"\$TURBOJPEG_HEADER\" ] && [ -n \"\$TURBOJPEG_LIB\" ]; then
-                  echo \"Found TurboJPEG after installation: header=\$TURBOJPEG_HEADER, lib=\$TURBOJPEG_LIB\"
+                  echo \"Found system TurboJPEG: header=\$TURBOJPEG_HEADER, lib=\$TURBOJPEG_LIB\"
                   cp \"\$TURBOJPEG_HEADER\" /usr/local/include/ 2>/dev/null || true
-                  cp \"\$TURBOJPEG_HEADER\" /opt/Qt6/include/ 2>/dev/null || true
                   ln -sf \"\$TURBOJPEG_LIB\" \"/usr/local/lib/libturbojpeg.a\" 2>/dev/null || true
                   ln -sf \"\$TURBOJPEG_LIB\" \"/usr/local/lib/libturbojpeg.so\" 2>/dev/null || true
+                  echo \"TurboJPEG setup completed using system installation\"
                 else
-                  echo \"Warning: TurboJPEG still not found after installation\"
-                  find /usr -name \"*turbojpeg*\" 2>/dev/null | head -10
+                  echo \"Warning: TurboJPEG not found - JPEG acceleration may be disabled\"
                 fi
               fi
               
-              # Link FFmpeg headers
-              echo 'Setting up FFmpeg headers...'
-              # Check Qt6 installation first
-              if [ -d \"/opt/Qt6/include/libavcodec\" ]; then
-                echo \"Found FFmpeg headers in Qt6: /opt/Qt6/include\"
-                cp -r /opt/Qt6/include/libav* /usr/local/include/ 2>/dev/null || true
-                cp -r /opt/Qt6/include/libsw* /usr/local/include/ 2>/dev/null || true
-              else
-                # Fallback to system search
-                FFMPEG_INCLUDE=\$(find /usr/include -name \"libavcodec\" -type d 2>/dev/null | head -1 | xargs dirname)
-                if [ -n \"\$FFMPEG_INCLUDE\" ]; then
-                  echo \"Linking FFmpeg headers: \$FFMPEG_INCLUDE -> /usr/local/include\"
-                  cp -r \"\$FFMPEG_INCLUDE\"/* /usr/local/include/ 2>/dev/null || true
-                fi
-              fi
-              
-              # Fix ORC library paths and architecture issues
+              # Set up ORC libraries for GStreamer
               echo 'Setting up ORC libraries...'
               
-              # Find ORC libraries in the system
-              ORC_LIB=\$(find /opt -name \"liborc-*.a\" 2>/dev/null | head -1)
-              if [ -z \"\$ORC_LIB\" ]; then
-                ORC_LIB=\$(find /usr -name \"liborc-*.so*\" 2>/dev/null | head -1)
-              fi
+              # Find ORC library in the system
+              ORC_LIB=\$(find /usr/lib -name \"liborc-*.so*\" -o -name \"liborc-*.a\" 2>/dev/null | head -1)
               
               if [ -n \"\$ORC_LIB\" ]; then
                 echo \"Found ORC library: \$ORC_LIB\"
-                # Create the expected directory structure
+                # Create the expected directory structure for CMake
                 mkdir -p /opt/orc-static/lib/x86_64-linux-gnu /opt/orc-static/lib/aarch64-linux-gnu
-                
-                # Link to both architectures to avoid path issues
                 ln -sf \"\$ORC_LIB\" \"/opt/orc-static/lib/x86_64-linux-gnu/liborc-0.4.a\"
                 ln -sf \"\$ORC_LIB\" \"/opt/orc-static/lib/aarch64-linux-gnu/liborc-0.4.a\"
-                echo \"Created ORC library links\"
+                echo \"Created ORC library links for static linking\"
               else
-                echo \"Warning: ORC library not found, installing...\"
-                apt-get install -y liborc-0.4-dev || true
-                # Try again after installation
-                ORC_LIB=\$(find /usr -name \"liborc-*.so*\" 2>/dev/null | head -1)
-                if [ -n \"\$ORC_LIB\" ]; then
-                  mkdir -p /opt/orc-static/lib/x86_64-linux-gnu /opt/orc-static/lib/aarch64-linux-gnu
-                  ln -sf \"\$ORC_LIB\" \"/opt/orc-static/lib/x86_64-linux-gnu/liborc-0.4.a\"
-                  ln -sf \"\$ORC_LIB\" \"/opt/orc-static/lib/aarch64-linux-gnu/liborc-0.4.a\"
-                fi
+                echo \"Warning: ORC library not found\"
               fi
               
-              # Set up GStreamer development files for qmake fallback
-              echo 'Setting up GStreamer for qmake...'
-              
-              # Find GStreamer installation in the static environment
-              GSTREAMER_PREFIX=\$(find /opt -name \"gstreamer-1.0.pc\" -exec dirname {} \; 2>/dev/null | head -1 | xargs dirname 2>/dev/null)
-              if [ -n \"\$GSTREAMER_PREFIX\" ]; then
-                echo \"Found GStreamer in: \$GSTREAMER_PREFIX\"
-                export PKG_CONFIG_PATH=\"\$GSTREAMER_PREFIX/pkgconfig:\$PKG_CONFIG_PATH\"
-                
-                # Also link to system locations for qmake
-                if [ -d \"\$GSTREAMER_PREFIX/../include\" ]; then
-                  ln -sf \"\$GSTREAMER_PREFIX\"/../include/gstreamer-1.0 /usr/include/gstreamer-1.0 2>/dev/null || true
-                fi
-                if [ -d \"\$GSTREAMER_PREFIX\" ]; then
-                  ln -sf \"\$GSTREAMER_PREFIX\"/*.so* /usr/lib/x86_64-linux-gnu/ 2>/dev/null || true
-                  ln -sf \"\$GSTREAMER_PREFIX\"/*.a /usr/lib/x86_64-linux-gnu/ 2>/dev/null || true
-                fi
+              # Update translations using Qt6 tools
+              echo 'Updating translations...'
+              if [ -f '/opt/Qt6/bin/lupdate' ]; then
+                /opt/Qt6/bin/lupdate openterfaceQT.pro -no-obsolete || echo 'lupdate failed, continuing...'
+              else
+                echo 'lupdate not found, skipping translation update'
               fi
               
-              # Update translations
-              /opt/Qt6/bin/lupdate openterfaceQT.pro -no-obsolete || echo 'lupdate failed, continuing...'
-              
-              # Release translations
-              /opt/Qt6/bin/lrelease openterfaceQT.pro || echo 'lrelease failed, continuing...'
+              if [ -f '/opt/Qt6/bin/lrelease' ]; then
+                /opt/Qt6/bin/lrelease openterfaceQT.pro || echo 'lrelease failed, continuing...'
+              else
+                echo 'lrelease not found, skipping translation release'
+              fi
               
               # Copy configuration files
+              echo 'Copying configuration files...'
               cp -r config/keyboards/*.json /workspace/build/config/keyboards/ 2>/dev/null || echo 'No keyboard configs found'
               cp -r config/languages/*.qm /workspace/build/config/languages/ 2>/dev/null || echo 'No language files found'
               
-              # Configure and build with cmake (static linking)
+              # Configure and build with CMake (static linking)
+              echo 'Starting CMake configuration and build...'
               cd /workspace/build
               
-              # Check available FFmpeg libraries
+              # Debug: Show available libraries and include paths
               echo 'Available FFmpeg libraries:'
-              find /usr -name 'libav*.a' -o -name 'libav*.so' 2>/dev/null | head -10
-              find /opt -name 'libav*.a' -o -name 'libav*.so' 2>/dev/null | head -10
-              find /usr/local -name 'libav*.a' -o -name 'libav*.so' 2>/dev/null | head -10
+              find /opt/Qt6 /usr/local /usr -name 'libav*.a' -o -name 'libav*.so' 2>/dev/null | head -20 || true
               
-              echo 'Checking /usr/local/lib contents:'
-              ls -la /usr/local/lib/ | grep -E '(av|sw)' || echo 'No FFmpeg libraries in /usr/local/lib'
+              echo 'Available include directories:'
+              find /opt/Qt6 /usr/local /usr -name 'libavformat' -type d 2>/dev/null | head -10 || true
               
-              echo 'Verifying FFmpeg symlinks:'
-              ls -la /usr/local/lib/libav* 2>/dev/null || echo 'No FFmpeg symlinks in /usr/local/lib'
-              
-              echo 'Checking FFmpeg headers:'
-              ls -la /usr/local/include/libav* 2>/dev/null | head -5 || echo 'No FFmpeg headers in /usr/local/include'
-              
-              echo 'Checking pkg-config for FFmpeg:'
-              pkg-config --list-all | grep -E '(libav|ffmpeg)' || echo 'No FFmpeg pkg-config files found'
-              
-              echo 'Checking for TurboJPEG:'
-              find /usr -name '*turbojpeg*' 2>/dev/null | head -10
-              find /usr -name 'turbojpeg.h' 2>/dev/null || echo 'turbojpeg.h not found'
-              pkg-config --list-all | grep -i jpeg || echo 'No JPEG pkg-config found'
-              
-              echo 'Checking for ORC libraries:'
-              find /opt -name '*orc*' 2>/dev/null | head -10
-              find /usr -name '*orc*' 2>/dev/null | head -10
-              
-              echo 'Checking GStreamer installation:'
-              find /opt -name '*gstreamer*' -type d 2>/dev/null | head -10
-              pkg-config --list-all | grep gstreamer || echo 'No GStreamer pkg-config found'
-              
-              echo 'Architecture and system info:'
-              uname -m
-              dpkg --print-architecture 2>/dev/null || echo 'dpkg not available'
-              
-              echo 'Current PKG_CONFIG_PATH:'
+              echo 'PKG_CONFIG_PATH before build:'
               echo \$PKG_CONFIG_PATH
               
-              # Try cmake first for static linking
-              if cmake -DCMAKE_PREFIX_PATH=/opt/Qt6 \\
-                       -DBUILD_SHARED_LIBS=OFF \\
-                       -DCMAKE_BUILD_TYPE=Release \\
-                       -DCMAKE_FIND_LIBRARY_SUFFIXES='.a;.so' \\
-                       -DFFMPEG_ROOT=/usr/local \\
-                       -DFFMPEG_INCLUDE_DIRS=\"/usr/local/include;/opt/Qt6/include\" \\
-                       -DPkgConfig_EXECUTABLE=\$(which pkg-config) \\
-                       -DCMAKE_LIBRARY_PATH=\"/opt/Qt6/lib:/usr/local/lib:/usr/lib/x86_64-linux-gnu:/opt/orc-static/lib/x86_64-linux-gnu\" \\
-                       -DCMAKE_INCLUDE_PATH=\"/opt/Qt6/include:/usr/local/include:/usr/include\" \\
-                       -DORC_ROOT=/opt/orc-static \\
-                       -DUSE_GSTREAMER_STATIC_PLUGINS=ON \\
-                       -DTurboJPEG_ROOT=/usr/local \\
-                       -DTurboJPEG_INCLUDE_DIR=/usr/local/include \\
-                       /workspace/src; then
-                echo 'CMake configuration successful, building with make...'
-                if make -j\$(nproc); then
-                  echo 'CMake build completed successfully'
-                else
-                  echo 'CMake build failed, trying fallback...'
-                  FALLBACK=true
-                fi
-              else
-                echo 'CMake configuration failed, trying fallback...'
-                FALLBACK=true
+              # Set proper environment for static linking with pre-built libraries
+              export PKG_CONFIG_PATH=\"/opt/Qt6/lib/pkgconfig:/usr/local/lib/pkgconfig:\$PKG_CONFIG_PATH\"
+              export CMAKE_PREFIX_PATH=\"/opt/Qt6:/usr/local:/opt/ffmpeg:/usr\"
+              export Qt6_DIR=\"/opt/Qt6/lib/cmake/Qt6\"
+              
+              # Try CMake configuration with comprehensive static options and pre-built library paths
+              CMAKE_SOURCE_DIR=\"/workspace/src\"
+              if [ ! -f \"\$CMAKE_SOURCE_DIR/CMakeLists.txt\" ]; then
+                echo \"ERROR: CMakeLists.txt not found at \$CMAKE_SOURCE_DIR\"
+                echo \"Contents of /workspace/src:\"
+                ls -la /workspace/src/ | head -10
+                exit 1
               fi
               
+              if cmake \\
+                       -DCMAKE_PREFIX_PATH=\"/opt/Qt6:/usr/local:/opt/ffmpeg\" \\
+                       -DCMAKE_BUILD_TYPE=Release \\
+                       -DBUILD_SHARED_LIBS=OFF \\
+                       -DCMAKE_FIND_LIBRARY_SUFFIXES=\".a;.so\" \\
+                       -DUSE_FFMPEG_STATIC=ON \\
+                       -DUSE_GSTREAMER_STATIC_PLUGINS=OFF \\
+                       -DFFMPEG_ROOT=/usr/local \\
+                       -DTurboJPEG_ROOT=/usr/local \\
+                       -DORC_ROOT=/opt/orc-static \\
+                       -DCMAKE_LIBRARY_PATH=\"/opt/Qt6/lib:/usr/local/lib:/opt/ffmpeg/lib:/usr/lib/x86_64-linux-gnu\" \\
+                       -DCMAKE_INCLUDE_PATH=\"/opt/Qt6/include:/usr/local/include:/opt/ffmpeg/include:/usr/include\" \\
+                       -DCMAKE_VERBOSE_MAKEFILE=ON \\
+                       \"\$CMAKE_SOURCE_DIR\"; then
+                echo 'CMake configuration successful, building...'
+                if make -j\$(nproc) VERBOSE=1; then
+                  echo 'Static build completed successfully with CMake'
+                  BUILD_SUCCESS=true
+                else
+                  echo 'CMake build failed, trying qmake fallback...'
+                  BUILD_SUCCESS=false
+                fi
+              else
+                echo 'CMake configuration failed, trying qmake fallback...'
+                echo 'CMake error details:'
+                cat CMakeFiles/CMakeError.log 2>/dev/null || true
+                BUILD_SUCCESS=false
+              fi
+              
+              # Fallback to qmake if CMake failed
+              if [ \"\$BUILD_SUCCESS\" != \"true\" ]; then
+                echo 'Attempting qmake fallback build...'
+                cd /workspace/build
+                rm -rf * 2>/dev/null || true  # Clean build directory
+                
+                # Try qmake build
+                if /opt/Qt6/bin/qmake /workspace/src/openterfaceQT.pro \\
+                    CONFIG+=release \\
+                    CONFIG+=static \\
+                    QMAKE_LFLAGS+=\"-static-libgcc -static-libstdc++\"; then
+                  echo 'qmake configuration successful, building...'
+                  if make -j\$(nproc); then
+                    echo 'Static build completed successfully with qmake'
+                    BUILD_SUCCESS=true
+                  else
+                    echo 'qmake build failed'
+                    BUILD_SUCCESS=false
+                  fi
+                else
+                  echo 'qmake configuration failed'
+                  BUILD_SUCCESS=false
+                fi
+              fi
+              
+              # Final error check
+              if [ \"\$BUILD_SUCCESS\" != \"true\" ]; then
+                echo 'ERROR: Both CMake and qmake builds failed!'
+                exit 1
+              fi
               
               # Verify build output
               echo 'Checking build output:'
-              ls -lh /workspace/build
+              ls -lh /workspace/build/
               if [ -f '/workspace/build/openterfaceQT' ]; then
-                echo 'openterfaceQT found!'
-                echo 'Checking static linking:'
-                ldd /workspace/build/openterfaceQT | head -10 || echo 'Binary is statically linked'
+                echo 'Static openterfaceQT binary found!'
+                echo 'Binary size and linking info:'
+                ls -lh /workspace/build/openterfaceQT
+                file /workspace/build/openterfaceQT
+                # Check if binary is statically linked (fewer dynamic dependencies expected)
+                echo 'Dynamic library dependencies:'
+                ldd /workspace/build/openterfaceQT 2>/dev/null | wc -l || echo 'Binary appears to be statically linked'
+                ldd /workspace/build/openterfaceQT 2>/dev/null | head -5 || echo 'Binary is statically linked or ldd failed'
               else
-                echo 'Error: openterfaceQT not found!'
+                echo 'Error: openterfaceQT binary not found!'
+                echo 'Available files in build directory:'
+                find /workspace/build -type f -executable 2>/dev/null | head -10 || true
+                find /workspace/build -name '*openterface*' -o -name '*QT*' -o -name '*.exe' 2>/dev/null | head -10 || true
+                echo 'Build directory contents:'
+                ls -la /workspace/build/ || true
+                echo 'CMake logs:'
+                find /workspace/build -name 'CMakeFiles' -type d -exec find {} -name '*.log' \; 2>/dev/null | head -5 | xargs tail -20 2>/dev/null || true
                 exit 1
               fi
             "

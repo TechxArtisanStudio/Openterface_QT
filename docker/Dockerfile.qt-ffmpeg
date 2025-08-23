@@ -17,6 +17,26 @@ RUN echo "Building libusb ${LIBUSB_VERSION} from source..." && \
     cd ${BUILD_DIR} && \
     rm -rf libusb
 
+# Build libjpeg-turbo from source
+RUN echo "Building libjpeg-turbo from source..." && \
+    curl -L -o libjpeg-turbo.tar.gz "https://github.com/libjpeg-turbo/libjpeg-turbo/archive/refs/tags/3.0.4.tar.gz" && \
+    tar xzf libjpeg-turbo.tar.gz && \
+    rm libjpeg-turbo.tar.gz && \
+    cd libjpeg-turbo-3.0.4 && \
+    mkdir build && \
+    cd build && \
+    cmake .. \
+        -DCMAKE_INSTALL_PREFIX="${FFMPEG_PREFIX}" \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DENABLE_STATIC=ON \
+        -DENABLE_SHARED=OFF \
+        -DWITH_JPEG8=ON \
+        -DWITH_TURBOJPEG=ON && \
+    make -j$(nproc) && \
+    make install && \
+    cd ${BUILD_DIR} && \
+    rm -rf libjpeg-turbo-3.0.4
+
 # Build FFmpeg statically
 RUN echo "Building FFmpeg ${FFMPEG_VERSION} statically..." && \
     curl -L -o ffmpeg.tar.bz2 "https://ffmpeg.org/releases/ffmpeg-${FFMPEG_VERSION}.tar.bz2" && \
