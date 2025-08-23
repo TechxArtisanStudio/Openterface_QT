@@ -23,6 +23,23 @@ on:
         - 'gstreamer'
         - 'qt-complete'
         - 'all'
+      architecture:
+        description: 'Target architecture(s) to build'
+        required: false
+        default: 'linux/amd64'
+        type: choice
+        options:
+        - 'linux/amd64'
+        - 'linux/arm64'
+        - 'linux/amd64,linux/arm64'
+      ubuntu_version:
+        description: 'Ubuntu base image version'
+        required: false
+        default: '24.04'
+        type: choice
+        options:
+        - '22.04'
+        - '24.04'
       force_rebuild:
         description: 'Force rebuild even if image exists'
         required: false
@@ -109,12 +126,14 @@ jobs:
         with:
           context: .
           file: ./docker/Dockerfile.qt-dynamic
+          build-args: |
+            UBUNTU_VERSION=${{ github.event.inputs.ubuntu_version || '24.04' }}
           push: ${{ github.event_name != 'pull_request' && (github.event.inputs.push_to_registry == 'true' || github.event.inputs.push_to_registry == '') }}
           tags: ${{ steps.meta-dynamic.outputs.tags }}
           labels: ${{ steps.meta-dynamic.outputs.labels }}
           cache-from: type=gha,scope=dynamic
           cache-to: type=gha,mode=max,scope=dynamic
-          platforms: linux/amd64
+          platforms: ${{ github.event.inputs.architecture || 'linux/amd64' }}
 
       - name: Test Dynamic Qt Environment
         run: |
@@ -182,12 +201,14 @@ jobs:
         with:
           context: .
           file: ./docker/Dockerfile.qt-base
+          build-args: |
+            UBUNTU_VERSION=${{ github.event.inputs.ubuntu_version || '24.04' }}
           push: ${{ github.event_name != 'pull_request' && (github.event.inputs.push_to_registry == 'true' || github.event.inputs.push_to_registry == '') }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha,scope=static-base
           cache-to: type=gha,mode=max,scope=static-base
-          platforms: linux/amd64
+          platforms: ${{ github.event.inputs.architecture || 'linux/amd64' }}
 
   build-static-ffmpeg:
     if: ${{ github.event.inputs.environment_type == 'static' || github.event.inputs.environment_type == 'both' || (github.event.inputs.step == 'ffmpeg' || github.event.inputs.step == 'all') }}
@@ -235,12 +256,13 @@ jobs:
           file: ./docker/Dockerfile.qt-ffmpeg
           build-args: |
             BASE_IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-base:latest
+            UBUNTU_VERSION=${{ github.event.inputs.ubuntu_version || '24.04' }}
           push: ${{ github.event_name != 'pull_request' && (github.event.inputs.push_to_registry == 'true' || github.event.inputs.push_to_registry == '') }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha,scope=static-ffmpeg
           cache-to: type=gha,mode=max,scope=static-ffmpeg
-          platforms: linux/amd64
+          platforms: ${{ github.event.inputs.architecture || 'linux/amd64' }}
 
   build-static-gstreamer:
     if: ${{ github.event.inputs.environment_type == 'static' || github.event.inputs.environment_type == 'both' || (github.event.inputs.step == 'gstreamer' || github.event.inputs.step == 'all') }}
@@ -288,12 +310,13 @@ jobs:
           file: ./docker/Dockerfile.qt-gstreamer
           build-args: |
             BASE_IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-ffmpeg:latest
+            UBUNTU_VERSION=${{ github.event.inputs.ubuntu_version || '24.04' }}
           push: ${{ github.event_name != 'pull_request' && (github.event.inputs.push_to_registry == 'true' || github.event.inputs.push_to_registry == '') }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha,scope=static-gstreamer
           cache-to: type=gha,mode=max,scope=static-gstreamer
-          platforms: linux/amd64
+          platforms: ${{ github.event.inputs.architecture || 'linux/amd64' }}
 
   build-static-complete:
     if: ${{ github.event.inputs.environment_type == 'static' || github.event.inputs.environment_type == 'both' || (github.event.inputs.step == 'qt-complete' || github.event.inputs.step == 'all') }}
@@ -341,12 +364,13 @@ jobs:
           file: ./docker/Dockerfile.qt-complete
           build-args: |
             BASE_IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-gstreamer:latest
+            UBUNTU_VERSION=${{ github.event.inputs.ubuntu_version || '24.04' }}
           push: ${{ github.event_name != 'pull_request' && (github.event.inputs.push_to_registry == 'true' || github.event.inputs.push_to_registry == '') }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha,scope=static-complete
           cache-to: type=gha,mode=max,scope=static-complete
-          platforms: linux/amd64
+          platforms: ${{ github.event.inputs.architecture || 'linux/amd64' }}
 
       - name: Test Static Qt Environment
         run: |

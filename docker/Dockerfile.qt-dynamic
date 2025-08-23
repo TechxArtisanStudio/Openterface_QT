@@ -1,8 +1,13 @@
 # Dynamic Qt Build Environment
-FROM ubuntu:24.04
+ARG UBUNTU_VERSION=24.04
+ARG TARGETARCH=amd64
+FROM ubuntu:${UBUNTU_VERSION}
 
 # Prevent interactive prompts during package installation
 ENV DEBIAN_FRONTEND=noninteractive
+
+# Set architecture-aware environment variables
+ENV TARGETARCH=${TARGETARCH}
 
 # Update package lists and install core build tools
 RUN apt-get update && apt-get install -y \
