@@ -308,7 +308,7 @@ jobs:
           mkdir -p ${{ runner.temp }}/build-static/config/keyboards
           
           # Build application using Static Qt Docker environment
-          docker run --rm --user root \
+          docker run --rm \
             -v ${{ github.workspace }}:/workspace/src \
             -v ${{ runner.temp }}/build-static:/workspace/build \
             -w /workspace/src \
