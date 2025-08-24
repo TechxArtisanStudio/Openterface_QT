@@ -136,7 +136,8 @@ RUN apt-get update && \
             libgudev-1.0-dev:arm64 \
             libusb-1.0-0-dev:arm64 \
             libv4l-dev:arm64 \
-            liborc-0.4-dev:arm64; \
+            liborc-0.4-dev:arm64 \
+            libexpat1-dev:arm64; \
     else \
         # Install native AMD64 dependencies
         apt-get install -y \
@@ -176,7 +177,8 @@ RUN apt-get update && \
             libgudev-1.0-dev \
             libusb-1.0-0-dev \
             libv4l-dev \
-            liborc-0.4-dev; \
+            liborc-0.4-dev \
+            libexpat1-dev; \
     fi && \
     rm -rf /var/lib/apt/lists/*
 
