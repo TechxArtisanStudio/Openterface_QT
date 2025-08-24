@@ -104,7 +104,12 @@ if(CMAKE_CROSSCOMPILING)
         
         # Add architecture-specific paths to CMAKE search paths
         list(INSERT CMAKE_LIBRARY_PATH 0 "${ARCH_SPECIFIC_PATH}")
-        list(INSERT CMAKE_INCLUDE_PATH 0 "/usr/include" "/usr/include/freetype2")
+        list(INSERT CMAKE_INCLUDE_PATH 0 "/usr/include" "/usr/include/freetype2" "/usr/include/EGL" "/usr/include/GL" "/usr/include/vulkan")
+        
+        # Set additional CMake search paths for cross-compilation
+        list(INSERT CMAKE_FIND_ROOT_PATH 0 "/usr/${ARCH_LIB_DIR}")
+        set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY BOTH)
+        set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE BOTH)
         
         message(STATUS "  Cross-compilation library paths configured for ${ARCH_LIB_DIR}")
     endif()
@@ -117,6 +122,13 @@ if(UNIX AND NOT APPLE)
 endif()
 
 # Find OpenGL libraries (required by Qt6)
+if(CMAKE_CROSSCOMPILING)
+    message(STATUS "Cross-compilation: Looking for OpenGL libraries in ${ARCH_SPECIFIC_PATH}")
+    message(STATUS "  OPENGL_EGL_INCLUDE_DIR: ${OPENGL_EGL_INCLUDE_DIR}")
+    message(STATUS "  OPENGL_GLX_INCLUDE_DIR: ${OPENGL_GLX_INCLUDE_DIR}")
+    message(STATUS "  Vulkan_INCLUDE_DIR: ${Vulkan_INCLUDE_DIR}")
+endif()
+
 find_package(OpenGL REQUIRED COMPONENTS OpenGL)
 # Try to find additional OpenGL components (optional for better compatibility)
 find_package(OpenGL OPTIONAL_COMPONENTS GLX EGL)
