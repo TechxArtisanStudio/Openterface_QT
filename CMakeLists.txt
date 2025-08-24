@@ -238,17 +238,39 @@ if(USE_GSTREAMER AND EXISTS "${GSTREAMER_INCLUDE_DIR}/gst/gst.h" AND EXISTS "${G
     # Set static GStreamer libraries (using system GLib)
     set(GSTREAMER_LIBRARIES)
     
-    # List of core GStreamer libraries to check
+    # List of core GStreamer libraries to check (with appropriate extension)
+    if(USE_FFMPEG_STATIC)
+        # Static build - look for .a files
+        set(GSTREAMER_LIB_EXT ".a")
+        set(GSTREAMER_PLUGIN_EXT ".a")
+        message(STATUS "Using static GStreamer core libraries")
+    else()
+        # Dynamic build - look for .so files
+        set(GSTREAMER_LIB_EXT ".so")
+        set(GSTREAMER_PLUGIN_EXT ".so")
+        message(STATUS "Using dynamic GStreamer core libraries")
+    endif()
+    
     set(GSTREAMER_CORE_LIB_CANDIDATES
-        "libgstreamer-1.0.a"
-        "libgstbase-1.0.a"
-        "libgstcontroller-1.0.a"
-        "libgstnet-1.0.a"
-        "libgstallocators-1.0.a"  # Contains dmabuf and fd allocator functions
+        "libgstreamer-1.0${GSTREAMER_LIB_EXT}"
+        "libgstbase-1.0${GSTREAMER_LIB_EXT}"
+        "libgstcontroller-1.0${GSTREAMER_LIB_EXT}"
+        "libgstnet-1.0${GSTREAMER_LIB_EXT}"
+        "libgstallocators-1.0${GSTREAMER_LIB_EXT}"  # Contains dmabuf and fd allocator functions
     )
     
     # Check for each core library and add if found
     foreach(LIB_NAME ${GSTREAMER_CORE_LIB_CANDIDATES})
+        # For dynamic builds in cross-compilation, check architecture-specific directory first
+        if(NOT USE_FFMPEG_STATIC AND CMAKE_CROSSCOMPILING AND ARCH_SPECIFIC_PATH)
+            set(LIB_PATH_ARCH_SPECIFIC "${ARCH_SPECIFIC_PATH}/${LIB_NAME}")
+            if(EXISTS "${LIB_PATH_ARCH_SPECIFIC}")
+                list(APPEND GSTREAMER_LIBRARIES "${LIB_PATH_ARCH_SPECIFIC}")
+                message(STATUS "Found GStreamer core library: ${LIB_PATH_ARCH_SPECIFIC}")
+                continue()
+            endif()
+        endif()
+        
         set(LIB_PATH "${GSTREAMER_ROOT_DIR}/lib/${LIB_NAME}")
         # Also check architecture-specific subdirectories
         set(LIB_PATH_ARCH "${GSTREAMER_ROOT_DIR}/lib/x86_64-linux-gnu/${LIB_NAME}")
@@ -270,23 +292,33 @@ if(USE_GSTREAMER AND EXISTS "${GSTREAMER_INCLUDE_DIR}/gst/gst.h" AND EXISTS "${G
     
     set(GSTREAMER_VIDEO_LIBRARIES)
     
-    # List of potential GStreamer video libraries to check
+    # List of potential GStreamer video libraries to check (with appropriate extension)
     set(GSTREAMER_VIDEO_LIB_CANDIDATES
-        "libgstvideo-1.0.a"
-        "libgstaudio-1.0.a"
-        "libgsttag-1.0.a"           # Contains tag utilities like gst_tag_list_to_vorbiscomment_buffer
-        "libgstpbutils-1.0.a"       # Playback utilities
-        "libgstapp-1.0.a"
-        "libgstgl-1.0.a"
-        "libgstriff-1.0.a"
-        "libgstrtp-1.0.a"
-        "libgstrtsp-1.0.a"
-        "libgstsdp-1.0.a"
-        "libgstcodecparsers-1.0.a"  # Codec parsers (may contain bit/byte readers)
+        "libgstvideo-1.0${GSTREAMER_LIB_EXT}"
+        "libgstaudio-1.0${GSTREAMER_LIB_EXT}"
+        "libgsttag-1.0${GSTREAMER_LIB_EXT}"           # Contains tag utilities like gst_tag_list_to_vorbiscomment_buffer
+        "libgstpbutils-1.0${GSTREAMER_LIB_EXT}"       # Playback utilities
+        "libgstapp-1.0${GSTREAMER_LIB_EXT}"
+        "libgstgl-1.0${GSTREAMER_LIB_EXT}"
+        "libgstriff-1.0${GSTREAMER_LIB_EXT}"
+        "libgstrtp-1.0${GSTREAMER_LIB_EXT}"
+        "libgstrtsp-1.0${GSTREAMER_LIB_EXT}"
+        "libgstsdp-1.0${GSTREAMER_LIB_EXT}"
+        "libgstcodecparsers-1.0${GSTREAMER_LIB_EXT}"  # Codec parsers (may contain bit/byte readers)
     )
     
     # Check for each library and add if found
     foreach(LIB_NAME ${GSTREAMER_VIDEO_LIB_CANDIDATES})
+        # For dynamic builds in cross-compilation, check architecture-specific directory first
+        if(NOT USE_FFMPEG_STATIC AND CMAKE_CROSSCOMPILING AND ARCH_SPECIFIC_PATH)
+            set(LIB_PATH_ARCH_SPECIFIC "${ARCH_SPECIFIC_PATH}/${LIB_NAME}")
+            if(EXISTS "${LIB_PATH_ARCH_SPECIFIC}")
+                list(APPEND GSTREAMER_VIDEO_LIBRARIES "${LIB_PATH_ARCH_SPECIFIC}")
+                message(STATUS "Found GStreamer video library: ${LIB_PATH_ARCH_SPECIFIC}")
+                continue()
+            endif()
+        endif()
+        
         set(LIB_PATH "${GSTREAMER_ROOT_DIR}/lib/${LIB_NAME}")
         # Also check architecture-specific subdirectories
         set(LIB_PATH_ARCH "${GSTREAMER_ROOT_DIR}/lib/x86_64-linux-gnu/${LIB_NAME}")
@@ -324,9 +356,9 @@ if(USE_GSTREAMER AND EXISTS "${GSTREAMER_INCLUDE_DIR}/gst/gst.h" AND EXISTS "${G
         foreach(PLUGIN_DIR ${PLUGIN_SEARCH_DIRS})
             if(EXISTS "${PLUGIN_DIR}")
                 message(STATUS "  - ${PLUGIN_DIR} (exists)")
-                file(GLOB AVAILABLE_PLUGINS "${PLUGIN_DIR}/lib*.a")
+                file(GLOB AVAILABLE_PLUGINS "${PLUGIN_DIR}/lib*${GSTREAMER_PLUGIN_EXT}")
                 if(AVAILABLE_PLUGINS)
-                    message(STATUS "    Found static plugins: ${AVAILABLE_PLUGINS}")
+                    message(STATUS "    Found plugins: ${AVAILABLE_PLUGINS}")
                 endif()
             else()
                 message(STATUS "  - ${PLUGIN_DIR} (not found)")
@@ -362,12 +394,12 @@ if(USE_GSTREAMER AND EXISTS "${GSTREAMER_INCLUDE_DIR}/gst/gst.h" AND EXISTS "${G
         foreach(PLUGIN ${PLUGIN_CANDIDATES})
             # Try multiple possible locations for GStreamer plugins
             set(PLUGIN_PATH_CANDIDATES
-                "${GSTREAMER_ROOT_DIR}/lib/gstreamer-1.0/lib${PLUGIN}.a"
-                "${GSTREAMER_ROOT_DIR}/lib/x86_64-linux-gnu/gstreamer-1.0/lib${PLUGIN}.a"
-                "${GSTREAMER_ROOT_DIR}/lib/aarch64-linux-gnu/gstreamer-1.0/lib${PLUGIN}.a"
-                "/usr/lib/x86_64-linux-gnu/gstreamer-1.0/lib${PLUGIN}.a"
-                "/usr/lib/aarch64-linux-gnu/gstreamer-1.0/lib${PLUGIN}.a"
-                "/usr/local/lib/gstreamer-1.0/lib${PLUGIN}.a"
+                "${GSTREAMER_ROOT_DIR}/lib/gstreamer-1.0/lib${PLUGIN}${GSTREAMER_PLUGIN_EXT}"
+                "${GSTREAMER_ROOT_DIR}/lib/x86_64-linux-gnu/gstreamer-1.0/lib${PLUGIN}${GSTREAMER_PLUGIN_EXT}"
+                "${GSTREAMER_ROOT_DIR}/lib/aarch64-linux-gnu/gstreamer-1.0/lib${PLUGIN}${GSTREAMER_PLUGIN_EXT}"
+                "/usr/lib/x86_64-linux-gnu/gstreamer-1.0/lib${PLUGIN}${GSTREAMER_PLUGIN_EXT}"
+                "/usr/lib/aarch64-linux-gnu/gstreamer-1.0/lib${PLUGIN}${GSTREAMER_PLUGIN_EXT}"
+                "/usr/local/lib/gstreamer-1.0/lib${PLUGIN}${GSTREAMER_PLUGIN_EXT}"
             )
             
             set(PLUGIN_FOUND FALSE)
