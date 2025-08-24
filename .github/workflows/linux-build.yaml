@@ -227,9 +227,15 @@ jobs:
           set(EXPAT_INCLUDE_DIR /usr/include)
           set(EXPAT_LIBRARY /usr/lib/aarch64-linux-gnu/libexpat.so)
           
+          # Freetype paths for ARM64
+          set(FREETYPE_INCLUDE_DIRS /usr/include/freetype2)
+          set(FREETYPE_LIBRARY /usr/lib/aarch64-linux-gnu/libfreetype.so)
+          set(FREETYPE_INCLUDE_DIR_freetype2 /usr/include/freetype2)
+          set(FREETYPE_INCLUDE_DIR_ft2build /usr/include/freetype2)
+          
           # Force OpenGL and X11 library paths
           set(CMAKE_LIBRARY_PATH "/usr/lib/aarch64-linux-gnu;${CMAKE_LIBRARY_PATH}")
-          set(CMAKE_INCLUDE_PATH "/usr/include;${CMAKE_INCLUDE_PATH}")
+          set(CMAKE_INCLUDE_PATH "/usr/include;/usr/include/freetype2;${CMAKE_INCLUDE_PATH}")
           TOOLCHAIN_EOF
             
             CMAKE_TOOLCHAIN="-DCMAKE_TOOLCHAIN_FILE=/tmp/toolchain.cmake"
