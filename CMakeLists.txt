@@ -111,7 +111,14 @@ if(CMAKE_CROSSCOMPILING)
         set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY BOTH)
         set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE BOTH)
         
+        # Set pkg-config for cross-compilation
+        set(PKG_CONFIG_EXECUTABLE "/usr/bin/pkg-config" CACHE FILEPATH "pkg-config executable")
+        set(ENV{PKG_CONFIG_PATH} "/usr/lib/${ARCH_LIB_DIR}/pkgconfig:/usr/share/pkgconfig")
+        set(ENV{PKG_CONFIG_LIBDIR} "/usr/lib/${ARCH_LIB_DIR}/pkgconfig")
+        
         message(STATUS "  Cross-compilation library paths configured for ${ARCH_LIB_DIR}")
+        message(STATUS "  PKG_CONFIG_PATH: $ENV{PKG_CONFIG_PATH}")
+        message(STATUS "  PKG_CONFIG_LIBDIR: $ENV{PKG_CONFIG_LIBDIR}")
     endif()
 endif()
 
@@ -142,6 +149,15 @@ find_package(Fontconfig REQUIRED)
 find_package(BZip2 REQUIRED)
 
 # Use pkg-config to find Xrender
+# First ensure pkg-config is properly configured for cross-compilation
+if(CMAKE_CROSSCOMPILING)
+    # Make sure pkg-config executable is found
+    find_program(PKG_CONFIG_EXECUTABLE pkg-config REQUIRED)
+    if(PKG_CONFIG_EXECUTABLE)
+        message(STATUS "Found pkg-config: ${PKG_CONFIG_EXECUTABLE}")
+    endif()
+endif()
+
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(XRENDER REQUIRED xrender)
 
