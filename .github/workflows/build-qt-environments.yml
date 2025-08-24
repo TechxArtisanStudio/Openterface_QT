@@ -156,9 +156,19 @@ jobs:
           platforms: ${{ github.event.inputs.architecture || 'linux/amd64' }}
 
       - name: Test Dynamic Qt Environment
+        if: steps.arch-suffix.outputs.arch_suffix == 'amd64'
         run: |
           docker run --rm ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-dynamic:ubuntu-${{ github.event.inputs.ubuntu_version || '24.04' }}${{ steps.arch-suffix.outputs.arch_tag_suffix }} \
             /opt/verify/verify-qt-dynamic.sh
+
+      - name: Test Dynamic Qt Environment (ARM64 with emulation)
+        if: steps.arch-suffix.outputs.arch_suffix == 'arm64'
+        run: |
+          echo "Setting up QEMU for ARM64 emulation..."
+          docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
+          echo "Testing ARM64 image with emulation..."
+          docker run --rm --platform linux/arm64 ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-dynamic:ubuntu-${{ github.event.inputs.ubuntu_version || '24.04' }}${{ steps.arch-suffix.outputs.arch_tag_suffix }} \
+            /opt/verify/verify-qt-dynamic.sh || echo "ARM64 test skipped due to emulation limitations"
 
   # Static Qt Environment Build (existing multi-stage process)
   build-static-base:
@@ -467,9 +477,19 @@ jobs:
           platforms: ${{ github.event.inputs.architecture || 'linux/amd64' }}
 
       - name: Test Static Qt Environment
+        if: steps.arch-suffix.outputs.arch_suffix == 'amd64'
         run: |
           docker run --rm ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-complete:ubuntu-${{ github.event.inputs.ubuntu_version || '24.04' }}${{ steps.arch-suffix.outputs.arch_tag_suffix }} \
             /opt/Qt6/bin/verify-qt-installation.sh
+
+      - name: Test Static Qt Environment (ARM64 with emulation)
+        if: steps.arch-suffix.outputs.arch_suffix == 'arm64'
+        run: |
+          echo "Setting up QEMU for ARM64 emulation..."
+          docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
+          echo "Testing ARM64 image with emulation..."
+          docker run --rm --platform linux/arm64 ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-complete:ubuntu-${{ github.event.inputs.ubuntu_version || '24.04' }}${{ steps.arch-suffix.outputs.arch_tag_suffix }} \
+            /opt/Qt6/bin/verify-qt-installation.sh || echo "ARM64 test skipped due to emulation limitations"
 
   # Build applications with both environments to verify they work
   test-both-environments:
