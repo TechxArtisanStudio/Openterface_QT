@@ -587,6 +587,16 @@ else()
     message(STATUS "FFmpeg configuration successful")
 endif()
 
+# For dynamic builds in cross-compilation, override with architecture-specific path if libraries exist there
+if(CMAKE_CROSSCOMPILING AND NOT USE_FFMPEG_STATIC AND ARCH_SPECIFIC_PATH)
+    if(EXISTS "${ARCH_SPECIFIC_PATH}/libavformat.so")
+        message(STATUS "Overriding FFmpeg library directory for dynamic cross-compilation")
+        set(FFMPEG_LIB_DIR "${ARCH_SPECIFIC_PATH}")
+        set(FFMPEG_PREFIX "/usr")
+        message(STATUS "Using dynamic FFmpeg libraries from: ${FFMPEG_LIB_DIR}")
+    endif()
+endif()
+
 # Set include and library directories based on found prefix
 set(FFMPEG_INCLUDE_DIRS "${FFMPEG_PREFIX}/include")
 
