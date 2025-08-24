@@ -492,6 +492,14 @@ set(FFMPEG_SEARCH_PATHS
     "/usr"
 )
 
+# For cross-compilation, prioritize architecture-specific paths
+if(CMAKE_CROSSCOMPILING AND ARCH_SPECIFIC_PATH)
+    list(INSERT FFMPEG_SEARCH_PATHS 0 "/usr")
+    message(STATUS "Cross-compilation: Adding architecture-specific FFmpeg search paths")
+    message(STATUS "Architecture-specific path: ${ARCH_SPECIFIC_PATH}")
+    message(STATUS "USE_FFMPEG_STATIC: ${USE_FFMPEG_STATIC}")
+endif()
+
 # Also check if FFMPEG_PREFIX was set via CMAKE_PREFIX_PATH or environment
 if(DEFINED ENV{FFMPEG_PREFIX})
     list(INSERT FFMPEG_SEARCH_PATHS 0 "$ENV{FFMPEG_PREFIX}")
@@ -518,6 +526,7 @@ foreach(SEARCH_PATH ${FFMPEG_SEARCH_PATHS})
             set(LIB_NAME "libavformat.so")
         endif()
         
+        message(STATUS "Checking for FFmpeg in: ${CROSS_LIB_PATH}/${LIB_NAME}")
         if(EXISTS "${CROSS_LIB_PATH}/${LIB_NAME}" AND EXISTS "${SEARCH_PATH}/include/libavformat/avformat.h")
             set(FFMPEG_PREFIX "${SEARCH_PATH}")
             set(FFMPEG_LIB_DIR "${CROSS_LIB_PATH}")
@@ -537,6 +546,7 @@ foreach(SEARCH_PATH ${FFMPEG_SEARCH_PATHS})
         set(LIB_NAME "libavformat.so")
     endif()
     
+    message(STATUS "Checking for FFmpeg in: ${SEARCH_PATH}/lib/${LIB_NAME}")
     if(EXISTS "${SEARCH_PATH}/lib/${LIB_NAME}" AND EXISTS "${SEARCH_PATH}/include/libavformat/avformat.h")
         set(FFMPEG_PREFIX "${SEARCH_PATH}")
         set(FFMPEG_LIB_DIR "${SEARCH_PATH}/lib")
@@ -548,9 +558,33 @@ endforeach()
 
 # Set default if not found
 if(NOT FFMPEG_PREFIX)
-    set(FFMPEG_PREFIX "/usr/local")
-    set(FFMPEG_LIB_DIR "/usr/local/lib")
-    message(WARNING "FFmpeg not found in standard locations, defaulting to: ${FFMPEG_PREFIX}")
+    if(CMAKE_CROSSCOMPILING AND ARCH_SPECIFIC_PATH)
+        # For cross-compilation, try the architecture-specific directory first
+        message(STATUS "FFmpeg search failed. Attempting fallback to architecture-specific path...")
+        if(USE_FFMPEG_STATIC)
+            set(FALLBACK_LIB_PATH "${ARCH_SPECIFIC_PATH}/libavformat.a")
+        else()
+            set(FALLBACK_LIB_PATH "${ARCH_SPECIFIC_PATH}/libavformat.so")
+        endif()
+        
+        message(STATUS "Checking fallback path: ${FALLBACK_LIB_PATH}")
+        if(EXISTS "${FALLBACK_LIB_PATH}")
+            set(FFMPEG_PREFIX "/usr")
+            set(FFMPEG_LIB_DIR "${ARCH_SPECIFIC_PATH}")
+            message(STATUS "Found FFmpeg libraries in architecture-specific directory: ${FFMPEG_LIB_DIR}")
+        else()
+            set(FFMPEG_PREFIX "/usr/local")
+            set(FFMPEG_LIB_DIR "/usr/local/lib")
+            message(WARNING "FFmpeg not found in standard locations, defaulting to: ${FFMPEG_PREFIX}")
+            message(STATUS "Expected to find FFmpeg libraries in: ${FALLBACK_LIB_PATH}")
+        endif()
+    else()
+        set(FFMPEG_PREFIX "/usr/local")
+        set(FFMPEG_LIB_DIR "/usr/local/lib")
+        message(WARNING "FFmpeg not found in standard locations, defaulting to: ${FFMPEG_PREFIX}")
+    endif()
+else()
+    message(STATUS "FFmpeg configuration successful")
 endif()
 
 # Set include and library directories based on found prefix
