@@ -506,8 +506,22 @@ endif()
 
 # Find FFmpeg installation
 foreach(SEARCH_PATH ${FFMPEG_SEARCH_PATHS})
+    # For cross-compilation, check architecture-specific directory first
+    if(CMAKE_CROSSCOMPILING AND ARCH_LIB_DIR)
+        set(CROSS_LIB_PATH "${SEARCH_PATH}/lib/${ARCH_LIB_DIR}")
+        if(EXISTS "${CROSS_LIB_PATH}/libavformat.a" AND EXISTS "${SEARCH_PATH}/include/libavformat/avformat.h")
+            set(FFMPEG_PREFIX "${SEARCH_PATH}")
+            set(FFMPEG_LIB_DIR "${CROSS_LIB_PATH}")
+            message(STATUS "Found FFmpeg installation at: ${FFMPEG_PREFIX} (cross-compilation)")
+            message(STATUS "FFmpeg libraries in: ${FFMPEG_LIB_DIR}")
+            break()
+        endif()
+    endif()
+    
+    # Standard search
     if(EXISTS "${SEARCH_PATH}/lib/libavformat.a" AND EXISTS "${SEARCH_PATH}/include/libavformat/avformat.h")
         set(FFMPEG_PREFIX "${SEARCH_PATH}")
+        set(FFMPEG_LIB_DIR "${SEARCH_PATH}/lib")
         message(STATUS "Found FFmpeg installation at: ${FFMPEG_PREFIX}")
         break()
     endif()
@@ -516,19 +530,26 @@ endforeach()
 # Set default if not found
 if(NOT FFMPEG_PREFIX)
     set(FFMPEG_PREFIX "/usr/local")
+    set(FFMPEG_LIB_DIR "/usr/local/lib")
     message(WARNING "FFmpeg not found in standard locations, defaulting to: ${FFMPEG_PREFIX}")
 endif()
 
 # Set include and library directories based on found prefix
 set(FFMPEG_INCLUDE_DIRS "${FFMPEG_PREFIX}/include")
+
+# Use architecture-specific library directory if set, otherwise use standard lib directory
+if(NOT FFMPEG_LIB_DIR)
+    set(FFMPEG_LIB_DIR "${FFMPEG_PREFIX}/lib")
+endif()
+
 set(FFMPEG_LIBRARIES 
-    "${FFMPEG_PREFIX}/lib/libavdevice.a"
-    "${FFMPEG_PREFIX}/lib/libavfilter.a"
-    "${FFMPEG_PREFIX}/lib/libavformat.a"
-    "${FFMPEG_PREFIX}/lib/libavcodec.a"
-    "${FFMPEG_PREFIX}/lib/libswresample.a"
-    "${FFMPEG_PREFIX}/lib/libswscale.a"
-    "${FFMPEG_PREFIX}/lib/libavutil.a"
+    "${FFMPEG_LIB_DIR}/libavdevice.a"
+    "${FFMPEG_LIB_DIR}/libavfilter.a"
+    "${FFMPEG_LIB_DIR}/libavformat.a"
+    "${FFMPEG_LIB_DIR}/libavcodec.a"
+    "${FFMPEG_LIB_DIR}/libswresample.a"
+    "${FFMPEG_LIB_DIR}/libswscale.a"
+    "${FFMPEG_LIB_DIR}/libavutil.a"
 )
 
 # Add hardware acceleration libraries required by FFmpeg (optional)
