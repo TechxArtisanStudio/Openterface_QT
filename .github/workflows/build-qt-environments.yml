@@ -127,11 +127,13 @@ jobs:
             echo "Force rebuild requested, will build dynamic image"
             echo "should_build=true" >> $GITHUB_OUTPUT
           else
-            if docker manifest inspect ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-dynamic:latest > /dev/null 2>&1; then
-              echo "Dynamic image already exists, skipping build"
+            IMAGE_TAG="ubuntu-${{ github.event.inputs.ubuntu_version || '24.04' }}${{ steps.arch-suffix.outputs.arch_tag_suffix }}"
+            echo "Checking for image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-dynamic:$IMAGE_TAG"
+            if docker manifest inspect ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-dynamic:$IMAGE_TAG > /dev/null 2>&1; then
+              echo "Dynamic image already exists for architecture ${{ steps.arch-suffix.outputs.arch_suffix }}, skipping build"
               echo "should_build=false" >> $GITHUB_OUTPUT
             else
-              echo "Dynamic image does not exist, will build"
+              echo "Dynamic image does not exist for architecture ${{ steps.arch-suffix.outputs.arch_suffix }}, will build"
               echo "should_build=true" >> $GITHUB_OUTPUT
             fi
           fi
@@ -220,11 +222,13 @@ jobs:
             echo "Force rebuild requested, will build base image"
             echo "should_build=true" >> $GITHUB_OUTPUT
           else
-            if docker manifest inspect ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-base:latest > /dev/null 2>&1; then
-              echo "Base image already exists, skipping build"
+            IMAGE_TAG="ubuntu-${{ github.event.inputs.ubuntu_version || '24.04' }}${{ steps.arch-suffix.outputs.arch_tag_suffix }}"
+            echo "Checking for image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-base:$IMAGE_TAG"
+            if docker manifest inspect ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-base:$IMAGE_TAG > /dev/null 2>&1; then
+              echo "Base image already exists for architecture ${{ steps.arch-suffix.outputs.arch_suffix }}, skipping build"
               echo "should_build=false" >> $GITHUB_OUTPUT
             else
-              echo "Base image does not exist, will build"
+              echo "Base image does not exist for architecture ${{ steps.arch-suffix.outputs.arch_suffix }}, will build"
               echo "should_build=true" >> $GITHUB_OUTPUT
             fi
           fi
