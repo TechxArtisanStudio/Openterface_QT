@@ -788,7 +788,6 @@ target_link_libraries(openterfaceQT PRIVATE
     ${FONTCONFIG_LIBRARIES}
     ${XRENDER_LIBRARIES}
     ${BZIP2_LIBRARIES}
-    /opt/orc-static/lib/aarch64-linux-gnu/liborc-0.4.a  # Static ORC library
     ${EXTRA_LIBS}
 )
 
@@ -806,28 +805,61 @@ endif()
 # Add GStreamer libraries if available
 if(GSTREAMER_FOUND AND GSTREAMER_VIDEO_FOUND)
     if(EXISTS "${GSTREAMER_ROOT_DIR}/include/gstreamer-1.0/gst/gst.h")
-        # Add static ORC include path and library path
-        target_include_directories(openterfaceQT PRIVATE 
-            ${GSTREAMER_INCLUDE_DIRS}
-            /opt/orc-static/include/orc-0.4
-            ${GUDEV_INCLUDE_DIRS}
-            ${V4L2_INCLUDE_DIRS}
-        )
+        # Add appropriate ORC include and library paths based on build type
+        if(USE_FFMPEG_STATIC)
+            # Static build - use static ORC
+            target_include_directories(openterfaceQT PRIVATE 
+                ${GSTREAMER_INCLUDE_DIRS}
+                /opt/orc-static/include/orc-0.4
+                ${GUDEV_INCLUDE_DIRS}
+                ${V4L2_INCLUDE_DIRS}
+            )
+            
+            # Find the correct static ORC library path
+            set(ORC_LIB_CANDIDATES
+                "/opt/orc-static/lib/x86_64-linux-gnu/liborc-0.4.a"
+                "/opt/orc-static/lib/aarch64-linux-gnu/liborc-0.4.a"
+                "/opt/orc-static/lib/liborc-0.4.a"
+                "/usr/lib/x86_64-linux-gnu/liborc-0.4.a"
+                "/usr/lib/aarch64-linux-gnu/liborc-0.4.a"
+            )
+        else()
+            # Dynamic build - use system ORC
+            target_include_directories(openterfaceQT PRIVATE 
+                ${GSTREAMER_INCLUDE_DIRS}
+                ${GUDEV_INCLUDE_DIRS}
+                ${V4L2_INCLUDE_DIRS}
+            )
+            
+            # Find the correct dynamic ORC library path
+            if(CMAKE_CROSSCOMPILING AND ARCH_SPECIFIC_PATH)
+                set(ORC_LIB_CANDIDATES
+                    "${ARCH_SPECIFIC_PATH}/liborc-0.4.so"
+                    "/usr/lib/x86_64-linux-gnu/liborc-0.4.so"
+                    "/usr/lib/aarch64-linux-gnu/liborc-0.4.so"
+                    "/usr/lib/liborc-0.4.so"
+                    "/usr/local/lib/liborc-0.4.so"
+                )
+            else()
+                set(ORC_LIB_CANDIDATES
+                    "/usr/lib/x86_64-linux-gnu/liborc-0.4.so"
+                    "/usr/lib/aarch64-linux-gnu/liborc-0.4.so"
+                    "/usr/lib/liborc-0.4.so"
+                    "/usr/local/lib/liborc-0.4.so"
+                )
+            endif()
+        endif()
         
         # Static GStreamer linking - plugins will be loaded dynamically at runtime
         # Find the correct ORC library path
-        set(ORC_LIB_CANDIDATES
-            "/opt/orc-static/lib/x86_64-linux-gnu/liborc-0.4.a"
-            "/opt/orc-static/lib/aarch64-linux-gnu/liborc-0.4.a"
-            "/opt/orc-static/lib/liborc-0.4.a"
-            "/usr/lib/x86_64-linux-gnu/liborc-0.4.a"
-            "/usr/lib/aarch64-linux-gnu/liborc-0.4.a"
-        )
-        
         set(ORC_LIB "")
         foreach(ORC_PATH ${ORC_LIB_CANDIDATES})
             if(EXISTS "${ORC_PATH}")
                 set(ORC_LIB "${ORC_PATH}")
+                message(STATUS "Found ORC library: ${ORC_LIB}")
+                break()
+            endif()
+        endforeach()
                 message(STATUS "Found ORC library: ${ORC_LIB}")
                 break()
             endif()
