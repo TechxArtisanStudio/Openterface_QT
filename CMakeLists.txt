@@ -43,6 +43,81 @@ find_package(Freetype REQUIRED)
 find_package(Fontconfig REQUIRED)
 find_package(BZip2 REQUIRED)
 
+# Cross-compilation support: Set architecture-specific library paths
+# This ensures that find_package commands work correctly for ARM64 cross-compilation
+if(CMAKE_CROSSCOMPILING)
+    message(STATUS "Cross-compilation detected:")
+    message(STATUS "  Host system: ${CMAKE_HOST_SYSTEM_NAME}-${CMAKE_HOST_SYSTEM_PROCESSOR}")
+    message(STATUS "  Target system: ${CMAKE_SYSTEM_NAME}-${CMAKE_SYSTEM_PROCESSOR}")
+    
+    # Determine architecture-specific library directory
+    if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(aarch64|arm64)$")
+        set(ARCH_LIB_DIR "aarch64-linux-gnu")
+        set(ARCH_SPECIFIC_PATH "/usr/lib/aarch64-linux-gnu")
+        message(STATUS "  Configuring for ARM64 architecture")
+    elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "^(x86_64|amd64)$")
+        set(ARCH_LIB_DIR "x86_64-linux-gnu")
+        set(ARCH_SPECIFIC_PATH "/usr/lib/x86_64-linux-gnu")
+        message(STATUS "  Configuring for AMD64 architecture")
+    else()
+        message(WARNING "Unknown target architecture: ${CMAKE_SYSTEM_PROCESSOR}")
+        set(ARCH_LIB_DIR "")
+        set(ARCH_SPECIFIC_PATH "/usr/lib")
+    endif()
+    
+    # Set hints for find_package to locate libraries in cross-compilation environment
+    if(ARCH_LIB_DIR)
+        # OpenGL libraries
+        set(OPENGL_INCLUDE_DIR "/usr/include" CACHE PATH "OpenGL include directory")
+        set(OPENGL_opengl_LIBRARY "${ARCH_SPECIFIC_PATH}/libOpenGL.so" CACHE FILEPATH "OpenGL library")
+        set(OPENGL_glx_LIBRARY "${ARCH_SPECIFIC_PATH}/libGLX.so" CACHE FILEPATH "GLX library")
+        set(OPENGL_egl_LIBRARY "${ARCH_SPECIFIC_PATH}/libEGL.so" CACHE FILEPATH "EGL library")
+        set(OPENGL_glu_LIBRARY "${ARCH_SPECIFIC_PATH}/libGLU.so" CACHE FILEPATH "GLU library")
+        
+        # X11 libraries
+        set(X11_INCLUDE_DIR "/usr/include/X11" CACHE PATH "X11 include directory")
+        set(X11_X11_INCLUDE_PATH "/usr/include" CACHE PATH "X11 include path")
+        set(X11_X11_LIB "${ARCH_SPECIFIC_PATH}/libX11.so" CACHE FILEPATH "X11 library")
+        set(X11_Xrandr_INCLUDE_PATH "/usr/include/X11/extensions" CACHE PATH "Xrandr include path")
+        set(X11_Xrandr_LIB "${ARCH_SPECIFIC_PATH}/libXrandr.so" CACHE FILEPATH "Xrandr library")
+        set(X11_Xext_LIB "${ARCH_SPECIFIC_PATH}/libXext.so" CACHE FILEPATH "Xext library")
+        
+        # EXPAT library
+        set(EXPAT_INCLUDE_DIR "/usr/include" CACHE PATH "EXPAT include directory")
+        set(EXPAT_LIBRARY "${ARCH_SPECIFIC_PATH}/libexpat.so" CACHE FILEPATH "EXPAT library")
+        
+        # Freetype library
+        set(FREETYPE_INCLUDE_DIRS "/usr/include/freetype2" CACHE PATH "Freetype include directories")
+        set(FREETYPE_LIBRARY "${ARCH_SPECIFIC_PATH}/libfreetype.so" CACHE FILEPATH "Freetype library")
+        set(FREETYPE_INCLUDE_DIR_freetype2 "/usr/include/freetype2" CACHE PATH "Freetype2 include directory")
+        set(FREETYPE_INCLUDE_DIR_ft2build "/usr/include/freetype2" CACHE PATH "ft2build include directory")
+        
+        # Fontconfig library
+        set(Fontconfig_INCLUDE_DIR "/usr/include" CACHE PATH "Fontconfig include directory")
+        set(Fontconfig_LIBRARY "${ARCH_SPECIFIC_PATH}/libfontconfig.so" CACHE FILEPATH "Fontconfig library")
+        set(FONTCONFIG_INCLUDE_DIR "/usr/include" CACHE PATH "Fontconfig include directory (legacy)")
+        set(FONTCONFIG_LIBRARY "${ARCH_SPECIFIC_PATH}/libfontconfig.so" CACHE FILEPATH "Fontconfig library (legacy)")
+        
+        # BZip2 library
+        set(BZIP2_INCLUDE_DIR "/usr/include" CACHE PATH "BZip2 include directory")
+        set(BZIP2_LIBRARIES "${ARCH_SPECIFIC_PATH}/libbz2.so" CACHE FILEPATH "BZip2 library")
+        
+        # Qt6 CMake module paths
+        set(Qt6_DIR "${ARCH_SPECIFIC_PATH}/cmake/Qt6" CACHE PATH "Qt6 CMake directory")
+        set(Qt6Core_DIR "${ARCH_SPECIFIC_PATH}/cmake/Qt6Core" CACHE PATH "Qt6Core CMake directory")
+        set(Qt6Gui_DIR "${ARCH_SPECIFIC_PATH}/cmake/Qt6Gui" CACHE PATH "Qt6Gui CMake directory")
+        set(Qt6Widgets_DIR "${ARCH_SPECIFIC_PATH}/cmake/Qt6Widgets" CACHE PATH "Qt6Widgets CMake directory")
+        set(Qt6Multimedia_DIR "${ARCH_SPECIFIC_PATH}/cmake/Qt6Multimedia" CACHE PATH "Qt6Multimedia CMake directory")
+        set(Qt6MultimediaWidgets_DIR "${ARCH_SPECIFIC_PATH}/cmake/Qt6MultimediaWidgets" CACHE PATH "Qt6MultimediaWidgets CMake directory")
+        
+        # Add architecture-specific paths to CMAKE search paths
+        list(INSERT CMAKE_LIBRARY_PATH 0 "${ARCH_SPECIFIC_PATH}")
+        list(INSERT CMAKE_INCLUDE_PATH 0 "/usr/include" "/usr/include/freetype2")
+        
+        message(STATUS "  Cross-compilation library paths configured for ${ARCH_LIB_DIR}")
+    endif()
+endif()
+
 # Use pkg-config to find Xrender
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(XRENDER REQUIRED xrender)
