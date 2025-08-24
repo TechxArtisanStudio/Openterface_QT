@@ -29,19 +29,6 @@ if(USE_FFMPEG_STATIC)
 endif()
 
 find_package(QT NAMES Qt5 Qt6 REQUIRED COMPONENTS Core)
-find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Concurrent Gui Multimedia MultimediaWidgets Network SerialPort Svg)
-find_package(Qt${QT_VERSION_MAJOR} OPTIONAL_COMPONENTS Widgets)
-if(UNIX AND NOT APPLE)
-    find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS DBus)
-endif()
-
-# Find X11 libraries
-find_package(X11 REQUIRED COMPONENTS Xrandr)
-
-find_package(EXPAT REQUIRED)
-find_package(Freetype REQUIRED)
-find_package(Fontconfig REQUIRED)
-find_package(BZip2 REQUIRED)
 
 # Cross-compilation support: Set architecture-specific library paths
 # This ensures that find_package commands work correctly for ARM64 cross-compilation
@@ -117,6 +104,23 @@ if(CMAKE_CROSSCOMPILING)
         message(STATUS "  Cross-compilation library paths configured for ${ARCH_LIB_DIR}")
     endif()
 endif()
+
+find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Concurrent Gui Multimedia MultimediaWidgets Network SerialPort Svg)
+find_package(Qt${QT_VERSION_MAJOR} OPTIONAL_COMPONENTS Widgets)
+if(UNIX AND NOT APPLE)
+    find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS DBus)
+endif()
+
+# Find OpenGL libraries (required by Qt6)
+find_package(OpenGL REQUIRED COMPONENTS OpenGL GLX EGL)
+
+# Find X11 libraries
+find_package(X11 REQUIRED COMPONENTS Xrandr)
+
+find_package(EXPAT REQUIRED)
+find_package(Freetype REQUIRED)
+find_package(Fontconfig REQUIRED)
+find_package(BZip2 REQUIRED)
 
 # Use pkg-config to find Xrender
 find_package(PkgConfig REQUIRED)
