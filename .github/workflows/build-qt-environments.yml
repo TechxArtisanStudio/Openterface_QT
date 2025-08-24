@@ -157,7 +157,7 @@ jobs:
 
       - name: Test Dynamic Qt Environment
         run: |
-          docker run --rm ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-dynamic:latest \
+          docker run --rm ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-dynamic:ubuntu-${{ github.event.inputs.ubuntu_version || '24.04' }}${{ steps.arch-suffix.outputs.arch_tag_suffix }} \
             /opt/verify/verify-qt-dynamic.sh
 
   # Static Qt Environment Build (existing multi-stage process)
