@@ -64,6 +64,14 @@ RUN apt-get update && \
             libgl1-mesa-dev:arm64 \
             libegl1-mesa-dev:arm64 \
             libgles2-mesa-dev:arm64 \
+            libglu1-mesa-dev:arm64 \
+            libglvnd-dev:arm64 \
+            libglx-dev:arm64 \
+            libopengl-dev:arm64 \
+            libdrm-dev:arm64 \
+            libgbm-dev:arm64 \
+            mesa-common-dev:arm64 \
+            libgl1-mesa-glx:arm64 \
             libxkbcommon-dev:arm64 \
             libxcb-xkb-dev:arm64 \
             libxcb-icccm4-dev:arm64 \
@@ -105,6 +113,13 @@ RUN apt-get update && \
             libgl1-mesa-dev \
             libegl1-mesa-dev \
             libgles2-mesa-dev \
+            libglu1-mesa-dev \
+            libglvnd-dev \
+            libglx-dev \
+            libopengl-dev \
+            libdrm-dev \
+            libgbm-dev \
+            mesa-common-dev \
             libxkbcommon-dev \
             libxcb-xkb-dev \
             libxcb-icccm4-dev \

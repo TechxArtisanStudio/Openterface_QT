@@ -195,8 +195,19 @@ jobs:
           
           # OpenGL/EGL paths for ARM64
           set(OpenGL_GL_PREFERENCE GLVND)
+          set(OPENGL_INCLUDE_DIR /usr/include)
+          set(OPENGL_opengl_LIBRARY /usr/lib/aarch64-linux-gnu/libOpenGL.so)
+          set(OPENGL_glx_LIBRARY /usr/lib/aarch64-linux-gnu/libGLX.so)
+          set(OPENGL_egl_LIBRARY /usr/lib/aarch64-linux-gnu/libEGL.so)
+          set(OPENGL_glu_LIBRARY /usr/lib/aarch64-linux-gnu/libGLU.so)
           set(EGL_LIBRARY /usr/lib/aarch64-linux-gnu/libEGL.so)
           set(EGL_INCLUDE_DIR /usr/include/EGL)
+          set(GLX_INCLUDE_DIR /usr/include/GL)
+          set(GLX_LIBRARY /usr/lib/aarch64-linux-gnu/libGLX.so)
+          
+          # Force OpenGL library paths
+          set(CMAKE_LIBRARY_PATH "/usr/lib/aarch64-linux-gnu;${CMAKE_LIBRARY_PATH}")
+          set(CMAKE_INCLUDE_PATH "/usr/include;${CMAKE_INCLUDE_PATH}")
           TOOLCHAIN_EOF
             
             CMAKE_TOOLCHAIN="-DCMAKE_TOOLCHAIN_FILE=/tmp/toolchain.cmake"
