@@ -56,10 +56,15 @@ if(CMAKE_CROSSCOMPILING)
     if(ARCH_LIB_DIR)
         # OpenGL libraries
         set(OPENGL_INCLUDE_DIR "/usr/include" CACHE PATH "OpenGL include directory")
+        set(OPENGL_EGL_INCLUDE_DIR "/usr/include/EGL" CACHE PATH "EGL include directory")
+        set(OPENGL_GLX_INCLUDE_DIR "/usr/include/GL" CACHE PATH "GLX include directory")
         set(OPENGL_opengl_LIBRARY "${ARCH_SPECIFIC_PATH}/libOpenGL.so" CACHE FILEPATH "OpenGL library")
         set(OPENGL_glx_LIBRARY "${ARCH_SPECIFIC_PATH}/libGLX.so" CACHE FILEPATH "GLX library")
         set(OPENGL_egl_LIBRARY "${ARCH_SPECIFIC_PATH}/libEGL.so" CACHE FILEPATH "EGL library")
         set(OPENGL_glu_LIBRARY "${ARCH_SPECIFIC_PATH}/libGLU.so" CACHE FILEPATH "GLU library")
+        
+        # Vulkan headers
+        set(Vulkan_INCLUDE_DIR "/usr/include/vulkan" CACHE PATH "Vulkan include directory")
         
         # X11 libraries
         set(X11_INCLUDE_DIR "/usr/include/X11" CACHE PATH "X11 include directory")
@@ -112,7 +117,9 @@ if(UNIX AND NOT APPLE)
 endif()
 
 # Find OpenGL libraries (required by Qt6)
-find_package(OpenGL REQUIRED COMPONENTS OpenGL GLX EGL)
+find_package(OpenGL REQUIRED COMPONENTS OpenGL)
+# Try to find additional OpenGL components (optional for better compatibility)
+find_package(OpenGL OPTIONAL_COMPONENTS GLX EGL)
 
 # Find X11 libraries
 find_package(X11 REQUIRED COMPONENTS Xrandr)
