@@ -86,26 +86,39 @@ RUN apt-get update && apt-get install -y \
     gstreamer1.0-tools \
     && rm -rf /var/lib/apt/lists/*
 
+# Set architecture-aware library paths
+RUN if [ "$TARGETARCH" = "arm64" ]; then \
+        echo "export QT_PLUGIN_PATH=/usr/lib/aarch64-linux-gnu/qt6/plugins" >> /etc/environment && \
+        echo "export QML2_IMPORT_PATH=/usr/lib/aarch64-linux-gnu/qt6/qml" >> /etc/environment && \
+        echo "export PKG_CONFIG_PATH=/usr/lib/aarch64-linux-gnu/pkgconfig:${PKG_CONFIG_PATH}" >> /etc/environment && \
+        echo "export QT_LIB_ARCH_PATH=/usr/lib/aarch64-linux-gnu" >> /etc/environment; \
+    else \
+        echo "export QT_PLUGIN_PATH=/usr/lib/x86_64-linux-gnu/qt6/plugins" >> /etc/environment && \
+        echo "export QML2_IMPORT_PATH=/usr/lib/x86_64-linux-gnu/qt6/qml" >> /etc/environment && \
+        echo "export PKG_CONFIG_PATH=/usr/lib/x86_64-linux-gnu/pkgconfig:${PKG_CONFIG_PATH}" >> /etc/environment && \
+        echo "export QT_LIB_ARCH_PATH=/usr/lib/x86_64-linux-gnu" >> /etc/environment; \
+    fi
+
 # Set environment variables for Qt6
 ENV QT_VERSION=6.6.3
 ENV PATH="/usr/lib/qt6/bin:${PATH}"
-ENV QT_PLUGIN_PATH="/usr/lib/x86_64-linux-gnu/qt6/plugins"
-ENV QML2_IMPORT_PATH="/usr/lib/x86_64-linux-gnu/qt6/qml"
-ENV PKG_CONFIG_PATH="/usr/lib/x86_64-linux-gnu/pkgconfig:${PKG_CONFIG_PATH}"
 
 # Create verification script for dynamic Qt
 RUN mkdir -p /opt/verify && \
     echo '#!/bin/bash' > /opt/verify/verify-qt-dynamic.sh && \
+    echo 'source /etc/environment' >> /opt/verify/verify-qt-dynamic.sh && \
     echo 'echo "Qt Dynamic Installation Verification"' >> /opt/verify/verify-qt-dynamic.sh && \
     echo 'echo "===================================="' >> /opt/verify/verify-qt-dynamic.sh && \
+    echo 'echo "Architecture: $(uname -m)"' >> /opt/verify/verify-qt-dynamic.sh && \
+    echo 'echo "Target arch: $TARGETARCH"' >> /opt/verify/verify-qt-dynamic.sh && \
     echo 'echo "Qt version: $(qmake6 -query QT_VERSION)"' >> /opt/verify/verify-qt-dynamic.sh && \
     echo 'echo "Qt installation prefix: $(qmake6 -query QT_INSTALL_PREFIX)"' >> /opt/verify/verify-qt-dynamic.sh && \
     echo 'echo "Qt library path: $(qmake6 -query QT_INSTALL_LIBS)"' >> /opt/verify/verify-qt-dynamic.sh && \
+    echo 'echo "Architecture-specific library path: $QT_LIB_ARCH_PATH"' >> /opt/verify/verify-qt-dynamic.sh && \
     echo 'echo -e "\nChecking Qt modules:"' >> /opt/verify/verify-qt-dynamic.sh && \
     echo 'MODULES="Core Widgets Gui Multimedia MultimediaWidgets SerialPort Svg SvgWidgets Quick"' >> /opt/verify/verify-qt-dynamic.sh && \
-    echo 'QT_LIB_PATH="/usr/lib/x86_64-linux-gnu"' >> /opt/verify/verify-qt-dynamic.sh && \
     echo 'for module in $MODULES; do' >> /opt/verify/verify-qt-dynamic.sh && \
-    echo '    if [ -f "${QT_LIB_PATH}/libQt6${module}.so" ]; then' >> /opt/verify/verify-qt-dynamic.sh && \
+    echo '    if [ -f "${QT_LIB_ARCH_PATH}/libQt6${module}.so" ]; then' >> /opt/verify/verify-qt-dynamic.sh && \
     echo '        echo "✓ Qt${module} shared library found"' >> /opt/verify/verify-qt-dynamic.sh && \
     echo '    else' >> /opt/verify/verify-qt-dynamic.sh && \
     echo '        echo "✗ Qt${module} shared library NOT found"' >> /opt/verify/verify-qt-dynamic.sh && \

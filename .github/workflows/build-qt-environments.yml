@@ -145,6 +145,7 @@ jobs:
           file: ./docker/Dockerfile.qt-dynamic
           build-args: |
             UBUNTU_VERSION=${{ github.event.inputs.ubuntu_version || '24.04' }}
+            TARGETARCH=${{ steps.arch-suffix.outputs.arch_suffix }}
           push: ${{ github.event_name != 'pull_request' && (github.event.inputs.push_to_registry == 'true' || github.event.inputs.push_to_registry == '') }}
           tags: ${{ steps.meta-dynamic.outputs.tags }}
           labels: ${{ steps.meta-dynamic.outputs.labels }}
@@ -237,6 +238,7 @@ jobs:
           file: ./docker/Dockerfile.qt-base
           build-args: |
             UBUNTU_VERSION=${{ github.event.inputs.ubuntu_version || '24.04' }}
+            TARGETARCH=${{ steps.arch-suffix.outputs.arch_suffix }}
           push: ${{ github.event_name != 'pull_request' && (github.event.inputs.push_to_registry == 'true' || github.event.inputs.push_to_registry == '') }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
@@ -308,6 +310,7 @@ jobs:
           build-args: |
             BASE_IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-base:ubuntu-${{ github.event.inputs.ubuntu_version || '24.04' }}${{ steps.arch-suffix.outputs.arch_tag_suffix }}
             UBUNTU_VERSION=${{ github.event.inputs.ubuntu_version || '24.04' }}
+            TARGETARCH=${{ steps.arch-suffix.outputs.arch_suffix }}
           push: ${{ github.event_name != 'pull_request' && (github.event.inputs.push_to_registry == 'true' || github.event.inputs.push_to_registry == '') }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
@@ -331,6 +334,22 @@ jobs:
       - name: Set lowercase image name
         run: echo "IMAGE_NAME_LOWER=$(echo '${{ github.repository_owner }}/openterface-qt' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
 
+      - name: Set architecture suffix
+        id: arch-suffix
+        run: |
+          ARCH_INPUT="${{ github.event.inputs.architecture || 'linux/amd64' }}"
+          if [[ "$ARCH_INPUT" == "linux/amd64" ]]; then
+            echo "arch_suffix=amd64" >> $GITHUB_OUTPUT
+            echo "arch_tag_suffix=-amd64" >> $GITHUB_OUTPUT
+          elif [[ "$ARCH_INPUT" == "linux/arm64" ]]; then
+            echo "arch_suffix=arm64" >> $GITHUB_OUTPUT  
+            echo "arch_tag_suffix=-arm64" >> $GITHUB_OUTPUT
+          else
+            # Multi-arch build, no suffix for multi-arch manifest
+            echo "arch_suffix=multi" >> $GITHUB_OUTPUT
+            echo "arch_tag_suffix=" >> $GITHUB_OUTPUT
+          fi
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -348,10 +367,11 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-gstreamer
           tags: |
-            type=ref,event=branch
-            type=ref,event=pr
-            type=sha
-            type=raw,value=latest
+            type=ref,event=branch,suffix=${{ steps.arch-suffix.outputs.arch_tag_suffix }}
+            type=ref,event=pr,suffix=${{ steps.arch-suffix.outputs.arch_tag_suffix }}
+            type=sha,suffix=${{ steps.arch-suffix.outputs.arch_tag_suffix }}
+            type=raw,value=latest${{ steps.arch-suffix.outputs.arch_tag_suffix }}
+            type=raw,value=ubuntu-${{ github.event.inputs.ubuntu_version || '24.04' }}${{ steps.arch-suffix.outputs.arch_tag_suffix }}
 
       - name: Build and push GStreamer image
         id: build
@@ -360,8 +380,9 @@ jobs:
           context: .
           file: ./docker/Dockerfile.qt-gstreamer
           build-args: |
-            BASE_IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-ffmpeg:latest
+            BASE_IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-ffmpeg:ubuntu-${{ github.event.inputs.ubuntu_version || '24.04' }}${{ steps.arch-suffix.outputs.arch_tag_suffix }}
             UBUNTU_VERSION=${{ github.event.inputs.ubuntu_version || '24.04' }}
+            TARGETARCH=${{ steps.arch-suffix.outputs.arch_suffix }}
           push: ${{ github.event_name != 'pull_request' && (github.event.inputs.push_to_registry == 'true' || github.event.inputs.push_to_registry == '') }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
@@ -385,6 +406,22 @@ jobs:
       - name: Set lowercase image name
         run: echo "IMAGE_NAME_LOWER=$(echo '${{ github.repository_owner }}/openterface-qt' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
 
+      - name: Set architecture suffix
+        id: arch-suffix
+        run: |
+          ARCH_INPUT="${{ github.event.inputs.architecture || 'linux/amd64' }}"
+          if [[ "$ARCH_INPUT" == "linux/amd64" ]]; then
+            echo "arch_suffix=amd64" >> $GITHUB_OUTPUT
+            echo "arch_tag_suffix=-amd64" >> $GITHUB_OUTPUT
+          elif [[ "$ARCH_INPUT" == "linux/arm64" ]]; then
+            echo "arch_suffix=arm64" >> $GITHUB_OUTPUT  
+            echo "arch_tag_suffix=-arm64" >> $GITHUB_OUTPUT
+          else
+            # Multi-arch build, no suffix for multi-arch manifest
+            echo "arch_suffix=multi" >> $GITHUB_OUTPUT
+            echo "arch_tag_suffix=" >> $GITHUB_OUTPUT
+          fi
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -402,10 +439,11 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-complete
           tags: |
-            type=ref,event=branch
-            type=ref,event=pr
-            type=sha
-            type=raw,value=latest
+            type=ref,event=branch,suffix=${{ steps.arch-suffix.outputs.arch_tag_suffix }}
+            type=ref,event=pr,suffix=${{ steps.arch-suffix.outputs.arch_tag_suffix }}
+            type=sha,suffix=${{ steps.arch-suffix.outputs.arch_tag_suffix }}
+            type=raw,value=latest${{ steps.arch-suffix.outputs.arch_tag_suffix }}
+            type=raw,value=ubuntu-${{ github.event.inputs.ubuntu_version || '24.04' }}${{ steps.arch-suffix.outputs.arch_tag_suffix }}
 
       - name: Build and push Qt Complete image
         id: build
@@ -414,8 +452,9 @@ jobs:
           context: .
           file: ./docker/Dockerfile.qt-complete
           build-args: |
-            BASE_IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-gstreamer:latest
+            BASE_IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-gstreamer:ubuntu-${{ github.event.inputs.ubuntu_version || '24.04' }}${{ steps.arch-suffix.outputs.arch_tag_suffix }}
             UBUNTU_VERSION=${{ github.event.inputs.ubuntu_version || '24.04' }}
+            TARGETARCH=${{ steps.arch-suffix.outputs.arch_suffix }}
           push: ${{ github.event_name != 'pull_request' && (github.event.inputs.push_to_registry == 'true' || github.event.inputs.push_to_registry == '') }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
@@ -425,7 +464,7 @@ jobs:
 
       - name: Test Static Qt Environment
         run: |
-          docker run --rm ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-complete:latest \
+          docker run --rm ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-complete:ubuntu-${{ github.event.inputs.ubuntu_version || '24.04' }}${{ steps.arch-suffix.outputs.arch_tag_suffix }} \
             /opt/Qt6/bin/verify-qt-installation.sh
 
   # Build applications with both environments to verify they work
