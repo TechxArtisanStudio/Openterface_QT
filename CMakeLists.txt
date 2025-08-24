@@ -509,20 +509,39 @@ foreach(SEARCH_PATH ${FFMPEG_SEARCH_PATHS})
     # For cross-compilation, check architecture-specific directory first
     if(CMAKE_CROSSCOMPILING AND ARCH_LIB_DIR)
         set(CROSS_LIB_PATH "${SEARCH_PATH}/lib/${ARCH_LIB_DIR}")
-        if(EXISTS "${CROSS_LIB_PATH}/libavformat.a" AND EXISTS "${SEARCH_PATH}/include/libavformat/avformat.h")
+        # Check for both static and dynamic libraries
+        if(USE_FFMPEG_STATIC)
+            set(LIB_EXTENSION ".a")
+            set(LIB_NAME "libavformat.a")
+        else()
+            set(LIB_EXTENSION ".so")
+            set(LIB_NAME "libavformat.so")
+        endif()
+        
+        if(EXISTS "${CROSS_LIB_PATH}/${LIB_NAME}" AND EXISTS "${SEARCH_PATH}/include/libavformat/avformat.h")
             set(FFMPEG_PREFIX "${SEARCH_PATH}")
             set(FFMPEG_LIB_DIR "${CROSS_LIB_PATH}")
             message(STATUS "Found FFmpeg installation at: ${FFMPEG_PREFIX} (cross-compilation)")
             message(STATUS "FFmpeg libraries in: ${FFMPEG_LIB_DIR}")
+            message(STATUS "Using ${LIB_EXTENSION} libraries")
             break()
         endif()
     endif()
     
     # Standard search
-    if(EXISTS "${SEARCH_PATH}/lib/libavformat.a" AND EXISTS "${SEARCH_PATH}/include/libavformat/avformat.h")
+    if(USE_FFMPEG_STATIC)
+        set(LIB_EXTENSION ".a")
+        set(LIB_NAME "libavformat.a")
+    else()
+        set(LIB_EXTENSION ".so")
+        set(LIB_NAME "libavformat.so")
+    endif()
+    
+    if(EXISTS "${SEARCH_PATH}/lib/${LIB_NAME}" AND EXISTS "${SEARCH_PATH}/include/libavformat/avformat.h")
         set(FFMPEG_PREFIX "${SEARCH_PATH}")
         set(FFMPEG_LIB_DIR "${SEARCH_PATH}/lib")
         message(STATUS "Found FFmpeg installation at: ${FFMPEG_PREFIX}")
+        message(STATUS "Using ${LIB_EXTENSION} libraries")
         break()
     endif()
 endforeach()
@@ -542,14 +561,21 @@ if(NOT FFMPEG_LIB_DIR)
     set(FFMPEG_LIB_DIR "${FFMPEG_PREFIX}/lib")
 endif()
 
+# Set library extension based on static/dynamic preference
+if(USE_FFMPEG_STATIC)
+    set(FFMPEG_LIB_EXT ".a")
+else()
+    set(FFMPEG_LIB_EXT ".so")
+endif()
+
 set(FFMPEG_LIBRARIES 
-    "${FFMPEG_LIB_DIR}/libavdevice.a"
-    "${FFMPEG_LIB_DIR}/libavfilter.a"
-    "${FFMPEG_LIB_DIR}/libavformat.a"
-    "${FFMPEG_LIB_DIR}/libavcodec.a"
-    "${FFMPEG_LIB_DIR}/libswresample.a"
-    "${FFMPEG_LIB_DIR}/libswscale.a"
-    "${FFMPEG_LIB_DIR}/libavutil.a"
+    "${FFMPEG_LIB_DIR}/libavdevice${FFMPEG_LIB_EXT}"
+    "${FFMPEG_LIB_DIR}/libavfilter${FFMPEG_LIB_EXT}"
+    "${FFMPEG_LIB_DIR}/libavformat${FFMPEG_LIB_EXT}"
+    "${FFMPEG_LIB_DIR}/libavcodec${FFMPEG_LIB_EXT}"
+    "${FFMPEG_LIB_DIR}/libswresample${FFMPEG_LIB_EXT}"
+    "${FFMPEG_LIB_DIR}/libswscale${FFMPEG_LIB_EXT}"
+    "${FFMPEG_LIB_DIR}/libavutil${FFMPEG_LIB_EXT}"
 )
 
 # Add hardware acceleration libraries required by FFmpeg (optional)
@@ -602,14 +628,22 @@ list(APPEND HWACCEL_LIBRARIES
 )
 
 # Check if FFmpeg is available and enable it
-if(EXISTS "${FFMPEG_PREFIX}/include/libavformat/avformat.h")
+set(FFMPEG_CHECK_FILE "${FFMPEG_PREFIX}/include/libavformat/avformat.h")
+if(USE_FFMPEG_STATIC)
+    set(FFMPEG_LIB_CHECK "${FFMPEG_LIB_DIR}/libavformat.a")
+else()
+    set(FFMPEG_LIB_CHECK "${FFMPEG_LIB_DIR}/libavformat.so")
+endif()
+
+if(EXISTS "${FFMPEG_CHECK_FILE}" AND EXISTS "${FFMPEG_LIB_CHECK}")
     message(STATUS "FFmpeg found - enabling FFmpeg backend")
     message(STATUS "FFmpeg include directory: ${FFMPEG_INCLUDE_DIRS}")
     message(STATUS "FFmpeg libraries: ${FFMPEG_LIBRARIES}")
     add_definitions(-DHAVE_FFMPEG)
 else()
     message(STATUS "FFmpeg not found - FFmpeg backend disabled")
-    message(STATUS "Checked path: ${FFMPEG_PREFIX}/include/libavformat/avformat.h")
+    message(STATUS "Checked header: ${FFMPEG_CHECK_FILE}")
+    message(STATUS "Checked library: ${FFMPEG_LIB_CHECK}")
 endif()
 
 # Include FFmpeg directories
