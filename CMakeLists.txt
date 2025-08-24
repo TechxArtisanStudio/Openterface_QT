@@ -860,10 +860,6 @@ if(GSTREAMER_FOUND AND GSTREAMER_VIDEO_FOUND)
                 break()
             endif()
         endforeach()
-                message(STATUS "Found ORC library: ${ORC_LIB}")
-                break()
-            endif()
-        endforeach()
         
         # Link GStreamer core libraries statically, plugins will be loaded dynamically
         target_link_libraries(openterfaceQT PRIVATE 
