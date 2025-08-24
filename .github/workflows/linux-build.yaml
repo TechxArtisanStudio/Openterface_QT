@@ -173,7 +173,7 @@ jobs:
             which aarch64-linux-gnu-gcc aarch64-linux-gnu-g++ || { echo "ARM64 compilers not found"; exit 1; }
             aarch64-linux-gnu-gcc --version | head -1
             
-            # Create CMake toolchain file
+            # Create CMake toolchain file for ARM64 with proper Qt6 paths
             cat > /tmp/toolchain.cmake << 'TOOLCHAIN_EOF'
           set(CMAKE_SYSTEM_NAME Linux)
           set(CMAKE_SYSTEM_PROCESSOR aarch64)
@@ -184,14 +184,29 @@ jobs:
           set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY ONLY)
           set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)
           set(PKG_CONFIG_EXECUTABLE aarch64-linux-gnu-pkg-config)
+          
+          # Qt6 specific paths for ARM64
+          set(Qt6_DIR /usr/lib/aarch64-linux-gnu/cmake/Qt6)
+          set(Qt6Core_DIR /usr/lib/aarch64-linux-gnu/cmake/Qt6Core)
+          set(Qt6Gui_DIR /usr/lib/aarch64-linux-gnu/cmake/Qt6Gui)
+          set(Qt6Widgets_DIR /usr/lib/aarch64-linux-gnu/cmake/Qt6Widgets)
+          set(Qt6Multimedia_DIR /usr/lib/aarch64-linux-gnu/cmake/Qt6Multimedia)
+          set(Qt6MultimediaWidgets_DIR /usr/lib/aarch64-linux-gnu/cmake/Qt6MultimediaWidgets)
+          
+          # OpenGL/EGL paths for ARM64
+          set(OpenGL_GL_PREFERENCE GLVND)
+          set(EGL_LIBRARY /usr/lib/aarch64-linux-gnu/libEGL.so)
+          set(EGL_INCLUDE_DIR /usr/include/EGL)
           TOOLCHAIN_EOF
             
             CMAKE_TOOLCHAIN="-DCMAKE_TOOLCHAIN_FILE=/tmp/toolchain.cmake"
             QT_PREFIX="/usr/lib/aarch64-linux-gnu/qt6"
+            CMAKE_PREFIX_PATH="/usr/lib/aarch64-linux-gnu/cmake:/usr"
           else
             echo "Using native compilation for AMD64..."
             CMAKE_TOOLCHAIN=""
             QT_PREFIX="/usr/lib/x86_64-linux-gnu/qt6"
+            CMAKE_PREFIX_PATH="/usr/lib/x86_64-linux-gnu/cmake:/usr"
           fi
           
           # Copy configuration files
@@ -206,7 +221,8 @@ jobs:
           
           cmake $CMAKE_TOOLCHAIN \
                 -DCMAKE_BUILD_TYPE=Release \
-                -DCMAKE_PREFIX_PATH="$QT_PREFIX:/usr" \
+                -DCMAKE_PREFIX_PATH="$CMAKE_PREFIX_PATH" \
+                -DQt6_DIR="$QT_PREFIX/../cmake/Qt6" \
                 -DUSE_GSTREAMER_STATIC_PLUGINS=OFF \
                 -DCMAKE_VERBOSE_MAKEFILE=ON \
                 /workspace/src
