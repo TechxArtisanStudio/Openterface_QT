@@ -127,13 +127,13 @@ build_image() {
     docker_args+=" --file $dockerfile"
     
     # Create architecture-specific tags to prevent overwrites
-    docker_args+=" --tag $REGISTRY/openterface-qt-$image_name:latest$arch_suffix"
-    docker_args+=" --tag $REGISTRY/openterface-qt-$image_name$ubuntu_suffix$arch_suffix"
+    docker_args+=" --tag $REGISTRY/openterface-qtbuild-$image_name:latest$arch_suffix"
+    docker_args+=" --tag $REGISTRY/openterface-qtbuild-$image_name$ubuntu_suffix$arch_suffix"
     
     # Also create a tag without architecture suffix for multi-arch manifests
     if [[ "$ARCHITECTURE" == *","* ]]; then
-        docker_args+=" --tag $REGISTRY/openterface-qt-$image_name:latest"
-        docker_args+=" --tag $REGISTRY/openterface-qt-$image_name$ubuntu_suffix"
+        docker_args+=" --tag $REGISTRY/openterface-qtbuild-$image_name:latest"
+        docker_args+=" --tag $REGISTRY/openterface-qtbuild-$image_name$ubuntu_suffix"
     fi
     
     # Add build arguments
@@ -184,7 +184,7 @@ case "$BUILD_TYPE" in
             arch_suffix="-arm64"
         fi
         
-        BASE_IMAGE="$REGISTRY/openterface-qt-base-ubuntu-$UBUNTU_VERSION$arch_suffix"
+        BASE_IMAGE="$REGISTRY/openterface-qtbuild-base-ubuntu-$UBUNTU_VERSION$arch_suffix"
         build_image "docker/Dockerfile.qt-ffmpeg" "ffmpeg" "" "$BASE_IMAGE"
         ;;
     gstreamer)
@@ -196,7 +196,7 @@ case "$BUILD_TYPE" in
             arch_suffix="-arm64"
         fi
         
-        BASE_IMAGE="$REGISTRY/openterface-qt-ffmpeg-ubuntu-$UBUNTU_VERSION$arch_suffix"
+        BASE_IMAGE="$REGISTRY/openterface-qtbuild-ffmpeg-ubuntu-$UBUNTU_VERSION$arch_suffix"
         build_image "docker/Dockerfile.qt-gstreamer" "gstreamer" "" "$BASE_IMAGE"
         ;;
     complete)
@@ -208,7 +208,7 @@ case "$BUILD_TYPE" in
             arch_suffix="-arm64"
         fi
         
-        BASE_IMAGE="$REGISTRY/openterface-qt-gstreamer-ubuntu-$UBUNTU_VERSION$arch_suffix"
+        BASE_IMAGE="$REGISTRY/openterface-qtbuild-gstreamer-ubuntu-$UBUNTU_VERSION$arch_suffix"
         build_image "docker/Dockerfile.qt-complete" "complete" "" "$BASE_IMAGE"
         ;;
     all)
@@ -224,13 +224,13 @@ case "$BUILD_TYPE" in
         
         build_image "docker/Dockerfile.qt-base" "base"
         
-        BASE_IMAGE="$REGISTRY/openterface-qt-base-ubuntu-$UBUNTU_VERSION$arch_suffix"
+        BASE_IMAGE="$REGISTRY/openterface-qtbuild-base-ubuntu-$UBUNTU_VERSION$arch_suffix"
         build_image "docker/Dockerfile.qt-ffmpeg" "ffmpeg" "" "$BASE_IMAGE"
         
-        BASE_IMAGE="$REGISTRY/openterface-qt-ffmpeg-ubuntu-$UBUNTU_VERSION$arch_suffix"
+        BASE_IMAGE="$REGISTRY/openterface-qtbuild-ffmpeg-ubuntu-$UBUNTU_VERSION$arch_suffix"
         build_image "docker/Dockerfile.qt-gstreamer" "gstreamer" "" "$BASE_IMAGE"
         
-        BASE_IMAGE="$REGISTRY/openterface-qt-gstreamer-ubuntu-$UBUNTU_VERSION$arch_suffix"
+        BASE_IMAGE="$REGISTRY/openterface-qtbuild-gstreamer-ubuntu-$UBUNTU_VERSION$arch_suffix"
         build_image "docker/Dockerfile.qt-complete" "complete" "" "$BASE_IMAGE"
         
         log "Building dynamic image..."

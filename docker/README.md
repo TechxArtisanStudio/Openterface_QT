@@ -24,7 +24,7 @@ The Docker setup is divided into multiple stages to enable efficient caching and
 ### Option 2: Pull from Registry
 
 ```bash
-docker pull ghcr.io/kevinzjpeng/openterface-qt-complete:latest
+docker pull ghcr.io/kevinzjpeng/openterface-qtbuild-complete:latest
 ```
 
 ## Building Your Application
@@ -36,7 +36,7 @@ Once you have the Qt environment, you can build your application:
 docker run --rm \
    -v $(pwd):/workspace/src \
    -w /workspace/src \
-   ghcr.io/kevinzjpeng/openterface-qt-complete:latest \
+   ghcr.io/kevinzjpeng/openterface-qtbuild-complete:latest \
    bash -c "
       mkdir -p build && cd build
       cmake -DCMAKE_PREFIX_PATH=/opt/Qt6 \
@@ -131,7 +131,7 @@ PKG_CONFIG_PATH=/opt/Qt6/lib/pkgconfig:$PKG_CONFIG_PATH
 
 2. **Missing libraries**: Verify the environment with:
    ```bash
-   docker run --rm ghcr.io/kevinzjpeng/openterface-qt-complete:latest \
+   docker run --rm ghcr.io/kevinzjpeng/openterface-qtbuild-complete:latest \
      /opt/Qt6/bin/verify-qt-installation.sh
    ```
 
@@ -152,7 +152,7 @@ The repository no longer provides local helper scripts for incremental builds. T
 For example, verify the complete image environment:
 
 ```bash
-docker run --rm ghcr.io/kevinzjpeng/openterface-qt-complete:latest \
+docker run --rm ghcr.io/kevinzjpeng/openterface-qtbuild-complete:latest \
    /opt/Qt6/bin/verify-qt-installation.sh
 ```
 

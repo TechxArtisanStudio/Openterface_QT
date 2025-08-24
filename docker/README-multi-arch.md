@@ -69,7 +69,7 @@ docker buildx build \
   --platform linux/amd64 \
   --file docker/Dockerfile.qt-base \
   --build-arg UBUNTU_VERSION=24.04 \
-  --tag ghcr.io/kevinzjpeng/openterface-qt-base:ubuntu-24.04-amd64 \
+  --tag ghcr.io/kevinzjpeng/openterface-qtbuild-base:ubuntu-24.04-amd64 \
   --load \
   .
 ```
@@ -80,7 +80,7 @@ docker buildx build \
   --platform linux/arm64 \
   --file docker/Dockerfile.qt-base \
   --build-arg UBUNTU_VERSION=24.04 \
-  --tag ghcr.io/kevinzjpeng/openterface-qt-base:ubuntu-24.04-arm64 \
+  --tag ghcr.io/kevinzjpeng/openterface-qtbuild-base:ubuntu-24.04-arm64 \
   --load \
   .
 ```
@@ -91,8 +91,8 @@ docker buildx build \
   --platform linux/amd64,linux/arm64 \
   --file docker/Dockerfile.qt-base \
   --build-arg UBUNTU_VERSION=24.04 \
-  --tag ghcr.io/kevinzjpeng/openterface-qt-base:ubuntu-24.04 \
-  --tag ghcr.io/kevinzjpeng/openterface-qt-base:latest \
+  --tag ghcr.io/kevinzjpeng/openterface-qtbuild-base:ubuntu-24.04 \
+  --tag ghcr.io/kevinzjpeng/openterface-qtbuild-base:latest \
   --push \
   .
 ```
@@ -107,31 +107,31 @@ docker buildx build \
   --platform linux/amd64,linux/arm64 \
   --file docker/Dockerfile.qt-base \
   --build-arg UBUNTU_VERSION=24.04 \
-  --tag myregistry/openterface-qt-base:ubuntu-24.04 \
+  --tag myregistry/openterface-qtbuild-base:ubuntu-24.04 \
   --push .
 
 # 2. Build FFmpeg (depends on base)
 docker buildx build \
   --platform linux/amd64,linux/arm64 \
   --file docker/Dockerfile.qt-ffmpeg \
-  --build-arg BASE_IMAGE=myregistry/openterface-qt-base:ubuntu-24.04 \
-  --tag myregistry/openterface-qt-ffmpeg:ubuntu-24.04 \
+  --build-arg BASE_IMAGE=myregistry/openterface-qtbuild-base:ubuntu-24.04 \
+  --tag myregistry/openterface-qtbuild-ffmpeg:ubuntu-24.04 \
   --push .
 
 # 3. Build GStreamer (depends on ffmpeg)
 docker buildx build \
   --platform linux/amd64,linux/arm64 \
   --file docker/Dockerfile.qt-gstreamer \
-  --build-arg BASE_IMAGE=myregistry/openterface-qt-ffmpeg:ubuntu-24.04 \
-  --tag myregistry/openterface-qt-gstreamer:ubuntu-24.04 \
+  --build-arg BASE_IMAGE=myregistry/openterface-qtbuild-ffmpeg:ubuntu-24.04 \
+  --tag myregistry/openterface-qtbuild-gstreamer:ubuntu-24.04 \
   --push .
 
 # 4. Build Qt Complete (depends on gstreamer)
 docker buildx build \
   --platform linux/amd64,linux/arm64 \
   --file docker/Dockerfile.qt-complete \
-  --build-arg BASE_IMAGE=myregistry/openterface-qt-gstreamer:ubuntu-24.04 \
-  --tag myregistry/openterface-qt-complete:ubuntu-24.04 \
+  --build-arg BASE_IMAGE=myregistry/openterface-qtbuild-gstreamer:ubuntu-24.04 \
+  --tag myregistry/openterface-qtbuild-complete:ubuntu-24.04 \
   --push .
 ```
 
@@ -142,7 +142,7 @@ docker buildx build \
   --platform linux/amd64,linux/arm64 \
   --file docker/Dockerfile.qt-dynamic \
   --build-arg UBUNTU_VERSION=24.04 \
-  --tag ghcr.io/kevinzjpeng/openterface-qt-dynamic:ubuntu-24.04 \
+  --tag ghcr.io/kevinzjpeng/openterface-qtbuild-dynamic:ubuntu-24.04 \
   --push \
   .
 ```
@@ -244,13 +244,13 @@ The Dockerfiles support these build arguments:
 
 Images are tagged with the following convention:
 
-- `registry/openterface-qt-{type}:ubuntu-{version}` - Version-specific
-- `registry/openterface-qt-{type}:latest` - Latest/default version
+- `registry/openterface-qtbuild-{type}:ubuntu-{version}` - Version-specific
+- `registry/openterface-qtbuild-{type}:latest` - Latest/default version
 
 Examples:
-- `ghcr.io/kevinzjpeng/openterface-qt-base:ubuntu-24.04`
-- `ghcr.io/kevinzjpeng/openterface-qt-complete:ubuntu-22.04`
-- `ghcr.io/kevinzjpeng/openterface-qt-dynamic:latest`
+- `ghcr.io/kevinzjpeng/openterface-qtbuild-base:ubuntu-24.04`
+- `ghcr.io/kevinzjpeng/openterface-qtbuild-complete:ubuntu-22.04`
+- `ghcr.io/kevinzjpeng/openterface-qtbuild-dynamic:latest`
 
 ## Usage Examples
 
@@ -266,7 +266,7 @@ Examples:
 # Use the image
 docker run -it --rm \
   -v $(pwd):/workspace/src \
-  ghcr.io/kevinzjpeng/openterface-qt-dynamic:ubuntu-24.04 \
+  ghcr.io/kevinzjpeng/openterface-qtbuild-dynamic:ubuntu-24.04 \
   bash
 ```
 
@@ -293,5 +293,5 @@ docker run -it --rm \
   --push
 
 # On Raspberry Pi
-docker pull ghcr.io/kevinzjpeng/openterface-qt-dynamic:ubuntu-22.04
+docker pull ghcr.io/kevinzjpeng/openterface-qtbuild-dynamic:ubuntu-22.04
 ```

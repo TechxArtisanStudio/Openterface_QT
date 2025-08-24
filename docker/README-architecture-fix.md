@@ -1,6 +1,6 @@
 # Quick Fix for Architecture-Specific Image References
 
-The error you're seeing happens because the workflow is trying to use `ghcr.io/kevinzjpeng/openterface-qt-base:latest` but we've implemented architecture-specific naming.
+The error you're seeing happens because the workflow is trying to use `ghcr.io/kevinzjpeng/openterface-qtbuild-base:latest` but we've implemented architecture-specific naming.
 
 ## The Problem
 ```
@@ -36,14 +36,14 @@ BASE_IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-base:ubuntu-${{ githu
 ## Current Image Naming Pattern
 
 With the new system, images are tagged as:
-- `ghcr.io/kevinzjpeng/openterface-qt-base:ubuntu-24.04-amd64`
-- `ghcr.io/kevinzjpeng/openterface-qt-base:ubuntu-24.04-arm64`
-- `ghcr.io/kevinzjpeng/openterface-qt-base:latest-amd64`
-- `ghcr.io/kevinzjpeng/openterface-qt-base:latest-arm64`
+- `ghcr.io/kevinzjpeng/openterface-qtbuild-base:ubuntu-24.04-amd64`
+- `ghcr.io/kevinzjpeng/openterface-qtbuild-base:ubuntu-24.04-arm64`
+- `ghcr.io/kevinzjpeng/openterface-qtbuild-base:latest-amd64`
+- `ghcr.io/kevinzjpeng/openterface-qtbuild-base:latest-arm64`
 
 For multi-architecture manifests (when building both architectures):
-- `ghcr.io/kevinzjpeng/openterface-qt-base:ubuntu-24.04`
-- `ghcr.io/kevinzjpeng/openterface-qt-base:latest`
+- `ghcr.io/kevinzjpeng/openterface-qtbuild-base:ubuntu-24.04`
+- `ghcr.io/kevinzjpeng/openterface-qtbuild-base:latest`
 
 ## Manual Build Example
 
@@ -55,15 +55,15 @@ docker buildx build \
   --platform linux/amd64 \
   --file docker/Dockerfile.qt-base \
   --build-arg UBUNTU_VERSION=24.04 \
-  --tag ghcr.io/kevinzjpeng/openterface-qt-base:ubuntu-24.04-amd64 \
+  --tag ghcr.io/kevinzjpeng/openterface-qtbuild-base:ubuntu-24.04-amd64 \
   --push .
 
 # Build FFmpeg using the architecture-specific base
 docker buildx build \
   --platform linux/amd64 \
   --file docker/Dockerfile.qt-ffmpeg \
-  --build-arg BASE_IMAGE=ghcr.io/kevinzjpeng/openterface-qt-base:ubuntu-24.04-amd64 \
-  --tag ghcr.io/kevinzjpeng/openterface-qt-ffmpeg:ubuntu-24.04-amd64 \
+  --build-arg BASE_IMAGE=ghcr.io/kevinzjpeng/openterface-qtbuild-base:ubuntu-24.04-amd64 \
+  --tag ghcr.io/kevinzjpeng/openterface-qtbuild-ffmpeg:ubuntu-24.04-amd64 \
   --push .
 ```
 

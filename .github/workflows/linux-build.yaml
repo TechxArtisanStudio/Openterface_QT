@@ -20,6 +20,23 @@ on:
         - 'dynamic'
         - 'static'
         - 'both'
+      architecture:
+        description: 'Target architecture to build'
+        required: false
+        default: 'amd64'
+        type: choice
+        options:
+        - 'amd64'
+        - 'arm64'
+        - 'both'
+      ubuntu_version:
+        description: 'Ubuntu base image version'
+        required: false
+        default: '24.04'
+        type: choice
+        options:
+        - '22.04'
+        - '24.04'
 
 env:
   ARTIFACT: openterfaceQT
@@ -36,7 +53,7 @@ jobs:
       packages: read
     strategy:
       matrix:
-        arch: [amd64]
+        arch: ${{ (github.event.inputs.architecture == 'both' || github.event.inputs.architecture == '') && fromJSON('["amd64", "arm64"]') || fromJSON(format('["{0}"]', github.event.inputs.architecture || 'amd64')) }}
 
     steps:
       - name: Checkout code
@@ -46,6 +63,17 @@ jobs:
 
       - name: Set lowercase image name
         run: echo "IMAGE_NAME_LOWER=$(echo '${{ github.repository_owner }}/openterface-qtbuild' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
+
+      - name: Set architecture suffix
+        id: arch-suffix
+        run: |
+          if [[ "${{ matrix.arch }}" == "amd64" ]]; then
+            echo "arch_tag_suffix=-amd64" >> $GITHUB_OUTPUT
+          elif [[ "${{ matrix.arch }}" == "arm64" ]]; then
+            echo "arch_tag_suffix=-arm64" >> $GITHUB_OUTPUT
+          else
+            echo "arch_tag_suffix=" >> $GITHUB_OUTPUT
+          fi
         
       - name: Log in to Container Registry
         uses: docker/login-action@v3
@@ -56,23 +84,30 @@ jobs:
 
       - name: Pull pre-built Dynamic Qt Docker Image
         run: |
-          echo "Pulling pre-built Dynamic Qt Docker image..."
+          echo "Pulling pre-built Dynamic Qt Docker image for ${{ matrix.arch }}..."
+          
+          IMAGE_TAG="ubuntu-${{ github.event.inputs.ubuntu_version || '24.04' }}${{ steps.arch-suffix.outputs.arch_tag_suffix }}"
+          echo "Checking for image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-dynamic:$IMAGE_TAG"
           
           # Check if image exists in registry
-          if docker manifest inspect ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-dynamic:latest > /dev/null 2>&1; then
+          if docker manifest inspect ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-dynamic:$IMAGE_TAG > /dev/null 2>&1; then
             echo "Pre-built image found, pulling..."
-            docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-dynamic:latest
+            docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-dynamic:$IMAGE_TAG
 
-            echo "Successfully pulled pre-built Dynamic Qt Docker image"
+            echo "Successfully pulled pre-built Dynamic Qt Docker image for ${{ matrix.arch }}"
           else
-            echo "Error: Pre-built Dynamic Qt Docker image not found in registry"
+            echo "Error: Pre-built Dynamic Qt Docker image not found in registry for ${{ matrix.arch }}"
+            echo "Looking for: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-dynamic:$IMAGE_TAG"
             echo "Please run the 'Build Qt Environments' workflow first to build the required Docker images"
             echo "Workflow URL: https://github.com/${{ github.repository }}/actions/workflows/build-qt-environments.yml"
             exit 1
           fi
           
+          # Tag the architecture-specific image as latest for local use
+          docker tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-dynamic:$IMAGE_TAG ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-dynamic:latest
+          
           # Verify the image was pulled successfully
-          docker images | grep openterface-qt-dynamic || {
+          docker images | grep openterface-qtbuild-dynamic || {
             echo "Error: Failed to verify Dynamic Qt Docker image"
             exit 1
           }
@@ -100,14 +135,23 @@ jobs:
           mkdir -p ${{ runner.temp }}/build-dynamic/config/languages
           mkdir -p ${{ runner.temp }}/build-dynamic/config/keyboards
           
+          # Set up emulation for ARM64 if needed
+          if [[ "${{ matrix.arch }}" == "arm64" ]]; then
+            echo "Setting up QEMU for ARM64 emulation..."
+            docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
+            DOCKER_PLATFORM="--platform linux/arm64"
+          else
+            DOCKER_PLATFORM=""
+          fi
+          
           # Build application using Dynamic Qt Docker environment
-          docker run --rm \
+          docker run --rm $DOCKER_PLATFORM \
             -v ${{ github.workspace }}:/workspace/src \
             -v ${{ runner.temp }}/build-dynamic:/workspace/build \
             -w /workspace/src \
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-dynamic:latest \
             bash -c "
-              echo 'Building Openterface QT Application (Dynamic Qt)...'
+              echo 'Building Openterface QT Application (Dynamic Qt) for ${{ matrix.arch }}...'
               
               # Verify Docker environment
               /opt/verify/verify-qt-dynamic.sh
@@ -243,7 +287,7 @@ jobs:
       packages: read
     strategy:
       matrix:
-        arch: [amd64]
+        arch: ${{ (github.event.inputs.architecture == 'both' || github.event.inputs.architecture == '') && fromJSON('["amd64", "arm64"]') || fromJSON(format('["{0}"]', github.event.inputs.architecture || 'amd64')) }}
 
     steps:
       - name: Checkout code
@@ -255,6 +299,17 @@ jobs:
       - name: Set lowercase image name
         run: echo "IMAGE_NAME_LOWER=$(echo '${{ github.repository_owner }}/openterface-qtbuild' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
 
+      - name: Set architecture suffix
+        id: arch-suffix
+        run: |
+          if [[ "${{ matrix.arch }}" == "amd64" ]]; then
+            echo "arch_tag_suffix=-amd64" >> $GITHUB_OUTPUT
+          elif [[ "${{ matrix.arch }}" == "arm64" ]]; then
+            echo "arch_tag_suffix=-arm64" >> $GITHUB_OUTPUT
+          else
+            echo "arch_tag_suffix=" >> $GITHUB_OUTPUT
+          fi
+
       - name: Log in to Container Registry
         uses: docker/login-action@v3
         with:
@@ -264,22 +319,29 @@ jobs:
 
       - name: Pull pre-built Static Qt Docker Image
         run: |
-          echo "Pulling pre-built Static Qt Docker image..."
+          echo "Pulling pre-built Static Qt Docker image for ${{ matrix.arch }}..."
+          
+          IMAGE_TAG="ubuntu-${{ github.event.inputs.ubuntu_version || '24.04' }}${{ steps.arch-suffix.outputs.arch_tag_suffix }}"
+          echo "Checking for image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-complete:$IMAGE_TAG"
           
           # Check if image exists in registry
-          if docker manifest inspect ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-complete:latest > /dev/null 2>&1; then
+          if docker manifest inspect ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-complete:$IMAGE_TAG > /dev/null 2>&1; then
             echo "Pre-built image found, pulling..."
-            docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-complete:latest
-            echo "Successfully pulled pre-built Static Qt Docker image"
+            docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-complete:$IMAGE_TAG
+            echo "Successfully pulled pre-built Static Qt Docker image for ${{ matrix.arch }}"
           else
-            echo "Error: Pre-built Static Qt Docker image not found in registry"
+            echo "Error: Pre-built Static Qt Docker image not found in registry for ${{ matrix.arch }}"
+            echo "Looking for: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-complete:$IMAGE_TAG"
             echo "Please run the 'Build Qt Environments' workflow first to build the required Docker images"
             echo "Workflow URL: https://github.com/${{ github.repository }}/actions/workflows/build-qt-environments.yml"
             exit 1
           fi
           
+          # Tag the architecture-specific image as latest for local use
+          docker tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-complete:$IMAGE_TAG ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-complete:latest
+          
           # Verify the image was pulled successfully
-          docker images | grep openterface-qt-complete || {
+          docker images | grep openterface-qtbuild-complete || {
             echo "Error: Failed to verify Static Qt Docker image"
             exit 1
           }
@@ -307,15 +369,24 @@ jobs:
           mkdir -p ${{ runner.temp }}/build-static/config/languages
           mkdir -p ${{ runner.temp }}/build-static/config/keyboards
           
+          # Set up emulation for ARM64 if needed
+          if [[ "${{ matrix.arch }}" == "arm64" ]]; then
+            echo "Setting up QEMU for ARM64 emulation..."
+            docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
+            DOCKER_PLATFORM="--platform linux/arm64"
+          else
+            DOCKER_PLATFORM=""
+          fi
+          
           # Build application using Static Qt Docker environment
-          docker run --rm \
+          docker run --rm $DOCKER_PLATFORM \
             -v ${{ github.workspace }}:/workspace/src \
             -v ${{ runner.temp }}/build-static:/workspace/build \
             -w /workspace/src \
             --user root \
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-complete:latest \
             bash -c "
-              echo 'Building Openterface QT Application (Static Qt)...'
+              echo 'Building Openterface QT Application (Static Qt) for ${{ matrix.arch }}...'
               
               # Verify Qt6 installation and fix if missing
               if [ ! -d '/opt/Qt6' ]; then
