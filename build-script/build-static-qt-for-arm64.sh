@@ -39,7 +39,9 @@ sudo apt-get install -y \
   libxml2-dev \
   zlib1g-dev \
   libdbus-1-dev \
-  libbrotli-dev
+  libbrotli-dev \
+  libgudev-1.0-dev \
+  libv4l-dev
 
 # Create build directory
 WORK_DIR="${HOME}/qt-arm64-build"
