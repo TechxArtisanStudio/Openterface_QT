@@ -528,12 +528,22 @@ else()
 endif()
 
 # Set FFmpeg include and library directories
-# Try to find FFmpeg in Qt6 installation first, then fallback to system locations
-set(FFMPEG_SEARCH_PATHS 
-    "/opt/Qt6"
-    "/usr/local"
-    "/usr"
-)
+# For dynamic builds, prioritize system libraries; for static builds, prefer Qt6 installation
+if(USE_FFMPEG_STATIC)
+    set(FFMPEG_SEARCH_PATHS 
+        "/opt/Qt6"
+        "/opt/Qt6-arm64"
+        "/usr/local"
+        "/usr"
+    )
+else()
+    # For dynamic builds, prioritize system packages
+    set(FFMPEG_SEARCH_PATHS 
+        "/usr"
+        "/usr/local"
+        "/opt/Qt6"
+    )
+endif()
 
 # For cross-compilation, prioritize architecture-specific paths
 if(CMAKE_CROSSCOMPILING AND ARCH_SPECIFIC_PATH)
@@ -580,30 +590,47 @@ foreach(SEARCH_PATH ${FFMPEG_SEARCH_PATHS})
         endif()
     endif()
     
-    # Standard search
+    # Standard search - but also check architecture-specific subdirectories for dynamic builds
     if(USE_FFMPEG_STATIC)
         set(LIB_EXTENSION ".a")
         set(LIB_NAME "libavformat.a")
+        set(LIB_PATHS "${SEARCH_PATH}/lib")
     else()
         set(LIB_EXTENSION ".so")
         set(LIB_NAME "libavformat.so")
+        # For dynamic builds, check architecture-specific directories
+        set(LIB_PATHS 
+            "${SEARCH_PATH}/lib/x86_64-linux-gnu"
+            "${SEARCH_PATH}/lib/aarch64-linux-gnu"
+            "${SEARCH_PATH}/lib"
+        )
     endif()
     
-    message(STATUS "Checking for FFmpeg in: ${SEARCH_PATH}/lib/${LIB_NAME}")
-    if(EXISTS "${SEARCH_PATH}/lib/${LIB_NAME}" AND EXISTS "${SEARCH_PATH}/include/libavformat/avformat.h")
-        set(FFMPEG_PREFIX "${SEARCH_PATH}")
-        set(FFMPEG_LIB_DIR "${SEARCH_PATH}/lib")
-        message(STATUS "Found FFmpeg installation at: ${FFMPEG_PREFIX}")
-        message(STATUS "Using ${LIB_EXTENSION} libraries")
+    # Check each potential library path
+    foreach(LIB_PATH ${LIB_PATHS})
+        message(STATUS "Checking for FFmpeg in: ${LIB_PATH}/${LIB_NAME}")
+        if(EXISTS "${LIB_PATH}/${LIB_NAME}" AND EXISTS "${SEARCH_PATH}/include/libavformat/avformat.h")
+            set(FFMPEG_PREFIX "${SEARCH_PATH}")
+            set(FFMPEG_LIB_DIR "${LIB_PATH}")
+            message(STATUS "Found FFmpeg installation at: ${FFMPEG_PREFIX}")
+            message(STATUS "FFmpeg libraries in: ${FFMPEG_LIB_DIR}")
+            message(STATUS "Using ${LIB_EXTENSION} libraries")
+            set(FFMPEG_FOUND TRUE)
+            break()
+        endif()
+    endforeach()
+    
+    if(FFMPEG_FOUND)
         break()
     endif()
 endforeach()
 
 # Set default if not found
-if(NOT FFMPEG_PREFIX)
+if(NOT FFMPEG_FOUND)
+    message(WARNING "FFmpeg not found in search paths. Attempting fallback detection...")
+    
     if(CMAKE_CROSSCOMPILING AND ARCH_SPECIFIC_PATH)
         # For cross-compilation, try the architecture-specific directory first
-        message(STATUS "FFmpeg search failed. Attempting fallback to architecture-specific path...")
         if(USE_FFMPEG_STATIC)
             set(FALLBACK_LIB_PATH "${ARCH_SPECIFIC_PATH}/libavformat.a")
         else()
@@ -614,30 +641,43 @@ if(NOT FFMPEG_PREFIX)
         if(EXISTS "${FALLBACK_LIB_PATH}")
             set(FFMPEG_PREFIX "/usr")
             set(FFMPEG_LIB_DIR "${ARCH_SPECIFIC_PATH}")
+            set(FFMPEG_FOUND TRUE)
             message(STATUS "Found FFmpeg libraries in architecture-specific directory: ${FFMPEG_LIB_DIR}")
-        else()
+        endif()
+    endif()
+    
+    # Try pkg-config as final fallback for dynamic builds
+    if(NOT FFMPEG_FOUND AND NOT USE_FFMPEG_STATIC)
+        find_package(PkgConfig QUIET)
+        if(PKG_CONFIG_FOUND)
+            pkg_check_modules(PC_LIBAVFORMAT QUIET libavformat)
+            if(PC_LIBAVFORMAT_FOUND)
+                message(STATUS "Found FFmpeg via pkg-config")
+                set(FFMPEG_PREFIX "/usr")
+                set(FFMPEG_LIB_DIR "/usr/lib/x86_64-linux-gnu")
+                set(FFMPEG_FOUND TRUE)
+                # Override library paths with pkg-config results
+                set(FFMPEG_INCLUDE_DIRS ${PC_LIBAVFORMAT_INCLUDE_DIRS})
+                message(STATUS "Using pkg-config FFmpeg: ${PC_LIBAVFORMAT_LIBRARIES}")
+            endif()
+        endif()
+    endif()
+    
+    # Final fallback
+    if(NOT FFMPEG_FOUND)
+        if(USE_FFMPEG_STATIC)
             set(FFMPEG_PREFIX "/usr/local")
             set(FFMPEG_LIB_DIR "/usr/local/lib")
-            message(WARNING "FFmpeg not found in standard locations, defaulting to: ${FFMPEG_PREFIX}")
-            message(STATUS "Expected to find FFmpeg libraries in: ${FALLBACK_LIB_PATH}")
+        else()
+            # For dynamic builds, assume system packages
+            set(FFMPEG_PREFIX "/usr")
+            set(FFMPEG_LIB_DIR "/usr/lib/x86_64-linux-gnu")
         endif()
-    else()
-        set(FFMPEG_PREFIX "/usr/local")
-        set(FFMPEG_LIB_DIR "/usr/local/lib")
-        message(WARNING "FFmpeg not found in standard locations, defaulting to: ${FFMPEG_PREFIX}")
+        message(WARNING "FFmpeg not found, using fallback location: ${FFMPEG_PREFIX}")
+        message(STATUS "Expected FFmpeg libraries in: ${FFMPEG_LIB_DIR}")
     endif()
 else()
     message(STATUS "FFmpeg configuration successful")
-endif()
-
-# For dynamic builds in cross-compilation, override with architecture-specific path if libraries exist there
-if(CMAKE_CROSSCOMPILING AND NOT USE_FFMPEG_STATIC AND ARCH_SPECIFIC_PATH)
-    if(EXISTS "${ARCH_SPECIFIC_PATH}/libavformat.so")
-        message(STATUS "Overriding FFmpeg library directory for dynamic cross-compilation")
-        set(FFMPEG_LIB_DIR "${ARCH_SPECIFIC_PATH}")
-        set(FFMPEG_PREFIX "/usr")
-        message(STATUS "Using dynamic FFmpeg libraries from: ${FFMPEG_LIB_DIR}")
-    endif()
 endif()
 
 # Set include and library directories based on found prefix
@@ -655,15 +695,32 @@ else()
     set(FFMPEG_LIB_EXT ".so")
 endif()
 
-set(FFMPEG_LIBRARIES 
-    "${FFMPEG_LIB_DIR}/libavdevice${FFMPEG_LIB_EXT}"
-    "${FFMPEG_LIB_DIR}/libavfilter${FFMPEG_LIB_EXT}"
-    "${FFMPEG_LIB_DIR}/libavformat${FFMPEG_LIB_EXT}"
-    "${FFMPEG_LIB_DIR}/libavcodec${FFMPEG_LIB_EXT}"
-    "${FFMPEG_LIB_DIR}/libswresample${FFMPEG_LIB_EXT}"
-    "${FFMPEG_LIB_DIR}/libswscale${FFMPEG_LIB_EXT}"
-    "${FFMPEG_LIB_DIR}/libavutil${FFMPEG_LIB_EXT}"
-)
+# Set FFmpeg libraries - use pkg-config results if available, otherwise use manual paths
+if(PC_LIBAVFORMAT_FOUND AND NOT USE_FFMPEG_STATIC)
+    # Use pkg-config library names for dynamic linking
+    set(FFMPEG_LIBRARIES 
+        avdevice
+        avfilter
+        avformat
+        avcodec
+        swresample
+        swscale
+        avutil
+    )
+    message(STATUS "Using pkg-config FFmpeg libraries: ${FFMPEG_LIBRARIES}")
+else()
+    # Use full paths for static linking or when pkg-config not available
+    set(FFMPEG_LIBRARIES 
+        "${FFMPEG_LIB_DIR}/libavdevice${FFMPEG_LIB_EXT}"
+        "${FFMPEG_LIB_DIR}/libavfilter${FFMPEG_LIB_EXT}"
+        "${FFMPEG_LIB_DIR}/libavformat${FFMPEG_LIB_EXT}"
+        "${FFMPEG_LIB_DIR}/libavcodec${FFMPEG_LIB_EXT}"
+        "${FFMPEG_LIB_DIR}/libswresample${FFMPEG_LIB_EXT}"
+        "${FFMPEG_LIB_DIR}/libswscale${FFMPEG_LIB_EXT}"
+        "${FFMPEG_LIB_DIR}/libavutil${FFMPEG_LIB_EXT}"
+    )
+    message(STATUS "Using manual FFmpeg library paths: ${FFMPEG_LIBRARIES}")
+endif()
 
 # Add hardware acceleration libraries required by FFmpeg (optional)
 set(HWACCEL_LIBRARIES)
