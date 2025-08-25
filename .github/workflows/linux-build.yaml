@@ -281,6 +281,7 @@ jobs:
           if-no-files-found: error
 
       - name: Create rpm package (Dynamic)
+        if: ${{ matrix.arch != 'arm64' }}
         working-directory: ${{ runner.temp }}
         run: |
           mkdir -p rpmbuild-dynamic/{SPECS,SOURCES,BUILD,RPMS,SRPMS}
@@ -309,6 +310,7 @@ jobs:
           find rpmbuild-dynamic/RPMS -name "*.rpm" -exec cp {} ./$PKG_NAME.rpm \;
 
       - name: Upload RPM artifact (Dynamic)
+        if: ${{ matrix.arch != 'arm64' }}
         uses: actions/upload-artifact@v4
         with:
           name: openterfaceQT.linux.${{ matrix.arch }}.dynamic.rpm
@@ -565,6 +567,7 @@ jobs:
           if-no-files-found: error
 
       - name: Create rpm package (Static)
+        if: ${{ matrix.arch != 'arm64' }}
         working-directory: ${{ runner.temp }}
         run: |
           mkdir -p rpmbuild-static/{SPECS,SOURCES,BUILD,RPMS,SRPMS}
@@ -593,6 +596,7 @@ jobs:
           find rpmbuild-static/RPMS -name "*.rpm" -exec cp {} ./$PKG_NAME.rpm \;
 
       - name: Upload RPM artifact (Static)
+        if: ${{ matrix.arch != 'arm64' }}
         uses: actions/upload-artifact@v4
         with:
           name: openterfaceQT.linux.${{ matrix.arch }}.static.rpm
