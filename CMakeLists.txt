@@ -46,15 +46,18 @@ if(CMAKE_CROSSCOMPILING)
         set(ARCH_SPECIFIC_PATH "/usr/lib/aarch64-linux-gnu")
         message(STATUS "  Configuring for ARM64 architecture")
         
-        # ARM64 compiler workaround: Reduce optimization to avoid segfaults
-        set(CMAKE_CXX_FLAGS_RELEASE "-O2 -DNDEBUG" CACHE STRING "Release flags" FORCE)
-        set(CMAKE_C_FLAGS_RELEASE "-O2 -DNDEBUG" CACHE STRING "Release flags" FORCE)
+        # ARM64 compiler workaround: Use minimal optimization to avoid segfaults
+        set(CMAKE_CXX_FLAGS_RELEASE "-O1 -DNDEBUG" CACHE STRING "Release flags" FORCE)
+        set(CMAKE_C_FLAGS_RELEASE "-O1 -DNDEBUG" CACHE STRING "Release flags" FORCE)
         
         # Additional stability flags for ARM64 cross-compilation
-        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-aggressive-loop-optimizations -fno-strict-overflow")
-        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fno-aggressive-loop-optimizations -fno-strict-overflow")
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-aggressive-loop-optimizations -fno-strict-overflow -fno-tree-vectorize")
+        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fno-aggressive-loop-optimizations -fno-strict-overflow -fno-tree-vectorize")
         
-        message(STATUS "  Using -O2 optimization and stability flags for ARM64 to avoid compiler segfaults")
+        # Set a flag to indicate ARM64 build for later use
+        set(ARM64_BUILD TRUE)
+        
+        message(STATUS "  Using -O1 optimization and stability flags for ARM64 to avoid compiler segfaults")
         
     elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "^(x86_64|amd64)$")
         set(ARCH_LIB_DIR "x86_64-linux-gnu")
@@ -1316,18 +1319,23 @@ install(SCRIPT ${deploy_script})
 
 # Add these lines to enable size optimization
 if(CMAKE_BUILD_TYPE STREQUAL "Release")
-    # Enable Link Time Optimization
-    include(CheckIPOSupported)
-    check_ipo_supported(RESULT LTO_SUPPORTED OUTPUT LTO_ERROR)
-    if(LTO_SUPPORTED)
-        message(STATUS "IPO / LTO enabled")
-        set(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)
+    # Enable Link Time Optimization (but not for ARM64 to avoid segfaults)
+    if(NOT ARM64_BUILD)
+        include(CheckIPOSupported)
+        check_ipo_supported(RESULT LTO_SUPPORTED OUTPUT LTO_ERROR)
+        if(LTO_SUPPORTED)
+            message(STATUS "IPO / LTO enabled")
+            set(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)
+        else()
+            message(STATUS "IPO / LTO not supported: ${LTO_ERROR}")
+        endif()
+        
+        # Optimize for size (only for non-ARM64 builds)
+        add_compile_options(-Os)
+        message(STATUS "Using -Os optimization for non-ARM64 build")
     else()
-        message(STATUS "IPO / LTO not supported: ${LTO_ERROR}")
+        message(STATUS "Skipping LTO and -Os optimization for ARM64 to prevent segfaults")
     endif()
-    
-    # Optimize for size
-    add_compile_options(-Os)
     
     # Remove unused functions and data
     add_compile_options(-ffunction-sections -fdata-sections)
