@@ -563,13 +563,68 @@ endif()
 
 # Check CMAKE_PREFIX_PATH for potential FFmpeg locations
 if(CMAKE_PREFIX_PATH)
-    foreach(PREFIX_PATH ${CMAKE_PREFIX_PATH})
-        list(INSERT FFMPEG_SEARCH_PATHS 0 "${PREFIX_PATH}")
+    message(STATUS "CMAKE_PREFIX_PATH: ${CMAKE_PREFIX_PATH}")
+    # CMAKE_PREFIX_PATH is a semicolon-separated list in CMake, but might be colon-separated from shell
+    # First normalize to semicolon-separated list
+    string(REPLACE ":" ";" CMAKE_PREFIX_PATH_LIST "${CMAKE_PREFIX_PATH}")
+    foreach(PREFIX_PATH ${CMAKE_PREFIX_PATH_LIST})
+        # Skip cmake-specific subdirectories and non-existent paths
+        if(IS_DIRECTORY "${PREFIX_PATH}" AND NOT PREFIX_PATH MATCHES ".*/cmake$" AND NOT PREFIX_PATH MATCHES ".*/cmake/.*")
+            list(INSERT FFMPEG_SEARCH_PATHS 0 "${PREFIX_PATH}")
+            message(STATUS "Added FFmpeg search path from CMAKE_PREFIX_PATH: ${PREFIX_PATH}")
+        else()
+            message(STATUS "Skipped CMAKE_PREFIX_PATH entry (cmake dir or non-existent): ${PREFIX_PATH}")
+        endif()
     endforeach()
 endif()
 
-# Find FFmpeg installation
-foreach(SEARCH_PATH ${FFMPEG_SEARCH_PATHS})
+# For dynamic builds, try pkg-config first as it's more reliable
+if(NOT USE_FFMPEG_STATIC)
+    find_package(PkgConfig QUIET)
+    if(PKG_CONFIG_FOUND)
+        message(STATUS "pkg-config found, checking for FFmpeg...")
+        pkg_check_modules(PC_LIBAVFORMAT QUIET libavformat)
+        if(PC_LIBAVFORMAT_FOUND)
+            message(STATUS "Found FFmpeg via pkg-config")
+            message(STATUS "pkg-config FFmpeg version: ${PC_LIBAVFORMAT_VERSION}")
+            message(STATUS "pkg-config FFmpeg include dirs: ${PC_LIBAVFORMAT_INCLUDE_DIRS}")
+            message(STATUS "pkg-config FFmpeg library dirs: ${PC_LIBAVFORMAT_LIBRARY_DIRS}")
+            message(STATUS "pkg-config FFmpeg libraries: ${PC_LIBAVFORMAT_LIBRARIES}")
+            
+            set(FFMPEG_PREFIX "/usr")
+            # Use pkg-config library directories if available, otherwise fallback
+            if(PC_LIBAVFORMAT_LIBRARY_DIRS)
+                list(GET PC_LIBAVFORMAT_LIBRARY_DIRS 0 FFMPEG_LIB_DIR)
+                message(STATUS "Using pkg-config FFmpeg library directory: ${FFMPEG_LIB_DIR}")
+            else()
+                # Architecture-aware fallback for library directory
+                if(CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64|arm64")
+                    set(FFMPEG_LIB_DIR "/usr/lib/aarch64-linux-gnu")
+                else()
+                    set(FFMPEG_LIB_DIR "/usr/lib/x86_64-linux-gnu")
+                endif()
+                message(STATUS "Using fallback FFmpeg library directory: ${FFMPEG_LIB_DIR}")
+            endif()
+            set(FFMPEG_FOUND TRUE)
+            set(FFMPEG_PKG_CONFIG TRUE)  # Flag to indicate we used pkg-config
+            # Override library paths with pkg-config results
+            set(FFMPEG_INCLUDE_DIRS ${PC_LIBAVFORMAT_INCLUDE_DIRS})
+            message(STATUS "Using pkg-config FFmpeg: ${PC_LIBAVFORMAT_LIBRARIES}")
+        else()
+            message(STATUS "FFmpeg not found via pkg-config")
+        endif()
+    else()
+        message(STATUS "pkg-config not found")
+    endif()
+endif()
+
+# If pkg-config didn't find FFmpeg (or we're using static linking), fall back to path search
+if(NOT FFMPEG_FOUND)
+    message(STATUS "Falling back to manual path search for FFmpeg...")
+    
+    # Find FFmpeg installation
+    message(STATUS "FFmpeg search paths: ${FFMPEG_SEARCH_PATHS}")
+    foreach(SEARCH_PATH ${FFMPEG_SEARCH_PATHS})
     # For cross-compilation, check architecture-specific directory first
     if(CMAKE_CROSSCOMPILING AND ARCH_LIB_DIR)
         set(CROSS_LIB_PATH "${SEARCH_PATH}/lib/${ARCH_LIB_DIR}")
@@ -648,47 +703,6 @@ if(NOT FFMPEG_FOUND)
             message(STATUS "Found FFmpeg libraries in architecture-specific directory: ${FFMPEG_LIB_DIR}")
         endif()
     endif()
-    
-    # Try pkg-config as final fallback for dynamic builds
-    if(NOT FFMPEG_FOUND AND NOT USE_FFMPEG_STATIC)
-        find_package(PkgConfig QUIET)
-        if(PKG_CONFIG_FOUND)
-            message(STATUS "pkg-config found, checking for FFmpeg...")
-            pkg_check_modules(PC_LIBAVFORMAT QUIET libavformat)
-            if(PC_LIBAVFORMAT_FOUND)
-                message(STATUS "Found FFmpeg via pkg-config")
-                message(STATUS "pkg-config FFmpeg version: ${PC_LIBAVFORMAT_VERSION}")
-                message(STATUS "pkg-config FFmpeg include dirs: ${PC_LIBAVFORMAT_INCLUDE_DIRS}")
-                message(STATUS "pkg-config FFmpeg library dirs: ${PC_LIBAVFORMAT_LIBRARY_DIRS}")
-                message(STATUS "pkg-config FFmpeg libraries: ${PC_LIBAVFORMAT_LIBRARIES}")
-                
-                set(FFMPEG_PREFIX "/usr")
-                # Use pkg-config library directories if available, otherwise fallback
-                if(PC_LIBAVFORMAT_LIBRARY_DIRS)
-                    list(GET PC_LIBAVFORMAT_LIBRARY_DIRS 0 FFMPEG_LIB_DIR)
-                    message(STATUS "Using pkg-config FFmpeg library directory: ${FFMPEG_LIB_DIR}")
-                else()
-                    # Architecture-aware fallback for library directory
-                    if(CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64|arm64")
-                        set(FFMPEG_LIB_DIR "/usr/lib/aarch64-linux-gnu")
-                    else()
-                        set(FFMPEG_LIB_DIR "/usr/lib/x86_64-linux-gnu")
-                    endif()
-                    message(STATUS "Using fallback FFmpeg library directory: ${FFMPEG_LIB_DIR}")
-                endif()
-                set(FFMPEG_FOUND TRUE)
-                set(FFMPEG_PKG_CONFIG TRUE)  # Flag to indicate we used pkg-config
-                # Override library paths with pkg-config results
-                set(FFMPEG_INCLUDE_DIRS ${PC_LIBAVFORMAT_INCLUDE_DIRS})
-                message(STATUS "Using pkg-config FFmpeg: ${PC_LIBAVFORMAT_LIBRARIES}")
-            else()
-                message(STATUS "FFmpeg not found via pkg-config")
-            endif()
-        else()
-            message(STATUS "pkg-config not found")
-        endif()
-    endif()
-    
     # Final fallback
     if(NOT FFMPEG_FOUND)
         if(USE_FFMPEG_STATIC)
@@ -702,12 +716,30 @@ if(NOT FFMPEG_FOUND)
         message(WARNING "FFmpeg not found, using fallback location: ${FFMPEG_PREFIX}")
         message(STATUS "Expected FFmpeg libraries in: ${FFMPEG_LIB_DIR}")
     endif()
-else()
+endif()
+
+# FFmpeg configuration complete - show final status
+if(FFMPEG_FOUND)
     message(STATUS "FFmpeg configuration successful")
+    message(STATUS "FFmpeg prefix: ${FFMPEG_PREFIX}")
+    message(STATUS "FFmpeg library directory: ${FFMPEG_LIB_DIR}")
+    if(FFMPEG_PKG_CONFIG)
+        message(STATUS "FFmpeg detected via: pkg-config")
+    else()
+        message(STATUS "FFmpeg detected via: manual path search")
+    endif()
+else()
+    message(WARNING "FFmpeg configuration failed - FFmpeg backend will be disabled")
 endif()
 
 # Set include and library directories based on found prefix
-set(FFMPEG_INCLUDE_DIRS "${FFMPEG_PREFIX}/include")
+if(FFMPEG_PKG_CONFIG AND FFMPEG_INCLUDE_DIRS)
+    # Use pkg-config include directories if available
+    message(STATUS "Using pkg-config include directories: ${FFMPEG_INCLUDE_DIRS}")
+else()
+    # Use standard include directory
+    set(FFMPEG_INCLUDE_DIRS "${FFMPEG_PREFIX}/include")
+endif()
 
 # Use architecture-specific library directory if set, otherwise use standard lib directory
 if(NOT FFMPEG_LIB_DIR)
