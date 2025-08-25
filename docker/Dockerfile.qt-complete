@@ -1,15 +1,17 @@
 # Build Qt components
-ARG BASE_IMAGE=ghcr.io/kevinzjpeng/openterface-qt-gstreamer:latest
+ARG BASE_IMAGE=ghcr.io/techxartisanstudio/openterface-qtbuild-qt-declarative:ubuntu-24.04-amd64
+ARG UBUNTU_VERSION=24.04
+ARG TARGETARCH=amd64
 FROM ${BASE_IMAGE}
 
 WORKDIR ${BUILD_DIR}
 
-# Define modules to build
-ENV MODULES="qtbase qtshadertools qtdeclarative qtmultimedia qtsvg qtserialport qttools"
+# Define modules to build (qtbase, qtshadertools, qtdeclarative already built in base image)
+ENV MODULES="qtmultimedia qtsvg qtserialport qttools"
 ENV DOWNLOAD_BASE_URL="https://download.qt.io/archive/qt/${QT_MAJOR_VERSION}/${QT_VERSION}/submodules"
 ENV CMAKE_COMMON_FLAGS="-Wno-dev -DCMAKE_POLICY_DEFAULT_CMP0177=NEW -DCMAKE_POLICY_DEFAULT_CMP0174=NEW"
 
-# Download and extract Qt modules
+# Download and extract remaining Qt modules
 RUN for module in ${MODULES}; do \
         echo "Downloading $module..."; \
         curl -L -o "$module.zip" "${DOWNLOAD_BASE_URL}/$module-everywhere-src-${QT_VERSION}.zip" && \
@@ -18,60 +20,7 @@ RUN for module in ${MODULES}; do \
         rm "$module.zip"; \
     done
 
-# Build qtbase first (foundation)
-RUN echo "Building qtbase..." && \
-    cd ${BUILD_DIR}/qtbase && \
-    mkdir -p build && \
-    cd build && \
-    cmake -GNinja \
-        ${CMAKE_COMMON_FLAGS} \
-        -DCMAKE_INSTALL_PREFIX="${INSTALL_PREFIX}" \
-        -DBUILD_SHARED_LIBS=OFF \
-        -DFEATURE_dbus=ON \
-        -DFEATURE_sql=OFF \
-        -DFEATURE_testlib=OFF \
-        -DFEATURE_icu=OFF \
-        -DFEATURE_opengl=ON \
-        -DFEATURE_xlib=ON \
-        -DFEATURE_xcb_xlib=ON \
-        -DFEATURE_xkbcommon=ON \
-        -DFEATURE_xkbcommon_x11=ON \
-        -DTEST_xcb_syslibs=ON \
-        -DQT_FEATURE_clang=OFF \
-        -DFEATURE_clang=ON \
-        .. && \
-    ninja && \
-    ninja install
-
-# Build qtshadertools
-RUN echo "Building qtshadertools..." && \
-    cd ${BUILD_DIR}/qtshadertools && \
-    mkdir -p build && \
-    cd build && \
-    cmake -GNinja \
-        ${CMAKE_COMMON_FLAGS} \
-        -DCMAKE_INSTALL_PREFIX="${INSTALL_PREFIX}" \
-        -DBUILD_SHARED_LIBS=OFF \
-        -DCMAKE_EXE_LINKER_FLAGS="-lfontconfig -lfreetype" \
-        .. && \
-    ninja && \
-    ninja install
-
-# Build qtdeclarative (Qt Quick) before qtmultimedia
-RUN echo "Building qtdeclarative..." && \
-    cd ${BUILD_DIR}/qtdeclarative && \
-    mkdir -p build && \
-    cd build && \
-    cmake -GNinja \
-        ${CMAKE_COMMON_FLAGS} \
-        -DCMAKE_INSTALL_PREFIX="${INSTALL_PREFIX}" \
-        -DCMAKE_PREFIX_PATH="${INSTALL_PREFIX}" \
-        -DBUILD_SHARED_LIBS=OFF \
-        .. && \
-    ninja && \
-    ninja install
-
-# Build qtmultimedia with FFmpeg
+# Build qtmultimedia with FFmpeg (qtbase, qtshadertools, qtdeclarative already available)
 RUN echo "Building qtmultimedia..." && \
     cd ${BUILD_DIR}/qtmultimedia && \
     mkdir -p build && \
@@ -158,7 +107,7 @@ RUN mkdir -p ${INSTALL_PREFIX}/bin && \
     echo 'echo "Qt version: $(${QT_DIR}/bin/qmake -query QT_VERSION)"' >> ${INSTALL_PREFIX}/bin/verify-qt-installation.sh && \
     echo 'echo "Qt installation prefix: $(${QT_DIR}/bin/qmake -query QT_INSTALL_PREFIX)"' >> ${INSTALL_PREFIX}/bin/verify-qt-installation.sh && \
     echo 'echo -e "\nChecking Qt modules:"' >> ${INSTALL_PREFIX}/bin/verify-qt-installation.sh && \
-    echo 'MODULES="Core Widgets Gui Multimedia MultimediaWidgets SerialPort Svg SvgWidgets"' >> ${INSTALL_PREFIX}/bin/verify-qt-installation.sh && \
+    echo 'MODULES="Core Widgets Gui Qml Quick QuickWidgets Multimedia MultimediaWidgets SerialPort Svg SvgWidgets"' >> ${INSTALL_PREFIX}/bin/verify-qt-installation.sh && \
     echo 'for module in $MODULES; do' >> ${INSTALL_PREFIX}/bin/verify-qt-installation.sh && \
     echo '    if [ -f "${QT_DIR}/lib/libQt6${module}.a" ]; then' >> ${INSTALL_PREFIX}/bin/verify-qt-installation.sh && \
     echo '        echo "✓ Qt${module} static library found"' >> ${INSTALL_PREFIX}/bin/verify-qt-installation.sh && \

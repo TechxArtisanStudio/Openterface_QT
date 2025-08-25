@@ -29,11 +29,127 @@ if(USE_FFMPEG_STATIC)
 endif()
 
 find_package(QT NAMES Qt5 Qt6 REQUIRED COMPONENTS Core)
+
+# Cross-compilation support: Set architecture-specific library paths
+# This ensures that find_package commands work correctly for ARM64 cross-compilation
+if(CMAKE_CROSSCOMPILING)
+    message(STATUS "Cross-compilation detected:")
+    message(STATUS "  Host system: ${CMAKE_HOST_SYSTEM_NAME}-${CMAKE_HOST_SYSTEM_PROCESSOR}")
+    message(STATUS "  Target system: ${CMAKE_SYSTEM_NAME}-${CMAKE_SYSTEM_PROCESSOR}")
+    
+    # Determine architecture-specific library directory
+    if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(aarch64|arm64)$")
+        set(ARCH_LIB_DIR "aarch64-linux-gnu")
+        set(ARCH_SPECIFIC_PATH "/usr/lib/aarch64-linux-gnu")
+        message(STATUS "  Configuring for ARM64 architecture")
+        
+        # ARM64 compiler workaround: Reduce optimization to avoid segfaults
+        set(CMAKE_CXX_FLAGS_RELEASE "-O2 -DNDEBUG" CACHE STRING "Release flags" FORCE)
+        set(CMAKE_C_FLAGS_RELEASE "-O2 -DNDEBUG" CACHE STRING "Release flags" FORCE)
+        
+        # Additional stability flags for ARM64 cross-compilation
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-aggressive-loop-optimizations -fno-strict-overflow")
+        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fno-aggressive-loop-optimizations -fno-strict-overflow")
+        
+        message(STATUS "  Using -O2 optimization and stability flags for ARM64 to avoid compiler segfaults")
+        
+    elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "^(x86_64|amd64)$")
+        set(ARCH_LIB_DIR "x86_64-linux-gnu")
+        set(ARCH_SPECIFIC_PATH "/usr/lib/x86_64-linux-gnu")
+        message(STATUS "  Configuring for AMD64 architecture")
+    else()
+        message(WARNING "Unknown target architecture: ${CMAKE_SYSTEM_PROCESSOR}")
+        set(ARCH_LIB_DIR "")
+        set(ARCH_SPECIFIC_PATH "/usr/lib")
+    endif()
+    
+    # Set hints for find_package to locate libraries in cross-compilation environment
+    if(ARCH_LIB_DIR)
+        # OpenGL libraries
+        set(OPENGL_INCLUDE_DIR "/usr/include" CACHE PATH "OpenGL include directory")
+        set(OPENGL_EGL_INCLUDE_DIR "/usr/include/EGL" CACHE PATH "EGL include directory")
+        set(OPENGL_GLX_INCLUDE_DIR "/usr/include/GL" CACHE PATH "GLX include directory")
+        set(OPENGL_opengl_LIBRARY "${ARCH_SPECIFIC_PATH}/libOpenGL.so" CACHE FILEPATH "OpenGL library")
+        set(OPENGL_glx_LIBRARY "${ARCH_SPECIFIC_PATH}/libGLX.so" CACHE FILEPATH "GLX library")
+        set(OPENGL_egl_LIBRARY "${ARCH_SPECIFIC_PATH}/libEGL.so" CACHE FILEPATH "EGL library")
+        set(OPENGL_glu_LIBRARY "${ARCH_SPECIFIC_PATH}/libGLU.so" CACHE FILEPATH "GLU library")
+        
+        # Vulkan headers
+        set(Vulkan_INCLUDE_DIR "/usr/include/vulkan" CACHE PATH "Vulkan include directory")
+        
+        # X11 libraries
+        set(X11_INCLUDE_DIR "/usr/include/X11" CACHE PATH "X11 include directory")
+        set(X11_X11_INCLUDE_PATH "/usr/include" CACHE PATH "X11 include path")
+        set(X11_X11_LIB "${ARCH_SPECIFIC_PATH}/libX11.so" CACHE FILEPATH "X11 library")
+        set(X11_Xrandr_INCLUDE_PATH "/usr/include/X11/extensions" CACHE PATH "Xrandr include path")
+        set(X11_Xrandr_LIB "${ARCH_SPECIFIC_PATH}/libXrandr.so" CACHE FILEPATH "Xrandr library")
+        set(X11_Xext_LIB "${ARCH_SPECIFIC_PATH}/libXext.so" CACHE FILEPATH "Xext library")
+        
+        # EXPAT library
+        set(EXPAT_INCLUDE_DIR "/usr/include" CACHE PATH "EXPAT include directory")
+        set(EXPAT_LIBRARY "${ARCH_SPECIFIC_PATH}/libexpat.so" CACHE FILEPATH "EXPAT library")
+        
+        # Freetype library
+        set(FREETYPE_INCLUDE_DIRS "/usr/include/freetype2" CACHE PATH "Freetype include directories")
+        set(FREETYPE_LIBRARY "${ARCH_SPECIFIC_PATH}/libfreetype.so" CACHE FILEPATH "Freetype library")
+        set(FREETYPE_INCLUDE_DIR_freetype2 "/usr/include/freetype2" CACHE PATH "Freetype2 include directory")
+        set(FREETYPE_INCLUDE_DIR_ft2build "/usr/include/freetype2" CACHE PATH "ft2build include directory")
+        
+        # Fontconfig library
+        set(Fontconfig_INCLUDE_DIR "/usr/include" CACHE PATH "Fontconfig include directory")
+        set(Fontconfig_LIBRARY "${ARCH_SPECIFIC_PATH}/libfontconfig.so" CACHE FILEPATH "Fontconfig library")
+        set(FONTCONFIG_INCLUDE_DIR "/usr/include" CACHE PATH "Fontconfig include directory (legacy)")
+        set(FONTCONFIG_LIBRARY "${ARCH_SPECIFIC_PATH}/libfontconfig.so" CACHE FILEPATH "Fontconfig library (legacy)")
+        
+        # BZip2 library
+        set(BZIP2_INCLUDE_DIR "/usr/include" CACHE PATH "BZip2 include directory")
+        set(BZIP2_LIBRARIES "${ARCH_SPECIFIC_PATH}/libbz2.so" CACHE FILEPATH "BZip2 library")
+        
+        # Qt6 CMake module paths
+        set(Qt6_DIR "${ARCH_SPECIFIC_PATH}/cmake/Qt6" CACHE PATH "Qt6 CMake directory")
+        set(Qt6Core_DIR "${ARCH_SPECIFIC_PATH}/cmake/Qt6Core" CACHE PATH "Qt6Core CMake directory")
+        set(Qt6Gui_DIR "${ARCH_SPECIFIC_PATH}/cmake/Qt6Gui" CACHE PATH "Qt6Gui CMake directory")
+        set(Qt6Widgets_DIR "${ARCH_SPECIFIC_PATH}/cmake/Qt6Widgets" CACHE PATH "Qt6Widgets CMake directory")
+        set(Qt6Multimedia_DIR "${ARCH_SPECIFIC_PATH}/cmake/Qt6Multimedia" CACHE PATH "Qt6Multimedia CMake directory")
+        set(Qt6MultimediaWidgets_DIR "${ARCH_SPECIFIC_PATH}/cmake/Qt6MultimediaWidgets" CACHE PATH "Qt6MultimediaWidgets CMake directory")
+        
+        # Add architecture-specific paths to CMAKE search paths
+        list(INSERT CMAKE_LIBRARY_PATH 0 "${ARCH_SPECIFIC_PATH}")
+        list(INSERT CMAKE_INCLUDE_PATH 0 "/usr/include" "/usr/include/freetype2" "/usr/include/EGL" "/usr/include/GL" "/usr/include/vulkan")
+        
+        # Set additional CMake search paths for cross-compilation
+        list(INSERT CMAKE_FIND_ROOT_PATH 0 "/usr/${ARCH_LIB_DIR}")
+        set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY BOTH)
+        set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE BOTH)
+        
+        # Set pkg-config for cross-compilation
+        set(PKG_CONFIG_EXECUTABLE "/usr/bin/pkg-config" CACHE FILEPATH "pkg-config executable")
+        set(ENV{PKG_CONFIG_PATH} "/usr/lib/${ARCH_LIB_DIR}/pkgconfig:/usr/share/pkgconfig")
+        set(ENV{PKG_CONFIG_LIBDIR} "/usr/lib/${ARCH_LIB_DIR}/pkgconfig")
+        
+        message(STATUS "  Cross-compilation library paths configured for ${ARCH_LIB_DIR}")
+        message(STATUS "  PKG_CONFIG_PATH: $ENV{PKG_CONFIG_PATH}")
+        message(STATUS "  PKG_CONFIG_LIBDIR: $ENV{PKG_CONFIG_LIBDIR}")
+    endif()
+endif()
+
 find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Concurrent Gui Multimedia MultimediaWidgets Network SerialPort Svg)
 find_package(Qt${QT_VERSION_MAJOR} OPTIONAL_COMPONENTS Widgets)
 if(UNIX AND NOT APPLE)
     find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS DBus)
 endif()
+
+# Find OpenGL libraries (required by Qt6)
+if(CMAKE_CROSSCOMPILING)
+    message(STATUS "Cross-compilation: Looking for OpenGL libraries in ${ARCH_SPECIFIC_PATH}")
+    message(STATUS "  OPENGL_EGL_INCLUDE_DIR: ${OPENGL_EGL_INCLUDE_DIR}")
+    message(STATUS "  OPENGL_GLX_INCLUDE_DIR: ${OPENGL_GLX_INCLUDE_DIR}")
+    message(STATUS "  Vulkan_INCLUDE_DIR: ${Vulkan_INCLUDE_DIR}")
+endif()
+
+find_package(OpenGL REQUIRED COMPONENTS OpenGL)
+# Try to find additional OpenGL components (optional for better compatibility)
+find_package(OpenGL OPTIONAL_COMPONENTS GLX EGL)
 
 # Find X11 libraries
 find_package(X11 REQUIRED COMPONENTS Xrandr)
@@ -44,6 +160,15 @@ find_package(Fontconfig REQUIRED)
 find_package(BZip2 REQUIRED)
 
 # Use pkg-config to find Xrender
+# First ensure pkg-config is properly configured for cross-compilation
+if(CMAKE_CROSSCOMPILING)
+    # Make sure pkg-config executable is found
+    find_program(PKG_CONFIG_EXECUTABLE pkg-config REQUIRED)
+    if(PKG_CONFIG_EXECUTABLE)
+        message(STATUS "Found pkg-config: ${PKG_CONFIG_EXECUTABLE}")
+    endif()
+endif()
+
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(XRENDER REQUIRED xrender)
 
@@ -124,17 +249,39 @@ if(USE_GSTREAMER AND EXISTS "${GSTREAMER_INCLUDE_DIR}/gst/gst.h" AND EXISTS "${G
     # Set static GStreamer libraries (using system GLib)
     set(GSTREAMER_LIBRARIES)
     
-    # List of core GStreamer libraries to check
+    # List of core GStreamer libraries to check (with appropriate extension)
+    if(USE_FFMPEG_STATIC)
+        # Static build - look for .a files
+        set(GSTREAMER_LIB_EXT ".a")
+        set(GSTREAMER_PLUGIN_EXT ".a")
+        message(STATUS "Using static GStreamer core libraries")
+    else()
+        # Dynamic build - look for .so files
+        set(GSTREAMER_LIB_EXT ".so")
+        set(GSTREAMER_PLUGIN_EXT ".so")
+        message(STATUS "Using dynamic GStreamer core libraries")
+    endif()
+    
     set(GSTREAMER_CORE_LIB_CANDIDATES
-        "libgstreamer-1.0.a"
-        "libgstbase-1.0.a"
-        "libgstcontroller-1.0.a"
-        "libgstnet-1.0.a"
-        "libgstallocators-1.0.a"  # Contains dmabuf and fd allocator functions
+        "libgstreamer-1.0${GSTREAMER_LIB_EXT}"
+        "libgstbase-1.0${GSTREAMER_LIB_EXT}"
+        "libgstcontroller-1.0${GSTREAMER_LIB_EXT}"
+        "libgstnet-1.0${GSTREAMER_LIB_EXT}"
+        "libgstallocators-1.0${GSTREAMER_LIB_EXT}"  # Contains dmabuf and fd allocator functions
     )
     
     # Check for each core library and add if found
     foreach(LIB_NAME ${GSTREAMER_CORE_LIB_CANDIDATES})
+        # For dynamic builds in cross-compilation, check architecture-specific directory first
+        if(NOT USE_FFMPEG_STATIC AND CMAKE_CROSSCOMPILING AND ARCH_SPECIFIC_PATH)
+            set(LIB_PATH_ARCH_SPECIFIC "${ARCH_SPECIFIC_PATH}/${LIB_NAME}")
+            if(EXISTS "${LIB_PATH_ARCH_SPECIFIC}")
+                list(APPEND GSTREAMER_LIBRARIES "${LIB_PATH_ARCH_SPECIFIC}")
+                message(STATUS "Found GStreamer core library: ${LIB_PATH_ARCH_SPECIFIC}")
+                continue()
+            endif()
+        endif()
+        
         set(LIB_PATH "${GSTREAMER_ROOT_DIR}/lib/${LIB_NAME}")
         # Also check architecture-specific subdirectories
         set(LIB_PATH_ARCH "${GSTREAMER_ROOT_DIR}/lib/x86_64-linux-gnu/${LIB_NAME}")
@@ -156,23 +303,33 @@ if(USE_GSTREAMER AND EXISTS "${GSTREAMER_INCLUDE_DIR}/gst/gst.h" AND EXISTS "${G
     
     set(GSTREAMER_VIDEO_LIBRARIES)
     
-    # List of potential GStreamer video libraries to check
+    # List of potential GStreamer video libraries to check (with appropriate extension)
     set(GSTREAMER_VIDEO_LIB_CANDIDATES
-        "libgstvideo-1.0.a"
-        "libgstaudio-1.0.a"
-        "libgsttag-1.0.a"           # Contains tag utilities like gst_tag_list_to_vorbiscomment_buffer
-        "libgstpbutils-1.0.a"       # Playback utilities
-        "libgstapp-1.0.a"
-        "libgstgl-1.0.a"
-        "libgstriff-1.0.a"
-        "libgstrtp-1.0.a"
-        "libgstrtsp-1.0.a"
-        "libgstsdp-1.0.a"
-        "libgstcodecparsers-1.0.a"  # Codec parsers (may contain bit/byte readers)
+        "libgstvideo-1.0${GSTREAMER_LIB_EXT}"
+        "libgstaudio-1.0${GSTREAMER_LIB_EXT}"
+        "libgsttag-1.0${GSTREAMER_LIB_EXT}"           # Contains tag utilities like gst_tag_list_to_vorbiscomment_buffer
+        "libgstpbutils-1.0${GSTREAMER_LIB_EXT}"       # Playback utilities
+        "libgstapp-1.0${GSTREAMER_LIB_EXT}"
+        "libgstgl-1.0${GSTREAMER_LIB_EXT}"
+        "libgstriff-1.0${GSTREAMER_LIB_EXT}"
+        "libgstrtp-1.0${GSTREAMER_LIB_EXT}"
+        "libgstrtsp-1.0${GSTREAMER_LIB_EXT}"
+        "libgstsdp-1.0${GSTREAMER_LIB_EXT}"
+        "libgstcodecparsers-1.0${GSTREAMER_LIB_EXT}"  # Codec parsers (may contain bit/byte readers)
     )
     
     # Check for each library and add if found
     foreach(LIB_NAME ${GSTREAMER_VIDEO_LIB_CANDIDATES})
+        # For dynamic builds in cross-compilation, check architecture-specific directory first
+        if(NOT USE_FFMPEG_STATIC AND CMAKE_CROSSCOMPILING AND ARCH_SPECIFIC_PATH)
+            set(LIB_PATH_ARCH_SPECIFIC "${ARCH_SPECIFIC_PATH}/${LIB_NAME}")
+            if(EXISTS "${LIB_PATH_ARCH_SPECIFIC}")
+                list(APPEND GSTREAMER_VIDEO_LIBRARIES "${LIB_PATH_ARCH_SPECIFIC}")
+                message(STATUS "Found GStreamer video library: ${LIB_PATH_ARCH_SPECIFIC}")
+                continue()
+            endif()
+        endif()
+        
         set(LIB_PATH "${GSTREAMER_ROOT_DIR}/lib/${LIB_NAME}")
         # Also check architecture-specific subdirectories
         set(LIB_PATH_ARCH "${GSTREAMER_ROOT_DIR}/lib/x86_64-linux-gnu/${LIB_NAME}")
@@ -210,9 +367,9 @@ if(USE_GSTREAMER AND EXISTS "${GSTREAMER_INCLUDE_DIR}/gst/gst.h" AND EXISTS "${G
         foreach(PLUGIN_DIR ${PLUGIN_SEARCH_DIRS})
             if(EXISTS "${PLUGIN_DIR}")
                 message(STATUS "  - ${PLUGIN_DIR} (exists)")
-                file(GLOB AVAILABLE_PLUGINS "${PLUGIN_DIR}/lib*.a")
+                file(GLOB AVAILABLE_PLUGINS "${PLUGIN_DIR}/lib*${GSTREAMER_PLUGIN_EXT}")
                 if(AVAILABLE_PLUGINS)
-                    message(STATUS "    Found static plugins: ${AVAILABLE_PLUGINS}")
+                    message(STATUS "    Found plugins: ${AVAILABLE_PLUGINS}")
                 endif()
             else()
                 message(STATUS "  - ${PLUGIN_DIR} (not found)")
@@ -248,12 +405,12 @@ if(USE_GSTREAMER AND EXISTS "${GSTREAMER_INCLUDE_DIR}/gst/gst.h" AND EXISTS "${G
         foreach(PLUGIN ${PLUGIN_CANDIDATES})
             # Try multiple possible locations for GStreamer plugins
             set(PLUGIN_PATH_CANDIDATES
-                "${GSTREAMER_ROOT_DIR}/lib/gstreamer-1.0/lib${PLUGIN}.a"
-                "${GSTREAMER_ROOT_DIR}/lib/x86_64-linux-gnu/gstreamer-1.0/lib${PLUGIN}.a"
-                "${GSTREAMER_ROOT_DIR}/lib/aarch64-linux-gnu/gstreamer-1.0/lib${PLUGIN}.a"
-                "/usr/lib/x86_64-linux-gnu/gstreamer-1.0/lib${PLUGIN}.a"
-                "/usr/lib/aarch64-linux-gnu/gstreamer-1.0/lib${PLUGIN}.a"
-                "/usr/local/lib/gstreamer-1.0/lib${PLUGIN}.a"
+                "${GSTREAMER_ROOT_DIR}/lib/gstreamer-1.0/lib${PLUGIN}${GSTREAMER_PLUGIN_EXT}"
+                "${GSTREAMER_ROOT_DIR}/lib/x86_64-linux-gnu/gstreamer-1.0/lib${PLUGIN}${GSTREAMER_PLUGIN_EXT}"
+                "${GSTREAMER_ROOT_DIR}/lib/aarch64-linux-gnu/gstreamer-1.0/lib${PLUGIN}${GSTREAMER_PLUGIN_EXT}"
+                "/usr/lib/x86_64-linux-gnu/gstreamer-1.0/lib${PLUGIN}${GSTREAMER_PLUGIN_EXT}"
+                "/usr/lib/aarch64-linux-gnu/gstreamer-1.0/lib${PLUGIN}${GSTREAMER_PLUGIN_EXT}"
+                "/usr/local/lib/gstreamer-1.0/lib${PLUGIN}${GSTREAMER_PLUGIN_EXT}"
             )
             
             set(PLUGIN_FOUND FALSE)
@@ -371,12 +528,30 @@ else()
 endif()
 
 # Set FFmpeg include and library directories
-# Try to find FFmpeg in Qt6 installation first, then fallback to system locations
-set(FFMPEG_SEARCH_PATHS 
-    "/opt/Qt6"
-    "/usr/local"
-    "/usr"
-)
+# For dynamic builds, prioritize system libraries; for static builds, prefer Qt6 installation
+if(USE_FFMPEG_STATIC)
+    set(FFMPEG_SEARCH_PATHS 
+        "/opt/Qt6"
+        "/opt/Qt6-arm64"
+        "/usr/local"
+        "/usr"
+    )
+else()
+    # For dynamic builds, prioritize system packages
+    set(FFMPEG_SEARCH_PATHS 
+        "/usr"
+        "/usr/local"
+        "/opt/Qt6"
+    )
+endif()
+
+# For cross-compilation, prioritize architecture-specific paths
+if(CMAKE_CROSSCOMPILING AND ARCH_SPECIFIC_PATH)
+    list(INSERT FFMPEG_SEARCH_PATHS 0 "/usr")
+    message(STATUS "Cross-compilation: Adding architecture-specific FFmpeg search paths")
+    message(STATUS "Architecture-specific path: ${ARCH_SPECIFIC_PATH}")
+    message(STATUS "USE_FFMPEG_STATIC: ${USE_FFMPEG_STATIC}")
+endif()
 
 # Also check if FFMPEG_PREFIX was set via CMAKE_PREFIX_PATH or environment
 if(DEFINED ENV{FFMPEG_PREFIX})
@@ -392,30 +567,160 @@ endif()
 
 # Find FFmpeg installation
 foreach(SEARCH_PATH ${FFMPEG_SEARCH_PATHS})
-    if(EXISTS "${SEARCH_PATH}/lib/libavformat.a" AND EXISTS "${SEARCH_PATH}/include/libavformat/avformat.h")
-        set(FFMPEG_PREFIX "${SEARCH_PATH}")
-        message(STATUS "Found FFmpeg installation at: ${FFMPEG_PREFIX}")
+    # For cross-compilation, check architecture-specific directory first
+    if(CMAKE_CROSSCOMPILING AND ARCH_LIB_DIR)
+        set(CROSS_LIB_PATH "${SEARCH_PATH}/lib/${ARCH_LIB_DIR}")
+        # Check for both static and dynamic libraries
+        if(USE_FFMPEG_STATIC)
+            set(LIB_EXTENSION ".a")
+            set(LIB_NAME "libavformat.a")
+        else()
+            set(LIB_EXTENSION ".so")
+            set(LIB_NAME "libavformat.so")
+        endif()
+        
+        message(STATUS "Checking for FFmpeg in: ${CROSS_LIB_PATH}/${LIB_NAME}")
+        if(EXISTS "${CROSS_LIB_PATH}/${LIB_NAME}" AND EXISTS "${SEARCH_PATH}/include/libavformat/avformat.h")
+            set(FFMPEG_PREFIX "${SEARCH_PATH}")
+            set(FFMPEG_LIB_DIR "${CROSS_LIB_PATH}")
+            message(STATUS "Found FFmpeg installation at: ${FFMPEG_PREFIX} (cross-compilation)")
+            message(STATUS "FFmpeg libraries in: ${FFMPEG_LIB_DIR}")
+            message(STATUS "Using ${LIB_EXTENSION} libraries")
+            break()
+        endif()
+    endif()
+    
+    # Standard search - but also check architecture-specific subdirectories for dynamic builds
+    if(USE_FFMPEG_STATIC)
+        set(LIB_EXTENSION ".a")
+        set(LIB_NAME "libavformat.a")
+        set(LIB_PATHS "${SEARCH_PATH}/lib")
+    else()
+        set(LIB_EXTENSION ".so")
+        set(LIB_NAME "libavformat.so")
+        # For dynamic builds, check architecture-specific directories
+        set(LIB_PATHS 
+            "${SEARCH_PATH}/lib/x86_64-linux-gnu"
+            "${SEARCH_PATH}/lib/aarch64-linux-gnu"
+            "${SEARCH_PATH}/lib"
+        )
+    endif()
+    
+    # Check each potential library path
+    foreach(LIB_PATH ${LIB_PATHS})
+        message(STATUS "Checking for FFmpeg in: ${LIB_PATH}/${LIB_NAME}")
+        if(EXISTS "${LIB_PATH}/${LIB_NAME}" AND EXISTS "${SEARCH_PATH}/include/libavformat/avformat.h")
+            set(FFMPEG_PREFIX "${SEARCH_PATH}")
+            set(FFMPEG_LIB_DIR "${LIB_PATH}")
+            message(STATUS "Found FFmpeg installation at: ${FFMPEG_PREFIX}")
+            message(STATUS "FFmpeg libraries in: ${FFMPEG_LIB_DIR}")
+            message(STATUS "Using ${LIB_EXTENSION} libraries")
+            set(FFMPEG_FOUND TRUE)
+            break()
+        endif()
+    endforeach()
+    
+    if(FFMPEG_FOUND)
         break()
     endif()
 endforeach()
 
 # Set default if not found
-if(NOT FFMPEG_PREFIX)
-    set(FFMPEG_PREFIX "/usr/local")
-    message(WARNING "FFmpeg not found in standard locations, defaulting to: ${FFMPEG_PREFIX}")
+if(NOT FFMPEG_FOUND)
+    message(WARNING "FFmpeg not found in search paths. Attempting fallback detection...")
+    
+    if(CMAKE_CROSSCOMPILING AND ARCH_SPECIFIC_PATH)
+        # For cross-compilation, try the architecture-specific directory first
+        if(USE_FFMPEG_STATIC)
+            set(FALLBACK_LIB_PATH "${ARCH_SPECIFIC_PATH}/libavformat.a")
+        else()
+            set(FALLBACK_LIB_PATH "${ARCH_SPECIFIC_PATH}/libavformat.so")
+        endif()
+        
+        message(STATUS "Checking fallback path: ${FALLBACK_LIB_PATH}")
+        if(EXISTS "${FALLBACK_LIB_PATH}")
+            set(FFMPEG_PREFIX "/usr")
+            set(FFMPEG_LIB_DIR "${ARCH_SPECIFIC_PATH}")
+            set(FFMPEG_FOUND TRUE)
+            message(STATUS "Found FFmpeg libraries in architecture-specific directory: ${FFMPEG_LIB_DIR}")
+        endif()
+    endif()
+    
+    # Try pkg-config as final fallback for dynamic builds
+    if(NOT FFMPEG_FOUND AND NOT USE_FFMPEG_STATIC)
+        find_package(PkgConfig QUIET)
+        if(PKG_CONFIG_FOUND)
+            pkg_check_modules(PC_LIBAVFORMAT QUIET libavformat)
+            if(PC_LIBAVFORMAT_FOUND)
+                message(STATUS "Found FFmpeg via pkg-config")
+                set(FFMPEG_PREFIX "/usr")
+                set(FFMPEG_LIB_DIR "/usr/lib/x86_64-linux-gnu")
+                set(FFMPEG_FOUND TRUE)
+                # Override library paths with pkg-config results
+                set(FFMPEG_INCLUDE_DIRS ${PC_LIBAVFORMAT_INCLUDE_DIRS})
+                message(STATUS "Using pkg-config FFmpeg: ${PC_LIBAVFORMAT_LIBRARIES}")
+            endif()
+        endif()
+    endif()
+    
+    # Final fallback
+    if(NOT FFMPEG_FOUND)
+        if(USE_FFMPEG_STATIC)
+            set(FFMPEG_PREFIX "/usr/local")
+            set(FFMPEG_LIB_DIR "/usr/local/lib")
+        else()
+            # For dynamic builds, assume system packages
+            set(FFMPEG_PREFIX "/usr")
+            set(FFMPEG_LIB_DIR "/usr/lib/x86_64-linux-gnu")
+        endif()
+        message(WARNING "FFmpeg not found, using fallback location: ${FFMPEG_PREFIX}")
+        message(STATUS "Expected FFmpeg libraries in: ${FFMPEG_LIB_DIR}")
+    endif()
+else()
+    message(STATUS "FFmpeg configuration successful")
 endif()
 
 # Set include and library directories based on found prefix
 set(FFMPEG_INCLUDE_DIRS "${FFMPEG_PREFIX}/include")
-set(FFMPEG_LIBRARIES 
-    "${FFMPEG_PREFIX}/lib/libavdevice.a"
-    "${FFMPEG_PREFIX}/lib/libavfilter.a"
-    "${FFMPEG_PREFIX}/lib/libavformat.a"
-    "${FFMPEG_PREFIX}/lib/libavcodec.a"
-    "${FFMPEG_PREFIX}/lib/libswresample.a"
-    "${FFMPEG_PREFIX}/lib/libswscale.a"
-    "${FFMPEG_PREFIX}/lib/libavutil.a"
-)
+
+# Use architecture-specific library directory if set, otherwise use standard lib directory
+if(NOT FFMPEG_LIB_DIR)
+    set(FFMPEG_LIB_DIR "${FFMPEG_PREFIX}/lib")
+endif()
+
+# Set library extension based on static/dynamic preference
+if(USE_FFMPEG_STATIC)
+    set(FFMPEG_LIB_EXT ".a")
+else()
+    set(FFMPEG_LIB_EXT ".so")
+endif()
+
+# Set FFmpeg libraries - use pkg-config results if available, otherwise use manual paths
+if(PC_LIBAVFORMAT_FOUND AND NOT USE_FFMPEG_STATIC)
+    # Use pkg-config library names for dynamic linking
+    set(FFMPEG_LIBRARIES 
+        avdevice
+        avfilter
+        avformat
+        avcodec
+        swresample
+        swscale
+        avutil
+    )
+    message(STATUS "Using pkg-config FFmpeg libraries: ${FFMPEG_LIBRARIES}")
+else()
+    # Use full paths for static linking or when pkg-config not available
+    set(FFMPEG_LIBRARIES 
+        "${FFMPEG_LIB_DIR}/libavdevice${FFMPEG_LIB_EXT}"
+        "${FFMPEG_LIB_DIR}/libavfilter${FFMPEG_LIB_EXT}"
+        "${FFMPEG_LIB_DIR}/libavformat${FFMPEG_LIB_EXT}"
+        "${FFMPEG_LIB_DIR}/libavcodec${FFMPEG_LIB_EXT}"
+        "${FFMPEG_LIB_DIR}/libswresample${FFMPEG_LIB_EXT}"
+        "${FFMPEG_LIB_DIR}/libswscale${FFMPEG_LIB_EXT}"
+        "${FFMPEG_LIB_DIR}/libavutil${FFMPEG_LIB_EXT}"
+    )
+    message(STATUS "Using manual FFmpeg library paths: ${FFMPEG_LIBRARIES}")
+endif()
 
 # Add hardware acceleration libraries required by FFmpeg (optional)
 set(HWACCEL_LIBRARIES)
@@ -467,14 +772,22 @@ list(APPEND HWACCEL_LIBRARIES
 )
 
 # Check if FFmpeg is available and enable it
-if(EXISTS "${FFMPEG_PREFIX}/include/libavformat/avformat.h")
+set(FFMPEG_CHECK_FILE "${FFMPEG_PREFIX}/include/libavformat/avformat.h")
+if(USE_FFMPEG_STATIC)
+    set(FFMPEG_LIB_CHECK "${FFMPEG_LIB_DIR}/libavformat.a")
+else()
+    set(FFMPEG_LIB_CHECK "${FFMPEG_LIB_DIR}/libavformat.so")
+endif()
+
+if(EXISTS "${FFMPEG_CHECK_FILE}" AND EXISTS "${FFMPEG_LIB_CHECK}")
     message(STATUS "FFmpeg found - enabling FFmpeg backend")
     message(STATUS "FFmpeg include directory: ${FFMPEG_INCLUDE_DIRS}")
     message(STATUS "FFmpeg libraries: ${FFMPEG_LIBRARIES}")
     add_definitions(-DHAVE_FFMPEG)
 else()
     message(STATUS "FFmpeg not found - FFmpeg backend disabled")
-    message(STATUS "Checked path: ${FFMPEG_PREFIX}/include/libavformat/avformat.h")
+    message(STATUS "Checked header: ${FFMPEG_CHECK_FILE}")
+    message(STATUS "Checked library: ${FFMPEG_LIB_CHECK}")
 endif()
 
 # Include FFmpeg directories
@@ -575,7 +888,6 @@ target_link_libraries(openterfaceQT PRIVATE
     ${FONTCONFIG_LIBRARIES}
     ${XRENDER_LIBRARIES}
     ${BZIP2_LIBRARIES}
-    /opt/orc-static/lib/aarch64-linux-gnu/liborc-0.4.a  # Static ORC library
     ${EXTRA_LIBS}
 )
 
@@ -593,24 +905,53 @@ endif()
 # Add GStreamer libraries if available
 if(GSTREAMER_FOUND AND GSTREAMER_VIDEO_FOUND)
     if(EXISTS "${GSTREAMER_ROOT_DIR}/include/gstreamer-1.0/gst/gst.h")
-        # Add static ORC include path and library path
-        target_include_directories(openterfaceQT PRIVATE 
-            ${GSTREAMER_INCLUDE_DIRS}
-            /opt/orc-static/include/orc-0.4
-            ${GUDEV_INCLUDE_DIRS}
-            ${V4L2_INCLUDE_DIRS}
-        )
+        # Add appropriate ORC include and library paths based on build type
+        if(USE_FFMPEG_STATIC)
+            # Static build - use static ORC
+            target_include_directories(openterfaceQT PRIVATE 
+                ${GSTREAMER_INCLUDE_DIRS}
+                /opt/orc-static/include/orc-0.4
+                ${GUDEV_INCLUDE_DIRS}
+                ${V4L2_INCLUDE_DIRS}
+            )
+            
+            # Find the correct static ORC library path
+            set(ORC_LIB_CANDIDATES
+                "/opt/orc-static/lib/x86_64-linux-gnu/liborc-0.4.a"
+                "/opt/orc-static/lib/aarch64-linux-gnu/liborc-0.4.a"
+                "/opt/orc-static/lib/liborc-0.4.a"
+                "/usr/lib/x86_64-linux-gnu/liborc-0.4.a"
+                "/usr/lib/aarch64-linux-gnu/liborc-0.4.a"
+            )
+        else()
+            # Dynamic build - use system ORC
+            target_include_directories(openterfaceQT PRIVATE 
+                ${GSTREAMER_INCLUDE_DIRS}
+                ${GUDEV_INCLUDE_DIRS}
+                ${V4L2_INCLUDE_DIRS}
+            )
+            
+            # Find the correct dynamic ORC library path
+            if(CMAKE_CROSSCOMPILING AND ARCH_SPECIFIC_PATH)
+                set(ORC_LIB_CANDIDATES
+                    "${ARCH_SPECIFIC_PATH}/liborc-0.4.so"
+                    "/usr/lib/x86_64-linux-gnu/liborc-0.4.so"
+                    "/usr/lib/aarch64-linux-gnu/liborc-0.4.so"
+                    "/usr/lib/liborc-0.4.so"
+                    "/usr/local/lib/liborc-0.4.so"
+                )
+            else()
+                set(ORC_LIB_CANDIDATES
+                    "/usr/lib/x86_64-linux-gnu/liborc-0.4.so"
+                    "/usr/lib/aarch64-linux-gnu/liborc-0.4.so"
+                    "/usr/lib/liborc-0.4.so"
+                    "/usr/local/lib/liborc-0.4.so"
+                )
+            endif()
+        endif()
         
         # Static GStreamer linking - plugins will be loaded dynamically at runtime
         # Find the correct ORC library path
-        set(ORC_LIB_CANDIDATES
-            "/opt/orc-static/lib/x86_64-linux-gnu/liborc-0.4.a"
-            "/opt/orc-static/lib/aarch64-linux-gnu/liborc-0.4.a"
-            "/opt/orc-static/lib/liborc-0.4.a"
-            "/usr/lib/x86_64-linux-gnu/liborc-0.4.a"
-            "/usr/lib/aarch64-linux-gnu/liborc-0.4.a"
-        )
-        
         set(ORC_LIB "")
         foreach(ORC_PATH ${ORC_LIB_CANDIDATES})
             if(EXISTS "${ORC_PATH}")
