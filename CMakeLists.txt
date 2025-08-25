@@ -647,7 +647,7 @@ if(NOT FFMPEG_FOUND)
             set(FFMPEG_FOUND TRUE)
             break()
         endif()
-    endforeach()
+    endif()
     
     # Standard search - but also check architecture-specific subdirectories for dynamic builds
     if(USE_FFMPEG_STATIC)
