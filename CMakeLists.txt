@@ -42,6 +42,17 @@ if(CMAKE_CROSSCOMPILING)
         set(ARCH_LIB_DIR "aarch64-linux-gnu")
         set(ARCH_SPECIFIC_PATH "/usr/lib/aarch64-linux-gnu")
         message(STATUS "  Configuring for ARM64 architecture")
+        
+        # ARM64 compiler workaround: Reduce optimization to avoid segfaults
+        set(CMAKE_CXX_FLAGS_RELEASE "-O2 -DNDEBUG" CACHE STRING "Release flags" FORCE)
+        set(CMAKE_C_FLAGS_RELEASE "-O2 -DNDEBUG" CACHE STRING "Release flags" FORCE)
+        
+        # Additional stability flags for ARM64 cross-compilation
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-aggressive-loop-optimizations -fno-strict-overflow")
+        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fno-aggressive-loop-optimizations -fno-strict-overflow")
+        
+        message(STATUS "  Using -O2 optimization and stability flags for ARM64 to avoid compiler segfaults")
+        
     elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "^(x86_64|amd64)$")
         set(ARCH_LIB_DIR "x86_64-linux-gnu")
         set(ARCH_SPECIFIC_PATH "/usr/lib/x86_64-linux-gnu")
