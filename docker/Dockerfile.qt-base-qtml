@@ -1,0 +1,98 @@
+# Build Qt base components (qtbase + qtshadertools)
+ARG BASE_IMAGE=ghcr.io/techxartisanstudio/openterface-qtbuild-gstreamer:ubuntu-24.04-amd64
+ARG UBUNTU_VERSION=24.04
+ARG TARGETARCH=amd64
+FROM ${BASE_IMAGE}
+
+WORKDIR ${BUILD_DIR}
+
+# Define base modules to build
+ENV MODULES="qtbase qtshadertools"
+ENV DOWNLOAD_BASE_URL="https://download.qt.io/archive/qt/${QT_MAJOR_VERSION}/${QT_VERSION}/submodules"
+ENV CMAKE_COMMON_FLAGS="-Wno-dev -DCMAKE_POLICY_DEFAULT_CMP0177=NEW -DCMAKE_POLICY_DEFAULT_CMP0174=NEW"
+
+# Download and extract Qt base modules
+RUN for module in ${MODULES}; do \
+        echo "Downloading $module..."; \
+        curl -L -o "$module.zip" "${DOWNLOAD_BASE_URL}/$module-everywhere-src-${QT_VERSION}.zip" && \
+        unzip -q "$module.zip" && \
+        mv "$module-everywhere-src-${QT_VERSION}" "$module" && \
+        rm "$module.zip"; \
+    done
+
+# Build qtbase first (foundation)
+RUN echo "Building qtbase..." && \
+    cd ${BUILD_DIR}/qtbase && \
+    mkdir -p build && \
+    cd build && \
+    cmake -GNinja \
+        ${CMAKE_COMMON_FLAGS} \
+        -DCMAKE_INSTALL_PREFIX="${INSTALL_PREFIX}" \
+        -DBUILD_SHARED_LIBS=OFF \
+        -DFEATURE_dbus=ON \
+        -DFEATURE_sql=OFF \
+        -DFEATURE_testlib=OFF \
+        -DFEATURE_icu=OFF \
+        -DFEATURE_opengl=ON \
+        -DFEATURE_xlib=ON \
+        -DFEATURE_xcb_xlib=ON \
+        -DFEATURE_xkbcommon=ON \
+        -DFEATURE_xkbcommon_x11=ON \
+        -DTEST_xcb_syslibs=ON \
+        -DQT_FEATURE_clang=OFF \
+        -DFEATURE_clang=ON \
+        .. && \
+    ninja && \
+    ninja install
+
+# Build qtshadertools
+RUN echo "Building qtshadertools..." && \
+    cd ${BUILD_DIR}/qtshadertools && \
+    mkdir -p build && \
+    cd build && \
+    cmake -GNinja \
+        ${CMAKE_COMMON_FLAGS} \
+        -DCMAKE_INSTALL_PREFIX="${INSTALL_PREFIX}" \
+        -DBUILD_SHARED_LIBS=OFF \
+        -DCMAKE_EXE_LINKER_FLAGS="-lfontconfig -lfreetype" \
+        .. && \
+    ninja && \
+    ninja install
+
+# Create verification script for base components
+RUN mkdir -p ${INSTALL_PREFIX}/bin && \
+    echo '#!/bin/bash' > ${INSTALL_PREFIX}/bin/verify-qt-base.sh && \
+    echo 'echo "Qt Base Components Verification"' >> ${INSTALL_PREFIX}/bin/verify-qt-base.sh && \
+    echo 'echo "================================"' >> ${INSTALL_PREFIX}/bin/verify-qt-base.sh && \
+    echo 'QT_DIR="/opt/Qt6"' >> ${INSTALL_PREFIX}/bin/verify-qt-base.sh && \
+    echo 'echo "Qt version: $(${QT_DIR}/bin/qmake -query QT_VERSION)"' >> ${INSTALL_PREFIX}/bin/verify-qt-base.sh && \
+    echo 'echo "Qt installation prefix: $(${QT_DIR}/bin/qmake -query QT_INSTALL_PREFIX)"' >> ${INSTALL_PREFIX}/bin/verify-qt-base.sh && \
+    echo 'echo -e "\nChecking Qt base modules:"' >> ${INSTALL_PREFIX}/bin/verify-qt-base.sh && \
+    echo 'MODULES="Core Widgets Gui OpenGL"' >> ${INSTALL_PREFIX}/bin/verify-qt-base.sh && \
+    echo 'for module in $MODULES; do' >> ${INSTALL_PREFIX}/bin/verify-qt-base.sh && \
+    echo '    if [ -f "${QT_DIR}/lib/libQt6${module}.a" ]; then' >> ${INSTALL_PREFIX}/bin/verify-qt-base.sh && \
+    echo '        echo "✓ Qt${module} static library found"' >> ${INSTALL_PREFIX}/bin/verify-qt-base.sh && \
+    echo '    else' >> ${INSTALL_PREFIX}/bin/verify-qt-base.sh && \
+    echo '        echo "✗ Qt${module} static library NOT found"' >> ${INSTALL_PREFIX}/bin/verify-qt-base.sh && \
+    echo '    fi' >> ${INSTALL_PREFIX}/bin/verify-qt-base.sh && \
+    echo 'done' >> ${INSTALL_PREFIX}/bin/verify-qt-base.sh && \
+    echo 'echo -e "\nQt base components build ready!"' >> ${INSTALL_PREFIX}/bin/verify-qt-base.sh && \
+    chmod +x ${INSTALL_PREFIX}/bin/verify-qt-base.sh
+
+# Set Qt environment variables
+ENV PATH="${INSTALL_PREFIX}/bin:${PATH}"
+ENV QT_PLUGIN_PATH="${INSTALL_PREFIX}/plugins"
+ENV QML2_IMPORT_PATH="${INSTALL_PREFIX}/qml"
+ENV LD_LIBRARY_PATH="${INSTALL_PREFIX}/lib"
+ENV PKG_CONFIG_PATH="${INSTALL_PREFIX}/lib/pkgconfig:${PKG_CONFIG_PATH}"
+
+# Verify Qt base installation
+RUN ${INSTALL_PREFIX}/bin/verify-qt-base.sh
+
+# Clean up source files
+RUN cd ${BUILD_DIR} && \
+    for module in ${MODULES}; do \
+        rm -rf "$module"; \
+    done
+
+WORKDIR /workspace
