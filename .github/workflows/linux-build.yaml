@@ -158,6 +158,10 @@ jobs:
           
           echo "Building Openterface QT Application (Dynamic Qt) for ${{ matrix.arch }}..."
           
+          # Install additional dependencies if needed
+          echo "Installing additional dependencies..."
+          apt-get update -y && apt-get install -y libgudev-1.0-dev || echo "Failed to install libgudev-1.0-dev, continuing..."
+          
           # Verify Docker environment
           /opt/verify/verify-qt-dynamic.sh || echo "Verification script not found"
           
@@ -450,6 +454,10 @@ jobs:
           set -e
           
           echo "Building Openterface QT Application (Static Qt) for ${{ matrix.arch }}..."
+          
+          # Install additional dependencies if needed
+          echo "Installing additional dependencies..."
+          apt-get update -y && apt-get install -y libgudev-1.0-dev || echo "Failed to install libgudev-1.0-dev, continuing..."
           
           # Verify Qt6 static installation
           if [ ! -d '/opt/Qt6' ]; then
