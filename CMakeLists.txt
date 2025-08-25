@@ -625,63 +625,64 @@ if(NOT FFMPEG_FOUND)
     # Find FFmpeg installation
     message(STATUS "FFmpeg search paths: ${FFMPEG_SEARCH_PATHS}")
     foreach(SEARCH_PATH ${FFMPEG_SEARCH_PATHS})
-    # For cross-compilation, check architecture-specific directory first
-    if(CMAKE_CROSSCOMPILING AND ARCH_LIB_DIR)
-        set(CROSS_LIB_PATH "${SEARCH_PATH}/lib/${ARCH_LIB_DIR}")
-        # Check for both static and dynamic libraries
+        # For cross-compilation, check architecture-specific directory first
+        if(CMAKE_CROSSCOMPILING AND ARCH_LIB_DIR)
+            set(CROSS_LIB_PATH "${SEARCH_PATH}/lib/${ARCH_LIB_DIR}")
+            # Check for both static and dynamic libraries
+            if(USE_FFMPEG_STATIC)
+                set(LIB_EXTENSION ".a")
+                set(LIB_NAME "libavformat.a")
+            else()
+                set(LIB_EXTENSION ".so")
+                set(LIB_NAME "libavformat.so")
+            endif()
+            
+            message(STATUS "Checking for FFmpeg in: ${CROSS_LIB_PATH}/${LIB_NAME}")
+            if(EXISTS "${CROSS_LIB_PATH}/${LIB_NAME}" AND EXISTS "${SEARCH_PATH}/include/libavformat/avformat.h")
+                set(FFMPEG_PREFIX "${SEARCH_PATH}")
+                set(FFMPEG_LIB_DIR "${CROSS_LIB_PATH}")
+                message(STATUS "Found FFmpeg installation at: ${FFMPEG_PREFIX} (cross-compilation)")
+                message(STATUS "FFmpeg libraries in: ${FFMPEG_LIB_DIR}")
+                message(STATUS "Using ${LIB_EXTENSION} libraries")
+                set(FFMPEG_FOUND TRUE)
+                break()
+            endif()
+        endif()
+        
+        # Standard search - but also check architecture-specific subdirectories for dynamic builds
         if(USE_FFMPEG_STATIC)
             set(LIB_EXTENSION ".a")
             set(LIB_NAME "libavformat.a")
+            set(LIB_PATHS "${SEARCH_PATH}/lib")
         else()
             set(LIB_EXTENSION ".so")
             set(LIB_NAME "libavformat.so")
+            # For dynamic builds, check architecture-specific directories
+            set(LIB_PATHS 
+                "${SEARCH_PATH}/lib/x86_64-linux-gnu"
+                "${SEARCH_PATH}/lib/aarch64-linux-gnu"
+                "${SEARCH_PATH}/lib"
+            )
         endif()
         
-        message(STATUS "Checking for FFmpeg in: ${CROSS_LIB_PATH}/${LIB_NAME}")
-        if(EXISTS "${CROSS_LIB_PATH}/${LIB_NAME}" AND EXISTS "${SEARCH_PATH}/include/libavformat/avformat.h")
-            set(FFMPEG_PREFIX "${SEARCH_PATH}")
-            set(FFMPEG_LIB_DIR "${CROSS_LIB_PATH}")
-            message(STATUS "Found FFmpeg installation at: ${FFMPEG_PREFIX} (cross-compilation)")
-            message(STATUS "FFmpeg libraries in: ${FFMPEG_LIB_DIR}")
-            message(STATUS "Using ${LIB_EXTENSION} libraries")
-            set(FFMPEG_FOUND TRUE)
-            break()
-        endif()
-    endif()
-    
-    # Standard search - but also check architecture-specific subdirectories for dynamic builds
-    if(USE_FFMPEG_STATIC)
-        set(LIB_EXTENSION ".a")
-        set(LIB_NAME "libavformat.a")
-        set(LIB_PATHS "${SEARCH_PATH}/lib")
-    else()
-        set(LIB_EXTENSION ".so")
-        set(LIB_NAME "libavformat.so")
-        # For dynamic builds, check architecture-specific directories
-        set(LIB_PATHS 
-            "${SEARCH_PATH}/lib/x86_64-linux-gnu"
-            "${SEARCH_PATH}/lib/aarch64-linux-gnu"
-            "${SEARCH_PATH}/lib"
-        )
-    endif()
-    
-    # Check each potential library path
-    foreach(LIB_PATH ${LIB_PATHS})
-        message(STATUS "Checking for FFmpeg in: ${LIB_PATH}/${LIB_NAME}")
-        if(EXISTS "${LIB_PATH}/${LIB_NAME}" AND EXISTS "${SEARCH_PATH}/include/libavformat/avformat.h")
-            set(FFMPEG_PREFIX "${SEARCH_PATH}")
-            set(FFMPEG_LIB_DIR "${LIB_PATH}")
-            message(STATUS "Found FFmpeg installation at: ${FFMPEG_PREFIX}")
-            message(STATUS "FFmpeg libraries in: ${FFMPEG_LIB_DIR}")
-            message(STATUS "Using ${LIB_EXTENSION} libraries")
-            set(FFMPEG_FOUND TRUE)
+        # Check each potential library path
+        foreach(LIB_PATH ${LIB_PATHS})
+            message(STATUS "Checking for FFmpeg in: ${LIB_PATH}/${LIB_NAME}")
+            if(EXISTS "${LIB_PATH}/${LIB_NAME}" AND EXISTS "${SEARCH_PATH}/include/libavformat/avformat.h")
+                set(FFMPEG_PREFIX "${SEARCH_PATH}")
+                set(FFMPEG_LIB_DIR "${LIB_PATH}")
+                message(STATUS "Found FFmpeg installation at: ${FFMPEG_PREFIX}")
+                message(STATUS "FFmpeg libraries in: ${FFMPEG_LIB_DIR}")
+                message(STATUS "Using ${LIB_EXTENSION} libraries")
+                set(FFMPEG_FOUND TRUE)
+                break()
+            endif()
+        endforeach()
+        
+        if(FFMPEG_FOUND)
             break()
         endif()
     endforeach()
-    
-    if(FFMPEG_FOUND)
-        break()
-    endif()
 endif()
 
 # Set default if not found
