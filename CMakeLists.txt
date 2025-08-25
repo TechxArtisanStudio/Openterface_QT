@@ -7,6 +7,9 @@ set(CMAKE_AUTOUIC ON)
 # Option to control static linking of FFmpeg
 option(USE_FFMPEG_STATIC "Use static FFmpeg libraries" ON)
 
+# Initialize FFmpeg configuration variables
+set(FFMPEG_PKG_CONFIG FALSE)
+
 # Option to control hardware acceleration libraries
 option(USE_HWACCEL "Enable hardware acceleration libraries (VA-API, VDPAU)" ON)
 
@@ -650,16 +653,39 @@ if(NOT FFMPEG_FOUND)
     if(NOT FFMPEG_FOUND AND NOT USE_FFMPEG_STATIC)
         find_package(PkgConfig QUIET)
         if(PKG_CONFIG_FOUND)
+            message(STATUS "pkg-config found, checking for FFmpeg...")
             pkg_check_modules(PC_LIBAVFORMAT QUIET libavformat)
             if(PC_LIBAVFORMAT_FOUND)
                 message(STATUS "Found FFmpeg via pkg-config")
+                message(STATUS "pkg-config FFmpeg version: ${PC_LIBAVFORMAT_VERSION}")
+                message(STATUS "pkg-config FFmpeg include dirs: ${PC_LIBAVFORMAT_INCLUDE_DIRS}")
+                message(STATUS "pkg-config FFmpeg library dirs: ${PC_LIBAVFORMAT_LIBRARY_DIRS}")
+                message(STATUS "pkg-config FFmpeg libraries: ${PC_LIBAVFORMAT_LIBRARIES}")
+                
                 set(FFMPEG_PREFIX "/usr")
-                set(FFMPEG_LIB_DIR "/usr/lib/x86_64-linux-gnu")
+                # Use pkg-config library directories if available, otherwise fallback
+                if(PC_LIBAVFORMAT_LIBRARY_DIRS)
+                    list(GET PC_LIBAVFORMAT_LIBRARY_DIRS 0 FFMPEG_LIB_DIR)
+                    message(STATUS "Using pkg-config FFmpeg library directory: ${FFMPEG_LIB_DIR}")
+                else()
+                    # Architecture-aware fallback for library directory
+                    if(CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64|arm64")
+                        set(FFMPEG_LIB_DIR "/usr/lib/aarch64-linux-gnu")
+                    else()
+                        set(FFMPEG_LIB_DIR "/usr/lib/x86_64-linux-gnu")
+                    endif()
+                    message(STATUS "Using fallback FFmpeg library directory: ${FFMPEG_LIB_DIR}")
+                endif()
                 set(FFMPEG_FOUND TRUE)
+                set(FFMPEG_PKG_CONFIG TRUE)  # Flag to indicate we used pkg-config
                 # Override library paths with pkg-config results
                 set(FFMPEG_INCLUDE_DIRS ${PC_LIBAVFORMAT_INCLUDE_DIRS})
                 message(STATUS "Using pkg-config FFmpeg: ${PC_LIBAVFORMAT_LIBRARIES}")
+            else()
+                message(STATUS "FFmpeg not found via pkg-config")
             endif()
+        else()
+            message(STATUS "pkg-config not found")
         endif()
     endif()
     
@@ -779,8 +805,15 @@ else()
     set(FFMPEG_LIB_CHECK "${FFMPEG_LIB_DIR}/libavformat.so")
 endif()
 
-if(EXISTS "${FFMPEG_CHECK_FILE}" AND EXISTS "${FFMPEG_LIB_CHECK}")
+# If we found FFmpeg via pkg-config, trust it and skip file checks
+# Otherwise, verify files exist manually
+if(FFMPEG_PKG_CONFIG OR (EXISTS "${FFMPEG_CHECK_FILE}" AND EXISTS "${FFMPEG_LIB_CHECK}"))
     message(STATUS "FFmpeg found - enabling FFmpeg backend")
+    if(FFMPEG_PKG_CONFIG)
+        message(STATUS "FFmpeg verified via pkg-config")
+    else()
+        message(STATUS "FFmpeg verified via file system check")
+    endif()
     message(STATUS "FFmpeg include directory: ${FFMPEG_INCLUDE_DIRS}")
     message(STATUS "FFmpeg libraries: ${FFMPEG_LIBRARIES}")
     add_definitions(-DHAVE_FFMPEG)
