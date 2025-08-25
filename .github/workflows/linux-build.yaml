@@ -461,7 +461,7 @@ jobs:
           echo "Installing additional dependencies..."
           apt-get update -y
           apt-get install -y libgudev-1.0-dev || { echo "Error: libgudev-1.0-dev not found"; exit 1; }
-          apt-get install -y libv4l2-dev || { echo "Error: libv4l2-dev not found"; exit 1; }
+          apt-get install -y libv4l2-dev:arm64 || { echo "Error: libv4l2-dev not found"; exit 1; }
 
           # Verify Qt6 static installation
           if [ ! -d '/opt/Qt6' ]; then
