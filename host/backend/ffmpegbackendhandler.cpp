@@ -359,8 +359,24 @@ void FFmpegBackendHandler::startCamera(QCamera* camera)
         int framerate = m_currentFramerate > 0 ? m_currentFramerate : 30;
         
         if (!startDirectCapture(m_currentDevice, resolution, framerate)) {
-            qCWarning(log_ffmpeg_backend) << "Failed to start FFmpeg direct capture, not falling back to Qt camera";
-            emit captureError("Failed to start FFmpeg video capture");
+            qCWarning(log_ffmpeg_backend) << "Failed to start FFmpeg direct capture - attempting Qt camera fallback";
+            
+            // Check if this is due to lack of device support in static FFmpeg
+            if (isDeviceSupportMissing()) {
+                qCWarning(log_ffmpeg_backend) << "FFmpeg device support missing - falling back to Qt camera";
+                
+                // Start Qt camera as fallback
+                if (camera) {
+                    qCDebug(log_ffmpeg_backend) << "Starting Qt camera as fallback";
+                    camera->start();
+                    QThread::msleep(100);
+                } else {
+                    qCWarning(log_ffmpeg_backend) << "No Qt camera available for fallback";
+                    emit captureError("FFmpeg device support missing and no Qt camera fallback available");
+                }
+            } else {
+                emit captureError("Failed to start FFmpeg video capture");
+            }
         } else {
             qCDebug(log_ffmpeg_backend) << "FFmpeg direct capture started successfully";
         }
@@ -543,7 +559,7 @@ bool FFmpegBackendHandler::openInputDevice(const QString& devicePath, const QSiz
     int framerateResult = system(framerateCommand.toUtf8().constData());
     
     // RESPONSIVENESS: Try to configure minimal buffering for lower latency
-    QString bufferCommand = QString("v4l2-ctl --device=%1 --set-ctrl=compression_quality=50")
+    QString bufferCommand = QString("v4l2-ctl --device=%1")
                            .arg(devicePath);
     system(bufferCommand.toUtf8().constData()); // Don't check result - optional optimization
     
@@ -563,101 +579,200 @@ bool FFmpegBackendHandler::openInputDevice(const QString& devicePath, const QSiz
         return false;
     }
     
-    // Find input format (V4L2)
+    // Find input format (V4L2) - try multiple format names
     const AVInputFormat* inputFormat = av_find_input_format("v4l2");
     if (!inputFormat) {
-        qCCritical(log_ffmpeg_backend) << "V4L2 input format not found";
-        return false;
+        inputFormat = av_find_input_format("video4linux2");
     }
-    
-    // RESPONSIVENESS: Set low-latency input options for MJPEG
-    AVDictionary* options = nullptr;
-    av_dict_set(&options, "video_size", QString("%1x%2").arg(resolution.width()).arg(resolution.height()).toUtf8().constData(), 0);
-    av_dict_set(&options, "framerate", QString::number(framerate).toUtf8().constData(), 0);
-    av_dict_set(&options, "input_format", "mjpeg", 0); // Should work due to pre-configuration
-    
-    // CRITICAL LOW-LATENCY OPTIMIZATIONS for KVM responsiveness:
-    av_dict_set(&options, "fflags", "nobuffer", 0);        // Disable input buffering
-    av_dict_set(&options, "flags", "low_delay", 0);        // Enable low delay mode  
-    av_dict_set(&options, "framedrop", "1", 0);            // Allow frame dropping
-    av_dict_set(&options, "use_wallclock_as_timestamps", "1", 0); // Use wall clock for timestamps
-    
-    qCDebug(log_ffmpeg_backend) << "Trying low-latency MJPEG format with resolution" << resolution << "and framerate" << framerate;
-    
-    // Open input
-    int ret = avformat_open_input(&m_formatContext, devicePath.toUtf8().constData(), ffmpeg_cast(inputFormat), &options);
-    av_dict_free(&options);
-    
-    // If MJPEG fails, try YUYV422
-    if (ret < 0) {
-        char errbuf[AV_ERROR_MAX_STRING_SIZE];
-        av_strerror(ret, errbuf, AV_ERROR_MAX_STRING_SIZE);
-        qCWarning(log_ffmpeg_backend) << "MJPEG format failed:" << QString::fromUtf8(errbuf) << "- trying YUYV422";
+    if (!inputFormat) {
+        qCCritical(log_ffmpeg_backend) << "V4L2 input format not found (tried 'v4l2' and 'video4linux2')";
         
-        // Reset format context
-        if (m_formatContext) {
-            avformat_close_input(&m_formatContext);
+        // List available input formats for debugging
+        qCDebug(log_ffmpeg_backend) << "Available input formats:";
+        const AVInputFormat* fmt = nullptr;
+        void* opaque = nullptr;
+        int formatCount = 0;
+        while ((fmt = av_demuxer_iterate(&opaque))) {
+            if (fmt->name) {
+                formatCount++;
+                if (strstr(fmt->name, "v4l") || strstr(fmt->name, "video") || strstr(fmt->name, "device")) {
+                    qCDebug(log_ffmpeg_backend) << "  -" << fmt->name << ":" << (fmt->long_name ? fmt->long_name : "");
+                }
+            }
         }
-        m_formatContext = avformat_alloc_context();
+        qCDebug(log_ffmpeg_backend) << "Total input formats available:" << formatCount;
         
-        // Try YUYV422 format
-        AVDictionary* yuvOptions = nullptr;
-        av_dict_set(&yuvOptions, "video_size", QString("%1x%2").arg(resolution.width()).arg(resolution.height()).toUtf8().constData(), 0);
-        av_dict_set(&yuvOptions, "framerate", QString::number(framerate).toUtf8().constData(), 0);
-        av_dict_set(&yuvOptions, "input_format", "yuyv422", 0);
-        
-    ret = avformat_open_input(&m_formatContext, devicePath.toUtf8().constData(), ffmpeg_cast(inputFormat), &yuvOptions);
-        av_dict_free(&yuvOptions);
-    }
-    
-    // If that fails, try without specifying input format (auto-detect)
-    if (ret < 0) {
-        char errbuf[AV_ERROR_MAX_STRING_SIZE];
-        av_strerror(ret, errbuf, AV_ERROR_MAX_STRING_SIZE);
-        qCWarning(log_ffmpeg_backend) << "YUYV422 format failed:" << QString::fromUtf8(errbuf) << "- trying auto-detection";
-        
-        // Reset format context
-        if (m_formatContext) {
-            avformat_close_input(&m_formatContext);
+        if (formatCount == 0) {
+            qCCritical(log_ffmpeg_backend) << "CRITICAL: Static FFmpeg build has no input formats available!";
+            qCCritical(log_ffmpeg_backend) << "This static FFmpeg build was compiled without device support (libavdevice).";
+            qCCritical(log_ffmpeg_backend) << "Solutions:";
+            qCCritical(log_ffmpeg_backend) << "1. Rebuild FFmpeg with --enable-indev=v4l2 --enable-libv4l2";
+            qCCritical(log_ffmpeg_backend) << "2. Use system FFmpeg instead of static build";
+            qCCritical(log_ffmpeg_backend) << "3. Enable Qt camera backend as fallback";
+            return false;
         }
-        m_formatContext = avformat_alloc_context();
         
-        // Try again without input_format specification (auto-detect)
-        AVDictionary* fallbackOptions = nullptr;
-        av_dict_set(&fallbackOptions, "video_size", QString("%1x%2").arg(resolution.width()).arg(resolution.height()).toUtf8().constData(), 0);
-        av_dict_set(&fallbackOptions, "framerate", QString::number(framerate).toUtf8().constData(), 0);
+        // Try to proceed without specifying input format (let FFmpeg auto-detect)
+        qCWarning(log_ffmpeg_backend) << "Attempting to open device without specifying input format...";
         
-    ret = avformat_open_input(&m_formatContext, devicePath.toUtf8().constData(), ffmpeg_cast(inputFormat), &fallbackOptions);
-        av_dict_free(&fallbackOptions);
-    }
-    
-    // If everything fails, try minimal options
-    if (ret < 0) {
-        char errbuf[AV_ERROR_MAX_STRING_SIZE];
-        av_strerror(ret, errbuf, AV_ERROR_MAX_STRING_SIZE);
-        qCWarning(log_ffmpeg_backend) << "Auto-detection failed:" << QString::fromUtf8(errbuf) << "- trying minimal options";
+        // Try to proceed without specifying input format (let FFmpeg auto-detect)
+        qCWarning(log_ffmpeg_backend) << "V4L2 format not available - trying device opening without format specification";
         
-        // Reset format context
-        if (m_formatContext) {
-            avformat_close_input(&m_formatContext);
+        // RESPONSIVENESS: Set low-latency input options for MJPEG (without format specification)
+        AVDictionary* options = nullptr;
+        av_dict_set(&options, "video_size", QString("%1x%2").arg(resolution.width()).arg(resolution.height()).toUtf8().constData(), 0);
+        av_dict_set(&options, "framerate", QString::number(framerate).toUtf8().constData(), 0);
+        av_dict_set(&options, "input_format", "mjpeg", 0); // Should work due to pre-configuration
+        
+        // CRITICAL LOW-LATENCY OPTIMIZATIONS for KVM responsiveness:
+        av_dict_set(&options, "fflags", "nobuffer", 0);        // Disable input buffering
+        av_dict_set(&options, "flags", "low_delay", 0);        // Enable low delay mode  
+        av_dict_set(&options, "framedrop", "1", 0);            // Allow frame dropping
+        av_dict_set(&options, "use_wallclock_as_timestamps", "1", 0); // Use wall clock for timestamps
+        
+        qCDebug(log_ffmpeg_backend) << "Trying low-latency MJPEG format without V4L2 specification";
+        
+        // Open input WITHOUT format specification (let FFmpeg auto-detect)
+        int ret = avformat_open_input(&m_formatContext, devicePath.toUtf8().constData(), nullptr, &options);
+        av_dict_free(&options);
+        
+        // Handle the result
+        if (ret < 0) {
+            char errbuf[AV_ERROR_MAX_STRING_SIZE];
+            av_strerror(ret, errbuf, AV_ERROR_MAX_STRING_SIZE);
+            qCWarning(log_ffmpeg_backend) << "Auto-detection with MJPEG failed:" << QString::fromUtf8(errbuf) << "- trying YUYV422";
+            
+            // Reset format context
+            if (m_formatContext) {
+                avformat_close_input(&m_formatContext);
+            }
+            m_formatContext = avformat_alloc_context();
+            
+            // Try YUYV422 format without V4L2 specification
+            AVDictionary* yuvOptions = nullptr;
+            av_dict_set(&yuvOptions, "video_size", QString("%1x%2").arg(resolution.width()).arg(resolution.height()).toUtf8().constData(), 0);
+            av_dict_set(&yuvOptions, "framerate", QString::number(framerate).toUtf8().constData(), 0);
+            av_dict_set(&yuvOptions, "input_format", "yuyv422", 0);
+            
+            ret = avformat_open_input(&m_formatContext, devicePath.toUtf8().constData(), nullptr, &yuvOptions);
+            av_dict_free(&yuvOptions);
+            
+            // If that also fails, try with minimal options
+            if (ret < 0) {
+                char errbuf2[AV_ERROR_MAX_STRING_SIZE];
+                av_strerror(ret, errbuf2, AV_ERROR_MAX_STRING_SIZE);
+                qCWarning(log_ffmpeg_backend) << "YUYV422 auto-detection failed:" << QString::fromUtf8(errbuf2) << "- trying minimal options";
+                
+                // Reset format context
+                if (m_formatContext) {
+                    avformat_close_input(&m_formatContext);
+                }
+                m_formatContext = avformat_alloc_context();
+                
+                // Try with minimal options (just the device path)
+                ret = avformat_open_input(&m_formatContext, devicePath.toUtf8().constData(), nullptr, nullptr);
+            }
         }
-        m_formatContext = avformat_alloc_context();
         
-        // Try with minimal options (just the device path)
-    ret = avformat_open_input(&m_formatContext, devicePath.toUtf8().constData(), ffmpeg_cast(inputFormat), nullptr);
-    }
-    
-    if (ret < 0) {
-        char errbuf[AV_ERROR_MAX_STRING_SIZE];
-        av_strerror(ret, errbuf, AV_ERROR_MAX_STRING_SIZE);
-        qCCritical(log_ffmpeg_backend) << "Failed to open input device with all attempts:" << QString::fromUtf8(errbuf);
-        return false;
+        if (ret < 0) {
+            char errbuf[AV_ERROR_MAX_STRING_SIZE];
+            av_strerror(ret, errbuf, AV_ERROR_MAX_STRING_SIZE);
+            qCCritical(log_ffmpeg_backend) << "Failed to open device with auto-detection:" << QString::fromUtf8(errbuf);
+            return false;
+        }
+        
+        qCDebug(log_ffmpeg_backend) << "Device opened successfully with auto-detection";
+    } else {
+        // V4L2 format is available, use it with normal approach
+        // RESPONSIVENESS: Set low-latency input options for MJPEG
+        AVDictionary* options = nullptr;
+        av_dict_set(&options, "video_size", QString("%1x%2").arg(resolution.width()).arg(resolution.height()).toUtf8().constData(), 0);
+        av_dict_set(&options, "framerate", QString::number(framerate).toUtf8().constData(), 0);
+        av_dict_set(&options, "input_format", "mjpeg", 0); // Should work due to pre-configuration
+        
+        // CRITICAL LOW-LATENCY OPTIMIZATIONS for KVM responsiveness:
+        av_dict_set(&options, "fflags", "nobuffer", 0);        // Disable input buffering
+        av_dict_set(&options, "flags", "low_delay", 0);        // Enable low delay mode  
+        av_dict_set(&options, "framedrop", "1", 0);            // Allow frame dropping
+        av_dict_set(&options, "use_wallclock_as_timestamps", "1", 0); // Use wall clock for timestamps
+        
+        qCDebug(log_ffmpeg_backend) << "Trying low-latency MJPEG format with resolution" << resolution << "and framerate" << framerate;
+        
+        // Open input
+        int ret = avformat_open_input(&m_formatContext, devicePath.toUtf8().constData(), ffmpeg_cast(inputFormat), &options);
+        av_dict_free(&options);
+        
+        // If MJPEG fails, try YUYV422
+        if (ret < 0) {
+            char errbuf[AV_ERROR_MAX_STRING_SIZE];
+            av_strerror(ret, errbuf, AV_ERROR_MAX_STRING_SIZE);
+            qCWarning(log_ffmpeg_backend) << "MJPEG format failed:" << QString::fromUtf8(errbuf) << "- trying YUYV422";
+            
+            // Reset format context
+            if (m_formatContext) {
+                avformat_close_input(&m_formatContext);
+            }
+            m_formatContext = avformat_alloc_context();
+            
+            // Try YUYV422 format
+            AVDictionary* yuvOptions = nullptr;
+            av_dict_set(&yuvOptions, "video_size", QString("%1x%2").arg(resolution.width()).arg(resolution.height()).toUtf8().constData(), 0);
+            av_dict_set(&yuvOptions, "framerate", QString::number(framerate).toUtf8().constData(), 0);
+            av_dict_set(&yuvOptions, "input_format", "yuyv422", 0);
+            
+            ret = avformat_open_input(&m_formatContext, devicePath.toUtf8().constData(), ffmpeg_cast(inputFormat), &yuvOptions);
+            av_dict_free(&yuvOptions);
+        }
+        
+        // If that fails, try without specifying input format (auto-detect)
+        if (ret < 0) {
+            char errbuf[AV_ERROR_MAX_STRING_SIZE];
+            av_strerror(ret, errbuf, AV_ERROR_MAX_STRING_SIZE);
+            qCWarning(log_ffmpeg_backend) << "YUYV422 format failed:" << QString::fromUtf8(errbuf) << "- trying auto-detection";
+            
+            // Reset format context
+            if (m_formatContext) {
+                avformat_close_input(&m_formatContext);
+            }
+            m_formatContext = avformat_alloc_context();
+            
+            // Try again without input_format specification (auto-detect)
+            AVDictionary* fallbackOptions = nullptr;
+            av_dict_set(&fallbackOptions, "video_size", QString("%1x%2").arg(resolution.width()).arg(resolution.height()).toUtf8().constData(), 0);
+            av_dict_set(&fallbackOptions, "framerate", QString::number(framerate).toUtf8().constData(), 0);
+            
+            ret = avformat_open_input(&m_formatContext, devicePath.toUtf8().constData(), ffmpeg_cast(inputFormat), &fallbackOptions);
+            av_dict_free(&fallbackOptions);
+        }
+        
+        // If everything fails, try minimal options
+        if (ret < 0) {
+            char errbuf[AV_ERROR_MAX_STRING_SIZE];
+            av_strerror(ret, errbuf, AV_ERROR_MAX_STRING_SIZE);
+            qCWarning(log_ffmpeg_backend) << "Auto-detection failed:" << QString::fromUtf8(errbuf) << "- trying minimal options";
+            
+            // Reset format context
+            if (m_formatContext) {
+                avformat_close_input(&m_formatContext);
+            }
+            m_formatContext = avformat_alloc_context();
+            
+            // Try with minimal options (just the device path)
+            ret = avformat_open_input(&m_formatContext, devicePath.toUtf8().constData(), ffmpeg_cast(inputFormat), nullptr);
+        }
+        
+        if (ret < 0) {
+            char errbuf[AV_ERROR_MAX_STRING_SIZE];
+            av_strerror(ret, errbuf, AV_ERROR_MAX_STRING_SIZE);
+            qCCritical(log_ffmpeg_backend) << "Failed to open input device with all attempts:" << QString::fromUtf8(errbuf);
+            return false;
+        }
     }
     
     qCDebug(log_ffmpeg_backend) << "Successfully opened device" << devicePath;
     
     // Find stream info
-    ret = avformat_find_stream_info(m_formatContext, nullptr);
+    int ret = avformat_find_stream_info(m_formatContext, nullptr);
     if (ret < 0) {
         char errbuf[AV_ERROR_MAX_STRING_SIZE];
         av_strerror(ret, errbuf, AV_ERROR_MAX_STRING_SIZE);
@@ -1250,6 +1365,38 @@ void FFmpegBackendHandler::setVideoOutput(VideoPane* videoPane)
         qCDebug(log_ffmpeg_backend) << "Enabled direct FFmpeg mode in VideoPane";
     }
 }
+
+#ifdef HAVE_FFMPEG
+bool FFmpegBackendHandler::isDeviceSupportMissing() const
+{
+    // Check if FFmpeg was compiled without device support
+    // by counting available input formats
+    int formatCount = 0;
+    const AVInputFormat* fmt = nullptr;
+    void* opaque = nullptr;
+    
+    while ((fmt = av_demuxer_iterate(&opaque))) {
+        if (fmt->name) {
+            formatCount++;
+            // If we find any device-related formats, device support exists
+            if (strstr(fmt->name, "v4l") || strstr(fmt->name, "video") || 
+                strstr(fmt->name, "device") || strstr(fmt->name, "dshow")) {
+                return false; // Device support is available
+            }
+        }
+    }
+    
+    // If no formats at all, or no device-related formats, device support is missing
+    qCDebug(log_ffmpeg_backend) << "Device support check: total formats=" << formatCount;
+    return formatCount == 0 || formatCount < 10; // Static builds typically have very few formats
+}
+#else
+bool FFmpegBackendHandler::isDeviceSupportMissing() const
+{
+    return true; // Always missing when FFmpeg is not available
+}
+#endif
+
     
 
 

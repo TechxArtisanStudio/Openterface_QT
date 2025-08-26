@@ -9,6 +9,7 @@ QT_MODULES=${QT_MODULES:-"qtbase qtdeclarative qtsvg qtshadertools qtmultimedia 
 QT_TARGET_DIR=${QT_TARGET_DIR:-"/opt/Qt6-arm64"}
 FFMPEG_VERSION="6.1.1"
 GSTREAMER_VERSION="1.22.11"
+LIBUSB_VERSION="1.0.26"
 DOWNLOAD_BASE_URL="https://download.qt.io/archive/qt/${QT_MAJOR_VERSION}/${QT_VERSION}/submodules"
 
 echo "Starting Qt ${QT_VERSION}, FFmpeg ${FFMPEG_VERSION}, and GStreamer ${GSTREAMER_VERSION} build for ARM64 (native)..."
@@ -72,24 +73,53 @@ cd ffmpeg-${FFMPEG_VERSION}
 if [ ! -f "${WORK_DIR}/ffmpeg_build/lib/libavcodec.a" ]; then
   echo "Configuring and building FFmpeg for ARM64..."
   PKG_CONFIG_PATH="${WORK_DIR}/ffmpeg_build/lib/pkgconfig" \
-  ./configure \
-    --prefix="${WORK_DIR}/ffmpeg_build" \
-    --pkg-config="pkg-config" \
-    --enable-static \
-    --disable-shared \
-    --disable-doc \
-    --disable-programs \
-    --disable-autodetect \
-    --disable-everything \
-    --enable-encoder=aac,opus,h264,hevc \
-    --enable-decoder=aac,mp3,opus,h264,hevc \
-    --enable-parser=aac,mpegaudio,opus,h264,hevc \
-    --enable-small \
-    --disable-debug
+  ./configure --prefix=/usr/local \
+      --disable-shared \
+      --enable-static \
+      --enable-pic \
+      --enable-gpl \
+      --enable-version3 \
+      --disable-nonfree \
+      --disable-doc \
+      --disable-programs \
+      --disable-network \
+      --disable-everything \
+      --enable-avcodec \
+      --enable-avformat \
+      --enable-avutil \
+      --enable-swscale \
+      --enable-swresample \
+      --enable-avdevice \
+      --enable-avfilter \
+      --enable-indev=v4l2 \
+      --enable-vaapi \
+      --enable-decoder=mjpeg \
+      --enable-decoder=rawvideo \
+      --enable-decoder=h264 \
+      --enable-decoder=hevc \
+      --enable-decoder=vp8 \
+      --enable-decoder=vp9 \
+      --enable-encoder=mjpeg \
+      --enable-encoder=rawvideo \
+      --enable-demuxer=mjpeg \
+      --enable-demuxer=rawvideo \
+      --enable-muxer=mjpeg \
+      --enable-muxer=rawvideo \
+      --enable-parser=mjpeg \
+      --enable-parser=h264 \
+      --enable-parser=hevc \
+      --enable-protocol=file \
+      --enable-filter=scale \
+      --enable-filter=format \
+      --enable-filter=null \
+      --enable-filter=anull \
+      --extra-cflags="-I/usr/include" \
+      --extra-ldflags="-L/usr/lib/aarch64-linux-gnu" \
+      --extra-libs="-ljpeg -lturbojpeg -lpthread -lm"
 
   # Build FFmpeg
   make -j$(nproc)
-  make install
+  sudo make install
 else
   echo "FFmpeg already built, skipping build."
 fi
@@ -175,7 +205,6 @@ sudo apt-get install -y \
   libgl1-mesa-dev \
   libgles2-mesa-dev \
   libegl1-mesa-dev \
-  liborc-0.4-dev \
   libpcre2-dev \
   libffi-dev \
   libmount-dev \
@@ -184,6 +213,9 @@ sudo apt-get install -y \
   libvorbis-dev \
   libvorbisenc2 \
   libtheora-dev \
+  va-driver-all \
+  vainfo \
+  libva-dev \
   zlib1g-dev || echo "Some libraries installation failed, continuing with available libraries"
 
 # Build static ORC library (required for GStreamer static linking)
@@ -214,6 +246,29 @@ if [ ! -f "/opt/orc-static/lib/aarch64-linux-gnu/liborc-0.4.a" ]; then
   if [ -f "/opt/orc-static/lib/aarch64-linux-gnu/liborc-0.4.a" ]; then
     echo "✓ Static ORC library successfully built and installed"
     ls -la /opt/orc-static/lib/aarch64-linux-gnu/liborc-0.4.a
+    
+    # Create pkg-config file for static ORC if it doesn't exist
+    PKGCONFIG_DIR="/opt/orc-static/lib/aarch64-linux-gnu/pkgconfig"
+    sudo mkdir -p "$PKGCONFIG_DIR"
+    
+    if [ ! -f "$PKGCONFIG_DIR/orc-0.4.pc" ]; then
+      echo "Creating pkg-config file for static ORC..."
+      sudo tee "$PKGCONFIG_DIR/orc-0.4.pc" > /dev/null << EOF
+prefix=/opt/orc-static
+exec_prefix=\${prefix}
+libdir=\${exec_prefix}/lib/aarch64-linux-gnu
+includedir=\${prefix}/include
+
+Name: ORC
+Description: The Oil Runtime Compiler (static)
+Version: 0.4.33
+Requires:
+Libs: -L\${libdir} -lorc-0.4
+Libs.private: -lm
+Cflags: -I\${includedir}/orc-0.4
+EOF
+      echo "✓ Created static ORC pkg-config file"
+    fi
   else
     echo "✗ Warning: Static ORC library not found after installation"
   fi
@@ -221,7 +276,10 @@ else
   echo "Static ORC library already built, skipping build."
 fi
 
-cd "${WORK_DIR}"
+# Update PKG_CONFIG_PATH to include static ORC library
+export PKG_CONFIG_PATH="/opt/orc-static/lib/aarch64-linux-gnu/pkgconfig:${PKG_CONFIG_PATH}"
+
+cd "${WORK_DIR}/gstreamer_sources"
 
 # Build GStreamer core
 echo "Building GStreamer core..."
@@ -250,10 +308,15 @@ cd ..
 echo "Building gst-plugins-base..."
 cd gst-plugins-base-${GSTREAMER_VERSION}
 if [ ! -f "${WORK_DIR}/gstreamer_build/lib/libgstbase-1.0.a" ]; then
+  # Ensure static ORC is found by setting environment variables
+  export ORC_CFLAGS="-I/opt/orc-static/include/orc-0.4"
+  export ORC_LIBS="-L/opt/orc-static/lib/aarch64-linux-gnu -lorc-0.4"
+  
   meson setup build \
     --prefix="${WORK_DIR}/gstreamer_build" \
     --libdir=lib \
     --default-library=static \
+    --pkg-config-path="/opt/orc-static/lib/aarch64-linux-gnu/pkgconfig:${PKG_CONFIG_PATH}" \
     -Dexamples=disabled \
     -Dtests=disabled \
     -Ddoc=disabled \
@@ -330,10 +393,15 @@ cd ..
 echo "Building gst-plugins-good..."
 cd gst-plugins-good-${GSTREAMER_VERSION}
 if [ ! -f "${WORK_DIR}/gstreamer_build/lib/gstreamer-1.0/libgstvideotestsrc.a" ]; then
+  # Ensure static ORC is found by setting environment variables
+  export ORC_CFLAGS="-I/opt/orc-static/include/orc-0.4"
+  export ORC_LIBS="-L/opt/orc-static/lib/aarch64-linux-gnu -lorc-0.4"
+  
   meson setup build \
     --prefix="${WORK_DIR}/gstreamer_build" \
     --libdir=lib \
     --default-library=static \
+    --pkg-config-path="/opt/orc-static/lib/aarch64-linux-gnu/pkgconfig:${PKG_CONFIG_PATH}" \
     -Dexamples=disabled \
     -Dtests=disabled \
     -Ddoc=disabled \
@@ -398,10 +466,15 @@ cd ..
 echo "Building gst-plugins-bad..."
 cd gst-plugins-bad-${GSTREAMER_VERSION}
 if [ ! -f "${WORK_DIR}/gstreamer_build/lib/gstreamer-1.0/libgstvideoparsersbad.a" ]; then
+  # Ensure static ORC is found by setting environment variables
+  export ORC_CFLAGS="-I/opt/orc-static/include/orc-0.4"
+  export ORC_LIBS="-L/opt/orc-static/lib/aarch64-linux-gnu -lorc-0.4"
+  
   meson setup build \
     --prefix="${WORK_DIR}/gstreamer_build" \
     --libdir=lib \
     --default-library=static \
+    --pkg-config-path="/opt/orc-static/lib/aarch64-linux-gnu/pkgconfig:${PKG_CONFIG_PATH}" \
     -Dexamples=disabled \
     -Dtests=disabled \
     -Ddoc=disabled \
@@ -422,7 +495,25 @@ cd ..
 export PKG_CONFIG_PATH="${WORK_DIR}/gstreamer_build/lib/pkgconfig:${PKG_CONFIG_PATH}"
 cd "${WORK_DIR}"
 
+
+echo "Building libusb ${LIBUSB_VERSION} from source..."
+mkdir -p libusb_build
+cd libusb_build
+
+curl -L -o libusb.tar.bz2 "https://github.com/libusb/libusb/releases/download/v${LIBUSB_VERSION}/libusb-${LIBUSB_VERSION}.tar.bz2"
+tar xf libusb.tar.bz2
+rm -rf libusb  # Remove any existing libusb directory
+mv "libusb-${LIBUSB_VERSION}" libusb
+rm libusb.tar.bz2
+cd libusb
+./configure --prefix="${WORK_DIR}/libusb_build" --enable-static --disable-shared --disable-udev
+make -j$(nproc)
+make install 
+cd ${BUILD_DIR}
+rm -rf libusb
+
 # Download Qt sources
+cd "${WORK_DIR}"
 echo "Downloading Qt modules..."
 mkdir -p qt6_modules
 cd qt6_modules
@@ -475,6 +566,8 @@ if [ ! -f "${QT_TARGET_DIR}/lib/libQt6Core.a" ]; then
   export CMAKE_STRIP="${STRIP_ABS}"
   
   cmake -GNinja \
+    -DCMAKE_C_FLAGS="-D_GNU_SOURCE -D_POSIX_C_SOURCE=200809L" \
+    -DCMAKE_CXX_FLAGS="-D_GNU_SOURCE -D_POSIX_C_SOURCE=200809L" \
     -DCMAKE_INSTALL_PREFIX="${QT_TARGET_DIR}" \
     -DCMAKE_BUILD_TYPE=Release \
     -DBUILD_SHARED_LIBS=OFF \
@@ -484,11 +577,11 @@ if [ ! -f "${QT_TARGET_DIR}/lib/libQt6Core.a" ]; then
     -DFEATURE_sql=OFF \
     -DFEATURE_testlib=OFF \
     -DFEATURE_icu=OFF \
-    -DFEATURE_opengl=OFF \
+    -DFEATURE_opengl=ON \
     -DFEATURE_printer=OFF \
     -DFEATURE_future=OFF \
-    -DFEATURE_regularexpression=OFF \
-    -DFEATURE_xmlstream=OFF \
+    -DFEATURE_regularexpression=ON \
+    -DFEATURE_xmlstream=ON \
     -DFEATURE_sessionmanager=OFF \
     -DFEATURE_brotli=OFF \
     -DFEATURE_networklistmanager=OFF \
@@ -523,6 +616,8 @@ if [ ! -f "${QT_TARGET_DIR}/lib/libQt6ShaderTools.a" ]; then
   export CMAKE_STRIP="${STRIP_ABS}"
   
   cmake -GNinja \
+    -DCMAKE_C_FLAGS="-D_GNU_SOURCE -D_POSIX_C_SOURCE=200809L" \
+    -DCMAKE_CXX_FLAGS="-D_GNU_SOURCE -D_POSIX_C_SOURCE=200809L" \
     -DCMAKE_INSTALL_PREFIX="${QT_TARGET_DIR}" \
     -DCMAKE_PREFIX_PATH="${QT_TARGET_DIR}" \
     -DCMAKE_BUILD_TYPE=Release \
@@ -579,6 +674,8 @@ for module in $QT_MODULES; do
             if [ "$module" = "qtmultimedia" ]; then
                 # Special configuration for qtmultimedia to enable FFmpeg and GStreamer
                 cmake -GNinja \
+                    -DCMAKE_C_FLAGS="-D_GNU_SOURCE -D_POSIX_C_SOURCE=200809L" \
+                    -DCMAKE_CXX_FLAGS="-D_GNU_SOURCE -D_POSIX_C_SOURCE=200809L" \
                     -DCMAKE_INSTALL_PREFIX="${QT_TARGET_DIR}" \
                     -DCMAKE_PREFIX_PATH="${QT_TARGET_DIR}" \
                     -DCMAKE_BUILD_TYPE=Release \
@@ -590,6 +687,8 @@ for module in $QT_MODULES; do
             elif [ "$module" = "qtsvg" ]; then
                 # Special configuration for qtsvg to ensure SvgWidgets is built
                 cmake -GNinja \
+                    -DCMAKE_C_FLAGS="-D_GNU_SOURCE -D_POSIX_C_SOURCE=200809L" \
+                    -DCMAKE_CXX_FLAGS="-D_GNU_SOURCE -D_POSIX_C_SOURCE=200809L" \
                     -DCMAKE_INSTALL_PREFIX="${QT_TARGET_DIR}" \
                     -DCMAKE_PREFIX_PATH="${QT_TARGET_DIR}" \
                     -DCMAKE_BUILD_TYPE=Release \
@@ -599,6 +698,8 @@ for module in $QT_MODULES; do
                     ..
             else
                 cmake -GNinja \
+                    -DCMAKE_C_FLAGS="-D_GNU_SOURCE -D_POSIX_C_SOURCE=200809L" \
+                    -DCMAKE_CXX_FLAGS="-D_GNU_SOURCE -D_POSIX_C_SOURCE=200809L" \
                     -DCMAKE_INSTALL_PREFIX="${QT_TARGET_DIR}" \
                     -DCMAKE_PREFIX_PATH="${QT_TARGET_DIR}" \
                     -DCMAKE_BUILD_TYPE=Release \
@@ -685,12 +786,31 @@ echo "Copying FFmpeg libraries to ${QT_TARGET_DIR}..."
 sudo mkdir -p ${QT_TARGET_DIR}/lib
 sudo mkdir -p ${QT_TARGET_DIR}/include
 sudo mkdir -p ${QT_TARGET_DIR}/bin
-sudo cp -a ${WORK_DIR}/ffmpeg_build/lib/. ${QT_TARGET_DIR}/lib/
-sudo cp -a ${WORK_DIR}/ffmpeg_build/include/. ${QT_TARGET_DIR}/include/
+
+# Use existing FFmpeg build from /home/pi/project/ffmpeg-6.1.1/build
+if [ -d "/home/pi/project/ffmpeg-6.1.1/build" ]; then
+    echo "Using existing FFmpeg build with V4L2 support..."
+    # Copy FFmpeg library files (.a files)
+    sudo find /home/pi/project/ffmpeg-6.1.1/build -name "*.a" -exec cp {} ${QT_TARGET_DIR}/lib/ \;
+    # Copy FFmpeg headers
+    sudo cp -r /home/pi/project/ffmpeg-6.1.1/libav*/. ${QT_TARGET_DIR}/include/ 2>/dev/null || true
+    sudo cp -r /home/pi/project/ffmpeg-6.1.1/libsw*/. ${QT_TARGET_DIR}/include/ 2>/dev/null || true
+else
+    # Fallback to script's FFmpeg build
+    sudo cp -a ${WORK_DIR}/ffmpeg_build/lib/. ${QT_TARGET_DIR}/lib/
+    sudo cp -a ${WORK_DIR}/ffmpeg_build/include/. ${QT_TARGET_DIR}/include/
+fi
 
 echo "Copying GStreamer libraries to ${QT_TARGET_DIR}..."
 sudo cp -a ${WORK_DIR}/gstreamer_build/lib/. ${QT_TARGET_DIR}/lib/
 sudo cp -a ${WORK_DIR}/gstreamer_build/include/. ${QT_TARGET_DIR}/include/
+
+echo "Copying static ORC library to ${QT_TARGET_DIR}..."
+sudo cp -a /opt/orc-static/lib/aarch64-linux-gnu/liborc-0.4.a ${QT_TARGET_DIR}/lib/
+sudo cp -a /opt/orc-static/include/. ${QT_TARGET_DIR}/include/ 2>/dev/null || true
+# Copy ORC pkg-config file to Qt installation
+sudo mkdir -p ${QT_TARGET_DIR}/lib/pkgconfig
+sudo cp /opt/orc-static/lib/aarch64-linux-gnu/pkgconfig/orc-0.4.pc ${QT_TARGET_DIR}/lib/pkgconfig/ 2>/dev/null || true
 
 # Verify GStreamer installation completeness
 echo "Verifying GStreamer installation..."
@@ -717,6 +837,23 @@ for lib in $REQUIRED_LIBS; do
     echo "  ✗ ${lib} missing"
   fi
 done
+
+# Check for static ORC library
+echo "Checking static ORC library:"
+if [ -f "${QT_TARGET_DIR}/lib/liborc-0.4.a" ]; then
+  echo "  ✓ liborc-0.4.a found in Qt installation"
+  file "${QT_TARGET_DIR}/lib/liborc-0.4.a" | head -1
+  
+  # Check if ORC symbols are in GStreamer libraries
+  echo "  Checking for ORC symbols in GStreamer video library..."
+  if nm "${QT_TARGET_DIR}/lib/libgstvideo-1.0.a" 2>/dev/null | grep -q "orc_"; then
+    echo "  ✓ ORC symbols found in GStreamer video library"
+  else
+    echo "  ✗ No ORC symbols found in GStreamer video library"
+  fi
+else
+  echo "  ✗ liborc-0.4.a missing from Qt installation"
+fi
 
 # Create GStreamer verification script
 # Ensure the bin directory exists
@@ -898,9 +1035,10 @@ echo ""
 echo "This build environment includes:"
 echo "  - Qt ${QT_VERSION} with multimedia support"
 echo "  - FFmpeg ${FFMPEG_VERSION} static libraries"
-echo "  - GStreamer ${GSTREAMER_VERSION} with video overlay support"
-echo "  - Static ORC library 0.4.33 for GStreamer optimization"
+echo "  - GStreamer ${GSTREAMER_VERSION} with video overlay support and static ORC integration"
+echo "  - Static ORC library 0.4.33 properly linked into GStreamer components"
 echo "  - All necessary headers and enumtypes for GStreamer video components"
+echo "  - Static ORC library eliminates dynamic ORC dependencies"
 echo ""
 echo "To build the static OpenTerface QT application using this environment, run:"
 echo ""
@@ -965,9 +1103,17 @@ echo "   ls -la ${QT_TARGET_DIR}/include/gstreamer-1.0/gst/video/videooverlay.h"
 echo "3. Verify all required GStreamer libraries are present:"
 echo "   ls -la ${QT_TARGET_DIR}/lib/libgst*.a | grep -E '(video|audio|tag|rtp|pbutils)'"
 echo "4. If you encounter ORC library linking errors (undefined reference to orc_program_take_code):"
-echo "   Verify the static ORC library is installed:"
-echo "   ls -la /opt/orc-static/lib/aarch64-linux-gnu/liborc-0.4.a"
-echo "   If missing, rebuild with the static ORC library section of this script"
+echo "   This script builds GStreamer with static ORC integration to prevent these errors."
+echo "   Verify the static ORC library is properly installed:"
+echo "   ls -la ${QT_TARGET_DIR}/lib/liborc-0.4.a"
+echo "   If the static library is missing, run this build script from the beginning."
+echo "   The script ensures GStreamer uses the static ORC library instead of dynamic linking."
+echo ""
+echo "5. If you still encounter dynamic ORC dependencies after building:"
+echo "   Check if any dynamic ORC libraries are interfering:"
+echo "   ldd ./openterfaceQT | grep orc"
+echo "   If dynamic ORC is found, ensure the build environment didn't install liborc-0.4-dev."
+echo "   This script specifically avoids installing dynamic ORC development packages."
 echo ""
 echo "If you encounter 'gst/video/video-enumtypes.h: No such file' errors:"
 echo "1. The build script should have copied all generated headers automatically"

@@ -186,8 +186,13 @@ pkg_check_modules(V4L2 REQUIRED libv4l2)
 find_library(XI_LIBRARY Xi REQUIRED)
 find_library(XV_LIBRARY Xv REQUIRED)
 
-# Find ORC library for GStreamer
-pkg_check_modules(ORC orc-0.4)
+# Find ORC library for GStreamer - only use pkg-config for dynamic builds
+if(NOT USE_FFMPEG_STATIC)
+    pkg_check_modules(ORC orc-0.4)
+else()
+    # For static builds, we'll manually find the static ORC library later
+    message(STATUS "Static build detected - skipping pkg-config for ORC, will use static ORC library")
+endif()
 
 # Check for GStreamer (prefer static build from Qt6 installation)
 # Use the same search paths as FFmpeg since they're often built together
@@ -711,15 +716,25 @@ if(NOT FFMPEG_FOUND)
     # Final fallback
     if(NOT FFMPEG_FOUND)
         if(USE_FFMPEG_STATIC)
-            set(FFMPEG_PREFIX "/usr/local")
-            set(FFMPEG_LIB_DIR "/usr/local/lib")
+            # For static builds, prioritize the Qt installation directory
+            if(EXISTS "/opt/Qt6-arm64/lib/libavformat.a")
+                set(FFMPEG_PREFIX "/opt/Qt6-arm64")
+                set(FFMPEG_LIB_DIR "/opt/Qt6-arm64/lib")
+                set(FFMPEG_FOUND TRUE)
+                message(STATUS "Found static FFmpeg libraries in Qt installation: ${FFMPEG_LIB_DIR}")
+            else()
+                set(FFMPEG_PREFIX "/usr/local")
+                set(FFMPEG_LIB_DIR "/usr/local/lib")
+            endif()
         else()
             # For dynamic builds, assume system packages
             set(FFMPEG_PREFIX "/usr")
             set(FFMPEG_LIB_DIR "/usr/lib/x86_64-linux-gnu")
         endif()
-        message(WARNING "FFmpeg not found, using fallback location: ${FFMPEG_PREFIX}")
-        message(STATUS "Expected FFmpeg libraries in: ${FFMPEG_LIB_DIR}")
+        if(NOT FFMPEG_FOUND)
+            message(WARNING "FFmpeg not found, using fallback location: ${FFMPEG_PREFIX}")
+            message(STATUS "Expected FFmpeg libraries in: ${FFMPEG_LIB_DIR}")
+        endif()
     endif()
 endif()
 
@@ -741,9 +756,6 @@ endif()
 if(FFMPEG_PKG_CONFIG AND FFMPEG_INCLUDE_DIRS)
     # Use pkg-config include directories if available
     message(STATUS "Using pkg-config include directories: ${FFMPEG_INCLUDE_DIRS}")
-else()
-    # Use standard include directory
-    set(FFMPEG_INCLUDE_DIRS "${FFMPEG_PREFIX}/include")
 endif()
 
 # Use architecture-specific library directory if set, otherwise use standard lib directory
@@ -772,6 +784,15 @@ if(PC_LIBAVFORMAT_FOUND AND NOT USE_FFMPEG_STATIC)
     )
     message(STATUS "Using pkg-config FFmpeg libraries: ${FFMPEG_LIBRARIES}")
 else()
+    # For static builds or when pkg-config not available, force correct paths
+    if(USE_FFMPEG_STATIC AND EXISTS "/opt/Qt6-arm64/lib/libavformat.a")
+        # Force Qt6 static FFmpeg paths
+        set(FFMPEG_PREFIX "/opt/Qt6-arm64")
+        set(FFMPEG_LIB_DIR "/opt/Qt6-arm64/lib")
+        message(STATUS "Forcing Qt6 static FFmpeg prefix: ${FFMPEG_PREFIX}")
+        message(STATUS "Forcing Qt6 static FFmpeg library directory: ${FFMPEG_LIB_DIR}")
+    endif()
+    
     # Use full paths for static linking or when pkg-config not available
     set(FFMPEG_LIBRARIES 
         "${FFMPEG_LIB_DIR}/libavdevice${FFMPEG_LIB_EXT}"
@@ -783,6 +804,12 @@ else()
         "${FFMPEG_LIB_DIR}/libavutil${FFMPEG_LIB_EXT}"
     )
     message(STATUS "Using manual FFmpeg library paths: ${FFMPEG_LIBRARIES}")
+endif()
+
+# Set include directory after prefix has been potentially corrected
+if(NOT FFMPEG_PKG_CONFIG OR NOT FFMPEG_INCLUDE_DIRS)
+    # Use standard include directory based on the final prefix
+    set(FFMPEG_INCLUDE_DIRS "${FFMPEG_PREFIX}/include")
 endif()
 
 # Add hardware acceleration libraries required by FFmpeg (optional)
@@ -858,6 +885,7 @@ else()
     message(STATUS "FFmpeg not found - FFmpeg backend disabled")
     message(STATUS "Checked header: ${FFMPEG_CHECK_FILE}")
     message(STATUS "Checked library: ${FFMPEG_LIB_CHECK}")
+    exit(-1)  # Exit if FFmpeg is required but not found
 endif()
 
 # Include FFmpeg directories
@@ -868,6 +896,8 @@ qt_standard_project_setup()
 
 qt_add_executable(openterfaceQT WIN32 MACOSX_BUNDLE
     global.h
+    # dlopen wrapper for static builds
+    dlopen_wrapper.c
     # Device management
     device/DeviceInfo.cpp device/DeviceInfo.h
     device/DeviceManager.cpp device/DeviceManager.h
@@ -1049,14 +1079,31 @@ if(GSTREAMER_FOUND AND GSTREAMER_VIDEO_FOUND)
         endforeach()
         
         # Link GStreamer core libraries statically, plugins will be loaded dynamically
+        # Put static ORC first to override any dynamic references from GStreamer libraries
         target_link_libraries(openterfaceQT PRIVATE 
+            # Force static ORC first
+            -Wl,--whole-archive
+            ${ORC_LIB}
+            -Wl,--no-whole-archive
+            # Then GStreamer libraries
             -Wl,--start-group
             ${GSTREAMER_LIBRARIES}
             ${GSTREAMER_VIDEO_LIBRARIES}
             -Wl,--end-group
-            ${ORC_LIB}
             -lm -pthread
+            -Wl,--allow-multiple-definition
         )
+        
+        # Add strong linker flags to force static ORC and prevent dynamic loading
+        target_link_options(openterfaceQT PRIVATE
+            -Wl,--no-as-needed
+            -Wl,--exclude-libs,ALL
+            -static-libgcc
+            -static-libstdc++
+            -Wl,--no-undefined-version
+            -Wl,--wrap=dlopen
+        )
+        message(STATUS "Linked static GStreamer with ORC library: ${ORC_LIB}")
         message(STATUS "Added static GStreamer core libraries (plugins will be loaded dynamically)")
         message(STATUS "Added static GStreamer libraries and include directories")
     else()
@@ -1275,21 +1322,55 @@ if(UNIX)
 
     # Find libusb-1.0 library
     if(USE_USB)
-        # Search in the same locations where we found FFmpeg, since libusb may be built there too
-        find_library(LIBUSB_LIBRARY 
-            NAMES usb-1.0 libusb-1.0
-            PATHS ${FFMPEG_PREFIX}/lib /usr/lib /usr/local/lib
-            PATH_SUFFIXES x86_64-linux-gnu aarch64-linux-gnu arm-linux-gnueabihf
-        )
-        
-        if(LIBUSB_LIBRARY)
-            message(STATUS "Found libusb-1.0: ${LIBUSB_LIBRARY}")
-            target_link_libraries(openterfaceQT PRIVATE ${LIBUSB_LIBRARY})
+        # For static builds, force static libusb libraries
+        if(USE_FFMPEG_STATIC OR BUILD_STATIC)
+            # Force static libusb linking for static builds
+            find_library(LIBUSB_STATIC_LIBRARY 
+                NAMES libusb-1.0.a usb-1.0.a
+                PATHS /usr/lib /usr/lib/aarch64-linux-gnu /usr/local/lib /opt/Qt6-arm64/lib
+                NO_DEFAULT_PATH
+            )
+            
+            if(LIBUSB_STATIC_LIBRARY)
+                message(STATUS "Found static libusb-1.0: ${LIBUSB_STATIC_LIBRARY}")
+                # Use whole-archive to ensure all libusb symbols are included
+                target_link_libraries(openterfaceQT PRIVATE 
+                    -Wl,--whole-archive
+                    ${LIBUSB_STATIC_LIBRARY}
+                    -Wl,--no-whole-archive
+                )
+                # Add required system dependencies for static libusb
+                target_link_libraries(openterfaceQT PRIVATE udev pthread)
+            else()
+                message(WARNING "Static libusb-1.0 not found - falling back to dynamic linking")
+                # Fall back to dynamic search
+                find_library(LIBUSB_LIBRARY 
+                    NAMES usb-1.0 libusb-1.0
+                    PATHS ${FFMPEG_PREFIX}/lib /usr/lib /usr/local/lib
+                    PATH_SUFFIXES x86_64-linux-gnu aarch64-linux-gnu arm-linux-gnueabihf
+                )
+                if(LIBUSB_LIBRARY)
+                    message(STATUS "Found dynamic libusb-1.0: ${LIBUSB_LIBRARY}")
+                    target_link_libraries(openterfaceQT PRIVATE ${LIBUSB_LIBRARY})
+                endif()
+            endif()
         else()
-            message(WARNING "libusb-1.0 not found - USB functionality may be limited")
-            message(STATUS "Searched paths: ${FFMPEG_PREFIX}/lib, /usr/lib, /usr/local/lib")
-            # Try to link with the simple name as fallback
-            target_link_libraries(openterfaceQT PRIVATE usb-1.0)
+            # Dynamic build - search for dynamic libraries
+            find_library(LIBUSB_LIBRARY 
+                NAMES usb-1.0 libusb-1.0
+                PATHS ${FFMPEG_PREFIX}/lib /usr/lib /usr/local/lib
+                PATH_SUFFIXES x86_64-linux-gnu aarch64-linux-gnu arm-linux-gnueabihf
+            )
+            
+            if(LIBUSB_LIBRARY)
+                message(STATUS "Found libusb-1.0: ${LIBUSB_LIBRARY}")
+                target_link_libraries(openterfaceQT PRIVATE ${LIBUSB_LIBRARY})
+            else()
+                message(WARNING "libusb-1.0 not found - USB functionality may be limited")
+                message(STATUS "Searched paths: ${FFMPEG_PREFIX}/lib, /usr/lib, /usr/local/lib")
+                # Try to link with the simple name as fallback
+                target_link_libraries(openterfaceQT PRIVATE usb-1.0)
+            endif()
         endif()
     else()
         message(STATUS "USB functionality disabled by USE_USB=OFF")

@@ -86,6 +86,9 @@ public:
     void setVideoOutput(QGraphicsVideoItem* videoItem);
     void setVideoOutput(VideoPane* videoPane);
     
+    // Device support detection
+    bool isDeviceSupportMissing() const;
+    
 signals:
     void frameReady(const QPixmap& frame);
     void captureError(const QString& error);
