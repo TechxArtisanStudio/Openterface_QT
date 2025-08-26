@@ -1,6 +1,33 @@
 cmake_minimum_required(VERSION 3.16)
 project(openterfaceQT VERSION 1.0 LANGUAGES C CXX)
 
+# Fix for time-related compilation issues on Linux (both native and cross-compilation)
+if(UNIX AND NOT APPLE)
+    # Core GNU/Linux feature macros - must be set early and globally
+    add_definitions(-D_GNU_SOURCE)
+    add_definitions(-D_DEFAULT_SOURCE)
+    add_definitions(-D_BSD_SOURCE)
+    add_definitions(-D_XOPEN_SOURCE=700)
+    
+    # Force these definitions at the compiler level for ALL compilations including MOC
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -D_GNU_SOURCE -D_DEFAULT_SOURCE -D_BSD_SOURCE -D_XOPEN_SOURCE=700")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -D_GNU_SOURCE -D_DEFAULT_SOURCE -D_BSD_SOURCE -D_XOPEN_SOURCE=700")
+    
+    # Override any restrictive POSIX settings that Qt might impose
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -U_POSIX_C_SOURCE")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -U_POSIX_C_SOURCE")
+    
+    # Ensure MOC also gets these flags
+    set(CMAKE_AUTOMOC_MOC_OPTIONS "${CMAKE_AUTOMOC_MOC_OPTIONS};-D_GNU_SOURCE;-D_DEFAULT_SOURCE;-D_BSD_SOURCE;-D_XOPEN_SOURCE=700")
+    
+    message(STATUS "Applied comprehensive Linux time function fixes with MOC support")
+    message(STATUS "CXX_FLAGS: ${CMAKE_CXX_FLAGS}")
+    message(STATUS "AUTOMOC_MOC_OPTIONS: ${CMAKE_AUTOMOC_MOC_OPTIONS}")
+    # NOTE: Do not call target_include_directories() here because the target
+    # 'openterfaceQT' is created later. A per-target include ordering insertion
+    # will be applied after the target is defined to prefer system headers.
+endif()
+
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 set(CMAKE_AUTOUIC ON)
 
@@ -136,6 +163,27 @@ if(CMAKE_CROSSCOMPILING)
         message(STATUS "  Cross-compilation library paths configured for ${ARCH_LIB_DIR}")
         message(STATUS "  PKG_CONFIG_PATH: $ENV{PKG_CONFIG_PATH}")
         message(STATUS "  PKG_CONFIG_LIBDIR: $ENV{PKG_CONFIG_LIBDIR}")
+    endif()
+endif()
+
+# Detect ARM64 architecture for both cross-compilation and native builds
+if(NOT DEFINED ARM64_BUILD)
+    if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(aarch64|arm64)$")
+        set(ARM64_BUILD TRUE)
+        message(STATUS "Native ARM64 build detected")
+        
+        # Apply ARM64-specific optimizations for native builds too
+        set(CMAKE_CXX_FLAGS_RELEASE "-O0 -DNDEBUG" CACHE STRING "Release flags" FORCE)
+        set(CMAKE_C_FLAGS_RELEASE "-O0 -DNDEBUG" CACHE STRING "Release flags" FORCE)
+        
+        # Additional stability flags for ARM64 native compilation
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-aggressive-loop-optimizations -fno-strict-overflow -fno-tree-vectorize -fno-inline -g0 -ftemplate-depth-128 --param ggc-min-expand=0 --param ggc-min-heapsize=32768")
+        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fno-aggressive-loop-optimizations -fno-strict-overflow -fno-tree-vectorize -fno-inline -g0 --param ggc-min-expand=0 --param ggc-min-heapsize=32768")
+        
+        message(STATUS "Applied ARM64 native build optimizations")
+    else()
+        set(ARM64_BUILD FALSE)
+        message(STATUS "Non-ARM64 build detected: ${CMAKE_SYSTEM_PROCESSOR}")
     endif()
 endif()
 
@@ -862,7 +910,7 @@ list(APPEND HWACCEL_LIBRARIES
 )
 
 # Check if FFmpeg is available and enable it
-set(FFMPEG_CHECK_FILE "${FFMPEG_PREFIX}/include/libavformat/avformat.h")
+set(FFMPEG_CHECK_FILE "${FFMPEG_PREFIX}/include/avformat.h")
 if(USE_FFMPEG_STATIC)
     set(FFMPEG_LIB_CHECK "${FFMPEG_LIB_DIR}/libavformat.a")
 else()
@@ -871,21 +919,42 @@ endif()
 
 # If we found FFmpeg via pkg-config, trust it and skip file checks
 # Otherwise, verify files exist manually
-if(FFMPEG_PKG_CONFIG OR (EXISTS "${FFMPEG_CHECK_FILE}" AND EXISTS "${FFMPEG_LIB_CHECK}"))
+message(STATUS "Debug: FFMPEG_PKG_CONFIG = ${FFMPEG_PKG_CONFIG}")
+message(STATUS "Debug: FFMPEG_CHECK_FILE = ${FFMPEG_CHECK_FILE}")
+message(STATUS "Debug: FFMPEG_LIB_CHECK = ${FFMPEG_LIB_CHECK}")
+message(STATUS "Debug: Header exists = ${EXISTS_HEADER}")
+message(STATUS "Debug: Library exists = ${EXISTS_LIB}")
+
+# Check if files actually exist
+if(EXISTS "${FFMPEG_CHECK_FILE}")
+    set(EXISTS_HEADER TRUE)
+else()
+    set(EXISTS_HEADER FALSE)
+endif()
+
+if(EXISTS "${FFMPEG_LIB_CHECK}")
+    set(EXISTS_LIB TRUE)
+else()
+    set(EXISTS_LIB FALSE)
+endif()
+
+if(FFMPEG_PKG_CONFIG OR (EXISTS_HEADER AND EXISTS_LIB))
     message(STATUS "FFmpeg found - enabling FFmpeg backend")
     if(FFMPEG_PKG_CONFIG)
         message(STATUS "FFmpeg verified via pkg-config")
     else()
         message(STATUS "FFmpeg verified via file system check")
+        message(STATUS "Header file found: ${FFMPEG_CHECK_FILE}")
+        message(STATUS "Library file found: ${FFMPEG_LIB_CHECK}")
     endif()
     message(STATUS "FFmpeg include directory: ${FFMPEG_INCLUDE_DIRS}")
     message(STATUS "FFmpeg libraries: ${FFMPEG_LIBRARIES}")
     add_definitions(-DHAVE_FFMPEG)
 else()
     message(STATUS "FFmpeg not found - FFmpeg backend disabled")
-    message(STATUS "Checked header: ${FFMPEG_CHECK_FILE}")
-    message(STATUS "Checked library: ${FFMPEG_LIB_CHECK}")
-    exit(-1)  # Exit if FFmpeg is required but not found
+    message(STATUS "Checked header: ${FFMPEG_CHECK_FILE} (exists: ${EXISTS_HEADER})")
+    message(STATUS "Checked library: ${FFMPEG_LIB_CHECK} (exists: ${EXISTS_LIB})")
+    message(FATAL_ERROR "FFmpeg is required but not found. Please ensure FFmpeg libraries are installed at ${CMAKE_PREFIX_PATH}")
 endif()
 
 # Include FFmpeg directories
@@ -967,6 +1036,25 @@ qt_add_executable(openterfaceQT WIN32 MACOSX_BUNDLE
     video/firmwarereader.cpp video/firmwarereader.h
     video/ms2109.h
 )
+
+    # Ensure Linux time feature macros are set per-target to avoid <ctime> visibility issues
+    if(UNIX AND NOT APPLE)
+        # Define feature-test macros for the openterfaceQT target specifically
+        target_compile_definitions(openterfaceQT PRIVATE
+            _DEFAULT_SOURCE=1
+            _GNU_SOURCE=1
+            _XOPEN_SOURCE=700
+        )
+        # Also ensure POSIX source is not enforced
+        target_compile_options(openterfaceQT PRIVATE -U_POSIX_C_SOURCE)
+        
+        # Force system time.h to be included before FFmpeg's time.h
+        # FFmpeg libavutil/time.h conflicts with system time.h and breaks <ctime>
+        # Use -include to force early inclusion of system time.h
+        target_compile_options(openterfaceQT PRIVATE 
+            -include /usr/include/time.h
+        )
+    endif()
 
 # ARM64 workaround: Set per-file compiler flags for problematic files
 if(ARM64_BUILD)
