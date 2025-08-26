@@ -672,12 +672,18 @@ for module in $QT_MODULES; do
             export CMAKE_STRIP="${STRIP_ABS}"
             
             if [ "$module" = "qtmultimedia" ]; then
-                # Special configuration for qtmultimedia to enable FFmpeg and GStreamer
+                # Special configuration for qtmultimedia to enable FFmpeg and GStreamer with explicit paths
+                # Set PKG_CONFIG_PATH environment variable for GStreamer detection
+                export PKG_CONFIG_PATH="${WORK_DIR}/gstreamer_build/lib/pkgconfig:${WORK_DIR}/ffmpeg_build/lib/pkgconfig:${PKG_CONFIG_PATH}"
+                echo "DEBUG: PKG_CONFIG_PATH = $PKG_CONFIG_PATH"
+                echo "DEBUG: Testing GStreamer detection..."
+                pkg-config --exists gstreamer-1.0 && echo "DEBUG: GStreamer 1.0 found" || echo "DEBUG: GStreamer 1.0 NOT found"
+                pkg-config --modversion gstreamer-1.0 && echo "DEBUG: GStreamer version detected"
                 cmake -GNinja \
                     -DCMAKE_C_FLAGS="-D_GNU_SOURCE -D_POSIX_C_SOURCE=200809L" \
                     -DCMAKE_CXX_FLAGS="-D_GNU_SOURCE -D_POSIX_C_SOURCE=200809L" \
                     -DCMAKE_INSTALL_PREFIX="${QT_TARGET_DIR}" \
-                    -DCMAKE_PREFIX_PATH="${QT_TARGET_DIR}" \
+                    -DCMAKE_PREFIX_PATH="${QT_TARGET_DIR};${WORK_DIR}/gstreamer_build" \
                     -DCMAKE_BUILD_TYPE=Release \
                     -DBUILD_SHARED_LIBS=OFF \
                     -DFEATURE_ffmpeg=ON \
