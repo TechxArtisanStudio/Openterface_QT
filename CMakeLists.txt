@@ -761,6 +761,7 @@ if(NOT FFMPEG_FOUND)
             message(STATUS "Found FFmpeg libraries in architecture-specific directory: ${FFMPEG_LIB_DIR}")
         endif()
     endif()
+
     # Final fallback
     if(NOT FFMPEG_FOUND)
         if(USE_FFMPEG_STATIC)
@@ -779,6 +780,7 @@ if(NOT FFMPEG_FOUND)
             set(FFMPEG_PREFIX "/usr")
             set(FFMPEG_LIB_DIR "/usr/lib/x86_64-linux-gnu")
         endif()
+        
         if(NOT FFMPEG_FOUND)
             message(WARNING "FFmpeg not found, using fallback location: ${FFMPEG_PREFIX}")
             message(STATUS "Expected FFmpeg libraries in: ${FFMPEG_LIB_DIR}")
@@ -911,6 +913,7 @@ list(APPEND HWACCEL_LIBRARIES
 
 # Check if FFmpeg is available and enable it
 set(FFMPEG_CHECK_FILE "${FFMPEG_PREFIX}/include/avformat.h")
+
 if(USE_FFMPEG_STATIC)
     set(FFMPEG_LIB_CHECK "${FFMPEG_LIB_DIR}/libavformat.a")
 else()
@@ -1262,6 +1265,7 @@ qt_add_resources(openterfaceQT "mainwindow"
 
 set(keyboard_layouts_resource_files
     "config/keyboards/azerty_fr.json"
+    "config/keyboards/azerty_be.json"
     "config/keyboards/japanese.json"
     "config/keyboards/qwerty_dk.json"
     "config/keyboards/qwerty_uk.json"

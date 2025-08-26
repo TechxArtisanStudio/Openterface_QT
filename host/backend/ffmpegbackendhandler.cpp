@@ -44,13 +44,6 @@ extern "C" {
 #include <libswscale/swscale.h>
 #include <libavdevice/avdevice.h>
 }
-// Helper to convert const AVInputFormat* to AVInputFormat* where FFmpeg API expects a non-const pointer.
-// This makes the intent explicit and centralizes the const_cast usage.
-#ifdef __cplusplus
-static inline AVInputFormat* ffmpeg_cast(const AVInputFormat* f) { return const_cast<AVInputFormat*>(f); }
-#else
-#define ffmpeg_cast(f) ((AVInputFormat*)(f))
-#endif
 #endif
 
 // libjpeg-turbo includes (conditional compilation)
@@ -582,10 +575,33 @@ bool FFmpegBackendHandler::openInputDevice(const QString& devicePath, const QSiz
     // Find input format (V4L2) - try multiple format names
     const AVInputFormat* inputFormat = av_find_input_format("v4l2");
     if (!inputFormat) {
+        qCCritical(log_ffmpeg_backend) << "V4L2 input format not found (tried 'v4l2' and 'video4linux2')";
         inputFormat = av_find_input_format("video4linux2");
     }
-    if (!inputFormat) {
-        qCCritical(log_ffmpeg_backend) << "V4L2 input format not found (tried 'v4l2' and 'video4linux2')";
+    
+    // RESPONSIVENESS: Set low-latency input options for MJPEG
+    AVDictionary* options = nullptr;
+    av_dict_set(&options, "video_size", QString("%1x%2").arg(resolution.width()).arg(resolution.height()).toUtf8().constData(), 0);
+    av_dict_set(&options, "framerate", QString::number(framerate).toUtf8().constData(), 0);
+    av_dict_set(&options, "input_format", "mjpeg", 0); // Should work due to pre-configuration
+    
+    // CRITICAL LOW-LATENCY OPTIMIZATIONS for KVM responsiveness:
+    av_dict_set(&options, "fflags", "nobuffer", 0);        // Disable input buffering
+    av_dict_set(&options, "flags", "low_delay", 0);        // Enable low delay mode  
+    av_dict_set(&options, "framedrop", "1", 0);            // Allow frame dropping
+    av_dict_set(&options, "use_wallclock_as_timestamps", "1", 0); // Use wall clock for timestamps
+    
+    qCDebug(log_ffmpeg_backend) << "Trying low-latency MJPEG format with resolution" << resolution << "and framerate" << framerate;
+    
+    // Open input
+    int ret = avformat_open_input(&m_formatContext, devicePath.toUtf8().constData(), inputFormat, &options);
+    av_dict_free(&options);
+    
+    // If MJPEG fails, try YUYV422
+    if (ret < 0) {
+        char errbuf[AV_ERROR_MAX_STRING_SIZE];
+        av_strerror(ret, errbuf, AV_ERROR_MAX_STRING_SIZE);
+        qCWarning(log_ffmpeg_backend) << "MJPEG format failed:" << QString::fromUtf8(errbuf) << "- trying YUYV422";
         
         // List available input formats for debugging
         qCDebug(log_ffmpeg_backend) << "Available input formats:";
@@ -614,6 +630,15 @@ bool FFmpegBackendHandler::openInputDevice(const QString& devicePath, const QSiz
         
         // Try to proceed without specifying input format (let FFmpeg auto-detect)
         qCWarning(log_ffmpeg_backend) << "Attempting to open device without specifying input format...";
+        ret = avformat_open_input(&m_formatContext, devicePath.toUtf8().constData(), inputFormat, &yuvOptions);
+        av_dict_free(&yuvOptions);
+    }
+    
+    // If that fails, try without specifying input format (auto-detect)
+    if (ret < 0) {
+        char errbuf[AV_ERROR_MAX_STRING_SIZE];
+        av_strerror(ret, errbuf, AV_ERROR_MAX_STRING_SIZE);
+        qCWarning(log_ffmpeg_backend) << "YUYV422 format failed:" << QString::fromUtf8(errbuf) << "- trying auto-detection";
         
         // Try to proceed without specifying input format (let FFmpeg auto-detect)
         qCWarning(log_ffmpeg_backend) << "V4L2 format not available - trying device opening without format specification";
@@ -681,6 +706,8 @@ bool FFmpegBackendHandler::openInputDevice(const QString& devicePath, const QSiz
             return false;
         }
         
+        ret = avformat_open_input(&m_formatContext, devicePath.toUtf8().constData(), inputFormat, &fallbackOptions);
+        av_dict_free(&fallbackOptions);
         qCDebug(log_ffmpeg_backend) << "Device opened successfully with auto-detection";
     } else {
         // V4L2 format is available, use it with normal approach
@@ -697,6 +724,13 @@ bool FFmpegBackendHandler::openInputDevice(const QString& devicePath, const QSiz
         av_dict_set(&options, "use_wallclock_as_timestamps", "1", 0); // Use wall clock for timestamps
         
         qCDebug(log_ffmpeg_backend) << "Trying low-latency MJPEG format with resolution" << resolution << "and framerate" << framerate;
+    }
+    
+    // If everything fails, try minimal options
+    if (ret < 0) {
+        char errbuf[AV_ERROR_MAX_STRING_SIZE];
+        av_strerror(ret, errbuf, AV_ERROR_MAX_STRING_SIZE);
+        qCWarning(log_ffmpeg_backend) << "Auto-detection failed:" << QString::fromUtf8(errbuf) << "- trying minimal options";
         
         // Open input
         int ret = avformat_open_input(&m_formatContext, devicePath.toUtf8().constData(), ffmpeg_cast(inputFormat), &options);

@@ -175,12 +175,14 @@ jobs:
             export PKG_CONFIG_PATH=/usr/lib/aarch64-linux-gnu/pkgconfig:/usr/share/pkgconfig
             export PKG_CONFIG_LIBDIR=/usr/lib/aarch64-linux-gnu/pkgconfig
             export PKG_CONFIG_SYSROOT_DIR=/
+
             
             # Verify cross-compilation tools
             echo "Verifying ARM64 cross-compilation tools:"
             which aarch64-linux-gnu-gcc aarch64-linux-gnu-g++ || { echo "ARM64 compilers not found"; exit 1; }
             aarch64-linux-gnu-gcc --version | head -1
             
+
             # Test pkg-config for FFmpeg
             echo "Testing pkg-config for FFmpeg (ARM64):"
             pkg-config --exists libavformat && echo "✓ libavformat found" || echo "✗ libavformat not found"
@@ -205,11 +207,13 @@ jobs:
             CMAKE_PREFIX_PATH="/usr/lib/aarch64-linux-gnu/cmake:/usr"
           else
             echo "Using native compilation for AMD64..."
+
             # Test pkg-config for FFmpeg
             echo "Testing pkg-config for FFmpeg (AMD64):"
             pkg-config --exists libavformat && echo "✓ libavformat found" || echo "✗ libavformat not found"
             pkg-config --libs libavformat || echo "Failed to get libavformat libs"
             pkg-config --cflags libavformat || echo "Failed to get libavformat cflags"
+
             CMAKE_TOOLCHAIN=""
             QT_PREFIX="/usr/lib/x86_64-linux-gnu/qt6"
             CMAKE_PREFIX_PATH="/usr/lib/x86_64-linux-gnu/cmake:/usr"
@@ -250,6 +254,7 @@ jobs:
           else
             make -j$(nproc) VERBOSE=1
           fi
+
           
           echo "Build completed successfully"
           BUILD_EOF
@@ -547,6 +552,7 @@ jobs:
           else
             make -j$(nproc) VERBOSE=1
           fi
+
           
           echo "Static build completed successfully"
           STATIC_BUILD_EOF
