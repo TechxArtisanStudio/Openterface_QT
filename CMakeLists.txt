@@ -47,12 +47,12 @@ if(CMAKE_CROSSCOMPILING)
         message(STATUS "  Configuring for ARM64 architecture")
         
         # ARM64 compiler workaround: Use minimal optimization to avoid segfaults
-        set(CMAKE_CXX_FLAGS_RELEASE "-O1 -DNDEBUG" CACHE STRING "Release flags" FORCE)
-        set(CMAKE_C_FLAGS_RELEASE "-O1 -DNDEBUG" CACHE STRING "Release flags" FORCE)
+        set(CMAKE_CXX_FLAGS_RELEASE "-O0 -DNDEBUG" CACHE STRING "Release flags" FORCE)
+        set(CMAKE_C_FLAGS_RELEASE "-O0 -DNDEBUG" CACHE STRING "Release flags" FORCE)
         
         # Additional stability flags for ARM64 cross-compilation
-        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-aggressive-loop-optimizations -fno-strict-overflow -fno-tree-vectorize")
-        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fno-aggressive-loop-optimizations -fno-strict-overflow -fno-tree-vectorize")
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-aggressive-loop-optimizations -fno-strict-overflow -fno-tree-vectorize -fno-inline -g0")
+        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fno-aggressive-loop-optimizations -fno-strict-overflow -fno-tree-vectorize -fno-inline -g0")
         
         # Set a flag to indicate ARM64 build for later use
         set(ARM64_BUILD TRUE)
