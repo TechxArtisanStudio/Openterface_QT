@@ -78,6 +78,9 @@ public:
 
     // Mouse position transformation for InputHandler
     QPoint getTransformedMousePosition(const QPoint& viewportPos);
+    
+    // Debug helper to validate coordinate transformation consistency
+    void validateMouseCoordinates(const QPoint& original, const QString& eventType);
 
 signals:
     void mouseMoved(const QPoint& position, const QString& event);

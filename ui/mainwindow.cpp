@@ -490,6 +490,26 @@ void MainWindow::updateDeviceMenu() {
         }
     }
     
+    // If current port chain is null/empty and we have devices, auto-select the first one
+    if ((currentPortChain.isEmpty() || currentPortChain.isNull()) && !uniqueDevicesByPortChain.isEmpty()) {
+        QString firstPortChain = uniqueDevicesByPortChain.firstKey();
+        qCDebug(log_ui_mainwindow) << "Auto-selecting first device with port chain:" << firstPortChain;
+        
+        // Set the first device as current
+        GlobalSetting::instance().setOpenterfacePortChain(firstPortChain);
+        currentPortChain = firstPortChain;
+        
+        // Use the centralized device switching function to actually switch to the first device
+        DeviceManager& deviceManager = DeviceManager::getInstance();
+        auto result = deviceManager.switchToDeviceByPortChainWithCamera(firstPortChain, m_cameraManager);
+        
+        if (result.success) {
+            qCInfo(log_ui_mainwindow) << "✓ Auto device switch successful:" << result.statusMessage;
+        } else {
+            qCWarning(log_ui_mainwindow) << "Auto device switch failed or partial:" << result.statusMessage;
+        }
+    }
+    
     // Add action for each unique device
     for (auto it = uniqueDevicesByPortChain.begin(); it != uniqueDevicesByPortChain.end(); ++it) {
         const DeviceInfo& device = it.value();

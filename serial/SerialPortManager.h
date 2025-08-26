@@ -31,6 +31,9 @@
 #include <QLoggingCategory>
 #include <QDateTime>
 #include <QElapsedTimer>
+#include <QMutex>
+#include <QQueue>
+#include <atomic>
 
 #include "ch9329.h"
 
@@ -96,6 +99,15 @@ public:
     // Hotplug monitoring integration
     void connectToHotplugMonitor();
     void disconnectFromHotplugMonitor();
+    
+    // Enhanced stability features
+    void enableAutoRecovery(bool enable = true);
+    void setMaxRetryAttempts(int maxRetries);
+    void setMaxConsecutiveErrors(int maxErrors);
+    bool isConnectionStable() const;
+    int getConsecutiveErrorCount() const;
+    int getConnectionRetryCount() const;
+    void forceRecovery();
     
 signals:
     void dataReceived(const QByteArray &data);
@@ -164,6 +176,28 @@ private:
     // Current serial port tracking
     QString m_currentSerialPortPath;
     QString m_currentSerialPortChain;
+    
+    // Enhanced stability members
+    std::atomic<bool> m_isShuttingDown = false;
+    std::atomic<int> m_connectionRetryCount = 0;
+    std::atomic<int> m_consecutiveErrors = 0;
+    QTimer* m_connectionWatchdog;
+    QTimer* m_errorRecoveryTimer;
+    QMutex m_serialPortMutex;
+    QQueue<QByteArray> m_commandQueue;
+    QMutex m_commandQueueMutex;
+    bool m_autoRecoveryEnabled = true;
+    int m_maxRetryAttempts = 5;
+    int m_maxConsecutiveErrors = 10;
+    QElapsedTimer m_lastSuccessfulCommand;
+    
+    // Enhanced error handling
+    void handleSerialError(QSerialPort::SerialPortError error);
+    void attemptRecovery();
+    void resetErrorCounters();
+    bool isRecoveryNeeded() const;
+    void setupConnectionWatchdog();
+    void stopConnectionWatchdog();
 
     QString statusCodeToString(uint8_t status);
 };
