@@ -47,6 +47,15 @@ SerialPortManager::SerialPortManager(QObject *parent) : QObject(parent), serialP
     // Initialize port chain tracking member variables
     m_currentSerialPortPath = QString();
     m_currentSerialPortChain = QString();
+    
+    // Initialize enhanced stability members
+    m_connectionWatchdog = new QTimer(this);
+    m_errorRecoveryTimer = new QTimer(this);
+    m_connectionWatchdog->setSingleShot(true);
+    m_errorRecoveryTimer->setSingleShot(true);
+    m_lastSuccessfulCommand.start();
+    
+    setupConnectionWatchdog();
 
     connect(this, &SerialPortManager::serialPortConnected, this, &SerialPortManager::onSerialPortConnected);
     connect(this, &SerialPortManager::serialPortDisconnected, this, &SerialPortManager::onSerialPortDisconnected);
@@ -69,7 +78,7 @@ SerialPortManager::SerialPortManager(QObject *parent) : QObject(parent), serialP
     // Connect to hotplug monitor for automatic device management
     connectToHotplugMonitor();
     
-    qCDebug(log_core_serial) << "SerialPortManager initialized with DeviceManager integration";
+    qCDebug(log_core_serial) << "SerialPortManager initialized with DeviceManager integration and enhanced stability features";
 }
 
 void SerialPortManager::observeSerialPortNotification(){
@@ -92,6 +101,12 @@ void SerialPortManager::observeSerialPortNotification(){
 void SerialPortManager::stop() {
     qCDebug(log_core_serial) << "Stopping serial port manager...";
     
+    // Set shutdown flag to prevent new operations
+    m_isShuttingDown = true;
+    
+    // Stop watchdog timers
+    stopConnectionWatchdog();
+    
     // Prevent callback access during shutdown
     eventCallback = nullptr;
     
@@ -103,6 +118,10 @@ void SerialPortManager::stop() {
     if (serialPort && serialPort->isOpen()) {
         closePort();
     }
+    
+    // Clear command queue
+    QMutexLocker locker(&m_commandQueueMutex);
+    m_commandQueue.clear();
     
     qCDebug(log_core_serial) << "Serial port manager stopped";
 }
@@ -458,12 +477,22 @@ void SerialPortManager::onSerialPortConnectionSuccess(const QString &portName){
     qCDebug(log_core_serial) << "Observe" << portName << "data ready and bytes written.";
     connect(serialPort, &QSerialPort::readyRead, this, &SerialPortManager::readData);
     connect(serialPort, &QSerialPort::bytesWritten, this, &SerialPortManager::bytesWritten);
+    
+    // Connect error signal for enhanced error handling
+    connect(serialPort, QOverload<QSerialPort::SerialPortError>::of(&QSerialPort::errorOccurred),
+            this, &SerialPortManager::handleSerialError);
+    
     ready = true;
+    resetErrorCounters();
+    m_lastSuccessfulCommand.restart();
 
     if(eventCallback!=nullptr) eventCallback->onPortConnected(portName, serialPort->baudRate());
 
     qCDebug(log_core_serial) << "Enable the switchable USB now...";
     // serialPort->setDataTerminalReady(false);
+
+    // Start connection watchdog
+    setupConnectionWatchdog();
 
     sendSyncCommand(CMD_GET_INFO, true);
 }
@@ -578,42 +607,105 @@ SerialPortManager::~SerialPortManager() {
     // Prevent further callback access during destruction
     eventCallback = nullptr;
     
+    // Set shutdown flag
+    m_isShuttingDown = true;
+    
     // Properly stop the manager first
     stop();
     
     // Disconnect from hotplug monitor
     disconnectFromHotplugMonitor();
     
+    // Clean up timers
+    if (m_connectionWatchdog) {
+        m_connectionWatchdog->stop();
+        m_connectionWatchdog->deleteLater();
+        m_connectionWatchdog = nullptr;
+    }
+    
+    if (m_errorRecoveryTimer) {
+        m_errorRecoveryTimer->stop();
+        m_errorRecoveryTimer->deleteLater();
+        m_errorRecoveryTimer = nullptr;
+    }
+    
     // Final cleanup
     if (serialPort) {
         delete serialPort;
         serialPort = nullptr;
     }
+    
+    qCDebug(log_core_serial) << "Serial port manager destroyed";
 }
 
 /*
  * Open the serial port
  */
 bool SerialPortManager::openPort(const QString &portName, int baudRate) {
+    if (m_isShuttingDown) {
+        qCDebug(log_core_serial) << "Cannot open port during shutdown";
+        return false;
+    }
+    
+    QMutexLocker locker(&m_serialPortMutex);
+    
     if (serialPort != nullptr && serialPort->isOpen()) {
         qCDebug(log_core_serial) << "Serial port is already opened.";
         return false;
     }
+    
     if(eventCallback!=nullptr) eventCallback->onStatusUpdate("Going to open the port");
+    
     if(serialPort == nullptr){
         serialPort = new QSerialPort();
+        
+        // Connect error signal for enhanced error handling
+        connect(serialPort, QOverload<QSerialPort::SerialPortError>::of(&QSerialPort::errorOccurred),
+                this, &SerialPortManager::handleSerialError);
     }
+    
     serialPort->setPortName(portName);
     serialPort->setBaudRate(baudRate);
-    if (serialPort->open(QIODevice::ReadWrite)) {
+    
+    // Enhanced port opening with better error handling
+    bool openResult = false;
+    QSerialPort::SerialPortError lastError = QSerialPort::NoError;
+    
+    for (int attempt = 0; attempt < 3; ++attempt) {
+        openResult = serialPort->open(QIODevice::ReadWrite);
+        if (openResult) {
+            break;
+        }
+        
+        lastError = serialPort->error();
+        qCWarning(log_core_serial) << "Failed to open port on attempt" << (attempt + 1) 
+                                   << "Error:" << serialPort->errorString();
+        
+        // Wait progressively longer between attempts
+        QThread::msleep(100 * (attempt + 1));
+        
+        // Clear error before retry
+        serialPort->clearError();
+    }
+    
+    if (openResult) {
         qCDebug(log_core_serial) << "Open port" << portName + ", baudrate: " << baudRate;
         serialPort->setRequestToSend(false);
+        
+        // Reset error counters on successful connection
+        resetErrorCounters();
 
         if(eventCallback!=nullptr) eventCallback->onStatusUpdate("");
         if(eventCallback!=nullptr) eventCallback->onPortConnected(portName, baudRate);
         return true;
     } else {
-        if(eventCallback!=nullptr) eventCallback->onStatusUpdate("Open port failure");
+        QString errorMsg = QString("Open port failure: %1 (Error: %2)")
+                          .arg(serialPort->errorString())
+                          .arg(static_cast<int>(lastError));
+        qCWarning(log_core_serial) << errorMsg;
+        
+        m_consecutiveErrors++;
+        if(eventCallback!=nullptr) eventCallback->onStatusUpdate(errorMsg);
         return false;
     }
 }
@@ -623,24 +715,42 @@ bool SerialPortManager::openPort(const QString &portName, int baudRate) {
  */
 void SerialPortManager::closePort() {
     qCDebug(log_core_serial) << "Close serial port";
+    
+    QMutexLocker locker(&m_serialPortMutex);
+    
     if (serialPort != nullptr) {
         if (serialPort->isOpen()) {
+            // Disconnect all signals first
             disconnect(serialPort, &QSerialPort::readyRead, this, &SerialPortManager::readData);
             disconnect(serialPort, &QSerialPort::bytesWritten, this, &SerialPortManager::bytesWritten);
-            serialPort->flush();
-            serialPort->clear();
-            serialPort->clearError();
-            serialPort->close();
+            disconnect(serialPort, QOverload<QSerialPort::SerialPortError>::of(&QSerialPort::errorOccurred),
+                      this, &SerialPortManager::handleSerialError);
+            
+            // Attempt graceful flush and close
+            try {
+                serialPort->flush();
+                serialPort->clear();
+                serialPort->clearError();
+                serialPort->close();
+                qCDebug(log_core_serial) << "Serial port closed successfully";
+            } catch (...) {
+                qCWarning(log_core_serial) << "Exception during port closure";
+            }
         }
         delete serialPort;
         serialPort = nullptr;
     } else {
         qCDebug(log_core_serial) << "Serial port is not opened.";
     }
+    
     ready = false;
     if (eventCallback != nullptr) {
         eventCallback->onPortConnected("NA", 0);
     }
+    
+    // Stop watchdog while port is closed
+    stopConnectionWatchdog();
+    
     QThread::msleep(300);
 }
 
@@ -674,14 +784,38 @@ void SerialPortManager::updateSpecialKeyState(uint8_t data){
  * Read the data from the serial port
  */
 void SerialPortManager::readData() {
-    QByteArray data = serialPort->readAll();
+    if (m_isShuttingDown || !serialPort || !serialPort->isOpen()) {
+        return;
+    }
+    
+    QByteArray data;
+    try {
+        data = serialPort->readAll();
+    } catch (...) {
+        qCWarning(log_core_serial) << "Exception occurred while reading serial data";
+        m_consecutiveErrors++;
+        if (isRecoveryNeeded()) {
+            attemptRecovery();
+        }
+        return;
+    }
+    
+    if (data.isEmpty()) {
+        qCDebug(log_core_serial) << "Received empty data from serial port";
+        return;
+    }
+    
     if (data.size() >= 6) {
+        // Reset consecutive errors on successful data read
+        resetErrorCounters();
+        m_lastSuccessfulCommand.restart();
 
         unsigned char status = data[5];
         unsigned char cmdCode = data[3];
 
         if(status != DEF_CMD_SUCCESS && (cmdCode >= 0xC0 && cmdCode <= 0xCF)){
             dumpError(status, data);
+            m_consecutiveErrors++;
         }
         else{
             qCDebug(log_core_serial) << "Receive from serial port @" << serialPort->baudRate() << ":" << data.toHex(' ');
@@ -733,7 +867,16 @@ void SerialPortManager::readData() {
                 break;
             }
         }
+    } else {
+        qCWarning(log_core_serial) << "Received incomplete data packet of size:" << data.size();
+        m_consecutiveErrors++;
     }
+    
+    // Check if recovery is needed based on error count
+    if (isRecoveryNeeded()) {
+        attemptRecovery();
+    }
+    
     // qCDebug(log_core_serial) << "Recv read" << data;
     emit dataReceived(data);
 }
@@ -800,15 +943,54 @@ void SerialPortManager::bytesWritten(qint64 nBytes){
  * Write the data to the serial port
  */
 bool SerialPortManager::writeData(const QByteArray &data) {
-    if (serialPort->isOpen()) {
-        serialPort->write(data);
-        qCDebug(log_core_serial) << "Data written to serial port: @" + serialPort->portName() << ":" << data.toHex(' ');
-        return true;
+    if (m_isShuttingDown) {
+        qCDebug(log_core_serial) << "Cannot write data during shutdown";
+        return false;
+    }
+    
+    QMutexLocker locker(&m_serialPortMutex);
+    
+    if (!serialPort || !serialPort->isOpen()) {
+        qCWarning(log_core_serial) << "Serial port not open, cannot write data";
+        ready = false;
+        m_consecutiveErrors++;
+        return false;
     }
 
-    qCDebug(log_core_serial) << "Serial is not opened, cannot write data" << serialPort->portName();
-    ready = false;
-    return false;
+    try {
+        qint64 bytesWritten = serialPort->write(data);
+        if (bytesWritten == -1) {
+            qCWarning(log_core_serial) << "Failed to write data to serial port:" << serialPort->errorString();
+            m_consecutiveErrors++;
+            return false;
+        } else if (bytesWritten != data.size()) {
+            qCWarning(log_core_serial) << "Partial write: expected" << data.size() << "bytes, wrote" << bytesWritten;
+            m_consecutiveErrors++;
+            return false;
+        }
+        
+        // Wait for write to complete with timeout
+        if (!serialPort->waitForBytesWritten(1000)) {
+            qCWarning(log_core_serial) << "Write timeout occurred";
+            m_consecutiveErrors++;
+            return false;
+        }
+        
+        qCDebug(log_core_serial) << "Data written to serial port: @" + serialPort->portName() << ":" << data.toHex(' ');
+        
+        // Reset error count on successful write
+        if (m_consecutiveErrors > 0) {
+            m_consecutiveErrors = qMax(0, m_consecutiveErrors - 1);
+        }
+        
+        return true;
+        
+    } catch (...) {
+        qCCritical(log_core_serial) << "Exception occurred while writing to serial port";
+        m_consecutiveErrors++;
+        ready = false;
+        return false;
+    }
 }
 
 /*
@@ -1086,5 +1268,194 @@ void SerialPortManager::disconnectFromHotplugMonitor()
         // Disconnect all signals from hotplug monitor
         disconnect(hotplugMonitor, nullptr, this, nullptr);
         qCDebug(log_core_serial) << "SerialPortManager disconnected from hotplug monitor";
+    }
+}
+
+// Enhanced stability implementation
+
+void SerialPortManager::enableAutoRecovery(bool enable)
+{
+    m_autoRecoveryEnabled = enable;
+    qCDebug(log_core_serial) << "Auto recovery" << (enable ? "enabled" : "disabled");
+}
+
+void SerialPortManager::setMaxRetryAttempts(int maxRetries)
+{
+    m_maxRetryAttempts = qMax(1, maxRetries);
+    qCDebug(log_core_serial) << "Max retry attempts set to:" << m_maxRetryAttempts;
+}
+
+void SerialPortManager::setMaxConsecutiveErrors(int maxErrors)
+{
+    m_maxConsecutiveErrors = qMax(1, maxErrors);
+    qCDebug(log_core_serial) << "Max consecutive errors set to:" << m_maxConsecutiveErrors;
+}
+
+bool SerialPortManager::isConnectionStable() const
+{
+    return m_consecutiveErrors < (m_maxConsecutiveErrors / 2) && 
+           m_lastSuccessfulCommand.elapsed() < 10000; // 10 seconds
+}
+
+int SerialPortManager::getConsecutiveErrorCount() const
+{
+    return m_consecutiveErrors;
+}
+
+int SerialPortManager::getConnectionRetryCount() const
+{
+    return m_connectionRetryCount;
+}
+
+void SerialPortManager::forceRecovery()
+{
+    qCInfo(log_core_serial) << "Force recovery requested";
+    attemptRecovery();
+}
+
+void SerialPortManager::handleSerialError(QSerialPort::SerialPortError error)
+{
+    if (error == QSerialPort::NoError || m_isShuttingDown) {
+        return;
+    }
+    
+    QString errorString = serialPort ? serialPort->errorString() : "Unknown error";
+    qCWarning(log_core_serial) << "Serial port error occurred:" << errorString << "Error code:" << static_cast<int>(error);
+    
+    m_consecutiveErrors++;
+    
+    switch (error) {
+        case QSerialPort::DeviceNotFoundError:
+        case QSerialPort::PermissionError:
+        case QSerialPort::OpenError:
+            qCCritical(log_core_serial) << "Critical serial port error, immediate recovery needed";
+            ready = false;
+            attemptRecovery();
+            break;
+            
+        case QSerialPort::WriteError:
+        case QSerialPort::ReadError:
+        case QSerialPort::ResourceError:
+        case QSerialPort::UnsupportedOperationError:
+        case QSerialPort::TimeoutError:
+            if (isRecoveryNeeded()) {
+                attemptRecovery();
+            }
+            break;
+            
+        default:
+            qCDebug(log_core_serial) << "Unhandled serial port error:" << static_cast<int>(error);
+            break;
+    }
+}
+
+void SerialPortManager::attemptRecovery()
+{
+    if (m_isShuttingDown || !m_autoRecoveryEnabled) {
+        return;
+    }
+    
+    qCInfo(log_core_serial) << "Attempting serial port recovery. Consecutive errors:" << m_consecutiveErrors 
+                           << "Retry count:" << m_connectionRetryCount;
+    
+    if (m_connectionRetryCount >= m_maxRetryAttempts) {
+        qCCritical(log_core_serial) << "Maximum retry attempts reached. Giving up recovery.";
+        ready = false;
+        if (eventCallback) {
+            eventCallback->onStatusUpdate("Serial port recovery failed - max retries exceeded");
+        }
+        return;
+    }
+    
+    m_connectionRetryCount++;
+    
+    // Schedule recovery attempt with exponential backoff
+    int delay = qMin(1000 * (1 << (m_connectionRetryCount - 1)), 10000); // Max 10 seconds
+    
+    m_errorRecoveryTimer->stop();
+    QTimer::singleShot(delay, this, [this]() {
+        if (m_isShuttingDown) {
+            return;
+        }
+        
+        qCInfo(log_core_serial) << "Executing recovery attempt" << m_connectionRetryCount;
+        
+        QString currentPortPath = m_currentSerialPortPath;
+        QString currentPortChain = m_currentSerialPortChain;
+        
+        // Try to restart the current port
+        if (!currentPortPath.isEmpty() && !currentPortChain.isEmpty()) {
+            bool recoverySuccess = switchSerialPortByPortChain(currentPortChain);
+            
+            if (recoverySuccess && ready) {
+                qCInfo(log_core_serial) << "✓ Serial port recovery successful";
+                resetErrorCounters();
+                if (eventCallback) {
+                    eventCallback->onStatusUpdate("Serial port recovered successfully");
+                }
+            } else {
+                qCWarning(log_core_serial) << "Serial port recovery attempt failed";
+                if (eventCallback) {
+                    eventCallback->onStatusUpdate(QString("Recovery attempt %1 failed").arg(m_connectionRetryCount));
+                }
+                
+                // Try again if we haven't exceeded max attempts
+                if (m_connectionRetryCount < m_maxRetryAttempts) {
+                    attemptRecovery();
+                }
+            }
+        } else {
+            qCWarning(log_core_serial) << "Cannot recover - no port chain information available";
+        }
+    });
+}
+
+void SerialPortManager::resetErrorCounters()
+{
+    m_consecutiveErrors = 0;
+    m_connectionRetryCount = 0;
+}
+
+bool SerialPortManager::isRecoveryNeeded() const
+{
+    return m_autoRecoveryEnabled && 
+           m_consecutiveErrors >= m_maxConsecutiveErrors &&
+           m_connectionRetryCount < m_maxRetryAttempts;
+}
+
+void SerialPortManager::setupConnectionWatchdog()
+{
+    m_connectionWatchdog->setInterval(30000); // 30 seconds
+    connect(m_connectionWatchdog, &QTimer::timeout, this, [this]() {
+        if (m_isShuttingDown) {
+            return;
+        }
+        
+        // Check if we haven't had successful communication in a while
+        if (m_lastSuccessfulCommand.elapsed() > 30000) { // 30 seconds
+            qCWarning(log_core_serial) << "Connection watchdog triggered - no successful communication for 30s";
+            
+            if (m_autoRecoveryEnabled && !isRecoveryNeeded()) {
+                m_consecutiveErrors = m_maxConsecutiveErrors; // Force recovery
+                attemptRecovery();
+            }
+        }
+        
+        // Restart watchdog
+        m_connectionWatchdog->start();
+    });
+    
+    if (!m_isShuttingDown) {
+        m_connectionWatchdog->start();
+    }
+}
+
+void SerialPortManager::stopConnectionWatchdog()
+{
+    if (m_connectionWatchdog) {
+        m_connectionWatchdog->stop();
+    }
+    if (m_errorRecoveryTimer) {
+        m_errorRecoveryTimer->stop();
     }
 }

@@ -38,8 +38,9 @@ MouseEventDTO* InputHandler::calculateRelativePosition(QMouseEvent *event) {
     int relX = static_cast<int>(relativeX * widthRatio);
     int relY = static_cast<int>(relativeY * heightRatio);
 
-    lastX = event->position().x();
-    lastY = event->position().y();
+    // Use consistent position access - use pos() instead of position()
+    lastX = event->pos().x();
+    lastY = event->pos().y();
     
     return new MouseEventDTO(relX, relY, false);
 }
@@ -51,8 +52,25 @@ MouseEventDTO* InputHandler::calculateAbsolutePosition(QMouseEvent *event) {
     // Transform mouse position if needed
     QPoint transformedPos = transformMousePosition(event, effectiveWidget);
     
-    qreal absoluteX = static_cast<qreal>(transformedPos.x()) / effectiveWidget->width() * 4096;
-    qreal absoluteY = static_cast<qreal>(transformedPos.y()) / effectiveWidget->height() * 4096;
+    // Use VideoPane's coordinate transformation for consistency
+    QPoint videoPos = transformedPos;
+    if (m_videoPane && effectiveWidget == m_videoPane) {
+        // Use VideoPane's transformation logic for accurate video area mapping
+        videoPos = m_videoPane->getTransformedMousePosition(transformedPos);
+        
+        // Debug: Log coordinate transformation details
+        static int logCounter = 0;
+        if (++logCounter % 20 == 1) { // Log every 20th event to reduce spam
+            // qCDebug(log_ui_input) << "InputHandler::calculateAbsolutePosition:"
+            //                       << "original=" << event->pos()
+            //                       << "transformed=" << transformedPos
+            //                       << "video-transformed=" << videoPos
+            //                       << "widget size=" << effectiveWidget->size();
+        }
+    }
+    
+    qreal absoluteX = static_cast<qreal>(videoPos.x()) / effectiveWidget->width() * 4096;
+    qreal absoluteY = static_cast<qreal>(videoPos.y()) / effectiveWidget->height() * 4096;
     lastX = static_cast<int>(absoluteX);
     lastY = static_cast<int>(absoluteY);
     return new MouseEventDTO(lastX, lastY, true);
@@ -383,8 +401,13 @@ QPoint InputHandler::transformMousePosition(QMouseEvent *event, QWidget* sourceW
         return event->pos();
     }
     
-    // If the event is from the overlay widget and we need coordinates relative to VideoPane
-    if (sourceWidget != m_videoPane && m_videoPane->isDirectGStreamerModeEnabled()) {
+    // Always use VideoPane's transformation logic for consistency
+    // regardless of whether we're in GStreamer mode or not
+    if (sourceWidget == m_videoPane) {
+        // For VideoPane events, use the direct position - VideoPane handles its own transformation
+        return event->pos();
+    } else if (m_videoPane->isDirectGStreamerModeEnabled() && sourceWidget != m_videoPane) {
+        // For overlay widget events in GStreamer mode, convert to VideoPane coordinates
         // The overlay widget should have the same coordinate system as the VideoPane
         // since it's positioned to fill the VideoPane
         return event->pos();

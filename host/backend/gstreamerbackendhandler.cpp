@@ -42,7 +42,6 @@ Q_LOGGING_CATEGORY(log_gstreamer_backend, "opf.backend.gstreamer")
 #include <gst/gst.h>
 #include <gst/video/videooverlay.h>
 
-#ifndef GSTREAMER_DYNAMIC_LINKING
 // Static plugin registration declarations for static linking
 extern "C" {
     // Core GStreamer plugins needed for video pipeline
@@ -57,7 +56,6 @@ extern "C" {
     void gst_plugin_xvimagesink_register(void);       // xvimagesink
     void gst_plugin_autodetect_register(void);        // autovideosink
 }
-#endif // GSTREAMER_DYNAMIC_LINKING
 #endif
 
 GStreamerBackendHandler::GStreamerBackendHandler(QObject *parent)
@@ -71,8 +69,8 @@ GStreamerBackendHandler::GStreamerBackendHandler(QObject *parent)
       m_healthCheckTimer(new QTimer(this)),
       m_gstProcess(nullptr),
       m_pipelineRunning(false),
-      m_currentResolution(1280, 720),  // Initialize with a valid default resolution
-      m_currentFramerate(30)
+      m_currentFramerate(30),
+      m_currentResolution(1280, 720)  // Initialize with a valid default resolution
 {
     m_config = getDefaultConfig();
     
@@ -122,9 +120,6 @@ void GStreamerBackendHandler::prepareCameraCreation(QCamera* oldCamera)
 
 void GStreamerBackendHandler::setupCaptureSession(QMediaCaptureSession* session, QCamera* camera)
 {
-    Q_UNUSED(session)
-    Q_UNUSED(camera)
-    
     // For GStreamer backend, always use direct pipeline and never set up Qt camera
     // This prevents Qt from accessing the V4L2 device and causing conflicts
     qCDebug(log_gstreamer_backend) << "GStreamer: Skipping Qt capture session setup - always use direct pipeline to avoid device conflicts";
@@ -135,9 +130,6 @@ void GStreamerBackendHandler::setupCaptureSession(QMediaCaptureSession* session,
 
 void GStreamerBackendHandler::finalizeVideoOutputConnection(QMediaCaptureSession* session, QObject* videoOutput)
 {
-    Q_UNUSED(session)
-    Q_UNUSED(videoOutput)
-    
     // For GStreamer backend, always use direct rendering and never set up Qt video output
     // This prevents Qt from accessing the V4L2 device and causing conflicts
     qCDebug(log_gstreamer_backend) << "GStreamer: Skipping Qt video output setup - always use direct GStreamer rendering to avoid device conflicts";
@@ -773,8 +765,7 @@ bool GStreamerBackendHandler::initializeGStreamer()
     
     qCDebug(log_gstreamer_backend) << "GStreamer initialized successfully";
     
-    // Register static plugins required for video pipeline (only for static builds)
-#ifndef GSTREAMER_DYNAMIC_LINKING
+    // Register static plugins required for video pipeline
     qCDebug(log_gstreamer_backend) << "Registering static GStreamer plugins...";
     
     try {
@@ -818,20 +809,19 @@ bool GStreamerBackendHandler::initializeGStreamer()
         qCDebug(log_gstreamer_backend) << "✓ Registered autodetect plugin (autovideosink)";
         
         qCDebug(log_gstreamer_backend) << "All static GStreamer plugins registered successfully";
+        
+        // Verify that v4l2src element is now available
+        GstElementFactory* factory = gst_element_factory_find("v4l2src");
+        if (factory) {
+            qCDebug(log_gstreamer_backend) << "✓ v4l2src element is now available";
+            gst_object_unref(factory);
+        } else {
+            qCWarning(log_gstreamer_backend) << "✗ v4l2src element still not available after registration";
+        }
+        
     } catch (...) {
-        qCWarning(log_gstreamer_backend) << "Exception occurred during static plugin registration";
-    }
-#else
-    qCDebug(log_gstreamer_backend) << "Using dynamic GStreamer plugins (no static registration needed)";
-#endif
-    
-    // Verify that v4l2src element is now available
-    GstElementFactory* factory = gst_element_factory_find("v4l2src");
-    if (factory) {
-        qCDebug(log_gstreamer_backend) << "✓ v4l2src element is available";
-        gst_object_unref(factory);
-    } else {
-        qCWarning(log_gstreamer_backend) << "✗ v4l2src element not available - check GStreamer plugins installation";
+        qCCritical(log_gstreamer_backend) << "Exception occurred during plugin registration";
+        return false;
     }
     
     return true;

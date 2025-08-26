@@ -490,29 +490,44 @@ void VideoPane::setupScene()
 
 QPoint VideoPane::getTransformedMousePosition(const QPoint& viewportPos)
 {
-    if (!m_videoItem) {
+    // Handle different video display modes appropriately
+    QGraphicsItem* targetItem = nullptr;
+    QRectF itemRect;
+    
+    if (m_directFFmpegMode && m_pixmapItem && m_pixmapItem->isVisible()) {
+        targetItem = m_pixmapItem;
+        itemRect = m_pixmapItem->boundingRect();
+    } else if (m_videoItem && m_videoItem->isVisible()) {
+        targetItem = m_videoItem;
+        itemRect = m_videoItem->boundingRect();
+    }
+    
+    // If no valid target item, return the original position
+    if (!targetItem || itemRect.isEmpty()) {
         return viewportPos;
     }
     
     // Convert viewport coordinates to scene coordinates
     QPointF scenePos = mapToScene(viewportPos);
     
-    // Map scene coordinates to video item coordinates
-    QPointF itemPos = m_videoItem->mapFromScene(scenePos);
+    // Map scene coordinates to item coordinates
+    QPointF itemPos = targetItem->mapFromScene(scenePos);
     
-    // Get the video item's bounding rect
-    QRectF itemRect = m_videoItem->boundingRect();
+    // Account for the item's transform to get the actual video content coordinates
+    QTransform itemTransform = targetItem->transform();
+    QRectF transformedRect = itemTransform.mapRect(QRectF(0, 0, itemRect.width(), itemRect.height()));
     
     // Normalize coordinates to 0-1 range based on the video content area
     double normalizedX = 0.0;
     double normalizedY = 0.0;
     
-    if (itemRect.width() > 0 && itemRect.height() > 0) {
-        // Account for any offset in the bounding rect
-        double relativeX = (itemPos.x() - itemRect.x()) / itemRect.width();
-        double relativeY = (itemPos.y() - itemRect.y()) / itemRect.height();
+    if (transformedRect.width() > 0 && transformedRect.height() > 0) {
+        // Calculate position relative to the transformed content
+        QPointF itemOffset = itemRect.topLeft();
+        double relativeX = (itemPos.x() - itemOffset.x()) / itemRect.width();
+        double relativeY = (itemPos.y() - itemOffset.y()) / itemRect.height();
         
-        // Clamp to 0-1 range
+        // Clamp to 0-1 range to ensure we stay within video bounds
         normalizedX = qBound(0.0, relativeX, 1.0);
         normalizedY = qBound(0.0, relativeY, 1.0);
     }
@@ -522,14 +537,45 @@ QPoint VideoPane::getTransformedMousePosition(const QPoint& viewportPos)
     int transformedX = static_cast<int>(normalizedX * viewRect.width());
     int transformedY = static_cast<int>(normalizedY * viewRect.height());
     
-    qDebug() << "VideoPane: Transformed mouse pos from" << viewportPos 
-             << "to" << QPoint(transformedX, transformedY)
-             << "via scene:" << scenePos << "item:" << itemPos 
-             << "normalized:" << normalizedX << normalizedY;
+    // Debug output only when coordinates are significantly different
+    QPoint result(transformedX, transformedY);
+    if ((result - viewportPos).manhattanLength() > 5) {
+        qDebug() << "VideoPane: Transformed mouse pos from" << viewportPos 
+                 << "to" << result
+                 << "via scene:" << scenePos << "item:" << itemPos 
+                 << "normalized:" << normalizedX << normalizedY
+                 << "mode: FFmpeg=" << m_directFFmpegMode << "pixmap visible=" << (m_pixmapItem ? m_pixmapItem->isVisible() : false);
+    }
     
-    return QPoint(transformedX, transformedY);
+    return result;
 }
 
+void VideoPane::validateMouseCoordinates(const QPoint& original, const QString& eventType)
+{
+    // This method helps debug coordinate transformation consistency
+    QPoint transformed = getTransformedMousePosition(original);
+    
+    static QPoint lastOriginal, lastTransformed;
+    static QString lastEventType;
+    
+    if (!lastOriginal.isNull() && eventType != lastEventType) {
+        int originalDiff = (original - lastOriginal).manhattanLength();
+        int transformedDiff = (transformed - lastTransformed).manhattanLength();
+        
+        // Log if there's a significant difference in coordinate transformation behavior
+        if (abs(originalDiff - transformedDiff) > 2) {
+            qCDebug(log_ui_video) << "VideoPane coordinate validation:"
+                                  << "Event transition:" << lastEventType << "->" << eventType
+                                  << "Original diff:" << originalDiff
+                                  << "Transformed diff:" << transformedDiff
+                                  << "Delta:" << abs(originalDiff - transformedDiff);
+        }
+    }
+    
+    lastOriginal = original;
+    lastTransformed = transformed;
+    lastEventType = eventType;
+}
 
 // Event handlers
 void VideoPane::wheelEvent(QWheelEvent *event)
@@ -546,6 +592,9 @@ void VideoPane::wheelEvent(QWheelEvent *event)
 void VideoPane::mousePressEvent(QMouseEvent *event)
 {
     // qDebug() << "VideoPane::mousePressEvent - pos:" << event->pos();
+    
+    // Validate coordinate transformation consistency (debug helper)
+    validateMouseCoordinates(event->pos(), "Press");
     
     // Transform the mouse position for status bar display only
     QPoint transformedPos = getTransformedMousePosition(event->pos());
@@ -567,6 +616,12 @@ void VideoPane::mouseMoveEvent(QMouseEvent *event)
 {
     // qDebug() << "VideoPane::mouseMoveEvent - pos:" << event->pos() << "mouse tracking:" << hasMouseTracking();
     
+    // Validate coordinate transformation consistency (debug helper) - but reduce frequency
+    static int moveValidationCounter = 0;
+    if (++moveValidationCounter % 10 == 1) { // Only validate every 10th move for performance
+        validateMouseCoordinates(event->pos(), "Move");
+    }
+    
     // Transform the mouse position for status bar display only
     QPoint transformedPos = getTransformedMousePosition(event->pos());
     
@@ -586,6 +641,9 @@ void VideoPane::mouseMoveEvent(QMouseEvent *event)
 void VideoPane::mouseReleaseEvent(QMouseEvent *event)
 {
     // qDebug() << "VideoPane::mouseReleaseEvent - pos:" << event->pos();
+    
+    // Validate coordinate transformation consistency (debug helper)
+    validateMouseCoordinates(event->pos(), "Release");
     
     // Transform the mouse position for status bar display only
     QPoint transformedPos = getTransformedMousePosition(event->pos());
