@@ -13,6 +13,7 @@
 #include "video/videohid.h"
 #include "../ui/globalsetting.h"
 #include "../device/DeviceManager.h"
+#include "../device/HotplugMonitor.h"
 #include <QGraphicsVideoItem>
 #include <QTimer>
 #include <QThread>
@@ -35,8 +36,13 @@ CameraManager::CameraManager(QObject *parent)
     if (!isWindowsPlatform()) {
         initializeBackendHandler();
     } else {
-        qCDebug(log_ui_camera) << "Windows platform detected - using direct QCamera approach, skipping backend initialization";
+        qCDebug(log_ui_camera) << "Windows platform detected - using direct QCamera approach with hotplug support";
+        // Setup Windows-specific hotplug monitoring
+        setupWindowsHotplugMonitoring();
     }
+    
+    // Connect to hotplug monitor for all platforms
+    connectToHotplugMonitor();
     
     m_imageCapture = std::make_unique<QImageCapture>();
     m_mediaRecorder = std::make_unique<QMediaRecorder>();
@@ -50,7 +56,10 @@ CameraManager::CameraManager(QObject *parent)
     displayAllCameraDeviceIds();
 }
 
-CameraManager::~CameraManager() = default;
+CameraManager::~CameraManager() {
+    // Disconnect from hotplug monitoring
+    disconnectFromHotplugMonitor();
+}
 
 bool CameraManager::isWindowsPlatform()
 {
@@ -1917,5 +1926,174 @@ void CameraManager::refreshVideoOutput()
         qCritical() << "Exception refreshing video output:" << e.what();
     } catch (...) {
         qCritical() << "Unknown exception refreshing video output";
+    }
+}
+
+void CameraManager::setupWindowsHotplugMonitoring()
+{
+    qCDebug(log_ui_camera) << "Setting up Windows hotplug monitoring";
+    
+    // For Windows, we rely on the DeviceManager's hotplug monitor instead of QMediaDevices
+    // since QMediaDevices::videoInputsChanged is not reliably available as a signal
+    // The DeviceManager hotplug monitor will handle device detection and call our handlers
+    
+    qCDebug(log_ui_camera) << "Windows hotplug monitoring enabled (using DeviceManager)";
+}
+
+void CameraManager::onVideoInputsChanged()
+{
+    qCDebug(log_ui_camera) << "Video inputs changed - refreshing camera device list";
+    
+    QList<QCameraDevice> previousDevices = m_availableCameraDevices;
+    refreshAvailableCameraDevices();
+    
+    // Check for disconnected devices
+    for (const QCameraDevice& prevDevice : previousDevices) {
+        bool stillExists = false;
+        for (const QCameraDevice& currentDevice : m_availableCameraDevices) {
+            if (QString::fromUtf8(prevDevice.id()) == QString::fromUtf8(currentDevice.id())) {
+                stillExists = true;
+                break;
+            }
+        }
+        
+        if (!stillExists) {
+            qCDebug(log_ui_camera) << "Camera device disconnected:" << prevDevice.description();
+            
+            // Check if this was our current device
+            if (!m_currentCameraDevice.isNull() && 
+                QString::fromUtf8(m_currentCameraDevice.id()) == QString::fromUtf8(prevDevice.id())) {
+                qCInfo(log_ui_camera) << "Current camera device disconnected, stopping camera";
+                stopCamera();
+                
+                // Reset current device tracking
+                m_currentCameraDevice = QCameraDevice();
+                m_currentCameraDeviceId.clear();
+                m_currentCameraPortChain.clear();
+                
+                emit cameraDeviceDisconnected(prevDevice);
+            }
+        }
+    }
+    
+    // Check for newly connected devices
+    for (const QCameraDevice& currentDevice : m_availableCameraDevices) {
+        bool isNew = true;
+        for (const QCameraDevice& prevDevice : previousDevices) {
+            if (QString::fromUtf8(currentDevice.id()) == QString::fromUtf8(prevDevice.id())) {
+                isNew = false;
+                break;
+            }
+        }
+        
+        if (isNew) {
+            qCDebug(log_ui_camera) << "New camera device detected:" << currentDevice.description();
+            emit cameraDeviceConnected(currentDevice);
+            
+            // Auto-switch to new Openterface device if no current device is active
+            if (currentDevice.description().contains("Openterface", Qt::CaseInsensitive) && 
+                !hasActiveCameraDevice()) {
+                qCInfo(log_ui_camera) << "Auto-switching to new Openterface camera device:" << currentDevice.description();
+                
+                bool switchSuccess = switchToCameraDevice(currentDevice);
+                if (switchSuccess && m_graphicsVideoOutput) {
+                    startCamera();
+                    qCInfo(log_ui_camera) << "✓ Successfully auto-switched to new Openterface camera device";
+                } else {
+                    qCWarning(log_ui_camera) << "Failed to auto-switch to new Openterface camera device";
+                }
+            }
+        }
+    }
+}
+
+void CameraManager::connectToHotplugMonitor()
+{
+    qCDebug(log_ui_camera) << "Connecting CameraManager to hotplug monitor";
+    
+    // Get the hotplug monitor from DeviceManager
+    DeviceManager& deviceManager = DeviceManager::getInstance();
+    HotplugMonitor* hotplugMonitor = deviceManager.getHotplugMonitor();
+    
+    if (!hotplugMonitor) {
+        qCWarning(log_ui_camera) << "Failed to get hotplug monitor from device manager";
+        return;
+    }
+    
+    // Connect to device unplugging signal
+    connect(hotplugMonitor, &HotplugMonitor::deviceUnplugged,
+            this, [this](const DeviceInfo& device) {
+                qCDebug(log_ui_camera) << "CameraManager: Attempting camera deactivation for unplugged device port:" << device.portChain;
+                
+                // Only deactivate camera if the device has a camera component
+                if (!device.hasCameraDevice()) {
+                    qCDebug(log_ui_camera) << "Device at port" << device.portChain << "has no camera component, skipping camera deactivation";
+                    return;
+                }
+                
+                // Check if the unplugged device matches the current camera device port chain
+                if (!m_currentCameraPortChain.isEmpty() && m_currentCameraPortChain == device.portChain) {
+                    qCInfo(log_ui_camera) << "Deactivating camera for unplugged device at port:" << device.portChain;
+                    bool deactivated = deactivateCameraByPortChain(device.portChain);
+                    if (deactivated) {
+                        qCInfo(log_ui_camera) << "✓ Camera deactivated for unplugged device at port:" << device.portChain;
+                    }
+                } else {
+                    qCDebug(log_ui_camera) << "Camera deactivation skipped - port chain mismatch or no current camera. Current:" << m_currentCameraPortChain << "Unplugged:" << device.portChain;
+                }
+                
+                // For Windows: Also manually check for Qt camera device changes
+                if (isWindowsPlatform()) {
+                    onVideoInputsChanged();
+                }
+            });
+            
+    // Connect to new device plugged in signal
+    connect(hotplugMonitor, &HotplugMonitor::newDevicePluggedIn,
+            this, [this](const DeviceInfo& device) {
+                qCDebug(log_ui_camera) << "CameraManager: Attempting camera auto-switch for new device port:" << device.portChain;
+                
+                // Only attempt auto-switch if the device has a camera component
+                if (!device.hasCameraDevice()) {
+                    qCDebug(log_ui_camera) << "Device at port" << device.portChain << "has no camera component, skipping camera auto-switch";
+                    return;
+                }
+                
+                // Check if there's currently an active camera device
+                if (hasActiveCameraDevice()) {
+                    qCDebug(log_ui_camera) << "Camera device already active, skipping auto-switch to port:" << device.portChain;
+                    return;
+                }
+                
+                qCDebug(log_ui_camera) << "No active camera device found, attempting to switch to new device";
+                
+                // Try to auto-switch to the new camera device
+                bool switchSuccess = tryAutoSwitchToNewDevice(device.portChain);
+                if (switchSuccess) {
+                    qCInfo(log_ui_camera) << "✓ Camera auto-switched to new device at port:" << device.portChain;
+                } else {
+                    qCDebug(log_ui_camera) << "Camera auto-switch failed for port:" << device.portChain;
+                }
+                
+                // For Windows: Also manually check for Qt camera device changes
+                if (isWindowsPlatform()) {
+                    onVideoInputsChanged();
+                }
+            });
+            
+    qCDebug(log_ui_camera) << "CameraManager successfully connected to hotplug monitor";
+}
+
+void CameraManager::disconnectFromHotplugMonitor()
+{
+    qCDebug(log_ui_camera) << "Disconnecting CameraManager from hotplug monitor";
+    
+    // Get the hotplug monitor from DeviceManager
+    DeviceManager& deviceManager = DeviceManager::getInstance();
+    HotplugMonitor* hotplugMonitor = deviceManager.getHotplugMonitor();
+    
+    if (hotplugMonitor) {
+        disconnect(hotplugMonitor, nullptr, this, nullptr);
+        qCDebug(log_ui_camera) << "CameraManager disconnected from hotplug monitor";
     }
 }
