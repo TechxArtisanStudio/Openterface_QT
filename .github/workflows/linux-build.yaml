@@ -243,7 +243,13 @@ jobs:
                 /workspace/src
           
           echo "Building with CMake..."
-          make -j$(nproc) VERBOSE=1
+          # Use fewer parallel jobs for ARM64 to reduce compiler memory pressure
+          if [[ "${{ matrix.arch }}" == "arm64" ]]; then
+            echo "Using reduced parallelism for ARM64 build to prevent compiler segfaults"
+            make -j2 VERBOSE=1
+          else
+            make -j$(nproc) VERBOSE=1
+          fi
           
           echo "Build completed successfully"
           BUILD_EOF
@@ -534,7 +540,13 @@ jobs:
                 /workspace/src
           
           echo "Building with CMake..."
-          make -j$(nproc) VERBOSE=1
+          # Use fewer parallel jobs for ARM64 to reduce compiler memory pressure
+          if [[ "${{ matrix.arch }}" == "arm64" ]]; then
+            echo "Using reduced parallelism for ARM64 build to prevent compiler segfaults"
+            make -j2 VERBOSE=1
+          else
+            make -j$(nproc) VERBOSE=1
+          fi
           
           echo "Static build completed successfully"
           STATIC_BUILD_EOF

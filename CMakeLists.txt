@@ -51,13 +51,13 @@ if(CMAKE_CROSSCOMPILING)
         set(CMAKE_C_FLAGS_RELEASE "-O0 -DNDEBUG" CACHE STRING "Release flags" FORCE)
         
         # Additional stability flags for ARM64 cross-compilation
-        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-aggressive-loop-optimizations -fno-strict-overflow -fno-tree-vectorize -fno-inline -g0")
-        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fno-aggressive-loop-optimizations -fno-strict-overflow -fno-tree-vectorize -fno-inline -g0")
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-aggressive-loop-optimizations -fno-strict-overflow -fno-tree-vectorize -fno-inline -g0 -ftemplate-depth-128 --param ggc-min-expand=0 --param ggc-min-heapsize=32768")
+        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fno-aggressive-loop-optimizations -fno-strict-overflow -fno-tree-vectorize -fno-inline -g0 --param ggc-min-expand=0 --param ggc-min-heapsize=32768")
         
         # Set a flag to indicate ARM64 build for later use
         set(ARM64_BUILD TRUE)
         
-        message(STATUS "  Using -O1 optimization and stability flags for ARM64 to avoid compiler segfaults")
+        message(STATUS "  Using -O0 optimization and aggressive stability flags for ARM64 to avoid compiler segfaults")
         
     elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "^(x86_64|amd64)$")
         set(ARCH_LIB_DIR "x86_64-linux-gnu")
@@ -938,6 +938,23 @@ qt_add_executable(openterfaceQT WIN32 MACOSX_BUNDLE
     video/ms2109.h
 )
 
+# ARM64 workaround: Set per-file compiler flags for problematic files
+if(ARM64_BUILD)
+    message(STATUS "Applying ARM64-specific compiler workarounds for UI files")
+    # Set minimal compiler flags for files that cause segfaults
+    set_source_files_properties(
+        ui/preferences/fpsspinbox.cpp
+        ui/advance/renamedisplaydialog.cpp
+        ui/advance/firmwareupdatedialog.cpp
+        ui/advance/firmwaremanagerdialog.cpp
+        ui/advance/updatedisplaysettingsdialog.cpp
+        ui/preferences/settingdialog.cpp
+        ui/mainwindow.cpp
+        PROPERTIES
+        COMPILE_FLAGS "-O0 -fno-inline -fno-exceptions -fno-rtti -ftemplate-depth-64 -finline-limit=0"
+    )
+endif()
+
 # Debug output for linking
 message(STATUS "Hardware acceleration libraries to link: ${HWACCEL_LIBRARIES}")
 
@@ -1337,12 +1354,21 @@ if(CMAKE_BUILD_TYPE STREQUAL "Release")
         message(STATUS "Skipping LTO and -Os optimization for ARM64 to prevent segfaults")
     endif()
     
-    # Remove unused functions and data
-    add_compile_options(-ffunction-sections -fdata-sections)
+    # Remove unused functions and data (but not for ARM64 due to compiler issues)
+    if(NOT ARM64_BUILD)
+        add_compile_options(-ffunction-sections -fdata-sections)
+        message(STATUS "Using function/data sections for non-ARM64 build")
+    else()
+        message(STATUS "Skipping function/data sections for ARM64 to prevent compiler segfaults")
+    endif()
     
     # Strip unused symbols
     if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-        add_link_options(-Wl,--gc-sections)
+        if(NOT ARM64_BUILD)
+            add_link_options(-Wl,--gc-sections)
+        else()
+            message(STATUS "Skipping --gc-sections for ARM64 to prevent linker issues")
+        endif()
     endif()
 endif()
 
