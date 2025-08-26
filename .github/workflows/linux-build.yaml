@@ -158,6 +158,12 @@ jobs:
           
           echo "Building Openterface QT Application (Dynamic Qt) for ${{ matrix.arch }}..."
           
+          # Install additional dependencies if needed
+          echo "Installing additional dependencies..."
+            apt-get update -y
+            apt-get install -y libgudev-1.0-dev || { echo "Error: libgudev-1.0-dev not found"; exit 1; }
+            apt-get install -y libv4l-dev || { echo "Error: libv4l-dev not found"; exit 1; }
+
           # Verify Docker environment
           /opt/verify/verify-qt-dynamic.sh || echo "Verification script not found"
           
@@ -166,12 +172,22 @@ jobs:
             echo "Setting up ARM64 cross-compilation..."
             export CC=aarch64-linux-gnu-gcc
             export CXX=aarch64-linux-gnu-g++
-            export PKG_CONFIG_PATH=/usr/lib/aarch64-linux-gnu/pkgconfig:$PKG_CONFIG_PATH
+            export PKG_CONFIG_PATH=/usr/lib/aarch64-linux-gnu/pkgconfig:/usr/share/pkgconfig
+            export PKG_CONFIG_LIBDIR=/usr/lib/aarch64-linux-gnu/pkgconfig
+            export PKG_CONFIG_SYSROOT_DIR=/
+
             
             # Verify cross-compilation tools
             echo "Verifying ARM64 cross-compilation tools:"
             which aarch64-linux-gnu-gcc aarch64-linux-gnu-g++ || { echo "ARM64 compilers not found"; exit 1; }
             aarch64-linux-gnu-gcc --version | head -1
+            
+
+            # Test pkg-config for FFmpeg
+            echo "Testing pkg-config for FFmpeg (ARM64):"
+            pkg-config --exists libavformat && echo "✓ libavformat found" || echo "✗ libavformat not found"
+            pkg-config --libs libavformat || echo "Failed to get libavformat libs"
+            pkg-config --cflags libavformat || echo "Failed to get libavformat cflags"
             
             # Create CMake toolchain file for ARM64 cross-compilation
             cat > /tmp/toolchain.cmake << 'TOOLCHAIN_EOF'
@@ -191,6 +207,13 @@ jobs:
             CMAKE_PREFIX_PATH="/usr/lib/aarch64-linux-gnu/cmake:/usr"
           else
             echo "Using native compilation for AMD64..."
+
+            # Test pkg-config for FFmpeg
+            echo "Testing pkg-config for FFmpeg (AMD64):"
+            pkg-config --exists libavformat && echo "✓ libavformat found" || echo "✗ libavformat not found"
+            pkg-config --libs libavformat || echo "Failed to get libavformat libs"
+            pkg-config --cflags libavformat || echo "Failed to get libavformat cflags"
+
             CMAKE_TOOLCHAIN=""
             QT_PREFIX="/usr/lib/x86_64-linux-gnu/qt6"
             CMAKE_PREFIX_PATH="/usr/lib/x86_64-linux-gnu/cmake:/usr"
@@ -206,6 +229,14 @@ jobs:
           cd /workspace/build
           echo "Configuring with CMake..."
           
+          # Debug pkg-config before CMake
+          echo "=== PKG-CONFIG DEBUG ==="
+          echo "PKG_CONFIG_PATH: $PKG_CONFIG_PATH"
+          echo "PKG_CONFIG_LIBDIR: $PKG_CONFIG_LIBDIR"
+          pkg-config --version
+          pkg-config --list-all | grep -E "avformat|avcodec" || echo "No FFmpeg packages found"
+          echo "========================="
+          
           cmake $CMAKE_TOOLCHAIN \
                 -DCMAKE_BUILD_TYPE=Release \
                 -DCMAKE_PREFIX_PATH="$CMAKE_PREFIX_PATH" \
@@ -216,7 +247,14 @@ jobs:
                 /workspace/src
           
           echo "Building with CMake..."
-          make -j$(nproc) VERBOSE=1
+          # Use fewer parallel jobs for ARM64 to reduce compiler memory pressure
+          if [[ "${{ matrix.arch }}" == "arm64" ]]; then
+            echo "Using reduced parallelism for ARM64 build to prevent compiler segfaults"
+            make -j2 VERBOSE=1
+          else
+            make -j$(nproc) VERBOSE=1
+          fi
+
           
           echo "Build completed successfully"
           BUILD_EOF
@@ -430,6 +468,12 @@ jobs:
           
           echo "Building Openterface QT Application (Static Qt) for ${{ matrix.arch }}..."
           
+          # Install additional dependencies if needed
+          echo "Installing additional dependencies..."
+          apt-get update -y
+          apt-get install -y libgudev-1.0-dev || { echo "Error: libgudev-1.0-dev not found"; exit 1; }
+          apt-get install -y libv4l-dev || { echo "Error: libv4l-dev not found"; exit 1; }
+
           # Verify Qt6 static installation
           if [ ! -d '/opt/Qt6' ]; then
             echo "ERROR: Qt6 static installation not found at /opt/Qt6"
@@ -501,7 +545,14 @@ jobs:
                 /workspace/src
           
           echo "Building with CMake..."
-          make -j$(nproc) VERBOSE=1
+          # Use fewer parallel jobs for ARM64 to reduce compiler memory pressure
+          if [[ "${{ matrix.arch }}" == "arm64" ]]; then
+            echo "Using reduced parallelism for ARM64 build to prevent compiler segfaults"
+            make -j2 VERBOSE=1
+          else
+            make -j$(nproc) VERBOSE=1
+          fi
+
           
           echo "Static build completed successfully"
           STATIC_BUILD_EOF

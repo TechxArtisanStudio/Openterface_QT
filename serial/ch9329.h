@@ -70,7 +70,7 @@ T fromByteArray(const QByteArray &data) {
         // Debugging: Print the parsed fields
         // result.dump();
     } else {
-        qWarning(log_core_serial) << "Data size is too small to parse" << typeid(T).name();
+        qWarning(log_core_serial) << "Data size is too small to parse struct of size" << sizeof(T);
         qDebug(log_core_serial) << "Data content:" << data.toHex(' ');
     }
     return result;

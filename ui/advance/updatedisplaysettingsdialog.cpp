@@ -535,63 +535,49 @@ void UpdateDisplaySettingsDialog::loadCurrentEDIDSettings()
 {
     qDebug() << "Loading current EDID settings from firmware...";
     
-    try {
-        // Read firmware size
-        quint32 firmwareSize = VideoHid::getInstance().readFirmwareSize();
-        if (firmwareSize == 0) {
-            qWarning() << "Failed to read firmware size, cannot load current EDID settings";
-            displayNameLineEdit->setPlaceholderText(tr("Failed to read firmware - enter display name"));
-            serialNumberLineEdit->setPlaceholderText(tr("Failed to read firmware - enter serial number"));
-            return;
-        }
-        
-        qDebug() << "Firmware size:" << firmwareSize << "bytes";
-        
-        // Show embedded progress components
-        progressGroup->setVisible(true);
-        progressBar->setValue(0);
-        progressLabel->setText(tr("Reading firmware data..."));
-        
-        // Disable main dialog controls while reading
-        displayNameGroup->setEnabled(false);
-        serialNumberGroup->setEnabled(false);
-        resolutionGroup->setEnabled(false);
-        updateButton->setEnabled(false);
-        
-        // Create temporary file path for firmware reading
-        QString tempDir = QStandardPaths::writableLocation(QStandardPaths::TempLocation);
-        QString tempFirmwarePath = tempDir + "/temp_firmware_read.bin";
-        
-        // Create firmware reader thread
-        firmwareReaderThread = new QThread(this);
-        firmwareReader = new FirmwareReader(&VideoHid::getInstance(), ADDR_EEPROM, firmwareSize, tempFirmwarePath);
-        firmwareReader->moveToThread(firmwareReaderThread);
-        
-        // Connect signals
-        connect(firmwareReaderThread, &QThread::started, firmwareReader, &FirmwareReader::process);
-        connect(firmwareReader, &FirmwareReader::progress, this, &UpdateDisplaySettingsDialog::onFirmwareReadProgress);
-        connect(firmwareReader, &FirmwareReader::finished, this, &UpdateDisplaySettingsDialog::onFirmwareReadFinished);
-        connect(firmwareReader, &FirmwareReader::error, this, &UpdateDisplaySettingsDialog::onFirmwareReadError);
-        connect(firmwareReader, &FirmwareReader::finished, firmwareReaderThread, &QThread::quit);
-        
-        // Note: We handle cleanup manually in cleanupFirmwareReaderThread() instead of auto-deleting
-        // to avoid crashes when the dialog is closed while the thread is running
-        
-        // Start the thread
-        firmwareReaderThread->start();
-        
-    } catch (...) {
-        qWarning() << "Exception occurred while starting firmware read";
-        displayNameLineEdit->setPlaceholderText(tr("Error reading firmware - enter display name"));
-        serialNumberLineEdit->setPlaceholderText(tr("Error reading firmware - enter serial number"));
-        progressGroup->setVisible(false);
-        
-        // Re-enable controls
-        displayNameGroup->setEnabled(true);
-        serialNumberGroup->setEnabled(true);
-        resolutionGroup->setEnabled(true);
-        enableUpdateButton();
+    // Read firmware size
+    quint32 firmwareSize = VideoHid::getInstance().readFirmwareSize();
+    if (firmwareSize == 0) {
+        qWarning() << "Failed to read firmware size, cannot load current EDID settings";
+        displayNameLineEdit->setPlaceholderText(tr("Failed to read firmware - enter display name"));
+        serialNumberLineEdit->setPlaceholderText(tr("Failed to read firmware - enter serial number"));
+        return;
     }
+    
+    qDebug() << "Firmware size:" << firmwareSize << "bytes";
+    
+    // Show embedded progress components
+    progressGroup->setVisible(true);
+    progressBar->setValue(0);
+    progressLabel->setText(tr("Reading firmware data..."));
+    
+    // Disable main dialog controls while reading
+    displayNameGroup->setEnabled(false);
+    serialNumberGroup->setEnabled(false);
+    resolutionGroup->setEnabled(false);
+    updateButton->setEnabled(false);
+    
+    // Create temporary file path for firmware reading
+    QString tempDir = QStandardPaths::writableLocation(QStandardPaths::TempLocation);
+    QString tempFirmwarePath = tempDir + "/temp_firmware_read.bin";
+    
+    // Create firmware reader thread
+    firmwareReaderThread = new QThread(this);
+    firmwareReader = new FirmwareReader(&VideoHid::getInstance(), ADDR_EEPROM, firmwareSize, tempFirmwarePath);
+    firmwareReader->moveToThread(firmwareReaderThread);
+    
+    // Connect signals
+    connect(firmwareReaderThread, &QThread::started, firmwareReader, &FirmwareReader::process);
+    connect(firmwareReader, &FirmwareReader::progress, this, &UpdateDisplaySettingsDialog::onFirmwareReadProgress);
+    connect(firmwareReader, &FirmwareReader::finished, this, &UpdateDisplaySettingsDialog::onFirmwareReadFinished);
+    connect(firmwareReader, &FirmwareReader::error, this, &UpdateDisplaySettingsDialog::onFirmwareReadError);
+    connect(firmwareReader, &FirmwareReader::finished, firmwareReaderThread, &QThread::quit);
+    
+    // Note: We handle cleanup manually in cleanupFirmwareReaderThread() instead of auto-deleting
+    // to avoid crashes when the dialog is closed while the thread is running
+    
+    // Start the thread
+    firmwareReaderThread->start();
 }
 
 void UpdateDisplaySettingsDialog::onFirmwareReadProgress(int percent)

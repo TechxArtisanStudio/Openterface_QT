@@ -1,11 +1,41 @@
 cmake_minimum_required(VERSION 3.16)
 project(openterfaceQT VERSION 1.0 LANGUAGES C CXX)
 
+# Fix for time-related compilation issues on Linux (both native and cross-compilation)
+if(UNIX AND NOT APPLE)
+    # Core GNU/Linux feature macros - must be set early and globally
+    add_definitions(-D_GNU_SOURCE)
+    add_definitions(-D_DEFAULT_SOURCE)
+    add_definitions(-D_BSD_SOURCE)
+    add_definitions(-D_XOPEN_SOURCE=700)
+    
+    # Force these definitions at the compiler level for ALL compilations including MOC
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -D_GNU_SOURCE -D_DEFAULT_SOURCE -D_BSD_SOURCE -D_XOPEN_SOURCE=700")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -D_GNU_SOURCE -D_DEFAULT_SOURCE -D_BSD_SOURCE -D_XOPEN_SOURCE=700")
+    
+    # Override any restrictive POSIX settings that Qt might impose
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -U_POSIX_C_SOURCE")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -U_POSIX_C_SOURCE")
+    
+    # Ensure MOC also gets these flags
+    set(CMAKE_AUTOMOC_MOC_OPTIONS "${CMAKE_AUTOMOC_MOC_OPTIONS};-D_GNU_SOURCE;-D_DEFAULT_SOURCE;-D_BSD_SOURCE;-D_XOPEN_SOURCE=700")
+    
+    message(STATUS "Applied comprehensive Linux time function fixes with MOC support")
+    message(STATUS "CXX_FLAGS: ${CMAKE_CXX_FLAGS}")
+    message(STATUS "AUTOMOC_MOC_OPTIONS: ${CMAKE_AUTOMOC_MOC_OPTIONS}")
+    # NOTE: Do not call target_include_directories() here because the target
+    # 'openterfaceQT' is created later. A per-target include ordering insertion
+    # will be applied after the target is defined to prefer system headers.
+endif()
+
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 set(CMAKE_AUTOUIC ON)
 
 # Option to control static linking of FFmpeg
 option(USE_FFMPEG_STATIC "Use static FFmpeg libraries" ON)
+
+# Initialize FFmpeg configuration variables
+set(FFMPEG_PKG_CONFIG FALSE)
 
 # Option to control hardware acceleration libraries
 option(USE_HWACCEL "Enable hardware acceleration libraries (VA-API, VDPAU)" ON)
@@ -43,15 +73,18 @@ if(CMAKE_CROSSCOMPILING)
         set(ARCH_SPECIFIC_PATH "/usr/lib/aarch64-linux-gnu")
         message(STATUS "  Configuring for ARM64 architecture")
         
-        # ARM64 compiler workaround: Reduce optimization to avoid segfaults
-        set(CMAKE_CXX_FLAGS_RELEASE "-O2 -DNDEBUG" CACHE STRING "Release flags" FORCE)
-        set(CMAKE_C_FLAGS_RELEASE "-O2 -DNDEBUG" CACHE STRING "Release flags" FORCE)
+        # ARM64 compiler workaround: Use minimal optimization to avoid segfaults
+        set(CMAKE_CXX_FLAGS_RELEASE "-O0 -DNDEBUG" CACHE STRING "Release flags" FORCE)
+        set(CMAKE_C_FLAGS_RELEASE "-O0 -DNDEBUG" CACHE STRING "Release flags" FORCE)
         
         # Additional stability flags for ARM64 cross-compilation
-        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-aggressive-loop-optimizations -fno-strict-overflow")
-        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fno-aggressive-loop-optimizations -fno-strict-overflow")
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-aggressive-loop-optimizations -fno-strict-overflow -fno-tree-vectorize -fno-inline -g0 -ftemplate-depth-128 --param ggc-min-expand=0 --param ggc-min-heapsize=32768")
+        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fno-aggressive-loop-optimizations -fno-strict-overflow -fno-tree-vectorize -fno-inline -g0 --param ggc-min-expand=0 --param ggc-min-heapsize=32768")
         
-        message(STATUS "  Using -O2 optimization and stability flags for ARM64 to avoid compiler segfaults")
+        # Set a flag to indicate ARM64 build for later use
+        set(ARM64_BUILD TRUE)
+        
+        message(STATUS "  Using -O0 optimization and aggressive stability flags for ARM64 to avoid compiler segfaults")
         
     elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "^(x86_64|amd64)$")
         set(ARCH_LIB_DIR "x86_64-linux-gnu")
@@ -133,6 +166,27 @@ if(CMAKE_CROSSCOMPILING)
     endif()
 endif()
 
+# Detect ARM64 architecture for both cross-compilation and native builds
+if(NOT DEFINED ARM64_BUILD)
+    if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(aarch64|arm64)$")
+        set(ARM64_BUILD TRUE)
+        message(STATUS "Native ARM64 build detected")
+        
+        # Apply ARM64-specific optimizations for native builds too
+        set(CMAKE_CXX_FLAGS_RELEASE "-O0 -DNDEBUG" CACHE STRING "Release flags" FORCE)
+        set(CMAKE_C_FLAGS_RELEASE "-O0 -DNDEBUG" CACHE STRING "Release flags" FORCE)
+        
+        # Additional stability flags for ARM64 native compilation
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-aggressive-loop-optimizations -fno-strict-overflow -fno-tree-vectorize -fno-inline -g0 -ftemplate-depth-128 --param ggc-min-expand=0 --param ggc-min-heapsize=32768")
+        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fno-aggressive-loop-optimizations -fno-strict-overflow -fno-tree-vectorize -fno-inline -g0 --param ggc-min-expand=0 --param ggc-min-heapsize=32768")
+        
+        message(STATUS "Applied ARM64 native build optimizations")
+    else()
+        set(ARM64_BUILD FALSE)
+        message(STATUS "Non-ARM64 build detected: ${CMAKE_SYSTEM_PROCESSOR}")
+    endif()
+endif()
+
 find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Concurrent Gui Multimedia MultimediaWidgets Network SerialPort Svg)
 find_package(Qt${QT_VERSION_MAJOR} OPTIONAL_COMPONENTS Widgets)
 if(UNIX AND NOT APPLE)
@@ -180,8 +234,13 @@ pkg_check_modules(V4L2 REQUIRED libv4l2)
 find_library(XI_LIBRARY Xi REQUIRED)
 find_library(XV_LIBRARY Xv REQUIRED)
 
-# Find ORC library for GStreamer
-pkg_check_modules(ORC orc-0.4)
+# Find ORC library for GStreamer - only use pkg-config for dynamic builds
+if(NOT USE_FFMPEG_STATIC)
+    pkg_check_modules(ORC orc-0.4)
+else()
+    # For static builds, we'll manually find the static ORC library later
+    message(STATUS "Static build detected - skipping pkg-config for ORC, will use static ORC library")
+endif()
 
 # Check for GStreamer (prefer static build from Qt6 installation)
 # Use the same search paths as FFmpeg since they're often built together
@@ -560,70 +619,127 @@ endif()
 
 # Check CMAKE_PREFIX_PATH for potential FFmpeg locations
 if(CMAKE_PREFIX_PATH)
-    foreach(PREFIX_PATH ${CMAKE_PREFIX_PATH})
-        list(INSERT FFMPEG_SEARCH_PATHS 0 "${PREFIX_PATH}")
+    message(STATUS "CMAKE_PREFIX_PATH: ${CMAKE_PREFIX_PATH}")
+    # CMAKE_PREFIX_PATH is a semicolon-separated list in CMake, but might be colon-separated from shell
+    # First normalize to semicolon-separated list
+    string(REPLACE ":" ";" CMAKE_PREFIX_PATH_LIST "${CMAKE_PREFIX_PATH}")
+    foreach(PREFIX_PATH ${CMAKE_PREFIX_PATH_LIST})
+        # Skip cmake-specific subdirectories and non-existent paths
+        if(IS_DIRECTORY "${PREFIX_PATH}" AND NOT PREFIX_PATH MATCHES ".*/cmake$" AND NOT PREFIX_PATH MATCHES ".*/cmake/.*")
+            list(INSERT FFMPEG_SEARCH_PATHS 0 "${PREFIX_PATH}")
+            message(STATUS "Added FFmpeg search path from CMAKE_PREFIX_PATH: ${PREFIX_PATH}")
+        else()
+            message(STATUS "Skipped CMAKE_PREFIX_PATH entry (cmake dir or non-existent): ${PREFIX_PATH}")
+        endif()
     endforeach()
 endif()
 
-# Find FFmpeg installation
-foreach(SEARCH_PATH ${FFMPEG_SEARCH_PATHS})
-    # For cross-compilation, check architecture-specific directory first
-    if(CMAKE_CROSSCOMPILING AND ARCH_LIB_DIR)
-        set(CROSS_LIB_PATH "${SEARCH_PATH}/lib/${ARCH_LIB_DIR}")
-        # Check for both static and dynamic libraries
+# For dynamic builds, try pkg-config first as it's more reliable
+if(NOT USE_FFMPEG_STATIC)
+    find_package(PkgConfig QUIET)
+    if(PKG_CONFIG_FOUND)
+        message(STATUS "pkg-config found, checking for FFmpeg...")
+        pkg_check_modules(PC_LIBAVFORMAT QUIET libavformat)
+        if(PC_LIBAVFORMAT_FOUND)
+            message(STATUS "Found FFmpeg via pkg-config")
+            message(STATUS "pkg-config FFmpeg version: ${PC_LIBAVFORMAT_VERSION}")
+            message(STATUS "pkg-config FFmpeg include dirs: ${PC_LIBAVFORMAT_INCLUDE_DIRS}")
+            message(STATUS "pkg-config FFmpeg library dirs: ${PC_LIBAVFORMAT_LIBRARY_DIRS}")
+            message(STATUS "pkg-config FFmpeg libraries: ${PC_LIBAVFORMAT_LIBRARIES}")
+            
+            set(FFMPEG_PREFIX "/usr")
+            # Use pkg-config library directories if available, otherwise fallback
+            if(PC_LIBAVFORMAT_LIBRARY_DIRS)
+                list(GET PC_LIBAVFORMAT_LIBRARY_DIRS 0 FFMPEG_LIB_DIR)
+                message(STATUS "Using pkg-config FFmpeg library directory: ${FFMPEG_LIB_DIR}")
+            else()
+                # Architecture-aware fallback for library directory
+                if(CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64|arm64")
+                    set(FFMPEG_LIB_DIR "/usr/lib/aarch64-linux-gnu")
+                else()
+                    set(FFMPEG_LIB_DIR "/usr/lib/x86_64-linux-gnu")
+                endif()
+                message(STATUS "Using fallback FFmpeg library directory: ${FFMPEG_LIB_DIR}")
+            endif()
+            set(FFMPEG_FOUND TRUE)
+            set(FFMPEG_PKG_CONFIG TRUE)  # Flag to indicate we used pkg-config
+            # Override library paths with pkg-config results
+            set(FFMPEG_INCLUDE_DIRS ${PC_LIBAVFORMAT_INCLUDE_DIRS})
+            message(STATUS "Using pkg-config FFmpeg: ${PC_LIBAVFORMAT_LIBRARIES}")
+        else()
+            message(STATUS "FFmpeg not found via pkg-config")
+        endif()
+    else()
+        message(STATUS "pkg-config not found")
+    endif()
+endif()
+
+# If pkg-config didn't find FFmpeg (or we're using static linking), fall back to path search
+if(NOT FFMPEG_FOUND)
+    message(STATUS "Falling back to manual path search for FFmpeg...")
+    
+    # Find FFmpeg installation
+    message(STATUS "FFmpeg search paths: ${FFMPEG_SEARCH_PATHS}")
+    foreach(SEARCH_PATH ${FFMPEG_SEARCH_PATHS})
+        # For cross-compilation, check architecture-specific directory first
+        if(CMAKE_CROSSCOMPILING AND ARCH_LIB_DIR)
+            set(CROSS_LIB_PATH "${SEARCH_PATH}/lib/${ARCH_LIB_DIR}")
+            # Check for both static and dynamic libraries
+            if(USE_FFMPEG_STATIC)
+                set(LIB_EXTENSION ".a")
+                set(LIB_NAME "libavformat.a")
+            else()
+                set(LIB_EXTENSION ".so")
+                set(LIB_NAME "libavformat.so")
+            endif()
+            
+            message(STATUS "Checking for FFmpeg in: ${CROSS_LIB_PATH}/${LIB_NAME}")
+            if(EXISTS "${CROSS_LIB_PATH}/${LIB_NAME}" AND EXISTS "${SEARCH_PATH}/include/libavformat/avformat.h")
+                set(FFMPEG_PREFIX "${SEARCH_PATH}")
+                set(FFMPEG_LIB_DIR "${CROSS_LIB_PATH}")
+                message(STATUS "Found FFmpeg installation at: ${FFMPEG_PREFIX} (cross-compilation)")
+                message(STATUS "FFmpeg libraries in: ${FFMPEG_LIB_DIR}")
+                message(STATUS "Using ${LIB_EXTENSION} libraries")
+                set(FFMPEG_FOUND TRUE)
+                break()
+            endif()
+        endif()
+        
+        # Standard search - but also check architecture-specific subdirectories for dynamic builds
         if(USE_FFMPEG_STATIC)
             set(LIB_EXTENSION ".a")
             set(LIB_NAME "libavformat.a")
+            set(LIB_PATHS "${SEARCH_PATH}/lib")
         else()
             set(LIB_EXTENSION ".so")
             set(LIB_NAME "libavformat.so")
+            # For dynamic builds, check architecture-specific directories
+            set(LIB_PATHS 
+                "${SEARCH_PATH}/lib/x86_64-linux-gnu"
+                "${SEARCH_PATH}/lib/aarch64-linux-gnu"
+                "${SEARCH_PATH}/lib"
+            )
         endif()
         
-        message(STATUS "Checking for FFmpeg in: ${CROSS_LIB_PATH}/${LIB_NAME}")
-        if(EXISTS "${CROSS_LIB_PATH}/${LIB_NAME}" AND EXISTS "${SEARCH_PATH}/include/libavformat/avformat.h")
-            set(FFMPEG_PREFIX "${SEARCH_PATH}")
-            set(FFMPEG_LIB_DIR "${CROSS_LIB_PATH}")
-            message(STATUS "Found FFmpeg installation at: ${FFMPEG_PREFIX} (cross-compilation)")
-            message(STATUS "FFmpeg libraries in: ${FFMPEG_LIB_DIR}")
-            message(STATUS "Using ${LIB_EXTENSION} libraries")
-            break()
-        endif()
-    endif()
-    
-    # Standard search - but also check architecture-specific subdirectories for dynamic builds
-    if(USE_FFMPEG_STATIC)
-        set(LIB_EXTENSION ".a")
-        set(LIB_NAME "libavformat.a")
-        set(LIB_PATHS "${SEARCH_PATH}/lib")
-    else()
-        set(LIB_EXTENSION ".so")
-        set(LIB_NAME "libavformat.so")
-        # For dynamic builds, check architecture-specific directories
-        set(LIB_PATHS 
-            "${SEARCH_PATH}/lib/x86_64-linux-gnu"
-            "${SEARCH_PATH}/lib/aarch64-linux-gnu"
-            "${SEARCH_PATH}/lib"
-        )
-    endif()
-    
-    # Check each potential library path
-    foreach(LIB_PATH ${LIB_PATHS})
-        message(STATUS "Checking for FFmpeg in: ${LIB_PATH}/${LIB_NAME}")
-        if(EXISTS "${LIB_PATH}/${LIB_NAME}" AND EXISTS "${SEARCH_PATH}/include/libavformat/avformat.h")
-            set(FFMPEG_PREFIX "${SEARCH_PATH}")
-            set(FFMPEG_LIB_DIR "${LIB_PATH}")
-            message(STATUS "Found FFmpeg installation at: ${FFMPEG_PREFIX}")
-            message(STATUS "FFmpeg libraries in: ${FFMPEG_LIB_DIR}")
-            message(STATUS "Using ${LIB_EXTENSION} libraries")
-            set(FFMPEG_FOUND TRUE)
+        # Check each potential library path
+        foreach(LIB_PATH ${LIB_PATHS})
+            message(STATUS "Checking for FFmpeg in: ${LIB_PATH}/${LIB_NAME}")
+            if(EXISTS "${LIB_PATH}/${LIB_NAME}" AND EXISTS "${SEARCH_PATH}/include/libavformat/avformat.h")
+                set(FFMPEG_PREFIX "${SEARCH_PATH}")
+                set(FFMPEG_LIB_DIR "${LIB_PATH}")
+                message(STATUS "Found FFmpeg installation at: ${FFMPEG_PREFIX}")
+                message(STATUS "FFmpeg libraries in: ${FFMPEG_LIB_DIR}")
+                message(STATUS "Using ${LIB_EXTENSION} libraries")
+                set(FFMPEG_FOUND TRUE)
+                break()
+            endif()
+        endforeach()
+        
+        if(FFMPEG_FOUND)
             break()
         endif()
     endforeach()
-    
-    if(FFMPEG_FOUND)
-        break()
-    endif()
-endforeach()
+endif()
 
 # Set default if not found
 if(NOT FFMPEG_FOUND)
@@ -645,43 +761,52 @@ if(NOT FFMPEG_FOUND)
             message(STATUS "Found FFmpeg libraries in architecture-specific directory: ${FFMPEG_LIB_DIR}")
         endif()
     endif()
-    
-    # Try pkg-config as final fallback for dynamic builds
-    if(NOT FFMPEG_FOUND AND NOT USE_FFMPEG_STATIC)
-        find_package(PkgConfig QUIET)
-        if(PKG_CONFIG_FOUND)
-            pkg_check_modules(PC_LIBAVFORMAT QUIET libavformat)
-            if(PC_LIBAVFORMAT_FOUND)
-                message(STATUS "Found FFmpeg via pkg-config")
-                set(FFMPEG_PREFIX "/usr")
-                set(FFMPEG_LIB_DIR "/usr/lib/x86_64-linux-gnu")
-                set(FFMPEG_FOUND TRUE)
-                # Override library paths with pkg-config results
-                set(FFMPEG_INCLUDE_DIRS ${PC_LIBAVFORMAT_INCLUDE_DIRS})
-                message(STATUS "Using pkg-config FFmpeg: ${PC_LIBAVFORMAT_LIBRARIES}")
-            endif()
-        endif()
-    endif()
-    
+
     # Final fallback
     if(NOT FFMPEG_FOUND)
         if(USE_FFMPEG_STATIC)
-            set(FFMPEG_PREFIX "/usr/local")
-            set(FFMPEG_LIB_DIR "/usr/local/lib")
+            # For static builds, prioritize the Qt installation directory
+            if(EXISTS "/opt/Qt6-arm64/lib/libavformat.a")
+                set(FFMPEG_PREFIX "/opt/Qt6-arm64")
+                set(FFMPEG_LIB_DIR "/opt/Qt6-arm64/lib")
+                set(FFMPEG_FOUND TRUE)
+                message(STATUS "Found static FFmpeg libraries in Qt installation: ${FFMPEG_LIB_DIR}")
+            else()
+                set(FFMPEG_PREFIX "/usr/local")
+                set(FFMPEG_LIB_DIR "/usr/local/lib")
+            endif()
         else()
             # For dynamic builds, assume system packages
             set(FFMPEG_PREFIX "/usr")
             set(FFMPEG_LIB_DIR "/usr/lib/x86_64-linux-gnu")
         endif()
-        message(WARNING "FFmpeg not found, using fallback location: ${FFMPEG_PREFIX}")
-        message(STATUS "Expected FFmpeg libraries in: ${FFMPEG_LIB_DIR}")
+        
+        if(NOT FFMPEG_FOUND)
+            message(WARNING "FFmpeg not found, using fallback location: ${FFMPEG_PREFIX}")
+            message(STATUS "Expected FFmpeg libraries in: ${FFMPEG_LIB_DIR}")
+        endif()
+    endif()
+endif()
+
+# FFmpeg configuration complete - show final status
+if(FFMPEG_FOUND)
+    message(STATUS "FFmpeg configuration successful")
+    message(STATUS "FFmpeg prefix: ${FFMPEG_PREFIX}")
+    message(STATUS "FFmpeg library directory: ${FFMPEG_LIB_DIR}")
+    if(FFMPEG_PKG_CONFIG)
+        message(STATUS "FFmpeg detected via: pkg-config")
+    else()
+        message(STATUS "FFmpeg detected via: manual path search")
     endif()
 else()
-    message(STATUS "FFmpeg configuration successful")
+    message(WARNING "FFmpeg configuration failed - FFmpeg backend will be disabled")
 endif()
 
 # Set include and library directories based on found prefix
-set(FFMPEG_INCLUDE_DIRS "${FFMPEG_PREFIX}/include")
+if(FFMPEG_PKG_CONFIG AND FFMPEG_INCLUDE_DIRS)
+    # Use pkg-config include directories if available
+    message(STATUS "Using pkg-config include directories: ${FFMPEG_INCLUDE_DIRS}")
+endif()
 
 # Use architecture-specific library directory if set, otherwise use standard lib directory
 if(NOT FFMPEG_LIB_DIR)
@@ -709,6 +834,15 @@ if(PC_LIBAVFORMAT_FOUND AND NOT USE_FFMPEG_STATIC)
     )
     message(STATUS "Using pkg-config FFmpeg libraries: ${FFMPEG_LIBRARIES}")
 else()
+    # For static builds or when pkg-config not available, force correct paths
+    if(USE_FFMPEG_STATIC AND EXISTS "/opt/Qt6-arm64/lib/libavformat.a")
+        # Force Qt6 static FFmpeg paths
+        set(FFMPEG_PREFIX "/opt/Qt6-arm64")
+        set(FFMPEG_LIB_DIR "/opt/Qt6-arm64/lib")
+        message(STATUS "Forcing Qt6 static FFmpeg prefix: ${FFMPEG_PREFIX}")
+        message(STATUS "Forcing Qt6 static FFmpeg library directory: ${FFMPEG_LIB_DIR}")
+    endif()
+    
     # Use full paths for static linking or when pkg-config not available
     set(FFMPEG_LIBRARIES 
         "${FFMPEG_LIB_DIR}/libavdevice${FFMPEG_LIB_EXT}"
@@ -720,6 +854,12 @@ else()
         "${FFMPEG_LIB_DIR}/libavutil${FFMPEG_LIB_EXT}"
     )
     message(STATUS "Using manual FFmpeg library paths: ${FFMPEG_LIBRARIES}")
+endif()
+
+# Set include directory after prefix has been potentially corrected
+if(NOT FFMPEG_PKG_CONFIG OR NOT FFMPEG_INCLUDE_DIRS)
+    # Use standard include directory based on the final prefix
+    set(FFMPEG_INCLUDE_DIRS "${FFMPEG_PREFIX}/include")
 endif()
 
 # Add hardware acceleration libraries required by FFmpeg (optional)
@@ -772,22 +912,52 @@ list(APPEND HWACCEL_LIBRARIES
 )
 
 # Check if FFmpeg is available and enable it
-set(FFMPEG_CHECK_FILE "${FFMPEG_PREFIX}/include/libavformat/avformat.h")
+set(FFMPEG_CHECK_FILE "${FFMPEG_PREFIX}/include/avformat.h")
+
 if(USE_FFMPEG_STATIC)
     set(FFMPEG_LIB_CHECK "${FFMPEG_LIB_DIR}/libavformat.a")
 else()
     set(FFMPEG_LIB_CHECK "${FFMPEG_LIB_DIR}/libavformat.so")
 endif()
 
-if(EXISTS "${FFMPEG_CHECK_FILE}" AND EXISTS "${FFMPEG_LIB_CHECK}")
+# If we found FFmpeg via pkg-config, trust it and skip file checks
+# Otherwise, verify files exist manually
+message(STATUS "Debug: FFMPEG_PKG_CONFIG = ${FFMPEG_PKG_CONFIG}")
+message(STATUS "Debug: FFMPEG_CHECK_FILE = ${FFMPEG_CHECK_FILE}")
+message(STATUS "Debug: FFMPEG_LIB_CHECK = ${FFMPEG_LIB_CHECK}")
+message(STATUS "Debug: Header exists = ${EXISTS_HEADER}")
+message(STATUS "Debug: Library exists = ${EXISTS_LIB}")
+
+# Check if files actually exist
+if(EXISTS "${FFMPEG_CHECK_FILE}")
+    set(EXISTS_HEADER TRUE)
+else()
+    set(EXISTS_HEADER FALSE)
+endif()
+
+if(EXISTS "${FFMPEG_LIB_CHECK}")
+    set(EXISTS_LIB TRUE)
+else()
+    set(EXISTS_LIB FALSE)
+endif()
+
+if(FFMPEG_PKG_CONFIG OR (EXISTS_HEADER AND EXISTS_LIB))
     message(STATUS "FFmpeg found - enabling FFmpeg backend")
+    if(FFMPEG_PKG_CONFIG)
+        message(STATUS "FFmpeg verified via pkg-config")
+    else()
+        message(STATUS "FFmpeg verified via file system check")
+        message(STATUS "Header file found: ${FFMPEG_CHECK_FILE}")
+        message(STATUS "Library file found: ${FFMPEG_LIB_CHECK}")
+    endif()
     message(STATUS "FFmpeg include directory: ${FFMPEG_INCLUDE_DIRS}")
     message(STATUS "FFmpeg libraries: ${FFMPEG_LIBRARIES}")
     add_definitions(-DHAVE_FFMPEG)
 else()
     message(STATUS "FFmpeg not found - FFmpeg backend disabled")
-    message(STATUS "Checked header: ${FFMPEG_CHECK_FILE}")
-    message(STATUS "Checked library: ${FFMPEG_LIB_CHECK}")
+    message(STATUS "Checked header: ${FFMPEG_CHECK_FILE} (exists: ${EXISTS_HEADER})")
+    message(STATUS "Checked library: ${FFMPEG_LIB_CHECK} (exists: ${EXISTS_LIB})")
+    message(FATAL_ERROR "FFmpeg is required but not found. Please ensure FFmpeg libraries are installed at ${CMAKE_PREFIX_PATH}")
 endif()
 
 # Include FFmpeg directories
@@ -798,6 +968,8 @@ qt_standard_project_setup()
 
 qt_add_executable(openterfaceQT WIN32 MACOSX_BUNDLE
     global.h
+    # dlopen wrapper for static builds
+    dlopen_wrapper.c
     # Device management
     device/DeviceInfo.cpp device/DeviceInfo.h
     device/DeviceManager.cpp device/DeviceManager.h
@@ -867,6 +1039,42 @@ qt_add_executable(openterfaceQT WIN32 MACOSX_BUNDLE
     video/firmwarereader.cpp video/firmwarereader.h
     video/ms2109.h
 )
+
+    # Ensure Linux time feature macros are set per-target to avoid <ctime> visibility issues
+    if(UNIX AND NOT APPLE)
+        # Define feature-test macros for the openterfaceQT target specifically
+        target_compile_definitions(openterfaceQT PRIVATE
+            _DEFAULT_SOURCE=1
+            _GNU_SOURCE=1
+            _XOPEN_SOURCE=700
+        )
+        # Also ensure POSIX source is not enforced
+        target_compile_options(openterfaceQT PRIVATE -U_POSIX_C_SOURCE)
+        
+        # Force system time.h to be included before FFmpeg's time.h
+        # FFmpeg libavutil/time.h conflicts with system time.h and breaks <ctime>
+        # Use -include to force early inclusion of system time.h
+        target_compile_options(openterfaceQT PRIVATE 
+            -include /usr/include/time.h
+        )
+    endif()
+
+# ARM64 workaround: Set per-file compiler flags for problematic files
+if(ARM64_BUILD)
+    message(STATUS "Applying ARM64-specific compiler workarounds for UI files")
+    # Set minimal compiler flags for files that cause segfaults
+    set_source_files_properties(
+        ui/preferences/fpsspinbox.cpp
+        ui/advance/renamedisplaydialog.cpp
+        ui/advance/firmwareupdatedialog.cpp
+        ui/advance/firmwaremanagerdialog.cpp
+        ui/advance/updatedisplaysettingsdialog.cpp
+        ui/preferences/settingdialog.cpp
+        ui/mainwindow.cpp
+        PROPERTIES
+        COMPILE_FLAGS "-O0 -fno-inline -fno-exceptions -fno-rtti -ftemplate-depth-64 -finline-limit=0"
+    )
+endif()
 
 # Debug output for linking
 message(STATUS "Hardware acceleration libraries to link: ${HWACCEL_LIBRARIES}")
@@ -962,14 +1170,31 @@ if(GSTREAMER_FOUND AND GSTREAMER_VIDEO_FOUND)
         endforeach()
         
         # Link GStreamer core libraries statically, plugins will be loaded dynamically
+        # Put static ORC first to override any dynamic references from GStreamer libraries
         target_link_libraries(openterfaceQT PRIVATE 
+            # Force static ORC first
+            -Wl,--whole-archive
+            ${ORC_LIB}
+            -Wl,--no-whole-archive
+            # Then GStreamer libraries
             -Wl,--start-group
             ${GSTREAMER_LIBRARIES}
             ${GSTREAMER_VIDEO_LIBRARIES}
             -Wl,--end-group
-            ${ORC_LIB}
             -lm -pthread
+            -Wl,--allow-multiple-definition
         )
+        
+        # Add strong linker flags to force static ORC and prevent dynamic loading
+        target_link_options(openterfaceQT PRIVATE
+            -Wl,--no-as-needed
+            -Wl,--exclude-libs,ALL
+            -static-libgcc
+            -static-libstdc++
+            -Wl,--no-undefined-version
+            -Wl,--wrap=dlopen
+        )
+        message(STATUS "Linked static GStreamer with ORC library: ${ORC_LIB}")
         message(STATUS "Added static GStreamer core libraries (plugins will be loaded dynamically)")
         message(STATUS "Added static GStreamer libraries and include directories")
     else()
@@ -1189,21 +1414,55 @@ if(UNIX)
 
     # Find libusb-1.0 library
     if(USE_USB)
-        # Search in the same locations where we found FFmpeg, since libusb may be built there too
-        find_library(LIBUSB_LIBRARY 
-            NAMES usb-1.0 libusb-1.0
-            PATHS ${FFMPEG_PREFIX}/lib /usr/lib /usr/local/lib
-            PATH_SUFFIXES x86_64-linux-gnu aarch64-linux-gnu arm-linux-gnueabihf
-        )
-        
-        if(LIBUSB_LIBRARY)
-            message(STATUS "Found libusb-1.0: ${LIBUSB_LIBRARY}")
-            target_link_libraries(openterfaceQT PRIVATE ${LIBUSB_LIBRARY})
+        # For static builds, force static libusb libraries
+        if(USE_FFMPEG_STATIC OR BUILD_STATIC)
+            # Force static libusb linking for static builds
+            find_library(LIBUSB_STATIC_LIBRARY 
+                NAMES libusb-1.0.a usb-1.0.a
+                PATHS /usr/lib /usr/lib/aarch64-linux-gnu /usr/local/lib /opt/Qt6-arm64/lib
+                NO_DEFAULT_PATH
+            )
+            
+            if(LIBUSB_STATIC_LIBRARY)
+                message(STATUS "Found static libusb-1.0: ${LIBUSB_STATIC_LIBRARY}")
+                # Use whole-archive to ensure all libusb symbols are included
+                target_link_libraries(openterfaceQT PRIVATE 
+                    -Wl,--whole-archive
+                    ${LIBUSB_STATIC_LIBRARY}
+                    -Wl,--no-whole-archive
+                )
+                # Add required system dependencies for static libusb
+                target_link_libraries(openterfaceQT PRIVATE udev pthread)
+            else()
+                message(WARNING "Static libusb-1.0 not found - falling back to dynamic linking")
+                # Fall back to dynamic search
+                find_library(LIBUSB_LIBRARY 
+                    NAMES usb-1.0 libusb-1.0
+                    PATHS ${FFMPEG_PREFIX}/lib /usr/lib /usr/local/lib
+                    PATH_SUFFIXES x86_64-linux-gnu aarch64-linux-gnu arm-linux-gnueabihf
+                )
+                if(LIBUSB_LIBRARY)
+                    message(STATUS "Found dynamic libusb-1.0: ${LIBUSB_LIBRARY}")
+                    target_link_libraries(openterfaceQT PRIVATE ${LIBUSB_LIBRARY})
+                endif()
+            endif()
         else()
-            message(WARNING "libusb-1.0 not found - USB functionality may be limited")
-            message(STATUS "Searched paths: ${FFMPEG_PREFIX}/lib, /usr/lib, /usr/local/lib")
-            # Try to link with the simple name as fallback
-            target_link_libraries(openterfaceQT PRIVATE usb-1.0)
+            # Dynamic build - search for dynamic libraries
+            find_library(LIBUSB_LIBRARY 
+                NAMES usb-1.0 libusb-1.0
+                PATHS ${FFMPEG_PREFIX}/lib /usr/lib /usr/local/lib
+                PATH_SUFFIXES x86_64-linux-gnu aarch64-linux-gnu arm-linux-gnueabihf
+            )
+            
+            if(LIBUSB_LIBRARY)
+                message(STATUS "Found libusb-1.0: ${LIBUSB_LIBRARY}")
+                target_link_libraries(openterfaceQT PRIVATE ${LIBUSB_LIBRARY})
+            else()
+                message(WARNING "libusb-1.0 not found - USB functionality may be limited")
+                message(STATUS "Searched paths: ${FFMPEG_PREFIX}/lib, /usr/lib, /usr/local/lib")
+                # Try to link with the simple name as fallback
+                target_link_libraries(openterfaceQT PRIVATE usb-1.0)
+            endif()
         endif()
     else()
         message(STATUS "USB functionality disabled by USE_USB=OFF")
@@ -1250,25 +1509,39 @@ install(SCRIPT ${deploy_script})
 
 # Add these lines to enable size optimization
 if(CMAKE_BUILD_TYPE STREQUAL "Release")
-    # Enable Link Time Optimization
-    include(CheckIPOSupported)
-    check_ipo_supported(RESULT LTO_SUPPORTED OUTPUT LTO_ERROR)
-    if(LTO_SUPPORTED)
-        message(STATUS "IPO / LTO enabled")
-        set(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)
+    # Enable Link Time Optimization (but not for ARM64 to avoid segfaults)
+    if(NOT ARM64_BUILD)
+        include(CheckIPOSupported)
+        check_ipo_supported(RESULT LTO_SUPPORTED OUTPUT LTO_ERROR)
+        if(LTO_SUPPORTED)
+            message(STATUS "IPO / LTO enabled")
+            set(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)
+        else()
+            message(STATUS "IPO / LTO not supported: ${LTO_ERROR}")
+        endif()
+        
+        # Optimize for size (only for non-ARM64 builds)
+        add_compile_options(-Os)
+        message(STATUS "Using -Os optimization for non-ARM64 build")
     else()
-        message(STATUS "IPO / LTO not supported: ${LTO_ERROR}")
+        message(STATUS "Skipping LTO and -Os optimization for ARM64 to prevent segfaults")
     endif()
     
-    # Optimize for size
-    add_compile_options(-Os)
-    
-    # Remove unused functions and data
-    add_compile_options(-ffunction-sections -fdata-sections)
+    # Remove unused functions and data (but not for ARM64 due to compiler issues)
+    if(NOT ARM64_BUILD)
+        add_compile_options(-ffunction-sections -fdata-sections)
+        message(STATUS "Using function/data sections for non-ARM64 build")
+    else()
+        message(STATUS "Skipping function/data sections for ARM64 to prevent compiler segfaults")
+    endif()
     
     # Strip unused symbols
     if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-        add_link_options(-Wl,--gc-sections)
+        if(NOT ARM64_BUILD)
+            add_link_options(-Wl,--gc-sections)
+        else()
+            message(STATUS "Skipping --gc-sections for ARM64 to prevent linker issues")
+        endif()
     endif()
 endif()
 
