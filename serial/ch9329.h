@@ -97,7 +97,7 @@ struct CmdGetInfoResult {
         if (data.size() >= static_cast<qsizetype>(sizeof(CmdGetInfoResult))) {
             std::memcpy(&result, data.constData(), sizeof(CmdGetInfoResult));
             // Debugging: Print the raw data
-            qDebug() << "Raw data:" << data.toHex(' ');
+            // qDebug() << "Raw data:" << data.toHex(' ');
 
             // Debugging: Print the parsed fields
             // result.dump();
@@ -218,7 +218,7 @@ struct CmdDataResult {
         if (data.size() >= static_cast<qsizetype>(sizeof(CmdDataResult))) {
             std::memcpy(&result, data.constData(), sizeof(CmdDataResult));
             // Debugging: Print the raw data
-            qDebug(log_core_serial) << "Raw data:" << data.toHex(' ');
+            // qDebug(log_core_serial) << "Raw data:" << data.toHex(' ');
 
             // Debugging: Print the parsed fields
             result.dump();
@@ -271,7 +271,7 @@ struct CmdResetResult {
         if (data.size() >= static_cast<qsizetype>(sizeof(CmdDataResult))) {
             std::memcpy(&result, data.constData(), sizeof(CmdDataResult));
             // Debugging: Print the raw data
-            qDebug(log_core_serial) << "Raw data:" << data.toHex(' ');
+            // qDebug(log_core_serial) << "Raw data:" << data.toHex(' ');
 
             // Debugging: Print the parsed fields
             result.dump();
