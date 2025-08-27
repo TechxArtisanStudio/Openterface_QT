@@ -48,7 +48,8 @@ class SerialPortManager : public QObject
 
 public:
     static const int ORIGINAL_BAUDRATE = 9600;
-    static const int DEFAULT_BAUDRATE = 115200;
+    // Set the default baudrate to 9600 for better compatibility
+    static const int DEFAULT_BAUDRATE = 9600;
     static const int SERIAL_TIMER_INTERVAL = 5000;
     
     static SerialPortManager& getInstance() {
@@ -85,6 +86,13 @@ public:
     void setUSBconfiguration();
     void changeUSBDescriptor();
     bool setBaudRate(int baudrate);
+    void setUserSelectedBaudrate(int baudrate); // Set baudrate from user menu selection
+    void clearStoredBaudrate(); // Clear stored baudrate setting
+    
+    // ARM architecture detection and performance prompt
+    static bool isArmArchitecture();
+    void checkArmBaudratePerformance(int baudrate); // Check and emit signal if needed
+    void handleArmBaudrateRecommendationResponse(bool switchTo9600, bool dontShowAgain); // Handle UI response
     void setCommandDelay(int delayMs);  // set the delay
     void stop(); //stop the serial port manager
 
@@ -119,6 +127,7 @@ signals:
     void connectedPortChanged(const QString &portName, const int &baudrate);
     void serialPortSwitched(const QString& fromPortChain, const QString& toPortChain);
     void serialPortDeviceChanged(const QString& oldPortPath, const QString& newPortPath);
+    void armBaudratePerformanceRecommendation(int currentBaudrate); // Signal for ARM performance recommendation
     
 private slots:
     void checkSerialPort();

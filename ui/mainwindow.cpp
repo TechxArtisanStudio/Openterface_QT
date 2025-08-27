@@ -48,6 +48,7 @@
 #include <QMediaRecorder>
 #include <QStackedLayout>
 #include <QMessageBox>
+#include <QCheckBox>
 #include <QImageCapture>
 #include <QToolBar>
 #include <QClipboard>
@@ -346,6 +347,7 @@ MainWindow::MainWindow(LanguageManager *languageManager, QWidget *parent) :  ui(
     connect(ui->menuBaudrate, &QMenu::triggered, this, &MainWindow::onBaudrateMenuTriggered);
     connect(ui->menuDevice, &QMenu::triggered, this, &MainWindow::onDeviceSelected);
     connect(&SerialPortManager::getInstance(), &SerialPortManager::connectedPortChanged, this, &MainWindow::onPortConnected);
+    connect(&SerialPortManager::getInstance(), &SerialPortManager::armBaudratePerformanceRecommendation, this, &MainWindow::onArmBaudratePerformanceRecommendation);
     
     // Note: Automatic camera device coordination has been disabled
     // Camera devices will only be switched manually through the UI
@@ -1347,8 +1349,35 @@ void MainWindow::onBaudrateMenuTriggered(QAction* action)
     bool ok;
     int baudrate = action->text().toInt(&ok);
     if (ok) {
-        SerialPortManager::getInstance().setBaudRate(baudrate);
+        qCDebug(log_ui_mainwindow) << "User selected baudrate from menu:" << baudrate;
+        SerialPortManager::getInstance().setUserSelectedBaudrate(baudrate);
+    } else {
+        qCWarning(log_ui_mainwindow) << "Invalid baudrate selected from menu:" << action->text();
     }
+}
+
+void MainWindow::onArmBaudratePerformanceRecommendation(int currentBaudrate)
+{
+    QMessageBox msgBox(this);
+    msgBox.setIcon(QMessageBox::Information);
+    msgBox.setWindowTitle("Performance Recommendation");
+    msgBox.setText(QString("You are running on an ARM architecture with %1 baudrate.\n\n"
+                          "For better performance and lower CPU usage, we recommend using 9600 baudrate instead.")
+                          .arg(currentBaudrate));
+    
+    QPushButton* switchButton = msgBox.addButton("Switch to 9600", QMessageBox::AcceptRole);
+    QPushButton* keepButton = msgBox.addButton("Keep Current", QMessageBox::RejectRole);
+    
+    QCheckBox* dontShowCheckBox = new QCheckBox("Don't show this recommendation again");
+    msgBox.setCheckBox(dontShowCheckBox);
+    
+    msgBox.exec();
+    
+    bool switchTo9600 = (msgBox.clickedButton() == switchButton);
+    bool dontShowAgain = dontShowCheckBox->isChecked();
+    
+    // Send response back to SerialPortManager
+    SerialPortManager::getInstance().handleArmBaudrateRecommendationResponse(switchTo9600, dontShowAgain);
 }
 
 void MainWindow::imageSaved(int id, const QString &fileName)

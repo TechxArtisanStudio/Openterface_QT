@@ -225,6 +225,40 @@ void GlobalSetting::clearOpenterfacePortChain() {
     m_settings.sync();
 }
 
+// Serial port baudrate management
+void GlobalSetting::setSerialPortBaudrate(int baudrate) {
+    qDebug() << "Storing serial port baudrate:" << baudrate;
+    m_settings.setValue("serial/baudrate", baudrate);
+    m_settings.sync(); // Ensure immediate write to storage
+}
+
+int GlobalSetting::getSerialPortBaudrate() const {
+    return m_settings.value("serial/baudrate", -1).toInt(); // -1 means no stored baudrate
+}
+
+void GlobalSetting::clearSerialPortBaudrate() {
+    qDebug() << "Clearing stored serial port baudrate";
+    m_settings.remove("serial/baudrate");
+    m_settings.sync();
+}
+
+// ARM architecture baudrate performance prompt
+void GlobalSetting::setArmBaudratePromptDisabled(bool disabled) {
+    qDebug() << "Setting ARM baudrate prompt disabled:" << disabled;
+    m_settings.setValue("serial/armBaudratePromptDisabled", disabled);
+    m_settings.sync();
+}
+
+bool GlobalSetting::getArmBaudratePromptDisabled() const {
+    return m_settings.value("serial/armBaudratePromptDisabled", false).toBool();
+}
+
+void GlobalSetting::resetArmBaudratePrompt() {
+    qDebug() << "Resetting ARM baudrate prompt setting";
+    m_settings.remove("serial/armBaudratePromptDisabled");
+    m_settings.sync();
+}
+
 /*
 * Convert QString to ByteArray
 */
