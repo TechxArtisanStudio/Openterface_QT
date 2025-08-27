@@ -29,7 +29,9 @@
 #include <QtWidgets>
 #include <QtMultimedia>
 #include <QtMultimediaWidgets>
+#include <QLoggingCategory>
 
+Q_DECLARE_LOGGING_CATEGORY(log_ui_video)
 
 class VideoPane : public QGraphicsView
 {

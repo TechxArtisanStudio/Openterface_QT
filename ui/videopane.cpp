@@ -31,6 +31,8 @@
 #include <QDebug>
 #include <QTimer>
 
+Q_LOGGING_CATEGORY(log_ui_video, "opf.ui.video")
+
 VideoPane::VideoPane(QWidget *parent) : QGraphicsView(parent), 
     escTimer(new QTimer(this)), 
     m_inputHandler(new InputHandler(this, this)), 
@@ -162,7 +164,7 @@ void VideoPane::stopEscTimer()
 
 void VideoPane::onCameraDeviceSwitching(const QString& fromDevice, const QString& toDevice)
 {
-    qCDebug(log_ui_video) << "VideoPane: Camera switching from" << fromDevice << "to" << toDevice;
+    // qCDebug(log_ui_video) << "VideoPane: Camera switching from" << fromDevice << "to" << toDevice;
     
     // Capture the current frame before switching
     captureCurrentFrame();
