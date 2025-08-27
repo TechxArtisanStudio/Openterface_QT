@@ -43,6 +43,7 @@ Q_LOGGING_CATEGORY(log_gstreamer_backend, "opf.backend.gstreamer")
 #include <gst/video/videooverlay.h>
 
 // Static plugin registration declarations for static linking
+#ifndef GSTREAMER_DYNAMIC_LINKING
 extern "C" {
     // Core GStreamer plugins needed for video pipeline
     void gst_plugin_coreelements_register(void);      // queue, capsfilter, tee, etc.
@@ -823,6 +824,7 @@ bool GStreamerBackendHandler::initializeGStreamer()
         qCCritical(log_gstreamer_backend) << "Exception occurred during plugin registration";
         return false;
     }
+#endif
     
     return true;
 #else

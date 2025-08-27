@@ -1037,6 +1037,12 @@ endif()
 # Include FFmpeg directories
 include_directories(${FFMPEG_INCLUDE_DIRS})
 
+# Set FFmpeg libraries for linking (will be used later in target_link_libraries)
+if(EXISTS "${FFMPEG_PREFIX}/include/libavformat/avformat.h" OR EXISTS "${FFMPEG_PREFIX}/libavformat/avformat.h")
+    # FFmpeg is available, libraries will be linked later
+    message(STATUS "FFmpeg libraries will be linked: ${FFMPEG_LIBRARIES}")
+endif()
+
 # Add the executable target
 qt_standard_project_setup()
 
@@ -1162,7 +1168,6 @@ target_link_libraries(openterfaceQT PRIVATE
     Qt::Network
     Qt::SerialPort
     Qt::Svg
-    ${FFMPEG_LIBRARIES}  # Link against FFmpeg libraries
     ${HWACCEL_LIBRARIES} # Link against hardware acceleration libraries
     ${X11_LIBRARIES}     # Link against X11 libraries
     ${EXPAT_LIBRARIES}
@@ -1177,6 +1182,23 @@ target_link_libraries(openterfaceQT PRIVATE
 # Add TurboJPEG if available
 if(TURBOJPEG_LIBRARY)
     target_link_libraries(openterfaceQT PRIVATE ${TURBOJPEG_LIBRARIES})
+endif()
+
+# Add FFmpeg libraries if available
+if(EXISTS "${FFMPEG_PREFIX}/include/libavformat/avformat.h" OR EXISTS "${FFMPEG_PREFIX}/libavformat/avformat.h")
+    target_link_libraries(openterfaceQT PRIVATE 
+        ${FFMPEG_LIBRARIES}
+        jpeg      # Required by static FFmpeg
+        turbojpeg # Required by static FFmpeg  
+        pthread   # Required by static FFmpeg
+        m         # Math library required by static FFmpeg
+        z         # Zlib required by static FFmpeg
+        lzma      # LZMA required by static FFmpeg
+        drm       # Direct Rendering Manager for hardware acceleration
+        va        # VA-API for hardware acceleration
+        va-drm    # VA-API DRM backend
+        va-x11    # VA-API X11 backend
+    )
 endif()
 
 # Add libjpeg libraries if available

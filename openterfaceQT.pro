@@ -193,20 +193,18 @@ unix {
         LIBS += -ludev
         
         # Add GStreamer support
-        PKGCONFIG += gstreamer-1.0 gstreamer-video-1.0 gstreamer-plugins-base-1.0
-        DEFINES += HAVE_GSTREAMER GSTREAMER_DYNAMIC_LINKING
+        PKGCONFIG += gstreamer-1.0 gstreamer-video-1.0
+        DEFINES += HAVE_GSTREAMER
         
         # Add FFmpeg support
-        PKGCONFIG += libavformat libavcodec libavutil libswscale libavdevice
+        PKGCONFIG += libavformat libavcodec libavutil libswscale
         DEFINES += HAVE_FFMPEG
         
         # Add libjpeg-turbo support
+        PKGCONFIG += libjpeg
+        PKGCONFIG += libavdevice
         DEFINES += HAVE_LIBJPEG_TURBO
-        # Link both libjpeg and libturbojpeg (libturbojpeg might be named differently)
-        LIBS += -ljpeg -lturbojpeg
-        # Alternative library names for TurboJPEG on different systems
-        # ubuntu: libturbojpeg.so, some systems: libturbojpeg.so.0
-        LIBS += -L/usr/lib/x86_64-linux-gnu
+        LIBS += -ljpeg
     }
 
     RESOURCES += driver/linux/drivers.qrc

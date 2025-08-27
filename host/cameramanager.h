@@ -185,6 +185,9 @@ private:
     void initializeBackendHandler();
     void updateBackendHandler();
     
+    // FFmpeg backend specific methods
+    void handleFFmpegDeviceDisconnection(const QString& devicePath);
+    
     // Hotplug monitoring integration
     void connectToHotplugMonitor();
     void disconnectFromHotplugMonitor();

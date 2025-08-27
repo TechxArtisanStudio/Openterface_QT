@@ -34,6 +34,9 @@
 // Forward declarations for Qt types
 class QGraphicsVideoItem;
 class VideoPane;
+class HotplugMonitor;
+struct DeviceInfo;
+struct DeviceChangeEvent;
 
 // Forward declarations for FFmpeg types (conditional compilation)
 #ifdef HAVE_FFMPEG
@@ -77,24 +80,48 @@ public:
                                     int desiredFrameRate,
                                     QVideoFrameFormat::PixelFormat pixelFormat) const override;
 
-    // Direct FFmpeg video capture methods
+    // Direct FFmpeg capture methods
     bool startDirectCapture(const QString& devicePath, const QSize& resolution, int framerate);
     void stopDirectCapture();
+    void processFrame();
     bool isDirectCaptureRunning() const;
+
+    // Device availability and hotplug support
+    bool checkCameraAvailable(const QString& devicePath = "");
+    bool isCurrentDeviceAvailable() const;
+    void handleDeviceDisconnection();
+    bool restartCaptureWithDevice(const QString& devicePath, const QSize& resolution, int framerate);
     
-    // Video output management
+    // Enhanced hotplug support with waiting capabilities
+    void connectToHotplugMonitor();
+    void disconnectFromHotplugMonitor();
+    void waitForDeviceActivation(const QString& devicePath = "", int timeoutMs = 30000);
+    void handleDeviceActivation(const QString& devicePath);
+    void handleDeviceDeactivation(const QString& devicePath);
+    
+    // Stub for MOC compatibility (might be leftover from autocomplete)
+    void checkDeviceReconnection() { /* stub */ }
+
+#ifdef HAVE_FFMPEG
+    bool readFrame();
+    QPixmap convertFrameToPixmap(AVFrame* frame);
+    QPixmap decodeFrame(AVPacket* packet);
+#ifdef HAVE_LIBJPEG_TURBO
+    QPixmap decodeJpegFrame(const uint8_t* data, int size);
+#endif
+#endif
+
+public slots:
     void setVideoOutput(QGraphicsVideoItem* videoItem);
     void setVideoOutput(VideoPane* videoPane);
-    
-    // Device support detection
-    bool isDeviceSupportMissing() const;
-    
+
 signals:
     void frameReady(const QPixmap& frame);
     void captureError(const QString& error);
-
-private slots:
-    void processFrame();
+    void deviceConnectionChanged(const QString& devicePath, bool connected);
+    void deviceActivated(const QString& devicePath);
+    void deviceDeactivated(const QString& devicePath);
+    void waitingForDevice(const QString& devicePath);
 
 private:
 #ifdef HAVE_FFMPEG
@@ -103,15 +130,10 @@ private:
     void cleanupFFmpeg();
     bool openInputDevice(const QString& devicePath, const QSize& resolution, int framerate);
     void closeInputDevice();
-    
-    // Frame processing
-    bool readFrame();
-    QPixmap decodeFrame(AVPacket* packet);
-    QPixmap convertFrameToPixmap(AVFrame* frame);
 #endif
 
 #ifdef HAVE_LIBJPEG_TURBO
-    QPixmap decodeJpegFrame(const uint8_t* data, int size);
+    // Note: decodeJpegFrame is declared in public section above
 #endif
     
     // Threading
@@ -141,6 +163,13 @@ private:
     bool m_captureRunning;
     int m_videoStreamIndex;
 #endif
+    
+    // Hotplug monitoring
+    HotplugMonitor* m_hotplugMonitor;
+    QString m_expectedDevicePath;
+    bool m_waitingForDevice;
+    QTimer* m_deviceWaitTimer;
+    bool m_suppressErrors;
     
     // Output management
     QGraphicsVideoItem* m_graphicsVideoItem;

@@ -164,7 +164,7 @@ void VideoPane::stopEscTimer()
 
 void VideoPane::onCameraDeviceSwitching(const QString& fromDevice, const QString& toDevice)
 {
-    qCDebug(log_ui_video) << "VideoPane: Camera switching from" << fromDevice << "to" << toDevice;
+    // qCDebug(log_ui_video) << "VideoPane: Camera switching from" << fromDevice << "to" << toDevice;
     
     // Capture the current frame before switching
     captureCurrentFrame();
