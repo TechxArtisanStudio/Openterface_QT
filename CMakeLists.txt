@@ -1,6 +1,9 @@
 cmake_minimum_required(VERSION 3.16)
 project(openterfaceQT VERSION 1.0 LANGUAGES C CXX)
 
+# Include GNUInstallDirs for standard installation directories
+include(GNUInstallDirs)
+
 # Fix for time-related compilation issues on Linux (both native and cross-compilation)
 if(UNIX AND NOT APPLE)
     # Core GNU/Linux feature macros - must be set early and globally
@@ -1611,6 +1614,42 @@ endif()
 install(TARGETS openterfaceQT
     BUNDLE DESTINATION .
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+)
+
+# Install application icons for different sizes
+install(FILES ${CMAKE_SOURCE_DIR}/images/icon_32.png
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/32x32/apps
+    RENAME com.openterface.openterfaceQT.png
+)
+
+install(FILES ${CMAKE_SOURCE_DIR}/images/icon_64.png
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/64x64/apps
+    RENAME com.openterface.openterfaceQT.png
+)
+
+install(FILES ${CMAKE_SOURCE_DIR}/images/icon_128.png
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/128x128/apps
+    RENAME com.openterface.openterfaceQT.png
+)
+
+install(FILES ${CMAKE_SOURCE_DIR}/images/icon_256.png
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/256x256/apps
+    RENAME com.openterface.openterfaceQT.png
+)
+
+install(FILES ${CMAKE_SOURCE_DIR}/images/icon_256.svg
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/scalable/apps
+    RENAME com.openterface.openterfaceQT.svg
+)
+
+# Install desktop file
+install(FILES ${CMAKE_SOURCE_DIR}/com.openterface.openterfaceQT.desktop
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/applications
+)
+
+# Install metainfo file (for AppStream)
+install(FILES ${CMAKE_SOURCE_DIR}/com.openterface.openterfaceQT.metainfo.xml
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/metainfo
 )
 
 qt_generate_deploy_app_script(
