@@ -153,11 +153,6 @@
     <string>Change Settings</string>
    </property>
   </action>
-  <action name="actionResetHID">
-   <property name="text">
-    <string>Reset Keyboard and Mouse</string>
-   </property>
-  </action>
   <action name="actionResetSerialPort">
    <property name="text">
     <string>Reset Serial Port</string>

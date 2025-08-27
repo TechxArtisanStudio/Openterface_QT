@@ -250,9 +250,6 @@ MainWindow::MainWindow(LanguageManager *languageManager, QWidget *parent) :  ui(
     connect(ui->actionMouseAutoHide, &QAction::triggered, this, &MainWindow::onActionMouseAutoHideTriggered);
     connect(ui->actionMouseAlwaysShow, &QAction::triggered, this, &MainWindow::onActionMouseAlwaysShowTriggered);
 
-    qCDebug(log_ui_mainwindow) << "Observe reset HID triggered...";
-    connect(ui->actionResetHID, &QAction::triggered, this, &MainWindow::onActionResetHIDTriggered);
-
     qCDebug(log_ui_mainwindow) << "Observe factory reset HID triggered...";
     connect(ui->actionFactory_reset_HID, &QAction::triggered, this, &MainWindow::onActionFactoryResetHIDTriggered);
 
@@ -946,21 +943,6 @@ void MainWindow::onActionMouseAlwaysShowTriggered()
     GlobalSetting::instance().setMouseAutoHideEnable(false);
 }
 
-void MainWindow::onActionResetHIDTriggered()
-{
-    QMessageBox::StandardButton reply;
-    reply = QMessageBox::warning(this, "Confirm Reset Keyboard and Mouse?",
-                                        "Resetting the Keyboard & Mouse chip will apply new settings. Do you want to proceed?",
-                                  QMessageBox::Yes | QMessageBox::No);
-
-    if (reply == QMessageBox::Yes) {
-        qCDebug(log_ui_mainwindow) << "onActionResetHIDTriggered";
-        HostManager::getInstance().resetHid();
-    } else {
-        qCDebug(log_ui_mainwindow) << "Reset HID canceled by user.";
-    }
-}
-
 void MainWindow::onActionFactoryResetHIDTriggered()
 {
     QMessageBox::StandardButton reply;
@@ -1350,7 +1332,22 @@ void MainWindow::onBaudrateMenuTriggered(QAction* action)
     int baudrate = action->text().toInt(&ok);
     if (ok) {
         qCDebug(log_ui_mainwindow) << "User selected baudrate from menu:" << baudrate;
-        SerialPortManager::getInstance().setUserSelectedBaudrate(baudrate);
+        
+        if(baudrate == 9600){
+            SerialPortManager::getInstance().factoryResetHipChip();
+        }else{
+            SerialPortManager::getInstance().setUserSelectedBaudrate(baudrate);
+        }
+        
+        // Show message to user about device reconnection requirement
+        QMessageBox msgBox(this);
+        msgBox.setIcon(QMessageBox::Information);
+        msgBox.setWindowTitle("Baudrate Changed");
+        msgBox.setText(QString("Baudrate has been changed to %1.\n\n"
+                              "Please unplug and replug the device to make the new baudrate setting effective.")
+                              .arg(baudrate));
+        msgBox.addButton(QMessageBox::Ok);
+        msgBox.exec();
     } else {
         qCWarning(log_ui_mainwindow) << "Invalid baudrate selected from menu:" << action->text();
     }
@@ -1358,26 +1355,77 @@ void MainWindow::onBaudrateMenuTriggered(QAction* action)
 
 void MainWindow::onArmBaudratePerformanceRecommendation(int currentBaudrate)
 {
+    // Get the current baudrate from SerialPortManager instead of using the parameter
+    int actualCurrentBaudrate = SerialPortManager::getInstance().getCurrentBaudrate();
+    
     QMessageBox msgBox(this);
     msgBox.setIcon(QMessageBox::Information);
     msgBox.setWindowTitle("Performance Recommendation");
-    msgBox.setText(QString("You are running on an ARM architecture with %1 baudrate.\n\n"
-                          "For better performance and lower CPU usage, we recommend using 9600 baudrate instead.")
-                          .arg(currentBaudrate));
     
-    QPushButton* switchButton = msgBox.addButton("Switch to 9600", QMessageBox::AcceptRole);
-    QPushButton* keepButton = msgBox.addButton("Keep Current", QMessageBox::RejectRole);
+    QPushButton* actionButton = nullptr;
+    QPushButton* stayButton = nullptr;
+
+
+    if (actualCurrentBaudrate == 9600) {
+        msgBox.setText("You are running on an ARM architecture with 9600 baudrate.\n\n"
+                      "You can switch to 115200 baudrate for potentially faster communication, "
+                      "but it may use more CPU resources.");
+        actionButton = msgBox.addButton("Switch to 115200", QMessageBox::AcceptRole);
+        stayButton = msgBox.addButton("Stay in 9600", QMessageBox::RejectRole);
+    } else {
+        msgBox.setText(QString("You are running on an ARM architecture with %1 baudrate.\n\n"
+                              "For better performance and lower CPU usage, we recommend using 9600 baudrate instead.")
+                              .arg(actualCurrentBaudrate));
+        actionButton = msgBox.addButton("Switch to 9600", QMessageBox::AcceptRole);
+        stayButton = msgBox.addButton("Stay in 115200", QMessageBox::RejectRole);
+    }
+    
     
     QCheckBox* dontShowCheckBox = new QCheckBox("Don't show this recommendation again");
     msgBox.setCheckBox(dontShowCheckBox);
     
     msgBox.exec();
     
-    bool switchTo9600 = (msgBox.clickedButton() == switchButton);
+    QAbstractButton* clickedBtn = msgBox.clickedButton();
+    bool shouldSwitch = (clickedBtn == actionButton);
     bool dontShowAgain = dontShowCheckBox->isChecked();
     
-    // Send response back to SerialPortManager
-    SerialPortManager::getInstance().handleArmBaudrateRecommendationResponse(switchTo9600, dontShowAgain);
+    // If user closed the dialog (clicked X or pressed Escape), don't proceed with any action
+    if (clickedBtn == nullptr) {
+        qCInfo(log_ui_mainwindow) << "User closed the dialog without making a choice";
+        return;
+    }
+    
+    // Handle "don't show again" in UI
+    if (dontShowAgain) {
+        qCInfo(log_ui_mainwindow) << "User chose to disable ARM baudrate performance prompts";
+        GlobalSetting::instance().setArmBaudratePromptDisabled(true);
+    }
+    
+    // Handle baudrate switching
+    if (shouldSwitch) {
+        int targetBaudrate = (actualCurrentBaudrate == 9600) ? 115200 : 9600;
+        qCInfo(log_ui_mainwindow) << "User chose to switch from" << actualCurrentBaudrate << "to" << targetBaudrate << "baudrate";
+        if(targetBaudrate == 115200){
+            SerialPortManager::getInstance().setUserSelectedBaudrate(targetBaudrate);
+        } else {
+            //For some reason, switching back to 9600 cannot dynamically, need to reset the HID chip
+            SerialPortManager::getInstance().factoryResetHipChip();
+        }
+        
+        
+        // Show message to user about device reconnection requirement
+        QMessageBox infoBox(this);
+        infoBox.setIcon(QMessageBox::Information);
+        infoBox.setWindowTitle("Baudrate Changed");
+        infoBox.setText(QString("Baudrate has been changed to %1.\n\n"
+                              "Please unplug and replug the device to make the new baudrate setting effective.")
+                              .arg(targetBaudrate));
+        infoBox.addButton(QMessageBox::Ok);
+        infoBox.exec();
+    } else {
+        qCInfo(log_ui_mainwindow) << "User chose to keep current baudrate:" << actualCurrentBaudrate;
+    }
 }
 
 void MainWindow::imageSaved(int id, const QString &fileName)

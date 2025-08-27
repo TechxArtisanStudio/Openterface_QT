@@ -547,11 +547,6 @@ Please try again after restarting the application.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="158"/>
-        <source>Reset Keyboard and Mouse</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <location filename="../../ui/mainwindow.ui" line="163"/>
         <source>Reset Serial Port</source>
         <translation type="unfinished"></translation>

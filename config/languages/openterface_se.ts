@@ -613,11 +613,6 @@ Försök igen efter att ha startat om programmet.</translation>
         <translation>Ändra inställningar</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="158"/>
-        <source>Reset Keyboard and Mouse</source>
-        <translation>Återställ tangentbord och mus</translation>
-    </message>
-    <message>
         <location filename="../../ui/mainwindow.ui" line="163"/>
         <source>Reset Serial Port</source>
         <translation>Återställ serieport</translation>
