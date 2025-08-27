@@ -470,7 +470,13 @@ bool FFmpegBackendHandler::initializeFFmpeg()
     
     // Initialize FFmpeg
     av_log_set_level(AV_LOG_WARNING); // Reduce FFmpeg log noise
+    
+    // Register all devices - required for V4L2 input device support
+    // Even in newer FFmpeg versions, avdevice_register_all() is still needed for input devices
+#ifdef HAVE_FFMPEG
     avdevice_register_all();
+    qCDebug(log_ffmpeg_backend) << "FFmpeg devices registered";
+#endif
     
 #ifdef HAVE_LIBJPEG_TURBO
     // Initialize TurboJPEG decompressor
@@ -487,6 +493,17 @@ bool FFmpegBackendHandler::initializeFFmpeg()
     
     qCDebug(log_ffmpeg_backend) << "FFmpeg initialization completed";
     return true;
+}
+
+bool FFmpegBackendHandler::isV4L2InputSupported()
+{
+#ifdef HAVE_FFMPEG
+    // Check if V4L2 input format is available
+    const AVInputFormat* inputFormat = av_find_input_format("v4l2");
+    return (inputFormat != nullptr);
+#else
+    return false;
+#endif
 }
 
 void FFmpegBackendHandler::cleanupFFmpeg()
@@ -640,6 +657,8 @@ bool FFmpegBackendHandler::openInputDevice(const QString& devicePath, const QSiz
     const AVInputFormat* inputFormat = av_find_input_format("v4l2");
     if (!inputFormat) {
         qCCritical(log_ffmpeg_backend) << "V4L2 input format not found";
+        qCCritical(log_ffmpeg_backend) << "FFmpeg was compiled without V4L2 input device support.";
+        qCCritical(log_ffmpeg_backend) << "Please use a different backend (GStreamer or Qt Multimedia) or rebuild FFmpeg with --enable-indev=v4l2";
         return false;
     }
     
