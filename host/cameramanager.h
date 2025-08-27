@@ -184,6 +184,14 @@ private:
     // Backend handler management
     void initializeBackendHandler();
     void updateBackendHandler();
+    
+    // Hotplug monitoring integration
+    void connectToHotplugMonitor();
+    void disconnectFromHotplugMonitor();
+    void setupWindowsHotplugMonitoring();
+    
+private slots:
+    void onVideoInputsChanged();
 };
 
 #endif // CAMERAMANAGER_H

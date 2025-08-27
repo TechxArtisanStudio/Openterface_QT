@@ -1,0 +1,128 @@
+# Dynamic Qt Build Environment
+FROM ubuntu:24.04
+
+# Prevent interactive prompts during package installation
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Update package lists and install core build tools
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    cmake \
+    ninja-build \
+    pkg-config \
+    curl \
+    wget \
+    git \
+    unzip \
+    software-properties-common \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Qt6 from official repositories
+RUN apt-get update && apt-get install -y \
+    qt6-base-dev \
+    qt6-base-dev-tools \
+    qt6-tools-dev \
+    qt6-tools-dev-tools \
+    qt6-multimedia-dev \
+    qt6-serialport-dev \
+    qt6-svg-dev \
+    qt6-declarative-dev \
+    qmake6 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install additional development dependencies
+RUN apt-get update && apt-get install -y \
+    libgl1-mesa-dev \
+    libegl1-mesa-dev \
+    libgles2-mesa-dev \
+    libxkbcommon-dev \
+    libxcb-xkb-dev \
+    libxcb-icccm4-dev \
+    libxcb-image0-dev \
+    libxcb-keysyms1-dev \
+    libxcb-render-util0-dev \
+    libxcb-cursor-dev \
+    libfontconfig1-dev \
+    libfreetype6-dev \
+    libx11-dev \
+    libx11-xcb-dev \
+    libxext-dev \
+    libxfixes-dev \
+    libxi-dev \
+    libxrandr-dev \
+    libxrender-dev \
+    libxss1 \
+    libgstreamer1.0-dev \
+    libgstreamer-plugins-base1.0-dev \
+    libpulse-dev \
+    libdbus-1-dev \
+    libudev-dev \
+    libusb-1.0-0-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install FFmpeg development libraries and GStreamer plugins
+RUN apt-get update && apt-get install -y \
+    libavcodec-dev \
+    libavformat-dev \
+    libavutil-dev \
+    libswscale-dev \
+    libswresample-dev \
+    libavdevice-dev \
+    libavfilter-dev \
+    libjpeg-dev \
+    libturbojpeg0-dev \
+    gstreamer1.0-plugins-base \
+    gstreamer1.0-plugins-good \
+    gstreamer1.0-plugins-bad \
+    gstreamer1.0-tools \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set environment variables for Qt6
+ENV QT_VERSION=6.6.3
+ENV PATH="/usr/lib/qt6/bin:${PATH}"
+ENV QT_PLUGIN_PATH="/usr/lib/x86_64-linux-gnu/qt6/plugins"
+ENV QML2_IMPORT_PATH="/usr/lib/x86_64-linux-gnu/qt6/qml"
+ENV PKG_CONFIG_PATH="/usr/lib/x86_64-linux-gnu/pkgconfig:${PKG_CONFIG_PATH}"
+
+# Create verification script for dynamic Qt
+RUN mkdir -p /opt/verify && \
+    echo '#!/bin/bash' > /opt/verify/verify-qt-dynamic.sh && \
+    echo 'echo "Qt Dynamic Installation Verification"' >> /opt/verify/verify-qt-dynamic.sh && \
+    echo 'echo "===================================="' >> /opt/verify/verify-qt-dynamic.sh && \
+    echo 'echo "Qt version: $(qmake6 -query QT_VERSION)"' >> /opt/verify/verify-qt-dynamic.sh && \
+    echo 'echo "Qt installation prefix: $(qmake6 -query QT_INSTALL_PREFIX)"' >> /opt/verify/verify-qt-dynamic.sh && \
+    echo 'echo "Qt library path: $(qmake6 -query QT_INSTALL_LIBS)"' >> /opt/verify/verify-qt-dynamic.sh && \
+    echo 'echo -e "\nChecking Qt modules:"' >> /opt/verify/verify-qt-dynamic.sh && \
+    echo 'MODULES="Core Widgets Gui Multimedia MultimediaWidgets SerialPort Svg SvgWidgets Quick"' >> /opt/verify/verify-qt-dynamic.sh && \
+    echo 'QT_LIB_PATH="/usr/lib/x86_64-linux-gnu"' >> /opt/verify/verify-qt-dynamic.sh && \
+    echo 'for module in $MODULES; do' >> /opt/verify/verify-qt-dynamic.sh && \
+    echo '    if [ -f "${QT_LIB_PATH}/libQt6${module}.so" ]; then' >> /opt/verify/verify-qt-dynamic.sh && \
+    echo '        echo "✓ Qt${module} shared library found"' >> /opt/verify/verify-qt-dynamic.sh && \
+    echo '    else' >> /opt/verify/verify-qt-dynamic.sh && \
+    echo '        echo "✗ Qt${module} shared library NOT found"' >> /opt/verify/verify-qt-dynamic.sh && \
+    echo '    fi' >> /opt/verify/verify-qt-dynamic.sh && \
+    echo 'done' >> /opt/verify/verify-qt-dynamic.sh && \
+    echo 'echo -e "\nChecking pkg-config modules:"' >> /opt/verify/verify-qt-dynamic.sh && \
+    echo 'PKG_MODULES="Qt6Core Qt6Widgets Qt6Gui Qt6Multimedia Qt6SerialPort Qt6Svg"' >> /opt/verify/verify-qt-dynamic.sh && \
+    echo 'for module in $PKG_MODULES; do' >> /opt/verify/verify-qt-dynamic.sh && \
+    echo '    if pkg-config --exists "$module"; then' >> /opt/verify/verify-qt-dynamic.sh && \
+    echo '        echo "✓ $module pkg-config: OK"' >> /opt/verify/verify-qt-dynamic.sh && \
+    echo '    else' >> /opt/verify/verify-qt-dynamic.sh && \
+    echo '        echo "✗ $module pkg-config: FAILED"' >> /opt/verify/verify-qt-dynamic.sh && \
+    echo '    fi' >> /opt/verify/verify-qt-dynamic.sh && \
+    echo 'done' >> /opt/verify/verify-qt-dynamic.sh && \
+    echo 'echo -e "\nChecking additional libraries:"' >> /opt/verify/verify-qt-dynamic.sh && \
+    echo 'echo "JPEG library: $(pkg-config --exists libjpeg && echo "✓ Found" || echo "✗ Not found")"' >> /opt/verify/verify-qt-dynamic.sh && \
+    echo 'echo "TurboJPEG library: $(find /usr/lib -name "*turbojpeg*" -type f 2>/dev/null | head -1 | xargs -I {} echo "✓ Found: {}" || echo "✗ Not found")"' >> /opt/verify/verify-qt-dynamic.sh && \
+    echo 'echo "Available JPEG-related libraries:"' >> /opt/verify/verify-qt-dynamic.sh && \
+    echo 'find /usr/lib -name "*jpeg*" -type f 2>/dev/null | head -10' >> /opt/verify/verify-qt-dynamic.sh && \
+    echo 'echo -e "\nGStreamer plugins verification:"' >> /opt/verify/verify-qt-dynamic.sh && \
+    echo 'echo "Installed GStreamer plugins:"' >> /opt/verify/verify-qt-dynamic.sh && \
+    echo 'gst-inspect-1.0 | grep -E "(coreelements|v4l2|jpeg|ximagesink)" | head -10 || echo "Could not list plugins"' >> /opt/verify/verify-qt-dynamic.sh && \
+    echo 'echo -e "\nDynamic build environment ready!"' >> /opt/verify/verify-qt-dynamic.sh && \
+    chmod +x /opt/verify/verify-qt-dynamic.sh
+
+# Verify Qt installation
+RUN /opt/verify/verify-qt-dynamic.sh
+
+WORKDIR /workspace

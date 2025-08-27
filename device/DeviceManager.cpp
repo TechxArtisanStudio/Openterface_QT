@@ -379,3 +379,45 @@ void DeviceManager::forceRefresh()
     
     emit devicesChanged(currentDevices);
 }
+
+bool DeviceManager::switchSerialPortByPortChain(const QString& portChain)
+{
+    qCDebug(log_device_manager) << "Attempting to switch serial port to device at port chain:" << portChain;
+    
+    try {
+        SerialPortManager& serialManager = SerialPortManager::getInstance();
+        bool success = serialManager.switchSerialPortByPortChain(portChain);
+        
+        if (success) {
+            qCInfo(log_device_manager) << "✓ Successfully switched serial port to port chain:" << portChain;
+        } else {
+            qCWarning(log_device_manager) << "Failed to switch serial port to port chain:" << portChain;
+        }
+        
+        return success;
+    } catch (const std::exception& e) {
+        qCCritical(log_device_manager) << "Exception while switching serial port:" << e.what();
+        return false;
+    }
+}
+
+bool DeviceManager::switchHIDDeviceByPortChain(const QString& portChain)
+{
+    qCDebug(log_device_manager) << "Attempting to switch HID device to device at port chain:" << portChain;
+    
+    try {
+        VideoHid& videoHid = VideoHid::getInstance();
+        bool success = videoHid.switchToHIDDeviceByPortChain(portChain);
+        
+        if (success) {
+            qCInfo(log_device_manager) << "✓ Successfully switched HID device to port chain:" << portChain;
+        } else {
+            qCWarning(log_device_manager) << "Failed to switch HID device to port chain:" << portChain;
+        }
+        
+        return success;
+    } catch (const std::exception& e) {
+        qCCritical(log_device_manager) << "Exception while switching HID device:" << e.what();
+        return false;
+    }
+}
