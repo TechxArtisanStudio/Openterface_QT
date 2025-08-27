@@ -613,11 +613,6 @@ Prøv igen efter at have genstartet programmet.</translation>
         <translation>Skift indstillinger</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="158"/>
-        <source>Reset Keyboard and Mouse</source>
-        <translation>Nulstil tastatur og mus</translation>
-    </message>
-    <message>
         <location filename="../../ui/mainwindow.ui" line="163"/>
         <source>Reset Serial Port</source>
         <translation>Nulstil seriel port</translation>

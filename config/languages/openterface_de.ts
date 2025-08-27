@@ -609,11 +609,6 @@ Bitte versuchen Sie es erneut nach einem Neustart der Anwendung.</translation>
         <translation>Einstellungen ändern</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="158"/>
-        <source>Reset Keyboard and Mouse</source>
-        <translation>Tastatur und Maus zurücksetzen</translation>
-    </message>
-    <message>
         <location filename="../../ui/mainwindow.ui" line="163"/>
         <source>Reset Serial Port</source>
         <translation>Seriellen Port zurücksetzen</translation>

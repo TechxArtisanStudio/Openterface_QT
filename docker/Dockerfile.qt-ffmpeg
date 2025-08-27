@@ -1,5 +1,7 @@
 # Build libusb and FFmpeg
-ARG BASE_IMAGE=ghcr.io/kevinzjpeng/openterface-qt-base:latest
+ARG BASE_IMAGE=ghcr.io/techxartisanstudio/openterface-qtbuild-base:ubuntu-24.04-amd64
+ARG UBUNTU_VERSION=24.04
+ARG TARGETARCH=amd64
 FROM ${BASE_IMAGE}
 
 WORKDIR ${BUILD_DIR}
@@ -16,6 +18,26 @@ RUN echo "Building libusb ${LIBUSB_VERSION} from source..." && \
     make install && \
     cd ${BUILD_DIR} && \
     rm -rf libusb
+
+# Build libjpeg-turbo from source
+RUN echo "Building libjpeg-turbo from source..." && \
+    curl -L -o libjpeg-turbo.tar.gz "https://github.com/libjpeg-turbo/libjpeg-turbo/archive/refs/tags/3.0.4.tar.gz" && \
+    tar xzf libjpeg-turbo.tar.gz && \
+    rm libjpeg-turbo.tar.gz && \
+    cd libjpeg-turbo-3.0.4 && \
+    mkdir build && \
+    cd build && \
+    cmake .. \
+        -DCMAKE_INSTALL_PREFIX="${FFMPEG_PREFIX}" \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DENABLE_STATIC=ON \
+        -DENABLE_SHARED=OFF \
+        -DWITH_JPEG8=ON \
+        -DWITH_TURBOJPEG=ON && \
+    make -j$(nproc) && \
+    make install && \
+    cd ${BUILD_DIR} && \
+    rm -rf libjpeg-turbo-3.0.4
 
 # Build FFmpeg statically
 RUN echo "Building FFmpeg ${FFMPEG_VERSION} statically..." && \

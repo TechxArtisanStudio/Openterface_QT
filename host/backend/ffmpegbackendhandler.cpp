@@ -616,7 +616,7 @@ bool FFmpegBackendHandler::openInputDevice(const QString& devicePath, const QSiz
     int framerateResult = system(framerateCommand.toUtf8().constData());
     
     // RESPONSIVENESS: Try to configure minimal buffering for lower latency
-    QString bufferCommand = QString("v4l2-ctl --device=%1 --set-ctrl=compression_quality=50")
+    QString bufferCommand = QString("v4l2-ctl --device=%1")
                            .arg(devicePath);
     system(bufferCommand.toUtf8().constData()); // Don't check result - optional optimization
     
@@ -636,7 +636,7 @@ bool FFmpegBackendHandler::openInputDevice(const QString& devicePath, const QSiz
         return false;
     }
     
-    // Find input format (V4L2)
+    // Find input format (V4L2) - try multiple format names
     const AVInputFormat* inputFormat = av_find_input_format("v4l2");
     if (!inputFormat) {
         qCCritical(log_ffmpeg_backend) << "V4L2 input format not found";

@@ -17,7 +17,8 @@ const QByteArray CMD_RESET = QByteArray::fromHex("57 AB 00 0F 00");
 const QByteArray CMD_SET_DEFAULT_CFG = QByteArray::fromHex("57 AB 00 0C 00");
 const QByteArray CMD_SET_USB_STRING_PREFIX = QByteArray::fromHex("57 AB 00 0B");
 const QByteArray CMD_SEND_KB_GENERAL_DATA = QByteArray::fromHex("57 AB 00 02 08 00 00 00 00 00 00 00 00");
-const QByteArray CMD_SET_PARA_CFG_PREFIX = QByteArray::fromHex("57 AB 00 09 32 82 80 00 00 01 C2 00");
+const QByteArray CMD_SET_PARA_CFG_PREFIX_115200 = QByteArray::fromHex("57 AB 00 09 32 82 80 00 00 01 C2 00");
+const QByteArray CMD_SET_PARA_CFG_PREFIX_9600 = QByteArray::fromHex("57 AB 00 09 32 80 80 00 00 00 25 80");
 // const QByteArray CMD_SET_INFO_PREFIX = QByteArray::fromHex("57 AB 00 09 32 82 80 00 00 01 C2 00");
 const QByteArray CMD_SET_PARA_CFG_MID = QByteArray::fromHex("08 00 00 03 86 1a 29 e1 00 00 00 01 00 0d 00 00 00 00 00 00 00") + QByteArray(22, 0x00) ;
 
@@ -70,7 +71,7 @@ T fromByteArray(const QByteArray &data) {
         // Debugging: Print the parsed fields
         // result.dump();
     } else {
-        qWarning(log_core_serial) << "Data size is too small to parse" << typeid(T).name();
+        qWarning(log_core_serial) << "Data size is too small to parse struct of size" << sizeof(T);
         qDebug(log_core_serial) << "Data content:" << data.toHex(' ');
     }
     return result;
@@ -96,7 +97,7 @@ struct CmdGetInfoResult {
         if (data.size() >= static_cast<qsizetype>(sizeof(CmdGetInfoResult))) {
             std::memcpy(&result, data.constData(), sizeof(CmdGetInfoResult));
             // Debugging: Print the raw data
-            // qDebug() << "Raw data:" << data.toHex(' ');
+            qDebug() << "Raw data:" << data.toHex(' ');
 
             // Debugging: Print the parsed fields
             // result.dump();

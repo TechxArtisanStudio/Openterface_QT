@@ -1,8 +1,13 @@
 # Dynamic Qt Build Environment
-FROM ubuntu:24.04
+ARG UBUNTU_VERSION=24.04
+ARG TARGETARCH=amd64
+FROM ubuntu:${UBUNTU_VERSION}
 
 # Prevent interactive prompts during package installation
 ENV DEBIAN_FRONTEND=noninteractive
+
+# Set architecture-aware environment variables
+ENV TARGETARCH=${TARGETARCH}
 
 # Update package lists and install core build tools
 RUN apt-get update && apt-get install -y \
@@ -17,86 +22,236 @@ RUN apt-get update && apt-get install -y \
     software-properties-common \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Qt6 from official repositories
-RUN apt-get update && apt-get install -y \
-    qt6-base-dev \
-    qt6-base-dev-tools \
-    qt6-tools-dev \
-    qt6-tools-dev-tools \
-    qt6-multimedia-dev \
-    qt6-serialport-dev \
-    qt6-svg-dev \
-    qt6-declarative-dev \
-    qmake6 \
-    && rm -rf /var/lib/apt/lists/*
+# Install Qt6 from official repositories with architecture-specific packages
+RUN apt-get update && \
+    if [ "$TARGETARCH" = "arm64" ]; then \
+        # Enable ARM64 repositories and install cross-compilation tools
+        dpkg --add-architecture arm64 && \
+        apt-get update && \
+        apt-get install -y \
+            gcc-aarch64-linux-gnu \
+            g++-aarch64-linux-gnu \
+            pkg-config-aarch64-linux-gnu \
+            qt6-base-dev:arm64 \
+            qt6-base-dev-tools \
+            qt6-tools-dev \
+            qt6-tools-dev-tools \
+            qt6-multimedia-dev:arm64 \
+            qt6-serialport-dev:arm64 \
+            qt6-svg-dev:arm64 \
+            qt6-declarative-dev:arm64 \
+            qmake6 \
+            # Add X11 development libraries for ARM64
+            libx11-dev:arm64 \
+            libx11-xcb-dev:arm64 \
+            libxext-dev:arm64 \
+            libxfixes-dev:arm64 \
+            libxi-dev:arm64 \
+            libxrandr-dev:arm64 \
+            libxrender-dev:arm64 \
+            libxinerama-dev:arm64 \
+            libxss-dev:arm64 \
+            libxtst-dev:arm64 \
+            libxcomposite-dev:arm64 \
+            libxdamage-dev:arm64 \
+            libxcursor-dev:arm64 \
+            x11proto-dev:arm64; \
+    else \
+        # Install native AMD64 packages
+        apt-get install -y \
+            qt6-base-dev \
+            qt6-base-dev-tools \
+            qt6-tools-dev \
+            qt6-tools-dev-tools \
+            qt6-multimedia-dev \
+            qt6-serialport-dev \
+            qt6-svg-dev \
+            qt6-declarative-dev \
+            qmake6 \
+            # Add X11 development libraries for AMD64
+            libx11-dev \
+            libx11-xcb-dev \
+            libxext-dev \
+            libxfixes-dev \
+            libxi-dev \
+            libxrandr-dev \
+            libxrender-dev \
+            libxinerama-dev \
+            libxss-dev \
+            libxtst-dev \
+            libxcomposite-dev \
+            libxdamage-dev \
+            libxcursor-dev \
+            x11proto-dev; \
+    fi && \
+    rm -rf /var/lib/apt/lists/*
 
-# Install additional development dependencies
-RUN apt-get update && apt-get install -y \
-    libgl1-mesa-dev \
-    libegl1-mesa-dev \
-    libgles2-mesa-dev \
-    libxkbcommon-dev \
-    libxcb-xkb-dev \
-    libxcb-icccm4-dev \
-    libxcb-image0-dev \
-    libxcb-keysyms1-dev \
-    libxcb-render-util0-dev \
-    libxcb-cursor-dev \
-    libfontconfig1-dev \
-    libfreetype6-dev \
-    libx11-dev \
-    libx11-xcb-dev \
-    libxext-dev \
-    libxfixes-dev \
-    libxi-dev \
-    libxrandr-dev \
-    libxrender-dev \
-    libxss1 \
-    libgstreamer1.0-dev \
-    libgstreamer-plugins-base1.0-dev \
-    libpulse-dev \
-    libdbus-1-dev \
-    libudev-dev \
-    libusb-1.0-0-dev \
-    && rm -rf /var/lib/apt/lists/*
+# Install additional development dependencies with architecture-specific support
+RUN apt-get update && \
+    if [ "$TARGETARCH" = "arm64" ]; then \
+        # Install ARM64 cross-compilation dependencies
+        apt-get install -y \
+            libgl1-mesa-dev:arm64 \
+            libegl1-mesa-dev:arm64 \
+            libgles2-mesa-dev:arm64 \
+            libglu1-mesa-dev:arm64 \
+            libglvnd-dev:arm64 \
+            libglx-dev:arm64 \
+            libopengl-dev:arm64 \
+            libdrm-dev:arm64 \
+            libgbm-dev:arm64 \
+            mesa-common-dev:arm64 \
+            libgl1-mesa-glx:arm64 \
+            libxkbcommon-dev:arm64 \
+            libxcb-xkb-dev:arm64 \
+            libxcb-icccm4-dev:arm64 \
+            libxcb-image0-dev:arm64 \
+            libxcb-keysyms1-dev:arm64 \
+            libxcb-render-util0-dev:arm64 \
+            libxcb-cursor-dev:arm64 \
+            libfontconfig1-dev:arm64 \
+            libfreetype6-dev:arm64 \
+            libx11-dev:arm64 \
+            libx11-xcb-dev:arm64 \
+            libxext-dev:arm64 \
+            libxfixes-dev:arm64 \
+            libxi-dev:arm64 \
+            libxrandr-dev:arm64 \
+            libxrender-dev:arm64 \
+            libxv-dev:arm64 \
+            libxcb1-dev:arm64 \
+            libxcb-glx0-dev:arm64 \
+            libxcb-shm0-dev:arm64 \
+            libxcb-sync-dev:arm64 \
+            libxcb-xfixes0-dev:arm64 \
+            libxcb-shape0-dev:arm64 \
+            libxcb-randr0-dev:arm64 \
+            libxcb-util-dev:arm64 \
+            libxcb-xinerama0-dev:arm64 \
+            libgstreamer1.0-dev:arm64 \
+            libgstreamer-plugins-base1.0-dev:arm64 \
+            libpulse-dev:arm64 \
+            libdbus-1-dev:arm64 \
+            libudev-dev:arm64 \
+            libgudev-1.0-dev:arm64 \
+            libusb-1.0-0-dev:arm64 \
+            libv4l-dev:arm64 \
+            liborc-0.4-dev:arm64 \
+            libexpat1-dev:arm64; \
+    else \
+        # Install native AMD64 dependencies
+        apt-get install -y \
+            libgl1-mesa-dev \
+            libegl1-mesa-dev \
+            libgles2-mesa-dev \
+            libglu1-mesa-dev \
+            libglvnd-dev \
+            libglx-dev \
+            libopengl-dev \
+            libdrm-dev \
+            libgbm-dev \
+            mesa-common-dev \
+            libxkbcommon-dev \
+            libxcb-xkb-dev \
+            libxcb-icccm4-dev \
+            libxcb-image0-dev \
+            libxcb-keysyms1-dev \
+            libxcb-render-util0-dev \
+            libxcb-cursor-dev \
+            libfontconfig1-dev \
+            libfreetype6-dev \
+            libx11-dev \
+            libx11-xcb-dev \
+            libxext-dev \
+            libxfixes-dev \
+            libxi-dev \
+            libxrandr-dev \
+            libxrender-dev \
+            libxv-dev \
+            libxss1 \
+            libgstreamer1.0-dev \
+            libgstreamer-plugins-base1.0-dev \
+            libpulse-dev \
+            libdbus-1-dev \
+            libudev-dev \
+            libgudev-1.0-dev \
+            libusb-1.0-0-dev \
+            libv4l-dev \
+            liborc-0.4-dev \
+            libexpat1-dev; \
+    fi && \
+    rm -rf /var/lib/apt/lists/*
 
-# Install FFmpeg development libraries and GStreamer plugins
-RUN apt-get update && apt-get install -y \
-    libavcodec-dev \
-    libavformat-dev \
-    libavutil-dev \
-    libswscale-dev \
-    libswresample-dev \
-    libavdevice-dev \
-    libavfilter-dev \
-    libjpeg-dev \
-    libturbojpeg0-dev \
-    gstreamer1.0-plugins-base \
-    gstreamer1.0-plugins-good \
-    gstreamer1.0-plugins-bad \
-    gstreamer1.0-tools \
-    && rm -rf /var/lib/apt/lists/*
+# Install FFmpeg development libraries and GStreamer plugins with architecture support
+RUN apt-get update && \
+    if [ "$TARGETARCH" = "arm64" ]; then \
+        # Install ARM64 multimedia libraries
+        apt-get install -y \
+            libavcodec-dev:arm64 \
+            libavformat-dev:arm64 \
+            libavutil-dev:arm64 \
+            libswscale-dev:arm64 \
+            libswresample-dev:arm64 \
+            libavdevice-dev:arm64 \
+            libavfilter-dev:arm64 \
+            libjpeg-dev:arm64 \
+            libturbojpeg0-dev:arm64 \
+            gstreamer1.0-plugins-base:arm64 \
+            gstreamer1.0-plugins-good:arm64 \
+            gstreamer1.0-plugins-bad:arm64 \
+            gstreamer1.0-tools; \
+    else \
+        # Install native AMD64 multimedia libraries
+        apt-get install -y \
+            libavcodec-dev \
+            libavformat-dev \
+            libavutil-dev \
+            libswscale-dev \
+            libswresample-dev \
+            libavdevice-dev \
+            libavfilter-dev \
+            libjpeg-dev \
+            libturbojpeg0-dev \
+            gstreamer1.0-plugins-base \
+            gstreamer1.0-plugins-good \
+            gstreamer1.0-plugins-bad \
+            gstreamer1.0-tools; \
+    fi && \
+    rm -rf /var/lib/apt/lists/*
+
+# Set architecture-aware library paths
+RUN if [ "$TARGETARCH" = "arm64" ]; then \
+        echo "export QT_PLUGIN_PATH=/usr/lib/aarch64-linux-gnu/qt6/plugins" >> /etc/environment && \
+        echo "export QML2_IMPORT_PATH=/usr/lib/aarch64-linux-gnu/qt6/qml" >> /etc/environment && \
+        echo "export PKG_CONFIG_PATH=/usr/lib/aarch64-linux-gnu/pkgconfig:${PKG_CONFIG_PATH}" >> /etc/environment && \
+        echo "export QT_LIB_ARCH_PATH=/usr/lib/aarch64-linux-gnu" >> /etc/environment; \
+    else \
+        echo "export QT_PLUGIN_PATH=/usr/lib/x86_64-linux-gnu/qt6/plugins" >> /etc/environment && \
+        echo "export QML2_IMPORT_PATH=/usr/lib/x86_64-linux-gnu/qt6/qml" >> /etc/environment && \
+        echo "export PKG_CONFIG_PATH=/usr/lib/x86_64-linux-gnu/pkgconfig:${PKG_CONFIG_PATH}" >> /etc/environment && \
+        echo "export QT_LIB_ARCH_PATH=/usr/lib/x86_64-linux-gnu" >> /etc/environment; \
+    fi
 
 # Set environment variables for Qt6
 ENV QT_VERSION=6.6.3
 ENV PATH="/usr/lib/qt6/bin:${PATH}"
-ENV QT_PLUGIN_PATH="/usr/lib/x86_64-linux-gnu/qt6/plugins"
-ENV QML2_IMPORT_PATH="/usr/lib/x86_64-linux-gnu/qt6/qml"
-ENV PKG_CONFIG_PATH="/usr/lib/x86_64-linux-gnu/pkgconfig:${PKG_CONFIG_PATH}"
 
 # Create verification script for dynamic Qt
 RUN mkdir -p /opt/verify && \
     echo '#!/bin/bash' > /opt/verify/verify-qt-dynamic.sh && \
+    echo 'source /etc/environment' >> /opt/verify/verify-qt-dynamic.sh && \
     echo 'echo "Qt Dynamic Installation Verification"' >> /opt/verify/verify-qt-dynamic.sh && \
     echo 'echo "===================================="' >> /opt/verify/verify-qt-dynamic.sh && \
+    echo 'echo "Architecture: $(uname -m)"' >> /opt/verify/verify-qt-dynamic.sh && \
+    echo 'echo "Target arch: $TARGETARCH"' >> /opt/verify/verify-qt-dynamic.sh && \
     echo 'echo "Qt version: $(qmake6 -query QT_VERSION)"' >> /opt/verify/verify-qt-dynamic.sh && \
     echo 'echo "Qt installation prefix: $(qmake6 -query QT_INSTALL_PREFIX)"' >> /opt/verify/verify-qt-dynamic.sh && \
     echo 'echo "Qt library path: $(qmake6 -query QT_INSTALL_LIBS)"' >> /opt/verify/verify-qt-dynamic.sh && \
+    echo 'echo "Architecture-specific library path: $QT_LIB_ARCH_PATH"' >> /opt/verify/verify-qt-dynamic.sh && \
     echo 'echo -e "\nChecking Qt modules:"' >> /opt/verify/verify-qt-dynamic.sh && \
     echo 'MODULES="Core Widgets Gui Multimedia MultimediaWidgets SerialPort Svg SvgWidgets Quick"' >> /opt/verify/verify-qt-dynamic.sh && \
-    echo 'QT_LIB_PATH="/usr/lib/x86_64-linux-gnu"' >> /opt/verify/verify-qt-dynamic.sh && \
     echo 'for module in $MODULES; do' >> /opt/verify/verify-qt-dynamic.sh && \
-    echo '    if [ -f "${QT_LIB_PATH}/libQt6${module}.so" ]; then' >> /opt/verify/verify-qt-dynamic.sh && \
+    echo '    if [ -f "${QT_LIB_ARCH_PATH}/libQt6${module}.so" ]; then' >> /opt/verify/verify-qt-dynamic.sh && \
     echo '        echo "✓ Qt${module} shared library found"' >> /opt/verify/verify-qt-dynamic.sh && \
     echo '    else' >> /opt/verify/verify-qt-dynamic.sh && \
     echo '        echo "✗ Qt${module} shared library NOT found"' >> /opt/verify/verify-qt-dynamic.sh && \

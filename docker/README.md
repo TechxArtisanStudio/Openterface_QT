@@ -21,23 +21,10 @@ The Docker setup is divided into multiple stages to enable efficient caching and
    - Step: "all" (builds all components)
    - Push to registry: true
 
-### Option 2: Local Build
+### Option 2: Pull from Registry
 
 ```bash
-# Build all components step by step
-./scripts/build-qt-docker.sh all
-
-# Or build individual components
-./scripts/build-qt-docker.sh base
-./scripts/build-qt-docker.sh ffmpeg
-./scripts/build-qt-docker.sh gstreamer
-./scripts/build-qt-docker.sh complete
-```
-
-### Option 3: Pull from Registry
-
-```bash
-docker pull ghcr.io/kevinzjpeng/openterface-qt-complete:latest
+docker pull ghcr.io/kevinzjpeng/openterface-qtbuild-complete:latest
 ```
 
 ## Building Your Application
@@ -45,34 +32,31 @@ docker pull ghcr.io/kevinzjpeng/openterface-qt-complete:latest
 Once you have the Qt environment, you can build your application:
 
 ```bash
-# Using the provided script
-./scripts/docker-build-app.sh
-
-# Or manually
+# Manually run the complete image to build your application
 docker run --rm \
-  -v $(pwd):/workspace/src \
-  -w /workspace/src \
-  ghcr.io/kevinzjpeng/openterface-qt-complete:latest \
-  bash -c "
-    mkdir -p build && cd build
-    cmake -DCMAKE_PREFIX_PATH=/opt/Qt6 \
-          -DCMAKE_BUILD_TYPE=Release \
-          -DBUILD_SHARED_LIBS=OFF \
-          ..
-    make -j\$(nproc)
-  "
+   -v $(pwd):/workspace/src \
+   -w /workspace/src \
+   ghcr.io/kevinzjpeng/openterface-qtbuild-complete:latest \
+   bash -c "
+      mkdir -p build && cd build
+      cmake -DCMAKE_PREFIX_PATH=/opt/Qt6 \
+               -DCMAKE_BUILD_TYPE=Release \
+               -DBUILD_SHARED_LIBS=OFF \
+               ..
+      make -j\$(nproc)
+   "
 ```
 
 ## Docker Images
 
 ### Base Image (`qt-base`)
 - **Size**: ~2GB
-- **Contents**: Ubuntu 22.04 with build tools, X11 libraries, development headers
+- **Contents**: Ubuntu 24.04 with build tools, X11 libraries, development headers
 - **Use case**: Foundation for Qt builds
 
 ### FFmpeg Image (`qt-ffmpeg`) 
 - **Size**: ~2.5GB
-- **Contents**: Base + libusb 1.0.26 + FFmpeg 6.1.1 static libraries
+- **Contents**: Base + libusb 1.0.26 + libjpeg-turbo + FFmpeg 6.1.1 static libraries
 - **Use case**: Multimedia support foundation
 
 ### GStreamer Image (`qt-gstreamer`)
@@ -147,7 +131,7 @@ PKG_CONFIG_PATH=/opt/Qt6/lib/pkgconfig:$PKG_CONFIG_PATH
 
 2. **Missing libraries**: Verify the environment with:
    ```bash
-   docker run --rm ghcr.io/kevinzjpeng/openterface-qt-complete:latest \
+   docker run --rm ghcr.io/kevinzjpeng/openterface-qtbuild-complete:latest \
      /opt/Qt6/bin/verify-qt-installation.sh
    ```
 
@@ -160,17 +144,16 @@ PKG_CONFIG_PATH=/opt/Qt6/lib/pkgconfig:$PKG_CONFIG_PATH
 
 ### Step-by-step Testing
 
-To avoid long rebuild times, you can test each component individually:
+The repository no longer provides local helper scripts for incremental builds. To test components without rebuilding everything:
+
+- Use the GitHub Actions workflow with the individual step selected (e.g. `base`, `ffmpeg`, `gstreamer`, `qt-complete`) to build and validate a single stage.
+- Or pull the relevant pre-built image from the registry and run quick verification commands inside the container.
+
+For example, verify the complete image environment:
 
 ```bash
-# Test base image
-./scripts/test-base-docker.sh
-
-# Build and test each step
-./scripts/build-qt-docker.sh base
-./scripts/build-qt-docker.sh ffmpeg  
-./scripts/build-qt-docker.sh gstreamer
-./scripts/build-qt-docker.sh complete
+docker run --rm ghcr.io/kevinzjpeng/openterface-qtbuild-complete:latest \
+   /opt/Qt6/bin/verify-qt-installation.sh
 ```
 
 ### GitHub Actions Integration

@@ -14,6 +14,7 @@
 #include "../ui/globalsetting.h"
 #include "../device/DeviceManager.h"
 #include "../device/HotplugMonitor.h"
+#include "../device/HotplugMonitor.h"
 #include <QGraphicsVideoItem>
 #include <QTimer>
 #include <QThread>
@@ -39,7 +40,13 @@ CameraManager::CameraManager(QObject *parent)
         qCDebug(log_ui_camera) << "Windows platform detected - using direct QCamera approach with hotplug support";
         // Setup Windows-specific hotplug monitoring
         setupWindowsHotplugMonitoring();
+        qCDebug(log_ui_camera) << "Windows platform detected - using direct QCamera approach with hotplug support";
+        // Setup Windows-specific hotplug monitoring
+        setupWindowsHotplugMonitoring();
     }
+    
+    // Connect to hotplug monitor for all platforms
+    connectToHotplugMonitor();
     
     // Connect to hotplug monitor for all platforms
     connectToHotplugMonitor();
@@ -56,6 +63,10 @@ CameraManager::CameraManager(QObject *parent)
     displayAllCameraDeviceIds();
 }
 
+CameraManager::~CameraManager() {
+    // Disconnect from hotplug monitoring
+    disconnectFromHotplugMonitor();
+}
 CameraManager::~CameraManager() {
     // Disconnect from hotplug monitoring
     disconnectFromHotplugMonitor();

@@ -195,6 +195,7 @@ private slots:
     void onCtrlAltDelPressed();
     
     void onBaudrateMenuTriggered(QAction* action);
+    void onArmBaudratePerformanceRecommendation(int currentBaudrate);
 
     void onToggleSwitchStateChanged(int state);
 

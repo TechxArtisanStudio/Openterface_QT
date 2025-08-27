@@ -20,13 +20,29 @@ on:
         - 'dynamic'
         - 'static'
         - 'both'
+      architecture:
+        description: 'Target architecture to build'
+        required: false
+        default: 'amd64'
+        type: choice
+        options:
+        - 'amd64'
+        - 'arm64'
+        - 'both'
+      ubuntu_version:
+        description: 'Ubuntu base image version'
+        required: false
+        default: '24.04'
+        type: choice
+        options:
+        - '22.04'
+        - '24.04'
 
 env:
   ARTIFACT: openterfaceQT
   SOURCE_DIR: ${{ github.workspace }}
   QT_VERSION: 6.6.3
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository_owner }}/openterface-qt
 
 jobs:
   build-dynamic:
@@ -37,7 +53,7 @@ jobs:
       packages: read
     strategy:
       matrix:
-        arch: [amd64]
+        arch: ${{ (github.event.inputs.architecture == 'both' || github.event.inputs.architecture == '') && fromJSON('["amd64", "arm64"]') || fromJSON(format('["{0}"]', github.event.inputs.architecture || 'amd64')) }}
 
     steps:
       - name: Checkout code
@@ -45,6 +61,20 @@ jobs:
         with:
           submodules: recursive
 
+      - name: Set lowercase image name
+        run: echo "IMAGE_NAME_LOWER=$(echo '${{ github.repository_owner }}/openterface-qtbuild' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
+
+      - name: Set architecture suffix
+        id: arch-suffix
+        run: |
+          if [[ "${{ matrix.arch }}" == "amd64" ]]; then
+            echo "arch_tag_suffix=-amd64" >> $GITHUB_OUTPUT
+          elif [[ "${{ matrix.arch }}" == "arm64" ]]; then
+            echo "arch_tag_suffix=-arm64" >> $GITHUB_OUTPUT
+          else
+            echo "arch_tag_suffix=" >> $GITHUB_OUTPUT
+          fi
+        
       - name: Log in to Container Registry
         uses: docker/login-action@v3
         with:
@@ -54,22 +84,37 @@ jobs:
 
       - name: Pull pre-built Dynamic Qt Docker Image
         run: |
-          echo "Pulling pre-built Dynamic Qt Docker image..."
+          echo "Pulling pre-built Dynamic Qt Docker image for ${{ matrix.arch }}..."
+          
+          IMAGE_TAG="ubuntu-${{ github.event.inputs.ubuntu_version || '24.04' }}${{ steps.arch-suffix.outputs.arch_tag_suffix }}"
+          echo "Checking for image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-dynamic:$IMAGE_TAG"
+          
+          # Set platform for Docker pull based on target architecture
+          if [[ "${{ matrix.arch }}" == "arm64" ]]; then
+            DOCKER_PLATFORM="--platform linux/arm64"
+          else
+            DOCKER_PLATFORM="--platform linux/amd64"
+          fi
           
           # Check if image exists in registry
-          if docker manifest inspect ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-dynamic:latest > /dev/null 2>&1; then
+          if docker manifest inspect ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-dynamic:$IMAGE_TAG > /dev/null 2>&1; then
             echo "Pre-built image found, pulling..."
-            docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-dynamic:latest
-            echo "Successfully pulled pre-built Dynamic Qt Docker image"
+            docker pull $DOCKER_PLATFORM ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-dynamic:$IMAGE_TAG
+
+            echo "Successfully pulled pre-built Dynamic Qt Docker image for ${{ matrix.arch }}"
           else
-            echo "Error: Pre-built Dynamic Qt Docker image not found in registry"
+            echo "Error: Pre-built Dynamic Qt Docker image not found in registry for ${{ matrix.arch }}"
+            echo "Looking for: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-dynamic:$IMAGE_TAG"
             echo "Please run the 'Build Qt Environments' workflow first to build the required Docker images"
             echo "Workflow URL: https://github.com/${{ github.repository }}/actions/workflows/build-qt-environments.yml"
             exit 1
           fi
           
+          # Tag the architecture-specific image as latest for local use
+          docker tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-dynamic:$IMAGE_TAG ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-dynamic:latest
+          
           # Verify the image was pulled successfully
-          docker images | grep openterface-qt-dynamic || {
+          docker images | grep openterface-qtbuild-dynamic || {
             echo "Error: Failed to verify Dynamic Qt Docker image"
             exit 1
           }
@@ -97,64 +142,140 @@ jobs:
           mkdir -p ${{ runner.temp }}/build-dynamic/config/languages
           mkdir -p ${{ runner.temp }}/build-dynamic/config/keyboards
           
-          # Build application using Dynamic Qt Docker environment
-          docker run --rm \
+          # Set up emulation for ARM64 if needed
+          if [[ "${{ matrix.arch }}" == "arm64" ]]; then
+            echo "Setting up QEMU for ARM64 emulation..."
+            docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
+            DOCKER_PLATFORM="--platform linux/arm64"
+          else
+            DOCKER_PLATFORM=""
+          fi
+          
+          # Create build script for inside container
+          cat > ${{ runner.temp }}/build-script.sh << 'BUILD_EOF'
+          #!/bin/bash
+          set -e
+          
+          echo "Building Openterface QT Application (Dynamic Qt) for ${{ matrix.arch }}..."
+          
+          # Install additional dependencies if needed
+          echo "Installing additional dependencies..."
+            apt-get update -y
+            apt-get install -y libgudev-1.0-dev || { echo "Error: libgudev-1.0-dev not found"; exit 1; }
+            apt-get install -y libv4l-dev || { echo "Error: libv4l-dev not found"; exit 1; }
+
+          # Verify Docker environment
+          /opt/verify/verify-qt-dynamic.sh || echo "Verification script not found"
+          
+          # Set up cross-compilation for ARM64
+          if [ "${{ matrix.arch }}" = "arm64" ]; then
+            echo "Setting up ARM64 cross-compilation..."
+            export CC=aarch64-linux-gnu-gcc
+            export CXX=aarch64-linux-gnu-g++
+            export PKG_CONFIG_PATH=/usr/lib/aarch64-linux-gnu/pkgconfig:/usr/share/pkgconfig
+            export PKG_CONFIG_LIBDIR=/usr/lib/aarch64-linux-gnu/pkgconfig
+            export PKG_CONFIG_SYSROOT_DIR=/
+
+            
+            # Verify cross-compilation tools
+            echo "Verifying ARM64 cross-compilation tools:"
+            which aarch64-linux-gnu-gcc aarch64-linux-gnu-g++ || { echo "ARM64 compilers not found"; exit 1; }
+            aarch64-linux-gnu-gcc --version | head -1
+            
+
+            # Test pkg-config for FFmpeg
+            echo "Testing pkg-config for FFmpeg (ARM64):"
+            pkg-config --exists libavformat && echo "✓ libavformat found" || echo "✗ libavformat not found"
+            pkg-config --libs libavformat || echo "Failed to get libavformat libs"
+            pkg-config --cflags libavformat || echo "Failed to get libavformat cflags"
+            
+            # Create CMake toolchain file for ARM64 cross-compilation
+            cat > /tmp/toolchain.cmake << 'TOOLCHAIN_EOF'
+          set(CMAKE_SYSTEM_NAME Linux)
+          set(CMAKE_SYSTEM_PROCESSOR aarch64)
+          set(CMAKE_C_COMPILER aarch64-linux-gnu-gcc)
+          set(CMAKE_CXX_COMPILER aarch64-linux-gnu-g++)
+          set(CMAKE_FIND_ROOT_PATH /usr/aarch64-linux-gnu)
+          set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)
+          set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY ONLY)
+          set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)
+          set(PKG_CONFIG_EXECUTABLE aarch64-linux-gnu-pkg-config)
+          TOOLCHAIN_EOF
+            
+            CMAKE_TOOLCHAIN="-DCMAKE_TOOLCHAIN_FILE=/tmp/toolchain.cmake"
+            QT_PREFIX="/usr/lib/aarch64-linux-gnu/qt6"
+            CMAKE_PREFIX_PATH="/usr/lib/aarch64-linux-gnu/cmake:/usr"
+          else
+            echo "Using native compilation for AMD64..."
+
+            # Test pkg-config for FFmpeg
+            echo "Testing pkg-config for FFmpeg (AMD64):"
+            pkg-config --exists libavformat && echo "✓ libavformat found" || echo "✗ libavformat not found"
+            pkg-config --libs libavformat || echo "Failed to get libavformat libs"
+            pkg-config --cflags libavformat || echo "Failed to get libavformat cflags"
+
+            CMAKE_TOOLCHAIN=""
+            QT_PREFIX="/usr/lib/x86_64-linux-gnu/qt6"
+            CMAKE_PREFIX_PATH="/usr/lib/x86_64-linux-gnu/cmake:/usr"
+          fi
+          
+          # Copy configuration files
+          mkdir -p /workspace/build/config/languages
+          mkdir -p /workspace/build/config/keyboards
+          cp -r config/keyboards/*.json /workspace/build/config/keyboards/ 2>/dev/null || echo "No keyboard configs"
+          cp -r config/languages/*.qm /workspace/build/config/languages/ 2>/dev/null || echo "No language files"
+          
+          # Build with CMake
+          cd /workspace/build
+          echo "Configuring with CMake..."
+          
+          # Debug pkg-config before CMake
+          echo "=== PKG-CONFIG DEBUG ==="
+          echo "PKG_CONFIG_PATH: $PKG_CONFIG_PATH"
+          echo "PKG_CONFIG_LIBDIR: $PKG_CONFIG_LIBDIR"
+          pkg-config --version
+          pkg-config --list-all | grep -E "avformat|avcodec" || echo "No FFmpeg packages found"
+          echo "========================="
+          
+          cmake $CMAKE_TOOLCHAIN \
+                -DCMAKE_BUILD_TYPE=Release \
+                -DCMAKE_PREFIX_PATH="$CMAKE_PREFIX_PATH" \
+                -DQt6_DIR="$QT_PREFIX/../cmake/Qt6" \
+                -DUSE_FFMPEG_STATIC=OFF \
+                -DUSE_GSTREAMER_STATIC_PLUGINS=OFF \
+                -DCMAKE_VERBOSE_MAKEFILE=ON \
+                /workspace/src
+          
+          echo "Building with CMake..."
+          # Use fewer parallel jobs for ARM64 to reduce compiler memory pressure
+          if [[ "${{ matrix.arch }}" == "arm64" ]]; then
+            echo "Using reduced parallelism for ARM64 build to prevent compiler segfaults"
+            make -j2 VERBOSE=1
+          else
+            make -j$(nproc) VERBOSE=1
+          fi
+
+          
+          echo "Build completed successfully"
+          BUILD_EOF
+          
+          chmod +x ${{ runner.temp }}/build-script.sh
+          
+          # Run build in container
+          docker run --rm $DOCKER_PLATFORM \
             -v ${{ github.workspace }}:/workspace/src \
             -v ${{ runner.temp }}/build-dynamic:/workspace/build \
+            -v ${{ runner.temp }}/build-script.sh:/build-script.sh \
             -w /workspace/src \
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-dynamic:latest \
-            bash -c "
-              echo 'Building Openterface QT Application (Dynamic Qt)...'
-              
-              # Verify Docker environment
-              /opt/verify/verify-qt-dynamic.sh
-              
-              # Check TurboJPEG and GStreamer availability
-              echo 'Checking library availability:'
-              find /usr/lib -name '*turbojpeg*' -o -name '*jpeg*' | grep -E '\.(so|a)$' | sort
-              ldconfig -p | grep -i jpeg
-              pkg-config --list-all | grep -E 'gst|jpeg'
-              
-              # Update translations
-              lupdate openterfaceQT.pro -no-obsolete || echo 'lupdate failed, continuing...'
-              
-              # Release translations
-              lrelease openterfaceQT.pro || echo 'lrelease failed, continuing...'
-              
-              # Check for compilation issues in source files
-              echo 'Checking for potential compilation issues...'
-              grep -n 'catch' host/backend/gstreamerbackendhandler.cpp | head -5 || echo 'No catch blocks found'
-              
-              # Copy configuration files
-              cp -r config/keyboards/*.json /workspace/build/config/keyboards/ 2>/dev/null || echo 'No keyboard configs found'
-              cp -r config/languages/*.qm /workspace/build/config/languages/ 2>/dev/null || echo 'No language files found'
-              
-              # Configure and build with qmake
-              cd /workspace/build
-              if qmake6 /workspace/src; then
-                echo 'qmake configuration successful, building...'
-                if make -j\$(nproc); then
-                  echo 'Build completed successfully'
-                else
-                  echo 'Build failed, showing errors:'
-                  make -j1 || true
-                  exit 1
-                fi
-              else
-                echo 'qmake configuration failed!'
-                exit 1
-              fi
-              
-              # Verify build output
-              echo 'Checking build output:'
-              ls -lh /workspace/build
-              if [ -f '/workspace/build/openterfaceQT' ]; then
-                echo 'openterfaceQT found!'
-              else
-                echo 'Error: openterfaceQT not found!'
-                exit 1
-              fi
-            "
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-dynamic:latest \
+            /build-script.sh
+          
+          # Verify build output
+          if [ ! -f "${{ runner.temp }}/build-dynamic/openterfaceQT" ]; then
+            echo "Error: openterfaceQT binary not found"
+            ls -la ${{ runner.temp }}/build-dynamic/
+            exit 1
+          fi
           
           echo "BUILD_DIR=${{ runner.temp }}/build-dynamic" >> $GITHUB_ENV
 
@@ -198,6 +319,7 @@ jobs:
           if-no-files-found: error
 
       - name: Create rpm package (Dynamic)
+        if: ${{ matrix.arch != 'arm64' }}
         working-directory: ${{ runner.temp }}
         run: |
           mkdir -p rpmbuild-dynamic/{SPECS,SOURCES,BUILD,RPMS,SRPMS}
@@ -226,6 +348,7 @@ jobs:
           find rpmbuild-dynamic/RPMS -name "*.rpm" -exec cp {} ./$PKG_NAME.rpm \;
 
       - name: Upload RPM artifact (Dynamic)
+        if: ${{ matrix.arch != 'arm64' }}
         uses: actions/upload-artifact@v4
         with:
           name: openterfaceQT.linux.${{ matrix.arch }}.dynamic.rpm
@@ -240,13 +363,28 @@ jobs:
       packages: read
     strategy:
       matrix:
-        arch: [amd64]
+        arch: ${{ (github.event.inputs.architecture == 'both' || github.event.inputs.architecture == '') && fromJSON('["amd64", "arm64"]') || fromJSON(format('["{0}"]', github.event.inputs.architecture || 'amd64')) }}
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
           submodules: recursive
+
+
+      - name: Set lowercase image name
+        run: echo "IMAGE_NAME_LOWER=$(echo '${{ github.repository_owner }}/openterface-qtbuild' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
+
+      - name: Set architecture suffix
+        id: arch-suffix
+        run: |
+          if [[ "${{ matrix.arch }}" == "amd64" ]]; then
+            echo "arch_tag_suffix=-amd64" >> $GITHUB_OUTPUT
+          elif [[ "${{ matrix.arch }}" == "arm64" ]]; then
+            echo "arch_tag_suffix=-arm64" >> $GITHUB_OUTPUT
+          else
+            echo "arch_tag_suffix=" >> $GITHUB_OUTPUT
+          fi
 
       - name: Log in to Container Registry
         uses: docker/login-action@v3
@@ -257,22 +395,36 @@ jobs:
 
       - name: Pull pre-built Static Qt Docker Image
         run: |
-          echo "Pulling pre-built Static Qt Docker image..."
+          echo "Pulling pre-built Static Qt Docker image for ${{ matrix.arch }}..."
+          
+          IMAGE_TAG="ubuntu-${{ github.event.inputs.ubuntu_version || '24.04' }}${{ steps.arch-suffix.outputs.arch_tag_suffix }}"
+          echo "Checking for image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-complete:$IMAGE_TAG"
+          
+          # Set platform for Docker pull based on target architecture
+          if [[ "${{ matrix.arch }}" == "arm64" ]]; then
+            DOCKER_PLATFORM="--platform linux/arm64"
+          else
+            DOCKER_PLATFORM="--platform linux/amd64"
+          fi
           
           # Check if image exists in registry
-          if docker manifest inspect ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-complete:latest > /dev/null 2>&1; then
+          if docker manifest inspect ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-complete:$IMAGE_TAG > /dev/null 2>&1; then
             echo "Pre-built image found, pulling..."
-            docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-complete:latest
-            echo "Successfully pulled pre-built Static Qt Docker image"
+            docker pull $DOCKER_PLATFORM ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-complete:$IMAGE_TAG
+            echo "Successfully pulled pre-built Static Qt Docker image for ${{ matrix.arch }}"
           else
-            echo "Error: Pre-built Static Qt Docker image not found in registry"
+            echo "Error: Pre-built Static Qt Docker image not found in registry for ${{ matrix.arch }}"
+            echo "Looking for: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-complete:$IMAGE_TAG"
             echo "Please run the 'Build Qt Environments' workflow first to build the required Docker images"
             echo "Workflow URL: https://github.com/${{ github.repository }}/actions/workflows/build-qt-environments.yml"
             exit 1
           fi
           
+          # Tag the architecture-specific image as latest for local use
+          docker tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-complete:$IMAGE_TAG ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-complete:latest
+          
           # Verify the image was pulled successfully
-          docker images | grep openterface-qt-complete || {
+          docker images | grep openterface-qtbuild-complete || {
             echo "Error: Failed to verify Static Qt Docker image"
             exit 1
           }
@@ -300,273 +452,129 @@ jobs:
           mkdir -p ${{ runner.temp }}/build-static/config/languages
           mkdir -p ${{ runner.temp }}/build-static/config/keyboards
           
-          # Build application using Static Qt Docker environment
-          docker run --rm --user root \
+          # Set up emulation for ARM64 if needed
+          if [[ "${{ matrix.arch }}" == "arm64" ]]; then
+            echo "Setting up QEMU for ARM64 emulation..."
+            docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
+            DOCKER_PLATFORM="--platform linux/arm64"
+          else
+            DOCKER_PLATFORM=""
+          fi
+          
+          # Create build script for static linking
+          cat > ${{ runner.temp }}/build-static-script.sh << 'STATIC_BUILD_EOF'
+          #!/bin/bash
+          set -e
+          
+          echo "Building Openterface QT Application (Static Qt) for ${{ matrix.arch }}..."
+          
+          # Install additional dependencies if needed
+          echo "Installing additional dependencies..."
+          apt-get update -y
+          apt-get install -y libgudev-1.0-dev || { echo "Error: libgudev-1.0-dev not found"; exit 1; }
+          apt-get install -y libv4l-dev || { echo "Error: libv4l-dev not found"; exit 1; }
+
+          # Verify Qt6 static installation
+          if [ ! -d '/opt/Qt6' ]; then
+            echo "ERROR: Qt6 static installation not found at /opt/Qt6"
+            exit 1
+          fi
+          
+          echo "Qt6 static installation found at /opt/Qt6"
+          
+          # Set up cross-compilation for ARM64
+          if [ "${{ matrix.arch }}" = "arm64" ]; then
+            echo "Setting up ARM64 cross-compilation for static build..."
+            export CC=aarch64-linux-gnu-gcc
+            export CXX=aarch64-linux-gnu-g++
+            export PKG_CONFIG_PATH=/usr/lib/aarch64-linux-gnu/pkgconfig:$PKG_CONFIG_PATH
+            
+            # Verify cross-compilation tools
+            which aarch64-linux-gnu-gcc aarch64-linux-gnu-g++ || { echo "ARM64 compilers not found"; exit 1; }
+            aarch64-linux-gnu-gcc --version | head -1
+            
+            # Create CMake toolchain file for ARM64
+            cat > /tmp/toolchain.cmake << 'TOOLCHAIN_EOF'
+          set(CMAKE_SYSTEM_NAME Linux)
+          set(CMAKE_SYSTEM_PROCESSOR aarch64)
+          set(CMAKE_C_COMPILER aarch64-linux-gnu-gcc)
+          set(CMAKE_CXX_COMPILER aarch64-linux-gnu-g++)
+          set(CMAKE_FIND_ROOT_PATH /usr/aarch64-linux-gnu)
+          set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)
+          set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY ONLY)
+          set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)
+          set(PKG_CONFIG_EXECUTABLE aarch64-linux-gnu-pkg-config)
+          TOOLCHAIN_EOF
+            
+            CMAKE_TOOLCHAIN="-DCMAKE_TOOLCHAIN_FILE=/tmp/toolchain.cmake"
+            CMAKE_LIBRARY_PATH="/opt/Qt6/lib:/usr/local/lib:/opt/ffmpeg/lib:/usr/lib/aarch64-linux-gnu"
+          else
+            echo "Using native compilation for AMD64 static build..."
+            CMAKE_TOOLCHAIN=""
+            CMAKE_LIBRARY_PATH="/opt/Qt6/lib:/usr/local/lib:/opt/ffmpeg/lib:/usr/lib/x86_64-linux-gnu"
+          fi
+          
+          # Copy configuration files
+          mkdir -p /workspace/build/config/languages
+          mkdir -p /workspace/build/config/keyboards
+          cp -r config/keyboards/*.json /workspace/build/config/keyboards/ 2>/dev/null || echo "No keyboard configs"
+          cp -r config/languages/*.qm /workspace/build/config/languages/ 2>/dev/null || echo "No language files"
+          
+          # Build with CMake for static linking
+          cd /workspace/build
+          echo "Configuring with CMake for static build..."
+          
+          # Set environment variables for static linking
+          export PKG_CONFIG_PATH="/opt/Qt6/lib/pkgconfig:/usr/local/lib/pkgconfig:$PKG_CONFIG_PATH"
+          export CMAKE_PREFIX_PATH="/opt/Qt6:/usr/local:/opt/ffmpeg:/usr"
+          export Qt6_DIR="/opt/Qt6/lib/cmake/Qt6"
+          
+          cmake $CMAKE_TOOLCHAIN \
+                -DCMAKE_PREFIX_PATH="/opt/Qt6:/usr/local:/opt/ffmpeg" \
+                -DCMAKE_BUILD_TYPE=Release \
+                -DBUILD_SHARED_LIBS=OFF \
+                -DCMAKE_FIND_LIBRARY_SUFFIXES=".a;.so" \
+                -DUSE_FFMPEG_STATIC=ON \
+                -DUSE_GSTREAMER_STATIC_PLUGINS=OFF \
+                -DFFMPEG_ROOT=/usr/local \
+                -DTurboJPEG_ROOT=/usr/local \
+                -DORC_ROOT=/opt/orc-static \
+                -DCMAKE_LIBRARY_PATH="$CMAKE_LIBRARY_PATH" \
+                -DCMAKE_INCLUDE_PATH="/opt/Qt6/include:/usr/local/include:/opt/ffmpeg/include:/usr/include" \
+                -DCMAKE_VERBOSE_MAKEFILE=ON \
+                /workspace/src
+          
+          echo "Building with CMake..."
+          # Use fewer parallel jobs for ARM64 to reduce compiler memory pressure
+          if [[ "${{ matrix.arch }}" == "arm64" ]]; then
+            echo "Using reduced parallelism for ARM64 build to prevent compiler segfaults"
+            make -j2 VERBOSE=1
+          else
+            make -j$(nproc) VERBOSE=1
+          fi
+
+          
+          echo "Static build completed successfully"
+          STATIC_BUILD_EOF
+          
+          chmod +x ${{ runner.temp }}/build-static-script.sh
+          
+          # Run build in container
+          docker run --rm $DOCKER_PLATFORM \
             -v ${{ github.workspace }}:/workspace/src \
             -v ${{ runner.temp }}/build-static:/workspace/build \
+            -v ${{ runner.temp }}/build-static-script.sh:/build-script.sh \
             -w /workspace/src \
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-complete:latest \
-            bash -c "
-              echo 'Building Openterface QT Application (Static Qt)...'
-              
-              # Verify Docker environment
-              /opt/Qt6/bin/verify-qt-installation.sh
-              
-              # Install missing dependencies for static build
-              apt-get update && apt-get install -y \\
-                libgudev-1.0-dev \\
-                libv4l-dev \\
-                libxi-dev \\
-                libxv-dev \\
-                || echo 'Some packages may not be available, continuing...'
-              
-              # Check for pre-existing TurboJPEG in Docker environment
-              echo 'Checking for TurboJPEG in Docker environment...'
-              find /opt -name '*turbojpeg*' 2>/dev/null | head -10
-              find /opt -name 'turbojpeg.h' 2>/dev/null | head -5
-              find /usr/local -name '*turbojpeg*' 2>/dev/null | head -10
-              find /usr/local -name 'turbojpeg.h' 2>/dev/null | head -5
-              
-              # Check if TurboJPEG is in the Qt6 installation
-              ls -la /opt/Qt6/include/ | grep -i jpeg || echo 'No JPEG headers in Qt6 include'
-              ls -la /opt/Qt6/lib/ | grep -i jpeg || echo 'No JPEG libraries in Qt6 lib'
-              
-              # Fix FFmpeg library paths for CMake
-              echo 'Setting up FFmpeg libraries for static linking...'
-              mkdir -p /usr/local/lib /usr/local/include
-              
-              # Find and link FFmpeg libraries to expected locations
-              for lib in avdevice avfilter avformat avcodec swresample swscale avutil; do
-                # Check Qt6 installation first (where they actually are)
-                QT6_LIB=\"/opt/Qt6/lib/lib\${lib}.a\"
-                if [ -f \"\$QT6_LIB\" ]; then
-                  echo \"Found \$lib in Qt6: \$QT6_LIB\"
-                  ln -sf \"\$QT6_LIB\" \"/usr/local/lib/lib\${lib}.a\"
-                else
-                  # Fallback to system search
-                  STATIC_LIB=\$(find /usr -name \"lib\${lib}.a\" 2>/dev/null | head -1)
-                  SHARED_LIB=\$(find /usr -name \"lib\${lib}.so*\" 2>/dev/null | head -1)
-                  
-                  if [ -n \"\$STATIC_LIB\" ]; then
-                    echo \"Linking static \$lib: \$STATIC_LIB -> /usr/local/lib/lib\${lib}.a\"
-                    ln -sf \"\$STATIC_LIB\" \"/usr/local/lib/lib\${lib}.a\"
-                  elif [ -n \"\$SHARED_LIB\" ]; then
-                    echo \"Linking shared \$lib: \$SHARED_LIB -> /usr/local/lib/lib\${lib}.a\"
-                    ln -sf \"\$SHARED_LIB\" \"/usr/local/lib/lib\${lib}.a\"
-                  else
-                    echo \"Warning: lib\${lib} not found\"
-                  fi
-                fi
-              done
-              
-              # Set up TurboJPEG headers and libraries
-              echo 'Setting up TurboJPEG for compilation...'
-              
-              # First, check if TurboJPEG is already available in the Docker environment
-              TURBOJPEG_HEADER=\$(find /opt -name \"turbojpeg.h\" 2>/dev/null | head -1)
-              if [ -z \"\$TURBOJPEG_HEADER\" ]; then
-                TURBOJPEG_HEADER=\$(find /usr/local -name \"turbojpeg.h\" 2>/dev/null | head -1)
-              fi
-              if [ -z \"\$TURBOJPEG_HEADER\" ]; then
-                TURBOJPEG_HEADER=\$(find /usr/include -name \"turbojpeg.h\" 2>/dev/null | head -1)
-              fi
-              
-              # Check for TurboJPEG library
-              TURBOJPEG_LIB=\$(find /opt -name \"libturbojpeg.so*\" -o -name \"libturbojpeg.a\" 2>/dev/null | head -1)
-              if [ -z \"\$TURBOJPEG_LIB\" ]; then
-                TURBOJPEG_LIB=\$(find /usr/local -name \"libturbojpeg.so*\" -o -name \"libturbojpeg.a\" 2>/dev/null | head -1)
-              fi
-              if [ -z \"\$TURBOJPEG_LIB\" ]; then
-                TURBOJPEG_LIB=\$(find /usr -name \"libturbojpeg.so*\" -o -name \"libturbojpeg.a\" 2>/dev/null | head -1)
-              fi
-              
-              if [ -n \"\$TURBOJPEG_HEADER\" ] && [ -n \"\$TURBOJPEG_LIB\" ]; then
-                echo \"Found TurboJPEG header: \$TURBOJPEG_HEADER\"
-                echo \"Found TurboJPEG library: \$TURBOJPEG_LIB\"
-                
-                # Create symlinks to standard locations
-                cp \"\$TURBOJPEG_HEADER\" /usr/local/include/ 2>/dev/null || true
-                cp \"\$TURBOJPEG_HEADER\" /opt/Qt6/include/ 2>/dev/null || true
-                ln -sf \"\$TURBOJPEG_LIB\" \"/usr/local/lib/libturbojpeg.a\" 2>/dev/null || true
-                ln -sf \"\$TURBOJPEG_LIB\" \"/usr/local/lib/libturbojpeg.so\" 2>/dev/null || true
-                
-                echo \"TurboJPEG setup completed using existing installation\"
-              else
-                echo \"TurboJPEG not found in Docker environment, installing...\"
-                apt-get install -y libturbojpeg0-dev libjpeg-turbo8-dev || true
-                
-                # Try detection again after installation
-                TURBOJPEG_HEADER=\$(find /usr/include -name \"turbojpeg.h\" 2>/dev/null | head -1)
-                TURBOJPEG_LIB=\$(find /usr -name \"libturbojpeg.so*\" -o -name \"libturbojpeg.a\" 2>/dev/null | head -1)
-                
-                if [ -n \"\$TURBOJPEG_HEADER\" ] && [ -n \"\$TURBOJPEG_LIB\" ]; then
-                  echo \"Found TurboJPEG after installation: header=\$TURBOJPEG_HEADER, lib=\$TURBOJPEG_LIB\"
-                  cp \"\$TURBOJPEG_HEADER\" /usr/local/include/ 2>/dev/null || true
-                  cp \"\$TURBOJPEG_HEADER\" /opt/Qt6/include/ 2>/dev/null || true
-                  ln -sf \"\$TURBOJPEG_LIB\" \"/usr/local/lib/libturbojpeg.a\" 2>/dev/null || true
-                  ln -sf \"\$TURBOJPEG_LIB\" \"/usr/local/lib/libturbojpeg.so\" 2>/dev/null || true
-                else
-                  echo \"Warning: TurboJPEG still not found after installation\"
-                  find /usr -name \"*turbojpeg*\" 2>/dev/null | head -10
-                fi
-              fi
-              
-              # Link FFmpeg headers
-              echo 'Setting up FFmpeg headers...'
-              # Check Qt6 installation first
-              if [ -d \"/opt/Qt6/include/libavcodec\" ]; then
-                echo \"Found FFmpeg headers in Qt6: /opt/Qt6/include\"
-                cp -r /opt/Qt6/include/libav* /usr/local/include/ 2>/dev/null || true
-                cp -r /opt/Qt6/include/libsw* /usr/local/include/ 2>/dev/null || true
-              else
-                # Fallback to system search
-                FFMPEG_INCLUDE=\$(find /usr/include -name \"libavcodec\" -type d 2>/dev/null | head -1 | xargs dirname)
-                if [ -n \"\$FFMPEG_INCLUDE\" ]; then
-                  echo \"Linking FFmpeg headers: \$FFMPEG_INCLUDE -> /usr/local/include\"
-                  cp -r \"\$FFMPEG_INCLUDE\"/* /usr/local/include/ 2>/dev/null || true
-                fi
-              fi
-              
-              # Fix ORC library paths and architecture issues
-              echo 'Setting up ORC libraries...'
-              
-              # Find ORC libraries in the system
-              ORC_LIB=\$(find /opt -name \"liborc-*.a\" 2>/dev/null | head -1)
-              if [ -z \"\$ORC_LIB\" ]; then
-                ORC_LIB=\$(find /usr -name \"liborc-*.so*\" 2>/dev/null | head -1)
-              fi
-              
-              if [ -n \"\$ORC_LIB\" ]; then
-                echo \"Found ORC library: \$ORC_LIB\"
-                # Create the expected directory structure
-                mkdir -p /opt/orc-static/lib/x86_64-linux-gnu /opt/orc-static/lib/aarch64-linux-gnu
-                
-                # Link to both architectures to avoid path issues
-                ln -sf \"\$ORC_LIB\" \"/opt/orc-static/lib/x86_64-linux-gnu/liborc-0.4.a\"
-                ln -sf \"\$ORC_LIB\" \"/opt/orc-static/lib/aarch64-linux-gnu/liborc-0.4.a\"
-                echo \"Created ORC library links\"
-              else
-                echo \"Warning: ORC library not found, installing...\"
-                apt-get install -y liborc-0.4-dev || true
-                # Try again after installation
-                ORC_LIB=\$(find /usr -name \"liborc-*.so*\" 2>/dev/null | head -1)
-                if [ -n \"\$ORC_LIB\" ]; then
-                  mkdir -p /opt/orc-static/lib/x86_64-linux-gnu /opt/orc-static/lib/aarch64-linux-gnu
-                  ln -sf \"\$ORC_LIB\" \"/opt/orc-static/lib/x86_64-linux-gnu/liborc-0.4.a\"
-                  ln -sf \"\$ORC_LIB\" \"/opt/orc-static/lib/aarch64-linux-gnu/liborc-0.4.a\"
-                fi
-              fi
-              
-              # Set up GStreamer development files for qmake fallback
-              echo 'Setting up GStreamer for qmake...'
-              
-              # Find GStreamer installation in the static environment
-              GSTREAMER_PREFIX=\$(find /opt -name \"gstreamer-1.0.pc\" -exec dirname {} \; 2>/dev/null | head -1 | xargs dirname 2>/dev/null)
-              if [ -n \"\$GSTREAMER_PREFIX\" ]; then
-                echo \"Found GStreamer in: \$GSTREAMER_PREFIX\"
-                export PKG_CONFIG_PATH=\"\$GSTREAMER_PREFIX/pkgconfig:\$PKG_CONFIG_PATH\"
-                
-                # Also link to system locations for qmake
-                if [ -d \"\$GSTREAMER_PREFIX/../include\" ]; then
-                  ln -sf \"\$GSTREAMER_PREFIX\"/../include/gstreamer-1.0 /usr/include/gstreamer-1.0 2>/dev/null || true
-                fi
-                if [ -d \"\$GSTREAMER_PREFIX\" ]; then
-                  ln -sf \"\$GSTREAMER_PREFIX\"/*.so* /usr/lib/x86_64-linux-gnu/ 2>/dev/null || true
-                  ln -sf \"\$GSTREAMER_PREFIX\"/*.a /usr/lib/x86_64-linux-gnu/ 2>/dev/null || true
-                fi
-              fi
-              
-              # Update translations
-              /opt/Qt6/bin/lupdate openterfaceQT.pro -no-obsolete || echo 'lupdate failed, continuing...'
-              
-              # Release translations
-              /opt/Qt6/bin/lrelease openterfaceQT.pro || echo 'lrelease failed, continuing...'
-              
-              # Copy configuration files
-              cp -r config/keyboards/*.json /workspace/build/config/keyboards/ 2>/dev/null || echo 'No keyboard configs found'
-              cp -r config/languages/*.qm /workspace/build/config/languages/ 2>/dev/null || echo 'No language files found'
-              
-              # Configure and build with cmake (static linking)
-              cd /workspace/build
-              
-              # Check available FFmpeg libraries
-              echo 'Available FFmpeg libraries:'
-              find /usr -name 'libav*.a' -o -name 'libav*.so' 2>/dev/null | head -10
-              find /opt -name 'libav*.a' -o -name 'libav*.so' 2>/dev/null | head -10
-              find /usr/local -name 'libav*.a' -o -name 'libav*.so' 2>/dev/null | head -10
-              
-              echo 'Checking /usr/local/lib contents:'
-              ls -la /usr/local/lib/ | grep -E '(av|sw)' || echo 'No FFmpeg libraries in /usr/local/lib'
-              
-              echo 'Verifying FFmpeg symlinks:'
-              ls -la /usr/local/lib/libav* 2>/dev/null || echo 'No FFmpeg symlinks in /usr/local/lib'
-              
-              echo 'Checking FFmpeg headers:'
-              ls -la /usr/local/include/libav* 2>/dev/null | head -5 || echo 'No FFmpeg headers in /usr/local/include'
-              
-              echo 'Checking pkg-config for FFmpeg:'
-              pkg-config --list-all | grep -E '(libav|ffmpeg)' || echo 'No FFmpeg pkg-config files found'
-              
-              echo 'Checking for TurboJPEG:'
-              find /usr -name '*turbojpeg*' 2>/dev/null | head -10
-              find /usr -name 'turbojpeg.h' 2>/dev/null || echo 'turbojpeg.h not found'
-              pkg-config --list-all | grep -i jpeg || echo 'No JPEG pkg-config found'
-              
-              echo 'Checking for ORC libraries:'
-              find /opt -name '*orc*' 2>/dev/null | head -10
-              find /usr -name '*orc*' 2>/dev/null | head -10
-              
-              echo 'Checking GStreamer installation:'
-              find /opt -name '*gstreamer*' -type d 2>/dev/null | head -10
-              pkg-config --list-all | grep gstreamer || echo 'No GStreamer pkg-config found'
-              
-              echo 'Architecture and system info:'
-              uname -m
-              dpkg --print-architecture 2>/dev/null || echo 'dpkg not available'
-              
-              echo 'Current PKG_CONFIG_PATH:'
-              echo \$PKG_CONFIG_PATH
-              
-              # Try cmake first for static linking
-              if cmake -DCMAKE_PREFIX_PATH=/opt/Qt6 \\
-                       -DBUILD_SHARED_LIBS=OFF \\
-                       -DCMAKE_BUILD_TYPE=Release \\
-                       -DCMAKE_FIND_LIBRARY_SUFFIXES='.a;.so' \\
-                       -DFFMPEG_ROOT=/usr/local \\
-                       -DFFMPEG_INCLUDE_DIRS=\"/usr/local/include;/opt/Qt6/include\" \\
-                       -DPkgConfig_EXECUTABLE=\$(which pkg-config) \\
-                       -DCMAKE_LIBRARY_PATH=\"/opt/Qt6/lib:/usr/local/lib:/usr/lib/x86_64-linux-gnu:/opt/orc-static/lib/x86_64-linux-gnu\" \\
-                       -DCMAKE_INCLUDE_PATH=\"/opt/Qt6/include:/usr/local/include:/usr/include\" \\
-                       -DORC_ROOT=/opt/orc-static \\
-                       -DUSE_GSTREAMER_STATIC_PLUGINS=ON \\
-                       -DTurboJPEG_ROOT=/usr/local \\
-                       -DTurboJPEG_INCLUDE_DIR=/usr/local/include \\
-                       /workspace/src; then
-                echo 'CMake configuration successful, building with make...'
-                if make -j\$(nproc); then
-                  echo 'CMake build completed successfully'
-                else
-                  echo 'CMake build failed, trying fallback...'
-                  FALLBACK=true
-                fi
-              else
-                echo 'CMake configuration failed, trying fallback...'
-                FALLBACK=true
-              fi
-              
-              
-              # Verify build output
-              echo 'Checking build output:'
-              ls -lh /workspace/build
-              if [ -f '/workspace/build/openterfaceQT' ]; then
-                echo 'openterfaceQT found!'
-                echo 'Checking static linking:'
-                ldd /workspace/build/openterfaceQT | head -10 || echo 'Binary is statically linked'
-              else
-                echo 'Error: openterfaceQT not found!'
-                exit 1
-              fi
-            "
+            --user root \
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-complete:latest \
+            /build-script.sh
+          
+          # Verify build output
+          if [ ! -f "${{ runner.temp }}/build-static/openterfaceQT" ]; then
+            echo "Error: openterfaceQT binary not found"
+            ls -la ${{ runner.temp }}/build-static/
+            exit 1
+          fi
           
           echo "BUILD_DIR=${{ runner.temp }}/build-static" >> $GITHUB_ENV
 
@@ -610,6 +618,7 @@ jobs:
           if-no-files-found: error
 
       - name: Create rpm package (Static)
+        if: ${{ matrix.arch != 'arm64' }}
         working-directory: ${{ runner.temp }}
         run: |
           mkdir -p rpmbuild-static/{SPECS,SOURCES,BUILD,RPMS,SRPMS}
@@ -638,6 +647,7 @@ jobs:
           find rpmbuild-static/RPMS -name "*.rpm" -exec cp {} ./$PKG_NAME.rpm \;
 
       - name: Upload RPM artifact (Static)
+        if: ${{ matrix.arch != 'arm64' }}
         uses: actions/upload-artifact@v4
         with:
           name: openterfaceQT.linux.${{ matrix.arch }}.static.rpm

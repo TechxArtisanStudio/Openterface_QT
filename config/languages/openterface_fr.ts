@@ -612,11 +612,6 @@ Veuillez réessayer après avoir redémarré l&apos;application.</translation>
         <translation>Modifier les paramètres</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="158"/>
-        <source>Reset Keyboard and Mouse</source>
-        <translation>Réinitialiser le clavier et la souris</translation>
-    </message>
-    <message>
         <location filename="../../ui/mainwindow.ui" line="163"/>
         <source>Reset Serial Port</source>
         <translation>Réinitialiser le port série</translation>
