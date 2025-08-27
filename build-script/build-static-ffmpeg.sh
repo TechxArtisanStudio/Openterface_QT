@@ -112,7 +112,6 @@ if $BUILD_ENABLED; then
         --enable-decoder=vp9 \
         --enable-encoder=mjpeg \
         --enable-encoder=rawvideo \
-        --enable-demuxer=v4l2 \
         --enable-demuxer=mjpeg \
         --enable-demuxer=rawvideo \
         --enable-muxer=mjpeg \

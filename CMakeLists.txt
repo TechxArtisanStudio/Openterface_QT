@@ -373,6 +373,7 @@ endif()
 # Set FFmpeg include and library directories
 # Try to find FFmpeg in Qt6 installation first, then fallback to system locations
 set(FFMPEG_SEARCH_PATHS 
+    "/home/bot/project/ffmpeg"
     "/opt/Qt6"
     "/usr/local"
     "/usr"
@@ -396,6 +397,10 @@ foreach(SEARCH_PATH ${FFMPEG_SEARCH_PATHS})
         set(FFMPEG_PREFIX "${SEARCH_PATH}")
         message(STATUS "Found FFmpeg installation at: ${FFMPEG_PREFIX}")
         break()
+    elseif(EXISTS "${SEARCH_PATH}/libavformat/libavformat.a" AND EXISTS "${SEARCH_PATH}/libavformat/avformat.h")
+        set(FFMPEG_PREFIX "${SEARCH_PATH}")
+        message(STATUS "Found FFmpeg installation at: ${FFMPEG_PREFIX}")
+        break()
     endif()
 endforeach()
 
@@ -406,16 +411,31 @@ if(NOT FFMPEG_PREFIX)
 endif()
 
 # Set include and library directories based on found prefix
-set(FFMPEG_INCLUDE_DIRS "${FFMPEG_PREFIX}/include")
-set(FFMPEG_LIBRARIES 
-    "${FFMPEG_PREFIX}/lib/libavdevice.a"
-    "${FFMPEG_PREFIX}/lib/libavfilter.a"
-    "${FFMPEG_PREFIX}/lib/libavformat.a"
-    "${FFMPEG_PREFIX}/lib/libavcodec.a"
-    "${FFMPEG_PREFIX}/lib/libswresample.a"
-    "${FFMPEG_PREFIX}/lib/libswscale.a"
-    "${FFMPEG_PREFIX}/lib/libavutil.a"
-)
+if(EXISTS "${FFMPEG_PREFIX}/include/libavformat/avformat.h")
+    # Standard installation structure
+    set(FFMPEG_INCLUDE_DIRS "${FFMPEG_PREFIX}/include")
+    set(FFMPEG_LIBRARIES 
+        "${FFMPEG_PREFIX}/lib/libavdevice.a"
+        "${FFMPEG_PREFIX}/lib/libavfilter.a"
+        "${FFMPEG_PREFIX}/lib/libavformat.a"
+        "${FFMPEG_PREFIX}/lib/libavcodec.a"
+        "${FFMPEG_PREFIX}/lib/libswresample.a"
+        "${FFMPEG_PREFIX}/lib/libswscale.a"
+        "${FFMPEG_PREFIX}/lib/libavutil.a"
+    )
+else()
+    # Source build structure
+    set(FFMPEG_INCLUDE_DIRS "${FFMPEG_PREFIX}")
+    set(FFMPEG_LIBRARIES 
+        "${FFMPEG_PREFIX}/libavdevice/libavdevice.a"
+        "${FFMPEG_PREFIX}/libavfilter/libavfilter.a"
+        "${FFMPEG_PREFIX}/libavformat/libavformat.a"
+        "${FFMPEG_PREFIX}/libavcodec/libavcodec.a"
+        "${FFMPEG_PREFIX}/libswresample/libswresample.a"
+        "${FFMPEG_PREFIX}/libswscale/libswscale.a"
+        "${FFMPEG_PREFIX}/libavutil/libavutil.a"
+    )
+endif()
 
 # Add hardware acceleration libraries required by FFmpeg (optional)
 set(HWACCEL_LIBRARIES)
@@ -467,7 +487,7 @@ list(APPEND HWACCEL_LIBRARIES
 )
 
 # Check if FFmpeg is available and enable it
-if(EXISTS "${FFMPEG_PREFIX}/include/libavformat/avformat.h")
+if(EXISTS "${FFMPEG_PREFIX}/include/libavformat/avformat.h" OR EXISTS "${FFMPEG_PREFIX}/libavformat/avformat.h")
     message(STATUS "FFmpeg found - enabling FFmpeg backend")
     message(STATUS "FFmpeg include directory: ${FFMPEG_INCLUDE_DIRS}")
     message(STATUS "FFmpeg libraries: ${FFMPEG_LIBRARIES}")
@@ -475,10 +495,17 @@ if(EXISTS "${FFMPEG_PREFIX}/include/libavformat/avformat.h")
 else()
     message(STATUS "FFmpeg not found - FFmpeg backend disabled")
     message(STATUS "Checked path: ${FFMPEG_PREFIX}/include/libavformat/avformat.h")
+    message(STATUS "Checked path: ${FFMPEG_PREFIX}/libavformat/avformat.h")
 endif()
 
 # Include FFmpeg directories
 include_directories(${FFMPEG_INCLUDE_DIRS})
+
+# Set FFmpeg libraries for linking (will be used later in target_link_libraries)
+if(EXISTS "${FFMPEG_PREFIX}/include/libavformat/avformat.h" OR EXISTS "${FFMPEG_PREFIX}/libavformat/avformat.h")
+    # FFmpeg is available, libraries will be linked later
+    message(STATUS "FFmpeg libraries will be linked: ${FFMPEG_LIBRARIES}")
+endif()
 
 # Add the executable target
 qt_standard_project_setup()
@@ -567,7 +594,6 @@ target_link_libraries(openterfaceQT PRIVATE
     Qt::Network
     Qt::SerialPort
     Qt::Svg
-    ${FFMPEG_LIBRARIES}  # Link against FFmpeg libraries
     ${HWACCEL_LIBRARIES} # Link against hardware acceleration libraries
     ${X11_LIBRARIES}     # Link against X11 libraries
     ${EXPAT_LIBRARIES}
@@ -575,13 +601,30 @@ target_link_libraries(openterfaceQT PRIVATE
     ${FONTCONFIG_LIBRARIES}
     ${XRENDER_LIBRARIES}
     ${BZIP2_LIBRARIES}
-    /opt/orc-static/lib/aarch64-linux-gnu/liborc-0.4.a  # Static ORC library
+    # /opt/orc-static/lib/aarch64-linux-gnu/liborc-0.4.a  # Static ORC library
     ${EXTRA_LIBS}
 )
 
 # Add TurboJPEG if available
 if(TURBOJPEG_LIBRARY)
     target_link_libraries(openterfaceQT PRIVATE ${TURBOJPEG_LIBRARIES})
+endif()
+
+# Add FFmpeg libraries if available
+if(EXISTS "${FFMPEG_PREFIX}/include/libavformat/avformat.h" OR EXISTS "${FFMPEG_PREFIX}/libavformat/avformat.h")
+    target_link_libraries(openterfaceQT PRIVATE 
+        ${FFMPEG_LIBRARIES}
+        jpeg      # Required by static FFmpeg
+        turbojpeg # Required by static FFmpeg  
+        pthread   # Required by static FFmpeg
+        m         # Math library required by static FFmpeg
+        z         # Zlib required by static FFmpeg
+        lzma      # LZMA required by static FFmpeg
+        drm       # Direct Rendering Manager for hardware acceleration
+        va        # VA-API for hardware acceleration
+        va-drm    # VA-API DRM backend
+        va-x11    # VA-API X11 backend
+    )
 endif()
 
 # Add libjpeg libraries if available

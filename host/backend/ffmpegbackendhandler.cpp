@@ -21,8 +21,11 @@
 */
 
 #include "ffmpegbackendhandler.h"
-#include "../ui/videopane.h"
-#include "../global.h"
+#include "../../ui/videopane.h"
+#include "../../global.h"
+#include "../../device/DeviceManager.h"
+#include "../../device/HotplugMonitor.h"
+#include "../../device/DeviceInfo.h"
 
 #include <QThread>
 #include <QDebug>
@@ -33,6 +36,7 @@
 #include <QGraphicsVideoItem>
 #include <QGraphicsPixmapItem>
 #include <QGraphicsScene>
+#include <QTimer>
 
 // FFmpeg includes (conditional compilation)
 #ifdef HAVE_FFMPEG
@@ -124,8 +128,30 @@ protected:
                 // Track consecutive failures
                 consecutiveFailures++;
                 
+                // Be more aggressive about detecting device disconnections
+                // Check device availability after fewer failures, especially for I/O errors
+                if (consecutiveFailures >= 50 && consecutiveFailures % 25 == 0) { // Reduced from 200/100
+                    qCDebug(log_ffmpeg_backend) << "Checking device availability due to consecutive failures:" << consecutiveFailures;
+                    if (m_handler && !m_handler->isCurrentDeviceAvailable()) {
+                        qCWarning(log_ffmpeg_backend) << "Device no longer available, stopping capture thread";
+                        // Use QTimer::singleShot to avoid calling handleDeviceDeactivation from the capture thread
+                        QTimer::singleShot(0, m_handler, [handler = m_handler]() {
+                            handler->handleDeviceDeactivation(handler->m_currentDevice);
+                        });
+                        break; // Exit the capture loop
+                    }
+                }
+                
                 if (consecutiveFailures >= maxConsecutiveFailures) {
                     qCWarning(log_ffmpeg_backend) << "Too many consecutive frame read failures (" << consecutiveFailures << "), may indicate device issue";
+                    // Also trigger device disconnection handling asynchronously
+                    if (m_handler) {
+                        qCWarning(log_ffmpeg_backend) << "Triggering device disconnection due to persistent failures";
+                        QTimer::singleShot(0, m_handler, [handler = m_handler]() {
+                            handler->handleDeviceDeactivation(handler->m_currentDevice);
+                        });
+                        break;
+                    }
                     consecutiveFailures = 0; // Reset to avoid spam
                 }
                 
@@ -167,10 +193,26 @@ FFmpegBackendHandler::FFmpegBackendHandler(QObject *parent)
 #ifdef HAVE_LIBJPEG_TURBO
       , m_turboJpegHandle(nullptr)
 #endif
-      , m_graphicsVideoItem(nullptr),
+      , m_hotplugMonitor(nullptr),
+      m_waitingForDevice(false),
+      m_deviceWaitTimer(nullptr),
+      m_suppressErrors(false),
+      m_graphicsVideoItem(nullptr),
       m_videoPane(nullptr)
 {
     m_config = getDefaultConfig();
+    
+    // Initialize device wait timer
+    m_deviceWaitTimer = new QTimer(this);
+    m_deviceWaitTimer->setSingleShot(true);
+    connect(m_deviceWaitTimer, &QTimer::timeout, this, [this]() {
+        qCWarning(log_ffmpeg_backend) << "Device wait timeout for:" << m_expectedDevicePath;
+        m_waitingForDevice = false;
+        emit captureError(QString("Device wait timeout: %1").arg(m_expectedDevicePath));
+    });
+    
+    // Connect to hotplug monitor
+    connectToHotplugMonitor();
     
 #ifdef HAVE_FFMPEG
     // Initialize FFmpeg
@@ -193,6 +235,9 @@ FFmpegBackendHandler::FFmpegBackendHandler(QObject *parent)
 
 FFmpegBackendHandler::~FFmpegBackendHandler()
 {
+    // Disconnect from hotplug monitor
+    disconnectFromHotplugMonitor();
+    
 #ifdef HAVE_FFMPEG
     stopDirectCapture();
     cleanupFFmpeg();
@@ -250,14 +295,8 @@ void FFmpegBackendHandler::configureCameraDevice(QCamera* camera, const QCameraD
     QString deviceId = QString::fromUtf8(device.id());
     QString deviceDescription = device.description();
     
-    // Special handling for Openterface devices - force /dev/video0
-    if (deviceDescription.contains("Openterface", Qt::CaseInsensitive) || 
-        deviceDescription.contains("MACROSILICON", Qt::CaseInsensitive)) {
-        qCDebug(log_ffmpeg_backend) << "Detected Openterface device, forcing /dev/video0";
-        m_currentDevice = "/dev/video0";
-    }
     // Convert Qt device ID to V4L2 device path if needed
-    else if (!deviceId.startsWith("/dev/video")) {
+    if (!deviceId.startsWith("/dev/video")) {
         // Check if deviceId is a simple number (like "0", "1", etc.)
         bool isNumber = false;
         int deviceNumber = deviceId.toInt(&isNumber);
@@ -267,9 +306,16 @@ void FFmpegBackendHandler::configureCameraDevice(QCamera* camera, const QCameraD
             m_currentDevice = QString("/dev/video%1").arg(deviceNumber);
             qCDebug(log_ffmpeg_backend) << "Converted numeric device ID" << deviceId << "to path:" << m_currentDevice;
         } else {
-            // Complex device ID - default to video0 but this could be enhanced
-            qCDebug(log_ffmpeg_backend) << "Complex device ID detected:" << deviceId << "- using fallback /dev/video0";
-            m_currentDevice = "/dev/video0";
+            // Complex device ID - try to extract number from it
+            QRegularExpression re("(\\d+)");
+            QRegularExpressionMatch match = re.match(deviceId);
+            if (match.hasMatch()) {
+                m_currentDevice = QString("/dev/video%1").arg(match.captured(1));
+                qCDebug(log_ffmpeg_backend) << "Extracted device number from complex ID" << deviceId << "-> path:" << m_currentDevice;
+            } else {
+                qCWarning(log_ffmpeg_backend) << "Could not parse device ID:" << deviceId << "- this may cause issues";
+                m_currentDevice = deviceId; // Use as-is and hope for the best
+            }
         }
     } else {
         // Already a proper V4L2 device path
@@ -278,6 +324,14 @@ void FFmpegBackendHandler::configureCameraDevice(QCamera* camera, const QCameraD
     }
     
     qCDebug(log_ffmpeg_backend) << "FFmpeg device path configured as:" << m_currentDevice;
+    
+    // Check device availability and emit connection status
+    bool deviceAvailable = checkCameraAvailable(m_currentDevice);
+    emit deviceConnectionChanged(m_currentDevice, deviceAvailable);
+    
+    if (!deviceAvailable) {
+        qCWarning(log_ffmpeg_backend) << "Configured device is not available:" << m_currentDevice;
+    }
 #endif
     
     // Don't start Qt camera for FFmpeg backend
@@ -336,30 +390,33 @@ void FFmpegBackendHandler::startCamera(QCamera* camera)
     qCDebug(log_ffmpeg_backend) << "Current resolution:" << m_currentResolution;
     qCDebug(log_ffmpeg_backend) << "Current framerate:" << m_currentFramerate;
     
+    // If no device is set or device is not available, wait for device activation
+    if (m_currentDevice.isEmpty() || !checkCameraAvailable(m_currentDevice)) {
+        qCInfo(log_ffmpeg_backend) << "Device not available, waiting for device activation:" << m_currentDevice;
+        waitForDeviceActivation(m_currentDevice, 30000); // Wait up to 30 seconds
+        return;
+    }
+    
     // Use direct FFmpeg capture instead of Qt's camera
-    if (!m_currentDevice.isEmpty()) {
-        qCDebug(log_ffmpeg_backend) << "FFmpeg: Using direct capture - Qt camera will NOT be started";
-        
-        // Ensure Qt camera is stopped
-        if (camera) {
-            qCDebug(log_ffmpeg_backend) << "Ensuring Qt camera is stopped";
-            camera->stop();
-            QThread::msleep(300); // Give time for device to be released
-        }
-        
-        // Start direct FFmpeg capture
-        QSize resolution = m_currentResolution.isValid() ? m_currentResolution : QSize(1920, 1080);
-        int framerate = m_currentFramerate > 0 ? m_currentFramerate : 30;
-        
-        if (!startDirectCapture(m_currentDevice, resolution, framerate)) {
-            qCWarning(log_ffmpeg_backend) << "Failed to start FFmpeg direct capture, not falling back to Qt camera";
-            emit captureError("Failed to start FFmpeg video capture");
-        } else {
-            qCDebug(log_ffmpeg_backend) << "FFmpeg direct capture started successfully";
-        }
+    qCDebug(log_ffmpeg_backend) << "FFmpeg: Using direct capture - Qt camera will NOT be started";
+    
+    // Ensure Qt camera is stopped
+    if (camera) {
+        qCDebug(log_ffmpeg_backend) << "Ensuring Qt camera is stopped";
+        camera->stop();
+        QThread::msleep(300); // Give time for device to be released
+    }
+    
+    // Start direct FFmpeg capture
+    QSize resolution = m_currentResolution.isValid() ? m_currentResolution : QSize(1920, 1080);
+    int framerate = m_currentFramerate > 0 ? m_currentFramerate : 30;
+    
+    if (!startDirectCapture(m_currentDevice, resolution, framerate)) {
+        qCWarning(log_ffmpeg_backend) << "Failed to start FFmpeg direct capture, not falling back to Qt camera";
+        emit captureError("Failed to start FFmpeg video capture");
     } else {
-        qCWarning(log_ffmpeg_backend) << "FFmpeg: No valid device configured";
-        emit captureError("No video device configured for FFmpeg capture");
+        qCDebug(log_ffmpeg_backend) << "FFmpeg direct capture started successfully";
+        emit deviceActivated(m_currentDevice);
     }
 #else
     qCWarning(log_ffmpeg_backend) << "FFmpeg backend not available, cannot start direct capture";
@@ -458,6 +515,12 @@ bool FFmpegBackendHandler::startDirectCapture(const QString& devicePath, const Q
         stopDirectCapture();
     }
     
+    // Reset error suppression flag when starting capture
+    m_suppressErrors = false;
+    
+    // Restore FFmpeg logging level
+    av_log_set_level(AV_LOG_WARNING);
+    
     qCDebug(log_ffmpeg_backend) << "Starting direct FFmpeg capture:"
                                 << "device=" << devicePath
                                 << "resolution=" << resolution
@@ -499,13 +562,30 @@ void FFmpegBackendHandler::stopDirectCapture()
     // Stop capture thread
     if (m_captureThread) {
         m_captureThread->setRunning(false);
-        m_captureThread->wait(3000); // Wait up to 3 seconds
-        if (m_captureThread->isRunning()) {
-            qCWarning(log_ffmpeg_backend) << "Capture thread did not stop gracefully, terminating";
-            m_captureThread->terminate();
-            m_captureThread->wait(1000);
+        
+        // Check if we're being called from the capture thread itself
+        if (QThread::currentThread() == m_captureThread.get()) {
+            qCDebug(log_ffmpeg_backend) << "stopDirectCapture called from capture thread - will cleanup asynchronously";
+            // Don't wait for the thread to finish since we ARE the thread
+            // Just mark it for cleanup and let it finish naturally
+            QTimer::singleShot(100, this, [this]() {
+                if (m_captureThread && m_captureThread->isFinished()) {
+                    m_captureThread.reset();
+                    qCDebug(log_ffmpeg_backend) << "Capture thread cleaned up asynchronously";
+                }
+            });
+        } else {
+            // We're being called from a different thread, safe to wait
+            qCDebug(log_ffmpeg_backend) << "Waiting for capture thread to finish...";
+            m_captureThread->wait(3000); // Wait up to 3 seconds
+            if (m_captureThread->isRunning()) {
+                qCWarning(log_ffmpeg_backend) << "Capture thread did not stop gracefully, terminating";
+                m_captureThread->terminate();
+                m_captureThread->wait(1000);
+            }
+            m_captureThread.reset();
+            qCDebug(log_ffmpeg_backend) << "Capture thread stopped and cleaned up";
         }
-        m_captureThread.reset();
     }
     
     // Stop performance monitoring
@@ -778,18 +858,42 @@ bool FFmpegBackendHandler::readFrame()
         if (ret == AVERROR(EAGAIN)) {
             return false; // Try again later
         } else if (ret == AVERROR_EOF) {
-            qCWarning(log_ffmpeg_backend) << "End of stream reached";
+            if (!m_suppressErrors) {
+                qCWarning(log_ffmpeg_backend) << "End of stream reached";
+            }
             return false;
         } else if (ret == AVERROR(EIO)) {
-            qCWarning(log_ffmpeg_backend) << "I/O error while reading frame - device may be disconnected";
+            if (!m_suppressErrors) {
+                qCWarning(log_ffmpeg_backend) << "I/O error while reading frame - device may be disconnected";
+            }
+            return false;
+        } else if (ret == AVERROR(ENODEV)) {
+            if (!m_suppressErrors) {
+                qCWarning(log_ffmpeg_backend) << "No such device error - device disconnected";
+            }
+            return false;
+        } else if (ret == AVERROR(ENXIO)) {
+            if (!m_suppressErrors) {
+                qCWarning(log_ffmpeg_backend) << "Device not configured or disconnected";
+            }
             return false;
         } else {
             char errbuf[AV_ERROR_MAX_STRING_SIZE];
             av_strerror(ret, errbuf, AV_ERROR_MAX_STRING_SIZE);
             static int errorCount = 0;
-            if (errorCount < 10) { // Limit error spam
+            if (errorCount < 10 && !m_suppressErrors) { // Limit error spam and respect suppression flag
                 qCWarning(log_ffmpeg_backend) << "Error reading frame:" << QString::fromUtf8(errbuf) << "error code:" << ret;
                 errorCount++;
+                
+                // Check for device-related errors in error message
+                QString errorMsg = QString::fromUtf8(errbuf).toLower();
+                if (errorMsg.contains("no such device") || 
+                    errorMsg.contains("device") ||
+                    errorMsg.contains("vidioc") ||
+                    ret == -19) { // ENODEV
+                    qCWarning(log_ffmpeg_backend) << "Device error detected in error message, likely disconnection";
+                    // Return false to trigger consecutive failure counting
+                }
             }
             return false;
         }
@@ -1243,7 +1347,315 @@ void FFmpegBackendHandler::setVideoOutput(VideoPane* videoPane)
         qCDebug(log_ffmpeg_backend) << "Enabled direct FFmpeg mode in VideoPane";
     }
 }
+
+// Device availability and hotplug support methods
+bool FFmpegBackendHandler::checkCameraAvailable(const QString& devicePath)
+{
+    QString device = devicePath.isEmpty() ? m_currentDevice : devicePath;
     
+    if (device.isEmpty()) {
+        qCDebug(log_ffmpeg_backend) << "No device path provided for availability check";
+        return false;
+    }
+    
+    qCDebug(log_ffmpeg_backend) << "Checking camera availability for device:" << device;
+    
+    // Check if device file exists and is accessible
+    QFile deviceFile(device);
+    if (!deviceFile.exists()) {
+        qCDebug(log_ffmpeg_backend) << "Device file does not exist:" << device;
+        return false;
+    }
+    
+    // Try to open the device for reading to verify it's accessible
+    // Skip this check if we're currently capturing to avoid device conflicts
+    if (device == m_currentDevice && m_captureRunning) {
+        qCDebug(log_ffmpeg_backend) << "Device is currently in use for capture, skipping file open check";
+        return true;
+    }
+    
+    if (!deviceFile.open(QIODevice::ReadOnly)) {
+        qCDebug(log_ffmpeg_backend) << "Cannot open device for reading:" << device << "Error:" << deviceFile.errorString();
+        return false;
+    }
+    
+    deviceFile.close();
+    
+    // Additional check: try to briefly open with FFmpeg to verify V4L2 compatibility
+    // Skip this intrusive check if device is currently being used for capture
+    if (device == m_currentDevice && m_captureRunning) {
+        qCDebug(log_ffmpeg_backend) << "Device is currently in use for capture, skipping FFmpeg compatibility check";
+        return true;
+    }
+    
+#ifdef HAVE_FFMPEG
+    AVFormatContext* testContext = avformat_alloc_context();
+    if (!testContext) {
+        qCDebug(log_ffmpeg_backend) << "Failed to allocate test format context";
+        return false;
+    }
+    
+    const AVInputFormat* inputFormat = av_find_input_format("v4l2");
+    if (!inputFormat) {
+        qCDebug(log_ffmpeg_backend) << "V4L2 input format not available";
+        avformat_free_context(testContext);
+        return false;
+    }
+    
+    // Try to open the device with minimal options
+    AVDictionary* options = nullptr;
+    av_dict_set(&options, "framerate", "1", 0); // Very low framerate for quick test
+    av_dict_set(&options, "video_size", "160x120", 0); // Very small resolution for quick test
+    
+    int ret = avformat_open_input(&testContext, device.toUtf8().constData(), inputFormat, &options);
+    av_dict_free(&options);
+    
+    if (ret < 0) {
+        char errbuf[AV_ERROR_MAX_STRING_SIZE];
+        av_strerror(ret, errbuf, AV_ERROR_MAX_STRING_SIZE);
+        qCDebug(log_ffmpeg_backend) << "FFmpeg cannot open device:" << device << "Error:" << QString::fromUtf8(errbuf);
+        avformat_free_context(testContext);
+        return false;
+    }
+    
+    // Device opened successfully, clean up
+    avformat_close_input(&testContext);
+    qCDebug(log_ffmpeg_backend) << "Camera device is available:" << device;
+    return true;
+#else
+    qCDebug(log_ffmpeg_backend) << "FFmpeg not available, basic file check passed for:" << device;
+    return true;
+#endif
+}
+
+bool FFmpegBackendHandler::isCurrentDeviceAvailable() const
+{
+    // If capture is currently running, assume device is available to avoid interference
+    if (m_captureRunning) {
+        qCDebug(log_ffmpeg_backend) << "Capture is running, assuming device is available";
+        return true;
+    }
+    
+    return const_cast<FFmpegBackendHandler*>(this)->checkCameraAvailable(m_currentDevice);
+}
+
+void FFmpegBackendHandler::handleDeviceDisconnection()
+{
+    qCDebug(log_ffmpeg_backend) << "Handling device disconnection for FFmpeg backend";
+    
+#ifdef HAVE_FFMPEG
+    // Stop current capture if running
+    if (m_captureRunning) {
+        qCDebug(log_ffmpeg_backend) << "Stopping capture due to device disconnection";
+        stopDirectCapture();
+    }
+    
+    // Emit device deactivation signal
+    emit deviceDeactivated(m_currentDevice);
+    
+    // Emit error signal to notify UI
+    emit captureError("Camera device disconnected: " + m_currentDevice);
+    
+    qCDebug(log_ffmpeg_backend) << "Device disconnection handled";
+#endif
+}
+
+bool FFmpegBackendHandler::restartCaptureWithDevice(const QString& devicePath, const QSize& resolution, int framerate)
+{
+    qCDebug(log_ffmpeg_backend) << "Attempting to restart capture with device:" << devicePath;
+    
+#ifdef HAVE_FFMPEG
+    // Stop current capture first
+    if (m_captureRunning) {
+        qCDebug(log_ffmpeg_backend) << "Stopping current capture before restart";
+        stopDirectCapture();
+        QThread::msleep(200); // Give time for cleanup
+    }
+    
+    // Check if new device is available
+    if (!checkCameraAvailable(devicePath)) {
+        qCWarning(log_ffmpeg_backend) << "New device not available for restart:" << devicePath;
+        return false;
+    }
+    
+    // Update current device
+    m_currentDevice = devicePath;
+    m_currentResolution = resolution.isValid() ? resolution : QSize(1920, 1080);
+    m_currentFramerate = framerate > 0 ? framerate : 30;
+    
+    qCDebug(log_ffmpeg_backend) << "Restarting capture with device:" << m_currentDevice
+                                << "resolution:" << m_currentResolution 
+                                << "framerate:" << m_currentFramerate;
+    
+    // Start capture with new device
+    bool success = startDirectCapture(m_currentDevice, m_currentResolution, m_currentFramerate);
+    
+    if (success) {
+        qCDebug(log_ffmpeg_backend) << "Successfully restarted capture with new device";
+        emit deviceActivated(m_currentDevice);
+    } else {
+        qCWarning(log_ffmpeg_backend) << "Failed to restart capture with new device";
+    }
+    
+    return success;
+#else
+    qCWarning(log_ffmpeg_backend) << "FFmpeg not available, cannot restart capture";
+    return false;
+#endif
+}
+
+// Enhanced hotplug support methods
+void FFmpegBackendHandler::connectToHotplugMonitor()
+{
+    qCDebug(log_ffmpeg_backend) << "Connecting FFmpegBackendHandler to hotplug monitor";
+    
+    DeviceManager& deviceManager = DeviceManager::getInstance();
+    m_hotplugMonitor = deviceManager.getHotplugMonitor();
+    
+    if (!m_hotplugMonitor) {
+        qCWarning(log_ffmpeg_backend) << "Failed to get hotplug monitor from device manager";
+        return;
+    }
+    
+    // Connect to device unplugging signal
+    connect(m_hotplugMonitor, &HotplugMonitor::deviceUnplugged,
+            this, [this](const DeviceInfo& device) {
+                qCDebug(log_ffmpeg_backend) << "FFmpeg: Device unplugged:" << device.portChain;
+                
+                // Only handle if device has camera component
+                if (!device.hasCameraDevice()) {
+                    return;
+                }
+                
+                // Check if this affects our current device
+                if (m_captureRunning && !isCurrentDeviceAvailable()) {
+                    qCInfo(log_ffmpeg_backend) << "Current camera device became unavailable, handling disconnection";
+                    handleDeviceDeactivation(m_currentDevice);
+                }
+            });
+            
+    // Connect to new device plugged in signal
+    connect(m_hotplugMonitor, &HotplugMonitor::newDevicePluggedIn,
+            this, [this](const DeviceInfo& device) {
+                qCDebug(log_ffmpeg_backend) << "FFmpeg: New device plugged in:" << device.portChain;
+                
+                // Only handle if device has camera component
+                if (!device.hasCameraDevice()) {
+                    return;
+                }
+                
+                // If we're waiting for a device, check if this could be it
+                if (m_waitingForDevice) {
+                    QString devicePath = device.cameraDevicePath;
+                    if (!devicePath.isEmpty() && 
+                        (m_expectedDevicePath.isEmpty() || devicePath == m_expectedDevicePath)) {
+                        qCInfo(log_ffmpeg_backend) << "Found expected device, attempting activation:" << devicePath;
+                        handleDeviceActivation(devicePath);
+                    }
+                }
+            });
+            
+    qCDebug(log_ffmpeg_backend) << "FFmpegBackendHandler successfully connected to hotplug monitor";
+}
+
+void FFmpegBackendHandler::disconnectFromHotplugMonitor()
+{
+    qCDebug(log_ffmpeg_backend) << "Disconnecting FFmpegBackendHandler from hotplug monitor";
+    
+    if (m_hotplugMonitor) {
+        disconnect(m_hotplugMonitor, nullptr, this, nullptr);
+        m_hotplugMonitor = nullptr;
+        qCDebug(log_ffmpeg_backend) << "FFmpegBackendHandler disconnected from hotplug monitor";
+    }
+}
+
+void FFmpegBackendHandler::waitForDeviceActivation(const QString& devicePath, int timeoutMs)
+{
+    qCDebug(log_ffmpeg_backend) << "Waiting for device activation:" << devicePath << "timeout:" << timeoutMs << "ms";
+    
+    m_expectedDevicePath = devicePath.isEmpty() ? m_currentDevice : devicePath;
+    m_waitingForDevice = true;
+    
+    emit waitingForDevice(m_expectedDevicePath);
+    
+    // Start timeout timer
+    if (timeoutMs > 0) {
+        m_deviceWaitTimer->start(timeoutMs);
+    }
+    
+    // Create a periodic check timer
+    QTimer* checkTimer = new QTimer(this);
+    checkTimer->setInterval(1000); // Check every second
+    
+    connect(checkTimer, &QTimer::timeout, this, [this, checkTimer]() {
+        if (!m_waitingForDevice) {
+            checkTimer->deleteLater();
+            return;
+        }
+        
+        // Check if expected device becomes available
+        if (!m_expectedDevicePath.isEmpty() && checkCameraAvailable(m_expectedDevicePath)) {
+            qCDebug(log_ffmpeg_backend) << "Expected device became available during wait:" << m_expectedDevicePath;
+            checkTimer->deleteLater();
+            handleDeviceActivation(m_expectedDevicePath);
+        }
+    });
+    
+    checkTimer->start();
+    qCDebug(log_ffmpeg_backend) << "Started waiting for device activation";
+}
+
+void FFmpegBackendHandler::handleDeviceActivation(const QString& devicePath)
+{
+    qCInfo(log_ffmpeg_backend) << "Handling device activation:" << devicePath;
+    
+    m_waitingForDevice = false;
+    m_deviceWaitTimer->stop();
+    
+    if (!devicePath.isEmpty()) {
+        m_currentDevice = devicePath;
+    }
+    
+    // Start capture with current settings
+    QSize resolution = m_currentResolution.isValid() ? m_currentResolution : QSize(1920, 1080);
+    int framerate = m_currentFramerate > 0 ? m_currentFramerate : 30;
+    
+    qCDebug(log_ffmpeg_backend) << "Starting capture on activated device:" << m_currentDevice
+                                << "resolution:" << resolution << "framerate:" << framerate;
+    
+    if (startDirectCapture(m_currentDevice, resolution, framerate)) {
+        qCInfo(log_ffmpeg_backend) << "Successfully started capture on activated device";
+        emit deviceActivated(m_currentDevice);
+    } else {
+        qCWarning(log_ffmpeg_backend) << "Failed to start capture on activated device";
+        emit captureError("Failed to start capture on activated device: " + m_currentDevice);
+    }
+}
+
+void FFmpegBackendHandler::handleDeviceDeactivation(const QString& devicePath)
+{
+    qCInfo(log_ffmpeg_backend) << "Handling device deactivation:" << devicePath;
+    
+    QString deactivatedDevice = devicePath.isEmpty() ? m_currentDevice : devicePath;
+    
+    // Suppress further error messages to avoid V4L2 spam
+    m_suppressErrors = true;
+    
+    // Temporarily suppress FFmpeg logs to avoid V4L2 ioctl spam
+    av_log_set_level(AV_LOG_QUIET);
+    
+    // Stop capture if running
+    if (m_captureRunning) {
+        qCDebug(log_ffmpeg_backend) << "Stopping capture due to device deactivation";
+        stopDirectCapture();
+    }
+    
+    emit deviceDeactivated(deactivatedDevice);
+    
+    // Start waiting for device to come back
+    qCInfo(log_ffmpeg_backend) << "Starting to wait for device reconnection";
+    waitForDeviceActivation(m_currentDevice, 30000); // Wait up to 30 seconds
+}
 
 
 #include "ffmpegbackendhandler.moc"
