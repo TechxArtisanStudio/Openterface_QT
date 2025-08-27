@@ -231,10 +231,42 @@ if(NOT DEFINED ARM64_BUILD)
     endif()
 endif()
 
+# Find pkg-config dependencies required by Qt components
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(Libudev REQUIRED IMPORTED_TARGET libudev)
+
+# Ensure we use the static Qt6 build by setting the Qt6 directory explicitly
+set(Qt6_DIR "/opt/Qt6-arm64/lib/cmake/Qt6" CACHE PATH "Qt6 installation directory" FORCE)
+set(Qt6Core_DIR "/opt/Qt6-arm64/lib/cmake/Qt6Core" CACHE PATH "Qt6Core directory" FORCE)
+set(Qt6Gui_DIR "/opt/Qt6-arm64/lib/cmake/Qt6Gui" CACHE PATH "Qt6Gui directory" FORCE)
+set(Qt6Widgets_DIR "/opt/Qt6-arm64/lib/cmake/Qt6Widgets" CACHE PATH "Qt6Widgets directory" FORCE)
+
 find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Concurrent Gui Multimedia MultimediaWidgets Network SerialPort Svg)
 find_package(Qt${QT_VERSION_MAJOR} OPTIONAL_COMPONENTS Widgets)
 if(UNIX AND NOT APPLE)
     find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS DBus)
+endif()
+
+# Prioritize static Qt6 include directories over system Qt6 headers
+# This prevents header conflicts between system Qt6 and static Qt6 build
+if(CMAKE_PREFIX_PATH MATCHES "/opt/Qt6-arm64")
+    include_directories(BEFORE SYSTEM 
+        /opt/Qt6-arm64/include
+        /opt/Qt6-arm64/include/QtCore
+        /opt/Qt6-arm64/include/QtGui
+        /opt/Qt6-arm64/include/QtWidgets
+        /opt/Qt6-arm64/include/QtMultimedia
+        /opt/Qt6-arm64/include/QtMultimediaWidgets
+        /opt/Qt6-arm64/include/QtNetwork
+        /opt/Qt6-arm64/include/QtSerialPort
+        /opt/Qt6-arm64/include/QtSvg
+        /opt/Qt6-arm64/include/QtConcurrent
+        /opt/Qt6-arm64/include/QtDBus
+    )
+    # Exclude system Qt6 include directories from implicit includes
+    list(REMOVE_ITEM CMAKE_CXX_IMPLICIT_INCLUDE_DIRECTORIES "/usr/include/aarch64-linux-gnu/qt6")
+    list(REMOVE_ITEM CMAKE_C_IMPLICIT_INCLUDE_DIRECTORIES "/usr/include/aarch64-linux-gnu/qt6")
+    message(STATUS "Prioritized static Qt6 include directories over system headers")
 endif()
 
 # Find OpenGL libraries (required by Qt6)
@@ -1139,6 +1171,7 @@ target_link_libraries(openterfaceQT PRIVATE
     ${XRENDER_LIBRARIES}
     ${BZIP2_LIBRARIES}
     ${EXTRA_LIBS}
+    zstd  # Required for Qt resource compression
 )
 
 # Add TurboJPEG if available
@@ -1327,6 +1360,8 @@ qt_add_resources(openterfaceQT "mainwindow"
         "ui"
     FILES
         ${mainwindow_resource_files}
+    OPTIONS
+        --compress-algo none
 )
 
 set(keyboard_layouts_resource_files
@@ -1346,6 +1381,8 @@ qt_add_resources(openterfaceQT "keyboard_layouts"
         "config/keyboards"
     FILES
         ${keyboard_layouts_resource_files}
+    OPTIONS
+        --compress-algo none
 )
 
 set(languages_resources_files
@@ -1365,6 +1402,8 @@ qt_add_resources(openterfaceQT "languages"
         "config/languages"
     FILES
         ${languages_resources_files}
+    OPTIONS
+        --compress-algo none
 )
 
 set(qmake_immediate_resource_files
@@ -1376,6 +1415,8 @@ qt_add_resources(openterfaceQT "qmake_immediate"
         "/"
     FILES
         ${qmake_immediate_resource_files}
+    OPTIONS
+        --compress-algo none
 )
 
 set(app_icons_resource_files
@@ -1389,6 +1430,8 @@ qt_add_resources(openterfaceQT "app_icons"
         "/icons"
     FILES
         ${app_icons_resource_files}
+    OPTIONS
+        --compress-algo none
 )
 
 if((QT_VERSION_MAJOR GREATER 4))
@@ -1464,6 +1507,8 @@ if(WIN32)
             "driver/windows"
         FILES
             ${drivers_resource_files}
+        OPTIONS
+            --compress-algo none
     )
 endif()
 
@@ -1558,6 +1603,8 @@ if(UNIX)
             "driver/linux"
         FILES
             ${drivers_resource_files}
+        OPTIONS
+            --compress-algo none
     )
 endif()
 

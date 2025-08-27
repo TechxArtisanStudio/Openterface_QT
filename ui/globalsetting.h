@@ -101,6 +101,16 @@ public:
     QString getOpenterfacePortChain() const;
     void clearOpenterfacePortChain();
 
+    // Serial port baudrate management
+    void setSerialPortBaudrate(int baudrate);
+    int getSerialPortBaudrate() const;
+    void clearSerialPortBaudrate();
+    
+    // ARM architecture baudrate performance prompt
+    void setArmBaudratePromptDisabled(bool disabled);
+    bool getArmBaudratePromptDisabled() const;
+    void resetArmBaudratePrompt(); // Reset the prompt setting
+
 private:
     QSettings m_settings;
 };

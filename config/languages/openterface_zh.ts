@@ -580,11 +580,6 @@ Please try again after restarting the application.</source>
         <translation>更改设置</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="158"/>
-        <source>Reset Keyboard and Mouse</source>
-        <translation>重置键盘和鼠标</translation>
-    </message>
-    <message>
         <location filename="../../ui/mainwindow.ui" line="163"/>
         <source>Reset Serial Port</source>
         <translation>重置串口</translation>

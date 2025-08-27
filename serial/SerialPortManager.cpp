@@ -32,12 +32,14 @@
 #include <QFuture>
 #include <QtSerialPort>
 #include <QElapsedTimer>
+#include <QSysInfo>
 
 
 Q_LOGGING_CATEGORY(log_core_serial, "opf.core.serial")
 
 // Define static constants
-const int SerialPortManager::ORIGINAL_BAUDRATE;
+const int SerialPortManager::BAUDRATE_HIGHSPEED;
+const int SerialPortManager::BAUDRATE_LOWSPEED;
 const int SerialPortManager::DEFAULT_BAUDRATE;
 const int SerialPortManager::SERIAL_TIMER_INTERVAL;
 
@@ -55,11 +57,24 @@ SerialPortManager::SerialPortManager(QObject *parent) : QObject(parent), serialP
     m_errorRecoveryTimer->setSingleShot(true);
     m_lastSuccessfulCommand.start();
     
+    // Initialize error frequency tracking
+    m_errorTrackingTimer.start();
+    
     setupConnectionWatchdog();
 
     connect(this, &SerialPortManager::serialPortConnected, this, &SerialPortManager::onSerialPortConnected);
     connect(this, &SerialPortManager::serialPortDisconnected, this, &SerialPortManager::onSerialPortDisconnected);
     connect(this, &SerialPortManager::serialPortConnectionSuccess, this, &SerialPortManager::onSerialPortConnectionSuccess);
+    
+    // Connect parameter configuration success signal to automatically send reset command
+    connect(this, &SerialPortManager::parameterConfigurationSuccess, this, [this]() {
+        qCDebug(log_core_serial) << "Parameter configuration successful, sending reset command automatically";
+        sendResetCommand();
+        int storedBaudrate = GlobalSetting::instance().getSerialPortBaudrate();
+        qCDebug(log_core_serial) << "Reopen the serial port with baudrate: " << storedBaudrate;
+        setBaudRate(storedBaudrate);
+        restartPort();
+    });
 
     // Connect to DeviceManager for device monitoring instead of running own timer
     DeviceManager& deviceManager = DeviceManager::getInstance();
@@ -205,6 +220,14 @@ QString SerialPortManager::getCurrentSerialPortPath() const
 QString SerialPortManager::getCurrentSerialPortChain() const
 {
     return m_currentSerialPortChain;
+}
+
+int SerialPortManager::getCurrentBaudrate() const
+{
+    if (serialPort && serialPort->isOpen()) {
+        return serialPort->baudRate();
+    }
+    return 9600;
 }
 
 bool SerialPortManager::switchSerialPortByPortChain(const QString& portChain)
@@ -358,7 +381,7 @@ void SerialPortManager::checkSerialPort() {
     }
 
     // If no data received in 5 seconds, consider the port is disconnected or not working
-    sendSyncCommand(CMD_GET_INFO, false);
+    sendAsyncCommand(CMD_GET_INFO, false);
     if (latestUpdateTime.secsTo(QDateTime::currentDateTime()) > 5) {
         ready = false;
     }
@@ -370,11 +393,24 @@ void SerialPortManager::checkSerialPort() {
  */
 void SerialPortManager::onSerialPortConnected(const QString &portName){
     // Use synchronous method to check the serial port
-    qCDebug(log_core_serial) << "Serial port connected: " << portName << "baudrate:" << DEFAULT_BAUDRATE;
+    qCDebug(log_core_serial) << "Serial port connected: " << portName;
+    
+    // First, check if we have a stored baudrate setting
+    int storedBaudrate = GlobalSetting::instance().getSerialPortBaudrate();
+    int tryBaudrate = DEFAULT_BAUDRATE; // Default fallback
+    
+    if (storedBaudrate > 0) {
+        // Use stored baudrate if available
+        tryBaudrate = storedBaudrate;
+        qCDebug(log_core_serial) << "Using stored baudrate: " << storedBaudrate;
+    } else {
+        qCDebug(log_core_serial) << "No stored baudrate found, using default: " << DEFAULT_BAUDRATE;
+    }
+    
     // Check if the port was successfully opened
     const int maxRetries = 2;
     int retryCount = 0;
-    bool openSuccess = openPort(portName, DEFAULT_BAUDRATE);
+    bool openSuccess = openPort(portName, tryBaudrate);
     while (retryCount < maxRetries && !openSuccess) {
         qCWarning(log_core_serial) << "Failed to open serial port: " << portName;
         // Check if the port is still open (in case of partial failure)
@@ -385,70 +421,92 @@ void SerialPortManager::onSerialPortConnected(const QString &portName){
         QThread::msleep(500 * (retryCount + 1));
         retryCount++;
         // Retry opening the port
-        qCDebug(log_core_serial) << "Retrying to open serial port: " << portName << "baudrate:" << DEFAULT_BAUDRATE;
-        openSuccess = openPort(portName, DEFAULT_BAUDRATE);
+        qCDebug(log_core_serial) << "Retrying to open serial port: " << portName << "baudrate:" << tryBaudrate;
+        openSuccess = openPort(portName, tryBaudrate);
     }
     if (!openSuccess) {
         qCWarning(log_core_serial) << "Retry failed to open serial port: " << portName;
         return; // Exit if retry also fails
     }
 
-    // send a command to get the parameter configuration with 115200 baudrate
+    // send a command to get the parameter configuration with initial baudrate
     QByteArray retBtye = sendSyncCommand(CMD_GET_PARA_CFG, true);
     CmdDataParamConfig config;
     static QSettings settings("Techxartisan", "Openterface");
     uint8_t mode = (settings.value("hardware/operatingMode", 0x02).toUInt());
+    
+    bool connectionSuccessful = false;
+    int workingBaudrate = tryBaudrate;
+    
     if(retBtye.size() > 0){
         qCDebug(log_core_serial) << "Data read from serial port: " << retBtye.toHex(' ');
         config = CmdDataParamConfig::fromByteArray(retBtye);
         if(config.mode == mode){ 
             ready = true;
-            qCDebug(log_core_serial) << "Connect success with baudrate: " << DEFAULT_BAUDRATE << ready;
+            connectionSuccessful = true;
+            qCDebug(log_core_serial) << "Connect success with baudrate: " << serialPort->baudRate();
+            // Check for ARM architecture performance recommendation
+            checkArmBaudratePerformance(serialPort->baudRate());
         } else { // the mode is not correct, need to re-config the chip
             qCWarning(log_core_serial) << "The mode is incorrect, mode:" << config.mode;
-            resetHipChip();
+            if(resetHipChip()) {
+                connectionSuccessful = true;
+                workingBaudrate = DEFAULT_BAUDRATE; // resetHipChip sets to DEFAULT_BAUDRATE
+            }
         }
     } else { 
+        // If initial baudrate failed, try the baudrate detection process
+        qCDebug(log_core_serial) << "No data with initial baudrate, starting baudrate detection process";
+        
         // Only try 9600 baudrate for CH341 serial chip (VID:PID 1A86:7523)
         bool isCH341SerialChip = false;
         
         // Check if this port has VID/PID 1A86:7523
         QList<QSerialPortInfo> availablePorts = QSerialPortInfo::availablePorts();
         for (const QSerialPortInfo &portInfo : availablePorts) {
-            if (portInfo.portName() == portName) {
+            if (portName.indexOf(portInfo.portName())>=0) {
                 QString vid = QString("%1").arg(portInfo.vendorIdentifier(), 4, 16, QChar('0')).toUpper();
                 QString pid = QString("%1").arg(portInfo.productIdentifier(), 4, 16, QChar('0')).toUpper();
                 if (vid == "1A86" && pid == "7523") {
                     isCH341SerialChip = true;
-                    qCDebug(log_core_serial) << "Detected CH341 serial chip (VID:PID 1A86:7523), will try 9600 baudrate fallback";
+                    workingBaudrate = anotherBaudrate();
+                    qCDebug(log_core_serial) << "Detected CH341 serial chip (VID:PID 1A86:7523), will try" << workingBaudrate << "baudrate fallback";
                 }
                 break;
             }
         }
         
         if (isCH341SerialChip) {
-            // try 9600 baudrate only for CH341 chip
-            qCDebug(log_core_serial) << "No data with 115200 baudrate, try to connect: " << portName << "with baudrate:" << ORIGINAL_BAUDRATE;
+            // try 115200 baudrate only for CH341 chip
+            qCDebug(log_core_serial) << "Try to connect: " << portName << "with baudrate:" << workingBaudrate;
             closePort();
-            openPort(portName, ORIGINAL_BAUDRATE);
+            openPort(portName, workingBaudrate);
             QByteArray retBtye = sendSyncCommand(CMD_GET_PARA_CFG, true);
-            qCDebug(log_core_serial) << "Data read from serial port with 9600: " << retBtye.toHex(' ');
+            qCDebug(log_core_serial) << "Data read from serial port with 115200: " << retBtye.toHex(' ');
             if(retBtye.size() > 0){
                 config = CmdDataParamConfig::fromByteArray(retBtye);
-                qCDebug(log_core_serial) << "Connect success with baudrate: " << ORIGINAL_BAUDRATE;
+                qCDebug(log_core_serial) << "Connected with baudrate: " << workingBaudrate;
                 qCDebug(log_core_serial) << "Current working mode is:" << "0x" + QString::number(config.mode, 16);
-
-                resetHipChip();
+                setBaudRate(workingBaudrate);
             }
         } else {
-            qCDebug(log_core_serial) << "No data received and not a CH341 serial chip, skipping 9600 baudrate fallback";
+            qCDebug(log_core_serial) << "No data received and not a CH341 serial chip, skipping baudrate fallback";
         }
+    }
+
+    // Store the working baudrate if connection was successful and it's different from stored
+    if (connectionSuccessful && (storedBaudrate != workingBaudrate)) {
+        qCDebug(log_core_serial) << "Storing working baudrate:" << workingBaudrate;
+        GlobalSetting::instance().setSerialPortBaudrate(workingBaudrate);
     }
 
     qCDebug(log_core_serial) << "Check serial port completed.";
     emit serialPortConnectionSuccess(portName); 
 }
 
+int SerialPortManager::anotherBaudrate(){
+    return serialPort->baudRate() == SerialPortManager::BAUDRATE_HIGHSPEED ? SerialPortManager::BAUDRATE_LOWSPEED : SerialPortManager::BAUDRATE_HIGHSPEED;
+}
 /*
  * Close the serial port
  */
@@ -502,14 +560,16 @@ void SerialPortManager::setEventCallback(StatusEventCallback* callback) {
 }
 
 /* 
- * Reset the hid chip, set the baudrate to 115200 and mode to 0x82 and reset the chip
+ * Reset the hid chip, set the baudrate to specified rate and mode to 0x82 and reset the chip
  */
-bool SerialPortManager::resetHipChip(){
+bool SerialPortManager::resetHipChip(int targetBaudrate){
+    qCDebug(log_core_serial) << "Reset the hid chip now...";
     QString portName = serialPort->portName();
-    if(reconfigureHidChip()) {
+    if(reconfigureHidChip(targetBaudrate)) {
+        qCDebug(log_core_serial) << "Reset the hid chip success.";
         if(sendResetCommand()){
-            qCDebug(log_core_serial) << "Reopen the serial port with baudrate: " << DEFAULT_BAUDRATE;
-            setBaudRate(DEFAULT_BAUDRATE);
+            qCDebug(log_core_serial) << "Reopen the serial port with baudrate: " << targetBaudrate;
+            setBaudRate(targetBaudrate);
             restartPort();
             return true;
         }else{
@@ -520,7 +580,7 @@ bool SerialPortManager::resetHipChip(){
         qCWarning(log_core_serial) << "Set data config fail, reset the serial port now...";
         restartPort();
         ready = false;
-        qCDebug(log_core_serial) << "Reopen the serial port with baudrate: " << DEFAULT_BAUDRATE;
+        qCDebug(log_core_serial) << "Reopen the serial port with baudrate: " << targetBaudrate;
         return false;
     }
 }
@@ -533,10 +593,10 @@ bool SerialPortManager::resetHipChip(){
 bool SerialPortManager::sendResetCommand(){
     QByteArray retByte = sendSyncCommand(CMD_RESET, true);
     if(retByte.size() > 0){
-        qCDebug(log_core_serial) << "Reset the hid chip success.";
+        qCDebug(log_core_serial) << "Send reset command success.";
         return true;
     } else{
-        qCDebug(log_core_serial) << "Reset the hid chip fail.";
+        qCDebug(log_core_serial) << "Send reset command fail.";
         return false;
     }
 }
@@ -547,6 +607,9 @@ bool SerialPortManager::sendResetCommand(){
  */
 bool SerialPortManager::factoryResetHipChip(){
     qCDebug(log_core_serial) << "Factory reset Hid chip now...";
+
+    // Clear stored baudrate on factory reset
+    clearStoredBaudrate();
 
     if(serialPort->setRequestToSend(true)){
         if (eventCallback != nullptr) {
@@ -574,6 +637,9 @@ bool SerialPortManager::factoryResetHipChipV191(){
     qCDebug(log_core_serial) << "Factory reset Hid chip for 1.9.1 now...";
     if(eventCallback) eventCallback->onStatusUpdate("Factory reset Hid chip now.");
 
+    // Clear stored baudrate on factory reset
+    clearStoredBaudrate();
+
     QByteArray retByte = sendSyncCommand(CMD_SET_DEFAULT_CFG, true);
     if (retByte.size() > 0) {
         qCDebug(log_core_serial) << "Factory reset the hid chip success.";
@@ -583,7 +649,7 @@ bool SerialPortManager::factoryResetHipChipV191(){
         qCDebug(log_core_serial) << "Factory reset the hid chip fail.";
         // toggle to another baudrate
         serialPort->close();
-        setBaudRate(ORIGINAL_BAUDRATE);
+        setBaudRate(anotherBaudrate());
         if(eventCallback) eventCallback->onStatusUpdate("Factory reset the hid chip@9600.");
         if(serialPort->open(QIODevice::ReadWrite)){
             QByteArray retByte = sendSyncCommand(CMD_SET_DEFAULT_CFG, true);
@@ -609,7 +675,7 @@ SerialPortManager::~SerialPortManager() {
     
     // Set shutdown flag
     m_isShuttingDown = true;
-    
+        
     // Properly stop the manager first
     stop();
     
@@ -651,7 +717,7 @@ bool SerialPortManager::openPort(const QString &portName, int baudRate) {
     
     if (serialPort != nullptr && serialPort->isOpen()) {
         qCDebug(log_core_serial) << "Serial port is already opened.";
-        return false;
+        return true;
     }
     
     if(eventCallback!=nullptr) eventCallback->onStatusUpdate("Going to open the port");
@@ -694,6 +760,16 @@ bool SerialPortManager::openPort(const QString &portName, int baudRate) {
         
         // Reset error counters on successful connection
         resetErrorCounters();
+        
+        // Reset error frequency tracking and ensure error handler is connected
+        m_errorCount = 0;
+        m_errorTrackingTimer.restart();
+        if (m_errorHandlerDisconnected) {
+            qCDebug(log_core_serial) << "Reconnecting error handler after successful port opening";
+            connect(serialPort, QOverload<QSerialPort::SerialPortError>::of(&QSerialPort::errorOccurred),
+                   this, &SerialPortManager::handleSerialError);
+            m_errorHandlerDisconnected = false;
+        }
 
         if(eventCallback!=nullptr) eventCallback->onStatusUpdate("");
         if(eventCallback!=nullptr) eventCallback->onPortConnected(portName, baudRate);
@@ -739,6 +815,11 @@ void SerialPortManager::closePort() {
         }
         delete serialPort;
         serialPort = nullptr;
+        
+        // Reset error handler state when port is closed
+        m_errorHandlerDisconnected = false;
+        m_errorCount = 0;
+        m_errorTrackingTimer.restart();
     } else {
         qCDebug(log_core_serial) << "Serial port is not opened.";
     }
@@ -746,6 +827,15 @@ void SerialPortManager::closePort() {
     ready = false;
     if (eventCallback != nullptr) {
         eventCallback->onPortConnected("NA", 0);
+    }
+    
+    // Clear incomplete data buffer when closing port
+    {
+        QMutexLocker bufferLocker(&m_bufferMutex);
+        if (!m_incompleteDataBuffer.isEmpty()) {
+            qCDebug(log_core_serial) << "Clearing incomplete data buffer on port close";
+            m_incompleteDataBuffer.clear();
+        }
     }
     
     // Stop watchdog while port is closed
@@ -804,72 +894,113 @@ void SerialPortManager::readData() {
         qCDebug(log_core_serial) << "Received empty data from serial port";
         return;
     }
+
+        // Prepend any buffered incomplete data from previous reads
+    QByteArray completeData;
+    {
+        QMutexLocker bufferLocker(&m_bufferMutex);
+        if (!m_incompleteDataBuffer.isEmpty()) {
+            completeData = m_incompleteDataBuffer + data;
+            m_incompleteDataBuffer.clear();
+            qCDebug(log_core_serial) << "Prepended buffered data. Total size:" << completeData.size();
+        } else {
+            completeData = data;
+        }
+    }
     
-    if (data.size() >= 6) {
+    if (completeData.size() >= 6) {
         // Reset consecutive errors on successful data read
         resetErrorCounters();
         m_lastSuccessfulCommand.restart();
 
-        unsigned char status = data[5];
-        unsigned char cmdCode = data[3];
+        unsigned char status = completeData[5];
+        unsigned char cmdCode = completeData[3];
 
         if(status != DEF_CMD_SUCCESS && (cmdCode >= 0xC0 && cmdCode <= 0xCF)){
-            dumpError(status, data);
+            dumpError(status, completeData);
             m_consecutiveErrors++;
         }
         else{
-            qCDebug(log_core_serial) << "Receive from serial port @" << serialPort->baudRate() << ":" << data.toHex(' ');
+            qCDebug(log_core_serial) << "Receive from serial port @" << serialPort->baudRate() << ":" << completeData.toHex(' ');
             static QSettings settings("Techxartisan", "Openterface");
             latestUpdateTime = QDateTime::currentDateTime();
             ready = true;
             unsigned char code = cmdCode | 0x80;
             int checkedBaudrate = 0;
             uint8_t mode = (settings.value("hardware/operatingMode", 0x02).toUInt());
-            uint8_t chip_mode = data[5];
+            uint8_t chip_mode = completeData[5];
             switch (code)
             {
             case 0x81:
-                isTargetUsbConnected = CmdGetInfoResult::fromByteArray(data).targetConnected == 0x01;
+                isTargetUsbConnected = CmdGetInfoResult::fromByteArray(completeData).targetConnected == 0x01;
                 if (eventCallback != nullptr) {
                     eventCallback->onTargetUsbConnected(isTargetUsbConnected);
                 }
-                updateSpecialKeyState(CmdGetInfoResult::fromByteArray(data).indicators);
+                updateSpecialKeyState(CmdGetInfoResult::fromByteArray(completeData).indicators);
                 break;
             case 0x82:
-                qCDebug(log_core_serial) << "Keyboard event sent, status" << statusCodeToString(data[5]);
+                qCDebug(log_core_serial) << "Keyboard event sent, status" << statusCodeToString(completeData[5]);
                 break;
             case 0x84:
-                qCDebug(log_core_serial) << "Absolute mouse event sent, status" << statusCodeToString(data[5]);
+                qCDebug(log_core_serial) << "Absolute mouse event sent, status" << statusCodeToString(completeData[5]);
                 break;
             case 0x85:
-                qCDebug(log_core_serial) << "Relative mouse event sent, status" << statusCodeToString(data[5]);
+                qCDebug(log_core_serial) << "Relative mouse event sent, status" << statusCodeToString(completeData[5]);
                 break;
             case 0x88:
                 // get parameter configuration
                 // baud rate 8...11 bytes
-                checkedBaudrate = ((unsigned char)data[8] << 24) | ((unsigned char)data[9] << 16) | ((unsigned char)data[10] << 8) | (unsigned char)data[11];
+                checkedBaudrate = ((unsigned char)completeData[8] << 24) | ((unsigned char)completeData[9] << 16) | ((unsigned char)completeData[10] << 8) | (unsigned char)completeData[11];
 
                 qCDebug(log_core_serial) << "Current serial port baudrate rate:" << checkedBaudrate << ", Mode:" << "0x" + QString::number(mode, 16);
-                if (checkedBaudrate == SerialPortManager::DEFAULT_BAUDRATE && chip_mode == mode) {
-                    qCDebug(log_core_serial) << "Serial is ready for communication.";
-                    setBaudRate(checkedBaudrate);
-                }else{
-                    qCDebug(log_core_serial) << "Serial is not ready for communication.";
-                    //reconfigureHidChip();
-                    QThread::sleep(1);
-                    resetHipChip();
-                    ready=false;
-                }
+                // if (checkedBaudrate == SerialPortManager::DEFAULT_BAUDRATE && chip_mode == mode) {
+                //     qCDebug(log_core_serial) << "Serial is ready for communication.";
+                //     setBaudRate(checkedBaudrate);
+                // }else{
+                //     qCDebug(log_core_serial) << "Serial is not ready for communication.";
+                //     //reconfigureHidChip();
+                //     QThread::sleep(1);
+                //     resetHipChip();
+                //     ready=false;
+                // }
                 //baudrate = checkedBaudrate;
                 break;
+            case 0x89:
+                qCDebug(log_core_serial) << "Set parameter configuration, status" << statusCodeToString(completeData[5]);
+                // If parameter configuration was successful, emit signal to trigger reset
+                if (completeData[5] == DEF_CMD_SUCCESS) {
+                    qCDebug(log_core_serial) << "Parameter configuration successful, emitting signal for reset command";
+                    emit parameterConfigurationSuccess();
+                }
+                break;
+            case 0x8F:
+                qCDebug(log_core_serial) << "Reset command, status" << statusCodeToString(completeData[5]);
+                if (completeData[5] == DEF_CMD_SUCCESS) {
+                    qCDebug(log_core_serial) << "Factory reset successful, clearing stored baudrate";
+                } 
+                break;
             default:
-                qCDebug(log_core_serial) << "Unknown command: " << data.toHex(' ');
+                qCDebug(log_core_serial) << "Unknown command: " << completeData.toHex(' ');
                 break;
             }
         }
     } else {
-        qCWarning(log_core_serial) << "Received incomplete data packet of size:" << data.size();
-        m_consecutiveErrors++;
+        // Store incomplete data in buffer for next batch
+        {
+            QMutexLocker bufferLocker(&m_bufferMutex);
+            
+            // Check if buffer would exceed maximum size
+            if (m_incompleteDataBuffer.size() + completeData.size() > MAX_BUFFER_SIZE) {
+                qCWarning(log_core_serial) << "Buffer overflow protection: clearing old buffer. Old size:" 
+                                           << m_incompleteDataBuffer.size() << "New data size:" << completeData.size();
+                m_incompleteDataBuffer.clear();
+                m_consecutiveErrors++;
+            }
+            
+            m_incompleteDataBuffer = completeData;
+            qCDebug(log_core_serial) << "Buffered incomplete data packet of size:" << completeData.size() << "Data:" << completeData.toHex(' ');
+        }
+        // Don't increment error counter for incomplete data, as it will be processed in next batch
     }
     
     // Check if recovery is needed based on error count
@@ -878,7 +1009,7 @@ void SerialPortManager::readData() {
     }
     
     // qCDebug(log_core_serial) << "Recv read" << data;
-    emit dataReceived(data);
+    emit dataReceived(completeData);
 }
 
 QString SerialPortManager::statusCodeToString(uint8_t status) {
@@ -897,19 +1028,30 @@ QString SerialPortManager::statusCodeToString(uint8_t status) {
             return "Command parameter error";
         case 0xE6:
             return "The data frame failed to execute properly";
+        default:
+            return "Unknown status code";
     } 
 }
 
 /*
- * Reconfigure the HID chip to the default baudrate and mode
+ * Reconfigure the HID chip to the specified baudrate and mode
  */
-bool SerialPortManager::reconfigureHidChip()
+bool SerialPortManager::reconfigureHidChip(int targetBaudrate)
 {
     static QSettings settings("Techxartisan", "Openterface");
     uint8_t mode = (settings.value("hardware/operatingMode", 0x02).toUInt());
-    qCDebug(log_core_serial) << "Reconfigure to baudrate to 115200 and mode 0x" << QString::number(mode, 16);
-    // replace the data with set parameter configuration prefix
-    QByteArray command = CMD_SET_PARA_CFG_PREFIX;
+    qCDebug(log_core_serial) << "Reconfigure to baudrate to" << targetBaudrate << "and mode 0x" << QString::number(mode, 16);
+    
+    // Select the appropriate command prefix based on target baudrate
+    QByteArray command;
+    if (targetBaudrate == BAUDRATE_LOWSPEED) {
+        command = CMD_SET_PARA_CFG_PREFIX_9600;
+        qCDebug(log_core_serial) << "Using 9600 baudrate configuration";
+    } else {
+        command = CMD_SET_PARA_CFG_PREFIX_115200;
+        qCDebug(log_core_serial) << "Using 115200 baudrate configuration";
+    }
+    
     command[5] = mode;  // Set mode byte at index 5 (6th byte)
 
     //append from date 12...31
@@ -919,7 +1061,7 @@ bool SerialPortManager::reconfigureHidChip()
         CmdDataResult dataResult = fromByteArray<CmdDataResult>(retBtyes);
         if(dataResult.data == DEF_CMD_SUCCESS){
             qCDebug(log_core_serial) << "Set data config success, reconfig to 115200 baudrate and mode 0x" << QString::number(mode, 16);
-            return true;
+    return true;
         }else{
             qWarning() << "Set data config fail.";
             dumpError(dataResult.data, retBtyes);
@@ -970,13 +1112,14 @@ bool SerialPortManager::writeData(const QByteArray &data) {
         }
         
         // Wait for write to complete with timeout
-        if (!serialPort->waitForBytesWritten(1000)) {
+        if (!serialPort->waitForBytesWritten(500)) {
             qCWarning(log_core_serial) << "Write timeout occurred";
             m_consecutiveErrors++;
             return false;
         }
         
-        qCDebug(log_core_serial) << "Data written to serial port: @" + serialPort->portName() << ":" << data.toHex(' ');
+        qCDebug(log_core_serial) << "Data written to serial port:" << serialPort->portName()
+                     << "baudrate:" << serialPort->baudRate() << ":" << data.toHex(' ');
         
         // Reset error count on successful write
         if (m_consecutiveErrors > 0) {
@@ -1041,7 +1184,7 @@ QByteArray SerialPortManager::sendSyncCommand(const QByteArray &data, bool force
         return responseData;
         
     }
-    return QByteArray();
+        return QByteArray();
 }
 
 
@@ -1069,9 +1212,18 @@ void SerialPortManager::restartSwitchableUSB(){
 /*
 * Set the USB configuration
 */
-void SerialPortManager::setUSBconfiguration(){
+void SerialPortManager::setUSBconfiguration(int targetBaudrate){
     QSettings settings("Techxartisan", "Openterface");
-    QByteArray command = CMD_SET_PARA_CFG_PREFIX;
+    
+    // Select the appropriate command prefix based on target baudrate
+    QByteArray command;
+    if (targetBaudrate == BAUDRATE_LOWSPEED) {
+        command = CMD_SET_PARA_CFG_PREFIX_9600;
+        qCDebug(log_core_serial) << "Using 9600 baudrate configuration for USB setup";
+    } else {
+        command = CMD_SET_PARA_CFG_PREFIX_115200;
+        qCDebug(log_core_serial) << "Using 115200 baudrate configuration for USB setup";
+    }
 
     QString VID = settings.value("serial/vid", "86 1A").toString();
     QString PID = settings.value("serial/pid", "29 E1").toString();
@@ -1186,12 +1338,72 @@ bool SerialPortManager::setBaudRate(int baudRate) {
     
     if (serialPort->setBaudRate(baudRate)) {
         qCDebug(log_core_serial) << "Baud rate successfully set to" << baudRate;
+        
         emit connectedPortChanged(serialPort->portName(), baudRate);
         return true;
     } else {
         qCWarning(log_core_serial) << "Failed to set baud rate to" << baudRate << ": " << serialPort->errorString();
         return false;
     }
+}
+
+void SerialPortManager::setUserSelectedBaudrate(int baudRate) {
+    qCDebug(log_core_serial) << "User manually selected baudrate:" << baudRate;
+    
+    // Store the user selection immediately
+    GlobalSetting::instance().setSerialPortBaudrate(baudRate);
+    
+    // Apply the baudrate change
+    QByteArray command;
+    static QSettings settings("Techxartisan", "Openterface");
+    uint8_t mode = (settings.value("hardware/operatingMode", 0x02).toUInt());
+    if (baudRate == BAUDRATE_LOWSPEED) {
+        command = CMD_SET_PARA_CFG_PREFIX_9600;
+    } else {
+        command = CMD_SET_PARA_CFG_PREFIX_115200;
+    }
+    command[5] = mode; 
+    command.append(CMD_SET_PARA_CFG_MID);
+    sendAsyncCommand(command, true);
+    bool success = sendResetCommand() && setBaudRate(baudRate) && restartPort();
+    if (success) {
+        qCInfo(log_core_serial) << "User selected baudrate applied successfully:" << baudRate;
+    } else {
+        qCWarning(log_core_serial) << "Failed to apply user selected baudrate:" << baudRate;
+    }
+}
+
+void SerialPortManager::clearStoredBaudrate() {
+    qCDebug(log_core_serial) << "Clearing stored baudrate setting";
+    GlobalSetting::instance().clearSerialPortBaudrate();
+}
+
+// ARM architecture detection and performance prompt
+bool SerialPortManager::isArmArchitecture() {
+    QString architecture = QSysInfo::currentCpuArchitecture();
+    qCDebug(log_core_serial) << "Current CPU architecture:" << architecture;
+    
+    // Check for ARM architectures (arm, arm64, aarch64)
+    return architecture.contains("arm", Qt::CaseInsensitive) || 
+           architecture.contains("aarch64", Qt::CaseInsensitive);
+}
+
+void SerialPortManager::checkArmBaudratePerformance(int baudrate) {
+    // Only check for 115200 baudrate on ARM architecture
+    if (baudrate == BAUDRATE_LOWSPEED || !isArmArchitecture()) {
+        return;
+    }
+    
+    // Check if user has disabled this prompt
+    if (GlobalSetting::instance().getArmBaudratePromptDisabled()) {
+        qCDebug(log_core_serial) << "ARM baudrate performance prompt is disabled by user";
+        return;
+    }
+    
+    qCInfo(log_core_serial) << "ARM architecture detected with 115200 baudrate - emitting performance recommendation signal";
+    
+    // Emit signal to notify UI layer
+    emit armBaudratePerformanceRecommendation(baudrate);
 }
 
 void SerialPortManager::setCommandDelay(int delayMs) {
@@ -1313,9 +1525,56 @@ void SerialPortManager::forceRecovery()
     attemptRecovery();
 }
 
+void SerialPortManager::clearIncompleteDataBuffer()
+{
+    QMutexLocker bufferLocker(&m_bufferMutex);
+    if (!m_incompleteDataBuffer.isEmpty()) {
+        qCDebug(log_core_serial) << "Manually clearing incomplete data buffer. Size:" << m_incompleteDataBuffer.size();
+        m_incompleteDataBuffer.clear();
+    }
+}
+
 void SerialPortManager::handleSerialError(QSerialPort::SerialPortError error)
 {
     if (error == QSerialPort::NoError || m_isShuttingDown) {
+        return;
+    }
+    
+    // Check if error frequency tracking timer needs reset (more than 1 second elapsed)
+    if (m_errorTrackingTimer.elapsed() > 1000) {
+        m_errorCount = 0;
+        m_errorTrackingTimer.restart();
+    }
+    
+    // Increment error count for frequency tracking
+    m_errorCount++;
+    
+    // Auto-disconnect mechanism: if more than 5 errors in one second
+    if (m_errorCount > MAX_ERRORS_PER_SECOND && !m_errorHandlerDisconnected) {
+        qCWarning(log_core_serial) << "Too many serial errors (" << m_errorCount.load() 
+                                   << ") within one second. Disconnecting error handler to prevent flooding.";
+        
+        if (serialPort) {
+            disconnect(serialPort, QOverload<QSerialPort::SerialPortError>::of(&QSerialPort::errorOccurred),
+                      this, &SerialPortManager::handleSerialError);
+        }
+        m_errorHandlerDisconnected = true;
+        
+        // Schedule reconnection after 5 seconds
+        QTimer::singleShot(5000, this, [this]() {
+            if (serialPort && !m_isShuttingDown) {
+                qCInfo(log_core_serial) << "Reconnecting error handler after cooldown period";
+                connect(serialPort, QOverload<QSerialPort::SerialPortError>::of(&QSerialPort::errorOccurred),
+                       this, &SerialPortManager::handleSerialError);
+                m_errorHandlerDisconnected = false;
+                m_errorCount = 0;
+                m_errorTrackingTimer.restart();
+            }
+        });
+        
+        // Force immediate recovery attempt for the current error
+        ready = false;
+        attemptRecovery();
         return;
     }
     
