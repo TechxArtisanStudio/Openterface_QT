@@ -1,7 +1,11 @@
 #include "cameramanager.h"
 #include "host/multimediabackend.h"
+
+#ifndef Q_OS_WIN
 #include "host/backend/gstreamerbackendhandler.h"
 #include "host/backend/ffmpegbackendhandler.h"
+#endif
+
 #include "ui/videopane.h"
 
 #include <QLoggingCategory>
@@ -37,12 +41,11 @@ CameraManager::CameraManager(QObject *parent)
     if (!isWindowsPlatform()) {
         initializeBackendHandler();
     } else {
-        qCDebug(log_ui_camera) << "Windows platform detected - using direct QCamera approach with hotplug support";
+        qCDebug(log_ui_camera) << "Windows platform detected - using direct QCamera approach without backend handlers";
         // Setup Windows-specific hotplug monitoring
         setupWindowsHotplugMonitoring();
-        qCDebug(log_ui_camera) << "Windows platform detected - using direct QCamera approach with hotplug support";
-        // Setup Windows-specific hotplug monitoring
-        setupWindowsHotplugMonitoring();
+        // Ensure backend handler is null on Windows
+        m_backendHandler.reset();
     }
     
     // Connect to hotplug monitor for all platforms
@@ -63,10 +66,6 @@ CameraManager::CameraManager(QObject *parent)
     displayAllCameraDeviceIds();
 }
 
-CameraManager::~CameraManager() {
-    // Disconnect from hotplug monitoring
-    disconnectFromHotplugMonitor();
-}
 CameraManager::~CameraManager() {
     // Disconnect from hotplug monitoring
     disconnectFromHotplugMonitor();
@@ -126,7 +125,8 @@ void CameraManager::initializeBackendHandler()
                         emit cameraError(error);
                     });
             
-            // Connect FFmpeg-specific signals if this is an FFmpeg backend
+            // Connect FFmpeg-specific signals if this is an FFmpeg backend (non-Windows only)
+#ifndef Q_OS_WIN
             if (auto ffmpegHandler = qobject_cast<FFmpegBackendHandler*>(m_backendHandler.get())) {
                 qCDebug(log_ui_camera) << "Setting up FFmpeg backend specific signal connections";
                 
@@ -168,6 +168,7 @@ void CameraManager::initializeBackendHandler()
                 
                 qCDebug(log_ui_camera) << "FFmpeg backend signal connections established";
             }
+#endif
         } else {
             qCCritical(log_ui_camera) << "Failed to create backend handler - returned nullptr";
         }
@@ -180,6 +181,13 @@ void CameraManager::initializeBackendHandler()
 
 void CameraManager::updateBackendHandler()
 {
+    // On Windows, never use backend handlers
+    if (isWindowsPlatform()) {
+        qCDebug(log_ui_camera) << "Windows platform: Backend handlers disabled, skipping update";
+        m_backendHandler.reset();
+        return;
+    }
+    
     qCDebug(log_ui_camera) << "Updating multimedia backend handler";
     
     // Store the current backend type for comparison
@@ -246,8 +254,8 @@ void CameraManager::setCameraDevice(const QCameraDevice &cameraDevice)
             return;
         }
         
-        // Use backend handler for camera preparation if available
-        if (m_backendHandler) {
+        // Use backend handler for camera preparation if available (only on non-Windows)
+        if (!isWindowsPlatform() && m_backendHandler) {
             qCDebug(log_ui_camera) << "Using backend handler for camera device setup";
             m_backendHandler->prepareCameraCreation(m_camera.get());
         }
@@ -260,20 +268,24 @@ void CameraManager::setCameraDevice(const QCameraDevice &cameraDevice)
             return;
         }
         
-        // Configure camera device with backend handler (this will set up device paths for GStreamer)
-        if (m_backendHandler) {
+        // Configure camera device with backend handler (only on non-Windows platforms)
+        if (!isWindowsPlatform() && m_backendHandler) {
             qCDebug(log_ui_camera) << "Calling configureCameraDevice on backend handler:" << m_backendHandler->getBackendName();
             m_backendHandler->configureCameraDevice(m_camera.get(), cameraDevice);
             qCDebug(log_ui_camera) << "configureCameraDevice call completed";
         } else {
-            qCWarning(log_ui_camera) << "No backend handler available for configureCameraDevice";
+            if (isWindowsPlatform()) {
+                qCDebug(log_ui_camera) << "Windows platform: Skipping backend handler configuration";
+            } else {
+                qCWarning(log_ui_camera) << "No backend handler available for configureCameraDevice";
+            }
         }
         
         // Setup connections before setting up capture session
         setupConnections();
         
-        // Set up capture session with backend-specific timing
-        if (m_backendHandler) {
+        // Set up capture session - use simple approach on Windows
+        if (!isWindowsPlatform() && m_backendHandler) {
             m_backendHandler->setupCaptureSession(&m_captureSession, m_camera.get());
             
             // For GStreamer direct pipeline, skip image capture setup to avoid device conflicts
@@ -285,7 +297,10 @@ void CameraManager::setCameraDevice(const QCameraDevice &cameraDevice)
                 m_captureSession.setImageCapture(m_imageCapture.get());
             }
         } else {
-            // Fallback: standard setup
+            // Windows or fallback: standard setup
+            if (isWindowsPlatform()) {
+                qCDebug(log_ui_camera) << "Windows: Using standard Qt capture session setup";
+            }
             m_captureSession.setCamera(m_camera.get());
             m_captureSession.setImageCapture(m_imageCapture.get());
         }
@@ -364,7 +379,7 @@ void CameraManager::startCamera()
                 }
             }
             // Use backend handler for video output setup and camera start on non-Windows
-            else if (m_backendHandler) {
+            else if (!isWindowsPlatform() && m_backendHandler) {
                 // Ensure device is configured with backend handler
                 if (m_backendHandler) {
                     qCDebug(log_ui_camera) << "Re-configuring camera device with backend handler";
@@ -389,11 +404,13 @@ void CameraManager::startCamera()
                     
                     qCDebug(log_ui_camera) << "Setting GStreamer resolution:" << resolution << "framerate:" << framerate;
                     
-                    // Cast to GStreamer backend handler to set resolution
+                    // Cast to GStreamer backend handler to set resolution (non-Windows only)
+#ifndef Q_OS_WIN
                     auto* gstreamerHandler = qobject_cast<GStreamerBackendHandler*>(m_backendHandler.get());
                     if (gstreamerHandler) {
                         gstreamerHandler->setResolutionAndFramerate(resolution, framerate);
                     }
+#endif
                 }
                 
                 // For GStreamer backend, let it handle the entire video pipeline
@@ -487,15 +504,15 @@ void CameraManager::stopCamera()
 
         if (m_camera) {
             // Check if camera is already stopped to avoid redundant stops
-            if (!m_camera->isActive() && (!m_backendHandler || !isGStreamerBackend())) {
+            if (!m_camera->isActive() && (isWindowsPlatform() || !m_backendHandler || !isGStreamerBackend())) {
                 qCDebug(log_ui_camera) << "Camera is already stopped";
                 return;
             }
             
             qCDebug(log_ui_camera) << "Stopping camera:" << m_camera->cameraDevice().description();
             
-            // Use backend handler for camera shutdown
-            if (m_backendHandler) {
+            // Use backend handler for camera shutdown (only on non-Windows)
+            if (!isWindowsPlatform() && m_backendHandler) {
                 if (isGStreamerBackend()) {
                     qCDebug(log_ui_camera) << "Using GStreamer backend - stopping direct pipeline";
                     // GStreamer backend will handle stopping both direct pipeline and Qt camera
@@ -509,8 +526,12 @@ void CameraManager::stopCamera()
                     qCDebug(log_ui_camera) << "Standard backend camera shutdown completed";
                 }
             } else {
-                // Fallback: direct camera stop
-                qCDebug(log_ui_camera) << "No backend handler, using direct camera stop";
+                // Windows or fallback: direct camera stop
+                if (isWindowsPlatform()) {
+                    qCDebug(log_ui_camera) << "Windows: Using direct camera stop";
+                } else {
+                    qCDebug(log_ui_camera) << "No backend handler, using direct camera stop";
+                }
                 m_camera->stop();
                 emit cameraActiveChanged(false);
             }
@@ -707,6 +728,23 @@ void CameraManager::setupConnections()
 
 void CameraManager::configureResolutionAndFormat()
 {
+    // On Windows, use simple Qt approach without backend handlers
+    if (isWindowsPlatform()) {
+        qCDebug(log_ui_camera) << "Windows platform: Using simple Qt camera format configuration";
+        
+        QSize resolution = QSize(m_video_width > 0 ? m_video_width : 1920, 
+                                m_video_height > 0 ? m_video_height : 1080);
+        int desiredFps = GlobalVar::instance().getCaptureFps() > 0 ? 
+            GlobalVar::instance().getCaptureFps() : 30;
+        
+        qCDebug(log_ui_camera) << "Windows: Setting resolution:" << resolution << "fps:" << desiredFps;
+        
+        // Use basic Qt camera format setting
+        QCameraFormat format = getVideoFormat(resolution, desiredFps, QVideoFrameFormat::Format_Jpeg);
+        setCameraFormat(format);
+        return;
+    }
+    
     // For GStreamer backend using direct pipeline, avoid all Qt camera interactions
     if (m_backendHandler && isGStreamerBackend()) {
         qCDebug(log_ui_camera) << "GStreamer backend detected - skipping all Qt camera format operations to avoid device conflicts";
@@ -719,13 +757,15 @@ void CameraManager::configureResolutionAndFormat()
         
         qCDebug(log_ui_camera) << "Configuring GStreamer backend with resolution:" << resolution << "fps:" << desiredFps;
         
-        // Cast to GStreamer backend handler to access specific methods
+        // Cast to GStreamer backend handler to access specific methods (non-Windows only)
+#ifndef Q_OS_WIN
         auto* gstreamerHandler = qobject_cast<GStreamerBackendHandler*>(m_backendHandler.get());
         if (gstreamerHandler) {
             gstreamerHandler->setResolutionAndFramerate(resolution, desiredFps);
         } else {
             qCWarning(log_ui_camera) << "Failed to cast to GStreamer backend handler";
         }
+#endif
         
         return; // Exit early for GStreamer to avoid all Qt camera access
     }
@@ -762,13 +802,15 @@ void CameraManager::configureResolutionAndFormat()
     if (m_backendHandler && isGStreamerBackend()) {
         qCDebug(log_ui_camera) << "Configuring GStreamer backend with resolution:" << resolution << "fps:" << optimalFps;
         
-        // Cast to GStreamer backend handler to access specific methods
+        // Cast to GStreamer backend handler to access specific methods (non-Windows only)
+#ifndef Q_OS_WIN
         auto* gstreamerHandler = qobject_cast<GStreamerBackendHandler*>(m_backendHandler.get());
         if (gstreamerHandler) {
             gstreamerHandler->setResolutionAndFramerate(resolution, optimalFps);
         } else {
             qCWarning(log_ui_camera) << "Failed to cast to GStreamer backend handler";
         }
+#endif
         
         // For GStreamer direct pipeline mode, skip Qt camera format setting to avoid device conflicts
         qCDebug(log_ui_camera) << "Skipping Qt camera format setting for GStreamer direct pipeline";
@@ -786,8 +828,8 @@ void CameraManager::setCameraFormat(const QCameraFormat &format) {
                                << "resolution=" << format.resolution()
                                << "frameRate=" << format.minFrameRate() << "-" << format.maxFrameRate();
         
-        // Validate format with backend handler if available
-        if (m_backendHandler && !format.isNull()) {
+        // Validate format with backend handler if available (only on non-Windows)
+        if (!isWindowsPlatform() && m_backendHandler && !format.isNull()) {
             validateCameraFormat(format);
         }
         
@@ -855,8 +897,8 @@ QList<QVideoFrameFormat> CameraManager::getSupportedPixelFormats() const {
 
 
 QCameraFormat CameraManager::getVideoFormat(const QSize &resolution, int desiredFrameRate, QVideoFrameFormat::PixelFormat pixelFormat) const {
-    // Use backend handler for format selection if available
-    if (m_backendHandler) {
+    // Use backend handler for format selection only on non-Windows platforms
+    if (!isWindowsPlatform() && m_backendHandler) {
         qCDebug(log_ui_camera) << "Using backend handler for format selection:"
                                << "resolution=" << resolution
                                << "frameRate=" << desiredFrameRate
@@ -874,7 +916,11 @@ QCameraFormat CameraManager::getVideoFormat(const QSize &resolution, int desired
             qCWarning(log_ui_camera) << "Backend handler failed to select format, falling back to manual selection";
         }
     } else {
-        qCDebug(log_ui_camera) << "No backend handler available, using fallback format selection";
+        if (isWindowsPlatform()) {
+            qCDebug(log_ui_camera) << "Windows platform: Using fallback format selection";
+        } else {
+            qCDebug(log_ui_camera) << "No backend handler available, using fallback format selection";
+        }
     }
     
     // Fallback to basic format selection if no backend handler or backend selection failed
@@ -914,7 +960,7 @@ QCameraFormat CameraManager::getVideoFormat(const QSize &resolution, int desired
 
 QList<int> CameraManager::getSupportedFrameRates(const QCameraFormat& format) const
 {
-    if (m_backendHandler) {
+    if (!isWindowsPlatform() && m_backendHandler) {
         return m_backendHandler->getSupportedFrameRates(format);
     }
     
@@ -946,7 +992,7 @@ QList<int> CameraManager::getSupportedFrameRates(const QCameraFormat& format) co
 
 bool CameraManager::isFrameRateSupported(const QCameraFormat& format, int frameRate) const
 {
-    if (m_backendHandler) {
+    if (!isWindowsPlatform() && m_backendHandler) {
         return m_backendHandler->isFrameRateSupported(format, frameRate);
     }
     
@@ -967,7 +1013,7 @@ int CameraManager::getOptimalFrameRate(int desiredFrameRate) const
         return desiredFrameRate;
     }
     
-    if (m_backendHandler) {
+    if (!isWindowsPlatform() && m_backendHandler) {
         // Use backend handler to get the optimal frame rate
         QList<int> supportedRates = m_backendHandler->getSupportedFrameRates(currentFormat);
         
@@ -1045,7 +1091,7 @@ void CameraManager::validateCameraFormat(const QCameraFormat& format) const
     qCDebug(log_ui_camera) << "Frame rate range:" << format.minFrameRate() << "-" << format.maxFrameRate();
     qCDebug(log_ui_camera) << "Pixel format:" << static_cast<int>(format.pixelFormat());
     
-    if (m_backendHandler) {
+    if (!isWindowsPlatform() && m_backendHandler) {
         QList<int> supportedRates = m_backendHandler->getSupportedFrameRates(format);
         qCDebug(log_ui_camera) << "Backend supported frame rates:" << supportedRates;
         
@@ -1054,6 +1100,12 @@ void CameraManager::validateCameraFormat(const QCameraFormat& format) const
         for (int rate : testRates) {
             bool supported = m_backendHandler->isFrameRateSupported(format, rate);
             qCDebug(log_ui_camera) << "Frame rate" << rate << "supported:" << supported;
+        }
+    } else {
+        if (isWindowsPlatform()) {
+            qCDebug(log_ui_camera) << "Windows platform: Skipping backend format validation";
+        } else {
+            qCDebug(log_ui_camera) << "No backend handler available for format validation";
         }
     }
     
@@ -1730,11 +1782,12 @@ bool CameraManager::initializeCameraWithVideoOutput(VideoPane* videoPane)
         return false;
     }
     
-    // Check if we're using FFmpeg backend for direct capture
-    if (isFFmpegBackend() && m_backendHandler) {
+    // Check if we're using FFmpeg backend for direct capture (only on non-Windows)
+    if (!isWindowsPlatform() && isFFmpegBackend() && m_backendHandler) {
         qDebug() << "Using FFmpeg backend for direct capture";
         
         // Cast to FFmpegBackendHandler to access direct capture methods
+#ifndef Q_OS_WIN
         auto* ffmpegHandler = dynamic_cast<FFmpegBackendHandler*>(m_backendHandler.get());
         if (ffmpegHandler) {
             // Enable direct FFmpeg mode in VideoPane
@@ -1827,6 +1880,7 @@ bool CameraManager::initializeCameraWithVideoOutput(VideoPane* videoPane)
         } else {
             qCWarning(log_ui_camera) << "Failed to cast to FFmpegBackendHandler";
         }
+#endif
     }
     
     // Fall back to standard Qt camera approach with QGraphicsVideoItem
@@ -2186,6 +2240,12 @@ void CameraManager::disconnectFromHotplugMonitor()
 
 void CameraManager::handleFFmpegDeviceDisconnection(const QString& devicePath)
 {
+    // On Windows, FFmpeg backend is not used, so skip this handling
+    if (isWindowsPlatform()) {
+        qCDebug(log_ui_camera) << "Windows platform: Skipping FFmpeg device disconnection handling";
+        return;
+    }
+    
     qCDebug(log_ui_camera) << "Handling FFmpeg device disconnection for:" << devicePath;
     
     // Check if the disconnected device is our current device
@@ -2207,6 +2267,7 @@ void CameraManager::handleFFmpegDeviceDisconnection(const QString& devicePath)
             }
             
             // Check if this device is available
+#ifndef Q_OS_WIN
             if (auto ffmpegHandler = qobject_cast<FFmpegBackendHandler*>(m_backendHandler.get())) {
                 // Convert device ID to device path
                 QString testDevicePath;
@@ -2230,6 +2291,7 @@ void CameraManager::handleFFmpegDeviceDisconnection(const QString& devicePath)
                     break;
                 }
             }
+#endif
         }
         
         if (!replacementDevice.isNull()) {
