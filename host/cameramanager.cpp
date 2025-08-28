@@ -67,10 +67,6 @@ CameraManager::~CameraManager() {
     // Disconnect from hotplug monitoring
     disconnectFromHotplugMonitor();
 }
-CameraManager::~CameraManager() {
-    // Disconnect from hotplug monitoring
-    disconnectFromHotplugMonitor();
-}
 
 bool CameraManager::isWindowsPlatform()
 {

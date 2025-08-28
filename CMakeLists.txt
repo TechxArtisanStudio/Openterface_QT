@@ -530,8 +530,7 @@ if(USE_GSTREAMER AND EXISTS "${GSTREAMER_INCLUDE_DIR}/gst/gst.h" AND EXISTS "${G
             "gstxvimagesink"      # xvimagesink
             "gstautodetect"       # autovideosink
             "gstplayback"         # playback elements
-            "gstdmabuf"          # DMA buffer support
-            "gstalloc"           # Memory allocators
+            # Note: DMA buffer and allocator support is provided by libgstallocators-1.0 core library
         )
         
         # Combine all plugins for searching
@@ -897,41 +896,36 @@ else()
     set(FFMPEG_LIB_EXT ".so")
 endif()
 
-# Set FFmpeg libraries - use pkg-config results if available, otherwise use manual paths
-if(PC_LIBAVFORMAT_FOUND AND NOT USE_FFMPEG_STATIC)
-    # Use pkg-config library names for dynamic linking
-    set(FFMPEG_LIBRARIES 
-        avdevice
-        avfilter
-        avformat
-        avcodec
-        swresample
-        swscale
-        avutil
-    )
-    message(STATUS "Using pkg-config FFmpeg libraries: ${FFMPEG_LIBRARIES}")
-else()
-    # For static builds or when pkg-config not available, force correct paths
-    if(USE_FFMPEG_STATIC AND EXISTS "/opt/Qt6-arm64/lib/libavformat.a")
-        # Force Qt6 static FFmpeg paths
-        set(FFMPEG_PREFIX "/opt/Qt6-arm64")
-        set(FFMPEG_LIB_DIR "/opt/Qt6-arm64/lib")
-        message(STATUS "Forcing Qt6 static FFmpeg prefix: ${FFMPEG_PREFIX}")
-        message(STATUS "Forcing Qt6 static FFmpeg library directory: ${FFMPEG_LIB_DIR}")
+# Set FFmpeg libraries - force static libraries for this build
+message(STATUS "FFmpeg static linking forced - USE_FFMPEG_STATIC: ${USE_FFMPEG_STATIC}")
+
+# Force Qt6 static FFmpeg paths regardless of pkg-config
+set(FFMPEG_PREFIX "/opt/Qt6-arm64")
+set(FFMPEG_LIB_DIR "/opt/Qt6-arm64/lib")
+set(FFMPEG_LIB_EXT ".a")
+message(STATUS "Forcing Qt6 static FFmpeg prefix: ${FFMPEG_PREFIX}")
+message(STATUS "Forcing Qt6 static FFmpeg library directory: ${FFMPEG_LIB_DIR}")
+
+# Use full paths for static linking - CRITICAL: avdevice must be first
+set(FFMPEG_LIBRARIES 
+    "${FFMPEG_LIB_DIR}/libavdevice${FFMPEG_LIB_EXT}"
+    "${FFMPEG_LIB_DIR}/libavfilter${FFMPEG_LIB_EXT}"
+    "${FFMPEG_LIB_DIR}/libavformat${FFMPEG_LIB_EXT}"
+    "${FFMPEG_LIB_DIR}/libavcodec${FFMPEG_LIB_EXT}"
+    "${FFMPEG_LIB_DIR}/libswresample${FFMPEG_LIB_EXT}"
+    "${FFMPEG_LIB_DIR}/libswscale${FFMPEG_LIB_EXT}"
+    "${FFMPEG_LIB_DIR}/libavutil${FFMPEG_LIB_EXT}"
+)
+message(STATUS "Using forced static FFmpeg library paths: ${FFMPEG_LIBRARIES}")
+
+# Verify all FFmpeg libraries exist
+foreach(FFMPEG_LIB ${FFMPEG_LIBRARIES})
+    if(EXISTS "${FFMPEG_LIB}")
+        message(STATUS "✓ Found: ${FFMPEG_LIB}")
+    else()
+        message(FATAL_ERROR "✗ Missing: ${FFMPEG_LIB}")
     endif()
-    
-    # Use full paths for static linking or when pkg-config not available
-    set(FFMPEG_LIBRARIES 
-        "${FFMPEG_LIB_DIR}/libavdevice${FFMPEG_LIB_EXT}"
-        "${FFMPEG_LIB_DIR}/libavfilter${FFMPEG_LIB_EXT}"
-        "${FFMPEG_LIB_DIR}/libavformat${FFMPEG_LIB_EXT}"
-        "${FFMPEG_LIB_DIR}/libavcodec${FFMPEG_LIB_EXT}"
-        "${FFMPEG_LIB_DIR}/libswresample${FFMPEG_LIB_EXT}"
-        "${FFMPEG_LIB_DIR}/libswscale${FFMPEG_LIB_EXT}"
-        "${FFMPEG_LIB_DIR}/libavutil${FFMPEG_LIB_EXT}"
-    )
-    message(STATUS "Using manual FFmpeg library paths: ${FFMPEG_LIBRARIES}")
-endif()
+endforeach()
 
 # Set include directory after prefix has been potentially corrected
 if(NOT FFMPEG_PKG_CONFIG OR NOT FFMPEG_INCLUDE_DIRS)
@@ -1187,21 +1181,33 @@ if(TURBOJPEG_LIBRARY)
     target_link_libraries(openterfaceQT PRIVATE ${TURBOJPEG_LIBRARIES})
 endif()
 
-# Add FFmpeg libraries if available
-if(EXISTS "${FFMPEG_PREFIX}/include/libavformat/avformat.h" OR EXISTS "${FFMPEG_PREFIX}/libavformat/avformat.h")
+# Add FFmpeg libraries if available - FIXED for avdevice_register_all
+if(EXISTS "/opt/Qt6-arm64/include/avformat.h")
+    # Use specific library order for static FFmpeg linking
+    # NOTE: libavdevice must be linked with --whole-archive to include avdevice_register_all
     target_link_libraries(openterfaceQT PRIVATE 
-        ${FFMPEG_LIBRARIES}
+        -Wl,--whole-archive
+        /opt/Qt6-arm64/lib/libavdevice.a
+        -Wl,--no-whole-archive
+        /opt/Qt6-arm64/lib/libavfilter.a
+        /opt/Qt6-arm64/lib/libavformat.a
+        /opt/Qt6-arm64/lib/libavcodec.a
+        /opt/Qt6-arm64/lib/libswresample.a
+        /opt/Qt6-arm64/lib/libswscale.a
+        /opt/Qt6-arm64/lib/libavutil.a
         jpeg      # Required by static FFmpeg
         turbojpeg # Required by static FFmpeg  
         pthread   # Required by static FFmpeg
         m         # Math library required by static FFmpeg
         z         # Zlib required by static FFmpeg
         lzma      # LZMA required by static FFmpeg
+        bz2       # BZip2 required by static FFmpeg
         drm       # Direct Rendering Manager for hardware acceleration
         va        # VA-API for hardware acceleration
         va-drm    # VA-API DRM backend
         va-x11    # VA-API X11 backend
     )
+    message(STATUS "Fixed FFmpeg libraries linked with avdevice support")
 endif()
 
 # Add libjpeg libraries if available
@@ -1676,7 +1682,7 @@ install(FILES ${CMAKE_SOURCE_DIR}/com.openterface.openterfaceQT.metainfo.xml
 
 qt_generate_deploy_app_script(
     TARGET openterfaceQT
-    FILENAME_VARIABLE deploy_script
+    OUTPUT_SCRIPT deploy_script
     NO_UNSUPPORTED_PLATFORM_ERROR
 )
 install(SCRIPT ${deploy_script})

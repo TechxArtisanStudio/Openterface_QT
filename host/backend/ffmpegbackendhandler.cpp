@@ -472,11 +472,8 @@ bool FFmpegBackendHandler::initializeFFmpeg()
     av_log_set_level(AV_LOG_WARNING); // Reduce FFmpeg log noise
     
     // Register all devices - required for V4L2 input device support
-    // Even in newer FFmpeg versions, avdevice_register_all() is still needed for input devices
-#ifdef HAVE_FFMPEG
     avdevice_register_all();
     qCDebug(log_ffmpeg_backend) << "FFmpeg devices registered";
-#endif
     
 #ifdef HAVE_LIBJPEG_TURBO
     // Initialize TurboJPEG decompressor
