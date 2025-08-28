@@ -8,6 +8,7 @@
 #include "../ui/globalsetting.h"
 #include "../video/videohid.h"
 #include "../serial/SerialPortManager.h"
+#include "../host/audiomanager.h"
 #include <QMutexLocker>
 #include <QtConcurrent>
 
@@ -170,7 +171,7 @@ DeviceInfo DeviceManager::getFirstAvailableDevice()
 
 DeviceManager::DeviceSwitchResult DeviceManager::switchToDeviceByPortChain(const QString& portChain)
 {
-    DeviceSwitchResult result = {false, false, false, false, "", DeviceInfo()};
+    DeviceSwitchResult result = {false, false, false, false, false, "", DeviceInfo()};
     
     if (portChain.isEmpty()) {
         result.statusMessage = "Cannot switch to device with empty port chain";
@@ -216,6 +217,18 @@ DeviceManager::DeviceSwitchResult DeviceManager::switchToDeviceByPortChain(const
         }
     }
     
+    // Switch audio device
+    if (selectedDevice.hasAudioDevice()) {
+        result.audioSuccess = AudioManager::getInstance().switchToAudioDeviceByPortChain(portChain);
+        if (result.audioSuccess) {
+            successMessages << "Audio device switched";
+            qCInfo(log_device_manager) << "✓ Audio device switched to device at port:" << portChain;
+        } else {
+            failureMessages << "Audio device switch failed";
+            qCWarning(log_device_manager) << "Failed to switch audio device to port:" << portChain;
+        }
+    }
+    
     // Switch serial port device
     if (selectedDevice.hasSerialPort()) {
         result.serialSuccess = SerialPortManager::getInstance().switchSerialPortByPortChain(portChain);
@@ -232,9 +245,10 @@ DeviceManager::DeviceSwitchResult DeviceManager::switchToDeviceByPortChain(const
     setCurrentSelectedDevice(selectedDevice);
     
     // Determine overall success and create status message
-    bool hasSuccess = result.hidSuccess || result.serialSuccess;
+    bool hasSuccess = result.hidSuccess || result.serialSuccess || result.audioSuccess;
     bool hasFailure = (!result.hidSuccess && selectedDevice.hasHidDevice()) || 
-                      (!result.serialSuccess && selectedDevice.hasSerialPort());
+                      (!result.serialSuccess && selectedDevice.hasSerialPort()) ||
+                      (!result.audioSuccess && selectedDevice.hasAudioDevice());
     
     if (hasSuccess && !hasFailure) {
         result.success = true;
@@ -418,6 +432,27 @@ bool DeviceManager::switchHIDDeviceByPortChain(const QString& portChain)
         return success;
     } catch (const std::exception& e) {
         qCCritical(log_device_manager) << "Exception while switching HID device:" << e.what();
+        return false;
+    }
+}
+
+bool DeviceManager::switchAudioDeviceByPortChain(const QString& portChain)
+{
+    qCDebug(log_device_manager) << "Attempting to switch audio device to device at port chain:" << portChain;
+    
+    try {
+        AudioManager& audioManager = AudioManager::getInstance();
+        bool success = audioManager.switchToAudioDeviceByPortChain(portChain);
+        
+        if (success) {
+            qCInfo(log_device_manager) << "✓ Successfully switched audio device to port chain:" << portChain;
+        } else {
+            qCWarning(log_device_manager) << "Failed to switch audio device to port chain:" << portChain;
+        }
+        
+        return success;
+    } catch (const std::exception& e) {
+        qCCritical(log_device_manager) << "Exception while switching audio device:" << e.what();
         return false;
     }
 }
