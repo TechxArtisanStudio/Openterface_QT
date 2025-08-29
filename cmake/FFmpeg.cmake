@@ -42,23 +42,19 @@ else()
     )
 endif()
 
-# Also check if FFMPEG_PREFIX was set via CMAKE_PREFIX_PATH or environment
-if(DEFINED ENV{FFMPEG_PREFIX})
-    list(INSERT FFMPEG_SEARCH_PATHS 0 "$ENV{FFMPEG_PREFIX}")
-endif()
-
-# For dynamic builds, try pkg-config first as it's more reliable
+# Attempt to locate FFmpeg libraries
 if(OPENTERFACE_BUILD_STATIC)
     # Prefer FFmpeg shipped inside the Qt build tree if it actually exists there.
     set(_qt_lib_dir "${QT_BUILD_PATH}/lib")
     if(EXISTS "${_qt_lib_dir}/libavformat.a" AND EXISTS "${QT_BUILD_PATH}/include/avformat.h")
         set(FFMPEG_LIB_DIR ${_qt_lib_dir})
-        set(FFMPEG_PREFIX ${QT_BUILD_PATH})
+        set(FFMPEG_INCLUDE_DIRS "${QT_BUILD_PATH}/include")
         message(STATUS "Found FFmpeg static libraries in Qt build path: ${FFMPEG_LIB_DIR}")
         set(FFMPEG_FOUND TRUE)
     else()
         # Keep the previous behavior as a fallback (directory may be validated later)
         set(FFMPEG_LIB_DIR ${_qt_lib_dir})
+        set(FFMPEG_INCLUDE_DIRS "${QT_BUILD_PATH}/include")
         message(STATUS "FFmpeg static libs not found at ${_qt_lib_dir} - will try other search methods")
     endif()
 else()
@@ -66,7 +62,6 @@ else()
     set(_qt_lib_dir "${QT_BUILD_PATH}/lib")
     if(EXISTS "${_qt_lib_dir}/libavformat.so" AND EXISTS "${QT_BUILD_PATH}/include/avformat.h")
         set(FFMPEG_LIB_DIR ${_qt_lib_dir})
-        set(FFMPEG_PREFIX ${QT_BUILD_PATH})
         message(STATUS "Found FFmpeg shared libraries in Qt build path: ${FFMPEG_LIB_DIR}")
         set(FFMPEG_FOUND TRUE)
     endif()
@@ -84,7 +79,6 @@ else()
                 message(STATUS "pkg-config FFmpeg library dirs: ${PC_LIBAVFORMAT_LIBRARY_DIRS}")
                 message(STATUS "pkg-config FFmpeg libraries: ${PC_LIBAVFORMAT_LIBRARIES}")
 
-                set(FFMPEG_PREFIX "/usr")
                 # Use pkg-config library directories if available, otherwise fallback
                 if(PC_LIBAVFORMAT_LIBRARY_DIRS)
                     list(GET PC_LIBAVFORMAT_LIBRARY_DIRS 0 FFMPEG_LIB_DIR)
@@ -137,9 +131,7 @@ if(NOT FFMPEG_FOUND)
         foreach(LIB_PATH ${LIB_PATHS})
             message(STATUS "Checking for FFmpeg in: ${LIB_PATH}/${LIB_NAME}")
             if(EXISTS "${LIB_PATH}/${LIB_NAME}" AND EXISTS "${SEARCH_PATH}/include/libavformat/avformat.h")
-                set(FFMPEG_PREFIX "${SEARCH_PATH}")
                 set(FFMPEG_LIB_DIR "${LIB_PATH}")
-                message(STATUS "Found FFmpeg installation at: ${FFMPEG_PREFIX}")
                 message(STATUS "FFmpeg libraries in: ${FFMPEG_LIB_DIR}")
                 message(STATUS "Using ${LIB_EXTENSION} libraries")
                 set(FFMPEG_FOUND TRUE)
@@ -156,8 +148,8 @@ endif()
 # FFmpeg configuration complete - show final status
 if(FFMPEG_FOUND)
     message(STATUS "FFmpeg configuration successful")
-    message(STATUS "FFmpeg prefix: ${FFMPEG_PREFIX}")
     message(STATUS "FFmpeg library directory: ${FFMPEG_LIB_DIR}")
+    message(STATUS "FFmpeg include directory: ${FFMPEG_INCLUDE_DIRS}")
     if(FFMPEG_PKG_CONFIG)
         message(STATUS "FFmpeg detected via: pkg-config")
     else()
@@ -171,11 +163,6 @@ endif()
 if(FFMPEG_PKG_CONFIG AND FFMPEG_INCLUDE_DIRS)
     # Use pkg-config include directories if available
     message(STATUS "Using pkg-config include directories: ${FFMPEG_INCLUDE_DIRS}")
-endif()
-
-# Use architecture-specific library directory if set, otherwise use standard lib directory
-if(NOT FFMPEG_LIB_DIR)
-    set(FFMPEG_LIB_DIR "${FFMPEG_PREFIX}/lib")
 endif()
 
 # Set library extension based on static/dynamic preference
@@ -205,12 +192,6 @@ foreach(FFMPEG_LIB ${FFMPEG_LIBRARIES})
         message(FATAL_ERROR "✗ Missing: ${FFMPEG_LIB}")
     endif()
 endforeach()
-
-# Set include directory after prefix has been potentially corrected
-if(NOT FFMPEG_PKG_CONFIG OR NOT FFMPEG_INCLUDE_DIRS)
-    # Use standard include directory based on the final prefix
-    set(FFMPEG_INCLUDE_DIRS "${FFMPEG_PREFIX}/include")
-endif()
 
 # Add hardware acceleration libraries required by FFmpeg (optional)
 set(HWACCEL_LIBRARIES)
@@ -262,7 +243,7 @@ list(APPEND HWACCEL_LIBRARIES
 )
 
 # Check if FFmpeg is available and enable it
-set(FFMPEG_CHECK_FILE "${FFMPEG_PREFIX}/include/avformat.h")
+set(FFMPEG_CHECK_FILE "${FFMPEG_INCLUDE_DIRS}/avformat.h")
 
 if(OPENTERFACE_BUILD_STATIC)
     set(FFMPEG_LIB_CHECK "${FFMPEG_LIB_DIR}/libavformat.a")
@@ -298,12 +279,6 @@ endif()
 
 # Include FFmpeg directories
 include_directories(${FFMPEG_INCLUDE_DIRS})
-
-# Set FFmpeg libraries for linking (will be used later in target_link_libraries)
-if(EXISTS "${FFMPEG_PREFIX}/include/libavformat/avformat.h" OR EXISTS "${FFMPEG_PREFIX}/libavformat/avformat.h")
-    # FFmpeg is available, libraries will be linked later
-    message(STATUS "FFmpeg libraries will be linked: ${FFMPEG_LIBRARIES}")
-endif()
 
 
 # Public helper: add FFmpeg static libraries to a target
