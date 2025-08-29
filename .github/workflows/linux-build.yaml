@@ -64,7 +64,7 @@ jobs:
         run: |
           echo "Pulling pre-built Dynamic Qt Docker image for amd64..."
           
-          IMAGE_TAG="ubuntu-${{ github.event.inputs.ubuntu_version || '24.04' }}${{ steps.arch-suffix.outputs.arch_tag_suffix }}"
+          IMAGE_TAG="ubuntu-${{ github.event.inputs.ubuntu_version || '24.04' }}-amd64"
           echo "Checking for image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-dynamic:$IMAGE_TAG"
           
           
@@ -297,7 +297,7 @@ jobs:
         run: |
           echo "Pulling pre-built Static Qt Docker image..."
           
-          IMAGE_TAG="ubuntu-${{ github.event.inputs.ubuntu_version || '24.04' }}amd64"
+          IMAGE_TAG="ubuntu-${{ github.event.inputs.ubuntu_version || '24.04' }}-amd64"
           echo "Checking for image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-complete:$IMAGE_TAG"
           
           # Check if image exists in registry
