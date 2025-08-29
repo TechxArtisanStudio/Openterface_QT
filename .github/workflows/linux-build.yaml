@@ -142,9 +142,6 @@ jobs:
           echo "Configuring with CMake..."
           
           # Debug pkg-config before CMake
-          echo "=== PKG-CONFIG DEBUG ==="
-          echo "PKG_CONFIG_PATH: $PKG_CONFIG_PATH"
-          echo "PKG_CONFIG_LIBDIR: $PKG_CONFIG_LIBDIR"
           pkg-config --version
           pkg-config --list-all | grep -E "avformat|avcodec" || echo "No FFmpeg packages found"
           echo "========================="
@@ -167,7 +164,6 @@ jobs:
           docker run --rm \
             -v ${{ github.workspace }}:/workspace/src \
             -v ${{ runner.temp }}/build-dynamic:/workspace/build \
-            -v ${{ runner.temp }}/build-script.sh:/build-script.sh \
             -w /workspace/src \
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-dynamic:latest \
             /build-script.sh
