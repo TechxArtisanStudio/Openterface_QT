@@ -63,8 +63,6 @@ Q_LOGGING_CATEGORY(log_ffmpeg_backend, "opf.backend.ffmpeg")
  */
 class FFmpegBackendHandler::CaptureThread : public QThread
 {
-    Q_OBJECT
-
 public:
     explicit CaptureThread(FFmpegBackendHandler* handler, QObject* parent = nullptr)
         : QThread(parent), m_handler(handler), m_running(false) {}
@@ -1672,6 +1670,3 @@ void FFmpegBackendHandler::handleDeviceDeactivation(const QString& devicePath)
     qCInfo(log_ffmpeg_backend) << "Starting to wait for device reconnection";
     waitForDeviceActivation(m_currentDevice, 30000); // Wait up to 30 seconds
 }
-
-
-#include "ffmpegbackendhandler.moc"

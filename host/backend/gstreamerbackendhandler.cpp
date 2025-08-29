@@ -141,7 +141,7 @@ void GStreamerBackendHandler::finalizeVideoOutputConnection(QMediaCaptureSession
 
 void GStreamerBackendHandler::startCamera(QCamera* camera)
 {
-     qCWarning(log_gstreamer_backend) << "!!!!!!!!!!!!!!!!!!!!!! GStreamer startCamera called";
+     qCWarning(log_gstreamer_backend) << "GStreamer startCamera called";
      qCDebug(log_gstreamer_backend) << "Current device:" << m_currentDevice;
      qCDebug(log_gstreamer_backend) << "Current resolution:" << m_currentResolution;
      qCDebug(log_gstreamer_backend) << "Current framerate:" << m_currentFramerate;
@@ -236,8 +236,6 @@ void GStreamerBackendHandler::prepareVideoOutputConnection(QMediaCaptureSession*
 
 void GStreamerBackendHandler::configureCameraDevice(QCamera* camera, const QCameraDevice& device)
 {
-    qCWarning(log_gstreamer_backend) << "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@ configureCameraDevice CALLED!";
-    qCDebug(log_gstreamer_backend) << "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@";
     // Extract device path for direct GStreamer usage
     QString deviceId = QString::fromUtf8(device.id());
     
