@@ -104,7 +104,7 @@ if(TURBOJPEG_LIBRARY)
 endif()
 
 # Add FFmpeg libraries if available (use helper to keep CMakeLists tidy)
-add_ffmpeg_static_libraries(openterfaceQT "/opt/Qt6-arm64")
+add_ffmpeg_static_libraries(openterfaceQT ${QT_BUILD_PATH})
 
 # Add libjpeg libraries if available
 if(LIBJPEG_FOUND)

@@ -85,9 +85,9 @@ if(NOT OPENTERFACE_BUILD_STATIC)
             else()
                 # Architecture-aware fallback for library directory
                 if(CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64|arm64")
-                    set(FFMPEG_LIB_DIR "/usr/lib/aarch64-linux-gnu")
+                    set(FFMPEG_LIB_DIR ${QT_BUILD_PATH})
                 else()
-                    set(FFMPEG_LIB_DIR "/usr/lib/x86_64-linux-gnu")
+                    set(FFMPEG_LIB_DIR "/opt/Qt6/lib/")
                 endif()
                 message(STATUS "Using fallback FFmpeg library directory: ${FFMPEG_LIB_DIR}")
             endif()
@@ -178,10 +178,6 @@ if(OPENTERFACE_BUILD_STATIC)
 else()
     set(FFMPEG_LIB_EXT ".so")
 endif()
-
-# Force Qt6 static FFmpeg paths regardless of pkg-config
-set(FFMPEG_PREFIX ${QT_BUILD_PATH})
-set(FFMPEG_LIB_DIR "${QT_BUILD_PATH}/lib")
 
 # Use full paths for static linking - CRITICAL: avdevice must be first
 set(FFMPEG_LIBRARIES 
