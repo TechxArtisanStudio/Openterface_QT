@@ -127,20 +127,9 @@ jobs:
             apt-get install -y libgudev-1.0-dev || { echo "Error: libgudev-1.0-dev not found"; exit 1; }
             apt-get install -y libv4l-dev || { echo "Error: libv4l-dev not found"; exit 1; }
 
-          # Verify Docker environment
-          /opt/verify/verify-qt-dynamic.sh || echo "Verification script not found"
-          
-          echo "Using native compilation for AMD64..."
-
-          # Test pkg-config for FFmpeg
-          echo "Testing pkg-config for FFmpeg (AMD64):"
-          pkg-config --exists libavformat && echo "✓ libavformat found" || echo "✗ libavformat not found"
-          pkg-config --libs libavformat || echo "Failed to get libavformat libs"
-          pkg-config --cflags libavformat || echo "Failed to get libavformat cflags"
-
-          CMAKE_TOOLCHAIN=""
-          QT_PREFIX="/usr/lib/x86_64-linux-gnu/qt6"
-          CMAKE_PREFIX_PATH="/usr/lib/x86_64-linux-gnu/cmake:/usr"
+          echo "Finding FFmpeg libraries..."
+          find / -name "libavformat.so*" || echo "No libavformat found"
+          find / -name "libavformat.h*" || echo "No libavcodec found
 
           # Copy configuration files
           mkdir -p /workspace/build/config/languages
@@ -162,10 +151,7 @@ jobs:
           
           cmake $CMAKE_TOOLCHAIN \
                 -DCMAKE_BUILD_TYPE=Release \
-                -DCMAKE_PREFIX_PATH="$CMAKE_PREFIX_PATH" \
-                -DQt6_DIR="$QT_PREFIX/../cmake/Qt6" \
-                -DUSE_FFMPEG_STATIC=OFF \
-                -DUSE_GSTREAMER_STATIC_PLUGINS=OFF \
+                -DOPENTERFACE_BUILD_STATIC=OFF \
                 -DCMAKE_VERBOSE_MAKEFILE=ON \
                 /workspace/src
           
@@ -345,7 +331,6 @@ jobs:
           mkdir -p ${{ runner.temp }}/build-static/config/languages
           mkdir -p ${{ runner.temp }}/build-static/config/keyboards
           
-
           
           # Create build script for static linking
           cat > ${{ runner.temp }}/build-static-script.sh << 'STATIC_BUILD_EOF'
