@@ -129,7 +129,7 @@ jobs:
 
           echo "Finding FFmpeg libraries..."
           find / -name "libavformat.so*" || echo "No libavformat found"
-          find / -name "libavformat.h*" || echo "No libavcodec found"
+          find / -name "avformat.h" || echo "No avformat.h found"
 
           # Copy configuration files
           mkdir -p /workspace/build/config/languages
