@@ -182,9 +182,6 @@ endif()
 # Force Qt6 static FFmpeg paths regardless of pkg-config
 set(FFMPEG_PREFIX ${QT_BUILD_PATH})
 set(FFMPEG_LIB_DIR "${QT_BUILD_PATH}/lib")
-set(FFMPEG_LIB_EXT ".a")
-message(STATUS "Forcing Qt6 static FFmpeg prefix: ${FFMPEG_PREFIX}")
-message(STATUS "Forcing Qt6 static FFmpeg library directory: ${FFMPEG_LIB_DIR}")
 
 # Use full paths for static linking - CRITICAL: avdevice must be first
 set(FFMPEG_LIBRARIES 
@@ -196,7 +193,7 @@ set(FFMPEG_LIBRARIES
     "${FFMPEG_LIB_DIR}/libswscale${FFMPEG_LIB_EXT}"
     "${FFMPEG_LIB_DIR}/libavutil${FFMPEG_LIB_EXT}"
 )
-message(STATUS "Using forced static FFmpeg library paths: ${FFMPEG_LIBRARIES}")
+message(STATUS "Using FFmpeg library paths: ${FFMPEG_LIBRARIES}")
 
 # Verify all FFmpeg libraries exist
 foreach(FFMPEG_LIB ${FFMPEG_LIBRARIES})
