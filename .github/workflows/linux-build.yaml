@@ -129,7 +129,7 @@ jobs:
 
           echo "Finding FFmpeg libraries..."
           find / -name "libavformat.so*" || echo "No libavformat found"
-          find / -name "libavformat.h*" || echo "No libavcodec found
+          find / -name "libavformat.h*" || echo "No libavcodec found"
 
           # Copy configuration files
           mkdir -p /workspace/build/config/languages
@@ -164,6 +164,7 @@ jobs:
           docker run --rm \
             -v ${{ github.workspace }}:/workspace/src \
             -v ${{ runner.temp }}/build-dynamic:/workspace/build \
+            -v ${{ runner.temp }}/build-script.sh:/build-script.sh \
             -w /workspace/src \
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-dynamic:latest \
             /build-script.sh
