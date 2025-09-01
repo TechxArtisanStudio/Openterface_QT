@@ -58,6 +58,7 @@ extern "C" {
     void gst_plugin_autodetect_register(void);        // autovideosink
 }
 #endif
+#endif // HAVE_GSTREAMER
 
 GStreamerBackendHandler::GStreamerBackendHandler(QObject *parent)
     : MultimediaBackendHandler(parent),
@@ -141,7 +142,7 @@ void GStreamerBackendHandler::finalizeVideoOutputConnection(QMediaCaptureSession
 
 void GStreamerBackendHandler::startCamera(QCamera* camera)
 {
-     qCWarning(log_gstreamer_backend) << "!!!!!!!!!!!!!!!!!!!!!! GStreamer startCamera called";
+     qCWarning(log_gstreamer_backend) << "GStreamer startCamera called";
      qCDebug(log_gstreamer_backend) << "Current device:" << m_currentDevice;
      qCDebug(log_gstreamer_backend) << "Current resolution:" << m_currentResolution;
      qCDebug(log_gstreamer_backend) << "Current framerate:" << m_currentFramerate;
@@ -236,8 +237,6 @@ void GStreamerBackendHandler::prepareVideoOutputConnection(QMediaCaptureSession*
 
 void GStreamerBackendHandler::configureCameraDevice(QCamera* camera, const QCameraDevice& device)
 {
-    qCWarning(log_gstreamer_backend) << "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@ configureCameraDevice CALLED!";
-    qCDebug(log_gstreamer_backend) << "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@";
     // Extract device path for direct GStreamer usage
     QString deviceId = QString::fromUtf8(device.id());
     
@@ -766,6 +765,7 @@ bool GStreamerBackendHandler::initializeGStreamer()
     
     qCDebug(log_gstreamer_backend) << "GStreamer initialized successfully";
     
+#ifndef GSTREAMER_DYNAMIC_LINKING
     // Register static plugins required for video pipeline
     qCDebug(log_gstreamer_backend) << "Registering static GStreamer plugins...";
     
@@ -824,6 +824,8 @@ bool GStreamerBackendHandler::initializeGStreamer()
         qCCritical(log_gstreamer_backend) << "Exception occurred during plugin registration";
         return false;
     }
+#else
+    qCDebug(log_gstreamer_backend) << "Using dynamic GStreamer plugins - static plugin registration skipped";
 #endif
     
     return true;

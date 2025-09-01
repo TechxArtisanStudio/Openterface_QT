@@ -50,7 +50,7 @@ static const uint16_t ch341PID = 0x7523;
 libusb_context *context = nullptr;
 
 const QString EnvironmentSetupDialog::driverCommands = "# Build and install the driver\n make ; sudo make install\n\n";
-// const QString EnvironmentSetupDialog::groupCommands = "# Add user to dialout group\n sudo usermod -a -G dialout $USER\n\n";
+const QString EnvironmentSetupDialog::groupCommands = "# Add user to dialout group\n sudo usermod -a -G dialout $USER\n\n";
 const QString EnvironmentSetupDialog::udevCommands =
     "#Add udev rules for Openterface Mini-KVM\n"
     "echo 'SUBSYSTEM==\"usb\", ATTRS{idVendor}==\"534d\", ATTRS{idProduct}==\"2109\", TAG+=\"uaccess\"' | sudo tee /etc/udev/rules.d/51-openterface.rules\n"
@@ -297,9 +297,9 @@ QString EnvironmentSetupDialog::buildCommands(){
     if (!isDriverInstalled) {
         commands += driverCommands;
     }
-    // if (!isSerialPermission) {
-    //     commands += groupCommands;
-    // }
+    if (!isSerialPermission) {
+        commands += groupCommands;
+    }
     if (!isHidPermission || !isSerialPermission) {
         commands += udevCommands;
     }
