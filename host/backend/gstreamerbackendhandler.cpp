@@ -58,6 +58,7 @@ extern "C" {
     void gst_plugin_autodetect_register(void);        // autovideosink
 }
 #endif
+#endif // HAVE_GSTREAMER
 
 GStreamerBackendHandler::GStreamerBackendHandler(QObject *parent)
     : MultimediaBackendHandler(parent),
@@ -764,6 +765,7 @@ bool GStreamerBackendHandler::initializeGStreamer()
     
     qCDebug(log_gstreamer_backend) << "GStreamer initialized successfully";
     
+#ifndef GSTREAMER_DYNAMIC_LINKING
     // Register static plugins required for video pipeline
     qCDebug(log_gstreamer_backend) << "Registering static GStreamer plugins...";
     
@@ -822,6 +824,8 @@ bool GStreamerBackendHandler::initializeGStreamer()
         qCCritical(log_gstreamer_backend) << "Exception occurred during plugin registration";
         return false;
     }
+#else
+    qCDebug(log_gstreamer_backend) << "Using dynamic GStreamer plugins - static plugin registration skipped";
 #endif
     
     return true;

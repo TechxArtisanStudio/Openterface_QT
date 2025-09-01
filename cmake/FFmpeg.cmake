@@ -113,14 +113,14 @@ if(NOT FFMPEG_FOUND)
     # Find FFmpeg installation
     message(STATUS "FFmpeg search paths: ${FFMPEG_SEARCH_PATHS}")
     foreach(SEARCH_PATH ${FFMPEG_SEARCH_PATHS})
-        # Standard search - but also check architecture-specific subdirectories for dynamic builds
+        # Standard search - check both static and dynamic libraries based on build type
         if(OPENTERFACE_BUILD_STATIC)
-            set(LIB_EXTENSION ".a")
-            set(LIB_NAME "libavformat.a")
+            # For static builds, prefer .a files
+            set(LIB_EXTENSIONS ".a" ".so")
             set(LIB_PATHS "${SEARCH_PATH}/lib")
         else()
-            set(LIB_EXTENSION ".so")
-            set(LIB_NAME "libavformat.so")
+            # For dynamic builds, prefer .so but fallback to .a (Docker environments)
+            set(LIB_EXTENSIONS ".so" ".a")
             # For dynamic builds, check architecture-specific directories
             set(LIB_PATHS 
                 "${SEARCH_PATH}/lib/x86_64-linux-gnu"
@@ -129,14 +129,21 @@ if(NOT FFMPEG_FOUND)
             )
         endif()
         
-        # Check each potential library path
+        # Check each potential library path with each extension
         foreach(LIB_PATH ${LIB_PATHS})
-            message(STATUS "Checking for FFmpeg in: ${LIB_PATH}/${LIB_NAME}")
-            if(EXISTS "${LIB_PATH}/${LIB_NAME}" AND EXISTS "${SEARCH_PATH}/include/libavformat/avformat.h")
-                set(FFMPEG_LIB_DIR "${LIB_PATH}")
-                message(STATUS "FFmpeg libraries in: ${FFMPEG_LIB_DIR}")
-                message(STATUS "Using ${LIB_EXTENSION} libraries")
-                set(FFMPEG_FOUND TRUE)
+            foreach(LIB_EXT ${LIB_EXTENSIONS})
+                set(LIB_NAME "libavformat${LIB_EXT}")
+                message(STATUS "Checking for FFmpeg in: ${LIB_PATH}/${LIB_NAME}")
+                if(EXISTS "${LIB_PATH}/${LIB_NAME}" AND EXISTS "${SEARCH_PATH}/include/libavformat/avformat.h")
+                    set(FFMPEG_LIB_DIR "${LIB_PATH}")
+                    set(FFMPEG_LIB_EXT "${LIB_EXT}")
+                    message(STATUS "FFmpeg libraries found in: ${FFMPEG_LIB_DIR}")
+                    message(STATUS "Using ${LIB_EXT} libraries")
+                    set(FFMPEG_FOUND TRUE)
+                    break()
+                endif()
+            endforeach()
+            if(FFMPEG_FOUND)
                 break()
             endif()
         endforeach()
@@ -167,12 +174,27 @@ if(FFMPEG_PKG_CONFIG AND FFMPEG_INCLUDE_DIRS)
     message(STATUS "Using pkg-config include directories: ${FFMPEG_INCLUDE_DIRS}")
 endif()
 
-# Set library extension based on static/dynamic preference
-if(OPENTERFACE_BUILD_STATIC)
-    set(FFMPEG_LIB_EXT ".a")
-else()
-    set(FFMPEG_LIB_EXT ".so")
+# Set library extension and verify it was set during detection
+if(NOT DEFINED FFMPEG_LIB_EXT)
+    # Fallback logic if FFMPEG_LIB_EXT wasn't set during detection
+    if(OPENTERFACE_BUILD_STATIC)
+        set(FFMPEG_LIB_EXT ".a")
+    else()
+        # For dynamic builds, prefer .so but fallback to .a if available
+        if(EXISTS "${FFMPEG_LIB_DIR}/libavformat.so")
+            set(FFMPEG_LIB_EXT ".so")
+            message(STATUS "Using dynamic FFmpeg libraries (.so)")
+        elseif(EXISTS "${FFMPEG_LIB_DIR}/libavformat.a")
+            set(FFMPEG_LIB_EXT ".a")
+            message(STATUS "Using static FFmpeg libraries (.a) in dynamic build")
+        else()
+            set(FFMPEG_LIB_EXT ".so")  # Default fallback
+            message(STATUS "Using default extension .so (libraries may not exist)")
+        endif()
+    endif()
 endif()
+
+message(STATUS "Final FFmpeg library extension: ${FFMPEG_LIB_EXT}")
 
 # Use full paths for static linking - CRITICAL: avdevice must be first
 set(FFMPEG_LIBRARIES 
@@ -310,50 +332,50 @@ endif()
 # Include FFmpeg directories
 include_directories(${FFMPEG_INCLUDE_DIRS})
 
+# Link FFmpeg libraries to target using detected configuration
+function(link_ffmpeg_libraries)
+    if(FFMPEG_FOUND AND FFMPEG_LIBRARIES)
+        message(STATUS "Linking FFmpeg libraries to openterfaceQT: ${FFMPEG_LIBRARIES}")
+        
+        if(FFMPEG_LIB_EXT STREQUAL ".a")
+            # Static FFmpeg libraries - use special linking flags
+            message(STATUS "Linking static FFmpeg libraries with whole-archive for avdevice")
+            target_link_libraries(openterfaceQT PRIVATE
+                # Critical: avdevice must be linked with --whole-archive to include avdevice_register_all
+                -Wl,--whole-archive
+                "${FFMPEG_LIB_DIR}/libavdevice.a"
+                -Wl,--no-whole-archive
+                "${FFMPEG_LIB_DIR}/libavfilter.a"
+                "${FFMPEG_LIB_DIR}/libavformat.a"
+                "${FFMPEG_LIB_DIR}/libavcodec.a"
+                "${FFMPEG_LIB_DIR}/libswresample.a"
+                "${FFMPEG_LIB_DIR}/libswscale.a"
+                "${FFMPEG_LIB_DIR}/libavutil.a"
+                # System dependencies for static FFmpeg
+                -ljpeg -lturbojpeg -lpthread -lm -lz -llzma -lbz2 -ldrm -lva -lva-drm -lva-x11
+            )
+        else()
+            # Dynamic FFmpeg libraries - simple linking
+            message(STATUS "Linking dynamic FFmpeg libraries")
+            target_link_libraries(openterfaceQT PRIVATE ${FFMPEG_LIBRARIES})
+        endif()
+        
+        message(STATUS "FFmpeg libraries linked successfully")
+    else()
+        message(STATUS "FFmpeg not found - skipping FFmpeg library linking")
+    endif()
+endfunction()
 
-# Public helper: add FFmpeg static libraries to a target
+
+# Public helper: add FFmpeg static libraries to a target (legacy function for compatibility)
 # Usage: add_ffmpeg_static_libraries(<target> <ffmpeg_root>)
 function(add_ffmpeg_static_libraries _target _ffmpeg_root)
-    if(NOT _target)
-        message(FATAL_ERROR "add_ffmpeg_static_libraries: target argument is required")
-    endif()
-    if(NOT _ffmpeg_root)
-        message(FATAL_ERROR "add_ffmpeg_static_libraries: ffmpeg_root argument is required")
-    endif()
-
-    # Resolve paths
-    set(_ff_inc "${_ffmpeg_root}/include/avformat.h")
-    set(_libdir "${_ffmpeg_root}/lib")
-
-    if(EXISTS "${_ff_inc}")
-        message(STATUS "FFmpeg headers found at ${_ff_inc}; adding static FFmpeg libs for target ${_target}")
-
-        # Link order: ensure avdevice is linked with --whole-archive so avdevice_register_all is pulled in
-        target_link_libraries(${_target} PRIVATE
-            -Wl,--whole-archive
-            "${_libdir}/libavdevice.a"
-            -Wl,--no-whole-archive
-            "${_libdir}/libavfilter.a"
-            "${_libdir}/libavformat.a"
-            "${_libdir}/libavcodec.a"
-            "${_libdir}/libswresample.a"
-            "${_libdir}/libswscale.a"
-            "${_libdir}/libavutil.a"
-            jpeg
-            turbojpeg
-            pthread
-            m
-            z
-            lzma
-            bz2
-            drm
-            va
-            va-drm
-            va-x11
-        )
-
-        message(STATUS "Fixed FFmpeg libraries linked with avdevice support for ${_target}")
+    message(STATUS "add_ffmpeg_static_libraries called - delegating to automatic FFmpeg detection")
+    # This function is now a wrapper that delegates to the automatic detection
+    # The FFmpeg detection and linking is handled by the main FFmpeg.cmake logic
+    if(FFMPEG_FOUND)
+        message(STATUS "FFmpeg already detected - linking will be handled by link_ffmpeg_libraries()")
     else()
-        message(STATUS "FFmpeg headers not found at ${_ff_inc}; skipping static FFmpeg linking for ${_target}")
+        message(STATUS "FFmpeg not detected - please check FFmpeg installation at common paths like /usr/local, /usr")
     endif()
 endfunction()

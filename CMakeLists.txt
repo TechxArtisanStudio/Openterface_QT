@@ -103,8 +103,8 @@ if(TURBOJPEG_LIBRARY)
     target_link_libraries(openterfaceQT PRIVATE ${TURBOJPEG_LIBRARIES})
 endif()
 
-# Add FFmpeg libraries if available (use helper to keep CMakeLists tidy)
-add_ffmpeg_static_libraries(openterfaceQT ${QT_BUILD_PATH})
+# Add FFmpeg libraries if available
+link_ffmpeg_libraries()
 
 # Add libjpeg libraries if available
 if(LIBJPEG_FOUND)

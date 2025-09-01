@@ -120,12 +120,6 @@ jobs:
           set -e
           
           echo "Building Openterface QT Application (Dynamic Qt) for amd64..."
-          
-          # Install additional dependencies if needed
-          echo "Installing additional dependencies..."
-            apt-get update -y
-            apt-get install -y libgudev-1.0-dev || { echo "Error: libgudev-1.0-dev not found"; exit 1; }
-            apt-get install -y libv4l-dev || { echo "Error: libv4l-dev not found"; exit 1; }
 
           echo "Finding FFmpeg libraries..."
           find / -name "libavformat.so*" || echo "No libavformat found"

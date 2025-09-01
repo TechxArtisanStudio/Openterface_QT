@@ -104,13 +104,22 @@ sudo apt install -y \
     libqt6multimediawidgets6 \
     libqt6serialport6 \
     libqt6svg6 \
+    libqt6concurrent6t64 \
     libusb-1.0-0-dev \
-    libssl-dev
+    libssl-dev \
+    libavutil58 \
+    libavformat60 \
+    libavdevice60 \
+    va-driver-all \
+    vainfo \
+    libva-dev
  ```
 
 ```bash
 # Setup the dialout permission for Serial port
 sudo usermod -a -G dialout $USER
+# On some distros (e.g. Arch Linux) this might be called uucp
+sudo usermod -a -G uucp $USER
 ```
 
 ```bash
@@ -260,7 +269,7 @@ ls /dev/ttyUSB*
 # Then we need give the permissions to user for control serial port you can do this:
 sudo ./openterfaceQT
 # or (dialout/uucp)
-sudo usermod -a -G dialout <your_username>
+sudo usermod -a -G dialout $USER
 sudo reboot
 # back to the build floder
 ./openterfaceQT
