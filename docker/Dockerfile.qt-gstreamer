@@ -20,7 +20,6 @@ RUN echo "Upgrading Meson to support GStreamer 1.22.11..." && \
 
 # Set up environment for GStreamer build
 # Use TARGETARCH to determine the correct library path
-ARG TARGETARCH=amd64
 RUN if [ "$TARGETARCH" = "arm64" ]; then \
         MULTIARCH_PATH="/usr/lib/aarch64-linux-gnu"; \
     else \
