@@ -578,3 +578,66 @@ jobs:
           name: openterfaceQT.linux.amd64.static.rpm
           path: ${{ runner.temp }}/${{ env.ARTIFACT }}.linux.amd64.static.rpm
           if-no-files-found: error
+
+      - name: Create AppImage
+        working-directory: ${{ runner.temp }}
+        run: |
+          # Set build directory path
+          BUILD_DIR="${{ runner.temp }}/build-static"
+          VERSION="${{ env.VERSION }}"
+          
+          # Create AppDir structure
+          mkdir -p AppDir/usr/bin
+          mkdir -p AppDir/usr/share/applications
+          mkdir -p AppDir/usr/share/icons/hicolor/256x256/apps
+          mkdir -p AppDir/usr/share/metainfo
+          
+          # Copy the static binary
+          cp $BUILD_DIR/openterfaceQT AppDir/usr/bin/
+          chmod +x AppDir/usr/bin/openterfaceQT
+          
+          # Copy desktop file
+          cp ${{ github.workspace }}/packaging/appimage/openterfaceQT.desktop AppDir/usr/share/applications/
+          
+          # Copy icon
+          cp ${{ github.workspace }}/images/icon_256.png AppDir/usr/share/icons/hicolor/256x256/apps/com.openterface.openterfaceQT.png
+          
+          # Copy appdata/metainfo and update version
+          cp ${{ github.workspace }}/packaging/appimage/openterfaceQT.appdata.xml AppDir/usr/share/metainfo/com.openterface.openterfaceQT.appdata.xml
+          
+          # Update the first release version in appdata.xml
+          sed -i "0,/<release version=\"[^\"]*\"/s//<release version=\"${VERSION}\"/" AppDir/usr/share/metainfo/com.openterface.openterfaceQT.appdata.xml
+          
+          # Create AppRun script
+          cat > AppDir/AppRun << 'APPRUN_EOF'
+          #!/bin/bash
+          HERE="$(dirname "$(readlink -f "${0}")")"
+          exec "${HERE}/usr/bin/openterfaceQT" "$@"
+          APPRUN_EOF
+          chmod +x AppDir/AppRun
+          
+          # Create desktop file in root for AppImage
+          cp ${{ github.workspace }}/packaging/appimage/openterfaceQT.desktop AppDir/
+          
+          # Copy icon to root for AppImage
+          cp ${{ github.workspace }}/images/icon_256.png AppDir/com.openterface.openterfaceQT.png
+          
+          # Build AppImage with version
+          APPIMAGE_NAME="openterfaceQT.linux.amd64.static.v${VERSION}.AppImage"
+          ARCH=x86_64 appimagetool AppDir "$APPIMAGE_NAME"
+          
+          # Verify AppImage was created
+          if [ ! -f "$APPIMAGE_NAME" ]; then
+            echo "Error: AppImage not created"
+            ls -la
+            exit 1
+          fi
+          
+          echo "AppImage created successfully: $APPIMAGE_NAME"
+
+      - name: Upload AppImage artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: openterfaceQT.linux.amd64.static.AppImage
+          path: ${{ runner.temp }}/openterfaceQT.linux.amd64.static.AppImage
+          if-no-files-found: error
