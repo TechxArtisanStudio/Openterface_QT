@@ -14,7 +14,7 @@ on:
       build_type:
         description: 'Type of Qt build to use'
         required: true
-        default: 'static'
+        default: 'both'
         type: choice
         options:
         - 'dynamic'
