@@ -124,7 +124,8 @@ RUN apt-get install -y \
     libbz2-dev \
     va-driver-all \
     vainfo \
-    libva-dev
+    libva-dev \
+    libvdpau-dev
 
 # Install optional multimedia libraries (with error handling)
 RUN apt-get install -y \

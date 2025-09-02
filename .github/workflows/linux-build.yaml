@@ -338,7 +338,7 @@ jobs:
           apt-get install -y libzstd-dev || { echo "Error: libzstd-dev not found"; exit 1; }
           apt-get install -y liblzma-dev || { echo "Error: liblzma-dev not found"; exit 1; }
           apt-get install -y libbz2-dev || { echo "Error: libbz2-dev not found"; exit 1; }
-          apt-get install -y libvdpau1 va-driver-all vainfo libva-dev || { echo "Error: va driver not found"; exit 1; }
+          apt-get install -y libvdpau-dev va-driver-all vainfo libva-dev || { echo "Error: va driver not found"; exit 1; }
           
           # Verify Qt6 static installation
           if [ ! -d '/opt/Qt6' ]; then
@@ -364,16 +364,16 @@ jobs:
           
           # Set environment variables for static linking
           export PKG_CONFIG_PATH="/opt/Qt6/lib/pkgconfig:/usr/local/lib/pkgconfig:$PKG_CONFIG_PATH"
-          export CMAKE_PREFIX_PATH="/opt/Qt6:/usr/local:/opt/ffmpeg:/usr"
-          export Qt6_DIR="/opt/Qt6/lib/cmake/Qt6"
+          export CMAKE_PREFIX_PATH="/opt/Qt6:/usr/local:/opt/ffmpeg:/opt/gstreamer:/usr"
           
           cmake $CMAKE_TOOLCHAIN \
-                -DCMAKE_PREFIX_PATH="/opt/Qt6:/usr/local:/opt/ffmpeg" \
+                -DCMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH} \
                 -DCMAKE_BUILD_TYPE=Release \
                 -DOPENTERFACE_BUILD_STATIC=ON \
                 -DUSE_FFMPEG_STATIC=ON \
                 -DFFMPEG_PREFIX="/opt/ffmpeg" \
                 -DUSE_GSTREAMER_STATIC_PLUGINS=ON \
+                -DGSTREAMER_PREFIX="/opt/gstreamer" \
                 -DCMAKE_LIBRARY_PATH="$CMAKE_LIBRARY_PATH" \
                 -DCMAKE_INCLUDE_PATH="/opt/Qt6/include:/usr/local/include:/opt/ffmpeg/include:/usr/include" \
                 -DCMAKE_VERBOSE_MAKEFILE=ON \
