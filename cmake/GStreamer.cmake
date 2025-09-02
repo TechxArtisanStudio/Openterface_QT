@@ -26,13 +26,23 @@ else()
     message(STATUS "Static build detected - skipping pkg-config for ORC, will use static ORC library")
 endif()
 
-# Check for GStreamer (prefer static build from Qt6 installation)
-# Use the same search paths as FFmpeg since they're often built together
-set(GSTREAMER_SEARCH_PATHS 
-    ${QT_BUILD_PATH}
-    "/usr/local"
-    "/usr"
-)
+# Check for GStreamer (prefer system GStreamer for dynamic builds)
+# For dynamic builds, prioritize system GStreamer over Qt6 static build
+if(OPENTERFACE_BUILD_STATIC)
+    # Static builds: prefer Qt6 static installation
+    set(GSTREAMER_SEARCH_PATHS 
+        ${QT_BUILD_PATH}
+        "/usr/local"
+        "/usr"
+    )
+else()
+    # Dynamic builds: prioritize system GStreamer packages
+    set(GSTREAMER_SEARCH_PATHS 
+        "/usr"
+        "/usr/local"
+        ${QT_BUILD_PATH}
+    )
+endif()
 
 # Also check if QT_TARGET_DIR was set via environment or CMake
 if(DEFINED QT_TARGET_DIR AND QT_TARGET_DIR)
@@ -47,7 +57,7 @@ if(CMAKE_PREFIX_PATH)
 endif()
 
 # Find GStreamer installation
-set(GSTREAMER_ROOT_DIR "/opt/Qt6")  # Default fallback
+set(GSTREAMER_ROOT_DIR "/opt/Qt6")  # Default fallback for Docker build
 foreach(SEARCH_PATH ${GSTREAMER_SEARCH_PATHS})
     if(EXISTS "${SEARCH_PATH}/include/gstreamer-1.0/gst/gst.h")
         set(GSTREAMER_ROOT_DIR "${SEARCH_PATH}")
@@ -55,6 +65,32 @@ foreach(SEARCH_PATH ${GSTREAMER_SEARCH_PATHS})
         break()
     endif()
 endforeach()
+
+# Debug: Check what's actually in the Qt6 installation
+message(STATUS "Checking GStreamer installation at: ${GSTREAMER_ROOT_DIR}")
+if(EXISTS "${GSTREAMER_ROOT_DIR}")
+    message(STATUS "Qt6 directory exists")
+    if(EXISTS "${GSTREAMER_ROOT_DIR}/include")
+        message(STATUS "Qt6 include directory exists")
+        if(EXISTS "${GSTREAMER_ROOT_DIR}/include/gstreamer-1.0")
+            message(STATUS "GStreamer include directory found")
+        else()
+            message(STATUS "GStreamer include directory NOT found")
+        endif()
+    endif()
+    if(EXISTS "${GSTREAMER_ROOT_DIR}/lib")
+        message(STATUS "Qt6 lib directory exists")
+        # List GStreamer libraries if they exist
+        file(GLOB GSTREAMER_LIBS "${GSTREAMER_ROOT_DIR}/lib/libgst*.a" "${GSTREAMER_ROOT_DIR}/lib/libgst*.so")
+        if(GSTREAMER_LIBS)
+            message(STATUS "Found GStreamer libraries: ${GSTREAMER_LIBS}")
+        else()
+            message(STATUS "No GStreamer libraries found in ${GSTREAMER_ROOT_DIR}/lib")
+        endif()
+    endif()
+else()
+    message(STATUS "Qt6 directory does NOT exist")
+endif()
 
 set(GSTREAMER_INCLUDE_DIR "${GSTREAMER_ROOT_DIR}/include/gstreamer-1.0")
 set(GSTREAMER_VIDEO_INCLUDE_DIR "${GSTREAMER_ROOT_DIR}/include/gstreamer-1.0")
@@ -129,6 +165,10 @@ if(USE_GSTREAMER AND EXISTS "${GSTREAMER_INCLUDE_DIR}/gst/gst.h" AND EXISTS "${G
             message(STATUS "Found GStreamer core library: ${LIB_PATH_AARCH64}")
         else()
             message(WARNING "GStreamer core library not found: ${LIB_PATH}")
+            # Debug: let's see what's actually in the lib directory
+            message(STATUS "Debug: Contents of ${GSTREAMER_ROOT_DIR}/lib/:")
+            file(GLOB LIB_CONTENTS "${GSTREAMER_ROOT_DIR}/lib/libgst*")
+            message(STATUS "Found GStreamer libs: ${LIB_CONTENTS}")
         endif()
     endforeach()
     
@@ -197,7 +237,7 @@ if(USE_GSTREAMER AND EXISTS "${GSTREAMER_INCLUDE_DIR}/gst/gst.h" AND EXISTS "${G
             endif()
         endforeach()
         
-        # List of plugins to try to find
+        # List of plugins to try to find - these are the actual plugins in /opt/Qt6/lib/gstreamer-1.0/
         # Essential plugins - core functionality
         set(ESSENTIAL_PLUGIN_CANDIDATES
             "gstvideo4linux2"     # v4l2src plugin - required for video input
@@ -303,35 +343,46 @@ if(USE_GSTREAMER AND EXISTS "${GSTREAMER_INCLUDE_DIR}/gst/gst.h" AND EXISTS "${G
 else()
     # Fallback to system GStreamer using pkg-config
     if(USE_GSTREAMER)
-        pkg_check_modules(GSTREAMER gstreamer-1.0)
-        if(GSTREAMER_FOUND)
-            pkg_check_modules(GSTREAMER_VIDEO gstreamer-video-1.0)
-            if(GSTREAMER_VIDEO_FOUND)
-                message(STATUS "System GStreamer found - enabling direct pipeline support")
-                add_definitions(-DHAVE_GSTREAMER)
+        message(STATUS "Manual GStreamer detection failed - trying pkg-config...")
+        pkg_check_modules(GSTREAMER REQUIRED gstreamer-1.0)
+        pkg_check_modules(GSTREAMER_VIDEO REQUIRED gstreamer-video-1.0)
+        
+        if(GSTREAMER_FOUND AND GSTREAMER_VIDEO_FOUND)
+            message(STATUS "System GStreamer found via pkg-config - enabling direct pipeline support")
+            add_definitions(-DHAVE_GSTREAMER)
+            add_definitions(-DGSTREAMER_DYNAMIC_LINKING)
             
-            if(ORC_FOUND)
-                message(STATUS "ORC library found - will link for GStreamer support")
-            else()
-                message(WARNING "ORC library not found - GStreamer may have linking issues")
-            endif()
-
-            # Also check for system GStreamer to ensure we have all headers
-            pkg_check_modules(PC_GSTREAMER_VIDEO gstreamer-video-1.0 IMPORTED_TARGET)
+            # Set include directories from pkg-config
+            set(GSTREAMER_INCLUDE_DIRS ${GSTREAMER_INCLUDE_DIRS} ${GSTREAMER_VIDEO_INCLUDE_DIRS})
             
-            # Prefer system include directories for headers
-            if(PC_GSTREAMER_VIDEO_FOUND)
-                message(STATUS "Using system GStreamer video includes: ${PC_GSTREAMER_VIDEO_INCLUDE_DIRS}")
-            endif()
+            # For dynamic builds, we'll link system libraries directly
+            message(STATUS "pkg-config GStreamer libraries: ${GSTREAMER_LIBRARIES}")
+            message(STATUS "pkg-config GStreamer video libraries: ${GSTREAMER_VIDEO_LIBRARIES}")
+            message(STATUS "pkg-config GStreamer include dirs: ${GSTREAMER_INCLUDE_DIRS}")
+            message(STATUS "pkg-config GStreamer video include dirs: ${GSTREAMER_VIDEO_INCLUDE_DIRS}")
+            
+            # Important: Clear the manually detected library lists and use pkg-config results
+            set(GSTREAMER_LIBRARIES ${GSTREAMER_LIBRARIES})
+            set(GSTREAMER_VIDEO_LIBRARIES ${GSTREAMER_VIDEO_LIBRARIES})
+            
+            # Set GSTREAMER_VIDEO_FOUND for compatibility
+            set(GSTREAMER_VIDEO_FOUND TRUE)
+            
+            # Mark that we're using pkg-config detection
+            set(GSTREAMER_PKG_CONFIG_DETECTION TRUE)
         else()
-            message(STATUS "GStreamer video not found - using fallback mode")
+            message(FATAL_ERROR "System GStreamer development packages not found via pkg-config. Please install libgstreamer1.0-dev and libgstreamer-plugins-base1.0-dev")
         endif()
     else()
-        message(STATUS "GStreamer not found - using QProcess fallback")
-    endif()
-    else()
         message(STATUS "GStreamer disabled by USE_GSTREAMER=OFF")
+        set(GSTREAMER_FOUND FALSE)
     endif()
+endif()
+
+# Include GStreamer directories if found  
+if(GSTREAMER_FOUND)
+    include_directories(${GSTREAMER_INCLUDE_DIRS})
+    message(STATUS "Added GStreamer include directories globally: ${GSTREAMER_INCLUDE_DIRS}")
 endif()
 
 # Configure ORC for static builds
@@ -389,12 +440,44 @@ endfunction()
 
 # Link GStreamer libraries to target
 function(link_gstreamer_libraries)
-    if(GSTREAMER_FOUND AND GSTREAMER_VIDEO_FOUND)
-        if(EXISTS "${GSTREAMER_ROOT_DIR}/include/gstreamer-1.0/gst/gst.h")
+    if(GSTREAMER_FOUND)
+        message(STATUS "Linking GStreamer libraries...")
+        
+        # Check if we're using pkg-config detection (system packages) or manual detection (static/Qt6 build)
+        if(DEFINED GSTREAMER_PKG_CONFIG_DETECTION AND GSTREAMER_PKG_CONFIG_DETECTION)
+            # pkg-config detection path - use system libraries
+            message(STATUS "Using system GStreamer libraries via pkg-config")
+            message(STATUS "Available GSTREAMER_LIBRARIES: ${GSTREAMER_LIBRARIES}")
+            message(STATUS "Available GSTREAMER_VIDEO_LIBRARIES: ${GSTREAMER_VIDEO_LIBRARIES}")
+            
+            # Link system GStreamer libraries using pkg-config results
+            if(GSTREAMER_LIBRARIES)
+                target_link_libraries(openterfaceQT PRIVATE ${GSTREAMER_LIBRARIES})
+                message(STATUS "Linked GStreamer core libraries: ${GSTREAMER_LIBRARIES}")
+            endif()
+            
+            if(GSTREAMER_VIDEO_LIBRARIES)
+                target_link_libraries(openterfaceQT PRIVATE ${GSTREAMER_VIDEO_LIBRARIES})
+                message(STATUS "Linked GStreamer video libraries: ${GSTREAMER_VIDEO_LIBRARIES}")
+            endif()
+            
+            # Add include directories from pkg-config
+            if(GSTREAMER_INCLUDE_DIRS)
+                target_include_directories(openterfaceQT PRIVATE ${GSTREAMER_INCLUDE_DIRS})
+                message(STATUS "Added GStreamer include directories: ${GSTREAMER_INCLUDE_DIRS}")
+            endif()
+            
+            if(GSTREAMER_VIDEO_INCLUDE_DIRS)
+                target_include_directories(openterfaceQT PRIVATE ${GSTREAMER_VIDEO_INCLUDE_DIRS})
+                message(STATUS "Added GStreamer video include directories: ${GSTREAMER_VIDEO_INCLUDE_DIRS}")
+            endif()
+            
+        else()
+            # Manual detection path - use file-based library linking (static/Qt6 build)
+            message(STATUS "Using manually detected GStreamer libraries")
             configure_gstreamer_orc()
             
             # Link GStreamer core libraries and static plugins
-            # For static plugins, we need to link them explicitly
             if(USE_GSTREAMER_STATIC_PLUGINS AND GSTREAMER_PLUGIN_LIBRARIES)
                 message(STATUS "Linking static GStreamer plugins: ${GSTREAMER_PLUGIN_LIBRARIES}")
                 target_link_libraries(openterfaceQT PRIVATE 
@@ -429,41 +512,22 @@ function(link_gstreamer_libraries)
                 )
             endif()
             
-            # Add strong linker flags to force static ORC and prevent dynamic loading
-            target_link_options(openterfaceQT PRIVATE
-                -Wl,--no-as-needed
-                -Wl,--exclude-libs,ALL
-                -static-libgcc
-                -static-libstdc++
-                -Wl,--no-undefined-version
-                -Wl,--wrap=dlopen
-            )
-            message(STATUS "Linked static GStreamer with ORC library: ${ORC_LIB}")
-            if(USE_GSTREAMER_STATIC_PLUGINS AND GSTREAMER_PLUGIN_LIBRARIES)
-                message(STATUS "Added static GStreamer core libraries and static plugins")
-            else()
-                message(STATUS "Added static GStreamer core libraries (plugins will be loaded dynamically)")
+            # Add strong linker flags for static builds
+            if(OPENTERFACE_BUILD_STATIC)
+                target_link_options(openterfaceQT PRIVATE
+                    -Wl,--no-as-needed
+                    -Wl,--exclude-libs,ALL
+                    -static-libgcc
+                    -static-libstdc++
+                    -Wl,--no-undefined-version
+                    -Wl,--wrap=dlopen
+                )
             endif()
-            message(STATUS "Added static GStreamer libraries and include directories")
-        else()
-            # System GStreamer linking
-            target_link_libraries(openterfaceQT PRIVATE 
-                ${GSTREAMER_LIBRARIES}
-                ${GSTREAMER_VIDEO_LIBRARIES}
-            )
             
-            # Use system include directories for better header compatibility
-            if(PC_GSTREAMER_VIDEO_FOUND)
-                target_include_directories(openterfaceQT PRIVATE 
-                    ${PC_GSTREAMER_VIDEO_INCLUDE_DIRS}
-                )
-                message(STATUS "Added system GStreamer video include directories")
-            else()
-                target_include_directories(openterfaceQT PRIVATE 
-                    ${GSTREAMER_INCLUDE_DIRS}
-                    ${GSTREAMER_VIDEO_INCLUDE_DIRS}
-                )
-            endif()
+            target_include_directories(openterfaceQT PRIVATE ${GSTREAMER_INCLUDE_DIRS})
+            message(STATUS "Added manually detected GStreamer libraries and include directories")
         endif()
+    else()
+        message(STATUS "GStreamer not found - skipping GStreamer library linking")
     endif()
 endfunction()
