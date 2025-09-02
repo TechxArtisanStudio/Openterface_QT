@@ -372,6 +372,7 @@ jobs:
                 -DCMAKE_BUILD_TYPE=Release \
                 -DOPENTERFACE_BUILD_STATIC=ON \
                 -DUSE_FFMPEG_STATIC=ON \
+                -DFFMPEG_PREFIX="/opt/ffmpeg" \
                 -DUSE_GSTREAMER_STATIC_PLUGINS=ON \
                 -DCMAKE_LIBRARY_PATH="$CMAKE_LIBRARY_PATH" \
                 -DCMAKE_INCLUDE_PATH="/opt/Qt6/include:/usr/local/include:/opt/ffmpeg/include:/usr/include" \

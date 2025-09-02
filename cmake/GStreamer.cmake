@@ -31,7 +31,7 @@ endif()
 if(OPENTERFACE_BUILD_STATIC)
     # Static builds: prefer Qt6 static installation
     set(GSTREAMER_SEARCH_PATHS 
-        ${QT_BUILD_PATH}
+        ${GSTREAMER_PREFIX}
         "/usr/local"
         "/usr"
     )
@@ -40,7 +40,7 @@ else()
     set(GSTREAMER_SEARCH_PATHS 
         "/usr"
         "/usr/local"
-        ${QT_BUILD_PATH}
+        ${GSTREAMER_PREFIX}
     )
 endif()
 

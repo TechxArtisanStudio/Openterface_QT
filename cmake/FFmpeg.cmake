@@ -29,7 +29,7 @@ endif()
 # For dynamic builds, prioritize system libraries; for static builds, prefer Qt6 installation
 if(OPENTERFACE_BUILD_STATIC)
     set(FFMPEG_SEARCH_PATHS 
-        ${QT_BUILD_PATH}
+        ${FFMPEG_PREFIX}
         "/usr/local"
         "/usr"
     )
@@ -38,33 +38,33 @@ else()
     set(FFMPEG_SEARCH_PATHS 
         "/usr"
         "/usr/local"
-        ${QT_BUILD_PATH}
+        ${FFMPEG_PREFIX}
     )
 endif()
 
 # Attempt to locate FFmpeg libraries
 if(OPENTERFACE_BUILD_STATIC)
     # Prefer FFmpeg shipped inside the Qt build tree if it actually exists there.
-    set(_qt_lib_dir "${QT_BUILD_PATH}/lib")
-    if(EXISTS "${_qt_lib_dir}/libavformat.a" AND EXISTS "${QT_BUILD_PATH}/include/avformat.h")
+    set(_qt_lib_dir "${FFMPEG_PREFIX}/lib")
+    if(EXISTS "${_qt_lib_dir}/libavformat.a" AND EXISTS "${FFMPEG_PREFIX}/include/avformat.h")
         set(FFMPEG_LIB_DIR ${_qt_lib_dir})
-        set(FFMPEG_INCLUDE_DIRS "${QT_BUILD_PATH}/include")
+        set(FFMPEG_INCLUDE_DIRS "${FFMPEG_PREFIX}/include")
         message(STATUS "Found FFmpeg static libraries in Qt build path: ${FFMPEG_LIB_DIR}")
         set(FFMPEG_FOUND TRUE)
     else()
         # Keep the previous behavior as a fallback (directory may be validated later)
         set(FFMPEG_LIB_DIR ${_qt_lib_dir})
-        set(FFMPEG_INCLUDE_DIRS "${QT_BUILD_PATH}/include")
+        set(FFMPEG_INCLUDE_DIRS "${FFMPEG_PREFIX}/include")
         message(STATUS "FFmpeg static libs not found at ${_qt_lib_dir} - will try other search methods")
     endif()
 else()
     # Check if Qt build tree provides dynamic FFmpeg first; if so, prefer it and skip pkg-config
-    set(_qt_lib_dir "${QT_BUILD_PATH}/lib")
-    if(EXISTS "${_qt_lib_dir}/libavformat.so" AND EXISTS "${QT_BUILD_PATH}/include/libavformat/avformat.h")
+    set(_qt_lib_dir "${FFMPEG_PREFIX}/lib")
+    if(EXISTS "${_qt_lib_dir}/libavformat.so" AND EXISTS "${FFMPEG_PREFIX}/include/libavformat/avformat.h")
         set(FFMPEG_LIB_DIR ${_qt_lib_dir})
-        set(FFMPEG_INCLUDE_DIRS "${QT_BUILD_PATH}/include")
+        set(FFMPEG_INCLUDE_DIRS "${FFMPEG_PREFIX}/include")
         message(STATUS "Found FFmpeg shared libraries in Qt build path: ${FFMPEG_LIB_DIR}")
-        message((STATUS "Found header file at ${QT_BUILD_PATH}/include/libavformat/avformat.h"))
+        message((STATUS "Found header file at ${FFMPEG_PREFIX}/include/libavformat/avformat.h"))
         set(FFMPEG_FOUND TRUE)
     endif()
 
@@ -87,7 +87,7 @@ else()
                     message(STATUS "Using pkg-config FFmpeg library directory: ${FFMPEG_LIB_DIR}")
                 else()
                     # Architecture-aware fallback for library directory
-                    set(FFMPEG_LIB_DIR ${QT_BUILD_PATH}/lib)
+                    set(FFMPEG_LIB_DIR ${FFMPEG_PREFIX}/lib)
                     message(STATUS "Using fallback FFmpeg library directory: ${FFMPEG_LIB_DIR}")
                 endif()
                 set(FFMPEG_FOUND TRUE)
