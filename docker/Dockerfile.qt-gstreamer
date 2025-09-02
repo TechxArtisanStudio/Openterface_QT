@@ -27,11 +27,11 @@ RUN if [ "$TARGETARCH" = "arm64" ]; then \
     fi && \
     echo "export MULTIARCH_PATH=$MULTIARCH_PATH" >> /etc/environment
 
-ENV PKG_CONFIG_PATH="${WORK_DIR}/gstreamer_build/lib/pkgconfig:${FFMPEG_PREFIX}/lib/pkgconfig:/usr/share/pkgconfig"
-ENV LD_LIBRARY_PATH="${WORK_DIR}/gstreamer_build/lib:${FFMPEG_PREFIX}/lib"
+ENV PKG_CONFIG_PATH="${GSTREAMER_PREFIX}/lib/pkgconfig:${FFMPEG_PREFIX}/lib/pkgconfig:/usr/share/pkgconfig"
+ENV LD_LIBRARY_PATH="${GSTREAMER_PREFIX}/lib:${FFMPEG_PREFIX}/lib"
 
 # Create GStreamer build directories
-RUN mkdir -p "${WORK_DIR}/gstreamer_sources" "${WORK_DIR}/gstreamer_build"
+RUN mkdir -p "${WORK_DIR}/gstreamer_sources" "${GSTREAMER_PREFIX}"
 
 # Download GStreamer components (only essential ones)
 WORKDIR ${WORK_DIR}/gstreamer_sources
@@ -72,24 +72,24 @@ RUN echo "Building GStreamer core..." && \
     ninja -C build install && \
     echo "GStreamer core installation completed" && \
     echo "Searching for pkg-config files..." && \
-    find "${WORK_DIR}/gstreamer_build" -name "*.pc" -type f 2>/dev/null || echo "No .pc files found" && \
+    find "${GSTREAMER_PREFIX}" -name "*.pc" -type f 2>/dev/null || echo "No .pc files found" && \
     echo "Directory structure:" && \
-    find "${WORK_DIR}/gstreamer_build" -type d -name "*pkgconfig*" 2>/dev/null || echo "No pkgconfig directories found"
+    find "${GSTREAMER_PREFIX}" -type d -name "*pkgconfig*" 2>/dev/null || echo "No pkgconfig directories found"
 
 # Update PKG_CONFIG_PATH after GStreamer core installation
-ENV PKG_CONFIG_PATH="${WORK_DIR}/gstreamer_build/lib/pkgconfig:${PKG_CONFIG_PATH}"
+ENV PKG_CONFIG_PATH="${GSTREAMER_PREFIX}/lib/pkgconfig:${PKG_CONFIG_PATH}"
 
 # Build gst-plugins-base (essential plugins)
 RUN echo "Building gst-plugins-base..." && \
     . /etc/environment && \
     echo "Locating GStreamer pkg-config files..." && \
-    GSTREAMER_PC_DIR=$(find "${WORK_DIR}/gstreamer_build" -name "gstreamer-1.0.pc" -type f -exec dirname {} \; 2>/dev/null | head -1) && \
+    GSTREAMER_PC_DIR=$(find "${GSTREAMER_PREFIX}" -name "gstreamer-1.0.pc" -type f -exec dirname {} \; 2>/dev/null | head -1) && \
     if [ -n "$GSTREAMER_PC_DIR" ]; then \
         echo "Found GStreamer pkg-config files in: $GSTREAMER_PC_DIR"; \
         export PKG_CONFIG_PATH="$GSTREAMER_PC_DIR:${FFMPEG_PREFIX}/lib/pkgconfig:$MULTIARCH_PATH/pkgconfig:/usr/share/pkgconfig"; \
     else \
         echo "GStreamer pkg-config files not found, using default path"; \
-        export PKG_CONFIG_PATH="${WORK_DIR}/gstreamer_build/lib/pkgconfig:${FFMPEG_PREFIX}/lib/pkgconfig:$MULTIARCH_PATH/pkgconfig:/usr/share/pkgconfig"; \
+        export PKG_CONFIG_PATH="${GSTREAMER_PREFIX}/lib/pkgconfig:${FFMPEG_PREFIX}/lib/pkgconfig:$MULTIARCH_PATH/pkgconfig:/usr/share/pkgconfig"; \
     fi && \
     echo "PKG_CONFIG_PATH=$PKG_CONFIG_PATH" && \
     pkg-config --exists gstreamer-1.0 && echo "GStreamer-1.0 found via pkg-config" || echo "ERROR: GStreamer-1.0 NOT found" && \
@@ -113,11 +113,11 @@ RUN echo "Building gst-plugins-base..." && \
 # Build gst-plugins-good (minimal set)
 RUN echo "Building gst-plugins-good..." && \
     . /etc/environment && \
-    GSTREAMER_PC_DIR=$(find "${WORK_DIR}/gstreamer_build" -name "gstreamer-1.0.pc" -type f -exec dirname {} \; 2>/dev/null | head -1) && \
+    GSTREAMER_PC_DIR=$(find "${GSTREAMER_PREFIX}" -name "gstreamer-1.0.pc" -type f -exec dirname {} \; 2>/dev/null | head -1) && \
     if [ -n "$GSTREAMER_PC_DIR" ]; then \
         export PKG_CONFIG_PATH="$GSTREAMER_PC_DIR:${FFMPEG_PREFIX}/lib/pkgconfig:$MULTIARCH_PATH/pkgconfig:/usr/share/pkgconfig"; \
     else \
-        export PKG_CONFIG_PATH="${WORK_DIR}/gstreamer_build/lib/pkgconfig:${FFMPEG_PREFIX}/lib/pkgconfig:$MULTIARCH_PATH/pkgconfig:/usr/share/pkgconfig"; \
+        export PKG_CONFIG_PATH="${GSTREAMER_PREFIX}/lib/pkgconfig:${FFMPEG_PREFIX}/lib/pkgconfig:$MULTIARCH_PATH/pkgconfig:/usr/share/pkgconfig"; \
     fi && \
     cd "${WORK_DIR}/gstreamer_sources/gst-plugins-good-${GSTREAMER_VERSION}" && \
     meson setup build \
@@ -143,8 +143,8 @@ RUN echo "Building gst-plugins-good..." && \
 # Copy GStreamer to Qt installation directory
 RUN echo "Installing GStreamer to ${INSTALL_PREFIX}..." && \
     mkdir -p ${INSTALL_PREFIX}/lib ${INSTALL_PREFIX}/include && \
-    cp -a ${WORK_DIR}/gstreamer_build/lib/. ${INSTALL_PREFIX}/lib/ && \
-    cp -a ${WORK_DIR}/gstreamer_build/include/. ${INSTALL_PREFIX}/include/
+    cp -a ${GSTREAMER_PREFIX}/lib/. ${INSTALL_PREFIX}/lib/ && \
+    cp -a ${GSTREAMER_PREFIX}/include/. ${INSTALL_PREFIX}/include/
 
 # Update final environment
 ENV PKG_CONFIG_PATH="${INSTALL_PREFIX}/lib/pkgconfig:${PKG_CONFIG_PATH}"
