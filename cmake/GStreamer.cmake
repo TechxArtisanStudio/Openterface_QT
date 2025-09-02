@@ -57,7 +57,7 @@ if(CMAKE_PREFIX_PATH)
 endif()
 
 # Find GStreamer installation
-set(GSTREAMER_ROOT_DIR "/opt/Qt6")  # Default fallback for Docker build
+set(GSTREAMER_ROOT_DIR "/opt/gstreamer")  # Default fallback for Docker build
 foreach(SEARCH_PATH ${GSTREAMER_SEARCH_PATHS})
     if(EXISTS "${SEARCH_PATH}/include/gstreamer-1.0/gst/gst.h")
         set(GSTREAMER_ROOT_DIR "${SEARCH_PATH}")

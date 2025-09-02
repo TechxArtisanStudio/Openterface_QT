@@ -1,0 +1,145 @@
+# Dockerfile for Openterface QT Application
+# This Dockerfile builds a container that can run the latest Openterface QT application
+# with all dependencies installed from the latest GitHub source
+
+FROM ubuntu:24.04
+
+# Set environment variables to avoid interactive prompts
+ENV DEBIAN_FRONTEND=noninteractive
+ENV TZ=UTC
+
+# Set up display environment for GUI applications
+ENV DISPLAY=:0
+ENV QT_X11_NO_MITSHM=1
+ENV QT_QPA_PLATFORM=xcb
+
+# Install system dependencies and Qt6 development libraries
+RUN apt-get update -y --allow-releaseinfo-change --allow-unauthenticated && \
+    apt-get install -y --allow-unauthenticated \
+        # Essential build tools
+        build-essential \
+        cmake \
+        pkg-config \
+        git \
+        curl \
+        ca-certificates \
+        # Qt6 development libraries
+        qt6-base-dev \
+        qt6-multimedia-dev \
+        qt6-serialport-dev \
+        qt6-svg-dev \
+        qt6-tools-dev \
+        # Hardware interface libraries
+        libusb-1.0-0-dev \
+        libudev-dev \
+        # X11 and graphics libraries
+        libx11-dev \
+        libxrandr-dev \
+        libxrender-dev \
+        libexpat1-dev \
+        libfreetype6-dev \
+        libfontconfig1-dev \
+        libbz2-dev \
+        # FFmpeg libraries for video/audio processing
+        libavformat-dev \
+        libavcodec-dev \
+        libavutil-dev \
+        libswresample-dev \
+        libswscale-dev \
+        ffmpeg \
+        # Runtime Qt6 libraries for execution
+        libqt6core6 \
+        libqt6dbus6 \
+        libqt6gui6 \
+        libqt6widgets6 \
+        libqt6network6 \
+        libqt6multimedia6 \
+        libqt6multimediawidgets6 \
+        libqt6serialport6 \
+        libqt6svg6 \
+        # Additional runtime dependencies
+        libgstreamer1.0-0 \
+        gstreamer1.0-plugins-base \
+        gstreamer1.0-plugins-good \
+        gstreamer1.0-plugins-bad \
+        gstreamer1.0-plugins-ugly \
+        gstreamer1.0-libav \
+        gstreamer1.0-alsa \
+        gstreamer1.0-pulseaudio \
+        # Utilities
+        sudo \
+        wget \
+        curl \
+        udev && \
+    # Clean up to reduce image size
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+# Create a non-root user for running the application
+RUN useradd -m -s /bin/bash openterface && \
+    usermod -a -G dialout,uucp,audio,video openterface && \
+    echo "openterface ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+
+# Download and install the latest Openterface QT .deb package
+RUN wget https://github.com/TechxArtisanStudio/Openterface_QT/releases/download/0.3.19/openterfaceQT.linux.amd64.deb && \
+    dpkg -i openterfaceQT.linux.amd64.deb || (apt-get update && apt-get install -f -y) && \
+    rm openterfaceQT.linux.amd64.deb
+
+# Set up udev rules for Openterface hardware
+RUN echo 'SUBSYSTEM=="hidraw", ATTRS{idVendor}=="534d", ATTRS{idProduct}=="2109", TAG+="uaccess", MODE="0666"' > /etc/udev/rules.d/51-openterface.rules && \
+    echo 'SUBSYSTEM=="usb", ATTRS{idVendor}=="534d", ATTRS{idProduct}=="2109", TAG+="uaccess", MODE="0666"' >> /etc/udev/rules.d/51-openterface.rules && \
+    echo 'SUBSYSTEM=="ttyUSB", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="7523", TAG+="uaccess", MODE="0666"' >> /etc/udev/rules.d/51-openterface.rules && \
+    echo 'SUBSYSTEM=="usb", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="7523", TAG+="uaccess", MODE="0666"' >> /etc/udev/rules.d/51-openterface.rules
+
+# Create a startup script to handle udev and permissions
+RUN cat > /usr/local/bin/start-openterface.sh << 'EOF'
+#!/bin/bash
+
+# Start udev if not running
+if ! pgrep -x "systemd-udevd" > /dev/null && ! pgrep -x "udevd" > /dev/null; then
+    echo "Starting udev..."
+    sudo /lib/systemd/systemd-udevd --daemon
+    sudo udevadm control --reload-rules
+    sudo udevadm trigger
+fi
+
+# Ensure proper permissions
+sudo chmod 666 /dev/ttyUSB* 2>/dev/null || true
+sudo chmod 666 /dev/hidraw* 2>/dev/null || true
+
+# Start the application - find the actual binary location
+if [ -f "/usr/bin/openterfaceQT" ]; then
+    exec /usr/bin/openterfaceQT "$@"
+elif [ -f "/opt/openterface/bin/openterfaceQT" ]; then
+    exec /opt/openterface/bin/openterfaceQT "$@"
+elif [ -f "/usr/local/bin/openterfaceQT" ]; then
+    exec /usr/local/bin/openterfaceQT "$@"
+else
+    echo "Error: openterfaceQT binary not found!"
+    exit 1
+fi
+EOF
+
+RUN chmod +x /usr/local/bin/start-openterface.sh
+
+# Create a non-root user for running the application
+RUN useradd -m -s /bin/bash openterface && \
+    usermod -a -G dialout,uucp,audio,video openterface && \
+    echo "openterface ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+
+# Switch to non-root user
+USER openterface
+
+# Set the working directory
+WORKDIR /home/openterface
+
+# Expose any ports if needed (add if the application uses network features)
+# EXPOSE 8080
+
+# Add labels for metadata
+LABEL maintainer="TechxArtisan Studio"
+LABEL description="Openterface QT Mini-KVM control application"
+LABEL version="latest"
+
+# Default command to run the application
+CMD ["/usr/local/bin/start-openterface.sh"]
