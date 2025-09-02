@@ -98,6 +98,36 @@ RUN echo "Building qttools..." && \
     ninja && \
     ninja install
 
+# Build libxcb-cursor from source (static)
+RUN echo "Building libxcb-cursor from source..." && \
+    cd ${BUILD_DIR} && \
+    # Install additional build dependencies for libxcb-cursor
+    apt-get update && apt-get install -y \
+        libxcb-render0-dev \
+        libxcb-image0-dev \
+        libxrender-dev \
+        xutils-dev && \
+    # Download and build libxcb-cursor
+    curl -L -o libxcb-cursor.tar.gz "https://xcb.freedesktop.org/dist/libxcb-cursor-0.1.5.tar.gz" && \
+    tar -xzf libxcb-cursor.tar.gz && \
+    cd libxcb-cursor-0.1.5 && \
+    ./configure \
+        --prefix=/usr/local \
+        --enable-static \
+        --disable-shared \
+        --with-pic \
+        PKG_CONFIG_PATH="/usr/local/lib/pkgconfig:/usr/lib/x86_64-linux-gnu/pkgconfig" && \
+    make -j$(nproc) && \
+    make install && \
+    # Update pkg-config cache and ldconfig
+    ldconfig && \
+    pkg-config --exists xcb-cursor && echo "✓ libxcb-cursor static library installed successfully" || echo "⚠ libxcb-cursor pkg-config not found" && \
+    cd ${BUILD_DIR} && \
+    rm -rf libxcb-cursor-0.1.5 libxcb-cursor.tar.gz && \
+    # Clean up build dependencies
+    apt-get autoremove -y && \
+    rm -rf /var/lib/apt/lists/*
+
 # Create verification script
 RUN mkdir -p ${INSTALL_PREFIX}/bin && \
     echo '#!/bin/bash' > ${INSTALL_PREFIX}/bin/verify-qt-installation.sh && \

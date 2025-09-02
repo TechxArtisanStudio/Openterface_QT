@@ -3,9 +3,13 @@
 # Common source files for all platforms
 set(COMMON_SOURCES
     global.h
-    dlopen_wrapper.c
     main.cpp
 )
+
+# Add dlopen_wrapper.c only for static builds
+if(OPENTERFACE_BUILD_STATIC)
+    list(APPEND COMMON_SOURCES dlopen_wrapper.c)
+endif()
 
 # Device management
 set(DEVICE_SOURCES

@@ -370,13 +370,9 @@ jobs:
           cmake $CMAKE_TOOLCHAIN \
                 -DCMAKE_PREFIX_PATH="/opt/Qt6:/usr/local:/opt/ffmpeg" \
                 -DCMAKE_BUILD_TYPE=Release \
-                -DBUILD_SHARED_LIBS=OFF \
-                -DCMAKE_FIND_LIBRARY_SUFFIXES=".a;.so" \
+                -DOPENTERFACE_BUILD_STATIC=ON \
                 -DUSE_FFMPEG_STATIC=ON \
-                -DUSE_GSTREAMER_STATIC_PLUGINS=OFF \
-                -DFFMPEG_ROOT=/usr/local \
-                -DTurboJPEG_ROOT=/usr/local \
-                -DORC_ROOT=/opt/orc-static \
+                -DUSE_GSTREAMER_STATIC_PLUGINS=ON \
                 -DCMAKE_LIBRARY_PATH="$CMAKE_LIBRARY_PATH" \
                 -DCMAKE_INCLUDE_PATH="/opt/Qt6/include:/usr/local/include:/opt/ffmpeg/include:/usr/include" \
                 -DCMAKE_VERBOSE_MAKEFILE=ON \
