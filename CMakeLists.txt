@@ -43,6 +43,9 @@ include(cmake/Configuration.cmake)
 # Provide FFmpeg helper functions (defines add_ffmpeg_static_libraries)
 include(cmake/FFmpeg.cmake OPTIONAL)
 
+# Include internationalization support
+include(cmake/Internationalization.cmake)
+
 # Add the executable target
 qt_standard_project_setup()
 
