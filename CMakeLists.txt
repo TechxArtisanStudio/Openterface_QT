@@ -43,15 +43,15 @@ include(cmake/Configuration.cmake)
 # Provide FFmpeg helper functions (defines add_ffmpeg_static_libraries)
 include(cmake/FFmpeg.cmake OPTIONAL)
 
-# Include internationalization support
-include(cmake/Internationalization.cmake)
-
 # Add the executable target
 qt_standard_project_setup()
 
 # Include source files from modular file
 include(cmake/SourceFiles.cmake)
 qt_add_executable(openterfaceQT WIN32 ${SOURCE_FILES})
+
+# Include internationalization support (after target is created)
+include(cmake/Internationalization.cmake)
 
 # Ensure target can find project headers (needed for includes like "serial/SerialPortManager.h" and "ui/statusevents.h")
 target_include_directories(openterfaceQT PRIVATE
