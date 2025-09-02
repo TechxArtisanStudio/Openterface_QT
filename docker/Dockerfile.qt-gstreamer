@@ -58,7 +58,7 @@ RUN echo "Downloading gst-plugins-good..." && \
 RUN echo "Building GStreamer core..." && \
     cd "${WORK_DIR}/gstreamer_sources/gstreamer-${GSTREAMER_VERSION}" && \
     meson setup build \
-        --prefix="${WORK_DIR}/gstreamer_build" \
+        --prefix="${GSTREAMER_PREFIX}" \
         --default-library=static \
         --buildtype=release \
         -Ddoc=disabled \
@@ -95,7 +95,7 @@ RUN echo "Building gst-plugins-base..." && \
     pkg-config --exists gstreamer-1.0 && echo "GStreamer-1.0 found via pkg-config" || echo "ERROR: GStreamer-1.0 NOT found" && \
     cd "${WORK_DIR}/gstreamer_sources/gst-plugins-base-${GSTREAMER_VERSION}" && \
     meson setup build \
-        --prefix="${WORK_DIR}/gstreamer_build" \
+        --prefix="${GSTREAMER_PREFIX}" \
         --default-library=static \
         --buildtype=release \
         -Ddoc=disabled \
@@ -121,7 +121,7 @@ RUN echo "Building gst-plugins-good..." && \
     fi && \
     cd "${WORK_DIR}/gstreamer_sources/gst-plugins-good-${GSTREAMER_VERSION}" && \
     meson setup build \
-        --prefix="${WORK_DIR}/gstreamer_build" \
+        --prefix="${GSTREAMER_PREFIX}" \
         --default-library=static \
         --buildtype=release \
         -Ddoc=disabled \
