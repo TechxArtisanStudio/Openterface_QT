@@ -338,7 +338,7 @@ jobs:
           apt-get install -y libzstd-dev || { echo "Error: libzstd-dev not found"; exit 1; }
           apt-get install -y liblzma-dev || { echo "Error: liblzma-dev not found"; exit 1; }
           apt-get install -y libbz2-dev || { echo "Error: libbz2-dev not found"; exit 1; }
-          apt-get install -y va-driver-all vainfo libva-dev || { echo "Error: va driver not found"; exit 1; }
+          apt-get install -y libvdpau1 va-driver-all vainfo libva-dev || { echo "Error: va driver not found"; exit 1; }
           
           # Verify Qt6 static installation
           if [ ! -d '/opt/Qt6' ]; then
