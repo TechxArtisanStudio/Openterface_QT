@@ -46,6 +46,8 @@ RUN apt-get update -y --allow-releaseinfo-change --allow-unauthenticated && \
         libavutil-dev \
         libswresample-dev \
         libswscale-dev \
+        libturbojpeg-dev \
+        libturbojpeg0-dev \
         ffmpeg \
         # Runtime Qt6 libraries for execution
         libqt6core6 \
@@ -81,9 +83,13 @@ RUN useradd -m -s /bin/bash openterface && \
     echo "openterface ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
 
 # Download and install the latest Openterface QT .deb package
-RUN wget https://github.com/TechxArtisanStudio/Openterface_QT/releases/download/0.3.19/openterfaceQT.linux.amd64.deb && \
-    dpkg -i openterfaceQT.linux.amd64.deb || (apt-get update && apt-get install -f -y) && \
-    rm openterfaceQT.linux.amd64.deb
+# RUN wget https://github.com/TechxArtisanStudio/Openterface_QT/releases/download/0.3.19/openterfaceQT.linux.amd64.deb && \
+#     dpkg -i openterfaceQT.linux.amd64.deb || (apt-get update && apt-get install -f -y) && \
+#     rm openterfaceQT.linux.amd64.deb
+# Ensure the binary is in the build context (put build/openterfaceQT under the directory you use as docker build context)
+COPY ../build/openterfaceQT /usr/bin/openterfaceQT
+RUN chmod +x /usr/bin/openterfaceQT
+
 
 # Set up udev rules for Openterface hardware
 RUN echo 'SUBSYSTEM=="hidraw", ATTRS{idVendor}=="534d", ATTRS{idProduct}=="2109", TAG+="uaccess", MODE="0666"' > /etc/udev/rules.d/51-openterface.rules && \
@@ -95,17 +101,55 @@ RUN echo 'SUBSYSTEM=="hidraw", ATTRS{idVendor}=="534d", ATTRS{idProduct}=="2109"
 RUN cat > /usr/local/bin/start-openterface.sh << 'EOF'
 #!/bin/bash
 
+echo "🔧 Setting up device permissions..."
+
 # Start udev if not running
 if ! pgrep -x "systemd-udevd" > /dev/null && ! pgrep -x "udevd" > /dev/null; then
     echo "Starting udev..."
-    sudo /lib/systemd/systemd-udevd --daemon
-    sudo udevadm control --reload-rules
-    sudo udevadm trigger
+    sudo /lib/systemd/systemd-udevd --daemon 2>/dev/null || true
+    sudo udevadm control --reload-rules 2>/dev/null || true
+    sudo udevadm trigger 2>/dev/null || true
 fi
 
-# Ensure proper permissions
+# Wait a moment for udev to settle
+sleep 1
+
+# Ensure proper permissions for USB devices
+echo "🔌 Setting USB device permissions..."
 sudo chmod 666 /dev/ttyUSB* 2>/dev/null || true
 sudo chmod 666 /dev/hidraw* 2>/dev/null || true
+sudo chmod 666 /dev/bus/usb/*/* 2>/dev/null || true
+
+# Set specific permissions for Openterface devices
+if ls /dev/hidraw* 1> /dev/null 2>&1; then
+    for device in /dev/hidraw*; do
+        vendor=$(sudo udevadm info --name=$device --query=property | grep ID_VENDOR_ID | cut -d= -f2)
+        product=$(sudo udevadm info --name=$device --query=property | grep ID_MODEL_ID | cut -d= -f2)
+        if [ "$vendor" = "534d" ] && [ "$product" = "2109" ]; then
+            echo "✅ Found Openterface device: $device"
+            sudo chmod 666 $device
+            sudo chown root:root $device
+        fi
+    done
+fi
+
+# Check for serial devices
+if ls /dev/ttyUSB* 1> /dev/null 2>&1; then
+    for device in /dev/ttyUSB*; do
+        vendor=$(sudo udevadm info --name=$device --query=property | grep ID_VENDOR_ID | cut -d= -f2)
+        product=$(sudo udevadm info --name=$device --query=property | grep ID_MODEL_ID | cut -d= -f2)
+        if [ "$vendor" = "1a86" ] && [ "$product" = "7523" ]; then
+            echo "✅ Found serial device: $device"
+            sudo chmod 666 $device
+            sudo chown root:dialout $device
+        fi
+    done
+fi
+
+echo "📱 Available USB devices:"
+lsusb | grep -E "(534d|1a86)" || echo "No Openterface devices detected"
+
+echo "🚀 Starting Openterface application..."
 
 # Start the application - find the actual binary location
 if [ -f "/usr/bin/openterfaceQT" ]; then
@@ -121,11 +165,6 @@ fi
 EOF
 
 RUN chmod +x /usr/local/bin/start-openterface.sh
-
-# Create a non-root user for running the application
-RUN useradd -m -s /bin/bash openterface && \
-    usermod -a -G dialout,uucp,audio,video openterface && \
-    echo "openterface ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
 
 # Switch to non-root user
 USER openterface

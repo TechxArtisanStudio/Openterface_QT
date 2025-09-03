@@ -25,15 +25,6 @@ on:
         - 'qt-declarative'
         - 'qt-complete'
         - 'all'
-      architecture:
-        description: 'Target architecture(s) to build'
-        required: false
-        default: 'linux/amd64'
-        type: choice
-        options:
-        - 'linux/amd64'
-        - 'linux/arm64'
-        - 'linux/amd64,linux/arm64'
       ubuntu_version:
         description: 'Ubuntu base image version'
         required: false
@@ -83,22 +74,6 @@ jobs:
       - name: Set lowercase image name
         run: echo "IMAGE_NAME_LOWER=$(echo '${{ github.repository_owner }}/openterface-qtbuild' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
 
-      - name: Set architecture suffix
-        id: arch-suffix
-        run: |
-          ARCH_INPUT="${{ github.event.inputs.architecture || 'linux/amd64' }}"
-          if [[ "$ARCH_INPUT" == "linux/amd64" ]]; then
-            echo "arch_suffix=amd64" >> $GITHUB_OUTPUT
-            echo "arch_tag_suffix=-amd64" >> $GITHUB_OUTPUT
-          elif [[ "$ARCH_INPUT" == "linux/arm64" ]]; then
-            echo "arch_suffix=arm64" >> $GITHUB_OUTPUT  
-            echo "arch_tag_suffix=-arm64" >> $GITHUB_OUTPUT
-          else
-            # Multi-arch build, no suffix for multi-arch manifest
-            echo "arch_suffix=multi" >> $GITHUB_OUTPUT
-            echo "arch_tag_suffix=" >> $GITHUB_OUTPUT
-          fi
-
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -116,11 +91,11 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-dynamic
           tags: |
-            type=ref,event=branch,suffix=${{ steps.arch-suffix.outputs.arch_tag_suffix }}
-            type=ref,event=pr,suffix=${{ steps.arch-suffix.outputs.arch_tag_suffix }}
-            type=sha,suffix=${{ steps.arch-suffix.outputs.arch_tag_suffix }}
-            type=raw,value=latest${{ steps.arch-suffix.outputs.arch_tag_suffix }}
-            type=raw,value=ubuntu-${{ github.event.inputs.ubuntu_version || '24.04' }}${{ steps.arch-suffix.outputs.arch_tag_suffix }}
+            type=ref,event=branch,suffix=-amd64
+            type=ref,event=pr,suffix=-amd64
+            type=sha,suffix=-amd64
+            type=raw,value=latest-amd64
+            type=raw,value=ubuntu-${{ github.event.inputs.ubuntu_version || '24.04' }}-amd64
 
       - name: Check if dynamic image exists
         id: check-dynamic
@@ -129,13 +104,13 @@ jobs:
             echo "Force rebuild requested, will build dynamic image"
             echo "should_build=true" >> $GITHUB_OUTPUT
           else
-            IMAGE_TAG="ubuntu-${{ github.event.inputs.ubuntu_version || '24.04' }}${{ steps.arch-suffix.outputs.arch_tag_suffix }}"
+            IMAGE_TAG="ubuntu-${{ github.event.inputs.ubuntu_version || '24.04' }}-amd64"
             echo "Checking for image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-dynamic:$IMAGE_TAG"
             if docker manifest inspect ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-dynamic:$IMAGE_TAG > /dev/null 2>&1; then
-              echo "Dynamic image already exists for architecture ${{ steps.arch-suffix.outputs.arch_suffix }}, skipping build"
+              echo "Dynamic image already exists for amd64 architecture, skipping build"
               echo "should_build=false" >> $GITHUB_OUTPUT
             else
-              echo "Dynamic image does not exist for architecture ${{ steps.arch-suffix.outputs.arch_suffix }}, will build"
+              echo "Dynamic image does not exist for amd64 architecture, will build"
               echo "should_build=true" >> $GITHUB_OUTPUT
             fi
           fi
@@ -149,28 +124,18 @@ jobs:
           file: ./docker/Dockerfile.qt-dynamic
           build-args: |
             UBUNTU_VERSION=${{ github.event.inputs.ubuntu_version || '24.04' }}
-            TARGETARCH=${{ steps.arch-suffix.outputs.arch_suffix }}
+            TARGETARCH=amd64
           push: ${{ github.event_name != 'pull_request' && (github.event.inputs.push_to_registry == 'true' || github.event.inputs.push_to_registry == '') }}
           tags: ${{ steps.meta-dynamic.outputs.tags }}
           labels: ${{ steps.meta-dynamic.outputs.labels }}
           cache-from: type=gha,scope=dynamic
           cache-to: type=gha,mode=max,scope=dynamic
-          platforms: ${{ github.event.inputs.architecture || 'linux/amd64' }}
+          platforms: linux/amd64
 
       - name: Test Dynamic Qt Environment
-        if: steps.arch-suffix.outputs.arch_suffix == 'amd64'
         run: |
-          docker run --rm ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-dynamic:ubuntu-${{ github.event.inputs.ubuntu_version || '24.04' }}${{ steps.arch-suffix.outputs.arch_tag_suffix }} \
+          docker run --rm ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-dynamic:ubuntu-${{ github.event.inputs.ubuntu_version || '24.04' }}-amd64 \
             /opt/verify/verify-qt-dynamic.sh
-
-      - name: Test Dynamic Qt Environment (ARM64 with emulation)
-        if: steps.arch-suffix.outputs.arch_suffix == 'arm64'
-        run: |
-          echo "Setting up QEMU for ARM64 emulation..."
-          docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
-          echo "Testing ARM64 image with emulation..."
-          docker run --rm --platform linux/arm64 ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-dynamic:ubuntu-${{ github.event.inputs.ubuntu_version || '24.04' }}${{ steps.arch-suffix.outputs.arch_tag_suffix }} \
-            /opt/verify/verify-qt-dynamic.sh || echo "ARM64 test skipped due to emulation limitations"
 
   # Static Qt Environment Build (existing multi-stage process)
   build-static-base:
@@ -187,23 +152,6 @@ jobs:
 
       - name: Set lowercase image name
         run: echo "IMAGE_NAME_LOWER=$(echo '${{ github.repository_owner }}/openterface-qtbuild' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
-
-      - name: Set architecture suffix
-        id: arch-suffix
-        run: |
-          ARCH_INPUT="${{ github.event.inputs.architecture || 'linux/amd64' }}"
-          if [[ "$ARCH_INPUT" == "linux/amd64" ]]; then
-            echo "arch_suffix=amd64" >> $GITHUB_OUTPUT
-            echo "arch_tag_suffix=-amd64" >> $GITHUB_OUTPUT
-          elif [[ "$ARCH_INPUT" == "linux/arm64" ]]; then
-            echo "arch_suffix=arm64" >> $GITHUB_OUTPUT  
-            echo "arch_tag_suffix=-arm64" >> $GITHUB_OUTPUT
-          else
-            # Multi-arch build, no suffix for multi-arch manifest
-            echo "arch_suffix=multi" >> $GITHUB_OUTPUT
-            echo "arch_tag_suffix=" >> $GITHUB_OUTPUT
-          fi
-
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -221,11 +169,11 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-base
           tags: |
-            type=ref,event=branch,suffix=${{ steps.arch-suffix.outputs.arch_tag_suffix }}
-            type=ref,event=pr,suffix=${{ steps.arch-suffix.outputs.arch_tag_suffix }}
-            type=sha,suffix=${{ steps.arch-suffix.outputs.arch_tag_suffix }}
-            type=raw,value=latest${{ steps.arch-suffix.outputs.arch_tag_suffix }}
-            type=raw,value=ubuntu-${{ github.event.inputs.ubuntu_version || '24.04' }}${{ steps.arch-suffix.outputs.arch_tag_suffix }}
+            type=ref,event=branch,suffix=-amd64
+            type=ref,event=pr,suffix=-amd64
+            type=sha,suffix=-amd64
+            type=raw,value=latest-amd64
+            type=raw,value=ubuntu-${{ github.event.inputs.ubuntu_version || '24.04' }}-amd64
 
       - name: Check if base image exists
         id: check-base
@@ -234,13 +182,13 @@ jobs:
             echo "Force rebuild requested, will build base image"
             echo "should_build=true" >> $GITHUB_OUTPUT
           else
-            IMAGE_TAG="ubuntu-${{ github.event.inputs.ubuntu_version || '24.04' }}${{ steps.arch-suffix.outputs.arch_tag_suffix }}"
+            IMAGE_TAG="ubuntu-${{ github.event.inputs.ubuntu_version || '24.04' }}-amd64"
             echo "Checking for image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-base:$IMAGE_TAG"
             if docker manifest inspect ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-base:$IMAGE_TAG > /dev/null 2>&1; then
-              echo "Base image already exists for architecture ${{ steps.arch-suffix.outputs.arch_suffix }}, skipping build"
+              echo "Base image already exists for architecture amd64, skipping build"
               echo "should_build=false" >> $GITHUB_OUTPUT
             else
-              echo "Base image does not exist for architecture ${{ steps.arch-suffix.outputs.arch_suffix }}, will build"
+              echo "Base image does not exist for architecture amd64, will build"
               echo "should_build=true" >> $GITHUB_OUTPUT
             fi
           fi
@@ -254,13 +202,13 @@ jobs:
           file: ./docker/Dockerfile.qt-base
           build-args: |
             UBUNTU_VERSION=${{ github.event.inputs.ubuntu_version || '24.04' }}
-            TARGETARCH=${{ steps.arch-suffix.outputs.arch_suffix }}
+            TARGETARCH=amd64
           push: ${{ github.event_name != 'pull_request' && (github.event.inputs.push_to_registry == 'true' || github.event.inputs.push_to_registry == '') }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha,scope=static-base
           cache-to: type=gha,mode=max,scope=static-base
-          platforms: ${{ github.event.inputs.architecture || 'linux/amd64' }}
+          platforms: linux/amd64
 
   build-static-ffmpeg:
     if: ${{ github.event.inputs.environment_type == 'static' || github.event.inputs.environment_type == 'both' || (github.event.inputs.step == 'ffmpeg' || github.event.inputs.step == 'qt-base-qtml' || github.event.inputs.step == 'qt-declarative' || github.event.inputs.step == 'qt-complete' || github.event.inputs.step == 'all') }}
@@ -277,23 +225,6 @@ jobs:
 
       - name: Set lowercase image name
         run: echo "IMAGE_NAME_LOWER=$(echo '${{ github.repository_owner }}/openterface-qtbuild' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
-
-      - name: Set architecture suffix
-        id: arch-suffix
-        run: |
-          ARCH_INPUT="${{ github.event.inputs.architecture || 'linux/amd64' }}"
-          if [[ "$ARCH_INPUT" == "linux/amd64" ]]; then
-            echo "arch_suffix=amd64" >> $GITHUB_OUTPUT
-            echo "arch_tag_suffix=-amd64" >> $GITHUB_OUTPUT
-          elif [[ "$ARCH_INPUT" == "linux/arm64" ]]; then
-            echo "arch_suffix=arm64" >> $GITHUB_OUTPUT  
-            echo "arch_tag_suffix=-arm64" >> $GITHUB_OUTPUT
-          else
-            # Multi-arch build, no suffix for multi-arch manifest
-            echo "arch_suffix=multi" >> $GITHUB_OUTPUT
-            echo "arch_tag_suffix=" >> $GITHUB_OUTPUT
-          fi
-
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -311,11 +242,11 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-ffmpeg
           tags: |
-            type=ref,event=branch,suffix=${{ steps.arch-suffix.outputs.arch_tag_suffix }}
-            type=ref,event=pr,suffix=${{ steps.arch-suffix.outputs.arch_tag_suffix }}
-            type=sha,suffix=${{ steps.arch-suffix.outputs.arch_tag_suffix }}
-            type=raw,value=latest${{ steps.arch-suffix.outputs.arch_tag_suffix }}
-            type=raw,value=ubuntu-${{ github.event.inputs.ubuntu_version || '24.04' }}${{ steps.arch-suffix.outputs.arch_tag_suffix }}
+            type=ref,event=branch,suffix=-amd64
+            type=ref,event=pr,suffix=-amd64
+            type=sha,suffix=-amd64
+            type=raw,value=latest-amd64
+            type=raw,value=ubuntu-${{ github.event.inputs.ubuntu_version || '24.04' }}-amd64
 
       - name: Build and push FFmpeg image
         id: build
@@ -324,15 +255,15 @@ jobs:
           context: .
           file: ./docker/Dockerfile.qt-ffmpeg
           build-args: |
-            BASE_IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-base:ubuntu-${{ github.event.inputs.ubuntu_version || '24.04' }}${{ steps.arch-suffix.outputs.arch_tag_suffix }}
+            BASE_IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-base:ubuntu-${{ github.event.inputs.ubuntu_version || '24.04' }}-amd64
             UBUNTU_VERSION=${{ github.event.inputs.ubuntu_version || '24.04' }}
-            TARGETARCH=${{ steps.arch-suffix.outputs.arch_suffix }}
+            TARGETARCH=amd64
           push: ${{ github.event_name != 'pull_request' && (github.event.inputs.push_to_registry == 'true' || github.event.inputs.push_to_registry == '') }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha,scope=static-ffmpeg
           cache-to: type=gha,mode=max,scope=static-ffmpeg
-          platforms: ${{ github.event.inputs.architecture || 'linux/amd64' }}
+          platforms: linux/amd64
 
   build-static-gstreamer:
     if: ${{ github.event.inputs.environment_type == 'static' || github.event.inputs.environment_type == 'both' || (github.event.inputs.step == 'gstreamer' || github.event.inputs.step == 'qt-base-qtml' || github.event.inputs.step == 'qt-declarative' || github.event.inputs.step == 'qt-complete' || github.event.inputs.step == 'all') }}
@@ -349,23 +280,6 @@ jobs:
 
       - name: Set lowercase image name
         run: echo "IMAGE_NAME_LOWER=$(echo '${{ github.repository_owner }}/openterface-qtbuild' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
-
-      - name: Set architecture suffix
-        id: arch-suffix
-        run: |
-          ARCH_INPUT="${{ github.event.inputs.architecture || 'linux/amd64' }}"
-          if [[ "$ARCH_INPUT" == "linux/amd64" ]]; then
-            echo "arch_suffix=amd64" >> $GITHUB_OUTPUT
-            echo "arch_tag_suffix=-amd64" >> $GITHUB_OUTPUT
-          elif [[ "$ARCH_INPUT" == "linux/arm64" ]]; then
-            echo "arch_suffix=arm64" >> $GITHUB_OUTPUT  
-            echo "arch_tag_suffix=-arm64" >> $GITHUB_OUTPUT
-          else
-            # Multi-arch build, no suffix for multi-arch manifest
-            echo "arch_suffix=multi" >> $GITHUB_OUTPUT
-            echo "arch_tag_suffix=" >> $GITHUB_OUTPUT
-          fi
-
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -383,11 +297,11 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-gstreamer
           tags: |
-            type=ref,event=branch,suffix=${{ steps.arch-suffix.outputs.arch_tag_suffix }}
-            type=ref,event=pr,suffix=${{ steps.arch-suffix.outputs.arch_tag_suffix }}
-            type=sha,suffix=${{ steps.arch-suffix.outputs.arch_tag_suffix }}
-            type=raw,value=latest${{ steps.arch-suffix.outputs.arch_tag_suffix }}
-            type=raw,value=ubuntu-${{ github.event.inputs.ubuntu_version || '24.04' }}${{ steps.arch-suffix.outputs.arch_tag_suffix }}
+            type=ref,event=branch,suffix=-amd64
+            type=ref,event=pr,suffix=-amd64
+            type=sha,suffix=-amd64
+            type=raw,value=latest-amd64
+            type=raw,value=ubuntu-${{ github.event.inputs.ubuntu_version || '24.04' }}-amd64
 
       - name: Build and push GStreamer image
         id: build
@@ -396,15 +310,15 @@ jobs:
           context: .
           file: ./docker/Dockerfile.qt-gstreamer
           build-args: |
-            BASE_IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-ffmpeg:ubuntu-${{ github.event.inputs.ubuntu_version || '24.04' }}${{ steps.arch-suffix.outputs.arch_tag_suffix }}
+            BASE_IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-ffmpeg:ubuntu-${{ github.event.inputs.ubuntu_version || '24.04' }}-amd64
             UBUNTU_VERSION=${{ github.event.inputs.ubuntu_version || '24.04' }}
-            TARGETARCH=${{ steps.arch-suffix.outputs.arch_suffix }}
+            TARGETARCH=amd64
           push: ${{ github.event_name != 'pull_request' && (github.event.inputs.push_to_registry == 'true' || github.event.inputs.push_to_registry == '') }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha,scope=static-gstreamer
           cache-to: type=gha,mode=max,scope=static-gstreamer
-          platforms: ${{ github.event.inputs.architecture || 'linux/amd64' }}
+          platforms: linux/amd64
 
   build-static-qt-base-qtml:
     if: ${{ github.event.inputs.environment_type == 'static' || github.event.inputs.environment_type == 'both' || (github.event.inputs.step == 'qt-base-qtml' || github.event.inputs.step == 'all') }}
@@ -421,23 +335,6 @@ jobs:
 
       - name: Set lowercase image name
         run: echo "IMAGE_NAME_LOWER=$(echo '${{ github.repository_owner }}/openterface-qtbuild' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
-
-      - name: Set architecture suffix
-        id: arch-suffix
-        run: |
-          ARCH_INPUT="${{ github.event.inputs.architecture || 'linux/amd64' }}"
-          if [[ "$ARCH_INPUT" == "linux/amd64" ]]; then
-            echo "arch_suffix=amd64" >> $GITHUB_OUTPUT
-            echo "arch_tag_suffix=-amd64" >> $GITHUB_OUTPUT
-          elif [[ "$ARCH_INPUT" == "linux/arm64" ]]; then
-            echo "arch_suffix=arm64" >> $GITHUB_OUTPUT  
-            echo "arch_tag_suffix=-arm64" >> $GITHUB_OUTPUT
-          else
-            # Multi-arch build, no suffix for multi-arch manifest
-            echo "arch_suffix=multi" >> $GITHUB_OUTPUT
-            echo "arch_tag_suffix=" >> $GITHUB_OUTPUT
-          fi
-
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -455,11 +352,11 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-qt-base-qtml
           tags: |
-            type=ref,event=branch,suffix=${{ steps.arch-suffix.outputs.arch_tag_suffix }}
-            type=ref,event=pr,suffix=${{ steps.arch-suffix.outputs.arch_tag_suffix }}
-            type=sha,suffix=${{ steps.arch-suffix.outputs.arch_tag_suffix }}
-            type=raw,value=latest${{ steps.arch-suffix.outputs.arch_tag_suffix }}
-            type=raw,value=ubuntu-${{ github.event.inputs.ubuntu_version || '24.04' }}${{ steps.arch-suffix.outputs.arch_tag_suffix }}
+            type=ref,event=branch,suffix=-amd64
+            type=ref,event=pr,suffix=-amd64
+            type=sha,suffix=-amd64
+            type=raw,value=latest-amd64
+            type=raw,value=ubuntu-${{ github.event.inputs.ubuntu_version || '24.04' }}-amd64
 
       - name: Build and push Qt Base QTML image
         id: build
@@ -468,15 +365,15 @@ jobs:
           context: .
           file: ./docker/Dockerfile.qt-base-qtml
           build-args: |
-            BASE_IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-gstreamer:ubuntu-${{ github.event.inputs.ubuntu_version || '24.04' }}${{ steps.arch-suffix.outputs.arch_tag_suffix }}
+            BASE_IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-gstreamer:ubuntu-${{ github.event.inputs.ubuntu_version || '24.04' }}-amd64
             UBUNTU_VERSION=${{ github.event.inputs.ubuntu_version || '24.04' }}
-            TARGETARCH=${{ steps.arch-suffix.outputs.arch_suffix }}
+            TARGETARCH=amd64
           push: ${{ github.event_name != 'pull_request' && (github.event.inputs.push_to_registry == 'true' || github.event.inputs.push_to_registry == '') }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha,scope=static-qt-base-qtml
           cache-to: type=gha,mode=max,scope=static-qt-base-qtml
-          platforms: ${{ github.event.inputs.architecture || 'linux/amd64' }}
+          platforms: linux/amd64
 
   build-static-qt-declarative:
     if: ${{ github.event.inputs.environment_type == 'static' || github.event.inputs.environment_type == 'both' || (github.event.inputs.step == 'qt-declarative' || github.event.inputs.step == 'all') }}
@@ -493,23 +390,6 @@ jobs:
 
       - name: Set lowercase image name
         run: echo "IMAGE_NAME_LOWER=$(echo '${{ github.repository_owner }}/openterface-qtbuild' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
-
-      - name: Set architecture suffix
-        id: arch-suffix
-        run: |
-          ARCH_INPUT="${{ github.event.inputs.architecture || 'linux/amd64' }}"
-          if [[ "$ARCH_INPUT" == "linux/amd64" ]]; then
-            echo "arch_suffix=amd64" >> $GITHUB_OUTPUT
-            echo "arch_tag_suffix=-amd64" >> $GITHUB_OUTPUT
-          elif [[ "$ARCH_INPUT" == "linux/arm64" ]]; then
-            echo "arch_suffix=arm64" >> $GITHUB_OUTPUT  
-            echo "arch_tag_suffix=-arm64" >> $GITHUB_OUTPUT
-          else
-            # Multi-arch build, no suffix for multi-arch manifest
-            echo "arch_suffix=multi" >> $GITHUB_OUTPUT
-            echo "arch_tag_suffix=" >> $GITHUB_OUTPUT
-          fi
-
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -527,11 +407,11 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-qt-declarative
           tags: |
-            type=ref,event=branch,suffix=${{ steps.arch-suffix.outputs.arch_tag_suffix }}
-            type=ref,event=pr,suffix=${{ steps.arch-suffix.outputs.arch_tag_suffix }}
-            type=sha,suffix=${{ steps.arch-suffix.outputs.arch_tag_suffix }}
-            type=raw,value=latest${{ steps.arch-suffix.outputs.arch_tag_suffix }}
-            type=raw,value=ubuntu-${{ github.event.inputs.ubuntu_version || '24.04' }}${{ steps.arch-suffix.outputs.arch_tag_suffix }}
+            type=ref,event=branch,suffix=-amd64
+            type=ref,event=pr,suffix=-amd64
+            type=sha,suffix=-amd64
+            type=raw,value=latest-amd64
+            type=raw,value=ubuntu-${{ github.event.inputs.ubuntu_version || '24.04' }}-amd64
 
       - name: Build and push Qt Declarative image
         id: build
@@ -540,15 +420,15 @@ jobs:
           context: .
           file: ./docker/Dockerfile.qt-declarative
           build-args: |
-            BASE_IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-qt-base-qtml:ubuntu-${{ github.event.inputs.ubuntu_version || '24.04' }}${{ steps.arch-suffix.outputs.arch_tag_suffix }}
+            BASE_IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-qt-base-qtml:ubuntu-${{ github.event.inputs.ubuntu_version || '24.04' }}-amd64
             UBUNTU_VERSION=${{ github.event.inputs.ubuntu_version || '24.04' }}
-            TARGETARCH=${{ steps.arch-suffix.outputs.arch_suffix }}
+            TARGETARCH=amd64
           push: ${{ github.event_name != 'pull_request' && (github.event.inputs.push_to_registry == 'true' || github.event.inputs.push_to_registry == '') }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha,scope=static-qt-declarative
           cache-to: type=gha,mode=max,scope=static-qt-declarative
-          platforms: ${{ github.event.inputs.architecture || 'linux/amd64' }}
+          platforms: linux/amd64
 
   build-static-complete:
     if: ${{ github.event.inputs.environment_type == 'static' || github.event.inputs.environment_type == 'both' || (github.event.inputs.step == 'qt-complete' || github.event.inputs.step == 'all') }}
@@ -565,23 +445,6 @@ jobs:
 
       - name: Set lowercase image name
         run: echo "IMAGE_NAME_LOWER=$(echo '${{ github.repository_owner }}/openterface-qtbuild' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
-
-      - name: Set architecture suffix
-        id: arch-suffix
-        run: |
-          ARCH_INPUT="${{ github.event.inputs.architecture || 'linux/amd64' }}"
-          if [[ "$ARCH_INPUT" == "linux/amd64" ]]; then
-            echo "arch_suffix=amd64" >> $GITHUB_OUTPUT
-            echo "arch_tag_suffix=-amd64" >> $GITHUB_OUTPUT
-          elif [[ "$ARCH_INPUT" == "linux/arm64" ]]; then
-            echo "arch_suffix=arm64" >> $GITHUB_OUTPUT  
-            echo "arch_tag_suffix=-arm64" >> $GITHUB_OUTPUT
-          else
-            # Multi-arch build, no suffix for multi-arch manifest
-            echo "arch_suffix=multi" >> $GITHUB_OUTPUT
-            echo "arch_tag_suffix=" >> $GITHUB_OUTPUT
-          fi
-
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -599,11 +462,11 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-complete
           tags: |
-            type=ref,event=branch,suffix=${{ steps.arch-suffix.outputs.arch_tag_suffix }}
-            type=ref,event=pr,suffix=${{ steps.arch-suffix.outputs.arch_tag_suffix }}
-            type=sha,suffix=${{ steps.arch-suffix.outputs.arch_tag_suffix }}
-            type=raw,value=latest${{ steps.arch-suffix.outputs.arch_tag_suffix }}
-            type=raw,value=ubuntu-${{ github.event.inputs.ubuntu_version || '24.04' }}${{ steps.arch-suffix.outputs.arch_tag_suffix }}
+            type=ref,event=branch,suffix=-amd64
+            type=ref,event=pr,suffix=-amd64
+            type=sha,suffix=-amd64
+            type=raw,value=latest-amd64
+            type=raw,value=ubuntu-${{ github.event.inputs.ubuntu_version || '24.04' }}-amd64
 
       - name: Build and push Qt Complete image
         id: build
@@ -612,57 +475,37 @@ jobs:
           context: .
           file: ./docker/Dockerfile.qt-complete
           build-args: |
-            BASE_IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-qt-declarative:ubuntu-${{ github.event.inputs.ubuntu_version || '24.04' }}${{ steps.arch-suffix.outputs.arch_tag_suffix }}
+            BASE_IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-qt-declarative:ubuntu-${{ github.event.inputs.ubuntu_version || '24.04' }}-amd64
             UBUNTU_VERSION=${{ github.event.inputs.ubuntu_version || '24.04' }}
-            TARGETARCH=${{ steps.arch-suffix.outputs.arch_suffix }}
+            TARGETARCH=amd64
           push: ${{ github.event_name != 'pull_request' && (github.event.inputs.push_to_registry == 'true' || github.event.inputs.push_to_registry == '') }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha,scope=static-complete
           cache-to: type=gha,mode=max,scope=static-complete
-          platforms: ${{ github.event.inputs.architecture || 'linux/amd64' }}
+          platforms: linux/amd64
 
       - name: Test Static Qt Environment
-        if: steps.arch-suffix.outputs.arch_suffix == 'amd64'
         run: |
-          docker run --rm ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-complete:ubuntu-${{ github.event.inputs.ubuntu_version || '24.04' }}${{ steps.arch-suffix.outputs.arch_tag_suffix }} \
+          docker run --rm ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-complete:ubuntu-${{ github.event.inputs.ubuntu_version || '24.04' }}-amd64 \
             /opt/Qt6/bin/verify-qt-installation.sh
 
-      - name: Test Static Qt Environment (ARM64 with emulation)
-        if: steps.arch-suffix.outputs.arch_suffix == 'arm64'
-        run: |
-          echo "Setting up QEMU for ARM64 emulation..."
-          docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
-          echo "Testing ARM64 image with emulation..."
-          docker run --rm --platform linux/arm64 ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-complete:ubuntu-${{ github.event.inputs.ubuntu_version || '24.04' }}${{ steps.arch-suffix.outputs.arch_tag_suffix }} \
-            /opt/Qt6/bin/verify-qt-installation.sh || echo "ARM64 test skipped due to emulation limitations"
-
-  # Build applications with both environments to verify they work
-  test-both-environments:
-    if: ${{ github.event.inputs.environment_type == 'both' || github.event_name == 'push' || github.event_name == 'pull_request' }}
+  # Test static environment
+  test-static-environment:
+    if: ${{ github.event.inputs.environment_type == 'static' || github.event.inputs.environment_type == 'both' || github.event_name == 'push' || github.event_name == 'pull_request' }}
     runs-on: ubuntu-latest
-    needs: [build-dynamic, build-static-complete]
-    strategy:
-      matrix:
-        build_type: [static, dynamic]
+    needs: [build-static-complete]
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Set lowercase image name
         run: echo "IMAGE_NAME_LOWER=$(echo '${{ github.repository_owner }}/openterface-qtbuild' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
-
-      - name: Test ${{ matrix.build_type }} build
+      - name: Test static build
         run: |
-          if [ "${{ matrix.build_type }}" = "static" ]; then
-            IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-complete:latest"
-            CMAKE_ARGS="-DCMAKE_PREFIX_PATH=/opt/Qt6 -DBUILD_SHARED_LIBS=OFF"
-            BUILD_TYPE="Static"
-          else
-            IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-dynamic:latest"
-            CMAKE_ARGS="-DCMAKE_PREFIX_PATH=/usr/lib/x86_64-linux-gnu/cmake/Qt6 -DBUILD_SHARED_LIBS=ON"
-            BUILD_TYPE="Dynamic"
-          fi
+          IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-complete:ubuntu-${{ github.event.inputs.ubuntu_version || '24.04' }}-amd64"
+          CMAKE_ARGS="-DCMAKE_PREFIX_PATH=/opt/Qt6 -DBUILD_SHARED_LIBS=OFF"
+          BUILD_TYPE="Static"
           
           echo "Testing $BUILD_TYPE Qt Build Environment..."
           docker run --rm \
@@ -671,7 +514,7 @@ jobs:
             $IMAGE \
             bash -c "
               echo 'Building Openterface QT Application ($BUILD_TYPE)...'
-              mkdir -p build-${{ matrix.build_type }} && cd build-${{ matrix.build_type }}
+              mkdir -p build-static && cd build-static
               
               # Configure with CMake
               cmake $CMAKE_ARGS \\
@@ -691,14 +534,68 @@ jobs:
               fi
             "
 
-      - name: Upload ${{ matrix.build_type }} build artifacts
+      - name: Upload static build artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: openterface-qtbuild-${{ matrix.build_type }}-build
+          name: openterface-qtbuild-static-build
           path: |
-            build-${{ matrix.build_type }}/
-            !build-${{ matrix.build_type }}/CMakeFiles/
-            !build-${{ matrix.build_type }}/**/*.o
+            build-static/
+            !build-static/CMakeFiles/
+            !build-static/**/*.o
+          retention-days: 7
+
+  # Test dynamic environment
+  test-dynamic-environment:
+    if: ${{ github.event.inputs.environment_type == 'dynamic' || github.event.inputs.environment_type == 'both' || github.event_name == 'push' || github.event_name == 'pull_request' }}
+    runs-on: ubuntu-latest
+    needs: [build-dynamic]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set lowercase image name
+        run: echo "IMAGE_NAME_LOWER=$(echo '${{ github.repository_owner }}/openterface-qtbuild' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
+      - name: Test dynamic build
+        run: |
+          IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-dynamic:ubuntu-${{ github.event.inputs.ubuntu_version || '24.04' }}-amd64"
+          CMAKE_ARGS="-DCMAKE_PREFIX_PATH=/usr/lib/x86_64-linux-gnu/cmake/Qt6 -DBUILD_SHARED_LIBS=ON"
+          BUILD_TYPE="Dynamic"
+          
+          echo "Testing $BUILD_TYPE Qt Build Environment..."
+          docker run --rm \
+            -v ${{ github.workspace }}:/workspace/src \
+            -w /workspace/src \
+            $IMAGE \
+            bash -c "
+              echo 'Building Openterface QT Application ($BUILD_TYPE)...'
+              mkdir -p build-dynamic && cd build-dynamic
+              
+              # Configure with CMake
+              cmake $CMAKE_ARGS \\
+                    -DCMAKE_BUILD_TYPE=Release \\
+                    .. || { echo 'CMake configuration failed'; exit 1; }
+              
+              # Build the application
+              make -j\$(nproc) || { echo 'Build failed'; exit 1; }
+              
+              echo '$BUILD_TYPE build completed successfully!'
+              ls -la
+              
+              # Check binary dependencies
+              if [ -f './openterfaceQT' ]; then
+                echo 'Checking binary dependencies:'
+                ldd ./openterfaceQT | head -20
+              fi
+            "
+
+      - name: Upload dynamic build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: openterface-qtbuild-dynamic-build
+          path: |
+            build-dynamic/
+            !build-dynamic/CMakeFiles/
+            !build-dynamic/**/*.o
           retention-days: 7
 
   # Summary job that shows which images are available
@@ -717,13 +614,13 @@ jobs:
           echo "|-------------|--------|-------|" >> $GITHUB_STEP_SUMMARY
           
           if [ "${{ needs.build-dynamic.result }}" = "success" ]; then
-            echo "| Dynamic Qt | ✅ Success | \`${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-dynamic:latest\` |" >> $GITHUB_STEP_SUMMARY
+            echo "| Dynamic Qt | ✅ Success | \`${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-dynamic:ubuntu-${{ github.event.inputs.ubuntu_version || '24.04' }}-amd64\` |" >> $GITHUB_STEP_SUMMARY
           else
             echo "| Dynamic Qt | ❌ Failed/Skipped | - |" >> $GITHUB_STEP_SUMMARY
           fi
           
           if [ "${{ needs.build-static-complete.result }}" = "success" ]; then
-            echo "| Static Qt Complete | ✅ Success | \`${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-complete:latest\` |" >> $GITHUB_STEP_SUMMARY
+            echo "| Static Qt Complete | ✅ Success | \`${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-complete:ubuntu-${{ github.event.inputs.ubuntu_version || '24.04' }}-amd64\` |" >> $GITHUB_STEP_SUMMARY
           else
             echo "| Static Qt Complete | ❌ Failed/Skipped | - |" >> $GITHUB_STEP_SUMMARY
           fi
@@ -734,13 +631,13 @@ jobs:
           echo "**Dynamic Build:**" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
           echo "docker run --rm -v \$(pwd):/workspace/src -w /workspace/src \\" >> $GITHUB_STEP_SUMMARY
-          echo "  ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-dynamic:latest \\" >> $GITHUB_STEP_SUMMARY
+          echo "  ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-dynamic:ubuntu-${{ github.event.inputs.ubuntu_version || '24.04' }}-amd64 \\" >> $GITHUB_STEP_SUMMARY
           echo "  bash -c 'mkdir build && cd build && cmake -DBUILD_SHARED_LIBS=ON .. && make -j\$(nproc)'" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Static Build:**" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
           echo "docker run --rm -v \$(pwd):/workspace/src -w /workspace/src \\" >> $GITHUB_STEP_SUMMARY
-          echo "  ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-complete:latest \\" >> $GITHUB_STEP_SUMMARY
+          echo "  ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-complete:ubuntu-${{ github.event.inputs.ubuntu_version || '24.04' }}-amd64 \\" >> $GITHUB_STEP_SUMMARY
           echo "  bash -c 'mkdir build && cd build && cmake -DCMAKE_PREFIX_PATH=/opt/Qt6 -DBUILD_SHARED_LIBS=OFF .. && make -j\$(nproc)'" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
