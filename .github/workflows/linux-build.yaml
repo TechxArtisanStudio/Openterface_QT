@@ -623,7 +623,7 @@ jobs:
           cp ${{ github.workspace }}/images/icon_256.png AppDir/com.openterface.openterfaceQT.png
           
           # Build AppImage with version
-          APPIMAGE_NAME="openterfaceQT.linux.amd64.static.v${VERSION}.AppImage"
+          APPIMAGE_NAME="openterfaceQT.linux.amd64.static.AppImage"
           ARCH=x86_64 appimagetool AppDir "$APPIMAGE_NAME"
           
           # Verify AppImage was created
