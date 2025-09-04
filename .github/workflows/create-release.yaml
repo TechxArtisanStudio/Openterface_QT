@@ -191,7 +191,7 @@ jobs:
         with:
           workflow: linux-build.yaml
           workflow_conclusion: success
-          name: openterfaceQT.linux.amd64.deb
+          name: openterfaceQT.linux.amd64.shared.deb
           path: artifacts/linux/amd64/deb
           
       - name: Download Linux AMD64 RPM artifact
@@ -199,16 +199,8 @@ jobs:
         with:
           workflow: linux-build.yaml
           workflow_conclusion: success
-          name: openterfaceQT.linux.amd64.rpm
+          name: openterfaceQT.linux.amd64.shared.rpm
           path: artifacts/linux/amd64/rpm
-          
-      - name: Download Linux ARM64 DEB artifact
-        uses: dawidd6/action-download-artifact@v2
-        with:
-          workflow: arm64shared-lib-build.yml
-          workflow_conclusion: success
-          name: openterface-qt.linux.arm64.deb
-          path: artifacts/linux/arm64/deb
       
       - name: Download Linux portable artifacts
         uses: dawidd6/action-download-artifact@v6
@@ -223,7 +215,7 @@ jobs:
         with:
           workflow: linux-portable-build.yaml
           workflow_conclusion: success
-          name: openterfaceQT.linux.amd64.portable.AppImage
+          name: openterfaceQT.linux.amd64.static.AppImage
           path: artifacts/linux/portable
 
       - name: Download signed Windows installer artifact
