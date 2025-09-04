@@ -59,22 +59,14 @@ QList<DeviceInfo> WindowsDeviceManager::discoverDevices()
         return m_cachedDevices;
     }
 
-    qCDebug(log_device_windows) << "Discovering Openterface devices using Python-compatible logic...";
+    qCDebug(log_device_windows) << "Discovering Openterface devices with optimized USB 2.0/3.0 detection...";
     
     QList<DeviceInfo> devices;
     
     try {
-        // Search for Generation 1 devices (Original approach)
-        qCDebug(log_device_windows) << "=== Searching for Generation 1 devices ===";
-        QList<DeviceInfo> gen1Devices = discoverGeneration1Devices();
-        devices.append(gen1Devices);
-        qCDebug(log_device_windows) << "Found" << gen1Devices.size() << "Generation 1 devices";
-        
-        // Search for Generation 2 devices (Companion device approach)
-        qCDebug(log_device_windows) << "=== Searching for Generation 2 devices ===";
-        QList<DeviceInfo> gen2Devices = discoverGeneration2Devices();
-        devices.append(gen2Devices);
-        qCDebug(log_device_windows) << "Found" << gen2Devices.size() << "Generation 2 devices";
+        // Use optimized discovery that supports both USB 2.0 and USB 3.0 devices
+        // This handles devices that can work with both generation methods
+        devices = discoverOptimizedDevices();
         
     } catch (const std::exception& e) {
         qCWarning(log_device_windows) << "Error discovering devices:" << e.what();
@@ -1734,6 +1726,380 @@ QList<DeviceInfo> WindowsDeviceManager::discoverGeneration2Devices()
     }
     
     return devices;
+}
+
+QList<DeviceInfo> WindowsDeviceManager::discoverOptimizedDevices()
+{
+    QList<DeviceInfo> devices;
+    QMap<QString, DeviceInfo> deviceMap; // Use port chain as key to prevent duplicates
+    
+    qCDebug(log_device_windows) << "Starting optimized device discovery for USB 2.0/3.0 compatibility...";
+    
+    // Priority 1: Search for Generation 2 devices (345F:2130) using both discovery methods
+    qCDebug(log_device_windows) << "=== Phase 1: Searching for Generation 2 devices (345F:2130) using both methods ===";
+    
+    // Phase 1A: Use Generation 2 companion device approach
+    qCDebug(log_device_windows) << "Phase 1A: Generation 2 companion device approach";
+    QList<USBDeviceData> gen2DevicesCompanion = findUSBDevicesWithVidPid(AbstractPlatformDeviceManager::OPENTERFACE_VID_V2, AbstractPlatformDeviceManager::OPENTERFACE_PID_V2);
+    qCDebug(log_device_windows) << "Found" << gen2DevicesCompanion.size() << "Generation 2 devices (companion approach)";
+    
+    for (int i = 0; i < gen2DevicesCompanion.size(); ++i) {
+        const USBDeviceData& gen2Device = gen2DevicesCompanion[i];
+        
+        qCDebug(log_device_windows) << "Processing Gen2 Companion Device" << (i + 1) << "at port chain:" << gen2Device.portChain;
+        
+        DeviceInfo deviceInfo;
+        deviceInfo.portChain = gen2Device.portChain;
+        deviceInfo.deviceInstanceId = gen2Device.deviceInstanceId;
+        deviceInfo.lastSeen = QDateTime::currentDateTime();
+        deviceInfo.platformSpecific = gen2Device.deviceInfo;
+        
+        // Process Generation 2 device interfaces (HID, Camera, Audio)
+        processGeneration2Interfaces(deviceInfo, gen2Device);
+        
+        // Find associated serial port for Generation 2
+        QString serialPortId = findSerialPortByCompanionDevice(gen2Device);
+        if (!serialPortId.isEmpty()) {
+            deviceInfo.serialPortId = serialPortId;
+            qCDebug(log_device_windows) << "  ✓ Found associated serial port for Gen2 companion device";
+        }
+        
+        // Convert device IDs to real paths
+        matchDevicePathsToRealPathsGeneration2(deviceInfo);
+        
+        // Add to device map to prevent duplicates
+        deviceMap[deviceInfo.portChain] = deviceInfo;
+        qCDebug(log_device_windows) << "Gen2 companion device added to map with port chain:" << deviceInfo.portChain;
+    }
+    
+    // Phase 1B: Use Generation 1 approach for Generation 2 devices (345F:2130) 
+    // This handles cases where Gen2 devices appear with Gen1-style interface layout
+    qCDebug(log_device_windows) << "Phase 1B: Generation 1 approach for Generation 2 devices";
+    QList<USBDeviceData> gen2DevicesLegacy = findUSBDevicesWithVidPid(AbstractPlatformDeviceManager::OPENTERFACE_VID_V2, AbstractPlatformDeviceManager::OPENTERFACE_PID_V2);
+    qCDebug(log_device_windows) << "Re-processing" << gen2DevicesLegacy.size() << "Generation 2 devices with legacy approach";
+    
+    for (int i = 0; i < gen2DevicesLegacy.size(); ++i) {
+        const USBDeviceData& gen2Device = gen2DevicesLegacy[i];
+        
+        // Check if we already have this device from the companion approach
+        if (deviceMap.contains(gen2Device.portChain)) {
+            DeviceInfo& existingDevice = deviceMap[gen2Device.portChain];
+            qCDebug(log_device_windows) << "Enhancing existing Gen2 device at port chain:" << gen2Device.portChain;
+            
+            // Try to fill missing interfaces using Generation 1 approach
+            if (!existingDevice.hasSerialPort()) {
+                processGeneration1SerialInterface(existingDevice, gen2Device);
+            }
+            if (!existingDevice.hasHidDevice() || !existingDevice.hasCameraDevice() || !existingDevice.hasAudioDevice()) {
+                processGeneration1MediaInterfaces(existingDevice, gen2Device);
+            }
+            
+            // Re-convert device IDs to real paths in case new interfaces were found
+            matchDevicePathsToRealPaths(existingDevice);
+            
+            qCDebug(log_device_windows) << "Enhanced Gen2 device - interfaces now:" << existingDevice.getInterfaceSummary();
+        } else {
+            // Device not found with companion approach, try pure Generation 1 style processing
+            qCDebug(log_device_windows) << "Processing Gen2 Device" << (i + 1) << "with legacy approach at port chain:" << gen2Device.portChain;
+            
+            DeviceInfo deviceInfo;
+            deviceInfo.portChain = gen2Device.portChain;
+            deviceInfo.deviceInstanceId = gen2Device.deviceInstanceId;
+            deviceInfo.lastSeen = QDateTime::currentDateTime();
+            deviceInfo.platformSpecific = gen2Device.deviceInfo;
+            
+            // Process Generation 1 device interfaces for this Generation 2 device
+            processGeneration1Interfaces(deviceInfo, gen2Device);
+            
+            // Convert device IDs to real paths
+            matchDevicePathsToRealPaths(deviceInfo);
+            
+            // Add to device map
+            deviceMap[deviceInfo.portChain] = deviceInfo;
+            qCDebug(log_device_windows) << "Gen2 legacy device added to map with port chain:" << deviceInfo.portChain;
+        }
+    }
+    
+    // Priority 2: Search for Generation 1 devices (534D:2109) but only add if not already found
+    qCDebug(log_device_windows) << "=== Phase 2: Searching for Generation 1 devices (534D:2109) ===";
+    QList<USBDeviceData> gen1Devices = findUSBDevicesWithVidPid(AbstractPlatformDeviceManager::OPENTERFACE_VID, AbstractPlatformDeviceManager::OPENTERFACE_PID);
+    qCDebug(log_device_windows) << "Found" << gen1Devices.size() << "Generation 1 devices";
+    
+    for (int i = 0; i < gen1Devices.size(); ++i) {
+        const USBDeviceData& gen1Device = gen1Devices[i];
+        
+        // Check if we already have a device at this port chain from Generation 2
+        if (deviceMap.contains(gen1Device.portChain)) {
+            qCDebug(log_device_windows) << "Skipping Gen1 device at port chain" << gen1Device.portChain << "- already found as Gen2";
+            continue;
+        }
+        
+        qCDebug(log_device_windows) << "Processing Gen1 Device" << (i + 1) << "at port chain:" << gen1Device.portChain;
+        
+        DeviceInfo deviceInfo;
+        deviceInfo.portChain = gen1Device.portChain;
+        deviceInfo.deviceInstanceId = gen1Device.deviceInstanceId;
+        deviceInfo.lastSeen = QDateTime::currentDateTime();
+        deviceInfo.platformSpecific = gen1Device.deviceInfo;
+        
+        // Process Generation 1 device interfaces
+        processGeneration1Interfaces(deviceInfo, gen1Device);
+        
+        // Convert device IDs to real paths
+        matchDevicePathsToRealPaths(deviceInfo);
+        
+        // Add to device map
+        deviceMap[deviceInfo.portChain] = deviceInfo;
+        qCDebug(log_device_windows) << "Gen1 device added to map with port chain:" << deviceInfo.portChain;
+    }
+    
+    // Priority 3: Enhanced detection for devices that might work with both approaches
+    qCDebug(log_device_windows) << "=== Phase 3: Enhanced detection for hybrid devices ===";
+    enhanceDeviceDetection(deviceMap);
+    
+    // Convert map to list
+    for (auto it = deviceMap.begin(); it != deviceMap.end(); ++it) {
+        devices.append(it.value());
+    }
+    
+    qCDebug(log_device_windows) << "=== Optimized Discovery Summary ===";
+    qCDebug(log_device_windows) << "Total unique devices found:" << devices.size();
+    for (int i = 0; i < devices.size(); ++i) {
+        const DeviceInfo& device = devices[i];
+        qCDebug(log_device_windows) << "Device" << (i + 1) << ":";
+        qCDebug(log_device_windows) << "  Port Chain:" << device.portChain;
+        qCDebug(log_device_windows) << "  Interfaces:" << device.getInterfaceSummary();
+        qCDebug(log_device_windows) << "  Complete:" << (device.isCompleteDevice() ? "Yes" : "No");
+    }
+    
+    return devices;
+}
+
+void WindowsDeviceManager::processGeneration2Interfaces(DeviceInfo& deviceInfo, const USBDeviceData& gen2Device)
+{
+    qCDebug(log_device_windows) << "Processing Generation 2 interfaces for device:" << deviceInfo.portChain;
+    
+    // Process children to find HID, camera, and audio devices from the companion device
+    for (const QVariantMap& child : gen2Device.children) {
+        QString hardwareId = child["hardwareId"].toString();
+        QString deviceId = child["deviceId"].toString();
+        
+        // Skip interface endpoints we don't need
+        if (deviceId.contains("&0002") || deviceId.contains("&0004")) {
+            continue;
+        }
+        
+        // Check for HID device (MI_04 interface)
+        if (hardwareId.toUpper().contains("HID") && deviceId.toUpper().contains("MI_04")) {
+            deviceInfo.hidDeviceId = deviceId;
+            qCDebug(log_device_windows) << "  ✓ Found HID interface:" << deviceId;
+        }
+        // Check for camera device (MI_00 interface)
+        else if (hardwareId.toUpper().contains("MI_00")) {
+            deviceInfo.cameraDeviceId = deviceId;
+            qCDebug(log_device_windows) << "  ✓ Found camera interface:" << deviceId;
+        }
+        // Check for audio device (Audio in hardware ID)
+        else if (hardwareId.toUpper().contains("AUDIO")) {
+            deviceInfo.audioDeviceId = deviceId;
+            qCDebug(log_device_windows) << "  ✓ Found audio interface:" << deviceId;
+        }
+    }
+}
+
+void WindowsDeviceManager::processGeneration1Interfaces(DeviceInfo& deviceInfo, const USBDeviceData& gen1Device)
+{
+    qCDebug(log_device_windows) << "Processing Generation 1 interfaces for device:" << deviceInfo.portChain;
+    
+    // Process serial interfaces first
+    processGeneration1SerialInterface(deviceInfo, gen1Device);
+    
+    // Process media interfaces (HID, camera, audio)
+    processGeneration1MediaInterfaces(deviceInfo, gen1Device);
+}
+
+void WindowsDeviceManager::processGeneration1SerialInterface(DeviceInfo& deviceInfo, const USBDeviceData& deviceData)
+{
+    // Process siblings to find serial port devices (Python-compatible logic)
+    for (const QVariantMap& sibling : deviceData.siblings) {
+        QString hardwareId = sibling["hardwareId"].toString();
+        QString deviceId = sibling["deviceId"].toString();
+        
+        // Check if this sibling is a serial port with our target VID/PID (1A86:7523)
+        if (hardwareId.toUpper().contains(AbstractPlatformDeviceManager::SERIAL_VID.toUpper()) &&
+            hardwareId.toUpper().contains(AbstractPlatformDeviceManager::SERIAL_PID.toUpper())) {
+            deviceInfo.serialPortId = deviceId;
+            deviceInfo.serialPortPath = deviceData.portChain;
+            qCDebug(log_device_windows) << "  ✓ Found serial port sibling:" << deviceId;
+            break;
+        }
+    }
+    
+    // Also check for Generation 2 serial devices (1A86:FE0C) in siblings
+    for (const QVariantMap& sibling : deviceData.siblings) {
+        QString hardwareId = sibling["hardwareId"].toString();
+        QString deviceId = sibling["deviceId"].toString();
+        
+        // Check if this sibling is a Gen2 serial port (1A86:FE0C)
+        if (hardwareId.toUpper().contains(AbstractPlatformDeviceManager::SERIAL_VID_V2.toUpper()) &&
+            hardwareId.toUpper().contains(AbstractPlatformDeviceManager::SERIAL_PID_V2.toUpper())) {
+            deviceInfo.serialPortId = deviceId;
+            deviceInfo.serialPortPath = deviceData.portChain;
+            qCDebug(log_device_windows) << "  ✓ Found Gen2 serial port sibling:" << deviceId;
+            break;
+        }
+    }
+}
+
+void WindowsDeviceManager::processGeneration1MediaInterfaces(DeviceInfo& deviceInfo, const USBDeviceData& deviceData)
+{
+    // Process children to find HID, camera, and audio devices
+    for (const QVariantMap& child : deviceData.children) {
+        QString hardwareId = child["hardwareId"].toString();
+        QString deviceId = child["deviceId"].toString();
+        
+        // Skip interface endpoints we don't need
+        if (deviceId.contains("&0002") || deviceId.contains("&0004")) {
+            continue;
+        }
+        
+        // Check for HID device
+        if (hardwareId.toUpper().contains("HID") && deviceId.toUpper().contains("MI_04")) {
+            if (deviceInfo.hidDeviceId.isEmpty()) {  // Don't overwrite if already found
+                deviceInfo.hidDeviceId = deviceId;
+                qCDebug(log_device_windows) << "  ✓ Found HID interface:" << deviceId;
+            }
+        }
+        // Check for camera device (MI_00 interface)
+        else if (hardwareId.toUpper().contains("MI_00")) {
+            if (deviceInfo.cameraDeviceId.isEmpty()) {  // Don't overwrite if already found
+                deviceInfo.cameraDeviceId = deviceId;
+                qCDebug(log_device_windows) << "  ✓ Found camera interface:" << deviceId;
+            }
+        }
+        // Check for audio device (MI_01 interface or Audio in hardware ID)
+        else if (hardwareId.toUpper().contains("MI_01") || hardwareId.toUpper().contains("AUDIO")) {
+            if (deviceInfo.audioDeviceId.isEmpty()) {  // Don't overwrite if already found
+                deviceInfo.audioDeviceId = deviceId;
+                qCDebug(log_device_windows) << "  ✓ Found audio interface:" << deviceId;
+            }
+        }
+    }
+}
+
+void WindowsDeviceManager::enhanceDeviceDetection(QMap<QString, DeviceInfo>& deviceMap)
+{
+    qCDebug(log_device_windows) << "Enhancing device detection for USB 2.0/3.0 compatibility...";
+    
+    // Iterate through all devices and try to fill missing interfaces
+    for (auto it = deviceMap.begin(); it != deviceMap.end(); ++it) {
+        DeviceInfo& device = it.value();
+        
+        qCDebug(log_device_windows) << "Enhancing device at port chain:" << device.portChain;
+        
+        // Try to find missing serial port using Generation 2 method if not found
+        if (!device.hasSerialPort()) {
+            qCDebug(log_device_windows) << "  Attempting to find missing serial port...";
+            QString serialPortId = findSerialPortForPortChain(device.portChain);
+            if (!serialPortId.isEmpty()) {
+                device.serialPortId = serialPortId;
+                qCDebug(log_device_windows) << "  ✓ Enhanced: Found serial port" << serialPortId;
+            }
+        }
+        
+        // Try alternative HID detection if not found
+        if (!device.hasHidDevice()) {
+            qCDebug(log_device_windows) << "  Attempting to find missing HID device...";
+            QString hidDeviceId = findHidDeviceForPortChain(device.portChain);
+            if (!hidDeviceId.isEmpty()) {
+                device.hidDeviceId = hidDeviceId;
+                qCDebug(log_device_windows) << "  ✓ Enhanced: Found HID device" << hidDeviceId;
+            }
+        }
+        
+        // Convert any newly found device IDs to real paths
+        if (device.deviceInstanceId.contains(AbstractPlatformDeviceManager::OPENTERFACE_VID_V2)) {
+            matchDevicePathsToRealPathsGeneration2(device);
+        } else {
+            matchDevicePathsToRealPaths(device);
+        }
+        
+        qCDebug(log_device_windows) << "  Enhancement result - Serial:" << (device.hasSerialPort() ? "✓" : "✗")
+                                   << "HID:" << (device.hasHidDevice() ? "✓" : "✗")
+                                   << "Camera:" << (device.hasCameraDevice() ? "✓" : "✗")
+                                   << "Audio:" << (device.hasAudioDevice() ? "✓" : "✗");
+    }
+}
+
+QString WindowsDeviceManager::findSerialPortForPortChain(const QString& portChain)
+{
+    qCDebug(log_device_windows) << "Searching for serial port associated with port chain:" << portChain;
+    
+    // Try Generation 2 approach first - look for 1A86:FE0C devices
+    QList<USBDeviceData> serialDevicesV2 = findUSBDevicesWithVidPid(AbstractPlatformDeviceManager::SERIAL_VID_V2, AbstractPlatformDeviceManager::SERIAL_PID_V2);
+    for (const USBDeviceData& serialDevice : serialDevicesV2) {
+        if (arePortChainsRelated(portChain, serialDevice.portChain)) {
+            qCDebug(log_device_windows) << "  ✓ Found related Generation 2 serial port:" << serialDevice.deviceInstanceId;
+            return serialDevice.deviceInstanceId;
+        }
+    }
+    
+    // Try Generation 1 approach - look for 1A86:7523 devices
+    QList<USBDeviceData> serialDevicesV1 = findUSBDevicesWithVidPid(AbstractPlatformDeviceManager::SERIAL_VID, AbstractPlatformDeviceManager::SERIAL_PID);
+    for (const USBDeviceData& serialDevice : serialDevicesV1) {
+        if (arePortChainsRelated(portChain, serialDevice.portChain)) {
+            qCDebug(log_device_windows) << "  ✓ Found related Generation 1 serial port:" << serialDevice.deviceInstanceId;
+            return serialDevice.deviceInstanceId;
+        }
+    }
+    
+    return QString();
+}
+
+QString WindowsDeviceManager::findHidDeviceForPortChain(const QString& portChain)
+{
+    qCDebug(log_device_windows) << "Searching for HID device associated with port chain:" << portChain;
+    
+    // Enumerate HID devices and look for ones that match our port chain
+    GUID hidGuid;
+    HidD_GetHidGuid(&hidGuid);
+    
+    HDEVINFO hDevInfo = SetupDiGetClassDevs(&hidGuid, nullptr, nullptr, DIGCF_PRESENT | DIGCF_DEVICEINTERFACE);
+    if (hDevInfo == INVALID_HANDLE_VALUE) {
+        return QString();
+    }
+    
+    SP_DEVICE_INTERFACE_DATA interfaceData;
+    interfaceData.cbSize = sizeof(SP_DEVICE_INTERFACE_DATA);
+    
+    for (DWORD i = 0; SetupDiEnumDeviceInterfaces(hDevInfo, nullptr, &hidGuid, i, &interfaceData); i++) {
+        SP_DEVINFO_DATA devInfoData;
+        devInfoData.cbSize = sizeof(SP_DEVINFO_DATA);
+        
+        DWORD requiredSize = 0;
+        SetupDiGetDeviceInterfaceDetail(hDevInfo, &interfaceData, nullptr, 0, &requiredSize, &devInfoData);
+        
+        if (requiredSize > 0) {
+            std::vector<BYTE> buffer(requiredSize);
+            PSP_DEVICE_INTERFACE_DETAIL_DATA detailData = reinterpret_cast<PSP_DEVICE_INTERFACE_DETAIL_DATA>(buffer.data());
+            detailData->cbSize = sizeof(SP_DEVICE_INTERFACE_DETAIL_DATA);
+            
+            if (SetupDiGetDeviceInterfaceDetail(hDevInfo, &interfaceData, detailData, requiredSize, nullptr, &devInfoData)) {
+                QString deviceId = getDeviceId(devInfoData.DevInst);
+                QString devicePortChain = buildPythonCompatiblePortChain(devInfoData.DevInst);
+                
+                // Check if this HID device is associated with our target port chain
+                if (arePortChainsRelated(portChain, devicePortChain) && deviceId.toUpper().contains("MI_04")) {
+                    qCDebug(log_device_windows) << "  ✓ Found related HID device:" << deviceId;
+                    SetupDiDestroyDeviceInfoList(hDevInfo);
+                    return deviceId;
+                }
+            }
+        }
+    }
+    
+    SetupDiDestroyDeviceInfoList(hDevInfo);
+    return QString();
 }
 
 QString WindowsDeviceManager::findSerialPortByCompanionDevice(const USBDeviceData& companionDevice)

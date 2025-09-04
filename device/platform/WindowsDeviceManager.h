@@ -4,6 +4,7 @@
 
 #include "AbstractPlatformDeviceManager.h"
 #include <QLoggingCategory>
+#include <QMap>
 #include <windows.h>
 #include <setupapi.h>
 #include <cfgmgr32.h>
@@ -102,6 +103,16 @@ private:
     // Generation-specific device discovery methods
     QList<DeviceInfo> discoverGeneration1Devices();
     QList<DeviceInfo> discoverGeneration2Devices();
+    
+    // Optimized device discovery for USB 2.0/3.0 compatibility
+    QList<DeviceInfo> discoverOptimizedDevices();
+    void processGeneration2Interfaces(DeviceInfo& deviceInfo, const USBDeviceData& gen2Device);
+    void processGeneration1Interfaces(DeviceInfo& deviceInfo, const USBDeviceData& gen1Device);
+    void processGeneration1SerialInterface(DeviceInfo& deviceInfo, const USBDeviceData& deviceData);
+    void processGeneration1MediaInterfaces(DeviceInfo& deviceInfo, const USBDeviceData& deviceData);
+    void enhanceDeviceDetection(QMap<QString, DeviceInfo>& deviceMap);
+    QString findSerialPortForPortChain(const QString& portChain);
+    QString findHidDeviceForPortChain(const QString& portChain);
     
     // Generation 2 (Companion device) helper methods
     QString findSerialPortByCompanionDevice(const USBDeviceData& companionDevice);
