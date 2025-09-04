@@ -14,7 +14,7 @@ on:
       build_type:
         description: 'Type of Qt build to use'
         required: true
-        default: 'static'
+        default: 'both'
         type: choice
         options:
         - 'dynamic'
@@ -106,6 +106,49 @@ jobs:
         run: |
           VERSION=$(grep -oP '#define APP_VERSION "\K[^"]+' resources/version.h)
           echo "VERSION=$VERSION" >> $GITHUB_ENV
+
+      - name: Update and compile translations
+        run: |
+          # Create build script for translation processing
+          cat > ${{ runner.temp }}/translation-script.sh << 'TRANS_EOF'
+          #!/bin/bash
+          set -e
+          
+          echo "Processing translations before CMake build..."
+          cd /workspace/src
+          
+          # Update translation files with lupdate
+          echo "Running lupdate to extract translatable strings..."
+          if [ -f "/opt/Qt6/bin/lupdate" ]; then
+            /opt/Qt6/bin/lupdate openterfaceQT.pro -no-obsolete || echo "lupdate failed, continuing..."
+          else
+            echo "lupdate not found, skipping translation update"
+          fi
+          
+          # Compile translation files with lrelease
+          echo "Running lrelease to compile .qm files..."
+          if [ -f "/opt/Qt6/bin/lrelease" ]; then
+            /opt/Qt6/bin/lrelease openterfaceQT.pro || echo "lrelease failed, continuing..."
+          else
+            echo "lrelease not found, skipping translation compilation"
+          fi
+          
+          # Verify .qm files were created
+          echo "Checking for compiled translation files:"
+          ls -la config/languages/*.qm 2>/dev/null || echo "No .qm files found"
+          
+          echo "Translation processing completed"
+          TRANS_EOF
+          
+          chmod +x ${{ runner.temp }}/translation-script.sh
+          
+          # Run translation processing in container
+          docker run --rm \
+            -v ${{ github.workspace }}:/workspace/src \
+            -v ${{ runner.temp }}/translation-script.sh:/translation-script.sh \
+            -w /workspace/src \
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-dynamic:latest \
+            /translation-script.sh
 
       - name: Build in Docker Container (Dynamic Qt)
         run: |
@@ -259,6 +302,19 @@ jobs:
         with:
           submodules: recursive
 
+      - name: Install prerequisites
+        run: |
+          sudo apt update -y
+          sudo apt upgrade -y
+          sudo apt install build-essential
+          sudo apt-get install -y libusb-1.0-0-dev rpm libfuse2 libudev-dev
+          
+          wget -O linuxdeploy-x86_64.AppImage https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
+          wget -O linuxdeploy-plugin-qt-x86_64.AppImage https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-x86_64.AppImage
+          wget -O appimagetool "https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage"
+          
+          chmod +x linuxdeploy-x86_64.AppImage linuxdeploy-plugin-qt-x86_64.AppImage appimagetool
+          sudo mv linuxdeploy-x86_64.AppImage linuxdeploy-plugin-qt-x86_64.AppImage appimagetool /usr/local/bin/
 
       - name: Set lowercase image name
         run: echo "IMAGE_NAME_LOWER=$(echo '${{ github.repository_owner }}/openterface-qtbuild' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
@@ -315,6 +371,49 @@ jobs:
           VERSION=$(grep -oP '#define APP_VERSION "\K[^"]+' resources/version.h)
           echo "VERSION=$VERSION" >> $GITHUB_ENV
 
+      - name: Update and compile translations (Static)
+        run: |
+          # Create build script for translation processing
+          cat > ${{ runner.temp }}/translation-static-script.sh << 'TRANS_STATIC_EOF'
+          #!/bin/bash
+          set -e
+          
+          echo "Processing translations before CMake static build..."
+          cd /workspace/src
+          
+          # Update translation files with lupdate
+          echo "Running lupdate to extract translatable strings..."
+          if [ -f "/opt/Qt6/bin/lupdate" ]; then
+            /opt/Qt6/bin/lupdate openterfaceQT.pro -no-obsolete || echo "lupdate failed, continuing..."
+          else
+            echo "lupdate not found, skipping translation update"
+          fi
+          
+          # Compile translation files with lrelease
+          echo "Running lrelease to compile .qm files..."
+          if [ -f "/opt/Qt6/bin/lrelease" ]; then
+            /opt/Qt6/bin/lrelease openterfaceQT.pro || echo "lrelease failed, continuing..."
+          else
+            echo "lrelease not found, skipping translation compilation"
+          fi
+          
+          # Verify .qm files were created
+          echo "Checking for compiled translation files:"
+          ls -la config/languages/*.qm 2>/dev/null || echo "No .qm files found"
+          
+          echo "Translation processing completed"
+          TRANS_STATIC_EOF
+          
+          chmod +x ${{ runner.temp }}/translation-static-script.sh
+          
+          # Run translation processing in container
+          docker run --rm \
+            -v ${{ github.workspace }}:/workspace/src \
+            -v ${{ runner.temp }}/translation-static-script.sh:/translation-script.sh \
+            -w /workspace/src \
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-complete:latest \
+            /translation-script.sh
+
       - name: Build in Docker Container (Static Qt)
         run: |
           # Create build directory in host for artifact collection
@@ -335,7 +434,11 @@ jobs:
           apt-get update -y
           apt-get install -y libgudev-1.0-dev || { echo "Error: libgudev-1.0-dev not found"; exit 1; }
           apt-get install -y libv4l-dev || { echo "Error: libv4l-dev not found"; exit 1; }
-
+          apt-get install -y libzstd-dev || { echo "Error: libzstd-dev not found"; exit 1; }
+          apt-get install -y liblzma-dev || { echo "Error: liblzma-dev not found"; exit 1; }
+          apt-get install -y libbz2-dev || { echo "Error: libbz2-dev not found"; exit 1; }
+          apt-get install -y libvdpau-dev va-driver-all vainfo libva-dev || { echo "Error: va driver not found"; exit 1; }
+          
           # Verify Qt6 static installation
           if [ ! -d '/opt/Qt6' ]; then
             echo "ERROR: Qt6 static installation not found at /opt/Qt6"
@@ -360,19 +463,16 @@ jobs:
           
           # Set environment variables for static linking
           export PKG_CONFIG_PATH="/opt/Qt6/lib/pkgconfig:/usr/local/lib/pkgconfig:$PKG_CONFIG_PATH"
-          export CMAKE_PREFIX_PATH="/opt/Qt6:/usr/local:/opt/ffmpeg:/usr"
-          export Qt6_DIR="/opt/Qt6/lib/cmake/Qt6"
+          export CMAKE_PREFIX_PATH="/opt/Qt6:/usr/local:/opt/ffmpeg:/opt/gstreamer:/usr"
           
           cmake $CMAKE_TOOLCHAIN \
-                -DCMAKE_PREFIX_PATH="/opt/Qt6:/usr/local:/opt/ffmpeg" \
+                -DCMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH} \
                 -DCMAKE_BUILD_TYPE=Release \
-                -DBUILD_SHARED_LIBS=OFF \
-                -DCMAKE_FIND_LIBRARY_SUFFIXES=".a;.so" \
+                -DOPENTERFACE_BUILD_STATIC=ON \
                 -DUSE_FFMPEG_STATIC=ON \
-                -DUSE_GSTREAMER_STATIC_PLUGINS=OFF \
-                -DFFMPEG_ROOT=/usr/local \
-                -DTurboJPEG_ROOT=/usr/local \
-                -DORC_ROOT=/opt/orc-static \
+                -DFFMPEG_PREFIX="/opt/ffmpeg" \
+                -DUSE_GSTREAMER_STATIC_PLUGINS=ON \
+                -DGSTREAMER_PREFIX="/opt/gstreamer" \
                 -DCMAKE_LIBRARY_PATH="$CMAKE_LIBRARY_PATH" \
                 -DCMAKE_INCLUDE_PATH="/opt/Qt6/include:/usr/local/include:/opt/ffmpeg/include:/usr/include" \
                 -DCMAKE_VERBOSE_MAKEFILE=ON \
@@ -477,4 +577,67 @@ jobs:
         with:
           name: openterfaceQT.linux.amd64.static.rpm
           path: ${{ runner.temp }}/${{ env.ARTIFACT }}.linux.amd64.static.rpm
+          if-no-files-found: error
+
+      - name: Create AppImage
+        working-directory: ${{ runner.temp }}
+        run: |
+          # Set build directory path
+          BUILD_DIR="${{ runner.temp }}/build-static"
+          VERSION="${{ env.VERSION }}"
+          
+          # Create AppDir structure
+          mkdir -p AppDir/usr/bin
+          mkdir -p AppDir/usr/share/applications
+          mkdir -p AppDir/usr/share/icons/hicolor/256x256/apps
+          mkdir -p AppDir/usr/share/metainfo
+          
+          # Copy the static binary
+          cp $BUILD_DIR/openterfaceQT AppDir/usr/bin/
+          chmod +x AppDir/usr/bin/openterfaceQT
+          
+          # Copy desktop file
+          cp ${{ github.workspace }}/packaging/appimage/openterfaceQT.desktop AppDir/usr/share/applications/
+          
+          # Copy icon
+          cp ${{ github.workspace }}/images/icon_256.png AppDir/usr/share/icons/hicolor/256x256/apps/com.openterface.openterfaceQT.png
+          
+          # Copy appdata/metainfo and update version
+          cp ${{ github.workspace }}/packaging/appimage/openterfaceQT.appdata.xml AppDir/usr/share/metainfo/com.openterface.openterfaceQT.appdata.xml
+          
+          # Update the first release version in appdata.xml
+          sed -i "0,/<release version=\"[^\"]*\"/s//<release version=\"${VERSION}\"/" AppDir/usr/share/metainfo/com.openterface.openterfaceQT.appdata.xml
+          
+          # Create AppRun script
+          cat > AppDir/AppRun << 'APPRUN_EOF'
+          #!/bin/bash
+          HERE="$(dirname "$(readlink -f "${0}")")"
+          exec "${HERE}/usr/bin/openterfaceQT" "$@"
+          APPRUN_EOF
+          chmod +x AppDir/AppRun
+          
+          # Create desktop file in root for AppImage
+          cp ${{ github.workspace }}/packaging/appimage/openterfaceQT.desktop AppDir/
+          
+          # Copy icon to root for AppImage
+          cp ${{ github.workspace }}/images/icon_256.png AppDir/com.openterface.openterfaceQT.png
+          
+          # Build AppImage with version
+          APPIMAGE_NAME="openterfaceQT.linux.amd64.static.AppImage"
+          ARCH=x86_64 appimagetool AppDir "$APPIMAGE_NAME"
+          
+          # Verify AppImage was created
+          if [ ! -f "$APPIMAGE_NAME" ]; then
+            echo "Error: AppImage not created"
+            ls -la
+            exit 1
+          fi
+          
+          echo "AppImage created successfully: $APPIMAGE_NAME"
+
+      - name: Upload AppImage artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: openterfaceQT.linux.amd64.static.AppImage
+          path: ${{ runner.temp }}/openterfaceQT.linux.amd64.static.AppImage
           if-no-files-found: error

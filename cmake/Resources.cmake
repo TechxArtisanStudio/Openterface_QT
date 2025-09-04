@@ -205,7 +205,7 @@ if(UNIX)
             # Force static libusb linking for static builds
             find_library(LIBUSB_STATIC_LIBRARY 
                 NAMES libusb-1.0.a usb-1.0.a
-                PATHS /usr/lib /usr/lib/aarch64-linux-gnu /usr/local/lib ${QT_BUILD_PATH}/lib
+                PATHS ${FFMPEG_PREFIX}/lib /usr/lib /usr/lib/aarch64-linux-gnu /usr/local/lib ${QT_BUILD_PATH}/lib
                 NO_DEFAULT_PATH
             )
             
