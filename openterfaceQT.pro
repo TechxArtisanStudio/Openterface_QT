@@ -170,6 +170,9 @@ win32 {
     INCLUDEPATH += $$PWD/lib
     LIBS += -L$$PWD/lib -llibusb-1.0 -loleaut32 -lwinpthread
 
+    # Add FFmpeg support for Windows
+    DEFINES += HAVE_FFMPEG
+
     # Add libjpeg-turbo for Windows (commented out - not available)
     # LIBS += -ljpeg
     # DEFINES += HAVE_LIBJPEG_TURBO

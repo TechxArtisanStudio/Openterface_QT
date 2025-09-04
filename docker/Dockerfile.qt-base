@@ -3,6 +3,9 @@ ARG UBUNTU_VERSION=24.04
 ARG TARGETARCH=amd64
 FROM ubuntu:${UBUNTU_VERSION}
 
+# Re-declare ARG after FROM to make it available in this build stage
+ARG TARGETARCH=amd64
+
 # Prevent interactive prompts during package installation
 ENV DEBIAN_FRONTEND=noninteractive
 
@@ -18,11 +21,10 @@ RUN apt-get update && apt-get install -y \
     curl \
     wget \
     git \
-    unzip \
-    && rm -rf /var/lib/apt/lists/*
+    unzip 
 
 # Install additional build tools
-RUN apt-get update && apt-get install -y \
+RUN apt-get install -y \
     autoconf \
     automake \
     libtool \
@@ -32,74 +34,63 @@ RUN apt-get update && apt-get install -y \
     flex \
     python3-pip \
     yasm \
-    nasm \
-    && rm -rf /var/lib/apt/lists/*
+    nasm
 
 # Install basic development libraries  
-RUN apt-get update && apt-get install -y \
+RUN apt-get install -y \
     libssl-dev \
     zlib1g-dev \
     libxml2-dev \
     libdbus-1-dev \
     libfontconfig1-dev \
-    libfreetype6-dev \
-    && rm -rf /var/lib/apt/lists/*
+    libfreetype6-dev
 
 # Install X11 core libraries (essential for Qt)
-RUN apt-get update && apt-get install -y \
+RUN apt-get install -y \
     libx11-dev \
     libx11-xcb-dev \
     libxext-dev \
     libxfixes-dev \
     libxi-dev \
     libxrandr-dev \
-    libxrender-dev \
-    && rm -rf /var/lib/apt/lists/*
+    libxrender-dev
 
 # Install XCB libraries (try individual packages to identify issues)
-RUN apt-get update && \
-    apt-get install -y libxcb1-dev && \
-    apt-get install -y libxcb-render0-dev && \
-    apt-get install -y libxcb-shm0-dev && \
-    apt-get install -y libxcb-randr0-dev && \
-    apt-get install -y libxcb-shape0-dev && \
-    apt-get install -y libxcb-sync0-dev && \
-    apt-get install -y libxcb-glx0-dev && \
-    apt-get install -y libxcb-xfixes0-dev && \
-    apt-get install -y libxcb-xinerama0-dev && \
-    apt-get install -y libxcb-xkb-dev && \
-    rm -rf /var/lib/apt/lists/*
+RUN apt-get install -y libxcb1-dev \
+    libxcb-render0-dev \
+    libxcb-shm0-dev \
+    libxcb-randr0-dev \
+    libxcb-shape0-dev \
+    libxcb-sync0-dev \
+    libxcb-glx0-dev \
+    libxcb-xfixes0-dev \
+    libxcb-xinerama0-dev \
+    libxcb-xkb-dev
 
 # Install additional XCB libraries (with error handling)
-RUN apt-get update && \
-    (apt-get install -y \
+RUN apt-get install -y \
         libxcb-cursor-dev \
         libxcb-icccm4-dev \
         libxcb-image0-dev \
         libxcb-keysyms1-dev \
         libxcb-render-util0-dev \
         libxcb-util-dev \
-    || echo "Some XCB packages failed, continuing...") && \
-    rm -rf /var/lib/apt/lists/*
+    || echo "Some XCB packages failed, continuing..."
 
 # Install keyboard support
-RUN apt-get update && apt-get install -y \
+RUN apt-get install -y \
     libxkbcommon-dev \
-    libxkbcommon-x11-dev \
-    && rm -rf /var/lib/apt/lists/*
+    libxkbcommon-x11-dev 
 
 # Install OpenGL libraries (essential packages first)
-RUN apt-get update && \
-    apt-get install -y \
+RUN apt-get install -y \
         libgl-dev \
         libgl1-mesa-dev \
         libegl-dev \
-        libegl1-mesa-dev \
-    && rm -rf /var/lib/apt/lists/*
+        libegl1-mesa-dev 
 
 # Install additional OpenGL libraries (with error handling)
-RUN apt-get update && \
-    (apt-get install -y \
+RUN apt-get install -y \
         libgles2-mesa-dev \
         libglu1-mesa-dev \
         libglvnd-dev \
@@ -108,41 +99,47 @@ RUN apt-get update && \
         libdrm-dev \
         libgbm-dev \
         libvulkan-dev \
-    || echo "Some OpenGL packages failed, continuing...") && \
-    rm -rf /var/lib/apt/lists/*
+    || echo "Some OpenGL packages failed, continuing..." 
 
 # Install multimedia libraries
-RUN apt-get update && apt-get install -y \
-    libpulse-dev \
-    && rm -rf /var/lib/apt/lists/*
+RUN apt-get install -y \
+    libpulse-dev 
 
 # Install GStreamer essential dependencies
-RUN apt-get update && apt-get install -y \
+RUN apt-get install -y \
     libglib2.0-dev \
     libc6-dev \
     libffi-dev \
     libpcre2-dev \
     libmount-dev \
     libblkid-dev \
-    libudev-dev \
-    && rm -rf /var/lib/apt/lists/*
+    libudev-dev 
+
+# Install camera and video libraries (try individual packages to identify issues)
+RUN apt-get install -y \
+    ibgudev-1.0-dev \
+    libv4l-dev \
+    libzstd-dev \
+    liblzma-dev \
+    libbz2-dev \
+    va-driver-all \
+    vainfo \
+    libva-dev \
+    libvdpau-dev
 
 # Install optional multimedia libraries (with error handling)
-RUN apt-get update && \
-    (apt-get install -y \
+RUN apt-get install -y \
         libvorbis-dev \
         libtheora-dev \
         libxv-dev \
         liborc-0.4-dev \
-    || echo "Some multimedia packages failed, continuing...") && \
-    rm -rf /var/lib/apt/lists/*
+    || echo "Some multimedia packages failed, continuing..."
 
 # Try to install clang (with fallback)
-RUN apt-get update && \
-    (apt-get install -y clang-16 llvm-16-dev libclang-16-dev || \
+RUN apt-get install -y clang-16 llvm-16-dev libclang-16-dev || \
      apt-get install -y clang-15 llvm-15-dev libclang-15-dev || \
      apt-get install -y clang llvm-dev libclang-dev || \
-     echo "Clang installation failed, will use GCC") && \
+     echo "Clang installation failed, will use GCC" && \
     rm -rf /var/lib/apt/lists/*
 
 # Set build environment variables
@@ -152,8 +149,9 @@ ENV WORK_DIR=/workspace/qt-${TARGETARCH}-build
 ENV QT_VERSION=6.6.3
 ENV QT_MAJOR_VERSION=6.6
 ENV LIBUSB_VERSION=1.0.26
-ENV FFMPEG_PREFIX=/opt/Qt6
+ENV FFMPEG_PREFIX=/opt/ffmpeg
 ENV FFMPEG_VERSION=6.1.1
+ENV GSTREAMER_PREFIX=/opt/gstreamer
 ENV GSTREAMER_VERSION=1.22.11
 
 # Create build directories
