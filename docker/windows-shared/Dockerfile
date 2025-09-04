@@ -18,7 +18,10 @@ RUN choco install -y cmake --installargs 'ADD_CMAKE_TO_PATH=System'; \
     choco install -y ninja
 
 # Install Visual Studio Build Tools 2022
-RUN choco install -y visualstudio2022buildtools --package-parameters "--add Microsoft.VisualStudio.Workload.VCTools --add Microsoft.VisualStudio.Component.VC.Tools.x86.x64 --add Microsoft.VisualStudio.Component.Windows11SDK.22000"
+RUN choco install -y visualstudio2022buildtools --package-parameters "--add Microsoft.VisualStudio.Workload.VCTools"
+
+# Install Windows SDK
+RUN choco install -y windows-sdk-11
 
 # Install Qt 6.5.3 for shared builds using aqt (Another Qt installer)
 RUN pip install aqt; \
