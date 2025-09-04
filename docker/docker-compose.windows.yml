@@ -1,0 +1,47 @@
+version: '3.8'
+
+services:
+  windows-shared-build:
+    build:
+      context: ..
+      dockerfile: docker/windows-shared/Dockerfile
+    container_name: openterface-windows-shared
+    volumes:
+      - ..:/workspace:rw
+      - windows-shared-cache:/cache
+    environment:
+      - BUILD_TYPE=SHARED
+      - QT_VERSION=6.5.3
+    working_dir: /workspace
+    networks:
+      - openterface-net
+
+  windows-static-build:
+    build:
+      context: ..
+      dockerfile: docker/windows-static/Dockerfile
+    container_name: openterface-windows-static
+    volumes:
+      - ..:/workspace:rw
+      - windows-static-cache:/cache
+      - vcpkg-cache:/vcpkg
+    environment:
+      - BUILD_TYPE=STATIC
+      - QT_VERSION=6.5.3
+      - VCPKG_DIR=C:/vcpkg
+      - OPENSSL_DIR=C:/vcpkg/installed/x64-mingw-static
+    working_dir: /workspace
+    networks:
+      - openterface-net
+
+volumes:
+  windows-shared-cache:
+    driver: local
+  windows-static-cache:
+    driver: local
+  vcpkg-cache:
+    driver: local
+
+networks:
+  openterface-net:
+    driver: bridge

@@ -6,12 +6,15 @@ on:
       environment_type:
         description: 'Type of environment to build'
         required: true
-        default: 'both'
+        default: 'linux-both'
         type: choice
         options:
-        - 'static'
-        - 'dynamic'  
-        - 'both'
+        - 'linux-static'
+        - 'linux-dynamic'  
+        - 'linux-both'
+        - 'windows-shared'
+        - 'windows-static'
+        - 'windows-both'
       step:
         description: 'Which step to build (for static environment)'
         required: false
@@ -25,6 +28,15 @@ on:
         - 'qt-declarative'
         - 'qt-complete'
         - 'all'
+      target_platform:
+        description: 'Target platform'
+        required: false
+        default: 'linux'
+        type: choice
+        options:
+        - 'linux'
+        - 'windows'
+        - 'both'
       ubuntu_version:
         description: 'Ubuntu base image version'
         required: false
@@ -60,7 +72,7 @@ env:
 jobs:
   # Dynamic Qt Environment Build
   build-dynamic:
-    if: ${{ github.event.inputs.environment_type == 'dynamic' || github.event.inputs.environment_type == 'both' || github.event_name == 'push' || github.event_name == 'pull_request' }}
+    if: ${{ github.event.inputs.environment_type == 'dynamic' || github.event.inputs.environment_type == 'both' || github.event.inputs.target_platform == 'linux' || github.event.inputs.target_platform == 'both' || github.event_name == 'push' || github.event_name == 'pull_request' }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -139,7 +151,7 @@ jobs:
 
   # Static Qt Environment Build (existing multi-stage process)
   build-static-base:
-    if: ${{ github.event.inputs.environment_type == 'static' || github.event.inputs.environment_type == 'both' || (github.event.inputs.step == 'base' || github.event.inputs.step == 'qt-base-qtml' || github.event.inputs.step == 'qt-declarative' || github.event.inputs.step == 'qt-complete' || github.event.inputs.step == 'all') }}
+    if: ${{ github.event.inputs.environment_type == 'static' || github.event.inputs.environment_type == 'both' || github.event.inputs.target_platform == 'linux' || github.event.inputs.target_platform == 'both' || (github.event.inputs.step == 'base' || github.event.inputs.step == 'qt-base-qtml' || github.event.inputs.step == 'qt-declarative' || github.event.inputs.step == 'qt-complete' || github.event.inputs.step == 'all') }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -490,10 +502,170 @@ jobs:
           docker run --rm ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-complete:ubuntu-${{ github.event.inputs.ubuntu_version || '24.04' }}-amd64 \
             /opt/Qt6/bin/verify-qt-installation.sh
 
+  # Windows Shared Build Environment
+  build-windows-shared:
+    if: ${{ github.event.inputs.environment_type == 'windows-shared' || github.event.inputs.environment_type == 'windows-both' || github.event.inputs.target_platform == 'windows' || github.event.inputs.target_platform == 'both' }}
+    runs-on: windows-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      windows-shared-digest: ${{ steps.build-windows-shared.outputs.digest }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set lowercase image name
+        shell: bash
+        run: echo "IMAGE_NAME_LOWER=$(echo '${{ github.repository_owner }}/openterface-qtbuild' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata for Windows shared
+        id: meta-windows-shared
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-windows-shared
+          tags: |
+            type=ref,event=branch,suffix=-windows
+            type=ref,event=pr,suffix=-windows
+            type=sha,suffix=-windows
+            type=raw,value=latest-windows
+            type=raw,value=ltsc2022-windows
+
+      - name: Check if Windows shared image exists
+        id: check-windows-shared
+        shell: bash
+        run: |
+          if [[ "${{ github.event.inputs.force_rebuild }}" == "true" ]]; then
+            echo "Force rebuild requested, will build Windows shared image"
+            echo "should_build=true" >> $GITHUB_OUTPUT
+          else
+            IMAGE_TAG="ltsc2022-windows"
+            echo "Checking for image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-windows-shared:$IMAGE_TAG"
+            if docker manifest inspect ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-windows-shared:$IMAGE_TAG > /dev/null 2>&1; then
+              echo "Windows shared image already exists, skipping build"
+              echo "should_build=false" >> $GITHUB_OUTPUT
+            else
+              echo "Windows shared image does not exist, will build"
+              echo "should_build=true" >> $GITHUB_OUTPUT
+            fi
+          fi
+
+      - name: Build and push Windows Shared Qt image
+        id: build-windows-shared
+        if: steps.check-windows-shared.outputs.should_build == 'true' || github.event_name == 'push' || github.event_name == 'pull_request'
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./docker/windows-shared/Dockerfile
+          push: ${{ github.event_name != 'pull_request' && (github.event.inputs.push_to_registry == 'true' || github.event.inputs.push_to_registry == '') }}
+          tags: ${{ steps.meta-windows-shared.outputs.tags }}
+          labels: ${{ steps.meta-windows-shared.outputs.labels }}
+          cache-from: type=gha,scope=windows-shared
+          cache-to: type=gha,mode=max,scope=windows-shared
+          platforms: windows/amd64
+
+      - name: Test Windows Shared Environment
+        if: steps.build-windows-shared.outcome == 'success'
+        shell: cmd
+        run: |
+          docker run --rm ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-windows-shared:ltsc2022-windows ^
+            powershell -Command "C:\Qt\6.5.3\msvc2022_64\bin\qmake.exe -query"
+
+  # Windows Static Build Environment
+  build-windows-static:
+    if: ${{ github.event.inputs.environment_type == 'windows-static' || github.event.inputs.environment_type == 'windows-both' || github.event.inputs.target_platform == 'windows' || github.event.inputs.target_platform == 'both' }}
+    runs-on: windows-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      windows-static-digest: ${{ steps.build-windows-static.outputs.digest }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set lowercase image name
+        shell: bash
+        run: echo "IMAGE_NAME_LOWER=$(echo '${{ github.repository_owner }}/openterface-qtbuild' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata for Windows static
+        id: meta-windows-static
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-windows-static
+          tags: |
+            type=ref,event=branch,suffix=-windows
+            type=ref,event=pr,suffix=-windows
+            type=sha,suffix=-windows
+            type=raw,value=latest-windows
+            type=raw,value=ltsc2022-windows
+
+      - name: Check if Windows static image exists
+        id: check-windows-static
+        shell: bash
+        run: |
+          if [[ "${{ github.event.inputs.force_rebuild }}" == "true" ]]; then
+            echo "Force rebuild requested, will build Windows static image"
+            echo "should_build=true" >> $GITHUB_OUTPUT
+          else
+            IMAGE_TAG="ltsc2022-windows"
+            echo "Checking for image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-windows-static:$IMAGE_TAG"
+            if docker manifest inspect ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-windows-static:$IMAGE_TAG > /dev/null 2>&1; then
+              echo "Windows static image already exists, skipping build"
+              echo "should_build=false" >> $GITHUB_OUTPUT
+            else
+              echo "Windows static image does not exist, will build"
+              echo "should_build=true" >> $GITHUB_OUTPUT
+            fi
+          fi
+
+      - name: Build and push Windows Static Qt image
+        id: build-windows-static
+        if: steps.check-windows-static.outputs.should_build == 'true' || github.event_name == 'push' || github.event_name == 'pull_request'
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./docker/windows-static/Dockerfile
+          push: ${{ github.event_name != 'pull_request' && (github.event.inputs.push_to_registry == 'true' || github.event.inputs.push_to_registry == '') }}
+          tags: ${{ steps.meta-windows-static.outputs.tags }}
+          labels: ${{ steps.meta-windows-static.outputs.labels }}
+          cache-from: type=gha,scope=windows-static
+          cache-to: type=gha,mode=max,scope=windows-static
+          platforms: windows/amd64
+
+      - name: Test Windows Static Environment
+        if: steps.build-windows-static.outcome == 'success'
+        shell: cmd
+        run: |
+          docker run --rm ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-windows-static:ltsc2022-windows ^
+            powershell -Command "C:\Qt-static\bin\qmake.exe -query"
+
   # Summary job that shows which images are available
   build-summary:
     runs-on: ubuntu-latest
-    needs: [build-dynamic, build-static-complete]
+    needs: [build-dynamic, build-static-complete, build-windows-shared, build-windows-static]
     if: always()
     steps:
       - name: Set lowercase image name
@@ -502,34 +674,60 @@ jobs:
         run: |
           echo "## Qt Build Environment Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "| Environment | Status | Image |" >> $GITHUB_STEP_SUMMARY
-          echo "|-------------|--------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Environment | Platform | Status | Image |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------------|----------|--------|-------|" >> $GITHUB_STEP_SUMMARY
           
           if [ "${{ needs.build-dynamic.result }}" = "success" ]; then
-            echo "| Dynamic Qt | ✅ Success | \`${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-dynamic:ubuntu-${{ github.event.inputs.ubuntu_version || '24.04' }}-amd64\` |" >> $GITHUB_STEP_SUMMARY
+            echo "| Dynamic Qt | Linux | ✅ Success | \`${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-dynamic:ubuntu-${{ github.event.inputs.ubuntu_version || '24.04' }}-amd64\` |" >> $GITHUB_STEP_SUMMARY
           else
-            echo "| Dynamic Qt | ❌ Failed/Skipped | - |" >> $GITHUB_STEP_SUMMARY
+            echo "| Dynamic Qt | Linux | ❌ Failed/Skipped | - |" >> $GITHUB_STEP_SUMMARY
           fi
           
           if [ "${{ needs.build-static-complete.result }}" = "success" ]; then
-            echo "| Static Qt Complete | ✅ Success | \`${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-complete:ubuntu-${{ github.event.inputs.ubuntu_version || '24.04' }}-amd64\` |" >> $GITHUB_STEP_SUMMARY
+            echo "| Static Qt Complete | Linux | ✅ Success | \`${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-complete:ubuntu-${{ github.event.inputs.ubuntu_version || '24.04' }}-amd64\` |" >> $GITHUB_STEP_SUMMARY
           else
-            echo "| Static Qt Complete | ❌ Failed/Skipped | - |" >> $GITHUB_STEP_SUMMARY
+            echo "| Static Qt Complete | Linux | ❌ Failed/Skipped | - |" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          if [ "${{ needs.build-windows-shared.result }}" = "success" ]; then
+            echo "| Shared Qt | Windows | ✅ Success | \`${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-windows-shared:ltsc2022-windows\` |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "| Shared Qt | Windows | ❌ Failed/Skipped | - |" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          if [ "${{ needs.build-windows-static.result }}" = "success" ]; then
+            echo "| Static Qt | Windows | ✅ Success | \`${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-windows-static:ltsc2022-windows\` |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "| Static Qt | Windows | ❌ Failed/Skipped | - |" >> $GITHUB_STEP_SUMMARY
           fi
           
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Usage Instructions" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Dynamic Build:**" >> $GITHUB_STEP_SUMMARY
+          echo "**Linux Dynamic Build:**" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
           echo "docker run --rm -v \$(pwd):/workspace/src -w /workspace/src \\" >> $GITHUB_STEP_SUMMARY
           echo "  ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-dynamic:ubuntu-${{ github.event.inputs.ubuntu_version || '24.04' }}-amd64 \\" >> $GITHUB_STEP_SUMMARY
           echo "  bash -c 'mkdir build && cd build && cmake -DBUILD_SHARED_LIBS=ON .. && make -j\$(nproc)'" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Static Build:**" >> $GITHUB_STEP_SUMMARY
+          echo "**Linux Static Build:**" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
           echo "docker run --rm -v \$(pwd):/workspace/src -w /workspace/src \\" >> $GITHUB_STEP_SUMMARY
           echo "  ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-complete:ubuntu-${{ github.event.inputs.ubuntu_version || '24.04' }}-amd64 \\" >> $GITHUB_STEP_SUMMARY
           echo "  bash -c 'mkdir build && cd build && cmake -DCMAKE_PREFIX_PATH=/opt/Qt6 -DBUILD_SHARED_LIBS=OFF .. && make -j\$(nproc)'" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Windows Shared Build:**" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`cmd" >> $GITHUB_STEP_SUMMARY
+          echo "docker run --rm -v %cd%:C:/workspace -w C:/workspace \\" >> $GITHUB_STEP_SUMMARY
+          echo "  ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-windows-shared:ltsc2022-windows \\" >> $GITHUB_STEP_SUMMARY
+          echo "  powershell -File C:/build-scripts/build-shared.ps1 -BuildType Release" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Windows Static Build:**" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`cmd" >> $GITHUB_STEP_SUMMARY
+          echo "docker run --rm -v %cd%:C:/workspace -w C:/workspace \\" >> $GITHUB_STEP_SUMMARY
+          echo "  ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-windows-static:ltsc2022-windows \\" >> $GITHUB_STEP_SUMMARY
+          echo "  powershell -File C:/build-scripts/build-static.ps1 -BuildType Release" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
