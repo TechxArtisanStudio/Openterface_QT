@@ -25,20 +25,13 @@ GITHUB_REPO="TechxArtisanStudio/Openterface_QT"
 STATIC_PACKAGE_NAME="openterfaceQT.linux.amd64.static.deb"  # Assuming static package naming
 FALLBACK_PACKAGE_NAME="openterfaceQT.linux.amd64.deb"       # Fallback to regular package
 
-# Function to get the latest release version
+# Function to get the specified version
 get_latest_version() {
-    echo "🔍 Fetching latest release information..."
-    # Use GitHub API to get the latest release
-    LATEST_VERSION=$(curl -s "https://api.github.com/repos/${GITHUB_REPO}/releases/latest" | \
-                     grep '"tag_name":' | \
-                     sed -E 's/.*"([^"]+)".*/\1/')
+    echo "🔍 Using specified version for static testing..."
+    # Use fixed version 0.3.19 for static testing
+    LATEST_VERSION="0.3.19"
     
-    if [ -z "$LATEST_VERSION" ]; then
-        echo "❌ Failed to fetch latest version. Using fallback version v0.3.19"
-        LATEST_VERSION="v0.3.19"
-    fi
-    
-    echo "✅ Latest version: $LATEST_VERSION"
+    echo "✅ Using version: $LATEST_VERSION"
 }
 
 # Function to check if static package exists
@@ -62,7 +55,7 @@ check_static_package_exists() {
 download_package() {
     echo "📥 Downloading Openterface QT package..."
     
-    # Get latest version
+    # Get specified version
     get_latest_version
     
     # Check for static package, fallback to regular if not found
