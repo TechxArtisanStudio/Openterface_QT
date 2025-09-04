@@ -519,9 +519,6 @@ jobs:
         shell: bash
         run: echo "IMAGE_NAME_LOWER=$(echo '${{ github.repository_owner }}/openterface-qtbuild' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
       - name: Log in to Container Registry
         if: github.event_name != 'pull_request'
         uses: docker/login-action@v3
@@ -529,18 +526,6 @@ jobs:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Extract metadata for Windows shared
-        id: meta-windows-shared
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-windows-shared
-          tags: |
-            type=ref,event=branch,suffix=-windows
-            type=ref,event=pr,suffix=-windows
-            type=sha,suffix=-windows
-            type=raw,value=latest-windows
-            type=raw,value=ltsc2022-windows
 
       - name: Check if Windows shared image exists
         id: check-windows-shared
@@ -561,25 +546,26 @@ jobs:
             fi
           fi
 
-      - name: Build and push Windows Shared Qt image
+      - name: Build Windows Shared Qt image
         id: build-windows-shared
         if: steps.check-windows-shared.outputs.should_build == 'true' || github.event_name == 'push' || github.event_name == 'pull_request'
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          file: ./docker/windows-shared/Dockerfile
-          push: ${{ github.event_name != 'pull_request' && (github.event.inputs.push_to_registry == 'true' || github.event.inputs.push_to_registry == '') }}
-          tags: ${{ steps.meta-windows-shared.outputs.tags }}
-          labels: ${{ steps.meta-windows-shared.outputs.labels }}
-          cache-from: type=gha,scope=windows-shared
-          cache-to: type=gha,mode=max,scope=windows-shared
-          platforms: windows/amd64
+        shell: cmd
+        run: |
+          echo "Building Windows shared Docker image..."
+          docker build -t %REGISTRY%/%IMAGE_NAME_LOWER%-windows-shared:ltsc2022-windows -f docker/windows-shared/Dockerfile .
+
+      - name: Push Windows Shared Qt image
+        if: github.event_name != 'pull_request' && (github.event.inputs.push_to_registry == 'true' || github.event.inputs.push_to_registry == '')
+        shell: cmd
+        run: |
+          echo "Pushing Windows shared image to registry..."
+          docker push %REGISTRY%/%IMAGE_NAME_LOWER%-windows-shared:ltsc2022-windows
 
       - name: Test Windows Shared Environment
         if: steps.build-windows-shared.outcome == 'success'
         shell: cmd
         run: |
-          docker run --rm ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-windows-shared:ltsc2022-windows ^
+          docker run --rm %REGISTRY%/%IMAGE_NAME_LOWER%-windows-shared:ltsc2022-windows ^
             powershell -Command "C:\Qt\6.5.3\msvc2022_64\bin\qmake.exe -query"
 
   # Windows Static Build Environment
@@ -599,9 +585,6 @@ jobs:
         shell: bash
         run: echo "IMAGE_NAME_LOWER=$(echo '${{ github.repository_owner }}/openterface-qtbuild' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
       - name: Log in to Container Registry
         if: github.event_name != 'pull_request'
         uses: docker/login-action@v3
@@ -609,18 +592,6 @@ jobs:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Extract metadata for Windows static
-        id: meta-windows-static
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-windows-static
-          tags: |
-            type=ref,event=branch,suffix=-windows
-            type=ref,event=pr,suffix=-windows
-            type=sha,suffix=-windows
-            type=raw,value=latest-windows
-            type=raw,value=ltsc2022-windows
 
       - name: Check if Windows static image exists
         id: check-windows-static
@@ -641,25 +612,26 @@ jobs:
             fi
           fi
 
-      - name: Build and push Windows Static Qt image
+      - name: Build Windows Static Qt image
         id: build-windows-static
         if: steps.check-windows-static.outputs.should_build == 'true' || github.event_name == 'push' || github.event_name == 'pull_request'
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          file: ./docker/windows-static/Dockerfile
-          push: ${{ github.event_name != 'pull_request' && (github.event.inputs.push_to_registry == 'true' || github.event.inputs.push_to_registry == '') }}
-          tags: ${{ steps.meta-windows-static.outputs.tags }}
-          labels: ${{ steps.meta-windows-static.outputs.labels }}
-          cache-from: type=gha,scope=windows-static
-          cache-to: type=gha,mode=max,scope=windows-static
-          platforms: windows/amd64
+        shell: cmd
+        run: |
+          echo "Building Windows static Docker image..."
+          docker build -t %REGISTRY%/%IMAGE_NAME_LOWER%-windows-static:ltsc2022-windows -f docker/windows-static/Dockerfile .
+
+      - name: Push Windows Static Qt image
+        if: github.event_name != 'pull_request' && (github.event.inputs.push_to_registry == 'true' || github.event.inputs.push_to_registry == '')
+        shell: cmd
+        run: |
+          echo "Pushing Windows static image to registry..."
+          docker push %REGISTRY%/%IMAGE_NAME_LOWER%-windows-static:ltsc2022-windows
 
       - name: Test Windows Static Environment
         if: steps.build-windows-static.outcome == 'success'
         shell: cmd
         run: |
-          docker run --rm ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-windows-static:ltsc2022-windows ^
+          docker run --rm %REGISTRY%/%IMAGE_NAME_LOWER%-windows-static:ltsc2022-windows ^
             powershell -Command "C:\Qt-static\bin\qmake.exe -query"
 
   # Summary job that shows which images are available
