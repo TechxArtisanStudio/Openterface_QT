@@ -20,8 +20,6 @@ SOURCES += main.cpp \
     host/audiomanager.cpp \
     host/cameramanager.cpp \
     host/multimediabackend.cpp \
-    host/backend/ffmpegbackendhandler.cpp \
-    host/backend/gstreamerbackendhandler.cpp \
     host/backend/qtmultimediabackendhandler.cpp \
     ui/statusbar/statuswidget.cpp \
     video/videohid.cpp \
@@ -72,6 +70,14 @@ SOURCES += main.cpp \
     ui/screenscale.cpp \
     ui/cornerwidget/cornerwidgetmanager.cpp
 
+# Platform-specific backend handlers (exclude on Windows)
+!win32 {
+    SOURCES += host/backend/ffmpegbackendhandler.cpp \
+               host/backend/gstreamerbackendhandler.cpp
+    HEADERS += host/backend/ffmpegbackendhandler.h \
+               host/backend/gstreamerbackendhandler.h
+}
+
 
 HEADERS  += \
     global.h \
@@ -84,8 +90,6 @@ HEADERS  += \
     host/audiomanager.h \
     host/cameramanager.h \
     host/multimediabackend.h \
-    host/backend/ffmpegbackendhandler.h \
-    host/backend/gstreamerbackendhandler.h \
     host/backend/qtmultimediabackendhandler.h \
     ui/statusbar/statuswidget.h \
     video/videohid.h \

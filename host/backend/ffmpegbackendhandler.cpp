@@ -63,6 +63,8 @@ Q_LOGGING_CATEGORY(log_ffmpeg_backend, "opf.backend.ffmpeg")
  */
 class FFmpegBackendHandler::CaptureThread : public QThread
 {
+    Q_OBJECT
+
 public:
     explicit CaptureThread(FFmpegBackendHandler* handler, QObject* parent = nullptr)
         : QThread(parent), m_handler(handler), m_running(false) {}
@@ -468,10 +470,7 @@ bool FFmpegBackendHandler::initializeFFmpeg()
     
     // Initialize FFmpeg
     av_log_set_level(AV_LOG_WARNING); // Reduce FFmpeg log noise
-    
-    // Register all devices - required for V4L2 input device support
     avdevice_register_all();
-    qCDebug(log_ffmpeg_backend) << "FFmpeg devices registered";
     
 #ifdef HAVE_LIBJPEG_TURBO
     // Initialize TurboJPEG decompressor
@@ -488,17 +487,6 @@ bool FFmpegBackendHandler::initializeFFmpeg()
     
     qCDebug(log_ffmpeg_backend) << "FFmpeg initialization completed";
     return true;
-}
-
-bool FFmpegBackendHandler::isV4L2InputSupported()
-{
-#ifdef HAVE_FFMPEG
-    // Check if V4L2 input format is available
-    const AVInputFormat* inputFormat = av_find_input_format("v4l2");
-    return (inputFormat != nullptr);
-#else
-    return false;
-#endif
 }
 
 void FFmpegBackendHandler::cleanupFFmpeg()
@@ -652,8 +640,6 @@ bool FFmpegBackendHandler::openInputDevice(const QString& devicePath, const QSiz
     const AVInputFormat* inputFormat = av_find_input_format("v4l2");
     if (!inputFormat) {
         qCCritical(log_ffmpeg_backend) << "V4L2 input format not found";
-        qCCritical(log_ffmpeg_backend) << "FFmpeg was compiled without V4L2 input device support.";
-        qCCritical(log_ffmpeg_backend) << "Please use a different backend (GStreamer or Qt Multimedia) or rebuild FFmpeg with --enable-indev=v4l2";
         return false;
     }
     
@@ -1670,3 +1656,6 @@ void FFmpegBackendHandler::handleDeviceDeactivation(const QString& devicePath)
     qCInfo(log_ffmpeg_backend) << "Starting to wait for device reconnection";
     waitForDeviceActivation(m_currentDevice, 30000); // Wait up to 30 seconds
 }
+
+
+#include "ffmpegbackendhandler.moc"

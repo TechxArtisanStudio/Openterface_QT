@@ -21,8 +21,9 @@
 */
 
 #include "qtmultimediabackendhandler.h"
-#include "ui/videopane.h"
-#include "global.h"
+#include "../ui/videopane.h"
+#include "../global.h"
+
 
 #include <QThread>
 #include <QDebug>

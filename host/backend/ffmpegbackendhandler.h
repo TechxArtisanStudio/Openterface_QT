@@ -101,13 +101,11 @@ public:
     
     // Stub for MOC compatibility (might be leftover from autocomplete)
     void checkDeviceReconnection() { /* stub */ }
-    bool isV4L2InputSupported();
 
 #ifdef HAVE_FFMPEG
     bool readFrame();
     QPixmap convertFrameToPixmap(AVFrame* frame);
     QPixmap decodeFrame(AVPacket* packet);
-
 #ifdef HAVE_LIBJPEG_TURBO
     QPixmap decodeJpegFrame(const uint8_t* data, int size);
 #endif

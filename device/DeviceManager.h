@@ -12,6 +12,7 @@
 class AbstractPlatformDeviceManager;
 class SerialPortManager;
 class VideoHid;
+class AudioManager;
 
 Q_DECLARE_LOGGING_CATEGORY(log_device_manager)
 
@@ -52,48 +53,20 @@ public:
         bool cameraSuccess;
         bool hidSuccess; 
         bool serialSuccess;
+        bool audioSuccess;
         QString statusMessage;
         DeviceInfo selectedDevice;
     };
     DeviceSwitchResult switchToDeviceByPortChain(const QString& portChain);
     
     // Complete device switching (with all managers) - for use by UI components
+    // Example usage:
+    //   CameraManager* camera = ...;
+    //   auto result = deviceManager.switchToDeviceByPortChainComplete(portChain, camera);
+    //   if (result.success) { /* all components switched successfully */ }
     template<typename CameraManagerType>
     DeviceSwitchResult switchToDeviceByPortChainComplete(const QString& portChain, CameraManagerType* cameraManager) {
         DeviceSwitchResult result = switchToDeviceByPortChain(portChain);
-        
-        if (!result.selectedDevice.isValid()) {
-            result.statusMessage = "Invalid device selected";
-            return result;
-        }
-        
-        // Handle serial port switching if device has serial component
-        if (result.selectedDevice.hasSerialPort()) {
-            // Get SerialPortManager singleton and switch to the device
-            // Note: We'll use extern declaration or include in implementation
-            result.serialSuccess = switchSerialPortByPortChain(portChain);
-            if (result.serialSuccess) {
-                qCInfo(log_device_manager) << "✓ Serial port switched to device at port:" << portChain;
-            } else {
-                qCWarning(log_device_manager) << "Failed to switch serial port to device at port:" << portChain;
-                result.statusMessage += " (Serial port switch failed)";
-            }
-        } else {
-            result.serialSuccess = true; // No serial device to switch
-        }
-        
-        // Handle HID switching if device has HID component
-        if (result.selectedDevice.hasHidDevice()) {
-            result.hidSuccess = switchHIDDeviceByPortChain(portChain);
-            if (result.hidSuccess) {
-                qCInfo(log_device_manager) << "✓ HID device switched to device at port:" << portChain;
-            } else {
-                qCWarning(log_device_manager) << "Failed to switch HID device to device at port:" << portChain;
-                result.statusMessage += " (HID switch failed)";
-            }
-        } else {
-            result.hidSuccess = true; // No HID device to switch
-        }
         
         // Handle camera switching if camera manager is provided and device has camera
         if (cameraManager && result.selectedDevice.hasCameraDevice()) {
@@ -111,8 +84,8 @@ public:
             result.cameraSuccess = true; // No camera device to switch
         }
         
-        // Update overall success based on component switches
-        bool allComponentsSuccessful = result.serialSuccess && result.hidSuccess && result.cameraSuccess;
+        // Update overall success based on component switches (audio already handled in basic method)
+        bool allComponentsSuccessful = result.serialSuccess && result.hidSuccess && result.cameraSuccess && result.audioSuccess;
         if (result.success && !allComponentsSuccessful) {
             result.success = false; // Mark as failure if any component failed
         }
@@ -138,6 +111,7 @@ public:
     // Helper methods for component switching
     bool switchSerialPortByPortChain(const QString& portChain);
     bool switchHIDDeviceByPortChain(const QString& portChain);
+    bool switchAudioDeviceByPortChain(const QString& portChain);
     
     // Hotplug monitoring
     void startHotplugMonitoring(int intervalMs = 5000);

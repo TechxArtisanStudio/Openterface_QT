@@ -824,8 +824,7 @@ bool GStreamerBackendHandler::initializeGStreamer()
         qCCritical(log_gstreamer_backend) << "Exception occurred during plugin registration";
         return false;
     }
-#else
-    qCDebug(log_gstreamer_backend) << "Using dynamic GStreamer plugins - static plugin registration skipped";
+
 #endif
     
     return true;

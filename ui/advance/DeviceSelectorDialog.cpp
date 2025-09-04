@@ -595,6 +595,7 @@ void DeviceSelectorDialog::onSwitchToDevice()
     }
     
     // Use the centralized device switching function
+    // Note: Audio switching not included in this dialog - only camera, HID, and serial switching
     auto result = deviceManager.switchToDeviceByPortChainWithCamera(m_selectedDevice.portChain, m_cameraManager);
     
     // Show result to user

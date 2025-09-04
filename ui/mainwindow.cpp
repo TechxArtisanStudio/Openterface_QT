@@ -113,7 +113,7 @@ QPixmap recolorSvg(const QString &svgPath, const QColor &color, const QSize &siz
 }
 
 MainWindow::MainWindow(LanguageManager *languageManager, QWidget *parent) :  ui(new Ui::MainWindow),
-                            m_audioManager(new AudioManager(this)),
+                            m_audioManager(&AudioManager::getInstance()),
                             videoPane(new VideoPane(this)),
                             stackedLayout(new QStackedLayout(this)),
                             toolbarManager(new ToolbarManager(this)),
@@ -238,6 +238,9 @@ MainWindow::MainWindow(LanguageManager *languageManager, QWidget *parent) :  ui(
     qCDebug(log_ui_mainwindow) << "Observe Video HID connected...";
     VideoHid::getInstance().setEventCallback(this);
 
+    qCDebug(log_ui_mainwindow) << "Starting AudioManager...";
+    AudioManager::getInstance().start();
+
     qCDebug(log_ui_mainwindow) << "Observe video input changed...";
     // Note: Automatic camera switching on device changes has been disabled
     // Camera devices will only be switched manually through the UI
@@ -321,6 +324,13 @@ MainWindow::MainWindow(LanguageManager *languageManager, QWidget *parent) :  ui(
         } else {
             qCWarning(log_ui_mainwindow) << "Failed to initialize camera with video output";
         }
+    });
+
+    // Initialize audio with a slight delay after camera
+    qCDebug(log_ui_mainwindow) << "Initializing audio...";
+    QTimer::singleShot(300, this, [this]() {
+        m_audioManager->initializeAudio();
+        qDebug() << "✓ Audio initialization triggered";
     });
 
     // Connect palette change signal to the slot
@@ -1584,6 +1594,12 @@ void MainWindow::onVideoSettingsChanged() {
             m_cameraManager->setVideoOutput(videoPane->getVideoItem());
         }
     }
+    
+    // Also reinitialize audio when video settings change
+    if (m_audioManager) {
+        qCDebug(log_ui_mainwindow) << "Reinitializing audio due to video settings change...";
+        m_audioManager->initializeAudio();
+    }
     int inputWidth = GlobalVar::instance().getInputWidth();
     int inputHeight = GlobalVar::instance().getInputHeight();
     int captureWidth = GlobalVar::instance().getCaptureWidth();
@@ -1782,13 +1798,15 @@ MainWindow::~MainWindow()
     }
     
     if (m_audioManager) {
-        m_audioManager->deleteLater();
+        // AudioManager is now a singleton, so we just disconnect and clear the reference
+        m_audioManager->disconnect();
         m_audioManager = nullptr;
-        qCDebug(log_ui_mainwindow) << "m_audioManager destroyed successfully";
+        qCDebug(log_ui_mainwindow) << "m_audioManager reference cleared successfully";
     }
     
     // 6. Clean up static instances
     VideoHid::getInstance().stop();
+    AudioManager::getInstance().stop();
     SerialPortManager::getInstance().stop();
     
     // 7. Delete UI last
