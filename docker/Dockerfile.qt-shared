@@ -1,4 +1,4 @@
-# Dynamic Qt Build Environment
+# shared Qt Build Environment
 ARG UBUNTU_VERSION=24.04
 ARG TARGETARCH=amd64
 FROM ubuntu:${UBUNTU_VERSION}
@@ -133,48 +133,48 @@ RUN if [ "$TARGETARCH" = "arm64" ]; then \
 ENV QT_VERSION=6.6.3
 ENV PATH="/usr/lib/qt6/bin:${PATH}"
 
-# Create verification script for dynamic Qt
+# Create verification script for shared Qt
 RUN mkdir -p /opt/verify && \
-    echo '#!/bin/bash' > /opt/verify/verify-qt-dynamic.sh && \
-    echo 'source /etc/environment' >> /opt/verify/verify-qt-dynamic.sh && \
-    echo 'echo "Qt Dynamic Installation Verification"' >> /opt/verify/verify-qt-dynamic.sh && \
-    echo 'echo "===================================="' >> /opt/verify/verify-qt-dynamic.sh && \
-    echo 'echo "Architecture: $(uname -m)"' >> /opt/verify/verify-qt-dynamic.sh && \
-    echo 'echo "Target arch: $TARGETARCH"' >> /opt/verify/verify-qt-dynamic.sh && \
-    echo 'echo "Qt version: $(qmake6 -query QT_VERSION)"' >> /opt/verify/verify-qt-dynamic.sh && \
-    echo 'echo "Qt installation prefix: $(qmake6 -query QT_INSTALL_PREFIX)"' >> /opt/verify/verify-qt-dynamic.sh && \
-    echo 'echo "Qt library path: $(qmake6 -query QT_INSTALL_LIBS)"' >> /opt/verify/verify-qt-dynamic.sh && \
-    echo 'echo "Architecture-specific library path: $QT_LIB_ARCH_PATH"' >> /opt/verify/verify-qt-dynamic.sh && \
-    echo 'echo -e "\nChecking Qt modules:"' >> /opt/verify/verify-qt-dynamic.sh && \
-    echo 'MODULES="Core Widgets Gui Multimedia MultimediaWidgets SerialPort Svg SvgWidgets Quick"' >> /opt/verify/verify-qt-dynamic.sh && \
-    echo 'for module in $MODULES; do' >> /opt/verify/verify-qt-dynamic.sh && \
-    echo '    if [ -f "${QT_LIB_ARCH_PATH}/libQt6${module}.so" ]; then' >> /opt/verify/verify-qt-dynamic.sh && \
-    echo '        echo "✓ Qt${module} shared library found"' >> /opt/verify/verify-qt-dynamic.sh && \
-    echo '    else' >> /opt/verify/verify-qt-dynamic.sh && \
-    echo '        echo "✗ Qt${module} shared library NOT found"' >> /opt/verify/verify-qt-dynamic.sh && \
-    echo '    fi' >> /opt/verify/verify-qt-dynamic.sh && \
-    echo 'done' >> /opt/verify/verify-qt-dynamic.sh && \
-    echo 'echo -e "\nChecking pkg-config modules:"' >> /opt/verify/verify-qt-dynamic.sh && \
-    echo 'PKG_MODULES="Qt6Core Qt6Widgets Qt6Gui Qt6Multimedia Qt6SerialPort Qt6Svg"' >> /opt/verify/verify-qt-dynamic.sh && \
-    echo 'for module in $PKG_MODULES; do' >> /opt/verify/verify-qt-dynamic.sh && \
-    echo '    if pkg-config --exists "$module"; then' >> /opt/verify/verify-qt-dynamic.sh && \
-    echo '        echo "✓ $module pkg-config: OK"' >> /opt/verify/verify-qt-dynamic.sh && \
-    echo '    else' >> /opt/verify/verify-qt-dynamic.sh && \
-    echo '        echo "✗ $module pkg-config: FAILED"' >> /opt/verify/verify-qt-dynamic.sh && \
-    echo '    fi' >> /opt/verify/verify-qt-dynamic.sh && \
-    echo 'done' >> /opt/verify/verify-qt-dynamic.sh && \
-    echo 'echo -e "\nChecking additional libraries:"' >> /opt/verify/verify-qt-dynamic.sh && \
-    echo 'echo "JPEG library: $(pkg-config --exists libjpeg && echo "✓ Found" || echo "✗ Not found")"' >> /opt/verify/verify-qt-dynamic.sh && \
-    echo 'echo "TurboJPEG library: $(find /usr/lib -name "*turbojpeg*" -type f 2>/dev/null | head -1 | xargs -I {} echo "✓ Found: {}" || echo "✗ Not found")"' >> /opt/verify/verify-qt-dynamic.sh && \
-    echo 'echo "Available JPEG-related libraries:"' >> /opt/verify/verify-qt-dynamic.sh && \
-    echo 'find /usr/lib -name "*jpeg*" -type f 2>/dev/null | head -10' >> /opt/verify/verify-qt-dynamic.sh && \
-    echo 'echo -e "\nGStreamer plugins verification:"' >> /opt/verify/verify-qt-dynamic.sh && \
-    echo 'echo "Installed GStreamer plugins:"' >> /opt/verify/verify-qt-dynamic.sh && \
-    echo 'gst-inspect-1.0 | grep -E "(coreelements|v4l2|jpeg|ximagesink)" | head -10 || echo "Could not list plugins"' >> /opt/verify/verify-qt-dynamic.sh && \
-    echo 'echo -e "\nDynamic build environment ready!"' >> /opt/verify/verify-qt-dynamic.sh && \
-    chmod +x /opt/verify/verify-qt-dynamic.sh
+    echo '#!/bin/bash' > /opt/verify/verify-qt-shared.sh && \
+    echo 'source /etc/environment' >> /opt/verify/verify-qt-shared.sh && \
+    echo 'echo "Qt shared Installation Verification"' >> /opt/verify/verify-qt-shared.sh && \
+    echo 'echo "===================================="' >> /opt/verify/verify-qt-shared.sh && \
+    echo 'echo "Architecture: $(uname -m)"' >> /opt/verify/verify-qt-shared.sh && \
+    echo 'echo "Target arch: $TARGETARCH"' >> /opt/verify/verify-qt-shared.sh && \
+    echo 'echo "Qt version: $(qmake6 -query QT_VERSION)"' >> /opt/verify/verify-qt-shared.sh && \
+    echo 'echo "Qt installation prefix: $(qmake6 -query QT_INSTALL_PREFIX)"' >> /opt/verify/verify-qt-shared.sh && \
+    echo 'echo "Qt library path: $(qmake6 -query QT_INSTALL_LIBS)"' >> /opt/verify/verify-qt-shared.sh && \
+    echo 'echo "Architecture-specific library path: $QT_LIB_ARCH_PATH"' >> /opt/verify/verify-qt-shared.sh && \
+    echo 'echo -e "\nChecking Qt modules:"' >> /opt/verify/verify-qt-shared.sh && \
+    echo 'MODULES="Core Widgets Gui Multimedia MultimediaWidgets SerialPort Svg SvgWidgets Quick"' >> /opt/verify/verify-qt-shared.sh && \
+    echo 'for module in $MODULES; do' >> /opt/verify/verify-qt-shared.sh && \
+    echo '    if [ -f "${QT_LIB_ARCH_PATH}/libQt6${module}.so" ]; then' >> /opt/verify/verify-qt-shared.sh && \
+    echo '        echo "✓ Qt${module} shared library found"' >> /opt/verify/verify-qt-shared.sh && \
+    echo '    else' >> /opt/verify/verify-qt-shared.sh && \
+    echo '        echo "✗ Qt${module} shared library NOT found"' >> /opt/verify/verify-qt-shared.sh && \
+    echo '    fi' >> /opt/verify/verify-qt-shared.sh && \
+    echo 'done' >> /opt/verify/verify-qt-shared.sh && \
+    echo 'echo -e "\nChecking pkg-config modules:"' >> /opt/verify/verify-qt-shared.sh && \
+    echo 'PKG_MODULES="Qt6Core Qt6Widgets Qt6Gui Qt6Multimedia Qt6SerialPort Qt6Svg"' >> /opt/verify/verify-qt-shared.sh && \
+    echo 'for module in $PKG_MODULES; do' >> /opt/verify/verify-qt-shared.sh && \
+    echo '    if pkg-config --exists "$module"; then' >> /opt/verify/verify-qt-shared.sh && \
+    echo '        echo "✓ $module pkg-config: OK"' >> /opt/verify/verify-qt-shared.sh && \
+    echo '    else' >> /opt/verify/verify-qt-shared.sh && \
+    echo '        echo "✗ $module pkg-config: FAILED"' >> /opt/verify/verify-qt-shared.sh && \
+    echo '    fi' >> /opt/verify/verify-qt-shared.sh && \
+    echo 'done' >> /opt/verify/verify-qt-shared.sh && \
+    echo 'echo -e "\nChecking additional libraries:"' >> /opt/verify/verify-qt-shared.sh && \
+    echo 'echo "JPEG library: $(pkg-config --exists libjpeg && echo "✓ Found" || echo "✗ Not found")"' >> /opt/verify/verify-qt-shared.sh && \
+    echo 'echo "TurboJPEG library: $(find /usr/lib -name "*turbojpeg*" -type f 2>/dev/null | head -1 | xargs -I {} echo "✓ Found: {}" || echo "✗ Not found")"' >> /opt/verify/verify-qt-shared.sh && \
+    echo 'echo "Available JPEG-related libraries:"' >> /opt/verify/verify-qt-shared.sh && \
+    echo 'find /usr/lib -name "*jpeg*" -type f 2>/dev/null | head -10' >> /opt/verify/verify-qt-shared.sh && \
+    echo 'echo -e "\nGStreamer plugins verification:"' >> /opt/verify/verify-qt-shared.sh && \
+    echo 'echo "Installed GStreamer plugins:"' >> /opt/verify/verify-qt-shared.sh && \
+    echo 'gst-inspect-1.0 | grep -E "(coreelements|v4l2|jpeg|ximagesink)" | head -10 || echo "Could not list plugins"' >> /opt/verify/verify-qt-shared.sh && \
+    echo 'echo -e "\nshared build environment ready!"' >> /opt/verify/verify-qt-shared.sh && \
+    chmod +x /opt/verify/verify-qt-shared.sh
 
 # Verify Qt installation
-RUN /opt/verify/verify-qt-dynamic.sh
+RUN /opt/verify/verify-qt-shared.sh
 
 WORKDIR /workspace
