@@ -65,28 +65,28 @@ jobs:
           echo "Pulling pre-built shared Qt Docker image for amd64..."
           
           IMAGE_TAG="ubuntu-${{ github.event.inputs.ubuntu_version || '24.04' }}-amd64"
-          echo "Checking for image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-shared:$IMAGE_TAG"
+          echo "Checking for image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-dynamic:$IMAGE_TAG"
           
           
           # Check if image exists in registry
-          if docker manifest inspect ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-shared:$IMAGE_TAG > /dev/null 2>&1; then
+          if docker manifest inspect ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-dynamic:$IMAGE_TAG > /dev/null 2>&1; then
             echo "Pre-built image found, pulling..."
-            docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-shared:$IMAGE_TAG
+            docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-dynamic:$IMAGE_TAG
 
             echo "Successfully pulled pre-built shared Qt Docker image for amd64"
           else
             echo "Error: Pre-built shared Qt Docker image not found in registry for amd64"
-            echo "Looking for: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-shared:$IMAGE_TAG"
+            echo "Looking for: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-dynamic:$IMAGE_TAG"
             echo "Please run the 'Build Qt Environments' workflow first to build the required Docker images"
             echo "Workflow URL: https://github.com/${{ github.repository }}/actions/workflows/build-qt-environments.yml"
             exit 1
           fi
           
           # Tag the architecture-specific image as latest for local use
-          docker tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-shared:$IMAGE_TAG ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-shared:latest
+          docker tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-dynamic:$IMAGE_TAG ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-dynamic:latest
           
           # Verify the image was pulled successfully
-          docker images | grep openterface-qtbuild-shared || {
+          docker images | grep openterface-qtbuild-dynamic || {
             echo "Error: Failed to verify shared Qt Docker image"
             exit 1
           }
@@ -147,7 +147,7 @@ jobs:
             -v ${{ github.workspace }}:/workspace/src \
             -v ${{ runner.temp }}/translation-script.sh:/translation-script.sh \
             -w /workspace/src \
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-shared:latest \
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-dynamic:latest \
             /translation-script.sh
 
       - name: Build in Docker Container (shared Qt)
@@ -203,7 +203,7 @@ jobs:
             -v ${{ runner.temp }}/build-shared:/workspace/build \
             -v ${{ runner.temp }}/build-script.sh:/build-script.sh \
             -w /workspace/src \
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-shared:latest \
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-dynamic:latest \
             /build-script.sh
           
           # Verify build output
@@ -640,4 +640,35 @@ jobs:
         with:
           name: openterfaceQT.linux.amd64.static.AppImage
           path: ${{ runner.temp }}/openterfaceQT.linux.amd64.static.AppImage
+          if-no-files-found: error
+
+      - name: Create Portable Application (No packaging)
+        working-directory: ${{ runner.temp }}
+        run: |
+          # Create portable directory structure - directly executable
+          PORTABLE_DIR="openterfaceQT.linux.amd64.portable"
+          mkdir -p $PORTABLE_DIR/config/languages
+          mkdir -p $PORTABLE_DIR/config/keyboards
+          
+          # Copy the static binary directly to root of portable dir (no bin/ subdirectory)
+          cp ${{ env.BUILD_DIR }}/openterfaceQT $PORTABLE_DIR/
+          chmod +x $PORTABLE_DIR/openterfaceQT
+          
+          # Copy configuration files
+          cp -r ${{ env.BUILD_DIR }}/config/languages/* $PORTABLE_DIR/config/languages/ 2>/dev/null || echo "No language files to copy"
+          cp -r ${{ env.BUILD_DIR }}/config/keyboards/* $PORTABLE_DIR/config/keyboards/ 2>/dev/null || echo "No keyboard configs to copy"
+          
+          # Copy documentation
+          cp ${{ github.workspace }}/README.md $PORTABLE_DIR/ || echo "No README.md found"
+          cp ${{ github.workspace }}/LICENSE $PORTABLE_DIR/ || echo "No LICENSE found"
+          
+          echo "Portable application directory created: $PORTABLE_DIR"
+          echo "Contents:"
+          ls -la $PORTABLE_DIR/
+
+      - name: Upload Portable artifact (No packaging)
+        uses: actions/upload-artifact@v4
+        with:
+          name: openterfaceQT.linux.amd64.portable
+          path: ${{ runner.temp }}/openterfaceQT.linux.amd64.portable/
           if-no-files-found: error

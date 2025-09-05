@@ -13,6 +13,11 @@ on:
         required: false
         type: boolean
         default: false
+      skip_windows_signing:
+        description: 'Skip Windows app signing (use unsigned builds)'
+        required: false
+        type: boolean
+        default: false
 
 jobs:
   wait-for-builds:
@@ -49,6 +54,7 @@ jobs:
   sign-windows:
     needs: wait-for-builds
     runs-on: windows-latest
+    if: ${{ !inputs.skip_windows_signing }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
@@ -136,7 +142,7 @@ jobs:
               Write-Output "File: $($_.FullName), Last Modified: $($_.LastWriteTime)"
           }
   create-release:
-    needs: [wait-for-builds, sign-windows]
+    needs: [wait-for-builds]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -205,7 +211,7 @@ jobs:
       - name: Download Linux portable artifacts
         uses: dawidd6/action-download-artifact@v6
         with:
-          workflow: linux-portable-build.yaml
+          workflow: linux-build.yaml
           workflow_conclusion: success
           name: openterfaceQT.linux.amd64.portable
           path: artifacts/linux/portable
@@ -213,22 +219,42 @@ jobs:
       - name: Download Linux portable AppImage artifact
         uses: dawidd6/action-download-artifact@v2
         with:
-          workflow: linux-portable-build.yaml
+          workflow: linux-build.yaml
           workflow_conclusion: success
           name: openterfaceQT.linux.amd64.static.AppImage
           path: artifacts/linux/portable
 
       - name: Download signed Windows installer artifact
+        if: ${{ !inputs.skip_windows_signing }}
         uses: actions/download-artifact@v4
         with:
           name: openterfaceQT.windows.amd.installer
           path: artifacts/windows/signed
       
       - name: Download signed Windows portable artifact
+        if: ${{ !inputs.skip_windows_signing }}
         uses: actions/download-artifact@v4
         with:
           name: openterfaceQT.windows.amd.portable.exe
           path: artifacts/windows/signed
+
+      - name: Download unsigned Windows installer artifact
+        if: ${{ inputs.skip_windows_signing }}
+        uses: dawidd6/action-download-artifact@v2
+        with:
+          workflow: windows-build.yaml
+          workflow_conclusion: success
+          name: openterfaceQT.windows.amd64.installer
+          path: artifacts/windows/unsigned
+
+      - name: Download unsigned Windows portable artifact  
+        if: ${{ inputs.skip_windows_signing }}
+        uses: dawidd6/action-download-artifact@v2
+        with:
+          workflow: windows-portable-build.yaml
+          workflow_conclusion: success
+          name: openterfaceQT.windows.amd64.portable.exe
+          path: artifacts/windows/unsigned
         
       - name: Create source archives
         run: |
@@ -291,6 +317,6 @@ jobs:
           prerelease: ${{ github.event.inputs.prerelease }}
           files: |
             artifacts/linux/**/*
-            artifacts/windows/signed/*
+            artifacts/windows/**/*
             artifacts/source/**/*
             LICENSE
