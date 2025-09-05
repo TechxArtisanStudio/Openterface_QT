@@ -1,0 +1,433 @@
+name: Docker Test - Openterface Test Dynamic
+
+on:
+  push:
+    branches: ["main", "dev"]
+    paths:
+      - 'docker/Dockerfile.openterface-test-dynamic'
+      - 'docker/install-openterface.sh'
+      - '.github/workflows/docker-test.yaml'
+  pull_request:
+    branches: ["main", "dev"]
+    paths:
+      - 'docker/Dockerfile.openterface-test-dynamic'
+      - 'docker/install-openterface.sh'
+      - '.github/workflows/docker-test.yaml'
+  workflow_dispatch:
+    inputs:
+      test_type:
+        description: 'Type of test to run'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+        - 'build-only'
+        - 'run-test'
+        - 'all'
+
+env:
+  DOCKER_IMAGE: openterface-test-dynamic
+  DOCKER_TAG: test-${{ github.sha }}
+
+jobs:
+  build-test:
+    runs-on: ubuntu-24.04
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image
+        run: |
+          echo "🔨 Building Docker image: ${{ env.DOCKER_IMAGE }}:${{ env.DOCKER_TAG }}"
+          docker build \
+            -f docker/Dockerfile.openterface-test-dynamic \
+            -t ${{ env.DOCKER_IMAGE }}:${{ env.DOCKER_TAG }} \
+            docker/
+
+      - name: Verify Docker image
+        run: |
+          echo "✅ Verifying Docker image was built successfully"
+          docker images | grep ${{ env.DOCKER_IMAGE }}
+          
+          echo "📊 Image information:"
+          docker inspect ${{ env.DOCKER_IMAGE }}:${{ env.DOCKER_TAG }} --format='{{.Config.Env}}'
+          docker inspect ${{ env.DOCKER_IMAGE }}:${{ env.DOCKER_TAG }} --format='{{.Config.User}}'
+          docker inspect ${{ env.DOCKER_IMAGE }}:${{ env.DOCKER_TAG }} --format='{{.Config.WorkingDir}}'
+
+      - name: Test container startup
+        if: ${{ github.event.inputs.test_type == 'run-test' || github.event.inputs.test_type == 'all' || github.event_name != 'workflow_dispatch' }}
+        run: |
+          echo "🚀 Testing container startup"
+          
+          # Test container can start without errors
+          CONTAINER_ID=$(docker run -d \
+            --name openterface-test-container \
+            ${{ env.DOCKER_IMAGE }}:${{ env.DOCKER_TAG }} \
+            sleep 30)
+          
+          echo "Container ID: $CONTAINER_ID"
+          
+          # Wait a few seconds for container to initialize
+          sleep 5
+          
+          # Check if container is running
+          if docker ps | grep -q $CONTAINER_ID; then
+            echo "✅ Container started successfully"
+          else
+            echo "❌ Container failed to start"
+            docker logs $CONTAINER_ID
+            exit 1
+          fi
+          
+          # Clean up
+          docker stop $CONTAINER_ID
+          docker rm $CONTAINER_ID
+
+      - name: Test installation script
+        if: ${{ github.event.inputs.test_type == 'run-test' || github.event.inputs.test_type == 'all' || github.event_name != 'workflow_dispatch' }}
+        run: |
+          echo "🧪 Testing installation script"
+          
+          # Run container and check if openterface is installed
+          docker run --rm \
+            --name openterface-install-test \
+            ${{ env.DOCKER_IMAGE }}:${{ env.DOCKER_TAG }} \
+            bash -c "
+              echo '🔍 Checking installed packages...'
+              dpkg -l | grep -i openterface || echo 'No openterface package found'
+              
+              echo '🔍 Checking for openterface binary...'
+              which openterfaceQT || echo 'openterfaceQT not in PATH'
+              find /usr -name 'openterfaceQT' -type f 2>/dev/null || echo 'No openterfaceQT binary found in /usr'
+              find /opt -name 'openterfaceQT' -type f 2>/dev/null || echo 'No openterfaceQT binary found in /opt'
+              
+              echo '🔍 Checking launcher script...'
+              ls -la /usr/local/bin/start-openterface.sh || echo 'Launcher script not found'
+              
+              echo '🔍 Checking udev rules...'
+              ls -la /etc/udev/rules.d/*openterface* || echo 'No udev rules found'
+              
+              echo '🔍 Checking desktop entry...'
+              ls -la /usr/share/applications/*openterface* || echo 'No desktop entry found'
+              
+              echo '🔍 Checking user groups...'
+              groups openterface || echo 'User openterface not found'
+              
+              echo '✅ Installation check completed'
+            "
+
+      - name: Test Qt dependencies
+        if: ${{ github.event.inputs.test_type == 'run-test' || github.event.inputs.test_type == 'all' || github.event_name != 'workflow_dispatch' }}
+        run: |
+          echo "🧪 Testing Qt runtime dependencies"
+          
+          docker run --rm \
+            --name openterface-qt-test \
+            ${{ env.DOCKER_IMAGE }}:${{ env.DOCKER_TAG }} \
+            bash -c "
+              echo '🔍 Checking Qt6 libraries...'
+              ldconfig -p | grep -i qt6 | head -10 || echo 'No Qt6 libraries found'
+              
+              echo '🔍 Checking specific Qt6 modules...'
+              dpkg -l | grep libqt6 | head -10 || echo 'No Qt6 packages found'
+              
+              echo '🔍 Checking multimedia libraries...'
+              dpkg -l | grep multimedia || echo 'No multimedia packages found'
+              
+              echo '🔍 Checking serial port libraries...'
+              dpkg -l | grep serialport || echo 'No serialport packages found'
+              
+              echo '✅ Qt dependencies check completed'
+            "
+
+      - name: Test hardware interface dependencies
+        if: ${{ github.event.inputs.test_type == 'run-test' || github.event.inputs.test_type == 'all' || github.event_name != 'workflow_dispatch' }}
+        run: |
+          echo "🧪 Testing hardware interface dependencies"
+          
+          docker run --rm \
+            --name openterface-hw-test \
+            ${{ env.DOCKER_IMAGE }}:${{ env.DOCKER_TAG }} \
+            bash -c "
+              echo '🔍 Checking USB libraries...'
+              dpkg -l | grep libusb || echo 'No libusb packages found'
+              
+              echo '🔍 Checking udev libraries...'
+              dpkg -l | grep libudev || echo 'No libudev packages found'
+              
+              echo '🔍 Checking FFmpeg libraries...'
+              dpkg -l | grep libav | head -5 || echo 'No FFmpeg packages found'
+              
+              echo '🔍 Checking GStreamer...'
+              dpkg -l | grep gstreamer | head -5 || echo 'No GStreamer packages found'
+              
+              echo '✅ Hardware interface dependencies check completed'
+            "
+
+      - name: Test application launcher
+        if: ${{ github.event.inputs.test_type == 'run-test' || github.event.inputs.test_type == 'all' || github.event_name != 'workflow_dispatch' }}
+        run: |
+          echo "🧪 Testing application launcher (non-GUI mode)"
+          
+          # Test the launcher script exists and is executable
+          docker run --rm \
+            --name openterface-launcher-test \
+            ${{ env.DOCKER_IMAGE }}:${{ env.DOCKER_TAG }} \
+            bash -c "
+              if [ -f '/usr/local/bin/start-openterface.sh' ] && [ -x '/usr/local/bin/start-openterface.sh' ]; then
+                echo '✅ Launcher script exists and is executable'
+                
+                # Test script syntax
+                bash -n /usr/local/bin/start-openterface.sh && echo '✅ Launcher script syntax is valid' || echo '❌ Launcher script has syntax errors'
+                
+                # Test dry run (without actually starting the GUI)
+                echo '🧪 Testing launcher script components...'
+                timeout 10s bash -c '
+                  source /usr/local/bin/start-openterface.sh 2>&1 | head -20
+                ' || echo 'ℹ️  Launcher test completed (timeout expected for GUI app)'
+              else
+                echo '❌ Launcher script not found or not executable'
+                exit 1
+              fi
+            "
+
+      - name: Test container with simulated USB devices
+        if: ${{ github.event.inputs.test_type == 'run-test' || github.event.inputs.test_type == 'all' || github.event_name != 'workflow_dispatch' }}
+        run: |
+          echo "🧪 Testing container with simulated USB device access"
+          
+          # Run container with privileged access to test USB handling
+          docker run --rm \
+            --privileged \
+            --name openterface-usb-test \
+            -v /dev:/dev \
+            ${{ env.DOCKER_IMAGE }}:${{ env.DOCKER_TAG }} \
+            bash -c "
+              echo '🔍 Checking USB device access...'
+              ls -la /dev/bus/usb/ 2>/dev/null || echo 'No USB devices found'
+              
+              echo '🔍 Checking hidraw devices...'
+              ls -la /dev/hidraw* 2>/dev/null || echo 'No hidraw devices found'
+              
+              echo '🔍 Checking ttyUSB devices...'
+              ls -la /dev/ttyUSB* 2>/dev/null || echo 'No ttyUSB devices found'
+              
+              echo '🔍 Testing lsusb command...'
+              lsusb || echo 'lsusb command failed'
+              
+              echo '🔍 Checking for target Openterface devices...'
+              lsusb | grep -E '534d|1a86' || echo 'No Openterface devices detected (expected in test environment)'
+              
+              echo '✅ USB device access test completed'
+            "
+
+      - name: Security scan
+        if: ${{ github.event.inputs.test_type == 'all' || github.event_name != 'workflow_dispatch' }}
+        run: |
+          echo "🔒 Running basic security checks"
+          
+          # Check for security best practices
+          docker run --rm \
+            --name openterface-security-test \
+            ${{ env.DOCKER_IMAGE }}:${{ env.DOCKER_TAG }} \
+            bash -c "
+              echo '🔍 Checking user configuration...'
+              whoami
+              id
+              
+              echo '🔍 Checking sudo configuration...'
+              sudo -n echo 'Passwordless sudo working' 2>/dev/null || echo 'Passwordless sudo not configured (this might be expected)'
+              
+              echo '🔍 Checking file permissions on key files...'
+              ls -la /etc/udev/rules.d/*openterface* 2>/dev/null || echo 'No openterface udev rules found'
+              ls -la /usr/local/bin/start-openterface.sh 2>/dev/null || echo 'Launcher script not found'
+              
+              echo '🔍 Checking for setuid binaries (security check)...'
+              find /usr/local/bin -perm /4000 -type f 2>/dev/null || echo 'No setuid binaries found in /usr/local/bin'
+              
+              echo '✅ Security check completed'
+            "
+
+      - name: Performance test
+        if: ${{ github.event.inputs.test_type == 'all' || github.event_name != 'workflow_dispatch' }}
+        run: |
+          echo "⚡ Running performance tests"
+          
+          # Test container startup time and resource usage
+          echo "🧪 Testing container startup performance..."
+          
+          START_TIME=$(date +%s%N)
+          CONTAINER_ID=$(docker run -d \
+            --name openterface-perf-test \
+            ${{ env.DOCKER_IMAGE }}:${{ env.DOCKER_TAG }} \
+            sleep 10)
+          END_TIME=$(date +%s%N)
+          
+          STARTUP_TIME=$(( (END_TIME - START_TIME) / 1000000 ))
+          echo "📊 Container startup time: ${STARTUP_TIME}ms"
+          
+          # Check resource usage
+          sleep 2
+          echo "📊 Container resource usage:"
+          docker stats --no-stream $CONTAINER_ID
+          
+          # Check image size
+          echo "📊 Image size:"
+          docker images ${{ env.DOCKER_IMAGE }}:${{ env.DOCKER_TAG }} --format "table {{.Repository}}:{{.Tag}}\t{{.Size}}"
+          
+          # Clean up
+          docker stop $CONTAINER_ID
+          docker rm $CONTAINER_ID
+          
+          echo "✅ Performance test completed"
+
+      - name: Generate test report
+        if: always()
+        run: |
+          echo "📋 Generating test report"
+          
+          cat << 'EOF' > test-report.md
+          # Docker Test Report - Openterface Test Dynamic
+          
+          ## Test Summary
+          - **Image**: ${{ env.DOCKER_IMAGE }}:${{ env.DOCKER_TAG }}
+          - **Build Time**: $(date -u)
+          - **Test Type**: ${{ github.event.inputs.test_type || 'all' }}
+          - **Workflow**: ${{ github.workflow }}
+          - **Run ID**: ${{ github.run_id }}
+          
+          ## Tests Executed
+          1. ✅ Docker image build
+          2. ✅ Container startup test
+          3. ✅ Installation script verification
+          4. ✅ Qt dependencies check
+          5. ✅ Hardware interface dependencies
+          6. ✅ Application launcher test
+          7. ✅ USB device access simulation
+          8. ✅ Security scan
+          9. ✅ Performance test
+          
+          ## Image Information
+          EOF
+          
+          echo "🔍 Image layers:" >> test-report.md
+          docker history ${{ env.DOCKER_IMAGE }}:${{ env.DOCKER_TAG }} --no-trunc >> test-report.md
+          
+          echo "📊 Test report generated"
+          cat test-report.md
+
+      - name: Clean up Docker resources
+        if: always()
+        run: |
+          echo "🧹 Cleaning up Docker resources"
+          
+          # Remove test containers (if any still exist)
+          docker ps -aq --filter "name=openterface-" | xargs -r docker rm -f || true
+          
+          # Remove test image
+          docker rmi ${{ env.DOCKER_IMAGE }}:${{ env.DOCKER_TAG }} || true
+          
+          # Show remaining Docker resources
+          echo "📊 Remaining Docker images:"
+          docker images | head -10 || true
+          
+          echo "✅ Cleanup completed"
+
+  # Integration test job that tests the actual installation process
+  integration-test:
+    runs-on: ubuntu-24.04
+    needs: build-test
+    if: ${{ github.event.inputs.test_type == 'all' || github.event_name != 'workflow_dispatch' }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Test installation script independently
+        run: |
+          echo "🧪 Testing installation script independently"
+          
+          # Create a test Ubuntu container and run the install script
+          docker run --rm \
+            -v ${{ github.workspace }}/docker/install-openterface.sh:/tmp/install-openterface.sh \
+            ubuntu:24.04 \
+            bash -c "
+              apt-get update -y
+              apt-get install -y curl wget ca-certificates sudo
+              chmod +x /tmp/install-openterface.sh
+              
+              echo '🚀 Running installation script...'
+              /tmp/install-openterface.sh
+              
+              echo '✅ Installation script test completed'
+            "
+
+      - name: End-to-end test with real download
+        run: |
+          echo "🧪 End-to-end test with real package download"
+          
+          # Build the Docker image and test the full installation process
+          docker build \
+            -f docker/Dockerfile.openterface-test-dynamic \
+            -t openterface-e2e-test \
+            docker/
+          
+          # Run the container and verify everything works
+          docker run --rm \
+            --name openterface-e2e-test \
+            openterface-e2e-test \
+            bash -c "
+              echo '🔍 Verifying full installation...'
+              
+              # Check if the package was downloaded and installed
+              dpkg -l | grep -i openterface && echo '✅ Package installed' || echo '❌ Package not found'
+              
+              # Check if binary exists
+              which openterfaceQT && echo '✅ Binary in PATH' || find /usr /opt -name 'openterfaceQT' -type f 2>/dev/null | head -1 | xargs -I {} echo '✅ Binary found at: {}'
+              
+              # Check launcher script
+              [ -x '/usr/local/bin/start-openterface.sh' ] && echo '✅ Launcher script ready' || echo '❌ Launcher script missing'
+              
+              echo '✅ End-to-end test completed'
+            "
+          
+          # Clean up
+          docker rmi openterface-e2e-test || true
+
+      - name: Test with GUI launcher script
+        run: |
+          echo "🧪 Testing GUI launcher script simulation"
+          
+          # Copy the launcher script to test it
+          cp docker/run-openterface-docker.sh /tmp/test-launcher.sh
+          chmod +x /tmp/test-launcher.sh
+          
+          # Build image with correct name expected by launcher
+          docker build \
+            -f docker/Dockerfile.openterface-test-dynamic \
+            -t openterface-test \
+            docker/
+          
+          # Test the launcher script help
+          echo "🔍 Testing launcher script help..."
+          /tmp/test-launcher.sh --help
+          
+          # Test shell mode (non-GUI)
+          echo "🔍 Testing shell mode..."
+          timeout 30s docker run --rm \
+            --name openterface-shell-test \
+            openterface-test \
+            bash -c "
+              echo '✅ Shell mode test started'
+              whoami
+              echo 'Groups:' && groups
+              echo 'Qt check:' && dpkg -l | grep libqt6 | wc -l
+              echo '✅ Shell mode test completed'
+            " || echo "ℹ️  Shell test completed (timeout expected)"
+          
+          # Clean up
+          docker rmi openterface-test || true

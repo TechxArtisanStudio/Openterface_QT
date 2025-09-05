@@ -1,0 +1,53 @@
+name: Docker Test - Quick
+
+on:
+  push:
+    branches: ["main", "dev"]
+    paths:
+      - 'docker/Dockerfile.openterface-test-dynamic'
+      - 'docker/install-openterface.sh'
+  pull_request:
+    branches: ["main", "dev"]
+    paths:
+      - 'docker/Dockerfile.openterface-test-dynamic'
+      - 'docker/install-openterface.sh'
+  workflow_dispatch:
+
+env:
+  DOCKER_IMAGE: openterface-test-dynamic
+  DOCKER_TAG: quick-test
+
+jobs:
+  quick-test:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Build and test Docker image
+        run: |
+          echo "🔨 Building Docker image..."
+          docker build \
+            -f docker/Dockerfile.openterface-test-dynamic \
+            -t ${{ env.DOCKER_IMAGE }}:${{ env.DOCKER_TAG }} \
+            docker/
+
+          echo "✅ Build completed successfully"
+          
+          echo "🧪 Quick functionality test..."
+          docker run --rm \
+            ${{ env.DOCKER_IMAGE }}:${{ env.DOCKER_TAG }} \
+            bash -c "
+              echo '✅ Container started successfully'
+              whoami
+              echo 'User groups:' && groups
+              echo 'Qt libraries:' && dpkg -l | grep libqt6 | wc -l
+              echo 'Launcher script:' && ls -la /usr/local/bin/start-openterface.sh
+              echo '✅ Quick test completed'
+            "
+
+      - name: Clean up
+        if: always()
+        run: |
+          docker rmi ${{ env.DOCKER_IMAGE }}:${{ env.DOCKER_TAG }} || true

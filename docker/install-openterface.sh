@@ -31,17 +31,11 @@ get_latest_version() {
                      grep '"tag_name":' | \
                      sed -E 's/.*"([^"]+)".*/\1/')
     
-    if [ -z "$LATEST_VERSION" ]; then
-        echo "❌ Failed to fetch latest version. Using fallback version v0.3.19"
-        LATEST_VERSION="v0.3.19"
-    fi
-    
     echo "✅ Latest version: $LATEST_VERSION"
 }
 
 # Function to download the package
 download_package() {
-    LATEST_VERSION="0.3.19"
     echo "📥 Downloading Openterface QT package..."
     DOWNLOAD_URL="https://github.com/${GITHUB_REPO}/releases/download/${LATEST_VERSION}/${PACKAGE_NAME}"
     
