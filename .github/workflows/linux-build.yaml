@@ -646,6 +646,7 @@ jobs:
         working-directory: ${{ runner.temp }}
         run: |
           PORTABLE_DIR="openterfaceQT.linux.amd64.portable"
+          mkdir -p $PORTABLE_DIR
           # Copy the static binary directly to root of portable dir (no bin/ subdirectory)
           cp ${{ env.BUILD_DIR }}/openterfaceQT $PORTABLE_DIR/openterfaceQT-portable
           chmod +x $PORTABLE_DIR/openterfaceQT-portable
