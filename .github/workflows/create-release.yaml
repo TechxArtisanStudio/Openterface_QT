@@ -277,6 +277,7 @@ jobs:
                    --exclude="qrc_*" --exclude=".qmake.stash" --exclude="*.user" \
                    --exclude="Makefile*" --exclude="*.autosave" \
                    --exclude="tmp" --exclude="*.log" \
+                   --exclude="*.json" --exclude="*.qm" --exclude="*.md"  \
                    --exclude="artifacts" --exclude=".github/workflows/*.log" \
                    . $TEMP_SRC_DIR/
           
