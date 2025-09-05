@@ -319,4 +319,3 @@ jobs:
             artifacts/linux/**/*
             artifacts/windows/**/*
             artifacts/source/**/*
-            ./LICENSE

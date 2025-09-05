@@ -645,26 +645,12 @@ jobs:
       - name: Create Portable Application (No packaging)
         working-directory: ${{ runner.temp }}
         run: |
-          # Create portable directory structure - directly executable
-          PORTABLE_DIR="openterfaceQT.linux.amd64.portable"
-          mkdir -p $PORTABLE_DIR/config/languages
-          mkdir -p $PORTABLE_DIR/config/keyboards
-          
           # Copy the static binary directly to root of portable dir (no bin/ subdirectory)
-          cp ${{ env.BUILD_DIR }}/openterfaceQT $PORTABLE_DIR/
-          chmod +x $PORTABLE_DIR/openterfaceQT
-          
-          # Copy configuration files
-          cp -r ${{ env.BUILD_DIR }}/config/languages/* $PORTABLE_DIR/config/languages/ 2>/dev/null || echo "No language files to copy"
-          cp -r ${{ env.BUILD_DIR }}/config/keyboards/* $PORTABLE_DIR/config/keyboards/ 2>/dev/null || echo "No keyboard configs to copy"
-          
-          # Copy documentation
-          cp ${{ github.workspace }}/README.md $PORTABLE_DIR/ || echo "No README.md found"
+          cp ${{ env.BUILD_DIR }}/openterfaceQT $PORTABLE_DIR/openterfaceQT-portable
+          chmod +x $PORTABLE_DIR/openterfaceQT-portable
+
           cp ${{ github.workspace }}/LICENSE $PORTABLE_DIR/ || echo "No LICENSE found"
-          
-          echo "Portable application directory created: $PORTABLE_DIR"
-          echo "Contents:"
-          ls -la $PORTABLE_DIR/
+
 
       - name: Upload Portable artifact (No packaging)
         uses: actions/upload-artifact@v4
