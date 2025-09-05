@@ -147,7 +147,7 @@ jobs:
             -v ${{ github.workspace }}:/workspace/src \
             -v ${{ runner.temp }}/translation-script.sh:/translation-script.sh \
             -w /workspace/src \
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-shared:latest \
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-dynamic:latest \
             /translation-script.sh
 
       - name: Build in Docker Container (shared Qt)
