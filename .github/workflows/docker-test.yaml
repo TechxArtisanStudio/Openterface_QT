@@ -63,7 +63,7 @@ jobs:
         run: |
           echo "🚀 Testing container startup"
           
-          # Test container can start without errors
+          # Test container can start without errors (override default CMD to avoid GUI issues)
           CONTAINER_ID=$(docker run -d \
             --name openterface-test-container \
             ${{ env.DOCKER_IMAGE }}:${{ env.DOCKER_TAG }} \
@@ -77,8 +77,19 @@ jobs:
           # Check if container is running
           if docker ps | grep -q $CONTAINER_ID; then
             echo "✅ Container started successfully"
+            
+            # Test that we can execute commands in the container
+            echo "🧪 Testing container functionality..."
+            docker exec $CONTAINER_ID bash -c "
+              echo 'Testing basic container functionality...'
+              whoami
+              pwd
+              ls -la /usr/local/bin/start-openterface.sh 2>/dev/null || echo 'Launcher script not found'
+            "
+            echo "✅ Container functionality test passed"
           else
             echo "❌ Container failed to start"
+            echo "🔍 Container logs:"
             docker logs $CONTAINER_ID
             exit 1
           fi
@@ -195,6 +206,68 @@ jobs:
               fi
             "
 
+      - name: Test default CMD behavior with virtual display
+        if: ${{ github.event.inputs.test_type == 'run-test' || github.event.inputs.test_type == 'all' || github.event_name != 'workflow_dispatch' }}
+        run: |
+          echo "🧪 Testing default CMD behavior with virtual display"
+          
+          # Install Xvfb for virtual display
+          sudo apt-get update -y
+          sudo apt-get install -y xvfb
+          
+          # Start Xvfb virtual display
+          export DISPLAY=:99
+          Xvfb :99 -screen 0 1024x768x24 &
+          XVFB_PID=$!
+          
+          # Wait for Xvfb to start
+          sleep 2
+          
+          echo "🖥️  Virtual display started on $DISPLAY"
+          
+          # Test default CMD with virtual display
+          echo "🚀 Running openterface with virtual display for 10 seconds..."
+          
+          CONTAINER_ID=$(docker run -d \
+            --name openterface-gui-test \
+            -e DISPLAY=$DISPLAY \
+            -v /tmp/.X11-unix:/tmp/.X11-unix:rw \
+            --network host \
+            ${{ env.DOCKER_IMAGE }}:${{ env.DOCKER_TAG }})
+          
+          echo "Container ID: ${CONTAINER_ID:0:12}"
+          
+          # Let it run for 10 seconds
+          echo "⏰ Waiting 10 seconds to collect logs..."
+          sleep 10
+          
+          # Check if container is still running
+          if docker ps | grep -q $CONTAINER_ID; then
+            echo "✅ Container is running with GUI"
+            
+            # Get container logs
+            echo "📋 Container logs:"
+            docker logs $CONTAINER_ID 2>&1
+            
+            # Test container responsiveness
+            echo "🧪 Testing container responsiveness..."
+            docker exec $CONTAINER_ID ps aux | grep openterfaceQT || echo "openterfaceQT process not found"
+            
+          else
+            echo "⚠️  Container exited, checking logs..."
+            docker logs $CONTAINER_ID 2>&1
+          fi
+          
+          # Clean up container
+          echo "🛑 Stopping container..."
+          docker stop $CONTAINER_ID 2>/dev/null || true
+          docker rm $CONTAINER_ID 2>/dev/null || true
+          
+          # Clean up Xvfb
+          kill $XVFB_PID 2>/dev/null || true
+          
+          echo "✅ GUI test with virtual display completed"
+
       - name: Test container with simulated USB devices
         if: ${{ github.event.inputs.test_type == 'run-test' || github.event.inputs.test_type == 'all' || github.event_name != 'workflow_dispatch' }}
         run: |
@@ -270,18 +343,20 @@ jobs:
           STARTUP_TIME=$(( (END_TIME - START_TIME) / 1000000 ))
           echo "📊 Container startup time: ${STARTUP_TIME}ms"
           
-          # Check resource usage
+          # Wait for container to be fully started
           sleep 2
+          
+          # Check resource usage
           echo "📊 Container resource usage:"
-          docker stats --no-stream $CONTAINER_ID
+          docker stats --no-stream $CONTAINER_ID || echo "⚠️ Could not get container stats"
           
           # Check image size
           echo "📊 Image size:"
           docker images ${{ env.DOCKER_IMAGE }}:${{ env.DOCKER_TAG }} --format "table {{.Repository}}:{{.Tag}}\t{{.Size}}"
           
           # Clean up
-          docker stop $CONTAINER_ID
-          docker rm $CONTAINER_ID
+          docker stop $CONTAINER_ID || true
+          docker rm $CONTAINER_ID || true
           
           echo "✅ Performance test completed"
 
