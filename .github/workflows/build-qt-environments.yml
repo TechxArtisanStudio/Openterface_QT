@@ -1,4 +1,4 @@
-name: Build Qt Environments (Static & Dynamic)
+name: Build Qt Environments (Static & Shared)
 
 on:
   workflow_dispatch:
@@ -10,7 +10,7 @@ on:
         type: choice
         options:
         - 'static'
-        - 'dynamic'  
+        - 'shared'  
         - 'both'
       step:
         description: 'Which step to build (for static environment)'
@@ -58,15 +58,15 @@ env:
   REGISTRY: ghcr.io
 
 jobs:
-  # Dynamic Qt Environment Build
-  build-dynamic:
-    if: ${{ github.event.inputs.environment_type == 'dynamic' || github.event.inputs.environment_type == 'both' || github.event_name == 'push' || github.event_name == 'pull_request' }}
+  # Shared Qt Environment Build
+  build-shared:
+    if: ${{ github.event.inputs.environment_type == 'shared' || github.event.inputs.environment_type == 'both' || github.event_name == 'push' || github.event_name == 'pull_request' }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
     outputs:
-      dynamic-digest: ${{ steps.build-dynamic.outputs.digest }}
+      shared-digest: ${{ steps.build-shared.outputs.digest }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -85,11 +85,11 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Extract metadata for dynamic
-        id: meta-dynamic
+      - name: Extract metadata for shared
+        id: meta-shared
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-dynamic
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-shared
           tags: |
             type=ref,event=branch,suffix=-amd64
             type=ref,event=pr,suffix=-amd64
@@ -97,45 +97,45 @@ jobs:
             type=raw,value=latest-amd64
             type=raw,value=ubuntu-${{ github.event.inputs.ubuntu_version || '24.04' }}-amd64
 
-      - name: Check if dynamic image exists
-        id: check-dynamic
+      - name: Check if shared image exists
+        id: check-shared
         run: |
           if [[ "${{ github.event.inputs.force_rebuild }}" == "true" ]]; then
-            echo "Force rebuild requested, will build dynamic image"
+            echo "Force rebuild requested, will build shared image"
             echo "should_build=true" >> $GITHUB_OUTPUT
           else
             IMAGE_TAG="ubuntu-${{ github.event.inputs.ubuntu_version || '24.04' }}-amd64"
-            echo "Checking for image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-dynamic:$IMAGE_TAG"
-            if docker manifest inspect ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-dynamic:$IMAGE_TAG > /dev/null 2>&1; then
-              echo "Dynamic image already exists for amd64 architecture, skipping build"
+            echo "Checking for image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-shared:$IMAGE_TAG"
+            if docker manifest inspect ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-shared:$IMAGE_TAG > /dev/null 2>&1; then
+              echo "Shared image already exists for amd64 architecture, skipping build"
               echo "should_build=false" >> $GITHUB_OUTPUT
             else
-              echo "Dynamic image does not exist for amd64 architecture, will build"
+              echo "shared image does not exist for amd64 architecture, will build"
               echo "should_build=true" >> $GITHUB_OUTPUT
             fi
           fi
 
-      - name: Build and push Dynamic Qt image
-        id: build-dynamic
-        if: steps.check-dynamic.outputs.should_build == 'true' || github.event_name == 'push' || github.event_name == 'pull_request'
+      - name: Build and push Shared Qt image
+        id: build-shared
+        if: steps.check-shared.outputs.should_build == 'true' || github.event_name == 'push' || github.event_name == 'pull_request'
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: ./docker/Dockerfile.qt-dynamic
+          file: ./docker/Dockerfile.qt-shared
           build-args: |
             UBUNTU_VERSION=${{ github.event.inputs.ubuntu_version || '24.04' }}
             TARGETARCH=amd64
           push: ${{ github.event_name != 'pull_request' && (github.event.inputs.push_to_registry == 'true' || github.event.inputs.push_to_registry == '') }}
-          tags: ${{ steps.meta-dynamic.outputs.tags }}
-          labels: ${{ steps.meta-dynamic.outputs.labels }}
-          cache-from: type=gha,scope=dynamic
-          cache-to: type=gha,mode=max,scope=dynamic
+          tags: ${{ steps.meta-shared.outputs.tags }}
+          labels: ${{ steps.meta-shared.outputs.labels }}
+          cache-from: type=gha,scope=shared
+          cache-to: type=gha,mode=max,scope=shared
           platforms: linux/amd64
 
-      - name: Test Dynamic Qt Environment
+      - name: Test Shared Qt Environment
         run: |
-          docker run --rm ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-dynamic:ubuntu-${{ github.event.inputs.ubuntu_version || '24.04' }}-amd64 \
-            /opt/verify/verify-qt-dynamic.sh
+          docker run --rm ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-shared:ubuntu-${{ github.event.inputs.ubuntu_version || '24.04' }}-amd64 \
+            /opt/verify/verify-qt-shared.sh
 
   # Static Qt Environment Build (existing multi-stage process)
   build-static-base:
@@ -493,7 +493,7 @@ jobs:
   # Summary job that shows which images are available
   build-summary:
     runs-on: ubuntu-latest
-    needs: [build-dynamic, build-static-complete]
+    needs: [build-shared, build-static-complete]
     if: always()
     steps:
       - name: Set lowercase image name
@@ -505,10 +505,10 @@ jobs:
           echo "| Environment | Status | Image |" >> $GITHUB_STEP_SUMMARY
           echo "|-------------|--------|-------|" >> $GITHUB_STEP_SUMMARY
           
-          if [ "${{ needs.build-dynamic.result }}" = "success" ]; then
-            echo "| Dynamic Qt | ✅ Success | \`${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-dynamic:ubuntu-${{ github.event.inputs.ubuntu_version || '24.04' }}-amd64\` |" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ needs.build-shared.result }}" = "success" ]; then
+            echo "| Shared Qt | ✅ Success | \`${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-shared:ubuntu-${{ github.event.inputs.ubuntu_version || '24.04' }}-amd64\` |" >> $GITHUB_STEP_SUMMARY
           else
-            echo "| Dynamic Qt | ❌ Failed/Skipped | - |" >> $GITHUB_STEP_SUMMARY
+            echo "| Shared Qt | ❌ Failed/Skipped | - |" >> $GITHUB_STEP_SUMMARY
           fi
           
           if [ "${{ needs.build-static-complete.result }}" = "success" ]; then
@@ -520,10 +520,10 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Usage Instructions" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Dynamic Build:**" >> $GITHUB_STEP_SUMMARY
+          echo "**Shared Build:**" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
           echo "docker run --rm -v \$(pwd):/workspace/src -w /workspace/src \\" >> $GITHUB_STEP_SUMMARY
-          echo "  ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-dynamic:ubuntu-${{ github.event.inputs.ubuntu_version || '24.04' }}-amd64 \\" >> $GITHUB_STEP_SUMMARY
+          echo "  ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-shared:ubuntu-${{ github.event.inputs.ubuntu_version || '24.04' }}-amd64 \\" >> $GITHUB_STEP_SUMMARY
           echo "  bash -c 'mkdir build && cd build && cmake -DBUILD_SHARED_LIBS=ON .. && make -j\$(nproc)'" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
