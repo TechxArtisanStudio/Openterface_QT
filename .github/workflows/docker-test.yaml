@@ -4,13 +4,13 @@ on:
   push:
     branches: ["main", "dev"]
     paths:
-      - 'docker/Dockerfile.openterface-test-dynamic'
+      - 'docker/Dockerfile.openterface-test-shared'
       - 'docker/install-openterface-shared.sh'
       - '.github/workflows/docker-test.yaml'
   pull_request:
     branches: ["main", "dev"]
     paths:
-      - 'docker/Dockerfile.openterface-test-dynamic'
+      - 'docker/Dockerfile.openterface-test-shared'
       - 'docker/install-openterface-shared.sh'
       - '.github/workflows/docker-test.yaml'
   workflow_dispatch:
@@ -26,7 +26,7 @@ on:
         - 'all'
 
 env:
-  DOCKER_IMAGE: openterface-test-dynamic
+  DOCKER_IMAGE: openterface-test-shared
   DOCKER_TAG: test-${{ github.sha }}
 
 jobs:
@@ -44,7 +44,7 @@ jobs:
         run: |
           echo "🔨 Building Docker image: ${{ env.DOCKER_IMAGE }}:${{ env.DOCKER_TAG }}"
           docker build \
-            -f docker/Dockerfile.openterface-test-dynamic \
+            -f docker/Dockerfile.openterface-test-shared \
             -t ${{ env.DOCKER_IMAGE }}:${{ env.DOCKER_TAG }} \
             docker/
 
@@ -372,7 +372,7 @@ jobs:
           
           # Build the Docker image and test the full installation process
           docker build \
-            -f docker/Dockerfile.openterface-test-dynamic \
+            -f docker/Dockerfile.openterface-test-shared \
             -t openterface-e2e-test \
             docker/
           
@@ -408,7 +408,7 @@ jobs:
           
           # Build image with correct name expected by launcher
           docker build \
-            -f docker/Dockerfile.openterface-test-dynamic \
+            -f docker/Dockerfile.openterface-test-shared \
             -t openterface-test \
             docker/
           
