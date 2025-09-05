@@ -69,10 +69,10 @@ RUN useradd -m -s /bin/bash openterface && \
     echo "openterface ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
 
 # Copy and run the installation script
-COPY install-openterface.sh /tmp/install-openterface.sh
-RUN chmod +x /tmp/install-openterface.sh && \
-    /tmp/install-openterface.sh && \
-    rm /tmp/install-openterface.sh
+COPY install-openterface-shared.sh /tmp/install-openterface-shared.sh
+RUN chmod +x /tmp/install-openterface-shared.sh && \
+    /tmp/install-openterface-shared.sh && \
+    rm /tmp/install-openterface-shared.sh
 
 
 # Set up udev rules for Openterface hardware (backup rules, main setup in install script)

@@ -23,7 +23,7 @@ echo "===================================================="
 # Configuration
 GITHUB_REPO="TechxArtisanStudio/Openterface_QT"
 STATIC_PACKAGE_NAME="openterfaceQT.linux.amd64.static.deb"  # Assuming static package naming
-FALLBACK_PACKAGE_NAME="openterfaceQT.linux.amd64.deb"       # Fallback to regular package
+FALLBACK_PACKAGE_NAME="openterfaceQT.linux.amd64.shared.deb"       # Fallback to regular package
 
 # Function to get the specified version
 get_latest_version() {

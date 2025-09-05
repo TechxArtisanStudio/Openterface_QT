@@ -21,7 +21,7 @@ echo "=============================================="
 
 # Configuration
 GITHUB_REPO="TechxArtisanStudio/Openterface_QT"
-PACKAGE_NAME="openterfaceQT.linux.amd64.deb"
+PACKAGE_NAME="openterfaceQT.linux.amd64.shared.deb"
 
 # Function to get the latest release version
 get_latest_version() {

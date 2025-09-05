@@ -5,13 +5,13 @@ on:
     branches: ["main", "dev"]
     paths:
       - 'docker/Dockerfile.openterface-test-dynamic'
-      - 'docker/install-openterface.sh'
+      - 'docker/install-openterface-shared.sh'
       - '.github/workflows/docker-test.yaml'
   pull_request:
     branches: ["main", "dev"]
     paths:
       - 'docker/Dockerfile.openterface-test-dynamic'
-      - 'docker/install-openterface.sh'
+      - 'docker/install-openterface-shared.sh'
       - '.github/workflows/docker-test.yaml'
   workflow_dispatch:
     inputs:
@@ -353,15 +353,15 @@ jobs:
           
           # Create a test Ubuntu container and run the install script
           docker run --rm \
-            -v ${{ github.workspace }}/docker/install-openterface.sh:/tmp/install-openterface.sh \
+            -v ${{ github.workspace }}/docker/install-openterface-shared.sh:/tmp/install-openterface-shared.sh \
             ubuntu:24.04 \
             bash -c "
               apt-get update -y
               apt-get install -y curl wget ca-certificates sudo
-              chmod +x /tmp/install-openterface.sh
+              chmod +x /tmp/install-openterface-shared.sh
               
               echo '🚀 Running installation script...'
-              /tmp/install-openterface.sh
+              /tmp/install-openterface-shared.sh
               
               echo '✅ Installation script test completed'
             "

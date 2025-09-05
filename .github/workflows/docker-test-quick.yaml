@@ -4,17 +4,17 @@ on:
   push:
     branches: ["main", "dev"]
     paths:
-      - 'docker/Dockerfile.openterface-test-dynamic'
-      - 'docker/install-openterface.sh'
+      - 'docker/Dockerfile.openterface-test-shared'
+      - 'docker/install-openterface-shared.sh'
   pull_request:
     branches: ["main", "dev"]
     paths:
-      - 'docker/Dockerfile.openterface-test-dynamic'
-      - 'docker/install-openterface.sh'
+      - 'docker/Dockerfile.openterface-test-shared'
+      - 'docker/install-openterface-shared.sh'
   workflow_dispatch:
 
 env:
-  DOCKER_IMAGE: openterface-test-dynamic
+  DOCKER_IMAGE: openterface-test-shared
   DOCKER_TAG: quick-test
 
 jobs:
@@ -29,7 +29,7 @@ jobs:
         run: |
           echo "🔨 Building Docker image..."
           docker build \
-            -f docker/Dockerfile.openterface-test-dynamic \
+            -f docker/Dockerfile.openterface-test-shared \
             -t ${{ env.DOCKER_IMAGE }}:${{ env.DOCKER_TAG }} \
             docker/
 
