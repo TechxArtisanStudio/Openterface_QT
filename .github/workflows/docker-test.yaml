@@ -64,7 +64,7 @@ jobs:
           echo "🚀 Testing container startup"
           
           # Test container can start without errors (override default CMD to avoid GUI issues)
-          CONTAINER_ID=$(docker run -d \
+          CONTAINER_ID=$(docker run \
             --name openterface-test-container \
             ${{ env.DOCKER_IMAGE }}:${{ env.DOCKER_TAG }} \
             sleep 30)
