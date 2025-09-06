@@ -94,33 +94,59 @@ jobs:
         run: |
           echo "🚀 Testing container startup"
           
-          # Test container can start without errors (override default CMD to avoid GUI issues)
+          # First, let's test if the image can run a simple command
+          echo "🧪 Testing simple command execution first..."
+          if docker run --rm ${{ env.DOCKER_IMAGE }}:${{ env.DOCKER_TAG }} echo "Hello from container"; then
+            echo "✅ Simple command execution works"
+          else
+            echo "❌ Simple command execution failed"
+            exit 1
+          fi
+          
+          # Now test container with sleep (override default CMD to avoid GUI issues)
+          echo "🧪 Testing container with sleep command..."
+          set +e  # Don't exit on error so we can debug
           CONTAINER_ID=$(docker run -d \
             --name openterface-test-container \
             ${{ env.DOCKER_IMAGE }}:${{ env.DOCKER_TAG }} \
-            sleep 30)
+            sleep 30 2>&1)
           
-          echo "Container ID: $CONTAINER_ID"
+          if [ $? -eq 0 ]; then
+            echo "Container ID: $CONTAINER_ID"
+          else
+            echo "❌ Failed to start container"
+            echo "Error output: $CONTAINER_ID"
+            exit 1
+          fi
+          set -e  # Re-enable exit on error
           
-          # Immediately check container status
-          echo "🔍 Initial container status:"
-          docker ps -a | grep $CONTAINER_ID || echo "Container not found in ps output"
+          # Immediately check container status with more detailed info
+          echo "🔍 All containers (including stopped):"
+          docker ps -a
           
-          # Get immediate logs (might be empty)
-          echo "🔍 Initial container logs:"
+          echo "🔍 Checking specific container:"
+          if docker ps -a --format "table {{.ID}}\t{{.Names}}\t{{.Status}}" | grep $CONTAINER_ID; then
+            echo "✅ Container found in docker ps -a"
+          else
+            echo "❌ Container not found in docker ps -a"
+            echo "🔍 All running containers:"
+            docker ps
+            exit 1
+          fi
+          
+          # Get immediate logs
+          echo "🔍 Container logs (immediate):"
           docker logs $CONTAINER_ID 2>&1 || echo "No logs available yet"
           
+          # Check container state
+          echo "🔍 Container inspect details:"
+          docker inspect $CONTAINER_ID --format='State: {{.State.Status}}'
+          docker inspect $CONTAINER_ID --format='Exit Code: {{.State.ExitCode}}'
+          docker inspect $CONTAINER_ID --format='Error: {{.State.Error}}'
+          
           # Wait a few seconds for container to initialize
-          echo "⏰ Waiting 5 seconds for container to initialize..."
+          echo "⏰ Waiting 5 seconds for container to settle..."
           sleep 5
-          
-          # Check container status again
-          echo "🔍 Container status after 5 seconds:"
-          docker ps -a | grep $CONTAINER_ID
-          
-          # Get logs again
-          echo "🔍 Container logs after 5 seconds:"
-          docker logs $CONTAINER_ID 2>&1 || echo "No logs available"
           
           # Check if container is running
           if docker ps | grep -q $CONTAINER_ID; then
@@ -142,11 +168,13 @@ jobs:
           else
             echo "❌ Container is not running"
             echo "🔍 Final container status:"
-            docker ps -a | grep $CONTAINER_ID
+            docker ps -a | grep $CONTAINER_ID || echo "Container not found"
             echo "🔍 Final container logs:"
             docker logs $CONTAINER_ID 2>&1 || echo "No logs available"
-            echo "🔍 Container exit code:"
-            docker inspect $CONTAINER_ID --format='{{.State.ExitCode}}' || echo "Cannot get exit code"
+            echo "🔍 Container final state:"
+            docker inspect $CONTAINER_ID --format='State: {{.State.Status}}'
+            docker inspect $CONTAINER_ID --format='Exit Code: {{.State.ExitCode}}'
+            docker inspect $CONTAINER_ID --format='Error: {{.State.Error}}'
             exit 1
           fi
           
