@@ -20,6 +20,16 @@ set -e  # Exit on any error
 echo "🚀 Openterface QT Static Testing Installation Script"
 echo "===================================================="
 
+# Debug environment information
+echo "🔍 Environment Debug Information:"
+echo "   Date: $(date)"
+echo "   User: $(whoami)"
+echo "   Working directory: $(pwd)"
+echo "   Available disk space: $(df -h /tmp | tail -1 | awk '{print $4}')"
+echo "   Network interfaces: $(ip addr show | grep -E '^[0-9]+:' | cut -d: -f2 | tr -d ' ' | paste -sd ',' -)"
+echo "   DNS servers: $(cat /etc/resolv.conf | grep nameserver | awk '{print $2}' | paste -sd ',' - || echo 'none')"
+echo ""
+
 # Configuration
 GITHUB_REPO="TechxArtisanStudio/Openterface_QT"
 STATIC_PACKAGE_NAME="openterfaceQT-portable"  # Assuming static portable app
@@ -64,21 +74,69 @@ download_package() {
     DOWNLOAD_URL="https://github.com/${GITHUB_REPO}/releases/download/${LATEST_VERSION}/${PACKAGE_NAME}"
     
     echo "   URL: $DOWNLOAD_URL"
+    echo "   Package size check..."
     
-    # Download with retries
+    # First, check if the URL is accessible and get file size
+    PACKAGE_SIZE=$(curl -sI "$DOWNLOAD_URL" | grep -i content-length | awk '{print $2}' | tr -d '\r' || echo "unknown")
+    echo "   Package size: $PACKAGE_SIZE bytes"
+    
+    # Test network connectivity first
+    echo "   Testing network connectivity..."
+    if ! curl --connect-timeout 10 --max-time 30 -s "https://api.github.com" > /dev/null; then
+        echo "❌ Network connectivity test failed - GitHub is not reachable"
+        exit 1
+    fi
+    echo "   ✅ Network connectivity OK"
+    
+    # Download with retries and better timeout settings
     for i in {1..3}; do
         echo "   Attempt $i/3..."
-        if wget -q --show-progress "$DOWNLOAD_URL" -O "/tmp/${PACKAGE_NAME}"; then
+        echo "   Using wget with extended timeout settings..."
+        if wget --timeout=300 --tries=3 --retry-connrefused --progress=bar:force \
+               --connect-timeout=30 --read-timeout=300 \
+               "$DOWNLOAD_URL" -O "/tmp/${PACKAGE_NAME}"; then
             echo "✅ Download completed successfully"
-            return 0
+            
+            # Verify downloaded file
+            if [ -f "/tmp/${PACKAGE_NAME}" ]; then
+                DOWNLOADED_SIZE=$(stat -c%s "/tmp/${PACKAGE_NAME}" 2>/dev/null || echo "0")
+                echo "   Downloaded file size: $DOWNLOADED_SIZE bytes"
+                if [ "$DOWNLOADED_SIZE" -gt 1000000 ]; then  # At least 1MB
+                    echo "   ✅ File size looks reasonable"
+                    return 0
+                else
+                    echo "   ❌ Downloaded file seems too small, may be incomplete"
+                fi
+            else
+                echo "   ❌ Downloaded file not found"
+            fi
         else
             echo "❌ Download attempt $i failed"
-            if [ $i -eq 3 ]; then
-                echo "❌ All download attempts failed"
-                exit 1
+            # Show more details about the failure
+            echo "   Wget exit code: $?"
+            
+            # Try with curl as fallback
+            echo "   Trying with curl as fallback..."
+            if curl --connect-timeout 30 --max-time 600 -L --retry 3 --retry-delay 5 \
+                   --fail --progress-bar "$DOWNLOAD_URL" -o "/tmp/${PACKAGE_NAME}"; then
+                echo "✅ Download completed with curl fallback"
+                return 0
+            else
+                echo "❌ Curl fallback also failed"
             fi
-            sleep 2
         fi
+        
+        if [ $i -eq 3 ]; then
+            echo "❌ All download attempts failed"
+            echo "   This could be due to:"
+            echo "   - Slow network connection"
+            echo "   - GitHub rate limiting"
+            echo "   - Package not available"
+            echo "   - Firewall/proxy issues"
+            exit 1
+        fi
+        echo "   Waiting 10 seconds before retry..."
+        sleep 10
     done
 }
 
@@ -88,13 +146,60 @@ install_package() {
     
     if [ ! -f "/tmp/${PACKAGE_NAME}" ]; then
         echo "❌ Package file not found: /tmp/${PACKAGE_NAME}"
-        exit 1
+        echo "   Checking if package was provided locally..."
+        
+        # Check if package exists in the same directory as the script
+        SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
+        if [ -f "${SCRIPT_DIR}/${PACKAGE_NAME}" ]; then
+            echo "   ✅ Found local package: ${SCRIPT_DIR}/${PACKAGE_NAME}"
+            cp "${SCRIPT_DIR}/${PACKAGE_NAME}" "/tmp/${PACKAGE_NAME}"
+        else
+            echo "   ❌ No local package found either"
+            echo "   Available files in script directory:"
+            ls -la "${SCRIPT_DIR}/" | head -10
+            exit 1
+        fi
     fi
     
-    cp /tmp/${PACKAGE_NAME} /usr/bin
+    echo "   Package file size: $(stat -c%s "/tmp/${PACKAGE_NAME}") bytes"
+    echo "   Package file type: $(file "/tmp/${PACKAGE_NAME}")"
+    
+    # Determine installation method based on file type
+    FILE_TYPE=$(file "/tmp/${PACKAGE_NAME}")
+    
+    if [[ "$FILE_TYPE" == *"executable"* ]]; then
+        echo "   Installing as executable binary..."
+        cp "/tmp/${PACKAGE_NAME}" /usr/bin/openterfaceQT
+        chmod +x /usr/bin/openterfaceQT
+        echo "   ✅ Binary installed to /usr/bin/openterfaceQT"
+    elif [[ "$FILE_TYPE" == *"gzip"* ]] || [[ "$FILE_TYPE" == *"tar"* ]]; then
+        echo "   Installing as archive..."
+        cd /tmp
+        tar -xzf "${PACKAGE_NAME}" || tar -xf "${PACKAGE_NAME}"
+        
+        # Find the extracted binary
+        EXTRACTED_BINARY=$(find /tmp -name "openterfaceQT" -type f -executable 2>/dev/null | head -1)
+        if [ -n "$EXTRACTED_BINARY" ]; then
+            cp "$EXTRACTED_BINARY" /usr/bin/openterfaceQT
+            chmod +x /usr/bin/openterfaceQT
+            echo "   ✅ Binary extracted and installed to /usr/bin/openterfaceQT"
+        else
+            echo "   ❌ Could not find executable in extracted archive"
+            echo "   Extracted contents:"
+            find /tmp -name "*openterface*" -o -name "*QT*" | head -10
+            exit 1
+        fi
+    else
+        echo "   ❌ Unknown file type: $FILE_TYPE"
+        echo "   Attempting to install as executable anyway..."
+        cp "/tmp/${PACKAGE_NAME}" /usr/bin/openterfaceQT
+        chmod +x /usr/bin/openterfaceQT
+    fi
     
     # Clean up downloaded package
-    rm "/tmp/${PACKAGE_NAME}"
+    rm -f "/tmp/${PACKAGE_NAME}"
+    
+    echo "   ✅ Package installation completed"
 }
 
 # Function to set up device permissions and udev rules
