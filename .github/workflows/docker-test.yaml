@@ -462,9 +462,15 @@ jobs:
                   echo "   First 50 chars: ${base64_data:0:50}..." >> $GITHUB_STEP_SUMMARY
                   echo "   Last 50 chars: ...${base64_data: -50}" >> $GITHUB_STEP_SUMMARY
                   
-                  echo "![Screenshot: $filename](data:image/jpeg;base64,$base64_data)" >> $GITHUB_STEP_SUMMARY
+                  # Try HTML instead of Markdown for better compatibility
+                  echo '<img src="data:image/jpeg;base64,'$base64_data'" alt="Screenshot: '$filename'" style="max-width: 800px; border: 1px solid #ddd; margin: 10px 0;">' >> $GITHUB_STEP_SUMMARY
                   echo "" >> $GITHUB_STEP_SUMMARY
-                  echo "_✅ Successfully embedded image (${#base64_data} characters)_" >> $GITHUB_STEP_SUMMARY
+                  echo "_✅ Successfully embedded HTML image (${#base64_data} characters)_" >> $GITHUB_STEP_SUMMARY
+                  
+                  # Also try a simpler approach - split the data URL
+                  echo "" >> $GITHUB_STEP_SUMMARY
+                  echo "**Alternative approach - Image link:**" >> $GITHUB_STEP_SUMMARY
+                  echo "[📷 View Screenshot: $filename](data:image/jpeg;base64,$base64_data)" >> $GITHUB_STEP_SUMMARY
                 else
                   echo "⚠️ Failed to generate base64 data for $filename" >> $GITHUB_STEP_SUMMARY
                   echo "" >> $GITHUB_STEP_SUMMARY
@@ -948,9 +954,15 @@ jobs:
                   echo "   First 50 chars: ${base64_data:0:50}..." >> $GITHUB_STEP_SUMMARY
                   echo "   Last 50 chars: ...${base64_data: -50}" >> $GITHUB_STEP_SUMMARY
                   
-                  echo "![Screenshot: $filename](data:image/jpeg;base64,$base64_data)" >> $GITHUB_STEP_SUMMARY
+                  # Try HTML instead of Markdown for better compatibility
+                  echo '<img src="data:image/jpeg;base64,'$base64_data'" alt="Screenshot: '$filename'" style="max-width: 800px; border: 1px solid #ddd; margin: 10px 0;">' >> $GITHUB_STEP_SUMMARY
                   echo "" >> $GITHUB_STEP_SUMMARY
-                  echo "_✅ Successfully embedded image (${#base64_data} characters)_" >> $GITHUB_STEP_SUMMARY
+                  echo "_✅ Successfully embedded HTML image (${#base64_data} characters)_" >> $GITHUB_STEP_SUMMARY
+                  
+                  # Also try a simpler approach - split the data URL
+                  echo "" >> $GITHUB_STEP_SUMMARY
+                  echo "**Alternative approach - Image link:**" >> $GITHUB_STEP_SUMMARY
+                  echo "[📷 View Screenshot: $filename](data:image/jpeg;base64,$base64_data)" >> $GITHUB_STEP_SUMMARY
                 else
                   echo "⚠️ Failed to generate base64 data for $filename" >> $GITHUB_STEP_SUMMARY
                   echo "" >> $GITHUB_STEP_SUMMARY
