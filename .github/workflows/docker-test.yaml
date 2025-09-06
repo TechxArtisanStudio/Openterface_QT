@@ -369,6 +369,8 @@ jobs:
           echo "**Commit**: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
           echo "**Timestamp**: $(date -u)" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
+          echo "💡 **Quick Access**: [📥 Download Screenshots Artifact](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
           
           if [ -d "screenshots-shared" ] && [ "$(ls -A screenshots-shared/*.jpg 2>/dev/null)" ]; then
             echo "## 📊 Test Results" >> $GITHUB_STEP_SUMMARY
@@ -443,20 +445,34 @@ jobs:
                   echo "   Last 50 chars: ...${base64_data: -50}" >> $GITHUB_STEP_SUMMARY
                   
                   # Try HTML instead of Markdown for better compatibility
-                  # Debug: Check what's actually in the variables before using them
-                  echo "🔍 Debug before HTML generation (Shared):" >> $GITHUB_STEP_SUMMARY
-                  echo "   Variable base64_data length: ${#base64_data}" >> $GITHUB_STEP_SUMMARY
-                  echo "   Variable filename: '$filename'" >> $GITHUB_STEP_SUMMARY
-                  echo "   First 20 chars of base64_data: '${base64_data:0:20}'" >> $GITHUB_STEP_SUMMARY
+                  # Note: GitHub Actions Summary doesn't support base64 data URLs for security reasons
+                  # Instead, provide image info and link to artifact
+                  echo "🖼️ **Image Details:**" >> $GITHUB_STEP_SUMMARY
+                  echo "- **Filename**: $filename" >> $GITHUB_STEP_SUMMARY
+                  echo "- **File Size**: $(ls -lh "$img" | awk '{print $5}')" >> $GITHUB_STEP_SUMMARY
+                  echo "- **Base64 Size**: ${#base64_data} characters" >> $GITHUB_STEP_SUMMARY
                   
-                  # Generate HTML with explicit variable expansion
-                  img_src="data:image/jpeg;base64,$base64_data"
-                  echo "   Generated img_src length: ${#img_src}" >> $GITHUB_STEP_SUMMARY
-                  echo "   Generated img_src start: '${img_src:0:50}'" >> $GITHUB_STEP_SUMMARY
+                  # Show image dimensions if available
+                  if command -v identify >/dev/null 2>&1; then
+                    dimensions=$(identify "$img" 2>/dev/null | awk '{print $3}' | head -1 || echo "Unknown")
+                    echo "- **Dimensions**: $dimensions" >> $GITHUB_STEP_SUMMARY
+                    
+                    # Get image quality info
+                    mean_color=$(identify -ping -format "%[mean]" "$img" 2>/dev/null || echo "0")
+                    mean_value=${mean_color%.*}
+                    if [ "$mean_value" -gt 1000 ]; then
+                      quality="✅ Rich content detected"
+                    elif [ "$mean_value" -gt 100 ]; then
+                      quality="⚠️ Basic content detected"
+                    else
+                      quality="❌ Likely blank/black"
+                    fi
+                    echo "- **Content Quality**: $quality (mean: $mean_value)" >> $GITHUB_STEP_SUMMARY
+                  fi
                   
-                  echo "<img src=\"$img_src\" alt=\"Screenshot: $filename\" style=\"max-width: 800px; border: 1px solid #ddd; margin: 10px 0;\">" >> $GITHUB_STEP_SUMMARY
                   echo "" >> $GITHUB_STEP_SUMMARY
-                  echo "_✅ Successfully embedded HTML image (${#base64_data} characters)_" >> $GITHUB_STEP_SUMMARY
+                  echo "📥 **Download**: Screenshot available in build artifacts" >> $GITHUB_STEP_SUMMARY
+                  echo "_Note: GitHub Actions Summary doesn't support embedded images for security reasons_" >> $GITHUB_STEP_SUMMARY
                   
                   # Also try a simpler approach - split the data URL
                   echo "" >> $GITHUB_STEP_SUMMARY
@@ -852,6 +868,8 @@ jobs:
           echo "**Commit**: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
           echo "**Timestamp**: $(date -u)" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
+          echo "💡 **Quick Access**: [📥 Download Screenshots Artifact](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
           
           if [ -d "screenshots-static" ] && [ "$(ls -A screenshots-static/*.jpg 2>/dev/null)" ]; then
             echo "## 📊 Test Results" >> $GITHUB_STEP_SUMMARY
@@ -926,20 +944,34 @@ jobs:
                   echo "   Last 50 chars: ...${base64_data: -50}" >> $GITHUB_STEP_SUMMARY
                   
                   # Try HTML instead of Markdown for better compatibility
-                  # Debug: Check what's actually in the variables before using them
-                  echo "🔍 Debug before HTML generation (Static):" >> $GITHUB_STEP_SUMMARY
-                  echo "   Variable base64_data length: ${#base64_data}" >> $GITHUB_STEP_SUMMARY
-                  echo "   Variable filename: '$filename'" >> $GITHUB_STEP_SUMMARY
-                  echo "   First 20 chars of base64_data: '${base64_data:0:20}'" >> $GITHUB_STEP_SUMMARY
+                  # Note: GitHub Actions Summary doesn't support base64 data URLs for security reasons
+                  # Instead, provide image info and link to artifact
+                  echo "🖼️ **Image Details:**" >> $GITHUB_STEP_SUMMARY
+                  echo "- **Filename**: $filename" >> $GITHUB_STEP_SUMMARY
+                  echo "- **File Size**: $(ls -lh "$img" | awk '{print $5}')" >> $GITHUB_STEP_SUMMARY
+                  echo "- **Base64 Size**: ${#base64_data} characters" >> $GITHUB_STEP_SUMMARY
                   
-                  # Generate HTML with explicit variable expansion
-                  img_src="data:image/jpeg;base64,$base64_data"
-                  echo "   Generated img_src length: ${#img_src}" >> $GITHUB_STEP_SUMMARY
-                  echo "   Generated img_src start: '${img_src:0:50}'" >> $GITHUB_STEP_SUMMARY
+                  # Show image dimensions if available
+                  if command -v identify >/dev/null 2>&1; then
+                    dimensions=$(identify "$img" 2>/dev/null | awk '{print $3}' | head -1 || echo "Unknown")
+                    echo "- **Dimensions**: $dimensions" >> $GITHUB_STEP_SUMMARY
+                    
+                    # Get image quality info
+                    mean_color=$(identify -ping -format "%[mean]" "$img" 2>/dev/null || echo "0")
+                    mean_value=${mean_color%.*}
+                    if [ "$mean_value" -gt 1000 ]; then
+                      quality="✅ Rich content detected"
+                    elif [ "$mean_value" -gt 100 ]; then
+                      quality="⚠️ Basic content detected"
+                    else
+                      quality="❌ Likely blank/black"
+                    fi
+                    echo "- **Content Quality**: $quality (mean: $mean_value)" >> $GITHUB_STEP_SUMMARY
+                  fi
                   
-                  echo "<img src=\"$img_src\" alt=\"Screenshot: $filename\" style=\"max-width: 800px; border: 1px solid #ddd; margin: 10px 0;\">" >> $GITHUB_STEP_SUMMARY
                   echo "" >> $GITHUB_STEP_SUMMARY
-                  echo "_✅ Successfully embedded HTML image (${#base64_data} characters)_" >> $GITHUB_STEP_SUMMARY
+                  echo "📥 **Download**: Screenshot available in build artifacts" >> $GITHUB_STEP_SUMMARY
+                  echo "_Note: GitHub Actions Summary doesn't support embedded images for security reasons_" >> $GITHUB_STEP_SUMMARY
                   
                   # Also try a simpler approach - split the data URL
                   echo "" >> $GITHUB_STEP_SUMMARY
