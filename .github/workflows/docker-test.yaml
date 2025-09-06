@@ -332,8 +332,7 @@ jobs:
             
             # Summary for CI
             total_jpgs=$(find screenshots-shared/ -name "*.jpg" 2>/dev/null | wc -l)
-            content_jpgs=$(find screenshots-shared/ -name "*.jpg" -exec identify -ping -format "%[mean]
-" {} \; 2>/dev/null | awk -F. '{if($1 > 100) count++} END {print count+0}')
+            content_jpgs=$(find screenshots-shared/ -name "*.jpg" -exec identify -ping -format "%[mean]" {} \; 2>/dev/null | awk -F. '{if($1 > 100) count++} END {print count+0}')
             
             echo "📈 CI Test Summary:"
             echo "   Total JPG screenshots: $total_jpgs"
