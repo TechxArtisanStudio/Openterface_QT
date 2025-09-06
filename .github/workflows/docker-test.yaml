@@ -81,7 +81,7 @@ jobs:
               pwd
               echo 'User ID:' \$(id)
               echo 'Environment variables:'
-              env | grep -E 'HOME|USER|DISPLAY|QT_' | head -10
+              env | grep -E 'HOME\\|USER\\|DISPLAY\\|QT_' | head -10
               echo 'File system check:'
               ls -la /home/openterface/ | head -5
               echo '✅ Basic functionality test completed'
@@ -398,7 +398,7 @@ jobs:
                 
                 # Additional analysis for suspicious images
                 if [ "$mean_value" -lt 500 ]; then
-                  echo "  🔍 Detailed analysis: $(identify -verbose "$img" 2>/dev/null | grep -E 'Colors|Histogram' | head -2 || echo 'Cannot analyze')"
+                  echo "  🔍 Detailed analysis: $(identify -verbose "$img" 2>/dev/null | grep -E 'Colors\\|Histogram' | head -2 || echo 'Cannot analyze')"
                 fi
               fi
             done
@@ -467,7 +467,7 @@ jobs:
               lsusb || echo 'lsusb command failed'
               
               echo '🔍 Checking for target Openterface devices...'
-              lsusb | grep -E '534d|1a86' || echo 'No Openterface devices detected (expected in test environment)'
+              lsusb | grep -E '534d\\|1a86' || echo 'No Openterface devices detected (expected in test environment)'
               
               echo '✅ USB device access test completed'
             "
@@ -844,7 +844,7 @@ jobs:
                   echo \"Status: \$(docker inspect \$container --format='{{.State.Status}}')\"
                   echo \"Started: \$(docker inspect \$container --format='{{.State.StartedAt}}')\"
                   echo \"Processes: \$(docker exec \$container ps aux | wc -l) total\"
-                  gui_count=\$(docker exec \$container ps aux | grep -E 'qt|Qt|openterface|GUI' | wc -l 2>/dev/null || echo '0')
+                  gui_count=\$(docker exec \$container ps aux | grep -E 'qt\\|Qt\\|openterface\\|GUI' | wc -l 2>/dev/null || echo '0')
                   echo \"GUI processes: \$gui_count\"
                   echo \"---\"
                 done
