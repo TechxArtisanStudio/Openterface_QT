@@ -8,7 +8,7 @@ set -e
 # Configuration
 DOCKER_IMAGE="openterface-test-shared"
 DOCKER_TAG="screenshot-test"
-DOCKERFILE_PATH="docker/Dockerfile.openterface-test-shared"
+DOCKERFILE_PATH="docker/testos/Dockerfile.ubuntu-test-shared"
 SCREENSHOTS_DIR="app-screenshots"
 CONTAINER_NAME="openterface-screenshot-test"
 

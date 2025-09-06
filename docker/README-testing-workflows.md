@@ -1,6 +1,6 @@
 # Docker Testing Workflows
 
-This document describes the GitHub Actions workflows created to test the `Dockerfile.openterface-test-shared` and related Docker infrastructure.
+This document describes the GitHub Actions workflows created to test the `testos/Dockerfile.ubuntu-test-shared` and related Docker infrastructure.
 
 ## Workflows Overview
 
@@ -17,7 +17,7 @@ This document describes the GitHub Actions workflows created to test the `Docker
 Comprehensive testing of the Docker image:
 
 1. **Build Verification**
-   - Builds the Docker image from `Dockerfile.openterface-test-shared`
+   - Builds the Docker image from `testos/Dockerfile.ubuntu-test-shared`
    - Verifies successful image creation
    - Inspects image metadata and configuration
 
@@ -125,7 +125,7 @@ Before pushing changes, you can run similar tests locally:
 
 ```bash
 # Build the Docker image
-docker build -f docker/Dockerfile.openterface-test-shared -t openterface-test-local docker/
+docker build -f docker/testos/Dockerfile.ubuntu-test-shared -t openterface-test-local docker/
 
 # Run quick functionality test
 docker run --rm openterface-test-local bash -c "

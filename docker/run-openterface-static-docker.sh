@@ -22,7 +22,7 @@ set -e
 # Configuration
 DOCKER_IMAGE="openterface-test-static"
 CONTAINER_NAME="openterface-qt-static-$(date +%s)"
-DOCKERFILE="Dockerfile.openterface-test-static"
+DOCKERFILE="testos/Dockerfile.ubuntu-test-static"
 
 # Colors for output (safer approach)
 if [ -t 1 ]; then

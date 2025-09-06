@@ -3,7 +3,7 @@
 # Local Docker Test Script
 # =============================================================================
 #
-# This script performs local testing of the Dockerfile.openterface-test-shared
+# This script performs local testing of the testos/Dockerfile.ubuntu-test-shared
 # similar to what the GitHub Actions workflow does, but for local development
 # and debugging purposes.
 #
@@ -85,8 +85,8 @@ check_prerequisites() {
     fi
     
     # Check if we're in the right directory
-    if [ ! -f "$PROJECT_ROOT/docker/Dockerfile.openterface-test-shared" ]; then
-        print_error "Dockerfile.openterface-test-shared not found"
+    if [ ! -f "$PROJECT_ROOT/docker/testos/Dockerfile.ubuntu-test-shared" ]; then
+        print_error "testos/Dockerfile.ubuntu-test-shared not found"
         print_info "Please run this script from the project root or docker directory"
         exit 1
     fi
@@ -100,7 +100,7 @@ build_docker_image() {
     cd "$PROJECT_ROOT"
     
     if docker build \
-        -f docker/Dockerfile.openterface-test-shared \
+        -f docker/testos/Dockerfile.ubuntu-test-shared \
         -t "$FULL_IMAGE_NAME" \
         docker/; then
         print_success "Docker image built successfully"

@@ -4,16 +4,16 @@ on:
   push:
     branches: ["main", "dev"]
     paths:
-      - 'docker/Dockerfile.openterface-test-shared'
-      - 'docker/Dockerfile.openterface-test-static'
+      - 'docker/testos/Dockerfile.ubuntu-test-shared'
+      - 'docker/testos/Dockerfile.ubuntu-test-static'
       - 'docker/install-openterface-shared.sh'
       - 'docker/install-openterface-static.sh'
       - '.github/workflows/docker-test.yaml'
   pull_request:
     branches: ["main", "dev"]
     paths:
-      - 'docker/Dockerfile.openterface-test-shared'
-      - 'docker/Dockerfile.openterface-test-static'
+      - 'docker/testos/Dockerfile.ubuntu-test-shared'
+      - 'docker/testos/Dockerfile.ubuntu-test-static'
       - 'docker/install-openterface-shared.sh'
       - 'docker/install-openterface-static.sh'
       - '.github/workflows/docker-test.yaml'
@@ -59,7 +59,7 @@ jobs:
         run: |
           echo "🔨 Building Docker image: ${{ env.DOCKER_IMAGE_SHARED }}:${{ env.DOCKER_TAG }}"
           docker build \
-            -f docker/Dockerfile.openterface-test-shared \
+            -f docker/testos/Dockerfile.ubuntu-test-shared \
             -t ${{ env.DOCKER_IMAGE_SHARED }}:${{ env.DOCKER_TAG }} \
             docker/
 
@@ -423,7 +423,7 @@ jobs:
         run: |
           echo "🔨 Building Docker image: ${{ env.DOCKER_IMAGE_STATIC }}:${{ env.DOCKER_TAG }}"
           docker build \
-            -f docker/Dockerfile.openterface-test-static \
+            -f docker/testos/Dockerfile.ubuntu-test-static \
             -t ${{ env.DOCKER_IMAGE_STATIC }}:${{ env.DOCKER_TAG }} \
             docker/
 
