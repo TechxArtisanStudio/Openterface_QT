@@ -260,23 +260,31 @@ jobs:
         run: |
           echo "🧪 Testing default CMD behavior with virtual display"
           
-          # Install Xvfb and screenshot tools
+          # Install Xvfb and screenshot tools with better configuration
           sudo apt-get update -y
-          sudo apt-get install -y xvfb imagemagick scrot x11-utils
+          sudo apt-get install -y xvfb imagemagick scrot x11-utils xauth
           
-          # Start Xvfb virtual display
+          # Start Xvfb virtual display with optimized settings
           export DISPLAY=:99
-          Xvfb :99 -screen 0 1024x768x24 &
+          echo "🖥️  Starting virtual display with optimized configuration..."
+          Xvfb :99 -screen 0 1024x768x24 -ac +extension GLX +render -noreset &
           XVFB_PID=$!
           
-          # Wait for Xvfb to start
-          sleep 3
+          # Wait for Xvfb to start properly
+          sleep 5
           
           echo "🖥️  Virtual display started on $DISPLAY"
           
-          # Verify X server is running
-          if xdpyinfo -display :99 >/dev/null 2>&1; then
+          # Verify X server is running and set up minimal environment
+          if DISPLAY=:99 xdpyinfo >/dev/null 2>&1; then
             echo "✅ X server is responding"
+            
+            # Set up X11 authentication and suppress warnings
+            export XAUTHORITY=/tmp/.Xauth$$
+            xauth generate :99 . trusted 2>/dev/null || echo "ℹ️  Xauth setup not critical"
+            
+            # Configure minimal keyboard to reduce warnings
+            DISPLAY=:99 setxkbmap us 2>/dev/null || echo "ℹ️  Keyboard setup not critical"
           else
             echo "❌ X server not responding"
             exit 1
@@ -301,17 +309,17 @@ jobs:
           echo "⏰ Waiting 5 seconds for application to initialize..."
           sleep 5
           
-          # Take initial screenshot
+          # Take initial screenshot with error suppression
           echo "📸 Taking initial screenshot..."
-          DISPLAY=:99 scrot screenshots/openterface_initial.png || echo "Initial screenshot failed"
+          DISPLAY=:99 scrot screenshots/openterface_initial.png 2>/dev/null || echo "ℹ️  Initial screenshot skipped (display may be empty)"
           
           # Wait more time
           echo "⏰ Waiting additional 5 seconds..."
           sleep 5
           
-          # Take second screenshot
+          # Take second screenshot with error suppression
           echo "📸 Taking second screenshot..."
-          DISPLAY=:99 scrot screenshots/openterface_5sec.png || echo "Second screenshot failed"
+          DISPLAY=:99 scrot screenshots/openterface_5sec.png 2>/dev/null || echo "ℹ️  Second screenshot skipped"
           
           # Check if container is still running
           if docker ps | grep -q $CONTAINER_ID; then
@@ -325,28 +333,34 @@ jobs:
             echo "🧪 Testing container responsiveness..."
             docker exec $CONTAINER_ID ps aux | grep openterfaceQT || echo "openterfaceQT process not found"
             
-            # Take final screenshot
+            # Take final screenshot with error suppression
             echo "📸 Taking final screenshot..."
-            DISPLAY=:99 scrot screenshots/openterface_final.png || echo "Final screenshot failed"
+            DISPLAY=:99 scrot screenshots/openterface_final.png 2>/dev/null || echo "ℹ️  Final screenshot skipped"
             
-            # Try to get window information
+            # Try to get window information with reduced verbosity
             echo "🪟 Window information:"
-            DISPLAY=:99 xwininfo -tree -root | head -20 || echo "No window info available"
+            window_info=$(DISPLAY=:99 xwininfo -tree -root 2>/dev/null | head -10 || echo "No windows detected")
+            if echo "$window_info" | grep -q 'child'; then
+              echo "✅ GUI windows detected"
+              echo "$window_info"
+            else
+              echo "ℹ️  No GUI windows detected"
+            fi
             
           else
             echo "⚠️  Container exited, checking logs..."
             docker logs $CONTAINER_ID 2>&1
             
-            # Still try to take a screenshot of the desktop
+            # Still try to take a screenshot of the desktop with error suppression
             echo "📸 Taking desktop screenshot after container exit..."
-            DISPLAY=:99 scrot screenshots/openterface_after_exit.png || echo "Screenshot after exit failed"
+            DISPLAY=:99 scrot screenshots/openterface_after_exit.png 2>/dev/null || echo "ℹ️  Desktop screenshot skipped"
           fi
           
           # Wait a bit more and take one more screenshot
           echo "⏰ Final 5 second wait..."
           sleep 5
           echo "📸 Taking very final screenshot..."
-          DISPLAY=:99 scrot screenshots/openterface_very_final.png || echo "Very final screenshot failed"
+          DISPLAY=:99 scrot screenshots/openterface_very_final.png 2>/dev/null || echo "ℹ️  Very final screenshot skipped"
           
           # List all screenshots taken
           echo "📸 Screenshots captured:"
@@ -766,56 +780,163 @@ jobs:
           
           # Install virtual display dependencies
           sudo apt-get update -y
-          sudo apt-get install -y xvfb scrot imagemagick x11-utils
+          sudo apt-get install -y xvfb scrot imagemagick x11-utils xauth
           
-          # Start virtual display
+          # Start virtual display with better configuration
           export DISPLAY=:98
-          Xvfb :98 -screen 0 1280x720x24 &
+          echo "🖥️  Starting virtual display with optimized settings..."
+          Xvfb :98 -screen 0 1280x720x24 -ac +extension GLX +render -noreset &
           XVFB_PID=$!
           
-          # Wait for Xvfb to start
-          sleep 3
+          # Wait for Xvfb to start properly
+          sleep 5
           
-          # Verify X server is running
-          if xdpyinfo -display :98 >/dev/null 2>&1; then
-            echo "✅ Virtual display started on $DISPLAY"
+          # Verify X server is running and suppress keyboard warnings
+          if DISPLAY=:98 xdpyinfo >/dev/null 2>&1; then
+            echo "✅ Virtual display started successfully on $DISPLAY"
+            
+            # Set up X11 authentication to reduce warnings
+            export XAUTHORITY=/tmp/.Xauth$$
+            xauth generate :98 . trusted 2>/dev/null || echo "ℹ️  Xauth setup skipped (not critical)"
+            
+            # Suppress keyboard warnings by setting minimal keymap
+            DISPLAY=:98 setxkbmap us 2>/dev/null || echo "ℹ️  Keyboard setup skipped (not critical)"
             
             # Create screenshots directory
             mkdir -p integration-screenshots
             
-            # Test GUI launcher with virtual display
+            # Test GUI launcher with virtual display and enhanced debugging
             echo "🚀 Testing GUI launcher with virtual display..."
             timeout 20s bash -c "
+              echo '🔍 Pre-launch environment check:'
+              echo 'DISPLAY=' \$DISPLAY
+              echo 'X server responding:' \$(DISPLAY=:98 xdpyinfo >/dev/null 2>&1 && echo 'YES' || echo 'NO')
+              echo 'Available X extensions:' \$(DISPLAY=:98 xdpyinfo -queryExtensions 2>/dev/null | grep -c 'on display' || echo 'none')
+              
+              echo '🚀 Starting launcher script...'
               /tmp/test-launcher.sh --no-hardware &
               LAUNCHER_PID=\$!
+              echo 'Launcher PID:' \$LAUNCHER_PID
               
               # Wait for application to start
               echo '⏰ Waiting 5 seconds for application startup...'
               sleep 5
               
-              # Take initial screenshot
+              # Check launcher process status
+              if ps -p \$LAUNCHER_PID > /dev/null 2>&1; then
+                echo '✅ Launcher process is still running'
+              else
+                echo '⚠️  Launcher process has exited'
+                wait \$LAUNCHER_PID
+                launcher_exit_code=\$?
+                echo 'Launcher exit code:' \$launcher_exit_code
+              fi
+              
+              # Enhanced container detection
+              echo '🔍 Enhanced container analysis...'
+              container_count=\$(docker ps | grep -c openterface || echo '0')
+              echo 'Openterface containers running:' \$container_count
+              
+              if [ \$container_count -gt 0 ]; then
+                echo '📋 Container details:'
+                for container in \$(docker ps --format '{{.Names}}' | grep openterface); do
+                  echo \"Container: \$container\"
+                  echo \"Status: \$(docker inspect \$container --format='{{.State.Status}}')\"
+                  echo \"Started: \$(docker inspect \$container --format='{{.State.StartedAt}}')\"
+                  echo \"Processes: \$(docker exec \$container ps aux | wc -l) total\"
+                  echo \"GUI processes: \$(docker exec \$container ps aux | grep -E '(qt|Qt|openterface|GUI)' | wc -l || echo '0')\"
+                  echo \"---\"
+                done
+              fi
+              
+              # Take initial screenshot with enhanced analysis
               echo '📸 Taking initial screenshot...'
-              DISPLAY=:98 scrot integration-screenshots/launcher_initial.png || echo 'Initial screenshot failed'
+              if DISPLAY=:98 scrot integration-screenshots/launcher_initial.png 2>/dev/null; then
+                echo '✅ Initial screenshot captured'
+              else
+                echo '⚠️  Initial screenshot failed - checking X server...'
+                DISPLAY=:98 xwininfo -root 2>/dev/null | head -5 || echo 'X server not responding'
+              fi
               
               # Check for running containers
               echo '🔍 Checking for running containers...'
-              docker ps | grep openterface || echo 'No openterface containers running'
+              if docker ps | grep -q openterface; then
+                echo '✅ Openterface containers detected:'
+                docker ps | grep openterface
+                
+                # Get detailed logs from containers
+                echo '📋 Container logs analysis:'
+                for container in \$(docker ps --format '{{.Names}}' | grep openterface); do
+                  echo \"=== Logs for \$container (last 10 lines) ===\"
+                  docker logs --tail 10 \$container 2>&1
+                  echo \"\"
+                done
+              else
+                echo 'ℹ️  No openterface containers running yet'
+              fi
               
               # Wait more time
               echo '⏰ Waiting additional 5 seconds...'
               sleep 5
               
-              # Take progress screenshot
+              # Check X server window tree for any windows
+              echo '🪟 Detailed window analysis...'
+              window_tree=\$(DISPLAY=:98 xwininfo -tree -root 2>/dev/null || echo 'Window tree unavailable')
+              echo \"Window tree output:\"
+              echo \"\$window_tree\" | head -15
+              
+              window_count=\$(echo \"\$window_tree\" | grep -c 'child' || echo '0')
+              echo \"Total child windows detected: \$window_count\"
+              
+              # Take progress screenshot with enhanced analysis
               echo '📸 Taking progress screenshot...'
-              DISPLAY=:98 scrot integration-screenshots/launcher_progress.png || echo 'Progress screenshot failed'
+              if DISPLAY=:98 scrot integration-screenshots/launcher_progress.png 2>/dev/null; then
+                echo '✅ Progress screenshot captured'
+                
+                # Immediately analyze the screenshot
+                if command -v identify >/dev/null 2>&1; then
+                  mean_val=\$(identify -ping -format '%[mean]' integration-screenshots/launcher_progress.png 2>/dev/null || echo '0')
+                  echo \"Progress screenshot mean value: \${mean_val%.*}\"
+                  if [ \"\${mean_val%.*}\" -gt 100 ]; then
+                    echo '🎉 Non-black content detected in progress screenshot!'
+                  else
+                    echo '⚫ Progress screenshot appears black/empty'
+                  fi
+                fi
+              else
+                echo '⚠️  Progress screenshot failed'
+              fi"
               
-              # Check window information
-              echo '🪟 Checking window information...'
-              DISPLAY=:98 xwininfo -tree -root | head -20 || echo 'No window info available'
-              
-              # Take final screenshot
+              # Take final screenshot with enhanced analysis
               echo '📸 Taking final screenshot...'
-              DISPLAY=:98 scrot integration-screenshots/launcher_final.png || echo 'Final screenshot failed'
+              if DISPLAY=:98 scrot integration-screenshots/launcher_final.png 2>/dev/null; then
+                echo '✅ Final screenshot captured'
+                
+                # Analyze final screenshot immediately
+                if command -v identify >/dev/null 2>&1; then
+                  mean_val=\$(identify -ping -format '%[mean]' integration-screenshots/launcher_final.png 2>/dev/null || echo '0')
+                  echo \"Final screenshot mean value: \${mean_val%.*}\"
+                  if [ \"\${mean_val%.*}\" -gt 100 ]; then
+                    echo '🎉 Non-black content detected in final screenshot!'
+                  else
+                    echo '⚫ Final screenshot appears black/empty'
+                  fi
+                fi
+              else
+                echo '⚠️  Final screenshot failed'
+              fi
+              
+              # Final container and process analysis
+              echo '🔍 Final system analysis...'
+              echo 'Docker containers still running:'
+              docker ps | grep openterface || echo 'None'
+              
+              echo 'Launcher process status:'
+              if ps -p \$LAUNCHER_PID > /dev/null 2>&1; then
+                echo 'Launcher still running'
+              else
+                echo 'Launcher has exited'
+              fi
               
               # Kill launcher process
               kill \$LAUNCHER_PID 2>/dev/null || true
@@ -823,15 +944,19 @@ jobs:
               echo '✅ GUI launcher test completed'
             " || echo "ℹ️  GUI launcher test completed (timeout expected)"
             
-            # Analyze screenshots with detailed information
-            echo "📊 Launcher Screenshot Analysis:"
-            echo "================================="
+            # Analyze screenshots with detailed information and troubleshooting
+            echo "📊 Launcher Screenshot Analysis & Troubleshooting:"
+            echo "====================================================="
             if [ -d "integration-screenshots" ]; then
               printf "%-30s | %-8s | %-12s | %-15s | %s\n" "Filename" "Size" "Dimensions" "Mean Color" "Content Status"
               echo "$(printf '%.0s-' {1..85})"
               
+              black_screen_count=0
+              total_screenshots=0
+              
               for img in integration-screenshots/*.png; do
                 if [ -f "$img" ]; then
+                  total_screenshots=$((total_screenshots + 1))
                   filename=$(basename "$img")
                   filesize=$(ls -lh "$img" | awk '{print $5}')
                   
@@ -849,26 +974,94 @@ jobs:
                     content_status="⚠️  Minimal content"
                   else
                     content_status="❌ Likely blank/black"
+                    black_screen_count=$((black_screen_count + 1))
                   fi
                   
                   printf "%-30s | %-8s | %-12s | %-15s | %s\n" "$filename" "$filesize" "$dimensions" "$mean_value" "$content_status"
                   
-                  # Show histogram for content detection
+                  # Show histogram for content detection and additional analysis
                   if command -v convert >/dev/null 2>&1; then
                     echo "  📊 Color histogram: $(convert "$img" -format "%c" histogram:info:- 2>/dev/null | head -3 | tail -1 || echo 'Cannot analyze')"
+                    
+                    # For black screens, provide additional debugging
+                    if [ "$mean_value" -lt 100 ]; then
+                      echo "  🔍 Black screen detected - checking for minimal variations..."
+                      # Check if it's completely uniform black or has some variation
+                      unique_colors=$(convert "$img" -format "%k" info: 2>/dev/null || echo "1")
+                      echo "  🎨 Unique colors in image: $unique_colors"
+                      
+                      # Check for any non-black pixels
+                      non_black_pixels=$(convert "$img" -threshold 1% -format "%[fx:w*h-mean*w*h]" info: 2>/dev/null || echo "0")
+                      echo "  ⚫ Non-black pixels: ${non_black_pixels%.*}"
+                    fi
                   fi
                 fi
               done
               
               echo ""
+              echo "🔍 BLACK SCREEN ANALYSIS:"
+              echo "========================"
+              echo "Total screenshots: $total_screenshots"
+              echo "Black screens: $black_screen_count"
+              
+              if [ "$black_screen_count" -eq "$total_screenshots" ] && [ "$total_screenshots" -gt 0 ]; then
+                echo ""
+                echo "❌ ALL SCREENSHOTS ARE BLACK - TROUBLESHOOTING GUIDE:"
+                echo "======================================================"
+                echo ""
+                echo "🔍 Possible causes and solutions:"
+                echo ""
+                echo "1. 📱 Application startup time:"
+                echo "   - The GUI application may need more time to start"
+                echo "   - Solution: Increase wait times in the test script"
+                echo ""
+                echo "2. 🖥️  Display configuration issues:"
+                echo "   - Virtual display may not be properly configured"
+                echo "   - Solution: Check Xvfb parameters and DISPLAY variable"
+                echo ""
+                echo "3. 🐳 Container GUI forwarding:"
+                echo "   - X11 forwarding from container to virtual display may be failing"
+                echo "   - Solution: Verify X11 socket mounting and permissions"
+                echo ""
+                echo "4. 🚀 Application launch failure:"
+                echo "   - The GUI application may be failing to start silently"
+                echo "   - Solution: Check container logs for Qt/application errors"
+                echo ""
+                echo "5. 🎨 Graphics/OpenGL issues:"
+                echo "   - Virtual display may not support required graphics features"
+                echo "   - Solution: Add software rendering flags or different Xvfb extensions"
+                echo ""
+                echo "📋 Recommended next steps:"
+                echo "1. Check container logs above for error messages"
+                echo "2. Verify that containers are actually starting"
+                echo "3. Try running the launcher script locally with longer timeouts"
+                echo "4. Consider adding QT_QPA_PLATFORM=xcb environment variable"
+                echo "5. Test with software rendering: QT_QUICK_BACKEND=software"
+              fi
+              
               # Summary for launcher screenshots
               total_launcher_screenshots=$(find integration-screenshots/ -name "*.png" 2>/dev/null | wc -l)
               if [ "$total_launcher_screenshots" -gt 0 ]; then
                 content_launcher_screenshots=$(find integration-screenshots/ -name "*.png" -exec identify -ping -format "%[mean]\n" {} \; 2>/dev/null | awk -F. '{if($1 > 500) count++} END {print count+0}')
+                echo ""
                 echo "📈 Launcher Test Summary:"
                 echo "  Total screenshots: $total_launcher_screenshots"
                 echo "  With content: $content_launcher_screenshots"
-                echo "  Success rate: $(( content_launcher_screenshots * 100 / total_launcher_screenshots ))%"
+                if [ "$total_launcher_screenshots" -gt 0 ]; then
+                  success_rate=$(( content_launcher_screenshots * 100 / total_launcher_screenshots ))
+                  echo "  Success rate: ${success_rate}%"
+                  
+                  if [ "$success_rate" -eq 0 ]; then
+                    echo ""
+                    echo "⚠️  RECOMMENDATION: Consider the following improvements:"
+                    echo "   1. Increase application startup wait time (current: 5-10 seconds)"
+                    echo "   2. Add Qt environment variables for virtual display compatibility"
+                    echo "   3. Use software rendering instead of hardware acceleration"
+                    echo "   4. Check if the application requires additional dependencies"
+                  fi
+                else
+                  echo "  Success rate: 0%"
+                fi
               else
                 echo "⚠️  No launcher screenshots captured"
               fi
