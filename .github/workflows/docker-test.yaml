@@ -409,9 +409,32 @@ jobs:
                   echo "### 📷 $filename" >> $GITHUB_STEP_SUMMARY
                 fi
                 
-                # Convert to base64 and embed
+                # Convert to base64 and embed (with better compatibility)
                 echo "" >> $GITHUB_STEP_SUMMARY
-                echo "![Screenshot: $filename](data:image/jpeg;base64,$(base64 -w 0 "$img"))" >> $GITHUB_STEP_SUMMARY
+                
+                # Try multiple base64 approaches for better compatibility
+                if base64 -w 0 "$img" >/dev/null 2>&1; then
+                  # GNU coreutils version
+                  base64_data=$(base64 -w 0 "$img")
+                elif base64 --break=0 "$img" >/dev/null 2>&1; then
+                  # Alternative GNU option
+                  base64_data=$(base64 --break=0 "$img")
+                else
+                  # BSD/macOS version (remove line breaks)
+                  base64_data=$(base64 "$img" | tr -d '\n')
+                fi
+                
+                # Check if we got valid base64 data
+                if [ -n "$base64_data" ] && [ ${#base64_data} -gt 100 ]; then
+                  echo "![Screenshot: $filename](data:image/jpeg;base64,$base64_data)" >> $GITHUB_STEP_SUMMARY
+                  echo "" >> $GITHUB_STEP_SUMMARY
+                  echo "_Base64 length: ${#base64_data} characters_" >> $GITHUB_STEP_SUMMARY
+                else
+                  echo "⚠️ Failed to generate base64 data for $filename" >> $GITHUB_STEP_SUMMARY
+                  echo "" >> $GITHUB_STEP_SUMMARY
+                  echo "_File size: $(ls -lh "$img" | awk '{print $5}')_" >> $GITHUB_STEP_SUMMARY
+                fi
+                
                 echo "" >> $GITHUB_STEP_SUMMARY
                 echo "---" >> $GITHUB_STEP_SUMMARY
                 echo "" >> $GITHUB_STEP_SUMMARY
@@ -826,9 +849,32 @@ jobs:
                   echo "### 📷 $filename" >> $GITHUB_STEP_SUMMARY
                 fi
                 
-                # Convert to base64 and embed
+                # Convert to base64 and embed (with better compatibility)
                 echo "" >> $GITHUB_STEP_SUMMARY
-                echo "![Screenshot: $filename](data:image/jpeg;base64,$(base64 -w 0 "$img"))" >> $GITHUB_STEP_SUMMARY
+                
+                # Try multiple base64 approaches for better compatibility
+                if base64 -w 0 "$img" >/dev/null 2>&1; then
+                  # GNU coreutils version
+                  base64_data=$(base64 -w 0 "$img")
+                elif base64 --break=0 "$img" >/dev/null 2>&1; then
+                  # Alternative GNU option
+                  base64_data=$(base64 --break=0 "$img")
+                else
+                  # BSD/macOS version (remove line breaks)
+                  base64_data=$(base64 "$img" | tr -d '\n')
+                fi
+                
+                # Check if we got valid base64 data
+                if [ -n "$base64_data" ] && [ ${#base64_data} -gt 100 ]; then
+                  echo "![Screenshot: $filename](data:image/jpeg;base64,$base64_data)" >> $GITHUB_STEP_SUMMARY
+                  echo "" >> $GITHUB_STEP_SUMMARY
+                  echo "_Base64 length: ${#base64_data} characters_" >> $GITHUB_STEP_SUMMARY
+                else
+                  echo "⚠️ Failed to generate base64 data for $filename" >> $GITHUB_STEP_SUMMARY
+                  echo "" >> $GITHUB_STEP_SUMMARY
+                  echo "_File size: $(ls -lh "$img" | awk '{print $5}')_" >> $GITHUB_STEP_SUMMARY
+                fi
+                
                 echo "" >> $GITHUB_STEP_SUMMARY
                 echo "---" >> $GITHUB_STEP_SUMMARY
                 echo "" >> $GITHUB_STEP_SUMMARY
