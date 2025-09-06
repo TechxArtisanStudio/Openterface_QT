@@ -352,14 +352,60 @@ jobs:
           echo "📸 Screenshots captured:"
           ls -la screenshots/ || echo "No screenshots directory"
           
-          # Get screenshot file sizes
+          # Get screenshot file sizes and detailed analysis
           if [ -d "screenshots" ]; then
             echo "📊 Screenshot details:"
+            echo "===================="
+            printf "%-25s | %-8s | %-12s | %-15s | %s\n" "Filename" "Size" "Dimensions" "Mean Color" "Content Status"
+            echo "$(printf '%.0s-' {1..80})"
+            
             for img in screenshots/*.png; do
               if [ -f "$img" ]; then
-                echo "$(basename $img): $(ls -lh $img | awk '{print $5}')"
-                # Try to get image dimensions
-                identify "$img" 2>/dev/null || echo "Cannot identify $(basename $img)"
+                filename=$(basename "$img")
+                filesize=$(ls -lh "$img" | awk '{print $5}')
+                
+                # Get image dimensions
+                dimensions=$(identify "$img" 2>/dev/null | awk '{print $3}' | head -1 || echo "Unknown")
+                
+                # Get mean color value to detect content
+                mean_color=$(identify -ping -format "%[mean]" "$img" 2>/dev/null || echo "0")
+                mean_value=${mean_color%.*}
+                
+                # Determine content status
+                if [ "$mean_value" -gt 2000 ]; then
+                  content_status="✅ Content detected"
+                elif [ "$mean_value" -gt 500 ]; then
+                  content_status="⚠️  Minimal content"
+                else
+                  content_status="❌ Likely blank/black"
+                fi
+                
+                printf "%-25s | %-8s | %-12s | %-15s | %s\n" "$filename" "$filesize" "$dimensions" "$mean_value" "$content_status"
+                
+                # Additional analysis for suspicious images
+                if [ "$mean_value" -lt 500 ]; then
+                  echo "  🔍 Detailed analysis: $(identify -verbose "$img" 2>/dev/null | grep -E 'Colors|Histogram' | head -2 || echo 'Cannot analyze')"
+                fi
+              fi
+            done
+            echo ""
+            
+            # Summary statistics
+            total_screenshots=$(find screenshots/ -name "*.png" | wc -l)
+            content_screenshots=$(find screenshots/ -name "*.png" -exec identify -ping -format "%[mean]\n" {} \; 2>/dev/null | awk -F. '{if($1 > 500) count++} END {print count+0}')
+            
+            echo "📈 Summary:"
+            echo "  Total screenshots: $total_screenshots"
+            echo "  With content: $content_screenshots"
+            echo "  Success rate: $(( content_screenshots * 100 / total_screenshots ))%"
+            
+            # Show first few pixels of each image for debugging
+            echo ""
+            echo "🔍 First pixel analysis (for debugging):"
+            for img in screenshots/*.png; do
+              if [ -f "$img" ]; then
+                first_pixel=$(convert "$img" -crop 1x1+0+0 txt:- 2>/dev/null | tail -1 | cut -d' ' -f4 || echo "unknown")
+                echo "  $(basename "$img"): First pixel = $first_pixel"
               fi
             done
           fi
@@ -474,40 +520,137 @@ jobs:
           
           echo "✅ Performance test completed"
 
-      - name: Generate test report
+      - name: Generate comprehensive GUI test report
         if: always()
         run: |
-          echo "📋 Generating test report"
+          echo "📋 Generating comprehensive GUI test report"
           
-          cat << 'EOF' > test-report.md
-          # Docker Test Report - Openterface Test Dynamic
+          cat << 'EOF' > gui-test-report.md
+          # 📸 GUI Testing Report - Openterface QT
           
-          ## Test Summary
-          - **Image**: ${{ env.DOCKER_IMAGE }}:${{ env.DOCKER_TAG }}
-          - **Build Time**: $(date -u)
-          - **Test Type**: ${{ github.event.inputs.test_type || 'all' }}
+          ## Test Overview
           - **Workflow**: ${{ github.workflow }}
           - **Run ID**: ${{ github.run_id }}
+          - **Branch**: ${{ github.ref_name }}
+          - **Commit**: ${{ github.sha }}
+          - **Test Date**: $(date -u)
           
-          ## Tests Executed
-          1. ✅ Docker image build
-          2. ✅ Container startup test
-          3. ✅ Installation script verification
-          4. ✅ Qt dependencies check
-          5. ✅ Hardware interface dependencies
-          6. ✅ Application launcher test
-          7. ✅ USB device access simulation
-          8. ✅ Security scan
-          9. ✅ Performance test
+          ## Screenshots Analysis
           
-          ## Image Information
           EOF
           
-          echo "🔍 Image layers:" >> test-report.md
-          docker history ${{ env.DOCKER_IMAGE }}:${{ env.DOCKER_TAG }} --no-trunc >> test-report.md
+          # Add container testing results
+          echo "### 🐳 Direct Container Testing" >> gui-test-report.md
+          echo "" >> gui-test-report.md
           
-          echo "📊 Test report generated"
-          cat test-report.md
+          if [ -d "screenshots" ] && [ "$(ls -A screenshots/*.png 2>/dev/null)" ]; then
+            echo "| Filename | Size | Dimensions | Mean Color | Content Status |" >> gui-test-report.md
+            echo "|----------|------|------------|------------|----------------|" >> gui-test-report.md
+            
+            for img in screenshots/*.png; do
+              if [ -f "$img" ]; then
+                filename=$(basename "$img")
+                filesize=$(ls -lh "$img" | awk '{print $5}')
+                dimensions=$(identify "$img" 2>/dev/null | awk '{print $3}' | head -1 || echo "Unknown")
+                mean_color=$(identify -ping -format "%[mean]" "$img" 2>/dev/null || echo "0")
+                mean_value=${mean_color%.*}
+                
+                if [ "$mean_value" -gt 2000 ]; then
+                  content_status="✅ Content detected"
+                elif [ "$mean_value" -gt 500 ]; then
+                  content_status="⚠️ Minimal content"
+                else
+                  content_status="❌ Likely blank"
+                fi
+                
+                echo "| $filename | $filesize | $dimensions | $mean_value | $content_status |" >> gui-test-report.md
+              fi
+            done
+            
+            # Add summary
+            total_container=$(find screenshots/ -name "*.png" | wc -l)
+            content_container=$(find screenshots/ -name "*.png" -exec identify -ping -format "%[mean]\n" {} \; 2>/dev/null | awk -F. '{if($1 > 500) count++} END {print count+0}')
+            echo "" >> gui-test-report.md
+            echo "**Container Test Summary**: $content_container/$total_container screenshots with content ($(( content_container * 100 / total_container ))% success rate)" >> gui-test-report.md
+          else
+            echo "❌ No container screenshots found" >> gui-test-report.md
+          fi
+          
+          echo "" >> gui-test-report.md
+          echo "### 🚀 Launcher Script Testing" >> gui-test-report.md
+          echo "" >> gui-test-report.md
+          
+          if [ -d "integration-screenshots" ] && [ "$(ls -A integration-screenshots/*.png 2>/dev/null)" ]; then
+            echo "| Filename | Size | Dimensions | Mean Color | Content Status |" >> gui-test-report.md
+            echo "|----------|------|------------|------------|----------------|" >> gui-test-report.md
+            
+            for img in integration-screenshots/*.png; do
+              if [ -f "$img" ]; then
+                filename=$(basename "$img")
+                filesize=$(ls -lh "$img" | awk '{print $5}')
+                dimensions=$(identify "$img" 2>/dev/null | awk '{print $3}' | head -1 || echo "Unknown")
+                mean_color=$(identify -ping -format "%[mean]" "$img" 2>/dev/null || echo "0")
+                mean_value=${mean_color%.*}
+                
+                if [ "$mean_value" -gt 2000 ]; then
+                  content_status="✅ Content detected"
+                elif [ "$mean_value" -gt 500 ]; then
+                  content_status="⚠️ Minimal content"
+                else
+                  content_status="❌ Likely blank"
+                fi
+                
+                echo "| $filename | $filesize | $dimensions | $mean_value | $content_status |" >> gui-test-report.md
+              fi
+            done
+            
+            # Add summary
+            total_launcher=$(find integration-screenshots/ -name "*.png" 2>/dev/null | wc -l)
+            content_launcher=$(find integration-screenshots/ -name "*.png" -exec identify -ping -format "%[mean]\n" {} \; 2>/dev/null | awk -F. '{if($1 > 500) count++} END {print count+0}')
+            echo "" >> gui-test-report.md
+            echo "**Launcher Test Summary**: $content_launcher/$total_launcher screenshots with content ($(( content_launcher * 100 / total_launcher ))% success rate)" >> gui-test-report.md
+          else
+            echo "❌ No launcher screenshots found" >> gui-test-report.md
+          fi
+          
+          # Add troubleshooting information
+          echo "" >> gui-test-report.md
+          echo "### 🔍 Troubleshooting Information" >> gui-test-report.md
+          echo "" >> gui-test-report.md
+          echo "#### Virtual Display Status" >> gui-test-report.md
+          echo '```' >> gui-test-report.md
+          ps aux | grep Xvfb | grep -v grep || echo "No Xvfb processes found" >> gui-test-report.md
+          echo '```' >> gui-test-report.md
+          echo "" >> gui-test-report.md
+          
+          echo "#### Docker Containers" >> gui-test-report.md
+          echo '```' >> gui-test-report.md
+          docker ps -a | grep openterface || echo "No openterface containers found" >> gui-test-report.md
+          echo '```' >> gui-test-report.md
+          echo "" >> gui-test-report.md
+          
+          echo "#### System Information" >> gui-test-report.md
+          echo '```' >> gui-test-report.md
+          echo "OS: $(uname -a)" >> gui-test-report.md
+          echo "Docker version: $(docker --version)" >> gui-test-report.md
+          echo "ImageMagick version: $(identify -version | head -1)" >> gui-test-report.md
+          echo '```' >> gui-test-report.md
+          
+          # Display the report in the action log
+          echo "📊 Full GUI Test Report:"
+          echo "========================"
+          cat gui-test-report.md
+          
+          echo ""
+          echo "✅ Comprehensive GUI test report generated"
+
+      - name: Upload GUI test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gui-test-report
+          path: gui-test-report.md
+          if-no-files-found: warn
 
       - name: Clean up Docker resources
         if: always()
@@ -680,17 +823,57 @@ jobs:
               echo '✅ GUI launcher test completed'
             " || echo "ℹ️  GUI launcher test completed (timeout expected)"
             
-            # Analyze screenshots
-            echo "📊 Screenshot analysis:"
+            # Analyze screenshots with detailed information
+            echo "📊 Launcher Screenshot Analysis:"
+            echo "================================="
             if [ -d "integration-screenshots" ]; then
+              printf "%-30s | %-8s | %-12s | %-15s | %s\n" "Filename" "Size" "Dimensions" "Mean Color" "Content Status"
+              echo "$(printf '%.0s-' {1..85})"
+              
               for img in integration-screenshots/*.png; do
                 if [ -f "$img" ]; then
-                  basename_img=$(basename "$img")
+                  filename=$(basename "$img")
                   filesize=$(ls -lh "$img" | awk '{print $5}')
-                  echo "$basename_img: $filesize"
-                  identify "$img" 2>/dev/null || echo "Cannot identify $(basename $img)"
-                fi
+                  
+                  # Get image dimensions
+                  dimensions=$(identify "$img" 2>/dev/null | awk '{print $3}' | head -1 || echo "Unknown")
+                  
+                  # Get mean color value to detect content
+                  mean_color=$(identify -ping -format "%[mean]" "$img" 2>/dev/null || echo "0")
+                  mean_value=${mean_color%.*}
+                  
+                  # Determine content status
+                  if [ "$mean_value" -gt 2000 ]; then
+                    content_status="✅ Content detected"
+                  elif [ "$mean_value" -gt 500 ]; then
+                    content_status="⚠️  Minimal content"
+                  else
+                    content_status="❌ Likely blank/black"
+                  fi
+                  
+                  printf "%-30s | %-8s | %-12s | %-15s | %s\n" "$filename" "$filesize" "$dimensions" "$mean_value" "$content_status"
+                  
+                  # Show histogram for content detection
+                  if command -v convert >/dev/null 2>&1; then
+                    echo "  📊 Color histogram: $(convert "$img" -format "%c" histogram:info:- 2>/dev/null | head -3 | tail -1 || echo 'Cannot analyze')"
+                  fi
+                done
               done
+              
+              echo ""
+              # Summary for launcher screenshots
+              total_launcher_screenshots=$(find integration-screenshots/ -name "*.png" 2>/dev/null | wc -l)
+              if [ "$total_launcher_screenshots" -gt 0 ]; then
+                content_launcher_screenshots=$(find integration-screenshots/ -name "*.png" -exec identify -ping -format "%[mean]\n" {} \; 2>/dev/null | awk -F. '{if($1 > 500) count++} END {print count+0}')
+                echo "📈 Launcher Test Summary:"
+                echo "  Total screenshots: $total_launcher_screenshots"
+                echo "  With content: $content_launcher_screenshots"
+                echo "  Success rate: $(( content_launcher_screenshots * 100 / total_launcher_screenshots ))%"
+              else
+                echo "⚠️  No launcher screenshots captured"
+              fi
+            else
+              echo "❌ No integration-screenshots directory found"
             fi
             
             # Clean up virtual display
