@@ -844,7 +844,8 @@ jobs:
                   echo \"Status: \$(docker inspect \$container --format='{{.State.Status}}')\"
                   echo \"Started: \$(docker inspect \$container --format='{{.State.StartedAt}}')\"
                   echo \"Processes: \$(docker exec \$container ps aux | wc -l) total\"
-                  echo \"GUI processes: \$(docker exec \$container ps aux | grep -E '(qt|Qt|openterface|GUI)' | wc -l || echo '0')\"
+                  gui_count=\$(docker exec \$container ps aux | grep -E 'qt|Qt|openterface|GUI' | wc -l 2>/dev/null || echo '0')
+                  echo \"GUI processes: \$gui_count\"
                   echo \"---\"
                 done
               fi
