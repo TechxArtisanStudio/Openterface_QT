@@ -371,7 +371,7 @@ jobs:
             echo "📊 Screenshot details:"
             echo "===================="
             printf "%-25s | %-8s | %-12s | %-15s | %s\n" "Filename" "Size" "Dimensions" "Mean Color" "Content Status"
-            echo "$(printf '%.0s-' {1..80})"
+            echo "$(printf '%.0s-' $(seq 1 80))"
             
             for img in screenshots/*.png; do
               if [ -f "$img" ]; then
@@ -950,7 +950,7 @@ jobs:
             echo "====================================================="
             if [ -d "integration-screenshots" ]; then
               printf "%-30s | %-8s | %-12s | %-15s | %s\n" "Filename" "Size" "Dimensions" "Mean Color" "Content Status"
-              echo "$(printf '%.0s-' {1..85})"
+              echo "$(printf '%.0s-' $(seq 1 85))"
               
               black_screen_count=0
               total_screenshots=0
