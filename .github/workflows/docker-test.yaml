@@ -857,7 +857,7 @@ jobs:
                   if command -v convert >/dev/null 2>&1; then
                     echo "  📊 Color histogram: $(convert "$img" -format "%c" histogram:info:- 2>/dev/null | head -3 | tail -1 || echo 'Cannot analyze')"
                   fi
-                done
+                fi
               done
               
               echo ""
