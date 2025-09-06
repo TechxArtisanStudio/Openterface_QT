@@ -22,8 +22,7 @@ echo "===================================================="
 
 # Configuration
 GITHUB_REPO="TechxArtisanStudio/Openterface_QT"
-STATIC_PACKAGE_NAME="openterfaceQT.linux.amd64.static.deb"  # Assuming static package naming
-FALLBACK_PACKAGE_NAME="openterfaceQT.linux.amd64.shared.deb"       # Fallback to regular package
+STATIC_PACKAGE_NAME="openterfaceQT-portable"  # Assuming static portable app
 
 # Function to get the specified version
 get_latest_version() {
@@ -93,15 +92,7 @@ install_package() {
         exit 1
     fi
     
-    # Install the package
-    echo "   Installing with dpkg..."
-    if dpkg -i "/tmp/${PACKAGE_NAME}" 2>/dev/null; then
-        echo "✅ Package installed successfully"
-    else
-        echo "⚠️  Package installation had some dependency issues, attempting to fix..."
-        apt-get install -f -y
-        echo "✅ Dependencies resolved and package installed"
-    fi
+    cp /tmp/${PACKAGE_NAME}/usr/bin
     
     # Clean up downloaded package
     rm "/tmp/${PACKAGE_NAME}"

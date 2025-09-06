@@ -1,4 +1,4 @@
-name: Docker Test - Openterface Test Dynamic & Static
+name: Docker Test - Openterface Test Shared & Static
 
 on:
   push:
@@ -333,86 +333,6 @@ jobs:
             # Summary for CI
             total_jpgs=$(find screenshots-shared/ -name "*.jpg" 2>/dev/null | wc -l)
             content_jpgs=$(find screenshots-shared/ -name "*.jpg" -exec identify -ping -format "%[mean]" {} \; 2>/dev/null | awk -F. '{if($1 > 100) count++} END {print count+0}')
-            
-            echo "📈 CI Test Summary:"
-            echo "   Total JPG screenshots: $total_jpgs"
-            echo "   With content: $content_jpgs"
-            if [ "$total_jpgs" -gt 0 ]; then
-              success_rate=$(( content_jpgs * 100 / total_jpgs ))
-              echo "   Success rate: ${success_rate}%"
-              
-              if [ "$success_rate" -ge 50 ]; then
-                echo "   ✅ GUI test PASSED - Application rendered successfully"
-              else
-                echo "   ⚠️  GUI test PARTIAL - Some content detected but may need investigation"
-              fi
-            else
-              echo "   ❌ GUI test FAILED - No screenshots generated"
-            fi
-          else
-            echo "❌ No screenshots found - script may have failed"
-            exit 1
-          fi
-          
-          echo ""
-          echo "✅ GUI screenshot test completed"
-
-
-
-
-
-      - name: GUI screenshot test using proven script
-        if: ${{ github.event.inputs.test_type == 'run-test' || github.event.inputs.test_type == 'all' || github.event_name != 'workflow_dispatch' }}
-        run: |
-          echo "🧪 Running GUI screenshot test using proven script"
-          
-          # Make the script executable
-          chmod +x docker/screenshot-docker-app.sh
-          
-          # Update the script to use the CI Docker tag instead of screenshot-test
-          sed -i 's/DOCKER_TAG="screenshot-test"/DOCKER_TAG="test-${{ github.sha }}"/' docker/screenshot-docker-app.sh
-          
-          # Update the script to use screenshots directory instead of app-screenshots
-          sed -i 's/SCREENSHOTS_DIR="app-screenshots"/SCREENSHOTS_DIR="screenshots"/' docker/screenshot-docker-app.sh
-          
-          # Run the proven screenshot script
-          echo "� Executing screenshot script..."
-          ./docker/screenshot-docker-app.sh
-          
-          # Additional analysis for CI context
-          echo ""
-          echo "📊 CI-specific screenshot analysis:"
-          echo "=================================="
-          
-          if [ -d "screenshots" ] && [ "$(ls -A screenshots/*.jpg 2>/dev/null)" ]; then
-            echo "✅ Screenshots generated successfully"
-            
-            # Detailed analysis for CI
-            for img in screenshots/*.jpg; do
-              if [ -f "$img" ]; then
-                filename=$(basename "$img")
-                filesize=$(ls -lh "$img" | awk '{print $5}')
-                dimensions=$(identify "$img" 2>/dev/null | awk '{print $3}' | head -1 || echo "Unknown")
-                mean_color=$(identify -ping -format "%[mean]" "$img" 2>/dev/null || echo "0")
-                mean_value=${mean_color%.*}
-                
-                echo "📸 $filename:"
-                echo "   Size: $filesize | Dimensions: $dimensions | Mean: $mean_value"
-                
-                if [ "$mean_value" -gt 1000 ]; then
-                  echo "   Status: ✅ Rich content detected"
-                elif [ "$mean_value" -gt 100 ]; then
-                  echo "   Status: ⚠️  Basic content detected"
-                else
-                  echo "   Status: ❌ Likely blank/black"
-                fi
-                echo ""
-              fi
-            done
-            
-            # Summary for CI
-            total_jpgs=$(find screenshots/ -name "*.jpg" 2>/dev/null | wc -l)
-            content_jpgs=$(find screenshots/ -name "*.jpg" -exec identify -ping -format "%[mean]\n" {} \; 2>/dev/null | awk -F. '{if($1 > 100) count++} END {print count+0}')
             
             echo "📈 CI Test Summary:"
             echo "   Total JPG screenshots: $total_jpgs"
@@ -965,5 +885,3 @@ jobs:
           name: combined-test-report
           path: combined-test-report.md
           if-no-files-found: warn
-
-
