@@ -443,7 +443,18 @@ jobs:
                   echo "   Last 50 chars: ...${base64_data: -50}" >> $GITHUB_STEP_SUMMARY
                   
                   # Try HTML instead of Markdown for better compatibility
-                  echo "<img src=\"data:image/jpeg;base64,$base64_data\" alt=\"Screenshot: $filename\" style=\"max-width: 800px; border: 1px solid #ddd; margin: 10px 0;\">" >> $GITHUB_STEP_SUMMARY
+                  # Debug: Check what's actually in the variables before using them
+                  echo "🔍 Debug before HTML generation (Shared):" >> $GITHUB_STEP_SUMMARY
+                  echo "   Variable base64_data length: ${#base64_data}" >> $GITHUB_STEP_SUMMARY
+                  echo "   Variable filename: '$filename'" >> $GITHUB_STEP_SUMMARY
+                  echo "   First 20 chars of base64_data: '${base64_data:0:20}'" >> $GITHUB_STEP_SUMMARY
+                  
+                  # Generate HTML with explicit variable expansion
+                  img_src="data:image/jpeg;base64,$base64_data"
+                  echo "   Generated img_src length: ${#img_src}" >> $GITHUB_STEP_SUMMARY
+                  echo "   Generated img_src start: '${img_src:0:50}'" >> $GITHUB_STEP_SUMMARY
+                  
+                  echo "<img src=\"$img_src\" alt=\"Screenshot: $filename\" style=\"max-width: 800px; border: 1px solid #ddd; margin: 10px 0;\">" >> $GITHUB_STEP_SUMMARY
                   echo "" >> $GITHUB_STEP_SUMMARY
                   echo "_✅ Successfully embedded HTML image (${#base64_data} characters)_" >> $GITHUB_STEP_SUMMARY
                   
@@ -915,7 +926,18 @@ jobs:
                   echo "   Last 50 chars: ...${base64_data: -50}" >> $GITHUB_STEP_SUMMARY
                   
                   # Try HTML instead of Markdown for better compatibility
-                  echo "<img src=\"data:image/jpeg;base64,$base64_data\" alt=\"Screenshot: $filename\" style=\"max-width: 800px; border: 1px solid #ddd; margin: 10px 0;\">" >> $GITHUB_STEP_SUMMARY
+                  # Debug: Check what's actually in the variables before using them
+                  echo "🔍 Debug before HTML generation (Static):" >> $GITHUB_STEP_SUMMARY
+                  echo "   Variable base64_data length: ${#base64_data}" >> $GITHUB_STEP_SUMMARY
+                  echo "   Variable filename: '$filename'" >> $GITHUB_STEP_SUMMARY
+                  echo "   First 20 chars of base64_data: '${base64_data:0:20}'" >> $GITHUB_STEP_SUMMARY
+                  
+                  # Generate HTML with explicit variable expansion
+                  img_src="data:image/jpeg;base64,$base64_data"
+                  echo "   Generated img_src length: ${#img_src}" >> $GITHUB_STEP_SUMMARY
+                  echo "   Generated img_src start: '${img_src:0:50}'" >> $GITHUB_STEP_SUMMARY
+                  
+                  echo "<img src=\"$img_src\" alt=\"Screenshot: $filename\" style=\"max-width: 800px; border: 1px solid #ddd; margin: 10px 0;\">" >> $GITHUB_STEP_SUMMARY
                   echo "" >> $GITHUB_STEP_SUMMARY
                   echo "_✅ Successfully embedded HTML image (${#base64_data} characters)_" >> $GITHUB_STEP_SUMMARY
                   
