@@ -369,7 +369,7 @@ jobs:
           echo "**Commit**: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
           echo "**Timestamp**: $(date -u)" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "💡 **Quick Access**: [📥 Download Screenshots Artifact](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})" >> $GITHUB_STEP_SUMMARY
+          echo "💡 **Screenshots available in Artifacts section below**" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           
           if [ -d "screenshots-shared" ] && [ "$(ls -A screenshots-shared/*.jpg 2>/dev/null)" ]; then
@@ -436,10 +436,6 @@ jobs:
                   echo "- **Content Quality**: $quality" >> $GITHUB_STEP_SUMMARY
                 fi
                 
-                # Create the artifact link (GitHub Actions artifact download URL)
-                artifact_url="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts"
-                echo "- **Download**: [📥 Download $filename]($artifact_url)" >> $GITHUB_STEP_SUMMARY
-                
                 # Store artifact name for later upload
                 echo "$artifact_name|$img" >> /tmp/screenshot_artifacts_shared.txt
                 
@@ -448,6 +444,15 @@ jobs:
             done
             
             echo "" >> $GITHUB_STEP_SUMMARY
+            echo "## 📥 How to Download Screenshots" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "1. **Scroll down** to the **Artifacts** section at the bottom of this page" >> $GITHUB_STEP_SUMMARY
+            echo "2. **Download** the following artifacts:" >> $GITHUB_STEP_SUMMARY
+            echo "   - \`openterface-gui-screenshots-shared-collection\` - All screenshots in one ZIP" >> $GITHUB_STEP_SUMMARY
+            echo "   - \`openterface-gui-screenshots-shared-individual\` - Individual screenshots" >> $GITHUB_STEP_SUMMARY
+            echo "3. **Extract** the ZIP files to view the JPG images" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            
           else
             echo "## ❌ No Screenshots Available" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
@@ -849,7 +854,7 @@ jobs:
           echo "**Commit**: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
           echo "**Timestamp**: $(date -u)" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "💡 **Quick Access**: [📥 Download Screenshots Artifact](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})" >> $GITHUB_STEP_SUMMARY
+          echo "💡 **Screenshots available in Artifacts section below**" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           
           if [ -d "screenshots-static" ] && [ "$(ls -A screenshots-static/*.jpg 2>/dev/null)" ]; then
@@ -916,16 +921,22 @@ jobs:
                   echo "- **Content Quality**: $quality" >> $GITHUB_STEP_SUMMARY
                 fi
                 
-                # Create the artifact link
-                artifact_url="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts"
-                echo "- **Download**: [📥 Download $filename]($artifact_url)" >> $GITHUB_STEP_SUMMARY
-                
                 # Store artifact name for later upload
                 echo "$artifact_name|$img" >> /tmp/screenshot_artifacts_static.txt
                 
                 echo "" >> $GITHUB_STEP_SUMMARY
               fi
             done
+            
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "## 📥 How to Download Screenshots" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "1. **Scroll down** to the **Artifacts** section at the bottom of this page" >> $GITHUB_STEP_SUMMARY
+            echo "2. **Download** the following artifacts:" >> $GITHUB_STEP_SUMMARY
+            echo "   - \`openterface-gui-screenshots-static-collection\` - All screenshots in one ZIP" >> $GITHUB_STEP_SUMMARY
+            echo "   - \`openterface-gui-screenshots-static-individual\` - Individual screenshots" >> $GITHUB_STEP_SUMMARY
+            echo "3. **Extract** the ZIP files to view the JPG images" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
             
           else
             echo "## ❌ No Screenshots Available" >> $GITHUB_STEP_SUMMARY
