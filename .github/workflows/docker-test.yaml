@@ -400,6 +400,11 @@ jobs:
               if [ -f "$img" ]; then
                 filename=$(basename "$img")
                 
+                # Debug: Check file details
+                echo "🔍 Processing file: $img" >> $GITHUB_STEP_SUMMARY
+                echo "   File size: $(ls -lh "$img" | awk '{print $5}')" >> $GITHUB_STEP_SUMMARY
+                echo "   File permissions: $(ls -l "$img" | awk '{print $1}')" >> $GITHUB_STEP_SUMMARY
+                
                 # Get image info
                 if command -v identify >/dev/null 2>&1; then
                   img_info=$(identify "$img" 2>/dev/null || echo "Unknown format")
@@ -409,30 +414,71 @@ jobs:
                   echo "### 📷 $filename" >> $GITHUB_STEP_SUMMARY
                 fi
                 
-                # Convert to base64 and embed (with better compatibility)
+                # Convert to base64 and embed (with better compatibility and debugging)
                 echo "" >> $GITHUB_STEP_SUMMARY
                 
-                # Try multiple base64 approaches for better compatibility
+                # Debug: Test different base64 commands
+                echo "🔧 Testing base64 commands:" >> $GITHUB_STEP_SUMMARY
+                
+                base64_data=""
+                base64_method=""
+                
+                # Try method 1: GNU coreutils version
                 if base64 -w 0 "$img" >/dev/null 2>&1; then
-                  # GNU coreutils version
-                  base64_data=$(base64 -w 0 "$img")
-                elif base64 --break=0 "$img" >/dev/null 2>&1; then
-                  # Alternative GNU option
-                  base64_data=$(base64 --break=0 "$img")
+                  base64_data=$(base64 -w 0 "$img" 2>/dev/null || echo "")
+                  base64_method="base64 -w 0"
+                  echo "   ✅ Method 1 (base64 -w 0): Success" >> $GITHUB_STEP_SUMMARY
                 else
-                  # BSD/macOS version (remove line breaks)
-                  base64_data=$(base64 "$img" | tr -d '\n')
+                  echo "   ❌ Method 1 (base64 -w 0): Failed" >> $GITHUB_STEP_SUMMARY
                 fi
+                
+                # Try method 2: Alternative GNU option
+                if [ -z "$base64_data" ] && base64 --break=0 "$img" >/dev/null 2>&1; then
+                  base64_data=$(base64 --break=0 "$img" 2>/dev/null || echo "")
+                  base64_method="base64 --break=0"
+                  echo "   ✅ Method 2 (base64 --break=0): Success" >> $GITHUB_STEP_SUMMARY
+                elif [ -z "$base64_data" ]; then
+                  echo "   ❌ Method 2 (base64 --break=0): Failed" >> $GITHUB_STEP_SUMMARY
+                fi
+                
+                # Try method 3: BSD/macOS version (remove line breaks)
+                if [ -z "$base64_data" ]; then
+                  base64_data=$(base64 "$img" 2>/dev/null | tr -d '\n' 2>/dev/null || echo "")
+                  base64_method="base64 + tr -d"
+                  if [ -n "$base64_data" ]; then
+                    echo "   ✅ Method 3 (base64 + tr): Success" >> $GITHUB_STEP_SUMMARY
+                  else
+                    echo "   ❌ Method 3 (base64 + tr): Failed" >> $GITHUB_STEP_SUMMARY
+                  fi
+                fi
+                
+                # Debug: Report results
+                echo "   Used method: $base64_method" >> $GITHUB_STEP_SUMMARY
+                echo "   Base64 data length: ${#base64_data}" >> $GITHUB_STEP_SUMMARY
                 
                 # Check if we got valid base64 data
                 if [ -n "$base64_data" ] && [ ${#base64_data} -gt 100 ]; then
+                  # Debug: Show first and last 50 characters
+                  echo "   First 50 chars: ${base64_data:0:50}..." >> $GITHUB_STEP_SUMMARY
+                  echo "   Last 50 chars: ...${base64_data: -50}" >> $GITHUB_STEP_SUMMARY
+                  
                   echo "![Screenshot: $filename](data:image/jpeg;base64,$base64_data)" >> $GITHUB_STEP_SUMMARY
                   echo "" >> $GITHUB_STEP_SUMMARY
-                  echo "_Base64 length: ${#base64_data} characters_" >> $GITHUB_STEP_SUMMARY
+                  echo "_✅ Successfully embedded image (${#base64_data} characters)_" >> $GITHUB_STEP_SUMMARY
                 else
                   echo "⚠️ Failed to generate base64 data for $filename" >> $GITHUB_STEP_SUMMARY
                   echo "" >> $GITHUB_STEP_SUMMARY
+                  echo "_❌ Debug info:_" >> $GITHUB_STEP_SUMMARY
                   echo "_File size: $(ls -lh "$img" | awk '{print $5}')_" >> $GITHUB_STEP_SUMMARY
+                  echo "_Base64 length: ${#base64_data}_" >> $GITHUB_STEP_SUMMARY
+                  echo "_Working directory: $(pwd)_" >> $GITHUB_STEP_SUMMARY
+                  echo "_File exists: $(test -f "$img" && echo "Yes" || echo "No")_" >> $GITHUB_STEP_SUMMARY
+                  echo "_File readable: $(test -r "$img" && echo "Yes" || echo "No")_" >> $GITHUB_STEP_SUMMARY
+                  
+                  # Try to show raw file content check
+                  if command -v hexdump >/dev/null 2>&1; then
+                    echo "_First 32 bytes (hex): $(hexdump -C "$img" | head -1)_" >> $GITHUB_STEP_SUMMARY
+                  fi
                 fi
                 
                 echo "" >> $GITHUB_STEP_SUMMARY
@@ -840,6 +886,11 @@ jobs:
               if [ -f "$img" ]; then
                 filename=$(basename "$img")
                 
+                # Debug: Check file details
+                echo "🔍 Processing file: $img" >> $GITHUB_STEP_SUMMARY
+                echo "   File size: $(ls -lh "$img" | awk '{print $5}')" >> $GITHUB_STEP_SUMMARY
+                echo "   File permissions: $(ls -l "$img" | awk '{print $1}')" >> $GITHUB_STEP_SUMMARY
+                
                 # Get image info
                 if command -v identify >/dev/null 2>&1; then
                   img_info=$(identify "$img" 2>/dev/null || echo "Unknown format")
@@ -849,30 +900,71 @@ jobs:
                   echo "### 📷 $filename" >> $GITHUB_STEP_SUMMARY
                 fi
                 
-                # Convert to base64 and embed (with better compatibility)
+                # Convert to base64 and embed (with better compatibility and debugging)
                 echo "" >> $GITHUB_STEP_SUMMARY
                 
-                # Try multiple base64 approaches for better compatibility
+                # Debug: Test different base64 commands
+                echo "🔧 Testing base64 commands:" >> $GITHUB_STEP_SUMMARY
+                
+                base64_data=""
+                base64_method=""
+                
+                # Try method 1: GNU coreutils version
                 if base64 -w 0 "$img" >/dev/null 2>&1; then
-                  # GNU coreutils version
-                  base64_data=$(base64 -w 0 "$img")
-                elif base64 --break=0 "$img" >/dev/null 2>&1; then
-                  # Alternative GNU option
-                  base64_data=$(base64 --break=0 "$img")
+                  base64_data=$(base64 -w 0 "$img" 2>/dev/null || echo "")
+                  base64_method="base64 -w 0"
+                  echo "   ✅ Method 1 (base64 -w 0): Success" >> $GITHUB_STEP_SUMMARY
                 else
-                  # BSD/macOS version (remove line breaks)
-                  base64_data=$(base64 "$img" | tr -d '\n')
+                  echo "   ❌ Method 1 (base64 -w 0): Failed" >> $GITHUB_STEP_SUMMARY
                 fi
+                
+                # Try method 2: Alternative GNU option
+                if [ -z "$base64_data" ] && base64 --break=0 "$img" >/dev/null 2>&1; then
+                  base64_data=$(base64 --break=0 "$img" 2>/dev/null || echo "")
+                  base64_method="base64 --break=0"
+                  echo "   ✅ Method 2 (base64 --break=0): Success" >> $GITHUB_STEP_SUMMARY
+                elif [ -z "$base64_data" ]; then
+                  echo "   ❌ Method 2 (base64 --break=0): Failed" >> $GITHUB_STEP_SUMMARY
+                fi
+                
+                # Try method 3: BSD/macOS version (remove line breaks)
+                if [ -z "$base64_data" ]; then
+                  base64_data=$(base64 "$img" 2>/dev/null | tr -d '\n' 2>/dev/null || echo "")
+                  base64_method="base64 + tr -d"
+                  if [ -n "$base64_data" ]; then
+                    echo "   ✅ Method 3 (base64 + tr): Success" >> $GITHUB_STEP_SUMMARY
+                  else
+                    echo "   ❌ Method 3 (base64 + tr): Failed" >> $GITHUB_STEP_SUMMARY
+                  fi
+                fi
+                
+                # Debug: Report results
+                echo "   Used method: $base64_method" >> $GITHUB_STEP_SUMMARY
+                echo "   Base64 data length: ${#base64_data}" >> $GITHUB_STEP_SUMMARY
                 
                 # Check if we got valid base64 data
                 if [ -n "$base64_data" ] && [ ${#base64_data} -gt 100 ]; then
+                  # Debug: Show first and last 50 characters
+                  echo "   First 50 chars: ${base64_data:0:50}..." >> $GITHUB_STEP_SUMMARY
+                  echo "   Last 50 chars: ...${base64_data: -50}" >> $GITHUB_STEP_SUMMARY
+                  
                   echo "![Screenshot: $filename](data:image/jpeg;base64,$base64_data)" >> $GITHUB_STEP_SUMMARY
                   echo "" >> $GITHUB_STEP_SUMMARY
-                  echo "_Base64 length: ${#base64_data} characters_" >> $GITHUB_STEP_SUMMARY
+                  echo "_✅ Successfully embedded image (${#base64_data} characters)_" >> $GITHUB_STEP_SUMMARY
                 else
                   echo "⚠️ Failed to generate base64 data for $filename" >> $GITHUB_STEP_SUMMARY
                   echo "" >> $GITHUB_STEP_SUMMARY
+                  echo "_❌ Debug info:_" >> $GITHUB_STEP_SUMMARY
                   echo "_File size: $(ls -lh "$img" | awk '{print $5}')_" >> $GITHUB_STEP_SUMMARY
+                  echo "_Base64 length: ${#base64_data}_" >> $GITHUB_STEP_SUMMARY
+                  echo "_Working directory: $(pwd)_" >> $GITHUB_STEP_SUMMARY
+                  echo "_File exists: $(test -f "$img" && echo "Yes" || echo "No")_" >> $GITHUB_STEP_SUMMARY
+                  echo "_File readable: $(test -r "$img" && echo "Yes" || echo "No")_" >> $GITHUB_STEP_SUMMARY
+                  
+                  # Try to show raw file content check
+                  if command -v hexdump >/dev/null 2>&1; then
+                    echo "_First 32 bytes (hex): $(hexdump -C "$img" | head -1)_" >> $GITHUB_STEP_SUMMARY
+                  fi
                 fi
                 
                 echo "" >> $GITHUB_STEP_SUMMARY
