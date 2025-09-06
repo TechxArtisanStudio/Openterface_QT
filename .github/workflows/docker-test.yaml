@@ -125,36 +125,38 @@ jobs:
           docker ps -a
           
           echo "🔍 Checking specific container:"
-          if docker ps -a --format "table {{.ID}}\t{{.Names}}\t{{.Status}}" | grep $CONTAINER_ID; then
+          if docker ps -a --format "table {{.ID}}\t{{.Names}}\t{{.Status}}" | grep openterface-test-container; then
             echo "✅ Container found in docker ps -a"
           else
             echo "❌ Container not found in docker ps -a"
             echo "🔍 All running containers:"
             docker ps
+            echo "🔍 Searching by name instead of ID:"
+            docker ps -a | grep openterface-test-container || echo "Name search also failed"
             exit 1
           fi
           
           # Get immediate logs
           echo "🔍 Container logs (immediate):"
-          docker logs $CONTAINER_ID 2>&1 || echo "No logs available yet"
+          docker logs openterface-test-container 2>&1 || echo "No logs available yet"
           
           # Check container state
           echo "🔍 Container inspect details:"
-          docker inspect $CONTAINER_ID --format='State: {{.State.Status}}'
-          docker inspect $CONTAINER_ID --format='Exit Code: {{.State.ExitCode}}'
-          docker inspect $CONTAINER_ID --format='Error: {{.State.Error}}'
+          docker inspect openterface-test-container --format='State: {{.State.Status}}' 2>/dev/null || echo "Cannot get state"
+          docker inspect openterface-test-container --format='Exit Code: {{.State.ExitCode}}' 2>/dev/null || echo "Cannot get exit code"
+          docker inspect openterface-test-container --format='Error: {{.State.Error}}' 2>/dev/null || echo "Cannot get error"
           
           # Wait a few seconds for container to initialize
           echo "⏰ Waiting 5 seconds for container to settle..."
           sleep 5
           
           # Check if container is running
-          if docker ps | grep -q $CONTAINER_ID; then
+          if docker ps | grep openterface-test-container; then
             echo "✅ Container is running"
             
             # Test that we can execute commands in the container
             echo "🧪 Testing container functionality..."
-            docker exec $CONTAINER_ID bash -c "
+            docker exec openterface-test-container bash -c "
               echo 'Testing basic container functionality...'
               whoami
               pwd
@@ -168,19 +170,19 @@ jobs:
           else
             echo "❌ Container is not running"
             echo "🔍 Final container status:"
-            docker ps -a | grep $CONTAINER_ID || echo "Container not found"
+            docker ps -a | grep openterface-test-container || echo "Container not found"
             echo "🔍 Final container logs:"
-            docker logs $CONTAINER_ID 2>&1 || echo "No logs available"
+            docker logs openterface-test-container 2>&1 || echo "No logs available"
             echo "🔍 Container final state:"
-            docker inspect $CONTAINER_ID --format='State: {{.State.Status}}'
-            docker inspect $CONTAINER_ID --format='Exit Code: {{.State.ExitCode}}'
-            docker inspect $CONTAINER_ID --format='Error: {{.State.Error}}'
+            docker inspect openterface-test-container --format='State: {{.State.Status}}' 2>/dev/null || echo "Cannot inspect container"
+            docker inspect openterface-test-container --format='Exit Code: {{.State.ExitCode}}' 2>/dev/null || echo "Cannot get exit code"
+            docker inspect openterface-test-container --format='Error: {{.State.Error}}' 2>/dev/null || echo "Cannot get error"
             exit 1
           fi
           
           # Clean up
-          docker stop $CONTAINER_ID 2>/dev/null || true
-          docker rm $CONTAINER_ID 2>/dev/null || true
+          docker stop openterface-test-container 2>/dev/null || true
+          docker rm openterface-test-container 2>/dev/null || true
 
       - name: Test installation script
         if: ${{ github.event.inputs.test_type == 'run-test' || github.event.inputs.test_type == 'all' || github.event_name != 'workflow_dispatch' }}
