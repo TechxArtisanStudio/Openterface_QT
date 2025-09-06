@@ -105,84 +105,47 @@ jobs:
           
           # Now test container with sleep (override default CMD to avoid GUI issues)
           echo "🧪 Testing container with sleep command..."
-          set +e  # Don't exit on error so we can debug
-          CONTAINER_ID=$(docker run -d \
-            --name openterface-test-container \
-            ${{ env.DOCKER_IMAGE }}:${{ env.DOCKER_TAG }} \
-            sleep 30 2>&1)
+          CONTAINER_NAME="openterface-test-container"
           
-          if [ $? -eq 0 ]; then
-            echo "Container ID: $CONTAINER_ID"
-          else
-            echo "❌ Failed to start container"
-            echo "Error output: $CONTAINER_ID"
-            exit 1
-          fi
-          set -e  # Re-enable exit on error
+          # Start container
+          docker run -d --name $CONTAINER_NAME ${{ env.DOCKER_IMAGE }}:${{ env.DOCKER_TAG }} sleep 30
           
-          # Immediately check container status with more detailed info
-          echo "🔍 All containers (including stopped):"
-          docker ps -a
+          echo "✅ Container started with name: $CONTAINER_NAME"
           
-          echo "🔍 Checking specific container:"
-          if docker ps -a --format "table {{.ID}}\t{{.Names}}\t{{.Status}}" | grep openterface-test-container; then
-            echo "✅ Container found in docker ps -a"
-          else
-            echo "❌ Container not found in docker ps -a"
-            echo "🔍 All running containers:"
-            docker ps
-            echo "🔍 Searching by name instead of ID:"
-            docker ps -a | grep openterface-test-container || echo "Name search also failed"
-            exit 1
-          fi
+          # Wait a moment for container to fully initialize
+          echo "⏰ Waiting 3 seconds for container to settle..."
+          sleep 3
           
-          # Get immediate logs
-          echo "🔍 Container logs (immediate):"
-          docker logs openterface-test-container 2>&1 || echo "No logs available yet"
-          
-          # Check container state
-          echo "🔍 Container inspect details:"
-          docker inspect openterface-test-container --format='State: {{.State.Status}}' 2>/dev/null || echo "Cannot get state"
-          docker inspect openterface-test-container --format='Exit Code: {{.State.ExitCode}}' 2>/dev/null || echo "Cannot get exit code"
-          docker inspect openterface-test-container --format='Error: {{.State.Error}}' 2>/dev/null || echo "Cannot get error"
-          
-          # Wait a few seconds for container to initialize
-          echo "⏰ Waiting 5 seconds for container to settle..."
-          sleep 5
-          
-          # Check if container is running
-          if docker ps | grep openterface-test-container; then
+          # Simple check - is container running?
+          echo "🔍 Container status check:"
+          if docker ps --filter "name=$CONTAINER_NAME" --format "{{.Names}}" | grep -q "$CONTAINER_NAME"; then
             echo "✅ Container is running"
             
-            # Test that we can execute commands in the container
+            # Test basic functionality
             echo "🧪 Testing container functionality..."
-            docker exec openterface-test-container bash -c "
-              echo 'Testing basic container functionality...'
-              whoami
-              pwd
-              echo 'Environment variables:'
-              env | grep -E '(DISPLAY|QT_|USER)' || echo 'No relevant env vars'
-              echo 'Process list:'
-              ps aux | head -10
+            docker exec $CONTAINER_NAME bash -c "
+              echo '🔍 Container info:'
+              echo 'User:' \$(whoami)
+              echo 'Working directory:' \$(pwd)
+              echo 'Home directory contents:'
+              ls -la /home/openterface/ | head -5
+              echo 'Launcher script check:'
               ls -la /usr/local/bin/start-openterface.sh 2>/dev/null || echo 'Launcher script not found'
+              echo '✅ Functionality test completed'
             "
             echo "✅ Container functionality test passed"
           else
             echo "❌ Container is not running"
-            echo "🔍 Final container status:"
-            docker ps -a | grep openterface-test-container || echo "Container not found"
-            echo "🔍 Final container logs:"
-            docker logs openterface-test-container 2>&1 || echo "No logs available"
-            echo "🔍 Container final state:"
-            docker inspect openterface-test-container --format='State: {{.State.Status}}' 2>/dev/null || echo "Cannot inspect container"
-            docker inspect openterface-test-container --format='Exit Code: {{.State.ExitCode}}' 2>/dev/null || echo "Cannot get exit code"
-            docker inspect openterface-test-container --format='Error: {{.State.Error}}' 2>/dev/null || echo "Cannot get error"
+            echo "🔍 Container status:"
+            docker ps -a --filter "name=$CONTAINER_NAME"
+            echo "🔍 Container logs:"
+            docker logs $CONTAINER_NAME 2>&1 || echo "No logs available"
             exit 1
           fi
           
           # Clean up
-          docker stop openterface-test-container 2>/dev/null || true
-          docker rm openterface-test-container 2>/dev/null || true
+          docker stop $CONTAINER_NAME 2>/dev/null || true
+          docker rm $CONTAINER_NAME 2>/dev/null || true
 
       - name: Test installation script
         if: ${{ github.event.inputs.test_type == 'run-test' || github.event.inputs.test_type == 'all' || github.event_name != 'workflow_dispatch' }}
@@ -297,9 +260,9 @@ jobs:
         run: |
           echo "🧪 Testing default CMD behavior with virtual display"
           
-          # Install Xvfb for virtual display
+          # Install Xvfb and screenshot tools
           sudo apt-get update -y
-          sudo apt-get install -y xvfb
+          sudo apt-get install -y xvfb imagemagick scrot x11-utils
           
           # Start Xvfb virtual display
           export DISPLAY=:99
@@ -307,12 +270,23 @@ jobs:
           XVFB_PID=$!
           
           # Wait for Xvfb to start
-          sleep 2
+          sleep 3
           
           echo "🖥️  Virtual display started on $DISPLAY"
           
+          # Verify X server is running
+          if xdpyinfo -display :99 >/dev/null 2>&1; then
+            echo "✅ X server is responding"
+          else
+            echo "❌ X server not responding"
+            exit 1
+          fi
+          
+          # Create directory for screenshots
+          mkdir -p screenshots
+          
           # Test default CMD with virtual display
-          echo "🚀 Running openterface with virtual display for 10 seconds..."
+          echo "🚀 Running openterface with virtual display for 15 seconds..."
           
           CONTAINER_ID=$(docker run -d \
             --name openterface-gui-test \
@@ -323,9 +297,21 @@ jobs:
           
           echo "Container ID: ${CONTAINER_ID:0:12}"
           
-          # Let it run for 10 seconds
-          echo "⏰ Waiting 10 seconds to collect logs..."
-          sleep 10
+          # Wait a few seconds for app to start
+          echo "⏰ Waiting 5 seconds for application to initialize..."
+          sleep 5
+          
+          # Take initial screenshot
+          echo "📸 Taking initial screenshot..."
+          DISPLAY=:99 scrot screenshots/openterface_initial.png || echo "Initial screenshot failed"
+          
+          # Wait more time
+          echo "⏰ Waiting additional 5 seconds..."
+          sleep 5
+          
+          # Take second screenshot
+          echo "📸 Taking second screenshot..."
+          DISPLAY=:99 scrot screenshots/openterface_5sec.png || echo "Second screenshot failed"
           
           # Check if container is still running
           if docker ps | grep -q $CONTAINER_ID; then
@@ -339,9 +325,43 @@ jobs:
             echo "🧪 Testing container responsiveness..."
             docker exec $CONTAINER_ID ps aux | grep openterfaceQT || echo "openterfaceQT process not found"
             
+            # Take final screenshot
+            echo "📸 Taking final screenshot..."
+            DISPLAY=:99 scrot screenshots/openterface_final.png || echo "Final screenshot failed"
+            
+            # Try to get window information
+            echo "🪟 Window information:"
+            DISPLAY=:99 xwininfo -tree -root | head -20 || echo "No window info available"
+            
           else
             echo "⚠️  Container exited, checking logs..."
             docker logs $CONTAINER_ID 2>&1
+            
+            # Still try to take a screenshot of the desktop
+            echo "📸 Taking desktop screenshot after container exit..."
+            DISPLAY=:99 scrot screenshots/openterface_after_exit.png || echo "Screenshot after exit failed"
+          fi
+          
+          # Wait a bit more and take one more screenshot
+          echo "⏰ Final 5 second wait..."
+          sleep 5
+          echo "📸 Taking very final screenshot..."
+          DISPLAY=:99 scrot screenshots/openterface_very_final.png || echo "Very final screenshot failed"
+          
+          # List all screenshots taken
+          echo "📸 Screenshots captured:"
+          ls -la screenshots/ || echo "No screenshots directory"
+          
+          # Get screenshot file sizes
+          if [ -d "screenshots" ]; then
+            echo "📊 Screenshot details:"
+            for img in screenshots/*.png; do
+              if [ -f "$img" ]; then
+                echo "$(basename $img): $(ls -lh $img | awk '{print $5}')"
+                # Try to get image dimensions
+                identify "$img" 2>/dev/null || echo "Cannot identify $(basename $img)"
+              fi
+            done
           fi
           
           # Clean up container
@@ -353,6 +373,14 @@ jobs:
           kill $XVFB_PID 2>/dev/null || true
           
           echo "✅ GUI test with virtual display completed"
+
+      - name: Upload screenshots
+        if: ${{ always() && (github.event.inputs.test_type == 'run-test' || github.event.inputs.test_type == 'all' || github.event_name != 'workflow_dispatch') }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: openterface-gui-screenshots
+          path: screenshots/
+          if-no-files-found: warn
 
       - name: Test container with simulated USB devices
         if: ${{ github.event.inputs.test_type == 'run-test' || github.event.inputs.test_type == 'all' || github.event_name != 'workflow_dispatch' }}
