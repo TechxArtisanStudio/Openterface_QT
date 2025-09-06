@@ -64,7 +64,8 @@ RUN useradd -m -s /bin/bash openterface && \
 # Copy and run the static installation script
 COPY install-openterface-static.sh /tmp/install-openterface-static.sh
 RUN chmod +x /tmp/install-openterface-static.sh
-RUN cat /tmp/install-openterface-static.sh && /tmp/install-openterface-static.sh
+RUN cat /tmp/install-openterface-static.sh
+RUN /tmp/install-openterface-static.sh
 RUN rm /tmp/install-openterface-static.sh
 
 # Set up udev rules for Openterface hardware
