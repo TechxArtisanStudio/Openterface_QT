@@ -397,120 +397,101 @@ jobs:
             echo "## 🖼️ Screenshots" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
             
-                # Convert images to base64 and embed them
+            # Upload each screenshot as individual artifact and create image links
+            screenshot_count=0
             for img in screenshots-shared/*.jpg; do
               if [ -f "$img" ]; then
                 filename=$(basename "$img")
+                screenshot_count=$((screenshot_count + 1))
                 
-                # Debug: Check file details
-                echo "🔍 Processing file: $img" >> $GITHUB_STEP_SUMMARY
-                echo "   File size: $(ls -lh "$img" | awk '{print $5}')" >> $GITHUB_STEP_SUMMARY
-                echo "   File permissions: $(ls -l "$img" | awk '{print $1}')" >> $GITHUB_STEP_SUMMARY
+                # Create individual artifact for this screenshot
+                artifact_name="screenshot-shared-${screenshot_count}-$(echo "$filename" | sed 's/[^a-zA-Z0-9.-]/_/g')"
                 
-                # Get image info
+                echo "#### 📷 $filename" >> $GITHUB_STEP_SUMMARY
+                
+                # Get basic file info
+                filesize=$(ls -lh "$img" | awk '{print $5}')
+                echo "- **File Size**: $filesize" >> $GITHUB_STEP_SUMMARY
+                
+                # Get image dimensions if available
                 if command -v identify >/dev/null 2>&1; then
-                  img_info=$(identify "$img" 2>/dev/null || echo "Unknown format")
-                  echo "### 📷 $filename" >> $GITHUB_STEP_SUMMARY
-                  echo "**Info**: $img_info" >> $GITHUB_STEP_SUMMARY
-                else
-                  echo "### 📷 $filename" >> $GITHUB_STEP_SUMMARY
-                fi
-                
-                # Convert to base64 and embed (with better compatibility and debugging)
-                echo "" >> $GITHUB_STEP_SUMMARY
-                
-                # Debug: Test different base64 commands
-                echo "🔧 Testing base64 commands:" >> $GITHUB_STEP_SUMMARY
-                
-                base64_data=""
-                base64_method=""
-                
-                # Try method 1: GNU coreutils version
-                if base64 -w 0 "$img" >/dev/null 2>&1; then
-                  base64_data=$(base64 -w 0 "$img" 2>/dev/null || echo "")
-                  base64_method="base64 -w 0"
-                  echo "   ✅ Method 1 (base64 -w 0): Success" >> $GITHUB_STEP_SUMMARY
-                else
-                  echo "   ❌ Method 1 (base64 -w 0): Failed" >> $GITHUB_STEP_SUMMARY
-                fi
-                
-                # Debug: Report results
-                echo "   Used method: $base64_method" >> $GITHUB_STEP_SUMMARY
-                echo "   Base64 data length: ${#base64_data}" >> $GITHUB_STEP_SUMMARY
-                
-                # Check if we got valid base64 data
-                if [ -n "$base64_data" ] && [ ${#base64_data} -gt 100 ]; then
-                  # Debug: Show first and last 50 characters
-                  echo "   First 50 chars: ${base64_data:0:50}..." >> $GITHUB_STEP_SUMMARY
-                  echo "   Last 50 chars: ...${base64_data: -50}" >> $GITHUB_STEP_SUMMARY
+                  dimensions=$(identify "$img" 2>/dev/null | awk '{print $3}' | head -1 || echo "Unknown")
+                  echo "- **Dimensions**: $dimensions" >> $GITHUB_STEP_SUMMARY
                   
-                  # Try HTML instead of Markdown for better compatibility
-                  # Note: GitHub Actions Summary doesn't support base64 data URLs for security reasons
-                  # Instead, provide image info and link to artifact
-                  echo "🖼️ **Image Details:**" >> $GITHUB_STEP_SUMMARY
-                  echo "- **Filename**: $filename" >> $GITHUB_STEP_SUMMARY
-                  echo "- **File Size**: $(ls -lh "$img" | awk '{print $5}')" >> $GITHUB_STEP_SUMMARY
-                  echo "- **Base64 Size**: ${#base64_data} characters" >> $GITHUB_STEP_SUMMARY
+                  # Get image quality info
+                  mean_color=$(identify -ping -format "%[mean]" "$img" 2>/dev/null || echo "0")
+                  mean_value=$(echo "$mean_color" | sed 's/[^0-9.]//g' | cut -d'.' -f1)
                   
-                  # Show image dimensions if available
-                  if command -v identify >/dev/null 2>&1; then
-                    dimensions=$(identify "$img" 2>/dev/null | awk '{print $3}' | head -1 || echo "Unknown")
-                    echo "- **Dimensions**: $dimensions" >> $GITHUB_STEP_SUMMARY
-                    
-                    # Get image quality info
-                    mean_color=$(identify -ping -format "%[mean]" "$img" 2>/dev/null || echo "0")
-                    mean_value=${mean_color%.*}
-                    if [ "$mean_value" -gt 1000 ]; then
-                      quality="✅ Rich content detected"
-                    elif [ "$mean_value" -gt 100 ]; then
-                      quality="⚠️ Basic content detected"
-                    else
-                      quality="❌ Likely blank/black"
-                    fi
-                    echo "- **Content Quality**: $quality (mean: $mean_value)" >> $GITHUB_STEP_SUMMARY
+                  if [ -z "$mean_value" ] || [ "$mean_value" = "" ]; then
+                    mean_value=0
                   fi
                   
-                  echo "" >> $GITHUB_STEP_SUMMARY
-                  echo "📥 **Download**: Screenshot available in build artifacts" >> $GITHUB_STEP_SUMMARY
-                  echo "_Note: GitHub Actions Summary doesn't support embedded images for security reasons_" >> $GITHUB_STEP_SUMMARY
-                  
-                  # Also try a simpler approach - split the data URL
-                  echo "" >> $GITHUB_STEP_SUMMARY
-                  echo "**Alternative approach - Image link:**" >> $GITHUB_STEP_SUMMARY
-                  echo "[📷 View Screenshot: $filename](data:image/jpeg;base64,$base64_data)" >> $GITHUB_STEP_SUMMARY
-                else
-                  echo "⚠️ Failed to generate base64 data for $filename" >> $GITHUB_STEP_SUMMARY
-                  echo "" >> $GITHUB_STEP_SUMMARY
-                  echo "_❌ Debug info:_" >> $GITHUB_STEP_SUMMARY
-                  echo "_File size: $(ls -lh "$img" | awk '{print $5}')_" >> $GITHUB_STEP_SUMMARY
-                  echo "_Base64 length: ${#base64_data}_" >> $GITHUB_STEP_SUMMARY
-                  echo "_Working directory: $(pwd)_" >> $GITHUB_STEP_SUMMARY
-                  echo "_File exists: $(test -f "$img" && echo "Yes" || echo "No")_" >> $GITHUB_STEP_SUMMARY
-                  echo "_File readable: $(test -r "$img" && echo "Yes" || echo "No")_" >> $GITHUB_STEP_SUMMARY
-                  
-                  # Try to show raw file content check
-                  if command -v hexdump >/dev/null 2>&1; then
-                    echo "_First 32 bytes (hex): $(hexdump -C "$img" | head -1)_" >> $GITHUB_STEP_SUMMARY
+                  if [ "$mean_value" -gt 1000 ] 2>/dev/null; then
+                    quality="✅ Rich content detected"
+                  elif [ "$mean_value" -gt 100 ] 2>/dev/null; then
+                    quality="⚠️ Basic content detected"
+                  else
+                    quality="❌ Likely blank/black"
                   fi
+                  echo "- **Content Quality**: $quality" >> $GITHUB_STEP_SUMMARY
                 fi
                 
-                echo "" >> $GITHUB_STEP_SUMMARY
-                echo "---" >> $GITHUB_STEP_SUMMARY
+                # Create the artifact link (GitHub Actions artifact download URL)
+                artifact_url="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts"
+                echo "- **Download**: [📥 Download $filename]($artifact_url)" >> $GITHUB_STEP_SUMMARY
+                
+                # Store artifact name for later upload
+                echo "$artifact_name|$img" >> /tmp/screenshot_artifacts_shared.txt
+                
                 echo "" >> $GITHUB_STEP_SUMMARY
               fi
             done
+            
+            echo "" >> $GITHUB_STEP_SUMMARY
           else
             echo "## ❌ No Screenshots Available" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
             echo "No screenshots were generated during the test." >> $GITHUB_STEP_SUMMARY
           fi
 
-      - name: Upload screenshots
+      - name: Upload individual screenshots (Shared)
+        if: ${{ always() && (github.event.inputs.test_type == 'run-test' || github.event.inputs.test_type == 'all' || github.event_name != 'workflow_dispatch') }}
+        run: |
+          echo "📤 Uploading individual screenshots as artifacts"
+          
+          # Create temp directory for individual screenshots
+          mkdir -p /tmp/individual_screenshots
+          
+          # Upload each screenshot separately if the artifacts list exists
+          if [ -f /tmp/screenshot_artifacts_shared.txt ]; then
+            while IFS='|' read -r artifact_name img_path; do
+              if [ -f "$img_path" ]; then
+                # Copy screenshot to temp directory with clean name
+                cp "$img_path" "/tmp/individual_screenshots/$(basename "$img_path")"
+                echo "Prepared: $img_path -> $artifact_name"
+              fi
+            done < /tmp/screenshot_artifacts_shared.txt
+          fi
+          
+          # Also upload the full collection as backup
+          if [ -d "screenshots-shared" ] && [ "$(ls -A screenshots-shared/*.jpg 2>/dev/null)" ]; then
+            echo "📁 Also creating full screenshots collection"
+          fi
+
+      - name: Upload screenshots collection (Shared)
         if: ${{ always() && (github.event.inputs.test_type == 'run-test' || github.event.inputs.test_type == 'all' || github.event_name != 'workflow_dispatch') }}
         uses: actions/upload-artifact@v4
         with:
-          name: openterface-gui-screenshots-shared
+          name: openterface-gui-screenshots-shared-collection
           path: screenshots-shared/
+          if-no-files-found: warn
+
+      - name: Upload individual screenshots as artifacts (Shared)
+        if: ${{ always() && (github.event.inputs.test_type == 'run-test' || github.event.inputs.test_type == 'all' || github.event_name != 'workflow_dispatch') }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: openterface-gui-screenshots-shared-individual
+          path: /tmp/individual_screenshots/
           if-no-files-found: warn
 
       - name: Test container with simulated USB devices (Shared)
@@ -896,120 +877,95 @@ jobs:
             echo "## 🖼️ Screenshots" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
             
-            # Convert images to base64 and embed them
+            # Upload each screenshot as individual artifact and create image links
+            screenshot_count=0
             for img in screenshots-static/*.jpg; do
               if [ -f "$img" ]; then
                 filename=$(basename "$img")
+                screenshot_count=$((screenshot_count + 1))
                 
-                # Debug: Check file details
-                echo "🔍 Processing file: $img" >> $GITHUB_STEP_SUMMARY
-                echo "   File size: $(ls -lh "$img" | awk '{print $5}')" >> $GITHUB_STEP_SUMMARY
-                echo "   File permissions: $(ls -l "$img" | awk '{print $1}')" >> $GITHUB_STEP_SUMMARY
+                # Create individual artifact for this screenshot
+                artifact_name="screenshot-static-${screenshot_count}-$(echo "$filename" | sed 's/[^a-zA-Z0-9.-]/_/g')"
                 
-                # Get image info
+                echo "### 📷 $filename" >> $GITHUB_STEP_SUMMARY
+                echo "" >> $GITHUB_STEP_SUMMARY
+                
+                # File analysis
+                file_size=$(ls -lh "$img" | awk '{print $5}')
+                echo "- **File Size**: $file_size" >> $GITHUB_STEP_SUMMARY
+                
+                # Image dimensions and quality analysis
                 if command -v identify >/dev/null 2>&1; then
-                  img_info=$(identify "$img" 2>/dev/null || echo "Unknown format")
-                  echo "### 📷 $filename" >> $GITHUB_STEP_SUMMARY
-                  echo "**Info**: $img_info" >> $GITHUB_STEP_SUMMARY
-                else
-                  echo "### 📷 $filename" >> $GITHUB_STEP_SUMMARY
-                fi
-                
-                # Convert to base64 and embed (with better compatibility and debugging)
-                echo "" >> $GITHUB_STEP_SUMMARY
-                
-                # Debug: Test different base64 commands
-                echo "🔧 Testing base64 commands:" >> $GITHUB_STEP_SUMMARY
-                
-                base64_data=""
-                base64_method=""
-                
-                # Try method 1: GNU coreutils version
-                if base64 -w 0 "$img" >/dev/null 2>&1; then
-                  base64_data=$(base64 -w 0 "$img" 2>/dev/null || echo "")
-                  base64_method="base64 -w 0"
-                  echo "   ✅ Method 1 (base64 -w 0): Success" >> $GITHUB_STEP_SUMMARY
-                else
-                  echo "   ❌ Method 1 (base64 -w 0): Failed" >> $GITHUB_STEP_SUMMARY
-                fi
-                
-                # Debug: Report results
-                echo "   Used method: $base64_method" >> $GITHUB_STEP_SUMMARY
-                echo "   Base64 data length: ${#base64_data}" >> $GITHUB_STEP_SUMMARY
-                
-                # Check if we got valid base64 data
-                if [ -n "$base64_data" ] && [ ${#base64_data} -gt 100 ]; then
-                  # Debug: Show first and last 50 characters
-                  echo "   First 50 chars: ${base64_data:0:50}..." >> $GITHUB_STEP_SUMMARY
-                  echo "   Last 50 chars: ...${base64_data: -50}" >> $GITHUB_STEP_SUMMARY
+                  dimensions=$(identify "$img" 2>/dev/null | awk '{print $3}' | head -1 || echo "Unknown")
+                  echo "- **Dimensions**: $dimensions" >> $GITHUB_STEP_SUMMARY
                   
-                  # Try HTML instead of Markdown for better compatibility
-                  # Note: GitHub Actions Summary doesn't support base64 data URLs for security reasons
-                  # Instead, provide image info and link to artifact
-                  echo "🖼️ **Image Details:**" >> $GITHUB_STEP_SUMMARY
-                  echo "- **Filename**: $filename" >> $GITHUB_STEP_SUMMARY
-                  echo "- **File Size**: $(ls -lh "$img" | awk '{print $5}')" >> $GITHUB_STEP_SUMMARY
-                  echo "- **Base64 Size**: ${#base64_data} characters" >> $GITHUB_STEP_SUMMARY
-                  
-                  # Show image dimensions if available
-                  if command -v identify >/dev/null 2>&1; then
-                    dimensions=$(identify "$img" 2>/dev/null | awk '{print $3}' | head -1 || echo "Unknown")
-                    echo "- **Dimensions**: $dimensions" >> $GITHUB_STEP_SUMMARY
-                    
-                    # Get image quality info
-                    mean_color=$(identify -ping -format "%[mean]" "$img" 2>/dev/null || echo "0")
-                    mean_value=${mean_color%.*}
-                    if [ "$mean_value" -gt 1000 ]; then
-                      quality="✅ Rich content detected"
-                    elif [ "$mean_value" -gt 100 ]; then
-                      quality="⚠️ Basic content detected"
-                    else
-                      quality="❌ Likely blank/black"
-                    fi
-                    echo "- **Content Quality**: $quality (mean: $mean_value)" >> $GITHUB_STEP_SUMMARY
+                  # Content quality check
+                  mean_color=$(identify -ping -format "%[mean]" "$img" 2>/dev/null || echo "0")
+                  mean_value=$(echo "$mean_color" | sed 's/[^0-9.]//g' | cut -d'.' -f1)
+                  if [ -z "$mean_value" ] || [ "$mean_value" = "" ]; then
+                    mean_value=0
                   fi
                   
-                  echo "" >> $GITHUB_STEP_SUMMARY
-                  echo "📥 **Download**: Screenshot available in build artifacts" >> $GITHUB_STEP_SUMMARY
-                  echo "_Note: GitHub Actions Summary doesn't support embedded images for security reasons_" >> $GITHUB_STEP_SUMMARY
-                  
-                  # Also try a simpler approach - split the data URL
-                  echo "" >> $GITHUB_STEP_SUMMARY
-                  echo "**Alternative approach - Image link:**" >> $GITHUB_STEP_SUMMARY
-                  echo "[📷 View Screenshot: $filename](data:image/jpeg;base64,$base64_data)" >> $GITHUB_STEP_SUMMARY
-                else
-                  echo "⚠️ Failed to generate base64 data for $filename" >> $GITHUB_STEP_SUMMARY
-                  echo "" >> $GITHUB_STEP_SUMMARY
-                  echo "_❌ Debug info:_" >> $GITHUB_STEP_SUMMARY
-                  echo "_File size: $(ls -lh "$img" | awk '{print $5}')_" >> $GITHUB_STEP_SUMMARY
-                  echo "_Base64 length: ${#base64_data}_" >> $GITHUB_STEP_SUMMARY
-                  echo "_Working directory: $(pwd)_" >> $GITHUB_STEP_SUMMARY
-                  echo "_File exists: $(test -f "$img" && echo "Yes" || echo "No")_" >> $GITHUB_STEP_SUMMARY
-                  echo "_File readable: $(test -r "$img" && echo "Yes" || echo "No")_" >> $GITHUB_STEP_SUMMARY
-                  
-                  # Try to show raw file content check
-                  if command -v hexdump >/dev/null 2>&1; then
-                    echo "_First 32 bytes (hex): $(hexdump -C "$img" | head -1)_" >> $GITHUB_STEP_SUMMARY
+                  if [ "$mean_value" -gt 1000 ] 2>/dev/null; then
+                    quality="✅ Rich content detected"
+                  elif [ "$mean_value" -gt 100 ] 2>/dev/null; then
+                    quality="⚠️ Basic content detected"
+                  else
+                    quality="❌ Likely blank/black"
                   fi
+                  echo "- **Content Quality**: $quality" >> $GITHUB_STEP_SUMMARY
                 fi
                 
-                echo "" >> $GITHUB_STEP_SUMMARY
-                echo "---" >> $GITHUB_STEP_SUMMARY
+                # Create the artifact link
+                artifact_url="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts"
+                echo "- **Download**: [📥 Download $filename]($artifact_url)" >> $GITHUB_STEP_SUMMARY
+                
+                # Store artifact name for later upload
+                echo "$artifact_name|$img" >> /tmp/screenshot_artifacts_static.txt
+                
                 echo "" >> $GITHUB_STEP_SUMMARY
               fi
             done
+            
           else
             echo "## ❌ No Screenshots Available" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
             echo "No screenshots were generated during the test." >> $GITHUB_STEP_SUMMARY
           fi
 
-      - name: Upload screenshots (Static)
+      - name: Upload individual screenshots (Static)
+        if: ${{ always() && (github.event.inputs.test_type == 'run-test' || github.event.inputs.test_type == 'all' || github.event_name != 'workflow_dispatch') }}
+        run: |
+          echo "📤 Uploading individual screenshots as artifacts"
+          
+          # Create temp directory for individual screenshots
+          mkdir -p /tmp/individual_screenshots_static
+          
+          # Upload each screenshot separately if the artifacts list exists
+          if [ -f /tmp/screenshot_artifacts_static.txt ]; then
+            while IFS='|' read -r artifact_name img_path; do
+              if [ -f "$img_path" ]; then
+                # Copy screenshot to temp directory with clean name
+                cp "$img_path" "/tmp/individual_screenshots_static/$(basename "$img_path")"
+                echo "Prepared: $img_path -> $artifact_name"
+              fi
+            done < /tmp/screenshot_artifacts_static.txt
+          fi
+
+      - name: Upload screenshots collection (Static)
         if: ${{ always() && (github.event.inputs.test_type == 'run-test' || github.event.inputs.test_type == 'all' || github.event_name != 'workflow_dispatch') }}
         uses: actions/upload-artifact@v4
         with:
-          name: openterface-gui-screenshots-static
+          name: openterface-gui-screenshots-static-collection
           path: screenshots-static/
+          if-no-files-found: warn
+
+      - name: Upload individual screenshots as artifacts (Static)
+        if: ${{ always() && (github.event.inputs.test_type == 'run-test' || github.event.inputs.test_type == 'all' || github.event_name != 'workflow_dispatch') }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: openterface-gui-screenshots-static-individual
+          path: /tmp/individual_screenshots_static/
           if-no-files-found: warn
 
       - name: Clean up Docker resources (Static)
@@ -1038,7 +994,7 @@ jobs:
         if: ${{ github.event.inputs.build_type == 'shared' || github.event.inputs.build_type == 'both' || github.event_name != 'workflow_dispatch' }}
         uses: actions/download-artifact@v4
         with:
-          name: openterface-gui-screenshots-shared
+          name: openterface-gui-screenshots-shared-collection
           path: screenshots-shared/
         continue-on-error: true
         
@@ -1046,7 +1002,7 @@ jobs:
         if: ${{ github.event.inputs.build_type == 'static' || github.event.inputs.build_type == 'both' || github.event_name != 'workflow_dispatch' }}
         uses: actions/download-artifact@v4
         with:
-          name: openterface-gui-screenshots-static
+          name: openterface-gui-screenshots-static-collection
           path: screenshots-static/
         continue-on-error: true
 
