@@ -618,5 +618,95 @@ jobs:
               echo '✅ Shell mode test completed'
             " || echo "ℹ️  Shell test completed (timeout expected)"
           
+          # Test GUI mode with virtual display
+          echo "🧪 Testing GUI mode with virtual display..."
+          
+          # Install virtual display dependencies
+          sudo apt-get update -y
+          sudo apt-get install -y xvfb scrot imagemagick x11-utils
+          
+          # Start virtual display
+          export DISPLAY=:98
+          Xvfb :98 -screen 0 1280x720x24 &
+          XVFB_PID=$!
+          
+          # Wait for Xvfb to start
+          sleep 3
+          
+          # Verify X server is running
+          if xdpyinfo -display :98 >/dev/null 2>&1; then
+            echo "✅ Virtual display started on $DISPLAY"
+            
+            # Create screenshots directory
+            mkdir -p integration-screenshots
+            
+            # Test GUI launcher with virtual display
+            echo "🚀 Testing GUI launcher with virtual display..."
+            timeout 20s bash -c "
+              /tmp/test-launcher.sh --no-hardware &
+              LAUNCHER_PID=\$!
+              
+              # Wait for application to start
+              echo '⏰ Waiting 5 seconds for application startup...'
+              sleep 5
+              
+              # Take initial screenshot
+              echo '📸 Taking initial screenshot...'
+              DISPLAY=:98 scrot integration-screenshots/launcher_initial.png || echo 'Initial screenshot failed'
+              
+              # Check for running containers
+              echo '🔍 Checking for running containers...'
+              docker ps | grep openterface || echo 'No openterface containers running'
+              
+              # Wait more time
+              echo '⏰ Waiting additional 5 seconds...'
+              sleep 5
+              
+              # Take progress screenshot
+              echo '📸 Taking progress screenshot...'
+              DISPLAY=:98 scrot integration-screenshots/launcher_progress.png || echo 'Progress screenshot failed'
+              
+              # Check window information
+              echo '🪟 Checking window information...'
+              DISPLAY=:98 xwininfo -tree -root | head -20 || echo 'No window info available'
+              
+              # Take final screenshot
+              echo '📸 Taking final screenshot...'
+              DISPLAY=:98 scrot integration-screenshots/launcher_final.png || echo 'Final screenshot failed'
+              
+              # Kill launcher process
+              kill \$LAUNCHER_PID 2>/dev/null || true
+              
+              echo '✅ GUI launcher test completed'
+            " || echo "ℹ️  GUI launcher test completed (timeout expected)"
+            
+            # Analyze screenshots
+            echo "📊 Screenshot analysis:"
+            if [ -d "integration-screenshots" ]; then
+              for img in integration-screenshots/*.png; do
+                if [ -f "$img" ]; then
+                  basename_img=$(basename "$img")
+                  filesize=$(ls -lh "$img" | awk '{print $5}')
+                  echo "$basename_img: $filesize"
+                  identify "$img" 2>/dev/null || echo "Cannot identify $(basename $img)"
+                fi
+              done
+            fi
+            
+            # Clean up virtual display
+            kill $XVFB_PID 2>/dev/null || true
+            
+          else
+            echo "❌ Virtual display failed to start"
+          fi
+          
           # Clean up
           docker rmi openterface-test || true
+
+      - name: Upload integration test screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: integration-test-screenshots
+          path: integration-screenshots/
+          if-no-files-found: warn
