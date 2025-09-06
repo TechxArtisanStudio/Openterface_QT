@@ -360,7 +360,7 @@ jobs:
       - name: Display screenshots in summary (Shared)
         if: ${{ always() && (github.event.inputs.test_type == 'run-test' || github.event.inputs.test_type == 'all' || github.event_name != 'workflow_dispatch') }}
         run: |
-          echo "🖼️ Adding screenshots to step summary"
+          echo "🖼️ Adding screenshots to step summary (Shared)"
           
           # Start the summary
           echo "# 📸 GUI Screenshots - Shared Build" >> $GITHUB_STEP_SUMMARY
@@ -395,7 +395,7 @@ jobs:
             echo "## 🖼️ Screenshots" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
             
-            # Convert images to base64 and embed them
+                # Convert images to base64 and embed them
             for img in screenshots-shared/*.jpg; do
               if [ -f "$img" ]; then
                 filename=$(basename "$img")
@@ -432,26 +432,6 @@ jobs:
                   echo "   ❌ Method 1 (base64 -w 0): Failed" >> $GITHUB_STEP_SUMMARY
                 fi
                 
-                # Try method 2: Alternative GNU option
-                if [ -z "$base64_data" ] && base64 --break=0 "$img" >/dev/null 2>&1; then
-                  base64_data=$(base64 --break=0 "$img" 2>/dev/null || echo "")
-                  base64_method="base64 --break=0"
-                  echo "   ✅ Method 2 (base64 --break=0): Success" >> $GITHUB_STEP_SUMMARY
-                elif [ -z "$base64_data" ]; then
-                  echo "   ❌ Method 2 (base64 --break=0): Failed" >> $GITHUB_STEP_SUMMARY
-                fi
-                
-                # Try method 3: BSD/macOS version (remove line breaks)
-                if [ -z "$base64_data" ]; then
-                  base64_data=$(base64 "$img" 2>/dev/null | tr -d '\n' 2>/dev/null || echo "")
-                  base64_method="base64 + tr -d"
-                  if [ -n "$base64_data" ]; then
-                    echo "   ✅ Method 3 (base64 + tr): Success" >> $GITHUB_STEP_SUMMARY
-                  else
-                    echo "   ❌ Method 3 (base64 + tr): Failed" >> $GITHUB_STEP_SUMMARY
-                  fi
-                fi
-                
                 # Debug: Report results
                 echo "   Used method: $base64_method" >> $GITHUB_STEP_SUMMARY
                 echo "   Base64 data length: ${#base64_data}" >> $GITHUB_STEP_SUMMARY
@@ -463,7 +443,7 @@ jobs:
                   echo "   Last 50 chars: ...${base64_data: -50}" >> $GITHUB_STEP_SUMMARY
                   
                   # Try HTML instead of Markdown for better compatibility
-                  echo '<img src="data:image/jpeg;base64,'$base64_data'" alt="Screenshot: '$filename'" style="max-width: 800px; border: 1px solid #ddd; margin: 10px 0;">' >> $GITHUB_STEP_SUMMARY
+                  echo "<img src=\"data:image/jpeg;base64,$base64_data\" alt=\"Screenshot: $filename\" style=\"max-width: 800px; border: 1px solid #ddd; margin: 10px 0;\">" >> $GITHUB_STEP_SUMMARY
                   echo "" >> $GITHUB_STEP_SUMMARY
                   echo "_✅ Successfully embedded HTML image (${#base64_data} characters)_" >> $GITHUB_STEP_SUMMARY
                   
@@ -924,26 +904,6 @@ jobs:
                   echo "   ❌ Method 1 (base64 -w 0): Failed" >> $GITHUB_STEP_SUMMARY
                 fi
                 
-                # Try method 2: Alternative GNU option
-                if [ -z "$base64_data" ] && base64 --break=0 "$img" >/dev/null 2>&1; then
-                  base64_data=$(base64 --break=0 "$img" 2>/dev/null || echo "")
-                  base64_method="base64 --break=0"
-                  echo "   ✅ Method 2 (base64 --break=0): Success" >> $GITHUB_STEP_SUMMARY
-                elif [ -z "$base64_data" ]; then
-                  echo "   ❌ Method 2 (base64 --break=0): Failed" >> $GITHUB_STEP_SUMMARY
-                fi
-                
-                # Try method 3: BSD/macOS version (remove line breaks)
-                if [ -z "$base64_data" ]; then
-                  base64_data=$(base64 "$img" 2>/dev/null | tr -d '\n' 2>/dev/null || echo "")
-                  base64_method="base64 + tr -d"
-                  if [ -n "$base64_data" ]; then
-                    echo "   ✅ Method 3 (base64 + tr): Success" >> $GITHUB_STEP_SUMMARY
-                  else
-                    echo "   ❌ Method 3 (base64 + tr): Failed" >> $GITHUB_STEP_SUMMARY
-                  fi
-                fi
-                
                 # Debug: Report results
                 echo "   Used method: $base64_method" >> $GITHUB_STEP_SUMMARY
                 echo "   Base64 data length: ${#base64_data}" >> $GITHUB_STEP_SUMMARY
@@ -955,7 +915,7 @@ jobs:
                   echo "   Last 50 chars: ...${base64_data: -50}" >> $GITHUB_STEP_SUMMARY
                   
                   # Try HTML instead of Markdown for better compatibility
-                  echo '<img src="data:image/jpeg;base64,'$base64_data'" alt="Screenshot: '$filename'" style="max-width: 800px; border: 1px solid #ddd; margin: 10px 0;">' >> $GITHUB_STEP_SUMMARY
+                  echo "<img src=\"data:image/jpeg;base64,$base64_data\" alt=\"Screenshot: $filename\" style=\"max-width: 800px; border: 1px solid #ddd; margin: 10px 0;\">" >> $GITHUB_STEP_SUMMARY
                   echo "" >> $GITHUB_STEP_SUMMARY
                   echo "_✅ Successfully embedded HTML image (${#base64_data} characters)_" >> $GITHUB_STEP_SUMMARY
                   
