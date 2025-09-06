@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Simple Docker App Screenshot Script
-# Starts Docker container, waits 10 seconds, takes scecho -e "${BLUE}📷 使用 ImageMagick 截图 (JPG)...${NC}"eenshot
+# Starts Docker container, waits 10 seconds, takes scecho -e "${BLUE}📷 Taking screenshot with ImageMagick (JPG)...${NC}"
 
 set -e
 
@@ -19,12 +19,12 @@ YELLOW='\033[1;33m'
 RED='\033[0;31m'
 NC='\033[0m'
 
-echo -e "${BLUE}🚀 启动 Openterface Docker 应用截图测试${NC}"
+echo -e "${BLUE}🚀 Starting Openterface Docker App Screenshot Test${NC}"
 echo "================================================"
 
 # Cleanup function
 cleanup() {
-    echo -e "${YELLOW}🧹 清理资源...${NC}"
+    echo -e "${YELLOW}🧹 Cleaning up resources...${NC}"
     docker stop $CONTAINER_NAME 2>/dev/null || true
     docker rm $CONTAINER_NAME 2>/dev/null || true
     if [ ! -z "$XVFB_PID" ]; then
@@ -35,32 +35,32 @@ trap cleanup EXIT
 
 # Check if Docker image exists, if not build it
 if ! docker images | grep -q "$DOCKER_IMAGE.*$DOCKER_TAG"; then
-    echo -e "${BLUE}🔨 构建 Docker 镜像...${NC}"
+    echo -e "${BLUE}🔨 Building Docker image...${NC}"
     if [ ! -f "$DOCKERFILE_PATH" ]; then
-        echo -e "${RED}❌ Dockerfile 不存在: $DOCKERFILE_PATH${NC}"
+        echo -e "${RED}❌ Dockerfile does not exist: $DOCKERFILE_PATH${NC}"
         exit 1
     fi
     
     # Force rebuild to include latest fixes
-    echo -e "${BLUE}💡 重新构建镜像以包含最新修复...${NC}"
+    echo -e "${BLUE}💡 Rebuilding image to include latest fixes...${NC}"
     docker build --no-cache -f "$DOCKERFILE_PATH" -t "$DOCKER_IMAGE:$DOCKER_TAG" docker/
-    echo -e "${GREEN}✅ 镜像构建完成${NC}"
+    echo -e "${GREEN}✅ Image build completed${NC}"
 else
-    echo -e "${BLUE}📦 使用现有 Docker 镜像${NC}"
+    echo -e "${BLUE}📦 Using existing Docker image${NC}"
     # Check if we should rebuild (optional)
-    echo -e "${YELLOW}💡 提示: 如果遇到问题，可以删除镜像重新构建: docker rmi $DOCKER_IMAGE:$DOCKER_TAG${NC}"
+    echo -e "${YELLOW}💡 Tip: If you encounter issues, you can delete the image and rebuild: docker rmi $DOCKER_IMAGE:$DOCKER_TAG${NC}"
 fi
 
 # Install virtual display and ImageMagick dependencies if needed
 if ! command -v Xvfb >/dev/null 2>&1 || ! command -v import >/dev/null 2>&1; then
-    echo -e "${BLUE}📦 安装虚拟显示和图像处理依赖...${NC}"
+    echo -e "${BLUE}📦 Installing virtual display and image processing dependencies...${NC}"
     sudo apt-get update -y >/dev/null
     sudo apt-get install -y xvfb imagemagick x11-utils >/dev/null
-    echo -e "${GREEN}✅ 依赖安装完成${NC}"
+    echo -e "${GREEN}✅ Dependencies installation completed${NC}"
 fi
 
 # Setup virtual display
-echo -e "${BLUE}🖥️  设置虚拟显示...${NC}"
+echo -e "${BLUE}🖥️  Setting up virtual display...${NC}"
 export DISPLAY=:98
 Xvfb :98 -screen 0 1920x1080x24 -ac +extension GLX +render -noreset >/dev/null 2>&1 &
 XVFB_PID=$!
@@ -68,16 +68,16 @@ sleep 3
 
 # Verify X server
 if ! DISPLAY=:98 xdpyinfo >/dev/null 2>&1; then
-    echo -e "${RED}❌ 虚拟显示启动失败${NC}"
+    echo -e "${RED}❌ Virtual display startup failed${NC}"
     exit 1
 fi
-echo -e "${GREEN}✅ 虚拟显示启动成功 ($DISPLAY)${NC}"
+echo -e "${GREEN}✅ Virtual display started successfully ($DISPLAY)${NC}"
 
 # Create screenshots directory
 mkdir -p $SCREENSHOTS_DIR
 
 # Start Docker container with the app
-echo -e "${BLUE}🐳 启动 Docker 容器和应用...${NC}"
+echo -e "${BLUE}🐳 Starting Docker container and app...${NC}"
 CONTAINER_ID=$(docker run -d \
     --name $CONTAINER_NAME \
     -e DISPLAY=$DISPLAY \
@@ -85,41 +85,41 @@ CONTAINER_ID=$(docker run -d \
     --network host \
     $DOCKER_IMAGE:$DOCKER_TAG)
 
-echo -e "${GREEN}✅ 容器已启动${NC}"
-echo -e "${BLUE}📱 应用正在初始化...${NC}"
+echo -e "${GREEN}✅ Container started${NC}"
+echo -e "${BLUE}📱 App is initializing...${NC}"
 
 # Wait exactly 10 seconds with countdown
-echo -e "${YELLOW}⏱️  等待 10 秒后截图:${NC}"
+echo -e "${YELLOW}⏱️  Waiting 10 seconds before taking screenshot:${NC}"
 for i in {10..1}; do
-    printf "\r${YELLOW}倒计时: %2d 秒${NC}" $i
+    printf "\r${YELLOW}Countdown: %2d seconds${NC}" $i
     sleep 1
 done
 echo ""
 
 # Take the main screenshot
-echo -e "${BLUE}📸 正在截取屏幕截图...${NC}"
+echo -e "${BLUE}📸 Taking screenshot...${NC}"
 timestamp=$(date +"%Y%m%d_%H%M%S")
 screenshot_jpg="$SCREENSHOTS_DIR/openterface_app_${timestamp}.jpg"
 
 # Use ImageMagick import for reliable JPG screenshot capture
-echo -e "${BLUE}� 使用 ImageMagick 截图 (PNG/JPG)...${NC}"
+echo -e "${BLUE}📷 Taking screenshot with ImageMagick (PNG/JPG)...${NC}"
 screenshot_success=false
 
 # ImageMagick import is the most reliable method for this virtual display setup
 if command -v import >/dev/null 2>&1; then
     if DISPLAY=:98 import -window root -quality 90 "$screenshot_jpg" 2>/dev/null; then
-        echo -e "${GREEN}✅ JPG截图已保存: $screenshot_jpg${NC}"
+        echo -e "${GREEN}✅ JPG screenshot saved: $screenshot_jpg${NC}"
         screenshot_success=true
     else
-        echo -e "${RED}❌ ImageMagick 截图失败${NC}"
+        echo -e "${RED}❌ ImageMagick screenshot failed${NC}"
     fi
 else
-    echo -e "${RED}❌ ImageMagick import 命令不可用${NC}"
-    echo -e "${YELLOW}� 请安装 ImageMagick: sudo apt-get install imagemagick${NC}"
+    echo -e "${RED}❌ ImageMagick import command not available${NC}"
+    echo -e "${YELLOW}💡 Please install ImageMagick: sudo apt-get install imagemagick${NC}"
 fi
 
 if [ "$screenshot_success" = true ]; then
-    echo -e "${GREEN}✅ 截图成功生成${NC}"
+    echo -e "${GREEN}✅ Screenshot generated successfully${NC}"
     
     # Analyze screenshot
     if [ -f "$screenshot_jpg" ] && command -v identify >/dev/null 2>&1; then
@@ -128,26 +128,26 @@ if [ "$screenshot_success" = true ]; then
         mean_color=$(identify -ping -format "%[mean]" "$screenshot_jpg" 2>/dev/null || echo "0")
         mean_value=${mean_color%.*}
         
-        echo -e "${BLUE}📊 JPG截图分析:${NC}"
-        echo "   文件大小: $filesize"
-        echo "   图像尺寸: $dimensions"
-        echo "   平均颜色值: $mean_value"
+        echo -e "${BLUE}📊 JPG screenshot analysis:${NC}"
+        echo "   File size: $filesize"
+        echo "   Image dimensions: $dimensions"
+        echo "   Average color value: $mean_value"
         
         if [ "$mean_value" -gt 1000 ]; then
-            echo -e "${GREEN}   状态: ✅ 检测到丰富的应用内容${NC}"
+            echo -e "${GREEN}   Status: ✅ Rich app content detected${NC}"
         elif [ "$mean_value" -gt 100 ]; then
-            echo -e "${YELLOW}   状态: ⚠️  检测到基本内容${NC}"
+            echo -e "${YELLOW}   Status: ⚠️  Basic content detected${NC}"
         else
-            echo -e "${RED}   状态: ❌ 截图可能为空白${NC}"
+            echo -e "${RED}   Status: ❌ Screenshot may be blank${NC}"
         fi
     fi
 else
-    echo -e "${RED}❌ 所有截图方法都失败了${NC}"
+    echo -e "${RED}❌ All screenshot methods failed${NC}"
 fi
 
 # Analyze all screenshots
 if [ -d "$SCREENSHOTS_DIR" ] && [ "$(ls -A $SCREENSHOTS_DIR/*.jpg 2>/dev/null)" ]; then
-    echo -e "${BLUE}📊 所有截图分析:${NC}"
+    echo -e "${BLUE}📊 All screenshots analysis:${NC}"
     for img in $SCREENSHOTS_DIR/*.jpg; do
         if [ -f "$img" ]; then
             filename=$(basename "$img")
@@ -158,14 +158,14 @@ if [ -d "$SCREENSHOTS_DIR" ] && [ "$(ls -A $SCREENSHOTS_DIR/*.jpg 2>/dev/null)" 
                 mean_value=${mean_color%.*}
                 
                 echo -e "${BLUE}   📸 $filename:${NC}"
-                echo "      大小: $filesize | 尺寸: $dimensions | 平均值: $mean_value"
+                echo "      Size: $filesize | Dimensions: $dimensions | Average: $mean_value"
                 
                 if [ "$mean_value" -gt 1000 ]; then
-                    echo -e "${GREEN}      状态: ✅ 检测到丰富内容${NC}"
+                    echo -e "${GREEN}      Status: ✅ Rich content detected${NC}"
                 elif [ "$mean_value" -gt 100 ]; then
-                    echo -e "${YELLOW}      状态: ⚠️  检测到基本内容${NC}"
+                    echo -e "${YELLOW}      Status: ⚠️  Basic content detected${NC}"
                 else
-                    echo -e "${RED}      状态: ❌ 截图可能为空白${NC}"
+                    echo -e "${RED}      Status: ❌ Screenshot may be blank${NC}"
                 fi
             fi
         fi
@@ -173,52 +173,52 @@ if [ -d "$SCREENSHOTS_DIR" ] && [ "$(ls -A $SCREENSHOTS_DIR/*.jpg 2>/dev/null)" 
 fi
 
 # Show container status and logs
-echo -e "${BLUE}🔍 容器状态检查:${NC}"
+echo -e "${BLUE}🔍 Container status check:${NC}"
 if docker ps | grep -q $CONTAINER_ID; then
-    echo -e "${GREEN}✅ 容器正在运行${NC}"
+    echo -e "${GREEN}✅ Container is running${NC}"
     
     # Show recent logs
-    echo -e "${BLUE}📋 容器日志 (最后 10 行):${NC}"
+    echo -e "${BLUE}📋 Container logs (last 10 lines):${NC}"
     docker logs --tail 10 $CONTAINER_ID 2>&1 | sed 's/^/   /'
     
     # Check processes
-    echo -e "${BLUE}🔍 应用进程检查:${NC}"
+    echo -e "${BLUE}🔍 App process check:${NC}"
     process_count=$(docker exec $CONTAINER_NAME ps aux | grep -E "openterface|Qt|qt" | grep -v grep | wc -l)
     if [ $process_count -gt 0 ]; then
-        echo -e "${GREEN}   ✅ 发现 $process_count 个相关进程${NC}"
+        echo -e "${GREEN}   ✅ Found $process_count related processes${NC}"
         docker exec $CONTAINER_NAME ps aux | grep -E "openterface|Qt|qt" | grep -v grep | sed 's/^/   /'
     else
-        echo -e "${YELLOW}   ⚠️  未发现明显的应用进程${NC}"
+        echo -e "${YELLOW}   ⚠️  No obvious app processes found${NC}"
     fi
 else
-    echo -e "${RED}❌ 容器已退出${NC}"
-    echo -e "${BLUE}📋 容器退出日志:${NC}"
+    echo -e "${RED}❌ Container has exited${NC}"
+    echo -e "${BLUE}📋 Container exit logs:${NC}"
     docker logs $CONTAINER_ID 2>&1 | sed 's/^/   /'
 fi
 
 # Show window information
-echo -e "${BLUE}🪟 X11 窗口信息:${NC}"
-window_info=$(DISPLAY=:98 xwininfo -tree -root 2>/dev/null | head -10 || echo "无法获取窗口信息")
+echo -e "${BLUE}🪟 X11 window information:${NC}"
+window_info=$(DISPLAY=:98 xwininfo -tree -root 2>/dev/null | head -10 || echo "Unable to get window information")
 if echo "$window_info" | grep -q "child"; then
-    echo -e "${GREEN}   ✅ 检测到活动窗口${NC}"
+    echo -e "${GREEN}   ✅ Active windows detected${NC}"
     echo "$window_info" | grep "child" | head -3 | sed 's/^/   /'
 else
-    echo -e "${YELLOW}   ⚠️  未检测到活动窗口${NC}"
+    echo -e "${YELLOW}   ⚠️  No active windows detected${NC}"
 fi
 
 # Summary
 echo ""
-echo -e "${BLUE}📋 测试总结:${NC}"
+echo -e "${BLUE}📋 Test Summary:${NC}"
 echo "================================================"
-echo "容器镜像: $DOCKER_IMAGE:$DOCKER_TAG"
-echo "容器名称: $CONTAINER_NAME"
-echo "显示环境: $DISPLAY"
-echo "截图目录: $SCREENSHOTS_DIR/"
+echo "Container Image: $DOCKER_IMAGE:$DOCKER_TAG"
+echo "Container Name: $CONTAINER_NAME"
+echo "Display Environment: $DISPLAY"
+echo "Screenshot Directory: $SCREENSHOTS_DIR/"
 echo ""
 
 # List all screenshots
 if [ -d "$SCREENSHOTS_DIR" ] && [ "$(ls -A $SCREENSHOTS_DIR 2>/dev/null)" ]; then
-    echo -e "${GREEN}📸 已生成的截图文件:${NC}"
+    echo -e "${GREEN}📸 Generated screenshot files:${NC}"
     ls -lh $SCREENSHOTS_DIR/ | grep -v "^total" | sed 's/^/   /'
     echo ""
     
@@ -226,7 +226,7 @@ if [ -d "$SCREENSHOTS_DIR" ] && [ "$(ls -A $SCREENSHOTS_DIR 2>/dev/null)" ]; the
     main_jpg=$(ls $SCREENSHOTS_DIR/openterface_app_*[0-9].jpg 2>/dev/null | head -1)
     
     if [ -n "$main_jpg" ]; then
-        echo -e "${BLUE}💡 查看截图命令:${NC}"
+        echo -e "${BLUE}💡 View screenshot commands:${NC}"
         echo "   display $main_jpg"
         echo "   eog $main_jpg"
         echo "   firefox $main_jpg"
@@ -236,11 +236,11 @@ if [ -d "$SCREENSHOTS_DIR" ] && [ "$(ls -A $SCREENSHOTS_DIR 2>/dev/null)" ]; the
     jpg_count=$(ls $SCREENSHOTS_DIR/*.jpg 2>/dev/null | wc -l)
     
     echo ""
-    echo -e "${GREEN}📈 截图统计:${NC}"
-    echo "   JPG 文件: $jpg_count 个"
+    echo -e "${GREEN}📈 Screenshot Statistics:${NC}"
+    echo "   JPG files: $jpg_count files"
 else
-    echo -e "${RED}❌ 没有生成截图文件${NC}"
+    echo -e "${RED}❌ No screenshot files generated${NC}"
 fi
 
 echo ""
-echo -e "${GREEN}🎉 测试完成！${NC}"
+echo -e "${GREEN}🎉 Test completed!${NC}"

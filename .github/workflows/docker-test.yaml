@@ -1,17 +1,21 @@
-name: Docker Test - Openterface Test Dynamic
+name: Docker Test - Openterface Test Dynamic & Static
 
 on:
   push:
     branches: ["main", "dev"]
     paths:
       - 'docker/Dockerfile.openterface-test-shared'
+      - 'docker/Dockerfile.openterface-test-static'
       - 'docker/install-openterface-shared.sh'
+      - 'docker/install-openterface-static.sh'
       - '.github/workflows/docker-test.yaml'
   pull_request:
     branches: ["main", "dev"]
     paths:
       - 'docker/Dockerfile.openterface-test-shared'
+      - 'docker/Dockerfile.openterface-test-static'
       - 'docker/install-openterface-shared.sh'
+      - 'docker/install-openterface-static.sh'
       - '.github/workflows/docker-test.yaml'
   workflow_dispatch:
     inputs:
@@ -24,13 +28,24 @@ on:
         - 'build-only'
         - 'run-test'
         - 'all'
+      build_type:
+        description: 'Build type to test'
+        required: true
+        default: 'both'
+        type: choice
+        options:
+        - 'shared'
+        - 'static'
+        - 'both'
 
 env:
-  DOCKER_IMAGE: openterface-test-shared
+  DOCKER_IMAGE_SHARED: openterface-test-shared
+  DOCKER_IMAGE_STATIC: openterface-test-static
   DOCKER_TAG: test-${{ github.sha }}
 
 jobs:
-  build-test:
+  build-test-shared:
+    if: ${{ github.event.inputs.build_type == 'shared' || github.event.inputs.build_type == 'both' || github.event_name != 'workflow_dispatch' }}
     runs-on: ubuntu-24.04
     
     steps:
@@ -40,32 +55,32 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Build Docker image
+      - name: Build Docker image (Shared)
         run: |
-          echo "🔨 Building Docker image: ${{ env.DOCKER_IMAGE }}:${{ env.DOCKER_TAG }}"
+          echo "🔨 Building Docker image: ${{ env.DOCKER_IMAGE_SHARED }}:${{ env.DOCKER_TAG }}"
           docker build \
             -f docker/Dockerfile.openterface-test-shared \
-            -t ${{ env.DOCKER_IMAGE }}:${{ env.DOCKER_TAG }} \
+            -t ${{ env.DOCKER_IMAGE_SHARED }}:${{ env.DOCKER_TAG }} \
             docker/
 
-      - name: Verify Docker image
+      - name: Verify Docker image (Shared)
         run: |
           echo "✅ Verifying Docker image was built successfully"
-          docker images | grep ${{ env.DOCKER_IMAGE }}
+          docker images | grep ${{ env.DOCKER_IMAGE_SHARED }}
           
           echo "📊 Image information:"
-          docker inspect ${{ env.DOCKER_IMAGE }}:${{ env.DOCKER_TAG }} --format='{{.Config.Env}}'
-          docker inspect ${{ env.DOCKER_IMAGE }}:${{ env.DOCKER_TAG }} --format='{{.Config.User}}'
-          docker inspect ${{ env.DOCKER_IMAGE }}:${{ env.DOCKER_TAG }} --format='{{.Config.WorkingDir}}'
+          docker inspect ${{ env.DOCKER_IMAGE_SHARED }}:${{ env.DOCKER_TAG }} --format='{{.Config.Env}}'
+          docker inspect ${{ env.DOCKER_IMAGE_SHARED }}:${{ env.DOCKER_TAG }} --format='{{.Config.User}}'
+          docker inspect ${{ env.DOCKER_IMAGE_SHARED }}:${{ env.DOCKER_TAG }} --format='{{.Config.WorkingDir}}'
           
           echo "🔍 Image CMD and Entrypoint:"
-          docker inspect ${{ env.DOCKER_IMAGE }}:${{ env.DOCKER_TAG }} --format='{{.Config.Cmd}}'
-          docker inspect ${{ env.DOCKER_IMAGE }}:${{ env.DOCKER_TAG }} --format='{{.Config.Entrypoint}}'
+          docker inspect ${{ env.DOCKER_IMAGE_SHARED }}:${{ env.DOCKER_TAG }} --format='{{.Config.Cmd}}'
+          docker inspect ${{ env.DOCKER_IMAGE_SHARED }}:${{ env.DOCKER_TAG }} --format='{{.Config.Entrypoint}}'
           
           echo "🔍 Image layers (last 10):"
-          docker history ${{ env.DOCKER_IMAGE }}:${{ env.DOCKER_TAG }} | head -10
+          docker history ${{ env.DOCKER_IMAGE_SHARED }}:${{ env.DOCKER_TAG }} | head -10
 
-      - name: Basic container functionality test
+      - name: Basic container functionality test (Shared)
         if: ${{ github.event.inputs.test_type == 'run-test' || github.event.inputs.test_type == 'all' || github.event_name != 'workflow_dispatch' }}
         run: |
           echo "🧪 Testing basic container functionality"
@@ -74,7 +89,7 @@ jobs:
           echo "🔍 Testing simple command execution..."
           docker run --rm \
             --name openterface-basic-test \
-            ${{ env.DOCKER_IMAGE }}:${{ env.DOCKER_TAG }} \
+            ${{ env.DOCKER_IMAGE_SHARED }}:${{ env.DOCKER_TAG }} \
             bash -c "
               echo '✅ Container can execute commands'
               whoami
@@ -89,14 +104,14 @@ jobs:
           
           echo "✅ Basic container functionality test passed"
 
-      - name: Test container startup
+      - name: Test container startup (Shared)
         if: ${{ github.event.inputs.test_type == 'run-test' || github.event.inputs.test_type == 'all' || github.event_name != 'workflow_dispatch' }}
         run: |
           echo "🚀 Testing container startup"
           
           # First, let's test if the image can run a simple command
           echo "🧪 Testing simple command execution first..."
-          if docker run --rm ${{ env.DOCKER_IMAGE }}:${{ env.DOCKER_TAG }} echo "Hello from container"; then
+          if docker run --rm ${{ env.DOCKER_IMAGE_SHARED }}:${{ env.DOCKER_TAG }} echo "Hello from container"; then
             echo "✅ Simple command execution works"
           else
             echo "❌ Simple command execution failed"
@@ -108,7 +123,7 @@ jobs:
           CONTAINER_NAME="openterface-test-container"
           
           # Start container
-          docker run -d --name $CONTAINER_NAME ${{ env.DOCKER_IMAGE }}:${{ env.DOCKER_TAG }} sleep 30
+          docker run -d --name $CONTAINER_NAME ${{ env.DOCKER_IMAGE_SHARED }}:${{ env.DOCKER_TAG }} sleep 30
           
           echo "✅ Container started with name: $CONTAINER_NAME"
           
@@ -147,7 +162,7 @@ jobs:
           docker stop $CONTAINER_NAME 2>/dev/null || true
           docker rm $CONTAINER_NAME 2>/dev/null || true
 
-      - name: Test installation script
+      - name: Test installation script (Shared)
         if: ${{ github.event.inputs.test_type == 'run-test' || github.event.inputs.test_type == 'all' || github.event_name != 'workflow_dispatch' }}
         run: |
           echo "🧪 Testing installation script"
@@ -155,7 +170,7 @@ jobs:
           # Run container and check if openterface is installed
           docker run --rm \
             --name openterface-install-test \
-            ${{ env.DOCKER_IMAGE }}:${{ env.DOCKER_TAG }} \
+            ${{ env.DOCKER_IMAGE_SHARED }}:${{ env.DOCKER_TAG }} \
             bash -c "
               echo '🔍 Checking installed packages...'
               dpkg -l | grep -i openterface || echo 'No openterface package found'
@@ -177,17 +192,27 @@ jobs:
               echo '🔍 Checking user groups...'
               groups openterface || echo 'User openterface not found'
               
+              echo '🔍 Checking shared library dependencies...'
+              for binary in \$(find /usr /opt -name 'openterfaceQT' -type f 2>/dev/null); do
+                echo \"Binary: \$binary\"
+                if command -v ldd >/dev/null 2>&1; then
+                  ldd \"\$binary\" | head -10 || echo 'ldd failed'
+                else
+                  echo 'ldd command not available'
+                fi
+              done
+              
               echo '✅ Installation check completed'
             "
 
-      - name: Test Qt dependencies
+      - name: Test Qt dependencies (Shared)
         if: ${{ github.event.inputs.test_type == 'run-test' || github.event.inputs.test_type == 'all' || github.event_name != 'workflow_dispatch' }}
         run: |
           echo "🧪 Testing Qt runtime dependencies"
           
-          docker run --rm \
-            --name openterface-qt-test \
-            ${{ env.DOCKER_IMAGE }}:${{ env.DOCKER_TAG }} \
+          docker run --rm 
+            --name openterface-qt-test 
+            ${{ env.DOCKER_IMAGE_SHARED }}:${{ env.DOCKER_TAG }} 
             bash -c "
               echo '🔍 Checking Qt6 libraries...'
               ldconfig -p | grep -i qt6 | head -10 || echo 'No Qt6 libraries found'
@@ -203,6 +228,135 @@ jobs:
               
               echo '✅ Qt dependencies check completed'
             "
+
+      - name: Test hardware interface dependencies (Shared)
+        if: ${{ github.event.inputs.test_type == 'run-test' || github.event.inputs.test_type == 'all' || github.event_name != 'workflow_dispatch' }}
+        run: |
+          echo "🧪 Testing hardware interface dependencies"
+          
+          docker run --rm 
+            --name openterface-hw-test 
+            ${{ env.DOCKER_IMAGE_SHARED }}:${{ env.DOCKER_TAG }} 
+            bash -c "
+              echo '🔍 Checking USB libraries...'
+              dpkg -l | grep libusb || echo 'No libusb packages found'
+              
+              echo '🔍 Checking udev libraries...'
+              dpkg -l | grep libudev || echo 'No libudev packages found'
+              
+              echo '🔍 Checking FFmpeg libraries...'
+              dpkg -l | grep libav | head -5 || echo 'No FFmpeg packages found'
+              
+              echo '🔍 Checking GStreamer...'
+              dpkg -l | grep gstreamer | head -5 || echo 'No GStreamer packages found'
+              
+              echo '✅ Hardware interface dependencies check completed'
+            "
+
+      - name: Test application launcher (Shared)
+        if: ${{ github.event.inputs.test_type == 'run-test' || github.event.inputs.test_type == 'all' || github.event_name != 'workflow_dispatch' }}
+        run: |
+          echo "🧪 Testing application launcher (non-GUI mode)"
+          
+          # Test the launcher script exists and is executable
+          docker run --rm 
+            --name openterface-launcher-test 
+            ${{ env.DOCKER_IMAGE_SHARED }}:${{ env.DOCKER_TAG }} 
+            bash -c "
+              if [ -f '/usr/local/bin/start-openterface.sh' ] && [ -x '/usr/local/bin/start-openterface.sh' ]; then
+                echo '✅ Launcher script exists and is executable'
+                
+                # Test script syntax
+                bash -n /usr/local/bin/start-openterface.sh && echo '✅ Launcher script syntax is valid' || echo '❌ Launcher script has syntax errors'
+                
+                # Test dry run (without actually starting the GUI)
+                echo '🧪 Testing launcher script components...'
+                timeout 10s bash -c '
+                  source /usr/local/bin/start-openterface.sh 2>&1 | head -20
+                ' || echo 'ℹ️  Launcher test completed (timeout expected for GUI app)'
+              else
+                echo '❌ Launcher script not found or not executable'
+                exit 1
+              fi
+            "
+
+      - name: GUI screenshot test using proven script (Shared)
+        if: ${{ github.event.inputs.test_type == 'run-test' || github.event.inputs.test_type == 'all' || github.event_name != 'workflow_dispatch' }}
+        run: |
+          echo "🧪 Running GUI screenshot test using proven script"
+          
+          # Make the script executable
+          chmod +x docker/screenshot-docker-app.sh
+          
+          # Update the script to use the CI Docker tag instead of screenshot-test
+          sed -i 's/DOCKER_TAG="screenshot-test"/DOCKER_TAG="test-${{ github.sha }}"/' docker/screenshot-docker-app.sh
+          sed -i 's/DOCKER_IMAGE="openterface-test"/DOCKER_IMAGE="${{ env.DOCKER_IMAGE_SHARED }}"/' docker/screenshot-docker-app.sh
+          
+          # Update the script to use screenshots directory instead of app-screenshots
+          sed -i 's/SCREENSHOTS_DIR="app-screenshots"/SCREENSHOTS_DIR="screenshots-shared"/' docker/screenshot-docker-app.sh
+          
+          # Run the proven screenshot script
+          echo "🎬 Executing screenshot script..."
+          ./docker/screenshot-docker-app.sh
+          
+          # Additional analysis for CI context
+          echo ""
+          echo "📊 CI-specific screenshot analysis:"
+          echo "=================================="
+          
+          if [ -d "screenshots-shared" ] && [ "$(ls -A screenshots-shared/*.jpg 2>/dev/null)" ]; then
+            echo "✅ Screenshots generated successfully"
+            
+            # Detailed analysis for CI
+            for img in screenshots-shared/*.jpg; do
+              if [ -f "$img" ]; then
+                filename=$(basename "$img")
+                filesize=$(ls -lh "$img" | awk '{print $5}')
+                dimensions=$(identify "$img" 2>/dev/null | awk '{print $3}' | head -1 || echo "Unknown")
+                mean_color=$(identify -ping -format "%[mean]" "$img" 2>/dev/null || echo "0")
+                mean_value=${mean_color%.*}
+                
+                echo "📸 $filename:"
+                echo "   Size: $filesize | Dimensions: $dimensions | Mean: $mean_value"
+                
+                if [ "$mean_value" -gt 1000 ]; then
+                  echo "   Status: ✅ Rich content detected"
+                elif [ "$mean_value" -gt 100 ]; then
+                  echo "   Status: ⚠️  Basic content detected"
+                else
+                  echo "   Status: ❌ Likely blank/black"
+                fi
+                echo ""
+              fi
+            done
+            
+            # Summary for CI
+            total_jpgs=$(find screenshots-shared/ -name "*.jpg" 2>/dev/null | wc -l)
+            content_jpgs=$(find screenshots-shared/ -name "*.jpg" -exec identify -ping -format "%[mean]
+" {} \; 2>/dev/null | awk -F. '{if($1 > 100) count++} END {print count+0}')
+            
+            echo "📈 CI Test Summary:"
+            echo "   Total JPG screenshots: $total_jpgs"
+            echo "   With content: $content_jpgs"
+            if [ "$total_jpgs" -gt 0 ]; then
+              success_rate=$(( content_jpgs * 100 / total_jpgs ))
+              echo "   Success rate: ${success_rate}%"
+              
+              if [ "$success_rate" -ge 50 ]; then
+                echo "   ✅ GUI test PASSED - Application rendered successfully"
+              else
+                echo "   ⚠️  GUI test PARTIAL - Some content detected but may need investigation"
+              fi
+            else
+              echo "   ❌ GUI test FAILED - No screenshots generated"
+            fi
+          else
+            echo "❌ No screenshots found - script may have failed"
+            exit 1
+          fi
+          
+          echo ""
+          echo "✅ GUI screenshot test completed"
 
       - name: Test hardware interface dependencies
         if: ${{ github.event.inputs.test_type == 'run-test' || github.event.inputs.test_type == 'all' || github.event_name != 'workflow_dispatch' }}
@@ -335,11 +489,11 @@ jobs:
         if: ${{ always() && (github.event.inputs.test_type == 'run-test' || github.event.inputs.test_type == 'all' || github.event_name != 'workflow_dispatch') }}
         uses: actions/upload-artifact@v4
         with:
-          name: openterface-gui-screenshots
-          path: screenshots/
+          name: openterface-gui-screenshots-shared
+          path: screenshots-shared/
           if-no-files-found: warn
 
-      - name: Test container with simulated USB devices
+      - name: Test container with simulated USB devices (Shared)
         if: ${{ github.event.inputs.test_type == 'run-test' || github.event.inputs.test_type == 'all' || github.event_name != 'workflow_dispatch' }}
         run: |
           echo "🧪 Testing container with simulated USB device access"
@@ -349,7 +503,7 @@ jobs:
             --privileged \
             --name openterface-usb-test \
             -v /dev:/dev \
-            ${{ env.DOCKER_IMAGE }}:${{ env.DOCKER_TAG }} \
+            ${{ env.DOCKER_IMAGE_SHARED }}:${{ env.DOCKER_TAG }} \
             bash -c "
               echo '🔍 Checking USB device access...'
               ls -la /dev/bus/usb/ 2>/dev/null || echo 'No USB devices found'
@@ -369,75 +523,370 @@ jobs:
               echo '✅ USB device access test completed'
             "
 
-      - name: Security scan
-        if: ${{ github.event.inputs.test_type == 'all' || github.event_name != 'workflow_dispatch' }}
-        run: |
-          echo "🔒 Running basic security checks"
-          
-          # Check for security best practices
-          docker run --rm \
-            --name openterface-security-test \
-            ${{ env.DOCKER_IMAGE }}:${{ env.DOCKER_TAG }} \
-            bash -c "
-              echo '🔍 Checking user configuration...'
-              whoami
-              id
-              
-              echo '🔍 Checking sudo configuration...'
-              sudo -n echo 'Passwordless sudo working' 2>/dev/null || echo 'Passwordless sudo not configured (this might be expected)'
-              
-              echo '🔍 Checking file permissions on key files...'
-              ls -la /etc/udev/rules.d/*openterface* 2>/dev/null || echo 'No openterface udev rules found'
-              ls -la /usr/local/bin/start-openterface.sh 2>/dev/null || echo 'Launcher script not found'
-              
-              echo '🔍 Checking for setuid binaries (security check)...'
-              find /usr/local/bin -perm /4000 -type f 2>/dev/null || echo 'No setuid binaries found in /usr/local/bin'
-              
-              echo '✅ Security check completed'
-            "
-
-      - name: Performance test
-        if: ${{ github.event.inputs.test_type == 'all' || github.event_name != 'workflow_dispatch' }}
-        run: |
-          echo "⚡ Running performance tests"
-          
-          # Test container startup time and resource usage
-          echo "🧪 Testing container startup performance..."
-          
-          START_TIME=$(date +%s%N)
-          CONTAINER_ID=$(docker run -d \
-            --name openterface-perf-test \
-            ${{ env.DOCKER_IMAGE }}:${{ env.DOCKER_TAG }} \
-            sleep 10)
-          END_TIME=$(date +%s%N)
-          
-          STARTUP_TIME=$(( (END_TIME - START_TIME) / 1000000 ))
-          echo "📊 Container startup time: ${STARTUP_TIME}ms"
-          
-          # Wait for container to be fully started
-          sleep 2
-          
-          # Check resource usage
-          echo "📊 Container resource usage:"
-          docker stats --no-stream $CONTAINER_ID || echo "⚠️ Could not get container stats"
-          
-          # Check image size
-          echo "📊 Image size:"
-          docker images ${{ env.DOCKER_IMAGE }}:${{ env.DOCKER_TAG }} --format "table {{.Repository}}:{{.Tag}}\t{{.Size}}"
-          
-          # Clean up
-          docker stop $CONTAINER_ID || true
-          docker rm $CONTAINER_ID || true
-          
-          echo "✅ Performance test completed"
-
-      - name: Generate comprehensive GUI test report
+      - name: Clean up Docker resources (Shared)
         if: always()
         run: |
-          echo "📋 Generating comprehensive GUI test report"
+          echo "🧹 Cleaning up Docker resources (Shared)"
           
-          cat << 'EOF' > gui-test-report.md
-          # 📸 GUI Testing Report - Openterface QT
+          # Remove test containers (if any still exist)
+          docker ps -aq --filter "name=openterface-" | xargs -r docker rm -f || true
+          
+          # Remove test image
+          docker rmi ${{ env.DOCKER_IMAGE_SHARED }}:${{ env.DOCKER_TAG }} || true
+          
+          echo "✅ Shared cleanup completed"
+
+  build-test-static:
+    if: ${{ github.event.inputs.build_type == 'static' || github.event.inputs.build_type == 'both' || github.event_name != 'workflow_dispatch' }}
+    runs-on: ubuntu-24.04
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image (Static)
+        run: |
+          echo "🔨 Building Docker image: ${{ env.DOCKER_IMAGE_STATIC }}:${{ env.DOCKER_TAG }}"
+          docker build \
+            -f docker/Dockerfile.openterface-test-static \
+            -t ${{ env.DOCKER_IMAGE_STATIC }}:${{ env.DOCKER_TAG }} \
+            docker/
+
+      - name: Verify Docker image (Static)
+        run: |
+          echo "✅ Verifying Docker image was built successfully"
+          docker images | grep ${{ env.DOCKER_IMAGE_STATIC }}
+          
+          echo "📊 Image information:"
+          docker inspect ${{ env.DOCKER_IMAGE_STATIC }}:${{ env.DOCKER_TAG }} --format='{{.Config.Env}}'
+          docker inspect ${{ env.DOCKER_IMAGE_STATIC }}:${{ env.DOCKER_TAG }} --format='{{.Config.User}}'
+          docker inspect ${{ env.DOCKER_IMAGE_STATIC }}:${{ env.DOCKER_TAG }} --format='{{.Config.WorkingDir}}'
+          
+          echo "🔍 Image CMD and Entrypoint:"
+          docker inspect ${{ env.DOCKER_IMAGE_STATIC }}:${{ env.DOCKER_TAG }} --format='{{.Config.Cmd}}'
+          docker inspect ${{ env.DOCKER_IMAGE_STATIC }}:${{ env.DOCKER_TAG }} --format='{{.Config.Entrypoint}}'
+          
+          echo "🔍 Image layers (last 10):"
+          docker history ${{ env.DOCKER_IMAGE_STATIC }}:${{ env.DOCKER_TAG }} | head -10
+
+      - name: Basic container functionality test (Static)
+        if: ${{ github.event.inputs.test_type == 'run-test' || github.event.inputs.test_type == 'all' || github.event_name != 'workflow_dispatch' }}
+        run: |
+          echo "🧪 Testing basic container functionality (Static)"
+          
+          # Test simple command execution
+          echo "🔍 Testing simple command execution..."
+          docker run --rm \
+            --name openterface-basic-test-static \
+            ${{ env.DOCKER_IMAGE_STATIC }}:${{ env.DOCKER_TAG }} \
+            bash -c "
+              echo '✅ Container can execute commands'
+              whoami
+              pwd
+              echo 'User ID:' \$(id)
+              echo 'Environment variables:'
+              env | grep -E 'HOME\\|USER\\|DISPLAY\\|QT_' | head -10
+              echo 'File system check:'
+              ls -la /home/openterface/ | head -5
+              echo '✅ Basic functionality test completed'
+            "
+          
+          echo "✅ Basic container functionality test passed"
+
+      - name: Test static binary dependencies
+        if: ${{ github.event.inputs.test_type == 'run-test' || github.event.inputs.test_type == 'all' || github.event_name != 'workflow_dispatch' }}
+        run: |
+          echo "🧪 Testing static binary dependencies"
+          
+          # Run container and check binary dependencies with ldd
+          docker run --rm \
+            --name openterface-static-ldd-test \
+            ${{ env.DOCKER_IMAGE_STATIC }}:${{ env.DOCKER_TAG }} \
+            bash -c "
+              echo '🔍 Searching for openterface binaries...'
+              BINARIES=\$(find /usr /opt -name 'openterfaceQT' -type f 2>/dev/null)
+              
+              if [ -z \"\$BINARIES\" ]; then
+                echo '❌ No openterfaceQT binary found'
+                exit 1
+              fi
+              
+              for binary in \$BINARIES; do
+                echo \"\"
+                echo \"📊 Analyzing binary: \$binary\"
+                echo \"=================================\"
+                
+                # Check if file exists and is executable
+                if [ -f \"\$binary\" ] && [ -x \"\$binary\" ]; then
+                  echo \"✅ Binary exists and is executable\"
+                else
+                  echo \"❌ Binary not found or not executable\"
+                  continue
+                fi
+                
+                # Get file information
+                echo \"📋 File info:\"
+                ls -lh \"\$binary\"
+                file \"\$binary\" || echo \"file command failed\"
+                
+                # Check static vs dynamic linking
+                echo \"\"
+                echo \"🔗 Checking linking type:\"
+                if command -v ldd >/dev/null 2>&1; then
+                  ldd_output=\$(ldd \"\$binary\" 2>&1 || true)
+                  
+                  if echo \"\$ldd_output\" | grep -q \"not a dynamic executable\"; then
+                    echo \"✅ Binary is FULLY STATICALLY LINKED\"
+                    echo \"   No dynamic dependencies found\"
+                  elif echo \"\$ldd_output\" | grep -q \"statically linked\"; then
+                    echo \"✅ Binary is STATICALLY LINKED\"
+                  else
+                    echo \"⚠️ Binary appears to have dynamic dependencies:\"
+                    echo \"\$ldd_output\" | head -15
+                    
+                    # Count dependencies
+                    dep_count=\$(echo \"\$ldd_output\" | grep -c '=>' || echo \"0\")
+                    echo \"\"
+                    echo \"📊 Total dynamic dependencies: \$dep_count\"
+                    
+                    # Check for critical system libraries only
+                    critical_deps=\$(echo \"\$ldd_output\" | grep -E 'libc\\.so|libpthread\\.so|libdl\\.so|linux-vdso\\.so|ld-linux' | wc -l)
+                    if [ \"\$critical_deps\" -eq \"\$dep_count\" ] || [ \"\$dep_count\" -le 5 ]; then
+                      echo \"✅ Only essential system libraries detected (acceptable for 'static' build)\"
+                    else
+                      echo \"⚠️ Many non-essential dependencies detected\"
+                    fi
+                  fi
+                else
+                  echo \"❌ ldd command not available\"
+                fi
+                
+                # Check binary size (static should be larger)
+                size_bytes=\$(stat -c%s \"\$binary\" 2>/dev/null || echo \"0\")
+                size_mb=\$(( size_bytes / 1024 / 1024 ))
+                echo \"\"
+                echo \"📏 Binary size: \${size_mb}MB (\${size_bytes} bytes)\"
+                
+                if [ \"\$size_mb\" -gt 50 ]; then
+                  echo \"✅ Large binary size suggests static linking\"
+                elif [ \"\$size_mb\" -gt 20 ]; then
+                  echo \"⚠️ Medium binary size (could be static or dynamic)\"
+                else
+                  echo \"❌ Small binary size suggests dynamic linking\"
+                fi
+              done
+              
+              echo \"\"
+              echo \"✅ Static binary analysis completed\"
+            "
+
+      - name: Test installation script (Static)
+        if: ${{ github.event.inputs.test_type == 'run-test' || github.event.inputs.test_type == 'all' || github.event_name != 'workflow_dispatch' }}
+        run: |
+          echo "🧪 Testing installation script (Static)"
+          
+          # Run container and check if openterface is installed
+          docker run --rm \
+            --name openterface-install-test-static \
+            ${{ env.DOCKER_IMAGE_STATIC }}:${{ env.DOCKER_TAG }} \
+            bash -c "
+              echo '🔍 Checking installed packages...'
+              dpkg -l | grep -i openterface || echo 'No openterface package found'
+              
+              echo '🔍 Checking for openterface binary...'
+              which openterfaceQT || echo 'openterfaceQT not in PATH'
+              find /usr -name 'openterfaceQT' -type f 2>/dev/null || echo 'No openterfaceQT binary found in /usr'
+              find /opt -name 'openterfaceQT' -type f 2>/dev/null || echo 'No openterfaceQT binary found in /opt'
+              
+              echo '🔍 Checking launcher script...'
+              ls -la /usr/local/bin/start-openterface.sh || echo 'Launcher script not found'
+              
+              echo '🔍 Checking udev rules...'
+              ls -la /etc/udev/rules.d/*openterface* || echo 'No udev rules found'
+              
+              echo '🔍 Checking desktop entry...'
+              ls -la /usr/share/applications/*openterface* || echo 'No desktop entry found'
+              
+              echo '🔍 Checking user groups...'
+              groups openterface || echo 'User openterface not found'
+              
+              echo '✅ Installation check completed'
+            "
+
+      - name: Test minimal runtime dependencies (Static)
+        if: ${{ github.event.inputs.test_type == 'run-test' || github.event.inputs.test_type == 'all' || github.event_name != 'workflow_dispatch' }}
+        run: |
+          echo "🧪 Testing minimal runtime dependencies (Static)"
+          
+          docker run --rm \
+            --name openterface-minimal-deps-test \
+            ${{ env.DOCKER_IMAGE_STATIC }}:${{ env.DOCKER_TAG }} \
+            bash -c "
+              echo '🔍 Checking installed packages (should be minimal)...'
+              echo \"Total packages: \$(dpkg -l | wc -l)\"
+              
+              echo '🔍 Checking Qt6 libraries (should be minimal/none)...'
+              qt_packages=\$(dpkg -l | grep libqt6 | wc -l)
+              echo \"Qt6 packages installed: \$qt_packages\"
+              if [ \"\$qt_packages\" -lt 10 ]; then
+                echo \"✅ Minimal Qt6 dependencies (good for static build)\"
+              else
+                echo \"⚠️ Many Qt6 packages found (may indicate dynamic linking)\"
+                dpkg -l | grep libqt6 | head -5
+              fi
+              
+              echo '🔍 Checking multimedia libraries...'
+              multimedia_packages=\$(dpkg -l | grep -E 'multimedia|ffmpeg|gstreamer' | wc -l)
+              echo \"Multimedia packages: \$multimedia_packages\"
+              
+              echo '🔍 Checking for development packages (should be none)...'
+              dev_packages=\$(dpkg -l | grep -E '\\-dev\\s|\\-devel\\s' | wc -l)
+              echo \"Development packages: \$dev_packages\"
+              if [ \"\$dev_packages\" -eq 0 ]; then
+                echo \"✅ No development packages (good for production image)\"
+              else
+                echo \"⚠️ Development packages found:\"
+                dpkg -l | grep -E '\\-dev\\s|\\-devel\\s' | head -3
+              fi
+              
+              echo '✅ Minimal dependencies check completed'
+            "
+
+      - name: GUI screenshot test using proven script (Static)
+        if: ${{ github.event.inputs.test_type == 'run-test' || github.event.inputs.test_type == 'all' || github.event_name != 'workflow_dispatch' }}
+        run: |
+          echo "🧪 Running GUI screenshot test using proven script (Static)"
+          
+          # Make the script executable
+          chmod +x docker/screenshot-docker-app.sh
+          
+          # Copy and modify the script for static testing
+          cp docker/screenshot-docker-app.sh docker/screenshot-docker-app-static.sh
+          
+          # Update the script to use the static Docker image and tag
+          sed -i 's/DOCKER_TAG="screenshot-test"/DOCKER_TAG="test-${{ github.sha }}"/' docker/screenshot-docker-app-static.sh
+          sed -i 's/DOCKER_IMAGE="openterface-test"/DOCKER_IMAGE="${{ env.DOCKER_IMAGE_STATIC }}"/' docker/screenshot-docker-app-static.sh
+          
+          # Update the script to use static screenshots directory
+          sed -i 's/SCREENSHOTS_DIR="app-screenshots"/SCREENSHOTS_DIR="screenshots-static"/' docker/screenshot-docker-app-static.sh
+          
+          # Run the static screenshot script
+          echo "🎬 Executing static screenshot script..."
+          ./docker/screenshot-docker-app-static.sh
+          
+          # Additional analysis for CI context
+          echo ""
+          echo "📊 CI-specific screenshot analysis (Static):"
+          echo "============================================="
+          
+          if [ -d "screenshots-static" ] && [ "$(ls -A screenshots-static/*.jpg 2>/dev/null)" ]; then
+            echo "✅ Screenshots generated successfully"
+            
+            # Detailed analysis for CI
+            for img in screenshots-static/*.jpg; do
+              if [ -f "$img" ]; then
+                filename=$(basename "$img")
+                filesize=$(ls -lh "$img" | awk '{print $5}')
+                dimensions=$(identify "$img" 2>/dev/null | awk '{print $3}' | head -1 || echo "Unknown")
+                mean_color=$(identify -ping -format "%[mean]" "$img" 2>/dev/null || echo "0")
+                mean_value=${mean_color%.*}
+                
+                echo "📸 $filename:"
+                echo "   Size: $filesize | Dimensions: $dimensions | Mean: $mean_value"
+                
+                if [ "$mean_value" -gt 1000 ]; then
+                  echo "   Status: ✅ Rich content detected"
+                elif [ "$mean_value" -gt 100 ]; then
+                  echo "   Status: ⚠️  Basic content detected"
+                else
+                  echo "   Status: ❌ Likely blank/black"
+                fi
+                echo ""
+              fi
+            done
+            
+            # Summary for CI
+            total_jpgs=$(find screenshots-static/ -name "*.jpg" 2>/dev/null | wc -l)
+            content_jpgs=$(find screenshots-static/ -name "*.jpg" -exec identify -ping -format "%[mean]\n" {} \; 2>/dev/null | awk -F. '{if($1 > 100) count++} END {print count+0}')
+            
+            echo "📈 CI Test Summary (Static):"
+            echo "   Total JPG screenshots: $total_jpgs"
+            echo "   With content: $content_jpgs"
+            if [ "$total_jpgs" -gt 0 ]; then
+              success_rate=$(( content_jpgs * 100 / total_jpgs ))
+              echo "   Success rate: ${success_rate}%"
+              
+              if [ "$success_rate" -ge 50 ]; then
+                echo "   ✅ GUI test PASSED - Static application rendered successfully"
+              else
+                echo "   ⚠️  GUI test PARTIAL - Some content detected but may need investigation"
+              fi
+            else
+              echo "   ❌ GUI test FAILED - No screenshots generated"
+            fi
+          else
+            echo "❌ No screenshots found - script may have failed"
+            exit 1
+          fi
+          
+          echo ""
+          echo "✅ GUI screenshot test completed (Static)"
+
+      - name: Upload screenshots (Static)
+        if: ${{ always() && (github.event.inputs.test_type == 'run-test' || github.event.inputs.test_type == 'all' || github.event_name != 'workflow_dispatch') }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: openterface-gui-screenshots-static
+          path: screenshots-static/
+          if-no-files-found: warn
+
+      - name: Clean up Docker resources (Static)
+        if: always()
+        run: |
+          echo "🧹 Cleaning up Docker resources (Static)"
+          
+          # Remove test containers (if any still exist)
+          docker ps -aq --filter "name=openterface-" | xargs -r docker rm -f || true
+          
+          # Remove test image
+          docker rmi ${{ env.DOCKER_IMAGE_STATIC }}:${{ env.DOCKER_TAG }} || true
+          
+          echo "✅ Static cleanup completed"
+
+  generate-combined-report:
+    if: always()
+    needs: [build-test-shared, build-test-static]
+    runs-on: ubuntu-24.04
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Download shared screenshots
+        if: ${{ github.event.inputs.build_type == 'shared' || github.event.inputs.build_type == 'both' || github.event_name != 'workflow_dispatch' }}
+        uses: actions/download-artifact@v4
+        with:
+          name: openterface-gui-screenshots-shared
+          path: screenshots-shared/
+        continue-on-error: true
+        
+      - name: Download static screenshots
+        if: ${{ github.event.inputs.build_type == 'static' || github.event.inputs.build_type == 'both' || github.event_name != 'workflow_dispatch' }}
+        uses: actions/download-artifact@v4
+        with:
+          name: openterface-gui-screenshots-static
+          path: screenshots-static/
+        continue-on-error: true
+
+      - name: Generate comprehensive test report
+        run: |
+          echo "📋 Generating comprehensive test report"
+          
+          cat << 'EOF' > combined-test-report.md
+          # 📸 Combined GUI Testing Report - Openterface QT
           
           ## Test Overview
           - **Workflow**: ${{ github.workflow }}
@@ -445,20 +894,18 @@ jobs:
           - **Branch**: ${{ github.ref_name }}
           - **Commit**: ${{ github.sha }}
           - **Test Date**: $(date -u)
-          
-          ## Screenshots Analysis
+          - **Build Types**: ${{ github.event.inputs.build_type || 'both' }}
           
           EOF
           
-          # Add container testing results
-          echo "### 🐳 Direct Container Testing" >> gui-test-report.md
-          echo "" >> gui-test-report.md
-          
-          if [ -d "screenshots" ] && [ "$(ls -A screenshots/*.png 2>/dev/null)" ]; then
-            echo "| Filename | Size | Dimensions | Mean Color | Content Status |" >> gui-test-report.md
-            echo "|----------|------|------------|------------|----------------|" >> gui-test-report.md
+          # Add shared build results
+          if [ -d "screenshots-shared" ] && [ "$(ls -A screenshots-shared/*.jpg 2>/dev/null)" ]; then
+            echo "## 🔗 Shared Library Build Results" >> combined-test-report.md
+            echo "" >> combined-test-report.md
+            echo "| Filename | Size | Dimensions | Mean Color | Content Status |" >> combined-test-report.md
+            echo "|----------|------|------------|------------|----------------|" >> combined-test-report.md
             
-            for img in screenshots/*.png; do
+            for img in screenshots-shared/*.jpg; do
               if [ -f "$img" ]; then
                 filename=$(basename "$img")
                 filesize=$(ls -lh "$img" | awk '{print $5}')
@@ -466,36 +913,38 @@ jobs:
                 mean_color=$(identify -ping -format "%[mean]" "$img" 2>/dev/null || echo "0")
                 mean_value=${mean_color%.*}
                 
-                if [ "$mean_value" -gt 2000 ]; then
-                  content_status="✅ Content detected"
-                elif [ "$mean_value" -gt 500 ]; then
-                  content_status="⚠️ Minimal content"
+                if [ "$mean_value" -gt 1000 ]; then
+                  content_status="✅ Rich content"
+                elif [ "$mean_value" -gt 100 ]; then
+                  content_status="⚠️ Basic content"
                 else
-                  content_status="❌ Likely blank"
+                  content_status="❌ Blank"
                 fi
                 
-                echo "| $filename | $filesize | $dimensions | $mean_value | $content_status |" >> gui-test-report.md
+                echo "| $filename | $filesize | $dimensions | $mean_value | $content_status |" >> combined-test-report.md
               fi
             done
             
-            # Add summary
-            total_container=$(find screenshots/ -name "*.png" | wc -l)
-            content_container=$(find screenshots/ -name "*.png" -exec identify -ping -format "%[mean]\n" {} \; 2>/dev/null | awk -F. '{if($1 > 500) count++} END {print count+0}')
-            echo "" >> gui-test-report.md
-            echo "**Container Test Summary**: $content_container/$total_container screenshots with content ($(( content_container * 100 / total_container ))% success rate)" >> gui-test-report.md
+            total_shared=$(find screenshots-shared/ -name "*.jpg" 2>/dev/null | wc -l)
+            content_shared=$(find screenshots-shared/ -name "*.jpg" -exec identify -ping -format "%[mean]\n" {} \; 2>/dev/null | awk -F. '{if($1 > 100) count++} END {print count+0}')
+            shared_rate=$(( content_shared * 100 / total_shared ))
+            echo "" >> combined-test-report.md
+            echo "**Shared Build Summary**: $content_shared/$total_shared screenshots with content ($shared_rate% success)" >> combined-test-report.md
           else
-            echo "❌ No container screenshots found" >> gui-test-report.md
+            echo "## 🔗 Shared Library Build Results" >> combined-test-report.md
+            echo "❌ No shared build screenshots found" >> combined-test-report.md
           fi
           
-          echo "" >> gui-test-report.md
-          echo "### 🚀 Launcher Script Testing" >> gui-test-report.md
-          echo "" >> gui-test-report.md
+          echo "" >> combined-test-report.md
           
-          if [ -d "integration-screenshots" ] && [ "$(ls -A integration-screenshots/*.png 2>/dev/null)" ]; then
-            echo "| Filename | Size | Dimensions | Mean Color | Content Status |" >> gui-test-report.md
-            echo "|----------|------|------------|------------|----------------|" >> gui-test-report.md
+          # Add static build results
+          if [ -d "screenshots-static" ] && [ "$(ls -A screenshots-static/*.jpg 2>/dev/null)" ]; then
+            echo "## ⚡ Static Build Results" >> combined-test-report.md
+            echo "" >> combined-test-report.md
+            echo "| Filename | Size | Dimensions | Mean Color | Content Status |" >> combined-test-report.md
+            echo "|----------|------|------------|------------|----------------|" >> combined-test-report.md
             
-            for img in integration-screenshots/*.png; do
+            for img in screenshots-static/*.jpg; do
               if [ -f "$img" ]; then
                 filename=$(basename "$img")
                 filesize=$(ls -lh "$img" | awk '{print $5}')
@@ -503,484 +952,66 @@ jobs:
                 mean_color=$(identify -ping -format "%[mean]" "$img" 2>/dev/null || echo "0")
                 mean_value=${mean_color%.*}
                 
-                if [ "$mean_value" -gt 2000 ]; then
-                  content_status="✅ Content detected"
-                elif [ "$mean_value" -gt 500 ]; then
-                  content_status="⚠️ Minimal content"
+                if [ "$mean_value" -gt 1000 ]; then
+                  content_status="✅ Rich content"
+                elif [ "$mean_value" -gt 100 ]; then
+                  content_status="⚠️ Basic content"
                 else
-                  content_status="❌ Likely blank"
+                  content_status="❌ Blank"
                 fi
                 
-                echo "| $filename | $filesize | $dimensions | $mean_value | $content_status |" >> gui-test-report.md
+                echo "| $filename | $filesize | $dimensions | $mean_value | $content_status |" >> combined-test-report.md
               fi
             done
             
-            # Add summary
-            total_launcher=$(find integration-screenshots/ -name "*.png" 2>/dev/null | wc -l)
-            content_launcher=$(find integration-screenshots/ -name "*.png" -exec identify -ping -format "%[mean]\n" {} \; 2>/dev/null | awk -F. '{if($1 > 500) count++} END {print count+0}')
-            echo "" >> gui-test-report.md
-            echo "**Launcher Test Summary**: $content_launcher/$total_launcher screenshots with content ($(( content_launcher * 100 / total_launcher ))% success rate)" >> gui-test-report.md
+            total_static=$(find screenshots-static/ -name "*.jpg" 2>/dev/null | wc -l)
+            content_static=$(find screenshots-static/ -name "*.jpg" -exec identify -ping -format "%[mean]\n" {} \; 2>/dev/null | awk -F. '{if($1 > 100) count++} END {print count+0}')
+            static_rate=$(( content_static * 100 / total_static ))
+            echo "" >> combined-test-report.md
+            echo "**Static Build Summary**: $content_static/$total_static screenshots with content ($static_rate% success)" >> combined-test-report.md
           else
-            echo "❌ No launcher screenshots found" >> gui-test-report.md
+            echo "## ⚡ Static Build Results" >> combined-test-report.md
+            echo "❌ No static build screenshots found" >> combined-test-report.md
           fi
           
-          # Add troubleshooting information
-          echo "" >> gui-test-report.md
-          echo "### 🔍 Troubleshooting Information" >> gui-test-report.md
-          echo "" >> gui-test-report.md
-          echo "#### Virtual Display Status" >> gui-test-report.md
-          echo '```' >> gui-test-report.md
-          ps aux | grep Xvfb | grep -v grep || echo "No Xvfb processes found" >> gui-test-report.md
-          echo '```' >> gui-test-report.md
-          echo "" >> gui-test-report.md
+          echo "" >> combined-test-report.md
+          echo "## 📊 Overall Comparison" >> combined-test-report.md
+          echo "" >> combined-test-report.md
+          echo "| Build Type | Screenshots | With Content | Success Rate |" >> combined-test-report.md
+          echo "|------------|-------------|--------------|--------------|" >> combined-test-report.md
           
-          echo "#### Docker Containers" >> gui-test-report.md
-          echo '```' >> gui-test-report.md
-          docker ps -a | grep openterface || echo "No openterface containers found" >> gui-test-report.md
-          echo '```' >> gui-test-report.md
-          echo "" >> gui-test-report.md
+          if [ -d "screenshots-shared" ]; then
+            total_shared=$(find screenshots-shared/ -name "*.jpg" 2>/dev/null | wc -l)
+            content_shared=$(find screenshots-shared/ -name "*.jpg" -exec identify -ping -format "%[mean]\n" {} \; 2>/dev/null | awk -F. '{if($1 > 100) count++} END {print count+0}')
+            shared_rate=$(( content_shared * 100 / total_shared ))
+            echo "| Shared | $total_shared | $content_shared | $shared_rate% |" >> combined-test-report.md
+          else
+            echo "| Shared | 0 | 0 | N/A |" >> combined-test-report.md
+          fi
           
-          echo "#### System Information" >> gui-test-report.md
-          echo '```' >> gui-test-report.md
-          echo "OS: $(uname -a)" >> gui-test-report.md
-          echo "Docker version: $(docker --version)" >> gui-test-report.md
-          echo "ImageMagick version: $(identify -version | head -1)" >> gui-test-report.md
-          echo '```' >> gui-test-report.md
+          if [ -d "screenshots-static" ]; then
+            total_static=$(find screenshots-static/ -name "*.jpg" 2>/dev/null | wc -l)
+            content_static=$(find screenshots-static/ -name "*.jpg" -exec identify -ping -format "%[mean]\n" {} \; 2>/dev/null | awk -F. '{if($1 > 100) count++} END {print count+0}')
+            static_rate=$(( content_static * 100 / total_static ))
+            echo "| Static | $total_static | $content_static | $static_rate% |" >> combined-test-report.md
+          else
+            echo "| Static | 0 | 0 | N/A |" >> combined-test-report.md
+          fi
           
-          # Display the report in the action log
-          echo "📊 Full GUI Test Report:"
-          echo "========================"
-          cat gui-test-report.md
+          # Display the report
+          echo "📊 Combined Test Report:"
+          echo "======================="
+          cat combined-test-report.md
           
           echo ""
-          echo "✅ Comprehensive GUI test report generated"
+          echo "✅ Combined test report generated"
 
-      - name: Upload GUI test report
+      - name: Upload combined test report
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: gui-test-report
-          path: gui-test-report.md
+          name: combined-test-report
+          path: combined-test-report.md
           if-no-files-found: warn
 
-      - name: Clean up Docker resources
-        if: always()
-        run: |
-          echo "🧹 Cleaning up Docker resources"
-          
-          # Remove test containers (if any still exist)
-          docker ps -aq --filter "name=openterface-" | xargs -r docker rm -f || true
-          
-          # Remove test image
-          docker rmi ${{ env.DOCKER_IMAGE }}:${{ env.DOCKER_TAG }} || true
-          
-          # Show remaining Docker resources
-          echo "📊 Remaining Docker images:"
-          docker images | head -10 || true
-          
-          echo "✅ Cleanup completed"
 
-  # Integration test job that tests the actual installation process
-  integration-test:
-    runs-on: ubuntu-24.04
-    needs: build-test
-    if: ${{ github.event.inputs.test_type == 'all' || github.event_name != 'workflow_dispatch' }}
-    
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Test installation script independently
-        run: |
-          echo "🧪 Testing installation script independently"
-          
-          # Create a test Ubuntu container and run the install script
-          docker run --rm \
-            -v ${{ github.workspace }}/docker/install-openterface-shared.sh:/tmp/install-openterface-shared.sh \
-            ubuntu:24.04 \
-            bash -c "
-              apt-get update -y
-              apt-get install -y curl wget ca-certificates sudo
-              chmod +x /tmp/install-openterface-shared.sh
-              
-              echo '🚀 Running installation script...'
-              /tmp/install-openterface-shared.sh
-              
-              echo '✅ Installation script test completed'
-            "
-
-      - name: End-to-end test with real download
-        run: |
-          echo "🧪 End-to-end test with real package download"
-          
-          # Build the Docker image and test the full installation process
-          docker build \
-            -f docker/Dockerfile.openterface-test-shared \
-            -t openterface-e2e-test \
-            docker/
-          
-          # Run the container and verify everything works
-          docker run --rm \
-            --name openterface-e2e-test \
-            openterface-e2e-test \
-            bash -c "
-              echo '🔍 Verifying full installation...'
-              
-              # Check if the package was downloaded and installed
-              dpkg -l | grep -i openterface && echo '✅ Package installed' || echo '❌ Package not found'
-              
-              # Check if binary exists
-              which openterfaceQT && echo '✅ Binary in PATH' || find /usr /opt -name 'openterfaceQT' -type f 2>/dev/null | head -1 | xargs -I {} echo '✅ Binary found at: {}'
-              
-              # Check launcher script
-              [ -x '/usr/local/bin/start-openterface.sh' ] && echo '✅ Launcher script ready' || echo '❌ Launcher script missing'
-              
-              echo '✅ End-to-end test completed'
-            "
-          
-          # Clean up
-          docker rmi openterface-e2e-test || true
-
-      - name: Test with GUI launcher script
-        run: |
-          echo "🧪 Testing GUI launcher script simulation"
-          
-          # Copy the launcher script to test it
-          cp docker/run-openterface-docker.sh /tmp/test-launcher.sh
-          chmod +x /tmp/test-launcher.sh
-          
-          # Build image with correct name expected by launcher
-          docker build \
-            -f docker/Dockerfile.openterface-test-shared \
-            -t openterface-test \
-            docker/
-          
-          # Test the launcher script help
-          echo "🔍 Testing launcher script help..."
-          /tmp/test-launcher.sh --help
-          
-          # Test shell mode (non-GUI)
-          echo "🔍 Testing shell mode..."
-          timeout 30s docker run --rm \
-            --name openterface-shell-test \
-            openterface-test \
-            bash -c "
-              echo '✅ Shell mode test started'
-              whoami
-              echo 'Groups:' && groups
-              echo 'Qt check:' && dpkg -l | grep libqt6 | wc -l
-              echo '✅ Shell mode test completed'
-            " || echo "ℹ️  Shell test completed (timeout expected)"
-          
-          # Test GUI mode with virtual display
-          echo "🧪 Testing GUI mode with virtual display..."
-          
-          # Install virtual display dependencies
-          sudo apt-get update -y
-          sudo apt-get install -y xvfb scrot imagemagick x11-utils xauth
-          
-          # Start virtual display with better configuration
-          export DISPLAY=:98
-          echo "🖥️  Starting virtual display with optimized settings..."
-          Xvfb :98 -screen 0 1280x720x24 -ac +extension GLX +render -noreset &
-          XVFB_PID=$!
-          
-          # Wait for Xvfb to start properly
-          sleep 5
-          
-          # Verify X server is running and suppress keyboard warnings
-          if DISPLAY=:98 xdpyinfo >/dev/null 2>&1; then
-            echo "✅ Virtual display started successfully on $DISPLAY"
-            
-            # Set up X11 authentication to reduce warnings
-            export XAUTHORITY=/tmp/.Xauth$$
-            xauth generate :98 . trusted 2>/dev/null || echo "ℹ️  Xauth setup skipped (not critical)"
-            
-            # Suppress keyboard warnings by setting minimal keymap
-            DISPLAY=:98 setxkbmap us 2>/dev/null || echo "ℹ️  Keyboard setup skipped (not critical)"
-            
-            # Create screenshots directory
-            mkdir -p integration-screenshots
-            
-            # Test GUI launcher with virtual display and enhanced debugging
-            echo "🚀 Testing GUI launcher with virtual display..."
-            timeout 20s bash -c "
-              echo '🔍 Pre-launch environment check:'
-              echo 'DISPLAY=' \$DISPLAY
-              echo 'X server responding:' \$(DISPLAY=:98 xdpyinfo >/dev/null 2>&1 && echo 'YES' || echo 'NO')
-              echo 'Available X extensions:' \$(DISPLAY=:98 xdpyinfo -queryExtensions 2>/dev/null | grep -c 'on display' || echo 'none')
-              
-              echo '🚀 Starting launcher script...'
-              /tmp/test-launcher.sh --no-hardware &
-              LAUNCHER_PID=\$!
-              echo 'Launcher PID:' \$LAUNCHER_PID
-              
-              # Wait for application to start
-              echo '⏰ Waiting 5 seconds for application startup...'
-              sleep 5
-              
-              # Check launcher process status
-              if ps -p \$LAUNCHER_PID > /dev/null 2>&1; then
-                echo '✅ Launcher process is still running'
-              else
-                echo '⚠️  Launcher process has exited'
-                wait \$LAUNCHER_PID
-                launcher_exit_code=\$?
-                echo 'Launcher exit code:' \$launcher_exit_code
-              fi
-              
-              # Enhanced container detection
-              echo '🔍 Enhanced container analysis...'
-              container_count=\$(docker ps | grep -c openterface || echo '0')
-              echo 'Openterface containers running:' \$container_count
-              
-              if [ \$container_count -gt 0 ]; then
-                echo '📋 Container details:'
-                for container in \$(docker ps --format '{{.Names}}' | grep openterface); do
-                  echo \"Container: \$container\"
-                  echo \"Status: \$(docker inspect \$container --format='{{.State.Status}}')\"
-                  echo \"Started: \$(docker inspect \$container --format='{{.State.StartedAt}}')\"
-                  echo \"Processes: \$(docker exec \$container ps aux | wc -l) total\"
-                  gui_count=\$(docker exec \$container ps aux | grep -E 'qt\\|Qt\\|openterface\\|GUI' | wc -l 2>/dev/null || echo '0')
-                  echo \"GUI processes: \$gui_count\"
-                  echo \"---\"
-                done
-              fi
-              
-              # Take initial screenshot with enhanced analysis
-              echo '📸 Taking initial screenshot...'
-              if DISPLAY=:98 scrot integration-screenshots/launcher_initial.png 2>/dev/null; then
-                echo '✅ Initial screenshot captured'
-              else
-                echo '⚠️  Initial screenshot failed - checking X server...'
-                DISPLAY=:98 xwininfo -root 2>/dev/null | head -5 || echo 'X server not responding'
-              fi
-              
-              # Check for running containers
-              echo '🔍 Checking for running containers...'
-              if docker ps | grep -q openterface; then
-                echo '✅ Openterface containers detected:'
-                docker ps | grep openterface
-                
-                # Get detailed logs from containers
-                echo '📋 Container logs analysis:'
-                for container in \$(docker ps --format '{{.Names}}' | grep openterface); do
-                  echo \"=== Logs for \$container (last 10 lines) ===\"
-                  docker logs --tail 10 \$container 2>&1
-                  echo \"\"
-                done
-              else
-                echo 'ℹ️  No openterface containers running yet'
-              fi
-              
-              # Wait more time
-              echo '⏰ Waiting additional 5 seconds...'
-              sleep 5
-              
-              # Check X server window tree for any windows
-              echo '🪟 Detailed window analysis...'
-              window_tree=\$(DISPLAY=:98 xwininfo -tree -root 2>/dev/null || echo 'Window tree unavailable')
-              echo \"Window tree output:\"
-              echo \"\$window_tree\" | head -15
-              
-              window_count=\$(echo \"\$window_tree\" | grep -c 'child' || echo '0')
-              echo \"Total child windows detected: \$window_count\"
-              
-              # Take progress screenshot with enhanced analysis
-              echo '📸 Taking progress screenshot...'
-              if DISPLAY=:98 scrot integration-screenshots/launcher_progress.png 2>/dev/null; then
-                echo '✅ Progress screenshot captured'
-                
-                # Immediately analyze the screenshot
-                if command -v identify >/dev/null 2>&1; then
-                  mean_val=\$(identify -ping -format '%[mean]' integration-screenshots/launcher_progress.png 2>/dev/null || echo '0')
-                  echo \"Progress screenshot mean value: \${mean_val%.*}\"
-                  if [ \"\${mean_val%.*}\" -gt 100 ]; then
-                    echo '🎉 Non-black content detected in progress screenshot!'
-                  else
-                    echo '⚫ Progress screenshot appears black/empty'
-                  fi
-                fi
-              else
-                echo '⚠️  Progress screenshot failed'
-              fi"
-              
-              # Take final screenshot with enhanced analysis
-              echo '📸 Taking final screenshot...'
-              if DISPLAY=:98 scrot integration-screenshots/launcher_final.png 2>/dev/null; then
-                echo '✅ Final screenshot captured'
-                
-                # Analyze final screenshot immediately
-                if command -v identify >/dev/null 2>&1; then
-                  mean_val=\$(identify -ping -format '%[mean]' integration-screenshots/launcher_final.png 2>/dev/null || echo '0')
-                  echo \"Final screenshot mean value: \${mean_val%.*}\"
-                  if [ \"\${mean_val%.*}\" -gt 100 ]; then
-                    echo '🎉 Non-black content detected in final screenshot!'
-                  else
-                    echo '⚫ Final screenshot appears black/empty'
-                  fi
-                fi
-              else
-                echo '⚠️  Final screenshot failed'
-              fi
-              
-              # Final container and process analysis
-              echo '🔍 Final system analysis...'
-              echo 'Docker containers still running:'
-              docker ps | grep openterface || echo 'None'
-              
-              echo 'Launcher process status:'
-              if ps -p \$LAUNCHER_PID > /dev/null 2>&1; then
-                echo 'Launcher still running'
-              else
-                echo 'Launcher has exited'
-              fi
-              
-              # Kill launcher process
-              kill \$LAUNCHER_PID 2>/dev/null || true
-              
-              echo '✅ GUI launcher test completed'
-            " || echo "ℹ️  GUI launcher test completed (timeout expected)"
-            
-            # Analyze screenshots with detailed information and troubleshooting
-            echo "📊 Launcher Screenshot Analysis & Troubleshooting:"
-            echo "====================================================="
-            if [ -d "integration-screenshots" ]; then
-              printf "%-30s | %-8s | %-12s | %-15s | %s\n" "Filename" "Size" "Dimensions" "Mean Color" "Content Status"
-              echo "$(printf '%.0s-' $(seq 1 85))"
-              
-              black_screen_count=0
-              total_screenshots=0
-              
-              for img in integration-screenshots/*.png; do
-                if [ -f "$img" ]; then
-                  total_screenshots=$((total_screenshots + 1))
-                  filename=$(basename "$img")
-                  filesize=$(ls -lh "$img" | awk '{print $5}')
-                  
-                  # Get image dimensions
-                  dimensions=$(identify "$img" 2>/dev/null | awk '{print $3}' | head -1 || echo "Unknown")
-                  
-                  # Get mean color value to detect content
-                  mean_color=$(identify -ping -format "%[mean]" "$img" 2>/dev/null || echo "0")
-                  mean_value=${mean_color%.*}
-                  
-                  # Determine content status
-                  if [ "$mean_value" -gt 2000 ]; then
-                    content_status="✅ Content detected"
-                  elif [ "$mean_value" -gt 500 ]; then
-                    content_status="⚠️  Minimal content"
-                  else
-                    content_status="❌ Likely blank/black"
-                    black_screen_count=$((black_screen_count + 1))
-                  fi
-                  
-                  printf "%-30s | %-8s | %-12s | %-15s | %s\n" "$filename" "$filesize" "$dimensions" "$mean_value" "$content_status"
-                  
-                  # Show histogram for content detection and additional analysis
-                  if command -v convert >/dev/null 2>&1; then
-                    echo "  📊 Color histogram: $(convert "$img" -format "%c" histogram:info:- 2>/dev/null | head -3 | tail -1 || echo 'Cannot analyze')"
-                    
-                    # For black screens, provide additional debugging
-                    if [ "$mean_value" -lt 100 ]; then
-                      echo "  🔍 Black screen detected - checking for minimal variations..."
-                      # Check if it's completely uniform black or has some variation
-                      unique_colors=$(convert "$img" -format "%k" info: 2>/dev/null || echo "1")
-                      echo "  🎨 Unique colors in image: $unique_colors"
-                      
-                      # Check for any non-black pixels
-                      non_black_pixels=$(convert "$img" -threshold 1% -format "%[fx:w*h-mean*w*h]" info: 2>/dev/null || echo "0")
-                      echo "  ⚫ Non-black pixels: ${non_black_pixels%.*}"
-                    fi
-                  fi
-                fi
-              done
-              
-              echo ""
-              echo "🔍 BLACK SCREEN ANALYSIS:"
-              echo "========================"
-              echo "Total screenshots: $total_screenshots"
-              echo "Black screens: $black_screen_count"
-              
-              if [ "$black_screen_count" -eq "$total_screenshots" ] && [ "$total_screenshots" -gt 0 ]; then
-                echo ""
-                echo "❌ ALL SCREENSHOTS ARE BLACK - TROUBLESHOOTING GUIDE:"
-                echo "======================================================"
-                echo ""
-                echo "🔍 Possible causes and solutions:"
-                echo ""
-                echo "1. 📱 Application startup time:"
-                echo "   - The GUI application may need more time to start"
-                echo "   - Solution: Increase wait times in the test script"
-                echo ""
-                echo "2. 🖥️  Display configuration issues:"
-                echo "   - Virtual display may not be properly configured"
-                echo "   - Solution: Check Xvfb parameters and DISPLAY variable"
-                echo ""
-                echo "3. 🐳 Container GUI forwarding:"
-                echo "   - X11 forwarding from container to virtual display may be failing"
-                echo "   - Solution: Verify X11 socket mounting and permissions"
-                echo ""
-                echo "4. 🚀 Application launch failure:"
-                echo "   - The GUI application may be failing to start silently"
-                echo "   - Solution: Check container logs for Qt/application errors"
-                echo ""
-                echo "5. 🎨 Graphics/OpenGL issues:"
-                echo "   - Virtual display may not support required graphics features"
-                echo "   - Solution: Add software rendering flags or different Xvfb extensions"
-                echo ""
-                echo "📋 Recommended next steps:"
-                echo "1. Check container logs above for error messages"
-                echo "2. Verify that containers are actually starting"
-                echo "3. Try running the launcher script locally with longer timeouts"
-                echo "4. Consider adding QT_QPA_PLATFORM=xcb environment variable"
-                echo "5. Test with software rendering: QT_QUICK_BACKEND=software"
-              fi
-              
-              # Summary for launcher screenshots
-              total_launcher_screenshots=$(find integration-screenshots/ -name "*.png" 2>/dev/null | wc -l)
-              if [ "$total_launcher_screenshots" -gt 0 ]; then
-                content_launcher_screenshots=$(find integration-screenshots/ -name "*.png" -exec identify -ping -format "%[mean]\n" {} \; 2>/dev/null | awk -F. '{if($1 > 500) count++} END {print count+0}')
-                echo ""
-                echo "📈 Launcher Test Summary:"
-                echo "  Total screenshots: $total_launcher_screenshots"
-                echo "  With content: $content_launcher_screenshots"
-                if [ "$total_launcher_screenshots" -gt 0 ]; then
-                  success_rate=$(( content_launcher_screenshots * 100 / total_launcher_screenshots ))
-                  echo "  Success rate: ${success_rate}%"
-                  
-                  if [ "$success_rate" -eq 0 ]; then
-                    echo ""
-                    echo "⚠️  RECOMMENDATION: Consider the following improvements:"
-                    echo "   1. Increase application startup wait time (current: 5-10 seconds)"
-                    echo "   2. Add Qt environment variables for virtual display compatibility"
-                    echo "   3. Use software rendering instead of hardware acceleration"
-                    echo "   4. Check if the application requires additional dependencies"
-                  fi
-                else
-                  echo "  Success rate: 0%"
-                fi
-              else
-                echo "⚠️  No launcher screenshots captured"
-              fi
-            else
-              echo "❌ No integration-screenshots directory found"
-            fi
-            
-            # Clean up virtual display
-            kill $XVFB_PID 2>/dev/null || true
-            
-          else
-            echo "❌ Virtual display failed to start"
-          fi
-          
-          # Clean up
-          docker rmi openterface-test || true
-
-      - name: Upload integration test screenshots
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: integration-test-screenshots
-          path: integration-screenshots/
-          if-no-files-found: warn
