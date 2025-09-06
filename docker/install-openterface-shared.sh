@@ -203,7 +203,25 @@ if ls /dev/ttyUSB* 1> /dev/null 2>&1; then
 fi
 
 echo "📱 Available USB devices:"
-lsusb | grep -E "(534d|1a86)" || echo "No Openterface devices detected"
+if command -v lsusb >/dev/null 2>&1; then
+    lsusb | grep -E "(534d|1a86)" || echo "No Openterface devices detected"
+else
+    echo "lsusb not available - checking /sys/bus/usb/devices..."
+    found_devices=false
+    for device_dir in /sys/bus/usb/devices/*/; do
+        if [ -f "${device_dir}idVendor" ] && [ -f "${device_dir}idProduct" ]; then
+            vendor=$(cat "${device_dir}idVendor" 2>/dev/null || echo "")
+            product=$(cat "${device_dir}idProduct" 2>/dev/null || echo "")
+            if [ "$vendor" = "534d" ] || [ "$vendor" = "1a86" ]; then
+                echo "Found device: VID=$vendor PID=$product"
+                found_devices=true
+            fi
+        fi
+    done
+    if [ "$found_devices" = false ]; then
+        echo "No Openterface devices detected"
+    fi
+fi
 
 echo "🚀 Starting Openterface application..."
 

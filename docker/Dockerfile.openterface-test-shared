@@ -21,7 +21,8 @@ RUN apt-get install -y \
         wget \
         ca-certificates \
         sudo \
-        udev
+        udev \
+        usbutils
 # Runtime Qt6 libraries
 RUN apt-get install -y libqt6core6t64 \
         libqt6dbus6t64 \
@@ -47,6 +48,7 @@ RUN apt-get install -y libx11-6 \
 RUN apt-get install -y libavformat60 \
         libavcodec60 \
         libavutil58 \
+        libavdevice60 \
         libswresample4 \
         libswscale7 \
         libturbojpeg

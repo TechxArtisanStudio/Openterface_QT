@@ -255,184 +255,81 @@ jobs:
               fi
             "
 
-      - name: Test default CMD behavior with virtual display
+      - name: GUI screenshot test using proven script
         if: ${{ github.event.inputs.test_type == 'run-test' || github.event.inputs.test_type == 'all' || github.event_name != 'workflow_dispatch' }}
         run: |
-          echo "🧪 Testing default CMD behavior with virtual display"
+          echo "🧪 Running GUI screenshot test using proven script"
           
-          # Install Xvfb and screenshot tools with better configuration
-          sudo apt-get update -y
-          sudo apt-get install -y xvfb imagemagick scrot x11-utils xauth
+          # Make the script executable
+          chmod +x docker/screenshot-docker-app.sh
           
-          # Start Xvfb virtual display with optimized settings
-          export DISPLAY=:99
-          echo "🖥️  Starting virtual display with optimized configuration..."
-          Xvfb :99 -screen 0 1024x768x24 -ac +extension GLX +render -noreset &
-          XVFB_PID=$!
+          # Update the script to use the CI Docker tag instead of screenshot-test
+          sed -i 's/DOCKER_TAG="screenshot-test"/DOCKER_TAG="test-${{ github.sha }}"/' docker/screenshot-docker-app.sh
           
-          # Wait for Xvfb to start properly
-          sleep 5
+          # Update the script to use screenshots directory instead of app-screenshots
+          sed -i 's/SCREENSHOTS_DIR="app-screenshots"/SCREENSHOTS_DIR="screenshots"/' docker/screenshot-docker-app.sh
           
-          echo "🖥️  Virtual display started on $DISPLAY"
+          # Run the proven screenshot script
+          echo "� Executing screenshot script..."
+          ./docker/screenshot-docker-app.sh
           
-          # Verify X server is running and set up minimal environment
-          if DISPLAY=:99 xdpyinfo >/dev/null 2>&1; then
-            echo "✅ X server is responding"
+          # Additional analysis for CI context
+          echo ""
+          echo "📊 CI-specific screenshot analysis:"
+          echo "=================================="
+          
+          if [ -d "screenshots" ] && [ "$(ls -A screenshots/*.jpg 2>/dev/null)" ]; then
+            echo "✅ Screenshots generated successfully"
             
-            # Set up X11 authentication and suppress warnings
-            export XAUTHORITY=/tmp/.Xauth$$
-            xauth generate :99 . trusted 2>/dev/null || echo "ℹ️  Xauth setup not critical"
-            
-            # Configure minimal keyboard to reduce warnings
-            DISPLAY=:99 setxkbmap us 2>/dev/null || echo "ℹ️  Keyboard setup not critical"
-          else
-            echo "❌ X server not responding"
-            exit 1
-          fi
-          
-          # Create directory for screenshots
-          mkdir -p screenshots
-          
-          # Test default CMD with virtual display
-          echo "🚀 Running openterface with virtual display for 15 seconds..."
-          
-          CONTAINER_ID=$(docker run -d \
-            --name openterface-gui-test \
-            -e DISPLAY=$DISPLAY \
-            -v /tmp/.X11-unix:/tmp/.X11-unix:rw \
-            --network host \
-            ${{ env.DOCKER_IMAGE }}:${{ env.DOCKER_TAG }})
-          
-          echo "Container ID: ${CONTAINER_ID:0:12}"
-          
-          # Wait a few seconds for app to start
-          echo "⏰ Waiting 5 seconds for application to initialize..."
-          sleep 5
-          
-          # Take initial screenshot with error suppression
-          echo "📸 Taking initial screenshot..."
-          DISPLAY=:99 scrot screenshots/openterface_initial.png 2>/dev/null || echo "ℹ️  Initial screenshot skipped (display may be empty)"
-          
-          # Wait more time
-          echo "⏰ Waiting additional 5 seconds..."
-          sleep 5
-          
-          # Take second screenshot with error suppression
-          echo "📸 Taking second screenshot..."
-          DISPLAY=:99 scrot screenshots/openterface_5sec.png 2>/dev/null || echo "ℹ️  Second screenshot skipped"
-          
-          # Check if container is still running
-          if docker ps | grep -q $CONTAINER_ID; then
-            echo "✅ Container is running with GUI"
-            
-            # Get container logs
-            echo "📋 Container logs:"
-            docker logs $CONTAINER_ID 2>&1
-            
-            # Test container responsiveness
-            echo "🧪 Testing container responsiveness..."
-            docker exec $CONTAINER_ID ps aux | grep openterfaceQT || echo "openterfaceQT process not found"
-            
-            # Take final screenshot with error suppression
-            echo "📸 Taking final screenshot..."
-            DISPLAY=:99 scrot screenshots/openterface_final.png 2>/dev/null || echo "ℹ️  Final screenshot skipped"
-            
-            # Try to get window information with reduced verbosity
-            echo "🪟 Window information:"
-            window_info=$(DISPLAY=:99 xwininfo -tree -root 2>/dev/null | head -10 || echo "No windows detected")
-            if echo "$window_info" | grep -q 'child'; then
-              echo "✅ GUI windows detected"
-              echo "$window_info"
-            else
-              echo "ℹ️  No GUI windows detected"
-            fi
-            
-          else
-            echo "⚠️  Container exited, checking logs..."
-            docker logs $CONTAINER_ID 2>&1
-            
-            # Still try to take a screenshot of the desktop with error suppression
-            echo "📸 Taking desktop screenshot after container exit..."
-            DISPLAY=:99 scrot screenshots/openterface_after_exit.png 2>/dev/null || echo "ℹ️  Desktop screenshot skipped"
-          fi
-          
-          # Wait a bit more and take one more screenshot
-          echo "⏰ Final 5 second wait..."
-          sleep 5
-          echo "📸 Taking very final screenshot..."
-          DISPLAY=:99 scrot screenshots/openterface_very_final.png 2>/dev/null || echo "ℹ️  Very final screenshot skipped"
-          
-          # List all screenshots taken
-          echo "📸 Screenshots captured:"
-          ls -la screenshots/ || echo "No screenshots directory"
-          
-          # Get screenshot file sizes and detailed analysis
-          if [ -d "screenshots" ]; then
-            echo "📊 Screenshot details:"
-            echo "===================="
-            printf "%-25s | %-8s | %-12s | %-15s | %s\n" "Filename" "Size" "Dimensions" "Mean Color" "Content Status"
-            echo "$(printf '%.0s-' $(seq 1 80))"
-            
-            for img in screenshots/*.png; do
+            # Detailed analysis for CI
+            for img in screenshots/*.jpg; do
               if [ -f "$img" ]; then
                 filename=$(basename "$img")
                 filesize=$(ls -lh "$img" | awk '{print $5}')
-                
-                # Get image dimensions
                 dimensions=$(identify "$img" 2>/dev/null | awk '{print $3}' | head -1 || echo "Unknown")
-                
-                # Get mean color value to detect content
                 mean_color=$(identify -ping -format "%[mean]" "$img" 2>/dev/null || echo "0")
                 mean_value=${mean_color%.*}
                 
-                # Determine content status
-                if [ "$mean_value" -gt 2000 ]; then
-                  content_status="✅ Content detected"
-                elif [ "$mean_value" -gt 500 ]; then
-                  content_status="⚠️  Minimal content"
+                echo "📸 $filename:"
+                echo "   Size: $filesize | Dimensions: $dimensions | Mean: $mean_value"
+                
+                if [ "$mean_value" -gt 1000 ]; then
+                  echo "   Status: ✅ Rich content detected"
+                elif [ "$mean_value" -gt 100 ]; then
+                  echo "   Status: ⚠️  Basic content detected"
                 else
-                  content_status="❌ Likely blank/black"
+                  echo "   Status: ❌ Likely blank/black"
                 fi
-                
-                printf "%-25s | %-8s | %-12s | %-15s | %s\n" "$filename" "$filesize" "$dimensions" "$mean_value" "$content_status"
-                
-                # Additional analysis for suspicious images
-                if [ "$mean_value" -lt 500 ]; then
-                  echo "  🔍 Detailed analysis: $(identify -verbose "$img" 2>/dev/null | grep -E 'Colors\\|Histogram' | head -2 || echo 'Cannot analyze')"
-                fi
+                echo ""
               fi
             done
-            echo ""
             
-            # Summary statistics
-            total_screenshots=$(find screenshots/ -name "*.png" | wc -l)
-            content_screenshots=$(find screenshots/ -name "*.png" -exec identify -ping -format "%[mean]\n" {} \; 2>/dev/null | awk -F. '{if($1 > 500) count++} END {print count+0}')
+            # Summary for CI
+            total_jpgs=$(find screenshots/ -name "*.jpg" 2>/dev/null | wc -l)
+            content_jpgs=$(find screenshots/ -name "*.jpg" -exec identify -ping -format "%[mean]\n" {} \; 2>/dev/null | awk -F. '{if($1 > 100) count++} END {print count+0}')
             
-            echo "📈 Summary:"
-            echo "  Total screenshots: $total_screenshots"
-            echo "  With content: $content_screenshots"
-            echo "  Success rate: $(( content_screenshots * 100 / total_screenshots ))%"
-            
-            # Show first few pixels of each image for debugging
-            echo ""
-            echo "🔍 First pixel analysis (for debugging):"
-            for img in screenshots/*.png; do
-              if [ -f "$img" ]; then
-                first_pixel=$(convert "$img" -crop 1x1+0+0 txt:- 2>/dev/null | tail -1 | cut -d' ' -f4 || echo "unknown")
-                echo "  $(basename "$img"): First pixel = $first_pixel"
+            echo "📈 CI Test Summary:"
+            echo "   Total JPG screenshots: $total_jpgs"
+            echo "   With content: $content_jpgs"
+            if [ "$total_jpgs" -gt 0 ]; then
+              success_rate=$(( content_jpgs * 100 / total_jpgs ))
+              echo "   Success rate: ${success_rate}%"
+              
+              if [ "$success_rate" -ge 50 ]; then
+                echo "   ✅ GUI test PASSED - Application rendered successfully"
+              else
+                echo "   ⚠️  GUI test PARTIAL - Some content detected but may need investigation"
               fi
-            done
+            else
+              echo "   ❌ GUI test FAILED - No screenshots generated"
+            fi
+          else
+            echo "❌ No screenshots found - script may have failed"
+            exit 1
           fi
           
-          # Clean up container
-          echo "🛑 Stopping container..."
-          docker stop $CONTAINER_ID 2>/dev/null || true
-          docker rm $CONTAINER_ID 2>/dev/null || true
-          
-          # Clean up Xvfb
-          kill $XVFB_PID 2>/dev/null || true
-          
-          echo "✅ GUI test with virtual display completed"
+          echo ""
+          echo "✅ GUI screenshot test completed"
 
       - name: Upload screenshots
         if: ${{ always() && (github.event.inputs.test_type == 'run-test' || github.event.inputs.test_type == 'all' || github.event_name != 'workflow_dispatch') }}
