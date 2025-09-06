@@ -37,12 +37,43 @@ STATIC_PACKAGE_NAME="openterfaceQT-portable"  # Assuming static portable app
 # Function to get the specified version
 get_latest_version() {
     echo "🔍 Fetching latest release information..."
-    # Use GitHub API to get the latest release
-    LATEST_VERSION=$(curl -s "https://api.github.com/repos/${GITHUB_REPO}/releases/latest" | \
-                     grep '"tag_name":' | \
-                     sed -E 's/.*"([^"]+)".*/\1/')
     
-    echo "✅ Latest version: $LATEST_VERSION"
+    # Test GitHub API connectivity first
+    echo "   Testing GitHub API connectivity..."
+    if ! curl --connect-timeout 10 --max-time 30 -s "https://api.github.com" > /dev/null; then
+        echo "❌ Cannot reach GitHub API"
+        echo "   Network diagnostics:"
+        echo "     - DNS resolution for api.github.com:"
+        nslookup api.github.com || echo "       DNS resolution failed"
+        echo "     - Ping test to 8.8.8.8:"
+        ping -c 3 8.8.8.8 || echo "       Ping failed"
+        exit 1
+    fi
+    echo "   ✅ GitHub API is reachable"
+    
+    # Use GitHub API to get the latest release with better error handling
+    echo "   Querying GitHub API for latest release..."
+    API_RESPONSE=$(curl -s --connect-timeout 30 --max-time 60 "https://api.github.com/repos/${GITHUB_REPO}/releases/latest")
+    
+    if [ $? -ne 0 ] || [ -z "$API_RESPONSE" ]; then
+        echo "❌ Failed to get API response from GitHub"
+        echo "   API Response: $API_RESPONSE"
+        
+        # Fallback to a known version
+        echo "   Using fallback version: v0.4.3"
+        LATEST_VERSION="v0.4.3"
+    else
+        LATEST_VERSION=$(echo "$API_RESPONSE" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
+        
+        if [ -z "$LATEST_VERSION" ]; then
+            echo "❌ Could not parse version from API response"
+            echo "   API Response snippet: $(echo "$API_RESPONSE" | head -3)"
+            echo "   Using fallback version: v0.4.3"
+            LATEST_VERSION="v0.4.3"
+        fi
+    fi
+    
+    echo "✅ Using version: $LATEST_VERSION"
 }
 
 # Function to check if static package exists
@@ -226,11 +257,22 @@ EOF
     
     echo "✅ Udev rules created at /etc/udev/rules.d/50-openterface.rules"
     
-    # Reload udev rules
+    # Reload udev rules - handle Docker container environment
     if command -v udevadm >/dev/null 2>&1; then
-        udevadm control --reload-rules
-        udevadm trigger
-        echo "✅ Udev rules reloaded"
+        # Check if we're in a Docker container or if udev service is available
+        if [ -f /.dockerenv ] || [ "${DOCKER_BUILD:-}" = "1" ] || [ "${container:-}" = "docker" ]; then
+            echo "🐳 Running in Docker container - udev rules created but not reloaded"
+            echo "   (Rules will be active when container is run with proper device access)"
+        else
+            # Try to reload rules, but don't fail the installation if it doesn't work
+            echo "🔄 Attempting to reload udev rules..."
+            if udevadm control --reload-rules 2>/dev/null && udevadm trigger 2>/dev/null; then
+                echo "✅ Udev rules reloaded successfully"
+            else
+                echo "⚠️  Could not reload udev rules (may require privileged mode or system restart)"
+                echo "   Rules are installed and will be active after reboot or udev service restart"
+            fi
+        fi
     else
         echo "⚠️  udevadm not available, udev rules will be active after restart"
     fi
