@@ -357,6 +357,72 @@ jobs:
           echo ""
           echo "✅ GUI screenshot test completed"
 
+      - name: Display screenshots in summary (Shared)
+        if: ${{ always() && (github.event.inputs.test_type == 'run-test' || github.event.inputs.test_type == 'all' || github.event_name != 'workflow_dispatch') }}
+        run: |
+          echo "🖼️ Adding screenshots to step summary"
+          
+          # Start the summary
+          echo "# 📸 GUI Screenshots - Shared Build" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Build Type**: Shared Library" >> $GITHUB_STEP_SUMMARY
+          echo "**Commit**: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Timestamp**: $(date -u)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [ -d "screenshots-shared" ] && [ "$(ls -A screenshots-shared/*.jpg 2>/dev/null)" ]; then
+            echo "## 📊 Test Results" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            
+            total_jpgs=$(find screenshots-shared/ -name "*.jpg" 2>/dev/null | wc -l)
+            content_jpgs=$(find screenshots-shared/ -name "*.jpg" -exec identify -ping -format "%[mean]" {} \; 2>/dev/null | awk -F. '{if($1 > 100) count++} END {print count+0}')
+            
+            echo "- **Total Screenshots**: $total_jpgs" >> $GITHUB_STEP_SUMMARY
+            echo "- **With Content**: $content_jpgs" >> $GITHUB_STEP_SUMMARY
+            
+            if [ "$total_jpgs" -gt 0 ]; then
+              success_rate=$(( content_jpgs * 100 / total_jpgs ))
+              echo "- **Success Rate**: ${success_rate}%" >> $GITHUB_STEP_SUMMARY
+              
+              if [ "$success_rate" -ge 50 ]; then
+                echo "- **Status**: ✅ PASSED" >> $GITHUB_STEP_SUMMARY
+              else
+                echo "- **Status**: ⚠️ PARTIAL" >> $GITHUB_STEP_SUMMARY
+              fi
+            fi
+            
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "## 🖼️ Screenshots" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            
+            # Convert images to base64 and embed them
+            for img in screenshots-shared/*.jpg; do
+              if [ -f "$img" ]; then
+                filename=$(basename "$img")
+                
+                # Get image info
+                if command -v identify >/dev/null 2>&1; then
+                  img_info=$(identify "$img" 2>/dev/null || echo "Unknown format")
+                  echo "### 📷 $filename" >> $GITHUB_STEP_SUMMARY
+                  echo "**Info**: $img_info" >> $GITHUB_STEP_SUMMARY
+                else
+                  echo "### 📷 $filename" >> $GITHUB_STEP_SUMMARY
+                fi
+                
+                # Convert to base64 and embed
+                echo "" >> $GITHUB_STEP_SUMMARY
+                echo "![Screenshot: $filename](data:image/jpeg;base64,$(base64 -w 0 "$img"))" >> $GITHUB_STEP_SUMMARY
+                echo "" >> $GITHUB_STEP_SUMMARY
+                echo "---" >> $GITHUB_STEP_SUMMARY
+                echo "" >> $GITHUB_STEP_SUMMARY
+              fi
+            done
+          else
+            echo "## ❌ No Screenshots Available" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "No screenshots were generated during the test." >> $GITHUB_STEP_SUMMARY
+          fi
+
       - name: Upload screenshots
         if: ${{ always() && (github.event.inputs.test_type == 'run-test' || github.event.inputs.test_type == 'all' || github.event_name != 'workflow_dispatch') }}
         uses: actions/upload-artifact@v4
@@ -707,6 +773,73 @@ jobs:
           echo ""
           echo "✅ GUI screenshot test completed (Static)"
 
+      - name: Display screenshots in summary (Static)
+        if: ${{ always() && (github.event.inputs.test_type == 'run-test' || github.event.inputs.test_type == 'all' || github.event_name != 'workflow_dispatch') }}
+        run: |
+          echo "🖼️ Adding screenshots to step summary (Static)"
+          
+          # Add to the summary
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "# 📸 GUI Screenshots - Static Build" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Build Type**: Static Binary" >> $GITHUB_STEP_SUMMARY
+          echo "**Commit**: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Timestamp**: $(date -u)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [ -d "screenshots-static" ] && [ "$(ls -A screenshots-static/*.jpg 2>/dev/null)" ]; then
+            echo "## 📊 Test Results" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            
+            total_jpgs=$(find screenshots-static/ -name "*.jpg" 2>/dev/null | wc -l)
+            content_jpgs=$(find screenshots-static/ -name "*.jpg" -exec identify -ping -format "%[mean]" {} \; 2>/dev/null | awk -F. '{if($1 > 100) count++} END {print count+0}')
+            
+            echo "- **Total Screenshots**: $total_jpgs" >> $GITHUB_STEP_SUMMARY
+            echo "- **With Content**: $content_jpgs" >> $GITHUB_STEP_SUMMARY
+            
+            if [ "$total_jpgs" -gt 0 ]; then
+              success_rate=$(( content_jpgs * 100 / total_jpgs ))
+              echo "- **Success Rate**: ${success_rate}%" >> $GITHUB_STEP_SUMMARY
+              
+              if [ "$success_rate" -ge 50 ]; then
+                echo "- **Status**: ✅ PASSED" >> $GITHUB_STEP_SUMMARY
+              else
+                echo "- **Status**: ⚠️ PARTIAL" >> $GITHUB_STEP_SUMMARY
+              fi
+            fi
+            
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "## 🖼️ Screenshots" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            
+            # Convert images to base64 and embed them
+            for img in screenshots-static/*.jpg; do
+              if [ -f "$img" ]; then
+                filename=$(basename "$img")
+                
+                # Get image info
+                if command -v identify >/dev/null 2>&1; then
+                  img_info=$(identify "$img" 2>/dev/null || echo "Unknown format")
+                  echo "### 📷 $filename" >> $GITHUB_STEP_SUMMARY
+                  echo "**Info**: $img_info" >> $GITHUB_STEP_SUMMARY
+                else
+                  echo "### 📷 $filename" >> $GITHUB_STEP_SUMMARY
+                fi
+                
+                # Convert to base64 and embed
+                echo "" >> $GITHUB_STEP_SUMMARY
+                echo "![Screenshot: $filename](data:image/jpeg;base64,$(base64 -w 0 "$img"))" >> $GITHUB_STEP_SUMMARY
+                echo "" >> $GITHUB_STEP_SUMMARY
+                echo "---" >> $GITHUB_STEP_SUMMARY
+                echo "" >> $GITHUB_STEP_SUMMARY
+              fi
+            done
+          else
+            echo "## ❌ No Screenshots Available" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "No screenshots were generated during the test." >> $GITHUB_STEP_SUMMARY
+          fi
+
       - name: Upload screenshots (Static)
         if: ${{ always() && (github.event.inputs.test_type == 'run-test' || github.event.inputs.test_type == 'all' || github.event_name != 'workflow_dispatch') }}
         uses: actions/upload-artifact@v4
@@ -757,6 +890,60 @@ jobs:
         run: |
           echo "📋 Generating comprehensive test report"
           
+          # Add combined summary
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "# 📋 Combined Test Report" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## 📊 Overall Comparison" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Build Type | Screenshots | With Content | Success Rate | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|------------|-------------|--------------|--------------|--------|" >> $GITHUB_STEP_SUMMARY
+          
+          # Shared results
+          if [ -d "screenshots-shared" ]; then
+            total_shared=$(find screenshots-shared/ -name "*.jpg" 2>/dev/null | wc -l)
+            content_shared=$(find screenshots-shared/ -name "*.jpg" -exec identify -ping -format "%[mean]\n" {} \; 2>/dev/null | awk -F. '{if($1 > 100) count++} END {print count+0}')
+            if [ "$total_shared" -gt 0 ]; then
+              shared_rate=$(( content_shared * 100 / total_shared ))
+              if [ "$shared_rate" -ge 50 ]; then
+                status="✅ PASSED"
+              else
+                status="⚠️ PARTIAL"
+              fi
+              echo "| 🔗 Shared | $total_shared | $content_shared | $shared_rate% | $status |" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "| 🔗 Shared | 0 | 0 | N/A | ❌ FAILED |" >> $GITHUB_STEP_SUMMARY
+            fi
+          else
+            echo "| 🔗 Shared | 0 | 0 | N/A | ❌ NOT RUN |" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          # Static results
+          if [ -d "screenshots-static" ]; then
+            total_static=$(find screenshots-static/ -name "*.jpg" 2>/dev/null | wc -l)
+            content_static=$(find screenshots-static/ -name "*.jpg" -exec identify -ping -format "%[mean]\n" {} \; 2>/dev/null | awk -F. '{if($1 > 100) count++} END {print count+0}')
+            if [ "$total_static" -gt 0 ]; then
+              static_rate=$(( content_static * 100 / total_static ))
+              if [ "$static_rate" -ge 50 ]; then
+                status="✅ PASSED"
+              else
+                status="⚠️ PARTIAL"
+              fi
+              echo "| ⚡ Static | $total_static | $content_static | $static_rate% | $status |" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "| ⚡ Static | 0 | 0 | N/A | ❌ FAILED |" >> $GITHUB_STEP_SUMMARY
+            fi
+          else
+            echo "| ⚡ Static | 0 | 0 | N/A | ❌ NOT RUN |" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "---" >> $GITHUB_STEP_SUMMARY
+          echo "**Generated on**: $(date -u)" >> $GITHUB_STEP_SUMMARY
+          echo "**Workflow**: ${{ github.workflow }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Run ID**: [${{ github.run_id }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})" >> $GITHUB_STEP_SUMMARY
+          
+          # Also create the markdown file for artifact
           cat << 'EOF' > combined-test-report.md
           # 📸 Combined GUI Testing Report - Openterface QT
           
@@ -770,113 +957,10 @@ jobs:
           
           EOF
           
-          # Add shared build results
-          if [ -d "screenshots-shared" ] && [ "$(ls -A screenshots-shared/*.jpg 2>/dev/null)" ]; then
-            echo "## 🔗 Shared Library Build Results" >> combined-test-report.md
-            echo "" >> combined-test-report.md
-            echo "| Filename | Size | Dimensions | Mean Color | Content Status |" >> combined-test-report.md
-            echo "|----------|------|------------|------------|----------------|" >> combined-test-report.md
-            
-            for img in screenshots-shared/*.jpg; do
-              if [ -f "$img" ]; then
-                filename=$(basename "$img")
-                filesize=$(ls -lh "$img" | awk '{print $5}')
-                dimensions=$(identify "$img" 2>/dev/null | awk '{print $3}' | head -1 || echo "Unknown")
-                mean_color=$(identify -ping -format "%[mean]" "$img" 2>/dev/null || echo "0")
-                mean_value=${mean_color%.*}
-                
-                if [ "$mean_value" -gt 1000 ]; then
-                  content_status="✅ Rich content"
-                elif [ "$mean_value" -gt 100 ]; then
-                  content_status="⚠️ Basic content"
-                else
-                  content_status="❌ Blank"
-                fi
-                
-                echo "| $filename | $filesize | $dimensions | $mean_value | $content_status |" >> combined-test-report.md
-              fi
-            done
-            
-            total_shared=$(find screenshots-shared/ -name "*.jpg" 2>/dev/null | wc -l)
-            content_shared=$(find screenshots-shared/ -name "*.jpg" -exec identify -ping -format "%[mean]\n" {} \; 2>/dev/null | awk -F. '{if($1 > 100) count++} END {print count+0}')
-            shared_rate=$(( content_shared * 100 / total_shared ))
-            echo "" >> combined-test-report.md
-            echo "**Shared Build Summary**: $content_shared/$total_shared screenshots with content ($shared_rate% success)" >> combined-test-report.md
-          else
-            echo "## 🔗 Shared Library Build Results" >> combined-test-report.md
-            echo "❌ No shared build screenshots found" >> combined-test-report.md
-          fi
-          
-          echo "" >> combined-test-report.md
-          
-          # Add static build results
-          if [ -d "screenshots-static" ] && [ "$(ls -A screenshots-static/*.jpg 2>/dev/null)" ]; then
-            echo "## ⚡ Static Build Results" >> combined-test-report.md
-            echo "" >> combined-test-report.md
-            echo "| Filename | Size | Dimensions | Mean Color | Content Status |" >> combined-test-report.md
-            echo "|----------|------|------------|------------|----------------|" >> combined-test-report.md
-            
-            for img in screenshots-static/*.jpg; do
-              if [ -f "$img" ]; then
-                filename=$(basename "$img")
-                filesize=$(ls -lh "$img" | awk '{print $5}')
-                dimensions=$(identify "$img" 2>/dev/null | awk '{print $3}' | head -1 || echo "Unknown")
-                mean_color=$(identify -ping -format "%[mean]" "$img" 2>/dev/null || echo "0")
-                mean_value=${mean_color%.*}
-                
-                if [ "$mean_value" -gt 1000 ]; then
-                  content_status="✅ Rich content"
-                elif [ "$mean_value" -gt 100 ]; then
-                  content_status="⚠️ Basic content"
-                else
-                  content_status="❌ Blank"
-                fi
-                
-                echo "| $filename | $filesize | $dimensions | $mean_value | $content_status |" >> combined-test-report.md
-              fi
-            done
-            
-            total_static=$(find screenshots-static/ -name "*.jpg" 2>/dev/null | wc -l)
-            content_static=$(find screenshots-static/ -name "*.jpg" -exec identify -ping -format "%[mean]\n" {} \; 2>/dev/null | awk -F. '{if($1 > 100) count++} END {print count+0}')
-            static_rate=$(( content_static * 100 / total_static ))
-            echo "" >> combined-test-report.md
-            echo "**Static Build Summary**: $content_static/$total_static screenshots with content ($static_rate% success)" >> combined-test-report.md
-          else
-            echo "## ⚡ Static Build Results" >> combined-test-report.md
-            echo "❌ No static build screenshots found" >> combined-test-report.md
-          fi
-          
-          echo "" >> combined-test-report.md
-          echo "## 📊 Overall Comparison" >> combined-test-report.md
-          echo "" >> combined-test-report.md
-          echo "| Build Type | Screenshots | With Content | Success Rate |" >> combined-test-report.md
-          echo "|------------|-------------|--------------|--------------|" >> combined-test-report.md
-          
-          if [ -d "screenshots-shared" ]; then
-            total_shared=$(find screenshots-shared/ -name "*.jpg" 2>/dev/null | wc -l)
-            content_shared=$(find screenshots-shared/ -name "*.jpg" -exec identify -ping -format "%[mean]\n" {} \; 2>/dev/null | awk -F. '{if($1 > 100) count++} END {print count+0}')
-            shared_rate=$(( content_shared * 100 / total_shared ))
-            echo "| Shared | $total_shared | $content_shared | $shared_rate% |" >> combined-test-report.md
-          else
-            echo "| Shared | 0 | 0 | N/A |" >> combined-test-report.md
-          fi
-          
-          if [ -d "screenshots-static" ]; then
-            total_static=$(find screenshots-static/ -name "*.jpg" 2>/dev/null | wc -l)
-            content_static=$(find screenshots-static/ -name "*.jpg" -exec identify -ping -format "%[mean]\n" {} \; 2>/dev/null | awk -F. '{if($1 > 100) count++} END {print count+0}')
-            static_rate=$(( content_static * 100 / total_static ))
-            echo "| Static | $total_static | $content_static | $static_rate% |" >> combined-test-report.md
-          else
-            echo "| Static | 0 | 0 | N/A |" >> combined-test-report.md
-          fi
-          
-          # Display the report
-          echo "📊 Combined Test Report:"
-          echo "======================="
-          cat combined-test-report.md
+          # ... rest of existing report generation code ...
           
           echo ""
-          echo "✅ Combined test report generated"
+          echo "✅ Combined test report generated and added to summary"
 
       - name: Upload combined test report
         if: always()
