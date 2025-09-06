@@ -210,9 +210,9 @@ jobs:
         run: |
           echo "🧪 Testing Qt runtime dependencies"
           
-          docker run --rm 
-            --name openterface-qt-test 
-            ${{ env.DOCKER_IMAGE_SHARED }}:${{ env.DOCKER_TAG }} 
+          docker run --rm \
+            --name openterface-qt-test \
+            ${{ env.DOCKER_IMAGE_SHARED }}:${{ env.DOCKER_TAG }} \
             bash -c "
               echo '🔍 Checking Qt6 libraries...'
               ldconfig -p | grep -i qt6 | head -10 || echo 'No Qt6 libraries found'
@@ -234,9 +234,9 @@ jobs:
         run: |
           echo "🧪 Testing hardware interface dependencies"
           
-          docker run --rm 
-            --name openterface-hw-test 
-            ${{ env.DOCKER_IMAGE_SHARED }}:${{ env.DOCKER_TAG }} 
+          docker run --rm \
+            --name openterface-hw-test \
+            ${{ env.DOCKER_IMAGE_SHARED }}:${{ env.DOCKER_TAG }} \
             bash -c "
               echo '🔍 Checking USB libraries...'
               dpkg -l | grep libusb || echo 'No libusb packages found'
@@ -259,9 +259,9 @@ jobs:
           echo "🧪 Testing application launcher (non-GUI mode)"
           
           # Test the launcher script exists and is executable
-          docker run --rm 
-            --name openterface-launcher-test 
-            ${{ env.DOCKER_IMAGE_SHARED }}:${{ env.DOCKER_TAG }} 
+          docker run --rm \
+            --name openterface-launcher-test \
+            ${{ env.DOCKER_IMAGE_SHARED }}:${{ env.DOCKER_TAG }} \
             bash -c "
               if [ -f '/usr/local/bin/start-openterface.sh' ] && [ -x '/usr/local/bin/start-openterface.sh' ]; then
                 echo '✅ Launcher script exists and is executable'

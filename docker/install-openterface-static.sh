@@ -27,11 +27,13 @@ FALLBACK_PACKAGE_NAME="openterfaceQT.linux.amd64.shared.deb"       # Fallback to
 
 # Function to get the specified version
 get_latest_version() {
-    echo "🔍 Using specified version for static testing..."
-    # Use fixed version 0.3.19 for static testing
-    LATEST_VERSION="0.3.19"
+    echo "🔍 Fetching latest release information..."
+    # Use GitHub API to get the latest release
+    LATEST_VERSION=$(curl -s "https://api.github.com/repos/${GITHUB_REPO}/releases/latest" | \
+                     grep '"tag_name":' | \
+                     sed -E 's/.*"([^"]+)".*/\1/')
     
-    echo "✅ Using version: $LATEST_VERSION"
+    echo "✅ Latest version: $LATEST_VERSION"
 }
 
 # Function to check if static package exists
