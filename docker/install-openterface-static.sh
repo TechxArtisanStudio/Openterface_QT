@@ -47,7 +47,6 @@ check_static_package_exists() {
         return 0
     else
         echo "⚠️  Static package not found, falling back to regular package: $FALLBACK_PACKAGE_NAME"
-        PACKAGE_NAME="$FALLBACK_PACKAGE_NAME"
         return 1
     fi
 }
@@ -92,7 +91,7 @@ install_package() {
         exit 1
     fi
     
-    cp /tmp/${PACKAGE_NAME}/usr/bin
+    cp /tmp/${PACKAGE_NAME} /usr/bin
     
     # Clean up downloaded package
     rm "/tmp/${PACKAGE_NAME}"
