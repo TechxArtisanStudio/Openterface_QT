@@ -415,7 +415,7 @@ jobs:
                 echo "🔄 Uploading $filename to ImgBB..." >> $GITHUB_STEP_SUMMARY
                 
                 # Check if API key is available
-                if [ -z "${{ IMGBB_API_KEY }}" ]; then
+                if [ -z "$IMGBB_API_KEY" ]; then
                   echo "⚠️ **IMGBB_API_KEY not configured** - Upload skipped" >> $GITHUB_STEP_SUMMARY
                   echo "_Contact repository admin to set up the secret_" >> $GITHUB_STEP_SUMMARY
                   echo "" >> $GITHUB_STEP_SUMMARY
@@ -446,7 +446,7 @@ jobs:
                         --connect-timeout 30 \
                         --max-time 120 \
                         -X POST "https://api.imgbb.com/1/upload" \
-                        -F "key=${{ IMGBB_API_KEY }}" \
+                        -F "key=$IMGBB_API_KEY" \
                         -F "image=@$temp_file" \
                         2>&1 || echo '{"success": false, "error": {"message": "curl command failed"}}')
                       
@@ -458,7 +458,7 @@ jobs:
                         --connect-timeout 30 \
                         --max-time 120 \
                         -X POST "https://api.imgbb.com/1/upload" \
-                        -F "key=${{ IMGBB_API_KEY }}" \
+                        -F "key=$IMGBB_API_KEY" \
                         -F "image=$image_base64" \
                         2>&1 || echo '{"success": false, "error": {"message": "curl command failed"}}')
                     fi
@@ -1022,7 +1022,7 @@ jobs:
                 echo "🔄 Uploading $filename to ImgBB..." >> $GITHUB_STEP_SUMMARY
                 
                 # Check if API key is available
-                if [ -z "${{ IMGBB_API_KEY }}" ]; then
+                if [ -z "$IMGBB_API_KEY" ]; then
                   echo "⚠️ **IMGBB_API_KEY not configured** - Upload skipped" >> $GITHUB_STEP_SUMMARY
                   echo "_Contact repository admin to set up the secret_" >> $GITHUB_STEP_SUMMARY
                   echo "" >> $GITHUB_STEP_SUMMARY
@@ -1063,7 +1063,7 @@ jobs:
                         --connect-timeout 30 \
                         --max-time 120 \
                         -X POST "https://api.imgbb.com/1/upload" \
-                        -F "key=${{ IMGBB_API_KEY }}" \
+                        -F "key=$IMGBB_API_KEY" \
                         -F "image=@$temp_file" \
                         2>&1 || echo '{"success": false, "error": {"message": "curl command failed"}}')
                       
@@ -1075,7 +1075,7 @@ jobs:
                         --connect-timeout 30 \
                         --max-time 120 \
                         -X POST "https://api.imgbb.com/1/upload" \
-                        -F "key=${{ IMGBB_API_KEY }}" \
+                        -F "key=$IMGBB_API_KEY" \
                         -F "image=$image_base64" \
                         2>&1 || echo '{"success": false, "error": {"message": "curl command failed"}}')
                     fi
