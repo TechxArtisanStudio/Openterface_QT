@@ -409,6 +409,54 @@ jobs:
                 
                 echo "#### 📷 $filename" >> $GITHUB_STEP_SUMMARY
                 
+                # Upload image to freeimage.host
+                echo "🔄 Uploading $filename to freeimage.host..." >> $GITHUB_STEP_SUMMARY
+                
+                # Check if API key is available
+                if [ -z "${{ secrets.FREEIMAGE_API_KEY }}" ]; then
+                  echo "⚠️ **FREEIMAGE_API_KEY not configured** - Upload skipped" >> $GITHUB_STEP_SUMMARY
+                  echo "_Contact repository admin to set up the secret_" >> $GITHUB_STEP_SUMMARY
+                else
+                  # Convert image to base64 for upload
+                  image_base64=$(base64 -w 0 "$img" 2>/dev/null || base64 "$img" 2>/dev/null || echo "")
+                  
+                  if [ -n "$image_base64" ] && [ ${#image_base64} -gt 100 ]; then
+                    # Upload to freeimage.host API
+                    upload_response=$(curl -s -X POST "https://freeimage.host/api/1/upload" \
+                      -F "key=${{ secrets.FREEIMAGE_API_KEY }}" \
+                      -F "action=upload" \
+                      -F "source=data:image/jpeg;base64,$image_base64" \
+                      -F "format=json" \
+                      2>/dev/null || echo '{"status_code": 400}')
+                    
+                    # Parse the response
+                    upload_status=$(echo "$upload_response" | grep -o '"status_code":[0-9]*' | cut -d':' -f2 || echo "400")
+                    
+                    if [ "$upload_status" = "200" ]; then
+                      # Extract image URL from response
+                      image_url=$(echo "$upload_response" | grep -o '"url":"[^"]*"' | cut -d'"' -f4 | head -1)
+                      
+                      if [ -n "$image_url" ]; then
+                        echo "✅ **Upload successful!**" >> $GITHUB_STEP_SUMMARY
+                        echo "" >> $GITHUB_STEP_SUMMARY
+                        
+                        # Display the image in summary
+                        echo "![Screenshot: $filename]($image_url)" >> $GITHUB_STEP_SUMMARY
+                        echo "" >> $GITHUB_STEP_SUMMARY
+                        echo "🔗 **Direct Link**: [$image_url]($image_url)" >> $GITHUB_STEP_SUMMARY
+                      else
+                        echo "⚠️ **Upload successful but URL not found**" >> $GITHUB_STEP_SUMMARY
+                      fi
+                    else
+                      echo "❌ **Upload failed** (Status: $upload_status)" >> $GITHUB_STEP_SUMMARY
+                    fi
+                  else
+                    echo "❌ **Cannot convert image to base64**" >> $GITHUB_STEP_SUMMARY
+                  fi
+                fi
+                
+                echo "" >> $GITHUB_STEP_SUMMARY
+                
                 # Get basic file info
                 filesize=$(ls -lh "$img" | awk '{print $5}')
                 echo "- **File Size**: $filesize" >> $GITHUB_STEP_SUMMARY
@@ -893,6 +941,54 @@ jobs:
                 artifact_name="screenshot-static-${screenshot_count}-$(echo "$filename" | sed 's/[^a-zA-Z0-9.-]/_/g')"
                 
                 echo "### 📷 $filename" >> $GITHUB_STEP_SUMMARY
+                echo "" >> $GITHUB_STEP_SUMMARY
+                
+                # Upload image to freeimage.host
+                echo "🔄 Uploading $filename to freeimage.host..." >> $GITHUB_STEP_SUMMARY
+                
+                # Check if API key is available
+                if [ -z "${{ secrets.FREEIMAGE_API_KEY }}" ]; then
+                  echo "⚠️ **FREEIMAGE_API_KEY not configured** - Upload skipped" >> $GITHUB_STEP_SUMMARY
+                  echo "_Contact repository admin to set up the secret_" >> $GITHUB_STEP_SUMMARY
+                else
+                  # Convert image to base64 for upload
+                  image_base64=$(base64 -w 0 "$img" 2>/dev/null || base64 "$img" 2>/dev/null || echo "")
+                  
+                  if [ -n "$image_base64" ] && [ ${#image_base64} -gt 100 ]; then
+                    # Upload to freeimage.host API
+                    upload_response=$(curl -s -X POST "https://freeimage.host/api/1/upload" \
+                    -F "key=${{ secrets.FREEIMAGE_API_KEY }}" \
+                    -F "action=upload" \
+                    -F "source=data:image/jpeg;base64,$image_base64" \
+                    -F "format=json" \
+                    2>/dev/null || echo '{"status_code": 400}')
+                  
+                  # Parse the response
+                  upload_status=$(echo "$upload_response" | grep -o '"status_code":[0-9]*' | cut -d':' -f2 || echo "400")
+                  
+                  if [ "$upload_status" = "200" ]; then
+                    # Extract image URL from response
+                    image_url=$(echo "$upload_response" | grep -o '"url":"[^"]*"' | cut -d'"' -f4 | head -1)
+                    
+                    if [ -n "$image_url" ]; then
+                      echo "✅ **Upload successful!**" >> $GITHUB_STEP_SUMMARY
+                      echo "" >> $GITHUB_STEP_SUMMARY
+                      
+                      # Display the image in summary
+                      echo "![Screenshot: $filename]($image_url)" >> $GITHUB_STEP_SUMMARY
+                      echo "" >> $GITHUB_STEP_SUMMARY
+                      echo "🔗 **Direct Link**: [$image_url]($image_url)" >> $GITHUB_STEP_SUMMARY
+                    else
+                      echo "⚠️ **Upload successful but URL not found**" >> $GITHUB_STEP_SUMMARY
+                    fi
+                  else
+                    echo "❌ **Upload failed** (Status: $upload_status)" >> $GITHUB_STEP_SUMMARY
+                  fi
+                else
+                  echo "❌ **Cannot convert image to base64**" >> $GITHUB_STEP_SUMMARY
+                fi
+              fi
+                
                 echo "" >> $GITHUB_STEP_SUMMARY
                 
                 # File analysis
