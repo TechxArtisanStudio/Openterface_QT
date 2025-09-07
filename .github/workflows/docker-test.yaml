@@ -427,7 +427,7 @@ jobs:
                   if [ -n "$image_base64" ] && [ ${#image_base64} -gt 100 ]; then
                     # Upload to ImgBB API with enhanced error handling
                     echo "🚀 Attempting upload to ImgBB..." >> $GITHUB_STEP_SUMMARY
-                    echo "- API Key length: ${#{{ secrets.IMGBB_API_KEY }}}" >> $GITHUB_STEP_SUMMARY
+                    echo "- API Key length: ${#secrets.IMGBB_API_KEY}" >> $GITHUB_STEP_SUMMARY
                     echo "- Base64 size: ${#image_base64} chars" >> $GITHUB_STEP_SUMMARY
                     
                     # Check if base64 data is too large for command line (limit ~128KB)
@@ -1032,7 +1032,7 @@ jobs:
                   if [ -n "$image_base64" ] && [ ${#image_base64} -gt 100 ]; then
                     # Upload to ImgBB API with detailed error handling
                     echo "🔍 **Pre-upload checks:**" >> $GITHUB_STEP_SUMMARY
-                    echo "- API key length: ${#{{ secrets.IMGBB_API_KEY }}}" >> $GITHUB_STEP_SUMMARY
+                    echo "- API key length: ${#secrets.IMGBB_API_KEY}" >> $GITHUB_STEP_SUMMARY
                     echo "- Base64 length: ${#image_base64}" >> $GITHUB_STEP_SUMMARY
                     echo "- Image file size: $(stat -c%s "$img" 2>/dev/null || echo "unknown") bytes" >> $GITHUB_STEP_SUMMARY
                     
