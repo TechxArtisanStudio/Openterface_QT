@@ -357,8 +357,10 @@ jobs:
           echo ""
           echo "✅ GUI screenshot test completed"
 
-      - name:  (Shared)
+      - name: Display screenshots in summary (Shared)
         if: ${{ always() && (github.event.inputs.test_type == 'run-test' || github.event.inputs.test_type == 'all' || github.event_name != 'workflow_dispatch') }}
+        env:
+          IMGBB_API_KEY: ${{ secrets.IMGBB_API_KEY }}
         run: |
           echo "🖼️ Adding screenshots to step summary (Shared)"
           
@@ -413,7 +415,7 @@ jobs:
                 echo "🔄 Uploading $filename to ImgBB..." >> $GITHUB_STEP_SUMMARY
                 
                 # Check if API key is available
-                if [ -z "${{ secrets.IMGBB_API_KEY }}" ]; then
+                if [ -z "${{ IMGBB_API_KEY }}" ]; then
                   echo "⚠️ **IMGBB_API_KEY not configured** - Upload skipped" >> $GITHUB_STEP_SUMMARY
                   echo "_Contact repository admin to set up the secret_" >> $GITHUB_STEP_SUMMARY
                   echo "" >> $GITHUB_STEP_SUMMARY
@@ -427,7 +429,7 @@ jobs:
                   if [ -n "$image_base64" ] && [ ${#image_base64} -gt 100 ]; then
                     # Upload to ImgBB API with enhanced error handling
                     echo "🚀 Attempting upload to ImgBB..." >> $GITHUB_STEP_SUMMARY
-                    echo "- API Key length: ${#secrets.IMGBB_API_KEY}" >> $GITHUB_STEP_SUMMARY
+                    echo "- API Key length: ${#IMGBB_API_KEY}" >> $GITHUB_STEP_SUMMARY
                     echo "- Base64 size: ${#image_base64} chars" >> $GITHUB_STEP_SUMMARY
                     
                     # Check if base64 data is too large for command line (limit ~128KB)
@@ -444,7 +446,7 @@ jobs:
                         --connect-timeout 30 \
                         --max-time 120 \
                         -X POST "https://api.imgbb.com/1/upload" \
-                        -F "key=${{ secrets.IMGBB_API_KEY }}" \
+                        -F "key=${{ IMGBB_API_KEY }}" \
                         -F "image=@$temp_file" \
                         2>&1 || echo '{"success": false, "error": {"message": "curl command failed"}}')
                       
@@ -456,7 +458,7 @@ jobs:
                         --connect-timeout 30 \
                         --max-time 120 \
                         -X POST "https://api.imgbb.com/1/upload" \
-                        -F "key=${{ secrets.IMGBB_API_KEY }}" \
+                        -F "key=${{ IMGBB_API_KEY }}" \
                         -F "image=$image_base64" \
                         2>&1 || echo '{"success": false, "error": {"message": "curl command failed"}}')
                     fi
@@ -962,6 +964,8 @@ jobs:
 
       - name: Display screenshots in summary (Static)
         if: ${{ always() && (github.event.inputs.test_type == 'run-test' || github.event.inputs.test_type == 'all' || github.event_name != 'workflow_dispatch') }}
+        env:
+          IMGBB_API_KEY: ${{ secrets.IMGBB_API_KEY }}
         run: |
           echo "🖼️ Adding screenshots to step summary (Static)"
           
@@ -1018,7 +1022,7 @@ jobs:
                 echo "🔄 Uploading $filename to ImgBB..." >> $GITHUB_STEP_SUMMARY
                 
                 # Check if API key is available
-                if [ -z "${{ secrets.IMGBB_API_KEY }}" ]; then
+                if [ -z "${{ IMGBB_API_KEY }}" ]; then
                   echo "⚠️ **IMGBB_API_KEY not configured** - Upload skipped" >> $GITHUB_STEP_SUMMARY
                   echo "_Contact repository admin to set up the secret_" >> $GITHUB_STEP_SUMMARY
                   echo "" >> $GITHUB_STEP_SUMMARY
@@ -1032,7 +1036,7 @@ jobs:
                   if [ -n "$image_base64" ] && [ ${#image_base64} -gt 100 ]; then
                     # Upload to ImgBB API with detailed error handling
                     echo "🔍 **Pre-upload checks:**" >> $GITHUB_STEP_SUMMARY
-                    echo "- API key length: ${#secrets.IMGBB_API_KEY}" >> $GITHUB_STEP_SUMMARY
+                    
                     echo "- Base64 length: ${#image_base64}" >> $GITHUB_STEP_SUMMARY
                     echo "- Image file size: $(stat -c%s "$img" 2>/dev/null || echo "unknown") bytes" >> $GITHUB_STEP_SUMMARY
                     
@@ -1059,7 +1063,7 @@ jobs:
                         --connect-timeout 30 \
                         --max-time 120 \
                         -X POST "https://api.imgbb.com/1/upload" \
-                        -F "key=${{ secrets.IMGBB_API_KEY }}" \
+                        -F "key=${{ IMGBB_API_KEY }}" \
                         -F "image=@$temp_file" \
                         2>&1 || echo '{"success": false, "error": {"message": "curl command failed"}}')
                       
@@ -1071,7 +1075,7 @@ jobs:
                         --connect-timeout 30 \
                         --max-time 120 \
                         -X POST "https://api.imgbb.com/1/upload" \
-                        -F "key=${{ secrets.IMGBB_API_KEY }}" \
+                        -F "key=${{ IMGBB_API_KEY }}" \
                         -F "image=$image_base64" \
                         2>&1 || echo '{"success": false, "error": {"message": "curl command failed"}}')
                     fi
