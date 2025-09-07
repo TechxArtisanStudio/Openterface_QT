@@ -1026,7 +1026,7 @@ jobs:
                       -X POST "https://api.imgbb.com/1/upload" \
                       -F "key=${{ secrets.IMGBB_API_KEY }}" \
                       -F "image=$image_base64" \
-                      2>&1)
+                      2>&1 || echo '{"success": false, "error": {"message": "curl command failed"}}')
                     
                     # Extract HTTP status and response
                     http_status=$(echo "$upload_response" | grep "HTTP_STATUS:" | cut -d: -f2 || echo "0")
