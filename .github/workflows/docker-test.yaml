@@ -357,7 +357,7 @@ jobs:
           echo ""
           echo "✅ GUI screenshot test completed"
 
-      - name: Display screenshots in summary (Shared)
+      - name:  (Shared)
         if: ${{ always() && (github.event.inputs.test_type == 'run-test' || github.event.inputs.test_type == 'all' || github.event_name != 'workflow_dispatch') }}
         run: |
           echo "🖼️ Adding screenshots to step summary (Shared)"
@@ -432,6 +432,16 @@ jobs:
                     # Parse the response
                     upload_status=$(echo "$upload_response" | grep -o '"status_code":[0-9]*' | cut -d':' -f2 || echo "400")
                     
+                    # Debug: Show response details
+                    echo "🔍 **Debug Info:**" >> $GITHUB_STEP_SUMMARY
+                    echo "- Response length: ${#upload_response} characters" >> $GITHUB_STEP_SUMMARY
+                    echo "- Upload status: '$upload_status'" >> $GITHUB_STEP_SUMMARY
+                    echo "- Base64 length: ${#image_base64} characters" >> $GITHUB_STEP_SUMMARY
+                    
+                    # Show first part of response for debugging
+                    response_preview=$(echo "$upload_response" | head -c 200)
+                    echo "- Response preview: \`$response_preview...\`" >> $GITHUB_STEP_SUMMARY
+                    
                     if [ "$upload_status" = "200" ]; then
                       # Extract image URL from response
                       image_url=$(echo "$upload_response" | grep -o '"url":"[^"]*"' | cut -d'"' -f4 | head -1)
@@ -446,12 +456,21 @@ jobs:
                         echo "🔗 **Direct Link**: [$image_url]($image_url)" >> $GITHUB_STEP_SUMMARY
                       else
                         echo "⚠️ **Upload successful but URL not found**" >> $GITHUB_STEP_SUMMARY
+                        echo "- Raw response: \`$upload_response\`" >> $GITHUB_STEP_SUMMARY
                       fi
                     else
-                      echo "❌ **Upload failed** (Status: $upload_status)" >> $GITHUB_STEP_SUMMARY
+                      echo "❌ **Upload failed** (Status: '$upload_status')" >> $GITHUB_STEP_SUMMARY
+                      # Extract error message if available
+                      error_msg=$(echo "$upload_response" | grep -o '"message":"[^"]*"' | cut -d'"' -f4 || echo "No error message")
+                      echo "- Error message: $error_msg" >> $GITHUB_STEP_SUMMARY
+                      echo "- Full response: \`$upload_response\`" >> $GITHUB_STEP_SUMMARY
                     fi
                   else
                     echo "❌ **Cannot convert image to base64**" >> $GITHUB_STEP_SUMMARY
+                    echo "- File exists: $(test -f "$img" && echo "Yes" || echo "No")" >> $GITHUB_STEP_SUMMARY
+                    echo "- File size: $(ls -lh "$img" 2>/dev/null | awk '{print $5}' || echo "Unknown")" >> $GITHUB_STEP_SUMMARY
+                    echo "- File readable: $(test -r "$img" && echo "Yes" || echo "No")" >> $GITHUB_STEP_SUMMARY
+                    echo "- Base64 result length: ${#image_base64}" >> $GITHUB_STEP_SUMMARY
                   fi
                 fi
                 
@@ -460,29 +479,6 @@ jobs:
                 # Get basic file info
                 filesize=$(ls -lh "$img" | awk '{print $5}')
                 echo "- **File Size**: $filesize" >> $GITHUB_STEP_SUMMARY
-                
-                # Get image dimensions if available
-                if command -v identify >/dev/null 2>&1; then
-                  dimensions=$(identify "$img" 2>/dev/null | awk '{print $3}' | head -1 || echo "Unknown")
-                  echo "- **Dimensions**: $dimensions" >> $GITHUB_STEP_SUMMARY
-                  
-                  # Get image quality info
-                  mean_color=$(identify -ping -format "%[mean]" "$img" 2>/dev/null || echo "0")
-                  mean_value=$(echo "$mean_color" | sed 's/[^0-9.]//g' | cut -d'.' -f1)
-                  
-                  if [ -z "$mean_value" ] || [ "$mean_value" = "" ]; then
-                    mean_value=0
-                  fi
-                  
-                  if [ "$mean_value" -gt 1000 ] 2>/dev/null; then
-                    quality="✅ Rich content detected"
-                  elif [ "$mean_value" -gt 100 ] 2>/dev/null; then
-                    quality="⚠️ Basic content detected"
-                  else
-                    quality="❌ Likely blank/black"
-                  fi
-                  echo "- **Content Quality**: $quality" >> $GITHUB_STEP_SUMMARY
-                fi
                 
                 # Store artifact name for later upload
                 echo "$artifact_name|$img" >> /tmp/screenshot_artifacts_shared.txt
@@ -966,6 +962,16 @@ jobs:
                   # Parse the response
                   upload_status=$(echo "$upload_response" | grep -o '"status_code":[0-9]*' | cut -d':' -f2 || echo "400")
                   
+                  # Debug: Show response details
+                  echo "🔍 **Debug Info:**" >> $GITHUB_STEP_SUMMARY
+                  echo "- Response length: ${#upload_response} characters" >> $GITHUB_STEP_SUMMARY
+                  echo "- Upload status: '$upload_status'" >> $GITHUB_STEP_SUMMARY
+                  echo "- Base64 length: ${#image_base64} characters" >> $GITHUB_STEP_SUMMARY
+                  
+                  # Show first part of response for debugging
+                  response_preview=$(echo "$upload_response" | head -c 200)
+                  echo "- Response preview: \`$response_preview...\`" >> $GITHUB_STEP_SUMMARY
+                  
                   if [ "$upload_status" = "200" ]; then
                     # Extract image URL from response
                     image_url=$(echo "$upload_response" | grep -o '"url":"[^"]*"' | cut -d'"' -f4 | head -1)
@@ -980,9 +986,14 @@ jobs:
                       echo "🔗 **Direct Link**: [$image_url]($image_url)" >> $GITHUB_STEP_SUMMARY
                     else
                       echo "⚠️ **Upload successful but URL not found**" >> $GITHUB_STEP_SUMMARY
+                      echo "- Raw response: \`$upload_response\`" >> $GITHUB_STEP_SUMMARY
                     fi
                   else
-                    echo "❌ **Upload failed** (Status: $upload_status)" >> $GITHUB_STEP_SUMMARY
+                    echo "❌ **Upload failed** (Status: '$upload_status')" >> $GITHUB_STEP_SUMMARY
+                    # Extract error message if available
+                    error_msg=$(echo "$upload_response" | grep -o '"message":"[^"]*"' | cut -d'"' -f4 || echo "No error message")
+                    echo "- Error message: $error_msg" >> $GITHUB_STEP_SUMMARY
+                    echo "- Full response: \`$upload_response\`" >> $GITHUB_STEP_SUMMARY
                   fi
                 else
                   echo "❌ **Cannot convert image to base64**" >> $GITHUB_STEP_SUMMARY
@@ -994,28 +1005,6 @@ jobs:
                 # File analysis
                 file_size=$(ls -lh "$img" | awk '{print $5}')
                 echo "- **File Size**: $file_size" >> $GITHUB_STEP_SUMMARY
-                
-                # Image dimensions and quality analysis
-                if command -v identify >/dev/null 2>&1; then
-                  dimensions=$(identify "$img" 2>/dev/null | awk '{print $3}' | head -1 || echo "Unknown")
-                  echo "- **Dimensions**: $dimensions" >> $GITHUB_STEP_SUMMARY
-                  
-                  # Content quality check
-                  mean_color=$(identify -ping -format "%[mean]" "$img" 2>/dev/null || echo "0")
-                  mean_value=$(echo "$mean_color" | sed 's/[^0-9.]//g' | cut -d'.' -f1)
-                  if [ -z "$mean_value" ] || [ "$mean_value" = "" ]; then
-                    mean_value=0
-                  fi
-                  
-                  if [ "$mean_value" -gt 1000 ] 2>/dev/null; then
-                    quality="✅ Rich content detected"
-                  elif [ "$mean_value" -gt 100 ] 2>/dev/null; then
-                    quality="⚠️ Basic content detected"
-                  else
-                    quality="❌ Likely blank/black"
-                  fi
-                  echo "- **Content Quality**: $quality" >> $GITHUB_STEP_SUMMARY
-                fi
                 
                 # Store artifact name for later upload
                 echo "$artifact_name|$img" >> /tmp/screenshot_artifacts_static.txt
