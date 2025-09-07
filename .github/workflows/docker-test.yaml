@@ -428,7 +428,7 @@ jobs:
                       2>/dev/null || echo '{"success": false}')
                     
                     # Parse the response
-                    upload_success=$(echo "$upload_response" | grep -o '"success":[^,]*' | cut -d':' -f2 | tr -d ' "' || echo "false")
+                    upload_success=$(echo "$upload_response" | grep -o '"success":[^,}]*' | cut -d':' -f2 | tr -d ' ",' || echo "false")
                     
                     # Debug: Show response details
                     echo "🔍 **Debug Info:**" >> $GITHUB_STEP_SUMMARY
@@ -441,12 +441,18 @@ jobs:
                     echo "- Response preview: \`$response_preview...\`" >> $GITHUB_STEP_SUMMARY
                     
                     if [ "$upload_success" = "true" ]; then
-                      # Extract image URL from response - ImgBB format
+                      # Extract image URLs from response - ImgBB format
                       image_url=$(echo "$upload_response" | grep -o '"url":"[^"]*"' | cut -d'"' -f4 | head -1)
                       display_url=$(echo "$upload_response" | grep -o '"display_url":"[^"]*"' | cut -d'"' -f4 | head -1)
+                      viewer_url=$(echo "$upload_response" | grep -o '"url_viewer":"[^"]*"' | cut -d'"' -f4 | head -1)
                       
                       # Use display_url if available, otherwise use url
                       final_url="${display_url:-$image_url}"
+                      
+                      # Debug URL extraction
+                      echo "- Image URL: '$image_url'" >> $GITHUB_STEP_SUMMARY
+                      echo "- Display URL: '$display_url'" >> $GITHUB_STEP_SUMMARY
+                      echo "- Final URL: '$final_url'" >> $GITHUB_STEP_SUMMARY
                       
                       if [ -n "$final_url" ]; then
                         echo "✅ **Upload successful!**" >> $GITHUB_STEP_SUMMARY
@@ -456,6 +462,9 @@ jobs:
                         echo "![Screenshot: $filename]($final_url)" >> $GITHUB_STEP_SUMMARY
                         echo "" >> $GITHUB_STEP_SUMMARY
                         echo "🔗 **Direct Link**: [$final_url]($final_url)" >> $GITHUB_STEP_SUMMARY
+                        if [ -n "$viewer_url" ]; then
+                          echo "🔗 **View Page**: [$viewer_url]($viewer_url)" >> $GITHUB_STEP_SUMMARY
+                        fi
                       else
                         echo "⚠️ **Upload successful but URL not found**" >> $GITHUB_STEP_SUMMARY
                         echo "- Raw response: \`$upload_response\`" >> $GITHUB_STEP_SUMMARY
@@ -964,7 +973,7 @@ jobs:
                     2>/dev/null || echo '{"success": false}')
                   
                   # Parse the response
-                  upload_success=$(echo "$upload_response" | grep -o '"success":[^,]*' | cut -d':' -f2 | tr -d ' "' || echo "false")
+                  upload_success=$(echo "$upload_response" | grep -o '"success":[^,}]*' | cut -d':' -f2 | tr -d ' ",' || echo "false")
                   
                   # Debug: Show response details
                   echo "🔍 **Debug Info:**" >> $GITHUB_STEP_SUMMARY
@@ -977,12 +986,18 @@ jobs:
                   echo "- Response preview: \`$response_preview...\`" >> $GITHUB_STEP_SUMMARY
                   
                   if [ "$upload_success" = "true" ]; then
-                    # Extract image URL from response - ImgBB format
+                    # Extract image URLs from response - ImgBB format
                     image_url=$(echo "$upload_response" | grep -o '"url":"[^"]*"' | cut -d'"' -f4 | head -1)
                     display_url=$(echo "$upload_response" | grep -o '"display_url":"[^"]*"' | cut -d'"' -f4 | head -1)
+                    viewer_url=$(echo "$upload_response" | grep -o '"url_viewer":"[^"]*"' | cut -d'"' -f4 | head -1)
                     
                     # Use display_url if available, otherwise use url
                     final_url="${display_url:-$image_url}"
+                    
+                    # Debug URL extraction
+                    echo "- Image URL: '$image_url'" >> $GITHUB_STEP_SUMMARY
+                    echo "- Display URL: '$display_url'" >> $GITHUB_STEP_SUMMARY
+                    echo "- Final URL: '$final_url'" >> $GITHUB_STEP_SUMMARY
                     
                     if [ -n "$final_url" ]; then
                       echo "✅ **Upload successful!**" >> $GITHUB_STEP_SUMMARY
@@ -992,6 +1007,9 @@ jobs:
                       echo "![Screenshot: $filename]($final_url)" >> $GITHUB_STEP_SUMMARY
                       echo "" >> $GITHUB_STEP_SUMMARY
                       echo "🔗 **Direct Link**: [$final_url]($final_url)" >> $GITHUB_STEP_SUMMARY
+                      if [ -n "$viewer_url" ]; then
+                        echo "🔗 **View Page**: [$viewer_url]($viewer_url)" >> $GITHUB_STEP_SUMMARY
+                      fi
                     else
                       echo "⚠️ **Upload successful but URL not found**" >> $GITHUB_STEP_SUMMARY
                       echo "- Raw response: \`$upload_response\`" >> $GITHUB_STEP_SUMMARY
