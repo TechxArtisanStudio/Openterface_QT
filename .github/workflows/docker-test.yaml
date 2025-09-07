@@ -416,35 +416,51 @@ jobs:
                 if [ -z "${{ secrets.IMGBB_API_KEY }}" ]; then
                   echo "⚠️ **IMGBB_API_KEY not configured** - Upload skipped" >> $GITHUB_STEP_SUMMARY
                   echo "_Contact repository admin to set up the secret_" >> $GITHUB_STEP_SUMMARY
+                  echo "" >> $GITHUB_STEP_SUMMARY
+                  echo "**Setup Instructions:**" >> $GITHUB_STEP_SUMMARY
+                  echo "1. Get API key from: https://api.imgbb.com/" >> $GITHUB_STEP_SUMMARY
+                  echo "2. Add secret IMGBB_API_KEY in repository settings" >> $GITHUB_STEP_SUMMARY
                 else
                   # Convert image to base64 for upload
                   image_base64=$(base64 -w 0 "$img" 2>/dev/null || base64 "$img" 2>/dev/null || echo "")
                   
                   if [ -n "$image_base64" ] && [ ${#image_base64} -gt 100 ]; then
-                    # Upload to ImgBB API
-                    upload_response=$(curl -s -X POST "https://api.imgbb.com/1/upload" \
+                    # Upload to ImgBB API with enhanced error handling
+                    echo "🚀 Attempting upload to ImgBB..." >> $GITHUB_STEP_SUMMARY
+                    echo "- API Key length: ${#IMGBB_API_KEY}" >> $GITHUB_STEP_SUMMARY
+                    echo "- Base64 size: ${#image_base64} chars" >> $GITHUB_STEP_SUMMARY
+                    
+                    upload_response=$(curl -s -w "\nHTTP_STATUS:%{http_code}\nRESPONSE_TIME:%{time_total}" \
+                      -X POST "https://api.imgbb.com/1/upload" \
                       -F "key=${{ secrets.IMGBB_API_KEY }}" \
                       -F "image=$image_base64" \
-                      2>/dev/null || echo '{"success": false, "error": {"message": "Network error"}}')
+                      2>&1 || echo '{"success": false, "error": {"message": "Curl command failed"}}')
+                    
+                    # Extract HTTP status and response
+                    http_status=$(echo "$upload_response" | grep "HTTP_STATUS:" | cut -d: -f2 2>/dev/null || echo "unknown")
+                    response_time=$(echo "$upload_response" | grep "RESPONSE_TIME:" | cut -d: -f2 2>/dev/null || echo "unknown")
+                    json_response=$(echo "$upload_response" | sed '/HTTP_STATUS:/,$d' 2>/dev/null || echo "$upload_response")
                     
                     # Parse the response
-                    upload_success=$(echo "$upload_response" | grep -o '"success":[^,}]*' | cut -d':' -f2 | tr -d ' ",' || echo "false")
+                    upload_success=$(echo "$json_response" | grep -o '"success":[^,}]*' | cut -d':' -f2 | tr -d ' ",' || echo "false")
                     
                     # Debug: Show response details
                     echo "🔍 **Debug Info:**" >> $GITHUB_STEP_SUMMARY
-                    echo "- Response length: ${#upload_response} characters" >> $GITHUB_STEP_SUMMARY
+                    echo "- HTTP Status: $http_status" >> $GITHUB_STEP_SUMMARY
+                    echo "- Response Time: ${response_time}s" >> $GITHUB_STEP_SUMMARY
+                    echo "- Response length: ${#json_response} characters" >> $GITHUB_STEP_SUMMARY
                     echo "- Upload success: '$upload_success'" >> $GITHUB_STEP_SUMMARY
                     echo "- Base64 length: ${#image_base64} characters" >> $GITHUB_STEP_SUMMARY
                     
                     # Show first part of response for debugging
-                    response_preview=$(echo "$upload_response" | head -c 200)
+                    response_preview=$(echo "$json_response" | head -c 200)
                     echo "- Response preview: \`$response_preview...\`" >> $GITHUB_STEP_SUMMARY
                     
                     if [ "$upload_success" = "true" ]; then
                       # Extract image URLs from response - ImgBB format
-                      image_url=$(echo "$upload_response" | grep -o '"url":"[^"]*"' | cut -d'"' -f4 | head -1)
-                      display_url=$(echo "$upload_response" | grep -o '"display_url":"[^"]*"' | cut -d'"' -f4 | head -1)
-                      viewer_url=$(echo "$upload_response" | grep -o '"url_viewer":"[^"]*"' | cut -d'"' -f4 | head -1)
+                      image_url=$(echo "$json_response" | grep -o '"url":"[^"]*"' | cut -d'"' -f4 | head -1)
+                      display_url=$(echo "$json_response" | grep -o '"display_url":"[^"]*"' | cut -d'"' -f4 | head -1)
+                      viewer_url=$(echo "$json_response" | grep -o '"url_viewer":"[^"]*"' | cut -d'"' -f4 | head -1)
                       
                       # Use display_url if available, otherwise use url
                       final_url="${display_url:-$image_url}"
@@ -467,11 +483,30 @@ jobs:
                         fi
                       else
                         echo "⚠️ **Upload successful but URL not found**" >> $GITHUB_STEP_SUMMARY
-                        echo "- Raw response: \`$upload_response\`" >> $GITHUB_STEP_SUMMARY
+                        echo "- Raw response: \`$json_response\`" >> $GITHUB_STEP_SUMMARY
                       fi
                     else
                       # Extract error message from ImgBB response
-                      error_message=$(echo "$upload_response" | grep -o '"message":"[^"]*"' | cut -d'"' -f4 | head -1)
+                      error_message=$(echo "$json_response" | grep -o '"message":"[^"]*"' | cut -d'"' -f4 | head -1)
+                      echo "❌ **Upload failed**" >> $GITHUB_STEP_SUMMARY
+                      echo "- HTTP Status: $http_status" >> $GITHUB_STEP_SUMMARY
+                      echo "- Success: '$upload_success'" >> $GITHUB_STEP_SUMMARY
+                      echo "- Error: '$error_message'" >> $GITHUB_STEP_SUMMARY
+                      echo "- Full response: \`$json_response\`" >> $GITHUB_STEP_SUMMARY
+                      
+                      # Additional troubleshooting for common issues
+                      if [ "$http_status" = "000" ] || [ "$http_status" = "unknown" ]; then
+                        echo "" >> $GITHUB_STEP_SUMMARY
+                        echo "**Possible Network Issues:**" >> $GITHUB_STEP_SUMMARY
+                        echo "- Check GitHub Actions internet connectivity" >> $GITHUB_STEP_SUMMARY
+                        echo "- ImgBB API might be temporarily unavailable" >> $GITHUB_STEP_SUMMARY
+                        echo "- Curl command might have failed" >> $GITHUB_STEP_SUMMARY
+                      elif [ "$http_status" = "400" ] || [ "$http_status" = "401" ]; then
+                        echo "" >> $GITHUB_STEP_SUMMARY
+                        echo "**API Key Issues:**" >> $GITHUB_STEP_SUMMARY
+                        echo "- Verify IMGBB_API_KEY secret is correctly set" >> $GITHUB_STEP_SUMMARY
+                        echo "- Check API key validity at https://api.imgbb.com/" >> $GITHUB_STEP_SUMMARY
+                      fi
                       echo "❌ **Upload failed**" >> $GITHUB_STEP_SUMMARY
                       echo "- Success: '$upload_success'" >> $GITHUB_STEP_SUMMARY
                       echo "- Error: '$error_message'" >> $GITHUB_STEP_SUMMARY
@@ -961,18 +996,51 @@ jobs:
                 if [ -z "${{ secrets.IMGBB_API_KEY }}" ]; then
                   echo "⚠️ **IMGBB_API_KEY not configured** - Upload skipped" >> $GITHUB_STEP_SUMMARY
                   echo "_Contact repository admin to set up the secret_" >> $GITHUB_STEP_SUMMARY
+                  echo "" >> $GITHUB_STEP_SUMMARY
+                  echo "**Setup Instructions:**" >> $GITHUB_STEP_SUMMARY
+                  echo "1. Get API key from: https://api.imgbb.com/" >> $GITHUB_STEP_SUMMARY
+                  echo "2. Add secret IMGBB_API_KEY in repository settings" >> $GITHUB_STEP_SUMMARY
                 else
                   # Convert image to base64 for upload
                   image_base64=$(base64 -w 0 "$img" 2>/dev/null || base64 "$img" 2>/dev/null || echo "")
                   
                   if [ -n "$image_base64" ] && [ ${#image_base64} -gt 100 ]; then
-                    # Upload to ImgBB API
-                    upload_response=$(curl -s -X POST "https://api.imgbb.com/1/upload" \
-                    -F "key=${{ secrets.IMGBB_API_KEY }}" \
-                    -F "image=$image_base64" \
-                    2>/dev/null || echo '{"success": false}')
-                  
-                  # Parse the response
+                    # Upload to ImgBB API with detailed error handling
+                    echo "🔍 **Pre-upload checks:**" >> $GITHUB_STEP_SUMMARY
+                    echo "- API key length: ${#{{ secrets.IMGBB_API_KEY }}}" >> $GITHUB_STEP_SUMMARY
+                    echo "- Base64 length: ${#image_base64}" >> $GITHUB_STEP_SUMMARY
+                    echo "- Image file size: $(stat -c%s "$img" 2>/dev/null || echo "unknown") bytes" >> $GITHUB_STEP_SUMMARY
+                    
+                    # Test connectivity first
+                    echo "🌐 Testing connectivity..." >> $GITHUB_STEP_SUMMARY
+                    if curl -s --connect-timeout 10 --max-time 30 "https://api.imgbb.com/" >/dev/null; then
+                      echo "✅ ImgBB API is reachable" >> $GITHUB_STEP_SUMMARY
+                    else
+                      echo "❌ Cannot reach ImgBB API" >> $GITHUB_STEP_SUMMARY
+                    fi
+                    
+                    # Perform upload with enhanced error capture
+                    upload_response=$(curl -s -w "\nHTTP_STATUS:%{http_code}\nRESPONSE_TIME:%{time_total}" \
+                      --connect-timeout 30 \
+                      --max-time 120 \
+                      -X POST "https://api.imgbb.com/1/upload" \
+                      -F "key=${{ secrets.IMGBB_API_KEY }}" \
+                      -F "image=$image_base64" \
+                      2>&1)
+                    
+                    # Extract HTTP status and response
+                    http_status=$(echo "$upload_response" | grep "HTTP_STATUS:" | cut -d: -f2 || echo "0")
+                    response_time=$(echo "$upload_response" | grep "RESPONSE_TIME:" | cut -d: -f2 || echo "0")
+                    json_response=$(echo "$upload_response" | sed '/HTTP_STATUS:/,$d')
+                    
+                    # If no valid JSON response, create error response
+                    if [ ${#json_response} -lt 10 ] || ! echo "$json_response" | grep -q '"success"'; then
+                      if [ "$http_status" = "0" ]; then
+                        json_response='{"success": false, "error": {"message": "Connection failed - no response from server"}}'
+                      else
+                        json_response='{"success": false, "error": {"message": "Invalid response from server"}}'
+                      fi
+                    fi                  # Parse the response
                   upload_success=$(echo "$upload_response" | grep -o '"success":[^,}]*' | cut -d':' -f2 | tr -d ' ",' || echo "false")
                   
                   # Debug: Show response details
