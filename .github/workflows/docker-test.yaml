@@ -997,6 +997,10 @@ jobs:
                   fi
                 else
                   echo "❌ **Cannot convert image to base64**" >> $GITHUB_STEP_SUMMARY
+                  echo "- File exists: $(test -f "$img" && echo "Yes" || echo "No")" >> $GITHUB_STEP_SUMMARY
+                  echo "- File size: $(ls -lh "$img" 2>/dev/null | awk '{print $5}' || echo "Unknown")" >> $GITHUB_STEP_SUMMARY
+                  echo "- File readable: $(test -r "$img" && echo "Yes" || echo "No")" >> $GITHUB_STEP_SUMMARY
+                  echo "- Base64 result length: ${#image_base64}" >> $GITHUB_STEP_SUMMARY
                 fi
               fi
                 
