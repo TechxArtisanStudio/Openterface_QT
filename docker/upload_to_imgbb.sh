@@ -122,6 +122,11 @@ if [ -z "$API_KEY" ]; then
     exit 1
 fi
 
+# Validate API key format (ImgBB keys are typically 32 characters)
+if [ ${#API_KEY} -ne 32 ]; then
+    log_warning "API key length is ${#API_KEY} characters (expected 32). This might indicate an invalid key."
+fi
+
 log_info "Starting ImgBB upload process..."
 log_info "Image file: $IMAGE_FILE"
 log_info "API key length: ${#API_KEY}"
@@ -148,11 +153,8 @@ log_info "Base64 conversion successful (${#IMAGE_BASE64} characters)"
 # Test connectivity to ImgBB API
 if $VERBOSE; then
     log_info "Testing connectivity to ImgBB API..."
-    if curl -s --connect-timeout 10 --max-time 30 "$IMGBB_API_URL" >/dev/null; then
-        log_success "ImgBB API is reachable"
-    else
-        log_warning "Cannot reach ImgBB API - upload may fail"
-    fi
+    # Skip connectivity test for now to avoid hanging
+    log_info "Skipping connectivity test (may hang with proxy)"
 fi
 
 # Perform upload
@@ -173,13 +175,31 @@ if [ ${#IMAGE_BASE64} -gt $MAX_BASE64_SIZE ]; then
         log_info "Curl command: curl -s -w '\\nHTTP_STATUS:%{http_code}\\nRESPONSE_TIME:%{time_total}' --connect-timeout $CURL_CONNECT_TIMEOUT --max-time $CURL_MAX_TIME -X POST '$IMGBB_API_URL' -F 'key=$API_KEY' -F 'image=@$TEMP_FILE'"
     fi
 
-    UPLOAD_RESPONSE=$(curl -s -w "\nHTTP_STATUS:%{http_code}\nRESPONSE_TIME:%{time_total}" \
+    # Try multiple upload methods if the first one fails
+    if $DEBUG; then
+        log_info "Curl command: curl -s --noproxy '*' -w '\\nHTTP_STATUS:%{http_code}\\nRESPONSE_TIME:%{time_total}' --connect-timeout $CURL_CONNECT_TIMEOUT --max-time $CURL_MAX_TIME -X POST '$IMGBB_API_URL' -F 'key=$API_KEY' -F 'image=@$TEMP_FILE'"
+    fi
+
+    # First try without proxy
+    UPLOAD_RESPONSE=$(timeout 60 curl -s --noproxy "*" -w "\nHTTP_STATUS:%{http_code}\nRESPONSE_TIME:%{time_total}" \
         --connect-timeout $CURL_CONNECT_TIMEOUT \
         --max-time $CURL_MAX_TIME \
         -X POST "$IMGBB_API_URL" \
         -F "key=$API_KEY" \
         -F "image=@$TEMP_FILE" \
-        2>&1 || echo '{"success": false, "error": {"message": "curl command failed"}}')
+        2>&1 || echo "")
+
+    # If that fails, try with proxy (fallback)
+    if [ -z "$UPLOAD_RESPONSE" ] || echo "$UPLOAD_RESPONSE" | grep -q "000"; then
+        log_warning "Direct connection failed, trying with proxy..."
+        UPLOAD_RESPONSE=$(timeout 60 curl -s -w "\nHTTP_STATUS:%{http_code}\nRESPONSE_TIME:%{time_total}" \
+            --connect-timeout $CURL_CONNECT_TIMEOUT \
+            --max-time $CURL_MAX_TIME \
+            -X POST "$IMGBB_API_URL" \
+            -F "key=$API_KEY" \
+            -F "image=@$TEMP_FILE" \
+            2>&1 || echo '{"success": false, "error": {"message": "curl command failed"}}')
+    fi
 
     # Clean up temp file
     rm -f "$TEMP_FILE"
@@ -188,17 +208,29 @@ else
     UPLOAD_METHOD="direct"
 
     if $DEBUG; then
-        log_info "Curl command: curl -s -w '\\nHTTP_STATUS:%{http_code}\\nRESPONSE_TIME:%{time_total}' --connect-timeout $CURL_CONNECT_TIMEOUT --max-time $CURL_MAX_TIME -X POST '$IMGBB_API_URL' -F 'key=$API_KEY' -F 'image=<base64_data>'"
+        log_info "Curl command: curl -s --noproxy '*' -w '\\nHTTP_STATUS:%{http_code}\\nRESPONSE_TIME:%{time_total}' --connect-timeout $CURL_CONNECT_TIMEOUT --max-time $CURL_MAX_TIME -X POST '$IMGBB_API_URL' -F 'key=$API_KEY' -F 'image=<base64_data>'"
     fi
 
-    # Use direct base64 for smaller files
-    UPLOAD_RESPONSE=$(curl -s -w "\nHTTP_STATUS:%{http_code}\nRESPONSE_TIME:%{time_total}" \
+    # Use direct base64 for smaller files - try without proxy first
+    UPLOAD_RESPONSE=$(timeout 60 curl -s --noproxy "*" -w "\nHTTP_STATUS:%{http_code}\nRESPONSE_TIME:%{time_total}" \
         --connect-timeout $CURL_CONNECT_TIMEOUT \
         --max-time $CURL_MAX_TIME \
         -X POST "$IMGBB_API_URL" \
         -F "key=$API_KEY" \
         -F "image=$IMAGE_BASE64" \
-        2>&1 || echo '{"success": false, "error": {"message": "curl command failed"}}')
+        2>&1 || echo "")
+
+    # If that fails, try with proxy (fallback)
+    if [ -z "$UPLOAD_RESPONSE" ] || echo "$UPLOAD_RESPONSE" | grep -q "000"; then
+        log_warning "Direct connection failed, trying with proxy..."
+        UPLOAD_RESPONSE=$(timeout 60 curl -s -w "\nHTTP_STATUS:%{http_code}\nRESPONSE_TIME:%{time_total}" \
+            --connect-timeout $CURL_CONNECT_TIMEOUT \
+            --max-time $CURL_MAX_TIME \
+            -X POST "$IMGBB_API_URL" \
+            -F "key=$API_KEY" \
+            -F "image=$IMAGE_BASE64" \
+            2>&1 || echo '{"success": false, "error": {"message": "curl command failed"}}')
+    fi
 fi
 
 # Extract HTTP status and response
@@ -291,14 +323,31 @@ else
     # Provide troubleshooting tips
     echo ""
     echo "🔧 Troubleshooting Tips:"
-    if [ "$HTTP_STATUS" = "400" ] || [ "$HTTP_STATUS" = "401" ]; then
-        echo "  - Verify your API key is correct"
-        echo "  - Check API key at: https://api.imgbb.com/"
+    if [ "$HTTP_STATUS" = "400" ]; then
+        echo "  - The API key might be invalid or expired"
+        echo "  - Check your API key at: https://api.imgbb.com/"
+        echo "  - The image format might not be supported"
+        echo "  - Try with a smaller image file"
+    elif [ "$HTTP_STATUS" = "401" ]; then
+        echo "  - Authentication failed - API key is invalid"
+        echo "  - Get a new API key from: https://api.imgbb.com/"
+    elif [ "$HTTP_STATUS" = "413" ]; then
+        echo "  - Image file is too large for ImgBB"
+        echo "  - Try with a smaller image (max ~32MB)"
+    elif [ "$HTTP_STATUS" = "429" ]; then
+        echo "  - Too many requests - rate limit exceeded"
+        echo "  - Wait a few minutes and try again"
     elif [ "$HTTP_STATUS" = "000" ] || [ "$HTTP_STATUS" = "unknown" ]; then
         echo "  - Check your internet connection"
         echo "  - ImgBB API might be temporarily unavailable"
+        echo "  - Try disabling proxy: export https_proxy=''"
+    elif [ "$HTTP_STATUS" = "403" ]; then
+        echo "  - Access forbidden - your IP might be blocked"
+        echo "  - Try using a VPN or different network"
     fi
     echo "  - Try with --debug flag for more details"
+    echo "  - Alternative: Use GitHub artifacts instead of external hosting"
+    echo "  - For CI/CD: Screenshots are automatically saved as artifacts"
     echo ""
 
     exit 1

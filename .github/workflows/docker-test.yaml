@@ -423,11 +423,14 @@ jobs:
                   echo "1. Get API key from: https://api.imgbb.com/" >> $GITHUB_STEP_SUMMARY
                   echo "2. Add secret IMGBB_API_KEY in repository settings" >> $GITHUB_STEP_SUMMARY
                 else
-                  # Use the standalone upload script
+                  # Try to upload with proxy disabled first
+                  echo "🔄 Attempting upload without proxy..." >> $GITHUB_STEP_SUMMARY
+                  
+                  # Make the script executable
                   chmod +x docker/upload_to_imgbb.sh
                   
-                  # Run the upload script and capture output
-                  if UPLOAD_URL=$(IMGBB_API_KEY="$IMGBB_API_KEY" ./docker/upload_to_imgbb.sh "$img" 2>&1); then
+                  # Run the upload script with proxy disabled
+                  if UPLOAD_URL=$(https_proxy="" IMGBB_API_KEY="$IMGBB_API_KEY" timeout 120 ./docker/upload_to_imgbb.sh "$img" 2>&1); then
                     echo "✅ **Upload successful!**" >> $GITHUB_STEP_SUMMARY
                     echo "" >> $GITHUB_STEP_SUMMARY
                     
@@ -436,8 +439,10 @@ jobs:
                     echo "" >> $GITHUB_STEP_SUMMARY
                     echo "🔗 **Direct Link**: [$UPLOAD_URL]($UPLOAD_URL)" >> $GITHUB_STEP_SUMMARY
                   else
-                    echo "❌ **Upload failed**" >> $GITHUB_STEP_SUMMARY
+                    echo "❌ **ImgBB upload failed**" >> $GITHUB_STEP_SUMMARY
                     echo "Script output: $UPLOAD_URL" >> $GITHUB_STEP_SUMMARY
+                    echo "" >> $GITHUB_STEP_SUMMARY
+                    echo "💡 **Note**: Screenshots are still available in GitHub Artifacts below" >> $GITHUB_STEP_SUMMARY
                   fi
                 fi
                 
@@ -920,11 +925,14 @@ jobs:
                   echo "1. Get API key from: https://api.imgbb.com/" >> $GITHUB_STEP_SUMMARY
                   echo "2. Add secret IMGBB_API_KEY in repository settings" >> $GITHUB_STEP_SUMMARY
                 else
-                  # Use the standalone upload script
+                  # Try to upload with proxy disabled first
+                  echo "🔄 Attempting upload without proxy..." >> $GITHUB_STEP_SUMMARY
+                  
+                  # Make the script executable
                   chmod +x docker/upload_to_imgbb.sh
                   
-                  # Run the upload script and capture output
-                  if UPLOAD_URL=$(IMGBB_API_KEY="$IMGBB_API_KEY" ./docker/upload_to_imgbb.sh "$img" 2>&1); then
+                  # Run the upload script with proxy disabled
+                  if UPLOAD_URL=$(https_proxy="" IMGBB_API_KEY="$IMGBB_API_KEY" timeout 120 ./docker/upload_to_imgbb.sh "$img" 2>&1); then
                     echo "✅ **Upload successful!**" >> $GITHUB_STEP_SUMMARY
                     echo "" >> $GITHUB_STEP_SUMMARY
                     
@@ -933,8 +941,10 @@ jobs:
                     echo "" >> $GITHUB_STEP_SUMMARY
                     echo "🔗 **Direct Link**: [$UPLOAD_URL]($UPLOAD_URL)" >> $GITHUB_STEP_SUMMARY
                   else
-                    echo "❌ **Upload failed**" >> $GITHUB_STEP_SUMMARY
+                    echo "❌ **ImgBB upload failed**" >> $GITHUB_STEP_SUMMARY
                     echo "Script output: $UPLOAD_URL" >> $GITHUB_STEP_SUMMARY
+                    echo "" >> $GITHUB_STEP_SUMMARY
+                    echo "💡 **Note**: Screenshots are still available in GitHub Artifacts below" >> $GITHUB_STEP_SUMMARY
                   fi
                 fi
                 
