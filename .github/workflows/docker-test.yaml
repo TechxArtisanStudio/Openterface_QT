@@ -937,7 +937,6 @@ jobs:
                     echo "Script output: $UPLOAD_URL" >> $GITHUB_STEP_SUMMARY
                   fi
                 fi
-              fi
                 
                 echo "" >> $GITHUB_STEP_SUMMARY
                 
