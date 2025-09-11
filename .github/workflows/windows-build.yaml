@@ -203,7 +203,7 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const workflows = ['linux-portable-build.yaml', 'linux-build.yaml','windows-portable-build.yaml'];
+            const workflows = ['linux-build.yaml','windows-portable-build.yaml'];
             for (const workflow of workflows) {
               await github.rest.actions.createWorkflowDispatch({
                 owner: context.repo.owner,

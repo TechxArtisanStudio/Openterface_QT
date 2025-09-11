@@ -25,6 +25,7 @@
 #include "../global.h"
 
 
+
 #include <QThread>
 #include <QDebug>
 #include <QLoggingCategory>
