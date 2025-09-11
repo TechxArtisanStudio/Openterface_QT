@@ -80,6 +80,24 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Test Network Connectivity
+        run: |
+          echo "Testing network connectivity to GitHub..."
+          curl -I --connect-timeout 10 https://api.github.com
+          echo "Pinging GitHub..."
+          ping -c 4 github.com
+
+      - name: Check Environment
+        run: |
+          echo "Runner environment info:"
+          uname -a
+          echo "Network interfaces:"
+          ip addr show
+          echo "DNS resolution:"
+          nslookup github.com
+          echo "GitHub Actions environment variables:"
+          env | grep GITHUB
+
       - name: Set lowercase image name
         run: echo "IMAGE_NAME_LOWER=$(echo '${{ github.repository_owner }}/openterface-qtbuild' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
 
