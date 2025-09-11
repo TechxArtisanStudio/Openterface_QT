@@ -3,6 +3,9 @@ ARG UBUNTU_VERSION=24.04
 ARG TARGETARCH=amd64
 FROM ubuntu:${UBUNTU_VERSION}
 
+# Re-declare ARG after FROM to make it available in this build stage
+ARG TARGETARCH
+
 # Prevent interactive prompts during package installation
 ENV DEBIAN_FRONTEND=noninteractive
 
@@ -113,7 +116,6 @@ RUN apt-get update && \
         gstreamer1.0-plugins-good \
         gstreamer1.0-plugins-bad \
         gstreamer1.0-tools; \
-
     rm -rf /var/lib/apt/lists/*
 
 # Set architecture-aware library paths
