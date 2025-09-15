@@ -17,7 +17,7 @@ on:
         default: 'both'
         type: choice
         options:
-        - 'dynamic'
+        - 'shared'
         - 'static'
         - 'both'
       ubuntu_version:
@@ -36,8 +36,8 @@ env:
   REGISTRY: ghcr.io
 
 jobs:
-  build-dynamic:
-    if: ${{ github.event.inputs.build_type == 'dynamic' || github.event.inputs.build_type == 'both' || github.event_name != 'workflow_dispatch' }}
+  build-shared:
+    if: ${{ github.event.inputs.build_type == 'shared' || github.event.inputs.build_type == 'both' || github.event_name != 'workflow_dispatch' }}
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -60,9 +60,9 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Pull pre-built Dynamic Qt Docker Image
+      - name: Pull pre-built shared Qt Docker Image
         run: |
-          echo "Pulling pre-built Dynamic Qt Docker image for amd64..."
+          echo "Pulling pre-built shared Qt Docker image for amd64..."
           
           IMAGE_TAG="ubuntu-${{ github.event.inputs.ubuntu_version || '24.04' }}-amd64"
           echo "Checking for image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-dynamic:$IMAGE_TAG"
@@ -73,9 +73,9 @@ jobs:
             echo "Pre-built image found, pulling..."
             docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-dynamic:$IMAGE_TAG
 
-            echo "Successfully pulled pre-built Dynamic Qt Docker image for amd64"
+            echo "Successfully pulled pre-built shared Qt Docker image for amd64"
           else
-            echo "Error: Pre-built Dynamic Qt Docker image not found in registry for amd64"
+            echo "Error: Pre-built shared Qt Docker image not found in registry for amd64"
             echo "Looking for: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-dynamic:$IMAGE_TAG"
             echo "Please run the 'Build Qt Environments' workflow first to build the required Docker images"
             echo "Workflow URL: https://github.com/${{ github.repository }}/actions/workflows/build-qt-environments.yml"
@@ -87,7 +87,7 @@ jobs:
           
           # Verify the image was pulled successfully
           docker images | grep openterface-qtbuild-dynamic || {
-            echo "Error: Failed to verify Dynamic Qt Docker image"
+            echo "Error: Failed to verify shared Qt Docker image"
             exit 1
           }
 
@@ -150,19 +150,19 @@ jobs:
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-dynamic:latest \
             /translation-script.sh
 
-      - name: Build in Docker Container (Dynamic Qt)
+      - name: Build in Docker Container (shared Qt)
         run: |
           # Create build directory in host for artifact collection
-          mkdir -p ${{ runner.temp }}/build-dynamic
-          mkdir -p ${{ runner.temp }}/build-dynamic/config/languages
-          mkdir -p ${{ runner.temp }}/build-dynamic/config/keyboards
+          mkdir -p ${{ runner.temp }}/build-shared
+          mkdir -p ${{ runner.temp }}/build-shared/config/languages
+          mkdir -p ${{ runner.temp }}/build-shared/config/keyboards
           
           # Create build script for inside container
           cat > ${{ runner.temp }}/build-script.sh << 'BUILD_EOF'
           #!/bin/bash
           set -e
           
-          echo "Building Openterface QT Application (Dynamic Qt) for amd64..."
+          echo "Building Openterface QT Application (shared Qt) for amd64..."
 
           echo "Finding FFmpeg libraries..."
           find / -name "libavformat.so*" || echo "No libavformat found"
@@ -200,40 +200,40 @@ jobs:
           # Run build in container
           docker run --rm \
             -v ${{ github.workspace }}:/workspace/src \
-            -v ${{ runner.temp }}/build-dynamic:/workspace/build \
+            -v ${{ runner.temp }}/build-shared:/workspace/build \
             -v ${{ runner.temp }}/build-script.sh:/build-script.sh \
             -w /workspace/src \
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-dynamic:latest \
             /build-script.sh
           
           # Verify build output
-          if [ ! -f "${{ runner.temp }}/build-dynamic/openterfaceQT" ]; then
+          if [ ! -f "${{ runner.temp }}/build-shared/openterfaceQT" ]; then
             echo "Error: openterfaceQT binary not found"
-            ls -la ${{ runner.temp }}/build-dynamic/
+            ls -la ${{ runner.temp }}/build-shared/
             exit 1
           fi
           
-          echo "BUILD_DIR=${{ runner.temp }}/build-dynamic" >> $GITHUB_ENV
+          echo "BUILD_DIR=${{ runner.temp }}/build-shared" >> $GITHUB_ENV
 
-      - name: Create deb package (Dynamic)
+      - name: Create deb package (shared)
         working-directory: ${{ runner.temp }}
         run: |
-          mkdir -p package-dynamic/DEBIAN
+          mkdir -p package-shared/DEBIAN
           
-          PKG_NAME="${{ env.ARTIFACT }}.linux.amd64.dynamic"
+          PKG_NAME="${{ env.ARTIFACT }}.linux.amd64.shared"
           
           sed -e "s/\${VERSION}/${{ env.VERSION }}/g" \
               -e "s/\${ARCH}/amd64/g" \
-              ${{ github.workspace }}/packaging/debian/control > package-dynamic/DEBIAN/control
+              ${{ github.workspace }}/packaging/debian/control > package-shared/DEBIAN/control
           
-          mkdir -p package-dynamic/usr/bin
-          cp -r ${{ env.BUILD_DIR }}/openterfaceQT package-dynamic/usr/bin
+          mkdir -p package-shared/usr/bin
+          cp -r ${{ env.BUILD_DIR }}/openterfaceQT package-shared/usr/bin
 
-          mkdir -p package-dynamic/usr/share/icons/hicolor/256x256/apps/
-          cp ${{ github.workspace }}/images/icon_256.png package-dynamic/usr/share/icons/hicolor/256x256/apps/openterfaceQT.png
+          mkdir -p package-shared/usr/share/icons/hicolor/256x256/apps/
+          cp ${{ github.workspace }}/images/icon_256.png package-shared/usr/share/icons/hicolor/256x256/apps/openterfaceQT.png
 
-          mkdir -p package-dynamic/usr/share/applications/
-          cat > package-dynamic/usr/share/applications/openterfaceQT.desktop << EOF
+          mkdir -p package-shared/usr/share/applications/
+          cat > package-shared/usr/share/applications/openterfaceQT.desktop << EOF
           [Desktop Entry]
           Version=1.0
           Type=Application
@@ -244,49 +244,49 @@ jobs:
           Categories=Utility;
           EOF
 
-          mv package-dynamic $PKG_NAME
+          mv package-shared $PKG_NAME
           dpkg-deb --build $PKG_NAME
 
-      - name: Upload artifact (Dynamic deb)
+      - name: Upload artifact (shared deb)
         uses: actions/upload-artifact@v4
         with:
-          name: openterfaceQT.linux.amd64.dynamic.deb
-          path: ${{ runner.temp }}/${{ env.ARTIFACT }}.linux.amd64.dynamic.deb
+          name: openterfaceQT.linux.amd64.shared.deb
+          path: ${{ runner.temp }}/${{ env.ARTIFACT }}.linux.amd64.shared.deb
           if-no-files-found: error
 
-      - name: Create rpm package (Dynamic)
+      - name: Create rpm package (shared)
         working-directory: ${{ runner.temp }}
         run: |
-          mkdir -p rpmbuild-dynamic/{SPECS,SOURCES,BUILD,RPMS,SRPMS}
+          mkdir -p rpmbuild-shared/{SPECS,SOURCES,BUILD,RPMS,SRPMS}
           
-          PKG_NAME="${{ env.ARTIFACT }}.linux.amd64.dynamic"
+          PKG_NAME="${{ env.ARTIFACT }}.linux.amd64.shared"
           
           # Copy build output and icon to SOURCES
-          cp ${{ env.BUILD_DIR }}/openterfaceQT rpmbuild-dynamic/SOURCES/ || { echo "Failed to copy openterfaceQT!"; exit 1; }
-          cp ${{ github.workspace }}/images/icon_256.png rpmbuild-dynamic/SOURCES/ || { echo "Failed to copy icon_256.png!"; exit 1; }
+          cp ${{ env.BUILD_DIR }}/openterfaceQT rpmbuild-shared/SOURCES/ || { echo "Failed to copy openterfaceQT!"; exit 1; }
+          cp ${{ github.workspace }}/images/icon_256.png rpmbuild-shared/SOURCES/ || { echo "Failed to copy icon_256.png!"; exit 1; }
           
           # Debug: Verify files in SOURCES
-          ls -lh rpmbuild-dynamic/SOURCES/
+          ls -lh rpmbuild-shared/SOURCES/
           
           # Generate spec file with version and architecture substitutions
           sed -e "s/\${VERSION}/${{ env.VERSION }}/g" \
               -e "s/\${ARCH}/amd64/g" \
-              ${{ github.workspace }}/packaging/rpm/spec > rpmbuild-dynamic/SPECS/openterfaceqt.spec
+              ${{ github.workspace }}/packaging/rpm/spec > rpmbuild-shared/SPECS/openterfaceqt.spec
           
           # Debug: Show generated spec file
-          cat rpmbuild-dynamic/SPECS/openterfaceqt.spec
+          cat rpmbuild-shared/SPECS/openterfaceqt.spec
           
           # Build RPM
-          rpmbuild --define "_topdir ${{ runner.temp }}/rpmbuild-dynamic" -bb rpmbuild-dynamic/SPECS/openterfaceqt.spec
+          rpmbuild --define "_topdir ${{ runner.temp }}/rpmbuild-shared" -bb rpmbuild-shared/SPECS/openterfaceqt.spec
           
           # Copy the resulting RPM
-          find rpmbuild-dynamic/RPMS -name "*.rpm" -exec cp {} ./$PKG_NAME.rpm \;
+          find rpmbuild-shared/RPMS -name "*.rpm" -exec cp {} ./$PKG_NAME.rpm \;
 
-      - name: Upload RPM artifact (Dynamic)
+      - name: Upload RPM artifact (shared)
         uses: actions/upload-artifact@v4
         with:
-          name: openterfaceQT.linux.amd64.dynamic.rpm
-          path: ${{ runner.temp }}/${{ env.ARTIFACT }}.linux.amd64.dynamic.rpm
+          name: openterfaceQT.linux.amd64.shared.rpm
+          path: ${{ runner.temp }}/${{ env.ARTIFACT }}.linux.amd64.shared.rpm
           if-no-files-found: error
 
   build-static:
@@ -640,4 +640,23 @@ jobs:
         with:
           name: openterfaceQT.linux.amd64.static.AppImage
           path: ${{ runner.temp }}/openterfaceQT.linux.amd64.static.AppImage
+          if-no-files-found: error
+
+      - name: Create Portable Application (No packaging)
+        working-directory: ${{ runner.temp }}
+        run: |
+          PORTABLE_DIR="openterfaceQT.linux.amd64.portable"
+          mkdir -p $PORTABLE_DIR
+          # Copy the static binary directly to root of portable dir (no bin/ subdirectory)
+          cp ${{ env.BUILD_DIR }}/openterfaceQT $PORTABLE_DIR/openterfaceQT-portable
+          chmod +x $PORTABLE_DIR/openterfaceQT-portable
+
+          cp ${{ github.workspace }}/LICENSE $PORTABLE_DIR/ || echo "No LICENSE found"
+
+
+      - name: Upload Portable artifact (No packaging)
+        uses: actions/upload-artifact@v4
+        with:
+          name: openterfaceQT.linux.amd64.portable
+          path: ${{ runner.temp }}/openterfaceQT.linux.amd64.portable/
           if-no-files-found: error
