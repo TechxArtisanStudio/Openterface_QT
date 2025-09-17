@@ -259,7 +259,9 @@ jobs:
 
   # Static Qt Environment Build (existing multi-stage process)
   build-static-base:
-    if: ${{ (github.event.inputs.environment_type == 'static' || github.event.inputs.environment_type == 'both' || (github.event.inputs.step == 'base' || github.event.inputs.step == 'qt-base-qtml' || github.event.inputs.step == 'qt-declarative' || github.event.inputs.step == 'qt-complete' || github.event.inputs.step == 'all')) && (github.event.inputs.architecture == 'amd64' || github.event.inputs.architecture == 'both') }}
+    if: ${{ (github.event.inputs.environment_type == 'static' || github.event.inputs.environment_type == 'both' || 
+        (github.event.inputs.environment_type == 'static' && (github.event.inputs.step == 'base' || github.event.inputs.step == 'qt-base-qtml' || github.event.inputs.step == 'qt-declarative' || github.event.inputs.step == 'qt-complete' || github.event.inputs.step == 'all'))) && 
+        (github.event.inputs.architecture == 'amd64' || github.event.inputs.architecture == 'both') }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
