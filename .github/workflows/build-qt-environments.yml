@@ -43,6 +43,15 @@ on:
         required: false
         default: true
         type: boolean
+      architecture:
+        description: 'Target architecture'
+        required: false
+        default: 'both'
+        type: choice
+        options:
+        - 'amd64'
+        - 'arm64'
+        - 'both'
   push:
     branches: [ main ]
     paths:
@@ -60,7 +69,7 @@ env:
 jobs:
   # Shared Qt Environment Build
   build-shared:
-    if: ${{ github.event.inputs.environment_type == 'shared' || github.event.inputs.environment_type == 'both' || github.event_name == 'push' || github.event_name == 'pull_request' }}
+    if: ${{ (github.event.inputs.environment_type == 'shared' || github.event.inputs.environment_type == 'both' || github.event_name == 'push' || github.event_name == 'pull_request') && (github.event.inputs.architecture == 'amd64' || github.event.inputs.architecture == 'both') }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -70,6 +79,22 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Test Network Connectivity
+        run: |
+          echo "Testing network connectivity to GitHub..."
+          curl -I --connect-timeout 10 https://api.github.com
+
+      - name: Check Environment
+        run: |
+          echo "Runner environment info:"
+          uname -a
+          echo "Network interfaces:"
+          ip addr show
+          echo "DNS resolution:"
+          nslookup github.com
+          echo "GitHub Actions environment variables:"
+          env | grep GITHUB
 
       - name: Set lowercase image name
         run: echo "IMAGE_NAME_LOWER=$(echo '${{ github.repository_owner }}/openterface-qtbuild' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
@@ -137,9 +162,106 @@ jobs:
           docker run --rm ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-shared:ubuntu-${{ github.event.inputs.ubuntu_version || '24.04' }}-amd64 \
             /opt/verify/verify-qt-shared.sh
 
+  # Shared Qt Environment Build for ARM64
+  build-shared-arm64:
+    if: ${{ (github.event.inputs.environment_type == 'shared' || github.event.inputs.environment_type == 'both' || github.event_name == 'push' || github.event_name == 'pull_request') && (github.event.inputs.architecture == 'arm64' || github.event.inputs.architecture == 'both') }}
+    runs-on: [self-hosted, arm64]
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      shared-arm64-digest: ${{ steps.build-shared-arm64.outputs.digest }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Test Network Connectivity
+        run: |
+          echo "Testing network connectivity to GitHub..."
+          curl -I --connect-timeout 10 https://api.github.com
+
+      - name: Check Environment
+        run: |
+          echo "Runner environment info:"
+          uname -a
+          echo "Network interfaces:"
+          ip addr show
+          echo "DNS resolution:"
+          nslookup github.com
+          echo "GitHub Actions environment variables:"
+          env | grep GITHUB
+
+      - name: Set lowercase image name
+        run: echo "IMAGE_NAME_LOWER=$(echo '${{ github.repository_owner }}/openterface-qtbuild' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata for shared arm64
+        id: meta-shared-arm64
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-shared
+          tags: |
+            type=ref,event=branch,suffix=-arm64
+            type=ref,event=pr,suffix=-arm64
+            type=sha,suffix=-arm64
+            type=raw,value=latest-arm64
+            type=raw,value=ubuntu-${{ github.event.inputs.ubuntu_version || '24.04' }}-arm64
+
+      - name: Check if shared arm64 image exists
+        id: check-shared-arm64
+        run: |
+          if [[ "${{ github.event.inputs.force_rebuild }}" == "true" ]]; then
+            echo "Force rebuild requested, will build shared arm64 image"
+            echo "should_build=true" >> $GITHUB_OUTPUT
+          else
+            IMAGE_TAG="ubuntu-${{ github.event.inputs.ubuntu_version || '24.04' }}-arm64"
+            echo "Checking for image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-shared:$IMAGE_TAG"
+            if docker manifest inspect ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-shared:$IMAGE_TAG > /dev/null 2>&1; then
+              echo "Shared image already exists for arm64 architecture, skipping build"
+              echo "should_build=false" >> $GITHUB_OUTPUT
+            else
+              echo "shared image does not exist for arm64 architecture, will build"
+              echo "should_build=true" >> $GITHUB_OUTPUT
+            fi
+          fi
+
+      - name: Build and push Shared Qt image for ARM64
+        id: build-shared-arm64
+        if: steps.check-shared-arm64.outputs.should_build == 'true' || github.event_name == 'push' || github.event_name == 'pull_request'
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./docker/Dockerfile.qt-shared
+          build-args: |
+            UBUNTU_VERSION=${{ github.event.inputs.ubuntu_version || '24.04' }}
+            TARGETARCH=arm64
+          push: ${{ github.event_name != 'pull_request' && (github.event.inputs.push_to_registry == 'true' || github.event.inputs.push_to_registry == '') }}
+          tags: ${{ steps.meta-shared-arm64.outputs.tags }}
+          labels: ${{ steps.meta-shared-arm64.outputs.labels }}
+          cache-from: type=gha,scope=shared-arm64
+          cache-to: type=gha,mode=max,scope=shared-arm64
+          platforms: linux/arm64
+
+      - name: Test Shared Qt Environment ARM64
+        run: |
+          docker run --rm ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-shared:ubuntu-${{ github.event.inputs.ubuntu_version || '24.04' }}-arm64 \
+            /opt/verify/verify-qt-shared.sh
+
   # Static Qt Environment Build (existing multi-stage process)
   build-static-base:
-    if: ${{ github.event.inputs.environment_type == 'static' || github.event.inputs.environment_type == 'both' || (github.event.inputs.step == 'base' || github.event.inputs.step == 'qt-base-qtml' || github.event.inputs.step == 'qt-declarative' || github.event.inputs.step == 'qt-complete' || github.event.inputs.step == 'all') }}
+    if: ${{ (github.event.inputs.environment_type == 'static' || github.event.inputs.environment_type == 'both' || 
+        (github.event.inputs.environment_type == 'static' && (github.event.inputs.step == 'base' || github.event.inputs.step == 'qt-base-qtml' || github.event.inputs.step == 'qt-declarative' || github.event.inputs.step == 'qt-complete' || github.event.inputs.step == 'all'))) && 
+        (github.event.inputs.architecture == 'amd64' || github.event.inputs.architecture == 'both') }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -210,8 +332,81 @@ jobs:
           cache-to: type=gha,mode=max,scope=static-base
           platforms: linux/amd64
 
+  # Static Qt Environment Build Base for ARM64
+  build-static-base-arm64:
+    if: ${{ (github.event.inputs.environment_type == 'static' || github.event.inputs.environment_type == 'both' || (github.event.inputs.step == 'base' || github.event.inputs.step == 'qt-base-qtml' || github.event.inputs.step == 'qt-declarative' || github.event.inputs.step == 'qt-complete' || github.event.inputs.step == 'all')) && (github.event.inputs.architecture == 'arm64' || github.event.inputs.architecture == 'both') }}
+    runs-on: [self-hosted, arm64]
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      base-arm64-digest: ${{ steps.build.outputs.digest }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set lowercase image name
+        run: echo "IMAGE_NAME_LOWER=$(echo '${{ github.repository_owner }}/openterface-qtbuild' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-base
+          tags: |
+            type=ref,event=branch,suffix=-arm64
+            type=ref,event=pr,suffix=-arm64
+            type=sha,suffix=-arm64
+            type=raw,value=latest-arm64
+            type=raw,value=ubuntu-${{ github.event.inputs.ubuntu_version || '24.04' }}-arm64
+
+      - name: Check if base arm64 image exists
+        id: check-base-arm64
+        run: |
+          if [[ "${{ github.event.inputs.force_rebuild }}" == "true" ]]; then
+            echo "Force rebuild requested, will build base arm64 image"
+            echo "should_build=true" >> $GITHUB_OUTPUT
+          else
+            IMAGE_TAG="ubuntu-${{ github.event.inputs.ubuntu_version || '24.04' }}-arm64"
+            echo "Checking for image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-base:$IMAGE_TAG"
+            if docker manifest inspect ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-base:$IMAGE_TAG > /dev/null 2>&1; then
+              echo "Base image already exists for architecture arm64, skipping build"
+              echo "should_build=false" >> $GITHUB_OUTPUT
+            else
+              echo "Base image does not exist for architecture arm64, will build"
+              echo "should_build=true" >> $GITHUB_OUTPUT
+            fi
+          fi
+
+      - name: Build and push Base image for ARM64
+        id: build
+        if: steps.check-base-arm64.outputs.should_build == 'true' || github.event_name == 'push' || github.event_name == 'pull_request'
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./docker/Dockerfile.qt-base
+          build-args: |
+            UBUNTU_VERSION=${{ github.event.inputs.ubuntu_version || '24.04' }}
+            TARGETARCH=arm64
+          push: ${{ github.event_name != 'pull_request' && (github.event.inputs.push_to_registry == 'true' || github.event.inputs.push_to_registry == '') }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=static-base-arm64
+          cache-to: type=gha,mode=max,scope=static-base-arm64
+          platforms: linux/arm64
+
   build-static-ffmpeg:
-    if: ${{ github.event.inputs.environment_type == 'static' || github.event.inputs.environment_type == 'both' || (github.event.inputs.step == 'ffmpeg' || github.event.inputs.step == 'qt-base-qtml' || github.event.inputs.step == 'qt-declarative' || github.event.inputs.step == 'qt-complete' || github.event.inputs.step == 'all') }}
+    if: ${{ (github.event.inputs.environment_type == 'static' || github.event.inputs.environment_type == 'both' || (github.event.inputs.step == 'ffmpeg' || github.event.inputs.step == 'qt-base-qtml' || github.event.inputs.step == 'qt-declarative' || github.event.inputs.step == 'qt-complete' || github.event.inputs.step == 'all')) && (github.event.inputs.architecture == 'amd64' || github.event.inputs.architecture == 'both') }}
     runs-on: ubuntu-latest
     needs: [build-static-base]
     permissions:
@@ -265,8 +460,64 @@ jobs:
           cache-to: type=gha,mode=max,scope=static-ffmpeg
           platforms: linux/amd64
 
+  # Static Qt Environment Build FFmpeg for ARM64
+  build-static-ffmpeg-arm64:
+    if: ${{ (github.event.inputs.environment_type == 'static' || github.event.inputs.environment_type == 'both' || (github.event.inputs.step == 'ffmpeg' || github.event.inputs.step == 'qt-base-qtml' || github.event.inputs.step == 'qt-declarative' || github.event.inputs.step == 'qt-complete' || github.event.inputs.step == 'all')) && (github.event.inputs.architecture == 'arm64' || github.event.inputs.architecture == 'both') }}
+    runs-on: [self-hosted, arm64]
+    needs: [build-static-base-arm64]
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      ffmpeg-arm64-digest: ${{ steps.build.outputs.digest }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set lowercase image name
+        run: echo "IMAGE_NAME_LOWER=$(echo '${{ github.repository_owner }}/openterface-qtbuild' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-ffmpeg
+          tags: |
+            type=ref,event=branch,suffix=-arm64
+            type=ref,event=pr,suffix=-arm64
+            type=sha,suffix=-arm64
+            type=raw,value=latest-arm64
+            type=raw,value=ubuntu-${{ github.event.inputs.ubuntu_version || '24.04' }}-arm64
+
+      - name: Build and push FFmpeg image for ARM64
+        id: build
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./docker/Dockerfile.qt-ffmpeg
+          build-args: |
+            BASE_IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-base:ubuntu-${{ github.event.inputs.ubuntu_version || '24.04' }}-arm64
+            UBUNTU_VERSION=${{ github.event.inputs.ubuntu_version || '24.04' }}
+            TARGETARCH=arm64
+          push: ${{ github.event_name != 'pull_request' && (github.event.inputs.push_to_registry == 'true' || github.event.inputs.push_to_registry == '') }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=static-ffmpeg-arm64
+          cache-to: type=gha,mode=max,scope=static-ffmpeg-arm64
+          platforms: linux/arm64
+
   build-static-gstreamer:
-    if: ${{ github.event.inputs.environment_type == 'static' || github.event.inputs.environment_type == 'both' || (github.event.inputs.step == 'gstreamer' || github.event.inputs.step == 'qt-base-qtml' || github.event.inputs.step == 'qt-declarative' || github.event.inputs.step == 'qt-complete' || github.event.inputs.step == 'all') }}
+    if: ${{ (github.event.inputs.environment_type == 'static' || github.event.inputs.environment_type == 'both' || (github.event.inputs.step == 'gstreamer' || github.event.inputs.step == 'qt-base-qtml' || github.event.inputs.step == 'qt-declarative' || github.event.inputs.step == 'qt-complete' || github.event.inputs.step == 'all')) && (github.event.inputs.architecture == 'amd64' || github.event.inputs.architecture == 'both') }}
     runs-on: ubuntu-latest
     needs: [build-static-ffmpeg]
     permissions:
@@ -320,8 +571,64 @@ jobs:
           cache-to: type=gha,mode=max,scope=static-gstreamer
           platforms: linux/amd64
 
+  # Static Qt Environment Build GStreamer for ARM64
+  build-static-gstreamer-arm64:
+    if: ${{ (github.event.inputs.environment_type == 'static' || github.event.inputs.environment_type == 'both' || (github.event.inputs.step == 'gstreamer' || github.event.inputs.step == 'qt-base-qtml' || github.event.inputs.step == 'qt-declarative' || github.event.inputs.step == 'qt-complete' || github.event.inputs.step == 'all')) && (github.event.inputs.architecture == 'arm64' || github.event.inputs.architecture == 'both') }}
+    runs-on: [self-hosted, arm64]
+    needs: [build-static-ffmpeg-arm64]
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      gstreamer-arm64-digest: ${{ steps.build.outputs.digest }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set lowercase image name
+        run: echo "IMAGE_NAME_LOWER=$(echo '${{ github.repository_owner }}/openterface-qtbuild' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-gstreamer
+          tags: |
+            type=ref,event=branch,suffix=-arm64
+            type=ref,event=pr,suffix=-arm64
+            type=sha,suffix=-arm64
+            type=raw,value=latest-arm64
+            type=raw,value=ubuntu-${{ github.event.inputs.ubuntu_version || '24.04' }}-arm64
+
+      - name: Build and push GStreamer image for ARM64
+        id: build
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./docker/Dockerfile.qt-gstreamer
+          build-args: |
+            BASE_IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-ffmpeg:ubuntu-${{ github.event.inputs.ubuntu_version || '24.04' }}-arm64
+            UBUNTU_VERSION=${{ github.event.inputs.ubuntu_version || '24.04' }}
+            TARGETARCH=arm64
+          push: ${{ github.event_name != 'pull_request' && (github.event.inputs.push_to_registry == 'true' || github.event.inputs.push_to_registry == '') }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=static-gstreamer-arm64
+          cache-to: type=gha,mode=max,scope=static-gstreamer-arm64
+          platforms: linux/arm64
+
   build-static-qt-base-qtml:
-    if: ${{ github.event.inputs.environment_type == 'static' || github.event.inputs.environment_type == 'both' || (github.event.inputs.step == 'qt-base-qtml' || github.event.inputs.step == 'all') }}
+    if: ${{ (github.event.inputs.environment_type == 'static' || github.event.inputs.environment_type == 'both' || (github.event.inputs.step == 'qt-base-qtml' || github.event.inputs.step == 'all')) && (github.event.inputs.architecture == 'amd64' || github.event.inputs.architecture == 'both') }}
     runs-on: ubuntu-latest
     needs: [build-static-gstreamer]
     permissions:
@@ -375,8 +682,64 @@ jobs:
           cache-to: type=gha,mode=max,scope=static-qt-base-qtml
           platforms: linux/amd64
 
+  # Static Qt Environment Build Qt Base QTML for ARM64
+  build-static-qt-base-qtml-arm64:
+    if: ${{ (github.event.inputs.environment_type == 'static' || github.event.inputs.environment_type == 'both' || (github.event.inputs.step == 'qt-base-qtml' || github.event.inputs.step == 'all')) && (github.event.inputs.architecture == 'arm64' || github.event.inputs.architecture == 'both') }}
+    runs-on: [self-hosted, arm64]
+    needs: [build-static-gstreamer-arm64]
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      qt-base-qtml-arm64-digest: ${{ steps.build.outputs.digest }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set lowercase image name
+        run: echo "IMAGE_NAME_LOWER=$(echo '${{ github.repository_owner }}/openterface-qtbuild' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-qt-base-qtml
+          tags: |
+            type=ref,event=branch,suffix=-arm64
+            type=ref,event=pr,suffix=-arm64
+            type=sha,suffix=-arm64
+            type=raw,value=latest-arm64
+            type=raw,value=ubuntu-${{ github.event.inputs.ubuntu_version || '24.04' }}-arm64
+
+      - name: Build and push Qt Base QTML image for ARM64
+        id: build
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./docker/Dockerfile.qt-base-qtml
+          build-args: |
+            BASE_IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-gstreamer:ubuntu-${{ github.event.inputs.ubuntu_version || '24.04' }}-arm64
+            UBUNTU_VERSION=${{ github.event.inputs.ubuntu_version || '24.04' }}
+            TARGETARCH=arm64
+          push: ${{ github.event_name != 'pull_request' && (github.event.inputs.push_to_registry == 'true' || github.event.inputs.push_to_registry == '') }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=static-qt-base-qtml-arm64
+          cache-to: type=gha,mode=max,scope=static-qt-base-qtml-arm64
+          platforms: linux/arm64
+
   build-static-qt-declarative:
-    if: ${{ github.event.inputs.environment_type == 'static' || github.event.inputs.environment_type == 'both' || (github.event.inputs.step == 'qt-declarative' || github.event.inputs.step == 'all') }}
+    if: ${{ (github.event.inputs.environment_type == 'static' || github.event.inputs.environment_type == 'both' || (github.event.inputs.step == 'qt-declarative' || github.event.inputs.step == 'all')) && (github.event.inputs.architecture == 'amd64' || github.event.inputs.architecture == 'both') }}
     runs-on: ubuntu-latest
     needs: [build-static-qt-base-qtml]
     permissions:
@@ -430,8 +793,64 @@ jobs:
           cache-to: type=gha,mode=max,scope=static-qt-declarative
           platforms: linux/amd64
 
+  # Static Qt Environment Build Qt Declarative for ARM64
+  build-static-qt-declarative-arm64:
+    if: ${{ (github.event.inputs.environment_type == 'static' || github.event.inputs.environment_type == 'both' || (github.event.inputs.step == 'qt-declarative' || github.event.inputs.step == 'all')) && (github.event.inputs.architecture == 'arm64' || github.event.inputs.architecture == 'both') }}
+    runs-on: [self-hosted, arm64]
+    needs: [build-static-qt-base-qtml-arm64]
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      qt-declarative-arm64-digest: ${{ steps.build.outputs.digest }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set lowercase image name
+        run: echo "IMAGE_NAME_LOWER=$(echo '${{ github.repository_owner }}/openterface-qtbuild' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-qt-declarative
+          tags: |
+            type=ref,event=branch,suffix=-arm64
+            type=ref,event=pr,suffix=-arm64
+            type=sha,suffix=-arm64
+            type=raw,value=latest-arm64
+            type=raw,value=ubuntu-${{ github.event.inputs.ubuntu_version || '24.04' }}-arm64
+
+      - name: Build and push Qt Declarative image for ARM64
+        id: build
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./docker/Dockerfile.qt-declarative
+          build-args: |
+            BASE_IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-qt-base-qtml:ubuntu-${{ github.event.inputs.ubuntu_version || '24.04' }}-arm64
+            UBUNTU_VERSION=${{ github.event.inputs.ubuntu_version || '24.04' }}
+            TARGETARCH=arm64
+          push: ${{ github.event_name != 'pull_request' && (github.event.inputs.push_to_registry == 'true' || github.event.inputs.push_to_registry == '') }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=static-qt-declarative-arm64
+          cache-to: type=gha,mode=max,scope=static-qt-declarative-arm64
+          platforms: linux/arm64
+
   build-static-complete:
-    if: ${{ github.event.inputs.environment_type == 'static' || github.event.inputs.environment_type == 'both' || (github.event.inputs.step == 'qt-complete' || github.event.inputs.step == 'all') }}
+    if: ${{ (github.event.inputs.environment_type == 'static' || github.event.inputs.environment_type == 'both' || (github.event.inputs.step == 'qt-complete' || github.event.inputs.step == 'all')) && (github.event.inputs.architecture == 'amd64' || github.event.inputs.architecture == 'both') }}
     runs-on: ubuntu-latest
     needs: [build-static-qt-declarative]
     permissions:
@@ -490,10 +909,71 @@ jobs:
           docker run --rm ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-complete:ubuntu-${{ github.event.inputs.ubuntu_version || '24.04' }}-amd64 \
             /opt/Qt6/bin/verify-qt-installation.sh
 
+  # Static Qt Environment Build Complete for ARM64
+  build-static-complete-arm64:
+    if: ${{ (github.event.inputs.environment_type == 'static' || github.event.inputs.environment_type == 'both' || (github.event.inputs.step == 'qt-complete' || github.event.inputs.step == 'all')) && (github.event.inputs.architecture == 'arm64' || github.event.inputs.architecture == 'both') }}
+    runs-on: [self-hosted, arm64]
+    needs: [build-static-qt-declarative-arm64]
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      qt-arm64-digest: ${{ steps.build.outputs.digest }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set lowercase image name
+        run: echo "IMAGE_NAME_LOWER=$(echo '${{ github.repository_owner }}/openterface-qtbuild' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-complete
+          tags: |
+            type=ref,event=branch,suffix=-arm64
+            type=ref,event=pr,suffix=-arm64
+            type=sha,suffix=-arm64
+            type=raw,value=latest-arm64
+            type=raw,value=ubuntu-${{ github.event.inputs.ubuntu_version || '24.04' }}-arm64
+
+      - name: Build and push Qt Complete image for ARM64
+        id: build
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./docker/Dockerfile.qt-complete
+          build-args: |
+            BASE_IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-qt-declarative:ubuntu-${{ github.event.inputs.ubuntu_version || '24.04' }}-arm64
+            UBUNTU_VERSION=${{ github.event.inputs.ubuntu_version || '24.04' }}
+            TARGETARCH=arm64
+          push: ${{ github.event_name != 'pull_request' && (github.event.inputs.push_to_registry == 'true' || github.event.inputs.push_to_registry == '') }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=static-complete-arm64
+          cache-to: type=gha,mode=max,scope=static-complete-arm64
+          platforms: linux/arm64
+
+      - name: Test Static Qt Environment ARM64
+        run: |
+          docker run --rm ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-complete:ubuntu-${{ github.event.inputs.ubuntu_version || '24.04' }}-arm64 \
+            /opt/Qt6/bin/verify-qt-installation.sh
+
   # Summary job that shows which images are available
   build-summary:
     runs-on: ubuntu-latest
-    needs: [build-shared, build-static-complete]
+    needs: [build-shared, build-shared-arm64, build-static-complete, build-static-complete-arm64]
     if: always()
     steps:
       - name: Set lowercase image name
@@ -502,34 +982,60 @@ jobs:
         run: |
           echo "## Qt Build Environment Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "| Environment | Status | Image |" >> $GITHUB_STEP_SUMMARY
-          echo "|-------------|--------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Environment | Architecture | Status | Image |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------------|--------------|--------|-------|" >> $GITHUB_STEP_SUMMARY
           
           if [ "${{ needs.build-shared.result }}" = "success" ]; then
-            echo "| Shared Qt | ✅ Success | \`${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-shared:ubuntu-${{ github.event.inputs.ubuntu_version || '24.04' }}-amd64\` |" >> $GITHUB_STEP_SUMMARY
+            echo "| Shared Qt | AMD64 | ✅ Success | \`${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-shared:ubuntu-${{ github.event.inputs.ubuntu_version || '24.04' }}-amd64\` |" >> $GITHUB_STEP_SUMMARY
           else
-            echo "| Shared Qt | ❌ Failed/Skipped | - |" >> $GITHUB_STEP_SUMMARY
+            echo "| Shared Qt | AMD64 | ❌ Failed/Skipped | - |" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          if [ "${{ needs.build-shared-arm64.result }}" = "success" ]; then
+            echo "| Shared Qt | ARM64 | ✅ Success | \`${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-shared:ubuntu-${{ github.event.inputs.ubuntu_version || '24.04' }}-arm64\` |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "| Shared Qt | ARM64 | ❌ Failed/Skipped | - |" >> $GITHUB_STEP_SUMMARY
           fi
           
           if [ "${{ needs.build-static-complete.result }}" = "success" ]; then
-            echo "| Static Qt Complete | ✅ Success | \`${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-complete:ubuntu-${{ github.event.inputs.ubuntu_version || '24.04' }}-amd64\` |" >> $GITHUB_STEP_SUMMARY
+            echo "| Static Qt Complete | AMD64 | ✅ Success | \`${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-complete:ubuntu-${{ github.event.inputs.ubuntu_version || '24.04' }}-amd64\` |" >> $GITHUB_STEP_SUMMARY
           else
-            echo "| Static Qt Complete | ❌ Failed/Skipped | - |" >> $GITHUB_STEP_SUMMARY
+            echo "| Static Qt Complete | AMD64 | ❌ Failed/Skipped | - |" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          if [ "${{ needs.build-static-complete-arm64.result }}" = "success" ]; then
+            echo "| Static Qt Complete | ARM64 | ✅ Success | \`${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-complete:ubuntu-${{ github.event.inputs.ubuntu_version || '24.04' }}-arm64\` |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "| Static Qt Complete | ARM64 | ❌ Failed/Skipped | - |" >> $GITHUB_STEP_SUMMARY
           fi
           
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Usage Instructions" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Shared Build:**" >> $GITHUB_STEP_SUMMARY
+          echo "**Shared Build (AMD64):**" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
           echo "docker run --rm -v \$(pwd):/workspace/src -w /workspace/src \\" >> $GITHUB_STEP_SUMMARY
-          echo "  ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-dynamic:ubuntu-${{ github.event.inputs.ubuntu_version || '24.04' }}-amd64 \\" >> $GITHUB_STEP_SUMMARY
+          echo "  ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-shared:ubuntu-${{ github.event.inputs.ubuntu_version || '24.04' }}-amd64 \\" >> $GITHUB_STEP_SUMMARY
           echo "  bash -c 'mkdir build && cd build && cmake -DBUILD_SHARED_LIBS=ON .. && make -j\$(nproc)'" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Static Build:**" >> $GITHUB_STEP_SUMMARY
+          echo "**Shared Build (ARM64):**" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
+          echo "docker run --rm -v \$(pwd):/workspace/src -w /workspace/src \\" >> $GITHUB_STEP_SUMMARY
+          echo "  ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-shared:ubuntu-${{ github.event.inputs.ubuntu_version || '24.04' }}-arm64 \\" >> $GITHUB_STEP_SUMMARY
+          echo "  bash -c 'mkdir build && cd build && cmake -DBUILD_SHARED_LIBS=ON .. && make -j\$(nproc)'" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Static Build (AMD64):**" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
           echo "docker run --rm -v \$(pwd):/workspace/src -w /workspace/src \\" >> $GITHUB_STEP_SUMMARY
           echo "  ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-complete:ubuntu-${{ github.event.inputs.ubuntu_version || '24.04' }}-amd64 \\" >> $GITHUB_STEP_SUMMARY
+          echo "  bash -c 'mkdir build && cd build && cmake -DCMAKE_PREFIX_PATH=/opt/Qt6 -DBUILD_SHARED_LIBS=OFF .. && make -j\$(nproc)'" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Static Build (ARM64):**" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
+          echo "docker run --rm -v \$(pwd):/workspace/src -w /workspace/src \\" >> $GITHUB_STEP_SUMMARY
+          echo "  ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-complete:ubuntu-${{ github.event.inputs.ubuntu_version || '24.04' }}-arm64 \\" >> $GITHUB_STEP_SUMMARY
           echo "  bash -c 'mkdir build && cd build && cmake -DCMAKE_PREFIX_PATH=/opt/Qt6 -DBUILD_SHARED_LIBS=OFF .. && make -j\$(nproc)'" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`" >> $GITHUB_STEP_SUMMARY

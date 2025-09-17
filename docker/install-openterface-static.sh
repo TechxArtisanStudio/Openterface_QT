@@ -20,16 +20,58 @@ set -e  # Exit on any error
 echo "🚀 Openterface QT Static Testing Installation Script"
 echo "===================================================="
 
+# Debug environment information
+echo "🔍 Environment Debug Information:"
+echo "   Date: $(date)"
+echo "   User: $(whoami)"
+echo "   Working directory: $(pwd)"
+echo "   Available disk space: $(df -h /tmp | tail -1 | awk '{print $4}')"
+echo "   Network interfaces: $(ip addr show | grep -E '^[0-9]+:' | cut -d: -f2 | tr -d ' ' | paste -sd ',' -)"
+echo "   DNS servers: $(cat /etc/resolv.conf | grep nameserver | awk '{print $2}' | paste -sd ',' - || echo 'none')"
+echo ""
+
 # Configuration
 GITHUB_REPO="TechxArtisanStudio/Openterface_QT"
-STATIC_PACKAGE_NAME="openterfaceQT.linux.amd64.static.deb"  # Assuming static package naming
-FALLBACK_PACKAGE_NAME="openterfaceQT.linux.amd64.deb"       # Fallback to regular package
+STATIC_PACKAGE_NAME="openterfaceQT-portable"  # Assuming static portable app
 
 # Function to get the specified version
 get_latest_version() {
-    echo "🔍 Using specified version for static testing..."
-    # Use fixed version 0.3.19 for static testing
-    LATEST_VERSION="0.3.19"
+    echo "🔍 Fetching latest release information..."
+    
+    # Test GitHub API connectivity first
+    echo "   Testing GitHub API connectivity..."
+    if ! curl --connect-timeout 10 --max-time 30 -s "https://api.github.com" > /dev/null; then
+        echo "❌ Cannot reach GitHub API"
+        echo "   Network diagnostics:"
+        echo "     - DNS resolution for api.github.com:"
+        nslookup api.github.com || echo "       DNS resolution failed"
+        echo "     - Ping test to 8.8.8.8:"
+        ping -c 3 8.8.8.8 || echo "       Ping failed"
+        exit 1
+    fi
+    echo "   ✅ GitHub API is reachable"
+    
+    # Use GitHub API to get the latest release with better error handling
+    echo "   Querying GitHub API for latest release..."
+    API_RESPONSE=$(curl -s --connect-timeout 30 --max-time 60 "https://api.github.com/repos/${GITHUB_REPO}/releases/latest")
+    
+    if [ $? -ne 0 ] || [ -z "$API_RESPONSE" ]; then
+        echo "❌ Failed to get API response from GitHub"
+        echo "   API Response: $API_RESPONSE"
+        
+        # Fallback to a known version
+        echo "   Using fallback version: v0.4.3"
+        LATEST_VERSION="v0.4.3"
+    else
+        LATEST_VERSION=$(echo "$API_RESPONSE" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
+        
+        if [ -z "$LATEST_VERSION" ]; then
+            echo "❌ Could not parse version from API response"
+            echo "   API Response snippet: $(echo "$API_RESPONSE" | head -3)"
+            echo "   Using fallback version: v0.4.3"
+            LATEST_VERSION="v0.4.3"
+        fi
+    fi
     
     echo "✅ Using version: $LATEST_VERSION"
 }
@@ -46,7 +88,6 @@ check_static_package_exists() {
         return 0
     else
         echo "⚠️  Static package not found, falling back to regular package: $FALLBACK_PACKAGE_NAME"
-        PACKAGE_NAME="$FALLBACK_PACKAGE_NAME"
         return 1
     fi
 }
@@ -64,21 +105,69 @@ download_package() {
     DOWNLOAD_URL="https://github.com/${GITHUB_REPO}/releases/download/${LATEST_VERSION}/${PACKAGE_NAME}"
     
     echo "   URL: $DOWNLOAD_URL"
+    echo "   Package size check..."
     
-    # Download with retries
+    # First, check if the URL is accessible and get file size
+    PACKAGE_SIZE=$(curl -sI "$DOWNLOAD_URL" | grep -i content-length | awk '{print $2}' | tr -d '\r' || echo "unknown")
+    echo "   Package size: $PACKAGE_SIZE bytes"
+    
+    # Test network connectivity first
+    echo "   Testing network connectivity..."
+    if ! curl --connect-timeout 10 --max-time 30 -s "https://api.github.com" > /dev/null; then
+        echo "❌ Network connectivity test failed - GitHub is not reachable"
+        exit 1
+    fi
+    echo "   ✅ Network connectivity OK"
+    
+    # Download with retries and better timeout settings
     for i in {1..3}; do
         echo "   Attempt $i/3..."
-        if wget -q --show-progress "$DOWNLOAD_URL" -O "/tmp/${PACKAGE_NAME}"; then
+        echo "   Using wget with extended timeout settings..."
+        if wget --timeout=300 --tries=3 --retry-connrefused --progress=bar:force \
+               --connect-timeout=30 --read-timeout=300 \
+               "$DOWNLOAD_URL" -O "/tmp/${PACKAGE_NAME}"; then
             echo "✅ Download completed successfully"
-            return 0
+            
+            # Verify downloaded file
+            if [ -f "/tmp/${PACKAGE_NAME}" ]; then
+                DOWNLOADED_SIZE=$(stat -c%s "/tmp/${PACKAGE_NAME}" 2>/dev/null || echo "0")
+                echo "   Downloaded file size: $DOWNLOADED_SIZE bytes"
+                if [ "$DOWNLOADED_SIZE" -gt 1000000 ]; then  # At least 1MB
+                    echo "   ✅ File size looks reasonable"
+                    return 0
+                else
+                    echo "   ❌ Downloaded file seems too small, may be incomplete"
+                fi
+            else
+                echo "   ❌ Downloaded file not found"
+            fi
         else
             echo "❌ Download attempt $i failed"
-            if [ $i -eq 3 ]; then
-                echo "❌ All download attempts failed"
-                exit 1
+            # Show more details about the failure
+            echo "   Wget exit code: $?"
+            
+            # Try with curl as fallback
+            echo "   Trying with curl as fallback..."
+            if curl --connect-timeout 30 --max-time 600 -L --retry 3 --retry-delay 5 \
+                   --fail --progress-bar "$DOWNLOAD_URL" -o "/tmp/${PACKAGE_NAME}"; then
+                echo "✅ Download completed with curl fallback"
+                return 0
+            else
+                echo "❌ Curl fallback also failed"
             fi
-            sleep 2
         fi
+        
+        if [ $i -eq 3 ]; then
+            echo "❌ All download attempts failed"
+            echo "   This could be due to:"
+            echo "   - Slow network connection"
+            echo "   - GitHub rate limiting"
+            echo "   - Package not available"
+            echo "   - Firewall/proxy issues"
+            exit 1
+        fi
+        echo "   Waiting 10 seconds before retry..."
+        sleep 10
     done
 }
 
@@ -88,21 +177,60 @@ install_package() {
     
     if [ ! -f "/tmp/${PACKAGE_NAME}" ]; then
         echo "❌ Package file not found: /tmp/${PACKAGE_NAME}"
-        exit 1
+        echo "   Checking if package was provided locally..."
+        
+        # Check if package exists in the same directory as the script
+        SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
+        if [ -f "${SCRIPT_DIR}/${PACKAGE_NAME}" ]; then
+            echo "   ✅ Found local package: ${SCRIPT_DIR}/${PACKAGE_NAME}"
+            cp "${SCRIPT_DIR}/${PACKAGE_NAME}" "/tmp/${PACKAGE_NAME}"
+        else
+            echo "   ❌ No local package found either"
+            echo "   Available files in script directory:"
+            ls -la "${SCRIPT_DIR}/" | head -10
+            exit 1
+        fi
     fi
     
-    # Install the package
-    echo "   Installing with dpkg..."
-    if dpkg -i "/tmp/${PACKAGE_NAME}" 2>/dev/null; then
-        echo "✅ Package installed successfully"
+    echo "   Package file size: $(stat -c%s "/tmp/${PACKAGE_NAME}") bytes"
+    echo "   Package file type: $(file "/tmp/${PACKAGE_NAME}")"
+    
+    # Determine installation method based on file type
+    FILE_TYPE=$(file "/tmp/${PACKAGE_NAME}")
+    
+    if [[ "$FILE_TYPE" == *"executable"* ]]; then
+        echo "   Installing as executable binary..."
+        cp "/tmp/${PACKAGE_NAME}" /usr/bin/openterfaceQT
+        chmod +x /usr/bin/openterfaceQT
+        echo "   ✅ Binary installed to /usr/bin/openterfaceQT"
+    elif [[ "$FILE_TYPE" == *"gzip"* ]] || [[ "$FILE_TYPE" == *"tar"* ]]; then
+        echo "   Installing as archive..."
+        cd /tmp
+        tar -xzf "${PACKAGE_NAME}" || tar -xf "${PACKAGE_NAME}"
+        
+        # Find the extracted binary
+        EXTRACTED_BINARY=$(find /tmp -name "openterfaceQT" -type f -executable 2>/dev/null | head -1)
+        if [ -n "$EXTRACTED_BINARY" ]; then
+            cp "$EXTRACTED_BINARY" /usr/bin/openterfaceQT
+            chmod +x /usr/bin/openterfaceQT
+            echo "   ✅ Binary extracted and installed to /usr/bin/openterfaceQT"
+        else
+            echo "   ❌ Could not find executable in extracted archive"
+            echo "   Extracted contents:"
+            find /tmp -name "*openterface*" -o -name "*QT*" | head -10
+            exit 1
+        fi
     else
-        echo "⚠️  Package installation had some dependency issues, attempting to fix..."
-        apt-get install -f -y
-        echo "✅ Dependencies resolved and package installed"
+        echo "   ❌ Unknown file type: $FILE_TYPE"
+        echo "   Attempting to install as executable anyway..."
+        cp "/tmp/${PACKAGE_NAME}" /usr/bin/openterfaceQT
+        chmod +x /usr/bin/openterfaceQT
     fi
     
     # Clean up downloaded package
-    rm "/tmp/${PACKAGE_NAME}"
+    rm -f "/tmp/${PACKAGE_NAME}"
+    
+    echo "   ✅ Package installation completed"
 }
 
 # Function to set up device permissions and udev rules
@@ -129,11 +257,22 @@ EOF
     
     echo "✅ Udev rules created at /etc/udev/rules.d/50-openterface.rules"
     
-    # Reload udev rules
+    # Reload udev rules - handle Docker container environment
     if command -v udevadm >/dev/null 2>&1; then
-        udevadm control --reload-rules
-        udevadm trigger
-        echo "✅ Udev rules reloaded"
+        # Check if we're in a Docker container or if udev service is available
+        if [ -f /.dockerenv ] || [ "${DOCKER_BUILD:-}" = "1" ] || [ "${container:-}" = "docker" ]; then
+            echo "🐳 Running in Docker container - udev rules created but not reloaded"
+            echo "   (Rules will be active when container is run with proper device access)"
+        else
+            # Try to reload rules, but don't fail the installation if it doesn't work
+            echo "🔄 Attempting to reload udev rules..."
+            if udevadm control --reload-rules 2>/dev/null && udevadm trigger 2>/dev/null; then
+                echo "✅ Udev rules reloaded successfully"
+            else
+                echo "⚠️  Could not reload udev rules (may require privileged mode or system restart)"
+                echo "   Rules are installed and will be active after reboot or udev service restart"
+            fi
+        fi
     else
         echo "⚠️  udevadm not available, udev rules will be active after restart"
     fi

@@ -21,7 +21,8 @@ RUN apt-get install -y \
         wget \
         ca-certificates \
         sudo \
-        udev
+        udev \
+        usbutils
 # Runtime Qt6 libraries
 RUN apt-get install -y libqt6core6t64 \
         libqt6dbus6t64 \
@@ -47,6 +48,7 @@ RUN apt-get install -y libx11-6 \
 RUN apt-get install -y libavformat60 \
         libavcodec60 \
         libavutil58 \
+        libavdevice60 \
         libswresample4 \
         libswscale7 \
         libturbojpeg
@@ -69,10 +71,10 @@ RUN useradd -m -s /bin/bash openterface && \
     echo "openterface ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
 
 # Copy and run the installation script
-COPY install-openterface.sh /tmp/install-openterface.sh
-RUN chmod +x /tmp/install-openterface.sh && \
-    /tmp/install-openterface.sh && \
-    rm /tmp/install-openterface.sh
+COPY install-openterface-shared.sh /tmp/install-openterface-shared.sh
+RUN chmod +x /tmp/install-openterface-shared.sh && \
+    /tmp/install-openterface-shared.sh && \
+    rm /tmp/install-openterface-shared.sh
 
 
 # Set up udev rules for Openterface hardware (backup rules, main setup in install script)
