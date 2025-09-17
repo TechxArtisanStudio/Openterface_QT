@@ -537,213 +537,223 @@ Please try again after restarting the application.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="148"/>
+        <location filename="../../ui/mainwindow.ui" line="149"/>
         <source>Close</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="153"/>
+        <location filename="../../ui/mainwindow.ui" line="154"/>
         <source>Change Settings</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="158"/>
+        <location filename="../../ui/mainwindow.ui" line="159"/>
         <source>Reset Serial Port</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="163"/>
+        <location filename="../../ui/mainwindow.ui" line="164"/>
         <source>Serial Console</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="168"/>
+        <location filename="../../ui/mainwindow.ui" line="169"/>
         <source>AutoReszie</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="173"/>
+        <location filename="../../ui/mainwindow.ui" line="174"/>
         <source>Factory Reset HID Chip</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="178"/>
+        <location filename="../../ui/mainwindow.ui" line="179"/>
         <source>Preferences</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="183"/>
+        <location filename="../../ui/mainwindow.ui" line="184"/>
         <source>Office Website</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="188"/>
+        <location filename="../../ui/mainwindow.ui" line="189"/>
         <source>Purchase</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="193"/>
+        <location filename="../../ui/mainwindow.ui" line="194"/>
         <source>Feedback</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="198"/>
+        <location filename="../../ui/mainwindow.ui" line="199"/>
         <source>Update</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="203"/>
+        <location filename="../../ui/mainwindow.ui" line="204"/>
         <source>Environment</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="208"/>
+        <location filename="../../ui/mainwindow.ui" line="209"/>
         <source>About</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="219"/>
+        <location filename="../../ui/mainwindow.ui" line="220"/>
         <source>Follow Switch</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="227"/>
+        <location filename="../../ui/mainwindow.ui" line="228"/>
         <source>Paste</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="230"/>
+        <location filename="../../ui/mainwindow.ui" line="231"/>
         <source>Paste clipboard content to target</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="235"/>
+        <location filename="../../ui/mainwindow.ui" line="236"/>
         <source>Script Tool</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="240"/>
+        <location filename="../../ui/mainwindow.ui" line="241"/>
+        <source>Video Recording Settings</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/mainwindow.ui" line="244"/>
+        <source>Configure video recording settings and start/stop recording</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/mainwindow.ui" line="249"/>
         <source>TCP Server</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="245"/>
+        <location filename="../../ui/mainwindow.ui" line="254"/>
         <source>Environment Checking</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="250"/>
+        <location filename="../../ui/mainwindow.ui" line="259"/>
         <source>Firmware Manager</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="255"/>
+        <location filename="../../ui/mainwindow.ui" line="264"/>
         <source>Firmware Update...</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="260"/>
+        <location filename="../../ui/mainwindow.ui" line="269"/>
         <source>Device Selector</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="263"/>
+        <location filename="../../ui/mainwindow.ui" line="272"/>
         <source>Open Device Selector Dialog</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="268"/>
+        <location filename="../../ui/mainwindow.ui" line="277"/>
         <source>Update Display Settings</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="271"/>
+        <location filename="../../ui/mainwindow.ui" line="280"/>
         <source>Update display name and serial number in EDID</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="280"/>
+        <location filename="../../ui/mainwindow.ui" line="289"/>
         <source>115200</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="288"/>
+        <location filename="../../ui/mainwindow.ui" line="297"/>
         <source>9600</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="298"/>
+        <location filename="../../ui/mainwindow.ui" line="307"/>
         <source>To Host</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="306"/>
+        <location filename="../../ui/mainwindow.ui" line="315"/>
         <source>To Target</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="319"/>
+        <location filename="../../ui/mainwindow.ui" line="328"/>
         <source>Absolute</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="327"/>
+        <location filename="../../ui/mainwindow.ui" line="336"/>
         <source>Relative</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="340"/>
+        <location filename="../../ui/mainwindow.ui" line="349"/>
         <source>Auto Hide</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="343"/>
+        <location filename="../../ui/mainwindow.ui" line="352"/>
         <source>Auto hide mouse cursor</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="351"/>
+        <location filename="../../ui/mainwindow.ui" line="360"/>
         <source>Always Show</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="354"/>
+        <location filename="../../ui/mainwindow.ui" line="363"/>
         <source>Always show mouse cursor</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1102"/>
+        <location filename="../../ui/mainwindow.cpp" line="1103"/>
         <source>Recorded %1 sec</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1283"/>
+        <location filename="../../ui/mainwindow.cpp" line="1318"/>
         <source>Image Capture Error</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1444"/>
+        <location filename="../../ui/mainwindow.cpp" line="1479"/>
         <source>Captured &quot;%1&quot;</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1998"/>
+        <location filename="../../ui/mainwindow.cpp" line="2057"/>
         <source>Firmware Update</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1999"/>
+        <location filename="../../ui/mainwindow.cpp" line="2058"/>
         <source>The firmware is up to date.
 Current version: </source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="2021"/>
+        <location filename="../../ui/mainwindow.cpp" line="2080"/>
         <source>Firmware fetch timeout</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="2022"/>
+        <location filename="../../ui/mainwindow.cpp" line="2081"/>
         <source>Firmware retrieval timed out. Please check your network connection and try again.
 Current version: </source>
         <translation type="unfinished"></translation>

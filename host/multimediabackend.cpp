@@ -24,6 +24,8 @@
 #ifndef Q_OS_WIN
 #include "backend/ffmpegbackendhandler.h"
 #include "backend/gstreamerbackendhandler.h"
+#else
+#include "backend/qtbackendhandler.h"
 #endif
 #include "backend/qtmultimediabackendhandler.h"
 #include <QLoggingCategory>
@@ -110,6 +112,29 @@ bool MultimediaBackendHandler::isFrameRateSupported(const QCameraFormat& format,
     return frameRate >= format.minFrameRate() && frameRate <= format.maxFrameRate();
 }
 
+int MultimediaBackendHandler::getOptimalFrameRate(const QCameraFormat& format, int desiredFrameRate) const
+{
+    int minRate = format.minFrameRate();
+    int maxRate = format.maxFrameRate();
+    
+    if (desiredFrameRate < minRate) {
+        return minRate;
+    } else if (desiredFrameRate > maxRate) {
+        return maxRate;
+    } else {
+        return desiredFrameRate;
+    }
+}
+
+void MultimediaBackendHandler::validateCameraFormat(const QCameraFormat& format) const
+{
+    logBackendMessage(QString("Validating camera format: %1x%2, fps: %3-%4")
+                     .arg(format.resolution().width())
+                     .arg(format.resolution().height())
+                     .arg(format.minFrameRate())
+                     .arg(format.maxFrameRate()));
+}
+
 QCameraFormat MultimediaBackendHandler::selectOptimalFormat(const QList<QCameraFormat>& formats,
                                                           const QSize& resolution,
                                                           int desiredFrameRate,
@@ -181,16 +206,16 @@ MultimediaBackendType MultimediaBackendFactory::detectBackendType()
     QString backendName = GlobalSetting::instance().getMediaBackend();
     MultimediaBackendType type = parseBackendType(backendName);
     
-    // On Windows, always use Qt Multimedia regardless of settings
+    // On Windows, always use Qt backend regardless of settings
 #ifdef Q_OS_WIN
     if (type == MultimediaBackendType::GStreamer || type == MultimediaBackendType::FFmpeg) {
-        qCWarning(log_multimedia_backend) << "GStreamer/FFmpeg backends not supported on Windows, falling back to Qt Multimedia";
-        return MultimediaBackendType::QtMultimedia;
+        qCWarning(log_multimedia_backend) << "GStreamer/FFmpeg backends not supported on Windows, falling back to Qt backend";
+        return MultimediaBackendType::Qt;
     }
-    // If no specific backend is configured or unknown, default to Qt Multimedia
-    if (type == MultimediaBackendType::Unknown) {
-        qCDebug(log_multimedia_backend) << "Auto-detected Qt Multimedia backend for Windows";
-        return MultimediaBackendType::QtMultimedia;
+    // If no specific backend is configured or unknown, default to Qt backend
+    if (type == MultimediaBackendType::Unknown || type == MultimediaBackendType::QtMultimedia) {
+        qCDebug(log_multimedia_backend) << "Auto-detected Qt backend for Windows";
+        return MultimediaBackendType::Qt;
     }
     return type;
 #else
@@ -207,9 +232,11 @@ MultimediaBackendType MultimediaBackendFactory::detectBackendType()
 
 MultimediaBackendType MultimediaBackendFactory::parseBackendType(const QString& backendName)
 {
-    if (backendName.compare("qtmultimedia", Qt::CaseInsensitive) == 0 || 
-        backendName.compare("qt", Qt::CaseInsensitive) == 0) {
+    if (backendName.compare("qtmultimedia", Qt::CaseInsensitive) == 0) {
         return MultimediaBackendType::QtMultimedia;
+    }
+    if (backendName.compare("qt", Qt::CaseInsensitive) == 0) {
+        return MultimediaBackendType::Qt;
     }
     if (backendName.compare("gstreamer", Qt::CaseInsensitive) == 0) {
         return MultimediaBackendType::GStreamer;
@@ -224,7 +251,9 @@ QString MultimediaBackendFactory::backendTypeToString(MultimediaBackendType type
 {
     switch (type) {
         case MultimediaBackendType::QtMultimedia:
-            return "Qt Multimedia";
+            return "Qt Multimedia (Legacy)";
+        case MultimediaBackendType::Qt:
+            return "Qt Multimedia (Windows)";
         case MultimediaBackendType::FFmpeg:
             return "FFmpeg";
         case MultimediaBackendType::GStreamer:
@@ -242,12 +271,20 @@ std::unique_ptr<MultimediaBackendHandler> MultimediaBackendFactory::createHandle
             return std::make_unique<GStreamerBackendHandler>(parent);
         case MultimediaBackendType::FFmpeg:
             return std::make_unique<FFmpegBackendHandler>(parent);
+#else
+        case MultimediaBackendType::Qt:
+            return std::make_unique<QtBackendHandler>(parent);
 #endif
         case MultimediaBackendType::QtMultimedia:
             return std::make_unique<QtMultimediaBackendHandler>(parent);
         default:
+#ifdef Q_OS_WIN
+            qCWarning(log_multimedia_backend) << "Unknown backend type requested, falling back to Qt backend for Windows.";
+            return std::make_unique<QtBackendHandler>(parent);
+#else
             qCWarning(log_multimedia_backend) << "Unknown backend type requested, falling back to Qt Multimedia.";
             return std::make_unique<QtMultimediaBackendHandler>(parent);
+#endif
     }
 }
 

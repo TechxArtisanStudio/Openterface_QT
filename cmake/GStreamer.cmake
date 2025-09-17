@@ -255,6 +255,8 @@ if(USE_GSTREAMER AND EXISTS "${GSTREAMER_INCLUDE_DIR}/gst/gst.h" AND EXISTS "${G
             "gstxvimagesink"      # xvimagesink
             "gstautodetect"       # autovideosink
             "gstplayback"         # playback elements
+            "gstavi"              # AVI muxer/demuxer (avimux)
+            "gstmatroska"         # Matroska muxer/demuxer (matroskamux)
             # Note: DMA buffer and allocator support is provided by libgstallocators-1.0 core library
         )
         

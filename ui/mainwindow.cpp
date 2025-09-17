@@ -74,6 +74,10 @@
 #include <QToolTip>
 #include <QScreen>
 
+#ifdef Q_OS_WIN
+#include "host/backend/qtbackendhandler.h"
+#endif
+
 Q_LOGGING_CATEGORY(log_ui_mainwindow, "opf.ui.mainwindow")
 
 /*
@@ -368,6 +372,7 @@ MainWindow::MainWindow(LanguageManager *languageManager, QWidget *parent) :  ui(
 
     // Add this line after ui->setupUi(this)
     connect(ui->actionScriptTool, &QAction::triggered, this, &MainWindow::showScriptTool);
+    connect(ui->actionRecordingSettings, &QAction::triggered, this, &MainWindow::showRecordingSettings);
     mouseManager = std::make_unique<MouseManager>();
     keyboardMouse = std::make_unique<KeyboardMouse>();
     semanticAnalyzer = std::make_unique<SemanticAnalyzer>(mouseManager.get(), keyboardMouse.get());
@@ -1183,6 +1188,66 @@ void MainWindow::configureSettings() {
     }
 }
 
+void MainWindow::showRecordingSettings() {
+    qDebug() << "showRecordingSettings called";
+    if (!recordingSettingsDialog) {
+        qDebug() << "Creating recording settings dialog";
+        recordingSettingsDialog = new RecordingSettingsDialog(this);
+        
+        // Get the current backend from camera manager and set it
+        MultimediaBackendHandler* backendHandler = m_cameraManager->getBackendHandler();
+        if (backendHandler) {
+            // CRITICAL FIX: Ensure Qt backend has media recorder set before passing to dialog
+            if (backendHandler->getBackendType() == MultimediaBackendType::Qt) {
+                qDebug() << "Qt backend detected - ensuring media recorder is set";
+                
+                QMediaRecorder* mediaRecorder = m_cameraManager->getMediaRecorder();
+                QMediaCaptureSession* captureSession = m_cameraManager->getCaptureSession();
+                
+                if (mediaRecorder && captureSession) {
+                    qDebug() << "Setting media recorder on Qt backend:" << (void*)mediaRecorder;
+                    qDebug() << "Setting capture session on Qt backend:" << (void*)captureSession;
+                    
+                    if (auto qtHandler = qobject_cast<QtBackendHandler*>(backendHandler)) {
+                        qtHandler->setMediaRecorder(mediaRecorder);
+                        qtHandler->setCaptureSession(captureSession);
+                        qDebug() << "Media recorder and capture session successfully set on Qt backend";
+                    } else {
+                        qWarning() << "Failed to cast to QtBackendHandler";
+                    }
+                } else {
+                    qWarning() << "Missing components - mediaRecorder:" << (void*)mediaRecorder 
+                              << "captureSession:" << (void*)captureSession;
+                }
+            }
+            
+            recordingSettingsDialog->setBackendHandler(backendHandler);
+            
+#ifndef Q_OS_WIN
+            // Also set FFmpeg backend specifically if it's available for backward compatibility
+            FFmpegBackendHandler* ffmpegBackend = m_cameraManager->getFFmpegBackend();
+            if (ffmpegBackend) {
+                recordingSettingsDialog->setFFmpegBackend(ffmpegBackend);
+            }
+#endif
+        } else {
+            qWarning() << "No video backend available for recording";
+        }
+        
+        // Connect the finished signal to clean up the dialog pointer
+        connect(recordingSettingsDialog, &QDialog::finished, this, [this]() {
+            if (recordingSettingsDialog) {
+                recordingSettingsDialog->deleteLater();
+                recordingSettingsDialog = nullptr;
+            }
+        });
+        
+        recordingSettingsDialog->showDialog();
+    } else {
+        recordingSettingsDialog->showDialog();
+    }
+}
+
 void MainWindow::debugSerialPort() {
     qDebug() << "debug dialog" ;
     qDebug() << "serialPortDebugDialog: " << serialPortDebugDialog;
@@ -1703,6 +1768,9 @@ MainWindow::~MainWindow()
 {
     qCDebug(log_ui_mainwindow) << "MainWindow destructor called";
     
+    // Set global shutdown flag to prevent Qt Multimedia operations
+    g_applicationShuttingDown.storeRelease(1);
+    
     // 0. CRITICAL: Stop any running animations before cleanup
     QList<QPropertyAnimation*> animations = this->findChildren<QPropertyAnimation*>();
     for (QPropertyAnimation* animation : animations) {
@@ -1721,6 +1789,27 @@ MainWindow::~MainWindow()
     
     // 1. Stop all operations first
     stop();
+    
+    // 1.5. CRITICAL: Stop audio first before anything else to prevent segfault
+    if (m_audioManager) {
+        m_audioManager->disconnect();
+        m_audioManager = nullptr;
+        qCDebug(log_ui_mainwindow) << "m_audioManager disconnected and cleared successfully";
+    }
+    
+    // Also ensure singleton audio manager is stopped (but only if not already stopped)
+    static bool audioManagerStopped = false;
+    if (!audioManagerStopped) {
+        AudioManager::getInstance().stop();
+        audioManagerStopped = true;
+        qCDebug(log_ui_mainwindow) << "AudioManager singleton stopped";
+    }
+    
+    // Process any pending events after audio cleanup
+    QCoreApplication::processEvents();
+    
+    // Wait a moment to ensure audio threads are fully stopped
+    QThread::msleep(50);
     
     // 2. Stop camera operations and disconnect signals
     if (m_cameraManager) {
@@ -1798,15 +1887,15 @@ MainWindow::~MainWindow()
     }
     
     if (m_audioManager) {
-        // AudioManager is now a singleton, so we just disconnect and clear the reference
-        m_audioManager->disconnect();
+        // AudioManager is now a singleton, and we already disconnected it above
+        // Just clear the reference here
         m_audioManager = nullptr;
-        qCDebug(log_ui_mainwindow) << "m_audioManager reference cleared successfully";
+        qCDebug(log_ui_mainwindow) << "m_audioManager reference cleared successfully (already disconnected)";
     }
     
-    // 6. Clean up static instances
+    // 6. Clean up static instances (but skip AudioManager since it's already stopped)
     VideoHid::getInstance().stop();
-    AudioManager::getInstance().stop();
+    // AudioManager::getInstance().stop(); // Already stopped above to prevent double cleanup
     SerialPortManager::getInstance().stop();
     
     // 7. Delete UI last

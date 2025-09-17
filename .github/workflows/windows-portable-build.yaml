@@ -93,7 +93,22 @@ jobs:
 
       - name: check OpenSSL installation
         run: |
+          echo "Verifying OpenSSL installation..."
           dir %OPENSSL_DIR%\lib
+          if not exist "%OPENSSL_DIR%\lib\libssl.a" (
+            echo "Error: libssl.a not found. OpenSSL static libraries not properly installed."
+            exit 1
+          )
+          if not exist "%OPENSSL_DIR%\lib\libcrypto.a" (
+            echo "Error: libcrypto.a not found. OpenSSL static libraries not properly installed."
+            exit 1
+          )
+          echo "OpenSSL static libraries verified successfully!"
+          
+          echo "Checking library architecture..."
+          file "%OPENSSL_DIR%\lib\libssl.a" || echo "file command not available"
+          echo "SSL library size:" && dir "%OPENSSL_DIR%\lib\libssl.a" | findstr "libssl.a"
+          echo "Crypto library size:" && dir "%OPENSSL_DIR%\lib\libcrypto.a" | findstr "libcrypto.a"
 
       - name: Build Qt Statically
         if: steps.cache-qt.outputs.cache-hit != 'true'
@@ -106,28 +121,34 @@ jobs:
           
       - name: Prepare .pro File for Static Build
         run: |
-          echo "Checking and appending static build configuration to .pro file..."
+          echo "Preparing static build configuration..."
           if not exist "${{ env.SOURCE_DIR }}\openterfaceQT.pro" (
             echo "Error: .pro file not found."
             exit 1
           )
-         
-          findstr /C:"CONFIG += static release" "${{ env.SOURCE_DIR }}\openterfaceQT.pro" >nul
-          if errorlevel 1 (
-            echo "" >> "${{ env.SOURCE_DIR }}\openterfaceQT.pro"
-            echo "CONFIG += static release" >> "${{ env.SOURCE_DIR }}\openterfaceQT.pro"
-            echo "Static build configuration added to .pro file."
-            set ERRORLEVEL=0
-          ) else (
-            echo "Static build configuration already present in .pro file."
-          )
           
-          echo "QMAKE_LFLAGS += -static -static-libgcc -static-libstdc++ -static-libgfortran -L%OPENSSL_DIR%\lib -lssl -lcrypto -lws2_32 -lcrypt32" >> "${{ env.SOURCE_DIR }}\openterfaceQT.pro"
-          echo "QMAKE_CXXFLAGS += -static -static-libgcc -static-libstdc++ -I%OPENSSL_DIR%\include" >> "${{ env.SOURCE_DIR }}\openterfaceQT.pro"
-          echo "QMAKE_LINK = g++ -Wl,-subsystem,windows" >> "${{ env.SOURCE_DIR }}\openterfaceQT.pro"
-          echo "CONFIG += static staticlib" >> "${{ env.SOURCE_DIR }}\openterfaceQT.pro"
-          echo "INCLUDEPATH += %OPENSSL_DIR%\include" >> "${{ env.SOURCE_DIR }}\openterfaceQT.pro"
-          echo "LIBS += -L%OPENSSL_DIR%\lib -lssl -lcrypto -lws2_32 -lcrypt32" >> "${{ env.SOURCE_DIR }}\openterfaceQT.pro"
+          echo "Creating static build configuration file..."
+          echo "# Static build configuration for GitHub Actions" > "${{ env.SOURCE_DIR }}\static_build.pri"
+          echo "CONFIG += static staticlib release" >> "${{ env.SOURCE_DIR }}\static_build.pri"
+          echo "" >> "${{ env.SOURCE_DIR }}\static_build.pri"
+          echo "# OpenSSL static linking configuration" >> "${{ env.SOURCE_DIR }}\static_build.pri"
+          echo "INCLUDEPATH += %OPENSSL_DIR%\include" >> "${{ env.SOURCE_DIR }}\static_build.pri"
+          echo "" >> "${{ env.SOURCE_DIR }}\static_build.pri"
+          echo "# Static linking flags" >> "${{ env.SOURCE_DIR }}\static_build.pri"
+          echo "QMAKE_CXXFLAGS += -static -static-libgcc -static-libstdc++ -I%OPENSSL_DIR%\include" >> "${{ env.SOURCE_DIR }}\static_build.pri"
+          echo "QMAKE_LFLAGS += -static -static-libgcc -static-libstdc++" >> "${{ env.SOURCE_DIR }}\static_build.pri"
+          echo "" >> "${{ env.SOURCE_DIR }}\static_build.pri"
+          echo "# OpenSSL static libraries (order matters)" >> "${{ env.SOURCE_DIR }}\static_build.pri"
+          echo "LIBS += %OPENSSL_DIR%\lib\libssl.a" >> "${{ env.SOURCE_DIR }}\static_build.pri"
+          echo "LIBS += %OPENSSL_DIR%\lib\libcrypto.a" >> "${{ env.SOURCE_DIR }}\static_build.pri"
+          echo "LIBS += -lws2_32 -lcrypt32 -ladvapi32 -luser32" >> "${{ env.SOURCE_DIR }}\static_build.pri"
+          echo "" >> "${{ env.SOURCE_DIR }}\static_build.pri"
+          echo "# Windows subsystem" >> "${{ env.SOURCE_DIR }}\static_build.pri"
+          echo "QMAKE_LFLAGS += -Wl,-subsystem,windows" >> "${{ env.SOURCE_DIR }}\static_build.pri"
+          
+          echo "Adding include to main .pro file..."
+          echo "" >> "${{ env.SOURCE_DIR }}\openterfaceQT.pro"
+          echo "include(static_build.pri)" >> "${{ env.SOURCE_DIR }}\openterfaceQT.pro"
 
       - name: Prepare Driver Files
         run: |
@@ -153,14 +174,27 @@ jobs:
       - name: Build Portable Executable
         working-directory: ${{ runner.temp }}\build
         run: |
-          echo "Checking Qt configuration..."
-          C:\Qt6\bin\qmake -query
+          echo "Setting up build environment..."
           set PATH=C:\Qt6\bin;C:\mingw64\bin;%PATH%
           set INCLUDE=C:\Qt6\include;%OPENSSL_DIR%\include;%INCLUDE%
+          set LIB=%OPENSSL_DIR%\lib;%LIB%
+          
+          echo "Verifying OpenSSL libraries..."
+          if not exist "%OPENSSL_DIR%\lib\libssl.a" (
+            echo "Error: libssl.a not found at %OPENSSL_DIR%\lib\libssl.a"
+            exit 1
+          )
+          if not exist "%OPENSSL_DIR%\lib\libcrypto.a" (
+            echo "Error: libcrypto.a not found at %OPENSSL_DIR%\lib\libcrypto.a"
+            exit 1
+          )
+          
+          echo "Checking Qt configuration..."
+          C:\Qt6\bin\qmake -query
           
           echo "Building with qmake..."
+          qmake -r "${{ env.SOURCE_DIR }}\openterfaceQT.pro" CONFIG+=release || (echo "qmake failed. Please check the .pro file and paths." && exit 1)
           
-          qmake -r "${{ env.SOURCE_DIR }}\openterfaceQT.pro" "CONFIG+=static staticlib" "QMAKE_LFLAGS+=-static -L%OPENSSL_DIR%\lib -lssl -lcrypto -lws2_32 -lcrypt32" || (echo "qmake failed. Please check the .pro file and paths." && exit 1)
           echo "Building with mingw32-make..."
           set MINGW_STATIC_BUILD=1
           mingw32-make VERBOSE=1 -j2 || (echo "mingw32-make failed. Please check the build configuration." && exit 1)
@@ -170,6 +204,10 @@ jobs:
             echo "Error: Failed to build openterfaceQT.exe"
             exit 1
           )
+        
+          echo "Verifying executable dependencies..."
+          echo "Checking if the executable is truly static..."
+          objdump -p release\openterfaceQT.exe | findstr -i "dll" || echo "No external DLL dependencies found (good for static build)"
         
           echo "Stripping debug symbols from executable..."
           strip -s release\openterfaceQT.exe || (echo "Failed to strip debug symbols" && exit 1)

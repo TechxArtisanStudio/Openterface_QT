@@ -35,6 +35,7 @@
 #include "ui/videopane.h"
 #include "ui/toolbar/toggleswitch.h"
 #include "ui/preferences/settingdialog.h"
+#include "ui/advance/recordingsettingsdialog.h"
 #include "ui/advance/serialportdebugdialog.h"
 #include "ui/advance/DeviceSelectorDialog.h"
 #include "ui/advance/scripttool.h"
@@ -145,6 +146,7 @@ private slots:
     void updateLink();
 
     void configureSettings();
+    void showRecordingSettings();
     void debugSerialPort();
     void openDeviceSelector();
 
@@ -274,6 +276,7 @@ private:
 
     MetaDataDialog *m_metaDataDialog = nullptr;
     SettingDialog *settingDialog = nullptr;
+    RecordingSettingsDialog *recordingSettingsDialog = nullptr;
     SerialPortDebugDialog *serialPortDebugDialog = nullptr;
     DeviceSelectorDialog *deviceSelectorDialog = nullptr;
     FirmwareManagerDialog *firmwareManagerDialog = nullptr;

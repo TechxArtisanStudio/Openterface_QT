@@ -188,7 +188,13 @@ FFmpegBackendHandler::FFmpegBackendHandler(QObject *parent)
       m_captureRunning(false),
       m_videoStreamIndex(-1),
       m_frameCount(0),
-      m_lastFrameTime(0)
+      m_lastFrameTime(0),
+      m_recordingFormatContext(nullptr),
+      m_recordingCodecContext(nullptr),
+      m_recordingVideoStream(nullptr),
+      m_recordingSwsContext(nullptr),
+      m_recordingFrame(nullptr),
+      m_recordingPacket(nullptr)
 #endif
 #ifdef HAVE_LIBJPEG_TURBO
       , m_turboJpegHandle(nullptr)
@@ -198,7 +204,15 @@ FFmpegBackendHandler::FFmpegBackendHandler(QObject *parent)
       m_deviceWaitTimer(nullptr),
       m_suppressErrors(false),
       m_graphicsVideoItem(nullptr),
-      m_videoPane(nullptr)
+      m_videoPane(nullptr),
+      m_recordingActive(false),
+      m_recordingPaused(false),
+      m_recordingStartTime(0),
+      m_recordingPausedTime(0),
+      m_totalPausedDuration(0),
+      m_lastRecordedFrameTime(0),
+      m_recordingTargetFramerate(30),
+      m_recordingFrameNumber(0)
 {
     m_config = getDefaultConfig();
     
@@ -235,11 +249,17 @@ FFmpegBackendHandler::FFmpegBackendHandler(QObject *parent)
 
 FFmpegBackendHandler::~FFmpegBackendHandler()
 {
+    // Stop recording first if active
+    if (m_recordingActive) {
+        stopRecording();
+    }
+    
     // Disconnect from hotplug monitor
     disconnectFromHotplugMonitor();
     
 #ifdef HAVE_FFMPEG
     stopDirectCapture();
+    cleanupRecording();
     cleanupFFmpeg();
 #endif
 }
@@ -505,6 +525,7 @@ void FFmpegBackendHandler::cleanupFFmpeg()
     
     qCDebug(log_ffmpeg_backend) << "FFmpeg cleanup completed";
 }
+#endif
 
 bool FFmpegBackendHandler::startDirectCapture(const QString& devicePath, const QSize& resolution, int framerate)
 {
@@ -908,6 +929,7 @@ bool FFmpegBackendHandler::readFrame()
     return true;
 }
 
+#ifdef HAVE_FFMPEG
 void FFmpegBackendHandler::processFrame()
 {
     if (!m_packet || !m_codecContext) {
@@ -922,14 +944,22 @@ void FFmpegBackendHandler::processFrame()
         return;
     }
     
-    // RESPONSIVENESS OPTIMIZATION: Implement aggressive frame dropping for better mouse response
+    // RESPONSIVENESS OPTIMIZATION: Implement frame dropping for better mouse response
+    // But be less aggressive when recording is active
     static qint64 lastProcessTime = 0;
     static int droppedFrames = 0;
     qint64 currentTime = QDateTime::currentMSecsSinceEpoch();
     
-    // Drop frames if we're processing too slowly (more than 16ms since last frame)
-    // This prevents queue buildup and reduces mouse lag
-    if (currentTime - lastProcessTime < 12) { // More aggressive: 12ms instead of 16ms (~83 FPS limit)
+    // Check if recording is active
+    bool isRecording = false;
+    {
+        QMutexLocker recordingLocker(&m_recordingMutex);
+        isRecording = m_recordingActive && !m_recordingPaused;
+    }
+    
+    // Drop frames if we're processing too slowly, but be less aggressive when recording
+    int frameDropThreshold = isRecording ? 8 : 12; // 125 FPS when recording, 83 FPS when not recording
+    if (currentTime - lastProcessTime < frameDropThreshold) {
         droppedFrames++;
         av_packet_unref(m_packet);
         return;
@@ -1036,6 +1066,78 @@ void FFmpegBackendHandler::processFrame()
         // This prevents blocking the capture thread and ensures smooth frame delivery
         emit frameReady(pixmap);
         
+        // Write frame to recording file if recording is active
+#ifdef HAVE_FFMPEG
+        // Use mutex to safely check recording state and prevent race conditions during stop
+        bool shouldRecord = false;
+        {
+            QMutexLocker recordingLocker(&m_recordingMutex);
+            shouldRecord = m_recordingActive && !m_recordingPaused && m_recordingFrame && m_recordingSwsContext;
+        }
+        
+        if (shouldRecord) {
+            // FRAME RATE CONTROL: Only write frames at the target recording framerate
+            // Check if enough time has passed since the last recorded frame
+            qint64 currentTime = QDateTime::currentMSecsSinceEpoch();
+            
+            bool shouldWriteFrame = false;
+            {
+                QMutexLocker recordingLocker(&m_recordingMutex);
+                if (m_recordingActive && !m_recordingPaused) {
+                    // Calculate target interval based on cached recording framerate
+                    qint64 targetInterval = 1000 / m_recordingTargetFramerate; // milliseconds between frames
+                    
+                    if (m_lastRecordedFrameTime == 0 || (currentTime - m_lastRecordedFrameTime) >= targetInterval) {
+                        shouldWriteFrame = true;
+                        m_lastRecordedFrameTime = currentTime;
+                    }
+                }
+            }
+            
+            if (shouldWriteFrame) {
+                // Convert pixmap to AVFrame for recording
+                QImage image = pixmap.toImage().convertToFormat(QImage::Format_RGB888);
+                if (!image.isNull()) {
+                    // Debug logging for recording frame processing
+                    static int recordingDebugCount = 0;
+                    if (++recordingDebugCount <= 10 || recordingDebugCount % 30 == 0) {
+                        qCDebug(log_ffmpeg_backend) << "Writing recording frame" << recordingDebugCount 
+                                                   << "- image size:" << image.size()
+                                                   << "recording frame size:" << m_recordingFrame->width << "x" << m_recordingFrame->height
+                                                   << "frame interval:" << (currentTime - m_lastRecordedFrameTime) << "ms";
+                    }
+                    
+                    // Quick check without mutex (writeFrameToFile will do proper mutex checking)
+                    if (m_recordingActive && m_recordingFrame && m_recordingSwsContext) {
+                        // Fill frame with image data
+                        const uint8_t* srcData[1] = { image.constBits() };
+                        int srcLinesize[1] = { static_cast<int>(image.bytesPerLine()) };
+                        
+                        // Convert RGB to target pixel format for encoding (YUVJ420P for MJPEG)
+                        int scaleResult = sws_scale(m_recordingSwsContext, srcData, srcLinesize, 0, image.height(),
+                                                  m_recordingFrame->data, m_recordingFrame->linesize);
+                        
+                        if (scaleResult != image.height()) {
+                            qCWarning(log_ffmpeg_backend) << "sws_scale conversion warning: converted" << scaleResult << "lines, expected" << image.height();
+                        }
+                        
+                        // Write frame to file (this function will handle mutex locking internally)
+                    if (!writeFrameToFile(m_recordingFrame)) {
+                        // Frame was skipped (likely because recording is stopping) - this is normal
+                    } else if (recordingDebugCount <= 10) {
+                        qCDebug(log_ffmpeg_backend) << "Successfully wrote recording frame" << recordingDebugCount;
+                    }
+                    
+                    // Update recording duration periodically
+                    static int recordingFrameCount = 0;
+                    if (++recordingFrameCount % 30 == 0) { // Every 30 frames (~1 second at 30fps)
+                        emit recordingDurationChanged(getRecordingDuration());
+                    }
+                }
+            }
+        }
+#endif
+        
         // Reduce success logging frequency for performance
         if (m_frameCount % 1000 == 1) {
             qCDebug(log_ffmpeg_backend) << "frameReady signal emitted successfully for frame" << m_frameCount;
@@ -1051,6 +1153,10 @@ void FFmpegBackendHandler::processFrame()
         qCWarning(log_ffmpeg_backend) << "  - Stream index:" << m_packet->stream_index;
     }
 }
+}
+#endif
+
+#ifdef HAVE_FFMPEG
 
 #ifdef HAVE_LIBJPEG_TURBO
 QPixmap FFmpegBackendHandler::decodeJpegFrame(const uint8_t* data, int size)
@@ -1105,7 +1211,9 @@ QPixmap FFmpegBackendHandler::decodeJpegFrame(const uint8_t* data, int size)
     return QPixmap::fromImage(image);
 }
 #endif // HAVE_LIBJPEG_TURBO
+#endif // HAVE_FFMPEG
 
+#ifdef HAVE_FFMPEG
 QPixmap FFmpegBackendHandler::decodeFrame(AVPacket* packet)
 {
     if (!m_codecContext || !m_frame) {
@@ -1149,7 +1257,9 @@ QPixmap FFmpegBackendHandler::decodeFrame(AVPacket* packet)
     // PERFORMANCE: Skip success logging for every frame
     return convertFrameToPixmap(m_frame);
 }
+#endif
 
+#ifdef HAVE_FFMPEG
 QPixmap FFmpegBackendHandler::convertFrameToPixmap(AVFrame* frame)
 {
     if (!frame) {
@@ -1253,8 +1363,7 @@ QPixmap FFmpegBackendHandler::convertFrameToPixmap(AVFrame* frame)
     // PERFORMANCE: Skip pixmap creation logging for better performance
     return result;
 }
-
-#endif // HAVE_FFMPEG
+#endif
 
 // Stub implementations when FFmpeg is not available
 #ifndef HAVE_FFMPEG
@@ -1656,6 +1765,562 @@ void FFmpegBackendHandler::handleDeviceDeactivation(const QString& devicePath)
     qCInfo(log_ffmpeg_backend) << "Starting to wait for device reconnection";
     waitForDeviceActivation(m_currentDevice, 30000); // Wait up to 30 seconds
 }
+
+// ============================================================================
+// Video Recording Implementation
+// ============================================================================
+
+bool FFmpegBackendHandler::startRecording(const QString& outputPath, const QString& format, int videoBitrate)
+{
+#ifdef HAVE_FFMPEG
+    QMutexLocker locker(&m_recordingMutex);
+    
+    if (m_recordingActive) {
+        qCWarning(log_ffmpeg_backend) << "Recording is already active";
+        return false;
+    }
+    
+    if (!m_captureRunning) {
+        qCWarning(log_ffmpeg_backend) << "Cannot start recording: capture is not running";
+        emit recordingError("Cannot start recording: capture is not running");
+        return false;
+    }
+    
+    // Update recording config
+    m_recordingConfig.outputPath = outputPath;
+    m_recordingConfig.format = format;
+    m_recordingConfig.videoBitrate = videoBitrate;
+    m_recordingOutputPath = outputPath;
+    
+    qCDebug(log_ffmpeg_backend) << "Starting recording to:" << outputPath << "format:" << format;
+    
+    if (!initializeRecording()) {
+        emit recordingError("Failed to initialize recording");
+        return false;
+    }
+    
+    m_recordingActive = true;
+    m_recordingPaused = false;
+    m_recordingStartTime = QDateTime::currentMSecsSinceEpoch();
+    m_recordingPausedTime = 0;
+    m_totalPausedDuration = 0;
+    m_lastRecordedFrameTime = 0; // Reset frame timing for proper framerate control
+    m_recordingFrameNumber = 0;
+    
+    qCInfo(log_ffmpeg_backend) << "Recording started successfully";
+    emit recordingStarted(outputPath);
+    return true;
+#else
+    qCWarning(log_ffmpeg_backend) << "FFmpeg not available: startRecording() called but no implementation";
+    emit recordingError("FFmpeg not available");
+    return false;
+#endif
+}
+
+void FFmpegBackendHandler::stopRecording()
+{
+#ifdef HAVE_FFMPEG
+    qCDebug(log_ffmpeg_backend) << "Stopping recording";
+    
+    // First, mark recording as inactive to prevent new frames from being processed
+    {
+        QMutexLocker locker(&m_recordingMutex);
+        if (!m_recordingActive) {
+            qCDebug(log_ffmpeg_backend) << "Recording is not active";
+            return;
+        }
+        m_recordingActive = false;
+        m_recordingPaused = false;
+    }
+    
+    // Wait a small amount of time to ensure any ongoing frame processing completes
+    // This prevents race conditions with the capture thread
+    QThread::msleep(50);
+    
+    // Now safely finalize and cleanup recording resources
+    {
+        QMutexLocker locker(&m_recordingMutex);
+        finalizeRecording();
+        cleanupRecording();
+    }
+    
+    qCInfo(log_ffmpeg_backend) << "Recording stopped successfully";
+    emit recordingStopped();
+#else
+    qCDebug(log_ffmpeg_backend) << "FFmpeg not available: stopRecording() called but no implementation";
+#endif
+}
+
+void FFmpegBackendHandler::pauseRecording()
+{
+#ifdef HAVE_FFMPEG
+    QMutexLocker locker(&m_recordingMutex);
+    
+    if (!m_recordingActive || m_recordingPaused) {
+        qCDebug(log_ffmpeg_backend) << "Recording is not active or already paused";
+        return;
+    }
+    
+    m_recordingPaused = true;
+    m_recordingPausedTime = QDateTime::currentMSecsSinceEpoch();
+    
+    qCDebug(log_ffmpeg_backend) << "Recording paused";
+    emit recordingPaused();
+#else
+    qCDebug(log_ffmpeg_backend) << "FFmpeg not available: pauseRecording() called but no implementation";
+#endif
+}
+
+void FFmpegBackendHandler::resumeRecording()
+{
+#ifdef HAVE_FFMPEG
+    QMutexLocker locker(&m_recordingMutex);
+    
+    if (!m_recordingActive || !m_recordingPaused) {
+        qCDebug(log_ffmpeg_backend) << "Recording is not active or not paused";
+        return;
+    }
+    
+    if (m_recordingPausedTime > 0) {
+        m_totalPausedDuration += QDateTime::currentMSecsSinceEpoch() - m_recordingPausedTime;
+    }
+    
+    m_recordingPaused = false;
+    m_recordingPausedTime = 0;
+    
+    qCDebug(log_ffmpeg_backend) << "Recording resumed";
+    emit recordingResumed();
+#else
+    qCDebug(log_ffmpeg_backend) << "FFmpeg not available: resumeRecording() called but no implementation";
+#endif
+}
+
+bool FFmpegBackendHandler::isRecording() const
+{
+    QMutexLocker locker(&m_recordingMutex);
+    return m_recordingActive && !m_recordingPaused;
+}
+
+QString FFmpegBackendHandler::getCurrentRecordingPath() const
+{
+    QMutexLocker locker(&m_recordingMutex);
+    return m_recordingOutputPath;
+}
+
+qint64 FFmpegBackendHandler::getRecordingDuration() const
+{
+    QMutexLocker locker(&m_recordingMutex);
+    
+    if (!m_recordingActive) {
+        return 0;
+    }
+    
+    qint64 currentTime = QDateTime::currentMSecsSinceEpoch();
+    qint64 totalDuration = currentTime - m_recordingStartTime - m_totalPausedDuration;
+    
+    if (m_recordingPaused && m_recordingPausedTime > 0) {
+        totalDuration -= (currentTime - m_recordingPausedTime);
+    }
+    
+    return qMax(0LL, totalDuration);
+}
+
+void FFmpegBackendHandler::setRecordingConfig(const RecordingConfig& config)
+{
+    QMutexLocker locker(&m_recordingMutex);
+    m_recordingConfig = config;
+}
+
+FFmpegBackendHandler::RecordingConfig FFmpegBackendHandler::getRecordingConfig() const
+{
+    QMutexLocker locker(&m_recordingMutex);
+    return m_recordingConfig;
+}
+
+#ifdef HAVE_FFMPEG
+bool FFmpegBackendHandler::initializeRecording()
+{
+    // Clean up any existing recording context
+    cleanupRecording();
+    
+    // Allocate output format context
+    const char* formatName = nullptr;
+    if (m_recordingConfig.format == "avi") {
+        formatName = "avi";  // Use AVI muxer (available in current build for playable video files)
+    } else if (m_recordingConfig.format == "rawvideo") {
+        formatName = "rawvideo";  // Use rawvideo muxer (available in current build for video streams)
+    } else if (m_recordingConfig.format == "mjpeg") {
+        formatName = "mjpeg";  // Use MJPEG muxer (creates single images, not video streams)
+    } else {
+        formatName = nullptr; // Let FFmpeg auto-detect from filename
+    }
+    
+    // Try to allocate output context, first with format name, then with auto-detection
+    int ret = avformat_alloc_output_context2(&m_recordingFormatContext, nullptr, formatName, m_recordingConfig.outputPath.toUtf8().data());
+    if (ret < 0 || !m_recordingFormatContext) {
+        // Try auto-detection from filename if format name failed
+        qCWarning(log_ffmpeg_backend) << "Failed with format" << formatName << ", trying auto-detection from filename";
+        ret = avformat_alloc_output_context2(&m_recordingFormatContext, nullptr, nullptr, m_recordingConfig.outputPath.toUtf8().data());
+        if (ret < 0 || !m_recordingFormatContext) {
+            qCWarning(log_ffmpeg_backend) << "Failed to allocate output context for recording";
+            return false;
+        }
+    }
+    
+    // Configure encoder with current capture settings (ensure we have valid values)
+    QSize encoderResolution = m_currentResolution.isValid() ? m_currentResolution : QSize(1920, 1080);
+    int encoderFramerate = m_currentFramerate > 0 ? m_currentFramerate : 30;
+    
+    qCDebug(log_ffmpeg_backend) << "Configuring encoder with resolution:" << encoderResolution << "framerate:" << encoderFramerate;
+    
+    if (!configureEncoder(encoderResolution, encoderFramerate)) {
+        return false;
+    }
+    
+    // Open output file
+    if (!(m_recordingFormatContext->oformat->flags & AVFMT_NOFILE)) {
+        ret = avio_open(&m_recordingFormatContext->pb, m_recordingConfig.outputPath.toUtf8().data(), AVIO_FLAG_WRITE);
+        if (ret < 0) {
+            char errbuf[AV_ERROR_MAX_STRING_SIZE];
+            av_strerror(ret, errbuf, AV_ERROR_MAX_STRING_SIZE);
+            qCWarning(log_ffmpeg_backend) << "Failed to open output file:" << QString::fromUtf8(errbuf);
+            return false;
+        }
+    }
+    
+    // Write file header
+    ret = avformat_write_header(m_recordingFormatContext, nullptr);
+    if (ret < 0) {
+        char errbuf[AV_ERROR_MAX_STRING_SIZE];
+        av_strerror(ret, errbuf, AV_ERROR_MAX_STRING_SIZE);
+        qCWarning(log_ffmpeg_backend) << "Failed to write header:" << QString::fromUtf8(errbuf);
+        return false;
+    }
+    
+    qCDebug(log_ffmpeg_backend) << "Recording initialized successfully";
+    return true;
+}
+
+bool FFmpegBackendHandler::configureEncoder(const QSize& resolution, int framerate)
+{
+    // Find encoder - try requested codec first
+    const AVCodec* codec = nullptr;
+    if (!m_recordingConfig.videoCodec.isEmpty()) {
+        codec = avcodec_find_encoder_by_name(m_recordingConfig.videoCodec.toUtf8().data());
+        if (codec) {
+            qCDebug(log_ffmpeg_backend) << "Found requested encoder:" << m_recordingConfig.videoCodec;
+        }
+    }
+    
+    // Fallback chain for available encoders in current FFmpeg build
+    if (!codec) {
+        qCWarning(log_ffmpeg_backend) << "Requested encoder not found:" << m_recordingConfig.videoCodec << "- trying fallbacks";
+        
+        // Try MJPEG encoder first (works well with AVI container for playable video files)
+        codec = avcodec_find_encoder(AV_CODEC_ID_MJPEG);
+        if (codec) {
+            qCDebug(log_ffmpeg_backend) << "Using MJPEG encoder as fallback";
+        }
+    }
+    
+    // Try rawvideo encoder (creates uncompressed video streams)
+    if (!codec) {
+        codec = avcodec_find_encoder(AV_CODEC_ID_RAWVIDEO);
+        if (codec) {
+            qCDebug(log_ffmpeg_backend) << "Using rawvideo encoder as fallback";
+        }
+    }
+    
+    // Final fallback attempts
+    if (!codec) {
+        codec = avcodec_find_encoder(AV_CODEC_ID_H264);
+        if (codec) {
+            qCDebug(log_ffmpeg_backend) << "Found H264 encoder";
+        }
+    }
+    
+    if (!codec) {
+        qCWarning(log_ffmpeg_backend) << "Failed to find any video encoder (tried mjpeg, rawvideo, h264)";
+        return false;
+    }
+    
+    // Add video stream
+    m_recordingVideoStream = avformat_new_stream(m_recordingFormatContext, codec);
+    if (!m_recordingVideoStream) {
+        qCWarning(log_ffmpeg_backend) << "Failed to create video stream";
+        return false;
+    }
+    
+    // Allocate codec context
+    m_recordingCodecContext = avcodec_alloc_context3(codec);
+    if (!m_recordingCodecContext) {
+        qCWarning(log_ffmpeg_backend) << "Failed to allocate codec context";
+        return false;
+    }
+    
+    // Set codec parameters based on codec type
+    m_recordingCodecContext->width = resolution.width();
+    m_recordingCodecContext->height = resolution.height();
+    m_recordingCodecContext->time_base = {1, framerate};
+    m_recordingCodecContext->framerate = {framerate, 1};
+    
+    // Cache target framerate for thread-safe access during frame processing
+    m_recordingTargetFramerate = framerate;
+    
+    // Set pixel format based on codec
+    if (codec->id == AV_CODEC_ID_MJPEG) {
+        m_recordingCodecContext->pix_fmt = AV_PIX_FMT_YUVJ420P; // MJPEG typically uses YUVJ420P
+        m_recordingCodecContext->bit_rate = m_recordingConfig.videoBitrate;
+        // MJPEG quality (range 1-31, lower is better)
+        m_recordingCodecContext->qmin = 1;
+        m_recordingCodecContext->qmax = 10; // Good quality
+    } else if (codec->id == AV_CODEC_ID_RAWVIDEO) {
+        m_recordingCodecContext->pix_fmt = AV_PIX_FMT_RGB24; // Raw video uses RGB24
+        // No bitrate for raw video (uncompressed)
+    } else {
+        // H264 or other codecs
+        m_recordingCodecContext->pix_fmt = AV_PIX_FMT_YUV420P;
+        m_recordingCodecContext->bit_rate = m_recordingConfig.videoBitrate;
+    }
+    
+    // Set codec-specific options
+    if (codec->id == AV_CODEC_ID_H264) {
+        av_opt_set_int(m_recordingCodecContext->priv_data, "crf", m_recordingConfig.videoQuality, 0);
+        av_opt_set(m_recordingCodecContext->priv_data, "preset", "medium", 0);
+        av_opt_set(m_recordingCodecContext->priv_data, "tune", "zerolatency", 0);
+    } else if (codec->id == AV_CODEC_ID_MJPEG) {
+        // MJPEG-specific options for better quality
+        av_opt_set_int(m_recordingCodecContext->priv_data, "q:v", m_recordingConfig.videoQuality, 0);
+    }
+    
+    // Global header flag for MP4
+    if (m_recordingFormatContext->oformat->flags & AVFMT_GLOBALHEADER) {
+        m_recordingCodecContext->flags |= AV_CODEC_FLAG_GLOBAL_HEADER;
+    }
+    
+    // Open codec
+    int ret = avcodec_open2(m_recordingCodecContext, codec, nullptr);
+    if (ret < 0) {
+        char errbuf[AV_ERROR_MAX_STRING_SIZE];
+        av_strerror(ret, errbuf, AV_ERROR_MAX_STRING_SIZE);
+        qCWarning(log_ffmpeg_backend) << "Failed to open codec:" << QString::fromUtf8(errbuf);
+        return false;
+    }
+    
+    // Copy codec parameters to stream
+    ret = avcodec_parameters_from_context(m_recordingVideoStream->codecpar, m_recordingCodecContext);
+    if (ret < 0) {
+        qCWarning(log_ffmpeg_backend) << "Failed to copy codec parameters";
+        return false;
+    }
+    
+    // CRITICAL: Set the video stream time base to match codec time base
+    // This ensures proper frame timing in the output file
+    m_recordingVideoStream->time_base = m_recordingCodecContext->time_base;
+    qCDebug(log_ffmpeg_backend) << "Set video stream time base to" << m_recordingVideoStream->time_base.num << "/" << m_recordingVideoStream->time_base.den;
+    
+    // Allocate frame for encoding
+    m_recordingFrame = av_frame_alloc();
+    if (!m_recordingFrame) {
+        qCWarning(log_ffmpeg_backend) << "Failed to allocate recording frame";
+        return false;
+    }
+    
+    m_recordingFrame->format = m_recordingCodecContext->pix_fmt;
+    m_recordingFrame->width = m_recordingCodecContext->width;
+    m_recordingFrame->height = m_recordingCodecContext->height;
+    
+    ret = av_frame_get_buffer(m_recordingFrame, 0);
+    if (ret < 0) {
+        qCWarning(log_ffmpeg_backend) << "Failed to allocate frame buffer";
+        return false;
+    }
+    
+    // Allocate packet
+    m_recordingPacket = av_packet_alloc();
+    if (!m_recordingPacket) {
+        qCWarning(log_ffmpeg_backend) << "Failed to allocate recording packet";
+        return false;
+    }
+    
+    // Initialize scaling context for color space conversion
+    AVPixelFormat outputFormat = static_cast<AVPixelFormat>(m_recordingCodecContext->pix_fmt);
+    m_recordingSwsContext = sws_getContext(
+        resolution.width(), resolution.height(), AV_PIX_FMT_RGB24,
+        resolution.width(), resolution.height(), outputFormat,
+        SWS_BICUBIC, nullptr, nullptr, nullptr);
+    
+    if (!m_recordingSwsContext) {
+        qCWarning(log_ffmpeg_backend) << "Failed to initialize scaling context for recording (output format:" << outputFormat << ")";
+        return false;
+    }
+    
+    qCDebug(log_ffmpeg_backend) << "Encoder configured successfully" 
+                               << "Resolution:" << resolution
+                               << "Framerate:" << framerate
+                               << "Bitrate:" << m_recordingConfig.videoBitrate;
+    
+    return true;
+}
+
+bool FFmpegBackendHandler::writeFrameToFile(AVFrame* frame)
+{
+    // Use QMutexLocker for automatic unlocking
+    QMutexLocker locker(&m_recordingMutex);
+    
+    // Quick check recording state within the mutex-protected context
+    if (!m_recordingActive || m_recordingPaused || !m_recordingCodecContext || !frame 
+        || !m_recordingFormatContext || !m_recordingVideoStream || !m_recordingPacket) {
+        return false;
+    }
+    
+    // Calculate proper timestamp based on frame rate and frame number
+    // This ensures even frame spacing in the output video
+    frame->pts = m_recordingFrameNumber;
+    
+    // Debug logging for first few frames to verify timing
+    static int debugFrameCount = 0;
+    if (++debugFrameCount <= 5 || debugFrameCount % 100 == 0) { // Log first 5 and every 100th frame
+        qCDebug(log_ffmpeg_backend) << "Writing frame" << m_recordingFrameNumber 
+                                   << "with PTS" << frame->pts 
+                                   << "time_base" << m_recordingCodecContext->time_base.num << "/" << m_recordingCodecContext->time_base.den;
+    }
+    
+    m_recordingFrameNumber++;
+    
+    // Send frame to encoder
+    int ret = avcodec_send_frame(m_recordingCodecContext, frame);
+    if (ret < 0) {
+        char errbuf[AV_ERROR_MAX_STRING_SIZE];
+        av_strerror(ret, errbuf, AV_ERROR_MAX_STRING_SIZE);
+        qCWarning(log_ffmpeg_backend) << "Error sending frame to encoder:" << QString::fromUtf8(errbuf);
+        return false;
+    }
+    
+    // Receive encoded packets
+    while (ret >= 0) {
+        ret = avcodec_receive_packet(m_recordingCodecContext, m_recordingPacket);
+        if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF) {
+            break;
+        } else if (ret < 0) {
+            char errbuf[AV_ERROR_MAX_STRING_SIZE];
+            av_strerror(ret, errbuf, AV_ERROR_MAX_STRING_SIZE);
+            qCWarning(log_ffmpeg_backend) << "Error receiving packet from encoder:" << QString::fromUtf8(errbuf);
+            return false;
+        }
+        
+        // Check if we're still recording before writing the packet
+        if (!m_recordingActive || !m_recordingFormatContext) {
+            qCDebug(log_ffmpeg_backend) << "Recording stopped during packet processing, discarding packet";
+            av_packet_unref(m_recordingPacket);
+            return false;
+        }
+        
+        // Scale packet timestamp
+        av_packet_rescale_ts(m_recordingPacket, m_recordingCodecContext->time_base, m_recordingVideoStream->time_base);
+        m_recordingPacket->stream_index = m_recordingVideoStream->index;
+        
+        // Write packet to output file
+        ret = av_interleaved_write_frame(m_recordingFormatContext, m_recordingPacket);
+        if (ret < 0) {
+            char errbuf[AV_ERROR_MAX_STRING_SIZE];
+            av_strerror(ret, errbuf, AV_ERROR_MAX_STRING_SIZE);
+            qCWarning(log_ffmpeg_backend) << "Error writing frame to file:" << QString::fromUtf8(errbuf);
+            av_packet_unref(m_recordingPacket);
+            return false;
+        }
+        
+        av_packet_unref(m_recordingPacket);
+    }
+    
+    return true;
+}
+
+void FFmpegBackendHandler::finalizeRecording()
+{
+    if (!m_recordingFormatContext || !m_recordingCodecContext) {
+        qCDebug(log_ffmpeg_backend) << "Recording context already cleaned up, skipping finalization";
+        return;
+    }
+    
+    qCDebug(log_ffmpeg_backend) << "Finalizing recording...";
+    
+    // Flush encoder - send NULL frame to signal end of input
+    if (m_recordingCodecContext) {
+        int ret = avcodec_send_frame(m_recordingCodecContext, nullptr);
+        if (ret < 0 && ret != AVERROR_EOF) {
+            char errbuf[AV_ERROR_MAX_STRING_SIZE];
+            av_strerror(ret, errbuf, AV_ERROR_MAX_STRING_SIZE);
+            qCWarning(log_ffmpeg_backend) << "Error flushing encoder:" << QString::fromUtf8(errbuf);
+        } else {
+            // Receive remaining packets from encoder
+            while (ret >= 0) {
+                ret = avcodec_receive_packet(m_recordingCodecContext, m_recordingPacket);
+                if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF) {
+                    break;
+                } else if (ret < 0) {
+                    char errbuf[AV_ERROR_MAX_STRING_SIZE];
+                    av_strerror(ret, errbuf, AV_ERROR_MAX_STRING_SIZE);
+                    qCWarning(log_ffmpeg_backend) << "Error receiving final packets:" << QString::fromUtf8(errbuf);
+                    break;
+                }
+                
+                // Scale packet timestamp and write to file
+                if (m_recordingVideoStream && m_recordingFormatContext) {
+                    av_packet_rescale_ts(m_recordingPacket, m_recordingCodecContext->time_base, m_recordingVideoStream->time_base);
+                    m_recordingPacket->stream_index = m_recordingVideoStream->index;
+                    av_interleaved_write_frame(m_recordingFormatContext, m_recordingPacket);
+                }
+                av_packet_unref(m_recordingPacket);
+            }
+        }
+    }
+    
+    // Write trailer
+    if (m_recordingFormatContext) {
+        int ret = av_write_trailer(m_recordingFormatContext);
+        if (ret < 0) {
+            char errbuf[AV_ERROR_MAX_STRING_SIZE];
+            av_strerror(ret, errbuf, AV_ERROR_MAX_STRING_SIZE);
+            qCWarning(log_ffmpeg_backend) << "Error writing trailer:" << QString::fromUtf8(errbuf);
+        }
+    }
+    
+    qCDebug(log_ffmpeg_backend) << "Recording finalized, total frames:" << m_recordingFrameNumber;
+}
+
+void FFmpegBackendHandler::cleanupRecording()
+{
+    if (m_recordingSwsContext) {
+        sws_freeContext(m_recordingSwsContext);
+        m_recordingSwsContext = nullptr;
+    }
+    
+    if (m_recordingFrame) {
+        av_frame_free(&m_recordingFrame);
+    }
+    
+    if (m_recordingPacket) {
+        av_packet_free(&m_recordingPacket);
+    }
+    
+    if (m_recordingCodecContext) {
+        avcodec_free_context(&m_recordingCodecContext);
+    }
+    
+    if (m_recordingFormatContext) {
+        if (!(m_recordingFormatContext->oformat->flags & AVFMT_NOFILE)) {
+            avio_closep(&m_recordingFormatContext->pb);
+        }
+        avformat_free_context(m_recordingFormatContext);
+        m_recordingFormatContext = nullptr;
+    }
+    
+    m_recordingVideoStream = nullptr;
+    
+    qCDebug(log_ffmpeg_backend) << "Recording cleanup completed";
+}
+#endif // HAVE_FFMPEG
 
 
 #include "ffmpegbackendhandler.moc"

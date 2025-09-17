@@ -31,6 +31,7 @@ set(HOST_SOURCES
     host/backend/ffmpegbackendhandler.cpp host/backend/ffmpegbackendhandler.h
     host/backend/gstreamerbackendhandler.cpp host/backend/gstreamerbackendhandler.h
     host/backend/qtmultimediabackendhandler.cpp host/backend/qtmultimediabackendhandler.h
+    host/backend/qtbackendhandler.cpp host/backend/qtbackendhandler.h
 )
 
 # Regex sources
@@ -110,6 +111,7 @@ set(UI_ADVANCE_SOURCES
     ui/advance/firmwaremanagerdialog.cpp ui/advance/firmwaremanagerdialog.h
     ui/advance/renamedisplaydialog.cpp ui/advance/renamedisplaydialog.h
     ui/advance/updatedisplaysettingsdialog.cpp ui/advance/updatedisplaysettingsdialog.h
+    ui/advance/recordingsettingsdialog.cpp ui/advance/recordingsettingsdialog.h
 )
 
 # UI statusbar sources

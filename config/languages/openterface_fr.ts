@@ -40,10 +40,6 @@
 <context>
     <name>EnvironmentSetupDialog</name>
     <message>
-        <source>Environment Setup</source>
-        <translation type="vanished">Configuration de l&apos;environnement</translation>
-    </message>
-    <message>
         <location filename="../../ui/advance/envdialog.ui" line="6"/>
         <source>Environment Helper</source>
         <translation type="unfinished">Assistant environnemental</translation>
@@ -94,23 +90,6 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>&lt;a href=&quot;#&quot;&gt;Environment Setup Documentation&lt;/a&gt;</source>
-        <translation type="vanished">&lt;a href=&quot;#&quot;&gt;Documentation de configuration de l&apos;environnement&lt;/a&gt;</translation>
-    </message>
-    <message>
-        <source> The driver is installed. No further action is required.</source>
-        <translation type="vanished">Le pilote est installé. Aucune action supplémentaire n&apos;est requise.</translation>
-    </message>
-    <message>
-        <source> The driver is missing. Openterface Mini-KVM will install it automatically.</source>
-        <translation type="vanished">Le pilote est manquant. Openterface Mini-KVM l&apos;installera automatiquement.</translation>
-    </message>
-    <message>
-        <source>The following steps help you install the driver and add user to correct group. Current status:
-</source>
-        <translation type="vanished">Les étapes suivantes vous aident à installer le pilote et à ajouter l&apos;utilisateur au groupe correct. Statut actuel :</translation>
-    </message>
-    <message>
         <location filename="../../ui/advance/envdialog.cpp" line="120"/>
         <source> The device is not plugged in. Please plug it in and try again.</source>
         <translation type="unfinished"> Le périphérique n&apos;est pas branché. Veuillez le brancher et réessayer.</translation>
@@ -120,10 +99,6 @@
         <location filename="../../ui/advance/envdialog.cpp" line="142"/>
         <source>‣ Driver Installed: </source>
         <translation>‣ Pilote installé : </translation>
-    </message>
-    <message>
-        <source>‣ In Dialout Group: </source>
-        <translation type="vanished">‣ Dans le groupe Dialout : </translation>
     </message>
     <message>
         <location filename="../../ui/advance/envdialog.cpp" line="111"/>
@@ -195,10 +170,6 @@
         <location filename="../../ui/advance/envdialog.cpp" line="265"/>
         <source>Serial port Permission: </source>
         <translation type="unfinished">Autorisation du port série : </translation>
-    </message>
-    <message>
-        <source>In Dialout Group: </source>
-        <translation type="vanished">Dans le groupe Dialout : </translation>
     </message>
     <message>
         <location filename="../../ui/advance/envdialog.cpp" line="107"/>
@@ -539,14 +510,6 @@ Veuillez réessayer après avoir redémarré l&apos;application.</translation>
         <translation>Openterface Mini-KVM</translation>
     </message>
     <message>
-        <source>Select Keyboard Layout</source>
-        <translation type="vanished">Sélectionner la disposition du clavier</translation>
-    </message>
-    <message>
-        <source>US QWERTY</source>
-        <translation type="vanished">US QWERTY</translation>
-    </message>
-    <message>
         <location filename="../../ui/mainwindow.ui" line="50"/>
         <source>File</source>
         <translation>Fichier</translation>
@@ -602,335 +565,226 @@ Veuillez réessayer après avoir redémarré l&apos;application.</translation>
         <translation>Avancé</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="148"/>
+        <location filename="../../ui/mainwindow.ui" line="149"/>
         <source>Close</source>
         <translation>Fermer</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="153"/>
+        <location filename="../../ui/mainwindow.ui" line="154"/>
         <source>Change Settings</source>
         <translation>Modifier les paramètres</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="158"/>
+        <location filename="../../ui/mainwindow.ui" line="159"/>
         <source>Reset Serial Port</source>
         <translation>Réinitialiser le port série</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="163"/>
+        <location filename="../../ui/mainwindow.ui" line="164"/>
         <source>Serial Console</source>
         <translation>Console série</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="168"/>
+        <location filename="../../ui/mainwindow.ui" line="169"/>
         <source>AutoReszie</source>
         <translation>Redimensionnement automatique</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="173"/>
+        <location filename="../../ui/mainwindow.ui" line="174"/>
         <source>Factory Reset HID Chip</source>
         <translation>Réinitialisation d&apos;usine de la puce HID</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="178"/>
+        <location filename="../../ui/mainwindow.ui" line="179"/>
         <source>Preferences</source>
         <translation>Préférences</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="183"/>
+        <location filename="../../ui/mainwindow.ui" line="184"/>
         <source>Office Website</source>
         <translation>Site web officiel</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="188"/>
+        <location filename="../../ui/mainwindow.ui" line="189"/>
         <source>Purchase</source>
         <translation>Acheter</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="193"/>
+        <location filename="../../ui/mainwindow.ui" line="194"/>
         <source>Feedback</source>
         <translation>Retour d&apos;information</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="198"/>
+        <location filename="../../ui/mainwindow.ui" line="199"/>
         <source>Update</source>
         <translation>Mettre à jour</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="203"/>
+        <location filename="../../ui/mainwindow.ui" line="204"/>
         <source>Environment</source>
         <translation>Environnement</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="208"/>
+        <location filename="../../ui/mainwindow.ui" line="209"/>
         <source>About</source>
         <translation>À propos</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="219"/>
+        <location filename="../../ui/mainwindow.ui" line="220"/>
         <source>Follow Switch</source>
         <translation>Suivre le commutateur</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="227"/>
+        <location filename="../../ui/mainwindow.ui" line="228"/>
         <source>Paste</source>
         <translation>Coller</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="230"/>
+        <location filename="../../ui/mainwindow.ui" line="231"/>
         <source>Paste clipboard content to target</source>
         <translation>Coller le contenu du presse-papiers sur la cible</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="235"/>
+        <location filename="../../ui/mainwindow.ui" line="236"/>
         <source>Script Tool</source>
         <translation>Outil de script</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="240"/>
+        <location filename="../../ui/mainwindow.ui" line="241"/>
+        <source>Video Recording Settings</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/mainwindow.ui" line="244"/>
+        <source>Configure video recording settings and start/stop recording</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/mainwindow.ui" line="249"/>
         <source>TCP Server</source>
         <translation>Serveur TCP</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="245"/>
+        <location filename="../../ui/mainwindow.ui" line="254"/>
         <source>Environment Checking</source>
         <translation>Vérification de l&apos;environnement</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="250"/>
+        <location filename="../../ui/mainwindow.ui" line="259"/>
         <source>Firmware Manager</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="255"/>
+        <location filename="../../ui/mainwindow.ui" line="264"/>
         <source>Firmware Update...</source>
         <translation>Mise à jour du firmware...</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="260"/>
+        <location filename="../../ui/mainwindow.ui" line="269"/>
         <source>Device Selector</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="263"/>
+        <location filename="../../ui/mainwindow.ui" line="272"/>
         <source>Open Device Selector Dialog</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="268"/>
+        <location filename="../../ui/mainwindow.ui" line="277"/>
         <source>Update Display Settings</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="271"/>
+        <location filename="../../ui/mainwindow.ui" line="280"/>
         <source>Update display name and serial number in EDID</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="280"/>
+        <location filename="../../ui/mainwindow.ui" line="289"/>
         <source>115200</source>
         <translation>115200</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="288"/>
+        <location filename="../../ui/mainwindow.ui" line="297"/>
         <source>9600</source>
         <translation>9600</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="298"/>
+        <location filename="../../ui/mainwindow.ui" line="307"/>
         <source>To Host</source>
         <translation>Vers l&apos;hôte</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="306"/>
+        <location filename="../../ui/mainwindow.ui" line="315"/>
         <source>To Target</source>
         <translation>Vers la cible</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="319"/>
+        <location filename="../../ui/mainwindow.ui" line="328"/>
         <source>Absolute</source>
         <translation>Absolu</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="327"/>
+        <location filename="../../ui/mainwindow.ui" line="336"/>
         <source>Relative</source>
         <translation>Relatif</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="340"/>
+        <location filename="../../ui/mainwindow.ui" line="349"/>
         <source>Auto Hide</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="343"/>
+        <location filename="../../ui/mainwindow.ui" line="352"/>
         <source>Auto hide mouse cursor</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="351"/>
+        <location filename="../../ui/mainwindow.ui" line="360"/>
         <source>Always Show</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="354"/>
+        <location filename="../../ui/mainwindow.ui" line="363"/>
         <source>Always show mouse cursor</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Zoom in</source>
-        <translation type="vanished">Zoomer</translation>
-    </message>
-    <message>
-        <source>Zoom out</source>
-        <translation type="vanished">Dézoomer</translation>
-    </message>
-    <message>
-        <source>Restore original size</source>
-        <translation type="vanished">Restaurer la taille originale</translation>
-    </message>
-    <message>
-        <source>Function key and composite key</source>
-        <translation type="vanished">Touche de fonction et touche composée</translation>
-    </message>
-    <message>
-        <source>Paste text to target</source>
-        <translation type="vanished">Coller le texte sur la cible</translation>
-    </message>
-    <message>
-        <source>Mouse dance</source>
-        <translation type="vanished">Danse de la souris</translation>
-    </message>
-    <message>
-        <source>Full screen capture</source>
-        <translation type="vanished">Capture plein écran</translation>
-    </message>
-    <message>
-        <source>Full screen mode</source>
-        <translation type="vanished">Mode plein écran</translation>
-    </message>
-    <message>
-        <location filename="../../ui/mainwindow.cpp" line="1102"/>
+        <location filename="../../ui/mainwindow.cpp" line="1103"/>
         <source>Recorded %1 sec</source>
         <translation>Enregistré %1 sec</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1283"/>
+        <location filename="../../ui/mainwindow.cpp" line="1318"/>
         <source>Image Capture Error</source>
         <translation>Erreur de capture d&apos;image</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1444"/>
+        <location filename="../../ui/mainwindow.cpp" line="1479"/>
         <source>Captured &quot;%1&quot;</source>
         <translation>Capturé &quot;%1&quot;</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1999"/>
+        <location filename="../../ui/mainwindow.cpp" line="2058"/>
         <source>The firmware is up to date.
 Current version: </source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="2021"/>
+        <location filename="../../ui/mainwindow.cpp" line="2080"/>
         <source>Firmware fetch timeout</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="2022"/>
+        <location filename="../../ui/mainwindow.cpp" line="2081"/>
         <source>Firmware retrieval timed out. Please check your network connection and try again.
 Current version: </source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>The firmware is up to date.</source>
-        <translation type="vanished">Le firmware est à jour.</translation>
-    </message>
-    <message>
-        <location filename="../../ui/mainwindow.cpp" line="1998"/>
+        <location filename="../../ui/mainwindow.cpp" line="2057"/>
         <source>Firmware Update</source>
         <translation>Mise à jour du firmware</translation>
-    </message>
-    <message>
-        <source>Firmware Update Confirmation</source>
-        <translation type="vanished">Confirmation de mise à jour du firmware</translation>
-    </message>
-    <message>
-        <source>Current firmware version: </source>
-        <translation type="vanished">Version actuelle du firmware : </translation>
-    </message>
-    <message>
-        <source>
-</source>
-        <translation type="vanished">
-</translation>
-    </message>
-    <message>
-        <source>Latest firmware version: </source>
-        <translation type="vanished">Dernière version du firmware : </translation>
-    </message>
-    <message>
-        <source>
-
-</source>
-        <translation type="vanished">
-
-</translation>
-    </message>
-    <message>
-        <source>The update process will:
-</source>
-        <translation type="vanished">Le processus de mise à jour va :
-</translation>
-    </message>
-    <message>
-        <source>1. Stop all video and USB operations
-2. Install new firmware
-3. Close the application automatically
-
-Important:
-• Use a high-quality USB cable for host connection
-• Disconnect the HDMI cable
-• Do not interrupt power during update
-• Restart application after completion
-
-Do you want to proceed with the update?</source>
-        <translation type="vanished">1. Arrêter toutes les opérations vidéo et USB
-2. Installer le nouveau firmware
-3. Fermer l&apos;application automatiquement
-
-Important :
-• Utilisez un câble USB de haute qualité pour la connexion hôte
-• Déconnectez le câble HDMI
-• Ne pas interrompre l&apos;alimentation pendant la mise à jour
-• Redémarrez l&apos;application après la fin
-
-Voulez-vous procéder à la mise à jour ?</translation>
-    </message>
-</context>
-<context>
-    <name>MetaDataDialog</name>
-    <message>
-        <source>Openterface Mini KVM</source>
-        <translation type="vanished">Openterface Mini KVM</translation>
-    </message>
-    <message>
-        <source>TechxArtisan</source>
-        <translation type="vanished">TechxArtisan</translation>
-    </message>
-    <message>
-        <source>Open</source>
-        <translation type="vanished">Ouvrir</translation>
-    </message>
-    <message>
-        <source>Set Metadata</source>
-        <translation type="vanished">Définir les métadonnées</translation>
-    </message>
-    <message>
-        <source>Open Image</source>
-        <translation type="vanished">Ouvrir l&apos;image</translation>
-    </message>
-    <message>
-        <source>Image Files (*.png *.jpg *.bmp)</source>
-        <translation type="vanished">Fichiers image (*.png *.jpg *.bmp)</translation>
     </message>
 </context>
 <context>
@@ -1207,10 +1061,6 @@ Please:
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Hardware</source>
-        <translation type="vanished">Matériel</translation>
-    </message>
-    <message>
         <location filename="../../ui/preferences/settingdialog.cpp" line="117"/>
         <source>OK</source>
         <translation>OK</translation>
@@ -1232,14 +1082,6 @@ Please:
         <location filename="../../ui/preferences/targetcontrolpage.cpp" line="38"/>
         <source>Target control setting</source>
         <translation>Paramètre de contrôle cible</translation>
-    </message>
-    <message>
-        <source>UVC Camera resource: </source>
-        <translation type="vanished">Ressource caméra UVC : </translation>
-    </message>
-    <message>
-        <source>Custom target USB Composite Device VID and PID: </source>
-        <translation type="vanished">Périphérique composite USB cible personnalisé VID et PID: </translation>
     </message>
     <message>
         <location filename="../../ui/preferences/targetcontrolpage.cpp" line="42"/>
@@ -1743,10 +1585,6 @@ Veuillez vérifier votre connexion internet.
 <context>
     <name>VideoPage</name>
     <message>
-        <source>UVC Camera resource: </source>
-        <translation type="obsolete">Ressource caméra UVC : </translation>
-    </message>
-    <message>
         <location filename="../../ui/preferences/videopage.cpp" line="97"/>
         <source>General video setting</source>
         <translation>Paramètres généraux de la vidéo</translation>
@@ -1790,10 +1628,6 @@ Veuillez vérifier votre connexion internet.
         <location filename="../../ui/preferences/videopage.cpp" line="162"/>
         <source>Available placeholders: %DEVICE%, %WIDTH%, %HEIGHT%, %FRAMERATE%</source>
         <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Default pixel format</source>
-        <translation type="vanished">Format de pixel par défaut</translation>
     </message>
 </context>
 </TS>

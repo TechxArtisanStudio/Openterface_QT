@@ -110,6 +110,28 @@ public:
     void setArmBaudratePromptDisabled(bool disabled);
     bool getArmBaudratePromptDisabled() const;
     void resetArmBaudratePrompt(); // Reset the prompt setting
+    
+    // Video recording settings
+    void setRecordingVideoCodec(const QString& codec);
+    QString getRecordingVideoCodec() const;
+    void setRecordingVideoBitrate(int bitrate);
+    int getRecordingVideoBitrate() const;
+    void setRecordingPixelFormat(const QString& format);
+    QString getRecordingPixelFormat() const;
+    void setRecordingKeyframeInterval(int interval);
+    int getRecordingKeyframeInterval() const;
+    
+    void setRecordingAudioCodec(const QString& codec);
+    QString getRecordingAudioCodec() const;
+    void setRecordingAudioBitrate(int bitrate);
+    int getRecordingAudioBitrate() const;
+    void setRecordingAudioSampleRate(int sampleRate);
+    int getRecordingAudioSampleRate() const;
+    
+    void setRecordingOutputFormat(const QString& format);
+    QString getRecordingOutputFormat() const;
+    void setRecordingOutputPath(const QString& path);
+    QString getRecordingOutputPath() const;
 
 private:
     QSettings m_settings;
