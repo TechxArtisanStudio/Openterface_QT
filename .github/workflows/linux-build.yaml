@@ -74,28 +74,28 @@ jobs:
           echo "Pulling pre-built shared Qt Docker image for amd64..."
           
           IMAGE_TAG="ubuntu-${{ github.event.inputs.ubuntu_version || '24.04' }}-amd64"
-          echo "Checking for image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-dynamic:$IMAGE_TAG"
+          echo "Checking for image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-shared:$IMAGE_TAG"
           
           
           # Check if image exists in registry
-          if docker manifest inspect ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-dynamic:$IMAGE_TAG > /dev/null 2>&1; then
+          if docker manifest inspect ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-shared:$IMAGE_TAG > /dev/null 2>&1; then
             echo "Pre-built image found, pulling..."
-            docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-dynamic:$IMAGE_TAG
+            docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-shared:$IMAGE_TAG
 
             echo "Successfully pulled pre-built shared Qt Docker image for amd64"
           else
             echo "Error: Pre-built shared Qt Docker image not found in registry for amd64"
-            echo "Looking for: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-dynamic:$IMAGE_TAG"
+            echo "Looking for: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-shared:$IMAGE_TAG"
             echo "Please run the 'Build Qt Environments' workflow first to build the required Docker images"
             echo "Workflow URL: https://github.com/${{ github.repository }}/actions/workflows/build-qt-environments.yml"
             exit 1
           fi
           
           # Tag the architecture-specific image as latest for local use
-          docker tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-dynamic:$IMAGE_TAG ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-dynamic:latest
+          docker tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-shared:$IMAGE_TAG ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-shared:latest
           
           # Verify the image was pulled successfully
-          docker images | grep openterface-qtbuild-dynamic || {
+          docker images | grep openterface-qtbuild-shared || {
             echo "Error: Failed to verify shared Qt Docker image"
             exit 1
           }
@@ -156,7 +156,7 @@ jobs:
             -v ${{ github.workspace }}:/workspace/src \
             -v ${{ runner.temp }}/translation-script.sh:/translation-script.sh \
             -w /workspace/src \
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-dynamic:latest \
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-shared:latest \
             /translation-script.sh
 
       - name: Build in Docker Container (shared Qt)
@@ -212,7 +212,7 @@ jobs:
             -v ${{ runner.temp }}/build-shared:/workspace/build \
             -v ${{ runner.temp }}/build-script.sh:/build-script.sh \
             -w /workspace/src \
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-dynamic:latest \
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-shared:latest \
             /build-script.sh
           
           # Verify build output
@@ -699,28 +699,28 @@ jobs:
           echo "Pulling pre-built shared Qt Docker image for arm64..."
           
           IMAGE_TAG="ubuntu-${{ github.event.inputs.ubuntu_version || '24.04' }}-arm64"
-          echo "Checking for image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-dynamic:$IMAGE_TAG"
+          echo "Checking for image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-shared:$IMAGE_TAG"
           
           
           # Check if image exists in registry
-          if docker manifest inspect ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-dynamic:$IMAGE_TAG > /dev/null 2>&1; then
+          if docker manifest inspect ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-shared:$IMAGE_TAG > /dev/null 2>&1; then
             echo "Pre-built image found, pulling..."
-            docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-dynamic:$IMAGE_TAG
+            docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-shared:$IMAGE_TAG
 
             echo "Successfully pulled pre-built shared Qt Docker image for arm64"
           else
             echo "Error: Pre-built shared Qt Docker image not found in registry for arm64"
-            echo "Looking for: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-dynamic:$IMAGE_TAG"
+            echo "Looking for: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-shared:$IMAGE_TAG"
             echo "Please run the 'Build Qt Environments' workflow first to build the required Docker images"
             echo "Workflow URL: https://github.com/${{ github.repository }}/actions/workflows/build-qt-environments.yml"
             exit 1
           fi
           
           # Tag the architecture-specific image as latest for local use
-          docker tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-dynamic:$IMAGE_TAG ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-dynamic:latest
+          docker tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-shared:$IMAGE_TAG ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-shared:latest
           
           # Verify the image was pulled successfully
-          docker images | grep openterface-qtbuild-dynamic || {
+          docker images | grep openterface-qtbuild-shared || {
             echo "Error: Failed to verify shared Qt Docker image"
             exit 1
           }
@@ -781,7 +781,7 @@ jobs:
             -v ${{ github.workspace }}:/workspace/src \
             -v ${{ runner.temp }}/translation-script.sh:/translation-script.sh \
             -w /workspace/src \
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-dynamic:latest \
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-shared:latest \
             /translation-script.sh
 
       - name: Build in Docker Container (shared Qt)
@@ -837,7 +837,7 @@ jobs:
             -v ${{ runner.temp }}/build-shared-arm64:/workspace/build \
             -v ${{ runner.temp }}/build-script.sh:/build-script.sh \
             -w /workspace/src \
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-dynamic:latest \
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-shared:latest \
             /build-script.sh
           
           # Verify build output
