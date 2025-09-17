@@ -45,6 +45,8 @@ struct AVCodecContext;
 struct AVFrame;
 struct AVPacket;
 struct SwsContext;
+struct AVStream;
+struct AVOutputFormat;
 #endif
 
 // Forward declarations for libjpeg-turbo (conditional compilation)
@@ -86,6 +88,28 @@ public:
     void processFrame();
     bool isDirectCaptureRunning() const;
 
+    // Video recording methods
+    bool startRecording(const QString& outputPath, const QString& format = "mp4", int videoBitrate = 2000000);
+    void stopRecording();
+    void pauseRecording();
+    void resumeRecording();
+    bool isRecording() const;
+    QString getCurrentRecordingPath() const;
+    qint64 getRecordingDuration() const; // in milliseconds
+    
+    // Recording configuration
+    struct RecordingConfig {
+        QString outputPath;
+        QString format = "mp4";          // mp4, avi, mov
+        QString videoCodec = "libx264";   // libx264, libx265, mpeg4
+        int videoBitrate = 2000000;       // 2 Mbps default
+        int videoQuality = 23;            // CRF value for x264 (lower = better quality)
+        bool useHardwareAcceleration = false;
+    };
+    
+    void setRecordingConfig(const RecordingConfig& config);
+    RecordingConfig getRecordingConfig() const;
+
     // Device availability and hotplug support
     bool checkCameraAvailable(const QString& devicePath = "");
     bool isCurrentDeviceAvailable() const;
@@ -122,6 +146,14 @@ signals:
     void deviceActivated(const QString& devicePath);
     void deviceDeactivated(const QString& devicePath);
     void waitingForDevice(const QString& devicePath);
+    
+    // Recording signals
+    void recordingStarted(const QString& outputPath);
+    void recordingStopped();
+    void recordingPaused();
+    void recordingResumed();
+    void recordingError(const QString& error);
+    void recordingDurationChanged(qint64 duration);
 
 private:
 #ifdef HAVE_FFMPEG
@@ -130,6 +162,13 @@ private:
     void cleanupFFmpeg();
     bool openInputDevice(const QString& devicePath, const QSize& resolution, int framerate);
     void closeInputDevice();
+    
+    // Recording-specific methods
+    bool initializeRecording();
+    void cleanupRecording();
+    bool writeFrameToFile(AVFrame* frame);
+    void finalizeRecording();
+    bool configureEncoder(const QSize& resolution, int framerate);
 #endif
 
 #ifdef HAVE_LIBJPEG_TURBO
@@ -148,6 +187,14 @@ private:
     AVFrame* m_frameRGB;
     AVPacket* m_packet;
     SwsContext* m_swsContext;
+    
+    // Recording components
+    AVFormatContext* m_recordingFormatContext;
+    AVCodecContext* m_recordingCodecContext;
+    AVStream* m_recordingVideoStream;
+    SwsContext* m_recordingSwsContext;
+    AVFrame* m_recordingFrame;
+    AVPacket* m_recordingPacket;
 #endif
     
 #ifdef HAVE_LIBJPEG_TURBO
@@ -164,6 +211,18 @@ private:
     int m_videoStreamIndex;
 #endif
     
+    // Recording state
+    bool m_recordingActive;
+    bool m_recordingPaused;
+    QString m_recordingOutputPath;
+    RecordingConfig m_recordingConfig;
+    qint64 m_recordingStartTime;
+    qint64 m_recordingPausedTime;
+    qint64 m_totalPausedDuration;
+    qint64 m_lastRecordedFrameTime; // Time when last frame was written to recording
+    int m_recordingTargetFramerate; // Target framerate for recording (cached for thread safety)
+    int64_t m_recordingFrameNumber;
+    
     // Hotplug monitoring
     HotplugMonitor* m_hotplugMonitor;
     QString m_expectedDevicePath;
@@ -179,6 +238,9 @@ private:
     // Thread safety
     mutable QMutex m_mutex;
     QWaitCondition m_frameCondition;
+    
+    // Recording thread safety
+    mutable QMutex m_recordingMutex;
     
     // Performance monitoring
     QTimer* m_performanceTimer;

@@ -65,6 +65,7 @@ signals:
 
 private slots:
     void handleAudioError(const QString& error);
+    void handleCleanupRequest();
 
 private:
     // Private constructor for singleton

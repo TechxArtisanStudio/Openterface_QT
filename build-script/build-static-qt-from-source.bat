@@ -49,7 +49,7 @@ for %%m in (%MODULES%) do (
     )
 )
 
-REM Build qtbase first
+# Build qtbase first
 cd "%BUILD_DIR%\qtbase"
 mkdir build
 cd build
@@ -62,13 +62,16 @@ cmake -G "Ninja" ^
     -DFEATURE_icu=OFF ^
     -DFEATURE_opengl=ON ^
     -DFEATURE_openssl=ON ^
-    -DOPENSSL_DIR="%OPENSSL_DIR%" ^
+    -DFEATURE_openssl_linked=ON ^
+    -DOPENSSL_ROOT_DIR="%OPENSSL_DIR%" ^
     -DOPENSSL_INCLUDE_DIR="%OPENSSL_INCLUDE_DIR%" ^
-    -DOPENSSL_LIB_DIR="%OPENSSL_LIB_DIR%" ^
+    -DOPENSSL_CRYPTO_LIBRARY="%OPENSSL_LIB_DIR%\libcrypto.a" ^
+    -DOPENSSL_SSL_LIBRARY="%OPENSSL_LIB_DIR%\libssl.a" ^
     -DCMAKE_C_FLAGS="-I%OPENSSL_INCLUDE_DIR%" ^
     -DCMAKE_CXX_FLAGS="-I%OPENSSL_INCLUDE_DIR%" ^
-    -DOPENSSL_LIBRARIES="%OPENSSL_LIB_DIR%\libssl.a;%OPENSSL_LIB_DIR%\libcrypto.a;-lws2_32;-lcrypt32" ^
+    -DCMAKE_EXE_LINKER_FLAGS="-L%OPENSSL_LIB_DIR% -lws2_32 -lcrypt32 -ladvapi32" ^
     -DCMAKE_TOOLCHAIN_FILE="%VCPKG_DIR%\scripts\buildsystems\vcpkg.cmake" ^
+    -DVCPKG_TARGET_TRIPLET=x64-mingw-static ^
     ..
 ninja
 ninja install
@@ -83,10 +86,12 @@ for %%m in (%MODULES%) do (
             -DCMAKE_INSTALL_PREFIX="%INSTALL_PREFIX%" ^
             -DCMAKE_PREFIX_PATH="%INSTALL_PREFIX%" ^
             -DBUILD_SHARED_LIBS=OFF ^
-            -DOPENSSL_DIR="%OPENSSL_DIR%" ^
+            -DOPENSSL_ROOT_DIR="%OPENSSL_DIR%" ^
             -DOPENSSL_INCLUDE_DIR="%OPENSSL_INCLUDE_DIR%" ^
-            -DOPENSSL_LIB_DIR="%OPENSSL_LIB_DIR%" ^
+            -DOPENSSL_CRYPTO_LIBRARY="%OPENSSL_LIB_DIR%\libcrypto.a" ^
+            -DOPENSSL_SSL_LIBRARY="%OPENSSL_LIB_DIR%\libssl.a" ^
             -DCMAKE_TOOLCHAIN_FILE="%VCPKG_DIR%\scripts\buildsystems\vcpkg.cmake" ^
+            -DVCPKG_TARGET_TRIPLET=x64-mingw-static ^
             ..
         ninja
         ninja install
@@ -109,3 +114,16 @@ if exist "%INSTALL_PREFIX%\bin\lupdate.exe" (
     echo Error: lupdate.exe not found in %INSTALL_PREFIX%\bin
     exit /b 1
 )
+
+REM Verify Qt configuration includes OpenSSL support
+echo Verifying Qt OpenSSL configuration...
+if exist "%INSTALL_PREFIX%\bin\qmake.exe" (
+    "%INSTALL_PREFIX%\bin\qmake.exe" -query QT_INSTALL_LIBS
+    echo Checking for OpenSSL feature in Qt...
+    findstr /C:"openssl" "%INSTALL_PREFIX%\mkspecs\qconfig.pri" && echo "Qt built with OpenSSL support" || echo "Warning: OpenSSL support not detected in Qt configuration"
+) else (
+    echo Error: qmake.exe not found in %INSTALL_PREFIX%\bin
+    exit /b 1
+)
+
+echo Qt static build with OpenSSL completed successfully!

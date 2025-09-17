@@ -21,6 +21,7 @@ SOURCES += main.cpp \
     host/cameramanager.cpp \
     host/multimediabackend.cpp \
     host/backend/qtmultimediabackendhandler.cpp \
+    host/backend/qtbackendhandler.cpp \
     ui/statusbar/statuswidget.cpp \
     video/videohid.cpp \
     video/firmwarewriter.cpp \
@@ -51,6 +52,7 @@ SOURCES += main.cpp \
     ui/advance/firmwaremanagerdialog.cpp \
     ui/advance/renamedisplaydialog.cpp \
     ui/advance/updatedisplaysettingsdialog.cpp \
+    ui/advance/recordingsettingsdialog.cpp \
     host/HostManager.cpp \
     serial/SerialPortManager.cpp \
     target/KeyboardManager.cpp \
@@ -91,6 +93,7 @@ HEADERS  += \
     host/cameramanager.h \
     host/multimediabackend.h \
     host/backend/qtmultimediabackendhandler.h \
+    host/backend/qtbackendhandler.h \
     ui/statusbar/statuswidget.h \
     video/videohid.h \
     video/firmwarewriter.h \
@@ -114,6 +117,7 @@ HEADERS  += \
     ui/advance/firmwaremanagerdialog.h \
     ui/advance/renamedisplaydialog.h \
     ui/advance/updatedisplaysettingsdialog.h \
+    ui/advance/recordingsettingsdialog.h \
     ui/preferences/cameraadjust.h \
     ui/preferences/fpsspinbox.h \
     ui/preferences/settingdialog.h \

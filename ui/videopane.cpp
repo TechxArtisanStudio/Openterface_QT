@@ -540,11 +540,11 @@ QPoint VideoPane::getTransformedMousePosition(const QPoint& viewportPos)
     // Debug output only when coordinates are significantly different
     QPoint result(transformedX, transformedY);
     if ((result - viewportPos).manhattanLength() > 5) {
-        qDebug() << "VideoPane: Transformed mouse pos from" << viewportPos 
-                 << "to" << result
-                 << "via scene:" << scenePos << "item:" << itemPos 
-                 << "normalized:" << normalizedX << normalizedY
-                 << "mode: FFmpeg=" << m_directFFmpegMode << "pixmap visible=" << (m_pixmapItem ? m_pixmapItem->isVisible() : false);
+        // qDebug() << "VideoPane: Transformed mouse pos from" << viewportPos 
+        //          << "to" << result
+        //          << "via scene:" << scenePos << "item:" << itemPos 
+        //          << "normalized:" << normalizedX << normalizedY
+        //          << "mode: FFmpeg=" << m_directFFmpegMode << "pixmap visible=" << (m_pixmapItem ? m_pixmapItem->isVisible() : false);
     }
     
     return result;
@@ -664,16 +664,54 @@ void VideoPane::mouseReleaseEvent(QMouseEvent *event)
 // Direct GStreamer support methods (based on widgets_main.cpp approach)
 void VideoPane::enableDirectGStreamerMode(bool enable)
 {
-    qDebug() << "VideoPane: Setting direct GStreamer mode to:" << enable;
+    qCDebug(log_ui_video) << "VideoPane: Setting direct GStreamer mode to:" << enable << "current mode:" << m_directGStreamerMode;
+    
+    if (m_directGStreamerMode == enable) {
+        qCDebug(log_ui_video) << "VideoPane: GStreamer mode already in requested state, no change needed";
+        return;
+    }
+    
     m_directGStreamerMode = enable;
     
     if (enable) {
+        qCDebug(log_ui_video) << "VideoPane: Enabling GStreamer mode";
+        
+        // Disable FFmpeg mode if it was enabled to prevent conflicts
+        if (m_directFFmpegMode) {
+            qCDebug(log_ui_video) << "VideoPane: Disabling FFmpeg mode for GStreamer";
+            enableDirectFFmpegMode(false);
+        }
+        
+        // Set up the overlay for GStreamer video
         setupForGStreamerOverlay();
+        
+        // IMPORTANT: Hide the Qt video item to prevent interference
+        if (m_videoItem) {
+            m_videoItem->setVisible(false);
+            qCDebug(log_ui_video) << "VideoPane: Hidden Qt video item for GStreamer mode";
+        }
+        
+        // Also hide pixmap item if it exists
+        if (m_pixmapItem) {
+            m_pixmapItem->setVisible(false);
+            qCDebug(log_ui_video) << "VideoPane: Hidden pixmap item for GStreamer mode";
+        }
+        
     } else {
+        qCDebug(log_ui_video) << "VideoPane: Disabling GStreamer mode";
+        
         // Clean up overlay widget if it exists
         if (m_overlayWidget) {
+            qCDebug(log_ui_video) << "VideoPane: Destroying GStreamer overlay widget";
+            m_overlayWidget->hide();
             m_overlayWidget->deleteLater();
             m_overlayWidget = nullptr;
+        }
+        
+        // Restore Qt video item when disabling GStreamer mode
+        if (m_videoItem) {
+            m_videoItem->setVisible(true);
+            qCDebug(log_ui_video) << "VideoPane: Restored Qt video item";
         }
     }
     
@@ -682,10 +720,15 @@ void VideoPane::enableDirectGStreamerMode(bool enable)
         m_inputHandler->updateEventFilterTarget();
     }
     
-    // Update the InputHandler's event filter target
-    if (m_inputHandler) {
-        m_inputHandler->updateEventFilterTarget();
+    // Force a scene update and repaint to ensure changes are visible
+    if (m_scene) {
+        m_scene->update();
     }
+    update(); // Force view repaint
+    
+    qCDebug(log_ui_video) << "VideoPane: GStreamer mode" << (enable ? "enabled" : "disabled")
+                          << "- overlay widget:" << (m_overlayWidget ? "exists" : "null")
+                          << "video item visible:" << (m_videoItem ? m_videoItem->isVisible() : false);
 }
 
 WId VideoPane::getVideoOverlayWindowId() const
@@ -699,22 +742,24 @@ WId VideoPane::getVideoOverlayWindowId() const
 
 void VideoPane::setupForGStreamerOverlay()
 {
-    // qDebug() << "VideoPane: Setting up for GStreamer video overlay";
+    qCDebug(log_ui_video) << "VideoPane: Setting up for GStreamer video overlay";
     
     // Create overlay widget if it doesn't exist
     if (!m_overlayWidget) {
         m_overlayWidget = new QWidget(this);
         m_overlayWidget->setObjectName("gstreamerOverlayWidget");
-        m_overlayWidget->setStyleSheet("background-color: black; border: 2px solid white;");
+        
+        // CRITICAL: Transparent background so it doesn't block video display
+        m_overlayWidget->setStyleSheet("background-color: transparent;");
         m_overlayWidget->setMinimumSize(640, 480);
         
         // Enable native window for video overlay (from widgets_main.cpp approach)
         m_overlayWidget->setAttribute(Qt::WA_NativeWindow, true);
         m_overlayWidget->setAttribute(Qt::WA_PaintOnScreen, true);
         
-        // Enable mouse tracking and focus for event handling
-        m_overlayWidget->setMouseTracking(true);
-        m_overlayWidget->setFocusPolicy(Qt::StrongFocus);
+        // IMPORTANT: Make it transparent to mouse/keyboard events when not needed
+        // This prevents it from interfering with normal interaction
+        m_overlayWidget->setAttribute(Qt::WA_TransparentForMouseEvents, false); // Enable for GStreamer input
         
         // Enable mouse tracking and focus for event handling
         m_overlayWidget->setMouseTracking(true);
@@ -724,12 +769,17 @@ void VideoPane::setupForGStreamerOverlay()
         m_overlayWidget->resize(size());
         m_overlayWidget->show();
         
-        // qDebug() << "VideoPane: Created GStreamer overlay widget with window ID:" << m_overlayWidget->winId();
+        qCDebug(log_ui_video) << "VideoPane: Created GStreamer overlay widget with window ID:" << m_overlayWidget->winId();
+        qCDebug(log_ui_video) << "Overlay widget size:" << m_overlayWidget->size() << "position:" << m_overlayWidget->pos();
         
         // Update the InputHandler to use the overlay widget for events
         if (m_inputHandler) {
             m_inputHandler->updateEventFilterTarget();
         }
+    } else {
+        qCDebug(log_ui_video) << "VideoPane: GStreamer overlay widget already exists, ensuring visibility";
+        m_overlayWidget->show();
+        m_overlayWidget->raise(); // Ensure it's on top
     }
 }
 
