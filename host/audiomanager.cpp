@@ -3,6 +3,7 @@
 #include "../device/DeviceManager.h"
 #include "../device/HotplugMonitor.h"
 #include "../ui/globalsetting.h"
+#include "../global.h"
 #include <QDebug>
 #include <QRegularExpression>
 
@@ -122,8 +123,44 @@ void AudioManager::fadeInVolume(int timeout, int durationInSeconds) {
 void AudioManager::disconnect() {
     qCDebug(log_core_host_audio) << "Disconnecting audio thread.";
     if (m_audioThread) {
+        qCDebug(log_core_host_audio) << "AudioThread found - proceeding with cleanup";
+        
+        // Check if application is shutting down
+        if (g_applicationShuttingDown.loadAcquire() == 1) {
+            qCDebug(log_core_host_audio) << "Application shutting down - minimal cleanup only";
+            
+            // During shutdown, don't wait for thread - just mark it for deletion
+            m_audioThread->disconnect(); // Disconnect signals
+            m_audioThread->stop(); // Set the stop flag only
+            
+            // Don't call wait() during shutdown to prevent deadlocks
+            // Just delete and let the destructor handle minimal cleanup
+            delete m_audioThread;
+            m_audioThread = nullptr;
+            
+            // Clear current device tracking immediately
+            m_currentAudioDevice = QAudioDevice();
+            m_currentAudioPortChain.clear();
+            
+            qCDebug(log_core_host_audio) << "AudioThread minimal cleanup completed";
+            return;
+        }
+        
+        // Normal cleanup path (not during application shutdown)
+        // Disconnect all signals first to prevent any callbacks during cleanup
+        m_audioThread->disconnect();
+        
+        // Stop the thread
         m_audioThread->stop();
-        m_audioThread->wait();
+        
+        // Wait for thread to finish with timeout
+        if (!m_audioThread->wait(3000)) {
+            qCWarning(log_core_host_audio) << "Audio thread didn't stop gracefully, forcing termination";
+            m_audioThread->terminate();
+            m_audioThread->wait(1000);
+        }
+        
+        // Delete the thread
         delete m_audioThread;
         m_audioThread = nullptr;
         
@@ -131,12 +168,24 @@ void AudioManager::disconnect() {
         m_currentAudioDevice = QAudioDevice();
         m_currentAudioPortChain.clear();
         
+        qCDebug(log_core_host_audio) << "AudioThread cleanup completed";
         emit audioDisconnected();
+    } else {
+        qCDebug(log_core_host_audio) << "No AudioThread to disconnect";
     }
 }
 
 void AudioManager::handleAudioError(const QString& error) {
     qCWarning(log_core_host_audio) << "Audio error:" << error;
+}
+
+void AudioManager::handleCleanupRequest() {
+    qCDebug(log_core_host_audio) << "AudioManager received cleanup request - cleaning up multimedia objects on main thread";
+    
+    if (m_audioThread) {
+        // This will be called on the main thread, which is safer for Qt Multimedia cleanup
+        m_audioThread->cleanupMultimediaObjects();
+    }
 }
 
 // Port chain based device selection methods
@@ -162,8 +211,16 @@ void AudioManager::start()
 
 void AudioManager::stop()
 {
+    static bool alreadyStopped = false;
+    if (alreadyStopped) {
+        qCDebug(log_core_host_audio) << "AudioManager::stop() called but already stopped - ignoring";
+        return;
+    }
+    
     qCDebug(log_core_host_audio) << "Stopping AudioManager...";
     disconnect();
+    alreadyStopped = true;
+    qCDebug(log_core_host_audio) << "AudioManager stopped successfully";
 }
 
 bool AudioManager::switchToAudioDeviceByPortChain(const QString& portChain)
@@ -395,6 +452,7 @@ void AudioManager::initializeAudioWithDevice(const QAudioDevice& inputDevice)
         // Create and start the audio thread
         m_audioThread = new AudioThread(inputDevice, outputDevice, format, this);
         connect(m_audioThread, &AudioThread::error, this, &AudioManager::handleAudioError);
+        connect(m_audioThread, &AudioThread::cleanupRequested, this, &AudioManager::handleCleanupRequest, Qt::QueuedConnection);
         m_audioThread->start();
         
         // Initialize volume to 0 and start fade-in

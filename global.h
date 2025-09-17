@@ -27,7 +27,11 @@
 #include <QFile>
 #include <QTextStream>
 #include <QDebug>
+#include <QAtomicInteger>
 #include "resources/version.h"
+
+// Global shutdown flag to prevent Qt Multimedia operations during app shutdown
+extern QAtomicInteger<int> g_applicationShuttingDown;
 
 // inline QString getAppVersion() {
 //     return QString(APP_VERSION);

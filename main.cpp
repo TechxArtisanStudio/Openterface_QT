@@ -29,6 +29,9 @@
 #include "ui/languagemanager.h"
 #include <QCoreApplication>
 
+// Define global shutdown flag
+QAtomicInteger<int> g_applicationShuttingDown(0);
+
 // GStreamer includes
 #ifdef HAVE_GSTREAMER
 #include <gst/gst.h>

@@ -40,10 +40,6 @@
 <context>
     <name>EnvironmentSetupDialog</name>
     <message>
-        <source>Environment Setup</source>
-        <translation type="vanished">Miljöinställningar</translation>
-    </message>
-    <message>
         <location filename="../../ui/advance/envdialog.ui" line="6"/>
         <source>Environment Helper</source>
         <translation type="unfinished">Miljøhjelpar</translation>
@@ -94,24 +90,6 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>&lt;a href=&quot;#&quot;&gt;Environment Setup Documentation&lt;/a&gt;</source>
-        <translation type="vanished">&lt;a href=&quot;#&quot;&gt;Dokumentation för miljöinställninga l&apos;environnement&lt;/a&gt;</translation>
-    </message>
-    <message>
-        <source> The driver is installed. No further action is required.</source>
-        <translation type="vanished"> Drivrutinen är installerad. Inga ytterligare åtgärder krävs.</translation>
-    </message>
-    <message>
-        <source> The driver is missing. Openterface Mini-KVM will install it automatically.</source>
-        <translation type="vanished"> Drivrutinen saknas. Openterface Mini-KVM installerar den automatiskt.</translation>
-    </message>
-    <message>
-        <source>The following steps help you install the driver and add user to correct group. Current status:
-</source>
-        <translation type="vanished">Följande steg hjälper dig att installera drivrutinen och lägga till användaren i rätt grupp. Aktuell status:
-</translation>
-    </message>
-    <message>
         <location filename="../../ui/advance/envdialog.cpp" line="120"/>
         <source> The device is not plugged in. Please plug it in and try again.</source>
         <translation type="unfinished"> Eininga er ikkje plugga inn. Plugg den inn og prøv igjen.</translation>
@@ -121,10 +99,6 @@
         <location filename="../../ui/advance/envdialog.cpp" line="142"/>
         <source>‣ Driver Installed: </source>
         <translation>‣ Drivrutin installerad: </translation>
-    </message>
-    <message>
-        <source>‣ In Dialout Group: </source>
-        <translation type="vanished">‣ I Dialout-gruppen: </translation>
     </message>
     <message>
         <location filename="../../ui/advance/envdialog.cpp" line="111"/>
@@ -196,10 +170,6 @@
         <location filename="../../ui/advance/envdialog.cpp" line="265"/>
         <source>Serial port Permission: </source>
         <translation type="unfinished">Tilgang til serieport: </translation>
-    </message>
-    <message>
-        <source>In Dialout Group: </source>
-        <translation type="vanished">I Dialout-gruppen: </translation>
     </message>
     <message>
         <location filename="../../ui/advance/envdialog.cpp" line="107"/>
@@ -540,14 +510,6 @@ Försök igen efter att ha startat om programmet.</translation>
         <translation>Openterface Mini-KVM</translation>
     </message>
     <message>
-        <source>Select Keyboard Layout</source>
-        <translation type="vanished">Välj tangentbordslayout</translation>
-    </message>
-    <message>
-        <source>US QWERTY</source>
-        <translation type="vanished">US QWERTY</translation>
-    </message>
-    <message>
         <location filename="../../ui/mainwindow.ui" line="50"/>
         <source>File</source>
         <translation>Fil</translation>
@@ -603,335 +565,226 @@ Försök igen efter att ha startat om programmet.</translation>
         <translation>Avancerat</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="148"/>
+        <location filename="../../ui/mainwindow.ui" line="149"/>
         <source>Close</source>
         <translation>Stäng</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="153"/>
+        <location filename="../../ui/mainwindow.ui" line="154"/>
         <source>Change Settings</source>
         <translation>Ändra inställningar</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="158"/>
+        <location filename="../../ui/mainwindow.ui" line="159"/>
         <source>Reset Serial Port</source>
         <translation>Återställ serieport</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="163"/>
+        <location filename="../../ui/mainwindow.ui" line="164"/>
         <source>Serial Console</source>
         <translation>Seriekonsol</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="168"/>
+        <location filename="../../ui/mainwindow.ui" line="169"/>
         <source>AutoReszie</source>
         <translation>Automatisk storleksändring</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="173"/>
+        <location filename="../../ui/mainwindow.ui" line="174"/>
         <source>Factory Reset HID Chip</source>
         <translation>Återställ HID-chip till fabriksinställningar</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="178"/>
+        <location filename="../../ui/mainwindow.ui" line="179"/>
         <source>Preferences</source>
         <translation>Inställningar</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="183"/>
+        <location filename="../../ui/mainwindow.ui" line="184"/>
         <source>Office Website</source>
         <translation>Officiell webbplats</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="188"/>
+        <location filename="../../ui/mainwindow.ui" line="189"/>
         <source>Purchase</source>
         <translation>Köp</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="193"/>
+        <location filename="../../ui/mainwindow.ui" line="194"/>
         <source>Feedback</source>
         <translation>Återkoppling</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="198"/>
+        <location filename="../../ui/mainwindow.ui" line="199"/>
         <source>Update</source>
         <translation>Uppdatera</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="203"/>
+        <location filename="../../ui/mainwindow.ui" line="204"/>
         <source>Environment</source>
         <translation>Miljö</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="208"/>
+        <location filename="../../ui/mainwindow.ui" line="209"/>
         <source>About</source>
         <translation>Om</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="219"/>
+        <location filename="../../ui/mainwindow.ui" line="220"/>
         <source>Follow Switch</source>
         <translation>Följ omkopplare</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="227"/>
+        <location filename="../../ui/mainwindow.ui" line="228"/>
         <source>Paste</source>
         <translation>Klistra in</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="230"/>
+        <location filename="../../ui/mainwindow.ui" line="231"/>
         <source>Paste clipboard content to target</source>
         <translation>Klistra in urklippsinnehåll till målet</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="235"/>
+        <location filename="../../ui/mainwindow.ui" line="236"/>
         <source>Script Tool</source>
         <translation>Skriptverktyg</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="240"/>
+        <location filename="../../ui/mainwindow.ui" line="241"/>
+        <source>Video Recording Settings</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/mainwindow.ui" line="244"/>
+        <source>Configure video recording settings and start/stop recording</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/mainwindow.ui" line="249"/>
         <source>TCP Server</source>
         <translation>TCP-server</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="245"/>
+        <location filename="../../ui/mainwindow.ui" line="254"/>
         <source>Environment Checking</source>
         <translation>Miljökontroll</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="250"/>
+        <location filename="../../ui/mainwindow.ui" line="259"/>
         <source>Firmware Manager</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="255"/>
+        <location filename="../../ui/mainwindow.ui" line="264"/>
         <source>Firmware Update...</source>
         <translation>Firmware-uppdatering...</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="260"/>
+        <location filename="../../ui/mainwindow.ui" line="269"/>
         <source>Device Selector</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="263"/>
+        <location filename="../../ui/mainwindow.ui" line="272"/>
         <source>Open Device Selector Dialog</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="268"/>
+        <location filename="../../ui/mainwindow.ui" line="277"/>
         <source>Update Display Settings</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="271"/>
+        <location filename="../../ui/mainwindow.ui" line="280"/>
         <source>Update display name and serial number in EDID</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="280"/>
+        <location filename="../../ui/mainwindow.ui" line="289"/>
         <source>115200</source>
         <translation>115200</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="288"/>
+        <location filename="../../ui/mainwindow.ui" line="297"/>
         <source>9600</source>
         <translation>9600</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="298"/>
+        <location filename="../../ui/mainwindow.ui" line="307"/>
         <source>To Host</source>
         <translation>Till värd</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="306"/>
+        <location filename="../../ui/mainwindow.ui" line="315"/>
         <source>To Target</source>
         <translation>Till mål</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="319"/>
+        <location filename="../../ui/mainwindow.ui" line="328"/>
         <source>Absolute</source>
         <translation>Absolut</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="327"/>
+        <location filename="../../ui/mainwindow.ui" line="336"/>
         <source>Relative</source>
         <translation>Relativ</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="340"/>
+        <location filename="../../ui/mainwindow.ui" line="349"/>
         <source>Auto Hide</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="343"/>
+        <location filename="../../ui/mainwindow.ui" line="352"/>
         <source>Auto hide mouse cursor</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="351"/>
+        <location filename="../../ui/mainwindow.ui" line="360"/>
         <source>Always Show</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="354"/>
+        <location filename="../../ui/mainwindow.ui" line="363"/>
         <source>Always show mouse cursor</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Zoom in</source>
-        <translation type="vanished">Zooma in</translation>
-    </message>
-    <message>
-        <source>Zoom out</source>
-        <translation type="vanished">Zooma ut</translation>
-    </message>
-    <message>
-        <source>Restore original size</source>
-        <translation type="vanished">Återställ ursprunglig storlek</translation>
-    </message>
-    <message>
-        <source>Function key and composite key</source>
-        <translation type="vanished">Funktionstangent och kombinationstangent</translation>
-    </message>
-    <message>
-        <source>Paste text to target</source>
-        <translation type="vanished">Klistra in text till målet</translation>
-    </message>
-    <message>
-        <source>Mouse dance</source>
-        <translation type="vanished">Musdans</translation>
-    </message>
-    <message>
-        <source>Full screen capture</source>
-        <translation type="vanished">Vollbildsfångst</translation>
-    </message>
-    <message>
-        <source>Full screen mode</source>
-        <translation type="vanished">Vollbildsläge</translation>
-    </message>
-    <message>
-        <location filename="../../ui/mainwindow.cpp" line="1102"/>
+        <location filename="../../ui/mainwindow.cpp" line="1103"/>
         <source>Recorded %1 sec</source>
         <translation>Inspelade %1 sek</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1283"/>
+        <location filename="../../ui/mainwindow.cpp" line="1318"/>
         <source>Image Capture Error</source>
         <translation>Fel vid bildfångst</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1444"/>
+        <location filename="../../ui/mainwindow.cpp" line="1479"/>
         <source>Captured &quot;%1&quot;</source>
         <translation>Fångade &quot;%1&quot;</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1998"/>
+        <location filename="../../ui/mainwindow.cpp" line="2057"/>
         <source>Firmware Update</source>
         <translation>Firmware-uppdatering</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1999"/>
+        <location filename="../../ui/mainwindow.cpp" line="2058"/>
         <source>The firmware is up to date.
 Current version: </source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="2021"/>
+        <location filename="../../ui/mainwindow.cpp" line="2080"/>
         <source>Firmware fetch timeout</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="2022"/>
+        <location filename="../../ui/mainwindow.cpp" line="2081"/>
         <source>Firmware retrieval timed out. Please check your network connection and try again.
 Current version: </source>
         <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>The firmware is up to date.</source>
-        <translation type="vanished">Firmwaren är uppdaterad.</translation>
-    </message>
-    <message>
-        <source>Firmware Update Confirmation</source>
-        <translation type="vanished">Bekräftelse av firmware-uppdatering</translation>
-    </message>
-    <message>
-        <source>Current firmware version: </source>
-        <translation type="vanished">Aktuell firmware-version: </translation>
-    </message>
-    <message>
-        <source>
-</source>
-        <translation type="vanished">
-</translation>
-    </message>
-    <message>
-        <source>Latest firmware version: </source>
-        <translation type="vanished">Senaste firmware-version: </translation>
-    </message>
-    <message>
-        <source>
-
-</source>
-        <translation type="vanished">
-
-</translation>
-    </message>
-    <message>
-        <source>The update process will:
-</source>
-        <translation type="vanished">Uppdateringsprocessen kommer att:
-</translation>
-    </message>
-    <message>
-        <source>1. Stop all video and USB operations
-2. Install new firmware
-3. Close the application automatically
-
-Important:
-• Use a high-quality USB cable for host connection
-• Disconnect the HDMI cable
-• Do not interrupt power during update
-• Restart application after completion
-
-Do you want to proceed with the update?</source>
-        <translation type="vanished">1. Stoppa alla video- och USB-operationer
-2. Installera ny firmware
-3. Stänga programmet automatiskt
-
-Viktigt:
-• Använd en högkvalitativ USB-kabel för värdanslutning
-• Koppla bort HDMI-kabeln
-• Avbryt inte strömmen under uppdateringen
-• Starta om programmet efter slutförandet
-
-Vill du fortsätta med uppdateringen?</translation>
-    </message>
-</context>
-<context>
-    <name>MetaDataDialog</name>
-    <message>
-        <source>Openterface Mini KVM</source>
-        <translation type="vanished">Openterface Mini KVM</translation>
-    </message>
-    <message>
-        <source>TechxArtisan</source>
-        <translation type="vanished">TechxArtisan</translation>
-    </message>
-    <message>
-        <source>Open</source>
-        <translation type="vanished">Öppna</translation>
-    </message>
-    <message>
-        <source>Set Metadata</source>
-        <translation type="vanished">Ange metadata</translation>
-    </message>
-    <message>
-        <source>Open Image</source>
-        <translation type="vanished">Öppna bild</translation>
-    </message>
-    <message>
-        <source>Image Files (*.png *.jpg *.bmp)</source>
-        <translation type="vanished">Bildfiler (*.png *.jpg *.bmp)</translation>
     </message>
 </context>
 <context>
@@ -1208,10 +1061,6 @@ Please:
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Hardware</source>
-        <translation type="vanished">Hårdvara</translation>
-    </message>
-    <message>
         <location filename="../../ui/preferences/settingdialog.cpp" line="117"/>
         <source>OK</source>
         <translation>OK</translation>
@@ -1233,10 +1082,6 @@ Please:
         <location filename="../../ui/preferences/targetcontrolpage.cpp" line="38"/>
         <source>Target control setting</source>
         <translation>Inställning av målstyrning</translation>
-    </message>
-    <message>
-        <source>UVC Camera resource: </source>
-        <translation type="vanished">UVC-kameraresurs: </translation>
     </message>
     <message>
         <location filename="../../ui/preferences/targetcontrolpage.cpp" line="42"/>
@@ -1740,10 +1585,6 @@ Kontrollera din internetanslutning.
 <context>
     <name>VideoPage</name>
     <message>
-        <source>UVC Camera resource: </source>
-        <translation type="obsolete">UVC-kameraresurs: </translation>
-    </message>
-    <message>
         <location filename="../../ui/preferences/videopage.cpp" line="97"/>
         <source>General video setting</source>
         <translation>Allmänna videoinställningar</translation>
@@ -1787,10 +1628,6 @@ Kontrollera din internetanslutning.
         <location filename="../../ui/preferences/videopage.cpp" line="162"/>
         <source>Available placeholders: %DEVICE%, %WIDTH%, %HEIGHT%, %FRAMERATE%</source>
         <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Default pixel format</source>
-        <translation type="vanished">Standardpixelformat</translation>
     </message>
 </context>
 </TS>

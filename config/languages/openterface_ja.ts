@@ -40,10 +40,6 @@
 <context>
     <name>EnvironmentSetupDialog</name>
     <message>
-        <source>Environment Setup</source>
-        <translation type="vanished">環境設定</translation>
-    </message>
-    <message>
         <location filename="../../ui/advance/envdialog.ui" line="6"/>
         <source>Environment Helper</source>
         <translation type="unfinished">環境ヘルパー</translation>
@@ -94,24 +90,6 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>&lt;a href=&quot;#&quot;&gt;Environment Setup Documentation&lt;/a&gt;</source>
-        <translation type="vanished">&lt;a href=&quot;#&quot;&gt;環境設定ドキュメント l&apos;environnement&lt;/a&gt;</translation>
-    </message>
-    <message>
-        <source> The driver is installed. No further action is required.</source>
-        <translation type="vanished"> ドライバーがインストールされています。これ以上の操作は必要ありません。</translation>
-    </message>
-    <message>
-        <source> The driver is missing. Openterface Mini-KVM will install it automatically.</source>
-        <translation type="vanished"> ドライバーが不足しています。Openterface Mini-KVMが自動的にインストールします。</translation>
-    </message>
-    <message>
-        <source>The following steps help you install the driver and add user to correct group. Current status:
-</source>
-        <translation type="vanished">以下の手順でドライバーをインストールし、ユーザーを正しいグループに追加できます。現在の状態:
-</translation>
-    </message>
-    <message>
         <location filename="../../ui/advance/envdialog.cpp" line="120"/>
         <source> The device is not plugged in. Please plug it in and try again.</source>
         <translation type="unfinished"> デバイスが接続されていません。接続してから、もう一度お試しください。</translation>
@@ -121,10 +99,6 @@
         <location filename="../../ui/advance/envdialog.cpp" line="142"/>
         <source>‣ Driver Installed: </source>
         <translation>‣ ドライバーインストール済み: </translation>
-    </message>
-    <message>
-        <source>‣ In Dialout Group: </source>
-        <translation type="vanished">‣ Dialoutグループに所属: </translation>
     </message>
     <message>
         <location filename="../../ui/advance/envdialog.cpp" line="111"/>
@@ -196,10 +170,6 @@
         <location filename="../../ui/advance/envdialog.cpp" line="265"/>
         <source>Serial port Permission: </source>
         <translation type="unfinished">シリアルポートの権限： </translation>
-    </message>
-    <message>
-        <source>In Dialout Group: </source>
-        <translation type="vanished">Dialoutグループに所属: </translation>
     </message>
     <message>
         <location filename="../../ui/advance/envdialog.cpp" line="107"/>
@@ -542,14 +512,6 @@ Please try again after restarting the application.</source>
         <translation>Openterface Mini-KVM</translation>
     </message>
     <message>
-        <source>Select Keyboard Layout</source>
-        <translation type="vanished">キーボードレイアウトを選択</translation>
-    </message>
-    <message>
-        <source>US QWERTY</source>
-        <translation type="vanished">US QWERTY</translation>
-    </message>
-    <message>
         <location filename="../../ui/mainwindow.ui" line="50"/>
         <source>File</source>
         <translation>ファイル</translation>
@@ -605,335 +567,226 @@ Please try again after restarting the application.</source>
         <translation>高度</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="148"/>
+        <location filename="../../ui/mainwindow.ui" line="149"/>
         <source>Close</source>
         <translation>閉じる</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="153"/>
+        <location filename="../../ui/mainwindow.ui" line="154"/>
         <source>Change Settings</source>
         <translation>設定を変更</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="158"/>
+        <location filename="../../ui/mainwindow.ui" line="159"/>
         <source>Reset Serial Port</source>
         <translation>シリアルポートをリセット</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="163"/>
+        <location filename="../../ui/mainwindow.ui" line="164"/>
         <source>Serial Console</source>
         <translation>シリアルコンソール</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="168"/>
+        <location filename="../../ui/mainwindow.ui" line="169"/>
         <source>AutoReszie</source>
         <translation>自動リサイズ</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="173"/>
+        <location filename="../../ui/mainwindow.ui" line="174"/>
         <source>Factory Reset HID Chip</source>
         <translation>HIDチップを工場出荷時にリセット</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="178"/>
+        <location filename="../../ui/mainwindow.ui" line="179"/>
         <source>Preferences</source>
         <translation>プリファレンス</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="183"/>
+        <location filename="../../ui/mainwindow.ui" line="184"/>
         <source>Office Website</source>
         <translation>公式ウェブサイト</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="188"/>
+        <location filename="../../ui/mainwindow.ui" line="189"/>
         <source>Purchase</source>
         <translation>購入</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="193"/>
+        <location filename="../../ui/mainwindow.ui" line="194"/>
         <source>Feedback</source>
         <translation>フィードバック</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="198"/>
+        <location filename="../../ui/mainwindow.ui" line="199"/>
         <source>Update</source>
         <translation>更新</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="203"/>
+        <location filename="../../ui/mainwindow.ui" line="204"/>
         <source>Environment</source>
         <translation>環境</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="208"/>
+        <location filename="../../ui/mainwindow.ui" line="209"/>
         <source>About</source>
         <translation>について</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="219"/>
+        <location filename="../../ui/mainwindow.ui" line="220"/>
         <source>Follow Switch</source>
         <translation>スイッチに従う</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="227"/>
+        <location filename="../../ui/mainwindow.ui" line="228"/>
         <source>Paste</source>
         <translation>貼り付け</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="230"/>
+        <location filename="../../ui/mainwindow.ui" line="231"/>
         <source>Paste clipboard content to target</source>
         <translation>クリップボードの内容をターゲットに貼り付け</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="235"/>
+        <location filename="../../ui/mainwindow.ui" line="236"/>
         <source>Script Tool</source>
         <translation>スクリプトツール</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="240"/>
+        <location filename="../../ui/mainwindow.ui" line="241"/>
+        <source>Video Recording Settings</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/mainwindow.ui" line="244"/>
+        <source>Configure video recording settings and start/stop recording</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/mainwindow.ui" line="249"/>
         <source>TCP Server</source>
         <translation>TCPサーバー</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="245"/>
+        <location filename="../../ui/mainwindow.ui" line="254"/>
         <source>Environment Checking</source>
         <translation>環境チェック</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="250"/>
+        <location filename="../../ui/mainwindow.ui" line="259"/>
         <source>Firmware Manager</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="255"/>
+        <location filename="../../ui/mainwindow.ui" line="264"/>
         <source>Firmware Update...</source>
         <translation>ファームウェア更新...</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="260"/>
+        <location filename="../../ui/mainwindow.ui" line="269"/>
         <source>Device Selector</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="263"/>
+        <location filename="../../ui/mainwindow.ui" line="272"/>
         <source>Open Device Selector Dialog</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="268"/>
+        <location filename="../../ui/mainwindow.ui" line="277"/>
         <source>Update Display Settings</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="271"/>
+        <location filename="../../ui/mainwindow.ui" line="280"/>
         <source>Update display name and serial number in EDID</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="280"/>
+        <location filename="../../ui/mainwindow.ui" line="289"/>
         <source>115200</source>
         <translation>115200</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="288"/>
+        <location filename="../../ui/mainwindow.ui" line="297"/>
         <source>9600</source>
         <translation>9600</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="298"/>
+        <location filename="../../ui/mainwindow.ui" line="307"/>
         <source>To Host</source>
         <translation>ホストへ</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="306"/>
+        <location filename="../../ui/mainwindow.ui" line="315"/>
         <source>To Target</source>
         <translation>ターゲットへ</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="319"/>
+        <location filename="../../ui/mainwindow.ui" line="328"/>
         <source>Absolute</source>
         <translation>絶対</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="327"/>
+        <location filename="../../ui/mainwindow.ui" line="336"/>
         <source>Relative</source>
         <translation>相対</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="340"/>
+        <location filename="../../ui/mainwindow.ui" line="349"/>
         <source>Auto Hide</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="343"/>
+        <location filename="../../ui/mainwindow.ui" line="352"/>
         <source>Auto hide mouse cursor</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="351"/>
+        <location filename="../../ui/mainwindow.ui" line="360"/>
         <source>Always Show</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="354"/>
+        <location filename="../../ui/mainwindow.ui" line="363"/>
         <source>Always show mouse cursor</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Zoom in</source>
-        <translation type="vanished">ズームイン</translation>
-    </message>
-    <message>
-        <source>Zoom out</source>
-        <translation type="vanished">ズームアウト</translation>
-    </message>
-    <message>
-        <source>Restore original size</source>
-        <translation type="vanished">元のサイズに戻す</translation>
-    </message>
-    <message>
-        <source>Function key and composite key</source>
-        <translation type="vanished">ファンクションキーと複合キー</translation>
-    </message>
-    <message>
-        <source>Paste text to target</source>
-        <translation type="vanished">ターゲットにテキストを貼り付け</translation>
-    </message>
-    <message>
-        <source>Mouse dance</source>
-        <translation type="vanished">マウスダンス</translation>
-    </message>
-    <message>
-        <source>Full screen capture</source>
-        <translation type="vanished">フルスクリーンキャプチャ</translation>
-    </message>
-    <message>
-        <source>Full screen mode</source>
-        <translation type="vanished">フルスクリーンモード</translation>
-    </message>
-    <message>
-        <location filename="../../ui/mainwindow.cpp" line="1102"/>
+        <location filename="../../ui/mainwindow.cpp" line="1103"/>
         <source>Recorded %1 sec</source>
         <translation>%1秒録画しました</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1283"/>
+        <location filename="../../ui/mainwindow.cpp" line="1318"/>
         <source>Image Capture Error</source>
         <translation>画像キャプチャエラー</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1444"/>
+        <location filename="../../ui/mainwindow.cpp" line="1479"/>
         <source>Captured &quot;%1&quot;</source>
         <translation>&quot;%1&quot;をキャプチャしました</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1998"/>
+        <location filename="../../ui/mainwindow.cpp" line="2057"/>
         <source>Firmware Update</source>
         <translation>ファームウェア更新</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1999"/>
+        <location filename="../../ui/mainwindow.cpp" line="2058"/>
         <source>The firmware is up to date.
 Current version: </source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="2021"/>
+        <location filename="../../ui/mainwindow.cpp" line="2080"/>
         <source>Firmware fetch timeout</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="2022"/>
+        <location filename="../../ui/mainwindow.cpp" line="2081"/>
         <source>Firmware retrieval timed out. Please check your network connection and try again.
 Current version: </source>
         <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>The firmware is up to date.</source>
-        <translation type="vanished">ファームウェアは最新です。</translation>
-    </message>
-    <message>
-        <source>Firmware Update Confirmation</source>
-        <translation type="vanished">ファームウェア更新の確認</translation>
-    </message>
-    <message>
-        <source>Current firmware version: </source>
-        <translation type="vanished">現在のファームウェアバージョン: </translation>
-    </message>
-    <message>
-        <source>
-</source>
-        <translation type="vanished">
-</translation>
-    </message>
-    <message>
-        <source>Latest firmware version: </source>
-        <translation type="vanished">最新のファームウェアバージョン: </translation>
-    </message>
-    <message>
-        <source>
-
-</source>
-        <translation type="vanished">
-
-</translation>
-    </message>
-    <message>
-        <source>The update process will:
-</source>
-        <translation type="vanished">更新プロセスでは:
-</translation>
-    </message>
-    <message>
-        <source>1. Stop all video and USB operations
-2. Install new firmware
-3. Close the application automatically
-
-Important:
-• Use a high-quality USB cable for host connection
-• Disconnect the HDMI cable
-• Do not interrupt power during update
-• Restart application after completion
-
-Do you want to proceed with the update?</source>
-        <translation type="vanished">1. すべてのビデオおよびUSB操作を停止
-2. 新しいファームウェアをインストール
-3. アプリケーションを自動的に閉じる
-
-重要:
-• ホスト接続には高品質のUSBケーブルを使用してください
-• HDMIケーブルを切断してください
-• 更新中に電源を遮断しないでください
-• 完了後にアプリケーションを再起動してください
-
-更新を進めますか？</translation>
-    </message>
-</context>
-<context>
-    <name>MetaDataDialog</name>
-    <message>
-        <source>Openterface Mini KVM</source>
-        <translation type="vanished">Openterface Mini KVM</translation>
-    </message>
-    <message>
-        <source>TechxArtisan</source>
-        <translation type="vanished">TechxArtisan</translation>
-    </message>
-    <message>
-        <source>Open</source>
-        <translation type="vanished">開く</translation>
-    </message>
-    <message>
-        <source>Set Metadata</source>
-        <translation type="vanished">メタデータを設定</translation>
-    </message>
-    <message>
-        <source>Open Image</source>
-        <translation type="vanished">画像を開く</translation>
-    </message>
-    <message>
-        <source>Image Files (*.png *.jpg *.bmp)</source>
-        <translation type="vanished">画像ファイル (*.png *.jpg *.bmp)</translation>
     </message>
 </context>
 <context>
@@ -1210,10 +1063,6 @@ Please:
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Hardware</source>
-        <translation type="vanished">ハードウェア</translation>
-    </message>
-    <message>
         <location filename="../../ui/preferences/settingdialog.cpp" line="117"/>
         <source>OK</source>
         <translation>OK</translation>
@@ -1235,14 +1084,6 @@ Please:
         <location filename="../../ui/preferences/targetcontrolpage.cpp" line="38"/>
         <source>Target control setting</source>
         <translation>ターゲット制御設定</translation>
-    </message>
-    <message>
-        <source>UVC Camera resource: </source>
-        <translation type="vanished">UVCカメラリソース: </translation>
-    </message>
-    <message>
-        <source>Custom target USB Composite Device VID and PID: </source>
-        <translation type="vanished">カスタムターゲット USB 複合デバイス VID と PID: </translation>
     </message>
     <message>
         <location filename="../../ui/preferences/targetcontrolpage.cpp" line="42"/>
@@ -1746,10 +1587,6 @@ Please check your internet connection.
 <context>
     <name>VideoPage</name>
     <message>
-        <source>UVC Camera resource: </source>
-        <translation type="obsolete">UVCカメラリソース: </translation>
-    </message>
-    <message>
         <location filename="../../ui/preferences/videopage.cpp" line="97"/>
         <source>General video setting</source>
         <translation>一般的なビデオ設定</translation>
@@ -1793,10 +1630,6 @@ Please check your internet connection.
         <location filename="../../ui/preferences/videopage.cpp" line="162"/>
         <source>Available placeholders: %DEVICE%, %WIDTH%, %HEIGHT%, %FRAMERATE%</source>
         <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Default pixel format</source>
-        <translation type="vanished">デフォルトのピクセル形式</translation>
     </message>
 </context>
 </TS>
