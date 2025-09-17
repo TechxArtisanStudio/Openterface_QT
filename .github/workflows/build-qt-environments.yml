@@ -84,8 +84,6 @@ jobs:
         run: |
           echo "Testing network connectivity to GitHub..."
           curl -I --connect-timeout 10 https://api.github.com
-          echo "Pinging GitHub..."
-          ping -c 4 github.com
 
       - name: Check Environment
         run: |
@@ -181,8 +179,6 @@ jobs:
         run: |
           echo "Testing network connectivity to GitHub..."
           curl -I --connect-timeout 10 https://api.github.com
-          echo "Pinging GitHub..."
-          ping -c 4 github.com
 
       - name: Check Environment
         run: |
