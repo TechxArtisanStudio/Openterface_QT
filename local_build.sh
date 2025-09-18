@@ -1,23 +1,18 @@
 #!/bin/bash
 
 # Simple build script using the specific Docker image
-# ghcr.io/techxartisanstudio/o    if ! rm -rf "$BUILD_DIR" 2>/dev/null; then
-        # If that fails due to permissions, use Docker to clean it
-        log_info "Using Docker to clean build directory due to permission issues..."
-        docker run --rm \
-            -v "$PROJECT_ROOT:/workspace" \
-            -w /workspace \
-            --user root \
-            "busybox" \
-            sh -c "rm -rf build-simple-static" || true
-    fi-qtbuild-complete
+# ghcr.io/techxartisanstudio/openterface-qtbuild-complete or openterface-qtbuild-shared
 
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$SCRIPT_DIR"
 BUILD_TYPE="${1:-static}"  # Default to static since we're using the complete image
-DOCKER_IMAGE="ghcr.io/techxartisanstudio/openterface-qtbuild-complete"
+if [[ "$BUILD_TYPE" == "shared" ]]; then
+    DOCKER_IMAGE="ghcr.io/techxartisanstudio/openterface-qtbuild-shared"
+else
+    DOCKER_IMAGE="ghcr.io/techxartisanstudio/openterface-qtbuild-complete"
+fi
 
 # Colors
 GREEN='\033[0;32m'
@@ -79,16 +74,16 @@ fi
 log_info "Checking Docker image availability..."
 
 # First try to find the image locally
-LOCAL_IMAGE=$(docker images --format "table {{.Repository}}:{{.Tag}}" | grep "ghcr.io/techxartisanstudio/openterface-qtbuild-complete" | head -1 | tr -d ' ')
+LOCAL_IMAGE=$(docker images --format "table {{.Repository}}:{{.Tag}}" | grep "$DOCKER_IMAGE" | head -1 | tr -d ' ')
 
 if [[ -n "$LOCAL_IMAGE" ]]; then
     log_info "Found local image: $LOCAL_IMAGE"
     DOCKER_IMAGE="$LOCAL_IMAGE"
-elif docker manifest inspect "$IMAGE_NAME" &> /dev/null; then
-    log_info "Image found in registry: $IMAGE_NAME"
-    DOCKER_IMAGE="$IMAGE_NAME"
+elif docker manifest inspect "$DOCKER_IMAGE" &> /dev/null; then
+    log_info "Image found in registry: $DOCKER_IMAGE"
+    DOCKER_IMAGE="$DOCKER_IMAGE"
 else
-    log_error "Docker image not found: $IMAGE_NAME"
+    log_error "Docker image not found: $DOCKER_IMAGE"
     log_error "Available images:"
     docker images | grep openterface-qtbuild || echo "No openterface-qtbuild images found"
     exit 1
@@ -129,7 +124,48 @@ echo "Working directory: $(pwd)"
 echo "Build directory: /workspace/build"
 echo "Source directory: /workspace/src"
 
+# Install additional dependencies for shared linking
+echo "Installing additional dependencies..."
+apt-get update -y
+apt-get install -y \
+    libgudev-1.0-dev \
+    libv4l-dev \
+    libzstd-dev \
+    liblzma-dev \
+    libbz2-dev \
+    libvdpau-dev \
+    libva-dev \
+    va-driver-all \
+    vainfo \
+    libavdevice-dev \
+    libavfilter-dev \
+    libavformat-dev \
+    libavcodec-dev \
+    libswresample-dev \
+    libswscale-dev \
+    libavutil-dev \
+    ffmpeg \
+    libgstreamer1.0-dev \
+    libgstreamer-plugins-base1.0-dev \
+    libgstreamer-plugins-good1.0-dev \
+    libgstreamer-plugins-bad1.0-dev \
+    gstreamer1.0-plugins-good \
+    gstreamer1.0-plugins-bad \
+    gstreamer1.0-plugins-ugly \
+    gstreamer1.0-libav \
+    gstreamer1.0-x || echo "Some packages failed to install, continuing..."
+
 cd /workspace/src
+
+# Verify FFmpeg installation
+echo "Verifying FFmpeg installation..."
+if pkg-config --exists libavcodec; then
+    echo "FFmpeg found via pkg-config:"
+    pkg-config --libs libavcodec
+else
+    echo "FFmpeg not found via pkg-config, checking manually..."
+    ls -la /usr/lib/x86_64-linux-gnu/libavcodec* || echo "FFmpeg libraries not found in /usr/lib/x86_64-linux-gnu/"
+fi
 
 # Process translations if tools are available
 echo "Processing translations..."
@@ -152,11 +188,24 @@ echo "Copying configuration files..."
 cp -r config/keyboards/*.json /workspace/build/config/keyboards/ 2>/dev/null || echo "No keyboard configs to copy"
 cp -r config/languages/*.qm /workspace/build/config/languages/ 2>/dev/null || echo "No language files to copy"
 
+# Set environment variables for shared linking
+export PKG_CONFIG_PATH="/opt/Qt6/lib/pkgconfig:/usr/local/lib/pkgconfig:/usr/lib/x86_64-linux-gnu/pkgconfig:$PKG_CONFIG_PATH"
+export CMAKE_PREFIX_PATH="/opt/Qt6:/usr/local:/usr:/usr/lib/x86_64-linux-gnu"
+
 # Configure and build
 cd /workspace/build
 echo "Configuring CMake for shared build..."
-cmake -DCMAKE_BUILD_TYPE=Release \
+echo "PKG_CONFIG_PATH: $PKG_CONFIG_PATH"
+echo "CMAKE_PREFIX_PATH: $CMAKE_PREFIX_PATH"
+
+cmake -DCMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH} \
+      -DCMAKE_BUILD_TYPE=Release \
       -DOPENTERFACE_BUILD_STATIC=OFF \
+      -DUSE_FFMPEG_STATIC=OFF \
+      -DUSE_GSTREAMER_STATIC_PLUGINS=OFF \
+      -DFFMPEG_PREFIX="/usr" \
+      -DCMAKE_LIBRARY_PATH="/opt/Qt6/lib:/usr/local/lib:/usr/lib/x86_64-linux-gnu:/usr/lib" \
+      -DCMAKE_INCLUDE_PATH="/opt/Qt6/include:/usr/local/include:/usr/include:/usr/include/x86_64-linux-gnu" \
       -DCMAKE_VERBOSE_MAKEFILE=ON \
       /workspace/src
 

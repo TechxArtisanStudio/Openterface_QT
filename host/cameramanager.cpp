@@ -185,6 +185,7 @@ void CameraManager::initializeBackendHandler()
 #endif
             
             // Connect Qt backend-specific setup if this is a Qt backend (Windows)
+#ifdef Q_OS_WIN
             qCDebug(log_ui_camera) << "Checking if backend handler is Qt type. Handler pointer:" << (void*)m_backendHandler.get();
             qCDebug(log_ui_camera) << "Backend type:" << static_cast<int>(m_backendHandler->getBackendType());
             if (auto qtHandler = qobject_cast<QtBackendHandler*>(m_backendHandler.get())) {
@@ -199,6 +200,7 @@ void CameraManager::initializeBackendHandler()
                 qCDebug(log_ui_camera) << "Backend handler is not Qt type or cast failed";
                 qCDebug(log_ui_camera) << "Handler type name:" << m_backendHandler->metaObject()->className();
             }
+#endif
         } else {
             qCCritical(log_ui_camera) << "Failed to create backend handler - returned nullptr";
         }
