@@ -46,6 +46,9 @@ CameraManager::CameraManager(QObject *parent)
         qCDebug(log_ui_camera) << "Windows platform detected - using Qt backend with recording support";
         // Initialize Qt backend for Windows with recording support
         initializeBackendHandler();
+        qCDebug(log_ui_camera) << "Windows platform detected - using Qt backend with recording support";
+        // Initialize Qt backend for Windows with recording support
+        initializeBackendHandler();
         // Setup Windows-specific hotplug monitoring
         setupWindowsHotplugMonitoring();
     }
@@ -185,6 +188,7 @@ void CameraManager::initializeBackendHandler()
 #endif
             
             // Connect Qt backend-specific setup if this is a Qt backend (Windows)
+#ifdef Q_OS_WIN
             qCDebug(log_ui_camera) << "Checking if backend handler is Qt type. Handler pointer:" << (void*)m_backendHandler.get();
             qCDebug(log_ui_camera) << "Backend type:" << static_cast<int>(m_backendHandler->getBackendType());
             if (auto qtHandler = qobject_cast<QtBackendHandler*>(m_backendHandler.get())) {
@@ -199,6 +203,7 @@ void CameraManager::initializeBackendHandler()
                 qCDebug(log_ui_camera) << "Backend handler is not Qt type or cast failed";
                 qCDebug(log_ui_camera) << "Handler type name:" << m_backendHandler->metaObject()->className();
             }
+#endif
         } else {
             qCCritical(log_ui_camera) << "Failed to create backend handler - returned nullptr";
         }
@@ -758,7 +763,9 @@ void CameraManager::setupConnections()
 void CameraManager::configureResolutionAndFormat()
 {
     // On Windows, use simple Qt approach with Qt backend support
+    // On Windows, use simple Qt approach with Qt backend support
     if (isWindowsPlatform()) {
+        qCDebug(log_ui_camera) << "Windows platform: Using Qt camera format configuration";
         qCDebug(log_ui_camera) << "Windows platform: Using Qt camera format configuration";
         
         QSize resolution = QSize(m_video_width > 0 ? m_video_width : 1920, 
@@ -768,6 +775,16 @@ void CameraManager::configureResolutionAndFormat()
         
         qCDebug(log_ui_camera) << "Windows: Setting resolution:" << resolution << "fps:" << desiredFps;
         
+        // Use Qt backend if available for format optimization
+        if (isQtBackend()) {
+            int optimalFps = getOptimalFrameRate(desiredFps);
+            QCameraFormat format = getVideoFormat(resolution, optimalFps, QVideoFrameFormat::Format_Jpeg);
+            setCameraFormat(format);
+        } else {
+            // Fallback to basic format selection
+            QCameraFormat format = getVideoFormat(resolution, desiredFps, QVideoFrameFormat::Format_Jpeg);
+            setCameraFormat(format);
+        }
         // Use Qt backend if available for format optimization
         if (isQtBackend()) {
             int optimalFps = getOptimalFrameRate(desiredFps);

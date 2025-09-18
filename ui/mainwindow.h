@@ -96,6 +96,10 @@ QT_END_NAMESPACE
 
 class MetaDataDialog;
 
+#ifdef Q_OS_WIN
+class QtBackendHandler;
+#endif
+
 QPixmap recolorSvg(const QString &svgPath, const QColor &color, const QSize &size);
 
 enum class ratioType{

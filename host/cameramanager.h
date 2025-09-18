@@ -18,6 +18,7 @@
 // Forward declarations
 class GStreamerBackendHandler;
 class FFmpegBackendHandler;
+class QtBackendHandler;
 class VideoPane;
 
 // Struct to represent a video format key, used for comparing and sorting video formats
@@ -99,6 +100,7 @@ public:
     int getOptimalFrameRate(int desiredFrameRate) const;
     QList<int> getAllSupportedFrameRates() const;
     void validateCameraFormat(const QCameraFormat& format) const;
+    
     // Helper methods to detect current multimedia backend
     bool isGStreamerBackend() const;
     bool isFFmpegBackend() const;
