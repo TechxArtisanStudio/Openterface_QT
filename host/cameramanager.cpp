@@ -6,8 +6,6 @@
 #include "host/backend/ffmpegbackendhandler.h"
 #else
 #include "host/backend/qtbackendhandler.h"
-#else
-#include "host/backend/qtbackendhandler.h"
 #endif
 
 #include "ui/videopane.h"
@@ -95,26 +93,6 @@ bool CameraManager::isGStreamerBackend() const
 bool CameraManager::isFFmpegBackend() const
 {
     return m_backendHandler && m_backendHandler->getBackendType() == MultimediaBackendType::FFmpeg;
-}
-
-bool CameraManager::isQtBackend() const
-{
-    return m_backendHandler && m_backendHandler->getBackendType() == MultimediaBackendType::Qt;
-}
-
-FFmpegBackendHandler* CameraManager::getFFmpegBackend() const
-{
-#ifndef Q_OS_WIN
-    if (isFFmpegBackend() && m_backendHandler) {
-        return static_cast<FFmpegBackendHandler*>(m_backendHandler.get());
-    }
-#endif
-    return nullptr;
-}
-
-MultimediaBackendHandler* CameraManager::getBackendHandler() const
-{
-    return m_backendHandler.get();
 }
 
 bool CameraManager::isQtBackend() const
@@ -306,8 +284,6 @@ void CameraManager::setCameraDevice(const QCameraDevice &cameraDevice)
         
         // Use backend handler for camera preparation if available (not for Windows Qt backend)
         if (m_backendHandler && !isQtBackend()) {
-        // Use backend handler for camera preparation if available (not for Windows Qt backend)
-        if (m_backendHandler && !isQtBackend()) {
             qCDebug(log_ui_camera) << "Using backend handler for camera device setup";
             m_backendHandler->prepareCameraCreation(m_camera.get());
         }
@@ -322,14 +298,10 @@ void CameraManager::setCameraDevice(const QCameraDevice &cameraDevice)
         
         // Configure camera device with backend handler (except for Qt backend which uses standard setup)
         if (m_backendHandler && !isQtBackend()) {
-        // Configure camera device with backend handler (except for Qt backend which uses standard setup)
-        if (m_backendHandler && !isQtBackend()) {
             qCDebug(log_ui_camera) << "Calling configureCameraDevice on backend handler:" << m_backendHandler->getBackendName();
             m_backendHandler->configureCameraDevice(m_camera.get(), cameraDevice);
             qCDebug(log_ui_camera) << "configureCameraDevice call completed";
         } else {
-            if (isQtBackend()) {
-                qCDebug(log_ui_camera) << "Qt backend: Using standard camera configuration";
             if (isQtBackend()) {
                 qCDebug(log_ui_camera) << "Qt backend: Using standard camera configuration";
             } else {
@@ -340,8 +312,6 @@ void CameraManager::setCameraDevice(const QCameraDevice &cameraDevice)
         // Setup connections before setting up capture session
         setupConnections();
         
-        // Set up capture session - Qt backend uses standard setup, others use custom setup
-        if (m_backendHandler && !isQtBackend()) {
         // Set up capture session - Qt backend uses standard setup, others use custom setup
         if (m_backendHandler && !isQtBackend()) {
             m_backendHandler->setupCaptureSession(&m_captureSession, m_camera.get());
@@ -358,18 +328,9 @@ void CameraManager::setCameraDevice(const QCameraDevice &cameraDevice)
             // Qt backend or fallback: standard setup
             if (isQtBackend()) {
                 qCDebug(log_ui_camera) << "Qt backend: Using standard Qt capture session setup";
-            // Qt backend or fallback: standard setup
-            if (isQtBackend()) {
-                qCDebug(log_ui_camera) << "Qt backend: Using standard Qt capture session setup";
             }
             m_captureSession.setCamera(m_camera.get());
             m_captureSession.setImageCapture(m_imageCapture.get());
-            
-            // For Qt backend, also set the media recorder for recording functionality
-            if (isQtBackend()) {
-                m_captureSession.setRecorder(m_mediaRecorder.get());
-                qCDebug(log_ui_camera) << "Qt backend: Media recorder added to capture session";
-            }
             
             // For Qt backend, also set the media recorder for recording functionality
             if (isQtBackend()) {

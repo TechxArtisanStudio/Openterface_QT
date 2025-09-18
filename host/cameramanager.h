@@ -19,7 +19,6 @@
 class GStreamerBackendHandler;
 class FFmpegBackendHandler;
 class QtBackendHandler;
-class FFmpegBackendHandler;
 class VideoPane;
 
 // Struct to represent a video format key, used for comparing and sorting video formats
@@ -64,8 +63,6 @@ public:
     QCamera* getCamera() const { return m_camera.get(); }
     QMediaRecorder* getMediaRecorder() const { return m_mediaRecorder.get(); }
     QMediaCaptureSession* getCaptureSession() { return &m_captureSession; }
-    QMediaRecorder* getMediaRecorder() const { return m_mediaRecorder.get(); }
-    QMediaCaptureSession* getCaptureSession() { return &m_captureSession; }
     void setVideoOutput(QGraphicsVideoItem* videoOutput);
     void setCameraFormat(const QCameraFormat &format);
     QCameraFormat getCameraFormat() const;
@@ -103,14 +100,10 @@ public:
     int getOptimalFrameRate(int desiredFrameRate) const;
     QList<int> getAllSupportedFrameRates() const;
     void validateCameraFormat(const QCameraFormat& format) const;
+    
     // Helper methods to detect current multimedia backend
     bool isGStreamerBackend() const;
     bool isFFmpegBackend() const;
-    bool isQtBackend() const;
-    
-    // Get backend handlers for advanced features
-    FFmpegBackendHandler* getFFmpegBackend() const;
-    MultimediaBackendHandler* getBackendHandler() const;
     bool isQtBackend() const;
     
     // Get backend handlers for advanced features

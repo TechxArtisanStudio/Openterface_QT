@@ -1208,6 +1208,7 @@ void MainWindow::showRecordingSettings() {
                     qDebug() << "Setting media recorder on Qt backend:" << (void*)mediaRecorder;
                     qDebug() << "Setting capture session on Qt backend:" << (void*)captureSession;
                     
+#ifdef Q_OS_WIN
                     if (auto qtHandler = qobject_cast<QtBackendHandler*>(backendHandler)) {
                         qtHandler->setMediaRecorder(mediaRecorder);
                         qtHandler->setCaptureSession(captureSession);
@@ -1215,6 +1216,9 @@ void MainWindow::showRecordingSettings() {
                     } else {
                         qWarning() << "Failed to cast to QtBackendHandler";
                     }
+#else
+                    qDebug() << "Qt backend configuration not available on non-Windows platforms";
+#endif
                 } else {
                     qWarning() << "Missing components - mediaRecorder:" << (void*)mediaRecorder 
                               << "captureSession:" << (void*)captureSession;
