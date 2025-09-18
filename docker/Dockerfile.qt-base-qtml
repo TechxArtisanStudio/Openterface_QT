@@ -42,11 +42,8 @@ RUN echo "Building qtbase..." && \
         -DQT_FEATURE_clang=OFF \
         -DFEATURE_clang=ON \
         .. && \
-    JOBS=$(nproc) && \
-    if [ "$JOBS" -gt 2 ]; then JOBS=$((JOBS-2)); else JOBS=1; fi && \
-    echo "Using $JOBS parallel jobs for ninja" && \
-    ninja -j "$JOBS" && \
-    ninja install -j "$JOBS"
+    ninja -j 1 && \
+    ninja install -j 1
 
 # Build qtshadertools
 RUN echo "Building qtshadertools..." && \
