@@ -1027,6 +1027,12 @@ void MainWindow::onTargetUsbConnected(const bool isConnected)
     m_statusBarManager->setTargetUsbConnected(isConnected);
 }
 
+void MainWindow::onKeyStatesChanged(bool numLock, bool capsLock, bool scrollLock)
+{
+    qCDebug(log_ui_mainwindow) << "Key states changed - NumLock:" << numLock << "CapsLock:" << capsLock << "ScrollLock:" << scrollLock;
+    m_statusBarManager->setKeyStates(numLock, capsLock, scrollLock);
+}
+
 void MainWindow::onActionPasteToTarget()
 {
     HostManager::getInstance().pasteTextToTarget(QGuiApplication::clipboard()->text());

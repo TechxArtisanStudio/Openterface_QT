@@ -184,6 +184,8 @@ private slots:
 
     void onTargetUsbConnected(const bool isConnected) override;
 
+    void onKeyStatesChanged(bool numLock, bool capsLock, bool scrollLock) override;
+
     void factoryReset(bool isStarted) override;
 
     void serialPortReset(bool isStarted) override;
