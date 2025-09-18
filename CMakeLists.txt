@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.16)
 project(openterfaceQT VERSION 1.0 LANGUAGES C CXX)
 
 # Option to control static vs dynamic linking
-option(OPENTERFACE_BUILD_STATIC "Link libraries statically where possible" OFF)
+option(OPENTERFACE_BUILD_STATIC "Link libraries statically where possible" ON)
 message(STATUS "OPENTERFACE_BUILD_STATIC: ${OPENTERFACE_BUILD_STATIC}")
 
 # Detect architecture at top-level so users can override via -DOPENTERFACE_ARCH if desired

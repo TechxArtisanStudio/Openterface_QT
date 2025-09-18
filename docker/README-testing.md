@@ -5,7 +5,7 @@ This Docker setup provides a clean testing environment for the Openterface QT ap
 ## Files
 
 - `Dockerfile.openterface-qt` - Clean testing environment with minimal runtime dependencies
-- `install-openterface.sh` - Installation script that downloads and sets up the latest release
+- `install-openterface-shared.sh` - Installation script that downloads and sets up the latest release
 - `run-openterface-docker.sh` - **Smart GUI launcher script** with automatic environment detection
 - `run-vnc-root.sh` - VNC-enabled launcher for remote GUI access
 - `test-x11.sh` - X11 environment diagnostic tool
@@ -172,12 +172,12 @@ The script ensures these runtime dependencies are available:
 
 The script automatically detects the latest version, but packages follow this pattern:
 ```
-https://github.com/TechxArtisanStudio/Openterface_QT/releases/download/{VERSION}/openterfaceQT.linux.amd64.deb
+https://github.com/TechxArtisanStudio/Openterface_QT/releases/download/{VERSION}/openterfaceQT.linux.amd64.shared.deb
 ```
 
 Example:
 ```
-https://github.com/TechxArtisanStudio/Openterface_QT/releases/download/v0.3.19/openterfaceQT.linux.amd64.deb
+https://github.com/TechxArtisanStudio/Openterface_QT/releases/download/v0.3.19/openterfaceQT.linux.amd64.shared.deb
 ```
 
 ## Supported Hardware

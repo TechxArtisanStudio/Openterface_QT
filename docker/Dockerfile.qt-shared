@@ -1,7 +1,11 @@
 # Dynamic Qt Build Environment
+ARG BASE_IMAGE=ghcr.io/techxartisanstudio/openterface-qtbuild-gstreamer:ubuntu-24.04-amd64
 ARG UBUNTU_VERSION=24.04
 ARG TARGETARCH=amd64
-FROM ubuntu:${UBUNTU_VERSION}
+FROM ${BASE_IMAGE}
+
+# Re-declare ARG after FROM to make it available in this build stage
+ARG TARGETARCH
 
 # Prevent interactive prompts during package installation
 ENV DEBIAN_FRONTEND=noninteractive
@@ -96,25 +100,7 @@ RUN apt-get update && \
         libva-dev \
         libvdpau-dev
 
-# Install FFmpeg development libraries and GStreamer plugins with architecture support
-RUN apt-get update && \
-    # Install native AMD64 multimedia libraries
-    apt-get install -y \
-        libavcodec-dev \
-        libavformat-dev \
-        libavutil-dev \
-        libswscale-dev \
-        libswresample-dev \
-        libavdevice-dev \
-        libavfilter-dev \
-        libjpeg-dev \
-        libturbojpeg0-dev \
-        gstreamer1.0-plugins-base \
-        gstreamer1.0-plugins-good \
-        gstreamer1.0-plugins-bad \
-        gstreamer1.0-tools; \
 
-    rm -rf /var/lib/apt/lists/*
 
 # Set architecture-aware library paths
 RUN if [ "$TARGETARCH" = "arm64" ]; then \
@@ -163,15 +149,6 @@ RUN mkdir -p /opt/verify && \
     echo '        echo "✗ $module pkg-config: FAILED"' >> /opt/verify/verify-qt-shared.sh && \
     echo '    fi' >> /opt/verify/verify-qt-shared.sh && \
     echo 'done' >> /opt/verify/verify-qt-shared.sh && \
-    echo 'echo -e "\nChecking additional libraries:"' >> /opt/verify/verify-qt-shared.sh && \
-    echo 'echo "JPEG library: $(pkg-config --exists libjpeg && echo "✓ Found" || echo "✗ Not found")"' >> /opt/verify/verify-qt-shared.sh && \
-    echo 'echo "TurboJPEG library: $(find /usr/lib -name "*turbojpeg*" -type f 2>/dev/null | head -1 | xargs -I {} echo "✓ Found: {}" || echo "✗ Not found")"' >> /opt/verify/verify-qt-shared.sh && \
-    echo 'echo "Available JPEG-related libraries:"' >> /opt/verify/verify-qt-shared.sh && \
-    echo 'find /usr/lib -name "*jpeg*" -type f 2>/dev/null | head -10' >> /opt/verify/verify-qt-shared.sh && \
-    echo 'echo -e "\nGStreamer plugins verification:"' >> /opt/verify/verify-qt-shared.sh && \
-    echo 'echo "Installed GStreamer plugins:"' >> /opt/verify/verify-qt-shared.sh && \
-    echo 'gst-inspect-1.0 | grep -E "(coreelements|v4l2|jpeg|ximagesink)" | head -10 || echo "Could not list plugins"' >> /opt/verify/verify-qt-shared.sh && \
-    echo 'echo -e "\nDynamic build environment ready!"' >> /opt/verify/verify-qt-shared.sh && \
     chmod +x /opt/verify/verify-qt-shared.sh
 
 # Verify Qt installation

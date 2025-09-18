@@ -71,6 +71,22 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Test Network Connectivity
+        run: |
+          echo "Testing network connectivity to GitHub..."
+          curl -I --connect-timeout 10 https://api.github.com
+
+      - name: Check Environment
+        run: |
+          echo "Runner environment info:"
+          uname -a
+          echo "Network interfaces:"
+          ip addr show
+          echo "DNS resolution:"
+          nslookup github.com
+          echo "GitHub Actions environment variables:"
+          env | grep GITHUB
+
       - name: Set lowercase image name
         run: echo "IMAGE_NAME_LOWER=$(echo '${{ github.repository_owner }}/openterface-qtbuild' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
 
@@ -139,7 +155,8 @@ jobs:
 
   # Static Qt Environment Build (existing multi-stage process)
   build-static-base:
-    if: ${{ github.event.inputs.environment_type == 'static' || github.event.inputs.environment_type == 'both' || (github.event.inputs.step == 'base' || github.event.inputs.step == 'qt-base-qtml' || github.event.inputs.step == 'qt-declarative' || github.event.inputs.step == 'qt-complete' || github.event.inputs.step == 'all') }}
+    if: ${{ github.event.inputs.environment_type == 'static' || github.event.inputs.environment_type == 'both' || 
+        (github.event.inputs.environment_type == 'static' && (github.event.inputs.step == 'base' || github.event.inputs.step == 'qt-base-qtml' || github.event.inputs.step == 'qt-declarative' || github.event.inputs.step == 'qt-complete' || github.event.inputs.step == 'all')) }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -523,7 +540,7 @@ jobs:
           echo "**Shared Build:**" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
           echo "docker run --rm -v \$(pwd):/workspace/src -w /workspace/src \\" >> $GITHUB_STEP_SUMMARY
-          echo "  ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-dynamic:ubuntu-${{ github.event.inputs.ubuntu_version || '24.04' }}-amd64 \\" >> $GITHUB_STEP_SUMMARY
+          echo "  ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-shared:ubuntu-${{ github.event.inputs.ubuntu_version || '24.04' }}-amd64 \\" >> $GITHUB_STEP_SUMMARY
           echo "  bash -c 'mkdir build && cd build && cmake -DBUILD_SHARED_LIBS=ON .. && make -j\$(nproc)'" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY

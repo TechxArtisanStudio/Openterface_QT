@@ -1,0 +1,89 @@
+# Dockerfile for Testing Openterface QT Application on Fedora
+# This Dockerfile creates a clean testing environment for the Openterface QT application
+# Downloads and installs the prebuilt package with runtime dependencies only
+
+FROM fedora:latest
+
+# Set environment variables
+ENV TZ=UTC
+
+# Set up display environment for GUI applications
+ENV DISPLAY=:0
+ENV QT_X11_NO_MITSHM=1
+ENV QT_QPA_PLATFORM=xcb
+
+# Install minimal system dependencies and runtime libraries only
+RUN dnf update -y && \
+    dnf install -y \
+        # Essential utilities
+        curl \
+        wget \
+        ca-certificates \
+        sudo \
+        udev \
+        usbutils \
+        # Runtime Qt6 libraries
+        qt6-qtbase \
+        qt6-qtbase-gui \
+        qt6-qtdeclarative \
+        qt6-qtmultimedia \
+        qt6-qtserialport \
+        qt6-qtsvg \
+        # Hardware interface libraries (runtime only)
+        libusb1 \
+        systemd-udev \
+        # X11 and graphics libraries (runtime only)
+        libX11 \
+        libXrandr \
+        libXrender \
+        expat \
+        freetype \
+        fontconfig \
+        bzip2-libs \
+        # FFmpeg runtime libraries
+        ffmpeg-libs \
+        libturbojpeg \
+        # GStreamer runtime dependencies
+        gstreamer1 \
+        gstreamer1-plugins-base \
+        gstreamer1-plugins-good \
+        gstreamer1-plugins-bad-free \
+        gstreamer1-plugins-ugly \
+        gstreamer1-libav \
+        gstreamer1-plugins-good-extras \
+        gstreamer1-plugins-bad-free-extras \
+        # Clean up to reduce image size
+    && dnf clean all && \
+    rm -rf /var/cache/dnf
+
+# Create a non-root user for running the application
+RUN useradd -m -s /bin/bash openterface && \
+    usermod -a -G dialout,uucp,audio,video openterface && \
+    echo "openterface ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+
+# Copy and run the installation script
+COPY install-openterface-shared.sh /tmp/install-openterface-shared.sh
+RUN chmod +x /tmp/install-openterface-shared.sh && \
+    /tmp/install-openterface-shared.sh && \
+    rm /tmp/install-openterface-shared.sh
+
+# Set up udev rules for Openterface hardware (backup rules, main setup in install script)
+RUN echo 'SUBSYSTEM=="hidraw", ATTRS{idVendor}=="534d", ATTRS{idProduct}=="2109", TAG+="uaccess", MODE="0666"' > /etc/udev/rules.d/50-openterface-backup.rules && \
+    echo 'SUBSYSTEM=="usb", ATTRS{idVendor}=="534d", ATTRS{idProduct}=="2109", TAG+="uaccess", MODE="0666"' >> /etc/udev/rules.d/50-openterface-backup.rules && \
+    echo 'SUBSYSTEM=="ttyUSB", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="7523", TAG+="uaccess", MODE="0666"' >> /etc/udev/rules.d/50-openterface-backup.rules && \
+    echo 'SUBSYSTEM=="usb", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="7523", TAG+="uaccess", MODE="0666"' >> /etc/udev/rules.d/50-openterface-backup.rules
+
+# Switch to non-root user
+USER openterface
+
+# Set the working directory
+WORKDIR /home/openterface
+
+# Add labels for metadata
+LABEL maintainer="TechxArtisan Studio"
+LABEL description="Openterface QT Mini-KVM testing environment on Fedora"
+LABEL version="latest"
+LABEL purpose="testing"
+
+# Default command to run the application
+CMD ["/usr/local/bin/start-openterface.sh"]

@@ -5,7 +5,7 @@ This directory contains Docker configurations for testing the statically-linked 
 ## Files Overview
 
 ### Static Testing Environment
-- `Dockerfile.openterface-test-static` - Minimal Docker image for static builds
+- `testos/Dockerfile.ubuntu-test-static` - Minimal Docker image for static builds
 - `install-openterface-static.sh` - Installation script for static packages
 - `run-openterface-static-docker.sh` - Launcher script for static container
 
@@ -46,7 +46,7 @@ cd docker
 ### Manual Build
 ```bash
 # Build the static image
-docker build -f Dockerfile.openterface-test-static -t openterface-test-static .
+docker build -f testos/Dockerfile.ubuntu-test-static -t openterface-test-static .
 
 # Run the container
 docker run -it --rm \
