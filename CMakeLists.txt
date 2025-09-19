@@ -84,25 +84,87 @@ endif()
 # Debug output for linking
 message(STATUS "Hardware acceleration libraries to link: ${HWACCEL_LIBRARIES}")
 
-target_link_libraries(openterfaceQT PRIVATE
-    Qt::Concurrent
-    Qt::Core
-    Qt::Gui
-    Qt::Multimedia
-    Qt::MultimediaWidgets
-    Qt::Network
-    Qt::SerialPort
-    Qt::Svg
-    ${HWACCEL_LIBRARIES} # Link against hardware acceleration libraries
-    ${X11_LIBRARIES}     # Link against X11 libraries
-    ${EXPAT_LIBRARIES}
-    ${FREETYPE_LIBRARIES}
-    ${FONTCONFIG_LIBRARIES}
-    ${XRENDER_LIBRARIES}
-    ${BZIP2_LIBRARIES}
-    ${EXTRA_LIBS}
-    zstd  # Required for Qt resource compression
-)
+# Link Qt6 image format plugins statically for static builds
+if(OPENTERFACE_BUILD_STATIC)
+    # Link Qt6 image format plugins statically
+    target_link_libraries(${PROJECT_NAME} PRIVATE 
+        Qt6::QJpegPlugin 
+        Qt6::QGifPlugin 
+        Qt6::QICOPlugin 
+        Qt6::QSvgPlugin
+    )
+    
+    # Force static JPEG linking for Qt6 plugins - override system jpeg with our static version
+    if(STATIC_JPEG_LIBRARIES)
+        set_target_properties(Qt6::QJpegPlugin PROPERTIES
+            INTERFACE_LINK_LIBRARIES "${STATIC_JPEG_LIBRARIES}"
+        )
+    endif()
+endif()
+
+target_link_libraries(${PROJECT_NAME} PRIVATE Qt6::Core Qt6::Widgets Qt6::Gui Qt6::Network Qt6::Multimedia Qt6::MultimediaWidgets Qt6::SerialPort Qt6::OpenGL Qt6::OpenGLWidgets Qt6::Xml Qt6::Svg Qt6::SvgWidgets Qt6::Concurrent Qt6::DBus)
+
+# For static Qt builds, we need to link platform plugins and their dependencies
+if(OPENTERFACE_BUILD_STATIC)
+    # Link XCB platform plugin directly using file path
+    set(QT_XCB_PLUGIN_PATH "/opt/Qt6/plugins/platforms/libqxcb.a")
+    if(EXISTS ${QT_XCB_PLUGIN_PATH})
+        target_link_libraries(${PROJECT_NAME} PRIVATE ${QT_XCB_PLUGIN_PATH})
+        message(STATUS "Linking XCB platform plugin: ${QT_XCB_PLUGIN_PATH}")
+    else()
+        message(WARNING "XCB platform plugin not found at: ${QT_XCB_PLUGIN_PATH}")
+    endif()
+    
+    # Link Qt XCB QPA library (required by XCB plugin)
+    set(QT_XCB_QPA_PATH "/opt/Qt6/lib/libQt6XcbQpa.a")
+    if(EXISTS ${QT_XCB_QPA_PATH})
+        target_link_libraries(${PROJECT_NAME} PRIVATE ${QT_XCB_QPA_PATH})
+        message(STATUS "Linking Qt6 XCB QPA library: ${QT_XCB_QPA_PATH}")
+    endif()
+    
+    # Force static linking of XCB libraries with whole-archive to override dynamic references
+    target_link_libraries(${PROJECT_NAME} PRIVATE 
+        -Wl,--whole-archive
+        /usr/lib/aarch64-linux-gnu/libxcb-cursor.a
+        -Wl,--no-whole-archive
+    )
+    
+    # Link other XCB static libraries normally
+    set(XCB_STATIC_LIBS
+        /usr/lib/aarch64-linux-gnu/libxcb-icccm.a
+        /usr/lib/aarch64-linux-gnu/libxcb-image.a
+        /usr/lib/aarch64-linux-gnu/libxcb-keysyms.a
+        /usr/lib/aarch64-linux-gnu/libxcb-randr.a
+        /usr/lib/aarch64-linux-gnu/libxcb-render-util.a
+        /usr/lib/aarch64-linux-gnu/libxcb-shm.a
+        /usr/lib/aarch64-linux-gnu/libxcb-sync.a
+        /usr/lib/aarch64-linux-gnu/libxcb-xfixes.a
+        /usr/lib/aarch64-linux-gnu/libxcb-render.a
+        /usr/lib/aarch64-linux-gnu/libxcb-shape.a
+        /usr/lib/aarch64-linux-gnu/libxcb-xkb.a
+        /usr/lib/aarch64-linux-gnu/libxcb.a
+        /usr/lib/aarch64-linux-gnu/libxcb-util.a
+    )
+    
+    # Check if static libraries exist and link them
+    foreach(XCB_LIB ${XCB_STATIC_LIBS})
+        if(EXISTS ${XCB_LIB})
+            target_link_libraries(${PROJECT_NAME} PRIVATE ${XCB_LIB})
+            message(STATUS "Linking static XCB library: ${XCB_LIB}")
+        else()
+            message(WARNING "Static XCB library not found: ${XCB_LIB}")
+        endif()
+    endforeach()
+    
+    # Link additional dependencies needed by XCB plugins
+    target_link_libraries(${PROJECT_NAME} PRIVATE xkbcommon xkbcommon-x11 Xau Xdmcp)
+endif()
+
+# Add XCB cursor library for static linking (Linux only) - Legacy support
+if(UNIX AND NOT APPLE AND XCB_CURSOR_FOUND)
+    # This is redundant now but keeping for compatibility
+    message(STATUS "XCB cursor already linked via static approach above")
+endif()
 
 # Add TurboJPEG if available
 if(TURBOJPEG_LIBRARY)
@@ -163,5 +225,5 @@ if(CMAKE_BUILD_TYPE STREQUAL "Release")
 endif()
 
 # Make sure to only include the necessary Qt components
-find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets Network Multimedia MultimediaWidgets)
+find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets Network Multimedia MultimediaWidgets SerialPort OpenGL OpenGLWidgets Xml Svg SvgWidgets Concurrent DBus)
 # Replace with only the modules you actually need

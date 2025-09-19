@@ -1,5 +1,16 @@
 # GStreamer.cmake - GStreamer configuration and detection
 
+# Set GSTREAMER_PREFIX from environment or default
+if(NOT DEFINED GSTREAMER_PREFIX)
+    if(DEFINED ENV{GSTREAMER_PREFIX})
+        set(GSTREAMER_PREFIX "$ENV{GSTREAMER_PREFIX}" CACHE PATH "GStreamer installation directory")
+        message(STATUS "Using GSTREAMER_PREFIX from environment: ${GSTREAMER_PREFIX}")
+    else()
+        set(GSTREAMER_PREFIX "/opt/gstreamer" CACHE PATH "GStreamer installation directory")
+        message(STATUS "Using default GSTREAMER_PREFIX: ${GSTREAMER_PREFIX}")
+    endif()
+endif()
+
 # Option to control GStreamer support
 option(USE_GSTREAMER "Enable GStreamer multimedia backend" ON)
 
@@ -65,6 +76,16 @@ foreach(SEARCH_PATH ${GSTREAMER_SEARCH_PATHS})
         break()
     endif()
 endforeach()
+
+# For ARM64 static builds, check if GStreamer is in Qt6 lib/aarch64-linux-gnu
+if(OPENTERFACE_IS_ARM64 AND OPENTERFACE_BUILD_STATIC)
+    if(EXISTS "${QT_BUILD_PATH}/lib/aarch64-linux-gnu/libgstreamer-1.0.a")
+        set(GSTREAMER_PREFIX "${QT_BUILD_PATH}")
+        set(GSTREAMER_LIB_DIR "${QT_BUILD_PATH}/lib/aarch64-linux-gnu")
+        message(STATUS "Found ARM64 static GStreamer installation at: ${GSTREAMER_PREFIX}")
+        message(STATUS "Using GStreamer lib directory: ${GSTREAMER_LIB_DIR}")
+    endif()
+endif()
 
 # Debug: Check what's actually in the Qt6 installation
 message(STATUS "Checking GStreamer installation at: ${GSTREAMER_PREFIX}")
@@ -149,7 +170,13 @@ if(USE_GSTREAMER AND EXISTS "${GSTREAMER_INCLUDE_DIR}/gst/gst.h" AND EXISTS "${G
     # Check for each core library and add if found
     foreach(LIB_NAME ${GSTREAMER_CORE_LIB_CANDIDATES})
         
-        set(LIB_PATH "${GSTREAMER_PREFIX}/lib/${LIB_NAME}")
+        # Use GSTREAMER_LIB_DIR if set (for ARM64 static builds), otherwise use GSTREAMER_PREFIX/lib
+        if(DEFINED GSTREAMER_LIB_DIR)
+            set(LIB_PATH "${GSTREAMER_LIB_DIR}/${LIB_NAME}")
+        else()
+            set(LIB_PATH "${GSTREAMER_PREFIX}/lib/${LIB_NAME}")
+        endif()
+        
         # Also check architecture-specific subdirectories
         set(LIB_PATH_ARCH "${GSTREAMER_PREFIX}/lib/x86_64-linux-gnu/${LIB_NAME}")
         set(LIB_PATH_AARCH64 "${GSTREAMER_PREFIX}/lib/aarch64-linux-gnu/${LIB_NAME}")
@@ -166,8 +193,13 @@ if(USE_GSTREAMER AND EXISTS "${GSTREAMER_INCLUDE_DIR}/gst/gst.h" AND EXISTS "${G
         else()
             message(WARNING "GStreamer core library not found: ${LIB_PATH}")
             # Debug: let's see what's actually in the lib directory
-            message(STATUS "Debug: Contents of ${GSTREAMER_PREFIX}/lib/:")
-            file(GLOB LIB_CONTENTS "${GSTREAMER_PREFIX}/lib/libgst*")
+            if(DEFINED GSTREAMER_LIB_DIR)
+                message(STATUS "Debug: Contents of ${GSTREAMER_LIB_DIR}/:")
+                file(GLOB LIB_CONTENTS "${GSTREAMER_LIB_DIR}/libgst*")
+            else()
+                message(STATUS "Debug: Contents of ${GSTREAMER_PREFIX}/lib/:")
+                file(GLOB LIB_CONTENTS "${GSTREAMER_PREFIX}/lib/libgst*")
+            endif()
             message(STATUS "Found GStreamer libs: ${LIB_CONTENTS}")
         endif()
     endforeach()
@@ -191,7 +223,13 @@ if(USE_GSTREAMER AND EXISTS "${GSTREAMER_INCLUDE_DIR}/gst/gst.h" AND EXISTS "${G
     
     # Check for each library and add if found
     foreach(LIB_NAME ${GSTREAMER_VIDEO_LIB_CANDIDATES})
-        set(LIB_PATH "${GSTREAMER_PREFIX}/lib/${LIB_NAME}")
+        # Use GSTREAMER_LIB_DIR if set (for ARM64 static builds), otherwise use GSTREAMER_PREFIX/lib
+        if(DEFINED GSTREAMER_LIB_DIR)
+            set(LIB_PATH "${GSTREAMER_LIB_DIR}/${LIB_NAME}")
+        else()
+            set(LIB_PATH "${GSTREAMER_PREFIX}/lib/${LIB_NAME}")
+        endif()
+        
         # Also check architecture-specific subdirectories
         set(LIB_PATH_ARCH "${GSTREAMER_PREFIX}/lib/x86_64-linux-gnu/${LIB_NAME}")
         set(LIB_PATH_AARCH64 "${GSTREAMER_PREFIX}/lib/aarch64-linux-gnu/${LIB_NAME}")
@@ -266,7 +304,15 @@ if(USE_GSTREAMER AND EXISTS "${GSTREAMER_INCLUDE_DIR}/gst/gst.h" AND EXISTS "${G
         # Check for each plugin and add if found
         foreach(PLUGIN ${PLUGIN_CANDIDATES})
             # Try multiple possible locations for GStreamer plugins
-            set(PLUGIN_PATH_CANDIDATES
+            set(PLUGIN_PATH_CANDIDATES)
+            
+            # Add GSTREAMER_LIB_DIR path if defined (for ARM64 static builds)
+            if(DEFINED GSTREAMER_LIB_DIR)
+                list(APPEND PLUGIN_PATH_CANDIDATES "${GSTREAMER_LIB_DIR}/gstreamer-1.0/lib${PLUGIN}${GSTREAMER_PLUGIN_EXT}")
+            endif()
+            
+            # Add other standard paths
+            list(APPEND PLUGIN_PATH_CANDIDATES
                 "${GSTREAMER_PREFIX}/lib/gstreamer-1.0/lib${PLUGIN}${GSTREAMER_PLUGIN_EXT}"
                 "${GSTREAMER_PREFIX}/lib/x86_64-linux-gnu/gstreamer-1.0/lib${PLUGIN}${GSTREAMER_PLUGIN_EXT}"
                 "${GSTREAMER_PREFIX}/lib/aarch64-linux-gnu/gstreamer-1.0/lib${PLUGIN}${GSTREAMER_PLUGIN_EXT}"

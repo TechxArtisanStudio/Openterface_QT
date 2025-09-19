@@ -28,6 +28,18 @@
 #include "target/KeyboardLayouts.h"
 #include "ui/languagemanager.h"
 #include <QCoreApplication>
+#include <QtPlugin>
+
+// Import static Qt image format plugins
+Q_IMPORT_PLUGIN(QJpegPlugin)
+Q_IMPORT_PLUGIN(QGifPlugin)
+Q_IMPORT_PLUGIN(QICOPlugin)
+Q_IMPORT_PLUGIN(QSvgPlugin)
+
+// Import static Qt platform plugin for Linux
+#ifdef Q_OS_LINUX
+Q_IMPORT_PLUGIN(QXcbIntegrationPlugin)
+#endif
 
 // Define global shutdown flag
 QAtomicInteger<int> g_applicationShuttingDown(0);

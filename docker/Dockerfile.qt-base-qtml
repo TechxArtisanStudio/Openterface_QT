@@ -20,8 +20,47 @@ RUN for module in ${MODULES}; do \
         rm "$module.zip"; \
     done
 
+# Build libxcb-cursor from source (static) - Build early to ensure Qt finds it
+RUN echo "Building libxcb-cursor from source..." && \
+    cd /tmp && \
+    # Install additional build dependencies for libxcb-cursor
+    apt-get install -y \
+        libxcb-render0-dev \
+        libxcb-image0-dev \
+        libxrender-dev \
+        libx11-dev \
+        libxcb-xfixes0-dev && \
+    # Download and build libxcb-cursor
+    curl -L -o libxcb-cursor.tar.gz "https://xcb.freedesktop.org/dist/libxcb-cursor-0.1.5.tar.gz" && \
+    tar -xzf libxcb-cursor.tar.gz && \
+    cd libxcb-cursor-0.1.5 && \
+    # Configure for static build with proper prefix
+    ./configure \
+        --prefix="${INSTALL_PREFIX}" \
+        --enable-static \
+        --disable-shared \
+        --with-pic \
+        CFLAGS="-fPIC" \
+        CPPFLAGS="-I${INSTALL_PREFIX}/include" \
+        LDFLAGS="-L${INSTALL_PREFIX}/lib" \
+        PKG_CONFIG_PATH="${INSTALL_PREFIX}/lib/pkgconfig:/usr/lib/aarch64-linux-gnu/pkgconfig:/usr/lib/pkgconfig" && \
+    # Build and install
+    make -j$(nproc) && \
+    make install && \
+    # Also install to system locations for compatibility
+    make install DESTDIR= prefix=/usr && \
+    # Verify installation
+    ls -la "${INSTALL_PREFIX}/lib/libxcb-cursor.a" && \
+    pkg-config --exists xcb-cursor && echo "✓ libxcb-cursor static library installed successfully" || echo "⚠ libxcb-cursor pkg-config not found" && \
+    # Print xcb-cursor configuration
+    echo "xcb-cursor pkg-config info:" && \
+    pkg-config --cflags --libs xcb-cursor && \
+    # Clean up
+    rm -rf libxcb-cursor-0.1.5 libxcb-cursor.tar.gz && \
+    echo "✓ libxcb-cursor static build completed"
+
 # Build qtbase first (foundation)
-RUN echo "Building qtbase..." && \
+RUN echo "Building qtbase with static XCB..." && \
     cd ${BUILD_DIR}/qtbase && \
     mkdir -p build && \
     cd build && \
@@ -38,7 +77,24 @@ RUN echo "Building qtbase..." && \
         -DFEATURE_xcb_xlib=ON \
         -DFEATURE_xkbcommon=ON \
         -DFEATURE_xkbcommon_x11=ON \
-        -DTEST_xcb_syslibs=ON \
+        -DTEST_xcb_syslibs=OFF \
+        -DFEATURE_system_xcb=OFF \
+        -DFEATURE_xcb=ON \
+        -DFEATURE_xcb_cursor=ON \
+        -DFEATURE_xcb_icccm=ON \
+        -DFEATURE_xcb_image=ON \
+        -DFEATURE_xcb_keysyms=ON \
+        -DFEATURE_xcb_randr=ON \
+        -DFEATURE_xcb_render=ON \
+        -DFEATURE_xcb_renderutil=ON \
+        -DFEATURE_xcb_shape=ON \
+        -DFEATURE_xcb_shm=ON \
+        -DFEATURE_xcb_sync=ON \
+        -DFEATURE_xcb_util=ON \
+        -DFEATURE_xcb_xfixes=ON \
+        -DFEATURE_xcb_xinerama=ON \
+        -DFEATURE_xcb_xkb=ON \
+        -DFEATURE_xcb_glx=ON \
         -DQT_FEATURE_clang=OFF \
         -DFEATURE_clang=ON \
         .. && \

@@ -4,6 +4,17 @@
 # Initialize FFmpeg configuration variables
 set(FFMPEG_PKG_CONFIG FALSE)
 
+# Set FFMPEG_PREFIX from environment or default
+if(NOT DEFINED FFMPEG_PREFIX)
+    if(DEFINED ENV{FFMPEG_PREFIX})
+        set(FFMPEG_PREFIX "$ENV{FFMPEG_PREFIX}" CACHE PATH "FFmpeg installation directory")
+        message(STATUS "Using FFMPEG_PREFIX from environment: ${FFMPEG_PREFIX}")
+    else()
+        set(FFMPEG_PREFIX "/opt/ffmpeg" CACHE PATH "FFmpeg installation directory")
+        message(STATUS "Using default FFMPEG_PREFIX: ${FFMPEG_PREFIX}")
+    endif()
+endif()
+
 # Option to control hardware acceleration libraries
 option(USE_HWACCEL "Enable hardware acceleration libraries (VA-API, VDPAU)" ON)
 
@@ -13,8 +24,29 @@ if(OPENTERFACE_BUILD_STATIC)
 endif()
 
 # Check for libjpeg-turbo (preferred for performance)
-find_library(TURBOJPEG_LIBRARY turbojpeg)
-find_path(TURBOJPEG_INCLUDE_DIR turbojpeg.h)
+# For static builds, look in FFMPEG_PREFIX first
+if(OPENTERFACE_BUILD_STATIC AND DEFINED FFMPEG_PREFIX)
+    # Check for static libjpeg-turbo in FFmpeg prefix
+    find_library(TURBOJPEG_LIBRARY 
+        NAMES turbojpeg
+        HINTS "${FFMPEG_PREFIX}/lib"
+        NO_DEFAULT_PATH
+    )
+    find_path(TURBOJPEG_INCLUDE_DIR 
+        NAMES turbojpeg.h
+        HINTS "${FFMPEG_PREFIX}/include"
+        NO_DEFAULT_PATH
+    )
+    if(TURBOJPEG_LIBRARY AND TURBOJPEG_INCLUDE_DIR)
+        message(STATUS "Found static libjpeg-turbo in FFmpeg prefix: ${TURBOJPEG_LIBRARY}")
+    endif()
+endif()
+
+# If not found in FFmpeg prefix, try system locations
+if(NOT TURBOJPEG_LIBRARY OR NOT TURBOJPEG_INCLUDE_DIR)
+    find_library(TURBOJPEG_LIBRARY turbojpeg)
+    find_path(TURBOJPEG_INCLUDE_DIR turbojpeg.h)
+endif()
 
 if(TURBOJPEG_LIBRARY AND TURBOJPEG_INCLUDE_DIR)
     message(STATUS "Found libjpeg-turbo: ${TURBOJPEG_LIBRARY}")
@@ -340,8 +372,26 @@ function(link_ffmpeg_libraries)
         if(FFMPEG_LIB_EXT STREQUAL ".a")
             # Static FFmpeg libraries - use special linking flags
             message(STATUS "Linking static FFmpeg libraries with whole-archive for avdevice")
+            set(JPEG_STATIC_PATH "/opt/ffmpeg/lib/libjpeg.a")
+            set(TURBOJPEG_STATIC_PATH "/opt/ffmpeg/lib/libturbojpeg.a")
+            
+            if(EXISTS "${JPEG_STATIC_PATH}")
+                message(STATUS "Using static libjpeg: ${JPEG_STATIC_PATH}")
+                set(JPEG_LINK "${JPEG_STATIC_PATH}")
+            else()
+                message(WARNING "Static libjpeg.a not found at ${JPEG_STATIC_PATH}, falling back to -ljpeg")
+                set(JPEG_LINK "-ljpeg")
+            endif()
+            
+            if(EXISTS "${TURBOJPEG_STATIC_PATH}")
+                message(STATUS "Using static libturbojpeg: ${TURBOJPEG_STATIC_PATH}")
+                set(TURBOJPEG_LINK "${TURBOJPEG_STATIC_PATH}")
+            else()
+                message(WARNING "Static libturbojpeg.a not found at ${TURBOJPEG_STATIC_PATH}, falling back to -lturbojpeg")
+                set(TURBOJPEG_LINK "-lturbojpeg")
+            endif()
+            
             target_link_libraries(openterfaceQT PRIVATE
-                # Critical: avdevice must be linked with --whole-archive to include avdevice_register_all
                 -Wl,--whole-archive
                 "${FFMPEG_LIB_DIR}/libavdevice.a"
                 -Wl,--no-whole-archive
@@ -351,8 +401,10 @@ function(link_ffmpeg_libraries)
                 "${FFMPEG_LIB_DIR}/libswresample.a"
                 "${FFMPEG_LIB_DIR}/libswscale.a"
                 "${FFMPEG_LIB_DIR}/libavutil.a"
-                # System dependencies for static FFmpeg
-                -ljpeg -lturbojpeg -lpthread -lm -lz -llzma -lbz2 -ldrm -lva -lva-drm -lva-x11
+                # Use static JPEG libraries if available
+                ${JPEG_LINK}
+                ${TURBOJPEG_LINK}
+                -lpthread -lm -lz -llzma -lbz2 -ldrm -lva -lva-drm -lva-x11
             )
         else()
             # Dynamic FFmpeg libraries - simple linking
