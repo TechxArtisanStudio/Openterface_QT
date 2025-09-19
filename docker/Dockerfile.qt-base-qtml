@@ -77,7 +77,7 @@ RUN echo "Building qtbase with static XCB..." && \
         -DFEATURE_xcb_xlib=ON \
         -DFEATURE_xkbcommon=ON \
         -DFEATURE_xkbcommon_x11=ON \
-        -DTEST_xcb_syslibs=OFF \
+        -DTEST_xcb_syslibs=ON \
         -DFEATURE_system_xcb=OFF \
         -DFEATURE_xcb=ON \
         -DFEATURE_xcb_cursor=ON \
