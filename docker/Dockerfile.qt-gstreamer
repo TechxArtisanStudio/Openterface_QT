@@ -128,7 +128,7 @@ RUN echo "Building gst-plugins-good..." && \
         -Dexamples=disabled \
         -Dtests=disabled \
         -Dqt5=disabled \
-        -Dqt6=disabled \
+        -Dqt6=enable \
         -Dnls=disabled \
         -Drtp=enabled \
         -Drtpmanager=enabled \
