@@ -128,7 +128,7 @@ RUN echo "Building gst-plugins-good..." && \
         -Dexamples=disabled \
         -Dtests=disabled \
         -Dqt5=disabled \
-        -Dqt6=disabled \
+        -Dqt6=enable \
         -Dnls=disabled \
         -Drtp=enabled \
         -Drtpmanager=enabled \
@@ -140,14 +140,9 @@ RUN echo "Building gst-plugins-good..." && \
     ninja -C build && \
     ninja -C build install
 
-# Copy GStreamer to Qt installation directory
-RUN echo "Installing GStreamer to ${INSTALL_PREFIX}..." && \
-    mkdir -p ${INSTALL_PREFIX}/lib ${INSTALL_PREFIX}/include && \
-    cp -a ${GSTREAMER_PREFIX}/lib/. ${INSTALL_PREFIX}/lib/ && \
-    cp -a ${GSTREAMER_PREFIX}/include/. ${INSTALL_PREFIX}/include/
 
 # Update final environment
-ENV PKG_CONFIG_PATH="${INSTALL_PREFIX}/lib/pkgconfig:${PKG_CONFIG_PATH}"
+ENV PKG_CONFIG_PATH="${GSTREAMER_PREFIX}/lib/pkgconfig:${PKG_CONFIG_PATH}"
 
 # Clean up to reduce image size
 RUN cd ${WORK_DIR} && rm -rf gstreamer_sources

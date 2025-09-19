@@ -1,8 +1,20 @@
 # GStreamer.cmake - GStreamer configuration and detection
 
+# GStreamer.cmake - GStreamer configuration and detection
+
+# Force for ARM64 static builds
+if("${OPENTERFACE_BUILD_STATIC}" STREQUAL "ON" AND "${OPENTERFACE_ARCH}" STREQUAL "arm64")
+    message(STATUS "DEBUG: Forcing GSTREAMER_PREFIX for ARM64 static build")
+    message(STATUS "DEBUG: OPENTERFACE_BUILD_STATIC = ${OPENTERFACE_BUILD_STATIC}")
+    message(STATUS "DEBUG: OPENTERFACE_ARCH = ${OPENTERFACE_ARCH}")
+    set(ENV{GSTREAMER_PREFIX} "/opt/Qt6")
+    set(GSTREAMER_PREFIX "/opt/Qt6" CACHE PATH "GStreamer installation directory" FORCE)
+    message(STATUS "Forced GSTREAMER_PREFIX for ARM64 static build: ${GSTREAMER_PREFIX}")
+endif()
+
 # Set GSTREAMER_PREFIX from environment or default
 if(NOT DEFINED GSTREAMER_PREFIX)
-    if(DEFINED ENV{GSTREAMER_PREFIX})
+    if(DEFINED ENV{GSTREAMER_PREFIX} AND NOT ("${OPENTERFACE_BUILD_STATIC}" STREQUAL "ON" AND "${OPENTERFACE_ARCH}" STREQUAL "arm64"))
         set(GSTREAMER_PREFIX "$ENV{GSTREAMER_PREFIX}" CACHE PATH "GStreamer installation directory")
         message(STATUS "Using GSTREAMER_PREFIX from environment: ${GSTREAMER_PREFIX}")
     else()
@@ -68,20 +80,25 @@ if(CMAKE_PREFIX_PATH)
 endif()
 
 # Find GStreamer installation
-set(GSTREAMER_PREFIX "/opt/gstreamer")  # Default fallback for Docker build
-foreach(SEARCH_PATH ${GSTREAMER_SEARCH_PATHS})
-    if(EXISTS "${SEARCH_PATH}/include/gstreamer-1.0/gst/gst.h")
-        set(GSTREAMER_PREFIX "${SEARCH_PATH}")
-        message(STATUS "Found GStreamer installation at: ${GSTREAMER_PREFIX}")
-        break()
-    endif()
-endforeach()
+# For Docker builds, prioritize /opt/Qt6
+if(OPENTERFACE_BUILD_STATIC AND OPENTERFACE_IS_ARM64)
+    set(GSTREAMER_PREFIX "/opt/Qt6")  # Docker Qt6 static build
+    message(STATUS "Using Docker Qt6 GStreamer prefix: ${GSTREAMER_PREFIX}")
+else()
+    set(GSTREAMER_PREFIX "/opt/gstreamer")  # Default fallback
+    foreach(SEARCH_PATH ${GSTREAMER_SEARCH_PATHS})
+        if(EXISTS "${SEARCH_PATH}/include/gstreamer-1.0/gst/gst.h")
+            set(GSTREAMER_PREFIX "${SEARCH_PATH}")
+            message(STATUS "Found GStreamer installation at: ${GSTREAMER_PREFIX}")
+            break()
+        endif()
+    endforeach()
+endif()
 
 # For ARM64 static builds, check if GStreamer is in Qt6 lib/aarch64-linux-gnu
 if(OPENTERFACE_IS_ARM64 AND OPENTERFACE_BUILD_STATIC)
-    if(EXISTS "${QT_BUILD_PATH}/lib/aarch64-linux-gnu/libgstreamer-1.0.a")
-        set(GSTREAMER_PREFIX "${QT_BUILD_PATH}")
-        set(GSTREAMER_LIB_DIR "${QT_BUILD_PATH}/lib/aarch64-linux-gnu")
+    if(EXISTS "${GSTREAMER_PREFIX}/lib/aarch64-linux-gnu/libgstreamer-1.0.a")
+        set(GSTREAMER_LIB_DIR "${GSTREAMER_PREFIX}/lib/aarch64-linux-gnu")
         message(STATUS "Found ARM64 static GStreamer installation at: ${GSTREAMER_PREFIX}")
         message(STATUS "Using GStreamer lib directory: ${GSTREAMER_LIB_DIR}")
     endif()
@@ -115,8 +132,8 @@ endif()
 
 set(GSTREAMER_INCLUDE_DIR "${GSTREAMER_PREFIX}/include/gstreamer-1.0")
 set(GSTREAMER_VIDEO_INCLUDE_DIR "${GSTREAMER_PREFIX}/include/gstreamer-1.0")
-set(GLIB_INCLUDE_DIR "${GSTREAMER_PREFIX}/include/glib-2.0")
-set(GLIB_CONFIG_INCLUDE_DIR "${GSTREAMER_PREFIX}/lib/glib-2.0/include")
+set(GLIB_INCLUDE_DIR "/usr/include/glib-2.0")
+set(GLIB_CONFIG_INCLUDE_DIR "/usr/lib/aarch64-linux-gnu/glib-2.0/include")
 
 if(USE_GSTREAMER AND EXISTS "${GSTREAMER_INCLUDE_DIR}/gst/gst.h" AND EXISTS "${GSTREAMER_VIDEO_INCLUDE_DIR}/gst/video/videooverlay.h")
     message(STATUS "GStreamer static build found - enabling direct pipeline support")
@@ -352,12 +369,14 @@ if(USE_GSTREAMER AND EXISTS "${GSTREAMER_INCLUDE_DIR}/gst/gst.h" AND EXISTS "${G
         message(STATUS "Will rely on system GStreamer plugins at runtime")
     endif()
     
-    # Add system GLib libraries using pkg-config
-    pkg_check_modules(GLIB_PKG REQUIRED glib-2.0 gobject-2.0 gio-2.0)
-    if(GLIB_PKG_FOUND)
-        list(APPEND GSTREAMER_LIBRARIES ${GLIB_PKG_LIBRARIES})
-        list(APPEND GSTREAMER_INCLUDE_DIRS ${GLIB_PKG_INCLUDE_DIRS})
-        message(STATUS "Using system GLib libraries: ${GLIB_PKG_LIBRARIES}")
+    # Add system GLib libraries using pkg-config (only for dynamic builds)
+    if(NOT OPENTERFACE_BUILD_STATIC)
+        pkg_check_modules(GLIB_PKG REQUIRED glib-2.0 gobject-2.0 gio-2.0)
+        if(GLIB_PKG_FOUND)
+            list(APPEND GSTREAMER_LIBRARIES ${GLIB_PKG_LIBRARIES})
+            list(APPEND GSTREAMER_INCLUDE_DIRS ${GLIB_PKG_INCLUDE_DIRS})
+            message(STATUS "Using system GLib libraries: ${GLIB_PKG_LIBRARIES}")
+        endif()
     endif()
     
     # Add additional system libraries that GStreamer needs
@@ -448,11 +467,10 @@ function(configure_gstreamer_orc)
             
             # Find the correct static ORC library path
             set(ORC_LIB_CANDIDATES
-                "/opt/orc-static/lib/x86_64-linux-gnu/liborc-0.4.a"
+                "/usr/lib/aarch64-linux-gnu/liborc-0.4.a"
                 "/opt/orc-static/lib/aarch64-linux-gnu/liborc-0.4.a"
                 "/opt/orc-static/lib/liborc-0.4.a"
                 "/usr/lib/x86_64-linux-gnu/liborc-0.4.a"
-                "/usr/lib/aarch64-linux-gnu/liborc-0.4.a"
             )
         else()
             # Dynamic build - use system ORC
@@ -490,6 +508,51 @@ endfunction()
 function(link_gstreamer_libraries)
     if(GSTREAMER_FOUND)
         message(STATUS "Linking GStreamer libraries...")
+        
+        # Special handling for ARM64 static builds
+        if(OPENTERFACE_BUILD_STATIC AND OPENTERFACE_IS_ARM64)
+            message(STATUS "Using direct GStreamer linking for ARM64 static build")
+            target_link_libraries(openterfaceQT PRIVATE 
+                -Wl,--whole-archive
+                /opt/Qt6/lib/aarch64-linux-gnu/libgstreamer-1.0.a
+                /opt/Qt6/lib/aarch64-linux-gnu/libgstbase-1.0.a
+                /opt/Qt6/lib/aarch64-linux-gnu/libgstvideo-1.0.a
+                /opt/Qt6/lib/aarch64-linux-gnu/libgstaudio-1.0.a
+                /opt/Qt6/lib/aarch64-linux-gnu/libgstpbutils-1.0.a
+                /opt/Qt6/lib/aarch64-linux-gnu/libgsttag-1.0.a
+                /opt/Qt6/lib/aarch64-linux-gnu/libgstallocators-1.0.a
+                /opt/Qt6/lib/aarch64-linux-gnu/libgstapp-1.0.a
+                /opt/Qt6/lib/aarch64-linux-gnu/libgstcontroller-1.0.a
+                /opt/Qt6/lib/aarch64-linux-gnu/libgstnet-1.0.a
+                /opt/Qt6/lib/aarch64-linux-gnu/libgstriff-1.0.a
+                /opt/Qt6/lib/aarch64-linux-gnu/libgstrtp-1.0.a
+                /opt/Qt6/lib/aarch64-linux-gnu/libgstrtsp-1.0.a
+                /opt/Qt6/lib/aarch64-linux-gnu/libgstsdp-1.0.a
+                -Wl,--no-whole-archive
+                # Add GLib and other dependencies
+                gio-2.0
+                gobject-2.0
+                glib-2.0
+                gmodule-2.0
+                z
+                m
+                pthread
+                dl
+                rt
+                ffi
+                mount
+                blkid
+                resolv
+                pcre2-8
+                orc-0.4
+            )
+            target_include_directories(openterfaceQT PRIVATE 
+                /opt/Qt6/include/gstreamer-1.0
+                /usr/include/glib-2.0
+                /usr/lib/aarch64-linux-gnu/glib-2.0/include
+            )
+            return()
+        endif()
         
         # Check if we're using pkg-config detection (system packages) or manual detection (static/Qt6 build)
         if(DEFINED GSTREAMER_PKG_CONFIG_DETECTION AND GSTREAMER_PKG_CONFIG_DETECTION)
@@ -532,14 +595,16 @@ function(link_gstreamer_libraries)
                     # Force static ORC first
                     -Wl,--whole-archive
                     ${ORC_LIB}
+                    -Wl,--no-whole-archive
                     # Link static plugins with whole-archive to ensure registration functions are included
+                    -Wl,--whole-archive
                     ${GSTREAMER_PLUGIN_LIBRARIES}
                     -Wl,--no-whole-archive
                     # Then GStreamer core libraries
-                    -Wl,--start-group
+                    -Wl,--whole-archive
                     ${GSTREAMER_LIBRARIES}
                     ${GSTREAMER_VIDEO_LIBRARIES}
-                    -Wl,--end-group
+                    -Wl,--no-whole-archive
                     -lm -pthread
                     -Wl,--allow-multiple-definition
                 )
@@ -551,10 +616,10 @@ function(link_gstreamer_libraries)
                     ${ORC_LIB}
                     -Wl,--no-whole-archive
                     # Then GStreamer libraries
-                    -Wl,--start-group
+                    -Wl,--whole-archive
                     ${GSTREAMER_LIBRARIES}
                     ${GSTREAMER_VIDEO_LIBRARIES}
-                    -Wl,--end-group
+                    -Wl,--no-whole-archive
                     -lm -pthread
                     -Wl,--allow-multiple-definition
                 )
