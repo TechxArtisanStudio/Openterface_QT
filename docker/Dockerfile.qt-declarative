@@ -31,8 +31,8 @@ RUN echo "Building qtdeclarative..." && \
         -DCMAKE_PREFIX_PATH="${INSTALL_PREFIX}" \
         -DBUILD_SHARED_LIBS=OFF \
         .. && \
-    ninja && \
-    ninja install
+    ninja -j 2 && \
+    ninja install -j 2
 
 # Create verification script for declarative components
 RUN mkdir -p ${INSTALL_PREFIX}/bin && \

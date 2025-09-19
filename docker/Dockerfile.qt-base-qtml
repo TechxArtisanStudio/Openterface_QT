@@ -42,8 +42,8 @@ RUN echo "Building qtbase..." && \
         -DQT_FEATURE_clang=OFF \
         -DFEATURE_clang=ON \
         .. && \
-    ninja -j 1 && \
-    ninja install -j 1
+    ninja -j 2 && \
+    ninja install -j 2
 
 # Build qtshadertools
 RUN echo "Building qtshadertools..." && \

@@ -104,7 +104,7 @@ RUN echo "Building gst-plugins-base..." && \
         -Dtests=disabled \
         -Dtools=disabled \
         -Dnls=disabled \
-        -Dorc=disabled \
+        -Dorc=enabled \
         -Dx11=enabled \
         -Dgl=disabled && \
     ninja -C build && \
