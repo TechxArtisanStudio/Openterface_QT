@@ -391,6 +391,23 @@ function(link_ffmpeg_libraries)
                 set(TURBOJPEG_LINK "-lturbojpeg")
             endif()
             
+            # Prefer discovered HW accel libs when available; also ensure VDPAU and X11 are linked for hwcontext_vdpau
+            # Note: Keep dependency libraries AFTER FFmpeg libs (link order matters)
+            set(_FFMPEG_STATIC_DEPS
+                ${JPEG_LINK}
+                ${TURBOJPEG_LINK}
+                # Core system libs
+                -lpthread -lm -ldl -lz -llzma -lbz2
+                # DRM/VA/VDPAU/X11 stack (vdpa_device_create_x11 lives in libvdpau and needs X11)
+                -ldrm -lva -lva-drm -lva-x11 -lvdpau -lX11
+            )
+
+            # If we probed additional HW libs (full paths), append them too to be safe
+            if(HWACCEL_LIBRARIES)
+                list(APPEND _FFMPEG_STATIC_DEPS ${HWACCEL_LIBRARIES})
+                message(STATUS "Appending HWACCEL_LIBRARIES to FFmpeg link: ${HWACCEL_LIBRARIES}")
+            endif()
+
             target_link_libraries(openterfaceQT PRIVATE
                 -Wl,--whole-archive
                 "${FFMPEG_LIB_DIR}/libavdevice.a"
@@ -401,10 +418,7 @@ function(link_ffmpeg_libraries)
                 "${FFMPEG_LIB_DIR}/libswresample.a"
                 "${FFMPEG_LIB_DIR}/libswscale.a"
                 "${FFMPEG_LIB_DIR}/libavutil.a"
-                # Use static JPEG libraries if available
-                ${JPEG_LINK}
-                ${TURBOJPEG_LINK}
-                -lpthread -lm -lz -llzma -lbz2 -ldrm -lva -lva-drm -lva-x11
+                ${_FFMPEG_STATIC_DEPS}
             )
         else()
             # Dynamic FFmpeg libraries - simple linking
