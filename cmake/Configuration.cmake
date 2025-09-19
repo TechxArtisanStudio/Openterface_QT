@@ -117,6 +117,37 @@ find_package(BZip2 REQUIRED)
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(XRENDER REQUIRED xrender)
 
+# Check for XCB cursor library (required for static linking)
+pkg_check_modules(XCB_CURSOR REQUIRED xcb-cursor)
+if(XCB_CURSOR_FOUND)
+    message(STATUS "Found xcb-cursor: ${XCB_CURSOR_LIBRARIES}")
+    message(STATUS "xcb-cursor include dirs: ${XCB_CURSOR_INCLUDE_DIRS}")
+    message(STATUS "xcb-cursor library dirs: ${XCB_CURSOR_LIBRARY_DIRS}")
+    
+    # For static builds, ensure we link the static library
+    if(OPENTERFACE_BUILD_STATIC)
+        # Find the static library path
+        find_library(XCB_CURSOR_STATIC_LIB 
+            NAMES libxcb-cursor.a xcb-cursor
+            PATHS ${XCB_CURSOR_LIBRARY_DIRS} /usr/local/lib /opt/Qt6/lib
+            NO_DEFAULT_PATH
+        )
+        if(XCB_CURSOR_STATIC_LIB)
+            set(XCB_CURSOR_LIBRARIES ${XCB_CURSOR_STATIC_LIB})
+            message(STATUS "Using static xcb-cursor library: ${XCB_CURSOR_STATIC_LIB}")
+        else()
+            message(WARNING "Static xcb-cursor library not found, using dynamic")
+        endif()
+    endif()
+else()
+    message(WARNING "xcb-cursor not found - this may cause runtime linking issues")
+endif()
+
+# Check for additional XCB dependencies that xcb-cursor might need
+pkg_check_modules(XCB_RENDER xcb-render)
+pkg_check_modules(XCB_IMAGE xcb-image)
+pkg_check_modules(XCB_XFIXES xcb-xfixes)
+
 
 
 
