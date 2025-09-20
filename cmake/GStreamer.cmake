@@ -2,16 +2,6 @@
 
 # GStreamer.cmake - GStreamer configuration and detection
 
-# Force for ARM64 static builds
-if("${OPENTERFACE_BUILD_STATIC}" STREQUAL "ON" AND "${OPENTERFACE_ARCH}" STREQUAL "arm64")
-    message(STATUS "DEBUG: Forcing GSTREAMER_PREFIX for ARM64 static build")
-    message(STATUS "DEBUG: OPENTERFACE_BUILD_STATIC = ${OPENTERFACE_BUILD_STATIC}")
-    message(STATUS "DEBUG: OPENTERFACE_ARCH = ${OPENTERFACE_ARCH}")
-    set(ENV{GSTREAMER_PREFIX} "/opt/Qt6")
-    set(GSTREAMER_PREFIX "/opt/Qt6" CACHE PATH "GStreamer installation directory" FORCE)
-    message(STATUS "Forced GSTREAMER_PREFIX for ARM64 static build: ${GSTREAMER_PREFIX}")
-endif()
-
 # Set GSTREAMER_PREFIX from environment or default
 if(NOT DEFINED GSTREAMER_PREFIX)
     if(DEFINED ENV{GSTREAMER_PREFIX} AND NOT ("${OPENTERFACE_BUILD_STATIC}" STREQUAL "ON" AND "${OPENTERFACE_ARCH}" STREQUAL "arm64"))
