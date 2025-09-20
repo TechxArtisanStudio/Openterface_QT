@@ -6,8 +6,8 @@ FROM ${BASE_IMAGE}
 
 WORKDIR ${BUILD_DIR}
 
-# Define base modules to build
-ENV MODULES="qtbase qtshadertools"
+# Define base modules to build (include qtwayland for Wayland platform plugin)
+ENV MODULES="qtbase qtshadertools qtwayland"
 ENV DOWNLOAD_BASE_URL="https://download.qt.io/archive/qt/${QT_MAJOR_VERSION}/${QT_VERSION}/submodules"
 ENV CMAKE_COMMON_FLAGS="-Wno-dev -DCMAKE_POLICY_DEFAULT_CMP0177=NEW -DCMAKE_POLICY_DEFAULT_CMP0174=NEW"
 
@@ -29,7 +29,15 @@ RUN echo "Building libxcb-cursor from source..." && \
         libxcb-image0-dev \
         libxrender-dev \
         libx11-dev \
-        libxcb-xfixes0-dev && \
+        libxcb-xfixes0-dev \
+        # Wayland build dependencies
+        libwayland-dev \
+        wayland-protocols \
+        libxkbcommon-dev \
+        libdrm-dev \
+        libgbm-dev \
+        libegl1-mesa-dev \
+        libgles2-mesa-dev && \
     # Download and build libxcb-cursor
     curl -L -o libxcb-cursor.tar.gz "https://xcb.freedesktop.org/dist/libxcb-cursor-0.1.5.tar.gz" && \
     tar -xzf libxcb-cursor.tar.gz && \
@@ -120,6 +128,23 @@ RUN echo "Building qtshadertools..." && \
         .. && \
     ninja && \
     ninja install
+
+# Build qtwayland (client-only)
+RUN echo "Building qtwayland (client)..." && \
+    cd ${BUILD_DIR}/qtwayland && \
+    mkdir -p build && \
+    cd build && \
+    cmake -GNinja \
+        ${CMAKE_COMMON_FLAGS} \
+        -DCMAKE_INSTALL_PREFIX="${INSTALL_PREFIX}" \
+        -DBUILD_SHARED_LIBS=OFF \
+        -DQT_FEATURE_wayland_server=OFF \
+        -DQT_FEATURE_wayland_client=ON \
+        -DQt6WaylandClient_DIR="${INSTALL_PREFIX}/lib/cmake/Qt6WaylandClient" \
+        -DQt6_DIR="${INSTALL_PREFIX}/lib/cmake/Qt6" \
+        .. && \
+    ninja -j 2 && \
+    ninja install -j 2
 
 # Create verification script for base components
 RUN mkdir -p ${INSTALL_PREFIX}/bin && \

@@ -39,6 +39,8 @@ Q_IMPORT_PLUGIN(QSvgPlugin)
 // Import static Qt platform plugin for Linux
 #ifdef Q_OS_LINUX
 Q_IMPORT_PLUGIN(QXcbIntegrationPlugin)
+Q_IMPORT_PLUGIN(QOffscreenIntegrationPlugin)
+Q_IMPORT_PLUGIN(QWaylandIntegrationPlugin)
 #endif
 
 // Define global shutdown flag
@@ -64,6 +66,8 @@ QAtomicInteger<int> g_applicationShuttingDown(0);
 #if defined(QT_STATICPLUGIN)
 #include <QtPlugin>
 Q_IMPORT_PLUGIN(QXcbIntegrationPlugin)
+Q_IMPORT_PLUGIN(QOffscreenIntegrationPlugin)
+Q_IMPORT_PLUGIN(QWaylandIntegrationPlugin)
 #endif
 
 
@@ -117,12 +121,26 @@ void writeLog(const QString &message){
 
 void setupEnv(){
 #ifdef Q_OS_LINUX
-    // Check if QT_QPA_PLATFORM is not set, and set it to "xcb" if it's empty
-    if (qgetenv("QT_QPA_PLATFORM").isEmpty()) {
-        qputenv("QT_QPA_PLATFORM", "xcb");
-        qDebug() << "Set QT_QPA_PLATFORM to xcb";
+    // Only set QT_QPA_PLATFORM when not provided by the user
+    const QByteArray currentPlatform = qgetenv("QT_QPA_PLATFORM");
+    const QByteArray waylandDisplay = qgetenv("WAYLAND_DISPLAY");
+    const QByteArray x11Display = qgetenv("DISPLAY");
+
+    if (currentPlatform.isEmpty()) {
+        if (!waylandDisplay.isEmpty()) {
+            qputenv("QT_QPA_PLATFORM", "wayland");
+            qDebug() << "Set QT_QPA_PLATFORM to wayland";
+        } else if (!x11Display.isEmpty()) {
+            qputenv("QT_QPA_PLATFORM", "xcb");
+            qDebug() << "Set QT_QPA_PLATFORM to xcb";
+        } else {
+            // Headless or no compositor detected – use offscreen to avoid X/Wayland requirement
+            qputenv("QT_QPA_PLATFORM", "offscreen");
+            qWarning() << "No WAYLAND_DISPLAY or DISPLAY found; defaulting QT_QPA_PLATFORM to 'offscreen'."
+                       << "Set QT_QPA_PLATFORM explicitly to override (e.g., 'xcb' or 'wayland').";
+        }
     } else {
-        qDebug() << "Current QT_QPA_PLATFORM:" << qgetenv("QT_QPA_PLATFORM");
+        qDebug() << "Current QT_QPA_PLATFORM:" << currentPlatform;
     }
 #endif
 }
@@ -204,6 +222,7 @@ int main(int argc, char *argv[])
     qDebug() << "GStreamer initialized successfully";
     #endif
     setupEnv();
+    qDebug() << "Creating QApplication...";
     QApplication app(argc, argv);
 
     // set style accroding to system palette
