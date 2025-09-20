@@ -1,7 +1,5 @@
 # GStreamer.cmake - GStreamer configuration and detection
 
-# GStreamer.cmake - GStreamer configuration and detection
-
 # Set GSTREAMER_PREFIX from environment or default
 if(NOT DEFINED GSTREAMER_PREFIX)
     if(DEFINED ENV{GSTREAMER_PREFIX} AND NOT ("${OPENTERFACE_BUILD_STATIC}" STREQUAL "ON" AND "${OPENTERFACE_ARCH}" STREQUAL "arm64"))
