@@ -110,7 +110,7 @@ RUN echo "Building gst-plugins-base..." && \
     ninja -C build && \
     ninja -C build install
 
-# Build gst-plugins-good (minimal set) with Qt6 support
+# Build gst-plugins-good (minimal set) - disable Qt6 to avoid detection issues
 RUN echo "Building gst-plugins-good..." && \
     . /etc/environment && \
     GSTREAMER_PC_DIR=$(find "${GSTREAMER_PREFIX}" -name "gstreamer-1.0.pc" -type f -exec dirname {} \; 2>/dev/null | head -1) && \
@@ -119,13 +119,6 @@ RUN echo "Building gst-plugins-good..." && \
     else \
         export PKG_CONFIG_PATH="${GSTREAMER_PREFIX}/lib/pkgconfig:${FFMPEG_PREFIX}/lib/pkgconfig:$MULTIARCH_PATH/pkgconfig:/usr/share/pkgconfig"; \
     fi && \
-    # Set Qt6 environment variables for /opt/QT6 path \
-    export QT6_DIR="/opt/QT6" && \
-    export Qt6_DIR="/opt/QT6" && \
-    export PATH="/opt/QT6/bin:$PATH" && \
-    export CMAKE_PREFIX_PATH="/opt/QT6:$CMAKE_PREFIX_PATH" && \
-    export PKG_CONFIG_PATH="/opt/QT6/lib/pkgconfig:$PKG_CONFIG_PATH" && \
-    export QT_QPA_PLATFORM="offscreen" && \
     cd "${WORK_DIR}/gstreamer_sources/gst-plugins-good-${GSTREAMER_VERSION}" && \
     meson setup build \
         --prefix="${GSTREAMER_PREFIX}" \
@@ -135,7 +128,7 @@ RUN echo "Building gst-plugins-good..." && \
         -Dexamples=disabled \
         -Dtests=disabled \
         -Dqt5=disabled \
-        -Dqt6=enabled \
+        -Dqt6=disabled \
         -Dnls=disabled \
         -Drtp=enabled \
         -Drtpmanager=enabled \
