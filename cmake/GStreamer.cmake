@@ -264,7 +264,7 @@ if(USE_GSTREAMER AND EXISTS "${GSTREAMER_INCLUDE_DIR}/gst/gst.h" AND EXISTS "${G
             endif()
         endforeach()
         
-        # List of plugins to try to find - these are the actual plugins in /opt/Qt6/lib/gstreamer-1.0/
+    # List of plugins to try to find - names correspond to lib<name>.a/.so in gstreamer-1.0 plugin directories
         # Essential plugins - core functionality
         set(ESSENTIAL_PLUGIN_CANDIDATES
             "gstvideo4linux2"     # v4l2src plugin - required for video input
@@ -481,60 +481,9 @@ function(link_gstreamer_libraries)
     if(GSTREAMER_FOUND)
         message(STATUS "Linking GStreamer libraries...")
         
-        # Special handling for ARM64 static builds
-        if(OPENTERFACE_BUILD_STATIC AND OPENTERFACE_IS_ARM64)
-            message(STATUS "Using direct GStreamer linking for ARM64 static build")
-            target_link_libraries(openterfaceQT PRIVATE 
-                # Link static plugins first with whole-archive to ensure registration functions are included
-                -Wl,--whole-archive
-                ${GSTREAMER_PLUGIN_LIBRARIES}
-                -Wl,--no-whole-archive
-                # Then link core GStreamer libraries
-                -Wl,--whole-archive
-                /opt/Qt6/lib/aarch64-linux-gnu/libgstreamer-1.0.a
-                /opt/Qt6/lib/aarch64-linux-gnu/libgstbase-1.0.a
-                /opt/Qt6/lib/aarch64-linux-gnu/libgstvideo-1.0.a
-                /opt/Qt6/lib/aarch64-linux-gnu/libgstaudio-1.0.a
-                /opt/Qt6/lib/aarch64-linux-gnu/libgstpbutils-1.0.a
-                /opt/Qt6/lib/aarch64-linux-gnu/libgsttag-1.0.a
-                /opt/Qt6/lib/aarch64-linux-gnu/libgstallocators-1.0.a
-                /opt/Qt6/lib/aarch64-linux-gnu/libgstapp-1.0.a
-                /opt/Qt6/lib/aarch64-linux-gnu/libgstcontroller-1.0.a
-                /opt/Qt6/lib/aarch64-linux-gnu/libgstnet-1.0.a
-                /opt/Qt6/lib/aarch64-linux-gnu/libgstriff-1.0.a
-                /opt/Qt6/lib/aarch64-linux-gnu/libgstrtp-1.0.a
-                /opt/Qt6/lib/aarch64-linux-gnu/libgstrtsp-1.0.a
-                /opt/Qt6/lib/aarch64-linux-gnu/libgstsdp-1.0.a
-                -Wl,--no-whole-archive
-                # Add GLib and other dependencies
-                gio-2.0
-                gobject-2.0
-                glib-2.0
-                gmodule-2.0
-                z
-                m
-                pthread
-                dl
-                rt
-                ffi
-                mount
-                blkid
-                resolv
-                pcre2-8
-                orc-0.4
-                # Additional GStreamer plugin dependencies
-                gudev-1.0
-                v4l2
-                Xi
-                Xv
-            )
-            target_include_directories(openterfaceQT PRIVATE 
-                /opt/Qt6/include/gstreamer-1.0
-                /usr/include/glib-2.0
-                /usr/lib/aarch64-linux-gnu/glib-2.0/include
-            )
-            return()
-        endif()
+        # Note: Avoid hardcoded architecture-specific paths; rely on detected
+        # ${GSTREAMER_LIBRARIES}, ${GSTREAMER_VIDEO_LIBRARIES} and
+        # ${GSTREAMER_PLUGIN_LIBRARIES} for portability across layouts.
         
         # Check if we're using pkg-config detection (system packages) or manual detection (static/Qt6 build)
         if(DEFINED GSTREAMER_PKG_CONFIG_DETECTION AND GSTREAMER_PKG_CONFIG_DETECTION)
@@ -609,8 +558,8 @@ function(link_gstreamer_libraries)
             
             # Add strong linker flags for static builds
             if(OPENTERFACE_BUILD_STATIC)
+                # Do not use --no-as-needed globally to allow the linker to drop unused shared libs
                 target_link_options(openterfaceQT PRIVATE
-                    -Wl,--no-as-needed
                     -Wl,--exclude-libs,ALL
                     -static-libgcc
                     -static-libstdc++

@@ -44,17 +44,23 @@ RUN echo "Building libxcb-cursor from source..." && \
         CPPFLAGS="-I${INSTALL_PREFIX}/include" \
         LDFLAGS="-L${INSTALL_PREFIX}/lib" \
         PKG_CONFIG_PATH="${INSTALL_PREFIX}/lib/pkgconfig:/usr/lib/aarch64-linux-gnu/pkgconfig:/usr/lib/pkgconfig" && \
-    # Build and install
+    # Build and install to INSTALL_PREFIX
     make -j$(nproc) && \
     make install && \
-    # Also install to system locations for compatibility
-    make install DESTDIR= prefix=/usr && \
+    # Also copy static archive to system multi-arch location for discovery by CMake
+    ARCH="$(dpkg-architecture -qDEB_HOST_MULTIARCH)" && \
+    mkdir -p "/usr/lib/${ARCH}" && \
+    if [ -f "${INSTALL_PREFIX}/lib/libxcb-cursor.a" ]; then \
+        cp -f "${INSTALL_PREFIX}/lib/libxcb-cursor.a" "/usr/lib/${ARCH}/libxcb-cursor.a"; \
+    fi && \
     # Verify installation
     ls -la "${INSTALL_PREFIX}/lib/libxcb-cursor.a" && \
     pkg-config --exists xcb-cursor && echo "✓ libxcb-cursor static library installed successfully" || echo "⚠ libxcb-cursor pkg-config not found" && \
     # Print xcb-cursor configuration
-    echo "xcb-cursor pkg-config info:" && \
-    pkg-config --cflags --libs xcb-cursor && \
+        echo "xcb-cursor pkg-config info:" && \
+        ARCH="$(dpkg-architecture -qDEB_HOST_MULTIARCH)" && \
+        PKG_CONFIG_PATH="${INSTALL_PREFIX}/lib/pkgconfig:/usr/lib/${ARCH}/pkgconfig:/usr/lib/pkgconfig:${PKG_CONFIG_PATH}" \
+            pkg-config --cflags --libs xcb-cursor && \
     # Clean up
     rm -rf libxcb-cursor-0.1.5 libxcb-cursor.tar.gz && \
     echo "✓ libxcb-cursor static build completed"

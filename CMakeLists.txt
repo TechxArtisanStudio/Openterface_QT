@@ -122,12 +122,19 @@ if(OPENTERFACE_BUILD_STATIC)
         message(STATUS "Linking Qt6 XCB QPA library: ${QT_XCB_QPA_PATH}")
     endif()
     
-    # Force static linking of XCB libraries with whole-archive to override dynamic references
-    target_link_libraries(${PROJECT_NAME} PRIVATE 
-        -Wl,--whole-archive
-        /usr/lib/aarch64-linux-gnu/libxcb-cursor.a
-        -Wl,--no-whole-archive
-    )
+    # Force static linking of xcb-cursor with whole-archive to avoid dynamic dependency at runtime
+    if(DEFINED XCB_CURSOR_LIBRARIES AND XCB_CURSOR_LIBRARIES)
+        message(STATUS "Linking xcb-cursor statically: ${XCB_CURSOR_LIBRARIES}")
+        target_link_libraries(${PROJECT_NAME} PRIVATE 
+            -Wl,--whole-archive
+            ${XCB_CURSOR_LIBRARIES}
+            -Wl,--no-whole-archive
+        )
+    else()
+        message(WARNING "Static xcb-cursor library not detected by Configuration.cmake; falling back may cause runtime dependency on libxcb-cursor.so.0")
+        # Optionally enforce static-only:
+        # message(FATAL_ERROR "Static build requested but libxcb-cursor.a not found. Ensure static libxcb-cursor is installed and detected.")
+    endif()
     
     # Link other XCB static libraries normally
     set(XCB_STATIC_LIBS
