@@ -67,22 +67,6 @@ if(CMAKE_PREFIX_PATH)
     endforeach()
 endif()
 
-# Find GStreamer installation
-# For Docker builds, prioritize /opt/Qt6
-if(OPENTERFACE_BUILD_STATIC AND OPENTERFACE_IS_ARM64)
-    set(GSTREAMER_PREFIX "/opt/Qt6")  # Docker Qt6 static build
-    message(STATUS "Using Docker Qt6 GStreamer prefix: ${GSTREAMER_PREFIX}")
-else()
-    set(GSTREAMER_PREFIX "/opt/gstreamer")  # Default fallback
-    foreach(SEARCH_PATH ${GSTREAMER_SEARCH_PATHS})
-        if(EXISTS "${SEARCH_PATH}/include/gstreamer-1.0/gst/gst.h")
-            set(GSTREAMER_PREFIX "${SEARCH_PATH}")
-            message(STATUS "Found GStreamer installation at: ${GSTREAMER_PREFIX}")
-            break()
-        endif()
-    endforeach()
-endif()
-
 # For ARM64 static builds, check if GStreamer is in Qt6 lib/aarch64-linux-gnu
 if(OPENTERFACE_IS_ARM64 AND OPENTERFACE_BUILD_STATIC)
     if(EXISTS "${GSTREAMER_PREFIX}/lib/aarch64-linux-gnu/libgstreamer-1.0.a")
