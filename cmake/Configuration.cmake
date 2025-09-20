@@ -64,6 +64,13 @@ include(cmake/FFmpeg.cmake)
 # Include GStreamer configuration  
 include(cmake/GStreamer.cmake)
 
+# Set PKG_CONFIG_PATH for GStreamer after GStreamer.cmake has set GSTREAMER_PREFIX
+# This ensures Qt's internal pkg-config calls can find GStreamer packages
+if(NOT "$ENV{PKG_CONFIG_PATH}" MATCHES "${GSTREAMER_PREFIX}")
+    set(ENV{PKG_CONFIG_PATH} "${GSTREAMER_PREFIX}/lib/pkgconfig:$ENV{PKG_CONFIG_PATH}")
+    message(STATUS "Added GStreamer to PKG_CONFIG_PATH: ${GSTREAMER_PREFIX}/lib/pkgconfig")
+endif()
+
 # Ensure we use the static Qt6 build by setting the Qt6 directory explicitly
 set(Qt6_DIR "${QT_BUILD_PATH}/lib/cmake/Qt6" CACHE PATH "Qt6 installation directory" FORCE)
 set(Qt6Core_DIR "${QT_BUILD_PATH}/lib/cmake/Qt6Core" CACHE PATH "Qt6Core directory" FORCE)
