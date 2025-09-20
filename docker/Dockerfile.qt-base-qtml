@@ -12,6 +12,12 @@ ARG INSTALL_PREFIX=/opt/Qt6
 
 WORKDIR ${BUILD_DIR}
 
+# Ensure essential tools are available in case base image changes
+RUN apt-get update -y && \
+        apt-get install -y --no-install-recommends \
+            curl unzip ca-certificates pkg-config ninja-build && \
+        rm -rf /var/lib/apt/lists/*
+
 # Define base modules to build (include qtwayland for Wayland platform plugin)
 ENV MODULES="qtbase qtshadertools qtwayland"
 ENV DOWNLOAD_BASE_URL="https://download.qt.io/archive/qt/${QT_MAJOR_VERSION}/${QT_VERSION}/submodules"
