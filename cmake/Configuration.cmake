@@ -41,11 +41,7 @@ endif()
 # Set QT_BUILD_PATH and adjust CMAKE_PREFIX_PATH when not explicitly provided
 # Do not override user-provided CMAKE_PREFIX_PATH
 if(NOT DEFINED QT_BUILD_PATH)
-    if(DEFINED OPENTERFACE_IS_ARM64 AND OPENTERFACE_IS_ARM64)
-        set(QT_BUILD_PATH "/opt/Qt6-arm64" CACHE PATH "Qt6 installation directory for builds" FORCE)
-    else()
-        set(QT_BUILD_PATH "/opt/Qt6" CACHE PATH "Qt6 installation directory for builds" FORCE)
-    endif()
+    set(QT_BUILD_PATH "/opt/Qt6" CACHE PATH "Qt6 installation directory for builds" FORCE)
     message(STATUS "QT_BUILD_PATH set to ${QT_BUILD_PATH}")
 endif()
 

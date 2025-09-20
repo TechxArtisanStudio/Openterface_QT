@@ -2,7 +2,7 @@
 # This Dockerfile creates a minimal testing environment for the statically-linked Openterface QT application
 # Downloads and installs the prebuilt static package with minimal runtime dependencies
 
-FROM ubuntu:24.04
+FROM ubuntu:22.04
 
 # Set environment variables to avoid interactive prompts
 ENV DEBIAN_FRONTEND=noninteractive
