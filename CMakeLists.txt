@@ -174,7 +174,7 @@ if(OPENTERFACE_BUILD_STATIC)
         target_link_libraries(${PROJECT_NAME} PRIVATE Qt6::WaylandClient)
         message(STATUS "Linking Qt6::WaylandClient module")
     endif()
-    
+
     # Link Qt XCB QPA library (required by XCB plugin)
     set(QT_XCB_QPA_PATH "/opt/Qt6/lib/libQt6XcbQpa.a")
     if(EXISTS ${QT_XCB_QPA_PATH})

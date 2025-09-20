@@ -42,8 +42,7 @@ Q_IMPORT_PLUGIN(QSvgPlugin)
 #ifdef Q_OS_LINUX
 Q_IMPORT_PLUGIN(QXcbIntegrationPlugin)
 Q_IMPORT_PLUGIN(QOffscreenIntegrationPlugin)
-Q_IMPORT_PLUGIN(QWaylandEglPlatformIntegrationPlugin)
-#endif
+Q_IMPORT_PLUGIN(QWaylandIntegrationPlugin)
 #endif
 
 // Define global shutdown flag
@@ -65,13 +64,6 @@ QAtomicInteger<int> g_applicationShuttingDown(0);
 #include <QDir>
 #include <QFile>
 #include <QTextStream>
-
-#if defined(QT_STATICPLUGIN)
-#include <QtPlugin>
-Q_IMPORT_PLUGIN(QXcbIntegrationPlugin)
-Q_IMPORT_PLUGIN(QOffscreenIntegrationPlugin)
-Q_IMPORT_PLUGIN(QWaylandEglPlatformIntegrationPlugin)
-#endif
 
 
 void customMessageHandler(QtMsgType type, const QMessageLogContext &context, const QString &msg)
@@ -131,9 +123,8 @@ void setupEnv(){
 
     if (currentPlatform.isEmpty()) {
         if (!waylandDisplay.isEmpty()) {
-            // Prefer wayland-egl since the available plugin list includes wayland-egl
-            qputenv("QT_QPA_PLATFORM", "wayland-egl");
-            qDebug() << "Set QT_QPA_PLATFORM to wayland-egl";
+            qputenv("QT_QPA_PLATFORM", "wayland");
+            qDebug() << "Set QT_QPA_PLATFORM to wayland";
         } else if (!x11Display.isEmpty()) {
             qputenv("QT_QPA_PLATFORM", "xcb");
             qDebug() << "Set QT_QPA_PLATFORM to xcb";
