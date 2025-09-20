@@ -31,7 +31,7 @@ RUN echo "Building qtmultimedia..." && \
         -DCMAKE_INSTALL_PREFIX="${INSTALL_PREFIX}" \
         -DCMAKE_PREFIX_PATH="${INSTALL_PREFIX};${FFMPEG_PREFIX}" \
         -DBUILD_SHARED_LIBS=OFF \
-        -DFEATURE_gstreamer=OFF \
+        -DFEATURE_gstreamer=ON\
         -DINPUT_gstreamer=ON \
         -DFEATURE_pulseaudio=ON \
         -DFEATURE_ffmpeg=ON \
