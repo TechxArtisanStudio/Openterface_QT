@@ -513,6 +513,11 @@ function(link_gstreamer_libraries)
         if(OPENTERFACE_BUILD_STATIC AND OPENTERFACE_IS_ARM64)
             message(STATUS "Using direct GStreamer linking for ARM64 static build")
             target_link_libraries(openterfaceQT PRIVATE 
+                # Link static plugins first with whole-archive to ensure registration functions are included
+                -Wl,--whole-archive
+                ${GSTREAMER_PLUGIN_LIBRARIES}
+                -Wl,--no-whole-archive
+                # Then link core GStreamer libraries
                 -Wl,--whole-archive
                 /opt/Qt6/lib/aarch64-linux-gnu/libgstreamer-1.0.a
                 /opt/Qt6/lib/aarch64-linux-gnu/libgstbase-1.0.a
@@ -545,6 +550,11 @@ function(link_gstreamer_libraries)
                 resolv
                 pcre2-8
                 orc-0.4
+                # Additional GStreamer plugin dependencies
+                gudev-1.0
+                v4l2
+                Xi
+                Xv
             )
             target_include_directories(openterfaceQT PRIVATE 
                 /opt/Qt6/include/gstreamer-1.0
