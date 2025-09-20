@@ -4,7 +4,19 @@ ARG UBUNTU_VERSION=22.04
 ARG TARGETARCH=amd64
 FROM ${BASE_IMAGE}
 
+# Fallback defaults (base image should set these, but provide sensible defaults)
+ARG QT_MAJOR_VERSION=6.6
+ARG QT_VERSION=6.6.3
+ARG BUILD_DIR=/workspace/qt-build
+ARG INSTALL_PREFIX=/opt/Qt6
+
 WORKDIR ${BUILD_DIR}
+
+# Ensure essential tools are available in case base image changes
+RUN apt-get update -y && \
+        apt-get install -y --no-install-recommends \
+            curl unzip ca-certificates pkg-config ninja-build && \
+        rm -rf /var/lib/apt/lists/*
 
 # Define base modules to build (include qtwayland for Wayland platform plugin)
 ENV MODULES="qtbase qtshadertools qtwayland"
@@ -12,13 +24,19 @@ ENV DOWNLOAD_BASE_URL="https://download.qt.io/archive/qt/${QT_MAJOR_VERSION}/${Q
 ENV CMAKE_COMMON_FLAGS="-Wno-dev -DCMAKE_POLICY_DEFAULT_CMP0177=NEW -DCMAKE_POLICY_DEFAULT_CMP0174=NEW"
 
 # Download and extract Qt base modules
-RUN for module in ${MODULES}; do \
+RUN echo "Preparing build directory: ${BUILD_DIR}" && \
+    mkdir -p "${BUILD_DIR}" && \
+    for module in ${MODULES}; do \
         echo "Downloading $module..."; \
-        curl -L -o "$module.zip" "${DOWNLOAD_BASE_URL}/$module-everywhere-src-${QT_VERSION}.zip" && \
-        unzip -q "$module.zip" && \
-        mv "$module-everywhere-src-${QT_VERSION}" "$module" && \
-        rm "$module.zip"; \
-    done
+        curl -L -o "$module.zip" "${DOWNLOAD_BASE_URL}/$module-everywhere-src-${QT_VERSION}.zip"; \
+        if [ ! -s "$module.zip" ]; then echo "Failed to download $module"; exit 1; fi; \
+        unzip -q "$module.zip"; \
+        if [ ! -d "$module-everywhere-src-${QT_VERSION}" ]; then echo "Archive layout unexpected for $module"; exit 1; fi; \
+        mv "$module-everywhere-src-${QT_VERSION}" "$module"; \
+        rm -f "$module.zip"; \
+    done && \
+    ls -la && \
+    test -d qtbase && echo "qtbase extracted" || (echo "qtbase missing after download" && exit 1)
 
 # Build libxcb-cursor from source (static) - Build early to ensure Qt finds it
 RUN echo "Building libxcb-cursor from source..." && \
@@ -75,6 +93,7 @@ RUN echo "Building libxcb-cursor from source..." && \
 
 # Build qtbase first (foundation)
 RUN echo "Building qtbase with static XCB..." && \
+    ls -la ${BUILD_DIR} && \
     cd ${BUILD_DIR}/qtbase && \
     mkdir -p build && \
     cd build && \
@@ -171,7 +190,8 @@ ENV PATH="${INSTALL_PREFIX}/bin:${PATH}"
 ENV QT_PLUGIN_PATH="${INSTALL_PREFIX}/plugins"
 ENV QML2_IMPORT_PATH="${INSTALL_PREFIX}/qml"
 ENV LD_LIBRARY_PATH="${INSTALL_PREFIX}/lib"
-ENV PKG_CONFIG_PATH="${INSTALL_PREFIX}/lib/pkgconfig:${PKG_CONFIG_PATH}"
+# Initialize PKG_CONFIG_PATH to avoid undefined-var warning, and include common fallbacks
+ENV PKG_CONFIG_PATH="${INSTALL_PREFIX}/lib/pkgconfig:/usr/lib/$(dpkg-architecture -qDEB_HOST_MULTIARCH)/pkgconfig:/usr/lib/pkgconfig:${PKG_CONFIG_PATH}"
 
 # Verify Qt base installation
 RUN ${INSTALL_PREFIX}/bin/verify-qt-base.sh
