@@ -46,8 +46,20 @@ include(cmake/FFmpeg.cmake OPTIONAL)
 # Include internationalization support (defines setup_translations function)
 include(cmake/Internationalization.cmake)
 
-# Add the executable target
-qt_standard_project_setup()
+# Find Qt early and set up project macros compatibly with Qt 6.2 on Ubuntu 22.04
+find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets Network Multimedia MultimediaWidgets SerialPort OpenGL OpenGLWidgets Xml Svg SvgWidgets Concurrent DBus)
+
+# Use standardized Qt setup if available (Qt >= 6.3); otherwise emulate basics for Qt 6.2
+if(COMMAND qt_standard_project_setup)
+    qt_standard_project_setup()
+else()
+    message(STATUS "qt_standard_project_setup() not available; enabling Qt AUTOMOC/AUTOUIC/AUTORCC and C++17 manually")
+    set(CMAKE_CXX_STANDARD 17)
+    set(CMAKE_CXX_STANDARD_REQUIRED ON)
+    set(CMAKE_AUTOMOC ON)
+    set(CMAKE_AUTOUIC ON)
+    set(CMAKE_AUTORCC ON)
+endif()
 
 # Include source files from modular file
 include(cmake/SourceFiles.cmake)
@@ -241,7 +253,7 @@ link_gstreamer_libraries()
 
 # Add DBus on Unix systems (excluding macOS)
 if(UNIX AND NOT APPLE)
-    target_link_libraries(openterfaceQT PRIVATE Qt::DBus)
+    target_link_libraries(openterfaceQT PRIVATE Qt6::DBus)
 endif()
 
 # Resources:
@@ -280,6 +292,4 @@ if(CMAKE_BUILD_TYPE STREQUAL "Release")
     endif()
 endif()
 
-# Make sure to only include the necessary Qt components
-find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets Network Multimedia MultimediaWidgets SerialPort OpenGL OpenGLWidgets Xml Svg SvgWidgets Concurrent DBus)
-# Replace with only the modules you actually need
+# Qt components already found above

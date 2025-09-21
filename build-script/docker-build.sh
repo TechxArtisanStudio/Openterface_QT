@@ -23,7 +23,14 @@ pkg-config --version
 pkg-config --list-all | grep -E "avformat|avcodec" || echo "No FFmpeg packages found"
 echo "========================="
 
-cmake        -DCMAKE_BUILD_TYPE=Release       -DOPENTERFACE_BUILD_STATIC=ON       -DCMAKE_VERBOSE_MAKEFILE=ON       /workspace/src
+# Default to dynamic linking for the shared build environment; allow override via OPENTERFACE_BUILD_STATIC env
+: "${OPENTERFACE_BUILD_STATIC:=OFF}"
+echo "OPENTERFACE_BUILD_STATIC set to ${OPENTERFACE_BUILD_STATIC}"
+cmake \
+	-DCMAKE_BUILD_TYPE=Release \
+	-DOPENTERFACE_BUILD_STATIC=${OPENTERFACE_BUILD_STATIC} \
+	-DCMAKE_VERBOSE_MAKEFILE=ON \
+	/workspace/src
 
 echo "Building with CMake..."
 make -j4 VERBOSE=1
