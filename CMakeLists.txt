@@ -156,6 +156,13 @@ if(OPENTERFACE_BUILD_STATIC)
         target_link_libraries(${PROJECT_NAME} PRIVATE ${XKBCOMMON_LIBRARIES})
         target_include_directories(${PROJECT_NAME} PRIVATE ${XKBCOMMON_INCLUDE_DIRS})
     endif()
+
+    # If Qt WaylandClient module exists in the static toolchain, link it
+    find_package(Qt6 QUIET COMPONENTS WaylandClient)
+    if(TARGET Qt6::WaylandClient)
+        target_link_libraries(${PROJECT_NAME} PRIVATE Qt6::WaylandClient)
+        message(STATUS "Linking Qt6::WaylandClient module")
+    endif()
     
     # Link Qt XCB QPA library (required by XCB plugin)
     set(QT_XCB_QPA_PATH "/opt/Qt6/lib/libQt6XcbQpa.a")
