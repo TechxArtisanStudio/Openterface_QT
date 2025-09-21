@@ -164,7 +164,7 @@ echo "Debian package created at ${PKG_OUT}/${DEB_NAME}"
 # =========================
 echo "Preparing RPM package..."
 
-sudo apt install -y rpm
+apt install -y rpm
 if ! command -v rpmbuild >/dev/null 2>&1; then
 	echo "Error: rpmbuild not found in the container. Please ensure 'rpm' is installed in the image." >&2
 	exit 1
