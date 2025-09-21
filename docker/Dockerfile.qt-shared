@@ -1,6 +1,6 @@
 # Dynamic Qt Build Environment
 ARG BASE_IMAGE=ghcr.io/techxartisanstudio/openterface-qtbuild-gstreamer:ubuntu-24.04-amd64
-ARG UBUNTU_VERSION=24.04
+ARG UBUNTU_VERSION=22.04
 ARG TARGETARCH=amd64
 FROM ${BASE_IMAGE}
 
@@ -27,6 +27,9 @@ RUN apt-get update && apt-get install -y \
 
 # Install Qt6 from official repositories with architecture-specific packages
 RUN apt-get update && \
+    apt-get install -y software-properties-common && \
+    add-apt-repository -y universe && \
+    apt-get update && \
     # Install native AMD64 packages
     apt-get install -y \
         qt6-base-dev \
@@ -34,8 +37,8 @@ RUN apt-get update && \
         qt6-tools-dev \
         qt6-tools-dev-tools \
         qt6-multimedia-dev \
-        qt6-serialport-dev \
-        qt6-svg-dev \
+        libqt6serialport6-dev \
+        libqt6svg6-dev \
         qt6-declarative-dev \
         qmake6 \
         # Add X11 development libraries for AMD64
