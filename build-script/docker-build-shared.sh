@@ -94,9 +94,32 @@ else
 	exit 1
 fi
 
-# Copy desktop file (ensure Exec uses installed path)
+# Copy desktop file (ensure Exec uses installed path and Icon basename is openterfaceQT)
 if [ -f "${SRC}/com.openterface.openterfaceQT.desktop" ]; then
-	sed 's|^Exec=.*$|Exec=/usr/local/bin/openterfaceQT|g' "${SRC}/com.openterface.openterfaceQT.desktop" > "${PKG_ROOT}/usr/share/applications/com.openterface.openterfaceQT.desktop"
+	sed -e 's|^Exec=.*$|Exec=/usr/local/bin/openterfaceQT|g' \
+		-e 's|^Icon=.*$|Icon=openterfaceQT|g' \
+		"${SRC}/com.openterface.openterfaceQT.desktop" > "${PKG_ROOT}/usr/share/applications/com.openterface.openterfaceQT.desktop"
+fi
+
+# Install icon into hicolor theme
+ICON_SRC=""
+for p in \
+	"${SRC}/images/icon_256.png" \
+	"${SRC}/images/icon_256.svg" \
+	"${SRC}/images/icon_128.png" \
+	"${SRC}/images/icon_64.png" \
+	"${SRC}/images/icon_32.png"; do
+	if [ -f "$p" ]; then ICON_SRC="$p"; break; fi
+done
+if [ -n "${ICON_SRC}" ]; then
+	ICON_EXT="${ICON_SRC##*.}"
+	if [ "${ICON_EXT}" = "svg" ]; then
+		mkdir -p "${PKG_ROOT}/usr/share/icons/hicolor/scalable/apps"
+		cp "${ICON_SRC}" "${PKG_ROOT}/usr/share/icons/hicolor/scalable/apps/openterfaceQT.svg"
+	else
+		mkdir -p "${PKG_ROOT}/usr/share/icons/hicolor/256x256/apps"
+		cp "${ICON_SRC}" "${PKG_ROOT}/usr/share/icons/hicolor/256x256/apps/openterfaceQT.png"
+	fi
 fi
 
 # Copy appstream/metainfo if present

@@ -112,6 +112,11 @@ fi
 # Try to locate an icon and install it as openterfaceQT.png
 ICON_SRC=""
 for p in \
+	"${SRC}/images/icon_256.png" \
+	"${SRC}/images/icon_256.svg" \
+	"${SRC}/images/icon_128.png" \
+	"${SRC}/images/icon_64.png" \
+	"${SRC}/images/icon_32.png" \
 	"${SRC}/resources/icons/openterfaceQT.png" \
 	"${SRC}/resources/icons/openterface.png" \
 	"${SRC}/icons/openterfaceQT.png" \
@@ -121,7 +126,14 @@ for p in \
 	if [ -f "$p" ]; then ICON_SRC="$p"; break; fi
 done
 if [ -n "${ICON_SRC}" ]; then
-	cp "${ICON_SRC}" "${APPDIR}/usr/share/icons/hicolor/256x256/apps/openterfaceQT.png" || true
+	ICON_EXT="${ICON_SRC##*.}"
+	if [ "${ICON_EXT}" = "svg" ]; then
+		mkdir -p "${APPDIR}/usr/share/icons/hicolor/scalable/apps"
+		cp "${ICON_SRC}" "${APPDIR}/usr/share/icons/hicolor/scalable/apps/openterfaceQT.svg" || true
+	else
+		mkdir -p "${APPDIR}/usr/share/icons/hicolor/256x256/apps"
+		cp "${ICON_SRC}" "${APPDIR}/usr/share/icons/hicolor/256x256/apps/openterfaceQT.${ICON_EXT}" || true
+	fi
 else
 	echo "No icon found; continuing without a custom icon."
 fi
