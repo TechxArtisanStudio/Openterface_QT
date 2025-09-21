@@ -78,7 +78,7 @@ endif()
 if(OPENTERFACE_BUILD_STATIC)
     # Prefer FFmpeg shipped inside the Qt build tree if it actually exists there.
     set(_qt_lib_dir "${FFMPEG_PREFIX}/lib")
-    if(EXISTS "${_qt_lib_dir}/libavformat.a" AND EXISTS "${FFMPEG_PREFIX}/include/avformat.h")
+    if(EXISTS "${_qt_lib_dir}/libavformat.a" AND EXISTS "${FFMPEG_PREFIX}/include/libavformat/avformat.h")
         set(FFMPEG_LIB_DIR ${_qt_lib_dir})
         set(FFMPEG_INCLUDE_DIRS "${FFMPEG_PREFIX}/include")
         message(STATUS "Found FFmpeg static libraries in Qt build path: ${FFMPEG_LIB_DIR}")
@@ -96,7 +96,7 @@ else()
         set(FFMPEG_LIB_DIR ${_qt_lib_dir})
         set(FFMPEG_INCLUDE_DIRS "${FFMPEG_PREFIX}/include")
         message(STATUS "Found FFmpeg shared libraries in Qt build path: ${FFMPEG_LIB_DIR}")
-        message((STATUS "Found header file at ${FFMPEG_PREFIX}/include/libavformat/avformat.h"))
+        message(STATUS "Found header file at ${FFMPEG_PREFIX}/include/libavformat/avformat.h")
         set(FFMPEG_FOUND TRUE)
     endif()
 
@@ -169,6 +169,8 @@ if(NOT FFMPEG_FOUND)
                 if(EXISTS "${LIB_PATH}/${LIB_NAME}" AND EXISTS "${SEARCH_PATH}/include/libavformat/avformat.h")
                     set(FFMPEG_LIB_DIR "${LIB_PATH}")
                     set(FFMPEG_LIB_EXT "${LIB_EXT}")
+                    # Ensure include directory is captured for compilation
+                    set(FFMPEG_INCLUDE_DIRS "${SEARCH_PATH}/include")
                     message(STATUS "FFmpeg libraries found in: ${FFMPEG_LIB_DIR}")
                     message(STATUS "Using ${LIB_EXT} libraries")
                     set(FFMPEG_FOUND TRUE)
@@ -328,21 +330,15 @@ endif()
 
 message(STATUS "Using FFmpeg header check file: ${FFMPEG_CHECK_FILE}")
 
-if(OPENTERFACE_BUILD_STATIC)
-    set(FFMPEG_LIB_CHECK "${FFMPEG_LIB_DIR}/libavformat.a")
-else()
-    set(FFMPEG_LIB_CHECK "${FFMPEG_LIB_DIR}/libavformat.so")
-endif()
+# Determine which specific library file to check based on detected extension
+set(FFMPEG_LIB_CHECK "${FFMPEG_LIB_DIR}/libavformat${FFMPEG_LIB_EXT}")
 
-# If we found FFmpeg via pkg-config, trust it and skip file checks
-# Otherwise, verify files exist manually
+# If we found FFmpeg via pkg-config, trust it; otherwise verify files exist manually
 message(STATUS "Debug: FFMPEG_PKG_CONFIG = ${FFMPEG_PKG_CONFIG}")
 message(STATUS "Debug: FFMPEG_CHECK_FILE = ${FFMPEG_CHECK_FILE}")
 message(STATUS "Debug: FFMPEG_LIB_CHECK = ${FFMPEG_LIB_CHECK}")
-set(EXISTS_HEADER EXISTS "${FFMPEG_CHECK_FILE}")
-set(EXISTS_LIB EXISTS "${FFMPEG_LIB_CHECK}")
 
-if(FFMPEG_PKG_CONFIG OR (EXISTS_HEADER AND EXISTS_LIB))
+if(FFMPEG_PKG_CONFIG OR (EXISTS "${FFMPEG_CHECK_FILE}" AND EXISTS "${FFMPEG_LIB_CHECK}"))
     message(STATUS "FFmpeg found - enabling FFmpeg backend")
     if(FFMPEG_PKG_CONFIG)
         message(STATUS "FFmpeg verified via pkg-config")
@@ -356,8 +352,17 @@ if(FFMPEG_PKG_CONFIG OR (EXISTS_HEADER AND EXISTS_LIB))
     add_definitions(-DHAVE_FFMPEG)
 else()
     message(STATUS "FFmpeg not found - FFmpeg backend disabled")
-    message(STATUS "Checked header: ${FFMPEG_CHECK_FILE} (exists: ${EXISTS_HEADER})")
-    message(STATUS "Checked library: ${FFMPEG_LIB_CHECK} (exists: ${EXISTS_LIB})")
+    # Show check results
+    if(EXISTS "${FFMPEG_CHECK_FILE}")
+        message(STATUS "Checked header: ${FFMPEG_CHECK_FILE} (exists: TRUE)")
+    else()
+        message(STATUS "Checked header: ${FFMPEG_CHECK_FILE} (exists: FALSE)")
+    endif()
+    if(EXISTS "${FFMPEG_LIB_CHECK}")
+        message(STATUS "Checked library: ${FFMPEG_LIB_CHECK} (exists: TRUE)")
+    else()
+        message(STATUS "Checked library: ${FFMPEG_LIB_CHECK} (exists: FALSE)")
+    endif()
     message(FATAL_ERROR "FFmpeg is required but not found. Please ensure FFmpeg libraries are installed at ${CMAKE_PREFIX_PATH}")
 endif()
 
@@ -402,6 +407,8 @@ function(link_ffmpeg_libraries)
                 -ldrm -lva -lva-drm -lva-x11 -lvdpau -lX11
                 # XCB is required by avdevice xcbgrab; ensure core xcb gets linked
                 -lxcb
+                # XCB extensions used by xcbgrab (shared memory, xfixes for cursor, shape for OSD)
+                -lxcb-shm -lxcb-xfixes -lxcb-shape -lxcb-image
                 # PulseAudio is required by avdevice pulse input/output
                 -lpulse -lpulse-simple
                 # Optionally include common helpers if needed by specific builds

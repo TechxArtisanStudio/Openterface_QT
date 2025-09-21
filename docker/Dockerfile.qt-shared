@@ -42,6 +42,8 @@ RUN apt-get update && \
         libqt6svg6-dev \
         qt6-declarative-dev \
         qmake6 \
+        qt6-wayland \
+        qt6-wayland-dev \
         # Add X11 development libraries for AMD64
         libx11-dev \
         libx11-xcb-dev \
@@ -70,6 +72,8 @@ RUN apt-get update && \
         libopengl-dev \
         libdrm-dev \
         libgbm-dev \
+        libwayland-dev \
+        wayland-protocols \
         mesa-common-dev \
         libxkbcommon-dev \
         libxcb-xkb-dev \
@@ -77,6 +81,9 @@ RUN apt-get update && \
         libxcb-image0-dev \
         libxcb-keysyms1-dev \
         libxcb-render-util0-dev \
+        libxcb-shm0-dev \
+        libxcb-xfixes0-dev \
+        libxcb-shape0-dev \
         libxcb-cursor-dev \
         libfontconfig1-dev \
         libfreetype6-dev \
@@ -102,7 +109,15 @@ RUN apt-get update && \
         va-driver-all \
         vainfo \
         libva-dev \
-        libvdpau-dev
+        libvdpau-dev \
+        # FFmpeg development headers (use system headers alongside static libs)
+        libavcodec-dev \
+        libavformat-dev \
+        libavutil-dev \
+        libswresample-dev \
+        libswscale-dev \
+        libavdevice-dev \
+        libavfilter-dev
 
 
 
@@ -144,6 +159,13 @@ RUN mkdir -p /opt/verify && \
     echo '        echo "✗ Qt${module} shared library NOT found"' >> /opt/verify/verify-qt-shared.sh && \
     echo '    fi' >> /opt/verify/verify-qt-shared.sh && \
     echo 'done' >> /opt/verify/verify-qt-shared.sh && \
+    echo 'echo -e "\nChecking Wayland platform plugin:"' >> /opt/verify/verify-qt-shared.sh && \
+    echo 'WAYLAND_PLUGIN_DIR="${QT_LIB_ARCH_PATH}/qt6/plugins/platforms"' >> /opt/verify/verify-qt-shared.sh && \
+    echo 'if [ -f "${WAYLAND_PLUGIN_DIR}/libqwayland-egl.so" ] || [ -f "${WAYLAND_PLUGIN_DIR}/libqwayland-generic.so" ]; then' >> /opt/verify/verify-qt-shared.sh && \
+    echo '    echo "✓ Qt Wayland platform plugin found in ${WAYLAND_PLUGIN_DIR}"' >> /opt/verify/verify-qt-shared.sh && \
+    echo 'else' >> /opt/verify/verify-qt-shared.sh && \
+    echo '    echo "✗ Qt Wayland platform plugin NOT found in ${WAYLAND_PLUGIN_DIR}"' >> /opt/verify/verify-qt-shared.sh && \
+    echo 'fi' >> /opt/verify/verify-qt-shared.sh && \
     echo 'echo -e "\nChecking pkg-config modules:"' >> /opt/verify/verify-qt-shared.sh && \
     echo 'PKG_MODULES="Qt6Core Qt6Widgets Qt6Gui Qt6Multimedia Qt6SerialPort Qt6Svg"' >> /opt/verify/verify-qt-shared.sh && \
     echo 'for module in $PKG_MODULES; do' >> /opt/verify/verify-qt-shared.sh && \
@@ -153,6 +175,17 @@ RUN mkdir -p /opt/verify && \
     echo '        echo "✗ $module pkg-config: FAILED"' >> /opt/verify/verify-qt-shared.sh && \
     echo '    fi' >> /opt/verify/verify-qt-shared.sh && \
     echo 'done' >> /opt/verify/verify-qt-shared.sh && \
+    echo 'echo -e "\nChecking FFmpeg headers:"' >> /opt/verify/verify-qt-shared.sh && \
+    echo 'if [ -f "/usr/include/libavformat/avformat.h" ]; then' >> /opt/verify/verify-qt-shared.sh && \
+    echo '  echo "✓ Found: /usr/include/libavformat/avformat.h"' >> /opt/verify/verify-qt-shared.sh && \
+    echo 'else' >> /opt/verify/verify-qt-shared.sh && \
+    echo '  echo "✗ Missing: /usr/include/libavformat/avformat.h"' >> /opt/verify/verify-qt-shared.sh && \
+    echo 'fi' >> /opt/verify/verify-qt-shared.sh && \
+    echo 'if [ -f "/opt/ffmpeg/include/libavformat/avformat.h" ]; then' >> /opt/verify/verify-qt-shared.sh && \
+    echo '  echo "✓ Found: /opt/ffmpeg/include/libavformat/avformat.h"' >> /opt/verify/verify-qt-shared.sh && \
+    echo 'else' >> /opt/verify/verify-qt-shared.sh && \
+    echo '  echo "(info) Not present: /opt/ffmpeg/include/libavformat/avformat.h"' >> /opt/verify/verify-qt-shared.sh && \
+    echo 'fi' >> /opt/verify/verify-qt-shared.sh && \
     chmod +x /opt/verify/verify-qt-shared.sh
 
 # Verify Qt installation
