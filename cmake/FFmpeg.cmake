@@ -18,14 +18,12 @@ endif()
 # Option to control hardware acceleration libraries
 option(USE_HWACCEL "Enable hardware acceleration libraries (VA-API, VDPAU)" ON)
 
-# Prefer static libraries
-if(OPENTERFACE_BUILD_STATIC)
-    set(CMAKE_FIND_STATIC_PREFER ON)
-endif()
+# Prefer static libraries for FFmpeg
+set(CMAKE_FIND_STATIC_PREFER ON)
 
 # Check for libjpeg-turbo (preferred for performance)
-# For static builds, look in FFMPEG_PREFIX first
-if(OPENTERFACE_BUILD_STATIC AND DEFINED FFMPEG_PREFIX)
+# Look in FFMPEG_PREFIX first for static builds
+if(DEFINED FFMPEG_PREFIX)
     # Check for static libjpeg-turbo in FFmpeg prefix
     find_library(TURBOJPEG_LIBRARY 
         NAMES turbojpeg
@@ -57,110 +55,43 @@ else()
     message(STATUS "libjpeg-turbo not found - JPEG acceleration disabled")
 endif()
 
-# Set FFmpeg include and library directories
-# For dynamic builds, prioritize system libraries; for static builds, prefer Qt6 installation
-if(OPENTERFACE_BUILD_STATIC)
-    set(FFMPEG_SEARCH_PATHS 
-        ${FFMPEG_PREFIX}
-        "/usr/local"
-        "/usr"
-    )
+# Set FFmpeg include and library directories (prefer local prefix, then system)
+set(FFMPEG_SEARCH_PATHS 
+    ${FFMPEG_PREFIX}
+    "/usr/local"
+    "/usr"
+)
+
+# Attempt to locate FFmpeg libraries (prefer static)
+# Prefer FFmpeg shipped inside the configured prefix if it actually exists there.
+set(_qt_lib_dir "${FFMPEG_PREFIX}/lib")
+if(EXISTS "${_qt_lib_dir}/libavformat.a" AND EXISTS "${FFMPEG_PREFIX}/include/libavformat/avformat.h")
+    set(FFMPEG_LIB_DIR ${_qt_lib_dir})
+    set(FFMPEG_INCLUDE_DIRS "${FFMPEG_PREFIX}/include")
+    message(STATUS "Found FFmpeg static libraries in prefix: ${FFMPEG_LIB_DIR}")
+    set(FFMPEG_FOUND TRUE)
 else()
-    # For dynamic builds, prioritize system packages
-    set(FFMPEG_SEARCH_PATHS 
-        "/usr"
-        "/usr/local"
-        ${FFMPEG_PREFIX}
-    )
-endif()
-
-# Attempt to locate FFmpeg libraries
-if(OPENTERFACE_BUILD_STATIC)
-    # Prefer FFmpeg shipped inside the Qt build tree if it actually exists there.
-    set(_qt_lib_dir "${FFMPEG_PREFIX}/lib")
-    if(EXISTS "${_qt_lib_dir}/libavformat.a" AND EXISTS "${FFMPEG_PREFIX}/include/libavformat/avformat.h")
-        set(FFMPEG_LIB_DIR ${_qt_lib_dir})
-        set(FFMPEG_INCLUDE_DIRS "${FFMPEG_PREFIX}/include")
-        message(STATUS "Found FFmpeg static libraries in Qt build path: ${FFMPEG_LIB_DIR}")
-        set(FFMPEG_FOUND TRUE)
-    else()
-        # Keep the previous behavior as a fallback (directory may be validated later)
-        set(FFMPEG_LIB_DIR ${_qt_lib_dir})
-        set(FFMPEG_INCLUDE_DIRS "${FFMPEG_PREFIX}/include")
-        message(STATUS "FFmpeg static libs not found at ${_qt_lib_dir} - will try other search methods")
-    endif()
-else()
-    # Check if Qt build tree provides dynamic FFmpeg first; if so, prefer it and skip pkg-config
-    set(_qt_lib_dir "${FFMPEG_PREFIX}/lib")
-    if(EXISTS "${_qt_lib_dir}/libavformat.so" AND EXISTS "${FFMPEG_PREFIX}/include/libavformat/avformat.h")
-        set(FFMPEG_LIB_DIR ${_qt_lib_dir})
-        set(FFMPEG_INCLUDE_DIRS "${FFMPEG_PREFIX}/include")
-        message(STATUS "Found FFmpeg shared libraries in Qt build path: ${FFMPEG_LIB_DIR}")
-        message(STATUS "Found header file at ${FFMPEG_PREFIX}/include/libavformat/avformat.h")
-        set(FFMPEG_FOUND TRUE)
-    endif()
-
-    # If not already found in Qt build tree, use pkg-config as before
-    if(NOT FFMPEG_FOUND)
-        find_package(PkgConfig QUIET)
-        if(PKG_CONFIG_FOUND)
-            message(STATUS "pkg-config found, checking for FFmpeg...")
-            pkg_check_modules(PC_LIBAVFORMAT QUIET libavformat)
-            if(PC_LIBAVFORMAT_FOUND)
-                message(STATUS "Found FFmpeg via pkg-config")
-                message(STATUS "pkg-config FFmpeg version: ${PC_LIBAVFORMAT_VERSION}")
-                message(STATUS "pkg-config FFmpeg include dirs: ${PC_LIBAVFORMAT_INCLUDE_DIRS}")
-                message(STATUS "pkg-config FFmpeg library dirs: ${PC_LIBAVFORMAT_LIBRARY_DIRS}")
-                message(STATUS "pkg-config FFmpeg libraries: ${PC_LIBAVFORMAT_LIBRARIES}")
-
-                # Use pkg-config library directories if available, otherwise fallback
-                if(PC_LIBAVFORMAT_LIBRARY_DIRS)
-                    list(GET PC_LIBAVFORMAT_LIBRARY_DIRS 0 FFMPEG_LIB_DIR)
-                    message(STATUS "Using pkg-config FFmpeg library directory: ${FFMPEG_LIB_DIR}")
-                else()
-                    # Architecture-aware fallback for library directory
-                    set(FFMPEG_LIB_DIR ${FFMPEG_PREFIX}/lib)
-                    message(STATUS "Using fallback FFmpeg library directory: ${FFMPEG_LIB_DIR}")
-                endif()
-                set(FFMPEG_FOUND TRUE)
-                set(FFMPEG_PKG_CONFIG TRUE)  # Flag to indicate we used pkg-config
-                # Override library paths with pkg-config results
-                set(FFMPEG_INCLUDE_DIRS ${PC_LIBAVFORMAT_INCLUDE_DIRS})
-                message(STATUS "Using pkg-config FFmpeg: ${PC_LIBAVFORMAT_LIBRARIES}")
-            else()
-                message(STATUS "FFmpeg not found via pkg-config")
-            endif()
-        else()
-            message(STATUS "pkg-config not found")
-        endif()
-    else()
-        message(STATUS "Skipping pkg-config: FFmpeg already found in Qt build path")
-    endif()
+    # Keep the previous behavior as a fallback (directory may be validated later)
+    set(FFMPEG_LIB_DIR ${_qt_lib_dir})
+    set(FFMPEG_INCLUDE_DIRS "${FFMPEG_PREFIX}/include")
+    message(STATUS "FFmpeg static libs not found at ${_qt_lib_dir} - will try other search methods")
 endif()
 
 # If pkg-config didn't find FFmpeg (or we're using static linking), fall back to path search
 if(NOT FFMPEG_FOUND)
-    message(STATUS "Falling back to manual path search for FFmpeg...")
-    
+    message(STATUS "Falling back to manual path search for FFmpeg (static)...")
+
     # Find FFmpeg installation
     message(STATUS "FFmpeg search paths: ${FFMPEG_SEARCH_PATHS}")
     foreach(SEARCH_PATH ${FFMPEG_SEARCH_PATHS})
-        # Standard search - check both static and dynamic libraries based on build type
-        if(OPENTERFACE_BUILD_STATIC)
-            # For static builds, prefer .a files
-            set(LIB_EXTENSIONS ".a" ".so")
-            set(LIB_PATHS "${SEARCH_PATH}/lib")
-        else()
-            # For dynamic builds, prefer .so but fallback to .a (Docker environments)
-            set(LIB_EXTENSIONS ".so" ".a")
-            # For dynamic builds, check architecture-specific directories
-            set(LIB_PATHS 
-                "${SEARCH_PATH}/lib/x86_64-linux-gnu"
-                "${SEARCH_PATH}/lib/aarch64-linux-gnu"
-                "${SEARCH_PATH}/lib"
-            )
-        endif()
-        
+        # For static builds, prefer .a files; check common lib directories
+        set(LIB_EXTENSIONS ".a")
+        set(LIB_PATHS 
+            "${SEARCH_PATH}/lib/x86_64-linux-gnu"
+            "${SEARCH_PATH}/lib/aarch64-linux-gnu"
+            "${SEARCH_PATH}/lib"
+        )
+
         # Check each potential library path with each extension
         foreach(LIB_PATH ${LIB_PATHS})
             foreach(LIB_EXT ${LIB_EXTENSIONS})
@@ -181,7 +112,7 @@ if(NOT FFMPEG_FOUND)
                 break()
             endif()
         endforeach()
-        
+
         if(FFMPEG_FOUND)
             break()
         endif()
@@ -210,22 +141,8 @@ endif()
 
 # Set library extension and verify it was set during detection
 if(NOT DEFINED FFMPEG_LIB_EXT)
-    # Fallback logic if FFMPEG_LIB_EXT wasn't set during detection
-    if(OPENTERFACE_BUILD_STATIC)
-        set(FFMPEG_LIB_EXT ".a")
-    else()
-        # For dynamic builds, prefer .so but fallback to .a if available
-        if(EXISTS "${FFMPEG_LIB_DIR}/libavformat.so")
-            set(FFMPEG_LIB_EXT ".so")
-            message(STATUS "Using dynamic FFmpeg libraries (.so)")
-        elseif(EXISTS "${FFMPEG_LIB_DIR}/libavformat.a")
-            set(FFMPEG_LIB_EXT ".a")
-            message(STATUS "Using static FFmpeg libraries (.a) in dynamic build")
-        else()
-            set(FFMPEG_LIB_EXT ".so")  # Default fallback
-            message(STATUS "Using default extension .so (libraries may not exist)")
-        endif()
-    endif()
+    # Default to static libraries
+    set(FFMPEG_LIB_EXT ".a")
 endif()
 
 message(STATUS "Final FFmpeg library extension: ${FFMPEG_LIB_EXT}")
