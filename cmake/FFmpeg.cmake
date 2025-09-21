@@ -324,6 +324,8 @@ function(link_ffmpeg_libraries)
                 -ldrm -lva -lva-drm -lva-x11 -lvdpau -lX11
                 # XCB is required by avdevice xcbgrab; ensure core xcb gets linked
                 -lxcb
+                # XCB extensions used by xcbgrab (shared memory, xfixes for cursor, shape for OSD)
+                -lxcb-shm -lxcb-xfixes -lxcb-shape -lxcb-image
                 # PulseAudio is required by avdevice pulse input/output
                 -lpulse -lpulse-simple
                 # Optionally include common helpers if needed by specific builds
