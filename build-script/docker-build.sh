@@ -235,37 +235,52 @@ case "${ARCH}" in
 	*) echo "Warning: unknown arch '${ARCH}', defaulting to x86_64"; APPIMAGE_ARCH=x86_64;;
 esac
 
-# Download helper (curl with wget fallback)
-_fetch() {
-	local url="$1" out="$2"
-	if command -v curl >/dev/null 2>&1; then
-		curl -fL "${url}" -o "${out}"
-	elif command -v wget >/dev/null 2>&1; then
-		wget -qO "${out}" "${url}"
-	else
-		echo "Neither curl nor wget found for downloading ${url}" >&2
-		return 1
-	fi
-}
-
-# Fetch linuxdeploy + qt plugin
+# Prefer preinstalled linuxdeploy and plugin in the image; fallback to download
 TOOLS_DIR="${APPIMAGE_DIR}/tools"
-mkdir -p "${TOOLS_DIR}"
-pushd "${TOOLS_DIR}" >/dev/null
-LDEPLOY_URL="https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-${APPIMAGE_ARCH}.AppImage"
-LDEPLOY_QT_URL="https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-${APPIMAGE_ARCH}.AppImage"
-echo "Downloading linuxdeploy from ${LDEPLOY_URL}"
-_fetch "${LDEPLOY_URL}" linuxdeploy.AppImage
-echo "Downloading linuxdeploy-plugin-qt from ${LDEPLOY_QT_URL}"
-_fetch "${LDEPLOY_QT_URL}" linuxdeploy-plugin-qt.AppImage
-chmod +x linuxdeploy.AppImage linuxdeploy-plugin-qt.AppImage
-# Ensure AppImages run inside containers without FUSE
-export APPIMAGE_EXTRACT_AND_RUN=1
-popd >/dev/null
+LINUXDEPLOY_BIN=""
+
+# Ensure AppImages run inside containers without FUSE (also set in Dockerfile)
+export APPIMAGE_EXTRACT_AND_RUN=${APPIMAGE_EXTRACT_AND_RUN:-1}
+
+if command -v linuxdeploy >/dev/null 2>&1 && command -v linuxdeploy-plugin-qt >/dev/null 2>&1; then
+	echo "Using preinstalled linuxdeploy and linuxdeploy-plugin-qt"
+	LINUXDEPLOY_BIN="$(command -v linuxdeploy)"
+	# Ensure the plugin directory is on PATH
+	PLUGIN_DIR="$(dirname "$(command -v linuxdeploy-plugin-qt)")"
+	export PATH="${PLUGIN_DIR}:${PATH}"
+else
+	echo "linuxdeploy not found in image; downloading tools..."
+	# Download helper (curl with wget fallback)
+	_fetch() {
+		local url="$1" out="$2"
+		if command -v curl >/dev/null 2>&1; then
+			curl -fL "${url}" -o "${out}"
+		elif command -v wget >/dev/null 2>&1; then
+			wget -qO "${out}" "${url}"
+		else
+			echo "Neither curl nor wget found for downloading ${url}" >&2
+			return 1
+		fi
+	}
+
+	mkdir -p "${TOOLS_DIR}"
+	pushd "${TOOLS_DIR}" >/dev/null
+	LDEPLOY_URL="https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-${APPIMAGE_ARCH}.AppImage"
+	LDEPLOY_QT_URL="https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-${APPIMAGE_ARCH}.AppImage"
+	echo "Downloading linuxdeploy from ${LDEPLOY_URL}"
+	_fetch "${LDEPLOY_URL}" linuxdeploy.AppImage
+	echo "Downloading linuxdeploy-plugin-qt from ${LDEPLOY_QT_URL}"
+	_fetch "${LDEPLOY_QT_URL}" linuxdeploy-plugin-qt.AppImage
+	chmod +x linuxdeploy.AppImage linuxdeploy-plugin-qt.AppImage
+	# Use the downloaded linuxdeploy and make plugin available on PATH
+	LINUXDEPLOY_BIN="${TOOLS_DIR}/linuxdeploy.AppImage"
+	export PATH="${TOOLS_DIR}:${PATH}"
+	popd >/dev/null
+fi
 
 # Build AppImage
 pushd "${APPIMAGE_DIR}" >/dev/null
-PATH="${TOOLS_DIR}:${PATH}" "${TOOLS_DIR}/linuxdeploy.AppImage" \
+"${LINUXDEPLOY_BIN}" \
 	--appdir "${APPDIR}" \
 	--executable "${APPDIR}/usr/bin/openterfaceQT" \
 	--desktop-file "${DESKTOP_OUT}" \
