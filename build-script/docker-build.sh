@@ -83,24 +83,13 @@ fi
 
 # Desktop file for AppImage (Exec must be bare binary name; Icon should be a basename)
 DESKTOP_OUT="${APPDIR}/usr/share/applications/openterfaceQT.desktop"
-if [ -f "${SRC}/com.openterface.openterfaceQT.desktop" ]; then
-	sed 's|^Exec=.*$|Exec=openterfaceQT|; s|^Icon=.*$|Icon=openterfaceQT|' \
-		"${SRC}/com.openterface.openterfaceQT.desktop" > "${DESKTOP_OUT}"
-else
-	cat > "${DESKTOP_OUT}" <<EOF
-[Desktop Entry]
-Type=Application
-Name=OpenterfaceQT
-Exec=openterfaceQT
-Icon=openterfaceQT
-Categories=Utility;
-EOF
-fi
+sed 's|^Exec=.*$|Exec=openterfaceQT|; s|^Icon=.*$|Icon=openterfaceQT|' \
+	"${SRC}/packaging/appimage/openterfaceQT.desktop" > "${DESKTOP_OUT}"
 
 # AppStream/metainfo (optional)
-if [ -f "${SRC}/com.openterface.openterfaceQT.metainfo.xml" ]; then
+if [ -f "${SRC}/packaging/appimage/com.openterface.openterfaceQT.metainfo.xml" ]; then
 	mkdir -p "${APPDIR}/usr/share/metainfo"
-	cp "${SRC}/com.openterface.openterfaceQT.metainfo.xml" "${APPDIR}/usr/share/metainfo/"
+	cp "${SRC}/packaging/appimage/com.openterface.openterfaceQT.metainfo.xml" "${APPDIR}/usr/share/metainfo/"
 fi
 
 # Copy translations if present
