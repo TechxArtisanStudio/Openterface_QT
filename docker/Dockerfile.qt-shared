@@ -117,7 +117,9 @@ RUN apt-get update && \
         libswresample-dev \
         libswscale-dev \
         libavdevice-dev \
-        libavfilter-dev
+        libavfilter-dev \
+        # RPM packaging tools
+        rpm
 
 
 
