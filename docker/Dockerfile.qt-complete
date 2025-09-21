@@ -1,5 +1,5 @@
 # Build Qt components
-ARG BASE_IMAGE=ghcr.io/techxartisanstudio/openterface-qtbuild-qt-declarative:ubuntu-22.04-amd64
+ARG BASE_IMAGE=ghcr.io/techxartisanstudio/openterface-qtbuild-gstreamer:ubuntu-22.04-amd64
 ARG UBUNTU_VERSION=22.04
 ARG TARGETARCH=amd64
 FROM ${BASE_IMAGE}
@@ -25,21 +25,22 @@ RUN echo "Building qtmultimedia..." && \
     cd ${BUILD_DIR}/qtmultimedia && \
     mkdir -p build && \
     cd build && \
-    PKG_CONFIG_PATH="${INSTALL_PREFIX}/lib/pkgconfig:${FFMPEG_PREFIX}/lib/pkgconfig:/usr/local/lib/pkgconfig:$PKG_CONFIG_PATH" \
+    PKG_CONFIG_PATH="${INSTALL_PREFIX}/lib/pkgconfig:${FFMPEG_PREFIX}/lib/pkgconfig:${GSTREAMER_PREFIX}/lib/pkgconfig:/usr/local/lib/pkgconfig:$PKG_CONFIG_PATH" \
     cmake -GNinja \
         ${CMAKE_COMMON_FLAGS} \
         -DCMAKE_INSTALL_PREFIX="${INSTALL_PREFIX}" \
-        -DCMAKE_PREFIX_PATH="${INSTALL_PREFIX};${FFMPEG_PREFIX}" \
+        -DCMAKE_PREFIX_PATH="${INSTALL_PREFIX};${FFMPEG_PREFIX};${GSTREAMER_PREFIX}" \
         -DBUILD_SHARED_LIBS=OFF \
-        -DFEATURE_gstreamer=OFF \
-        -DINPUT_gstreamer=OFF \
+        -DFEATURE_gstreamer=ON \
+        -DINPUT_gstreamer=ON \
         -DFEATURE_pulseaudio=ON \
         -DFEATURE_ffmpeg=ON \
         -DINPUT_ffmpeg=ON \
         -DFEATURE_avfoundation=OFF \
-        -DCMAKE_FIND_ROOT_PATH="${FFMPEG_PREFIX}" \
-        -DCMAKE_EXE_LINKER_FLAGS="-L${FFMPEG_PREFIX}/lib" \
+        -DCMAKE_FIND_ROOT_PATH="${FFMPEG_PREFIX};${GSTREAMER_PREFIX}" \
+        -DCMAKE_EXE_LINKER_FLAGS="-L${FFMPEG_PREFIX}/lib -L${GSTREAMER_PREFIX}/lib" \
         -DFFMPEG_PATH="${FFMPEG_PREFIX}" \
+        -DGSTREAMER_PATH="${GSTREAMER_PREFIX}" \
         .. && \
     ninja && \
     ninja install

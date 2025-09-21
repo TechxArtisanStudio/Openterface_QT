@@ -1,17 +1,5 @@
 # GStreamer.cmake - GStreamer configuration and detection
 
-# GStreamer.cmake - GStreamer configuration and detection
-
-# Force for ARM64 static builds
-if("${OPENTERFACE_BUILD_STATIC}" STREQUAL "ON" AND "${OPENTERFACE_ARCH}" STREQUAL "arm64")
-    message(STATUS "DEBUG: Forcing GSTREAMER_PREFIX for ARM64 static build")
-    message(STATUS "DEBUG: OPENTERFACE_BUILD_STATIC = ${OPENTERFACE_BUILD_STATIC}")
-    message(STATUS "DEBUG: OPENTERFACE_ARCH = ${OPENTERFACE_ARCH}")
-    set(ENV{GSTREAMER_PREFIX} "/opt/Qt6")
-    set(GSTREAMER_PREFIX "/opt/Qt6" CACHE PATH "GStreamer installation directory" FORCE)
-    message(STATUS "Forced GSTREAMER_PREFIX for ARM64 static build: ${GSTREAMER_PREFIX}")
-endif()
-
 # Set GSTREAMER_PREFIX from environment or default
 if(NOT DEFINED GSTREAMER_PREFIX)
     if(DEFINED ENV{GSTREAMER_PREFIX} AND NOT ("${OPENTERFACE_BUILD_STATIC}" STREQUAL "ON" AND "${OPENTERFACE_ARCH}" STREQUAL "arm64"))
@@ -79,22 +67,6 @@ if(CMAKE_PREFIX_PATH)
     endforeach()
 endif()
 
-# Find GStreamer installation
-# For Docker builds, prioritize /opt/Qt6
-if(OPENTERFACE_BUILD_STATIC AND OPENTERFACE_IS_ARM64)
-    set(GSTREAMER_PREFIX "/opt/Qt6")  # Docker Qt6 static build
-    message(STATUS "Using Docker Qt6 GStreamer prefix: ${GSTREAMER_PREFIX}")
-else()
-    set(GSTREAMER_PREFIX "/opt/gstreamer")  # Default fallback
-    foreach(SEARCH_PATH ${GSTREAMER_SEARCH_PATHS})
-        if(EXISTS "${SEARCH_PATH}/include/gstreamer-1.0/gst/gst.h")
-            set(GSTREAMER_PREFIX "${SEARCH_PATH}")
-            message(STATUS "Found GStreamer installation at: ${GSTREAMER_PREFIX}")
-            break()
-        endif()
-    endforeach()
-endif()
-
 # For ARM64 static builds, check if GStreamer is in Qt6 lib/aarch64-linux-gnu
 if(OPENTERFACE_IS_ARM64 AND OPENTERFACE_BUILD_STATIC)
     if(EXISTS "${GSTREAMER_PREFIX}/lib/aarch64-linux-gnu/libgstreamer-1.0.a")
@@ -140,14 +112,7 @@ if(USE_GSTREAMER AND EXISTS "${GSTREAMER_INCLUDE_DIR}/gst/gst.h" AND EXISTS "${G
     add_definitions(-DHAVE_GSTREAMER)
     
     # Define linking mode based on static plugin usage
-    if(USE_GSTREAMER_STATIC_PLUGINS)
-        message(STATUS "Static GStreamer plugins requested - enabling static plugin linking")
-        add_definitions(-DGSTREAMER_STATIC_LINKING)
-        message(STATUS "Will use static GStreamer plugins linked into the binary")
-    else()
-        message(STATUS "Using dynamic GStreamer plugins - disabling static plugin registration")
-        add_definitions(-DGSTREAMER_DYNAMIC_LINKING)
-    endif()
+    # Note: We'll finalize STATIC vs DYNAMIC after probing actual plugin libraries below.
     
     # Set GStreamer variables for static linking
     set(GSTREAMER_FOUND TRUE)
@@ -292,7 +257,7 @@ if(USE_GSTREAMER AND EXISTS "${GSTREAMER_INCLUDE_DIR}/gst/gst.h" AND EXISTS "${G
             endif()
         endforeach()
         
-        # List of plugins to try to find - these are the actual plugins in /opt/Qt6/lib/gstreamer-1.0/
+    # List of plugins to try to find - names correspond to lib<name>.a/.so in gstreamer-1.0 plugin directories
         # Essential plugins - core functionality
         set(ESSENTIAL_PLUGIN_CANDIDATES
             "gstvideo4linux2"     # v4l2src plugin - required for video input
@@ -369,6 +334,15 @@ if(USE_GSTREAMER AND EXISTS "${GSTREAMER_INCLUDE_DIR}/gst/gst.h" AND EXISTS "${G
         message(STATUS "Will rely on system GStreamer plugins at runtime")
     endif()
     
+    # Finalize STATIC vs DYNAMIC macros based on availability
+    if(USE_GSTREAMER_STATIC_PLUGINS AND GSTREAMER_PLUGIN_LIBRARIES)
+        add_definitions(-DGSTREAMER_STATIC_LINKING)
+        message(STATUS "GStreamer static plugin registration enabled (plugins found)")
+    else()
+        add_definitions(-DGSTREAMER_DYNAMIC_LINKING)
+        message(STATUS "GStreamer dynamic plugin usage enabled (no static plugins linked)")
+    endif()
+
     # Add system GLib libraries using pkg-config (only for dynamic builds)
     if(NOT OPENTERFACE_BUILD_STATIC)
         pkg_check_modules(GLIB_PKG REQUIRED glib-2.0 gobject-2.0 gio-2.0)
@@ -413,6 +387,8 @@ else()
         message(STATUS "Manual GStreamer detection failed - trying pkg-config...")
         pkg_check_modules(GSTREAMER REQUIRED gstreamer-1.0)
         pkg_check_modules(GSTREAMER_VIDEO REQUIRED gstreamer-video-1.0)
+        # App library is needed for appsink/appsources (gst_app_* symbols)
+        pkg_check_modules(GSTREAMER_APP REQUIRED gstreamer-app-1.0)
         
         if(GSTREAMER_FOUND AND GSTREAMER_VIDEO_FOUND)
             message(STATUS "System GStreamer found via pkg-config - enabling direct pipeline support")
@@ -425,6 +401,7 @@ else()
             # For dynamic builds, we'll link system libraries directly
             message(STATUS "pkg-config GStreamer libraries: ${GSTREAMER_LIBRARIES}")
             message(STATUS "pkg-config GStreamer video libraries: ${GSTREAMER_VIDEO_LIBRARIES}")
+            message(STATUS "pkg-config GStreamer app libraries: ${GSTREAMER_APP_LIBRARIES}")
             message(STATUS "pkg-config GStreamer include dirs: ${GSTREAMER_INCLUDE_DIRS}")
             message(STATUS "pkg-config GStreamer video include dirs: ${GSTREAMER_VIDEO_INCLUDE_DIRS}")
             
@@ -509,60 +486,9 @@ function(link_gstreamer_libraries)
     if(GSTREAMER_FOUND)
         message(STATUS "Linking GStreamer libraries...")
         
-        # Special handling for ARM64 static builds
-        if(OPENTERFACE_BUILD_STATIC AND OPENTERFACE_IS_ARM64)
-            message(STATUS "Using direct GStreamer linking for ARM64 static build")
-            target_link_libraries(openterfaceQT PRIVATE 
-                # Link static plugins first with whole-archive to ensure registration functions are included
-                -Wl,--whole-archive
-                ${GSTREAMER_PLUGIN_LIBRARIES}
-                -Wl,--no-whole-archive
-                # Then link core GStreamer libraries
-                -Wl,--whole-archive
-                /opt/Qt6/lib/aarch64-linux-gnu/libgstreamer-1.0.a
-                /opt/Qt6/lib/aarch64-linux-gnu/libgstbase-1.0.a
-                /opt/Qt6/lib/aarch64-linux-gnu/libgstvideo-1.0.a
-                /opt/Qt6/lib/aarch64-linux-gnu/libgstaudio-1.0.a
-                /opt/Qt6/lib/aarch64-linux-gnu/libgstpbutils-1.0.a
-                /opt/Qt6/lib/aarch64-linux-gnu/libgsttag-1.0.a
-                /opt/Qt6/lib/aarch64-linux-gnu/libgstallocators-1.0.a
-                /opt/Qt6/lib/aarch64-linux-gnu/libgstapp-1.0.a
-                /opt/Qt6/lib/aarch64-linux-gnu/libgstcontroller-1.0.a
-                /opt/Qt6/lib/aarch64-linux-gnu/libgstnet-1.0.a
-                /opt/Qt6/lib/aarch64-linux-gnu/libgstriff-1.0.a
-                /opt/Qt6/lib/aarch64-linux-gnu/libgstrtp-1.0.a
-                /opt/Qt6/lib/aarch64-linux-gnu/libgstrtsp-1.0.a
-                /opt/Qt6/lib/aarch64-linux-gnu/libgstsdp-1.0.a
-                -Wl,--no-whole-archive
-                # Add GLib and other dependencies
-                gio-2.0
-                gobject-2.0
-                glib-2.0
-                gmodule-2.0
-                z
-                m
-                pthread
-                dl
-                rt
-                ffi
-                mount
-                blkid
-                resolv
-                pcre2-8
-                orc-0.4
-                # Additional GStreamer plugin dependencies
-                gudev-1.0
-                v4l2
-                Xi
-                Xv
-            )
-            target_include_directories(openterfaceQT PRIVATE 
-                /opt/Qt6/include/gstreamer-1.0
-                /usr/include/glib-2.0
-                /usr/lib/aarch64-linux-gnu/glib-2.0/include
-            )
-            return()
-        endif()
+        # Note: Avoid hardcoded architecture-specific paths; rely on detected
+        # ${GSTREAMER_LIBRARIES}, ${GSTREAMER_VIDEO_LIBRARIES} and
+        # ${GSTREAMER_PLUGIN_LIBRARIES} for portability across layouts.
         
         # Check if we're using pkg-config detection (system packages) or manual detection (static/Qt6 build)
         if(DEFINED GSTREAMER_PKG_CONFIG_DETECTION AND GSTREAMER_PKG_CONFIG_DETECTION)
@@ -581,6 +507,11 @@ function(link_gstreamer_libraries)
                 target_link_libraries(openterfaceQT PRIVATE ${GSTREAMER_VIDEO_LIBRARIES})
                 message(STATUS "Linked GStreamer video libraries: ${GSTREAMER_VIDEO_LIBRARIES}")
             endif()
+
+            if(GSTREAMER_APP_LIBRARIES)
+                target_link_libraries(openterfaceQT PRIVATE ${GSTREAMER_APP_LIBRARIES})
+                message(STATUS "Linked GStreamer app libraries: ${GSTREAMER_APP_LIBRARIES}")
+            endif()
             
             # Add include directories from pkg-config
             if(GSTREAMER_INCLUDE_DIRS)
@@ -591,6 +522,11 @@ function(link_gstreamer_libraries)
             if(GSTREAMER_VIDEO_INCLUDE_DIRS)
                 target_include_directories(openterfaceQT PRIVATE ${GSTREAMER_VIDEO_INCLUDE_DIRS})
                 message(STATUS "Added GStreamer video include directories: ${GSTREAMER_VIDEO_INCLUDE_DIRS}")
+            endif()
+
+            if(GSTREAMER_APP_INCLUDE_DIRS)
+                target_include_directories(openterfaceQT PRIVATE ${GSTREAMER_APP_INCLUDE_DIRS})
+                message(STATUS "Added GStreamer app include directories: ${GSTREAMER_APP_INCLUDE_DIRS}")
             endif()
             
         else()
@@ -633,12 +569,20 @@ function(link_gstreamer_libraries)
                     -lm -pthread
                     -Wl,--allow-multiple-definition
                 )
+
+                # Ensure appsink/source symbols resolve when using system GStreamer
+                pkg_check_modules(GSTREAMER_APP gstreamer-app-1.0)
+                if(GSTREAMER_APP_FOUND)
+                    target_link_libraries(openterfaceQT PRIVATE ${GSTREAMER_APP_LIBRARIES})
+                    target_include_directories(openterfaceQT PRIVATE ${GSTREAMER_APP_INCLUDE_DIRS})
+                    message(STATUS "Linked GStreamer app library (manual path): ${GSTREAMER_APP_LIBRARIES}")
+                endif()
             endif()
             
             # Add strong linker flags for static builds
             if(OPENTERFACE_BUILD_STATIC)
+                # Do not use --no-as-needed globally to allow the linker to drop unused shared libs
                 target_link_options(openterfaceQT PRIVATE
-                    -Wl,--no-as-needed
                     -Wl,--exclude-libs,ALL
                     -static-libgcc
                     -static-libstdc++

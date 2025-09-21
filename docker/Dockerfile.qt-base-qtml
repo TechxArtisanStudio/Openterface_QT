@@ -1,24 +1,42 @@
 # Build Qt base components (qtbase + qtshadertools)
-ARG BASE_IMAGE=ghcr.io/techxartisanstudio/openterface-qtbuild-gstreamer:ubuntu-22.04-amd64
+ARG BASE_IMAGE=ghcr.io/techxartisanstudio/openterface-qtbuild-ffmpeg:ubuntu-22.04-amd64
 ARG UBUNTU_VERSION=22.04
 ARG TARGETARCH=amd64
 FROM ${BASE_IMAGE}
 
+# Fallback defaults (base image should set these, but provide sensible defaults)
+ARG QT_MAJOR_VERSION=6.6
+ARG QT_VERSION=6.6.3
+ARG BUILD_DIR=/workspace/qt-build
+ARG INSTALL_PREFIX=/opt/Qt6
+
 WORKDIR ${BUILD_DIR}
 
-# Define base modules to build
-ENV MODULES="qtbase qtshadertools"
+# Ensure essential tools are available in case base image changes
+RUN apt-get update -y && \
+        apt-get install -y --no-install-recommends \
+            curl unzip ca-certificates pkg-config ninja-build && \
+        rm -rf /var/lib/apt/lists/*
+
+# Define base modules to build (include qtwayland for Wayland platform plugin)
+ENV MODULES="qtbase qtshadertools qtwayland"
 ENV DOWNLOAD_BASE_URL="https://download.qt.io/archive/qt/${QT_MAJOR_VERSION}/${QT_VERSION}/submodules"
 ENV CMAKE_COMMON_FLAGS="-Wno-dev -DCMAKE_POLICY_DEFAULT_CMP0177=NEW -DCMAKE_POLICY_DEFAULT_CMP0174=NEW"
 
 # Download and extract Qt base modules
-RUN for module in ${MODULES}; do \
+RUN echo "Preparing build directory: ${BUILD_DIR}" && \
+    mkdir -p "${BUILD_DIR}" && \
+    for module in ${MODULES}; do \
         echo "Downloading $module..."; \
-        curl -L -o "$module.zip" "${DOWNLOAD_BASE_URL}/$module-everywhere-src-${QT_VERSION}.zip" && \
-        unzip -q "$module.zip" && \
-        mv "$module-everywhere-src-${QT_VERSION}" "$module" && \
-        rm "$module.zip"; \
-    done
+        curl -L -o "$module.zip" "${DOWNLOAD_BASE_URL}/$module-everywhere-src-${QT_VERSION}.zip"; \
+        if [ ! -s "$module.zip" ]; then echo "Failed to download $module"; exit 1; fi; \
+        unzip -q "$module.zip"; \
+        if [ ! -d "$module-everywhere-src-${QT_VERSION}" ]; then echo "Archive layout unexpected for $module"; exit 1; fi; \
+        mv "$module-everywhere-src-${QT_VERSION}" "$module"; \
+        rm -f "$module.zip"; \
+    done && \
+    ls -la && \
+    test -d qtbase && echo "qtbase extracted" || (echo "qtbase missing after download" && exit 1)
 
 # Build libxcb-cursor from source (static) - Build early to ensure Qt finds it
 RUN echo "Building libxcb-cursor from source..." && \
@@ -29,7 +47,15 @@ RUN echo "Building libxcb-cursor from source..." && \
         libxcb-image0-dev \
         libxrender-dev \
         libx11-dev \
-        libxcb-xfixes0-dev && \
+        libxcb-xfixes0-dev \
+        # Wayland build dependencies
+        libwayland-dev \
+        wayland-protocols \
+        libxkbcommon-dev \
+        libdrm-dev \
+        libgbm-dev \
+        libegl1-mesa-dev \
+        libgles2-mesa-dev && \
     # Download and build libxcb-cursor
     curl -L -o libxcb-cursor.tar.gz "https://xcb.freedesktop.org/dist/libxcb-cursor-0.1.5.tar.gz" && \
     tar -xzf libxcb-cursor.tar.gz && \
@@ -44,23 +70,30 @@ RUN echo "Building libxcb-cursor from source..." && \
         CPPFLAGS="-I${INSTALL_PREFIX}/include" \
         LDFLAGS="-L${INSTALL_PREFIX}/lib" \
         PKG_CONFIG_PATH="${INSTALL_PREFIX}/lib/pkgconfig:/usr/lib/aarch64-linux-gnu/pkgconfig:/usr/lib/pkgconfig" && \
-    # Build and install
+    # Build and install to INSTALL_PREFIX
     make -j$(nproc) && \
     make install && \
-    # Also install to system locations for compatibility
-    make install DESTDIR= prefix=/usr && \
+    # Also copy static archive to system multi-arch location for discovery by CMake
+    ARCH="$(dpkg-architecture -qDEB_HOST_MULTIARCH)" && \
+    mkdir -p "/usr/lib/${ARCH}" && \
+    if [ -f "${INSTALL_PREFIX}/lib/libxcb-cursor.a" ]; then \
+        cp -f "${INSTALL_PREFIX}/lib/libxcb-cursor.a" "/usr/lib/${ARCH}/libxcb-cursor.a"; \
+    fi && \
     # Verify installation
     ls -la "${INSTALL_PREFIX}/lib/libxcb-cursor.a" && \
     pkg-config --exists xcb-cursor && echo "✓ libxcb-cursor static library installed successfully" || echo "⚠ libxcb-cursor pkg-config not found" && \
     # Print xcb-cursor configuration
-    echo "xcb-cursor pkg-config info:" && \
-    pkg-config --cflags --libs xcb-cursor && \
+        echo "xcb-cursor pkg-config info:" && \
+        ARCH="$(dpkg-architecture -qDEB_HOST_MULTIARCH)" && \
+        PKG_CONFIG_PATH="${INSTALL_PREFIX}/lib/pkgconfig:/usr/lib/${ARCH}/pkgconfig:/usr/lib/pkgconfig:${PKG_CONFIG_PATH}" \
+            pkg-config --cflags --libs xcb-cursor && \
     # Clean up
     rm -rf libxcb-cursor-0.1.5 libxcb-cursor.tar.gz && \
     echo "✓ libxcb-cursor static build completed"
 
 # Build qtbase first (foundation)
 RUN echo "Building qtbase with static XCB..." && \
+    ls -la ${BUILD_DIR} && \
     cd ${BUILD_DIR}/qtbase && \
     mkdir -p build && \
     cd build && \
@@ -115,6 +148,23 @@ RUN echo "Building qtshadertools..." && \
     ninja && \
     ninja install
 
+# Build qtwayland (client-only)
+RUN echo "Building qtwayland (client)..." && \
+    cd ${BUILD_DIR}/qtwayland && \
+    mkdir -p build && \
+    cd build && \
+    cmake -GNinja \
+        ${CMAKE_COMMON_FLAGS} \
+        -DCMAKE_INSTALL_PREFIX="${INSTALL_PREFIX}" \
+        -DBUILD_SHARED_LIBS=OFF \
+        -DQT_FEATURE_wayland_server=OFF \
+        -DQT_FEATURE_wayland_client=ON \
+        -DQt6WaylandClient_DIR="${INSTALL_PREFIX}/lib/cmake/Qt6WaylandClient" \
+        -DQt6_DIR="${INSTALL_PREFIX}/lib/cmake/Qt6" \
+        .. && \
+    ninja -j 2 && \
+    ninja install -j 2
+
 # Create verification script for base components
 RUN mkdir -p ${INSTALL_PREFIX}/bin && \
     echo '#!/bin/bash' > ${INSTALL_PREFIX}/bin/verify-qt-base.sh && \
@@ -140,7 +190,8 @@ ENV PATH="${INSTALL_PREFIX}/bin:${PATH}"
 ENV QT_PLUGIN_PATH="${INSTALL_PREFIX}/plugins"
 ENV QML2_IMPORT_PATH="${INSTALL_PREFIX}/qml"
 ENV LD_LIBRARY_PATH="${INSTALL_PREFIX}/lib"
-ENV PKG_CONFIG_PATH="${INSTALL_PREFIX}/lib/pkgconfig:${PKG_CONFIG_PATH}"
+# Initialize PKG_CONFIG_PATH to avoid undefined-var warning, and include common fallbacks
+ENV PKG_CONFIG_PATH="${INSTALL_PREFIX}/lib/pkgconfig:/usr/lib/$(dpkg-architecture -qDEB_HOST_MULTIARCH)/pkgconfig:/usr/lib/pkgconfig:${PKG_CONFIG_PATH}"
 
 # Verify Qt base installation
 RUN ${INSTALL_PREFIX}/bin/verify-qt-base.sh

@@ -1,5 +1,5 @@
 # Build GStreamer components (simplified version for better reliability)
-ARG BASE_IMAGE=ghcr.io/techxartisanstudio/openterface-qtbuild-ffmpeg:ubuntu-22.04-amd64
+ARG BASE_IMAGE=ghcr.io/techxartisanstudio/openterface-qtbuild-qt-declarative:ubuntu-22.04-amd64
 ARG UBUNTU_VERSION=22.04
 ARG TARGETARCH=amd64
 FROM ${BASE_IMAGE}
@@ -15,7 +15,7 @@ WORKDIR ${WORK_DIR}
 
 # Upgrade Meson to meet GStreamer requirements (>= 0.62)
 RUN echo "Upgrading Meson to support GStreamer 1.22.11..." && \
-    pip3 install --upgrade --break-system-packages meson>=0.62 && \
+    pip3 install --upgrade meson>=0.62 && \
     meson --version
 
 # Set up environment for GStreamer build
@@ -106,11 +106,11 @@ RUN echo "Building gst-plugins-base..." && \
         -Dnls=disabled \
         -Dorc=enabled \
         -Dx11=enabled \
-        -Dgl=disabled && \
+        -Dgl=enabled && \
     ninja -C build && \
     ninja -C build install
 
-# Build gst-plugins-good (minimal set)
+# Build gst-plugins-good (minimal set) - disable Qt6 to avoid detection issues
 RUN echo "Building gst-plugins-good..." && \
     . /etc/environment && \
     GSTREAMER_PC_DIR=$(find "${GSTREAMER_PREFIX}" -name "gstreamer-1.0.pc" -type f -exec dirname {} \; 2>/dev/null | head -1) && \
@@ -128,7 +128,7 @@ RUN echo "Building gst-plugins-good..." && \
         -Dexamples=disabled \
         -Dtests=disabled \
         -Dqt5=disabled \
-        -Dqt6=enable \
+        -Dqt6=disabled \
         -Dnls=disabled \
         -Drtp=enabled \
         -Drtpmanager=enabled \
