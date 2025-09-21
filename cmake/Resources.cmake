@@ -324,9 +324,14 @@ install(FILES ${CMAKE_SOURCE_DIR}/com.openterface.openterfaceQT.metainfo.xml
     DESTINATION ${CMAKE_INSTALL_DATADIR}/metainfo
 )
 
-qt_generate_deploy_app_script(
-    TARGET openterfaceQT
-    FILENAME_VARIABLE deploy_script    
-    NO_UNSUPPORTED_PLATFORM_ERROR
-)
-install(SCRIPT ${deploy_script})
+# Guard deploy script generation for Qt < 6.3 on Ubuntu 22.04
+if(COMMAND qt_generate_deploy_app_script)
+    qt_generate_deploy_app_script(
+        TARGET openterfaceQT
+        FILENAME_VARIABLE deploy_script    
+        NO_UNSUPPORTED_PLATFORM_ERROR
+    )
+    install(SCRIPT ${deploy_script})
+else()
+    message(STATUS "qt_generate_deploy_app_script not available; skipping deploy script generation on this Qt version")
+endif()

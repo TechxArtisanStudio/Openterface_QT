@@ -96,22 +96,21 @@ endif()
 # Debug output for linking
 message(STATUS "Hardware acceleration libraries to link: ${HWACCEL_LIBRARIES}")
 
-# Link Qt6 image format plugins statically for static builds
+# Link Qt6 image format plugins statically for static builds (only if targets exist)
 if(OPENTERFACE_BUILD_STATIC)
-    # Link Qt6 image format plugins statically
-    target_link_libraries(${PROJECT_NAME} PRIVATE 
-        Qt6::QJpegPlugin 
-        Qt6::QGifPlugin 
-        Qt6::QICOPlugin 
-        Qt6::QSvgPlugin
-    )
-    
-    # Force static JPEG linking for Qt6 plugins - override system jpeg with our static version
-    if(STATIC_JPEG_LIBRARIES)
-        set_target_properties(Qt6::QJpegPlugin PROPERTIES
-            INTERFACE_LINK_LIBRARIES "${STATIC_JPEG_LIBRARIES}"
-        )
-    endif()
+    set(_qt_image_plugins Qt6::QJpegPlugin Qt6::QGifPlugin Qt6::QICOPlugin Qt6::QSvgPlugin)
+    foreach(_plug IN LISTS _qt_image_plugins)
+        if(TARGET ${_plug})
+            target_link_libraries(${PROJECT_NAME} PRIVATE ${_plug})
+            if(_plug STREQUAL "Qt6::QJpegPlugin" AND STATIC_JPEG_LIBRARIES)
+                set_target_properties(Qt6::QJpegPlugin PROPERTIES
+                    INTERFACE_LINK_LIBRARIES "${STATIC_JPEG_LIBRARIES}"
+                )
+            endif()
+        else()
+            message(STATUS "Qt plugin target not available: ${_plug} (likely shared Qt or plugin not built) - skipping")
+        endif()
+    endforeach()
 endif()
 
 target_link_libraries(${PROJECT_NAME} PRIVATE Qt6::Core Qt6::Widgets Qt6::Gui Qt6::Network Qt6::Multimedia Qt6::MultimediaWidgets Qt6::SerialPort Qt6::OpenGL Qt6::OpenGLWidgets Qt6::Xml Qt6::Svg Qt6::SvgWidgets Qt6::Concurrent Qt6::DBus)

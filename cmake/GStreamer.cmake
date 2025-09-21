@@ -112,14 +112,7 @@ if(USE_GSTREAMER AND EXISTS "${GSTREAMER_INCLUDE_DIR}/gst/gst.h" AND EXISTS "${G
     add_definitions(-DHAVE_GSTREAMER)
     
     # Define linking mode based on static plugin usage
-    if(USE_GSTREAMER_STATIC_PLUGINS)
-        message(STATUS "Static GStreamer plugins requested - enabling static plugin linking")
-        add_definitions(-DGSTREAMER_STATIC_LINKING)
-        message(STATUS "Will use static GStreamer plugins linked into the binary")
-    else()
-        message(STATUS "Using dynamic GStreamer plugins - disabling static plugin registration")
-        add_definitions(-DGSTREAMER_DYNAMIC_LINKING)
-    endif()
+    # Note: We'll finalize STATIC vs DYNAMIC after probing actual plugin libraries below.
     
     # Set GStreamer variables for static linking
     set(GSTREAMER_FOUND TRUE)
@@ -341,6 +334,15 @@ if(USE_GSTREAMER AND EXISTS "${GSTREAMER_INCLUDE_DIR}/gst/gst.h" AND EXISTS "${G
         message(STATUS "Will rely on system GStreamer plugins at runtime")
     endif()
     
+    # Finalize STATIC vs DYNAMIC macros based on availability
+    if(USE_GSTREAMER_STATIC_PLUGINS AND GSTREAMER_PLUGIN_LIBRARIES)
+        add_definitions(-DGSTREAMER_STATIC_LINKING)
+        message(STATUS "GStreamer static plugin registration enabled (plugins found)")
+    else()
+        add_definitions(-DGSTREAMER_DYNAMIC_LINKING)
+        message(STATUS "GStreamer dynamic plugin usage enabled (no static plugins linked)")
+    endif()
+
     # Add system GLib libraries using pkg-config (only for dynamic builds)
     if(NOT OPENTERFACE_BUILD_STATIC)
         pkg_check_modules(GLIB_PKG REQUIRED glib-2.0 gobject-2.0 gio-2.0)
@@ -385,6 +387,8 @@ else()
         message(STATUS "Manual GStreamer detection failed - trying pkg-config...")
         pkg_check_modules(GSTREAMER REQUIRED gstreamer-1.0)
         pkg_check_modules(GSTREAMER_VIDEO REQUIRED gstreamer-video-1.0)
+        # App library is needed for appsink/appsources (gst_app_* symbols)
+        pkg_check_modules(GSTREAMER_APP REQUIRED gstreamer-app-1.0)
         
         if(GSTREAMER_FOUND AND GSTREAMER_VIDEO_FOUND)
             message(STATUS "System GStreamer found via pkg-config - enabling direct pipeline support")
@@ -397,6 +401,7 @@ else()
             # For dynamic builds, we'll link system libraries directly
             message(STATUS "pkg-config GStreamer libraries: ${GSTREAMER_LIBRARIES}")
             message(STATUS "pkg-config GStreamer video libraries: ${GSTREAMER_VIDEO_LIBRARIES}")
+            message(STATUS "pkg-config GStreamer app libraries: ${GSTREAMER_APP_LIBRARIES}")
             message(STATUS "pkg-config GStreamer include dirs: ${GSTREAMER_INCLUDE_DIRS}")
             message(STATUS "pkg-config GStreamer video include dirs: ${GSTREAMER_VIDEO_INCLUDE_DIRS}")
             
@@ -502,6 +507,11 @@ function(link_gstreamer_libraries)
                 target_link_libraries(openterfaceQT PRIVATE ${GSTREAMER_VIDEO_LIBRARIES})
                 message(STATUS "Linked GStreamer video libraries: ${GSTREAMER_VIDEO_LIBRARIES}")
             endif()
+
+            if(GSTREAMER_APP_LIBRARIES)
+                target_link_libraries(openterfaceQT PRIVATE ${GSTREAMER_APP_LIBRARIES})
+                message(STATUS "Linked GStreamer app libraries: ${GSTREAMER_APP_LIBRARIES}")
+            endif()
             
             # Add include directories from pkg-config
             if(GSTREAMER_INCLUDE_DIRS)
@@ -512,6 +522,11 @@ function(link_gstreamer_libraries)
             if(GSTREAMER_VIDEO_INCLUDE_DIRS)
                 target_include_directories(openterfaceQT PRIVATE ${GSTREAMER_VIDEO_INCLUDE_DIRS})
                 message(STATUS "Added GStreamer video include directories: ${GSTREAMER_VIDEO_INCLUDE_DIRS}")
+            endif()
+
+            if(GSTREAMER_APP_INCLUDE_DIRS)
+                target_include_directories(openterfaceQT PRIVATE ${GSTREAMER_APP_INCLUDE_DIRS})
+                message(STATUS "Added GStreamer app include directories: ${GSTREAMER_APP_INCLUDE_DIRS}")
             endif()
             
         else()
@@ -554,6 +569,14 @@ function(link_gstreamer_libraries)
                     -lm -pthread
                     -Wl,--allow-multiple-definition
                 )
+
+                # Ensure appsink/source symbols resolve when using system GStreamer
+                pkg_check_modules(GSTREAMER_APP gstreamer-app-1.0)
+                if(GSTREAMER_APP_FOUND)
+                    target_link_libraries(openterfaceQT PRIVATE ${GSTREAMER_APP_LIBRARIES})
+                    target_include_directories(openterfaceQT PRIVATE ${GSTREAMER_APP_INCLUDE_DIRS})
+                    message(STATUS "Linked GStreamer app library (manual path): ${GSTREAMER_APP_LIBRARIES}")
+                endif()
             endif()
             
             # Add strong linker flags for static builds

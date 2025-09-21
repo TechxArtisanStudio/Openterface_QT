@@ -400,6 +400,12 @@ function(link_ffmpeg_libraries)
                 -lpthread -lm -ldl -lz -llzma -lbz2
                 # DRM/VA/VDPAU/X11 stack (vdpa_device_create_x11 lives in libvdpau and needs X11)
                 -ldrm -lva -lva-drm -lva-x11 -lvdpau -lX11
+                # XCB is required by avdevice xcbgrab; ensure core xcb gets linked
+                -lxcb
+                # PulseAudio is required by avdevice pulse input/output
+                -lpulse -lpulse-simple
+                # Optionally include common helpers if needed by specific builds
+                # -lxcb-shm -lxcb-xfixes -lxcb-randr -lxcb-render -lxcb-shape -lxcb-image
             )
 
             # If we probed additional HW libs (full paths), append them too to be safe

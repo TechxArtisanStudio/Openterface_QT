@@ -30,17 +30,20 @@
 #include <QCoreApplication>
 #include <QtPlugin>
 
-// Import static Qt image format plugins
+// Import static Qt plugins only when building with static plugins
+#if defined(QT_STATIC) || defined(QT_STATICPLUGIN)
+// Image format plugins
 Q_IMPORT_PLUGIN(QJpegPlugin)
 Q_IMPORT_PLUGIN(QGifPlugin)
 Q_IMPORT_PLUGIN(QICOPlugin)
 Q_IMPORT_PLUGIN(QSvgPlugin)
 
-// Import static Qt platform plugin for Linux
+// Platform plugins (Linux)
 #ifdef Q_OS_LINUX
 Q_IMPORT_PLUGIN(QXcbIntegrationPlugin)
 Q_IMPORT_PLUGIN(QOffscreenIntegrationPlugin)
 Q_IMPORT_PLUGIN(QWaylandEglPlatformIntegrationPlugin)
+#endif
 #endif
 
 // Define global shutdown flag
