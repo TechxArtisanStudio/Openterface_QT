@@ -159,3 +159,129 @@ DEB_NAME="openterfaceQT_${VERSION}_${ARCH}.deb"
 echo "Building Debian package: ${DEB_NAME}"
 dpkg-deb --build "${PKG_ROOT}" "${PKG_OUT}/${DEB_NAME}"
 echo "Debian package created at ${PKG_OUT}/${DEB_NAME}"
+
+# =========================
+# Build AppImage (.AppImage)
+# =========================
+echo "Preparing AppImage package..."
+
+APPIMAGE_DIR=/workspace/appimage
+APPDIR="${APPIMAGE_DIR}/AppDir"
+APPIMAGE_OUT=/workspace/build
+
+rm -rf "${APPDIR}"
+mkdir -p "${APPDIR}/usr/bin"
+mkdir -p "${APPDIR}/usr/share/applications"
+mkdir -p "${APPDIR}/usr/share/icons/hicolor/256x256/apps"
+
+# Copy main binary
+if [ -f "${BUILD}/openterfaceQT" ]; then
+	install -m 0755 "${BUILD}/openterfaceQT" "${APPDIR}/usr/bin/openterfaceQT"
+else
+	echo "Error: built binary not found at ${BUILD}/openterfaceQT" >&2
+	exit 1
+fi
+
+# Desktop file for AppImage (Exec must be bare binary name; Icon should be a basename)
+DESKTOP_OUT="${APPDIR}/usr/share/applications/openterfaceQT.desktop"
+if [ -f "${SRC}/com.openterface.openterfaceQT.desktop" ]; then
+	sed 's|^Exec=.*$|Exec=openterfaceQT|; s|^Icon=.*$|Icon=openterfaceQT|' \
+		"${SRC}/com.openterface.openterfaceQT.desktop" > "${DESKTOP_OUT}"
+else
+	cat > "${DESKTOP_OUT}" <<EOF
+[Desktop Entry]
+Type=Application
+Name=OpenterfaceQT
+Exec=openterfaceQT
+Icon=openterfaceQT
+Categories=Utility;
+EOF
+fi
+
+# AppStream/metainfo (optional)
+if [ -f "${SRC}/com.openterface.openterfaceQT.metainfo.xml" ]; then
+	mkdir -p "${APPDIR}/usr/share/metainfo"
+	cp "${SRC}/com.openterface.openterfaceQT.metainfo.xml" "${APPDIR}/usr/share/metainfo/"
+fi
+
+# Copy translations if present
+if ls "${BUILD}"/openterface_*.qm >/dev/null 2>&1; then
+	mkdir -p "${APPDIR}/usr/share/openterfaceQT/translations"
+	cp "${BUILD}"/openterface_*.qm "${APPDIR}/usr/share/openterfaceQT/translations/" || true
+fi
+
+# Try to locate an icon and install it as openterfaceQT.png
+ICON_SRC=""
+for p in \
+	"${SRC}/resources/icons/openterfaceQT.png" \
+	"${SRC}/resources/icons/openterface.png" \
+	"${SRC}/icons/openterfaceQT.png" \
+	"${SRC}/icons/openterface.png" \
+	"${SRC}"/openterface*.png \
+	"${SRC}"/resources/*.png; do
+	if [ -f "$p" ]; then ICON_SRC="$p"; break; fi
+done
+if [ -n "${ICON_SRC}" ]; then
+	cp "${ICON_SRC}" "${APPDIR}/usr/share/icons/hicolor/256x256/apps/openterfaceQT.png" || true
+else
+	echo "No icon found; continuing without a custom icon."
+fi
+
+# Determine linuxdeploy architecture tag from Debian arch
+case "${ARCH}" in
+	amd64|x86_64) APPIMAGE_ARCH=x86_64;;
+	arm64|aarch64) APPIMAGE_ARCH=aarch64;;
+	armhf|armv7l) APPIMAGE_ARCH=armhf;;
+	*) echo "Warning: unknown arch '${ARCH}', defaulting to x86_64"; APPIMAGE_ARCH=x86_64;;
+esac
+
+# Download helper (curl with wget fallback)
+_fetch() {
+	local url="$1" out="$2"
+	if command -v curl >/dev/null 2>&1; then
+		curl -fL "${url}" -o "${out}"
+	elif command -v wget >/dev/null 2>&1; then
+		wget -qO "${out}" "${url}"
+	else
+		echo "Neither curl nor wget found for downloading ${url}" >&2
+		return 1
+	fi
+}
+
+# Fetch linuxdeploy + qt plugin
+TOOLS_DIR="${APPIMAGE_DIR}/tools"
+mkdir -p "${TOOLS_DIR}"
+pushd "${TOOLS_DIR}" >/dev/null
+LDEPLOY_URL="https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-${APPIMAGE_ARCH}.AppImage"
+LDEPLOY_QT_URL="https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-${APPIMAGE_ARCH}.AppImage"
+echo "Downloading linuxdeploy from ${LDEPLOY_URL}"
+_fetch "${LDEPLOY_URL}" linuxdeploy.AppImage
+echo "Downloading linuxdeploy-plugin-qt from ${LDEPLOY_QT_URL}"
+_fetch "${LDEPLOY_QT_URL}" linuxdeploy-plugin-qt.AppImage
+chmod +x linuxdeploy.AppImage linuxdeploy-plugin-qt.AppImage
+# Ensure AppImages run inside containers without FUSE
+export APPIMAGE_EXTRACT_AND_RUN=1
+popd >/dev/null
+
+# Build AppImage
+pushd "${APPIMAGE_DIR}" >/dev/null
+PATH="${TOOLS_DIR}:${PATH}" "${TOOLS_DIR}/linuxdeploy.AppImage" \
+	--appdir "${APPDIR}" \
+	--executable "${APPDIR}/usr/bin/openterfaceQT" \
+	--desktop-file "${DESKTOP_OUT}" \
+	${ICON_SRC:+--icon-file "${ICON_SRC}"} \
+	--plugin qt \
+	--output appimage
+
+# Normalize output name
+APPIMAGE_FILENAME="openterfaceQT_${VERSION}_${APPIMAGE_ARCH}.AppImage"
+# Move whichever AppImage got produced
+FOUND_APPIMAGE=$(ls -1 *.AppImage 2>/dev/null | grep -v -E '^linuxdeploy|^linuxdeploy-plugin-qt' | head -n1 || true)
+if [ -n "${FOUND_APPIMAGE}" ]; then
+	mv "${FOUND_APPIMAGE}" "${APPIMAGE_OUT}/${APPIMAGE_FILENAME}"
+	echo "AppImage created at ${APPIMAGE_OUT}/${APPIMAGE_FILENAME}"
+else
+	echo "Error: AppImage build did not produce an output." >&2
+	exit 1
+fi
+popd >/dev/null
