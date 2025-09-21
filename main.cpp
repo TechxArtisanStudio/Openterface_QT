@@ -44,6 +44,7 @@ Q_IMPORT_PLUGIN(QXcbIntegrationPlugin)
 Q_IMPORT_PLUGIN(QOffscreenIntegrationPlugin)
 Q_IMPORT_PLUGIN(QWaylandEglPlatformIntegrationPlugin)
 #endif
+#endif
 
 // Define global shutdown flag
 QAtomicInteger<int> g_applicationShuttingDown(0);

@@ -334,6 +334,15 @@ if(USE_GSTREAMER AND EXISTS "${GSTREAMER_INCLUDE_DIR}/gst/gst.h" AND EXISTS "${G
         message(STATUS "Will rely on system GStreamer plugins at runtime")
     endif()
     
+    # Finalize STATIC vs DYNAMIC macros based on availability
+    if(USE_GSTREAMER_STATIC_PLUGINS AND GSTREAMER_PLUGIN_LIBRARIES)
+        add_definitions(-DGSTREAMER_STATIC_LINKING)
+        message(STATUS "GStreamer static plugin registration enabled (plugins found)")
+    else()
+        add_definitions(-DGSTREAMER_DYNAMIC_LINKING)
+        message(STATUS "GStreamer dynamic plugin usage enabled (no static plugins linked)")
+    endif()
+
     # Add system GLib libraries using pkg-config (only for dynamic builds)
     if(NOT OPENTERFACE_BUILD_STATIC)
         pkg_check_modules(GLIB_PKG REQUIRED glib-2.0 gobject-2.0 gio-2.0)
