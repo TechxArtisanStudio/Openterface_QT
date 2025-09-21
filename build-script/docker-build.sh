@@ -1,11 +1,7 @@
 #!/bin/bash
 set -e
 
-echo "Building Openterface QT Application (shared Qt) for amd64..."
-
-echo "Finding FFmpeg libraries..."
-find / -name "libavformat.so*" || echo "No libavformat found"
-find / -name "avformat.h" || echo "No avformat.h found"
+echo "Building Openterface QT Application in docker build environment..."
 
 # Copy configuration files
 mkdir -p /workspace/build/config/languages
@@ -16,6 +12,11 @@ cp -r config/languages/*.qm /workspace/build/config/languages/ 2>/dev/null || ec
 # Build with CMake
 cd /workspace/build
 echo "Configuring with CMake..."
+
+echo "Finding FFmpeg libraries..."
+find / -name "libavformat.so*" || echo "No shared libavformat found"
+find / -name "libavformat.a*" || echo "No shared libavformat found"
+find / -name "avformat.h" || echo "No avformat.h found"
 
 # Debug pkg-config before CMake
 pkg-config --version
