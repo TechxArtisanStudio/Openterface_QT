@@ -180,12 +180,17 @@ fi
 
 # Build AppImage
 pushd "${APPIMAGE_DIR}" >/dev/null
+# For static builds, skip Qt plugin since Qt is statically linked
+PLUGIN_QT=""
+if [ "${OPENTERFACE_BUILD_STATIC}" != "ON" ]; then
+	PLUGIN_QT="--plugin qt"
+fi
 "${LINUXDEPLOY_BIN}" \
 	--appdir "${APPDIR}" \
 	--executable "${APPDIR}/usr/bin/openterfaceQT" \
 	--desktop-file "${DESKTOP_OUT}" \
 	${ICON_SRC:+--icon-file "${ICON_SRC}"} \
-	--plugin qt \
+	${PLUGIN_QT} \
 	--output appimage
 
 # Normalize output name
