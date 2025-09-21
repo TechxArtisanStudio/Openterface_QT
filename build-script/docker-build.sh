@@ -36,56 +36,8 @@ echo "Building with CMake..."
 make -j4 VERBOSE=1
 echo "Build complete."
 
-# =========================
-# Build Debian package (.deb)
-# =========================
-echo "Preparing Debian package..."
-
-PKG_ROOT=/workspace/pkgroot
-PKG_OUT=/workspace/build
 SRC=/workspace/src
 BUILD=/workspace/build
-
-rm -rf "${PKG_ROOT}"
-mkdir -p "${PKG_ROOT}/DEBIAN"
-mkdir -p "${PKG_ROOT}/usr/local/bin"
-mkdir -p "${PKG_ROOT}/usr/share/applications"
-mkdir -p "${PKG_ROOT}/usr/share/metainfo"
-mkdir -p "${PKG_ROOT}/usr/share/openterfaceQT/translations"
-# Compute Debian Depends (default for Ubuntu 22.04 Jammy with Qt 6.2.x)
-# Note: keep minimum versions compatible with Jammy to avoid install-time conflicts
-DEPENDS="\
-libqt6core6 (>= 6.2), \
-libqt6gui6 (>= 6.2), \
-libqt6widgets6 (>= 6.2), \
-libqt6network6 (>= 6.2), \
-libqt6multimedia6 (>= 6.2), \
-libqt6multimediawidgets6 (>= 6.2), \
-libqt6serialport6 (>= 6.2), \
-libqt6svg6 (>= 6.2), \
-libqt6xml6 (>= 6.2), \
-libqt6dbus6 (>= 6.2), \
-libqt6opengl6 (>= 6.2), \
-libqt6openglwidgets6 (>= 6.2), \
-libqt6concurrent6 (>= 6.2), \
-libxkbcommon0, \
-libwayland-client0, \
-libegl1, \
-libgles2, \
-libpulse0, \
-libxcb1, \
-libxcb-shm0, \
-libxcb-xfixes0, \
-libxcb-shape0, \
-libx11-6, \
-zlib1g, \
-libbz2-1.0, \
-liblzma5"
-
-# Allow override from environment (set DEB_DEPENDS to customize)
-if [ -n "${DEB_DEPENDS}" ]; then
-	DEPENDS="${DEB_DEPENDS}"
-fi
 
 # Determine version from resources/version.h (APP_VERSION macro)
 VERSION_H="${SRC}/resources/version.h"
@@ -106,59 +58,6 @@ if [ -z "${ARCH}" ]; then
 		*) ARCH=${UNAME_M};;
 	esac
 fi
-
-# Copy main binary
-if [ -f "${BUILD}/openterfaceQT" ]; then
-	install -m 0755 "${BUILD}/openterfaceQT" "${PKG_ROOT}/usr/local/bin/openterfaceQT"
-else
-	echo "Error: built binary not found at ${BUILD}/openterfaceQT" >&2
-	exit 1
-fi
-
-# Copy desktop file (ensure Exec uses installed path)
-if [ -f "${SRC}/com.openterface.openterfaceQT.desktop" ]; then
-	sed 's|^Exec=.*$|Exec=/usr/local/bin/openterfaceQT|g' "${SRC}/com.openterface.openterfaceQT.desktop" > "${PKG_ROOT}/usr/share/applications/com.openterface.openterfaceQT.desktop"
-fi
-
-# Copy appstream/metainfo if present
-if [ -f "${SRC}/com.openterface.openterfaceQT.metainfo.xml" ]; then
-	cp "${SRC}/com.openterface.openterfaceQT.metainfo.xml" "${PKG_ROOT}/usr/share/metainfo/"
-fi
-
-# Copy translations from build if present
-if ls "${BUILD}"/openterface_*.qm >/dev/null 2>&1; then
-	cp "${BUILD}"/openterface_*.qm "${PKG_ROOT}/usr/share/openterfaceQT/translations/" || true
-fi
-
-# Generate DEBIAN/control from template
-CONTROL_TEMPLATE="${SRC}/packaging/debian/control"
-CONTROL_FILE="${PKG_ROOT}/DEBIAN/control"
-if [ -f "${CONTROL_TEMPLATE}" ]; then
-	# Prefer envsubst if available for ${VAR} placeholders
-	if command -v envsubst >/dev/null 2>&1; then
-		VERSION="${VERSION}" ARCH="${ARCH}" DEPENDS="${DEPENDS}" envsubst < "${CONTROL_TEMPLATE}" > "${CONTROL_FILE}"
-	else
-		# Fallback to Perl for robust literal replacement
-		perl -pe 's/\$\{VERSION\}/'"${VERSION}"'/g; s/\$\{ARCH\}/'"${ARCH}"'/g; s/\$\{DEPENDS\}/'"${DEPENDS}"'/g' "${CONTROL_TEMPLATE}" > "${CONTROL_FILE}"
-	fi
-else
-	# Minimal control if template missing
-	cat > "${CONTROL_FILE}" <<EOF
-Package: openterfaceQT
-Version: ${VERSION}
-Section: base
-Priority: optional
-Architecture: ${ARCH}
-Maintainer: TechxArtisan <info@techxartisan.com>
-Description: OpenterfaceQT Mini-KVM Linux Edition
-EOF
-fi
-
-# Build the .deb
-DEB_NAME="openterfaceQT_${VERSION}_${ARCH}.deb"
-echo "Building Debian package: ${DEB_NAME}"
-dpkg-deb --build "${PKG_ROOT}" "${PKG_OUT}/${DEB_NAME}"
-echo "Debian package created at ${PKG_OUT}/${DEB_NAME}"
 
 # =========================
 # Build AppImage (.AppImage)
