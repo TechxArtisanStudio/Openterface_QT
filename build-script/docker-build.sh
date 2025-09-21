@@ -52,6 +52,40 @@ mkdir -p "${PKG_ROOT}/usr/local/bin"
 mkdir -p "${PKG_ROOT}/usr/share/applications"
 mkdir -p "${PKG_ROOT}/usr/share/metainfo"
 mkdir -p "${PKG_ROOT}/usr/share/openterfaceQT/translations"
+# Compute Debian Depends (default for Ubuntu 22.04 Jammy with Qt 6.2.x)
+# Note: keep minimum versions compatible with Jammy to avoid install-time conflicts
+DEPENDS="\
+libqt6core6 (>= 6.2), \
+libqt6gui6 (>= 6.2), \
+libqt6widgets6 (>= 6.2), \
+libqt6network6 (>= 6.2), \
+libqt6multimedia6 (>= 6.2), \
+libqt6multimediawidgets6 (>= 6.2), \
+libqt6serialport6 (>= 6.2), \
+libqt6svg6 (>= 6.2), \
+libqt6xml6 (>= 6.2), \
+libqt6dbus6 (>= 6.2), \
+libqt6opengl6 (>= 6.2), \
+libqt6openglwidgets6 (>= 6.2), \
+libqt6concurrent6 (>= 6.2), \
+libxkbcommon0, \
+libwayland-client0, \
+libegl1, \
+libgles2, \
+libpulse0, \
+libxcb1, \
+libxcb-shm0, \
+libxcb-xfixes0, \
+libxcb-shape0, \
+libx11-6, \
+zlib1g, \
+libbz2-1.0, \
+liblzma5"
+
+# Allow override from environment (set DEB_DEPENDS to customize)
+if [ -n "${DEB_DEPENDS}" ]; then
+	DEPENDS="${DEB_DEPENDS}"
+fi
 
 # Determine version from resources/version.h (APP_VERSION macro)
 VERSION_H="${SRC}/resources/version.h"
@@ -100,10 +134,13 @@ fi
 CONTROL_TEMPLATE="${SRC}/packaging/debian/control"
 CONTROL_FILE="${PKG_ROOT}/DEBIAN/control"
 if [ -f "${CONTROL_TEMPLATE}" ]; then
-	sed \
-		-e "s|\\${VERSION}|${VERSION}|g" \
-		-e "s|\\${ARCH}|${ARCH}|g" \
-		"${CONTROL_TEMPLATE}" > "${CONTROL_FILE}"
+	# Prefer envsubst if available for ${VAR} placeholders
+	if command -v envsubst >/dev/null 2>&1; then
+		VERSION="${VERSION}" ARCH="${ARCH}" DEPENDS="${DEPENDS}" envsubst < "${CONTROL_TEMPLATE}" > "${CONTROL_FILE}"
+	else
+		# Fallback to Perl for robust literal replacement
+		perl -pe 's/\$\{VERSION\}/'"${VERSION}"'/g; s/\$\{ARCH\}/'"${ARCH}"'/g; s/\$\{DEPENDS\}/'"${DEPENDS}"'/g' "${CONTROL_TEMPLATE}" > "${CONTROL_FILE}"
+	fi
 else
 	# Minimal control if template missing
 	cat > "${CONTROL_FILE}" <<EOF
