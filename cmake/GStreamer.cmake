@@ -279,8 +279,7 @@ if(USE_GSTREAMER AND EXISTS "${GSTREAMER_INCLUDE_DIR}/gst/gst.h" AND EXISTS "${G
             "gstplayback"         # playback elements
             "gstavi"              # AVI muxer/demuxer (avimux)
             "gstmatroska"         # Matroska muxer/demuxer (matroskamux)
-            "gstqml6"             # qtsink, qml6glsink - Qt6 video sink - NOW AVAILABLE
-            "gstqmlgl"            # qmlglsink - for QML video rendering
+            "gstqt6"              # qt6videosink
             # Note: DMA buffer and allocator support is provided by libgstallocators-1.0 core library
         )
         

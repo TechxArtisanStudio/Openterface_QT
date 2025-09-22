@@ -733,12 +733,24 @@ void VideoPane::enableDirectGStreamerMode(bool enable)
 
 WId VideoPane::getVideoOverlayWindowId() const
 {
-    // Use working v0.4.0 approach: simple and direct
-    if (m_directGStreamerMode && m_overlayWidget) {
-        return m_overlayWidget->winId();
+    // Prefer the overlay widget's native window id when in direct GStreamer mode
+    if (m_directGStreamerMode && m_overlayWidget && m_overlayWidget->isVisible()) {
+        WId wid = m_overlayWidget->winId();
+        if (wid != 0) {
+            return wid; // Accept any non-zero WId (small XIDs can be valid)
+        }
+        qCDebug(log_ui_video) << "VideoPane: Overlay widget winId() is 0 (not yet native)";
     }
-    // Fall back to the main widget's window ID
-    return winId();
+    // Fall back to the VideoPane's own native window
+    if (isVisible()) {
+        WId wid = winId();
+        if (wid != 0) {
+            return wid; // Accept any non-zero WId
+        }
+        qCDebug(log_ui_video) << "VideoPane: View winId() is 0 (not yet native)";
+    }
+    qCWarning(log_ui_video) << "VideoPane: No valid window ID available yet";
+    return 0; // Indicate no valid window ID yet
 }
 
 void VideoPane::setupForGStreamerOverlay()
