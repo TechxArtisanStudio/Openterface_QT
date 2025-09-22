@@ -282,48 +282,6 @@ jobs:
           mv package-static $PKG_NAME
           dpkg-deb --build $PKG_NAME
 
-      - name: Upload artifact (Static deb)
-        uses: actions/upload-artifact@v4
-        with:
-          name: openterfaceQT.linux.amd64.static.deb
-          path: ${{ runner.temp }}/${{ env.ARTIFACT }}.linux.amd64.static.deb
-          if-no-files-found: error
-
-      - name: Create rpm package (Static)
-        working-directory: ${{ runner.temp }}
-        run: |
-          mkdir -p rpmbuild-static/{SPECS,SOURCES,BUILD,RPMS,SRPMS}
-          
-          PKG_NAME="${{ env.ARTIFACT }}.linux.amd64.static"
-          
-          # Copy build output and icon to SOURCES
-          cp ${{ env.BUILD_DIR }}/openterfaceQT rpmbuild-static/SOURCES/ || { echo "Failed to copy openterfaceQT!"; exit 1; }
-          cp ${{ github.workspace }}/images/icon_256.png rpmbuild-static/SOURCES/ || { echo "Failed to copy icon_256.png!"; exit 1; }
-          
-          # Debug: Verify files in SOURCES
-          ls -lh rpmbuild-static/SOURCES/
-          
-          # Generate spec file with version and architecture substitutions
-          sed -e "s/\${VERSION}/${{ env.VERSION }}/g" \
-              -e "s/\${ARCH}/amd64/g" \
-              ${{ github.workspace }}/packaging/rpm/spec > rpmbuild-static/SPECS/openterfaceqt.spec
-          
-          # Debug: Show generated spec file
-          cat rpmbuild-static/SPECS/openterfaceqt.spec
-          
-          # Build RPM
-          rpmbuild --define "_topdir ${{ runner.temp }}/rpmbuild-static" -bb rpmbuild-static/SPECS/openterfaceqt.spec
-          
-          # Copy the resulting RPM
-          find rpmbuild-static/RPMS -name "*.rpm" -exec cp {} ./$PKG_NAME.rpm \;
-
-      - name: Upload RPM artifact (Static)
-        uses: actions/upload-artifact@v4
-        with:
-          name: openterfaceQT.linux.amd64.static.rpm
-          path: ${{ runner.temp }}/${{ env.ARTIFACT }}.linux.amd64.static.rpm
-          if-no-files-found: error
-
       - name: Upload AppImage artifact (static from wrapper)
         uses: actions/upload-artifact@v4
         with:
