@@ -123,11 +123,25 @@ RUN mkdir -p ${INSTALL_PREFIX}/bin && \
     chmod +x ${INSTALL_PREFIX}/bin/verify-qt-installation.sh
 
 # Set Qt environment variables
-ENV PATH="${INSTALL_PREFIX}/bin:${PATH}"
+# Ensure both bin and libexec (moc/uic/rcc in Qt6) are on PATH
+ENV PATH="${INSTALL_PREFIX}/bin:${INSTALL_PREFIX}/libexec:${PATH}"
 ENV QT_PLUGIN_PATH="${INSTALL_PREFIX}/plugins"
 ENV QML2_IMPORT_PATH="${INSTALL_PREFIX}/qml"
 ENV LD_LIBRARY_PATH="${INSTALL_PREFIX}/lib"
 ENV PKG_CONFIG_PATH="${INSTALL_PREFIX}/lib/pkgconfig:/usr/local/lib/pkgconfig:${PKG_CONFIG_PATH}"
+ENV CMAKE_PREFIX_PATH="${INSTALL_PREFIX}:${CMAKE_PREFIX_PATH}"
+
+# Provide qt6-suffixed tool aliases for Meson qt6 detection
+RUN set -eu; \
+    mkdir -p /usr/local/bin; \
+    if [ -x "${INSTALL_PREFIX}/bin/qmake6" ]; then ln -sf "${INSTALL_PREFIX}/bin/qmake6" /usr/local/bin/qmake6; \
+    elif [ -x "${INSTALL_PREFIX}/bin/qmake" ]; then ln -sf "${INSTALL_PREFIX}/bin/qmake" /usr/local/bin/qmake6; fi; \
+    if [ -x "${INSTALL_PREFIX}/bin/qtpaths6" ]; then ln -sf "${INSTALL_PREFIX}/bin/qtpaths6" /usr/local/bin/qtpaths6; \
+    elif [ -x "${INSTALL_PREFIX}/bin/qtpaths" ]; then ln -sf "${INSTALL_PREFIX}/bin/qtpaths" /usr/local/bin/qtpaths6; fi; \
+    if [ -x "${INSTALL_PREFIX}/libexec/moc" ]; then ln -sf "${INSTALL_PREFIX}/libexec/moc" /usr/local/bin/moc-qt6; fi; \
+    if [ -x "${INSTALL_PREFIX}/libexec/uic" ]; then ln -sf "${INSTALL_PREFIX}/libexec/uic" /usr/local/bin/uic-qt6; fi; \
+    if [ -x "${INSTALL_PREFIX}/libexec/rcc" ]; then ln -sf "${INSTALL_PREFIX}/libexec/rcc" /usr/local/bin/rcc-qt6; fi; \
+    if [ -x "${INSTALL_PREFIX}/libexec/lrelease" ]; then ln -sf "${INSTALL_PREFIX}/libexec/lrelease" /usr/local/bin/lrelease6; fi
 
 # Verify Qt installation
 RUN ${INSTALL_PREFIX}/bin/verify-qt-installation.sh
@@ -137,5 +151,51 @@ RUN cd ${BUILD_DIR} && \
     for module in ${MODULES}; do \
         rm -rf "$module"; \
     done
+
+RUN mkdir -p ${WORK_DIR}/gstreamer_sources && \
+    cd ${WORK_DIR}/gstreamer_sources && \
+    echo "Downloading gst-plugins-good..." && \
+    wget -O gst-plugins-good-${GSTREAMER_VERSION}.tar.xz \
+    https://gstreamer.freedesktop.org/src/gst-plugins-good/gst-plugins-good-${GSTREAMER_VERSION}.tar.xz && \
+    tar -xf gst-plugins-good-${GSTREAMER_VERSION}.tar.xz && \
+    rm gst-plugins-good-${GSTREAMER_VERSION}.tar.xz
+
+# Build gst-plugins-good (minimal set) - attempt to enable Qt6 support
+RUN apt-get update && apt-get install -y cmake python3-pip ninja-build build-essential pkg-config && \
+    pip3 install --no-cache-dir meson && \
+    echo "Building gst-plugins-good..." && \
+    . /etc/environment && \
+    # Ensure Meson can find qmake/qtpaths/moc/uic/rcc by exporting QMAKE and PATH
+    if [ -x "${INSTALL_PREFIX}/bin/qmake6" ]; then export QMAKE="${INSTALL_PREFIX}/bin/qmake6"; elif [ -x "${INSTALL_PREFIX}/bin/qmake" ]; then export QMAKE="${INSTALL_PREFIX}/bin/qmake"; fi && \
+    export PATH="${INSTALL_PREFIX}/bin:${INSTALL_PREFIX}/libexec:${PATH}"; \
+    GSTREAMER_PC_DIR=$(find "${GSTREAMER_PREFIX}" -name "gstreamer-1.0.pc" -type f -exec dirname {} \; 2>/dev/null | head -1) && \
+    if [ -n "$GSTREAMER_PC_DIR" ]; then \
+        export PKG_CONFIG_PATH="$GSTREAMER_PC_DIR:${FFMPEG_PREFIX}/lib/pkgconfig:$MULTIARCH_PATH/pkgconfig:/usr/share/pkgconfig"; \
+    else \
+        export PKG_CONFIG_PATH="${GSTREAMER_PREFIX}/lib/pkgconfig:${FFMPEG_PREFIX}/lib/pkgconfig:$MULTIARCH_PATH/pkgconfig:/usr/share/pkgconfig"; \
+    fi && \
+    cd "${WORK_DIR}/gstreamer_sources/gst-plugins-good-${GSTREAMER_VERSION}" && \
+    meson setup build \
+        --prefix="${GSTREAMER_PREFIX}" \
+        --default-library=static \
+        --buildtype=release \
+        --cmake-prefix-path="${INSTALL_PREFIX}" \
+        -Ddoc=disabled \
+        -Dexamples=disabled \
+        -Dtests=disabled \
+        -Dqt5=disabled \
+        -Dqt6=enabled \
+        -Dnls=disabled \
+        -Drtp=enabled \
+        -Drtpmanager=enabled \
+        -Drtsp=enabled \
+        -Dudp=enabled \
+        -Dv4l2=enabled \
+        -Dvideocrop=enabled \
+        -Dvideofilter=enabled && \
+    ninja -C build && \
+    ninja -C build install && \
+    echo "Checking if gstqt6 plugin was built (libgstqt6.a or gstqt6 plugin artifacts)..." && \
+    find "${GSTREAMER_PREFIX}" -type f \( -name "libgstqt6.*" -o -name "*gstqt6*" \) -print || echo "gstqt6 plugin not found"
 
 WORKDIR /workspace

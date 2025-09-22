@@ -54,17 +54,7 @@ QAtomicInteger<int> g_applicationShuttingDown(0);
 #include <gst/gst.h>
 #endif
 
-#include <iostream>
-#include <QApplication>
-#include <QIcon>
-#include <QDateTime>
-#include <QDebug>
-#include <QThread>
-#include <QLoggingCategory>
-#include <QStyleFactory>
-#include <QDir>
-#include <QFile>
-#include <QTextStream>
+#include <unistd.h>
 
 
 void customMessageHandler(QtMsgType type, const QMessageLogContext &context, const QString &msg)
@@ -123,17 +113,33 @@ void setupEnv(){
     const QByteArray x11Display = qgetenv("DISPLAY");
 
     if (currentPlatform.isEmpty()) {
-        if (!waylandDisplay.isEmpty()) {
-            // Prefer wayland-egl since the available plugin list includes wayland-egl
+        // Detect available compositor sockets
+        QDir waylandDir(QString("/run/user/%1").arg(getuid()));
+        const QStringList waylandSockets = waylandDir.entryList(QStringList() << "wayland-*", QDir::System | QDir::NoDotAndDotDot);
+        QDir x11Dir("/tmp/.X11-unix");
+        const bool x11SocketPresent = x11Dir.exists() && !x11Dir.entryList(QStringList() << "X*", QDir::System).isEmpty();
+
+        if (!waylandSockets.isEmpty()) {
+            // Prefer Wayland when socket exists. Export WAYLAND_DISPLAY if missing.
+            if (waylandDisplay.isEmpty()) {
+                QByteArray wlName = waylandSockets.first().toUtf8();
+                qputenv("WAYLAND_DISPLAY", wlName);
+                qDebug() << "Exported WAYLAND_DISPLAY from socket:" << wlName;
+            }
             qputenv("QT_QPA_PLATFORM", "wayland-egl");
-            qDebug() << "Set QT_QPA_PLATFORM to wayland-egl";
-        } else if (!x11Display.isEmpty()) {
+            qDebug() << "Set QT_QPA_PLATFORM to wayland-egl (wayland socket present)";
+        } else if (!x11Display.isEmpty() || x11SocketPresent) {
+            // Use XCB if DISPLAY is present; if missing but X socket exists (local TTY), try default :0
+            if (x11Display.isEmpty() && x11SocketPresent) {
+                qputenv("DISPLAY", ":0");
+                qDebug() << "DISPLAY not set but X11 socket present; exported DISPLAY=:0";
+            }
             qputenv("QT_QPA_PLATFORM", "xcb");
             qDebug() << "Set QT_QPA_PLATFORM to xcb";
         } else {
-            // Headless or no compositor detected – use offscreen to avoid X/Wayland requirement
+            // Truly headless
             qputenv("QT_QPA_PLATFORM", "offscreen");
-            qWarning() << "No WAYLAND_DISPLAY or DISPLAY found; defaulting QT_QPA_PLATFORM to 'offscreen'."
+            qWarning() << "No Wayland or X11 sockets found; defaulting QT_QPA_PLATFORM to 'offscreen'."
                        << "Set QT_QPA_PLATFORM explicitly to override (e.g., 'xcb' or 'wayland').";
         }
     } else {
