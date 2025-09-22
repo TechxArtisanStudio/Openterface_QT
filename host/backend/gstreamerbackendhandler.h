@@ -191,6 +191,11 @@ private:
     void handleGStreamerMessage(GstMessage* message);
     void completePendingOverlaySetup();
     
+    // Enhanced overlay methods
+    bool setupVideoOverlay(GstElement* videoSink, WId windowId);
+    void setupVideoOverlayForCurrentPipeline();
+    void refreshVideoOverlay();
+    
     // Recording helper methods
     bool initializeValveBasedRecording();
     bool initializeFrameBasedRecording();

@@ -409,7 +409,20 @@ bool GStreamerBackendHandler::createGStreamerPipeline(const QString& device, con
         videoSink = QString::fromLatin1(sinkOverride);
         qCDebug(log_gstreamer_backend) << "Using sink from OPENTERFACE_GST_SINK:" << videoSink;
     } else if ((isWayland && hasWaylandDisplay) || (isXcb && hasXDisplay)) {
-        videoSink = "qt6videosink";
+        // Prefer qt6videosink for better Qt integration when available
+#ifdef HAVE_GSTREAMER
+        GstElementFactory* qt6Factory = gst_element_factory_find("qt6videosink");
+        if (qt6Factory) {
+            videoSink = "qt6videosink";
+            gst_object_unref(qt6Factory);
+            qCDebug(log_gstreamer_backend) << "Using qt6videosink for better Qt integration";
+        } else {
+            qCDebug(log_gstreamer_backend) << "qt6videosink not available, falling back to autovideosink";
+            videoSink = "autovideosink";
+        }
+#else
+        videoSink = "autovideosink";
+#endif
     } else if (isXcb && hasXDisplay) {
         videoSink = "ximagesink";
     } else {
@@ -837,76 +850,15 @@ bool GStreamerBackendHandler::startGStreamerPipeline()
             if (!sinkName) sinkName = "unknown";
             const QByteArray sinkNameBA = QByteArray(sinkName);
 
-            // Special handling for Qt6 sink: bind to Qt widget instead of X overlay
-            if (sinkNameBA.contains("qt6videosink")) {
-                QWidget* targetWidget = nullptr;
-                if (m_videoPane && m_videoPane->getOverlayWidget()) {
-                    targetWidget = m_videoPane->getOverlayWidget();
-                } else if (m_videoWidget) {
-                    targetWidget = m_videoWidget;
-                }
-                if (targetWidget) {
-                    qCDebug(log_gstreamer_backend) << "Binding qt6videosink to QWidget" << targetWidget;
-                    g_object_set(G_OBJECT(videoSink), "widget", (gpointer)targetWidget, nullptr);
-                    m_overlaySetupPending = false;
-                } else {
-                    qCWarning(log_gstreamer_backend) << "No target QWidget available to bind qt6videosink";
-                }
+            // Use enhanced overlay setup method
+            bool overlaySuccess = setupVideoOverlay(videoSink, windowId);
+            if (overlaySuccess) {
+                qCDebug(log_gstreamer_backend) << "Video overlay setup completed successfully";
+                m_overlaySetupPending = false;
+            } else {
+                qCWarning(log_gstreamer_backend) << "Failed to setup video overlay, will retry later";
+                m_overlaySetupPending = true;
             }
-
-            // Check if the element actually supports video overlay interface for X sinks
-            if (GST_IS_VIDEO_OVERLAY(videoSink)) {
-                qCDebug(log_gstreamer_backend) << "Setting up video overlay with validated window ID:" << windowId;
-                
-                // Add X11 error handling to prevent segmentation fault
-#ifdef Q_OS_LINUX
-                XErrorHandler old_handler = nullptr;
-                Display* display = nullptr;
-                if (QGuiApplication::platformName().contains("xcb")) {
-                    x11_overlay_error_occurred = false;
-                    display = XOpenDisplay(nullptr);
-                    if (display) {
-                        old_handler = XSetErrorHandler(x11_overlay_error_handler);
-                    }
-                }
-#endif
-                
-                // Add error handling for the overlay setup to prevent crashes
-                try {
-                    gst_video_overlay_set_window_handle(GST_VIDEO_OVERLAY(videoSink), windowId);
-                    
-#ifdef Q_OS_LINUX
-                    // Restore original error handler and check for errors
-                    if (old_handler && display) {
-                        XSync(display, False); // Force any pending X requests to be processed
-                        XSetErrorHandler(old_handler);
-                        XCloseDisplay(display);
-                        
-                        if (x11_overlay_error_occurred) {
-                            qCWarning(log_gstreamer_backend) << "X11 error occurred during overlay setup - continuing without embedding";
-                        } else {
-                            qCDebug(log_gstreamer_backend) << "Video overlay setup completed successfully";
-                        }
-                    } else if (!old_handler) {
-                        qCDebug(log_gstreamer_backend) << "Video overlay setup completed (no X11 error handling)";
-                    }
-#endif
-                    
-                    m_overlaySetupPending = false;
-                } catch (...) {
-                    qCCritical(log_gstreamer_backend) << "Exception during video overlay setup - continuing without embedding";
-                    m_overlaySetupPending = false;
-                    
-#ifdef Q_OS_LINUX
-                    // Restore error handler on exception
-                    if (old_handler) {
-                        XSetErrorHandler(old_handler);
-                    }
-                    if (display) {
-                        XCloseDisplay(display);
-                    }
-#endif
-                }
             } else {
                 qCWarning(log_gstreamer_backend) << "Video sink element does not support overlay interface";
             }
@@ -1048,6 +1000,9 @@ void GStreamerBackendHandler::setVideoOutput(QWidget* widget)
         qCDebug(log_gstreamer_backend) << "Configuring video widget for GStreamer overlay";
         
         // Essential widget attributes for video overlay
+        qCDebug(log_gstreamer_backend) << "Configuring video widget for GStreamer overlay";
+        
+        // Essential widget attributes for video overlay
         widget->setAttribute(Qt::WA_NativeWindow, true);
         widget->setAttribute(Qt::WA_PaintOnScreen, true);
         widget->setAttribute(Qt::WA_NoSystemBackground, true);
@@ -1071,8 +1026,31 @@ void GStreamerBackendHandler::setVideoOutput(QWidget* widget)
         }
         
         qCDebug(log_gstreamer_backend) << "Video widget configured with window ID:" << winId;
+        widget->setAttribute(Qt::WA_NoSystemBackground, true);
+        widget->setAttribute(Qt::WA_OpaquePaintEvent, true);
+        
+        // Set black background to avoid flicker
+        widget->setStyleSheet("background-color: black;");
+        
+        // Ensure widget is visible (required for winId generation)
+        if (!widget->isVisible()) {
+            qCDebug(log_gstreamer_backend) << "Making video widget visible for window ID generation";
+            widget->show();
+        }
+        
+        // Force window creation if needed
+        WId winId = widget->winId();
+        if (winId == 0) {
+            qCDebug(log_gstreamer_backend) << "Forcing window creation for video widget";
+            widget->createWinId();
+            winId = widget->winId();
+        }
+        
+        qCDebug(log_gstreamer_backend) << "Video widget configured with window ID:" << winId;
         
         // If pipeline is already created, set up the overlay immediately
+        if (m_pipeline && winId != 0) {
+            setupVideoOverlayForCurrentPipeline();
         if (m_pipeline && winId != 0) {
             setupVideoOverlayForCurrentPipeline();
         }
@@ -1573,6 +1551,122 @@ void GStreamerBackendHandler::completePendingOverlaySetup()
     }
 }
 
+bool GStreamerBackendHandler::setupVideoOverlay(GstElement* videoSink, WId windowId)
+{
+    if (!videoSink || windowId == 0) {
+        qCWarning(log_gstreamer_backend) << "Invalid parameters for overlay setup: sink=" << videoSink << "windowId=" << windowId;
+        return false;
+    }
+    
+    const QString platform = QGuiApplication::platformName();
+    const bool isXcb = platform.contains("xcb", Qt::CaseInsensitive);
+    const bool isWayland = platform.contains("wayland", Qt::CaseInsensitive);
+    const bool hasXDisplay = !qgetenv("DISPLAY").isEmpty();
+    const bool hasWaylandDisplay = !qgetenv("WAYLAND_DISPLAY").isEmpty();
+    
+    // Get sink type
+    const GstElementFactory* factory = gst_element_get_factory(videoSink);
+    const gchar* sinkName = factory ? gst_plugin_feature_get_name(GST_PLUGIN_FEATURE(factory)) : "unknown";
+    const QByteArray sinkNameBA = QByteArray(sinkName);
+    
+    qCDebug(log_gstreamer_backend) << "Setting up overlay for sink:" << sinkName 
+                                   << "platform:" << platform << "windowId:" << windowId;
+    
+    // Qt6 sink - use widget binding
+    if (sinkNameBA.contains("qt6videosink") || sinkNameBA.contains("qml6glsink")) {
+        QWidget* targetWidget = nullptr;
+        if (m_videoPane && m_videoPane->getOverlayWidget()) {
+            targetWidget = m_videoPane->getOverlayWidget();
+        } else if (m_videoWidget) {
+            targetWidget = m_videoWidget;
+        }
+        
+        if (targetWidget) {
+            // Ensure widget is properly configured for video rendering
+            targetWidget->setAttribute(Qt::WA_NativeWindow, true);
+            targetWidget->setAttribute(Qt::WA_PaintOnScreen, true);
+            targetWidget->setAttribute(Qt::WA_NoSystemBackground, true);
+            
+            g_object_set(G_OBJECT(videoSink), 
+                         "widget", (gpointer)targetWidget,
+                         "force-aspect-ratio", TRUE,
+                         "sync", TRUE,
+                         nullptr);
+            qCDebug(log_gstreamer_backend) << "Qt6 sink configured with widget:" << targetWidget;
+            return true;
+        } else {
+            qCWarning(log_gstreamer_backend) << "No target widget available for Qt6 sink";
+            return false;
+        }
+    }
+    
+    // X11 sinks - use window handle
+    if ((sinkNameBA.contains("xvimage") || sinkNameBA.contains("ximage")) && 
+        isXcb && hasXDisplay && GST_IS_VIDEO_OVERLAY(videoSink)) {
+        
+        qCDebug(log_gstreamer_backend) << "Setting up X11 overlay with window ID:" << windowId;
+        gst_video_overlay_set_window_handle(GST_VIDEO_OVERLAY(videoSink), windowId);
+        
+        // Configure overlay properties
+        gst_video_overlay_set_render_rectangle(GST_VIDEO_OVERLAY(videoSink), 0, 0, -1, -1);
+        gst_video_overlay_expose(GST_VIDEO_OVERLAY(videoSink));
+        
+        return true;
+    }
+    
+    // Wayland sinks
+    if (sinkNameBA.contains("wayland") && isWayland && hasWaylandDisplay && 
+        GST_IS_VIDEO_OVERLAY(videoSink)) {
+        
+        qCDebug(log_gstreamer_backend) << "Setting up Wayland overlay with window ID:" << windowId;
+        gst_video_overlay_set_window_handle(GST_VIDEO_OVERLAY(videoSink), windowId);
+        return true;
+    }
+    
+    qCWarning(log_gstreamer_backend) << "No suitable overlay method for sink:" << sinkName 
+                                     << "on platform:" << platform;
+    return false;
+}
+
+void GStreamerBackendHandler::setupVideoOverlayForCurrentPipeline()
+{
+    if (!m_pipeline) {
+        qCDebug(log_gstreamer_backend) << "No pipeline available for overlay setup";
+        return;
+    }
+    
+    // Find video sink
+    GstElement* videoSink = gst_bin_get_by_name(GST_BIN(m_pipeline), "videosink");
+    if (!videoSink) {
+        videoSink = gst_bin_get_by_interface(GST_BIN(m_pipeline), GST_TYPE_VIDEO_OVERLAY);
+    }
+    
+    if (videoSink) {
+        WId windowId = getVideoWidgetWindowId();
+        if (windowId != 0) {
+            bool success = setupVideoOverlay(videoSink, windowId);
+            if (success) {
+                m_overlaySetupPending = false;
+                qCDebug(log_gstreamer_backend) << "Overlay setup completed for current pipeline";
+            } else {
+                qCWarning(log_gstreamer_backend) << "Failed to setup overlay for current pipeline";
+            }
+        } else {
+            qCWarning(log_gstreamer_backend) << "No valid window ID available for overlay setup";
+            m_overlaySetupPending = true; // Retry later
+        }
+        gst_object_unref(videoSink);
+    } else {
+        qCWarning(log_gstreamer_backend) << "No video sink found in current pipeline";
+    }
+}
+
+void GStreamerBackendHandler::refreshVideoOverlay()
+{
+    qCDebug(log_gstreamer_backend) << "Refreshing video overlay";
+    setupVideoOverlayForCurrentPipeline();
+}
+
 void GStreamerBackendHandler::onPipelineMessage()
 {
     // This would be connected to GStreamer bus signals in a full implementation
@@ -1682,11 +1776,58 @@ WId GStreamerBackendHandler::getVideoWidgetWindowId() const
         
         qCDebug(log_gstreamer_backend) << "Video widget window ID:" << windowId;
         return windowId;
+        // Ensure widget is visible and has native window
+        if (!m_videoWidget->isVisible()) {
+            qCDebug(log_gstreamer_backend) << "Video widget not visible, making it visible";
+            m_videoWidget->show();
+        }
+        
+        // Force native window creation if needed
+        if (!m_videoWidget->testAttribute(Qt::WA_NativeWindow)) {
+            qCDebug(log_gstreamer_backend) << "Setting native window attribute for video widget";
+            m_videoWidget->setAttribute(Qt::WA_NativeWindow, true);
+            m_videoWidget->setAttribute(Qt::WA_PaintOnScreen, true);
+        }
+        
+        WId windowId = m_videoWidget->winId();
+        
+        // Validate window ID and force creation if needed
+        if (windowId == 0) {
+            qCWarning(log_gstreamer_backend) << "Widget window ID is 0 - forcing window creation";
+            m_videoWidget->createWinId();
+            windowId = m_videoWidget->winId();
+        }
+        
+        qCDebug(log_gstreamer_backend) << "Video widget window ID:" << windowId;
+        return windowId;
     }
     
     if (m_graphicsVideoItem && m_graphicsVideoItem->scene()) {
         QList<QGraphicsView*> views = m_graphicsVideoItem->scene()->views();
         if (!views.isEmpty()) {
+            QGraphicsView* view = views.first();
+            
+            // Ensure view is visible and has native window
+            if (!view->isVisible()) {
+                qCDebug(log_gstreamer_backend) << "Graphics view not visible, making it visible";
+                view->show();
+            }
+            
+            if (!view->testAttribute(Qt::WA_NativeWindow)) {
+                qCDebug(log_gstreamer_backend) << "Setting native window attribute for graphics view";
+                view->setAttribute(Qt::WA_NativeWindow, true);
+                view->setAttribute(Qt::WA_PaintOnScreen, true);
+            }
+            
+            WId windowId = view->winId();
+            if (windowId == 0) {
+                qCWarning(log_gstreamer_backend) << "Graphics view window ID is 0 - forcing window creation";
+                view->createWinId();
+                windowId = view->winId();
+            }
+            
+            qCDebug(log_gstreamer_backend) << "Graphics view window ID:" << windowId;
+            return windowId;
             QGraphicsView* view = views.first();
             
             // Ensure view is visible and has native window
