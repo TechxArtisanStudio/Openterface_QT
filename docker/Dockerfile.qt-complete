@@ -37,6 +37,8 @@ RUN echo "Building qtmultimedia..." && \
         -DFEATURE_ffmpeg=ON \
         -DINPUT_ffmpeg=ON \
         -DFEATURE_avfoundation=OFF \
+        -DFEATURE_opengl=ON \
+        -DINPUT_opengl=ON \
         -DCMAKE_FIND_ROOT_PATH="${FFMPEG_PREFIX};${GSTREAMER_PREFIX}" \
         -DCMAKE_EXE_LINKER_FLAGS="-L${FFMPEG_PREFIX}/lib -L${GSTREAMER_PREFIX}/lib" \
         -DFFMPEG_PATH="${FFMPEG_PREFIX}" \
@@ -111,7 +113,7 @@ RUN mkdir -p ${INSTALL_PREFIX}/bin && \
     echo 'echo "Qt version: $(${QT_DIR}/bin/qmake -query QT_VERSION)"' >> ${INSTALL_PREFIX}/bin/verify-qt-installation.sh && \
     echo 'echo "Qt installation prefix: $(${QT_DIR}/bin/qmake -query QT_INSTALL_PREFIX)"' >> ${INSTALL_PREFIX}/bin/verify-qt-installation.sh && \
     echo 'echo -e "\nChecking Qt modules:"' >> ${INSTALL_PREFIX}/bin/verify-qt-installation.sh && \
-    echo 'MODULES="Core Widgets Gui Qml Quick QuickWidgets Multimedia MultimediaWidgets SerialPort Svg SvgWidgets"' >> ${INSTALL_PREFIX}/bin/verify-qt-installation.sh && \
+    echo 'MODULES="Core Widgets Gui Qml Quick QuickWidgets Multimedia MultimediaWidgets SerialPort Svg SvgWidgets OpenGL"' >> ${INSTALL_PREFIX}/bin/verify-qt-installation.sh && \
     echo 'for module in $MODULES; do' >> ${INSTALL_PREFIX}/bin/verify-qt-installation.sh && \
     echo '    if [ -f "${QT_DIR}/lib/libQt6${module}.a" ]; then' >> ${INSTALL_PREFIX}/bin/verify-qt-installation.sh && \
     echo '        echo "✓ Qt${module} static library found"' >> ${INSTALL_PREFIX}/bin/verify-qt-installation.sh && \
@@ -161,7 +163,8 @@ RUN mkdir -p ${WORK_DIR}/gstreamer_sources && \
     rm gst-plugins-good-${GSTREAMER_VERSION}.tar.xz
 
 # Build gst-plugins-good (minimal set) - attempt to enable Qt6 support
-RUN apt-get update && apt-get install -y cmake python3-pip ninja-build build-essential pkg-config && \
+RUN apt-get update && apt-get install -y cmake python3-pip ninja-build build-essential pkg-config \
+    libgl1-mesa-dev libgles2-mesa-dev libegl1-mesa-dev libxkbcommon-dev libxkbcommon-x11-dev && \
     pip3 install --no-cache-dir meson && \
     echo "Building gst-plugins-good..." && \
     . /etc/environment && \
@@ -170,10 +173,16 @@ RUN apt-get update && apt-get install -y cmake python3-pip ninja-build build-ess
     export PATH="${INSTALL_PREFIX}/bin:${INSTALL_PREFIX}/libexec:${PATH}"; \
     GSTREAMER_PC_DIR=$(find "${GSTREAMER_PREFIX}" -name "gstreamer-1.0.pc" -type f -exec dirname {} \; 2>/dev/null | head -1) && \
     if [ -n "$GSTREAMER_PC_DIR" ]; then \
-        export PKG_CONFIG_PATH="$GSTREAMER_PC_DIR:${FFMPEG_PREFIX}/lib/pkgconfig:$MULTIARCH_PATH/pkgconfig:/usr/share/pkgconfig"; \
+        export PKG_CONFIG_PATH="$GSTREAMER_PC_DIR:${INSTALL_PREFIX}/lib/pkgconfig:${FFMPEG_PREFIX}/lib/pkgconfig:$MULTIARCH_PATH/pkgconfig:/usr/share/pkgconfig"; \
     else \
-        export PKG_CONFIG_PATH="${GSTREAMER_PREFIX}/lib/pkgconfig:${FFMPEG_PREFIX}/lib/pkgconfig:$MULTIARCH_PATH/pkgconfig:/usr/share/pkgconfig"; \
+        export PKG_CONFIG_PATH="${GSTREAMER_PREFIX}/lib/pkgconfig:${INSTALL_PREFIX}/lib/pkgconfig:${FFMPEG_PREFIX}/lib/pkgconfig:$MULTIARCH_PATH/pkgconfig:/usr/share/pkgconfig"; \
     fi && \
+    echo "PKG_CONFIG_PATH=$PKG_CONFIG_PATH" && \
+    echo "Checking Qt6 detection..." && \
+    pkg-config --exists Qt6Core && echo "Qt6Core found" || echo "Qt6Core NOT found" && \
+    pkg-config --exists Qt6Gui && echo "Qt6Gui found" || echo "Qt6Gui NOT found" && \
+    pkg-config --exists Qt6Widgets && echo "Qt6Widgets found" || echo "Qt6Widgets NOT found" && \
+    pkg-config --exists Qt6OpenGL && echo "Qt6OpenGL found" || echo "Qt6OpenGL NOT found" && \
     cd "${WORK_DIR}/gstreamer_sources/gst-plugins-good-${GSTREAMER_VERSION}" && \
     meson setup build \
         --prefix="${GSTREAMER_PREFIX}" \
@@ -192,10 +201,11 @@ RUN apt-get update && apt-get install -y cmake python3-pip ninja-build build-ess
         -Dudp=enabled \
         -Dv4l2=enabled \
         -Dvideocrop=enabled \
-        -Dvideofilter=enabled && \
+        -Dvideofilter=enabled \
+        -Dqmlgl=enabled && \
     ninja -C build && \
     ninja -C build install && \
     echo "Checking if gstqt6 plugin was built (libgstqt6.a or gstqt6 plugin artifacts)..." && \
-    find "${GSTREAMER_PREFIX}" -type f \( -name "libgstqt6.*" -o -name "*gstqt6*" \) -print || echo "gstqt6 plugin not found"
+    find "${GSTREAMER_PREFIX}" -type f \( -name "libgstqt6.*" -o -name "*gstqt6*" -o -name "*qmlgl*" \) -print || echo "gstqt6 plugin not found"
 
 WORKDIR /workspace
