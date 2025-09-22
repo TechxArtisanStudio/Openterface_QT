@@ -250,38 +250,6 @@ jobs:
             bash /workspace/src/build-script/docker-build-static.sh
           echo "BUILD_DIR=${{ runner.temp }}/build-static" >> $GITHUB_ENV
 
-      - name: Create deb package (Static)
-        working-directory: ${{ runner.temp }}
-        run: |
-          mkdir -p package-static/DEBIAN
-          
-          PKG_NAME="${{ env.ARTIFACT }}.linux.amd64.static"
-          
-          sed -e "s/\${VERSION}/${{ env.VERSION }}/g" \
-              -e "s/\${ARCH}/amd64/g" \
-              ${{ github.workspace }}/packaging/debian/control > package-static/DEBIAN/control
-          
-          mkdir -p package-static/usr/bin
-          cp -r ${{ env.BUILD_DIR }}/openterfaceQT package-static/usr/bin
-
-          mkdir -p package-static/usr/share/icons/hicolor/256x256/apps/
-          cp ${{ github.workspace }}/images/icon_256.png package-static/usr/share/icons/hicolor/256x256/apps/openterfaceQT.png
-
-          mkdir -p package-static/usr/share/applications/
-          cat > package-static/usr/share/applications/openterfaceQT.desktop << EOF
-          [Desktop Entry]
-          Version=1.0
-          Type=Application
-          Name=OpenterfaceQT
-          Exec=/usr/bin/openterfaceQT
-          Icon=openterfaceQT
-          Comment=OpenterfaceQT Application
-          Categories=Utility;
-          EOF
-
-          mv package-static $PKG_NAME
-          dpkg-deb --build $PKG_NAME
-
       - name: Upload AppImage artifact (static from wrapper)
         uses: actions/upload-artifact@v4
         with:
