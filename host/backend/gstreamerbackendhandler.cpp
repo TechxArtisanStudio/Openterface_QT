@@ -779,9 +779,9 @@ bool GStreamerBackendHandler::startGStreamerPipeline()
                 qCWarning(log_gstreamer_backend) << "Failed to setup video overlay, will retry later";
                 m_overlaySetupPending = true;
             }
-            } else {
-                qCWarning(log_gstreamer_backend) << "Video sink element does not support overlay interface";
-            }
+        } else {
+            qCWarning(log_gstreamer_backend) << "Video sink element does not support overlay interface";
+        }
             gst_object_unref(videoSink);
         } else {
             qCWarning(log_gstreamer_backend) << "Could not find any video sink element for overlay setup";
