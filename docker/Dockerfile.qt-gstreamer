@@ -5,6 +5,12 @@ ARG TARGETARCH=amd64
 FROM ${BASE_IMAGE}
 ENV GSTREAMER_VERSION=1.26.6
 
+# Create the environment variables and assign the values from the build arguments.
+ARG http_proxy 
+ARG https_proxy
+ENV http_proxy=$http_proxy \
+    https_proxy=$https_proxy
+    
 # Set architecture-aware library path
 RUN if [ "$TARGETARCH" = "arm64" ]; then \
         echo "export MULTIARCH_PATH=/usr/lib/aarch64-linux-gnu" >> /etc/environment; \

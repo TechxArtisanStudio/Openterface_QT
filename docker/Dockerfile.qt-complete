@@ -4,6 +4,12 @@ ARG UBUNTU_VERSION=22.04
 ARG TARGETARCH=amd64
 FROM ${BASE_IMAGE}
 
+# Create the environment variables and assign the values from the build arguments.
+ARG http_proxy 
+ARG https_proxy
+ENV http_proxy=$http_proxy \
+    https_proxy=$https_proxy
+    
 WORKDIR ${BUILD_DIR}
 
 # Define modules to build (qtbase, qtshadertools, qtdeclarative already built in base image)

@@ -10,6 +10,13 @@ ARG QT_VERSION=6.6.3
 ARG BUILD_DIR=/workspace/qt-build
 ARG INSTALL_PREFIX=/opt/Qt6
 
+# Create the environment variables and assign the values from the build arguments.
+ARG http_proxy 
+ARG https_proxy
+ENV http_proxy=$http_proxy \
+    https_proxy=$https_proxy
+
+
 WORKDIR ${BUILD_DIR}
 
 # Ensure essential tools are available in case base image changes
@@ -27,7 +34,7 @@ ENV CMAKE_COMMON_FLAGS="-Wno-dev -DCMAKE_POLICY_DEFAULT_CMP0177=NEW -DCMAKE_POLI
 RUN echo "Preparing build directory: ${BUILD_DIR}" && \
     mkdir -p "${BUILD_DIR}" && \
     for module in ${MODULES}; do \
-        echo "Downloading $module..."; \
+        echo "Downloading $module, url: ${DOWNLOAD_BASE_URL}/$module-everywhere-src-${QT_VERSION}.zip"; \
         curl -L -o "$module.zip" "${DOWNLOAD_BASE_URL}/$module-everywhere-src-${QT_VERSION}.zip"; \
         if [ ! -s "$module.zip" ]; then echo "Failed to download $module"; exit 1; fi; \
         unzip -q "$module.zip"; \
@@ -53,7 +60,7 @@ RUN echo "Installing XCB development libraries..." && \
         libxcb-shape0-dev \
         libxcb-shm0-dev \
         libxcb-sync-dev \
-        libxcb-util-dev \
+        libxcb-util1-dev \
         libxcb-xfixes0-dev \
         libxcb-xinerama0-dev \
         libxcb-xkb-dev \
@@ -174,7 +181,6 @@ ENV QT_PLUGIN_PATH="${INSTALL_PREFIX}/plugins"
 ENV QML2_IMPORT_PATH="${INSTALL_PREFIX}/qml"
 ENV LD_LIBRARY_PATH="${INSTALL_PREFIX}/lib"
 # Initialize PKG_CONFIG_PATH to avoid undefined-var warning, and include common fallbacks
-ENV PKG_CONFIG_PATH=""
 ENV PKG_CONFIG_PATH="${INSTALL_PREFIX}/lib/pkgconfig:/usr/lib/$(dpkg-architecture -qDEB_HOST_MULTIARCH)/pkgconfig:/usr/lib/pkgconfig:${PKG_CONFIG_PATH}"
 
 # Verify Qt base installation
