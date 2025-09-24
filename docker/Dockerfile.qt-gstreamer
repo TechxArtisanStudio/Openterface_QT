@@ -3,6 +3,7 @@ ARG BASE_IMAGE=ghcr.io/techxartisanstudio/openterface-qtbuild-qt-declarative:ubu
 ARG UBUNTU_VERSION=22.04
 ARG TARGETARCH=amd64
 FROM ${BASE_IMAGE}
+ENV GSTREAMER_VERSION=1.26.6
 
 # Set architecture-aware library path
 RUN if [ "$TARGETARCH" = "arm64" ]; then \
@@ -14,7 +15,7 @@ RUN if [ "$TARGETARCH" = "arm64" ]; then \
 WORKDIR ${WORK_DIR}
 
 # Upgrade Meson to meet GStreamer requirements (>= 0.62)
-RUN echo "Upgrading Meson to support GStreamer 1.22.11..." && \
+RUN echo "Upgrading Meson to support GStreamer ${GSTREAMER_VERSION}..." && \
     pip3 install --upgrade meson>=0.62 && \
     meson --version
 
