@@ -60,7 +60,7 @@ RUN echo "Installing XCB development libraries..." && \
         libxcb-shape0-dev \
         libxcb-shm0-dev \
         libxcb-sync-dev \
-        libxcb-util1-dev \
+        libxcb-util-dev \
         libxcb-xfixes0-dev \
         libxcb-xinerama0-dev \
         libxcb-xkb-dev \
@@ -181,6 +181,7 @@ ENV QT_PLUGIN_PATH="${INSTALL_PREFIX}/plugins"
 ENV QML2_IMPORT_PATH="${INSTALL_PREFIX}/qml"
 ENV LD_LIBRARY_PATH="${INSTALL_PREFIX}/lib"
 # Initialize PKG_CONFIG_PATH to avoid undefined-var warning, and include common fallbacks
+ENV PKG_CONFIG_PATH=""
 ENV PKG_CONFIG_PATH="${INSTALL_PREFIX}/lib/pkgconfig:/usr/lib/$(dpkg-architecture -qDEB_HOST_MULTIARCH)/pkgconfig:/usr/lib/pkgconfig:${PKG_CONFIG_PATH}"
 
 # Verify Qt base installation
