@@ -1759,17 +1759,9 @@ bool GStreamerBackendHandler::isValidWindowId(WId windowId) const
         }
     } else {
         // For Wayland or other platforms, we can't validate X11 windows
-        // Since we're using ximagesink which needs X11 window IDs, 
-        // we should be more careful on Wayland
-        qCDebug(log_gstreamer_backend) << "Cannot validate window ID" << windowId << "on non-X11 platform:" << QGuiApplication::platformName();
-        
-        // On Wayland, low window IDs like 9 are often invalid for X11 embedding
-        if (QGuiApplication::platformName().contains("wayland") && windowId <= 10) {
-            qCWarning(log_gstreamer_backend) << "Rejecting low window ID" << windowId << "on Wayland platform (likely invalid for X11 embedding)";
-            return false;
-        }
-        
-        return true;  // Assume valid for other cases
+        // Accept the window ID as valid since Qt provides it
+        qCDebug(log_gstreamer_backend) << "Window ID" << windowId << "accepted on platform:" << QGuiApplication::platformName();
+        return true;
     }
 #else
     // On non-Linux platforms, assume the window ID is valid

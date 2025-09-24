@@ -42,7 +42,8 @@ Q_IMPORT_PLUGIN(QSvgPlugin)
 #ifdef Q_OS_LINUX
 Q_IMPORT_PLUGIN(QXcbIntegrationPlugin)
 Q_IMPORT_PLUGIN(QOffscreenIntegrationPlugin)
-Q_IMPORT_PLUGIN(QWaylandEglPlatformIntegrationPlugin)
+// Note: Wayland plugin may not be properly built in static builds
+// Q_IMPORT_PLUGIN(QWaylandEglPlatformIntegrationPlugin)
 #endif
 #endif
 
@@ -109,39 +110,38 @@ void setupEnv(){
 #ifdef Q_OS_LINUX
     // Only set QT_QPA_PLATFORM when not provided by the user
     const QByteArray currentPlatform = qgetenv("QT_QPA_PLATFORM");
-    const QByteArray waylandDisplay = qgetenv("WAYLAND_DISPLAY");
-    const QByteArray x11Display = qgetenv("DISPLAY");
-
+    
     if (currentPlatform.isEmpty()) {
-        // Detect available compositor sockets
-        QDir waylandDir(QString("/run/user/%1").arg(getuid()));
-        const QStringList waylandSockets = waylandDir.entryList(QStringList() << "wayland-*", QDir::System | QDir::NoDotAndDotDot);
-        QDir x11Dir("/tmp/.X11-unix");
-        const bool x11SocketPresent = x11Dir.exists() && !x11Dir.entryList(QStringList() << "X*", QDir::System).isEmpty();
-
-        if (!waylandSockets.isEmpty()) {
-            // Prefer Wayland when socket exists. Export WAYLAND_DISPLAY if missing.
-            if (waylandDisplay.isEmpty()) {
-                QByteArray wlName = waylandSockets.first().toUtf8();
-                qputenv("WAYLAND_DISPLAY", wlName);
-                qDebug() << "Exported WAYLAND_DISPLAY from socket:" << wlName;
-            }
-            qputenv("QT_QPA_PLATFORM", "wayland-egl");
-            qDebug() << "Set QT_QPA_PLATFORM to wayland-egl (wayland socket present)";
-        } else if (!x11Display.isEmpty() || x11SocketPresent) {
-            // Use XCB if DISPLAY is present; if missing but X socket exists (local TTY), try default :0
-            if (x11Display.isEmpty() && x11SocketPresent) {
-                qputenv("DISPLAY", ":0");
-                qDebug() << "DISPLAY not set but X11 socket present; exported DISPLAY=:0";
-            }
+        // Check for available display systems
+        const QByteArray waylandDisplay = qgetenv("WAYLAND_DISPLAY");
+        const QByteArray x11Display = qgetenv("DISPLAY");
+        
+        // For static builds, be more conservative about platform selection
+        #if defined(QT_STATIC) || defined(QT_STATICPLUGIN)
+        qDebug() << "Static build detected - using conservative platform selection";
+        if (!x11Display.isEmpty()) {
             qputenv("QT_QPA_PLATFORM", "xcb");
-            qDebug() << "Set QT_QPA_PLATFORM to xcb";
+            qDebug() << "Static build: Set QT_QPA_PLATFORM to xcb (DISPLAY available)";
         } else {
-            // Truly headless
-            qputenv("QT_QPA_PLATFORM", "offscreen");
-            qWarning() << "No Wayland or X11 sockets found; defaulting QT_QPA_PLATFORM to 'offscreen'."
-                       << "Set QT_QPA_PLATFORM explicitly to override (e.g., 'xcb' or 'wayland').";
+            // Try to set DISPLAY and use XCB for static builds
+            qputenv("DISPLAY", ":0");
+            qputenv("QT_QPA_PLATFORM", "xcb");
+            qDebug() << "Static build: No display detected, trying DISPLAY=:0 with xcb platform";
         }
+        #else
+        // For dynamic builds, prefer XCB if DISPLAY is available
+        if (!x11Display.isEmpty()) {
+            qputenv("QT_QPA_PLATFORM", "xcb");
+            qDebug() << "Dynamic build: Set QT_QPA_PLATFORM to xcb (DISPLAY available)";
+        } else if (!waylandDisplay.isEmpty()) {
+            qputenv("QT_QPA_PLATFORM", "wayland");
+            qDebug() << "Dynamic build: Set QT_QPA_PLATFORM to wayland (WAYLAND_DISPLAY available)";
+        } else {
+            qputenv("DISPLAY", ":0");
+            qputenv("QT_QPA_PLATFORM", "xcb");
+            qDebug() << "Dynamic build: No display detected, trying DISPLAY=:0 with xcb platform";
+        }
+        #endif
     } else {
         qDebug() << "Current QT_QPA_PLATFORM:" << currentPlatform;
     }
@@ -171,7 +171,7 @@ void applyMediaBackendSetting(){
         qputenv("GST_DEBUG_DUMP_DOT_DIR", "");
         
         // Prevent GStreamer from using problematic plugins that might cause object ref issues
-        qputenv("GST_PLUGIN_FEATURE_RANK", "qt6videosink:MAX,qt6audiosink:MAX,alsasink:NONE,pulsesink:PRIMARY");
+        qputenv("GST_PLUGIN_FEATURE_RANK", "autovideosink:MAX,autoaudiosink:MAX,alsasink:NONE,pulsesink:PRIMARY");
         
         // Force proper cleanup timing
         qputenv("G_DEBUG", "gc-friendly");
