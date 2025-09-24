@@ -148,7 +148,7 @@ ENV QT_PLUGIN_PATH="${INSTALL_PREFIX}/plugins"
 ENV QML2_IMPORT_PATH="${INSTALL_PREFIX}/qml"
 ENV LD_LIBRARY_PATH="${INSTALL_PREFIX}/lib"
 ENV PKG_CONFIG_PATH="${INSTALL_PREFIX}/lib/pkgconfig:/usr/local/lib/pkgconfig:${PKG_CONFIG_PATH}"
-ENV CMAKE_PREFIX_PATH="${INSTALL_PREFIX}:${CMAKE_PREFIX_PATH}"
+ENV CMAKE_PREFIX_PATH="${INSTALL_PREFIX}"
 
 # Provide qt6-suffixed tool aliases for Meson qt6 detection
 RUN set -eu; \
@@ -177,39 +177,53 @@ RUN mkdir -p ${WORK_DIR}/gstreamer_sources && \
     wget -O gst-plugins-good-${GSTREAMER_VERSION}.tar.xz \
     https://gstreamer.freedesktop.org/src/gst-plugins-good/gst-plugins-good-${GSTREAMER_VERSION}.tar.xz && \
     tar -xf gst-plugins-good-${GSTREAMER_VERSION}.tar.xz && \
-    rm gst-plugins-good-${GSTREAMER_VERSION}.tar.xz
+    rm gst-plugins-good-${GSTREAMER_VERSION}.tar.xz && \
+    echo "Downloading gst-plugins-bad..." && \
+    wget -O gst-plugins-bad-${GSTREAMER_VERSION}.tar.xz \
+    https://gstreamer.freedesktop.org/src/gst-plugins-bad/gst-plugins-bad-${GSTREAMER_VERSION}.tar.xz && \
+    tar -xf gst-plugins-bad-${GSTREAMER_VERSION}.tar.xz && \
+    rm gst-plugins-bad-${GSTREAMER_VERSION}.tar.xz
 
-# Build gst-plugins-good (minimal set) - attempt to enable Qt6 support
+# Verify Qt6 pkg-config files are working before building GStreamer plugins
+RUN echo "=== Verifying Qt6 pkg-config setup ===" && \
+    MULTIARCH_PATH=$(dpkg-architecture -qDEB_HOST_MULTIARCH) && \
+    export PKG_CONFIG_PATH="${INSTALL_PREFIX}/lib/pkgconfig:${GSTREAMER_PREFIX}/lib/pkgconfig:/usr/lib/${MULTIARCH_PATH}/pkgconfig:${FFMPEG_PREFIX}/lib/pkgconfig:/usr/share/pkgconfig" && \
+    echo "PKG_CONFIG_PATH: $PKG_CONFIG_PATH" && \
+    echo "Qt6 pkg-config files:" && \
+    ls -la ${INSTALL_PREFIX}/lib/pkgconfig/Qt6*.pc && \
+    echo "Testing Qt6 detection:" && \
+    pkg-config --exists Qt6Core && echo "✓ Qt6Core found" || echo "✗ Qt6Core NOT found" && \
+    pkg-config --exists Qt6Gui && echo "✓ Qt6Gui found" || echo "✗ Qt6Gui NOT found" && \
+    pkg-config --exists Qt6Quick && echo "✓ Qt6Quick found" || echo "✗ Qt6Quick NOT found" && \
+    pkg-config --exists Qt6OpenGL && echo "✓ Qt6OpenGL found" || echo "✗ Qt6OpenGL NOT found" && \
+    echo "Qt6 pkg-config verification complete"
+
+# Build gst-plugins-good (static libraries for essential plugins)
 RUN apt-get update && apt-get install -y cmake python3-pip ninja-build build-essential pkg-config \
     libgl1-mesa-dev libgles2-mesa-dev libegl1-mesa-dev libxkbcommon-dev libxkbcommon-x11-dev \
-    qtbase6-dev qt6-declarative-dev qt6-multimedia-dev qml6-module-qtquick \
-    libqt6opengl6-dev libqt6quick6 libqt6qml6 && \
+    qml6-module-qtquick \
+    libqt6opengl6-dev libqt6quick6 libqt6qml6 libjpeg-dev libpng-dev libv4l-dev \
+    libpulse-dev libasound2-dev libxml2-dev libsoup2.4-dev \
+    libglib2.0-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev \
+    gstreamer1.0-tools \
+    libudev-dev libgudev-1.0-dev libx11-dev libxv-dev libxext-dev && \
     pip3 install --no-cache-dir meson && \
-    echo "Building gst-plugins-good..." && \
+    echo "Building gst-plugins-good (static)..." && \
     . /etc/environment && \
     # Ensure Meson can find qmake/qtpaths/moc/uic/rcc by exporting QMAKE and PATH
+    MULTIARCH_PATH=$(dpkg-architecture -qDEB_HOST_MULTIARCH) && \
     if [ -x "${INSTALL_PREFIX}/bin/qmake6" ]; then export QMAKE="${INSTALL_PREFIX}/bin/qmake6"; elif [ -x "${INSTALL_PREFIX}/bin/qmake" ]; then export QMAKE="${INSTALL_PREFIX}/bin/qmake"; fi && \
     export PATH="${INSTALL_PREFIX}/bin:${INSTALL_PREFIX}/libexec:${PATH}"; \
     GSTREAMER_PC_DIR=$(find "${GSTREAMER_PREFIX}" -name "gstreamer-1.0.pc" -type f -exec dirname {} \; 2>/dev/null | head -1) && \
     if [ -n "$GSTREAMER_PC_DIR" ]; then \
-        export PKG_CONFIG_PATH="$GSTREAMER_PC_DIR:${INSTALL_PREFIX}/lib/pkgconfig:/usr/lib/x86_64-linux-gnu/pkgconfig:${FFMPEG_PREFIX}/lib/pkgconfig:$MULTIARCH_PATH/pkgconfig:/usr/share/pkgconfig"; \
+        export PKG_CONFIG_PATH="$GSTREAMER_PC_DIR:${INSTALL_PREFIX}/lib/pkgconfig:/usr/lib/${MULTIARCH_PATH}/pkgconfig:${FFMPEG_PREFIX}/lib/pkgconfig:/usr/share/pkgconfig"; \
     else \
-        export PKG_CONFIG_PATH="${GSTREAMER_PREFIX}/lib/pkgconfig:${INSTALL_PREFIX}/lib/pkgconfig:/usr/lib/x86_64-linux-gnu/pkgconfig:${FFMPEG_PREFIX}/lib/pkgconfig:$MULTIARCH_PATH/pkgconfig:/usr/share/pkgconfig"; \
+        export PKG_CONFIG_PATH="${GSTREAMER_PREFIX}/lib/pkgconfig:${INSTALL_PREFIX}/lib/pkgconfig:/usr/lib/${MULTIARCH_PATH}/pkgconfig:${FFMPEG_PREFIX}/lib/pkgconfig:/usr/share/pkgconfig"; \
     fi && \
-    echo "PKG_CONFIG_PATH=$PKG_CONFIG_PATH" && \
-    echo "Checking Qt6 detection..." && \
-    pkg-config --exists Qt6Core && echo "Qt6Core found" || echo "Qt6Core NOT found" && \
-    pkg-config --exists Qt6Gui && echo "Qt6Gui found" || echo "Qt6Gui NOT found" && \
-    pkg-config --exists Qt6Widgets && echo "Qt6Widgets found" || echo "Qt6Widgets NOT found" && \
-    pkg-config --exists Qt6OpenGL && echo "Qt6OpenGL found" || echo "Qt6OpenGL NOT found" && \
-    pkg-config --exists Qt6Quick && echo "Qt6Quick found" || echo "Qt6Quick NOT found" && \
-    pkg-config --exists Qt6Qml && echo "Qt6Qml found" || echo "Qt6Qml NOT found" && \
-    echo "Available Qt6 pkg-config files:" && \
-    pkg-config --list-all | grep -i qt6 && \
     cd "${WORK_DIR}/gstreamer_sources/gst-plugins-good-${GSTREAMER_VERSION}" && \
     meson setup build \
         --prefix="${GSTREAMER_PREFIX}" \
-        --default-library=shared \
+        --default-library=static \
         --buildtype=release \
         --cmake-prefix-path="${INSTALL_PREFIX}" \
         -Ddoc=disabled \
@@ -217,6 +231,9 @@ RUN apt-get update && apt-get install -y cmake python3-pip ninja-build build-ess
         -Dtests=disabled \
         -Dqt5=disabled \
         -Dqt6=enabled \
+        -Dqt-method=qmake \
+        -Dqt-egl=enabled \
+        -Dqt-x11=enabled \
         -Dnls=disabled \
         -Drtp=enabled \
         -Drtpmanager=enabled \
@@ -225,29 +242,44 @@ RUN apt-get update && apt-get install -y cmake python3-pip ninja-build build-ess
         -Dv4l2=enabled \
         -Dvideocrop=enabled \
         -Dvideofilter=enabled \
-        -Dqmlgl=enabled && \
-    echo "Meson configuration completed, checking for Qt6 detection..." && \
-    grep -i qt6 build/meson-logs/meson-log.txt || echo "No Qt6 references in meson log" && \
+        -Djpeg=enabled \
+        -Dpng=enabled \
+        -Dpulse=enabled \
+        -Dautodetect=enabled \
+        -Dximagesrc=enabled \
+        -Dequalizer=enabled \
+        -Ddeinterlace=enabled \
+        -Davi=enabled \
+        -Dmatroska=enabled \
+        -Dflv=enabled && \
     ninja -C build && \
-    ninja -C build install && \
-    echo "Checking if gstqt6 plugin was built..." && \
-    find "${GSTREAMER_PREFIX}" -type f \( -name "libgstqt6.*" -o -name "*gstqt6*" -o -name "*qmlgl*" \) -print || echo "gstqt6 plugin not found" && \
-    echo "Listing all GStreamer plugins built:" && \
-    find "${GSTREAMER_PREFIX}" -name "libgst*.so" -type f | sort
+    ninja -C build install
 
-# Comprehensive Qt6 GStreamer plugin verification
-RUN echo "=== Qt6 GStreamer Plugin Verification ===" && \
-    echo "1. Checking for Qt6 GStreamer plugins:" && \
-    find "${GSTREAMER_PREFIX}" -name "*qt6*" -o -name "*qml*" | sort && \
-    echo "2. Checking GStreamer plugin registry:" && \
-    export GST_PLUGIN_PATH="${GSTREAMER_PREFIX}/lib/gstreamer-1.0" && \
-    export LD_LIBRARY_PATH="${GSTREAMER_PREFIX}/lib:${INSTALL_PREFIX}/lib:$LD_LIBRARY_PATH" && \
-    gst-inspect-1.0 --print-all | grep -i qt6 || echo "No qt6 plugins found in registry" && \
-    echo "3. Checking if qtvideosink is available:" && \
-    gst-inspect-1.0 qtvideosink && echo "qtvideosink plugin found!" || echo "qtvideosink plugin NOT found" && \
-    echo "4. Checking if qmlglsink is available:" && \
-    gst-inspect-1.0 qmlglsink && echo "qmlglsink plugin found!" || echo "qmlglsink plugin NOT found" && \
-    echo "5. Complete plugin list:" && \
-    ls -la "${GSTREAMER_PREFIX}/lib/gstreamer-1.0/" | grep -E "(qt|qml)" || echo "No Qt/QML plugins found in plugin directory"
+# Build gst-plugins-bad (static libraries for additional codecs and features)
+RUN echo "Building gst-plugins-bad (static)..." && \
+    . /etc/environment && \
+    MULTIARCH_PATH=$(dpkg-architecture -qDEB_HOST_MULTIARCH) && \
+    if [ -x "${INSTALL_PREFIX}/bin/qmake6" ]; then export QMAKE="${INSTALL_PREFIX}/bin/qmake6"; elif [ -x "${INSTALL_PREFIX}/bin/qmake" ]; then export QMAKE="${INSTALL_PREFIX}/bin/qmake"; fi && \
+    export PATH="${INSTALL_PREFIX}/bin:${INSTALL_PREFIX}/libexec:${PATH}"; \
+    GSTREAMER_PC_DIR=$(find "${GSTREAMER_PREFIX}" -name "gstreamer-1.0.pc" -type f -exec dirname {} \; 2>/dev/null | head -1) && \
+    if [ -n "$GSTREAMER_PC_DIR" ]; then \
+        export PKG_CONFIG_PATH="$GSTREAMER_PC_DIR:${INSTALL_PREFIX}/lib/pkgconfig:/usr/lib/${MULTIARCH_PATH}/pkgconfig:${FFMPEG_PREFIX}/lib/pkgconfig:/usr/share/pkgconfig"; \
+    else \
+        export PKG_CONFIG_PATH="${GSTREAMER_PREFIX}/lib/pkgconfig:${INSTALL_PREFIX}/lib/pkgconfig:/usr/lib/${MULTIARCH_PATH}/pkgconfig:${FFMPEG_PREFIX}/lib/pkgconfig:/usr/share/pkgconfig"; \
+    fi && \
+    cd "${WORK_DIR}/gstreamer_sources/gst-plugins-bad-${GSTREAMER_VERSION}" && \
+    meson setup build \
+        --prefix="${GSTREAMER_PREFIX}" \
+        --default-library=static \
+        --buildtype=release \
+        -Ddoc=disabled \
+        -Dexamples=disabled \
+        -Dtests=disabled \
+        -Dnls=disabled && \
+    ninja -C build && \
+    ninja -C build install
+
+# Clean up source files to reduce image size
+RUN cd ${WORK_DIR} && rm -rf gstreamer_sources
 
 WORKDIR /workspace

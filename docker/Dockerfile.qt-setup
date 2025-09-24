@@ -163,6 +163,11 @@ ENV FFMPEG_VERSION=6.1.1
 ENV GSTREAMER_PREFIX=/opt/gstreamer
 ENV GSTREAMER_VERSION=1.26.6
 
+# Create build directories
+RUN mkdir -p ${BUILD_DIR} ${WORK_DIR}
+
+WORKDIR /workspace
+
 # Pre-install linuxdeploy and linuxdeploy-plugin-qt for AppImage builds
 RUN set -eux; \
         case "${TARGETARCH}" in \

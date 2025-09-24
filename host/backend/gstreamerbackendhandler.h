@@ -196,6 +196,9 @@ private:
     void setupVideoOverlayForCurrentPipeline();
     void refreshVideoOverlay();
     
+    // Window validation for overlay setup
+    bool isValidWindowId(WId windowId) const;
+    
     // Recording helper methods
     bool initializeValveBasedRecording();
     bool initializeFrameBasedRecording();
