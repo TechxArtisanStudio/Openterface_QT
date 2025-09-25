@@ -81,7 +81,6 @@ public:
     void setVideoOutput(QWidget* widget);
     void setVideoOutput(QGraphicsVideoItem* videoItem);  // Support for QGraphicsVideoItem
     void setVideoOutput(VideoPane* videoPane);  // Support for VideoPane overlay
-    void setVideoOutput(VideoPane* videoPane);  // Support for VideoPane overlay
     
     // Enhanced methods based on working example
     bool checkCameraAvailable(const QString& device = "/dev/video0");
@@ -91,7 +90,6 @@ public:
     void setResolutionAndFramerate(const QSize& resolution, int framerate);
     
     // Pipeline string generation
-    QString generatePipelineString(const QString& device, const QSize& resolution, int framerate, const QString& videoSink) const;
     QString generatePipelineString(const QString& device, const QSize& resolution, int framerate, const QString& videoSink) const;
 
     // Video recording methods
@@ -151,7 +149,6 @@ private:
     QWidget* m_videoWidget;
     QGraphicsVideoItem* m_graphicsVideoItem;  // Support for QGraphicsVideoItem
     VideoPane* m_videoPane;  // Support for VideoPane overlay
-    VideoPane* m_videoPane;  // Support for VideoPane overlay
     QTimer* m_healthCheckTimer;
     QProcess* m_gstProcess;  // Fallback for process-based approach
     
@@ -160,9 +157,6 @@ private:
     QString m_currentDevice;
     QSize m_currentResolution;
     int m_currentFramerate;
-    
-    // Overlay setup state
-    bool m_overlaySetupPending;
     
     // Overlay setup state
     bool m_overlaySetupPending;
@@ -186,7 +180,6 @@ private:
     void cleanupGStreamer();
     bool embedVideoInWidget(QWidget* widget);
     bool embedVideoInGraphicsView(QGraphicsView* view);
-    bool embedVideoInVideoPane(VideoPane* videoPane);
     bool embedVideoInVideoPane(VideoPane* videoPane);
     void handleGStreamerMessage(GstMessage* message);
     void completePendingOverlaySetup();

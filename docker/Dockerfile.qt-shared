@@ -7,6 +7,12 @@ FROM ${BASE_IMAGE}
 # Re-declare ARG after FROM to make it available in this build stage
 ARG TARGETARCH
 
+ARG http_proxy 
+ARG https_proxy
+ENV http_proxy=$http_proxy \
+    https_proxy=$https_proxy
+    
+    
 # Prevent interactive prompts during package installation
 ENV DEBIAN_FRONTEND=noninteractive
 

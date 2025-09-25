@@ -29,7 +29,6 @@
 #include <QWidget>
 #include <QFile>
 #include <QDir>
-#include <QDir>
 #include <QLoggingCategory>
 #include <QGraphicsVideoItem>
 #include <QGraphicsView>
@@ -64,17 +63,13 @@ Q_LOGGING_CATEGORY(log_gstreamer_backend, "opf.backend.gstreamer")
 // Static plugin registration declarations for static linking
 // Updated to match plugins actually available in static-qt-complete Docker image
 #if !defined(GSTREAMER_DYNAMIC_LINKING)
-// Updated to match plugins actually available in static-qt-complete Docker image
-#if !defined(GSTREAMER_DYNAMIC_LINKING)
 extern "C" {
-    // Core GStreamer plugins - confirmed available in static-qt-complete Docker image
     // Core GStreamer plugins - confirmed available in static-qt-complete Docker image
     void gst_plugin_coreelements_register(void);      // queue, capsfilter, tee, etc.
     void gst_plugin_typefindfunctions_register(void); // typefind for format detection
     void gst_plugin_videoconvertscale_register(void); // videoconvert, videoscale
     void gst_plugin_videotestsrc_register(void);      // videotestsrc for testing
     void gst_plugin_ximagesink_register(void);        // ximagesink
-    void gst_plugin_xvimagesink_register(void);       // xvimagesink - available in Docker
     void gst_plugin_xvimagesink_register(void);       // xvimagesink - available in Docker
     void gst_plugin_playback_register(void);          // playbin, decodebin
     void gst_plugin_jpeg_register(void);              // jpegdec, jpegenc - NOW AVAILABLE
@@ -116,13 +111,11 @@ GStreamerBackendHandler::GStreamerBackendHandler(QObject *parent)
       m_videoWidget(nullptr),
       m_graphicsVideoItem(nullptr),
       m_videoPane(nullptr),
-      m_videoPane(nullptr),
       m_healthCheckTimer(new QTimer(this)),
       m_gstProcess(nullptr),
       m_pipelineRunning(false),
       m_currentFramerate(30),
       m_currentResolution(1280, 720),  // Initialize with a valid default resolution
-      m_overlaySetupPending(false),
       m_overlaySetupPending(false),
       m_recordingActive(false),
       m_recordingPaused(false),
@@ -450,7 +443,6 @@ bool GStreamerBackendHandler::createGStreamerPipeline(const QString& device, con
     
     // Try creating pipeline with flexible format first
     QString pipelineStr = generatePipelineString(device, resolution, framerate, videoSink);
-    QString pipelineStr = generatePipelineString(device, resolution, framerate, videoSink);
     qCDebug(log_gstreamer_backend) << "Creating pipeline with string:" << pipelineStr;
     
     GError* error = nullptr;
@@ -564,20 +556,12 @@ bool GStreamerBackendHandler::createGStreamerPipeline(const QString& device, con
         qCDebug(log_gstreamer_backend) << "Trying fallback pipeline:" << fallbackPipeline;
         error = nullptr;
         m_pipeline = gst_parse_launch(fallbackPipeline.toUtf8().data(), &error);
-        m_pipeline = gst_parse_launch(fallbackPipeline.toUtf8().data(), &error);
         
         if (!m_pipeline || error) {
             QString fallbackErrorMsg = error ? error->message : "Unknown error creating fallback pipeline";
             qCWarning(log_gstreamer_backend) << "Failed to create fallback pipeline:" << fallbackErrorMsg;
-            QString fallbackErrorMsg = error ? error->message : "Unknown error creating fallback pipeline";
-            qCWarning(log_gstreamer_backend) << "Failed to create fallback pipeline:" << fallbackErrorMsg;
             if (error) g_error_free(error);
             
-            // Last resort: conservative test source pipeline
-            qCDebug(log_gstreamer_backend) << "Trying final fallback with test source...";
-            QString testPipeline = QString(
-                "videotestsrc pattern=0 is-live=true ! "
-                "video/x-raw,width=640,height=480,framerate=15/1 ! "
             // Last resort: conservative test source pipeline
             qCDebug(log_gstreamer_backend) << "Trying final fallback with test source...";
             QString testPipeline = QString(
@@ -589,7 +573,6 @@ bool GStreamerBackendHandler::createGStreamerPipeline(const QString& device, con
             ).arg(videoSink);
             
             error = nullptr;
-            m_pipeline = gst_parse_launch(testPipeline.toUtf8().data(), &error);
             m_pipeline = gst_parse_launch(testPipeline.toUtf8().data(), &error);
             
             if (!m_pipeline || error) {
@@ -615,34 +598,6 @@ bool GStreamerBackendHandler::createGStreamerPipeline(const QString& device, con
         // Connect to Qt's signal system would require additional setup
     } else {
         qCWarning(log_gstreamer_backend) << "Failed to get GStreamer bus - error reporting will be limited";
-    }
-    
-    // Configure display queue with higher priority for qtsink/video sink
-    GstElement* displayQueue = gst_bin_get_by_name(GST_BIN(m_pipeline), "display-queue");
-    if (displayQueue) {
-        // Set higher priority and more aggressive buffering for display
-        g_object_set(displayQueue,
-                     "max-size-buffers", 5,
-                     "max-size-time", G_GUINT64_CONSTANT(100000000), // 100ms
-                     "leaky", 2, // GST_QUEUE_LEAK_DOWNSTREAM
-                     NULL);
-        qCDebug(log_gstreamer_backend) << "✓ Configured display queue with higher priority for qtsink";
-        gst_object_unref(displayQueue);
-    } else {
-        qCDebug(log_gstreamer_backend) << "Display queue element not found (may be using fallback pipeline without named queue)";
-    }
-    
-    // Also configure recording queue with lower priority for comparison
-    GstElement* recordingQueue = gst_bin_get_by_name(GST_BIN(m_pipeline), "recording-queue");
-    if (recordingQueue) {
-        // Set lower priority and more conservative buffering for recording
-        g_object_set(recordingQueue,
-                     "max-size-buffers", 10,
-                     "max-size-time", G_GUINT64_CONSTANT(500000000), // 500ms
-                     "leaky", 1, // GST_QUEUE_LEAK_UPSTREAM
-                     NULL);
-        qCDebug(log_gstreamer_backend) << "✓ Configured recording queue with lower priority relative to display";
-        gst_object_unref(recordingQueue);
     }
     
     // Configure display queue with higher priority for qtsink/video sink
@@ -709,7 +664,6 @@ bool GStreamerBackendHandler::createGStreamerPipeline(const QString& device, con
 }
 
 QString GStreamerBackendHandler::generatePipelineString(const QString& device, const QSize& resolution, int framerate, const QString& videoSink) const
-QString GStreamerBackendHandler::generatePipelineString(const QString& device, const QSize& resolution, int framerate, const QString& videoSink) const
 {
     // Validate inputs before generating pipeline
     if (device.isEmpty()) {
@@ -721,12 +675,10 @@ QString GStreamerBackendHandler::generatePipelineString(const QString& device, c
         qCWarning(log_gstreamer_backend) << "Invalid resolution:" << resolution << "- using fallback 1280x720";
         QSize fallbackResolution(1280, 720);  // Use more conservative fallback
         return generatePipelineString(device, fallbackResolution, framerate, videoSink);
-        return generatePipelineString(device, fallbackResolution, framerate, videoSink);
     }
     
     if (framerate <= 0) {
         qCWarning(log_gstreamer_backend) << "Invalid framerate:" << framerate << "- using fallback 30fps";
-        return generatePipelineString(device, resolution, 30, videoSink);
         return generatePipelineString(device, resolution, 30, videoSink);
     }
     
@@ -818,54 +770,6 @@ QString GStreamerBackendHandler::generatePipelineString(const QString& device, c
         // Build the complete pipeline template
         pipelineTemplate = sourceElement + " ! " + 
                           decoderElement +
-        // Create a template that works with available elements in static build
-        QString sourceElement = "videotestsrc";  // Default for static build
-        QString decoderElement = "";
-        
-#ifdef HAVE_GSTREAMER
-        // For static builds, prefer videotestsrc since v4l2src is unlikely to be available
-        // Check if v4l2src is available (from system GStreamer) - but don't prioritize it
-        GstElementFactory* v4l2Factory = gst_element_factory_find("v4l2src");
-        GstElementFactory* videotestFactory = gst_element_factory_find("videotestsrc");
-        
-        if (videotestFactory) {
-            // Use videotestsrc (always available in static build)
-            sourceElement = "videotestsrc pattern=0 is-live=true";
-            decoderElement = "video/x-raw,width=%WIDTH%,height=%HEIGHT%,framerate=%FRAMERATE%/1 ! ";
-            qCDebug(log_gstreamer_backend) << "Using videotestsrc for static build";
-            gst_object_unref(videotestFactory);
-        } else if (v4l2Factory) {
-            // Fallback to v4l2src if videotestsrc not available (unlikely)
-            sourceElement = "v4l2src device=%DEVICE% do-timestamp=true";
-            
-            // Check for JPEG decoder if using v4l2src
-            GstElementFactory* jpegFactory = gst_element_factory_find("jpegdec");
-            if (jpegFactory) {
-                decoderElement = "image/jpeg,width=%WIDTH%,height=%HEIGHT%,framerate=%FRAMERATE%/1 ! jpegdec ! ";
-                gst_object_unref(jpegFactory);
-            } else {
-                // Try raw format instead
-                decoderElement = "video/x-raw,width=%WIDTH%,height=%HEIGHT%,framerate=%FRAMERATE%/1 ! ";
-            }
-            qCDebug(log_gstreamer_backend) << "Using v4l2src fallback";
-            gst_object_unref(v4l2Factory);
-        } else {
-            // Last resort - basic test source
-            sourceElement = "videotestsrc pattern=0 num-buffers=1000";
-            decoderElement = "video/x-raw,width=%WIDTH%,height=%HEIGHT%,framerate=%FRAMERATE%/1 ! ";
-            qCWarning(log_gstreamer_backend) << "No suitable video source found, using basic videotestsrc";
-        }
-        
-        if (v4l2Factory) gst_object_unref(v4l2Factory);
-#else
-        // For QProcess approach, assume system GStreamer has these elements
-        sourceElement = "v4l2src device=%DEVICE% do-timestamp=true";
-        decoderElement = "image/jpeg,width=%WIDTH%,height=%HEIGHT%,framerate=%FRAMERATE%/1 ! jpegdec ! ";
-#endif
-        
-        // Build the complete pipeline template
-        pipelineTemplate = sourceElement + " ! " + 
-                          decoderElement +
                           "videoconvert ! "
                           "identity sync=true ! "
                           "tee name=t allow-not-linked=true "
@@ -877,17 +781,11 @@ QString GStreamerBackendHandler::generatePipelineString(const QString& device, c
         qCDebug(log_gstreamer_backend) << "Updated global pipeline template to use available elements";
         qCDebug(log_gstreamer_backend) << "Using source:" << sourceElement;
         qCDebug(log_gstreamer_backend) << "Using decoder:" << (decoderElement.isEmpty() ? "none" : decoderElement);
-        qCDebug(log_gstreamer_backend) << "Updated global pipeline template to use available elements";
-        qCDebug(log_gstreamer_backend) << "Using source:" << sourceElement;
-        qCDebug(log_gstreamer_backend) << "Using decoder:" << (decoderElement.isEmpty() ? "none" : decoderElement);
     }
     
     // Double-check that tee element exists in template
     if (!pipelineTemplate.contains("tee name=t")) {
         qCCritical(log_gstreamer_backend) << "CRITICAL: Pipeline template still lacks tee element after correction!";
-        // Force a known-good template as last resort using only available elements
-        pipelineTemplate = "videotestsrc pattern=0 is-live=true ! "
-                          "video/x-raw,width=%WIDTH%,height=%HEIGHT%,framerate=%FRAMERATE%/1 ! "
         // Force a known-good template as last resort using only available elements
         pipelineTemplate = "videotestsrc pattern=0 is-live=true ! "
                           "video/x-raw,width=%WIDTH%,height=%HEIGHT%,framerate=%FRAMERATE%/1 ! "
@@ -965,10 +863,6 @@ bool GStreamerBackendHandler::startGStreamerPipeline()
     }
     
     qCDebug(log_gstreamer_backend) << "Pipeline in READY state, now setting up video overlay...";
-
-    // Only attempt overlay embedding on XCB (X11) platform when using an X sink
-    const QString platform = QGuiApplication::platformName();
-    const bool isXcb = platform.contains("xcb", Qt::CaseInsensitive);
 
     // Only attempt overlay embedding on XCB (X11) platform when using an X sink
     const QString platform = QGuiApplication::platformName();
@@ -1208,9 +1102,6 @@ void GStreamerBackendHandler::setVideoOutput(QWidget* widget)
         qCDebug(log_gstreamer_backend) << "Configuring video widget for GStreamer overlay";
         
         // Essential widget attributes for video overlay
-        qCDebug(log_gstreamer_backend) << "Configuring video widget for GStreamer overlay";
-        
-        // Essential widget attributes for video overlay
         widget->setAttribute(Qt::WA_NativeWindow, true);
         widget->setAttribute(Qt::WA_PaintOnScreen, true);
         widget->setAttribute(Qt::WA_NoSystemBackground, true);
@@ -1234,31 +1125,8 @@ void GStreamerBackendHandler::setVideoOutput(QWidget* widget)
         }
         
         qCDebug(log_gstreamer_backend) << "Video widget configured with window ID:" << winId;
-        widget->setAttribute(Qt::WA_NoSystemBackground, true);
-        widget->setAttribute(Qt::WA_OpaquePaintEvent, true);
-        
-        // Set black background to avoid flicker
-        widget->setStyleSheet("background-color: black;");
-        
-        // Ensure widget is visible (required for winId generation)
-        if (!widget->isVisible()) {
-            qCDebug(log_gstreamer_backend) << "Making video widget visible for window ID generation";
-            widget->show();
-        }
-        
-        // Force window creation if needed
-        WId winId = widget->winId();
-        if (winId == 0) {
-            qCDebug(log_gstreamer_backend) << "Forcing window creation for video widget";
-            widget->createWinId();
-            winId = widget->winId();
-        }
-        
-        qCDebug(log_gstreamer_backend) << "Video widget configured with window ID:" << winId;
         
         // If pipeline is already created, set up the overlay immediately
-        if (m_pipeline && winId != 0) {
-            setupVideoOverlayForCurrentPipeline();
         if (m_pipeline && winId != 0) {
             setupVideoOverlayForCurrentPipeline();
         }
@@ -1292,43 +1160,12 @@ void GStreamerBackendHandler::setVideoOutput(QGraphicsVideoItem* videoItem)
                         qCDebug(log_gstreamer_backend) << "Completing pending overlay setup for VideoPane";
                         completePendingOverlaySetup();
                     }
-                    
-                    // If overlay setup was pending, complete it now that VideoPane is ready
-                    if (m_overlaySetupPending) {
-                        qCDebug(log_gstreamer_backend) << "Completing pending overlay setup for VideoPane";
-                        completePendingOverlaySetup();
-                    }
                 }
                 
                 // If pipeline is already created, set up the overlay immediately
                 if (m_pipeline) {
                     embedVideoInGraphicsView(view);
                 }
-            }
-        }
-    }
-}
-
-void GStreamerBackendHandler::setVideoOutput(VideoPane* videoPane)
-{
-    m_videoWidget = nullptr;
-    m_graphicsVideoItem = nullptr;
-    m_videoPane = videoPane;  // Store VideoPane reference
-    
-    if (videoPane) {
-        qCDebug(log_gstreamer_backend) << "VideoPane configured for GStreamer overlay";
-        
-        // Enable direct GStreamer mode on the VideoPane
-        videoPane->enableDirectGStreamerMode(true);
-        
-        // If overlay setup was pending, complete it now that VideoPane is ready
-        if (m_overlaySetupPending) {
-            qCDebug(log_gstreamer_backend) << "Completing pending overlay setup for VideoPane";
-            completePendingOverlaySetup();
-        } else {
-            // If pipeline is already created, set up the overlay immediately
-            if (m_pipeline) {
-                embedVideoInVideoPane(videoPane);
             }
         }
     }
@@ -1375,36 +1212,28 @@ bool GStreamerBackendHandler::initializeGStreamer()
 #ifndef GSTREAMER_DYNAMIC_LINKING
     // Register static plugins required for video pipeline - only available plugins
     qCDebug(log_gstreamer_backend) << "Registering available static GStreamer plugins...";
-    // Register static plugins required for video pipeline - only available plugins
-    qCDebug(log_gstreamer_backend) << "Registering available static GStreamer plugins...";
     
     try {
-        // Register core elements (queue, capsfilter, tee, etc.) - ESSENTIAL
         // Register core elements (queue, capsfilter, tee, etc.) - ESSENTIAL
         gst_plugin_coreelements_register();
         qCDebug(log_gstreamer_backend) << "✓ Registered coreelements plugin";
         
         // Register typefind functions for format detection - ESSENTIAL
-        // Register typefind functions for format detection - ESSENTIAL
         gst_plugin_typefindfunctions_register();
         qCDebug(log_gstreamer_backend) << "✓ Registered typefindfunctions plugin";
         
-        // Register video conversion and scaling - ESSENTIAL
         // Register video conversion and scaling - ESSENTIAL
         gst_plugin_videoconvertscale_register();
         qCDebug(log_gstreamer_backend) << "✓ Registered videoconvertscale plugin";
         
         // Register video test source (for testing) - ESSENTIAL
-        // Register video test source (for testing) - ESSENTIAL
         gst_plugin_videotestsrc_register();
         qCDebug(log_gstreamer_backend) << "✓ Registered videotestsrc plugin";
         
         // Register X11 video sink - ESSENTIAL for Linux
-        // Register X11 video sink - ESSENTIAL for Linux
         gst_plugin_ximagesink_register();
         qCDebug(log_gstreamer_backend) << "✓ Registered ximagesink plugin";
         
-        // Register XV video sink - CRITICAL: Must be available for tag 0.4.0 compatibility
         // Register XV video sink - CRITICAL: Must be available for tag 0.4.0 compatibility
         gst_plugin_xvimagesink_register();
         qCDebug(log_gstreamer_backend) << "✓ Registered xvimagesink plugin";
@@ -1416,26 +1245,11 @@ bool GStreamerBackendHandler::initializeGStreamer()
         qCDebug(log_gstreamer_backend) << "Post-registration verification - ximagesink:" << (testXimageFactory ? "available" : "MISSING");
         if (testXviFactory) gst_object_unref(testXviFactory);
         if (testXimageFactory) gst_object_unref(testXimageFactory);
-        // Verify that both video sinks are now available after registration
-        GstElementFactory* testXviFactory = gst_element_factory_find("xvimagesink");
-        GstElementFactory* testXimageFactory = gst_element_factory_find("ximagesink");
-        qCDebug(log_gstreamer_backend) << "Post-registration verification - xvimagesink:" << (testXviFactory ? "available" : "MISSING");
-        qCDebug(log_gstreamer_backend) << "Post-registration verification - ximagesink:" << (testXimageFactory ? "available" : "MISSING");
-        if (testXviFactory) gst_object_unref(testXviFactory);
-        if (testXimageFactory) gst_object_unref(testXimageFactory);
         
-        // Register playback elements (decodebin, playbin) - ESSENTIAL
         // Register playback elements (decodebin, playbin) - ESSENTIAL
         gst_plugin_playback_register();
         qCDebug(log_gstreamer_backend) << "✓ Registered playback plugin (decodebin, playbin)";
         
-        // Register video4linux2 plugin - CRITICAL: Provides v4l2src for camera input
-        gst_plugin_video4linux2_register();
-        qCDebug(log_gstreamer_backend) << "✓ Registered video4linux2 plugin (v4l2src)";
-        
-        // Register JPEG format handling - provides jpegdec and jpegenc
-        gst_plugin_jpeg_register();
-        qCDebug(log_gstreamer_backend) << "✓ Registered jpeg plugin (jpegdec, jpegenc)";
         // Register video4linux2 plugin - CRITICAL: Provides v4l2src for camera input
         gst_plugin_video4linux2_register();
         qCDebug(log_gstreamer_backend) << "✓ Registered video4linux2 plugin (v4l2src)";
@@ -1466,38 +1280,7 @@ bool GStreamerBackendHandler::initializeGStreamer()
         // qCDebug(log_gstreamer_backend) << "✓ Registered autoconvert plugin";
         
         qCDebug(log_gstreamer_backend) << "All available static GStreamer plugins registered successfully";
-        qCDebug(log_gstreamer_backend) << "All available static GStreamer plugins registered successfully";
         
-        // Check what essential elements are available after registration
-        QStringList essentialElements = {"queue", "capsfilter", "tee", "videoconvert", "videoscale", 
-                                       "videotestsrc", "ximagesink", "xvimagesink", "autovideosink", "qtsink"};
-        
-        // Also check for elements that auto-load from .a files (without explicit registration)
-        QStringList autoLoadElements = {"jpegdec", "jpegenc", "fbdevsink"};
-        
-        QStringList availableElements, missingElements;
-        for (const QString& elementName : essentialElements + autoLoadElements) {
-            GstElementFactory* factory = gst_element_factory_find(elementName.toUtf8().data());
-            if (factory) {
-                availableElements << elementName;
-                gst_object_unref(factory);
-            } else {
-                missingElements << elementName;
-            }
-        }
-        
-        qCDebug(log_gstreamer_backend) << "Available elements:" << availableElements;
-        if (!missingElements.isEmpty()) {
-            qCDebug(log_gstreamer_backend) << "Missing elements (will try auto-loading):" << missingElements;
-        }
-        
-        // Check for v4l2src specifically (now available after registering video4linux2 plugin)
-        GstElementFactory* v4l2Factory = gst_element_factory_find("v4l2src");
-        if (v4l2Factory) {
-            qCDebug(log_gstreamer_backend) << "✓ v4l2src element is available (from static video4linux2 plugin)";
-            gst_object_unref(v4l2Factory);
-        } else {
-            qCWarning(log_gstreamer_backend) << "⚠ v4l2src element not available - registration may have failed, using videotestsrc fallback";
         // Check what essential elements are available after registration
         QStringList essentialElements = {"queue", "capsfilter", "tee", "videoconvert", "videoscale", 
                                        "videotestsrc", "ximagesink", "xvimagesink", "autovideosink", "qtsink"};
@@ -2096,58 +1879,11 @@ WId GStreamerBackendHandler::getVideoWidgetWindowId() const
         
         qCDebug(log_gstreamer_backend) << "Video widget window ID:" << windowId;
         return windowId;
-        // Ensure widget is visible and has native window
-        if (!m_videoWidget->isVisible()) {
-            qCDebug(log_gstreamer_backend) << "Video widget not visible, making it visible";
-            m_videoWidget->show();
-        }
-        
-        // Force native window creation if needed
-        if (!m_videoWidget->testAttribute(Qt::WA_NativeWindow)) {
-            qCDebug(log_gstreamer_backend) << "Setting native window attribute for video widget";
-            m_videoWidget->setAttribute(Qt::WA_NativeWindow, true);
-            m_videoWidget->setAttribute(Qt::WA_PaintOnScreen, true);
-        }
-        
-        WId windowId = m_videoWidget->winId();
-        
-        // Validate window ID and force creation if needed
-        if (windowId == 0) {
-            qCWarning(log_gstreamer_backend) << "Widget window ID is 0 - forcing window creation";
-            m_videoWidget->createWinId();
-            windowId = m_videoWidget->winId();
-        }
-        
-        qCDebug(log_gstreamer_backend) << "Video widget window ID:" << windowId;
-        return windowId;
     }
     
     if (m_graphicsVideoItem && m_graphicsVideoItem->scene()) {
         QList<QGraphicsView*> views = m_graphicsVideoItem->scene()->views();
         if (!views.isEmpty()) {
-            QGraphicsView* view = views.first();
-            
-            // Ensure view is visible and has native window
-            if (!view->isVisible()) {
-                qCDebug(log_gstreamer_backend) << "Graphics view not visible, making it visible";
-                view->show();
-            }
-            
-            if (!view->testAttribute(Qt::WA_NativeWindow)) {
-                qCDebug(log_gstreamer_backend) << "Setting native window attribute for graphics view";
-                view->setAttribute(Qt::WA_NativeWindow, true);
-                view->setAttribute(Qt::WA_PaintOnScreen, true);
-            }
-            
-            WId windowId = view->winId();
-            if (windowId == 0) {
-                qCWarning(log_gstreamer_backend) << "Graphics view window ID is 0 - forcing window creation";
-                view->createWinId();
-                windowId = view->winId();
-            }
-            
-            qCDebug(log_gstreamer_backend) << "Graphics view window ID:" << windowId;
-            return windowId;
             QGraphicsView* view = views.first();
             
             // Ensure view is visible and has native window
@@ -2241,24 +1977,7 @@ bool GStreamerBackendHandler::startRecording(const QString& outputPath, const QS
     m_recordingConfig.videoBitrate = videoBitrate;
     
     // Set default codec if not specified - check what's actually available
-    // Set default codec if not specified - check what's actually available
     if (m_recordingConfig.videoCodec.isEmpty()) {
-        // Check for available encoders in the static build
-#ifdef HAVE_GSTREAMER
-        GstElementFactory* jpegFactory = gst_element_factory_find("jpegenc");
-        if (jpegFactory) {
-            m_recordingConfig.videoCodec = "mjpeg"; // Use mjpeg which maps to jpegenc
-            gst_object_unref(jpegFactory);
-        } else {
-            // No encoder available in static build - recording not possible
-            QString error = "No video encoders available in static GStreamer build - recording not supported";
-            qCWarning(log_gstreamer_backend) << error;
-            emit recordingError(error);
-            return false;
-        }
-#else
-        m_recordingConfig.videoCodec = "mjpeg"; // Assume system GStreamer has jpegenc
-#endif
         // Check for available encoders in the static build
 #ifdef HAVE_GSTREAMER
         GstElementFactory* jpegFactory = gst_element_factory_find("jpegenc");

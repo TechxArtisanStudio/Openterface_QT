@@ -39,7 +39,7 @@ AudioThread::~AudioThread()
         // Don't call any Qt Multimedia cleanup methods during shutdown
         if (m_audioSink) {
             // Don't call stop() or any methods - just reset the pointer
-            m_audioSink.take(); // Take ownership and let it leak during shutdown
+            m_audioSink.reset(); // Reset the pointer and let it clean up properly
         }
         m_audioSource = nullptr; // Don't delete, just nullify
         
@@ -215,7 +215,7 @@ void AudioThread::run()
             
             // Don't call any Qt Multimedia methods - just nullify pointers
             if (m_audioSink) {
-                m_audioSink.take(); // Take ownership and let it leak during shutdown
+                m_audioSink.reset(); // Reset the pointer and let it clean up properly
             }
             m_audioSource = nullptr; // Don't delete
             
