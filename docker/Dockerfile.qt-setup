@@ -12,6 +12,11 @@ ENV DEBIAN_FRONTEND=noninteractive
 # Set architecture-aware environment variables
 ENV TARGETARCH=${TARGETARCH}
 
+ARG http_proxy 
+ARG https_proxy
+ENV http_proxy=$http_proxy \
+    https_proxy=$https_proxy
+    
 # Update package lists and install core build tools
 RUN apt-get update && apt-get install -y \
     build-essential \
