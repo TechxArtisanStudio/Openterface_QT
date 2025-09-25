@@ -176,10 +176,19 @@ RUN set -eux; \
         esac; \
         LDEPLOY_URL="https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-${APPIMAGE_ARCH}.AppImage"; \
         LDEPLOY_QT_URL="https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-${APPIMAGE_ARCH}.AppImage"; \
+        RUNTIME_URL="https://github.com/AppImage/type2-runtime/releases/download/continuous/runtime-${APPIMAGE_ARCH}"; \
         echo "Fetching ${LDEPLOY_URL}"; \
         curl -fL "${LDEPLOY_URL}" -o /usr/local/bin/linuxdeploy; \
         echo "Fetching ${LDEPLOY_QT_URL}"; \
         curl -fL "${LDEPLOY_QT_URL}" -o /usr/local/bin/linuxdeploy-plugin-qt; \
+        echo "Fetching AppImage runtime ${RUNTIME_URL}"; \
+        mkdir -p /opt/appimage-runtime; \
+        if curl -fL "${RUNTIME_URL}" -o "/opt/appimage-runtime/runtime-${APPIMAGE_ARCH}"; then \
+            chmod +x "/opt/appimage-runtime/runtime-${APPIMAGE_ARCH}"; \
+            echo "Runtime downloaded successfully"; \
+        else \
+            echo "Warning: Failed to download runtime, will fallback to automatic download"; \
+        fi; \
         chmod +x /usr/local/bin/linuxdeploy /usr/local/bin/linuxdeploy-plugin-qt
 
 # Ensure AppImages can run in containers without FUSE
