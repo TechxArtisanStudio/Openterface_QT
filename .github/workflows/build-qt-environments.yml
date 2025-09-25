@@ -18,7 +18,7 @@ on:
         default: 'all'
         type: choice
         options:
-        - 'base'
+        - 'setup'
         - 'ffmpeg'
         - 'gstreamer'
         - 'qt-base-qtml'
@@ -141,7 +141,7 @@ jobs:
   # Static Qt Environment Build (existing multi-stage process)
   build-static-setup:
     if: ${{ github.event.inputs.environment_type == 'static' || github.event.inputs.environment_type == 'both' || 
-        (github.event.inputs.environment_type == 'static' && (github.event.inputs.step == 'base' || github.event.inputs.step == 'qt-base-qtml' || github.event.inputs.step == 'qt-declarative' || github.event.inputs.step == 'qt-complete' || github.event.inputs.step == 'all')) }}
+        (github.event.inputs.environment_type == 'static' && (github.event.inputs.step == 'setup' || github.event.inputs.step == 'qt-base-qtml' || github.event.inputs.step == 'qt-declarative' || github.event.inputs.step == 'qt-complete' || github.event.inputs.step == 'all')) }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -165,30 +165,30 @@ jobs:
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-        
+
       - name: Extract metadata
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-base
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-setup
           tags: |
             type=ref,event=branch,suffix=-amd64
             type=ref,event=pr,suffix=-amd64
             type=sha,suffix=-amd64
             type=raw,value=latest-amd64
-            type=raw,value=ubuntu-${{ github.event.inputs.ubuntu_version || '24.04' }}-amd64
+            type=raw,value=ubuntu-${{ github.event.inputs.ubuntu_version || '22.04' }}-amd64
 
-      - name: Check if base image exists
-        id: check-base
+      - name: Check if setup image exists
+        id: check-setup
         if: github.event_name != 'pull_request'
         run: |
           if [[ "${{ github.event.inputs.force_rebuild }}" == "true" ]]; then
             echo "Force rebuild requested, will build base image"
             echo "should_build=true" >> $GITHUB_OUTPUT
           else
-            IMAGE_TAG="ubuntu-${{ github.event.inputs.ubuntu_version || '24.04' }}-amd64"
-            echo "Checking for image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-base:$IMAGE_TAG"
-            if docker manifest inspect ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-base:$IMAGE_TAG > /dev/null 2>&1; then
+            IMAGE_TAG="ubuntu-${{ github.event.inputs.ubuntu_version || '22.04' }}-amd64"
+            echo "Checking for image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-setup:$IMAGE_TAG"
+            if docker manifest inspect ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-setup:$IMAGE_TAG > /dev/null 2>&1; then
               echo "Base image already exists for architecture amd64, skipping build"
               echo "should_build=false" >> $GITHUB_OUTPUT
             else
@@ -199,7 +199,7 @@ jobs:
 
       - name: Build and push Setup image
         id: build
-        if: steps.check-base.outputs.should_build == 'true' || github.event_name == 'push' || github.event_name == 'pull_request'
+        if: steps.check-setup.outputs.should_build == 'true' || github.event_name == 'push' || github.event_name == 'pull_request'
         uses: docker/build-push-action@v5
         with:
           context: .
@@ -210,8 +210,8 @@ jobs:
           push: ${{ github.event_name != 'pull_request' && (github.event.inputs.push_to_registry == 'true' || github.event.inputs.push_to_registry == '') }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha,scope=static-base
-          cache-to: type=gha,mode=max,scope=static-base
+          cache-from: type=gha,scope=static-setup
+          cache-to: type=gha,mode=max,scope=static-setup
           platforms: linux/amd64
 
   build-static-ffmpeg:
@@ -259,7 +259,7 @@ jobs:
           context: .
           file: ./docker/Dockerfile.qt-ffmpeg
           build-args: |
-            BASE_IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-base:ubuntu-${{ github.event.inputs.ubuntu_version || '24.04' }}-amd64
+            BASE_IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-setup:ubuntu-${{ github.event.inputs.ubuntu_version || '24.04' }}-amd64
             UBUNTU_VERSION=${{ github.event.inputs.ubuntu_version || '24.04' }}
             TARGETARCH=amd64
           push: ${{ github.event_name != 'pull_request' && (github.event.inputs.push_to_registry == 'true' || github.event.inputs.push_to_registry == '') }}
