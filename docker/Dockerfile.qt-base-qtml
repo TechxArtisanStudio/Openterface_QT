@@ -19,12 +19,6 @@ ENV http_proxy=$http_proxy \
 
 WORKDIR ${BUILD_DIR}
 
-# Ensure essential tools are available in case base image changes
-RUN apt-get update -y && \
-        apt-get install -y --no-install-recommends \
-            curl unzip ca-certificates pkg-config ninja-build && \
-        rm -rf /var/lib/apt/lists/*
-
 # Define base modules to build (include qtwayland for Wayland platform plugin)
 ENV MODULES="qtbase qtshadertools qtwayland"
 ENV DOWNLOAD_BASE_URL="https://download.qt.io/archive/qt/${QT_MAJOR_VERSION}/${QT_VERSION}/submodules"
@@ -45,39 +39,6 @@ RUN echo "Preparing build directory: ${BUILD_DIR}" && \
     ls -la && \
     test -d qtbase && echo "qtbase extracted" || (echo "qtbase missing after download" && exit 1)
 
-# Install XCB development libraries (use system packages instead of building statically)
-RUN echo "Installing XCB development libraries..." && \
-    apt-get update && \
-    apt-get install -y \
-        libxcb1-dev \
-        libxcb-render0-dev \
-        libxcb-image0-dev \
-        libxcb-cursor-dev \
-        libxcb-icccm4-dev \
-        libxcb-keysyms1-dev \
-        libxcb-randr0-dev \
-        libxcb-render-util0-dev \
-        libxcb-shape0-dev \
-        libxcb-shm0-dev \
-        libxcb-sync-dev \
-        libxcb-util1-dev \
-        libxcb-xfixes0-dev \
-        libxcb-xinerama0-dev \
-        libxcb-xkb-dev \
-        libxcb-glx0-dev \
-        libxrender-dev \
-        libx11-dev \
-        # Wayland build dependencies  
-        libwayland-dev \
-        wayland-protocols \
-        libxkbcommon-dev \
-        libdrm-dev \
-        libgbm-dev \
-        libegl1-mesa-dev \
-        libgles2-mesa-dev && \
-    rm -rf /var/lib/apt/lists/* && \
-    echo "✓ XCB development libraries installed"
-
 # Build qtbase first (foundation)
 RUN echo "Building qtbase with system XCB libraries and SSL support..." && \
     ls -la ${BUILD_DIR} && \
@@ -88,15 +49,6 @@ RUN echo "Building qtbase with system XCB libraries and SSL support..." && \
     export OPENSSL_ROOT_DIR=/usr && \
     export OPENSSL_LIBRARIES="/usr/lib/$(dpkg-architecture -qDEB_HOST_MULTIARCH)/libssl.so;/usr/lib/$(dpkg-architecture -qDEB_HOST_MULTIARCH)/libcrypto.so" && \
     export OPENSSL_INCLUDE_DIR="/usr/include/openssl" && \
-    # Verify OpenSSL is available
-    echo "Checking OpenSSL availability..." && \
-    if [ -f "/usr/include/openssl/ssl.h" ] && [ -f "/usr/lib/$(dpkg-architecture -qDEB_HOST_MULTIARCH)/libssl.so" ]; then \
-        echo "✓ OpenSSL development libraries found"; \
-    else \
-        echo "✗ OpenSSL development libraries not found"; \
-        echo "Installing OpenSSL development libraries..."; \
-        apt-get update && apt-get install -y libssl-dev; \
-    fi && \
     cmake -GNinja \
         ${CMAKE_COMMON_FLAGS} \
         -DCMAKE_INSTALL_PREFIX="${INSTALL_PREFIX}" \

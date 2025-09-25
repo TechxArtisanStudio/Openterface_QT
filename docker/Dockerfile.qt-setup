@@ -16,7 +16,7 @@ ARG http_proxy
 ARG https_proxy
 ENV http_proxy=$http_proxy \
     https_proxy=$https_proxy
-    
+
 # Update package lists and install core build tools
 RUN apt-get update && apt-get install -y \
     build-essential \
@@ -71,6 +71,7 @@ RUN apt-get install -y libxcb1-dev \
     libxcb-randr0-dev \
     libxcb-shape0-dev \
     libxcb-sync0-dev \
+    libxcb-sync-dev \
     libxcb-glx0-dev \
     libxcb-xfixes0-dev \
     libxcb-xinerama0-dev \
@@ -84,6 +85,10 @@ RUN apt-get install -y \
         libxcb-keysyms1-dev \
         libxcb-render-util0-dev \
         libxcb-util-dev \
+        libxcb-util1-dev \
+        # Wayland build dependencies  
+        libwayland-dev \
+        wayland-protocols \
     || echo "Some XCB packages failed, continuing..."
 
 # Install keyboard support
