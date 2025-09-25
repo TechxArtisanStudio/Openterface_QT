@@ -163,6 +163,25 @@ ENV FFMPEG_VERSION=6.1.1
 ENV GSTREAMER_PREFIX=/opt/gstreamer
 ENV GSTREAMER_VERSION=1.26.6
 
+# Pre-install linuxdeploy and linuxdeploy-plugin-qt for AppImage builds
+RUN set -eux; \
+        case "${TARGETARCH}" in \
+            amd64) APPIMAGE_ARCH=x86_64 ;; \
+            arm64) APPIMAGE_ARCH=aarch64 ;; \
+            arm) APPIMAGE_ARCH=armhf ;; \
+            *) APPIMAGE_ARCH=x86_64 ;; \
+        esac; \
+        LDEPLOY_URL="https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-${APPIMAGE_ARCH}.AppImage"; \
+        LDEPLOY_QT_URL="https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-${APPIMAGE_ARCH}.AppImage"; \
+        echo "Fetching ${LDEPLOY_URL}"; \
+        curl -fL "${LDEPLOY_URL}" -o /usr/local/bin/linuxdeploy; \
+        echo "Fetching ${LDEPLOY_QT_URL}"; \
+        curl -fL "${LDEPLOY_QT_URL}" -o /usr/local/bin/linuxdeploy-plugin-qt; \
+        chmod +x /usr/local/bin/linuxdeploy /usr/local/bin/linuxdeploy-plugin-qt
+
+# Ensure AppImages can run in containers without FUSE
+ENV APPIMAGE_EXTRACT_AND_RUN=1
+
 # Create build directories
 RUN mkdir -p ${BUILD_DIR} ${WORK_DIR}
 
