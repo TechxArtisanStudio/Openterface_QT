@@ -57,6 +57,7 @@ RUN echo "Building qtbase with system XCB libraries and SSL support..." && \
         -DFEATURE_testlib=OFF \
         -DFEATURE_icu=OFF \
         -DFEATURE_opengl=ON \
+        -DTEST_xcb_syslibs=ON
         -DFEATURE_xlib=ON \
         -DFEATURE_xcb_xlib=ON \
         -DFEATURE_xkbcommon=ON \
