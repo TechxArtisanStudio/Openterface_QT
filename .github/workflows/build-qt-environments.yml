@@ -210,13 +210,13 @@ jobs:
             fi
           fi
 
-      - name: Build and push Base image
+      - name: Build and push Setup image
         id: build
         if: steps.check-base.outputs.should_build == 'true' || github.event_name == 'push' || github.event_name == 'pull_request'
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: ./docker/Dockerfile.qt-base
+          file: ./docker/Dockerfile.qt-setup
           build-args: |
             UBUNTU_VERSION=${{ github.event.inputs.ubuntu_version || '24.04' }}
             TARGETARCH=amd64

@@ -1,5 +1,5 @@
 # Build libusb and FFmpeg
-ARG BASE_IMAGE=ghcr.io/techxartisanstudio/openterface-qtbuild-base:ubuntu-22.04-amd64
+ARG BASE_IMAGE=ghcr.io/techxartisanstudio/openterface-qtbuild-setup:ubuntu-22.04-amd64
 ARG UBUNTU_VERSION=22.04
 ARG TARGETARCH=amd64
 FROM ${BASE_IMAGE}
