@@ -16,7 +16,6 @@ ARG https_proxy
 ENV http_proxy=$http_proxy \
     https_proxy=$https_proxy
 
-
 WORKDIR ${BUILD_DIR}
 
 # Define base modules to build (include qtwayland for Wayland platform plugin)
