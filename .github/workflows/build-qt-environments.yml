@@ -28,7 +28,7 @@ on:
       ubuntu_version:
         description: 'Ubuntu base image version'
         required: false
-        default: '24.04'
+        default: '22.04'
         type: choice
         options:
         - '22.04'
