@@ -10,6 +10,13 @@ ARG QT_VERSION=6.6.3
 ARG BUILD_DIR=/workspace/qt-build
 ARG INSTALL_PREFIX=/opt/Qt6
 
+# Create the environment variables and assign the values from the build arguments.
+ARG http_proxy 
+ARG https_proxy
+ENV http_proxy=$http_proxy \
+    https_proxy=$https_proxy
+
+
 WORKDIR ${BUILD_DIR}
 
 # Ensure essential tools are available in case base image changes
@@ -27,7 +34,7 @@ ENV CMAKE_COMMON_FLAGS="-Wno-dev -DCMAKE_POLICY_DEFAULT_CMP0177=NEW -DCMAKE_POLI
 RUN echo "Preparing build directory: ${BUILD_DIR}" && \
     mkdir -p "${BUILD_DIR}" && \
     for module in ${MODULES}; do \
-        echo "Downloading $module..."; \
+        echo "Downloading $module, url: ${DOWNLOAD_BASE_URL}/$module-everywhere-src-${QT_VERSION}.zip"; \
         curl -L -o "$module.zip" "${DOWNLOAD_BASE_URL}/$module-everywhere-src-${QT_VERSION}.zip"; \
         if [ ! -s "$module.zip" ]; then echo "Failed to download $module"; exit 1; fi; \
         unzip -q "$module.zip"; \
@@ -38,17 +45,29 @@ RUN echo "Preparing build directory: ${BUILD_DIR}" && \
     ls -la && \
     test -d qtbase && echo "qtbase extracted" || (echo "qtbase missing after download" && exit 1)
 
-# Build libxcb-cursor from source (static) - Build early to ensure Qt finds it
-RUN echo "Building libxcb-cursor from source..." && \
-    cd /tmp && \
-    # Install additional build dependencies for libxcb-cursor
+# Install XCB development libraries (use system packages instead of building statically)
+RUN echo "Installing XCB development libraries..." && \
+    apt-get update && \
     apt-get install -y \
+        libxcb1-dev \
         libxcb-render0-dev \
         libxcb-image0-dev \
+        libxcb-cursor-dev \
+        libxcb-icccm4-dev \
+        libxcb-keysyms1-dev \
+        libxcb-randr0-dev \
+        libxcb-render-util0-dev \
+        libxcb-shape0-dev \
+        libxcb-shm0-dev \
+        libxcb-sync-dev \
+        libxcb-util1-dev \
+        libxcb-xfixes0-dev \
+        libxcb-xinerama0-dev \
+        libxcb-xkb-dev \
+        libxcb-glx0-dev \
         libxrender-dev \
         libx11-dev \
-        libxcb-xfixes0-dev \
-        # Wayland build dependencies
+        # Wayland build dependencies  
         libwayland-dev \
         wayland-protocols \
         libxkbcommon-dev \
@@ -56,43 +75,11 @@ RUN echo "Building libxcb-cursor from source..." && \
         libgbm-dev \
         libegl1-mesa-dev \
         libgles2-mesa-dev && \
-    # Download and build libxcb-cursor
-    curl -L -o libxcb-cursor.tar.gz "https://xcb.freedesktop.org/dist/libxcb-cursor-0.1.5.tar.gz" && \
-    tar -xzf libxcb-cursor.tar.gz && \
-    cd libxcb-cursor-0.1.5 && \
-    # Configure for static build with proper prefix
-    ./configure \
-        --prefix="${INSTALL_PREFIX}" \
-        --enable-static \
-        --disable-shared \
-        --with-pic \
-        CFLAGS="-fPIC" \
-        CPPFLAGS="-I${INSTALL_PREFIX}/include" \
-        LDFLAGS="-L${INSTALL_PREFIX}/lib" \
-        PKG_CONFIG_PATH="${INSTALL_PREFIX}/lib/pkgconfig:/usr/lib/aarch64-linux-gnu/pkgconfig:/usr/lib/pkgconfig" && \
-    # Build and install to INSTALL_PREFIX
-    make -j$(nproc) && \
-    make install && \
-    # Also copy static archive to system multi-arch location for discovery by CMake
-    ARCH="$(dpkg-architecture -qDEB_HOST_MULTIARCH)" && \
-    mkdir -p "/usr/lib/${ARCH}" && \
-    if [ -f "${INSTALL_PREFIX}/lib/libxcb-cursor.a" ]; then \
-        cp -f "${INSTALL_PREFIX}/lib/libxcb-cursor.a" "/usr/lib/${ARCH}/libxcb-cursor.a"; \
-    fi && \
-    # Verify installation
-    ls -la "${INSTALL_PREFIX}/lib/libxcb-cursor.a" && \
-    pkg-config --exists xcb-cursor && echo "✓ libxcb-cursor static library installed successfully" || echo "⚠ libxcb-cursor pkg-config not found" && \
-    # Print xcb-cursor configuration
-        echo "xcb-cursor pkg-config info:" && \
-        ARCH="$(dpkg-architecture -qDEB_HOST_MULTIARCH)" && \
-        PKG_CONFIG_PATH="${INSTALL_PREFIX}/lib/pkgconfig:/usr/lib/${ARCH}/pkgconfig:/usr/lib/pkgconfig:${PKG_CONFIG_PATH}" \
-            pkg-config --cflags --libs xcb-cursor && \
-    # Clean up
-    rm -rf libxcb-cursor-0.1.5 libxcb-cursor.tar.gz && \
-    echo "✓ libxcb-cursor static build completed"
+    rm -rf /var/lib/apt/lists/* && \
+    echo "✓ XCB development libraries installed"
 
 # Build qtbase first (foundation)
-RUN echo "Building qtbase with static XCB and SSL support..." && \
+RUN echo "Building qtbase with system XCB libraries and SSL support..." && \
     ls -la ${BUILD_DIR} && \
     cd ${BUILD_DIR}/qtbase && \
     mkdir -p build && \
@@ -124,23 +111,8 @@ RUN echo "Building qtbase with static XCB and SSL support..." && \
         -DFEATURE_xkbcommon=ON \
         -DFEATURE_xkbcommon_x11=ON \
         -DTEST_xcb_syslibs=ON \
-        -DFEATURE_system_xcb=OFF \
+        -DFEATURE_system_xcb=ON \
         -DFEATURE_xcb=ON \
-        -DFEATURE_xcb_cursor=ON \
-        -DFEATURE_xcb_icccm=ON \
-        -DFEATURE_xcb_image=ON \
-        -DFEATURE_xcb_keysyms=ON \
-        -DFEATURE_xcb_randr=ON \
-        -DFEATURE_xcb_render=ON \
-        -DFEATURE_xcb_renderutil=ON \
-        -DFEATURE_xcb_shape=ON \
-        -DFEATURE_xcb_shm=ON \
-        -DFEATURE_xcb_sync=ON \
-        -DFEATURE_xcb_util=ON \
-        -DFEATURE_xcb_xfixes=ON \
-        -DFEATURE_xcb_xinerama=ON \
-        -DFEATURE_xcb_xkb=ON \
-        -DFEATURE_xcb_glx=ON \
         -DQT_FEATURE_clang=OFF \
         -DFEATURE_clang=ON \
         -DFEATURE_openssl=ON \

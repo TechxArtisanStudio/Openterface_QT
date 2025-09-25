@@ -37,15 +37,16 @@ else()
     message(STATUS "Static build detected - skipping pkg-config for ORC, will use static ORC library")
 endif()
 
-# Check for GStreamer (prefer system GStreamer for dynamic builds)
-# For dynamic builds, prioritize system GStreamer over Qt6 static build
+# Check for GStreamer (prefer system GStreamer for plugins, even in static Qt6 builds)
+# For static Qt6 builds with system GStreamer: use system GStreamer + Qt6 plugin
 if(OPENTERFACE_BUILD_STATIC)
-    # Static builds: prefer Qt6 static installation
+    # Static Qt6 builds: prefer system GStreamer for plugins, fallback to Qt6 build for core
     set(GSTREAMER_SEARCH_PATHS 
-        ${GSTREAMER_PREFIX}
+        "/usr"                    # System GStreamer first (for plugins)
         "/usr/local"
-        "/usr"
+        ${GSTREAMER_PREFIX}       # Qt6 GStreamer build (for core libs if needed)
     )
+    message(STATUS "Static Qt6 build: prioritizing system GStreamer for plugins")
 else()
     # Dynamic builds: prioritize system GStreamer packages
     set(GSTREAMER_SEARCH_PATHS 
@@ -53,6 +54,7 @@ else()
         "/usr/local"
         ${GSTREAMER_PREFIX}
     )
+    message(STATUS "Dynamic build: using system GStreamer")
 endif()
 
 # Also check if QT_TARGET_DIR was set via environment or CMake
@@ -236,12 +238,12 @@ if(USE_GSTREAMER AND EXISTS "${GSTREAMER_INCLUDE_DIR}/gst/gst.h" AND EXISTS "${G
     if(USE_GSTREAMER_STATIC_PLUGINS)
         # First, let's check what plugin directories exist
         set(PLUGIN_SEARCH_DIRS
+            "/usr/lib/x86_64-linux-gnu/gstreamer-1.0"    # System plugins first
+            "/usr/lib/aarch64-linux-gnu/gstreamer-1.0"
+            "/usr/local/lib/gstreamer-1.0"
             "${GSTREAMER_PREFIX}/lib/gstreamer-1.0"
             "${GSTREAMER_PREFIX}/lib/x86_64-linux-gnu/gstreamer-1.0"
             "${GSTREAMER_PREFIX}/lib/aarch64-linux-gnu/gstreamer-1.0"
-            "/usr/lib/x86_64-linux-gnu/gstreamer-1.0"
-            "/usr/lib/aarch64-linux-gnu/gstreamer-1.0"
-            "/usr/local/lib/gstreamer-1.0"
         )
         
         message(STATUS "Searching for GStreamer plugins in:")
@@ -265,7 +267,7 @@ if(USE_GSTREAMER AND EXISTS "${GSTREAMER_INCLUDE_DIR}/gst/gst.h" AND EXISTS "${G
             "gstjpeg"             # JPEG codec support - often required
         )
         
-        # Optional plugins - enhanced functionality
+        # Optional plugins - enhanced functionality (including Qt6 support)
         set(OPTIONAL_PLUGIN_CANDIDATES
             "gstvideoconvertscale" # videoconvert, videoscale
             "gsttypefindfunctions" # typefind elements
@@ -277,6 +279,8 @@ if(USE_GSTREAMER AND EXISTS "${GSTREAMER_INCLUDE_DIR}/gst/gst.h" AND EXISTS "${G
             "gstplayback"         # playback elements
             "gstavi"              # AVI muxer/demuxer (avimux)
             "gstmatroska"         # Matroska muxer/demuxer (matroskamux)
+            "gstqml6"             # qtsink, qml6glsink - Qt6 video sink - NOW AVAILABLE
+            "gstqmlgl"            # qmlglsink - for QML video rendering
             # Note: DMA buffer and allocator support is provided by libgstallocators-1.0 core library
         )
         
@@ -285,22 +289,26 @@ if(USE_GSTREAMER AND EXISTS "${GSTREAMER_INCLUDE_DIR}/gst/gst.h" AND EXISTS "${G
         
         # Check for each plugin and add if found
         foreach(PLUGIN ${PLUGIN_CANDIDATES})
-            # Try multiple possible locations for GStreamer plugins
+            # Try multiple possible locations for GStreamer plugins (prioritize system locations)
             set(PLUGIN_PATH_CANDIDATES)
+            
+            # Prioritize system plugin locations first (for Qt6 plugin and others)
+            list(APPEND PLUGIN_PATH_CANDIDATES
+                "/usr/lib/x86_64-linux-gnu/gstreamer-1.0/lib${PLUGIN}${GSTREAMER_PLUGIN_EXT}"
+                "/usr/lib/aarch64-linux-gnu/gstreamer-1.0/lib${PLUGIN}${GSTREAMER_PLUGIN_EXT}"
+                "/usr/local/lib/gstreamer-1.0/lib${PLUGIN}${GSTREAMER_PLUGIN_EXT}"
+            )
             
             # Add GSTREAMER_LIB_DIR path if defined (for ARM64 static builds)
             if(DEFINED GSTREAMER_LIB_DIR)
                 list(APPEND PLUGIN_PATH_CANDIDATES "${GSTREAMER_LIB_DIR}/gstreamer-1.0/lib${PLUGIN}${GSTREAMER_PLUGIN_EXT}")
             endif()
             
-            # Add other standard paths
+            # Add Qt6 build paths as fallback
             list(APPEND PLUGIN_PATH_CANDIDATES
                 "${GSTREAMER_PREFIX}/lib/gstreamer-1.0/lib${PLUGIN}${GSTREAMER_PLUGIN_EXT}"
                 "${GSTREAMER_PREFIX}/lib/x86_64-linux-gnu/gstreamer-1.0/lib${PLUGIN}${GSTREAMER_PLUGIN_EXT}"
                 "${GSTREAMER_PREFIX}/lib/aarch64-linux-gnu/gstreamer-1.0/lib${PLUGIN}${GSTREAMER_PLUGIN_EXT}"
-                "/usr/lib/x86_64-linux-gnu/gstreamer-1.0/lib${PLUGIN}${GSTREAMER_PLUGIN_EXT}"
-                "/usr/lib/aarch64-linux-gnu/gstreamer-1.0/lib${PLUGIN}${GSTREAMER_PLUGIN_EXT}"
-                "/usr/local/lib/gstreamer-1.0/lib${PLUGIN}${GSTREAMER_PLUGIN_EXT}"
             )
             
             set(PLUGIN_FOUND FALSE)
@@ -393,7 +401,15 @@ else()
         if(GSTREAMER_FOUND AND GSTREAMER_VIDEO_FOUND)
             message(STATUS "System GStreamer found via pkg-config - enabling direct pipeline support")
             add_definitions(-DHAVE_GSTREAMER)
-            add_definitions(-DGSTREAMER_DYNAMIC_LINKING)
+            
+            # For hybrid builds (static Qt6 + system GStreamer), disable static plugin linking
+            if(OPENTERFACE_BUILD_STATIC)
+                message(STATUS "Static Qt6 build with system GStreamer - using dynamic plugin loading")
+                add_definitions(-DGSTREAMER_DYNAMIC_LINKING)
+                set(USE_GSTREAMER_STATIC_PLUGINS OFF)
+            else()
+                add_definitions(-DGSTREAMER_DYNAMIC_LINKING)
+            endif()
             
             # Set include directories from pkg-config
             set(GSTREAMER_INCLUDE_DIRS ${GSTREAMER_INCLUDE_DIRS} ${GSTREAMER_VIDEO_INCLUDE_DIRS})
@@ -414,6 +430,26 @@ else()
             
             # Mark that we're using pkg-config detection
             set(GSTREAMER_PKG_CONFIG_DETECTION TRUE)
+            
+            # Check for Qt6 plugin availability in system
+            message(STATUS "Checking for Qt6 GStreamer plugin in system...")
+            find_file(GSTREAMER_QT6_PLUGIN 
+                NAMES libgstqt6.so
+                PATHS 
+                    /usr/lib/x86_64-linux-gnu/gstreamer-1.0
+                    /usr/lib/aarch64-linux-gnu/gstreamer-1.0
+                    /usr/local/lib/gstreamer-1.0
+                NO_DEFAULT_PATH
+            )
+            
+            if(GSTREAMER_QT6_PLUGIN)
+                message(STATUS "✓ Found Qt6 GStreamer plugin: ${GSTREAMER_QT6_PLUGIN}")
+                add_definitions(-DHAVE_GSTREAMER_QT6_PLUGIN)
+            else()
+                message(WARNING "✗ Qt6 GStreamer plugin not found - qtvideosink may not be available")
+                message(STATUS "Make sure gstreamer1.0-qt6 package is installed or Qt6 plugin was built successfully")
+            endif()
+            
         else()
             message(FATAL_ERROR "System GStreamer development packages not found via pkg-config. Please install libgstreamer1.0-dev and libgstreamer-plugins-base1.0-dev")
         endif()
@@ -427,6 +463,30 @@ endif()
 if(GSTREAMER_FOUND)
     include_directories(${GSTREAMER_INCLUDE_DIRS})
     message(STATUS "Added GStreamer include directories globally: ${GSTREAMER_INCLUDE_DIRS}")
+    
+    # Print configuration summary
+    message(STATUS "")
+    message(STATUS "=== GStreamer Configuration Summary ===")
+    if(DEFINED GSTREAMER_PKG_CONFIG_DETECTION AND GSTREAMER_PKG_CONFIG_DETECTION)
+        message(STATUS "Detection method: pkg-config (system GStreamer)")
+        message(STATUS "Build type: ${CMAKE_BUILD_TYPE}")
+        message(STATUS "Static Qt6 build: ${OPENTERFACE_BUILD_STATIC}")
+        message(STATUS "Plugin linking: Dynamic (runtime loading)")
+        if(GSTREAMER_QT6_PLUGIN)
+            message(STATUS "Qt6 plugin: ✓ Found at ${GSTREAMER_QT6_PLUGIN}")
+        else()
+            message(STATUS "Qt6 plugin: ✗ Not found")
+        endif()
+    else()
+        message(STATUS "Detection method: Manual (static/Qt6 build)")
+        message(STATUS "Static plugins: ${USE_GSTREAMER_STATIC_PLUGINS}")
+        if(GSTREAMER_PLUGIN_LIBRARIES)
+            list(LENGTH GSTREAMER_PLUGIN_LIBRARIES PLUGIN_COUNT)
+            message(STATUS "Static plugins found: ${PLUGIN_COUNT}")
+        endif()
+    endif()
+    message(STATUS "=======================================")
+    message(STATUS "")
 endif()
 
 # Configure ORC for static builds

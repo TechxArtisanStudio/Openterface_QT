@@ -4,6 +4,12 @@ ARG UBUNTU_VERSION=24.04
 ARG TARGETARCH=amd64
 FROM ${BASE_IMAGE}
 
+# Create the environment variables and assign the values from the build arguments.
+ARG http_proxy 
+ARG https_proxy
+ENV http_proxy=$http_proxy \
+    https_proxy=$https_proxy
+    
 WORKDIR ${BUILD_DIR}
 
 # Define declarative modules to build

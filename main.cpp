@@ -42,7 +42,8 @@ Q_IMPORT_PLUGIN(QSvgPlugin)
 #ifdef Q_OS_LINUX
 Q_IMPORT_PLUGIN(QXcbIntegrationPlugin)
 Q_IMPORT_PLUGIN(QOffscreenIntegrationPlugin)
-Q_IMPORT_PLUGIN(QWaylandEglPlatformIntegrationPlugin)
+// Note: Wayland plugin may not be properly built in static builds
+// Q_IMPORT_PLUGIN(QWaylandEglPlatformIntegrationPlugin)
 #endif
 #endif
 
@@ -54,17 +55,7 @@ QAtomicInteger<int> g_applicationShuttingDown(0);
 #include <gst/gst.h>
 #endif
 
-#include <iostream>
-#include <QApplication>
-#include <QIcon>
-#include <QDateTime>
-#include <QDebug>
-#include <QThread>
-#include <QLoggingCategory>
-#include <QStyleFactory>
-#include <QDir>
-#include <QFile>
-#include <QTextStream>
+#include <unistd.h>
 
 
 void customMessageHandler(QtMsgType type, const QMessageLogContext &context, const QString &msg)
@@ -119,23 +110,38 @@ void setupEnv(){
 #ifdef Q_OS_LINUX
     // Only set QT_QPA_PLATFORM when not provided by the user
     const QByteArray currentPlatform = qgetenv("QT_QPA_PLATFORM");
-    const QByteArray waylandDisplay = qgetenv("WAYLAND_DISPLAY");
-    const QByteArray x11Display = qgetenv("DISPLAY");
-
+    
     if (currentPlatform.isEmpty()) {
-        if (!waylandDisplay.isEmpty()) {
-            // Prefer wayland-egl since the available plugin list includes wayland-egl
-            qputenv("QT_QPA_PLATFORM", "wayland-egl");
-            qDebug() << "Set QT_QPA_PLATFORM to wayland-egl";
-        } else if (!x11Display.isEmpty()) {
+        // Check for available display systems
+        const QByteArray waylandDisplay = qgetenv("WAYLAND_DISPLAY");
+        const QByteArray x11Display = qgetenv("DISPLAY");
+        
+        // For static builds, be more conservative about platform selection
+        #if defined(QT_STATIC) || defined(QT_STATICPLUGIN)
+        qDebug() << "Static build detected - using conservative platform selection";
+        if (!x11Display.isEmpty()) {
             qputenv("QT_QPA_PLATFORM", "xcb");
-            qDebug() << "Set QT_QPA_PLATFORM to xcb";
+            qDebug() << "Static build: Set QT_QPA_PLATFORM to xcb (DISPLAY available)";
         } else {
-            // Headless or no compositor detected – use offscreen to avoid X/Wayland requirement
-            qputenv("QT_QPA_PLATFORM", "offscreen");
-            qWarning() << "No WAYLAND_DISPLAY or DISPLAY found; defaulting QT_QPA_PLATFORM to 'offscreen'."
-                       << "Set QT_QPA_PLATFORM explicitly to override (e.g., 'xcb' or 'wayland').";
+            // Try to set DISPLAY and use XCB for static builds
+            qputenv("DISPLAY", ":0");
+            qputenv("QT_QPA_PLATFORM", "xcb");
+            qDebug() << "Static build: No display detected, trying DISPLAY=:0 with xcb platform";
         }
+        #else
+        // For dynamic builds, prefer XCB if DISPLAY is available
+        if (!x11Display.isEmpty()) {
+            qputenv("QT_QPA_PLATFORM", "xcb");
+            qDebug() << "Dynamic build: Set QT_QPA_PLATFORM to xcb (DISPLAY available)";
+        } else if (!waylandDisplay.isEmpty()) {
+            qputenv("QT_QPA_PLATFORM", "wayland");
+            qDebug() << "Dynamic build: Set QT_QPA_PLATFORM to wayland (WAYLAND_DISPLAY available)";
+        } else {
+            qputenv("DISPLAY", ":0");
+            qputenv("QT_QPA_PLATFORM", "xcb");
+            qDebug() << "Dynamic build: No display detected, trying DISPLAY=:0 with xcb platform";
+        }
+        #endif
     } else {
         qDebug() << "Current QT_QPA_PLATFORM:" << currentPlatform;
     }
@@ -165,7 +171,7 @@ void applyMediaBackendSetting(){
         qputenv("GST_DEBUG_DUMP_DOT_DIR", "");
         
         // Prevent GStreamer from using problematic plugins that might cause object ref issues
-        qputenv("GST_PLUGIN_FEATURE_RANK", "qt6videosink:MAX,qt6audiosink:MAX,alsasink:NONE,pulsesink:PRIMARY");
+        qputenv("GST_PLUGIN_FEATURE_RANK", "autovideosink:MAX,autoaudiosink:MAX,alsasink:NONE,pulsesink:PRIMARY");
         
         // Force proper cleanup timing
         qputenv("G_DEBUG", "gc-friendly");

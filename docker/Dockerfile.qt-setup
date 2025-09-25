@@ -12,6 +12,11 @@ ENV DEBIAN_FRONTEND=noninteractive
 # Set architecture-aware environment variables
 ENV TARGETARCH=${TARGETARCH}
 
+ARG http_proxy 
+ARG https_proxy
+ENV http_proxy=$http_proxy \
+    https_proxy=$https_proxy
+    
 # Update package lists and install core build tools
 RUN apt-get update && apt-get install -y \
     build-essential \
@@ -156,12 +161,7 @@ ENV LIBUSB_VERSION=1.0.26
 ENV FFMPEG_PREFIX=/opt/ffmpeg
 ENV FFMPEG_VERSION=6.1.1
 ENV GSTREAMER_PREFIX=/opt/gstreamer
-ENV GSTREAMER_VERSION=1.22.11
-
-# Create build directories
-RUN mkdir -p ${BUILD_DIR} ${WORK_DIR}
-
-WORKDIR /workspace
+ENV GSTREAMER_VERSION=1.26.6
 
 # Pre-install linuxdeploy and linuxdeploy-plugin-qt for AppImage builds
 RUN set -eux; \
@@ -181,3 +181,8 @@ RUN set -eux; \
 
 # Ensure AppImages can run in containers without FUSE
 ENV APPIMAGE_EXTRACT_AND_RUN=1
+
+# Create build directories
+RUN mkdir -p ${BUILD_DIR} ${WORK_DIR}
+
+WORKDIR /workspace

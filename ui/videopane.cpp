@@ -733,6 +733,7 @@ void VideoPane::enableDirectGStreamerMode(bool enable)
 
 WId VideoPane::getVideoOverlayWindowId() const
 {
+    // Use working v0.4.0 approach: simple and direct
     if (m_directGStreamerMode && m_overlayWidget) {
         return m_overlayWidget->winId();
     }
@@ -749,17 +750,17 @@ void VideoPane::setupForGStreamerOverlay()
         m_overlayWidget = new QWidget(this);
         m_overlayWidget->setObjectName("gstreamerOverlayWidget");
         
-        // CRITICAL: Transparent background so it doesn't block video display
-        m_overlayWidget->setStyleSheet("background-color: transparent;");
+        // CRITICAL: Black background for GStreamer overlay to work properly (from working v0.4.0)
+        m_overlayWidget->setStyleSheet("background-color: black; border: 2px solid white;");
         m_overlayWidget->setMinimumSize(640, 480);
         
         // Enable native window for video overlay (from widgets_main.cpp approach)
         m_overlayWidget->setAttribute(Qt::WA_NativeWindow, true);
         m_overlayWidget->setAttribute(Qt::WA_PaintOnScreen, true);
         
-        // IMPORTANT: Make it transparent to mouse/keyboard events when not needed
-        // This prevents it from interfering with normal interaction
-        m_overlayWidget->setAttribute(Qt::WA_TransparentForMouseEvents, false); // Enable for GStreamer input
+        // IMPORTANT: Make sure the widget can receive video overlay (from working v0.4.0)
+        // Removing transparent mouse events to ensure proper overlay functionality
+        // m_overlayWidget->setAttribute(Qt::WA_TransparentForMouseEvents, false); // Enable for GStreamer input
         
         // Enable mouse tracking and focus for event handling
         m_overlayWidget->setMouseTracking(true);

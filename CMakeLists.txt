@@ -47,7 +47,7 @@ include(cmake/FFmpeg.cmake OPTIONAL)
 include(cmake/Internationalization.cmake)
 
 # Find Qt early and set up project macros compatibly with Qt 6.2 on Ubuntu 22.04
-find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets Network Multimedia MultimediaWidgets SerialPort OpenGL OpenGLWidgets Xml Svg SvgWidgets Concurrent DBus)
+find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets Network Multimedia MultimediaWidgets SerialPort OpenGL OpenGLWidgets Xml Svg SvgWidgets Concurrent DBus Quick Qml QuickWidgets)
 
 # Use standardized Qt setup if available (Qt >= 6.3); otherwise emulate basics for Qt 6.2
 if(COMMAND qt_standard_project_setup)
@@ -113,7 +113,7 @@ if(OPENTERFACE_BUILD_STATIC)
     endforeach()
 endif()
 
-target_link_libraries(${PROJECT_NAME} PRIVATE Qt6::Core Qt6::Widgets Qt6::Gui Qt6::Network Qt6::Multimedia Qt6::MultimediaWidgets Qt6::SerialPort Qt6::OpenGL Qt6::OpenGLWidgets Qt6::Xml Qt6::Svg Qt6::SvgWidgets Qt6::Concurrent Qt6::DBus)
+target_link_libraries(${PROJECT_NAME} PRIVATE Qt6::Core Qt6::Widgets Qt6::Gui Qt6::Network Qt6::Multimedia Qt6::MultimediaWidgets Qt6::SerialPort Qt6::OpenGL Qt6::OpenGLWidgets Qt6::Xml Qt6::Svg Qt6::SvgWidgets Qt6::Concurrent Qt6::DBus Qt6::Quick Qt6::Qml Qt6::QuickWidgets)
 
 # For static Qt builds, we need to link platform plugins and their dependencies
 if(OPENTERFACE_BUILD_STATIC)
