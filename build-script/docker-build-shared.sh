@@ -19,6 +19,23 @@ case "$(uname -m)" in
 esac
 
 DOCKER_RUNTIME_FILE="/opt/appimage-runtime/runtime-${APPIMAGE_ARCH}"
+
+# Create a persistent cache directory if we're in a Jenkins environment
+if [ -n "${WORKSPACE}" ] || [ -n "${BUILD_NUMBER}" ] || [ -n "${JOB_NAME}" ]; then
+    echo "🔧 Jenkins environment detected"
+    CACHE_DIR="${HOME}/.cache/appimage-runtime"
+    mkdir -p "${CACHE_DIR}"
+    CACHED_RUNTIME="${CACHE_DIR}/runtime-${APPIMAGE_ARCH}"
+    
+    if [ -f "${CACHED_RUNTIME}" ]; then
+        echo "✓ Using cached runtime: ${CACHED_RUNTIME}"
+        mkdir -p /opt/appimage-runtime
+        cp "${CACHED_RUNTIME}" "${DOCKER_RUNTIME_FILE}"
+        chmod +x "${DOCKER_RUNTIME_FILE}"
+        ls -lh "${DOCKER_RUNTIME_FILE}"
+    fi
+fi
+
 if [ -f "${DOCKER_RUNTIME_FILE}" ]; then
     echo "✓ Pre-downloaded AppImage runtime found: ${DOCKER_RUNTIME_FILE}"
     ls -lh "${DOCKER_RUNTIME_FILE}"
@@ -36,6 +53,12 @@ else
             chmod +x "${DOCKER_RUNTIME_FILE}"
             echo "✓ Runtime downloaded successfully: ${DOCKER_RUNTIME_FILE}"
             ls -lh "${DOCKER_RUNTIME_FILE}"
+            
+            # Cache for future builds if in Jenkins
+            if [ -n "${CACHE_DIR}" ]; then
+                cp "${DOCKER_RUNTIME_FILE}" "${CACHED_RUNTIME}"
+                echo "✓ Runtime cached for future builds: ${CACHED_RUNTIME}"
+            fi
         else
             echo "⚠ Failed to download runtime, build will download it automatically"
         fi
@@ -44,6 +67,12 @@ else
             chmod +x "${DOCKER_RUNTIME_FILE}"
             echo "✓ Runtime downloaded successfully: ${DOCKER_RUNTIME_FILE}"
             ls -lh "${DOCKER_RUNTIME_FILE}"
+            
+            # Cache for future builds if in Jenkins
+            if [ -n "${CACHE_DIR}" ]; then
+                cp "${DOCKER_RUNTIME_FILE}" "${CACHED_RUNTIME}"
+                echo "✓ Runtime cached for future builds: ${CACHED_RUNTIME}"
+            fi
         else
             echo "⚠ Failed to download runtime, build will download it automatically"
         fi

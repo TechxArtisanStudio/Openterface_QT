@@ -145,39 +145,53 @@ LINUXDEPLOY_BIN=""
 # Ensure AppImages run inside containers without FUSE (also set in Dockerfile)
 export APPIMAGE_EXTRACT_AND_RUN=${APPIMAGE_EXTRACT_AND_RUN:-1}
 
-# Pre-download runtime regardless of whether we use pre-installed or downloaded tools
+# Check for pre-downloaded runtime first, then download if needed
 mkdir -p "${TOOLS_DIR}"
-RUNTIME_URL="https://github.com/AppImage/type2-runtime/releases/download/continuous/runtime-${APPIMAGE_ARCH}"
+DOCKER_RUNTIME_FILE="/opt/appimage-runtime/runtime-${APPIMAGE_ARCH}"
+TOOLS_RUNTIME_FILE="${TOOLS_DIR}/runtime-${APPIMAGE_ARCH}"
 
-# Download helper (curl with wget fallback)
-_fetch() {
-	local url="$1" out="$2"
-	if command -v curl >/dev/null 2>&1; then
-		curl -fL "${url}" -o "${out}"
-	elif command -v wget >/dev/null 2>&1; then
-		wget -qO "${out}" "${url}"
-	else
-		echo "Neither curl nor wget found for downloading ${url}" >&2
-		return 1
-	fi
-}
-
-echo "Downloading AppImage runtime from ${RUNTIME_URL}"
-# Try downloading the runtime with error handling
-if ! _fetch "${RUNTIME_URL}" "${TOOLS_DIR}/runtime-${APPIMAGE_ARCH}"; then
-	echo "Failed to download from continuous release, trying stable release..."
-	RUNTIME_URL_STABLE="https://github.com/AppImage/type2-runtime/releases/latest/download/runtime-${APPIMAGE_ARCH}"
-	if ! _fetch "${RUNTIME_URL_STABLE}" "${TOOLS_DIR}/runtime-${APPIMAGE_ARCH}"; then
-		echo "Warning: Failed to download runtime file. AppImage generation may fail."
-		echo "You may need to manually download the runtime from:"
-		echo "https://github.com/AppImage/type2-runtime/releases"
-	else
-		echo "Runtime downloaded successfully from stable release"
-	fi
+# Check if runtime is already available
+if [ -f "${DOCKER_RUNTIME_FILE}" ]; then
+	echo "Using pre-downloaded runtime from Docker environment: ${DOCKER_RUNTIME_FILE}"
+	cp "${DOCKER_RUNTIME_FILE}" "${TOOLS_RUNTIME_FILE}"
+	chmod +x "${TOOLS_RUNTIME_FILE}"
+	echo "Runtime copied to tools directory: ${TOOLS_RUNTIME_FILE}"
+elif [ -f "${TOOLS_RUNTIME_FILE}" ]; then
+	echo "Runtime already available in tools directory: ${TOOLS_RUNTIME_FILE}"
 else
-	echo "Runtime downloaded successfully from continuous release"
+	echo "No pre-downloaded runtime found, downloading..."
+	RUNTIME_URL="https://github.com/AppImage/type2-runtime/releases/download/continuous/runtime-${APPIMAGE_ARCH}"
+	
+	# Download helper (curl with wget fallback)
+	_fetch() {
+		local url="$1" out="$2"
+		if command -v curl >/dev/null 2>&1; then
+			curl -fL "${url}" -o "${out}"
+		elif command -v wget >/dev/null 2>&1; then
+			wget -qO "${out}" "${url}"
+		else
+			echo "Neither curl nor wget found for downloading ${url}" >&2
+			return 1
+		fi
+	}
+
+	echo "Downloading AppImage runtime from ${RUNTIME_URL}"
+	# Try downloading the runtime with error handling
+	if ! _fetch "${RUNTIME_URL}" "${TOOLS_RUNTIME_FILE}"; then
+		echo "Failed to download from continuous release, trying stable release..."
+		RUNTIME_URL_STABLE="https://github.com/AppImage/type2-runtime/releases/latest/download/runtime-${APPIMAGE_ARCH}"
+		if ! _fetch "${RUNTIME_URL_STABLE}" "${TOOLS_RUNTIME_FILE}"; then
+			echo "Warning: Failed to download runtime file. AppImage generation may fail."
+			echo "You may need to manually download the runtime from:"
+			echo "https://github.com/AppImage/type2-runtime/releases"
+		else
+			echo "Runtime downloaded successfully from stable release"
+		fi
+	else
+		echo "Runtime downloaded successfully from continuous release"
+	fi
+	[ -f "${TOOLS_RUNTIME_FILE}" ] && chmod +x "${TOOLS_RUNTIME_FILE}"
 fi
-[ -f "${TOOLS_DIR}/runtime-${APPIMAGE_ARCH}" ] && chmod +x "${TOOLS_DIR}/runtime-${APPIMAGE_ARCH}"
 
 if command -v linuxdeploy >/dev/null 2>&1 && command -v linuxdeploy-plugin-qt >/dev/null 2>&1; then
 	echo "Using preinstalled linuxdeploy and linuxdeploy-plugin-qt"
@@ -239,20 +253,52 @@ if [ "${OPENTERFACE_BUILD_STATIC}" != "ON" ]; then
 	PLUGIN_QT="--plugin qt"
 fi
 
-# Set runtime file path if it exists
+# Set runtime file path if it exists - use multiple methods to ensure it's picked up
 RUNTIME_FILE="${TOOLS_DIR}/runtime-${APPIMAGE_ARCH}"
 DOCKER_RUNTIME_FILE="/opt/appimage-runtime/runtime-${APPIMAGE_ARCH}"
-RUNTIME_ARG=""
 
 if [ -f "${RUNTIME_FILE}" ]; then
-	# Set environment variable for appimagetool to use the runtime file
+	# Set multiple environment variables to ensure compatibility
 	export APPIMAGE_RUNTIME_FILE="${RUNTIME_FILE}"
-	echo "Using custom runtime file via APPIMAGE_RUNTIME_FILE: ${RUNTIME_FILE}"
+	export RUNTIME_FILE="${RUNTIME_FILE}"
+	export UPDATE_INFORMATION=""  # Disable update info to avoid conflicts
+	echo "✓ Using runtime file: ${RUNTIME_FILE}"
+	ls -lh "${RUNTIME_FILE}"
 elif [ -f "${DOCKER_RUNTIME_FILE}" ]; then
-	export APPIMAGE_RUNTIME_FILE="${DOCKER_RUNTIME_FILE}"
-	echo "Using pre-installed runtime file via APPIMAGE_RUNTIME_FILE: ${DOCKER_RUNTIME_FILE}"
+	# Copy to expected location if not already there
+	cp "${DOCKER_RUNTIME_FILE}" "${RUNTIME_FILE}"
+	chmod +x "${RUNTIME_FILE}"
+	export APPIMAGE_RUNTIME_FILE="${RUNTIME_FILE}"
+	export RUNTIME_FILE="${RUNTIME_FILE}"
+	export UPDATE_INFORMATION=""
+	echo "✓ Using pre-installed runtime (copied to tools): ${RUNTIME_FILE}"
+	ls -lh "${RUNTIME_FILE}"
 else
-	echo "Warning: No custom runtime file found, linuxdeploy will try to download it automatically"
+	echo "⚠ Warning: No custom runtime file found, linuxdeploy will download it automatically"
+	unset APPIMAGE_RUNTIME_FILE
+	unset RUNTIME_FILE
+fi
+
+# Debug: Show environment variables for AppImage creation
+echo "=== AppImage Build Environment ==="
+echo "APPIMAGE_EXTRACT_AND_RUN=${APPIMAGE_EXTRACT_AND_RUN}"
+echo "APPIMAGE_RUNTIME_FILE=${APPIMAGE_RUNTIME_FILE:-<not set>}"
+echo "RUNTIME_FILE=${RUNTIME_FILE:-<not set>}"
+echo "UPDATE_INFORMATION=${UPDATE_INFORMATION:-<not set>}"
+echo "LINUXDEPLOY_BIN=${LINUXDEPLOY_BIN}"
+echo "================================="
+
+# Try multiple approaches to pass the runtime file
+if [ -n "${APPIMAGE_RUNTIME_FILE}" ]; then
+	# Set additional environment variables that different versions of appimagetool might use
+	export RUNTIME="${APPIMAGE_RUNTIME_FILE}"
+	export APPIMAGE_RUNTIME="${APPIMAGE_RUNTIME_FILE}"
+	export APPIMAGETOOL_RUNTIME="${APPIMAGE_RUNTIME_FILE}"
+	
+	echo "Setting multiple runtime environment variables:"
+	echo "  RUNTIME=${RUNTIME}"
+	echo "  APPIMAGE_RUNTIME=${APPIMAGE_RUNTIME}"
+	echo "  APPIMAGETOOL_RUNTIME=${APPIMAGETOOL_RUNTIME}"
 fi
 
 "${LINUXDEPLOY_BIN}" \
