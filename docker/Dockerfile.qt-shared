@@ -12,7 +12,7 @@ ARG https_proxy
 ENV http_proxy=$http_proxy \
     https_proxy=$https_proxy
     
-    
+
 # Prevent interactive prompts during package installation
 ENV DEBIAN_FRONTEND=noninteractive
 
@@ -32,8 +32,7 @@ RUN apt-get update && apt-get install -y \
     software-properties-common
 
 # Install Qt6 from official repositories with architecture-specific packages
-RUN apt-get update && \
-    apt-get install -y software-properties-common && \
+RUN apt-get install -y software-properties-common && \
     add-apt-repository -y universe && \
     apt-get update && \
     # Install native AMD64 packages
@@ -67,8 +66,7 @@ RUN apt-get update && \
         x11proto-dev
 
 # Install additional development dependencies with architecture-specific support
-RUN apt-get update && \
-    apt-get install -y \
+RUN apt-get install -y \
         libgl1-mesa-dev \
         libegl1-mesa-dev \
         libgles2-mesa-dev \

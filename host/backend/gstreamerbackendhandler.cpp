@@ -62,7 +62,7 @@ Q_LOGGING_CATEGORY(log_gstreamer_backend, "opf.backend.gstreamer")
 
 // Static plugin registration declarations for static linking
 // Updated to match plugins actually available in static-qt-complete Docker image
-#if !defined(GSTREAMER_DYNAMIC_LINKING)
+#ifdef GSTREAMER_STATIC_LINKING
 extern "C" {
     // Core GStreamer plugins - confirmed available in static-qt-complete Docker image
     void gst_plugin_coreelements_register(void);      // queue, capsfilter, tee, etc.
@@ -682,119 +682,26 @@ QString GStreamerBackendHandler::generatePipelineString(const QString& device, c
         return generatePipelineString(device, resolution, 30, videoSink);
     }
     
-    // Use configurable pipeline template from settings
-    QString pipelineTemplate = GlobalSetting::instance().getGStreamerPipelineTemplate();
-    
-    // Check current Qt platform and available display env
-    const QString platform = QGuiApplication::platformName();
-    const bool isXcb = platform.contains("xcb", Qt::CaseInsensitive);
-    const bool isWayland = platform.contains("wayland", Qt::CaseInsensitive);
-    const bool hasXDisplay = !qgetenv("DISPLAY").isEmpty();
-    const bool hasWaylandDisplay = !qgetenv("WAYLAND_DISPLAY").isEmpty();
-
-    // Log helpful hints without changing behavior
-    if (!hasXDisplay && !hasWaylandDisplay) {
-        // Pure headless (no env). We intentionally do NOT treat socket/process presence as sufficient.
-        // This avoids trying X sinks in SSH shells where DISPLAY isn't exported/Xauthority not available.
-        QDir x11SocketDir("/tmp/.X11-unix");
-        if (x11SocketDir.exists() && !x11SocketDir.entryList(QStringList() << "X*", QDir::System).isEmpty()) {
-            qCDebug(log_gstreamer_backend) << "X11 socket present but DISPLAY not set; staying headless to avoid X errors";
-        }
-        QDir waylandSocketDir("/run/user/" + QString::number(getuid()));
-        if (waylandSocketDir.exists() && !waylandSocketDir.entryList(QStringList() << "wayland-*", QDir::System).isEmpty()) {
-            qCDebug(log_gstreamer_backend) << "Wayland socket present but WAYLAND_DISPLAY not set; staying headless for safety";
-        }
-    }
-
-    // Replace any existing video sink in the template with the appropriate one for the current environment
-    // Replace any existing sink tokens in the template with selected sink
-    auto replaceSinkToken = [&](const char* token){ if (pipelineTemplate.contains(token)) pipelineTemplate.replace(token, videoSink); };
-    replaceSinkToken("qtvideosink");
-    replaceSinkToken("ximagesink");
-    replaceSinkToken("xvimagesink");
-    replaceSinkToken("fakesink");
+    // Generate pipeline with video scaling directly - no configurable templates
+    QString pipelineTemplate;
+    qCDebug(log_gstreamer_backend) << "Creating pipeline with video scaling for proper display fitting";
     qCDebug(log_gstreamer_backend) << "Using video sink:" << videoSink;
+    // Always create a pipeline with video scaling for proper display fitting
+    QString sourceElement = "v4l2src device=%DEVICE% do-timestamp=true";
+    QString decoderElement = "image/jpeg,width=%WIDTH%,height=%HEIGHT%,framerate=%FRAMERATE%/1 ! jpegdec";
     
-    // CRITICAL FIX: Always ensure pipeline has tee element for recording support
-    // This is essential because recording depends on branching the video stream
-    if (pipelineTemplate.isEmpty() || !pipelineTemplate.contains("%DEVICE%") || 
-        !pipelineTemplate.contains("tee name=t") || !pipelineTemplate.contains("recording-valve")) {
-        qCWarning(log_gstreamer_backend) << "Pipeline template missing or lacks recording elements, using recording-compatible template";
-        qCDebug(log_gstreamer_backend) << "Original template was:" << pipelineTemplate;
-        
-        // Create a template that works with available elements in static build
-        QString sourceElement = "videotestsrc";  // Default for static build
-        QString decoderElement = "";
-        
-#ifdef HAVE_GSTREAMER
-        // For static builds, prefer videotestsrc since v4l2src is unlikely to be available
-        // Check if v4l2src is available (from system GStreamer) - but don't prioritize it
-        GstElementFactory* v4l2Factory = gst_element_factory_find("v4l2src");
-        GstElementFactory* videotestFactory = gst_element_factory_find("videotestsrc");
-        
-        if (videotestFactory) {
-            // Use videotestsrc (always available in static build)
-            sourceElement = "videotestsrc pattern=0 is-live=true";
-            decoderElement = "video/x-raw,width=%WIDTH%,height=%HEIGHT%,framerate=%FRAMERATE%/1 ! ";
-            qCDebug(log_gstreamer_backend) << "Using videotestsrc for static build";
-            gst_object_unref(videotestFactory);
-        } else if (v4l2Factory) {
-            // Fallback to v4l2src if videotestsrc not available (unlikely)
-            sourceElement = "v4l2src device=%DEVICE% do-timestamp=true";
-            
-            // Check for JPEG decoder if using v4l2src
-            GstElementFactory* jpegFactory = gst_element_factory_find("jpegdec");
-            if (jpegFactory) {
-                decoderElement = "image/jpeg,width=%WIDTH%,height=%HEIGHT%,framerate=%FRAMERATE%/1 ! jpegdec ! ";
-                gst_object_unref(jpegFactory);
-            } else {
-                // Try raw format instead
-                decoderElement = "video/x-raw,width=%WIDTH%,height=%HEIGHT%,framerate=%FRAMERATE%/1 ! ";
-            }
-            qCDebug(log_gstreamer_backend) << "Using v4l2src fallback";
-            gst_object_unref(v4l2Factory);
-        } else {
-            // Last resort - basic test source
-            sourceElement = "videotestsrc pattern=0 num-buffers=1000";
-            decoderElement = "video/x-raw,width=%WIDTH%,height=%HEIGHT%,framerate=%FRAMERATE%/1 ! ";
-            qCWarning(log_gstreamer_backend) << "No suitable video source found, using basic videotestsrc";
-        }
-        
-        if (v4l2Factory) gst_object_unref(v4l2Factory);
-#else
-        // For QProcess approach, assume system GStreamer has these elements
-        sourceElement = "v4l2src device=%DEVICE% do-timestamp=true";
-        decoderElement = "image/jpeg,width=%WIDTH%,height=%HEIGHT%,framerate=%FRAMERATE%/1 ! jpegdec ! ";
-#endif
-        
-        // Build the complete pipeline template
-        pipelineTemplate = sourceElement + " ! " + 
-                          decoderElement +
-                          "videoconvert ! "
-                          "identity sync=true ! "
-                          "tee name=t allow-not-linked=true "
-                          "t. ! queue name=display-queue max-size-buffers=5 max-size-time=100000000 leaky=downstream high-priority=true ! " + videoSink + " name=videosink sync=true "
-                          "t. ! valve name=recording-valve drop=true ! queue name=recording-queue max-size-buffers=10 leaky=upstream ! identity name=recording-ready";
-        
-        // IMPORTANT: Update the settings immediately to ensure consistency
-        GlobalSetting::instance().setGStreamerPipelineTemplate(pipelineTemplate);
-        qCDebug(log_gstreamer_backend) << "Updated global pipeline template to use available elements";
-        qCDebug(log_gstreamer_backend) << "Using source:" << sourceElement;
-        qCDebug(log_gstreamer_backend) << "Using decoder:" << (decoderElement.isEmpty() ? "none" : decoderElement);
-    }
+    // Build the complete pipeline template with video scaling
+    pipelineTemplate = sourceElement + " ! " + 
+                      decoderElement + " ! " +
+                      "videoconvert ! "
+                      "videoscale method=lanczos add-borders=true ! "
+                      "video/x-raw,pixel-aspect-ratio=1/1 ! "
+                      "identity sync=true ! "
+                      "tee name=t allow-not-linked=true "
+                      "t. ! queue max-size-buffers=2 leaky=downstream ! " + videoSink + " name=videosink sync=true force-aspect-ratio=true "
+                      "t. ! valve name=recording-valve drop=true ! queue name=recording-queue ! identity name=recording-ready";
     
-    // Double-check that tee element exists in template
-    if (!pipelineTemplate.contains("tee name=t")) {
-        qCCritical(log_gstreamer_backend) << "CRITICAL: Pipeline template still lacks tee element after correction!";
-        // Force a known-good template as last resort using only available elements
-        pipelineTemplate = "videotestsrc pattern=0 is-live=true ! "
-                          "video/x-raw,width=%WIDTH%,height=%HEIGHT%,framerate=%FRAMERATE%/1 ! "
-                          "videoconvert ! "
-                          "identity sync=true ! "
-                          "tee name=t allow-not-linked=true "
-                          "t. ! queue name=display-queue max-size-buffers=5 max-size-time=100000000 leaky=downstream high-priority=true ! " + videoSink + " name=videosink sync=true "
-                          "t. ! valve name=recording-valve drop=true ! queue name=recording-queue max-size-buffers=10 leaky=upstream ! identity name=recording-ready";
-    }
+    qCDebug(log_gstreamer_backend) << "Generated pipeline template with video scaling";
     
     // Replace placeholders with actual values
     QString pipelineStr = pipelineTemplate;
@@ -943,6 +850,35 @@ bool GStreamerBackendHandler::startGStreamerPipeline()
                 // Add error handling for the overlay setup to prevent crashes
                 try {
                     gst_video_overlay_set_window_handle(GST_VIDEO_OVERLAY(videoSink), windowId);
+                    
+                    // Configure video sink for proper scaling and aspect ratio
+                    if (g_object_class_find_property(G_OBJECT_GET_CLASS(videoSink), "force-aspect-ratio")) {
+                        g_object_set(videoSink, "force-aspect-ratio", TRUE, NULL);
+                        qCDebug(log_gstreamer_backend) << "Enabled force-aspect-ratio on video sink";
+                    }
+                    
+                    if (g_object_class_find_property(G_OBJECT_GET_CLASS(videoSink), "pixel-aspect-ratio")) {
+                        g_object_set(videoSink, "pixel-aspect-ratio", "1/1", NULL);
+                        qCDebug(log_gstreamer_backend) << "Set pixel-aspect-ratio to 1:1 on video sink";
+                    }
+                    
+                    // Get the widget size and configure render rectangle for proper scaling
+                    if (m_videoWidget) {
+                        QSize widgetSize = m_videoWidget->size();
+                        if (widgetSize.width() > 0 && widgetSize.height() > 0) {
+                            gst_video_overlay_set_render_rectangle(GST_VIDEO_OVERLAY(videoSink), 
+                                                                  0, 0, widgetSize.width(), widgetSize.height());
+                            qCDebug(log_gstreamer_backend) << "Set render rectangle to widget size:" << widgetSize;
+                        }
+                    } else if (m_graphicsVideoItem) {
+                        // For QGraphicsVideoItem, get the bounding rect size
+                        QRectF itemRect = m_graphicsVideoItem->boundingRect();
+                        if (itemRect.width() > 0 && itemRect.height() > 0) {
+                            gst_video_overlay_set_render_rectangle(GST_VIDEO_OVERLAY(videoSink), 
+                                                                  0, 0, (gint)itemRect.width(), (gint)itemRect.height());
+                            qCDebug(log_gstreamer_backend) << "Set render rectangle to video item size:" << itemRect.size();
+                        }
+                    }
                     
 #ifdef Q_OS_LINUX
                     // Restore original error handler and check for errors
@@ -1180,6 +1116,11 @@ void GStreamerBackendHandler::setVideoOutput(VideoPane* videoPane)
     if (videoPane) {
         qCDebug(log_gstreamer_backend) << "VideoPane configured for GStreamer overlay";
         
+        // Connect to video pane resize signal to update render rectangle
+        connect(videoPane, &VideoPane::videoPaneResized, this, 
+                static_cast<void (GStreamerBackendHandler::*)(const QSize&)>(&GStreamerBackendHandler::updateVideoRenderRectangle));
+        qCDebug(log_gstreamer_backend) << "Connected VideoPane resize signal for automatic render rectangle updates";
+        
         // Enable direct GStreamer mode on the VideoPane
         videoPane->enableDirectGStreamerMode(true);
         
@@ -1207,9 +1148,16 @@ bool GStreamerBackendHandler::initializeGStreamer()
         return false;
     }
     
+    // Set GStreamer log levels to minimum to suppress all non-essential messages
+    gst_debug_set_default_threshold(GST_LEVEL_NONE);
+    gst_debug_set_threshold_for_name("alsa", GST_LEVEL_NONE);
+    gst_debug_set_threshold_for_name("pulse", GST_LEVEL_NONE);
+    gst_debug_set_threshold_for_name("v4l2", GST_LEVEL_NONE);
+    gst_debug_set_threshold_for_name("value", GST_LEVEL_NONE);  // Suppress gst_value_set_int_range_step warnings
+    
     qCDebug(log_gstreamer_backend) << "GStreamer initialized successfully";
     
-#ifndef GSTREAMER_DYNAMIC_LINKING
+#ifdef GSTREAMER_STATIC_LINKING
     // Register static plugins required for video pipeline - only available plugins
     qCDebug(log_gstreamer_backend) << "Registering available static GStreamer plugins...";
     
@@ -1923,6 +1871,34 @@ void GStreamerBackendHandler::setResolutionAndFramerate(const QSize& resolution,
     // If we have a running pipeline and the parameters changed significantly, we might need to recreate it
     // For now, just store the values for the next pipeline creation
     qCDebug(log_gstreamer_backend) << "Resolution and framerate updated for next pipeline creation";
+}
+
+void GStreamerBackendHandler::updateVideoRenderRectangle(const QSize& widgetSize)
+{
+    updateVideoRenderRectangle(0, 0, widgetSize.width(), widgetSize.height());
+}
+
+void GStreamerBackendHandler::updateVideoRenderRectangle(int x, int y, int width, int height)
+{
+    if (!m_pipeline || !m_pipelineRunning) {
+        qCDebug(log_gstreamer_backend) << "Pipeline not running, cannot update render rectangle";
+        return;
+    }
+    
+    // Find the video sink element in the pipeline
+    GstElement* videoSink = gst_bin_get_by_name(GST_BIN(m_pipeline), "videosink");
+    if (!videoSink) {
+        // Try to find any element that supports video overlay
+        videoSink = gst_bin_get_by_interface(GST_BIN(m_pipeline), GST_TYPE_VIDEO_OVERLAY);
+    }
+    
+    if (videoSink && GST_IS_VIDEO_OVERLAY(videoSink)) {
+        gst_video_overlay_set_render_rectangle(GST_VIDEO_OVERLAY(videoSink), x, y, width, height);
+        qCDebug(log_gstreamer_backend) << "Updated render rectangle to:" << x << y << width << height;
+        gst_object_unref(videoSink);
+    } else {
+        qCWarning(log_gstreamer_backend) << "Cannot update render rectangle: video sink not found or doesn't support overlay";
+    }
 }
 
 // ============================================================================

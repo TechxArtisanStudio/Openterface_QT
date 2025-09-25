@@ -86,6 +86,7 @@ public:
 
 signals:
     void mouseMoved(const QPoint& position, const QString& event);
+    void videoPaneResized(const QSize& newSize);  // Signal for video pane resize events
 
 public slots:
     void onCameraDeviceSwitching(const QString& fromDevice, const QString& toDevice);

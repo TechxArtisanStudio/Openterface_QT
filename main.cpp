@@ -53,6 +53,7 @@ QAtomicInteger<int> g_applicationShuttingDown(0);
 // GStreamer includes
 #ifdef HAVE_GSTREAMER
 #include <gst/gst.h>
+#include <glib.h>  // For GLib log handling
 #endif
 
 #include <unistd.h>
@@ -104,6 +105,29 @@ void writeLog(const QString &message){
         logFile.close();
     } else {
         qDebug() << "Failed to open log file:" << logFile.errorString();
+    }
+}
+
+// Custom GLib log handler to suppress non-critical GStreamer messages
+void suppressGLibMessages(const gchar *log_domain, GLogLevelFlags log_level, const gchar *message, gpointer user_data)
+{
+    Q_UNUSED(user_data)
+    
+    // Suppress specific known non-critical messages
+    if (log_domain && (strcmp(log_domain, "GStreamer") == 0)) {
+        if (strstr(message, "gst_value_set_int_range_step: assertion") ||
+            strstr(message, "gst_alsa_device_new: assertion")) {
+            return; // Suppress these specific messages
+        }
+    }
+    
+    // For other critical messages, still show them but with reduced verbosity
+    if (log_level & G_LOG_LEVEL_CRITICAL || log_level & G_LOG_LEVEL_ERROR) {
+        // Only show if it's not one of the known harmless messages
+        if (!strstr(message, "gst_value_set_int_range_step") && 
+            !strstr(message, "gst_alsa_device_new")) {
+            fprintf(stderr, "%s\n", message);
+        }
     }
 }
 
@@ -159,8 +183,8 @@ void applyMediaBackendSetting(){
     
     // Handle GStreamer-specific environment settings
     if (mediaBackend == "gstreamer") {
-        // Set GStreamer debug level to reduce verbose output but catch critical errors
-        qputenv("GST_DEBUG", "1,qt6media:3,alsa:1");
+        // Set GStreamer debug level to lowest (0 = GST_LEVEL_NONE) to suppress all messages
+        qputenv("GST_DEBUG", "0");
         
         // Disable color output for cleaner logs
         qputenv("GST_DEBUG_NO_COLOR", "1");
@@ -170,6 +194,12 @@ void applyMediaBackendSetting(){
         
         // Set GStreamer to handle object lifecycle more carefully
         qputenv("GST_DEBUG_DUMP_DOT_DIR", "");
+        
+        // Suppress non-critical GStreamer log messages from the start
+        qputenv("GST_DEBUG", "0");  // Complete silence - no GStreamer debug messages
+        
+        // Suppress GLib critical messages that occur during device enumeration
+        qputenv("G_MESSAGES_DEBUG", "");  // Disable all GLib debug messages
         
         // Prevent GStreamer from using problematic plugins that might cause object ref issues
         qputenv("GST_PLUGIN_FEATURE_RANK", "autovideosink:MAX,autoaudiosink:MAX,alsasink:NONE,pulsesink:PRIMARY");
@@ -224,6 +254,9 @@ int main(int argc, char *argv[])
         return -1;
     }
     qDebug() << "GStreamer initialized successfully";
+    
+    // Install custom GLib log handler to suppress non-critical messages
+    g_log_set_default_handler(suppressGLibMessages, nullptr);
     #endif
     setupEnv();
     qDebug() << "Creating QApplication...";

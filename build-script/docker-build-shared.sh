@@ -3,6 +3,7 @@ set -e
 
 # Wrapper for shared (dynamic) build packaging
 export OPENTERFACE_BUILD_STATIC=OFF
+export USE_GSTREAMER_STATIC_PLUGINS=OFF
 
 # Allow optional overrides via environment
 # - DEB_DEPENDS: override Debian Depends string

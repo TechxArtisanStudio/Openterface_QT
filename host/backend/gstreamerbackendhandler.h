@@ -89,6 +89,10 @@ public:
     // Resolution and framerate configuration
     void setResolutionAndFramerate(const QSize& resolution, int framerate);
     
+    // Video scaling and render rectangle configuration
+    void updateVideoRenderRectangle(const QSize& widgetSize);
+    void updateVideoRenderRectangle(int x, int y, int width, int height);
+    
     // Pipeline string generation
     QString generatePipelineString(const QString& device, const QSize& resolution, int framerate, const QString& videoSink) const;
 
