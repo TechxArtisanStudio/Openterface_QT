@@ -71,22 +71,6 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Test Network Connectivity
-        run: |
-          echo "Testing network connectivity to GitHub..."
-          curl -I --connect-timeout 10 https://api.github.com
-
-      - name: Check Environment
-        run: |
-          echo "Runner environment info:"
-          uname -a
-          echo "Network interfaces:"
-          ip addr show
-          echo "DNS resolution:"
-          nslookup github.com
-          echo "GitHub Actions environment variables:"
-          env | grep GITHUB
-
       - name: Set lowercase image name
         run: echo "IMAGE_NAME_LOWER=$(echo '${{ github.repository_owner }}/openterface-qtbuild' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
 
@@ -115,6 +99,7 @@ jobs:
 
       - name: Check if shared image exists
         id: check-shared
+        if: github.event_name != 'pull_request'
         run: |
           if [[ "${{ github.event.inputs.force_rebuild }}" == "true" ]]; then
             echo "Force rebuild requested, will build shared image"
@@ -154,7 +139,7 @@ jobs:
             /opt/verify/verify-qt-shared.sh
 
   # Static Qt Environment Build (existing multi-stage process)
-  build-static-base:
+  build-static-setup:
     if: ${{ github.event.inputs.environment_type == 'static' || github.event.inputs.environment_type == 'both' || 
         (github.event.inputs.environment_type == 'static' && (github.event.inputs.step == 'base' || github.event.inputs.step == 'qt-base-qtml' || github.event.inputs.step == 'qt-declarative' || github.event.inputs.step == 'qt-complete' || github.event.inputs.step == 'all')) }}
     runs-on: ubuntu-latest
@@ -194,6 +179,7 @@ jobs:
 
       - name: Check if base image exists
         id: check-base
+        if: github.event_name != 'pull_request'
         run: |
           if [[ "${{ github.event.inputs.force_rebuild }}" == "true" ]]; then
             echo "Force rebuild requested, will build base image"
@@ -230,7 +216,7 @@ jobs:
   build-static-ffmpeg:
     if: ${{ github.event.inputs.environment_type == 'static' || github.event.inputs.environment_type == 'both' || (github.event.inputs.step == 'ffmpeg' || github.event.inputs.step == 'qt-base-qtml' || github.event.inputs.step == 'qt-declarative' || github.event.inputs.step == 'qt-complete' || github.event.inputs.step == 'all') }}
     runs-on: ubuntu-latest
-    needs: [build-static-base]
+    needs: [build-static-setup]
     permissions:
       contents: read
       packages: write
