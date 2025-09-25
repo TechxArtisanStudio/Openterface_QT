@@ -261,7 +261,9 @@ if [ -f "${RUNTIME_FILE}" ]; then
 	# Set multiple environment variables to ensure compatibility
 	export APPIMAGE_RUNTIME_FILE="${RUNTIME_FILE}"
 	export RUNTIME_FILE="${RUNTIME_FILE}"
-	export UPDATE_INFORMATION=""  # Disable update info to avoid conflicts
+	# Unset UPDATE_INFORMATION to avoid format errors in appimagetool
+	unset UPDATE_INFORMATION
+	unset LDAI_UPDATE_INFORMATION
 	echo "✓ Using runtime file: ${RUNTIME_FILE}"
 	ls -lh "${RUNTIME_FILE}"
 elif [ -f "${DOCKER_RUNTIME_FILE}" ]; then
@@ -270,13 +272,17 @@ elif [ -f "${DOCKER_RUNTIME_FILE}" ]; then
 	chmod +x "${RUNTIME_FILE}"
 	export APPIMAGE_RUNTIME_FILE="${RUNTIME_FILE}"
 	export RUNTIME_FILE="${RUNTIME_FILE}"
-	export UPDATE_INFORMATION=""
+	# Unset UPDATE_INFORMATION to avoid format errors in appimagetool
+	unset UPDATE_INFORMATION
+	unset LDAI_UPDATE_INFORMATION
 	echo "✓ Using pre-installed runtime (copied to tools): ${RUNTIME_FILE}"
 	ls -lh "${RUNTIME_FILE}"
 else
 	echo "⚠ Warning: No custom runtime file found, linuxdeploy will download it automatically"
 	unset APPIMAGE_RUNTIME_FILE
 	unset RUNTIME_FILE
+	unset UPDATE_INFORMATION
+	unset LDAI_UPDATE_INFORMATION
 fi
 
 # Debug: Show environment variables for AppImage creation
