@@ -77,19 +77,19 @@ RUN apt-get install -y libxcb1-dev \
     libxcb-xinerama0-dev \
     libxcb-xkb-dev
 
-# Install additional XCB libraries (with error handling)
+# Install additional XCB libraries
 RUN apt-get install -y \
         libxcb-cursor-dev \
         libxcb-icccm4-dev \
         libxcb-image0-dev \
         libxcb-keysyms1-dev \
         libxcb-render-util0-dev \
-        libxcb-util-dev \
-        libxcb-util1-dev \
-        # Wayland build dependencies  
+        libxcb-util-dev 
+
+# Install Wayland libraries 
+RUN apt-get install -y \
         libwayland-dev \
-        wayland-protocols \
-    || echo "Some XCB packages failed, continuing..."
+        wayland-protocols
 
 # Install keyboard support
 RUN apt-get install -y \
@@ -103,7 +103,7 @@ RUN apt-get install -y \
         libegl-dev \
         libegl1-mesa-dev 
 
-# Install additional OpenGL libraries (with error handling)
+# Install additional OpenGL libraries
 RUN apt-get install -y \
         libgles2-mesa-dev \
         libglu1-mesa-dev \
@@ -112,8 +112,7 @@ RUN apt-get install -y \
         libopengl-dev \
         libdrm-dev \
         libgbm-dev \
-        libvulkan-dev \
-    || echo "Some OpenGL packages failed, continuing..." 
+        libvulkan-dev
 
 # Install multimedia libraries
 RUN apt-get install -y \
@@ -146,8 +145,7 @@ RUN apt-get install -y \
         libvorbis-dev \
         libtheora-dev \
         libxv-dev \
-        liborc-0.4-dev \
-    || echo "Some multimedia packages failed, continuing..."
+        liborc-0.4-dev
 
 # Try to install clang (with fallback)
 RUN apt-get install -y clang-16 llvm-16-dev libclang-16-dev || \
