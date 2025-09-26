@@ -67,7 +67,7 @@ private:
     // Windows API helpers
     QString getDeviceId(DWORD devInst);
     QString getDeviceProperty(HDEVINFO hDevInfo, SP_DEVINFO_DATA* devInfoData, DWORD property);
-    QString getDeviceProperty(DWORD devInst, const QString& propertyName); // New overload for specific properties
+    QString getDevicePropertyByName(DWORD devInst, const QString& propertyName); // New overload for specific properties
     QString getHardwareId(HDEVINFO hDevInfo, SP_DEVINFO_DATA* devInfoData);
     QString getDeviceInterfacePath(HDEVINFO hDevInfo, SP_DEVINFO_DATA* devInfoData, const GUID& interfaceGuid);
     QList<QVariantMap> getSiblingDevices(DWORD parentDevInst);
@@ -116,6 +116,16 @@ private:
     
     // Generation 2 (Companion device) helper methods
     QString findSerialPortByCompanionDevice(const USBDeviceData& companionDevice);
+    QString findCompanionPortChain(const USBDeviceData& companionDevice);
+    DWORD getDeviceInstanceFromPortChain(const QString& portChain);
+    
+    // Integrated device helper methods (for USB 3.0 with separate serial port)
+    QString findSerialPortByIntegratedDevice(const USBDeviceData& integratedDevice);
+    bool isSerialAssociatedWithIntegratedDevice(const USBDeviceData& serialDevice, const USBDeviceData& integratedDevice);
+    QString extractParentPortChain(const QString& portChain);
+    QString getCompanionPortChainFromDevice(const USBDeviceData& integratedDevice);
+    void processIntegratedDeviceInterfaces(DeviceInfo& deviceInfo, const USBDeviceData& integratedDevice);
+    
     bool isSerialDeviceAssociatedWithCompanion(const USBDeviceData& serialDevice, const USBDeviceData& companionDevice);
     QString extractHubPortFromChain(const QString& portChain);
     QString calculateExpectedSerialHubPort(const QString& companionHubPort);

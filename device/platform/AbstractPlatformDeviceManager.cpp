@@ -10,7 +10,7 @@ const QString AbstractPlatformDeviceManager::OPENTERFACE_PID = "2109";
 const QString AbstractPlatformDeviceManager::SERIAL_VID_V2 = "1A86";
 const QString AbstractPlatformDeviceManager::SERIAL_PID_V2 = "FE0C";
 const QString AbstractPlatformDeviceManager::OPENTERFACE_VID_V2 = "345F";
-const QString AbstractPlatformDeviceManager::OPENTERFACE_PID_V2 = "2130";
+const QString AbstractPlatformDeviceManager::OPENTERFACE_PID_V2 = "2132";
 
 AbstractPlatformDeviceManager::AbstractPlatformDeviceManager(QObject *parent)
     : QObject(parent)
