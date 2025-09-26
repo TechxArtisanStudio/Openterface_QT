@@ -187,7 +187,8 @@ RUN set -eux; \
             chmod +x "/opt/appimage-runtime/runtime-${APPIMAGE_ARCH}"; \
             echo "Runtime downloaded successfully"; \
         else \
-            echo "Warning: Failed to download runtime, will fallback to automatic download"; \
+            echo "Error: Failed to download AppImage runtime from ${RUNTIME_URL}" >&2; \
+            exit 1; \
         fi; \
         chmod +x /usr/local/bin/linuxdeploy /usr/local/bin/linuxdeploy-plugin-qt
 
