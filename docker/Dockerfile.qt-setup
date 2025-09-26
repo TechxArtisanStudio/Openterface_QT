@@ -166,7 +166,7 @@ ENV FFMPEG_VERSION=6.1.1
 ENV GSTREAMER_PREFIX=/opt/gstreamer
 ENV GSTREAMER_VERSION=1.26.6
 
-# Pre-install linuxdeploy and linuxdeploy-plugin-qt for AppImage builds
+# Pre-install linuxdeploy, linuxdeploy-plugin-qt, appimagetool and AppImage runtimes for AppImage builds
 RUN set -eux; \
         case "${TARGETARCH}" in \
             amd64) APPIMAGE_ARCH=x86_64 ;; \
@@ -176,11 +176,14 @@ RUN set -eux; \
         esac; \
         LDEPLOY_URL="https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-${APPIMAGE_ARCH}.AppImage"; \
         LDEPLOY_QT_URL="https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-${APPIMAGE_ARCH}.AppImage"; \
+        APPIMAGETOOL_URL="https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-${APPIMAGE_ARCH}.AppImage"; \
         RUNTIME_URL="https://github.com/AppImage/type2-runtime/releases/download/continuous/runtime-${APPIMAGE_ARCH}"; \
         echo "Fetching ${LDEPLOY_URL}"; \
         curl -fL "${LDEPLOY_URL}" -o /usr/local/bin/linuxdeploy; \
         echo "Fetching ${LDEPLOY_QT_URL}"; \
         curl -fL "${LDEPLOY_QT_URL}" -o /usr/local/bin/linuxdeploy-plugin-qt; \
+        echo "Fetching ${APPIMAGETOOL_URL}"; \
+        curl -fL "${APPIMAGETOOL_URL}" -o /usr/local/bin/appimagetool; \
         echo "Fetching AppImage runtime ${RUNTIME_URL}"; \
         mkdir -p /opt/appimage-runtime; \
         if curl -fL "${RUNTIME_URL}" -o "/opt/appimage-runtime/runtime-${APPIMAGE_ARCH}"; then \
@@ -190,7 +193,7 @@ RUN set -eux; \
             echo "Error: Failed to download AppImage runtime from ${RUNTIME_URL}" >&2; \
             exit 1; \
         fi; \
-        chmod +x /usr/local/bin/linuxdeploy /usr/local/bin/linuxdeploy-plugin-qt
+        chmod +x /usr/local/bin/linuxdeploy /usr/local/bin/linuxdeploy-plugin-qt /usr/local/bin/appimagetool
 
 # Ensure AppImages can run in containers without FUSE
 ENV APPIMAGE_EXTRACT_AND_RUN=1
