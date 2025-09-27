@@ -158,9 +158,9 @@ RUN chmod +x /tmp/install-qt-6.6.3-from-source.sh /opt/verify/verify-qt-6.6.3.sh
 ENV QT_VERSION=6.6.3
 ENV QTDIR="/opt/qt6.6.3"
 ENV QT_INSTALL_PREFIX="/opt/qt6.6.3"
-ENV PATH="/opt/qt6.6.3/bin:${PATH}"
-ENV LD_LIBRARY_PATH="/opt/qt6.6.3/lib:${LD_LIBRARY_PATH}"
-ENV PKG_CONFIG_PATH="/opt/qt6.6.3/lib/pkgconfig:${PKG_CONFIG_PATH}"
+ENV PATH="/opt/qt6.6.3/bin:$PATH"
+ENV LD_LIBRARY_PATH="/opt/qt6.6.3/lib"
+ENV PKG_CONFIG_PATH="/opt/qt6.6.3/lib/pkgconfig"
 ENV QT_PLUGIN_PATH="/opt/qt6.6.3/plugins"
 ENV QML_IMPORT_PATH="/opt/qt6.6.3/qml"
 ENV QML2_IMPORT_PATH="/opt/qt6.6.3/qml"
@@ -238,6 +238,6 @@ RUN mkdir -p /opt/verify && \
     chmod +x /opt/verify/verify-qt-shared.sh
 
 # Verify Qt 6.6.3 installation
-RUN /opt/verify/verify-qt-6.6.3.sh
+RUN /opt/verify/verify-qt-shared.sh
 
 WORKDIR /workspace

@@ -28,7 +28,7 @@ echo "Downloading Qt ${QT_VERSION} source..."
 cd "${SOURCE_DIR}"
 if [ ! -f "qt-everywhere-src-${QT_VERSION}.tar.xz" ]; then
     wget -O "qt-everywhere-src-${QT_VERSION}.tar.xz" \
-        "https://download.qt.io/official_releases/qt/${QT_MAJOR_VERSION}/${QT_VERSION}/single/qt-everywhere-src-${QT_VERSION}.tar.xz"
+        "https://download.qt.io/archive/qt/${QT_MAJOR_VERSION}/${QT_VERSION}/single/qt-everywhere-src-${QT_VERSION}.tar.xz"
 fi
 
 # Extract source
