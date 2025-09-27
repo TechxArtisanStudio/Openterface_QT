@@ -221,8 +221,22 @@ void applyMediaBackendSetting(){
         
         // Additional GStreamer environment variables for better video handling
         qputenv("GST_V4L2_USE_LIBV4L2", "1");
-        qputenv("GST_PLUGIN_PATH", "/usr/lib/gstreamer-1.0");
-        qputenv("GST_PLUGIN_SYSTEM_PATH", "/usr/lib/gstreamer-1.0");
+        
+        // Set GStreamer plugin paths - support AppImage bundled plugins
+        QString appDirPath = QCoreApplication::applicationDirPath();
+        QString bundledPluginPath = appDirPath + "/../lib/gstreamer-1.0";
+        
+        if (QDir(bundledPluginPath).exists()) {
+            // Use bundled plugins (AppImage)
+            qputenv("GST_PLUGIN_PATH", bundledPluginPath.toUtf8());
+            qputenv("GST_PLUGIN_SYSTEM_PATH", bundledPluginPath.toUtf8());
+            qDebug() << "Using bundled GStreamer plugins from:" << bundledPluginPath;
+        } else {
+            // Fallback to system plugins
+            qputenv("GST_PLUGIN_PATH", "/usr/lib/gstreamer-1.0:/usr/lib/aarch64-linux-gnu/gstreamer-1.0:/usr/lib/x86_64-linux-gnu/gstreamer-1.0");
+            qputenv("GST_PLUGIN_SYSTEM_PATH", "/usr/lib/gstreamer-1.0:/usr/lib/aarch64-linux-gnu/gstreamer-1.0:/usr/lib/x86_64-linux-gnu/gstreamer-1.0");
+            qDebug() << "Using system GStreamer plugins";
+        }
         
         // Ensure video output works correctly
         qputenv("GST_VIDEO_OVERLAY", "1");
