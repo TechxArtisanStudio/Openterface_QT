@@ -1,45 +1,4 @@
-#!/bin/bash
-echo "============================================"
-        tar -xf "qt-everywhere-src-${QT_VERSION}.tar.xz" -C "${SOURCE_DIR}"
-#!/bin/bash
-
-# Qt 6.6.3 Source Installation Script
-# Supports modes: download | build | all
-
-set -euo pipefail
-IFS=$'\n\t'
-
-# Configuration
-QT_VERSION="6.6.3"
-QT_MAJOR_VERSION="6.6"
-QT_INSTALL_PREFIX="/opt/qt6.6.3"
-BUILD_DIR="/tmp/qt-build"
-SOURCE_DIR="/tmp/qt-source"
-PARALLEL_JOBS=$(nproc)
-
-# Script modes: download | build | all
-MODE="all"
-if [ "$#" -ge 1 ]; then
-    case "$1" in
-        download|build|all)
-            MODE="$1" ;;
-        *)
-            echo "Usage: $0 [download|build|all]" >&2
-            exit 2 ;;
-    esac
-fi
-
-log() { echo "[install-qt] $*"; }
-
-# Download only: fetch and extract sources
-
-    log "Preparing directories"
-    mkdir -p "${BUILD_DIR}" "${SOURCE_DIR}"
-
-    log "Downloading Qt ${QT_VERSION} source to ${SOURCE_DIR} (if not present)"
-    cd "${SOURCE_DIR}"
-    if [ ! -f "qt-everywhere-src-${QT_VERSION}.tar.xz" ]; then
-        #!/usr/bin/env bash
+#!/usr/bin/env bash
 
         set -euo pipefail
         IFS=$'\n\t'
@@ -112,6 +71,10 @@ log() { echo "[install-qt] $*"; }
                 -reduce-relocations \
                 -force-pkg-config \
                 -qt-zlib \
+                -qt-libpng \
+                -qt-libjpeg \
+                -qt-freetype \
+                -qt-harfbuzz \
                 -qt-pcre \
                 -openssl-linked \
                 -system-libpng \
@@ -174,31 +137,7 @@ log() { echo "[install-qt] $*"; }
         esac
 
         log "Done."
-        exit 0
-export PATH="${QT_INSTALL_PREFIX}/bin:${PATH}"
-export LD_LIBRARY_PATH="${QT_INSTALL_PREFIX}/lib:${LD_LIBRARY_PATH}"
-export PKG_CONFIG_PATH="${QT_INSTALL_PREFIX}/lib/pkgconfig:${PKG_CONFIG_PATH}"
-export QT_PLUGIN_PATH="${QT_INSTALL_PREFIX}/plugins"
-export QML_IMPORT_PATH="${QT_INSTALL_PREFIX}/qml"
-export QML2_IMPORT_PATH="${QT_INSTALL_PREFIX}/qml"
-EOF
-
-    echo "Qt ${QT_VERSION} installed successfully."
-}
-
-# Run according to chosen mode
-case "$MODE" in
-    download)
-        do_download
-        ;;
-    build)
-        do_build
-        ;;
-    all)
-        do_download
-        do_build
-        ;;
-esac
+exit 0
 
 chmod +x "${QT_INSTALL_PREFIX}/setup-qt-env.sh"
 
