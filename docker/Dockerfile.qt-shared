@@ -157,6 +157,7 @@ RUN chmod +x /tmp/download-qt-source.sh /opt/verify/verify-qt-6.6.3.sh
 RUN /tmp/download-qt-source.sh
 
 # Step 2: build and install (long running step)
+COPY docker/build-qt-6.6.3-from-source.sh /tmp/build-qt-6.6.3-from-source.sh
 RUN /tmp/build-qt-6.6.3-from-source.sh build && rm -f /tmp/build-qt-6.6.3-from-source.sh 
 
 # Set environment variables for Qt 6.6.3
