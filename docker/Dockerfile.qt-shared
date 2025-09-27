@@ -150,9 +150,14 @@ RUN apt-get install -y \
 # Copy Qt 6.6.3 source installation script and verification script
 COPY docker/install-qt-6.6.3-from-source.sh /tmp/install-qt-6.6.3-from-source.sh
 COPY docker/verify-qt-6.6.3.sh /opt/verify/verify-qt-6.6.3.sh
-RUN chmod +x /tmp/install-qt-6.6.3-from-source.sh /opt/verify/verify-qt-6.6.3.sh && \
-    /tmp/install-qt-6.6.3-from-source.sh && \
-    rm /tmp/install-qt-6.6.3-from-source.sh
+# Make installer executable
+RUN chmod +x /tmp/install-qt-6.6.3-from-source.sh /opt/verify/verify-qt-6.6.3.sh
+
+# Step 1: download sources (this step is cacheable and can be re-used across builds)
+RUN /tmp/install-qt-6.6.3-from-source.sh download
+
+# Step 2: build and install (long running step)
+RUN /tmp/build-qt-6.6.3-from-source.sh build && rm -f /tmp/install-qt-6.6.3-from-source.sh
 
 # Set environment variables for Qt 6.6.3
 ENV QT_VERSION=6.6.3

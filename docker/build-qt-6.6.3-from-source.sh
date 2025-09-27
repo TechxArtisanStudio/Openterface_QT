@@ -112,10 +112,6 @@ log() { echo "[install-qt] $*"; }
                 -reduce-relocations \
                 -force-pkg-config \
                 -qt-zlib \
-                -qt-libpng \
-                -qt-libjpeg \
-                -qt-freetype \
-                -qt-harfbuzz \
                 -qt-pcre \
                 -openssl-linked \
                 -system-libpng \
@@ -203,8 +199,6 @@ case "$MODE" in
         do_build
         ;;
 esac
-
-exit 0
 
 chmod +x "${QT_INSTALL_PREFIX}/setup-qt-env.sh"
 
