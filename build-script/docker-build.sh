@@ -1,95 +1,300 @@
 #!/bin/bash
-set -e
+set -euo pipefail
+IFS=$'\n\t'
 
-echo "Building Openterface QT Application in docker build environment..."
+# Print a detailed failure report on any command error
+err_report() {
+    local exit_code=$?
+    local cmd="${BASH_COMMAND:-<unknown>}"
+    echo >&2
+    echo "========== ERROR ==========" >&2
+    echo "Script: $0" >&2
+    echo "Exit code: ${exit_code}" >&2
+    echo "Failed command: ${cmd}" >&2
+    echo "Location (top of stack): ${BASH_LINENO[0]:-<unknown>}" >&2
+    echo "Call stack:" >&2
+    local i=0
+    while caller $i; do ((i++)); done >&2
+    echo "===========================" >&2
+    exit "${exit_code}"
+}
+trap 'err_report' ERR
 
-# Copy configuration files
-mkdir -p /workspace/build/config/languages
-mkdir -p /workspace/build/config/keyboards
-cp -r config/keyboards/*.json /workspace/build/config/keyboards/ 2>/dev/null || echo "No keyboard configs"
-cp -r config/languages/*.qm /workspace/build/config/languages/ 2>/dev/null || echo "No language files"
+# Enable debug tracing if DEBUG environment variable is set (useful for diagnostics)
+if [ "${DEBUG:-0}" != "0" ]; then
+    export PS4='+ ${BASH_SOURCE}:${LINENO}:${FUNCNAME[0]}: '
+    set -x
+fi
 
-# Build with CMake
+# Enhanced AppImage build script with comprehensive GStreamer plugin support
+# This script builds an AppImage with all necessary GStreamer plugins for video capture
+
+echo "Building Enhanced Openterface AppImage with GStreamer plugins..."
+
+# Configuration
+BUILD_DIR="/workspace/build"
+SRC_DIR="/workspace/src"
+APPIMAGE_DIR="${BUILD_DIR}/appimage"
+
+# Create build directory
+mkdir -p "${BUILD_DIR}" "${APPIMAGE_DIR}"
+
+# Essential GStreamer plugins for video capture
+GSTREAMER_PLUGINS=(
+    "libgstvideo4linux2.so"        # V4L2 video capture (CRITICAL)
+    "libgstv4l2codecs.so"          # V4L2 hardware codecs
+    "libgstvideoconvert.so"        # Video format conversion
+    "libgstvideoscale.so"          # Video scaling
+    "libgstvideorate.so"           # Video frame rate conversion
+    "libgstcoreelements.so"        # Core elements (queue, filesrc, etc.)
+    "libgsttypefindfunctions.so"   # Type detection
+    "libgstapp.so"                 # Application integration
+    "libgstplayback.so"           # Playback elements
+    "libgstjpeg.so"               # JPEG codec
+    "libgsth264parse.so"          # H.264 parser
+    "libgstximagesink.so"         # X11 video sink
+    "libgstxvimagesink.so"        # XVideo sink
+    "libgstautodetect.so"         # Auto detection
+    "libgstpulse.so"              # PulseAudio
+    "libgstalsa.so"               # ALSA audio
+    "libgstaudioparsers.so"       # Audio parsers
+    "libgstaudioconvert.so"       # Audio conversion
+    "libgstaudioresample.so"      # Audio resampling
+)
+
+echo "Detecting GStreamer plugin directories..."
+
+# Detect GStreamer plugins in container
+GSTREAMER_HOST_DIRS=(
+    "/usr/lib/aarch64-linux-gnu/gstreamer-1.0"
+    "/usr/lib/x86_64-linux-gnu/gstreamer-1.0"  
+    "/usr/lib/gstreamer-1.0"
+    "/host/gstreamer-plugins"  # Mounted from host
+)
+
+GSTREAMER_HOST_DIR=""
+for dir in "${GSTREAMER_HOST_DIRS[@]}"; do
+    if [ -d "$dir" ]; then
+        GSTREAMER_HOST_DIR="$dir"
+        echo "✅ Found GStreamer plugin directory: $GSTREAMER_HOST_DIR"
+        break
+    fi
+done
+
+if [ -z "$GSTREAMER_HOST_DIR" ] || [ ! -f "$GSTREAMER_HOST_DIR/libgstvideo4linux2.so" ]; then
+    echo "❌ GStreamer V4L2 plugin not found in container!"
+    echo "Installing GStreamer plugins in container..."
+    apt update && apt install -y gstreamer1.0-plugins-base gstreamer1.0-plugins-good gstreamer1.0-plugins-bad
+    
+    # Retry detection after installation
+    for dir in "${GSTREAMER_HOST_DIRS[@]}"; do
+        if [ -d "$dir" ] && [ -f "$dir/libgstvideo4linux2.so" ]; then
+            GSTREAMER_HOST_DIR="$dir"
+            echo "✅ Found GStreamer plugins after installation: $GSTREAMER_HOST_DIR"
+            break
+        fi
+    done
+    
+    if [ -z "$GSTREAMER_HOST_DIR" ]; then
+        echo "❌ Still no GStreamer plugins found after installation!"
+        exit 1
+    fi
+fi
+
+# Count available plugins
+# echo "Checking plugin availability..."
+# AVAILABLE_COUNT=0
+# for plugin in "${GSTREAMER_PLUGINS[@]}"; do
+#     if [ -f "$GSTREAMER_HOST_DIR/$plugin" ]; then
+#         ((AVAILABLE_COUNT++))
+#         echo "✅ $plugin"
+#     else
+#         echo "⚠️  Missing: $plugin"
+#     fi
+# done
+# echo "Found $AVAILABLE_COUNT/${#GSTREAMER_PLUGINS[@]} essential plugins"
+
+# Build the application first
+echo 'Building Openterface with comprehensive GStreamer support...'
+
+# Set environment variables for build
+export OPENTERFACE_BUILD_STATIC=OFF
+export USE_GSTREAMER_STATIC_PLUGINS=OFF
+
 cd /workspace/build
-echo "Configuring with CMake..."
-
-echo "Finding FFmpeg libraries..."
-find / -name "libavformat.so*" || echo "No shared libavformat found"
-find / -name "libavformat.a*" || echo "No shared libavformat found"
-find / -name "avformat.h" || echo "No avformat.h found"
-
-# Debug pkg-config before CMake
-pkg-config --version
-pkg-config --list-all | grep -E "avformat|avcodec" || echo "No FFmpeg packages found"
-echo "========================="
-
-# Default to dynamic linking for the shared build environment; allow override via OPENTERFACE_BUILD_STATIC env
-: "${OPENTERFACE_BUILD_STATIC:=OFF}"
-: "${USE_GSTREAMER_STATIC_PLUGINS:=ON}"
-echo "OPENTERFACE_BUILD_STATIC set to ${OPENTERFACE_BUILD_STATIC}"
-echo "USE_GSTREAMER_STATIC_PLUGINS set to ${USE_GSTREAMER_STATIC_PLUGINS}"
-cmake \
-	-DCMAKE_BUILD_TYPE=Release \
-	-DOPENTERFACE_BUILD_STATIC=${OPENTERFACE_BUILD_STATIC} \
-	-DUSE_GSTREAMER_STATIC_PLUGINS=${USE_GSTREAMER_STATIC_PLUGINS} \
-	-DCMAKE_VERBOSE_MAKEFILE=ON \
-	/workspace/src
-
-echo "Building with CMake..."
-make -j4 VERBOSE=1
+cmake -DCMAKE_BUILD_TYPE=Release -DOPENTERFACE_BUILD_STATIC=OFF -DUSE_GSTREAMER_STATIC_PLUGINS=OFF /workspace/src
+make -j4
 echo "Build complete."
 
-SRC=/workspace/src
-BUILD=/workspace/build
-
-# Determine version from resources/version.h (APP_VERSION macro)
-VERSION_H="${SRC}/resources/version.h"
+# Determine version from resources/version.h
+VERSION_H="/workspace/src/resources/version.h"
 if [ -f "${VERSION_H}" ]; then
-	VERSION=$(grep -Po '^#define APP_VERSION\s+"\K[0-9]+(\.[0-9]+)*' "${VERSION_H}" | head -n1)
+    VERSION=$(grep -Po '^#define APP_VERSION\s+"\K[0-9]+(\.[0-9]+)*' "${VERSION_H}" | head -n1)
 fi
 if [ -z "${VERSION}" ]; then
-	VERSION="0.0.1"
+    VERSION="0.4.3.248"
 fi
 
-# Determine architecture (map to Debian arch names)
-ARCH=$(dpkg --print-architecture 2>/dev/null || true)
-if [ -z "${ARCH}" ]; then
-	UNAME_M=$(uname -m)
-	case "${UNAME_M}" in
-		aarch64|arm64) ARCH=arm64;;
-		x86_64|amd64) ARCH=amd64;;
-		*) ARCH=${UNAME_M};;
-	esac
+# Determine architecture
+ARCH=$(uname -m)
+case "${ARCH}" in
+    aarch64|arm64) APPIMAGE_ARCH=aarch64;;
+    x86_64|amd64) APPIMAGE_ARCH=x86_64;;
+    *) APPIMAGE_ARCH=${ARCH};;
+esac
+
+echo "🎯 Creating AppImage with essential GStreamer plugins..."
+
+# Create enhanced AppImage
+cd /workspace
+rm -rf appimage/AppDir
+mkdir -p appimage/AppDir/usr/bin appimage/AppDir/usr/lib/gstreamer-1.0 appimage/AppDir/usr/share/applications
+
+echo '✅ Executable copied'
+cp build/openterfaceQT appimage/AppDir/usr/bin/
+chmod +x appimage/AppDir/usr/bin/openterfaceQT
+
+echo '📦 Copying essential GStreamer plugins...'
+COPIED_COUNT=0
+for plugin in "${GSTREAMER_PLUGINS[@]}"; do
+	if [ -f "$GSTREAMER_HOST_DIR/$plugin" ]; then
+		echo "✅ Included $plugin"
+		cp "$GSTREAMER_HOST_DIR/$plugin" "appimage/AppDir/usr/lib/gstreamer-1.0/"
+		COPIED_COUNT=$((COPIED_COUNT + 1))
+	else
+		echo "⚠️ Missing $plugin"
+	fi
+done
+echo "📦 Copied $COPIED_COUNT essential GStreamer plugins"
+
+# Create desktop file
+cat > appimage/AppDir/usr/share/applications/openterfaceqt.desktop << 'EOF'
+[Desktop Entry]
+Type=Application
+Name=OpenterfaceQT
+Comment=Openterface Mini-KVM Host Application  
+Exec=openterfaceQT
+Icon=openterfaceqt
+Categories=Network;RemoteAccess;
+StartupNotify=true
+Terminal=false
+EOF
+
+# Try to find and copy icon
+mkdir -p appimage/AppDir/usr/share/pixmaps
+mkdir -p appimage/AppDir/usr/share/icons/hicolor/256x256/apps
+
+ICON_FOUND=false
+for icon_path in \
+    '/workspace/src/images/icon_256.png' \
+    '/workspace/src/images/icon_128.png' \
+    '/workspace/src/resources/icons/openterfaceQT.png' \
+    '/workspace/src/icons/openterface.png'; do
+    if [ -f "$icon_path" ]; then
+        cp "$icon_path" "appimage/AppDir/usr/share/icons/hicolor/256x256/apps/openterfaceqt.png"
+        cp "$icon_path" "appimage/AppDir/usr/share/pixmaps/openterfaceqt.png"
+        echo "✅ Icon copied from $icon_path"
+        ICON_FOUND=true
+        break
+    fi
+done
+
+if [ "$ICON_FOUND" = false ]; then
+    echo '⚠️ No icon found, creating placeholder...'
+    # Create a minimal PNG placeholder using ImageMagick if available
+    convert -size 64x64 xc:blue appimage/AppDir/usr/share/pixmaps/openterfaceqt.png 2>/dev/null || {
+        echo 'No ImageMagick, using text placeholder...'
+        echo 'OpenterfaceQT Icon' > appimage/AppDir/usr/share/pixmaps/openterfaceqt.txt
+    }
 fi
 
-# =========================
-# Build AppImage (.AppImage)
-# =========================
-echo "Preparing AppImage package..."
+# Copy desktop file to root
+cp appimage/AppDir/usr/share/applications/openterfaceqt.desktop appimage/AppDir/
 
-APPIMAGE_DIR=/workspace/appimage
+# Copy icon to root  
+cp appimage/AppDir/usr/share/pixmaps/openterfaceqt.png appimage/AppDir/ 2>/dev/null || true
+
+# Create custom AppRun script with proper environment setup
+cat > appimage/AppDir/AppRun << 'EOF'
+#!/bin/bash
+# AppRun script for OpenterfaceQT enhanced AppImage with GStreamer plugins
+
+# Set the directory where this script is located
+HERE="$(dirname "$(readlink -f "${0}")")"
+
+# Set GStreamer plugin path to our bundled plugins
+export GST_PLUGIN_PATH="${HERE}/usr/lib/gstreamer-1.0:${GST_PLUGIN_PATH}"
+
+# Set library path for our bundled libraries
+export LD_LIBRARY_PATH="${HERE}/usr/lib:${LD_LIBRARY_PATH}"
+
+# Set Qt plugin path
+export QT_PLUGIN_PATH="${HERE}/usr/plugins:${QT_PLUGIN_PATH}"
+
+# Run the application
+exec "${HERE}/usr/bin/openterfaceQT" "$@"
+EOF
+
+chmod +x appimage/AppDir/AppRun
+
+# Continue to comprehensive AppImage creation section with Docker runtime support
+# (This section was simplified and moved to the end of the script for proper runtime handling)
+echo "📦 Copied $COPIED_COUNT essential GStreamer plugins"
+echo "✅ Proceeding to comprehensive AppImage creation with Docker runtime support"
+cd /workspace
+
+# Determine linuxdeploy architecture tag from Debian arch
+case "${ARCH}" in
+	amd64|x86_64) APPIMAGE_ARCH=x86_64;;
+	arm64|aarch64) APPIMAGE_ARCH=aarch64;;
+	armhf|armv7l) APPIMAGE_ARCH=armhf;;
+	*) echo "Warning: unknown arch '${ARCH}', defaulting to x86_64"; APPIMAGE_ARCH=x86_64;;
+esac
+
+# Set up variables for comprehensive AppImage creation
+SRC="/workspace/src"
+BUILD="/workspace/build" 
 APPDIR="${APPIMAGE_DIR}/AppDir"
-APPIMAGE_OUT=/workspace/build
+DESKTOP_OUT="${APPDIR}/openterfaceqt.desktop"
+APPIMAGE_OUT="${BUILD}"
 
+# Create comprehensive AppDir structure for the final AppImage
 rm -rf "${APPDIR}"
-mkdir -p "${APPDIR}/usr/bin"
-mkdir -p "${APPDIR}/usr/share/applications"
-mkdir -p "${APPDIR}/usr/share/icons/hicolor/256x256/apps"
+mkdir -p "${APPDIR}/usr/bin" "${APPDIR}/usr/lib" "${APPDIR}/usr/share/applications" "${APPDIR}/usr/share/pixmaps"
 
-# Copy main binary
-if [ -f "${BUILD}/openterfaceQT" ]; then
-	install -m 0755 "${BUILD}/openterfaceQT" "${APPDIR}/usr/bin/openterfaceQT"
-else
-	echo "Error: built binary not found at ${BUILD}/openterfaceQT" >&2
-	exit 1
-fi
+# Copy the executable to the comprehensive AppDir
+cp "${BUILD}/openterfaceQT" "${APPDIR}/usr/bin/"
+chmod +x "${APPDIR}/usr/bin/openterfaceQT"
 
-# Desktop file for AppImage (Exec must be bare binary name; Icon should be a basename)
-DESKTOP_OUT="${APPDIR}/usr/share/applications/openterfaceQT.desktop"
-sed 's|^Exec=.*$|Exec=openterfaceQT|; s|^Icon=.*$|Icon=openterfaceQT|' \
-	"${SRC}/packaging/appimage/openterfaceQT.desktop" > "${DESKTOP_OUT}"
+echo "✅ Setting up comprehensive AppImage structure with Docker runtime support"
 
-# AppStream/metainfo (optional)
+# Create desktop file for comprehensive AppImage
+cat > "${APPDIR}/usr/share/applications/openterfaceqt.desktop" << 'EOF'
+[Desktop Entry]
+Type=Application
+Name=OpenterfaceQT
+Comment=Openterface Mini-KVM Host Application  
+Exec=openterfaceQT
+Icon=openterfaceqt
+Categories=Network;RemoteAccess;
+StartupNotify=true
+Terminal=false
+EOF
+
+# Copy desktop file to root of AppDir
+cp "${APPDIR}/usr/share/applications/openterfaceqt.desktop" "${DESKTOP_OUT}"
+
+# Copy GStreamer plugins to comprehensive AppImage
+echo "Including GStreamer plugins for video capture in comprehensive AppImage..."
+mkdir -p "${APPDIR}/usr/lib/gstreamer-1.0"
+for plugin in "${GSTREAMER_PLUGINS[@]}"; do
+	if [ -f "$GSTREAMER_HOST_DIR/$plugin" ]; then
+		cp "$GSTREAMER_HOST_DIR/$plugin" "${APPDIR}/usr/lib/gstreamer-1.0/"
+		echo "✓ Copied plugin: ${plugin}"
+	fi
+done
+
+# Copy AppStream/metainfo (optional)
 if [ -f "${SRC}/packaging/appimage/com.openterface.openterfaceQT.metainfo.xml" ]; then
 	mkdir -p "${APPDIR}/usr/share/metainfo"
 	cp "${SRC}/packaging/appimage/com.openterface.openterfaceQT.metainfo.xml" "${APPDIR}/usr/share/metainfo/"
@@ -126,17 +331,13 @@ if [ -n "${ICON_SRC}" ]; then
 		mkdir -p "${APPDIR}/usr/share/icons/hicolor/256x256/apps"
 		cp "${ICON_SRC}" "${APPDIR}/usr/share/icons/hicolor/256x256/apps/openterfaceQT.${ICON_EXT}" || true
 	fi
+	# Also copy to pixmaps and root
+	mkdir -p "${APPDIR}/usr/share/pixmaps"
+	cp "${ICON_SRC}" "${APPDIR}/usr/share/pixmaps/openterfaceqt.${ICON_EXT}" || true
+	cp "${ICON_SRC}" "${APPDIR}/openterfaceqt.${ICON_EXT}" || true
 else
 	echo "No icon found; continuing without a custom icon."
 fi
-
-# Determine linuxdeploy architecture tag from Debian arch
-case "${ARCH}" in
-	amd64|x86_64) APPIMAGE_ARCH=x86_64;;
-	arm64|aarch64) APPIMAGE_ARCH=aarch64;;
-	armhf|armv7l) APPIMAGE_ARCH=armhf;;
-	*) echo "Warning: unknown arch '${ARCH}', defaulting to x86_64"; APPIMAGE_ARCH=x86_64;;
-esac
 
 # Prefer preinstalled linuxdeploy and plugin in the image; fallback to download
 TOOLS_DIR="${APPIMAGE_DIR}/tools"
@@ -145,52 +346,22 @@ LINUXDEPLOY_BIN=""
 # Ensure AppImages run inside containers without FUSE (also set in Dockerfile)
 export APPIMAGE_EXTRACT_AND_RUN=${APPIMAGE_EXTRACT_AND_RUN:-1}
 
-# Check for pre-downloaded runtime first, then download if needed
+# Check for pre-downloaded runtime from Docker image
 mkdir -p "${TOOLS_DIR}"
 DOCKER_RUNTIME_FILE="/opt/appimage-runtime/runtime-${APPIMAGE_ARCH}"
 TOOLS_RUNTIME_FILE="${TOOLS_DIR}/runtime-${APPIMAGE_ARCH}"
 
-# Check if runtime is already available
+# Prioritize pre-downloaded runtime from Docker image
 if [ -f "${DOCKER_RUNTIME_FILE}" ]; then
-	echo "Using pre-downloaded runtime from Docker environment: ${DOCKER_RUNTIME_FILE}"
+	echo "✓ Using pre-downloaded runtime from Docker environment: ${DOCKER_RUNTIME_FILE}"
 	cp "${DOCKER_RUNTIME_FILE}" "${TOOLS_RUNTIME_FILE}"
 	chmod +x "${TOOLS_RUNTIME_FILE}"
-	echo "Runtime copied to tools directory: ${TOOLS_RUNTIME_FILE}"
+	echo "✓ Runtime copied to tools directory: ${TOOLS_RUNTIME_FILE}"
 elif [ -f "${TOOLS_RUNTIME_FILE}" ]; then
-	echo "Runtime already available in tools directory: ${TOOLS_RUNTIME_FILE}"
+	echo "✓ Runtime already available in tools directory: ${TOOLS_RUNTIME_FILE}"
 else
-	echo "No pre-downloaded runtime found, downloading..."
-	RUNTIME_URL="https://github.com/AppImage/type2-runtime/releases/download/continuous/runtime-${APPIMAGE_ARCH}"
-	
-	# Download helper (curl with wget fallback)
-	_fetch() {
-		local url="$1" out="$2"
-		if command -v curl >/dev/null 2>&1; then
-			curl -fL "${url}" -o "${out}"
-		elif command -v wget >/dev/null 2>&1; then
-			wget -qO "${out}" "${url}"
-		else
-			echo "Neither curl nor wget found for downloading ${url}" >&2
-			return 1
-		fi
-	}
-
-	echo "Downloading AppImage runtime from ${RUNTIME_URL}"
-	# Try downloading the runtime with error handling
-	if ! _fetch "${RUNTIME_URL}" "${TOOLS_RUNTIME_FILE}"; then
-		echo "Failed to download from continuous release, trying stable release..."
-		RUNTIME_URL_STABLE="https://github.com/AppImage/type2-runtime/releases/latest/download/runtime-${APPIMAGE_ARCH}"
-		if ! _fetch "${RUNTIME_URL_STABLE}" "${TOOLS_RUNTIME_FILE}"; then
-			echo "Warning: Failed to download runtime file. AppImage generation may fail."
-			echo "You may need to manually download the runtime from:"
-			echo "https://github.com/AppImage/type2-runtime/releases"
-		else
-			echo "Runtime downloaded successfully from stable release"
-		fi
-	else
-		echo "Runtime downloaded successfully from continuous release"
-	fi
-	[ -f "${TOOLS_RUNTIME_FILE}" ] && chmod +x "${TOOLS_RUNTIME_FILE}"
+	echo "⚠ Warning: No pre-downloaded runtime found at ${DOCKER_RUNTIME_FILE}"
+	echo "⚠ AppImage creation will proceed without custom runtime (linuxdeploy will download automatically)"
 fi
 
 if command -v linuxdeploy >/dev/null 2>&1 && command -v linuxdeploy-plugin-qt >/dev/null 2>&1; then
@@ -218,69 +389,91 @@ else
 	pushd "${TOOLS_DIR}" >/dev/null
 	LDEPLOY_URL="https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-${APPIMAGE_ARCH}.AppImage"
 	LDEPLOY_QT_URL="https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-${APPIMAGE_ARCH}.AppImage"
-	RUNTIME_URL="https://github.com/AppImage/type2-runtime/releases/download/continuous/runtime-${APPIMAGE_ARCH}"
 	
 	echo "Downloading linuxdeploy from ${LDEPLOY_URL}"
 	_fetch "${LDEPLOY_URL}" linuxdeploy.AppImage
 	echo "Downloading linuxdeploy-plugin-qt from ${LDEPLOY_QT_URL}"
 	_fetch "${LDEPLOY_QT_URL}" linuxdeploy-plugin-qt.AppImage
-	echo "Downloading AppImage runtime from ${RUNTIME_URL}"
 	
-	# Try downloading the runtime with error handling
-	if ! _fetch "${RUNTIME_URL}" "runtime-${APPIMAGE_ARCH}"; then
-		echo "Failed to download from continuous release, trying stable release..."
-		RUNTIME_URL_STABLE="https://github.com/AppImage/type2-runtime/releases/latest/download/runtime-${APPIMAGE_ARCH}"
-		if ! _fetch "${RUNTIME_URL_STABLE}" "runtime-${APPIMAGE_ARCH}"; then
-			echo "Warning: Failed to download runtime file. AppImage generation may fail."
-			echo "You may need to manually download the runtime from:"
-			echo "https://github.com/AppImage/type2-runtime/releases"
-		fi
+	# Use pre-downloaded runtime from Docker image if available
+	if [ -f "/opt/appimage-runtime/runtime-${APPIMAGE_ARCH}" ]; then
+		echo "✓ Using pre-downloaded runtime from Docker environment"
+		cp "/opt/appimage-runtime/runtime-${APPIMAGE_ARCH}" "runtime-${APPIMAGE_ARCH}"
+		chmod +x "runtime-${APPIMAGE_ARCH}"
+		echo "✓ Runtime copied successfully"
+	else
+		echo "⚠ No pre-downloaded runtime found, linuxdeploy will download automatically"
 	fi
 	
 	chmod +x linuxdeploy.AppImage linuxdeploy-plugin-qt.AppImage
-	[ -f "runtime-${APPIMAGE_ARCH}" ] && chmod +x "runtime-${APPIMAGE_ARCH}"
 	# Use the downloaded linuxdeploy and make plugin available on PATH
 	LINUXDEPLOY_BIN="${TOOLS_DIR}/linuxdeploy.AppImage"
 	export PATH="${TOOLS_DIR}:${PATH}"
 	popd >/dev/null
 fi
 
-# Build AppImage
+# Build AppImage with comprehensive runtime support
 pushd "${APPIMAGE_DIR}" >/dev/null
+
 # For static builds, skip Qt plugin since Qt is statically linked
-PLUGIN_QT=""
 if [ "${OPENTERFACE_BUILD_STATIC}" != "ON" ]; then
-	PLUGIN_QT="--plugin qt"
+	USE_QT_PLUGIN=true
+else
+	USE_QT_PLUGIN=false
 fi
 
-# Set runtime file path if it exists - use multiple methods to ensure it's picked up
+# Set runtime file path - prioritize Docker pre-downloaded runtime
 RUNTIME_FILE="${TOOLS_DIR}/runtime-${APPIMAGE_ARCH}"
 DOCKER_RUNTIME_FILE="/opt/appimage-runtime/runtime-${APPIMAGE_ARCH}"
+LOCAL_RUNTIME_FILE="./runtime-${APPIMAGE_ARCH}"
 
+# Copy runtime to current directory where appimagetool can find it
 if [ -f "${RUNTIME_FILE}" ]; then
-	# Set multiple environment variables to ensure compatibility
-	export APPIMAGE_RUNTIME_FILE="${RUNTIME_FILE}"
-	export RUNTIME_FILE="${RUNTIME_FILE}"
-	# Unset UPDATE_INFORMATION to avoid format errors in appimagetool
-	unset UPDATE_INFORMATION
-	unset LDAI_UPDATE_INFORMATION
-	echo "✓ Using runtime file: ${RUNTIME_FILE}"
-	ls -lh "${RUNTIME_FILE}"
+	echo "✓ Copying runtime to AppImage build directory for appimagetool"
+	cp "${RUNTIME_FILE}" "${LOCAL_RUNTIME_FILE}"
+	chmod +x "${LOCAL_RUNTIME_FILE}"
 elif [ -f "${DOCKER_RUNTIME_FILE}" ]; then
-	# Copy to expected location if not already there
+	echo "✓ Copying Docker runtime to AppImage build directory for appimagetool"
+	cp "${DOCKER_RUNTIME_FILE}" "${LOCAL_RUNTIME_FILE}"
+	chmod +x "${LOCAL_RUNTIME_FILE}"
+	RUNTIME_FILE="${LOCAL_RUNTIME_FILE}"
+fi
+DOCKER_RUNTIME_FILE="/opt/appimage-runtime/runtime-${APPIMAGE_ARCH}"
+
+# Ensure we have the runtime from Docker environment
+if [ -f "${DOCKER_RUNTIME_FILE}" ] && [ ! -f "${RUNTIME_FILE}" ]; then
+	echo "✓ Copying Docker pre-downloaded runtime to tools directory"
 	cp "${DOCKER_RUNTIME_FILE}" "${RUNTIME_FILE}"
 	chmod +x "${RUNTIME_FILE}"
-	export APPIMAGE_RUNTIME_FILE="${RUNTIME_FILE}"
-	export RUNTIME_FILE="${RUNTIME_FILE}"
+fi
+
+if [ -f "${LOCAL_RUNTIME_FILE}" ]; then
+	# Set multiple environment variables that appimagetool might recognize
+	export APPIMAGE_RUNTIME_FILE="${LOCAL_RUNTIME_FILE}"
+	export RUNTIME_FILE="${LOCAL_RUNTIME_FILE}"
+	export APPIMAGETOOL_RUNTIME="${LOCAL_RUNTIME_FILE}"
+	export RUNTIME="${LOCAL_RUNTIME_FILE}"
 	# Unset UPDATE_INFORMATION to avoid format errors in appimagetool
 	unset UPDATE_INFORMATION
 	unset LDAI_UPDATE_INFORMATION
-	echo "✓ Using pre-installed runtime (copied to tools): ${RUNTIME_FILE}"
-	ls -lh "${RUNTIME_FILE}"
+	echo "✓ Using local runtime file: ${LOCAL_RUNTIME_FILE}"
+	ls -lh "${LOCAL_RUNTIME_FILE}"
+elif [ -f "${DOCKER_RUNTIME_FILE}" ]; then
+	# Use Docker runtime directly if tools copy doesn't exist
+	echo "✓ Using Docker runtime directly: ${DOCKER_RUNTIME_FILE}"
+	export APPIMAGE_RUNTIME_FILE="${DOCKER_RUNTIME_FILE}"
+	export RUNTIME_FILE="${DOCKER_RUNTIME_FILE}"
+	export APPIMAGETOOL_RUNTIME="${DOCKER_RUNTIME_FILE}"
+	export RUNTIME="${DOCKER_RUNTIME_FILE}"
+	unset UPDATE_INFORMATION
+	unset LDAI_UPDATE_INFORMATION
+	ls -lh "${DOCKER_RUNTIME_FILE}"
 else
-	echo "⚠ Warning: No custom runtime file found, linuxdeploy will download it automatically"
+	echo "⚠ Warning: No runtime file available, linuxdeploy will download it automatically"
 	unset APPIMAGE_RUNTIME_FILE
 	unset RUNTIME_FILE
+	unset APPIMAGETOOL_RUNTIME
+	unset RUNTIME
 	unset UPDATE_INFORMATION
 	unset LDAI_UPDATE_INFORMATION
 fi
@@ -290,30 +483,71 @@ echo "=== AppImage Build Environment ==="
 echo "APPIMAGE_EXTRACT_AND_RUN=${APPIMAGE_EXTRACT_AND_RUN}"
 echo "APPIMAGE_RUNTIME_FILE=${APPIMAGE_RUNTIME_FILE:-<not set>}"
 echo "RUNTIME_FILE=${RUNTIME_FILE:-<not set>}"
+echo "APPIMAGETOOL_RUNTIME=${APPIMAGETOOL_RUNTIME:-<not set>}"
+echo "RUNTIME=${RUNTIME:-<not set>}"
 echo "UPDATE_INFORMATION=${UPDATE_INFORMATION:-<not set>}"
 echo "LINUXDEPLOY_BIN=${LINUXDEPLOY_BIN}"
 echo "================================="
 
-# Try multiple approaches to pass the runtime file
-if [ -n "${APPIMAGE_RUNTIME_FILE}" ]; then
-	# Set additional environment variables that different versions of appimagetool might use
-	export RUNTIME="${APPIMAGE_RUNTIME_FILE}"
-	export APPIMAGE_RUNTIME="${APPIMAGE_RUNTIME_FILE}"
-	export APPIMAGETOOL_RUNTIME="${APPIMAGE_RUNTIME_FILE}"
-	
-	echo "Setting multiple runtime environment variables:"
-	echo "  RUNTIME=${RUNTIME}"
-	echo "  APPIMAGE_RUNTIME=${APPIMAGE_RUNTIME}"
-	echo "  APPIMAGETOOL_RUNTIME=${APPIMAGETOOL_RUNTIME}"
+# Debug: Show the actual linuxdeploy command being executed
+echo "=== LinuxDeploy Command Debug ==="
+echo "LINUXDEPLOY_BIN: ${LINUXDEPLOY_BIN}"
+echo "APPDIR: ${APPDIR}"
+echo "DESKTOP_OUT: ${DESKTOP_OUT}"
+echo "ICON_SRC: ${ICON_SRC}"
+echo "USE_QT_PLUGIN: ${USE_QT_PLUGIN}"
+echo "================================"
+
+# Build the command with proper argument handling
+LINUXDEPLOY_ARGS=(
+	"--appdir" "${APPDIR}"
+	"--executable" "${APPDIR}/usr/bin/openterfaceQT"
+	"--desktop-file" "${DESKTOP_OUT}"
+)
+
+if [ -n "${ICON_SRC}" ]; then
+	LINUXDEPLOY_ARGS+=("--icon-file" "${ICON_SRC}")
 fi
 
-"${LINUXDEPLOY_BIN}" \
-	--appdir "${APPDIR}" \
-	--executable "${APPDIR}/usr/bin/openterfaceQT" \
-	--desktop-file "${DESKTOP_OUT}" \
-	${ICON_SRC:+--icon-file "${ICON_SRC}"} \
-	${PLUGIN_QT} \
-	--output appimage
+if [ "${USE_QT_PLUGIN}" = "true" ]; then
+	LINUXDEPLOY_ARGS+=("--plugin" "qt")
+fi
+
+LINUXDEPLOY_ARGS+=("--output" "appimage")
+
+echo "Final command: ${LINUXDEPLOY_BIN}" "${LINUXDEPLOY_ARGS[@]}"
+
+# Try running linuxdeploy without the appimage output plugin first
+LINUXDEPLOY_ARGS_NO_OUTPUT=(
+	"--appdir" "${APPDIR}"
+	"--executable" "${APPDIR}/usr/bin/openterfaceQT"
+	"--desktop-file" "${DESKTOP_OUT}"
+)
+
+if [ -n "${ICON_SRC}" ]; then
+	LINUXDEPLOY_ARGS_NO_OUTPUT+=("--icon-file" "${ICON_SRC}")
+fi
+
+if [ "${USE_QT_PLUGIN}" = "true" ]; then
+	LINUXDEPLOY_ARGS_NO_OUTPUT+=("--plugin" "qt")
+fi
+
+echo "Running linuxdeploy without output plugin..."
+"${LINUXDEPLOY_BIN}" "${LINUXDEPLOY_ARGS_NO_OUTPUT[@]}"
+
+# Then use appimagetool directly with explicit runtime file
+echo "Running appimagetool with explicit runtime file..."
+if command -v appimagetool >/dev/null 2>&1; then
+	if [ -f "${RUNTIME_FILE}" ]; then
+		appimagetool --runtime-file "${RUNTIME_FILE}" "${APPDIR}"
+	else
+		echo "Warning: Runtime file not found, running appimagetool without runtime file"
+		appimagetool "${APPDIR}"
+	fi
+else
+	echo "appimagetool not found, trying linuxdeploy with output plugin..."
+	"${LINUXDEPLOY_BIN}" "${LINUXDEPLOY_ARGS[@]}"
+fi
 
 # Normalize output name
 APPIMAGE_FILENAME="openterfaceQT_${VERSION}_${APPIMAGE_ARCH}.AppImage"

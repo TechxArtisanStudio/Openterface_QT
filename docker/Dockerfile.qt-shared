@@ -43,6 +43,10 @@ RUN apt-get install -y software-properties-common && \
         qt6-tools-dev-tools \
         qt6-l10n-tools \
         qt6-multimedia-dev \
+        qt6-qpa-plugins \
+        libqt6multimedia6-plugins \
+        qt6-multimedia-dev-tools \
+        gstreamer1.0-qt6 \
         libqt6serialport6-dev \
         libqt6svg6-dev \
         qt6-declarative-dev \
@@ -170,6 +174,40 @@ RUN mkdir -p /opt/verify && \
     echo '        echo "✗ Qt${module} shared library NOT found"' >> /opt/verify/verify-qt-shared.sh && \
     echo '    fi' >> /opt/verify/verify-qt-shared.sh && \
     echo 'done' >> /opt/verify/verify-qt-shared.sh && \
+    echo 'echo -e "\nChecking Qt6 multimedia plugins:"' >> /opt/verify/verify-qt-shared.sh && \
+    echo 'MULTIMEDIA_PLUGIN_DIR="${QT_LIB_ARCH_PATH}/qt6/plugins"' >> /opt/verify/verify-qt-shared.sh && \
+    echo 'if [ -d "${MULTIMEDIA_PLUGIN_DIR}" ]; then' >> /opt/verify/verify-qt-shared.sh && \
+    echo '    echo "Qt6 plugins directory found at: ${MULTIMEDIA_PLUGIN_DIR}"' >> /opt/verify/verify-qt-shared.sh && \
+    echo '    if [ -d "${MULTIMEDIA_PLUGIN_DIR}/multimedia" ]; then' >> /opt/verify/verify-qt-shared.sh && \
+    echo '        echo "✓ multimedia plugin directory found"' >> /opt/verify/verify-qt-shared.sh && \
+    echo '        ls -la "${MULTIMEDIA_PLUGIN_DIR}/multimedia/" 2>/dev/null | head -5' >> /opt/verify/verify-qt-shared.sh && \
+    echo '    else' >> /opt/verify/verify-qt-shared.sh && \
+    echo '        echo "⚠️  multimedia plugin directory not found"' >> /opt/verify/verify-qt-shared.sh && \
+    echo '    fi' >> /opt/verify/verify-qt-shared.sh && \
+    echo '    if [ -d "${MULTIMEDIA_PLUGIN_DIR}/mediaservice" ]; then' >> /opt/verify/verify-qt-shared.sh && \
+    echo '        echo "✓ mediaservice plugin directory found"' >> /opt/verify/verify-qt-shared.sh && \
+    echo '        ls -la "${MULTIMEDIA_PLUGIN_DIR}/mediaservice/" 2>/dev/null | head -5' >> /opt/verify/verify-qt-shared.sh && \
+    echo '    else' >> /opt/verify/verify-qt-shared.sh && \
+    echo '        echo "⚠️  mediaservice plugin directory not found"' >> /opt/verify/verify-qt-shared.sh && \
+    echo '    fi' >> /opt/verify/verify-qt-shared.sh && \
+    echo '    # Check for GStreamer Qt6 plugins' >> /opt/verify/verify-qt-shared.sh && \
+    echo '    find "${MULTIMEDIA_PLUGIN_DIR}" -name "*gstreamer*" -o -name "*multimedia*" -o -name "*media*" 2>/dev/null | while read plugin; do' >> /opt/verify/verify-qt-shared.sh && \
+    echo '        echo "✓ Found multimedia plugin: $(basename $plugin)"' >> /opt/verify/verify-qt-shared.sh && \
+    echo '    done' >> /opt/verify/verify-qt-shared.sh && \
+    echo 'else' >> /opt/verify/verify-qt-shared.sh && \
+    echo '    echo "⚠️  Qt6 plugins directory not found at ${MULTIMEDIA_PLUGIN_DIR}"' >> /opt/verify/verify-qt-shared.sh && \
+    echo 'fi' >> /opt/verify/verify-qt-shared.sh && \
+    echo 'echo -e "\nChecking GStreamer Qt6 plugin availability:"' >> /opt/verify/verify-qt-shared.sh && \
+    echo 'if dpkg -l | grep -q gstreamer1.0-qt6; then' >> /opt/verify/verify-qt-shared.sh && \
+    echo '    echo "✓ gstreamer1.0-qt6 package is installed"' >> /opt/verify/verify-qt-shared.sh && \
+    echo 'else' >> /opt/verify/verify-qt-shared.sh && \
+    echo '    echo "⚠️  gstreamer1.0-qt6 package not found"' >> /opt/verify/verify-qt-shared.sh && \
+    echo 'fi' >> /opt/verify/verify-qt-shared.sh && \
+    echo 'if dpkg -l | grep -q libqt6multimedia6-plugins; then' >> /opt/verify/verify-qt-shared.sh && \
+    echo '    echo "✓ libqt6multimedia6-plugins package is installed"' >> /opt/verify/verify-qt-shared.sh && \
+    echo 'else' >> /opt/verify/verify-qt-shared.sh && \
+    echo '    echo "⚠️  libqt6multimedia6-plugins package not found"' >> /opt/verify/verify-qt-shared.sh && \
+    echo 'fi' >> /opt/verify/verify-qt-shared.sh && \
     echo 'echo -e "\nChecking Wayland platform plugin:"' >> /opt/verify/verify-qt-shared.sh && \
     echo 'WAYLAND_PLUGIN_DIR="${QT_LIB_ARCH_PATH}/qt6/plugins/platforms"' >> /opt/verify/verify-qt-shared.sh && \
     echo 'if [ -f "${WAYLAND_PLUGIN_DIR}/libqwayland-egl.so" ] || [ -f "${WAYLAND_PLUGIN_DIR}/libqwayland-generic.so" ]; then' >> /opt/verify/verify-qt-shared.sh && \
