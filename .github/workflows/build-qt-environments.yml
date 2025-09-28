@@ -31,7 +31,7 @@ on:
         type: choice
         options:
           - '22.04'
-          - '24.04'
+          - '22.04'
       force_rebuild:
         description: 'Force rebuild even if image exists'
         required: false
@@ -136,7 +136,7 @@ jobs:
           context: .
           file: ./docker/Dockerfile.qt-setup
           build-args: |
-            UBUNTU_VERSION=${{ github.event.inputs.ubuntu_version || '24.04' }}
+            UBUNTU_VERSION=${{ github.event.inputs.ubuntu_version || '22.04' }}
             TARGETARCH=amd64
           push: ${{ github.event_name != 'pull_request' && (github.event.inputs.push_to_registry == 'true' || github.event.inputs.push_to_registry == '') }}
           tags: ${{ steps.meta.outputs.tags }}
@@ -195,7 +195,7 @@ jobs:
             type=ref,event=pr,suffix=-amd64
             type=sha,suffix=-amd64
             type=raw,value=latest-amd64
-            type=raw,value=ubuntu-${{ github.event.inputs.ubuntu_version || '24.04' }}-amd64
+            type=raw,value=ubuntu-${{ github.event.inputs.ubuntu_version || '22.04' }}-amd64
 
       - name: Build and push FFmpeg image
         id: build
@@ -204,8 +204,8 @@ jobs:
           context: .
           file: ./docker/Dockerfile.qt-ffmpeg
           build-args: |
-            BASE_IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-setup:ubuntu-${{ github.event.inputs.ubuntu_version || '24.04' }}-amd64
-            UBUNTU_VERSION=${{ github.event.inputs.ubuntu_version || '24.04' }}
+            BASE_IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-setup:ubuntu-${{ github.event.inputs.ubuntu_version || '22.04' }}-amd64
+            UBUNTU_VERSION=${{ github.event.inputs.ubuntu_version || '22.04' }}
             TARGETARCH=amd64
           push: ${{ github.event_name != 'pull_request' && (github.event.inputs.push_to_registry == 'true' || github.event.inputs.push_to_registry == '') }}
           tags: ${{ steps.meta.outputs.tags }}
@@ -264,7 +264,7 @@ jobs:
             type=ref,event=pr,suffix=-amd64
             type=sha,suffix=-amd64
             type=raw,value=latest-amd64
-            type=raw,value=ubuntu-${{ github.event.inputs.ubuntu_version || '24.04' }}-amd64
+            type=raw,value=ubuntu-${{ github.event.inputs.ubuntu_version || '22.04' }}-amd64
 
       - name: Build and push Qt Base QTML image
         id: build
@@ -273,8 +273,8 @@ jobs:
           context: .
           file: ./docker/Dockerfile.qt-base-qtml
           build-args: |
-            BASE_IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-gstreamer:ubuntu-${{ github.event.inputs.ubuntu_version || '24.04' }}-amd64
-            UBUNTU_VERSION=${{ github.event.inputs.ubuntu_version || '24.04' }}
+            BASE_IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-gstreamer:ubuntu-${{ github.event.inputs.ubuntu_version || '22.04' }}-amd64
+            UBUNTU_VERSION=${{ github.event.inputs.ubuntu_version || '22.04' }}
             TARGETARCH=amd64
           push: ${{ github.event_name != 'pull_request' && (github.event.inputs.push_to_registry == 'true' || github.event.inputs.push_to_registry == '') }}
           tags: ${{ steps.meta.outputs.tags }}
@@ -333,7 +333,7 @@ jobs:
             type=ref,event=pr,suffix=-amd64
             type=sha,suffix=-amd64
             type=raw,value=latest-amd64
-            type=raw,value=ubuntu-${{ github.event.inputs.ubuntu_version || '24.04' }}-amd64
+            type=raw,value=ubuntu-${{ github.event.inputs.ubuntu_version || '22.04' }}-amd64
 
       - name: Build and push GStreamer image
         id: build
@@ -342,8 +342,8 @@ jobs:
           context: .
           file: ./docker/Dockerfile.qt-gstreamer
           build-args: |
-            BASE_IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-ffmpeg:ubuntu-${{ github.event.inputs.ubuntu_version || '24.04' }}-amd64
-            UBUNTU_VERSION=${{ github.event.inputs.ubuntu_version || '24.04' }}
+            BASE_IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-ffmpeg:ubuntu-${{ github.event.inputs.ubuntu_version || '22.04' }}-amd64
+            UBUNTU_VERSION=${{ github.event.inputs.ubuntu_version || '22.04' }}
             TARGETARCH=amd64
           push: ${{ github.event_name != 'pull_request' && (github.event.inputs.push_to_registry == 'true' || github.event.inputs.push_to_registry == '') }}
           tags: ${{ steps.meta.outputs.tags }}
@@ -402,7 +402,7 @@ jobs:
             type=ref,event=pr,suffix=-amd64
             type=sha,suffix=-amd64
             type=raw,value=latest-amd64
-            type=raw,value=ubuntu-${{ github.event.inputs.ubuntu_version || '24.04' }}-amd64
+            type=raw,value=ubuntu-${{ github.event.inputs.ubuntu_version || '22.04' }}-amd64
 
       - name: Build and push Qt Declarative image
         id: build
@@ -411,8 +411,8 @@ jobs:
           context: .
           file: ./docker/Dockerfile.qt-declarative
           build-args: |
-            BASE_IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-qt-base-qtml:ubuntu-${{ github.event.inputs.ubuntu_version || '24.04' }}-amd64
-            UBUNTU_VERSION=${{ github.event.inputs.ubuntu_version || '24.04' }}
+            BASE_IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-qt-base-qtml:ubuntu-${{ github.event.inputs.ubuntu_version || '22.04' }}-amd64
+            UBUNTU_VERSION=${{ github.event.inputs.ubuntu_version || '22.04' }}
             TARGETARCH=amd64
           push: ${{ github.event_name != 'pull_request' && (github.event.inputs.push_to_registry == 'true' || github.event.inputs.push_to_registry == '') }}
           tags: ${{ steps.meta.outputs.tags }}
@@ -471,7 +471,7 @@ jobs:
             type=ref,event=pr,suffix=-amd64
             type=sha,suffix=-amd64
             type=raw,value=latest-amd64
-            type=raw,value=ubuntu-${{ github.event.inputs.ubuntu_version || '24.04' }}-amd64
+            type=raw,value=ubuntu-${{ github.event.inputs.ubuntu_version || '22.04' }}-amd64
 
       - name: Build and push Qt Complete image
         id: build
@@ -480,8 +480,8 @@ jobs:
           context: .
           file: ./docker/Dockerfile.qt-complete
           build-args: |
-            BASE_IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-qt-declarative:ubuntu-${{ github.event.inputs.ubuntu_version || '24.04' }}-amd64
-            UBUNTU_VERSION=${{ github.event.inputs.ubuntu_version || '24.04' }}
+            BASE_IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-qt-declarative:ubuntu-${{ github.event.inputs.ubuntu_version || '22.04' }}-amd64
+            UBUNTU_VERSION=${{ github.event.inputs.ubuntu_version || '22.04' }}
             TARGETARCH=amd64
           push: ${{ github.event_name != 'pull_request' && (github.event.inputs.push_to_registry == 'true' || github.event.inputs.push_to_registry == '') }}
           tags: ${{ steps.meta.outputs.tags }}
@@ -492,7 +492,7 @@ jobs:
 
       - name: Test Qt Environment
         run: |
-          docker run --rm ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-complete:ubuntu-${{ github.event.inputs.ubuntu_version || '24.04' }}-amd64 \
+          docker run --rm ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-complete:ubuntu-${{ github.event.inputs.ubuntu_version || '22.04' }}-amd64 \
             /opt/Qt6/bin/verify-qt-installation.sh
 
   # Summary job that shows which images are available
@@ -526,13 +526,13 @@ jobs:
 
             # Qt Complete (static) — reflect job result
             if [ "${{ needs.build-complete.result }}" = "success" ]; then
-            echo "| Qt Complete | static | ✅ Success | \`${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-complete:ubuntu-${{ github.event.inputs.ubuntu_version || '24.04' }}-amd64\` |" >> $GITHUB_STEP_SUMMARY
+            echo "| Qt Complete | static | ✅ Success | \`${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-complete:ubuntu-${{ github.event.inputs.ubuntu_version || '22.04' }}-amd64\` |" >> $GITHUB_STEP_SUMMARY
             else
             echo "| Qt Complete | static | ❌ Failed/Skipped | - |" >> $GITHUB_STEP_SUMMARY
             fi
 
             # Qt Shared — check if shared image is present in registry
-            IMAGE_TAG="ubuntu-${{ github.event.inputs.ubuntu_version || '24.04' }}-amd64"
+            IMAGE_TAG="ubuntu-${{ github.event.inputs.ubuntu_version || '22.04' }}-amd64"
             if docker manifest inspect ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-shared:$IMAGE_TAG > /dev/null 2>&1; then
             echo "| Qt Shared | shared | ✅ Available | \`${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-shared:$IMAGE_TAG\` |" >> $GITHUB_STEP_SUMMARY
             else
@@ -545,13 +545,13 @@ jobs:
           echo "**Shared Build:**" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
           echo "docker run --rm -v \$(pwd):/workspace/src -w /workspace/src \\" >> $GITHUB_STEP_SUMMARY
-          echo "  ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-shared:ubuntu-${{ github.event.inputs.ubuntu_version || '24.04' }}-amd64 \\" >> $GITHUB_STEP_SUMMARY
+          echo "  ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-shared:ubuntu-${{ github.event.inputs.ubuntu_version || '22.04' }}-amd64 \\" >> $GITHUB_STEP_SUMMARY
           echo "  bash -c 'mkdir build && cd build && cmake -DBUILD_SHARED_LIBS=ON .. && make -j\$(nproc)'" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Static Build:**" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
           echo "docker run --rm -v \$(pwd):/workspace/src -w /workspace/src \\" >> $GITHUB_STEP_SUMMARY
-          echo "  ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-complete:ubuntu-${{ github.event.inputs.ubuntu_version || '24.04' }}-amd64 \\" >> $GITHUB_STEP_SUMMARY
+          echo "  ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-complete:ubuntu-${{ github.event.inputs.ubuntu_version || '22.04' }}-amd64 \\" >> $GITHUB_STEP_SUMMARY
           echo "  bash -c 'mkdir build && cd build && cmake -DCMAKE_PREFIX_PATH=/opt/Qt6 -DBUILD_SHARED_LIBS=OFF .. && make -j\$(nproc)'" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
