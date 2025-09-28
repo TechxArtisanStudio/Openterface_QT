@@ -732,58 +732,88 @@ QPair<QString, QString> WindowsDeviceManager::findCameraAudioByDeviceInfo(const 
     
     qCDebug(log_device_windows) << "=== Finding camera/audio devices for port chain:" << deviceInfo.portChain << "===";
     qCDebug(log_device_windows) << "Target device instance ID:" << deviceInfo.deviceInstanceId;
+    qCDebug(log_device_windows) << "Camera device ID to find:" << deviceInfo.cameraDeviceId;
+    qCDebug(log_device_windows) << "Audio device ID to find:" << deviceInfo.audioDeviceId;
     
-    // Find camera devices with parent device verification
-    QList<QVariantMap> cameras = enumerateDevicesByClassWithParentInfo(GUID_DEVCLASS_CAMERA);
-    for (const QVariantMap& camera : cameras) {
-        QString cameraDeviceId = camera.value("deviceId").toString();
-        QString parentDeviceId = camera.value("parentDeviceId").toString();
-        
-        qCDebug(log_device_windows) << "  Checking camera device:" << cameraDeviceId;
-        qCDebug(log_device_windows) << "    Parent device ID:" << parentDeviceId;
-        
-        // Check if this camera matches our hardware identifiers
-        if (cameraDeviceId.contains("345F", Qt::CaseInsensitive) ||
-            cameraDeviceId.contains("534D", Qt::CaseInsensitive)) {
+    // Enhanced camera finding: try multiple approaches
+    if (!deviceInfo.cameraDeviceId.isEmpty()) {
+        // Approach 1: Direct device ID to path conversion
+        cameraPath = findCameraDevicePathByDeviceId(deviceInfo.cameraDeviceId);
+        if (!cameraPath.isEmpty()) {
+            qCDebug(log_device_windows) << "    ✓ Found camera via direct device ID lookup:" << cameraPath;
+        }
+    }
+    
+    // Approach 2: Find camera devices with parent device verification (fallback)
+    if (cameraPath.isEmpty()) {
+        QList<QVariantMap> cameras = enumerateDevicesByClassWithParentInfo(GUID_DEVCLASS_CAMERA);
+        for (const QVariantMap& camera : cameras) {
+            QString cameraDeviceId = camera.value("deviceId").toString();
+            QString parentDeviceId = camera.value("parentDeviceId").toString();
             
-            // Verify the parent device is associated with our target device
-            if (isDeviceAssociatedWithPortChain(parentDeviceId, deviceInfo.deviceInstanceId, deviceInfo.portChain)) {
-                cameraPath = camera.value("devicePath").toString();
-                qCDebug(log_device_windows) << "    ✓ Found matching camera device:" << cameraPath;
-                qCDebug(log_device_windows) << "      Parent verification passed for port chain:" << deviceInfo.portChain;
-                break;
-            } else {
-                qCDebug(log_device_windows) << "    ✗ Camera device parent does not match target port chain";
+            qCDebug(log_device_windows) << "  Checking camera device:" << cameraDeviceId;
+            qCDebug(log_device_windows) << "    Parent device ID:" << parentDeviceId;
+            
+            // Check if this camera matches our hardware identifiers
+            if (cameraDeviceId.contains("345F", Qt::CaseInsensitive) ||
+                cameraDeviceId.contains("534D", Qt::CaseInsensitive)) {
+                
+                // Enhanced verification: try multiple association methods
+                if (isDeviceAssociatedWithPortChain(parentDeviceId, deviceInfo.deviceInstanceId, deviceInfo.portChain) ||
+                    isDeviceRelatedToPortChain(cameraDeviceId, deviceInfo.portChain) ||
+                    (!deviceInfo.cameraDeviceId.isEmpty() && cameraDeviceId.contains(deviceInfo.cameraDeviceId))) {
+                    cameraPath = camera.value("devicePath").toString();
+                    qCDebug(log_device_windows) << "    ✓ Found matching camera device via enhanced verification:" << cameraPath;
+                    qCDebug(log_device_windows) << "      Association verified for port chain:" << deviceInfo.portChain;
+                    break;
+                } else {
+                    qCDebug(log_device_windows) << "    ✗ Camera device verification failed - trying next";
+                }
             }
         }
     }
     
-    // Find audio devices with parent device verification
-    QList<QVariantMap> audioDevices = enumerateDevicesByClassWithParentInfo(GUID_DEVCLASS_MEDIA);
-    for (const QVariantMap& audio : audioDevices) {
-        QString audioDeviceId = audio.value("deviceId").toString();
-        QString parentDeviceId = audio.value("parentDeviceId").toString();
-        
-        qCDebug(log_device_windows) << "  Checking audio device:" << audioDeviceId;
-        qCDebug(log_device_windows) << "    Parent device ID:" << parentDeviceId;
-        
-        // Check if this audio device matches our hardware identifiers
-        if (audioDeviceId.contains("345F", Qt::CaseInsensitive) ||
-            audioDeviceId.contains("534D", Qt::CaseInsensitive)) {
+    // Enhanced audio finding: try multiple approaches
+    if (!deviceInfo.audioDeviceId.isEmpty()) {
+        // Approach 1: Direct device ID to path conversion
+        audioPath = findAudioDevicePathByDeviceId(deviceInfo.audioDeviceId);
+        if (!audioPath.isEmpty()) {
+            qCDebug(log_device_windows) << "    ✓ Found audio via direct device ID lookup:" << audioPath;
+        }
+    }
+    
+    // Approach 2: Find audio devices with parent device verification (fallback)
+    if (audioPath.isEmpty()) {
+        QList<QVariantMap> audioDevices = enumerateDevicesByClassWithParentInfo(GUID_DEVCLASS_MEDIA);
+        for (const QVariantMap& audio : audioDevices) {
+            QString audioDeviceId = audio.value("deviceId").toString();
+            QString parentDeviceId = audio.value("parentDeviceId").toString();
             
-            // Verify the parent device is associated with our target device
-            if (isDeviceAssociatedWithPortChain(parentDeviceId, deviceInfo.deviceInstanceId, deviceInfo.portChain)) {
-                audioPath = audio.value("devicePath").toString();
-                qCDebug(log_device_windows) << "    ✓ Found matching audio device:" << audioPath;
-                qCDebug(log_device_windows) << "      Parent verification passed for port chain:" << deviceInfo.portChain;
-                break;
-            } else {
-                qCDebug(log_device_windows) << "    ✗ Audio device parent does not match target port chain";
+            qCDebug(log_device_windows) << "  Checking audio device:" << audioDeviceId;
+            qCDebug(log_device_windows) << "    Parent device ID:" << parentDeviceId;
+            
+            // Check if this audio device matches our hardware identifiers
+            if (audioDeviceId.contains("345F", Qt::CaseInsensitive) ||
+                audioDeviceId.contains("534D", Qt::CaseInsensitive)) {
+                
+                // Enhanced verification: try multiple association methods
+                if (isDeviceAssociatedWithPortChain(parentDeviceId, deviceInfo.deviceInstanceId, deviceInfo.portChain) ||
+                    isDeviceRelatedToPortChain(audioDeviceId, deviceInfo.portChain) ||
+                    (!deviceInfo.audioDeviceId.isEmpty() && audioDeviceId.contains(deviceInfo.audioDeviceId))) {
+                    audioPath = audio.value("devicePath").toString();
+                    qCDebug(log_device_windows) << "    ✓ Found matching audio device via enhanced verification:" << audioPath;
+                    qCDebug(log_device_windows) << "      Association verified for port chain:" << deviceInfo.portChain;
+                    break;
+                } else {
+                    qCDebug(log_device_windows) << "    ✗ Audio device verification failed - trying next";
+                }
             }
         }
     }
     
     qCDebug(log_device_windows) << "=== Camera/audio search complete ===";
+    qCDebug(log_device_windows) << "Final camera path:" << cameraPath;
+    qCDebug(log_device_windows) << "Final audio path:" << audioPath;
     return qMakePair(cameraPath, audioPath);
 }
 
@@ -2646,27 +2676,40 @@ bool WindowsDeviceManager::isSerialAssociatedWithIntegratedDevice(const USBDevic
     qCDebug(log_device_windows) << "  Serial port chain:" << serialDevice.portChain;
     qCDebug(log_device_windows) << "  Integrated port chain:" << integratedDevice.portChain;
     
-    // Based on the USB tree info:
-    // Serial: 1A86:FE0C at port chain 1-2.2
-    // Integrated: 345F:2132 at port chain 1-18 with CompanionPortChain: 1-2
+    // Multiple association methods for robustness
     
-    // The CompanionPortChain of the integrated device should match the parent of the serial device
-    // Serial is at 1-2.2, its parent is 1-2
-    // Integrated has CompanionPortChain: 1-2
-    // So they should match
-    
-    // Extract the parent port chain from the serial device port chain
+    // Method 1: CompanionPortChain matching (primary method)
     QString serialParentChain = extractParentPortChain(serialDevice.portChain);
-    qCDebug(log_device_windows) << "  Serial parent chain:" << serialParentChain;
-    
-    // Get the CompanionPortChain information for the integrated device
     QString integratedCompanionChain = getCompanionPortChainFromDevice(integratedDevice);
+    qCDebug(log_device_windows) << "  Serial parent chain:" << serialParentChain;
     qCDebug(log_device_windows) << "  Integrated CompanionPortChain:" << integratedCompanionChain;
     
-    bool isAssociated = (serialParentChain == integratedCompanionChain) && !serialParentChain.isEmpty();
-    qCDebug(log_device_windows) << "  Association result:" << (isAssociated ? "✓ Associated" : "✗ Not associated");
+    if (!serialParentChain.isEmpty() && !integratedCompanionChain.isEmpty() && 
+        serialParentChain == integratedCompanionChain) {
+        qCDebug(log_device_windows) << "  ✓ Association confirmed via CompanionPortChain matching";
+        return true;
+    }
     
-    return isAssociated;
+    // Method 2: Hub hierarchy analysis (fallback method)
+    if (isDevicesOnSameUSBHub(serialDevice, integratedDevice)) {
+        qCDebug(log_device_windows) << "  ✓ Association confirmed via USB hub analysis";
+        return true;
+    }
+    
+    // Method 3: Proximity-based matching (for devices with similar timing)
+    if (areDevicesProximate(serialDevice, integratedDevice)) {
+        qCDebug(log_device_windows) << "  ✓ Association confirmed via proximity matching";
+        return true;
+    }
+    
+    // Method 4: Pattern-based matching for known USB 3.0 configurations
+    if (matchesKnownUSB3Pattern(serialDevice, integratedDevice)) {
+        qCDebug(log_device_windows) << "  ✓ Association confirmed via known USB 3.0 pattern";
+        return true;
+    }
+    
+    qCDebug(log_device_windows) << "  ✗ No association found between devices";
+    return false;
 }
 
 QString WindowsDeviceManager::extractParentPortChain(const QString& portChain)
@@ -2682,11 +2725,7 @@ QString WindowsDeviceManager::extractParentPortChain(const QString& portChain)
 QString WindowsDeviceManager::getCompanionPortChainFromDevice(const USBDeviceData& integratedDevice)
 {
     // This would need to query the Windows USB API to get CompanionPortChain information
-    // For now, we'll use a simplified approach based on the port chain relationship
-    
-    // From the USB tree, we know that:
-    // Integrated device at 1-18 has CompanionPortChain: 1-2
-    // We can try to extract this from the device properties or use the pattern
+    // For now, we'll use a enhanced approach based on the port chain relationship and USB topology
     
     DWORD devInst = getDeviceInstanceFromId(integratedDevice.deviceInstanceId);
     if (devInst == 0) {
@@ -2698,22 +2737,19 @@ QString WindowsDeviceManager::getCompanionPortChainFromDevice(const USBDeviceDat
     QString companionPortChain = getDevicePropertyByName(devInst, "CompanionPortChain");
     
     if (companionPortChain.isEmpty()) {
-        // Fallback: try to infer from port chain pattern
-        // This is based on typical USB 3.0 hub relationships
-        QString portChain = integratedDevice.portChain;
-        if (portChain.contains('-')) {
-            QStringList parts = portChain.split('-');
-            if (parts.size() >= 2) {
-                // Try to map high port numbers to lower companion ports
-                // This is device-specific and would need proper USB property queries
-                QString hubPart = parts[0];
-                QString portPart = parts[1];
-                
-                // Simple mapping based on common USB 3.0 patterns
-                if (portPart == "18") {
-                    companionPortChain = hubPart + "-2"; // Based on your USB tree info
-                }
-            }
+        qCDebug(log_device_windows) << "CompanionPortChain property not available, using enhanced fallback methods";
+        
+        // Enhanced fallback method 1: Parent device analysis
+        companionPortChain = analyzeParentDeviceForCompanionChain(integratedDevice);
+        
+        if (companionPortChain.isEmpty()) {
+            // Enhanced fallback method 2: Pattern-based inference using USB topology knowledge
+            companionPortChain = inferCompanionChainFromUSBTopology(integratedDevice);
+        }
+        
+        if (companionPortChain.isEmpty()) {
+            // Enhanced fallback method 3: Use improved port chain pattern matching
+            companionPortChain = inferCompanionChainFromPortPattern(integratedDevice);
         }
     }
     
@@ -2771,6 +2807,407 @@ void WindowsDeviceManager::processIntegratedDeviceInterfaces(DeviceInfo& deviceI
             qCDebug(log_device_windows) << "  ✓ Found audio device in integrated device:" << deviceId;
         }
     }
+}
+
+bool WindowsDeviceManager::isDevicesOnSameUSBHub(const USBDeviceData& serialDevice, const USBDeviceData& integratedDevice)
+{
+    qCDebug(log_device_windows) << "Checking if devices are on the same USB hub";
+    
+    // Get the USB hub port chain for both devices
+    QString serialHubChain = getUSBHubPortChain(serialDevice);
+    QString integratedHubChain = getUSBHubPortChain(integratedDevice);
+    
+    qCDebug(log_device_windows) << "  Serial hub chain:" << serialHubChain;
+    qCDebug(log_device_windows) << "  Integrated hub chain:" << integratedHubChain;
+    
+    // If both devices are connected to the same USB hub (or related hubs), they are likely associated
+    if (!serialHubChain.isEmpty() && !integratedHubChain.isEmpty()) {
+        // Check for exact hub match
+        if (serialHubChain == integratedHubChain) {
+            qCDebug(log_device_windows) << "    ✓ Devices on same USB hub";
+            return true;
+        }
+        
+        // Check for related hubs (USB 3.0 often has USB 2.0/3.0 controller pairs)
+        if (arePortChainsRelated(serialHubChain, integratedHubChain)) {
+            qCDebug(log_device_windows) << "    ✓ Devices on related USB hubs";
+            return true;
+        }
+    }
+    
+    qCDebug(log_device_windows) << "    ✗ Devices not on same/related USB hubs";
+    return false;
+}
+
+bool WindowsDeviceManager::areDevicesProximate(const USBDeviceData& serialDevice, const USBDeviceData& integratedDevice)
+{
+    qCDebug(log_device_windows) << "Checking device proximity based on port chain patterns";
+    
+    // Calculate "distance" between port chains to determine if devices are physically close
+    int distance = calculatePortChainDistance(serialDevice.portChain, integratedDevice.portChain);
+    qCDebug(log_device_windows) << "  Port chain distance:" << distance;
+    
+    // Consider devices "proximate" if they're within reasonable distance
+    // This accounts for USB 3.0 configurations where related devices may appear at different ports
+    bool isProximate = (distance >= 0 && distance <= 3); // Allow up to 3 "hops" difference
+    
+    qCDebug(log_device_windows) << "  Proximity result:" << (isProximate ? "✓ Proximate" : "✗ Not proximate");
+    return isProximate;
+}
+
+bool WindowsDeviceManager::matchesKnownUSB3Pattern(const USBDeviceData& serialDevice, const USBDeviceData& integratedDevice)
+{
+    qCDebug(log_device_windows) << "Checking against known USB 3.0 patterns";
+    
+    QString serialChain = serialDevice.portChain;
+    QString integratedChain = integratedDevice.portChain;
+    
+    // Known pattern 1: Serial at x-y.z, Integrated at x-w (where w is much larger than y)
+    // Example: Serial at "1-2.2", Integrated at "1-18"
+    QRegularExpression serialPattern(R"(^(\d+)-(\d+)\.(\d+)$)");
+    QRegularExpression integratedPattern(R"(^(\d+)-(\d+)$)");
+    
+    QRegularExpressionMatch serialMatch = serialPattern.match(serialChain);
+    QRegularExpressionMatch integratedMatch = integratedPattern.match(integratedChain);
+    
+    if (serialMatch.hasMatch() && integratedMatch.hasMatch()) {
+        QString serialHubGroup = serialMatch.captured(1);
+        int serialHub = serialMatch.captured(2).toInt();
+        int serialPort = serialMatch.captured(3).toInt();
+        
+        QString integratedHubGroup = integratedMatch.captured(1);
+        int integratedHub = integratedMatch.captured(2).toInt();
+        
+        qCDebug(log_device_windows) << "  Pattern analysis:";
+        qCDebug(log_device_windows) << "    Serial: Hub group" << serialHubGroup << "Hub" << serialHub << "Port" << serialPort;
+        qCDebug(log_device_windows) << "    Integrated: Hub group" << integratedHubGroup << "Hub" << integratedHub;
+        
+        // Check if they match known USB 3.0 patterns
+        if (serialHubGroup == integratedHubGroup) {
+            // Pattern: Low hub number with high hub number (USB 2.0/3.0 controller pair)
+            if ((serialHub <= 4 && integratedHub >= 15) || (integratedHub <= 4 && serialHub >= 15)) {
+                qCDebug(log_device_windows) << "    ✓ Matches USB 2.0/3.0 controller pair pattern";
+                return true;
+            }
+            
+            // Pattern: Sequential or nearby hub numbers
+            int hubDistance = qAbs(serialHub - integratedHub);
+            if (hubDistance <= 2) {
+                qCDebug(log_device_windows) << "    ✓ Matches nearby hub pattern (distance:" << hubDistance << ")";
+                return true;
+            }
+        }
+    }
+    
+    qCDebug(log_device_windows) << "    ✗ No known USB 3.0 pattern match";
+    return false;
+}
+
+QString WindowsDeviceManager::getUSBHubPortChain(const USBDeviceData& device)
+{
+    // Extract the USB hub portion from a port chain
+    // Example: "1-2.2" -> "1-2", "1-18" -> "1-18"
+    
+    QString portChain = device.portChain;
+    int lastDotIndex = portChain.lastIndexOf('.');
+    
+    if (lastDotIndex > 0) {
+        // Device is connected through a hub port (has .x at the end)
+        return portChain.left(lastDotIndex);
+    } else {
+        // Device is directly connected to the hub
+        return portChain;
+    }
+}
+
+int WindowsDeviceManager::calculatePortChainDistance(const QString& portChain1, const QString& portChain2)
+{
+    if (portChain1.isEmpty() || portChain2.isEmpty()) {
+        return -1; // Invalid distance
+    }
+    
+    // Simple distance calculation based on port chain components
+    // This could be enhanced with more sophisticated USB topology analysis
+    
+    QStringList parts1 = portChain1.split(QRegularExpression("[-.]"));
+    QStringList parts2 = portChain2.split(QRegularExpression("[-.]"));
+    
+    int distance = 0;
+    int maxParts = qMax(parts1.size(), parts2.size());
+    
+    for (int i = 0; i < maxParts; ++i) {
+        int val1 = (i < parts1.size()) ? parts1[i].toInt() : 0;
+        int val2 = (i < parts2.size()) ? parts2[i].toInt() : 0;
+        
+        distance += qAbs(val1 - val2);
+    }
+    
+    return distance;
+}
+
+QString WindowsDeviceManager::analyzeParentDeviceForCompanionChain(const USBDeviceData& integratedDevice)
+{
+    qCDebug(log_device_windows) << "Analyzing parent device for companion chain";
+    
+    DWORD devInst = getDeviceInstanceFromId(integratedDevice.deviceInstanceId);
+    if (devInst == 0) {
+        return QString();
+    }
+    
+    // Walk up the parent chain to find USB hub devices
+    DWORD currentInst = devInst;
+    int depth = 0;
+    
+    while (currentInst && depth < 5) { // Limit depth to prevent infinite loops
+        DWORD parentInst;
+        if (CM_Get_Parent(&parentInst, currentInst, 0) != CR_SUCCESS) {
+            break;
+        }
+        
+        QString parentHardwareId = getHardwareIdFromDevInst(parentInst);
+        QString parentPortChain = buildPythonCompatiblePortChain(parentInst);
+        
+        qCDebug(log_device_windows) << "  Parent at depth" << depth << ":" << parentHardwareId << "Port chain:" << parentPortChain;
+        
+        // Look for USB hub indicators in the parent hardware ID
+        if (parentHardwareId.toUpper().contains("USB") && parentHardwareId.toUpper().contains("ROOT")) {
+            qCDebug(log_device_windows) << "    Found USB root hub, using port chain:" << parentPortChain;
+            return parentPortChain;
+        }
+        
+        currentInst = parentInst;
+        depth++;
+    }
+    
+    return QString();
+}
+
+QString WindowsDeviceManager::inferCompanionChainFromUSBTopology(const USBDeviceData& integratedDevice)
+{
+    qCDebug(log_device_windows) << "Inferring companion chain from USB topology";
+    
+    QString portChain = integratedDevice.portChain;
+    qCDebug(log_device_windows) << "  Integrated device port chain:" << portChain;
+    
+    // Analyze USB 3.0 topology patterns
+    // USB 3.0 controllers often have paired 2.0/3.0 root hubs
+    // High-numbered ports (15+) on USB 3.0 often correspond to low-numbered ports (1-4) on USB 2.0
+    
+    QRegularExpression pattern(R"(^(\d+)-(\d+)(?:\.(\d+))?$)");
+    QRegularExpressionMatch match = pattern.match(portChain);
+    
+    if (match.hasMatch()) {
+        QString rootHub = match.captured(1);
+        int hubPort = match.captured(2).toInt();
+        QString devicePort = match.captured(3);
+        
+        qCDebug(log_device_windows) << "  Port chain analysis: Root hub" << rootHub << "Hub port" << hubPort << "Device port" << devicePort;
+        
+        // USB 3.0 to USB 2.0 companion mapping heuristics
+        QString companionChain;
+        
+        if (hubPort >= 15) {
+            // High port numbers typically map to low companion ports
+            int companionPort = ((hubPort - 15) % 4) + 1; // Map 15,16,17,18 -> 1,2,3,4
+            companionChain = QString("%1-%2").arg(rootHub).arg(companionPort);
+            qCDebug(log_device_windows) << "    USB 3.0 high port mapping:" << hubPort << "->" << companionPort;
+        } else if (hubPort >= 10) {
+            // Medium port numbers
+            int companionPort = ((hubPort - 10) % 6) + 1; // Map 10-15 -> 1-6
+            companionChain = QString("%1-%2").arg(rootHub).arg(companionPort);
+            qCDebug(log_device_windows) << "    USB 3.0 medium port mapping:" << hubPort << "->" << companionPort;
+        } else if (hubPort >= 5) {
+            // Map 5-9 to 1-5 (common for some controllers)
+            int companionPort = hubPort - 4;
+            companionChain = QString("%1-%2").arg(rootHub).arg(companionPort);
+            qCDebug(log_device_windows) << "    USB 3.0 mid-range port mapping:" << hubPort << "->" << companionPort;
+        }
+        
+        if (!companionChain.isEmpty()) {
+            qCDebug(log_device_windows) << "  Inferred companion chain:" << companionChain;
+            return companionChain;
+        }
+    }
+    
+    return QString();
+}
+
+QString WindowsDeviceManager::inferCompanionChainFromPortPattern(const USBDeviceData& integratedDevice)
+{
+    qCDebug(log_device_windows) << "Inferring companion chain from port pattern analysis";
+    
+    QString portChain = integratedDevice.portChain;
+    
+    // Enhanced pattern-based inference using common USB 3.0 controller configurations
+    // This method looks for common patterns in USB controller designs
+    
+    // Pattern 1: Intel USB 3.0 controllers (common pattern)
+    // USB 3.0 ports 1-18 -> USB 2.0 companion ports 1-2
+    QRegularExpression intelPattern(R"(^(\d+)-(\d+)$)");
+    QRegularExpressionMatch intelMatch = intelPattern.match(portChain);
+    
+    if (intelMatch.hasMatch()) {
+        QString rootHub = intelMatch.captured(1);
+        int hubPort = intelMatch.captured(2).toInt();
+        
+        // Intel-style mapping (commonly seen in many systems)
+        if (hubPort >= 17) {
+            return QString("%1-2").arg(rootHub); // High ports -> port 2
+        } else if (hubPort >= 9) {
+            return QString("%1-1").arg(rootHub); // Medium ports -> port 1
+        }
+    }
+    
+    // Pattern 2: AMD USB 3.0 controllers (alternative pattern)
+    // Different manufacturers may have different port mapping schemes
+    
+    // Pattern 3: Generic USB 3.0 hub pattern
+    // Many USB 3.0 hubs use a pattern where the companion port is calculated as:
+    // companion_port = (usb3_port - 1) / N + 1, where N is typically 2-4
+    
+    if (intelMatch.hasMatch()) {
+        QString rootHub = intelMatch.captured(1);
+        int hubPort = intelMatch.captured(2).toInt();
+        
+        // Generic calculation: divide high port numbers into groups
+        if (hubPort >= 8) {
+            int companionPort = ((hubPort - 1) / 8) + 1;
+            if (companionPort <= 4) { // Reasonable companion port range
+                QString result = QString("%1-%2").arg(rootHub).arg(companionPort);
+                qCDebug(log_device_windows) << "  Generic pattern mapping:" << hubPort << "->" << companionPort;
+                return result;
+            }
+        }
+    }
+    
+    qCDebug(log_device_windows) << "  No pattern-based companion chain found";
+    return QString();
+}
+
+QString WindowsDeviceManager::findCameraDevicePathByDeviceId(const QString& deviceId)
+{
+    qCDebug(log_device_windows) << "Finding camera path for device ID:" << deviceId;
+    
+    // Use the same approach as enumerateDevicesByClassWithParentInfo for consistency
+    QList<QVariantMap> cameras = enumerateDevicesByClassWithParentInfo(GUID_DEVCLASS_CAMERA);
+    
+    for (const QVariantMap& camera : cameras) {
+        QString cameraDeviceId = camera.value("deviceId").toString();
+        
+        qCDebug(log_device_windows) << "  Checking camera - Device ID:" << cameraDeviceId;
+        
+        // Check if this device matches our target device ID (exact match or contains)
+        if (cameraDeviceId.compare(deviceId, Qt::CaseInsensitive) == 0 ||
+            cameraDeviceId.contains(deviceId, Qt::CaseInsensitive) ||
+            deviceId.contains(cameraDeviceId, Qt::CaseInsensitive)) {
+            
+            QString devicePath = camera.value("devicePath").toString();
+            if (devicePath.isEmpty()) {
+                // If devicePath is empty, try to use a standard format
+                // For Windows camera devices, we can try to construct the path
+                devicePath = QString("\\\\?\\usb#vid_345f&pid_2132#%1#{65e8773d-8f56-11d0-a3b9-00a0c9223196}\\global")
+                            .arg(cameraDeviceId.split('\\').last());
+                qCDebug(log_device_windows) << "  Constructed device path:" << devicePath;
+            }
+            
+            qCDebug(log_device_windows) << "  ✓ Found matching camera device with path:" << devicePath;
+            return devicePath;
+        }
+    }
+    
+    qCDebug(log_device_windows) << "Could not find camera path for device ID:" << deviceId;
+    
+    // Fallback: Return a simplified device identifier that can be used for matching
+    // The camera manager can use this for device identification
+    if (!deviceId.isEmpty()) {
+        qCDebug(log_device_windows) << "Returning device ID as fallback path:" << deviceId;
+        return deviceId;
+    }
+    
+    return QString();
+}
+
+QString WindowsDeviceManager::findAudioDevicePathByDeviceId(const QString& deviceId)
+{
+    qCDebug(log_device_windows) << "Finding audio path for device ID:" << deviceId;
+    
+    // For audio devices, we typically return a symbolic name rather than a device path
+    // since audio devices are accessed differently than cameras
+    
+    // Enumerate audio devices and find matching device ID
+    HDEVINFO hDevInfo = SetupDiGetClassDevs(&GUID_DEVCLASS_MEDIA, nullptr, nullptr, DIGCF_PRESENT);
+    if (hDevInfo == INVALID_HANDLE_VALUE) {
+        qCWarning(log_device_windows) << "Failed to get audio device list";
+        return QString();
+    }
+    
+    SP_DEVINFO_DATA devInfoData;
+    devInfoData.cbSize = sizeof(SP_DEVINFO_DATA);
+    
+    for (DWORD index = 0; SetupDiEnumDeviceInfo(hDevInfo, index, &devInfoData); index++) {
+        QString currentDeviceId = getDeviceId(devInfoData.DevInst);
+        
+        // Check if this device matches our target device ID
+        if (currentDeviceId.compare(deviceId, Qt::CaseInsensitive) == 0 ||
+            currentDeviceId.contains(deviceId, Qt::CaseInsensitive)) {
+            
+            // Get the friendly name for audio devices
+            QString friendlyName = getDeviceProperty(hDevInfo, &devInfoData, SPDRP_FRIENDLYNAME);
+            SetupDiDestroyDeviceInfoList(hDevInfo);
+            
+            qCDebug(log_device_windows) << "Found audio device:" << friendlyName;
+            return friendlyName;
+        }
+    }
+    
+    SetupDiDestroyDeviceInfoList(hDevInfo);
+    qCDebug(log_device_windows) << "Could not find audio device for device ID:" << deviceId;
+    return QString();
+}
+
+bool WindowsDeviceManager::isDeviceRelatedToPortChain(const QString& deviceId, const QString& portChain)
+{
+    qCDebug(log_device_windows) << "Checking if device is related to port chain";
+    qCDebug(log_device_windows) << "  Device ID:" << deviceId;
+    qCDebug(log_device_windows) << "  Port chain:" << portChain;
+    
+    if (deviceId.isEmpty() || portChain.isEmpty()) {
+        return false;
+    }
+    
+    // Get device instance from ID
+    DWORD deviceInst = getDeviceInstanceFromId(deviceId);
+    if (deviceInst == 0) {
+        return false;
+    }
+    
+    // Build port chain for this device
+    QString devicePortChain = buildPythonCompatiblePortChain(deviceInst);
+    qCDebug(log_device_windows) << "  Device port chain:" << devicePortChain;
+    
+    // Check for exact match
+    if (devicePortChain == portChain) {
+        qCDebug(log_device_windows) << "  ✓ Exact port chain match";
+        return true;
+    }
+    
+    // Check for related port chains (same hub, different ports)
+    if (arePortChainsRelated(devicePortChain, portChain)) {
+        qCDebug(log_device_windows) << "  ✓ Related port chains";
+        return true;
+    }
+    
+    // Check parent device relationships
+    QString parentChain = extractParentPortChain(devicePortChain);
+    QString targetParentChain = extractParentPortChain(portChain);
+    
+    if (!parentChain.isEmpty() && !targetParentChain.isEmpty() && parentChain == targetParentChain) {
+        qCDebug(log_device_windows) << "  ✓ Same parent hub";
+        return true;
+    }
+    
+    qCDebug(log_device_windows) << "  ✗ No relationship found";
+    return false;
 }
 
 // ...existing code...

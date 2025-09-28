@@ -14,6 +14,7 @@
 #include <QSize>
 #include <QVideoFrameFormat>
 #include "host/multimediabackend.h"
+#include "../device/DeviceInfo.h"
 
 // Forward declarations
 class GStreamerBackendHandler;
@@ -190,6 +191,7 @@ private:
 
     // Declaration for findMatchingCameraDevice
     QCameraDevice findMatchingCameraDevice(const QString& portChain) const;
+    QCameraDevice findCameraByDeviceInfo(const DeviceInfo& deviceInfo) const;
 
     // Backend handler management
     void initializeBackendHandler();

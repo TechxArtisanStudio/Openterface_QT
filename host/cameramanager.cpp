@@ -1716,6 +1716,63 @@ QCameraDevice CameraManager::findMatchingCameraDevice(const QString& portChain) 
     return QCameraDevice();
 }
 
+QCameraDevice CameraManager::findCameraByDeviceInfo(const DeviceInfo& deviceInfo) const
+{
+    if (!deviceInfo.hasCameraDevice()) {
+        qCDebug(log_ui_camera) << "Device has no camera component";
+        return QCameraDevice();
+    }
+    
+    qCDebug(log_ui_camera) << "Finding Qt camera device for DeviceInfo:";
+    qCDebug(log_ui_camera) << "  Camera device ID:" << deviceInfo.cameraDeviceId;
+    qCDebug(log_ui_camera) << "  Camera device path:" << deviceInfo.cameraDevicePath;
+    
+    QList<QCameraDevice> availableCameras = getAvailableCameraDevices();
+    
+    for (const QCameraDevice& camera : availableCameras) {
+        QString cameraId = QString::fromUtf8(camera.id());
+        QString cameraDescription = camera.description();
+        
+        qCDebug(log_ui_camera) << "  Checking camera:" << cameraDescription << "ID:" << cameraId;
+        
+        // Strategy 1: Match by device ID
+        if (!deviceInfo.cameraDeviceId.isEmpty()) {
+            // Try exact match
+            if (cameraId.compare(deviceInfo.cameraDeviceId, Qt::CaseInsensitive) == 0) {
+                qCDebug(log_ui_camera) << "  ✓ Matched by exact device ID";
+                return camera;
+            }
+            
+            // Try partial match (device ID contains camera ID or vice versa)
+            if (deviceInfo.cameraDeviceId.contains(cameraId, Qt::CaseInsensitive) ||
+                cameraId.contains(deviceInfo.cameraDeviceId, Qt::CaseInsensitive)) {
+                qCDebug(log_ui_camera) << "  ✓ Matched by partial device ID";
+                return camera;
+            }
+        }
+        
+        // Strategy 2: Match by device path
+        if (!deviceInfo.cameraDevicePath.isEmpty()) {
+            if (cameraId.contains(deviceInfo.cameraDevicePath, Qt::CaseInsensitive) ||
+                deviceInfo.cameraDevicePath.contains(cameraId, Qt::CaseInsensitive)) {
+                qCDebug(log_ui_camera) << "  ✓ Matched by device path";
+                return camera;
+            }
+        }
+        
+        // Strategy 3: Match by hardware identifiers (for Openterface devices)
+        if (cameraDescription.contains("345F", Qt::CaseInsensitive) ||
+            cameraId.contains("345F", Qt::CaseInsensitive) ||
+            cameraDescription.contains("Openterface", Qt::CaseInsensitive)) {
+            qCDebug(log_ui_camera) << "  ✓ Matched by Openterface hardware identifier";
+            return camera;
+        }
+    }
+    
+    qCDebug(log_ui_camera) << "  ✗ No matching Qt camera device found";
+    return QCameraDevice();
+}
+
 bool CameraManager::initializeCameraWithVideoOutput(QGraphicsVideoItem* videoOutput)
 {
     qDebug() << "Initializing camera with graphics video output";
@@ -1739,28 +1796,69 @@ bool CameraManager::initializeCameraWithVideoOutput(QGraphicsVideoItem* videoOut
     
     bool switchSuccess = false;
     
-    // Windows: Use simple direct approach
+    // Windows: Use enhanced approach with better device detection
     if (isWindowsPlatform()) {
-        qDebug() << "Windows: Using simple camera initialization";
+        qDebug() << "Windows: Using enhanced camera initialization";
         
-        // Find any available "Openterface" camera
-        QList<QCameraDevice> devices = getAvailableCameraDevices();
+        // First, try to find camera using device manager information
+        DeviceManager& deviceManager = DeviceManager::getInstance();
+        QList<DeviceInfo> devices = deviceManager.getCurrentDevices();
+        
         QCameraDevice openterfaceDevice;
-        for (const QCameraDevice& device : devices) {
-            if (device.description() == "Openterface") {
-                openterfaceDevice = device;
-                break;
+        QString targetPortChain;
+        
+        // Look for devices with camera components
+        for (const DeviceInfo& device : devices) {
+            if (device.hasCameraDevice()) {
+                qDebug() << "Found device with camera at port chain:" << device.portChain;
+                qDebug() << "  Camera device ID:" << device.cameraDeviceId;
+                qDebug() << "  Camera device path:" << device.cameraDevicePath;
+                
+                // Try to find this camera in Qt's camera list
+                QCameraDevice matchedCamera = findCameraByDeviceInfo(device);
+                if (!matchedCamera.isNull()) {
+                    openterfaceDevice = matchedCamera;
+                    targetPortChain = device.portChain;
+                    qDebug() << "Windows: Found matching Qt camera device:" << matchedCamera.description();
+                    break;
+                }
+            }
+        }
+        
+        // Fallback: Look for any camera with "Openterface" in the description
+        if (openterfaceDevice.isNull()) {
+            qDebug() << "Windows: Fallback - searching for Openterface camera by description";
+            QList<QCameraDevice> allDevices = getAvailableCameraDevices();
+            
+            qDebug() << "Available camera devices:";
+            for (const QCameraDevice& device : allDevices) {
+                qDebug() << "  -" << device.description() << "ID:" << QString::fromUtf8(device.id());
+                
+                if (device.description().contains("Openterface", Qt::CaseInsensitive) ||
+                    device.description().contains("345F", Qt::CaseInsensitive) ||
+                    device.description() == "Openterface") {
+                    openterfaceDevice = device;
+                    qDebug() << "Windows: Found Openterface-like device:" << device.description();
+                    break;
+                }
             }
         }
 
         if (!openterfaceDevice.isNull()) {
-            switchSuccess = switchToCameraDevice(openterfaceDevice);
+            switchSuccess = switchToCameraDevice(openterfaceDevice, targetPortChain);
             if (switchSuccess) {
-                qDebug() << "Windows: Camera switched to Openterface device";
+                qDebug() << "Windows: Camera switched to device:" << openterfaceDevice.description();
                 startCamera();
             }
         } else {
             qCWarning(log_ui_camera) << "Windows: No Openterface camera device found";
+            
+            // Additional debugging: list all available cameras
+            QList<QCameraDevice> allDevices = getAvailableCameraDevices();
+            qDebug() << "All available camera devices:";
+            for (const QCameraDevice& device : allDevices) {
+                qDebug() << "  Camera:" << device.description() << "ID:" << QString::fromUtf8(device.id());
+            }
         }
         
         return switchSuccess && !m_currentCameraDevice.isNull();
