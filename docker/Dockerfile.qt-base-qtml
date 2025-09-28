@@ -4,9 +4,6 @@ ARG UBUNTU_VERSION=22.04
 ARG TARGETARCH=amd64
 FROM ${BASE_IMAGE}
 
-# Fallback defaults (base image should set these, but provide sensible defaults)
-ARG QT_MAJOR_VERSION=6.4
-ARG QT_VERSION=6.4.2
 ARG BUILD_DIR=/workspace/qt-build
 ARG INSTALL_PREFIX=/opt/Qt6
 ARG BUILD_SHARED_LIBS=OFF
