@@ -84,7 +84,7 @@ jobs:
           SHARED: ${{ env.SHARED_OR_STATIC }}
         run: |
           OWNER=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')
-          echo "IMAGE_NAME_LOWER=${OWNER}/$(env.SHARED_OR_STATIC)-qtbuild" >> $GITHUB_ENV
+          echo "IMAGE_NAME_LOWER=${OWNER}/${SHARED}-qtbuild" >> $GITHUB_ENV
 
       - name: Log in to Container Registry
         if: github.event_name != 'pull_request'
