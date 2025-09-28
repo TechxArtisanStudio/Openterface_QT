@@ -59,8 +59,7 @@ env:
 jobs:
   # Static Qt Environment Build (existing multi-stage process)
   build-setup:
-    if: ${{ github.event.inputs.environment_type == 'both' || 
-        (github.event.inputs.step == 'setup' || github.event.inputs.step == 'qt-base-qtml' || github.event.inputs.step == 'qt-declarative' || github.event.inputs.step == 'qt-complete' || github.event.inputs.step == 'all') }}
+    if: ${{ github.event_name == 'workflow_dispatch' && (github.event.inputs.step == 'setup' || github.event.inputs.step == 'ffmpeg' || github.event.inputs.step == 'gstreamer' || github.event.inputs.step == 'qt-base-qtml' || github.event.inputs.step == 'qt-declarative' || github.event.inputs.step == 'qt-complete' || github.event.inputs.step == 'all') || github.event_name != 'workflow_dispatch' }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -75,7 +74,10 @@ jobs:
         run: echo "SHARED_OR_STATIC=${{ github.event.inputs.environment_type == 'shared' ? 'shared' : 'static' }}" >> $GITHUB_ENV
 
       - name: Set lowercase image name
-        run: echo "IMAGE_NAME_LOWER=$(echo '${{ github.repository_owner }}/${{ env.SHARED_OR_STATIC }}-qtbuild' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
+        env:
+          OWNER: ${{ github.repository_owner }}
+          SHARED: ${{ env.SHARED_OR_STATIC }}
+        run: echo "IMAGE_NAME_LOWER=$(echo \"$OWNER/$SHARED-qtbuild\" | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
 
       - name: Log in to Container Registry
         if: github.event_name != 'pull_request'
@@ -137,7 +139,7 @@ jobs:
           platforms: linux/amd64
 
   build-static-ffmpeg:
-    if: ${{ github.event.inputs.environment_type == 'both' || (github.event.inputs.step == 'ffmpeg' || github.event.inputs.step == 'qt-base-qtml' || github.event.inputs.step == 'qt-declarative' || github.event.inputs.step == 'qt-complete' || github.event.inputs.step == 'all') }}
+    if: ${{ github.event_name == 'workflow_dispatch' && (github.event.inputs.step == 'ffmpeg' || github.event.inputs.step == 'gstreamer' || github.event.inputs.step == 'qt-base-qtml' || github.event.inputs.step == 'qt-declarative' || github.event.inputs.step == 'qt-complete' || github.event.inputs.step == 'all') || github.event_name != 'workflow_dispatch' }}
     runs-on: ubuntu-latest
     needs: [build-setup]
     permissions:
@@ -192,7 +194,7 @@ jobs:
           platforms: linux/amd64
 
   build-gstreamer:
-    if: ${{ github.event.inputs.environment_type == 'both' || (github.event.inputs.step == 'gstreamer' || github.event.inputs.step == 'qt-base-qtml' || github.event.inputs.step == 'qt-declarative' || github.event.inputs.step == 'qt-complete' || github.event.inputs.step == 'all') }}
+    if: ${{ github.event_name == 'workflow_dispatch' && (github.event.inputs.step == 'gstreamer' || github.event.inputs.step == 'qt-base-qtml' || github.event.inputs.step == 'qt-declarative' || github.event.inputs.step == 'qt-complete' || github.event.inputs.step == 'all') || github.event_name != 'workflow_dispatch' }}
     runs-on: ubuntu-latest
     needs: [build-ffmpeg]
     permissions:
@@ -247,7 +249,7 @@ jobs:
           platforms: linux/amd64
 
   build-qt-base-qtml:
-    if: ${{ github.event.inputs.environment_type == 'both' || (github.event.inputs.step == 'qt-base-qtml' || github.event.inputs.step == 'all') }}
+    if: ${{ github.event_name == 'workflow_dispatch' && (github.event.inputs.step == 'qt-base-qtml' || github.event.inputs.step == 'qt-declarative' || github.event.inputs.step == 'qt-complete' || github.event.inputs.step == 'all') || github.event_name != 'workflow_dispatch' }}
     runs-on: ubuntu-latest
     needs: [build-gstreamer]
     permissions:
@@ -302,7 +304,7 @@ jobs:
           platforms: linux/amd64
 
   build-qt-declarative:
-    if: ${{ github.event.inputs.environment_type == 'both' || (github.event.inputs.step == 'qt-declarative' || github.event.inputs.step == 'all') }}
+    if: ${{ github.event_name == 'workflow_dispatch' && (github.event.inputs.step == 'qt-declarative' || github.event.inputs.step == 'qt-complete' || github.event.inputs.step == 'all') || github.event_name != 'workflow_dispatch' }}
     runs-on: ubuntu-latest
     needs: [build-qt-base-qtml]
     permissions:
@@ -357,7 +359,7 @@ jobs:
           platforms: linux/amd64
 
   build-complete:
-    if: ${{ github.event.inputs.environment_type == 'both' || (github.event.inputs.step == 'qt-complete' || github.event.inputs.step == 'all') }}
+    if: ${{ github.event_name == 'workflow_dispatch' && (github.event.inputs.step == 'qt-complete' || github.event.inputs.step == 'all') || github.event_name != 'workflow_dispatch' }}
     runs-on: ubuntu-latest
     needs: [build-qt-declarative]
     permissions:
