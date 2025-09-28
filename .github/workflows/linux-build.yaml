@@ -77,28 +77,28 @@ jobs:
           echo "Pulling pre-built shared Qt Docker image for amd64..."
           
           IMAGE_TAG="ubuntu-${{ github.event.inputs.ubuntu_version || '22.04' }}-amd64"
-          echo "Checking for image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-shared:$IMAGE_TAG"
+          echo "Checking for image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-complete:$IMAGE_TAG"
           
           
           # Check if image exists in registry
-          if docker manifest inspect ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-shared:$IMAGE_TAG > /dev/null 2>&1; then
+          if docker manifest inspect ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-complete:$IMAGE_TAG > /dev/null 2>&1; then
             echo "Pre-built image found, pulling..."
-            docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-shared:$IMAGE_TAG
+            docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-complete:$IMAGE_TAG
 
             echo "Successfully pulled pre-built shared Qt Docker image for amd64"
           else
             echo "Error: Pre-built shared Qt Docker image not found in registry for amd64"
-            echo "Looking for: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-shared:$IMAGE_TAG"
+            echo "Looking for: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-complete:$IMAGE_TAG"
             echo "Please run the 'Build Qt Environments' workflow first to build the required Docker images"
             echo "Workflow URL: https://github.com/${{ github.repository }}/actions/workflows/build-qt-environments.yml"
             exit 1
           fi
           
           # Tag the architecture-specific image as latest for local use
-          docker tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-shared:$IMAGE_TAG ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-shared:latest
+          docker tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-complete:$IMAGE_TAG ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-complete:latest
           
           # Verify the image was pulled successfully
-          docker images | grep openterface-qtbuild-shared || {
+          docker images | grep qtbuild-complete || {
             echo "Error: Failed to verify shared Qt Docker image"
             exit 1
           }
@@ -120,7 +120,7 @@ jobs:
             -v ${{ github.workspace }}:/workspace/src \
             -v ${{ github.workspace }}/build-script/docker-translation.sh:/translation-script.sh:ro \
             -w /workspace/src \
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-shared:latest \
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-complete:latest \
             bash /translation-script.sh
 
       - name: Build, package via docker-build-shared.sh (amd64)
@@ -130,7 +130,7 @@ jobs:
             -v ${{ github.workspace }}:/workspace/src \
             -v ${{ runner.temp }}/build-shared:/workspace/build \
             -w /workspace/src \
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-shared:latest \
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-complete:latest \
             bash /workspace/src/build-script/docker-build-shared.sh
           echo "BUILD_DIR=${{ runner.temp }}/build-shared" >> $GITHUB_ENV
 
@@ -216,7 +216,7 @@ jobs:
           docker tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-complete:$IMAGE_TAG ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-complete:latest
           
           # Verify the image was pulled successfully
-          docker images | grep openterface-qtbuild-complete || {
+          docker images | grep qtbuild-complete || {
             echo "Error: Failed to verify Static Qt Docker image"
             exit 1
           }
