@@ -84,7 +84,7 @@ jobs:
           SHARED: ${{ env.SHARED_OR_STATIC }}
         run: |
           OWNER=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')
-          echo "IMAGE_NAME_LOWER=${OWNER}/$(SHARED_OR_STATIC)-qtbuild" >> $GITHUB_ENV
+          echo "IMAGE_NAME_LOWER=${OWNER}/$(env.SHARED_OR_STATIC)-qtbuild" >> $GITHUB_ENV
 
       - name: Log in to Container Registry
         if: github.event_name != 'pull_request'
@@ -161,7 +161,7 @@ jobs:
       - name: Set lowercase image name
         run: |
           OWNER=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')
-          echo "IMAGE_NAME_LOWER=${OWNER}/$(SHARED_OR_STATIC)-qtbuild" >> $GITHUB_ENV
+          echo "IMAGE_NAME_LOWER=${OWNER}/$(env.SHARED_OR_STATIC)-qtbuild" >> $GITHUB_ENV
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -219,7 +219,7 @@ jobs:
       - name: Set lowercase image name
         run: |
           OWNER=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')
-          echo "IMAGE_NAME_LOWER=${OWNER}/$(SHARED_OR_STATIC)-qtbuild" >> $GITHUB_ENV
+          echo "IMAGE_NAME_LOWER=${OWNER}/$(env.SHARED_OR_STATIC)-qtbuild" >> $GITHUB_ENV
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -277,7 +277,7 @@ jobs:
       - name: Set lowercase image name
         run: |
           OWNER=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')
-          echo "IMAGE_NAME_LOWER=${OWNER}/$(SHARED_OR_STATIC)-qtbuild" >> $GITHUB_ENV
+          echo "IMAGE_NAME_LOWER=${OWNER}/$(env.SHARED_OR_STATIC)-qtbuild" >> $GITHUB_ENV
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -335,7 +335,7 @@ jobs:
       - name: Set lowercase image name
         run: |
           OWNER=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')
-          echo "IMAGE_NAME_LOWER=${OWNER}/$(SHARED_OR_STATIC)-qtbuild" >> $GITHUB_ENV
+          echo "IMAGE_NAME_LOWER=${OWNER}/$(env.SHARED_OR_STATIC)-qtbuild" >> $GITHUB_ENV
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -393,7 +393,7 @@ jobs:
       - name: Set lowercase image name
         run: |
           OWNER=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')
-          echo "IMAGE_NAME_LOWER=${OWNER}/$(SHARED_OR_STATIC)-qtbuild" >> $GITHUB_ENV
+          echo "IMAGE_NAME_LOWER=${OWNER}/$(env.SHARED_OR_STATIC)-qtbuild" >> $GITHUB_ENV
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -449,8 +449,8 @@ jobs:
       - name: Set lowercase image name
         run: |
           OWNER=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')
-          echo "IMAGE_NAME_LOWER=${OWNER}/$(SHARED_OR_STATIC)-qtbuild" >> $GITHUB_ENV
-          
+          echo "IMAGE_NAME_LOWER=${OWNER}/$(env.SHARED_OR_STATIC)-qtbuild" >> $GITHUB_ENV
+
       - name: Build Summary
         run: |
           echo "## Qt Build Environment Summary" >> $GITHUB_STEP_SUMMARY
