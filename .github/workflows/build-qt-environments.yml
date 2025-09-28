@@ -9,8 +9,8 @@ on:
         default: 'shared'
         type: choice
         options:
-        - 'static'
-        - 'shared'
+          - 'static'
+          - 'shared'
       step:
         description: 'Which step to build'
         required: false
