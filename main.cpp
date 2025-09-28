@@ -108,6 +108,7 @@ void writeLog(const QString &message){
     }
 }
 
+#ifdef HAVE_GSTREAMER
 // Custom GLib log handler to suppress non-critical GStreamer messages
 void suppressGLibMessages(const gchar *log_domain, GLogLevelFlags log_level, const gchar *message, gpointer user_data)
 {
@@ -130,6 +131,7 @@ void suppressGLibMessages(const gchar *log_domain, GLogLevelFlags log_level, con
         }
     }
 }
+#endif
 
 void setupEnv(){
 #ifdef Q_OS_LINUX
@@ -272,6 +274,7 @@ int main(int argc, char *argv[])
     // Install custom GLib log handler to suppress non-critical messages
     g_log_set_default_handler(suppressGLibMessages, nullptr);
     #endif
+    
     setupEnv();
     qDebug() << "Creating QApplication...";
     QApplication app(argc, argv);
