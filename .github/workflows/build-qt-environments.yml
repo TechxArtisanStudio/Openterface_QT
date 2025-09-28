@@ -10,7 +10,7 @@ on:
         type: choice
         options:
         - 'static'
-        - 'shared'  
+        - 'shared'
       step:
         description: 'Which step to build'
         required: false
