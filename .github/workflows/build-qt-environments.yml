@@ -159,9 +159,12 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set lowercase image name
+        env:
+          OWNER: ${{ github.repository_owner }}
+          SHARED: ${{ env.SHARED_OR_STATIC }}
         run: |
           OWNER=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')
-          echo "IMAGE_NAME_LOWER=${OWNER}/$(env.SHARED_OR_STATIC)-qtbuild" >> $GITHUB_ENV
+          echo "IMAGE_NAME_LOWER=${OWNER}/${SHARED}-qtbuild" >> $GITHUB_ENV
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -217,9 +220,12 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set lowercase image name
+        env:
+          OWNER: ${{ github.repository_owner }}
+          SHARED: ${{ env.SHARED_OR_STATIC }}
         run: |
           OWNER=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')
-          echo "IMAGE_NAME_LOWER=${OWNER}/$(env.SHARED_OR_STATIC)-qtbuild" >> $GITHUB_ENV
+          echo "IMAGE_NAME_LOWER=${OWNER}/${SHARED}-qtbuild" >> $GITHUB_ENV
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -275,9 +281,12 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set lowercase image name
+        env:
+          OWNER: ${{ github.repository_owner }}
+          SHARED: ${{ env.SHARED_OR_STATIC }}
         run: |
           OWNER=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')
-          echo "IMAGE_NAME_LOWER=${OWNER}/$(env.SHARED_OR_STATIC)-qtbuild" >> $GITHUB_ENV
+          echo "IMAGE_NAME_LOWER=${OWNER}/${SHARED}-qtbuild" >> $GITHUB_ENV
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -333,9 +342,12 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set lowercase image name
+        env:
+          OWNER: ${{ github.repository_owner }}
+          SHARED: ${{ env.SHARED_OR_STATIC }}
         run: |
           OWNER=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')
-          echo "IMAGE_NAME_LOWER=${OWNER}/$(env.SHARED_OR_STATIC)-qtbuild" >> $GITHUB_ENV
+          echo "IMAGE_NAME_LOWER=${OWNER}/${SHARED}-qtbuild" >> $GITHUB_ENV
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -391,9 +403,12 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set lowercase image name
+        env:
+          OWNER: ${{ github.repository_owner }}
+          SHARED: ${{ env.SHARED_OR_STATIC }}
         run: |
           OWNER=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')
-          echo "IMAGE_NAME_LOWER=${OWNER}/$(env.SHARED_OR_STATIC)-qtbuild" >> $GITHUB_ENV
+          echo "IMAGE_NAME_LOWER=${OWNER}/${SHARED}-qtbuild" >> $GITHUB_ENV
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -447,9 +462,12 @@ jobs:
     if: always()
     steps:
       - name: Set lowercase image name
+        env:
+          OWNER: ${{ github.repository_owner }}
+          SHARED: ${{ env.SHARED_OR_STATIC }}
         run: |
           OWNER=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')
-          echo "IMAGE_NAME_LOWER=${OWNER}/$(env.SHARED_OR_STATIC)-qtbuild" >> $GITHUB_ENV
+          echo "IMAGE_NAME_LOWER=${OWNER}/${SHARED}-qtbuild" >> $GITHUB_ENV
 
       - name: Build Summary
         run: |
