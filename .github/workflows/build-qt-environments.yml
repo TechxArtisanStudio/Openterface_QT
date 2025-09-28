@@ -132,8 +132,8 @@ jobs:
           push: ${{ github.event_name != 'pull_request' && (github.event.inputs.push_to_registry == 'true' || github.event.inputs.push_to_registry == '') }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-              cache-from: type=gha,scope=${{ env.SHARED_OR_STATIC }}-setup
-              cache-to: type=gha,mode=max,scope=${{ env.SHARED_OR_STATIC }}-setup
+          cache-from: type=gha,scope=${{ env.SHARED_OR_STATIC }}-setup
+          cache-to: type=gha,mode=max,scope=${{ env.SHARED_OR_STATIC }}-setup
           platforms: linux/amd64
 
   build-static-ffmpeg:
@@ -187,8 +187,8 @@ jobs:
           push: ${{ github.event_name != 'pull_request' && (github.event.inputs.push_to_registry == 'true' || github.event.inputs.push_to_registry == '') }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-            cache-from: type=gha,scope=${{ env.SHARED_OR_STATIC }}-ffmpeg
-            cache-to: type=gha,mode=max,scope=${{ env.SHARED_OR_STATIC }}-ffmpeg
+          cache-from: type=gha,scope=${{ env.SHARED_OR_STATIC }}-ffmpeg
+          cache-to: type=gha,mode=max,scope=${{ env.SHARED_OR_STATIC }}-ffmpeg
           platforms: linux/amd64
 
   build-gstreamer:
@@ -242,8 +242,8 @@ jobs:
           push: ${{ github.event_name != 'pull_request' && (github.event.inputs.push_to_registry == 'true' || github.event.inputs.push_to_registry == '') }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-            cache-from: type=gha,scope=${{ env.SHARED_OR_STATIC }}-gstreamer
-            cache-to: type=gha,mode=max,scope=${{ env.SHARED_OR_STATIC }}-gstreamer
+          cache-from: type=gha,scope=${{ env.SHARED_OR_STATIC }}-gstreamer
+          cache-to: type=gha,mode=max,scope=${{ env.SHARED_OR_STATIC }}-gstreamer
           platforms: linux/amd64
 
   build-qt-base-qtml:
@@ -297,8 +297,8 @@ jobs:
           push: ${{ github.event_name != 'pull_request' && (github.event.inputs.push_to_registry == 'true' || github.event.inputs.push_to_registry == '') }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-            cache-from: type=gha,scope=${{ env.SHARED_OR_STATIC }}-qt-base-qtml
-            cache-to: type=gha,mode=max,scope=${{ env.SHARED_OR_STATIC }}-qt-base-qtml
+          cache-from: type=gha,scope=${{ env.SHARED_OR_STATIC }}-qt-base-qtml
+          cache-to: type=gha,mode=max,scope=${{ env.SHARED_OR_STATIC }}-qt-base-qtml
           platforms: linux/amd64
 
   build-qt-declarative:
@@ -352,8 +352,8 @@ jobs:
           push: ${{ github.event_name != 'pull_request' && (github.event.inputs.push_to_registry == 'true' || github.event.inputs.push_to_registry == '') }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-            cache-from: type=gha,scope=${{ env.SHARED_OR_STATIC }}-qt-declarative
-            cache-to: type=gha,mode=max,scope=${{ env.SHARED_OR_STATIC }}-qt-declarative
+          cache-from: type=gha,scope=${{ env.SHARED_OR_STATIC }}-qt-declarative
+          cache-to: type=gha,mode=max,scope=${{ env.SHARED_OR_STATIC }}-qt-declarative
           platforms: linux/amd64
 
   build-complete:
@@ -408,8 +408,8 @@ jobs:
           push: ${{ github.event_name != 'pull_request' && (github.event.inputs.push_to_registry == 'true' || github.event.inputs.push_to_registry == '') }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-            cache-from: type=gha,scope=${{ env.SHARED_OR_STATIC }}-qt-complete
-            cache-to: type=gha,mode=max,scope=${{ env.SHARED_OR_STATIC }}-qt-complete
+          cache-from: type=gha,scope=${{ env.SHARED_OR_STATIC }}-qt-complete
+          cache-to: type=gha,mode=max,scope=${{ env.SHARED_OR_STATIC }}-qt-complete
           platforms: linux/amd64
 
       - name: Test Qt Environment
