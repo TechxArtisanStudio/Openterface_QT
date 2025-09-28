@@ -71,7 +71,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set Shared or Static build in env
-        run: echo "SHARED_OR_STATIC=${{ github.event.inputs.environment_type == 'shared' ? 'shared' : 'static' }}" >> $GITHUB_ENV
+        run: echo "SHARED_OR_STATIC=${{ (github.event.inputs.environment_type || 'static') == 'shared' ? 'shared' : 'static' }}" >> $GITHUB_ENV
 
       - name: Set lowercase image name
         env:
