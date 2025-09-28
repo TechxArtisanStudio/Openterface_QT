@@ -378,6 +378,9 @@ void VideoPane::resizeEvent(QResizeEvent *event)
     if (m_directGStreamerMode && m_overlayWidget) {
         m_overlayWidget->resize(size());
         qDebug() << "VideoPane: Resized GStreamer overlay widget to:" << size();
+        
+        // Emit signal for GStreamer backend to update render rectangle
+        emit videoPaneResized(size());
     }
 }
 

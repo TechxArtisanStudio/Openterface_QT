@@ -5,10 +5,11 @@ ARG TARGETARCH=amd64
 FROM ${BASE_IMAGE}
 
 # Fallback defaults (base image should set these, but provide sensible defaults)
-ARG QT_MAJOR_VERSION=6.6
-ARG QT_VERSION=6.6.3
+ARG QT_MAJOR_VERSION=6.4
+ARG QT_VERSION=6.4.2
 ARG BUILD_DIR=/workspace/qt-build
 ARG INSTALL_PREFIX=/opt/Qt6
+ARG BUILD_SHARED_LIBS=OFF
 
 # Create the environment variables and assign the values from the build arguments.
 ARG http_proxy 
@@ -51,21 +52,18 @@ RUN echo "Building qtbase with system XCB libraries and SSL support..." && \
     cmake -GNinja \
         ${CMAKE_COMMON_FLAGS} \
         -DCMAKE_INSTALL_PREFIX="${INSTALL_PREFIX}" \
-        -DBUILD_SHARED_LIBS=OFF \
+        -DBUILD_SHARED_LIBS="${BUILD_SHARED_LIBS}" \
         -DFEATURE_dbus=ON \
         -DFEATURE_sql=OFF \
         -DFEATURE_testlib=OFF \
         -DFEATURE_icu=OFF \
         -DFEATURE_opengl=ON \
+        -DTEST_xcb_syslibs=ON \
         -DFEATURE_xlib=ON \
         -DFEATURE_xcb_xlib=ON \
         -DFEATURE_xkbcommon=ON \
         -DFEATURE_xkbcommon_x11=ON \
-        -DTEST_xcb_syslibs=ON \
-        -DFEATURE_system_xcb=ON \
         -DFEATURE_xcb=ON \
-        -DQT_FEATURE_clang=OFF \
-        -DFEATURE_clang=ON \
         -DFEATURE_openssl=ON \
         -DFEATURE_openssl_linked=ON \
         -DOPENSSL_ROOT_DIR="$OPENSSL_ROOT_DIR" \
@@ -83,7 +81,7 @@ RUN echo "Building qtshadertools..." && \
     cmake -GNinja \
         ${CMAKE_COMMON_FLAGS} \
         -DCMAKE_INSTALL_PREFIX="${INSTALL_PREFIX}" \
-        -DBUILD_SHARED_LIBS=OFF \
+        -DBUILD_SHARED_LIBS="${BUILD_SHARED_LIBS}" \
         -DCMAKE_EXE_LINKER_FLAGS="-lfontconfig -lfreetype" \
         .. && \
     ninja && \
@@ -97,7 +95,7 @@ RUN echo "Building qtwayland (client)..." && \
     cmake -GNinja \
         ${CMAKE_COMMON_FLAGS} \
         -DCMAKE_INSTALL_PREFIX="${INSTALL_PREFIX}" \
-        -DBUILD_SHARED_LIBS=OFF \
+        -DBUILD_SHARED_LIBS="${BUILD_SHARED_LIBS}" \
         -DQT_FEATURE_wayland_server=OFF \
         -DQT_FEATURE_wayland_client=ON \
         -DQt6WaylandClient_DIR="${INSTALL_PREFIX}/lib/cmake/Qt6WaylandClient" \

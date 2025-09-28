@@ -46,8 +46,14 @@ include(cmake/FFmpeg.cmake OPTIONAL)
 # Include internationalization support (defines setup_translations function)
 include(cmake/Internationalization.cmake)
 
-# Find Qt early and set up project macros compatibly with Qt 6.2 on Ubuntu 22.04
-find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets Network Multimedia MultimediaWidgets SerialPort OpenGL OpenGLWidgets Xml Svg SvgWidgets Concurrent DBus Quick Qml QuickWidgets)
+# Add cmake module path for our custom Qt6 finder
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
+
+# Use our custom Qt6 finder to ensure version 6.6.3+
+find_package(Qt6Required REQUIRED)
+
+# Find additional Qt components (Qt6Required already found Core, Widgets, Gui, Multimedia, SerialPort, Svg)
+find_package(Qt6 REQUIRED COMPONENTS Network OpenGL OpenGLWidgets Xml Concurrent DBus Quick Qml QuickWidgets)
 
 # Use standardized Qt setup if available (Qt >= 6.3); otherwise emulate basics for Qt 6.2
 if(COMMAND qt_standard_project_setup)
