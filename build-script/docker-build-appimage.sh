@@ -91,7 +91,7 @@ export OPENTERFACE_BUILD_STATIC=OFF
 export USE_GSTREAMER_STATIC_PLUGINS=OFF
 
 # Source Qt 6.6.3 environment
-source /opt/qt6.6.3/setup-qt-env.sh
+# source /opt/qt6.6.3/setup-qt-env.sh
 
 # Verify Qt version
 echo "Using Qt version: $(qmake -query QT_VERSION)"
@@ -101,8 +101,8 @@ cd /workspace/build
 cmake -DCMAKE_BUILD_TYPE=Release \
       -DOPENTERFACE_BUILD_STATIC=OFF \
       -DUSE_GSTREAMER_STATIC_PLUGINS=OFF \
-      -DCMAKE_PREFIX_PATH="/opt/qt6.6.3" \
-      -DQt6_DIR="/opt/qt6.6.3/lib/cmake/Qt6" \
+      -DCMAKE_PREFIX_PATH="/opt/Qt6" \
+      -DQt6_DIR="/opt/Qt6/lib/cmake/Qt6" \
       /workspace/src
 make -j4
 echo "Build with Qt 6.6.3 complete."
@@ -141,12 +141,29 @@ for plugin in "${GSTREAMER_PLUGINS[@]}"; do
 	if [ -f "$GSTREAMER_HOST_DIR/$plugin" ]; then
 		echo "✅ Included $plugin"
 		cp "$GSTREAMER_HOST_DIR/$plugin" "appimage/AppDir/usr/lib/gstreamer-1.0/"
+		chmod +x "appimage/AppDir/usr/lib/gstreamer-1.0/$plugin"
 		COPIED_COUNT=$((COPIED_COUNT + 1))
 	else
 		echo "⚠️ Missing $plugin"
 	fi
 done
 echo "📦 Copied $COPIED_COUNT essential GStreamer plugins"
+
+# Copy dependencies of GStreamer plugins
+echo "📦 Copying dependencies for GStreamer plugins..."
+mkdir -p "appimage/AppDir/usr/lib"
+for plugin in "${GSTREAMER_PLUGINS[@]}"; do
+	if [ -f "appimage/AppDir/usr/lib/gstreamer-1.0/$plugin" ]; then
+		echo "Checking dependencies for $plugin"
+		ldd "appimage/AppDir/usr/lib/gstreamer-1.0/$plugin" 2>/dev/null | grep -v "linux-vdso" | grep -v "ld-linux" | awk '{print $3}' | while read -r dep; do
+			if [ -f "$dep" ] && [[ "$dep" == /usr/lib/* || "$dep" == /lib/* ]] && [ ! -f "appimage/AppDir/usr/lib/$(basename "$dep")" ]; then
+				echo "  Copying dependency: $(basename "$dep")"
+				cp "$dep" "appimage/AppDir/usr/lib/"
+			fi
+		done
+	fi
+done
+echo "✅ GStreamer plugin dependencies copied"
 
 # Create desktop file
 cat > appimage/AppDir/usr/share/applications/openterfaceqt.desktop << 'EOF'
@@ -478,6 +495,9 @@ echo "DESKTOP_OUT: ${DESKTOP_OUT}"
 echo "ICON_SRC: ${ICON_SRC}"
 echo "USE_QT_PLUGIN: ${USE_QT_PLUGIN}"
 echo "================================"
+
+# Set LD_LIBRARY_PATH to include ffmpeg and gstreamer libraries for dependency resolution
+export LD_LIBRARY_PATH="/opt/ffmpeg/lib:/opt/gstreamer/lib$LD_LIBRARY_PATH"
 
 # Build the command with proper argument handling
 LINUXDEPLOY_ARGS=(

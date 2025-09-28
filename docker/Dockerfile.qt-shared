@@ -174,7 +174,7 @@ ENV QML2_IMPORT_PATH="/opt/qt6.6.3/qml"
 # Create verification script for Qt 6.6.3 from source
 RUN mkdir -p /opt/verify && \
     echo '#!/bin/bash' > /opt/verify/verify-qt-shared.sh && \
-    echo 'source /opt/qt6.6.3/setup-qt-env.sh' >> /opt/verify/verify-qt-shared.sh && \
+    echo 'source /opt/qt6.6.3/' >> /opt/verify/verify-qt-shared.sh && \
     echo 'echo "Qt 6.6.3 Source Installation Verification"' >> /opt/verify/verify-qt-shared.sh && \
     echo 'echo "=========================================="' >> /opt/verify/verify-qt-shared.sh && \
     echo 'echo "Architecture: $(uname -m)"' >> /opt/verify/verify-qt-shared.sh && \
