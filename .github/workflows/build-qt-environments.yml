@@ -158,6 +158,14 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Set Shared or Static build in env
+        run: |
+          if [ "${{ github.event.inputs.environment_type || 'static' }}" = "shared" ]; then
+            echo "SHARED_OR_STATIC=shared" >> $GITHUB_ENV
+          else
+            echo "SHARED_OR_STATIC=static" >> $GITHUB_ENV
+          fi
+
       - name: Set lowercase image name
         env:
           OWNER: ${{ github.repository_owner }}
@@ -218,6 +226,14 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Set Shared or Static build in env
+        run: |
+          if [ "${{ github.event.inputs.environment_type || 'static' }}" = "shared" ]; then
+            echo "SHARED_OR_STATIC=shared" >> $GITHUB_ENV
+          else
+            echo "SHARED_OR_STATIC=static" >> $GITHUB_ENV
+          fi
 
       - name: Set lowercase image name
         env:
@@ -280,6 +296,14 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Set Shared or Static build in env
+        run: |
+          if [ "${{ github.event.inputs.environment_type || 'static' }}" = "shared" ]; then
+            echo "SHARED_OR_STATIC=shared" >> $GITHUB_ENV
+          else
+            echo "SHARED_OR_STATIC=static" >> $GITHUB_ENV
+          fi
+
       - name: Set lowercase image name
         env:
           OWNER: ${{ github.repository_owner }}
@@ -340,6 +364,14 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Set Shared or Static build in env
+        run: |
+          if [ "${{ github.event.inputs.environment_type || 'static' }}" = "shared" ]; then
+            echo "SHARED_OR_STATIC=shared" >> $GITHUB_ENV
+          else
+            echo "SHARED_OR_STATIC=static" >> $GITHUB_ENV
+          fi
 
       - name: Set lowercase image name
         env:
@@ -402,6 +434,14 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Set Shared or Static build in env
+        run: |
+          if [ "${{ github.event.inputs.environment_type || 'static' }}" = "shared" ]; then
+            echo "SHARED_OR_STATIC=shared" >> $GITHUB_ENV
+          else
+            echo "SHARED_OR_STATIC=static" >> $GITHUB_ENV
+          fi
+
       - name: Set lowercase image name
         env:
           OWNER: ${{ github.repository_owner }}
@@ -461,6 +501,14 @@ jobs:
     needs: [build-complete]
     if: always()
     steps:
+      - name: Set Shared or Static build in env
+        run: |
+          if [ "${{ github.event.inputs.environment_type || 'static' }}" = "shared" ]; then
+            echo "SHARED_OR_STATIC=shared" >> $GITHUB_ENV
+          else
+            echo "SHARED_OR_STATIC=static" >> $GITHUB_ENV
+          fi
+          
       - name: Set lowercase image name
         env:
           OWNER: ${{ github.repository_owner }}
