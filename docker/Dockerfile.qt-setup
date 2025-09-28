@@ -158,8 +158,8 @@ RUN apt-get install -y clang-16 llvm-16-dev libclang-16-dev || \
 ENV INSTALL_PREFIX=/opt/Qt6
 ENV BUILD_DIR=/workspace/qt-build
 ENV WORK_DIR=/workspace/qt-${TARGETARCH}-build
-ENV QT_VERSION=6.6.3
-ENV QT_MAJOR_VERSION=6.6
+ENV QT_VERSION=6.4.2
+ENV QT_MAJOR_VERSION=6.4
 ENV LIBUSB_VERSION=1.0.26
 ENV FFMPEG_PREFIX=/opt/ffmpeg
 ENV FFMPEG_VERSION=6.1.1
