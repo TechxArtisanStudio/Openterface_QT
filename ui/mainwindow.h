@@ -293,6 +293,7 @@ private:
     QComboBox *repeatingKeystrokeComboBox;
     
     void updateBaudrateMenu(int baudrate);
+    QString getDeviceTypeName(const DeviceInfo& device); // Helper method to get device type name
     ToggleSwitch *toggleSwitch;
 
     CameraManager *m_cameraManager;
