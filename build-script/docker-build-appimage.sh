@@ -431,7 +431,6 @@ fi
 
 if [ "${USE_QT_PLUGIN}" = "true" ]; then
 	LINUXDEPLOY_ARGS+=("--plugin" "qt")
-	LINUXDEPLOY_ARGS+=("--plugin-qt-qmake" "/opt/Qt6/bin/qmake")
 fi
 
 LINUXDEPLOY_ARGS+=("--output" "appimage")
