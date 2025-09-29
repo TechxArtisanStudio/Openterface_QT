@@ -20,22 +20,6 @@ esac
 
 DOCKER_RUNTIME_FILE="/opt/appimage-runtime/runtime-${APPIMAGE_ARCH}"
 
-# Create a persistent cache directory if we're in a Jenkins environment
-if [ -n "${WORKSPACE}" ] || [ -n "${BUILD_NUMBER}" ] || [ -n "${JOB_NAME}" ]; then
-    echo "🔧 Jenkins environment detected"
-    CACHE_DIR="${HOME}/.cache/appimage-runtime"
-    mkdir -p "${CACHE_DIR}"
-    CACHED_RUNTIME="${CACHE_DIR}/runtime-${APPIMAGE_ARCH}"
-    
-    if [ -f "${CACHED_RUNTIME}" ]; then
-        echo "✓ Using cached runtime: ${CACHED_RUNTIME}"
-        mkdir -p /opt/appimage-runtime
-        cp "${CACHED_RUNTIME}" "${DOCKER_RUNTIME_FILE}"
-        chmod +x "${DOCKER_RUNTIME_FILE}"
-        ls -lh "${DOCKER_RUNTIME_FILE}"
-    fi
-fi
-
 if [ -f "${DOCKER_RUNTIME_FILE}" ]; then
     echo "✓ Pre-downloaded AppImage runtime found: ${DOCKER_RUNTIME_FILE}"
     ls -lh "${DOCKER_RUNTIME_FILE}"
@@ -114,21 +98,21 @@ mkdir -p "${PKG_ROOT}/usr/share/applications"
 mkdir -p "${PKG_ROOT}/usr/share/metainfo"
 mkdir -p "${PKG_ROOT}/usr/share/openterfaceQT/translations"
 
-# Compute Debian Depends (default for Ubuntu 22.04 Jammy with Qt 6.2.x) for shared builds
+# Compute Debian Depends (default for Qt 6.4.x) for shared builds
 DEPENDS="\
-libqt6core6 (>= 6.2), \
-libqt6gui6 (>= 6.2), \
-libqt6widgets6 (>= 6.2), \
-libqt6network6 (>= 6.2), \
-libqt6multimedia6 (>= 6.2), \
-libqt6multimediawidgets6 (>= 6.2), \
-libqt6serialport6 (>= 6.2), \
-libqt6svg6 (>= 6.2), \
-libqt6xml6 (>= 6.2), \
-libqt6dbus6 (>= 6.2), \
-libqt6opengl6 (>= 6.2), \
-libqt6openglwidgets6 (>= 6.2), \
-libqt6concurrent6 (>= 6.2), \
+libqt6core6 (>= 6.4), \
+libqt6gui6 (>= 6.4), \
+libqt6widgets6 (>= 6.4), \
+libqt6network6 (>= 6.4), \
+libqt6multimedia6 (>= 6.4), \
+libqt6multimediawidgets6 (>= 6.4), \
+libqt6serialport6 (>= 6.4), \
+libqt6svg6 (>= 6.4), \
+libqt6xml6 (>= 6.4), \
+libqt6dbus6 (>= 6.4), \
+libqt6opengl6 (>= 6.4), \
+libqt6openglwidgets6 (>= 6.4), \
+libqt6concurrent6 (>= 6.4), \
 libxkbcommon0, \
 libwayland-client0, \
 libegl1, \

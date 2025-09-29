@@ -70,52 +70,6 @@ if [ -z "$GSTREAMER_HOST_DIR" ] || [ ! -f "$GSTREAMER_HOST_DIR/libgstvideo4linux
     fi
 fi
 
-# Count available plugins
-# echo "Checking plugin availability..."
-# AVAILABLE_COUNT=0
-# for plugin in "${GSTREAMER_PLUGINS[@]}"; do
-#     if [ -f "$GSTREAMER_HOST_DIR/$plugin" ]; then
-#         ((AVAILABLE_COUNT++))
-#         echo "✅ $plugin"
-#     else
-#         echo "⚠️  Missing: $plugin"
-#     fi
-# done
-# echo "Found $AVAILABLE_COUNT/${#GSTREAMER_PLUGINS[@]} essential plugins"
-
-# Build the application first
-echo 'Building Openterface with Qt 6.6.3 and comprehensive GStreamer support...'
-
-# Set environment variables for build
-export OPENTERFACE_BUILD_STATIC=OFF
-export USE_GSTREAMER_STATIC_PLUGINS=OFF
-
-# Source Qt 6.6.3 environment
-# source /opt/qt6.6.3/setup-qt-env.sh
-
-# Verify Qt version
-echo "Using Qt version: $(qmake -query QT_VERSION)"
-echo "Qt installation prefix: $(qmake -query QT_INSTALL_PREFIX)"
-
-cd /workspace/build
-cmake -DCMAKE_BUILD_TYPE=Release \
-      -DOPENTERFACE_BUILD_STATIC=OFF \
-      -DUSE_GSTREAMER_STATIC_PLUGINS=OFF \
-      -DCMAKE_PREFIX_PATH="/opt/Qt6" \
-      -DQt6_DIR="/opt/Qt6/lib/cmake/Qt6" \
-      /workspace/src
-make -j4
-echo "Build with Qt 6.6.3 complete."
-
-# Determine version from resources/version.h
-VERSION_H="/workspace/src/resources/version.h"
-if [ -f "${VERSION_H}" ]; then
-    VERSION=$(grep -Po '^#define APP_VERSION\s+"\K[0-9]+(\.[0-9]+)*' "${VERSION_H}" | head -n1)
-fi
-if [ -z "${VERSION}" ]; then
-    VERSION="0.4.3.248"
-fi
-
 # Determine architecture
 ARCH=$(uname -m)
 case "${ARCH}" in
@@ -165,18 +119,6 @@ for plugin in "${GSTREAMER_PLUGINS[@]}"; do
 done
 echo "✅ GStreamer plugin dependencies copied"
 
-# Create desktop file
-cat > appimage/AppDir/usr/share/applications/openterfaceqt.desktop << 'EOF'
-[Desktop Entry]
-Type=Application
-Name=OpenterfaceQT
-Comment=Openterface Mini-KVM Host Application  
-Exec=openterfaceQT
-Icon=openterfaceqt
-Categories=Network;RemoteAccess;
-StartupNotify=true
-Terminal=false
-EOF
 
 # Try to find and copy icon
 mkdir -p appimage/AppDir/usr/share/pixmaps
@@ -474,7 +416,10 @@ echo "USE_QT_PLUGIN: ${USE_QT_PLUGIN}"
 echo "================================"
 
 # Set LD_LIBRARY_PATH to include ffmpeg and gstreamer libraries for dependency resolution
-export LD_LIBRARY_PATH="/opt/ffmpeg/lib:/opt/gstreamer/lib$LD_LIBRARY_PATH"
+export LD_LIBRARY_PATH="/opt/ffmpeg/lib:/opt/gstreamer/lib:/opt/Qt6/lib:$LD_LIBRARY_PATH"
+export PATH="/opt/Qt6/bin:$PATH"
+export QT_PLUGIN_PATH="/opt/Qt6/plugins:$QT_PLUGIN_PATH"
+export QML2_IMPORT_PATH="/opt/Qt6/qml:$QML2_IMPORT_PATH"
 
 # Build the command with proper argument handling
 LINUXDEPLOY_ARGS=(
@@ -488,7 +433,7 @@ if [ -n "${ICON_SRC}" ]; then
 fi
 
 if [ "${USE_QT_PLUGIN}" = "true" ]; then
-	LINUXDEPLOY_ARGS+=("--plugin" "qt")
+	LINUXDEPLOY_ARGS+=("--plugin" "qt:qmake=/opt/Qt6/bin/qmake")
 fi
 
 LINUXDEPLOY_ARGS+=("--output" "appimage")
@@ -507,7 +452,7 @@ if [ -n "${ICON_SRC}" ]; then
 fi
 
 if [ "${USE_QT_PLUGIN}" = "true" ]; then
-	LINUXDEPLOY_ARGS_NO_OUTPUT+=("--plugin" "qt")
+	LINUXDEPLOY_ARGS_NO_OUTPUT+=("--plugin" "qt:qmake=/opt/Qt6/bin/qmake")
 fi
 
 echo "Running linuxdeploy without output plugin..."
