@@ -168,20 +168,6 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Install prerequisites
-        run: |
-          sudo apt update -y
-          sudo apt upgrade -y
-          sudo apt install build-essential
-          sudo apt-get install -y libusb-1.0-0-dev rpm libfuse2 libudev-dev
-          
-          wget -O linuxdeploy-x86_64.AppImage https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
-          wget -O linuxdeploy-plugin-qt-x86_64.AppImage https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-x86_64.AppImage
-          wget -O appimagetool "https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage"
-          
-          chmod +x linuxdeploy-x86_64.AppImage linuxdeploy-plugin-qt-x86_64.AppImage appimagetool
-          sudo mv linuxdeploy-x86_64.AppImage linuxdeploy-plugin-qt-x86_64.AppImage appimagetool /usr/local/bin/
-
       - name: Set lowercase image name
         run: echo "IMAGE_NAME_LOWER=$(echo '${{ github.repository_owner }}/openterface-qtbuild' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
 
@@ -257,12 +243,6 @@ jobs:
             bash /workspace/src/build-script/docker-build-static.sh
           echo "BUILD_DIR=${{ runner.temp }}/build-static" >> $GITHUB_ENV
 
-      - name: Upload AppImage artifact (static from wrapper)
-        uses: actions/upload-artifact@v4
-        with:
-          name: openterfaceQT.linux.amd64.static.AppImage
-          path: ${{ runner.temp }}/build-static/openterfaceQT_*.AppImage
-          if-no-files-found: error
 
       - name: Create Portable Application (No packaging)
         working-directory: ${{ runner.temp }}

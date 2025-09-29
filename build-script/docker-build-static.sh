@@ -3,7 +3,7 @@ set -e
 
 # Wrapper for static build packaging
 export OPENTERFACE_BUILD_STATIC=ON
-export USE_GSTREAMER_STATIC_PLUGINS=OFF
+export USE_GSTREAMER_STATIC_PLUGINS=ON
 
 # Optional: set minimal deps for static .deb (can be overridden by DEB_DEPENDS)
 : "${DEB_DEPENDS:=libc6}"
