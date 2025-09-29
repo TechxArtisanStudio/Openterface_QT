@@ -131,7 +131,8 @@ QList<DeviceInfo> DeviceManager::getDevicesByPortChain(const QString& portChain)
         return QList<DeviceInfo>();
     }
     
-    return m_platformManager->getDevicesByPortChain(portChain);
+    // First try exact PortChain match, then try companion PortChain match for USB 3.0 devices
+    return m_platformManager->getDevicesByAnyPortChain(portChain);
 }
 
 QStringList DeviceManager::getAvailablePortChains()
@@ -141,6 +142,36 @@ QStringList DeviceManager::getAvailablePortChains()
     }
     
     return m_platformManager->getAvailablePortChains();
+}
+
+QString DeviceManager::getCompositePortChain(const QString& requestedPortChain)
+{
+    if (!m_platformManager || requestedPortChain.isEmpty()) {
+        return requestedPortChain;
+    }
+    
+    QList<DeviceInfo> devices = m_platformManager->getDevicesByAnyPortChain(requestedPortChain);
+    if (devices.isEmpty()) {
+        return requestedPortChain;
+    }
+    
+    DeviceInfo device = devices.first();
+    return device.getCompositePortChain();
+}
+
+QString DeviceManager::getSerialPortChain(const QString& requestedPortChain)
+{
+    if (!m_platformManager || requestedPortChain.isEmpty()) {
+        return requestedPortChain;
+    }
+    
+    QList<DeviceInfo> devices = m_platformManager->getDevicesByAnyPortChain(requestedPortChain);
+    if (devices.isEmpty()) {
+        return requestedPortChain;
+    }
+    
+    DeviceInfo device = devices.first();
+    return device.getSerialPortChain();
 }
 
 DeviceInfo DeviceManager::selectDeviceByPortChain(const QString& portChain)
@@ -207,37 +238,40 @@ DeviceManager::DeviceSwitchResult DeviceManager::switchToDeviceByPortChain(const
     
     // Switch HID device
     if (selectedDevice.hasHidDevice()) {
-        result.hidSuccess = VideoHid::getInstance().switchToHIDDeviceByPortChain(portChain);
+        QString hidPortChain = selectedDevice.getCompositePortChain();
+        result.hidSuccess = VideoHid::getInstance().switchToHIDDeviceByPortChain(hidPortChain);
         if (result.hidSuccess) {
             successMessages << "HID device switched";
-            qCInfo(log_device_manager) << "✓ HID device switched to device at port:" << portChain;
+            qCInfo(log_device_manager) << "✓ HID device switched to device at port:" << hidPortChain;
         } else {
             failureMessages << "HID device switch failed";
-            qCWarning(log_device_manager) << "Failed to switch HID device to port:" << portChain;
+            qCWarning(log_device_manager) << "Failed to switch HID device to port:" << hidPortChain;
         }
     }
     
     // Switch audio device
     if (selectedDevice.hasAudioDevice()) {
-        result.audioSuccess = AudioManager::getInstance().switchToAudioDeviceByPortChain(portChain);
+        QString audioPortChain = selectedDevice.getCompositePortChain();
+        result.audioSuccess = AudioManager::getInstance().switchToAudioDeviceByPortChain(audioPortChain);
         if (result.audioSuccess) {
             successMessages << "Audio device switched";
-            qCInfo(log_device_manager) << "✓ Audio device switched to device at port:" << portChain;
+            qCInfo(log_device_manager) << "✓ Audio device switched to device at port:" << audioPortChain;
         } else {
             failureMessages << "Audio device switch failed";
-            qCWarning(log_device_manager) << "Failed to switch audio device to port:" << portChain;
+            qCWarning(log_device_manager) << "Failed to switch audio device to port:" << audioPortChain;
         }
     }
     
     // Switch serial port device
     if (selectedDevice.hasSerialPort()) {
-        result.serialSuccess = SerialPortManager::getInstance().switchSerialPortByPortChain(portChain);
+        QString serialPortChain = selectedDevice.getSerialPortChain();
+        result.serialSuccess = SerialPortManager::getInstance().switchSerialPortByPortChain(serialPortChain);
         if (result.serialSuccess) {
             successMessages << "Serial port switched";
-            qCInfo(log_device_manager) << "✓ Serial port switched to device at port:" << portChain;
+            qCInfo(log_device_manager) << "✓ Serial port switched to device at port:" << serialPortChain;
         } else {
             failureMessages << "Serial port switch failed";
-            qCWarning(log_device_manager) << "Failed to switch serial port to device at port:" << portChain;
+            qCWarning(log_device_manager) << "Failed to switch serial port to device at port:" << serialPortChain;
         }
     }
     
@@ -394,39 +428,19 @@ void DeviceManager::forceRefresh()
     emit devicesChanged(currentDevices);
 }
 
-bool DeviceManager::switchSerialPortByPortChain(const QString& portChain)
-{
-    qCDebug(log_device_manager) << "Attempting to switch serial port to device at port chain:" << portChain;
-    
-    try {
-        SerialPortManager& serialManager = SerialPortManager::getInstance();
-        bool success = serialManager.switchSerialPortByPortChain(portChain);
-        
-        if (success) {
-            qCInfo(log_device_manager) << "✓ Successfully switched serial port to port chain:" << portChain;
-        } else {
-            qCWarning(log_device_manager) << "Failed to switch serial port to port chain:" << portChain;
-        }
-        
-        return success;
-    } catch (const std::exception& e) {
-        qCCritical(log_device_manager) << "Exception while switching serial port:" << e.what();
-        return false;
-    }
-}
-
 bool DeviceManager::switchHIDDeviceByPortChain(const QString& portChain)
 {
     qCDebug(log_device_manager) << "Attempting to switch HID device to device at port chain:" << portChain;
     
     try {
+        QString hidPortChain = getCompositePortChain(portChain);
         VideoHid& videoHid = VideoHid::getInstance();
-        bool success = videoHid.switchToHIDDeviceByPortChain(portChain);
+        bool success = videoHid.switchToHIDDeviceByPortChain(hidPortChain);
         
         if (success) {
-            qCInfo(log_device_manager) << "✓ Successfully switched HID device to port chain:" << portChain;
+            qCInfo(log_device_manager) << "✓ Successfully switched HID device to port chain:" << hidPortChain;
         } else {
-            qCWarning(log_device_manager) << "Failed to switch HID device to port chain:" << portChain;
+            qCWarning(log_device_manager) << "Failed to switch HID device to port chain:" << hidPortChain;
         }
         
         return success;
@@ -441,18 +455,41 @@ bool DeviceManager::switchAudioDeviceByPortChain(const QString& portChain)
     qCDebug(log_device_manager) << "Attempting to switch audio device to device at port chain:" << portChain;
     
     try {
+        QString audioPortChain = getCompositePortChain(portChain);
         AudioManager& audioManager = AudioManager::getInstance();
-        bool success = audioManager.switchToAudioDeviceByPortChain(portChain);
+        bool success = audioManager.switchToAudioDeviceByPortChain(audioPortChain);
         
         if (success) {
-            qCInfo(log_device_manager) << "✓ Successfully switched audio device to port chain:" << portChain;
+            qCInfo(log_device_manager) << "✓ Successfully switched audio device to port chain:" << audioPortChain;
         } else {
-            qCWarning(log_device_manager) << "Failed to switch audio device to port chain:" << portChain;
+            qCWarning(log_device_manager) << "Failed to switch audio device to port chain:" << audioPortChain;
         }
         
         return success;
     } catch (const std::exception& e) {
         qCCritical(log_device_manager) << "Exception while switching audio device:" << e.what();
+        return false;
+    }
+}
+
+bool DeviceManager::switchSerialPortByPortChain(const QString& portChain)
+{
+    qCDebug(log_device_manager) << "Attempting to switch serial port to device at port chain:" << portChain;
+    
+    try {
+        QString serialPortChain = getSerialPortChain(portChain);
+        SerialPortManager& serialPortManager = SerialPortManager::getInstance();
+        bool success = serialPortManager.switchSerialPortByPortChain(serialPortChain);
+        
+        if (success) {
+            qCInfo(log_device_manager) << "✓ Successfully switched serial port to port chain:" << serialPortChain;
+        } else {
+            qCWarning(log_device_manager) << "Failed to switch serial port to port chain:" << serialPortChain;
+        }
+        
+        return success;
+    } catch (const std::exception& e) {
+        qCCritical(log_device_manager) << "Exception while switching serial port:" << e.what();
         return false;
     }
 }

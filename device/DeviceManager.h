@@ -43,6 +43,10 @@ public:
     QList<DeviceInfo> getDevicesByPortChain(const QString& portChain);
     QStringList getAvailablePortChains();
     
+    // USB 3.0 Companion PortChain support
+    QString getCompositePortChain(const QString& requestedPortChain);
+    QString getSerialPortChain(const QString& requestedPortChain);
+    
     // Device selection
     DeviceInfo selectDeviceByPortChain(const QString& portChain);
     DeviceInfo getFirstAvailableDevice();

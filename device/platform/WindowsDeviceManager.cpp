@@ -1909,6 +1909,15 @@ QList<DeviceInfo> WindowsDeviceManager::discoverOptimizedDevices()
         deviceInfo.lastSeen = QDateTime::currentDateTime();
         deviceInfo.platformSpecific = integratedDevice.deviceInfo;
         
+        // For USB 3.0 integrated devices, set up companion PortChain association
+        // The serial port is on the main PortChain, composite devices on companionPortChain
+        if (associatedPortChain != integratedDevice.portChain) {
+            deviceInfo.companionPortChain = integratedDevice.portChain;
+            deviceInfo.hasCompanionDevice = true;
+            qCDebug(log_device_windows) << "  USB 3.0 device - Serial PortChain:" << associatedPortChain 
+                                       << "Companion PortChain:" << integratedDevice.portChain;
+        }
+        
         // Set the serial port information if found
         if (!associatedSerialPortId.isEmpty()) {
             deviceInfo.serialPortId = associatedSerialPortId;
