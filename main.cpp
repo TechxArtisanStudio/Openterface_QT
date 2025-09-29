@@ -41,7 +41,7 @@ Q_IMPORT_PLUGIN(QSvgPlugin)
 // Platform plugins (Linux)
 #ifdef Q_OS_LINUX
 Q_IMPORT_PLUGIN(QXcbIntegrationPlugin)
-Q_IMPORT_PLUGIN(QOffscreenIntegrationPlugin)
+// Q_IMPORT_PLUGIN(QOffscreenIntegrationPlugin)  // Commented out - not available in shared Qt build
 // Note: Wayland plugin may not be properly built in static builds
 // Q_IMPORT_PLUGIN(QWaylandEglPlatformIntegrationPlugin)
 #endif
