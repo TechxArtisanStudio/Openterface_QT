@@ -430,7 +430,8 @@ if [ -n "${ICON_SRC}" ]; then
 fi
 
 if [ "${USE_QT_PLUGIN}" = "true" ]; then
-	LINUXDEPLOY_ARGS+=("--plugin" "qt:qmake=/opt/Qt6/bin/qmake")
+	LINUXDEPLOY_ARGS+=("--plugin" "qt")
+	LINUXDEPLOY_ARGS+=("--plugin-qt-qmake" "/opt/Qt6/bin/qmake")
 fi
 
 LINUXDEPLOY_ARGS+=("--output" "appimage")
@@ -449,7 +450,8 @@ if [ -n "${ICON_SRC}" ]; then
 fi
 
 if [ "${USE_QT_PLUGIN}" = "true" ]; then
-	LINUXDEPLOY_ARGS_NO_OUTPUT+=("--plugin" "qt:qmake=/opt/Qt6/bin/qmake")
+	LINUXDEPLOY_ARGS_NO_OUTPUT+=("--plugin" "qt")
+	LINUXDEPLOY_ARGS_NO_OUTPUT+=("--plugin-qt-qmake" "/opt/Qt6/bin/qmake")
 fi
 
 echo "Running linuxdeploy without output plugin..."
