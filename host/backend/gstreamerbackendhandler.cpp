@@ -432,10 +432,10 @@ bool GStreamerBackendHandler::createGStreamerPipeline(const QString& device, con
         videoSink = QString::fromLatin1(sinkOverride);
         qCDebug(log_gstreamer_backend) << "Using sink from OPENTERFACE_GST_SINK:" << videoSink;
     } else {
-        // Simplified: Always use ximagesink for video display
+        // Simplified: Always use xvimagesink for video display
         // This provides reliable cross-platform compatibility for X11/XWayland
-        videoSink = "ximagesink";
-        qCDebug(log_gstreamer_backend) << "Using ximagesink for video display (simplified configuration)";
+        videoSink = "xvimagesink";
+        qCDebug(log_gstreamer_backend) << "Using xvimagesink for video display (simplified configuration)";
     }
     
     qCDebug(log_gstreamer_backend) << "Selected video sink:" << videoSink << "(platform:" << platform

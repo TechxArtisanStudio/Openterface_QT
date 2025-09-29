@@ -212,29 +212,6 @@ cp appimage/AppDir/usr/share/applications/openterfaceqt.desktop appimage/AppDir/
 # Copy icon to root  
 cp appimage/AppDir/usr/share/pixmaps/openterfaceqt.png appimage/AppDir/ 2>/dev/null || true
 
-# Create custom AppRun script with proper environment setup
-cat > appimage/AppDir/AppRun << 'EOF'
-#!/bin/bash
-# AppRun script for OpenterfaceQT enhanced AppImage with GStreamer plugins
-
-# Set the directory where this script is located
-HERE="$(dirname "$(readlink -f "${0}")")"
-
-# Set GStreamer plugin path to our bundled plugins
-export GST_PLUGIN_PATH="${HERE}/usr/lib/gstreamer-1.0:${GST_PLUGIN_PATH}"
-
-# Set library path for our bundled libraries
-export LD_LIBRARY_PATH="${HERE}/usr/lib:${LD_LIBRARY_PATH}"
-
-# Set Qt plugin path
-export QT_PLUGIN_PATH="${HERE}/usr/plugins:${QT_PLUGIN_PATH}"
-
-# Run the application
-exec "${HERE}/usr/bin/openterfaceQT" "$@"
-EOF
-
-chmod +x appimage/AppDir/AppRun
-
 # Continue to comprehensive AppImage creation section with Docker runtime support
 # (This section was simplified and moved to the end of the script for proper runtime handling)
 echo "📦 Copied $COPIED_COUNT essential GStreamer plugins"
@@ -274,7 +251,7 @@ Name=OpenterfaceQT
 Comment=Openterface Mini-KVM Host Application  
 Exec=openterfaceQT
 Icon=openterfaceqt
-Categories=Network;RemoteAccess;
+Categories=Utility;
 StartupNotify=true
 Terminal=false
 EOF
@@ -535,6 +512,29 @@ fi
 
 echo "Running linuxdeploy without output plugin..."
 "${LINUXDEPLOY_BIN}" "${LINUXDEPLOY_ARGS_NO_OUTPUT[@]}"
+
+# Create custom AppRun script with proper environment setup after linuxdeploy to avoid override
+cat > "${APPDIR}/AppRun" << 'EOF'
+#!/bin/bash
+# AppRun script for OpenterfaceQT enhanced AppImage with GStreamer plugins
+
+# Set the directory where this script is located
+HERE="$(dirname "$(readlink -f "${0}")")"
+
+# Set GStreamer plugin path to our bundled plugins
+export GST_PLUGIN_PATH="${HERE}/usr/lib/gstreamer-1.0:${GST_PLUGIN_PATH}"
+
+# Set library path for our bundled libraries
+export LD_LIBRARY_PATH="${HERE}/usr/lib:${LD_LIBRARY_PATH}"
+
+# Set Qt plugin path
+export QT_PLUGIN_PATH="${HERE}/usr/plugins:${QT_PLUGIN_PATH}"
+
+# Run the application
+exec "${HERE}/usr/bin/openterfaceQT" "$@"
+EOF
+
+chmod +x "${APPDIR}/AppRun"
 
 # Then use appimagetool directly with explicit runtime file
 echo "Running appimagetool with explicit runtime file..."
