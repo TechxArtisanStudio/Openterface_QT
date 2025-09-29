@@ -578,7 +578,7 @@ jobs:
             echo "|-------------|------|--------|-------|" >> $GITHUB_STEP_SUMMARY
 
             # Qt Complete (static) — reflect job result
-            if [ "${{ needs.build-complete.result }}" = "success" ]; then
+            if [ "${{ env.SHARED_OR_STATIC }}" = "static" ] && [ "${{ needs.build-complete.result }}" = "success" ]; then
             echo "| Qt Complete | static | ✅ Success | \`${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-complete:ubuntu-${{ github.event.inputs.ubuntu_version || '22.04' }}-amd64\` |" >> $GITHUB_STEP_SUMMARY
             else
             echo "| Qt Complete | static | ❌ Failed/Skipped | - |" >> $GITHUB_STEP_SUMMARY
@@ -586,7 +586,7 @@ jobs:
 
             # Qt Shared — check if shared image is present in registry
             IMAGE_TAG="ubuntu-${{ github.event.inputs.ubuntu_version || '22.04' }}-amd64"
-            if docker manifest inspect ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-shared:$IMAGE_TAG > /dev/null 2>&1; then
+            if [ "${{ env.SHARED_OR_STATIC }}" = "shared" ] && [ "${{ needs.build-complete.result }}" = "success" ]; then
             echo "| Qt Shared | shared | ✅ Available | \`${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-shared:$IMAGE_TAG\` |" >> $GITHUB_STEP_SUMMARY
             else
             echo "| Qt Shared | shared | ❌ Not available | - |" >> $GITHUB_STEP_SUMMARY
