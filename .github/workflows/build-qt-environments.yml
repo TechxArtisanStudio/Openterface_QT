@@ -145,6 +145,14 @@ jobs:
           cache-to: type=gha,mode=max,scope=${{ env.SHARED_OR_STATIC }}-setup
           platforms: linux/amd64
 
+      - name: Clean up Docker resources
+        if: always()
+        run: |
+          echo "🧹 Cleaning up Docker resources to free disk space..."
+          docker system prune -f --volumes
+          docker image prune -f
+          df -h
+
   build-ffmpeg:
     if: ${{ github.event_name == 'workflow_dispatch' && (github.event.inputs.step == 'ffmpeg' || github.event.inputs.step == 'gstreamer' || github.event.inputs.step == 'qt-base-qtml' || github.event.inputs.step == 'qt-declarative' || github.event.inputs.step == 'qt-complete' || github.event.inputs.step == 'all') || github.event_name != 'workflow_dispatch' }}
     runs-on: ubuntu-latest
@@ -213,6 +221,14 @@ jobs:
           cache-from: type=gha,scope=${{ env.SHARED_OR_STATIC }}-ffmpeg
           cache-to: type=gha,mode=max,scope=${{ env.SHARED_OR_STATIC }}-ffmpeg
           platforms: linux/amd64
+
+      - name: Clean up Docker resources
+        if: always()
+        run: |
+          echo "🧹 Cleaning up Docker resources to free disk space..."
+          docker system prune -f --volumes
+          docker image prune -f
+          df -h
 
   build-qt-base-qtml:
     if: ${{ github.event_name == 'workflow_dispatch' && (github.event.inputs.step == 'qt-base-qtml' || github.event.inputs.step == 'qt-declarative' || github.event.inputs.step == 'qt-complete' || github.event.inputs.step == 'all') || github.event_name != 'workflow_dispatch' }}
@@ -283,6 +299,14 @@ jobs:
           cache-to: type=gha,mode=max,scope=${{ env.SHARED_OR_STATIC }}-qt-base-qtml
           platforms: linux/amd64
 
+      - name: Clean up Docker resources
+        if: always()
+        run: |
+          echo "🧹 Cleaning up Docker resources to free disk space..."
+          docker system prune -f --volumes
+          docker image prune -f
+          df -h
+
   build-qt-declarative:
     if: ${{ github.event_name == 'workflow_dispatch' && (github.event.inputs.step == 'qt-declarative' || github.event.inputs.step == 'qt-complete' || github.event.inputs.step == 'all') || github.event_name != 'workflow_dispatch' }}
     runs-on: ubuntu-latest
@@ -351,6 +375,14 @@ jobs:
           cache-from: type=gha,scope=${{ env.SHARED_OR_STATIC }}-qt-declarative
           cache-to: type=gha,mode=max,scope=${{ env.SHARED_OR_STATIC }}-qt-declarative
           platforms: linux/amd64
+
+      - name: Clean up Docker resources
+        if: always()
+        run: |
+          echo "🧹 Cleaning up Docker resources to free disk space..."
+          docker system prune -f --volumes
+          docker image prune -f
+          df -h
 
 
   build-gstreamer:
@@ -422,6 +454,14 @@ jobs:
           cache-to: type=gha,mode=max,scope=${{ env.SHARED_OR_STATIC }}-gstreamer
           platforms: linux/amd64
 
+      - name: Clean up Docker resources
+        if: always()
+        run: |
+          echo "🧹 Cleaning up Docker resources to free disk space..."
+          docker system prune -f --volumes
+          docker image prune -f
+          df -h
+
   build-complete:
     if: ${{ github.event_name == 'workflow_dispatch' && (github.event.inputs.step == 'qt-complete' || github.event.inputs.step == 'all') || github.event_name != 'workflow_dispatch' }}
     runs-on: ubuntu-latest
@@ -491,6 +531,14 @@ jobs:
           cache-to: type=gha,mode=max,scope=${{ env.SHARED_OR_STATIC }}-qt-complete
           platforms: linux/amd64
 
+      - name: Clean up Docker resources
+        if: always()
+        run: |
+          echo "🧹 Cleaning up Docker resources to free disk space..."
+          docker system prune -f --volumes
+          docker image prune -f
+          df -h
+
       - name: Test Qt Environment
         run: |
           docker run --rm ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-complete:ubuntu-${{ github.event.inputs.ubuntu_version || '22.04' }}-amd64 \
@@ -546,13 +594,13 @@ jobs:
           echo "**Shared Build:**" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
           echo "docker run --rm -v \$(pwd):/workspace/src -w /workspace/src \\" >> $GITHUB_STEP_SUMMARY
-          echo "  ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-shared:ubuntu-${{ github.event.inputs.ubuntu_version || '22.04' }}-amd64 \\" >> $GITHUB_STEP_SUMMARY
+          echo "  ghcr.io/techxartisanstudio/static-qtbuild-complete:ubuntu-${{ github.event.inputs.ubuntu_version || '22.04' }}-amd64 \\" >> $GITHUB_STEP_SUMMARY
           echo "  bash -c 'mkdir build && cd build && cmake -DBUILD_SHARED_LIBS=ON .. && make -j\$(nproc)'" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Static Build:**" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
           echo "docker run --rm -v \$(pwd):/workspace/src -w /workspace/src \\" >> $GITHUB_STEP_SUMMARY
-          echo "  ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-complete:ubuntu-${{ github.event.inputs.ubuntu_version || '22.04' }}-amd64 \\" >> $GITHUB_STEP_SUMMARY
+          echo "  ghcr.io/techxartisanstudio/static-qtbuild-complete:ubuntu-${{ github.event.inputs.ubuntu_version || '22.04' }}-amd64 \\" >> $GITHUB_STEP_SUMMARY
           echo "  bash -c 'mkdir build && cd build && cmake -DCMAKE_PREFIX_PATH=/opt/Qt6 -DBUILD_SHARED_LIBS=OFF .. && make -j\$(nproc)'" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`" >> $GITHUB_STEP_SUMMARY

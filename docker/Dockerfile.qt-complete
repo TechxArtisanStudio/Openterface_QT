@@ -35,6 +35,8 @@ RUN echo "Building qtmultimedia..." && \
     PKG_CONFIG_PATH="${INSTALL_PREFIX}/lib/pkgconfig:${FFMPEG_PREFIX}/lib/pkgconfig:${GSTREAMER_PREFIX}/lib/pkgconfig:/usr/local/lib/pkgconfig:$PKG_CONFIG_PATH" \
     cmake -GNinja \
         ${CMAKE_COMMON_FLAGS} \
+        -DCMAKE_DISABLE_PRECOMPILE_HEADERS=ON \
+        -DCMAKE_BUILD_TYPE=Release \
         -DCMAKE_INSTALL_PREFIX="${INSTALL_PREFIX}" \
         -DCMAKE_PREFIX_PATH="${INSTALL_PREFIX};${FFMPEG_PREFIX};${GSTREAMER_PREFIX}" \
         -DBUILD_SHARED_LIBS="${BUILD_SHARED_LIBS}" \
@@ -54,7 +56,7 @@ RUN echo "Building qtmultimedia..." && \
         -DFFMPEG_PATH="${FFMPEG_PREFIX}" \
         -DGSTREAMER_PATH="${GSTREAMER_PREFIX}" \
         .. && \
-    ninja && \
+    ninja -j1 && \
     ninja install
 
 # Build qtsvg
@@ -65,11 +67,13 @@ RUN echo "Building qtsvg..." && \
     PKG_CONFIG_PATH="${INSTALL_PREFIX}/lib/pkgconfig:/usr/local/lib/pkgconfig:$PKG_CONFIG_PATH" \
     cmake -GNinja \
         ${CMAKE_COMMON_FLAGS} \
+        -DCMAKE_DISABLE_PRECOMPILE_HEADERS=ON \
+        -DCMAKE_BUILD_TYPE=Release \
         -DCMAKE_INSTALL_PREFIX="${INSTALL_PREFIX}" \
         -DCMAKE_PREFIX_PATH="${INSTALL_PREFIX}" \
         -DBUILD_SHARED_LIBS="${BUILD_SHARED_LIBS}" \
         .. && \
-    ninja && \
+    ninja -j1 && \
     ninja install
 
 # Build qtserialport
@@ -80,10 +84,12 @@ RUN echo "Building qtserialport..." && \
     PKG_CONFIG_PATH="${INSTALL_PREFIX}/lib/pkgconfig:/usr/local/lib/pkgconfig:$PKG_CONFIG_PATH" \
     cmake -GNinja \
         ${CMAKE_COMMON_FLAGS} \
+        -DCMAKE_DISABLE_PRECOMPILE_HEADERS=ON \
+        -DCMAKE_BUILD_TYPE=Release \
         -DCMAKE_INSTALL_PREFIX="${INSTALL_PREFIX}" \
         -DBUILD_SHARED_LIBS="${BUILD_SHARED_LIBS}" \
         .. && \
-    ninja && \
+    ninja -j1 && \
     ninja install
 
 # Build qttools
@@ -95,6 +101,8 @@ RUN echo "Building qttools..." && \
     CLANG_PREFIX="/usr/lib/llvm-16" && \
     cmake -GNinja \
         ${CMAKE_COMMON_FLAGS} \
+        -DCMAKE_DISABLE_PRECOMPILE_HEADERS=ON \
+        -DCMAKE_BUILD_TYPE=Release \
         -DCMAKE_INSTALL_PREFIX="${INSTALL_PREFIX}" \
         -DBUILD_SHARED_LIBS="${BUILD_SHARED_LIBS}" \
         -DFEATURE_linguist=ON \
@@ -110,7 +118,7 @@ RUN echo "Building qttools..." && \
         -DLLVM_INSTALL_DIR="$CLANG_PREFIX" \
         -DLLVM_CMAKE_DIR="$CLANG_PREFIX/cmake" \
         .. && \
-    ninja && \
+    ninja -j1 && \
     ninja install
 
 # Generate Qt6 pkg-config files for GStreamer detection
@@ -211,6 +219,7 @@ RUN apt-get update && apt-get install -y cmake python3-pip ninja-build build-ess
     gstreamer1.0-tools \
     libudev-dev libgudev-1.0-dev libx11-dev libxv-dev libxext-dev && \
     pip3 install --no-cache-dir meson && \
+    apt-get clean && rm -rf /var/lib/apt/lists/* && \
     echo "Building gst-plugins-good (static)..." && \
     . /etc/environment && \
     # Ensure Meson can find qmake/qtpaths/moc/uic/rcc by exporting QMAKE and PATH
@@ -255,7 +264,7 @@ RUN apt-get update && apt-get install -y cmake python3-pip ninja-build build-ess
         -Davi=enabled \
         -Dmatroska=enabled \
         -Dflv=enabled && \
-    ninja -C build && \
+    ninja -C build -j1 && \
     ninja -C build install
 
 # Build gst-plugins-bad (static libraries for additional codecs and features)
@@ -279,7 +288,7 @@ RUN echo "Building gst-plugins-bad (static)..." && \
         -Dexamples=disabled \
         -Dtests=disabled \
         -Dnls=disabled && \
-    ninja -C build && \
+    ninja -C build -j1 && \
     ninja -C build install
 
 # Clean up source files to reduce image size

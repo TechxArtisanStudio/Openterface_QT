@@ -48,6 +48,8 @@ RUN echo "Building qtbase with system XCB libraries and SSL support..." && \
     export OPENSSL_INCLUDE_DIR="/usr/include/openssl" && \
     cmake -GNinja \
         ${CMAKE_COMMON_FLAGS} \
+        -DCMAKE_DISABLE_PRECOMPILE_HEADERS=ON \
+        -DCMAKE_BUILD_TYPE=Release \
         -DCMAKE_INSTALL_PREFIX="${INSTALL_PREFIX}" \
         -DBUILD_SHARED_LIBS="${BUILD_SHARED_LIBS}" \
         -DFEATURE_dbus=ON \
@@ -67,8 +69,8 @@ RUN echo "Building qtbase with system XCB libraries and SSL support..." && \
         -DOPENSSL_LIBRARIES="$OPENSSL_LIBRARIES" \
         -DOPENSSL_INCLUDE_DIR="$OPENSSL_INCLUDE_DIR" \
         .. && \
-    ninja -j 2 && \
-    ninja install -j 2
+    ninja -j1 && \
+    ninja install
 
 # Build qtshadertools
 RUN echo "Building qtshadertools..." && \
@@ -77,11 +79,13 @@ RUN echo "Building qtshadertools..." && \
     cd build && \
     cmake -GNinja \
         ${CMAKE_COMMON_FLAGS} \
+        -DCMAKE_DISABLE_PRECOMPILE_HEADERS=ON \
+        -DCMAKE_BUILD_TYPE=Release \
         -DCMAKE_INSTALL_PREFIX="${INSTALL_PREFIX}" \
         -DBUILD_SHARED_LIBS="${BUILD_SHARED_LIBS}" \
         -DCMAKE_EXE_LINKER_FLAGS="-lfontconfig -lfreetype" \
         .. && \
-    ninja && \
+    ninja -j1 && \
     ninja install
 
 # Build qtwayland (client-only)
@@ -91,6 +95,8 @@ RUN echo "Building qtwayland (client)..." && \
     cd build && \
     cmake -GNinja \
         ${CMAKE_COMMON_FLAGS} \
+        -DCMAKE_DISABLE_PRECOMPILE_HEADERS=ON \
+        -DCMAKE_BUILD_TYPE=Release \
         -DCMAKE_INSTALL_PREFIX="${INSTALL_PREFIX}" \
         -DBUILD_SHARED_LIBS="${BUILD_SHARED_LIBS}" \
         -DQT_FEATURE_wayland_server=OFF \
@@ -98,8 +104,8 @@ RUN echo "Building qtwayland (client)..." && \
         -DQt6WaylandClient_DIR="${INSTALL_PREFIX}/lib/cmake/Qt6WaylandClient" \
         -DQt6_DIR="${INSTALL_PREFIX}/lib/cmake/Qt6" \
         .. && \
-    ninja -j 2 && \
-    ninja install -j 2
+    ninja -j1 && \
+    ninja install
 
 # Create verification script for base components
 RUN mkdir -p ${INSTALL_PREFIX}/bin && \
