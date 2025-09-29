@@ -38,18 +38,14 @@ SRC_DIR="/workspace/src"
 # Build the application first
 echo 'Building Openterface with Qt 6.6.3 and comprehensive GStreamer support...'
 
-# Set environment variables for build
-export OPENTERFACE_BUILD_STATIC=OFF
-export USE_GSTREAMER_STATIC_PLUGINS=OFF
-
 # Verify Qt version
 echo "Using Qt version: $(qmake -query QT_VERSION)"
 echo "Qt installation prefix: $(qmake -query QT_INSTALL_PREFIX)"
 
 cd /workspace/build
 cmake -DCMAKE_BUILD_TYPE=Release \
-      -DOPENTERFACE_BUILD_STATIC=OFF \
-      -DUSE_GSTREAMER_STATIC_PLUGINS=OFF \
+      -DOPENTERFACE_BUILD_STATIC=${OPENTERFACE_BUILD_STATIC} \
+      -DUSE_GSTREAMER_STATIC_PLUGINS=${USE_GSTREAMER_STATIC_PLUGINS} \
       -DCMAKE_PREFIX_PATH="/opt/Qt6" \
       -DQt6_DIR="/opt/Qt6/lib/cmake/Qt6" \
       /workspace/src
@@ -65,4 +61,3 @@ if [ -z "${VERSION}" ]; then
     VERSION="0.4.3.248"
 fi
 
-bash "${SRC_DIR}/build-script/docker-build-appimage.sh"

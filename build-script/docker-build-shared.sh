@@ -81,6 +81,8 @@ fi
 # Run the main build + deb + AppImage
 bash /workspace/src/build-script/docker-build.sh
 
+bash /workspace/src/build-script/docker-build-appimage.sh
+
 # =========================
 # Build Debian package (.deb)
 # =========================
