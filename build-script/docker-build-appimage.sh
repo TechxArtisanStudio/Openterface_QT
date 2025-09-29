@@ -148,9 +148,6 @@ if [ "$ICON_FOUND" = false ]; then
     }
 fi
 
-# Copy desktop file to root
-cp appimage/AppDir/usr/share/applications/openterfaceqt.desktop appimage/AppDir/
-
 # Copy icon to root  
 cp appimage/AppDir/usr/share/pixmaps/openterfaceqt.png appimage/AppDir/ 2>/dev/null || true
 
