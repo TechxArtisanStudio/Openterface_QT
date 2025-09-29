@@ -450,7 +450,6 @@ fi
 
 if [ "${USE_QT_PLUGIN}" = "true" ]; then
 	LINUXDEPLOY_ARGS_NO_OUTPUT+=("--plugin" "qt")
-	LINUXDEPLOY_ARGS_NO_OUTPUT+=("--plugin-qt-qmake" "/opt/Qt6/bin/qmake")
 fi
 
 echo "Running linuxdeploy without output plugin..."
