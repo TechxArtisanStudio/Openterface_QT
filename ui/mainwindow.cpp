@@ -565,7 +565,7 @@ QString MainWindow::getDeviceTypeName(const DeviceInfo& device) {
              str.contains(QString("PID_%1").arg(KVMGO_V3_PID), Qt::CaseInsensitive)) ||
             (str.contains(KVMGO_V3_VID, Qt::CaseInsensitive) && 
              str.contains(KVMGO_V3_PID, Qt::CaseInsensitive))) {
-            return "KVMGO V3";
+            return "KVMGO VGA";
         }
         
         // Check for KVMGO (345F:2132)
