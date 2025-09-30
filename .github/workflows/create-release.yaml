@@ -208,21 +208,13 @@ jobs:
           name: openterfaceQT.linux.amd64.shared.rpm
           path: artifacts/linux/amd64/rpm
       
-      - name: Download Linux portable artifacts
-        uses: dawidd6/action-download-artifact@v6
-        with:
-          workflow: linux-build.yaml
-          workflow_conclusion: success
-          name: openterfaceQT.linux.amd64.portable
-          path: artifacts/linux/portable
-      
-      - name: Download Linux portable AppImage artifact
+      - name: Download Linux shared AppImage artifact
         uses: dawidd6/action-download-artifact@v2
         with:
           workflow: linux-build.yaml
           workflow_conclusion: success
-          name: openterfaceQT.linux.amd64.static.AppImage
-          path: artifacts/linux/portable
+          name: openterfaceQT.linux.amd64.shared.AppImage
+          path: artifacts/linux/appimage
 
       - name: Download signed Windows installer artifact
         if: ${{ !inputs.skip_windows_signing }}
