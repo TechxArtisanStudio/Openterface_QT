@@ -566,102 +566,85 @@ Veuillez réessayer après avoir redémarré l&apos;application.</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="149"/>
-        <location filename="../../ui/mainwindow.ui" line="149"/>
         <source>Close</source>
         <translation>Fermer</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="154"/>
         <location filename="../../ui/mainwindow.ui" line="154"/>
         <source>Change Settings</source>
         <translation>Modifier les paramètres</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="159"/>
-        <location filename="../../ui/mainwindow.ui" line="159"/>
         <source>Reset Serial Port</source>
         <translation>Réinitialiser le port série</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="164"/>
         <location filename="../../ui/mainwindow.ui" line="164"/>
         <source>Serial Console</source>
         <translation>Console série</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="169"/>
-        <location filename="../../ui/mainwindow.ui" line="169"/>
         <source>AutoReszie</source>
         <translation>Redimensionnement automatique</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="174"/>
         <location filename="../../ui/mainwindow.ui" line="174"/>
         <source>Factory Reset HID Chip</source>
         <translation>Réinitialisation d&apos;usine de la puce HID</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="179"/>
-        <location filename="../../ui/mainwindow.ui" line="179"/>
         <source>Preferences</source>
         <translation>Préférences</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="184"/>
         <location filename="../../ui/mainwindow.ui" line="184"/>
         <source>Office Website</source>
         <translation>Site web officiel</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="189"/>
-        <location filename="../../ui/mainwindow.ui" line="189"/>
         <source>Purchase</source>
         <translation>Acheter</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="194"/>
         <location filename="../../ui/mainwindow.ui" line="194"/>
         <source>Feedback</source>
         <translation>Retour d&apos;information</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="199"/>
-        <location filename="../../ui/mainwindow.ui" line="199"/>
         <source>Update</source>
         <translation>Mettre à jour</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="204"/>
         <location filename="../../ui/mainwindow.ui" line="204"/>
         <source>Environment</source>
         <translation>Environnement</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="209"/>
-        <location filename="../../ui/mainwindow.ui" line="209"/>
         <source>About</source>
         <translation>À propos</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="220"/>
         <location filename="../../ui/mainwindow.ui" line="220"/>
         <source>Follow Switch</source>
         <translation>Suivre le commutateur</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="228"/>
-        <location filename="../../ui/mainwindow.ui" line="228"/>
         <source>Paste</source>
         <translation>Coller</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="231"/>
-        <location filename="../../ui/mainwindow.ui" line="231"/>
         <source>Paste clipboard content to target</source>
         <translation>Coller le contenu du presse-papiers sur la cible</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="236"/>
         <location filename="../../ui/mainwindow.ui" line="236"/>
         <source>Script Tool</source>
         <translation>Outil de script</translation>
@@ -678,118 +661,90 @@ Veuillez réessayer après avoir redémarré l&apos;application.</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="249"/>
-        <location filename="../../ui/mainwindow.ui" line="241"/>
-        <source>Video Recording Settings</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../../ui/mainwindow.ui" line="244"/>
-        <source>Configure video recording settings and start/stop recording</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../../ui/mainwindow.ui" line="249"/>
         <source>TCP Server</source>
         <translation>Serveur TCP</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="254"/>
         <location filename="../../ui/mainwindow.ui" line="254"/>
         <source>Environment Checking</source>
         <translation>Vérification de l&apos;environnement</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="259"/>
-        <location filename="../../ui/mainwindow.ui" line="259"/>
         <source>Firmware Manager</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="264"/>
         <location filename="../../ui/mainwindow.ui" line="264"/>
         <source>Firmware Update...</source>
         <translation>Mise à jour du firmware...</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="269"/>
-        <location filename="../../ui/mainwindow.ui" line="269"/>
         <source>Device Selector</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="272"/>
         <location filename="../../ui/mainwindow.ui" line="272"/>
         <source>Open Device Selector Dialog</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="277"/>
-        <location filename="../../ui/mainwindow.ui" line="277"/>
         <source>Update Display Settings</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="280"/>
         <location filename="../../ui/mainwindow.ui" line="280"/>
         <source>Update display name and serial number in EDID</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="289"/>
-        <location filename="../../ui/mainwindow.ui" line="289"/>
         <source>115200</source>
         <translation>115200</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="297"/>
         <location filename="../../ui/mainwindow.ui" line="297"/>
         <source>9600</source>
         <translation>9600</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="307"/>
-        <location filename="../../ui/mainwindow.ui" line="307"/>
         <source>To Host</source>
         <translation>Vers l&apos;hôte</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="315"/>
         <location filename="../../ui/mainwindow.ui" line="315"/>
         <source>To Target</source>
         <translation>Vers la cible</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="328"/>
-        <location filename="../../ui/mainwindow.ui" line="328"/>
         <source>Absolute</source>
         <translation>Absolu</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="336"/>
         <location filename="../../ui/mainwindow.ui" line="336"/>
         <source>Relative</source>
         <translation>Relatif</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="349"/>
-        <location filename="../../ui/mainwindow.ui" line="349"/>
         <source>Auto Hide</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="352"/>
         <location filename="../../ui/mainwindow.ui" line="352"/>
         <source>Auto hide mouse cursor</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="360"/>
-        <location filename="../../ui/mainwindow.ui" line="360"/>
         <source>Always Show</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="363"/>
         <location filename="../../ui/mainwindow.ui" line="363"/>
         <source>Always show mouse cursor</source>
         <translation type="unfinished"></translation>
@@ -800,34 +755,34 @@ Veuillez réessayer après avoir redémarré l&apos;application.</translation>
         <translation>Enregistré %1 sec</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1350"/>
+        <location filename="../../ui/mainwindow.cpp" line="1352"/>
         <source>Image Capture Error</source>
         <translation>Erreur de capture d&apos;image</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1511"/>
+        <location filename="../../ui/mainwindow.cpp" line="1513"/>
         <source>Captured &quot;%1&quot;</source>
         <translation>Capturé &quot;%1&quot;</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="2090"/>
+        <location filename="../../ui/mainwindow.cpp" line="2092"/>
         <source>The firmware is up to date.
 Current version: </source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="2112"/>
+        <location filename="../../ui/mainwindow.cpp" line="2114"/>
         <source>Firmware fetch timeout</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="2113"/>
+        <location filename="../../ui/mainwindow.cpp" line="2115"/>
         <source>Firmware retrieval timed out. Please check your network connection and try again.
 Current version: </source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="2089"/>
+        <location filename="../../ui/mainwindow.cpp" line="2091"/>
         <source>Firmware Update</source>
         <translation>Mise à jour du firmware</translation>
     </message>
@@ -1944,16 +1899,6 @@ Veuillez vérifier votre connexion internet.
     <message>
         <location filename="../../ui/preferences/videopage.cpp" line="144"/>
         <source>Note: Changing media backend requires application restart to take effect.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../../ui/preferences/videopage.cpp" line="151"/>
-        <source>GStreamer Pipeline Template: </source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../../ui/preferences/videopage.cpp" line="162"/>
-        <source>Available placeholders: %DEVICE%, %WIDTH%, %HEIGHT%, %FRAMERATE%</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
