@@ -142,7 +142,8 @@ jobs:
               Write-Output "File: $($_.FullName), Last Modified: $($_.LastWriteTime)"
           }
   create-release:
-    needs: [wait-for-builds]
+    needs: [wait-for-builds, sign-windows]
+    if: ${{ always() && (needs.wait-for-builds.result == 'success') && (inputs.skip_windows_signing || needs.sign-windows.result == 'success') }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -208,13 +209,21 @@ jobs:
           name: openterfaceQT.linux.amd64.shared.rpm
           path: artifacts/linux/amd64/rpm
       
-      - name: Download Linux shared AppImage artifact
+      - name: Download Linux portable artifacts
+        uses: dawidd6/action-download-artifact@v6
+        with:
+          workflow: linux-build.yaml
+          workflow_conclusion: success
+          name: openterfaceQT.linux.amd64.portable
+          path: artifacts/linux/portable
+      
+      - name: Download Linux portable AppImage artifact
         uses: dawidd6/action-download-artifact@v2
         with:
           workflow: linux-build.yaml
           workflow_conclusion: success
-          name: openterfaceQT.linux.amd64.shared.AppImage
-          path: artifacts/linux/appimage
+          name: openterfaceQT.linux.amd64.static.AppImage
+          path: artifacts/linux/portable
 
       - name: Download signed Windows installer artifact
         if: ${{ !inputs.skip_windows_signing }}
