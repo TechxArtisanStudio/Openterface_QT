@@ -35,10 +35,10 @@ echo "Detecting GStreamer plugin directories..."
 
 # Detect GStreamer plugins in container
 GSTREAMER_HOST_DIRS=(
+	"/opt/gstreamer/lib/gstreamer-1.0"  # Custom GStreamer installation
     "/usr/lib/aarch64-linux-gnu/gstreamer-1.0"
     "/usr/lib/x86_64-linux-gnu/gstreamer-1.0"  
     "/usr/lib/gstreamer-1.0"
-    "/host/gstreamer-plugins"  # Mounted from host
 )
 
 GSTREAMER_HOST_DIR=""
