@@ -401,8 +401,8 @@ void CameraManager::startCamera()
                 
                 m_camera->start();
                 
-                // Minimal wait time to reduce transition delay
-                QThread::msleep(25);
+                // Extended wait time for better camera stabilization on Windows
+                QThread::msleep(50);
                 
                 // Verify camera started
                 if (m_camera->isActive()) {
@@ -677,28 +677,40 @@ void CameraManager::setupConnections()
                     try {
                         // Use simple approach on Windows, backend approach on others
                         if (isWindowsPlatform()) {
-                            // Windows: Simple direct QCamera format configuration
-                            QCameraFormat currentFormat = m_camera->cameraFormat();
-                            QSize resolution;
-                            
-                            if (currentFormat.isNull() || currentFormat.resolution().isEmpty()) {
-                                resolution = QSize(m_video_width > 0 ? m_video_width : 1920, 
-                                                  m_video_height > 0 ? m_video_height : 1080);
-                                qCDebug(log_ui_camera) << "Windows: Using stored/default resolution:" << resolution;
-                            } else {
-                                resolution = currentFormat.resolution();
-                                qCDebug(log_ui_camera) << "Windows: Got resolution from camera format:" << resolution;
-                                m_video_width = resolution.width();
-                                m_video_height = resolution.height();
-                            }
-                            
-                            int fps = GlobalVar::instance().getCaptureFps() > 0 ? 
-                                GlobalVar::instance().getCaptureFps() : 30;
-                            
-                            QCameraFormat format = getVideoFormat(resolution, fps, QVideoFrameFormat::Format_Jpeg);
-                            if (m_camera) {
-                                m_camera->setCameraFormat(format);
-                            }
+                            // Windows: Add delay to prevent broken frames during camera initialization
+                            // This delay allows the camera hardware to stabilize before format configuration
+                            qCDebug(log_ui_camera) << "Windows: Adding stabilization delay before format configuration...";
+                            QTimer::singleShot(250, this, [this]() {
+                                // Ensure camera is still active before configuring format
+                                if (!m_camera || !m_camera->isActive()) {
+                                    qCDebug(log_ui_camera) << "Windows: Camera no longer active, skipping format configuration";
+                                    return;
+                                }
+                                
+                                // Windows: Simple direct QCamera format configuration with delay
+                                QCameraFormat currentFormat = m_camera->cameraFormat();
+                                QSize resolution;
+                                
+                                if (currentFormat.isNull() || currentFormat.resolution().isEmpty()) {
+                                    resolution = QSize(m_video_width > 0 ? m_video_width : 1920, 
+                                                      m_video_height > 0 ? m_video_height : 1080);
+                                    qCDebug(log_ui_camera) << "Windows: Using stored/default resolution:" << resolution;
+                                } else {
+                                    resolution = currentFormat.resolution();
+                                    qCDebug(log_ui_camera) << "Windows: Got resolution from camera format:" << resolution;
+                                    m_video_width = resolution.width();
+                                    m_video_height = resolution.height();
+                                }
+                                
+                                int fps = GlobalVar::instance().getCaptureFps() > 0 ? 
+                                    GlobalVar::instance().getCaptureFps() : 30;
+                                
+                                QCameraFormat format = getVideoFormat(resolution, fps, QVideoFrameFormat::Format_Jpeg);
+                                if (m_camera) {
+                                    qCDebug(log_ui_camera) << "Windows: Setting camera format after stabilization delay";
+                                    m_camera->setCameraFormat(format);
+                                }
+                            });
                         } else {
                             // Non-Windows: Use backend handler approach
                             configureResolutionAndFormat();
