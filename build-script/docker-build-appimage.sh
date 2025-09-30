@@ -78,6 +78,17 @@ case "${ARCH}" in
     *) APPIMAGE_ARCH=${ARCH};;
 esac
 
+# Determine version from resources/version.h
+VERSION_H="/workspace/src/resources/version.h"
+if [ -f "${VERSION_H}" ]; then
+    VERSION=$(grep -Po '^#define APP_VERSION\s+"\K[0-9]+(\.[0-9]+)*' "${VERSION_H}" | head -n1)
+fi
+if [ -z "${VERSION}" ]; then
+    VERSION="0.4.3.248"
+fi
+
+echo "Building AppImage version: ${VERSION}"
+
 echo "🎯 Creating AppImage with essential GStreamer plugins..."
 
 # Create enhanced AppImage

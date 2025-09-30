@@ -20,16 +20,16 @@ find_package(Qt6 ${QT6_MINIMUM_VERSION} QUIET COMPONENTS Core)
 
 # If Qt6 is not found in standard locations, try our custom installation
 if(NOT Qt6_FOUND)
-    message(STATUS "Qt6 not found in standard locations, trying /opt/qt6.6.3...")
+    message(STATUS "Qt6 not found in standard locations, trying /opt/Qt6...")
     
     # Set CMAKE_PREFIX_PATH to include our Qt installation
-    list(PREPEND CMAKE_PREFIX_PATH "/opt/qt6.6.3")
+    list(PREPEND CMAKE_PREFIX_PATH "/opt/Qt6")
     
     # Try to find Qt6 again with our custom path
     find_package(Qt6 ${QT6_MINIMUM_VERSION} QUIET COMPONENTS Core)
     
     if(Qt6_FOUND)
-        message(STATUS "Found Qt6 in custom installation: /opt/qt6.6.3")
+        message(STATUS "Found Qt6 in custom installation: /opt/Qt6")
     endif()
 endif()
 
@@ -39,13 +39,13 @@ if(NOT Qt6_FOUND)
         "Qt6 version ${QT6_MINIMUM_VERSION} or higher is required but was not found.\n"
         "Searched locations:\n"
         "  - Standard system paths\n"
-        "  - /opt/qt6.6.3 (custom installation)\n"
+        "  - /opt/Qt6 (custom installation)\n"
         "\n"
         "To resolve this issue:\n"
-        "1. Ensure Qt 6.6.3+ is installed from source in /opt/qt6.6.3\n"
+        "1. Ensure Qt 6.6.3+ is installed from source in /opt/Qt6\n"
         "2. Run the installation script: ./docker/install-qt-6.6.3-from-source.sh\n"
-        "3. Source the Qt environment: source /opt/qt6.6.3/setup-qt-env.sh\n"
-        "4. Set CMAKE_PREFIX_PATH to include Qt: -DCMAKE_PREFIX_PATH=/opt/qt6.6.3\n"
+        "3. Source the Qt environment: source /opt/Qt6/setup-qt-env.sh\n"
+        "4. Set CMAKE_PREFIX_PATH to include Qt: -DCMAKE_PREFIX_PATH=/opt/Qt6\n"
     )
 endif()
 

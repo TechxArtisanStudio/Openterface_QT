@@ -127,6 +127,8 @@ jobs:
         run: |
           mkdir -p ${{ runner.temp }}/build-shared
           docker run --rm \
+          	--env OPENTERFACE_BUILD_STATIC=OFF \
+            --env USE_GSTREAMER_STATIC_PLUGINS=OFF \
             -v ${{ github.workspace }}:/workspace/src \
             -v ${{ runner.temp }}/build-shared:/workspace/build \
             -w /workspace/src \
@@ -236,6 +238,8 @@ jobs:
         run: |
           mkdir -p ${{ runner.temp }}/build-static
           docker run --rm \
+          	--env OPENTERFACE_BUILD_STATIC=ON \
+            --env USE_GSTREAMER_STATIC_PLUGINS=OFF \
             -v ${{ github.workspace }}:/workspace/src \
             -v ${{ runner.temp }}/build-static:/workspace/build \
             -w /workspace/src \

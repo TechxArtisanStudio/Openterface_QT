@@ -6,13 +6,13 @@
 set -e
 
 echo "============================================"
-echo "Qt 6.6.3 Installation Verification"
+echo "Qt Installation Verification"
 echo "============================================"
 
 # Check if Qt environment is sourced
-if [ -f "/opt/qt6.6.3/setup-qt-env.sh" ]; then
+if [ -f "/opt/Qt6/setup-qt-env.sh" ]; then
     echo "Sourcing Qt 6.6.3 environment..."
-    source /opt/qt6.6.3/setup-qt-env.sh
+    source /opt/Qt6/setup-qt-env.sh
 fi
 
 # Function to check version
@@ -55,11 +55,11 @@ check_qt_paths() {
     echo "Qt headers path: $qt_headers"
     
     # Verify expected installation prefix
-    if [ "$qt_prefix" = "/opt/qt6.6.3" ]; then
+    if [ "$qt_prefix" = "/opt/Qt6" ]; then
         echo "✅ Qt installation prefix is correct"
     else
         echo "❌ Qt installation prefix is incorrect!"
-        echo "   Expected: /opt/qt6.6.3"
+        echo "   Expected: /opt/Qt6"
         echo "   Found: $qt_prefix"
         return 1
     fi
@@ -71,7 +71,7 @@ check_qt_modules() {
     echo "Checking Qt modules..."
     
     local modules=("Core" "Widgets" "Gui" "Multimedia" "SerialPort" "Svg")
-    local qt_lib_path="/opt/qt6.6.3/lib"
+    local qt_lib_path="/opt/Qt6/lib"
     local failed=0
     
     for module in "${modules[@]}"; do
@@ -175,7 +175,7 @@ check_environment() {
             echo "✅ $var is set"
             if [[ "$var" == *"PATH"* ]]; then
                 # For PATH variables, check if Qt directories are included
-                if [[ "$value" == *"/opt/qt6.6.3"* ]]; then
+                if [[ "$value" == *"/opt/Qt6"* ]]; then
                     echo "   ✅ Contains Qt 6.6.3 paths"
                 else
                     echo "   ⚠️  Does not contain Qt 6.6.3 paths"
@@ -191,7 +191,7 @@ check_environment() {
 main() {
     local exit_code=0
     
-    echo "Starting Qt 6.6.3 verification..."
+    echo "Starting Qt 6 verification..."
     echo ""
     
     check_qt_version || exit_code=1
