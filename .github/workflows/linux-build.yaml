@@ -170,9 +170,22 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Set lowercase image name
-        run: echo "IMAGE_NAME_LOWER=$(echo '${{ github.repository_owner }}/openterface-qtbuild' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
+      - name: Set Shared or Static build in env
+        run: |
+          if [ "${{ github.event.inputs.environment_type || 'static' }}" = "shared" ]; then
+            echo "SHARED_OR_STATIC=shared" >> $GITHUB_ENV
+          else
+            echo "SHARED_OR_STATIC=static" >> $GITHUB_ENV
+          fi
 
+      - name: Set lowercase image name
+        env:
+          OWNER: ${{ github.repository_owner }}
+          SHARED: ${{ env.SHARED_OR_STATIC }}
+        run: |
+          OWNER=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')
+          echo "IMAGE_NAME_LOWER=${OWNER}/${SHARED}-qtbuild" >> $GITHUB_ENV
+          
       - name: Log in to Container Registry
         uses: docker/login-action@v3
         with:
