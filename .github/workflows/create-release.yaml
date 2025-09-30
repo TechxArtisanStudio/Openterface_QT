@@ -142,7 +142,8 @@ jobs:
               Write-Output "File: $($_.FullName), Last Modified: $($_.LastWriteTime)"
           }
   create-release:
-    needs: [wait-for-builds]
+    needs: [wait-for-builds, sign-windows]
+    if: ${{ always() && (needs.wait-for-builds.result == 'success') && (inputs.skip_windows_signing || needs.sign-windows.result == 'success') }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
