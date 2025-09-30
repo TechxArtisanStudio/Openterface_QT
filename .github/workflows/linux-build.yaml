@@ -158,7 +158,7 @@ jobs:
           if-no-files-found: error
 
   build-static:
-    if: ${{ github.event.inputs.build_type == 'static' || github.event.inputs.build_type == 'both' || github.event_name != 'workflow_dispatch' }}
+    if: false
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -185,7 +185,7 @@ jobs:
         run: |
           OWNER=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')
           echo "IMAGE_NAME_LOWER=${OWNER}/${SHARED}-qtbuild" >> $GITHUB_ENV
-          
+
       - name: Log in to Container Registry
         uses: docker/login-action@v3
         with:
