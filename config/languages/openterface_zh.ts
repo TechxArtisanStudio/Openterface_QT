@@ -805,34 +805,34 @@ Please try again after restarting the application.</source>
         <translation>已录制 %1 秒</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1350"/>
+        <location filename="../../ui/mainwindow.cpp" line="1352"/>
         <source>Image Capture Error</source>
         <translation>图像捕获错误</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1511"/>
+        <location filename="../../ui/mainwindow.cpp" line="1513"/>
         <source>Captured &quot;%1&quot;</source>
         <translation>已捕获 &quot;%1&quot;</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="2089"/>
+        <location filename="../../ui/mainwindow.cpp" line="2091"/>
         <source>Firmware Update</source>
         <translation>固件更新</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="2090"/>
+        <location filename="../../ui/mainwindow.cpp" line="2092"/>
         <source>The firmware is up to date.
 Current version: </source>
         <translation>固件已是最新版本。
 当前版本：</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="2112"/>
+        <location filename="../../ui/mainwindow.cpp" line="2114"/>
         <source>Firmware fetch timeout</source>
         <translation>固件获取超时</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="2113"/>
+        <location filename="../../ui/mainwindow.cpp" line="2115"/>
         <source>Firmware retrieval timed out. Please check your network connection and try again.
 Current version: </source>
         <translation>固件检索超时。请检查您的网络连接并重试。
@@ -1956,16 +1956,6 @@ Please check your internet connection.
     <message>
         <location filename="../../ui/preferences/videopage.cpp" line="144"/>
         <source>Note: Changing media backend requires application restart to take effect.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../../ui/preferences/videopage.cpp" line="151"/>
-        <source>GStreamer Pipeline Template: </source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../../ui/preferences/videopage.cpp" line="162"/>
-        <source>Available placeholders: %DEVICE%, %WIDTH%, %HEIGHT%, %FRAMERATE%</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

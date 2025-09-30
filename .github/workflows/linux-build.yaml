@@ -23,20 +23,11 @@ on:
       ubuntu_version:
         description: 'Ubuntu base image version'
         required: false
-        default: '24.04'
+        default: '22.04'
         type: choice
         options:
         - '22.04'
         - '24.04'
-      architecture:
-        description: 'Target architecture'
-        required: false
-        default: 'both'
-        type: choice
-        options:
-        - 'amd64'
-        - 'arm64'
-        - 'both'
 
 env:
   ARTIFACT: openterfaceQT
@@ -46,7 +37,7 @@ env:
 
 jobs:
   build-shared:
-    if: ${{ (github.event.inputs.build_type == 'shared' || github.event.inputs.build_type == 'both' || github.event_name != 'workflow_dispatch') && (github.event.inputs.architecture == 'amd64' || github.event.inputs.architecture == 'both' || github.event_name != 'workflow_dispatch') }}
+    if: ${{ github.event.inputs.build_type == 'shared' || github.event.inputs.build_type == 'both' || github.event_name != 'workflow_dispatch' }}
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -58,9 +49,21 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Set lowercase image name
-        run: echo "IMAGE_NAME_LOWER=$(echo '${{ github.repository_owner }}/openterface-qtbuild' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
+      - name: Set Shared or Static build in env
+        run: |
+          if [ "${{ github.event.inputs.environment_type || 'static' }}" = "shared" ]; then
+            echo "SHARED_OR_STATIC=shared" >> $GITHUB_ENV
+          else
+            echo "SHARED_OR_STATIC=static" >> $GITHUB_ENV
+          fi
 
+      - name: Set lowercase image name
+        env:
+          OWNER: ${{ github.repository_owner }}
+          SHARED: ${{ env.SHARED_OR_STATIC }}
+        run: |
+          OWNER=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')
+          echo "IMAGE_NAME_LOWER=${OWNER}/${SHARED}-qtbuild" >> $GITHUB_ENV
         
       - name: Log in to Container Registry
         uses: docker/login-action@v3
@@ -73,37 +76,32 @@ jobs:
         run: |
           echo "Pulling pre-built shared Qt Docker image for amd64..."
           
-          IMAGE_TAG="ubuntu-${{ github.event.inputs.ubuntu_version || '24.04' }}-amd64"
-          echo "Checking for image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-shared:$IMAGE_TAG"
+          IMAGE_TAG="ubuntu-${{ github.event.inputs.ubuntu_version || '22.04' }}-amd64"
+          echo "Checking for image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-complete:$IMAGE_TAG"
           
           
           # Check if image exists in registry
-          if docker manifest inspect ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-shared:$IMAGE_TAG > /dev/null 2>&1; then
+          if docker manifest inspect ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-complete:$IMAGE_TAG > /dev/null 2>&1; then
             echo "Pre-built image found, pulling..."
-            docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-shared:$IMAGE_TAG
+            docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-complete:$IMAGE_TAG
 
             echo "Successfully pulled pre-built shared Qt Docker image for amd64"
           else
             echo "Error: Pre-built shared Qt Docker image not found in registry for amd64"
-            echo "Looking for: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-shared:$IMAGE_TAG"
+            echo "Looking for: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-complete:$IMAGE_TAG"
             echo "Please run the 'Build Qt Environments' workflow first to build the required Docker images"
             echo "Workflow URL: https://github.com/${{ github.repository }}/actions/workflows/build-qt-environments.yml"
             exit 1
           fi
           
           # Tag the architecture-specific image as latest for local use
-          docker tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-shared:$IMAGE_TAG ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-shared:latest
+          docker tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-complete:$IMAGE_TAG ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-complete:latest
           
           # Verify the image was pulled successfully
-          docker images | grep openterface-qtbuild-shared || {
+          docker images | grep qtbuild-complete || {
             echo "Error: Failed to verify shared Qt Docker image"
             exit 1
           }
-
-      - name: Install packaging tools
-        run: |
-          sudo apt-get update -y
-          sudo apt-get install -y rpm
 
       - name: Get all tags for correct version determination
         working-directory: ${{ github.workspace }}
@@ -118,188 +116,49 @@ jobs:
 
       - name: Update and compile translations
         run: |
-          # Create build script for translation processing
-          cat > ${{ runner.temp }}/translation-script.sh << 'TRANS_EOF'
-          #!/bin/bash
-          set -e
-          
-          echo "Processing translations before CMake build..."
-          cd /workspace/src
-          
-          # Update translation files with lupdate
-          echo "Running lupdate to extract translatable strings..."
-          if [ -f "/opt/Qt6/bin/lupdate" ]; then
-            /opt/Qt6/bin/lupdate openterfaceQT.pro -no-obsolete || echo "lupdate failed, continuing..."
-          else
-            echo "lupdate not found, skipping translation update"
-          fi
-          
-          # Compile translation files with lrelease
-          echo "Running lrelease to compile .qm files..."
-          if [ -f "/opt/Qt6/bin/lrelease" ]; then
-            /opt/Qt6/bin/lrelease openterfaceQT.pro || echo "lrelease failed, continuing..."
-          else
-            echo "lrelease not found, skipping translation compilation"
-          fi
-          
-          # Verify .qm files were created
-          echo "Checking for compiled translation files:"
-          ls -la config/languages/*.qm 2>/dev/null || echo "No .qm files found"
-          
-          echo "Translation processing completed"
-          TRANS_EOF
-          
-          chmod +x ${{ runner.temp }}/translation-script.sh
-          
-          # Run translation processing in container
           docker run --rm \
             -v ${{ github.workspace }}:/workspace/src \
-            -v ${{ runner.temp }}/translation-script.sh:/translation-script.sh \
+            -v ${{ github.workspace }}/build-script/docker-translation.sh:/translation-script.sh:ro \
             -w /workspace/src \
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-shared:latest \
-            /translation-script.sh
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-complete:latest \
+            bash /translation-script.sh
 
-      - name: Build in Docker Container (shared Qt)
+      - name: Build, package via docker-build-shared.sh (amd64)
         run: |
-          # Create build directory in host for artifact collection
           mkdir -p ${{ runner.temp }}/build-shared
-          mkdir -p ${{ runner.temp }}/build-shared/config/languages
-          mkdir -p ${{ runner.temp }}/build-shared/config/keyboards
-          
-          # Create build script for inside container
-          cat > ${{ runner.temp }}/build-script.sh << 'BUILD_EOF'
-          #!/bin/bash
-          set -e
-          
-          echo "Building Openterface QT Application (shared Qt) for amd64..."
-
-          echo "Finding FFmpeg libraries..."
-          find / -name "libavformat.so*" || echo "No libavformat found"
-          find / -name "avformat.h" || echo "No avformat.h found"
-
-          # Copy configuration files
-          mkdir -p /workspace/build/config/languages
-          mkdir -p /workspace/build/config/keyboards
-          cp -r config/keyboards/*.json /workspace/build/config/keyboards/ 2>/dev/null || echo "No keyboard configs"
-          cp -r config/languages/*.qm /workspace/build/config/languages/ 2>/dev/null || echo "No language files"
-          
-          # Build with CMake
-          cd /workspace/build
-          echo "Configuring with CMake..."
-          
-          # Debug pkg-config before CMake
-          pkg-config --version
-          pkg-config --list-all | grep -E "avformat|avcodec" || echo "No FFmpeg packages found"
-          echo "========================="
-          
-          cmake $CMAKE_TOOLCHAIN \
-                -DCMAKE_BUILD_TYPE=Release \
-                -DOPENTERFACE_BUILD_STATIC=OFF \
-                -DCMAKE_VERBOSE_MAKEFILE=ON \
-                /workspace/src
-          
-          echo "Building with CMake..."
-          make -j$(nproc) VERBOSE=1
-          
-          echo "Build completed successfully"
-          BUILD_EOF
-          
-          chmod +x ${{ runner.temp }}/build-script.sh
-          
-          # Run build in container
           docker run --rm \
+          	--env OPENTERFACE_BUILD_STATIC=OFF \
+            --env USE_GSTREAMER_STATIC_PLUGINS=OFF \
             -v ${{ github.workspace }}:/workspace/src \
             -v ${{ runner.temp }}/build-shared:/workspace/build \
-            -v ${{ runner.temp }}/build-script.sh:/build-script.sh \
             -w /workspace/src \
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-shared:latest \
-            /build-script.sh
-          
-          # Verify build output
-          if [ ! -f "${{ runner.temp }}/build-shared/openterfaceQT" ]; then
-            echo "Error: openterfaceQT binary not found"
-            ls -la ${{ runner.temp }}/build-shared/
-            exit 1
-          fi
-          
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-complete:latest \
+            bash /workspace/src/build-script/docker-build-shared.sh
           echo "BUILD_DIR=${{ runner.temp }}/build-shared" >> $GITHUB_ENV
 
-      - name: Create deb package (shared)
-        working-directory: ${{ runner.temp }}
-        run: |
-          mkdir -p package-shared/DEBIAN
-          
-          PKG_NAME="${{ env.ARTIFACT }}.linux.amd64.shared"
-          
-          sed -e "s/\${VERSION}/${{ env.VERSION }}/g" \
-              -e "s/\${ARCH}/amd64/g" \
-              ${{ github.workspace }}/packaging/debian/control > package-shared/DEBIAN/control
-          
-          mkdir -p package-shared/usr/bin
-          cp -r ${{ env.BUILD_DIR }}/openterfaceQT package-shared/usr/bin
-
-          mkdir -p package-shared/usr/share/icons/hicolor/256x256/apps/
-          cp ${{ github.workspace }}/images/icon_256.png package-shared/usr/share/icons/hicolor/256x256/apps/openterfaceQT.png
-
-          mkdir -p package-shared/usr/share/applications/
-          cat > package-shared/usr/share/applications/openterfaceQT.desktop << EOF
-          [Desktop Entry]
-          Version=1.0
-          Type=Application
-          Name=OpenterfaceQT
-          Exec=/usr/bin/openterfaceQT
-          Icon=openterfaceQT
-          Comment=OpenterfaceQT Application
-          Categories=Utility;
-          EOF
-
-          mv package-shared $PKG_NAME
-          dpkg-deb --build $PKG_NAME
-
-      - name: Upload artifact (shared deb)
+      - name: Upload shared .deb
         uses: actions/upload-artifact@v4
         with:
           name: openterfaceQT.linux.amd64.shared.deb
-          path: ${{ runner.temp }}/${{ env.ARTIFACT }}.linux.amd64.shared.deb
+          path: ${{ runner.temp }}/build-shared/openterfaceQT_*.deb
           if-no-files-found: error
 
-      - name: Create rpm package (shared)
-        working-directory: ${{ runner.temp }}
-        run: |
-          mkdir -p rpmbuild-shared/{SPECS,SOURCES,BUILD,RPMS,SRPMS}
-          
-          PKG_NAME="${{ env.ARTIFACT }}.linux.amd64.shared"
-          
-          # Copy build output and icon to SOURCES
-          cp ${{ env.BUILD_DIR }}/openterfaceQT rpmbuild-shared/SOURCES/ || { echo "Failed to copy openterfaceQT!"; exit 1; }
-          cp ${{ github.workspace }}/images/icon_256.png rpmbuild-shared/SOURCES/ || { echo "Failed to copy icon_256.png!"; exit 1; }
-          
-          # Debug: Verify files in SOURCES
-          ls -lh rpmbuild-shared/SOURCES/
-          
-          # Generate spec file with version and architecture substitutions
-          sed -e "s/\${VERSION}/${{ env.VERSION }}/g" \
-              -e "s/\${ARCH}/amd64/g" \
-              ${{ github.workspace }}/packaging/rpm/spec > rpmbuild-shared/SPECS/openterfaceqt.spec
-          
-          # Debug: Show generated spec file
-          cat rpmbuild-shared/SPECS/openterfaceqt.spec
-          
-          # Build RPM
-          rpmbuild --define "_topdir ${{ runner.temp }}/rpmbuild-shared" -bb rpmbuild-shared/SPECS/openterfaceqt.spec
-          
-          # Copy the resulting RPM
-          find rpmbuild-shared/RPMS -name "*.rpm" -exec cp {} ./$PKG_NAME.rpm \;
+      - name: Upload shared .AppImage
+        uses: actions/upload-artifact@v4
+        with:
+          name: openterfaceQT.linux.amd64.shared.AppImage
+          path: ${{ runner.temp }}/build-shared/openterfaceQT_*.AppImage
+          if-no-files-found: error
 
-      - name: Upload RPM artifact (shared)
+      - name: Upload shared .rpm
         uses: actions/upload-artifact@v4
         with:
           name: openterfaceQT.linux.amd64.shared.rpm
-          path: ${{ runner.temp }}/${{ env.ARTIFACT }}.linux.amd64.shared.rpm
+          path: ${{ runner.temp }}/build-shared/openterfaceQT_*.rpm
           if-no-files-found: error
 
   build-static:
-    if: ${{ (github.event.inputs.build_type == 'static' || github.event.inputs.build_type == 'both' || github.event_name != 'workflow_dispatch') && (github.event.inputs.architecture == 'amd64' || github.event.inputs.architecture == 'both' || github.event_name != 'workflow_dispatch') }}
+    if: false
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -311,22 +170,21 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Install prerequisites
+      - name: Set Shared or Static build in env
         run: |
-          sudo apt update -y
-          sudo apt upgrade -y
-          sudo apt install build-essential
-          sudo apt-get install -y libusb-1.0-0-dev rpm libfuse2 libudev-dev
-          
-          wget -O linuxdeploy-x86_64.AppImage https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
-          wget -O linuxdeploy-plugin-qt-x86_64.AppImage https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-x86_64.AppImage
-          wget -O appimagetool "https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage"
-          
-          chmod +x linuxdeploy-x86_64.AppImage linuxdeploy-plugin-qt-x86_64.AppImage appimagetool
-          sudo mv linuxdeploy-x86_64.AppImage linuxdeploy-plugin-qt-x86_64.AppImage appimagetool /usr/local/bin/
+          if [ "${{ github.event.inputs.environment_type || 'static' }}" = "shared" ]; then
+            echo "SHARED_OR_STATIC=shared" >> $GITHUB_ENV
+          else
+            echo "SHARED_OR_STATIC=static" >> $GITHUB_ENV
+          fi
 
       - name: Set lowercase image name
-        run: echo "IMAGE_NAME_LOWER=$(echo '${{ github.repository_owner }}/openterface-qtbuild' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
+        env:
+          OWNER: ${{ github.repository_owner }}
+          SHARED: ${{ env.SHARED_OR_STATIC }}
+        run: |
+          OWNER=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')
+          echo "IMAGE_NAME_LOWER=${OWNER}/${SHARED}-qtbuild" >> $GITHUB_ENV
 
       - name: Log in to Container Registry
         uses: docker/login-action@v3
@@ -339,7 +197,7 @@ jobs:
         run: |
           echo "Pulling pre-built Static Qt Docker image..."
           
-          IMAGE_TAG="ubuntu-${{ github.event.inputs.ubuntu_version || '24.04' }}-amd64"
+          IMAGE_TAG="ubuntu-${{ github.event.inputs.ubuntu_version || '22.04' }}-amd64"
           echo "Checking for image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-complete:$IMAGE_TAG"
           
           # Check if image exists in registry
@@ -359,7 +217,7 @@ jobs:
           docker tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-complete:$IMAGE_TAG ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-complete:latest
           
           # Verify the image was pulled successfully
-          docker images | grep openterface-qtbuild-complete || {
+          docker images | grep qtbuild-complete || {
             echo "Error: Failed to verify Static Qt Docker image"
             exit 1
           }
@@ -382,274 +240,26 @@ jobs:
 
       - name: Update and compile translations (Static)
         run: |
-          # Create build script for translation processing
-          cat > ${{ runner.temp }}/translation-static-script.sh << 'TRANS_STATIC_EOF'
-          #!/bin/bash
-          set -e
-          
-          echo "Processing translations before CMake static build..."
-          cd /workspace/src
-          
-          # Update translation files with lupdate
-          echo "Running lupdate to extract translatable strings..."
-          if [ -f "/opt/Qt6/bin/lupdate" ]; then
-            /opt/Qt6/bin/lupdate openterfaceQT.pro -no-obsolete || echo "lupdate failed, continuing..."
-          else
-            echo "lupdate not found, skipping translation update"
-          fi
-          
-          # Compile translation files with lrelease
-          echo "Running lrelease to compile .qm files..."
-          if [ -f "/opt/Qt6/bin/lrelease" ]; then
-            /opt/Qt6/bin/lrelease openterfaceQT.pro || echo "lrelease failed, continuing..."
-          else
-            echo "lrelease not found, skipping translation compilation"
-          fi
-          
-          # Verify .qm files were created
-          echo "Checking for compiled translation files:"
-          ls -la config/languages/*.qm 2>/dev/null || echo "No .qm files found"
-          
-          echo "Translation processing completed"
-          TRANS_STATIC_EOF
-          
-          chmod +x ${{ runner.temp }}/translation-static-script.sh
-          
-          # Run translation processing in container
           docker run --rm \
             -v ${{ github.workspace }}:/workspace/src \
-            -v ${{ runner.temp }}/translation-static-script.sh:/translation-script.sh \
+            -v ${{ github.workspace }}/build-script/docker-translation.sh:/translation-script.sh:ro \
             -w /workspace/src \
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-complete:latest \
-            /translation-script.sh
+            bash /translation-script.sh
 
-      - name: Build in Docker Container (Static Qt)
+      - name: Build via docker-build-static.sh (amd64)
         run: |
-          # Create build directory in host for artifact collection
           mkdir -p ${{ runner.temp }}/build-static
-          mkdir -p ${{ runner.temp }}/build-static/config/languages
-          mkdir -p ${{ runner.temp }}/build-static/config/keyboards
-          
-          
-          # Create build script for static linking
-          cat > ${{ runner.temp }}/build-static-script.sh << 'STATIC_BUILD_EOF'
-          #!/bin/bash
-          set -e
-          
-          echo "Building Openterface QT Application (Static Qt) for amd64..."
-          
-          # Install additional dependencies if needed
-          echo "Installing additional dependencies..."
-          apt-get update -y
-          apt-get install -y libgudev-1.0-dev || { echo "Error: libgudev-1.0-dev not found"; exit 1; }
-          apt-get install -y libv4l-dev || { echo "Error: libv4l-dev not found"; exit 1; }
-          apt-get install -y libzstd-dev || { echo "Error: libzstd-dev not found"; exit 1; }
-          apt-get install -y liblzma-dev || { echo "Error: liblzma-dev not found"; exit 1; }
-          apt-get install -y libbz2-dev || { echo "Error: libbz2-dev not found"; exit 1; }
-          apt-get install -y libvdpau-dev va-driver-all vainfo libva-dev || { echo "Error: va driver not found"; exit 1; }
-          
-          # Verify Qt6 static installation
-          if [ ! -d '/opt/Qt6' ]; then
-            echo "ERROR: Qt6 static installation not found at /opt/Qt6"
-            exit 1
-          fi
-          
-          echo "Qt6 static installation found at /opt/Qt6"
-          
-          echo "Using native compilation for AMD64 static build..."
-          CMAKE_TOOLCHAIN=""
-          CMAKE_LIBRARY_PATH="/opt/Qt6/lib:/usr/local/lib:/opt/ffmpeg/lib:/usr/lib/x86_64-linux-gnu"
-          
-          # Copy configuration files
-          mkdir -p /workspace/build/config/languages
-          mkdir -p /workspace/build/config/keyboards
-          cp -r config/keyboards/*.json /workspace/build/config/keyboards/ 2>/dev/null || echo "No keyboard configs"
-          cp -r config/languages/*.qm /workspace/build/config/languages/ 2>/dev/null || echo "No language files"
-          
-          # Build with CMake for static linking
-          cd /workspace/build
-          echo "Configuring with CMake for static build..."
-          
-          # Set environment variables for static linking
-          export PKG_CONFIG_PATH="/opt/Qt6/lib/pkgconfig:/usr/local/lib/pkgconfig:$PKG_CONFIG_PATH"
-          export CMAKE_PREFIX_PATH="/opt/Qt6:/usr/local:/opt/ffmpeg:/opt/gstreamer:/usr"
-          
-          cmake $CMAKE_TOOLCHAIN \
-                -DCMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH} \
-                -DCMAKE_BUILD_TYPE=Release \
-                -DOPENTERFACE_BUILD_STATIC=ON \
-                -DUSE_FFMPEG_STATIC=ON \
-                -DFFMPEG_PREFIX="/opt/ffmpeg" \
-                -DUSE_GSTREAMER_STATIC_PLUGINS=ON \
-                -DGSTREAMER_PREFIX="/opt/gstreamer" \
-                -DCMAKE_LIBRARY_PATH="$CMAKE_LIBRARY_PATH" \
-                -DCMAKE_INCLUDE_PATH="/opt/Qt6/include:/usr/local/include:/opt/ffmpeg/include:/usr/include" \
-                -DCMAKE_VERBOSE_MAKEFILE=ON \
-                /workspace/src
-          
-          echo "Building with CMake..."
-          make -j$(nproc) VERBOSE=1
-
-          echo "Static build completed successfully"
-          STATIC_BUILD_EOF
-          
-          chmod +x ${{ runner.temp }}/build-static-script.sh
-          
-          # Run build in container
           docker run --rm \
+          	--env OPENTERFACE_BUILD_STATIC=ON \
+            --env USE_GSTREAMER_STATIC_PLUGINS=OFF \
             -v ${{ github.workspace }}:/workspace/src \
             -v ${{ runner.temp }}/build-static:/workspace/build \
-            -v ${{ runner.temp }}/build-static-script.sh:/build-script.sh \
             -w /workspace/src \
-            --user root \
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-complete:latest \
-            /build-script.sh
-          
-          # Verify build output
-          if [ ! -f "${{ runner.temp }}/build-static/openterfaceQT" ]; then
-            echo "Error: openterfaceQT binary not found"
-            ls -la ${{ runner.temp }}/build-static/
-            exit 1
-          fi
-          
+            bash /workspace/src/build-script/docker-build-static.sh
           echo "BUILD_DIR=${{ runner.temp }}/build-static" >> $GITHUB_ENV
 
-      - name: Create deb package (Static)
-        working-directory: ${{ runner.temp }}
-        run: |
-          mkdir -p package-static/DEBIAN
-          
-          PKG_NAME="${{ env.ARTIFACT }}.linux.amd64.static"
-          
-          sed -e "s/\${VERSION}/${{ env.VERSION }}/g" \
-              -e "s/\${ARCH}/amd64/g" \
-              ${{ github.workspace }}/packaging/debian/control > package-static/DEBIAN/control
-          
-          mkdir -p package-static/usr/bin
-          cp -r ${{ env.BUILD_DIR }}/openterfaceQT package-static/usr/bin
-
-          mkdir -p package-static/usr/share/icons/hicolor/256x256/apps/
-          cp ${{ github.workspace }}/images/icon_256.png package-static/usr/share/icons/hicolor/256x256/apps/openterfaceQT.png
-
-          mkdir -p package-static/usr/share/applications/
-          cat > package-static/usr/share/applications/openterfaceQT.desktop << EOF
-          [Desktop Entry]
-          Version=1.0
-          Type=Application
-          Name=OpenterfaceQT
-          Exec=/usr/bin/openterfaceQT
-          Icon=openterfaceQT
-          Comment=OpenterfaceQT Application
-          Categories=Utility;
-          EOF
-
-          mv package-static $PKG_NAME
-          dpkg-deb --build $PKG_NAME
-
-      - name: Upload artifact (Static deb)
-        uses: actions/upload-artifact@v4
-        with:
-          name: openterfaceQT.linux.amd64.static.deb
-          path: ${{ runner.temp }}/${{ env.ARTIFACT }}.linux.amd64.static.deb
-          if-no-files-found: error
-
-      - name: Create rpm package (Static)
-        working-directory: ${{ runner.temp }}
-        run: |
-          mkdir -p rpmbuild-static/{SPECS,SOURCES,BUILD,RPMS,SRPMS}
-          
-          PKG_NAME="${{ env.ARTIFACT }}.linux.amd64.static"
-          
-          # Copy build output and icon to SOURCES
-          cp ${{ env.BUILD_DIR }}/openterfaceQT rpmbuild-static/SOURCES/ || { echo "Failed to copy openterfaceQT!"; exit 1; }
-          cp ${{ github.workspace }}/images/icon_256.png rpmbuild-static/SOURCES/ || { echo "Failed to copy icon_256.png!"; exit 1; }
-          
-          # Debug: Verify files in SOURCES
-          ls -lh rpmbuild-static/SOURCES/
-          
-          # Generate spec file with version and architecture substitutions
-          sed -e "s/\${VERSION}/${{ env.VERSION }}/g" \
-              -e "s/\${ARCH}/amd64/g" \
-              ${{ github.workspace }}/packaging/rpm/spec > rpmbuild-static/SPECS/openterfaceqt.spec
-          
-          # Debug: Show generated spec file
-          cat rpmbuild-static/SPECS/openterfaceqt.spec
-          
-          # Build RPM
-          rpmbuild --define "_topdir ${{ runner.temp }}/rpmbuild-static" -bb rpmbuild-static/SPECS/openterfaceqt.spec
-          
-          # Copy the resulting RPM
-          find rpmbuild-static/RPMS -name "*.rpm" -exec cp {} ./$PKG_NAME.rpm \;
-
-      - name: Upload RPM artifact (Static)
-        uses: actions/upload-artifact@v4
-        with:
-          name: openterfaceQT.linux.amd64.static.rpm
-          path: ${{ runner.temp }}/${{ env.ARTIFACT }}.linux.amd64.static.rpm
-          if-no-files-found: error
-
-      - name: Create AppImage
-        working-directory: ${{ runner.temp }}
-        run: |
-          # Set build directory path
-          BUILD_DIR="${{ runner.temp }}/build-static"
-          VERSION="${{ env.VERSION }}"
-          
-          # Create AppDir structure
-          mkdir -p AppDir/usr/bin
-          mkdir -p AppDir/usr/share/applications
-          mkdir -p AppDir/usr/share/icons/hicolor/256x256/apps
-          mkdir -p AppDir/usr/share/metainfo
-          
-          # Copy the static binary
-          cp $BUILD_DIR/openterfaceQT AppDir/usr/bin/
-          chmod +x AppDir/usr/bin/openterfaceQT
-          
-          # Copy desktop file
-          cp ${{ github.workspace }}/packaging/appimage/openterfaceQT.desktop AppDir/usr/share/applications/
-          
-          # Copy icon
-          cp ${{ github.workspace }}/images/icon_256.png AppDir/usr/share/icons/hicolor/256x256/apps/com.openterface.openterfaceQT.png
-          
-          # Copy appdata/metainfo and update version
-          cp ${{ github.workspace }}/packaging/appimage/openterfaceQT.appdata.xml AppDir/usr/share/metainfo/com.openterface.openterfaceQT.appdata.xml
-          
-          # Update the first release version in appdata.xml
-          sed -i "0,/<release version=\"[^\"]*\"/s//<release version=\"${VERSION}\"/" AppDir/usr/share/metainfo/com.openterface.openterfaceQT.appdata.xml
-          
-          # Create AppRun script
-          cat > AppDir/AppRun << 'APPRUN_EOF'
-          #!/bin/bash
-          HERE="$(dirname "$(readlink -f "${0}")")"
-          exec "${HERE}/usr/bin/openterfaceQT" "$@"
-          APPRUN_EOF
-          chmod +x AppDir/AppRun
-          
-          # Create desktop file in root for AppImage
-          cp ${{ github.workspace }}/packaging/appimage/openterfaceQT.desktop AppDir/
-          
-          # Copy icon to root for AppImage
-          cp ${{ github.workspace }}/images/icon_256.png AppDir/com.openterface.openterfaceQT.png
-          
-          # Build AppImage with version
-          APPIMAGE_NAME="openterfaceQT.linux.amd64.static.AppImage"
-          ARCH=x86_64 appimagetool AppDir "$APPIMAGE_NAME"
-          
-          # Verify AppImage was created
-          if [ ! -f "$APPIMAGE_NAME" ]; then
-            echo "Error: AppImage not created"
-            ls -la
-            exit 1
-          fi
-          
-          echo "AppImage created successfully: $APPIMAGE_NAME"
-
-      - name: Upload AppImage artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: openterfaceQT.linux.amd64.static.AppImage
-          path: ${{ runner.temp }}/openterfaceQT.linux.amd64.static.AppImage
-          if-no-files-found: error
 
       - name: Create Portable Application (No packaging)
         working-directory: ${{ runner.temp }}
@@ -668,629 +278,4 @@ jobs:
         with:
           name: openterfaceQT.linux.amd64.portable
           path: ${{ runner.temp }}/openterfaceQT.linux.amd64.portable/
-          if-no-files-found: error
-
-  build-shared-arm64:
-    if: ${{ (github.event.inputs.build_type == 'shared' || github.event.inputs.build_type == 'both' || github.event_name != 'workflow_dispatch') && (github.event.inputs.architecture == 'arm64' || github.event.inputs.architecture == 'both' || github.event_name != 'workflow_dispatch') }}
-    runs-on: [self-hosted, linux, arm64]
-    permissions:
-      contents: read
-      packages: read
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          submodules: recursive
-
-      - name: Set lowercase image name
-        run: echo "IMAGE_NAME_LOWER=$(echo '${{ github.repository_owner }}/openterface-qtbuild' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
-
-        
-      - name: Log in to Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Pull pre-built shared Qt Docker Image
-        run: |
-          echo "Pulling pre-built shared Qt Docker image for arm64..."
-          
-          IMAGE_TAG="ubuntu-${{ github.event.inputs.ubuntu_version || '24.04' }}-arm64"
-          echo "Checking for image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-shared:$IMAGE_TAG"
-          
-          
-          # Check if image exists in registry
-          if docker manifest inspect ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-shared:$IMAGE_TAG > /dev/null 2>&1; then
-            echo "Pre-built image found, pulling..."
-            docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-shared:$IMAGE_TAG
-
-            echo "Successfully pulled pre-built shared Qt Docker image for arm64"
-          else
-            echo "Error: Pre-built shared Qt Docker image not found in registry for arm64"
-            echo "Looking for: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-shared:$IMAGE_TAG"
-            echo "Please run the 'Build Qt Environments' workflow first to build the required Docker images"
-            echo "Workflow URL: https://github.com/${{ github.repository }}/actions/workflows/build-qt-environments.yml"
-            exit 1
-          fi
-          
-          # Tag the architecture-specific image as latest for local use
-          docker tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-shared:$IMAGE_TAG ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-shared:latest
-          
-          # Verify the image was pulled successfully
-          docker images | grep openterface-qtbuild-shared || {
-            echo "Error: Failed to verify shared Qt Docker image"
-            exit 1
-          }
-
-      - name: Install packaging tools
-        run: |
-          sudo apt-get update -y
-          sudo apt-get install -y rpm
-
-      - name: Get all tags for correct version determination
-        working-directory: ${{ github.workspace }}
-        run: |
-          git fetch --all --tags -f
-
-      - name: Read version from version.h
-        id: read_version
-        run: |
-          VERSION=$(grep -oP '#define APP_VERSION "\K[^"]+' resources/version.h)
-          echo "VERSION=$VERSION" >> $GITHUB_ENV
-
-      - name: Update and compile translations
-        run: |
-          # Create build script for translation processing
-          cat > ${{ runner.temp }}/translation-script.sh << 'TRANS_EOF'
-          #!/bin/bash
-          set -e
-          
-          echo "Processing translations before CMake build..."
-          cd /workspace/src
-          
-          # Update translation files with lupdate
-          echo "Running lupdate to extract translatable strings..."
-          if [ -f "/opt/Qt6/bin/lupdate" ]; then
-            /opt/Qt6/bin/lupdate openterfaceQT.pro -no-obsolete || echo "lupdate failed, continuing..."
-          else
-            echo "lupdate not found, skipping translation update"
-          fi
-          
-          # Compile translation files with lrelease
-          echo "Running lrelease to compile .qm files..."
-          if [ -f "/opt/Qt6/bin/lrelease" ]; then
-            /opt/Qt6/bin/lrelease openterfaceQT.pro || echo "lrelease failed, continuing..."
-          else
-            echo "lrelease not found, skipping translation compilation"
-          fi
-          
-          # Verify .qm files were created
-          echo "Checking for compiled translation files:"
-          ls -la config/languages/*.qm 2>/dev/null || echo "No .qm files found"
-          
-          echo "Translation processing completed"
-          TRANS_EOF
-          
-          chmod +x ${{ runner.temp }}/translation-script.sh
-          
-          # Run translation processing in container
-          docker run --rm \
-            -v ${{ github.workspace }}:/workspace/src \
-            -v ${{ runner.temp }}/translation-script.sh:/translation-script.sh \
-            -w /workspace/src \
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-shared:latest \
-            /translation-script.sh
-
-      - name: Build in Docker Container (shared Qt)
-        run: |
-          # Create build directory in host for artifact collection
-          mkdir -p ${{ runner.temp }}/build-shared-arm64
-          mkdir -p ${{ runner.temp }}/build-shared-arm64/config/languages
-          mkdir -p ${{ runner.temp }}/build-shared-arm64/config/keyboards
-          
-          # Create build script for inside container
-          cat > ${{ runner.temp }}/build-script.sh << 'BUILD_EOF'
-          #!/bin/bash
-          set -e
-          
-          echo "Building Openterface QT Application (shared Qt) for arm64..."
-
-          echo "Finding FFmpeg libraries..."
-          find / -name "libavformat.so*" || echo "No libavformat found"
-          find / -name "avformat.h" || echo "No avformat.h found"
-
-          # Copy configuration files
-          mkdir -p /workspace/build/config/languages
-          mkdir -p /workspace/build/config/keyboards
-          cp -r config/keyboards/*.json /workspace/build/config/keyboards/ 2>/dev/null || echo "No keyboard configs"
-          cp -r config/languages/*.qm /workspace/build/config/languages/ 2>/dev/null || echo "No language files"
-          
-          # Build with CMake
-          cd /workspace/build
-          echo "Configuring with CMake..."
-          
-          # Debug pkg-config before CMake
-          pkg-config --version
-          pkg-config --list-all | grep -E "avformat|avcodec" || echo "No FFmpeg packages found"
-          echo "========================="
-          
-          cmake $CMAKE_TOOLCHAIN \
-                -DCMAKE_BUILD_TYPE=Release \
-                -DOPENTERFACE_BUILD_STATIC=OFF \
-                -DCMAKE_VERBOSE_MAKEFILE=ON \
-                /workspace/src
-          
-          echo "Building with CMake..."
-          make -j$(nproc) VERBOSE=1
-          
-          echo "Build completed successfully"
-          BUILD_EOF
-          
-          chmod +x ${{ runner.temp }}/build-script.sh
-          
-          # Run build in container
-          docker run --rm \
-            -v ${{ github.workspace }}:/workspace/src \
-            -v ${{ runner.temp }}/build-shared-arm64:/workspace/build \
-            -v ${{ runner.temp }}/build-script.sh:/build-script.sh \
-            -w /workspace/src \
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-shared:latest \
-            /build-script.sh
-          
-          # Verify build output
-          if [ ! -f "${{ runner.temp }}/build-shared-arm64/openterfaceQT" ]; then
-            echo "Error: openterfaceQT binary not found"
-            ls -la ${{ runner.temp }}/build-shared-arm64/
-            exit 1
-          fi
-          
-          echo "BUILD_DIR=${{ runner.temp }}/build-shared-arm64" >> $GITHUB_ENV
-
-      - name: Create deb package (shared arm64)
-        working-directory: ${{ runner.temp }}
-        run: |
-          mkdir -p package-shared-arm64/DEBIAN
-          
-          PKG_NAME="${{ env.ARTIFACT }}.linux.arm64.shared"
-          
-          sed -e "s/\${VERSION}/${{ env.VERSION }}/g" \
-              -e "s/\${ARCH}/arm64/g" \
-              ${{ github.workspace }}/packaging/debian/control > package-shared-arm64/DEBIAN/control
-          
-          mkdir -p package-shared-arm64/usr/bin
-          cp -r ${{ env.BUILD_DIR }}/openterfaceQT package-shared-arm64/usr/bin
-
-          mkdir -p package-shared-arm64/usr/share/icons/hicolor/256x256/apps/
-          cp ${{ github.workspace }}/images/icon_256.png package-shared-arm64/usr/share/icons/hicolor/256x256/apps/openterfaceQT.png
-
-          mkdir -p package-shared-arm64/usr/share/applications/
-          cat > package-shared-arm64/usr/share/applications/openterfaceQT.desktop << EOF
-          [Desktop Entry]
-          Version=1.0
-          Type=Application
-          Name=OpenterfaceQT
-          Exec=/usr/bin/openterfaceQT
-          Icon=openterfaceQT
-          Comment=OpenterfaceQT Application
-          Categories=Utility;
-          EOF
-
-          mv package-shared-arm64 $PKG_NAME
-          dpkg-deb --build $PKG_NAME
-
-      - name: Upload artifact (shared arm64 deb)
-        uses: actions/upload-artifact@v4
-        with:
-          name: openterfaceQT.linux.arm64.shared.deb
-          path: ${{ runner.temp }}/${{ env.ARTIFACT }}.linux.arm64.shared.deb
-          if-no-files-found: error
-
-      - name: Create rpm package (shared arm64)
-        working-directory: ${{ runner.temp }}
-        run: |
-          mkdir -p rpmbuild-shared-arm64/{SPECS,SOURCES,BUILD,RPMS,SRPMS}
-          
-          PKG_NAME="${{ env.ARTIFACT }}.linux.arm64.shared"
-          
-          # Copy build output and icon to SOURCES
-          cp ${{ env.BUILD_DIR }}/openterfaceQT rpmbuild-shared-arm64/SOURCES/ || { echo "Failed to copy openterfaceQT!"; exit 1; }
-          cp ${{ github.workspace }}/images/icon_256.png rpmbuild-shared-arm64/SOURCES/ || { echo "Failed to copy icon_256.png!"; exit 1; }
-          
-          # Debug: Verify files in SOURCES
-          ls -lh rpmbuild-shared-arm64/SOURCES/
-          
-          # Generate spec file with version and architecture substitutions
-          sed -e "s/\${VERSION}/${{ env.VERSION }}/g" \
-              -e "s/\${ARCH}/arm64/g" \
-              ${{ github.workspace }}/packaging/rpm/spec > rpmbuild-shared-arm64/SPECS/openterfaceqt.spec
-          
-          # Debug: Show generated spec file
-          cat rpmbuild-shared-arm64/SPECS/openterfaceqt.spec
-          
-          # Build RPM
-          rpmbuild --define "_topdir ${{ runner.temp }}/rpmbuild-shared-arm64" -bb rpmbuild-shared-arm64/SPECS/openterfaceqt.spec
-          
-          # Copy the resulting RPM
-          find rpmbuild-shared-arm64/RPMS -name "*.rpm" -exec cp {} ./$PKG_NAME.rpm \;
-
-      - name: Upload RPM artifact (shared arm64)
-        uses: actions/upload-artifact@v4
-        with:
-          name: openterfaceQT.linux.arm64.shared.rpm
-          path: ${{ runner.temp }}/${{ env.ARTIFACT }}.linux.arm64.shared.rpm
-          if-no-files-found: error
-
-  build-static-arm64:
-    if: ${{ (github.event.inputs.build_type == 'static' || github.event.inputs.build_type == 'both' || github.event_name != 'workflow_dispatch') && (github.event.inputs.architecture == 'arm64' || github.event.inputs.architecture == 'both' || github.event_name != 'workflow_dispatch') }}
-    runs-on: [self-hosted, linux, arm64]
-    permissions:
-      contents: read
-      packages: read
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          submodules: recursive
-
-      - name: Install prerequisites
-        run: |
-          sudo apt update -y
-          sudo apt upgrade -y
-          sudo apt install build-essential
-          sudo apt-get install -y libusb-1.0-0-dev rpm libfuse2 libudev-dev
-          
-          wget -O linuxdeploy-x86_64.AppImage https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
-          wget -O linuxdeploy-plugin-qt-x86_64.AppImage https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-x86_64.AppImage
-          wget -O appimagetool "https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage"
-          
-          chmod +x linuxdeploy-x86_64.AppImage linuxdeploy-plugin-qt-x86_64.AppImage appimagetool
-          sudo mv linuxdeploy-x86_64.AppImage linuxdeploy-plugin-qt-x86_64.AppImage appimagetool /usr/local/bin/
-
-      - name: Set lowercase image name
-        run: echo "IMAGE_NAME_LOWER=$(echo '${{ github.repository_owner }}/openterface-qtbuild' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
-
-      - name: Log in to Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Pull pre-built Static Qt Docker Image
-        run: |
-          echo "Pulling pre-built Static Qt Docker image..."
-          
-          IMAGE_TAG="ubuntu-${{ github.event.inputs.ubuntu_version || '24.04' }}-arm64"
-          echo "Checking for image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-complete:$IMAGE_TAG"
-          
-          # Check if image exists in registry
-          if docker manifest inspect ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-complete:$IMAGE_TAG > /dev/null 2>&1; then
-            echo "Pre-built image found, pulling..."
-            docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-complete:$IMAGE_TAG
-            echo "Successfully pulled pre-built Static Qt Docker image for arm64"
-          else
-            echo "Error: Pre-built Static Qt Docker image not found in registry for arm64"
-            echo "Looking for: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-complete:$IMAGE_TAG"
-            echo "Please run the 'Build Qt Environments' workflow first to build the required Docker images"
-            echo "Workflow URL: https://github.com/${{ github.repository }}/actions/workflows/build-qt-environments.yml"
-            exit 1
-          fi
-          
-          # Tag the architecture-specific image as latest for local use
-          docker tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-complete:$IMAGE_TAG ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-complete:latest
-          
-          # Verify the image was pulled successfully
-          docker images | grep openterface-qtbuild-complete || {
-            echo "Error: Failed to verify Static Qt Docker image"
-            exit 1
-          }
-
-      - name: Install packaging tools
-        run: |
-          sudo apt-get update -y
-          sudo apt-get install -y rpm
-
-      - name: Get all tags for correct version determination
-        working-directory: ${{ github.workspace }}
-        run: |
-          git fetch --all --tags -f
-
-      - name: Read version from version.h
-        id: read_version
-        run: |
-          VERSION=$(grep -oP '#define APP_VERSION "\K[^"]+' resources/version.h)
-          echo "VERSION=$VERSION" >> $GITHUB_ENV
-
-      - name: Update and compile translations (Static)
-        run: |
-          # Create build script for translation processing
-          cat > ${{ runner.temp }}/translation-static-script.sh << 'TRANS_STATIC_EOF'
-          #!/bin/bash
-          set -e
-          
-          echo "Processing translations before CMake static build..."
-          cd /workspace/src
-          
-          # Update translation files with lupdate
-          echo "Running lupdate to extract translatable strings..."
-          if [ -f "/opt/Qt6/bin/lupdate" ]; then
-            /opt/Qt6/bin/lupdate openterfaceQT.pro -no-obsolete || echo "lupdate failed, continuing..."
-          else
-            echo "lupdate not found, skipping translation update"
-          fi
-          
-          # Compile translation files with lrelease
-          echo "Running lrelease to compile .qm files..."
-          if [ -f "/opt/Qt6/bin/lrelease" ]; then
-            /opt/Qt6/bin/lrelease openterfaceQT.pro || echo "lrelease failed, continuing..."
-          else
-            echo "lrelease not found, skipping translation compilation"
-          fi
-          
-          # Verify .qm files were created
-          echo "Checking for compiled translation files:"
-          ls -la config/languages/*.qm 2>/dev/null || echo "No .qm files found"
-          
-          echo "Translation processing completed"
-          TRANS_STATIC_EOF
-          
-          chmod +x ${{ runner.temp }}/translation-static-script.sh
-          
-          # Run translation processing in container
-          docker run --rm \
-            -v ${{ github.workspace }}:/workspace/src \
-            -v ${{ runner.temp }}/translation-static-script.sh:/translation-script.sh \
-            -w /workspace/src \
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-complete:latest \
-            /translation-script.sh
-
-      - name: Build in Docker Container (Static Qt)
-        run: |
-          # Create build directory in host for artifact collection
-          mkdir -p ${{ runner.temp }}/build-static-arm64
-          mkdir -p ${{ runner.temp }}/build-static-arm64/config/languages
-          mkdir -p ${{ runner.temp }}/build-static-arm64/config/keyboards
-          
-          
-          # Create build script for static linking
-          cat > ${{ runner.temp }}/build-static-script.sh << 'STATIC_BUILD_EOF'
-          #!/bin/bash
-          set -e
-          
-          echo "Building Openterface QT Application (Static Qt) for arm64..."
-          
-          # Install additional dependencies if needed
-          echo "Installing additional dependencies..."
-          apt-get update -y
-          apt-get install -y libgudev-1.0-dev || { echo "Error: libgudev-1.0-dev not found"; exit 1; }
-          apt-get install -y libv4l-dev || { echo "Error: libv4l-dev not found"; exit 1; }
-          apt-get install -y libzstd-dev || { echo "Error: libzstd-dev not found"; exit 1; }
-          apt-get install -y liblzma-dev || { echo "Error: liblzma-dev not found"; exit 1; }
-          apt-get install -y libbz2-dev || { echo "Error: libbz2-dev not found"; exit 1; }
-          apt-get install -y libvdpau-dev va-driver-all vainfo libva-dev || { echo "Error: va driver not found"; exit 1; }
-          
-          # Verify Qt6 static installation
-          if [ ! -d '/opt/Qt6' ]; then
-            echo "ERROR: Qt6 static installation not found at /opt/Qt6"
-            exit 1
-          fi
-          
-          echo "Qt6 static installation found at /opt/Qt6"
-          
-          echo "Using native compilation for ARM64 static build..."
-          CMAKE_TOOLCHAIN=""
-          CMAKE_LIBRARY_PATH="/opt/Qt6/lib:/usr/local/lib:/opt/ffmpeg/lib:/usr/lib/aarch64-linux-gnu"
-          
-          # Copy configuration files
-          mkdir -p /workspace/build/config/languages
-          mkdir -p /workspace/build/config/keyboards
-          cp -r config/keyboards/*.json /workspace/build/config/keyboards/ 2>/dev/null || echo "No keyboard configs"
-          cp -r config/languages/*.qm /workspace/build/config/languages/ 2>/dev/null || echo "No language files"
-          
-          # Build with CMake for static linking
-          cd /workspace/build
-          echo "Configuring with CMake for static build..."
-          
-          # Set environment variables for static linking
-          export PKG_CONFIG_PATH="/opt/Qt6/lib/pkgconfig:/usr/local/lib/pkgconfig:$PKG_CONFIG_PATH"
-          export CMAKE_PREFIX_PATH="/opt/Qt6:/usr/local:/opt/ffmpeg:/opt/gstreamer:/usr"
-          
-          cmake $CMAKE_TOOLCHAIN \
-                -DCMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH} \
-                -DCMAKE_BUILD_TYPE=Release \
-                -DOPENTERFACE_BUILD_STATIC=ON \
-                -DUSE_FFMPEG_STATIC=ON \
-                -DFFMPEG_PREFIX="/opt/ffmpeg" \
-                -DUSE_GSTREAMER_STATIC_PLUGINS=ON \
-                -DGSTREAMER_PREFIX="/opt/gstreamer" \
-                -DCMAKE_LIBRARY_PATH="$CMAKE_LIBRARY_PATH" \
-                -DCMAKE_INCLUDE_PATH="/opt/Qt6/include:/usr/local/include:/opt/ffmpeg/include:/usr/include" \
-                -DCMAKE_VERBOSE_MAKEFILE=ON \
-                /workspace/src
-          
-          echo "Building with CMake..."
-          make -j$(nproc) VERBOSE=1
-
-          echo "Static build completed successfully"
-          STATIC_BUILD_EOF
-          
-          chmod +x ${{ runner.temp }}/build-static-script.sh
-          
-          # Run build in container
-          docker run --rm \
-            -v ${{ github.workspace }}:/workspace/src \
-            -v ${{ runner.temp }}/build-static-arm64:/workspace/build \
-            -v ${{ runner.temp }}/build-static-script.sh:/build-script.sh \
-            -w /workspace/src \
-            --user root \
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-complete:latest \
-            /build-script.sh
-          
-          # Verify build output
-          if [ ! -f "${{ runner.temp }}/build-static-arm64/openterfaceQT" ]; then
-            echo "Error: openterfaceQT binary not found"
-            ls -la ${{ runner.temp }}/build-static-arm64/
-            exit 1
-          fi
-          
-          echo "BUILD_DIR=${{ runner.temp }}/build-static-arm64" >> $GITHUB_ENV
-
-      - name: Create deb package (Static arm64)
-        working-directory: ${{ runner.temp }}
-        run: |
-          mkdir -p package-static-arm64/DEBIAN
-          
-          PKG_NAME="${{ env.ARTIFACT }}.linux.arm64.static"
-          
-          sed -e "s/\${VERSION}/${{ env.VERSION }}/g" \
-              -e "s/\${ARCH}/arm64/g" \
-              ${{ github.workspace }}/packaging/debian/control > package-static-arm64/DEBIAN/control
-          
-          mkdir -p package-static-arm64/usr/bin
-          cp -r ${{ env.BUILD_DIR }}/openterfaceQT package-static-arm64/usr/bin
-
-          mkdir -p package-static-arm64/usr/share/icons/hicolor/256x256/apps/
-          cp ${{ github.workspace }}/images/icon_256.png package-static-arm64/usr/share/icons/hicolor/256x256/apps/openterfaceQT.png
-
-          mkdir -p package-static-arm64/usr/share/applications/
-          cat > package-static-arm64/usr/share/applications/openterfaceQT.desktop << EOF
-          [Desktop Entry]
-          Version=1.0
-          Type=Application
-          Name=OpenterfaceQT
-          Exec=/usr/bin/openterfaceQT
-          Icon=openterfaceQT
-          Comment=OpenterfaceQT Application
-          Categories=Utility;
-          EOF
-
-          mv package-static-arm64 $PKG_NAME
-          dpkg-deb --build $PKG_NAME
-
-      - name: Upload artifact (Static arm64 deb)
-        uses: actions/upload-artifact@v4
-        with:
-          name: openterfaceQT.linux.arm64.static.deb
-          path: ${{ runner.temp }}/${{ env.ARTIFACT }}.linux.arm64.static.deb
-          if-no-files-found: error
-
-      - name: Create rpm package (Static arm64)
-        working-directory: ${{ runner.temp }}
-        run: |
-          mkdir -p rpmbuild-static-arm64/{SPECS,SOURCES,BUILD,RPMS,SRPMS}
-          
-          PKG_NAME="${{ env.ARTIFACT }}.linux.arm64.static"
-          
-          # Copy build output and icon to SOURCES
-          cp ${{ env.BUILD_DIR }}/openterfaceQT rpmbuild-static-arm64/SOURCES/ || { echo "Failed to copy openterfaceQT!"; exit 1; }
-          cp ${{ github.workspace }}/images/icon_256.png rpmbuild-static-arm64/SOURCES/ || { echo "Failed to copy icon_256.png!"; exit 1; }
-          
-          # Debug: Verify files in SOURCES
-          ls -lh rpmbuild-static-arm64/SOURCES/
-          
-          # Generate spec file with version and architecture substitutions
-          sed -e "s/\${VERSION}/${{ env.VERSION }}/g" \
-              -e "s/\${ARCH}/arm64/g" \
-              ${{ github.workspace }}/packaging/rpm/spec > rpmbuild-static-arm64/SPECS/openterfaceqt.spec
-          
-          # Debug: Show generated spec file
-          cat rpmbuild-static-arm64/SPECS/openterfaceqt.spec
-          
-          # Build RPM
-          rpmbuild --define "_topdir ${{ runner.temp }}/rpmbuild-static-arm64" -bb rpmbuild-static-arm64/SPECS/openterfaceqt.spec
-          
-          # Copy the resulting RPM
-          find rpmbuild-static-arm64/RPMS -name "*.rpm" -exec cp {} ./$PKG_NAME.rpm \;
-
-      - name: Upload RPM artifact (Static arm64)
-        uses: actions/upload-artifact@v4
-        with:
-          name: openterfaceQT.linux.arm64.static.rpm
-          path: ${{ runner.temp }}/${{ env.ARTIFACT }}.linux.arm64.static.rpm
-          if-no-files-found: error
-
-      - name: Create AppImage
-        working-directory: ${{ runner.temp }}
-        run: |
-          # Set build directory path
-          BUILD_DIR="${{ runner.temp }}/build-static-arm64"
-          VERSION="${{ env.VERSION }}"
-          
-          # Create AppDir structure
-          mkdir -p AppDir/usr/bin
-          mkdir -p AppDir/usr/share/applications
-          mkdir -p AppDir/usr/share/icons/hicolor/256x256/apps
-          mkdir -p AppDir/usr/share/metainfo
-          
-          # Copy the static binary
-          cp $BUILD_DIR/openterfaceQT AppDir/usr/bin/
-          chmod +x AppDir/usr/bin/openterfaceQT
-          
-          # Copy desktop file
-          cp ${{ github.workspace }}/packaging/appimage/openterfaceQT.desktop AppDir/usr/share/applications/
-          
-          # Copy icon
-          cp ${{ github.workspace }}/images/icon_256.png AppDir/usr/share/icons/hicolor/256x256/apps/com.openterface.openterfaceQT.png
-          
-          # Copy appdata/metainfo and update version
-          cp ${{ github.workspace }}/packaging/appimage/openterfaceQT.appdata.xml AppDir/usr/share/metainfo/com.openterface.openterfaceQT.appdata.xml
-          
-          # Update the first release version in appdata.xml
-          sed -i "0,/<release version=\"[^\"]*\"/s//<release version=\"${VERSION}\"/" AppDir/usr/share/metainfo/com.openterface.openterfaceQT.appdata.xml
-          
-          # Create AppRun script
-          cat > AppDir/AppRun << 'APPRUN_EOF'
-          #!/bin/bash
-          HERE="$(dirname "$(readlink -f "${0}")")"
-          exec "${HERE}/usr/bin/openterfaceQT" "$@"
-          APPRUN_EOF
-          chmod +x AppDir/AppRun
-          
-          # Create desktop file in root for AppImage
-          cp ${{ github.workspace }}/packaging/appimage/openterfaceQT.desktop AppDir/
-          
-          # Copy icon to root for AppImage
-          cp ${{ github.workspace }}/images/icon_256.png AppDir/com.openterface.openterfaceQT.png
-          
-          # Build AppImage with version
-          APPIMAGE_NAME="openterfaceQT.linux.arm64.static.AppImage"
-          ARCH=aarch64 appimagetool AppDir "$APPIMAGE_NAME"
-          
-          # Verify AppImage was created
-          if [ ! -f "$APPIMAGE_NAME" ]; then
-            echo "Error: AppImage not created"
-            ls -la
-            exit 1
-          fi
-          
-          echo "AppImage created successfully: $APPIMAGE_NAME"
-
-      - name: Upload AppImage artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: openterfaceQT.linux.arm64.static.AppImage
-          path: ${{ runner.temp }}/openterfaceQT.linux.arm64.static.AppImage
-          if-no-files-found: error
-
-      - name: Create Portable Application (No packaging)
-        working-directory: ${{ runner.temp }}
-        run: |
-          PORTABLE_DIR="openterfaceQT.linux.arm64.portable"
-          mkdir -p $PORTABLE_DIR
-          # Copy the static binary directly to root of portable dir (no bin/ subdirectory)
-          cp ${{ env.BUILD_DIR }}/openterfaceQT $PORTABLE_DIR/openterfaceQT-portable
-          chmod +x $PORTABLE_DIR/openterfaceQT-portable
-
-          cp ${{ github.workspace }}/LICENSE $PORTABLE_DIR/ || echo "No LICENSE found"
-
-
-      - name: Upload Portable artifact (No packaging)
-        uses: actions/upload-artifact@v4
-        with:
-          name: openterfaceQT.linux.arm64.portable
-          path: ${{ runner.temp }}/openterfaceQT.linux.arm64.portable/
           if-no-files-found: error

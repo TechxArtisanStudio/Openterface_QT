@@ -36,7 +36,30 @@ get_latest_version() {
 
 # Function to download the package
 download_package() {
-    echo "📥 Downloading Openterface QT package..."
+    echo "📥 Looking for Openterface QT package..."
+    
+    # First, check for local built packages
+    LOCAL_PACKAGE_PATHS=(
+        "/workspace/build/openterfaceQT_*.AppImage"
+        "/workspace/build/openterfaceQT"
+        "/workspace/build/*.deb"
+        "/workspace/build/*.AppImage"
+        "/tmp/${PACKAGE_NAME}"
+        "./${PACKAGE_NAME}"
+    )
+    
+    for path_pattern in "${LOCAL_PACKAGE_PATHS[@]}"; do
+        # Expand glob pattern
+        for potential_path in $path_pattern; do
+            if [ -f "$potential_path" ]; then
+                echo "✅ Found local package: $potential_path"
+                cp "$potential_path" "/tmp/${PACKAGE_NAME}"
+                return 0
+            fi
+        done
+    done
+    
+    echo "ℹ️  No local package found, downloading from GitHub..."
     DOWNLOAD_URL="https://github.com/${GITHUB_REPO}/releases/download/${LATEST_VERSION}/${PACKAGE_NAME}"
     
     echo "   URL: $DOWNLOAD_URL"
@@ -60,18 +83,54 @@ download_package() {
 install_package() {
     echo "📦 Installing Openterface QT package..."
     
-    # Install the package
-    if dpkg -i "/tmp/${PACKAGE_NAME}"; then
-        echo "✅ Package installed successfully"
+    PACKAGE_FILE="/tmp/${PACKAGE_NAME}"
+    
+    # Determine package type based on actual file content or extension
+    if [[ "$PACKAGE_FILE" == *.deb ]] && dpkg-deb --info "$PACKAGE_FILE" &>/dev/null; then
+        echo "   Installing as Debian package..."
+        if dpkg -i "$PACKAGE_FILE"; then
+            echo "✅ Package installed successfully"
+        else
+            echo "⚠️  Package installation had dependency issues, fixing..."
+            apt-get update
+            apt-get install -f -y
+            echo "✅ Dependencies resolved and package installed"
+        fi
+    elif [[ "$PACKAGE_FILE" == *.AppImage ]] || file "$PACKAGE_FILE" 2>/dev/null | grep -q "AppImage"; then
+        echo "   Installing as AppImage (extracting contents)..."
+        mkdir -p /opt/openterface
+        cd /opt/openterface
+        # Extract AppImage contents
+        "$PACKAGE_FILE" --appimage-extract >/dev/null 2>&1 || {
+            echo "   AppImage extraction failed, trying alternative method..."
+            # Fallback: copy as binary if extraction fails
+            cp "$PACKAGE_FILE" /usr/local/bin/openterfaceQT.AppImage
+            chmod +x /usr/local/bin/openterfaceQT.AppImage
+            echo "✅ AppImage installed as fallback to /usr/local/bin/openterfaceQT.AppImage"
+            return 0
+        }
+        # Find the extracted binary
+        EXTRACTED_BINARY=$(find squashfs-root -name "openterfaceQT" -type f -executable 2>/dev/null | head -1)
+        if [ -n "$EXTRACTED_BINARY" ]; then
+            cp "$EXTRACTED_BINARY" /usr/local/bin/openterfaceQT
+            chmod +x /usr/local/bin/openterfaceQT
+            echo "✅ AppImage extracted and binary installed to /usr/local/bin/openterfaceQT"
+        else
+            echo "   ❌ Could not find executable in extracted AppImage"
+            # Fallback to copying the AppImage
+            cp "$PACKAGE_FILE" /usr/local/bin/openterfaceQT.AppImage
+            chmod +x /usr/local/bin/openterfaceQT.AppImage
+            echo "✅ AppImage installed as fallback to /usr/local/bin/openterfaceQT.AppImage"
+        fi
     else
-        echo "⚠️  Package installation had dependency issues, fixing..."
-        apt-get update
-        apt-get install -f -y
-        echo "✅ Dependencies resolved and package installed"
+        echo "   Installing as executable binary..."
+        cp "$PACKAGE_FILE" /usr/local/bin/openterfaceQT
+        chmod +x /usr/local/bin/openterfaceQT
+        echo "✅ Binary installed to /usr/local/bin/openterfaceQT"
     fi
     
-    # Clean up downloaded package
-    rm -f "/tmp/${PACKAGE_NAME}"
+    # Clean up downloaded/copied package
+    rm -f "$PACKAGE_FILE"
 }
 
 # Function to set up device permissions
@@ -115,9 +174,10 @@ verify_installation() {
     
     # Check if binary exists and is executable
     BINARY_LOCATIONS=(
+        "/usr/local/bin/openterfaceQT"
+        "/usr/local/bin/openterfaceQT.AppImage"
         "/usr/bin/openterfaceQT"
         "/opt/openterface/bin/openterfaceQT"
-        "/usr/local/bin/openterfaceQT"
     )
     
     FOUND_BINARY=""
@@ -226,12 +286,14 @@ fi
 echo "🚀 Starting Openterface application..."
 
 # Start the application - find the actual binary location
-if [ -f "/usr/bin/openterfaceQT" ]; then
+if [ -f "/usr/local/bin/openterfaceQT.AppImage" ]; then
+    exec /usr/local/bin/openterfaceQT.AppImage "$@"
+elif [ -f "/usr/local/bin/openterfaceQT" ]; then
+    exec /usr/local/bin/openterfaceQT "$@"
+elif [ -f "/usr/bin/openterfaceQT" ]; then
     exec /usr/bin/openterfaceQT "$@"
 elif [ -f "/opt/openterface/bin/openterfaceQT" ]; then
     exec /opt/openterface/bin/openterfaceQT "$@"
-elif [ -f "/usr/local/bin/openterfaceQT" ]; then
-    exec /usr/local/bin/openterfaceQT "$@"
 else
     echo "Error: openterfaceQT binary not found!"
     exit 1

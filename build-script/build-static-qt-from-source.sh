@@ -446,6 +446,21 @@ cd "$BUILD_DIR/qtbase"
 mkdir -p build
 cd build
 
+# Set OpenSSL environment variables for static linking
+export OPENSSL_ROOT_DIR=/usr
+export OPENSSL_LIBRARIES="/usr/lib/aarch64-linux-gnu/libssl.so;/usr/lib/aarch64-linux-gnu/libcrypto.so"
+export OPENSSL_INCLUDE_DIR="/usr/include/openssl"
+
+# Verify OpenSSL is available
+echo "Checking OpenSSL availability..."
+if [ -f "/usr/include/openssl/ssl.h" ] && [ -f "/usr/lib/aarch64-linux-gnu/libssl.so" ]; then
+    echo "✓ OpenSSL development libraries found"
+else
+    echo "✗ OpenSSL development libraries not found"
+    echo "Installing OpenSSL development libraries..."
+    sudo apt-get install -y libssl-dev
+fi
+
 cmake -GNinja \
     $CMAKE_COMMON_FLAGS \
     -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" \
@@ -462,6 +477,11 @@ cmake -GNinja \
     -DTEST_xcb_syslibs=ON \
     -DQT_FEATURE_clang=OFF \
     -DFEATURE_clang=ON \
+    -DFEATURE_openssl=ON \
+    -DFEATURE_openssl_linked=ON \
+    -DOPENSSL_ROOT_DIR="$OPENSSL_ROOT_DIR" \
+    -DOPENSSL_LIBRARIES="$OPENSSL_LIBRARIES" \
+    -DOPENSSL_INCLUDE_DIR="$OPENSSL_INCLUDE_DIR" \
     ..
 
 ninja

@@ -11,3 +11,5 @@ build-script/temp/*
 .DS_Store
 .flatpak-builder/*
 .build-dir/*
+host/backend/gstreamerbackendhandler.cpp
+build_static/*

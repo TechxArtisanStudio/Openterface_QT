@@ -21,13 +21,9 @@ RUN apt-get install -y \
         curl \
         wget \
         ca-certificates \
+        file \
         sudo \
-        udev \
-        # Network diagnostic tools
-        iputils-ping \
-        dnsutils \
-        netcat-traditional \
-        file
+        udev
 
 # Minimal X11 and graphics libraries (only what's absolutely needed for static builds)
 RUN apt-get install -y \
@@ -48,7 +44,7 @@ RUN apt-get install -y \
 
 # Audio libraries (minimal set for static builds)
 RUN apt-get install -y \
-        libasound2t64 \
+        libasound2 \
         libpulse0
 
 # Essential C/C++ runtime libraries
@@ -68,15 +64,8 @@ RUN useradd -m -s /bin/bash openterface && \
 
 # Copy and run the static installation script
 COPY install-openterface-static.sh /tmp/install-openterface-static.sh
-RUN echo "=== DEBUG: Starting installation script ===" && \
-    chmod +x /tmp/install-openterface-static.sh && \
-    echo "=== DEBUG: Script permissions set ===" && \
-    ls -la /tmp/install-openterface-static.sh && \
-    echo "=== DEBUG: Network connectivity test ===" && \
-    curl -I --connect-timeout 10 --max-time 30 https://api.github.com/repos/TechxArtisanStudio/Openterface_QT/releases/latest || echo "GitHub API connection failed" && \
-    echo "=== DEBUG: Running installation script with verbose output ===" && \
-    bash -x /tmp/install-openterface-static.sh && \
-    echo "=== DEBUG: Installation script completed ===" && \
+RUN chmod +x /tmp/install-openterface-static.sh && \
+    /tmp/install-openterface-static.sh && \
     rm /tmp/install-openterface-static.sh
 
 # Set up udev rules for Openterface hardware

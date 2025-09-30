@@ -49,6 +49,12 @@ jobs:
             libswscale-dev \
             libavdevice-dev \
             libusb-1.0-0-dev \
+            libudev-dev \
+            libgstreamer1.0-dev \
+            libgstreamer-plugins-base1.0-dev \
+            libglib2.0-dev \
+            libjpeg-dev \
+            libjpeg-turbo8-dev \
             bear
 
 
