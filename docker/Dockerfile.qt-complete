@@ -220,7 +220,7 @@ RUN apt-get update && apt-get install -y cmake python3-pip ninja-build build-ess
     libudev-dev libgudev-1.0-dev libx11-dev libxv-dev libxext-dev && \
     pip3 install --no-cache-dir meson && \
     apt-get clean && rm -rf /var/lib/apt/lists/* && \
-    echo "Building gst-plugins-good (static)..." && \
+    echo "Building gst-plugins-good (static & shared)..." && \
     . /etc/environment && \
     # Ensure Meson can find qmake/qtpaths/moc/uic/rcc by exporting QMAKE and PATH
     MULTIARCH_PATH=$(dpkg-architecture -qDEB_HOST_MULTIARCH) && \
@@ -235,7 +235,7 @@ RUN apt-get update && apt-get install -y cmake python3-pip ninja-build build-ess
     cd "${WORK_DIR}/gstreamer_sources/gst-plugins-good-${GSTREAMER_VERSION}" && \
     meson setup build \
         --prefix="${GSTREAMER_PREFIX}" \
-        --default-library=static \
+        --default-library=both \
         --buildtype=release \
         --cmake-prefix-path="${INSTALL_PREFIX}" \
         -Ddoc=disabled \
@@ -268,7 +268,7 @@ RUN apt-get update && apt-get install -y cmake python3-pip ninja-build build-ess
     ninja -C build install
 
 # Build gst-plugins-bad (static libraries for additional codecs and features)
-RUN echo "Building gst-plugins-bad (static)..." && \
+RUN echo "Building gst-plugins-bad (static and shared)..." && \
     . /etc/environment && \
     MULTIARCH_PATH=$(dpkg-architecture -qDEB_HOST_MULTIARCH) && \
     if [ -x "${INSTALL_PREFIX}/bin/qmake6" ]; then export QMAKE="${INSTALL_PREFIX}/bin/qmake6"; elif [ -x "${INSTALL_PREFIX}/bin/qmake" ]; then export QMAKE="${INSTALL_PREFIX}/bin/qmake"; fi && \
@@ -282,7 +282,7 @@ RUN echo "Building gst-plugins-bad (static)..." && \
     cd "${WORK_DIR}/gstreamer_sources/gst-plugins-bad-${GSTREAMER_VERSION}" && \
     meson setup build \
         --prefix="${GSTREAMER_PREFIX}" \
-        --default-library=static \
+        --default-library=both \
         --buildtype=release \
         -Ddoc=disabled \
         -Dexamples=disabled \
