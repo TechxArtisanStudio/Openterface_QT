@@ -66,6 +66,7 @@ private:
     // Generation-specific device discovery methods
     QList<DeviceInfo> discoverGeneration1DevicesLinux();
     QList<DeviceInfo> discoverGeneration2DevicesLinux();
+    QList<DeviceInfo> discoverGeneration3DevicesLinux();
     QList<DeviceInfo> processDeviceMap(const QList<UdevDeviceData>& serialDevices, 
                                      const QList<UdevDeviceData>& usbDevices, 
                                      QMap<QString, DeviceInfo>& deviceMap, 

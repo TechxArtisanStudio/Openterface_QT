@@ -553,10 +553,20 @@ QString MainWindow::getDeviceTypeName(const DeviceInfo& device) {
     const QString MINI_KVM_PID = "2109";    // Mini-KVM PID
     const QString KVMGO_VID = "345F";       // KVMGO VID  
     const QString KVMGO_PID = "2132";       // KVMGO PID
+    const QString KVMVGA_VID = "345F";      // KVMVGA VID
+    const QString KVMVGA_PID = "2109";      // KVMVGA PID
     
     // Helper function to check VID/PID in a string
     auto checkVidPidInString = [&](const QString& str) -> QString {
         if (str.isEmpty()) return "";
+        
+        // Check for KVMVGA (345F:2109)
+        if ((str.contains(QString("VID_%1").arg(KVMVGA_VID), Qt::CaseInsensitive) &&
+             str.contains(QString("PID_%1").arg(KVMVGA_PID), Qt::CaseInsensitive)) ||
+            (str.contains(KVMVGA_VID, Qt::CaseInsensitive) && 
+             str.contains(KVMVGA_PID, Qt::CaseInsensitive))) {
+            return "KVMVGA";
+        }
         
         // Check for KVMGO (345F:2132)
         if ((str.contains(QString("VID_%1").arg(KVMGO_VID), Qt::CaseInsensitive) &&

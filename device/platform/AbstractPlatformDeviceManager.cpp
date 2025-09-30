@@ -12,6 +12,12 @@ const QString AbstractPlatformDeviceManager::SERIAL_PID_V2 = "FE0C";
 const QString AbstractPlatformDeviceManager::OPENTERFACE_VID_V2 = "345F";
 const QString AbstractPlatformDeviceManager::OPENTERFACE_PID_V2 = "2132";
 
+// Hardware identifiers for Openterface devices - V3 generation
+const QString AbstractPlatformDeviceManager::SERIAL_VID_V3 = "1A86";
+const QString AbstractPlatformDeviceManager::SERIAL_PID_V3 = "FE0C";
+const QString AbstractPlatformDeviceManager::OPENTERFACE_VID_V3 = "345F";
+const QString AbstractPlatformDeviceManager::OPENTERFACE_PID_V3 = "2109";
+
 AbstractPlatformDeviceManager::AbstractPlatformDeviceManager(QObject *parent)
     : QObject(parent)
 {
