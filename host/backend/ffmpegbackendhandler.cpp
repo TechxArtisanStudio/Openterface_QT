@@ -937,9 +937,10 @@ void FFmpegBackendHandler::processFrame()
     }
     
     // Validate packet data before processing
-    if (!m_packet->data || m_packet->size <= 0) {
-        qCWarning(log_ffmpeg_backend) << "Invalid packet: data=" << (void*)m_packet->data 
-                                     << "size=" << m_packet->size;
+    if (m_packet->size <= 0 || !m_packet->data) {
+        if (m_packet->size > 0 && !m_packet->data) {
+            qCWarning(log_ffmpeg_backend) << "Invalid packet: null data but size" << m_packet->size;
+        }
         av_packet_unref(m_packet);
         return;
     }
@@ -1146,11 +1147,14 @@ void FFmpegBackendHandler::processFrame()
         // REMOVED: QCoreApplication::processEvents() - this was causing excessive CPU usage
         // Let Qt's event loop handle frame processing naturally
     } else {
-        qCWarning(log_ffmpeg_backend) << "Failed to decode frame - pixmap is null";
-        qCWarning(log_ffmpeg_backend) << "Frame decode failure details:";
-        qCWarning(log_ffmpeg_backend) << "  - Packet size:" << m_packet->size;
-        qCWarning(log_ffmpeg_backend) << "  - Codec ID:" << (m_codecContext ? m_codecContext->codec_id : -1);
-        qCWarning(log_ffmpeg_backend) << "  - Stream index:" << m_packet->stream_index;
+        // Only warn for decode failures on packets with actual data
+        if (m_packet->size > 0) {
+            qCWarning(log_ffmpeg_backend) << "Failed to decode frame - pixmap is null";
+            qCWarning(log_ffmpeg_backend) << "Frame decode failure details:";
+            qCWarning(log_ffmpeg_backend) << "  - Packet size:" << m_packet->size;
+            qCWarning(log_ffmpeg_backend) << "  - Codec ID:" << (m_codecContext ? m_codecContext->codec_id : -1);
+            qCWarning(log_ffmpeg_backend) << "  - Stream index:" << m_packet->stream_index;
+        }
     }
 }
 }

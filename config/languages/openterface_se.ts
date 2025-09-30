@@ -800,33 +800,33 @@ Försök igen efter att ha startat om programmet.</translation>
         <translation>Inspelade %1 sek</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1350"/>
+        <location filename="../../ui/mainwindow.cpp" line="1352"/>
         <source>Image Capture Error</source>
         <translation>Fel vid bildfångst</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1511"/>
+        <location filename="../../ui/mainwindow.cpp" line="1513"/>
         <source>Captured &quot;%1&quot;</source>
         <translation>Fångade &quot;%1&quot;</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="2089"/>
+        <location filename="../../ui/mainwindow.cpp" line="2091"/>
         <source>Firmware Update</source>
         <translation>Firmware-uppdatering</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="2090"/>
+        <location filename="../../ui/mainwindow.cpp" line="2092"/>
         <source>The firmware is up to date.
 Current version: </source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="2112"/>
+        <location filename="../../ui/mainwindow.cpp" line="2114"/>
         <source>Firmware fetch timeout</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="2113"/>
+        <location filename="../../ui/mainwindow.cpp" line="2115"/>
         <source>Firmware retrieval timed out. Please check your network connection and try again.
 Current version: </source>
         <translation type="unfinished"></translation>
@@ -1944,16 +1944,6 @@ Kontrollera din internetanslutning.
     <message>
         <location filename="../../ui/preferences/videopage.cpp" line="144"/>
         <source>Note: Changing media backend requires application restart to take effect.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../../ui/preferences/videopage.cpp" line="151"/>
-        <source>GStreamer Pipeline Template: </source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../../ui/preferences/videopage.cpp" line="162"/>
-        <source>Available placeholders: %DEVICE%, %WIDTH%, %HEIGHT%, %FRAMERATE%</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

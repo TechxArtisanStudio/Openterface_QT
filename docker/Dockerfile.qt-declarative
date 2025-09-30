@@ -1,9 +1,17 @@
 # Build Qt declarative components on top of qt-base-qtml
 ARG BASE_IMAGE=ghcr.io/techxartisanstudio/openterface-qtbuild-qt-base-qtml:ubuntu-24.04-amd64
-ARG UBUNTU_VERSION=24.04
+ARG UBUNTU_VERSION=22.04
 ARG TARGETARCH=amd64
 FROM ${BASE_IMAGE}
 
+ARG BUILD_SHARED_LIBS=OFF
+
+# Create the environment variables and assign the values from the build arguments.
+ARG http_proxy 
+ARG https_proxy
+ENV http_proxy=$http_proxy \
+    https_proxy=$https_proxy
+    
 WORKDIR ${BUILD_DIR}
 
 # Define declarative modules to build
@@ -29,10 +37,10 @@ RUN echo "Building qtdeclarative..." && \
         ${CMAKE_COMMON_FLAGS} \
         -DCMAKE_INSTALL_PREFIX="${INSTALL_PREFIX}" \
         -DCMAKE_PREFIX_PATH="${INSTALL_PREFIX}" \
-        -DBUILD_SHARED_LIBS=OFF \
+        -DBUILD_SHARED_LIBS="${BUILD_SHARED_LIBS}" \
         .. && \
-    ninja && \
-    ninja install
+    ninja -j 2 && \
+    ninja install -j 2
 
 # Create verification script for declarative components
 RUN mkdir -p ${INSTALL_PREFIX}/bin && \

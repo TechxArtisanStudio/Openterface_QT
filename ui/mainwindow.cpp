@@ -763,8 +763,8 @@ void MainWindow::checkInitSize(){
     int statusBarHeight = ui->statusbar->height();
     int height = titleBarHeight + menuBarHeight + statusBarHeight;
 
-    int windowHeight = screenHeight / 2;
-    int windowWidth = int(windowHeight * GlobalSetting::instance().getScreenRatio()) + height;
+    int windowHeight = int(screenHeight / 3 * 2);
+    int windowWidth = int(windowHeight / 9 * 16) + height;
 
     // Set window size to 50% of screen size
     resize(windowWidth, windowHeight);

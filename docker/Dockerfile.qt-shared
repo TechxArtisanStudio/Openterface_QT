@@ -1,11 +1,17 @@
 # Dynamic Qt Build Environment
-ARG BASE_IMAGE=ghcr.io/techxartisanstudio/openterface-qtbuild-gstreamer:ubuntu-24.04-amd64
-ARG UBUNTU_VERSION=24.04
+ARG BASE_IMAGE=ghcr.io/techxartisanstudio/openterface-qtbuild-ffmpeg:ubuntu-24.04-amd64
+ARG UBUNTU_VERSION=22.04
 ARG TARGETARCH=amd64
 FROM ${BASE_IMAGE}
 
 # Re-declare ARG after FROM to make it available in this build stage
 ARG TARGETARCH
+
+ARG http_proxy 
+ARG https_proxy
+ENV http_proxy=$http_proxy \
+    https_proxy=$https_proxy
+    
 
 # Prevent interactive prompts during package installation
 ENV DEBIAN_FRONTEND=noninteractive
@@ -25,20 +31,40 @@ RUN apt-get update && apt-get install -y \
     unzip \
     software-properties-common
 
-# Install Qt6 from official repositories with architecture-specific packages
-RUN apt-get update && \
-    # Install native AMD64 packages
+# Install system dependencies needed for Qt 6.6.3 compilation
+RUN apt-get install -y software-properties-common && \
+    add-apt-repository -y universe && \
+    apt-get update && \
+    # Install build dependencies for Qt 6.6.3 from source
     apt-get install -y \
-        qt6-base-dev \
-        qt6-base-dev-tools \
-        qt6-tools-dev \
-        qt6-tools-dev-tools \
-        qt6-multimedia-dev \
-        qt6-serialport-dev \
-        qt6-svg-dev \
-        qt6-declarative-dev \
-        qmake6 \
-        # Add X11 development libraries for AMD64
+        python3 \
+        python3-pip \
+        flex \
+        bison \
+        gperf \
+        libicu-dev \
+        libxslt-dev \
+        ruby \
+        libssl-dev \
+        libxcursor-dev \
+        libxcomposite-dev \
+        libxdamage-dev \
+        libxrandr-dev \
+        libdbus-1-dev \
+        libfontconfig1-dev \
+        libcap-dev \
+        libxtst-dev \
+        libpulse-dev \
+        libudev-dev \
+        libpci-dev \
+        libnss3-dev \
+        libasound2-dev \
+        libxss1 \
+        libegl1-mesa-dev \
+        gperf \
+        bison \
+        nodejs \
+        # Add X11 development libraries
         libx11-dev \
         libx11-xcb-dev \
         libxext-dev \
@@ -55,8 +81,7 @@ RUN apt-get update && \
         x11proto-dev
 
 # Install additional development dependencies with architecture-specific support
-RUN apt-get update && \
-    apt-get install -y \
+RUN apt-get install -y \
         libgl1-mesa-dev \
         libegl1-mesa-dev \
         libgles2-mesa-dev \
@@ -66,6 +91,8 @@ RUN apt-get update && \
         libopengl-dev \
         libdrm-dev \
         libgbm-dev \
+        libwayland-dev \
+        wayland-protocols \
         mesa-common-dev \
         libxkbcommon-dev \
         libxcb-xkb-dev \
@@ -73,6 +100,9 @@ RUN apt-get update && \
         libxcb-image0-dev \
         libxcb-keysyms1-dev \
         libxcb-render-util0-dev \
+        libxcb-shm0-dev \
+        libxcb-xfixes0-dev \
+        libxcb-shape0-dev \
         libxcb-cursor-dev \
         libfontconfig1-dev \
         libfreetype6-dev \
@@ -87,6 +117,11 @@ RUN apt-get update && \
         libxss1 \
         libgstreamer1.0-dev \
         libgstreamer-plugins-base1.0-dev \
+        gstreamer1.0-plugins-base \
+        gstreamer1.0-plugins-good \
+        gstreamer1.0-plugins-bad \
+        gstreamer1.0-libav \
+        gstreamer1.0-vaapi \
         libpulse-dev \
         libdbus-1-dev \
         libudev-dev \
@@ -98,60 +133,117 @@ RUN apt-get update && \
         va-driver-all \
         vainfo \
         libva-dev \
-        libvdpau-dev
+        libvdpau-dev \
+        # FFmpeg development headers (use system headers alongside static libs)
+        libavcodec-dev \
+        libavformat-dev \
+        libavutil-dev \
+        libswresample-dev \
+        libswscale-dev \
+        libavdevice-dev \
+        libavfilter-dev \
+        # RPM packaging tools
+        rpm
 
 
 
-# Set architecture-aware library paths
-RUN if [ "$TARGETARCH" = "arm64" ]; then \
-        echo "export QT_PLUGIN_PATH=/usr/lib/aarch64-linux-gnu/qt6/plugins" >> /etc/environment && \
-        echo "export QML2_IMPORT_PATH=/usr/lib/aarch64-linux-gnu/qt6/qml" >> /etc/environment && \
-        echo "export PKG_CONFIG_PATH=/usr/lib/aarch64-linux-gnu/pkgconfig:${PKG_CONFIG_PATH}" >> /etc/environment && \
-        echo "export QT_LIB_ARCH_PATH=/usr/lib/aarch64-linux-gnu" >> /etc/environment; \
-    else \
-        echo "export QT_PLUGIN_PATH=/usr/lib/x86_64-linux-gnu/qt6/plugins" >> /etc/environment && \
-        echo "export QML2_IMPORT_PATH=/usr/lib/x86_64-linux-gnu/qt6/qml" >> /etc/environment && \
-        echo "export PKG_CONFIG_PATH=/usr/lib/x86_64-linux-gnu/pkgconfig:${PKG_CONFIG_PATH}" >> /etc/environment && \
-        echo "export QT_LIB_ARCH_PATH=/usr/lib/x86_64-linux-gnu" >> /etc/environment; \
-    fi
+# Copy Qt 6.6.3 source installation script and verification script
+COPY docker/download-qt-source.sh /tmp/download-qt-source.sh
+COPY docker/verify-qt-6.6.3.sh /opt/verify/verify-qt-6.6.3.sh
+# Make installer executable
+RUN chmod +x /tmp/download-qt-source.sh /opt/verify/verify-qt-6.6.3.sh
 
-# Set environment variables for Qt6
+# Step 1: download sources (this step is cacheable and can be re-used across builds)
+RUN /tmp/download-qt-source.sh
+
+# Step 2: build and install (long running step)
+COPY docker/build-qt-6.6.3-from-source.sh /tmp/build-qt-6.6.3-from-source.sh
+RUN /tmp/build-qt-6.6.3-from-source.sh build && rm -f /tmp/build-qt-6.6.3-from-source.sh 
+
+# Set environment variables for Qt 6.6.3
 ENV QT_VERSION=6.6.3
-ENV PATH="/usr/lib/qt6/bin:${PATH}"
+ENV QTDIR="/opt/qt6.6.3"
+ENV QT_INSTALL_PREFIX="/opt/qt6.6.3"
+ENV PATH="/opt/qt6.6.3/bin:$PATH"
+ENV LD_LIBRARY_PATH="/opt/qt6.6.3/lib"
+ENV PKG_CONFIG_PATH="/opt/qt6.6.3/lib/pkgconfig"
+ENV QT_PLUGIN_PATH="/opt/qt6.6.3/plugins"
+ENV QML_IMPORT_PATH="/opt/qt6.6.3/qml"
+ENV QML2_IMPORT_PATH="/opt/qt6.6.3/qml"
 
-# Create verification script for dynamic Qt
+# Create verification script for Qt 6.6.3 from source
 RUN mkdir -p /opt/verify && \
     echo '#!/bin/bash' > /opt/verify/verify-qt-shared.sh && \
-    echo 'source /etc/environment' >> /opt/verify/verify-qt-shared.sh && \
-    echo 'echo "Qt Dynamic Installation Verification"' >> /opt/verify/verify-qt-shared.sh && \
-    echo 'echo "===================================="' >> /opt/verify/verify-qt-shared.sh && \
+    echo 'source /opt/qt6.6.3/' >> /opt/verify/verify-qt-shared.sh && \
+    echo 'echo "Qt 6.6.3 Source Installation Verification"' >> /opt/verify/verify-qt-shared.sh && \
+    echo 'echo "=========================================="' >> /opt/verify/verify-qt-shared.sh && \
     echo 'echo "Architecture: $(uname -m)"' >> /opt/verify/verify-qt-shared.sh && \
     echo 'echo "Target arch: $TARGETARCH"' >> /opt/verify/verify-qt-shared.sh && \
-    echo 'echo "Qt version: $(qmake6 -query QT_VERSION)"' >> /opt/verify/verify-qt-shared.sh && \
-    echo 'echo "Qt installation prefix: $(qmake6 -query QT_INSTALL_PREFIX)"' >> /opt/verify/verify-qt-shared.sh && \
-    echo 'echo "Qt library path: $(qmake6 -query QT_INSTALL_LIBS)"' >> /opt/verify/verify-qt-shared.sh && \
-    echo 'echo "Architecture-specific library path: $QT_LIB_ARCH_PATH"' >> /opt/verify/verify-qt-shared.sh && \
-    echo 'echo -e "\nChecking Qt modules:"' >> /opt/verify/verify-qt-shared.sh && \
-    echo 'MODULES="Core Widgets Gui Multimedia MultimediaWidgets SerialPort Svg SvgWidgets Quick"' >> /opt/verify/verify-qt-shared.sh && \
+    echo 'echo "Qt version: $(qmake -query QT_VERSION)"' >> /opt/verify/verify-qt-shared.sh && \
+    echo 'echo "Qt installation prefix: $(qmake -query QT_INSTALL_PREFIX)"' >> /opt/verify/verify-qt-shared.sh && \
+    echo 'echo "Qt library path: $(qmake -query QT_INSTALL_LIBS)"' >> /opt/verify/verify-qt-shared.sh && \
+    echo 'echo "Qt plugin path: $(qmake -query QT_INSTALL_PLUGINS)"' >> /opt/verify/verify-qt-shared.sh && \
+    echo 'echo -e "\nChecking Qt 6.6.3 source-built libraries:"' >> /opt/verify/verify-qt-shared.sh && \
+    echo 'QT_LIB_PATH="/opt/qt6.6.3/lib"' >> /opt/verify/verify-qt-shared.sh && \
+    echo 'MODULES="Core Widgets Gui Multimedia MultimediaWidgets SerialPort Svg SvgWidgets"' >> /opt/verify/verify-qt-shared.sh && \
     echo 'for module in $MODULES; do' >> /opt/verify/verify-qt-shared.sh && \
-    echo '    if [ -f "${QT_LIB_ARCH_PATH}/libQt6${module}.so" ]; then' >> /opt/verify/verify-qt-shared.sh && \
-    echo '        echo "✓ Qt${module} shared library found"' >> /opt/verify/verify-qt-shared.sh && \
+    echo '    if [ -f "${QT_LIB_PATH}/libQt6${module}.so" ]; then' >> /opt/verify/verify-qt-shared.sh && \
+    echo '        echo "✓ Qt6${module} library found"' >> /opt/verify/verify-qt-shared.sh && \
     echo '    else' >> /opt/verify/verify-qt-shared.sh && \
-    echo '        echo "✗ Qt${module} shared library NOT found"' >> /opt/verify/verify-qt-shared.sh && \
+    echo '        echo "✗ Qt6${module} library NOT found"' >> /opt/verify/verify-qt-shared.sh && \
     echo '    fi' >> /opt/verify/verify-qt-shared.sh && \
     echo 'done' >> /opt/verify/verify-qt-shared.sh && \
-    echo 'echo -e "\nChecking pkg-config modules:"' >> /opt/verify/verify-qt-shared.sh && \
+    echo 'echo -e "\nChecking Qt6 plugins:"' >> /opt/verify/verify-qt-shared.sh && \
+    echo 'QT_PLUGIN_DIR="/opt/qt6.6.3/plugins"' >> /opt/verify/verify-qt-shared.sh && \
+    echo 'if [ -d "${QT_PLUGIN_DIR}" ]; then' >> /opt/verify/verify-qt-shared.sh && \
+    echo '    echo "Qt6 plugins directory found at: ${QT_PLUGIN_DIR}"' >> /opt/verify/verify-qt-shared.sh && \
+    echo '    echo "Available plugin categories:"' >> /opt/verify/verify-qt-shared.sh && \
+    echo '    ls -1 "${QT_PLUGIN_DIR}/" 2>/dev/null | sed "s/^/  - /"' >> /opt/verify/verify-qt-shared.sh && \
+    echo '    if [ -d "${QT_PLUGIN_DIR}/platforms" ]; then' >> /opt/verify/verify-qt-shared.sh && \
+    echo '        echo "✓ platforms plugin directory found"' >> /opt/verify/verify-qt-shared.sh && \
+    echo '        echo "  Platform plugins:"' >> /opt/verify/verify-qt-shared.sh && \
+    echo '        ls -1 "${QT_PLUGIN_DIR}/platforms/" 2>/dev/null | sed "s/^/    /"' >> /opt/verify/verify-qt-shared.sh && \
+    echo '    fi' >> /opt/verify/verify-qt-shared.sh && \
+    echo '    if [ -d "${QT_PLUGIN_DIR}/multimedia" ]; then' >> /opt/verify/verify-qt-shared.sh && \
+    echo '        echo "✓ multimedia plugin directory found"' >> /opt/verify/verify-qt-shared.sh && \
+    echo '        echo "  Multimedia plugins:"' >> /opt/verify/verify-qt-shared.sh && \
+    echo '        ls -1 "${QT_PLUGIN_DIR}/multimedia/" 2>/dev/null | sed "s/^/    /"' >> /opt/verify/verify-qt-shared.sh && \
+    echo '    fi' >> /opt/verify/verify-qt-shared.sh && \
+    echo 'else' >> /opt/verify/verify-qt-shared.sh && \
+    echo '    echo "⚠️  Qt6 plugins directory not found at ${QT_PLUGIN_DIR}"' >> /opt/verify/verify-qt-shared.sh && \
+    echo 'fi' >> /opt/verify/verify-qt-shared.sh && \
+    echo 'echo -e "\nChecking pkg-config modules for Qt 6.6.3:"' >> /opt/verify/verify-qt-shared.sh && \
     echo 'PKG_MODULES="Qt6Core Qt6Widgets Qt6Gui Qt6Multimedia Qt6SerialPort Qt6Svg"' >> /opt/verify/verify-qt-shared.sh && \
     echo 'for module in $PKG_MODULES; do' >> /opt/verify/verify-qt-shared.sh && \
     echo '    if pkg-config --exists "$module"; then' >> /opt/verify/verify-qt-shared.sh && \
-    echo '        echo "✓ $module pkg-config: OK"' >> /opt/verify/verify-qt-shared.sh && \
+    echo '        version=$(pkg-config --modversion "$module")' >> /opt/verify/verify-qt-shared.sh && \
+    echo '        echo "✓ $module pkg-config: OK (version $version)"' >> /opt/verify/verify-qt-shared.sh && \
     echo '    else' >> /opt/verify/verify-qt-shared.sh && \
     echo '        echo "✗ $module pkg-config: FAILED"' >> /opt/verify/verify-qt-shared.sh && \
     echo '    fi' >> /opt/verify/verify-qt-shared.sh && \
     echo 'done' >> /opt/verify/verify-qt-shared.sh && \
+    echo 'echo -e "\nChecking qmake functionality:"' >> /opt/verify/verify-qt-shared.sh && \
+    echo 'cd /tmp && echo "QT += core widgets" > test.pro' >> /opt/verify/verify-qt-shared.sh && \
+    echo 'if qmake test.pro >/dev/null 2>&1; then' >> /opt/verify/verify-qt-shared.sh && \
+    echo '    echo "✓ qmake can generate Makefile"' >> /opt/verify/verify-qt-shared.sh && \
+    echo '    rm -f test.pro Makefile' >> /opt/verify/verify-qt-shared.sh && \
+    echo 'else' >> /opt/verify/verify-qt-shared.sh && \
+    echo '    echo "✗ qmake failed to generate Makefile"' >> /opt/verify/verify-qt-shared.sh && \
+    echo 'fi' >> /opt/verify/verify-qt-shared.sh && \
+    echo 'echo -e "\nFFmpeg static libraries check:"' >> /opt/verify/verify-qt-shared.sh && \
+    echo 'if [ -f "/opt/ffmpeg/lib/libavformat.a" ]; then' >> /opt/verify/verify-qt-shared.sh && \
+    echo '  echo "✓ Found: /opt/ffmpeg/lib/libavformat.a"' >> /opt/verify/verify-qt-shared.sh && \
+    echo 'else' >> /opt/verify/verify-qt-shared.sh && \
+    echo '  echo "(info) Not present: /opt/ffmpeg/lib/libavformat.a"' >> /opt/verify/verify-qt-shared.sh && \
+    echo 'fi' >> /opt/verify/verify-qt-shared.sh && \
+    echo 'if [ -f "/usr/include/libavformat/avformat.h" ]; then' >> /opt/verify/verify-qt-shared.sh && \
+    echo '  echo "✓ Found: /usr/include/libavformat/avformat.h"' >> /opt/verify/verify-qt-shared.sh && \
+    echo 'else' >> /opt/verify/verify-qt-shared.sh && \
+    echo '  echo "✗ Missing: /usr/include/libavformat/avformat.h"' >> /opt/verify/verify-qt-shared.sh && \
+    echo 'fi' >> /opt/verify/verify-qt-shared.sh && \
     chmod +x /opt/verify/verify-qt-shared.sh
 
-# Verify Qt installation
+# Verify Qt 6.6.3 installation
 RUN /opt/verify/verify-qt-shared.sh
 
 WORKDIR /workspace

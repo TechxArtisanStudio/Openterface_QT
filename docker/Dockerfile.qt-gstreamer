@@ -1,9 +1,28 @@
 # Build GStreamer components (simplified version for better reliability)
-ARG BASE_IMAGE=ghcr.io/techxartisanstudio/openterface-qtbuild-ffmpeg:ubuntu-24.04-amd64
-ARG UBUNTU_VERSION=24.04
+ARG BASE_IMAGE=ghcr.io/techxartisanstudio/openterface-qtbuild-qt-declarative:ubuntu-22.04-amd64
+ARG UBUNTU_VERSION=22.04
 ARG TARGETARCH=amd64
 FROM ${BASE_IMAGE}
+ENV GSTREAMER_VERSION=1.26.6
 
+ARG BUILD_SHARED_LIBS=OFF
+# Set DEFAULT_LIB_TYPE according to BUILD_SHARED_LIBS (ON/1 -> shared, otherwise static)
+ARG BUILD_SHARED_LIBS
+ENV DEFAULT_LIB_TYPE=static
+RUN if [ "${BUILD_SHARED_LIBS}" = "ON" ] || [ "${BUILD_SHARED_LIBS}" = "1" ]; then \
+    echo "DEFAULT_LIB_TYPE=shared" >> /etc/environment && \
+    export DEFAULT_LIB_TYPE=shared; \
+    else \
+    echo "DEFAULT_LIB_TYPE=static" >> /etc/environment; \
+    fi && \
+    echo "DEFAULT_LIB_TYPE set to $(grep -m1 '^DEFAULT_LIB_TYPE=' /etc/environment | cut -d'=' -f2)"
+
+# Create the environment variables and assign the values from the build arguments.
+ARG http_proxy 
+ARG https_proxy
+ENV http_proxy=$http_proxy \
+    https_proxy=$https_proxy
+    
 # Set architecture-aware library path
 RUN if [ "$TARGETARCH" = "arm64" ]; then \
         echo "export MULTIARCH_PATH=/usr/lib/aarch64-linux-gnu" >> /etc/environment; \
@@ -14,8 +33,8 @@ RUN if [ "$TARGETARCH" = "arm64" ]; then \
 WORKDIR ${WORK_DIR}
 
 # Upgrade Meson to meet GStreamer requirements (>= 0.62)
-RUN echo "Upgrading Meson to support GStreamer 1.22.11..." && \
-    pip3 install --upgrade --break-system-packages meson>=0.62 && \
+RUN echo "Upgrading Meson to support GStreamer ${GSTREAMER_VERSION}..." && \
+    pip3 install --upgrade meson>=0.62 && \
     meson --version
 
 # Set up environment for GStreamer build
@@ -48,18 +67,12 @@ RUN echo "Downloading gst-plugins-base..." && \
     tar -xf gst-plugins-base-${GSTREAMER_VERSION}.tar.xz && \
     rm gst-plugins-base-${GSTREAMER_VERSION}.tar.xz
 
-RUN echo "Downloading gst-plugins-good..." && \
-    wget -O gst-plugins-good-${GSTREAMER_VERSION}.tar.xz \
-    https://gstreamer.freedesktop.org/src/gst-plugins-good/gst-plugins-good-${GSTREAMER_VERSION}.tar.xz && \
-    tar -xf gst-plugins-good-${GSTREAMER_VERSION}.tar.xz && \
-    rm gst-plugins-good-${GSTREAMER_VERSION}.tar.xz
-
 # Build GStreamer core
 RUN echo "Building GStreamer core..." && \
     cd "${WORK_DIR}/gstreamer_sources/gstreamer-${GSTREAMER_VERSION}" && \
     meson setup build \
         --prefix="${GSTREAMER_PREFIX}" \
-        --default-library=static \
+        --default-library="${DEFAULT_LIB_TYPE}" \
         --buildtype=release \
         -Ddoc=disabled \
         -Dintrospection=disabled \
@@ -76,7 +89,7 @@ RUN echo "Building GStreamer core..." && \
     echo "Directory structure:" && \
     find "${GSTREAMER_PREFIX}" -type d -name "*pkgconfig*" 2>/dev/null || echo "No pkgconfig directories found"
 
-# Update PKG_CONFIG_PATH after GStreamer core installation
+# Update final environment
 ENV PKG_CONFIG_PATH="${GSTREAMER_PREFIX}/lib/pkgconfig:${PKG_CONFIG_PATH}"
 
 # Build gst-plugins-base (essential plugins)
@@ -96,7 +109,7 @@ RUN echo "Building gst-plugins-base..." && \
     cd "${WORK_DIR}/gstreamer_sources/gst-plugins-base-${GSTREAMER_VERSION}" && \
     meson setup build \
         --prefix="${GSTREAMER_PREFIX}" \
-        --default-library=static \
+        --default-library="${DEFAULT_LIB_TYPE}" \
         --buildtype=release \
         -Ddoc=disabled \
         -Dintrospection=disabled \
@@ -104,50 +117,11 @@ RUN echo "Building gst-plugins-base..." && \
         -Dtests=disabled \
         -Dtools=disabled \
         -Dnls=disabled \
-        -Dorc=disabled \
+        -Dorc=enabled \
         -Dx11=enabled \
-        -Dgl=disabled && \
+        -Dgl=enabled && \
     ninja -C build && \
     ninja -C build install
-
-# Build gst-plugins-good (minimal set)
-RUN echo "Building gst-plugins-good..." && \
-    . /etc/environment && \
-    GSTREAMER_PC_DIR=$(find "${GSTREAMER_PREFIX}" -name "gstreamer-1.0.pc" -type f -exec dirname {} \; 2>/dev/null | head -1) && \
-    if [ -n "$GSTREAMER_PC_DIR" ]; then \
-        export PKG_CONFIG_PATH="$GSTREAMER_PC_DIR:${FFMPEG_PREFIX}/lib/pkgconfig:$MULTIARCH_PATH/pkgconfig:/usr/share/pkgconfig"; \
-    else \
-        export PKG_CONFIG_PATH="${GSTREAMER_PREFIX}/lib/pkgconfig:${FFMPEG_PREFIX}/lib/pkgconfig:$MULTIARCH_PATH/pkgconfig:/usr/share/pkgconfig"; \
-    fi && \
-    cd "${WORK_DIR}/gstreamer_sources/gst-plugins-good-${GSTREAMER_VERSION}" && \
-    meson setup build \
-        --prefix="${GSTREAMER_PREFIX}" \
-        --default-library=static \
-        --buildtype=release \
-        -Ddoc=disabled \
-        -Dexamples=disabled \
-        -Dtests=disabled \
-        -Dqt5=disabled \
-        -Dqt6=disabled \
-        -Dnls=disabled \
-        -Drtp=enabled \
-        -Drtpmanager=enabled \
-        -Drtsp=enabled \
-        -Dudp=enabled \
-        -Dv4l2=enabled \
-        -Dvideocrop=enabled \
-        -Dvideofilter=enabled && \
-    ninja -C build && \
-    ninja -C build install
-
-# Copy GStreamer to Qt installation directory
-RUN echo "Installing GStreamer to ${INSTALL_PREFIX}..." && \
-    mkdir -p ${INSTALL_PREFIX}/lib ${INSTALL_PREFIX}/include && \
-    cp -a ${GSTREAMER_PREFIX}/lib/. ${INSTALL_PREFIX}/lib/ && \
-    cp -a ${GSTREAMER_PREFIX}/include/. ${INSTALL_PREFIX}/include/
-
-# Update final environment
-ENV PKG_CONFIG_PATH="${INSTALL_PREFIX}/lib/pkgconfig:${PKG_CONFIG_PATH}"
 
 # Clean up to reduce image size
 RUN cd ${WORK_DIR} && rm -rf gstreamer_sources

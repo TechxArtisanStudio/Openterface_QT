@@ -41,11 +41,7 @@ endif()
 # Set QT_BUILD_PATH and adjust CMAKE_PREFIX_PATH when not explicitly provided
 # Do not override user-provided CMAKE_PREFIX_PATH
 if(NOT DEFINED QT_BUILD_PATH)
-    if(DEFINED OPENTERFACE_IS_ARM64 AND OPENTERFACE_IS_ARM64)
-        set(QT_BUILD_PATH "/opt/Qt6-arm64" CACHE PATH "Qt6 installation directory for builds" FORCE)
-    else()
-        set(QT_BUILD_PATH "/opt/Qt6" CACHE PATH "Qt6 installation directory for builds" FORCE)
-    endif()
+    set(QT_BUILD_PATH "/opt/Qt6" CACHE PATH "Qt6 installation directory for builds" FORCE)
     message(STATUS "QT_BUILD_PATH set to ${QT_BUILD_PATH}")
 endif()
 
@@ -67,6 +63,36 @@ include(cmake/FFmpeg.cmake)
 
 # Include GStreamer configuration  
 include(cmake/GStreamer.cmake)
+
+# Set PKG_CONFIG_PATH for GStreamer after GStreamer.cmake has set GSTREAMER_PREFIX
+# This ensures Qt's internal pkg-config calls can find GStreamer packages.
+# Include both generic and arch-specific directories when present.
+set(_GST_PKG_PATH_CANDIDATES)
+list(APPEND _GST_PKG_PATH_CANDIDATES "${GSTREAMER_PREFIX}/lib/pkgconfig")
+if(DEFINED CMAKE_LIBRARY_ARCHITECTURE AND CMAKE_LIBRARY_ARCHITECTURE)
+    list(APPEND _GST_PKG_PATH_CANDIDATES "${GSTREAMER_PREFIX}/lib/${CMAKE_LIBRARY_ARCHITECTURE}/pkgconfig")
+    list(APPEND _GST_PKG_PATH_CANDIDATES "${GSTREAMER_PREFIX}/lib/${CMAKE_LIBRARY_ARCHITECTURE}/gstreamer-1.0/pkgconfig")
+endif()
+list(APPEND _GST_PKG_PATH_CANDIDATES "${GSTREAMER_PREFIX}/lib/gstreamer-1.0/pkgconfig")
+
+# Common Debian/Ubuntu multiarch fallbacks
+list(APPEND _GST_PKG_PATH_CANDIDATES "${GSTREAMER_PREFIX}/lib/aarch64-linux-gnu/pkgconfig")
+list(APPEND _GST_PKG_PATH_CANDIDATES "${GSTREAMER_PREFIX}/lib/aarch64-linux-gnu/gstreamer-1.0/pkgconfig")
+list(APPEND _GST_PKG_PATH_CANDIDATES "${GSTREAMER_PREFIX}/lib/x86_64-linux-gnu/pkgconfig")
+list(APPEND _GST_PKG_PATH_CANDIDATES "${GSTREAMER_PREFIX}/lib/x86_64-linux-gnu/gstreamer-1.0/pkgconfig")
+
+foreach(_cand ${_GST_PKG_PATH_CANDIDATES})
+    if(EXISTS "${_cand}")
+        if(NOT "$ENV{PKG_CONFIG_PATH}" MATCHES "${_cand}")
+            if("$ENV{PKG_CONFIG_PATH}" STREQUAL "")
+                set(ENV{PKG_CONFIG_PATH} "${_cand}")
+            else()
+                set(ENV{PKG_CONFIG_PATH} "${_cand}:$ENV{PKG_CONFIG_PATH}")
+            endif()
+            message(STATUS "Added GStreamer to PKG_CONFIG_PATH: ${_cand}")
+        endif()
+    endif()
+endforeach()
 
 # Ensure we use the static Qt6 build by setting the Qt6 directory explicitly
 set(Qt6_DIR "${QT_BUILD_PATH}/lib/cmake/Qt6" CACHE PATH "Qt6 installation directory" FORCE)
@@ -116,6 +142,49 @@ find_package(BZip2 REQUIRED)
 
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(XRENDER REQUIRED xrender)
+
+# Check for XCB cursor library (required for static linking)
+pkg_check_modules(XCB_CURSOR REQUIRED xcb-cursor)
+if(XCB_CURSOR_FOUND)
+    message(STATUS "Found xcb-cursor: ${XCB_CURSOR_LIBRARIES}")
+    message(STATUS "xcb-cursor include dirs: ${XCB_CURSOR_INCLUDE_DIRS}")
+    message(STATUS "xcb-cursor library dirs: ${XCB_CURSOR_LIBRARY_DIRS}")
+    
+    # For static builds, ensure we link the static library
+    if(OPENTERFACE_BUILD_STATIC)
+        # Find the static library path (include common system and multiarch dirs)
+        set(_XCB_CURSOR_SEARCH_PATHS
+            ${XCB_CURSOR_LIBRARY_DIRS}
+            /usr/local/lib
+            /usr/lib
+            /usr/lib/${CMAKE_LIBRARY_ARCHITECTURE}
+            /opt/Qt6/lib
+        )
+        list(REMOVE_DUPLICATES _XCB_CURSOR_SEARCH_PATHS)
+        find_library(XCB_CURSOR_STATIC_LIB 
+            NAMES libxcb-cursor.a xcb-cursor
+            PATHS ${_XCB_CURSOR_SEARCH_PATHS}
+            NO_DEFAULT_PATH
+        )
+        if(XCB_CURSOR_STATIC_LIB)
+            set(XCB_CURSOR_LIBRARIES ${XCB_CURSOR_STATIC_LIB})
+            message(STATUS "Using static xcb-cursor library: ${XCB_CURSOR_STATIC_LIB}")
+        else()
+            if(OPENTERFACE_BUILD_STATIC)
+                message(FATAL_ERROR "Static build requested but static libxcb-cursor.a not found in: ${_XCB_CURSOR_SEARCH_PATHS}. Ensure the Docker image installs libxcb-cursor.a (static) in a searchable path, e.g., /usr/lib/${CMAKE_LIBRARY_ARCHITECTURE}/libxcb-cursor.a.")
+            else()
+                message(WARNING "Static xcb-cursor library not found. The app may require libxcb-cursor.so.0 at runtime.")
+            endif()
+        endif()
+    endif()
+else()
+    message(WARNING "xcb-cursor not found - this may cause runtime linking issues")
+endif()
+
+# Check for additional XCB dependencies that xcb-cursor might need
+pkg_check_modules(XCB_RENDER xcb-render)
+pkg_check_modules(XCB_IMAGE xcb-image)
+pkg_check_modules(XCB_XFIXES xcb-xfixes)
 
 
 

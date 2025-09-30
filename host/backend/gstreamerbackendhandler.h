@@ -80,6 +80,7 @@ public:
     void stopGStreamerPipeline();
     void setVideoOutput(QWidget* widget);
     void setVideoOutput(QGraphicsVideoItem* videoItem);  // Support for QGraphicsVideoItem
+    void setVideoOutput(VideoPane* videoPane);  // Support for VideoPane overlay
     
     // Enhanced methods based on working example
     bool checkCameraAvailable(const QString& device = "/dev/video0");
@@ -88,8 +89,12 @@ public:
     // Resolution and framerate configuration
     void setResolutionAndFramerate(const QSize& resolution, int framerate);
     
+    // Video scaling and render rectangle configuration
+    void updateVideoRenderRectangle(const QSize& widgetSize);
+    void updateVideoRenderRectangle(int x, int y, int width, int height);
+    
     // Pipeline string generation
-    QString generatePipelineString(const QString& device, const QSize& resolution, int framerate) const;
+    QString generatePipelineString(const QString& device, const QSize& resolution, int framerate, const QString& videoSink) const;
 
     // Video recording methods
     bool startRecording(const QString& outputPath, const QString& format = "mp4", int videoBitrate = 2000000) override;
@@ -147,6 +152,7 @@ private:
     // Qt integration
     QWidget* m_videoWidget;
     QGraphicsVideoItem* m_graphicsVideoItem;  // Support for QGraphicsVideoItem
+    VideoPane* m_videoPane;  // Support for VideoPane overlay
     QTimer* m_healthCheckTimer;
     QProcess* m_gstProcess;  // Fallback for process-based approach
     
@@ -155,6 +161,9 @@ private:
     QString m_currentDevice;
     QSize m_currentResolution;
     int m_currentFramerate;
+    
+    // Overlay setup state
+    bool m_overlaySetupPending;
     
     // Recording state
     bool m_recordingActive;
@@ -175,7 +184,17 @@ private:
     void cleanupGStreamer();
     bool embedVideoInWidget(QWidget* widget);
     bool embedVideoInGraphicsView(QGraphicsView* view);
+    bool embedVideoInVideoPane(VideoPane* videoPane);
     void handleGStreamerMessage(GstMessage* message);
+    void completePendingOverlaySetup();
+    
+    // Enhanced overlay methods
+    bool setupVideoOverlay(GstElement* videoSink, WId windowId);
+    void setupVideoOverlayForCurrentPipeline();
+    void refreshVideoOverlay();
+    
+    // Window validation for overlay setup
+    bool isValidWindowId(WId windowId) const;
     
     // Recording helper methods
     bool initializeValveBasedRecording();

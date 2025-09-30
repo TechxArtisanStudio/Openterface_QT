@@ -68,7 +68,7 @@ signals:
 private slots:
     void toggleCustomResolutionInputs(bool checked);
     void onMediaBackendChanged();
-    void onGStreamerPipelineChanged();
+
 
 private:
     CameraManager *m_cameraManager;

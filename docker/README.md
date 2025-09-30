@@ -6,7 +6,7 @@ This directory contains Docker configurations for building a complete Qt static 
 
 The Docker setup is divided into multiple stages to enable efficient caching and step-by-step building:
 
-1. **qt-base**: Ubuntu base with all build tools and development libraries
+1. **qt-setup**: Ubuntu setup with all build tools and development libraries
 2. **qt-ffmpeg**: Base + libusb + FFmpeg static libraries
 3. **qt-gstreamer**: FFmpeg + GStreamer components and static libraries
 4. **qt-complete**: Complete Qt 6.6.3 static build environment
@@ -49,7 +49,7 @@ docker run --rm \
 
 ## Docker Images
 
-### Base Image (`qt-base`)
+### Base Image (`qt-setup`)
 - **Size**: ~2GB
 - **Contents**: Ubuntu 24.04 with build tools, X11 libraries, development headers
 - **Use case**: Foundation for Qt builds

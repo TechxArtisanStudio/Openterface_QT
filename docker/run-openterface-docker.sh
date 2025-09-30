@@ -201,9 +201,23 @@ build_docker_command() {
     if [ "$NO_HARDWARE" != "true" ]; then
         cmd+=" --privileged"
         cmd+=" -v /dev:/dev"
+        cmd+=" --cap-add SYS_ADMIN"
+        cmd+=" --device /dev/fuse"
         print_info "Hardware access enabled"
     else
         print_warning "Hardware access disabled"
+    fi
+    
+    # Mount the workspace build directory for local package access
+    if [ -d "$(pwd)/../build" ]; then
+        cmd+=" -v $(pwd)/../build:/workspace/build:ro"
+        print_info "Local build directory mounted for package access"
+    fi
+    
+    # Mount the workspace build directory for local package access
+    if [ -d "$(pwd)/../build" ]; then
+        cmd+=" -v $(pwd)/../build:/workspace/build:ro"
+        print_info "Local build directory mounted for package access"
     fi
     
     # Add image name
@@ -273,83 +287,85 @@ main() {
     check_prerequisites
     setup_x11
     
-    # Build and display the command
-    DOCKER_CMD=$(build_docker_command)
-    echo ""
-    print_info "Docker command:"
-    echo "$DOCKER_CMD"
-    echo ""
-    
-    # Ask for confirmation
-    if [ "$START_SHELL" != "true" ]; then
-        print_info "Starting Openterface QT application..."
-        print_info "The application will open in a new window"
-        print_info "Press Ctrl+C to stop the container"
-        echo ""
-    fi
-    
     # Run the container
     print_success "Launching container..."
     
-    # Get the Docker command and run it safely
-    DOCKER_CMD=$(build_docker_command)
-    
-    # Extract components and run directly (safer than eval)
+    # Build the docker command
     if [ "$START_SHELL" = "true" ]; then
         if [ -n "$SSH_CLIENT" ] || [ -n "$SSH_TTY" ] || [ -n "$SSH_CONNECTION" ]; then
             # Remote environment
-            exec docker run -it --rm \
-                --name "$CONTAINER_NAME" \
+            DOCKER_CMD="docker run -it --rm \
+                --name $CONTAINER_NAME \
                 --network host \
-                -e DISPLAY="$DISPLAY" \
+                -e DISPLAY=$DISPLAY \
                 -e QT_X11_NO_MITSHM=1 \
                 -e QT_QPA_PLATFORM=xcb \
+                -e OPENSSL_CONF=/etc/ssl/openssl.cnf \
+                -e SSL_CERT_DIR=/etc/ssl/certs \
+                -e SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt \
                 -v /tmp/.X11-unix:/tmp/.X11-unix:rw \
                 $([ -f "$HOME/.Xauthority" ] && echo "-v $HOME/.Xauthority:/home/openterface/.Xauthority:ro -e XAUTHORITY=/home/openterface/.Xauthority") \
-                $([ "$NO_HARDWARE" != "true" ] && echo "--privileged -v /dev:/dev") \
-                "$DOCKER_IMAGE" /bin/bash
+                $([ "$NO_HARDWARE" != "true" ] && echo "--privileged -v /dev:/dev --cap-add SYS_ADMIN --device /dev/fuse") \
+                $([ -d "$(pwd)/../build" ] && echo "-v $(pwd)/../build:/workspace/build:ro") \
+                $DOCKER_IMAGE /bin/bash"
         else
             # Local environment
-            exec docker run -it --rm \
-                --name "$CONTAINER_NAME" \
+            DOCKER_CMD="docker run -it --rm \
+                --name $CONTAINER_NAME \
                 -v /tmp/.X11-unix:/tmp/.X11-unix:rw \
-                -e DISPLAY="$DISPLAY" \
+                -e DISPLAY=$DISPLAY \
                 -e QT_X11_NO_MITSHM=1 \
                 -e QT_QPA_PLATFORM=xcb \
+                -e OPENSSL_CONF=/etc/ssl/openssl.cnf \
+                -e SSL_CERT_DIR=/etc/ssl/certs \
+                -e SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt \
                 $([ -f "$HOME/.Xauthority" ] && echo "-v $HOME/.Xauthority:/home/openterface/.Xauthority:ro") \
-                $([ "$NO_HARDWARE" != "true" ] && echo "--privileged -v /dev:/dev") \
-                "$DOCKER_IMAGE" /bin/bash
+                $([ "$NO_HARDWARE" != "true" ] && echo "--privileged -v /dev:/dev --cap-add SYS_ADMIN --device /dev/fuse") \
+                $([ -d "$(pwd)/../build" ] && echo "-v $(pwd)/../build:/workspace/build:ro") \
+                $DOCKER_IMAGE /bin/bash"
         fi
     else
         if [ -n "$SSH_CLIENT" ] || [ -n "$SSH_TTY" ] || [ -n "$SSH_CONNECTION" ]; then
             # Remote environment
-            exec docker run -it --rm \
-                --name "$CONTAINER_NAME" \
+            DOCKER_CMD="docker run -it --rm \
+                --name $CONTAINER_NAME \
                 --network host \
-                -e DISPLAY="$DISPLAY" \
+                -e DISPLAY=$DISPLAY \
                 -e QT_X11_NO_MITSHM=1 \
                 -e QT_QPA_PLATFORM=xcb \
+                -e OPENSSL_CONF=/etc/ssl/openssl.cnf \
+                -e SSL_CERT_DIR=/etc/ssl/certs \
+                -e SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt \
                 -v /tmp/.X11-unix:/tmp/.X11-unix:rw \
                 $([ -f "$HOME/.Xauthority" ] && echo "-v $HOME/.Xauthority:/home/openterface/.Xauthority:ro -e XAUTHORITY=/home/openterface/.Xauthority") \
-                $([ "$NO_HARDWARE" != "true" ] && echo "--privileged -v /dev:/dev") \
-                "$DOCKER_IMAGE"
+                $([ "$NO_HARDWARE" != "true" ] && echo "--privileged -v /dev:/dev --cap-add SYS_ADMIN --device /dev/fuse") \
+                $([ -d "$(pwd)/../build" ] && echo "-v $(pwd)/../build:/workspace/build:ro") \
+                $DOCKER_IMAGE"
         else
             # Local environment
-            exec docker run -it --rm \
-                --name "$CONTAINER_NAME" \
+            DOCKER_CMD="docker run -it --rm \
+                --name $CONTAINER_NAME \
                 -v /tmp/.X11-unix:/tmp/.X11-unix:rw \
-                -e DISPLAY="$DISPLAY" \
+                -e DISPLAY=$DISPLAY \
                 -e QT_X11_NO_MITSHM=1 \
                 -e QT_QPA_PLATFORM=xcb \
+                -e OPENSSL_CONF=/etc/ssl/openssl.cnf \
+                -e SSL_CERT_DIR=/etc/ssl/certs \
+                -e SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt \
                 $([ -f "$HOME/.Xauthority" ] && echo "-v $HOME/.Xauthority:/home/openterface/.Xauthority:ro") \
-                $([ "$NO_HARDWARE" != "true" ] && echo "--privileged -v /dev:/dev") \
-                "$DOCKER_IMAGE"
+                $([ "$NO_HARDWARE" != "true" ] && echo "--privileged -v /dev:/dev --cap-add SYS_ADMIN --device /dev/fuse") \
+                $([ -d "$(pwd)/../build" ] && echo "-v $(pwd)/../build:/workspace/build:ro") \
+                $DOCKER_IMAGE"
         fi
     fi
+    
+    # Run the docker command and wait for it
+    print_info "Running: $DOCKER_CMD"
+    eval "$DOCKER_CMD"
 }
 
 # Handle Ctrl+C gracefully
-trap 'print_info "Interrupted by user"; exit 130' INT
+trap 'print_info "Interrupted by user"; cleanup; exit 130' INT
 
 # Run main function
 main "$@"

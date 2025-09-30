@@ -147,35 +147,6 @@ void VideoPage::setupUI()
     // Connect the media backend change signal
     connect(mediaBackendBox, &QComboBox::currentIndexChanged, this, &VideoPage::onMediaBackendChanged);
 
-    // GStreamer Pipeline Configuration Section
-    QLabel *gstreamerPipelineLabel = new QLabel(tr("GStreamer Pipeline Template: "));
-    gstreamerPipelineLabel->setStyleSheet(smallLabelFontSize);
-
-    QLineEdit *gstreamerPipelineEdit = new QLineEdit();
-    gstreamerPipelineEdit->setObjectName("gstreamerPipelineEdit");
-    gstreamerPipelineEdit->setPlaceholderText("v4l2src device=%DEVICE% ! image/jpeg,width=%WIDTH%,height=%HEIGHT%,framerate=%FRAMERATE%/1 ! jpegdec ! videoconvert ! xvimagesink name=videosink");
-    
-    // Set current pipeline template from settings
-    QString currentPipeline = GlobalSetting::instance().getGStreamerPipelineTemplate();
-    gstreamerPipelineEdit->setText(currentPipeline);
-    
-    QLabel *gstreamerHintLabel = new QLabel(tr("Available placeholders: %DEVICE%, %WIDTH%, %HEIGHT%, %FRAMERATE%"));
-    gstreamerHintLabel->setStyleSheet("color: #666666; font-style: italic;");
-    
-    // Connect the pipeline change signal
-    connect(gstreamerPipelineEdit, &QLineEdit::textChanged, this, &VideoPage::onGStreamerPipelineChanged);
-
-    // Create a widget to hold the GStreamer-specific options
-    QWidget *gstreamerOptionsWidget = new QWidget();
-    gstreamerOptionsWidget->setObjectName("gstreamerOptionsWidget");
-    QVBoxLayout *gstreamerLayout = new QVBoxLayout(gstreamerOptionsWidget);
-    gstreamerLayout->addWidget(gstreamerPipelineLabel);
-    gstreamerLayout->addWidget(gstreamerPipelineEdit);
-    gstreamerLayout->addWidget(gstreamerHintLabel);
-    
-    // Initially hide GStreamer options if not using GStreamer backend
-    gstreamerOptionsWidget->setVisible(currentBackend == "gstreamer");
-
     // Add Capture Resolution elements to the layout
     videoLayout->addWidget(hintLabel);
     videoLayout->addWidget(resolutionsLabel);
@@ -188,7 +159,6 @@ void VideoPage::setupUI()
     videoLayout->addWidget(backendLabel);
     videoLayout->addWidget(mediaBackendBox);
     videoLayout->addWidget(backendHintLabel);
-    videoLayout->addWidget(gstreamerOptionsWidget);
     videoLayout->addStretch();
 
     // Connect the checkbox state change to the slot
@@ -465,19 +435,6 @@ void VideoPage::initVideoSettings() {
         if (backendIndex != -1) {
             mediaBackendBox->setCurrentIndex(backendIndex);
         }
-        
-        // Show/hide GStreamer options based on current backend
-        QWidget *gstreamerOptionsWidget = this->findChild<QWidget*>("gstreamerOptionsWidget");
-        if (gstreamerOptionsWidget) {
-            gstreamerOptionsWidget->setVisible(currentBackend == "gstreamer");
-        }
-    }
-    
-    // Set the GStreamer pipeline template
-    QLineEdit *gstreamerPipelineEdit = this->findChild<QLineEdit*>("gstreamerPipelineEdit");
-    if (gstreamerPipelineEdit) {
-        QString currentPipeline = GlobalSetting::instance().getGStreamerPipelineTemplate();
-        gstreamerPipelineEdit->setText(currentPipeline);
     }
 }
 
@@ -514,38 +471,9 @@ void VideoPage::onMediaBackendChanged() {
         qDebug() << "Media backend changed to:" << selectedBackend;
         
         // Show/hide GStreamer options based on selected backend
-        QWidget *gstreamerOptionsWidget = this->findChild<QWidget*>("gstreamerOptionsWidget");
-        if (gstreamerOptionsWidget) {
-            gstreamerOptionsWidget->setVisible(selectedBackend == "gstreamer");
-        }
-        
         if (selectedBackend == "gstreamer") {
             qDebug() << "GStreamer backend selected - using conservative frame rate handling";
             qDebug() << "Note: GStreamer may require specific frame rate ranges to avoid assertion errors";
-        }
-    }
-}
-
-void VideoPage::onGStreamerPipelineChanged() {
-    QLineEdit *gstreamerPipelineEdit = this->findChild<QLineEdit*>("gstreamerPipelineEdit");
-    if (gstreamerPipelineEdit) {
-        QString pipelineTemplate = gstreamerPipelineEdit->text();
-        
-        // Basic validation: check if essential placeholders are present
-        bool hasDevice = pipelineTemplate.contains("%DEVICE%");
-        bool hasValidFormat = pipelineTemplate.contains("!") && !pipelineTemplate.trimmed().isEmpty();
-        
-        if (!hasDevice) {
-            qWarning() << "GStreamer pipeline template missing %DEVICE% placeholder";
-            gstreamerPipelineEdit->setStyleSheet("QLineEdit { border: 2px solid red; }");
-        } else if (!hasValidFormat) {
-            qWarning() << "GStreamer pipeline template appears to be invalid (missing ! separators or empty)";
-            gstreamerPipelineEdit->setStyleSheet("QLineEdit { border: 2px solid orange; }");
-        } else {
-            // Pipeline looks valid
-            gstreamerPipelineEdit->setStyleSheet("");
-            GlobalSetting::instance().setGStreamerPipelineTemplate(pipelineTemplate);
-            qDebug() << "GStreamer pipeline template updated:" << pipelineTemplate;
         }
     }
 }

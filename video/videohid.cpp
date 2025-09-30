@@ -1291,6 +1291,13 @@ void VideoHid::loadFirmwareToEeprom() {
 }
 
 FirmwareResult VideoHid::isLatestFirmware() {
+    // Check if TLS/SSL is available (important for statically built Qt applications)
+    if (!QSslSocket::supportsSsl()) {
+        qCWarning(log_host_hid) << "TLS/SSL not available - skipping firmware check";
+        fireware_result = FirmwareResult::CheckFailed;
+        return FirmwareResult::CheckFailed;
+    }
+
     qCDebug(log_host_hid) << "Checking for latest firmware...";
     QString firemwareFileName = getLatestFirmwareFilenName(firmwareURL);
     qCDebug(log_host_hid) << "Latest firmware file name:" << firemwareFileName;

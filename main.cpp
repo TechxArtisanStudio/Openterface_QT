@@ -28,6 +28,24 @@
 #include "target/KeyboardLayouts.h"
 #include "ui/languagemanager.h"
 #include <QCoreApplication>
+#include <QtPlugin>
+
+// Import static Qt plugins only when building with static plugins
+#if defined(QT_STATIC) || defined(QT_STATICPLUGIN)
+// Image format plugins
+Q_IMPORT_PLUGIN(QJpegPlugin)
+Q_IMPORT_PLUGIN(QGifPlugin)
+Q_IMPORT_PLUGIN(QICOPlugin)
+Q_IMPORT_PLUGIN(QSvgPlugin)
+
+// Platform plugins (Linux)
+#ifdef Q_OS_LINUX
+Q_IMPORT_PLUGIN(QXcbIntegrationPlugin)
+// Q_IMPORT_PLUGIN(QOffscreenIntegrationPlugin)  // Commented out - not available in shared Qt build
+// Note: Wayland plugin may not be properly built in static builds
+// Q_IMPORT_PLUGIN(QWaylandEglPlatformIntegrationPlugin)
+#endif
+#endif
 
 // Define global shutdown flag
 QAtomicInteger<int> g_applicationShuttingDown(0);
@@ -35,24 +53,11 @@ QAtomicInteger<int> g_applicationShuttingDown(0);
 // GStreamer includes
 #ifdef HAVE_GSTREAMER
 #include <gst/gst.h>
+#include <glib.h>  // For GLib log handling
 #endif
 
-#include <iostream>
-#include <QApplication>
-#include <QIcon>
-#include <QDateTime>
-#include <QDebug>
-#include <QThread>
-#include <QLoggingCategory>
-#include <QStyleFactory>
-#include <QDir>
-#include <QFile>
-#include <QTextStream>
-
-#if defined(QT_STATICPLUGIN)
-#include <QtPlugin>
-Q_IMPORT_PLUGIN(QXcbIntegrationPlugin)
-#endif
+#include <unistd.h>
+#include <unistd.h>
 
 
 void customMessageHandler(QtMsgType type, const QMessageLogContext &context, const QString &msg)
@@ -103,14 +108,69 @@ void writeLog(const QString &message){
     }
 }
 
+#ifdef HAVE_GSTREAMER
+// Custom GLib log handler to suppress non-critical GStreamer messages
+void suppressGLibMessages(const gchar *log_domain, GLogLevelFlags log_level, const gchar *message, gpointer user_data)
+{
+    Q_UNUSED(user_data)
+    
+    // Suppress specific known non-critical messages
+    if (log_domain && (strcmp(log_domain, "GStreamer") == 0)) {
+        if (strstr(message, "gst_value_set_int_range_step: assertion") ||
+            strstr(message, "gst_alsa_device_new: assertion")) {
+            return; // Suppress these specific messages
+        }
+    }
+    
+    // For other critical messages, still show them but with reduced verbosity
+    if (log_level & G_LOG_LEVEL_CRITICAL || log_level & G_LOG_LEVEL_ERROR) {
+        // Only show if it's not one of the known harmless messages
+        if (!strstr(message, "gst_value_set_int_range_step") && 
+            !strstr(message, "gst_alsa_device_new")) {
+            fprintf(stderr, "%s\n", message);
+        }
+    }
+}
+#endif
+
 void setupEnv(){
 #ifdef Q_OS_LINUX
-    // Check if QT_QPA_PLATFORM is not set, and set it to "xcb" if it's empty
-    if (qgetenv("QT_QPA_PLATFORM").isEmpty()) {
-        qputenv("QT_QPA_PLATFORM", "xcb");
-        qDebug() << "Set QT_QPA_PLATFORM to xcb";
+    // Only set QT_QPA_PLATFORM when not provided by the user
+    const QByteArray currentPlatform = qgetenv("QT_QPA_PLATFORM");
+    
+    if (currentPlatform.isEmpty()) {
+        // Check for available display systems
+        const QByteArray waylandDisplay = qgetenv("WAYLAND_DISPLAY");
+        const QByteArray x11Display = qgetenv("DISPLAY");
+        
+        // For static builds, be more conservative about platform selection
+        #if defined(QT_STATIC) || defined(QT_STATICPLUGIN)
+        qDebug() << "Static build detected - using conservative platform selection";
+        if (!x11Display.isEmpty()) {
+            qputenv("QT_QPA_PLATFORM", "xcb");
+            qDebug() << "Static build: Set QT_QPA_PLATFORM to xcb (DISPLAY available)";
+        } else {
+            // Try to set DISPLAY and use XCB for static builds
+            qputenv("DISPLAY", ":0");
+            qputenv("QT_QPA_PLATFORM", "xcb");
+            qDebug() << "Static build: No display detected, trying DISPLAY=:0 with xcb platform";
+        }
+        #else
+        // For dynamic builds, prefer XCB if DISPLAY is available
+        if (!x11Display.isEmpty()) {
+            qputenv("QT_QPA_PLATFORM", "xcb");
+            qDebug() << "Dynamic build: Set QT_QPA_PLATFORM to xcb (DISPLAY available)";
+        } else if (!waylandDisplay.isEmpty()) {
+            qputenv("QT_QPA_PLATFORM", "wayland");
+            qDebug() << "Dynamic build: Set QT_QPA_PLATFORM to wayland (WAYLAND_DISPLAY available)";
+        } else {
+            qputenv("DISPLAY", ":0");
+            qputenv("QT_QPA_PLATFORM", "xcb");
+            qDebug() << "Dynamic build: No display detected, trying DISPLAY=:0 with xcb platform";
+        }
+        #endif
     } else {
-        qDebug() << "Current QT_QPA_PLATFORM:" << qgetenv("QT_QPA_PLATFORM");
+        qDebug() << "Current QT_QPA_PLATFORM:" << currentPlatform;
     }
 #endif
 }
@@ -125,8 +185,8 @@ void applyMediaBackendSetting(){
     
     // Handle GStreamer-specific environment settings
     if (mediaBackend == "gstreamer") {
-        // Set GStreamer debug level to reduce verbose output but catch critical errors
-        qputenv("GST_DEBUG", "1,qt6media:3,alsa:1");
+        // Set GStreamer debug level to lowest (0 = GST_LEVEL_NONE) to suppress all messages
+        qputenv("GST_DEBUG", "0");
         
         // Disable color output for cleaner logs
         qputenv("GST_DEBUG_NO_COLOR", "1");
@@ -137,8 +197,14 @@ void applyMediaBackendSetting(){
         // Set GStreamer to handle object lifecycle more carefully
         qputenv("GST_DEBUG_DUMP_DOT_DIR", "");
         
+        // Suppress non-critical GStreamer log messages from the start
+        qputenv("GST_DEBUG", "0");  // Complete silence - no GStreamer debug messages
+        
+        // Suppress GLib critical messages that occur during device enumeration
+        qputenv("G_MESSAGES_DEBUG", "");  // Disable all GLib debug messages
+        
         // Prevent GStreamer from using problematic plugins that might cause object ref issues
-        qputenv("GST_PLUGIN_FEATURE_RANK", "qt6videosink:MAX,qt6audiosink:MAX,alsasink:NONE,pulsesink:PRIMARY");
+        qputenv("GST_PLUGIN_FEATURE_RANK", "autovideosink:MAX,autoaudiosink:MAX,alsasink:NONE,pulsesink:PRIMARY");
         
         // Force proper cleanup timing
         qputenv("G_DEBUG", "gc-friendly");
@@ -157,8 +223,22 @@ void applyMediaBackendSetting(){
         
         // Additional GStreamer environment variables for better video handling
         qputenv("GST_V4L2_USE_LIBV4L2", "1");
-        qputenv("GST_PLUGIN_PATH", "/usr/lib/gstreamer-1.0");
-        qputenv("GST_PLUGIN_SYSTEM_PATH", "/usr/lib/gstreamer-1.0");
+        
+        // Set GStreamer plugin paths - support AppImage bundled plugins
+        QString appDirPath = QCoreApplication::applicationDirPath();
+        QString bundledPluginPath = appDirPath + "/../lib/gstreamer-1.0";
+        
+        if (QDir(bundledPluginPath).exists()) {
+            // Use bundled plugins (AppImage)
+            qputenv("GST_PLUGIN_PATH", bundledPluginPath.toUtf8());
+            qputenv("GST_PLUGIN_SYSTEM_PATH", bundledPluginPath.toUtf8());
+            qDebug() << "Using bundled GStreamer plugins from:" << bundledPluginPath;
+        } else {
+            // Fallback to system plugins
+            qputenv("GST_PLUGIN_PATH", "/usr/lib/gstreamer-1.0:/usr/lib/aarch64-linux-gnu/gstreamer-1.0:/usr/lib/x86_64-linux-gnu/gstreamer-1.0");
+            qputenv("GST_PLUGIN_SYSTEM_PATH", "/usr/lib/gstreamer-1.0:/usr/lib/aarch64-linux-gnu/gstreamer-1.0:/usr/lib/x86_64-linux-gnu/gstreamer-1.0");
+            qDebug() << "Using system GStreamer plugins";
+        }
         
         // Ensure video output works correctly
         qputenv("GST_VIDEO_OVERLAY", "1");
@@ -190,8 +270,13 @@ int main(int argc, char *argv[])
         return -1;
     }
     qDebug() << "GStreamer initialized successfully";
+    
+    // Install custom GLib log handler to suppress non-critical messages
+    g_log_set_default_handler(suppressGLibMessages, nullptr);
     #endif
+    
     setupEnv();
+    qDebug() << "Creating QApplication...";
     QApplication app(argc, argv);
 
     // set style accroding to system palette
