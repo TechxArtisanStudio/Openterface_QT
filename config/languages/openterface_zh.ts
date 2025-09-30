@@ -571,85 +571,102 @@ Please try again after restarting the application.</source>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="149"/>
+        <location filename="../../ui/mainwindow.ui" line="149"/>
         <source>Close</source>
         <translation>关闭</translation>
     </message>
     <message>
+        <location filename="../../ui/mainwindow.ui" line="154"/>
         <location filename="../../ui/mainwindow.ui" line="154"/>
         <source>Change Settings</source>
         <translation>更改设置</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="159"/>
+        <location filename="../../ui/mainwindow.ui" line="159"/>
         <source>Reset Serial Port</source>
         <translation>重置串口</translation>
     </message>
     <message>
+        <location filename="../../ui/mainwindow.ui" line="164"/>
         <location filename="../../ui/mainwindow.ui" line="164"/>
         <source>Serial Console</source>
         <translation>串口控制台</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="169"/>
+        <location filename="../../ui/mainwindow.ui" line="169"/>
         <source>AutoReszie</source>
         <translation>自动调整大小</translation>
     </message>
     <message>
+        <location filename="../../ui/mainwindow.ui" line="174"/>
         <location filename="../../ui/mainwindow.ui" line="174"/>
         <source>Factory Reset HID Chip</source>
         <translation>出厂重置HID芯片</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="179"/>
+        <location filename="../../ui/mainwindow.ui" line="179"/>
         <source>Preferences</source>
         <translation>首选项</translation>
     </message>
     <message>
+        <location filename="../../ui/mainwindow.ui" line="184"/>
         <location filename="../../ui/mainwindow.ui" line="184"/>
         <source>Office Website</source>
         <translation>官方网站</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="189"/>
+        <location filename="../../ui/mainwindow.ui" line="189"/>
         <source>Purchase</source>
         <translation>购买</translation>
     </message>
     <message>
+        <location filename="../../ui/mainwindow.ui" line="194"/>
         <location filename="../../ui/mainwindow.ui" line="194"/>
         <source>Feedback</source>
         <translation>反馈</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="199"/>
+        <location filename="../../ui/mainwindow.ui" line="199"/>
         <source>Update</source>
         <translation>更新</translation>
     </message>
     <message>
+        <location filename="../../ui/mainwindow.ui" line="204"/>
         <location filename="../../ui/mainwindow.ui" line="204"/>
         <source>Environment</source>
         <translation>环境</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="209"/>
+        <location filename="../../ui/mainwindow.ui" line="209"/>
         <source>About</source>
         <translation>关于</translation>
     </message>
     <message>
+        <location filename="../../ui/mainwindow.ui" line="220"/>
         <location filename="../../ui/mainwindow.ui" line="220"/>
         <source>Follow Switch</source>
         <translation>跟随切换</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="228"/>
+        <location filename="../../ui/mainwindow.ui" line="228"/>
         <source>Paste</source>
         <translation>粘贴</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="231"/>
+        <location filename="../../ui/mainwindow.ui" line="231"/>
         <source>Paste clipboard content to target</source>
         <translation>将剪贴板内容粘贴到目标</translation>
     </message>
     <message>
+        <location filename="../../ui/mainwindow.ui" line="236"/>
         <location filename="../../ui/mainwindow.ui" line="236"/>
         <source>Script Tool</source>
         <translation>脚本工具</translation>
@@ -666,90 +683,118 @@ Please try again after restarting the application.</source>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="249"/>
+        <location filename="../../ui/mainwindow.ui" line="241"/>
+        <source>Video Recording Settings</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/mainwindow.ui" line="244"/>
+        <source>Configure video recording settings and start/stop recording</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/mainwindow.ui" line="249"/>
         <source>TCP Server</source>
         <translation>TCP服务器</translation>
     </message>
     <message>
+        <location filename="../../ui/mainwindow.ui" line="254"/>
         <location filename="../../ui/mainwindow.ui" line="254"/>
         <source>Environment Checking</source>
         <translation>环境检查</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="259"/>
+        <location filename="../../ui/mainwindow.ui" line="259"/>
         <source>Firmware Manager</source>
         <translation>固件管理器</translation>
     </message>
     <message>
+        <location filename="../../ui/mainwindow.ui" line="264"/>
         <location filename="../../ui/mainwindow.ui" line="264"/>
         <source>Firmware Update...</source>
         <translation>固件更新...</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="269"/>
+        <location filename="../../ui/mainwindow.ui" line="269"/>
         <source>Device Selector</source>
         <translation>设备选择器</translation>
     </message>
     <message>
+        <location filename="../../ui/mainwindow.ui" line="272"/>
         <location filename="../../ui/mainwindow.ui" line="272"/>
         <source>Open Device Selector Dialog</source>
         <translation>打开设备选择器对话框</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="277"/>
+        <location filename="../../ui/mainwindow.ui" line="277"/>
         <source>Update Display Settings</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../../ui/mainwindow.ui" line="280"/>
         <location filename="../../ui/mainwindow.ui" line="280"/>
         <source>Update display name and serial number in EDID</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="289"/>
+        <location filename="../../ui/mainwindow.ui" line="289"/>
         <source>115200</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../../ui/mainwindow.ui" line="297"/>
         <location filename="../../ui/mainwindow.ui" line="297"/>
         <source>9600</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="307"/>
+        <location filename="../../ui/mainwindow.ui" line="307"/>
         <source>To Host</source>
         <translation>到主机</translation>
     </message>
     <message>
+        <location filename="../../ui/mainwindow.ui" line="315"/>
         <location filename="../../ui/mainwindow.ui" line="315"/>
         <source>To Target</source>
         <translation>到目标</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="328"/>
+        <location filename="../../ui/mainwindow.ui" line="328"/>
         <source>Absolute</source>
         <translation>绝对</translation>
     </message>
     <message>
+        <location filename="../../ui/mainwindow.ui" line="336"/>
         <location filename="../../ui/mainwindow.ui" line="336"/>
         <source>Relative</source>
         <translation>相对</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="349"/>
+        <location filename="../../ui/mainwindow.ui" line="349"/>
         <source>Auto Hide</source>
         <translation>自动隐藏</translation>
     </message>
     <message>
+        <location filename="../../ui/mainwindow.ui" line="352"/>
         <location filename="../../ui/mainwindow.ui" line="352"/>
         <source>Auto hide mouse cursor</source>
         <translation>自动隐藏鼠标光标</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="360"/>
+        <location filename="../../ui/mainwindow.ui" line="360"/>
         <source>Always Show</source>
         <translation>始终显示</translation>
     </message>
     <message>
+        <location filename="../../ui/mainwindow.ui" line="363"/>
         <location filename="../../ui/mainwindow.ui" line="363"/>
         <source>Always show mouse cursor</source>
         <translation>始终显示鼠标光标</translation>

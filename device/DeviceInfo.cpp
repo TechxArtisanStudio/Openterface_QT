@@ -2,6 +2,7 @@
 
 DeviceInfo::DeviceInfo(const QString& portChain)
     : portChain(portChain)
+    , hasCompanionDevice(false)
     , lastSeen(QDateTime::currentDateTime())
 {
 }
@@ -11,6 +12,8 @@ QVariantMap DeviceInfo::toMap() const
     QVariantMap map;
     map["portChain"] = portChain;
     map["deviceInstanceId"] = deviceInstanceId;
+    map["companionPortChain"] = companionPortChain;
+    map["hasCompanionDevice"] = hasCompanionDevice;
     map["serialPortPath"] = serialPortPath;
     map["hidDevicePath"] = hidDevicePath;
     map["cameraDevicePath"] = cameraDevicePath;
@@ -28,6 +31,8 @@ void DeviceInfo::fromMap(const QVariantMap& map)
 {
     portChain = map.value("portChain").toString();
     deviceInstanceId = map.value("deviceInstanceId").toString();
+    companionPortChain = map.value("companionPortChain").toString();
+    hasCompanionDevice = map.value("hasCompanionDevice", false).toBool();
     serialPortPath = map.value("serialPortPath").toString();
     hidDevicePath = map.value("hidDevicePath").toString();
     cameraDevicePath = map.value("cameraDevicePath").toString();
@@ -61,6 +66,8 @@ bool DeviceInfo::operator==(const DeviceInfo& other) const
 {
     return portChain == other.portChain &&
            deviceInstanceId == other.deviceInstanceId &&
+           companionPortChain == other.companionPortChain &&
+           hasCompanionDevice == other.hasCompanionDevice &&
            serialPortPath == other.serialPortPath &&
            serialPortId == other.serialPortId &&
            hidDevicePath == other.hidDevicePath &&

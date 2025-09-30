@@ -19,11 +19,12 @@ DeviceManager::DeviceSwitchResult DeviceManager::switchToDeviceByPortChainComple
     if (result.selectedDevice.hasSerialPort()) {
         // Get SerialPortManager singleton and switch to the device
         // Note: We'll use extern declaration or include in implementation
-        result.serialSuccess = switchSerialPortByPortChain(portChain);
+        QString serialPortChain = result.selectedDevice.getSerialPortChain();
+        result.serialSuccess = switchSerialPortByPortChain(serialPortChain);
         if (result.serialSuccess) {
-            qCInfo(log_device_manager) << "✓ Serial port switched to device at port:" << portChain;
+            qCInfo(log_device_manager) << "✓ Serial port switched to device at port:" << serialPortChain;
         } else {
-            qCWarning(log_device_manager) << "Failed to switch serial port to device at port:" << portChain;
+            qCWarning(log_device_manager) << "Failed to switch serial port to device at port:" << serialPortChain;
             result.statusMessage += " (Serial port switch failed)";
         }
     } else {
@@ -32,11 +33,12 @@ DeviceManager::DeviceSwitchResult DeviceManager::switchToDeviceByPortChainComple
     
     // Handle HID switching if device has HID component
     if (result.selectedDevice.hasHidDevice()) {
-        result.hidSuccess = switchHIDDeviceByPortChain(portChain);
+        QString hidPortChain = result.selectedDevice.getCompositePortChain();
+        result.hidSuccess = switchHIDDeviceByPortChain(hidPortChain);
         if (result.hidSuccess) {
-            qCInfo(log_device_manager) << "✓ HID device switched to device at port:" << portChain;
+            qCInfo(log_device_manager) << "✓ HID device switched to device at port:" << hidPortChain;
         } else {
-            qCWarning(log_device_manager) << "Failed to switch HID device to device at port:" << portChain;
+            qCWarning(log_device_manager) << "Failed to switch HID device to device at port:" << hidPortChain;
             result.statusMessage += " (HID switch failed)";
         }
     } else {
@@ -45,11 +47,12 @@ DeviceManager::DeviceSwitchResult DeviceManager::switchToDeviceByPortChainComple
     
     // Handle camera switching if camera manager is provided and device has camera
     if (cameraManager && result.selectedDevice.hasCameraDevice()) {
-        result.cameraSuccess = cameraManager->switchToCameraDeviceByPortChain(portChain);
+        QString cameraPortChain = result.selectedDevice.getCompositePortChain();
+        result.cameraSuccess = cameraManager->switchToCameraDeviceByPortChain(cameraPortChain);
         if (result.cameraSuccess) {
-            qCInfo(log_device_manager) << "✓ Camera switched to device at port:" << portChain;
+            qCInfo(log_device_manager) << "✓ Camera switched to device at port:" << cameraPortChain;
         } else {
-            qCWarning(log_device_manager) << "Failed to switch camera to device at port:" << portChain;
+            qCWarning(log_device_manager) << "Failed to switch camera to device at port:" << cameraPortChain;
             result.statusMessage += " (Camera switch failed)";
         }
     } else if (result.selectedDevice.hasCameraDevice()) {
@@ -61,11 +64,12 @@ DeviceManager::DeviceSwitchResult DeviceManager::switchToDeviceByPortChainComple
     
     // Handle audio switching if audio manager is provided and device has audio
     if (audioManager && result.selectedDevice.hasAudioDevice()) {
-        result.audioSuccess = audioManager->switchToAudioDeviceByPortChain(portChain);
+        QString audioPortChain = result.selectedDevice.getCompositePortChain();
+        result.audioSuccess = audioManager->switchToAudioDeviceByPortChain(audioPortChain);
         if (result.audioSuccess) {
-            qCInfo(log_device_manager) << "✓ Audio switched to device at port:" << portChain;
+            qCInfo(log_device_manager) << "✓ Audio switched to device at port:" << audioPortChain;
         } else {
-            qCWarning(log_device_manager) << "Failed to switch audio to device at port:" << portChain;
+            qCWarning(log_device_manager) << "Failed to switch audio to device at port:" << audioPortChain;
             result.statusMessage += " (Audio switch failed)";
         }
     } else if (result.selectedDevice.hasAudioDevice()) {

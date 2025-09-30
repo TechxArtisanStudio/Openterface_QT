@@ -30,6 +30,7 @@ public:
     void showDeviceUnplugged(const QString& portChain);
     void showCameraSwitching(const QString& fromDevice, const QString& toDevice);
     void showCameraSwitchComplete(const QString& device);
+    void setKeyStates(bool numLock, bool capsLock, bool scrollLock);
     void updateIconColor();
 
 

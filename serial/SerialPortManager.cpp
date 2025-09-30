@@ -380,8 +380,10 @@ void SerialPortManager::checkSerialPort() {
         }
     }
 
-    // If no data received in 5 seconds, consider the port is disconnected or not working
-    sendAsyncCommand(CMD_GET_INFO, false);
+    // Always send CMD_GET_INFO with force=true to ensure key state update every check,
+    // even if !ready (bypasses the ready guard in sendAsyncCommand)
+    sendAsyncCommand(CMD_GET_INFO, true);
+
     if (latestUpdateTime.secsTo(QDateTime::currentDateTime()) > 5) {
         ready = false;
     }
@@ -869,6 +871,13 @@ void SerialPortManager::updateSpecialKeyState(uint8_t data){
     CapsLockState = (data & 0b00000010) != 0; // CapsLockState bit
     ScrollLockState = (data & 0b00000100) != 0; // ScrollLockState bit
     
+    // Notify callback about key state changes
+    if (eventCallback != nullptr) {
+        qDebug(log_core_serial) << "NumLockState:" << NumLockState 
+                               << "CapsLockState:" << CapsLockState 
+                               << "ScrollLockState:" << ScrollLockState;
+        eventCallback->onKeyStatesChanged(NumLockState, CapsLockState, ScrollLockState);
+    }
 }
 /*
  * Read the data from the serial port

@@ -238,3 +238,8 @@ void StatusBarManager::updateKeyboardIcon(const QString& key)
     QPixmap pixmap = recolorSvg(svgPath, iconColor, QSize(18, 18));
     keyPressedLabel->setPixmap(pixmap);
 }
+
+void StatusBarManager::setKeyStates(bool numLock, bool capsLock, bool scrollLock)
+{
+    m_statusWidget->setKeyStates(numLock, capsLock, scrollLock);
+}

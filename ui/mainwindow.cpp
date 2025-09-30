@@ -527,7 +527,11 @@ void MainWindow::updateDeviceMenu() {
     // Add action for each unique device
     for (auto it = uniqueDevicesByPortChain.begin(); it != uniqueDevicesByPortChain.end(); ++it) {
         const DeviceInfo& device = it.value();
-        QString displayText = QString("Port %1").arg(device.portChain);
+        
+        // Determine device type based on VID/PID from platformSpecific data
+        QString deviceType = getDeviceTypeName(device);
+        QString displayText = QString("Port %1 - %2").arg(device.portChain, deviceType);
+        
         QAction *deviceAction = new QAction(displayText, this);
         deviceAction->setCheckable(true);
         deviceAction->setData(device.portChain);
@@ -541,6 +545,84 @@ void MainWindow::updateDeviceMenu() {
         ui->menuDevice->addAction(deviceAction);
         m_deviceMenuGroup->addAction(deviceAction);
     }
+}
+
+QString MainWindow::getDeviceTypeName(const DeviceInfo& device) {
+    // Define VID/PID constants
+    const QString MINI_KVM_VID = "534D";    // Mini-KVM VID
+    const QString MINI_KVM_PID = "2109";    // Mini-KVM PID
+    const QString KVMGO_VID = "345F";       // KVMGO VID  
+    const QString KVMGO_PID = "2132";       // KVMGO PID
+    
+    // Helper function to check VID/PID in a string
+    auto checkVidPidInString = [&](const QString& str) -> QString {
+        if (str.isEmpty()) return "";
+        
+        // Check for KVMGO (345F:2132)
+        if ((str.contains(QString("VID_%1").arg(KVMGO_VID), Qt::CaseInsensitive) &&
+             str.contains(QString("PID_%1").arg(KVMGO_PID), Qt::CaseInsensitive)) ||
+            (str.contains(KVMGO_VID, Qt::CaseInsensitive) && 
+             str.contains(KVMGO_PID, Qt::CaseInsensitive))) {
+            return "KVMGO";
+        }
+        
+        // Check for Mini-KVM (534D:2109)
+        if ((str.contains(QString("VID_%1").arg(MINI_KVM_VID), Qt::CaseInsensitive) &&
+             str.contains(QString("PID_%1").arg(MINI_KVM_PID), Qt::CaseInsensitive)) ||
+            (str.contains(MINI_KVM_VID, Qt::CaseInsensitive) && 
+             str.contains(MINI_KVM_PID, Qt::CaseInsensitive))) {
+            return "Mini-KVM";
+        }
+        
+        return "";
+    };
+    
+    // Check main device sources
+    QStringList sources = {
+        device.platformSpecific.value("hardwareId").toString(),
+        device.platformSpecific.value("hardware_id").toString(),
+        device.platformSpecific.value("vidPid").toString(),
+        device.deviceInstanceId,
+        device.hidDeviceId,
+        device.cameraDeviceId,
+        device.audioDeviceId,
+        device.serialPortId
+    };
+    
+    for (const QString& source : sources) {
+        QString result = checkVidPidInString(source);
+        if (!result.isEmpty()) {
+            return result;
+        }
+    }
+    
+    // Check sibling and child devices
+    auto checkRelatedDevices = [&](const QVariantList& devices) -> QString {
+        for (const QVariant& deviceVar : devices) {
+            QVariantMap deviceMap = deviceVar.toMap();
+            QString hwId = deviceMap.value("hardwareId").toString();
+            if (hwId.isEmpty()) {
+                hwId = deviceMap.value("hardware_id").toString();
+            }
+            QString result = checkVidPidInString(hwId);
+            if (!result.isEmpty()) {
+                return result;
+            }
+        }
+        return "";
+    };
+    
+    if (device.platformSpecific.contains("siblings")) {
+        QString result = checkRelatedDevices(device.platformSpecific["siblings"].toList());
+        if (!result.isEmpty()) return result;
+    }
+    
+    if (device.platformSpecific.contains("children")) {
+        QString result = checkRelatedDevices(device.platformSpecific["children"].toList());
+        if (!result.isEmpty()) return result;
+    }
+    
+    return "Openterface";
 }
 
 void MainWindow::onDeviceSelected(QAction *action) {
@@ -1025,6 +1107,12 @@ void MainWindow::onResolutionChange(const int& width, const int& height, const f
 void MainWindow::onTargetUsbConnected(const bool isConnected)
 {
     m_statusBarManager->setTargetUsbConnected(isConnected);
+}
+
+void MainWindow::onKeyStatesChanged(bool numLock, bool capsLock, bool scrollLock)
+{
+    qCDebug(log_ui_mainwindow) << "Key states changed - NumLock:" << numLock << "CapsLock:" << capsLock << "ScrollLock:" << scrollLock;
+    m_statusBarManager->setKeyStates(numLock, capsLock, scrollLock);
 }
 
 void MainWindow::onActionPasteToTarget()

@@ -10,7 +10,7 @@ const QString AbstractPlatformDeviceManager::OPENTERFACE_PID = "2109";
 const QString AbstractPlatformDeviceManager::SERIAL_VID_V2 = "1A86";
 const QString AbstractPlatformDeviceManager::SERIAL_PID_V2 = "FE0C";
 const QString AbstractPlatformDeviceManager::OPENTERFACE_VID_V2 = "345F";
-const QString AbstractPlatformDeviceManager::OPENTERFACE_PID_V2 = "2130";
+const QString AbstractPlatformDeviceManager::OPENTERFACE_PID_V2 = "2132";
 
 AbstractPlatformDeviceManager::AbstractPlatformDeviceManager(QObject *parent)
     : QObject(parent)
@@ -21,6 +21,18 @@ QList<DeviceInfo> AbstractPlatformDeviceManager::getDevicesByPortChain(const QSt
 {
     QList<DeviceInfo> allDevices = discoverDevices();
     return filterDevicesByPortChain(allDevices, targetPortChain);
+}
+
+QList<DeviceInfo> AbstractPlatformDeviceManager::getDevicesByAnyPortChain(const QString& targetPortChain)
+{
+    QList<DeviceInfo> allDevices = discoverDevices();
+    return filterDevicesByAnyPortChain(allDevices, targetPortChain);
+}
+
+QList<DeviceInfo> AbstractPlatformDeviceManager::getDevicesWithCompanionPortChain(const QString& companionPortChain)
+{
+    QList<DeviceInfo> allDevices = discoverDevices();
+    return filterDevicesByCompanionPortChain(allDevices, companionPortChain);
 }
 
 QStringList AbstractPlatformDeviceManager::getAvailablePortChains()
@@ -65,6 +77,55 @@ QList<DeviceInfo> AbstractPlatformDeviceManager::filterDevicesByPortChain(
         // e.g., targetPortChain = "1-2" should match device.portChain = "1-2.1"
         else if (device.portChain.startsWith(targetPortChain + ".")) {
             filtered.append(device);
+        }
+    }
+
+    return filtered;
+}
+
+QList<DeviceInfo> AbstractPlatformDeviceManager::filterDevicesByAnyPortChain(
+    const QList<DeviceInfo>& devices, const QString& targetPortChain)
+{
+    if (targetPortChain.isEmpty()) {
+        return devices.isEmpty() ? devices : QList<DeviceInfo>{ devices.first() };
+    }
+
+    QList<DeviceInfo> filtered;
+    for (const DeviceInfo& device : devices) {
+        // Check both main portChain and companionPortChain
+        bool mainMatches = (device.portChain == targetPortChain) ||
+                          (targetPortChain.startsWith(device.portChain + ".")) ||
+                          (device.portChain.startsWith(targetPortChain + "."));
+        
+        bool companionMatches = (!device.companionPortChain.isEmpty()) &&
+                               ((device.companionPortChain == targetPortChain) ||
+                                (targetPortChain.startsWith(device.companionPortChain + ".")) ||
+                                (device.companionPortChain.startsWith(targetPortChain + ".")));
+        
+        if (mainMatches || companionMatches) {
+            filtered.append(device);
+        }
+    }
+
+    return filtered;
+}
+
+QList<DeviceInfo> AbstractPlatformDeviceManager::filterDevicesByCompanionPortChain(
+    const QList<DeviceInfo>& devices, const QString& companionPortChain)
+{
+    if (companionPortChain.isEmpty()) {
+        return QList<DeviceInfo>();
+    }
+
+    QList<DeviceInfo> filtered;
+    for (const DeviceInfo& device : devices) {
+        if (!device.companionPortChain.isEmpty()) {
+            // Check companion PortChain match
+            if ((device.companionPortChain == companionPortChain) ||
+                (companionPortChain.startsWith(device.companionPortChain + ".")) ||
+                (device.companionPortChain.startsWith(companionPortChain + "."))) {
+                filtered.append(device);
+            }
         }
     }
 

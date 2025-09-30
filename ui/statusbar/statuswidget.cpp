@@ -41,6 +41,7 @@
 
 StatusWidget::StatusWidget(QWidget *parent) : QWidget(parent), m_captureWidth(0), m_captureHeight(0), m_captureFramerate(0.0) {
     keyboardIndicatorsLabel = new QLabel("", this);
+    keyStatesLabel = new QLabel("", this);
     statusLabel = new QLabel("", this);
     cpuUsageLabel = new QLabel("🖥️: 0%", this);
     resolutionLabel = new QLabel("💻:", this);
@@ -62,6 +63,8 @@ StatusWidget::StatusWidget(QWidget *parent) : QWidget(parent), m_captureWidth(0)
     layout->addWidget(new QLabel("| ", this));
     layout->addWidget(keyboardIndicatorsLabel);
     layout->addWidget(new QLabel("|", this));
+    layout->addWidget(keyStatesLabel);
+    layout->addWidget(new QLabel("|", this));
     layout->addWidget(connectedPortLabel);
     layout->addWidget(new QLabel("|", this));
     layout->addWidget(resolutionLabel);
@@ -69,6 +72,9 @@ StatusWidget::StatusWidget(QWidget *parent) : QWidget(parent), m_captureWidth(0)
 
     setLayout(layout);
     setMinimumHeight(30);
+    
+    // Initialize key states display
+    setKeyStates(false, false, false);
     update();
 }
 
@@ -173,6 +179,39 @@ void StatusWidget::setBaudrate(int baudrate)
 {
     // Update the UI element that displays the baudrate
     connectedPortLabel->setText(QString("🔌: %1@%2").arg(connectedPortLabel->text().split('@').first()).arg(baudrate));
+    update();
+}
+
+void StatusWidget::setKeyStates(bool numLock, bool capsLock, bool scrollLock)
+{
+    QString keyStatesText;
+    QStringList activeKeys;
+    
+    if (numLock) {
+        activeKeys << "NUM";
+    }
+    if (capsLock) {
+        activeKeys << "CAPS";
+    }
+    if (scrollLock) {
+        activeKeys << "SCROLL";
+    }
+    
+    if (activeKeys.isEmpty()) {
+        keyStatesText = "⌨️: ---";
+    } else {
+        keyStatesText = QString("⌨️: %1").arg(activeKeys.join("|"));
+    }
+    
+    keyStatesLabel->setText(keyStatesText);
+    
+    // Set tooltip with detailed information
+    QString tooltip = QString("Keyboard Lock States:\nNum Lock: %1\nCaps Lock: %2\nScroll Lock: %3")
+                     .arg(numLock ? "ON" : "OFF")
+                     .arg(capsLock ? "ON" : "OFF")
+                     .arg(scrollLock ? "ON" : "OFF");
+    keyStatesLabel->setToolTip(tooltip);
+    
     update();
 }
 

@@ -64,10 +64,15 @@ private:
     QString findHIDByDeviceId(const QString& deviceId);
     QPair<QString, QString> findCameraAudioByDeviceInfo(const DeviceInfo& deviceInfo);
     
+    // Enhanced camera/audio device path resolution
+    QString findCameraDevicePathByDeviceId(const QString& deviceId);
+    QString findAudioDevicePathByDeviceId(const QString& deviceId);
+    bool isDeviceRelatedToPortChain(const QString& deviceId, const QString& portChain);
+    
     // Windows API helpers
     QString getDeviceId(DWORD devInst);
     QString getDeviceProperty(HDEVINFO hDevInfo, SP_DEVINFO_DATA* devInfoData, DWORD property);
-    QString getDeviceProperty(DWORD devInst, const QString& propertyName); // New overload for specific properties
+    QString getDevicePropertyByName(DWORD devInst, const QString& propertyName); // New overload for specific properties
     QString getHardwareId(HDEVINFO hDevInfo, SP_DEVINFO_DATA* devInfoData);
     QString getDeviceInterfacePath(HDEVINFO hDevInfo, SP_DEVINFO_DATA* devInfoData, const GUID& interfaceGuid);
     QList<QVariantMap> getSiblingDevices(DWORD parentDevInst);
@@ -116,6 +121,28 @@ private:
     
     // Generation 2 (Companion device) helper methods
     QString findSerialPortByCompanionDevice(const USBDeviceData& companionDevice);
+    QString findCompanionPortChain(const USBDeviceData& companionDevice);
+    DWORD getDeviceInstanceFromPortChain(const QString& portChain);
+    
+    // Integrated device helper methods (for USB 3.0 with separate serial port)
+    QString findSerialPortByIntegratedDevice(const USBDeviceData& integratedDevice);
+    bool isSerialAssociatedWithIntegratedDevice(const USBDeviceData& serialDevice, const USBDeviceData& integratedDevice);
+    QString extractParentPortChain(const QString& portChain);
+    QString getCompanionPortChainFromDevice(const USBDeviceData& integratedDevice);
+    void processIntegratedDeviceInterfaces(DeviceInfo& deviceInfo, const USBDeviceData& integratedDevice);
+    
+    // Enhanced association methods for USB 3.0 compatibility
+    bool isDevicesOnSameUSBHub(const USBDeviceData& serialDevice, const USBDeviceData& integratedDevice);
+    bool areDevicesProximate(const USBDeviceData& serialDevice, const USBDeviceData& integratedDevice);
+    bool matchesKnownUSB3Pattern(const USBDeviceData& serialDevice, const USBDeviceData& integratedDevice);
+    QString getUSBHubPortChain(const USBDeviceData& device);
+    int calculatePortChainDistance(const QString& portChain1, const QString& portChain2);
+    
+    // Enhanced companion port chain analysis
+    QString analyzeParentDeviceForCompanionChain(const USBDeviceData& integratedDevice);
+    QString inferCompanionChainFromUSBTopology(const USBDeviceData& integratedDevice);
+    QString inferCompanionChainFromPortPattern(const USBDeviceData& integratedDevice);
+    
     bool isSerialDeviceAssociatedWithCompanion(const USBDeviceData& serialDevice, const USBDeviceData& companionDevice);
     QString extractHubPortFromChain(const QString& portChain);
     QString calculateExpectedSerialHubPort(const QString& companionHubPort);

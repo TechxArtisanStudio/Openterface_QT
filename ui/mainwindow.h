@@ -184,6 +184,8 @@ private slots:
 
     void onTargetUsbConnected(const bool isConnected) override;
 
+    void onKeyStatesChanged(bool numLock, bool capsLock, bool scrollLock) override;
+
     void factoryReset(bool isStarted) override;
 
     void serialPortReset(bool isStarted) override;
@@ -291,6 +293,7 @@ private:
     QComboBox *repeatingKeystrokeComboBox;
     
     void updateBaudrateMenu(int baudrate);
+    QString getDeviceTypeName(const DeviceInfo& device); // Helper method to get device type name
     ToggleSwitch *toggleSwitch;
 
     CameraManager *m_cameraManager;

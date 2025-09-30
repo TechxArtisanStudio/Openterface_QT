@@ -41,6 +41,7 @@ public:
     void setConnectedPort(const QString &port, const int &baudrate);
     void setStatusUpdate(const QString &status);
     void setTargetUsbConnected(const bool isConnected);
+    void setKeyStates(bool numLock, bool capsLock, bool scrollLock);
     int getCaptureWidth() const;
     int getCaptureHeight() const;
 
@@ -54,6 +55,7 @@ private:
     QLabel *statusLabel;
     QLabel *cpuUsageLabel;
     QLabel *keyboardIndicatorsLabel;
+    QLabel *keyStatesLabel;
     QLabel *resolutionLabel;
     QLabel *inputResolutionLabel;
     QLabel *connectedPortLabel;
