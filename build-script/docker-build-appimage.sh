@@ -20,20 +20,17 @@ mkdir -p "${BUILD_DIR}" "${APPIMAGE_DIR}"
 GSTREAMER_PLUGINS=(
     "libgstvideo4linux2.so"        # V4L2 video capture (CRITICAL)
     "libgstv4l2codecs.so"          # V4L2 hardware codecs
-    "libgstvideoconvert.so"        # Video format conversion
-    "libgstvideoscale.so"          # Video scaling
+    "libgstvideoconvertscale.so"   # Video format conversion and scaling
     "libgstvideorate.so"           # Video frame rate conversion
     "libgstcoreelements.so"        # Core elements (queue, filesrc, etc.)
     "libgsttypefindfunctions.so"   # Type detection
     "libgstapp.so"                 # Application integration
     "libgstplayback.so"           # Playback elements
     "libgstjpeg.so"               # JPEG codec
-    "libgsth264parse.so"          # H.264 parser
     "libgstximagesink.so"         # X11 video sink
     "libgstxvimagesink.so"        # XVideo sink
     "libgstautodetect.so"         # Auto detection
-    "libgstpulse.so"              # PulseAudio
-    "libgstalsa.so"               # ALSA audio
+    "libgstpulseaudio.so"         # PulseAudio
     "libgstaudioparsers.so"       # Audio parsers
     "libgstaudioconvert.so"       # Audio conversion
     "libgstaudioresample.so"      # Audio resampling
