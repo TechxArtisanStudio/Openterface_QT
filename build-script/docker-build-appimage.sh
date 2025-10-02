@@ -5,6 +5,14 @@ IFS=$'\n\t'
 
 APPIMAGE_DIR="${BUILD_DIR}/appimage"
 
+# Determine architecture
+ARCH=$(uname -m)
+case "${ARCH}" in
+    aarch64|arm64) APPIMAGE_ARCH=aarch64;;
+    x86_64|amd64) APPIMAGE_ARCH=x86_64;;
+    *) APPIMAGE_ARCH=${ARCH};;
+esac
+
 # Create build directory
 mkdir -p "${BUILD_DIR}" "${APPIMAGE_DIR}"
 
@@ -35,9 +43,9 @@ echo "Detecting GStreamer plugin directories..."
 
 # Detect GStreamer plugins in container
 GSTREAMER_HOST_DIRS=(
-	"/opt/gstreamer/lib/gstreamer-1.0"  # Custom GStreamer installation
-    "/usr/lib/aarch64-linux-gnu/gstreamer-1.0"
-    "/usr/lib/x86_64-linux-gnu/gstreamer-1.0"  
+	"/opt/gstreamer/lib/${ARCH}-linux-gnu/gstreamer-1.0"
+	"/opt/gstreamer/lib/${ARCH}-linux-gnu/"
+    "/usr/lib/${ARCH}-linux-gnu/gstreamer-1.0"
     "/usr/lib/gstreamer-1.0"
 )
 
@@ -69,14 +77,6 @@ if [ -z "$GSTREAMER_HOST_DIR" ] || [ ! -f "$GSTREAMER_HOST_DIR/libgstvideo4linux
         exit 1
     fi
 fi
-
-# Determine architecture
-ARCH=$(uname -m)
-case "${ARCH}" in
-    aarch64|arm64) APPIMAGE_ARCH=aarch64;;
-    x86_64|amd64) APPIMAGE_ARCH=x86_64;;
-    *) APPIMAGE_ARCH=${ARCH};;
-esac
 
 # Determine version from resources/version.h
 VERSION_H="/workspace/src/resources/version.h"
@@ -424,7 +424,7 @@ echo "USE_QT_PLUGIN: ${USE_QT_PLUGIN}"
 echo "================================"
 
 # Set LD_LIBRARY_PATH to include ffmpeg and gstreamer libraries for dependency resolution
-export LD_LIBRARY_PATH="/opt/ffmpeg/lib:/opt/gstreamer/lib:/opt/Qt6/lib:$LD_LIBRARY_PATH"
+export LD_LIBRARY_PATH="/opt/ffmpeg/lib:/opt/gstreamer/lib:/opt/gstreamer/lib/${ARCH}-linux-gnu:/opt/Qt6/lib:$LD_LIBRARY_PATH"
 export PATH="/opt/Qt6/bin:$PATH"
 export QT_PLUGIN_PATH="/opt/Qt6/plugins:$QT_PLUGIN_PATH"
 export QML2_IMPORT_PATH="/opt/Qt6/qml:$QML2_IMPORT_PATH"
