@@ -55,7 +55,7 @@ QAudioDevice AudioManager::findSystemAudioOuptutDevice(QString deviceName) {
 }
 
 void AudioManager::initializeAudio() {
-    qCDebug(log_core_host_audio) << "Initializing audio...";
+    qCDebug(log_core_host_audio) << "Initializing audio for port chain:" << portChain;
     
     QAudioDevice inputDevice;
     
@@ -426,44 +426,31 @@ bool AudioManager::matchWindowsAudioDevice(const QString& audioDeviceId, const Q
 
 bool AudioManager::matchLinuxAudioDevice(const QString& audioDeviceId, const QString& devicePath) const
 {
-    qCDebug(log_core_host_audio) << "Linux audio device matching - ALSA ID:" << audioDeviceId 
-                                << "Device path:" << devicePath;
-    
     // Extract card number from device path
     // Path format: /sys/devices/.../sound/card3/controlC3
     QRegularExpression cardRegex(R"(/sound/card(\d+)/control)");
     QRegularExpressionMatch cardMatch = cardRegex.match(devicePath);
     
     if (!cardMatch.hasMatch()) {
-        qCDebug(log_core_host_audio) << "No card number found in device path:" << devicePath;
         return false;
     }
     
     QString cardNumber = cardMatch.captured(1);
-    qCDebug(log_core_host_audio) << "Extracted card number:" << cardNumber;
     
-    // Check if ALSA device ID contains the card reference
-    // ALSA ID format: alsa_input.usb-MACROSILICON_Openterface_________-02.iec958-stereo
-    // The "02" part often corresponds to the USB interface, but we need to check for the device name
-    
-    // First, check if the ALSA ID contains "Openterface" (device-specific matching)
+    // Check if ALSA device ID contains "Openterface" (device-specific matching)
     if (audioDeviceId.contains("Openterface", Qt::CaseInsensitive)) {
-        qCDebug(log_core_host_audio) << "Found Openterface device in ALSA ID";
-        
         // Also check if device path contains USB identifiers that match
         if (devicePath.contains("usb") && devicePath.contains("1-1")) {
-            qCDebug(log_core_host_audio) << "Device path indicates USB device on expected port";
+            qCDebug(log_core_host_audio) << "Matched Openterface device on card" << cardNumber;
             return true;
         }
     }
     
     // Alternative: Try to match based on USB vendor/product info in the path
-    // Extract USB device info from both IDs if possible
     if (matchLinuxUsbAudioDevice(audioDeviceId, devicePath)) {
         return true;
     }
     
-    qCDebug(log_core_host_audio) << "No match found between ALSA ID and device path";
     return false;
 }
 
@@ -478,13 +465,9 @@ bool AudioManager::matchLinuxUsbAudioDevice(const QString& audioDeviceId, const 
         return false;
     }
     
-    QString usbPath = pathMatch.captured(1);
-    qCDebug(log_core_host_audio) << "USB path from device path:" << usbPath;
-    
     // For Openterface devices, we can use device name matching as primary method
     if (audioDeviceId.contains("MACROSILICON", Qt::CaseInsensitive) && 
         audioDeviceId.contains("Openterface", Qt::CaseInsensitive)) {
-        qCDebug(log_core_host_audio) << "Matched based on Openterface device identifier";
         return true;
     }
     
@@ -539,7 +522,7 @@ void AudioManager::displayAllAudioDeviceIds() const
 
 void AudioManager::initializeAudioWithDevice(const QAudioDevice& inputDevice)
 {
-    qCDebug(log_core_host_audio) << "Initializing audio with specific input device:" << inputDevice.description();
+    qCDebug(log_core_host_audio) << "Initializing audio with device:" << inputDevice.description();
     
     QAudioDevice outputDevice = QMediaDevices::defaultAudioOutput();
     
