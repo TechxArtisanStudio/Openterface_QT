@@ -33,6 +33,10 @@ public:
     void initializeAudio();
     void disconnect();
     
+    // Volume control
+    void setVolume(qreal volume);
+    qreal getVolume() const;
+    
     // Audio device management
     void start(); // Similar to VideoHid::start() for initialization
     void stop();  // Similar to VideoHid::stop() for cleanup
