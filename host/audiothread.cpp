@@ -136,6 +136,20 @@ void AudioThread::run()
 
     try {
         qCDebug(log_core_audio) << "Creating QAudioSource with input device:" << m_inputDevice.description();
+        qCDebug(log_core_audio) << "Audio format - Sample rate:" << m_format.sampleRate() 
+                               << "Channels:" << m_format.channelCount()
+                               << "Sample format:" << m_format.sampleFormat()
+                               << "Bytes per frame:" << m_format.bytesPerFrame();
+        
+        // Check if the input device supports the format
+        if (!m_inputDevice.isFormatSupported(m_format)) {
+            qCWarning(log_core_audio) << "Input device does not support the specified format!";
+            QAudioFormat nearestFormat = m_inputDevice.preferredFormat();
+            qCDebug(log_core_audio) << "Input device preferred format - Sample rate:" << nearestFormat.sampleRate() 
+                                   << "Channels:" << nearestFormat.channelCount()
+                                   << "Sample format:" << nearestFormat.sampleFormat();
+        }
+        
         m_audioSource = new QAudioSource(m_inputDevice, m_format);
         m_audioIODevice = m_audioSource->start();
 
@@ -144,9 +158,19 @@ void AudioThread::run()
             emit error("Failed to start audio source");
             return;
         }
-        qCDebug(log_core_audio) << "Audio source started successfully";
+        qCDebug(log_core_audio) << "Audio source started successfully, state:" << m_audioSource->state();
 
         qCDebug(log_core_audio) << "Creating QAudioSink with output device:" << m_outputDevice.description();
+        
+        // Check if the output device supports the format
+        if (!m_outputDevice.isFormatSupported(m_format)) {
+            qCWarning(log_core_audio) << "Output device does not support the specified format!";
+            QAudioFormat nearestFormat = m_outputDevice.preferredFormat();
+            qCDebug(log_core_audio) << "Output device preferred format - Sample rate:" << nearestFormat.sampleRate() 
+                                   << "Channels:" << nearestFormat.channelCount()
+                                   << "Sample format:" << nearestFormat.sampleFormat();
+        }
+        
         m_audioSink.reset(new QAudioSink(m_outputDevice, m_format));
         m_audioSink->setVolume(m_volume);
         m_sinkIODevice = m_audioSink->start();  // Get the IO device for writing
@@ -156,7 +180,7 @@ void AudioThread::run()
             emit error("Failed to start audio sink");
             return;
         }
-        qCDebug(log_core_audio) << "Audio sink started successfully";
+        qCDebug(log_core_audio) << "Audio sink started successfully, state:" << m_audioSink->state();
 
         // Buffer for audio data
         const int bufferSize = 4096;  // Adjust buffer size based on your needs
@@ -167,8 +191,8 @@ void AudioThread::run()
         
         // Main audio processing loop
         while (true) {
-            // Log every 1000 iterations to avoid spam but confirm the loop is running
-            if (loopCount % 1000 == 0) {
+            // Log every 10000 iterations to avoid spam but confirm the loop is running
+            if (loopCount % 10000 == 0) {
                 qCDebug(log_core_audio) << "Audio processing loop iteration:" << loopCount;
             }
             loopCount++;
@@ -196,31 +220,57 @@ void AudioThread::run()
             }
             
             // Check if there's data available to read
-            if (m_audioIODevice && m_audioIODevice->bytesAvailable() > 0) {
-                // Read audio data from source
-                qint64 bytesRead = m_audioIODevice->read(buffer, bufferSize);
+            if (m_audioIODevice) {
+                qint64 bytesAvailable = m_audioIODevice->bytesAvailable();
                 
-                // Log audio data flow occasionally
-                if (loopCount % 2000 == 0 && bytesRead > 0) {
-                    qCDebug(log_core_audio) << "Audio data: read" << bytesRead << "bytes";
-                }
-                
-                // Double-check we haven't started cleanup between reads
-                m_mutex.lock();
-                bool safeToWrite = !m_cleanupStarted && m_sinkIODevice;
-                m_mutex.unlock();
-                
-                if (bytesRead > 0 && safeToWrite) {                    
-                    // Write processed data to sink's IO device
-                    qint64 bytesWritten = m_sinkIODevice->write(buffer, bytesRead);
-                    
-                    if (bytesWritten != bytesRead) {
-                        qCDebug(log_core_audio) << "Audio write mismatch:" << bytesWritten << "vs" << bytesRead;
+                // Log audio device status occasionally
+                if (loopCount % 5000 == 0) {
+                    qCDebug(log_core_audio) << "Audio input status - bytesAvailable:" << bytesAvailable 
+                                           << "isOpen:" << m_audioIODevice->isOpen()
+                                           << "isReadable:" << m_audioIODevice->isReadable();
+                    if (m_audioSource) {
+                        qCDebug(log_core_audio) << "AudioSource state:" << m_audioSource->state()
+                                               << "error:" << m_audioSource->error();
                     }
                 }
+                
+                if (bytesAvailable > 0) {
+                    // Read audio data from source
+                    qint64 bytesRead = m_audioIODevice->read(buffer, bufferSize);
+                    
+                    // Log audio data flow occasionally
+                    if (loopCount % 2000 == 0 && bytesRead > 0) {
+                        qCDebug(log_core_audio) << "Audio data: read" << bytesRead << "bytes from" << bytesAvailable << "available";
+                    }
+                    
+                    // Double-check we haven't started cleanup between reads
+                    m_mutex.lock();
+                    bool safeToWrite = !m_cleanupStarted && m_sinkIODevice;
+                    m_mutex.unlock();
+                    
+                    if (bytesRead > 0 && safeToWrite) {                    
+                        // Write processed data to sink's IO device
+                        qint64 bytesWritten = m_sinkIODevice->write(buffer, bytesRead);
+                        
+                        // Log successful audio write occasionally
+                        if (loopCount % 2000 == 0) {
+                            qCDebug(log_core_audio) << "Audio data written:" << bytesWritten << "bytes";
+                        }
+                        
+                        if (bytesWritten != bytesRead) {
+                            qCDebug(log_core_audio) << "Audio write mismatch:" << bytesWritten << "vs" << bytesRead;
+                        }
+                    }
+                } else {
+                    // No data available, sleep briefly to prevent CPU hogging
+                    QThread::usleep(100);  // Sleep for 100 microseconds
+                }
             } else {
-                // No data available, sleep briefly to prevent CPU hogging
-                QThread::usleep(100);  // Sleep for 100 microseconds
+                // Audio device is null - this shouldn't happen
+                if (loopCount % 10000 == 0) {
+                    qCWarning(log_core_audio) << "Audio input device is null!";
+                }
+                QThread::usleep(100);
             }
         }
 
