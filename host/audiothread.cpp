@@ -20,6 +20,12 @@ AudioThread::AudioThread(const QAudioDevice& inputDevice,
     , m_cleanupStarted(false)
     , m_volume(1.0)
 {
+    qCDebug(log_core_audio) << "AudioThread constructor called";
+    qCDebug(log_core_audio) << "Input device:" << inputDevice.description();
+    qCDebug(log_core_audio) << "Output device:" << outputDevice.description();
+    qCDebug(log_core_audio) << "Format - Sample rate:" << format.sampleRate() 
+                           << "Channels:" << format.channelCount()
+                           << "Bytes per sample:" << format.bytesPerSample();
 }
 
 AudioThread::~AudioThread()
@@ -125,32 +131,47 @@ void AudioThread::cleanupMultimediaObjects()
 
 void AudioThread::run()
 {
+    qCDebug(log_core_audio) << "AudioThread::run() starting";
     m_running = true;
 
     try {
+        qCDebug(log_core_audio) << "Creating QAudioSource with input device:" << m_inputDevice.description();
         m_audioSource = new QAudioSource(m_inputDevice, m_format);
         m_audioIODevice = m_audioSource->start();
 
         if (!m_audioIODevice) {
+            qCWarning(log_core_audio) << "Failed to start audio source";
             emit error("Failed to start audio source");
             return;
         }
+        qCDebug(log_core_audio) << "Audio source started successfully";
 
+        qCDebug(log_core_audio) << "Creating QAudioSink with output device:" << m_outputDevice.description();
         m_audioSink.reset(new QAudioSink(m_outputDevice, m_format));
         m_audioSink->setVolume(m_volume);
         m_sinkIODevice = m_audioSink->start();  // Get the IO device for writing
 
         if (!m_sinkIODevice) {
+            qCWarning(log_core_audio) << "Failed to start audio sink";
             emit error("Failed to start audio sink");
             return;
         }
+        qCDebug(log_core_audio) << "Audio sink started successfully";
 
         // Buffer for audio data
         const int bufferSize = 4096;  // Adjust buffer size based on your needs
         char buffer[bufferSize];
         
+        qCDebug(log_core_audio) << "Entering main audio processing loop";
+        int loopCount = 0;
+        
         // Main audio processing loop
         while (true) {
+            // Log every 1000 iterations to avoid spam but confirm the loop is running
+            if (loopCount % 1000 == 0) {
+                qCDebug(log_core_audio) << "Audio processing loop iteration:" << loopCount;
+            }
+            loopCount++;
             // CRITICAL: Check shutdown first before any other operations
             if (g_applicationShuttingDown.loadAcquire() == 1) {
                 qCDebug(log_core_audio) << "AudioThread: Application shutdown detected in main loop - exiting immediately";
@@ -179,6 +200,11 @@ void AudioThread::run()
                 // Read audio data from source
                 qint64 bytesRead = m_audioIODevice->read(buffer, bufferSize);
                 
+                // Log audio data flow occasionally
+                if (loopCount % 2000 == 0 && bytesRead > 0) {
+                    qCDebug(log_core_audio) << "Audio data: read" << bytesRead << "bytes";
+                }
+                
                 // Double-check we haven't started cleanup between reads
                 m_mutex.lock();
                 bool safeToWrite = !m_cleanupStarted && m_sinkIODevice;
@@ -197,6 +223,8 @@ void AudioThread::run()
                 QThread::usleep(100);  // Sleep for 100 microseconds
             }
         }
+
+        qCDebug(log_core_audio) << "Exited main audio processing loop";
 
         // Mark cleanup as started to prevent any further access to IO devices
         m_mutex.lock();
@@ -245,6 +273,12 @@ void AudioThread::run()
         qCDebug(log_core_audio) << "AudioThread cleanup completed successfully";
 
     } catch (const std::exception& e) {
+        qCWarning(log_core_audio) << "Audio thread exception:" << e.what();
         emit error(QString("Audio thread exception: %1").arg(e.what()));
+    } catch (...) {
+        qCWarning(log_core_audio) << "Unknown exception in AudioThread";
+        emit error("Unknown exception in AudioThread");
     }
+    
+    qCDebug(log_core_audio) << "AudioThread::run() exiting";
 }

@@ -103,10 +103,13 @@ void AudioManager::fadeInVolume(int timeout, int durationInSeconds) {
     // Create a QTimer to handle the volume fade-in
     QTimer *volumeTimer = new QTimer(this);
     connect(volumeTimer, &QTimer::timeout, [this, volumeTimer, increment]() {
-        if (!m_audioThread) return;
-
+        if (!m_audioThread) {
+            volumeTimer->stop();
+            volumeTimer->deleteLater();
+            return;
+        }
+        
         qreal currentVolume = m_audioThread->volume();
-
         if (currentVolume < 1.0) {
             m_audioThread->setVolume(currentVolume + increment);
         } else {
@@ -118,6 +121,27 @@ void AudioManager::fadeInVolume(int timeout, int durationInSeconds) {
 
     // Start the timer with the given interval
     volumeTimer->start(timeout);
+}
+
+void AudioManager::setVolume(qreal volume)
+{
+    // Clamp volume to valid range [0.0, 1.0]
+    volume = qBound(0.0, volume, 1.0);
+    
+    if (m_audioThread) {
+        m_audioThread->setVolume(volume);
+        qCDebug(log_core_host_audio) << "Volume set to:" << volume;
+    } else {
+        qCDebug(log_core_host_audio) << "Cannot set volume: no audio thread";
+    }
+}
+
+qreal AudioManager::getVolume() const
+{
+    if (m_audioThread) {
+        return m_audioThread->volume();
+    }
+    return 0.0;
 }
 
 void AudioManager::disconnect() {
@@ -534,10 +558,22 @@ void AudioManager::initializeAudioWithDevice(const QAudioDevice& inputDevice)
         qCDebug(log_core_host_audio) << "Sample size:" << format.bytesPerSample();
         
         // Create and start the audio thread
+        qCDebug(log_core_host_audio) << "Creating AudioThread with input device:" << inputDevice.description();
         m_audioThread = new AudioThread(inputDevice, outputDevice, format, this);
         connect(m_audioThread, &AudioThread::error, this, &AudioManager::handleAudioError);
         connect(m_audioThread, &AudioThread::cleanupRequested, this, &AudioManager::handleCleanupRequest, Qt::QueuedConnection);
+        
+        qCDebug(log_core_host_audio) << "Starting AudioThread...";
         m_audioThread->start();
+        
+        qCDebug(log_core_host_audio) << "AudioThread started, checking if running...";
+        // Give it a moment to start
+        QThread::msleep(50);
+        if (m_audioThread->isRunning()) {
+            qCDebug(log_core_host_audio) << "AudioThread is running successfully";
+        } else {
+            qCWarning(log_core_host_audio) << "AudioThread failed to start or exited immediately";
+        }
         
         // Initialize volume to 0 and start fade-in
         m_audioThread->setVolume(0.0);
