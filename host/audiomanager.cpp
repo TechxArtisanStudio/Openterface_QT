@@ -609,7 +609,50 @@ void AudioManager::initializeAudioWithDevice(const QAudioDevice& inputDevice)
         if (deviceId.contains("usb-MACROSILICON") || deviceId.contains("card3")) {
             qCDebug(log_core_host_audio) << "This appears to be the Openterface device (card3/hw:3,0 equivalent)";
         }
-        m_audioThread = new AudioThread(inputDevice, outputDevice, format, this);
+        
+        // Try to find alternative ALSA device names for better compatibility
+        QList<QAudioDevice> allInputDevices = QMediaDevices::audioInputs();
+        qCDebug(log_core_host_audio) << "Searching for alternative device names...";
+        
+        QAudioDevice alsaDevice;
+        bool foundAlsaDevice = false;
+        
+        for (const QAudioDevice& device : allInputDevices) {
+            QString altDeviceId = QString::fromUtf8(device.id());
+            qCDebug(log_core_host_audio) << "Available device:" << device.description() << "ID:" << altDeviceId;
+            
+            // Look for hw:3,0 or card3 references, or different naming for same hardware
+            if (altDeviceId.contains("hw:3") || altDeviceId.contains("card3") || 
+                (altDeviceId.contains("3") && (altDeviceId.contains("hw") || altDeviceId.contains("USB Audio"))) ||
+                (device.description().contains("MS2109") || device.description().contains("USB Audio"))) {
+                qCDebug(log_core_host_audio) << "Found potential alternative ALSA device:" << device.description();
+                alsaDevice = device;
+                foundAlsaDevice = true;
+                // Don't break - let's see all potential devices
+            }
+        }
+        
+        // Use ALSA device if found and different from current
+        QAudioDevice deviceToUse = inputDevice;
+        if (foundAlsaDevice && QString::fromUtf8(alsaDevice.id()) != deviceId) {
+            qCDebug(log_core_host_audio) << "Found alternative ALSA device:" << alsaDevice.description();
+            qCDebug(log_core_host_audio) << "Alternative device ID:" << QString::fromUtf8(alsaDevice.id());
+            
+            // Test if the alternative device has a different preferred format
+            QAudioFormat altFormat = alsaDevice.preferredFormat();
+            qCDebug(log_core_host_audio) << "Alternative device preferred format:";
+            qCDebug(log_core_host_audio) << "Sample rate:" << altFormat.sampleRate();
+            qCDebug(log_core_host_audio) << "Channel count:" << altFormat.channelCount();
+            qCDebug(log_core_host_audio) << "Sample format:" << altFormat.sampleFormat();
+            
+            // For now, let's try the alternative device
+            deviceToUse = alsaDevice;
+            format = altFormat; // Use the alternative device's preferred format
+            qCDebug(log_core_host_audio) << "Switching to alternative device for testing";
+        } else {
+            qCDebug(log_core_host_audio) << "No better alternative ALSA device found, using original device";
+        }
+        m_audioThread = new AudioThread(deviceToUse, outputDevice, format, this);
         connect(m_audioThread, &AudioThread::error, this, &AudioManager::handleAudioError);
         connect(m_audioThread, &AudioThread::cleanupRequested, this, &AudioManager::handleCleanupRequest, Qt::QueuedConnection);
         

@@ -151,6 +151,9 @@ void AudioThread::run()
         }
         
         m_audioSource = new QAudioSource(m_inputDevice, m_format);
+        
+        // Try to force the audio source to start actively
+        qCDebug(log_core_audio) << "Starting QAudioSource...";
         m_audioIODevice = m_audioSource->start();
 
         if (!m_audioIODevice) {
@@ -158,7 +161,30 @@ void AudioThread::run()
             emit error("Failed to start audio source");
             return;
         }
+        
+        // Give the device a moment to initialize
+        QThread::msleep(100);
+        
         qCDebug(log_core_audio) << "Audio source started successfully, state:" << m_audioSource->state();
+        qCDebug(log_core_audio) << "QAudioSource error:" << m_audioSource->error();
+        qCDebug(log_core_audio) << "QAudioSource format in use:" << m_audioSource->format().sampleRate() 
+                               << "Hz," << m_audioSource->format().channelCount() << "ch";
+        
+        // Try to manually trigger the source to become active
+        if (m_audioSource->state() == QAudio::IdleState) {
+            qCDebug(log_core_audio) << "AudioSource is idle, trying to activate...";
+            
+            // Try reading a small amount to trigger active state
+            if (m_audioIODevice->isReadable()) {
+                char testBuffer[64];
+                qint64 testRead = m_audioIODevice->read(testBuffer, sizeof(testBuffer));
+                qCDebug(log_core_audio) << "Test read result:" << testRead << "bytes";
+                
+                // Check state after test read
+                QThread::msleep(50);
+                qCDebug(log_core_audio) << "AudioSource state after test read:" << m_audioSource->state();
+            }
+        }
 
         qCDebug(log_core_audio) << "Creating QAudioSink with output device:" << m_outputDevice.description();
         
