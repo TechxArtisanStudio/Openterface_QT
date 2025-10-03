@@ -1,6 +1,9 @@
 #include "audiothread.h"
 #include "../global.h"
 #include <QDebug>
+#include <QLoggingCategory>
+
+Q_LOGGING_CATEGORY(log_core_audio, "opf.core.audio");
 
 AudioThread::AudioThread(const QAudioDevice& inputDevice, 
                        const QAudioDevice& outputDevice,
@@ -22,10 +25,10 @@ AudioThread::AudioThread(const QAudioDevice& inputDevice,
 AudioThread::~AudioThread()
 {
     // Always stop the thread to prevent "destroyed while running" error
-    qDebug() << "AudioThread destructor called";
+    qCDebug(log_core_audio) << "AudioThread destructor called";
     
     if (g_applicationShuttingDown.loadAcquire() == 1) {
-        qDebug() << "AudioThread destructor: Application shutting down - forcing thread stop";
+        qCDebug(log_core_audio) << "AudioThread destructor: Application shutting down - forcing thread stop";
         
         // CRITICAL: During shutdown, do minimal cleanup to prevent Qt Multimedia crashes
         m_running = false;
@@ -46,13 +49,13 @@ AudioThread::~AudioThread()
         // Force terminate the thread during shutdown - don't wait long
         if (isRunning()) {
             if (!wait(10)) {  // Very short wait - 10ms
-                qDebug() << "AudioThread: Terminating thread forcefully during shutdown";
+                qCDebug(log_core_audio) << "AudioThread: Terminating thread forcefully during shutdown";
                 terminate();
                 wait(10);  // Short wait after terminate
             }
         }
         
-        qDebug() << "AudioThread destructor: Thread forcefully stopped during shutdown";
+        qCDebug(log_core_audio) << "AudioThread destructor: Thread forcefully stopped during shutdown";
         return;
     }
     
@@ -63,7 +66,7 @@ AudioThread::~AudioThread()
     // Give the thread time to finish cleanup
     if (!wait(2000)) {
         // Force terminate if it doesn't finish in 2 seconds
-        qWarning() << "AudioThread taking too long to finish, forcing termination";
+        qCWarning(log_core_audio) << "AudioThread taking too long to finish, forcing termination";
         terminate();
         wait(1000);
     }
@@ -71,11 +74,11 @@ AudioThread::~AudioThread()
 
 void AudioThread::stop()
 {
-    qDebug() << "AudioThread::stop() called";
+    qCDebug(log_core_audio) << "AudioThread::stop() called";
     
     // Check if application is shutting down
     if (g_applicationShuttingDown.loadAcquire() == 1) {
-        qDebug() << "AudioThread::stop() - Application shutting down, minimal stop";
+        qCDebug(log_core_audio) << "AudioThread::stop() - Application shutting down, minimal stop";
         m_mutex.lock();
         m_running = false;
         m_cleanupStarted = true;
@@ -116,7 +119,7 @@ qreal AudioThread::volume() const
 
 void AudioThread::cleanupMultimediaObjects()
 {
-    qDebug() << "AudioThread::cleanupMultimediaObjects() - skipping to prevent crashes";
+    qCDebug(log_core_audio) << "AudioThread::cleanupMultimediaObjects() - skipping to prevent crashes";
     // This method is now a no-op to prevent Qt Multimedia crashes during shutdown
 }
 
@@ -150,7 +153,7 @@ void AudioThread::run()
         while (true) {
             // CRITICAL: Check shutdown first before any other operations
             if (g_applicationShuttingDown.loadAcquire() == 1) {
-                qDebug() << "AudioThread: Application shutdown detected in main loop - exiting immediately";
+                qCDebug(log_core_audio) << "AudioThread: Application shutdown detected in main loop - exiting immediately";
                 // Don't touch any Qt Multimedia objects, just exit
                 m_running = false;
                 return;
@@ -167,7 +170,7 @@ void AudioThread::run()
             
             // Check for thread interruption
             if (isInterruptionRequested()) {
-                qDebug() << "AudioThread: Interruption requested, exiting loop";
+                qCDebug(log_core_audio) << "AudioThread: Interruption requested, exiting loop";
                 break;
             }
             
@@ -186,7 +189,7 @@ void AudioThread::run()
                     qint64 bytesWritten = m_sinkIODevice->write(buffer, bytesRead);
                     
                     if (bytesWritten != bytesRead) {
-                        qDebug() << "Audio write mismatch:" << bytesWritten << "vs" << bytesRead;
+                        qCDebug(log_core_audio) << "Audio write mismatch:" << bytesWritten << "vs" << bytesRead;
                     }
                 }
             } else {
@@ -202,11 +205,11 @@ void AudioThread::run()
 
         // Cleanup - Use main thread for Qt Multimedia cleanup to prevent crashes
 
-        qDebug() << "AudioThread cleanup starting...";
+        qCDebug(log_core_audio) << "AudioThread cleanup starting...";
         
         // Check if application is shutting down
         if (g_applicationShuttingDown.loadAcquire() == 1) {
-            qDebug() << "Application is shutting down - skipping ALL Qt Multimedia cleanup";
+            qCDebug(log_core_audio) << "Application is shutting down - skipping ALL Qt Multimedia cleanup";
             
             // During application shutdown, don't touch Qt Multimedia objects at all
             // Just nullify our references and let the OS handle cleanup
@@ -219,19 +222,19 @@ void AudioThread::run()
             }
             m_audioSource = nullptr; // Don't delete
             
-            qDebug() << "AudioThread shutdown cleanup completed successfully";
+            qCDebug(log_core_audio) << "AudioThread shutdown cleanup completed successfully";
             return; // Exit early
         }
         
         // Normal cleanup path (not during application shutdown)
         // 1. First, nullify the IO devices to prevent any further access
         // These are owned by Qt Multimedia, not by us
-        qDebug() << "Nullifying IO device pointers...";
+        qCDebug(log_core_audio) << "Nullifying IO device pointers...";
         m_sinkIODevice = nullptr;
         m_audioIODevice = nullptr;
         
         // 2. For normal shutdown, use conservative cleanup to prevent crashes
-        qDebug() << "Using conservative Qt Multimedia cleanup...";
+        qCDebug(log_core_audio) << "Using conservative Qt Multimedia cleanup...";
         
         // Don't call stop() methods - just reset pointers
         if (m_audioSink) {
@@ -239,7 +242,7 @@ void AudioThread::run()
         }
         m_audioSource = nullptr; // Don't call stop() or delete
         
-        qDebug() << "AudioThread cleanup completed successfully";
+        qCDebug(log_core_audio) << "AudioThread cleanup completed successfully";
 
     } catch (const std::exception& e) {
         emit error(QString("Audio thread exception: %1").arg(e.what()));
