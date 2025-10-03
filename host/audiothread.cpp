@@ -20,12 +20,7 @@ AudioThread::AudioThread(const QAudioDevice& inputDevice,
     , m_cleanupStarted(false)
     , m_volume(1.0)
 {
-    qCDebug(log_core_audio) << "AudioThread constructor called";
-    qCDebug(log_core_audio) << "Input device:" << inputDevice.description();
-    qCDebug(log_core_audio) << "Output device:" << outputDevice.description();
-    qCDebug(log_core_audio) << "Format - Sample rate:" << format.sampleRate() 
-                           << "Channels:" << format.channelCount()
-                           << "Bytes per sample:" << format.bytesPerSample();
+    qCDebug(log_core_audio) << "AudioThread created for device:" << inputDevice.description();
 }
 
 AudioThread::~AudioThread()
@@ -34,7 +29,7 @@ AudioThread::~AudioThread()
     qCDebug(log_core_audio) << "AudioThread destructor called";
     
     if (g_applicationShuttingDown.loadAcquire() == 1) {
-        qCDebug(log_core_audio) << "AudioThread destructor: Application shutting down - forcing thread stop";
+        qCDebug(log_core_audio) << "Application shutting down - forcing thread stop";
         
         // CRITICAL: During shutdown, do minimal cleanup to prevent Qt Multimedia crashes
         m_running = false;
@@ -131,29 +126,21 @@ void AudioThread::cleanupMultimediaObjects()
 
 void AudioThread::run()
 {
-    qCDebug(log_core_audio) << "AudioThread::run() starting";
+    qCDebug(log_core_audio) << "AudioThread starting";
     m_running = true;
 
     try {
-        qCDebug(log_core_audio) << "Creating QAudioSource with input device:" << m_inputDevice.description();
-        qCDebug(log_core_audio) << "Audio format - Sample rate:" << m_format.sampleRate() 
-                               << "Channels:" << m_format.channelCount()
-                               << "Sample format:" << m_format.sampleFormat()
-                               << "Bytes per frame:" << m_format.bytesPerFrame();
+        qCDebug(log_core_audio) << "Creating audio source and sink";
+        qCDebug(log_core_audio) << "Format:" << m_format.sampleRate() << "Hz," << m_format.channelCount() << "ch," << m_format.sampleFormat();
         
         // Check if the input device supports the format
         if (!m_inputDevice.isFormatSupported(m_format)) {
-            qCWarning(log_core_audio) << "Input device does not support the specified format!";
-            QAudioFormat nearestFormat = m_inputDevice.preferredFormat();
-            qCDebug(log_core_audio) << "Input device preferred format - Sample rate:" << nearestFormat.sampleRate() 
-                                   << "Channels:" << nearestFormat.channelCount()
-                                   << "Sample format:" << nearestFormat.sampleFormat();
+            qCWarning(log_core_audio) << "Input device does not support format - using preferred format";
         }
         
         m_audioSource = new QAudioSource(m_inputDevice, m_format);
         
         // Try to force the audio source to start actively
-        qCDebug(log_core_audio) << "Starting QAudioSource...";
         m_audioIODevice = m_audioSource->start();
 
         if (!m_audioIODevice) {
@@ -165,10 +152,7 @@ void AudioThread::run()
         // Give the device a moment to initialize
         QThread::msleep(100);
         
-        qCDebug(log_core_audio) << "Audio source started successfully, state:" << m_audioSource->state();
-        qCDebug(log_core_audio) << "QAudioSource error:" << m_audioSource->error();
-        qCDebug(log_core_audio) << "QAudioSource format in use:" << m_audioSource->format().sampleRate() 
-                               << "Hz," << m_audioSource->format().channelCount() << "ch";
+        qCDebug(log_core_audio) << "Audio source state:" << m_audioSource->state();
         
         // Try to manually trigger the source to become active
         if (m_audioSource->state() == QAudio::IdleState) {
@@ -217,9 +201,9 @@ void AudioThread::run()
         
         // Main audio processing loop
         while (true) {
-            // Log every 10000 iterations to avoid spam but confirm the loop is running
-            if (loopCount % 10000 == 0) {
-                qCDebug(log_core_audio) << "Audio processing loop iteration:" << loopCount;
+            // Log every 50000 iterations to reduce spam
+            if (loopCount % 50000 == 0) {
+                qCDebug(log_core_audio) << "Audio loop running, iteration:" << loopCount;
             }
             loopCount++;
             // CRITICAL: Check shutdown first before any other operations
@@ -249,15 +233,10 @@ void AudioThread::run()
             if (m_audioIODevice) {
                 qint64 bytesAvailable = m_audioIODevice->bytesAvailable();
                 
-                // Log audio device status occasionally
-                if (loopCount % 5000 == 0) {
-                    qCDebug(log_core_audio) << "Audio input status - bytesAvailable:" << bytesAvailable 
-                                           << "isOpen:" << m_audioIODevice->isOpen()
-                                           << "isReadable:" << m_audioIODevice->isReadable();
-                    if (m_audioSource) {
-                        qCDebug(log_core_audio) << "AudioSource state:" << m_audioSource->state()
-                                               << "error:" << m_audioSource->error();
-                    }
+                // Log audio device status less frequently
+                if (loopCount % 25000 == 0) {
+                    qCDebug(log_core_audio) << "Audio status - available:" << bytesAvailable 
+                                           << "state:" << (m_audioSource ? m_audioSource->state() : 0);
                 }
                 
                 // Try to read even when bytesAvailable is 0 - Qt might be buffering
@@ -285,8 +264,8 @@ void AudioThread::run()
                                 qCDebug(log_core_audio) << "Audio write mismatch:" << bytesWritten << "vs" << bytesRead;
                             }
                         }
-                    } else if (loopCount % 10000 == 0 && bytesAvailable == 0) {
-                        qCDebug(log_core_audio) << "No audio data available - check if audio input signal is present";
+                    } else if (loopCount % 100000 == 0 && bytesAvailable == 0) {
+                        qCDebug(log_core_audio) << "No audio data - check input signal";
                     }
                 } else {
                     // No data available, sleep briefly to prevent CPU hogging
@@ -310,11 +289,11 @@ void AudioThread::run()
 
         // Cleanup - Use main thread for Qt Multimedia cleanup to prevent crashes
 
-        qCDebug(log_core_audio) << "AudioThread cleanup starting...";
+        qCDebug(log_core_audio) << "Audio thread cleanup starting";
         
         // Check if application is shutting down
         if (g_applicationShuttingDown.loadAcquire() == 1) {
-            qCDebug(log_core_audio) << "Application is shutting down - skipping ALL Qt Multimedia cleanup";
+            qCDebug(log_core_audio) << "Application shutdown - minimal cleanup";
             
             // During application shutdown, don't touch Qt Multimedia objects at all
             // Just nullify our references and let the OS handle cleanup
