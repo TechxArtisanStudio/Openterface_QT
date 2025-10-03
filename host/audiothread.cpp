@@ -260,32 +260,33 @@ void AudioThread::run()
                     }
                 }
                 
-                if (bytesAvailable > 0) {
-                    // Read audio data from source
+                // Try to read even when bytesAvailable is 0 - Qt might be buffering
+                if (bytesAvailable > 0 || (loopCount % 100 == 0)) {
+                    // Read audio data from source (try even if bytesAvailable is 0)
                     qint64 bytesRead = m_audioIODevice->read(buffer, bufferSize);
                     
-                    // Log audio data flow occasionally
-                    if (loopCount % 2000 == 0 && bytesRead > 0) {
+                    // Log any successful reads
+                    if (bytesRead > 0) {
                         qCDebug(log_core_audio) << "Audio data: read" << bytesRead << "bytes from" << bytesAvailable << "available";
-                    }
-                    
-                    // Double-check we haven't started cleanup between reads
-                    m_mutex.lock();
-                    bool safeToWrite = !m_cleanupStarted && m_sinkIODevice;
-                    m_mutex.unlock();
-                    
-                    if (bytesRead > 0 && safeToWrite) {                    
-                        // Write processed data to sink's IO device
-                        qint64 bytesWritten = m_sinkIODevice->write(buffer, bytesRead);
                         
-                        // Log successful audio write occasionally
-                        if (loopCount % 2000 == 0) {
+                        // Double-check we haven't started cleanup between reads
+                        m_mutex.lock();
+                        bool safeToWrite = !m_cleanupStarted && m_sinkIODevice;
+                        m_mutex.unlock();
+                        
+                        if (safeToWrite) {                    
+                            // Write processed data to sink's IO device
+                            qint64 bytesWritten = m_sinkIODevice->write(buffer, bytesRead);
+                            
+                            // Log successful audio write
                             qCDebug(log_core_audio) << "Audio data written:" << bytesWritten << "bytes";
+                            
+                            if (bytesWritten != bytesRead) {
+                                qCDebug(log_core_audio) << "Audio write mismatch:" << bytesWritten << "vs" << bytesRead;
+                            }
                         }
-                        
-                        if (bytesWritten != bytesRead) {
-                            qCDebug(log_core_audio) << "Audio write mismatch:" << bytesWritten << "vs" << bytesRead;
-                        }
+                    } else if (loopCount % 10000 == 0 && bytesAvailable == 0) {
+                        qCDebug(log_core_audio) << "No audio data available - check if audio input signal is present";
                     }
                 } else {
                     // No data available, sleep briefly to prevent CPU hogging
