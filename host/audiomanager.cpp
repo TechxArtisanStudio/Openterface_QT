@@ -350,6 +350,7 @@ bool AudioManager::isAudioDeviceAvailable(const QString& deviceId) const
     return !findAudioDeviceById(deviceId).isNull();
 }
 
+#ifdef Q_OS_WIN
 QString AudioManager::extractAudioDeviceGuid(const QString& deviceId) const
 {
     // Extract GUID pattern like {066429B6-13A5-4869-8029-DED24018DB36} from device ID
@@ -377,8 +378,11 @@ QString AudioManager::extractAudioDeviceGuid(const QString& deviceId) const
     return QString();
 }
 
-bool AudioManager::matchAudioDeviceId(const QString& audioDeviceId, const QString& hotplugDeviceId) const
+bool AudioManager::matchWindowsAudioDevice(const QString& audioDeviceId, const QString& hotplugDeviceId) const
 {
+    qCDebug(log_core_host_audio) << "Windows audio device matching - Audio ID:" << audioDeviceId 
+                                << "Hotplug ID:" << hotplugDeviceId;
+    
     // Extract GUIDs from both IDs and compare them (case-insensitive)
     QString audioGuid = extractAudioDeviceGuid(audioDeviceId);
     QString hotplugGuid = extractAudioDeviceGuid(hotplugDeviceId);
@@ -393,6 +397,84 @@ bool AudioManager::matchAudioDeviceId(const QString& audioDeviceId, const QStrin
                                 << "(" << audioGuid << "vs" << hotplugGuid << ")";
     
     return match;
+}
+#else
+
+bool AudioManager::matchLinuxAudioDevice(const QString& audioDeviceId, const QString& devicePath) const
+{
+    qCDebug(log_core_host_audio) << "Linux audio device matching - ALSA ID:" << audioDeviceId 
+                                << "Device path:" << devicePath;
+    
+    // Extract card number from device path
+    // Path format: /sys/devices/.../sound/card3/controlC3
+    QRegularExpression cardRegex(R"(/sound/card(\d+)/control)");
+    QRegularExpressionMatch cardMatch = cardRegex.match(devicePath);
+    
+    if (!cardMatch.hasMatch()) {
+        qCDebug(log_core_host_audio) << "No card number found in device path:" << devicePath;
+        return false;
+    }
+    
+    QString cardNumber = cardMatch.captured(1);
+    qCDebug(log_core_host_audio) << "Extracted card number:" << cardNumber;
+    
+    // Check if ALSA device ID contains the card reference
+    // ALSA ID format: alsa_input.usb-MACROSILICON_Openterface_________-02.iec958-stereo
+    // The "02" part often corresponds to the USB interface, but we need to check for the device name
+    
+    // First, check if the ALSA ID contains "Openterface" (device-specific matching)
+    if (audioDeviceId.contains("Openterface", Qt::CaseInsensitive)) {
+        qCDebug(log_core_host_audio) << "Found Openterface device in ALSA ID";
+        
+        // Also check if device path contains USB identifiers that match
+        if (devicePath.contains("usb") && devicePath.contains("1-1")) {
+            qCDebug(log_core_host_audio) << "Device path indicates USB device on expected port";
+            return true;
+        }
+    }
+    
+    // Alternative: Try to match based on USB vendor/product info in the path
+    // Extract USB device info from both IDs if possible
+    if (matchLinuxUsbAudioDevice(audioDeviceId, devicePath)) {
+        return true;
+    }
+    
+    qCDebug(log_core_host_audio) << "No match found between ALSA ID and device path";
+    return false;
+}
+
+bool AudioManager::matchLinuxUsbAudioDevice(const QString& audioDeviceId, const QString& devicePath) const
+{
+    // Extract USB bus and device info from the device path
+    // Path format: /sys/devices/platform/soc/fe980000.usb/usb1/1-1/1-1.3/1-1.3.1/...
+    QRegularExpression usbPathRegex(R"(usb\d+/([\d\-\.]+))");
+    QRegularExpressionMatch pathMatch = usbPathRegex.match(devicePath);
+    
+    if (!pathMatch.hasMatch()) {
+        return false;
+    }
+    
+    QString usbPath = pathMatch.captured(1);
+    qCDebug(log_core_host_audio) << "USB path from device path:" << usbPath;
+    
+    // For Openterface devices, we can use device name matching as primary method
+    if (audioDeviceId.contains("MACROSILICON", Qt::CaseInsensitive) && 
+        audioDeviceId.contains("Openterface", Qt::CaseInsensitive)) {
+        qCDebug(log_core_host_audio) << "Matched based on Openterface device identifier";
+        return true;
+    }
+    
+    return false;
+}
+#endif
+
+bool AudioManager::matchAudioDeviceId(const QString& audioDeviceId, const QString& hotplugDeviceId) const
+{
+#ifdef Q_OS_WIN
+    return matchWindowsAudioDevice(audioDeviceId, hotplugDeviceId);
+#else
+    return matchLinuxAudioDevice(audioDeviceId, hotplugDeviceId);
+#endif
 }
 
 void AudioManager::displayAllAudioDeviceIds() const
@@ -411,12 +493,14 @@ void AudioManager::displayAllAudioDeviceIds() const
         for (int i = 0; i < devices.size(); ++i) {
             const QAudioDevice& device = devices[i];
             QString deviceId = QString::fromUtf8(device.id());
-            QString extractedGuid = extractAudioDeviceGuid(deviceId);
             
             qCDebug(log_core_host_audio) << QString("Device %1:").arg(i + 1);
             qCDebug(log_core_host_audio) << "  Description:" << device.description();
             qCDebug(log_core_host_audio) << "  Full ID:" << deviceId;
+#ifdef Q_OS_WIN
+            QString extractedGuid = extractAudioDeviceGuid(deviceId);
             qCDebug(log_core_host_audio) << "  Extracted GUID:" << extractedGuid;
+#endif
             qCDebug(log_core_host_audio) << "  Is Default:" << device.isDefault();
             qCDebug(log_core_host_audio) << "  ---";
         }

@@ -505,6 +505,7 @@ APPIMAGE_FILENAME="openterfaceQT_${VERSION}_${APPIMAGE_ARCH}.AppImage"
 # Move whichever AppImage got produced
 FOUND_APPIMAGE=$(ls -1 *.AppImage 2>/dev/null | grep -v -E '^linuxdeploy|^linuxdeploy-plugin-qt' | head -n1 || true)
 if [ -n "${FOUND_APPIMAGE}" ]; then
+	chmod +x "${FOUND_APPIMAGE}"
 	mv "${FOUND_APPIMAGE}" "${APPIMAGE_OUT}/${APPIMAGE_FILENAME}"
 	echo "AppImage created at ${APPIMAGE_OUT}/${APPIMAGE_FILENAME}"
 else
