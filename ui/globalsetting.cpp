@@ -67,7 +67,7 @@ void GlobalSetting::setLogSettings(bool core, bool serial, bool ui, bool hostLay
     m_settings.setValue("log/ui", ui);
     m_settings.setValue("log/hostLayout", hostLayout);
     m_settings.setValue("log/device", device);
-    m_settings.setValue("log/backend", true); // Enable backend logging for debugging
+    m_settings.setValue("log/backend", backend); 
 }
 
 void GlobalSetting::loadLogSettings()
