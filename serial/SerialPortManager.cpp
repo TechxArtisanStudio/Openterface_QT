@@ -624,7 +624,9 @@ bool SerialPortManager::factoryResetHipChip(){
                 if (eventCallback != nullptr) {
                     eventCallback->factoryReset(false);
                 }
-                restartPort();
+                QTimer::singleShot(1000, this, [this]() {
+                    restartPort();
+                });
             }
         });
     }
@@ -1374,12 +1376,15 @@ void SerialPortManager::setUserSelectedBaudrate(int baudRate) {
     command[5] = mode; 
     command.append(CMD_SET_PARA_CFG_MID);
     sendAsyncCommand(command, true);
-    bool success = sendResetCommand() && setBaudRate(baudRate) && restartPort();
-    if (success) {
-        qCInfo(log_core_serial) << "User selected baudrate applied successfully:" << baudRate;
-    } else {
-        qCWarning(log_core_serial) << "Failed to apply user selected baudrate:" << baudRate;
-    }
+    // Delay the reset command, set baudrate, and restart port by 1 second
+    QTimer::singleShot(1000, this, [this, baudRate]() {
+        bool success = sendResetCommand() && setBaudRate(baudRate) && restartPort();
+        if (success) {
+            qCInfo(log_core_serial) << "User selected baudrate applied successfully:" << baudRate;
+        } else {
+            qCWarning(log_core_serial) << "Failed to apply user selected baudrate:" << baudRate;
+        }
+    });
 }
 
 void SerialPortManager::clearStoredBaudrate() {
