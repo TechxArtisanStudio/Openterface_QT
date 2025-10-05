@@ -21,6 +21,11 @@ InputHandler::InputHandler(VideoPane *videoPane, QObject *parent)
 
 MouseEventDTO* InputHandler::calculateMouseEventDto(QMouseEvent *event)
 {
+    if (!m_videoPane) {
+        qCWarning(log_ui_input) << "InputHandler::calculateMouseEventDto - m_videoPane is null!";
+        return new MouseEventDTO(0, 0, GlobalVar::instance().isAbsoluteMouseMode());
+    }
+    
     MouseEventDTO* dto = GlobalVar::instance().isAbsoluteMouseMode() ? calculateAbsolutePosition(event) : calculateRelativePosition(event);
     dto->setMouseButton(m_isDragging ? lastMouseButton : 0);
     return dto;
@@ -48,6 +53,14 @@ MouseEventDTO* InputHandler::calculateRelativePosition(QMouseEvent *event) {
 MouseEventDTO* InputHandler::calculateAbsolutePosition(QMouseEvent *event) {
     // Get the effective video widget (overlay or main VideoPane)
     QWidget* effectiveWidget = getEffectiveVideoWidget();
+    
+    // SAFETY: Check if we have a valid widget
+    if (!effectiveWidget || effectiveWidget->width() == 0 || effectiveWidget->height() == 0) {
+        qCWarning(log_ui_input) << "InputHandler::calculateAbsolutePosition - Invalid widget state:"
+                                << "widget=" << effectiveWidget
+                                << "size=" << (effectiveWidget ? effectiveWidget->size() : QSize(0,0));
+        return new MouseEventDTO(0, 0, true);
+    }
     
     // Transform mouse position if needed
     QPoint transformedPos = transformMousePosition(event, effectiveWidget);
@@ -99,6 +112,21 @@ QSize InputHandler::getScreenResolution() {
 
 bool InputHandler::eventFilter(QObject *watched, QEvent *event)
 {
+    // CRITICAL SAFETY: Check if watched object is valid and matches our expected targets
+    if (!watched || (!m_videoPane && !m_currentEventTarget)) {
+        qCWarning(log_ui_input) << "InputHandler::eventFilter - Invalid state: watched=" << watched 
+                                << "m_videoPane=" << m_videoPane 
+                                << "m_currentEventTarget=" << m_currentEventTarget;
+        return QObject::eventFilter(watched, event);
+    }
+    
+    // SAFETY: Verify the watched object is one we're tracking
+    bool isValidTarget = (watched == m_videoPane || watched == m_currentEventTarget);
+    if (!isValidTarget) {
+        // Not our target, pass through
+        return QObject::eventFilter(watched, event);
+    }
+    
     // PERFORMANCE: Fast path for mouse move events - avoid expensive logging and checks
     if (event->type() == QEvent::MouseMove) {
         QMouseEvent *mouseEvent = static_cast<QMouseEvent*>(event);
@@ -115,7 +143,7 @@ bool InputHandler::eventFilter(QObject *watched, QEvent *event)
     if (isMouseEvent) {
         mouseEventCount++;
         // Only log first 10 mouse events to reduce debug spam
-        if (mouseEventCount <= 10 && (watched == m_videoPane || watched == m_currentEventTarget)) {
+        if (mouseEventCount <= 10) {
             qCDebug(log_ui_input) << "InputHandler::eventFilter - Event type:" << event->type() 
                      << "watched object:" << watched 
                      << "current target:" << m_currentEventTarget
@@ -125,7 +153,7 @@ bool InputHandler::eventFilter(QObject *watched, QEvent *event)
     } else {
         // Log non-mouse events normally (but less frequently)
         static int nonMouseEventCount = 0;
-        if (++nonMouseEventCount % 100 == 1 && (watched == m_videoPane || watched == m_currentEventTarget)) {
+        if (++nonMouseEventCount % 100 == 1) {
             qCDebug(log_ui_input) << "InputHandler::eventFilter - Event type:" << event->type() 
                      << "watched object:" << watched 
                      << "current target:" << m_currentEventTarget
@@ -184,6 +212,12 @@ bool InputHandler::eventFilter(QObject *watched, QEvent *event)
 
 void InputHandler::handleMouseMoveEvent(QMouseEvent *event)
 {
+    // SAFETY: Check if VideoPane is still valid
+    if (!m_videoPane) {
+        qCWarning(log_ui_input) << "InputHandler::handleMouseMoveEvent - m_videoPane is null!";
+        return;
+    }
+    
     // PERFORMANCE OPTIMIZATION: Adaptive mouse throttling to reduce CPU usage
     // High-frequency mouse movements can cause excessive CPU load, especially on Pi
     qint64 currentTime = QDateTime::currentMSecsSinceEpoch();
@@ -254,6 +288,11 @@ void InputHandler::handleMouseMoveEvent(QMouseEvent *event)
 
 void InputHandler::handleMousePressEvent(QMouseEvent* event)
 {
+    if (!m_videoPane) {
+        qCWarning(log_ui_input) << "InputHandler::handleMousePressEvent - m_videoPane is null!";
+        return;
+    }
+    
     QScopedPointer<MouseEventDTO> eventDto(calculateMouseEventDto(event));
     eventDto->setMouseButton(lastMouseButton = getMouseButton(event));
     setDragging(true);
@@ -271,6 +310,11 @@ void InputHandler::handleMousePressEvent(QMouseEvent* event)
 
 void InputHandler::handleMouseReleaseEvent(QMouseEvent* event)
 {
+    if (!m_videoPane) {
+        qCWarning(log_ui_input) << "InputHandler::handleMouseReleaseEvent - m_videoPane is null!";
+        return;
+    }
+    
     QScopedPointer<MouseEventDTO> eventDto(calculateMouseEventDto(event));
     setDragging(false);
     HostManager::getInstance().handleMouseRelease(eventDto.get());
@@ -300,6 +344,10 @@ void InputHandler::handleKeyPressEvent(QKeyEvent *event)
     HostManager::getInstance().handleKeyPress(event);
 
     if(!m_holdingEsc && event->key() == Qt::Key_Escape && !GlobalVar::instance().isAbsoluteMouseMode()) {
+        if (!m_videoPane) {
+            qCWarning(log_ui_input) << "InputHandler::handleKeyPressEvent - m_videoPane is null!";
+            return;
+        }
         qCDebug(log_ui_input) << "Esc Pressed, timer started";
         m_holdingEsc = true;
         m_videoPane->startEscTimer();
@@ -311,6 +359,10 @@ void InputHandler::handleKeyReleaseEvent(QKeyEvent *event)
     HostManager::getInstance().handleKeyRelease(event);
 
     if(m_holdingEsc && event->key() == Qt::Key_Escape && !GlobalVar::instance().isAbsoluteMouseMode()) {
+        if (!m_videoPane) {
+            qCWarning(log_ui_input) << "InputHandler::handleKeyReleaseEvent - m_videoPane is null!";
+            return;
+        }
         qCDebug(log_ui_input) << "Esc Released, timer stop";
         m_videoPane->stopEscTimer();
         m_holdingEsc = false;
