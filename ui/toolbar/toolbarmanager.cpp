@@ -176,9 +176,6 @@ void ToolbarManager::onRepeatingKeystrokeChanged(int index)
 }
 
 void ToolbarManager::toggleToolbar() {
-    // Prevent animation during visibility change
-    toolbar->setStyleSheet("QToolBar { background-color: palette(window); border: none; animation-duration: 0; }");
-    
     // Use QPropertyAnimation for smooth transition
     QPropertyAnimation *animation = new QPropertyAnimation(toolbar, "maximumHeight");
     animation->setDuration(150); // Adjust duration as needed
