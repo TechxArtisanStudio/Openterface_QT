@@ -57,6 +57,8 @@
 #include "ui/coordinator/menucoordinator.h"
 #include "ui/coordinator/windowlayoutcoordinator.h"
 
+#include "ui/initializer/mainwindowinitializer.h"
+
 #define SERVER_PORT 12345
 #include "server/tcpServer.h"
 
@@ -115,6 +117,7 @@ enum class ratioType{
 class MainWindow : public QMainWindow, public StatusEventCallback
 {
     Q_OBJECT
+    friend class MainWindowInitializer;
 
 public:
     MainWindow(LanguageManager *languageManager, QWidget *parent = nullptr);
@@ -246,6 +249,7 @@ protected:
 
     bool eventFilter(QObject *watched, QEvent *event) override;
 
+    friend class MainWindowInitializer;
 private:
     Ui::MainWindow *ui;
     AudioManager *m_audioManager;

@@ -74,7 +74,8 @@ SOURCES += main.cpp \
     ui/screensavermanager.cpp \
     ui/screenscale.cpp \
     ui/cornerwidget/cornerwidgetmanager.cpp \
-    ui/windowcontrolmanager.cpp
+    ui/windowcontrolmanager.cpp \
+    ui/initializer/mainwindowinitializer.cpp
 
 # Platform-specific backend handlers (exclude on Windows)
 !win32 {
@@ -154,7 +155,8 @@ HEADERS  += \
     ui/screensavermanager.h \
     ui/screenscale.h \
     ui/cornerwidget/cornerwidgetmanager.h \
-    ui/windowcontrolmanager.h
+    ui/windowcontrolmanager.h \
+    ui/initializer/mainwindowinitializer.h
 
 FORMS    += \
     ui/mainwindow.ui \

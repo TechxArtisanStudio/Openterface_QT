@@ -121,6 +121,11 @@ set(UI_ADVANCE_SOURCES
     ui/advance/recordingsettingsdialog.cpp ui/advance/recordingsettingsdialog.h
 )
 
+# UI initializer sources
+set(UI_INITIALIZER_SOURCES
+    ui/initializer/mainwindowinitializer.cpp ui/initializer/mainwindowinitializer.h
+)
+
 # UI statusbar sources
 set(UI_STATUSBAR_SOURCES
     ui/statusbar/statusbarmanager.cpp ui/statusbar/statusbarmanager.h
@@ -170,6 +175,7 @@ set(SOURCE_FILES
     ${UI_HELP_SOURCES}
     ${UI_ADVANCE_SOURCES}
     ${UI_STATUSBAR_SOURCES}
+    ${UI_INITIALIZER_SOURCES}
     ${UI_COORDINATOR_SOURCES}
     ${UI_CORNERWIDGET_SOURCES}
     ${UI_WINDOWCONTROL_SOURCES}
