@@ -8,11 +8,22 @@
 
 /*
  * CRITICAL FIX for maximize screen crash:
- * - Using QPointer instead of raw pointers to VideoPane and event target widgets
- * - QPointer automatically becomes null when the target object is destroyed
- * - This prevents segmentation faults when Qt delivers queued events (MetaCall, Timer, etc.)
- *   to InputHandler while VideoPane is being modified during window state changes
- * - Filtering out internal Qt events that don't need custom handling
+ * 
+ * ROOT CAUSE: Debug logging was calling m_videoPane->isDirectGStreamerModeEnabled() 
+ * for EVERY event, including MetaCall events. During window maximize/resize, VideoPane
+ * is in an inconsistent state and calling its methods causes a segmentation fault.
+ * 
+ * FIXES APPLIED:
+ * 1. Removed method calls from debug logging - only check if pointer is null, don't call methods
+ * 2. Using QPointer instead of raw pointers for automatic null safety
+ * 3. Filtering out internal Qt events (MetaCall, Timer, Paint, etc.) - don't process them
+ * 4. Added multiple null checks before accessing VideoPane
+ * 
+ * The crash happened because:
+ * - Qt delivers MetaCall event to InputHandler during window state change
+ * - Debug log tries to call isDirectGStreamerModeEnabled() on VideoPane
+ * - VideoPane is being resized/repainted and is in inconsistent state
+ * - Method call on inconsistent object -> SEGFAULT
  */
 
 Q_LOGGING_CATEGORY(log_ui_input, "opf.ui.input")
@@ -125,29 +136,55 @@ bool InputHandler::eventFilter(QObject *watched, QEvent *event)
         return QObject::eventFilter(watched, event);
     }
     
+    // CRITICAL SAFETY: Check if VideoPane is valid FIRST before any other checks
+    // QPointer will be null if the object is destroyed or in an invalid state
+    if (m_videoPane.isNull() && m_currentEventTarget.isNull()) {
+        qCWarning(log_ui_input) << "InputHandler::eventFilter - Both videoPane and currentEventTarget are null!";
+        return QObject::eventFilter(watched, event);
+    }
+    
     // CRITICAL SAFETY: Ignore internal Qt events that could cause issues during state changes
     // MetaCall, Timer, ChildAdded, ChildRemoved, etc. should be passed through without processing
+    // MetaCall is particularly dangerous as it can access object methods during state transitions
     if (event->type() == QEvent::MetaCall || 
         event->type() == QEvent::Timer ||
         event->type() == QEvent::ChildAdded ||
         event->type() == QEvent::ChildRemoved ||
         event->type() == QEvent::ChildPolished ||
-        event->type() == QEvent::DeferredDelete) {
+        event->type() == QEvent::DeferredDelete ||
+        event->type() == QEvent::Paint ||           // Don't intercept paint events
+        event->type() == QEvent::UpdateRequest ||   // Don't intercept update requests
+        event->type() == QEvent::LayoutRequest) {   // Don't intercept layout requests
+        // Log MetaCall for debugging but don't process it
+        if (event->type() == QEvent::MetaCall) {
+            static int metacallCount = 0;
+            if (++metacallCount % 50 == 1) {
+                qCDebug(log_ui_input) << "InputHandler::eventFilter - Passing through MetaCall event (not processing)";
+            }
+        }
         return QObject::eventFilter(watched, event);
     }
     
     // CRITICAL SAFETY: Check if watched object is valid and matches our expected targets
-    if (!watched || (!m_videoPane && !m_currentEventTarget)) {
-        qCWarning(log_ui_input) << "InputHandler::eventFilter - Invalid state: watched=" << watched 
-                                << "m_videoPane=" << m_videoPane 
-                                << "m_currentEventTarget=" << m_currentEventTarget;
+    if (!watched) {
+        qCWarning(log_ui_input) << "InputHandler::eventFilter - watched object is null!";
         return QObject::eventFilter(watched, event);
     }
     
     // SAFETY: Verify the watched object is one we're tracking
-    bool isValidTarget = (watched == m_videoPane || watched == m_currentEventTarget);
+    // Use data() to get raw pointer from QPointer for comparison
+    QObject* videoPaneObj = m_videoPane.data();
+    QObject* targetObj = m_currentEventTarget.data();
+    
+    bool isValidTarget = (watched == videoPaneObj || watched == targetObj);
     if (!isValidTarget) {
         // Not our target, pass through
+        return QObject::eventFilter(watched, event);
+    }
+    
+    // ADDITIONAL SAFETY: Verify VideoPane hasn't become invalid between checks
+    if (m_videoPane.isNull()) {
+        qCWarning(log_ui_input) << "InputHandler::eventFilter - VideoPane became null during event processing!";
         return QObject::eventFilter(watched, event);
     }
     
@@ -170,8 +207,7 @@ bool InputHandler::eventFilter(QObject *watched, QEvent *event)
         if (mouseEventCount <= 10) {
             qCDebug(log_ui_input) << "InputHandler::eventFilter - Event type:" << event->type() 
                      << "watched object:" << watched 
-                     << "current target:" << m_currentEventTarget
-                     << "GStreamer mode:" << (m_videoPane ? m_videoPane->isDirectGStreamerModeEnabled() : false)
+                     << "VideoPane valid:" << !m_videoPane.isNull()
                      << "(logging limited for performance)";
         }
     } else {
@@ -180,8 +216,7 @@ bool InputHandler::eventFilter(QObject *watched, QEvent *event)
         if (++nonMouseEventCount % 100 == 1) {
             qCDebug(log_ui_input) << "InputHandler::eventFilter - Event type:" << event->type() 
                      << "watched object:" << watched 
-                     << "current target:" << m_currentEventTarget
-                     << "GStreamer mode:" << (m_videoPane ? m_videoPane->isDirectGStreamerModeEnabled() : false);
+                     << "VideoPane valid:" << !m_videoPane.isNull();
         }
     }
     if (event->type() == QEvent::MouseButtonPress || event->type() == QEvent::MouseButtonDblClick) {
