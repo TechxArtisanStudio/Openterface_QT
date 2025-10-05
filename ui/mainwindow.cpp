@@ -361,10 +361,14 @@ MainWindow::MainWindow(LanguageManager *languageManager, QWidget *parent) :  ui(
     connect(mouseEdgeTimer, &QTimer::timeout, this, &MainWindow::checkMousePosition);
     // mouseEdgeTimer->start(edgeDuration); // Start the timer with the new duration
 
-
-
-    // Add this after other menu connections
-    connect(ui->menuBaudrate, &QMenu::triggered, this, &MainWindow::onBaudrateMenuTriggered);
+    // Initialize coordinators
+    qCDebug(log_ui_mainwindow) << "Initializing DeviceCoordinator...";
+    m_deviceCoordinator = new DeviceCoordinator(ui->menuDevice, m_cameraManager, this);
+    
+    qCDebug(log_ui_mainwindow) << "Initializing MenuCoordinator...";
+    m_menuCoordinator = new MenuCoordinator(ui->menuLanguages, ui->menuBaudrate, m_languageManager, this, this);
+    
+    // Connect serial port manager
     connect(&SerialPortManager::getInstance(), &SerialPortManager::connectedPortChanged, this, &MainWindow::onPortConnected);
     
     // Setup device menu through DeviceCoordinator
@@ -372,6 +376,15 @@ MainWindow::MainWindow(LanguageManager *languageManager, QWidget *parent) :  ui(
         m_deviceCoordinator->connectHotplugMonitor(hotplugMonitor);
         m_deviceCoordinator->setupDeviceMenu();
     }
+    
+    // Setup menus through MenuCoordinator
+    if (m_menuCoordinator) {
+        m_menuCoordinator->setupLanguageMenu();
+        connect(m_menuCoordinator, &MenuCoordinator::baudrateChanged, [this](int baudrate) {
+            m_menuCoordinator->updateBaudrateMenu(baudrate);
+        });
+    }
+    
     connect(&SerialPortManager::getInstance(), &SerialPortManager::armBaudratePerformanceRecommendation, this, &MainWindow::onArmBaudratePerformanceRecommendation);
     
     // Note: Automatic camera device coordination has been disabled
@@ -404,7 +417,7 @@ MainWindow::MainWindow(LanguageManager *languageManager, QWidget *parent) :  ui(
     // qCDebug(log_ui_mainwindow) << "full screen...";
     
     connect(m_languageManager, &LanguageManager::languageChanged, this, &MainWindow::updateUI);
-    setupLanguageMenu();
+    // Language menu already setup by MenuCoordinator
     // fullScreen();
     qDebug() << "finished initialization";
     
@@ -423,52 +436,15 @@ void MainWindow::startServer(){
 void MainWindow::updateUI() {
     ui->retranslateUi(this); // Update the UI elements
     // this->menuBar()->clear();
-    setupLanguageMenu();
+    if (m_menuCoordinator) {
+        m_menuCoordinator->setupLanguageMenu();
+    }
     if (m_deviceCoordinator) {
         m_deviceCoordinator->updateDeviceMenu(); // Update device menu when UI language changes
     }
 }
 
-void MainWindow::setupLanguageMenu() {
-    // Clear existing language actions
-    ui->menuLanguages->clear();
-    QStringList languages = m_languageManager->availableLanguages();
-    for (const QString &lang : languages) {
-       qCDebug(log_ui_mainwindow) << "Available language: " << lang; 
-    }
-    if (languages.isEmpty()) {
-        languages << "en" << "fr" << "de" << "da" << "ja" << "se";
-    }
 
-    QActionGroup *languageGroup = new QActionGroup(this);
-    languageGroup->setExclusive(true);
-
-    QMap<QString, QString> languageNames = {
-        {"en", "English"},
-        {"fr", "Français"},
-        {"de", "German"},
-        {"da", "Danish"},
-        {"ja", "Japanese"},
-        {"se", "Swedish"}
-    };
-    for (const QString &lang : languages) {
-        QString displayName = languageNames.value(lang, lang);
-        QAction *action = new QAction(displayName, this);
-        action->setCheckable(true);
-        action->setData(lang);
-        if (lang == m_languageManager->currentLanguage()) {
-            action->setChecked(true);
-        }
-        ui->menuLanguages->addAction(action);
-        languageGroup->addAction(action);
-    }
-    connect(languageGroup, &QActionGroup::triggered, this, &MainWindow::onLanguageSelected);
-}
-
-void MainWindow::onLanguageSelected(QAction *action) {
-    QString language = action->data().toString();
-    m_languageManager->switchLanguage(language);
-}
 
 bool MainWindow::isFullScreenMode() {
     // return fullScreenState;
@@ -1317,105 +1293,13 @@ void MainWindow::displayCapturedImage()
     //ui->stackedWidget->setCurrentIndex(1);
 }
 
-void MainWindow::onBaudrateMenuTriggered(QAction* action)
-{
-    bool ok;
-    int baudrate = action->text().toInt(&ok);
-    if (ok) {
-        qCDebug(log_ui_mainwindow) << "User selected baudrate from menu:" << baudrate;
-        
-        if(baudrate == 9600){
-            SerialPortManager::getInstance().factoryResetHipChip();
-        }else{
-            SerialPortManager::getInstance().setUserSelectedBaudrate(baudrate);
-        }
-        
-        // Show message to user about device reconnection requirement
-        QMessageBox msgBox(this);
-        msgBox.setIcon(QMessageBox::Information);
-        msgBox.setWindowTitle("Baudrate Changed");
-        msgBox.setText(QString("Baudrate has been changed to %1.\n\n"
-                              "Please unplug and replug the device to make the new baudrate setting effective.")
-                              .arg(baudrate));
-        msgBox.addButton(QMessageBox::Ok);
-        msgBox.exec();
-    } else {
-        qCWarning(log_ui_mainwindow) << "Invalid baudrate selected from menu:" << action->text();
-    }
-}
+
 
 void MainWindow::onArmBaudratePerformanceRecommendation(int currentBaudrate)
 {
-    // Get the current baudrate from SerialPortManager instead of using the parameter
-    int actualCurrentBaudrate = SerialPortManager::getInstance().getCurrentBaudrate();
-    
-    QMessageBox msgBox(this);
-    msgBox.setIcon(QMessageBox::Information);
-    msgBox.setWindowTitle("Performance Recommendation");
-    
-    QPushButton* actionButton = nullptr;
-    QPushButton* stayButton = nullptr;
-
-
-    if (actualCurrentBaudrate == 9600) {
-        msgBox.setText("You are running on an ARM architecture with 9600 baudrate.\n\n"
-                      "You can switch to 115200 baudrate for potentially faster communication, "
-                      "but it may use more CPU resources.");
-        actionButton = msgBox.addButton("Switch to 115200", QMessageBox::AcceptRole);
-        stayButton = msgBox.addButton("Stay in 9600", QMessageBox::RejectRole);
-    } else {
-        msgBox.setText(QString("You are running on an ARM architecture with %1 baudrate.\n\n"
-                              "For better performance and lower CPU usage, we recommend using 9600 baudrate instead.")
-                              .arg(actualCurrentBaudrate));
-        actionButton = msgBox.addButton("Switch to 9600", QMessageBox::AcceptRole);
-        stayButton = msgBox.addButton("Stay in 115200", QMessageBox::RejectRole);
-    }
-    
-    
-    QCheckBox* dontShowCheckBox = new QCheckBox("Don't show this recommendation again");
-    msgBox.setCheckBox(dontShowCheckBox);
-    
-    msgBox.exec();
-    
-    QAbstractButton* clickedBtn = msgBox.clickedButton();
-    bool shouldSwitch = (clickedBtn == actionButton);
-    bool dontShowAgain = dontShowCheckBox->isChecked();
-    
-    // If user closed the dialog (clicked X or pressed Escape), don't proceed with any action
-    if (clickedBtn == nullptr) {
-        qCInfo(log_ui_mainwindow) << "User closed the dialog without making a choice";
-        return;
-    }
-    
-    // Handle "don't show again" in UI
-    if (dontShowAgain) {
-        qCInfo(log_ui_mainwindow) << "User chose to disable ARM baudrate performance prompts";
-        GlobalSetting::instance().setArmBaudratePromptDisabled(true);
-    }
-    
-    // Handle baudrate switching
-    if (shouldSwitch) {
-        int targetBaudrate = (actualCurrentBaudrate == 9600) ? 115200 : 9600;
-        qCInfo(log_ui_mainwindow) << "User chose to switch from" << actualCurrentBaudrate << "to" << targetBaudrate << "baudrate";
-        if(targetBaudrate == 115200){
-            SerialPortManager::getInstance().setUserSelectedBaudrate(targetBaudrate);
-        } else {
-            //For some reason, switching back to 9600 cannot dynamically, need to reset the HID chip
-            SerialPortManager::getInstance().factoryResetHipChip();
-        }
-        
-        
-        // Show message to user about device reconnection requirement
-        QMessageBox infoBox(this);
-        infoBox.setIcon(QMessageBox::Information);
-        infoBox.setWindowTitle("Baudrate Changed");
-        infoBox.setText(QString("Baudrate has been changed to %1.\n\n"
-                              "Please unplug and replug the device to make the new baudrate setting effective.")
-                              .arg(targetBaudrate));
-        infoBox.addButton(QMessageBox::Ok);
-        infoBox.exec();
-    } else {
-        qCInfo(log_ui_mainwindow) << "User chose to keep current baudrate:" << actualCurrentBaudrate;
+    // Delegate to MenuCoordinator
+    if (m_menuCoordinator) {
+        m_menuCoordinator->showArmBaudratePerformanceRecommendation(currentBaudrate);
     }
 }
 
@@ -1483,7 +1367,9 @@ void MainWindow::updateCameras()
 void MainWindow::onPortConnected(const QString& port, const int& baudrate) {
     if(baudrate > 0){
         m_statusBarManager->setConnectedPort(port, baudrate);
-        updateBaudrateMenu(baudrate);
+        if (m_menuCoordinator) {
+            m_menuCoordinator->updateBaudrateMenu(baudrate);
+        }
         
         // Note: Camera coordination functionality has been removed
         // The DeviceManager singleton now handles device coordination automatically
@@ -1491,29 +1377,6 @@ void MainWindow::onPortConnected(const QString& port, const int& baudrate) {
     }else{
         m_statusBarManager->setConnectedPort(port, baudrate);
         m_statusBarManager->setTargetUsbConnected(false);
-    }
-}
-
-void MainWindow::updateBaudrateMenu(int baudrate){
-    QMenu* baudrateMenu = ui->menuBaudrate;
-    if (baudrateMenu) {
-        QList<QAction*> actions = baudrateMenu->actions();
-        for (QAction* action : actions) {
-            if (baudrate == 0) {
-                action->setChecked(false);
-            } else {
-                bool ok;
-                int actionBaudrate = action->text().toInt(&ok);
-                if (ok && actionBaudrate == baudrate) {
-                    action->setChecked(true);
-                } else {
-                    action->setChecked(false);
-                }
-            }
-        }
-    }
-    else {
-        qWarning() << "Baudrate menu not found!";
     }
 }
 

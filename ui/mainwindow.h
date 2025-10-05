@@ -54,6 +54,7 @@
 #include "ui/cornerwidget/cornerwidgetmanager.h"
 #include "ui/windowcontrolmanager.h"
 #include "ui/coordinator/devicecoordinator.h"
+#include "ui/coordinator/menucoordinator.h"
 
 #define SERVER_PORT 12345
 #include "server/tcpServer.h"
@@ -206,7 +207,6 @@ private slots:
 
     void onCtrlAltDelPressed();
     
-    void onBaudrateMenuTriggered(QAction* action);
     void onArmBaudratePerformanceRecommendation(int currentBaudrate);
 
     void onToggleSwitchStateChanged(int state);
@@ -264,8 +264,6 @@ private:
     
     
     void updateUI();
-    void setupLanguageMenu();
-    void onLanguageSelected(QAction *action);
 
     QMediaDevices m_source;
     QScopedPointer<QImageCapture> m_imageCapture;
@@ -293,12 +291,12 @@ private:
 
     QComboBox *repeatingKeystrokeComboBox;
     
-    void updateBaudrateMenu(int baudrate);
     ToggleSwitch *toggleSwitch;
 
     CameraManager *m_cameraManager;
     InputHandler *m_inputHandler;
     DeviceCoordinator *m_deviceCoordinator;
+    MenuCoordinator *m_menuCoordinator;
 
     void updateScrollbars();
     QPoint lastMousePos;
