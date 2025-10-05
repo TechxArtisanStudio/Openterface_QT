@@ -6,6 +6,14 @@
 #include <QScreen>
 #include <QDateTime>
 
+/*
+ * CRITICAL FIX for maximize screen crash:
+ * - Using QPointer instead of raw pointers to VideoPane and event target widgets
+ * - QPointer automatically becomes null when the target object is destroyed
+ * - This prevents segmentation faults when Qt delivers queued events (MetaCall, Timer, etc.)
+ *   to InputHandler while VideoPane is being modified during window state changes
+ * - Filtering out internal Qt events that don't need custom handling
+ */
 
 Q_LOGGING_CATEGORY(log_ui_input, "opf.ui.input")
 
@@ -112,6 +120,22 @@ QSize InputHandler::getScreenResolution() {
 
 bool InputHandler::eventFilter(QObject *watched, QEvent *event)
 {
+    // CRITICAL SAFETY: Exit early if event processing is disabled
+    if (!m_processingEnabled) {
+        return QObject::eventFilter(watched, event);
+    }
+    
+    // CRITICAL SAFETY: Ignore internal Qt events that could cause issues during state changes
+    // MetaCall, Timer, ChildAdded, ChildRemoved, etc. should be passed through without processing
+    if (event->type() == QEvent::MetaCall || 
+        event->type() == QEvent::Timer ||
+        event->type() == QEvent::ChildAdded ||
+        event->type() == QEvent::ChildRemoved ||
+        event->type() == QEvent::ChildPolished ||
+        event->type() == QEvent::DeferredDelete) {
+        return QObject::eventFilter(watched, event);
+    }
+    
     // CRITICAL SAFETY: Check if watched object is valid and matches our expected targets
     if (!watched || (!m_videoPane && !m_currentEventTarget)) {
         qCWarning(log_ui_input) << "InputHandler::eventFilter - Invalid state: watched=" << watched 
@@ -470,17 +494,19 @@ QPoint InputHandler::transformMousePosition(QMouseEvent *event, QWidget* sourceW
 
 QWidget* InputHandler::getEffectiveVideoWidget() const
 {
-    if (!m_videoPane) {
+    // QPointer automatically becomes null if the object is destroyed
+    if (m_videoPane.isNull()) {
+        qCWarning(log_ui_input) << "InputHandler::getEffectiveVideoWidget - m_videoPane is null or destroyed!";
         return nullptr;
     }
     
     // Return overlay widget if in GStreamer mode, otherwise return VideoPane
     if (m_videoPane->isDirectGStreamerModeEnabled()) {
         QWidget* overlayWidget = m_videoPane->getOverlayWidget();
-        if (overlayWidget) {
+        if (overlayWidget && overlayWidget->isVisible()) {
             return overlayWidget;
         }
     }
     
-    return m_videoPane;
+    return m_videoPane.data();  // Get raw pointer from QPointer
 }

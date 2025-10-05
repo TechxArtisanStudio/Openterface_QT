@@ -5,6 +5,7 @@
 #include <QKeyEvent>
 #include <QMouseEvent>
 #include <QPoint>
+#include <QPointer>
 #include "target/mouseeventdto.h"
 
 class VideoPane; // Forward declaration
@@ -54,13 +55,14 @@ protected:
     bool eventFilter(QObject *watched, QEvent *event) override;
 
 private:
-    VideoPane *m_videoPane;
+    QPointer<VideoPane> m_videoPane;  // Use QPointer for automatic null safety
     int lastX = 0;
     int lastY = 0;
     int lastMouseButton = 0;
     bool m_isDragging = false;
     bool m_holdingEsc = false;
-    QWidget* m_currentEventTarget = nullptr;  // Track current event filter target
+    bool m_processingEnabled = true;  // Safety flag to disable event processing
+    QPointer<QWidget> m_currentEventTarget;  // Use QPointer for safety
 
     // Mouse throttling for performance optimization (60 FPS limit)
     qint64 m_lastMouseMoveTime = 0;
