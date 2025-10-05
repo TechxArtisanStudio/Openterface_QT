@@ -35,6 +35,7 @@ class QMenuBar;
 class QStatusBar;
 class QScreen;
 class VideoPane;
+class ToolbarManager;
 
 /**
  * @brief Coordinates window layout, geometry calculations, and resize operations
@@ -65,6 +66,12 @@ public:
                                      QMenuBar *menuBar,
                                      QStatusBar *statusBar,
                                      QObject *parent = nullptr);
+    
+    /**
+     * @brief Set the toolbar manager for animation coordination
+     * @param toolbarManager Pointer to the toolbar manager
+     */
+    void setToolbarManager(ToolbarManager *toolbarManager);
     
     /**
      * @brief Destructor
@@ -127,13 +134,13 @@ public:
     void calculateVideoPosition();
     
     /**
-     * @brief Animate video pane for visual feedback
+     * @brief Animate video pane position based on toolbar visibility
      * 
-     * Performs animation when video settings change
+     * Smoothly animates video pane to proper position when toolbar
+     * visibility changes. Takes into account window state (maximized/fullscreen)
+     * and toolbar visibility to calculate proper video pane dimensions and position.
      */
-    void animateVideoPane();
-    
-    /**
+    void animateVideoPane();    /**
      * @brief Center video pane within window
      * @param videoWidth Video pane width
      * @param videoHeight Video pane height
@@ -208,6 +215,7 @@ private:
     VideoPane *m_videoPane;             ///< Pointer to video pane (not owned)
     QMenuBar *m_menuBar;                ///< Pointer to menu bar (not owned)
     QStatusBar *m_statusBar;            ///< Pointer to status bar (not owned)
+    ToolbarManager *m_toolbarManager;   ///< Pointer to toolbar manager (not owned)
     
     double m_systemScaleFactor;         ///< System DPI scale factor
     int m_videoWidth;                   ///< Current video width

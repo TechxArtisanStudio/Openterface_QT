@@ -135,6 +135,11 @@ MainWindow::MainWindow(LanguageManager *languageManager, QWidget *parent) :  ui(
     qCDebug(log_ui_mainwindow) << "Init camera...";
     
     ui->setupUi(this);
+    
+    // Initialize WindowLayoutCoordinator early - needed before checkInitSize()
+    qCDebug(log_ui_mainwindow) << "Initializing WindowLayoutCoordinator...";
+    m_windowLayoutCoordinator = new WindowLayoutCoordinator(this, videoPane, menuBar(), statusBar(), this);
+    
     m_cornerWidgetManager->setMenuBar(ui->menubar);
     // ui->menubar->setCornerWidget(m_cornerWidgetManager->getCornerWidget(), Qt::TopRightCorner);
 
@@ -302,6 +307,11 @@ MainWindow::MainWindow(LanguageManager *languageManager, QWidget *parent) :  ui(
     addToolBar(Qt::TopToolBarArea, toolbarManager->getToolbar());
     toolbarManager->getToolbar()->setVisible(false);
     
+    // Set toolbar manager on layout coordinator for animation coordination
+    if (m_windowLayoutCoordinator) {
+        m_windowLayoutCoordinator->setToolbarManager(toolbarManager);
+    }
+    
     // Initialize Window Control Manager for auto-hide toolbar behavior
     m_windowControlManager = new WindowControlManager(this, toolbarManager->getToolbar(), this);
     m_windowControlManager->setAutoHideEnabled(true);
@@ -390,8 +400,7 @@ MainWindow::MainWindow(LanguageManager *languageManager, QWidget *parent) :  ui(
     qCDebug(log_ui_mainwindow) << "Initializing MenuCoordinator...";
     m_menuCoordinator = new MenuCoordinator(ui->menuLanguages, ui->menuBaudrate, m_languageManager, this, this);
     
-    qCDebug(log_ui_mainwindow) << "Initializing WindowLayoutCoordinator...";
-    m_windowLayoutCoordinator = new WindowLayoutCoordinator(this, videoPane, menuBar(), statusBar(), this);
+    // WindowLayoutCoordinator already initialized earlier in constructor
     
     // Connect serial port manager
     connect(&SerialPortManager::getInstance(), &SerialPortManager::connectedPortChanged, this, &MainWindow::onPortConnected);

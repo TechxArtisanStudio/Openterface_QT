@@ -23,6 +23,7 @@
 #include "windowlayoutcoordinator.h"
 #include "ui/videopane.h"
 #include "ui/globalsetting.h"
+#include "ui/toolbar/toolbarmanager.h"
 #include "global.h"
 #include <QMainWindow>
 #include <QMenuBar>
@@ -30,6 +31,8 @@
 #include <QScreen>
 #include <QApplication>
 #include <QDebug>
+#include <QPropertyAnimation>
+#include <QParallelAnimationGroup>
 
 Q_LOGGING_CATEGORY(log_ui_windowlayoutcoordinator, "opf.ui.windowlayoutcoordinator")
 
@@ -43,6 +46,7 @@ WindowLayoutCoordinator::WindowLayoutCoordinator(QMainWindow *mainWindow,
     , m_videoPane(videoPane)
     , m_menuBar(menuBar)
     , m_statusBar(statusBar)
+    , m_toolbarManager(nullptr)
     , m_systemScaleFactor(1.0)
     , m_videoWidth(1920)
     , m_videoHeight(1080)
@@ -55,6 +59,12 @@ WindowLayoutCoordinator::WindowLayoutCoordinator(QMainWindow *mainWindow,
 WindowLayoutCoordinator::~WindowLayoutCoordinator()
 {
     qCDebug(log_ui_windowlayoutcoordinator) << "WindowLayoutCoordinator destroyed";
+}
+
+void WindowLayoutCoordinator::setToolbarManager(ToolbarManager *toolbarManager)
+{
+    m_toolbarManager = toolbarManager;
+    qCDebug(log_ui_windowlayoutcoordinator) << "ToolbarManager set for animation coordination";
 }
 
 void WindowLayoutCoordinator::doResize()
@@ -354,10 +364,112 @@ void WindowLayoutCoordinator::calculateVideoPosition()
 
 void WindowLayoutCoordinator::animateVideoPane()
 {
-    // This method is intentionally left as a stub for Phase 3
-    // The full animation logic is complex and involves ToolbarManager
-    // It will be implemented in a future phase when ToolbarManager is also refactored
-    qCDebug(log_ui_windowlayoutcoordinator) << "animateVideoPane called (stub - full implementation pending)";
+    // Safety check: Don't animate if window is being destroyed
+    if (!m_videoPane || !m_mainWindow || !m_mainWindow->isVisible() || 
+        m_mainWindow->testAttribute(Qt::WA_DeleteOnClose)) {
+        m_mainWindow->setUpdatesEnabled(true);
+        m_mainWindow->blockSignals(false);
+        qCDebug(log_ui_windowlayoutcoordinator) << "Animation skipped - window not ready";
+        return;
+    }
+
+    // Get toolbar visibility and window state
+    bool isToolbarVisible = m_toolbarManager && m_toolbarManager->getToolbar() && 
+                           m_toolbarManager->getToolbar()->isVisible();
+    bool isMaximized = (m_mainWindow->windowState() & Qt::WindowMaximized);
+
+    // Calculate content height based on toolbar visibility
+    int contentHeight;
+    if (!isFullScreenMode()) {
+        contentHeight = m_mainWindow->height() - m_statusBar->height() - m_menuBar->height();
+    } else {
+        contentHeight = m_mainWindow->height() - m_menuBar->height();
+    }
+
+    int contentWidth;
+    double aspect_ratio = static_cast<double>(m_videoWidth) / m_videoHeight;
+    
+    if (isMaximized) {
+        // For maximized windows, use the full window width and calculated height
+        contentWidth = m_mainWindow->width();
+        if (isToolbarVisible && m_toolbarManager && m_toolbarManager->getToolbar()) {
+            contentHeight -= m_toolbarManager->getToolbar()->height();
+        }
+        // Don't constrain by aspect ratio for maximized windows - let VideoPane handle it
+        qCDebug(log_ui_windowlayoutcoordinator) << "Maximized window - contentWidth:" 
+                                                << contentWidth << "contentHeight:" << contentHeight;
+    } else {
+        // Normal window behavior
+        if (isToolbarVisible && m_toolbarManager && m_toolbarManager->getToolbar()) {
+            contentHeight -= m_toolbarManager->getToolbar()->height();
+            contentWidth = static_cast<int>(contentHeight * aspect_ratio);
+            qCDebug(log_ui_windowlayoutcoordinator) << "toolbarHeight" 
+                                                    << m_toolbarManager->getToolbar()->height() 
+                                                    << "content height" << contentHeight 
+                                                    << "content width" << contentWidth;
+        } else {
+            if (!isFullScreenMode()) {
+                contentHeight = m_mainWindow->height() - m_statusBar->height() - m_menuBar->height();
+            } else {
+                contentHeight = m_mainWindow->height() - m_menuBar->height();
+            }
+            contentWidth = static_cast<int>(contentHeight * aspect_ratio);
+        }
+    }
+
+    // Resize the video pane
+    m_videoPane->resize(contentWidth, contentHeight);
+
+    // Position the video pane (center horizontally if window is wider than video pane)
+    if (m_mainWindow->width() > m_videoPane->width()) {
+        // Calculate new position
+        int horizontalOffset = (m_mainWindow->width() - m_videoPane->width()) / 2;
+        
+        // Safety check: Only create animation if videoPane is still valid and window is visible
+        if (m_videoPane && m_mainWindow->isVisible() && !m_mainWindow->testAttribute(Qt::WA_DeleteOnClose)) {
+            // Animate the videoPane position
+            QPropertyAnimation *videoAnimation = new QPropertyAnimation(m_videoPane, "pos");
+            videoAnimation->setDuration(150);
+            videoAnimation->setStartValue(m_videoPane->pos());
+            videoAnimation->setEndValue(QPoint(horizontalOffset, m_videoPane->y()));
+            videoAnimation->setEasingCurve(QEasingCurve::OutCubic);
+
+            // Create animation group with just video animation
+            QParallelAnimationGroup *group = new QParallelAnimationGroup(m_mainWindow);
+            group->addAnimation(videoAnimation);
+            
+            // Cleanup after animation
+            connect(group, &QParallelAnimationGroup::finished, m_mainWindow, [this]() {
+                if (m_mainWindow && m_mainWindow->isVisible() && 
+                    !m_mainWindow->testAttribute(Qt::WA_DeleteOnClose)) {
+                    m_mainWindow->setUpdatesEnabled(true);
+                    m_mainWindow->blockSignals(false);
+                    m_mainWindow->update();
+                }
+            });
+            
+            group->start(QAbstractAnimation::DeleteWhenStopped);
+            qCDebug(log_ui_windowlayoutcoordinator) << "Video pane animation started to offset:" 
+                                                    << horizontalOffset;
+        } else {
+            // If animation can't be created safely, just move immediately
+            if (m_videoPane) {
+                m_videoPane->move(horizontalOffset, m_videoPane->y());
+            }
+            m_mainWindow->setUpdatesEnabled(true);
+            m_mainWindow->blockSignals(false);
+            qCDebug(log_ui_windowlayoutcoordinator) << "Video pane moved immediately (no animation)";
+        }
+    } else {
+        // VideoPane fills the window width, position at x=0
+        if (m_videoPane) {
+            m_videoPane->move(0, m_videoPane->y());
+        }
+        m_mainWindow->setUpdatesEnabled(true);
+        m_mainWindow->blockSignals(false);
+        m_mainWindow->update();
+        qCDebug(log_ui_windowlayoutcoordinator) << "Video pane positioned at x=0 (fills width)";
+    }
 }
 
 void WindowLayoutCoordinator::centerVideoPane(int videoWidth, int videoHeight, 
