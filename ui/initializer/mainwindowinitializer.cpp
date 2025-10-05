@@ -60,15 +60,15 @@ MainWindowInitializer::MainWindowInitializer(MainWindow *mainWindow, QObject *pa
     , m_stackedLayout(mainWindow->stackedLayout)
     , m_videoPane(mainWindow->videoPane)
     , m_cameraManager(mainWindow->m_cameraManager)
-    , m_statusBarManager(mainWindow->m_statusBarManager)
+    , m_statusBarManager(nullptr)  // Will be created during initialization
     , m_cornerWidgetManager(mainWindow->m_cornerWidgetManager)
     , m_windowLayoutCoordinator(mainWindow->m_windowLayoutCoordinator)
     , m_toolbarManager(mainWindow->toolbarManager)
-    , m_windowControlManager(mainWindow->m_windowControlManager)
-    , m_deviceCoordinator(mainWindow->m_deviceCoordinator)
-    , m_menuCoordinator(mainWindow->m_menuCoordinator)
+    , m_windowControlManager(nullptr)  // Will be created during initialization
+    , m_deviceCoordinator(nullptr)  // Will be created during initialization
+    , m_menuCoordinator(nullptr)  // Will be created during initialization
     , m_languageManager(mainWindow->m_languageManager)
-    , m_mouseEdgeTimer(mainWindow->mouseEdgeTimer)
+    , m_mouseEdgeTimer(nullptr)  // Will be created during initialization
 {
     qCDebug(log_ui_mainwindowinitializer) << "MainWindowInitializer created";
 }
@@ -151,7 +151,9 @@ void MainWindowInitializer::connectCornerWidgetSignals()
     connect(m_cornerWidgetManager, &CornerWidgetManager::zoomInClicked, m_mainWindow, [this]() {
         if (m_windowLayoutCoordinator) {
             m_windowLayoutCoordinator->zoomIn();
-            m_mouseEdgeTimer->start(m_mainWindow->edgeDuration);
+            if (m_mainWindow->mouseEdgeTimer) {
+                m_mainWindow->mouseEdgeTimer->start(m_mainWindow->edgeDuration);
+            }
         }
     });
     connect(m_cornerWidgetManager, &CornerWidgetManager::zoomOutClicked, m_mainWindow, [this]() {
@@ -162,8 +164,8 @@ void MainWindowInitializer::connectCornerWidgetSignals()
     connect(m_cornerWidgetManager, &CornerWidgetManager::zoomReductionClicked, m_mainWindow, [this]() {
         if (m_windowLayoutCoordinator) {
             m_windowLayoutCoordinator->zoomReduction();
-            if (m_mouseEdgeTimer->isActive()) {
-                m_mouseEdgeTimer->stop();
+            if (m_mainWindow->mouseEdgeTimer && m_mainWindow->mouseEdgeTimer->isActive()) {
+                m_mainWindow->mouseEdgeTimer->stop();
             }
         }
     });
