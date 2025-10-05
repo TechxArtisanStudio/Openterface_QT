@@ -206,7 +206,7 @@ void LogPage::applyLogsettings() {
     QLoggingCategory::setFilterRules(logFilter);
     // save the filter settings
 
-    GlobalSetting::instance().setLogSettings(core, serial, ui, host, device);
+    GlobalSetting::instance().setLogSettings(core, serial, ui, host, device, backend);
     GlobalSetting::instance().setLogStoreSettings(storeLog, logFilePath);
     LogHandler::instance().enableLogStore();
 
