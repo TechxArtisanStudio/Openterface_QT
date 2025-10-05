@@ -307,8 +307,12 @@ void MainWindowInitializer::initializeCamera()
     }
     m_mainWindow->initCamera();
     
-    QTimer::singleShot(200, m_mainWindow, [this]() {
-        bool success = m_cameraManager->initializeCameraWithVideoOutput(m_videoPane);
+    // Capture specific pointers instead of 'this' to avoid dangling reference
+    // when initializer is destroyed after constructor completes
+    CameraManager* cameraManager = m_cameraManager;
+    VideoPane* videoPane = m_videoPane;
+    QTimer::singleShot(200, m_mainWindow, [cameraManager, videoPane]() {
+        bool success = cameraManager->initializeCameraWithVideoOutput(videoPane);
         if (success) {
             qDebug() << "✓ Camera successfully initialized with video output";
         } else {
@@ -316,8 +320,10 @@ void MainWindowInitializer::initializeCamera()
         }
     });
 
-    QTimer::singleShot(300, m_mainWindow, [this]() {
-        m_mainWindow->m_audioManager->initializeAudio();
+    // Capture audioManager pointer directly to avoid dangling reference
+    AudioManager* audioManager = m_mainWindow->m_audioManager;
+    QTimer::singleShot(300, m_mainWindow, [audioManager]() {
+        audioManager->initializeAudio();
         qDebug() << "✓ Audio initialization triggered";
     });
 }
