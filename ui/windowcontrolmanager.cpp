@@ -210,15 +210,22 @@ void WindowControlManager::toggleToolbar()
 
 void WindowControlManager::onWindowMaximized()
 {
-    qDebug() << "WindowControlManager: Window maximized";
+    qDebug() << "WindowControlManager::onWindowMaximized() - Window maximized";
+    qDebug() << "WindowControlManager::onWindowMaximized() - AutoHide enabled:" << m_autoHideEnabled
+             << "Toolbar exists:" << (m_toolbar != nullptr)
+             << "Toolbar visible:" << (m_toolbar ? m_toolbar->isVisible() : false);
+    
     m_isMaximized = true;
     m_isFullScreen = false;
     
     if (m_autoHideEnabled && m_toolbar && m_toolbar->isVisible()) {
+        qDebug() << "WindowControlManager::onWindowMaximized() - Starting auto-hide timer and edge detection";
         // Start the auto-hide timer when maximized
         startAutoHideTimer();
         // Start edge detection
         m_edgeCheckTimer->start();
+    } else {
+        qDebug() << "WindowControlManager::onWindowMaximized() - Not starting auto-hide (conditions not met)";
     }
 }
 
@@ -258,7 +265,8 @@ void WindowControlManager::onWindowFullScreen()
 
 void WindowControlManager::onWindowStateChanged(Qt::WindowStates oldState, Qt::WindowStates newState)
 {
-    Q_UNUSED(oldState);
+    qDebug() << "WindowControlManager::onWindowStateChanged() - Start";
+    qDebug() << "WindowControlManager::onWindowStateChanged() - Old state:" << oldState << "New state:" << newState;
     
     bool wasMaximized = m_isMaximized;
     bool wasFullScreen = m_isFullScreen;
@@ -266,15 +274,21 @@ void WindowControlManager::onWindowStateChanged(Qt::WindowStates oldState, Qt::W
     m_isMaximized = (newState & Qt::WindowMaximized) != 0;
     m_isFullScreen = (newState & Qt::WindowFullScreen) != 0;
     
-    qDebug() << "WindowControlManager: Window state changed - Maximized:" << m_isMaximized 
-             << "FullScreen:" << m_isFullScreen;
+    qDebug() << "WindowControlManager::onWindowStateChanged() - State transition:";
+    qDebug() << "  Was Maximized:" << wasMaximized << "-> Now Maximized:" << m_isMaximized;
+    qDebug() << "  Was FullScreen:" << wasFullScreen << "-> Now FullScreen:" << m_isFullScreen;
     
     if (m_isMaximized && !wasMaximized) {
+        qDebug() << "WindowControlManager::onWindowStateChanged() - Calling onWindowMaximized()";
         onWindowMaximized();
     } else if (!m_isMaximized && !m_isFullScreen && (wasMaximized || wasFullScreen)) {
+        qDebug() << "WindowControlManager::onWindowStateChanged() - Calling onWindowRestored()";
         onWindowRestored();
     } else if (m_isFullScreen && !wasFullScreen) {
+        qDebug() << "WindowControlManager::onWindowStateChanged() - Calling onWindowFullScreen()";
         onWindowFullScreen();
+    } else {
+        qDebug() << "WindowControlManager::onWindowStateChanged() - No state handler triggered";
     }
 }
 
@@ -334,24 +348,46 @@ void WindowControlManager::stopAutoHideTimer()
 
 void WindowControlManager::animateToolbarShow()
 {
+    qDebug() << "WindowControlManager::animateToolbarShow() - Start";
+    
     if (!m_toolbar) {
+        qWarning() << "WindowControlManager::animateToolbarShow() - m_toolbar is null!";
         return;
     }
+    
+    qDebug() << "WindowControlManager::animateToolbarShow() - Current state - Visible:" << m_toolbar->isVisible()
+             << "Height:" << m_toolbar->height() << "MaxHeight:" << m_toolbar->maximumHeight();
+    
+    // Reset maximum height constraint to allow toolbar to expand fully
+    m_toolbar->setMaximumHeight(QWIDGETSIZE_MAX);
+    qDebug() << "WindowControlManager::animateToolbarShow() - Reset maximumHeight to QWIDGETSIZE_MAX";
     
     // For now, just show/hide directly
     // You can add animation here if needed
     m_toolbar->show();
+    qDebug() << "WindowControlManager::animateToolbarShow() - Toolbar shown successfully";
 }
 
 void WindowControlManager::animateToolbarHide()
 {
+    qDebug() << "WindowControlManager::animateToolbarHide() - Start";
+    
     if (!m_toolbar) {
+        qWarning() << "WindowControlManager::animateToolbarHide() - m_toolbar is null!";
         return;
     }
+    
+    qDebug() << "WindowControlManager::animateToolbarHide() - Current state - Visible:" << m_toolbar->isVisible()
+             << "Height:" << m_toolbar->height() << "MaxHeight:" << m_toolbar->maximumHeight();
     
     // For now, just show/hide directly
     // You can add animation here if needed
     m_toolbar->hide();
+    qDebug() << "WindowControlManager::animateToolbarHide() - Toolbar hidden";
+    
+    // Reset maximum height after hiding to ensure clean state
+    m_toolbar->setMaximumHeight(QWIDGETSIZE_MAX);
+    qDebug() << "WindowControlManager::animateToolbarHide() - Reset maximumHeight to QWIDGETSIZE_MAX";
 }
 
 bool WindowControlManager::isMouseAtTopEdge(const QPoint &globalPos)
