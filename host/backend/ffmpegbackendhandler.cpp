@@ -639,7 +639,7 @@ bool FFmpegBackendHandler::openInputDevice(const QString& devicePath, const QSiz
     // RESPONSIVENESS: Try to configure minimal buffering for lower latency
     QString bufferCommand = QString("v4l2-ctl --device=%1")
                            .arg(devicePath);
-    (void)system(bufferCommand.toUtf8().constData()); // Don't check result - optional optimization
+    [[maybe_unused]] auto bufferResult = system(bufferCommand.toUtf8().constData()); // Don't check result - optional optimization
     
     if (configResult == 0 && framerateResult == 0) {
         qCDebug(log_ffmpeg_backend) << "Device pre-configured successfully for low-latency MJPEG" << resolution << "at" << framerate << "fps";

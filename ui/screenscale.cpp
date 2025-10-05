@@ -65,6 +65,7 @@ double ScreenScale::converseRatio(QString ratio){
         double result = static_cast<double>(num1) / num2;
         return result;
     }
+    return 16.0 / 9.0; // Default fallback ratio
 }
 
 QString ScreenScale::converseRatio(double ratio) {
