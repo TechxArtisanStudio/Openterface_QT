@@ -126,7 +126,8 @@ MainWindow::MainWindow(LanguageManager *languageManager, QWidget *parent) :  ui(
                             m_versionInfoManager(new VersionInfoManager(this)),
                             m_languageManager(languageManager),
                             m_screenSaverManager(new ScreenSaverManager(this)),
-                            m_cornerWidgetManager(new CornerWidgetManager(this))
+                            m_cornerWidgetManager(new CornerWidgetManager(this)),
+                            m_windowControlManager(nullptr)
                             // cameraAdjust(new CameraAdjust(this))
 {
     Q_UNUSED(parent);
@@ -164,13 +165,11 @@ MainWindow::MainWindow(LanguageManager *languageManager, QWidget *parent) :  ui(
                 m_statusBarManager, [this](const DeviceInfo& device) {
                     qCDebug(log_ui_mainwindow) << "MainWindow: Received newDevicePluggedIn signal for port:" << device.portChain;
                     m_statusBarManager->showNewDevicePluggedIn(device.portChain);
-                    updateDeviceMenu(); // Update device menu when new device is plugged in
                 });
         connect(hotplugMonitor, &HotplugMonitor::deviceUnplugged, 
                 m_statusBarManager, [this](const DeviceInfo& device) {
                     qCDebug(log_ui_mainwindow) << "MainWindow: Received deviceUnplugged signal for port:" << device.portChain;
                     m_statusBarManager->showDeviceUnplugged(device.portChain);
-                    updateDeviceMenu(); // Update device menu when device is unplugged
                 });
                 
         // Connect hotplug monitor to camera manager for device unplugging
@@ -283,6 +282,16 @@ MainWindow::MainWindow(LanguageManager *languageManager, QWidget *parent) :  ui(
     addToolBar(Qt::TopToolBarArea, toolbarManager->getToolbar());
     toolbarManager->getToolbar()->setVisible(false);
     
+    // Initialize Window Control Manager for auto-hide toolbar behavior
+    m_windowControlManager = new WindowControlManager(this, toolbarManager->getToolbar(), this);
+    m_windowControlManager->setAutoHideEnabled(true);
+    m_windowControlManager->setAutoHideDelay(10000);  // 10 seconds
+    m_windowControlManager->setEdgeDetectionThreshold(5);  // 5 pixels from top edge
+    m_windowControlManager->setAnimationDuration(300);  // 300ms animation
+    
+    connect(m_windowControlManager, &WindowControlManager::toolbarVisibilityChanged,
+            this, &MainWindow::onToolbarVisibilityChanged);
+    
     connect(m_cameraManager, &CameraManager::cameraActiveChanged, this, &MainWindow::updateCameraActive);
     connect(m_cameraManager, &CameraManager::cameraError, this, &MainWindow::displayCameraError);
     connect(m_cameraManager, &CameraManager::imageCaptured, this, &MainWindow::processCapturedImage);
@@ -356,8 +365,13 @@ MainWindow::MainWindow(LanguageManager *languageManager, QWidget *parent) :  ui(
 
     // Add this after other menu connections
     connect(ui->menuBaudrate, &QMenu::triggered, this, &MainWindow::onBaudrateMenuTriggered);
-    connect(ui->menuDevice, &QMenu::triggered, this, &MainWindow::onDeviceSelected);
     connect(&SerialPortManager::getInstance(), &SerialPortManager::connectedPortChanged, this, &MainWindow::onPortConnected);
+    
+    // Setup device menu through DeviceCoordinator
+    if (m_deviceCoordinator) {
+        m_deviceCoordinator->connectHotplugMonitor(hotplugMonitor);
+        m_deviceCoordinator->setupDeviceMenu();
+    }
     connect(&SerialPortManager::getInstance(), &SerialPortManager::armBaudratePerformanceRecommendation, this, &MainWindow::onArmBaudratePerformanceRecommendation);
     
     // Note: Automatic camera device coordination has been disabled
@@ -391,7 +405,6 @@ MainWindow::MainWindow(LanguageManager *languageManager, QWidget *parent) :  ui(
     
     connect(m_languageManager, &LanguageManager::languageChanged, this, &MainWindow::updateUI);
     setupLanguageMenu();
-    setupDeviceMenu();
     // fullScreen();
     qDebug() << "finished initialization";
     
@@ -411,7 +424,9 @@ void MainWindow::updateUI() {
     ui->retranslateUi(this); // Update the UI elements
     // this->menuBar()->clear();
     setupLanguageMenu();
-    updateDeviceMenu(); // Update device menu when UI language changes
+    if (m_deviceCoordinator) {
+        m_deviceCoordinator->updateDeviceMenu(); // Update device menu when UI language changes
+    }
 }
 
 void MainWindow::setupLanguageMenu() {
@@ -448,214 +463,6 @@ void MainWindow::setupLanguageMenu() {
         languageGroup->addAction(action);
     }
     connect(languageGroup, &QActionGroup::triggered, this, &MainWindow::onLanguageSelected);
-}
-
-void MainWindow::setupDeviceMenu() {
-    // Initialize device menu group
-    m_deviceMenuGroup = new QActionGroup(this);
-    m_deviceMenuGroup->setExclusive(true);
-    
-    // Connect to device menu group
-    connect(m_deviceMenuGroup, &QActionGroup::triggered, this, &MainWindow::onDeviceSelected);
-    
-    // Initial population of device menu
-    updateDeviceMenu();
-}
-
-void MainWindow::updateDeviceMenu() {
-    if (!m_deviceMenuGroup) {
-        return;
-    }
-    
-    // Clear existing device actions
-    ui->menuDevice->clear();
-    qDeleteAll(m_deviceMenuGroup->actions());
-    
-    // Get available devices from DeviceManager
-    DeviceManager& deviceManager = DeviceManager::getInstance();
-    QList<DeviceInfo> devices = deviceManager.discoverDevices(); // Force discovery for up-to-date list
-    
-    // Get currently selected device port chain
-    QString currentPortChain = GlobalSetting::instance().getOpenterfacePortChain();
-    
-    qCDebug(log_ui_mainwindow) << "Updating device menu with" << devices.size() << "devices. Current port chain:" << currentPortChain;
-    
-    if (devices.isEmpty()) {
-        // Add "No devices available" placeholder
-        QAction *noDevicesAction = new QAction("No devices available", this);
-        noDevicesAction->setEnabled(false);
-        ui->menuDevice->addAction(noDevicesAction);
-        return;
-    }
-    
-    // Deduplicate devices by port chain (similar to DeviceSelectorDialog)
-    QMap<QString, DeviceInfo> uniqueDevicesByPortChain;
-    for (const auto& device : devices) {
-        if (!device.portChain.isEmpty()) {
-            if (uniqueDevicesByPortChain.contains(device.portChain)) {
-                const DeviceInfo& existing = uniqueDevicesByPortChain[device.portChain];
-                // Choose the device with more interfaces
-                if (device.getInterfaceCount() > existing.getInterfaceCount()) {
-                    uniqueDevicesByPortChain[device.portChain] = device;
-                }
-            } else {
-                uniqueDevicesByPortChain[device.portChain] = device;
-            }
-        }
-    }
-    
-    // If current port chain is null/empty and we have devices, auto-select the first one
-    if ((currentPortChain.isEmpty() || currentPortChain.isNull()) && !uniqueDevicesByPortChain.isEmpty()) {
-        QString firstPortChain = uniqueDevicesByPortChain.firstKey();
-        qCDebug(log_ui_mainwindow) << "Auto-selecting first device with port chain:" << firstPortChain;
-        
-        // Set the first device as current
-        GlobalSetting::instance().setOpenterfacePortChain(firstPortChain);
-        currentPortChain = firstPortChain;
-        
-        // Use the centralized device switching function to actually switch to the first device
-        DeviceManager& deviceManager = DeviceManager::getInstance();
-        auto result = deviceManager.switchToDeviceByPortChainWithCamera(firstPortChain, m_cameraManager);
-        
-        if (result.success) {
-            qCInfo(log_ui_mainwindow) << "✓ Auto device switch successful:" << result.statusMessage;
-        } else {
-            qCWarning(log_ui_mainwindow) << "Auto device switch failed or partial:" << result.statusMessage;
-        }
-    }
-    
-    // Add action for each unique device
-    for (auto it = uniqueDevicesByPortChain.begin(); it != uniqueDevicesByPortChain.end(); ++it) {
-        const DeviceInfo& device = it.value();
-        
-        // Determine device type based on VID/PID from platformSpecific data
-        QString deviceType = getDeviceTypeName(device);
-        QString displayText = QString("Port %1 - %2").arg(device.portChain, deviceType);
-        
-        QAction *deviceAction = new QAction(displayText, this);
-        deviceAction->setCheckable(true);
-        deviceAction->setData(device.portChain);
-        
-        // Mark current device with a dot
-        if (device.portChain == currentPortChain) {
-            deviceAction->setChecked(true);
-            deviceAction->setText(QString("• %1").arg(displayText));
-        }
-        
-        ui->menuDevice->addAction(deviceAction);
-        m_deviceMenuGroup->addAction(deviceAction);
-    }
-}
-
-QString MainWindow::getDeviceTypeName(const DeviceInfo& device) {
-    // Define VID/PID constants
-    const QString MINI_KVM_VID = "534D";    // Mini-KVM VID
-    const QString MINI_KVM_PID = "2109";    // Mini-KVM PID
-    const QString KVMGO_VID = "345F";       // KVMGO VID  
-    const QString KVMGO_PID = "2132";       // KVMGO PID
-    const QString KVMVGA_VID = "345F";      // KVMVGA VID
-    const QString KVMVGA_PID = "2109";      // KVMVGA PID
-    
-    // Helper function to check VID/PID in a string
-    auto checkVidPidInString = [&](const QString& str) -> QString {
-        if (str.isEmpty()) return "";
-        
-        // Check for KVMVGA (345F:2109)
-        if ((str.contains(QString("VID_%1").arg(KVMVGA_VID), Qt::CaseInsensitive) &&
-             str.contains(QString("PID_%1").arg(KVMVGA_PID), Qt::CaseInsensitive)) ||
-            (str.contains(KVMVGA_VID, Qt::CaseInsensitive) && 
-             str.contains(KVMVGA_PID, Qt::CaseInsensitive))) {
-            return "KVMVGA";
-        }
-        
-        // Check for KVMGO (345F:2132)
-        if ((str.contains(QString("VID_%1").arg(KVMGO_VID), Qt::CaseInsensitive) &&
-             str.contains(QString("PID_%1").arg(KVMGO_PID), Qt::CaseInsensitive)) ||
-            (str.contains(KVMGO_VID, Qt::CaseInsensitive) && 
-             str.contains(KVMGO_PID, Qt::CaseInsensitive))) {
-            return "KVMGO";
-        }
-        
-        // Check for Mini-KVM (534D:2109)
-        if ((str.contains(QString("VID_%1").arg(MINI_KVM_VID), Qt::CaseInsensitive) &&
-             str.contains(QString("PID_%1").arg(MINI_KVM_PID), Qt::CaseInsensitive)) ||
-            (str.contains(MINI_KVM_VID, Qt::CaseInsensitive) && 
-             str.contains(MINI_KVM_PID, Qt::CaseInsensitive))) {
-            return "Mini-KVM";
-        }
-        
-        return "";
-    };
-    
-    // Check main device sources
-    QStringList sources = {
-        device.platformSpecific.value("hardwareId").toString(),
-        device.platformSpecific.value("hardware_id").toString(),
-        device.platformSpecific.value("vidPid").toString(),
-        device.deviceInstanceId,
-        device.hidDeviceId,
-        device.cameraDeviceId,
-        device.audioDeviceId,
-        device.serialPortId
-    };
-    
-    for (const QString& source : sources) {
-        QString result = checkVidPidInString(source);
-        if (!result.isEmpty()) {
-            return result;
-        }
-    }
-    
-    // Check sibling and child devices
-    auto checkRelatedDevices = [&](const QVariantList& devices) -> QString {
-        for (const QVariant& deviceVar : devices) {
-            QVariantMap deviceMap = deviceVar.toMap();
-            QString hwId = deviceMap.value("hardwareId").toString();
-            if (hwId.isEmpty()) {
-                hwId = deviceMap.value("hardware_id").toString();
-            }
-            QString result = checkVidPidInString(hwId);
-            if (!result.isEmpty()) {
-                return result;
-            }
-        }
-        return "";
-    };
-    
-    if (device.platformSpecific.contains("siblings")) {
-        QString result = checkRelatedDevices(device.platformSpecific["siblings"].toList());
-        if (!result.isEmpty()) return result;
-    }
-    
-    if (device.platformSpecific.contains("children")) {
-        QString result = checkRelatedDevices(device.platformSpecific["children"].toList());
-        if (!result.isEmpty()) return result;
-    }
-    
-    return "Openterface";
-}
-
-void MainWindow::onDeviceSelected(QAction *action) {
-    QString portChain = action->data().toString();
-    qCDebug(log_ui_mainwindow) << "Device selected from menu:" << portChain;
-    
-    if (portChain.isEmpty()) {
-        return;
-    }
-    
-    // Use the centralized device switching function
-    DeviceManager& deviceManager = DeviceManager::getInstance();
-    auto result = deviceManager.switchToDeviceByPortChainWithCamera(portChain, m_cameraManager);
-    
-    // Log the result
-    if (result.success) {
-        qCInfo(log_ui_mainwindow) << "✓ Device switch successful:" << result.statusMessage;
-    } else {
-        qCWarning(log_ui_mainwindow) << "Device switch failed or partial:" << result.statusMessage;
-    }
-    
-    // Update device menu to reflect current selection
-    updateDeviceMenu();
 }
 
 void MainWindow::onLanguageSelected(QAction *action) {
@@ -805,6 +612,13 @@ void MainWindow::resizeEvent(QResizeEvent *event) {
 
     // Check if window is maximized - if so, allow resize to proceed
     bool isMaximized = (this->windowState() & Qt::WindowMaximized);
+    
+    // Track window state changes for WindowControlManager
+    static Qt::WindowStates lastWindowState = this->windowState();
+    if (lastWindowState != this->windowState() && m_windowControlManager) {
+        m_windowControlManager->onWindowStateChanged(lastWindowState, this->windowState());
+        lastWindowState = this->windowState();
+    }
     
     if (!isMaximized) {
         // Check if new size exceeds screen bounds only for non-maximized windows
@@ -1943,6 +1757,13 @@ MainWindow::~MainWindow()
         m_cornerWidgetManager->deleteLater();
         m_cornerWidgetManager = nullptr;
         qCDebug(log_ui_mainwindow) << "m_cornerWidgetManager destroyed successfully";
+    }
+
+    if (m_windowControlManager) {
+        m_windowControlManager->setAutoHideEnabled(false); // Disable before cleanup
+        m_windowControlManager->deleteLater();
+        m_windowControlManager = nullptr;
+        qCDebug(log_ui_mainwindow) << "m_windowControlManager destroyed successfully";
     }
 
     if (m_screenScaleDialog) {

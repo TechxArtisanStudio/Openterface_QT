@@ -52,6 +52,8 @@
 #include "ui/screensavermanager.h"
 #include "ui/screenscale.h"
 #include "ui/cornerwidget/cornerwidgetmanager.h"
+#include "ui/windowcontrolmanager.h"
+#include "ui/coordinator/devicecoordinator.h"
 
 #define SERVER_PORT 12345
 #include "server/tcpServer.h"
@@ -263,10 +265,7 @@ private:
     
     void updateUI();
     void setupLanguageMenu();
-    void setupDeviceMenu();
-    void updateDeviceMenu();
     void onLanguageSelected(QAction *action);
-    void onDeviceSelected(QAction *action);
 
     QMediaDevices m_source;
     QScopedPointer<QImageCapture> m_imageCapture;
@@ -295,16 +294,11 @@ private:
     QComboBox *repeatingKeystrokeComboBox;
     
     void updateBaudrateMenu(int baudrate);
-    QString getDeviceTypeName(const DeviceInfo& device); // Helper method to get device type name
     ToggleSwitch *toggleSwitch;
 
     CameraManager *m_cameraManager;
     InputHandler *m_inputHandler;
-    
-    // Device menu management
-    QActionGroup *m_deviceMenuGroup;
-    
-    // Camera coordination functionality removed - now handled by DeviceManager
+    DeviceCoordinator *m_deviceCoordinator;
 
     void updateScrollbars();
     QPoint lastMousePos;
@@ -348,6 +342,7 @@ private:
     ScreenSaverManager *m_screenSaverManager;
     ScreenScale *m_screenScaleDialog = nullptr;
     CornerWidgetManager *m_cornerWidgetManager = nullptr;
+    WindowControlManager *m_windowControlManager = nullptr;
     void configScreenScale();
     
     ratioType currentRatioType = ratioType::EQUAL;

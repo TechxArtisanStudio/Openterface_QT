@@ -95,6 +95,11 @@ set(UI_CORE_SOURCES
     ui/statusevents.h
 )
 
+# UI coordinator sources
+set(UI_COORDINATOR_SOURCES
+    ui/coordinator/devicecoordinator.cpp ui/coordinator/devicecoordinator.h
+)
+
 # UI help sources
 set(UI_HELP_SOURCES
     ui/help/helppane.cpp ui/help/helppane.h
@@ -123,6 +128,11 @@ set(UI_STATUSBAR_SOURCES
 # UI corner widget sources
 set(UI_CORNERWIDGET_SOURCES
     ui/cornerwidget/cornerwidgetmanager.h ui/cornerwidget/cornerwidgetmanager.cpp
+)
+
+# UI window control sources
+set(UI_WINDOWCONTROL_SOURCES
+    ui/windowcontrolmanager.h ui/windowcontrolmanager.cpp
 )
 
 # UI toolbar sources
@@ -158,7 +168,9 @@ set(SOURCE_FILES
     ${UI_HELP_SOURCES}
     ${UI_ADVANCE_SOURCES}
     ${UI_STATUSBAR_SOURCES}
+    ${UI_COORDINATOR_SOURCES}
     ${UI_CORNERWIDGET_SOURCES}
+    ${UI_WINDOWCONTROL_SOURCES}
     ${UI_TOOLBAR_SOURCES}
     ${UI_PREFERENCES_SOURCES}
 )

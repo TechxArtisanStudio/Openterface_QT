@@ -30,6 +30,7 @@ SOURCES += main.cpp \
     ui/mainwindow.cpp \
     ui/videopane.cpp \
     ui/globalsetting.cpp \
+    ui/coordinator/devicecoordinator.cpp \
     ui/toolbar/toolbarmanager.cpp \
     ui/toolbar/toggleswitch.cpp \
     ui/loghandler.cpp \
@@ -70,7 +71,8 @@ SOURCES += main.cpp \
     ui/languagemanager.cpp \
     ui/screensavermanager.cpp \
     ui/screenscale.cpp \
-    ui/cornerwidget/cornerwidgetmanager.cpp
+    ui/cornerwidget/cornerwidgetmanager.cpp \
+    ui/windowcontrolmanager.cpp
 
 # Platform-specific backend handlers (exclude on Windows)
 !win32 {
@@ -103,6 +105,7 @@ HEADERS  += \
     ui/videopane.h \
     ui/globalsetting.h \
     ui/statusevents.h \
+    ui/coordinator/devicecoordinator.h \
     ui/toolbar/toolbarmanager.h \
     ui/toolbar/toggleswitch.h \
     ui/loghandler.h \
@@ -146,7 +149,8 @@ HEADERS  += \
     ui/languagemanager.h \
     ui/screensavermanager.h \
     ui/screenscale.h \
-    ui/cornerwidget/cornerwidgetmanager.h
+    ui/cornerwidget/cornerwidgetmanager.h \
+    ui/windowcontrolmanager.h
 
 FORMS    += \
     ui/mainwindow.ui \
