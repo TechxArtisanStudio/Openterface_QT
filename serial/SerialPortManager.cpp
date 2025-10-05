@@ -60,6 +60,15 @@ SerialPortManager::SerialPortManager(QObject *parent) : QObject(parent), serialP
     // Initialize error frequency tracking
     m_errorTrackingTimer.start();
     
+    // Initialize command tracking for auto-restart logic
+    m_commandsSent = 0;
+    m_commandsReceived = 0;
+    m_serialResetCount = 0;
+    m_commandTrackingTimer = new QTimer(this);
+    m_commandTrackingTimer->setInterval(COMMAND_TRACKING_INTERVAL);
+    connect(m_commandTrackingTimer, &QTimer::timeout, this, &SerialPortManager::checkCommandLossRate);
+    m_commandTrackingTimer->start();
+    
     setupConnectionWatchdog();
 
     connect(this, &SerialPortManager::serialPortConnected, this, &SerialPortManager::onSerialPortConnected);
@@ -121,6 +130,11 @@ void SerialPortManager::stop() {
     
     // Stop watchdog timers
     stopConnectionWatchdog();
+    
+    // Stop command tracking timer
+    if (m_commandTrackingTimer) {
+        m_commandTrackingTimer->stop();
+    }
     
     // Prevent callback access during shutdown
     eventCallback = nullptr;
@@ -699,6 +713,12 @@ SerialPortManager::~SerialPortManager() {
         m_errorRecoveryTimer = nullptr;
     }
     
+    if (m_commandTrackingTimer) {
+        m_commandTrackingTimer->stop();
+        m_commandTrackingTimer->deleteLater();
+        m_commandTrackingTimer = nullptr;
+    }
+    
     // Final cleanup
     if (serialPort) {
         delete serialPort;
@@ -932,6 +952,9 @@ void SerialPortManager::readData() {
             m_consecutiveErrors++;
         }
         else{
+            // Increment command received counter for successful responses
+            m_commandsReceived++;
+            
             qCDebug(log_core_serial) << "Receive from serial port @" << serialPort->baudRate() << ":" << completeData.toHex(' ');
             static QSettings settings("Techxartisan", "Openterface");
             latestUpdateTime = QDateTime::currentDateTime();
@@ -1155,6 +1178,9 @@ bool SerialPortManager::sendAsyncCommand(const QByteArray &data, bool force) {
     QByteArray command = data;
     emit dataSent(data);
     command.append(calculateChecksum(command));
+
+    // Increment command sent counter for tracking
+    m_commandsSent++;
 
     // Check if less than the configured delay has passed since the last command
     if (m_lastCommandTime.isValid() && m_lastCommandTime.elapsed() < m_commandDelayMs) {
@@ -1731,4 +1757,96 @@ void SerialPortManager::stopConnectionWatchdog()
     if (m_errorRecoveryTimer) {
         m_errorRecoveryTimer->stop();
     }
+}
+
+/*
+ * Check command loss rate and trigger auto-restart if needed
+ * Called every 5 seconds by m_commandTrackingTimer
+ */
+void SerialPortManager::checkCommandLossRate()
+{
+    int sent = m_commandsSent.load();
+    int received = m_commandsReceived.load();
+    
+    qCDebug(log_core_serial) << "Command tracking: Sent=" << sent << "Received=" << received 
+                             << "ResetCount=" << m_serialResetCount.load();
+    
+    // Only evaluate if we have sent commands
+    if (sent > 0) {
+        double lossRate = 1.0 - (static_cast<double>(received) / static_cast<double>(sent));
+        
+        qCDebug(log_core_serial) << "Command loss rate:" << (lossRate * 100.0) << "%";
+        
+        // Check if loss rate exceeds 30%
+        if (lossRate >= COMMAND_LOSS_THRESHOLD) {
+            int currentResetCount = m_serialResetCount.load();
+            
+            if (currentResetCount < MAX_SERIAL_RESETS) {
+                qCWarning(log_core_serial) << "Command loss rate (" << (lossRate * 100.0) 
+                                          << "%) exceeds threshold. Triggering serial port restart. Reset count:" 
+                                          << (currentResetCount + 1) << "/" << MAX_SERIAL_RESETS;
+                
+                // Increment reset counter
+                m_serialResetCount++;
+                
+                // Notify UI about auto-restart
+                if (eventCallback != nullptr) {
+                    eventCallback->onSerialAutoRestart(m_serialResetCount.load(), MAX_SERIAL_RESETS, lossRate);
+                }
+                
+                // Reset command counters before restart
+                resetCommandCounters();
+                
+                // Trigger serial port restart
+                if (serialPort && serialPort->isOpen()) {
+                    restartPort();
+                } else {
+                    qCWarning(log_core_serial) << "Serial port not open, attempting to reconnect";
+                    initializeSerialPortFromPortChain();
+                }
+            } else {
+                // Maximum reset attempts reached
+                if (received == 0) {
+                    qCCritical(log_core_serial) << "CRITICAL: Maximum serial reset attempts (" << MAX_SERIAL_RESETS 
+                                               << ") reached with no data received. Serial port communication failed.";
+                    
+                    // Stop further restart attempts
+                    if (m_commandTrackingTimer) {
+                        m_commandTrackingTimer->stop();
+                    }
+                    
+                    // Log error for debugging
+                    if (eventCallback) {
+                        eventCallback->onStatusUpdate("Serial port communication failure - max resets exceeded");
+                    }
+                } else {
+                    qCWarning(log_core_serial) << "Maximum serial reset attempts reached but some data is being received. Continuing monitoring.";
+                }
+                
+                // Reset counters even if we can't restart anymore
+                resetCommandCounters();
+            }
+        } else {
+            qCDebug(log_core_serial) << "Command loss rate is acceptable (" << (lossRate * 100.0) << "%)";
+            
+            // Reset the serial reset counter if communication is good
+            if (m_serialResetCount > 0) {
+                qCDebug(log_core_serial) << "Communication recovered, resetting serial reset counter";
+                m_serialResetCount = 0;
+            }
+        }
+    }
+    
+    // Reset counters for next tracking window
+    resetCommandCounters();
+}
+
+/*
+ * Reset command counters for the next tracking window
+ */
+void SerialPortManager::resetCommandCounters()
+{
+    m_commandsSent = 0;
+    m_commandsReceived = 0;
+    qCDebug(log_core_serial) << "Command counters reset for next tracking window";
 }

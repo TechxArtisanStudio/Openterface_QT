@@ -223,6 +223,15 @@ private:
     QMutex m_syncResponseMutex;
     QWaitCondition m_syncResponseCondition;
     
+    // Command tracking for auto-restart logic
+    std::atomic<int> m_commandsSent = 0;
+    std::atomic<int> m_commandsReceived = 0;
+    std::atomic<int> m_serialResetCount = 0;
+    QTimer* m_commandTrackingTimer;
+    static const int COMMAND_TRACKING_INTERVAL = 5000; // 5 seconds
+    static const int MAX_SERIAL_RESETS = 3;
+    static constexpr double COMMAND_LOSS_THRESHOLD = 0.30; // 30% loss rate
+    
     // Enhanced error handling
     void handleSerialError(QSerialPort::SerialPortError error);
     void attemptRecovery();
@@ -232,6 +241,10 @@ private:
     void stopConnectionWatchdog();
     int anotherBaudrate();
     QString statusCodeToString(uint8_t status);
+    
+    // Command tracking methods
+    void checkCommandLossRate();
+    void resetCommandCounters();
 };
 
 #endif // SERIALPORTMANAGER_H

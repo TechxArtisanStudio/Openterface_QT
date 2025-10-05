@@ -16,7 +16,7 @@ StatusBarManager::StatusBarManager(QStatusBar *statusBar, QObject *parent)
         m_messageThrottleActive = false;
         if (!m_pendingMessage.isEmpty()) {
             // Show the pending message if there's one waiting
-            resetLabel->setText(m_pendingMessage);
+            statusMessageLabel->setText(m_pendingMessage);
             m_lastMessage = m_pendingMessage;
             m_pendingMessage.clear();
         }
@@ -50,12 +50,12 @@ void StatusBarManager::initStatusBar()
     keyLayout->addWidget(keyLabel);
     m_statusBar->addWidget(keyContainer);
 
-    QWidget *resetContainer = new QWidget(m_statusBar);
-    QHBoxLayout *resetLayout = new QHBoxLayout(resetContainer);
-    resetLabel = new QLabel(m_statusBar);
+    QWidget *statusMessageContainer = new QWidget(m_statusBar);
+    QHBoxLayout *statusMessageLayout = new QHBoxLayout(statusMessageContainer);
+    statusMessageLabel = new QLabel(m_statusBar);
 
-    resetLayout->addWidget(resetLabel);
-    m_statusBar->addWidget(resetContainer);
+    statusMessageLayout->addWidget(statusMessageLabel);
+    m_statusBar->addWidget(statusMessageContainer);
 
     onLastKeyPressed("");
     updateIconColor();
@@ -64,26 +64,26 @@ void StatusBarManager::initStatusBar()
 void StatusBarManager::factoryReset(bool isStarted)
 {
     if (isStarted) {
-        resetLabel->setText("Factory Reset Started, it may take a few seconds...");
-        resetLabel->setStyleSheet("color: red;");
+        statusMessageLabel->setText("Factory Reset Started, it may take a few seconds...");
+        statusMessageLabel->setStyleSheet("color: red;");
     }else {
-        resetLabel->clear();
-        resetLabel->setText("Factory Reset Ended");
-        resetLabel->setStyleSheet("color: green;");
+        statusMessageLabel->clear();
+        statusMessageLabel->setText("Factory Reset Ended");
+        statusMessageLabel->setStyleSheet("color: green;");
     }
 }
 
 void StatusBarManager::serialPortReset(bool isStarted)
 {
     if (isStarted) {
-        resetLabel->clear();
-        resetLabel->setText("Serial Port Reset Started");
-        resetLabel->setStyleSheet("color: red;");
+        statusMessageLabel->clear();
+        statusMessageLabel->setText("Serial Port Reset Started");
+        statusMessageLabel->setStyleSheet("color: red;");
     }else {
-        resetLabel->clear();
-        resetLabel->setText("Serial Port Reset Ended");
-        resetLabel->setStyleSheet("color: green;");
-        QTimer::singleShot(1000, resetLabel, &QLabel::clear);
+        statusMessageLabel->clear();
+        statusMessageLabel->setText("Serial Port Reset Ended");
+        statusMessageLabel->setStyleSheet("color: green;");
+        QTimer::singleShot(1000, statusMessageLabel, &QLabel::clear);
     }
 }
 
@@ -101,15 +101,15 @@ void StatusBarManager::showThrottledMessage(const QString& message, const QStrin
     }
     
     // Show the message immediately
-    resetLabel->clear();
-    resetLabel->setText(message);
-    resetLabel->setStyleSheet(style);
+    statusMessageLabel->clear();
+    statusMessageLabel->setText(message);
+    statusMessageLabel->setStyleSheet(style);
     m_lastMessage = message;
     m_messageThrottleActive = true;
     
     // Clear after duration and allow new messages
     QTimer::singleShot(duration, this, [this]() {
-        resetLabel->clear();
+        statusMessageLabel->clear();
         m_messageThrottleActive = false;
         m_lastMessage.clear();
     });
@@ -242,4 +242,13 @@ void StatusBarManager::updateKeyboardIcon(const QString& key)
 void StatusBarManager::setKeyStates(bool numLock, bool capsLock, bool scrollLock)
 {
     m_statusWidget->setKeyStates(numLock, capsLock, scrollLock);
+}
+
+void StatusBarManager::showSerialAutoRestart(int attemptNumber, int maxAttempts, double lossRate)
+{
+    QString message = QString("⚠️ Auto-restarting serial port (attempt %1/%2) - Loss rate: %3%")
+                      .arg(attemptNumber)
+                      .arg(maxAttempts)
+                      .arg(QString::number(lossRate * 100.0, 'f', 1));
+    showThrottledMessage(message, "color: orange;", 3000);
 }
