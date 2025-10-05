@@ -29,6 +29,7 @@
 #include <QDebug>
 #include <QHBoxLayout>
 #include <QProcess>
+#include <QEvent>
 
 #ifdef Q_OS_WIN
 #include <windows.h>
@@ -43,10 +44,35 @@ StatusWidget::StatusWidget(QWidget *parent) : QWidget(parent), m_captureWidth(0)
     keyboardIndicatorsLabel = new QLabel("", this);
     keyStatesLabel = new QLabel("", this);
     statusLabel = new QLabel("", this);
-    cpuUsageLabel = new QLabel("🖥️: 0%", this);
+    
+    // Create labels with SVG icons
+    cpuUsageLabel = new QLabel(this);
+    cpuUsageLabel->setPixmap(createIconTextLabel(":/images/monitor.svg", "0%"));
+    
     resolutionLabel = new QLabel("💻:", this);
     inputResolutionLabel = new QLabel("INPUT(NA)", this);
-    connectedPortLabel = new QLabel("🔌: N/A", this);
+    
+    connectedPortLabel = new QLabel(this);
+    connectedPortLabel->setPixmap(createIconTextLabel(":/images/usbplug.svg", "N/A"));
+    
+    // Store icons for reuse
+    keyboardIcon = QPixmap(16, 16);
+    keyboardIcon.fill(Qt::transparent);
+    QPainter keyboardPainter(&keyboardIcon);
+    QSvgRenderer keyboardRenderer(":/images/keyboard.svg");
+    keyboardRenderer.render(&keyboardPainter, QRectF(0, 0, 16, 16));
+    
+    monitorIcon = QPixmap(16, 16);
+    monitorIcon.fill(Qt::transparent);
+    QPainter monitorPainter(&monitorIcon);
+    QSvgRenderer monitorRenderer(":/images/monitor.svg");
+    monitorRenderer.render(&monitorPainter, QRectF(0, 0, 16, 16));
+    
+    plugIcon = QPixmap(16, 16);
+    plugIcon.fill(Qt::transparent);
+    QPainter plugPainter(&plugIcon);
+    QSvgRenderer plugRenderer(":/images/usbplug.svg");
+    plugRenderer.render(&plugPainter, QRectF(0, 0, 16, 16));
 
     // Setup CPU monitoring timer
     cpuTimer = new QTimer(this);
@@ -84,6 +110,34 @@ StatusWidget::~StatusWidget() {
     // Note: This cleanup is handled automatically when the process ends,
     // but it's good practice to clean up explicitly
 #endif
+}
+
+void StatusWidget::changeEvent(QEvent *event)
+{
+    QWidget::changeEvent(event);
+    
+    // Detect palette/theme changes and refresh all icons
+    if (event->type() == QEvent::PaletteChange || event->type() == QEvent::StyleChange) {
+        refreshAllIcons();
+    }
+}
+
+void StatusWidget::refreshAllIcons()
+{
+    // Refresh CPU usage label
+    updateCpuUsage();
+    
+    // Refresh connected port label (preserve current state)
+    QString currentTooltip = connectedPortLabel->toolTip();
+    if (!currentTooltip.isEmpty() && currentTooltip != "N/A") {
+        // Extract port and baudrate from tooltip or maintain current display
+        connectedPortLabel->setPixmap(connectedPortLabel->pixmap(Qt::ReturnByValue));
+    }
+    
+    // Refresh key states label (preserve current state)
+    // This will be automatically updated on next setKeyStates call
+    
+    update();
 }
 
 void StatusWidget::setInputResolution(const int &width, const int &height, const float &fps, const float &pixelClk) {
@@ -136,9 +190,9 @@ void StatusWidget::setCaptureResolution(const int &width, const int &height, con
 
 void StatusWidget::setConnectedPort(const QString &port, const int &baudrate) {
     if(baudrate > 0){
-        connectedPortLabel->setText(QString("🔌: %1@%2").arg(port).arg(baudrate));
+        connectedPortLabel->setPixmap(createIconTextLabel(":/images/usbplug.svg", QString("%1@%2").arg(port).arg(baudrate)));
     }else{
-        connectedPortLabel->setText(QString("🔌: N/A"));
+        connectedPortLabel->setPixmap(createIconTextLabel(":/images/usbplug.svg", "N/A"));
     }
     update(); 
 }
@@ -178,7 +232,13 @@ void StatusWidget::setTargetUsbConnected(const bool isConnected){
 void StatusWidget::setBaudrate(int baudrate)
 {
     // Update the UI element that displays the baudrate
-    connectedPortLabel->setText(QString("🔌: %1@%2").arg(connectedPortLabel->text().split('@').first()).arg(baudrate));
+    // Extract port name from current text (after the colon and space)
+    QString currentText = connectedPortLabel->toolTip();
+    QString portName = currentText.split('@').first();
+    if (portName.isEmpty()) {
+        portName = "Unknown";
+    }
+    connectedPortLabel->setPixmap(createIconTextLabel(":/images/usbplug.svg", QString("%1@%2").arg(portName).arg(baudrate)));
     update();
 }
 
@@ -198,12 +258,12 @@ void StatusWidget::setKeyStates(bool numLock, bool capsLock, bool scrollLock)
     }
     
     if (activeKeys.isEmpty()) {
-        keyStatesText = "⌨️: ---";
+        keyStatesText = "---";
     } else {
-        keyStatesText = QString("⌨️: %1").arg(activeKeys.join("|"));
+        keyStatesText = activeKeys.join("|");
     }
     
-    keyStatesLabel->setText(keyStatesText);
+    keyStatesLabel->setPixmap(createIconTextLabel(":/images/keyboard.svg", keyStatesText));
     
     // Set tooltip with detailed information
     QString tooltip = QString("Keyboard Lock States:\nNum Lock: %1\nCaps Lock: %2\nScroll Lock: %3")
@@ -230,25 +290,83 @@ void StatusWidget::updateCpuUsage()
 {
     double cpuUsage = getCpuUsage();
     if (cpuUsage >= 0) {
-        cpuUsageLabel->setText(QString("🖥️: %1%").arg(QString::number(cpuUsage, 'f', 1)));
+        QString text = QString("%1%").arg(QString::number(cpuUsage, 'f', 1));
+        QColor color;
         
-        // Set tooltip with more detailed info
-        cpuUsageLabel->setToolTip(QString("App CPU Usage: %1%").arg(QString::number(cpuUsage, 'f', 1)));
-        
-        // Optional: Change color based on usage
+        // Choose color based on usage
         if (cpuUsage > 80) {
-            cpuUsageLabel->setStyleSheet("color: red;");
+            color = QColor("red");
         } else if (cpuUsage > 60) {
-            cpuUsageLabel->setStyleSheet("color: orange;");
+            color = QColor("orange");
         } else {
-            cpuUsageLabel->setStyleSheet("color: green;");
+            color = QColor("green");
         }
+        
+        cpuUsageLabel->setPixmap(createIconTextLabel(":/images/monitor.svg", text, color));
+        cpuUsageLabel->setToolTip(QString("App CPU Usage: %1%").arg(QString::number(cpuUsage, 'f', 1)));
     } else {
-        cpuUsageLabel->setText("🖥️: N/A");
+        cpuUsageLabel->setPixmap(createIconTextLabel(":/images/monitor.svg", "N/A"));
         cpuUsageLabel->setToolTip("App CPU usage unavailable");
-        cpuUsageLabel->setStyleSheet("");
     }
     update();
+}
+
+QPixmap StatusWidget::createIconTextLabel(const QString &svgPath, const QString &text, const QColor &textColor, const QColor &iconColor)
+{
+    // Determine colors to use
+    QColor finalIconColor = iconColor.isValid() ? iconColor : getIconColorForCurrentTheme();
+    QColor finalTextColor = textColor.isValid() ? textColor : palette().color(QPalette::WindowText);
+    
+    // Load SVG icon
+    QPixmap iconPixmap(16, 16);
+    iconPixmap.fill(Qt::transparent);
+    QPainter iconPainter(&iconPixmap);
+    QSvgRenderer renderer(svgPath);
+    renderer.render(&iconPainter, QRectF(0, 0, 16, 16));
+    
+    // Apply color overlay to make icon adapt to theme
+    iconPainter.setCompositionMode(QPainter::CompositionMode_SourceIn);
+    iconPainter.fillRect(iconPixmap.rect(), finalIconColor);
+    iconPainter.end();
+    
+    // Calculate text width
+    QFontMetrics fm(font());
+    int textWidth = fm.horizontalAdvance(text);
+    int totalWidth = 16 + 4 + textWidth; // icon + spacing + text
+    int height = 16;
+    
+    // Create combined pixmap
+    QPixmap combinedPixmap(totalWidth, height);
+    combinedPixmap.fill(Qt::transparent);
+    QPainter painter(&combinedPixmap);
+    
+    // Draw icon
+    painter.drawPixmap(0, 0, iconPixmap);
+    
+    // Draw text
+    painter.setPen(finalTextColor);
+    painter.drawText(20, fm.ascent(), text);
+    painter.end();
+    
+    return combinedPixmap;
+}
+
+QColor StatusWidget::getIconColorForCurrentTheme() const
+{
+    // Determine if we're in a dark or light theme by checking the window background
+    QPalette pal = palette();
+    QColor backgroundColor = pal.color(QPalette::Window);
+    
+    // Calculate luminance to determine if background is dark or light
+    // Using the relative luminance formula: Y = 0.299*R + 0.587*G + 0.114*B
+    int luminance = (299 * backgroundColor.red() + 587 * backgroundColor.green() + 114 * backgroundColor.blue()) / 1000;
+    
+    // If background is dark (luminance < 128), use light icons; otherwise use dark icons
+    if (luminance < 128) {
+        return QColor(220, 220, 220); // Light gray for dark theme
+    } else {
+        return QColor(50, 50, 50); // Dark gray for light theme
+    }
 }
 
 double StatusWidget::getCpuUsage()
