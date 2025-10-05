@@ -118,7 +118,7 @@ void DeviceManager::discoverDevicesAsync()
     {
         // For other platforms, fall back to synchronous discovery
         // but run it in a background thread to avoid blocking
-        QtConcurrent::run([this]() {
+        auto future = QtConcurrent::run([this]() {
             QList<DeviceInfo> devices = discoverDevices();
             emit devicesChanged(devices);
         });
