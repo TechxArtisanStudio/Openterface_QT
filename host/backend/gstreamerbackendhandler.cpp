@@ -3100,7 +3100,7 @@ bool GStreamerBackendHandler::initializeFrameBasedRecording()
     }
     
     // Link tee to recording branch
-    GstPad* teeSrcPad = gst_element_get_request_pad(tee, "src_%u");
+    GstPad* teeSrcPad = gst_element_request_pad_simple(tee, "src_%u");
     GstPad* queueSinkPad = gst_element_get_static_pad(queue, "sink");
     
     if (!teeSrcPad || !queueSinkPad) {
@@ -3285,7 +3285,7 @@ bool GStreamerBackendHandler::createSeparateRecordingPipeline(const QString& out
     }
     
     // Link tee to recording branch
-    GstPad *teeSrcPad = gst_element_get_request_pad(m_recordingTee, "src_%u");
+    GstPad *teeSrcPad = gst_element_request_pad_simple(m_recordingTee, "src_%u");
     GstPad *queueSinkPad = gst_element_get_static_pad(m_recordingQueue, "sink");
     
     if (!teeSrcPad || !queueSinkPad) {
@@ -3533,7 +3533,7 @@ bool GStreamerBackendHandler::initializeDirectFilesinkRecording()
     }
     
     // Link tee to recording branch (through identity if available)
-    GstPad* teeSrcPad = gst_element_get_request_pad(tee, "src_%u");
+    GstPad* teeSrcPad = gst_element_request_pad_simple(tee, "src_%u");
     GstPad* firstElementSinkPad;
     
     if (identity) {

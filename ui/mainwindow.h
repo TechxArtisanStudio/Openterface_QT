@@ -189,6 +189,8 @@ private slots:
     void factoryReset(bool isStarted) override;
 
     void serialPortReset(bool isStarted) override;
+    
+    void onSerialAutoRestart(int attemptNumber, int maxAttempts, double lossRate) override;
 
     void showEnvironmentSetupDialog();
 

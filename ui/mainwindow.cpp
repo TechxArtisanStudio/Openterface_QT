@@ -1713,6 +1713,11 @@ void MainWindow::serialPortReset(bool isStarted)
     m_statusBarManager->serialPortReset(isStarted);
 }
 
+void MainWindow::onSerialAutoRestart(int attemptNumber, int maxAttempts, double lossRate)
+{
+    m_statusBarManager->showSerialAutoRestart(attemptNumber, maxAttempts, lossRate);
+}
+
 void MainWindow::onStatusUpdate(const QString& status) {
     m_statusBarManager->setStatusUpdate(status);
 }

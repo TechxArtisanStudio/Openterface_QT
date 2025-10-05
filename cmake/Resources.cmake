@@ -26,6 +26,9 @@ set(mainwindow_resource_files
     "ui/../images/zoom_in.svg"
     "ui/../images/zoom_out.svg"
     "ui/../images/screen_scale.svg"
+    "ui/../images/laptop.svg"
+    "ui/../images/monitor.svg"
+    "ui/../images/usbplug.svg"
 )
 
 qt_add_resources(openterfaceQT "mainwindow"
