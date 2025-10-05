@@ -128,22 +128,30 @@ MainWindow::MainWindow(LanguageManager *languageManager, QWidget *parent) :  ui(
                             m_screenSaverManager(new ScreenSaverManager(this)),
                             m_cornerWidgetManager(new CornerWidgetManager(this)),
                             m_windowControlManager(nullptr)
-                            // cameraAdjust(new CameraAdjust(this))
 {
     Q_UNUSED(parent);
 
-    qCDebug(log_ui_mainwindow) << "Init camera...";
+    qCDebug(log_ui_mainwindow) << "Init MainWindow...";
     
+    qCDebug(log_ui_mainwindow) << "Setting up UI...";
     ui->setupUi(this);
+    qCDebug(log_ui_mainwindow) << "UI setup complete";
     
     // Initialize WindowLayoutCoordinator early - needed before checkInitSize()
     qCDebug(log_ui_mainwindow) << "Initializing WindowLayoutCoordinator...";
     m_windowLayoutCoordinator = new WindowLayoutCoordinator(this, videoPane, menuBar(), statusBar(), this);
+    qCDebug(log_ui_mainwindow) << "WindowLayoutCoordinator initialized";
     
+    qCDebug(log_ui_mainwindow) << "Setting menubar on corner widget manager...";
     m_cornerWidgetManager->setMenuBar(ui->menubar);
+    qCDebug(log_ui_mainwindow) << "Menubar set";
     // ui->menubar->setCornerWidget(m_cornerWidgetManager->getCornerWidget(), Qt::TopRightCorner);
 
+    qCDebug(log_ui_mainwindow) << "Initializing keyboard layouts...";
     initializeKeyboardLayouts();
+    qCDebug(log_ui_mainwindow) << "Keyboard layouts initialized";
+    
+    qCDebug(log_ui_mainwindow) << "Connecting corner widget zoom signals...";
     connect(m_cornerWidgetManager, &CornerWidgetManager::zoomInClicked, [this]() {
         if (m_windowLayoutCoordinator) {
             m_windowLayoutCoordinator->zoomIn();
@@ -175,16 +183,26 @@ MainWindow::MainWindow(LanguageManager *languageManager, QWidget *parent) :  ui(
     connect(m_cornerWidgetManager, &CornerWidgetManager::screensaverClicked, this, &MainWindow::onActionScreensaver);
     connect(m_cornerWidgetManager, &CornerWidgetManager::toggleSwitchChanged, this, &MainWindow::onToggleSwitchStateChanged);
     connect(m_cornerWidgetManager, &CornerWidgetManager::keyboardLayoutChanged, this, &MainWindow::onKeyboardLayoutCombobox_Changed);
-    
+    qCDebug(log_ui_mainwindow) << "All corner widget signals connected";
 
+    qCDebug(log_ui_mainwindow) << "Setting mouse auto hide...";
     GlobalVar::instance().setMouseAutoHide(GlobalSetting::instance().getMouseAutoHideEnable());
+    qCDebug(log_ui_mainwindow) << "Mouse auto hide set";
 
+    qCDebug(log_ui_mainwindow) << "Creating StatusBarManager...";
     m_statusBarManager = new StatusBarManager(ui->statusbar, this);
+    qCDebug(log_ui_mainwindow) << "StatusBarManager created";
+    
+    qCDebug(log_ui_mainwindow) << "Getting TaskManager instance...";
     taskmanager = TaskManager::instance();
+    qCDebug(log_ui_mainwindow) << "TaskManager instance obtained";
     
     // Connect DeviceManager hotplug events to StatusBarManager
+    qCDebug(log_ui_mainwindow) << "Getting DeviceManager instance...";
     DeviceManager& deviceManager = DeviceManager::getInstance();
+    qCDebug(log_ui_mainwindow) << "Getting HotplugMonitor...";
     HotplugMonitor* hotplugMonitor = deviceManager.getHotplugMonitor();
+    qCDebug(log_ui_mainwindow) << "HotplugMonitor obtained";
     if (hotplugMonitor) {
         connect(hotplugMonitor, &HotplugMonitor::newDevicePluggedIn, 
                 m_statusBarManager, [this](const DeviceInfo& device) {
