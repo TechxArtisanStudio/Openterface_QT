@@ -453,11 +453,11 @@ void VideoPane::centerVideoItem()
     if (m_directFFmpegMode && m_pixmapItem) {
         targetItem = m_pixmapItem;
         itemRect = m_pixmapItem->boundingRect();
-        qDebug(log_ui_video) << "VideoPane: Centering FFmpeg pixmap item";
+        //qDebug(log_ui_video) << "VideoPane: Centering FFmpeg pixmap item";
     } else if (m_videoItem) {
         targetItem = m_videoItem;
         itemRect = m_videoItem->boundingRect();
-        qDebug() << "VideoPane: Centering Qt video item";
+        //qDebug() << "VideoPane: Centering Qt video item";
     }
     
     if (!targetItem) return;
