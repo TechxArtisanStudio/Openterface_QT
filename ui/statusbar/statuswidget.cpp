@@ -49,7 +49,8 @@ StatusWidget::StatusWidget(QWidget *parent) : QWidget(parent), m_captureWidth(0)
     cpuUsageLabel = new QLabel(this);
     cpuUsageLabel->setPixmap(createIconTextLabel(":/images/monitor.svg", "0%"));
     
-    resolutionLabel = new QLabel("💻:", this);
+    resolutionLabel = new QLabel(this);
+    resolutionLabel->setPixmap(createIconTextLabel(":/images/laptop.svg", ""));
     inputResolutionLabel = new QLabel("INPUT(NA)", this);
     
     connectedPortLabel = new QLabel(this);

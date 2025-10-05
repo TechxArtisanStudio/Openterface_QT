@@ -119,7 +119,7 @@ void StatusBarManager::showNewDevicePluggedIn(const QString& portChain)
 {
     qDebug() << "StatusBarManager::showNewDevicePluggedIn called with portChain:" << portChain;
     if (!portChain.isEmpty()) {
-        QString message = QString("🔌 New device detected: Port %1").arg(portChain);
+        QString message = QString("New device detected: Port %1").arg(portChain);
         showThrottledMessage(message, "color: blue;", 3000);
     }
 }
@@ -128,7 +128,7 @@ void StatusBarManager::showDeviceUnplugged(const QString& portChain)
 {
     qDebug() << "StatusBarManager::showDeviceUnplugged called with portChain:" << portChain;
     if (!portChain.isEmpty()) {
-        QString message = QString("🔌 Device unplugged: Port %1").arg(portChain);
+        QString message = QString("Device unplugged: Port %1").arg(portChain);
         showThrottledMessage(message, "color: orange;", 3000);
     }
 }

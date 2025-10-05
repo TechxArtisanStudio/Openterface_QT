@@ -267,7 +267,7 @@ QString DeviceSelectorDialog::formatCompleteDeviceListItem(const DeviceInfo& dev
     QStringList parts;
     
     // Make port chain more prominent at the start with cleaner format
-    parts << QString("🔌 Port %1").arg(device.portChain);
+    parts << QString("Port %1").arg(device.portChain);
     parts << QString("- Openterface Mini KVM");
     
     // Show all available interfaces
@@ -357,7 +357,7 @@ QString DeviceSelectorDialog::formatDeviceDetails(const DeviceInfo& device)
     }
     
     QStringList details;
-    details << QString("<h3>🔌 Openterface Mini KVM Device</h3>");
+    details << QString("<h3>Openterface Mini KVM Device</h3>");
     details << QString("<h4>USB Port: %1</h4>").arg(device.portChain);
     details << QString("<b>Device Instance ID:</b> %1").arg(device.deviceInstanceId);
     details << QString("<b>Last Seen:</b> %1").arg(device.lastSeen.toString("yyyy-MM-dd hh:mm:ss"));
@@ -375,7 +375,7 @@ QString DeviceSelectorDialog::formatDeviceDetails(const DeviceInfo& device)
     details << "<h4>Interface Details:</h4>";
     
     if (device.hasSerialPort()) {
-        details << QString("🔌 <b>Serial Interface:</b> %1").arg(device.serialPortPath);
+        details << QString("<b>Serial Interface:</b> %1").arg(device.serialPortPath);
         details << QString("   Device ID: %1").arg(device.serialPortId);
         details << QString("   Function: Control and communication");
     } else {
