@@ -60,19 +60,19 @@ StatusWidget::StatusWidget(QWidget *parent) : QWidget(parent), m_captureWidth(0)
     keyboardIcon = QPixmap(16, 16);
     keyboardIcon.fill(Qt::transparent);
     QPainter keyboardPainter(&keyboardIcon);
-    QSvgRenderer keyboardRenderer(":/images/keyboard.svg");
+    QSvgRenderer keyboardRenderer(QString(":/images/keyboard.svg"));
     keyboardRenderer.render(&keyboardPainter, QRectF(0, 0, 16, 16));
     
     monitorIcon = QPixmap(16, 16);
     monitorIcon.fill(Qt::transparent);
     QPainter monitorPainter(&monitorIcon);
-    QSvgRenderer monitorRenderer(":/images/monitor.svg");
+    QSvgRenderer monitorRenderer(QString(":/images/monitor.svg"));
     monitorRenderer.render(&monitorPainter, QRectF(0, 0, 16, 16));
     
     plugIcon = QPixmap(16, 16);
     plugIcon.fill(Qt::transparent);
     QPainter plugPainter(&plugIcon);
-    QSvgRenderer plugRenderer(":/images/usbplug.svg");
+    QSvgRenderer plugRenderer(QString(":/images/usbplug.svg"));
     plugRenderer.render(&plugPainter, QRectF(0, 0, 16, 16));
 
     // Setup CPU monitoring timer
