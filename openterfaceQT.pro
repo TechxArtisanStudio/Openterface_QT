@@ -31,6 +31,8 @@ SOURCES += main.cpp \
     ui/videopane.cpp \
     ui/globalsetting.cpp \
     ui/coordinator/devicecoordinator.cpp \
+    ui/coordinator/menucoordinator.cpp \
+    ui/coordinator/windowlayoutcoordinator.cpp \
     ui/toolbar/toolbarmanager.cpp \
     ui/toolbar/toggleswitch.cpp \
     ui/loghandler.cpp \
@@ -106,6 +108,8 @@ HEADERS  += \
     ui/globalsetting.h \
     ui/statusevents.h \
     ui/coordinator/devicecoordinator.h \
+    ui/coordinator/menucoordinator.h \
+    ui/coordinator/windowlayoutcoordinator.h \
     ui/toolbar/toolbarmanager.h \
     ui/toolbar/toggleswitch.h \
     ui/loghandler.h \

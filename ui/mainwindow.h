@@ -55,6 +55,7 @@
 #include "ui/windowcontrolmanager.h"
 #include "ui/coordinator/devicecoordinator.h"
 #include "ui/coordinator/menucoordinator.h"
+#include "ui/coordinator/windowlayoutcoordinator.h"
 
 #define SERVER_PORT 12345
 #include "server/tcpServer.h"
@@ -211,9 +212,7 @@ private slots:
 
     void onToggleSwitchStateChanged(int state);
 
-    void onZoomIn();
-    void onZoomOut();
-    void onZoomReduction();
+
     void onKeyboardLayoutCombobox_Changed(const QString &layout);
     
     void checkMousePosition();
@@ -297,6 +296,7 @@ private:
     InputHandler *m_inputHandler;
     DeviceCoordinator *m_deviceCoordinator;
     MenuCoordinator *m_menuCoordinator;
+    WindowLayoutCoordinator *m_windowLayoutCoordinator;
 
     void updateScrollbars();
     QPoint lastMousePos;
@@ -319,23 +319,6 @@ private:
 
     void onToolbarVisibilityChanged(bool visible);
 
-    void animateVideoPane();
-
-    void doResize();
-    void handleScreenBoundsResize(int &currentWidth, int &currentHeight, 
-                                 int availableWidth, int availableHeight,
-                                 int maxContentHeight, int menuBarHeight, 
-                                 int statusBarHeight, double aspectRatio);
-    void handleAspectRatioResize(int currentWidth, int currentHeight, 
-                                int menuBarHeight, int statusBarHeight,
-                                double aspectRatio, double captureAspectRatio);
-
-    void centerVideoPane(int videoWidth, int videoHeight, int WindowWidth, int WindowHeight);
-    void checkInitSize();
-    void fullScreen();
-    bool isFullScreenMode();
-    bool fullScreenState = false;
-    Qt::WindowStates oldWindowState;
     ScriptTool *scriptTool;
     ScreenSaverManager *m_screenSaverManager;
     ScreenScale *m_screenScaleDialog = nullptr;

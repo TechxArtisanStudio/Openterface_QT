@@ -99,6 +99,7 @@ set(UI_CORE_SOURCES
 set(UI_COORDINATOR_SOURCES
     ui/coordinator/devicecoordinator.cpp ui/coordinator/devicecoordinator.h
     ui/coordinator/menucoordinator.cpp ui/coordinator/menucoordinator.h
+    ui/coordinator/windowlayoutcoordinator.cpp ui/coordinator/windowlayoutcoordinator.h
 )
 
 # UI help sources
