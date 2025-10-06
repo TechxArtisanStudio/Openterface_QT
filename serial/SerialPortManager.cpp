@@ -895,11 +895,13 @@ void SerialPortManager::updateSpecialKeyState(uint8_t data){
     
     // Notify callback about key state changes
     if (eventCallback != nullptr) {
-        qDebug(log_core_serial) << "NumLockState:" << NumLockState 
+        qDebug(log_core_serial) << "[CRASH DEBUG] SerialPortManager: About to call onKeyStatesChanged callback - NumLockState:" << NumLockState 
                                << "CapsLockState:" << CapsLockState 
                                << "ScrollLockState:" << ScrollLockState;
         eventCallback->onKeyStatesChanged(NumLockState, CapsLockState, ScrollLockState);
+        qDebug(log_core_serial) << "[CRASH DEBUG] SerialPortManager: onKeyStatesChanged callback completed successfully";
     }
+    qDebug(log_core_serial) << "[CRASH DEBUG] SerialPortManager: updateKeyStates END";
 }
 /*
  * Read the data from the serial port
@@ -966,11 +968,16 @@ void SerialPortManager::readData() {
             switch (code)
             {
             case 0x81:
+                qCDebug(log_core_serial) << "[CRASH DEBUG] SerialPortManager: Case 0x81 - processing target USB status and key states";
                 isTargetUsbConnected = CmdGetInfoResult::fromByteArray(completeData).targetConnected == 0x01;
                 if (eventCallback != nullptr) {
+                    qCDebug(log_core_serial) << "[CRASH DEBUG] SerialPortManager: About to call onTargetUsbConnected";
                     eventCallback->onTargetUsbConnected(isTargetUsbConnected);
+                    qCDebug(log_core_serial) << "[CRASH DEBUG] SerialPortManager: onTargetUsbConnected completed";
                 }
+                qCDebug(log_core_serial) << "[CRASH DEBUG] SerialPortManager: About to call updateSpecialKeyState";
                 updateSpecialKeyState(CmdGetInfoResult::fromByteArray(completeData).indicators);
+                qCDebug(log_core_serial) << "[CRASH DEBUG] SerialPortManager: updateSpecialKeyState completed, continuing...";
                 break;
             case 0x82:
                 qCDebug(log_core_serial) << "Keyboard event sent, status" << statusCodeToString(completeData[5]);
@@ -1017,6 +1024,7 @@ void SerialPortManager::readData() {
                 qCDebug(log_core_serial) << "Unknown command: " << completeData.toHex(' ');
                 break;
             }
+            qCDebug(log_core_serial) << "[CRASH DEBUG] SerialPortManager: Switch statement completed, continuing readData()";
         }
     } else {
         // Store incomplete data in buffer for next batch
@@ -1038,12 +1046,17 @@ void SerialPortManager::readData() {
     }
     
     // Check if recovery is needed based on error count
+    qCDebug(log_core_serial) << "[CRASH DEBUG] SerialPortManager: Checking if recovery needed...";
     if (isRecoveryNeeded()) {
+        qCDebug(log_core_serial) << "[CRASH DEBUG] SerialPortManager: Recovery needed, attempting...";
         attemptRecovery();
+        qCDebug(log_core_serial) << "[CRASH DEBUG] SerialPortManager: Recovery attempt completed";
     }
     
     // qCDebug(log_core_serial) << "Recv read" << data;
+    qCDebug(log_core_serial) << "[CRASH DEBUG] SerialPortManager: About to emit dataReceived signal";
     emit dataReceived(completeData);
+    qCDebug(log_core_serial) << "[CRASH DEBUG] SerialPortManager: readData() END - All processing completed";
 }
 
 QString SerialPortManager::statusCodeToString(uint8_t status) {

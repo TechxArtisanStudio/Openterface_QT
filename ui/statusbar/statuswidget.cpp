@@ -26,6 +26,7 @@
 #include <QTimer>
 #include <QFile>
 #include <QTextStream>
+#include <QLoggingCategory>
 #include <QDebug>
 #include <QHBoxLayout>
 #include <QProcess>
@@ -39,6 +40,8 @@
 #include <unistd.h>
 #include <sys/times.h>
 #endif
+
+Q_LOGGING_CATEGORY(log_ui_statuswidget, "opf.ui.statuswidget")
 
 StatusWidget::StatusWidget(QWidget *parent) : QWidget(parent), m_captureWidth(0), m_captureHeight(0), m_captureFramerate(0.0) {
     keyboardIndicatorsLabel = new QLabel("", this);
@@ -245,6 +248,11 @@ void StatusWidget::setBaudrate(int baudrate)
 
 void StatusWidget::setKeyStates(bool numLock, bool capsLock, bool scrollLock)
 {
+    if (!keyStatesLabel) {
+        qCCritical(log_ui_statuswidget) << "CRITICAL: StatusWidget::setKeyStates - keyStatesLabel is null!";
+        return;
+    }
+    
     QString keyStatesText;
     QStringList activeKeys;
     
@@ -264,15 +272,22 @@ void StatusWidget::setKeyStates(bool numLock, bool capsLock, bool scrollLock)
         keyStatesText = activeKeys.join("|");
     }
     
-    keyStatesLabel->setPixmap(createIconTextLabel(":/images/keyboard.svg", keyStatesText));
+    QPixmap pixmap = createIconTextLabel(":/images/keyboard.svg", keyStatesText);
+    
+    if (pixmap.isNull()) {
+        qCCritical(log_ui_statuswidget) << "CRITICAL: StatusWidget::setKeyStates - createIconTextLabel returned null pixmap!";
+        return;
+    }
+    
+    keyStatesLabel->setPixmap(pixmap);
     
     // Set tooltip with detailed information
     QString tooltip = QString("Keyboard Lock States:\nNum Lock: %1\nCaps Lock: %2\nScroll Lock: %3")
                      .arg(numLock ? "ON" : "OFF")
                      .arg(capsLock ? "ON" : "OFF")
                      .arg(scrollLock ? "ON" : "OFF");
-    keyStatesLabel->setToolTip(tooltip);
     
+    keyStatesLabel->setToolTip(tooltip);
     update();
 }
 
@@ -384,7 +399,7 @@ double StatusWidget::getCpuUsage()
     GetSystemTimeAsFileTime(&systemTime);
     
     if (!GetProcessTimes(process, &creationTime, &exitTime, &kernelTime, &userTime)) {
-        qWarning() << "Failed to get process times on Windows";
+        qCWarning(log_ui_statuswidget) << "Failed to get process times on Windows";
         return -1;
     }
     
@@ -440,7 +455,7 @@ double StatusWidget::getCpuUsage()
     clock_t currentSystemTime = times(&processTime);
     
     if (currentSystemTime == (clock_t)-1) {
-        qWarning() << "Failed to get process times on Linux";
+        qWarning(log_ui_statuswidget) << "Failed to get process times on Linux";
         return -1;
     }
     
@@ -484,7 +499,7 @@ double StatusWidget::getCpuUsage()
     }
     
     // This is a basic fallback that may not work on all platforms
-    qWarning() << "CPU usage monitoring not fully supported on this platform";
+    qCWarning(log_ui_statuswidget) << "CPU usage monitoring not fully supported on this platform";
     return -1;
 #endif
 }

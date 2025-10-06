@@ -84,6 +84,7 @@
 #include <QPushButton>
 #include <QComboBox>
 #include <QApplication>
+#include <QShortcut>
 #include <QPalette>
 #include <QStyle>
 #include <QEvent>

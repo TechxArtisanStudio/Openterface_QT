@@ -26,7 +26,10 @@
 #include <QApplication>
 #include <QScreen>
 #include <QDebug>
+#include <QLoggingCategory>
 #include <QMenuBar>
+
+Q_LOGGING_CATEGORY(log_ui_windowcontrolmanager, "opf.ui.windowcontrolmanager")
 
 WindowControlManager::WindowControlManager(QMainWindow *mainWindow, QToolBar *toolbar, QObject *parent)
     : QObject(parent)
@@ -180,13 +183,15 @@ void WindowControlManager::hideToolbar()
         return;
     }
     
+    qCDebug(log_ui_windowcontrolmanager) << "WindowControlManager::hideToolbar() - Checking conditions before hiding";
+
     // Don't hide if a menu is open
     if (m_mainWindow && m_mainWindow->menuBar()) {
         QMenu *activeMenu = m_mainWindow->menuBar()->activeAction() 
                             ? m_mainWindow->menuBar()->activeAction()->menu() 
                             : nullptr;
         if (activeMenu && activeMenu->isVisible()) {
-            qDebug() << "WindowControlManager: Not hiding toolbar - menu is active";
+            qCDebug(log_ui_windowcontrolmanager) << "WindowControlManager: Not hiding toolbar - menu is active";
             startAutoHideTimer(); // Restart timer
             return;
         }
@@ -210,8 +215,8 @@ void WindowControlManager::toggleToolbar()
 
 void WindowControlManager::onWindowMaximized()
 {
-    qDebug() << "WindowControlManager::onWindowMaximized() - Window maximized";
-    qDebug() << "WindowControlManager::onWindowMaximized() - AutoHide enabled:" << m_autoHideEnabled
+    qCDebug(log_ui_windowcontrolmanager) << "WindowControlManager::onWindowMaximized() - Window maximized";
+    qCDebug(log_ui_windowcontrolmanager) << "WindowControlManager::onWindowMaximized() - AutoHide enabled:" << m_autoHideEnabled
              << "Toolbar exists:" << (m_toolbar != nullptr)
              << "Toolbar visible:" << (m_toolbar ? m_toolbar->isVisible() : false);
     
@@ -219,19 +224,19 @@ void WindowControlManager::onWindowMaximized()
     m_isFullScreen = false;
     
     if (m_autoHideEnabled && m_toolbar && m_toolbar->isVisible()) {
-        qDebug() << "WindowControlManager::onWindowMaximized() - Starting auto-hide timer and edge detection";
+        qCDebug(log_ui_windowcontrolmanager) << "WindowControlManager::onWindowMaximized() - Starting auto-hide timer and edge detection";
         // Start the auto-hide timer when maximized
         startAutoHideTimer();
         // Start edge detection
         m_edgeCheckTimer->start();
     } else {
-        qDebug() << "WindowControlManager::onWindowMaximized() - Not starting auto-hide (conditions not met)";
+        qCDebug(log_ui_windowcontrolmanager) << "WindowControlManager::onWindowMaximized() - Not starting auto-hide (conditions not met)";
     }
 }
 
 void WindowControlManager::onWindowRestored()
 {
-    qDebug() << "WindowControlManager: Window restored to normal";
+    qCDebug(log_ui_windowcontrolmanager) << "WindowControlManager: Window restored to normal";
     m_isMaximized = false;
     m_isFullScreen = false;
     
@@ -248,7 +253,7 @@ void WindowControlManager::onWindowRestored()
 
 void WindowControlManager::onWindowFullScreen()
 {
-    qDebug() << "WindowControlManager: Window entered fullscreen";
+    qCDebug(log_ui_windowcontrolmanager) << "WindowControlManager: Window entered fullscreen";
     m_isFullScreen = true;
     m_isMaximized = false; // Fullscreen is separate from maximized
     
@@ -265,8 +270,8 @@ void WindowControlManager::onWindowFullScreen()
 
 void WindowControlManager::onWindowStateChanged(Qt::WindowStates oldState, Qt::WindowStates newState)
 {
-    qDebug() << "WindowControlManager::onWindowStateChanged() - Start";
-    qDebug() << "WindowControlManager::onWindowStateChanged() - Old state:" << oldState << "New state:" << newState;
+    qCDebug(log_ui_windowcontrolmanager) << "[CRASH DEBUG] WindowControlManager::onWindowStateChanged() - START";
+    qCDebug(log_ui_windowcontrolmanager) << "[CRASH DEBUG] Old state:" << oldState << "New state:" << newState;
     
     bool wasMaximized = m_isMaximized;
     bool wasFullScreen = m_isFullScreen;
@@ -274,22 +279,27 @@ void WindowControlManager::onWindowStateChanged(Qt::WindowStates oldState, Qt::W
     m_isMaximized = (newState & Qt::WindowMaximized) != 0;
     m_isFullScreen = (newState & Qt::WindowFullScreen) != 0;
     
-    qDebug() << "WindowControlManager::onWindowStateChanged() - State transition:";
-    qDebug() << "  Was Maximized:" << wasMaximized << "-> Now Maximized:" << m_isMaximized;
-    qDebug() << "  Was FullScreen:" << wasFullScreen << "-> Now FullScreen:" << m_isFullScreen;
+    qCDebug(log_ui_windowcontrolmanager) << "[CRASH DEBUG] State transition:";
+    qCDebug(log_ui_windowcontrolmanager) << "[CRASH DEBUG]   Was Maximized:" << wasMaximized << "-> Now Maximized:" << m_isMaximized;
+    qCDebug(log_ui_windowcontrolmanager) << "[CRASH DEBUG]   Was FullScreen:" << wasFullScreen << "-> Now FullScreen:" << m_isFullScreen;
     
     if (m_isMaximized && !wasMaximized) {
-        qDebug() << "WindowControlManager::onWindowStateChanged() - Calling onWindowMaximized()";
+        qCDebug(log_ui_windowcontrolmanager) << "[CRASH DEBUG] *** WINDOW BEING MAXIMIZED - Calling onWindowMaximized() ***";
         onWindowMaximized();
+        qCDebug(log_ui_windowcontrolmanager) << "[CRASH DEBUG] onWindowMaximized() completed";
     } else if (!m_isMaximized && !m_isFullScreen && (wasMaximized || wasFullScreen)) {
-        qDebug() << "WindowControlManager::onWindowStateChanged() - Calling onWindowRestored()";
+        qCDebug(log_ui_windowcontrolmanager) << "[CRASH DEBUG] *** WINDOW BEING RESTORED - Calling onWindowRestored() ***";
         onWindowRestored();
+        qCDebug(log_ui_windowcontrolmanager) << "[CRASH DEBUG] onWindowRestored() completed";
     } else if (m_isFullScreen && !wasFullScreen) {
-        qDebug() << "WindowControlManager::onWindowStateChanged() - Calling onWindowFullScreen()";
+        qCDebug(log_ui_windowcontrolmanager) << "[CRASH DEBUG] *** WINDOW ENTERING FULLSCREEN - Calling onWindowFullScreen() ***";
         onWindowFullScreen();
+        qCDebug(log_ui_windowcontrolmanager) << "[CRASH DEBUG] onWindowFullScreen() completed";
     } else {
-        qDebug() << "WindowControlManager::onWindowStateChanged() - No state handler triggered";
+        qCDebug(log_ui_windowcontrolmanager) << "[CRASH DEBUG] No state handler triggered";
     }
+    
+    qCDebug(log_ui_windowcontrolmanager) << "[CRASH DEBUG] WindowControlManager::onWindowStateChanged() - END";
 }
 
 void WindowControlManager::onMouseMoved(const QPoint &globalPos)
@@ -348,46 +358,46 @@ void WindowControlManager::stopAutoHideTimer()
 
 void WindowControlManager::animateToolbarShow()
 {
-    qDebug() << "WindowControlManager::animateToolbarShow() - Start";
+    qCDebug(log_ui_windowcontrolmanager) << "WindowControlManager::animateToolbarShow() - Start";
     
     if (!m_toolbar) {
         qWarning() << "WindowControlManager::animateToolbarShow() - m_toolbar is null!";
         return;
     }
     
-    qDebug() << "WindowControlManager::animateToolbarShow() - Current state - Visible:" << m_toolbar->isVisible()
+    qCDebug(log_ui_windowcontrolmanager) << "WindowControlManager::animateToolbarShow() - Current state - Visible:" << m_toolbar->isVisible()
              << "Height:" << m_toolbar->height() << "MaxHeight:" << m_toolbar->maximumHeight();
     
     // Reset maximum height constraint to allow toolbar to expand fully
     m_toolbar->setMaximumHeight(QWIDGETSIZE_MAX);
-    qDebug() << "WindowControlManager::animateToolbarShow() - Reset maximumHeight to QWIDGETSIZE_MAX";
+    qCDebug(log_ui_windowcontrolmanager) << "WindowControlManager::animateToolbarShow() - Reset maximumHeight to QWIDGETSIZE_MAX";
     
     // For now, just show/hide directly
     // You can add animation here if needed
     m_toolbar->show();
-    qDebug() << "WindowControlManager::animateToolbarShow() - Toolbar shown successfully";
+    qCDebug(log_ui_windowcontrolmanager) << "WindowControlManager::animateToolbarShow() - Toolbar shown successfully";
 }
 
 void WindowControlManager::animateToolbarHide()
 {
-    qDebug() << "WindowControlManager::animateToolbarHide() - Start";
+    qCDebug(log_ui_windowcontrolmanager) << "WindowControlManager::animateToolbarHide() - Start";
     
     if (!m_toolbar) {
         qWarning() << "WindowControlManager::animateToolbarHide() - m_toolbar is null!";
         return;
     }
     
-    qDebug() << "WindowControlManager::animateToolbarHide() - Current state - Visible:" << m_toolbar->isVisible()
+    qCDebug(log_ui_windowcontrolmanager) << "WindowControlManager::animateToolbarHide() - Current state - Visible:" << m_toolbar->isVisible()
              << "Height:" << m_toolbar->height() << "MaxHeight:" << m_toolbar->maximumHeight();
     
     // For now, just show/hide directly
     // You can add animation here if needed
     m_toolbar->hide();
-    qDebug() << "WindowControlManager::animateToolbarHide() - Toolbar hidden";
+    qCDebug(log_ui_windowcontrolmanager) << "WindowControlManager::animateToolbarHide() - Toolbar hidden";
     
     // Reset maximum height after hiding to ensure clean state
     m_toolbar->setMaximumHeight(QWIDGETSIZE_MAX);
-    qDebug() << "WindowControlManager::animateToolbarHide() - Reset maximumHeight to QWIDGETSIZE_MAX";
+    qCDebug(log_ui_windowcontrolmanager) << "WindowControlManager::animateToolbarHide() - Reset maximumHeight to QWIDGETSIZE_MAX";
 }
 
 bool WindowControlManager::isMouseAtTopEdge(const QPoint &globalPos)
@@ -420,7 +430,7 @@ void WindowControlManager::installEventFilterOnWindow()
     if (m_mainWindow && !m_eventFilterInstalled) {
         m_mainWindow->installEventFilter(this);
         m_eventFilterInstalled = true;
-        qDebug() << "WindowControlManager: Event filter installed";
+        qCDebug(log_ui_windowcontrolmanager) << "WindowControlManager: Event filter installed";
     }
 }
 
@@ -429,7 +439,7 @@ void WindowControlManager::removeEventFilterFromWindow()
     if (m_mainWindow && m_eventFilterInstalled) {
         m_mainWindow->removeEventFilter(this);
         m_eventFilterInstalled = false;
-        qDebug() << "WindowControlManager: Event filter removed";
+        qCDebug(log_ui_windowcontrolmanager) << "WindowControlManager: Event filter removed";
     }
 }
 

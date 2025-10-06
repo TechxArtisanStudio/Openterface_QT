@@ -50,6 +50,7 @@
 
 #include <QTimer>
 #include <QStackedLayout>
+#include <QShortcut>
 
 Q_LOGGING_CATEGORY(log_ui_mainwindowinitializer, "opf.ui.mainwindowinitializer")
 
@@ -93,6 +94,7 @@ void MainWindowInitializer::initialize()
     initializeCamera();
     setupScriptComponents();
     setupEventCallbacks();
+    setupKeyboardShortcuts();
     finalize();
     
     qCDebug(log_ui_mainwindowinitializer) << "Initialization sequence complete";
@@ -127,6 +129,10 @@ void MainWindowInitializer::setupCoordinators()
     m_menuCoordinator = new MenuCoordinator(m_ui->menuLanguages, m_ui->menuBaudrate, m_languageManager, m_mainWindow, m_mainWindow);
     m_mainWindow->m_menuCoordinator = m_menuCoordinator;
 
+    if (m_windowLayoutCoordinator) {
+        m_windowLayoutCoordinator->checkInitSize();
+    }
+    
     DeviceManager& deviceManager = DeviceManager::getInstance();
     HotplugMonitor* hotplugMonitor = deviceManager.getHotplugMonitor();
 
@@ -137,8 +143,13 @@ void MainWindowInitializer::setupCoordinators()
     
     if (m_menuCoordinator) {
         m_menuCoordinator->setupLanguageMenu();
-        connect(m_menuCoordinator, &MenuCoordinator::baudrateChanged, [this](int baudrate) {
-            m_menuCoordinator->updateBaudrateMenu(baudrate);
+        
+        // CRITICAL FIX: Capture specific pointer instead of 'this'
+        MenuCoordinator* menuCoordinator = m_menuCoordinator;
+        connect(m_menuCoordinator, &MenuCoordinator::baudrateChanged, [menuCoordinator](int baudrate) {
+            if (menuCoordinator) {
+                menuCoordinator->updateBaudrateMenu(baudrate);
+            }
         });
     }
 }
@@ -148,35 +159,43 @@ void MainWindowInitializer::connectCornerWidgetSignals()
     qCDebug(log_ui_mainwindowinitializer) << "Connecting corner widget signals...";
     m_cornerWidgetManager->setMenuBar(m_ui->menubar);
 
-    connect(m_cornerWidgetManager, &CornerWidgetManager::zoomInClicked, m_mainWindow, [this]() {
-        if (m_windowLayoutCoordinator) {
-            m_windowLayoutCoordinator->zoomIn();
-            if (m_mainWindow->mouseEdgeTimer) {
-                m_mainWindow->mouseEdgeTimer->start(m_mainWindow->edgeDuration);
+    // CRITICAL FIX: Capture specific pointers instead of 'this' to avoid dangling reference
+    // MainWindowInitializer is destroyed after constructor completes, so capturing 'this' causes crash
+    WindowLayoutCoordinator* coordinator = m_windowLayoutCoordinator;
+    MainWindow* mainWindow = m_mainWindow;
+    
+    connect(m_cornerWidgetManager, &CornerWidgetManager::zoomInClicked, m_mainWindow, [coordinator, mainWindow]() {
+        if (coordinator) {
+            coordinator->zoomIn();
+            if (mainWindow && mainWindow->mouseEdgeTimer) {
+                mainWindow->mouseEdgeTimer->start(mainWindow->edgeDuration);
             }
         }
     });
-    connect(m_cornerWidgetManager, &CornerWidgetManager::zoomOutClicked, m_mainWindow, [this]() {
-        if (m_windowLayoutCoordinator) {
-            m_windowLayoutCoordinator->zoomOut();
+    connect(m_cornerWidgetManager, &CornerWidgetManager::zoomOutClicked, m_mainWindow, [coordinator]() {
+        if (coordinator) {
+            coordinator->zoomOut();
         }
     });
-    connect(m_cornerWidgetManager, &CornerWidgetManager::zoomReductionClicked, m_mainWindow, [this]() {
-        if (m_windowLayoutCoordinator) {
-            m_windowLayoutCoordinator->zoomReduction();
-            if (m_mainWindow->mouseEdgeTimer && m_mainWindow->mouseEdgeTimer->isActive()) {
-                m_mainWindow->mouseEdgeTimer->stop();
+    connect(m_cornerWidgetManager, &CornerWidgetManager::zoomReductionClicked, m_mainWindow, [coordinator, mainWindow]() {
+        if (coordinator) {
+            coordinator->zoomReduction();
+            if (mainWindow && mainWindow->mouseEdgeTimer && mainWindow->mouseEdgeTimer->isActive()) {
+                mainWindow->mouseEdgeTimer->stop();
             }
         }
     });
     connect(m_cornerWidgetManager, &CornerWidgetManager::screenScaleClicked, m_mainWindow, &MainWindow::configScreenScale);
     connect(m_cornerWidgetManager, &CornerWidgetManager::virtualKeyboardClicked, m_mainWindow, &MainWindow::onToggleVirtualKeyboard);
     connect(m_cornerWidgetManager, &CornerWidgetManager::captureClicked, m_mainWindow, &MainWindow::takeImageDefault);
-    connect(m_cornerWidgetManager, &CornerWidgetManager::fullScreenClicked, m_mainWindow, [this]() {
-        if (m_windowLayoutCoordinator) {
-            m_windowLayoutCoordinator->fullScreen();
+    
+    connect(m_cornerWidgetManager, &CornerWidgetManager::fullScreenClicked, m_mainWindow, [coordinator]() {
+        if (coordinator) {
+            qCDebug(log_ui_mainwindowinitializer) << "*** Fullscreen button clicked - toggling fullscreen ***";
+            coordinator->fullScreen();
         }
     });
+    
     connect(m_cornerWidgetManager, &CornerWidgetManager::pasteClicked, m_mainWindow, &MainWindow::onActionPasteToTarget);
     connect(m_cornerWidgetManager, &CornerWidgetManager::screensaverClicked, m_mainWindow, &MainWindow::onActionScreensaver);
     connect(m_cornerWidgetManager, &CornerWidgetManager::toggleSwitchChanged, m_mainWindow, &MainWindow::onToggleSwitchStateChanged);
@@ -192,34 +211,46 @@ void MainWindowInitializer::connectDeviceManagerSignals()
     DeviceManager& deviceManager = DeviceManager::getInstance();
     HotplugMonitor* hotplugMonitor = deviceManager.getHotplugMonitor();
     if (hotplugMonitor) {
+        // CRITICAL FIX: Capture specific pointers instead of 'this' to avoid dangling reference
+        StatusBarManager* statusBarManager = m_statusBarManager;
+        CameraManager* cameraManager = m_cameraManager;
+        QStackedLayout* stackedLayout = m_stackedLayout;
+        VideoPane* videoPane = m_videoPane;
+        
         connect(hotplugMonitor, &HotplugMonitor::newDevicePluggedIn, 
-                m_statusBarManager, [this](const DeviceInfo& device) {
-                    qCDebug(log_ui_mainwindowinitializer) << "Received newDevicePluggedIn for port:" << device.portChain;
-                    m_statusBarManager->showNewDevicePluggedIn(device.portChain);
+                m_statusBarManager, [statusBarManager](const DeviceInfo& device) {
+                    if (statusBarManager) {
+                        qCDebug(log_ui_mainwindowinitializer) << "Received newDevicePluggedIn for port:" << device.portChain;
+                        statusBarManager->showNewDevicePluggedIn(device.portChain);
+                    }
                 });
         connect(hotplugMonitor, &HotplugMonitor::deviceUnplugged, 
-                m_statusBarManager, [this](const DeviceInfo& device) {
-                    qCDebug(log_ui_mainwindowinitializer) << "Received deviceUnplugged for port:" << device.portChain;
-                    m_statusBarManager->showDeviceUnplugged(device.portChain);
+                m_statusBarManager, [statusBarManager](const DeviceInfo& device) {
+                    if (statusBarManager) {
+                        qCDebug(log_ui_mainwindowinitializer) << "Received deviceUnplugged for port:" << device.portChain;
+                        statusBarManager->showDeviceUnplugged(device.portChain);
+                    }
                 });
                 
         connect(hotplugMonitor, &HotplugMonitor::deviceUnplugged,
-                m_mainWindow, [this](const DeviceInfo& device) {
+                m_mainWindow, [cameraManager, stackedLayout](const DeviceInfo& device) {
                     if (!device.hasCameraDevice()) return;
-                    bool deactivated = m_cameraManager->deactivateCameraByPortChain(device.portChain);
+                    if (!cameraManager || !stackedLayout) return;
+                    bool deactivated = cameraManager->deactivateCameraByPortChain(device.portChain);
                     if (deactivated) {
                         qCInfo(log_ui_mainwindowinitializer) << "✓ Camera deactivated for port:" << device.portChain;
-                        m_stackedLayout->setCurrentIndex(0);
+                        stackedLayout->setCurrentIndex(0);
                     }
                 });
                 
         connect(hotplugMonitor, &HotplugMonitor::newDevicePluggedIn,
-                m_mainWindow, [this](const DeviceInfo& device) {
+                m_mainWindow, [cameraManager, stackedLayout, videoPane](const DeviceInfo& device) {
                     if (!device.hasCameraDevice()) return;
-                    bool switchSuccess = m_cameraManager->tryAutoSwitchToNewDevice(device.portChain);
+                    if (!cameraManager || !stackedLayout || !videoPane) return;
+                    bool switchSuccess = cameraManager->tryAutoSwitchToNewDevice(device.portChain);
                     if (switchSuccess) {
                         qCInfo(log_ui_mainwindowinitializer) << "✓ Camera auto-switched to port:" << device.portChain;
-                        m_stackedLayout->setCurrentIndex(m_stackedLayout->indexOf(m_videoPane));
+                        stackedLayout->setCurrentIndex(stackedLayout->indexOf(videoPane));
                     }
                 });
         qCDebug(log_ui_mainwindowinitializer) << "Connected hotplug monitor signals";
@@ -255,6 +286,9 @@ void MainWindowInitializer::setupToolbar()
         m_windowLayoutCoordinator->setToolbarManager(m_toolbarManager);
     }
     
+    // Note: Passing m_mainWindow as both window and parent is correct:
+    // - First param: the window to monitor/control
+    // - Third param: QObject parent for memory management
     m_windowControlManager = new WindowControlManager(m_mainWindow, m_toolbarManager->getToolbar(), m_mainWindow);
     m_mainWindow->m_windowControlManager = m_windowControlManager;
     m_windowControlManager->setAutoHideEnabled(true);
@@ -262,9 +296,10 @@ void MainWindowInitializer::setupToolbar()
     m_windowControlManager->setEdgeDetectionThreshold(5);
     m_windowControlManager->setAnimationDuration(300);
     
+    // Connect toolbar visibility changes
+    // Note: Only connect WindowControlManager's signal to avoid duplicate calls
+    // WindowControlManager emits after both manual toggles and auto-hide operations
     connect(m_windowControlManager, &WindowControlManager::toolbarVisibilityChanged,
-            m_mainWindow, &MainWindow::onToolbarVisibilityChanged);
-    connect(m_toolbarManager, &ToolbarManager::toolbarVisibilityChanged,
             m_mainWindow, &MainWindow::onToolbarVisibilityChanged);
 }
 
@@ -275,7 +310,9 @@ void MainWindowInitializer::connectCameraSignals()
     connect(m_cameraManager, &CameraManager::cameraError, m_mainWindow, &MainWindow::displayCameraError);
     connect(m_cameraManager, &CameraManager::imageCaptured, m_mainWindow, &MainWindow::processCapturedImage);
     connect(m_cameraManager, &CameraManager::resolutionsUpdated, m_mainWindow, &MainWindow::onResolutionsUpdated);
-    connect(m_cameraManager, &CameraManager::newDeviceAutoConnected, m_mainWindow, [this](const QCameraDevice&, const QString& portChain) {
+    
+    // This lambda only does logging, so it's safe, but fix for consistency
+    connect(m_cameraManager, &CameraManager::newDeviceAutoConnected, m_mainWindow, [](const QCameraDevice&, const QString& portChain) {
         qCInfo(log_ui_mainwindowinitializer) << "Camera auto-connected to new device at port:" << portChain;
     });
     
@@ -302,9 +339,6 @@ void MainWindowInitializer::connectVideoHidSignals()
 void MainWindowInitializer::initializeCamera()
 {
     qCDebug(log_ui_mainwindowinitializer) << "Initializing camera...";
-    if (m_windowLayoutCoordinator) {
-        m_windowLayoutCoordinator->checkInitSize();
-    }
     m_mainWindow->initCamera();
     
     // Capture specific pointers instead of 'this' to avoid dangling reference
@@ -349,6 +383,38 @@ void MainWindowInitializer::setupEventCallbacks()
     VideoHid::getInstance().setEventCallback(m_mainWindow);
     qApp->installEventFilter(m_mainWindow);
     AudioManager::getInstance().start();
+}
+
+void MainWindowInitializer::setupKeyboardShortcuts()
+{
+    qCDebug(log_ui_mainwindowinitializer) << "Setting up keyboard shortcuts...";
+    
+    // Alt+F11: Toggle fullscreen
+    QShortcut *fullscreenShortcut = new QShortcut(QKeySequence(Qt::ALT | Qt::Key_F11), m_mainWindow);
+    
+    // CRITICAL FIX: Capture specific pointers instead of 'this' to avoid dangling reference
+    // MainWindowInitializer is destroyed after constructor completes, so capturing 'this' causes crash
+    MainWindow* mainWindow = m_mainWindow;
+    WindowLayoutCoordinator* coordinator = m_windowLayoutCoordinator;
+    
+    // Add debug logging for when shortcut is activated
+    QObject::connect(fullscreenShortcut, &QShortcut::activated, [mainWindow, coordinator]() {
+        if (!mainWindow || !coordinator) {
+            qCCritical(log_ui_mainwindowinitializer) << "CRITICAL: mainWindow or coordinator is null in shortcut handler!";
+            return;
+        }
+        
+        qCDebug(log_ui_mainwindowinitializer) << "*** Alt+F11 SHORTCUT ACTIVATED - Toggling fullscreen ***";
+        qCDebug(log_ui_mainwindowinitializer) << "Window state BEFORE fullScreen() call:" << mainWindow->windowState();
+        qCDebug(log_ui_mainwindowinitializer) << "Window ID BEFORE fullScreen() call:" << mainWindow->winId();
+        qCDebug(log_ui_mainwindowinitializer) << "Window geometry BEFORE fullScreen() call:" << mainWindow->geometry();
+        qCDebug(log_ui_mainwindowinitializer) << "Window isVisible BEFORE fullScreen() call:" << mainWindow->isVisible();
+        coordinator->fullScreen();
+    });
+    
+    qCDebug(log_ui_mainwindowinitializer) << "Registered Alt+F11 shortcut for fullscreen toggle";
+    qCDebug(log_ui_mainwindowinitializer) << "Shortcut context:" << fullscreenShortcut->context();
+    qCDebug(log_ui_mainwindowinitializer) << "Shortcut enabled:" << fullscreenShortcut->isEnabled();
 }
 
 void MainWindowInitializer::finalize()

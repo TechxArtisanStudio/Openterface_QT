@@ -145,7 +145,7 @@ MainWindow::MainWindow(LanguageManager *languageManager, QWidget *parent)
     MainWindowInitializer initializer(this);
     initializer.initialize();
     
-    qCDebug(log_ui_mainwindow) << "MainWindow initialization complete";
+    qCDebug(log_ui_mainwindow) << "MainWindow initialization complete, window ID:" << this->winId();
 }
 
 void MainWindow::startServer(){
@@ -168,10 +168,6 @@ void MainWindow::updateUI() {
         m_deviceCoordinator->updateDeviceMenu(); // Update device menu when UI language changes
     }
 }
-
-
-
-
 
 void MainWindow::initCamera()
 {
@@ -211,8 +207,6 @@ void MainWindow::initCamera()
     GlobalVar::instance().setWinHeight(this->height());
 }
 
-
-
 void MainWindow::resizeEvent(QResizeEvent *event) {
     qCDebug(log_ui_mainwindow) << "Resize event triggered. New size:" << event->size();
 
@@ -226,8 +220,15 @@ void MainWindow::resizeEvent(QResizeEvent *event) {
         return;
     }
 
+    qCDebug(log_ui_mainwindow) << "ResizeEvent - current window state:" << this->windowState();
+    
     // Check if window is maximized - if so, allow resize to proceed
     bool isMaximized = (this->windowState() & Qt::WindowMaximized);
+    bool isMinimized = (this->windowState() & Qt::WindowMinimized);
+    qCDebug(log_ui_mainwindow) << "ResizeEvent - isMaximized:" << isMaximized;
+    qCDebug(log_ui_mainwindow) << "ResizeEvent - isMinimized:" << isMinimized;
+    qCDebug(log_ui_mainwindow) << "ResizeEvent - isFullScreenMode:" 
+                            << (m_windowLayoutCoordinator ? m_windowLayoutCoordinator->isFullScreenMode() : false);
     
     // Track window state changes for WindowControlManager
     static Qt::WindowStates lastWindowState = this->windowState();
@@ -257,12 +258,6 @@ void MainWindow::resizeEvent(QResizeEvent *event) {
     qCDebug(log_ui_mainwindow) << "mainwindow size: " << this->size() << "VideoPane size:" << videoPane->size();
 }
 
-
-
-
-
-
-
 void MainWindow::moveEvent(QMoveEvent *event) {
     // Get the old and new positions
     QPoint oldPos = event->oldPos();
@@ -275,8 +270,6 @@ void MainWindow::moveEvent(QMoveEvent *event) {
     // Call the base class implementation
     QWidget::moveEvent(event);
 }
-
-
 
 void MainWindow::updateScrollbars() {
     // Get the screen geometry using QScreen
@@ -414,6 +407,7 @@ void MainWindow::onKeyStatesChanged(bool numLock, bool capsLock, bool scrollLock
 {
     qCDebug(log_ui_mainwindow) << "Key states changed - NumLock:" << numLock << "CapsLock:" << capsLock << "ScrollLock:" << scrollLock;
     m_statusBarManager->setKeyStates(numLock, capsLock, scrollLock);
+    qCDebug(log_ui_mainwindow) << "[CRASH DEBUG] onKeyStatesChanged END - setKeyStates completed successfully";
 }
 
 void MainWindow::onActionPasteToTarget()
@@ -1186,6 +1180,7 @@ MainWindow::~MainWindow()
 }
 
 void MainWindow::onToolbarVisibilityChanged(bool visible) {
+    qCDebug(log_ui_mainwindow) << "Toolbar visibility changed:" << visible;
     Q_UNUSED(visible);
     // Prevent repaints during animation
     setUpdatesEnabled(false);
@@ -1212,11 +1207,8 @@ void MainWindow::onToolbarVisibilityChanged(bool visible) {
     
 }
 
-
-
 void MainWindow::changeKeyboardLayout(const QString& layout) {
     // Pass the layout name directly to HostManager
-    qCDebug(log_ui_mainwindow) << "Changing layout";
     GlobalSetting::instance().setKeyboardLayout(layout);
     qCDebug(log_ui_mainwindow) << "Set layout" << layout;
     HostManager::getInstance().setKeyboardLayout(layout);

@@ -80,6 +80,7 @@ void GlobalSetting::loadLogSettings()
     logFilter += m_settings.value("log/device", false).toBool() ? "opf.device.*=true\n" : "opf.device.*=false\n";
     logFilter += m_settings.value("log/backend", false).toBool() ? "opf.backend.*=true\n" : "opf.backend.*=false\n";
     QLoggingCategory::setFilterRules(logFilter);
+    qDebug() << "Log filter rules set to:\n" << logFilter;
 }
 
 void GlobalSetting::setLogStoreSettings(bool storeLog, QString logFilePath){

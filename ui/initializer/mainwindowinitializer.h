@@ -160,6 +160,13 @@ private:
     void setupEventCallbacks();
     
     /**
+     * @brief Setup keyboard shortcuts
+     * 
+     * Configures application-level keyboard shortcuts (Alt+F11 for fullscreen, etc.)
+     */
+    void setupKeyboardShortcuts();
+    
+    /**
      * @brief Perform final initialization steps
      * 
      * Window title, mouse timer, language connections
