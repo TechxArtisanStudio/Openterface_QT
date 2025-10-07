@@ -116,285 +116,36 @@ QPixmap recolorSvg(const QString &svgPath, const QColor &color, const QSize &siz
     return pixmap;
 }
 
-MainWindow::MainWindow(LanguageManager *languageManager, QWidget *parent) :  ui(new Ui::MainWindow),
-                            m_audioManager(&AudioManager::getInstance()),
-                            videoPane(new VideoPane(this)),
-                            stackedLayout(new QStackedLayout(this)),
-                            toolbarManager(new ToolbarManager(this)),
-                            toggleSwitch(new ToggleSwitch(this)),
-                            m_cameraManager(new CameraManager(this)),
-                            m_versionInfoManager(new VersionInfoManager(this)),
-                            m_languageManager(languageManager),
-                            m_screenSaverManager(new ScreenSaverManager(this)),
-                            m_cornerWidgetManager(new CornerWidgetManager(this))
-                            // cameraAdjust(new CameraAdjust(this))
+MainWindow::MainWindow(LanguageManager *languageManager, QWidget *parent)
+    : QMainWindow(parent)
+    , ui(new Ui::MainWindow)
+    , m_audioManager(&AudioManager::getInstance())
+    , videoPane(new VideoPane(this))
+    , stackedLayout(new QStackedLayout(this))
+    , toolbarManager(new ToolbarManager(this))
+    , toggleSwitch(new ToggleSwitch(this))
+    , m_cameraManager(new CameraManager(this))
+    , m_versionInfoManager(new VersionInfoManager(this))
+    , m_languageManager(languageManager)
+    , m_screenSaverManager(new ScreenSaverManager(this))
+    , m_cornerWidgetManager(new CornerWidgetManager(this))
+    , m_windowControlManager(nullptr)
+    , m_deviceCoordinator(nullptr)
+    , m_menuCoordinator(nullptr)
+    , mouseEdgeTimer(nullptr)
 {
-    Q_UNUSED(parent);
-
-    qCDebug(log_ui_mainwindow) << "Init camera...";
+    qCDebug(log_ui_mainwindow) << "Initializing MainWindow...";
     
     ui->setupUi(this);
-    m_cornerWidgetManager->setMenuBar(ui->menubar);
-    // ui->menubar->setCornerWidget(m_cornerWidgetManager->getCornerWidget(), Qt::TopRightCorner);
-
-    initializeKeyboardLayouts();
-    connect(m_cornerWidgetManager, &CornerWidgetManager::zoomInClicked, this, &MainWindow::onZoomIn);
-    connect(m_cornerWidgetManager, &CornerWidgetManager::zoomOutClicked, this, &MainWindow::onZoomOut);
-    connect(m_cornerWidgetManager, &CornerWidgetManager::zoomReductionClicked, this, &MainWindow::onZoomReduction);
-    connect(m_cornerWidgetManager, &CornerWidgetManager::screenScaleClicked, this, &MainWindow::configScreenScale);
-    connect(m_cornerWidgetManager, &CornerWidgetManager::virtualKeyboardClicked, this, &MainWindow::onToggleVirtualKeyboard);
-    connect(m_cornerWidgetManager, &CornerWidgetManager::captureClicked, this, &MainWindow::takeImageDefault);
-    connect(m_cornerWidgetManager, &CornerWidgetManager::fullScreenClicked, this, &MainWindow::fullScreen);
-    connect(m_cornerWidgetManager, &CornerWidgetManager::pasteClicked, this, &MainWindow::onActionPasteToTarget);
-    connect(m_cornerWidgetManager, &CornerWidgetManager::screensaverClicked, this, &MainWindow::onActionScreensaver);
-    connect(m_cornerWidgetManager, &CornerWidgetManager::toggleSwitchChanged, this, &MainWindow::onToggleSwitchStateChanged);
-    connect(m_cornerWidgetManager, &CornerWidgetManager::keyboardLayoutChanged, this, &MainWindow::onKeyboardLayoutCombobox_Changed);
     
-
-    GlobalVar::instance().setMouseAutoHide(GlobalSetting::instance().getMouseAutoHideEnable());
-
-    m_statusBarManager = new StatusBarManager(ui->statusbar, this);
-    taskmanager = TaskManager::instance();
+    // Initialize WindowLayoutCoordinator early - needed before checkInitSize()
+    m_windowLayoutCoordinator = new WindowLayoutCoordinator(this, videoPane, menuBar(), statusBar(), this);
     
-    // Connect DeviceManager hotplug events to StatusBarManager
-    DeviceManager& deviceManager = DeviceManager::getInstance();
-    HotplugMonitor* hotplugMonitor = deviceManager.getHotplugMonitor();
-    if (hotplugMonitor) {
-        connect(hotplugMonitor, &HotplugMonitor::newDevicePluggedIn, 
-                m_statusBarManager, [this](const DeviceInfo& device) {
-                    qCDebug(log_ui_mainwindow) << "MainWindow: Received newDevicePluggedIn signal for port:" << device.portChain;
-                    m_statusBarManager->showNewDevicePluggedIn(device.portChain);
-                    updateDeviceMenu(); // Update device menu when new device is plugged in
-                });
-        connect(hotplugMonitor, &HotplugMonitor::deviceUnplugged, 
-                m_statusBarManager, [this](const DeviceInfo& device) {
-                    qCDebug(log_ui_mainwindow) << "MainWindow: Received deviceUnplugged signal for port:" << device.portChain;
-                    m_statusBarManager->showDeviceUnplugged(device.portChain);
-                    updateDeviceMenu(); // Update device menu when device is unplugged
-                });
-                
-        // Connect hotplug monitor to camera manager for device unplugging
-        connect(hotplugMonitor, &HotplugMonitor::deviceUnplugged,
-                this, [this](const DeviceInfo& device) {
-                    qCDebug(log_ui_mainwindow) << "MainWindow: Attempting camera deactivation for unplugged device port:" << device.portChain;
-                    
-                    // Only deactivate camera if the device has a camera component
-                    if (!device.hasCameraDevice()) {
-                        qCDebug(log_ui_mainwindow) << "Device at port" << device.portChain << "has no camera component, skipping camera deactivation";
-                        return;
-                    }
-                    
-                    bool deactivated = m_cameraManager->deactivateCameraByPortChain(device.portChain);
-                    if (deactivated) {
-                        qCInfo(log_ui_mainwindow) << "✓ Camera deactivated for unplugged device at port:" << device.portChain;
-                        stackedLayout->setCurrentIndex(0);
-                    } else {
-                        qCDebug(log_ui_mainwindow) << "Camera deactivation skipped or not needed for port:" << device.portChain;
-                    }
-                });
-                
-        // Connect hotplug monitor to camera manager for auto-switching
-        connect(hotplugMonitor, &HotplugMonitor::newDevicePluggedIn,
-                this, [this](const DeviceInfo& device) {
-                    qCDebug(log_ui_mainwindow) << "MainWindow: Attempting camera auto-switch for new device port:" << device.portChain;
-                    
-                    // Only attempt auto-switch if the device has a camera component
-                    if (!device.hasCameraDevice()) {
-                        qCDebug(log_ui_mainwindow) << "Device at port" << device.portChain << "has no camera component, skipping auto-switch";
-                        return;
-                    }
-                    
-                    bool switchSuccess = m_cameraManager->tryAutoSwitchToNewDevice(device.portChain);
-                    if (switchSuccess) {
-                        qCInfo(log_ui_mainwindow) << "✓ Camera auto-switched to new device at port:" << device.portChain;
-                        stackedLayout->setCurrentIndex(stackedLayout->indexOf(videoPane));
-                    } else {
-                        qCDebug(log_ui_mainwindow) << "Camera auto-switch skipped or failed for port:" << device.portChain;
-                    }
-                });
-                
-
-        qCDebug(log_ui_mainwindow) << "Connected hotplug monitor to status bar manager and camera manager";
-    } else {
-        qCWarning(log_ui_mainwindow) << "Failed to get hotplug monitor from device manager";
-    }
+    // Delegate all initialization to initializer
+    MainWindowInitializer initializer(this);
+    initializer.initialize();
     
-    QWidget *centralWidget = new QWidget(this);
-    centralWidget->setLayout(stackedLayout);
-    centralWidget->setMouseTracking(true);
-
-    HelpPane *helpPane = new HelpPane;
-    stackedLayout->addWidget(helpPane);
-    
-    // Set size policy and minimum size for videoPane - use proper sizing
-    videoPane->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
-    // videoPane->setMinimumSize(640, 480); // Set reasonable minimum size
-    
-    // Add videoPane directly to stacked layout without scroll area
-    stackedLayout->addWidget(videoPane);
-
-    stackedLayout->setCurrentIndex(0);
-
-    setCentralWidget(centralWidget);
-    qCDebug(log_ui_mainwindow) << "Set host manager event callback...";
-    HostManager::getInstance().setEventCallback(this);
-
-    qCDebug(log_ui_mainwindow) << "Observe Video HID connected...";
-    VideoHid::getInstance().setEventCallback(this);
-
-    qCDebug(log_ui_mainwindow) << "Starting AudioManager...";
-    AudioManager::getInstance().start();
-
-    qCDebug(log_ui_mainwindow) << "Observe video input changed...";
-    // Note: Automatic camera switching on device changes has been disabled
-    // Camera devices will only be switched manually through the UI
-    // connect(&m_source, &QMediaDevices::videoInputsChanged, this, &MainWindow::updateCameras);
-
-    qCDebug(log_ui_mainwindow) << "Observe Relative/Absolute toggle...";
-    connect(ui->actionRelative, &QAction::triggered, this, &MainWindow::onActionRelativeTriggered);
-    connect(ui->actionAbsolute, &QAction::triggered, this, &MainWindow::onActionAbsoluteTriggered);
-
-    connect(ui->actionMouseAutoHide, &QAction::triggered, this, &MainWindow::onActionMouseAutoHideTriggered);
-    connect(ui->actionMouseAlwaysShow, &QAction::triggered, this, &MainWindow::onActionMouseAlwaysShowTriggered);
-
-    qCDebug(log_ui_mainwindow) << "Observe factory reset HID triggered...";
-    connect(ui->actionFactory_reset_HID, &QAction::triggered, this, &MainWindow::onActionFactoryResetHIDTriggered);
-
-    qCDebug(log_ui_mainwindow) << "Observe reset Serial Port triggered...";
-    connect(ui->actionResetSerialPort, &QAction::triggered, this, &MainWindow::onActionResetSerialPortTriggered);
-
-    qDebug() << "Observe Hardware change MainWindow triggered...";
-
-    qCDebug(log_ui_mainwindow) << "Creating and setting up ToggleSwitch...";
-    toggleSwitch->setFixedSize(78, 28);  // Adjust size as needed
-    connect(toggleSwitch, &ToggleSwitch::stateChanged, this, &MainWindow::onToggleSwitchStateChanged);
-
-    // Add the ToggleSwitch as the last button in the cornerWidget's layout
-
-
-
-    qCDebug(log_ui_mainwindow) << "Observe switch usb connection trigger...";
-    connect(ui->actionTo_Host, &QAction::triggered, this, &MainWindow::onActionSwitchToHostTriggered);
-    connect(ui->actionTo_Target, &QAction::triggered, this, &MainWindow::onActionSwitchToTargetTriggered);
-
-    qCDebug(log_ui_mainwindow) << "Observe action paste from host...";
-    connect(ui->actionPaste, &QAction::triggered, this, &MainWindow::onActionPasteToTarget);
-
-    addToolBar(Qt::TopToolBarArea, toolbarManager->getToolbar());
-    toolbarManager->getToolbar()->setVisible(false);
-    
-    connect(m_cameraManager, &CameraManager::cameraActiveChanged, this, &MainWindow::updateCameraActive);
-    connect(m_cameraManager, &CameraManager::cameraError, this, &MainWindow::displayCameraError);
-    connect(m_cameraManager, &CameraManager::imageCaptured, this, &MainWindow::processCapturedImage);
-    connect(m_cameraManager, &CameraManager::resolutionsUpdated, this, &MainWindow::onResolutionsUpdated);
-    connect(m_cameraManager, &CameraManager::newDeviceAutoConnected, this, [this](const QCameraDevice& device, const QString& portChain) {
-        qCInfo(log_ui_mainwindow) << "Camera auto-connected to new device:" << device.description() << "at port:" << portChain;
-        // popupMessage(QString("Camera connected to new device: %1").arg(device.description()));
-    });
-    
-    // Connect camera switching status signals to status bar
-    connect(m_cameraManager, &CameraManager::cameraDeviceSwitching, 
-            m_statusBarManager, &StatusBarManager::showCameraSwitching);
-    connect(m_cameraManager, &CameraManager::cameraDeviceSwitchComplete, 
-            m_statusBarManager, &StatusBarManager::showCameraSwitchComplete);
-    
-    // Connect camera switching signals to video pane for frame preservation
-    connect(m_cameraManager, &CameraManager::cameraDeviceSwitching,
-            videoPane, &VideoPane::onCameraDeviceSwitching);
-    connect(m_cameraManager, &CameraManager::cameraDeviceSwitchComplete,
-            videoPane, &VideoPane::onCameraDeviceSwitchComplete);
-    
-    // Connect VideoPane mouse events to status bar
-    connect(videoPane, &VideoPane::mouseMoved,
-            m_statusBarManager, &StatusBarManager::onLastMouseLocation);
-    connect(&VideoHid::getInstance(), &VideoHid::inputResolutionChanged, this, &MainWindow::onInputResolutionChanged);
-    connect(&VideoHid::getInstance(), &VideoHid::resolutionChangeUpdate, this, &MainWindow::onResolutionChange);
-
-    
-    qCDebug(log_ui_mainwindow) << "Test actionTCPServer true...";
-    ui->actionTCPServer->setVisible(true);
-    connect(ui->actionTCPServer, &QAction::triggered, this, &MainWindow::startServer);
-
-    qDebug() << "Init camera...";
-    checkInitSize();
-    initCamera();
-    
-    // Initialize camera with video output for proper startup
-    qCDebug(log_ui_mainwindow) << "Initializing camera with video output...";
-    QTimer::singleShot(200, this, [this]() {
-        bool success = m_cameraManager->initializeCameraWithVideoOutput(videoPane);
-        if (success) {
-            qDebug() << "✓ Camera successfully initialized with video output";
-        } else {
-            qCWarning(log_ui_mainwindow) << "Failed to initialize camera with video output";
-        }
-    });
-
-    // Initialize audio with a slight delay after camera
-    qCDebug(log_ui_mainwindow) << "Initializing audio...";
-    QTimer::singleShot(300, this, [this]() {
-        m_audioManager->initializeAudio();
-        qDebug() << "✓ Audio initialization triggered";
-    });
-
-    // Connect palette change signal to the slot
-    onLastKeyPressed("");
-    onLastMouseLocation(QPoint(0, 0), "");
-
-    // Connect zoom buttons
-    
-    // Set the window title with the version number
-    qDebug() << "Set window title" << APP_VERSION;
-    QString windowTitle = QString("Openterface Mini-KVM - %1").arg(APP_VERSION);
-    setWindowTitle(windowTitle);
-
-    mouseEdgeTimer = new QTimer(this);
-    connect(mouseEdgeTimer, &QTimer::timeout, this, &MainWindow::checkMousePosition);
-    // mouseEdgeTimer->start(edgeDuration); // Start the timer with the new duration
-
-
-
-    // Add this after other menu connections
-    connect(ui->menuBaudrate, &QMenu::triggered, this, &MainWindow::onBaudrateMenuTriggered);
-    connect(ui->menuDevice, &QMenu::triggered, this, &MainWindow::onDeviceSelected);
-    connect(&SerialPortManager::getInstance(), &SerialPortManager::connectedPortChanged, this, &MainWindow::onPortConnected);
-    connect(&SerialPortManager::getInstance(), &SerialPortManager::armBaudratePerformanceRecommendation, this, &MainWindow::onArmBaudratePerformanceRecommendation);
-    
-    // Note: Automatic camera device coordination has been disabled
-    // Camera devices will only be switched manually through the UI
-    
-    qApp->installEventFilter(this);
-
-    // Initial position setup
-    // QPoint buttonPos = ui->contrastButton->mapToGlobal(QPoint(0, 0));
-    // int menuBarHeight = buttonPos.y() - this->mapToGlobal(QPoint(0, 0)).y();
-    // cameraAdjust->updatePosition(menuBarHeight, width());
-
-    // Add this line after ui->setupUi(this)
-    connect(ui->actionScriptTool, &QAction::triggered, this, &MainWindow::showScriptTool);
-    connect(ui->actionRecordingSettings, &QAction::triggered, this, &MainWindow::showRecordingSettings);
-    mouseManager = std::make_unique<MouseManager>();
-    keyboardMouse = std::make_unique<KeyboardMouse>();
-    semanticAnalyzer = std::make_unique<SemanticAnalyzer>(mouseManager.get(), keyboardMouse.get());
-    connect(semanticAnalyzer.get(), &SemanticAnalyzer::captureImg, this, &MainWindow::takeImage);
-    connect(semanticAnalyzer.get(), &SemanticAnalyzer::captureAreaImg, this, &MainWindow::takeAreaImage);
-    scriptTool = new ScriptTool(this);
-    // connect(scriptTool, &ScriptTool::syntaxTreeReady, this, &MainWindow::handleSyntaxTree);
-    connect(this, &MainWindow::emitScriptStatus, scriptTool, &ScriptTool::resetCommmandLine);
-    connect(semanticAnalyzer.get(), &SemanticAnalyzer::commandIncrease, scriptTool, &ScriptTool::handleCommandIncrement);
-    // setTooltip();
-
-    // Add this connection after toolbarManager is created
-    connect(toolbarManager, &ToolbarManager::toolbarVisibilityChanged,
-            this, &MainWindow::onToolbarVisibilityChanged);
-    // qCDebug(log_ui_mainwindow) << "full screen...";
-    
-    connect(m_languageManager, &LanguageManager::languageChanged, this, &MainWindow::updateUI);
-    setupLanguageMenu();
-    setupDeviceMenu();
-    // fullScreen();
-    qDebug() << "finished initialization";
-    
+    qCDebug(log_ui_mainwindow) << "MainWindow initialization complete, window ID:" << this->winId();
 }
 
 void MainWindow::startServer(){
@@ -410,315 +161,11 @@ void MainWindow::startServer(){
 void MainWindow::updateUI() {
     ui->retranslateUi(this); // Update the UI elements
     // this->menuBar()->clear();
-    setupLanguageMenu();
-    updateDeviceMenu(); // Update device menu when UI language changes
-}
-
-void MainWindow::setupLanguageMenu() {
-    // Clear existing language actions
-    ui->menuLanguages->clear();
-    QStringList languages = m_languageManager->availableLanguages();
-    for (const QString &lang : languages) {
-       qCDebug(log_ui_mainwindow) << "Available language: " << lang; 
+    if (m_menuCoordinator) {
+        m_menuCoordinator->setupLanguageMenu();
     }
-    if (languages.isEmpty()) {
-        languages << "en" << "fr" << "de" << "da" << "ja" << "se";
-    }
-
-    QActionGroup *languageGroup = new QActionGroup(this);
-    languageGroup->setExclusive(true);
-
-    QMap<QString, QString> languageNames = {
-        {"en", "English"},
-        {"fr", "Français"},
-        {"de", "German"},
-        {"da", "Danish"},
-        {"ja", "Japanese"},
-        {"se", "Swedish"}
-    };
-    for (const QString &lang : languages) {
-        QString displayName = languageNames.value(lang, lang);
-        QAction *action = new QAction(displayName, this);
-        action->setCheckable(true);
-        action->setData(lang);
-        if (lang == m_languageManager->currentLanguage()) {
-            action->setChecked(true);
-        }
-        ui->menuLanguages->addAction(action);
-        languageGroup->addAction(action);
-    }
-    connect(languageGroup, &QActionGroup::triggered, this, &MainWindow::onLanguageSelected);
-}
-
-void MainWindow::setupDeviceMenu() {
-    // Initialize device menu group
-    m_deviceMenuGroup = new QActionGroup(this);
-    m_deviceMenuGroup->setExclusive(true);
-    
-    // Connect to device menu group
-    connect(m_deviceMenuGroup, &QActionGroup::triggered, this, &MainWindow::onDeviceSelected);
-    
-    // Initial population of device menu
-    updateDeviceMenu();
-}
-
-void MainWindow::updateDeviceMenu() {
-    if (!m_deviceMenuGroup) {
-        return;
-    }
-    
-    // Clear existing device actions
-    ui->menuDevice->clear();
-    qDeleteAll(m_deviceMenuGroup->actions());
-    
-    // Get available devices from DeviceManager
-    DeviceManager& deviceManager = DeviceManager::getInstance();
-    QList<DeviceInfo> devices = deviceManager.discoverDevices(); // Force discovery for up-to-date list
-    
-    // Get currently selected device port chain
-    QString currentPortChain = GlobalSetting::instance().getOpenterfacePortChain();
-    
-    qCDebug(log_ui_mainwindow) << "Updating device menu with" << devices.size() << "devices. Current port chain:" << currentPortChain;
-    
-    if (devices.isEmpty()) {
-        // Add "No devices available" placeholder
-        QAction *noDevicesAction = new QAction("No devices available", this);
-        noDevicesAction->setEnabled(false);
-        ui->menuDevice->addAction(noDevicesAction);
-        return;
-    }
-    
-    // Deduplicate devices by port chain (similar to DeviceSelectorDialog)
-    QMap<QString, DeviceInfo> uniqueDevicesByPortChain;
-    for (const auto& device : devices) {
-        if (!device.portChain.isEmpty()) {
-            if (uniqueDevicesByPortChain.contains(device.portChain)) {
-                const DeviceInfo& existing = uniqueDevicesByPortChain[device.portChain];
-                // Choose the device with more interfaces
-                if (device.getInterfaceCount() > existing.getInterfaceCount()) {
-                    uniqueDevicesByPortChain[device.portChain] = device;
-                }
-            } else {
-                uniqueDevicesByPortChain[device.portChain] = device;
-            }
-        }
-    }
-    
-    // If current port chain is null/empty and we have devices, auto-select the first one
-    if ((currentPortChain.isEmpty() || currentPortChain.isNull()) && !uniqueDevicesByPortChain.isEmpty()) {
-        QString firstPortChain = uniqueDevicesByPortChain.firstKey();
-        qCDebug(log_ui_mainwindow) << "Auto-selecting first device with port chain:" << firstPortChain;
-        
-        // Set the first device as current
-        GlobalSetting::instance().setOpenterfacePortChain(firstPortChain);
-        currentPortChain = firstPortChain;
-        
-        // Use the centralized device switching function to actually switch to the first device
-        DeviceManager& deviceManager = DeviceManager::getInstance();
-        auto result = deviceManager.switchToDeviceByPortChainWithCamera(firstPortChain, m_cameraManager);
-        
-        if (result.success) {
-            qCInfo(log_ui_mainwindow) << "✓ Auto device switch successful:" << result.statusMessage;
-        } else {
-            qCWarning(log_ui_mainwindow) << "Auto device switch failed or partial:" << result.statusMessage;
-        }
-    }
-    
-    // Add action for each unique device
-    for (auto it = uniqueDevicesByPortChain.begin(); it != uniqueDevicesByPortChain.end(); ++it) {
-        const DeviceInfo& device = it.value();
-        
-        // Determine device type based on VID/PID from platformSpecific data
-        QString deviceType = getDeviceTypeName(device);
-        QString displayText = QString("Port %1 - %2").arg(device.portChain, deviceType);
-        
-        QAction *deviceAction = new QAction(displayText, this);
-        deviceAction->setCheckable(true);
-        deviceAction->setData(device.portChain);
-        
-        // Mark current device with a dot
-        if (device.portChain == currentPortChain) {
-            deviceAction->setChecked(true);
-            deviceAction->setText(QString("• %1").arg(displayText));
-        }
-        
-        ui->menuDevice->addAction(deviceAction);
-        m_deviceMenuGroup->addAction(deviceAction);
-    }
-}
-
-QString MainWindow::getDeviceTypeName(const DeviceInfo& device) {
-    // Define VID/PID constants
-    const QString MINI_KVM_VID = "534D";    // Mini-KVM VID
-    const QString MINI_KVM_PID = "2109";    // Mini-KVM PID
-    const QString KVMGO_VID = "345F";       // KVMGO VID  
-    const QString KVMGO_PID = "2132";       // KVMGO PID
-    const QString KVMVGA_VID = "345F";      // KVMVGA VID
-    const QString KVMVGA_PID = "2109";      // KVMVGA PID
-    
-    // Helper function to check VID/PID in a string
-    auto checkVidPidInString = [&](const QString& str) -> QString {
-        if (str.isEmpty()) return "";
-        
-        // Check for KVMVGA (345F:2109)
-        if ((str.contains(QString("VID_%1").arg(KVMVGA_VID), Qt::CaseInsensitive) &&
-             str.contains(QString("PID_%1").arg(KVMVGA_PID), Qt::CaseInsensitive)) ||
-            (str.contains(KVMVGA_VID, Qt::CaseInsensitive) && 
-             str.contains(KVMVGA_PID, Qt::CaseInsensitive))) {
-            return "KVMVGA";
-        }
-        
-        // Check for KVMGO (345F:2132)
-        if ((str.contains(QString("VID_%1").arg(KVMGO_VID), Qt::CaseInsensitive) &&
-             str.contains(QString("PID_%1").arg(KVMGO_PID), Qt::CaseInsensitive)) ||
-            (str.contains(KVMGO_VID, Qt::CaseInsensitive) && 
-             str.contains(KVMGO_PID, Qt::CaseInsensitive))) {
-            return "KVMGO";
-        }
-        
-        // Check for Mini-KVM (534D:2109)
-        if ((str.contains(QString("VID_%1").arg(MINI_KVM_VID), Qt::CaseInsensitive) &&
-             str.contains(QString("PID_%1").arg(MINI_KVM_PID), Qt::CaseInsensitive)) ||
-            (str.contains(MINI_KVM_VID, Qt::CaseInsensitive) && 
-             str.contains(MINI_KVM_PID, Qt::CaseInsensitive))) {
-            return "Mini-KVM";
-        }
-        
-        return "";
-    };
-    
-    // Check main device sources
-    QStringList sources = {
-        device.platformSpecific.value("hardwareId").toString(),
-        device.platformSpecific.value("hardware_id").toString(),
-        device.platformSpecific.value("vidPid").toString(),
-        device.deviceInstanceId,
-        device.hidDeviceId,
-        device.cameraDeviceId,
-        device.audioDeviceId,
-        device.serialPortId
-    };
-    
-    for (const QString& source : sources) {
-        QString result = checkVidPidInString(source);
-        if (!result.isEmpty()) {
-            return result;
-        }
-    }
-    
-    // Check sibling and child devices
-    auto checkRelatedDevices = [&](const QVariantList& devices) -> QString {
-        for (const QVariant& deviceVar : devices) {
-            QVariantMap deviceMap = deviceVar.toMap();
-            QString hwId = deviceMap.value("hardwareId").toString();
-            if (hwId.isEmpty()) {
-                hwId = deviceMap.value("hardware_id").toString();
-            }
-            QString result = checkVidPidInString(hwId);
-            if (!result.isEmpty()) {
-                return result;
-            }
-        }
-        return "";
-    };
-    
-    if (device.platformSpecific.contains("siblings")) {
-        QString result = checkRelatedDevices(device.platformSpecific["siblings"].toList());
-        if (!result.isEmpty()) return result;
-    }
-    
-    if (device.platformSpecific.contains("children")) {
-        QString result = checkRelatedDevices(device.platformSpecific["children"].toList());
-        if (!result.isEmpty()) return result;
-    }
-    
-    return "Openterface";
-}
-
-void MainWindow::onDeviceSelected(QAction *action) {
-    QString portChain = action->data().toString();
-    qCDebug(log_ui_mainwindow) << "Device selected from menu:" << portChain;
-    
-    if (portChain.isEmpty()) {
-        return;
-    }
-    
-    // Use the centralized device switching function
-    DeviceManager& deviceManager = DeviceManager::getInstance();
-    auto result = deviceManager.switchToDeviceByPortChainWithCamera(portChain, m_cameraManager);
-    
-    // Log the result
-    if (result.success) {
-        qCInfo(log_ui_mainwindow) << "✓ Device switch successful:" << result.statusMessage;
-    } else {
-        qCWarning(log_ui_mainwindow) << "Device switch failed or partial:" << result.statusMessage;
-    }
-    
-    // Update device menu to reflect current selection
-    updateDeviceMenu();
-}
-
-void MainWindow::onLanguageSelected(QAction *action) {
-    QString language = action->data().toString();
-    m_languageManager->switchLanguage(language);
-}
-
-bool MainWindow::isFullScreenMode() {
-    // return fullScreenState;
-    return this->isFullScreen();
-}
-
-void MainWindow::fullScreen(){
-    qreal aspect_ratio = static_cast<qreal>(video_width) / video_height;
-    QScreen *currentScreen = this->screen();
-    QRect screenGeometry = currentScreen->geometry();
-    int videoAvailibleHeight = screenGeometry.height() - ui->menubar->height();
-    int videoAvailibleWidth = videoAvailibleHeight * aspect_ratio;
-    int horizontalOffset = (screenGeometry.width() - videoAvailibleWidth) / 2;
-    if(!isFullScreenMode()){
-         
-        ui->statusbar->hide();
-        // Calculate the horizontal offset after resizing
-        
-        // Resize and position the videoPane
-        // videoPane->setMinimumSize(videoAvailibleWidth, videoAvailibleHeight);
-        videoPane->resize(videoAvailibleWidth, videoAvailibleHeight);
-        qCDebug(log_ui_mainwindow) << "Resize to Width " << videoAvailibleWidth << "\tHeight: " << videoAvailibleHeight;
-        // Move the videoPane to the center
-        fullScreenState = true;
-        this->showFullScreen();
-        qCDebug(log_ui_mainwindow) << "offset: " << horizontalOffset;
-        videoPane->move(horizontalOffset, videoPane->y());
-    } else {
-        this->showNormal();
-        ui->statusbar->show();
-        fullScreenState = false;
-    }
-}
-
-
-void MainWindow::onZoomIn()
-{
-    // Use VideoPane's built-in zoom functionality
-    videoPane->zoomIn(1.1);
-    
-    mouseEdgeTimer->start(edgeDuration); // Check every edge Duration
-}
-
-void MainWindow::onZoomOut()
-{
-    if (videoPane->width() != this->width()){
-        // Use VideoPane's built-in zoom functionality
-        videoPane->zoomOut(0.9);
-    }
-}
-
-void MainWindow::onZoomReduction()
-{
-    // Use VideoPane's fit to window functionality
-    videoPane->fitToWindow();
-    if (mouseEdgeTimer->isActive()) {
-        mouseEdgeTimer->stop();
+    if (m_deviceCoordinator) {
+        m_deviceCoordinator->updateDeviceMenu(); // Update device menu when UI language changes
     }
 }
 
@@ -760,37 +207,6 @@ void MainWindow::initCamera()
     GlobalVar::instance().setWinHeight(this->height());
 }
 
-void MainWindow::checkInitSize(){
-    QScreen *currentScreen = this->screen();
-    systemScaleFactor = currentScreen->devicePixelRatio();
-    
-    // Get screen geometry
-    QRect screenGeometry = currentScreen->geometry();
-    int screenWidth = screenGeometry.width();
-    int screenHeight = screenGeometry.height();
-    int titleBarHeight = this->frameGeometry().height() - this->geometry().height();
-    int menuBarHeight = this->menuBar()->height();
-    int statusBarHeight = ui->statusbar->height();
-    int height = titleBarHeight + menuBarHeight + statusBarHeight;
-
-    int windowHeight = int(screenHeight / 3 * 2);
-    int windowWidth = int(windowHeight / 9 * 16) + height;
-
-    // Set window size to 50% of screen size
-    resize(windowWidth, windowHeight);
-    
-    // Center the window on screen
-    int x = (screenWidth - windowWidth) / 2;
-    int y = (screenHeight - windowHeight) / 2 - (height / 2);
-    qCDebug(log_ui_mainwindow) << "checkInitSize: Window position:" << x << "," << y;
-    move(x, y);
-    
-    qCDebug(log_ui_mainwindow) << "checkInitSize: Screen size:" << screenWidth << "x" << screenHeight;
-    qCDebug(log_ui_mainwindow) << "checkInitSize: Window size set to:" << windowWidth << "x" << windowHeight;
-    qCDebug(log_ui_mainwindow) << "checkInitSize: Window position:" << x << "," << y;
-    qCDebug(log_ui_mainwindow) << "System scale factor: " << systemScaleFactor;
-}
-
 void MainWindow::resizeEvent(QResizeEvent *event) {
     qCDebug(log_ui_mainwindow) << "Resize event triggered. New size:" << event->size();
 
@@ -799,12 +215,27 @@ void MainWindow::resizeEvent(QResizeEvent *event) {
     const qint64 RESIZE_THROTTLE_MS = 50;
     
     // Skip resize if in fullscreen mode or throttled
-    if (isFullScreenMode() || (currentTime - lastResizeTime) < RESIZE_THROTTLE_MS) {
+    bool inFullscreen = m_windowLayoutCoordinator ? m_windowLayoutCoordinator->isFullScreenMode() : false;
+    if (inFullscreen || (currentTime - lastResizeTime) < RESIZE_THROTTLE_MS) {
         return;
     }
 
+    qCDebug(log_ui_mainwindow) << "ResizeEvent - current window state:" << this->windowState();
+    
     // Check if window is maximized - if so, allow resize to proceed
     bool isMaximized = (this->windowState() & Qt::WindowMaximized);
+    bool isMinimized = (this->windowState() & Qt::WindowMinimized);
+    qCDebug(log_ui_mainwindow) << "ResizeEvent - isMaximized:" << isMaximized;
+    qCDebug(log_ui_mainwindow) << "ResizeEvent - isMinimized:" << isMinimized;
+    qCDebug(log_ui_mainwindow) << "ResizeEvent - isFullScreenMode:" 
+                            << (m_windowLayoutCoordinator ? m_windowLayoutCoordinator->isFullScreenMode() : false);
+    
+    // Track window state changes for WindowControlManager
+    static Qt::WindowStates lastWindowState = this->windowState();
+    if (lastWindowState != this->windowState() && m_windowControlManager) {
+        m_windowControlManager->onWindowStateChanged(lastWindowState, this->windowState());
+        lastWindowState = this->windowState();
+    }
     
     if (!isMaximized) {
         // Check if new size exceeds screen bounds only for non-maximized windows
@@ -821,155 +252,10 @@ void MainWindow::resizeEvent(QResizeEvent *event) {
     
     lastResizeTime = currentTime;
     QMainWindow::resizeEvent(event);
-    doResize();
+    if (m_windowLayoutCoordinator) {
+        m_windowLayoutCoordinator->doResize();
+    }
     qCDebug(log_ui_mainwindow) << "mainwindow size: " << this->size() << "VideoPane size:" << videoPane->size();
-}
-
-void MainWindow::doResize() {
-    // Log window state
-    if (this->windowState() & Qt::WindowMaximized) {
-        qCDebug(log_ui_mainwindow) << "Window is maximized.";
-    } else {
-        qCDebug(log_ui_mainwindow) << "Window is normal.";
-    }
-
-    // Get screen and system information
-    QScreen *currentScreen = this->screen();
-    QRect availableGeometry = currentScreen->availableGeometry();
-    systemScaleFactor = currentScreen->devicePixelRatio();
-    
-    // Calculate aspect ratios
-    double captureAspectRatio = 1.0;
-    if (GlobalVar::instance().getCaptureWidth() && GlobalVar::instance().getCaptureHeight()) {
-        video_width = GlobalVar::instance().getCaptureWidth();
-        video_height = GlobalVar::instance().getCaptureHeight();
-        captureAspectRatio = static_cast<double>(video_width) / video_height;
-    }
-    double aspectRatio = GlobalSetting::instance().getScreenRatio();
-    
-    // Get dimensions
-    int availableWidth = availableGeometry.width();
-    int availableHeight = availableGeometry.height();
-    int currentWidth = this->width();
-    int currentHeight = this->height();
-    
-    // Calculate UI element heights
-    int titleBarHeight = this->frameGeometry().height() - this->geometry().height();
-    int menuBarHeight = this->menuBar()->height();
-    int statusBarHeight = ui->statusbar->height();
-    int maxContentHeight = availableHeight - titleBarHeight - menuBarHeight - statusBarHeight;
-    
-    // Check if resize is needed due to screen bounds
-    bool needResize = (currentWidth >= availableWidth || currentHeight >= availableHeight);
-    
-    if (needResize) {
-        qCDebug(log_ui_mainwindow) << "Need resize due to screen bounds.";
-        handleScreenBoundsResize(currentWidth, currentHeight, availableWidth, availableHeight, 
-                                maxContentHeight, menuBarHeight, statusBarHeight, aspectRatio);
-    } else {
-        qCDebug(log_ui_mainwindow) << "No resize needed.";
-        handleAspectRatioResize(currentWidth, currentHeight, menuBarHeight, statusBarHeight, 
-                               aspectRatio, captureAspectRatio);
-    }
-    
-    // Update global state
-    GlobalVar::instance().setWinWidth(this->width());
-    GlobalVar::instance().setWinHeight(this->height());
-}
-
-void MainWindow::handleScreenBoundsResize(int &currentWidth, int &currentHeight, 
-                                         int availableWidth, int availableHeight,
-                                         int maxContentHeight, int menuBarHeight, 
-                                         int statusBarHeight, double aspectRatio) {
-    // Adjust size while maintaining aspect ratio
-    if (currentWidth >= availableWidth) {
-        currentWidth = availableWidth;
-    }
-    if (currentHeight >= maxContentHeight) {
-        currentHeight = std::min(maxContentHeight + menuBarHeight + statusBarHeight, availableHeight);
-    }
-
-    int newVideoHeight = std::min(currentHeight - menuBarHeight - statusBarHeight, maxContentHeight);
-    int newVideoWidth = static_cast<int>(newVideoHeight * aspectRatio);
-
-    if (currentWidth < newVideoWidth) {
-        // If video width is larger than the window's width, adjust based on width
-        newVideoWidth = currentWidth;
-        newVideoHeight = static_cast<int>(newVideoWidth / aspectRatio);
-    }
-
-    // Apply changes to video pane
-    videoPane->resize(newVideoWidth, newVideoHeight);
-    
-    // Resize main window if necessary
-    if (currentWidth != availableWidth && currentHeight != availableHeight) {
-        qCDebug(log_ui_mainwindow) << "Resize to Width:" << currentWidth 
-                                   << "Height:" << currentHeight 
-                                   << "due to exceeding screen bounds.";
-        qCDebug(log_ui_mainwindow) << "Available Width:" << availableWidth 
-                                   << "Height:" << availableHeight;
-        resize(currentWidth, currentHeight);
-    }
-}
-
-void MainWindow::handleAspectRatioResize(int currentWidth, int currentHeight, 
-                                        int menuBarHeight, int statusBarHeight,
-                                        double aspectRatio, double captureAspectRatio) {
-    // When within screen bounds, adjust height according to width and aspect ratio
-    int contentHeight = static_cast<int>(currentWidth / aspectRatio) + menuBarHeight + statusBarHeight;
-    int adjustedContentHeight = contentHeight - menuBarHeight - statusBarHeight;
-    
-    // Check if window is maximized
-    bool isMaximized = (this->windowState() & Qt::WindowMaximized);
-    
-    if (isMaximized) {
-        // For maximized windows, use the full available space
-        adjustedContentHeight = currentHeight - menuBarHeight - statusBarHeight;
-        
-        // Calculate video pane size to fill the available area while maintaining aspect ratio
-        int availableWidth = currentWidth;
-        int availableHeight = adjustedContentHeight;
-        
-        // Scale video pane to fit the available area
-        double scaleX = static_cast<double>(availableWidth) / (captureAspectRatio * availableHeight);
-        double scaleY = 1.0;
-        
-        int videoWidth, videoHeight;
-        if (scaleX <= 1.0) {
-            // Height-constrained: video height = available height, width scaled accordingly
-            videoHeight = availableHeight;
-            videoWidth = static_cast<int>(videoHeight * captureAspectRatio);
-        } else {
-            // Width-constrained: video width = available width, height scaled accordingly
-            videoWidth = availableWidth;
-            videoHeight = static_cast<int>(videoWidth / captureAspectRatio);
-        }
-        
-        videoPane->resize(videoWidth, videoHeight);
-        qCDebug(log_ui_mainwindow) << "Maximized window - VideoPane resized to:" << videoWidth << "x" << videoHeight;
-        
-    } else if (aspectRatio < 1.0) {
-        // Portrait orientation
-        int newWidth = static_cast<int>(currentHeight * aspectRatio);
-        adjustedContentHeight = currentHeight - menuBarHeight - statusBarHeight;
-        int contentWidth = static_cast<int>(adjustedContentHeight * captureAspectRatio);
-        
-        videoPane->resize(contentWidth, adjustedContentHeight);
-        setMinimumSize(100, 500);
-        
-        qCDebug(log_ui_mainwindow) << "Resize to Width:" << newWidth 
-                                   << "Height:" << currentHeight 
-                                   << "due to aspect ratio < 1.0";
-        resize(newWidth, currentHeight);
-    } else {
-        // Landscape orientation
-        videoPane->resize(currentWidth, adjustedContentHeight);
-        
-        qCDebug(log_ui_mainwindow) << "Resize to Width:" << currentWidth 
-                                   << "Height:" << contentHeight 
-                                   << "due to aspect ratio >= 1.0";
-        resize(currentWidth, contentHeight);
-    }
 }
 
 void MainWindow::moveEvent(QMoveEvent *event) {
@@ -984,8 +270,6 @@ void MainWindow::moveEvent(QMoveEvent *event) {
     // Call the base class implementation
     QWidget::moveEvent(event);
 }
-
-
 
 void MainWindow::updateScrollbars() {
     // Get the screen geometry using QScreen
@@ -1240,29 +524,13 @@ void MainWindow::onScreenRatioChanged(double ratio) {
     if (ratio != currentRatio) {
         qCDebug(log_ui_mainwindow) << "Screen ratio changed to" << ratio;
         GlobalSetting::instance().setScreenRatio(ratio);
-        calculate_video_position(); 
+        if (m_windowLayoutCoordinator) {
+            m_windowLayoutCoordinator->calculateVideoPosition();
+        }
     }
 }
 
-void MainWindow::calculate_video_position(){
-    qCDebug(log_ui_mainwindow) << "Calculate video position...";
-    double currentRatio = GlobalSetting::instance().getScreenRatio();
-    double input_aspect_ratio = double(GlobalVar::instance().getCaptureWidth()) / double(GlobalVar::instance().getCaptureHeight());
-    
-    if(currentRatio > input_aspect_ratio){
-        currentRatioType = ratioType::LARGER;
-    }else if (currentRatio < input_aspect_ratio){
-        currentRatioType = ratioType::SMALLER;
-    }else if (currentRatio == input_aspect_ratio){
-        currentRatioType = ratioType::EQUAL;
-    }
-    doResize();
-    QScreen *screen = this->screen();
-    QRect availableGeometry = screen->availableGeometry();
-    int x = (availableGeometry.width() - this->width()) / 2;
-    int y = (availableGeometry.height() - this->height()) / 2;
-    move(x, y);
-}
+
 
 void MainWindow::configureSettings() {
     qCDebug(log_ui_mainwindow) << "configureSettings";
@@ -1503,105 +771,13 @@ void MainWindow::displayCapturedImage()
     //ui->stackedWidget->setCurrentIndex(1);
 }
 
-void MainWindow::onBaudrateMenuTriggered(QAction* action)
-{
-    bool ok;
-    int baudrate = action->text().toInt(&ok);
-    if (ok) {
-        qCDebug(log_ui_mainwindow) << "User selected baudrate from menu:" << baudrate;
-        
-        if(baudrate == 9600){
-            SerialPortManager::getInstance().factoryResetHipChip();
-        }else{
-            SerialPortManager::getInstance().setUserSelectedBaudrate(baudrate);
-        }
-        
-        // Show message to user about device reconnection requirement
-        QMessageBox msgBox(this);
-        msgBox.setIcon(QMessageBox::Information);
-        msgBox.setWindowTitle("Baudrate Changed");
-        msgBox.setText(QString("Baudrate has been changed to %1.\n\n"
-                              "Please unplug and replug the device to make the new baudrate setting effective.")
-                              .arg(baudrate));
-        msgBox.addButton(QMessageBox::Ok);
-        msgBox.exec();
-    } else {
-        qCWarning(log_ui_mainwindow) << "Invalid baudrate selected from menu:" << action->text();
-    }
-}
+
 
 void MainWindow::onArmBaudratePerformanceRecommendation(int currentBaudrate)
 {
-    // Get the current baudrate from SerialPortManager instead of using the parameter
-    int actualCurrentBaudrate = SerialPortManager::getInstance().getCurrentBaudrate();
-    
-    QMessageBox msgBox(this);
-    msgBox.setIcon(QMessageBox::Information);
-    msgBox.setWindowTitle("Performance Recommendation");
-    
-    QPushButton* actionButton = nullptr;
-    QPushButton* stayButton = nullptr;
-
-
-    if (actualCurrentBaudrate == 9600) {
-        msgBox.setText("You are running on an ARM architecture with 9600 baudrate.\n\n"
-                      "You can switch to 115200 baudrate for potentially faster communication, "
-                      "but it may use more CPU resources.");
-        actionButton = msgBox.addButton("Switch to 115200", QMessageBox::AcceptRole);
-        stayButton = msgBox.addButton("Stay in 9600", QMessageBox::RejectRole);
-    } else {
-        msgBox.setText(QString("You are running on an ARM architecture with %1 baudrate.\n\n"
-                              "For better performance and lower CPU usage, we recommend using 9600 baudrate instead.")
-                              .arg(actualCurrentBaudrate));
-        actionButton = msgBox.addButton("Switch to 9600", QMessageBox::AcceptRole);
-        stayButton = msgBox.addButton("Stay in 115200", QMessageBox::RejectRole);
-    }
-    
-    
-    QCheckBox* dontShowCheckBox = new QCheckBox("Don't show this recommendation again");
-    msgBox.setCheckBox(dontShowCheckBox);
-    
-    msgBox.exec();
-    
-    QAbstractButton* clickedBtn = msgBox.clickedButton();
-    bool shouldSwitch = (clickedBtn == actionButton);
-    bool dontShowAgain = dontShowCheckBox->isChecked();
-    
-    // If user closed the dialog (clicked X or pressed Escape), don't proceed with any action
-    if (clickedBtn == nullptr) {
-        qCInfo(log_ui_mainwindow) << "User closed the dialog without making a choice";
-        return;
-    }
-    
-    // Handle "don't show again" in UI
-    if (dontShowAgain) {
-        qCInfo(log_ui_mainwindow) << "User chose to disable ARM baudrate performance prompts";
-        GlobalSetting::instance().setArmBaudratePromptDisabled(true);
-    }
-    
-    // Handle baudrate switching
-    if (shouldSwitch) {
-        int targetBaudrate = (actualCurrentBaudrate == 9600) ? 115200 : 9600;
-        qCInfo(log_ui_mainwindow) << "User chose to switch from" << actualCurrentBaudrate << "to" << targetBaudrate << "baudrate";
-        if(targetBaudrate == 115200){
-            SerialPortManager::getInstance().setUserSelectedBaudrate(targetBaudrate);
-        } else {
-            //For some reason, switching back to 9600 cannot dynamically, need to reset the HID chip
-            SerialPortManager::getInstance().factoryResetHipChip();
-        }
-        
-        
-        // Show message to user about device reconnection requirement
-        QMessageBox infoBox(this);
-        infoBox.setIcon(QMessageBox::Information);
-        infoBox.setWindowTitle("Baudrate Changed");
-        infoBox.setText(QString("Baudrate has been changed to %1.\n\n"
-                              "Please unplug and replug the device to make the new baudrate setting effective.")
-                              .arg(targetBaudrate));
-        infoBox.addButton(QMessageBox::Ok);
-        infoBox.exec();
-    } else {
-        qCInfo(log_ui_mainwindow) << "User chose to keep current baudrate:" << actualCurrentBaudrate;
+    // Delegate to MenuCoordinator
+    if (m_menuCoordinator) {
+        m_menuCoordinator->showArmBaudratePerformanceRecommendation(currentBaudrate);
     }
 }
 
@@ -1669,7 +845,9 @@ void MainWindow::updateCameras()
 void MainWindow::onPortConnected(const QString& port, const int& baudrate) {
     if(baudrate > 0){
         m_statusBarManager->setConnectedPort(port, baudrate);
-        updateBaudrateMenu(baudrate);
+        if (m_menuCoordinator) {
+            m_menuCoordinator->updateBaudrateMenu(baudrate);
+        }
         
         // Note: Camera coordination functionality has been removed
         // The DeviceManager singleton now handles device coordination automatically
@@ -1677,29 +855,6 @@ void MainWindow::onPortConnected(const QString& port, const int& baudrate) {
     }else{
         m_statusBarManager->setConnectedPort(port, baudrate);
         m_statusBarManager->setTargetUsbConnected(false);
-    }
-}
-
-void MainWindow::updateBaudrateMenu(int baudrate){
-    QMenu* baudrateMenu = ui->menuBaudrate;
-    if (baudrateMenu) {
-        QList<QAction*> actions = baudrateMenu->actions();
-        for (QAction* action : actions) {
-            if (baudrate == 0) {
-                action->setChecked(false);
-            } else {
-                bool ok;
-                int actionBaudrate = action->text().toInt(&ok);
-                if (ok && actionBaudrate == baudrate) {
-                    action->setChecked(true);
-                } else {
-                    action->setChecked(false);
-                }
-            }
-        }
-    }
-    else {
-        qWarning() << "Baudrate menu not found!";
     }
 }
 
@@ -1830,7 +985,9 @@ void MainWindow::onResolutionsUpdated(int input_width, int input_height, float i
 void MainWindow::onInputResolutionChanged()
 {
     qCDebug(log_ui_mainwindow) << "Input resolution changed.";
-    doResize();
+    if (m_windowLayoutCoordinator) {
+        m_windowLayoutCoordinator->doResize();
+    }
 
     // Calculate the maximum available content height with safety checks
     int contentHeight = this->height() - ui->statusbar->height() - ui->menubar->height();
@@ -1945,6 +1102,13 @@ MainWindow::~MainWindow()
         qCDebug(log_ui_mainwindow) << "m_cornerWidgetManager destroyed successfully";
     }
 
+    if (m_windowControlManager) {
+        m_windowControlManager->setAutoHideEnabled(false); // Disable before cleanup
+        m_windowControlManager->deleteLater();
+        m_windowControlManager = nullptr;
+        qCDebug(log_ui_mainwindow) << "m_windowControlManager destroyed successfully";
+    }
+
     if (m_screenScaleDialog) {
         m_screenScaleDialog->deleteLater();
         m_screenScaleDialog = nullptr;
@@ -2015,6 +1179,7 @@ MainWindow::~MainWindow()
 }
 
 void MainWindow::onToolbarVisibilityChanged(bool visible) {
+    qCDebug(log_ui_mainwindow) << "Toolbar visibility changed:" << visible;
     Q_UNUSED(visible);
     // Prevent repaints during animation
     setUpdatesEnabled(false);
@@ -2031,106 +1196,18 @@ void MainWindow::onToolbarVisibilityChanged(bool visible) {
 
     // Use QTimer to delay the video pane repositioning
     // Safety check: Don't schedule animation if window is being destroyed
-    if (videoPane && this->isVisible() && !this->testAttribute(Qt::WA_DeleteOnClose)) {
-        QTimer::singleShot(0, this, &MainWindow::animateVideoPane);
-    }
-    
-}
-
-void MainWindow::animateVideoPane() {
-    // Safety check: Don't animate if window is being destroyed
-    if (!videoPane || !this->isVisible() || this->testAttribute(Qt::WA_DeleteOnClose)) {
-        setUpdatesEnabled(true);
-        blockSignals(false);
-        return;
-    }
-
-    // Get toolbar visibility and window state
-    bool isToolbarVisible = toolbarManager->getToolbar()->isVisible();
-    bool isMaximized = (this->windowState() & Qt::WindowMaximized);
-
-    // Calculate content height based on toolbar visibility
-    int contentHeight;
-    if (!isFullScreenMode()) contentHeight = this->height() - ui->statusbar->height() - ui->menubar->height();
-    else contentHeight = this->height() - ui->menubar->height();
-
-    int contentWidth;
-    double aspect_ratio = static_cast<double>(video_width) / video_height;
-    
-    if (isMaximized) {
-        // For maximized windows, use the full window width and calculated height
-        contentWidth = this->width();
-        if (isToolbarVisible) {
-            contentHeight -= toolbarManager->getToolbar()->height();
-        }
-        // Don't constrain by aspect ratio for maximized windows - let VideoPane handle it
-        qCDebug(log_ui_mainwindow) << "Maximized window - contentWidth:" << contentWidth << "contentHeight:" << contentHeight;
-    } else {
-        // Normal window behavior
-        if (isToolbarVisible) {
-            contentHeight -= toolbarManager->getToolbar()->height();
-            contentWidth = static_cast<int>(contentHeight * aspect_ratio);
-            qCDebug(log_ui_mainwindow) << "toolbarHeigth" << toolbarManager->getToolbar()->height() << "content height" <<contentHeight << "content width" << contentWidth;
-        } else {
-            if (!isFullScreenMode()) contentHeight = this->height() - ui->statusbar->height() - ui->menubar->height();
-            else contentHeight = this->height() - ui->menubar->height();
-            contentWidth = static_cast<int>(contentHeight * aspect_ratio);
-        }
-    }
-
-    // Resize the video pane
-    videoPane->resize(contentWidth, contentHeight);
-
-    // Position the video pane (center horizontally if window is wider than video pane)
-    if (this->width() > videoPane->width()) {
-        // Calculate new position
-        int horizontalOffset = (this->width() - videoPane->width()) / 2;
-        
-        // Safety check: Only create animation if videoPane is still valid and window is visible
-        if (videoPane && this->isVisible() && !this->testAttribute(Qt::WA_DeleteOnClose)) {
-            // Animate the videoPane position
-            QPropertyAnimation *videoAnimation = new QPropertyAnimation(videoPane, "pos");
-            videoAnimation->setDuration(150);
-            videoAnimation->setStartValue(videoPane->pos());
-            videoAnimation->setEndValue(QPoint(horizontalOffset, videoPane->y()));
-            videoAnimation->setEasingCurve(QEasingCurve::OutCubic);
-
-            // Create animation group with just video animation
-            QParallelAnimationGroup *group = new QParallelAnimationGroup(this);
-            group->addAnimation(videoAnimation);
-            
-            // Cleanup after animation
-            connect(group, &QParallelAnimationGroup::finished, this, [this]() {
-                if (this && this->isVisible() && !this->testAttribute(Qt::WA_DeleteOnClose)) {
-                    setUpdatesEnabled(true);
-                    blockSignals(false);
-                    update();
-                }
-            });
-            
-            group->start(QAbstractAnimation::DeleteWhenStopped);
-        } else {
-            // If animation can't be created safely, just move immediately
-            if (videoPane) {
-                videoPane->move(horizontalOffset, videoPane->y());
+    if (m_windowLayoutCoordinator && videoPane && this->isVisible() && !this->testAttribute(Qt::WA_DeleteOnClose)) {
+        QTimer::singleShot(0, [this]() {
+            if (m_windowLayoutCoordinator) {
+                m_windowLayoutCoordinator->animateVideoPane();
             }
-            setUpdatesEnabled(true);
-            blockSignals(false);
-        }
-    } else {
-        // VideoPane fills the window width, position at x=0
-        if (videoPane) {
-            videoPane->move(0, videoPane->y());
-        }
-        setUpdatesEnabled(true);
-        blockSignals(false);
-        update();
+        });
     }
+    
 }
 
 void MainWindow::changeKeyboardLayout(const QString& layout) {
     // Pass the layout name directly to HostManager
-    qCDebug(log_ui_mainwindow) << "Changing layout";
     GlobalSetting::instance().setKeyboardLayout(layout);
     qCDebug(log_ui_mainwindow) << "Set layout" << layout;
     HostManager::getInstance().setKeyboardLayout(layout);

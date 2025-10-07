@@ -4,29 +4,132 @@
 <context>
     <name>AudioPage</name>
     <message>
-        <location filename="../../ui/preferences/audiopage.cpp" line="39"/>
-        <source>General audio setting</source>
-        <translation>通用音频设置</translation>
+        <location filename="../../ui/preferences/audiopage.cpp" line="54"/>
+        <source>Audio Device Selection</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/audiopage.cpp" line="42"/>
-        <source>Audio Codec: </source>
-        <translation>音频编码方式：</translation>
+        <location filename="../../ui/preferences/audiopage.cpp" line="59"/>
+        <source>Audio Input Device:</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/audiopage.cpp" line="47"/>
-        <source>Sample Rate: </source>
-        <translation>采样率:</translation>
+        <location filename="../../ui/preferences/audiopage.cpp" line="63"/>
+        <source>Select the audio input device for capturing audio</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/audiopage.cpp" line="53"/>
-        <source>Quality: </source>
-        <translation>音频质量：</translation>
+        <location filename="../../ui/preferences/audiopage.cpp" line="65"/>
+        <source>Refresh</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/audiopage.cpp" line="60"/>
-        <source>File Format: </source>
-        <translation>输出文件形式：</translation>
+        <location filename="../../ui/preferences/audiopage.cpp" line="67"/>
+        <source>Refresh the list of available audio devices</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/preferences/audiopage.cpp" line="74"/>
+        <location filename="../../ui/preferences/audiopage.cpp" line="295"/>
+        <location filename="../../ui/preferences/audiopage.cpp" line="329"/>
+        <source>Current Device: None</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/preferences/audiopage.cpp" line="79"/>
+        <source>Audio Recording Settings</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/preferences/audiopage.cpp" line="84"/>
+        <source>Audio Codec:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/preferences/audiopage.cpp" line="89"/>
+        <source>Select the audio codec for recording</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/preferences/audiopage.cpp" line="95"/>
+        <source>Sample Rate:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/preferences/audiopage.cpp" line="103"/>
+        <source>Set the audio sample rate (Hz)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/preferences/audiopage.cpp" line="109"/>
+        <source>Bitrate:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/preferences/audiopage.cpp" line="117"/>
+        <source>Set the audio bitrate (kbps)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/preferences/audiopage.cpp" line="123"/>
+        <source>Quality:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/preferences/audiopage.cpp" line="132"/>
+        <source>Adjust audio quality (1=lowest, 10=highest)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/preferences/audiopage.cpp" line="145"/>
+        <source>Container Format:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/preferences/audiopage.cpp" line="150"/>
+        <source>Select the container format for recordings</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/preferences/audiopage.cpp" line="156"/>
+        <source>Live Audio Settings</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/preferences/audiopage.cpp" line="161"/>
+        <source>Enable Audio Pass-through</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/preferences/audiopage.cpp" line="164"/>
+        <source>Enable real-time audio pass-through from input to output</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/preferences/audiopage.cpp" line="169"/>
+        <source>Volume:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/preferences/audiopage.cpp" line="178"/>
+        <source>Adjust audio volume (0-100%)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/preferences/audiopage.cpp" line="293"/>
+        <source>No audio devices found</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/preferences/audiopage.cpp" line="312"/>
+        <source> (Default)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/preferences/audiopage.cpp" line="327"/>
+        <location filename="../../ui/preferences/audiopage.cpp" line="351"/>
+        <source>Current Device: %1</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -35,6 +138,14 @@
         <location filename="../../ui/cornerwidget/cornerwidgetmanager.cpp" line="57"/>
         <source>Select Keyboard Layout</source>
         <translation>选择键盘布局</translation>
+    </message>
+</context>
+<context>
+    <name>DeviceCoordinator</name>
+    <message>
+        <location filename="../../ui/coordinator/devicecoordinator.cpp" line="101"/>
+        <source>No devices available</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -468,41 +579,46 @@ Please try again after restarting the application.</source>
     </message>
     <message>
         <location filename="../../ui/preferences/logpage.cpp" line="55"/>
+        <source>Backend</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/preferences/logpage.cpp" line="56"/>
         <source>Enable file logging</source>
         <translation>启用文件日志</translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/logpage.cpp" line="57"/>
+        <location filename="../../ui/preferences/logpage.cpp" line="58"/>
         <source>Browse</source>
         <translation>浏览</translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/logpage.cpp" line="58"/>
+        <location filename="../../ui/preferences/logpage.cpp" line="59"/>
         <source>Inhibit Screen Saver</source>
         <translation>禁用屏幕保护程序</translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/logpage.cpp" line="83"/>
+        <location filename="../../ui/preferences/logpage.cpp" line="86"/>
         <source>General log setting</source>
         <translation>通用日志设置</translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/logpage.cpp" line="87"/>
+        <location filename="../../ui/preferences/logpage.cpp" line="90"/>
         <source>Check the check box to see the corresponding log in the QT console.</source>
         <translation>勾选复选框可在QT控制台中查看相应的日志。</translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/logpage.cpp" line="92"/>
+        <location filename="../../ui/preferences/logpage.cpp" line="95"/>
         <source>Screen Saver setting</source>
         <translation>屏幕保护程序设置</translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/logpage.cpp" line="96"/>
+        <location filename="../../ui/preferences/logpage.cpp" line="99"/>
         <source>Inhibit the screen saver when the application is running.</source>
         <translation>应用程序运行时禁用屏幕保护程序。</translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/logpage.cpp" line="117"/>
+        <location filename="../../ui/preferences/logpage.cpp" line="120"/>
         <source>Select Log Directory</source>
         <translation>选择日志目录</translation>
     </message>
@@ -571,102 +687,85 @@ Please try again after restarting the application.</source>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="149"/>
-        <location filename="../../ui/mainwindow.ui" line="149"/>
         <source>Close</source>
         <translation>关闭</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="154"/>
         <location filename="../../ui/mainwindow.ui" line="154"/>
         <source>Change Settings</source>
         <translation>更改设置</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="159"/>
-        <location filename="../../ui/mainwindow.ui" line="159"/>
         <source>Reset Serial Port</source>
         <translation>重置串口</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="164"/>
         <location filename="../../ui/mainwindow.ui" line="164"/>
         <source>Serial Console</source>
         <translation>串口控制台</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="169"/>
-        <location filename="../../ui/mainwindow.ui" line="169"/>
         <source>AutoReszie</source>
         <translation>自动调整大小</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="174"/>
         <location filename="../../ui/mainwindow.ui" line="174"/>
         <source>Factory Reset HID Chip</source>
         <translation>出厂重置HID芯片</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="179"/>
-        <location filename="../../ui/mainwindow.ui" line="179"/>
         <source>Preferences</source>
         <translation>首选项</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="184"/>
         <location filename="../../ui/mainwindow.ui" line="184"/>
         <source>Office Website</source>
         <translation>官方网站</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="189"/>
-        <location filename="../../ui/mainwindow.ui" line="189"/>
         <source>Purchase</source>
         <translation>购买</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="194"/>
         <location filename="../../ui/mainwindow.ui" line="194"/>
         <source>Feedback</source>
         <translation>反馈</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="199"/>
-        <location filename="../../ui/mainwindow.ui" line="199"/>
         <source>Update</source>
         <translation>更新</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="204"/>
         <location filename="../../ui/mainwindow.ui" line="204"/>
         <source>Environment</source>
         <translation>环境</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="209"/>
-        <location filename="../../ui/mainwindow.ui" line="209"/>
         <source>About</source>
         <translation>关于</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="220"/>
         <location filename="../../ui/mainwindow.ui" line="220"/>
         <source>Follow Switch</source>
         <translation>跟随切换</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="228"/>
-        <location filename="../../ui/mainwindow.ui" line="228"/>
         <source>Paste</source>
         <translation>粘贴</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="231"/>
-        <location filename="../../ui/mainwindow.ui" line="231"/>
         <source>Paste clipboard content to target</source>
         <translation>将剪贴板内容粘贴到目标</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="236"/>
         <location filename="../../ui/mainwindow.ui" line="236"/>
         <source>Script Tool</source>
         <translation>脚本工具</translation>
@@ -683,156 +782,128 @@ Please try again after restarting the application.</source>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="249"/>
-        <location filename="../../ui/mainwindow.ui" line="241"/>
-        <source>Video Recording Settings</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../../ui/mainwindow.ui" line="244"/>
-        <source>Configure video recording settings and start/stop recording</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../../ui/mainwindow.ui" line="249"/>
         <source>TCP Server</source>
         <translation>TCP服务器</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="254"/>
         <location filename="../../ui/mainwindow.ui" line="254"/>
         <source>Environment Checking</source>
         <translation>环境检查</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="259"/>
-        <location filename="../../ui/mainwindow.ui" line="259"/>
         <source>Firmware Manager</source>
         <translation>固件管理器</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="264"/>
         <location filename="../../ui/mainwindow.ui" line="264"/>
         <source>Firmware Update...</source>
         <translation>固件更新...</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="269"/>
-        <location filename="../../ui/mainwindow.ui" line="269"/>
         <source>Device Selector</source>
         <translation>设备选择器</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="272"/>
         <location filename="../../ui/mainwindow.ui" line="272"/>
         <source>Open Device Selector Dialog</source>
         <translation>打开设备选择器对话框</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="277"/>
-        <location filename="../../ui/mainwindow.ui" line="277"/>
         <source>Update Display Settings</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="280"/>
         <location filename="../../ui/mainwindow.ui" line="280"/>
         <source>Update display name and serial number in EDID</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="289"/>
-        <location filename="../../ui/mainwindow.ui" line="289"/>
         <source>115200</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="297"/>
         <location filename="../../ui/mainwindow.ui" line="297"/>
         <source>9600</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="307"/>
-        <location filename="../../ui/mainwindow.ui" line="307"/>
         <source>To Host</source>
         <translation>到主机</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="315"/>
         <location filename="../../ui/mainwindow.ui" line="315"/>
         <source>To Target</source>
         <translation>到目标</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="328"/>
-        <location filename="../../ui/mainwindow.ui" line="328"/>
         <source>Absolute</source>
         <translation>绝对</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="336"/>
         <location filename="../../ui/mainwindow.ui" line="336"/>
         <source>Relative</source>
         <translation>相对</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="349"/>
-        <location filename="../../ui/mainwindow.ui" line="349"/>
         <source>Auto Hide</source>
         <translation>自动隐藏</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="352"/>
         <location filename="../../ui/mainwindow.ui" line="352"/>
         <source>Auto hide mouse cursor</source>
         <translation>自动隐藏鼠标光标</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="360"/>
-        <location filename="../../ui/mainwindow.ui" line="360"/>
         <source>Always Show</source>
         <translation>始终显示</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="363"/>
-        <location filename="../../ui/mainwindow.ui" line="363"/>
         <source>Always show mouse cursor</source>
         <translation>始终显示鼠标光标</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1195"/>
+        <location filename="../../ui/mainwindow.cpp" line="796"/>
         <source>Recorded %1 sec</source>
         <translation>已录制 %1 秒</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1440"/>
+        <location filename="../../ui/mainwindow.cpp" line="1025"/>
         <source>Image Capture Error</source>
         <translation>图像捕获错误</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1601"/>
+        <location filename="../../ui/mainwindow.cpp" line="1094"/>
         <source>Captured &quot;%1&quot;</source>
         <translation>已捕获 &quot;%1&quot;</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="2179"/>
+        <location filename="../../ui/mainwindow.cpp" line="1574"/>
         <source>Firmware Update</source>
         <translation>固件更新</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="2180"/>
+        <location filename="../../ui/mainwindow.cpp" line="1575"/>
         <source>The firmware is up to date.
 Current version: </source>
         <translation>固件已是最新版本。
 当前版本：</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="2202"/>
+        <location filename="../../ui/mainwindow.cpp" line="1597"/>
         <source>Firmware fetch timeout</source>
         <translation>固件获取超时</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="2203"/>
+        <location filename="../../ui/mainwindow.cpp" line="1598"/>
         <source>Firmware retrieval timed out. Please check your network connection and try again.
 Current version: </source>
         <translation>固件检索超时。请检查您的网络连接并重试。

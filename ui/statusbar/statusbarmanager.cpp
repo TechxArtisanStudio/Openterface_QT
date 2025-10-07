@@ -1,8 +1,10 @@
 #include "statusbarmanager.h"
 #include <QPainter>
+#include <QLoggingCategory>
 #include <QSvgRenderer>
 #include <QTimer>
 
+Q_LOGGING_CATEGORY(log_ui_statusbarmanager, "opf.ui.statusbarmanager")
 StatusBarManager::StatusBarManager(QStatusBar *statusBar, QObject *parent)
     : QObject(parent), m_statusBar(statusBar), m_messageTimer(new QTimer(this)), m_messageThrottleActive(false)
 {
@@ -117,7 +119,7 @@ void StatusBarManager::showThrottledMessage(const QString& message, const QStrin
 
 void StatusBarManager::showNewDevicePluggedIn(const QString& portChain)
 {
-    qDebug() << "StatusBarManager::showNewDevicePluggedIn called with portChain:" << portChain;
+    qCDebug(log_ui_statusbarmanager) << "StatusBarManager::showNewDevicePluggedIn called with portChain:" << portChain;
     if (!portChain.isEmpty()) {
         QString message = QString("New device detected: Port %1").arg(portChain);
         showThrottledMessage(message, "color: blue;", 3000);
@@ -126,7 +128,7 @@ void StatusBarManager::showNewDevicePluggedIn(const QString& portChain)
 
 void StatusBarManager::showDeviceUnplugged(const QString& portChain)
 {
-    qDebug() << "StatusBarManager::showDeviceUnplugged called with portChain:" << portChain;
+    qCDebug(log_ui_statusbarmanager) << "StatusBarManager::showDeviceUnplugged called with portChain:" << portChain;
     if (!portChain.isEmpty()) {
         QString message = QString("Device unplugged: Port %1").arg(portChain);
         showThrottledMessage(message, "color: orange;", 3000);
@@ -241,6 +243,11 @@ void StatusBarManager::updateKeyboardIcon(const QString& key)
 
 void StatusBarManager::setKeyStates(bool numLock, bool capsLock, bool scrollLock)
 {
+    if (!m_statusWidget) {
+        qCritical() << "CRITICAL: StatusBarManager::setKeyStates - m_statusWidget is null!";
+        return;
+    }
+    
     m_statusWidget->setKeyStates(numLock, capsLock, scrollLock);
 }
 

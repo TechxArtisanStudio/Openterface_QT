@@ -304,7 +304,6 @@ int main(int argc, char *argv[])
     } 
     
     // load the settings
-    qDebug() << "Loading settings";
     GlobalSetting::instance().loadLogSettings();
     GlobalSetting::instance().loadVideoSettings();
     // Apply media backend setting after settings are loaded

@@ -176,32 +176,68 @@ void ToolbarManager::onRepeatingKeystrokeChanged(int index)
 }
 
 void ToolbarManager::toggleToolbar() {
-    // Prevent animation during visibility change
-    toolbar->setStyleSheet("QToolBar { background-color: palette(window); border: none; animation-duration: 0; }");
+    qDebug() << "ToolbarManager::toggleToolbar() - Start";
+    
+    if (!toolbar) {
+        qWarning() << "ToolbarManager::toggleToolbar() - toolbar is null!";
+        return;
+    }
+    
+    qDebug() << "ToolbarManager::toggleToolbar() - Current visibility:" << toolbar->isVisible() 
+             << "Height:" << toolbar->height() << "MaxHeight:" << toolbar->maximumHeight();
+    
+    // Stop any existing animations on the toolbar to prevent conflicts
+    QList<QPropertyAnimation*> animations = toolbar->findChildren<QPropertyAnimation*>();
+    qDebug() << "ToolbarManager::toggleToolbar() - Found" << animations.size() << "existing animations";
+    for (QPropertyAnimation *anim : animations) {
+        if (anim->targetObject() == toolbar && anim->propertyName() == "maximumHeight") {
+            qDebug() << "ToolbarManager::toggleToolbar() - Stopping existing maximumHeight animation";
+            anim->stop();
+            anim->deleteLater();
+        }
+    }
     
     // Use QPropertyAnimation for smooth transition
+    qDebug() << "ToolbarManager::toggleToolbar() - Creating new animation";
     QPropertyAnimation *animation = new QPropertyAnimation(toolbar, "maximumHeight");
     animation->setDuration(150); // Adjust duration as needed
     
     if (toolbar->isVisible()) {
-        animation->setStartValue(toolbar->height());
+        int startHeight = toolbar->height();
+        qDebug() << "ToolbarManager::toggleToolbar() - Hiding toolbar, animating from" << startHeight << "to 0";
+        animation->setStartValue(startHeight);
         animation->setEndValue(0);
         connect(animation, &QPropertyAnimation::finished, this, [this]() {
-            toolbar->hide();
-            GlobalVar::instance().setToolbarVisible(false);
-            emit toolbarVisibilityChanged(false);
+            qDebug() << "ToolbarManager::toggleToolbar() - Hide animation finished";
+            if (toolbar) {
+                toolbar->hide();
+                GlobalVar::instance().setToolbarVisible(false);
+                emit toolbarVisibilityChanged(false);
+                qDebug() << "ToolbarManager::toggleToolbar() - Toolbar hidden successfully";
+            } else {
+                qWarning() << "ToolbarManager::toggleToolbar() - Toolbar became null during hide animation!";
+            }
         });
     } else {
+        int targetHeight = toolbar->sizeHint().height();
+        qDebug() << "ToolbarManager::toggleToolbar() - Showing toolbar, animating from 0 to" << targetHeight;
         toolbar->show();
         animation->setStartValue(0);
-        animation->setEndValue(toolbar->sizeHint().height());
+        animation->setEndValue(targetHeight);
         GlobalVar::instance().setToolbarVisible(true);
-        GlobalVar::instance().setToolbarHeight(toolbar->sizeHint().height());
+        GlobalVar::instance().setToolbarHeight(targetHeight);
         connect(animation, &QPropertyAnimation::finished, this, [this]() {
-            emit toolbarVisibilityChanged(true);
+            qDebug() << "ToolbarManager::toggleToolbar() - Show animation finished";
+            if (toolbar) {
+                emit toolbarVisibilityChanged(true);
+                qDebug() << "ToolbarManager::toggleToolbar() - Toolbar shown successfully";
+            } else {
+                qWarning() << "ToolbarManager::toggleToolbar() - Toolbar became null during show animation!";
+            }
         });
     }
     
+    qDebug() << "ToolbarManager::toggleToolbar() - Starting animation";
     animation->start(QAbstractAnimation::DeleteWhenStopped);
 }
 

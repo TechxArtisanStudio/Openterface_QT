@@ -895,9 +895,6 @@ void SerialPortManager::updateSpecialKeyState(uint8_t data){
     
     // Notify callback about key state changes
     if (eventCallback != nullptr) {
-        qDebug(log_core_serial) << "NumLockState:" << NumLockState 
-                               << "CapsLockState:" << CapsLockState 
-                               << "ScrollLockState:" << ScrollLockState;
         eventCallback->onKeyStatesChanged(NumLockState, CapsLockState, ScrollLockState);
     }
 }
