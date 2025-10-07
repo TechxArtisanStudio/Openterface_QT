@@ -38,7 +38,7 @@ WindowControlManager::WindowControlManager(QMainWindow *mainWindow, QToolBar *to
     , m_autoHideTimer(new QTimer(this))
     , m_edgeCheckTimer(new QTimer(this))
     , m_autoHideEnabled(false)
-    , m_autoHideDelay(10000)  // Default 10 seconds
+    , m_autoHideDelay(5000)  // Default 5 seconds
     , m_edgeThreshold(5)      // Default 5 pixels from edge
     , m_animationDuration(300) // Default 300ms animation
     , m_toolbarAutoHidden(false)
@@ -67,8 +67,31 @@ void WindowControlManager::setupConnections()
 {
     // Connect auto-hide timer
     connect(m_autoHideTimer, &QTimer::timeout, this, [this]() {
-        if (m_autoHideEnabled && m_isMaximized && m_toolbar && m_toolbar->isVisible()) {
+        qCDebug(log_ui_windowcontrolmanager) << "[AUTO-HIDE] *** TIMER TIMEOUT TRIGGERED ***";
+        qCDebug(log_ui_windowcontrolmanager) << "[AUTO-HIDE] Checking conditions:";
+        qCDebug(log_ui_windowcontrolmanager) << "[AUTO-HIDE]   - AutoHide enabled:" << m_autoHideEnabled;
+        qCDebug(log_ui_windowcontrolmanager) << "[AUTO-HIDE]   - Is fullscreen:" << m_isFullScreen;
+        qCDebug(log_ui_windowcontrolmanager) << "[AUTO-HIDE]   - Is maximized:" << m_isMaximized;
+        
+        // Check visibility based on mode
+        bool isVisible = false;
+        if (m_isFullScreen) {
+            isVisible = isMenuBarVisible();
+            qCDebug(log_ui_windowcontrolmanager) << "[AUTO-HIDE]   - Menu bar visible:" << isVisible;
+        } else {
+            isVisible = isToolbarVisible();
+            qCDebug(log_ui_windowcontrolmanager) << "[AUTO-HIDE]   - Toolbar visible:" << isVisible;
+        }
+        
+        // Auto-hide only works in fullscreen mode, not in maximized mode
+        if (m_autoHideEnabled && m_isFullScreen && isVisible) {
+            qCDebug(log_ui_windowcontrolmanager) << "[AUTO-HIDE] *** CONDITIONS MET - HIDING TOOLBAR/MENUBAR ***";
             hideToolbar();
+        } else {
+            qCDebug(log_ui_windowcontrolmanager) << "[AUTO-HIDE] *** CONDITIONS NOT MET - NOT HIDDEN ***";
+            if (!m_isFullScreen) {
+                qCDebug(log_ui_windowcontrolmanager) << "[AUTO-HIDE] Not in fullscreen mode - auto-hide disabled";
+            }
         }
     });
     
@@ -88,19 +111,33 @@ void WindowControlManager::setToolbar(QToolBar *toolbar)
 
 void WindowControlManager::setAutoHideEnabled(bool enabled)
 {
+    qCDebug(log_ui_windowcontrolmanager) << "[AUTO-HIDE] setAutoHideEnabled called with:" << enabled;
+    
     if (m_autoHideEnabled == enabled) {
+        qCDebug(log_ui_windowcontrolmanager) << "[AUTO-HIDE] Already in desired state, no change needed";
         return;
     }
     
     m_autoHideEnabled = enabled;
+    qCDebug(log_ui_windowcontrolmanager) << "[AUTO-HIDE] Auto-hide state changed to:" << enabled;
     
     if (enabled) {
         // Install event filter to track mouse movement
         installEventFilterOnWindow();
         
-        // If already maximized, start auto-hide sequence
-        if (m_isMaximized && m_toolbar && m_toolbar->isVisible()) {
-            startAutoHideTimer();
+        // If already in fullscreen mode, ensure toolbar is visible and start auto-hide sequence
+        // NOTE: Auto-hide only works in fullscreen mode, not in maximized mode
+        if (m_isFullScreen && m_toolbar) {
+            qCDebug(log_ui_windowcontrolmanager) << "[AUTO-HIDE] Window is already in fullscreen, ensuring toolbar is visible";
+            if (!m_toolbar->isVisible()) {
+                qCDebug(log_ui_windowcontrolmanager) << "[AUTO-HIDE] Showing toolbar before starting auto-hide";
+                showToolbar();
+            } else {
+                qCDebug(log_ui_windowcontrolmanager) << "[AUTO-HIDE] Toolbar already visible, starting auto-hide timer";
+                startAutoHideTimer();
+            }
+        } else if (m_isMaximized) {
+            qCDebug(log_ui_windowcontrolmanager) << "[AUTO-HIDE] Window is maximized (not fullscreen) - auto-hide disabled, toolbar stays visible";
         }
     } else {
         // Remove event filter
@@ -143,6 +180,14 @@ bool WindowControlManager::isToolbarVisible() const
     return m_toolbar ? m_toolbar->isVisible() : false;
 }
 
+bool WindowControlManager::isMenuBarVisible() const
+{
+    if (m_mainWindow && m_mainWindow->menuBar()) {
+        return m_mainWindow->menuBar()->isVisible();
+    }
+    return false;
+}
+
 bool WindowControlManager::isMaximized() const
 {
     return m_isMaximized;
@@ -155,35 +200,57 @@ bool WindowControlManager::isFullScreen() const
 
 void WindowControlManager::showToolbar()
 {
-    if (!m_toolbar) {
-        return;
+    qCDebug(log_ui_windowcontrolmanager) << "[TOOLBAR] showToolbar() called";
+    
+    // In fullscreen mode, check menu bar visibility
+    // In other modes, check function keys toolbar visibility
+    bool isVisible = false;
+    if (m_isFullScreen) {
+        isVisible = isMenuBarVisible();
+    } else {
+        if (!m_toolbar) {
+            qCWarning(log_ui_windowcontrolmanager) << "[TOOLBAR] ERROR: Toolbar is NULL!";
+            return;
+        }
+        isVisible = m_toolbar->isVisible();
     }
     
-    if (m_toolbar->isVisible()) {
+    if (isVisible) {
+        qCDebug(log_ui_windowcontrolmanager) << "[TOOLBAR] Already visible, restarting auto-hide timer";
         // Already visible, just restart the auto-hide timer
-        if (m_autoHideEnabled && m_isMaximized) {
+        if (m_autoHideEnabled && (m_isFullScreen || m_isMaximized)) {
             startAutoHideTimer();
         }
         return;
     }
     
+    qCDebug(log_ui_windowcontrolmanager) << "[TOOLBAR] *** SHOWING TOOLBAR/MENUBAR ***";
     animateToolbarShow();
     m_toolbarAutoHidden = false;
     emit toolbarVisibilityChanged(true);
     
-    // Start auto-hide timer after showing
-    if (m_autoHideEnabled && m_isMaximized) {
+    // Start auto-hide timer after showing (only in fullscreen mode)
+    if (m_autoHideEnabled && m_isFullScreen) {
+        qCDebug(log_ui_windowcontrolmanager) << "[TOOLBAR] Starting auto-hide timer after show (fullscreen mode)";
         startAutoHideTimer();
     }
 }
 
 void WindowControlManager::hideToolbar()
 {
-    if (!m_toolbar || !m_toolbar->isVisible()) {
+    qCDebug(log_ui_windowcontrolmanager) << "[TOOLBAR] hideToolbar() called";
+    
+    // Check visibility based on current mode
+    bool currentlyVisible = m_isFullScreen ? isMenuBarVisible() : isToolbarVisible();
+    qCDebug(log_ui_windowcontrolmanager) << "[TOOLBAR] Currently visible (" 
+             << (m_isFullScreen ? "menubar" : "toolbar") << "):" << currentlyVisible;
+    
+    if (!currentlyVisible) {
+        qCDebug(log_ui_windowcontrolmanager) << "[TOOLBAR] Already hidden";
         return;
     }
     
-    qCDebug(log_ui_windowcontrolmanager) << "WindowControlManager::hideToolbar() - Checking conditions before hiding";
+    qCDebug(log_ui_windowcontrolmanager) << "[TOOLBAR] Checking conditions before hiding";
 
     // Don't hide if a menu is open
     if (m_mainWindow && m_mainWindow->menuBar()) {
@@ -191,17 +258,25 @@ void WindowControlManager::hideToolbar()
                             ? m_mainWindow->menuBar()->activeAction()->menu() 
                             : nullptr;
         if (activeMenu && activeMenu->isVisible()) {
-            qCDebug(log_ui_windowcontrolmanager) << "WindowControlManager: Not hiding toolbar - menu is active";
+            qCDebug(log_ui_windowcontrolmanager) << "[TOOLBAR] Not hiding - menu is active, restarting timer";
             startAutoHideTimer(); // Restart timer
             return;
+        } else {
+            qCDebug(log_ui_windowcontrolmanager) << "[TOOLBAR] No active menu, proceeding with hide";
         }
     }
     
+    qCDebug(log_ui_windowcontrolmanager) << "[TOOLBAR] *** HIDING TOOLBAR/MENUBAR (AUTO-HIDE) ***";
     animateToolbarHide();
     m_toolbarAutoHidden = true;
     stopAutoHideTimer();
+    
+    // Keep edge check timer running so we can detect when mouse hovers at top to show menu bar again
+    qCDebug(log_ui_windowcontrolmanager) << "[TOOLBAR] Edge check timer will continue to detect mouse at top edge";
+    
     emit toolbarVisibilityChanged(false);
     emit autoHideTriggered();
+    qCDebug(log_ui_windowcontrolmanager) << "[TOOLBAR] Toolbar/menubar hidden successfully, auto-hide triggered signal emitted";
 }
 
 void WindowControlManager::toggleToolbar()
@@ -223,15 +298,19 @@ void WindowControlManager::onWindowMaximized()
     m_isMaximized = true;
     m_isFullScreen = false;
     
-    if (m_autoHideEnabled && m_toolbar && m_toolbar->isVisible()) {
-        qCDebug(log_ui_windowcontrolmanager) << "WindowControlManager::onWindowMaximized() - Starting auto-hide timer and edge detection";
-        // Start the auto-hide timer when maximized
-        startAutoHideTimer();
-        // Start edge detection
-        m_edgeCheckTimer->start();
-    } else {
-        qCDebug(log_ui_windowcontrolmanager) << "WindowControlManager::onWindowMaximized() - Not starting auto-hide (conditions not met)";
+    // NOTE: Auto-hide is ONLY enabled in fullscreen mode, not in maximized mode
+    // In maximized mode, toolbar should always be visible
+    qCDebug(log_ui_windowcontrolmanager) << "WindowControlManager::onWindowMaximized() - Maximized mode: toolbar stays visible (auto-hide only in fullscreen)";
+    
+    // Ensure toolbar is visible in maximized mode
+    if (m_toolbar && !m_toolbar->isVisible()) {
+        qCDebug(log_ui_windowcontrolmanager) << "WindowControlManager::onWindowMaximized() - Showing toolbar for maximized mode";
+        showToolbar();
     }
+    
+    // Stop any auto-hide behavior from fullscreen mode
+    stopAutoHideTimer();
+    m_edgeCheckTimer->stop();
 }
 
 void WindowControlManager::onWindowRestored()
@@ -254,111 +333,214 @@ void WindowControlManager::onWindowRestored()
 void WindowControlManager::onWindowFullScreen()
 {
     qCDebug(log_ui_windowcontrolmanager) << "WindowControlManager: Window entered fullscreen";
+    
+    // If already in fullscreen, ignore duplicate calls (prevent timer restarts during window state flicker)
+    if (m_isFullScreen) {
+        qCDebug(log_ui_windowcontrolmanager) << "WindowControlManager::onWindowFullScreen() - Already in fullscreen, ignoring duplicate";
+        return;
+    }
+    
+    qCDebug(log_ui_windowcontrolmanager) << "WindowControlManager::onWindowFullScreen() - AutoHide enabled:" << m_autoHideEnabled
+             << "Toolbar exists:" << (m_toolbar != nullptr)
+             << "Toolbar visible:" << (m_toolbar ? m_toolbar->isVisible() : false);
+    
     m_isFullScreen = true;
     m_isMaximized = false; // Fullscreen is separate from maximized
     
-    if (m_autoHideEnabled && m_toolbar && m_toolbar->isVisible()) {
-        // In fullscreen, hide toolbar immediately
-        QTimer::singleShot(m_autoHideDelay, this, [this]() {
-            if (m_isFullScreen) {
-                hideToolbar();
-            }
-        });
-        m_edgeCheckTimer->start();
+    qCDebug(log_ui_windowcontrolmanager) << "WindowControlManager::onWindowFullScreen() - Fullscreen mode activated";
+    
+    // In fullscreen mode:
+    // 1. The function keys toolbar should stay HIDDEN (not auto-shown)
+    // 2. The menu bar (with corner widget) should auto-hide after timeout
+    // 3. Start auto-hide timer for menu bar (only once)
+    
+    if (m_autoHideEnabled) {
+        qCDebug(log_ui_windowcontrolmanager) << "[AUTO-HIDE] Starting auto-hide timer for menu bar in fullscreen";
+        startAutoHideTimer();
+        if (!m_edgeCheckTimer->isActive()) {
+            m_edgeCheckTimer->start();
+        }
     }
+
+    // Do NOT auto-show the function keys toolbar - it should stay hidden
+    // Only menu bar will be hidden/shown based on timer and mouse position
 }
 
 void WindowControlManager::onWindowStateChanged(Qt::WindowStates oldState, Qt::WindowStates newState)
 {
-    qCDebug(log_ui_windowcontrolmanager) << "[CRASH DEBUG] WindowControlManager::onWindowStateChanged() - START";
-    qCDebug(log_ui_windowcontrolmanager) << "[CRASH DEBUG] Old state:" << oldState << "New state:" << newState;
-    
     bool wasMaximized = m_isMaximized;
     bool wasFullScreen = m_isFullScreen;
     
-    m_isMaximized = (newState & Qt::WindowMaximized) != 0;
-    m_isFullScreen = (newState & Qt::WindowFullScreen) != 0;
+    bool isMaximized = (newState & Qt::WindowMaximized) != 0;
+    bool isFullScreen = (newState & Qt::WindowFullScreen) != 0;
     
-    qCDebug(log_ui_windowcontrolmanager) << "[CRASH DEBUG] State transition:";
-    qCDebug(log_ui_windowcontrolmanager) << "[CRASH DEBUG]   Was Maximized:" << wasMaximized << "-> Now Maximized:" << m_isMaximized;
-    qCDebug(log_ui_windowcontrolmanager) << "[CRASH DEBUG]   Was FullScreen:" << wasFullScreen << "-> Now FullScreen:" << m_isFullScreen;
-    
-    if (m_isMaximized && !wasMaximized) {
-        qCDebug(log_ui_windowcontrolmanager) << "[CRASH DEBUG] *** WINDOW BEING MAXIMIZED - Calling onWindowMaximized() ***";
+    // Detect state transitions and call appropriate handlers
+    // Only call handlers on actual state CHANGES to prevent duplicates
+    if (isMaximized && !wasMaximized) {
         onWindowMaximized();
-        qCDebug(log_ui_windowcontrolmanager) << "[CRASH DEBUG] onWindowMaximized() completed";
-    } else if (!m_isMaximized && !m_isFullScreen && (wasMaximized || wasFullScreen)) {
-        qCDebug(log_ui_windowcontrolmanager) << "[CRASH DEBUG] *** WINDOW BEING RESTORED - Calling onWindowRestored() ***";
+    } else if (!isMaximized && !isFullScreen && (wasMaximized || wasFullScreen)) {
         onWindowRestored();
-        qCDebug(log_ui_windowcontrolmanager) << "[CRASH DEBUG] onWindowRestored() completed";
-    } else if (m_isFullScreen && !wasFullScreen) {
-        qCDebug(log_ui_windowcontrolmanager) << "[CRASH DEBUG] *** WINDOW ENTERING FULLSCREEN - Calling onWindowFullScreen() ***";
+    } else if (isFullScreen && !wasFullScreen) {
         onWindowFullScreen();
-        qCDebug(log_ui_windowcontrolmanager) << "[CRASH DEBUG] onWindowFullScreen() completed";
-    } else {
-        qCDebug(log_ui_windowcontrolmanager) << "[CRASH DEBUG] No state handler triggered";
     }
     
-    qCDebug(log_ui_windowcontrolmanager) << "[CRASH DEBUG] WindowControlManager::onWindowStateChanged() - END";
+    // Handlers update their own flags, but ensure consistency
+    // Update flags only if handlers didn't already
+    if (m_isMaximized != isMaximized || m_isFullScreen != isFullScreen) {
+        qCDebug(log_ui_windowcontrolmanager) << "WindowControlManager::onWindowStateChanged() - Syncing flags after handler";
+        m_isMaximized = isMaximized;
+        m_isFullScreen = isFullScreen;
+    }
 }
 
 void WindowControlManager::onMouseMoved(const QPoint &globalPos)
 {
-    m_lastMousePos = globalPos;
-    
-    if (!m_autoHideEnabled || !m_isMaximized) {
+    // Auto-hide only works in fullscreen mode, not in maximized mode
+    if (!m_autoHideEnabled || !m_isFullScreen) {
         return;
     }
     
-    // Check if mouse is at top edge
+    // Check if mouse actually moved (more than 5 pixels) to avoid constant timer resets
+    bool mouseActuallyMoved = false;
+    if (m_lastMousePos.isNull() || 
+        (qAbs(globalPos.x() - m_lastMousePos.x()) > 5 || qAbs(globalPos.y() - m_lastMousePos.y()) > 5)) {
+        mouseActuallyMoved = true;
+        m_lastMousePos = globalPos;
+    }
+    
+    // Check if mouse is at top edge (where menu bar is)
     bool atEdge = isMouseAtTopEdge(globalPos);
     
     if (atEdge && !m_mouseAtTopEdge) {
-        // Mouse just entered top edge
+        // Mouse just entered top edge (menu bar area)
+        qCDebug(log_ui_windowcontrolmanager) << "[MOUSE] *** MOUSE ENTERED TOP EDGE (MENU BAR AREA) ***";
         m_mouseAtTopEdge = true;
         emit edgeHoverDetected();
         
         if (m_toolbarAutoHidden) {
+            qCDebug(log_ui_windowcontrolmanager) << "[MOUSE] Menu bar is auto-hidden, showing it";
             showToolbar();
+        } else {
+            qCDebug(log_ui_windowcontrolmanager) << "[MOUSE] Menu bar is visible, restarting auto-hide timer";
+            // User is interacting with menu bar area, restart timer
+            startAutoHideTimer();
         }
     } else if (!atEdge && m_mouseAtTopEdge) {
-        // Mouse left top edge
+        // Mouse left top edge (menu bar area)
+        qCDebug(log_ui_windowcontrolmanager) << "[MOUSE] Mouse left top edge (menu bar area)";
         m_mouseAtTopEdge = false;
+        // Mouse left menu bar, start/restart auto-hide countdown
+        if (isMenuBarVisible()) {
+            qCDebug(log_ui_windowcontrolmanager) << "[MOUSE] Mouse left menu bar, starting auto-hide countdown";
+            startAutoHideTimer();
+        }
+    } else if (atEdge && mouseActuallyMoved) {
+        // Mouse is still in menu bar area and moved
+        // Restart timer only if mouse is in menu bar area
+        if (isMenuBarVisible()) {
+            qCDebug(log_ui_windowcontrolmanager) << "[MOUSE] Mouse activity in menu bar area, restarting timer";
+            startAutoHideTimer();
+        }
     }
-    
-    // Reset auto-hide timer on mouse movement if toolbar is visible
-    if (m_toolbar && m_toolbar->isVisible()) {
-        startAutoHideTimer();
-    }
+    // NOTE: Mouse movement outside menu bar area does NOT restart timer
+    // This allows auto-hide to proceed even when user is moving mouse elsewhere
 }
 
 void WindowControlManager::checkMousePosition()
 {
-    if (!m_mainWindow || !m_autoHideEnabled || !m_isMaximized) {
+    // Auto-hide only works in fullscreen mode, not in maximized mode
+    if (!m_mainWindow || !m_autoHideEnabled || !m_isFullScreen) {
         return;
     }
     
     QPoint globalPos = QCursor::pos();
+    
+    // Debug: Log every 100th check to see if this is being called
+    static int posCheckCount = 0;
+    if (++posCheckCount % 100 == 0) {
+        qCDebug(log_ui_windowcontrolmanager) << "[CHECK-POS] Checking mouse position:" << globalPos 
+                 << "(check #" << posCheckCount << ")";
+    }
+    
     onMouseMoved(globalPos);
 }
 
 void WindowControlManager::startAutoHideTimer()
 {
-    if (m_autoHideTimer) {
+    qCDebug(log_ui_windowcontrolmanager) << "[AUTO-HIDE] startAutoHideTimer() called";
+    
+    if (!m_autoHideTimer) {
+        qCWarning(log_ui_windowcontrolmanager) << "[AUTO-HIDE] ERROR: Timer is NULL!";
+        return;
+    }
+    
+    qCDebug(log_ui_windowcontrolmanager) << "[AUTO-HIDE]   - Delay:" << m_autoHideDelay << "ms";
+    qCDebug(log_ui_windowcontrolmanager) << "[AUTO-HIDE]   - AutoHide enabled:" << m_autoHideEnabled;
+    qCDebug(log_ui_windowcontrolmanager) << "[AUTO-HIDE]   - Is fullscreen:" << m_isFullScreen;
+    qCDebug(log_ui_windowcontrolmanager) << "[AUTO-HIDE]   - Timer active:" << m_autoHideTimer->isActive();
+    
+    if (m_autoHideTimer->isActive()) {
+        int remaining = m_autoHideTimer->remainingTime();
+        qCDebug(log_ui_windowcontrolmanager) << "[AUTO-HIDE]   - Timer already running, remaining:" << remaining << "ms";
+        // If timer has less than 1 second left, let it finish. Otherwise restart.
+        if (remaining > 1000) {
+            qCDebug(log_ui_windowcontrolmanager) << "[AUTO-HIDE] Timer restarted (more than 1s remaining)";
+            m_autoHideTimer->start(m_autoHideDelay);
+        } else {
+            qCDebug(log_ui_windowcontrolmanager) << "[AUTO-HIDE] Timer near completion, letting it finish";
+        }
+    } else {
+        // Timer not running, start it
         m_autoHideTimer->start(m_autoHideDelay);
+        qCDebug(log_ui_windowcontrolmanager) << "[AUTO-HIDE] Timer STARTED - will fire in" << m_autoHideDelay << "ms";
     }
 }
 
 void WindowControlManager::stopAutoHideTimer()
 {
+    qCDebug(log_ui_windowcontrolmanager) << "[AUTO-HIDE] stopAutoHideTimer() called";
     if (m_autoHideTimer) {
         m_autoHideTimer->stop();
+        qCDebug(log_ui_windowcontrolmanager) << "[AUTO-HIDE] Timer STOPPED";
     }
 }
 
 void WindowControlManager::animateToolbarShow()
 {
     qCDebug(log_ui_windowcontrolmanager) << "WindowControlManager::animateToolbarShow() - Start";
+    
+    // In fullscreen mode, we need to show the MENU BAR (not the function keys toolbar)
+    if (m_isFullScreen && m_mainWindow && m_mainWindow->menuBar()) {
+        qCDebug(log_ui_windowcontrolmanager) << "WindowControlManager::animateToolbarShow() - Showing MENU BAR in fullscreen";
+        QMenuBar *menuBar = m_mainWindow->menuBar();
+        
+        if (!menuBar) {
+            qCWarning(log_ui_windowcontrolmanager) << "WindowControlManager::animateToolbarShow() - ERROR: Menu bar became null!";
+            return;
+        }
+        
+        qCDebug(log_ui_windowcontrolmanager) << "WindowControlManager::animateToolbarShow() - Menu bar before show - isVisible:" << menuBar->isVisible();
+        
+        menuBar->show();
+        qCDebug(log_ui_windowcontrolmanager) << "WindowControlManager::animateToolbarShow() - Called show()";
+        
+        menuBar->raise();  // Ensure it's on top
+        qCDebug(log_ui_windowcontrolmanager) << "WindowControlManager::animateToolbarShow() - Called raise()";
+        
+        menuBar->update(); // Force repaint
+        qCDebug(log_ui_windowcontrolmanager) << "WindowControlManager::animateToolbarShow() - Called update()";
+        
+        QApplication::processEvents(); // Force Qt to process the show event immediately
+        qCDebug(log_ui_windowcontrolmanager) << "WindowControlManager::animateToolbarShow() - Called processEvents()";
+        
+        m_mainWindow->update(); // Update main window
+        qCDebug(log_ui_windowcontrolmanager) << "WindowControlManager::animateToolbarShow() - Called mainWindow update()";
+        
+        qCDebug(log_ui_windowcontrolmanager) << "WindowControlManager::animateToolbarShow() - Menu bar shown, raised, and updated";
+        qCDebug(log_ui_windowcontrolmanager) << "WindowControlManager::animateToolbarShow() - Menu bar geometry:" << menuBar->geometry();
+        qCDebug(log_ui_windowcontrolmanager) << "WindowControlManager::animateToolbarShow() - Menu bar isVisible:" << menuBar->isVisible();
+        return;
+    }
     
     if (!m_toolbar) {
         qWarning() << "WindowControlManager::animateToolbarShow() - m_toolbar is null!";
@@ -381,6 +563,17 @@ void WindowControlManager::animateToolbarShow()
 void WindowControlManager::animateToolbarHide()
 {
     qCDebug(log_ui_windowcontrolmanager) << "WindowControlManager::animateToolbarHide() - Start";
+    
+    // In fullscreen mode, we need to hide the MENU BAR (not the function keys toolbar)
+    if (m_isFullScreen && m_mainWindow && m_mainWindow->menuBar()) {
+        qCDebug(log_ui_windowcontrolmanager) << "WindowControlManager::animateToolbarHide() - Hiding MENU BAR in fullscreen";
+        QMenuBar *menuBar = m_mainWindow->menuBar();
+        menuBar->hide();
+        m_mainWindow->update(); // Update main window to reflect the change
+        qCDebug(log_ui_windowcontrolmanager) << "WindowControlManager::animateToolbarHide() - Menu bar hidden and window updated";
+        qCDebug(log_ui_windowcontrolmanager) << "WindowControlManager::animateToolbarHide() - Menu bar isVisible:" << menuBar->isVisible();
+        return;
+    }
     
     if (!m_toolbar) {
         qWarning() << "WindowControlManager::animateToolbarHide() - m_toolbar is null!";
@@ -406,21 +599,42 @@ bool WindowControlManager::isMouseAtTopEdge(const QPoint &globalPos)
         return false;
     }
     
-    // Get window geometry
+    // Get window geometry in global coordinates
     QRect windowRect = m_mainWindow->geometry();
     
-    // Check if mouse is within threshold of top edge
+    // In fullscreen, the window typically starts at (0,0)
+    // We want to detect if mouse is within the top menu bar area
     int topEdge = windowRect.top();
+    int menuBarHeight = 30; // Default menu bar height
     
-    // Also check menu bar height if present
     if (m_mainWindow->menuBar()) {
-        topEdge += m_mainWindow->menuBar()->height();
+        menuBarHeight = qMax(30, m_mainWindow->menuBar()->sizeHint().height());
+        topEdge += menuBarHeight;
     }
     
+    // Check if mouse is within the window horizontally
     bool withinHorizontalBounds = globalPos.x() >= windowRect.left() && 
                                   globalPos.x() <= windowRect.right();
+    
+    // Check if mouse is within the top menu bar area vertically
+    // Using a larger threshold to make it easier to trigger
     bool withinVerticalThreshold = globalPos.y() >= windowRect.top() && 
-                                    globalPos.y() <= (topEdge + m_edgeThreshold);
+                                    globalPos.y() <= (windowRect.top() + menuBarHeight + m_edgeThreshold);
+    
+    bool result = withinHorizontalBounds && withinVerticalThreshold;
+    
+    // Debug logging every 50th check to avoid spam
+    static int checkCount = 0;
+    if (++checkCount % 50 == 0 || result) {
+        qCDebug(log_ui_windowcontrolmanager) << "[EDGE-CHECK] Mouse pos:" << globalPos 
+                 << "Window:" << windowRect 
+                 << "MenuBar height:" << menuBarHeight
+                 << "Threshold:" << m_edgeThreshold
+                 << "Checking Y:" << globalPos.y() << "<=" << (windowRect.top() + menuBarHeight + m_edgeThreshold)
+                 << "H-bounds:" << withinHorizontalBounds 
+                 << "V-threshold:" << withinVerticalThreshold
+                 << "AT EDGE:" << result;
+    }
     
     return withinHorizontalBounds && withinVerticalThreshold;
 }

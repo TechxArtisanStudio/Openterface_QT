@@ -28,6 +28,7 @@
 #include <QMainWindow>
 #include <QToolBar>
 #include <QPropertyAnimation>
+#include <QElapsedTimer>
 
 /**
  * @brief The WindowControlManager class
@@ -64,6 +65,7 @@ public:
     // State queries
     bool isAutoHideEnabled() const;
     bool isToolbarVisible() const;
+    bool isMenuBarVisible() const;
     bool isMaximized() const;
     bool isFullScreen() const;
     

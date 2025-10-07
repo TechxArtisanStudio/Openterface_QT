@@ -243,17 +243,12 @@ void StatusBarManager::updateKeyboardIcon(const QString& key)
 
 void StatusBarManager::setKeyStates(bool numLock, bool capsLock, bool scrollLock)
 {
-    qCDebug(log_ui_statusbarmanager) << "[CRASH DEBUG] StatusBarManager::setKeyStates START";
-    qCDebug(log_ui_statusbarmanager) << "[CRASH DEBUG] m_statusWidget pointer:" << m_statusWidget;
-    
     if (!m_statusWidget) {
-        qCritical() << "[CRASH DEBUG] CRITICAL: StatusBarManager::setKeyStates - m_statusWidget is null!";
+        qCritical() << "CRITICAL: StatusBarManager::setKeyStates - m_statusWidget is null!";
         return;
     }
     
-    qCDebug(log_ui_statusbarmanager) << "[CRASH DEBUG] About to call m_statusWidget->setKeyStates()";
     m_statusWidget->setKeyStates(numLock, capsLock, scrollLock);
-    qCDebug(log_ui_statusbarmanager) << "[CRASH DEBUG] StatusBarManager::setKeyStates END - completed successfully";
 }
 
 void StatusBarManager::showSerialAutoRestart(int attemptNumber, int maxAttempts, double lossRate)
