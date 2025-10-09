@@ -83,6 +83,9 @@ public:
     
     // Debug helper to validate coordinate transformation consistency
     void validateMouseCoordinates(const QPoint& original, const QString& eventType);
+    
+    // Get current zoom factor
+    double getZoomFactor() const { return m_scaleFactor; }
 
 signals:
     void mouseMoved(const QPoint& position, const QString& event);
@@ -140,6 +143,7 @@ private:
     void updateVideoItemTransform();
     void centerVideoItem();
     void setupScene();
+    void updateScrollBarsAndSceneRect();
 };
 
 #endif

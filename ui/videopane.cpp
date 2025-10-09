@@ -315,6 +315,7 @@ void VideoPane::setVideoItem(QGraphicsVideoItem* videoItem)
         m_scene->addItem(m_videoItem);
         m_videoItem->setZValue(0); // Below pixmap item
         updateVideoItemTransform();
+        updateScrollBarsAndSceneRect();
     }
 }
 
@@ -326,20 +327,35 @@ QGraphicsVideoItem* VideoPane::videoItem() const
 void VideoPane::resetZoom()
 {
     m_scaleFactor = 1.0;
-    resetTransform();
+    resetTransform(); // Reset view transform
     updateVideoItemTransform();
+    updateScrollBarsAndSceneRect();
 }
 
 void VideoPane::zoomIn(double factor)
 {
     m_scaleFactor *= factor;
     scale(factor, factor);
+    updateVideoItemTransform();
+    updateScrollBarsAndSceneRect();
+    
+    // Log zoom information
+    qCDebug(log_ui_video) << "Zoom in: factor=" << factor << "current zoom=" << m_scaleFactor
+                        << "view transform=" << transform() 
+                        << "viewport size=" << viewport()->size();
 }
 
 void VideoPane::zoomOut(double factor)
 {
     m_scaleFactor *= factor;
     scale(factor, factor);
+    updateVideoItemTransform();
+    updateScrollBarsAndSceneRect();
+    
+    // Log zoom information
+    qCDebug(log_ui_video) << "Zoom out: factor=" << factor << "current zoom=" << m_scaleFactor
+                        << "view transform=" << transform()
+                        << "viewport size=" << viewport()->size();
 }
 
 void VideoPane::fitToWindow()
@@ -351,6 +367,7 @@ void VideoPane::fitToWindow()
         
         // Update the video item transform to fit the current view
         updateVideoItemTransform();
+        updateScrollBarsAndSceneRect();
     }
 }
 
@@ -367,10 +384,8 @@ void VideoPane::resizeEvent(QResizeEvent *event)
 {
     QGraphicsView::resizeEvent(event);
     
-    // Update the scene rect to match the viewport size
-    if (m_scene) {
-        m_scene->setSceneRect(viewport()->rect());
-    }
+    // Update scroll bars and scene rect based on current zoom level
+    updateScrollBarsAndSceneRect();
     
     updateVideoItemTransform();
     
@@ -416,7 +431,28 @@ void VideoPane::updateVideoItemTransform()
     QRectF normalizedRect(0, 0, itemRect.width(), itemRect.height());
     QPointF itemOffset = itemRect.topLeft(); // Store the original offset
     
-    if (m_maintainAspectRatio) {
+    if (m_scaleFactor > 1.0) {
+        // When zoomed in, return to default behavior - let the view's transform handle scaling
+        // Just position the video normally centered in the scene
+        
+        // Calculate scale to fit while maintaining aspect ratio (similar to non-zoom mode)
+        double scaleX = viewRect.width() / normalizedRect.width();
+        double scaleY = viewRect.height() / normalizedRect.height();
+        double scale = qMin(scaleX, scaleY);
+        
+        // Apply base transformation
+        QTransform transform;
+        transform.scale(scale, scale);
+        targetItem->setTransform(transform);
+        
+        // Center the item after scaling, accounting for the original offset
+        QRectF scaledRect = QRectF(0, 0, normalizedRect.width() * scale, normalizedRect.height() * scale);
+        double x = (viewRect.width() - scaledRect.width()) / 2.0 - (itemOffset.x() * scale);
+        double y = (viewRect.height() - scaledRect.height()) / 2.0 - (itemOffset.y() * scale);
+        targetItem->setPos(x, y);
+        
+        // qDebug() << "VideoPane: Zoomed mode - using view transform with normal item positioning";
+    } else if (m_maintainAspectRatio) {
         // Calculate scale to fit while maintaining aspect ratio
         double scaleX = viewRect.width() / normalizedRect.width();
         double scaleY = viewRect.height() / normalizedRect.height();
@@ -491,6 +527,44 @@ void VideoPane::setupScene()
     m_scene->setSceneRect(viewport()->rect());
 }
 
+void VideoPane::updateScrollBarsAndSceneRect()
+{
+    // Get the actual video content size
+    QRectF contentRect;
+    if (m_directFFmpegMode && m_pixmapItem) {
+        contentRect = m_pixmapItem->boundingRect();
+    } else if (m_videoItem) {
+        contentRect = m_videoItem->boundingRect();
+    }
+    
+    if (contentRect.isEmpty()) {
+        // Fallback to viewport size if no content
+        contentRect = viewport()->rect();
+    }
+    
+    if (m_scaleFactor > 1.0) {
+        // Enable scroll bars when zoomed in
+        setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+        setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+        
+        // When zoomed, keep the scene rect the same size as the viewport
+        // This approach works better with QGraphicsView's built-in scroll mechanism
+        // The view's transform will handle the zoom and scrolling
+        if (m_scene) {
+            m_scene->setSceneRect(viewport()->rect());
+        }
+    } else {
+        // Disable scroll bars when at normal zoom or below
+        setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+        setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+        
+        // Reset scene rect to viewport size
+        if (m_scene) {
+            m_scene->setSceneRect(viewport()->rect());
+        }
+    }
+}
+
 QPoint VideoPane::getTransformedMousePosition(const QPoint& viewportPos)
 {
     // Handle different video display modes appropriately
@@ -510,47 +584,51 @@ QPoint VideoPane::getTransformedMousePosition(const QPoint& viewportPos)
         return viewportPos;
     }
     
-    // Convert viewport coordinates to scene coordinates
+    QRectF viewRect = viewport()->rect();
+    
+    // Step 1: Convert viewport coordinates to scene coordinates (this accounts for the view's transform)
     QPointF scenePos = mapToScene(viewportPos);
     
-    // Map scene coordinates to item coordinates
+    // Step 2: Map scene coordinates to item coordinates
     QPointF itemPos = targetItem->mapFromScene(scenePos);
     
-    // Account for the item's transform to get the actual video content coordinates
-    QTransform itemTransform = targetItem->transform();
-    QRectF transformedRect = itemTransform.mapRect(QRectF(0, 0, itemRect.width(), itemRect.height()));
+    // Step 3: Calculate relative position within the item's original coordinates
+    QPointF itemOffset = itemRect.topLeft();
+    double itemWidth = itemRect.width();
+    double itemHeight = itemRect.height();
     
-    // Normalize coordinates to 0-1 range based on the video content area
-    double normalizedX = 0.0;
-    double normalizedY = 0.0;
-    
-    if (transformedRect.width() > 0 && transformedRect.height() > 0) {
-        // Calculate position relative to the transformed content
-        QPointF itemOffset = itemRect.topLeft();
-        double relativeX = (itemPos.x() - itemOffset.x()) / itemRect.width();
-        double relativeY = (itemPos.y() - itemOffset.y()) / itemRect.height();
-        
-        // Clamp to 0-1 range to ensure we stay within video bounds
-        normalizedX = qBound(0.0, relativeX, 1.0);
-        normalizedY = qBound(0.0, relativeY, 1.0);
+    // Check if dimensions are valid to prevent division by zero
+    if (itemWidth <= 0 || itemHeight <= 0) {
+        qCWarning(log_ui_video) << "Invalid item dimensions: width=" << itemWidth << "height=" << itemHeight;
+        return viewportPos;
     }
     
-    // Convert normalized coordinates back to viewport coordinates for the logical video area
-    QRectF viewRect = viewport()->rect();
+    double relativeX = (itemPos.x() - itemOffset.x()) / itemWidth;
+    double relativeY = (itemPos.y() - itemOffset.y()) / itemHeight;
+    
+    // Step 4: Clamp to 0-1 range to ensure we stay within video bounds
+    double normalizedX = qBound(0.0, relativeX, 1.0);
+    double normalizedY = qBound(0.0, relativeY, 1.0);
+    
+    // Step 5: Convert normalized coordinates back to viewport coordinates for the logical video area
+    // (This is the actual size expected by the target device)
     int transformedX = static_cast<int>(normalizedX * viewRect.width());
     int transformedY = static_cast<int>(normalizedY * viewRect.height());
     
-    // Debug output only when coordinates are significantly different
-    QPoint result(transformedX, transformedY);
-    if ((result - viewportPos).manhattanLength() > 5) {
-        // qDebug() << "VideoPane: Transformed mouse pos from" << viewportPos 
-        //          << "to" << result
-        //          << "via scene:" << scenePos << "item:" << itemPos 
-        //          << "normalized:" << normalizedX << normalizedY
-        //          << "mode: FFmpeg=" << m_directFFmpegMode << "pixmap visible=" << (m_pixmapItem ? m_pixmapItem->isVisible() : false);
+    // Debug the transformation for troubleshooting
+    static int logCounter = 0;
+    if (m_scaleFactor > 1.0 && ++logCounter % 50 == 1) { // Log only when zoomed and every 50th time
+        qCDebug(log_ui_video) << "Zoom mouse transform: viewport=" << viewportPos 
+                << "scene=" << scenePos
+                << "item=" << itemPos 
+                << "normalized=" << QPointF(normalizedX, normalizedY)
+                << "result=" << QPoint(transformedX, transformedY)
+                << "zoom=" << m_scaleFactor
+                << "item dimensions=" << itemRect.width() << "x" << itemRect.height()
+                << "view dimensions=" << viewRect.width() << "x" << viewRect.height();
     }
     
-    return result;
+    return QPoint(transformedX, transformedY);
 }
 
 void VideoPane::validateMouseCoordinates(const QPoint& original, const QString& eventType)
@@ -864,6 +942,7 @@ void VideoPane::updateVideoFrame(const QPixmap& frame)
     if (needsTransformUpdate) {
         updateVideoItemTransform();
         centerVideoItem();
+        updateScrollBarsAndSceneRect();
         
         // Update cached sizes
         lastFrameSize = currentFrameSize;
