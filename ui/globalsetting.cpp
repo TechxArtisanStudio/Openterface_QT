@@ -60,14 +60,14 @@ void GlobalSetting::getFilterSettings(bool &Chipinfo, bool &keyboardPress, bool 
     HID = m_settings.value("filter/HID", true).toBool();
 }
 
-void GlobalSetting::setLogSettings(bool core, bool serial, bool ui, bool hostLayout, bool device)
+void GlobalSetting::setLogSettings(bool core, bool serial, bool ui, bool hostLayout, bool device, bool backend)
 {
     m_settings.setValue("log/core", core);
     m_settings.setValue("log/serial", serial);
     m_settings.setValue("log/ui", ui);
     m_settings.setValue("log/hostLayout", hostLayout);
     m_settings.setValue("log/device", device);
-    m_settings.setValue("log/backend", true); // Enable backend logging for debugging
+    m_settings.setValue("log/backend", backend); 
 }
 
 void GlobalSetting::loadLogSettings()
@@ -78,8 +78,9 @@ void GlobalSetting::loadLogSettings()
     logFilter += m_settings.value("log/host", false).toBool() ? "opf.host.*=true\n" : "opf.host.*=false\n";
     logFilter += m_settings.value("log/serial", false).toBool() ? "opf.core.serial=true\n" : "opf.core.serial=false\n";
     logFilter += m_settings.value("log/device", false).toBool() ? "opf.device.*=true\n" : "opf.device.*=false\n";
-    logFilter += m_settings.value("log/backend", true).toBool() ? "opf.backend.*=true\n" : "opf.backend.*=false\n";
+    logFilter += m_settings.value("log/backend", false).toBool() ? "opf.backend.*=true\n" : "opf.backend.*=false\n";
     QLoggingCategory::setFilterRules(logFilter);
+    qDebug() << "Log filter rules set to:\n" << logFilter;
 }
 
 void GlobalSetting::setLogStoreSettings(bool storeLog, QString logFilePath){

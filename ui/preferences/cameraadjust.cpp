@@ -23,6 +23,7 @@
 #include "cameraadjust.h"
 #include <QApplication>
 #include <QPalette>
+#include <QEvent>
 
 CameraAdjust::CameraAdjust(QWidget *parent)
     : QWidget(parent)
@@ -35,9 +36,6 @@ CameraAdjust::CameraAdjust(QWidget *parent)
     setWindowFlags(Qt::Widget);
     // Make sure it's visible in the parent widget
     raise();
-
-    // Connect to palette change event
-    connect(qApp, &QApplication::paletteChanged, this, &CameraAdjust::updateColors);
 }
 
 CameraAdjust::~CameraAdjust()
@@ -126,6 +124,14 @@ void CameraAdjust::updateColors()
         .arg(highlightColor.name());
     
     contrastSlider->setStyleSheet(sliderStyle);
+}
+
+void CameraAdjust::changeEvent(QEvent *event)
+{
+    if (event->type() == QEvent::PaletteChange) {
+        updateColors();
+    }
+    QWidget::changeEvent(event);
 }
 
 void CameraAdjust::initializeControls()

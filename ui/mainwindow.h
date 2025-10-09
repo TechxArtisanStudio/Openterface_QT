@@ -52,6 +52,12 @@
 #include "ui/screensavermanager.h"
 #include "ui/screenscale.h"
 #include "ui/cornerwidget/cornerwidgetmanager.h"
+#include "ui/windowcontrolmanager.h"
+#include "ui/coordinator/devicecoordinator.h"
+#include "ui/coordinator/menucoordinator.h"
+#include "ui/coordinator/windowlayoutcoordinator.h"
+
+#include "ui/initializer/mainwindowinitializer.h"
 
 #define SERVER_PORT 12345
 #include "server/tcpServer.h"
@@ -78,6 +84,7 @@
 #include <QPushButton>
 #include <QComboBox>
 #include <QApplication>
+#include <QShortcut>
 #include <QPalette>
 #include <QStyle>
 #include <QEvent>
@@ -111,6 +118,7 @@ enum class ratioType{
 class MainWindow : public QMainWindow, public StatusEventCallback
 {
     Q_OBJECT
+    friend class MainWindowInitializer;
 
 public:
     MainWindow(LanguageManager *languageManager, QWidget *parent = nullptr);
@@ -189,6 +197,8 @@ private slots:
     void factoryReset(bool isStarted) override;
 
     void serialPortReset(bool isStarted) override;
+    
+    void onSerialAutoRestart(int attemptNumber, int maxAttempts, double lossRate) override;
 
     void showEnvironmentSetupDialog();
 
@@ -202,14 +212,11 @@ private slots:
 
     void onCtrlAltDelPressed();
     
-    void onBaudrateMenuTriggered(QAction* action);
     void onArmBaudratePerformanceRecommendation(int currentBaudrate);
 
     void onToggleSwitchStateChanged(int state);
 
-    void onZoomIn();
-    void onZoomOut();
-    void onZoomReduction();
+
     void onKeyboardLayoutCombobox_Changed(const QString &layout);
     
     void checkMousePosition();
@@ -243,6 +250,7 @@ protected:
 
     bool eventFilter(QObject *watched, QEvent *event) override;
 
+    friend class MainWindowInitializer;
 private:
     Ui::MainWindow *ui;
     AudioManager *m_audioManager;
@@ -260,11 +268,6 @@ private:
     
     
     void updateUI();
-    void setupLanguageMenu();
-    void setupDeviceMenu();
-    void updateDeviceMenu();
-    void onLanguageSelected(QAction *action);
-    void onDeviceSelected(QAction *action);
 
     QMediaDevices m_source;
     QScopedPointer<QImageCapture> m_imageCapture;
@@ -292,17 +295,13 @@ private:
 
     QComboBox *repeatingKeystrokeComboBox;
     
-    void updateBaudrateMenu(int baudrate);
-    QString getDeviceTypeName(const DeviceInfo& device); // Helper method to get device type name
     ToggleSwitch *toggleSwitch;
 
     CameraManager *m_cameraManager;
     InputHandler *m_inputHandler;
-    
-    // Device menu management
-    QActionGroup *m_deviceMenuGroup;
-    
-    // Camera coordination functionality removed - now handled by DeviceManager
+    DeviceCoordinator *m_deviceCoordinator;
+    MenuCoordinator *m_menuCoordinator;
+    WindowLayoutCoordinator *m_windowLayoutCoordinator;
 
     void updateScrollbars();
     QPoint lastMousePos;
@@ -325,27 +324,11 @@ private:
 
     void onToolbarVisibilityChanged(bool visible);
 
-    void animateVideoPane();
-
-    void doResize();
-    void handleScreenBoundsResize(int &currentWidth, int &currentHeight, 
-                                 int availableWidth, int availableHeight,
-                                 int maxContentHeight, int menuBarHeight, 
-                                 int statusBarHeight, double aspectRatio);
-    void handleAspectRatioResize(int currentWidth, int currentHeight, 
-                                int menuBarHeight, int statusBarHeight,
-                                double aspectRatio, double captureAspectRatio);
-
-    void centerVideoPane(int videoWidth, int videoHeight, int WindowWidth, int WindowHeight);
-    void checkInitSize();
-    void fullScreen();
-    bool isFullScreenMode();
-    bool fullScreenState = false;
-    Qt::WindowStates oldWindowState;
     ScriptTool *scriptTool;
     ScreenSaverManager *m_screenSaverManager;
     ScreenScale *m_screenScaleDialog = nullptr;
     CornerWidgetManager *m_cornerWidgetManager = nullptr;
+    WindowControlManager *m_windowControlManager = nullptr;
     void configScreenScale();
     
     ratioType currentRatioType = ratioType::EQUAL;

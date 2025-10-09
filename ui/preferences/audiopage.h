@@ -24,12 +24,13 @@
 #define AUDIOPAGE_H
 
 #include <QWidget>
-#include <QWidget>
 #include <QLabel>
 #include <QComboBox>
 #include <QSpinBox>
 #include <QSlider>
 #include <QVBoxLayout>
+#include <QCheckBox>
+#include <QPushButton>
 #include "fontstyle.h"
 
 class AudioPage : public QWidget
@@ -38,7 +39,16 @@ class AudioPage : public QWidget
 public:
     explicit AudioPage(QWidget *parent = nullptr);
     void setupUI();
+
+private slots:
+    void loadSettings();
+    void saveSettings();
+    void connectSignals();
+    void refreshAudioDevices();
+    void onAudioDeviceChanged(int index);
+
 private:
+    // Original audio settings widgets
     QLabel *audioLabel;
     QLabel *audioCodecLabel;
     QComboBox *audioCodecBox;
@@ -48,6 +58,15 @@ private:
     QSlider *qualitySlider;
     QLabel *fileFormatLabel;
     QComboBox *containerFormatBox;
+    
+    // Audio device management widgets
+    QComboBox *audioDeviceComboBox;
+    QLabel *currentDeviceLabel;
+    QSpinBox *audioBitrateBox;
+    QLabel *qualityValueLabel;
+    QCheckBox *enableAudioCheckBox;
+    QSlider *volumeSlider;
+    QLabel *volumeValueLabel;
 };
 
 #endif // AUDIOPAGE_H

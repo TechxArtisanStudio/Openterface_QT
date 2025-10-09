@@ -5,18 +5,6 @@ ARG TARGETARCH=amd64
 FROM ${BASE_IMAGE}
 ENV GSTREAMER_VERSION=1.26.6
 
-ARG BUILD_SHARED_LIBS=OFF
-# Set DEFAULT_LIB_TYPE according to BUILD_SHARED_LIBS (ON/1 -> shared, otherwise static)
-ARG BUILD_SHARED_LIBS
-ENV DEFAULT_LIB_TYPE=static
-RUN if [ "${BUILD_SHARED_LIBS}" = "ON" ] || [ "${BUILD_SHARED_LIBS}" = "1" ]; then \
-    echo "DEFAULT_LIB_TYPE=shared" >> /etc/environment && \
-    export DEFAULT_LIB_TYPE=shared; \
-    else \
-    echo "DEFAULT_LIB_TYPE=static" >> /etc/environment; \
-    fi && \
-    echo "DEFAULT_LIB_TYPE set to $(grep -m1 '^DEFAULT_LIB_TYPE=' /etc/environment | cut -d'=' -f2)"
-
 # Create the environment variables and assign the values from the build arguments.
 ARG http_proxy 
 ARG https_proxy
@@ -72,7 +60,7 @@ RUN echo "Building GStreamer core..." && \
     cd "${WORK_DIR}/gstreamer_sources/gstreamer-${GSTREAMER_VERSION}" && \
     meson setup build \
         --prefix="${GSTREAMER_PREFIX}" \
-        --default-library="${DEFAULT_LIB_TYPE}" \
+        --default-library="both" \
         --buildtype=release \
         -Ddoc=disabled \
         -Dintrospection=disabled \
@@ -109,7 +97,7 @@ RUN echo "Building gst-plugins-base..." && \
     cd "${WORK_DIR}/gstreamer_sources/gst-plugins-base-${GSTREAMER_VERSION}" && \
     meson setup build \
         --prefix="${GSTREAMER_PREFIX}" \
-        --default-library="${DEFAULT_LIB_TYPE}" \
+        --default-library="both" \
         --buildtype=release \
         -Ddoc=disabled \
         -Dintrospection=disabled \

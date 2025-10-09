@@ -452,7 +452,7 @@ void KeyboardManager::sendKey(int keyCode, int modifiers, bool isKeyDown) {
 void KeyboardManager::getKeyboardLayout() {
     QInputMethod *inputMethod = QGuiApplication::inputMethod();
     m_locale = inputMethod->locale();
-    qCDebug(log_keyboard) << "Current keyboard layout:" << m_locale.language() << m_locale.country();
+    qCDebug(log_keyboard) << "Current keyboard layout:" << m_locale.language() << m_locale.territory();
 }
 
 void KeyboardManager::setKeyboardLayout(const QString& layoutName) {

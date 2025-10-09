@@ -5,6 +5,14 @@ IFS=$'\n\t'
 
 APPIMAGE_DIR="${BUILD_DIR}/appimage"
 
+# Determine architecture
+ARCH=$(uname -m)
+case "${ARCH}" in
+    aarch64|arm64) APPIMAGE_ARCH=aarch64;;
+    x86_64|amd64) APPIMAGE_ARCH=x86_64;;
+    *) APPIMAGE_ARCH=${ARCH};;
+esac
+
 # Create build directory
 mkdir -p "${BUILD_DIR}" "${APPIMAGE_DIR}"
 
@@ -12,20 +20,17 @@ mkdir -p "${BUILD_DIR}" "${APPIMAGE_DIR}"
 GSTREAMER_PLUGINS=(
     "libgstvideo4linux2.so"        # V4L2 video capture (CRITICAL)
     "libgstv4l2codecs.so"          # V4L2 hardware codecs
-    "libgstvideoconvert.so"        # Video format conversion
-    "libgstvideoscale.so"          # Video scaling
+    "libgstvideoconvertscale.so"   # Video format conversion and scaling
     "libgstvideorate.so"           # Video frame rate conversion
     "libgstcoreelements.so"        # Core elements (queue, filesrc, etc.)
     "libgsttypefindfunctions.so"   # Type detection
     "libgstapp.so"                 # Application integration
     "libgstplayback.so"           # Playback elements
     "libgstjpeg.so"               # JPEG codec
-    "libgsth264parse.so"          # H.264 parser
     "libgstximagesink.so"         # X11 video sink
     "libgstxvimagesink.so"        # XVideo sink
     "libgstautodetect.so"         # Auto detection
-    "libgstpulse.so"              # PulseAudio
-    "libgstalsa.so"               # ALSA audio
+    "libgstpulseaudio.so"         # PulseAudio
     "libgstaudioparsers.so"       # Audio parsers
     "libgstaudioconvert.so"       # Audio conversion
     "libgstaudioresample.so"      # Audio resampling
@@ -35,10 +40,10 @@ echo "Detecting GStreamer plugin directories..."
 
 # Detect GStreamer plugins in container
 GSTREAMER_HOST_DIRS=(
-    "/usr/lib/aarch64-linux-gnu/gstreamer-1.0"
-    "/usr/lib/x86_64-linux-gnu/gstreamer-1.0"  
+	"/opt/gstreamer/lib/${ARCH}-linux-gnu/gstreamer-1.0"
+	"/opt/gstreamer/lib/${ARCH}-linux-gnu/"
+    "/usr/lib/${ARCH}-linux-gnu/gstreamer-1.0"
     "/usr/lib/gstreamer-1.0"
-    "/host/gstreamer-plugins"  # Mounted from host
 )
 
 GSTREAMER_HOST_DIR=""
@@ -69,14 +74,6 @@ if [ -z "$GSTREAMER_HOST_DIR" ] || [ ! -f "$GSTREAMER_HOST_DIR/libgstvideo4linux
         exit 1
     fi
 fi
-
-# Determine architecture
-ARCH=$(uname -m)
-case "${ARCH}" in
-    aarch64|arm64) APPIMAGE_ARCH=aarch64;;
-    x86_64|amd64) APPIMAGE_ARCH=x86_64;;
-    *) APPIMAGE_ARCH=${ARCH};;
-esac
 
 # Determine version from resources/version.h
 VERSION_H="/workspace/src/resources/version.h"
@@ -424,7 +421,7 @@ echo "USE_QT_PLUGIN: ${USE_QT_PLUGIN}"
 echo "================================"
 
 # Set LD_LIBRARY_PATH to include ffmpeg and gstreamer libraries for dependency resolution
-export LD_LIBRARY_PATH="/opt/ffmpeg/lib:/opt/gstreamer/lib:/opt/Qt6/lib:$LD_LIBRARY_PATH"
+export LD_LIBRARY_PATH="/opt/ffmpeg/lib:/opt/gstreamer/lib:/opt/gstreamer/lib/${ARCH}-linux-gnu:/opt/Qt6/lib:$LD_LIBRARY_PATH"
 export PATH="/opt/Qt6/bin:$PATH"
 export QT_PLUGIN_PATH="/opt/Qt6/plugins:$QT_PLUGIN_PATH"
 export QML2_IMPORT_PATH="/opt/Qt6/qml:$QML2_IMPORT_PATH"
@@ -508,6 +505,7 @@ APPIMAGE_FILENAME="openterfaceQT_${VERSION}_${APPIMAGE_ARCH}.AppImage"
 # Move whichever AppImage got produced
 FOUND_APPIMAGE=$(ls -1 *.AppImage 2>/dev/null | grep -v -E '^linuxdeploy|^linuxdeploy-plugin-qt' | head -n1 || true)
 if [ -n "${FOUND_APPIMAGE}" ]; then
+	chmod +x "${FOUND_APPIMAGE}"
 	mv "${FOUND_APPIMAGE}" "${APPIMAGE_OUT}/${APPIMAGE_FILENAME}"
 	echo "AppImage created at ${APPIMAGE_OUT}/${APPIMAGE_FILENAME}"
 else

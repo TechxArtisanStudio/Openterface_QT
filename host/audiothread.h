@@ -7,6 +7,9 @@
 #include <QAudioDevice>
 #include <QAudioFormat>
 #include <QMutex>
+#include <QLoggingCategory>
+
+Q_DECLARE_LOGGING_CATEGORY(log_core_audio)
 
 class AudioThread : public QThread {
     Q_OBJECT

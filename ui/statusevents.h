@@ -42,6 +42,7 @@ public:
     virtual void onKeyStatesChanged(bool numLock, bool capsLock, bool scrollLock) = 0;
     virtual void factoryReset(bool isStarted) = 0;
     virtual void serialPortReset(bool isStarted) = 0;
+    virtual void onSerialAutoRestart(int attemptNumber, int maxAttempts, double lossRate) = 0;
 };
 
 #endif

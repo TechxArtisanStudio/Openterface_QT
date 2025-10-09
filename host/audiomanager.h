@@ -33,6 +33,10 @@ public:
     void initializeAudio();
     void disconnect();
     
+    // Volume control
+    void setVolume(qreal volume);
+    qreal getVolume() const;
+    
     // Audio device management
     void start(); // Similar to VideoHid::start() for initialization
     void stop();  // Similar to VideoHid::stop() for cleanup
@@ -78,8 +82,14 @@ private:
     // Helper methods
     void fadeInVolume(int timeout, int durationInSeconds);
     void initializeAudioWithDevice(const QAudioDevice& inputDevice);
-    QString extractAudioDeviceGuid(const QString& deviceId) const;
     bool matchAudioDeviceId(const QString& audioDeviceId, const QString& hotplugDeviceId) const;
+#ifdef Q_OS_WIN
+    QString extractAudioDeviceGuid(const QString& deviceId) const;
+    bool matchWindowsAudioDevice(const QString& audioDeviceId, const QString& hotplugDeviceId) const;
+#else
+    bool matchLinuxAudioDevice(const QString& audioDeviceId, const QString& devicePath) const;
+    bool matchLinuxUsbAudioDevice(const QString& audioDeviceId, const QString& devicePath) const;
+#endif
     void displayAllAudioDeviceIds() const;
 
     AudioThread* m_audioThread;

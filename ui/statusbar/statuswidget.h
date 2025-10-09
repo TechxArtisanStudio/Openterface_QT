@@ -27,6 +27,8 @@
 #include <QLabel>
 #include <QVBoxLayout>
 #include <QTimer>
+#include <QPixmap>
+#include <QPalette>
 
 class StatusWidget : public QWidget {
     Q_OBJECT
@@ -45,8 +47,12 @@ public:
     int getCaptureWidth() const;
     int getCaptureHeight() const;
 
+protected:
+    void changeEvent(QEvent *event) override;
+
 private slots:
     void updateCpuUsage();
+    void refreshAllIcons();
 
 public slots:
     void setBaudrate(int baudrate);
@@ -64,7 +70,14 @@ private:
     int m_captureHeight;
     float m_captureFramerate;
     
+    // SVG icon pixmaps
+    QPixmap keyboardIcon;
+    QPixmap monitorIcon;
+    QPixmap plugIcon;
+    
     double getCpuUsage();
+    QPixmap createIconTextLabel(const QString &svgPath, const QString &text, const QColor &textColor = QColor(), const QColor &iconColor = QColor());
+    QColor getIconColorForCurrentTheme() const;
 };
 
 #endif // STATUSWIDGET_H

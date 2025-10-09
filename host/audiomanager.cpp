@@ -103,10 +103,13 @@ void AudioManager::fadeInVolume(int timeout, int durationInSeconds) {
     // Create a QTimer to handle the volume fade-in
     QTimer *volumeTimer = new QTimer(this);
     connect(volumeTimer, &QTimer::timeout, [this, volumeTimer, increment]() {
-        if (!m_audioThread) return;
-
+        if (!m_audioThread) {
+            volumeTimer->stop();
+            volumeTimer->deleteLater();
+            return;
+        }
+        
         qreal currentVolume = m_audioThread->volume();
-
         if (currentVolume < 1.0) {
             m_audioThread->setVolume(currentVolume + increment);
         } else {
@@ -118,6 +121,27 @@ void AudioManager::fadeInVolume(int timeout, int durationInSeconds) {
 
     // Start the timer with the given interval
     volumeTimer->start(timeout);
+}
+
+void AudioManager::setVolume(qreal volume)
+{
+    // Clamp volume to valid range [0.0, 1.0]
+    volume = qBound(0.0, volume, 1.0);
+    
+    if (m_audioThread) {
+        m_audioThread->setVolume(volume);
+        qCDebug(log_core_host_audio) << "Volume set to:" << volume;
+    } else {
+        qCDebug(log_core_host_audio) << "Cannot set volume: no audio thread";
+    }
+}
+
+qreal AudioManager::getVolume() const
+{
+    if (m_audioThread) {
+        return m_audioThread->volume();
+    }
+    return 0.0;
 }
 
 void AudioManager::disconnect() {
@@ -350,6 +374,7 @@ bool AudioManager::isAudioDeviceAvailable(const QString& deviceId) const
     return !findAudioDeviceById(deviceId).isNull();
 }
 
+#ifdef Q_OS_WIN
 QString AudioManager::extractAudioDeviceGuid(const QString& deviceId) const
 {
     // Extract GUID pattern like {066429B6-13A5-4869-8029-DED24018DB36} from device ID
@@ -377,8 +402,11 @@ QString AudioManager::extractAudioDeviceGuid(const QString& deviceId) const
     return QString();
 }
 
-bool AudioManager::matchAudioDeviceId(const QString& audioDeviceId, const QString& hotplugDeviceId) const
+bool AudioManager::matchWindowsAudioDevice(const QString& audioDeviceId, const QString& hotplugDeviceId) const
 {
+    qCDebug(log_core_host_audio) << "Windows audio device matching - Audio ID:" << audioDeviceId 
+                                << "Hotplug ID:" << hotplugDeviceId;
+    
     // Extract GUIDs from both IDs and compare them (case-insensitive)
     QString audioGuid = extractAudioDeviceGuid(audioDeviceId);
     QString hotplugGuid = extractAudioDeviceGuid(hotplugDeviceId);
@@ -393,6 +421,84 @@ bool AudioManager::matchAudioDeviceId(const QString& audioDeviceId, const QStrin
                                 << "(" << audioGuid << "vs" << hotplugGuid << ")";
     
     return match;
+}
+#else
+
+bool AudioManager::matchLinuxAudioDevice(const QString& audioDeviceId, const QString& devicePath) const
+{
+    qCDebug(log_core_host_audio) << "Linux audio device matching - ALSA ID:" << audioDeviceId 
+                                << "Device path:" << devicePath;
+    
+    // Extract card number from device path
+    // Path format: /sys/devices/.../sound/card3/controlC3
+    QRegularExpression cardRegex(R"(/sound/card(\d+)/control)");
+    QRegularExpressionMatch cardMatch = cardRegex.match(devicePath);
+    
+    if (!cardMatch.hasMatch()) {
+        qCDebug(log_core_host_audio) << "No card number found in device path:" << devicePath;
+        return false;
+    }
+    
+    QString cardNumber = cardMatch.captured(1);
+    qCDebug(log_core_host_audio) << "Extracted card number:" << cardNumber;
+    
+    // Check if ALSA device ID contains the card reference
+    // ALSA ID format: alsa_input.usb-MACROSILICON_Openterface_________-02.iec958-stereo
+    // The "02" part often corresponds to the USB interface, but we need to check for the device name
+    
+    // First, check if the ALSA ID contains "Openterface" (device-specific matching)
+    if (audioDeviceId.contains("Openterface", Qt::CaseInsensitive)) {
+        qCDebug(log_core_host_audio) << "Found Openterface device in ALSA ID";
+        
+        // Also check if device path contains USB identifiers that match
+        if (devicePath.contains("usb") && devicePath.contains("1-1")) {
+            qCDebug(log_core_host_audio) << "Device path indicates USB device on expected port";
+            return true;
+        }
+    }
+    
+    // Alternative: Try to match based on USB vendor/product info in the path
+    // Extract USB device info from both IDs if possible
+    if (matchLinuxUsbAudioDevice(audioDeviceId, devicePath)) {
+        return true;
+    }
+    
+    qCDebug(log_core_host_audio) << "No match found between ALSA ID and device path";
+    return false;
+}
+
+bool AudioManager::matchLinuxUsbAudioDevice(const QString& audioDeviceId, const QString& devicePath) const
+{
+    // Extract USB bus and device info from the device path
+    // Path format: /sys/devices/platform/soc/fe980000.usb/usb1/1-1/1-1.3/1-1.3.1/...
+    QRegularExpression usbPathRegex(R"(usb\d+/([\d\-\.]+))");
+    QRegularExpressionMatch pathMatch = usbPathRegex.match(devicePath);
+    
+    if (!pathMatch.hasMatch()) {
+        return false;
+    }
+    
+    QString usbPath = pathMatch.captured(1);
+    qCDebug(log_core_host_audio) << "USB path from device path:" << usbPath;
+    
+    // For Openterface devices, we can use device name matching as primary method
+    if (audioDeviceId.contains("MACROSILICON", Qt::CaseInsensitive) && 
+        audioDeviceId.contains("Openterface", Qt::CaseInsensitive)) {
+        qCDebug(log_core_host_audio) << "Matched based on Openterface device identifier";
+        return true;
+    }
+    
+    return false;
+}
+#endif
+
+bool AudioManager::matchAudioDeviceId(const QString& audioDeviceId, const QString& hotplugDeviceId) const
+{
+#ifdef Q_OS_WIN
+    return matchWindowsAudioDevice(audioDeviceId, hotplugDeviceId);
+#else
+    return matchLinuxAudioDevice(audioDeviceId, hotplugDeviceId);
+#endif
 }
 
 void AudioManager::displayAllAudioDeviceIds() const
@@ -411,12 +517,14 @@ void AudioManager::displayAllAudioDeviceIds() const
         for (int i = 0; i < devices.size(); ++i) {
             const QAudioDevice& device = devices[i];
             QString deviceId = QString::fromUtf8(device.id());
-            QString extractedGuid = extractAudioDeviceGuid(deviceId);
             
             qCDebug(log_core_host_audio) << QString("Device %1:").arg(i + 1);
             qCDebug(log_core_host_audio) << "  Description:" << device.description();
             qCDebug(log_core_host_audio) << "  Full ID:" << deviceId;
+#ifdef Q_OS_WIN
+            QString extractedGuid = extractAudioDeviceGuid(deviceId);
             qCDebug(log_core_host_audio) << "  Extracted GUID:" << extractedGuid;
+#endif
             qCDebug(log_core_host_audio) << "  Is Default:" << device.isDefault();
             qCDebug(log_core_host_audio) << "  ---";
         }
@@ -441,19 +549,124 @@ void AudioManager::initializeAudioWithDevice(const QAudioDevice& inputDevice)
     }
     
     try {
-        QAudioFormat format = outputDevice.preferredFormat();
+        // First, try to use the input device's preferred format
+        QAudioFormat format = inputDevice.preferredFormat();
         
-        // Log the input device and format details
-        qCDebug(log_core_host_audio) << "Audio format details:";
+        qCDebug(log_core_host_audio) << "Input device preferred format:";
         qCDebug(log_core_host_audio) << "Sample rate:" << format.sampleRate();
         qCDebug(log_core_host_audio) << "Channel count:" << format.channelCount();
-        qCDebug(log_core_host_audio) << "Sample size:" << format.bytesPerSample();
+        qCDebug(log_core_host_audio) << "Sample format:" << format.sampleFormat();
+        qCDebug(log_core_host_audio) << "Bytes per frame:" << format.bytesPerFrame();
+        
+        // Check if the input device actually supports this format
+        if (!inputDevice.isFormatSupported(format)) {
+            qCWarning(log_core_host_audio) << "Input device preferred format is not supported, trying alternatives";
+            
+            // Try common ALSA formats that work with hw:3,0
+            QAudioFormat alternativeFormat;
+            alternativeFormat.setSampleRate(48000);
+            alternativeFormat.setChannelCount(2);
+            alternativeFormat.setSampleFormat(QAudioFormat::Int16);
+            
+            if (inputDevice.isFormatSupported(alternativeFormat)) {
+                format = alternativeFormat;
+                qCDebug(log_core_host_audio) << "Using alternative format: 48000Hz, 2ch, Int16";
+            } else {
+                // Try 44100 Hz
+                alternativeFormat.setSampleRate(44100);
+                if (inputDevice.isFormatSupported(alternativeFormat)) {
+                    format = alternativeFormat;
+                    qCDebug(log_core_host_audio) << "Using alternative format: 44100Hz, 2ch, Int16";
+                } else {
+                    qCWarning(log_core_host_audio) << "No compatible format found for input device";
+                }
+            }
+        }
+        
+        // Check if output device supports the same format
+        if (!outputDevice.isFormatSupported(format)) {
+            qCWarning(log_core_host_audio) << "Output device does not support the input format";
+            QAudioFormat outputFormat = outputDevice.preferredFormat();
+            qCDebug(log_core_host_audio) << "Output device preferred format:";
+            qCDebug(log_core_host_audio) << "Sample rate:" << outputFormat.sampleRate();
+            qCDebug(log_core_host_audio) << "Channel count:" << outputFormat.channelCount();
+            qCDebug(log_core_host_audio) << "Sample format:" << outputFormat.sampleFormat();
+        }
+        
+        // Log the final format details
+        qCDebug(log_core_host_audio) << "Final audio format details:";
+        qCDebug(log_core_host_audio) << "Sample rate:" << format.sampleRate();
+        qCDebug(log_core_host_audio) << "Channel count:" << format.channelCount();
+        qCDebug(log_core_host_audio) << "Sample format:" << format.sampleFormat();
+        qCDebug(log_core_host_audio) << "Bytes per frame:" << format.bytesPerFrame();
         
         // Create and start the audio thread
-        m_audioThread = new AudioThread(inputDevice, outputDevice, format, this);
+        qCDebug(log_core_host_audio) << "Creating AudioThread with input device:" << inputDevice.description();
+        qCDebug(log_core_host_audio) << "Input device ID:" << QString::fromUtf8(inputDevice.id());
+        
+        // Debug: Check if this is the ALSA device that corresponds to hw:3,0
+        QString deviceId = QString::fromUtf8(inputDevice.id());
+        if (deviceId.contains("usb-MACROSILICON") || deviceId.contains("card3")) {
+            qCDebug(log_core_host_audio) << "This appears to be the Openterface device (card3/hw:3,0 equivalent)";
+        }
+        
+        // Try to find alternative ALSA device names for better compatibility
+        QList<QAudioDevice> allInputDevices = QMediaDevices::audioInputs();
+        qCDebug(log_core_host_audio) << "Searching for alternative device names...";
+        
+        QAudioDevice alsaDevice;
+        bool foundAlsaDevice = false;
+        
+        for (const QAudioDevice& device : allInputDevices) {
+            QString altDeviceId = QString::fromUtf8(device.id());
+            qCDebug(log_core_host_audio) << "Available device:" << device.description() << "ID:" << altDeviceId;
+            
+            // Look for hw:3,0 or card3 references, or different naming for same hardware
+            if (altDeviceId.contains("hw:3") || altDeviceId.contains("card3") || 
+                (altDeviceId.contains("3") && (altDeviceId.contains("hw") || altDeviceId.contains("USB Audio"))) ||
+                (device.description().contains("MS2109") || device.description().contains("USB Audio"))) {
+                qCDebug(log_core_host_audio) << "Found potential alternative ALSA device:" << device.description();
+                alsaDevice = device;
+                foundAlsaDevice = true;
+                // Don't break - let's see all potential devices
+            }
+        }
+        
+        // Use ALSA device if found and different from current
+        QAudioDevice deviceToUse = inputDevice;
+        if (foundAlsaDevice && QString::fromUtf8(alsaDevice.id()) != deviceId) {
+            qCDebug(log_core_host_audio) << "Found alternative ALSA device:" << alsaDevice.description();
+            qCDebug(log_core_host_audio) << "Alternative device ID:" << QString::fromUtf8(alsaDevice.id());
+            
+            // Test if the alternative device has a different preferred format
+            QAudioFormat altFormat = alsaDevice.preferredFormat();
+            qCDebug(log_core_host_audio) << "Alternative device preferred format:";
+            qCDebug(log_core_host_audio) << "Sample rate:" << altFormat.sampleRate();
+            qCDebug(log_core_host_audio) << "Channel count:" << altFormat.channelCount();
+            qCDebug(log_core_host_audio) << "Sample format:" << altFormat.sampleFormat();
+            
+            // For now, let's try the alternative device
+            deviceToUse = alsaDevice;
+            format = altFormat; // Use the alternative device's preferred format
+            qCDebug(log_core_host_audio) << "Switching to alternative device for testing";
+        } else {
+            qCDebug(log_core_host_audio) << "No better alternative ALSA device found, using original device";
+        }
+        m_audioThread = new AudioThread(deviceToUse, outputDevice, format, this);
         connect(m_audioThread, &AudioThread::error, this, &AudioManager::handleAudioError);
         connect(m_audioThread, &AudioThread::cleanupRequested, this, &AudioManager::handleCleanupRequest, Qt::QueuedConnection);
+        
+        qCDebug(log_core_host_audio) << "Starting AudioThread...";
         m_audioThread->start();
+        
+        qCDebug(log_core_host_audio) << "AudioThread started, checking if running...";
+        // Give it a moment to start
+        QThread::msleep(50);
+        if (m_audioThread->isRunning()) {
+            qCDebug(log_core_host_audio) << "AudioThread is running successfully";
+        } else {
+            qCWarning(log_core_host_audio) << "AudioThread failed to start or exited immediately";
+        }
         
         // Initialize volume to 0 and start fade-in
         m_audioThread->setVolume(0.0);
