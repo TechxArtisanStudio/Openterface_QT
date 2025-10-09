@@ -800,39 +800,39 @@ Please try again after restarting the application.</source>
         <translation>始终显示鼠标光标</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1107"/>
+        <location filename="../../ui/mainwindow.cpp" line="1195"/>
         <source>Recorded %1 sec</source>
         <translation>已录制 %1 秒</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1352"/>
+        <location filename="../../ui/mainwindow.cpp" line="1440"/>
         <source>Image Capture Error</source>
         <translation>图像捕获错误</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1513"/>
+        <location filename="../../ui/mainwindow.cpp" line="1601"/>
         <source>Captured &quot;%1&quot;</source>
         <translation>已捕获 &quot;%1&quot;</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="2091"/>
+        <location filename="../../ui/mainwindow.cpp" line="2179"/>
         <source>Firmware Update</source>
         <translation>固件更新</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="2092"/>
+        <location filename="../../ui/mainwindow.cpp" line="2180"/>
         <source>The firmware is up to date.
 Current version: </source>
         <translation>固件已是最新版本。
 当前版本：</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="2114"/>
+        <location filename="../../ui/mainwindow.cpp" line="2202"/>
         <source>Firmware fetch timeout</source>
         <translation>固件获取超时</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="2115"/>
+        <location filename="../../ui/mainwindow.cpp" line="2203"/>
         <source>Firmware retrieval timed out. Please check your network connection and try again.
 Current version: </source>
         <translation>固件检索超时。请检查您的网络连接并重试。

@@ -795,38 +795,38 @@ Prøv igen efter at have genstartet programmet.</translation>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1107"/>
+        <location filename="../../ui/mainwindow.cpp" line="1195"/>
         <source>Recorded %1 sec</source>
         <translation>Optaget %1 sek</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1352"/>
+        <location filename="../../ui/mainwindow.cpp" line="1440"/>
         <source>Image Capture Error</source>
         <translation>Fejl ved billedoptagelse</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1513"/>
+        <location filename="../../ui/mainwindow.cpp" line="1601"/>
         <source>Captured &quot;%1&quot;</source>
         <translation>Optaget &quot;%1&quot;</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="2091"/>
+        <location filename="../../ui/mainwindow.cpp" line="2179"/>
         <source>Firmware Update</source>
         <translation>Firmwareopdatering</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="2092"/>
+        <location filename="../../ui/mainwindow.cpp" line="2180"/>
         <source>The firmware is up to date.
 Current version: </source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="2114"/>
+        <location filename="../../ui/mainwindow.cpp" line="2202"/>
         <source>Firmware fetch timeout</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="2115"/>
+        <location filename="../../ui/mainwindow.cpp" line="2203"/>
         <source>Firmware retrieval timed out. Please check your network connection and try again.
 Current version: </source>
         <translation type="unfinished"></translation>

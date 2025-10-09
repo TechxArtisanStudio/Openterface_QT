@@ -1766,7 +1766,8 @@ QList<DeviceInfo> WindowsDeviceManager::discoverOptimizedDevices()
     qCDebug(log_device_windows) << "Starting optimized device discovery for USB 2.0/3.0 compatibility...";
     qCDebug(log_device_windows) << "Looking for Original generation: 1A86:7523 (USB 2.0/3.0 with Gen1 method)";
     qCDebug(log_device_windows) << "Looking for New generation USB 2.0: 1A86:FE0C (USB 2.0 with Gen1 method)";
-    qCDebug(log_device_windows) << "Looking for New generation USB 3.0: 345F:2130 (USB 3.0 with Gen2 method)";
+    qCDebug(log_device_windows) << "Looking for New generation USB 3.0: 345F:2132 (USB 3.0 with Gen2 method)";
+    qCDebug(log_device_windows) << "Looking for V3 generation USB 3.0: 345F:2109 (USB 3.0 with Gen2 method)";
     
     // Phase 1: Search for Original generation devices (VID_1A86&PID_7523)
     // These work on both USB 2.0 and 3.0 using integrated approach (Generation 1 method)
@@ -1952,6 +1953,106 @@ QList<DeviceInfo> WindowsDeviceManager::discoverOptimizedDevices()
         qCDebug(log_device_windows) << "Integrated device added with port chain:" << deviceInfo.portChain;
     }
     
+    // Phase 3B: Search for V3 generation USB 3.0 integrated devices (VID_345F&PID_2109)  
+    // These are integrated devices that contain camera, HID, and audio interfaces
+    // The serial port is separate (1A86:FE0C) and connected via CompanionPortChain
+    qCDebug(log_device_windows) << "=== Phase 3B: Searching for V3 generation USB 3.0 integrated devices (345F:2109) ===";
+    QList<USBDeviceData> v3IntegratedDevices = findUSBDevicesWithVidPid(AbstractPlatformDeviceManager::OPENTERFACE_VID_V3, AbstractPlatformDeviceManager::OPENTERFACE_PID_V3);
+    qCDebug(log_device_windows) << "Found" << v3IntegratedDevices.size() << "V3 integrated devices (345F:2109)";
+    
+    for (int i = 0; i < v3IntegratedDevices.size(); ++i) {
+        const USBDeviceData& integratedDevice = v3IntegratedDevices[i];
+        
+        qCDebug(log_device_windows) << "Processing V3 Integrated Device" << (i + 1) << "at port chain:" << integratedDevice.portChain;
+        qCDebug(log_device_windows) << "  Device Instance ID:" << integratedDevice.deviceInstanceId;
+        
+        // For integrated devices, we need to:
+        // 1. Find the associated serial port using CompanionPortChain relationship
+        // 2. Use the integrated device's children for camera, HID, and audio
+        
+        // Find associated serial port through CompanionPortChain
+        QString associatedSerialPortId = findSerialPortByIntegratedDevice(integratedDevice);
+        QString associatedPortChain;
+        
+        if (!associatedSerialPortId.isEmpty()) {
+            qCDebug(log_device_windows) << "  ✓ Found associated serial port:" << associatedSerialPortId;
+            // Get the port chain of the serial port to use as the device identifier
+            DWORD serialDevInst = getDeviceInstanceFromId(associatedSerialPortId);
+            if (serialDevInst != 0) {
+                associatedPortChain = buildPythonCompatiblePortChain(serialDevInst);
+                qCDebug(log_device_windows) << "  Associated serial port chain:" << associatedPortChain;
+            }
+        } else {
+            qCWarning(log_device_windows) << "  ✗ No associated serial port found for V3 integrated device";
+            // Use the integrated device's port chain as fallback
+            associatedPortChain = integratedDevice.portChain;
+        }
+        
+        // Check if we already have a device for this port chain
+        if (deviceMap.contains(associatedPortChain)) {
+            qCDebug(log_device_windows) << "Enhancing existing device with V3 integrated device interfaces at port chain:" << associatedPortChain;
+            DeviceInfo& existingDevice = deviceMap[associatedPortChain];
+            
+            // Add integrated device interfaces to existing device
+            processIntegratedDeviceInterfaces(existingDevice, integratedDevice);
+            matchDevicePathsToRealPathsGeneration2(existingDevice);
+            
+            qCDebug(log_device_windows) << "Enhanced device interfaces - HID:" << (existingDevice.hasHidDevice() ? "✓" : "✗")
+                                       << "Camera:" << (existingDevice.hasCameraDevice() ? "✓" : "✗") 
+                                       << "Audio:" << (existingDevice.hasAudioDevice() ? "✓" : "✗");
+            continue;
+        }
+        
+        // Create new device info
+        DeviceInfo deviceInfo;
+        deviceInfo.portChain = associatedPortChain;
+        deviceInfo.deviceInstanceId = integratedDevice.deviceInstanceId;
+        deviceInfo.lastSeen = QDateTime::currentDateTime();
+        deviceInfo.platformSpecific = integratedDevice.deviceInfo;
+        
+        // For USB 3.0 integrated devices, set up companion PortChain association
+        // The serial port is on the main PortChain, composite devices on companionPortChain
+        if (associatedPortChain != integratedDevice.portChain) {
+            deviceInfo.companionPortChain = integratedDevice.portChain;
+            deviceInfo.hasCompanionDevice = true;
+            qCDebug(log_device_windows) << "  V3 USB 3.0 device - Serial PortChain:" << associatedPortChain 
+                                       << "Companion PortChain:" << integratedDevice.portChain;
+        }
+        
+        // Set the serial port information if found
+        if (!associatedSerialPortId.isEmpty()) {
+            deviceInfo.serialPortId = associatedSerialPortId;
+        }
+        
+        // Convert sibling and children lists to QVariantList for storage
+        QVariantList siblingVariants, childrenVariants;
+        for (const QVariantMap& sibling : integratedDevice.siblings) {
+            siblingVariants.append(sibling);
+        }
+        for (const QVariantMap& child : integratedDevice.children) {
+            childrenVariants.append(child);
+        }
+        deviceInfo.platformSpecific["siblings"] = siblingVariants;
+        deviceInfo.platformSpecific["children"] = childrenVariants;
+        
+        // Process the integrated device interfaces (camera, HID, audio)
+        qCDebug(log_device_windows) << "Processing interfaces for V3 integrated device (345F:2109)";
+        qCDebug(log_device_windows) << "  V3 Integrated device has" << integratedDevice.children.size() << "children and" << integratedDevice.siblings.size() << "siblings";
+        processIntegratedDeviceInterfaces(deviceInfo, integratedDevice);
+        
+        qCDebug(log_device_windows) << "After V3 integrated device interface processing:";
+        qCDebug(log_device_windows) << "  HID Device ID:" << (deviceInfo.hasHidDevice() ? deviceInfo.hidDeviceId : "Not found");
+        qCDebug(log_device_windows) << "  Camera Device ID:" << (deviceInfo.hasCameraDevice() ? deviceInfo.cameraDeviceId : "Not found");
+        qCDebug(log_device_windows) << "  Audio Device ID:" << (deviceInfo.hasAudioDevice() ? deviceInfo.audioDeviceId : "Not found");
+        
+        // Convert device IDs to real paths
+        matchDevicePathsToRealPathsGeneration2(deviceInfo);
+        
+        // Add to device map
+        deviceMap[deviceInfo.portChain] = deviceInfo;
+        qCDebug(log_device_windows) << "V3 Integrated device added with port chain:" << deviceInfo.portChain;
+    }
+    
     // Phase 1B: Use Generation 1 approach for integrated devices (345F:2132) 
     // This handles cases where integrated devices appear with Gen1-style interface layout
     qCDebug(log_device_windows) << "Phase 1B: Generation 1 approach for integrated devices";
@@ -1978,6 +2079,46 @@ QList<DeviceInfo> WindowsDeviceManager::discoverOptimizedDevices()
         if (deviceMap.contains(associatedPortChain)) {
             DeviceInfo& existingDevice = deviceMap[associatedPortChain];
             qCDebug(log_device_windows) << "Enhancing existing integrated device at port chain:" << associatedPortChain;
+            
+            // Try to fill missing interfaces using Generation 1 approach
+            if (!existingDevice.hasSerialPort()) {
+                processGeneration1SerialInterface(existingDevice, integratedDevice);
+            }
+            if (!existingDevice.hasHidDevice() || !existingDevice.hasCameraDevice() || !existingDevice.hasAudioDevice()) {
+                processGeneration1MediaInterfaces(existingDevice, integratedDevice);
+            }
+            
+            // Re-convert device IDs to real paths in case new interfaces were found
+            matchDevicePathsToRealPaths(existingDevice);
+        }
+    }
+    
+    // Phase 1C: Use Generation 1 approach for V3 integrated devices (345F:2109) 
+    // This handles cases where V3 integrated devices appear with Gen1-style interface layout
+    qCDebug(log_device_windows) << "Phase 1C: Generation 1 approach for V3 integrated devices";
+    QList<USBDeviceData> v3IntegratedDevicesLegacy = findUSBDevicesWithVidPid(AbstractPlatformDeviceManager::OPENTERFACE_VID_V3, AbstractPlatformDeviceManager::OPENTERFACE_PID_V3);
+    qCDebug(log_device_windows) << "Re-processing" << v3IntegratedDevicesLegacy.size() << "V3 integrated devices with legacy approach";
+    
+    for (int i = 0; i < v3IntegratedDevicesLegacy.size(); ++i) {
+        const USBDeviceData& integratedDevice = v3IntegratedDevicesLegacy[i];
+        
+        // For integrated devices, we need to find the associated serial port first
+        QString associatedSerialPortId = findSerialPortByIntegratedDevice(integratedDevice);
+        QString associatedPortChain;
+        
+        if (!associatedSerialPortId.isEmpty()) {
+            DWORD serialDevInst = getDeviceInstanceFromId(associatedSerialPortId);
+            if (serialDevInst != 0) {
+                associatedPortChain = buildPythonCompatiblePortChain(serialDevInst);
+            }
+        } else {
+            associatedPortChain = integratedDevice.portChain;
+        }
+        
+        // Check if we already have this device from the integrated approach
+        if (deviceMap.contains(associatedPortChain)) {
+            DeviceInfo& existingDevice = deviceMap[associatedPortChain];
+            qCDebug(log_device_windows) << "Enhancing existing V3 integrated device at port chain:" << associatedPortChain;
             
             // Try to fill missing interfaces using Generation 1 approach
             if (!existingDevice.hasSerialPort()) {
