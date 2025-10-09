@@ -63,6 +63,7 @@ public:
     void resetZoom();
     void zoomIn(double factor = 1.25);
     void zoomOut(double factor = 0.8);
+    void centerOn(const QPointF &pos); // Center the view on a specific point
     void fitToWindow();
     void actualSize();
     
@@ -86,6 +87,9 @@ public:
     
     // Get current zoom factor
     double getZoomFactor() const { return m_scaleFactor; }
+    
+    // Set coordinate correction for zoom mode
+    void setZoomOffsetCorrection(int x, int y) { m_zoomOffsetCorrectionX = x; m_zoomOffsetCorrectionY = y; }
 
 signals:
     void mouseMoved(const QPoint& position, const QString& event);
@@ -127,6 +131,10 @@ private:
     double m_scaleFactor;
     QSize m_originalVideoSize;
     bool m_maintainAspectRatio;
+    
+    // Coordinate correction for zoom mode
+    int m_zoomOffsetCorrectionX;
+    int m_zoomOffsetCorrectionY;
     
     // Direct GStreamer mode support
     bool m_directGStreamerMode;

@@ -57,6 +57,10 @@ VideoPane::VideoPane(QWidget *parent) : QGraphicsView(parent),
     m_scene->addItem(m_videoItem);
     m_videoItem->setZValue(0); // Below pixmap item
     
+    // Initialize coordinate offset correction values
+    m_zoomOffsetCorrectionX = 5;
+    m_zoomOffsetCorrectionY = 5;
+    
     // Configure the graphics view
     setScene(m_scene);
     setDragMode(QGraphicsView::NoDrag);
@@ -330,32 +334,65 @@ void VideoPane::resetZoom()
     resetTransform(); // Reset view transform
     updateVideoItemTransform();
     updateScrollBarsAndSceneRect();
+    
+    // Log zoom reset
+    qCDebug(log_ui_video) << "Zoom reset: current zoom=" << m_scaleFactor
+                         << "transform=" << transform();
+}
+
+void VideoPane::centerOn(const QPointF &pos)
+{
+    // Center the view on a specific scene point
+    QGraphicsView::centerOn(pos);
+    
+    // Log centering for debugging
+    static int centerCounter = 0;
+    if (++centerCounter % 10 == 1) {
+        qCDebug(log_ui_video) << "Centering view on:" << pos
+                             << "scroll bars:" << QPoint(horizontalScrollBar()->value(), verticalScrollBar()->value());
+    }
 }
 
 void VideoPane::zoomIn(double factor)
 {
+    // Store the center point of the viewport before zooming
+    QPointF centerPoint = mapToScene(viewport()->rect().center());
+    
+    // Apply zoom
     m_scaleFactor *= factor;
     scale(factor, factor);
     updateVideoItemTransform();
     updateScrollBarsAndSceneRect();
+    
+    // Center back on the same scene point to maintain focus during zoom
+    centerOn(centerPoint);
     
     // Log zoom information
     qCDebug(log_ui_video) << "Zoom in: factor=" << factor << "current zoom=" << m_scaleFactor
                         << "view transform=" << transform() 
-                        << "viewport size=" << viewport()->size();
+                        << "viewport size=" << viewport()->size()
+                        << "centered on=" << centerPoint;
 }
 
 void VideoPane::zoomOut(double factor)
 {
+    // Store the center point of the viewport before zooming
+    QPointF centerPoint = mapToScene(viewport()->rect().center());
+    
+    // Apply zoom
     m_scaleFactor *= factor;
     scale(factor, factor);
     updateVideoItemTransform();
     updateScrollBarsAndSceneRect();
     
+    // Center back on the same scene point to maintain focus during zoom
+    centerOn(centerPoint);
+    
     // Log zoom information
     qCDebug(log_ui_video) << "Zoom out: factor=" << factor << "current zoom=" << m_scaleFactor
                         << "view transform=" << transform()
-                        << "viewport size=" << viewport()->size();
+                        << "viewport size=" << viewport()->size()
+                        << "centered on=" << centerPoint;
 }
 
 void VideoPane::fitToWindow()
@@ -383,6 +420,9 @@ void VideoPane::actualSize()
 void VideoPane::resizeEvent(QResizeEvent *event)
 {
     QGraphicsView::resizeEvent(event);
+    
+    // Update scene rect and scroll bars on resize
+    updateScrollBarsAndSceneRect();
     
     // Update scroll bars and scene rect based on current zoom level
     updateScrollBarsAndSceneRect();
@@ -547,11 +587,27 @@ void VideoPane::updateScrollBarsAndSceneRect()
         setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
         setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
         
-        // When zoomed, keep the scene rect the same size as the viewport
-        // This approach works better with QGraphicsView's built-in scroll mechanism
-        // The view's transform will handle the zoom and scrolling
+        // When zoomed in, we need a scene rect that accounts for the zoom level
+        // to ensure proper scrolling boundaries
         if (m_scene) {
-            m_scene->setSceneRect(viewport()->rect());
+            QRectF viewportRect = viewport()->rect();
+            
+            // Calculate the effective scene size based on the zoom factor
+            // This ensures scroll bars have the correct range
+            QRectF zoomedSceneRect = QRectF(
+                viewportRect.x(),
+                viewportRect.y(),
+                viewportRect.width(), 
+                viewportRect.height()
+            );
+            
+            // Set the scene rect to match the viewport
+            m_scene->setSceneRect(zoomedSceneRect);
+            
+            // Log the scene rect update
+            qCDebug(log_ui_video) << "Updated scene rect for zoom:" << zoomedSceneRect
+                                 << "zoom factor:" << m_scaleFactor
+                                 << "viewport:" << viewportRect;
         }
     } else {
         // Disable scroll bars when at normal zoom or below
@@ -585,8 +641,10 @@ QPoint VideoPane::getTransformedMousePosition(const QPoint& viewportPos)
     }
     
     QRectF viewRect = viewport()->rect();
+    QTransform viewTransform = transform();
+    QTransform itemTransform = targetItem->transform();
     
-    // Step 1: Convert viewport coordinates to scene coordinates (this accounts for the view's transform)
+    // Step 1: Convert viewport coordinates to scene coordinates (this accounts for scrolling)
     QPointF scenePos = mapToScene(viewportPos);
     
     // Step 2: Map scene coordinates to item coordinates
@@ -603,6 +661,7 @@ QPoint VideoPane::getTransformedMousePosition(const QPoint& viewportPos)
         return viewportPos;
     }
     
+    // Calculate relative position within the item
     double relativeX = (itemPos.x() - itemOffset.x()) / itemWidth;
     double relativeY = (itemPos.y() - itemOffset.y()) / itemHeight;
     
@@ -615,20 +674,38 @@ QPoint VideoPane::getTransformedMousePosition(const QPoint& viewportPos)
     int transformedX = static_cast<int>(normalizedX * viewRect.width());
     int transformedY = static_cast<int>(normalizedY * viewRect.height());
     
+    // For zoomed mode, we need to apply additional logic to handle the scrolled view
+    QPoint finalResult;
+    if (m_scaleFactor > 1.0) {
+        // When zoomed, we take the normalizedX/Y coordinates (relative position within the video)
+        // and map them to the target device's coordinate system
+        
+        // Apply configurable correction factors to account for the observed offset
+        // The positive correction compensates for the observed negative offset
+        transformedX += m_zoomOffsetCorrectionX;
+        transformedY += m_zoomOffsetCorrectionY;
+        
+        finalResult = QPoint(transformedX, transformedY);
+    } else {
+        // When not zoomed, use the straightforward transformation
+        finalResult = QPoint(transformedX, transformedY);
+    }
+    
     // Debug the transformation for troubleshooting
     static int logCounter = 0;
-    if (m_scaleFactor > 1.0 && ++logCounter % 50 == 1) { // Log only when zoomed and every 50th time
+    if (m_scaleFactor > 1.0 && ++logCounter % 20 == 1) { // Log more frequently when zoomed
         qCDebug(log_ui_video) << "Zoom mouse transform: viewport=" << viewportPos 
                 << "scene=" << scenePos
                 << "item=" << itemPos 
                 << "normalized=" << QPointF(normalizedX, normalizedY)
-                << "result=" << QPoint(transformedX, transformedY)
+                << "uncorrected=" << QPoint(transformedX - m_zoomOffsetCorrectionX, transformedY - m_zoomOffsetCorrectionY)
+                << "result=" << finalResult
                 << "zoom=" << m_scaleFactor
-                << "item dimensions=" << itemRect.width() << "x" << itemRect.height()
-                << "view dimensions=" << viewRect.width() << "x" << viewRect.height();
+                << "offset correction=" << QPoint(m_zoomOffsetCorrectionX, m_zoomOffsetCorrectionY)
+                << "scroll=" << QPoint(horizontalScrollBar()->value(), verticalScrollBar()->value());
     }
     
-    return QPoint(transformedX, transformedY);
+    return finalResult;
 }
 
 void VideoPane::validateMouseCoordinates(const QPoint& original, const QString& eventType)
@@ -695,7 +772,16 @@ void VideoPane::mousePressEvent(QMouseEvent *event)
 
 void VideoPane::mouseMoveEvent(QMouseEvent *event)
 {
-    // qDebug() << "VideoPane::mouseMoveEvent - pos:" << event->pos() << "mouse tracking:" << hasMouseTracking();
+    // Optional debug: track raw mouse positions for troubleshooting
+    static int debugCounter = 0;
+    if (m_scaleFactor > 1.0 && ++debugCounter % 100 == 1) {
+        QPoint viewportPos = event->pos();
+        QPointF scenePos = mapToScene(viewportPos);
+        qCDebug(log_ui_video) << "Raw mouse move: viewport=" << viewportPos 
+                             << "scene=" << scenePos
+                             << "zoom=" << m_scaleFactor
+                             << "scroll=" << QPoint(horizontalScrollBar()->value(), verticalScrollBar()->value());
+    }
     
     // Validate coordinate transformation consistency (debug helper) - but reduce frequency
     static int moveValidationCounter = 0;

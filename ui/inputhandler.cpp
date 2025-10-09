@@ -88,6 +88,7 @@ MouseEventDTO* InputHandler::calculateAbsolutePosition(QMouseEvent *event) {
     QPoint videoPos = transformedPos;
     if (m_videoPane && effectiveWidget == m_videoPane) {
         // Use VideoPane's transformation logic for accurate video area mapping
+        // When zoomed, this will handle the coordinate transformation
         videoPos = m_videoPane->getTransformedMousePosition(transformedPos);
         
         // Debug: Log coordinate transformation details
