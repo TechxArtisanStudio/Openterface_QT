@@ -148,6 +148,11 @@ set(UI_TOOLBAR_SOURCES
     ui/toolbar/toolbarmanager.cpp ui/toolbar/toolbarmanager.h
 )
 
+# UI recording sources
+set(UI_RECORDING_SOURCES
+    ui/recording/recordingcontroller.cpp ui/recording/recordingcontroller.h
+)
+
 # UI preferences sources
 set(UI_PREFERENCES_SOURCES
     ui/preferences/cameraadjust.cpp ui/preferences/cameraadjust.h
@@ -180,6 +185,7 @@ set(SOURCE_FILES
     ${UI_CORNERWIDGET_SOURCES}
     ${UI_WINDOWCONTROL_SOURCES}
     ${UI_TOOLBAR_SOURCES}
+    ${UI_RECORDING_SOURCES}
     ${UI_PREFERENCES_SOURCES}
 )
 

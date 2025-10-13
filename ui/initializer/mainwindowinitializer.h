@@ -125,6 +125,13 @@ private:
     void setupToolbar();
     
     /**
+     * @brief Setup recording controller
+     * 
+     * Initializes recording controller and adds its widget to toolbar
+     */
+    void setupRecordingController();
+    
+    /**
      * @brief Connect camera manager signals
      * 
      * Connects camera events to status bar and video pane
