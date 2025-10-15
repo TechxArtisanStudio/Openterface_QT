@@ -16,10 +16,12 @@ CornerWidgetManager::CornerWidgetManager(QWidget *parent)
       fullScreenButton(nullptr),
       pasteButton(nullptr),
       screensaverButton(nullptr),
+      recordingButton(nullptr),
       toggleSwitch(new ToggleSwitch(cornerWidget)),
       horizontalLayout(new QHBoxLayout()),
       menuBar(nullptr),
-      layoutThreshold(800)
+      layoutThreshold(800),
+      isRecording(false)
 {
     createWidgets();
     setupConnections();
@@ -70,7 +72,8 @@ void CornerWidgetManager::createWidgets()
         {&captureButton, "captureButton", ":/images/capture.svg", "Full screen capture"},
         {&fullScreenButton, "fullScreenButton", ":/images/full_screen.svg", "Full screen mode"},
         {&pasteButton, "pasteButton", ":/images/paste.svg", "Paste text to target"},
-        {&screensaverButton, "screensaverButton", ":/images/screensaver.svg", "Mouse dance"}
+        {&screensaverButton, "screensaverButton", ":/images/screensaver.svg", "Mouse dance"},
+        {&recordingButton, "recordingButton", ":/images/startRecord.svg", "Start/Stop Recording"}
     };
 
     for (const auto& btn : buttons) {
@@ -94,6 +97,7 @@ void CornerWidgetManager::createWidgets()
     horizontalLayout->addWidget(fullScreenButton);
     horizontalLayout->addWidget(pasteButton);
     horizontalLayout->addWidget(screensaverButton);
+    horizontalLayout->addWidget(recordingButton);
     horizontalLayout->addWidget(toggleSwitch);
 }
 
@@ -118,6 +122,14 @@ void CornerWidgetManager::setupConnections()
     connect(screensaverButton, &QPushButton::toggled, this, &CornerWidgetManager::screensaverClicked);
     connect(toggleSwitch, &ToggleSwitch::stateChanged, this, &CornerWidgetManager::toggleSwitchChanged);
     connect(keyboardLayoutComboBox, &QComboBox::currentTextChanged, this, &CornerWidgetManager::keyboardLayoutChanged);
+    
+    // Connect recording button click to toggle recording state and emit signal
+    connect(recordingButton, &QPushButton::clicked, this, [this]() {
+        isRecording = !isRecording;
+        setButtonIcon(recordingButton, isRecording ? ":/images/stopRecord.svg" : ":/images/startRecord.svg");
+        recordingButton->setToolTip(isRecording ? tr("Stop Recording") : tr("Start Recording"));
+        emit recordingToggled();
+    });
 }
 
 void CornerWidgetManager::initializeKeyboardLayouts(const QStringList &layouts, const QString &defaultLayout)

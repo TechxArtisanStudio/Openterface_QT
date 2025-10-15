@@ -2,9 +2,11 @@
 #include "host/multimediabackend.h"
 
 #ifndef Q_OS_WIN
-#include "host/backend/gstreamerbackendhandler.h"
+// Include FFmpeg and GStreamer backends for non-Windows platforms
 #include "host/backend/ffmpegbackendhandler.h"
+#include "host/backend/gstreamerbackendhandler.h"
 #else
+// Include only Qt backend for Windows
 #include "host/backend/qtbackendhandler.h"
 #endif
 
@@ -38,6 +40,30 @@ CameraManager::CameraManager(QObject *parent)
     m_currentCameraDevice = QCameraDevice();
     m_currentCameraDeviceId.clear();
     m_currentCameraPortChain.clear();
+    m_currentRecordingPath.clear();
+    
+    // Check for required permissions
+    #ifdef Q_OS_WIN
+    // On Windows 10+, check for webcam and microphone permissions
+    // These are typically handled through app capabilities in the manifest
+    qCDebug(log_ui_camera) << "On Windows, ensure app has webcam and microphone permissions in OS settings";
+    #elif defined(Q_OS_MACOS)
+    qCDebug(log_ui_camera) << "On macOS, ensure app has camera and microphone permissions";
+    #endif
+    
+    // Verify if QMediaDevices is available
+    if (QMediaDevices::videoInputs().isEmpty()) {
+        qCWarning(log_ui_camera) << "No video input devices detected - recording may not work";
+    } else {
+        qCDebug(log_ui_camera) << "Available video devices:" << QMediaDevices::videoInputs().count();
+    }
+    
+    // Verify audio devices for recording with sound
+    if (QMediaDevices::audioInputs().isEmpty()) {
+        qCWarning(log_ui_camera) << "No audio input devices detected - recordings may not have sound";
+    } else {
+        qCDebug(log_ui_camera) << "Available audio devices:" << QMediaDevices::audioInputs().count();
+    }
     
     // Initialize backend handler only if not on Windows
     if (!isWindowsPlatform()) {
@@ -61,7 +87,32 @@ CameraManager::CameraManager(QObject *parent)
     
     m_imageCapture = std::make_unique<QImageCapture>();
     m_mediaRecorder = std::make_unique<QMediaRecorder>();
+    
+    // Connect image and recorder signals
     connect(m_imageCapture.get(), &QImageCapture::imageCaptured, this, &CameraManager::onImageCaptured);
+    
+    // Connect media recorder error signals
+    connect(m_mediaRecorder.get(), &QMediaRecorder::recorderStateChanged, this, [this](QMediaRecorder::RecorderState state) {
+        qCDebug(log_ui_camera) << "Recorder state changed to:" << state;
+        if (state == QMediaRecorder::RecordingState) {
+            qCInfo(log_ui_camera) << "Recording started with media recorder";
+            emit recordingStarted();
+        } else if (state == QMediaRecorder::StoppedState) {
+            qCInfo(log_ui_camera) << "Recording stopped with media recorder";
+            emit recordingStopped();
+        }
+    });
+    
+    connect(m_mediaRecorder.get(), &QMediaRecorder::errorOccurred, this, [this](QMediaRecorder::Error error, const QString &errorString) {
+        qCWarning(log_ui_camera) << "Media recorder error:" << error << "-" << errorString;
+        
+        QString detailedError = QString("%1 (%2)").arg(errorString).arg(getMediaRecorderErrorInfo(error));
+        
+        // Dump recording system state for debugging
+        dumpRecordingSystemState();
+        
+        emit recordingError(detailedError);
+    });
 
     // Initialize available camera devices
     m_availableCameraDevices = getAvailableCameraDevices();
@@ -104,7 +155,12 @@ FFmpegBackendHandler* CameraManager::getFFmpegBackend() const
 {
 #ifndef Q_OS_WIN
     if (isFFmpegBackend() && m_backendHandler) {
-        return static_cast<FFmpegBackendHandler*>(m_backendHandler.get());
+        try {
+            // Use dynamic_cast for safer type checking
+            return dynamic_cast<FFmpegBackendHandler*>(m_backendHandler.get());
+        } catch (const std::exception& e) {
+            qCCritical(log_ui_camera) << "Exception during FFmpeg backend cast:" << e.what();
+        }
     }
 #endif
     return nullptr;
@@ -336,6 +392,13 @@ void CameraManager::setCameraDevice(const QCameraDevice &cameraDevice)
             if (isQtBackend()) {
                 m_captureSession.setRecorder(m_mediaRecorder.get());
                 qCDebug(log_ui_camera) << "Qt backend: Media recorder added to capture session";
+                
+                // Configure QtBackendHandler with media recorder
+                if (auto qtHandler = dynamic_cast<QtBackendHandler*>(m_backendHandler.get())) {
+                    qtHandler->setMediaRecorder(m_mediaRecorder.get());
+                    qtHandler->setCaptureSession(&m_captureSession);
+                    qCDebug(log_ui_camera) << "Qt backend: Configured QtBackendHandler with MediaRecorder";
+                }
             }
         }
         
@@ -651,16 +714,800 @@ void CameraManager::takeAreaImage(const QString& file, const QRect& captureArea)
 
 void CameraManager::startRecording()
 {
-    if (m_mediaRecorder) {
-        m_mediaRecorder->record();
+    qCInfo(log_ui_camera) << "=== START RECORDING PROCESS INITIATED ===";
+    qCDebug(log_ui_camera) << "Camera state: " << (m_camera ? (m_camera->isActive() ? "Active" : "Inactive") : "NULL");
+    qCDebug(log_ui_camera) << "Recorder state: " << (m_mediaRecorder ? 
+                                                  QString("Valid (State: %1, Error: %2)").arg(m_mediaRecorder->recorderState())
+                                                                                       .arg(m_mediaRecorder->error()) : 
+                                                  "NULL");
+    
+    // Check if recording is already in progress
+    if (isRecording()) {
+        qCWarning(log_ui_camera) << "Recording already in progress, not starting a new one";
+        qCDebug(log_ui_camera) << "Current recording path: " << m_currentRecordingPath;
+        qCDebug(log_ui_camera) << "=== START RECORDING ABORTED - ALREADY RECORDING ===";
+        return;
     }
+    
+    // Check if the recording system needs to be reset before starting
+    if (!m_mediaRecorder || m_mediaRecorder->error() != QMediaRecorder::NoError) {
+        qCWarning(log_ui_camera) << "Recording system in error state, resetting before starting new recording";
+        if (m_mediaRecorder) {
+            qCDebug(log_ui_camera) << "Recorder error before reset: " << m_mediaRecorder->error() 
+                                  << " - " << m_mediaRecorder->errorString();
+        }
+        resetRecordingSystem();
+        
+        // Verify we have a valid recorder after reset
+        if (!m_mediaRecorder) {
+            qCCritical(log_ui_camera) << "Failed to reset recording system - media recorder is still null";
+            qCDebug(log_ui_camera) << "=== START RECORDING FAILED - RECORDER NULL AFTER RESET ===";
+            emit recordingError("Failed to initialize recording system");
+            return;
+        }
+        
+        qCDebug(log_ui_camera) << "Recording system reset complete. New recorder state: " 
+                              << m_mediaRecorder->recorderState() << " Error: " << m_mediaRecorder->error();
+    }
+    
+    // Check camera state
+    if (!m_camera) {
+        qCWarning(log_ui_camera) << "Cannot start recording - camera is null";
+        emit recordingError("Camera not initialized");
+        return;
+    }
+    
+    if (!m_camera->isActive()) {
+        qCWarning(log_ui_camera) << "Cannot start recording - camera is not active";
+        qCWarning(log_ui_camera) << "Camera active:" << m_camera->isActive() << "Error:" << m_camera->error();
+        emit recordingError("Camera is not active - please start camera first");
+        return;
+    }
+    
+    // Check if media recorder exists
+    if (!m_mediaRecorder) {
+        qCWarning(log_ui_camera) << "Cannot start recording - media recorder not initialized";
+        emit recordingError("Recording system not ready");
+        return;
+    }
+
+    // Generate output path
+    QString outputPath = generateRecordingFilePath();
+    qCInfo(log_ui_camera) << "Starting recording to:" << outputPath;
+    
+    // Store for reference
+    m_currentRecordingPath = outputPath;
+
+    // Make sure the output directory exists
+    QFileInfo fileInfo(outputPath);
+    QDir outputDir = fileInfo.dir();
+    if (!outputDir.exists()) {
+        bool created = outputDir.mkpath(".");
+        qCDebug(log_ui_camera) << "Creating output directory" << outputDir.absolutePath() << "- Success:" << created;
+        if (!created) {
+            qCWarning(log_ui_camera) << "Failed to create output directory";
+            emit recordingError("Failed to create output directory");
+            m_currentRecordingPath.clear();
+            return;
+        }
+    } else {
+        qCDebug(log_ui_camera) << "Output directory exists:" << outputDir.absolutePath();
+    }
+
+#ifdef Q_OS_WIN
+    // Windows: Use QMediaRecorder via QtBackendHandler for better control
+    bool qtHandlerSucceeded = false;
+    
+    if (isQtBackend() && m_backendHandler) {
+        try {
+            // Use dynamic_cast for type safety instead of static_cast
+            QtBackendHandler* qtHandler = dynamic_cast<QtBackendHandler*>(m_backendHandler.get());
+            
+            if (qtHandler) {
+                // Get settings from global preferences or use defaults
+                QString format = "mp4";
+                int bitrate = 2000000; // Default 2 Mbps
+                
+                // Configure media recorder before starting
+                configureMediaRecorderForRecording(outputPath);
+                
+                qtHandlerSucceeded = qtHandler->startRecording(outputPath, format, bitrate);
+            } else {
+                qCWarning(log_ui_camera) << "Failed to cast to QtBackendHandler despite isQtBackend() returning true";
+            }
+        } catch (const std::exception& e) {
+            qCCritical(log_ui_camera) << "Exception during QtBackendHandler start recording:" << e.what();
+        }
+        
+        bool success = qtHandlerSucceeded;
+        if (success) {
+            qCDebug(log_ui_camera) << "Successfully started recording via QtBackendHandler";
+            emit recordingStarted();
+        } else {
+            qCWarning(log_ui_camera) << "Failed to start recording via QtBackendHandler";
+            
+            // Fallback to direct QMediaRecorder
+            if (m_mediaRecorder) {
+                // Configure QMediaRecorder directly
+                m_mediaRecorder->record();
+                
+                // Check if recording actually started
+                if (m_mediaRecorder->recorderState() == QMediaRecorder::RecordingState) {
+                    qCDebug(log_ui_camera) << "Started recording via direct QMediaRecorder call";
+                    emit recordingStarted();
+                } else {
+                    qCWarning(log_ui_camera) << "Failed to start recording with QMediaRecorder";
+                    emit recordingError("Failed to start recording");
+                    m_currentRecordingPath.clear();
+                }
+            }
+        }
+    } else if (m_mediaRecorder) {
+        // Direct QMediaRecorder usage if no QtBackendHandler
+        qCDebug(log_ui_camera) << "Using direct QMediaRecorder for recording";
+        
+        // Verify camera state before proceeding
+        if (!m_camera->isActive()) {
+            qCWarning(log_ui_camera) << "Camera not in active state. Active:" << m_camera->isActive();
+            qCInfo(log_ui_camera) << "Attempting to start camera before recording";
+            m_camera->start();
+            
+            // Give the camera a moment to start
+            QThread::msleep(500);
+            
+            if (!m_camera->isActive()) {
+                qCWarning(log_ui_camera) << "Failed to activate camera for recording. Active:" << m_camera->isActive();
+                emit recordingError("Failed to activate camera for recording");
+                m_currentRecordingPath.clear();
+                return;
+            }
+        }
+        
+        configureMediaRecorderForRecording(outputPath);
+        
+        // Check media recorder state before setting up capture session
+        if (m_mediaRecorder->recorderState() == QMediaRecorder::RecordingState) {
+            qCWarning(log_ui_camera) << "Media recorder already in recording state - stopping first";
+            m_mediaRecorder->stop();
+            QThread::msleep(500); // Give it time to stop
+        }
+        
+        // Make sure capture session is properly set up
+        if (m_captureSession.camera() != m_camera.get()) {
+            qCDebug(log_ui_camera) << "Setting camera in capture session";
+            m_captureSession.setCamera(m_camera.get());
+        } else {
+            qCDebug(log_ui_camera) << "Capture session already has the current camera";
+        }
+        
+        if (m_captureSession.recorder() != m_mediaRecorder.get()) {
+            qCDebug(log_ui_camera) << "Setting recorder in capture session";
+            m_captureSession.setRecorder(m_mediaRecorder.get());
+        } else {
+            qCDebug(log_ui_camera) << "Capture session already has the current recorder";
+        }
+        
+        // Log current setup before starting
+        qCInfo(log_ui_camera) << "Recording setup:"
+                             << "Camera active:" << m_camera->isActive()
+                             << "Recorder state:" << m_mediaRecorder->recorderState()
+                             << "Output path:" << outputPath;
+        
+        // Start recording
+        qCInfo(log_ui_camera) << "Starting recording with QMediaRecorder";
+        m_mediaRecorder->record();
+        
+        // Check if recording actually started - wait a bit longer for it to initialize
+        QTimer::singleShot(1000, this, [this]() {
+            if (m_mediaRecorder->recorderState() == QMediaRecorder::RecordingState) {
+                qCInfo(log_ui_camera) << "Recording confirmed as started successfully";
+                emit recordingStarted();
+            } else {
+                qCWarning(log_ui_camera) << "Recording failed to start properly";
+                QString errorMessage;
+                
+                // Check for specific error conditions
+                if (m_mediaRecorder->error() != QMediaRecorder::NoError) {
+                    QString errorStr = m_mediaRecorder->errorString();
+                    int errorCode = static_cast<int>(m_mediaRecorder->error());
+                    qCWarning(log_ui_camera) << "Media recorder error:" << errorCode << "-" << errorStr;
+                    errorMessage = "Error " + QString::number(errorCode) + ": " + errorStr;
+                } else {
+                    // No explicit error, check if we can determine why
+                    if (!m_camera->isActive()) {
+                        errorMessage = "Camera is no longer active";
+                    } else if (!QFile::exists(m_currentRecordingPath)) {
+                        errorMessage = "Cannot create output file";
+                    } else {
+                        errorMessage = "Unknown recording error";
+                    }
+                    qCWarning(log_ui_camera) << "Recording failed without error code:" << errorMessage;
+                }
+                
+                // Log additional diagnostic info
+                qCInfo(log_ui_camera) << "Diagnostics:"
+                                     << "Camera active:" << m_camera->isActive()
+                                     << "Recorder state:" << m_mediaRecorder->recorderState();
+                
+                emit recordingError("Failed to start recording: " + errorMessage);
+                m_currentRecordingPath.clear();
+            }
+        });
+        
+        qCDebug(log_ui_camera) << "Started recording via direct QMediaRecorder call (no QtBackendHandler)";
+        qCDebug(log_ui_camera) << "Media recorder state:" << m_mediaRecorder->recorderState();
+    }
+#else
+    // Linux/macOS: Use both QMediaRecorder and FFmpeg backend if available
+    bool recordingStarted = false;
+    
+    // If we have FFmpeg backend, use it as primary
+    if (FFmpegBackendHandler* ffmpeg = getFFmpegBackend()) {
+        bool success = ffmpeg->startRecording(outputPath);
+        if (success) {
+            qCDebug(log_ui_camera) << "Started recording via FFmpegBackendHandler";
+            recordingStarted = true;
+        } else {
+            qCWarning(log_ui_camera) << "Failed to start recording via FFmpegBackendHandler";
+        }
+    }
+    
+    // Also try QMediaRecorder (as backup or primary if FFmpeg failed)
+    if (m_mediaRecorder) {
+        configureMediaRecorderForRecording(outputPath);
+        
+        // Make sure capture session is properly set up
+        if (m_captureSession.camera() != m_camera.get()) {
+            qCDebug(log_ui_camera) << "Setting camera in capture session";
+            m_captureSession.setCamera(m_camera.get());
+        }
+        
+        if (m_captureSession.recorder() != m_mediaRecorder.get()) {
+            qCDebug(log_ui_camera) << "Setting recorder in capture session";
+            m_captureSession.setRecorder(m_mediaRecorder.get());
+        }
+        
+        m_mediaRecorder->record();
+        
+        if (m_mediaRecorder->recorderState() == QMediaRecorder::RecordingState) {
+            qCDebug(log_ui_camera) << "Started recording via QMediaRecorder on non-Windows platform";
+            recordingStarted = true;
+        } else {
+            qCWarning(log_ui_camera) << "Failed to start recording via QMediaRecorder";
+            qCWarning(log_ui_camera) << "Media recorder error:" << m_mediaRecorder->errorString();
+        }
+    }
+    
+    if (recordingStarted) {
+        emit recordingStarted();
+    } else {
+        qCWarning(log_ui_camera) << "Failed to start recording with any available backend";
+        
+        // Generate more specific error message based on recorder state
+        QString errorMsg = "Failed to start recording";
+        
+        if (m_mediaRecorder) {
+            QMediaRecorder::Error recError = m_mediaRecorder->error();
+            if (recError != QMediaRecorder::NoError) {
+                errorMsg = QString("Recording failed: %1").arg(getMediaRecorderErrorInfo(recError));
+                qCWarning(log_ui_camera) << "Media recorder error details:" << getMediaRecorderErrorInfo(recError);
+            }
+        }
+        
+        // Dump full diagnostics to log for debugging
+        dumpRecordingSystemState();
+        
+        emit recordingError(errorMsg);
+        m_currentRecordingPath.clear();
+    }
+#endif
 }
 
 void CameraManager::stopRecording()
 {
-    if (m_mediaRecorder) {
-        m_mediaRecorder->stop();
+    qCInfo(log_ui_camera) << "=== STOP RECORDING PROCESS INITIATED ===";
+    
+    // Check if we're actually recording before attempting to stop
+    if (!isRecording()) {
+        qCWarning(log_ui_camera) << "No active recording to stop";
+        qCDebug(log_ui_camera) << "Camera state: " << (m_camera ? (m_camera->isActive() ? "Active" : "Inactive") : "NULL");
+        qCDebug(log_ui_camera) << "Recorder state: " << (m_mediaRecorder ? 
+                                                      QString("Valid (State: %1, Error: %2)").arg(m_mediaRecorder->recorderState())
+                                                                                           .arg(m_mediaRecorder->error()) : 
+                                                      "NULL");
+        qCDebug(log_ui_camera) << "=== STOP RECORDING ABORTED - NOT RECORDING ===";
+        emit recordingStopped(); // Emit signal to ensure UI stays in sync
+        return;
     }
+    
+    QString recordingPath = m_currentRecordingPath;
+    qCDebug(log_ui_camera) << "Stopping recording:" << recordingPath;
+    qCDebug(log_ui_camera) << "Backend type: " << (m_backendHandler ? 
+                                                static_cast<int>(m_backendHandler->getBackendType()) : -1);
+    qCDebug(log_ui_camera) << "Camera state: " << (m_camera ? (m_camera->isActive() ? "Active" : "Inactive") : "NULL");
+    
+#ifdef Q_OS_WIN
+    // Windows: Use QMediaRecorder via QtBackendHandler
+    if (isQtBackend() && m_backendHandler) {
+        try {
+            // Use dynamic_cast for type safety instead of static_cast
+            QtBackendHandler* qtHandler = dynamic_cast<QtBackendHandler*>(m_backendHandler.get());
+            
+            if (qtHandler) {
+                qtHandler->stopRecording();
+                qCDebug(log_ui_camera) << "Stopped recording via QtBackendHandler";
+            } else {
+                qCWarning(log_ui_camera) << "Failed to cast to QtBackendHandler despite isQtBackend() returning true";
+            }
+        } catch (const std::exception& e) {
+            qCCritical(log_ui_camera) << "Exception during backend handler stop:" << e.what();
+        }
+    } 
+    
+    // Also call QMediaRecorder directly to ensure it's stopped
+    if (m_mediaRecorder) {
+        qCDebug(log_ui_camera) << "Recorder state before stop:" << m_mediaRecorder->recorderState();
+        m_mediaRecorder->stop();
+        qCDebug(log_ui_camera) << "Stopped recording via direct QMediaRecorder call";
+        qCDebug(log_ui_camera) << "Recorder state after stop:" << m_mediaRecorder->recorderState();
+    }
+#else
+    // Linux/macOS: Use both QMediaRecorder and FFmpeg backend if available
+    if (m_mediaRecorder) {
+        qCDebug(log_ui_camera) << "Recorder state before stop:" << m_mediaRecorder->recorderState();
+        m_mediaRecorder->stop();
+        qCDebug(log_ui_camera) << "Stopped recording via QMediaRecorder on non-Windows platform";
+        qCDebug(log_ui_camera) << "Recorder state after stop:" << m_mediaRecorder->recorderState();
+    }
+    
+    // If we have FFmpeg backend, also stop its recording
+    if (FFmpegBackendHandler* ffmpeg = getFFmpegBackend()) {
+        ffmpeg->stopRecording();
+        qCDebug(log_ui_camera) << "Stopped recording via FFmpegBackendHandler";
+    }
+#endif
+
+    // Check if the file exists after recording is stopped
+    if (!recordingPath.isEmpty()) {
+        QFileInfo fileInfo(recordingPath);
+        QTimer::singleShot(2000, this, [this, recordingPath, fileInfo]() {
+            if (fileInfo.exists()) {
+                qCInfo(log_ui_camera) << "Recording saved successfully to:" << recordingPath
+                                     << "Size:" << fileInfo.size() << "bytes";
+                
+                if (fileInfo.size() < 1024) {  // If file is smaller than 1KB
+                    qCWarning(log_ui_camera) << "Recording file is suspiciously small, may be corrupted";
+                    
+                    // Try to check if the file is actually a valid video
+                    QFile checkFile(recordingPath);
+                    if (checkFile.open(QIODevice::ReadOnly)) {
+                        QByteArray header = checkFile.read(16); // Read first 16 bytes
+                        checkFile.close();
+                        
+                        // Basic check for some common video formats
+                        if (header.isEmpty() || 
+                            !(header.startsWith("\x00\x00\x00") || // MP4
+                              header.startsWith("RIFF") ||         // AVI
+                              header.startsWith("\x1A\x45\xDF\xA3"))) { // MKV
+                            
+                            qCWarning(log_ui_camera) << "Recording file doesn't appear to have a valid header";
+                            emit recordingError("Recording failed - output file appears to be invalid");
+                            
+                            // Reset recording system since we encountered an issue
+                            QTimer::singleShot(0, this, &CameraManager::resetRecordingSystem);
+                            return;
+                        }
+                    }
+                    
+                    emit recordingError("Recording file may be corrupted (very small size)");
+                } else {
+                    // Show a success notification or open the folder
+                    qCInfo(log_ui_camera) << "Recording completed successfully";
+                    emit recordingStopped();
+                }
+            } else {
+                qCWarning(log_ui_camera) << "Recording file does not exist after stopping:" << recordingPath;
+                emit recordingError("Failed to save recording file");
+                
+                // Reset recording system since we encountered an issue
+                QTimer::singleShot(0, this, &CameraManager::resetRecordingSystem);
+            }
+        });
+    } else {
+        // No path was set, but still emit the signal to update the UI
+        emit recordingStopped();
+    }
+    
+    // Clear current recording path
+    m_currentRecordingPath.clear();
+}
+
+void CameraManager::pauseRecording()
+{
+#ifdef Q_OS_WIN
+    // Windows: QMediaRecorder doesn't support pause, so no action
+    // Future enhancement: Could add Windows-specific pause code here
+#else
+    // Linux/macOS: Use FFmpeg backend for pause functionality
+    if (FFmpegBackendHandler* ffmpeg = getFFmpegBackend()) {
+        ffmpeg->pauseRecording();
+    }
+#endif
+}
+
+void CameraManager::resumeRecording()
+{
+#ifdef Q_OS_WIN
+    // Windows: QMediaRecorder doesn't support resume, so no action
+    // Future enhancement: Could add Windows-specific resume code here
+#else
+    // Linux/macOS: Use FFmpeg backend for resume functionality
+    if (FFmpegBackendHandler* ffmpeg = getFFmpegBackend()) {
+        ffmpeg->resumeRecording();
+    }
+#endif
+}
+
+bool CameraManager::isRecording() const
+{
+    bool recording = false;
+    
+    // First check if we have an active recording path
+    if (!m_currentRecordingPath.isEmpty()) {
+        qCDebug(log_ui_camera) << "Recording path is set:" << m_currentRecordingPath;
+        
+        // Path is set, but validate with actual recorder state
+        QFileInfo fileInfo(m_currentRecordingPath);
+        if (fileInfo.exists()) {
+            qCDebug(log_ui_camera) << "Recording file exists, size:" << fileInfo.size() << "bytes";
+        }
+    }
+
+#ifdef Q_OS_WIN
+    // Windows: Check QtBackendHandler first, then fall back to QMediaRecorder
+    if (isQtBackend() && m_backendHandler) {
+        QtBackendHandler* qtHandler = static_cast<QtBackendHandler*>(m_backendHandler.get());
+        if (qtHandler->isRecording()) {
+            qCDebug(log_ui_camera) << "QtBackendHandler reports recording active";
+            recording = true;
+        } else {
+            qCDebug(log_ui_camera) << "QtBackendHandler reports no active recording";
+        }
+    } else {
+        qCDebug(log_ui_camera) << "No QtBackendHandler available";
+    }
+    
+    if (m_mediaRecorder) {
+        if (m_mediaRecorder->recorderState() == QMediaRecorder::RecordingState) {
+            qCDebug(log_ui_camera) << "QMediaRecorder reports active recording";
+            recording = true;
+        } else {
+            qCDebug(log_ui_camera) << "QMediaRecorder reports not recording, state:" << m_mediaRecorder->recorderState();
+            if (m_mediaRecorder->error() != QMediaRecorder::NoError) {
+                qCDebug(log_ui_camera) << "QMediaRecorder has error:" << m_mediaRecorder->errorString();
+            }
+        }
+    } else {
+        qCDebug(log_ui_camera) << "No QMediaRecorder available";
+    }
+#else
+    // Linux/macOS: Prefer FFmpeg backend status, fall back to QMediaRecorder
+    if (FFmpegBackendHandler* ffmpeg = getFFmpegBackend()) {
+        if (ffmpeg->isRecording()) {
+            qCDebug(log_ui_camera) << "FFmpeg backend reports recording active";
+            recording = true;
+        } else {
+            qCDebug(log_ui_camera) << "FFmpeg backend reports no active recording";
+        }
+    } else {
+        qCDebug(log_ui_camera) << "No FFmpeg backend available";
+    }
+    
+    if (m_mediaRecorder) {
+        if (m_mediaRecorder->recorderState() == QMediaRecorder::RecordingState) {
+            qCDebug(log_ui_camera) << "QMediaRecorder reports active recording";
+            recording = true;
+        } else {
+            qCDebug(log_ui_camera) << "QMediaRecorder reports not recording, state:" << m_mediaRecorder->recorderState();
+            if (m_mediaRecorder->error() != QMediaRecorder::NoError) {
+                qCDebug(log_ui_camera) << "QMediaRecorder has error:" << m_mediaRecorder->errorString();
+            }
+        }
+    } else {
+        qCDebug(log_ui_camera) << "No QMediaRecorder available";
+    }
+#endif
+    
+    qCDebug(log_ui_camera) << "Final recording status:" << (recording ? "ACTIVE" : "NOT ACTIVE");
+    return recording;
+}
+
+bool CameraManager::isPaused() const
+{
+#ifdef Q_OS_WIN
+    // Windows: QMediaRecorder doesn't support pause state tracking
+    return false;
+#else
+    // Linux/macOS: Use FFmpeg backend for pause state
+    if (FFmpegBackendHandler* ffmpeg = getFFmpegBackend()) {
+        return ffmpeg->isRecording() && ffmpeg->isPaused();
+    }
+#endif
+    
+    return false;
+}
+
+// Helper method to generate a file path for recording
+QString CameraManager::generateRecordingFilePath() const
+{
+    // First check if we have a path stored in GlobalSettings
+    QString configuredPath = GlobalSetting::instance().getRecordingOutputPath();
+    
+    if (!configuredPath.isEmpty()) {
+        qCDebug(log_ui_camera) << "Using configured recording path from settings:" << configuredPath;
+        
+        // Extract just the directory part and ensure it exists
+        QFileInfo fileInfo(configuredPath);
+        QString outputDir = fileInfo.dir().absolutePath();
+        
+        if (!QDir(outputDir).exists()) {
+            QDir().mkpath(outputDir);
+        }
+        
+        // Use the configured directory but with a timestamp for the filename to avoid overwriting
+        QString timestamp = QDateTime::currentDateTime().toString("yyyy-MM-dd_hh-mm-ss");
+        QString extension = fileInfo.suffix().isEmpty() ? "mp4" : fileInfo.suffix();
+        QString filePath = QString("%1/openterface_recording_%2.%3").arg(outputDir).arg(timestamp).arg(extension);
+        
+        qCDebug(log_ui_camera) << "Generated recording file path from configured directory:" << filePath;
+        return filePath;
+    }
+    
+    // If no path is configured, use the default behavior
+    // Try multiple locations in order of preference
+    QStringList potentialLocations = {
+        QStandardPaths::writableLocation(QStandardPaths::MoviesLocation),
+        QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation),
+        QStandardPaths::writableLocation(QStandardPaths::HomeLocation),
+        QDir::homePath(),
+        QStandardPaths::writableLocation(QStandardPaths::DesktopLocation)
+    };
+    
+    QString outputDir;
+    for (const QString& location : potentialLocations) {
+        if (!location.isEmpty()) {
+            outputDir = location;
+            qCDebug(log_ui_camera) << "Trying location for recordings:" << outputDir;
+            break;
+        }
+    }
+    
+    if (outputDir.isEmpty()) {
+        qCWarning(log_ui_camera) << "Could not find a valid location for recordings, using temp";
+        outputDir = QDir::tempPath();
+    }
+    
+    // Create a specific directory for Openterface recordings
+    QString appOutputDir = outputDir + QDir::separator() + "OpenterfaceRecordings";
+    QDir dir(appOutputDir);
+    
+    if (!dir.exists()) {
+        if (!dir.mkpath(".")) {
+            qCWarning(log_ui_camera) << "Failed to create recording directory:" << appOutputDir << "- falling back to:" << outputDir;
+            appOutputDir = outputDir;
+        } else {
+            qCDebug(log_ui_camera) << "Created recording directory:" << appOutputDir;
+        }
+    }
+    
+    // Test if we can write to the directory
+    QString testPath = appOutputDir + QDir::separator() + "test_write_permission.tmp";
+    QFile testFile(testPath);
+    if (!testFile.open(QIODevice::WriteOnly)) {
+        qCWarning(log_ui_camera) << "Cannot write to" << appOutputDir << ":" << testFile.errorString();
+        qCWarning(log_ui_camera) << "Falling back to temp directory";
+        appOutputDir = QDir::tempPath() + QDir::separator() + "OpenterfaceRecordings";
+        
+        // Create the temp directory if needed
+        QDir tempDir(appOutputDir);
+        if (!tempDir.exists()) {
+            tempDir.mkpath(".");
+        }
+    } else {
+        // Cleanup test file
+        testFile.close();
+        testFile.remove();
+    }
+    
+    QString timestamp = QDateTime::currentDateTime().toString("yyyy-MM-dd_hh-mm-ss");
+    QString filePath = QString("%1/openterface_recording_%2.mp4").arg(appOutputDir).arg(timestamp);
+    
+    qCDebug(log_ui_camera) << "Generated recording file path:" << filePath;
+    return filePath;
+}
+
+void CameraManager::configureMediaRecorderForRecording(const QString& outputPath)
+{
+    qCInfo(log_ui_camera) << "=== CONFIGURING MEDIA RECORDER ===";
+    qCDebug(log_ui_camera) << "Output path: " << outputPath;
+    
+    if (!m_mediaRecorder) {
+        qCWarning(log_ui_camera) << "Cannot configure media recorder - it is null";
+        qCDebug(log_ui_camera) << "=== MEDIA RECORDER CONFIGURATION FAILED - NULL RECORDER ===";
+        return;
+    }
+    
+    // Log detailed recorder state before configuration
+    qCDebug(log_ui_camera) << "Initial recorder state: " << m_mediaRecorder->recorderState()
+                          << " Error code: " << m_mediaRecorder->error()
+                          << " Error string: " << m_mediaRecorder->errorString();
+    // Create a QMediaFormat object to query supported formats
+    QMediaFormat tempFormat;
+    qCDebug(log_ui_camera) << "Available media formats: " << tempFormat.supportedFileFormats(QMediaFormat::Encode);
+    
+    // Check for recorder errors and reset if needed
+    if (m_mediaRecorder->error() != QMediaRecorder::NoError) {
+        qCWarning(log_ui_camera) << "Media recorder has error state:" << m_mediaRecorder->errorString() 
+                                << "- Resetting recording system";
+        resetRecordingSystem();
+        
+        // Verify we have a valid recorder after reset
+        if (!m_mediaRecorder || m_mediaRecorder->error() != QMediaRecorder::NoError) {
+            qCCritical(log_ui_camera) << "Failed to reset recording system - media recorder is still in error state";
+            qCDebug(log_ui_camera) << "=== MEDIA RECORDER CONFIGURATION FAILED - RESET FAILED ===";
+            return;
+        }
+        
+        qCDebug(log_ui_camera) << "Recorder state after reset: " << m_mediaRecorder->recorderState() 
+                              << " Error: " << m_mediaRecorder->error();
+    }
+
+    qCDebug(log_ui_camera) << "Configuring media recorder for recording to:" << outputPath;
+    
+    // Ensure the output directory exists
+    QFileInfo fileInfo(outputPath);
+    QDir outputDir = fileInfo.dir();
+    if (!outputDir.exists()) {
+        bool created = outputDir.mkpath(".");
+        qCDebug(log_ui_camera) << "Creating output directory" << outputDir.absolutePath() << "- Success:" << created;
+    }
+    
+    // On Windows, check file write permissions
+    QFile testFile(outputPath + ".test");
+    if (testFile.open(QIODevice::WriteOnly)) {
+        testFile.close();
+        testFile.remove();
+        qCDebug(log_ui_camera) << "Output directory has write permissions";
+    } else {
+        qCWarning(log_ui_camera) << "Output directory doesn't have write permissions:" << testFile.errorString();
+        
+        // Try Documents folder as fallback
+        QString docsPath = QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation) 
+                         + QDir::separator() + "OpenterfaceRecordings";
+        QDir docsDir(docsPath);
+        if (!docsDir.exists()) {
+            if (!docsDir.mkpath(".")) {
+                qCWarning(log_ui_camera) << "Failed to create fallback directory";
+            }
+        }
+        
+        // Generate a new path in the fallback directory
+        QString newPath = docsPath + QDir::separator() + fileInfo.fileName();
+        qCWarning(log_ui_camera) << "Falling back to:" << newPath;
+        
+        // Check if we can write to the fallback location
+        QFile testFallbackFile(newPath + ".test");
+        if (testFallbackFile.open(QIODevice::WriteOnly)) {
+            testFallbackFile.close();
+            testFallbackFile.remove();
+            
+            // Use the fallback path directly
+            qCInfo(log_ui_camera) << "Using fallback path:" << newPath;
+            // We'll use the fallback path below when creating the QUrl
+        } else {
+            qCWarning(log_ui_camera) << "Fallback location is also not writable:" << testFallbackFile.errorString();
+        }
+    }
+    
+    // Set output location
+    QUrl outputUrl = QUrl::fromLocalFile(outputPath);
+    
+    // If there were problems with the path, we would have handled it above
+    // and already set a log message with the fallback path
+    
+    m_mediaRecorder->setOutputLocation(outputUrl);
+    qCDebug(log_ui_camera) << "Set output location:" << outputUrl.toString();
+    qCDebug(log_ui_camera) << "Set output location:" << m_mediaRecorder->outputLocation().toString();
+    
+    // Check for recorder errors before starting
+    if (m_mediaRecorder->error() != QMediaRecorder::NoError) {
+        qCWarning(log_ui_camera) << "Media recorder has error before configuration:" 
+                                << m_mediaRecorder->error() << "-" << m_mediaRecorder->errorString();
+    }
+    
+    // Configure media format
+    QMediaFormat mediaFormat;
+    
+    // Check supported formats - use the existing tempFormat variable
+    auto supportedFileFormats = tempFormat.supportedFileFormats(QMediaFormat::Encode);
+    qCDebug(log_ui_camera) << "Available file formats:" << supportedFileFormats;
+    
+    // Only set MPEG4 if it's supported
+    if (supportedFileFormats.contains(QMediaFormat::FileFormat::MPEG4)) {
+        mediaFormat.setFileFormat(QMediaFormat::FileFormat::MPEG4);
+        qCDebug(log_ui_camera) << "Setting MP4 file format";
+    } else if (!supportedFileFormats.isEmpty()) {
+        // Fallback to first available format
+        mediaFormat.setFileFormat(supportedFileFormats.first());
+        qCWarning(log_ui_camera) << "MP4 not supported, using" << supportedFileFormats.first() << "instead";
+    } else {
+        qCWarning(log_ui_camera) << "No supported file formats available!";
+    }
+    
+    // Check supported video codecs
+    auto supportedVideoCodecs = tempFormat.supportedVideoCodecs(QMediaFormat::Encode);
+    qCDebug(log_ui_camera) << "Available video codecs:" << supportedVideoCodecs;
+    
+    // Only set H264 if it's supported
+    if (supportedVideoCodecs.contains(QMediaFormat::VideoCodec::H264)) {
+        mediaFormat.setVideoCodec(QMediaFormat::VideoCodec::H264);
+        qCDebug(log_ui_camera) << "Setting H.264 video codec";
+    } else if (!supportedVideoCodecs.isEmpty()) {
+        // Fallback to first available codec
+        mediaFormat.setVideoCodec(supportedVideoCodecs.first());
+        qCWarning(log_ui_camera) << "H.264 not supported, using" << supportedVideoCodecs.first() << "instead";
+    }
+    
+    // Check supported audio codecs
+    auto supportedAudioCodecs = tempFormat.supportedAudioCodecs(QMediaFormat::Encode);
+    qCDebug(log_ui_camera) << "Available audio codecs:" << supportedAudioCodecs;
+    
+    // Only set AAC if it's supported
+    if (supportedAudioCodecs.contains(QMediaFormat::AudioCodec::AAC)) {
+        mediaFormat.setAudioCodec(QMediaFormat::AudioCodec::AAC);
+        qCDebug(log_ui_camera) << "Setting AAC audio codec";
+    } else if (!supportedAudioCodecs.isEmpty()) {
+        // Fallback to first available codec
+        mediaFormat.setAudioCodec(supportedAudioCodecs.first());
+        qCWarning(log_ui_camera) << "AAC not supported, using" << supportedAudioCodecs.first() << "instead";
+    }
+    
+    // Apply the media format
+    m_mediaRecorder->setMediaFormat(mediaFormat);
+    qCDebug(log_ui_camera) << "Applied media format:" 
+                          << "File format:" << mediaFormat.fileFormat()
+                          << "Video codec:" << mediaFormat.videoCodec()
+                          << "Audio codec:" << mediaFormat.audioCodec();
+    
+    // Set quality
+    m_mediaRecorder->setQuality(QMediaRecorder::Quality::HighQuality);
+    qCDebug(log_ui_camera) << "Set quality to High";
+    
+    // Set encoding mode
+    m_mediaRecorder->setEncodingMode(QMediaRecorder::EncodingMode::ConstantQualityEncoding);
+    qCDebug(log_ui_camera) << "Set encoding mode to ConstantQuality";
+    
+    // Video frame rate
+    int desiredFrameRate = 30;
+    qCDebug(log_ui_camera) << "Desired frame rate:" << desiredFrameRate << "fps";
+    
+    // Set video resolution from camera format
+    if (m_camera) {
+        QCameraFormat format = m_camera->cameraFormat();
+        QSize resolution = format.resolution();
+        if (!resolution.isEmpty() && resolution.width() > 0 && resolution.height() > 0) {
+            qCDebug(log_ui_camera) << "Using camera resolution for recording:" << resolution;
+        } else {
+            qCDebug(log_ui_camera) << "Camera format doesn't have a valid resolution";
+        }
+    }
+    
+    // Check available codecs and formats
+    // Create a temporary QMediaFormat object to call the instance methods
+    QMediaFormat format;
+    qCDebug(log_ui_camera) << "Available file formats:" << format.supportedFileFormats(QMediaFormat::Encode);
+    qCDebug(log_ui_camera) << "Available video codecs:" << format.supportedVideoCodecs(QMediaFormat::Encode);
+    qCDebug(log_ui_camera) << "Available audio codecs:" << format.supportedAudioCodecs(QMediaFormat::Encode);
 }
 
 void CameraManager::setupConnections()
@@ -754,11 +1601,44 @@ void CameraManager::setupConnections()
             // Disconnect any existing connections first
             disconnect(m_mediaRecorder.get(), nullptr, this, nullptr);
             
+            // Make sure capture session has recorder connected
+            if (m_captureSession.recorder() != m_mediaRecorder.get()) {
+                qCDebug(log_ui_camera) << "Setting media recorder in capture session during setup";
+                m_captureSession.setRecorder(m_mediaRecorder.get());
+            }
+            
+            // Set default audio input if available for recording with sound
+            if (!QMediaDevices::audioInputs().isEmpty()) {
+                // In Qt 6.5, audio inputs are handled differently
+                // The capture session manages audio inputs
+                m_captureSession.setAudioInput(new QAudioInput(QMediaDevices::defaultAudioInput(), this));
+                qCDebug(log_ui_camera) << "Set default audio input:" << QMediaDevices::defaultAudioInput().description();
+            } else {
+                qCWarning(log_ui_camera) << "No audio input devices available for recording";
+            }
+            
+            // Connect media recorder signals
             connect(m_mediaRecorder.get(), &QMediaRecorder::recorderStateChanged, this, [this](QMediaRecorder::RecorderState state) {
+                qCDebug(log_ui_camera) << "Media recorder state changed to:" << static_cast<int>(state);
                 if (state == QMediaRecorder::RecordingState) {
+                    qCDebug(log_ui_camera) << "Recording started to:" << m_mediaRecorder->outputLocation().toLocalFile();
                     emit recordingStarted();
                 } else if (state == QMediaRecorder::StoppedState) {
+                    qCDebug(log_ui_camera) << "Recording stopped";
                     emit recordingStopped();
+                }
+            });
+            
+            // Add error handler for media recorder
+            connect(m_mediaRecorder.get(), &QMediaRecorder::errorOccurred, this, [this](QMediaRecorder::Error error, const QString &errorString) {
+                qCritical() << "Media recorder error occurred:" << static_cast<int>(error) << errorString;
+                emit recordingError(errorString);
+            });
+            
+            // Connect duration signal for monitoring
+            connect(m_mediaRecorder.get(), &QMediaRecorder::durationChanged, this, [this](qint64 duration) {
+                if (duration > 0 && duration % 5000 == 0) {  // Log every 5 seconds
+                    qCDebug(log_ui_camera) << "Recording duration:" << duration / 1000 << "seconds";
                 }
             });
         } else {
@@ -2484,4 +3364,262 @@ void CameraManager::handleFFmpegDeviceDisconnection(const QString& devicePath)
     } else {
         qCDebug(log_ui_camera) << "Disconnected device is not our current device, ignoring";
     }
+}
+
+void CameraManager::resetRecordingSystem()
+{
+    qCInfo(log_ui_camera) << "Resetting recording system";
+    
+    // Clear recording path
+    m_currentRecordingPath.clear();
+    
+    // Stop any active recording
+    if (isRecording()) {
+        qCDebug(log_ui_camera) << "Stopping active recording before reset";
+        stopRecording();
+        QThread::msleep(500); // Wait for the recording to stop
+    }
+    
+    // Disconnect recorder from capture session
+    if (m_captureSession.recorder() == m_mediaRecorder.get()) {
+        qCDebug(log_ui_camera) << "Disconnecting recorder from capture session";
+        m_captureSession.setRecorder(nullptr);
+    }
+    
+    // Re-create the media recorder
+    qCDebug(log_ui_camera) << "Re-creating media recorder";
+    m_mediaRecorder.reset(new QMediaRecorder());
+    
+    // Re-connect the recorder to capture session
+    qCDebug(log_ui_camera) << "Re-connecting recorder to capture session";
+    m_captureSession.setRecorder(m_mediaRecorder.get());
+    
+    // Re-connect all signals
+    setupConnections();
+    
+    qCInfo(log_ui_camera) << "Recording system reset complete";
+    
+    // Dump recording system state after reset
+    dumpRecordingSystemState();
+}
+
+QString CameraManager::getMediaRecorderErrorInfo(QMediaRecorder::Error error) const
+{
+    switch (error) {
+        case QMediaRecorder::NoError:
+            return "No error";
+        case QMediaRecorder::ResourceError:
+            return "Resource error (device or resource is not available)";
+        case QMediaRecorder::FormatError:
+            return "Format error (specified container format is not supported)";
+        case QMediaRecorder::OutOfSpaceError:
+            return "Out of disk space error";
+        case QMediaRecorder::LocationNotWritable:
+            return "Location not writable (insufficient permissions or read-only location)";
+        default:
+            return QString("Unknown error code: %1").arg(error);
+    }
+}
+
+QString CameraManager::getRecordingSystemDiagnostics() const
+{
+    QString diagnostics;
+    QTextStream stream(&diagnostics);
+    
+    stream << "====== RECORDING SYSTEM DIAGNOSTICS ======\n";
+    
+    // Camera state
+    stream << "CAMERA:\n";
+    if (m_camera) {
+        stream << " - Status: Active = " << (m_camera->isActive() ? "YES" : "NO") << "\n";
+        stream << " - Error code: " << m_camera->error() << "\n";
+        
+        if (!m_currentCameraDevice.isNull()) {
+            stream << " - Device ID: " << QString::fromUtf8(m_currentCameraDevice.id()) << "\n";
+            stream << " - Device description: " << m_currentCameraDevice.description() << "\n";
+            
+            // Current format
+            QCameraFormat format = m_camera->cameraFormat();
+            if (!format.isNull()) {
+                stream << " - Resolution: " << format.resolution().width() << "x" << format.resolution().height() << "\n";
+                stream << " - Frame rate: " << format.maxFrameRate() << " FPS\n";
+                stream << " - Pixel format: " << format.pixelFormat() << "\n";
+            } else {
+                stream << " - No camera format set\n";
+            }
+        } else {
+            stream << " - No camera device selected\n";
+        }
+    } else {
+        stream << " - Camera is NULL\n";
+    }
+    
+    // Media recorder state
+    stream << "\nMEDIA RECORDER:\n";
+    if (m_mediaRecorder) {
+        stream << " - State: " << m_mediaRecorder->recorderState() << "\n";
+        stream << " - Error: " << m_mediaRecorder->error() << " (" << getMediaRecorderErrorInfo(m_mediaRecorder->error()) << ")\n";
+        stream << " - Error string: " << m_mediaRecorder->errorString() << "\n";
+        stream << " - Actual location: " << m_mediaRecorder->actualLocation().toString() << "\n";
+        stream << " - Duration: " << m_mediaRecorder->duration() << " ms\n";
+        
+        // Media format
+        QMediaFormat format = m_mediaRecorder->mediaFormat();
+        stream << " - File format: " << static_cast<int>(format.fileFormat()) << "\n";
+        stream << " - Audio codec: " << static_cast<int>(format.audioCodec()) << "\n";
+        stream << " - Video codec: " << static_cast<int>(format.videoCodec()) << "\n";
+        stream << " - Video resolution: " << m_mediaRecorder->videoResolution().width() << "x" 
+               << m_mediaRecorder->videoResolution().height() << "\n";
+        stream << " - Video frame rate: " << m_mediaRecorder->videoFrameRate() << "\n";
+    } else {
+        stream << " - Media recorder is NULL\n";
+    }
+    
+    // Capture session state
+    stream << "\nCAPTURE SESSION:\n";
+    // Since recorder() is not const-qualified in Qt 6.5.3, we'll just indicate if it's expected to be connected
+    stream << " - Camera connected: " << (m_camera != nullptr ? "YES" : "NO") << "\n";
+    stream << " - Recorder connected: " << (m_mediaRecorder != nullptr ? "YES" : "NO") << "\n";
+    stream << " - Video output connected: " << "Unknown in const context" << "\n";
+    
+    // Backend handler info
+    stream << "\nBACKEND HANDLER:\n";
+    if (m_backendHandler) {
+        stream << " - Type: ";
+        if (isQtBackend()) {
+            stream << "Qt\n";
+        } else if (isGStreamerBackend()) {
+            stream << "GStreamer\n";
+        } else if (isFFmpegBackend()) {
+            stream << "FFmpeg\n";
+        } else {
+            stream << "Unknown\n";
+        }
+    } else {
+        stream << " - No backend handler available\n";
+    }
+    
+    // Recording file info
+    stream << "\nRECORDING PATH:\n";
+    if (!m_currentRecordingPath.isEmpty()) {
+        stream << " - Current recording path: " << m_currentRecordingPath << "\n";
+        QFileInfo fileInfo(m_currentRecordingPath);
+        stream << " - Directory exists: " << (fileInfo.dir().exists() ? "YES" : "NO") << "\n";
+        stream << " - File exists: " << (fileInfo.exists() ? "YES" : "NO") << "\n";
+        if (fileInfo.exists()) {
+            stream << " - File size: " << fileInfo.size() << " bytes\n";
+            stream << " - File writeable: " << (fileInfo.isWritable() ? "YES" : "NO") << "\n";
+        }
+    } else {
+        stream << " - No active recording path\n";
+    }
+    
+    // Supported codecs and formats
+    stream << "\nSUPPORTED FORMATS:\n";
+    stream << " - File formats: ";
+    // Create a QMediaFormat object to query supported formats
+    QMediaFormat mediaFormat;
+    const auto fileFormats = mediaFormat.supportedFileFormats(QMediaFormat::Encode);
+    for (const auto& format : fileFormats) {
+        stream << mediaFormat.fileFormatName(format) << " ";
+    }
+    stream << "\n";
+    
+    stream << " - Video codecs: ";
+    const auto videoCodecs = mediaFormat.supportedVideoCodecs(QMediaFormat::Encode);
+    for (const auto& codec : videoCodecs) {
+        stream << mediaFormat.videoCodecName(codec) << " ";
+    }
+    stream << "\n";
+    
+    stream << "=======================================\n";
+    
+    return diagnostics;
+}
+
+void CameraManager::dumpRecordingSystemState() const
+{
+    QString diagnostics = getRecordingSystemDiagnostics();
+    qCInfo(log_ui_camera) << "\n" << diagnostics;
+}
+
+void CameraManager::recoverRecordingSystem()
+{
+    qCInfo(log_ui_camera) << "=== MANUAL RECORDING SYSTEM RECOVERY INITIATED ===";
+    
+    // First log the current state
+    dumpRecordingSystemState();
+    
+    // Stop any active recording first
+    if (isRecording()) {
+        qCInfo(log_ui_camera) << "Active recording detected - stopping first";
+        stopRecording();
+        QThread::msleep(1000); // Give it time to clean up
+    }
+    
+    // Reset the recording system
+    resetRecordingSystem();
+    
+    // Verify the system is in a good state
+    if (m_mediaRecorder && m_mediaRecorder->error() == QMediaRecorder::NoError) {
+        qCInfo(log_ui_camera) << "Recording system successfully recovered";
+        emit recordingError("Recording system was reset successfully");
+    } else {
+        qCWarning(log_ui_camera) << "Recording system recovery failed";
+        if (m_mediaRecorder) {
+            qCWarning(log_ui_camera) << "Media recorder still has error:" << m_mediaRecorder->errorString();
+        } else {
+            qCWarning(log_ui_camera) << "Media recorder is null after reset attempt";
+        }
+        emit recordingError("Failed to recover recording system - please restart the application");
+    }
+    
+    // Log the final state
+    dumpRecordingSystemState();
+}
+
+QString CameraManager::getRecordingDiagnosticsReport() const
+{
+    // Get the full diagnostics
+    QString report = getRecordingSystemDiagnostics();
+    
+    // Add system information
+    report += "\n====== SYSTEM INFORMATION ======\n";
+    report += "OS: " + QSysInfo::prettyProductName() + "\n";
+    report += "Kernel: " + QSysInfo::kernelVersion() + "\n";
+    report += "Architecture: " + QSysInfo::currentCpuArchitecture() + "\n";
+    report += "Qt Version: " + QString(QT_VERSION_STR) + "\n";
+    
+    // Add camera devices information
+    report += "\n====== CAMERA DEVICES ======\n";
+    auto devices = getAvailableCameraDevices();
+    report += QString("Found %1 camera devices:\n").arg(devices.size());
+    
+    int deviceIndex = 0;
+    for (const auto& device : devices) {
+        report += QString("Device %1:\n").arg(++deviceIndex);
+        report += " - ID: " + QString::fromUtf8(device.id()) + "\n";
+        report += " - Description: " + device.description() + "\n";
+        report += " - Position: " + QString::number(static_cast<int>(device.position())) + "\n";
+        
+        // Available video formats
+        auto formats = device.videoFormats();
+        report += QString(" - Available formats: %1\n").arg(formats.size());
+        
+        int formatIndex = 0;
+        for (const auto& format : formats) {
+            if (formatIndex++ < 5) { // Limit to 5 formats to avoid huge reports
+                report += QString("   * %1x%2 @ %3fps, PixelFormat: %4\n")
+                           .arg(format.resolution().width())
+                           .arg(format.resolution().height())
+                           .arg(format.maxFrameRate())
+                           .arg(format.pixelFormat());
+            }
+        }
+        if (formatIndex > 5) {
+            report += QString("   * (and %1 more formats...)\n").arg(formatIndex - 5);
+        }
+    }
+    
+    return report;
 }

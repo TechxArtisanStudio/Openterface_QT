@@ -94,6 +94,7 @@ public:
     void pauseRecording();
     void resumeRecording();
     bool isRecording() const;
+    bool isPaused() const;
     QString getCurrentRecordingPath() const;
     qint64 getRecordingDuration() const; // in milliseconds
     

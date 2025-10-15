@@ -554,8 +554,73 @@ void MainWindow::configureSettings() {
     }
 }
 
+void MainWindow::toggleRecording() {
+    qDebug() << "toggleRecording called";
+    
+    // Make sure the camera system is ready and recording controller is initialized
+    if (!m_recordingController) {
+        qWarning() << "Recording controller is not initialized";
+        QMessageBox::critical(this, tr("Recording Error"), 
+            tr("Recording system is not initialized. Please restart the application."));
+        return;
+    }
+    
+    if (!m_cameraManager) {
+        qWarning() << "Camera manager is not initialized";
+        QMessageBox::critical(this, tr("Recording Error"), 
+            tr("Camera system is not initialized. Please restart the application."));
+        return;
+    }
+    
+    if (!m_cameraManager->hasActiveCameraDevice()) {
+        qWarning() << "No active camera device available for recording";
+        
+        // Check if any cameras are available but not active
+        if (m_cameraManager->getAvailableCameraDevices().isEmpty()) {
+            QMessageBox::information(this, tr("No Camera Available"), 
+                tr("No camera devices detected. Please connect a camera and try again."));
+        } else {
+            QMessageBox::information(this, tr("Camera Not Active"), 
+                tr("Camera is not active. Please start the camera preview before recording."));
+        }
+        return;
+    }
+    
+    try {
+        if (m_recordingController->isRecording()) {
+            m_recordingController->stopRecording();
+        } else {
+            m_recordingController->startRecording();
+        }
+    } catch (const std::exception& e) {
+        qCritical() << "Exception during recording operation:" << e.what();
+        QMessageBox::critical(this, tr("Recording Error"), 
+            tr("An unexpected error occurred: %1").arg(e.what()));
+    } catch (...) {
+        qCritical() << "Unknown exception during recording operation";
+        QMessageBox::critical(this, tr("Recording Error"), 
+            tr("An unexpected error occurred. Please try again or restart the application."));
+    }
+}
+
 void MainWindow::showRecordingSettings() {
     qDebug() << "showRecordingSettings called";
+    
+    // Stop any active recording before showing settings
+    if (m_recordingController && m_recordingController->isRecording()) {
+        QMessageBox::StandardButton response = QMessageBox::question(
+            this, 
+            tr("Active Recording"),
+            tr("There is an active recording session. Do you want to stop it before changing settings?"),
+            QMessageBox::Yes | QMessageBox::No,
+            QMessageBox::Yes
+        );
+        
+        if (response == QMessageBox::Yes) {
+            m_recordingController->stopRecording();
+        }
+    }
+    
     if (!recordingSettingsDialog) {
         qDebug() << "Creating recording settings dialog";
         recordingSettingsDialog = new RecordingSettingsDialog(this);
@@ -617,6 +682,7 @@ void MainWindow::showRecordingSettings() {
         recordingSettingsDialog->showDialog();
     }
 }
+
 
 void MainWindow::debugSerialPort() {
     qDebug() << "debug dialog" ;
@@ -683,12 +749,30 @@ bool MainWindow::eventFilter(QObject *watched, QEvent *event)
 
 void MainWindow::record()
 {
-    m_cameraManager->startRecording();
+    // Use the recording controller if available, otherwise fall back to CameraManager
+    if (m_recordingController) {
+        m_recordingController->startRecording();
+    } else {
+        m_cameraManager->startRecording();
+    }
 }
 
 void MainWindow::pause()
 {
-    m_cameraManager->stopRecording();
+    // Use the recording controller if available, otherwise fall back to CameraManager
+    if (m_recordingController) {
+        if (m_recordingController->isRecording()) {
+            if (m_recordingController->isPaused()) {
+                m_recordingController->resumeRecording();
+            } else {
+                m_recordingController->pauseRecording();
+            }
+        } else {
+            m_recordingController->stopRecording();
+        }
+    } else {
+        m_cameraManager->stopRecording();
+    }
 }
 
 void MainWindow::setMuted(bool /*muted*/)
