@@ -971,66 +971,60 @@ void CameraManager::startRecording()
         qCDebug(log_ui_camera) << "Media recorder state:" << m_mediaRecorder->recorderState();
     }
 #else
-    // Linux/macOS: Use both QMediaRecorder and FFmpeg backend if available
+    // Linux/macOS: Use ONLY FFmpeg or GStreamer backend for recording
     bool recordingSuccess = false;
-    
-    // If we have FFmpeg backend, use it as primary
-    if (FFmpegBackendHandler* ffmpeg = getFFmpegBackend()) {
-        bool success = ffmpeg->startRecording(outputPath);
-        if (success) {
-            qCDebug(log_ui_camera) << "Started recording via FFmpegBackendHandler";
-            recordingSuccess = true;
-        } else {
-            qCWarning(log_ui_camera) << "Failed to start recording via FFmpegBackendHandler";
+
+    if (!m_backendHandler) {
+        qCWarning(log_ui_camera) << "No multimedia backend handler available on non-Windows platform";
+        emit recordingError("No multimedia backend available. Please choose FFmpeg or GStreamer in settings.");
+        m_currentRecordingPath.clear();
+        return;
+    }
+
+    MultimediaBackendType backendType = m_backendHandler->getBackendType();
+    qCDebug(log_ui_camera) << "Recording using backend:" << MultimediaBackendFactory::backendTypeToString(backendType);
+
+    switch (backendType) {
+        case MultimediaBackendType::FFmpeg: {
+            if (FFmpegBackendHandler* ffmpeg = qobject_cast<FFmpegBackendHandler*>(m_backendHandler.get())) {
+                recordingSuccess = ffmpeg->startRecording(outputPath);
+                if (recordingSuccess) {
+                    qCDebug(log_ui_camera) << "Started recording via FFmpegBackendHandler";
+                } else {
+                    qCWarning(log_ui_camera) << "FFmpeg backend failed to start recording";
+                }
+            } else {
+                qCWarning(log_ui_camera) << "Backend type is FFmpeg but cast failed";
+            }
+            break;
+        }
+        case MultimediaBackendType::GStreamer: {
+            if (auto gst = qobject_cast<GStreamerBackendHandler*>(m_backendHandler.get())) {
+                recordingSuccess = gst->startRecording(outputPath);
+                if (recordingSuccess) {
+                    qCDebug(log_ui_camera) << "Started recording via GStreamerBackendHandler";
+                } else {
+                    qCWarning(log_ui_camera) << "GStreamer backend failed to start recording";
+                }
+            } else {
+                qCWarning(log_ui_camera) << "Backend type is GStreamer but cast failed";
+            }
+            break;
+        }
+        default: {
+            qCWarning(log_ui_camera) << "Unsupported backend for Linux recording:" << static_cast<int>(backendType);
+            emit recordingError("Unsupported backend for recording on Linux. Please select FFmpeg or GStreamer in settings.");
+            m_currentRecordingPath.clear();
+            return;
         }
     }
-    
-    // Also try QMediaRecorder (as backup or primary if FFmpeg failed)
-    if (m_mediaRecorder) {
-        configureMediaRecorderForRecording(outputPath);
-        
-        // Make sure capture session is properly set up
-        if (m_captureSession.camera() != m_camera.get()) {
-            qCDebug(log_ui_camera) << "Setting camera in capture session";
-            m_captureSession.setCamera(m_camera.get());
-        }
-        
-        if (m_captureSession.recorder() != m_mediaRecorder.get()) {
-            qCDebug(log_ui_camera) << "Setting recorder in capture session";
-            m_captureSession.setRecorder(m_mediaRecorder.get());
-        }
-        
-        m_mediaRecorder->record();
-        
-        if (m_mediaRecorder->recorderState() == QMediaRecorder::RecordingState) {
-            qCDebug(log_ui_camera) << "Started recording via QMediaRecorder on non-Windows platform";
-            recordingSuccess = true;
-        } else {
-            qCWarning(log_ui_camera) << "Failed to start recording via QMediaRecorder";
-            qCWarning(log_ui_camera) << "Media recorder error:" << m_mediaRecorder->errorString();
-        }
-    }
-    
+
     if (recordingSuccess) {
         emit this->recordingStarted();
     } else {
-        qCWarning(log_ui_camera) << "Failed to start recording with any available backend";
-        
-        // Generate more specific error message based on recorder state
-        QString errorMsg = "Failed to start recording";
-        
-        if (m_mediaRecorder) {
-            QMediaRecorder::Error recError = m_mediaRecorder->error();
-            if (recError != QMediaRecorder::NoError) {
-                errorMsg = QString("Recording failed: %1").arg(getMediaRecorderErrorInfo(recError));
-                qCWarning(log_ui_camera) << "Media recorder error details:" << getMediaRecorderErrorInfo(recError);
-            }
-        }
-        
         // Dump full diagnostics to log for debugging
         dumpRecordingSystemState();
-        
-        emit recordingError(errorMsg);
+        emit recordingError("Failed to start recording with selected backend");
         m_currentRecordingPath.clear();
     }
 #endif
@@ -1086,18 +1080,29 @@ void CameraManager::stopRecording()
         qCDebug(log_ui_camera) << "Recorder state after stop:" << m_mediaRecorder->recorderState();
     }
 #else
-    // Linux/macOS: Use both QMediaRecorder and FFmpeg backend if available
-    if (m_mediaRecorder) {
-        qCDebug(log_ui_camera) << "Recorder state before stop:" << m_mediaRecorder->recorderState();
-        m_mediaRecorder->stop();
-        qCDebug(log_ui_camera) << "Stopped recording via QMediaRecorder on non-Windows platform";
-        qCDebug(log_ui_camera) << "Recorder state after stop:" << m_mediaRecorder->recorderState();
-    }
-    
-    // If we have FFmpeg backend, also stop its recording
-    if (FFmpegBackendHandler* ffmpeg = getFFmpegBackend()) {
-        ffmpeg->stopRecording();
-        qCDebug(log_ui_camera) << "Stopped recording via FFmpegBackendHandler";
+    // Linux/macOS: Stop ONLY the active backend (FFmpeg or GStreamer)
+    if (!m_backendHandler) {
+        qCWarning(log_ui_camera) << "No backend handler to stop recording";
+    } else {
+        switch (m_backendHandler->getBackendType()) {
+            case MultimediaBackendType::FFmpeg: {
+                if (auto ffmpeg = qobject_cast<FFmpegBackendHandler*>(m_backendHandler.get())) {
+                    ffmpeg->stopRecording();
+                    qCDebug(log_ui_camera) << "Stopped recording via FFmpegBackendHandler";
+                }
+                break;
+            }
+            case MultimediaBackendType::GStreamer: {
+                if (auto gst = qobject_cast<GStreamerBackendHandler*>(m_backendHandler.get())) {
+                    gst->stopRecording();
+                    qCDebug(log_ui_camera) << "Stopped recording via GStreamerBackendHandler";
+                }
+                break;
+            }
+            default:
+                qCWarning(log_ui_camera) << "Unsupported backend for stop on Linux";
+                break;
+        }
     }
 #endif
 
@@ -1162,9 +1167,23 @@ void CameraManager::pauseRecording()
     // Windows: QMediaRecorder doesn't support pause, so no action
     // Future enhancement: Could add Windows-specific pause code here
 #else
-    // Linux/macOS: Use FFmpeg backend for pause functionality
-    if (FFmpegBackendHandler* ffmpeg = getFFmpegBackend()) {
-        ffmpeg->pauseRecording();
+    // Linux/macOS: Use active backend for pause functionality
+    if (!m_backendHandler) return;
+    switch (m_backendHandler->getBackendType()) {
+        case MultimediaBackendType::FFmpeg: {
+            if (auto ffmpeg = qobject_cast<FFmpegBackendHandler*>(m_backendHandler.get())) {
+                ffmpeg->pauseRecording();
+            }
+            break;
+        }
+        case MultimediaBackendType::GStreamer: {
+            if (auto gst = qobject_cast<GStreamerBackendHandler*>(m_backendHandler.get())) {
+                gst->pauseRecording();
+            }
+            break;
+        }
+        default:
+            break;
     }
 #endif
 }
@@ -1175,9 +1194,23 @@ void CameraManager::resumeRecording()
     // Windows: QMediaRecorder doesn't support resume, so no action
     // Future enhancement: Could add Windows-specific resume code here
 #else
-    // Linux/macOS: Use FFmpeg backend for resume functionality
-    if (FFmpegBackendHandler* ffmpeg = getFFmpegBackend()) {
-        ffmpeg->resumeRecording();
+    // Linux/macOS: Use active backend for resume functionality
+    if (!m_backendHandler) return;
+    switch (m_backendHandler->getBackendType()) {
+        case MultimediaBackendType::FFmpeg: {
+            if (auto ffmpeg = qobject_cast<FFmpegBackendHandler*>(m_backendHandler.get())) {
+                ffmpeg->resumeRecording();
+            }
+            break;
+        }
+        case MultimediaBackendType::GStreamer: {
+            if (auto gst = qobject_cast<GStreamerBackendHandler*>(m_backendHandler.get())) {
+                gst->resumeRecording();
+            }
+            break;
+        }
+        default:
+            break;
     }
 #endif
 }
