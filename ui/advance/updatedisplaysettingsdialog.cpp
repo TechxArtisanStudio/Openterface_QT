@@ -211,29 +211,6 @@ void UpdateDisplaySettingsDialog::setupUI()
     
     mainLayout->addWidget(serialNumberGroup);
     
-    // Resolution Group
-    resolutionGroup = new QGroupBox(tr("Extension Block Resolutions"), this);
-    QVBoxLayout *resolutionLayout = new QVBoxLayout(resolutionGroup);
-    
-    // Setup the resolution table
-    setupResolutionTable();
-    resolutionLayout->addWidget(resolutionTable);
-    
-    // Control buttons for resolution selection
-    QHBoxLayout *resolutionButtonLayout = new QHBoxLayout();
-    selectAllButton = new QPushButton(tr("Select All"), this);
-    selectNoneButton = new QPushButton(tr("Select None"), this);
-    selectDefaultButton = new QPushButton(tr("Select Defaults"), this);
-    
-    resolutionButtonLayout->addWidget(selectAllButton);
-    resolutionButtonLayout->addWidget(selectNoneButton);
-    resolutionButtonLayout->addWidget(selectDefaultButton);
-    resolutionButtonLayout->addStretch();
-    
-    resolutionLayout->addLayout(resolutionButtonLayout);
-    
-    mainLayout->addWidget(resolutionGroup);
-    
     // Progress Group (initially hidden)
     progressGroup = new QGroupBox(tr("Reading Firmware"), this);
     QVBoxLayout *progressLayout = new QVBoxLayout(progressGroup);
@@ -280,11 +257,6 @@ void UpdateDisplaySettingsDialog::setupUI()
     connect(displayNameCheckBox, &QCheckBox::toggled, this, &UpdateDisplaySettingsDialog::onDisplayNameCheckChanged);
     connect(serialNumberCheckBox, &QCheckBox::toggled, this, &UpdateDisplaySettingsDialog::onSerialNumberCheckChanged);
     
-    // Resolution table connections
-    connect(selectAllButton, &QPushButton::clicked, this, &UpdateDisplaySettingsDialog::onSelectAllResolutions);
-    connect(selectNoneButton, &QPushButton::clicked, this, &UpdateDisplaySettingsDialog::onSelectNoneResolutions);
-    connect(selectDefaultButton, &QPushButton::clicked, this, &UpdateDisplaySettingsDialog::onSelectDefaultResolutions);
-    connect(resolutionTable, &QTableWidget::itemChanged, this, &UpdateDisplaySettingsDialog::onResolutionItemChanged);
     connect(cancelReadingButton, &QPushButton::clicked, this, &UpdateDisplaySettingsDialog::onCancelReadingClicked);
     
     // Connect text change signals to update button state
@@ -554,7 +526,7 @@ void UpdateDisplaySettingsDialog::loadCurrentEDIDSettings()
     // Disable main dialog controls while reading
     displayNameGroup->setEnabled(false);
     serialNumberGroup->setEnabled(false);
-    resolutionGroup->setEnabled(false);
+    if (resolutionGroup) resolutionGroup->setEnabled(false);
     updateButton->setEnabled(false);
     
     // Create temporary file path for firmware reading
@@ -610,7 +582,7 @@ void UpdateDisplaySettingsDialog::onFirmwareReadFinished(bool success)
     // Re-enable dialog controls
     displayNameGroup->setEnabled(true);
     serialNumberGroup->setEnabled(true);
-    resolutionGroup->setEnabled(true);
+    if (resolutionGroup) resolutionGroup->setEnabled(true);
     
     if (!success) {
         qWarning() << "Failed to read firmware data, cannot load current EDID settings";
@@ -733,7 +705,7 @@ void UpdateDisplaySettingsDialog::onFirmwareReadError(const QString& errorMessag
     // Re-enable dialog controls
     displayNameGroup->setEnabled(true);
     serialNumberGroup->setEnabled(true);
-    resolutionGroup->setEnabled(true);
+    if (resolutionGroup) resolutionGroup->setEnabled(true);
     
     qWarning() << "Firmware read error:" << errorMessage;
     displayNameLineEdit->setPlaceholderText(tr("Error reading firmware - enter display name"));
@@ -780,7 +752,7 @@ void UpdateDisplaySettingsDialog::onCancelReadingClicked()
     // Re-enable dialog controls
     displayNameGroup->setEnabled(true);
     serialNumberGroup->setEnabled(true);
-    resolutionGroup->setEnabled(true);
+    if (resolutionGroup) resolutionGroup->setEnabled(true);
     
     // Update placeholders to indicate cancellation
     displayNameLineEdit->setPlaceholderText(tr("Reading cancelled - enter display name"));
@@ -1017,6 +989,8 @@ void UpdateDisplaySettingsDialog::addResolutionToList(const QString& description
 
 void UpdateDisplaySettingsDialog::populateResolutionTable()
 {
+    if (!resolutionTable) return;  // Skip if resolution table is not shown
+    
     resolutionTable->setRowCount(availableResolutions.size());
     
     for (int row = 0; row < availableResolutions.size(); ++row) {
@@ -1062,7 +1036,9 @@ void UpdateDisplaySettingsDialog::updateResolutionTableFromEDID(const QByteArray
 {
     // Clear existing resolutions
     availableResolutions.clear();
-    resolutionTable->setRowCount(0);
+    if (resolutionTable) {
+        resolutionTable->setRowCount(0);
+    }
     
     // Skip standard timings - only parse extension blocks for resolutions
     // parseStandardTimingsForResolutions(edidBlock);
@@ -1269,6 +1245,8 @@ QList<ResolutionInfo> UpdateDisplaySettingsDialog::getSelectedResolutions() cons
 
 bool UpdateDisplaySettingsDialog::hasResolutionChanges() const
 {
+    if (!resolutionTable) return false;  // No resolution UI, no changes
+    
     // Check if any resolution's current selection differs from its original enabled state
     for (const auto& resolution : availableResolutions) {
         if (resolution.userSelected != resolution.isEnabled) {

@@ -3,14 +3,14 @@
 // Hardware identifiers for Openterface devices - Original generation
 const QString AbstractPlatformDeviceManager::SERIAL_VID = "1A86";
 const QString AbstractPlatformDeviceManager::SERIAL_PID = "7523";
-const QString AbstractPlatformDeviceManager::OPENTERFACE_VID = "534D";
-const QString AbstractPlatformDeviceManager::OPENTERFACE_PID = "2109";
+const QString AbstractPlatformDeviceManager::OPENTERFACE_VID = "534D"; // MS2109
+const QString AbstractPlatformDeviceManager::OPENTERFACE_PID = "2109"; // MS2109
 
 // Hardware identifiers for Openterface devices - New generation (Companion device)
 const QString AbstractPlatformDeviceManager::SERIAL_VID_V2 = "1A86";
 const QString AbstractPlatformDeviceManager::SERIAL_PID_V2 = "FE0C";
-const QString AbstractPlatformDeviceManager::OPENTERFACE_VID_V2 = "345F";
-const QString AbstractPlatformDeviceManager::OPENTERFACE_PID_V2 = "2132";
+const QString AbstractPlatformDeviceManager::OPENTERFACE_VID_V2 = "345F"; // MS2130S
+const QString AbstractPlatformDeviceManager::OPENTERFACE_PID_V2 = "2132"; // MS2130S
 
 // Hardware identifiers for Openterface devices - V3 generation
 const QString AbstractPlatformDeviceManager::SERIAL_VID_V3 = "1A86";
