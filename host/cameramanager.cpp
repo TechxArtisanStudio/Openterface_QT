@@ -5,10 +5,10 @@
 // Include FFmpeg and GStreamer backends for non-Windows platforms
 #include "host/backend/ffmpegbackendhandler.h"
 #include "host/backend/gstreamerbackendhandler.h"
-#else
-// Include only Qt backend for Windows
-#include "host/backend/qtbackendhandler.h"
 #endif
+// Include Qt backend for all platforms
+#include "host/backend/qtbackendhandler.h"
+#include "host/backend/qtmultimediabackendhandler.h"
 
 #include "ui/videopane.h"
 
@@ -96,10 +96,10 @@ CameraManager::CameraManager(QObject *parent)
         qCDebug(log_ui_camera) << "Recorder state changed to:" << state;
         if (state == QMediaRecorder::RecordingState) {
             qCInfo(log_ui_camera) << "Recording started with media recorder";
-            emit recordingStarted();
+            emit this->recordingStarted();
         } else if (state == QMediaRecorder::StoppedState) {
             qCInfo(log_ui_camera) << "Recording stopped with media recorder";
-            emit recordingStopped();
+            emit this->recordingStopped();
         }
     });
     
@@ -394,7 +394,7 @@ void CameraManager::setCameraDevice(const QCameraDevice &cameraDevice)
                 qCDebug(log_ui_camera) << "Qt backend: Media recorder added to capture session";
                 
                 // Configure QtBackendHandler with media recorder
-                if (auto qtHandler = dynamic_cast<QtBackendHandler*>(m_backendHandler.get())) {
+                if (auto qtHandler = qobject_cast<QtBackendHandler*>(m_backendHandler.get())) {
                     qtHandler->setMediaRecorder(m_mediaRecorder.get());
                     qtHandler->setCaptureSession(&m_captureSession);
                     qCDebug(log_ui_camera) << "Qt backend: Configured QtBackendHandler with MediaRecorder";
@@ -800,8 +800,8 @@ void CameraManager::startRecording()
     
     if (isQtBackend() && m_backendHandler) {
         try {
-            // Use dynamic_cast for type safety instead of static_cast
-            QtBackendHandler* qtHandler = dynamic_cast<QtBackendHandler*>(m_backendHandler.get());
+            // Use qobject_cast for Qt objects which is more robust in Qt environment
+            QtBackendHandler* qtHandler = qobject_cast<QtBackendHandler*>(m_backendHandler.get());
             
             if (qtHandler) {
                 // Get settings from global preferences or use defaults
@@ -822,7 +822,7 @@ void CameraManager::startRecording()
         bool success = qtHandlerSucceeded;
         if (success) {
             qCDebug(log_ui_camera) << "Successfully started recording via QtBackendHandler";
-            emit recordingStarted();
+            emit this->recordingStarted();
         } else {
             qCWarning(log_ui_camera) << "Failed to start recording via QtBackendHandler";
             
@@ -834,10 +834,10 @@ void CameraManager::startRecording()
                 // Check if recording actually started
                 if (m_mediaRecorder->recorderState() == QMediaRecorder::RecordingState) {
                     qCDebug(log_ui_camera) << "Started recording via direct QMediaRecorder call";
-                    emit recordingStarted();
+                    emit this->recordingStarted();
                 } else {
                     qCWarning(log_ui_camera) << "Failed to start recording with QMediaRecorder";
-                    emit recordingError("Failed to start recording");
+                    emit this->recordingError("Failed to start recording");
                     m_currentRecordingPath.clear();
                 }
             }
@@ -901,7 +901,7 @@ void CameraManager::startRecording()
         QTimer::singleShot(1000, this, [this]() {
             if (m_mediaRecorder->recorderState() == QMediaRecorder::RecordingState) {
                 qCInfo(log_ui_camera) << "Recording confirmed as started successfully";
-                emit recordingStarted();
+                emit this->recordingStarted();
             } else {
                 qCWarning(log_ui_camera) << "Recording failed to start properly";
                 QString errorMessage;
@@ -939,14 +939,14 @@ void CameraManager::startRecording()
     }
 #else
     // Linux/macOS: Use both QMediaRecorder and FFmpeg backend if available
-    bool recordingStarted = false;
+    bool recordingSuccess = false;
     
     // If we have FFmpeg backend, use it as primary
     if (FFmpegBackendHandler* ffmpeg = getFFmpegBackend()) {
         bool success = ffmpeg->startRecording(outputPath);
         if (success) {
             qCDebug(log_ui_camera) << "Started recording via FFmpegBackendHandler";
-            recordingStarted = true;
+            recordingSuccess = true;
         } else {
             qCWarning(log_ui_camera) << "Failed to start recording via FFmpegBackendHandler";
         }
@@ -971,15 +971,15 @@ void CameraManager::startRecording()
         
         if (m_mediaRecorder->recorderState() == QMediaRecorder::RecordingState) {
             qCDebug(log_ui_camera) << "Started recording via QMediaRecorder on non-Windows platform";
-            recordingStarted = true;
+            recordingSuccess = true;
         } else {
             qCWarning(log_ui_camera) << "Failed to start recording via QMediaRecorder";
             qCWarning(log_ui_camera) << "Media recorder error:" << m_mediaRecorder->errorString();
         }
     }
     
-    if (recordingStarted) {
-        emit recordingStarted();
+    if (recordingSuccess) {
+        emit this->recordingStarted();
     } else {
         qCWarning(log_ui_camera) << "Failed to start recording with any available backend";
         
@@ -1030,8 +1030,8 @@ void CameraManager::stopRecording()
     // Windows: Use QMediaRecorder via QtBackendHandler
     if (isQtBackend() && m_backendHandler) {
         try {
-            // Use dynamic_cast for type safety instead of static_cast
-            QtBackendHandler* qtHandler = dynamic_cast<QtBackendHandler*>(m_backendHandler.get());
+            // Use qobject_cast for Qt objects which is more robust in Qt environment
+            QtBackendHandler* qtHandler = qobject_cast<QtBackendHandler*>(m_backendHandler.get());
             
             if (qtHandler) {
                 qtHandler->stopRecording();
@@ -1166,8 +1166,8 @@ bool CameraManager::isRecording() const
 #ifdef Q_OS_WIN
     // Windows: Check QtBackendHandler first, then fall back to QMediaRecorder
     if (isQtBackend() && m_backendHandler) {
-        QtBackendHandler* qtHandler = static_cast<QtBackendHandler*>(m_backendHandler.get());
-        if (qtHandler->isRecording()) {
+        QtBackendHandler* qtHandler = qobject_cast<QtBackendHandler*>(m_backendHandler.get());
+        if (qtHandler && qtHandler->isRecording()) {
             qCDebug(log_ui_camera) << "QtBackendHandler reports recording active";
             recording = true;
         } else {
@@ -1622,10 +1622,10 @@ void CameraManager::setupConnections()
                 qCDebug(log_ui_camera) << "Media recorder state changed to:" << static_cast<int>(state);
                 if (state == QMediaRecorder::RecordingState) {
                     qCDebug(log_ui_camera) << "Recording started to:" << m_mediaRecorder->outputLocation().toLocalFile();
-                    emit recordingStarted();
+                    emit this->recordingStarted();
                 } else if (state == QMediaRecorder::StoppedState) {
                     qCDebug(log_ui_camera) << "Recording stopped";
-                    emit recordingStopped();
+                    emit this->recordingStopped();
                 }
             });
             

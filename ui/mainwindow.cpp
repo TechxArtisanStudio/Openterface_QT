@@ -393,9 +393,16 @@ void MainWindow::onToggleSwitchStateChanged(int state)
 
 void MainWindow::onResolutionChange(const int& width, const int& height, const float& fps, const float& pixelClk)
 {
+    // Log the resolution information received from the HID device
+    qCDebug(log_ui_mainwindow) << "Resolution received from HID device - Width:" << width 
+                              << "Height:" << height << "FPS:" << fps 
+                              << "PixelClock:" << pixelClk << "MHz";
+    
     GlobalVar::instance().setInputWidth(width);
     GlobalVar::instance().setInputHeight(height);
     m_statusBarManager->setInputResolution(width, height, fps, pixelClk);
+    
+    // No popup message for resolution changes
 }
 
 void MainWindow::onTargetUsbConnected(const bool isConnected)
