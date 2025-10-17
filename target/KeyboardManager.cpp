@@ -140,6 +140,14 @@ void KeyboardManager::handleKeyboardAction(int keyCode, int modifiers, bool isKe
             mappedKeyCode = currentLayout.unicodeMap.value(unicodeValue, 0);
             qDebug() << "Trying Unicode mapping for U+" << QString::number(unicodeValue, 16) 
                                 << "-> scancode: 0x" << QString::number(mappedKeyCode, 16);
+
+	    if (mappedKeyCode != 0) {
+		    QChar unicodeChar(unicodeValue);
+		    if (currentLayout.needAltGrKeys.contains(unicodeValue)) {
+			    qDebug() << "Character requires AltGr, forcing modifier";
+			    modifiers |= Qt::GroupSwitchModifier;
+		    }
+	    }
         }
     }
     qCDebug(log_keyboard) << "Mapped to scancode: 0x" + QString::number(mappedKeyCode, 16);
@@ -160,7 +168,7 @@ void KeyboardManager::handleKeyboardAction(int keyCode, int modifiers, bool isKe
             currentModifiers |= 0x04;
         }else if(modifiers & Qt::GroupSwitchModifier){ // altgr
             mappedKeyCode = 0xE6;
-            currentModifiers |= 0x05;
+            currentModifiers |= 0x40;
         }
     }else if(isKeypadKeys(keyCode, modifiers)){
         if (keyCode == Qt::Key_NumLock) {
@@ -203,7 +211,7 @@ void KeyboardManager::handleKeyboardAction(int keyCode, int modifiers, bool isKe
             mappedKeyCode = 0x58;
         }
     }else {
-        if(currentModifiers!=0){
+        if(currentModifiers!=0 && mappedKeyCode == 0){
             qCDebug(log_keyboard) << "Send release command :" << keyData.toHex(' ');
             emit SerialPortManager::getInstance().sendCommandAsync(keyData, false);
             currentModifiers = 0;
