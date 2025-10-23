@@ -1902,7 +1902,13 @@ void FFmpegBackendHandler::resumeRecording()
 bool FFmpegBackendHandler::isRecording() const
 {
     QMutexLocker locker(&m_recordingMutex);
-    return m_recordingActive && !m_recordingPaused;
+    return m_recordingActive;
+}
+
+bool FFmpegBackendHandler::isPaused() const
+{
+    QMutexLocker locker(&m_recordingMutex);
+    return m_recordingActive && m_recordingPaused;
 }
 
 QString FFmpegBackendHandler::getCurrentRecordingPath() const

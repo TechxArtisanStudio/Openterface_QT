@@ -88,6 +88,7 @@ MouseEventDTO* InputHandler::calculateAbsolutePosition(QMouseEvent *event) {
     QPoint videoPos = transformedPos;
     if (m_videoPane && effectiveWidget == m_videoPane) {
         // Use VideoPane's transformation logic for accurate video area mapping
+        // When zoomed, this will handle the coordinate transformation
         videoPos = m_videoPane->getTransformedMousePosition(transformedPos);
         
         // Debug: Log coordinate transformation details
@@ -101,10 +102,38 @@ MouseEventDTO* InputHandler::calculateAbsolutePosition(QMouseEvent *event) {
         }
     }
     
-    qreal absoluteX = static_cast<qreal>(videoPos.x()) / effectiveWidget->width() * 4096;
-    qreal absoluteY = static_cast<qreal>(videoPos.y()) / effectiveWidget->height() * 4096;
-    lastX = static_cast<int>(absoluteX);
-    lastY = static_cast<int>(absoluteY);
+    // Uncomment for debug
+    static int debugCounter = 0;
+    if (++debugCounter % 50 == 1) {
+        qCDebug(log_ui_input) << "Mouse: videoPos=" << videoPos 
+                             << "effectiveWidget=" << effectiveWidget->size() 
+                             << "zoom=" << (m_videoPane ? m_videoPane->getZoomFactor() : 1.0);
+    }
+    
+    // Get target width and height - check for zero to prevent division by zero
+    int targetWidth = effectiveWidget->width();
+    int targetHeight = effectiveWidget->height();
+    
+    if (targetWidth <= 0 || targetHeight <= 0) {
+        qCWarning(log_ui_input) << "Zero dimensions in calculateAbsolutePosition! Widget size:" 
+                               << effectiveWidget->size();
+        return new MouseEventDTO(0, 0, true);
+    }
+    
+    qreal absoluteX = static_cast<qreal>(videoPos.x()) / targetWidth * 4096;
+    qreal absoluteY = static_cast<qreal>(videoPos.y()) / targetHeight * 4096;
+    
+    // Clamp values to valid range (0-4096)
+    lastX = qBound(0, static_cast<int>(absoluteX), 4096);
+    lastY = qBound(0, static_cast<int>(absoluteY), 4096);
+    
+    // More frequent debug logging when zoom is enabled
+    if (m_videoPane && m_videoPane->getZoomFactor() > 1.0 && debugCounter % 20 == 1) {
+        qCDebug(log_ui_input) << "Absolute coords (zoomed): raw=" << videoPos
+                             << "->absolute=" << QPoint(lastX, lastY)
+                             << "zoom=" << m_videoPane->getZoomFactor();
+    }
+    
     return new MouseEventDTO(lastX, lastY, true);
 }
 
@@ -509,22 +538,29 @@ void InputHandler::removeOverlayEventFilter()
 QPoint InputHandler::transformMousePosition(QMouseEvent *event, QWidget* sourceWidget)
 {
     if (!sourceWidget || !m_videoPane) {
+        qCWarning(log_ui_input) << "InputHandler::transformMousePosition - Invalid widget or VideoPane";
         return event->pos();
     }
     
-    // Always use VideoPane's transformation logic for consistency
-    // regardless of whether we're in GStreamer mode or not
-    if (sourceWidget == m_videoPane) {
-        // For VideoPane events, use the direct position - VideoPane handles its own transformation
-        return event->pos();
-    } else if (m_videoPane->isDirectGStreamerModeEnabled() && sourceWidget != m_videoPane) {
-        // For overlay widget events in GStreamer mode, convert to VideoPane coordinates
-        // The overlay widget should have the same coordinate system as the VideoPane
-        // since it's positioned to fill the VideoPane
-        return event->pos();
+    // For all cases, use the direct position
+    // VideoPane::getTransformedMousePosition will handle the proper coordinate transformation
+    // when it's called in calculateAbsolutePosition
+    QPoint pos = event->pos();
+    
+    // Log once in a while for debugging
+    static int debugCounter = 0;
+    if (++debugCounter % 500 == 1) {
+        double zoomFactor = m_videoPane ? m_videoPane->getZoomFactor() : 1.0;
+        bool isGStreamerMode = m_videoPane ? m_videoPane->isDirectGStreamerModeEnabled() : false;
+        bool isVideoPane = (sourceWidget == m_videoPane);
+        
+        qCDebug(log_ui_input) << "Mouse transform input: pos=" << pos 
+                             << "zoom=" << zoomFactor
+                             << "isVideoPane=" << isVideoPane
+                             << "gstreamer=" << isGStreamerMode;
     }
     
-    return event->pos();
+    return pos;
 }
 
 QWidget* InputHandler::getEffectiveVideoWidget() const

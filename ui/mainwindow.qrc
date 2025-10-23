@@ -29,5 +29,7 @@
         <file>../images/zoom_fit.svg</file>
         <file>../images/fullscreen.svg</file>
         <file>../images/screen_scale.svg</file>
+        <file>../images/startRecord.svg</file>
+        <file>../images/stopRecord.svg</file>
     </qresource>
 </RCC>

@@ -28,6 +28,7 @@
 #include "../statusbar/statusbarmanager.h"
 #include "../../host/HostManager.h"
 #include "../../host/cameramanager.h"
+#include "../recording/recordingcontroller.h"
 #include "../../serial/SerialPortManager.h"
 #include "../../device/DeviceManager.h"
 #include "../../device/HotplugMonitor.h"
@@ -52,7 +53,8 @@
 #include <QStackedLayout>
 #include <QShortcut>
 
-Q_LOGGING_CATEGORY(log_ui_mainwindowinitializer, "opf.ui.mainwindowinitializer")
+// Define the logging category with inline to avoid multiple definition errors
+inline Q_LOGGING_CATEGORY(log_ui_mainwindowinitializer, "opf.ui.mainwindowinitializer")
 
 MainWindowInitializer::MainWindowInitializer(MainWindow *mainWindow, QObject *parent)
     : QObject(parent)
@@ -200,6 +202,7 @@ void MainWindowInitializer::connectCornerWidgetSignals()
     connect(m_cornerWidgetManager, &CornerWidgetManager::screensaverClicked, m_mainWindow, &MainWindow::onActionScreensaver);
     connect(m_cornerWidgetManager, &CornerWidgetManager::toggleSwitchChanged, m_mainWindow, &MainWindow::onToggleSwitchStateChanged);
     connect(m_cornerWidgetManager, &CornerWidgetManager::keyboardLayoutChanged, m_mainWindow, &MainWindow::onKeyboardLayoutCombobox_Changed);
+    connect(m_cornerWidgetManager, &CornerWidgetManager::recordingToggled, m_mainWindow, &MainWindow::toggleRecording);
 }
 
 void MainWindowInitializer::connectDeviceManagerSignals()
@@ -301,6 +304,9 @@ void MainWindowInitializer::setupToolbar()
     // WindowControlManager emits after both manual toggles and auto-hide operations
     connect(m_windowControlManager, &WindowControlManager::toolbarVisibilityChanged,
             m_mainWindow, &MainWindow::onToolbarVisibilityChanged);
+            
+    // Set up the recording controller
+    setupRecordingController();
 }
 
 void MainWindowInitializer::connectCameraSignals()
@@ -334,6 +340,18 @@ void MainWindowInitializer::connectVideoHidSignals()
             m_statusBarManager, &StatusBarManager::onLastMouseLocation);
     connect(&VideoHid::getInstance(), &VideoHid::inputResolutionChanged, m_mainWindow, &MainWindow::onInputResolutionChanged);
     connect(&VideoHid::getInstance(), &VideoHid::resolutionChangeUpdate, m_mainWindow, &MainWindow::onResolutionChange);
+}
+
+void MainWindowInitializer::setupRecordingController()
+{
+    qCDebug(log_ui_mainwindowinitializer) << "Setting up recording controller...";
+    
+    // Create the recording controller
+    m_mainWindow->m_recordingController = new RecordingController(m_mainWindow, m_cameraManager);
+    
+    // Create and add the recording controls widget to the toolbar
+    QWidget* recordingControls = m_mainWindow->m_recordingController->createControlsWidget();
+    m_toolbarManager->getToolbar()->addWidget(recordingControls);
 }
 
 void MainWindowInitializer::initializeCamera()

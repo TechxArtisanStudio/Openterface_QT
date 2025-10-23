@@ -11,6 +11,13 @@
 #include <chrono>
 
 #include "../ui/statusevents.h"
+
+// Chipset enumeration
+enum class VideoChipType {
+    MS2109,
+    MS2130S,
+    UNKNOWN
+};
 #ifdef _WIN32
 #include <windows.h>
 #elif __linux__
@@ -93,6 +100,10 @@ public:
 
     // HDMI timing Pixel clock
     float getPixelclk();
+    
+    // USB read/write methods for both chip types
+    QPair<QByteArray, bool> usbXdataRead4ByteMS2109(quint16 u16_address);
+    QPair<QByteArray, bool> usbXdataRead4ByteMS2130S(quint16 u16_address);
 
     void loadFirmwareToEeprom();
 
@@ -169,6 +180,7 @@ private:
 
 #ifdef _WIN32
     std::wstring getHIDDevicePath();
+    std::wstring getProperDevicePath(const std::wstring& deviceInstancePath);
     bool sendFeatureReportWindows(BYTE* reportBuffer, DWORD bufferSize);
     bool getFeatureReportWindows(BYTE* reportBuffer, DWORD bufferSize);
 #elif __linux__
@@ -183,6 +195,11 @@ private:
     // Current HID device tracking
     QString m_currentHIDDevicePath;
     QString m_currentHIDPortChain;
+    
+    // Chipset identification and handling
+    VideoChipType m_chipType = VideoChipType::UNKNOWN;
+    void detectChipType();
+    VideoChipType getChipType() const { return m_chipType; }
 };
 
 #endif // VIDEOHID_H

@@ -37,6 +37,7 @@
 #include "ui/preferences/settingdialog.h"
 #include "ui/advance/recordingsettingsdialog.h"
 #include "ui/advance/serialportdebugdialog.h"
+#include "ui/recording/recordingcontroller.h"
 #include "ui/advance/DeviceSelectorDialog.h"
 #include "ui/advance/scripttool.h"
 #include "ui/advance/firmwaremanagerdialog.h"
@@ -136,6 +137,8 @@ public slots:
     void changeKeyboardLayout(const QString& layout);
     void initializeKeyboardLayouts();
     void onScreenRatioChanged(double ratio);
+    void showRecordingSettings();
+    void toggleRecording();
 
 private slots:
     void initCamera();
@@ -158,7 +161,6 @@ private slots:
     void updateLink();
 
     void configureSettings();
-    void showRecordingSettings();
     void debugSerialPort();
     void openDeviceSelector();
 
@@ -286,6 +288,7 @@ private:
     MetaDataDialog *m_metaDataDialog = nullptr;
     SettingDialog *settingDialog = nullptr;
     RecordingSettingsDialog *recordingSettingsDialog = nullptr;
+    RecordingController *m_recordingController = nullptr;
     SerialPortDebugDialog *serialPortDebugDialog = nullptr;
     DeviceSelectorDialog *deviceSelectorDialog = nullptr;
     FirmwareManagerDialog *firmwareManagerDialog = nullptr;
