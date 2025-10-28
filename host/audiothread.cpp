@@ -150,7 +150,31 @@ void AudioThread::run()
                                    << "Sample format:" << nearestFormat.sampleFormat();
         }
         
+        // Give newly plugged device time to initialize before trying to use it
+        qCDebug(log_core_audio) << "Waiting for audio device to be ready...";
+        QThread::msleep(200);
+        
         m_audioSource = new QAudioSource(m_inputDevice, m_format);
+        
+        // Connect to state changed signal to monitor device health
+        connect(m_audioSource, &QAudioSource::stateChanged, this, [this](QAudio::State state) {
+            if (state == QAudio::StoppedState && m_audioSource->error() != QAudio::NoError) {
+                QString errorMsg = QString("Audio source error: %1").arg(m_audioSource->error());
+                qCWarning(log_core_audio) << errorMsg;
+                
+                // Check for device invalidation error
+                if (m_audioSource->error() == QAudio::UnderrunError || 
+                    m_audioSource->error() == QAudio::IOError) {
+                    qCWarning(log_core_audio) << "Audio device may have been disconnected or invalidated";
+                    emit error(errorMsg + " (device may have been disconnected)");
+                    
+                    // Stop the thread gracefully
+                    m_mutex.lock();
+                    m_running = false;
+                    m_mutex.unlock();
+                }
+            }
+        });
         
         // Try to force the audio source to start actively
         qCDebug(log_core_audio) << "Starting QAudioSource...";
@@ -158,7 +182,20 @@ void AudioThread::run()
 
         if (!m_audioIODevice) {
             qCWarning(log_core_audio) << "Failed to start audio source";
-            emit error("Failed to start audio source");
+            QString errorMsg = QString("Failed to start audio source - Error: %1").arg(m_audioSource->error());
+            emit error(errorMsg);
+            delete m_audioSource;
+            m_audioSource = nullptr;
+            return;
+        }
+        
+        // Check for immediate errors after starting
+        if (m_audioSource->error() != QAudio::NoError) {
+            QString errorMsg = QString("Audio source error immediately after start: %1").arg(m_audioSource->error());
+            qCWarning(log_core_audio) << errorMsg;
+            emit error(errorMsg);
+            delete m_audioSource;
+            m_audioSource = nullptr;
             return;
         }
         
@@ -198,14 +235,50 @@ void AudioThread::run()
         }
         
         m_audioSink.reset(new QAudioSink(m_outputDevice, m_format));
+        
+        // Connect to state changed signal to monitor sink health
+        connect(m_audioSink.data(), &QAudioSink::stateChanged, this, [this](QAudio::State state) {
+            if (state == QAudio::StoppedState && m_audioSink && m_audioSink->error() != QAudio::NoError) {
+                QString errorMsg = QString("Audio sink error: %1").arg(m_audioSink->error());
+                qCWarning(log_core_audio) << errorMsg;
+                
+                if (m_audioSink->error() == QAudio::UnderrunError || 
+                    m_audioSink->error() == QAudio::IOError) {
+                    qCWarning(log_core_audio) << "Audio output device may have an issue";
+                }
+            }
+        });
+        
         m_audioSink->setVolume(m_volume);
         m_sinkIODevice = m_audioSink->start();  // Get the IO device for writing
 
         if (!m_sinkIODevice) {
             qCWarning(log_core_audio) << "Failed to start audio sink";
-            emit error("Failed to start audio sink");
+            QString errorMsg = QString("Failed to start audio sink - Error: %1").arg(m_audioSink->error());
+            emit error(errorMsg);
+            
+            // Clean up audio source
+            if (m_audioSource) {
+                delete m_audioSource;
+                m_audioSource = nullptr;
+            }
             return;
         }
+        
+        // Check for immediate errors after starting sink
+        if (m_audioSink->error() != QAudio::NoError) {
+            QString errorMsg = QString("Audio sink error immediately after start: %1").arg(m_audioSink->error());
+            qCWarning(log_core_audio) << errorMsg;
+            emit error(errorMsg);
+            
+            // Clean up
+            if (m_audioSource) {
+                delete m_audioSource;
+                m_audioSource = nullptr;
+            }
+            return;
+        }
+        
         qCDebug(log_core_audio) << "Audio sink started successfully, state:" << m_audioSink->state();
 
         // Buffer for audio data
@@ -243,6 +316,33 @@ void AudioThread::run()
             if (isInterruptionRequested()) {
                 qCDebug(log_core_audio) << "AudioThread: Interruption requested, exiting loop";
                 break;
+            }
+            
+            // Check audio source health periodically
+            if (m_audioSource && loopCount % 5000 == 0) {
+                if (m_audioSource->error() != QAudio::NoError) {
+                    qCWarning(log_core_audio) << "Audio source error detected in loop:" << m_audioSource->error();
+                    
+                    // If device is invalidated, stop gracefully
+                    if (m_audioSource->error() == QAudio::IOError || 
+                        m_audioSource->error() == QAudio::UnderrunError) {
+                        qCWarning(log_core_audio) << "Audio device appears to be disconnected, stopping audio thread";
+                        emit error("Audio input device disconnected or invalidated");
+                        break;
+                    }
+                }
+            }
+            
+            // Check audio sink health periodically
+            if (m_audioSink && loopCount % 5000 == 0) {
+                if (m_audioSink->error() != QAudio::NoError) {
+                    qCWarning(log_core_audio) << "Audio sink error detected in loop:" << m_audioSink->error();
+                    
+                    if (m_audioSink->error() == QAudio::IOError || 
+                        m_audioSink->error() == QAudio::UnderrunError) {
+                        qCWarning(log_core_audio) << "Audio output device has an issue";
+                    }
+                }
             }
             
             // Check if there's data available to read
