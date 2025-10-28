@@ -44,8 +44,8 @@ RUN echo "Building libjpeg-turbo from source..." && \
     cd ${BUILD_DIR} && \
     rm -rf libjpeg-turbo-3.0.4
 
-# Build FFmpeg with both shared and static libs
-RUN echo "Building FFmpeg ${FFMPEG_VERSION} with both shared and static libs..." && \
+# Build FFmpeg with both shared and static libs and hardware acceleration support
+RUN echo "Building FFmpeg ${FFMPEG_VERSION} with hardware acceleration (Intel QSV, NVIDIA NVDEC/CUDA)..." && \
     curl -L -o ffmpeg.tar.bz2 "https://ffmpeg.org/releases/ffmpeg-${FFMPEG_VERSION}.tar.bz2" && \
     tar xjf ffmpeg.tar.bz2 && \
     rm ffmpeg.tar.bz2 && \
@@ -59,7 +59,21 @@ RUN echo "Building FFmpeg ${FFMPEG_VERSION} with both shared and static libs..."
         --disable-outdevs \
         --enable-pic \
         --enable-libpulse \
-        --disable-debug && \
+        --disable-debug \
+        --enable-gpl \
+        --enable-nonfree \
+        --enable-hwaccels \
+        --enable-libmfx \
+        --enable-qsv \
+        --enable-nvenc \
+        --enable-nvdec \
+        --enable-cuda \
+        --enable-cuvid \
+        --enable-decoder=mjpeg \
+        --enable-decoder=mjpeg_qsv \
+        --enable-decoder=mjpeg_cuvid \
+        --extra-cflags="-I/usr/local/cuda/include" \
+        --extra-ldflags="-L/usr/local/cuda/lib64" && \
     make -j$(nproc) && \
     make install && \
     cd ${BUILD_DIR} && \

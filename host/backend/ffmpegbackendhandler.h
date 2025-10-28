@@ -164,6 +164,11 @@ private:
     bool openInputDevice(const QString& devicePath, const QSize& resolution, int framerate);
     void closeInputDevice();
     
+    // Hardware acceleration
+    bool initializeHardwareAcceleration();
+    void cleanupHardwareAcceleration();
+    bool tryHardwareDecoder(const AVCodecParameters* codecpar, const AVCodec** outCodec, bool* outUsingHwDecoder);
+    
     // Recording-specific methods
     bool initializeRecording();
     void cleanupRecording();
@@ -188,6 +193,10 @@ private:
     AVFrame* m_frameRGB;
     AVPacket* m_packet;
     SwsContext* m_swsContext;
+    
+    // Hardware acceleration (QSV)
+    AVBufferRef* m_hwDeviceContext;
+    enum AVHWDeviceType m_hwDeviceType;
     
     // Recording components
     AVFormatContext* m_recordingFormatContext;

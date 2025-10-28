@@ -185,6 +185,8 @@ FFmpegBackendHandler::FFmpegBackendHandler(QObject *parent)
       m_frameRGB(nullptr),
       m_packet(nullptr),
       m_swsContext(nullptr),
+      m_hwDeviceContext(nullptr),
+      m_hwDeviceType(AV_HWDEVICE_TYPE_NONE),
       m_captureRunning(false),
       m_videoStreamIndex(-1),
       m_frameCount(0),
@@ -523,7 +525,109 @@ void FFmpegBackendHandler::cleanupFFmpeg()
     }
 #endif
     
+    // Cleanup hardware acceleration
+    cleanupHardwareAcceleration();
+    
     qCDebug(log_ffmpeg_backend) << "FFmpeg cleanup completed";
+}
+
+bool FFmpegBackendHandler::initializeHardwareAcceleration()
+{
+    qCDebug(log_ffmpeg_backend) << "Initializing hardware acceleration";
+    
+    // Only try hardware acceleration types that support MJPEG decoding:
+    // 1. Intel QSV (mjpeg_qsv decoder)
+    // 2. NVIDIA CUDA/NVDEC (mjpeg_cuvid decoder)
+    // Note: VAAPI and VDPAU don't have MJPEG hardware decoders, so we skip them
+    
+    const char* hwDeviceTypes[] = {
+        "qsv",      // Intel Quick Sync Video - has mjpeg_qsv
+        "cuda",     // NVIDIA CUDA/NVDEC - has mjpeg_cuvid
+        nullptr
+    };
+    
+    for (int i = 0; hwDeviceTypes[i] != nullptr; i++) {
+        m_hwDeviceType = av_hwdevice_find_type_by_name(hwDeviceTypes[i]);
+        
+        if (m_hwDeviceType == AV_HWDEVICE_TYPE_NONE) {
+            qCDebug(log_ffmpeg_backend) << "Hardware device type" << hwDeviceTypes[i] << "not found";
+            continue;
+        }
+        
+        // Try to create hardware device context
+        int ret = av_hwdevice_ctx_create(&m_hwDeviceContext, m_hwDeviceType, nullptr, nullptr, 0);
+        
+        if (ret < 0) {
+            char errbuf[AV_ERROR_MAX_STRING_SIZE];
+            av_strerror(ret, errbuf, AV_ERROR_MAX_STRING_SIZE);
+            qCDebug(log_ffmpeg_backend) << "Failed to create" << hwDeviceTypes[i] 
+                                        << "hardware device context:" << QString::fromUtf8(errbuf);
+            continue;
+        }
+        
+        qCInfo(log_ffmpeg_backend) << "Successfully initialized" << hwDeviceTypes[i] 
+                                   << "hardware acceleration for MJPEG";
+        return true;
+    }
+    
+    qCWarning(log_ffmpeg_backend) << "No MJPEG-capable hardware acceleration found - using software decoding";
+    m_hwDeviceContext = nullptr;
+    m_hwDeviceType = AV_HWDEVICE_TYPE_NONE;
+    return false;
+}
+
+bool FFmpegBackendHandler::tryHardwareDecoder(const AVCodecParameters* codecpar, 
+                                               const AVCodec** outCodec, 
+                                               bool* outUsingHwDecoder)
+{
+    if (!m_hwDeviceContext || !codecpar || !outCodec || !outUsingHwDecoder) {
+        return false;
+    }
+    
+    *outCodec = nullptr;
+    *outUsingHwDecoder = false;
+    
+    // Only try hardware acceleration for MJPEG
+    if (codecpar->codec_id != AV_CODEC_ID_MJPEG) {
+        return false;
+    }
+    
+    // Map hardware device types to MJPEG decoder names
+    const char* hwDecoderName = nullptr;
+    const char* hwDeviceTypeName = av_hwdevice_get_type_name(m_hwDeviceType);
+    
+    if (strcmp(hwDeviceTypeName, "qsv") == 0) {
+        hwDecoderName = "mjpeg_qsv";
+    } else if (strcmp(hwDeviceTypeName, "cuda") == 0) {
+        hwDecoderName = "mjpeg_cuvid";
+    } else {
+        // Unknown or unsupported hardware type for MJPEG
+        qCDebug(log_ffmpeg_backend) << "Hardware type" << hwDeviceTypeName 
+                                    << "does not support MJPEG hardware decoding";
+        return false;
+    }
+    
+    qCDebug(log_ffmpeg_backend) << "Trying hardware decoder:" << hwDecoderName;
+    *outCodec = avcodec_find_decoder_by_name(hwDecoderName);
+    
+    if (*outCodec) {
+        qCInfo(log_ffmpeg_backend) << "Found" << hwDecoderName << "hardware decoder";
+        *outUsingHwDecoder = true;
+        return true;
+    } else {
+        qCWarning(log_ffmpeg_backend) << "Hardware decoder" << hwDecoderName << "not found";
+        return false;
+    }
+}
+
+void FFmpegBackendHandler::cleanupHardwareAcceleration()
+{
+    if (m_hwDeviceContext) {
+        qCDebug(log_ffmpeg_backend) << "Cleaning up hardware device context";
+        av_buffer_unref(&m_hwDeviceContext);
+        m_hwDeviceContext = nullptr;
+    }
+    m_hwDeviceType = AV_HWDEVICE_TYPE_NONE;
 }
 #endif
 
@@ -776,11 +880,29 @@ bool FFmpegBackendHandler::openInputDevice(const QString& devicePath, const QSiz
     // Get codec parameters
     AVCodecParameters* codecpar = m_formatContext->streams[m_videoStreamIndex]->codecpar;
     
-    // Find decoder
-    const AVCodec* codec = avcodec_find_decoder(codecpar->codec_id);
+    // Try to initialize hardware acceleration if not already done
+    if (!m_hwDeviceContext) {
+        initializeHardwareAcceleration();
+    }
+    
+    // Find decoder - try hardware decoder for MJPEG if available
+    const AVCodec* codec = nullptr;
+    bool usingHwDecoder = false;
+    
+    // Try hardware decoder first
+    if (m_hwDeviceContext) {
+        tryHardwareDecoder(codecpar, &codec, &usingHwDecoder);
+    }
+    
+    // Fallback to software decoder if hardware decoder not found
     if (!codec) {
-        qCCritical(log_ffmpeg_backend) << "Decoder not found for codec ID:" << codecpar->codec_id;
-        return false;
+        codec = avcodec_find_decoder(codecpar->codec_id);
+        if (!codec) {
+            qCCritical(log_ffmpeg_backend) << "Decoder not found for codec ID:" << codecpar->codec_id;
+            return false;
+        }
+        const char* codecName = codec->name ? codec->name : "unknown";
+        qCDebug(log_ffmpeg_backend) << "Using software decoder:" << codecName;
     }
     
     // Allocate codec context
@@ -797,11 +919,86 @@ bool FFmpegBackendHandler::openInputDevice(const QString& devicePath, const QSiz
         return false;
     }
     
+    // Set hardware device context if using QSV decoder
+    if (usingHwDecoder && m_hwDeviceContext) {
+        m_codecContext->hw_device_ctx = av_buffer_ref(m_hwDeviceContext);
+        if (!m_codecContext->hw_device_ctx) {
+            qCWarning(log_ffmpeg_backend) << "Failed to reference hardware device context";
+            // Continue with software fallback
+            avcodec_free_context(&m_codecContext);
+            
+            // Try again with software decoder
+            codec = avcodec_find_decoder(codecpar->codec_id);
+            if (!codec) {
+                qCCritical(log_ffmpeg_backend) << "Software decoder not found for codec ID:" << codecpar->codec_id;
+                return false;
+            }
+            
+            m_codecContext = avcodec_alloc_context3(codec);
+            if (!m_codecContext) {
+                qCCritical(log_ffmpeg_backend) << "Failed to allocate codec context for software decoder";
+                return false;
+            }
+            
+            ret = avcodec_parameters_to_context(m_codecContext, codecpar);
+            if (ret < 0) {
+                qCCritical(log_ffmpeg_backend) << "Failed to copy codec parameters to software decoder";
+                return false;
+            }
+            
+            usingHwDecoder = false;
+            qCInfo(log_ffmpeg_backend) << "Falling back to software decoder:" << codec->name;
+        } else {
+            qCDebug(log_ffmpeg_backend) << "Hardware device context set successfully";
+        }
+    }
+    
     // Open codec
     ret = avcodec_open2(m_codecContext, codec, nullptr);
     if (ret < 0) {
-        qCCritical(log_ffmpeg_backend) << "Failed to open codec";
-        return false;
+        char errbuf[AV_ERROR_MAX_STRING_SIZE];
+        av_strerror(ret, errbuf, AV_ERROR_MAX_STRING_SIZE);
+        
+        // If hardware decoder fails, try software fallback
+        if (usingHwDecoder) {
+            qCWarning(log_ffmpeg_backend) << "Failed to open QSV hardware codec:" 
+                                          << QString::fromUtf8(errbuf) 
+                                          << "- falling back to software decoder";
+            
+            avcodec_free_context(&m_codecContext);
+            
+            // Try software decoder
+            codec = avcodec_find_decoder(codecpar->codec_id);
+            if (!codec) {
+                qCCritical(log_ffmpeg_backend) << "Software decoder not found for codec ID:" << codecpar->codec_id;
+                return false;
+            }
+            
+            m_codecContext = avcodec_alloc_context3(codec);
+            if (!m_codecContext) {
+                qCCritical(log_ffmpeg_backend) << "Failed to allocate codec context for software decoder";
+                return false;
+            }
+            
+            ret = avcodec_parameters_to_context(m_codecContext, codecpar);
+            if (ret < 0) {
+                qCCritical(log_ffmpeg_backend) << "Failed to copy codec parameters to software decoder";
+                return false;
+            }
+            
+            ret = avcodec_open2(m_codecContext, codec, nullptr);
+            if (ret < 0) {
+                av_strerror(ret, errbuf, AV_ERROR_MAX_STRING_SIZE);
+                qCCritical(log_ffmpeg_backend) << "Failed to open software codec:" << QString::fromUtf8(errbuf);
+                return false;
+            }
+            
+            usingHwDecoder = false;
+            qCInfo(log_ffmpeg_backend) << "Successfully opened software decoder:" << codec->name;
+        } else {
+            qCCritical(log_ffmpeg_backend) << "Failed to open codec:" << QString::fromUtf8(errbuf);
+            return false;
+        }
     }
     
     // Allocate frames
@@ -816,6 +1013,7 @@ bool FFmpegBackendHandler::openInputDevice(const QString& devicePath, const QSiz
     
     qCDebug(log_ffmpeg_backend) << "Input device opened successfully:"
                                 << "codec=" << codec->name
+                                << "hw_accel=" << (usingHwDecoder ? av_hwdevice_get_type_name(m_hwDeviceType) : "none")
                                 << "codec_id=" << codecpar->codec_id
                                 << "resolution=" << codecpar->width << "x" << codecpar->height
                                 << "pixel_format=" << codecpar->format;
@@ -1258,8 +1456,55 @@ QPixmap FFmpegBackendHandler::decodeFrame(AVPacket* packet)
         return QPixmap();
     }
     
+    // Check if this is a hardware frame that needs to be transferred to system memory
+    AVFrame* frameToConvert = m_frame;
+    AVFrame* swFrame = nullptr;
+    
+    // Check for hardware pixel formats (only QSV and CUDA for MJPEG)
+    bool isHardwareFrame = (m_frame->format == AV_PIX_FMT_QSV ||       // Intel QSV
+                           m_frame->format == AV_PIX_FMT_CUDA);        // NVIDIA CUDA
+    
+    if (isHardwareFrame) {
+        // This is a hardware frame - need to transfer to system memory
+        swFrame = av_frame_alloc();
+        if (!swFrame) {
+            qCWarning(log_ffmpeg_backend) << "Failed to allocate frame for hardware transfer";
+            return QPixmap();
+        }
+        
+        // Transfer data from GPU to CPU
+        ret = av_hwframe_transfer_data(swFrame, m_frame, 0);
+        if (ret < 0) {
+            char errbuf[AV_ERROR_MAX_STRING_SIZE];
+            av_strerror(ret, errbuf, AV_ERROR_MAX_STRING_SIZE);
+            qCWarning(log_ffmpeg_backend) << "Error transferring hardware frame to system memory:" 
+                                          << QString::fromUtf8(errbuf);
+            av_frame_free(&swFrame);
+            return QPixmap();
+        }
+        
+        // Copy metadata from hardware frame
+        av_frame_copy_props(swFrame, m_frame);
+        
+        frameToConvert = swFrame;
+        
+        static int hwTransferCount = 0;
+        if (++hwTransferCount % 1000 == 1) {
+            const char* hwType = (m_frame->format == AV_PIX_FMT_QSV) ? "QSV" : "CUDA";
+            qCDebug(log_ffmpeg_backend) << "Hardware frame (" << hwType 
+                                       << ") transferred to system memory (count:" << hwTransferCount << ")";
+        }
+    }
+    
     // PERFORMANCE: Skip success logging for every frame
-    return convertFrameToPixmap(m_frame);
+    QPixmap result = convertFrameToPixmap(frameToConvert);
+    
+    // Free the software frame if we allocated it
+    if (swFrame) {
+        av_frame_free(&swFrame);
+    }
+    
+    return result;
 }
 #endif
 
