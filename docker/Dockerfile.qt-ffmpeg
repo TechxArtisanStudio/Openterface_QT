@@ -64,7 +64,6 @@ RUN echo "Building FFmpeg ${FFMPEG_VERSION} with hardware acceleration (Intel QS
         --enable-nonfree \
         --enable-hwaccels \
         --enable-libmfx \
-        --enable-qsv \
         --enable-nvenc \
         --enable-nvdec \
         --enable-cuda \
