@@ -42,11 +42,15 @@ struct DeviceChangeEvent;
 #ifdef HAVE_FFMPEG
 struct AVFormatContext;
 struct AVCodecContext;
+struct AVCodecParameters;
+struct AVCodec;
 struct AVFrame;
 struct AVPacket;
 struct SwsContext;
 struct AVStream;
 struct AVOutputFormat;
+struct AVBufferRef;
+enum AVHWDeviceType : int;
 #endif
 
 // Forward declarations for libjpeg-turbo (conditional compilation)
