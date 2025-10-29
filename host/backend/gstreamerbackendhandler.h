@@ -98,12 +98,24 @@ public:
 
     // Video recording methods
     bool startRecording(const QString& outputPath, const QString& format = "mp4", int videoBitrate = 2000000) override;
-    void stopRecording() override;
+    bool stopRecording() override;
     void pauseRecording() override;
     void resumeRecording() override;
     bool isRecording() const override;
+    bool isPaused() const;
     QString getCurrentRecordingPath() const override;
     qint64 getRecordingDuration() const override;
+    
+    // Advanced recording methods
+    bool isPipelineReady() const;
+    bool supportsAdvancedRecording() const;
+    bool startRecordingAdvanced(const QString& outputPath, const RecordingConfig& config);
+    bool forceStopRecording();
+    QString getLastError() const;
+    
+    // Recording statistics
+    bool supportsRecordingStats() const;
+    qint64 getRecordingFileSize() const;
     
     // Recording configuration
     struct RecordingConfig {
@@ -174,6 +186,9 @@ private:
     qint64 m_recordingPausedTime;
     qint64 m_totalPausedDuration;
     int m_recordingFrameNumber;
+    
+    // Error tracking
+    QString m_lastError;
     
     // Frame-based recording using external process
     QProcess* m_recordingProcess;

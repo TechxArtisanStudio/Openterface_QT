@@ -37,6 +37,7 @@
 #include <QGraphicsPixmapItem>
 #include <QGraphicsScene>
 #include <QTimer>
+#include <QFileInfo>
 
 // FFmpeg includes (conditional compilation)
 #ifdef HAVE_FFMPEG
@@ -2066,7 +2067,7 @@ bool FFmpegBackendHandler::startRecording(const QString& outputPath, const QStri
 #endif
 }
 
-void FFmpegBackendHandler::stopRecording()
+bool FFmpegBackendHandler::stopRecording()
 {
 #ifdef HAVE_FFMPEG
     qCDebug(log_ffmpeg_backend) << "Stopping recording";
@@ -2076,7 +2077,7 @@ void FFmpegBackendHandler::stopRecording()
         QMutexLocker locker(&m_recordingMutex);
         if (!m_recordingActive) {
             qCDebug(log_ffmpeg_backend) << "Recording is not active";
-            return;
+            return false;
         }
         m_recordingActive = false;
         m_recordingPaused = false;
@@ -2095,8 +2096,10 @@ void FFmpegBackendHandler::stopRecording()
     
     qCInfo(log_ffmpeg_backend) << "Recording stopped successfully";
     emit recordingStopped();
+    return true;
 #else
     qCDebug(log_ffmpeg_backend) << "FFmpeg not available: stopRecording() called but no implementation";
+    return false;
 #endif
 }
 
@@ -2575,6 +2578,66 @@ void FFmpegBackendHandler::cleanupRecording()
     
     qCDebug(log_ffmpeg_backend) << "Recording cleanup completed";
 }
+
+// Advanced recording methods
+bool FFmpegBackendHandler::isCameraReady() const
+{
+#ifdef HAVE_FFMPEG
+    return m_captureRunning && m_formatContext != nullptr && m_codecContext != nullptr;
+#else
+    return false;
+#endif
+}
+
+bool FFmpegBackendHandler::supportsAdvancedRecording() const
+{
+    return true; // FFmpeg backend always supports advanced recording
+}
+
+bool FFmpegBackendHandler::startRecordingAdvanced(const QString& outputPath, const RecordingConfig& config)
+{
+    setRecordingConfig(config);
+    return startRecording(outputPath, config.format, config.videoBitrate);
+}
+
+bool FFmpegBackendHandler::forceStopRecording()
+{
+#ifdef HAVE_FFMPEG
+    qCDebug(log_ffmpeg_backend) << "Force stopping recording";
+    m_recordingActive = false;
+    m_recordingPaused = false;
+    cleanupRecording();
+    emit recordingStopped();
+    return true;
+#else
+    return false;
+#endif
+}
+
+QString FFmpegBackendHandler::getLastError() const
+{
+    return m_lastError;
+}
+
+bool FFmpegBackendHandler::supportsRecordingStats() const
+{
+    return true; // FFmpeg backend supports recording statistics
+}
+
+qint64 FFmpegBackendHandler::getRecordingFileSize() const
+{
+#ifdef HAVE_FFMPEG
+    if (m_recordingOutputPath.isEmpty() || !m_recordingActive) {
+        return 0;
+    }
+    
+    QFileInfo fileInfo(m_recordingOutputPath);
+    return fileInfo.size();
+#else
+    return 0;
+#endif
+}
+
 #endif // HAVE_FFMPEG
 
 

@@ -40,6 +40,9 @@ struct DeviceChangeEvent;
 
 // Forward declarations for FFmpeg types (conditional compilation)
 #ifdef HAVE_FFMPEG
+extern "C" {
+    #include <libavutil/hwcontext.h>
+}
 struct AVFormatContext;
 struct AVCodecContext;
 struct AVCodecParameters;
@@ -50,7 +53,6 @@ struct SwsContext;
 struct AVStream;
 struct AVOutputFormat;
 struct AVBufferRef;
-enum AVHWDeviceType : int;
 #endif
 
 // Forward declarations for libjpeg-turbo (conditional compilation)
@@ -94,13 +96,24 @@ public:
 
     // Video recording methods
     bool startRecording(const QString& outputPath, const QString& format = "mp4", int videoBitrate = 2000000);
-    void stopRecording();
+    bool stopRecording();
     void pauseRecording();
     void resumeRecording();
     bool isRecording() const;
     bool isPaused() const;
     QString getCurrentRecordingPath() const;
     qint64 getRecordingDuration() const; // in milliseconds
+    
+    // Advanced recording methods
+    bool isCameraReady() const;
+    bool supportsAdvancedRecording() const;
+    bool startRecordingAdvanced(const QString& outputPath, const RecordingConfig& config);
+    bool forceStopRecording();
+    QString getLastError() const;
+    
+    // Recording statistics
+    bool supportsRecordingStats() const;
+    qint64 getRecordingFileSize() const;
     
     // Recording configuration
     struct RecordingConfig {
@@ -247,6 +260,9 @@ private:
     // Output management
     QGraphicsVideoItem* m_graphicsVideoItem;
     VideoPane* m_videoPane;
+    
+    // Error tracking
+    QString m_lastError;
     
 #ifdef HAVE_FFMPEG
     // Thread safety
