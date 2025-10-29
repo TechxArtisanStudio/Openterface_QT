@@ -5,7 +5,7 @@
 set -e
 
 # Configuration
-DOCKER_IMAGE="ghcr.io/techxartisanstudio/static-qtbuild-complete:ubuntu-22.04-amd64"
+DOCKER_IMAGE="ghcr.io/chow411/shared-qtbuild-complete:sha-ca1b7d7-amd64"
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BUILD_DIR="${PROJECT_DIR}/build"
 
