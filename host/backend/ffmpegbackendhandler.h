@@ -94,6 +94,16 @@ public:
     void processFrame();
     bool isDirectCaptureRunning() const;
 
+    // Recording configuration
+    struct RecordingConfig {
+        QString outputPath;
+        QString format = "mp4";          // mp4, avi, mov
+        QString videoCodec = "libx264";   // libx264, libx265, mpeg4
+        int videoBitrate = 2000000;       // 2 Mbps default
+        int videoQuality = 23;            // CRF value for x264 (lower = better quality)
+        bool useHardwareAcceleration = false;
+    };
+
     // Video recording methods
     bool startRecording(const QString& outputPath, const QString& format = "mp4", int videoBitrate = 2000000);
     bool stopRecording();
@@ -114,15 +124,6 @@ public:
     // Recording statistics
     bool supportsRecordingStats() const;
     qint64 getRecordingFileSize() const;
-    
-    // Recording configuration
-    struct RecordingConfig {
-        QString outputPath;
-        QString format = "mp4";          // mp4, avi, mov
-        QString videoCodec = "libx264";   // libx264, libx265, mpeg4
-        int videoBitrate = 2000000;       // 2 Mbps default
-        int videoQuality = 23;            // CRF value for x264 (lower = better quality)
-        bool useHardwareAcceleration = false;
     };
     
     void setRecordingConfig(const RecordingConfig& config);

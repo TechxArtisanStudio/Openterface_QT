@@ -96,6 +96,16 @@ public:
     // Pipeline string generation
     QString generatePipelineString(const QString& device, const QSize& resolution, int framerate, const QString& videoSink) const;
 
+    // Recording configuration
+    struct RecordingConfig {
+        QString outputPath;
+        QString format = "mp4";          // mp4, avi, mov, mkv
+        QString videoCodec = "x264enc";  // x264enc, x265enc, vp8enc, vp9enc
+        int videoBitrate = 2000000;      // 2 Mbps default
+        int videoQuality = 23;           // Quality setting
+        bool useHardwareAcceleration = false;
+    };
+
     // Video recording methods
     bool startRecording(const QString& outputPath, const QString& format = "mp4", int videoBitrate = 2000000) override;
     bool stopRecording() override;
@@ -116,13 +126,6 @@ public:
     // Recording statistics
     bool supportsRecordingStats() const;
     qint64 getRecordingFileSize() const;
-    
-    // Recording configuration
-    struct RecordingConfig {
-        QString outputPath;
-        QString format = "mp4";          // mp4, avi, mov, mkv
-        QString videoCodec = "x264enc";  // x264enc, x265enc, vp8enc, vp9enc
-        int videoBitrate = 2000000;      // 2 Mbps default
         int videoQuality = 23;           // Quality setting
         bool useHardwareAcceleration = false;
     };

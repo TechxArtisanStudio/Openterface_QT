@@ -113,7 +113,7 @@ public:
 
     // Video recording interface (virtual methods for backend implementations)
     virtual bool startRecording(const QString& outputPath, const QString& format = "mp4", int videoBitrate = 2000000) { return false; }
-    virtual void stopRecording() {}
+    virtual bool stopRecording() { return false; }
     virtual void pauseRecording() {}
     virtual void resumeRecording() {}
     virtual bool isRecording() const { return false; }
