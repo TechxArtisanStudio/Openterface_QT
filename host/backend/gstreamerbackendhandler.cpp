@@ -29,6 +29,7 @@
 #include <QWidget>
 #include <QFile>
 #include <QDir>
+#include <QFileInfo>
 #include <QLoggingCategory>
 #include <QGraphicsVideoItem>
 #include <QGraphicsView>
@@ -1998,13 +1999,13 @@ bool GStreamerBackendHandler::startRecording(const QString& outputPath, const QS
     return true;
 }
 
-void GStreamerBackendHandler::stopRecording()
+bool GStreamerBackendHandler::stopRecording()
 {
     qCDebug(log_gstreamer_backend) << "GStreamer: Stopping valve-based recording";
     
     if (!m_recordingActive) {
         qCDebug(log_gstreamer_backend) << "No active recording to stop";
-        return;
+        return false;
     }
 
 #ifdef HAVE_GSTREAMER
@@ -2080,6 +2081,7 @@ void GStreamerBackendHandler::stopRecording()
     
     qCDebug(log_gstreamer_backend) << "Valve-based recording stopped successfully";
     emit recordingStopped();
+    return true;
 }
 
 void GStreamerBackendHandler::pauseRecording()
@@ -3741,4 +3743,75 @@ GstFlowReturn GStreamerBackendHandler::onNewRecordingSample(GstAppSink* sink)
     return GST_FLOW_OK;
 }
 #endif
+
+// Advanced recording methods
+bool GStreamerBackendHandler::isPipelineReady() const
+{
+#ifdef HAVE_GSTREAMER
+    return m_pipelineRunning && m_pipeline != nullptr;
+#else
+    return false;
+#endif
+}
+
+bool GStreamerBackendHandler::supportsAdvancedRecording() const
+{
+    return true; // GStreamer backend supports advanced recording
+}
+
+bool GStreamerBackendHandler::startRecordingAdvanced(const QString& outputPath, const RecordingConfig& config)
+{
+    setRecordingConfig(config);
+    return startRecording(outputPath, config.format, config.videoBitrate);
+}
+
+bool GStreamerBackendHandler::forceStopRecording()
+{
+#ifdef HAVE_GSTREAMER
+    qCDebug(log_gstreamer_backend) << "Force stopping recording";
+    m_recordingActive = false;
+    m_recordingPaused = false;
+    m_recordingOutputPath.clear();
+    
+    // Clean up recording elements if they exist
+    if (m_recordingValve) {
+        g_object_set(m_recordingValve, "drop", TRUE, NULL);
+    }
+    
+    emit recordingStopped();
+    return true;
+#else
+    return false;
+#endif
+}
+
+QString GStreamerBackendHandler::getLastError() const
+{
+    return m_lastError;
+}
+
+bool GStreamerBackendHandler::isPaused() const
+{
+    return m_recordingPaused;
+}
+
+bool GStreamerBackendHandler::supportsRecordingStats() const
+{
+    return true; // GStreamer backend supports recording statistics
+}
+
+qint64 GStreamerBackendHandler::getRecordingFileSize() const
+{
+#ifdef HAVE_GSTREAMER
+    if (m_recordingOutputPath.isEmpty() || !m_recordingActive) {
+        return 0;
+    }
+    
+    QFileInfo fileInfo(m_recordingOutputPath);
+    return fileInfo.size();
+#else
+    return 0;
+#endif
+}
+
 #endif // HAVE_GSTREAMER
