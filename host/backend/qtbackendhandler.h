@@ -70,7 +70,7 @@ public:
     
     // Recording functionality - Windows-specific implementation
     bool startRecording(const QString& outputPath, const QString& format, int videoBitrate) override;
-    void stopRecording() override;
+    bool stopRecording() override;
     void pauseRecording() override;
     void resumeRecording() override;
     bool isRecording() const override;

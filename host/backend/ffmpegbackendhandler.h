@@ -124,7 +124,6 @@ public:
     // Recording statistics
     bool supportsRecordingStats() const;
     qint64 getRecordingFileSize() const;
-    };
     
     void setRecordingConfig(const RecordingConfig& config);
     RecordingConfig getRecordingConfig() const;

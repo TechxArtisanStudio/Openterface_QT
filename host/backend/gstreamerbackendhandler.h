@@ -126,9 +126,6 @@ public:
     // Recording statistics
     bool supportsRecordingStats() const;
     qint64 getRecordingFileSize() const;
-        int videoQuality = 23;           // Quality setting
-        bool useHardwareAcceleration = false;
-    };
     
     void setRecordingConfig(const RecordingConfig& config);
     RecordingConfig getRecordingConfig() const;
