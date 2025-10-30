@@ -64,6 +64,7 @@ RUN echo "Building FFmpeg ${FFMPEG_VERSION} with hardware acceleration..." && \
         --enable-nonfree \
         --enable-hwaccels \
         --enable-vaapi \
+        --enable-postproc \
         --enable-decoder=mjpeg \
         --enable-decoder=mjpeg_vaapi && \
     make -j$(nproc) && \
