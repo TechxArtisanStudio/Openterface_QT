@@ -1023,18 +1023,14 @@ void CameraManager::startRecording()
                 
                 // Use enhanced startRecording method with additional parameters if available
                 if (ffmpeg->supportsAdvancedRecording()) {
-                    // Pass all recording settings from GlobalSettings
-                    recordingSuccess = ffmpeg->startRecordingAdvanced(
-                        outputPath,
-                        format,
-                        bitrate,
-                        frameRate,
-                        pixelFormat,
-                        keyFrameInterval,
-                        audioCodec,
-                        audioBitrate,
-                        audioSampleRate
-                    );
+                    // Create RecordingConfig from settings
+                    FFmpegBackendHandler::RecordingConfig config;
+                    config.outputPath = outputPath;
+                    config.format = format;
+                    config.videoBitrate = bitrate;
+                    // Note: RecordingConfig doesn't have all these fields yet
+                    // We'll use the available fields
+                    recordingSuccess = ffmpeg->startRecordingAdvanced(outputPath, config);
                 } else {
                     // Fallback to basic recording if advanced isn't supported
                     recordingSuccess = ffmpeg->startRecording(outputPath);
@@ -1071,18 +1067,14 @@ void CameraManager::startRecording()
                 
                 // Use enhanced startRecording method with additional parameters if available
                 if (gst->supportsAdvancedRecording()) {
-                    // Pass all recording settings from GlobalSettings
-                    recordingSuccess = gst->startRecordingAdvanced(
-                        outputPath,
-                        format,
-                        bitrate,
-                        frameRate,
-                        pixelFormat,
-                        keyFrameInterval,
-                        audioCodec,
-                        audioBitrate,
-                        audioSampleRate
-                    );
+                    // Create RecordingConfig from settings
+                    GStreamerBackendHandler::RecordingConfig config;
+                    config.outputPath = outputPath;
+                    config.format = format;
+                    config.videoBitrate = bitrate;
+                    // Note: RecordingConfig doesn't have all these fields yet
+                    // We'll use the available fields
+                    recordingSuccess = gst->startRecordingAdvanced(outputPath, config);
                 } else {
                     // Fallback to basic recording if advanced isn't supported
                     recordingSuccess = gst->startRecording(outputPath);
