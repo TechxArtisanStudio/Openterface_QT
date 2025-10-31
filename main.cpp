@@ -297,9 +297,8 @@ int main(int argc, char *argv[])
         EnvironmentSetupDialog envDialog;
         qDebug() << "Environment setup dialog opened";
         if (envDialog.exec() == QDialog::Rejected) {
-            qDebug() << "Driver dialog rejected";
-            QApplication::quit(); // Quit the application if the dialog is rejected
-            return 0;
+            qDebug() << "Driver dialog rejected - continuing anyway";
+            // Continue running the application even if dialog is rejected
         }
     } 
     
@@ -316,12 +315,9 @@ int main(int argc, char *argv[])
     KeyboardLayoutManager::getInstance().loadLayouts(keyboardConfigPath);
     
     
-    // writeLog("Environment setup completed");
     LanguageManager languageManager(&app);
     languageManager.initialize("en");
-    // writeLog("languageManager initialized");
     MainWindow window(&languageManager);
-    // writeLog("Application started");
     window.show();
 
     int result = app.exec();
