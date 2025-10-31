@@ -46,7 +46,7 @@ jobs:
     environment: ${{ github.event.inputs.TARGET_ENV || 'Openterface_build' }}
     
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
@@ -57,7 +57,7 @@ jobs:
 
       - name: Cache Qt
         id: cache-qt
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: ${{ runner.temp }}/Qt
           key: ${{ env.QT_CACHE_KEY }}
@@ -92,7 +92,7 @@ jobs:
           target: desktop
           arch: win64_mingw
           dir: ${{ runner.temp }}
-          modules: qtmultimedia qtserialport
+          modules: qtmultimedia qtserialport qtimageformats qtsvg qtnetwork
           setup-python: false
 
       - name: Download and Unzip Jom
@@ -124,7 +124,7 @@ jobs:
           lrelease ${{ env.SOURCE_DIR }}\openterfaceQT.pro
           
           qmake -v
-          qmake -r ${{ env.SOURCE_DIR }}\openterfaceQT.pro
+          qmake -r ${{ env.SOURCE_DIR }}\openterfaceQT.pro CONFIG+=release
           if errorlevel 1 exit /b 1
           
           echo "Building with mingw32-make..."
@@ -156,7 +156,7 @@ jobs:
           
           echo "Running windeployqt..."
           cd ${{ env.PACKAGE_DIR }}
-          windeployqt --qmldir ${{ env.SOURCE_DIR }} ${{ env.EXE_NAME }} --compiler-runtime --multimedia
+          windeployqt ${{ env.EXE_NAME }} --compiler-runtime --multimedia --network
           
 
       - name: Move build artifacts
