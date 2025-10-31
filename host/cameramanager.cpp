@@ -3396,8 +3396,7 @@ bool CameraManager::deactivateCameraByPortChain(const QString& portChain)
             qCDebug(log_ui_camera) << "Clearing graphics video output";
             // Temporarily disconnect and reconnect to clear any buffered frames
             m_captureSession.setVideoOutput(nullptr);
-            // Note: Brief delay removed to prevent blocking main thread during device unplugging
-            // The frame buffer will clear naturally without the artificial delay
+            QThread::msleep(50); // Brief delay to ensure frame buffer is cleared
             // Reconnect but with no camera source, so it displays blank
             m_captureSession.setVideoOutput(m_graphicsVideoOutput);
         }
@@ -3445,9 +3444,15 @@ bool CameraManager::tryAutoSwitchToNewDevice(const QString& portChain)
     refreshAvailableCameraDevices();
     qCDebug(log_ui_camera) << "  Available cameras after 1st refresh:" << m_availableCameraDevices.size();
     
-    // Note: The second refresh and device enumeration delay has been removed to prevent
-    // blocking the main thread. The system will retry if the device is not immediately available.
-    qCDebug(log_ui_camera) << "Proceeding with auto-switch using currently available devices";
+    // Add a small delay to allow the system to fully enumerate the new camera device
+    // This is especially important on Windows where device enumeration can take time
+    qCDebug(log_ui_camera) << "Waiting 500ms for system to fully enumerate camera device...";
+    QThread::msleep(500);
+    
+    // Refresh again after the delay to ensure we have the latest device list
+    qCDebug(log_ui_camera) << "Refreshing available camera devices before auto-switch (2nd refresh)";
+    refreshAvailableCameraDevices();
+    qCDebug(log_ui_camera) << "  Available cameras after 2nd refresh:" << m_availableCameraDevices.size();
     
     // Try to find a matching camera device for the port chain
     qCDebug(log_ui_camera) << "Attempting to find matching camera device for port chain:" << portChain;
@@ -3808,40 +3813,31 @@ void CameraManager::connectToHotplugMonitor()
                 if (hasOpenterfaceCameraInQt && !hasCameraInfoFromDeviceManager) {
                     qCDebug(log_ui_camera) << "Using fallback: switching to Qt-detected Openterface camera";
                     
-                    // Use QTimer to avoid blocking the main thread
-                    QString portChainCopy = device.portChain;
-                    QTimer::singleShot(100, this, [this, portChainCopy]() {
-                        // Find the Openterface camera in Qt devices
-                        for (const QCameraDevice& cam : m_availableCameraDevices) {
-                            if (cam.description().contains("Openterface", Qt::CaseInsensitive)) {
-                                qCDebug(log_ui_camera) << "Switching to Openterface camera:" << cam.description();
-                                bool switchSuccess = switchToCameraDevice(cam, portChainCopy);
-                                if (switchSuccess && m_graphicsVideoOutput) {
-                                    startCamera();
-                                    qCInfo(log_ui_camera) << "✓ Camera auto-switched to Openterface device (fallback method)";
-                                } else {
-                                    qCWarning(log_ui_camera) << "✗ Camera auto-switch FAILED (fallback method)";
-                                }
-                                qCDebug(log_ui_camera) << "========================================";
-                                return;
+                    // Find the Openterface camera in Qt devices
+                    for (const QCameraDevice& cam : m_availableCameraDevices) {
+                        if (cam.description().contains("Openterface", Qt::CaseInsensitive)) {
+                            qCDebug(log_ui_camera) << "Switching to Openterface camera:" << cam.description();
+                            bool switchSuccess = switchToCameraDevice(cam, device.portChain);
+                            if (switchSuccess && m_graphicsVideoOutput) {
+                                startCamera();
+                                qCInfo(log_ui_camera) << "✓ Camera auto-switched to Openterface device (fallback method)";
+                            } else {
+                                qCWarning(log_ui_camera) << "✗ Camera auto-switch FAILED (fallback method)";
                             }
+                            qCDebug(log_ui_camera) << "========================================";
+                            return;
                         }
-                    });
-                    return;
+                    }
                 }
                 
                 // Try to auto-switch to the new camera device using normal method
-                // Use QTimer to defer this operation and avoid blocking the main thread
-                QString portChainCopy = device.portChain;
-                QTimer::singleShot(500, this, [this, portChainCopy]() {
-                    bool switchSuccess = tryAutoSwitchToNewDevice(portChainCopy);
-                    if (switchSuccess) {
-                        qCInfo(log_ui_camera) << "✓ Camera auto-switched to new device at port:" << portChainCopy;
-                    } else {
-                        qCWarning(log_ui_camera) << "✗ Camera auto-switch FAILED for port:" << portChainCopy;
-                    }
-                    qCDebug(log_ui_camera) << "========================================";
-                });
+                bool switchSuccess = tryAutoSwitchToNewDevice(device.portChain);
+                if (switchSuccess) {
+                    qCInfo(log_ui_camera) << "✓ Camera auto-switched to new device at port:" << device.portChain;
+                } else {
+                    qCWarning(log_ui_camera) << "✗ Camera auto-switch FAILED for port:" << device.portChain;
+                }
+                qCDebug(log_ui_camera) << "========================================";
             });
             
     qCDebug(log_ui_camera) << "CameraManager successfully connected to hotplug monitor";

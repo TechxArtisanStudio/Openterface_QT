@@ -808,18 +808,15 @@ void AudioManager::connectToHotplugMonitor()
                 // Give the newly plugged device some time to fully initialize
                 // Audio devices often need a moment to become ready after hotplug
                 qCDebug(log_core_host_audio) << "Waiting 500ms for new audio device to initialize...";
+                QThread::msleep(500);
                 
-                // Use QTimer::singleShot instead of QThread::msleep to avoid blocking the main thread
-                QString portChainCopy = device.portChain;
-                QTimer::singleShot(500, this, [this, portChainCopy]() {
-                    // Switch to the new audio device and start capturing
-                    bool switchSuccess = switchToAudioDeviceByPortChain(portChainCopy);
-                    if (switchSuccess) {
-                        qCInfo(log_core_host_audio) << "✓ Successfully started audio capture for new Openterface device at port:" << portChainCopy;
-                    } else {
-                        qCWarning(log_core_host_audio) << "Failed to start audio capture for new Openterface device at port:" << portChainCopy;
-                    }
-                });
+                // Switch to the new audio device and start capturing
+                bool switchSuccess = switchToAudioDeviceByPortChain(device.portChain);
+                if (switchSuccess) {
+                    qCInfo(log_core_host_audio) << "✓ Successfully started audio capture for new Openterface device at port:" << device.portChain;
+                } else {
+                    qCWarning(log_core_host_audio) << "Failed to start audio capture for new Openterface device at port:" << device.portChain;
+                }
             });
             
     qCDebug(log_core_host_audio) << "AudioManager successfully connected to hotplug monitor";
