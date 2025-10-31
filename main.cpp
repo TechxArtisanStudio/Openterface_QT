@@ -30,6 +30,10 @@
 #include <QCoreApplication>
 #include <QtPlugin>
 
+#ifdef Q_OS_WIN
+#include <windows.h>
+#endif
+
 // Import static Qt plugins only when building with static plugins
 #if defined(QT_STATIC) || defined(QT_STATICPLUGIN)
 // Image format plugins
@@ -88,12 +92,14 @@ void customMessageHandler(QtMsgType type, const QMessageLogContext &context, con
             break;
     }
 
-    // QFile outFile("log.txt");
-    // outFile.open(QIODevice::WriteOnly | QIODevice::Append);
-    // QTextStream textStream(&outFile);
-    // textStream << txt << endl;
-    
+    // For Windows GUI applications, std::cout may not be available and can cause crashes
+    // Use OutputDebugString instead for debug output
+#ifdef Q_OS_WIN
+    OutputDebugStringW(reinterpret_cast<const wchar_t*>(txt.utf16()));
+    OutputDebugStringW(L"\n");
+#else
     std::cout << txt.toStdString() << std::endl;
+#endif
 }
 
 void writeLog(const QString &message){

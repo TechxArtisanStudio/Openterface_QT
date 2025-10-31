@@ -24,6 +24,10 @@
 
 #include "loghandler.h"
 #include "globalsetting.h"
+
+#ifdef Q_OS_WIN
+#include <windows.h>
+#endif
 LogHandler::LogHandler(QObject *parent)
     : QObject(parent)
 {
@@ -127,10 +131,12 @@ void LogHandler::customMessageHandler(QtMsgType type, const QMessageLogContext &
             break;
     }
 
-    // QFile outFile("log.txt");
-    // outFile.open(QIODevice::WriteOnly | QIODevice::Append);
-    // QTextStream textStream(&outFile);
-    // textStream << txt << endl;
-    
+    // For Windows GUI applications, std::cout may not be available and can cause crashes
+    // Use OutputDebugString instead for debug output
+#ifdef Q_OS_WIN
+    OutputDebugStringW(reinterpret_cast<const wchar_t*>(txt.utf16()));
+    OutputDebugStringW(L"\n");
+#else
     std::cout << txt.toStdString() << std::endl;
+#endif
 }
