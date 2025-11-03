@@ -100,21 +100,8 @@ mkdir -p "${PKG_ROOT}/usr/share/applications"
 mkdir -p "${PKG_ROOT}/usr/share/metainfo"
 mkdir -p "${PKG_ROOT}/usr/share/openterfaceQT/translations"
 
-# Compute Debian Depends (default for Qt 6.4.x) for shared builds
+# Compute Debian Depends (bundled Qt 6.6.3+ for shared builds)
 DEPENDS="\
-libqt6core6 (>= 6.4), \
-libqt6gui6 (>= 6.4), \
-libqt6widgets6 (>= 6.4), \
-libqt6network6 (>= 6.4), \
-libqt6multimedia6 (>= 6.4), \
-libqt6multimediawidgets6 (>= 6.4), \
-libqt6serialport6 (>= 6.4), \
-libqt6svg6 (>= 6.4), \
-libqt6xml6 (>= 6.4), \
-libqt6dbus6 (>= 6.4), \
-libqt6opengl6 (>= 6.4), \
-libqt6openglwidgets6 (>= 6.4), \
-libqt6concurrent6 (>= 6.4), \
 libxkbcommon0, \
 libwayland-client0, \
 libegl1, \
@@ -166,9 +153,42 @@ else
 	exit 1
 fi
 
+# Install patchelf for rpath manipulation
+apt update && apt install -y patchelf
+
+# Copy Qt libraries to bundle them in the deb
+QT_LIB_DIR="/opt/Qt6/lib"
+if [ -d "${QT_LIB_DIR}" ]; then
+    mkdir -p "${PKG_ROOT}/usr/local/lib"
+    echo "Copying Qt libraries..."
+    cp -a "${QT_LIB_DIR}"/libQt6*.so* "${PKG_ROOT}/usr/local/lib/" 2>/dev/null || true
+fi
+
+# Copy Qt plugins
+QT_PLUGIN_DIR="/opt/Qt6/plugins"
+if [ -d "${QT_PLUGIN_DIR}" ]; then
+    mkdir -p "${PKG_ROOT}/usr/local/lib/qt6/plugins"
+    echo "Copying Qt plugins..."
+    cp -ra "${QT_PLUGIN_DIR}"/* "${PKG_ROOT}/usr/local/lib/qt6/plugins/" 2>/dev/null || true
+fi
+
+# Copy Qt QML imports
+QT_QML_DIR="/opt/Qt6/qml"
+if [ -d "${QT_QML_DIR}" ]; then
+    mkdir -p "${PKG_ROOT}/usr/local/lib/qt6/qml"
+    echo "Copying Qt QML imports..."
+    cp -ra "${QT_QML_DIR}"/* "${PKG_ROOT}/usr/local/lib/qt6/qml/" 2>/dev/null || true
+fi
+
+# Update the binary's rpath to point to bundled libraries
+if [ -f "${PKG_ROOT}/usr/local/bin/openterfaceQT" ]; then
+    echo "Updating rpath for bundled Qt libraries..."
+    patchelf --set-rpath '/usr/local/lib' "${PKG_ROOT}/usr/local/bin/openterfaceQT"
+fi
+
 # Copy desktop file (ensure Exec uses installed path and Icon basename is openterfaceQT)
 if [ -f "${SRC}/com.openterface.openterfaceQT.desktop" ]; then
-	sed -e 's|^Exec=.*$|Exec=/usr/local/bin/openterfaceQT|g' \
+	sed -e 's|^Exec=.*$|Exec=env QT_PLUGIN_PATH=/usr/local/lib/qt6/plugins QML2_IMPORT_PATH=/usr/local/lib/qt6/qml /usr/local/bin/openterfaceQT|g' \
 		-e 's|^Icon=.*$|Icon=openterfaceQT|g' \
 		"${SRC}/com.openterface.openterfaceQT.desktop" > "${PKG_ROOT}/usr/share/applications/com.openterface.openterfaceQT.desktop"
 fi
