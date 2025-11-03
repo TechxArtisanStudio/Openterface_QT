@@ -20,6 +20,7 @@ RUN apt-get install -y \
         curl \
         wget \
         ca-certificates \
+        jq \
         sudo \
         udev \
         usbutils
