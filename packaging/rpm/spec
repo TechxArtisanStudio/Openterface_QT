@@ -17,14 +17,13 @@ mkdir -p %{buildroot}/usr/bin
 mkdir -p %{buildroot}/usr/lib
 mkdir -p %{buildroot}/usr/lib/qt6/plugins
 mkdir -p %{buildroot}/usr/lib/qt6/qml
-mkdir -p %{buildroot}/usr/share/icons/hicolor/256x256/apps
 mkdir -p %{buildroot}/usr/share/applications
 
 cp -r %{_sourcedir}/openterfaceQT %{buildroot}/usr/bin/
 cp %{_sourcedir}/libQt6*.so* %{buildroot}/usr/lib/ 2>/dev/null || true
 cp -r %{_sourcedir}/qt6-plugins/* %{buildroot}/usr/lib/qt6/plugins/ 2>/dev/null || true
 cp -r %{_sourcedir}/qt6-qml/* %{buildroot}/usr/lib/qt6/qml/ 2>/dev/null || true
-cp %{_sourcedir}/icon_256.png %{buildroot}/usr/share/icons/hicolor/256x256/apps/openterfaceQT.png
+cp %{_sourcedir}/icon_256.png %{buildroot}/usr/share/icons/hicolor/256x256/apps/openterfaceQT.png || true
 
 cat > %{buildroot}/usr/share/applications/openterfaceQT.desktop << EOF
 [Desktop Entry]
@@ -43,9 +42,8 @@ EOF
 /usr/lib/libQt6*.so*
 /usr/lib/qt6/plugins/
 /usr/lib/qt6/qml/
-/usr/share/icons/hicolor/256x256/apps/openterfaceQT.png
 /usr/share/applications/openterfaceQT.desktop
 
 %changelog
-* Tue Mar 19 2025 Your Name <your.email@example.com> - ${VERSION}-1
+* Tue Mar 19 2024 Your Name <your.email@example.com> - ${VERSION}-1
 - Initial RPM release
