@@ -7,30 +7,16 @@ on:
       - 'docker/testos/Dockerfile.ubuntu-test-shared'
       - 'docker/install-openterface-shared.sh'
       - '.github/workflows/docker-test.yaml'
-      - 'CMakeLists.txt'
-      - '*.pro'
-      - 'src/**'
-      - 'lib/**'
-      - 'host/**'
-      - 'device/**'
-      - 'ui/**'
-      - 'serial/**'
-      - 'video/**'
   pull_request:
     branches: ["main", "dev"]
     paths:
       - 'docker/testos/Dockerfile.ubuntu-test-shared'
       - 'docker/install-openterface-shared.sh'
       - '.github/workflows/docker-test.yaml'
-      - 'CMakeLists.txt'
-      - '*.pro'
-      - 'src/**'
-      - 'lib/**'
-      - 'host/**'
-      - 'device/**'
-      - 'ui/**'
-      - 'serial/**'
-      - 'video/**'
+  workflow_run:
+    workflows: ["Linux Build"]
+    types:
+      - completed
   workflow_dispatch:
     inputs:
       test_type:
@@ -66,52 +52,70 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Build Linux Shared Package
+      - name: Download Latest Linux Build Artifacts
         run: |
-          echo "🔨 Building Linux shared package (.deb)"
-          echo "Current directory: $(pwd)"
-          echo "Available files in repo:"
-          ls -la | head -20
+          echo "� Downloading latest Linux shared build artifacts..."
           
-          # Check if CMakeLists.txt exists
-          if [ -f "CMakeLists.txt" ]; then
-            echo "✅ Found CMakeLists.txt"
-            
-            # Create build directory
-            mkdir -p build-linux
-            cd build-linux
-            
-            # Configure with CMake
-            cmake -DCMAKE_BUILD_TYPE=Release ..
-            
-            # Build the package
-            cmake --build . --config Release
-            
-            # Create DEB package
-            cpack -G DEB
-            
-            # Copy the created .deb to the expected location
-            if ls *.deb 1> /dev/null 2>&1; then
-              echo "✅ DEB package created successfully"
-              ls -lh *.deb
-              cd ..
-              mkdir -p build
-              cp build-linux/*.deb build/
-            else
-              echo "⚠️ No DEB package found after cpack, checking for built binaries..."
-              ls -la
-            fi
-          else
-            echo "⚠️ CMakeLists.txt not found, checking for alternative build method..."
-            # Check for Qt project file
-            if ls *.pro 1> /dev/null 2>&1; then
-              echo "ℹ️ Found Qt .pro file, would need qmake build"
-            fi
+          # Create build directory
+          mkdir -p build
+          
+          # Get the latest successful linux-build workflow run
+          LATEST_RUN=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            "https://api.github.com/repos/${{ github.repository }}/actions/workflows/linux-build.yaml/runs?status=success&head_branch=${{ github.ref_name }}" \
+            | jq -r '.workflow_runs[0]')
+          
+          if [ "$LATEST_RUN" = "null" ] || [ -z "$LATEST_RUN" ]; then
+            echo "⚠️ No successful linux-build runs found for branch ${{ github.ref_name }}"
+            echo "Trying to get from main branch..."
+            LATEST_RUN=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+              "https://api.github.com/repos/${{ github.repository }}/actions/workflows/linux-build.yaml/runs?status=success&head_branch=main" \
+              | jq -r '.workflow_runs[0]')
           fi
           
-          cd ..
-          echo "📦 Build artifacts in ./build directory:"
-          ls -la build/ || echo "Build directory not found"
+          if [ "$LATEST_RUN" = "null" ] || [ -z "$LATEST_RUN" ]; then
+            echo "❌ No successful linux-build runs found"
+            exit 1
+          fi
+          
+          RUN_ID=$(echo "$LATEST_RUN" | jq -r '.id')
+          echo "✅ Found latest linux-build run: $RUN_ID"
+          
+          # Get all artifacts from this run
+          ARTIFACTS=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            "https://api.github.com/repos/${{ github.repository }}/actions/runs/$RUN_ID/artifacts")
+          
+          # Find and download the shared .deb artifact
+          DEB_ARTIFACT=$(echo "$ARTIFACTS" | jq -r '.artifacts[] | select(.name | contains("shared.deb")) | .id' | head -1)
+          
+          if [ -z "$DEB_ARTIFACT" ] || [ "$DEB_ARTIFACT" = "null" ]; then
+            echo "❌ No shared .deb artifact found in latest build"
+            echo "Available artifacts:"
+            echo "$ARTIFACTS" | jq -r '.artifacts[].name'
+            exit 1
+          fi
+          
+          echo "📦 Found shared .deb artifact: $DEB_ARTIFACT"
+          
+          # Download the artifact
+          echo "⬇️ Downloading artifact..."
+          curl -L -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            -o artifact.zip \
+            "https://api.github.com/repos/${{ github.repository }}/actions/artifacts/$DEB_ARTIFACT/zip"
+          
+          # Extract the deb file
+          unzip -j artifact.zip -d build/
+          
+          # Verify the deb was extracted
+          if ls build/*.deb 1> /dev/null 2>&1; then
+            echo "✅ DEB package extracted successfully"
+            ls -lh build/*.deb
+          else
+            echo "❌ Failed to extract DEB package"
+            exit 1
+          fi
+          
+          echo "📦 Build artifacts ready in ./build directory:"
+          ls -la build/
 
       - name: Build Docker image (Shared)
         run: |
