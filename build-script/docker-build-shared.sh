@@ -175,11 +175,11 @@ fi
 # Install icon into hicolor theme
 ICON_SRC=""
 for p in \
-	"${SRC}/images/icon_256.png" \
-	"${SRC}/images/icon_256.svg" \
-	"${SRC}/images/icon_128.png" \
-	"${SRC}/images/icon_64.png" \
-	"${SRC}/images/icon_32.png"; do
+	"${SRC}/../images/icon_256.png" \
+	"${SRC}/../images/icon_256.svg" \
+	"${SRC}/../images/icon_128.png" \
+	"${SRC}/../images/icon_64.png" \
+	"${SRC}/../images/icon_32.png"; do
 	if [ -f "$p" ]; then ICON_SRC="$p"; break; fi
 done
 if [ -n "${ICON_SRC}" ]; then
@@ -306,6 +306,11 @@ if [ -f "${SPEC_TEMPLATE}" ]; then
 else
 	echo "Error: RPM spec template not found at ${SPEC_TEMPLATE}" >&2
 	exit 1
+fi
+
+# Try to copy icon if available
+if [ -f "${SRC}/../images/icon_256.png" ]; then
+	cp "${SRC}/../images/icon_256.png" "${RPMTOP}/SOURCES/"
 fi
 
 # Build the RPM
