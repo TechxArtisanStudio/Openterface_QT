@@ -9,7 +9,8 @@ doc/
 README*
 
 # Build artifacts
-build/
+# NOTE: build/ directory in docker/ context is needed for docker-test workflow!
+# It's excluded from git but created by CI/CD workflow. Don't ignore it here.
 build-*/
 *.o
 *.so
@@ -35,7 +36,9 @@ Thumbs.db
 *~
 
 # Package files
-*.deb
+# NOTE: .deb files in docker/build/ are needed for docker-test workflow!
+# Don't ignore them - they're part of the CI/CD process.
+# Only ignore .rpm, .pkg, .dmg, .msi, .exe which aren't used in docker tests
 *.rpm
 *.pkg
 *.dmg
