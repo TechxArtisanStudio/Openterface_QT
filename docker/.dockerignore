@@ -8,9 +8,7 @@
 doc/
 README*
 
-# Build artifacts
-# NOTE: build/ directory in docker/ context is needed for docker-test workflow!
-# It's excluded from git but created by CI/CD workflow. Don't ignore it here.
+# Build artifacts - be specific about what to exclude
 build-*/
 *.o
 *.so

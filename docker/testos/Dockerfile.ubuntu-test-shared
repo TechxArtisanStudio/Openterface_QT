@@ -70,13 +70,13 @@ RUN useradd -m -s /bin/bash openterface && \
     usermod -a -G dialout,uucp,audio,video openterface && \
     echo "openterface ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
 
-# Create directory for build artifacts
-RUN mkdir -p /tmp/build-artifacts
+# Create directories for potential build artifacts and temporary files
+RUN mkdir -p /tmp/build-artifacts /tmp/packages
 
-# Copy build artifacts from docker build context if available
-# The build/ directory is created by the workflow, either with .deb files or a marker file
-# If .deb files are present, they'll be copied; if not, the install script will download from GitHub
-COPY build/ /tmp/build-artifacts/
+# Note: Build artifacts are not copied into the image.
+# The installation script will either:
+# 1. Find .deb files if they were mounted at runtime via docker run -v
+# 2. Download the latest release from GitHub
 
 # Copy and run the installation script
 COPY install-openterface-shared.sh /tmp/install-openterface-shared.sh

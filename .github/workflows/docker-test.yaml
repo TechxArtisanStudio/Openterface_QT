@@ -121,24 +121,28 @@ jobs:
         run: |
           echo "🔨 Building Docker image: ${{ env.DOCKER_IMAGE_SHARED }}:${{ env.DOCKER_TAG }}"
           
-          # Prepare build artifacts for Docker context
-          mkdir -p docker/build
-          
-          # Copy .deb artifacts if available, or create a marker file
-          if [ -d build ] && [ -n "$(find build -name '*.deb' 2>/dev/null)" ]; then
-            echo "📦 Copying build artifacts to docker context..."
-            cp build/*.deb docker/build/ 2>/dev/null || true
-            ls -lh docker/build/
-          else
-            echo "ℹ️ No .deb artifacts found, creating marker file..."
-            echo "# Artifacts will be downloaded during container build" > docker/build/.marker
-            ls -la docker/build/
-          fi
-          
           docker build \
             -f docker/testos/Dockerfile.ubuntu-test-shared \
             -t ${{ env.DOCKER_IMAGE_SHARED }}:${{ env.DOCKER_TAG }} \
             docker/
+          
+          echo "📦 Docker image built successfully"
+          echo "Note: Build artifacts will be passed at runtime if available"
+
+      - name: Prepare volume mounts for build artifacts
+        run: |
+          echo "📦 Checking for build artifacts to mount..."
+          
+          # Check if we have .deb files to mount
+          if [ -d build ] && [ -n "$(find build -name '*.deb' 2>/dev/null)" ]; then
+            echo "✅ Found build artifacts"
+            VOLUME_MOUNT="-v $(pwd)/build:/tmp/build-artifacts:ro"
+            echo "VOLUME_MOUNT=$VOLUME_MOUNT" >> $GITHUB_ENV
+            ls -lh build/
+          else
+            echo "ℹ️ No build artifacts found (will download from GitHub)"
+            echo "VOLUME_MOUNT=" >> $GITHUB_ENV
+          fi
 
       - name: Verify Docker image (Shared)
         run: |
@@ -165,10 +169,11 @@ jobs:
           # Test simple command execution
           echo "🔍 Testing simple command execution..."
           docker run --rm \
+            $VOLUME_MOUNT \
             --name openterface-basic-test \
             ${{ env.DOCKER_IMAGE_SHARED }}:${{ env.DOCKER_TAG }} \
             bash -c "
-              echo '�?Container can execute commands'
+              echo '✅ Container can execute commands'
               whoami
               pwd
               echo 'User ID:' \$(id)
@@ -176,10 +181,10 @@ jobs:
               env | grep -E 'HOME\\|USER\\|DISPLAY\\|QT_' | head -10
               echo 'File system check:'
               ls -la /home/openterface/ | head -5
-              echo '�?Basic functionality test completed'
+              echo '✅ Basic functionality test completed'
             "
           
-          echo "�?Basic container functionality test passed"
+          echo "✅ Basic container functionality test passed"
 
       - name: Test container startup (Shared)
         if: ${{ github.event.inputs.test_type == 'run-test' || github.event.inputs.test_type == 'all' || github.event_name != 'workflow_dispatch' }}
@@ -188,10 +193,10 @@ jobs:
           
           # First, let's test if the image can run a simple command
           echo "🧪 Testing simple command execution first..."
-          if docker run --rm ${{ env.DOCKER_IMAGE_SHARED }}:${{ env.DOCKER_TAG }} echo "Hello from container"; then
-            echo "�?Simple command execution works"
+          if docker run --rm $VOLUME_MOUNT ${{ env.DOCKER_IMAGE_SHARED }}:${{ env.DOCKER_TAG }} echo "Hello from container"; then
+            echo "✅ Simple command execution works"
           else
-            echo "�?Simple command execution failed"
+            echo "❌ Simple command execution failed"
             exit 1
           fi
           
@@ -199,10 +204,10 @@ jobs:
           echo "🧪 Testing container with sleep command..."
           CONTAINER_NAME="openterface-test-container"
           
-          # Start container
-          docker run -d --name $CONTAINER_NAME ${{ env.DOCKER_IMAGE_SHARED }}:${{ env.DOCKER_TAG }} sleep 30
+          # Start container with volume mount if available
+          docker run -d $VOLUME_MOUNT --name $CONTAINER_NAME ${{ env.DOCKER_IMAGE_SHARED }}:${{ env.DOCKER_TAG }} sleep 30
           
-          echo "�?Container started with name: $CONTAINER_NAME"
+          echo "✅ Container started with name: $CONTAINER_NAME"
           
           # Wait a moment for container to fully initialize
           echo "�?Waiting 3 seconds for container to settle..."
@@ -246,6 +251,7 @@ jobs:
           
           # Run container and check if openterface is installed
           docker run --rm \
+            $VOLUME_MOUNT \
             --name openterface-install-test \
             ${{ env.DOCKER_IMAGE_SHARED }}:${{ env.DOCKER_TAG }} \
             bash -c "
