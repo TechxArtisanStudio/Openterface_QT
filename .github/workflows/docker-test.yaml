@@ -7,12 +7,30 @@ on:
       - 'docker/testos/Dockerfile.ubuntu-test-shared'
       - 'docker/install-openterface-shared.sh'
       - '.github/workflows/docker-test.yaml'
+      - 'CMakeLists.txt'
+      - '*.pro'
+      - 'src/**'
+      - 'lib/**'
+      - 'host/**'
+      - 'device/**'
+      - 'ui/**'
+      - 'serial/**'
+      - 'video/**'
   pull_request:
     branches: ["main", "dev"]
     paths:
       - 'docker/testos/Dockerfile.ubuntu-test-shared'
       - 'docker/install-openterface-shared.sh'
       - '.github/workflows/docker-test.yaml'
+      - 'CMakeLists.txt'
+      - '*.pro'
+      - 'src/**'
+      - 'lib/**'
+      - 'host/**'
+      - 'device/**'
+      - 'ui/**'
+      - 'serial/**'
+      - 'video/**'
   workflow_dispatch:
     inputs:
       test_type:
@@ -47,6 +65,53 @@ jobs:
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
+
+      - name: Build Linux Shared Package
+        run: |
+          echo "🔨 Building Linux shared package (.deb)"
+          echo "Current directory: $(pwd)"
+          echo "Available files in repo:"
+          ls -la | head -20
+          
+          # Check if CMakeLists.txt exists
+          if [ -f "CMakeLists.txt" ]; then
+            echo "✅ Found CMakeLists.txt"
+            
+            # Create build directory
+            mkdir -p build-linux
+            cd build-linux
+            
+            # Configure with CMake
+            cmake -DCMAKE_BUILD_TYPE=Release ..
+            
+            # Build the package
+            cmake --build . --config Release
+            
+            # Create DEB package
+            cpack -G DEB
+            
+            # Copy the created .deb to the expected location
+            if ls *.deb 1> /dev/null 2>&1; then
+              echo "✅ DEB package created successfully"
+              ls -lh *.deb
+              cd ..
+              mkdir -p build
+              cp build-linux/*.deb build/
+            else
+              echo "⚠️ No DEB package found after cpack, checking for built binaries..."
+              ls -la
+            fi
+          else
+            echo "⚠️ CMakeLists.txt not found, checking for alternative build method..."
+            # Check for Qt project file
+            if ls *.pro 1> /dev/null 2>&1; then
+              echo "ℹ️ Found Qt .pro file, would need qmake build"
+            fi
+          fi
+          
+          cd ..
+          echo "📦 Build artifacts in ./build directory:"
+          ls -la build/ || echo "Build directory not found"
 
       - name: Build Docker image (Shared)
         run: |

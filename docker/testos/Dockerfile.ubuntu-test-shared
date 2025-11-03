@@ -70,6 +70,11 @@ RUN useradd -m -s /bin/bash openterface && \
     usermod -a -G dialout,uucp,audio,video openterface && \
     echo "openterface ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
 
+# Copy build artifacts (if available in Docker build context)
+# These will be used by the install script in preference to downloading from GitHub
+# The install script will look for .deb files in /tmp/build-artifacts and /tmp directories
+COPY build/ /tmp/build-artifacts/
+
 # Copy and run the installation script
 COPY install-openterface-shared.sh /tmp/install-openterface-shared.sh
 RUN chmod +x /tmp/install-openterface-shared.sh && \

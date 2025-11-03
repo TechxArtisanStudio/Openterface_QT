@@ -34,16 +34,75 @@ get_latest_version() {
     echo "✅ Latest version: $LATEST_VERSION"
 }
 
+# Function to find the latest built deb package
+find_latest_build_deb() {
+    echo "🔍 Looking for latest Linux build artifacts (.deb files)..."
+    
+    # Search paths in order of preference
+    local search_paths=(
+        "/tmp/build-artifacts"
+        "/build"
+        "/workspace/build"
+        "/src/build"
+        "./build"
+        "/tmp"
+    )
+    
+    # Find all .deb files matching the pattern and get the newest one
+    local latest_deb=""
+    local latest_timestamp=0
+    
+    for search_path in "${search_paths[@]}"; do
+        if [ -d "$search_path" ]; then
+            echo "   Searching in: $search_path"
+            # Look for deb files (openterfaceQT*.deb or similar)
+            while IFS= read -r -d '' deb_file; do
+                if [ -f "$deb_file" ]; then
+                    # Get the modification time
+                    local timestamp=$(stat -c %Y "$deb_file" 2>/dev/null || stat -f %m "$deb_file" 2>/dev/null || echo 0)
+                    echo "   Found: $deb_file (timestamp: $timestamp)"
+                    
+                    if [ "$timestamp" -gt "$latest_timestamp" ]; then
+                        latest_timestamp=$timestamp
+                        latest_deb="$deb_file"
+                    fi
+                fi
+            done < <(find "$search_path" -maxdepth 2 -name "*openterface*.deb" -o -name "openterfaceQT*.deb" -print0 2>/dev/null)
+        fi
+    done
+    
+    if [ -n "$latest_deb" ]; then
+        echo "✅ Found latest build artifact: $latest_deb"
+        echo "$latest_deb"
+        return 0
+    fi
+    
+    return 1
+}
+
 # Function to download the package
 download_package() {
     echo "📥 Looking for Openterface QT package..."
     
-    # First, check for local built packages
+    # First, try to find the latest Linux build artifact
+    if built_package=$(find_latest_build_deb); then
+        echo "✅ Using latest Linux build result: $built_package"
+        if cp "$built_package" "/tmp/${PACKAGE_NAME}"; then
+            echo "✅ Build artifact copied to /tmp/${PACKAGE_NAME}"
+            return 0
+        else
+            echo "⚠️  Failed to copy build artifact, attempting local paths..."
+        fi
+    fi
+    
+    # Fallback: check for local built packages in standard locations
     LOCAL_PACKAGE_PATHS=(
         "/workspace/build/openterfaceQT_*.AppImage"
         "/workspace/build/openterfaceQT"
         "/workspace/build/*.deb"
         "/workspace/build/*.AppImage"
+        "/build/*.deb"
+        "/build/*.AppImage"
         "/tmp/${PACKAGE_NAME}"
         "./${PACKAGE_NAME}"
     )
@@ -59,7 +118,7 @@ download_package() {
         done
     done
     
-    echo "ℹ️  No local package found, downloading from GitHub..."
+    echo "ℹ️  No local build artifacts found. Downloading from GitHub releases as fallback..."
     DOWNLOAD_URL="https://github.com/${GITHUB_REPO}/releases/download/${LATEST_VERSION}/${PACKAGE_NAME}"
     
     echo "   URL: $DOWNLOAD_URL"
@@ -67,7 +126,7 @@ download_package() {
     # Download with retries
     for i in {1..3}; do
         if wget -O "/tmp/${PACKAGE_NAME}" "$DOWNLOAD_URL"; then
-            echo "✅ Package downloaded successfully"
+            echo "✅ Package downloaded successfully from GitHub"
             return 0
         else
             echo "⚠️  Download attempt $i failed, retrying..."
@@ -75,7 +134,7 @@ download_package() {
         fi
     done
     
-    echo "❌ Failed to download package after 3 attempts"
+    echo "❌ Failed to find build artifacts or download package after 3 attempts"
     exit 1
 }
 
