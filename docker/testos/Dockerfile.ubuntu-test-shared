@@ -71,12 +71,11 @@ RUN useradd -m -s /bin/bash openterface && \
     echo "openterface ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
 
 # Create directory for build artifacts
-# Build artifacts will be copied here if available in Docker build context
 RUN mkdir -p /tmp/build-artifacts
 
-# Copy build artifacts if they exist in Docker build context (sibling directory)
-# These will be used by the install script in preference to downloading from GitHub
-# If no .deb files are found, that's okay - the script will download from GitHub releases
+# Copy build artifacts from docker build context if available
+# The build/ directory is created by the workflow, either with .deb files or a marker file
+# If .deb files are present, they'll be copied; if not, the install script will download from GitHub
 COPY build/ /tmp/build-artifacts/
 
 # Copy and run the installation script

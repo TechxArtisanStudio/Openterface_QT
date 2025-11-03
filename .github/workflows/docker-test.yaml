@@ -121,15 +121,18 @@ jobs:
         run: |
           echo "🔨 Building Docker image: ${{ env.DOCKER_IMAGE_SHARED }}:${{ env.DOCKER_TAG }}"
           
-          # Copy build artifacts to docker directory so they're available in build context
+          # Prepare build artifacts for Docker context
           mkdir -p docker/build
+          
+          # Copy .deb artifacts if available, or create a marker file
           if [ -d build ] && [ -n "$(find build -name '*.deb' 2>/dev/null)" ]; then
-            echo "📦 Copying build artifacts to docker/build/"
+            echo "📦 Copying build artifacts to docker context..."
             cp build/*.deb docker/build/ 2>/dev/null || true
             ls -lh docker/build/
           else
-            echo "ℹ️ No build artifacts to copy (will download from GitHub during install)"
-            mkdir -p docker/build
+            echo "ℹ️ No .deb artifacts found, creating marker file..."
+            echo "# Artifacts will be downloaded during container build" > docker/build/.marker
+            ls -la docker/build/
           fi
           
           docker build \
