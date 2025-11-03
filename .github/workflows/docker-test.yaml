@@ -138,10 +138,12 @@ jobs:
             echo "✅ Found build artifacts"
             VOLUME_MOUNT="-v $(pwd)/build:/tmp/build-artifacts:ro"
             echo "VOLUME_MOUNT=$VOLUME_MOUNT" >> $GITHUB_ENV
+            echo "HAS_VOLUME_MOUNT=true" >> $GITHUB_ENV
             ls -lh build/
           else
             echo "ℹ️ No build artifacts found (will download from GitHub)"
             echo "VOLUME_MOUNT=" >> $GITHUB_ENV
+            echo "HAS_VOLUME_MOUNT=false" >> $GITHUB_ENV
           fi
 
       - name: Verify Docker image (Shared)
@@ -168,8 +170,13 @@ jobs:
           
           # Test simple command execution
           echo "🔍 Testing simple command execution..."
-          docker run --rm \
-            $VOLUME_MOUNT \
+          if [ "$HAS_VOLUME_MOUNT" = "true" ]; then
+            DOCKER_OPTS="$VOLUME_MOUNT"
+          else
+            DOCKER_OPTS=""
+          fi
+          
+          docker run --rm $DOCKER_OPTS \
             --name openterface-basic-test \
             ${{ env.DOCKER_IMAGE_SHARED }}:${{ env.DOCKER_TAG }} \
             bash -c "
@@ -191,9 +198,16 @@ jobs:
         run: |
           echo "🚀 Testing container startup"
           
+          # Prepare docker options
+          if [ "$HAS_VOLUME_MOUNT" = "true" ]; then
+            DOCKER_OPTS="$VOLUME_MOUNT"
+          else
+            DOCKER_OPTS=""
+          fi
+          
           # First, let's test if the image can run a simple command
           echo "🧪 Testing simple command execution first..."
-          if docker run --rm $VOLUME_MOUNT ${{ env.DOCKER_IMAGE_SHARED }}:${{ env.DOCKER_TAG }} echo "Hello from container"; then
+          if docker run --rm $DOCKER_OPTS ${{ env.DOCKER_IMAGE_SHARED }}:${{ env.DOCKER_TAG }} echo "Hello from container"; then
             echo "✅ Simple command execution works"
           else
             echo "❌ Simple command execution failed"
@@ -205,7 +219,7 @@ jobs:
           CONTAINER_NAME="openterface-test-container"
           
           # Start container with volume mount if available
-          docker run -d $VOLUME_MOUNT --name $CONTAINER_NAME ${{ env.DOCKER_IMAGE_SHARED }}:${{ env.DOCKER_TAG }} sleep 30
+          docker run -d $DOCKER_OPTS --name $CONTAINER_NAME ${{ env.DOCKER_IMAGE_SHARED }}:${{ env.DOCKER_TAG }} sleep 30
           
           echo "✅ Container started with name: $CONTAINER_NAME"
           
@@ -249,9 +263,15 @@ jobs:
         run: |
           echo "🧪 Testing installation script"
           
+          # Prepare docker options
+          if [ "$HAS_VOLUME_MOUNT" = "true" ]; then
+            DOCKER_OPTS="$VOLUME_MOUNT"
+          else
+            DOCKER_OPTS=""
+          fi
+          
           # Run container and check if openterface is installed
-          docker run --rm \
-            $VOLUME_MOUNT \
+          docker run --rm $DOCKER_OPTS \
             --name openterface-install-test \
             ${{ env.DOCKER_IMAGE_SHARED }}:${{ env.DOCKER_TAG }} \
             bash -c "

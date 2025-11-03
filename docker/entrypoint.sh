@@ -2,8 +2,6 @@
 # Entrypoint script for Openterface QT Docker container
 # Handles installation on first run when artifacts are available via volume mount
 
-set -e
-
 echo "🔧 Openterface QT Docker Entrypoint"
 echo "===================================="
 
@@ -22,8 +20,14 @@ else
     echo "✅ Openterface already installed"
 fi
 
-echo "🚀 Launching Openterface..."
+echo "🚀 Launching application..."
 echo ""
 
 # Execute the command passed to docker run, or default to bash
-exec "$@"
+if [ $# -eq 0 ]; then
+    # No command provided, use bash as default
+    exec /bin/bash
+else
+    # Execute provided command
+    exec "$@"
+fi

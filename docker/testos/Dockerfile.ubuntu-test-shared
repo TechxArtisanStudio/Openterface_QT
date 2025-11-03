@@ -110,4 +110,4 @@ LABEL purpose="testing"
 ENTRYPOINT ["/entrypoint.sh"]
 
 # Default command (will be passed to entrypoint)
-CMD ["/usr/local/bin/start-openterface.sh"]
+CMD ["/bin/bash"]
