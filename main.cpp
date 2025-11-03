@@ -94,11 +94,14 @@ void customMessageHandler(QtMsgType type, const QMessageLogContext &context, con
 
     // For Windows GUI applications, std::cout may not be available and can cause crashes
     // Use OutputDebugString instead for debug output
+    // In static builds or Windows subsystem builds, stdout/stderr may not work
 #ifdef Q_OS_WIN
     OutputDebugStringW(reinterpret_cast<const wchar_t*>(txt.utf16()));
     OutputDebugStringW(L"\n");
 #else
-    std::cout << txt.toStdString() << std::endl;
+    // Use fprintf to stderr instead of std::cout to avoid C++ stream issues
+    fprintf(stderr, "%s\n", txt.toUtf8().constData());
+    fflush(stderr);
 #endif
 }
 
