@@ -79,11 +79,13 @@ RUN mkdir -p /tmp/build-artifacts /tmp/packages
 # 1. Find .deb files if they were mounted at runtime via docker run -v
 # 2. Download the latest release from GitHub
 
-# Copy and run the installation script
+# Copy installation script for runtime execution
 COPY install-openterface-shared.sh /tmp/install-openterface-shared.sh
-RUN chmod +x /tmp/install-openterface-shared.sh && \
-    /tmp/install-openterface-shared.sh && \
-    rm /tmp/install-openterface-shared.sh
+RUN chmod +x /tmp/install-openterface-shared.sh
+
+# Copy and setup entrypoint script
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
 
 
 # Set up udev rules for Openterface hardware (backup rules, main setup in install script)
@@ -104,5 +106,8 @@ LABEL description="Openterface QT Mini-KVM testing environment"
 LABEL version="latest"
 LABEL purpose="testing"
 
-# Default command to run the application
+# Set entrypoint to handle installation on first run
+ENTRYPOINT ["/entrypoint.sh"]
+
+# Default command (will be passed to entrypoint)
 CMD ["/usr/local/bin/start-openterface.sh"]

@@ -119,9 +119,18 @@ download_from_latest_build() {
     
     echo "📦 Found shared .deb artifact: $DEB_ARTIFACT_ID"
     
-    # Download the artifact (requires GitHub token for private repos, but public repos work without it)
+    # Download the artifact (requires GitHub token for authentication)
     echo "⬇️ Downloading artifact..."
-    if curl -L -o artifact.zip \
+    ARTIFACT_TOKEN="${GITHUB_TOKEN:-}"
+    
+    if [ -z "$ARTIFACT_TOKEN" ]; then
+        echo "⚠️  GITHUB_TOKEN not available in Docker container"
+        echo "ℹ️  Artifact download requires GitHub token. This should be provided by the workflow."
+        echo "ℹ️  Consider using volume mounts instead: docker run -v /path/to/artifacts:/tmp/build-artifacts"
+        return 1
+    fi
+    
+    if curl -L -H "Authorization: token $ARTIFACT_TOKEN" -o artifact.zip \
         "https://api.github.com/repos/${GITHUB_REPO}/actions/artifacts/$DEB_ARTIFACT_ID/zip" 2>/dev/null; then
         
         # Extract the deb file
