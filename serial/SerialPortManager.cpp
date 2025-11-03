@@ -397,12 +397,34 @@ void SerialPortManager::onSerialPortConnected(const QString &portName){
     // Use synchronous method to check the serial port
     qCDebug(log_core_serial) << "Serial port connected: " << portName;
     
-    // First, check if we have a stored baudrate setting
+    // Check chip type FIRST to determine correct baudrate
+    // FE0C chips ONLY support 115200 baudrate
+    bool isFE0CChip = false;
+    QList<QSerialPortInfo> availablePorts = QSerialPortInfo::availablePorts();
+    for (const QSerialPortInfo &portInfo : availablePorts) {
+        if (portName.indexOf(portInfo.portName())>=0) {
+            QString vid = QString("%1").arg(portInfo.vendorIdentifier(), 4, 16, QChar('0')).toUpper();
+            QString pid = QString("%1").arg(portInfo.productIdentifier(), 4, 16, QChar('0')).toUpper();
+            qCDebug(log_core_serial) << "Port" << portName << "VID:PID" << vid << ":" << pid;
+            
+            if (vid == "1A86" && pid == "FE0C") {
+                isFE0CChip = true;
+                qCInfo(log_core_serial) << "FE0C chip detected - forcing 115200 baudrate (only supported baudrate)";
+            }
+            break;
+        }
+    }
+    
+    // Determine baudrate to use
     int storedBaudrate = GlobalSetting::instance().getSerialPortBaudrate();
     int tryBaudrate = DEFAULT_BAUDRATE; // Default fallback
     
-    if (storedBaudrate > 0) {
-        // Use stored baudrate if available
+    if (isFE0CChip) {
+        // FE0C chip: ALWAYS use 115200, ignore stored setting
+        tryBaudrate = BAUDRATE_HIGHSPEED;
+        qCInfo(log_core_serial) << "FE0C chip: Using 115200 baudrate (ignoring stored baudrate:" << storedBaudrate << ")";
+    } else if (storedBaudrate > 0) {
+        // Other chips: Use stored baudrate if available
         tryBaudrate = storedBaudrate;
         qCDebug(log_core_serial) << "Using stored baudrate: " << storedBaudrate;
     } else {
@@ -444,60 +466,157 @@ void SerialPortManager::onSerialPortConnected(const QString &portName){
         qCDebug(log_core_serial) << "Data read from serial port: " << retBtye.toHex(' ');
         config = CmdDataParamConfig::fromByteArray(retBtye);
         if(config.mode == mode){ 
-            ready = true;
-            connectionSuccessful = true;
-            qCDebug(log_core_serial) << "Connect success with baudrate: " << serialPort->baudRate();
+            // Check if we're using wrong baudrate for FE0C chip
+            if (isFE0CChip && serialPort->baudRate() != BAUDRATE_HIGHSPEED) {
+                qCWarning(log_core_serial) << "FE0C chip detected at wrong baudrate" << serialPort->baudRate() << "- switching to 115200";
+                closePort();
+                openPort(portName, BAUDRATE_HIGHSPEED);
+                // Verify with another command
+                QByteArray verifyBtye = sendSyncCommand(CMD_GET_PARA_CFG, true);
+                if(verifyBtye.size() > 0) {
+                    ready = true;
+                    connectionSuccessful = true;
+                    workingBaudrate = BAUDRATE_HIGHSPEED;
+                    qCInfo(log_core_serial) << "FE0C chip successfully switched to 115200 baudrate";
+                } else {
+                    qCWarning(log_core_serial) << "Failed to verify FE0C chip at 115200";
+                }
+            } else {
+                ready = true;
+                connectionSuccessful = true;
+                qCDebug(log_core_serial) << "Connect success with baudrate: " << serialPort->baudRate();
+            }
             // Check for ARM architecture performance recommendation
             checkArmBaudratePerformance(serialPort->baudRate());
         } else { // the mode is not correct, need to re-config the chip
-            qCWarning(log_core_serial) << "The mode is incorrect, mode:" << config.mode;
-            if(resetHipChip()) {
-                connectionSuccessful = true;
-                workingBaudrate = DEFAULT_BAUDRATE; // resetHipChip sets to DEFAULT_BAUDRATE
+            qCWarning(log_core_serial) << "The mode is incorrect, mode:" << config.mode << "expected:" << mode;
+            // Don't call resetHipChip here as it causes infinite loop
+            // Instead, try to reconfigure directly with the current baudrate
+            if(reconfigureHidChip(tryBaudrate)) {
+                qCDebug(log_core_serial) << "Reconfigured HID chip successfully, sending reset command";
+                if(sendResetCommand()) {
+                    connectionSuccessful = true;
+                    workingBaudrate = tryBaudrate;
+                } else {
+                    qCWarning(log_core_serial) << "Failed to send reset command after reconfiguration";
+                }
+            } else {
+                qCWarning(log_core_serial) << "Failed to reconfigure HID chip with mode:" << mode;
             }
         }
     } else { 
         // If initial baudrate failed, try the baudrate detection process
         qCDebug(log_core_serial) << "No data with initial baudrate, starting baudrate detection process";
         
-        // Only try 9600 baudrate for CH341 serial chip (VID:PID 1A86:7523)
+        // Check VID/PID to determine chip type and supported baudrates
+        // 1A86:7523 = CH341 chip (supports both 9600 and 115200)
+        // 1A86:FE0C = CH9329 chip (only supports 115200)
         bool isCH341SerialChip = false;
+        bool isFE0CSerialChip = false;
         
-        // Check if this port has VID/PID 1A86:7523
+        // Check if this port has VID/PID 1A86:7523 or 1A86:FE0C
         QList<QSerialPortInfo> availablePorts = QSerialPortInfo::availablePorts();
         for (const QSerialPortInfo &portInfo : availablePorts) {
             if (portName.indexOf(portInfo.portName())>=0) {
                 QString vid = QString("%1").arg(portInfo.vendorIdentifier(), 4, 16, QChar('0')).toUpper();
                 QString pid = QString("%1").arg(portInfo.productIdentifier(), 4, 16, QChar('0')).toUpper();
+                qCDebug(log_core_serial) << "Detected serial chip VID:PID" << vid << ":" << pid;
+                
                 if (vid == "1A86" && pid == "7523") {
                     isCH341SerialChip = true;
                     workingBaudrate = anotherBaudrate();
                     qCDebug(log_core_serial) << "Detected CH341 serial chip (VID:PID 1A86:7523), will try" << workingBaudrate << "baudrate fallback";
+                } else if (vid == "1A86" && pid == "FE0C") {
+                    isFE0CSerialChip = true;
+                    // FE0C only supports 115200, ensure we're using it
+                    workingBaudrate = BAUDRATE_HIGHSPEED;
+                    qCDebug(log_core_serial) << "Detected FE0C serial chip (VID:PID 1A86:FE0C), only 115200 baudrate supported";
                 }
                 break;
             }
         }
         
         if (isCH341SerialChip) {
-            // try 115200 baudrate only for CH341 chip
-            qCDebug(log_core_serial) << "Try to connect: " << portName << "with baudrate:" << workingBaudrate;
+            // CH341 chip - try alternative baudrate (supports both 9600 and 115200)
+            qCDebug(log_core_serial) << "Try to connect CH341: " << portName << "with baudrate:" << workingBaudrate;
             closePort();
             openPort(portName, workingBaudrate);
             QByteArray retBtye = sendSyncCommand(CMD_GET_PARA_CFG, true);
-            qCDebug(log_core_serial) << "Data read from serial port with 115200: " << retBtye.toHex(' ');
+            qCDebug(log_core_serial) << "Data read from serial port with alternative baudrate: " << retBtye.toHex(' ');
             if(retBtye.size() > 0){
                 config = CmdDataParamConfig::fromByteArray(retBtye);
                 qCDebug(log_core_serial) << "Connected with baudrate: " << workingBaudrate;
                 qCDebug(log_core_serial) << "Current working mode is:" << "0x" + QString::number(config.mode, 16);
-                setBaudRate(workingBaudrate);
+                
+                // Check if mode is correct
+                if(config.mode == mode) {
+                    qCDebug(log_core_serial) << "Mode is correct, connection successful";
+                    connectionSuccessful = true;
+                    setBaudRate(workingBaudrate);
+                } else {
+                    qCWarning(log_core_serial) << "Mode incorrect after CH341 baudrate detection, mode:" << config.mode << "expected:" << mode;
+                    // Try to reconfigure with current baudrate
+                    if(reconfigureHidChip(workingBaudrate)) {
+                        qCDebug(log_core_serial) << "Reconfigured HID chip successfully, sending reset command";
+                        if(sendResetCommand()) {
+                            connectionSuccessful = true;
+                        } else {
+                            qCWarning(log_core_serial) << "Failed to send reset command after reconfiguration";
+                        }
+                    } else {
+                        qCWarning(log_core_serial) << "Failed to reconfigure HID chip after CH341 detection";
+                    }
+                }
+            }
+        } else if (isFE0CSerialChip) {
+            // FE0C chip - ONLY supports 115200 baudrate
+            qCDebug(log_core_serial) << "Try to connect FE0C: " << portName << "with baudrate: 115200 (only supported baudrate)";
+            closePort();
+            openPort(portName, BAUDRATE_HIGHSPEED);
+            QByteArray retBtye = sendSyncCommand(CMD_GET_PARA_CFG, true);
+            qCDebug(log_core_serial) << "Data read from FE0C serial port at 115200: " << retBtye.toHex(' ');
+            if(retBtye.size() > 0){
+                config = CmdDataParamConfig::fromByteArray(retBtye);
+                qCDebug(log_core_serial) << "Connected with baudrate: " << BAUDRATE_HIGHSPEED;
+                qCDebug(log_core_serial) << "Current working mode is:" << "0x" + QString::number(config.mode, 16);
+                
+                // Check if mode is correct
+                if(config.mode == mode) {
+                    qCDebug(log_core_serial) << "Mode is correct, connection successful";
+                    connectionSuccessful = true;
+                    setBaudRate(BAUDRATE_HIGHSPEED);
+                    workingBaudrate = BAUDRATE_HIGHSPEED;
+                } else {
+                    qCWarning(log_core_serial) << "Mode incorrect for FE0C, mode:" << config.mode << "expected:" << mode;
+                    // Try to reconfigure with 115200 baudrate (the only supported baudrate)
+                    if(reconfigureHidChip(BAUDRATE_HIGHSPEED)) {
+                        qCDebug(log_core_serial) << "Reconfigured FE0C HID chip successfully, sending reset command";
+                        if(sendResetCommand()) {
+                            connectionSuccessful = true;
+                            workingBaudrate = BAUDRATE_HIGHSPEED;
+                        } else {
+                            qCWarning(log_core_serial) << "Failed to send reset command after FE0C reconfiguration";
+                        }
+                    } else {
+                        qCWarning(log_core_serial) << "Failed to reconfigure FE0C chip - this chip only supports 115200 baudrate";
+                    }
+                }
+            } else {
+                qCWarning(log_core_serial) << "No response from FE0C chip at 115200 baudrate";
+                qCWarning(log_core_serial) << "FE0C chip only supports 115200 baudrate. Port may not be responding or hardware issue.";
             }
         } else {
-            qCDebug(log_core_serial) << "No data received and not a CH341 serial chip, skipping baudrate fallback";
+            qCDebug(log_core_serial) << "No data received and chip type not recognized for baudrate fallback";
         }
     }
 
     // Store the working baudrate if connection was successful and it's different from stored
     if (connectionSuccessful && (storedBaudrate != workingBaudrate)) {
+        // For FE0C chips, always store 115200
+        if (isFE0CChip && workingBaudrate != BAUDRATE_HIGHSPEED) {
+            qCWarning(log_core_serial) << "FE0C chip: Forcing stored baudrate to 115200 instead of" << workingBaudrate;
+            workingBaudrate = BAUDRATE_HIGHSPEED;
+        }
         qCDebug(log_core_serial) << "Storing working baudrate:" << workingBaudrate;
         GlobalSetting::instance().setSerialPortBaudrate(workingBaudrate);
     }
@@ -575,14 +694,15 @@ bool SerialPortManager::resetHipChip(int targetBaudrate){
             restartPort();
             return true;
         }else{
-            qCWarning(log_core_serial) << "Reset the hid chip fail...";
+            qCWarning(log_core_serial) << "Reset the hid chip fail - send reset command failed";
             return false;
         }
     }else{
-        qCWarning(log_core_serial) << "Set data config fail, reset the serial port now...";
-        restartPort();
+        qCWarning(log_core_serial) << "Set data config fail - reconfigureHidChip returned false";
+        // Don't call restartPort() here as it causes infinite loop
+        // Just mark as not ready and let the normal connection flow handle it
         ready = false;
-        qCDebug(log_core_serial) << "Reopen the serial port with baudrate: " << targetBaudrate;
+        qCDebug(log_core_serial) << "Target baudrate was: " << targetBaudrate << "Current baudrate: " << serialPort->baudRate();
         return false;
     }
 }
@@ -1065,18 +1185,26 @@ bool SerialPortManager::reconfigureHidChip(int targetBaudrate)
 
     //append from date 12...31
     command.append(CMD_SET_PARA_CFG_MID);
+    
+    qCDebug(log_core_serial) << "Sending configuration command:" << command.toHex(' ');
     QByteArray retBtyes = sendSyncCommand(command, true);
+    
+    qCDebug(log_core_serial) << "Configuration response size:" << retBtyes.size() << "data:" << retBtyes.toHex(' ');
+    
     if(retBtyes.size() > 0){
         CmdDataResult dataResult = fromByteArray<CmdDataResult>(retBtyes);
         if(dataResult.data == DEF_CMD_SUCCESS){
-            qCDebug(log_core_serial) << "Set data config success, reconfig to 115200 baudrate and mode 0x" << QString::number(mode, 16);
-    return true;
+            qCDebug(log_core_serial) << "Set data config success, reconfig to" << targetBaudrate << "baudrate and mode 0x" << QString::number(mode, 16);
+            return true;
         }else{
-            qWarning() << "Set data config fail.";
+            qCWarning(log_core_serial) << "Set data config fail with status code:" << QString("0x%1").arg(dataResult.data, 2, 16, QChar('0'));
             dumpError(dataResult.data, retBtyes);
         } 
     }else{
-        qWarning() << "Set data config response empty, response:" << retBtyes.toHex(' ');
+        qCWarning(log_core_serial) << "Set data config response empty. Port may not be responding.";
+        qCWarning(log_core_serial) << "Current port:" << (serialPort ? serialPort->portName() : "null") 
+                                   << "Baudrate:" << (serialPort ? QString::number(serialPort->baudRate()) : "N/A")
+                                   << "Open:" << (serialPort && serialPort->isOpen() ? "Yes" : "No");
     }
 
     return false;
@@ -1358,6 +1486,29 @@ bool SerialPortManager::setBaudRate(int baudRate) {
 
 void SerialPortManager::setUserSelectedBaudrate(int baudRate) {
     qCDebug(log_core_serial) << "User manually selected baudrate:" << baudRate;
+    
+    // Check if this is an FE0C chip (only supports 115200)
+    if (serialPort && serialPort->isOpen()) {
+        QString portName = serialPort->portName();
+        QList<QSerialPortInfo> availablePorts = QSerialPortInfo::availablePorts();
+        for (const QSerialPortInfo &portInfo : availablePorts) {
+            if (portName.indexOf(portInfo.portName())>=0) {
+                QString vid = QString("%1").arg(portInfo.vendorIdentifier(), 4, 16, QChar('0')).toUpper();
+                QString pid = QString("%1").arg(portInfo.productIdentifier(), 4, 16, QChar('0')).toUpper();
+                
+                if (vid == "1A86" && pid == "FE0C") {
+                    if (baudRate != BAUDRATE_HIGHSPEED) {
+                        qCWarning(log_core_serial) << "FE0C chip only supports 115200 baudrate. Ignoring user request for" << baudRate;
+                        if (eventCallback) {
+                            eventCallback->onStatusUpdate("FE0C chip only supports 115200 baudrate");
+                        }
+                        return;
+                    }
+                }
+                break;
+            }
+        }
+    }
     
     // Store the user selection immediately
     GlobalSetting::instance().setSerialPortBaudrate(baudRate);
