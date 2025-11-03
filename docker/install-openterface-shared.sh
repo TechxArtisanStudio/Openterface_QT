@@ -55,19 +55,24 @@ find_latest_build_deb() {
     for search_path in "${search_paths[@]}"; do
         if [ -d "$search_path" ]; then
             echo "   Searching in: $search_path"
-            # Look for deb files (openterfaceQT*.deb or similar)
-            while IFS= read -r -d '' deb_file; do
-                if [ -f "$deb_file" ]; then
-                    # Get the modification time
-                    local timestamp=$(stat -c %Y "$deb_file" 2>/dev/null || stat -f %m "$deb_file" 2>/dev/null || echo 0)
-                    echo "   Found: $deb_file (timestamp: $timestamp)"
-                    
-                    if [ "$timestamp" -gt "$latest_timestamp" ]; then
-                        latest_timestamp=$timestamp
-                        latest_deb="$deb_file"
+            # Look for deb files - list all .deb files first
+            if ls "$search_path"/*.deb 1> /dev/null 2>&1; then
+                echo "   Found .deb files:"
+                for deb_file in "$search_path"/*.deb; do
+                    if [ -f "$deb_file" ]; then
+                        # Get the modification time
+                        local timestamp=$(stat -c %Y "$deb_file" 2>/dev/null || stat -f %m "$deb_file" 2>/dev/null || echo 0)
+                        echo "   - $deb_file (timestamp: $timestamp)"
+                        
+                        if [ "$timestamp" -gt "$latest_timestamp" ]; then
+                            latest_timestamp=$timestamp
+                            latest_deb="$deb_file"
+                        fi
                     fi
-                fi
-            done < <(find "$search_path" -maxdepth 2 -name "*openterface*.deb" -o -name "openterfaceQT*.deb" -print0 2>/dev/null)
+                done
+            fi
+        else
+            echo "   Directory not found: $search_path"
         fi
     done
     
@@ -77,6 +82,63 @@ find_latest_build_deb() {
         return 0
     fi
     
+    echo "⚠️  No build artifacts found in any search path"
+    return 1
+}
+
+# Function to download from latest linux-build workflow artifacts
+download_from_latest_build() {
+    echo "📥 Attempting to download from latest linux-build workflow artifacts..."
+    
+    # Get the latest successful linux-build workflow run
+    echo "🔍 Finding latest linux-build workflow run..."
+    LATEST_RUN=$(curl -s "https://api.github.com/repos/${GITHUB_REPO}/actions/workflows/linux-build.yaml/runs?status=success&per_page=1" | \
+                 jq -r '.workflow_runs[0]')
+    
+    if [ "$LATEST_RUN" = "null" ] || [ -z "$LATEST_RUN" ]; then
+        echo "⚠️  No successful linux-build runs found"
+        return 1
+    fi
+    
+    RUN_ID=$(echo "$LATEST_RUN" | jq -r '.id')
+    echo "✅ Found latest linux-build run: $RUN_ID"
+    
+    # Get all artifacts from this run
+    echo "🔍 Fetching artifacts from workflow run..."
+    ARTIFACTS=$(curl -s "https://api.github.com/repos/${GITHUB_REPO}/actions/runs/$RUN_ID/artifacts")
+    
+    # Find the shared .deb artifact
+    DEB_ARTIFACT_ID=$(echo "$ARTIFACTS" | jq -r '.artifacts[] | select(.name | contains("shared.deb")) | .id' | head -1)
+    
+    if [ -z "$DEB_ARTIFACT_ID" ] || [ "$DEB_ARTIFACT_ID" = "null" ]; then
+        echo "⚠️  No shared .deb artifact found in latest build"
+        echo "Available artifacts:"
+        echo "$ARTIFACTS" | jq -r '.artifacts[].name' 2>/dev/null || echo "  (could not list artifacts)"
+        return 1
+    fi
+    
+    echo "📦 Found shared .deb artifact: $DEB_ARTIFACT_ID"
+    
+    # Download the artifact (requires GitHub token for private repos, but public repos work without it)
+    echo "⬇️ Downloading artifact..."
+    if curl -L -o artifact.zip \
+        "https://api.github.com/repos/${GITHUB_REPO}/actions/artifacts/$DEB_ARTIFACT_ID/zip" 2>/dev/null; then
+        
+        # Extract the deb file
+        if unzip -j artifact.zip -d /tmp/ 2>/dev/null; then
+            if ls /tmp/*.deb 1> /dev/null 2>&1; then
+                # Move the first .deb file to our package location
+                DEB_FILE=$(ls /tmp/*.deb | head -1)
+                mv "$DEB_FILE" "/tmp/${PACKAGE_NAME}"
+                rm -f artifact.zip
+                echo "✅ DEB package downloaded and extracted successfully"
+                return 0
+            fi
+        fi
+    fi
+    
+    rm -f artifact.zip
+    echo "❌ Failed to download or extract artifact"
     return 1
 }
 
@@ -118,24 +180,15 @@ download_package() {
         done
     done
     
-    echo "ℹ️  No local build artifacts found. Downloading from GitHub releases as fallback..."
-    DOWNLOAD_URL="https://github.com/${GITHUB_REPO}/releases/download/${LATEST_VERSION}/${PACKAGE_NAME}"
+    echo "ℹ️  No local build artifacts found. Trying latest linux-build workflow artifacts..."
     
-    echo "   URL: $DOWNLOAD_URL"
+    # Try to download from latest linux-build workflow
+    if download_from_latest_build; then
+        return 0
+    fi
     
-    # Download with retries
-    for i in {1..3}; do
-        if wget -O "/tmp/${PACKAGE_NAME}" "$DOWNLOAD_URL"; then
-            echo "✅ Package downloaded successfully from GitHub"
-            return 0
-        else
-            echo "⚠️  Download attempt $i failed, retrying..."
-            sleep 2
-        fi
-    done
-    
-    echo "❌ Failed to find build artifacts or download package after 3 attempts"
-    exit 1
+    echo "❌ Failed to find build artifacts or download from workflow"
+    return 1
 }
 
 # Function to install the package
@@ -388,8 +441,15 @@ show_summary() {
 main() {
     echo "Starting installation process..."
     
-    get_latest_version
-    download_package
+    # Try to find local build artifacts first (no network needed)
+    echo "🔍 Checking for local build artifacts..."
+    if download_package; then
+        echo "✅ Package found (either local or downloaded)"
+    else
+        echo "❌ Failed to find or download package"
+        exit 1
+    fi
+    
     install_package
     setup_device_permissions
     verify_installation
