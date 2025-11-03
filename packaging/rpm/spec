@@ -6,30 +6,24 @@ Summary:        OpenterfaceQT Mini-KVM Application
 License:        AGPL-3.0
 URL:           https://github.com/TechxArtisanStudio/Openterface_QT
 
-%if 0%{?fedora} || 0%{?rhel}
-# For Red Hat based systems
-Requires: qt6-qtbase qt6-qtbase-gui qt6-qtmultimedia qt6-qtserialport qt6-qtsvg libusb
-%endif
-
-%if 0%{?suse_version}
-# For SUSE based systems
-Requires: libQt6Core6 libQt6DBus6 libQt6Gui6 libQt6Network6 libQt6Multimedia6 libQt6MultimediaWidgets6 libQt6SerialPort6 libQt6Svg6 libusb-1_0
-%endif
-
-%if 0%{?debian} || 0%{?ubuntu}
-# For Debian based systems
-Requires: libqt6core6 libqt6dbus6 libqt6gui6 libqt6network6 libqt6multimedia6 libqt6multimediawidgets6 libqt6serialport6 libqt6svg6 libusb-1.0-0
-%endif
+# Bundled Qt, no external Qt dependencies
+Requires: libusb
 
 %description
 OpenterfaceQT Application
 
 %install
 mkdir -p %{buildroot}/usr/bin
+mkdir -p %{buildroot}/usr/lib
+mkdir -p %{buildroot}/usr/lib/qt6/plugins
+mkdir -p %{buildroot}/usr/lib/qt6/qml
 mkdir -p %{buildroot}/usr/share/icons/hicolor/256x256/apps
 mkdir -p %{buildroot}/usr/share/applications
 
 cp -r %{_sourcedir}/openterfaceQT %{buildroot}/usr/bin/
+cp %{_sourcedir}/libQt6*.so* %{buildroot}/usr/lib/ 2>/dev/null || true
+cp -r %{_sourcedir}/qt6-plugins/* %{buildroot}/usr/lib/qt6/plugins/ 2>/dev/null || true
+cp -r %{_sourcedir}/qt6-qml/* %{buildroot}/usr/lib/qt6/qml/ 2>/dev/null || true
 cp %{_sourcedir}/icon_256.png %{buildroot}/usr/share/icons/hicolor/256x256/apps/openterfaceQT.png
 
 cat > %{buildroot}/usr/share/applications/openterfaceQT.desktop << EOF
@@ -37,7 +31,7 @@ cat > %{buildroot}/usr/share/applications/openterfaceQT.desktop << EOF
 Version=${VERSION}
 Type=Application
 Name=OpenterfaceQT
-Exec=/usr/bin/openterfaceQT
+Exec=env QT_PLUGIN_PATH=/usr/lib/qt6/plugins QML2_IMPORT_PATH=/usr/lib/qt6/qml /usr/bin/openterfaceQT
 Icon=openterfaceQT
 Comment=OpenterfaceQT Application
 Categories=Utility;
@@ -46,6 +40,9 @@ EOF
 
 %files
 /usr/bin/openterfaceQT
+/usr/lib/libQt6*.so*
+/usr/lib/qt6/plugins/
+/usr/lib/qt6/qml/
 /usr/share/icons/hicolor/256x256/apps/openterfaceQT.png
 /usr/share/applications/openterfaceQT.desktop
 
