@@ -779,7 +779,7 @@ jobs:
           
           # Add combined summary
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "# 📋 Test Report - Shared Build (${{ github.event.inputs.install_type }})" >> $GITHUB_STEP_SUMMARY
+          echo "# 📋 Test Report - Shared Build (${{ env.INSTALL_TYPE }})" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "## 📊 Test Results" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
@@ -814,7 +814,7 @@ jobs:
           
           # Also create the markdown file for artifact
           cat << 'EOF' > combined-test-report.md
-          # 📸 GUI Testing Report - Openterface QT (Shared Build - ${{ github.event.inputs.install_type }})
+          # 📸 GUI Testing Report - Openterface QT (Shared Build - ${{ env.INSTALL_TYPE }})
           
           ## Test Overview
           - **Workflow**: ${{ github.workflow }}
@@ -823,7 +823,7 @@ jobs:
           - **Commit**: ${{ github.sha }}
           - **Test Date**: $(date -u)
           - **Build Type**: Shared Library
-          - **Install Type**: ${{ github.event.inputs.install_type }}
+          - **Install Type**: ${{ env.INSTALL_TYPE }}
           
           EOF
           
