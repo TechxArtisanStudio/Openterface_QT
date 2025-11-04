@@ -88,7 +88,10 @@ DOCKER_RUN_CMD="docker run -d \
     -e GITHUB_TOKEN=$GITHUB_TOKEN \
     -e QT_X11_NO_MITSHM=1 \
     -e QT_QPA_PLATFORM=xcb \
-    -e QT_QPA_PLATFORM_PLUGIN_PATH=/usr/lib/x86_64-linux-gnu/qt6/plugins \
+    -e QT_PLUGIN_PATH=/usr/lib/qt6/plugins \
+    -e QML2_IMPORT_PATH=/usr/lib/qt6/qml \
+    -e LC_ALL=C.UTF-8 \
+    -e LANG=C.UTF-8 \
     -v /tmp/.X11-unix:/tmp/.X11-unix:rw \
     --network host \
     --privileged"

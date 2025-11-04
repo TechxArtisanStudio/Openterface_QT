@@ -10,6 +10,10 @@ export DISPLAY="${DISPLAY:-:0}"
 export QT_X11_NO_MITSHM=1
 export QT_QPA_PLATFORM=xcb
 
+# Set Qt plugin and QML paths (must point to bundled locations in deb package)
+export QT_PLUGIN_PATH=/usr/lib/qt6/plugins:/usr/lib/x86_64-linux-gnu/qt6/plugins
+export QML2_IMPORT_PATH=/usr/lib/qt6/qml:/usr/lib/x86_64-linux-gnu/qt6/qml
+
 # Fix locale to UTF-8 (Qt6 requirement)
 export LC_ALL=C.UTF-8
 export LANG=C.UTF-8

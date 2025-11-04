@@ -192,7 +192,7 @@ fi
 
 # Copy desktop file (ensure Exec uses installed path and Icon basename is openterfaceQT)
 if [ -f "${SRC}/com.openterface.openterfaceQT.desktop" ]; then
-	sed -e 's|^Exec=.*$|Exec=env QT_PLUGIN_PATH=/usr/lib/qt6/plugins QML2_IMPORT_PATH=/usr/lib/qt6/qml /usr/local/bin/openterfaceQT|g' \
+	sed -e 's|^Exec=.*$|Exec=env QT_PLUGIN_PATH=/usr/lib/qt6/plugins:/usr/lib/x86_64-linux-gnu/qt6/plugins QML2_IMPORT_PATH=/usr/lib/qt6/qml:/usr/lib/x86_64-linux-gnu/qt6/qml /usr/local/bin/openterfaceQT|g' \
 		-e 's|^Icon=.*$|Icon=openterfaceQT|g' \
 		"${SRC}/com.openterface.openterfaceQT.desktop" > "${PKG_ROOT}/usr/share/applications/com.openterface.openterfaceQT.desktop"
 fi
