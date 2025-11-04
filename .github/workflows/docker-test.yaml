@@ -630,77 +630,58 @@ jobs:
             fi
             
             echo "" >> $GITHUB_STEP_SUMMARY
-            echo "## 🖼�?Screenshots" >> $GITHUB_STEP_SUMMARY
+            echo "## Screenshots" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
             
-            # Upload each screenshot as individual artifact and create image links
+            chmod +x docker/upload_to_imgbb.sh
+            
+            html_gallery=""
+            api_key_shown=0
             screenshot_count=0
+            
             for img in screenshots-shared/*.jpg; do
               if [ -f "$img" ]; then
                 filename=$(basename "$img")
                 screenshot_count=$((screenshot_count + 1))
                 
-                # Create individual artifact for this screenshot
                 artifact_name="screenshot-shared-${screenshot_count}-$(echo "$filename" | sed 's/[^a-zA-Z0-9.-]/_/g')"
-                
-                echo "#### 📷 $filename" >> $GITHUB_STEP_SUMMARY
-                
-                # Upload image to ImgBB using the standalone script
-                echo "🔄 Uploading $filename to ImgBB..." >> $GITHUB_STEP_SUMMARY
-                
-                # Check if API key is available
-                if [ -z "$IMGBB_API_KEY" ]; then
-                  echo "⚠️ **IMGBB_API_KEY not configured** - Upload skipped" >> $GITHUB_STEP_SUMMARY
-                  echo "_Contact repository admin to set up the secret_" >> $GITHUB_STEP_SUMMARY
-                  echo "" >> $GITHUB_STEP_SUMMARY
-                  echo "**Setup Instructions:**" >> $GITHUB_STEP_SUMMARY
-                  echo "1. Get API key from: https://api.imgbb.com/" >> $GITHUB_STEP_SUMMARY
-                  echo "2. Add secret IMGBB_API_KEY in repository settings" >> $GITHUB_STEP_SUMMARY
-                else
-                  # Try to upload with proxy disabled first
-                  echo "🔄 Attempting upload without proxy..." >> $GITHUB_STEP_SUMMARY
-                  
-                  # Make the script executable
-                  chmod +x docker/upload_to_imgbb.sh
-                  
-                  # Run the upload script with proxy disabled
-                  if UPLOAD_URL=$(https_proxy="" IMGBB_API_KEY="$IMGBB_API_KEY" timeout 120 ./docker/upload_to_imgbb.sh "$img" 2>&1); then
-                    echo "�?**Upload successful!**" >> $GITHUB_STEP_SUMMARY
-                    echo "" >> $GITHUB_STEP_SUMMARY
-                    
-                    # Display the image in summary
-                    echo "![Screenshot: $filename]($UPLOAD_URL)" >> $GITHUB_STEP_SUMMARY
-                    echo "" >> $GITHUB_STEP_SUMMARY
-                    echo "🔗 **Direct Link**: [$UPLOAD_URL]($UPLOAD_URL)" >> $GITHUB_STEP_SUMMARY
-                  else
-                    echo "�?**ImgBB upload failed**" >> $GITHUB_STEP_SUMMARY
-                    echo "Script output: $UPLOAD_URL" >> $GITHUB_STEP_SUMMARY
-                    echo "" >> $GITHUB_STEP_SUMMARY
-                    echo "💡 **Note**: Screenshots are still available in GitHub Artifacts below" >> $GITHUB_STEP_SUMMARY
-                  fi
-                fi
-                
-                echo "" >> $GITHUB_STEP_SUMMARY
-                
-                # Get basic file info
-                filesize=$(ls -lh "$img" | awk '{print $5}')
-                echo "- **File Size**: $filesize" >> $GITHUB_STEP_SUMMARY
-                
-                # Store artifact name for later upload
                 echo "$artifact_name|$img" >> /tmp/screenshot_artifacts_shared.txt
                 
-                echo "" >> $GITHUB_STEP_SUMMARY
+                filesize=$(ls -lh "$img" | awk '{print $5}')
+                
+                if [ -n "$IMGBB_API_KEY" ]; then
+                  if UPLOAD_URL=$(https_proxy="" IMGBB_API_KEY="$IMGBB_API_KEY" timeout 120 ./docker/upload_to_imgbb.sh "$img" 2>&1); then
+                    html_gallery+="<div style='margin-bottom: 20px; text-align: center;'>"
+                    html_gallery+="<h4>$filename</h4>"
+                    html_gallery+="<img src='$UPLOAD_URL' style='max-width: 100%; height: auto; border: 1px solid #ddd; border-radius: 4px; padding: 4px;' alt='$filename'>"
+                    html_gallery+="<p><small><strong>Size:</strong> $filesize | <a href='$UPLOAD_URL' target='_blank'>View Full Size</a></small></p>"
+                    html_gallery+="</div>"
+                  fi
+                else
+                  if [ $api_key_shown -eq 0 ]; then
+                    html_gallery+="<div style='margin-bottom: 20px; padding: 10px; background-color: #f8d7da; border: 1px solid #f5c6cb; border-radius: 4px;'>"
+                    html_gallery+="<p><strong>Note:</strong> IMGBB_API_KEY not configured</p>"
+                    html_gallery+="<p>Screenshots available in Artifacts section</p>"
+                    html_gallery+="</div>"
+                    api_key_shown=1
+                  fi
+                fi
               fi
             done
             
+            if [ -n "$html_gallery" ]; then
+              echo "<div style='background-color: #f6f8fa; padding: 15px; border-radius: 6px;'>" >> $GITHUB_STEP_SUMMARY
+              echo "$html_gallery" >> $GITHUB_STEP_SUMMARY
+              echo "</div>" >> $GITHUB_STEP_SUMMARY
+            fi
+            
             echo "" >> $GITHUB_STEP_SUMMARY
-            echo "## 📥 How to Download Screenshots" >> $GITHUB_STEP_SUMMARY
+            echo "## Download Options" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
-            echo "1. **Scroll down** to the **Artifacts** section at the bottom of this page" >> $GITHUB_STEP_SUMMARY
-            echo "2. **Download** the following artifacts:" >> $GITHUB_STEP_SUMMARY
-            echo "   - \`openterface-gui-screenshots-shared-${{ env.INSTALL_TYPE }}-collection\` - All screenshots in one ZIP" >> $GITHUB_STEP_SUMMARY
-            echo "   - \`openterface-gui-screenshots-shared-${{ env.INSTALL_TYPE }}-individual\` - Individual screenshots" >> $GITHUB_STEP_SUMMARY
-            echo "3. **Extract** the ZIP files to view the JPG images" >> $GITHUB_STEP_SUMMARY
+            echo "Screenshots are available in the Artifacts section:" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "- **openterface-gui-screenshots-shared-${{ env.INSTALL_TYPE }}-collection** - All screenshots" >> $GITHUB_STEP_SUMMARY
+            echo "- **openterface-gui-screenshots-shared-${{ env.INSTALL_TYPE }}-individual** - Individual images" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
             
           else
