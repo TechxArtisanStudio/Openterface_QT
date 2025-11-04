@@ -133,22 +133,14 @@ RUN echo 'SUBSYSTEM=="hidraw", ATTRS{idVendor}=="534d", ATTRS{idProduct}=="2109"
     echo 'SUBSYSTEM=="ttyUSB", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="7523", TAG+="uaccess", MODE="0666"' >> /etc/udev/rules.d/50-openterface-backup.rules && \
     echo 'SUBSYSTEM=="usb", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="7523", TAG+="uaccess", MODE="0666"' >> /etc/udev/rules.d/50-openterface-backup.rules
 
-# Switch to non-root user
-USER openterface
-
-# Set the working directory
-WORKDIR /home/openterface
-
-# Create a diagnostic script to check Qt plugin dependencies
-RUN cat > /usr/local/bin/check-qt-deps.sh << 'SCRIPT_EOF'
+# Create a diagnostic script to check Qt plugin dependencies (BEFORE USER switch)
+RUN bash -c 'cat > /usr/local/bin/check-qt-deps.sh << '\''SCRIPT_EOF'\''
 #!/bin/bash
 echo "🔍 Qt Plugin Dependency Diagnostics"
 echo "===================================="
 echo ""
-
 echo "Qt xcb platform plugin location:"
 find / -name "libqxcb.so" 2>/dev/null | head -5
-
 echo ""
 echo "Checking xcb plugin library dependencies:"
 if command -v ldd >/dev/null 2>&1; then
@@ -158,21 +150,24 @@ if command -v ldd >/dev/null 2>&1; then
         ldd "$xcb_plugin" 2>&1 | grep -E "not found|libxcb"
     fi
 fi
-
 echo ""
 echo "Checking for xcb-cursor library:"
 dpkg -l | grep -i "xcb-cursor\|libxcb-cursor"
-
 echo ""
 echo "Checking for all libxcb libraries:"
 dpkg -l | grep "libxcb"
-
 echo ""
 echo "Qt plugin path environment variables:"
 echo "QT_PLUGIN_PATH=$QT_PLUGIN_PATH"
 echo "QML2_IMPORT_PATH=$QML2_IMPORT_PATH"
 SCRIPT_EOF
-chmod +x /usr/local/bin/check-qt-deps.sh
+chmod +x /usr/local/bin/check-qt-deps.sh'
+
+# Switch to non-root user
+USER openterface
+
+# Set the working directory
+WORKDIR /home/openterface
 
 # Add labels for metadata
 LABEL maintainer="TechxArtisan Studio"
