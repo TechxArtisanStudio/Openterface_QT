@@ -178,32 +178,32 @@ jobs:
             docker run --rm $VOLUME_MOUNT -e GITHUB_TOKEN="${{ secrets.GITHUB_TOKEN }}" \
               --name openterface-basic-test \
               ${{ env.DOCKER_IMAGE_SHARED }}:${{ env.DOCKER_TAG }} \
-              bash -c "
-                echo '✅ Container can execute commands'
+              bash -c '
+                echo "✅ Container can execute commands"
                 whoami
                 pwd
-                echo 'User ID:' \$(id)
-                echo 'Environment variables:'
-                env | grep -E 'HOME\\|USER\\|DISPLAY\\|QT_|GITHUB_TOKEN' | head -10
-                echo 'File system check:'
+                echo "User ID:" $(id)
+                echo "Environment variables:"
+                env | grep -E "HOME|USER|DISPLAY|QT_|GITHUB_TOKEN" | head -10
+                echo "File system check:"
                 ls -la /home/openterface/ | head -5
-                echo '✅ Basic functionality test completed'
-              "
+                echo "✅ Basic functionality test completed"
+              '
           else
             docker run --rm -e GITHUB_TOKEN="${{ secrets.GITHUB_TOKEN }}" \
               --name openterface-basic-test \
               ${{ env.DOCKER_IMAGE_SHARED }}:${{ env.DOCKER_TAG }} \
-              bash -c "
-                echo '✅ Container can execute commands'
+              bash -c '
+                echo "✅ Container can execute commands"
                 whoami
                 pwd
-                echo 'User ID:' \$(id)
-                echo 'Environment variables:'
-                env | grep -E 'HOME\\|USER\\|DISPLAY\\|QT_|GITHUB_TOKEN' | head -10
-                echo 'File system check:'
+                echo "User ID:" $(id)
+                echo "Environment variables:"
+                env | grep -E "HOME|USER|DISPLAY|QT_|GITHUB_TOKEN" | head -10
+                echo "File system check:"
                 ls -la /home/openterface/ | head -5
-                echo '✅ Basic functionality test completed'
-              "
+                echo "✅ Basic functionality test completed"
+              '
           fi
           
           echo "✅ Basic container functionality test passed"
@@ -238,29 +238,29 @@ jobs:
             
             # Test if installation worked
             echo "🧪 Verifying installation..."
-            docker exec $CONTAINER_NAME bash -c "
-              echo '🔍 Checking if openterfaceQT is installed...'
+            docker exec $CONTAINER_NAME bash -c '
+              echo "🔍 Checking if openterfaceQT is installed..."
               if [ -f /usr/local/bin/openterfaceQT ] || [ -f /usr/local/bin/openterfaceQT.AppImage ]; then
-                echo '✅ Openterface binary found'
+                echo "✅ Openterface binary found"
               else
-                echo '⚠️  Openterface binary not found - installation may have failed'
-                echo '🔍 Searching for binary...'
-                find /usr -name 'openterfaceQT*' -type f 2>/dev/null || echo 'No openterfaceQT found'
-                find /opt -name 'openterfaceQT*' -type f 2>/dev/null || echo 'No openterfaceQT found in /opt'
+                echo "⚠️  Openterface binary not found - installation may have failed"
+                echo "🔍 Searching for binary..."
+                find /usr -name "openterfaceQT*" -type f 2>/dev/null || echo "No openterfaceQT found"
+                find /opt -name "openterfaceQT*" -type f 2>/dev/null || echo "No openterfaceQT found in /opt"
               fi
               
-              echo '🔍 Checking launcher script...'
+              echo "🔍 Checking launcher script..."
               if [ -x /usr/local/bin/start-openterface.sh ]; then
-                echo '✅ Launcher script is executable'
+                echo "✅ Launcher script is executable"
               else
-                echo '⚠️  Launcher script not found or not executable'
+                echo "⚠️  Launcher script not found or not executable"
               fi
               
-              echo '🔍 Checking udev rules...'
-              ls -la /etc/udev/rules.d/*openterface* 2>/dev/null || echo 'Udev rules created'
+              echo "🔍 Checking udev rules..."
+              ls -la /etc/udev/rules.d/*openterface* 2>/dev/null || echo "Udev rules created"
               
-              echo '✅ Installation verification completed'
-            "
+              echo "✅ Installation verification completed"
+            '
           else
             echo "❌ Container is not running"
             echo "🔍 Container logs:"
@@ -325,21 +325,21 @@ jobs:
           docker run --rm \
             --name openterface-qt-test \
             ${{ env.DOCKER_IMAGE_SHARED }}:${{ env.DOCKER_TAG }} \
-            bash -c "
-              echo '🔍 Checking Qt6 libraries...'
-              ldconfig -p | grep -i qt6 | head -10 || echo 'No Qt6 libraries found'
+            bash -c '
+              echo "🔍 Checking Qt6 libraries..."
+              ldconfig -p | grep -i qt6 | head -10 || echo "No Qt6 libraries found"
               
-              echo '🔍 Checking specific Qt6 modules...'
-              dpkg -l | grep libqt6 | head -10 || echo 'No Qt6 packages found'
+              echo "🔍 Checking specific Qt6 modules..."
+              dpkg -l | grep libqt6 | head -10 || echo "No Qt6 packages found"
               
-              echo '🔍 Checking multimedia libraries...'
-              dpkg -l | grep multimedia || echo 'No multimedia packages found'
+              echo "🔍 Checking multimedia libraries..."
+              dpkg -l | grep multimedia || echo "No multimedia packages found"
               
-              echo '🔍 Checking serial port libraries...'
-              dpkg -l | grep serialport || echo 'No serialport packages found'
+              echo "🔍 Checking serial port libraries..."
+              dpkg -l | grep serialport || echo "No serialport packages found"
               
-              echo '�?Qt dependencies check completed'
-            "
+              echo "✅ Qt dependencies check completed"
+            '
 
       - name: Test hardware interface dependencies (Shared)
         if: ${{ github.event.inputs.test_type == 'run-test' || github.event.inputs.test_type == 'all' || github.event_name != 'workflow_dispatch' }}
@@ -349,21 +349,21 @@ jobs:
           docker run --rm \
             --name openterface-hw-test \
             ${{ env.DOCKER_IMAGE_SHARED }}:${{ env.DOCKER_TAG }} \
-            bash -c "
-              echo '🔍 Checking USB libraries...'
-              dpkg -l | grep libusb || echo 'No libusb packages found'
+            bash -c '
+              echo "🔍 Checking USB libraries..."
+              dpkg -l | grep libusb || echo "No libusb packages found"
               
-              echo '🔍 Checking udev libraries...'
-              dpkg -l | grep libudev || echo 'No libudev packages found'
+              echo "🔍 Checking udev libraries..."
+              dpkg -l | grep libudev || echo "No libudev packages found"
               
-              echo '🔍 Checking FFmpeg libraries...'
-              dpkg -l | grep libav | head -5 || echo 'No FFmpeg packages found'
+              echo "🔍 Checking FFmpeg libraries..."
+              dpkg -l | grep libav | head -5 || echo "No FFmpeg packages found"
               
-              echo '🔍 Checking GStreamer...'
-              dpkg -l | grep gstreamer | head -5 || echo 'No GStreamer packages found'
+              echo "🔍 Checking GStreamer..."
+              dpkg -l | grep gstreamer | head -5 || echo "No GStreamer packages found"
               
-              echo '�?Hardware interface dependencies check completed'
-            "
+              echo "✅ Hardware interface dependencies check completed"
+            '
 
       - name: Test application launcher (Shared)
         if: ${{ github.event.inputs.test_type == 'run-test' || github.event.inputs.test_type == 'all' || github.event_name != 'workflow_dispatch' }}
@@ -374,23 +374,23 @@ jobs:
           docker run --rm \
             --name openterface-launcher-test \
             ${{ env.DOCKER_IMAGE_SHARED }}:${{ env.DOCKER_TAG }} \
-            bash -c "
-              if [ -f '/usr/local/bin/start-openterface.sh' ] && [ -x '/usr/local/bin/start-openterface.sh' ]; then
-                echo '�?Launcher script exists and is executable'
+            bash -c '
+              if [ -f "/usr/local/bin/start-openterface.sh" ] && [ -x "/usr/local/bin/start-openterface.sh" ]; then
+                echo "✅ Launcher script exists and is executable"
                 
                 # Test script syntax
-                bash -n /usr/local/bin/start-openterface.sh && echo '�?Launcher script syntax is valid' || echo '�?Launcher script has syntax errors'
+                bash -n /usr/local/bin/start-openterface.sh && echo "✅ Launcher script syntax is valid" || echo "❌ Launcher script has syntax errors"
                 
                 # Test dry run (without actually starting the GUI)
-                echo '🧪 Testing launcher script components...'
+                echo "🧪 Testing launcher script components..."
                 timeout 10s bash -c '
                   source /usr/local/bin/start-openterface.sh 2>&1 | head -20
-                ' || echo 'ℹ️  Launcher test completed (timeout expected for GUI app)'
+                ' || echo "ℹ️  Launcher test completed (timeout expected for GUI app)"
               else
-                echo '�?Launcher script not found or not executable'
+                echo "❌ Launcher script not found or not executable"
                 exit 1
               fi
-            "
+            '
 
       - name: GUI screenshot test using proven script (Shared)
         if: ${{ github.event.inputs.test_type == 'run-test' || github.event.inputs.test_type == 'all' || github.event_name != 'workflow_dispatch' }}
@@ -638,24 +638,24 @@ jobs:
             --name openterface-usb-test \
             -v /dev:/dev \
             ${{ env.DOCKER_IMAGE_SHARED }}:${{ env.DOCKER_TAG }} \
-            bash -c "
-              echo '🔍 Checking USB device access...'
-              ls -la /dev/bus/usb/ 2>/dev/null || echo 'No USB devices found'
+            bash -c '
+              echo "🔍 Checking USB device access..."
+              ls -la /dev/bus/usb/ 2>/dev/null || echo "No USB devices found"
               
-              echo '🔍 Checking hidraw devices...'
-              ls -la /dev/hidraw* 2>/dev/null || echo 'No hidraw devices found'
+              echo "🔍 Checking hidraw devices..."
+              ls -la /dev/hidraw* 2>/dev/null || echo "No hidraw devices found"
               
-              echo '🔍 Checking ttyUSB devices...'
-              ls -la /dev/ttyUSB* 2>/dev/null || echo 'No ttyUSB devices found'
+              echo "🔍 Checking ttyUSB devices..."
+              ls -la /dev/ttyUSB* 2>/dev/null || echo "No ttyUSB devices found"
               
-              echo '🔍 Testing lsusb command...'
-              lsusb || echo 'lsusb command failed'
+              echo "🔍 Testing lsusb command..."
+              lsusb || echo "lsusb command failed"
               
-              echo '🔍 Checking for target Openterface devices...'
-              lsusb | grep -E '534d\\|1a86' || echo 'No Openterface devices detected (expected in test environment)'
+              echo "🔍 Checking for target Openterface devices..."
+              lsusb | grep -E "534d|1a86" || echo "No Openterface devices detected (expected in test environment)"
               
-              echo '�?USB device access test completed'
-            "
+              echo "✅ USB device access test completed"
+            '
 
       - name: Clean up Docker resources (Shared)
         if: always()
