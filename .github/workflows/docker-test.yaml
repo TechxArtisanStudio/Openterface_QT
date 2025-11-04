@@ -50,6 +50,17 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Set default install_type for non-workflow_dispatch triggers
+        run: |
+          # Set default install_type to 'deb' if not provided (for push/PR/workflow_run triggers)
+          if [ -z "${{ github.event.inputs.install_type }}" ]; then
+            echo "INSTALL_TYPE=deb" >> $GITHUB_ENV
+            echo "ℹ️ Using default install_type: deb"
+          else
+            echo "INSTALL_TYPE=${{ github.event.inputs.install_type }}" >> $GITHUB_ENV
+            echo "ℹ️ Using specified install_type: ${{ github.event.inputs.install_type }}"
+          fi
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -86,12 +97,12 @@ jobs:
             "https://api.github.com/repos/${{ github.repository }}/actions/runs/$RUN_ID/artifacts")
           
           # Find and download the appropriate artifact based on install_type
-          if [ "${{ github.event.inputs.install_type }}" = "deb" ]; then
+          if [ "${{ env.INSTALL_TYPE }}" = "deb" ]; then
             ARTIFACT_PATTERN="shared.deb"
-          elif [ "${{ github.event.inputs.install_type }}" = "appimage" ]; then
+          elif [ "${{ env.INSTALL_TYPE }}" = "appimage" ]; then
             ARTIFACT_PATTERN="shared.AppImage"
           else
-            echo "❌ Invalid install_type: ${{ github.event.inputs.install_type }}"
+            echo "❌ Invalid install_type: ${{ env.INSTALL_TYPE }}"
             exit 1
           fi
           
@@ -250,7 +261,7 @@ jobs:
             echo "🧪 Verifying installation..."
             docker exec $CONTAINER_NAME bash -c '
               echo "🔍 Checking if openterfaceQT is installed..."
-              if [ "${{ github.event.inputs.install_type }}" = "deb" ]; then
+              if [ "${{ env.INSTALL_TYPE }}" = "deb" ]; then
                 if [ -f /usr/local/bin/openterfaceQT ]; then
                   echo "✅ DEB: Openterface binary found at /usr/local/bin/openterfaceQT"
                 else
@@ -260,7 +271,7 @@ jobs:
                   find /opt -name "openterfaceQT" -type f 2>/dev/null || echo "No openterfaceQT found in /opt"
                   exit 1
                 fi
-              elif [ "${{ github.event.inputs.install_type }}" = "appimage" ]; then
+              elif [ "${{ env.INSTALL_TYPE }}" = "appimage" ]; then
                 if [ -f /usr/local/bin/openterfaceQT.AppImage ]; then
                   echo "✅ AppImage: Openterface AppImage found at /usr/local/bin/openterfaceQT.AppImage"
                 else
@@ -271,7 +282,7 @@ jobs:
                   exit 1
                 fi
               else
-                echo "❌ Invalid install_type: ${{ github.event.inputs.install_type }}"
+                echo "❌ Invalid install_type: ${{ env.INSTALL_TYPE }}"
                 exit 1
               fi
               
@@ -320,7 +331,7 @@ jobs:
               dpkg -l | grep -i openterface || echo "No openterface package found"
               
               echo "🔍 Checking for openterface binary..."
-              if [ "${{ github.event.inputs.install_type }}" = "deb" ]; then
+              if [ "${{ env.INSTALL_TYPE }}" = "deb" ]; then
                 which openterfaceQT || echo "openterfaceQT not in PATH"
                 if [ -f /usr/local/bin/openterfaceQT ]; then
                   echo "✅ DEB: Binary found at /usr/local/bin/openterfaceQT"
@@ -328,7 +339,7 @@ jobs:
                   echo "❌ DEB: Binary not found at /usr/local/bin/openterfaceQT"
                   exit 1
                 fi
-              elif [ "${{ github.event.inputs.install_type }}" = "appimage" ]; then
+              elif [ "${{ env.INSTALL_TYPE }}" = "appimage" ]; then
                 if [ -f /usr/local/bin/openterfaceQT.AppImage ]; then
                   echo "✅ AppImage: AppImage found at /usr/local/bin/openterfaceQT.AppImage"
                 else
