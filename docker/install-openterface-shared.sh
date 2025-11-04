@@ -90,9 +90,22 @@ find_latest_build_deb() {
 download_from_latest_build() {
     echo "📥 Attempting to download from latest linux-build workflow artifacts..."
     
+    # Check if GITHUB_TOKEN is available
+    ARTIFACT_TOKEN="${GITHUB_TOKEN:-}"
+    
+    if [ -z "$ARTIFACT_TOKEN" ]; then
+        echo "⚠️  GITHUB_TOKEN not provided"
+        echo "ℹ️  Artifact download requires GitHub token. This should be provided by the workflow."
+        echo "ℹ️  Consider using volume mounts instead: docker run -v /path/to/artifacts:/tmp/build-artifacts"
+        return 1
+    fi
+    
+    echo "✅ GITHUB_TOKEN is available, attempting download..."
+    
     # Get the latest successful linux-build workflow run
     echo "🔍 Finding latest linux-build workflow run..."
-    LATEST_RUN=$(curl -s "https://api.github.com/repos/${GITHUB_REPO}/actions/workflows/linux-build.yaml/runs?status=success&per_page=1" | \
+    LATEST_RUN=$(curl -s -H "Authorization: token $ARTIFACT_TOKEN" \
+                 "https://api.github.com/repos/${GITHUB_REPO}/actions/workflows/linux-build.yaml/runs?status=success&per_page=1" | \
                  jq -r '.workflow_runs[0]')
     
     if [ "$LATEST_RUN" = "null" ] || [ -z "$LATEST_RUN" ]; then
@@ -105,7 +118,8 @@ download_from_latest_build() {
     
     # Get all artifacts from this run
     echo "🔍 Fetching artifacts from workflow run..."
-    ARTIFACTS=$(curl -s "https://api.github.com/repos/${GITHUB_REPO}/actions/runs/$RUN_ID/artifacts")
+    ARTIFACTS=$(curl -s -H "Authorization: token $ARTIFACT_TOKEN" \
+                "https://api.github.com/repos/${GITHUB_REPO}/actions/runs/$RUN_ID/artifacts")
     
     # Find the shared .deb artifact
     DEB_ARTIFACT_ID=$(echo "$ARTIFACTS" | jq -r '.artifacts[] | select(.name | contains("shared.deb")) | .id' | head -1)
@@ -119,16 +133,8 @@ download_from_latest_build() {
     
     echo "📦 Found shared .deb artifact: $DEB_ARTIFACT_ID"
     
-    # Download the artifact (requires GitHub token for authentication)
+    # Download the artifact
     echo "⬇️ Downloading artifact..."
-    ARTIFACT_TOKEN="${GITHUB_TOKEN:-}"
-    
-    if [ -z "$ARTIFACT_TOKEN" ]; then
-        echo "⚠️  GITHUB_TOKEN not available in Docker container"
-        echo "ℹ️  Artifact download requires GitHub token. This should be provided by the workflow."
-        echo "ℹ️  Consider using volume mounts instead: docker run -v /path/to/artifacts:/tmp/build-artifacts"
-        return 1
-    fi
     
     if curl -L -H "Authorization: token $ARTIFACT_TOKEN" -o artifact.zip \
         "https://api.github.com/repos/${GITHUB_REPO}/actions/artifacts/$DEB_ARTIFACT_ID/zip" 2>/dev/null; then

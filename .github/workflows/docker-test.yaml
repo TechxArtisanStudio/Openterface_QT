@@ -145,6 +145,9 @@ jobs:
             echo "VOLUME_MOUNT=" >> $GITHUB_ENV
             echo "HAS_VOLUME_MOUNT=false" >> $GITHUB_ENV
           fi
+          
+          # Pass GITHUB_TOKEN to Docker containers for artifact downloads
+          echo "GITHUB_TOKEN_ENV=-e GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }}" >> $GITHUB_ENV
 
       - name: Verify Docker image (Shared)
         run: |
@@ -171,9 +174,9 @@ jobs:
           # Test simple command execution
           echo "🔍 Testing simple command execution..."
           if [ "$HAS_VOLUME_MOUNT" = "true" ]; then
-            DOCKER_OPTS="$VOLUME_MOUNT"
+            DOCKER_OPTS="$VOLUME_MOUNT $GITHUB_TOKEN_ENV"
           else
-            DOCKER_OPTS=""
+            DOCKER_OPTS="$GITHUB_TOKEN_ENV"
           fi
           
           docker run --rm $DOCKER_OPTS \
@@ -185,7 +188,7 @@ jobs:
               pwd
               echo 'User ID:' \$(id)
               echo 'Environment variables:'
-              env | grep -E 'HOME\\|USER\\|DISPLAY\\|QT_' | head -10
+              env | grep -E 'HOME\\|USER\\|DISPLAY\\|QT_|GITHUB_TOKEN' | head -10
               echo 'File system check:'
               ls -la /home/openterface/ | head -5
               echo '✅ Basic functionality test completed'
@@ -200,9 +203,9 @@ jobs:
           
           # Prepare docker options
           if [ "$HAS_VOLUME_MOUNT" = "true" ]; then
-            DOCKER_OPTS="$VOLUME_MOUNT"
+            DOCKER_OPTS="$VOLUME_MOUNT $GITHUB_TOKEN_ENV"
           else
-            DOCKER_OPTS=""
+            DOCKER_OPTS="$GITHUB_TOKEN_ENV"
           fi
           
           # First, let's test if the image can run a simple command
@@ -224,13 +227,13 @@ jobs:
           echo "✅ Container started with name: $CONTAINER_NAME"
           
           # Wait a moment for container to fully initialize
-          echo "�?Waiting 3 seconds for container to settle..."
+          echo "⏳ Waiting 3 seconds for container to settle..."
           sleep 3
           
           # Simple check - is container running?
           echo "🔍 Container status check:"
           if docker ps --filter "name=$CONTAINER_NAME" --format "{{.Names}}" | grep -q "$CONTAINER_NAME"; then
-            echo "�?Container is running"
+            echo "✅ Container is running"
             
             # Test basic functionality
             echo "🧪 Testing container functionality..."
@@ -242,11 +245,11 @@ jobs:
               ls -la /home/openterface/ | head -5
               echo 'Launcher script check:'
               ls -la /usr/local/bin/start-openterface.sh 2>/dev/null || echo 'Launcher script not found'
-              echo '�?Functionality test completed'
+              echo '✅ Functionality test completed'
             "
-            echo "�?Container functionality test passed"
+            echo "✅ Container functionality test passed"
           else
-            echo "�?Container is not running"
+            echo "⚠️ Container is not running"
             echo "🔍 Container status:"
             docker ps -a --filter "name=$CONTAINER_NAME"
             echo "🔍 Container logs:"
@@ -265,9 +268,9 @@ jobs:
           
           # Prepare docker options
           if [ "$HAS_VOLUME_MOUNT" = "true" ]; then
-            DOCKER_OPTS="$VOLUME_MOUNT"
+            DOCKER_OPTS="$VOLUME_MOUNT $GITHUB_TOKEN_ENV"
           else
-            DOCKER_OPTS=""
+            DOCKER_OPTS="$GITHUB_TOKEN_ENV"
           fi
           
           # Run container and check if openterface is installed
