@@ -703,7 +703,19 @@ jobs:
                   echo "📤 Uploading $filename to ImgBB..."
                   # Capture only the final URL, suppress all debug output
                   UPLOAD_OUTPUT=$(https_proxy="" IMGBB_API_KEY="$IMGBB_API_KEY" timeout 120 ./docker/upload_to_imgbb.sh "$img" 2>&1)
-                  UPLOAD_URL=$(echo "$UPLOAD_OUTPUT" | grep -oP 'https://i\.ibb\.co/\S+' | head -1)
+                  
+                  # Try multiple URL patterns (with both escaped and non-escaped slashes)
+                  UPLOAD_URL=$(echo "$UPLOAD_OUTPUT" | grep -oP 'https[:/]*i\.ibb\.co/\S+' | head -1)
+                  
+                  # If we got escaped slashes, convert them
+                  if [ -z "$UPLOAD_URL" ]; then
+                    UPLOAD_URL=$(echo "$UPLOAD_OUTPUT" | grep -oP 'https:\\\\/\\\\/i\.ibb\.co/\S+' | head -1 | sed 's|\\\/|/|g')
+                  fi
+                  
+                  # Final fallback: look for any ibb.co URL
+                  if [ -z "$UPLOAD_URL" ]; then
+                    UPLOAD_URL=$(echo "$UPLOAD_OUTPUT" | grep -oE '(https?[:/]*)+i\.ibb\.co[^ ]*' | head -1 | sed 's|\\\/|/|g')
+                  fi
                   
                   if [ -n "$UPLOAD_URL" ]; then
                     echo "✅ Upload successful: $UPLOAD_URL"
@@ -712,8 +724,9 @@ jobs:
                     echo "[View Full Size]($UPLOAD_URL)" >> $GITHUB_STEP_SUMMARY
                     echo "" >> $GITHUB_STEP_SUMMARY
                   else
-                    echo "❌ Upload failed for $filename"
-                    echo "$UPLOAD_OUTPUT"
+                    echo "❌ Upload URL extraction failed for $filename"
+                    echo "Raw output (last 10 lines):"
+                    echo "$UPLOAD_OUTPUT" | tail -10
                     upload_failed=1
                     # Still add a note in summary
                     echo "⚠️ Upload to ImgBB failed - See artifacts for full image" >> $GITHUB_STEP_SUMMARY
