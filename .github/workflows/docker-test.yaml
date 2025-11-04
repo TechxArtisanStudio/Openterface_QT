@@ -432,6 +432,7 @@ jobs:
           # Skip entrypoint and just check system libraries directly
           docker run --rm \
             --entrypoint bash \
+            -e GITHUB_TOKEN="${{ secrets.GITHUB_TOKEN }}" \
             --name openterface-hw-test \
             ${{ env.DOCKER_IMAGE_SHARED }}:${{ env.DOCKER_TAG }} \
             -c '
@@ -460,6 +461,7 @@ jobs:
           if [ "$HAS_VOLUME_MOUNT" = "true" ]; then
             docker run --rm $VOLUME_MOUNT \
               --name openterface-launcher-test \
+              -e GITHUB_TOKEN="${{ secrets.GITHUB_TOKEN }}" \
               ${{ env.DOCKER_IMAGE_SHARED }}:${{ env.DOCKER_TAG }} \
               bash -c '
                 if [ -f "/usr/local/bin/start-openterface.sh" ] && [ -x "/usr/local/bin/start-openterface.sh" ]; then
