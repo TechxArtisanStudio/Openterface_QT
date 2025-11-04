@@ -41,7 +41,11 @@ RUN apt-get install -y libqt6core6t64 \
         libqt6multimedia6 \
         libqt6multimediawidgets6 \
         libqt6serialport6 \
-        libqt6svg6
+        libqt6svg6 \
+        qt6-base-dev \
+        qt6-image-formats-plugins \
+        libqt6opengl6 \
+        libqt6concurrent6
 # Hardware interface libraries (runtime only)
 RUN apt-get install -y libusb-1.0-0 \
         libudev1
@@ -64,7 +68,13 @@ RUN apt-get install -y libx11-6 \
         libexpat1 \
         libfreetype6 \
         libfontconfig1 \
-        libbz2-1.0
+        libbz2-1.0 \
+        libxcb-render0 \
+        libxcb-render-util0 \
+        libxcb-image0 \
+        libxcb-util1 \
+        libxcb-keysyms1 \
+        libxcb-icccm4
 # OpenGL and GPU libraries for rendering
 RUN apt-get install -y libgl1 \
         libglx0 \
@@ -128,6 +138,41 @@ USER openterface
 
 # Set the working directory
 WORKDIR /home/openterface
+
+# Create a diagnostic script to check Qt plugin dependencies
+RUN cat > /usr/local/bin/check-qt-deps.sh << 'SCRIPT_EOF'
+#!/bin/bash
+echo "🔍 Qt Plugin Dependency Diagnostics"
+echo "===================================="
+echo ""
+
+echo "Qt xcb platform plugin location:"
+find / -name "libqxcb.so" 2>/dev/null | head -5
+
+echo ""
+echo "Checking xcb plugin library dependencies:"
+if command -v ldd >/dev/null 2>&1; then
+    xcb_plugin=$(find / -name "libqxcb.so" 2>/dev/null | head -1)
+    if [ -f "$xcb_plugin" ]; then
+        echo "Dependencies for: $xcb_plugin"
+        ldd "$xcb_plugin" 2>&1 | grep -E "not found|libxcb"
+    fi
+fi
+
+echo ""
+echo "Checking for xcb-cursor library:"
+dpkg -l | grep -i "xcb-cursor\|libxcb-cursor"
+
+echo ""
+echo "Checking for all libxcb libraries:"
+dpkg -l | grep "libxcb"
+
+echo ""
+echo "Qt plugin path environment variables:"
+echo "QT_PLUGIN_PATH=$QT_PLUGIN_PATH"
+echo "QML2_IMPORT_PATH=$QML2_IMPORT_PATH"
+SCRIPT_EOF
+chmod +x /usr/local/bin/check-qt-deps.sh
 
 # Add labels for metadata
 LABEL maintainer="TechxArtisan Studio"
