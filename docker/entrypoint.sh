@@ -10,6 +10,10 @@ export DISPLAY="${DISPLAY:-:0}"
 export QT_X11_NO_MITSHM=1
 export QT_QPA_PLATFORM=xcb
 
+# Fix locale to UTF-8 (Qt6 requirement)
+export LC_ALL=C.UTF-8
+export LANG=C.UTF-8
+
 # Run installation if not already installed
 if [ ! -f /usr/local/bin/openterfaceQT ]; then
     echo "📦 Openterface not yet installed. Running installation..."

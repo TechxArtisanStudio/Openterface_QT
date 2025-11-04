@@ -17,6 +17,10 @@ ENV DISPLAY=:0
 ENV QT_X11_NO_MITSHM=1
 ENV QT_QPA_PLATFORM=xcb
 
+# Set locale to UTF-8 (required by Qt6)
+ENV LC_ALL=C.UTF-8
+ENV LANG=C.UTF-8
+
 # Install minimal system dependencies and runtime libraries only
 RUN apt-get update -y --allow-releaseinfo-change --allow-unauthenticated
 RUN apt-get install -y \
@@ -38,6 +42,13 @@ RUN apt-get install -y libqt6core6t64 \
         libqt6multimediawidgets6 \
         libqt6serialport6 \
         libqt6svg6
+# Qt6 platform plugins and tools
+RUN apt-get install -y qt6-base-dev \
+        qml6-module-qtbase \
+        qml6-module-qtqml-models \
+        qt6-image-formats-plugins \
+        libqt6opengl6 \
+        libqt6concurrent6
 # Hardware interface libraries (runtime only)
 RUN apt-get install -y libusb-1.0-0 \
         libudev1
