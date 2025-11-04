@@ -35,7 +35,7 @@ RUN apt-get install -y \
 # Hardware interface libraries (runtime only)
 RUN apt-get install -y libusb-1.0-0 \
         libudev1
-        
+
 # Runtime dependencies for bundled Qt6 libraries
 RUN apt-get install -y libpcre2-16-0 \
         libssl3 \
@@ -90,6 +90,10 @@ RUN apt-get install -y libgstreamer1.0-0 \
         gstreamer1.0-libav \
         gstreamer1.0-alsa \
         gstreamer1.0-pulseaudio
+
+# Video4Linux utilities for V4L2 device management and testing
+RUN apt-get install -y v4l-utils
+
 # Clean up to reduce image size
  RUN   apt-get clean && \
     rm -rf /var/lib/apt/lists/*
