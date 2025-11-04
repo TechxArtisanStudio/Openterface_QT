@@ -36,8 +36,6 @@ get_latest_version() {
 
 # Function to find the latest built deb package
 find_latest_build_deb() {
-    echo "🔍 Looking for latest Linux build artifacts (.deb files)..."
-    
     # Search paths in order of preference
     local search_paths=(
         "/tmp/build-artifacts"
@@ -54,15 +52,12 @@ find_latest_build_deb() {
     
     for search_path in "${search_paths[@]}"; do
         if [ -d "$search_path" ]; then
-            echo "   Searching in: $search_path"
             # Look for deb files - list all .deb files first
             if ls "$search_path"/*.deb 1> /dev/null 2>&1; then
-                echo "   Found .deb files:"
                 for deb_file in "$search_path"/*.deb; do
                     if [ -f "$deb_file" ]; then
                         # Get the modification time
                         local timestamp=$(stat -c %Y "$deb_file" 2>/dev/null || stat -f %m "$deb_file" 2>/dev/null || echo 0)
-                        echo "   - $deb_file (timestamp: $timestamp)"
                         
                         if [ "$timestamp" -gt "$latest_timestamp" ]; then
                             latest_timestamp=$timestamp
@@ -71,18 +66,15 @@ find_latest_build_deb() {
                     fi
                 done
             fi
-        else
-            echo "   Directory not found: $search_path"
         fi
     done
     
     if [ -n "$latest_deb" ]; then
-        echo "✅ Found latest build artifact: $latest_deb"
+        # Output ONLY the file path - no debug output
         echo "$latest_deb"
         return 0
     fi
     
-    echo "⚠️  No build artifacts found in any search path"
     return 1
 }
 
@@ -136,25 +128,49 @@ download_from_latest_build() {
     # Download the artifact
     echo "⬇️ Downloading artifact..."
     
-    if curl -L -H "Authorization: token $ARTIFACT_TOKEN" -o artifact.zip \
+    # Use temp directory for download
+    TEMP_DIR=$(mktemp -d)
+    trap "rm -rf $TEMP_DIR" EXIT
+    
+    if curl -L -H "Authorization: token $ARTIFACT_TOKEN" -o "$TEMP_DIR/artifact.zip" \
         "https://api.github.com/repos/${GITHUB_REPO}/actions/artifacts/$DEB_ARTIFACT_ID/zip" 2>/dev/null; then
         
+        echo "✅ Artifact downloaded, extracting..."
+        
         # Extract the deb file
-        if unzip -j artifact.zip -d /tmp/ 2>/dev/null; then
-            if ls /tmp/*.deb 1> /dev/null 2>&1; then
-                # Move the first .deb file to our package location
-                DEB_FILE=$(ls /tmp/*.deb | head -1)
-                mv "$DEB_FILE" "/tmp/${PACKAGE_NAME}"
-                rm -f artifact.zip
-                echo "✅ DEB package downloaded and extracted successfully"
-                return 0
+        if unzip -j "$TEMP_DIR/artifact.zip" -d "$TEMP_DIR/" 2>/dev/null; then
+            echo "✅ Archive extracted"
+            
+            # Find the .deb file
+            DEB_FILE=$(find "$TEMP_DIR" -name "*.deb" -type f | head -1)
+            
+            if [ -n "$DEB_FILE" ] && [ -f "$DEB_FILE" ]; then
+                echo "✅ Found .deb file: $DEB_FILE"
+                
+                # Copy to final location
+                if cp "$DEB_FILE" "/tmp/${PACKAGE_NAME}"; then
+                    echo "✅ DEB package copied successfully to /tmp/${PACKAGE_NAME}"
+                    rm -f "$TEMP_DIR/artifact.zip"
+                    return 0
+                else
+                    echo "❌ Failed to copy .deb file to /tmp/${PACKAGE_NAME}"
+                    echo "   DEB file: $DEB_FILE"
+                    echo "   Size: $(stat -c%s "$DEB_FILE" 2>/dev/null || echo "unknown")"
+                    return 1
+                fi
+            else
+                echo "❌ No .deb file found in extracted archive"
+                ls -la "$TEMP_DIR/" 2>/dev/null || true
+                return 1
             fi
+        else
+            echo "❌ Failed to extract archive"
+            return 1
         fi
+    else
+        echo "❌ Failed to download artifact"
+        return 1
     fi
-    
-    rm -f artifact.zip
-    echo "❌ Failed to download or extract artifact"
-    return 1
 }
 
 # Function to download the package
@@ -163,13 +179,18 @@ download_package() {
     
     # First, try to find the latest Linux build artifact
     if built_package=$(find_latest_build_deb); then
-        echo "✅ Using latest Linux build result: $built_package"
+        echo "🔍 Looking for latest Linux build artifacts (.deb files)..."
+        echo "   Found local artifact: $built_package"
         if cp "$built_package" "/tmp/${PACKAGE_NAME}"; then
             echo "✅ Build artifact copied to /tmp/${PACKAGE_NAME}"
             return 0
         else
-            echo "⚠️  Failed to copy build artifact, attempting local paths..."
+            echo "⚠️  Failed to copy build artifact: $built_package"
+            echo "   Error details: $(ls -lah "$built_package" 2>&1)"
+            echo "   Attempting local paths..."
         fi
+    else
+        echo "ℹ️  No local .deb files found in standard paths"
     fi
     
     # Fallback: check for local built packages in standard locations
@@ -189,8 +210,10 @@ download_package() {
         for potential_path in $path_pattern; do
             if [ -f "$potential_path" ]; then
                 echo "✅ Found local package: $potential_path"
-                cp "$potential_path" "/tmp/${PACKAGE_NAME}"
-                return 0
+                if cp "$potential_path" "/tmp/${PACKAGE_NAME}"; then
+                    echo "✅ Package copied to /tmp/${PACKAGE_NAME}"
+                    return 0
+                fi
             fi
         done
     done
