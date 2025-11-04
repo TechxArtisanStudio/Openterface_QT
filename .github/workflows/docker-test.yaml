@@ -506,21 +506,31 @@ jobs:
 
       - name: GUI screenshot test using proven script (Shared)
         if: ${{ github.event.inputs.test_type == 'run-test' || github.event.inputs.test_type == 'all' || github.event_name != 'workflow_dispatch' }}
+        env:
+          CI_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CI_VOLUME_MOUNT: ${{ env.VOLUME_MOUNT }}
+          CI_DOCKER_TAG: test-${{ github.sha }}
+          CI_DOCKER_IMAGE: ${{ env.DOCKER_IMAGE_SHARED }}
         run: |
           echo "🧪 Running GUI screenshot test using proven script"
           
           # Make the script executable
           chmod +x docker/screenshot-docker-app.sh
           
-          # Update the script to use the CI Docker tag instead of screenshot-test
-          sed -i 's/DOCKER_TAG="screenshot-test"/DOCKER_TAG="test-${{ github.sha }}"/' docker/screenshot-docker-app.sh
-          sed -i 's/DOCKER_IMAGE="openterface-test"/DOCKER_IMAGE="${{ env.DOCKER_IMAGE_SHARED }}"/' docker/screenshot-docker-app.sh
+          # Run the screenshot script with CI environment variables
+          # The script will use these if set, otherwise fall back to defaults
+          export GITHUB_TOKEN="$CI_GITHUB_TOKEN"
+          export VOLUME_MOUNT="$CI_VOLUME_MOUNT"
+          export DOCKER_TAG="$CI_DOCKER_TAG"
+          export DOCKER_IMAGE="$CI_DOCKER_IMAGE"
+          export SCREENSHOTS_DIR="screenshots-shared"
           
-          # Update the script to use screenshots directory instead of app-screenshots
-          sed -i 's/SCREENSHOTS_DIR="app-screenshots"/SCREENSHOTS_DIR="screenshots-shared"/' docker/screenshot-docker-app.sh
+          echo "🎬 Executing screenshot script with environment:"
+          echo "  DOCKER_IMAGE=$DOCKER_IMAGE"
+          echo "  DOCKER_TAG=$DOCKER_TAG"
+          echo "  SCREENSHOTS_DIR=$SCREENSHOTS_DIR"
+          echo "  VOLUME_MOUNT=$VOLUME_MOUNT"
           
-          # Run the proven screenshot script
-          echo "🎬 Executing screenshot script..."
           ./docker/screenshot-docker-app.sh
           
           # Additional analysis for CI context
