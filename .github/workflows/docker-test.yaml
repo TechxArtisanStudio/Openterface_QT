@@ -626,9 +626,8 @@ jobs:
             
             chmod +x docker/upload_to_imgbb.sh
             
-            html_gallery=""
-            api_key_shown=0
             screenshot_count=0
+            api_key_shown=0
             
             for img in screenshots-shared/*.jpg; do
               if [ -f "$img" ]; then
@@ -646,29 +645,22 @@ jobs:
                   UPLOAD_URL=$(echo "$UPLOAD_OUTPUT" | grep -oP 'https://i\.ibb\.co/\S+' | head -1)
                   
                   if [ -n "$UPLOAD_URL" ]; then
-                    html_gallery+="<div style='margin-bottom: 20px; text-align: center;'>"
-                    html_gallery+="<h4>$filename</h4>"
-                    html_gallery+="<img src='$UPLOAD_URL' style='max-width: 100%; height: auto; border: 1px solid #ddd; border-radius: 4px; padding: 4px;' alt='$filename'>"
-                    html_gallery+="<p><small><strong>Size:</strong> $filesize | <a href='$UPLOAD_URL' target='_blank'>View Full Size</a></small></p>"
-                    html_gallery+="</div>"
+                    echo "### $filename" >> $GITHUB_STEP_SUMMARY
+                    echo "" >> $GITHUB_STEP_SUMMARY
+                    echo "![Screenshot]($UPLOAD_URL)" >> $GITHUB_STEP_SUMMARY
+                    echo "" >> $GITHUB_STEP_SUMMARY
+                    echo "**Size:** $filesize | [View Full Size]($UPLOAD_URL)" >> $GITHUB_STEP_SUMMARY
+                    echo "" >> $GITHUB_STEP_SUMMARY
                   fi
                 else
                   if [ $api_key_shown -eq 0 ]; then
-                    html_gallery+="<div style='margin-bottom: 20px; padding: 10px; background-color: #f8d7da; border: 1px solid #f5c6cb; border-radius: 4px;'>"
-                    html_gallery+="<p><strong>Note:</strong> IMGBB_API_KEY not configured</p>"
-                    html_gallery+="<p>Screenshots available in Artifacts section</p>"
-                    html_gallery+="</div>"
+                    echo "**Note:** IMGBB_API_KEY not configured - Screenshots available in Artifacts section" >> $GITHUB_STEP_SUMMARY
+                    echo "" >> $GITHUB_STEP_SUMMARY
                     api_key_shown=1
                   fi
                 fi
               fi
             done
-            
-            if [ -n "$html_gallery" ]; then
-              echo "<div style='background-color: #f6f8fa; padding: 15px; border-radius: 6px;'>" >> $GITHUB_STEP_SUMMARY
-              echo "$html_gallery" >> $GITHUB_STEP_SUMMARY
-              echo "</div>" >> $GITHUB_STEP_SUMMARY
-            fi
             
             echo "" >> $GITHUB_STEP_SUMMARY
             echo "## Download Options" >> $GITHUB_STEP_SUMMARY
