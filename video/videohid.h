@@ -164,6 +164,10 @@ private:
     QString extractPortNumberFromPath(const QString& path);
     QPair<QByteArray, bool> usbXdataRead4Byte(quint16 u16_address);
     bool usbXdataWrite4Byte(quint16 u16_address, QByteArray data);
+    
+    // Safe wrapper to read a single byte from USB Xdata - prevents crash on empty arrays
+    quint8 safeReadByte(quint16 u16_address, quint8 defaultValue = 0);
+    
     QString devicePath;
     bool isHardSwitchOnTarget = false;
 
