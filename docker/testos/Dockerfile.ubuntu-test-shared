@@ -4,9 +4,13 @@
 
 FROM ubuntu:24.04
 
+# Build arguments
+ARG GITHUB_TOKEN=""
+
 # Set environment variables to avoid interactive prompts
 ENV DEBIAN_FRONTEND=noninteractive
 ENV TZ=UTC
+ENV GITHUB_TOKEN=${GITHUB_TOKEN}
 
 # Set up display environment for GUI applications
 ENV DISPLAY=:0
@@ -80,11 +84,11 @@ RUN mkdir -p /tmp/build-artifacts /tmp/packages
 # 2. Download the latest release from GitHub
 
 # Copy installation script for runtime execution
-COPY install-openterface-shared.sh /tmp/install-openterface-shared.sh
+COPY ./install-openterface-shared.sh /tmp/install-openterface-shared.sh
 RUN chmod +x /tmp/install-openterface-shared.sh
 
 # Copy and setup entrypoint script
-COPY entrypoint.sh /entrypoint.sh
+COPY ./entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
 

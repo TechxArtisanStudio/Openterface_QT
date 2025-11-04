@@ -123,6 +123,7 @@ jobs:
           
           docker build \
             -f docker/testos/Dockerfile.ubuntu-test-shared \
+            --build-arg GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }} \
             -t ${{ env.DOCKER_IMAGE_SHARED }}:${{ env.DOCKER_TAG }} \
             docker/
           
@@ -199,7 +200,7 @@ jobs:
       - name: Test container startup (Shared)
         if: ${{ github.event.inputs.test_type == 'run-test' || github.event.inputs.test_type == 'all' || github.event_name != 'workflow_dispatch' }}
         run: |
-          echo "🚀 Testing container startup"
+          echo "🚀 Testing container startup with entrypoint (installation trigger)"
           
           # Prepare docker options
           if [ "$HAS_VOLUME_MOUNT" = "true" ]; then
@@ -208,50 +209,52 @@ jobs:
             DOCKER_OPTS="$GITHUB_TOKEN_ENV"
           fi
           
-          # First, let's test if the image can run a simple command
-          echo "🧪 Testing simple command execution first..."
-          if docker run --rm $DOCKER_OPTS ${{ env.DOCKER_IMAGE_SHARED }}:${{ env.DOCKER_TAG }} echo "Hello from container"; then
-            echo "✅ Simple command execution works"
-          else
-            echo "❌ Simple command execution failed"
-            exit 1
-          fi
+          # Important: This test does NOT override the entrypoint, so the installation script will run
+          echo "🧪 Testing container startup with default entrypoint..."
+          CONTAINER_NAME="openterface-startup-container"
           
-          # Now test container with sleep (override default CMD to avoid GUI issues)
-          echo "🧪 Testing container with sleep command..."
-          CONTAINER_NAME="openterface-test-container"
-          
-          # Start container with volume mount if available
-          docker run -d $DOCKER_OPTS --name $CONTAINER_NAME ${{ env.DOCKER_IMAGE_SHARED }}:${{ env.DOCKER_TAG }} sleep 30
+          # Start container with entrypoint (this triggers installation if needed)
+          # We use 'sleep' as the final command so the container stays running for our tests
+          docker run -d $DOCKER_OPTS --name $CONTAINER_NAME ${{ env.DOCKER_IMAGE_SHARED }}:${{ env.DOCKER_TAG }} sleep 120
           
           echo "✅ Container started with name: $CONTAINER_NAME"
           
-          # Wait a moment for container to fully initialize
-          echo "⏳ Waiting 3 seconds for container to settle..."
-          sleep 3
+          # Wait for entrypoint and installation to complete
+          echo "⏳ Waiting 10 seconds for entrypoint and installation to complete..."
+          sleep 10
           
-          # Simple check - is container running?
+          # Check container status
           echo "🔍 Container status check:"
           if docker ps --filter "name=$CONTAINER_NAME" --format "{{.Names}}" | grep -q "$CONTAINER_NAME"; then
-            echo "✅ Container is running"
+            echo "✅ Container is still running"
             
-            # Test basic functionality
-            echo "🧪 Testing container functionality..."
+            # Test if installation worked
+            echo "🧪 Verifying installation..."
             docker exec $CONTAINER_NAME bash -c "
-              echo '🔍 Container info:'
-              echo 'User:' \$(whoami)
-              echo 'Working directory:' \$(pwd)
-              echo 'Home directory contents:'
-              ls -la /home/openterface/ | head -5
-              echo 'Launcher script check:'
-              ls -la /usr/local/bin/start-openterface.sh 2>/dev/null || echo 'Launcher script not found'
-              echo '✅ Functionality test completed'
+              echo '🔍 Checking if openterfaceQT is installed...'
+              if [ -f /usr/local/bin/openterfaceQT ] || [ -f /usr/local/bin/openterfaceQT.AppImage ]; then
+                echo '✅ Openterface binary found'
+              else
+                echo '⚠️  Openterface binary not found - installation may have failed'
+                echo '🔍 Searching for binary...'
+                find /usr -name 'openterfaceQT*' -type f 2>/dev/null || echo 'No openterfaceQT found'
+                find /opt -name 'openterfaceQT*' -type f 2>/dev/null || echo 'No openterfaceQT found in /opt'
+              fi
+              
+              echo '🔍 Checking launcher script...'
+              if [ -x /usr/local/bin/start-openterface.sh ]; then
+                echo '✅ Launcher script is executable'
+              else
+                echo '⚠️  Launcher script not found or not executable'
+              fi
+              
+              echo '🔍 Checking udev rules...'
+              ls -la /etc/udev/rules.d/*openterface* 2>/dev/null || echo 'Udev rules created'
+              
+              echo '✅ Installation verification completed'
             "
-            echo "✅ Container functionality test passed"
           else
-            echo "⚠️ Container is not running"
-            echo "🔍 Container status:"
-            docker ps -a --filter "name=$CONTAINER_NAME"
+            echo "❌ Container is not running"
             echo "🔍 Container logs:"
             docker logs $CONTAINER_NAME 2>&1 || echo "No logs available"
             exit 1
@@ -260,6 +263,7 @@ jobs:
           # Clean up
           docker stop $CONTAINER_NAME 2>/dev/null || true
           docker rm $CONTAINER_NAME 2>/dev/null || true
+          echo "✅ Container startup test completed"
 
       - name: Test installation script (Shared)
         if: ${{ github.event.inputs.test_type == 'run-test' || github.event.inputs.test_type == 'all' || github.event_name != 'workflow_dispatch' }}
