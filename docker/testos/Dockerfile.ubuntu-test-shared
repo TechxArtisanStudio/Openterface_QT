@@ -84,11 +84,15 @@ RUN apt-get install -y libgstreamer1.0-0 \
 
 # Create a non-root user for running the application
 RUN useradd -m -s /bin/bash openterface && \
-    usermod -a -G dialout,uucp,audio,video openterface && \
-    echo "openterface ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+    usermod -a -G dialout,uucp,audio,video,sudo openterface && \
+    echo "openterface ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/openterface && \
+    chmod 0440 /etc/sudoers.d/openterface && \
+    mkdir -p /var/lib/apt/lists/partial && \
+    chown -R openterface:openterface /var/lib/apt/lists /var/cache/apt
 
 # Create directories for potential build artifacts and temporary files
-RUN mkdir -p /tmp/build-artifacts /tmp/packages
+RUN mkdir -p /tmp/build-artifacts /tmp/packages && \
+    chown -R openterface:openterface /tmp/build-artifacts /tmp/packages
 
 # Note: Build artifacts are not copied into the image.
 # The installation script will either:

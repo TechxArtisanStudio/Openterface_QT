@@ -238,44 +238,62 @@ install_package() {
     # Determine package type based on actual file content or extension
     if [[ "$PACKAGE_FILE" == *.deb ]] && dpkg-deb --info "$PACKAGE_FILE" &>/dev/null; then
         echo "   Installing as Debian package..."
-        if dpkg -i "$PACKAGE_FILE"; then
+        # Use sudo for dpkg and apt-get if not already root
+        if [ "$(id -u)" -ne 0 ]; then
+            SUDO="sudo"
+        else
+            SUDO=""
+        fi
+        
+        if $SUDO dpkg -i "$PACKAGE_FILE" 2>&1; then
             echo "✅ Package installed successfully"
         else
             echo "⚠️  Package installation had dependency issues, fixing..."
-            apt-get update
-            apt-get install -f -y
+            $SUDO apt-get update 2>&1 | grep -v "^Reading\|^Building\|^done\|^Hit:" || true
+            $SUDO apt-get install -f -y 2>&1 | tail -5
             echo "✅ Dependencies resolved and package installed"
         fi
     elif [[ "$PACKAGE_FILE" == *.AppImage ]] || file "$PACKAGE_FILE" 2>/dev/null | grep -q "AppImage"; then
         echo "   Installing as AppImage (extracting contents)..."
-        mkdir -p /opt/openterface
-        cd /opt/openterface
-        # Extract AppImage contents
-        "$PACKAGE_FILE" --appimage-extract >/dev/null 2>&1 || {
-            echo "   AppImage extraction failed, trying alternative method..."
-            # Fallback: copy as binary if extraction fails
-            cp "$PACKAGE_FILE" /usr/local/bin/openterfaceQT.AppImage
-            chmod +x /usr/local/bin/openterfaceQT.AppImage
-            echo "✅ AppImage installed as fallback to /usr/local/bin/openterfaceQT.AppImage"
-            return 0
-        }
-        # Find the extracted binary
-        EXTRACTED_BINARY=$(find squashfs-root -name "openterfaceQT" -type f -executable 2>/dev/null | head -1)
-        if [ -n "$EXTRACTED_BINARY" ]; then
-            cp "$EXTRACTED_BINARY" /usr/local/bin/openterfaceQT
-            chmod +x /usr/local/bin/openterfaceQT
-            echo "✅ AppImage extracted and binary installed to /usr/local/bin/openterfaceQT"
+        if [ "$(id -u)" -ne 0 ]; then
+            SUDO="sudo"
         else
-            echo "   ❌ Could not find executable in extracted AppImage"
-            # Fallback to copying the AppImage
-            cp "$PACKAGE_FILE" /usr/local/bin/openterfaceQT.AppImage
-            chmod +x /usr/local/bin/openterfaceQT.AppImage
+            SUDO=""
+        fi
+        
+        $SUDO mkdir -p /opt/openterface
+        cd /tmp
+        # Extract AppImage contents
+        if "$PACKAGE_FILE" --appimage-extract >/dev/null 2>&1; then
+            # Find the extracted binary
+            EXTRACTED_BINARY=$(find squashfs-root -name "openterfaceQT" -type f -executable 2>/dev/null | head -1)
+            if [ -n "$EXTRACTED_BINARY" ]; then
+                $SUDO cp "$EXTRACTED_BINARY" /usr/local/bin/openterfaceQT
+                $SUDO chmod +x /usr/local/bin/openterfaceQT
+                echo "✅ AppImage extracted and binary installed to /usr/local/bin/openterfaceQT"
+            else
+                echo "   ❌ Could not find executable in extracted AppImage"
+                # Fallback to copying the AppImage
+                $SUDO cp "$PACKAGE_FILE" /usr/local/bin/openterfaceQT.AppImage
+                $SUDO chmod +x /usr/local/bin/openterfaceQT.AppImage
+                echo "✅ AppImage installed as fallback to /usr/local/bin/openterfaceQT.AppImage"
+            fi
+        else
+            echo "   AppImage extraction failed, using as binary fallback..."
+            # Fallback: copy as binary if extraction fails
+            $SUDO cp "$PACKAGE_FILE" /usr/local/bin/openterfaceQT.AppImage
+            $SUDO chmod +x /usr/local/bin/openterfaceQT.AppImage
             echo "✅ AppImage installed as fallback to /usr/local/bin/openterfaceQT.AppImage"
         fi
     else
         echo "   Installing as executable binary..."
-        cp "$PACKAGE_FILE" /usr/local/bin/openterfaceQT
-        chmod +x /usr/local/bin/openterfaceQT
+        if [ "$(id -u)" -ne 0 ]; then
+            SUDO="sudo"
+        else
+            SUDO=""
+        fi
+        $SUDO cp "$PACKAGE_FILE" /usr/local/bin/openterfaceQT
+        $SUDO chmod +x /usr/local/bin/openterfaceQT
         echo "✅ Binary installed to /usr/local/bin/openterfaceQT"
     fi
     
@@ -287,8 +305,15 @@ install_package() {
 setup_device_permissions() {
     echo "🔐 Setting up device permissions..."
     
+    # Determine if we need sudo
+    if [ "$(id -u)" -ne 0 ]; then
+        SUDO="sudo"
+    else
+        SUDO=""
+    fi
+    
     # Create udev rules for Openterface hardware
-    cat > /etc/udev/rules.d/51-openterface.rules << 'EOF'
+    $SUDO bash -c 'cat > /etc/udev/rules.d/51-openterface.rules << '"'"'EOF'"'"'
 # Openterface HID device
 SUBSYSTEM=="hidraw", ATTRS{idVendor}=="534d", ATTRS{idProduct}=="2109", TAG+="uaccess", MODE="0666"
 SUBSYSTEM=="usb", ATTRS{idVendor}=="534d", ATTRS{idProduct}=="2109", TAG+="uaccess", MODE="0666"
@@ -296,7 +321,7 @@ SUBSYSTEM=="usb", ATTRS{idVendor}=="534d", ATTRS{idProduct}=="2109", TAG+="uacce
 # Serial interface chip
 SUBSYSTEM=="ttyUSB", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="7523", TAG+="uaccess", MODE="0666"
 SUBSYSTEM=="usb", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="7523", TAG+="uaccess", MODE="0666"
-EOF
+EOF'
     
     # Check if we're in a container/build environment
     IN_CONTAINER=false
@@ -309,8 +334,8 @@ EOF
         echo "ℹ️  Container environment detected - udev rules created, will be applied at runtime"
     elif systemctl is-active --quiet systemd-udevd 2>/dev/null || pgrep -x "systemd-udevd\|udevd" >/dev/null 2>&1; then
         echo "🔄 Reloading udev rules..."
-        udevadm control --reload-rules 2>/dev/null || echo "⚠️  Could not reload udev rules"
-        udevadm trigger 2>/dev/null || echo "⚠️  Could not trigger udev"
+        $SUDO udevadm control --reload-rules 2>/dev/null || echo "⚠️  Could not reload udev rules"
+        $SUDO udevadm trigger 2>/dev/null || echo "⚠️  Could not trigger udev"
     else
         echo "ℹ️  udev not running - rules will be applied when udev starts"
     fi

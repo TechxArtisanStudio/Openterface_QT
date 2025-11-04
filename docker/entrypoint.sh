@@ -5,23 +5,26 @@
 echo "🔧 Openterface QT Docker Entrypoint"
 echo "===================================="
 
+# Set display environment for X11 early
+export DISPLAY="${DISPLAY:-:0}"
+export QT_X11_NO_MITSHM=1
+export QT_QPA_PLATFORM=xcb
+
 # Run installation if not already installed
 if [ ! -f /usr/local/bin/openterfaceQT ]; then
     echo "📦 Openterface not yet installed. Running installation..."
     
-    # Run the installation script with proper permissions
-    # If running as non-root but with sudo access, use sudo
-    # Otherwise try to run directly
+    # Run installation as root (required for dpkg and apt-get)
     if [ "$(id -u)" -ne 0 ]; then
-        # Non-root user: use sudo
+        # Not root, use sudo
         if sudo -n /tmp/install-openterface-shared.sh 2>/dev/null; then
             echo "✅ Installation completed successfully"
         else
-            # Try with password prompt if sudo without password fails
-            if sudo /tmp/install-openterface-shared.sh; then
+            # Try with password prompt (though sudo -n should work in Docker)
+            if sudo /tmp/install-openterface-shared.sh 2>&1; then
                 echo "✅ Installation completed successfully"
             else
-                echo "⚠️  Installation failed but continuing..."
+                echo "⚠️  Installation may have had issues but continuing..."
             fi
         fi
     else
@@ -29,7 +32,7 @@ if [ ! -f /usr/local/bin/openterfaceQT ]; then
         if /tmp/install-openterface-shared.sh; then
             echo "✅ Installation completed successfully"
         else
-            echo "⚠️  Installation failed but continuing..."
+            echo "⚠️  Installation may have had issues but continuing..."
         fi
     fi
 else
@@ -39,11 +42,6 @@ fi
 echo "🚀 Launching application..."
 echo ""
 
-# Set display environment for X11
-export DISPLAY="${DISPLAY:-:0}"
-export QT_X11_NO_MITSHM=1
-export QT_QPA_PLATFORM=xcb
-
 # Execute the command passed to docker run, or default to bash
 if [ $# -eq 0 ]; then
     # No command provided, use bash as default
@@ -52,3 +50,4 @@ else
     # Execute provided command
     exec "$@"
 fi
+
