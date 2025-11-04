@@ -1,4 +1,4 @@
-name: Docker Test - Openterface Shared Build (${{ github.event.inputs.install_type }})
+name: Docker Test - Openterface Shared Build
 
 on:
   push:
