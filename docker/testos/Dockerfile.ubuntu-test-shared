@@ -51,9 +51,14 @@ RUN apt-get install -y libx11-6 \
         libxrender1 \
         libxfixes3 \
         libxcursor1 \
+        libxcb-cursor0 \
         libxinerama1 \
         libxi6 \
         libxext6 \
+        libxcb1 \
+        libxcb-shape0 \
+        libxcb-xfixes0 \
+        libxcb-shm0 \
         libxkbcommon0 \
         libxkbcommon-x11-0 \
         libexpat1 \
