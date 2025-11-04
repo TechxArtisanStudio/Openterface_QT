@@ -34,16 +34,173 @@ get_latest_version() {
     echo "✅ Latest version: $LATEST_VERSION"
 }
 
+# Function to find the latest built deb package
+find_latest_build_deb() {
+    # Search paths in order of preference
+    local search_paths=(
+        "/tmp/build-artifacts"
+        "/build"
+        "/workspace/build"
+        "/src/build"
+        "./build"
+        "/tmp"
+    )
+    
+    # Find all .deb files matching the pattern and get the newest one
+    local latest_deb=""
+    local latest_timestamp=0
+    
+    for search_path in "${search_paths[@]}"; do
+        if [ -d "$search_path" ]; then
+            # Look for deb files - list all .deb files first
+            if ls "$search_path"/*.deb 1> /dev/null 2>&1; then
+                for deb_file in "$search_path"/*.deb; do
+                    if [ -f "$deb_file" ]; then
+                        # Get the modification time
+                        local timestamp=$(stat -c %Y "$deb_file" 2>/dev/null || stat -f %m "$deb_file" 2>/dev/null || echo 0)
+                        
+                        if [ "$timestamp" -gt "$latest_timestamp" ]; then
+                            latest_timestamp=$timestamp
+                            latest_deb="$deb_file"
+                        fi
+                    fi
+                done
+            fi
+        fi
+    done
+    
+    if [ -n "$latest_deb" ]; then
+        # Output ONLY the file path - no debug output
+        echo "$latest_deb"
+        return 0
+    fi
+    
+    return 1
+}
+
+# Function to download from latest linux-build workflow artifacts
+download_from_latest_build() {
+    echo "📥 Attempting to download from latest linux-build workflow artifacts..."
+    
+    # Check if GITHUB_TOKEN is available
+    ARTIFACT_TOKEN="${GITHUB_TOKEN:-}"
+    
+    if [ -z "$ARTIFACT_TOKEN" ]; then
+        echo "⚠️  GITHUB_TOKEN not provided"
+        echo "ℹ️  Artifact download requires GitHub token. This should be provided by the workflow."
+        echo "ℹ️  Consider using volume mounts instead: docker run -v /path/to/artifacts:/tmp/build-artifacts"
+        return 1
+    fi
+    
+    echo "✅ GITHUB_TOKEN is available, attempting download..."
+    
+    # Get the latest successful linux-build workflow run
+    echo "🔍 Finding latest linux-build workflow run..."
+    LATEST_RUN=$(curl -s -H "Authorization: token $ARTIFACT_TOKEN" \
+                 "https://api.github.com/repos/${GITHUB_REPO}/actions/workflows/linux-build.yaml/runs?status=success&per_page=1" | \
+                 jq -r '.workflow_runs[0]')
+    
+    if [ "$LATEST_RUN" = "null" ] || [ -z "$LATEST_RUN" ]; then
+        echo "⚠️  No successful linux-build runs found"
+        return 1
+    fi
+    
+    RUN_ID=$(echo "$LATEST_RUN" | jq -r '.id')
+    echo "✅ Found latest linux-build run: $RUN_ID"
+    
+    # Get all artifacts from this run
+    echo "🔍 Fetching artifacts from workflow run..."
+    ARTIFACTS=$(curl -s -H "Authorization: token $ARTIFACT_TOKEN" \
+                "https://api.github.com/repos/${GITHUB_REPO}/actions/runs/$RUN_ID/artifacts")
+    
+    # Find the shared .deb artifact
+    DEB_ARTIFACT_ID=$(echo "$ARTIFACTS" | jq -r '.artifacts[] | select(.name | contains("shared.deb")) | .id' | head -1)
+    
+    if [ -z "$DEB_ARTIFACT_ID" ] || [ "$DEB_ARTIFACT_ID" = "null" ]; then
+        echo "⚠️  No shared .deb artifact found in latest build"
+        echo "Available artifacts:"
+        echo "$ARTIFACTS" | jq -r '.artifacts[].name' 2>/dev/null || echo "  (could not list artifacts)"
+        return 1
+    fi
+    
+    echo "📦 Found shared .deb artifact: $DEB_ARTIFACT_ID"
+    
+    # Download the artifact
+    echo "⬇️ Downloading artifact..."
+    
+    # Use temp directory for download
+    TEMP_DIR=$(mktemp -d)
+    trap "rm -rf $TEMP_DIR" EXIT
+    
+    if curl -L -H "Authorization: token $ARTIFACT_TOKEN" -o "$TEMP_DIR/artifact.zip" \
+        "https://api.github.com/repos/${GITHUB_REPO}/actions/artifacts/$DEB_ARTIFACT_ID/zip" 2>/dev/null; then
+        
+        echo "✅ Artifact downloaded, extracting..."
+        
+        # Extract the deb file
+        if unzip -j "$TEMP_DIR/artifact.zip" -d "$TEMP_DIR/" 2>/dev/null; then
+            echo "✅ Archive extracted"
+            
+            # Find the .deb file
+            DEB_FILE=$(find "$TEMP_DIR" -name "*.deb" -type f | head -1)
+            
+            if [ -n "$DEB_FILE" ] && [ -f "$DEB_FILE" ]; then
+                echo "✅ Found .deb file: $DEB_FILE"
+                
+                # Copy to final location
+                if cp "$DEB_FILE" "/tmp/${PACKAGE_NAME}"; then
+                    echo "✅ DEB package copied successfully to /tmp/${PACKAGE_NAME}"
+                    rm -f "$TEMP_DIR/artifact.zip"
+                    return 0
+                else
+                    echo "❌ Failed to copy .deb file to /tmp/${PACKAGE_NAME}"
+                    echo "   DEB file: $DEB_FILE"
+                    echo "   Size: $(stat -c%s "$DEB_FILE" 2>/dev/null || echo "unknown")"
+                    return 1
+                fi
+            else
+                echo "❌ No .deb file found in extracted archive"
+                ls -la "$TEMP_DIR/" 2>/dev/null || true
+                return 1
+            fi
+        else
+            echo "❌ Failed to extract archive"
+            return 1
+        fi
+    else
+        echo "❌ Failed to download artifact"
+        return 1
+    fi
+}
+
 # Function to download the package
 download_package() {
     echo "📥 Looking for Openterface QT package..."
     
-    # First, check for local built packages
+    # First, try to find the latest Linux build artifact
+    if built_package=$(find_latest_build_deb); then
+        echo "🔍 Looking for latest Linux build artifacts (.deb files)..."
+        echo "   Found local artifact: $built_package"
+        if cp "$built_package" "/tmp/${PACKAGE_NAME}"; then
+            echo "✅ Build artifact copied to /tmp/${PACKAGE_NAME}"
+            return 0
+        else
+            echo "⚠️  Failed to copy build artifact: $built_package"
+            echo "   Error details: $(ls -lah "$built_package" 2>&1)"
+            echo "   Attempting local paths..."
+        fi
+    else
+        echo "ℹ️  No local .deb files found in standard paths"
+    fi
+    
+    # Fallback: check for local built packages in standard locations
     LOCAL_PACKAGE_PATHS=(
         "/workspace/build/openterfaceQT_*.AppImage"
         "/workspace/build/openterfaceQT"
         "/workspace/build/*.deb"
         "/workspace/build/*.AppImage"
+        "/build/*.deb"
+        "/build/*.AppImage"
         "/tmp/${PACKAGE_NAME}"
         "./${PACKAGE_NAME}"
     )
@@ -53,30 +210,23 @@ download_package() {
         for potential_path in $path_pattern; do
             if [ -f "$potential_path" ]; then
                 echo "✅ Found local package: $potential_path"
-                cp "$potential_path" "/tmp/${PACKAGE_NAME}"
-                return 0
+                if cp "$potential_path" "/tmp/${PACKAGE_NAME}"; then
+                    echo "✅ Package copied to /tmp/${PACKAGE_NAME}"
+                    return 0
+                fi
             fi
         done
     done
     
-    echo "ℹ️  No local package found, downloading from GitHub..."
-    DOWNLOAD_URL="https://github.com/${GITHUB_REPO}/releases/download/${LATEST_VERSION}/${PACKAGE_NAME}"
+    echo "ℹ️  No local build artifacts found. Trying latest linux-build workflow artifacts..."
     
-    echo "   URL: $DOWNLOAD_URL"
+    # Try to download from latest linux-build workflow
+    if download_from_latest_build; then
+        return 0
+    fi
     
-    # Download with retries
-    for i in {1..3}; do
-        if wget -O "/tmp/${PACKAGE_NAME}" "$DOWNLOAD_URL"; then
-            echo "✅ Package downloaded successfully"
-            return 0
-        else
-            echo "⚠️  Download attempt $i failed, retrying..."
-            sleep 2
-        fi
-    done
-    
-    echo "❌ Failed to download package after 3 attempts"
-    exit 1
+    echo "❌ Failed to find build artifacts or download from workflow"
+    return 1
 }
 
 # Function to install the package
@@ -88,44 +238,62 @@ install_package() {
     # Determine package type based on actual file content or extension
     if [[ "$PACKAGE_FILE" == *.deb ]] && dpkg-deb --info "$PACKAGE_FILE" &>/dev/null; then
         echo "   Installing as Debian package..."
-        if dpkg -i "$PACKAGE_FILE"; then
+        # Use sudo for dpkg and apt-get if not already root
+        if [ "$(id -u)" -ne 0 ]; then
+            SUDO="sudo"
+        else
+            SUDO=""
+        fi
+        
+        if $SUDO dpkg -i "$PACKAGE_FILE" 2>&1; then
             echo "✅ Package installed successfully"
         else
             echo "⚠️  Package installation had dependency issues, fixing..."
-            apt-get update
-            apt-get install -f -y
+            $SUDO apt-get update 2>&1 | grep -v "^Reading\|^Building\|^done\|^Hit:" || true
+            $SUDO apt-get install -f -y 2>&1 | tail -5
             echo "✅ Dependencies resolved and package installed"
         fi
     elif [[ "$PACKAGE_FILE" == *.AppImage ]] || file "$PACKAGE_FILE" 2>/dev/null | grep -q "AppImage"; then
         echo "   Installing as AppImage (extracting contents)..."
-        mkdir -p /opt/openterface
-        cd /opt/openterface
-        # Extract AppImage contents
-        "$PACKAGE_FILE" --appimage-extract >/dev/null 2>&1 || {
-            echo "   AppImage extraction failed, trying alternative method..."
-            # Fallback: copy as binary if extraction fails
-            cp "$PACKAGE_FILE" /usr/local/bin/openterfaceQT.AppImage
-            chmod +x /usr/local/bin/openterfaceQT.AppImage
-            echo "✅ AppImage installed as fallback to /usr/local/bin/openterfaceQT.AppImage"
-            return 0
-        }
-        # Find the extracted binary
-        EXTRACTED_BINARY=$(find squashfs-root -name "openterfaceQT" -type f -executable 2>/dev/null | head -1)
-        if [ -n "$EXTRACTED_BINARY" ]; then
-            cp "$EXTRACTED_BINARY" /usr/local/bin/openterfaceQT
-            chmod +x /usr/local/bin/openterfaceQT
-            echo "✅ AppImage extracted and binary installed to /usr/local/bin/openterfaceQT"
+        if [ "$(id -u)" -ne 0 ]; then
+            SUDO="sudo"
         else
-            echo "   ❌ Could not find executable in extracted AppImage"
-            # Fallback to copying the AppImage
-            cp "$PACKAGE_FILE" /usr/local/bin/openterfaceQT.AppImage
-            chmod +x /usr/local/bin/openterfaceQT.AppImage
+            SUDO=""
+        fi
+        
+        $SUDO mkdir -p /opt/openterface
+        cd /tmp
+        # Extract AppImage contents
+        if "$PACKAGE_FILE" --appimage-extract >/dev/null 2>&1; then
+            # Find the extracted binary
+            EXTRACTED_BINARY=$(find squashfs-root -name "openterfaceQT" -type f -executable 2>/dev/null | head -1)
+            if [ -n "$EXTRACTED_BINARY" ]; then
+                $SUDO cp "$EXTRACTED_BINARY" /usr/local/bin/openterfaceQT
+                $SUDO chmod +x /usr/local/bin/openterfaceQT
+                echo "✅ AppImage extracted and binary installed to /usr/local/bin/openterfaceQT"
+            else
+                echo "   ❌ Could not find executable in extracted AppImage"
+                # Fallback to copying the AppImage
+                $SUDO cp "$PACKAGE_FILE" /usr/local/bin/openterfaceQT.AppImage
+                $SUDO chmod +x /usr/local/bin/openterfaceQT.AppImage
+                echo "✅ AppImage installed as fallback to /usr/local/bin/openterfaceQT.AppImage"
+            fi
+        else
+            echo "   AppImage extraction failed, using as binary fallback..."
+            # Fallback: copy as binary if extraction fails
+            $SUDO cp "$PACKAGE_FILE" /usr/local/bin/openterfaceQT.AppImage
+            $SUDO chmod +x /usr/local/bin/openterfaceQT.AppImage
             echo "✅ AppImage installed as fallback to /usr/local/bin/openterfaceQT.AppImage"
         fi
     else
         echo "   Installing as executable binary..."
-        cp "$PACKAGE_FILE" /usr/local/bin/openterfaceQT
-        chmod +x /usr/local/bin/openterfaceQT
+        if [ "$(id -u)" -ne 0 ]; then
+            SUDO="sudo"
+        else
+            SUDO=""
+        fi
+        $SUDO cp "$PACKAGE_FILE" /usr/local/bin/openterfaceQT
+        $SUDO chmod +x /usr/local/bin/openterfaceQT
         echo "✅ Binary installed to /usr/local/bin/openterfaceQT"
     fi
     
@@ -137,8 +305,15 @@ install_package() {
 setup_device_permissions() {
     echo "🔐 Setting up device permissions..."
     
+    # Determine if we need sudo
+    if [ "$(id -u)" -ne 0 ]; then
+        SUDO="sudo"
+    else
+        SUDO=""
+    fi
+    
     # Create udev rules for Openterface hardware
-    cat > /etc/udev/rules.d/51-openterface.rules << 'EOF'
+    $SUDO bash -c 'cat > /etc/udev/rules.d/51-openterface.rules << '"'"'EOF'"'"'
 # Openterface HID device
 SUBSYSTEM=="hidraw", ATTRS{idVendor}=="534d", ATTRS{idProduct}=="2109", TAG+="uaccess", MODE="0666"
 SUBSYSTEM=="usb", ATTRS{idVendor}=="534d", ATTRS{idProduct}=="2109", TAG+="uaccess", MODE="0666"
@@ -146,7 +321,7 @@ SUBSYSTEM=="usb", ATTRS{idVendor}=="534d", ATTRS{idProduct}=="2109", TAG+="uacce
 # Serial interface chip
 SUBSYSTEM=="ttyUSB", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="7523", TAG+="uaccess", MODE="0666"
 SUBSYSTEM=="usb", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="7523", TAG+="uaccess", MODE="0666"
-EOF
+EOF'
     
     # Check if we're in a container/build environment
     IN_CONTAINER=false
@@ -159,8 +334,8 @@ EOF
         echo "ℹ️  Container environment detected - udev rules created, will be applied at runtime"
     elif systemctl is-active --quiet systemd-udevd 2>/dev/null || pgrep -x "systemd-udevd\|udevd" >/dev/null 2>&1; then
         echo "🔄 Reloading udev rules..."
-        udevadm control --reload-rules 2>/dev/null || echo "⚠️  Could not reload udev rules"
-        udevadm trigger 2>/dev/null || echo "⚠️  Could not trigger udev"
+        $SUDO udevadm control --reload-rules 2>/dev/null || echo "⚠️  Could not reload udev rules"
+        $SUDO udevadm trigger 2>/dev/null || echo "⚠️  Could not trigger udev"
     else
         echo "ℹ️  udev not running - rules will be applied when udev starts"
     fi
@@ -192,10 +367,12 @@ verify_installation() {
         echo "✅ Openterface QT binary found at: $FOUND_BINARY"
         
         # Check if we can get version info (non-GUI test)
-        if timeout 5s "$FOUND_BINARY" --version 2>/dev/null || timeout 5s "$FOUND_BINARY" --help 2>/dev/null; then
-            echo "✅ Binary is responsive"
+        # Note: The binary may crash if trying to initialize Qt GUI in non-GUI environment
+        # So we just check if the binary exists and is executable
+        if [ -x "$FOUND_BINARY" ]; then
+            echo "✅ Binary is executable"
         else
-            echo "⚠️  Binary found but may require GUI environment to run"
+            echo "⚠️  Binary found but may not be executable"
         fi
     else
         echo "❌ Openterface QT binary not found in expected locations"
@@ -214,7 +391,14 @@ verify_installation() {
 create_launcher() {
     echo "🚀 Creating launcher script..."
     
-    cat > /usr/local/bin/start-openterface.sh << 'EOF'
+    # Determine if we need sudo
+    if [ "$(id -u)" -ne 0 ]; then
+        SUDO="sudo"
+    else
+        SUDO=""
+    fi
+    
+    $SUDO bash -c 'cat > /usr/local/bin/start-openterface.sh << '"'"'EOF'"'"'
 #!/bin/bash
 
 echo "🔧 Setting up device permissions..."
@@ -298,9 +482,9 @@ else
     echo "Error: openterfaceQT binary not found!"
     exit 1
 fi
-EOF
-
-    chmod +x /usr/local/bin/start-openterface.sh
+EOF'
+    
+    $SUDO chmod +x /usr/local/bin/start-openterface.sh
     echo "✅ Launcher script created at /usr/local/bin/start-openterface.sh"
 }
 
@@ -329,8 +513,15 @@ show_summary() {
 main() {
     echo "Starting installation process..."
     
-    get_latest_version
-    download_package
+    # Try to find local build artifacts first (no network needed)
+    echo "🔍 Checking for local build artifacts..."
+    if download_package; then
+        echo "✅ Package found (either local or downloaded)"
+    else
+        echo "❌ Failed to find or download package"
+        exit 1
+    fi
+    
     install_package
     setup_device_permissions
     verify_installation
