@@ -175,25 +175,36 @@ jobs:
           # Test simple command execution
           echo "🔍 Testing simple command execution..."
           if [ "$HAS_VOLUME_MOUNT" = "true" ]; then
-            DOCKER_OPTS="$VOLUME_MOUNT $GITHUB_TOKEN_ENV"
+            docker run --rm $VOLUME_MOUNT -e GITHUB_TOKEN="${{ secrets.GITHUB_TOKEN }}" \
+              --name openterface-basic-test \
+              ${{ env.DOCKER_IMAGE_SHARED }}:${{ env.DOCKER_TAG }} \
+              bash -c "
+                echo '✅ Container can execute commands'
+                whoami
+                pwd
+                echo 'User ID:' \$(id)
+                echo 'Environment variables:'
+                env | grep -E 'HOME\\|USER\\|DISPLAY\\|QT_|GITHUB_TOKEN' | head -10
+                echo 'File system check:'
+                ls -la /home/openterface/ | head -5
+                echo '✅ Basic functionality test completed'
+              "
           else
-            DOCKER_OPTS="$GITHUB_TOKEN_ENV"
+            docker run --rm -e GITHUB_TOKEN="${{ secrets.GITHUB_TOKEN }}" \
+              --name openterface-basic-test \
+              ${{ env.DOCKER_IMAGE_SHARED }}:${{ env.DOCKER_TAG }} \
+              bash -c "
+                echo '✅ Container can execute commands'
+                whoami
+                pwd
+                echo 'User ID:' \$(id)
+                echo 'Environment variables:'
+                env | grep -E 'HOME\\|USER\\|DISPLAY\\|QT_|GITHUB_TOKEN' | head -10
+                echo 'File system check:'
+                ls -la /home/openterface/ | head -5
+                echo '✅ Basic functionality test completed'
+              "
           fi
-          
-          docker run --rm $DOCKER_OPTS \
-            --name openterface-basic-test \
-            ${{ env.DOCKER_IMAGE_SHARED }}:${{ env.DOCKER_TAG }} \
-            bash -c "
-              echo '✅ Container can execute commands'
-              whoami
-              pwd
-              echo 'User ID:' \$(id)
-              echo 'Environment variables:'
-              env | grep -E 'HOME\\|USER\\|DISPLAY\\|QT_|GITHUB_TOKEN' | head -10
-              echo 'File system check:'
-              ls -la /home/openterface/ | head -5
-              echo '✅ Basic functionality test completed'
-            "
           
           echo "✅ Basic container functionality test passed"
 
@@ -202,20 +213,17 @@ jobs:
         run: |
           echo "🚀 Testing container startup with entrypoint (installation trigger)"
           
-          # Prepare docker options
-          if [ "$HAS_VOLUME_MOUNT" = "true" ]; then
-            DOCKER_OPTS="$VOLUME_MOUNT $GITHUB_TOKEN_ENV"
-          else
-            DOCKER_OPTS="$GITHUB_TOKEN_ENV"
-          fi
-          
           # Important: This test does NOT override the entrypoint, so the installation script will run
           echo "🧪 Testing container startup with default entrypoint..."
           CONTAINER_NAME="openterface-startup-container"
           
           # Start container with entrypoint (this triggers installation if needed)
           # We use 'sleep' as the final command so the container stays running for our tests
-          docker run -d $DOCKER_OPTS --name $CONTAINER_NAME ${{ env.DOCKER_IMAGE_SHARED }}:${{ env.DOCKER_TAG }} sleep 120
+          if [ "$HAS_VOLUME_MOUNT" = "true" ]; then
+            docker run -d $VOLUME_MOUNT -e GITHUB_TOKEN="${{ secrets.GITHUB_TOKEN }}" --name $CONTAINER_NAME ${{ env.DOCKER_IMAGE_SHARED }}:${{ env.DOCKER_TAG }} sleep 120
+          else
+            docker run -d -e GITHUB_TOKEN="${{ secrets.GITHUB_TOKEN }}" --name $CONTAINER_NAME ${{ env.DOCKER_IMAGE_SHARED }}:${{ env.DOCKER_TAG }} sleep 120
+          fi
           
           echo "✅ Container started with name: $CONTAINER_NAME"
           
@@ -270,15 +278,9 @@ jobs:
         run: |
           echo "🧪 Testing installation script"
           
-          # Prepare docker options
-          if [ "$HAS_VOLUME_MOUNT" = "true" ]; then
-            DOCKER_OPTS="$VOLUME_MOUNT $GITHUB_TOKEN_ENV"
-          else
-            DOCKER_OPTS="$GITHUB_TOKEN_ENV"
-          fi
-          
           # Run container and check if openterface is installed
-          docker run --rm $DOCKER_OPTS \
+          if [ "$HAS_VOLUME_MOUNT" = "true" ]; then
+            docker run --rm $VOLUME_MOUNT -e GITHUB_TOKEN="${{ secrets.GITHUB_TOKEN }}" \
             --name openterface-install-test \
             ${{ env.DOCKER_IMAGE_SHARED }}:${{ env.DOCKER_TAG }} \
             bash -c "
