@@ -381,7 +381,7 @@ jobs:
               dpkg -l | grep -i openterface || echo "No openterface package found"
               
               echo "🔍 Checking for openterface binary..."
-              if [ "${{ github.event.inputs.install_type }}" = "deb" ]; then
+              if [ "${{ env.INSTALL_TYPE }}" = "deb" ]; then
                 which openterfaceQT || echo "openterfaceQT not in PATH"
                 if [ -f /usr/local/bin/openterfaceQT ]; then
                   echo "✅ DEB: Binary found at /usr/local/bin/openterfaceQT"
@@ -389,7 +389,7 @@ jobs:
                   echo "❌ DEB: Binary not found at /usr/local/bin/openterfaceQT"
                   exit 1
                 fi
-              elif [ "${{ github.event.inputs.install_type }}" = "appimage" ]; then
+              elif [ "${{ env.INSTALL_TYPE }}" = "appimage" ]; then
                 if [ -f /usr/local/bin/openterfaceQT.AppImage ]; then
                   echo "✅ AppImage: AppImage found at /usr/local/bin/openterfaceQT.AppImage"
                 else
@@ -561,7 +561,7 @@ jobs:
           echo "🖼�?Adding screenshots to step summary (Shared)"
           
           # Start the summary
-          echo "# 📸 GUI Screenshots - Shared Build (${{ github.event.inputs.install_type }})" >> $GITHUB_STEP_SUMMARY
+          echo "# 📸 GUI Screenshots - Shared Build (${{ env.INSTALL_TYPE }})" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Build Type**: Shared Library" >> $GITHUB_STEP_SUMMARY
           echo "**Commit**: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
@@ -660,8 +660,8 @@ jobs:
             echo "" >> $GITHUB_STEP_SUMMARY
             echo "1. **Scroll down** to the **Artifacts** section at the bottom of this page" >> $GITHUB_STEP_SUMMARY
             echo "2. **Download** the following artifacts:" >> $GITHUB_STEP_SUMMARY
-            echo "   - \`openterface-gui-screenshots-shared-${{ github.event.inputs.install_type }}-collection\` - All screenshots in one ZIP" >> $GITHUB_STEP_SUMMARY
-            echo "   - \`openterface-gui-screenshots-shared-${{ github.event.inputs.install_type }}-individual\` - Individual screenshots" >> $GITHUB_STEP_SUMMARY
+            echo "   - \`openterface-gui-screenshots-shared-${{ env.INSTALL_TYPE }}-collection\` - All screenshots in one ZIP" >> $GITHUB_STEP_SUMMARY
+            echo "   - \`openterface-gui-screenshots-shared-${{ env.INSTALL_TYPE }}-individual\` - Individual screenshots" >> $GITHUB_STEP_SUMMARY
             echo "3. **Extract** the ZIP files to view the JPG images" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
             
@@ -699,7 +699,7 @@ jobs:
         if: ${{ always() && (github.event.inputs.test_type == 'run-test' || github.event.inputs.test_type == 'all' || github.event_name != 'workflow_dispatch') }}
         uses: actions/upload-artifact@v4
         with:
-          name: openterface-gui-screenshots-shared-${{ github.event.inputs.install_type }}-collection
+          name: openterface-gui-screenshots-shared-${{ env.INSTALL_TYPE }}-collection
           path: screenshots-shared/
           if-no-files-found: warn
 
@@ -707,7 +707,7 @@ jobs:
         if: ${{ always() && (github.event.inputs.test_type == 'run-test' || github.event.inputs.test_type == 'all' || github.event_name != 'workflow_dispatch') }}
         uses: actions/upload-artifact@v4
         with:
-          name: openterface-gui-screenshots-shared-${{ github.event.inputs.install_type }}-individual
+          name: openterface-gui-screenshots-shared-${{ env.INSTALL_TYPE }}-individual
           path: /tmp/individual_screenshots/
           if-no-files-found: warn
 
@@ -768,7 +768,7 @@ jobs:
         if: ${{ github.event_name != 'workflow_dispatch' || github.event.inputs.install_type == 'deb' || github.event.inputs.install_type == 'appimage' }}
         uses: actions/download-artifact@v4
         with:
-          name: openterface-gui-screenshots-shared-${{ github.event.inputs.install_type }}-collection
+          name: openterface-gui-screenshots-shared-${{ env.INSTALL_TYPE }}-collection
           path: screenshots-shared/
         continue-on-error: true
         
