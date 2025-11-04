@@ -160,77 +160,32 @@ fi
 # Perform upload
 log_info "Uploading to ImgBB..."
 
-UPLOAD_METHOD="direct"
-if [ ${#IMAGE_BASE64} -gt $MAX_BASE64_SIZE ]; then
-    log_warning "Base64 data too large for direct command line (${#IMAGE_BASE64} > $MAX_BASE64_SIZE)"
-    log_info "Using temporary file method instead"
-    UPLOAD_METHOD="tempfile"
+UPLOAD_METHOD="binary"
+log_info "Using binary file upload method (most reliable for large files)"
 
-    # Use temporary file to avoid "Argument list too long" error
-    TEMP_FILE=$(mktemp)
-    echo "$IMAGE_BASE64" > "$TEMP_FILE"
+if $DEBUG; then
+    log_info "Curl command: curl -s -w '\\nHTTP_STATUS:%{http_code}\\nRESPONSE_TIME:%{time_total}' --connect-timeout $CURL_CONNECT_TIMEOUT --max-time $CURL_MAX_TIME -X POST '$IMGBB_API_URL' -F 'key=$API_KEY' -F 'image=@$IMAGE_FILE'"
+fi
 
-    # Upload using file reference
-    if $DEBUG; then
-        log_info "Curl command: curl -s -w '\\nHTTP_STATUS:%{http_code}\\nRESPONSE_TIME:%{time_total}' --connect-timeout $CURL_CONNECT_TIMEOUT --max-time $CURL_MAX_TIME -X POST '$IMGBB_API_URL' -F 'key=$API_KEY' -F 'image=@$TEMP_FILE'"
-    fi
+# First try without proxy
+UPLOAD_RESPONSE=$(timeout 120 curl -s --noproxy "*" -w "\nHTTP_STATUS:%{http_code}\nRESPONSE_TIME:%{time_total}" \
+    --connect-timeout $CURL_CONNECT_TIMEOUT \
+    --max-time $CURL_MAX_TIME \
+    -X POST "$IMGBB_API_URL" \
+    -F "key=$API_KEY" \
+    -F "image=@$IMAGE_FILE" \
+    2>&1 || echo "")
 
-    # Try multiple upload methods if the first one fails
-    if $DEBUG; then
-        log_info "Curl command: curl -s --noproxy '*' -w '\\nHTTP_STATUS:%{http_code}\\nRESPONSE_TIME:%{time_total}' --connect-timeout $CURL_CONNECT_TIMEOUT --max-time $CURL_MAX_TIME -X POST '$IMGBB_API_URL' -F 'key=$API_KEY' -F 'image=@$TEMP_FILE'"
-    fi
-
-    # First try without proxy
-    UPLOAD_RESPONSE=$(timeout 60 curl -s --noproxy "*" -w "\nHTTP_STATUS:%{http_code}\nRESPONSE_TIME:%{time_total}" \
+# If that fails, try with proxy (fallback)
+if [ -z "$UPLOAD_RESPONSE" ] || echo "$UPLOAD_RESPONSE" | grep -q "000"; then
+    log_warning "Direct connection failed, trying with proxy..."
+    UPLOAD_RESPONSE=$(timeout 120 curl -s -w "\nHTTP_STATUS:%{http_code}\nRESPONSE_TIME:%{time_total}" \
         --connect-timeout $CURL_CONNECT_TIMEOUT \
         --max-time $CURL_MAX_TIME \
         -X POST "$IMGBB_API_URL" \
         -F "key=$API_KEY" \
-        -F "image=@$TEMP_FILE" \
-        2>&1 || echo "")
-
-    # If that fails, try with proxy (fallback)
-    if [ -z "$UPLOAD_RESPONSE" ] || echo "$UPLOAD_RESPONSE" | grep -q "000"; then
-        log_warning "Direct connection failed, trying with proxy..."
-        UPLOAD_RESPONSE=$(timeout 60 curl -s -w "\nHTTP_STATUS:%{http_code}\nRESPONSE_TIME:%{time_total}" \
-            --connect-timeout $CURL_CONNECT_TIMEOUT \
-            --max-time $CURL_MAX_TIME \
-            -X POST "$IMGBB_API_URL" \
-            -F "key=$API_KEY" \
-            -F "image=@$TEMP_FILE" \
-            2>&1 || echo '{"success": false, "error": {"message": "curl command failed"}}')
-    fi
-
-    # Clean up temp file
-    rm -f "$TEMP_FILE"
-else
-    log_info "Using direct base64 upload method"
-    UPLOAD_METHOD="direct"
-
-    if $DEBUG; then
-        log_info "Curl command: curl -s --noproxy '*' -w '\\nHTTP_STATUS:%{http_code}\\nRESPONSE_TIME:%{time_total}' --connect-timeout $CURL_CONNECT_TIMEOUT --max-time $CURL_MAX_TIME -X POST '$IMGBB_API_URL' -F 'key=$API_KEY' -F 'image=<base64_data>'"
-    fi
-
-    # Use direct base64 for smaller files - try without proxy first
-    UPLOAD_RESPONSE=$(timeout 60 curl -s --noproxy "*" -w "\nHTTP_STATUS:%{http_code}\nRESPONSE_TIME:%{time_total}" \
-        --connect-timeout $CURL_CONNECT_TIMEOUT \
-        --max-time $CURL_MAX_TIME \
-        -X POST "$IMGBB_API_URL" \
-        -F "key=$API_KEY" \
-        -F "image=$IMAGE_BASE64" \
-        2>&1 || echo "")
-
-    # If that fails, try with proxy (fallback)
-    if [ -z "$UPLOAD_RESPONSE" ] || echo "$UPLOAD_RESPONSE" | grep -q "000"; then
-        log_warning "Direct connection failed, trying with proxy..."
-        UPLOAD_RESPONSE=$(timeout 60 curl -s -w "\nHTTP_STATUS:%{http_code}\nRESPONSE_TIME:%{time_total}" \
-            --connect-timeout $CURL_CONNECT_TIMEOUT \
-            --max-time $CURL_MAX_TIME \
-            -X POST "$IMGBB_API_URL" \
-            -F "key=$API_KEY" \
-            -F "image=$IMAGE_BASE64" \
-            2>&1 || echo '{"success": false, "error": {"message": "curl command failed"}}')
-    fi
+        -F "image=@$IMAGE_FILE" \
+        2>&1 || echo '{"success": false, "error": {"message": "curl command failed"}}')
 fi
 
 # Extract HTTP status and response
