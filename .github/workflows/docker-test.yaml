@@ -429,10 +429,12 @@ jobs:
         run: |
           echo "🧪 Testing hardware interface dependencies"
           
+          # Skip entrypoint and just check system libraries directly
           docker run --rm \
+            --entrypoint bash \
             --name openterface-hw-test \
             ${{ env.DOCKER_IMAGE_SHARED }}:${{ env.DOCKER_TAG }} \
-            bash -c '
+            -c '
               echo "🔍 Checking USB libraries..."
               dpkg -l | grep libusb || echo "No libusb packages found"
               
@@ -454,27 +456,51 @@ jobs:
           echo "🧪 Testing application launcher (non-GUI mode)"
           
           # Test the launcher script exists and is executable
-          docker run --rm \
-            -e GITHUB_TOKEN="${{ secrets.GITHUB_TOKEN }}" \
-            --name openterface-launcher-test \
-            ${{ env.DOCKER_IMAGE_SHARED }}:${{ env.DOCKER_TAG }} \
-            bash -c '
-              if [ -f "/usr/local/bin/start-openterface.sh" ] && [ -x "/usr/local/bin/start-openterface.sh" ]; then
-                echo "✅ Launcher script exists and is executable"
-                
-                # Test script syntax
-                bash -n /usr/local/bin/start-openterface.sh && echo "✅ Launcher script syntax is valid" || echo "❌ Launcher script has syntax errors"
-                
-                # Test dry run (without actually starting the GUI)
-                echo "🧪 Testing launcher script components..."
-                timeout 10s bash -c "
-                  source /usr/local/bin/start-openterface.sh 2>&1 | head -20
-                " || echo "ℹ️  Launcher test completed (timeout expected for GUI app)"
-              else
-                echo "❌ Launcher script not found or not executable"
-                exit 1
-              fi
-            '
+          # Use volume mounts if available, otherwise pass GITHUB_TOKEN for artifact download
+          if [ "$HAS_VOLUME_MOUNT" = "true" ]; then
+            docker run --rm $VOLUME_MOUNT \
+              --name openterface-launcher-test \
+              ${{ env.DOCKER_IMAGE_SHARED }}:${{ env.DOCKER_TAG }} \
+              bash -c '
+                if [ -f "/usr/local/bin/start-openterface.sh" ] && [ -x "/usr/local/bin/start-openterface.sh" ]; then
+                  echo "✅ Launcher script exists and is executable"
+                  
+                  # Test script syntax
+                  bash -n /usr/local/bin/start-openterface.sh && echo "✅ Launcher script syntax is valid" || echo "❌ Launcher script has syntax errors"
+                  
+                  # Test dry run (without actually starting the GUI)
+                  echo "🧪 Testing launcher script components..."
+                  timeout 10s bash -c "
+                    source /usr/local/bin/start-openterface.sh 2>&1 | head -20
+                  " || echo "ℹ️  Launcher test completed (timeout expected for GUI app)"
+                else
+                  echo "❌ Launcher script not found or not executable"
+                  exit 1
+                fi
+              '
+          else
+            docker run --rm \
+              -e GITHUB_TOKEN="${{ secrets.GITHUB_TOKEN }}" \
+              --name openterface-launcher-test \
+              ${{ env.DOCKER_IMAGE_SHARED }}:${{ env.DOCKER_TAG }} \
+              bash -c '
+                if [ -f "/usr/local/bin/start-openterface.sh" ] && [ -x "/usr/local/bin/start-openterface.sh" ]; then
+                  echo "✅ Launcher script exists and is executable"
+                  
+                  # Test script syntax
+                  bash -n /usr/local/bin/start-openterface.sh && echo "✅ Launcher script syntax is valid" || echo "❌ Launcher script has syntax errors"
+                  
+                  # Test dry run (without actually starting the GUI)
+                  echo "🧪 Testing launcher script components..."
+                  timeout 10s bash -c "
+                    source /usr/local/bin/start-openterface.sh 2>&1 | head -20
+                  " || echo "ℹ️  Launcher test completed (timeout expected for GUI app)"
+                else
+                  echo "❌ Launcher script not found or not executable"
+                  exit 1
+                fi
+              '
+          fi
 
       - name: GUI screenshot test using proven script (Shared)
         if: ${{ github.event.inputs.test_type == 'run-test' || github.event.inputs.test_type == 'all' || github.event_name != 'workflow_dispatch' }}
