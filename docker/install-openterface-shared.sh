@@ -391,7 +391,14 @@ verify_installation() {
 create_launcher() {
     echo "🚀 Creating launcher script..."
     
-    cat > /usr/local/bin/start-openterface.sh << 'EOF'
+    # Determine if we need sudo
+    if [ "$(id -u)" -ne 0 ]; then
+        SUDO="sudo"
+    else
+        SUDO=""
+    fi
+    
+    $SUDO bash -c 'cat > /usr/local/bin/start-openterface.sh << '"'"'EOF'"'"'
 #!/bin/bash
 
 echo "🔧 Setting up device permissions..."
@@ -475,9 +482,9 @@ else
     echo "Error: openterfaceQT binary not found!"
     exit 1
 fi
-EOF
-
-    chmod +x /usr/local/bin/start-openterface.sh
+EOF'
+    
+    $SUDO chmod +x /usr/local/bin/start-openterface.sh
     echo "✅ Launcher script created at /usr/local/bin/start-openterface.sh"
 }
 

@@ -99,9 +99,9 @@ if [ -n "$VOLUME_MOUNT" ]; then
 fi
 
 # Add the image and command to launch the app
-# The launcher script handles installation and proper app execution
+# Run installation first, then launch app via launcher script
 DOCKER_RUN_CMD="$DOCKER_RUN_CMD $DOCKER_IMAGE:$DOCKER_TAG \
-    bash -c '/tmp/install-openterface-shared.sh && export DISPLAY=$DISPLAY QT_X11_NO_MITSHM=1 QT_QPA_PLATFORM=xcb && exec /usr/local/bin/openterfaceQT 2>&1 || (echo \"App launch failed, checking binary...\"; which openterfaceQT; ls -la /usr/local/bin/openterfaceQT*)'"
+    bash -c 'export DISPLAY=$DISPLAY QT_X11_NO_MITSHM=1 QT_QPA_PLATFORM=xcb && /tmp/install-openterface-shared.sh 2>&1 | tail -20 && sleep 2 && exec /usr/local/bin/openterfaceQT 2>&1 || (echo \"App launch failed - checking details...\"; ls -la /usr/local/bin/openterface* 2>&1; which openterfaceQT 2>&1; echo \"---\"; /usr/local/bin/openterfaceQT --version 2>&1 || echo \"Binary exists but cannot run\")'"
 
 # Execute the docker run command
 CONTAINER_ID=$(eval $DOCKER_RUN_CMD)
