@@ -9,8 +9,8 @@ echo "===================================="
 if [ ! -f /usr/local/bin/openterfaceQT ]; then
     echo "📦 Openterface not yet installed. Running installation..."
     
-    # Run the installation script
-    if /tmp/install-openterface-shared.sh; then
+    # Run the installation script with sudo (required for dpkg and apt)
+    if sudo /tmp/install-openterface-shared.sh; then
         echo "✅ Installation completed successfully"
     else
         echo "⚠️  Installation failed but continuing..."
