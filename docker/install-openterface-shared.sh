@@ -342,10 +342,12 @@ verify_installation() {
         echo "✅ Openterface QT binary found at: $FOUND_BINARY"
         
         # Check if we can get version info (non-GUI test)
-        if timeout 5s "$FOUND_BINARY" --version 2>/dev/null || timeout 5s "$FOUND_BINARY" --help 2>/dev/null; then
-            echo "✅ Binary is responsive"
+        # Note: The binary may crash if trying to initialize Qt GUI in non-GUI environment
+        # So we just check if the binary exists and is executable
+        if [ -x "$FOUND_BINARY" ]; then
+            echo "✅ Binary is executable"
         else
-            echo "⚠️  Binary found but may require GUI environment to run"
+            echo "⚠️  Binary found but may not be executable"
         fi
     else
         echo "❌ Openterface QT binary not found in expected locations"

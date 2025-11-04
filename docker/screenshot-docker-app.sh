@@ -86,8 +86,12 @@ DOCKER_RUN_CMD="docker run -d \
     --name $CONTAINER_NAME \
     -e DISPLAY=$DISPLAY \
     -e GITHUB_TOKEN=$GITHUB_TOKEN \
+    -e QT_X11_NO_MITSHM=1 \
+    -e QT_QPA_PLATFORM=xcb \
+    -e QT_QPA_PLATFORM_PLUGIN_PATH=/usr/lib/x86_64-linux-gnu/qt6/plugins \
     -v /tmp/.X11-unix:/tmp/.X11-unix:rw \
-    --network host"
+    --network host \
+    --privileged"
 
 # Add volume mount if provided
 if [ -n "$VOLUME_MOUNT" ]; then
@@ -95,8 +99,9 @@ if [ -n "$VOLUME_MOUNT" ]; then
 fi
 
 # Add the image and command to launch the app
+# The launcher script handles installation and proper app execution
 DOCKER_RUN_CMD="$DOCKER_RUN_CMD $DOCKER_IMAGE:$DOCKER_TAG \
-    bash -c '/tmp/install-openterface-shared.sh && openterfaceQT'"
+    bash -c '/tmp/install-openterface-shared.sh && export DISPLAY=$DISPLAY QT_X11_NO_MITSHM=1 QT_QPA_PLATFORM=xcb && exec /usr/local/bin/openterfaceQT 2>&1 || (echo \"App launch failed, checking binary...\"; which openterfaceQT; ls -la /usr/local/bin/openterfaceQT*)'"
 
 # Execute the docker run command
 CONTAINER_ID=$(eval $DOCKER_RUN_CMD)

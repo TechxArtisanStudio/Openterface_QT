@@ -45,10 +45,22 @@ RUN apt-get install -y libusb-1.0-0 \
 RUN apt-get install -y libx11-6 \
         libxrandr2 \
         libxrender1 \
+        libxfixes3 \
+        libxcursor1 \
+        libxinerama1 \
+        libxi6 \
+        libxext6 \
+        libxkbcommon0 \
+        libxkbcommon-x11-0 \
         libexpat1 \
         libfreetype6 \
         libfontconfig1 \
         libbz2-1.0
+# OpenGL and GPU libraries for rendering
+RUN apt-get install -y libgl1 \
+        libglx0 \
+        libglvnd0 \
+        libglu1-mesa
 # FFmpeg runtime libraries
 RUN apt-get install -y libavformat60 \
         libavcodec60 \
