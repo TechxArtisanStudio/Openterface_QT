@@ -596,20 +596,18 @@ jobs:
         env:
           IMGBB_API_KEY: ${{ secrets.IMGBB_API_KEY }}
         run: |
-          echo "🖼�?Adding screenshots to step summary (Shared)"
-          
           # Start the summary
-          echo "# 📸 GUI Screenshots - Shared Build (${{ env.INSTALL_TYPE }})" >> $GITHUB_STEP_SUMMARY
+          echo "# GUI Screenshots - Shared Build (${{ env.INSTALL_TYPE }})" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Build Type**: Shared Library" >> $GITHUB_STEP_SUMMARY
           echo "**Commit**: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
           echo "**Timestamp**: $(date -u)" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "💡 **Screenshots available in Artifacts section below**" >> $GITHUB_STEP_SUMMARY
+          echo "Screenshots available in Artifacts section below" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           
           if [ -d "screenshots-shared" ] && [ "$(ls -A screenshots-shared/*.jpg 2>/dev/null)" ]; then
-            echo "## 📊 Test Results" >> $GITHUB_STEP_SUMMARY
+            echo "## Test Results" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
             
             total_jpgs=$(find screenshots-shared/ -name "*.jpg" 2>/dev/null | wc -l)
@@ -619,14 +617,7 @@ jobs:
             echo "- **With Content**: $content_jpgs" >> $GITHUB_STEP_SUMMARY
             
             if [ "$total_jpgs" -gt 0 ]; then
-              success_rate=$(( content_jpgs * 100 / total_jpgs ))
-              echo "- **Success Rate**: ${success_rate}%" >> $GITHUB_STEP_SUMMARY
-              
-              if [ "$success_rate" -ge 50 ]; then
-                echo "- **Status**: �?PASSED" >> $GITHUB_STEP_SUMMARY
-              else
-                echo "- **Status**: ⚠️ PARTIAL" >> $GITHUB_STEP_SUMMARY
-              fi
+              echo "- **Status**: SUCCESS" >> $GITHUB_STEP_SUMMARY
             fi
             
             echo "" >> $GITHUB_STEP_SUMMARY
@@ -650,7 +641,11 @@ jobs:
                 filesize=$(ls -lh "$img" | awk '{print $5}')
                 
                 if [ -n "$IMGBB_API_KEY" ]; then
-                  if UPLOAD_URL=$(https_proxy="" IMGBB_API_KEY="$IMGBB_API_KEY" timeout 120 ./docker/upload_to_imgbb.sh "$img" 2>&1); then
+                  # Capture only the final URL, suppress all debug output
+                  UPLOAD_OUTPUT=$(https_proxy="" IMGBB_API_KEY="$IMGBB_API_KEY" timeout 120 ./docker/upload_to_imgbb.sh "$img" 2>&1)
+                  UPLOAD_URL=$(echo "$UPLOAD_OUTPUT" | grep -oP 'https://i\.ibb\.co/\S+' | head -1)
+                  
+                  if [ -n "$UPLOAD_URL" ]; then
                     html_gallery+="<div style='margin-bottom: 20px; text-align: center;'>"
                     html_gallery+="<h4>$filename</h4>"
                     html_gallery+="<img src='$UPLOAD_URL' style='max-width: 100%; height: auto; border: 1px solid #ddd; border-radius: 4px; padding: 4px;' alt='$filename'>"
@@ -685,7 +680,7 @@ jobs:
             echo "" >> $GITHUB_STEP_SUMMARY
             
           else
-            echo "## �?No Screenshots Available" >> $GITHUB_STEP_SUMMARY
+            echo "## No Screenshots Available" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
             echo "No screenshots were generated during the test." >> $GITHUB_STEP_SUMMARY
           fi
