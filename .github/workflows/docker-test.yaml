@@ -1,4 +1,4 @@
-name: Docker Test - Openterface Shared Build
+name: Docker Test - Openterface Shared Build (${{ github.event.inputs.install_type }})
 
 on:
   push:
@@ -28,13 +28,14 @@ on:
         - 'build-only'
         - 'run-test'
         - 'all'
-      build_type:
-        description: 'Build type to test'
+      install_type:
+        description: 'Installation type to test'
         required: true
-        default: 'shared'
+        default: 'deb'
         type: choice
         options:
-        - 'shared'
+        - 'deb'
+        - 'appimage'
 
 env:
   DOCKER_IMAGE_SHARED: openterface-test-shared
@@ -42,7 +43,7 @@ env:
 
 jobs:
   build-test-shared:
-    if: ${{ github.event.inputs.build_type == 'shared' || github.event.inputs.build_type == 'both' || github.event_name != 'workflow_dispatch' }}
+    if: ${{ github.event_name != 'workflow_dispatch' || github.event.inputs.install_type == 'deb' || github.event.inputs.install_type == 'appimage' }}
     runs-on: ubuntu-24.04
     
     steps:
@@ -84,8 +85,17 @@ jobs:
           ARTIFACTS=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
             "https://api.github.com/repos/${{ github.repository }}/actions/runs/$RUN_ID/artifacts")
           
-          # Find and download the shared .deb artifact
-          DEB_ARTIFACT=$(echo "$ARTIFACTS" | jq -r '.artifacts[] | select(.name | contains("shared.deb")) | .id' | head -1)
+          # Find and download the appropriate artifact based on install_type
+          if [ "${{ github.event.inputs.install_type }}" = "deb" ]; then
+            ARTIFACT_PATTERN="shared.deb"
+          elif [ "${{ github.event.inputs.install_type }}" = "appimage" ]; then
+            ARTIFACT_PATTERN="shared.AppImage"
+          else
+            echo "❌ Invalid install_type: ${{ github.event.inputs.install_type }}"
+            exit 1
+          fi
+          
+          DEB_ARTIFACT=$(echo "$ARTIFACTS" | jq -r '.artifacts[] | select(.name | contains("'$ARTIFACT_PATTERN'")) | .id' | head -1)
           
           if [ -z "$DEB_ARTIFACT" ] || [ "$DEB_ARTIFACT" = "null" ]; then
             echo "❌ No shared .deb artifact found in latest build"
@@ -240,24 +250,46 @@ jobs:
             echo "🧪 Verifying installation..."
             docker exec $CONTAINER_NAME bash -c '
               echo "🔍 Checking if openterfaceQT is installed..."
-              if [ -f /usr/local/bin/openterfaceQT ] || [ -f /usr/local/bin/openterfaceQT.AppImage ]; then
-                echo "✅ Openterface binary found"
+              if [ "${{ github.event.inputs.install_type }}" = "deb" ]; then
+                if [ -f /usr/local/bin/openterfaceQT ]; then
+                  echo "✅ DEB: Openterface binary found at /usr/local/bin/openterfaceQT"
+                else
+                  echo "❌ DEB: Openterface binary not found at /usr/local/bin/openterfaceQT"
+                  echo "🔍 Searching for binary..."
+                  find /usr -name "openterfaceQT" -type f 2>/dev/null || echo "No openterfaceQT found in /usr"
+                  find /opt -name "openterfaceQT" -type f 2>/dev/null || echo "No openterfaceQT found in /opt"
+                  exit 1
+                fi
+              elif [ "${{ github.event.inputs.install_type }}" = "appimage" ]; then
+                if [ -f /usr/local/bin/openterfaceQT.AppImage ]; then
+                  echo "✅ AppImage: Openterface AppImage found at /usr/local/bin/openterfaceQT.AppImage"
+                else
+                  echo "❌ AppImage: Openterface AppImage not found at /usr/local/bin/openterfaceQT.AppImage"
+                  echo "🔍 Searching for AppImage..."
+                  find /usr -name "openterfaceQT.AppImage" -type f 2>/dev/null || echo "No openterfaceQT.AppImage found in /usr"
+                  find /opt -name "openterfaceQT.AppImage" -type f 2>/dev/null || echo "No openterfaceQT.AppImage found in /opt"
+                  exit 1
+                fi
               else
-                echo "⚠️  Openterface binary not found - installation may have failed"
-                echo "🔍 Searching for binary..."
-                find /usr -name "openterfaceQT*" -type f 2>/dev/null || echo "No openterfaceQT found"
-                find /opt -name "openterfaceQT*" -type f 2>/dev/null || echo "No openterfaceQT found in /opt"
+                echo "❌ Invalid install_type: ${{ github.event.inputs.install_type }}"
+                exit 1
               fi
               
               echo "🔍 Checking launcher script..."
               if [ -x /usr/local/bin/start-openterface.sh ]; then
                 echo "✅ Launcher script is executable"
               else
-                echo "⚠️  Launcher script not found or not executable"
+                echo "❌ Launcher script not found or not executable at /usr/local/bin/start-openterface.sh"
+                exit 1
               fi
               
               echo "🔍 Checking udev rules..."
-              ls -la /etc/udev/rules.d/*openterface* 2>/dev/null || echo "Udev rules created"
+              if ls -la /etc/udev/rules.d/*openterface* 2>/dev/null; then
+                echo "✅ Udev rules found"
+              else
+                echo "❌ No udev rules found in /etc/udev/rules.d/"
+                exit 1
+              fi
               
               echo "✅ Installation verification completed"
             '
@@ -288,9 +320,22 @@ jobs:
               dpkg -l | grep -i openterface || echo "No openterface package found"
               
               echo "🔍 Checking for openterface binary..."
-              which openterfaceQT || echo "openterfaceQT not in PATH"
-              find /usr -name "openterfaceQT" -type f 2>/dev/null || echo "No openterfaceQT binary found in /usr"
-              find /opt -name "openterfaceQT" -type f 2>/dev/null || echo "No openterfaceQT binary found in /opt"
+              if [ "${{ github.event.inputs.install_type }}" = "deb" ]; then
+                which openterfaceQT || echo "openterfaceQT not in PATH"
+                if [ -f /usr/local/bin/openterfaceQT ]; then
+                  echo "✅ DEB: Binary found at /usr/local/bin/openterfaceQT"
+                else
+                  echo "❌ DEB: Binary not found at /usr/local/bin/openterfaceQT"
+                  exit 1
+                fi
+              elif [ "${{ github.event.inputs.install_type }}" = "appimage" ]; then
+                if [ -f /usr/local/bin/openterfaceQT.AppImage ]; then
+                  echo "✅ AppImage: AppImage found at /usr/local/bin/openterfaceQT.AppImage"
+                else
+                  echo "❌ AppImage: AppImage not found at /usr/local/bin/openterfaceQT.AppImage"
+                  exit 1
+                fi
+              fi
               
               echo "🔍 Checking launcher script..."
               ls -la /usr/local/bin/start-openterface.sh || echo "Launcher script not found"
@@ -325,9 +370,22 @@ jobs:
               dpkg -l | grep -i openterface || echo "No openterface package found"
               
               echo "🔍 Checking for openterface binary..."
-              which openterfaceQT || echo "openterfaceQT not in PATH"
-              find /usr -name "openterfaceQT" -type f 2>/dev/null || echo "No openterfaceQT binary found in /usr"
-              find /opt -name "openterfaceQT" -type f 2>/dev/null || echo "No openterfaceQT binary found in /opt"
+              if [ "${{ github.event.inputs.install_type }}" = "deb" ]; then
+                which openterfaceQT || echo "openterfaceQT not in PATH"
+                if [ -f /usr/local/bin/openterfaceQT ]; then
+                  echo "✅ DEB: Binary found at /usr/local/bin/openterfaceQT"
+                else
+                  echo "❌ DEB: Binary not found at /usr/local/bin/openterfaceQT"
+                  exit 1
+                fi
+              elif [ "${{ github.event.inputs.install_type }}" = "appimage" ]; then
+                if [ -f /usr/local/bin/openterfaceQT.AppImage ]; then
+                  echo "✅ AppImage: AppImage found at /usr/local/bin/openterfaceQT.AppImage"
+                else
+                  echo "❌ AppImage: AppImage not found at /usr/local/bin/openterfaceQT.AppImage"
+                  exit 1
+                fi
+              fi
               
               echo "🔍 Checking launcher script..."
               ls -la /usr/local/bin/start-openterface.sh || echo "Launcher script not found"
@@ -354,30 +412,6 @@ jobs:
               echo "✅ Installation check completed"
             '
           fi
-
-      - name: Test Qt dependencies (Shared)
-        if: ${{ github.event.inputs.test_type == 'run-test' || github.event.inputs.test_type == 'all' || github.event_name != 'workflow_dispatch' }}
-        run: |
-          echo "🧪 Testing Qt runtime dependencies"
-          
-          docker run --rm \
-            --name openterface-qt-test \
-            ${{ env.DOCKER_IMAGE_SHARED }}:${{ env.DOCKER_TAG }} \
-            bash -c '
-              echo "🔍 Checking Qt6 libraries..."
-              ldconfig -p | grep -i qt6 | head -10 || echo "No Qt6 libraries found"
-              
-              echo "🔍 Checking specific Qt6 modules..."
-              dpkg -l | grep libqt6 | head -10 || echo "No Qt6 packages found"
-              
-              echo "🔍 Checking multimedia libraries..."
-              dpkg -l | grep multimedia || echo "No multimedia packages found"
-              
-              echo "🔍 Checking serial port libraries..."
-              dpkg -l | grep serialport || echo "No serialport packages found"
-              
-              echo "✅ Qt dependencies check completed"
-            '
 
       - name: Test hardware interface dependencies (Shared)
         if: ${{ github.event.inputs.test_type == 'run-test' || github.event.inputs.test_type == 'all' || github.event_name != 'workflow_dispatch' }}
@@ -410,6 +444,7 @@ jobs:
           
           # Test the launcher script exists and is executable
           docker run --rm \
+            -e GITHUB_TOKEN="${{ secrets.GITHUB_TOKEN }}" \
             --name openterface-launcher-test \
             ${{ env.DOCKER_IMAGE_SHARED }}:${{ env.DOCKER_TAG }} \
             bash -c '
@@ -421,9 +456,9 @@ jobs:
                 
                 # Test dry run (without actually starting the GUI)
                 echo "🧪 Testing launcher script components..."
-                timeout 10s bash -c '
+                timeout 10s bash -c "
                   source /usr/local/bin/start-openterface.sh 2>&1 | head -20
-                ' || echo "ℹ️  Launcher test completed (timeout expected for GUI app)"
+                " || echo "ℹ️  Launcher test completed (timeout expected for GUI app)"
               else
                 echo "❌ Launcher script not found or not executable"
                 exit 1
@@ -515,7 +550,7 @@ jobs:
           echo "🖼�?Adding screenshots to step summary (Shared)"
           
           # Start the summary
-          echo "# 📸 GUI Screenshots - Shared Build" >> $GITHUB_STEP_SUMMARY
+          echo "# 📸 GUI Screenshots - Shared Build (${{ github.event.inputs.install_type }})" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Build Type**: Shared Library" >> $GITHUB_STEP_SUMMARY
           echo "**Commit**: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
@@ -614,8 +649,8 @@ jobs:
             echo "" >> $GITHUB_STEP_SUMMARY
             echo "1. **Scroll down** to the **Artifacts** section at the bottom of this page" >> $GITHUB_STEP_SUMMARY
             echo "2. **Download** the following artifacts:" >> $GITHUB_STEP_SUMMARY
-            echo "   - \`openterface-gui-screenshots-shared-collection\` - All screenshots in one ZIP" >> $GITHUB_STEP_SUMMARY
-            echo "   - \`openterface-gui-screenshots-shared-individual\` - Individual screenshots" >> $GITHUB_STEP_SUMMARY
+            echo "   - \`openterface-gui-screenshots-shared-${{ github.event.inputs.install_type }}-collection\` - All screenshots in one ZIP" >> $GITHUB_STEP_SUMMARY
+            echo "   - \`openterface-gui-screenshots-shared-${{ github.event.inputs.install_type }}-individual\` - Individual screenshots" >> $GITHUB_STEP_SUMMARY
             echo "3. **Extract** the ZIP files to view the JPG images" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
             
@@ -653,7 +688,7 @@ jobs:
         if: ${{ always() && (github.event.inputs.test_type == 'run-test' || github.event.inputs.test_type == 'all' || github.event_name != 'workflow_dispatch') }}
         uses: actions/upload-artifact@v4
         with:
-          name: openterface-gui-screenshots-shared-collection
+          name: openterface-gui-screenshots-shared-${{ github.event.inputs.install_type }}-collection
           path: screenshots-shared/
           if-no-files-found: warn
 
@@ -661,7 +696,7 @@ jobs:
         if: ${{ always() && (github.event.inputs.test_type == 'run-test' || github.event.inputs.test_type == 'all' || github.event_name != 'workflow_dispatch') }}
         uses: actions/upload-artifact@v4
         with:
-          name: openterface-gui-screenshots-shared-individual
+          name: openterface-gui-screenshots-shared-${{ github.event.inputs.install_type }}-individual
           path: /tmp/individual_screenshots/
           if-no-files-found: warn
 
@@ -719,10 +754,10 @@ jobs:
         uses: actions/checkout@v4
         
       - name: Download shared screenshots
-        if: ${{ github.event.inputs.build_type == 'shared' || github.event.inputs.build_type == 'both' || github.event_name != 'workflow_dispatch' }}
+        if: ${{ github.event_name != 'workflow_dispatch' || github.event.inputs.install_type == 'deb' || github.event.inputs.install_type == 'appimage' }}
         uses: actions/download-artifact@v4
         with:
-          name: openterface-gui-screenshots-shared-collection
+          name: openterface-gui-screenshots-shared-${{ github.event.inputs.install_type }}-collection
           path: screenshots-shared/
         continue-on-error: true
         
@@ -733,7 +768,7 @@ jobs:
           
           # Add combined summary
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "# 📋 Test Report - Shared Build Only" >> $GITHUB_STEP_SUMMARY
+          echo "# 📋 Test Report - Shared Build (${{ github.event.inputs.install_type }})" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "## 📊 Test Results" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
@@ -745,7 +780,7 @@ jobs:
             if [ "$total_shared" -gt 0 ]; then
               shared_rate=$(( content_shared * 100 / total_shared ))
               if [ "$shared_rate" -ge 50 ]; then
-                status="�?PASSED"
+                status="✅ PASSED"
               else
                 status="⚠️ PARTIAL"
               fi
@@ -754,7 +789,7 @@ jobs:
               echo "- **Success Rate**: $shared_rate%" >> $GITHUB_STEP_SUMMARY
               echo "- **Status**: $status" >> $GITHUB_STEP_SUMMARY
             else
-              echo "- **Status**: �?FAILED - No screenshots generated" >> $GITHUB_STEP_SUMMARY
+              echo "- **Status**: ❌ FAILED - No screenshots generated" >> $GITHUB_STEP_SUMMARY
             fi
           else
             echo "- **Status**: �?NOT RUN - No screenshots directory found" >> $GITHUB_STEP_SUMMARY
@@ -768,7 +803,7 @@ jobs:
           
           # Also create the markdown file for artifact
           cat << 'EOF' > combined-test-report.md
-          # 📸 GUI Testing Report - Openterface QT (Shared Build Only)
+          # 📸 GUI Testing Report - Openterface QT (Shared Build - ${{ github.event.inputs.install_type }})
           
           ## Test Overview
           - **Workflow**: ${{ github.workflow }}
@@ -776,7 +811,8 @@ jobs:
           - **Branch**: ${{ github.ref_name }}
           - **Commit**: ${{ github.sha }}
           - **Test Date**: $(date -u)
-          - **Build Type**: Shared Library Only
+          - **Build Type**: Shared Library
+          - **Install Type**: ${{ github.event.inputs.install_type }}
           
           EOF
           
