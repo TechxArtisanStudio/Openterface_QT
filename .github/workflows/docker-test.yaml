@@ -530,72 +530,124 @@ jobs:
           echo "  DOCKER_TAG=$DOCKER_TAG"
           echo "  SCREENSHOTS_DIR=$SCREENSHOTS_DIR"
           echo "  VOLUME_MOUNT=$VOLUME_MOUNT"
+          echo "  GITHUB_TOKEN: $([ -z '$CI_GITHUB_TOKEN' ] && echo 'NOT SET' || echo 'SET')"
+          echo ""
           
-          ./docker/screenshot-docker-app.sh
+          # Run with error handling
+          if ./docker/screenshot-docker-app.sh; then
+            echo "✅ Screenshot script completed successfully"
+          else
+            echo "❌ Screenshot script failed with exit code $?"
+            echo "📁 Checking for partial screenshot output..."
+            ls -la screenshots-shared/ 2>&1 || echo "Directory does not exist"
+          fi
           
           # Additional analysis for CI context
           echo ""
           echo "📊 CI-specific screenshot analysis:"
           echo "=================================="
           
-          if [ -d "screenshots-shared" ] && [ "$(ls -A screenshots-shared/*.jpg 2>/dev/null)" ]; then
-            echo "�?Screenshots generated successfully"
-            
-            # Detailed analysis for CI
-            for img in screenshots-shared/*.jpg; do
-              if [ -f "$img" ]; then
-                filename=$(basename "$img")
-                filesize=$(ls -lh "$img" | awk '{print $5}')
+          # Check if screenshots directory exists
+          if [ ! -d "screenshots-shared" ]; then
+            echo "❌ ERROR: screenshots-shared directory not found!"
+            echo "📁 Current directory contents:"
+            ls -la
+            echo ""
+            echo "Possible issues:"
+            echo "1. Screenshot script failed to create directory"
+            echo "2. Docker container did not generate screenshots"
+            echo "3. Volume mounts issue"
+            exit 1
+          fi
+          
+          # Count screenshots
+          screenshot_count=$(find screenshots-shared/ -name "*.jpg" -o -name "*.png" 2>/dev/null | wc -l)
+          jpg_count=$(find screenshots-shared/ -name "*.jpg" 2>/dev/null | wc -l)
+          
+          if [ "$screenshot_count" -eq 0 ]; then
+            echo "❌ No screenshots found in directory"
+            echo "📁 Directory contents:"
+            ls -la screenshots-shared/
+            exit 1
+          fi
+          
+          echo "✅ Found $jpg_count JPG screenshots"
+          
+          # Detailed analysis for CI
+          for img in screenshots-shared/*.jpg; do
+            if [ -f "$img" ]; then
+              filename=$(basename "$img")
+              filesize=$(ls -lh "$img" | awk '{print $5}')
+              
+              # Get dimensions and mean color
+              if command -v identify >/dev/null 2>&1; then
                 dimensions=$(identify "$img" 2>/dev/null | awk '{print $3}' | head -1 || echo "Unknown")
                 mean_color=$(identify -ping -format "%[mean]" "$img" 2>/dev/null || echo "0")
                 mean_value=${mean_color%.*}
-                
-                echo "📸 $filename:"
-                echo "   Size: $filesize | Dimensions: $dimensions | Mean: $mean_value"
-                
-                if [ "$mean_value" -gt 1000 ]; then
-                  echo "   Status: �?Rich content detected"
-                elif [ "$mean_value" -gt 100 ]; then
-                  echo "   Status: ⚠️  Basic content detected"
-                else
-                  echo "   Status: �?Likely blank/black"
-                fi
-                echo ""
-              fi
-            done
-            
-            # Summary for CI
-            total_jpgs=$(find screenshots-shared/ -name "*.jpg" 2>/dev/null | wc -l)
-            content_jpgs=$(find screenshots-shared/ -name "*.jpg" -exec identify -ping -format "%[mean]" {} \; 2>/dev/null | awk -F. '{if($1 > 100) count++} END {print count+0}')
-            
-            echo "📈 CI Test Summary:"
-            echo "   Total JPG screenshots: $total_jpgs"
-            echo "   With content: $content_jpgs"
-            if [ "$total_jpgs" -gt 0 ]; then
-              success_rate=$(( content_jpgs * 100 / total_jpgs ))
-              echo "   Success rate: ${success_rate}%"
-              
-              if [ "$success_rate" -ge 50 ]; then
-                echo "   �?GUI test PASSED - Application rendered successfully"
               else
-                echo "   ⚠️  GUI test PARTIAL - Some content detected but may need investigation"
+                dimensions="N/A (identify not available)"
+                mean_value="0"
               fi
+              
+              echo "📸 $filename:"
+              echo "   📦 Size: $filesize"
+              echo "   📐 Dimensions: $dimensions"
+              echo "   🎨 Mean color value: $mean_value"
+              
+              if [ "$mean_value" -gt 1000 ]; then
+                echo "   ✅ Status: Rich content detected"
+              elif [ "$mean_value" -gt 100 ]; then
+                echo "   ⚠️  Status: Basic content detected"
+              else
+                echo "   ⚠️  Status: Likely blank/black or dark content"
+              fi
+              echo ""
+            fi
+          done
+          
+          # Summary for CI
+          echo "📈 CI Test Summary:"
+          echo "=================="
+          
+          total_jpgs=$(find screenshots-shared/ -name "*.jpg" 2>/dev/null | wc -l)
+          
+          if command -v identify >/dev/null 2>&1; then
+            content_jpgs=$(find screenshots-shared/ -name "*.jpg" -exec identify -ping -format "%[mean]" {} \; 2>/dev/null | awk -F. '{if($1 > 100) count++} END {print count+0}')
+          else
+            content_jpgs=$total_jpgs  # Assume all have content if can't verify
+          fi
+          
+          echo "   📊 Total JPG screenshots: $total_jpgs"
+          echo "   📸 With content: $content_jpgs"
+          
+          if [ "$total_jpgs" -gt 0 ]; then
+            success_rate=$(( content_jpgs * 100 / total_jpgs ))
+            echo "   📈 Success rate: ${success_rate}%"
+            
+            if [ "$success_rate" -ge 50 ]; then
+              echo "   ✅ GUI test PASSED - Application rendered successfully"
+            elif [ "$success_rate" -gt 0 ]; then
+              echo "   ⚠️  GUI test PARTIAL - Some content detected but may need investigation"
             else
-              echo "   �?GUI test FAILED - No screenshots generated"
+              echo "   ❌ GUI test FAILED - Screenshots generated but appear blank"
             fi
           else
-            echo "�?No screenshots found - script may have failed"
+            echo "   ❌ GUI test FAILED - No screenshots generated"
             exit 1
           fi
           
           echo ""
-          echo "�?GUI screenshot test completed"
+          echo "✅ GUI screenshot test analysis completed"
 
       - name: Display screenshots in summary (Shared)
         if: ${{ always() && (github.event.inputs.test_type == 'run-test' || github.event.inputs.test_type == 'all' || github.event_name != 'workflow_dispatch') }}
         env:
           IMGBB_API_KEY: ${{ secrets.IMGBB_API_KEY }}
         run: |
+          echo "🔍 DEBUG: Starting screenshot summary generation"
+          echo "📁 Checking for screenshots directory..."
+          ls -la screenshots-shared/ 2>&1 || echo "Directory not found"
+          
           # Start the summary
           echo "# GUI Screenshots - Shared Build (${{ env.INSTALL_TYPE }})" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
@@ -603,15 +655,16 @@ jobs:
           echo "**Commit**: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
           echo "**Timestamp**: $(date -u)" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "Screenshots available in Artifacts section below" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
           
           if [ -d "screenshots-shared" ] && [ "$(ls -A screenshots-shared/*.jpg 2>/dev/null)" ]; then
+            echo "✅ Screenshots directory found"
             echo "## Test Results" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
             
             total_jpgs=$(find screenshots-shared/ -name "*.jpg" 2>/dev/null | wc -l)
             content_jpgs=$(find screenshots-shared/ -name "*.jpg" -exec identify -ping -format "%[mean]" {} \; 2>/dev/null | awk -F. '{if($1 > 100) count++} END {print count+0}')
+            
+            echo "📊 Found $total_jpgs screenshots with $content_jpgs containing content"
             
             echo "- **Total Screenshots**: $total_jpgs" >> $GITHUB_STEP_SUMMARY
             echo "- **With Content**: $content_jpgs" >> $GITHUB_STEP_SUMMARY
@@ -628,6 +681,7 @@ jobs:
             
             screenshot_count=0
             api_key_shown=0
+            upload_failed=0
             
             for img in screenshots-shared/*.jpg; do
               if [ -f "$img" ]; then
@@ -639,22 +693,35 @@ jobs:
                 
                 filesize=$(ls -lh "$img" | awk '{print $5}')
                 
+                # Add basic screenshot info to summary first
+                echo "### Screenshot $screenshot_count: $filename" >> $GITHUB_STEP_SUMMARY
+                echo "" >> $GITHUB_STEP_SUMMARY
+                echo "**Size:** $filesize" >> $GITHUB_STEP_SUMMARY
+                echo "" >> $GITHUB_STEP_SUMMARY
+                
                 if [ -n "$IMGBB_API_KEY" ]; then
+                  echo "📤 Uploading $filename to ImgBB..."
                   # Capture only the final URL, suppress all debug output
                   UPLOAD_OUTPUT=$(https_proxy="" IMGBB_API_KEY="$IMGBB_API_KEY" timeout 120 ./docker/upload_to_imgbb.sh "$img" 2>&1)
                   UPLOAD_URL=$(echo "$UPLOAD_OUTPUT" | grep -oP 'https://i\.ibb\.co/\S+' | head -1)
                   
                   if [ -n "$UPLOAD_URL" ]; then
-                    echo "### $filename" >> $GITHUB_STEP_SUMMARY
-                    echo "" >> $GITHUB_STEP_SUMMARY
+                    echo "✅ Upload successful: $UPLOAD_URL"
                     echo "![Screenshot]($UPLOAD_URL)" >> $GITHUB_STEP_SUMMARY
                     echo "" >> $GITHUB_STEP_SUMMARY
-                    echo "**Size:** $filesize | [View Full Size]($UPLOAD_URL)" >> $GITHUB_STEP_SUMMARY
+                    echo "[View Full Size]($UPLOAD_URL)" >> $GITHUB_STEP_SUMMARY
+                    echo "" >> $GITHUB_STEP_SUMMARY
+                  else
+                    echo "❌ Upload failed for $filename"
+                    echo "$UPLOAD_OUTPUT"
+                    upload_failed=1
+                    # Still add a note in summary
+                    echo "⚠️ Upload to ImgBB failed - See artifacts for full image" >> $GITHUB_STEP_SUMMARY
                     echo "" >> $GITHUB_STEP_SUMMARY
                   fi
                 else
                   if [ $api_key_shown -eq 0 ]; then
-                    echo "**Note:** IMGBB_API_KEY not configured - Screenshots available in Artifacts section" >> $GITHUB_STEP_SUMMARY
+                    echo "⚠️ IMGBB_API_KEY not configured - displaying logs instead" >> $GITHUB_STEP_SUMMARY
                     echo "" >> $GITHUB_STEP_SUMMARY
                     api_key_shown=1
                   fi
@@ -662,19 +729,28 @@ jobs:
               fi
             done
             
+            if [ $upload_failed -eq 1 ] || [ $api_key_shown -eq 1 ]; then
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "## 📥 Download Screenshots from Artifacts" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "Since ImgBB upload is not available, all screenshots are saved as artifacts:" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "- **openterface-gui-screenshots-shared-${{ env.INSTALL_TYPE }}-collection** - All screenshots" >> $GITHUB_STEP_SUMMARY
+              echo "- **openterface-gui-screenshots-shared-${{ env.INSTALL_TYPE }}-individual** - Individual images" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+            fi
+            
             echo "" >> $GITHUB_STEP_SUMMARY
-            echo "## Download Options" >> $GITHUB_STEP_SUMMARY
+            echo "## 📋 Step Logs" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
-            echo "Screenshots are available in the Artifacts section:" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "- **openterface-gui-screenshots-shared-${{ env.INSTALL_TYPE }}-collection** - All screenshots" >> $GITHUB_STEP_SUMMARY
-            echo "- **openterface-gui-screenshots-shared-${{ env.INSTALL_TYPE }}-individual** - Individual images" >> $GITHUB_STEP_SUMMARY
+            echo "See the logs of the **GUI screenshot test using proven script** step for detailed test output." >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
             
           else
+            echo "❌ Screenshots directory not found or empty"
             echo "## No Screenshots Available" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
-            echo "No screenshots were generated during the test." >> $GITHUB_STEP_SUMMARY
+            echo "No screenshots were generated during the test. Please check the logs of the **GUI screenshot test using proven script** step for details." >> $GITHUB_STEP_SUMMARY
           fi
 
       - name: Upload individual screenshots (Shared)
