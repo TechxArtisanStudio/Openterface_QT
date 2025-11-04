@@ -32,20 +32,6 @@ RUN apt-get install -y \
         sudo \
         udev \
         usbutils
-# Runtime Qt6 libraries
-RUN apt-get install -y libqt6core6t64 \
-        libqt6dbus6t64 \
-        libqt6gui6t64 \
-        libqt6widgets6t64 \
-        libqt6network6t64 \
-        libqt6multimedia6 \
-        libqt6multimediawidgets6 \
-        libqt6serialport6 \
-        libqt6svg6 \
-        qt6-base-dev \
-        qt6-image-formats-plugins \
-        libqt6opengl6 \
-        libqt6concurrent6
 # Hardware interface libraries (runtime only)
 RUN apt-get install -y libusb-1.0-0 \
         libudev1
