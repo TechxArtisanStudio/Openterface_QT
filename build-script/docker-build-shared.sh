@@ -137,18 +137,43 @@ apt update && apt install -y patchelf
 
 # Copy Qt libraries to bundle them in the deb
 QT_LIB_DIR="/opt/Qt6/lib"
+if [ ! -d "${QT_LIB_DIR}" ]; then
+    # Fallback to system Qt6 libraries if custom build not found
+    QT_LIB_DIR="/usr/lib/x86_64-linux-gnu"
+fi
+if [ ! -d "${QT_LIB_DIR}" ]; then
+    # Try alternative location
+    QT_LIB_DIR="/usr/lib"
+fi
+
 if [ -d "${QT_LIB_DIR}" ]; then
     mkdir -p "${PKG_ROOT}/usr/lib"
-    echo "Copying Qt libraries..."
-    cp -a "${QT_LIB_DIR}"/libQt6*.so* "${PKG_ROOT}/usr/lib/" 2>/dev/null || true
+    echo "Copying Qt libraries from ${QT_LIB_DIR}..."
+    # Copy only Qt6 libraries (not all system libraries)
+    find "${QT_LIB_DIR}" -maxdepth 1 -name "libQt6*.so*" -exec cp -a {} "${PKG_ROOT}/usr/lib/" \; 2>/dev/null || true
+    echo "✅ Qt libraries copied successfully"
+else
+    echo "⚠️  Warning: Qt library directory not found"
 fi
 
 # Copy Qt plugins
 QT_PLUGIN_DIR="/opt/Qt6/plugins"
+if [ ! -d "${QT_PLUGIN_DIR}" ]; then
+    # Fallback to system Qt6 plugins if custom build not found
+    QT_PLUGIN_DIR="/usr/lib/x86_64-linux-gnu/qt6/plugins"
+fi
+if [ ! -d "${QT_PLUGIN_DIR}" ]; then
+    # Try alternative location
+    QT_PLUGIN_DIR="/usr/lib/qt6/plugins"
+fi
+
 if [ -d "${QT_PLUGIN_DIR}" ]; then
     mkdir -p "${PKG_ROOT}/usr/lib/qt6/plugins"
-    echo "Copying Qt plugins..."
+    echo "Copying Qt plugins from ${QT_PLUGIN_DIR}..."
     cp -ra "${QT_PLUGIN_DIR}"/* "${PKG_ROOT}/usr/lib/qt6/plugins/" 2>/dev/null || true
+    echo "✅ Qt plugins copied successfully"
+else
+    echo "⚠️  Warning: Qt plugin directory not found at ${QT_PLUGIN_DIR}"
 fi
 
 # Copy Qt QML imports
