@@ -283,39 +283,39 @@ jobs:
             docker run --rm $VOLUME_MOUNT -e GITHUB_TOKEN="${{ secrets.GITHUB_TOKEN }}" \
             --name openterface-install-test \
             ${{ env.DOCKER_IMAGE_SHARED }}:${{ env.DOCKER_TAG }} \
-            bash -c "
-              echo '🔍 Checking installed packages...'
-              dpkg -l | grep -i openterface || echo 'No openterface package found'
+            bash -c '
+              echo "🔍 Checking installed packages..."
+              dpkg -l | grep -i openterface || echo "No openterface package found"
               
-              echo '🔍 Checking for openterface binary...'
-              which openterfaceQT || echo 'openterfaceQT not in PATH'
-              find /usr -name 'openterfaceQT' -type f 2>/dev/null || echo 'No openterfaceQT binary found in /usr'
-              find /opt -name 'openterfaceQT' -type f 2>/dev/null || echo 'No openterfaceQT binary found in /opt'
+              echo "🔍 Checking for openterface binary..."
+              which openterfaceQT || echo "openterfaceQT not in PATH"
+              find /usr -name "openterfaceQT" -type f 2>/dev/null || echo "No openterfaceQT binary found in /usr"
+              find /opt -name "openterfaceQT" -type f 2>/dev/null || echo "No openterfaceQT binary found in /opt"
               
-              echo '🔍 Checking launcher script...'
-              ls -la /usr/local/bin/start-openterface.sh || echo 'Launcher script not found'
+              echo "🔍 Checking launcher script..."
+              ls -la /usr/local/bin/start-openterface.sh || echo "Launcher script not found"
               
-              echo '🔍 Checking udev rules...'
-              ls -la /etc/udev/rules.d/*openterface* || echo 'No udev rules found'
+              echo "🔍 Checking udev rules..."
+              ls -la /etc/udev/rules.d/*openterface* || echo "No udev rules found"
               
-              echo '🔍 Checking desktop entry...'
-              ls -la /usr/share/applications/*openterface* || echo 'No desktop entry found'
+              echo "🔍 Checking desktop entry..."
+              ls -la /usr/share/applications/*openterface* || echo "No desktop entry found"
               
-              echo '🔍 Checking user groups...'
-              groups openterface || echo 'User openterface not found'
+              echo "🔍 Checking user groups..."
+              groups openterface || echo "User openterface not found"
               
-              echo '🔍 Checking shared library dependencies...'
-              for binary in \$(find /usr /opt -name 'openterfaceQT' -type f 2>/dev/null); do
-                echo \"Binary: \$binary\"
+              echo "🔍 Checking shared library dependencies..."
+              for binary in $(find /usr /opt -name "openterfaceQT" -type f 2>/dev/null); do
+                echo "Binary: $binary"
                 if command -v ldd >/dev/null 2>&1; then
-                  ldd \"\$binary\" | head -10 || echo 'ldd failed'
+                  ldd "$binary" | head -10 || echo "ldd failed"
                 else
-                  echo 'ldd command not available'
+                  echo "ldd command not available"
                 fi
               done
               
-              echo '�?Installation check completed'
-            "
+              echo "✅ Installation check completed"
+            '
 
       - name: Test Qt dependencies (Shared)
         if: ${{ github.event.inputs.test_type == 'run-test' || github.event.inputs.test_type == 'all' || github.event_name != 'workflow_dispatch' }}
