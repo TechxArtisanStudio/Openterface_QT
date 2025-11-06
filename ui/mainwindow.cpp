@@ -1162,8 +1162,7 @@ MainWindow::~MainWindow()
         group->deleteLater();
     }
     
-    // Process any pending events to ensure cleanup
-    QCoreApplication::processEvents();
+    // No need to process events - deleteLater will handle cleanup asynchronously
     
     // 1. Stop all operations first
     stop();
@@ -1183,11 +1182,8 @@ MainWindow::~MainWindow()
         qCDebug(log_ui_mainwindow) << "AudioManager singleton stopped";
     }
     
-    // Process any pending events after audio cleanup
-    QCoreApplication::processEvents();
-    
-    // Wait a moment to ensure audio threads are fully stopped
-    QThread::msleep(50);
+    // No need to process events or sleep - let cleanup happen naturally
+    // Audio manager uses proper threading internally
     
     // 2. Stop camera operations and disconnect signals
     if (m_cameraManager) {
