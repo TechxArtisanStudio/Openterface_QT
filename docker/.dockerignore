@@ -8,8 +8,7 @@
 doc/
 README*
 
-# Build artifacts
-build/
+# Build artifacts - be specific about what to exclude
 build-*/
 *.o
 *.so
@@ -35,7 +34,9 @@ Thumbs.db
 *~
 
 # Package files
-*.deb
+# NOTE: .deb files in docker/build/ are needed for docker-test workflow!
+# Don't ignore them - they're part of the CI/CD process.
+# Only ignore .rpm, .pkg, .dmg, .msi, .exe which aren't used in docker tests
 *.rpm
 *.pkg
 *.dmg

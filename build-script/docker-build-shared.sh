@@ -100,40 +100,6 @@ mkdir -p "${PKG_ROOT}/usr/share/applications"
 mkdir -p "${PKG_ROOT}/usr/share/metainfo"
 mkdir -p "${PKG_ROOT}/usr/share/openterfaceQT/translations"
 
-# Compute Debian Depends (default for Qt 6.4.x) for shared builds
-DEPENDS="\
-libqt6core6 (>= 6.4), \
-libqt6gui6 (>= 6.4), \
-libqt6widgets6 (>= 6.4), \
-libqt6network6 (>= 6.4), \
-libqt6multimedia6 (>= 6.4), \
-libqt6multimediawidgets6 (>= 6.4), \
-libqt6serialport6 (>= 6.4), \
-libqt6svg6 (>= 6.4), \
-libqt6xml6 (>= 6.4), \
-libqt6dbus6 (>= 6.4), \
-libqt6opengl6 (>= 6.4), \
-libqt6openglwidgets6 (>= 6.4), \
-libqt6concurrent6 (>= 6.4), \
-libxkbcommon0, \
-libwayland-client0, \
-libegl1, \
-libgles2, \
-libpulse0, \
-libxcb1, \
-libxcb-shm0, \
-libxcb-xfixes0, \
-libxcb-shape0, \
-libx11-6, \
-zlib1g, \
-libbz2-1.0, \
-liblzma5"
-
-# Allow override from environment (set DEB_DEPENDS to customize)
-if [ -n "${DEB_DEPENDS}" ]; then
-	DEPENDS="${DEB_DEPENDS}"
-fi
-
 # Determine version from resources/version.h (APP_VERSION macro) if not already set
 if [ -z "${VERSION}" ]; then
   VERSION_H="${SRC}/resources/version.h"
@@ -166,9 +132,67 @@ else
 	exit 1
 fi
 
+# Install patchelf for rpath manipulation
+apt update && apt install -y patchelf
+
+# Copy Qt libraries to bundle them in the deb
+QT_LIB_DIR="/opt/Qt6/lib"
+if [ ! -d "${QT_LIB_DIR}" ]; then
+    # Fallback to system Qt6 libraries if custom build not found
+    QT_LIB_DIR="/usr/lib/x86_64-linux-gnu"
+fi
+if [ ! -d "${QT_LIB_DIR}" ]; then
+    # Try alternative location
+    QT_LIB_DIR="/usr/lib"
+fi
+
+if [ -d "${QT_LIB_DIR}" ]; then
+    mkdir -p "${PKG_ROOT}/usr/lib"
+    echo "Copying Qt libraries from ${QT_LIB_DIR}..."
+    # Copy only Qt6 libraries (not all system libraries)
+    find "${QT_LIB_DIR}" -maxdepth 1 -name "libQt6*.so*" -exec cp -a {} "${PKG_ROOT}/usr/lib/" \; 2>/dev/null || true
+    echo "✅ Qt libraries copied successfully"
+else
+    echo "⚠️  Warning: Qt library directory not found"
+fi
+
+# Copy Qt plugins
+QT_PLUGIN_DIR="/opt/Qt6/plugins"
+if [ ! -d "${QT_PLUGIN_DIR}" ]; then
+    # Fallback to system Qt6 plugins if custom build not found
+    QT_PLUGIN_DIR="/usr/lib/x86_64-linux-gnu/qt6/plugins"
+fi
+if [ ! -d "${QT_PLUGIN_DIR}" ]; then
+    # Try alternative location
+    QT_PLUGIN_DIR="/usr/lib/qt6/plugins"
+fi
+
+if [ -d "${QT_PLUGIN_DIR}" ]; then
+    mkdir -p "${PKG_ROOT}/usr/lib/qt6/plugins"
+    echo "Copying Qt plugins from ${QT_PLUGIN_DIR}..."
+    cp -ra "${QT_PLUGIN_DIR}"/* "${PKG_ROOT}/usr/lib/qt6/plugins/" 2>/dev/null || true
+    echo "✅ Qt plugins copied successfully"
+else
+    echo "⚠️  Warning: Qt plugin directory not found at ${QT_PLUGIN_DIR}"
+fi
+
+# Copy Qt QML imports
+QT_QML_DIR="/opt/Qt6/qml"
+if [ -d "${QT_QML_DIR}" ]; then
+    mkdir -p "${PKG_ROOT}/usr/lib/qt6/qml"
+    echo "Copying Qt QML imports..."
+    cp -ra "${QT_QML_DIR}"/* "${PKG_ROOT}/usr/lib/qt6/qml/" 2>/dev/null || true
+fi
+
+# Update the binary's rpath to point to bundled libraries
+if [ -f "${PKG_ROOT}/usr/local/bin/openterfaceQT" ]; then
+    echo "Updating rpath for bundled Qt libraries..."
+    patchelf --set-rpath '/usr/lib' "${PKG_ROOT}/usr/local/bin/openterfaceQT"
+fi
+
 # Copy desktop file (ensure Exec uses installed path and Icon basename is openterfaceQT)
 if [ -f "${SRC}/com.openterface.openterfaceQT.desktop" ]; then
-	sed -e 's|^Exec=.*$|Exec=/usr/local/bin/openterfaceQT|g' \
+	sed -e 's|^Exec=.*$|Exec=env QT_PLUGIN_PATH=/usr/lib/qt6/plugins:/usr/lib/x86_64-linux-gnu/qt6/plugins QML2_IMPORT_PATH=/usr/lib/qt6/qml:/usr/lib/x86_64-linux-gnu/qt6/qml /usr/local/bin/openterfaceQT|g' \
 		-e 's|^Icon=.*$|Icon=openterfaceQT|g' \
 		"${SRC}/com.openterface.openterfaceQT.desktop" > "${PKG_ROOT}/usr/share/applications/com.openterface.openterfaceQT.desktop"
 fi
@@ -209,9 +233,9 @@ CONTROL_TEMPLATE="${SRC}/packaging/debian/control"
 CONTROL_FILE="${PKG_ROOT}/DEBIAN/control"
 if [ -f "${CONTROL_TEMPLATE}" ]; then
 	if command -v envsubst >/dev/null 2>&1; then
-		VERSION="${VERSION}" ARCH="${ARCH}" DEPENDS="${DEPENDS}" envsubst < "${CONTROL_TEMPLATE}" > "${CONTROL_FILE}"
+		VERSION="${VERSION}" ARCH="${ARCH}" envsubst < "${CONTROL_TEMPLATE}" > "${CONTROL_FILE}"
 	else
-		perl -pe 's/\$\{VERSION\}/'"${VERSION}"'/g; s/\$\{ARCH\}/'"${ARCH}"'/g; s/\$\{DEPENDS\}/'"${DEPENDS}"'/g' "${CONTROL_TEMPLATE}" > "${CONTROL_FILE}"
+		perl -pe 's/\$\{VERSION\}/'"${VERSION}"'/g; s/\$\{ARCH\}/'"${ARCH}"'/g' "${CONTROL_TEMPLATE}" > "${CONTROL_FILE}"
 	fi
 else
 	cat > "${CONTROL_FILE}" <<EOF
@@ -220,6 +244,7 @@ Version: ${VERSION}
 Section: base
 Priority: optional
 Architecture: ${ARCH}
+Depends: libxkbcommon0, libwayland-client0, libegl1, libgles2, libpulse0, libxcb1, libxcb-shm0, libxcb-xfixes0, libxcb-shape0, libx11-6, zlib1g, libbz2-1.0, liblzma5
 Maintainer: TechxArtisan <info@techxartisan.com>
 Description: OpenterfaceQT Mini-KVM Linux Edition
 EOF
@@ -264,9 +289,36 @@ if [ ! -f "${BUILD}/openterfaceQT" ]; then
 fi
 cp "${BUILD}/openterfaceQT" "${RPMTOP}/SOURCES/"
 
-# Try to copy icon if available
-if [ -f "${SRC}/images/icon_256.png" ]; then
-	cp "${SRC}/images/icon_256.png" "${RPMTOP}/SOURCES/"
+# Install patchelf for rpath manipulation if not already installed
+apt update && apt install -y patchelf
+
+# Copy Qt libraries to SOURCES for bundling
+QT_LIB_DIR="/opt/Qt6/lib"
+if [ -d "${QT_LIB_DIR}" ]; then
+    echo "Copying Qt libraries to SOURCES..."
+    cp -a "${QT_LIB_DIR}"/libQt6*.so* "${RPMTOP}/SOURCES/" 2>/dev/null || true
+fi
+
+# Copy Qt plugins to SOURCES
+QT_PLUGIN_DIR="/opt/Qt6/plugins"
+if [ -d "${QT_PLUGIN_DIR}" ]; then
+    mkdir -p "${RPMTOP}/SOURCES/qt6-plugins"
+    echo "Copying Qt plugins to SOURCES..."
+    cp -ra "${QT_PLUGIN_DIR}"/* "${RPMTOP}/SOURCES/qt6-plugins/" 2>/dev/null || true
+fi
+
+# Copy Qt QML imports to SOURCES
+QT_QML_DIR="/opt/Qt6/qml"
+if [ -d "${QT_QML_DIR}" ]; then
+    mkdir -p "${RPMTOP}/SOURCES/qt6-qml"
+    echo "Copying Qt QML imports to SOURCES..."
+    cp -ra "${QT_QML_DIR}"/* "${RPMTOP}/SOURCES/qt6-qml/" 2>/dev/null || true
+fi
+
+# Update the binary's rpath to point to /usr/lib for RPM
+if [ -f "${RPMTOP}/SOURCES/openterfaceQT" ]; then
+    echo "Updating rpath for RPM bundled Qt libraries..."
+    patchelf --set-rpath '/usr/lib' "${RPMTOP}/SOURCES/openterfaceQT"
 fi
 
 # Generate spec from template
@@ -279,6 +331,11 @@ if [ -f "${SPEC_TEMPLATE}" ]; then
 else
 	echo "Error: RPM spec template not found at ${SPEC_TEMPLATE}" >&2
 	exit 1
+fi
+
+# Try to copy icon if available
+if [ -f "${SRC}/images/icon_256.png" ]; then
+	cp "${SRC}/images/icon_256.png" "${RPMTOP}/SOURCES/"
 fi
 
 # Build the RPM

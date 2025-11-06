@@ -1,16 +1,18 @@
 #!/bin/bash
 
 # Simple Docker App Screenshot Script
-# Starts Docker container, waits 10 seconds, takes scecho -e "${BLUE}📷 Taking screenshot with ImageMagick (JPG)...${NC}"
+# Starts Docker container, waits 10 seconds, takes screenshot
 
 set -e
 
-# Configuration
-DOCKER_IMAGE="openterface-test-shared"
-DOCKER_TAG="screenshot-test"
+# Configuration - can be overridden by environment variables
+DOCKER_IMAGE="${DOCKER_IMAGE:-openterface-test-shared}"
+DOCKER_TAG="${DOCKER_TAG:-screenshot-test}"
 DOCKERFILE_PATH="docker/testos/Dockerfile.ubuntu-test-shared"
-SCREENSHOTS_DIR="app-screenshots"
+SCREENSHOTS_DIR="${SCREENSHOTS_DIR:-app-screenshots}"
 CONTAINER_NAME="openterface-screenshot-test"
+GITHUB_TOKEN="${GITHUB_TOKEN:-}"
+VOLUME_MOUNT="${VOLUME_MOUNT:-}"
 
 # Colors
 GREEN='\033[0;32m'
@@ -78,12 +80,34 @@ mkdir -p $SCREENSHOTS_DIR
 
 # Start Docker container with the app
 echo -e "${BLUE}🐳 Starting Docker container and app...${NC}"
-CONTAINER_ID=$(docker run -d \
+
+# Build the docker run command with optional volume mount and environment variables
+DOCKER_RUN_CMD="docker run -d \
     --name $CONTAINER_NAME \
     -e DISPLAY=$DISPLAY \
+    -e GITHUB_TOKEN=$GITHUB_TOKEN \
+    -e QT_X11_NO_MITSHM=1 \
+    -e QT_QPA_PLATFORM=xcb \
+    -e QT_PLUGIN_PATH=/usr/lib/qt6/plugins \
+    -e QML2_IMPORT_PATH=/usr/lib/qt6/qml \
+    -e LC_ALL=C.UTF-8 \
+    -e LANG=C.UTF-8 \
     -v /tmp/.X11-unix:/tmp/.X11-unix:rw \
     --network host \
-    $DOCKER_IMAGE:$DOCKER_TAG)
+    --privileged"
+
+# Add volume mount if provided
+if [ -n "$VOLUME_MOUNT" ]; then
+    DOCKER_RUN_CMD="$DOCKER_RUN_CMD $VOLUME_MOUNT"
+fi
+
+# Add the image and command to launch the app
+# Run installation first, then launch app via launcher script
+DOCKER_RUN_CMD="$DOCKER_RUN_CMD $DOCKER_IMAGE:$DOCKER_TAG \
+    bash -c 'export DISPLAY=$DISPLAY QT_X11_NO_MITSHM=1 QT_QPA_PLATFORM=xcb && /usr/local/bin/check-qt-deps.sh && /tmp/install-openterface-shared.sh 2>&1 | tail -20 && sleep 2 && exec /usr/local/bin/openterfaceQT 2>&1 || (echo \"App launch failed - running diagnostics...\"; echo \"---\"; /usr/local/bin/check-qt-deps.sh 2>&1; echo \"---\"; ls -la /usr/local/bin/openterface* 2>&1; which openterfaceQT 2>&1; echo \"---\"; /usr/local/bin/openterfaceQT --version 2>&1 || echo \"Binary exists but cannot run\")'"
+
+# Execute the docker run command
+CONTAINER_ID=$(eval $DOCKER_RUN_CMD)
 
 echo -e "${GREEN}✅ Container started${NC}"
 echo -e "${BLUE}📱 App is initializing...${NC}"
