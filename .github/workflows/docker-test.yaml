@@ -85,33 +85,43 @@ jobs:
             exit 1
           fi
           
-          DEB_ARTIFACT=$(echo "$ARTIFACTS" | jq -r '.artifacts[] | select(.name | contains("'$ARTIFACT_PATTERN'")) | .id' | head -1)
+          ARTIFACT_ID=$(echo "$ARTIFACTS" | jq -r '.artifacts[] | select(.name | contains("'$ARTIFACT_PATTERN'")) | .id' | head -1)
           
-          if [ -z "$DEB_ARTIFACT" ] || [ "$DEB_ARTIFACT" = "null" ]; then
-            echo "❌ No shared .deb artifact found in latest build"
+          if [ -z "$ARTIFACT_ID" ] || [ "$ARTIFACT_ID" = "null" ]; then
+            echo "❌ No shared artifact matching pattern '$ARTIFACT_PATTERN' found in latest build"
             echo "Available artifacts:"
             echo "$ARTIFACTS" | jq -r '.artifacts[].name'
             exit 1
           fi
           
-          echo "📦 Found shared .deb artifact: $DEB_ARTIFACT"
+          echo "📦 Found artifact: $ARTIFACT_ID"
           
           # Download the artifact
           echo "⬇️ Downloading artifact..."
           curl -L -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
             -o artifact.zip \
-            "https://api.github.com/repos/${{ github.repository }}/actions/artifacts/$DEB_ARTIFACT/zip"
+            "https://api.github.com/repos/${{ github.repository }}/actions/artifacts/$ARTIFACT_ID/zip"
           
-          # Extract the deb file
+          # Extract the artifact file
           unzip -j artifact.zip -d build/
           
-          # Verify the deb was extracted
-          if ls build/*.deb 1> /dev/null 2>&1; then
-            echo "✅ DEB package extracted successfully"
-            ls -lh build/*.deb
-          else
-            echo "❌ Failed to extract DEB package"
-            exit 1
+          # Verify the correct file was extracted based on install_type
+          if [ "${{ env.INSTALL_TYPE }}" = "deb" ]; then
+            if ls build/*.deb 1> /dev/null 2>&1; then
+              echo "✅ DEB package extracted successfully"
+              ls -lh build/*.deb
+            else
+              echo "❌ Failed to extract DEB package"
+              exit 1
+            fi
+          elif [ "${{ env.INSTALL_TYPE }}" = "appimage" ]; then
+            if ls build/*.AppImage 1> /dev/null 2>&1; then
+              echo "✅ AppImage extracted successfully"
+              ls -lh build/*.AppImage
+            else
+              echo "❌ Failed to extract AppImage package"
+              exit 1
+            fi
           fi
           
           echo "📦 Build artifacts ready in ./build directory:"
