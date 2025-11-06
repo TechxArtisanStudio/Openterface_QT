@@ -18,24 +18,6 @@ on:
     types:
       - completed
   workflow_dispatch:
-    inputs:
-      test_type:
-        description: 'Type of test to run'
-        required: true
-        default: 'all'
-        type: choice
-        options:
-        - 'build-only'
-        - 'run-test'
-        - 'all'
-      install_type:
-        description: 'Installation type to test'
-        required: true
-        default: 'deb'
-        type: choice
-        options:
-        - 'deb'
-        - 'appimage'
 
 env:
   DOCKER_IMAGE_SHARED: openterface-test-shared
@@ -43,7 +25,9 @@ env:
 
 jobs:
   build-test-shared:
-    if: ${{ github.event_name != 'workflow_dispatch' || github.event.inputs.install_type == 'deb' || github.event.inputs.install_type == 'appimage' }}
+    strategy:
+      matrix:
+        install_type: ['deb', 'appimage']
     runs-on: ubuntu-24.04
     
     steps:
@@ -52,14 +36,9 @@ jobs:
 
       - name: Set default install_type for non-workflow_dispatch triggers
         run: |
-          # Set default install_type to 'deb' if not provided (for push/PR/workflow_run triggers)
-          if [ -z "${{ github.event.inputs.install_type }}" ]; then
-            echo "INSTALL_TYPE=deb" >> $GITHUB_ENV
-            echo "ℹ️ Using default install_type: deb"
-          else
-            echo "INSTALL_TYPE=${{ github.event.inputs.install_type }}" >> $GITHUB_ENV
-            echo "ℹ️ Using specified install_type: ${{ github.event.inputs.install_type }}"
-          fi
+          # Set install_type from matrix
+          echo "INSTALL_TYPE=${{ matrix.install_type }}" >> $GITHUB_ENV
+          echo "ℹ️ Using install_type: ${{ matrix.install_type }}"
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -189,7 +168,6 @@ jobs:
           docker history ${{ env.DOCKER_IMAGE_SHARED }}:${{ env.DOCKER_TAG }} | head -10
 
       - name: Basic container functionality test (Shared)
-        if: ${{ github.event.inputs.test_type == 'run-test' || github.event.inputs.test_type == 'all' || github.event_name != 'workflow_dispatch' }}
         run: |
           echo "🧪 Testing basic container functionality"
           
@@ -230,7 +208,6 @@ jobs:
           echo "✅ Basic container functionality test passed"
 
       - name: Test container startup (Shared)
-        if: ${{ github.event.inputs.test_type == 'run-test' || github.event.inputs.test_type == 'all' || github.event_name != 'workflow_dispatch' }}
         run: |
           echo "🚀 Testing container startup with entrypoint (installation trigger)"
           
@@ -317,7 +294,6 @@ jobs:
           echo "✅ Container startup test completed"
 
       - name: Test installation script (Shared)
-        if: ${{ github.event.inputs.test_type == 'run-test' || github.event.inputs.test_type == 'all' || github.event_name != 'workflow_dispatch' }}
         run: |
           echo "🧪 Testing installation script"
           
@@ -425,7 +401,6 @@ jobs:
           fi
 
       - name: Test hardware interface dependencies (Shared)
-        if: ${{ github.event.inputs.test_type == 'run-test' || github.event.inputs.test_type == 'all' || github.event_name != 'workflow_dispatch' }}
         run: |
           echo "🧪 Testing hardware interface dependencies"
           
@@ -452,7 +427,6 @@ jobs:
             '
 
       - name: Test application launcher (Shared)
-        if: ${{ github.event.inputs.test_type == 'run-test' || github.event.inputs.test_type == 'all' || github.event_name != 'workflow_dispatch' }}
         run: |
           echo "🧪 Testing application launcher (non-GUI mode)"
           
@@ -505,7 +479,6 @@ jobs:
           fi
 
       - name: GUI screenshot test using proven script (Shared)
-        if: ${{ github.event.inputs.test_type == 'run-test' || github.event.inputs.test_type == 'all' || github.event_name != 'workflow_dispatch' }}
         env:
           CI_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CI_VOLUME_MOUNT: ${{ env.VOLUME_MOUNT }}
@@ -640,7 +613,7 @@ jobs:
           echo "✅ GUI screenshot test analysis completed"
 
       - name: Display screenshots in summary (Shared)
-        if: ${{ always() && (github.event.inputs.test_type == 'run-test' || github.event.inputs.test_type == 'all' || github.event_name != 'workflow_dispatch') }}
+        if: always()
         env:
           IMGBB_API_KEY: ${{ secrets.IMGBB_API_KEY }}
         run: |
@@ -765,7 +738,7 @@ jobs:
           fi
 
       - name: Upload individual screenshots (Shared)
-        if: ${{ always() && (github.event.inputs.test_type == 'run-test' || github.event.inputs.test_type == 'all' || github.event_name != 'workflow_dispatch') }}
+        if: always()
         run: |
           echo "📤 Uploading individual screenshots as artifacts"
           
@@ -789,7 +762,7 @@ jobs:
           fi
 
       - name: Upload screenshots collection (Shared)
-        if: ${{ always() && (github.event.inputs.test_type == 'run-test' || github.event.inputs.test_type == 'all' || github.event_name != 'workflow_dispatch') }}
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: openterface-gui-screenshots-shared-${{ env.INSTALL_TYPE }}-collection
@@ -797,7 +770,7 @@ jobs:
           if-no-files-found: warn
 
       - name: Upload individual screenshots as artifacts (Shared)
-        if: ${{ always() && (github.event.inputs.test_type == 'run-test' || github.event.inputs.test_type == 'all' || github.event_name != 'workflow_dispatch') }}
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: openterface-gui-screenshots-shared-${{ env.INSTALL_TYPE }}-individual
@@ -805,7 +778,6 @@ jobs:
           if-no-files-found: warn
 
       - name: Test container with simulated USB devices (Shared)
-        if: ${{ github.event.inputs.test_type == 'run-test' || github.event.inputs.test_type == 'all' || github.event_name != 'workflow_dispatch' }}
         run: |
           echo "🧪 Testing container with simulated USB device access"
           
@@ -858,11 +830,9 @@ jobs:
         uses: actions/checkout@v4
         
       - name: Download shared screenshots
-        if: ${{ github.event_name != 'workflow_dispatch' || github.event.inputs.install_type == 'deb' || github.event.inputs.install_type == 'appimage' }}
         uses: actions/download-artifact@v4
         with:
-          name: openterface-gui-screenshots-shared-${{ env.INSTALL_TYPE }}-collection
-          path: screenshots-shared/
+          path: all-artifacts/
         continue-on-error: true
         
 
@@ -872,58 +842,49 @@ jobs:
           
           # Add combined summary
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "# 📋 Test Report - Shared Build (${{ env.INSTALL_TYPE }})" >> $GITHUB_STEP_SUMMARY
+          echo "# 📋 Test Report - Shared Build (DEB + AppImage)" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "## 📊 Test Results" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           
-          # Shared results
-          if [ -d "screenshots-shared" ]; then
-            total_shared=$(find screenshots-shared/ -name "*.jpg" 2>/dev/null | wc -l)
-            content_shared=$(find screenshots-shared/ -name "*.jpg" -exec identify -ping -format "%[mean]\n" {} \; 2>/dev/null | awk -F. '{if($1 > 100) count++} END {print count+0}')
-            if [ "$total_shared" -gt 0 ]; then
-              shared_rate=$(( content_shared * 100 / total_shared ))
-              if [ "$shared_rate" -ge 50 ]; then
-                status="✅ PASSED"
+          # Process each install type
+          for install_type in deb appimage; do
+            echo "### $install_type Results" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            
+            # Check if artifacts exist for this install type
+            screenshots_dir="all-artifacts/openterface-gui-screenshots-shared-${install_type}-collection"
+            if [ -d "$screenshots_dir" ]; then
+              total=$(find "$screenshots_dir" -name "*.jpg" 2>/dev/null | wc -l)
+              content=$(find "$screenshots_dir" -name "*.jpg" -exec identify -ping -format "%[mean]\n" {} \; 2>/dev/null | awk -F. '{if($1 > 100) count++} END {print count+0}')
+              
+              if [ "$total" -gt 0 ]; then
+                rate=$(( content * 100 / total ))
+                if [ "$rate" -ge 50 ]; then
+                  status="✅ PASSED"
+                else
+                  status="⚠️ PARTIAL"
+                fi
+                echo "- **Total Screenshots**: $total" >> $GITHUB_STEP_SUMMARY
+                echo "- **With Content**: $content" >> $GITHUB_STEP_SUMMARY
+                echo "- **Success Rate**: $rate%" >> $GITHUB_STEP_SUMMARY
+                echo "- **Status**: $status" >> $GITHUB_STEP_SUMMARY
               else
-                status="⚠️ PARTIAL"
+                echo "- **Status**: ❌ FAILED - No screenshots generated" >> $GITHUB_STEP_SUMMARY
               fi
-              echo "- **Total Screenshots**: $total_shared" >> $GITHUB_STEP_SUMMARY
-              echo "- **With Content**: $content_shared" >> $GITHUB_STEP_SUMMARY
-              echo "- **Success Rate**: $shared_rate%" >> $GITHUB_STEP_SUMMARY
-              echo "- **Status**: $status" >> $GITHUB_STEP_SUMMARY
             else
-              echo "- **Status**: ❌ FAILED - No screenshots generated" >> $GITHUB_STEP_SUMMARY
+              echo "- **Status**: ⏭️ NOT RUN - No screenshots directory found" >> $GITHUB_STEP_SUMMARY
             fi
-          else
-            echo "- **Status**: �?NOT RUN - No screenshots directory found" >> $GITHUB_STEP_SUMMARY
-          fi
+            echo "" >> $GITHUB_STEP_SUMMARY
+          done
           
-          echo "" >> $GITHUB_STEP_SUMMARY
           echo "---" >> $GITHUB_STEP_SUMMARY
           echo "**Generated on**: $(date -u)" >> $GITHUB_STEP_SUMMARY
           echo "**Workflow**: ${{ github.workflow }}" >> $GITHUB_STEP_SUMMARY
           echo "**Run ID**: [${{ github.run_id }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})" >> $GITHUB_STEP_SUMMARY
           
-          # Also create the markdown file for artifact
-          cat << 'EOF' > combined-test-report.md
-          # 📸 GUI Testing Report - Openterface QT (Shared Build - ${{ env.INSTALL_TYPE }})
-          
-          ## Test Overview
-          - **Workflow**: ${{ github.workflow }}
-          - **Run ID**: ${{ github.run_id }}
-          - **Branch**: ${{ github.ref_name }}
-          - **Commit**: ${{ github.sha }}
-          - **Test Date**: $(date -u)
-          - **Build Type**: Shared Library
-          - **Install Type**: ${{ env.INSTALL_TYPE }}
-          
-          EOF
-          
-          # ... rest of existing report generation code ...
-          
           echo ""
-          echo "�?Combined test report generated and added to summary"
+          echo "✅ Combined test report generated and added to summary"
 
       - name: Upload combined test report
         if: always()

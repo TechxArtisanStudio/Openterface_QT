@@ -9,7 +9,6 @@ set -e  # Exit on any error
 IMGBB_API_URL="https://api.imgbb.com/1/upload"
 CURL_CONNECT_TIMEOUT=30
 CURL_MAX_TIME=120
-MAX_BASE64_SIZE=131072  # ~128KB limit for command line
 
 # Colors for output
 RED='\033[0;31m'
@@ -135,20 +134,6 @@ log_info "API key length: ${#API_KEY}"
 FILE_SIZE=$(stat -c%s "$IMAGE_FILE" 2>/dev/null || echo "unknown")
 FILE_SIZE_HUMAN=$(ls -lh "$IMAGE_FILE" | awk '{print $5}')
 log_info "File size: $FILE_SIZE_HUMAN ($FILE_SIZE bytes)"
-
-# Convert image to base64
-log_info "Converting image to base64..."
-IMAGE_BASE64=$(base64 -w 0 "$IMAGE_FILE" 2>/dev/null || base64 "$IMAGE_FILE" 2>/dev/null || echo "")
-
-if [ -z "$IMAGE_BASE64" ] || [ ${#IMAGE_BASE64} -lt 100 ]; then
-    log_error "Failed to convert image to base64"
-    log_error "File exists: $(test -f "$IMAGE_FILE" && echo "Yes" || echo "No")"
-    log_error "File readable: $(test -r "$IMAGE_FILE" && echo "Yes" || echo "No")"
-    log_error "Base64 length: ${#IMAGE_BASE64}"
-    exit 1
-fi
-
-log_info "Base64 conversion successful (${#IMAGE_BASE64} characters)"
 
 # Test connectivity to ImgBB API
 if $VERBOSE; then
