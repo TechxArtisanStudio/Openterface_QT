@@ -575,7 +575,48 @@ void InputHandler::handleMouseReleaseEvent(QMouseEvent* event)
 
 void InputHandler::handleWheelEvent(QWheelEvent *event)
 {
-    QScopedPointer<MouseEventDTO> eventDto(new MouseEventDTO(lastX, lastY, GlobalVar::instance().isAbsoluteMouseMode()));
+    if (!m_videoPane) {
+        qCWarning(log_ui_input) << "InputHandler::handleWheelEvent - m_videoPane is null!";
+        return;
+    }
+    
+    // CRITICAL FIX: Use the wheel event's position, not stale lastX/lastY
+    // QWheelEvent has its own position that must be used to avoid coordinate offset
+    QPoint wheelPos = event->position().toPoint();
+    
+    QScopedPointer<MouseEventDTO> eventDto;
+    
+    if (GlobalVar::instance().isAbsoluteMouseMode()) {
+        // Calculate absolute coordinates from wheel event position
+        QWidget* effectiveWidget = getEffectiveVideoWidget();
+        
+        if (!effectiveWidget || effectiveWidget->width() == 0 || effectiveWidget->height() == 0) {
+            qCWarning(log_ui_input) << "InputHandler::handleWheelEvent - Invalid widget state";
+            return;
+        }
+        
+        // Transform the position (handles letterboxing, zoom, etc.)
+        QPoint videoPos = m_videoPane->getTransformedMousePosition(wheelPos);
+        
+        int targetWidth = effectiveWidget->width();
+        int targetHeight = effectiveWidget->height();
+        
+        // Calculate absolute coordinates (0-4096 range)
+        qreal absoluteX = (static_cast<qreal>(videoPos.x()) * 4096.0) / targetWidth;
+        qreal absoluteY = (static_cast<qreal>(videoPos.y()) * 4096.0) / targetHeight;
+        
+        int absX = qBound(0, qRound(absoluteX), 4096);
+        int absY = qBound(0, qRound(absoluteY), 4096);
+        
+        eventDto.reset(new MouseEventDTO(absX, absY, true));
+        
+        qCDebug(log_ui_input) << "Wheel event - wheelPos:" << wheelPos 
+                             << "videoPos:" << videoPos 
+                             << "absX/Y:" << absX << absY;
+    } else {
+        // Relative mode - use the position from the wheel event
+        eventDto.reset(new MouseEventDTO(wheelPos.x(), wheelPos.y(), false));
+    }
 
     eventDto->setWheelDelta(event->angleDelta().y());
 
