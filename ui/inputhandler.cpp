@@ -261,10 +261,19 @@ bool InputHandler::eventFilter(QObject *watched, QEvent *event)
     }
     if (event->type() == QEvent::MouseButtonDblClick) {
         // Double-click generates: Press -> Release -> Press -> DoubleClick -> Release
-        // The 3rd event (Press before DoubleClick) already triggered handleMousePressEvent above
-        // So we just consume this event to prevent it from propagating
-        // DO NOT call handleMousePressEvent here - it would create duplicate press!
-        return true;  // Block double-click to prevent duplicate
+        // Qt generates both Press AND DoubleClick events for the second click
+        // We need to handle the DoubleClick as a normal press to send it to the target
+        QMouseEvent *mouseEvent = static_cast<QMouseEvent*>(event);
+        
+        qCDebug(log_ui_input) << "=== DOUBLE-CLICK DETECTED ===";
+        qCDebug(log_ui_input) << "  Processing as second press for double-click";
+        
+        // Process this as a press event to send the second click to target
+        m_processingInEventFilter = true;
+        handleMousePressEvent(mouseEvent);
+        m_processingInEventFilter = false;
+        
+        return false;  // Let it propagate for proper handling
     }
     if (event->type() == QEvent::MouseButtonRelease) {
         QMouseEvent *mouseEvent = static_cast<QMouseEvent*>(event);
@@ -411,18 +420,33 @@ void InputHandler::handleMousePressEvent(QMouseEvent* event)
     
     // DUPLICATE EVENT FILTERING
     // Qt on some systems sends duplicate press events within milliseconds
-    // Filter out events with same button and position within 10ms window
+    // Filter out events with same button and position within a very short window
+    // BUT: Allow legitimate double-clicks (typical double-click interval is 100-500ms)
+    // Only filter TRUE duplicates (< 5ms, likely from Qt event system bugs)
     qint64 currentTime = QDateTime::currentMSecsSinceEpoch();
     Qt::MouseButton currentButton = event->button();
     QPoint currentPos = event->pos();
     
+    qint64 timeSinceLastPress = currentTime - m_lastMousePressTime;
+    
+    // Only filter if:
+    // 1. Same button AND same position
+    // 2. Time is extremely short (< 5ms) - true duplicates
+    // 3. NOT a double-click (double-clicks are typically 100-500ms apart)
     if (m_lastPressButton == currentButton && 
         m_lastMousePressPos == currentPos &&
-        (currentTime - m_lastMousePressTime) < 10) {
+        timeSinceLastPress < 2) {
         qCWarning(log_ui_input) << "=== DUPLICATE PRESS FILTERED ===" 
                                 << "pos:" << currentPos 
-                                << "time since last:" << (currentTime - m_lastMousePressTime) << "ms";
+                                << "time since last:" << timeSinceLastPress << "ms";
         return; // Ignore duplicate
+    }
+    
+    // Log if this might be a double-click (100-500ms is typical double-click speed)
+    if (timeSinceLastPress > 0 && timeSinceLastPress < 500) {
+        qCDebug(log_ui_input) << "=== FAST CLICK DETECTED ===" 
+                               << "time since last:" << timeSinceLastPress << "ms"
+                               << "pos:" << currentPos;
     }
     
     // Update duplicate detection state
@@ -437,17 +461,42 @@ void InputHandler::handleMousePressEvent(QMouseEvent* event)
     
     QScopedPointer<MouseEventDTO> eventDto;
     
-    // CRITICAL FIX: Reuse the last calculated absolute position if available
-    // This ensures the press happens at the EXACT same coordinates as the last mouse move
-    // preventing any pixel offset caused by recalculation
-    // Keep cache alive for the release event
-    if (GlobalVar::instance().isAbsoluteMouseMode() && m_hasLastAbsolutePosition) {
-        qCWarning(log_ui_input) << "  Using CACHED absolute position:" << QPoint(m_lastAbsoluteX, m_lastAbsoluteY);
-        eventDto.reset(new MouseEventDTO(m_lastAbsoluteX, m_lastAbsoluteY, true));
-        // Keep cache for release event - don't clear here
+    // Check if this might be a double-click scenario (fast second press within 500ms)
+    bool isPotentialDoubleClick = (timeSinceLastPress > 5 && timeSinceLastPress < 500);
+    
+    // CRITICAL FIX for double-click coordinate stability:
+    // Strategy: ALWAYS save coordinates on EVERY press for potential future double-click
+    // Then on the SECOND press, reuse the saved coordinates from the FIRST press
+    
+    if (GlobalVar::instance().isAbsoluteMouseMode()) {
+        // If this is likely a SECOND press in a double-click, reuse coordinates from FIRST press
+        if (isPotentialDoubleClick && m_hasDoubleClickCache && 
+            (currentTime - m_doubleClickCacheTime) < 500) {
+            qCWarning(log_ui_input) << "  Using DOUBLE-CLICK CACHED position (from first press):" 
+                                   << QPoint(m_doubleClickCachedX, m_doubleClickCachedY);
+            eventDto.reset(new MouseEventDTO(m_doubleClickCachedX, m_doubleClickCachedY, true));
+        }
+        // Otherwise, use standard cache or calculate fresh
+        else if (m_hasLastAbsolutePosition) {
+            qCWarning(log_ui_input) << "  Using CACHED absolute position:" << QPoint(m_lastAbsoluteX, m_lastAbsoluteY);
+            eventDto.reset(new MouseEventDTO(m_lastAbsoluteX, m_lastAbsoluteY, true));
+        }
+        else {
+            qCWarning(log_ui_input) << "  Calculating new position (no cache available)";
+            eventDto.reset(calculateMouseEventDto(event));
+        }
+        
+        // ALWAYS save coordinates for potential future double-click
+        // This ensures FIRST press saves coordinates that SECOND press can reuse
+        m_doubleClickCachedX = eventDto->getX();
+        m_doubleClickCachedY = eventDto->getY();
+        m_hasDoubleClickCache = true;
+        m_doubleClickCacheTime = currentTime;
+        qCWarning(log_ui_input) << "  Saved coordinates for potential double-click:" 
+                               << QPoint(m_doubleClickCachedX, m_doubleClickCachedY);
     } else {
-        // No cached position or relative mode - calculate normally
-        qCWarning(log_ui_input) << "  Calculating new position (no cache or relative mode)";
+        // Relative mode - calculate normally
+        qCWarning(log_ui_input) << "  Calculating new position (relative mode)";
         eventDto.reset(calculateMouseEventDto(event));
     }
     
@@ -463,7 +512,10 @@ void InputHandler::handleMousePressEvent(QMouseEvent* event)
     HostManager::getInstance().handleMousePress(eventDto.get());
 
     if(eventDto->isAbsoluteMode()){
-        m_videoPane->showHostMouse();
+        // Only show the cursor if mouse auto-hide is disabled
+        if (!GlobalVar::instance().isMouseAutoHideEnabled()) {
+            m_videoPane->showHostMouse();
+        }
     }else{
         m_videoPane->hideHostMouse();
     }
@@ -503,8 +555,19 @@ void InputHandler::handleMouseReleaseEvent(QMouseEvent* event)
     
     setDragging(false);
     HostManager::getInstance().handleMouseRelease(eventDto.get());
+    
+    // Clear double-click cache if enough time has passed (> 500ms means not a double-click)
+    qint64 currentTime = QDateTime::currentMSecsSinceEpoch();
+    if (m_hasDoubleClickCache && (currentTime - m_doubleClickCacheTime) > 500) {
+        m_hasDoubleClickCache = false;
+        qCDebug(log_ui_input) << "  Cleared double-click cache (timeout)";
+    }
+    
     if(eventDto->isAbsoluteMode()){
-        m_videoPane->showHostMouse();
+        // Only show the cursor if mouse auto-hide is disabled
+        if (!GlobalVar::instance().isMouseAutoHideEnabled()) {
+            m_videoPane->showHostMouse();
+        }
     }else{
         m_videoPane->hideHostMouse();
     }
