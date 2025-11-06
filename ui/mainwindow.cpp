@@ -610,6 +610,29 @@ void MainWindow::toggleRecording() {
     }
 }
 
+void MainWindow::toggleMute() {
+    qDebug() << "toggleMute called";
+    
+    // Get the AudioManager singleton
+    AudioManager& audioManager = AudioManager::getInstance();
+    
+    // Get current volume
+    qreal currentVolume = audioManager.getVolume();
+    
+    // Check if currently muted (volume is 0)
+    if (currentVolume == 0.0) {
+        // Unmute - restore to default volume (1.0)
+        audioManager.setVolume(1.0);
+        GlobalSetting::instance().setAudioMuted(false);
+        qDebug() << "Audio unmuted - volume set to 1.0";
+    } else {
+        // Mute - set volume to 0
+        audioManager.setVolume(0.0);
+        GlobalSetting::instance().setAudioMuted(true);
+        qDebug() << "Audio muted - volume set to 0.0";
+    }
+}
+
 void MainWindow::showRecordingSettings() {
     qDebug() << "showRecordingSettings called";
     
@@ -1139,8 +1162,7 @@ MainWindow::~MainWindow()
         group->deleteLater();
     }
     
-    // Process any pending events to ensure cleanup
-    QCoreApplication::processEvents();
+    // No need to process events - deleteLater will handle cleanup asynchronously
     
     // 1. Stop all operations first
     stop();
@@ -1160,11 +1182,8 @@ MainWindow::~MainWindow()
         qCDebug(log_ui_mainwindow) << "AudioManager singleton stopped";
     }
     
-    // Process any pending events after audio cleanup
-    QCoreApplication::processEvents();
-    
-    // Wait a moment to ensure audio threads are fully stopped
-    QThread::msleep(50);
+    // No need to process events or sleep - let cleanup happen naturally
+    // Audio manager uses proper threading internally
     
     // 2. Stop camera operations and disconnect signals
     if (m_cameraManager) {
