@@ -135,18 +135,30 @@
 <context>
     <name>CornerWidgetManager</name>
     <message>
-        <location filename="../../ui/cornerwidget/cornerwidgetmanager.cpp" line="59"/>
+        <location filename="../../ui/cornerwidget/cornerwidgetmanager.cpp" line="71"/>
         <source>Select Keyboard Layout</source>
         <translation>选择键盘布局</translation>
     </message>
     <message>
-        <location filename="../../ui/cornerwidget/cornerwidgetmanager.cpp" line="130"/>
+        <location filename="../../ui/cornerwidget/cornerwidgetmanager.cpp" line="144"/>
         <source>Stop Recording</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/cornerwidget/cornerwidgetmanager.cpp" line="130"/>
+        <location filename="../../ui/cornerwidget/cornerwidgetmanager.cpp" line="144"/>
         <source>Start Recording</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/cornerwidget/cornerwidgetmanager.cpp" line="152"/>
+        <location filename="../../ui/cornerwidget/cornerwidgetmanager.cpp" line="173"/>
+        <source>Unmute Audio</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/cornerwidget/cornerwidgetmanager.cpp" line="152"/>
+        <location filename="../../ui/cornerwidget/cornerwidgetmanager.cpp" line="173"/>
+        <source>Mute Audio</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -211,64 +223,84 @@
         <translation>&lt;a href=&quot;#&quot;&gt;环境帮助文档&lt;/a&gt;</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="107"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="105"/>
         <source>The following steps help you install the driver and the Openterface firmware update. Current status:&lt;br&gt;</source>
         <translation>以下步骤可帮助您安装驱动程序和 Openterface 固件更新。当前状态：&lt;br&gt;</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="110"/>
-        <location filename="../../ui/advance/envdialog.cpp" line="142"/>
         <source>‣ Driver Installed: </source>
-        <translation>‣ 驱动已安装： </translation>
+        <translation type="vanished">‣ 驱动已安装： </translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="111"/>
-        <location filename="../../ui/advance/envdialog.cpp" line="146"/>
         <source>‣ Latest Firmware: </source>
-        <translation>‣ 最新固件： </translation>
+        <translation type="vanished">‣ 最新固件： </translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="120"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="118"/>
         <source> The device is not plugged in. Please plug it in and try again.</source>
         <translation> 设备未插入。请插入设备，然后重试。</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="141"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="139"/>
         <source>The following steps help you install the driver and access the device permissions and the Openterface firmware update. Current status:&lt;br&gt;</source>
         <translation>以下步骤可帮助您安装驱动程序、访问设备权限以及更新 Openterface 固件。当前状态：&lt;br&gt;</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="143"/>
         <source>‣ In Serial Port Permission: </source>
-        <translation>‣ 串行端口权限： </translation>
+        <translation type="vanished">‣ 串行端口权限： </translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="144"/>
         <source>‣ HID Permission: </source>
-        <translation>‣ HID权限： </translation>
+        <translation type="vanished">‣ HID权限： </translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="145"/>
         <source>‣ BRLTTY checking: </source>
-        <translation>‣ BRLTTY检查： </translation>
+        <translation type="vanished">‣ BRLTTY检查： </translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="145"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="108"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="140"/>
+        <source>��?Driver Installed: </source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/envdialog.cpp" line="109"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="144"/>
+        <source>��?Latest Firmware: </source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/envdialog.cpp" line="141"/>
+        <source>��?In Serial Port Permission: </source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/envdialog.cpp" line="142"/>
+        <source>��?HID Permission: </source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/envdialog.cpp" line="143"/>
         <source> (needs removal)</source>
         <translation> （需要移除）</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="145"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="143"/>
         <source> (not running)</source>
         <translation> （没有运行）</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="185"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="143"/>
+        <source>��?BRLTTY checking: </source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/envdialog.cpp" line="183"/>
         <source>Install Driver</source>
         <translation>安装驱动</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="186"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="184"/>
         <source>The driver is missing. Please install the driver at: https://www.wch.cn/downloads/CH341SER.EXE.html 
 
 After the driver is installed, a system restart and device re-plugging is required for the changes to take effect.
@@ -281,62 +313,62 @@ Please restart your computer after the driver installation.</source>
 安装驱动程序后，请重启计算机。</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="192"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="190"/>
         <source>Copy Link</source>
         <translation>复制链接</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="208"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="206"/>
         <source>Select Destination Directory</source>
         <translation>选择目标目录</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="264"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="262"/>
         <source>Driver Installed: </source>
         <translation>驱动已安装： </translation>
     </message>
     <message>
+        <location filename="../../ui/advance/envdialog.cpp" line="262"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="263"/>
         <location filename="../../ui/advance/envdialog.cpp" line="264"/>
-        <location filename="../../ui/advance/envdialog.cpp" line="265"/>
-        <location filename="../../ui/advance/envdialog.cpp" line="266"/>
         <source>Yes</source>
         <translation>是</translation>
     </message>
     <message>
+        <location filename="../../ui/advance/envdialog.cpp" line="262"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="263"/>
         <location filename="../../ui/advance/envdialog.cpp" line="264"/>
         <location filename="../../ui/advance/envdialog.cpp" line="265"/>
-        <location filename="../../ui/advance/envdialog.cpp" line="266"/>
-        <location filename="../../ui/advance/envdialog.cpp" line="267"/>
         <source>No</source>
         <translation>否</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="265"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="263"/>
         <source>Serial port Permission: </source>
         <translation>串口权限： </translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="266"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="264"/>
         <source>HID Permission: </source>
         <translation>HID权限： </translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="267"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="265"/>
         <source>BRLTTY is Running: </source>
         <translation>BRLTTY 正在运行： </translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="267"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="265"/>
         <source>Yes (needs removal)</source>
         <translation>是（需要移除）</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="273"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="271"/>
         <source>Restart Required</source>
         <translation>需要重启</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="274"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="272"/>
         <source>The driver has been installed. A system restart and device re-plugging is required for the changes to take effect.
 
 Would you like to restart your computer now?</source>
@@ -345,12 +377,12 @@ Would you like to restart your computer now?</source>
 您现在要重新启动计算机吗？</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="283"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="281"/>
         <source>Restart Later</source>
         <translation>稍后重启</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="284"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="282"/>
         <source>Please remember to restart your computer and re-plug the device for the driver to work properly.</source>
         <translation>请记住重启电脑并重新插入设备，以便驱动程序正常工作。</translation>
     </message>
@@ -934,44 +966,44 @@ Please try again after restarting the application.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="620"/>
+        <location filename="../../ui/mainwindow.cpp" line="643"/>
         <source>Active Recording</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="621"/>
+        <location filename="../../ui/mainwindow.cpp" line="644"/>
         <source>There is an active recording session. Do you want to stop it before changing settings?</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="809"/>
+        <location filename="../../ui/mainwindow.cpp" line="832"/>
         <source>Image Capture Error</source>
         <translation>图像捕获错误</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="878"/>
+        <location filename="../../ui/mainwindow.cpp" line="901"/>
         <source>Captured &quot;%1&quot;</source>
         <translation>已捕获 &quot;%1&quot;</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1362"/>
+        <location filename="../../ui/mainwindow.cpp" line="1381"/>
         <source>Firmware Update</source>
         <translation>固件更新</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1363"/>
+        <location filename="../../ui/mainwindow.cpp" line="1382"/>
         <source>The firmware is up to date.
 Current version: </source>
         <translation>固件已是最新版本。
 当前版本：</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1385"/>
+        <location filename="../../ui/mainwindow.cpp" line="1404"/>
         <source>Firmware fetch timeout</source>
         <translation>固件获取超时</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1386"/>
+        <location filename="../../ui/mainwindow.cpp" line="1405"/>
         <source>Firmware retrieval timed out. Please check your network connection and try again.
 Current version: </source>
         <translation>固件检索超时。请检查您的网络连接并重试。
@@ -1106,37 +1138,37 @@ Technical details: %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/recording/recordingcontroller.cpp" line="599"/>
+        <location filename="../../ui/recording/recordingcontroller.cpp" line="598"/>
         <source>System Reset Complete</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/recording/recordingcontroller.cpp" line="600"/>
+        <location filename="../../ui/recording/recordingcontroller.cpp" line="599"/>
         <source>The recording system has been reset. Please try recording again.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/recording/recordingcontroller.cpp" line="608"/>
+        <location filename="../../ui/recording/recordingcontroller.cpp" line="607"/>
         <source>Diagnostics Unavailable</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/recording/recordingcontroller.cpp" line="609"/>
+        <location filename="../../ui/recording/recordingcontroller.cpp" line="608"/>
         <source>Cannot retrieve diagnostics - camera manager is not available.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/recording/recordingcontroller.cpp" line="618"/>
+        <location filename="../../ui/recording/recordingcontroller.cpp" line="617"/>
         <source>Recording System Diagnostics</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/recording/recordingcontroller.cpp" line="629"/>
+        <location filename="../../ui/recording/recordingcontroller.cpp" line="628"/>
         <source>Copy to Clipboard</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/recording/recordingcontroller.cpp" line="630"/>
+        <location filename="../../ui/recording/recordingcontroller.cpp" line="629"/>
         <source>Close</source>
         <translation type="unfinished">关闭</translation>
     </message>
