@@ -551,8 +551,7 @@ void WindowControlManager::animateToolbarShow()
         menuBar->update(); // Force repaint
         qCDebug(log_ui_windowcontrolmanager) << "WindowControlManager::animateToolbarShow() - Called update()";
         
-        QApplication::processEvents(); // Force Qt to process the show event immediately
-        qCDebug(log_ui_windowcontrolmanager) << "WindowControlManager::animateToolbarShow() - Called processEvents()";
+        // Removed processEvents - Qt will handle event processing naturally
         
         m_mainWindow->update(); // Update main window
         qCDebug(log_ui_windowcontrolmanager) << "WindowControlManager::animateToolbarShow() - Called mainWindow update()";

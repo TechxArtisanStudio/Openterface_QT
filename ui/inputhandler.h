@@ -82,6 +82,12 @@ private:
     int m_lastAbsoluteX = 0;
     int m_lastAbsoluteY = 0;
     bool m_hasLastAbsolutePosition = false;
+    
+    // Cache for double-click: Store coordinates from first press to reuse on second press
+    int m_doubleClickCachedX = 0;
+    int m_doubleClickCachedY = 0;
+    bool m_hasDoubleClickCache = false;
+    qint64 m_doubleClickCacheTime = 0;
 
     MouseEventDTO* calculateRelativePosition(QMouseEvent *event);
     MouseEventDTO* calculateAbsolutePosition(QMouseEvent *event);

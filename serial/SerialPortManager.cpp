@@ -427,7 +427,10 @@ void SerialPortManager::onSerialPortConnected(const QString &portName){
             qCDebug(log_core_serial) << "Port is still open, closing it before retry";
             closePort();
         }
-        QThread::msleep(500 * (retryCount + 1));
+        // Use non-blocking timer instead of msleep
+        QEventLoop loop;
+        QTimer::singleShot(500 * (retryCount + 1), &loop, &QEventLoop::quit);
+        loop.exec();
         retryCount++;
         // Retry opening the port
         qCDebug(log_core_serial) << "Retrying to open serial port: " << portName << "baudrate:" << tryBaudrate;
@@ -665,15 +668,18 @@ bool SerialPortManager::resetHipChip(int targetBaudrate){
         
         // Close and reopen the port with 115200
         closePort();
-        QThread::msleep(100);
-        if (openPort(portName, targetBaudrate)) {
-            qCInfo(log_core_serial) << "FE0C chip successfully reopened at 115200";
-            onSerialPortConnected(portName);
-            return true;
-        } else {
-            qCWarning(log_core_serial) << "Failed to reopen FE0C chip at 115200";
-            return false;
-        }
+        
+        // Use non-blocking timer instead of msleep
+        QTimer::singleShot(100, this, [this, portName, targetBaudrate]() {
+            if (openPort(portName, targetBaudrate)) {
+                qCInfo(log_core_serial) << "FE0C chip successfully reopened at 115200";
+                onSerialPortConnected(portName);
+            } else {
+                qCWarning(log_core_serial) << "Failed to reopen FE0C chip at 115200";
+            }
+        });
+        
+        return true;
     }
     
     // Handle CH7523 chip - requires commands for reconfiguration
@@ -906,8 +912,10 @@ bool SerialPortManager::openPort(const QString &portName, int baudRate) {
         qCWarning(log_core_serial) << "Failed to open port on attempt" << (attempt + 1) 
                                    << "Error:" << serialPort->errorString();
         
-        // Wait progressively longer between attempts
-        QThread::msleep(100 * (attempt + 1));
+        // Wait progressively longer between attempts - use event loop
+        QEventLoop loop;
+        QTimer::singleShot(100 * (attempt + 1), &loop, &QEventLoop::quit);
+        loop.exec();
         
         // Clear error before retry
         serialPort->clearError();
@@ -1014,7 +1022,8 @@ void SerialPortManager::closePort() {
     // Stop watchdog while port is closed
     stopConnectionWatchdog();
     
-    QThread::msleep(300);
+    // Use non-blocking timer instead of msleep - removed delay as it's not critical
+    // Port closing should be immediate, any OS-level delays are handled internally
 }
 
 bool SerialPortManager::restartPort() {
@@ -1025,12 +1034,16 @@ bool SerialPortManager::restartPort() {
         eventCallback->serialPortReset(true);
     }
     closePort();
-    QThread::msleep(100);
-    openPort(portName, baudRate);
-    onSerialPortConnected(portName);
-    if (eventCallback != nullptr) {
-        eventCallback->serialPortReset(false);
-    }
+    
+    // Use non-blocking timer instead of msleep
+    QTimer::singleShot(100, this, [this, portName, baudRate]() {
+        openPort(portName, baudRate);
+        onSerialPortConnected(portName);
+        if (eventCallback != nullptr) {
+            eventCallback->serialPortReset(false);
+        }
+    });
+    
     return ready;
 }
 
@@ -1331,12 +1344,8 @@ bool SerialPortManager::writeData(const QByteArray &data) {
             return false;
         }
         
-        // Wait for write to complete with timeout
-        if (!serialPort->waitForBytesWritten(500)) {
-            qCWarning(log_core_serial) << "Write timeout occurred";
-            m_consecutiveErrors++;
-            return false;
-        }
+        // Flush immediately instead of blocking wait - serial port should handle buffering
+        serialPort->flush();
         
         qCDebug(log_core_serial) << "Data written to serial port:" << serialPort->portName()
                      << "baudrate:" << serialPort->baudRate() << ":" << data.toHex(' ');
@@ -1389,22 +1398,41 @@ bool SerialPortManager::sendAsyncCommand(const QByteArray &data, bool force) {
  */
 QByteArray SerialPortManager::sendSyncCommand(const QByteArray &data, bool force) {
     if(!force && !ready) return QByteArray();
-    // qCDebug(log_core_serial) << "Data received signal emitted";
+    
     emit dataSent(data);
     QByteArray command = data;
     
     command.append(calculateChecksum(command));
     qCDebug(log_core_serial) <<  "Check sum" << command.toHex(' ');
     writeData(command);
-    if (serialPort->waitForReadyRead(100)) {
-        QByteArray responseData = serialPort->readAll();
-        while (serialPort->waitForReadyRead(100))
-            responseData += serialPort->readAll();
-        emit dataReceived(responseData);
-        return responseData;
-        
+    
+    // Use signal-based approach instead of blocking wait
+    // The response will be handled by readData() signal handler
+    // For now, return empty array - calling code should use async signals
+    // This prevents UI blocking
+    
+    // DEPRECATED: This synchronous method should be refactored to use callbacks
+    // Temporarily keeping minimal blocking for backwards compatibility
+    QElapsedTimer timer;
+    timer.start();
+    QByteArray responseData;
+    
+    while (timer.elapsed() < 100 && responseData.isEmpty()) {
+        if (serialPort->waitForReadyRead(10)) {
+            responseData = serialPort->readAll();
+            // Try to get any remaining data without blocking
+            while (serialPort->bytesAvailable() > 0) {
+                responseData += serialPort->readAll();
+            }
+            if (!responseData.isEmpty()) {
+                emit dataReceived(responseData);
+                return responseData;
+            }
+        }
+        QCoreApplication::processEvents(QEventLoop::ExcludeUserInputEvents, 5);
     }
-        return QByteArray();
+    
+    return responseData;
 }
 
 
@@ -1424,8 +1452,13 @@ void SerialPortManager::restartSwitchableUSB(){
     if(serialPort){
         qCDebug(log_core_serial) << "Restart the USB port now...";
         serialPort->setDataTerminalReady(true);
-        QThread::msleep(500);
-        serialPort->setDataTerminalReady(false);
+        
+        // Use non-blocking timer instead of msleep
+        QTimer::singleShot(500, this, [this]() {
+            if (serialPort) {
+                serialPort->setDataTerminalReady(false);
+            }
+        });
     }
 }
 
@@ -1642,6 +1675,7 @@ void SerialPortManager::changeUSBDescriptor() {
     bits[3] = (hexValue >> 7) & 1;
     
     if (bits[3]){
+        int delayIndex = 0;
         for(uint i=0; i < sizeof(bits)/ sizeof(bits[0]) -1; i++){
             if (bits[i]){
                 QByteArray command = CMD_SET_USB_STRING_PREFIX;
@@ -1664,13 +1698,15 @@ void SerialPortManager::changeUSBDescriptor() {
 
                 // qCDebug(log_core_serial) <<  "usb descriptor" << command.toHex(' ');
                 if (serialPort != nullptr && serialPort->isOpen()){
-                    QByteArray respon = sendSyncCommand(command, true);
-                    qDebug(log_core_serial) << respon;
-                    qDebug(log_core_serial) << " After sending command";
+                    // Use delayed execution to avoid blocking
+                    QTimer::singleShot(10 * delayIndex++, this, [this, command]() {
+                        QByteArray respon = sendSyncCommand(command, true);
+                        qDebug(log_core_serial) << respon;
+                        qDebug(log_core_serial) << " After sending command";
+                    });
                 }
                 qCDebug(log_core_serial) <<  "usb descriptor" << command.toHex(' ');
             }
-            QThread::msleep(10);
         }
     }
 }
@@ -1735,13 +1771,16 @@ void SerialPortManager::setUserSelectedBaudrate(int baudRate) {
         qCInfo(log_core_serial) << "FE0C chip - using simple close/reopen (baudrate must be 115200)";
         QString portName = serialPort->portName();
         closePort();
-        QThread::msleep(100);
-        if (openPort(portName, BAUDRATE_HIGHSPEED)) {
-            qCInfo(log_core_serial) << "FE0C chip successfully switched to 115200";
-            onSerialPortConnected(portName);
-        } else {
-            qCWarning(log_core_serial) << "Failed to reopen FE0C chip";
-        }
+        
+        // Use non-blocking timer instead of msleep
+        QTimer::singleShot(100, this, [this, portName]() {
+            if (openPort(portName, BAUDRATE_HIGHSPEED)) {
+                qCInfo(log_core_serial) << "FE0C chip successfully switched to 115200";
+                onSerialPortConnected(portName);
+            } else {
+                qCWarning(log_core_serial) << "Failed to reopen FE0C chip";
+            }
+        });
         return;
     }
     
