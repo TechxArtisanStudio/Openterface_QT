@@ -917,6 +917,20 @@ bool SerialPortManager::openPort(const QString &portName, int baudRate) {
         qCDebug(log_core_serial) << "Open port" << portName + ", baudrate: " << baudRate;
         serialPort->setRequestToSend(false);
         
+        // Clear any stale data in the serial port buffers to prevent data corruption
+        // This is critical when device is unplugged and replugged
+        qCDebug(log_core_serial) << "Clearing serial port buffers to remove stale data";
+        serialPort->clear(QSerialPort::AllDirections);
+        
+        // Also clear our internal incomplete data buffer
+        {
+            QMutexLocker bufferLocker(&m_bufferMutex);
+            if (!m_incompleteDataBuffer.isEmpty()) {
+                qCDebug(log_core_serial) << "Clearing internal incomplete data buffer on port open";
+                m_incompleteDataBuffer.clear();
+            }
+        }
+        
         // Reset error counters on successful connection
         resetErrorCounters();
         
@@ -1075,6 +1089,23 @@ void SerialPortManager::readData() {
     }
     
     if (completeData.size() >= 6) {
+        // Validate packet header before processing
+        // All valid packets should start with 0x57 0xAB
+        if (completeData[0] != 0x57 || static_cast<unsigned char>(completeData[1]) != 0xAB) {
+            qCWarning(log_core_serial) << "Invalid packet header detected - expected 0x57 0xAB, got:" 
+                                       << QString("0x%1 0x%2").arg(static_cast<unsigned char>(completeData[0]), 2, 16, QChar('0'))
+                                                               .arg(static_cast<unsigned char>(completeData[1]), 2, 16, QChar('0'))
+                                       << "Full data:" << completeData.toHex(' ');
+            
+            // Clear the buffer to prevent cascading errors
+            {
+                QMutexLocker bufferLocker(&m_bufferMutex);
+                m_incompleteDataBuffer.clear();
+            }
+            m_consecutiveErrors++;
+            return;
+        }
+        
         // Reset consecutive errors on successful data read
         resetErrorCounters();
         m_lastSuccessfulCommand.restart();
@@ -1115,10 +1146,14 @@ void SerialPortManager::readData() {
                 break;
             case 0x88:
                 // get parameter configuration
-                // baud rate 8...11 bytes
-                checkedBaudrate = ((unsigned char)completeData[8] << 24) | ((unsigned char)completeData[9] << 16) | ((unsigned char)completeData[10] << 8) | (unsigned char)completeData[11];
+                // baud rate 8...11 bytes - need at least 12 bytes total
+                if (completeData.size() >= 12) {
+                    checkedBaudrate = ((unsigned char)completeData[8] << 24) | ((unsigned char)completeData[9] << 16) | ((unsigned char)completeData[10] << 8) | (unsigned char)completeData[11];
 
-                qCDebug(log_core_serial) << "Current serial port baudrate rate:" << checkedBaudrate << ", Mode:" << "0x" + QString::number(mode, 16);
+                    qCDebug(log_core_serial) << "Current serial port baudrate rate:" << checkedBaudrate << ", Mode:" << "0x" + QString::number(mode, 16);
+                } else {
+                    qCWarning(log_core_serial) << "Incomplete parameter configuration response - expected at least 12 bytes, got:" << completeData.size() << "Data:" << completeData.toHex(' ');
+                }
                 // if (checkedBaudrate == SerialPortManager::DEFAULT_BAUDRATE && chip_mode == mode) {
                 //     qCDebug(log_core_serial) << "Serial is ready for communication.";
                 //     setBaudRate(checkedBaudrate);
