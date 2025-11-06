@@ -73,14 +73,6 @@ RUN apt-get install -y libgl1 \
         libglx0 \
         libglvnd0 \
         libglu1-mesa
-# FFmpeg runtime libraries
-RUN apt-get install -y libavformat60 \
-        libavcodec60 \
-        libavutil58 \
-        libavdevice60 \
-        libswresample4 \
-        libswscale7 \
-        libturbojpeg
 # GStreamer runtime dependencies
 RUN apt-get install -y libgstreamer1.0-0 \
         gstreamer1.0-plugins-base \
