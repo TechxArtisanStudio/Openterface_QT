@@ -31,5 +31,7 @@
         <file>../images/screen_scale.svg</file>
         <file>../images/startRecord.svg</file>
         <file>../images/stopRecord.svg</file>
+        <file>../images/audio.svg</file>
+        <file>../images/mute.svg</file>
     </qresource>
 </RCC>

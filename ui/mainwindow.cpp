@@ -610,6 +610,29 @@ void MainWindow::toggleRecording() {
     }
 }
 
+void MainWindow::toggleMute() {
+    qDebug() << "toggleMute called";
+    
+    // Get the AudioManager singleton
+    AudioManager& audioManager = AudioManager::getInstance();
+    
+    // Get current volume
+    qreal currentVolume = audioManager.getVolume();
+    
+    // Check if currently muted (volume is 0)
+    if (currentVolume == 0.0) {
+        // Unmute - restore to default volume (1.0)
+        audioManager.setVolume(1.0);
+        GlobalSetting::instance().setAudioMuted(false);
+        qDebug() << "Audio unmuted - volume set to 1.0";
+    } else {
+        // Mute - set volume to 0
+        audioManager.setVolume(0.0);
+        GlobalSetting::instance().setAudioMuted(true);
+        qDebug() << "Audio muted - volume set to 0.0";
+    }
+}
+
 void MainWindow::showRecordingSettings() {
     qDebug() << "showRecordingSettings called";
     

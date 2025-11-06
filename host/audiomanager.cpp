@@ -67,7 +67,7 @@ void AudioManager::initializeAudio() {
         }
     }
     
-    // Fall back to finding by device name (legacy behavior)
+    // Fall back to finding by device name (legacy behavior) - only for Openterface devices
     if (inputDevice.isNull()) {
         inputDevice = findUvcCameraAudioDevice("OpenterfaceA");
         if (!inputDevice.isNull()) {
@@ -75,19 +75,23 @@ void AudioManager::initializeAudio() {
         }
     }
     
-    // Use default input device as last resort
+    // DO NOT use default input device - only use Openterface devices
+    // If no Openterface device found, stay muted
     if (inputDevice.isNull()) {
-        inputDevice = QMediaDevices::defaultAudioInput();
-        qCDebug(log_core_host_audio) << "Using default audio input device";
+        qCDebug(log_core_host_audio) << "No Openterface audio device found - staying muted";
+        return;
     }
     
-    if (inputDevice.isNull()) {
-        qCWarning(log_core_host_audio) << "No audio input device available.";
+    // Verify it's an Openterface device
+    if (!inputDevice.description().contains("Openterface", Qt::CaseInsensitive)) {
+        qCWarning(log_core_host_audio) << "Found device is not an Openterface device - staying muted";
         return;
     }
     
     // Update current device tracking
     m_currentAudioDevice = inputDevice;
+    
+    qCInfo(log_core_host_audio) << "Starting audio capture for Openterface device:" << inputDevice.description();
     
     // Initialize audio with the selected device
     initializeAudioWithDevice(inputDevice);
@@ -201,6 +205,19 @@ void AudioManager::disconnect() {
 
 void AudioManager::handleAudioError(const QString& error) {
     qCWarning(log_core_host_audio) << "Audio error:" << error;
+    
+    // Check if this is a device disconnection error
+    if (error.contains("disconnected", Qt::CaseInsensitive) || 
+        error.contains("invalidated", Qt::CaseInsensitive) ||
+        error.contains("IOError", Qt::CaseInsensitive)) {
+        qCWarning(log_core_host_audio) << "Audio device disconnection detected, cleaning up";
+        
+        // Disconnect the audio thread
+        disconnect();
+        
+        // Emit signal to notify that audio is disconnected
+        emit audioDisconnected();
+    }
 }
 
 void AudioManager::handleCleanupRequest() {
@@ -226,11 +243,16 @@ void AudioManager::start()
         if (!audioDevice.isNull()) {
             m_currentAudioDevice = audioDevice;
             qCDebug(log_core_host_audio) << "Found audio device for current port chain:" << currentPortChain;
+            
+            // Only initialize audio if we found a valid Openterface device
+            qCDebug(log_core_host_audio) << "Openterface audio device detected at startup, initializing audio capture";
+            initializeAudio();
+        } else {
+            qCDebug(log_core_host_audio) << "No Openterface audio device found at startup, staying muted";
         }
+    } else {
+        qCDebug(log_core_host_audio) << "No port chain configured at startup, staying muted until device is plugged in";
     }
-    
-    // Initialize audio if we have a valid device
-    initializeAudio();
 }
 
 void AudioManager::stop()
@@ -262,8 +284,26 @@ bool AudioManager::switchToAudioDeviceByPortChain(const QString& portChain)
         return false;
     }
     
+    // Additional verification: ensure the device is an Openterface device
+    if (!targetDevice.description().contains("Openterface", Qt::CaseInsensitive)) {
+        qCWarning(log_core_host_audio) << "Device at port chain" << portChain 
+                                      << "is not an Openterface audio device. Description:" 
+                                      << targetDevice.description();
+        return false;
+    }
+    
+    // Check if we're already using this device - avoid unnecessary switching
+    if (!m_currentAudioDevice.isNull() && 
+        QString::fromUtf8(m_currentAudioDevice.id()) == QString::fromUtf8(targetDevice.id())) {
+        qCDebug(log_core_host_audio) << "Already using audio device:" << targetDevice.description() << "- skipping switch";
+        return true;
+    }
+    
+    QString previousDescription = m_currentAudioDevice.isNull() ? "None" : m_currentAudioDevice.description();
+    
     // Stop current audio if running
     if (m_audioThread) {
+        qCDebug(log_core_host_audio) << "Stopping current audio device before switch";
         disconnect();
     }
     
@@ -271,7 +311,7 @@ bool AudioManager::switchToAudioDeviceByPortChain(const QString& portChain)
     m_currentAudioDevice = targetDevice;
     m_currentAudioPortChain = portChain;
     
-    qCDebug(log_core_host_audio) << "Successfully switched to audio device:" 
+    qCDebug(log_core_host_audio) << "Successfully switched to Openterface audio device:" 
                                 << targetDevice.description() << "at port chain:" << portChain;
     
     // Reinitialize audio with new device
@@ -337,8 +377,14 @@ QAudioDevice AudioManager::findAudioDeviceByPortChain(const QString& portChain) 
         return QAudioDevice();
     }
     
+    // Verify this is an Openterface device
+    if (!deviceInfo.audioDeviceId.contains("Openterface", Qt::CaseInsensitive)) {
+        qCDebug(log_core_host_audio) << "Device at port chain" << portChain << "is not an Openterface audio device";
+        return QAudioDevice();
+    }
+    
     QString targetAudioId = deviceInfo.audioDeviceId;
-    qCDebug(log_core_host_audio) << "Looking for audio device with ID:" << targetAudioId;
+    qCDebug(log_core_host_audio) << "Looking for Openterface audio device with ID:" << targetAudioId;
     
     // Find matching audio device from Qt's audio system
     const QList<QAudioDevice> audioDevices = QMediaDevices::audioInputs();
@@ -349,12 +395,17 @@ QAudioDevice AudioManager::findAudioDeviceByPortChain(const QString& portChain) 
                                     << "with target:" << targetAudioId;
         
         if (matchAudioDeviceId(audioDeviceId, targetAudioId)) {
-            qCDebug(log_core_host_audio) << "Found matching audio device:" << audioDevice.description();
-            return audioDevice;
+            // Double-check that the matched device is an Openterface device
+            if (audioDevice.description().contains("Openterface", Qt::CaseInsensitive)) {
+                qCDebug(log_core_host_audio) << "Found matching Openterface audio device:" << audioDevice.description();
+                return audioDevice;
+            } else {
+                qCWarning(log_core_host_audio) << "Device ID matched but description doesn't contain 'Openterface':" << audioDevice.description();
+            }
         }
     }
     
-    qCWarning(log_core_host_audio) << "No matching audio device found for port chain:" << portChain;
+    qCWarning(log_core_host_audio) << "No matching Openterface audio device found for port chain:" << portChain;
     return QAudioDevice();
 }
 
@@ -541,6 +592,12 @@ void AudioManager::initializeAudioWithDevice(const QAudioDevice& inputDevice)
 {
     qCDebug(log_core_host_audio) << "Initializing audio with specific input device:" << inputDevice.description();
     
+    // Verify this is an Openterface device
+    if (!inputDevice.description().contains("Openterface", Qt::CaseInsensitive)) {
+        qCWarning(log_core_host_audio) << "Refusing to initialize non-Openterface audio device:" << inputDevice.description();
+        return;
+    }
+    
     QAudioDevice outputDevice = QMediaDevices::defaultAudioOutput();
     
     if (outputDevice.isNull()) {
@@ -698,50 +755,67 @@ void AudioManager::connectToHotplugMonitor()
     // Connect to device unplugging signal
     connect(hotplugMonitor, &HotplugMonitor::deviceUnplugged,
             this, [this](const DeviceInfo& device) {
-                qCDebug(log_core_host_audio) << "AudioManager: Attempting audio device deactivation for unplugged device port:" << device.portChain;
+                qCDebug(log_core_host_audio) << "AudioManager: Device unplugged at port:" << device.portChain;
                 
                 // Only deactivate audio device if the device has an audio component
                 if (!device.hasAudioDevice()) {
-                    qCDebug(log_core_host_audio) << "Device at port" << device.portChain << "has no audio component";
+                    qCDebug(log_core_host_audio) << "Device at port" << device.portChain << "has no audio component, skipping audio deactivation";
+                    return;
+                }
+                
+                // Verify this is an Openterface device by checking the audio device ID
+                if (!device.audioDeviceId.contains("Openterface", Qt::CaseInsensitive)) {
+                    qCDebug(log_core_host_audio) << "Device at port" << device.portChain << "is not an Openterface audio device, skipping audio deactivation";
                     return;
                 }
                 
                 // Check if the unplugged device matches the current audio device
                 if (m_currentAudioPortChain == device.portChain) {
-                    qCInfo(log_core_host_audio) << "Current audio device unplugged, stopping audio";
+                    qCInfo(log_core_host_audio) << "Current Openterface audio device unplugged, stopping audio capture";
                     disconnect();
+                    qCInfo(log_core_host_audio) << "✓ Audio capture stopped for unplugged device at port:" << device.portChain;
                     emit audioDisconnected();
                 } else {
-                    qCDebug(log_core_host_audio) << "Unplugged device port (" << device.portChain 
-                                                << ") does not match current audio port (" << m_currentAudioPortChain << ")";
+                    qCDebug(log_core_host_audio) << "Audio device deactivation skipped - port chain mismatch. Current:" << m_currentAudioPortChain << "Unplugged:" << device.portChain;
                 }
             });
             
     // Connect to new device plugged in signal
     connect(hotplugMonitor, &HotplugMonitor::newDevicePluggedIn,
             this, [this](const DeviceInfo& device) {
-                qCDebug(log_core_host_audio) << "AudioManager: Attempting audio device auto-switch for new device port:" << device.portChain;
+                qCDebug(log_core_host_audio) << "AudioManager: New device plugged in at port:" << device.portChain;
                 
                 // Only attempt auto-switch if the device has an audio component
                 if (!device.hasAudioDevice()) {
-                    qCDebug(log_core_host_audio) << "Device at port" << device.portChain << "has no audio component";
+                    qCDebug(log_core_host_audio) << "Device at port" << device.portChain << "has no audio component, skipping audio auto-start";
+                    return;
+                }
+                
+                // Verify this is an Openterface device by checking the audio device ID
+                if (!device.audioDeviceId.contains("Openterface", Qt::CaseInsensitive)) {
+                    qCDebug(log_core_host_audio) << "Device at port" << device.portChain << "is not an Openterface audio device, skipping audio auto-start";
                     return;
                 }
                 
                 // Check if there's currently an active audio device
                 if (m_audioThread != nullptr) {
-                    qCDebug(log_core_host_audio) << "Audio device already active, not auto-switching";
+                    qCDebug(log_core_host_audio) << "Audio device already active, skipping auto-start for port:" << device.portChain;
                     return;
                 }
                 
-                qCDebug(log_core_host_audio) << "No active audio device found, attempting to switch to new device";
+                qCInfo(log_core_host_audio) << "Openterface audio device detected, starting audio capture automatically";
                 
-                // Switch to the new audio device
+                // Give the newly plugged device some time to fully initialize
+                // Audio devices often need a moment to become ready after hotplug
+                qCDebug(log_core_host_audio) << "Waiting 500ms for new audio device to initialize...";
+                QThread::msleep(500);
+                
+                // Switch to the new audio device and start capturing
                 bool switchSuccess = switchToAudioDeviceByPortChain(device.portChain);
                 if (switchSuccess) {
-                    qCInfo(log_core_host_audio) << "✓ Successfully auto-switched to new audio device at port:" << device.portChain;
+                    qCInfo(log_core_host_audio) << "✓ Successfully started audio capture for new Openterface device at port:" << device.portChain;
                 } else {
-                    qCWarning(log_core_host_audio) << "Failed to auto-switch to new audio device at port:" << device.portChain;
+                    qCWarning(log_core_host_audio) << "Failed to start audio capture for new Openterface device at port:" << device.portChain;
                 }
             });
             

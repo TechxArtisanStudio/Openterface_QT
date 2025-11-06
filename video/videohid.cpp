@@ -19,6 +19,7 @@
 #include "../device/DeviceManager.h"
 #include "../device/HotplugMonitor.h"
 #include "../ui/globalsetting.h"
+#include "../serial/SerialPortManager.h"
 #include "../device/platform/AbstractPlatformDeviceManager.h"
 
 #ifdef _WIN32
@@ -205,39 +206,39 @@ void VideoHid::start() {
                     
                     // Get resolution-related information using the appropriate registers
                     qCDebug(log_host_hid) << "Reading width_h from address:" << QString("0x%1").arg(width_h_addr, 4, 16, QChar('0'));
-                    quint8 width_h = static_cast<quint8>(usbXdataRead4Byte(width_h_addr).first.at(0));
+                    quint8 width_h = safeReadByte(width_h_addr);
                     qCDebug(log_host_hid) << "Width high byte raw value:" << width_h << "(" << QString("0x%1").arg(width_h, 2, 16, QChar('0')) << ")";
                     
                     qCDebug(log_host_hid) << "Reading width_l from address:" << QString("0x%1").arg(width_l_addr, 4, 16, QChar('0'));
-                    quint8 width_l = static_cast<quint8>(usbXdataRead4Byte(width_l_addr).first.at(0));
+                    quint8 width_l = safeReadByte(width_l_addr);
                     qCDebug(log_host_hid) << "Width low byte raw value:" << width_l << "(" << QString("0x%1").arg(width_l, 2, 16, QChar('0')) << ")";
                     quint16 width = (width_h << 8) + width_l;
                     
                     qCDebug(log_host_hid) << "Reading height_h from address:" << QString("0x%1").arg(height_h_addr, 4, 16, QChar('0'));
-                    quint8 height_h = static_cast<quint8>(usbXdataRead4Byte(height_h_addr).first.at(0));
+                    quint8 height_h = safeReadByte(height_h_addr);
                     qCDebug(log_host_hid) << "Height high byte raw value:" << height_h << "(" << QString("0x%1").arg(height_h, 2, 16, QChar('0')) << ")";
                     
                     qCDebug(log_host_hid) << "Reading height_l from address:" << QString("0x%1").arg(height_l_addr, 4, 16, QChar('0'));
-                    quint8 height_l = static_cast<quint8>(usbXdataRead4Byte(height_l_addr).first.at(0));
+                    quint8 height_l = safeReadByte(height_l_addr);
                     qCDebug(log_host_hid) << "Height low byte raw value:" << height_l << "(" << QString("0x%1").arg(height_l, 2, 16, QChar('0')) << ")";
                     quint16 height = (height_h << 8) + height_l;
                     
                     qCDebug(log_host_hid) << "Reading fps_h from address:" << QString("0x%1").arg(fps_h_addr, 4, 16, QChar('0'));
-                    quint8 fps_h = static_cast<quint8>(usbXdataRead4Byte(fps_h_addr).first.at(0));
+                    quint8 fps_h = safeReadByte(fps_h_addr);
                     qCDebug(log_host_hid) << "FPS high byte raw value:" << fps_h << "(" << QString("0x%1").arg(fps_h, 2, 16, QChar('0')) << ")";
                     
                     qCDebug(log_host_hid) << "Reading fps_l from address:" << QString("0x%1").arg(fps_l_addr, 4, 16, QChar('0'));
-                    quint8 fps_l = static_cast<quint8>(usbXdataRead4Byte(fps_l_addr).first.at(0));
+                    quint8 fps_l = safeReadByte(fps_l_addr);
                     qCDebug(log_host_hid) << "FPS low byte raw value:" << fps_l << "(" << QString("0x%1").arg(fps_l, 2, 16, QChar('0')) << ")";
                     quint16 fps_raw = (fps_h << 8) + fps_l;
                     float fps = static_cast<float>(fps_raw) / 100;
                     
                     qCDebug(log_host_hid) << "Reading pixel clock high byte from address:" << QString("0x%1").arg(clk_h_addr, 4, 16, QChar('0'));
-                    quint8 clk_h = static_cast<quint8>(usbXdataRead4Byte(clk_h_addr).first.at(0));
+                    quint8 clk_h = safeReadByte(clk_h_addr);
                     qCDebug(log_host_hid) << "Pixel clock high byte raw value:" << clk_h << "(" << QString("0x%1").arg(clk_h, 2, 16, QChar('0')) << ")";
                     
                     qCDebug(log_host_hid) << "Reading pixel clock low byte from address:" << QString("0x%1").arg(clk_l_addr, 4, 16, QChar('0'));
-                    quint8 clk_l = static_cast<quint8>(usbXdataRead4Byte(clk_l_addr).first.at(0));
+                    quint8 clk_l = safeReadByte(clk_l_addr);
                     qCDebug(log_host_hid) << "Pixel clock low byte raw value:" << clk_l << "(" << QString("0x%1").arg(clk_l, 2, 16, QChar('0')) << ")";
                     quint16 clk_raw = (clk_h << 8) + clk_l;
                     float pixclk = clk_raw / 100.0;
@@ -346,7 +347,7 @@ void VideoHid::start() {
                         mask = 0xEF;
                     }
 
-                    quint8 spdifout = static_cast<quint8>(usbXdataRead4Byte(ADDR_SPDIFOUT).first.at(0));
+                    quint8 spdifout = safeReadByte(ADDR_SPDIFOUT);
                     if (currentSwitchOnTarget) {
                         spdifout |= bit;
                     } else {
@@ -410,11 +411,11 @@ QPair<int, int> VideoHid::getResolution() {
                             << QString::number(height_l_addr, 16).toUpper();
     }
     
-    quint8 width_h = static_cast<quint8>(usbXdataRead4Byte(width_h_addr).first.at(0));
-    quint8 width_l = static_cast<quint8>(usbXdataRead4Byte(width_l_addr).first.at(0));
+    quint8 width_h = safeReadByte(width_h_addr);
+    quint8 width_l = safeReadByte(width_l_addr);
     quint16 width = (width_h << 8) + width_l;
-    quint8 height_h = static_cast<quint8>(usbXdataRead4Byte(height_h_addr).first.at(0));
-    quint8 height_l = static_cast<quint8>(usbXdataRead4Byte(height_l_addr).first.at(0));
+    quint8 height_h = safeReadByte(height_h_addr);
+    quint8 height_l = safeReadByte(height_l_addr);
     quint16 height = (height_h << 8) + height_l;
     
     qCDebug(log_host_hid) << "getResolution: Read values width_h=" << width_h 
@@ -443,8 +444,8 @@ float VideoHid::getFps() {
                             << QString::number(fps_l_addr, 16).toUpper();
     }
     
-    quint8 fps_h = static_cast<quint8>(usbXdataRead4Byte(fps_h_addr).first.at(0));
-    quint8 fps_l = static_cast<quint8>(usbXdataRead4Byte(fps_l_addr).first.at(0));
+    quint8 fps_h = safeReadByte(fps_h_addr);
+    quint8 fps_l = safeReadByte(fps_l_addr);
     quint16 fps_raw = (fps_h << 8) + fps_l;
     float fps = static_cast<float>(fps_raw) / 100;
     
@@ -469,7 +470,7 @@ bool VideoHid::getGpio0() {
         gpio_addr = ADDR_GPIO0;
     }
     
-    bool result = usbXdataRead4Byte(gpio_addr).first.at(0) & 0x01;
+    bool result = safeReadByte(gpio_addr) & 0x01;
     return result;
 }
 
@@ -493,10 +494,10 @@ float VideoHid::getPixelclk() {
     }
     
     qCDebug(log_host_hid) << "getPixelclk: Reading high byte from address:" << QString("0x%1").arg(clk_h_addr, 4, 16, QChar('0'));
-    quint8 clk_h = static_cast<quint8>(usbXdataRead4Byte(clk_h_addr).first.at(0));
+    quint8 clk_h = safeReadByte(clk_h_addr);
     
     qCDebug(log_host_hid) << "getPixelclk: Reading low byte from address:" << QString("0x%1").arg(clk_l_addr, 4, 16, QChar('0'));
-    quint8 clk_l = static_cast<quint8>(usbXdataRead4Byte(clk_l_addr).first.at(0));
+    quint8 clk_l = safeReadByte(clk_l_addr);
     
     quint16 clk_raw = (clk_h << 8) + clk_l;
     float result = clk_raw/100.0;
@@ -527,22 +528,54 @@ bool VideoHid::getSpdifout() {
     }
     Q_UNUSED(mask)  // Suppress unused variable warning
     
-    bool result = usbXdataRead4Byte(spdifout_addr).first.at(0) & bit;
+    bool result = safeReadByte(spdifout_addr) & bit;
     return result;
 }
 
 void VideoHid::switchToHost() {
     qCDebug(log_host_hid)  << "Switch to host";
-    setSpdifout(false);
+    
+    // Use new serial-based switching for FE0C chips (if available)
+    bool serialSwitchSuccess = SerialPortManager::getInstance().switchUsbToHostViaSerial();
+    
+    if (serialSwitchSuccess) {
+        qCDebug(log_host_hid) << "USB switched to host via serial command (new FE0C protocol)";
+    } else {
+        qCDebug(log_host_hid) << "Using legacy HID register method for USB switch";
+        // Fall back to old method (setSpdifout)
+        setSpdifout(false);
+    }
+    
+    // Update global state regardless of method used
     GlobalVar::instance().setSwitchOnTarget(false);
     if(eventCallback) eventCallback->onSwitchableUsbToggle(false);
 }
 
 void VideoHid::switchToTarget() {
     qCDebug(log_host_hid)  << "Switch to target";
-    setSpdifout(true);
+    
+    // Use new serial-based switching for FE0C chips (if available)
+    bool serialSwitchSuccess = SerialPortManager::getInstance().switchUsbToTargetViaSerial();
+    
+    if (serialSwitchSuccess) {
+        qCDebug(log_host_hid) << "USB switched to target via serial command (new FE0C protocol)";
+    } else {
+        qCDebug(log_host_hid) << "Using legacy HID register method for USB switch";
+        // Fall back to old method (setSpdifout)
+        setSpdifout(true);
+    }
+    
+    // Update global state regardless of method used
     GlobalVar::instance().setSwitchOnTarget(true);
     if(eventCallback) eventCallback->onSwitchableUsbToggle(true);
+}
+
+/*
+ * Get USB switch status via serial command (new FE0C protocol)
+ * Returns: 0 if pointing to host, 1 if pointing to target, -1 on error or not supported
+ */
+int VideoHid::getUsbStatusViaSerial() {
+    return SerialPortManager::getInstance().checkUsbStatusViaSerial();
 }
 
 /*
@@ -568,7 +601,7 @@ void VideoHid::setSpdifout(bool enable) {
         mask = 0xEF;
     }
 
-    quint8 spdifout = static_cast<quint8>(usbXdataRead4Byte(spdifout_addr).first.at(0));
+    quint8 spdifout = safeReadByte(spdifout_addr);
     if (enable) {
         spdifout |= bit;
     } else {
@@ -769,8 +802,11 @@ bool VideoHid::isHdmiConnected() {
     
     QPair<QByteArray, bool> result = usbXdataRead4Byte(status_addr);
     
-    if (!result.second) {
-        qCWarning(log_host_hid) << "Failed to read HDMI connection status from address:" << QString::number(status_addr, 16);
+    // CRITICAL FIX: Check both success flag AND that the result is not empty
+    // This prevents crash when device is plugged in before fully initialized
+    if (!result.second || result.first.isEmpty()) {
+        qCWarning(log_host_hid) << "Failed to read HDMI connection status from address:" << QString::number(status_addr, 16)
+                                << "success:" << result.second << "isEmpty:" << result.first.isEmpty();
         return false;
     }
     
@@ -1098,6 +1134,31 @@ bool VideoHid::sendFeatureReport(uint8_t* buffer, size_t bufferLength) {
     }
     return false;
 #endif
+}
+
+/**
+ * @brief Safely read a single byte from USB Xdata register
+ * 
+ * This is a safety wrapper around usbXdataRead4Byte that prevents crashes
+ * when the device is not ready or returns empty data (e.g., during hotplug).
+ * 
+ * @param u16_address Register address to read from
+ * @param defaultValue Value to return if read fails (default: 0)
+ * @return quint8 The byte value read, or defaultValue if operation fails
+ */
+quint8 VideoHid::safeReadByte(quint16 u16_address, quint8 defaultValue) {
+    QPair<QByteArray, bool> result = usbXdataRead4Byte(u16_address);
+    
+    // CRITICAL SAFETY CHECK: Verify both success flag AND non-empty result
+    // This prevents the assertion failure: "i >= 0 && i < size()" in qbytearray.h
+    if (!result.second || result.first.isEmpty()) {
+        qCDebug(log_host_hid) << "safeReadByte: Failed to read from address:" 
+                             << QString("0x%1").arg(u16_address, 4, 16, QChar('0'))
+                             << "- returning default value:" << defaultValue;
+        return defaultValue;
+    }
+    
+    return static_cast<quint8>(result.first.at(0));
 }
 
 void VideoHid::closeHIDDeviceHandle() {

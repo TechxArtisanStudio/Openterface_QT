@@ -68,6 +68,20 @@ private:
     qint64 m_lastMouseMoveTime = 0;
     int m_mouseMoveInterval = 17;  // 17ms = 60 FPS limit
     int m_droppedMouseEvents = 0;
+    
+    // Duplicate event filtering (Qt sometimes sends duplicate press events)
+    qint64 m_lastMousePressTime = 0;
+    QPoint m_lastMousePressPos;
+    Qt::MouseButton m_lastPressButton = Qt::NoButton;
+    
+    // Flag to prevent double-processing when eventFilter handles events
+    bool m_processingInEventFilter = false;
+    
+    // Cache the last calculated absolute position to reuse on press/release
+    // This ensures press happens at the exact same coordinates as the last move
+    int m_lastAbsoluteX = 0;
+    int m_lastAbsoluteY = 0;
+    bool m_hasLastAbsolutePosition = false;
 
     MouseEventDTO* calculateRelativePosition(QMouseEvent *event);
     MouseEventDTO* calculateAbsolutePosition(QMouseEvent *event);
