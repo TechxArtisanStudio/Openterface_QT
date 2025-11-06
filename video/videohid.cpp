@@ -19,6 +19,7 @@
 #include "../device/DeviceManager.h"
 #include "../device/HotplugMonitor.h"
 #include "../ui/globalsetting.h"
+#include "../serial/SerialPortManager.h"
 #include "../device/platform/AbstractPlatformDeviceManager.h"
 
 #ifdef _WIN32
@@ -533,16 +534,48 @@ bool VideoHid::getSpdifout() {
 
 void VideoHid::switchToHost() {
     qCDebug(log_host_hid)  << "Switch to host";
-    setSpdifout(false);
+    
+    // Use new serial-based switching for FE0C chips (if available)
+    bool serialSwitchSuccess = SerialPortManager::getInstance().switchUsbToHostViaSerial();
+    
+    if (serialSwitchSuccess) {
+        qCDebug(log_host_hid) << "USB switched to host via serial command (new FE0C protocol)";
+    } else {
+        qCDebug(log_host_hid) << "Using legacy HID register method for USB switch";
+        // Fall back to old method (setSpdifout)
+        setSpdifout(false);
+    }
+    
+    // Update global state regardless of method used
     GlobalVar::instance().setSwitchOnTarget(false);
     if(eventCallback) eventCallback->onSwitchableUsbToggle(false);
 }
 
 void VideoHid::switchToTarget() {
     qCDebug(log_host_hid)  << "Switch to target";
-    setSpdifout(true);
+    
+    // Use new serial-based switching for FE0C chips (if available)
+    bool serialSwitchSuccess = SerialPortManager::getInstance().switchUsbToTargetViaSerial();
+    
+    if (serialSwitchSuccess) {
+        qCDebug(log_host_hid) << "USB switched to target via serial command (new FE0C protocol)";
+    } else {
+        qCDebug(log_host_hid) << "Using legacy HID register method for USB switch";
+        // Fall back to old method (setSpdifout)
+        setSpdifout(true);
+    }
+    
+    // Update global state regardless of method used
     GlobalVar::instance().setSwitchOnTarget(true);
     if(eventCallback) eventCallback->onSwitchableUsbToggle(true);
+}
+
+/*
+ * Get USB switch status via serial command (new FE0C protocol)
+ * Returns: 0 if pointing to host, 1 if pointing to target, -1 on error or not supported
+ */
+int VideoHid::getUsbStatusViaSerial() {
+    return SerialPortManager::getInstance().checkUsbStatusViaSerial();
 }
 
 /*
