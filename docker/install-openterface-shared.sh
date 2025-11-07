@@ -38,8 +38,8 @@ get_latest_version() {
     echo "✅ Latest version: $LATEST_VERSION"
 }
 
-# Function to find the latest built deb package
-find_latest_build_deb() {
+# Function to find the latest built package (DEB or AppImage)
+find_latest_build_package() {
     # Search paths in order of preference
     local search_paths=(
         "/tmp/build-artifacts"
@@ -50,22 +50,30 @@ find_latest_build_deb() {
         "/tmp"
     )
     
-    # Find all .deb files matching the pattern and get the newest one
-    local latest_deb=""
+    # Determine file pattern based on install type
+    local file_pattern
+    if [ "$INSTALL_TYPE" = "appimage" ]; then
+        file_pattern="*.AppImage"
+    else
+        file_pattern="*.deb"
+    fi
+    
+    # Find all matching files and get the newest one
+    local latest_package=""
     local latest_timestamp=0
     
     for search_path in "${search_paths[@]}"; do
         if [ -d "$search_path" ]; then
-            # Look for deb files - list all .deb files first
-            if ls "$search_path"/*.deb 1> /dev/null 2>&1; then
-                for deb_file in "$search_path"/*.deb; do
-                    if [ -f "$deb_file" ]; then
+            # Look for matching files
+            if ls "$search_path"/$file_pattern 1> /dev/null 2>&1; then
+                for package_file in "$search_path"/$file_pattern; do
+                    if [ -f "$package_file" ]; then
                         # Get the modification time
-                        local timestamp=$(stat -c %Y "$deb_file" 2>/dev/null || stat -f %m "$deb_file" 2>/dev/null || echo 0)
+                        local timestamp=$(stat -c %Y "$package_file" 2>/dev/null || stat -f %m "$package_file" 2>/dev/null || echo 0)
                         
                         if [ "$timestamp" -gt "$latest_timestamp" ]; then
                             latest_timestamp=$timestamp
-                            latest_deb="$deb_file"
+                            latest_package="$package_file"
                         fi
                     fi
                 done
@@ -73,9 +81,9 @@ find_latest_build_deb() {
         fi
     done
     
-    if [ -n "$latest_deb" ]; then
+    if [ -n "$latest_package" ]; then
         # Output ONLY the file path - no debug output
-        echo "$latest_deb"
+        echo "$latest_package"
         return 0
     fi
     
@@ -204,9 +212,20 @@ download_from_latest_build() {
 download_package() {
     echo "📥 Looking for Openterface QT package..."
     
-    # First, try to find the latest Linux build artifact
-    if built_package=$(find_latest_build_deb); then
-        echo "🔍 Looking for latest Linux build artifacts (.deb files)..."
+    # Determine what we're looking for
+    local package_type
+    local search_pattern
+    if [ "$INSTALL_TYPE" = "appimage" ]; then
+        package_type="AppImage"
+        search_pattern="*.AppImage"
+    else
+        package_type="DEB"
+        search_pattern="*.deb"
+    fi
+    
+    # First, try to find the latest build artifact locally
+    if built_package=$(find_latest_build_package); then
+        echo "🔍 Looking for latest Linux build artifacts ($search_pattern)..."
         echo "   Found local artifact: $built_package"
         if cp "$built_package" "/tmp/${PACKAGE_NAME}"; then
             echo "✅ Build artifact copied to /tmp/${PACKAGE_NAME}"
@@ -214,15 +233,16 @@ download_package() {
         else
             echo "⚠️  Failed to copy build artifact: $built_package"
             echo "   Error details: $(ls -lah "$built_package" 2>&1)"
-            echo "   Attempting local paths..."
+            echo "   Attempting other local paths..."
         fi
     else
-        echo "ℹ️  No local .deb files found in standard paths"
+        echo "ℹ️  No local $package_type files found in standard paths"
     fi
     
     # Fallback: check for local built packages in standard locations
     LOCAL_PACKAGE_PATHS=(
         "/workspace/build/openterfaceQT_*.AppImage"
+        "/workspace/build/openterfaceQT_*.deb"
         "/workspace/build/openterfaceQT"
         "/workspace/build/*.deb"
         "/workspace/build/*.AppImage"
