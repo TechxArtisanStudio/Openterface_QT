@@ -144,15 +144,24 @@ jobs:
         run: |
           echo "📦 Checking for build artifacts to mount..."
           
-          # Check if we have .deb files to mount
-          if [ -d build ] && [ -n "$(find build -name '*.deb' 2>/dev/null)" ]; then
-            echo "✅ Found build artifacts"
+          # Determine artifact pattern based on install type
+          if [ "${{ env.INSTALL_TYPE }}" = "deb" ]; then
+            ARTIFACT_PATTERN="*.deb"
+            ARTIFACT_TYPE="DEB"
+          elif [ "${{ env.INSTALL_TYPE }}" = "appimage" ]; then
+            ARTIFACT_PATTERN="*.AppImage"
+            ARTIFACT_TYPE="AppImage"
+          fi
+          
+          # Check if we have the appropriate build artifacts to mount
+          if [ -d build ] && [ -n "$(find build -name "$ARTIFACT_PATTERN" 2>/dev/null)" ]; then
+            echo "✅ Found $ARTIFACT_TYPE build artifacts"
             VOLUME_MOUNT="-v $(pwd)/build:/tmp/build-artifacts:ro"
             echo "VOLUME_MOUNT=$VOLUME_MOUNT" >> $GITHUB_ENV
             echo "HAS_VOLUME_MOUNT=true" >> $GITHUB_ENV
             ls -lh build/
           else
-            echo "ℹ️ No build artifacts found (will download from GitHub)"
+            echo "ℹ️ No $ARTIFACT_TYPE build artifacts found (will download from GitHub)"
             echo "VOLUME_MOUNT=" >> $GITHUB_ENV
             echo "HAS_VOLUME_MOUNT=false" >> $GITHUB_ENV
           fi
