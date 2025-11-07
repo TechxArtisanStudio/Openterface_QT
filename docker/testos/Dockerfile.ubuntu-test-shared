@@ -31,6 +31,7 @@ RUN apt-get install -y \
         wget \
         ca-certificates \
         jq \
+        unzip \
         sudo \
         udev \
         usbutils \

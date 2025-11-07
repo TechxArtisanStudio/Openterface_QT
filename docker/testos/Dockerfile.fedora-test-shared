@@ -30,6 +30,7 @@ RUN dnf update -y && \
         sudo \
         udev \
         usbutils \
+        unzip \
         # Runtime Qt6 libraries
         qt6-qtbase \
         qt6-qtbase-gui \

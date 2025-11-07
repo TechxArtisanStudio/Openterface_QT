@@ -120,29 +120,47 @@ download_from_latest_build() {
         
         echo "✅ Artifact downloaded, extracting..."
         
-        if unzip -j "$TEMP_DIR/artifact.zip" -d "$TEMP_DIR/" 2>/dev/null; then
-            echo "✅ Archive extracted"
+        # Check if unzip is available
+        if ! command -v unzip >/dev/null 2>&1; then
+            echo "⚠️  unzip not found, trying to install..."
+            apt-get update -qq && apt-get install -y unzip >/dev/null 2>&1 || pacman -Sy unzip --noconfirm >/dev/null 2>&1 || dnf install -y unzip >/dev/null 2>&1 || true
+        fi
+        
+        # Extract with better error handling
+        EXTRACT_OUTPUT=$(unzip -j "$TEMP_DIR/artifact.zip" -d "$TEMP_DIR/" 2>&1)
+        EXTRACT_EXIT=$?
+        
+        if [ $EXTRACT_EXIT -eq 0 ]; then
+            echo "✅ Archive extracted successfully"
+        else
+            echo "⚠️  unzip exit code: $EXTRACT_EXIT"
+            echo "Extract output: $EXTRACT_OUTPUT"
+            # Try alternative extraction method
+            echo "Attempting alternative extraction..."
+            if cd "$TEMP_DIR" && unzip -l "$TEMP_DIR/artifact.zip" | head -5; then
+                echo "Archive contents detected, retrying extraction..."
+                unzip -j -o "$TEMP_DIR/artifact.zip" -d "$TEMP_DIR/" 2>&1 | head -20
+            fi
+        fi
+        
+        ARTIFACT_FILE=$(find "$TEMP_DIR" -name "*.AppImage" -type f 2>/dev/null | head -1)
+        if [ -z "$ARTIFACT_FILE" ]; then
+            echo "❌ No .AppImage file found in extracted archive"
+            echo "📁 Contents of extraction directory:"
+            ls -la "$TEMP_DIR/" 2>/dev/null | head -20
+            return 1
+        fi
+        
+        if [ -n "$ARTIFACT_FILE" ] && [ -f "$ARTIFACT_FILE" ]; then
+            echo "✅ Found AppImage file: $ARTIFACT_FILE"
             
-            ARTIFACT_FILE=$(find "$TEMP_DIR" -name "*.AppImage" -type f | head -1)
-            if [ -z "$ARTIFACT_FILE" ]; then
-                echo "❌ No .AppImage file found in extracted archive"
+            if cp "$ARTIFACT_FILE" "/tmp/${PACKAGE_NAME}"; then
+                echo "✅ AppImage copied successfully to /tmp/${PACKAGE_NAME}"
+                return 0
+            else
+                echo "❌ Failed to copy AppImage file"
                 return 1
             fi
-            
-            if [ -n "$ARTIFACT_FILE" ] && [ -f "$ARTIFACT_FILE" ]; then
-                echo "✅ Found AppImage file: $ARTIFACT_FILE"
-                
-                if cp "$ARTIFACT_FILE" "/tmp/${PACKAGE_NAME}"; then
-                    echo "✅ AppImage copied successfully to /tmp/${PACKAGE_NAME}"
-                    return 0
-                else
-                    echo "❌ Failed to copy AppImage file"
-                    return 1
-                fi
-            fi
-        else
-            echo "❌ Failed to extract archive"
-            return 1
         fi
     else
         echo "❌ Failed to download artifact"

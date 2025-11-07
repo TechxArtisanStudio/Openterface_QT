@@ -21,7 +21,8 @@ RUN pacman -Syu --noconfirm \
         ca-certificates \
         sudo \
         systemd \
-        usbutils
+        usbutils \
+        unzip
 
 # Runtime Qt6 libraries
 RUN pacman -S --noconfirm qt6-base \
