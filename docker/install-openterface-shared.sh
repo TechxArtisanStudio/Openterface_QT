@@ -298,13 +298,49 @@ install_package() {
             SUDO=""
         fi
         
-        if $SUDO dpkg -i "$PACKAGE_FILE" 2>&1; then
+        DPKG_OUTPUT=$($SUDO dpkg -i "$PACKAGE_FILE" 2>&1)
+        DPKG_EXIT=$?
+        
+        if [ $DPKG_EXIT -eq 0 ]; then
             echo "✅ Package installed successfully"
         else
-            echo "⚠️  Package installation had dependency issues, fixing..."
+            echo "⚠️  Package installation had dependency issues (exit code: $DPKG_EXIT)"
+            echo "📋 dpkg output:"
+            echo "$DPKG_OUTPUT" | tail -10
+            echo "🔧 Attempting to fix dependencies..."
             $SUDO apt-get update 2>&1 | grep -v "^Reading\|^Building\|^done\|^Hit:" || true
             $SUDO apt-get install -f -y 2>&1 | tail -5
             echo "✅ Dependencies resolved and package installed"
+        fi
+        
+        # After DEB installation, ensure binary is accessible from /usr/local/bin
+        # The DEB may have installed to /usr/bin or other location
+        POSSIBLE_LOCATIONS=(
+            "/usr/bin/openterfaceQT"
+            "/usr/local/bin/openterfaceQT"
+            "/opt/openterface/bin/openterfaceQT"
+        )
+        
+        DEB_BINARY_FOUND=""
+        for loc in "${POSSIBLE_LOCATIONS[@]}"; do
+            if [ -f "$loc" ] && [ -x "$loc" ]; then
+                DEB_BINARY_FOUND="$loc"
+                break
+            fi
+        done
+        
+        if [ -n "$DEB_BINARY_FOUND" ]; then
+            # Create symlink or copy to /usr/local/bin if not already there
+            if [ "$DEB_BINARY_FOUND" != "/usr/local/bin/openterfaceQT" ]; then
+                echo "🔗 Creating symlink from $DEB_BINARY_FOUND to /usr/local/bin/openterfaceQT"
+                $SUDO ln -sf "$DEB_BINARY_FOUND" /usr/local/bin/openterfaceQT
+            fi
+            echo "✅ DEB: Binary located and accessible from /usr/local/bin/openterfaceQT"
+        else
+            echo "⚠️  DEB binary not found in expected locations after installation"
+            echo "🔍 Searching for any openterfaceQT binary..."
+            find /usr -name "openterfaceQT" -type f 2>/dev/null | head -5 || echo "No openterfaceQT found in /usr"
+            find /opt -name "openterfaceQT" -type f 2>/dev/null | head -5 || echo "No openterfaceQT found in /opt"
         fi
     elif [[ "$PACKAGE_FILE" == *.AppImage ]] || file "$PACKAGE_FILE" 2>/dev/null | grep -q "AppImage"; then
         echo "   Installing as AppImage (no extraction needed)..."
@@ -513,29 +549,45 @@ fi
 
 echo "🚀 Starting Openterface application..."
 
+# Determine the binary location - could be from DEB, AppImage, or manual copy
+BINARY_LOCATION=""
+POSSIBLE_LOCATIONS=(
+    "/usr/local/bin/openterfaceQT"
+    "/usr/bin/openterfaceQT"
+    "/opt/openterface/bin/openterfaceQT"
+)
+
+for loc in "${POSSIBLE_LOCATIONS[@]}"; do
+    if [ -f "$loc" ] && [ -x "$loc" ]; then
+        BINARY_LOCATION="$loc"
+        break
+    fi
+done
+
+if [ -z "$BINARY_LOCATION" ]; then
+    echo "Error: openterfaceQT binary/AppImage not found in expected locations!"
+    exit 1
+fi
+
 # Start the application - find the binary location
-if [ -f "/usr/local/bin/openterfaceQT" ]; then
+if [ -f "$BINARY_LOCATION" ]; then
     # Check if it's an AppImage
-    if file "/usr/local/bin/openterfaceQT" 2>/dev/null | grep -q "AppImage"; then
+    if file "$BINARY_LOCATION" 2>/dev/null | grep -q "AppImage"; then
         # AppImage detected
         if command -v fusermount >/dev/null 2>&1; then
             echo "📦 Running AppImage with FUSE support..."
-            exec /usr/local/bin/openterfaceQT "$@"
+            exec "$BINARY_LOCATION" "$@"
         else
             echo "⚠️  FUSE not available, using extraction mode..."
-            exec /usr/local/bin/openterfaceQT --appimage-extract-and-run "$@"
+            exec "$BINARY_LOCATION" --appimage-extract-and-run "$@"
         fi
     else
-        # Regular binary
-        echo "📦 Running binary..."
-        exec /usr/local/bin/openterfaceQT "$@"
+        # Regular binary (from DEB or manual copy)
+        echo "📦 Running binary from $BINARY_LOCATION..."
+        exec "$BINARY_LOCATION" "$@"
     fi
-elif [ -f "/usr/bin/openterfaceQT" ]; then
-    exec /usr/bin/openterfaceQT "$@"
-elif [ -f "/opt/openterface/bin/openterfaceQT" ]; then
-    exec /opt/openterface/bin/openterfaceQT "$@"
 else
-    echo "Error: openterfaceQT binary/AppImage not found!"
+    echo "Error: openterfaceQT binary not accessible!"
     exit 1
 fi
 EOF'
