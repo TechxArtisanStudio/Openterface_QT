@@ -149,8 +149,8 @@ if [ "$screenshot_success" = true ]; then
     if [ -f "$screenshot_jpg" ] && command -v identify >/dev/null 2>&1; then
         filesize=$(ls -lh "$screenshot_jpg" | awk '{print $5}')
         dimensions=$(identify "$screenshot_jpg" | awk '{print $3}')
-        mean_color=$(identify -ping -format "%[mean]" "$screenshot_jpg" 2>/dev/null || echo "0")
-        mean_value=${mean_color%.*}
+        # Calculate mean color using convert and statistics
+        mean_value=$(convert "$screenshot_jpg" -format "%[fx:mean*65535]" info: 2>/dev/null | awk '{print int($1)}' || echo "0")
         
         echo -e "${BLUE}📊 JPG screenshot analysis:${NC}"
         echo "   File size: $filesize"
@@ -178,8 +178,8 @@ if [ -d "$SCREENSHOTS_DIR" ] && [ "$(ls -A $SCREENSHOTS_DIR/*.jpg 2>/dev/null)" 
             if command -v identify >/dev/null 2>&1; then
                 filesize=$(ls -lh "$img" | awk '{print $5}')
                 dimensions=$(identify "$img" | awk '{print $3}' | head -1)
-                mean_color=$(identify -ping -format "%[mean]" "$img" 2>/dev/null || echo "0")
-                mean_value=${mean_color%.*}
+                # Calculate mean color using convert and statistics
+                mean_value=$(convert "$img" -format "%[fx:mean*65535]" info: 2>/dev/null | awk '{print int($1)}' || echo "0")
                 
                 echo -e "${BLUE}   📸 $filename:${NC}"
                 echo "      Size: $filesize | Dimensions: $dimensions | Average: $mean_value"
