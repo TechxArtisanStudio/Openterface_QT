@@ -34,23 +34,34 @@ if [ ! -f /usr/local/bin/openterfaceQT ] && [ ! -f /usr/local/bin/openterfaceQT.
         echo "⚠️  GITHUB_TOKEN not set - will attempt local artifact search only"
     fi
     
-    # Run installation as root (required for dpkg and apt-get)
+    # Determine which installation script to use
+    if [ "$INSTALL_TYPE" = "appimage" ]; then
+        INSTALL_SCRIPT="/docker/install-openterface-appimage.sh"
+        INSTALL_DESC="AppImage"
+    else
+        INSTALL_SCRIPT="/docker/install-openterface-deb.sh"
+        INSTALL_DESC="DEB"
+    fi
+    
+    echo "📥 Using $INSTALL_DESC installation script: $INSTALL_SCRIPT"
+    
+    # Run installation as root (required for dpkg, apt-get, and file permissions)
     if [ "$(id -u)" -ne 0 ]; then
         # Not root, use sudo with environment variables
-        if sudo -n -E /tmp/install-openterface-shared.sh 2>/dev/null; then
-            echo "✅ Installation completed successfully"
+        if sudo -n -E "$INSTALL_SCRIPT" 2>/dev/null; then
+            echo "✅ $INSTALL_DESC installation completed successfully"
         else
             # Try with password prompt (though sudo -n should work in Docker)
-            if sudo -E /tmp/install-openterface-shared.sh 2>&1; then
-                echo "✅ Installation completed successfully"
+            if sudo -E "$INSTALL_SCRIPT" 2>&1; then
+                echo "✅ $INSTALL_DESC installation completed successfully"
             else
                 echo "⚠️  Installation may have had issues but continuing..."
             fi
         fi
     else
         # Already root: run directly
-        if /tmp/install-openterface-shared.sh; then
-            echo "✅ Installation completed successfully"
+        if "$INSTALL_SCRIPT"; then
+            echo "✅ $INSTALL_DESC installation completed successfully"
         else
             echo "⚠️  Installation may have had issues but continuing..."
         fi
