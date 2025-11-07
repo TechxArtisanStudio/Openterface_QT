@@ -23,6 +23,10 @@ echo "=============================================="
 GITHUB_REPO="TechxArtisanStudio/Openterface_QT"
 PACKAGE_NAME="openterfaceQT.linux.amd64.shared.deb"
 
+# Determine what type of package to download based on environment variable
+# Default to DEB if not specified
+INSTALL_TYPE="${INSTALL_TYPE:-deb}"
+
 # Function to get the latest release version
 get_latest_version() {
     echo "🔍 Fetching latest release information..."
@@ -113,17 +117,26 @@ download_from_latest_build() {
     ARTIFACTS=$(curl -s -H "Authorization: token $ARTIFACT_TOKEN" \
                 "https://api.github.com/repos/${GITHUB_REPO}/actions/runs/$RUN_ID/artifacts")
     
-    # Find the shared .deb artifact
-    DEB_ARTIFACT_ID=$(echo "$ARTIFACTS" | jq -r '.artifacts[] | select(.name | contains("shared.deb")) | .id' | head -1)
+    # Determine artifact pattern based on install type
+    if [ "$INSTALL_TYPE" = "appimage" ]; then
+        ARTIFACT_PATTERN="shared.AppImage"
+        OUTPUT_FILENAME="openterfaceQT.linux.amd64.shared.AppImage"
+    else
+        ARTIFACT_PATTERN="shared.deb"
+        OUTPUT_FILENAME="openterfaceQT.linux.amd64.shared.deb"
+    fi
     
-    if [ -z "$DEB_ARTIFACT_ID" ] || [ "$DEB_ARTIFACT_ID" = "null" ]; then
-        echo "⚠️  No shared .deb artifact found in latest build"
+    # Find the appropriate artifact
+    ARTIFACT_ID=$(echo "$ARTIFACTS" | jq -r '.artifacts[] | select(.name | contains("'$ARTIFACT_PATTERN'")) | .id' | head -1)
+    
+    if [ -z "$ARTIFACT_ID" ] || [ "$ARTIFACT_ID" = "null" ]; then
+        echo "⚠️  No shared $ARTIFACT_PATTERN artifact found in latest build"
         echo "Available artifacts:"
         echo "$ARTIFACTS" | jq -r '.artifacts[].name' 2>/dev/null || echo "  (could not list artifacts)"
         return 1
     fi
     
-    echo "📦 Found shared .deb artifact: $DEB_ARTIFACT_ID"
+    echo "📦 Found shared $ARTIFACT_PATTERN artifact: $ARTIFACT_ID"
     
     # Download the artifact
     echo "⬇️ Downloading artifact..."
@@ -133,33 +146,47 @@ download_from_latest_build() {
     trap "rm -rf $TEMP_DIR" EXIT
     
     if curl -L -H "Authorization: token $ARTIFACT_TOKEN" -o "$TEMP_DIR/artifact.zip" \
-        "https://api.github.com/repos/${GITHUB_REPO}/actions/artifacts/$DEB_ARTIFACT_ID/zip" 2>/dev/null; then
+        "https://api.github.com/repos/${GITHUB_REPO}/actions/artifacts/$ARTIFACT_ID/zip" 2>/dev/null; then
         
         echo "✅ Artifact downloaded, extracting..."
         
-        # Extract the deb file
+        # Extract the artifact file
         if unzip -j "$TEMP_DIR/artifact.zip" -d "$TEMP_DIR/" 2>/dev/null; then
             echo "✅ Archive extracted"
             
-            # Find the .deb file
-            DEB_FILE=$(find "$TEMP_DIR" -name "*.deb" -type f | head -1)
-            
-            if [ -n "$DEB_FILE" ] && [ -f "$DEB_FILE" ]; then
-                echo "✅ Found .deb file: $DEB_FILE"
-                
-                # Copy to final location
-                if cp "$DEB_FILE" "/tmp/${PACKAGE_NAME}"; then
-                    echo "✅ DEB package copied successfully to /tmp/${PACKAGE_NAME}"
-                    rm -f "$TEMP_DIR/artifact.zip"
-                    return 0
-                else
-                    echo "❌ Failed to copy .deb file to /tmp/${PACKAGE_NAME}"
-                    echo "   DEB file: $DEB_FILE"
-                    echo "   Size: $(stat -c%s "$DEB_FILE" 2>/dev/null || echo "unknown")"
+            # Find the appropriate file based on install type
+            if [ "$INSTALL_TYPE" = "appimage" ]; then
+                ARTIFACT_FILE=$(find "$TEMP_DIR" -name "*.AppImage" -type f | head -1)
+                if [ -z "$ARTIFACT_FILE" ]; then
+                    echo "❌ No .AppImage file found in extracted archive"
+                    ls -la "$TEMP_DIR/" 2>/dev/null || true
                     return 1
                 fi
             else
-                echo "❌ No .deb file found in extracted archive"
+                ARTIFACT_FILE=$(find "$TEMP_DIR" -name "*.deb" -type f | head -1)
+                if [ -z "$ARTIFACT_FILE" ]; then
+                    echo "❌ No .deb file found in extracted archive"
+                    ls -la "$TEMP_DIR/" 2>/dev/null || true
+                    return 1
+                fi
+            fi
+            
+            if [ -n "$ARTIFACT_FILE" ] && [ -f "$ARTIFACT_FILE" ]; then
+                echo "✅ Found artifact file: $ARTIFACT_FILE"
+                
+                # Copy to final location
+                if cp "$ARTIFACT_FILE" "/tmp/${OUTPUT_FILENAME}"; then
+                    echo "✅ Artifact copied successfully to /tmp/${OUTPUT_FILENAME}"
+                    rm -f "$TEMP_DIR/artifact.zip"
+                    return 0
+                else
+                    echo "❌ Failed to copy artifact file to /tmp/${OUTPUT_FILENAME}"
+                    echo "   Artifact file: $ARTIFACT_FILE"
+                    echo "   Size: $(stat -c%s "$ARTIFACT_FILE" 2>/dev/null || echo "unknown")"
+                    return 1
+                fi
+            else
+                echo "❌ No artifact file found after extraction"
                 ls -la "$TEMP_DIR/" 2>/dev/null || true
                 return 1
             fi

@@ -228,9 +228,9 @@ jobs:
           # Start container with entrypoint (this triggers installation if needed)
           # We use 'sleep' as the final command so the container stays running for our tests
           if [ "$HAS_VOLUME_MOUNT" = "true" ]; then
-            docker run -d $VOLUME_MOUNT -e GITHUB_TOKEN="${{ secrets.GITHUB_TOKEN }}" --name $CONTAINER_NAME ${{ env.DOCKER_IMAGE_SHARED }}:${{ env.DOCKER_TAG }} sleep 120
+            docker run -d $VOLUME_MOUNT -e GITHUB_TOKEN="${{ secrets.GITHUB_TOKEN }}" -e INSTALL_TYPE="${{ env.INSTALL_TYPE }}" --name $CONTAINER_NAME ${{ env.DOCKER_IMAGE_SHARED }}:${{ env.DOCKER_TAG }} sleep 120
           else
-            docker run -d -e GITHUB_TOKEN="${{ secrets.GITHUB_TOKEN }}" --name $CONTAINER_NAME ${{ env.DOCKER_IMAGE_SHARED }}:${{ env.DOCKER_TAG }} sleep 120
+            docker run -d -e GITHUB_TOKEN="${{ secrets.GITHUB_TOKEN }}" -e INSTALL_TYPE="${{ env.INSTALL_TYPE }}" --name $CONTAINER_NAME ${{ env.DOCKER_IMAGE_SHARED }}:${{ env.DOCKER_TAG }} sleep 120
           fi
           
           echo "✅ Container started with name: $CONTAINER_NAME"
@@ -309,7 +309,7 @@ jobs:
           
           # Run container and check if openterface is installed
           if [ "$HAS_VOLUME_MOUNT" = "true" ]; then
-            docker run --rm $VOLUME_MOUNT -e GITHUB_TOKEN="${{ secrets.GITHUB_TOKEN }}" \
+            docker run --rm $VOLUME_MOUNT -e GITHUB_TOKEN="${{ secrets.GITHUB_TOKEN }}" -e INSTALL_TYPE="${{ env.INSTALL_TYPE }}" \
             --name openterface-install-test \
             ${{ env.DOCKER_IMAGE_SHARED }}:${{ env.DOCKER_TAG }} \
             bash -c '
@@ -359,7 +359,7 @@ jobs:
               echo "✅ Installation check completed"
             '
           else
-            docker run --rm -e GITHUB_TOKEN="${{ secrets.GITHUB_TOKEN }}" \
+            docker run --rm -e GITHUB_TOKEN="${{ secrets.GITHUB_TOKEN }}" -e INSTALL_TYPE="${{ env.INSTALL_TYPE }}" \
             --name openterface-install-test \
             ${{ env.DOCKER_IMAGE_SHARED }}:${{ env.DOCKER_TAG }} \
             bash -c '
@@ -446,6 +446,7 @@ jobs:
             docker run --rm $VOLUME_MOUNT \
               --name openterface-launcher-test \
               -e GITHUB_TOKEN="${{ secrets.GITHUB_TOKEN }}" \
+              -e INSTALL_TYPE="${{ env.INSTALL_TYPE }}" \
               ${{ env.DOCKER_IMAGE_SHARED }}:${{ env.DOCKER_TAG }} \
               bash -c '
                 if [ -f "/usr/local/bin/start-openterface.sh" ] && [ -x "/usr/local/bin/start-openterface.sh" ]; then
@@ -467,6 +468,7 @@ jobs:
           else
             docker run --rm \
               -e GITHUB_TOKEN="${{ secrets.GITHUB_TOKEN }}" \
+              -e INSTALL_TYPE="${{ env.INSTALL_TYPE }}" \
               --name openterface-launcher-test \
               ${{ env.DOCKER_IMAGE_SHARED }}:${{ env.DOCKER_TAG }} \
               bash -c '

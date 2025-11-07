@@ -19,8 +19,12 @@ export LC_ALL=C.UTF-8
 export LANG=C.UTF-8
 
 # Run installation if not already installed
-if [ ! -f /usr/local/bin/openterfaceQT ]; then
+if [ ! -f /usr/local/bin/openterfaceQT ] && [ ! -f /usr/local/bin/openterfaceQT.AppImage ]; then
     echo "📦 Openterface not yet installed. Running installation..."
+    
+    # Pass INSTALL_TYPE to installation script if set, default to deb
+    INSTALL_TYPE="${INSTALL_TYPE:-deb}"
+    export INSTALL_TYPE
     
     # Run installation as root (required for dpkg and apt-get)
     if [ "$(id -u)" -ne 0 ]; then
