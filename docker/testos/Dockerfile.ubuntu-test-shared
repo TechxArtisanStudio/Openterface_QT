@@ -5,12 +5,14 @@
 FROM ubuntu:24.04
 
 # Build arguments
+ARG INSTALL_TYPE=deb
 ARG GITHUB_TOKEN=""
 
 # Set environment variables to avoid interactive prompts
 ENV DEBIAN_FRONTEND=noninteractive
 ENV TZ=UTC
 ENV GITHUB_TOKEN=${GITHUB_TOKEN}
+ENV INSTALL_TYPE=${INSTALL_TYPE}
 
 # Set up display environment for GUI applications
 ENV DISPLAY=:0
@@ -116,6 +118,20 @@ RUN mkdir -p /tmp/build-artifacts /tmp/packages && \
 COPY ./install-openterface-deb.sh /docker/install-openterface-deb.sh
 COPY ./install-openterface-appimage.sh /docker/install-openterface-appimage.sh
 RUN chmod +x /docker/install-openterface-deb.sh /docker/install-openterface-appimage.sh
+
+# Run the appropriate installation script based on INSTALL_TYPE
+RUN if [ "$INSTALL_TYPE" = "deb" ]; then \
+        echo "📦 Installing DEB package..."; \
+        /docker/install-openterface-deb.sh; \
+    elif [ "$INSTALL_TYPE" = "appimage" ]; then \
+        echo "📦 Installing AppImage..."; \
+        /docker/install-openterface-appimage.sh; \
+    else \
+        echo "❌ Invalid INSTALL_TYPE: $INSTALL_TYPE"; \
+        echo "✅ Supported types: deb, appimage"; \
+        exit 1; \
+    fi && \
+    rm -f /docker/install-openterface-*.sh
 
 # Copy and setup entrypoint script
 COPY ./entrypoint.sh /entrypoint.sh

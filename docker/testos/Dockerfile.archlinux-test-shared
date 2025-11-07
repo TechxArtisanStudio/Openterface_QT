@@ -63,11 +63,33 @@ RUN useradd -m -s /bin/bash openterface && \
     usermod -a -G uucp,audio,video openterface && \
     echo "openterface ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
 
-# Copy and run the installation script
-COPY install-openterface-shared.sh /tmp/install-openterface-shared.sh
-RUN chmod +x /tmp/install-openterface-shared.sh && \
-    /tmp/install-openterface-shared.sh && \
-    rm /tmp/install-openterface-shared.sh
+# Build arguments for installation type
+ARG INSTALL_TYPE=deb
+ARG GITHUB_TOKEN=""
+
+# Set environment variables
+ENV INSTALL_TYPE=${INSTALL_TYPE}
+ENV GITHUB_TOKEN=${GITHUB_TOKEN}
+
+# Copy installation scripts for runtime execution
+# DEB and AppImage installation scripts are separate for clarity and maintainability
+COPY ./install-openterface-deb.sh /docker/install-openterface-deb.sh
+COPY ./install-openterface-appimage.sh /docker/install-openterface-appimage.sh
+RUN chmod +x /docker/install-openterface-deb.sh /docker/install-openterface-appimage.sh
+
+# Run the appropriate installation script based on INSTALL_TYPE
+RUN if [ "$INSTALL_TYPE" = "deb" ]; then \
+        echo "📦 Installing DEB package..."; \
+        /docker/install-openterface-deb.sh; \
+    elif [ "$INSTALL_TYPE" = "appimage" ]; then \
+        echo "📦 Installing AppImage..."; \
+        /docker/install-openterface-appimage.sh; \
+    else \
+        echo "❌ Invalid INSTALL_TYPE: $INSTALL_TYPE"; \
+        echo "✅ Supported types: deb, appimage"; \
+        exit 1; \
+    fi && \
+    rm -f /docker/install-openterface-*.sh
 
 # Set up udev rules for Openterface hardware (backup rules, main setup in install script)
 RUN echo 'SUBSYSTEM=="hidraw", ATTRS{idVendor}=="534d", ATTRS{idProduct}=="2109", TAG+="uaccess", MODE="0666"' > /etc/udev/rules.d/50-openterface-backup.rules && \
