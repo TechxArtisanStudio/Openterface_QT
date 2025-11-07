@@ -4,6 +4,7 @@
 #include <QApplication>
 #include <QSvgRenderer>
 #include <QPainter>
+#include <QFile>
 
 CornerWidgetManager::CornerWidgetManager(QWidget *parent)
     : QObject(parent),
@@ -121,9 +122,20 @@ void CornerWidgetManager::setButtonIcon(QPushButton *button, const QString &icon
 {
     // Use QSvgRenderer to load and render SVG files directly
     // This ensures SVGs work correctly on Linux even if the SVG image plugin is not available
-    QSvgRenderer svgRenderer(iconPath);
+    
+    // Load the SVG from Qt resources
+    QFile svgFile(iconPath);
+    if (!svgFile.open(QIODevice::ReadOnly)) {
+        qWarning() << "Failed to open SVG resource:" << iconPath;
+        return;
+    }
+    
+    QByteArray svgData = svgFile.readAll();
+    svgFile.close();
+    
+    QSvgRenderer svgRenderer(svgData);
     if (!svgRenderer.isValid()) {
-        qWarning() << "Failed to load SVG:" << iconPath;
+        qWarning() << "Failed to parse SVG:" << iconPath;
         return;
     }
     
