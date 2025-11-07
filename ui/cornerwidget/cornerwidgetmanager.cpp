@@ -2,6 +2,9 @@
 #include <QMenuBar>
 #include <QDebug>
 #include <QApplication>
+#include <QSvgRenderer>
+#include <QPainter>
+#include <QFile>
 
 CornerWidgetManager::CornerWidgetManager(QWidget *parent)
     : QObject(parent),
@@ -17,11 +20,13 @@ CornerWidgetManager::CornerWidgetManager(QWidget *parent)
       pasteButton(nullptr),
       screensaverButton(nullptr),
       recordingButton(nullptr),
+      muteButton(nullptr),
       toggleSwitch(new ToggleSwitch(cornerWidget)),
       horizontalLayout(new QHBoxLayout()),
       menuBar(nullptr),
       layoutThreshold(800),
-      isRecording(false)
+      isRecording(false),
+      isMuted(false)
 {
     createWidgets();
     setupConnections();
@@ -46,7 +51,17 @@ void CornerWidgetManager::setMenuBar(QMenuBar *menuBar)
 {
     this->menuBar = menuBar;
     if (menuBar) {
+        // CRITICAL FIX: Ensure corner widget is properly sized before adding to menu bar
+        // This prevents it from blocking menu items like File and Edit
+        cornerWidget->adjustSize();
+        cornerWidget->setMaximumWidth(cornerWidget->sizeHint().width());
+        
         menuBar->setCornerWidget(cornerWidget, Qt::TopRightCorner);
+        
+        qDebug() << "[CornerWidgetManager] Set corner widget on menu bar";
+        qDebug() << "[CornerWidgetManager] Corner widget size:" << cornerWidget->size();
+        qDebug() << "[CornerWidgetManager] Corner widget sizeHint:" << cornerWidget->sizeHint();
+        qDebug() << "[CornerWidgetManager] Menu bar width:" << menuBar->width();
     }
 }
 
@@ -73,7 +88,8 @@ void CornerWidgetManager::createWidgets()
         {&fullScreenButton, "fullScreenButton", ":/images/full_screen.svg", "Full screen mode"},
         {&pasteButton, "pasteButton", ":/images/paste.svg", "Paste text to target"},
         {&screensaverButton, "screensaverButton", ":/images/screensaver.svg", "Mouse dance"},
-        {&recordingButton, "recordingButton", ":/images/startRecord.svg", "Start/Stop Recording"}
+        {&recordingButton, "recordingButton", ":/images/startRecord.svg", "Start/Stop Recording"},
+        {&muteButton, "muteButton", ":/images/audio.svg", "Mute/Unmute Audio"}
     };
 
     for (const auto& btn : buttons) {
@@ -98,14 +114,42 @@ void CornerWidgetManager::createWidgets()
     horizontalLayout->addWidget(pasteButton);
     horizontalLayout->addWidget(screensaverButton);
     horizontalLayout->addWidget(recordingButton);
+    horizontalLayout->addWidget(muteButton);
     horizontalLayout->addWidget(toggleSwitch);
 }
 
 void CornerWidgetManager::setButtonIcon(QPushButton *button, const QString &iconPath)
 {
-    QIcon icon(iconPath);
+    // Use QSvgRenderer to load and render SVG files directly
+    // This ensures SVGs work correctly on Linux even if the SVG image plugin is not available
+    
+    // Load the SVG from Qt resources
+    QFile svgFile(iconPath);
+    if (!svgFile.open(QIODevice::ReadOnly)) {
+        qWarning() << "Failed to open SVG resource:" << iconPath;
+        return;
+    }
+    
+    QByteArray svgData = svgFile.readAll();
+    svgFile.close();
+    
+    QSvgRenderer svgRenderer(svgData);
+    if (!svgRenderer.isValid()) {
+        qWarning() << "Failed to parse SVG:" << iconPath;
+        return;
+    }
+    
+    QSize iconSize(16, 16);
+    QPixmap pixmap(iconSize);
+    pixmap.fill(Qt::transparent);
+    
+    QPainter painter(&pixmap);
+    svgRenderer.render(&painter);
+    painter.end();
+    
+    QIcon icon(pixmap);
     button->setIcon(icon);
-    button->setIconSize(QSize(16, 16));
+    button->setIconSize(iconSize);
     button->setFixedSize(30, 30);
 }
 
@@ -130,6 +174,14 @@ void CornerWidgetManager::setupConnections()
         recordingButton->setToolTip(isRecording ? tr("Stop Recording") : tr("Start Recording"));
         emit recordingToggled();
     });
+    
+    // Connect mute button click to toggle mute state and emit signal
+    connect(muteButton, &QPushButton::clicked, this, [this]() {
+        isMuted = !isMuted;
+        setButtonIcon(muteButton, isMuted ? ":/images/mute.svg" : ":/images/audio.svg");
+        muteButton->setToolTip(isMuted ? tr("Unmute Audio") : tr("Mute Audio"));
+        emit muteToggled();
+    });
 }
 
 void CornerWidgetManager::initializeKeyboardLayouts(const QStringList &layouts, const QString &defaultLayout)
@@ -140,6 +192,15 @@ void CornerWidgetManager::initializeKeyboardLayouts(const QStringList &layouts, 
         keyboardLayoutComboBox->setCurrentText(defaultLayout);
     } else if (!layouts.isEmpty()) {
         keyboardLayoutComboBox->setCurrentText(layouts.first());
+    }
+}
+
+void CornerWidgetManager::restoreMuteState(bool muted)
+{
+    isMuted = muted;
+    if (muteButton) {
+        setButtonIcon(muteButton, isMuted ? ":/images/mute.svg" : ":/images/audio.svg");
+        muteButton->setToolTip(isMuted ? tr("Unmute Audio") : tr("Mute Audio"));
     }
 }
 

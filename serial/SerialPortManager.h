@@ -43,6 +43,13 @@ Q_DECLARE_LOGGING_CATEGORY(log_core_serial)
 // Forward declaration
 class DeviceInfo;
 
+// Chip type enumeration
+enum class ChipType {
+    UNKNOWN = 0,
+    CH7523,     // 1A86:7523 - Supports both 9600 and 115200, requires commands for baudrate switching and reset
+    FE0C        // 1A86:FE0C - Only supports 115200, uses simple close/reopen for baudrate changes
+};
+
 class SerialPortManager : public QObject
 {
     Q_OBJECT
@@ -121,8 +128,19 @@ public:
     // Get current baudrate
     int getCurrentBaudrate() const;
     
+    // Chip type detection and management
+    ChipType detectChipType(const QString &portName) const;
+    ChipType getCurrentChipType() const { return m_currentChipType; }
+    bool isChipTypeFE0C() const { return m_currentChipType == ChipType::FE0C; }
+    bool isChipTypeCH7523() const { return m_currentChipType == ChipType::CH7523; }
+    
     // Data buffer management
     void clearIncompleteDataBuffer();
+    
+    // New USB switch methods for FE0C serial port (firmware with new protocol)
+    bool switchUsbToHostViaSerial();      // Switch USB to host via serial command (57 AB 00 17...)
+    bool switchUsbToTargetViaSerial();    // Switch USB to target via serial command (57 AB 00 17...)
+    int checkUsbStatusViaSerial();        // Check USB switch status (returns: 0=host, 1=target, -1=error)
     
 signals:
     void dataReceived(const QByteArray &data);
@@ -191,6 +209,7 @@ private:
     // Current serial port tracking
     QString m_currentSerialPortPath;
     QString m_currentSerialPortChain;
+    ChipType m_currentChipType = ChipType::UNKNOWN;
     
     // Enhanced stability members
     std::atomic<bool> m_isShuttingDown = false;
