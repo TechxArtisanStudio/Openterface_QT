@@ -21,11 +21,17 @@ echo "=============================================="
 
 # Configuration
 GITHUB_REPO="TechxArtisanStudio/Openterface_QT"
-PACKAGE_NAME="openterfaceQT.linux.amd64.shared.deb"
 
 # Determine what type of package to download based on environment variable
 # Default to DEB if not specified
 INSTALL_TYPE="${INSTALL_TYPE:-deb}"
+
+# Set package name based on install type
+if [ "$INSTALL_TYPE" = "appimage" ]; then
+    PACKAGE_NAME="openterfaceQT.linux.amd64.shared.AppImage"
+else
+    PACKAGE_NAME="openterfaceQT.linux.amd64.shared.deb"
+fi
 
 # Function to get the latest release version
 get_latest_version() {
@@ -182,13 +188,13 @@ download_from_latest_build() {
             if [ -n "$ARTIFACT_FILE" ] && [ -f "$ARTIFACT_FILE" ]; then
                 echo "✅ Found artifact file: $ARTIFACT_FILE"
                 
-                # Copy to final location
-                if cp "$ARTIFACT_FILE" "/tmp/${OUTPUT_FILENAME}"; then
-                    echo "✅ Artifact copied successfully to /tmp/${OUTPUT_FILENAME}"
+                # Copy to final location using the dynamic PACKAGE_NAME
+                if cp "$ARTIFACT_FILE" "/tmp/${PACKAGE_NAME}"; then
+                    echo "✅ Artifact copied successfully to /tmp/${PACKAGE_NAME}"
                     rm -f "$TEMP_DIR/artifact.zip"
                     return 0
                 else
-                    echo "❌ Failed to copy artifact file to /tmp/${OUTPUT_FILENAME}"
+                    echo "❌ Failed to copy artifact file to /tmp/${PACKAGE_NAME}"
                     echo "   Artifact file: $ARTIFACT_FILE"
                     echo "   Size: $(stat -c%s "$ARTIFACT_FILE" 2>/dev/null || echo "unknown")"
                     return 1
