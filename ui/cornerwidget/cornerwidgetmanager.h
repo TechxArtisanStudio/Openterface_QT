@@ -6,6 +6,8 @@
 #include <QPushButton>
 #include <QComboBox>
 #include <QMenuBar>
+#include <QSvgRenderer>
+#include <QPainter>
 #include "ui/toolbar/toggleswitch.h"
 
 class CornerWidgetManager : public QObject {

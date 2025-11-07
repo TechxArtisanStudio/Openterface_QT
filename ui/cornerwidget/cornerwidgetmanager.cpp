@@ -2,6 +2,9 @@
 #include <QMenuBar>
 #include <QDebug>
 #include <QApplication>
+#include <QSvgRenderer>
+#include <QPainter>
+#include <QFile>
 
 CornerWidgetManager::CornerWidgetManager(QWidget *parent)
     : QObject(parent),
@@ -117,9 +120,36 @@ void CornerWidgetManager::createWidgets()
 
 void CornerWidgetManager::setButtonIcon(QPushButton *button, const QString &iconPath)
 {
-    QIcon icon(iconPath);
+    // Use QSvgRenderer to load and render SVG files directly
+    // This ensures SVGs work correctly on Linux even if the SVG image plugin is not available
+    
+    // Load the SVG from Qt resources
+    QFile svgFile(iconPath);
+    if (!svgFile.open(QIODevice::ReadOnly)) {
+        qWarning() << "Failed to open SVG resource:" << iconPath;
+        return;
+    }
+    
+    QByteArray svgData = svgFile.readAll();
+    svgFile.close();
+    
+    QSvgRenderer svgRenderer(svgData);
+    if (!svgRenderer.isValid()) {
+        qWarning() << "Failed to parse SVG:" << iconPath;
+        return;
+    }
+    
+    QSize iconSize(16, 16);
+    QPixmap pixmap(iconSize);
+    pixmap.fill(Qt::transparent);
+    
+    QPainter painter(&pixmap);
+    svgRenderer.render(&painter);
+    painter.end();
+    
+    QIcon icon(pixmap);
     button->setIcon(icon);
-    button->setIconSize(QSize(16, 16));
+    button->setIconSize(iconSize);
     button->setFixedSize(30, 30);
 }
 
