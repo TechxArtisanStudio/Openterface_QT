@@ -531,6 +531,13 @@ main() {
         echo "✅ Package found"
     else
         echo "❌ Failed to find or download package"
+        echo ""
+        echo "⚠️  Installation failed - possible solutions:"
+        echo "  1. Provide local build artifacts via volume mount:"
+        echo "     docker run -v \$(pwd)/build:/tmp/build-artifacts:ro ..."
+        echo "  2. Provide a valid GITHUB_TOKEN with 'actions:read' permission:"
+        echo "     docker build --build-arg GITHUB_TOKEN=\$YOUR_TOKEN ..."
+        echo "  3. Ensure the latest linux-build workflow has completed successfully"
         exit 1
     fi
     
