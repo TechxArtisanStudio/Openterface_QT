@@ -440,6 +440,13 @@ create_launcher() {
 
 echo "🔧 Setting up device permissions..."
 
+# Check if FUSE is available (needed for AppImage)
+if ! command -v fusermount >/dev/null 2>&1; then
+    echo "⚠️  FUSE (fusermount) not available - AppImage may need extraction mode"
+    echo "   Consider running AppImage with: ./openterfaceQT --appimage-extract-and-run"
+    echo "   Or install: sudo apt-get install libfuse2 fuse"
+fi
+
 # Start udev if not running
 if ! pgrep -x "systemd-udevd" > /dev/null && ! pgrep -x "udevd" > /dev/null; then
     echo "Starting udev..."
@@ -508,7 +515,21 @@ echo "🚀 Starting Openterface application..."
 
 # Start the application - find the binary location
 if [ -f "/usr/local/bin/openterfaceQT" ]; then
-    exec /usr/local/bin/openterfaceQT "$@"
+    # Check if it's an AppImage
+    if file "/usr/local/bin/openterfaceQT" 2>/dev/null | grep -q "AppImage"; then
+        # AppImage detected
+        if command -v fusermount >/dev/null 2>&1; then
+            echo "📦 Running AppImage with FUSE support..."
+            exec /usr/local/bin/openterfaceQT "$@"
+        else
+            echo "⚠️  FUSE not available, using extraction mode..."
+            exec /usr/local/bin/openterfaceQT --appimage-extract-and-run "$@"
+        fi
+    else
+        # Regular binary
+        echo "📦 Running binary..."
+        exec /usr/local/bin/openterfaceQT "$@"
+    fi
 elif [ -f "/usr/bin/openterfaceQT" ]; then
     exec /usr/bin/openterfaceQT "$@"
 elif [ -f "/opt/openterface/bin/openterfaceQT" ]; then
