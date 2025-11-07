@@ -307,36 +307,20 @@ install_package() {
             echo "✅ Dependencies resolved and package installed"
         fi
     elif [[ "$PACKAGE_FILE" == *.AppImage ]] || file "$PACKAGE_FILE" 2>/dev/null | grep -q "AppImage"; then
-        echo "   Installing as AppImage (extracting contents)..."
+        echo "   Installing as AppImage (no extraction needed)..."
         if [ "$(id -u)" -ne 0 ]; then
             SUDO="sudo"
         else
             SUDO=""
         fi
         
-        $SUDO mkdir -p /opt/openterface
-        cd /tmp
-        # Extract AppImage contents
-        if "$PACKAGE_FILE" --appimage-extract >/dev/null 2>&1; then
-            # Find the extracted binary
-            EXTRACTED_BINARY=$(find squashfs-root -name "openterfaceQT" -type f -executable 2>/dev/null | head -1)
-            if [ -n "$EXTRACTED_BINARY" ]; then
-                $SUDO cp "$EXTRACTED_BINARY" /usr/local/bin/openterfaceQT
-                $SUDO chmod +x /usr/local/bin/openterfaceQT
-                echo "✅ AppImage extracted and binary installed to /usr/local/bin/openterfaceQT"
-            else
-                echo "   ❌ Could not find executable in extracted AppImage"
-                # Fallback to copying the AppImage
-                $SUDO cp "$PACKAGE_FILE" /usr/local/bin/openterfaceQT.AppImage
-                $SUDO chmod +x /usr/local/bin/openterfaceQT.AppImage
-                echo "✅ AppImage installed as fallback to /usr/local/bin/openterfaceQT.AppImage"
-            fi
+        # AppImage can be run directly, no need to extract
+        if $SUDO cp "$PACKAGE_FILE" /usr/local/bin/openterfaceQT; then
+            $SUDO chmod +x /usr/local/bin/openterfaceQT
+            echo "✅ AppImage installed directly to /usr/local/bin/openterfaceQT (ready to run)"
         else
-            echo "   AppImage extraction failed, using as binary fallback..."
-            # Fallback: copy as binary if extraction fails
-            $SUDO cp "$PACKAGE_FILE" /usr/local/bin/openterfaceQT.AppImage
-            $SUDO chmod +x /usr/local/bin/openterfaceQT.AppImage
-            echo "✅ AppImage installed as fallback to /usr/local/bin/openterfaceQT.AppImage"
+            echo "❌ Failed to install AppImage"
+            return 1
         fi
     else
         echo "   Installing as executable binary..."
@@ -522,17 +506,15 @@ fi
 
 echo "🚀 Starting Openterface application..."
 
-# Start the application - find the actual binary location
-if [ -f "/usr/local/bin/openterfaceQT.AppImage" ]; then
-    exec /usr/local/bin/openterfaceQT.AppImage "$@"
-elif [ -f "/usr/local/bin/openterfaceQT" ]; then
+# Start the application - find the binary location
+if [ -f "/usr/local/bin/openterfaceQT" ]; then
     exec /usr/local/bin/openterfaceQT "$@"
 elif [ -f "/usr/bin/openterfaceQT" ]; then
     exec /usr/bin/openterfaceQT "$@"
 elif [ -f "/opt/openterface/bin/openterfaceQT" ]; then
     exec /opt/openterface/bin/openterfaceQT "$@"
 else
-    echo "Error: openterfaceQT binary not found!"
+    echo "Error: openterfaceQT binary/AppImage not found!"
     exit 1
 fi
 EOF'
