@@ -26,14 +26,22 @@ if [ ! -f /usr/local/bin/openterfaceQT ] && [ ! -f /usr/local/bin/openterfaceQT.
     INSTALL_TYPE="${INSTALL_TYPE:-deb}"
     export INSTALL_TYPE
     
+    # Pass GITHUB_TOKEN if available
+    if [ -n "$GITHUB_TOKEN" ]; then
+        export GITHUB_TOKEN
+        echo "✅ GITHUB_TOKEN is available for artifact downloads"
+    else
+        echo "⚠️  GITHUB_TOKEN not set - will attempt local artifact search only"
+    fi
+    
     # Run installation as root (required for dpkg and apt-get)
     if [ "$(id -u)" -ne 0 ]; then
-        # Not root, use sudo
-        if sudo -n /tmp/install-openterface-shared.sh 2>/dev/null; then
+        # Not root, use sudo with environment variables
+        if sudo -n -E /tmp/install-openterface-shared.sh 2>/dev/null; then
             echo "✅ Installation completed successfully"
         else
             # Try with password prompt (though sudo -n should work in Docker)
-            if sudo /tmp/install-openterface-shared.sh 2>&1; then
+            if sudo -E /tmp/install-openterface-shared.sh 2>&1; then
                 echo "✅ Installation completed successfully"
             else
                 echo "⚠️  Installation may have had issues but continuing..."

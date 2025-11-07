@@ -93,6 +93,7 @@ RUN apt-get install -y v4l-utils
 # Create a non-root user for running the application
 RUN useradd -m -s /bin/bash openterface && \
     usermod -a -G dialout,uucp,audio,video,sudo openterface && \
+    echo "Defaults env_keep += \"GITHUB_TOKEN INSTALL_TYPE\"" >> /etc/sudoers && \
     echo "openterface ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/openterface && \
     chmod 0440 /etc/sudoers.d/openterface && \
     mkdir -p /var/lib/apt/lists/partial && \
