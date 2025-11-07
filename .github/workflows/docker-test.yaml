@@ -193,7 +193,7 @@ jobs:
           # Test simple command execution
           echo "🔍 Testing simple command execution..."
           if [ "$HAS_VOLUME_MOUNT" = "true" ]; then
-            docker run --rm $VOLUME_MOUNT -e GITHUB_TOKEN="${{ secrets.GITHUB_TOKEN }}" \
+            docker run --rm $VOLUME_MOUNT -e GITHUB_TOKEN="${{ secrets.GITHUB_TOKEN }}" -e INSTALL_TYPE="${{ env.INSTALL_TYPE }}" \
               --name openterface-basic-test \
               ${{ env.DOCKER_IMAGE_SHARED }}:${{ env.DOCKER_TAG }} \
               bash -c '
@@ -202,13 +202,13 @@ jobs:
                 pwd
                 echo "User ID:" $(id)
                 echo "Environment variables:"
-                env | grep -E "HOME|USER|DISPLAY|QT_|GITHUB_TOKEN" | head -10
+                env | grep -E "HOME|USER|DISPLAY|QT_|GITHUB_TOKEN|INSTALL_TYPE" | head -10
                 echo "File system check:"
                 ls -la /home/openterface/ | head -5
                 echo "✅ Basic functionality test completed"
               '
           else
-            docker run --rm -e GITHUB_TOKEN="${{ secrets.GITHUB_TOKEN }}" \
+            docker run --rm -e GITHUB_TOKEN="${{ secrets.GITHUB_TOKEN }}" -e INSTALL_TYPE="${{ env.INSTALL_TYPE }}" \
               --name openterface-basic-test \
               ${{ env.DOCKER_IMAGE_SHARED }}:${{ env.DOCKER_TAG }} \
               bash -c '
@@ -217,7 +217,7 @@ jobs:
                 pwd
                 echo "User ID:" $(id)
                 echo "Environment variables:"
-                env | grep -E "HOME|USER|DISPLAY|QT_|GITHUB_TOKEN" | head -10
+                env | grep -E "HOME|USER|DISPLAY|QT_|GITHUB_TOKEN|INSTALL_TYPE" | head -10
                 echo "File system check:"
                 ls -la /home/openterface/ | head -5
                 echo "✅ Basic functionality test completed"
@@ -427,6 +427,7 @@ jobs:
           docker run --rm \
             --entrypoint bash \
             -e GITHUB_TOKEN="${{ secrets.GITHUB_TOKEN }}" \
+            -e INSTALL_TYPE="${{ env.INSTALL_TYPE }}" \
             --name openterface-hw-test \
             ${{ env.DOCKER_IMAGE_SHARED }}:${{ env.DOCKER_TAG }} \
             -c '
