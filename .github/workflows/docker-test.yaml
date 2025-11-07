@@ -268,13 +268,13 @@ jobs:
                   exit 1
                 fi
               elif [ "${{ env.INSTALL_TYPE }}" = "appimage" ]; then
-                if [ -f /usr/local/bin/openterfaceQT.AppImage ]; then
-                  echo "✅ AppImage: Openterface AppImage found at /usr/local/bin/openterfaceQT.AppImage"
+                if [ -f /usr/local/bin/openterfaceQT ]; then
+                  echo "✅ AppImage: Openterface binary (extracted from AppImage) found at /usr/local/bin/openterfaceQT"
                 else
-                  echo "❌ AppImage: Openterface AppImage not found at /usr/local/bin/openterfaceQT.AppImage"
-                  echo "🔍 Searching for AppImage..."
-                  find /usr -name "openterfaceQT.AppImage" -type f 2>/dev/null || echo "No openterfaceQT.AppImage found in /usr"
-                  find /opt -name "openterfaceQT.AppImage" -type f 2>/dev/null || echo "No openterfaceQT.AppImage found in /opt"
+                  echo "❌ AppImage: Openterface binary not found at /usr/local/bin/openterfaceQT"
+                  echo "🔍 Searching for binary..."
+                  find /usr -name "openterfaceQT" -type f 2>/dev/null || echo "No openterfaceQT found in /usr"
+                  find /opt -name "openterfaceQT" -type f 2>/dev/null || echo "No openterfaceQT found in /opt"
                   exit 1
                 fi
               else
@@ -335,10 +335,10 @@ jobs:
                   exit 1
                 fi
               elif [ "${{ env.INSTALL_TYPE }}" = "appimage" ]; then
-                if [ -f /usr/local/bin/openterfaceQT.AppImage ]; then
-                  echo "✅ AppImage: AppImage found at /usr/local/bin/openterfaceQT.AppImage"
+                if [ -f /usr/local/bin/openterfaceQT ]; then
+                  echo "✅ AppImage: Binary (extracted from AppImage) found at /usr/local/bin/openterfaceQT"
                 else
-                  echo "❌ AppImage: AppImage not found at /usr/local/bin/openterfaceQT.AppImage"
+                  echo "❌ AppImage: Binary not found at /usr/local/bin/openterfaceQT"
                   exit 1
                 fi
               fi
@@ -385,10 +385,10 @@ jobs:
                   exit 1
                 fi
               elif [ "${{ env.INSTALL_TYPE }}" = "appimage" ]; then
-                if [ -f /usr/local/bin/openterfaceQT.AppImage ]; then
-                  echo "✅ AppImage: AppImage found at /usr/local/bin/openterfaceQT.AppImage"
+                if [ -f /usr/local/bin/openterfaceQT ]; then
+                  echo "✅ AppImage: Binary (extracted from AppImage) found at /usr/local/bin/openterfaceQT"
                 else
-                  echo "❌ AppImage: AppImage not found at /usr/local/bin/openterfaceQT.AppImage"
+                  echo "❌ AppImage: Binary not found at /usr/local/bin/openterfaceQT"
                   exit 1
                 fi
               fi
