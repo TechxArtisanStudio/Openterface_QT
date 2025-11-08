@@ -30,10 +30,6 @@
 #include <QCoreApplication>
 #include <QtPlugin>
 
-#ifdef Q_OS_WIN
-#include <windows.h>
-#endif
-
 // Import static Qt plugins only when building with static plugins
 #if defined(QT_STATIC) || defined(QT_STATICPLUGIN)
 // Image format plugins
@@ -92,17 +88,12 @@ void customMessageHandler(QtMsgType type, const QMessageLogContext &context, con
             break;
     }
 
-    // For Windows GUI applications, std::cout may not be available and can cause crashes
-    // Use OutputDebugString instead for debug output
-    // In static builds or Windows subsystem builds, stdout/stderr may not work
-#ifdef Q_OS_WIN
-    OutputDebugStringW(reinterpret_cast<const wchar_t*>(txt.utf16()));
-    OutputDebugStringW(L"\n");
-#else
-    // Use fprintf to stderr instead of std::cout to avoid C++ stream issues
-    fprintf(stderr, "%s\n", txt.toUtf8().constData());
-    fflush(stderr);
-#endif
+    // QFile outFile("log.txt");
+    // outFile.open(QIODevice::WriteOnly | QIODevice::Append);
+    // QTextStream textStream(&outFile);
+    // textStream << txt << endl;
+    
+    std::cout << txt.toStdString() << std::endl;
 }
 
 void writeLog(const QString &message){
@@ -306,8 +297,9 @@ int main(int argc, char *argv[])
         EnvironmentSetupDialog envDialog;
         qDebug() << "Environment setup dialog opened";
         if (envDialog.exec() == QDialog::Rejected) {
-            qDebug() << "Driver dialog rejected - continuing anyway";
-            // Continue running the application even if dialog is rejected
+            qDebug() << "Driver dialog rejected";
+            QApplication::quit(); // Quit the application if the dialog is rejected
+            return 0;
         }
     } 
     
@@ -324,9 +316,12 @@ int main(int argc, char *argv[])
     KeyboardLayoutManager::getInstance().loadLayouts(keyboardConfigPath);
     
     
+    // writeLog("Environment setup completed");
     LanguageManager languageManager(&app);
     languageManager.initialize("en");
+    // writeLog("languageManager initialized");
     MainWindow window(&languageManager);
+    // writeLog("Application started");
     window.show();
 
     int result = app.exec();

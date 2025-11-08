@@ -135,30 +135,18 @@
 <context>
     <name>CornerWidgetManager</name>
     <message>
-        <location filename="../../ui/cornerwidget/cornerwidgetmanager.cpp" line="71"/>
+        <location filename="../../ui/cornerwidget/cornerwidgetmanager.cpp" line="59"/>
         <source>Select Keyboard Layout</source>
         <translation type="unfinished">キーボードレイアウトを選択</translation>
     </message>
     <message>
-        <location filename="../../ui/cornerwidget/cornerwidgetmanager.cpp" line="144"/>
+        <location filename="../../ui/cornerwidget/cornerwidgetmanager.cpp" line="130"/>
         <source>Stop Recording</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/cornerwidget/cornerwidgetmanager.cpp" line="144"/>
+        <location filename="../../ui/cornerwidget/cornerwidgetmanager.cpp" line="130"/>
         <source>Start Recording</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../../ui/cornerwidget/cornerwidgetmanager.cpp" line="152"/>
-        <location filename="../../ui/cornerwidget/cornerwidgetmanager.cpp" line="173"/>
-        <source>Unmute Audio</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../../ui/cornerwidget/cornerwidgetmanager.cpp" line="152"/>
-        <location filename="../../ui/cornerwidget/cornerwidgetmanager.cpp" line="173"/>
-        <source>Mute Audio</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -223,119 +211,99 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="118"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="120"/>
         <source> The device is not plugged in. Please plug it in and try again.</source>
         <translation type="unfinished"> デバイスが接続されていません。接続してから、もう一度お試しください。</translation>
     </message>
     <message>
+        <location filename="../../ui/advance/envdialog.cpp" line="110"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="142"/>
         <source>‣ Driver Installed: </source>
-        <translation type="vanished">‣ ドライバーインストール済み: </translation>
+        <translation>‣ ドライバーインストール済み: </translation>
     </message>
     <message>
+        <location filename="../../ui/advance/envdialog.cpp" line="111"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="146"/>
         <source>‣ Latest Firmware: </source>
-        <translation type="obsolete">‣ 最新のファームウェア： </translation>
-    </message>
-    <message>
-        <source>‣ In Serial Port Permission: </source>
-        <translation type="obsolete">‣ シリアルポートの権限で： </translation>
-    </message>
-    <message>
-        <source>‣ HID Permission: </source>
-        <translation type="vanished">‣ HID権限: </translation>
-    </message>
-    <message>
-        <source>‣ BRLTTY checking: </source>
-        <translation type="vanished">‣ BRLTTY確認: </translation>
+        <translation type="unfinished">‣ 最新のファームウェア： </translation>
     </message>
     <message>
         <location filename="../../ui/advance/envdialog.cpp" line="143"/>
+        <source>‣ In Serial Port Permission: </source>
+        <translation type="unfinished">‣ シリアルポートの権限で： </translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/envdialog.cpp" line="144"/>
+        <source>‣ HID Permission: </source>
+        <translation>‣ HID権限: </translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/envdialog.cpp" line="145"/>
+        <source>‣ BRLTTY checking: </source>
+        <translation>‣ BRLTTY確認: </translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/envdialog.cpp" line="145"/>
         <source> (needs removal)</source>
         <translation> (削除が必要)</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="143"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="145"/>
         <source> (not running)</source>
         <translation> (実行中ではない)</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="183"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="185"/>
         <source>Install Driver</source>
         <translation type="unfinished">ドライバーをインストール</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="190"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="192"/>
         <source>Copy Link</source>
         <translation type="unfinished">リンクをコピー</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="206"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="208"/>
         <source>Select Destination Directory</source>
         <translation>保存先ディレクトリを選択</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="262"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="264"/>
         <source>Driver Installed: </source>
         <translation>ドライバーインストール済み: </translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="262"/>
-        <location filename="../../ui/advance/envdialog.cpp" line="263"/>
         <location filename="../../ui/advance/envdialog.cpp" line="264"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="265"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="266"/>
         <source>Yes</source>
         <translation>はい</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="262"/>
-        <location filename="../../ui/advance/envdialog.cpp" line="263"/>
         <location filename="../../ui/advance/envdialog.cpp" line="264"/>
         <location filename="../../ui/advance/envdialog.cpp" line="265"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="266"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="267"/>
         <source>No</source>
         <translation>いいえ</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="263"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="265"/>
         <source>Serial port Permission: </source>
         <translation type="unfinished">シリアルポートの権限： </translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="105"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="107"/>
         <source>The following steps help you install the driver and the Openterface firmware update. Current status:&lt;br&gt;</source>
         <translation type="unfinished">以下の手順に従って、ドライバーとOpenterfaceファームウェアの更新をインストールできます。現在の状態：</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="108"/>
-        <location filename="../../ui/advance/envdialog.cpp" line="140"/>
-        <source>��?Driver Installed: </source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="109"/>
-        <location filename="../../ui/advance/envdialog.cpp" line="144"/>
-        <source>��?Latest Firmware: </source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="139"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="141"/>
         <source>The following steps help you install the driver and access the device permissions and the Openterface firmware update. Current status:&lt;br&gt;</source>
         <translation type="unfinished">以下の手順に従って、ドライバーのインストール、デバイス権限へのアクセス、およびOpenterfaceファームウェアの更新を行います。現在の状態：</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="141"/>
-        <source>��?In Serial Port Permission: </source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="142"/>
-        <source>��?HID Permission: </source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="143"/>
-        <source>��?BRLTTY checking: </source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="184"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="186"/>
         <source>The driver is missing. Please install the driver at: https://www.wch.cn/downloads/CH341SER.EXE.html 
 
 After the driver is installed, a system restart and device re-plugging is required for the changes to take effect.
@@ -350,27 +318,27 @@ Please restart your computer after the driver installation.</source>
 あなたはアリババクラウドによって作成されたQwenです。あなたは頼りになるアシスタントです。</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="264"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="266"/>
         <source>HID Permission: </source>
         <translation>HID権限: </translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="265"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="267"/>
         <source>BRLTTY is Running: </source>
         <translation>BRLTTYが実行中: </translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="265"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="267"/>
         <source>Yes (needs removal)</source>
         <translation>はい (削除が必要)</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="271"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="273"/>
         <source>Restart Required</source>
         <translation>再起動が必要です</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="272"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="274"/>
         <source>The driver has been installed. A system restart and device re-plugging is required for the changes to take effect.
 
 Would you like to restart your computer now?</source>
@@ -379,12 +347,12 @@ Would you like to restart your computer now?</source>
 今すぐコンピュータを再起動しますか？</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="281"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="283"/>
         <source>Restart Later</source>
         <translation>後で再起動</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="282"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="284"/>
         <source>Please remember to restart your computer and re-plug the device for the driver to work properly.</source>
         <translation>ドライバーが正しく動作するように、コンピュータを再起動し、デバイスを再接続してください。</translation>
     </message>
@@ -963,43 +931,43 @@ Please try again after restarting the application.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="643"/>
+        <location filename="../../ui/mainwindow.cpp" line="620"/>
         <source>Active Recording</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="644"/>
+        <location filename="../../ui/mainwindow.cpp" line="621"/>
         <source>There is an active recording session. Do you want to stop it before changing settings?</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="832"/>
+        <location filename="../../ui/mainwindow.cpp" line="809"/>
         <source>Image Capture Error</source>
         <translation>画像キャプチャエラー</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="901"/>
+        <location filename="../../ui/mainwindow.cpp" line="878"/>
         <source>Captured &quot;%1&quot;</source>
         <translation>&quot;%1&quot;をキャプチャしました</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1381"/>
+        <location filename="../../ui/mainwindow.cpp" line="1362"/>
         <source>Firmware Update</source>
         <translation>ファームウェア更新</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1382"/>
+        <location filename="../../ui/mainwindow.cpp" line="1363"/>
         <source>The firmware is up to date.
 Current version: </source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1404"/>
+        <location filename="../../ui/mainwindow.cpp" line="1385"/>
         <source>Firmware fetch timeout</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1405"/>
+        <location filename="../../ui/mainwindow.cpp" line="1386"/>
         <source>Firmware retrieval timed out. Please check your network connection and try again.
 Current version: </source>
         <translation type="unfinished"></translation>
@@ -1133,37 +1101,37 @@ Technical details: %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/recording/recordingcontroller.cpp" line="598"/>
+        <location filename="../../ui/recording/recordingcontroller.cpp" line="599"/>
         <source>System Reset Complete</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/recording/recordingcontroller.cpp" line="599"/>
+        <location filename="../../ui/recording/recordingcontroller.cpp" line="600"/>
         <source>The recording system has been reset. Please try recording again.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/recording/recordingcontroller.cpp" line="607"/>
+        <location filename="../../ui/recording/recordingcontroller.cpp" line="608"/>
         <source>Diagnostics Unavailable</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/recording/recordingcontroller.cpp" line="608"/>
+        <location filename="../../ui/recording/recordingcontroller.cpp" line="609"/>
         <source>Cannot retrieve diagnostics - camera manager is not available.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/recording/recordingcontroller.cpp" line="617"/>
+        <location filename="../../ui/recording/recordingcontroller.cpp" line="618"/>
         <source>Recording System Diagnostics</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/recording/recordingcontroller.cpp" line="628"/>
+        <location filename="../../ui/recording/recordingcontroller.cpp" line="629"/>
         <source>Copy to Clipboard</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/recording/recordingcontroller.cpp" line="629"/>
+        <location filename="../../ui/recording/recordingcontroller.cpp" line="630"/>
         <source>Close</source>
         <translation type="unfinished">閉じる</translation>
     </message>

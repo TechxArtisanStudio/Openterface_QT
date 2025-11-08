@@ -132,10 +132,6 @@ public:
     QString getRecordingOutputFormat() const;
     void setRecordingOutputPath(const QString& path);
     QString getRecordingOutputPath() const;
-    
-    // Audio mute setting
-    void setAudioMuted(bool muted);
-    bool getAudioMuted() const;
 
 private:
     QSettings m_settings;

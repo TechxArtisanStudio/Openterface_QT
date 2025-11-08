@@ -226,9 +226,9 @@ if [ "$UPLOAD_SUCCESS" = "true" ]; then
     log_success "Upload successful!"
 
     # Extract image URLs from response - ImgBB format
-    IMAGE_URL=$(echo "$JSON_RESPONSE" | grep -o '"url":"[^"]*"' | cut -d'"' -f4 | head -1 | sed 's|\\\/|/|g')
-    DISPLAY_URL=$(echo "$JSON_RESPONSE" | grep -o '"display_url":"[^"]*"' | cut -d'"' -f4 | head -1 | sed 's|\\\/|/|g')
-    VIEWER_URL=$(echo "$JSON_RESPONSE" | grep -o '"url_viewer":"[^"]*"' | cut -d'"' -f4 | head -1 | sed 's|\\\/|/|g')
+    IMAGE_URL=$(echo "$JSON_RESPONSE" | grep -o '"url":"[^"]*"' | cut -d'"' -f4 | head -1)
+    DISPLAY_URL=$(echo "$JSON_RESPONSE" | grep -o '"display_url":"[^"]*"' | cut -d'"' -f4 | head -1)
+    VIEWER_URL=$(echo "$JSON_RESPONSE" | grep -o '"url_viewer":"[^"]*"' | cut -d'"' -f4 | head -1)
 
     # Use display_url if available, otherwise use url
     FINAL_URL="${DISPLAY_URL:-$IMAGE_URL}"

@@ -139,7 +139,6 @@ public slots:
     void onScreenRatioChanged(double ratio);
     void showRecordingSettings();
     void toggleRecording();
-    void toggleMute();
 
 private slots:
     void initCamera();

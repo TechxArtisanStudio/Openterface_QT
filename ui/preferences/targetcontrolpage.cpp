@@ -209,17 +209,14 @@ void TargetControlPage::applyHardwareSetting()
     GlobalSetting::instance().setUSBEnabelFlag(QString(EnableFlag.toHex()));
 
     SerialPortManager::getInstance().changeUSBDescriptor();
-    
-    // Use delayed execution instead of blocking sleep
-    QTimer::singleShot(10, this, [this, selectedMode]() {
-        SerialPortManager::getInstance().setUSBconfiguration();
-        
-        // Check if operating mode has changed
-        if (selectedMode != originalOperatingMode) {
-            SerialPortManager::getInstance().factoryResetHipChip();
-            originalOperatingMode = selectedMode; 
-        }
-    });
+    QThread::msleep(10);
+    SerialPortManager::getInstance().setUSBconfiguration();
+
+    // Check if operating mode has changed
+    if (selectedMode != originalOperatingMode) {
+        SerialPortManager::getInstance().factoryResetHipChip();
+        originalOperatingMode = selectedMode; 
+    }
 }
 
 QByteArray TargetControlPage::convertCheckBoxValueToBytes(){

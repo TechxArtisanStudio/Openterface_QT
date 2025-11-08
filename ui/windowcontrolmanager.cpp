@@ -102,9 +102,6 @@ void WindowControlManager::setupConnections()
     m_autoHideTimer->setSingleShot(true);
     m_edgeCheckTimer->setSingleShot(false);
     m_edgeCheckTimer->setInterval(100); // Check every 100ms
-    
-    // Note: Menu bar signal connections removed - they were interfering with normal menu operation
-    // Auto-hide timer management is now handled entirely through the event filter and mouse position checking
 }
 
 void WindowControlManager::setToolbar(QToolBar *toolbar)
@@ -125,14 +122,8 @@ void WindowControlManager::setAutoHideEnabled(bool enabled)
     qCDebug(log_ui_windowcontrolmanager) << "[AUTO-HIDE] Auto-hide state changed to:" << enabled;
     
     if (enabled) {
-        // CRITICAL FIX: Only install event filter in fullscreen mode
-        // In normal/maximized mode, we don't need the event filter as it can interfere with menu clicks
-        if (m_isFullScreen) {
-            qCDebug(log_ui_windowcontrolmanager) << "[AUTO-HIDE] Installing event filter (fullscreen mode)";
-            installEventFilterOnWindow();
-        } else {
-            qCDebug(log_ui_windowcontrolmanager) << "[AUTO-HIDE] Auto-hide enabled but not installing event filter (not in fullscreen mode yet)";
-        }
+        // Install event filter to track mouse movement
+        installEventFilterOnWindow();
         
         // If already in fullscreen mode, ensure toolbar is visible and start auto-hide sequence
         // NOTE: Auto-hide only works in fullscreen mode, not in maximized mode
@@ -328,12 +319,6 @@ void WindowControlManager::onWindowRestored()
     m_isMaximized = false;
     m_isFullScreen = false;
     
-    // CRITICAL FIX: Remove event filter when exiting fullscreen/maximized mode
-    if (m_eventFilterInstalled) {
-        qCDebug(log_ui_windowcontrolmanager) << "[AUTO-HIDE] Removing event filter (exiting fullscreen mode)";
-        removeEventFilterFromWindow();
-    }
-    
     // Stop auto-hide behavior
     stopAutoHideTimer();
     m_edgeCheckTimer->stop();
@@ -363,12 +348,6 @@ void WindowControlManager::onWindowFullScreen()
     m_isMaximized = false; // Fullscreen is separate from maximized
     
     qCDebug(log_ui_windowcontrolmanager) << "WindowControlManager::onWindowFullScreen() - Fullscreen mode activated";
-    
-    // CRITICAL FIX: Install event filter when entering fullscreen mode
-    if (m_autoHideEnabled && !m_eventFilterInstalled) {
-        qCDebug(log_ui_windowcontrolmanager) << "[AUTO-HIDE] Installing event filter for fullscreen mode";
-        installEventFilterOnWindow();
-    }
     
     // In fullscreen mode:
     // 1. The function keys toolbar should stay HIDDEN (not auto-shown)
@@ -551,7 +530,8 @@ void WindowControlManager::animateToolbarShow()
         menuBar->update(); // Force repaint
         qCDebug(log_ui_windowcontrolmanager) << "WindowControlManager::animateToolbarShow() - Called update()";
         
-        // Removed processEvents - Qt will handle event processing naturally
+        QApplication::processEvents(); // Force Qt to process the show event immediately
+        qCDebug(log_ui_windowcontrolmanager) << "WindowControlManager::animateToolbarShow() - Called processEvents()";
         
         m_mainWindow->update(); // Update main window
         qCDebug(log_ui_windowcontrolmanager) << "WindowControlManager::animateToolbarShow() - Called mainWindow update()";
@@ -679,45 +659,13 @@ void WindowControlManager::removeEventFilterFromWindow()
 
 bool WindowControlManager::eventFilter(QObject *watched, QEvent *event)
 {
-    if (watched == m_mainWindow) {
-        if (event->type() == QEvent::MouseMove) {
-            QMouseEvent *mouseEvent = static_cast<QMouseEvent*>(event);
-            onMouseMoved(m_mainWindow->mapToGlobal(mouseEvent->pos()));
-        } else if (event->type() == QEvent::WindowStateChange) {
-            QWindowStateChangeEvent *stateEvent = static_cast<QWindowStateChangeEvent*>(event);
-            onWindowStateChanged(stateEvent->oldState(), m_mainWindow->windowState());
-        } else if (event->type() == QEvent::MouseButtonPress) {
-            // CRITICAL FIX: Only handle menu bar clicks in FULLSCREEN mode
-            // In normal/maximized mode, let Qt handle menu clicks naturally
-            if (!m_isFullScreen) {
-                // Not in fullscreen - don't interfere with menu clicks
-                return QObject::eventFilter(watched, event);
-            }
-            
-            // In fullscreen mode: Stop auto-hide timer when user clicks in menu bar area
-            QMouseEvent *mouseEvent = static_cast<QMouseEvent*>(event);
-            QPoint globalPos = m_mainWindow->mapToGlobal(mouseEvent->pos());
-            
-            // Check if click is in menu bar area
-            if (m_mainWindow->menuBar()) {
-                QRect menuBarRect = m_mainWindow->menuBar()->geometry();
-                QPoint menuBarGlobalPos = m_mainWindow->menuBar()->mapToGlobal(QPoint(0, 0));
-                QRect globalMenuBarRect(menuBarGlobalPos, menuBarRect.size());
-                
-                if (globalMenuBarRect.contains(globalPos)) {
-                    qCDebug(log_ui_windowcontrolmanager) << "[MENU-FIX] Mouse click in menu bar area (fullscreen mode) - stopping auto-hide timer";
-                    stopAutoHideTimer();
-                    
-                    // Ensure menu bar is visible for the click in fullscreen mode
-                    if (!m_mainWindow->menuBar()->isVisible()) {
-                        qCDebug(log_ui_windowcontrolmanager) << "[MENU-FIX] Menu bar was hidden, showing it now";
-                        showToolbar();
-                    }
-                }
-            }
-        }
+    if (watched == m_mainWindow && event->type() == QEvent::MouseMove) {
+        QMouseEvent *mouseEvent = static_cast<QMouseEvent*>(event);
+        onMouseMoved(m_mainWindow->mapToGlobal(mouseEvent->pos()));
+    } else if (watched == m_mainWindow && event->type() == QEvent::WindowStateChange) {
+        QWindowStateChangeEvent *stateEvent = static_cast<QWindowStateChangeEvent*>(event);
+        onWindowStateChanged(stateEvent->oldState(), m_mainWindow->windowState());
     }
     
-    // Always pass events through - never block them
     return QObject::eventFilter(watched, event);
 }

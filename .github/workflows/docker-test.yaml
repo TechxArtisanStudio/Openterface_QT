@@ -704,15 +704,17 @@ jobs:
                   # Capture only the final URL, suppress all debug output
                   UPLOAD_OUTPUT=$(https_proxy="" IMGBB_API_KEY="$IMGBB_API_KEY" timeout 120 ./docker/upload_to_imgbb.sh "$img" 2>&1)
                   
-                  # Try to extract URL from output
-                  UPLOAD_URL=$(echo "$UPLOAD_OUTPUT" | grep -oP 'https[:/]*i\.ibb\.co[^ ]*' | head -1)
+                  # Try multiple URL patterns (with both escaped and non-escaped slashes)
+                  UPLOAD_URL=$(echo "$UPLOAD_OUTPUT" | grep -oP 'https[:/]*i\.ibb\.co/\S+' | head -1)
                   
-                  # Fallback: get the last line if it's a URL
+                  # If we got escaped slashes, convert them
                   if [ -z "$UPLOAD_URL" ]; then
-                    LAST_LINE=$(echo "$UPLOAD_OUTPUT" | tail -1)
-                    if echo "$LAST_LINE" | grep -qP 'https[:/]*i\.ibb\.co'; then
-                      UPLOAD_URL="$LAST_LINE"
-                    fi
+                    UPLOAD_URL=$(echo "$UPLOAD_OUTPUT" | grep -oP 'https:\\\\/\\\\/i\.ibb\.co/\S+' | head -1 | sed 's|\\\/|/|g')
+                  fi
+                  
+                  # Final fallback: look for any ibb.co URL
+                  if [ -z "$UPLOAD_URL" ]; then
+                    UPLOAD_URL=$(echo "$UPLOAD_OUTPUT" | grep -oE '(https?[:/]*)+i\.ibb\.co[^ ]*' | head -1 | sed 's|\\\/|/|g')
                   fi
                   
                   if [ -n "$UPLOAD_URL" ]; then

@@ -971,103 +971,66 @@ void CameraManager::startRecording()
         qCDebug(log_ui_camera) << "Media recorder state:" << m_mediaRecorder->recorderState();
     }
 #else
-    // Linux/macOS: Use ONLY FFmpeg or GStreamer backend for recording
+    // Linux/macOS: Use both QMediaRecorder and FFmpeg backend if available
     bool recordingSuccess = false;
-
-    if (!m_backendHandler) {
-        qCWarning(log_ui_camera) << "No multimedia backend handler available on non-Windows platform";
-        emit recordingError("No multimedia backend available. Please choose FFmpeg or GStreamer in settings.");
-        m_currentRecordingPath.clear();
-        return;
-    }
-
-    MultimediaBackendType backendType = m_backendHandler->getBackendType();
-    qCDebug(log_ui_camera) << "Recording using backend:" << MultimediaBackendFactory::backendTypeToString(backendType);
-
-    // Get basic recording settings from GlobalSettings
-    QString format = GlobalSetting::instance().getRecordingOutputFormat();
-    int bitrate = GlobalSetting::instance().getRecordingVideoBitrate();
-    int frameRate = GlobalVar::instance().getCaptureFps();
     
-    qCDebug(log_ui_camera) << "Basic recording settings:"
-                          << "Format:" << format
-                          << "Video Bitrate:" << bitrate
-                          << "Framerate:" << frameRate;
-                          
-#ifndef Q_OS_WIN
-    // Additional settings only used on Linux with FFmpeg/GStreamer
-    QString pixelFormat = GlobalSetting::instance().getRecordingPixelFormat();
-    int keyFrameInterval = GlobalSetting::instance().getRecordingKeyframeInterval();
-    QString audioCodec = GlobalSetting::instance().getRecordingAudioCodec();
-    int audioBitrate = GlobalSetting::instance().getRecordingAudioBitrate();
-    int audioSampleRate = GlobalSetting::instance().getRecordingAudioSampleRate();
-    
-    qCDebug(log_ui_camera) << "Linux-specific recording settings:"
-                          << "Pixel Format:" << pixelFormat
-                          << "Keyframe Interval:" << keyFrameInterval
-                          << "Audio Codec:" << audioCodec
-                          << "Audio Bitrate:" << audioBitrate
-                          << "Audio Sample Rate:" << audioSampleRate;
-#endif
-
-    switch (backendType) {
-        case MultimediaBackendType::FFmpeg: {
-            if (FFmpegBackendHandler* ffmpeg = qobject_cast<FFmpegBackendHandler*>(m_backendHandler.get())) {
-                // Use basic recording with available parameters
-                recordingSuccess = ffmpeg->startRecording(outputPath, format, bitrate);
-                
-                if (recordingSuccess) {
-                    qCInfo(log_ui_camera) << "Successfully started recording via FFmpegBackendHandler to:" << outputPath;
-                } else {
-                    qCWarning(log_ui_camera) << "FFmpeg backend failed to start recording";
-                    emit recordingError("FFmpeg backend failed to start recording");
-                }
-            } else {
-                qCWarning(log_ui_camera) << "Backend type is FFmpeg but cast failed";
-                emit recordingError("Internal error: Failed to access FFmpeg backend");
-            }
-            break;
-        }
-        case MultimediaBackendType::GStreamer: {
-            if (auto gst = qobject_cast<GStreamerBackendHandler*>(m_backendHandler.get())) {
-                // Use basic recording with available parameters
-                recordingSuccess = gst->startRecording(outputPath, format, bitrate);
-                
-                if (recordingSuccess) {
-                    qCInfo(log_ui_camera) << "Successfully started recording via GStreamerBackendHandler to:" << outputPath;
-                } else {
-                    qCWarning(log_ui_camera) << "GStreamer backend failed to start recording";
-                    emit recordingError("GStreamer backend failed to start recording");
-                }
-            } else {
-                qCWarning(log_ui_camera) << "Backend type is GStreamer but cast failed";
-                emit recordingError("Internal error: Failed to access GStreamer backend");
-            }
-            break;
-        }
-        default: {
-            qCWarning(log_ui_camera) << "Unsupported backend for Linux recording:" << static_cast<int>(backendType);
-            emit recordingError("Unsupported backend for recording on Linux. Please select FFmpeg or GStreamer in settings.");
-            m_currentRecordingPath.clear();
-            return;
+    // If we have FFmpeg backend, use it as primary
+    if (FFmpegBackendHandler* ffmpeg = getFFmpegBackend()) {
+        bool success = ffmpeg->startRecording(outputPath);
+        if (success) {
+            qCDebug(log_ui_camera) << "Started recording via FFmpegBackendHandler";
+            recordingSuccess = true;
+        } else {
+            qCWarning(log_ui_camera) << "Failed to start recording via FFmpegBackendHandler";
         }
     }
-
-    if (recordingSuccess) {
-        // Update recording state and emit signal
-        qCInfo(log_ui_camera) << "=== RECORDING STARTED SUCCESSFULLY ===";
-        emit this->recordingStarted();
+    
+    // Also try QMediaRecorder (as backup or primary if FFmpeg failed)
+    if (m_mediaRecorder) {
+        configureMediaRecorderForRecording(outputPath);
         
-        // Start monitoring recording file size and duration if supported
-        startRecordingMonitoring();
+        // Make sure capture session is properly set up
+        if (m_captureSession.camera() != m_camera.get()) {
+            qCDebug(log_ui_camera) << "Setting camera in capture session";
+            m_captureSession.setCamera(m_camera.get());
+        }
+        
+        if (m_captureSession.recorder() != m_mediaRecorder.get()) {
+            qCDebug(log_ui_camera) << "Setting recorder in capture session";
+            m_captureSession.setRecorder(m_mediaRecorder.get());
+        }
+        
+        m_mediaRecorder->record();
+        
+        if (m_mediaRecorder->recorderState() == QMediaRecorder::RecordingState) {
+            qCDebug(log_ui_camera) << "Started recording via QMediaRecorder on non-Windows platform";
+            recordingSuccess = true;
+        } else {
+            qCWarning(log_ui_camera) << "Failed to start recording via QMediaRecorder";
+            qCWarning(log_ui_camera) << "Media recorder error:" << m_mediaRecorder->errorString();
+        }
+    }
+    
+    if (recordingSuccess) {
+        emit this->recordingStarted();
     } else {
+        qCWarning(log_ui_camera) << "Failed to start recording with any available backend";
+        
+        // Generate more specific error message based on recorder state
+        QString errorMsg = "Failed to start recording";
+        
+        if (m_mediaRecorder) {
+            QMediaRecorder::Error recError = m_mediaRecorder->error();
+            if (recError != QMediaRecorder::NoError) {
+                errorMsg = QString("Recording failed: %1").arg(getMediaRecorderErrorInfo(recError));
+                qCWarning(log_ui_camera) << "Media recorder error details:" << getMediaRecorderErrorInfo(recError);
+            }
+        }
+        
         // Dump full diagnostics to log for debugging
         dumpRecordingSystemState();
-        qCWarning(log_ui_camera) << "=== RECORDING START FAILED ===";
         
-        if (m_currentRecordingPath.isEmpty()) {
-            emit recordingError("Failed to start recording with selected backend");
-        }
+        emit recordingError(errorMsg);
         m_currentRecordingPath.clear();
     }
 #endif
@@ -1123,70 +1086,18 @@ void CameraManager::stopRecording()
         qCDebug(log_ui_camera) << "Recorder state after stop:" << m_mediaRecorder->recorderState();
     }
 #else
-    // Linux/macOS: Stop ONLY the active backend (FFmpeg or GStreamer)
-    if (!m_backendHandler) {
-        qCWarning(log_ui_camera) << "No multimedia backend handler available on non-Windows platform";
-        emit recordingError("No multimedia backend available to stop recording.");
-    } else {
-        bool stopSuccess = false;
-
-#ifndef Q_OS_WIN
-        // Linux-specific recording stop code
-        switch (m_backendHandler->getBackendType()) {
-            case MultimediaBackendType::FFmpeg: {
-                if (FFmpegBackendHandler* ffmpeg = qobject_cast<FFmpegBackendHandler*>(m_backendHandler.get())) {
-                    // Stop recording monitoring if active
-                    stopRecordingMonitoring();
-                    
-                    // Stop the actual recording (void return type)
-                    ffmpeg->stopRecording();
-                    stopSuccess = true;
-                    
-                    qCInfo(log_ui_camera) << "Stopped recording via FFmpegBackendHandler";
-                } else {
-                    qCWarning(log_ui_camera) << "Backend type is FFmpeg but cast failed";
-                }
-                break;
-            }
-            case MultimediaBackendType::GStreamer: {
-                if (GStreamerBackendHandler* gst = qobject_cast<GStreamerBackendHandler*>(m_backendHandler.get())) {
-                    // Stop recording monitoring if active
-                    stopRecordingMonitoring();
-                    
-                    // Stop the actual recording (void return type)
-                    gst->stopRecording();
-                    stopSuccess = true;
-                    
-                    qCInfo(log_ui_camera) << "Stopped recording via GStreamerBackendHandler";
-                } else {
-                    qCWarning(log_ui_camera) << "Backend type is GStreamer but cast failed";
-                }
-                break;
-            }
-            default:
-                qCWarning(log_ui_camera) << "Unsupported backend for Linux recording stop:" << static_cast<int>(m_backendHandler->getBackendType());
-                emit recordingError("Unsupported backend for stopping recording on Linux");
-                break;
-        }
-#else
-        // Windows-specific recording stop code using QtBackendHandler
-        // This code block is never executed on Windows due to the outer #ifdef
-        // It's here for completeness in case someone moves the #else/#endif structure
-        if (QtBackendHandler* qtHandler = qobject_cast<QtBackendHandler*>(m_backendHandler.get())) {
-            stopRecordingMonitoring();
-            stopSuccess = qtHandler->stopRecording();
-            if (stopSuccess) {
-                qCInfo(log_ui_camera) << "Successfully stopped recording via QtBackendHandler";
-            } else {
-                qCWarning(log_ui_camera) << "QtBackendHandler failed to stop recording gracefully";
-            }
-        } else {
-            qCWarning(log_ui_camera) << "Failed to cast to QtBackendHandler for recording stop";
-        }
-#endif
-        
-        // Log the final result of the stop operation
-        qCInfo(log_ui_camera) << "Recording stop result: " << (stopSuccess ? "Successful" : "Failed");
+    // Linux/macOS: Use both QMediaRecorder and FFmpeg backend if available
+    if (m_mediaRecorder) {
+        qCDebug(log_ui_camera) << "Recorder state before stop:" << m_mediaRecorder->recorderState();
+        m_mediaRecorder->stop();
+        qCDebug(log_ui_camera) << "Stopped recording via QMediaRecorder on non-Windows platform";
+        qCDebug(log_ui_camera) << "Recorder state after stop:" << m_mediaRecorder->recorderState();
+    }
+    
+    // If we have FFmpeg backend, also stop its recording
+    if (FFmpegBackendHandler* ffmpeg = getFFmpegBackend()) {
+        ffmpeg->stopRecording();
+        qCDebug(log_ui_camera) << "Stopped recording via FFmpegBackendHandler";
     }
 #endif
 
@@ -1248,96 +1159,26 @@ void CameraManager::stopRecording()
 void CameraManager::pauseRecording()
 {
 #ifdef Q_OS_WIN
-    // Windows: QMediaRecorder doesn't support pause in standard Qt Multimedia
-    if (m_mediaRecorder) {
-        qCInfo(log_ui_camera) << "Pause recording not supported on Windows QMediaRecorder";
-    }
-    
-    // Try with Qt backend handler if available
-    if (m_backendHandler && m_backendHandler->getBackendType() == MultimediaBackendType::Qt) {
-        if (auto qtHandler = qobject_cast<QtBackendHandler*>(m_backendHandler.get())) {
-            qtHandler->pauseRecording();
-            qCDebug(log_ui_camera) << "Called pauseRecording on QtBackendHandler";
-        }
-    }
+    // Windows: QMediaRecorder doesn't support pause, so no action
+    // Future enhancement: Could add Windows-specific pause code here
 #else
-    // Linux/macOS: Use active backend for pause functionality
-    if (!m_backendHandler) {
-        qCWarning(log_ui_camera) << "No backend handler available for pause recording";
-        return;
+    // Linux/macOS: Use FFmpeg backend for pause functionality
+    if (FFmpegBackendHandler* ffmpeg = getFFmpegBackend()) {
+        ffmpeg->pauseRecording();
     }
-    
-#ifndef Q_OS_WIN
-    // This code is only compiled on non-Windows platforms
-    switch (m_backendHandler->getBackendType()) {
-        case MultimediaBackendType::FFmpeg: {
-            if (auto ffmpeg = qobject_cast<FFmpegBackendHandler*>(m_backendHandler.get())) {
-                ffmpeg->pauseRecording();
-                qCDebug(log_ui_camera) << "Called pauseRecording on FFmpeg backend";
-            }
-            break;
-        }
-        case MultimediaBackendType::GStreamer: {
-            if (auto gst = qobject_cast<GStreamerBackendHandler*>(m_backendHandler.get())) {
-                gst->pauseRecording();
-                qCDebug(log_ui_camera) << "Called pauseRecording on GStreamer backend";
-            }
-            break;
-        }
-        default:
-            qCWarning(log_ui_camera) << "Unsupported backend for pause on Linux:" 
-                                    << static_cast<int>(m_backendHandler->getBackendType());
-            break;
-    }
-#endif
 #endif
 }
 
 void CameraManager::resumeRecording()
 {
 #ifdef Q_OS_WIN
-    // Windows: QMediaRecorder doesn't support resume in standard Qt Multimedia
-    if (m_mediaRecorder) {
-        qCInfo(log_ui_camera) << "Resume recording not supported on Windows QMediaRecorder";
-    }
-    
-    // Try with Qt backend handler if available
-    if (m_backendHandler && m_backendHandler->getBackendType() == MultimediaBackendType::Qt) {
-        if (auto qtHandler = qobject_cast<QtBackendHandler*>(m_backendHandler.get())) {
-            qtHandler->resumeRecording();
-            qCDebug(log_ui_camera) << "Called resumeRecording on QtBackendHandler";
-        }
-    }
+    // Windows: QMediaRecorder doesn't support resume, so no action
+    // Future enhancement: Could add Windows-specific resume code here
 #else
-    // Linux/macOS: Use active backend for resume functionality
-    if (!m_backendHandler) {
-        qCWarning(log_ui_camera) << "No backend handler available for resume recording";
-        return;
+    // Linux/macOS: Use FFmpeg backend for resume functionality
+    if (FFmpegBackendHandler* ffmpeg = getFFmpegBackend()) {
+        ffmpeg->resumeRecording();
     }
-    
-#ifndef Q_OS_WIN
-    // This code is only compiled on non-Windows platforms
-    switch (m_backendHandler->getBackendType()) {
-        case MultimediaBackendType::FFmpeg: {
-            if (auto ffmpeg = qobject_cast<FFmpegBackendHandler*>(m_backendHandler.get())) {
-                ffmpeg->resumeRecording();
-                qCDebug(log_ui_camera) << "Called resumeRecording on FFmpeg backend";
-            }
-            break;
-        }
-        case MultimediaBackendType::GStreamer: {
-            if (auto gst = qobject_cast<GStreamerBackendHandler*>(m_backendHandler.get())) {
-                gst->resumeRecording();
-                qCDebug(log_ui_camera) << "Called resumeRecording on GStreamer backend";
-            }
-            break;
-        }
-        default:
-            qCWarning(log_ui_camera) << "Unsupported backend for resume on Linux:" 
-                                    << static_cast<int>(m_backendHandler->getBackendType());
-            break;
-    }
-#endif
 #endif
 }
 
@@ -1384,60 +1225,19 @@ bool CameraManager::isRecording() const
         qCDebug(log_ui_camera) << "No QMediaRecorder available";
     }
 #else
-    // Linux/macOS: Check active backend type and get recording status
-    if (!m_backendHandler) {
-        qCDebug(log_ui_camera) << "No backend handler available to check recording status";
-    } else {
-#ifndef Q_OS_WIN
-        switch (m_backendHandler->getBackendType()) {
-            case MultimediaBackendType::FFmpeg: {
-                if (FFmpegBackendHandler* ffmpeg = qobject_cast<FFmpegBackendHandler*>(m_backendHandler.get())) {
-                    if (ffmpeg->isRecording()) {
-                        qCDebug(log_ui_camera) << "FFmpeg backend reports recording active";
-                        recording = true;
-                    } else {
-                        qCDebug(log_ui_camera) << "FFmpeg backend reports no active recording";
-                    }
-                } else {
-                    qCDebug(log_ui_camera) << "FFmpeg backend cast failed for status check";
-                }
-                break;
-            }
-            case MultimediaBackendType::GStreamer: {
-                if (GStreamerBackendHandler* gst = qobject_cast<GStreamerBackendHandler*>(m_backendHandler.get())) {
-                    if (gst->isRecording()) {
-                        qCDebug(log_ui_camera) << "GStreamer backend reports recording active";
-                        recording = true;
-                    } else {
-                        qCDebug(log_ui_camera) << "GStreamer backend reports no active recording";
-                    }
-                } else {
-                    qCDebug(log_ui_camera) << "GStreamer backend cast failed for status check";
-                }
-                break;
-            }
-            default:
-                qCDebug(log_ui_camera) << "Unknown backend type for recording status check:" 
-                                      << static_cast<int>(m_backendHandler->getBackendType());
-                break;
-        }
-#else
-        // Windows: Using Qt backend only
-        if (QtBackendHandler* qtHandler = qobject_cast<QtBackendHandler*>(m_backendHandler.get())) {
-            if (qtHandler->isRecording()) {
-                qCDebug(log_ui_camera) << "Qt backend reports recording active";
-                recording = true;
-            } else {
-                qCDebug(log_ui_camera) << "Qt backend reports no active recording";
-            }
+    // Linux/macOS: Prefer FFmpeg backend status, fall back to QMediaRecorder
+    if (FFmpegBackendHandler* ffmpeg = getFFmpegBackend()) {
+        if (ffmpeg->isRecording()) {
+            qCDebug(log_ui_camera) << "FFmpeg backend reports recording active";
+            recording = true;
         } else {
-            qCDebug(log_ui_camera) << "Failed to cast to QtBackendHandler for recording status check";
+            qCDebug(log_ui_camera) << "FFmpeg backend reports no active recording";
         }
-#endif
+    } else {
+        qCDebug(log_ui_camera) << "No FFmpeg backend available";
     }
     
-    // Check QMediaRecorder status (primary check on Windows, fallback on Linux)
-    if (m_mediaRecorder && !recording) {
+    if (m_mediaRecorder) {
         if (m_mediaRecorder->recorderState() == QMediaRecorder::RecordingState) {
             qCDebug(log_ui_camera) << "QMediaRecorder reports active recording";
             recording = true;
@@ -1447,7 +1247,7 @@ bool CameraManager::isRecording() const
                 qCDebug(log_ui_camera) << "QMediaRecorder has error:" << m_mediaRecorder->errorString();
             }
         }
-    } else if (!m_mediaRecorder) {
+    } else {
         qCDebug(log_ui_camera) << "No QMediaRecorder available";
     }
 #endif
@@ -1462,33 +1262,9 @@ bool CameraManager::isPaused() const
     // Windows: QMediaRecorder doesn't support pause state tracking
     return false;
 #else
-    // Linux/macOS: Check backend type and get pause status from the appropriate handler
-    if (!m_backendHandler) {
-        qCDebug(log_ui_camera) << "No backend handler available to check pause status";
-        return false;
-    }
-    
-    switch (m_backendHandler->getBackendType()) {
-        case MultimediaBackendType::FFmpeg: {
-            if (FFmpegBackendHandler* ffmpeg = qobject_cast<FFmpegBackendHandler*>(m_backendHandler.get())) {
-                bool isPaused = ffmpeg->isRecording() && ffmpeg->isPaused();
-                qCDebug(log_ui_camera) << "FFmpeg backend pause status:" << (isPaused ? "PAUSED" : "NOT PAUSED");
-                return isPaused;
-            }
-            break;
-        }
-        case MultimediaBackendType::GStreamer: {
-            if (GStreamerBackendHandler* gst = qobject_cast<GStreamerBackendHandler*>(m_backendHandler.get())) {
-                // GStreamer backend doesn't currently support pause status check
-                qCDebug(log_ui_camera) << "GStreamer backend pause status: NOT SUPPORTED";
-                return false;
-            }
-            break;
-        }
-        default:
-            qCDebug(log_ui_camera) << "Unknown backend type for pause status check:" 
-                                  << static_cast<int>(m_backendHandler->getBackendType());
-            break;
+    // Linux/macOS: Use FFmpeg backend for pause state
+    if (FFmpegBackendHandler* ffmpeg = getFFmpegBackend()) {
+        return ffmpeg->isRecording() && ffmpeg->isPaused();
     }
 #endif
     
@@ -3272,29 +3048,11 @@ bool CameraManager::deactivateCameraByPortChain(const QString& portChain)
             m_camera.reset();
         }
         
-        // Clear capture session completely including video output to remove frozen frame
-        // This is necessary when device is unplugged to clear the last frame from the display
-        qCDebug(log_ui_camera) << "Clearing capture session and video output to remove frozen frame";
+        // Clear capture session but keep video output to prevent flashing
         m_captureSession.setCamera(nullptr);
         m_captureSession.setImageCapture(nullptr);
-        m_captureSession.setVideoOutput(nullptr);
-        
-        // Clear the video output item to show a blank screen instead of frozen frame
-        if (m_graphicsVideoOutput) {
-            qCDebug(log_ui_camera) << "Clearing graphics video output";
-            // Temporarily disconnect and reconnect to clear any buffered frames
-            m_captureSession.setVideoOutput(nullptr);
-            QThread::msleep(50); // Brief delay to ensure frame buffer is cleared
-            // Reconnect but with no camera source, so it displays blank
-            m_captureSession.setVideoOutput(m_graphicsVideoOutput);
-        }
-        
-        // Verify deactivation was successful
-        qCDebug(log_ui_camera) << "Post-deactivation check:";
-        qCDebug(log_ui_camera) << "  m_currentCameraDevice.isNull():" << m_currentCameraDevice.isNull();
-        qCDebug(log_ui_camera) << "  m_camera is null:" << (m_camera == nullptr);
-        qCDebug(log_ui_camera) << "  m_currentCameraPortChain.isEmpty():" << m_currentCameraPortChain.isEmpty();
-        qCDebug(log_ui_camera) << "  hasActiveCameraDevice():" << hasActiveCameraDevice();
+        // Note: NOT clearing video output to prevent video pane flashing during device switches
+        // m_captureSession.setVideoOutput(nullptr);
         
         qCInfo(log_ui_camera) << "Camera successfully deactivated for unplugged device";
         return true;
@@ -3310,85 +3068,42 @@ bool CameraManager::deactivateCameraByPortChain(const QString& portChain)
 
 bool CameraManager::tryAutoSwitchToNewDevice(const QString& portChain)
 {
-    qCDebug(log_ui_camera) << "========================================";
-    qCDebug(log_ui_camera) << "tryAutoSwitchToNewDevice called";
-    qCDebug(log_ui_camera) << "  Target port chain:" << portChain;
-    qCDebug(log_ui_camera) << "========================================";
+    qCDebug(log_ui_camera) << "Attempting auto-switch to new device with port chain:" << portChain;
     
     // Check if we currently have an active camera device
     if (hasActiveCameraDevice()) {
-        qCWarning(log_ui_camera) << "!!! Active camera device detected, skipping auto-switch to preserve user selection";
-        qCWarning(log_ui_camera) << "!!! Current device:" << m_currentCameraDevice.description();
-        qCWarning(log_ui_camera) << "!!! Current port chain:" << m_currentCameraPortChain;
+        qCDebug(log_ui_camera) << "Active camera device detected, skipping auto-switch to preserve user selection";
         return false;
     }
     
-    qCDebug(log_ui_camera) << "✓ No active camera device found, attempting to switch to new device";
-    
-    // IMPORTANT: Refresh available camera devices to ensure the list is up-to-date
-    // This is critical for hotplug scenarios where QMediaDevices::videoInputs() might not
-    // be immediately updated when a device is plugged in
-    qCDebug(log_ui_camera) << "Refreshing available camera devices before auto-switch (1st refresh)";
-    refreshAvailableCameraDevices();
-    qCDebug(log_ui_camera) << "  Available cameras after 1st refresh:" << m_availableCameraDevices.size();
-    
-    // Add a small delay to allow the system to fully enumerate the new camera device
-    // This is especially important on Windows where device enumeration can take time
-    qCDebug(log_ui_camera) << "Waiting 500ms for system to fully enumerate camera device...";
-    QThread::msleep(500);
-    
-    // Refresh again after the delay to ensure we have the latest device list
-    qCDebug(log_ui_camera) << "Refreshing available camera devices before auto-switch (2nd refresh)";
-    refreshAvailableCameraDevices();
-    qCDebug(log_ui_camera) << "  Available cameras after 2nd refresh:" << m_availableCameraDevices.size();
+    qCDebug(log_ui_camera) << "No active camera device found, attempting to switch to new device";
     
     // Try to find a matching camera device for the port chain
-    qCDebug(log_ui_camera) << "Attempting to find matching camera device for port chain:" << portChain;
     QCameraDevice matchedCamera = findMatchingCameraDevice(portChain);
     
     if (matchedCamera.isNull()) {
-        qCWarning(log_ui_camera) << "✗ No matching camera device found for port chain:" << portChain;
-        qCWarning(log_ui_camera) << "  This could mean:";
-        qCWarning(log_ui_camera) << "  1. QMediaDevices hasn't updated yet";
-        qCWarning(log_ui_camera) << "  2. Device info doesn't match Qt camera device";
-        qCWarning(log_ui_camera) << "  3. Camera device path/ID mismatch";
+        qCDebug(log_ui_camera) << "No matching camera device found for port chain:" << portChain;
         return false;
     }
     
-    qCDebug(log_ui_camera) << "✓ Found matching camera device:" << matchedCamera.description() << "for port chain:" << portChain;
-    
-    // Ensure video output is connected before switching
-    // This is important if the video output was previously disconnected due to device unplugging
-    if (m_graphicsVideoOutput && m_captureSession.videoOutput() != m_graphicsVideoOutput) {
-        qCDebug(log_ui_camera) << "Reconnecting video output before camera switch";
-        m_captureSession.setVideoOutput(m_graphicsVideoOutput);
-    } else if (m_graphicsVideoOutput) {
-        qCDebug(log_ui_camera) << "Video output already connected";
-    } else {
-        qCWarning(log_ui_camera) << "!!! No graphics video output available";
-    }
+    qCDebug(log_ui_camera) << "Found matching camera device:" << matchedCamera.description() << "for port chain:" << portChain;
     
     // Switch to the new camera device
-    qCDebug(log_ui_camera) << "Calling switchToCameraDevice...";
     bool switchSuccess = switchToCameraDevice(matchedCamera, portChain);
     
     if (switchSuccess) {
-        qCInfo(log_ui_camera) << "✓ Successfully auto-switched to new camera device:" << matchedCamera.description() << "at port chain:" << portChain;
+        qCDebug(log_ui_camera) << "✓ Successfully auto-switched to new camera device:" << matchedCamera.description() << "at port chain:" << portChain;
         
         // Start the camera if video output is available
         if (m_graphicsVideoOutput) {
-            qCDebug(log_ui_camera) << "Starting camera after successful switch";
             startCamera();
-        } else {
-            qCWarning(log_ui_camera) << "!!! Cannot start camera - no video output available";
         }
         
         emit newDeviceAutoConnected(matchedCamera, portChain);
     } else {
-        qCWarning(log_ui_camera) << "✗ Failed to auto-switch to new camera device:" << matchedCamera.description();
+        qCWarning(log_ui_camera) << "Failed to auto-switch to new camera device:" << matchedCamera.description();
     }
     
-    qCDebug(log_ui_camera) << "========================================";
     return switchSuccess;
 }
 
@@ -3556,176 +3271,62 @@ void CameraManager::connectToHotplugMonitor()
     // Connect to device unplugging signal
     connect(hotplugMonitor, &HotplugMonitor::deviceUnplugged,
             this, [this](const DeviceInfo& device) {
-                qCDebug(log_ui_camera) << "========================================";
-                qCDebug(log_ui_camera) << "CameraManager: DEVICE UNPLUGGED EVENT";
-                qCDebug(log_ui_camera) << "  Device port chain:" << device.portChain;
-                qCDebug(log_ui_camera) << "========================================";
+                qCDebug(log_ui_camera) << "CameraManager: Attempting camera deactivation for unplugged device port:" << device.portChain;
                 
-                // Check if device has camera info from DeviceManager
-                bool hasCameraInfoFromDeviceManager = device.hasCameraDevice();
-                qCDebug(log_ui_camera) << "Device camera info check:";
-                qCDebug(log_ui_camera) << "  Has camera from DeviceManager:" << hasCameraInfoFromDeviceManager;
-                
-                // CRITICAL FIX: Even if DeviceManager doesn't have camera info,
-                // we should still deactivate if:
-                // 1. We have an active Openterface camera
-                // 2. The port chain matches (or is empty since DeviceManager might not track it properly)
-                bool shouldDeactivate = false;
-                
-                if (hasCameraInfoFromDeviceManager) {
-                    qCDebug(log_ui_camera) << "Device has camera component - checking if it matches current camera";
-                    qCDebug(log_ui_camera) << "  Current camera port chain:" << m_currentCameraPortChain;
-                    qCDebug(log_ui_camera) << "  Unplugged device port chain:" << device.portChain;
-                    
-                    // Check if the unplugged device matches the current camera device port chain
-                    if (!m_currentCameraPortChain.isEmpty() && m_currentCameraPortChain == device.portChain) {
-                        shouldDeactivate = true;
-                        qCInfo(log_ui_camera) << ">>> Port chains MATCH - Will deactivate camera";
-                    }
-                } else {
-                    // Workaround: If DeviceManager has no camera info, but we have an active camera,
-                    // deactivate it anyway when ANY device at the expected port is unplugged
-                    qCDebug(log_ui_camera) << "DeviceManager has no camera info for unplugged device";
-                    
-                    if (hasActiveCameraDevice()) {
-                        qCDebug(log_ui_camera) << "We have an active camera - checking if we should deactivate it";
-                        
-                        // Check if current device is Openterface
-                        QString currentDesc = m_currentCameraDevice.description();
-                        if (currentDesc.contains("Openterface", Qt::CaseInsensitive)) {
-                            qCDebug(log_ui_camera) << "Current camera is Openterface:" << currentDesc;
-                            
-                            // If port chain matches OR is empty (not tracked), deactivate
-                            if (m_currentCameraPortChain.isEmpty() || m_currentCameraPortChain == device.portChain) {
-                                shouldDeactivate = true;
-                                qCWarning(log_ui_camera) << ">>> Deactivating Openterface camera (fallback - DeviceManager has no camera info)";
-                            }
-                        }
-                    }
+                // Only deactivate camera if the device has a camera component
+                if (!device.hasCameraDevice()) {
+                    qCDebug(log_ui_camera) << "Device at port" << device.portChain << "has no camera component, skipping camera deactivation";
+                    return;
                 }
                 
-                // Perform deactivation if needed
-                if (shouldDeactivate) {
+                // Check if the unplugged device matches the current camera device port chain
+                if (!m_currentCameraPortChain.isEmpty() && m_currentCameraPortChain == device.portChain) {
                     qCInfo(log_ui_camera) << "Deactivating camera for unplugged device at port:" << device.portChain;
                     bool deactivated = deactivateCameraByPortChain(device.portChain);
                     if (deactivated) {
                         qCInfo(log_ui_camera) << "✓ Camera deactivated for unplugged device at port:" << device.portChain;
-                    } else {
-                        qCWarning(log_ui_camera) << "✗ Camera deactivation FAILED for port:" << device.portChain;
                     }
                 } else {
-                    qCDebug(log_ui_camera) << "Camera deactivation skipped - no match found";
-                    if (m_currentCameraPortChain.isEmpty()) {
-                        qCDebug(log_ui_camera) << "  Reason: No current camera port chain tracked";
-                    } else {
-                        qCDebug(log_ui_camera) << "  Reason: Port chain or device type mismatch";
-                    }
+                    qCDebug(log_ui_camera) << "Camera deactivation skipped - port chain mismatch or no current camera. Current:" << m_currentCameraPortChain << "Unplugged:" << device.portChain;
                 }
                 
                 // For Windows: Also manually check for Qt camera device changes
                 if (isWindowsPlatform()) {
                     onVideoInputsChanged();
                 }
-                qCDebug(log_ui_camera) << "========================================";
             });
             
     // Connect to new device plugged in signal
     connect(hotplugMonitor, &HotplugMonitor::newDevicePluggedIn,
             this, [this](const DeviceInfo& device) {
-                qCDebug(log_ui_camera) << "========================================";
-                qCDebug(log_ui_camera) << "CameraManager: NEW DEVICE PLUGGED IN EVENT";
-                qCDebug(log_ui_camera) << "  Device port chain:" << device.portChain;
-                qCDebug(log_ui_camera) << "========================================";
+                qCDebug(log_ui_camera) << "CameraManager: Attempting camera auto-switch for new device port:" << device.portChain;
                 
-                // For Windows: Refresh Qt camera device list FIRST to ensure we have the latest devices
-                if (isWindowsPlatform()) {
-                    qCDebug(log_ui_camera) << "Windows: Refreshing video inputs before checking for camera device";
-                    onVideoInputsChanged();
-                }
-                
-                // Check if device has camera information from DeviceManager
-                bool hasCameraInfoFromDeviceManager = device.hasCameraDevice();
-                qCDebug(log_ui_camera) << "Device camera info check:";
-                qCDebug(log_ui_camera) << "  Has camera from DeviceManager:" << hasCameraInfoFromDeviceManager;
-                qCDebug(log_ui_camera) << "  Camera device ID:" << device.cameraDeviceId;
-                qCDebug(log_ui_camera) << "  Camera device path:" << device.cameraDevicePath;
-                
-                // WORKAROUND: Even if DeviceManager didn't populate camera info,
-                // check if QMediaDevices has an Openterface camera available
-                bool hasOpenterfaceCameraInQt = false;
-                if (!hasCameraInfoFromDeviceManager) {
-                    qCDebug(log_ui_camera) << "DeviceManager has no camera info - checking QMediaDevices for Openterface camera";
-                    for (const QCameraDevice& cam : m_availableCameraDevices) {
-                        if (cam.description().contains("Openterface", Qt::CaseInsensitive)) {
-                            hasOpenterfaceCameraInQt = true;
-                            qCDebug(log_ui_camera) << "  ✓ Found Openterface camera in Qt:" << cam.description();
-                            break;
-                        }
-                    }
-                }
-                
-                // Only attempt auto-switch if the device has a camera component OR we found Openterface in Qt
-                if (!hasCameraInfoFromDeviceManager && !hasOpenterfaceCameraInQt) {
+                // Only attempt auto-switch if the device has a camera component
+                if (!device.hasCameraDevice()) {
                     qCDebug(log_ui_camera) << "Device at port" << device.portChain << "has no camera component, skipping camera auto-switch";
                     return;
                 }
                 
-                if (hasOpenterfaceCameraInQt) {
-                    qCDebug(log_ui_camera) << "Using Qt-detected Openterface camera (DeviceManager camera info not available)";
-                } else {
-                    qCDebug(log_ui_camera) << "Device has camera component:";
-                    qCDebug(log_ui_camera) << "  Camera device ID:" << device.cameraDeviceId;
-                    qCDebug(log_ui_camera) << "  Camera device path:" << device.cameraDevicePath;
-                }
-                
-                // Check current camera state before attempting auto-switch
-                qCDebug(log_ui_camera) << "Current camera state check:";
-                qCDebug(log_ui_camera) << "  m_currentCameraDevice.isNull():" << m_currentCameraDevice.isNull();
-                qCDebug(log_ui_camera) << "  m_camera exists:" << (m_camera != nullptr);
-                if (m_camera) {
-                    qCDebug(log_ui_camera) << "  m_camera->isActive():" << m_camera->isActive();
-                }
-                qCDebug(log_ui_camera) << "  m_currentCameraPortChain:" << m_currentCameraPortChain;
-                qCDebug(log_ui_camera) << "  hasActiveCameraDevice():" << hasActiveCameraDevice();
-                
                 // Check if there's currently an active camera device
                 if (hasActiveCameraDevice()) {
-                    qCWarning(log_ui_camera) << "!!! Camera device already active, skipping auto-switch to port:" << device.portChain;
-                    qCWarning(log_ui_camera) << "!!! This might be a BUG - camera should have been deactivated on unplug";
+                    qCDebug(log_ui_camera) << "Camera device already active, skipping auto-switch to port:" << device.portChain;
                     return;
                 }
                 
                 qCDebug(log_ui_camera) << "No active camera device found, attempting to switch to new device";
                 
-                // If we're using the Qt-detected camera workaround, try to auto-switch to it directly
-                if (hasOpenterfaceCameraInQt && !hasCameraInfoFromDeviceManager) {
-                    qCDebug(log_ui_camera) << "Using fallback: switching to Qt-detected Openterface camera";
-                    
-                    // Find the Openterface camera in Qt devices
-                    for (const QCameraDevice& cam : m_availableCameraDevices) {
-                        if (cam.description().contains("Openterface", Qt::CaseInsensitive)) {
-                            qCDebug(log_ui_camera) << "Switching to Openterface camera:" << cam.description();
-                            bool switchSuccess = switchToCameraDevice(cam, device.portChain);
-                            if (switchSuccess && m_graphicsVideoOutput) {
-                                startCamera();
-                                qCInfo(log_ui_camera) << "✓ Camera auto-switched to Openterface device (fallback method)";
-                            } else {
-                                qCWarning(log_ui_camera) << "✗ Camera auto-switch FAILED (fallback method)";
-                            }
-                            qCDebug(log_ui_camera) << "========================================";
-                            return;
-                        }
-                    }
-                }
-                
-                // Try to auto-switch to the new camera device using normal method
+                // Try to auto-switch to the new camera device
                 bool switchSuccess = tryAutoSwitchToNewDevice(device.portChain);
                 if (switchSuccess) {
                     qCInfo(log_ui_camera) << "✓ Camera auto-switched to new device at port:" << device.portChain;
                 } else {
-                    qCWarning(log_ui_camera) << "✗ Camera auto-switch FAILED for port:" << device.portChain;
+                    qCDebug(log_ui_camera) << "Camera auto-switch failed for port:" << device.portChain;
                 }
-                qCDebug(log_ui_camera) << "========================================";
+                
+                // For Windows: Also manually check for Qt camera device changes
+                if (isWindowsPlatform()) {
+                    onVideoInputsChanged();
+                }
             });
             
     qCDebug(log_ui_camera) << "CameraManager successfully connected to hotplug monitor";
@@ -4086,107 +3687,4 @@ QString CameraManager::getRecordingDiagnosticsReport() const
     }
     
     return report;
-}
-
-void CameraManager::startRecordingMonitoring()
-{
-    // Create timer if it doesn't exist
-    if (!m_recordingMonitorTimer) {
-        m_recordingMonitorTimer = new QTimer(this);
-        connect(m_recordingMonitorTimer, &QTimer::timeout, this, &CameraManager::updateRecordingStatus);
-    }
-    
-    // Start timer - check every 2 seconds
-    m_recordingMonitorTimer->start(2000);
-    qCDebug(log_ui_camera) << "Recording monitoring started";
-}
-
-void CameraManager::stopRecordingMonitoring()
-{
-    if (m_recordingMonitorTimer && m_recordingMonitorTimer->isActive()) {
-        m_recordingMonitorTimer->stop();
-        qCDebug(log_ui_camera) << "Recording monitoring stopped";
-    }
-}
-
-void CameraManager::updateRecordingStatus()
-{
-    if (!isRecording() || m_currentRecordingPath.isEmpty()) {
-        stopRecordingMonitoring();
-        return;
-    }
-    
-    // Check if the recording file exists and is growing
-    QFileInfo fileInfo(m_currentRecordingPath);
-    static qint64 lastSize = 0;
-    
-    if (fileInfo.exists()) {
-        qint64 currentSize = fileInfo.size();
-        qint64 delta = currentSize - lastSize;
-        lastSize = currentSize;
-        
-        if (delta <= 0 && currentSize > 0) {
-            // If file size isn't increasing, there might be a recording issue
-            qCWarning(log_ui_camera) << "Recording may be stalled - file size not increasing";
-            
-            // Check with the backend to see if it's still recording
-            bool backendStillRecording = false;
-            
-#ifndef Q_OS_WIN
-            // Linux-specific backend recording check
-            if (m_backendHandler) {
-                switch (m_backendHandler->getBackendType()) {
-                    case MultimediaBackendType::FFmpeg: {
-                        if (auto ffmpeg = qobject_cast<FFmpegBackendHandler*>(m_backendHandler.get())) {
-                            backendStillRecording = ffmpeg->isRecording();
-                        }
-                        break;
-                    }
-                    case MultimediaBackendType::GStreamer: {
-                        if (auto gst = qobject_cast<GStreamerBackendHandler*>(m_backendHandler.get())) {
-                            backendStillRecording = gst->isRecording();
-                        }
-                        break;
-                    }
-                    default:
-                        break;
-                }
-            }
-#else
-            // Windows-specific recording check
-            if (m_mediaRecorder) {
-                backendStillRecording = (m_mediaRecorder->recorderState() == QMediaRecorder::RecordingState);
-            }
-#endif
-            
-            // If backend reports it's still recording but file isn't growing, wait a bit longer
-            if (backendStillRecording) {
-                static int stalledFrameCount = 0;
-                stalledFrameCount++;
-                
-                // After multiple stalled checks (about 10 seconds), try to recover
-                if (stalledFrameCount > 5) {
-                    qCWarning(log_ui_camera) << "Recording appears stalled for extended period, attempting recovery";
-                    // Implement recovery strategy if needed
-                    stalledFrameCount = 0;
-                }
-            }
-        } else if (delta > 0) {
-            // Log file growth for debugging (at lower intervals to avoid log spam)
-            static int logCounter = 0;
-            if (++logCounter % 5 == 0) {
-                qCDebug(log_ui_camera) << "Recording file size:" << (currentSize / 1024) << "KB, growth:" 
-                                       << (delta / 1024) << "KB in last 2 seconds";
-                logCounter = 0;
-            }
-        }
-    } else {
-        qCWarning(log_ui_camera) << "Recording file does not exist:" << m_currentRecordingPath;
-        
-        // If recording says it's active but file doesn't exist, stop recording
-        if (isRecording()) {
-            qCWarning(log_ui_camera) << "Recording claims to be active but file doesn't exist - stopping recording";
-            stopRecording();
-        }
-    }
 }

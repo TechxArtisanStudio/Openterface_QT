@@ -223,14 +223,6 @@ private:
     void initializeBackendHandler();
     void updateBackendHandler();
     
-    // Recording monitoring methods
-    void startRecordingMonitoring();
-    void stopRecordingMonitoring();
-    void updateRecordingStatus();
-    
-    // Timer for recording monitoring
-    QTimer* m_recordingMonitorTimer = nullptr;
-    
     // FFmpeg backend specific methods
     void handleFFmpegDeviceDisconnection(const QString& devicePath);
     

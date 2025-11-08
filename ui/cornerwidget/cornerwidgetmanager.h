@@ -21,10 +21,8 @@ public:
     void setMenuBar(QMenuBar *menuBar);
     void updatePosition(int windowWidth, int menuBarHeight, bool isFullScreen);
     void initializeKeyboardLayouts(const QStringList &layouts, const QString &defaultLayout);
-    void restoreMuteState(bool muted);
     QPushButton *screensaverButton;
     QPushButton *recordingButton;
-    QPushButton *muteButton;
 
 signals:
     void zoomInClicked();
@@ -39,7 +37,6 @@ signals:
     void toggleSwitchChanged(int state);
     void keyboardLayoutChanged(const QString &layout);
     void recordingToggled();
-    void muteToggled();
 
 private:
     void createWidgets();
@@ -60,7 +57,6 @@ private:
     ToggleSwitch *toggleSwitch;
     QHBoxLayout *horizontalLayout;
     bool isRecording;
-    bool isMuted;
     QMenuBar *menuBar;
     int layoutThreshold;
 };

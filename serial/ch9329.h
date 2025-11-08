@@ -22,12 +22,6 @@ const QByteArray CMD_SET_PARA_CFG_PREFIX_9600 = QByteArray::fromHex("57 AB 00 09
 // const QByteArray CMD_SET_INFO_PREFIX = QByteArray::fromHex("57 AB 00 09 32 82 80 00 00 01 C2 00");
 const QByteArray CMD_SET_PARA_CFG_MID = QByteArray::fromHex("08 00 00 03 86 1a 29 e1 00 00 00 01 00 0d 00 00 00 00 00 00 00") + QByteArray(22, 0x00) ;
 
-// New USB switch commands for FE0C serial port (firmware with new USB switching protocol)
-// Command format: 57 AB 00 17 05 00 00 00 00 <param> <checksum>
-const QByteArray CMD_SWITCH_USB_TO_HOST = QByteArray::fromHex("57 AB 00 17 05 00 00 00 00 00");      // Switch USB to host
-const QByteArray CMD_SWITCH_USB_TO_TARGET = QByteArray::fromHex("57 AB 00 17 05 00 00 00 00 01");    // Switch USB to target
-const QByteArray CMD_CHECK_USB_STATUS = QByteArray::fromHex("57 AB 00 17 05 00 00 00 00 03");       // Check USB switch status
-
 /* some default value while using default mode */
 const QByteArray RESERVED_2BYTES = QByteArray::fromHex("08 00");    // reserved 2 bytes
 const QByteArray PACKAGE_INTERVAL = QByteArray::fromHex("00 03");

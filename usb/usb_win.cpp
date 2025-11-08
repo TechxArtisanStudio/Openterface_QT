@@ -69,9 +69,7 @@ void GetUsbDevices()
         std::wstring wDeviceName(buffer);
         std::string deviceName = ConvertWideToUTF8(wDeviceName);
         
-        // Use OutputDebugString instead of printf for Windows GUI apps
-        std::string debugMsg = "Device: " + deviceName + "\n";
-        OutputDebugStringA(debugMsg.c_str());
+        printf("Device: %s\n", deviceName.c_str());
 
         if (buffer) LocalFree(buffer);
     }

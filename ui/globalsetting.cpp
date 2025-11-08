@@ -448,13 +448,3 @@ QString GlobalSetting::getRecordingOutputPath() const
 {
     return m_settings.value("recording/outputPath", "").toString();
 }
-
-void GlobalSetting::setAudioMuted(bool muted)
-{
-    m_settings.setValue("audio/muted", muted);
-}
-
-bool GlobalSetting::getAudioMuted() const
-{
-    return m_settings.value("audio/muted", true).toBool();
-}

@@ -135,30 +135,18 @@
 <context>
     <name>CornerWidgetManager</name>
     <message>
-        <location filename="../../ui/cornerwidget/cornerwidgetmanager.cpp" line="71"/>
+        <location filename="../../ui/cornerwidget/cornerwidgetmanager.cpp" line="59"/>
         <source>Select Keyboard Layout</source>
         <translation type="unfinished">Tastaturlayout auswählen</translation>
     </message>
     <message>
-        <location filename="../../ui/cornerwidget/cornerwidgetmanager.cpp" line="144"/>
+        <location filename="../../ui/cornerwidget/cornerwidgetmanager.cpp" line="130"/>
         <source>Stop Recording</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/cornerwidget/cornerwidgetmanager.cpp" line="144"/>
+        <location filename="../../ui/cornerwidget/cornerwidgetmanager.cpp" line="130"/>
         <source>Start Recording</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../../ui/cornerwidget/cornerwidgetmanager.cpp" line="152"/>
-        <location filename="../../ui/cornerwidget/cornerwidgetmanager.cpp" line="173"/>
-        <source>Unmute Audio</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../../ui/cornerwidget/cornerwidgetmanager.cpp" line="152"/>
-        <location filename="../../ui/cornerwidget/cornerwidgetmanager.cpp" line="173"/>
-        <source>Mute Audio</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -223,119 +211,99 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="118"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="120"/>
         <source> The device is not plugged in. Please plug it in and try again.</source>
         <translation type="unfinished"> Das Gerät ist nicht angeschlossen. Bitte schließen Sie es an und versuchen Sie es erneut.</translation>
     </message>
     <message>
+        <location filename="../../ui/advance/envdialog.cpp" line="110"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="142"/>
         <source>‣ Driver Installed: </source>
-        <translation type="vanished">‣ Treiber installiert: </translation>
+        <translation>‣ Treiber installiert: </translation>
     </message>
     <message>
+        <location filename="../../ui/advance/envdialog.cpp" line="111"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="146"/>
         <source>‣ Latest Firmware: </source>
-        <translation type="obsolete">‣ Aktuelle Firmware: </translation>
-    </message>
-    <message>
-        <source>‣ In Serial Port Permission: </source>
-        <translation type="obsolete">‣ In der seriellen Anschlusserlaubnis: </translation>
-    </message>
-    <message>
-        <source>‣ HID Permission: </source>
-        <translation type="vanished">‣ HID-Berechtigung: </translation>
-    </message>
-    <message>
-        <source>‣ BRLTTY checking: </source>
-        <translation type="vanished">‣ BRLTTY-Prüfung: </translation>
+        <translation type="unfinished">‣ Aktuelle Firmware: </translation>
     </message>
     <message>
         <location filename="../../ui/advance/envdialog.cpp" line="143"/>
+        <source>‣ In Serial Port Permission: </source>
+        <translation type="unfinished">‣ In der seriellen Anschlusserlaubnis: </translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/envdialog.cpp" line="144"/>
+        <source>‣ HID Permission: </source>
+        <translation>‣ HID-Berechtigung: </translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/envdialog.cpp" line="145"/>
+        <source>‣ BRLTTY checking: </source>
+        <translation>‣ BRLTTY-Prüfung: </translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/envdialog.cpp" line="145"/>
         <source> (needs removal)</source>
         <translation> (muss entfernt werden)</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="143"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="145"/>
         <source> (not running)</source>
         <translation> (läuft nicht)</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="183"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="185"/>
         <source>Install Driver</source>
         <translation type="unfinished">Treiber installieren</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="190"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="192"/>
         <source>Copy Link</source>
         <translation type="unfinished">Link kopieren</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="206"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="208"/>
         <source>Select Destination Directory</source>
         <translation>Zielverzeichnis auswählen</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="262"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="264"/>
         <source>Driver Installed: </source>
         <translation>Treiber installiert: </translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="262"/>
-        <location filename="../../ui/advance/envdialog.cpp" line="263"/>
         <location filename="../../ui/advance/envdialog.cpp" line="264"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="265"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="266"/>
         <source>Yes</source>
         <translation>Ja</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="262"/>
-        <location filename="../../ui/advance/envdialog.cpp" line="263"/>
         <location filename="../../ui/advance/envdialog.cpp" line="264"/>
         <location filename="../../ui/advance/envdialog.cpp" line="265"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="266"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="267"/>
         <source>No</source>
         <translation>Nein</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="263"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="265"/>
         <source>Serial port Permission: </source>
         <translation type="unfinished">Serielle Schnittstellenberechtigung: </translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="105"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="107"/>
         <source>The following steps help you install the driver and the Openterface firmware update. Current status:&lt;br&gt;</source>
         <translation type="unfinished">Die folgenden Schritte helfen Ihnen bei der Installation des Treibers und der Openterface-Firmware-Aktualisierung. Aktueller Status:</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="108"/>
-        <location filename="../../ui/advance/envdialog.cpp" line="140"/>
-        <source>��?Driver Installed: </source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="109"/>
-        <location filename="../../ui/advance/envdialog.cpp" line="144"/>
-        <source>��?Latest Firmware: </source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="139"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="141"/>
         <source>The following steps help you install the driver and access the device permissions and the Openterface firmware update. Current status:&lt;br&gt;</source>
         <translation type="unfinished">Die folgenden Schritte helfen Ihnen dabei, den Treiber zu installieren, auf die Geräteberechtigungen zuzugreifen und die Openterface-Firmware-Aktualisierung vorzunehmen. Aktueller Status:</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="141"/>
-        <source>��?In Serial Port Permission: </source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="142"/>
-        <source>��?HID Permission: </source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="143"/>
-        <source>��?BRLTTY checking: </source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="184"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="186"/>
         <source>The driver is missing. Please install the driver at: https://www.wch.cn/downloads/CH341SER.EXE.html 
 
 After the driver is installed, a system restart and device re-plugging is required for the changes to take effect.
@@ -348,27 +316,27 @@ Nach der Treiberinstallation ist ein Systemneustart und erneutes Anschließen de
 Starten Sie Ihren Computer nach der Treiberinstallation neu.</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="264"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="266"/>
         <source>HID Permission: </source>
         <translation>HID-Berechtigung: </translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="265"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="267"/>
         <source>BRLTTY is Running: </source>
         <translation>BRLTTY läuft: </translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="265"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="267"/>
         <source>Yes (needs removal)</source>
         <translation>Ja (muss entfernt werden)</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="271"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="273"/>
         <source>Restart Required</source>
         <translation>Neustart erforderlich</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="272"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="274"/>
         <source>The driver has been installed. A system restart and device re-plugging is required for the changes to take effect.
 
 Would you like to restart your computer now?</source>
@@ -377,12 +345,12 @@ Would you like to restart your computer now?</source>
 Möchten Sie Ihren Computer jetzt neu starten?</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="281"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="283"/>
         <source>Restart Later</source>
         <translation>Später neu starten</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="282"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="284"/>
         <source>Please remember to restart your computer and re-plug the device for the driver to work properly.</source>
         <translation>Bitte denken Sie daran, Ihren Computer neu zu starten und das Gerät erneut anzuschließen, damit der Treiber ordnungsgemäß funktioniert.</translation>
     </message>
@@ -958,43 +926,43 @@ Bitte versuchen Sie es erneut nach einem Neustart der Anwendung.</translation>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="643"/>
+        <location filename="../../ui/mainwindow.cpp" line="620"/>
         <source>Active Recording</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="644"/>
+        <location filename="../../ui/mainwindow.cpp" line="621"/>
         <source>There is an active recording session. Do you want to stop it before changing settings?</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="832"/>
+        <location filename="../../ui/mainwindow.cpp" line="809"/>
         <source>Image Capture Error</source>
         <translation>Bildaufnahmefehler</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="901"/>
+        <location filename="../../ui/mainwindow.cpp" line="878"/>
         <source>Captured &quot;%1&quot;</source>
         <translation>Erfasst &quot;%1&quot;</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1381"/>
+        <location filename="../../ui/mainwindow.cpp" line="1362"/>
         <source>Firmware Update</source>
         <translation>Firmware-Aktualisierung</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1382"/>
+        <location filename="../../ui/mainwindow.cpp" line="1363"/>
         <source>The firmware is up to date.
 Current version: </source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1404"/>
+        <location filename="../../ui/mainwindow.cpp" line="1385"/>
         <source>Firmware fetch timeout</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1405"/>
+        <location filename="../../ui/mainwindow.cpp" line="1386"/>
         <source>Firmware retrieval timed out. Please check your network connection and try again.
 Current version: </source>
         <translation type="unfinished"></translation>
@@ -1128,37 +1096,37 @@ Technical details: %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/recording/recordingcontroller.cpp" line="598"/>
+        <location filename="../../ui/recording/recordingcontroller.cpp" line="599"/>
         <source>System Reset Complete</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/recording/recordingcontroller.cpp" line="599"/>
+        <location filename="../../ui/recording/recordingcontroller.cpp" line="600"/>
         <source>The recording system has been reset. Please try recording again.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/recording/recordingcontroller.cpp" line="607"/>
+        <location filename="../../ui/recording/recordingcontroller.cpp" line="608"/>
         <source>Diagnostics Unavailable</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/recording/recordingcontroller.cpp" line="608"/>
+        <location filename="../../ui/recording/recordingcontroller.cpp" line="609"/>
         <source>Cannot retrieve diagnostics - camera manager is not available.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/recording/recordingcontroller.cpp" line="617"/>
+        <location filename="../../ui/recording/recordingcontroller.cpp" line="618"/>
         <source>Recording System Diagnostics</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/recording/recordingcontroller.cpp" line="628"/>
+        <location filename="../../ui/recording/recordingcontroller.cpp" line="629"/>
         <source>Copy to Clipboard</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/recording/recordingcontroller.cpp" line="629"/>
+        <location filename="../../ui/recording/recordingcontroller.cpp" line="630"/>
         <source>Close</source>
         <translation type="unfinished">Schließen</translation>
     </message>

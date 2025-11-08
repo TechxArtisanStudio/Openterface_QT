@@ -135,19 +135,7 @@ fi
 # Install patchelf for rpath manipulation
 apt update && apt install -y patchelf
 
-# =========================
-# Bundle Qt 6.6 libraries and plugins
-# =========================
-echo "Bundling Qt 6.6 libraries and plugins..."
-
-# Create application-specific lib and plugins directories
-APPDIR_LIB="${PKG_ROOT}/usr/local/openterface/lib"
-APPDIR_PLUGINS="${PKG_ROOT}/usr/local/openterface/plugins"
-
-mkdir -p "${APPDIR_LIB}"
-mkdir -p "${APPDIR_PLUGINS}"
-
-# Find Qt6 library directory
+# Copy Qt libraries to bundle them in the deb
 QT_LIB_DIR="/opt/Qt6/lib"
 if [ ! -d "${QT_LIB_DIR}" ]; then
     # Fallback to system Qt6 libraries if custom build not found
@@ -158,25 +146,17 @@ if [ ! -d "${QT_LIB_DIR}" ]; then
     QT_LIB_DIR="/usr/lib"
 fi
 
-# Copy Qt6 Core, Gui, Widgets, and related libraries to appdir/lib
 if [ -d "${QT_LIB_DIR}" ]; then
-    echo "Copying Qt6 libraries from ${QT_LIB_DIR}..."
-    
-    # Copy all Qt6 .so libraries
-    find "${QT_LIB_DIR}" -maxdepth 1 -name "libQt6*.so*" -type f -exec cp -a {} "${APPDIR_LIB}/" \; 2>/dev/null || true
-    find "${QT_LIB_DIR}" -maxdepth 1 -name "libQt6*.so*" -type l -exec cp -a {} "${APPDIR_LIB}/" \; 2>/dev/null || true
-    
-    if ls "${APPDIR_LIB}"/libQt6*.so* >/dev/null 2>&1; then
-        echo "✅ Qt6 libraries copied successfully to ${APPDIR_LIB}"
-        ls -lh "${APPDIR_LIB}"/libQt6*.so* | head -10
-    else
-        echo "⚠️  Warning: No Qt6 libraries found"
-    fi
+    mkdir -p "${PKG_ROOT}/usr/lib"
+    echo "Copying Qt libraries from ${QT_LIB_DIR}..."
+    # Copy only Qt6 libraries (not all system libraries)
+    find "${QT_LIB_DIR}" -maxdepth 1 -name "libQt6*.so*" -exec cp -a {} "${PKG_ROOT}/usr/lib/" \; 2>/dev/null || true
+    echo "✅ Qt libraries copied successfully"
 else
     echo "⚠️  Warning: Qt library directory not found"
 fi
 
-# Find and copy Qt6 plugins
+# Copy Qt plugins
 QT_PLUGIN_DIR="/opt/Qt6/plugins"
 if [ ! -d "${QT_PLUGIN_DIR}" ]; then
     # Fallback to system Qt6 plugins if custom build not found
@@ -188,93 +168,26 @@ if [ ! -d "${QT_PLUGIN_DIR}" ]; then
 fi
 
 if [ -d "${QT_PLUGIN_DIR}" ]; then
-    echo "Copying Qt6 plugins from ${QT_PLUGIN_DIR}..."
-    # Copy all plugin subdirectories (platforms, iconengines, imageformats, etc.)
-    cp -ra "${QT_PLUGIN_DIR}"/* "${APPDIR_PLUGINS}/" 2>/dev/null || true
-    
-    if [ -d "${APPDIR_PLUGINS}/platforms" ]; then
-        echo "✅ Qt6 plugins copied successfully to ${APPDIR_PLUGINS}"
-        find "${APPDIR_PLUGINS}" -maxdepth 2 -type d | head -10
-    else
-        echo "⚠️  Warning: Qt plugins directory structure not created"
-    fi
+    mkdir -p "${PKG_ROOT}/usr/lib/qt6/plugins"
+    echo "Copying Qt plugins from ${QT_PLUGIN_DIR}..."
+    cp -ra "${QT_PLUGIN_DIR}"/* "${PKG_ROOT}/usr/lib/qt6/plugins/" 2>/dev/null || true
+    echo "✅ Qt plugins copied successfully"
 else
     echo "⚠️  Warning: Qt plugin directory not found at ${QT_PLUGIN_DIR}"
 fi
 
-# Copy Qt QML imports if present
+# Copy Qt QML imports
 QT_QML_DIR="/opt/Qt6/qml"
-APPDIR_QML="${PKG_ROOT}/usr/local/openterface/qml"
 if [ -d "${QT_QML_DIR}" ]; then
-    mkdir -p "${APPDIR_QML}"
+    mkdir -p "${PKG_ROOT}/usr/lib/qt6/qml"
     echo "Copying Qt QML imports..."
-    cp -ra "${QT_QML_DIR}"/* "${APPDIR_QML}/" 2>/dev/null || true
-    echo "✅ Qt QML imports copied"
+    cp -ra "${QT_QML_DIR}"/* "${PKG_ROOT}/usr/lib/qt6/qml/" 2>/dev/null || true
 fi
 
-# =========================
-# Copy FFmpeg dependencies
-# =========================
-echo "Copying FFmpeg dependencies..."
-
-# FFmpeg libraries
-FFMPEG_LIB_DIRS="/opt/ffmpeg/lib /usr/lib/x86_64-linux-gnu /usr/lib /usr/lib/aarch64-linux-gnu"
-FFMPEG_LIBS="libavcodec.so libavformat.so libavutil.so libswscale.so libswresample.so libavdevice.so libavfilter.so"
-
-for LIB_DIR in ${FFMPEG_LIB_DIRS}; do
-    if [ -d "${LIB_DIR}" ]; then
-        for LIB in ${FFMPEG_LIBS}; do
-            # Find the library with any version suffix (e.g., libavcodec.so.60)
-            if find "${LIB_DIR}" -maxdepth 1 -name "${LIB}*" -type f 2>/dev/null | grep -q .; then
-                echo "Found FFmpeg libraries in ${LIB_DIR}"
-                mkdir -p "${PKG_ROOT}/usr/lib"
-                find "${LIB_DIR}" -maxdepth 1 -name "libav*.so*" -exec cp -a {} "${PKG_ROOT}/usr/lib/" \; 2>/dev/null || true
-                find "${LIB_DIR}" -maxdepth 1 -name "libsw*.so*" -exec cp -a {} "${PKG_ROOT}/usr/lib/" \; 2>/dev/null || true
-                echo "✅ FFmpeg libraries copied successfully"
-                break 2  # Break both loops
-            fi
-        done
-    fi
-done
-
-# Copy FFmpeg plugins/filters if they exist
-FFMPEG_PLUGIN_DIRS="/opt/ffmpeg/lib/x86_64-linux-gnu/ffmpeg-plugins /opt/ffmpeg/lib/aarch64-linux-gnu/ffmpeg-plugins /opt/ffmpeg/lib/ffmpeg-plugins /usr/lib/x86_64-linux-gnu/ffmpeg-plugins /usr/lib/aarch64-linux-gnu/ffmpeg-plugins"
-for PLUGIN_DIR in ${FFMPEG_PLUGIN_DIRS}; do
-    if [ -d "${PLUGIN_DIR}" ]; then
-        mkdir -p "${PKG_ROOT}/usr/lib/ffmpeg-plugins"
-        echo "Copying FFmpeg plugins from ${PLUGIN_DIR}..."
-        cp -ra "${PLUGIN_DIR}"/* "${PKG_ROOT}/usr/lib/ffmpeg-plugins/" 2>/dev/null || true
-        break
-    fi
-done
-
-# =========================
-# Copy libturbojpeg dependencies
-# =========================
-echo "Copying libturbojpeg dependencies..."
-
-TURBOJPEG_LIB_DIRS="/opt/ffmpeg/lib /opt/turbojpeg/lib /usr/lib/x86_64-linux-gnu /usr/lib /usr/lib/aarch64-linux-gnu"
-TURBOJPEG_LIBS="libturbojpeg.so"
-
-for LIB_DIR in ${TURBOJPEG_LIB_DIRS}; do
-    if [ -d "${LIB_DIR}" ]; then
-        for LIB in ${TURBOJPEG_LIBS}; do
-            # Find the library with any version suffix (e.g., libturbojpeg.so.0)
-            if find "${LIB_DIR}" -maxdepth 1 -name "${LIB}*" -type f 2>/dev/null | grep -q .; then
-                echo "Found libturbojpeg libraries in ${LIB_DIR}"
-                mkdir -p "${PKG_ROOT}/usr/lib"
-                find "${LIB_DIR}" -maxdepth 1 -name "libturbojpeg.so*" -exec cp -a {} "${PKG_ROOT}/usr/lib/" \; 2>/dev/null || true
-                echo "✅ libturbojpeg libraries copied successfully"
-                break 2  # Break both loops
-            fi
-        done
-    fi
-done
-
-# Update the binary's rpath to point to bundled libraries in appdir
+# Update the binary's rpath to point to bundled libraries
 if [ -f "${PKG_ROOT}/usr/local/bin/openterfaceQT" ]; then
-    echo "Updating rpath for bundled Qt, FFmpeg, and turbojpeg libraries..."
-    patchelf --set-rpath '$ORIGIN/../openterface/lib:/usr/lib:/usr/lib/ffmpeg-plugins' "${PKG_ROOT}/usr/local/bin/openterfaceQT"
+    echo "Updating rpath for bundled Qt libraries..."
+    patchelf --set-rpath '/usr/lib' "${PKG_ROOT}/usr/local/bin/openterfaceQT"
 fi
 
 # Copy desktop file (ensure Exec uses installed path and Icon basename is openterfaceQT)
@@ -283,37 +196,6 @@ if [ -f "${SRC}/com.openterface.openterfaceQT.desktop" ]; then
 		-e 's|^Icon=.*$|Icon=openterfaceQT|g' \
 		"${SRC}/com.openterface.openterfaceQT.desktop" > "${PKG_ROOT}/usr/share/applications/com.openterface.openterfaceQT.desktop"
 fi
-
-# Create launcher script wrapper that sets LD_LIBRARY_PATH and Qt environment for bundled libraries
-mkdir -p "${PKG_ROOT}/usr/local/bin"
-cat > "${PKG_ROOT}/usr/local/bin/start-openterface.sh" << 'EOF'
-#!/bin/bash
-# Openterface QT Launcher Wrapper - Sets up bundled library paths and Qt environment
-
-# Get the directory where this script is located
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# Calculate the application directory (one level up, then into openterface)
-APPDIR="$(cd "${SCRIPT_DIR}/../openterface" && pwd)"
-
-# Set library path for bundled Qt and other libraries
-APPDIR_LIB="${APPDIR}/lib"
-if [ -n "${LD_LIBRARY_PATH:-}" ]; then
-  export LD_LIBRARY_PATH="${APPDIR_LIB}:/usr/lib:/usr/lib/x86_64-linux-gnu:/usr/lib/aarch64-linux-gnu:/opt/ffmpeg/lib:${LD_LIBRARY_PATH}"
-else
-  export LD_LIBRARY_PATH="${APPDIR_LIB}:/usr/lib:/usr/lib/x86_64-linux-gnu:/usr/lib/aarch64-linux-gnu:/opt/ffmpeg/lib"
-fi
-
-# Set Qt environment variables to use bundled plugins and QML
-export QT_PLUGIN_PATH="${APPDIR}/plugins:${APPDIR}/plugins/platforms:/usr/lib/qt6/plugins:/usr/lib/x86_64-linux-gnu/qt6/plugins"
-export QML2_IMPORT_PATH="${APPDIR}/qml:/usr/lib/qt6/qml:/usr/lib/x86_64-linux-gnu/qt6/qml"
-export QT_QPA_PLATFORM_PLUGIN_PATH="${APPDIR}/plugins/platforms:/usr/lib/qt6/plugins/platforms:/usr/lib/x86_64-linux-gnu/qt6/plugins/platforms"
-export QT_QPA_PLATFORM="xcb"
-export QT_X11_NO_MITSHM=1
-
-# Execute the actual binary
-exec /usr/local/bin/openterfaceQT "$@"
-EOF
-chmod +x "${PKG_ROOT}/usr/local/bin/start-openterface.sh"
 
 # Install icon into hicolor theme
 ICON_SRC=""

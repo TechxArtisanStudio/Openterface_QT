@@ -587,7 +587,8 @@ void RecordingController::resetRecordingSystem()
     progressDialog.setCancelButton(nullptr);
     progressDialog.show();
     
-    // No need to force process events - dialog will display naturally
+    // Process events to ensure the dialog displays
+    QCoreApplication::processEvents();
     
     // Reset the recording system
     m_cameraManager->recoverRecordingSystem();
