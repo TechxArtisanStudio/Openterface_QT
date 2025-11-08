@@ -21,7 +21,17 @@ echo "=============================================="
 
 # Configuration
 GITHUB_REPO="TechxArtisanStudio/Openterface_QT"
-PACKAGE_NAME="openterfaceQT.linux.amd64.shared.deb"
+
+# Determine what type of package to download based on environment variable
+# Default to DEB if not specified
+INSTALL_TYPE="${INSTALL_TYPE:-deb}"
+
+# Set package name based on install type
+if [ "$INSTALL_TYPE" = "appimage" ]; then
+    PACKAGE_NAME="openterfaceQT.linux.amd64.shared.AppImage"
+else
+    PACKAGE_NAME="openterfaceQT.linux.amd64.shared.deb"
+fi
 
 # Function to get the latest release version
 get_latest_version() {
