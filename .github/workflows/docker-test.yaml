@@ -737,19 +737,19 @@ jobs:
                   # Pattern 1: Unescaped URLs (https://i.ibb.co/...)
                   UPLOAD_URL=$(echo "$UPLOAD_OUTPUT" | grep -oE 'https://i\.ibb\.co/[^ "]*' | head -1)
                   
-                  # Pattern 2: Escaped URLs (https:\/\/i.ibb.co\/...)
+                  # Pattern 2: Escaped URLs (https:\/\/i.ibb.co\/...) - use | as sed delimiter to avoid conflicts
                   if [ -z "$UPLOAD_URL" ]; then
-                    UPLOAD_URL=$(echo "$UPLOAD_OUTPUT" | grep -oE 'https:\\/\\/i\.ibb\.co\\/[^ "]*' | head -1 | sed 's/\\//\//g')
+                    UPLOAD_URL=$(echo "$UPLOAD_OUTPUT" | grep -oE 'https:\\/\\/i\.ibb\.co\\/[^ "]*' | head -1 | sed 's|\\/|/|g')
                   fi
                   
-                  # Pattern 3: IMAGE URL line
+                  # Pattern 3: IMAGE URL line - use | as sed delimiter
                   if [ -z "$UPLOAD_URL" ]; then
-                    UPLOAD_URL=$(echo "$UPLOAD_OUTPUT" | grep "IMAGE URL:" | grep -oE 'https[^ ]*' | sed 's/\\//\//g' | head -1)
+                    UPLOAD_URL=$(echo "$UPLOAD_OUTPUT" | grep "IMAGE URL:" | grep -oE 'https[^ ]*' | sed 's|\\/|/|g' | head -1)
                   fi
                   
-                  # Pattern 4: Get the last non-empty line that looks like a URL
+                  # Pattern 4: Get the last non-empty line that looks like a URL - use | as sed delimiter
                   if [ -z "$UPLOAD_URL" ]; then
-                    UPLOAD_URL=$(echo "$UPLOAD_OUTPUT" | grep -E '^https' | tail -1 | sed 's/\\//\//g')
+                    UPLOAD_URL=$(echo "$UPLOAD_OUTPUT" | grep -E '^https' | tail -1 | sed 's|\\/|/|g')
                   fi
                   
                   if [ -n "$UPLOAD_URL" ]; then
@@ -761,10 +761,10 @@ jobs:
                   else
                     echo "⚠️  Upload URL extraction inconclusive for $filename"
                     echo "   Raw output (last 10 lines):"
-                    echo "$UPLOAD_OUTPUT" | tail -10 | sed 's/^/   /'
+                    echo "$UPLOAD_OUTPUT" | tail -10 | sed 's|^|   |'
                     # Still try to extract from raw output as fallback
                     echo "   Attempting URL recovery..."
-                    FALLBACK_URL=$(echo "$UPLOAD_OUTPUT" | grep -o 'https[^[:space:]]*' | tail -1 | sed 's/\\//\//g')
+                    FALLBACK_URL=$(echo "$UPLOAD_OUTPUT" | grep -o 'https[^[:space:]]*' | tail -1 | sed 's|\\/|/|g')
                     if [ -n "$FALLBACK_URL" ] && echo "$FALLBACK_URL" | grep -q 'ibb.co'; then
                       echo "   ✅ Recovered URL: $FALLBACK_URL"
                       echo "![Screenshot]($FALLBACK_URL)" >> $GITHUB_STEP_SUMMARY
