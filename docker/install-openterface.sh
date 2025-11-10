@@ -292,12 +292,17 @@ install_deb_package() {
         print_success "Package installed successfully"
     else
         print_warning "Package installation had dependency issues (exit code: $DPKG_EXIT)"
+        print_info "Error output:"
+        echo "$DPKG_OUTPUT"
+        echo ""
         print_info "Attempting to fix dependencies..."
         
         if APT_FIX=$($SUDO apt-get install -f -y 2>&1); then
             print_success "Dependencies resolved"
         else
             print_error "Failed to fix dependencies"
+            print_info "Error output:"
+            echo "$APT_FIX"
             return 1
         fi
     fi
