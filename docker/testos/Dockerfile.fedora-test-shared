@@ -58,6 +58,9 @@ RUN dnf update -y && \
         gstreamer1-libav \
         gstreamer1-plugins-good-extras \
         gstreamer1-plugins-bad-free-extras \
+        # FUSE support for AppImage installations
+        fuse \
+        fuse-libs \
         # Clean up to reduce image size
     && dnf clean all && \
     rm -rf /var/cache/dnf

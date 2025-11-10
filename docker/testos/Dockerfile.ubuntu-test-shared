@@ -96,8 +96,12 @@ RUN apt-get install -y libgstreamer1.0-0 \
 # Video4Linux utilities for V4L2 device management and testing
 RUN apt-get install -y v4l-utils
 
+# FUSE support for AppImage installations
+RUN apt-get install -y libfuse2 \
+        fuse
+
 # Clean up to reduce image size
- RUN   apt-get clean && \
+RUN apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
 # Create a non-root user for running the application

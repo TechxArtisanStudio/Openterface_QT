@@ -61,6 +61,9 @@ RUN pacman -S --noconfirm gstreamer \
         alsa-utils \
         pulseaudio
 
+# FUSE support for AppImage installations
+RUN pacman -S --noconfirm fuse2
+
 # Clean up to reduce image size
 RUN pacman -Scc --noconfirm
 

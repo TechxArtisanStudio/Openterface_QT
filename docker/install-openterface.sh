@@ -430,11 +430,15 @@ check_fuse_support() {
     
     if command -v fusermount >/dev/null 2>&1; then
         print_success "FUSE (fusermount) is available"
+        # Store FUSE availability for launcher script
+        echo "FUSE_AVAILABLE=true" > /tmp/openterface-config.sh
         return 0
     else
         print_warning "FUSE (fusermount) not available"
-        print_info "AppImage will need to run with --appimage-extract-and-run flag"
-        print_info "Consider installing: sudo apt-get install libfuse2 fuse"
+        print_info "AppImage will run in extraction mode"
+        print_info "For optimal performance, install: sudo apt-get install libfuse2 fuse"
+        # Store FUSE unavailability for launcher script
+        echo "FUSE_AVAILABLE=false" > /tmp/openterface-config.sh
         return 1
     fi
 }
@@ -561,8 +565,33 @@ if [ -z "$BINARY_LOCATION" ]; then
 fi
 
 echo "🚀 Running from $BINARY_LOCATION..."
-export LD_LIBRARY_PATH=/usr/lib:$LD_LIBRARY_PATH
-exec "$BINARY_LOCATION" "$@"
+
+# Check if it is an AppImage and handle accordingly
+if file "$BINARY_LOCATION" 2>/dev/null | grep -q "AppImage"; then
+    echo "📦 Detected AppImage format"
+    
+    # Check FUSE support
+    if command -v fusermount >/dev/null 2>&1; then
+        echo "✅ FUSE is available - running AppImage directly"
+        export LD_LIBRARY_PATH=/usr/lib:$LD_LIBRARY_PATH
+        export QT_QPA_PLATFORM=xcb
+        export QT_X11_NO_MITSHM=1
+        exec "$BINARY_LOCATION" "$@"
+    else
+        echo "⚠️  FUSE not available - using extraction mode"
+        echo "   (Install libfuse2 and fuse for better performance)"
+        export LD_LIBRARY_PATH=/usr/lib:$LD_LIBRARY_PATH
+        export QT_QPA_PLATFORM=xcb
+        export QT_X11_NO_MITSHM=1
+        exec "$BINARY_LOCATION" --appimage-extract-and-run "$@"
+    fi
+else
+    # Regular binary (e.g., from DEB package)
+    export LD_LIBRARY_PATH=/usr/lib:$LD_LIBRARY_PATH
+    export QT_QPA_PLATFORM=xcb
+    export QT_X11_NO_MITSHM=1
+    exec "$BINARY_LOCATION" "$@"
+fi
 LAUNCHER_EOF'
     
     $SUDO chmod +x /usr/local/bin/start-openterface.sh
