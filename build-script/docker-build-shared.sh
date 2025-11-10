@@ -591,7 +591,14 @@ Description: OpenterfaceQT Mini-KVM Linux Edition
 EOF
 fi
 
-# Copy postinst and postrm scripts if they exist
+# Copy preinst, postinst and postrm scripts if they exist
+if [ -f "${SRC}/packaging/debian/preinst" ]; then
+	install -m 0755 "${SRC}/packaging/debian/preinst" "${PKG_ROOT}/DEBIAN/preinst"
+	echo "✅ preinst script installed"
+else
+	echo "⚠️  preinst script not found at ${SRC}/packaging/debian/preinst"
+fi
+
 if [ -f "${SRC}/packaging/debian/postinst" ]; then
 	install -m 0755 "${SRC}/packaging/debian/postinst" "${PKG_ROOT}/DEBIAN/postinst"
 	echo "✅ postinst script installed"
