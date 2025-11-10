@@ -166,6 +166,54 @@ download_from_latest_build() {
     fi
 }
 
+# Function to install runtime dependencies (especially GStreamer)
+install_runtime_dependencies() {
+    echo "📦 Installing runtime dependencies (especially GStreamer)..."
+    
+    if [ "$(id -u)" -ne 0 ]; then
+        SUDO="sudo"
+    else
+        SUDO=""
+    fi
+    
+    # Update package lists
+    echo "   🔄 Updating package lists..."
+    if ! $SUDO apt-get update -qq 2>&1 | tail -1; then
+        echo "   ⚠️  apt-get update had issues, continuing..."
+    fi
+    
+    # Install critical GStreamer runtime dependencies
+    echo "   📚 Installing GStreamer and multimedia libraries..."
+    GSTREAMER_PACKAGES=(
+        "libgstreamer1.0-0"
+        "libgstreamer-plugins-base1.0-0"
+        "gstreamer1.0-plugins-base"
+        "gstreamer1.0-plugins-good"
+        "gstreamer1.0-plugins-bad"
+        "gstreamer1.0-plugins-ugly"
+        "gstreamer1.0-libav"
+        "gstreamer1.0-alsa"
+        "gstreamer1.0-pulseaudio"
+    )
+    
+    local installed_count=0
+    for pkg in "${GSTREAMER_PACKAGES[@]}"; do
+        if ! dpkg -l 2>/dev/null | grep -q "^ii.*$pkg"; then
+            echo "      Installing $pkg..."
+            if $SUDO apt-get install -y -qq "$pkg" 2>&1 | grep -q "Unable to locate" 2>/dev/null; then
+                echo "      ⚠️  $pkg not available in repositories"
+            else
+                echo "      ✅ $pkg installed"
+                ((installed_count++))
+            fi
+        else
+            echo "      ✅ $pkg already installed"
+        fi
+    done
+    
+    echo "✅ Runtime dependencies installation completed (${installed_count} packages installed)"
+}
+
 # Function to download the DEB package
 download_package() {
     echo "📥 Looking for Openterface QT DEB package..."
@@ -735,6 +783,8 @@ main() {
         exit 1
     fi
     echo "✅ Package found"
+    
+    install_runtime_dependencies
     
     if ! install_package; then
         echo "❌ Package installation failed"

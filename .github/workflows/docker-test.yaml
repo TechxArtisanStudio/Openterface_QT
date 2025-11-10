@@ -4,14 +4,14 @@ on:
   push:
     branches: ["main", "dev"]
     paths:
-      - 'docker/testos/Dockerfile.ubuntu-test-shared'
+      - 'docker/Dockerfile.openterface-test-shared'
       - 'docker/install-openterface-deb.sh'
       - 'docker/install-openterface-appimage.sh'
       - '.github/workflows/docker-test.yaml'
   pull_request:
     branches: ["main", "dev"]
     paths:
-      - 'docker/testos/Dockerfile.ubuntu-test-shared'
+      - 'docker/Dockerfile.openterface-test-shared'
       - 'docker/install-openterface-deb.sh'
       - 'docker/install-openterface-appimage.sh'
       - '.github/workflows/docker-test.yaml'
@@ -132,8 +132,7 @@ jobs:
           echo "🔨 Building Docker image: ${{ env.DOCKER_IMAGE_SHARED }}:${{ env.DOCKER_TAG }}"
           
           docker build \
-            -f docker/testos/Dockerfile.ubuntu-test-shared \
-            --build-arg GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }} \
+            -f docker/Dockerfile.openterface-test-shared \
             --build-arg INSTALL_TYPE=${{ env.INSTALL_TYPE }} \
             -t ${{ env.DOCKER_IMAGE_SHARED }}:${{ env.DOCKER_TAG }} \
             docker/

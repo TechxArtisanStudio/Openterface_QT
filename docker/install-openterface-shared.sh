@@ -229,6 +229,50 @@ download_package() {
     return 1
 }
 
+# Function to install runtime dependencies (especially GStreamer)
+install_runtime_dependencies() {
+    echo "📦 Installing runtime dependencies..."
+    
+    if [ "$(id -u)" -ne 0 ]; then
+        SUDO="sudo"
+    else
+        SUDO=""
+    fi
+    
+    # Update package lists
+    echo "   🔄 Updating package lists..."
+    $SUDO apt-get update -qq 2>&1 | tail -1 || true
+    
+    # Install critical runtime dependencies
+    echo "   📚 Installing GStreamer and multimedia libraries..."
+    GSTREAMER_PACKAGES=(
+        "libgstreamer1.0-0"
+        "libgstreamer-plugins-base1.0-0"
+        "gstreamer1.0-plugins-base"
+        "gstreamer1.0-plugins-good"
+        "gstreamer1.0-plugins-bad"
+        "gstreamer1.0-plugins-ugly"
+        "gstreamer1.0-libav"
+        "gstreamer1.0-alsa"
+        "gstreamer1.0-pulseaudio"
+    )
+    
+    for pkg in "${GSTREAMER_PACKAGES[@]}"; do
+        if ! dpkg -l | grep -q "^ii.*$pkg"; then
+            echo "   Installing $pkg..."
+            if ! $SUDO apt-get install -y -qq "$pkg" 2>&1 | grep -q "Unable to locate"; then
+                echo "   ✅ $pkg installed"
+            else
+                echo "   ⚠️  $pkg not available, continuing..."
+            fi
+        else
+            echo "   ✅ $pkg already installed"
+        fi
+    done
+    
+    echo "✅ Runtime dependencies installed"
+}
+
 # Function to install the package
 install_package() {
     echo "📦 Installing Openterface QT package..."
@@ -522,6 +566,7 @@ main() {
         exit 1
     fi
     
+    install_runtime_dependencies
     install_package
     setup_device_permissions
     verify_installation
