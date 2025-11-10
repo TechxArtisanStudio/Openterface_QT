@@ -290,6 +290,7 @@ install_deb_package() {
     
     if [ $DPKG_EXIT -eq 0 ]; then
         print_success "Package installed successfully"
+        echo "$DPKG_OUTPUT"
     else
         print_warning "Package installation had dependency issues (exit code: $DPKG_EXIT)"
         print_info "Error output:"
