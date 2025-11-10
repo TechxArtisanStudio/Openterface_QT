@@ -8,6 +8,7 @@ on:
       - 'docker/install-openterface-deb.sh'
       - 'docker/install-openterface-appimage.sh'
       - '.github/workflows/docker-test.yaml'
+      - 'packaging/debian/**'
   pull_request:
     branches: ["main", "dev"]
     paths:
