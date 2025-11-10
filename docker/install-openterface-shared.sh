@@ -225,7 +225,37 @@ download_package() {
         return 0
     fi
     
-    echo "❌ Failed to find build artifacts or download from workflow"
+    # Enhanced error message with guidance
+    echo ""
+    echo "❌ INSTALLATION FAILED: Package not found"
+    echo "═════════════════════════════════════════════"
+    echo ""
+    echo "The installation script could not locate the Openterface QT DEB package."
+    echo ""
+    echo "SOLUTIONS:"
+    echo ""
+    echo "1️⃣  Volume Mount (RECOMMENDED for local builds):"
+    echo "   docker run -v /path/to/build:/tmp/build-artifacts \\"
+    echo "       -e INSTALL_TYPE=deb openterface-test"
+    echo ""
+    echo "   The script will search these locations:"
+    for search_path in "/tmp/build-artifacts" "/build" "/workspace/build" "/src/build" "./build" "/tmp"; do
+        echo "   - $search_path"
+    done
+    echo ""
+    echo "2️⃣  GitHub Artifacts (requires GitHub token):"
+    echo "   docker run -e GITHUB_TOKEN=\${{github.token}} \\"
+    echo "       -e INSTALL_TYPE=deb openterface-test"
+    echo ""
+    echo "3️⃣  Manual Installation:"
+    echo "   docker run -it openterface-test /bin/bash"
+    echo "   (manually run: /docker/install-openterface-shared.sh)"
+    echo ""
+    echo "4️⃣  Pre-download Package:"
+    echo "   wget https://github.com/TechxArtisanStudio/Openterface_QT/releases/download/..."
+    echo "   docker run -v ./openterfaceQT.linux.amd64.shared.deb:/tmp/build-artifacts/package.deb \\"
+    echo "       -e INSTALL_TYPE=deb openterface-test"
+    echo ""
     return 1
 }
 

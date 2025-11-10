@@ -33,24 +33,39 @@ if [ ! -f /usr/local/bin/openterfaceQT ] && [ -n "$INSTALL_TYPE_ARG" ]; then
     INSTALL_SCRIPT="/docker/install-openterface.sh"
     
     # Run installation as root (required for dpkg and apt-get)
+    INSTALL_EXIT_CODE=0
     if [ "$(id -u)" -ne 0 ]; then
         # Not root, use sudo
-        if sudo -n "$INSTALL_SCRIPT" "$INSTALL_TYPE_ARG" 2>/dev/null; then
-            echo "✅ Installation completed successfully"
+        if ! sudo -n "$INSTALL_SCRIPT" "$INSTALL_TYPE_ARG"; then
+            INSTALL_EXIT_CODE=$?
+            echo ""
+            echo "❌ Installation failed with exit code: $INSTALL_EXIT_CODE"
+            echo ""
+            echo "Please ensure one of the following:"
+            echo "  1. Volume mount with DEB package: -v /path/to/build:/tmp/build-artifacts"
+            echo "  2. Set GITHUB_TOKEN for artifact download: -e GITHUB_TOKEN=..."
+            echo "  3. Check Docker permissions and network access"
+            echo ""
+            echo "Run 'docker logs <container>' for detailed error messages"
+            echo ""
         else
-            # Try with password prompt (though sudo -n should work in Docker)
-            if sudo "$INSTALL_SCRIPT" "$INSTALL_TYPE_ARG" 2>&1; then
-                echo "✅ Installation completed successfully"
-            else
-                echo "⚠️  Installation may have had issues but continuing..."
-            fi
+            echo "✅ Installation completed successfully"
         fi
     else
         # Already root: run directly
         if "$INSTALL_SCRIPT" "$INSTALL_TYPE_ARG"; then
+            INSTALL_EXIT_CODE=$?
             echo "✅ Installation completed successfully"
         else
-            echo "⚠️  Installation may have had issues but continuing..."
+            INSTALL_EXIT_CODE=$?
+            echo ""
+            echo "❌ Installation failed with exit code: $INSTALL_EXIT_CODE"
+            echo ""
+            echo "Please ensure one of the following:"
+            echo "  1. Volume mount with DEB package: -v /path/to/build:/tmp/build-artifacts"
+            echo "  2. Set GITHUB_TOKEN for artifact download: -e GITHUB_TOKEN=..."
+            echo "  3. Check Docker permissions and network access"
+            echo ""
         fi
     fi
 else
@@ -58,6 +73,10 @@ else
         echo "✅ Openterface already installed"
     else
         echo "ℹ️  No installation type specified. Use INSTALL_TYPE environment variable (deb|appimage)"
+        echo ""
+        echo "Examples:"
+        echo "  docker run -e INSTALL_TYPE=deb -v /path/to/artifacts:/tmp/build-artifacts <image>"
+        echo "  docker run -e INSTALL_TYPE=appimage <image>"
     fi
 fi
 
