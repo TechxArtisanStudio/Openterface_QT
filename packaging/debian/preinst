@@ -4,22 +4,26 @@
 # =============================================================================
 #
 # This script runs BEFORE the DEB package is unpacked and installed.
-# It ensures all required runtime dependencies are installed first.
+# It checks that all required runtime dependencies are already installed.
 #
-# Dependencies installed:
-#   - Graphics: libegl1, libgles2, libva-api libraries
+# IMPORTANT: Dependencies must be installed BEFORE running this script.
+# When using "dpkg -i", the dpkg lock prevents apt-get from running in preinst.
+# Dependencies must be pre-installed by the calling script/installer.
+#
+# Required dependencies:
+#   - Graphics: libegl1, libgles2
 #   - Audio: libpulse0
-#   - Video: libgstreamer1.0-0, libgstreamer-plugins-base1.0-0, libv4l-0
-#   - X11/Display: libxcb*, libx11-6, libwayland-client0, libxkbcommon0
-#   - Compression: zlib1g, libbz2-1.0, liblzma5
+#   - Video: libgstreamer1.0-0, libv4l-0
+#   - X11/Display: libxkbcommon0, libwayland-client0, libxcb1, libx11-6
+#   - FFmpeg: libavformat60, libavcodec60, libavutil58, libavdevice60
+#   - GStreamer Plugins: gstreamer1.0-plugins-base, gstreamer1.0-plugins-good
+#   - OpenGL: libgl1, libglx0, libglvnd0, libglu1-mesa
+#   - Compression: zlib1g, libbz2-1.0
 #
 # =============================================================================
 
-# Note: We do NOT use 'set -e' because we want to continue even if some apt-get commands fail
-# The preinst script should be resilient and not block package installation
-
 echo "=========================================="
-echo "OpenterfaceQT Pre-Installation Script"
+echo "OpenterfaceQT Pre-Installation Check"
 echo "=========================================="
 echo ""
 
@@ -40,277 +44,228 @@ print_error() {
     echo "❌ $1"
 }
 
-# Function to run apt-get with retry logic for dpkg lock issues
-apt_get_with_retry() {
-    local max_retries=5
-    local retry_interval=3
-    local attempt=1
-    
-    while [ $attempt -le $max_retries ]; do
-        if apt-get "$@" 2>&1 | tee /tmp/apt_install.log; then
-            return 0
-        fi
-        
-        # Check if error is dpkg lock related
-        if grep -q "Could not get lock\|Unable to acquire the dpkg" /tmp/apt_install.log; then
-            if [ $attempt -lt $max_retries ]; then
-                print_warning "dpkg lock detected (attempt $attempt/$max_retries), waiting before retry..."
-                sleep $retry_interval
-                attempt=$((attempt + 1))
-            else
-                print_warning "dpkg lock persists after $max_retries attempts, continuing..."
-                return 1
-            fi
-        else
-            # Non-lock error, don't retry
-            return 1
-        fi
-    done
-    
-    return 1
-}
-
-# Check if running with apt/dpkg
+# Check if running with install or upgrade
 if [ "$1" != "install" ] && [ "$1" != "upgrade" ]; then
-    echo "Pre-installation script called with: $1"
     exit 0
 fi
 
-print_status "Starting pre-installation dependency check and installation..."
+print_status "Checking required dependencies..."
 echo ""
 
-# Function to wait for dpkg lock to be released
-wait_for_dpkg_lock() {
-    local max_wait=300  # Maximum 5 minutes wait
-    local wait_interval=2
-    local elapsed=0
-    
-    while [ $elapsed -lt $max_wait ]; do
-        if ! fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1; then
-            return 0
-        fi
-        
-        if [ $elapsed -eq 0 ]; then
-            print_warning "Waiting for dpkg lock to be released..."
-        fi
-        
-        sleep $wait_interval
-        elapsed=$((elapsed + wait_interval))
-        
-        if [ $((elapsed % 10)) -eq 0 ]; then
-            print_warning "Still waiting for dpkg lock ($elapsed seconds)..."
+# Define dependencies by category
+GRAPHICS_DEPS=(
+    "libegl1"
+    "libgles2"
+)
+
+AUDIO_DEPS=(
+    "libpulse0"
+)
+
+VIDEO_DEPS=(
+    "libgstreamer1.0-0"
+    "libv4l-0"
+)
+
+DISPLAY_DEPS=(
+    "libxkbcommon0"
+    "libwayland-client0"
+    "libxcb1"
+    "libx11-6"
+)
+
+FFMPEG_DEPS=(
+    "libavformat60"
+    "libavcodec60"
+    "libavutil58"
+    "libavdevice60"
+)
+
+GSTREAMER_PLUGIN_DEPS=(
+    "gstreamer1.0-plugins-base"
+    "gstreamer1.0-plugins-good"
+)
+
+OPENGL_DEPS=(
+    "libgl1"
+    "libglx0"
+    "libglvnd0"
+    "libglu1-mesa"
+)
+
+COMPRESSION_DEPS=(
+    "zlib1g"
+    "libbz2-1.0"
+)
+
+# Combine all dependencies into a single array for checking
+CRITICAL_DEPS=("${GRAPHICS_DEPS[@]}" "${AUDIO_DEPS[@]}" "${VIDEO_DEPS[@]}" "${DISPLAY_DEPS[@]}" "${FFMPEG_DEPS[@]}" "${GSTREAMER_PLUGIN_DEPS[@]}" "${OPENGL_DEPS[@]}" "${COMPRESSION_DEPS[@]}")
+
+MISSING_DEPS=()
+FOUND_DEPS=0
+
+echo "Verifying installed dependencies:"
+echo ""
+
+# Helper function to print category header
+print_category() {
+    local category=$1
+    echo "  📦 $category:"
+}
+
+# Check Graphics dependencies
+print_category "Graphics Libraries"
+for pkg in "${GRAPHICS_DEPS[@]}"; do
+    if dpkg -l | grep -q "^ii.*$pkg"; then
+        echo "    ✅ $pkg"
+        FOUND_DEPS=$((FOUND_DEPS + 1))
+    else
+        echo "    ❌ $pkg (MISSING)"
+        MISSING_DEPS+=("$pkg")
+    fi
+done
+echo ""
+
+# Check Audio dependencies
+print_category "Audio Libraries"
+for pkg in "${AUDIO_DEPS[@]}"; do
+    if dpkg -l | grep -q "^ii.*$pkg"; then
+        echo "    ✅ $pkg"
+        FOUND_DEPS=$((FOUND_DEPS + 1))
+    else
+        echo "    ❌ $pkg (MISSING)"
+        MISSING_DEPS+=("$pkg")
+    fi
+done
+echo ""
+
+# Check Video dependencies
+print_category "Video/GStreamer Libraries"
+for pkg in "${VIDEO_DEPS[@]}"; do
+    if dpkg -l | grep -q "^ii.*$pkg"; then
+        echo "    ✅ $pkg"
+        FOUND_DEPS=$((FOUND_DEPS + 1))
+    else
+        echo "    ❌ $pkg (MISSING)"
+        MISSING_DEPS+=("$pkg")
+    fi
+done
+echo ""
+
+# Check Display dependencies
+print_category "X11/Display Server Libraries"
+for pkg in "${DISPLAY_DEPS[@]}"; do
+    if dpkg -l | grep -q "^ii.*$pkg"; then
+        echo "    ✅ $pkg"
+        FOUND_DEPS=$((FOUND_DEPS + 1))
+    else
+        echo "    ❌ $pkg (MISSING)"
+        MISSING_DEPS+=("$pkg")
+    fi
+done
+echo ""
+
+# Check FFmpeg dependencies
+print_category "FFmpeg Libraries"
+for pkg in "${FFMPEG_DEPS[@]}"; do
+    if dpkg -l | grep -q "^ii.*$pkg"; then
+        echo "    ✅ $pkg"
+        FOUND_DEPS=$((FOUND_DEPS + 1))
+    else
+        echo "    ❌ $pkg (MISSING)"
+        MISSING_DEPS+=("$pkg")
+    fi
+done
+echo ""
+
+# Check GStreamer Plugin dependencies
+print_category "GStreamer Plugins"
+for pkg in "${GSTREAMER_PLUGIN_DEPS[@]}"; do
+    if dpkg -l | grep -q "^ii.*$pkg"; then
+        echo "    ✅ $pkg"
+        FOUND_DEPS=$((FOUND_DEPS + 1))
+    else
+        echo "    ❌ $pkg (MISSING)"
+        MISSING_DEPS+=("$pkg")
+    fi
+done
+echo ""
+
+# Check OpenGL dependencies
+print_category "OpenGL Libraries"
+for pkg in "${OPENGL_DEPS[@]}"; do
+    if dpkg -l | grep -q "^ii.*$pkg"; then
+        echo "    ✅ $pkg"
+        FOUND_DEPS=$((FOUND_DEPS + 1))
+    else
+        echo "    ❌ $pkg (MISSING)"
+        MISSING_DEPS+=("$pkg")
+    fi
+done
+echo ""
+
+# Check Compression dependencies
+print_category "Compression Libraries"
+for pkg in "${COMPRESSION_DEPS[@]}"; do
+    if dpkg -l | grep -q "^ii.*$pkg"; then
+        echo "    ✅ $pkg"
+        FOUND_DEPS=$((FOUND_DEPS + 1))
+    else
+        echo "    ❌ $pkg (MISSING)"
+        MISSING_DEPS+=("$pkg")
+    fi
+done
+
+echo ""
+echo "=========================================="
+echo "Dependency Check Summary"
+echo "=========================================="
+echo "Found: $FOUND_DEPS/${#CRITICAL_DEPS[@]}"
+echo "Missing: ${#MISSING_DEPS[@]}/${#CRITICAL_DEPS[@]}"
+echo ""
+
+if [ ${#MISSING_DEPS[@]} -eq 0 ]; then
+    print_success "All required dependencies are installed!"
+    echo ""
+    print_status "Proceeding with OpenterfaceQT package installation..."
+    echo ""
+    exit 0
+else
+    print_error "Missing ${#MISSING_DEPS[@]} required dependencies!"
+    echo ""
+    echo "Missing packages:"
+    for pkg in "${MISSING_DEPS[@]}"; do
+        echo "  - $pkg"
+    done
+    echo ""
+    echo "=========================================="
+    echo "How to install missing dependencies:"
+    echo "=========================================="
+    echo ""
+    echo "Run the following command BEFORE installing OpenterfaceQT:"
+    echo ""
+    echo "  sudo apt-get update"
+    echo "  sudo apt-get install -y \\"
+    for i in "${!MISSING_DEPS[@]}"; do
+        if [ $i -lt $((${#MISSING_DEPS[@]} - 1)) ]; then
+            echo "    ${MISSING_DEPS[$i]} \\"
+        else
+            echo "    ${MISSING_DEPS[$i]}"
         fi
     done
-    
-    print_error "Timeout waiting for dpkg lock after ${max_wait}s"
-    return 1
-}
-
-# Wait for any existing dpkg operations to complete
-wait_for_dpkg_lock
-
-# Step 1: Update package lists
-print_status "Updating package repository lists..."
-if apt_get_with_retry update -qq 2>&1 | grep -v "^Get:\|^Hit:\|^Reading" || true; then
-    print_success "Package lists updated"
-else
-    print_warning "apt-get update encountered issues, but continuing..."
+    echo ""
+    echo "Or install all dependencies at once:"
+    echo ""
+    echo "  sudo apt-get update && sudo apt-get install -y \\"
+    for i in "${!CRITICAL_DEPS[@]}"; do
+        if [ $i -lt $((${#CRITICAL_DEPS[@]} - 1)) ]; then
+            echo "    ${CRITICAL_DEPS[$i]} \\"
+        else
+            echo "    ${CRITICAL_DEPS[$i]}"
+        fi
+    done
+    echo ""
+    echo "=========================================="
+    echo ""
+    exit 1
 fi
-
-echo ""
-
-# Step 2: Install graphics and rendering libraries
-print_status "Installing graphics and GPU libraries..."
-if apt_get_with_retry install -y --no-install-recommends -qq libegl1 libgles2 2>&1 | tee /tmp/apt_install.log; then
-    print_success "Graphics libraries installed"
-    # Verify installation
-    if dpkg -l | grep -q "libegl1" && dpkg -l | grep -q "libgles2"; then
-        print_success "Graphics libraries verified"
-    else
-        print_warning "Graphics libraries may not be fully installed, attempting alternative installation..."
-        apt_get_with_retry install -y --no-install-recommends -qq libegl1-mesa libgles2-mesa || true
-    fi
-else
-    EXIT_CODE=$?
-    print_warning "apt-get install returned exit code: $EXIT_CODE"
-    print_warning "Output:"
-    cat /tmp/apt_install.log | sed 's/^/    /'
-    print_warning "Attempting alternative graphics library installation..."
-    apt_get_with_retry install -y --no-install-recommends -qq libegl1-mesa libgles2-mesa || print_warning "Failed to install graphics libraries, but continuing with installation..."
-fi
-
-# Step 3: Install audio libraries
-print_status "Installing audio libraries..."
-if apt_get_with_retry install -y --no-install-recommends -qq libpulse0 2>&1 | tee /tmp/apt_install.log; then
-    print_success "Audio libraries installed"
-    # Verify installation
-    if dpkg -l | grep -q "libpulse0"; then
-        print_success "Audio libraries verified"
-    else
-        print_warning "Audio libraries may not be fully installed, attempting alternative installation..."
-        apt_get_with_retry install -y --no-install-recommends -qq libpulse0 libpulse-mainloop-glib0 || true
-    fi
-else
-    print_warning "Audio libraries installation encountered issues, attempting alternative..."
-    apt_get_with_retry install -y --no-install-recommends -qq libpulse0 libpulse-mainloop-glib0 || print_warning "Audio libraries installation failed, but continuing..."
-fi
-
-# Step 4: Install video acceleration libraries
-print_status "Installing video acceleration libraries..."
-if apt_get_with_retry install -y --no-install-recommends -qq libva2 libva-drm2 libva-x11-2 2>&1 | tee /tmp/apt_install.log; then
-    print_success "Video acceleration libraries installed"
-else
-    print_warning "Video acceleration libraries installation attempted (may already exist or have conflicts)"
-fi
-
-# Step 5: Install GStreamer multimedia framework
-print_status "Installing GStreamer multimedia framework..."
-if apt_get_with_retry install -y --no-install-recommends -qq libgstreamer1.0-0 libgstreamer-plugins-base1.0-0 2>&1 | tee /tmp/apt_install.log; then
-    print_success "GStreamer libraries installed"
-    # Verify installation
-    if dpkg -l | grep -q "libgstreamer1.0-0"; then
-        print_success "GStreamer libraries verified"
-    else
-        print_warning "GStreamer libraries may not be fully installed, attempting fallback installation..."
-        apt_get_with_retry install -y --no-install-recommends -qq gstreamer1.0-tools || true
-    fi
-else
-    print_warning "GStreamer libraries installation encountered issues, attempting alternative..."
-    apt_get_with_retry install -y --no-install-recommends -qq gstreamer1.0-tools || print_warning "GStreamer installation failed, but continuing..."
-fi
-
-# Step 6: Install Video4Linux libraries
-print_status "Installing Video4Linux libraries..."
-if apt_get_with_retry install -y --no-install-recommends -qq libv4l-0 2>&1 | tee /tmp/apt_install.log; then
-    print_success "Video4Linux libraries installed"
-    # Verify installation
-    if dpkg -l | grep -q "libv4l-0"; then
-        print_success "Video4Linux libraries verified"
-    else
-        print_warning "Video4Linux libraries may not be fully installed, attempting fallback..."
-        apt_get_with_retry install -y --no-install-recommends -qq libv4l libv4lconvert0 || true
-    fi
-else
-    print_warning "Video4Linux libraries installation encountered issues, attempting fallback..."
-    apt_get_with_retry install -y --no-install-recommends -qq libv4l libv4lconvert0 || print_warning "Video4Linux installation failed, but continuing..."
-fi
-
-# Step 7: Install X11 and display server libraries
-print_status "Installing X11 and display server libraries..."
-if apt_get_with_retry install -y --no-install-recommends -qq \
-    libxkbcommon0 \
-    libwayland-client0 \
-    libxcb1 \
-    libxcb-shm0 \
-    libxcb-xfixes0 \
-    libxcb-shape0 \
-    libx11-6 2>&1 | tee /tmp/apt_install.log; then
-    print_success "X11 and display libraries installed"
-else
-    print_warning "X11 libraries installation attempted (may already exist or have conflicts)"
-fi
-
-# Step 8: Install FFmpeg libraries
-print_status "Installing FFmpeg libraries..."
-if apt_get_with_retry install -y --no-install-recommends -qq libavformat60 libavcodec60 libavutil58 libavdevice60 libswresample4 libswscale7 2>&1 | tee /tmp/apt_install.log; then
-    print_success "FFmpeg libraries installed"
-else
-    print_warning "FFmpeg libraries installation attempted (may already exist or have conflicts)"
-fi
-
-# Step 9: Install GStreamer plugins
-print_status "Installing GStreamer plugins..."
-if apt_get_with_retry install -y --no-install-recommends -qq \
-    gstreamer1.0-plugins-base \
-    gstreamer1.0-plugins-good \
-    gstreamer1.0-plugins-bad \
-    gstreamer1.0-plugins-ugly \
-    gstreamer1.0-libav \
-    gstreamer1.0-alsa \
-    gstreamer1.0-pulseaudio 2>&1 | tee /tmp/apt_install.log; then
-    print_success "GStreamer plugins installed"
-else
-    print_warning "GStreamer plugins installation attempted (may already exist or have conflicts)"
-fi
-
-# Step 10: Install JPEG libraries for image handling
-print_status "Installing JPEG libraries..."
-if apt_get_with_retry install -y --no-install-recommends -qq libturbojpeg0 2>&1 | tee /tmp/apt_install.log; then
-    print_success "JPEG libraries installed"
-else
-    print_warning "JPEG libraries installation attempted (may already exist or have conflicts)"
-fi
-
-# Step 11: Install Video4Linux utilities
-print_status "Installing Video4Linux utilities..."
-if apt_get_with_retry install -y --no-install-recommends -qq v4l-utils 2>&1 | tee /tmp/apt_install.log; then
-    print_success "Video4Linux utilities installed"
-else
-    print_warning "Video4Linux utilities installation attempted (may already exist or have conflicts)"
-fi
-
-# Step 12: Install compression libraries
-print_status "Installing compression libraries..."
-if apt_get_with_retry install -y --no-install-recommends -qq zlib1g libbz2-1.0 liblzma5 2>&1 | tee /tmp/apt_install.log; then
-    print_success "Compression libraries installed"
-else
-    print_warning "Compression libraries installation attempted (may already exist or have conflicts)"
-fi
-
-echo ""
-echo "=========================================="
-print_success "All dependencies installed successfully!"
-echo "=========================================="
-echo ""
-
-# Summary
-print_status "Dependencies installed:"
-echo "  ✓ Graphics: libegl1, libgles2"
-echo "  ✓ Audio: libpulse0"
-echo "  ✓ Video Acceleration: libva2, libva-drm2, libva-x11-2"
-echo "  ✓ GStreamer: libgstreamer1.0-0, libgstreamer-plugins-base1.0-0"
-echo "  ✓ GStreamer Plugins: gstreamer1.0-plugins-{base,good,bad,ugly,libav,alsa,pulseaudio}"
-echo "  ✓ FFmpeg: libavformat60, libavcodec60, libavutil58, libavdevice60, libswresample4, libswscale7"
-echo "  ✓ JPEG: libturbojpeg0"
-echo "  ✓ Video4Linux: libv4l-0, v4l-utils"
-echo "  ✓ X11/Display: libxkbcommon0, libwayland-client0, libxcb*, libx11-6"
-echo "  ✓ Compression: zlib1g, libbz2-1.0, liblzma5"
-echo ""
-
-# Verification of critical dependencies
-print_status "Verifying critical dependencies..."
-echo ""
-
-MISSING_DEPS=0
-
-check_package() {
-    local pkg=$1
-    if dpkg -l | grep -q "^ii.*$pkg"; then
-        echo "  ✅ $pkg found"
-    else
-        echo "  ❌ $pkg not found"
-        MISSING_DEPS=$((MISSING_DEPS + 1))
-    fi
-}
-
-echo "Critical dependencies check:"
-check_package "libegl1"
-check_package "libgles2"
-check_package "libpulse0"
-check_package "libgstreamer1.0-0"
-check_package "libv4l-0"
-
-echo ""
-if [ $MISSING_DEPS -gt 0 ]; then
-    print_warning "⚠️  $MISSING_DEPS critical dependencies not found after installation"
-    print_warning "This may cause issues, but the package installation will continue"
-    print_warning "Please manually install missing packages after installation if needed"
-else
-    print_success "All critical dependencies verified!"
-fi
-
-echo ""
-print_status "Proceeding with OpenterfaceQT package installation..."
-echo ""
-
-exit 0

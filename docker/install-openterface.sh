@@ -248,6 +248,96 @@ download_from_latest_build() {
 # DEB Installation Functions
 # =============================================================================
 
+extract_and_install_missing_deps() {
+    local package_file="$1"
+    local sudo_cmd="$2"
+    
+    print_section "Checking for missing dependencies via preinst script..."
+    
+    # Extract preinst script from DEB
+    local temp_dir=$(mktemp -d)
+    trap "rm -rf $temp_dir" RETURN
+    
+    # Extract control archive from DEB
+    if ! ar x "$package_file" control.tar.xz -o "$temp_dir/control.tar.xz" 2>/dev/null; then
+        # Try without xz compression
+        ar x "$package_file" control.tar.gz -o "$temp_dir/control.tar.gz" 2>/dev/null || ar x "$package_file" control.tar -o "$temp_dir/control.tar" 2>/dev/null
+    fi
+    
+    # Extract control files
+    cd "$temp_dir"
+    if [ -f "control.tar.xz" ]; then
+        tar -xf control.tar.xz 2>/dev/null || true
+    elif [ -f "control.tar.gz" ]; then
+        tar -xzf control.tar.gz 2>/dev/null || true
+    elif [ -f "control.tar" ]; then
+        tar -xf control.tar 2>/dev/null || true
+    fi
+    
+    # Run preinst script to get missing dependencies
+    if [ -f "preinst" ]; then
+        print_info "Running preinst dependency check..."
+        
+        # Make script executable and run it
+        chmod +x preinst
+        PREINST_OUTPUT=$(./preinst install 2>&1)
+        PREINST_EXIT=$?
+        
+        print_info "Preinst output:"
+        echo "$PREINST_OUTPUT"
+        echo ""
+        
+        if [ $PREINST_EXIT -eq 0 ]; then
+            print_success "All dependencies are satisfied"
+            return 0
+        else
+            # Extract missing packages from output
+            print_warning "Dependencies are missing. Extracting missing package list..."
+            
+            MISSING_PACKAGES=$(echo "$PREINST_OUTPUT" | grep -E "^\s+sudo apt-get install -y" -A 100 | grep "^    [a-z]" | awk '{print $1}' | tr '\n' ' ')
+            
+            if [ -z "$MISSING_PACKAGES" ]; then
+                # Fallback: try to extract from "Missing packages:" section
+                MISSING_PACKAGES=$(echo "$PREINST_OUTPUT" | grep -A 100 "Missing packages:" | grep "^  - " | sed 's/^  - //' | tr '\n' ' ')
+            fi
+            
+            if [ -n "$MISSING_PACKAGES" ]; then
+                print_info "Missing packages detected: $MISSING_PACKAGES"
+                echo ""
+                
+                print_section "Installing missing dependencies..."
+                print_info "Running: apt-get update && apt-get install -y $MISSING_PACKAGES"
+                echo ""
+                
+                if $sudo_cmd apt-get update -qq 2>&1 | grep -v "^Get:\|^Hit:\|^Reading" || true; then
+                    if $sudo_cmd apt-get install -y $MISSING_PACKAGES 2>&1 | tee /tmp/dep_install.log; then
+                        print_success "Missing dependencies installed successfully"
+                        echo ""
+                        return 0
+                    else
+                        print_warning "Dependency installation had issues, checking what was installed..."
+                        cat /tmp/dep_install.log | tail -20
+                        echo ""
+                        # Continue anyway, preinst will check again
+                        return 0
+                    fi
+                else
+                    print_warning "apt-get update failed, but continuing..."
+                    return 0
+                fi
+            else
+                print_warning "Could not extract missing package list from preinst output"
+                print_info "Output was:"
+                echo "$PREINST_OUTPUT"
+                return 1
+            fi
+        fi
+    else
+        print_warning "preinst script not found in DEB package"
+        return 0
+    fi
+}
+
 install_deb_package() {
     print_header "DEB Package Installation"
     
@@ -283,6 +373,12 @@ install_deb_package() {
         SUDO=""
     fi
     
+    # Check and install missing dependencies using preinst script
+    if ! extract_and_install_missing_deps "$PACKAGE_FILE" "$SUDO"; then
+        print_warning "Dependency extraction/installation had issues, but continuing with dpkg..."
+    fi
+    
+    echo ""
     # Install package
     print_section "Running dpkg install..."
     DPKG_OUTPUT=$($SUDO dpkg -i "$PACKAGE_FILE" 2>&1)
@@ -296,7 +392,7 @@ install_deb_package() {
         print_info "Error output:"
         echo "$DPKG_OUTPUT"
         echo ""
-        print_info "Attempting to fix dependencies..."
+        print_info "Attempting to fix remaining dependencies..."
         
         if APT_FIX=$($SUDO apt-get install -f -y 2>&1); then
             print_success "Dependencies resolved"
@@ -306,16 +402,6 @@ install_deb_package() {
             echo "$APT_FIX"
             return 1
         fi
-    fi
-    
-    # Check if preinst script was executed
-    print_section "Verifying preinst script execution..."
-    if check_preinst_execution; then
-        print_success "preinst script was executed successfully"
-    else
-        print_warning "Could not verify preinst script execution"
-        print_info "The package may have installed without running pre-installation dependencies"
-        print_info "You may need to manually install missing dependencies if the application fails to start"
     fi
     
     # Update library cache
@@ -358,61 +444,6 @@ download_deb_package() {
     return 1
 }
 
-check_preinst_execution() {
-    # Check for evidence that preinst script was executed by verifying installed packages
-    # The preinst script installs several critical dependencies
-    
-    print_info "Checking for preinst-installed dependencies..."
-    
-    local critical_packages=(
-        "libegl1"
-        "libgles2"
-        "libpulse0"
-        "libgstreamer1.0-0"
-        "libv4l-0"
-    )
-    
-    local installed_count=0
-    local total_packages=${#critical_packages[@]}
-    
-    for package in "${critical_packages[@]}"; do
-        if dpkg -l | grep -q "^ii.*$package"; then
-            print_info "  ✓ $package installed"
-            ((installed_count++))
-        else
-            print_info "  ✗ $package not found"
-        fi
-    done
-    
-    echo ""
-    print_info "Dependency check: $installed_count/$total_packages critical packages found"
-    
-    if [ $installed_count -ge 3 ]; then
-        # At least half of critical packages installed suggests preinst ran
-        print_success "preinst dependencies detected"
-        return 0
-    else
-        print_warning "Few preinst dependencies detected"
-        print_info "Checking apt logs for preinst execution..."
-        
-        # Try to find preinst output in apt logs
-        if [ -f /var/log/apt/term.log ]; then
-            if grep -q "OpenterfaceQT Pre-Installation Script" /var/log/apt/term.log 2>/dev/null; then
-                print_success "preinst script signature found in apt logs"
-                return 0
-            fi
-        fi
-        
-        if [ -f /var/log/dpkg.log ]; then
-            if grep -q "openterfaceQT.*preinst" /var/log/dpkg.log 2>/dev/null; then
-                print_success "preinst execution found in dpkg logs"
-                return 0
-            fi
-        fi
-        
-        return 1
-    fi
-}
 
 # =============================================================================
 # AppImage Installation Functions
