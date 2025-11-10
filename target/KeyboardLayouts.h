@@ -159,7 +159,7 @@ struct KeyboardLayoutConfig {
         keyNameToQt["section"] = Qt::Key_section;       // §
         keyNameToQt["Section"] = Qt::Key_section;       // §
         keyNameToQt["onehalf"] = Qt::Key_onehalf;       // ½
-        // Dead keys
+	// Dead keys
         keyNameToQt["Dead_Acute"] = Qt::Key_Dead_Acute;       // ´ (dead key)
         keyNameToQt["Dead_Circumflex"] = Qt::Key_Dead_Circumflex; // ^ (dead key)
         keyNameToQt["Dead_Diaeresis"] = Qt::Key_Dead_Diaeresis;  // ¨ (dead key)
@@ -174,6 +174,12 @@ struct KeyboardLayoutConfig {
         // altgr keys
         
         keyNameToQt["degree"] = Qt::Key_degree;   // ¨
+        
+	// Spanish keys
+	keyNameToQt["Ntilde"] = Qt::Key_Ntilde;         // ñ
+	keyNameToQt["Masculine"] = Qt::Key_masculine;    // º
+	keyNameToQt["Ccedilla"] = Qt::Key_Ccedilla;     // ç
+
     }
     
 private:

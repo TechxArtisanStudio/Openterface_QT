@@ -29,6 +29,10 @@ set(mainwindow_resource_files
     "ui/../images/laptop.svg"
     "ui/../images/monitor.svg"
     "ui/../images/usbplug.svg"
+    "ui/../images/audio.svg"
+    "ui/../images/mute.svg"
+    "ui/../images/startRecord.svg"
+    "ui/../images/stopRecord.svg"
 )
 
 qt_add_resources(openterfaceQT "mainwindow"
@@ -50,6 +54,7 @@ set(keyboard_layouts_resource_files
     "config/keyboards/qwerty_uk.json"
     "config/keyboards/qwerty_us.json"
     "config/keyboards/qwertz_de.json"
+    "config/keyboards/qwerty_es.json"
 )
  
 qt_add_resources(openterfaceQT "keyboard_layouts"
