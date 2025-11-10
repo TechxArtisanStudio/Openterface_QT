@@ -233,10 +233,7 @@ if [ ${#MISSING_DEPS[@]} -eq 0 ]; then
 else
     print_error "Missing ${#MISSING_DEPS[@]} required dependencies!"
     echo ""
-    echo "Missing packages:"
-    for pkg in "${MISSING_DEPS[@]}"; do
-        echo "  - $pkg"
-    done
+    echo "Missing packages: ${MISSING_DEPS[*]}"
     echo ""
     echo "=========================================="
     echo "How to install missing dependencies:"
@@ -244,26 +241,7 @@ else
     echo ""
     echo "Run the following command BEFORE installing OpenterfaceQT:"
     echo ""
-    echo "  sudo apt-get update"
-    echo "  sudo apt-get install -y \\"
-    for i in "${!MISSING_DEPS[@]}"; do
-        if [ $i -lt $((${#MISSING_DEPS[@]} - 1)) ]; then
-            echo "    ${MISSING_DEPS[$i]} \\"
-        else
-            echo "    ${MISSING_DEPS[$i]}"
-        fi
-    done
-    echo ""
-    echo "Or install all dependencies at once:"
-    echo ""
-    echo "  sudo apt-get update && sudo apt-get install -y \\"
-    for i in "${!CRITICAL_DEPS[@]}"; do
-        if [ $i -lt $((${#CRITICAL_DEPS[@]} - 1)) ]; then
-            echo "    ${CRITICAL_DEPS[$i]} \\"
-        else
-            echo "    ${CRITICAL_DEPS[$i]}"
-        fi
-    done
+    echo "  sudo apt-get update && sudo apt-get install -y ${MISSING_DEPS[*]}"
     echo ""
     echo "=========================================="
     echo ""

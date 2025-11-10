@@ -76,11 +76,6 @@ RUN useradd -m -s /bin/bash openterface && \
 COPY ./install-openterface.sh /docker/install-openterface.sh
 RUN chmod +x /docker/install-openterface.sh
 
-# Keep legacy scripts for backwards compatibility
-COPY ./install-openterface-deb.sh /docker/install-openterface-deb.sh
-COPY ./install-openterface-appimage.sh /docker/install-openterface-appimage.sh
-RUN chmod +x /docker/install-openterface-deb.sh /docker/install-openterface-appimage.sh
-
 # Copy and setup entrypoint script
 COPY ./entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh

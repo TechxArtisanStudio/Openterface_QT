@@ -75,26 +75,11 @@ RUN apt-get install -y libgl1 \
         libglx0 \
         libglvnd0 \
         libglu1-mesa
-# FFmpeg runtime libraries
-# RUN apt-get install -y libavformat60 \
-#         libavcodec60 \
-#         libavutil58 \
-#         libavdevice60 \
-#         libswresample4 \
-#         libswscale7 \
-#         libturbojpeg
-# # GStreamer runtime dependencies
-# RUN apt-get install -y libgstreamer1.0-0 \
-#         gstreamer1.0-plugins-base \
-#         gstreamer1.0-plugins-good \
-#         gstreamer1.0-plugins-bad \
-#         gstreamer1.0-plugins-ugly \
-#         gstreamer1.0-libav \
-#         gstreamer1.0-alsa \
-#         gstreamer1.0-pulseaudio
 
-# Video4Linux utilities for V4L2 device management and testing
-# RUN apt-get install -y v4l-utils
+# NOTE: FFmpeg, GStreamer plugins, JPEG, and Video4Linux utilities are now
+# installed by the preinst script during package installation.
+# This keeps the test image lean and allows the preinst to handle all
+# multimedia dependencies in a consistent, verified manner.
 
 # FUSE support for AppImage installations
 RUN apt-get install -y libfuse2 \
@@ -124,11 +109,6 @@ RUN mkdir -p /tmp/build-artifacts /tmp/packages && \
 # Copy installation scripts for runtime execution
 COPY ./install-openterface.sh /docker/install-openterface.sh
 RUN chmod +x /docker/install-openterface.sh
-
-# Keep legacy scripts for backwards compatibility
-COPY ./install-openterface-deb.sh /docker/install-openterface-deb.sh
-COPY ./install-openterface-appimage.sh /docker/install-openterface-appimage.sh
-RUN chmod +x /docker/install-openterface-deb.sh /docker/install-openterface-appimage.sh
 
 # Copy and setup entrypoint script
 COPY ./entrypoint.sh /entrypoint.sh

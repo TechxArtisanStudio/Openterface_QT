@@ -258,14 +258,16 @@ extract_and_install_missing_deps() {
     local temp_dir=$(mktemp -d)
     trap "rm -rf $temp_dir" RETURN
     
-    # Extract control archive from DEB
-    if ! ar x "$package_file" control.tar.xz -o "$temp_dir/control.tar.xz" 2>/dev/null; then
+    # Change to temp directory first
+    cd "$temp_dir"
+    
+    # Extract control archive from DEB (use absolute path for package file)
+    if ! ar x "$package_file" control.tar.xz 2>/dev/null; then
         # Try without xz compression
-        ar x "$package_file" control.tar.gz -o "$temp_dir/control.tar.gz" 2>/dev/null || ar x "$package_file" control.tar -o "$temp_dir/control.tar" 2>/dev/null
+        ar x "$package_file" control.tar.gz 2>/dev/null || ar x "$package_file" control.tar 2>/dev/null
     fi
     
     # Extract control files
-    cd "$temp_dir"
     if [ -f "control.tar.xz" ]; then
         tar -xf control.tar.xz 2>/dev/null || true
     elif [ -f "control.tar.gz" ]; then
@@ -294,10 +296,11 @@ extract_and_install_missing_deps() {
             # Extract missing packages from output
             print_warning "Dependencies are missing. Extracting missing package list..."
             
-            MISSING_PACKAGES=$(echo "$PREINST_OUTPUT" | grep -E "^\s+sudo apt-get install -y" -A 100 | grep "^    [a-z]" | awk '{print $1}' | tr '\n' ' ')
+            # Extract from "Missing packages: pkg1 pkg2 pkg3 ..." format
+            MISSING_PACKAGES=$(echo "$PREINST_OUTPUT" | grep "^Missing packages:" | sed 's/^Missing packages: //')
             
             if [ -z "$MISSING_PACKAGES" ]; then
-                # Fallback: try to extract from "Missing packages:" section
+                # Fallback: try to extract from "Missing packages:" section with dashes
                 MISSING_PACKAGES=$(echo "$PREINST_OUTPUT" | grep -A 100 "Missing packages:" | grep "^  - " | sed 's/^  - //' | tr '\n' ' ')
             fi
             

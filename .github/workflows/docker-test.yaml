@@ -5,16 +5,14 @@ on:
     branches: ["main", "dev"]
     paths:
       - 'docker/testos/Dockerfile.ubuntu-test-shared'
-      - 'docker/install-openterface-deb.sh'
-      - 'docker/install-openterface-appimage.sh'
+      - 'docker/install-openterface.sh'
       - '.github/workflows/docker-test.yaml'
       - 'packaging/debian/**'
   pull_request:
     branches: ["main", "dev"]
     paths:
       - 'docker/testos/Dockerfile.ubuntu-test-shared'
-      - 'docker/install-openterface-deb.sh'
-      - 'docker/install-openterface-appimage.sh'
+      - 'docker/install-openterface.sh'
       - '.github/workflows/docker-test.yaml'
   workflow_run:
     workflows: ["Linux Build"]
