@@ -248,95 +248,95 @@ download_from_latest_build() {
 # DEB Installation Functions
 # =============================================================================
 
-extract_and_install_missing_deps() {
+check_and_install_missing_deps() {
     local package_file="$1"
     local sudo_cmd="$2"
     
-    print_section "Checking for missing dependencies via preinst script..."
+    print_section "Attempting to install package and checking for missing dependencies..."
     
-    # Extract preinst script from DEB
-    local temp_dir=$(mktemp -d)
-    trap "rm -rf $temp_dir" RETURN
+    # Try dpkg install without -f flag first to see what's missing
+    DPKG_OUTPUT=$($sudo_cmd dpkg -i "$package_file" 2>&1)
+    DPKG_EXIT=$?
     
-    # Change to temp directory first
-    cd "$temp_dir"
-    
-    # Extract control archive from DEB (use absolute path for package file)
-    if ! ar x "$package_file" control.tar.xz 2>/dev/null; then
-        # Try without xz compression
-        ar x "$package_file" control.tar.gz 2>/dev/null || ar x "$package_file" control.tar 2>/dev/null
+    if [ $DPKG_EXIT -eq 0 ]; then
+        # No errors, dependencies are satisfied
+        print_success "Package dependencies are satisfied"
+        return 0
     fi
     
-    # Extract control files
-    if [ -f "control.tar.xz" ]; then
-        tar -xf control.tar.xz 2>/dev/null || true
-    elif [ -f "control.tar.gz" ]; then
-        tar -xzf control.tar.gz 2>/dev/null || true
-    elif [ -f "control.tar" ]; then
-        tar -xf control.tar 2>/dev/null || true
+    # Package installation failed, extract missing dependencies from dpkg output
+    print_warning "Package has unmet dependencies"
+    print_info "dpkg output:"
+    echo "$DPKG_OUTPUT"
+    echo ""
+    
+    # Extract missing package names from dpkg error output
+    # dpkg typically outputs: "dpkg: error processing package ... (--install):"
+    # followed by "Package depends on XXX but it is not installable"
+    # or "Depends: xxx, yyy, zzz"
+    MISSING_PACKAGES=$(echo "$DPKG_OUTPUT" | grep -oP "(?<=Depends: ).*|(?<=depends on ).*" | tr ',' '\n' | sed 's/^ *//;s/ *$//' | grep -v '|' | awk '{print $1}' | sort -u | tr '\n' ' ')
+    
+    if [ -z "$MISSING_PACKAGES" ]; then
+        # Try alternative parsing for "depends on X but it is not installable"
+        MISSING_PACKAGES=$(echo "$DPKG_OUTPUT" | grep -oP "(?<=depends on )[^ ]+" | sort -u | tr '\n' ' ')
     fi
     
-    # Run preinst script to get missing dependencies
-    if [ -f "preinst" ]; then
-        print_info "Running preinst dependency check..."
+    if [ -z "$MISSING_PACKAGES" ]; then
+        print_warning "Could not automatically detect missing packages from dpkg output"
+        print_info "Attempting to fix with apt-get install -f..."
         
-        # Make script executable and run it
-        chmod +x preinst
-        PREINST_OUTPUT=$(./preinst install 2>&1)
-        PREINST_EXIT=$?
-        
-        print_info "Preinst output:"
-        echo "$PREINST_OUTPUT"
+        # Let apt-get try to resolve dependencies
+        print_section "Installing missing dependencies..."
+        print_info "Running: apt-get update && apt-get install -f -y"
         echo ""
         
-        if [ $PREINST_EXIT -eq 0 ]; then
-            print_success "All dependencies are satisfied"
+        if $sudo_cmd apt-get update -qq 2>&1 | grep -v "^Get:\|^Hit:\|^Reading" || true; then
+            INSTALL_OUTPUT=$($sudo_cmd apt-get install -f -y 2>&1)
+            INSTALL_EXIT=$?
+            
+            echo "$INSTALL_OUTPUT"
+            echo ""
+            
+            if [ $INSTALL_EXIT -eq 0 ]; then
+                print_success "Missing dependencies installed successfully"
+                return 0
+            else
+                print_warning "apt-get install -f had issues, but continuing..."
+                return 0
+            fi
+        else
+            print_warning "apt-get update failed, but continuing..."
+            return 0
+        fi
+    fi
+    
+    # Install detected missing packages
+    print_info "Missing packages detected: $MISSING_PACKAGES"
+    echo ""
+    
+    print_section "Installing missing dependencies..."
+    print_info "Running: apt-get update && apt-get install -y $MISSING_PACKAGES"
+    echo ""
+    
+    if $sudo_cmd apt-get update -qq 2>&1 | grep -v "^Get:\|^Hit:\|^Reading" || true; then
+        print_info "Running apt-get install..."
+        INSTALL_OUTPUT=$($sudo_cmd apt-get install -y $MISSING_PACKAGES 2>&1)
+        INSTALL_EXIT=$?
+        
+        echo "$INSTALL_OUTPUT"
+        echo ""
+        
+        if [ $INSTALL_EXIT -eq 0 ]; then
+            print_success "Missing dependencies installed successfully"
+            echo ""
             return 0
         else
-            # Extract missing packages from output
-            print_warning "Dependencies are missing. Extracting missing package list..."
-            
-            # Extract from "Missing packages: pkg1 pkg2 pkg3 ..." format
-            MISSING_PACKAGES=$(echo "$PREINST_OUTPUT" | grep "^Missing packages:" | sed 's/^Missing packages: //')
-            
-            if [ -z "$MISSING_PACKAGES" ]; then
-                # Fallback: try to extract from "Missing packages:" section with dashes
-                MISSING_PACKAGES=$(echo "$PREINST_OUTPUT" | grep -A 100 "Missing packages:" | grep "^  - " | sed 's/^  - //' | tr '\n' ' ')
-            fi
-            
-            if [ -n "$MISSING_PACKAGES" ]; then
-                print_info "Missing packages detected: $MISSING_PACKAGES"
-                echo ""
-                
-                print_section "Installing missing dependencies..."
-                print_info "Running: apt-get update && apt-get install -y $MISSING_PACKAGES"
-                echo ""
-                
-                if $sudo_cmd apt-get update -qq 2>&1 | grep -v "^Get:\|^Hit:\|^Reading" || true; then
-                    if $sudo_cmd apt-get install -y $MISSING_PACKAGES 2>&1 | tee /tmp/dep_install.log; then
-                        print_success "Missing dependencies installed successfully"
-                        echo ""
-                        return 0
-                    else
-                        print_warning "Dependency installation had issues, checking what was installed..."
-                        cat /tmp/dep_install.log | tail -20
-                        echo ""
-                        # Continue anyway, preinst will check again
-                        return 0
-                    fi
-                else
-                    print_warning "apt-get update failed, but continuing..."
-                    return 0
-                fi
-            else
-                print_warning "Could not extract missing package list from preinst output"
-                print_info "Output was:"
-                echo "$PREINST_OUTPUT"
-                return 1
-            fi
+            print_warning "Dependency installation had issues, but continuing..."
+            echo ""
+            return 0
         fi
     else
-        print_warning "preinst script not found in DEB package"
+        print_warning "apt-get update failed, but continuing..."
         return 0
     fi
 }
@@ -376,35 +376,35 @@ install_deb_package() {
         SUDO=""
     fi
     
-    # Check and install missing dependencies using preinst script
-    if ! extract_and_install_missing_deps "$PACKAGE_FILE" "$SUDO"; then
-        print_warning "Dependency extraction/installation had issues, but continuing with dpkg..."
-    fi
-    
+    # Attempt installation and handle missing dependencies
     echo ""
-    # Install package
-    print_section "Running dpkg install..."
-    DPKG_OUTPUT=$($SUDO dpkg -i "$PACKAGE_FILE" 2>&1)
-    DPKG_EXIT=$?
+    print_section "Attempting package installation..."
     
-    if [ $DPKG_EXIT -eq 0 ]; then
-        print_success "Package installed successfully"
-        echo "$DPKG_OUTPUT"
-    else
-        print_warning "Package installation had dependency issues (exit code: $DPKG_EXIT)"
-        print_info "Error output:"
-        echo "$DPKG_OUTPUT"
-        echo ""
-        print_info "Attempting to fix remaining dependencies..."
+    if check_and_install_missing_deps "$PACKAGE_FILE" "$SUDO"; then
+        # Dependencies were handled, now do the actual installation
+        print_section "Installing package with dpkg..."
+        DPKG_OUTPUT=$($SUDO dpkg -i "$PACKAGE_FILE" 2>&1)
+        DPKG_EXIT=$?
         
-        if APT_FIX=$($SUDO apt-get install -f -y 2>&1); then
-            print_success "Dependencies resolved"
+        if [ $DPKG_EXIT -eq 0 ]; then
+            print_success "Package installed successfully"
+            echo "$DPKG_OUTPUT"
         else
-            print_error "Failed to fix dependencies"
-            print_info "Error output:"
-            echo "$APT_FIX"
-            return 1
+            print_warning "Package installation had issues (exit code: $DPKG_EXIT)"
+            print_info "Attempting to fix remaining dependencies..."
+            
+            if APT_FIX=$($SUDO apt-get install -f -y 2>&1); then
+                print_success "Dependencies resolved"
+                echo "$APT_FIX"
+            else
+                print_error "Failed to fix dependencies"
+                print_info "Error output:"
+                echo "$APT_FIX"
+                return 1
+            fi
         fi
+    else
+        print_warning "Dependency check had issues, but continuing..."
     fi
     
     # Update library cache
