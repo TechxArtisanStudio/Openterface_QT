@@ -259,10 +259,10 @@ if [ $VA_FOUND -eq 0 ]; then
     echo "⚠️  Warning: VA-API libraries not found"
 fi
 
-# Copy core FFmpeg libraries (libavcodec, libavformat, libavutil, libswscale, libswresample)
+# Copy core FFmpeg libraries (libavdevice, libavcodec, libavformat, libavutil, libswscale, libswresample)
 echo "📋 DEB: Searching for FFmpeg core libraries..."
 FFMPEG_FOUND=0
-FFMPEG_LIBS=(libavcodec.so libavformat.so libavutil.so libswscale.so libswresample.so)
+FFMPEG_LIBS=(libavdevice.so libavcodec.so libavformat.so libavutil.so libswscale.so libswresample.so)
 
 for SEARCH_DIR in /opt/ffmpeg/lib /usr/lib/x86_64-linux-gnu /usr/lib; do
     echo "   Checking: $SEARCH_DIR"
@@ -583,11 +583,11 @@ Version: ${VERSION}
 Section: base
 Priority: optional
 Architecture: ${ARCH}
-Depends: libxkbcommon0, libwayland-client0, libegl1, libgles2, libpulse0, libxcb1, libxcb-shm0, libxcb-xfixes0, libxcb-shape0, libx11-6, zlib1g, libbz2-1.0, liblzma5, libva2, libva-drm2, libva-x11-2, libgstreamer1.0-0, libgstreamer-plugins-base1.0-0, libv4l-0
+Depends: libxkbcommon0, libwayland-client0, libegl1, libgles2, libpulse0, libxcb1, libxcb-shm0, libxcb-xfixes0, libxcb-shape0, libx11-6, zlib1g, libbz2-1.0, liblzma5, libva2, libva-drm2, libva-x11-2, libgstreamer1.0-0, libgstreamer-plugins-base1.0-0, libv4l-0, libavdevice60
 Maintainer: TechxArtisan <info@techxartisan.com>
 Description: OpenterfaceQT Mini-KVM Linux Edition
  Includes bundled FFmpeg 6.1.1 libraries (libavformat, libavcodec,
- libswresample, libswscale, libavutil) and libturbojpeg
+ libavdevice, libswresample, libswscale, libavutil) and libturbojpeg
 EOF
 fi
 
@@ -768,10 +768,10 @@ else
     echo "✅ VA-API found and copied"
 fi
 
-# Copy core FFmpeg libraries (libavcodec, libavformat, libavutil, libswscale, libswresample)
+# Copy core FFmpeg libraries (libavdevice, libavcodec, libavformat, libavutil, libswscale, libswresample)
 echo "📋 RPM: Searching for FFmpeg core libraries..."
 FFMPEG_FOUND=0
-FFMPEG_LIBS=(libavcodec.so libavformat.so libavutil.so libswscale.so libswresample.so)
+FFMPEG_LIBS=(libavdevice.so libavcodec.so libavformat.so libavutil.so libswscale.so libswresample.so)
 
 for SEARCH_DIR in /opt/ffmpeg/lib /usr/lib/x86_64-linux-gnu /usr/lib; do
     echo "   Checking: $SEARCH_DIR"

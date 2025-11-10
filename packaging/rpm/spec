@@ -7,7 +7,7 @@ License:        AGPL-3.0
 URL:           https://github.com/TechxArtisanStudio/Openterface_QT
 
 # Bundled Qt, no external Qt dependencies
-Requires: libusb, libturbojpeg, libva, gstreamer1, gstreamer1-plugins-base, libv4l, libavformat, libavcodec, libswresample, libswscale, libavutil
+Requires: libusb, libturbojpeg, libva, gstreamer1, gstreamer1-plugins-base, libv4l, libavdevice, libavformat, libavcodec, libswresample, libswscale, libavutil
 
 %description
 OpenterfaceQT Application
@@ -34,6 +34,7 @@ cp %{_sourcedir}/libva*.so* %{buildroot}/usr/lib/ 2>/dev/null || true
 cp %{_sourcedir}/libgstreamer*.so* %{buildroot}/usr/lib/ 2>/dev/null || true
 cp %{_sourcedir}/libv4l*.so* %{buildroot}/usr/lib/ 2>/dev/null || true
 # Copy FFmpeg core libraries
+cp %{_sourcedir}/libavdevice*.so* %{buildroot}/usr/lib/ 2>/dev/null || true
 cp %{_sourcedir}/libavcodec*.so* %{buildroot}/usr/lib/ 2>/dev/null || true
 cp %{_sourcedir}/libavformat*.so* %{buildroot}/usr/lib/ 2>/dev/null || true
 cp %{_sourcedir}/libavutil*.so* %{buildroot}/usr/lib/ 2>/dev/null || true
