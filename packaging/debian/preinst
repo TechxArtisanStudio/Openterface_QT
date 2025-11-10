@@ -1,0 +1,173 @@
+#!/bin/bash
+# =============================================================================
+# OpenterfaceQT Pre-Installation Script
+# =============================================================================
+#
+# This script runs BEFORE the DEB package is unpacked and installed.
+# It ensures all required runtime dependencies are installed first.
+#
+# Dependencies installed:
+#   - Graphics: libegl1, libgles2, libva-api libraries
+#   - Audio: libpulse0
+#   - Video: libgstreamer1.0-0, libgstreamer-plugins-base1.0-0, libv4l-0
+#   - X11/Display: libxcb*, libx11-6, libwayland-client0, libxkbcommon0
+#   - Compression: zlib1g, libbz2-1.0, liblzma5
+#
+# =============================================================================
+
+set -e
+
+echo "=========================================="
+echo "OpenterfaceQT Pre-Installation Script"
+echo "=========================================="
+echo ""
+
+# Function to print status messages
+print_status() {
+    echo "📦 $1"
+}
+
+print_success() {
+    echo "✅ $1"
+}
+
+print_warning() {
+    echo "⚠️  $1"
+}
+
+print_error() {
+    echo "❌ $1"
+}
+
+# Check if running with apt/dpkg
+if [ "$1" != "install" ] && [ "$1" != "upgrade" ]; then
+    echo "Pre-installation script called with: $1"
+    exit 0
+fi
+
+print_status "Starting pre-installation dependency check and installation..."
+echo ""
+
+# Function to safely run apt-get with retries
+run_apt_get() {
+    local max_attempts=3
+    local attempt=1
+    
+    while [ $attempt -le $max_attempts ]; do
+        if "$@"; then
+            return 0
+        else
+            local exit_code=$?
+            if [ $attempt -lt $max_attempts ]; then
+                print_warning "Attempt $attempt failed (exit code: $exit_code), retrying..."
+                sleep 2
+                ((attempt++))
+            else
+                print_error "Command failed after $max_attempts attempts"
+                return $exit_code
+            fi
+        fi
+    done
+}
+
+# Step 1: Update package lists
+print_status "Updating package repository lists..."
+if run_apt_get apt-get update -qq 2>/dev/null; then
+    print_success "Package lists updated"
+else
+    print_warning "apt-get update encountered issues, but continuing..."
+fi
+
+echo ""
+
+# Step 2: Install graphics and rendering libraries
+print_status "Installing graphics and GPU libraries..."
+if run_apt_get apt-get install -y -qq libegl1 libgles2 2>/dev/null; then
+    print_success "Graphics libraries installed"
+else
+    print_error "Failed to install graphics libraries"
+    exit 1
+fi
+
+# Step 3: Install audio libraries
+print_status "Installing audio libraries..."
+if run_apt_get apt-get install -y -qq libpulse0 2>/dev/null; then
+    print_success "Audio libraries installed"
+else
+    print_error "Failed to install audio libraries"
+    exit 1
+fi
+
+# Step 4: Install video acceleration libraries
+print_status "Installing video acceleration libraries..."
+if run_apt_get apt-get install -y -qq libva2 libva-drm2 libva-x11-2 2>/dev/null; then
+    print_success "Video acceleration libraries installed"
+else
+    print_error "Failed to install video acceleration libraries"
+    exit 1
+fi
+
+# Step 5: Install GStreamer multimedia framework
+print_status "Installing GStreamer multimedia framework..."
+if run_apt_get apt-get install -y -qq libgstreamer1.0-0 libgstreamer-plugins-base1.0-0 2>/dev/null; then
+    print_success "GStreamer libraries installed"
+else
+    print_error "Failed to install GStreamer libraries"
+    exit 1
+fi
+
+# Step 6: Install Video4Linux libraries
+print_status "Installing Video4Linux libraries..."
+if run_apt_get apt-get install -y -qq libv4l-0 2>/dev/null; then
+    print_success "Video4Linux libraries installed"
+else
+    print_error "Failed to install Video4Linux libraries"
+    exit 1
+fi
+
+# Step 7: Install X11 and display server libraries
+print_status "Installing X11 and display server libraries..."
+if run_apt_get apt-get install -y -qq \
+    libxkbcommon0 \
+    libwayland-client0 \
+    libxcb1 \
+    libxcb-shm0 \
+    libxcb-xfixes0 \
+    libxcb-shape0 \
+    libx11-6 2>/dev/null; then
+    print_success "X11 and display libraries installed"
+else
+    print_error "Failed to install X11 libraries"
+    exit 1
+fi
+
+# Step 8: Install compression libraries
+print_status "Installing compression libraries..."
+if run_apt_get apt-get install -y -qq zlib1g libbz2-1.0 liblzma5 2>/dev/null; then
+    print_success "Compression libraries installed"
+else
+    print_error "Failed to install compression libraries"
+    exit 1
+fi
+
+echo ""
+echo "=========================================="
+print_success "All dependencies installed successfully!"
+echo "=========================================="
+echo ""
+
+# Summary
+print_status "Dependencies installed:"
+echo "  ✓ Graphics: libegl1, libgles2"
+echo "  ✓ Audio: libpulse0"
+echo "  ✓ Video Acceleration: libva2, libva-drm2, libva-x11-2"
+echo "  ✓ GStreamer: libgstreamer1.0-0, libgstreamer-plugins-base1.0-0"
+echo "  ✓ Video4Linux: libv4l-0"
+echo "  ✓ X11/Display: libxkbcommon0, libwayland-client0, libxcb*, libx11-6"
+echo "  ✓ Compression: zlib1g, libbz2-1.0, liblzma5"
+echo ""
+
+print_status "Proceeding with OpenterfaceQT package installation..."
+echo ""
+
+exit 0
