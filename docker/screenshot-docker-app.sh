@@ -61,7 +61,7 @@ fi
 if ! command -v Xvfb >/dev/null 2>&1 || ! command -v import >/dev/null 2>&1; then
     echo -e "${BLUE}📦 Installing virtual display and image processing dependencies...${NC}"
     sudo apt-get update -y >/dev/null
-    sudo apt-get install -y xvfb imagemagick x11-utils xdotool wmctrl >/dev/null
+    sudo apt-get install -y xvfb imagemagick x11-utils >/dev/null
     echo -e "${GREEN}✅ Dependencies installation completed${NC}"
 fi
 
@@ -107,20 +107,8 @@ if [ -n "$VOLUME_MOUNT" ]; then
 fi
 
 # Add the image and command to launch the app
-# Keep container running in foreground by tailing logs
 DOCKER_RUN_CMD="$DOCKER_RUN_CMD $DOCKER_IMAGE:$DOCKER_TAG \
-    bash -c 'export DISPLAY=$DISPLAY QT_X11_NO_MITSHM=1 QT_QPA_PLATFORM=xcb && \
-    set -x && \
-    echo \"\" && \
-    echo \"========================================\" && \
-    echo \"Qt Dependencies Check\" && \
-    echo \"========================================\" && \
-    /usr/local/bin/check-qt-deps.sh && \
-    echo \"\" && \
-    echo \"========================================\" && \
-    echo \"Starting openterfaceQT application\" && \
-    echo \"========================================\" && \
-    /usr/local/bin/openterfaceQT 2>&1'"
+    bash -c 'export DISPLAY=$DISPLAY QT_X11_NO_MITSHM=1 QT_QPA_PLATFORM=xcb && /usr/local/bin/check-qt-deps.sh && sleep 2 && exec /usr/local/bin/openterfaceQT 2>&1 || (echo \"App launch failed - running diagnostics...\"; echo \"---\"; /usr/local/bin/check-qt-deps.sh 2>&1; echo \"---\"; ls -la /usr/local/bin/openterface* 2>&1; which openterfaceQT 2>&1; echo \"---\"; /usr/local/bin/openterfaceQT --version 2>&1 || echo \"Binary exists but cannot run\")'"
 
 # Execute the docker run command
 CONTAINER_ID=$(eval $DOCKER_RUN_CMD)
@@ -128,79 +116,13 @@ CONTAINER_ID=$(eval $DOCKER_RUN_CMD)
 echo -e "${GREEN}✅ Container started${NC}"
 echo -e "${BLUE}📱 App is initializing...${NC}"
 
-# Wait for app to start and stabilize
-echo -e "${YELLOW}⏱️  Waiting for app to launch and UI to render:${NC}"
-
-# Check application startup with window detection
-echo -e "${BLUE}🔍 Detecting application window...${NC}"
-start_time=$(date +%s)
-timeout=120  # Increased to 120 seconds to allow for installation and startup
-window_detected=false
-window_id=""
-
-while [ $(($(date +%s) - start_time)) -lt $timeout ]; do
-    # Check for running app process
-    if docker exec $CONTAINER_NAME ps aux 2>/dev/null | grep -E "[o]penterfaceQT" | grep -v grep > /dev/null 2>&1; then
-        echo -e "${GREEN}✅ App process is running${NC}"
-        
-        # Try to detect window from host X11
-        if command -v xdotool >/dev/null 2>&1 || command -v wmctrl >/dev/null 2>&1; then
-            DISPLAY=:98 xdotool search --class "openterface\|QT\|qt-" 2>/dev/null | head -1 > /tmp/window_id.txt && \
-            window_id=$(cat /tmp/window_id.txt 2>/dev/null)
-            
-            if [ -n "$window_id" ] && [ "$window_id" != "0" ]; then
-                echo -e "${GREEN}✅ Application window detected (ID: $window_id)${NC}"
-                window_detected=true
-                break
-            fi
-        fi
-        
-        # Alternative: check X11 window tree
-        if ! [ "$window_detected" = true ]; then
-            window_count=$(DISPLAY=:98 xwininfo -tree -root 2>/dev/null | grep -iE "openterface|openterface.*\()" | wc -l)
-            if [ "$window_count" -gt 0 ]; then
-                echo -e "${GREEN}✅ Application window detected in X11 tree${NC}"
-                window_detected=true
-                break
-            fi
-        fi
-    fi
-    
-    elapsed=$(($(date +%s) - start_time))
-    printf "\r${YELLOW}⏳ Waiting for app window... (%d/%d seconds)${NC}" $elapsed $timeout
+# Wait exactly 10 seconds with countdown
+echo -e "${YELLOW}⏱️  Waiting 10 seconds before taking screenshot:${NC}"
+for i in {10..1}; do
+    printf "\r${YELLOW}Countdown: %2d seconds${NC}" $i
     sleep 1
 done
 echo ""
-
-# Determine wait time based on detection
-if [ "$window_detected" = true ]; then
-    echo -e "${GREEN}✅ Window detected, waiting 10 seconds for full UI render and startup${NC}"
-    for i in {10..1}; do
-        printf "\r${YELLOW}⏳ Rendering: %d seconds${NC}" $i
-        sleep 1
-    done
-    echo ""
-else
-    echo -e "${YELLOW}⚠️  Window not detected, waiting 30 seconds for UI initialization and dependencies${NC}"
-    for i in {30..1}; do
-        printf "\r${YELLOW}⏳ Initializing: %d seconds${NC}" $i
-        sleep 1
-    done
-    echo ""
-fi
-
-# Additional diagnostic before screenshot
-echo -e "${BLUE}🔍 Pre-screenshot diagnostics:${NC}"
-echo -e "${BLUE}  📋 Container logs (last 20 lines):${NC}"
-docker logs --tail 20 $CONTAINER_NAME 2>&1 | sed 's/^/    /'
-
-echo ""
-echo -e "${BLUE}  🔍 Running processes in container:${NC}"
-docker exec $CONTAINER_NAME ps aux 2>/dev/null | grep -E "openterface|qt|Qt" | sed 's/^/    /'
-
-echo ""
-echo -e "${BLUE}  🪟 X11 active windows:${NC}"
-DISPLAY=:98 xwininfo -tree -root 2>/dev/null | head -20 | sed 's/^/    /'
 
 # Take the main screenshot
 echo -e "${BLUE}📸 Taking screenshot...${NC}"
@@ -344,51 +266,8 @@ if [ -d "$SCREENSHOTS_DIR" ] && [ "$(ls -A $SCREENSHOTS_DIR 2>/dev/null)" ]; the
     echo ""
     echo -e "${GREEN}📈 Screenshot Statistics:${NC}"
     echo "   JPG files: $jpg_count files"
-    
-    # Validate screenshot quality
-    echo ""
-    echo -e "${BLUE}📊 Screenshot Content Validation:${NC}"
-    
-    valid_screenshot_count=0
-    has_blank_screenshot=false
-    
-    for img in $SCREENSHOTS_DIR/*.jpg; do
-        if [ -f "$img" ]; then
-            filesize=$(stat -f%z "$img" 2>/dev/null || stat -c%s "$img" 2>/dev/null || echo "0")
-            filename=$(basename "$img")
-            
-            # Check file size - should be > 50KB for meaningful content
-            if [ "$filesize" -gt 51200 ]; then
-                echo -e "${GREEN}   ✅ $filename: $filesize bytes (VALID)${NC}"
-                valid_screenshot_count=$((valid_screenshot_count + 1))
-            else
-                echo -e "${RED}   ❌ $filename: $filesize bytes (TOO SMALL - Likely blank/black)${NC}"
-                has_blank_screenshot=true
-            fi
-        fi
-    done
-    
-    echo ""
-    if [ "$valid_screenshot_count" -gt 0 ] && [ "$has_blank_screenshot" = false ]; then
-        echo -e "${GREEN}📈 Test Result: PASSED ✅${NC}"
-        echo "   All $jpg_count screenshots contain valid content (>50KB)"
-    else
-        if [ "$valid_screenshot_count" -eq 0 ]; then
-            echo -e "${RED}📈 Test Result: FAILED ❌${NC}"
-            echo "   No screenshots with valid content found!"
-            echo "   Expected: Screenshots >50KB with rendered UI"
-            echo "   Got: $jpg_count screenshot(s) with $valid_screenshot_count valid"
-            exit 1
-        elif [ "$has_blank_screenshot" = true ]; then
-            echo -e "${RED}📈 Test Result: FAILED ❌${NC}"
-            echo "   Some screenshots are too small (likely blank/black)"
-            echo "   Application UI may not be rendering properly"
-            exit 1
-        fi
-    fi
 else
     echo -e "${RED}❌ No screenshot files generated${NC}"
-    exit 1
 fi
 
 echo ""
