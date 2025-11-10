@@ -108,7 +108,28 @@ fi
 
 # Add the image and command to launch the app
 DOCKER_RUN_CMD="$DOCKER_RUN_CMD $DOCKER_IMAGE:$DOCKER_TAG \
-    bash -c 'export DISPLAY=$DISPLAY QT_X11_NO_MITSHM=1 QT_QPA_PLATFORM=xcb && /usr/local/bin/check-qt-deps.sh && sleep 2 && exec /usr/local/bin/openterfaceQT 2>&1 || (echo \"App launch failed - running diagnostics...\"; echo \"---\"; /usr/local/bin/check-qt-deps.sh 2>&1; echo \"---\"; ls -la /usr/local/bin/openterface* 2>&1; which openterfaceQT 2>&1; echo \"---\"; /usr/local/bin/openterfaceQT --version 2>&1 || echo \"Binary exists but cannot run\")'"
+    bash -c 'export DISPLAY=$DISPLAY QT_X11_NO_MITSHM=1 QT_QPA_PLATFORM=xcb && \
+    /usr/local/bin/check-qt-deps.sh && \
+    echo \"Starting openterfaceQT application...\" && \
+    sleep 1 && \
+    /usr/local/bin/openterfaceQT > /tmp/openterface.log 2>&1 &
+    APP_PID=$! && \
+    echo \"Application PID: $APP_PID\" && \
+    sleep 3 && \
+    if kill -0 $APP_PID 2>/dev/null; then \
+        echo \"✅ Application is running\"; \
+        wait; \
+    else \
+        echo \"❌ Application failed to start\"; \
+        echo \"---\"; \
+        /usr/local/bin/check-qt-deps.sh 2>&1; \
+        echo \"---\"; \
+        ls -la /usr/local/bin/openterface* 2>&1; \
+        which openterfaceQT 2>&1; \
+        echo \"---\"; \
+        cat /tmp/openterface.log 2>&1; \
+        exit 1; \
+    fi'"
 
 # Execute the docker run command
 CONTAINER_ID=$(eval $DOCKER_RUN_CMD)
@@ -116,13 +137,42 @@ CONTAINER_ID=$(eval $DOCKER_RUN_CMD)
 echo -e "${GREEN}✅ Container started${NC}"
 echo -e "${BLUE}📱 App is initializing...${NC}"
 
-# Wait exactly 10 seconds with countdown
-echo -e "${YELLOW}⏱️  Waiting 10 seconds before taking screenshot:${NC}"
-for i in {10..1}; do
-    printf "\r${YELLOW}Countdown: %2d seconds${NC}" $i
+# Wait for app to start and stabilize
+echo -e "${YELLOW}⏱️  Waiting for app to launch and stabilize:${NC}"
+
+# First check if the app process has started
+echo -e "${BLUE}🔍 Checking if openterfaceQT process is running...${NC}"
+start_time=$(date +%s)
+timeout=30
+app_running=false
+
+while [ $(($(date +%s) - start_time)) -lt $timeout ]; do
+    if docker exec $CONTAINER_NAME ps aux 2>/dev/null | grep -E "[o]penterfaceQT|[q]t.app|Xvfb" | grep -v grep > /dev/null 2>&1; then
+        echo -e "${GREEN}✅ App process detected!${NC}"
+        app_running=true
+        break
+    fi
+    printf "\r${YELLOW}⏳ Waiting for app to start... (%d seconds)${NC}" $(($(date +%s) - start_time))
     sleep 1
 done
 echo ""
+
+if [ "$app_running" = true ]; then
+    echo -e "${BLUE}⏱️  Waiting 8 more seconds for UI to fully render:${NC}"
+    for i in {8..1}; do
+        printf "\r${YELLOW}Countdown: %2d seconds${NC}" $i
+        sleep 1
+    done
+    echo ""
+else
+    echo -e "${YELLOW}⚠️  App process not detected, but continuing (may be running)...${NC}"
+    echo -e "${BLUE}⏱️  Waiting 10 seconds for UI to initialize:${NC}"
+    for i in {10..1}; do
+        printf "\r${YELLOW}Countdown: %2d seconds${NC}" $i
+        sleep 1
+    done
+    echo ""
+fi
 
 # Take the main screenshot
 echo -e "${BLUE}📸 Taking screenshot...${NC}"
