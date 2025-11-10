@@ -227,7 +227,7 @@ jobs:
             LOGS=$(docker logs openterface-daemon 2>&1)
             
             # Check for installation success indicators
-            if echo "$LOGS" | grep "All required dependencies are installed!" >/dev/null; then
+            if echo "$LOGS" | grep "Openterface QT is ready for testing!" >/dev/null; then
               echo "✅ Installation completed successfully"
               INSTALL_COMPLETE=true
               break
