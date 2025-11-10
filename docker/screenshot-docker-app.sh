@@ -134,7 +134,7 @@ echo -e "${YELLOW}⏱️  Waiting for app to launch and UI to render:${NC}"
 # Check application startup with window detection
 echo -e "${BLUE}🔍 Detecting application window...${NC}"
 start_time=$(date +%s)
-timeout=45
+timeout=120  # Increased to 120 seconds to allow for installation and startup
 window_detected=false
 window_id=""
 
@@ -174,15 +174,15 @@ echo ""
 
 # Determine wait time based on detection
 if [ "$window_detected" = true ]; then
-    echo -e "${GREEN}✅ Window detected, waiting 5 seconds for full UI render${NC}"
-    for i in {5..1}; do
+    echo -e "${GREEN}✅ Window detected, waiting 10 seconds for full UI render and startup${NC}"
+    for i in {10..1}; do
         printf "\r${YELLOW}⏳ Rendering: %d seconds${NC}" $i
         sleep 1
     done
     echo ""
 else
-    echo -e "${YELLOW}⚠️  Window not detected, waiting 15 seconds for UI initialization${NC}"
-    for i in {15..1}; do
+    echo -e "${YELLOW}⚠️  Window not detected, waiting 30 seconds for UI initialization and dependencies${NC}"
+    for i in {30..1}; do
         printf "\r${YELLOW}⏳ Initializing: %d seconds${NC}" $i
         sleep 1
     done
