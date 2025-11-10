@@ -270,15 +270,19 @@ check_and_install_missing_deps() {
     echo "$DPKG_OUTPUT"
     echo ""
     
-    # Extract missing package names from dpkg error output
-    # dpkg typically outputs: "dpkg: error processing package ... (--install):"
-    # followed by "Package depends on XXX but it is not installable"
-    # or "Depends: xxx, yyy, zzz"
-    MISSING_PACKAGES=$(echo "$DPKG_OUTPUT" | grep -oP "(?<=Depends: ).*|(?<=depends on ).*" | tr ',' '\n' | sed 's/^ *//;s/ *$//' | grep -v '|' | awk '{print $1}' | sort -u | tr '\n' ' ')
+    # Extract missing package names from dpkg/preinst error output
+    # Look for "Missing packages: pkg1 pkg2 pkg3 ..." format (from preinst script)
+    MISSING_PACKAGES=$(echo "$DPKG_OUTPUT" | grep "^Missing packages:" | sed 's/^Missing packages: //')
     
     if [ -z "$MISSING_PACKAGES" ]; then
-        # Try alternative parsing for "depends on X but it is not installable"
-        MISSING_PACKAGES=$(echo "$DPKG_OUTPUT" | grep -oP "(?<=depends on )[^ ]+" | sort -u | tr '\n' ' ')
+        # Try alternative format: "Run the following command BEFORE installing..."
+        # followed by packages list in apt-get install command
+        MISSING_PACKAGES=$(echo "$DPKG_OUTPUT" | grep -A 1 "apt-get install -y" | tail -1 | sed 's/.*apt-get install -y //' | sed 's/^[ \t]*//')
+    fi
+    
+    if [ -z "$MISSING_PACKAGES" ]; then
+        # Try dpkg's standard "Depends: xxx, yyy, zzz" format
+        MISSING_PACKAGES=$(echo "$DPKG_OUTPUT" | grep -oP "(?<=Depends: ).*|(?<=depends on ).*" | tr ',' '\n' | sed 's/^ *//;s/ *$//' | grep -v '|' | awk '{print $1}' | sort -u | tr '\n' ' ')
     fi
     
     if [ -z "$MISSING_PACKAGES" ]; then
