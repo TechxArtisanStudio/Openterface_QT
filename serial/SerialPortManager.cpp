@@ -353,39 +353,43 @@ bool SerialPortManager::switchSerialPortByPortChain(const QString& portChain)
  * This method now works alongside the enhanced hotplug detection system
  */
 void SerialPortManager::checkSerialPort() {
-    QDateTime currentTime = QDateTime::currentDateTime();
-    if (lastSerialPortCheckTime.isValid() && lastSerialPortCheckTime.msecsTo(currentTime) < SERIAL_TIMER_INTERVAL) {
-        return;
-    }
-    lastSerialPortCheckTime = currentTime;
-    qCDebug(log_core_serial) << "Check serial port";
-
-    // Use new initialization logic
-    if (!serialPort || !serialPort->isOpen()) {
-        qCDebug(log_core_serial) << "Serial port not open, will initialize from port chain after 300ms delay";
-        QTimer::singleShot(300, this, [this]() {
-            initializeSerialPortFromPortChain();
-        });
-        return;
-    }
-
-    if (ready) {
-        if (isTargetUsbConnected) {
-            // Check target connection status when no data received in 3 seconds
-            if (latestUpdateTime.secsTo(QDateTime::currentDateTime()) > 3) {
-                ready = sendAsyncCommand(CMD_GET_INFO, false);
-            }
-        } else {
-            sendAsyncCommand(CMD_GET_INFO, false);
+    if(isChipTypeFE0C()){
+        ready = true;
+    }else{
+        QDateTime currentTime = QDateTime::currentDateTime();
+        if (lastSerialPortCheckTime.isValid() && lastSerialPortCheckTime.msecsTo(currentTime) < SERIAL_TIMER_INTERVAL) {
+            return;
         }
-    }
+        lastSerialPortCheckTime = currentTime;
+        qCDebug(log_core_serial) << "Check serial port";
 
-    // Always send CMD_GET_INFO with force=true to ensure key state update every check,
-    // even if !ready (bypasses the ready guard in sendAsyncCommand)
-    sendAsyncCommand(CMD_GET_INFO, true);
+        // Use new initialization logic
+        if (!serialPort || !serialPort->isOpen()) {
+            qCDebug(log_core_serial) << "Serial port not open, will initialize from port chain after 300ms delay";
+            QTimer::singleShot(300, this, [this]() {
+                initializeSerialPortFromPortChain();
+            });
+            return;
+        }
 
-    if (latestUpdateTime.secsTo(QDateTime::currentDateTime()) > 5) {
-        ready = false;
+        if (ready) {
+            if (isTargetUsbConnected) {
+                // Check target connection status when no data received in 3 seconds
+                if (latestUpdateTime.secsTo(QDateTime::currentDateTime()) > 3) {
+                    ready = sendAsyncCommand(CMD_GET_INFO, false);
+                }
+            } else {
+                sendAsyncCommand(CMD_GET_INFO, false);
+            }
+        }
+
+        // Always send CMD_GET_INFO with force=true to ensure key state update every check,
+        // even if !ready (bypasses the ready guard in sendAsyncCommand)
+        sendAsyncCommand(CMD_GET_INFO, true);
+
+        if (latestUpdateTime.secsTo(QDateTime::currentDateTime()) > 5) {
+            ready = false;
+        }
     }
 }
 
