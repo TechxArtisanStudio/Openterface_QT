@@ -192,14 +192,15 @@ jobs:
           if [ "$HAS_VOLUME_MOUNT" = "true" ]; then
             docker run -d $VOLUME_MOUNT -e GITHUB_TOKEN="${{ secrets.GITHUB_TOKEN }}" -e INSTALL_TYPE="${{ env.INSTALL_TYPE }}" \
               --name openterface-daemon \
-              ${{ env.DOCKER_IMAGE_SHARED }}:${{ env.DOCKER_TAG }} \
-              tail -f /dev/null
+              ${{ env.DOCKER_IMAGE_SHARED }}:${{ env.DOCKER_TAG }}
           else
             docker run -d -e GITHUB_TOKEN="${{ secrets.GITHUB_TOKEN }}" -e INSTALL_TYPE="${{ env.INSTALL_TYPE }}" \
               --name openterface-daemon \
-              ${{ env.DOCKER_IMAGE_SHARED }}:${{ env.DOCKER_TAG }} \
-              tail -f /dev/null
+              ${{ env.DOCKER_IMAGE_SHARED }}:${{ env.DOCKER_TAG }}
           fi
+          
+          CONTAINER_ID=$(docker ps -aqf "name=openterface-daemon")
+          echo "Container ID: $CONTAINER_ID"
           
           # Verify container is running
           sleep 2
@@ -209,6 +210,62 @@ jobs:
           else
             echo "❌ Failed to start container"
             exit 1
+          fi
+          
+          # Monitor logs until installation completes or fails
+          echo "📋 Monitoring container logs for installation status..."
+          echo "=================================================="
+          
+          INSTALL_COMPLETE=false
+          INSTALL_FAILED=false
+          TIMEOUT=600  # 10 minutes timeout
+          ELAPSED=0
+          CHECK_INTERVAL=5
+          
+          while [ $ELAPSED -lt $TIMEOUT ]; do
+            # Get recent logs
+            LOGS=$(docker logs openterface-daemon 2>&1)
+            
+            # Check for installation success indicators
+            if echo "$LOGS" | grep -iE "(install.*success|installation.*complete|openterface.*installed|ready to use)" >/dev/null; then
+              echo "✅ Installation completed successfully"
+              INSTALL_COMPLETE=true
+              break
+            fi
+            
+            # Check for installation failure indicators
+            if echo "$LOGS" | grep -iE "(install.*fail|error.*install|failed to install|installation.*error|apt.*error|dpkg.*error)" >/dev/null; then
+              echo "❌ Installation failed"
+              INSTALL_FAILED=true
+              break
+            fi
+            
+            # Show progress
+            LOGS_TAIL=$(docker logs openterface-daemon 2>&1 | tail -3)
+            echo "⏳ Waiting for installation... (${ELAPSED}s)"
+            echo "$LOGS_TAIL"
+            echo "---"
+            
+            sleep $CHECK_INTERVAL
+            ELAPSED=$((ELAPSED + CHECK_INTERVAL))
+          done
+          
+          echo "=================================================="
+          
+          # Get full logs for debugging
+          echo "📋 Full container logs:"
+          docker logs openterface-daemon 2>&1 | tail -50
+          
+          # Handle installation result
+          if [ "$INSTALL_FAILED" = true ]; then
+            echo "❌ Installation failed - stopping GitHub Actions"
+            echo "Full logs:"
+            docker logs openterface-daemon
+            exit 1
+          elif [ "$INSTALL_COMPLETE" = true ]; then
+            echo "✅ Openterface installation verified"
+          else
+            echo "⚠️ Installation status inconclusive after ${TIMEOUT}s, continuing with tests..."
           fi
           
           # Store container name in environment for subsequent steps
