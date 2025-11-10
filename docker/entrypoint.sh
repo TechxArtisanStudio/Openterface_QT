@@ -80,15 +80,53 @@ else
     fi
 fi
 
-echo "🚀 Launching application..."
+echo "🚀 Launching Openterface application..."
 echo ""
 
-# Execute the command passed to docker run, or default to bash
-if [ $# -eq 0 ]; then
-    # No command provided, use bash as default
-    exec /bin/bash
+# Try to launch the openterfaceQT application
+if [ -f /usr/local/bin/openterfaceQT ]; then
+    echo "✅ Found openterfaceQT application, starting it..."
+    
+    # Set up display environment for GUI
+    export DISPLAY="${DISPLAY:-:99}"
+    export QT_X11_NO_MITSHM=1
+    export QT_QPA_PLATFORM=offscreen
+    
+    # Start the application and keep container running
+    echo "📝 Starting Openterface QT..."
+    nohup /usr/local/bin/openterfaceQT > /tmp/openterfaceqt.log 2>&1 &
+    APP_PID=$!
+    
+    echo "✅ Openterface QT started with PID: $APP_PID"
+    echo "📋 Log file: /tmp/openterfaceqt.log"
+    echo ""
+    echo "Openterface QT is ready for testing!"
+    echo ""
+    
+    # Keep container running by waiting for the app process
+    # This prevents the container from stopping
+    if [ $# -eq 0 ]; then
+        # No command provided, just wait for the app to finish
+        wait $APP_PID
+        exit_code=$?
+        echo "Openterface QT exited with code: $exit_code"
+        # Keep container running even if app exits
+        exec /bin/bash -i
+    else
+        # Execute provided command but keep app running in background
+        exec "$@"
+    fi
 else
-    # Execute provided command
-    exec "$@"
+    echo "⚠️ openterfaceQT application not found"
+    echo "Available applications:"
+    ls -la /usr/local/bin/openterface* 2>/dev/null || echo "None found"
+    echo ""
+    
+    # Fall back to bash if application is not installed
+    if [ $# -eq 0 ]; then
+        exec /bin/bash
+    else
+        exec "$@"
+    fi
 fi
 
