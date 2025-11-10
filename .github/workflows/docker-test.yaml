@@ -183,43 +183,54 @@ jobs:
           echo "🔍 Image layers (last 10):"
           docker history ${{ env.DOCKER_IMAGE_SHARED }}:${{ env.DOCKER_TAG }} | head -10
 
+      - name: Start daemon container for testing (Shared)
+        run: |
+          echo "🧪 Starting container as daemon for testing"
+          
+          # Start container in detached mode (-d) with a known name
+          echo "🔍 Starting openterface-daemon container..."
+          if [ "$HAS_VOLUME_MOUNT" = "true" ]; then
+            docker run -d $VOLUME_MOUNT -e GITHUB_TOKEN="${{ secrets.GITHUB_TOKEN }}" -e INSTALL_TYPE="${{ env.INSTALL_TYPE }}" \
+              --name openterface-daemon \
+              ${{ env.DOCKER_IMAGE_SHARED }}:${{ env.DOCKER_TAG }} \
+              tail -f /dev/null
+          else
+            docker run -d -e GITHUB_TOKEN="${{ secrets.GITHUB_TOKEN }}" -e INSTALL_TYPE="${{ env.INSTALL_TYPE }}" \
+              --name openterface-daemon \
+              ${{ env.DOCKER_IMAGE_SHARED }}:${{ env.DOCKER_TAG }} \
+              tail -f /dev/null
+          fi
+          
+          # Verify container is running
+          sleep 2
+          if docker ps | grep -q openterface-daemon; then
+            echo "✅ Container openterface-daemon started successfully"
+            docker ps | grep openterface-daemon
+          else
+            echo "❌ Failed to start container"
+            exit 1
+          fi
+          
+          # Store container name in environment for subsequent steps
+          echo "DAEMON_CONTAINER_NAME=openterface-daemon" >> $GITHUB_ENV
+      
       - name: Basic container functionality test (Shared)
         run: |
           echo "🧪 Testing basic container functionality"
           
-          # Test simple command execution
+          # Execute commands on running daemon container
           echo "🔍 Testing simple command execution..."
-          if [ "$HAS_VOLUME_MOUNT" = "true" ]; then
-            docker run --rm $VOLUME_MOUNT -e GITHUB_TOKEN="${{ secrets.GITHUB_TOKEN }}" -e INSTALL_TYPE="${{ env.INSTALL_TYPE }}" \
-              --name openterface-basic-test \
-              ${{ env.DOCKER_IMAGE_SHARED }}:${{ env.DOCKER_TAG }} \
-              bash -c '
-                echo "✅ Container can execute commands"
-                whoami
-                pwd
-                echo "User ID:" $(id)
-                echo "Environment variables:"
-                env | grep -E "HOME|USER|DISPLAY|QT_|GITHUB_TOKEN|INSTALL_TYPE" | head -10
-                echo "File system check:"
-                ls -la /home/openterface/ | head -5
-                echo "✅ Basic functionality test completed"
-              '
-          else
-            docker run --rm -e GITHUB_TOKEN="${{ secrets.GITHUB_TOKEN }}" -e INSTALL_TYPE="${{ env.INSTALL_TYPE }}" \
-              --name openterface-basic-test \
-              ${{ env.DOCKER_IMAGE_SHARED }}:${{ env.DOCKER_TAG }} \
-              bash -c '
-                echo "✅ Container can execute commands"
-                whoami
-                pwd
-                echo "User ID:" $(id)
-                echo "Environment variables:"
-                env | grep -E "HOME|USER|DISPLAY|QT_|GITHUB_TOKEN|INSTALL_TYPE" | head -10
-                echo "File system check:"
-                ls -la /home/openterface/ | head -5
-                echo "✅ Basic functionality test completed"
-              '
-          fi
+          docker exec ${{ env.DAEMON_CONTAINER_NAME }} bash -c '
+            echo "✅ Container can execute commands"
+            whoami
+            pwd
+            echo "User ID:" $(id)
+            echo "Environment variables:"
+            env | grep -E "HOME|USER|DISPLAY|QT_|GITHUB_TOKEN|INSTALL_TYPE" | head -10
+            echo "File system check:"
+            ls -la /home/openterface/ | head -5
+            echo "✅ Basic functionality test completed"
+          '
           
           echo "✅ Basic container functionality test passed"
      
@@ -227,64 +238,169 @@ jobs:
         run: |
           echo "🧪 Testing hardware interface dependencies"
           
-          # Skip entrypoint and just check system libraries directly
-          docker run --rm \
-            --entrypoint bash \
-            -e GITHUB_TOKEN="${{ secrets.GITHUB_TOKEN }}" \
-            -e INSTALL_TYPE="${{ env.INSTALL_TYPE }}" \
-            --name openterface-hw-test \
-            ${{ env.DOCKER_IMAGE_SHARED }}:${{ env.DOCKER_TAG }} \
-            -c '
-              echo "🔍 Checking USB libraries..."
-              dpkg -l | grep libusb || echo "No libusb packages found"
-              
-              echo "🔍 Checking udev libraries..."
-              dpkg -l | grep libudev || echo "No libudev packages found"
-              
-              echo "🔍 Checking FFmpeg libraries..."
-              dpkg -l | grep libav | head -5 || echo "No FFmpeg packages found"
-              
-              echo "🔍 Checking GStreamer..."
-              dpkg -l | grep gstreamer | head -5 || echo "No GStreamer packages found"
-              
-              echo "✅ Hardware interface dependencies check completed"
-            '
+          # Execute hardware tests on running daemon container
+          docker exec ${{ env.DAEMON_CONTAINER_NAME }} bash -c '
+            echo "🔍 Checking USB libraries..."
+            dpkg -l | grep libusb || echo "No libusb packages found"
+            
+            echo "🔍 Checking udev libraries..."
+            dpkg -l | grep libudev || echo "No libudev packages found"
+            
+            echo "🔍 Checking FFmpeg libraries..."
+            dpkg -l | grep libav | head -5 || echo "No FFmpeg packages found"
+            
+            echo "🔍 Checking GStreamer..."
+            dpkg -l | grep gstreamer | head -5 || echo "No GStreamer packages found"
+            
+            echo "✅ Hardware interface dependencies check completed"
+          '
+
+      - name: Launch openterfaceQT application (Shared)
+        run: |
+          echo "🚀 Launching openterfaceQT application in daemon container"
+          
+          # Start the application in the background within the container
+          docker exec -d ${{ env.DAEMON_CONTAINER_NAME }} bash -c '
+            echo "🔍 Finding openterfaceQT application..."
+            
+            # Try to find the installed application
+            if command -v openterfaceQT >/dev/null 2>&1; then
+              APP_PATH=$(which openterfaceQT)
+              echo "✅ Found application at: $APP_PATH"
+            elif [ -f /usr/bin/openterfaceQT ]; then
+              APP_PATH="/usr/bin/openterfaceQT"
+              echo "✅ Found application at: $APP_PATH"
+            elif [ -f /usr/local/bin/openterfaceQT ]; then
+              APP_PATH="/usr/local/bin/openterfaceQT"
+              echo "✅ Found application at: $APP_PATH"
+            elif [ -d /home/openterface ] && find /home/openterface -name "openterfaceQT" -type f 2>/dev/null; then
+              APP_PATH=$(find /home/openterface -name "openterfaceQT" -type f 2>/dev/null | head -1)
+              echo "✅ Found application at: $APP_PATH"
+            else
+              echo "❌ openterfaceQT application not found"
+              echo "📁 Searching in common locations..."
+              find / -name "openterfaceQT*" -type f 2>/dev/null | head -5
+              exit 1
+            fi
+            
+            # Make sure app is executable
+            chmod +x "$APP_PATH"
+            
+            # Set up display
+            export DISPLAY=:99
+            export QT_QPA_PLATFORM=offscreen
+            
+            echo "📦 Application details:"
+            ls -lh "$APP_PATH"
+            file "$APP_PATH"
+            
+            # Start the application with logging
+            echo "🎬 Starting application: $APP_PATH"
+            nohup "$APP_PATH" > /tmp/openterfaceqt.log 2>&1 &
+            APP_PID=$!
+            
+            echo "✅ Application started with PID: $APP_PID"
+            
+            # Wait for application to initialize
+            sleep 3
+            
+            # Check if application is still running
+            if ps -p $APP_PID > /dev/null; then
+              echo "✅ Application is running"
+            else
+              echo "⚠️ Application may have exited"
+              echo "📋 Application log:"
+              tail -20 /tmp/openterfaceqt.log
+            fi
+            
+            # Store PID for later reference
+            echo $APP_PID > /tmp/app.pid
+          '
+          
+          # Give the app time to fully initialize
+          sleep 3
+          
+          # Verify the app is running
+          echo "🔍 Verifying application status..."
+          docker exec ${{ env.DAEMON_CONTAINER_NAME }} bash -c '
+            if [ -f /tmp/app.pid ]; then
+              PID=$(cat /tmp/app.pid)
+              if ps -p $PID > /dev/null; then
+                echo "✅ Application (PID: $PID) is running successfully"
+              else
+                echo "⚠️ Application (PID: $PID) is not running"
+                echo "📋 Recent application logs:"
+                tail -30 /tmp/openterfaceqt.log
+              fi
+            else
+              echo "⚠️ Application PID file not found"
+            fi
+          '
+          
+          echo "✅ Application launch step completed"
       
       - name: GUI screenshot test using proven script (Shared)
-        env:
-          CI_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          CI_VOLUME_MOUNT: ${{ env.VOLUME_MOUNT }}
-          CI_DOCKER_TAG: test-${{ github.sha }}
-          CI_DOCKER_IMAGE: ${{ env.DOCKER_IMAGE_SHARED }}
         run: |
-          echo "🧪 Running GUI screenshot test using proven script"
+          echo "🧪 Running GUI screenshot test on daemon container"
           
-          # Make the script executable
-          chmod +x docker/screenshot-docker-app.sh
+          # Create screenshots directory
+          mkdir -p screenshots-shared
           
-          # Run the screenshot script with CI environment variables
-          # The script will use these if set, otherwise fall back to defaults
-          export GITHUB_TOKEN="$CI_GITHUB_TOKEN"
-          export VOLUME_MOUNT="$CI_VOLUME_MOUNT"
-          export DOCKER_TAG="$CI_DOCKER_TAG"
-          export DOCKER_IMAGE="$CI_DOCKER_IMAGE"
-          export SCREENSHOTS_DIR="screenshots-shared"
+          # Execute screenshot capture commands on running daemon container
+          echo "🎬 Executing screenshot capture on running container..."
+          docker exec ${{ env.DAEMON_CONTAINER_NAME }} bash -c '
+            echo "📸 Starting screenshot capture..."
+            
+            # Wait for display to be ready
+            sleep 2
+            
+            # Run the application and capture screenshots
+            # Using DISPLAY variable if available
+            export DISPLAY=:99 2>/dev/null || true
+            
+            # Take screenshot using available tool
+            if command -v gnome-screenshot >/dev/null 2>&1; then
+              echo "Using gnome-screenshot..."
+              gnome-screenshot -f /tmp/screenshot-1.png
+            elif command -v import >/dev/null 2>&1; then
+              echo "Using ImageMagick import..."
+              import -window root /tmp/screenshot-1.png
+            elif command -v scrot >/dev/null 2>&1; then
+              echo "Using scrot..."
+              scrot /tmp/screenshot-1.png
+            else
+              echo "No screenshot tool available, attempting to capture with FFmpeg..."
+              ffmpeg -f x11grab -video_size 1024x768 -i :99 -vframes 1 /tmp/screenshot-1.png 2>/dev/null || echo "FFmpeg capture failed"
+            fi
+            
+            # Convert to JPG if PNG exists
+            if [ -f /tmp/screenshot-1.png ]; then
+              if command -v convert >/dev/null 2>&1; then
+                convert /tmp/screenshot-1.png /tmp/screenshot-1.jpg
+                echo "✅ Screenshot captured and converted to JPG"
+              elif command -v ffmpeg >/dev/null 2>&1; then
+                ffmpeg -i /tmp/screenshot-1.png -q:v 2 /tmp/screenshot-1.jpg 2>/dev/null
+                echo "✅ Screenshot captured and converted to JPG"
+              fi
+            fi
+            
+            # Check if screenshot was created
+            if [ -f /tmp/screenshot-1.jpg ]; then
+              echo "✅ Screenshot file created: /tmp/screenshot-1.jpg"
+              ls -lh /tmp/screenshot-1.jpg
+            else
+              echo "⚠️ Screenshot JPG not created"
+            fi
+          '
           
-          echo "🎬 Executing screenshot script with environment:"
-          echo "  DOCKER_IMAGE=$DOCKER_IMAGE"
-          echo "  DOCKER_TAG=$DOCKER_TAG"
-          echo "  SCREENSHOTS_DIR=$SCREENSHOTS_DIR"
-          echo "  VOLUME_MOUNT=$VOLUME_MOUNT"
-          echo "  GITHUB_TOKEN: $([ -z '$CI_GITHUB_TOKEN' ] && echo 'NOT SET' || echo 'SET')"
-          echo ""
+          # Copy screenshots from container to host
+          echo "📁 Copying screenshots from container..."
+          docker cp ${{ env.DAEMON_CONTAINER_NAME }}:/tmp/screenshot-1.jpg screenshots-shared/ 2>/dev/null || echo "No JPG screenshot to copy"
           
-          # Run with error handling
-          if ./docker/screenshot-docker-app.sh; then
-            echo "✅ Screenshot script completed successfully"
-          else
-            echo "❌ Screenshot script failed with exit code $?"
-            echo "📁 Checking for partial screenshot output..."
-            ls -la screenshots-shared/ 2>&1 || echo "Directory does not exist"
+          # List captured screenshots
+          if [ -d "screenshots-shared" ]; then
+            echo "📊 Screenshots captured:"
+            ls -lh screenshots-shared/ || echo "No screenshots found"
           fi
           
           # Additional analysis for CI context
@@ -629,13 +745,17 @@ jobs:
         run: |
           echo "🧹 Cleaning up Docker resources (Shared)"
           
+          # Stop and remove daemon container
+          docker stop openterface-daemon 2>/dev/null || true
+          docker rm openterface-daemon 2>/dev/null || true
+          
           # Remove test containers (if any still exist)
           docker ps -aq --filter "name=openterface-" | xargs -r docker rm -f || true
           
           # Remove test image
           docker rmi ${{ env.DOCKER_IMAGE_SHARED }}:${{ env.DOCKER_TAG }} || true
           
-          echo "�?Shared cleanup completed"
+          echo "✅ Shared cleanup completed"
   generate-combined-report:
     if: always()
     needs: [build-test-shared]
