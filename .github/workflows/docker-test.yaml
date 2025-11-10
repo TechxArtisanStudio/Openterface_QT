@@ -209,6 +209,8 @@ jobs:
             docker ps | grep openterface-daemon
           else
             echo "❌ Failed to start container"
+            echo "📋 Container logs:"
+            docker logs openterface-daemon 2>&1 || echo "Unable to retrieve container logs"
             exit 1
           fi
           
