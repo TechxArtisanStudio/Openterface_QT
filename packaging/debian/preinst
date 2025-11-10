@@ -15,7 +15,8 @@
 #
 # =============================================================================
 
-set -e
+# Note: We do NOT use 'set -e' because we want to continue even if some apt-get commands fail
+# The preinst script should be resilient and not block package installation
 
 echo "=========================================="
 echo "OpenterfaceQT Pre-Installation Script"
@@ -48,19 +49,9 @@ fi
 print_status "Starting pre-installation dependency check and installation..."
 echo ""
 
-# Function to safely run apt-get with retries
-run_apt_get() {
-    # Attempt apt-get install with better error handling
-    if "$@"; then
-        return 0
-    else
-        return $?
-    fi
-}
-
 # Step 1: Update package lists
 print_status "Updating package repository lists..."
-if run_apt_get apt-get update -qq 2>&1 | grep -v "^Get:\|^Hit:\|^Reading" || true; then
+if apt-get update -qq 2>&1 | grep -v "^Get:\|^Hit:\|^Reading" || true; then
     print_success "Package lists updated"
 else
     print_warning "apt-get update encountered issues, but continuing..."
@@ -70,18 +61,14 @@ echo ""
 
 # Step 2: Install graphics and rendering libraries
 print_status "Installing graphics and GPU libraries..."
-if apt-get install -y -qq libegl1 libgles2 2>&1 | tee /tmp/apt_install.log; then
+if apt-get install -y --no-install-recommends -qq libegl1 libgles2 2>&1 | tee /tmp/apt_install.log; then
     print_success "Graphics libraries installed"
 else
-    local exit_code=$?
-    print_warning "apt-get install returned exit code: $exit_code"
-    print_warning "Attempting with --no-install-recommends..."
-    if apt-get install -y --no-install-recommends -qq libegl1 libgles2 2>&1 | tee -a /tmp/apt_install.log; then
-        print_success "Graphics libraries installed (with --no-install-recommends)"
-    else
-        print_warning "Failed to install graphics libraries, but continuing with installation..."
-        cat /tmp/apt_install.log | sed 's/^/    /'
-    fi
+    EXIT_CODE=$?
+    print_warning "apt-get install returned exit code: $EXIT_CODE"
+    print_warning "Output:"
+    cat /tmp/apt_install.log | sed 's/^/    /'
+    print_warning "Failed to install graphics libraries, but continuing with installation..."
 fi
 
 # Step 3: Install audio libraries
