@@ -13,6 +13,7 @@ SCREENSHOTS_DIR="${SCREENSHOTS_DIR:-app-screenshots}"
 CONTAINER_NAME="openterface-screenshot-test"
 GITHUB_TOKEN="${GITHUB_TOKEN:-}"
 VOLUME_MOUNT="${VOLUME_MOUNT:-}"
+INSTALL_TYPE="${INSTALL_TYPE:-deb}"
 
 # Colors
 GREEN='\033[0;32m'
@@ -45,7 +46,10 @@ if ! docker images | grep -q "$DOCKER_IMAGE.*$DOCKER_TAG"; then
     
     # Force rebuild to include latest fixes
     echo -e "${BLUE}💡 Rebuilding image to include latest fixes...${NC}"
-    docker build --no-cache -f "$DOCKERFILE_PATH" -t "$DOCKER_IMAGE:$DOCKER_TAG" docker/
+    docker build --no-cache \
+        --build-arg INSTALL_TYPE=$INSTALL_TYPE \
+        --build-arg GITHUB_TOKEN=$GITHUB_TOKEN \
+        -f "$DOCKERFILE_PATH" -t "$DOCKER_IMAGE:$DOCKER_TAG" docker/
     echo -e "${GREEN}✅ Image build completed${NC}"
 else
     echo -e "${BLUE}📦 Using existing Docker image${NC}"
@@ -86,6 +90,7 @@ DOCKER_RUN_CMD="docker run -d \
     --name $CONTAINER_NAME \
     -e DISPLAY=$DISPLAY \
     -e GITHUB_TOKEN=$GITHUB_TOKEN \
+    -e INSTALL_TYPE=$INSTALL_TYPE \
     -e QT_X11_NO_MITSHM=1 \
     -e QT_QPA_PLATFORM=xcb \
     -e QT_PLUGIN_PATH=/usr/lib/qt6/plugins \
@@ -102,9 +107,8 @@ if [ -n "$VOLUME_MOUNT" ]; then
 fi
 
 # Add the image and command to launch the app
-# Run installation first, then launch app via launcher script
 DOCKER_RUN_CMD="$DOCKER_RUN_CMD $DOCKER_IMAGE:$DOCKER_TAG \
-    bash -c 'export DISPLAY=$DISPLAY QT_X11_NO_MITSHM=1 QT_QPA_PLATFORM=xcb && /usr/local/bin/check-qt-deps.sh && /tmp/install-openterface-shared.sh 2>&1 | tail -20 && sleep 2 && exec /usr/local/bin/openterfaceQT 2>&1 || (echo \"App launch failed - running diagnostics...\"; echo \"---\"; /usr/local/bin/check-qt-deps.sh 2>&1; echo \"---\"; ls -la /usr/local/bin/openterface* 2>&1; which openterfaceQT 2>&1; echo \"---\"; /usr/local/bin/openterfaceQT --version 2>&1 || echo \"Binary exists but cannot run\")'"
+    bash -c 'export DISPLAY=$DISPLAY QT_X11_NO_MITSHM=1 QT_QPA_PLATFORM=xcb && /usr/local/bin/check-qt-deps.sh && sleep 2 && exec /usr/local/bin/openterfaceQT 2>&1 || (echo \"App launch failed - running diagnostics...\"; echo \"---\"; /usr/local/bin/check-qt-deps.sh 2>&1; echo \"---\"; ls -la /usr/local/bin/openterface* 2>&1; which openterfaceQT 2>&1; echo \"---\"; /usr/local/bin/openterfaceQT --version 2>&1 || echo \"Binary exists but cannot run\")'"
 
 # Execute the docker run command
 CONTAINER_ID=$(eval $DOCKER_RUN_CMD)
@@ -149,8 +153,8 @@ if [ "$screenshot_success" = true ]; then
     if [ -f "$screenshot_jpg" ] && command -v identify >/dev/null 2>&1; then
         filesize=$(ls -lh "$screenshot_jpg" | awk '{print $5}')
         dimensions=$(identify "$screenshot_jpg" | awk '{print $3}')
-        mean_color=$(identify -ping -format "%[mean]" "$screenshot_jpg" 2>/dev/null || echo "0")
-        mean_value=${mean_color%.*}
+        # Calculate mean color using convert and statistics
+        mean_value=$(convert "$screenshot_jpg" -format "%[fx:mean*65535]" info: 2>/dev/null | awk '{print int($1)}' || echo "0")
         
         echo -e "${BLUE}📊 JPG screenshot analysis:${NC}"
         echo "   File size: $filesize"
@@ -178,8 +182,8 @@ if [ -d "$SCREENSHOTS_DIR" ] && [ "$(ls -A $SCREENSHOTS_DIR/*.jpg 2>/dev/null)" 
             if command -v identify >/dev/null 2>&1; then
                 filesize=$(ls -lh "$img" | awk '{print $5}')
                 dimensions=$(identify "$img" | awk '{print $3}' | head -1)
-                mean_color=$(identify -ping -format "%[mean]" "$img" 2>/dev/null || echo "0")
-                mean_value=${mean_color%.*}
+                # Calculate mean color using convert and statistics
+                mean_value=$(convert "$img" -format "%[fx:mean*65535]" info: 2>/dev/null | awk '{print int($1)}' || echo "0")
                 
                 echo -e "${BLUE}   📸 $filename:${NC}"
                 echo "      Size: $filesize | Dimensions: $dimensions | Average: $mean_value"

@@ -156,6 +156,324 @@ else
     echo "⚠️  Warning: Qt library directory not found"
 fi
 
+# Copy libjpeg and libturbojpeg libraries from FFmpeg prefix
+echo "🔍 Searching for JPEG libraries for FFmpeg support..."
+mkdir -p "${PKG_ROOT}/usr/lib"
+
+# Copy libjpeg libraries - search multiple locations
+echo "📋 DEB: Searching for libjpeg libraries..."
+JPEG_FOUND=0
+for SEARCH_DIR in /opt/ffmpeg/lib /usr/lib/x86_64-linux-gnu /usr/lib; do
+    echo "   Checking: $SEARCH_DIR"
+    if [ -d "$SEARCH_DIR" ]; then
+        if ls "$SEARCH_DIR"/libjpeg.so* >/dev/null 2>&1; then
+            echo "   ✅ Found libjpeg in $SEARCH_DIR"
+            JPEG_FILES=$(ls -la "$SEARCH_DIR"/libjpeg.so*)
+            echo "   Files found:"
+            echo "$JPEG_FILES" | sed 's/^/     /'
+            cp -av "$SEARCH_DIR"/libjpeg.so* "${PKG_ROOT}/usr/lib/" 2>&1 | sed 's/^/     /'
+            echo "   ✅ libjpeg libraries copied to ${PKG_ROOT}/usr/lib"
+            JPEG_FOUND=1
+            break
+        else
+            echo "   ✗ No libjpeg found in $SEARCH_DIR"
+        fi
+    else
+        echo "   ✗ Directory does not exist: $SEARCH_DIR"
+    fi
+done
+if [ $JPEG_FOUND -eq 0 ]; then
+    echo "❌ ERROR: libjpeg libraries not found in any search path!"
+    echo "📁 Checking what's available in system library paths:"
+    echo "   /opt/ffmpeg/lib contents:"
+    ls -la /opt/ffmpeg/lib 2>/dev/null | grep -i jpeg || echo "     (directory not found or no jpeg files)"
+    echo "   /usr/lib/x86_64-linux-gnu contents (jpeg):"
+    ls -la /usr/lib/x86_64-linux-gnu/*jpeg* 2>/dev/null || echo "     (no jpeg files found)"
+    echo "   /usr/lib contents (jpeg):"
+    ls -la /usr/lib/*jpeg* 2>/dev/null || echo "     (no jpeg files found)"
+else
+    echo "✅ libjpeg found and copied"
+fi
+
+# Copy libturbojpeg libraries - search multiple locations
+echo "📋 DEB: Searching for libturbojpeg libraries..."
+TURBOJPEG_FOUND=0
+for SEARCH_DIR in /opt/ffmpeg/lib /usr/lib/x86_64-linux-gnu /usr/lib; do
+    echo "   Checking: $SEARCH_DIR"
+    if [ -d "$SEARCH_DIR" ]; then
+        # Use find to detect both files and symlinks
+        if find "$SEARCH_DIR" -maxdepth 1 \( -name "libturbojpeg.so*" -type f -o -name "libturbojpeg.so*" -type l \) 2>/dev/null | grep -q .; then
+            echo "   ✅ Found libturbojpeg in $SEARCH_DIR"
+            # List files found for diagnostics
+            ls -la "$SEARCH_DIR"/libturbojpeg.so* 2>/dev/null | while read -r line; do
+                echo "     $line"
+            done
+            # Copy all libturbojpeg files and symlinks - use cp -P to preserve symlinks
+            cp -Pv "$SEARCH_DIR"/libturbojpeg.so* "${PKG_ROOT}/usr/lib/" 2>&1 | sed 's/^/     /'
+            echo "   ✅ libturbojpeg libraries copied to ${PKG_ROOT}/usr/lib"
+            TURBOJPEG_FOUND=1
+            break
+        else
+            echo "   ✗ No libturbojpeg found in $SEARCH_DIR"
+        fi
+    else
+        echo "   ✗ Directory does not exist: $SEARCH_DIR"
+    fi
+done
+if [ $TURBOJPEG_FOUND -eq 0 ]; then
+    echo "❌ ERROR: libturbojpeg libraries not found in any search path!"
+    echo "📁 Checking what's available in system library paths:"
+    echo "   /opt/ffmpeg/lib contents:"
+    ls -la /opt/ffmpeg/lib 2>/dev/null | grep -i turbojpeg || echo "     (directory not found or no turbojpeg files)"
+    echo "   /usr/lib/x86_64-linux-gnu contents (turbojpeg):"
+    ls -la /usr/lib/x86_64-linux-gnu/*turbojpeg* 2>/dev/null || echo "     (no turbojpeg files found)"
+    echo "   /usr/lib contents (turbojpeg):"
+    ls -la /usr/lib/*turbojpeg* 2>/dev/null || echo "     (no turbojpeg files found)"
+else
+    echo "✅ libturbojpeg found and copied"
+fi
+
+# Copy VA-API libraries (libva) for hardware acceleration - search multiple locations
+echo "📋 DEB: Searching for VA-API libraries..."
+VA_FOUND=0
+for SEARCH_DIR in /usr/lib/x86_64-linux-gnu /usr/lib; do
+    echo "   Checking: $SEARCH_DIR"
+    if [ -d "$SEARCH_DIR" ]; then
+        if ls "$SEARCH_DIR"/libva.so* >/dev/null 2>&1; then
+            echo "   ✅ Found VA-API libraries in $SEARCH_DIR"
+            VA_FILES=$(ls -la "$SEARCH_DIR"/libva*.so*)
+            echo "   Files found:"
+            echo "$VA_FILES" | sed 's/^/     /'
+            cp -av "$SEARCH_DIR"/libva*.so* "${PKG_ROOT}/usr/lib/" 2>&1 | sed 's/^/     /'
+            echo "   ✅ VA-API libraries copied to ${PKG_ROOT}/usr/lib"
+            VA_FOUND=1
+            break
+        else
+            echo "   ✗ No VA-API libraries found in $SEARCH_DIR"
+        fi
+    else
+        echo "   ✗ Directory does not exist: $SEARCH_DIR"
+    fi
+done
+if [ $VA_FOUND -eq 0 ]; then
+    echo "⚠️  Warning: VA-API libraries not found"
+fi
+
+# Copy core FFmpeg libraries (libavcodec, libavformat, libavutil, libswscale, libswresample)
+echo "📋 DEB: Searching for FFmpeg core libraries..."
+FFMPEG_FOUND=0
+FFMPEG_LIBS=(libavcodec.so libavformat.so libavutil.so libswscale.so libswresample.so)
+
+for SEARCH_DIR in /opt/ffmpeg/lib /usr/lib/x86_64-linux-gnu /usr/lib; do
+    echo "   Checking: $SEARCH_DIR"
+    if [ -d "$SEARCH_DIR" ]; then
+        # Check if any ffmpeg library exists
+        FOUND_ANY=0
+        for ffmpeg_lib in "${FFMPEG_LIBS[@]}"; do
+            if ls "$SEARCH_DIR"/${ffmpeg_lib}* >/dev/null 2>&1; then
+                FOUND_ANY=1
+                break
+            fi
+        done
+        
+        if [ $FOUND_ANY -eq 1 ]; then
+            echo "   ✅ Found FFmpeg libraries in $SEARCH_DIR"
+            for ffmpeg_lib in "${FFMPEG_LIBS[@]}"; do
+                if ls "$SEARCH_DIR"/${ffmpeg_lib}* >/dev/null 2>&1; then
+                    echo "   Found: $ffmpeg_lib"
+                    FFMPEG_FILES=$(ls -la "$SEARCH_DIR"/${ffmpeg_lib}* 2>/dev/null)
+                    echo "     Files: $FFMPEG_FILES" | sed 's/^/     /'
+                    cp -Pv "$SEARCH_DIR"/${ffmpeg_lib}* "${PKG_ROOT}/usr/lib/" 2>&1 | sed 's/^/     /'
+                fi
+            done
+            echo "   ✅ FFmpeg core libraries copied to ${PKG_ROOT}/usr/lib"
+            FFMPEG_FOUND=1
+            break
+        else
+            echo "   ✗ No FFmpeg libraries found in $SEARCH_DIR"
+        fi
+    else
+        echo "   ✗ Directory does not exist: $SEARCH_DIR"
+    fi
+done
+
+if [ $FFMPEG_FOUND -eq 0 ]; then
+    echo "⚠️  Warning: FFmpeg core libraries not found!"
+    echo "📁 Checking what's available in system library paths:"
+    echo "   /opt/ffmpeg/lib contents:"
+    ls -la /opt/ffmpeg/lib 2>/dev/null | grep -E "libav|libsw" || echo "     (directory not found or no ffmpeg files)"
+    echo "   /usr/lib/x86_64-linux-gnu contents (ffmpeg):"
+    ls -la /usr/lib/x86_64-linux-gnu/libav* /usr/lib/x86_64-linux-gnu/libsw* 2>/dev/null || echo "     (no ffmpeg files found)"
+    echo "   /usr/lib contents (ffmpeg):"
+    ls -la /usr/lib/libav* /usr/lib/libsw* 2>/dev/null || echo "     (no ffmpeg files found)"
+else
+    echo "✅ FFmpeg core libraries found and copied"
+fi
+
+# Copy GStreamer libraries - search multiple locations
+echo "📋 DEB: Searching for GStreamer libraries..."
+GSTREAMER_FOUND=0
+for SEARCH_DIR in /usr/lib/x86_64-linux-gnu /usr/lib; do
+    echo "   Checking: $SEARCH_DIR"
+    if [ -d "$SEARCH_DIR" ]; then
+        if ls "$SEARCH_DIR"/libgstreamer*.so* >/dev/null 2>&1; then
+            echo "   ✅ Found GStreamer libraries in $SEARCH_DIR"
+            GSTREAMER_FILES=$(ls -la "$SEARCH_DIR"/libgstreamer*.so*)
+            echo "   Files found:"
+            echo "$GSTREAMER_FILES" | sed 's/^/     /'
+            cp -av "$SEARCH_DIR"/libgstreamer*.so* "${PKG_ROOT}/usr/lib/" 2>&1 | sed 's/^/     /'
+            echo "   ✅ GStreamer libraries copied to ${PKG_ROOT}/usr/lib"
+            GSTREAMER_FOUND=1
+            break
+        else
+            echo "   ✗ No GStreamer libraries found in $SEARCH_DIR"
+        fi
+    else
+        echo "   ✗ Directory does not exist: $SEARCH_DIR"
+    fi
+done
+if [ $GSTREAMER_FOUND -eq 0 ]; then
+    echo "⚠️  Warning: GStreamer libraries not found"
+fi
+
+# Copy v4l-utils libraries - search multiple locations
+echo "📋 DEB: Searching for v4l-utils libraries..."
+V4L_FOUND=0
+for SEARCH_DIR in /usr/lib/x86_64-linux-gnu /usr/lib; do
+    echo "   Checking: $SEARCH_DIR"
+    if [ -d "$SEARCH_DIR" ]; then
+        if ls "$SEARCH_DIR"/libv4l*.so* >/dev/null 2>&1; then
+            echo "   ✅ Found v4l-utils libraries in $SEARCH_DIR"
+            V4L_FILES=$(ls -la "$SEARCH_DIR"/libv4l*.so*)
+            echo "   Files found:"
+            echo "$V4L_FILES" | sed 's/^/     /'
+            cp -av "$SEARCH_DIR"/libv4l*.so* "${PKG_ROOT}/usr/lib/" 2>&1 | sed 's/^/     /'
+            echo "   ✅ v4l-utils libraries copied to ${PKG_ROOT}/usr/lib"
+            V4L_FOUND=1
+            break
+        else
+            echo "   ✗ No v4l-utils libraries found in $SEARCH_DIR"
+        fi
+    else
+        echo "   ✗ Directory does not exist: $SEARCH_DIR"
+    fi
+done
+if [ $V4L_FOUND -eq 0 ]; then
+    echo "⚠️  Warning: v4l-utils libraries not found"
+fi
+
+# Copy GStreamer video libraries - search multiple locations
+echo "📋 DEB: Searching for GStreamer video libraries..."
+GSTVIDEO_FOUND=0
+for SEARCH_DIR in /usr/lib/x86_64-linux-gnu /usr/lib; do
+    echo "   Checking: $SEARCH_DIR"
+    if [ -d "$SEARCH_DIR" ]; then
+        # Use find to detect both files and symlinks
+        if find "$SEARCH_DIR" -maxdepth 1 \( -name "libgstvideo-1.0.so*" -type f -o -name "libgstvideo-1.0.so*" -type l \) 2>/dev/null | grep -q .; then
+            echo "   ✅ Found GStreamer video libraries in $SEARCH_DIR"
+            # List files found for diagnostics
+            ls -la "$SEARCH_DIR"/libgstvideo-1.0.so* 2>/dev/null | while read -r line; do
+                echo "     $line"
+            done
+            # Copy all libgstvideo-1.0 files and symlinks
+            cp -Pv "$SEARCH_DIR"/libgstvideo-1.0.so* "${PKG_ROOT}/usr/lib/" 2>&1 | sed 's/^/     /'
+            echo "   ✅ GStreamer video libraries copied to ${PKG_ROOT}/usr/lib"
+            GSTVIDEO_FOUND=1
+            break
+        else
+            echo "   ✗ No GStreamer video libraries found in $SEARCH_DIR"
+        fi
+    else
+        echo "   ✗ Directory does not exist: $SEARCH_DIR"
+    fi
+done
+if [ $GSTVIDEO_FOUND -eq 0 ]; then
+    echo "⚠️  Warning: GStreamer video libraries not found"
+else
+    echo "✅ GStreamer video libraries found and copied"
+fi
+
+# Copy GStreamer app libraries - search multiple locations
+echo "📋 DEB: Searching for GStreamer app libraries..."
+GSTAPP_FOUND=0
+for SEARCH_DIR in /usr/lib/x86_64-linux-gnu /usr/lib; do
+    echo "   Checking: $SEARCH_DIR"
+    if [ -d "$SEARCH_DIR" ]; then
+        # Use find to detect both files and symlinks
+        if find "$SEARCH_DIR" -maxdepth 1 \( -name "libgstapp-1.0.so*" -type f -o -name "libgstapp-1.0.so*" -type l \) 2>/dev/null | grep -q .; then
+            echo "   ✅ Found GStreamer app libraries in $SEARCH_DIR"
+            # List files found for diagnostics
+            ls -la "$SEARCH_DIR"/libgstapp-1.0.so* 2>/dev/null | while read -r line; do
+                echo "     $line"
+            done
+            # Copy all libgstapp-1.0 files and symlinks
+            cp -Pv "$SEARCH_DIR"/libgstapp-1.0.so* "${PKG_ROOT}/usr/lib/" 2>&1 | sed 's/^/     /'
+            echo "   ✅ GStreamer app libraries copied to ${PKG_ROOT}/usr/lib"
+            GSTAPP_FOUND=1
+            break
+        else
+            echo "   ✗ No GStreamer app libraries found in $SEARCH_DIR"
+        fi
+    else
+        echo "   ✗ Directory does not exist: $SEARCH_DIR"
+    fi
+done
+if [ $GSTAPP_FOUND -eq 0 ]; then
+    echo "⚠️  Warning: GStreamer app libraries not found"
+else
+    echo "✅ GStreamer app libraries found and copied"
+fi
+
+echo "📋 DEB: Final library contents in ${PKG_ROOT}/usr/lib:"
+ls -lah "${PKG_ROOT}/usr/lib/" | head -20
+
+echo "📋 DEB: Verifying all required libraries presence in package..."
+
+# Define all required libraries for verification
+REQUIRED_LIBS=(
+    "libjpeg.so"
+    "libturbojpeg.so"
+    "libva.so"
+    "libgstreamer-1.0.so"
+    "libavcodec.so"
+    "libavformat.so"
+    "libavutil.so"
+    "libswscale.so"
+    "libswresample.so"
+)
+
+LIBS_FOUND=0
+LIBS_MISSING=()
+
+for lib_name in "${REQUIRED_LIBS[@]}"; do
+    if ls "${PKG_ROOT}/usr/lib/${lib_name}"* >/dev/null 2>&1; then
+        echo "   ✅ Found $lib_name:"
+        ls -lah "${PKG_ROOT}/usr/lib/${lib_name}"* | sed 's/^/      /'
+        LIBS_FOUND=$((LIBS_FOUND + 1))
+    else
+        LIBS_MISSING+=("$lib_name")
+        echo "   ⚠️  Missing $lib_name - will rely on system dependencies"
+    fi
+done
+
+echo "   📊 Summary: $LIBS_FOUND/${#REQUIRED_LIBS[@]} libraries bundled"
+
+if [ ${#LIBS_MISSING[@]} -gt 0 ]; then
+    echo "   📝 Missing libraries (will be installed via DEB Depends):"
+    for lib in "${LIBS_MISSING[@]}"; do
+        echo "       - $lib"
+    done
+else
+    echo "✅ All required libraries successfully bundled in package"
+fi
+
+echo ""
+echo "📋 DEB: Final package library contents:"
+echo "   Total .so files in ${PKG_ROOT}/usr/lib:"
+ls "${PKG_ROOT}/usr/lib/"*.so* 2>/dev/null | wc -l
+echo "   Library files present:"
+ls -lah "${PKG_ROOT}/usr/lib/"*.so* 2>/dev/null | head -15
+
 # Copy Qt plugins
 QT_PLUGIN_DIR="/opt/Qt6/plugins"
 if [ ! -d "${QT_PLUGIN_DIR}" ]; then
@@ -185,9 +503,20 @@ if [ -d "${QT_QML_DIR}" ]; then
 fi
 
 # Update the binary's rpath to point to bundled libraries
+# Libraries are bundled in /usr/lib alongside the binary
+# Binary is at: /usr/local/bin/openterfaceQT
+# Libraries are at: /usr/lib/
+# So RPATH should be: /usr/lib (direct path to bundled libraries)
 if [ -f "${PKG_ROOT}/usr/local/bin/openterfaceQT" ]; then
-    echo "Updating rpath for bundled Qt libraries..."
-    patchelf --set-rpath '/usr/lib' "${PKG_ROOT}/usr/local/bin/openterfaceQT"
+    echo "🔧 Updating rpath for bundled libraries..."
+    echo "   Setting RPATH to: /usr/lib"
+    if patchelf --set-rpath '/usr/lib' "${PKG_ROOT}/usr/local/bin/openterfaceQT"; then
+        echo "   ✅ RPATH updated successfully"
+        patchelf --print-rpath "${PKG_ROOT}/usr/local/bin/openterfaceQT" | sed 's/^/     Actual RPATH: /'
+    else
+        echo "   ❌ Failed to update RPATH!"
+        exit 1
+    fi
 fi
 
 # Copy desktop file (ensure Exec uses installed path and Icon basename is openterfaceQT)
@@ -244,10 +573,27 @@ Version: ${VERSION}
 Section: base
 Priority: optional
 Architecture: ${ARCH}
-Depends: libxkbcommon0, libwayland-client0, libegl1, libgles2, libpulse0, libxcb1, libxcb-shm0, libxcb-xfixes0, libxcb-shape0, libx11-6, zlib1g, libbz2-1.0, liblzma5
+Depends: libxkbcommon0, libwayland-client0, libegl1, libgles2, libpulse0, libxcb1, libxcb-shm0, libxcb-xfixes0, libxcb-shape0, libx11-6, zlib1g, libbz2-1.0, liblzma5, libva2, libva-drm2, libva-x11-2, libgstreamer1.0-0, libgstreamer-plugins-base1.0-0, libv4l-0
 Maintainer: TechxArtisan <info@techxartisan.com>
 Description: OpenterfaceQT Mini-KVM Linux Edition
+ Includes bundled FFmpeg 6.1.1 libraries (libavformat, libavcodec,
+ libswresample, libswscale, libavutil) and libturbojpeg
 EOF
+fi
+
+# Copy postinst and postrm scripts if they exist
+if [ -f "${SRC}/packaging/debian/postinst" ]; then
+	install -m 0755 "${SRC}/packaging/debian/postinst" "${PKG_ROOT}/DEBIAN/postinst"
+	echo "✅ postinst script installed"
+else
+	echo "⚠️  postinst script not found at ${SRC}/packaging/debian/postinst"
+fi
+
+if [ -f "${SRC}/packaging/debian/postrm" ]; then
+	install -m 0755 "${SRC}/packaging/debian/postrm" "${PKG_ROOT}/DEBIAN/postrm"
+	echo "✅ postrm script installed"
+else
+	echo "⚠️  postrm script not found at ${SRC}/packaging/debian/postrm"
 fi
 
 # Build the .deb
@@ -314,6 +660,268 @@ if [ -d "${QT_QML_DIR}" ]; then
     echo "Copying Qt QML imports to SOURCES..."
     cp -ra "${QT_QML_DIR}"/* "${RPMTOP}/SOURCES/qt6-qml/" 2>/dev/null || true
 fi
+
+# Copy libjpeg and libturbojpeg libraries to SOURCES for bundling
+echo "🔍 Searching for JPEG libraries to RPM SOURCES..."
+
+# Copy libjpeg libraries - search multiple locations
+echo "📋 RPM: Searching for libjpeg libraries..."
+JPEG_FOUND=0
+for SEARCH_DIR in /opt/ffmpeg/lib /usr/lib/x86_64-linux-gnu /usr/lib; do
+    echo "   Checking: $SEARCH_DIR"
+    if [ -d "$SEARCH_DIR" ]; then
+        if ls "$SEARCH_DIR"/libjpeg.so* >/dev/null 2>&1; then
+            echo "   ✅ Found libjpeg in $SEARCH_DIR"
+            JPEG_FILES=$(ls -la "$SEARCH_DIR"/libjpeg.so*)
+            echo "   Files found:"
+            echo "$JPEG_FILES" | sed 's/^/     /'
+            cp -av "$SEARCH_DIR"/libjpeg.so* "${RPMTOP}/SOURCES/" 2>&1 | sed 's/^/     /'
+            echo "   ✅ libjpeg libraries copied to ${RPMTOP}/SOURCES"
+            JPEG_FOUND=1
+            break
+        else
+            echo "   ✗ No libjpeg found in $SEARCH_DIR"
+        fi
+    else
+        echo "   ✗ Directory does not exist: $SEARCH_DIR"
+    fi
+done
+if [ $JPEG_FOUND -eq 0 ]; then
+    echo "❌ ERROR: libjpeg libraries not found in any search path!"
+else
+    echo "✅ libjpeg found and copied"
+fi
+
+# Copy libturbojpeg libraries - search multiple locations
+echo "📋 RPM: Searching for libturbojpeg libraries..."
+TURBOJPEG_FOUND=0
+for SEARCH_DIR in /opt/ffmpeg/lib /usr/lib/x86_64-linux-gnu /usr/lib; do
+    echo "   Checking: $SEARCH_DIR"
+    if [ -d "$SEARCH_DIR" ]; then
+        # Use find to detect both files and symlinks
+        if find "$SEARCH_DIR" -maxdepth 1 \( -name "libturbojpeg.so*" -type f -o -name "libturbojpeg.so*" -type l \) 2>/dev/null | grep -q .; then
+            echo "   ✅ Found libturbojpeg in $SEARCH_DIR"
+            # List files found for diagnostics
+            ls -la "$SEARCH_DIR"/libturbojpeg.so* 2>/dev/null | while read -r line; do
+                echo "     $line"
+            done
+            # Copy all libturbojpeg files and symlinks - use cp -P to preserve symlinks
+            cp -Pv "$SEARCH_DIR"/libturbojpeg.so* "${RPMTOP}/SOURCES/" 2>&1 | sed 's/^/     /'
+            echo "   ✅ libturbojpeg libraries copied to ${RPMTOP}/SOURCES"
+            TURBOJPEG_FOUND=1
+            break
+        else
+            echo "   ✗ No libturbojpeg found in $SEARCH_DIR"
+        fi
+    else
+        echo "   ✗ Directory does not exist: $SEARCH_DIR"
+    fi
+done
+if [ $TURBOJPEG_FOUND -eq 0 ]; then
+    echo "❌ ERROR: libturbojpeg libraries not found in any search path!"
+else
+    echo "✅ libturbojpeg found and copied"
+fi
+
+# Copy VA-API libraries for hardware acceleration - search multiple locations
+echo "📋 RPM: Searching for VA-API libraries..."
+VA_FOUND=0
+for SEARCH_DIR in /usr/lib/x86_64-linux-gnu /usr/lib; do
+    echo "   Checking: $SEARCH_DIR"
+    if [ -d "$SEARCH_DIR" ]; then
+        if ls "$SEARCH_DIR"/libva.so* >/dev/null 2>&1; then
+            echo "   ✅ Found VA-API libraries in $SEARCH_DIR"
+            VA_FILES=$(ls -la "$SEARCH_DIR"/libva*.so*)
+            echo "   Files found:"
+            echo "$VA_FILES" | sed 's/^/     /'
+            cp -av "$SEARCH_DIR"/libva*.so* "${RPMTOP}/SOURCES/" 2>&1 | sed 's/^/     /'
+            echo "   ✅ VA-API libraries copied to ${RPMTOP}/SOURCES"
+            VA_FOUND=1
+            break
+        else
+            echo "   ✗ No VA-API libraries found in $SEARCH_DIR"
+        fi
+    else
+        echo "   ✗ Directory does not exist: $SEARCH_DIR"
+    fi
+done
+if [ $VA_FOUND -eq 0 ]; then
+    echo "⚠️  Warning: VA-API libraries not found"
+else
+    echo "✅ VA-API found and copied"
+fi
+
+# Copy core FFmpeg libraries (libavcodec, libavformat, libavutil, libswscale, libswresample)
+echo "📋 RPM: Searching for FFmpeg core libraries..."
+FFMPEG_FOUND=0
+FFMPEG_LIBS=(libavcodec.so libavformat.so libavutil.so libswscale.so libswresample.so)
+
+for SEARCH_DIR in /opt/ffmpeg/lib /usr/lib/x86_64-linux-gnu /usr/lib; do
+    echo "   Checking: $SEARCH_DIR"
+    if [ -d "$SEARCH_DIR" ]; then
+        # Check if any ffmpeg library exists
+        FOUND_ANY=0
+        for ffmpeg_lib in "${FFMPEG_LIBS[@]}"; do
+            if ls "$SEARCH_DIR"/${ffmpeg_lib}* >/dev/null 2>&1; then
+                FOUND_ANY=1
+                break
+            fi
+        done
+        
+        if [ $FOUND_ANY -eq 1 ]; then
+            echo "   ✅ Found FFmpeg libraries in $SEARCH_DIR"
+            for ffmpeg_lib in "${FFMPEG_LIBS[@]}"; do
+                if ls "$SEARCH_DIR"/${ffmpeg_lib}* >/dev/null 2>&1; then
+                    echo "   Found: $ffmpeg_lib"
+                    FFMPEG_FILES=$(ls -la "$SEARCH_DIR"/${ffmpeg_lib}* 2>/dev/null)
+                    echo "     Files: $FFMPEG_FILES" | sed 's/^/     /'
+                    cp -Pv "$SEARCH_DIR"/${ffmpeg_lib}* "${RPMTOP}/SOURCES/" 2>&1 | sed 's/^/     /'
+                fi
+            done
+            echo "   ✅ FFmpeg core libraries copied to ${RPMTOP}/SOURCES"
+            FFMPEG_FOUND=1
+            break
+        else
+            echo "   ✗ No FFmpeg libraries found in $SEARCH_DIR"
+        fi
+    else
+        echo "   ✗ Directory does not exist: $SEARCH_DIR"
+    fi
+done
+
+if [ $FFMPEG_FOUND -eq 0 ]; then
+    echo "⚠️  Warning: FFmpeg core libraries not found!"
+    echo "📁 Checking what's available in system library paths:"
+    echo "   /opt/ffmpeg/lib contents:"
+    ls -la /opt/ffmpeg/lib 2>/dev/null | grep -E "libav|libsw" || echo "     (directory not found or no ffmpeg files)"
+    echo "   /usr/lib/x86_64-linux-gnu contents (ffmpeg):"
+    ls -la /usr/lib/x86_64-linux-gnu/libav* /usr/lib/x86_64-linux-gnu/libsw* 2>/dev/null || echo "     (no ffmpeg files found)"
+    echo "   /usr/lib contents (ffmpeg):"
+    ls -la /usr/lib/libav* /usr/lib/libsw* 2>/dev/null || echo "     (no ffmpeg files found)"
+else
+    echo "✅ FFmpeg core libraries found and copied"
+fi
+
+# Copy GStreamer libraries - search multiple locations
+echo "📋 RPM: Searching for GStreamer libraries..."
+GSTREAMER_FOUND=0
+for SEARCH_DIR in /usr/lib/x86_64-linux-gnu /usr/lib; do
+    echo "   Checking: $SEARCH_DIR"
+    if [ -d "$SEARCH_DIR" ]; then
+        if ls "$SEARCH_DIR"/libgstreamer*.so* >/dev/null 2>&1; then
+            echo "   ✅ Found GStreamer libraries in $SEARCH_DIR"
+            GSTREAMER_FILES=$(ls -la "$SEARCH_DIR"/libgstreamer*.so*)
+            echo "   Files found:"
+            echo "$GSTREAMER_FILES" | sed 's/^/     /'
+            cp -av "$SEARCH_DIR"/libgstreamer*.so* "${RPMTOP}/SOURCES/" 2>&1 | sed 's/^/     /'
+            echo "   ✅ GStreamer libraries copied to ${RPMTOP}/SOURCES"
+            GSTREAMER_FOUND=1
+            break
+        else
+            echo "   ✗ No GStreamer libraries found in $SEARCH_DIR"
+        fi
+    else
+        echo "   ✗ Directory does not exist: $SEARCH_DIR"
+    fi
+done
+if [ $GSTREAMER_FOUND -eq 0 ]; then
+    echo "⚠️  Warning: GStreamer libraries not found"
+else
+    echo "✅ GStreamer found and copied"
+fi
+
+# Copy v4l-utils libraries - search multiple locations
+echo "📋 RPM: Searching for v4l-utils libraries..."
+V4L_FOUND=0
+for SEARCH_DIR in /usr/lib/x86_64-linux-gnu /usr/lib; do
+    echo "   Checking: $SEARCH_DIR"
+    if [ -d "$SEARCH_DIR" ]; then
+        if ls "$SEARCH_DIR"/libv4l*.so* >/dev/null 2>&1; then
+            echo "   ✅ Found v4l-utils libraries in $SEARCH_DIR"
+            V4L_FILES=$(ls -la "$SEARCH_DIR"/libv4l*.so*)
+            echo "   Files found:"
+            echo "$V4L_FILES" | sed 's/^/     /'
+            cp -av "$SEARCH_DIR"/libv4l*.so* "${RPMTOP}/SOURCES/" 2>&1 | sed 's/^/     /'
+            echo "   ✅ v4l-utils libraries copied to ${RPMTOP}/SOURCES"
+            V4L_FOUND=1
+            break
+        else
+            echo "   ✗ No v4l-utils libraries found in $SEARCH_DIR"
+        fi
+    else
+        echo "   ✗ Directory does not exist: $SEARCH_DIR"
+    fi
+done
+if [ $V4L_FOUND -eq 0 ]; then
+    echo "⚠️  Warning: v4l-utils libraries not found"
+else
+    echo "✅ v4l-utils found and copied"
+fi
+
+# Copy GStreamer video libraries to RPM SOURCES - search multiple locations
+echo "📋 RPM: Searching for GStreamer video libraries..."
+GSTVIDEO_FOUND=0
+for SEARCH_DIR in /usr/lib/x86_64-linux-gnu /usr/lib; do
+    echo "   Checking: $SEARCH_DIR"
+    if [ -d "$SEARCH_DIR" ]; then
+        # Use find to detect both files and symlinks
+        if find "$SEARCH_DIR" -maxdepth 1 \( -name "libgstvideo-1.0.so*" -type f -o -name "libgstvideo-1.0.so*" -type l \) 2>/dev/null | grep -q .; then
+            echo "   ✅ Found GStreamer video libraries in $SEARCH_DIR"
+            # List files found for diagnostics
+            ls -la "$SEARCH_DIR"/libgstvideo-1.0.so* 2>/dev/null | while read -r line; do
+                echo "     $line"
+            done
+            # Copy all libgstvideo-1.0 files and symlinks
+            cp -Pv "$SEARCH_DIR"/libgstvideo-1.0.so* "${RPMTOP}/SOURCES/" 2>&1 | sed 's/^/     /'
+            echo "   ✅ GStreamer video libraries copied to ${RPMTOP}/SOURCES"
+            GSTVIDEO_FOUND=1
+            break
+        else
+            echo "   ✗ No GStreamer video libraries found in $SEARCH_DIR"
+        fi
+    else
+        echo "   ✗ Directory does not exist: $SEARCH_DIR"
+    fi
+done
+if [ $GSTVIDEO_FOUND -eq 0 ]; then
+    echo "⚠️  Warning: GStreamer video libraries not found"
+else
+    echo "✅ GStreamer video libraries found and copied"
+fi
+
+# Copy GStreamer app libraries to RPM SOURCES - search multiple locations
+echo "📋 RPM: Searching for GStreamer app libraries..."
+GSTAPP_FOUND=0
+for SEARCH_DIR in /usr/lib/x86_64-linux-gnu /usr/lib; do
+    echo "   Checking: $SEARCH_DIR"
+    if [ -d "$SEARCH_DIR" ]; then
+        # Use find to detect both files and symlinks
+        if find "$SEARCH_DIR" -maxdepth 1 \( -name "libgstapp-1.0.so*" -type f -o -name "libgstapp-1.0.so*" -type l \) 2>/dev/null | grep -q .; then
+            echo "   ✅ Found GStreamer app libraries in $SEARCH_DIR"
+            # List files found for diagnostics
+            ls -la "$SEARCH_DIR"/libgstapp-1.0.so* 2>/dev/null | while read -r line; do
+                echo "     $line"
+            done
+            # Copy all libgstapp-1.0 files and symlinks
+            cp -Pv "$SEARCH_DIR"/libgstapp-1.0.so* "${RPMTOP}/SOURCES/" 2>&1 | sed 's/^/     /'
+            echo "   ✅ GStreamer app libraries copied to ${RPMTOP}/SOURCES"
+            GSTAPP_FOUND=1
+            break
+        else
+            echo "   ✗ No GStreamer app libraries found in $SEARCH_DIR"
+        fi
+    else
+        echo "   ✗ Directory does not exist: $SEARCH_DIR"
+    fi
+done
+if [ $GSTAPP_FOUND -eq 0 ]; then
+    echo "⚠️  Warning: GStreamer app libraries not found"
+else
+    echo "✅ GStreamer app libraries found and copied"
+fi
+
+echo "📋 RPM: Final SOURCES directory contents:"
+ls -lah "${RPMTOP}/SOURCES/" | head -30
 
 # Update the binary's rpath to point to /usr/lib for RPM
 if [ -f "${RPMTOP}/SOURCES/openterfaceQT" ]; then

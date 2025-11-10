@@ -127,6 +127,35 @@ for plugin in "${GSTREAMER_PLUGINS[@]}"; do
 done
 echo "✅ GStreamer plugin dependencies copied"
 
+# Copy JPEG libraries for image codec support (required by Qt and FFmpeg)
+echo "📦 Copying JPEG libraries for image codec support..."
+mkdir -p "appimage/AppDir/usr/lib"
+JPEG_COPIED=0
+for SEARCH_DIR in /opt/ffmpeg/lib /usr/lib/x86_64-linux-gnu /usr/lib; do
+    if [ -d "$SEARCH_DIR" ]; then
+        # Copy libjpeg libraries (both files and symlinks)
+        if find "$SEARCH_DIR" -maxdepth 1 \( -name "libjpeg.so*" -type f -o -name "libjpeg.so*" -type l \) 2>/dev/null | grep -q .; then
+            echo "  ✅ Found libjpeg in $SEARCH_DIR"
+            find "$SEARCH_DIR" -maxdepth 1 \( -name "libjpeg.so*" -type f -o -name "libjpeg.so*" -type l \) 2>/dev/null | while read -r file; do
+                if [ ! -f "appimage/AppDir/usr/lib/$(basename "$file")" ]; then
+                    echo "    Copying: $(basename "$file")"
+                    cp -a "$file" "appimage/AppDir/usr/lib/"
+                fi
+            done
+        fi
+        # Copy libturbojpeg libraries (both files and symlinks)
+        if find "$SEARCH_DIR" -maxdepth 1 \( -name "libturbojpeg.so*" -type f -o -name "libturbojpeg.so*" -type l \) 2>/dev/null | grep -q .; then
+            echo "  ✅ Found libturbojpeg in $SEARCH_DIR"
+            find "$SEARCH_DIR" -maxdepth 1 \( -name "libturbojpeg.so*" -type f -o -name "libturbojpeg.so*" -type l \) 2>/dev/null | while read -r file; do
+                if [ ! -f "appimage/AppDir/usr/lib/$(basename "$file")" ]; then
+                    echo "    Copying: $(basename "$file")"
+                    cp -a "$file" "appimage/AppDir/usr/lib/"
+                fi
+            done
+        fi
+    fi
+done
+echo "✅ JPEG libraries processed for AppImage"
 
 # Try to find and copy icon
 mkdir -p appimage/AppDir/usr/share/pixmaps
@@ -213,6 +242,32 @@ for plugin in "${GSTREAMER_PLUGINS[@]}"; do
 	if [ -f "$GSTREAMER_HOST_DIR/$plugin" ]; then
 		cp "$GSTREAMER_HOST_DIR/$plugin" "${APPDIR}/usr/lib/gstreamer-1.0/"
 		echo "✓ Copied plugin: ${plugin}"
+	fi
+done
+
+# Copy JPEG libraries for image codec support
+echo "Including JPEG libraries for image codec support in comprehensive AppImage..."
+mkdir -p "${APPDIR}/usr/lib"
+for SEARCH_DIR in /opt/ffmpeg/lib /usr/lib/x86_64-linux-gnu /usr/lib; do
+	if [ -d "$SEARCH_DIR" ]; then
+		# Copy libjpeg libraries (both files and symlinks)
+		if find "$SEARCH_DIR" -maxdepth 1 \( -name "libjpeg.so*" -type f -o -name "libjpeg.so*" -type l \) 2>/dev/null | grep -q .; then
+			find "$SEARCH_DIR" -maxdepth 1 \( -name "libjpeg.so*" -type f -o -name "libjpeg.so*" -type l \) 2>/dev/null | while read -r file; do
+				if [ ! -f "${APPDIR}/usr/lib/$(basename "$file")" ]; then
+					cp -a "$file" "${APPDIR}/usr/lib/"
+					echo "✓ Copied JPEG library: $(basename "$file")"
+				fi
+			done
+		fi
+		# Copy libturbojpeg libraries (both files and symlinks)
+		if find "$SEARCH_DIR" -maxdepth 1 \( -name "libturbojpeg.so*" -type f -o -name "libturbojpeg.so*" -type l \) 2>/dev/null | grep -q .; then
+			find "$SEARCH_DIR" -maxdepth 1 \( -name "libturbojpeg.so*" -type f -o -name "libturbojpeg.so*" -type l \) 2>/dev/null | while read -r file; do
+				if [ ! -f "${APPDIR}/usr/lib/$(basename "$file")" ]; then
+					cp -a "$file" "${APPDIR}/usr/lib/"
+					echo "✓ Copied TurboJPEG library: $(basename "$file")"
+				fi
+			done
+		fi
 	fi
 done
 

@@ -1,0 +1,18 @@
+#!/bin/bash
+set -e
+
+# Register bundled FFmpeg 6.1.1 libraries with system linker
+if [ "$1" = "configure" ]; then
+    # Create ldconfig configuration for bundled libraries
+    cat > /etc/ld.so.conf.d/openterface-ffmpeg.conf <<'EOF'
+# OpenterfaceQT bundled FFmpeg 6.1.1 libraries
+/usr/lib
+EOF
+    
+    # Update library cache
+    ldconfig
+    
+    echo "OpenterfaceQT: FFmpeg 6.1.1 libraries registered with system linker"
+fi
+
+exit 0

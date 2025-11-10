@@ -29,6 +29,8 @@ set(mainwindow_resource_files
     "ui/../images/laptop.svg"
     "ui/../images/monitor.svg"
     "ui/../images/usbplug.svg"
+    "ui/../images/startRecord.svg"
+    "ui/../images/stopRecord.svg"
 )
 
 qt_add_resources(openterfaceQT "mainwindow"

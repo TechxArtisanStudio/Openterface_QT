@@ -4,9 +4,15 @@
 
 FROM archlinux:latest
 
+# Build arguments
+ARG GITHUB_TOKEN=""
+ARG INSTALL_TYPE="deb"
+
 # Set environment variables to avoid interactive prompts
 ENV DEBIAN_FRONTEND=noninteractive
 ENV TZ=UTC
+ENV GITHUB_TOKEN=${GITHUB_TOKEN}
+ENV INSTALL_TYPE=${INSTALL_TYPE}
 
 # Set up display environment for GUI applications
 ENV DISPLAY=:0
@@ -63,11 +69,18 @@ RUN useradd -m -s /bin/bash openterface && \
     usermod -a -G uucp,audio,video openterface && \
     echo "openterface ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
 
-# Copy and run the installation script
-COPY install-openterface-shared.sh /tmp/install-openterface-shared.sh
-RUN chmod +x /tmp/install-openterface-shared.sh && \
-    /tmp/install-openterface-shared.sh && \
-    rm /tmp/install-openterface-shared.sh
+# Copy installation scripts for runtime execution
+COPY ./install-openterface.sh /docker/install-openterface.sh
+RUN chmod +x /docker/install-openterface.sh
+
+# Keep legacy scripts for backwards compatibility
+COPY ./install-openterface-deb.sh /docker/install-openterface-deb.sh
+COPY ./install-openterface-appimage.sh /docker/install-openterface-appimage.sh
+RUN chmod +x /docker/install-openterface-deb.sh /docker/install-openterface-appimage.sh
+
+# Copy and setup entrypoint script
+COPY ./entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
 
 # Set up udev rules for Openterface hardware (backup rules, main setup in install script)
 RUN echo 'SUBSYSTEM=="hidraw", ATTRS{idVendor}=="534d", ATTRS{idProduct}=="2109", TAG+="uaccess", MODE="0666"' > /etc/udev/rules.d/50-openterface-backup.rules && \
@@ -87,5 +100,8 @@ LABEL description="Openterface QT Mini-KVM testing environment"
 LABEL version="latest"
 LABEL purpose="testing"
 
-# Default command to run the application
-CMD ["/usr/local/bin/start-openterface.sh"]
+# Set entrypoint to handle installation on first run
+ENTRYPOINT ["/entrypoint.sh"]
+
+# Default command (will be passed to entrypoint)
+CMD ["/bin/bash"]

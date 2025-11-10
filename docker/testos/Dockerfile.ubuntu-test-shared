@@ -6,11 +6,13 @@ FROM ubuntu:24.04
 
 # Build arguments
 ARG GITHUB_TOKEN=""
+ARG INSTALL_TYPE="deb"
 
 # Set environment variables to avoid interactive prompts
 ENV DEBIAN_FRONTEND=noninteractive
 ENV TZ=UTC
 ENV GITHUB_TOKEN=${GITHUB_TOKEN}
+ENV INSTALL_TYPE=${INSTALL_TYPE}
 
 # Set up display environment for GUI applications
 ENV DISPLAY=:0
@@ -115,9 +117,14 @@ RUN mkdir -p /tmp/build-artifacts /tmp/packages && \
 # 1. Find .deb files if they were mounted at runtime via docker run -v
 # 2. Download the latest release from GitHub
 
-# Copy installation script for runtime execution
-COPY ./install-openterface-shared.sh /tmp/install-openterface-shared.sh
-RUN chmod +x /tmp/install-openterface-shared.sh
+# Copy installation scripts for runtime execution
+COPY ./install-openterface.sh /docker/install-openterface.sh
+RUN chmod +x /docker/install-openterface.sh
+
+# Keep legacy scripts for backwards compatibility
+COPY ./install-openterface-deb.sh /docker/install-openterface-deb.sh
+COPY ./install-openterface-appimage.sh /docker/install-openterface-appimage.sh
+RUN chmod +x /docker/install-openterface-deb.sh /docker/install-openterface-appimage.sh
 
 # Copy and setup entrypoint script
 COPY ./entrypoint.sh /entrypoint.sh
