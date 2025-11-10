@@ -76,25 +76,25 @@ RUN apt-get install -y libgl1 \
         libglvnd0 \
         libglu1-mesa
 # FFmpeg runtime libraries
-RUN apt-get install -y libavformat60 \
-        libavcodec60 \
-        libavutil58 \
-        libavdevice60 \
-        libswresample4 \
-        libswscale7 \
-        libturbojpeg
-# GStreamer runtime dependencies
-RUN apt-get install -y libgstreamer1.0-0 \
-        gstreamer1.0-plugins-base \
-        gstreamer1.0-plugins-good \
-        gstreamer1.0-plugins-bad \
-        gstreamer1.0-plugins-ugly \
-        gstreamer1.0-libav \
-        gstreamer1.0-alsa \
-        gstreamer1.0-pulseaudio
+# RUN apt-get install -y libavformat60 \
+#         libavcodec60 \
+#         libavutil58 \
+#         libavdevice60 \
+#         libswresample4 \
+#         libswscale7 \
+#         libturbojpeg
+# # GStreamer runtime dependencies
+# RUN apt-get install -y libgstreamer1.0-0 \
+#         gstreamer1.0-plugins-base \
+#         gstreamer1.0-plugins-good \
+#         gstreamer1.0-plugins-bad \
+#         gstreamer1.0-plugins-ugly \
+#         gstreamer1.0-libav \
+#         gstreamer1.0-alsa \
+#         gstreamer1.0-pulseaudio
 
 # Video4Linux utilities for V4L2 device management and testing
-RUN apt-get install -y v4l-utils
+# RUN apt-get install -y v4l-utils
 
 # FUSE support for AppImage installations
 RUN apt-get install -y libfuse2 \
