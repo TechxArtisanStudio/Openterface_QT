@@ -118,7 +118,46 @@ else
     print_warning "X11 libraries installation attempted (may already exist or have conflicts)"
 fi
 
-# Step 8: Install compression libraries
+# Step 8: Install FFmpeg libraries
+print_status "Installing FFmpeg libraries..."
+if apt-get install -y --no-install-recommends -qq libavformat60 libavcodec60 libavutil58 libavdevice60 libswresample4 libswscale7 2>&1 | tee /tmp/apt_install.log; then
+    print_success "FFmpeg libraries installed"
+else
+    print_warning "FFmpeg libraries installation attempted (may already exist or have conflicts)"
+fi
+
+# Step 9: Install GStreamer plugins
+print_status "Installing GStreamer plugins..."
+if apt-get install -y --no-install-recommends -qq \
+    gstreamer1.0-plugins-base \
+    gstreamer1.0-plugins-good \
+    gstreamer1.0-plugins-bad \
+    gstreamer1.0-plugins-ugly \
+    gstreamer1.0-libav \
+    gstreamer1.0-alsa \
+    gstreamer1.0-pulseaudio 2>&1 | tee /tmp/apt_install.log; then
+    print_success "GStreamer plugins installed"
+else
+    print_warning "GStreamer plugins installation attempted (may already exist or have conflicts)"
+fi
+
+# Step 10: Install JPEG libraries for image handling
+print_status "Installing JPEG libraries..."
+if apt-get install -y --no-install-recommends -qq libturbojpeg0 2>&1 | tee /tmp/apt_install.log; then
+    print_success "JPEG libraries installed"
+else
+    print_warning "JPEG libraries installation attempted (may already exist or have conflicts)"
+fi
+
+# Step 11: Install Video4Linux utilities
+print_status "Installing Video4Linux utilities..."
+if apt-get install -y --no-install-recommends -qq v4l-utils 2>&1 | tee /tmp/apt_install.log; then
+    print_success "Video4Linux utilities installed"
+else
+    print_warning "Video4Linux utilities installation attempted (may already exist or have conflicts)"
+fi
+
+# Step 12: Install compression libraries
 print_status "Installing compression libraries..."
 if apt-get install -y --no-install-recommends -qq zlib1g libbz2-1.0 liblzma5 2>&1 | tee /tmp/apt_install.log; then
     print_success "Compression libraries installed"
@@ -138,7 +177,10 @@ echo "  ✓ Graphics: libegl1, libgles2"
 echo "  ✓ Audio: libpulse0"
 echo "  ✓ Video Acceleration: libva2, libva-drm2, libva-x11-2"
 echo "  ✓ GStreamer: libgstreamer1.0-0, libgstreamer-plugins-base1.0-0"
-echo "  ✓ Video4Linux: libv4l-0"
+echo "  ✓ GStreamer Plugins: gstreamer1.0-plugins-{base,good,bad,ugly,libav,alsa,pulseaudio}"
+echo "  ✓ FFmpeg: libavformat60, libavcodec60, libavutil58, libavdevice60, libswresample4, libswscale7"
+echo "  ✓ JPEG: libturbojpeg0"
+echo "  ✓ Video4Linux: libv4l-0, v4l-utils"
 echo "  ✓ X11/Display: libxkbcommon0, libwayland-client0, libxcb*, libx11-6"
 echo "  ✓ Compression: zlib1g, libbz2-1.0, liblzma5"
 echo ""

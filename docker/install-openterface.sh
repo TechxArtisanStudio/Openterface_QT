@@ -307,6 +307,16 @@ install_deb_package() {
         fi
     fi
     
+    # Check if preinst script was executed
+    print_section "Verifying preinst script execution..."
+    if check_preinst_execution; then
+        print_success "preinst script was executed successfully"
+    else
+        print_warning "Could not verify preinst script execution"
+        print_info "The package may have installed without running pre-installation dependencies"
+        print_info "You may need to manually install missing dependencies if the application fails to start"
+    fi
+    
     # Update library cache
     print_section "Updating system library cache..."
     if $SUDO ldconfig 2>&1 | head -3; then
@@ -345,6 +355,62 @@ download_deb_package() {
     
     print_error "Failed to find or download DEB package"
     return 1
+}
+
+check_preinst_execution() {
+    # Check for evidence that preinst script was executed by verifying installed packages
+    # The preinst script installs several critical dependencies
+    
+    print_info "Checking for preinst-installed dependencies..."
+    
+    local critical_packages=(
+        "libegl1"
+        "libgles2"
+        "libpulse0"
+        "libgstreamer1.0-0"
+        "libv4l-0"
+    )
+    
+    local installed_count=0
+    local total_packages=${#critical_packages[@]}
+    
+    for package in "${critical_packages[@]}"; do
+        if dpkg -l | grep -q "^ii.*$package"; then
+            print_info "  ✓ $package installed"
+            ((installed_count++))
+        else
+            print_info "  ✗ $package not found"
+        fi
+    done
+    
+    echo ""
+    print_info "Dependency check: $installed_count/$total_packages critical packages found"
+    
+    if [ $installed_count -ge 3 ]; then
+        # At least half of critical packages installed suggests preinst ran
+        print_success "preinst dependencies detected"
+        return 0
+    else
+        print_warning "Few preinst dependencies detected"
+        print_info "Checking apt logs for preinst execution..."
+        
+        # Try to find preinst output in apt logs
+        if [ -f /var/log/apt/term.log ]; then
+            if grep -q "OpenterfaceQT Pre-Installation Script" /var/log/apt/term.log 2>/dev/null; then
+                print_success "preinst script signature found in apt logs"
+                return 0
+            fi
+        fi
+        
+        if [ -f /var/log/dpkg.log ]; then
+            if grep -q "openterfaceQT.*preinst" /var/log/dpkg.log 2>/dev/null; then
+                print_success "preinst execution found in dpkg logs"
+                return 0
+            fi
+        fi
+        
+        return 1
+    fi
 }
 
 # =============================================================================
