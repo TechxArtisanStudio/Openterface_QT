@@ -205,129 +205,91 @@ jobs:
           echo "File size: $(ls -lh "$APPIMAGE" | awk '{print $5}')"
           echo ""
           
-          # Mount the AppImage and list its contents
-          echo "📂 AppImage contents:"
-          echo "===================="
+          # Extract AppImage contents without mounting
+          echo "📂 Extracting AppImage contents:"
+          echo "==============================="
           
-          # Create a temporary mount point
-          MOUNT_POINT=$(mktemp -d)
-          trap "rm -rf $MOUNT_POINT" EXIT
+          EXTRACT_DIR=$(mktemp -d)
+          trap "rm -rf $EXTRACT_DIR" EXIT
           
-          # Mount the AppImage using FUSE
-          if command -v fusermount >/dev/null 2>&1; then
-            echo "🔧 Using FUSE to mount AppImage..."
-            "$APPIMAGE" -m "$MOUNT_POINT" &
-            sleep 2
-            MOUNT_PID=$!
+          cd "$EXTRACT_DIR"
+          
+          # AppImage is a special ELF file that can be executed with --appimage-extract
+          # First, try the standard extraction method
+          echo "� Attempting AppImage extraction with --appimage-extract..."
+          
+          if "$APPIMAGE" --appimage-extract >/dev/null 2>&1; then
+            echo "✅ Extraction successful using --appimage-extract"
+          else
+            echo "⚠️ --appimage-extract failed, trying alternative method..."
             
-            # List all libraries
+            # Alternative: AppImage is essentially a .squashfs archive
+            # We can extract it by treating it as a file
+            # Get the offset where the AppImage filesystem starts
+            OFFSET=$(strings "$APPIMAGE" | grep -a "\.sqsh" | head -1)
+            if [ -n "$OFFSET" ]; then
+              echo "ℹ️ Detected SquashFS filesystem in AppImage"
+              # Try to find and extract the squashfs part
+              tail -c +100000 "$APPIMAGE" | unsquashfs -d "$EXTRACT_DIR/squashfs-root" - 2>/dev/null || \
+              cd - && echo "⚠️ Could not extract SquashFS"
+            fi
+          fi
+          
+          # Now list all the libraries found
+          if [ -d "$EXTRACT_DIR/squashfs-root" ] || [ -n "$(find "$EXTRACT_DIR" -name "*.so*" 2>/dev/null | head -1)" ]; then
             echo ""
             echo "📚 All libraries included in AppImage:"
             echo "======================================"
-            find "$MOUNT_POINT" -type f \( -name "*.so*" -o -name "*.la" \) | sort
+            find "$EXTRACT_DIR" -type f \( -name "*.so*" -o -name "*.la" \) 2>/dev/null | sort
             
             # Count different types
             echo ""
             echo "📊 Library Statistics:"
             echo "====================="
-            SO_COUNT=$(find "$MOUNT_POINT" -type f -name "*.so*" | wc -l)
-            LA_COUNT=$(find "$MOUNT_POINT" -type f -name "*.la" | wc -l)
+            SO_COUNT=$(find "$EXTRACT_DIR" -type f -name "*.so*" 2>/dev/null | wc -l)
+            LA_COUNT=$(find "$EXTRACT_DIR" -type f -name "*.la" 2>/dev/null | wc -l)
             echo "  Shared objects (.so*): $SO_COUNT"
             echo "  Libtool archives (.la): $LA_COUNT"
+            echo "  Total: $((SO_COUNT + LA_COUNT))"
             
             # Get Qt libraries
-            echo ""
-            echo "🎨 Qt Libraries:"
-            echo "================"
-            find "$MOUNT_POINT" -type f -name "libQt*.so*" | sort
-            
-            # Get FFmpeg/GStreamer libraries
-            echo ""
-            echo "🎬 Media Libraries (FFmpeg/GStreamer):"
-            echo "======================================"
-            find "$MOUNT_POINT" -type f \( -name "libav*.so*" -o -name "libsw*.so*" -o -name "libgst*.so*" \) | sort
-            
-            # Get USB/Device libraries
-            echo ""
-            echo "🔌 USB/Device Libraries:"
-            echo "======================="
-            find "$MOUNT_POINT" -type f \( -name "libusb*.so*" -o -name "libudev*.so*" \) | sort
-            
-            # Cleanup
-            wait $MOUNT_PID 2>/dev/null || true
-            fusermount -u "$MOUNT_POINT" 2>/dev/null || true
-          else
-            echo "⚠️ FUSE not available, attempting alternative extraction method..."
-            echo ""
-            
-            # Try using appimage-mount or extracting directly
-            if command -v appimage-mount >/dev/null 2>&1; then
-              echo "🔧 Using appimage-mount..."
-              appimage-mount "$APPIMAGE" "$MOUNT_POINT" &
-              sleep 2
-              MOUNT_PID=$!
-              
-              # List all libraries
-              echo ""
-              echo "📚 All libraries included in AppImage:"
-              echo "======================================"
-              find "$MOUNT_POINT" -type f \( -name "*.so*" -o -name "*.la" \) | sort
-              
-              # Count and categorize
-              echo ""
-              echo "📊 Library Statistics:"
-              echo "====================="
-              SO_COUNT=$(find "$MOUNT_POINT" -type f -name "*.so*" | wc -l)
-              LA_COUNT=$(find "$MOUNT_POINT" -type f -name "*.la" | wc -l)
-              echo "  Shared objects (.so*): $SO_COUNT"
-              echo "  Libtool archives (.la): $LA_COUNT"
-              
-              # Get categorized libraries
+            QT_LIBS=$(find "$EXTRACT_DIR" -type f -name "libQt*.so*" 2>/dev/null)
+            if [ -n "$QT_LIBS" ]; then
               echo ""
               echo "🎨 Qt Libraries:"
               echo "================"
-              find "$MOUNT_POINT" -type f -name "libQt*.so*" | sort
-              
+              echo "$QT_LIBS" | sort
+            fi
+            
+            # Get FFmpeg/GStreamer libraries
+            MEDIA_LIBS=$(find "$EXTRACT_DIR" -type f \( -name "libav*.so*" -o -name "libsw*.so*" -o -name "libgst*.so*" \) 2>/dev/null)
+            if [ -n "$MEDIA_LIBS" ]; then
               echo ""
               echo "🎬 Media Libraries (FFmpeg/GStreamer):"
               echo "======================================"
-              find "$MOUNT_POINT" -type f \( -name "libav*.so*" -o -name "libsw*.so*" -o -name "libgst*.so*" \) | sort
-              
+              echo "$MEDIA_LIBS" | sort
+            fi
+            
+            # Get USB/Device libraries
+            USB_LIBS=$(find "$EXTRACT_DIR" -type f \( -name "libusb*.so*" -o -name "libudev*.so*" \) 2>/dev/null)
+            if [ -n "$USB_LIBS" ]; then
               echo ""
               echo "🔌 USB/Device Libraries:"
               echo "======================="
-              find "$MOUNT_POINT" -type f \( -name "libusb*.so*" -o -name "libudev*.so*" \) | sort
-              
-              # Cleanup
-              wait $MOUNT_PID 2>/dev/null || true
-            else
-              echo "ℹ️ Extracting AppImage contents directly..."
-              
-              # Extract AppImage using the --appimage-extract option if available
-              EXTRACT_DIR=$(mktemp -d)
-              trap "rm -rf $EXTRACT_DIR" EXIT
-              
-              # Try to extract - might require mounting in docker
-              docker run --rm \
-                -v "$APPIMAGE:/$APPIMAGE:ro" \
-                -v "$EXTRACT_DIR:/extract" \
-                ubuntu:24.04 bash -c "
-                  echo 'Attempting AppImage extraction...'
-                  cd /extract
-                  chmod +x /$APPIMAGE
-                  # Try to extract using the AppImage's built-in method
-                  /$APPIMAGE --appimage-extract 2>/dev/null || /$APPIMAGE -m . 2>/dev/null || echo 'Could not extract AppImage'
-                  
-                  echo ''
-                  echo '📚 Extracted contents:'
-                  find . -type f \( -name '*.so*' -o -name '*.la' \) 2>/dev/null | head -20
-                "
+              echo "$USB_LIBS" | sort
             fi
+          else
+            echo "⚠️ Could not extract AppImage contents"
+            echo "Attempting to list AppImage format information..."
+            file "$APPIMAGE"
+            echo ""
+            echo "Checking AppImage ELF headers..."
+            readelf -l "$APPIMAGE" 2>/dev/null | head -20 || strings "$APPIMAGE" | head -30
           fi
           
           echo ""
           echo "✅ AppImage library analysis completed"
-          
+
       - name: Basic container functionality test (Shared)
         run: |
           echo "🧪 Testing basic container functionality"
