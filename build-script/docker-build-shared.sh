@@ -259,10 +259,10 @@ if [ $VA_FOUND -eq 0 ]; then
     echo "⚠️  Warning: VA-API libraries not found"
 fi
 
-# Copy core FFmpeg libraries (libavdevice, libavcodec, libavformat, libavutil, libswscale, libswresample)
+# Copy core FFmpeg libraries (libavdevice, libavcodec, libavformat, libavutil, libswscale, libswresample, libavfilter)
 echo "📋 DEB: Searching for FFmpeg core libraries..."
 FFMPEG_FOUND=0
-FFMPEG_LIBS=(libavdevice.so libavcodec.so libavformat.so libavutil.so libswscale.so libswresample.so)
+FFMPEG_LIBS=(libavdevice.so libavcodec.so libavformat.so libavutil.so libswscale.so libswresample.so libavfilter.so)
 
 for SEARCH_DIR in /opt/ffmpeg/lib /usr/lib/x86_64-linux-gnu /usr/lib; do
     echo "   Checking: $SEARCH_DIR"
@@ -558,7 +558,7 @@ Depends: libxkbcommon0, libwayland-client0, libegl1, libgles2, libpulse0, libxcb
 Maintainer: TechxArtisan <info@techxartisan.com>
 Description: OpenterfaceQT Mini-KVM Linux Edition
  Includes bundled FFmpeg 6.1.1 libraries (libavformat, libavcodec,
- libavdevice, libswresample, libswscale, libavutil), libturbojpeg,
+ libavdevice, libswresample, libswscale, libavutil, libavfilter), libturbojpeg,
  and GStreamer base libraries (libgstbase, libgstaudio, libgstvideo,
  libgstapp, libgstpbutils, libgsttag, libgstrtp, libgstrtsp, libgstsdp,
  libgstallocators, libgstgl)
@@ -742,10 +742,10 @@ else
     echo "✅ VA-API found and copied"
 fi
 
-# Copy core FFmpeg libraries (libavdevice, libavcodec, libavformat, libavutil, libswscale, libswresample)
+# Copy core FFmpeg libraries (libavdevice, libavcodec, libavformat, libavutil, libswscale, libswresample, libavfilter)
 echo "📋 RPM: Searching for FFmpeg core libraries..."
 FFMPEG_FOUND=0
-FFMPEG_LIBS=(libavdevice.so libavcodec.so libavformat.so libavutil.so libswscale.so libswresample.so)
+FFMPEG_LIBS=(libavdevice.so libavcodec.so libavformat.so libavutil.so libswscale.so libswresample.so libavfilter.so)
 
 for SEARCH_DIR in /opt/ffmpeg/lib /usr/lib/x86_64-linux-gnu /usr/lib; do
     echo "   Checking: $SEARCH_DIR"
