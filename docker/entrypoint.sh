@@ -84,6 +84,20 @@ fi
 echo "🚀 Launching Openterface application..."
 echo ""
 
+# Start Xvfb inside the container
+echo "🖥️  Starting Xvfb virtual display..."
+Xvfb $DISPLAY -screen 0 1920x1080x24 -ac +extension GLX +render -noreset >/dev/null 2>&1 &
+XVFB_PID=$!
+sleep 3
+
+# Verify Xvfb started
+if ps -p $XVFB_PID > /dev/null 2>&1; then
+    echo "✅ Xvfb started successfully (PID: $XVFB_PID, Display: $DISPLAY)"
+else
+    echo "❌ Xvfb failed to start"
+    exit 1
+fi
+
 # Try to launch the openterfaceQT application
 if [ -f /usr/local/bin/openterfaceQT ]; then
     echo "✅ Found openterfaceQT application, starting it..."
@@ -100,9 +114,11 @@ if [ -f /usr/local/bin/openterfaceQT ]; then
         # For AppImage in Docker, we should extract and run to avoid FUSE issues
         export APPIMAGE_EXTRACT_AND_RUN=1
         echo "ℹ️  Will extract AppImage (APPIMAGE_EXTRACT_AND_RUN=1)"
-        # Make system libraries available to the AppImage
-        export LD_LIBRARY_PATH="/usr/lib/x86_64-linux-gnu:/usr/lib:$LD_LIBRARY_PATH"
-        echo "ℹ️  Added system library paths for AppImage"
+        # DO NOT add system libraries to LD_LIBRARY_PATH for AppImage
+        # The AppImage has its own bundled libraries and adding system libs causes GLIBC conflicts
+        # Clear LD_LIBRARY_PATH to ensure AppImage uses only its bundled libraries
+        unset LD_LIBRARY_PATH
+        echo "ℹ️  Using AppImage bundled libraries only (LD_LIBRARY_PATH cleared)"
     fi
     
     # Set up display environment for GUI
@@ -111,27 +127,17 @@ if [ -f /usr/local/bin/openterfaceQT ]; then
     # Verify X11 connection before starting app
     echo "🔍 X11 Connection Diagnostics:"
     echo "   DISPLAY=$DISPLAY"
-    echo "   X11 socket path: /tmp/.X11-unix/X${DISPLAY#:}"
     
-    if [ -e "/tmp/.X11-unix/X${DISPLAY#:}" ]; then
-        echo "   ✅ X11 socket exists"
-        ls -la "/tmp/.X11-unix/X${DISPLAY#:}" | sed 's/^/   /'
-    else
-        echo "   ❌ X11 socket does not exist"
-    fi
-    
-    # Check if xdpyinfo is available, if not skip the test
+    # Check if xdpyinfo is available for connection test
     if command -v xdpyinfo >/dev/null 2>&1; then
-        if ! xdpyinfo -display "$DISPLAY" >/dev/null 2>&1; then
-            echo "❌ Cannot connect to X display $DISPLAY"
-            echo "   X11 connection test failed with xdpyinfo"
-            echo "   This may cause the application to fail"
+        if xdpyinfo -display "$DISPLAY" >/dev/null 2>&1; then
+            echo "   ✅ X11 display connection verified"
         else
-            echo "   ✅ X11 display connection verified with xdpyinfo"
+            echo "   ⚠️  Cannot verify X11 connection (xdpyinfo failed)"
+            echo "   Will attempt to start app anyway..."
         fi
     else
-        echo "   ℹ️  xdpyinfo not available, skipping X11 connection test"
-        echo "   (Install x11-utils package to enable this check)"
+        echo "   ℹ️  xdpyinfo not available, skipping connection test"
     fi
     
     export QT_QPA_PLATFORM=xcb
@@ -151,6 +157,13 @@ if [ -f /usr/local/bin/openterfaceQT ]; then
     echo "📝 Starting Openterface QT..."
     echo "   DISPLAY=$DISPLAY"
     echo "   QT_QPA_PLATFORM=$QT_QPA_PLATFORM"
+    
+    # Check if it's AppImage and show library info
+    if file /usr/local/bin/openterfaceQT | grep -q "AppImage"; then
+        echo "   AppImage mode: Extract and run"
+        echo "   LD_LIBRARY_PATH=${LD_LIBRARY_PATH:-<not set>}"
+    fi
+    
     nohup env DISPLAY=$DISPLAY QT_QPA_PLATFORM=$QT_QPA_PLATFORM /usr/local/bin/openterfaceQT > /tmp/openterfaceqt.log 2>&1 &
     APP_PID=$!
     

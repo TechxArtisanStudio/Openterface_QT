@@ -33,7 +33,10 @@ RUN apt-get update -y --allow-releaseinfo-change --allow-unauthenticated \
         sudo \
         udev \
         usbutils \
-        file
+        file \
+        xvfb \
+        imagemagick \
+        x11-utils
 # Hardware interface libraries (runtime only)
 RUN apt-get install -y libusb-1.0-0 \
         libudev1

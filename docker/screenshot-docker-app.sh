@@ -30,46 +30,15 @@ cleanup() {
     echo -e "${YELLOW}🧹 Cleaning up resources...${NC}"
     docker stop $CONTAINER_NAME 2>/dev/null || true
     docker rm $CONTAINER_NAME 2>/dev/null || true
-    if [ ! -z "$XVFB_PID" ]; then
-        kill $XVFB_PID 2>/dev/null || true
-    fi
 }
 trap cleanup EXIT
 
 echo -e "${BLUE}📦 Using existing Docker image${NC}"
 
-# Install virtual display and ImageMagick dependencies if needed
-if ! command -v Xvfb >/dev/null 2>&1 || ! command -v import >/dev/null 2>&1; then
-    echo -e "${BLUE}📦 Installing virtual display and image processing dependencies...${NC}"
-    sudo apt-get update -y >/dev/null
-    sudo apt-get install -y xvfb imagemagick x11-utils >/dev/null
-    echo -e "${GREEN}✅ Dependencies installation completed${NC}"
-fi
-
-# Setup virtual display
-echo -e "${BLUE}🖥️  Setting up virtual display...${NC}"
+# Setup virtual display - Xvfb will run inside the container
+echo -e "${BLUE}�️  Xvfb will be started inside the container${NC}"
 export DISPLAY=:98
-Xvfb :98 -screen 0 1920x1080x24 -ac +extension GLX +render -noreset >/dev/null 2>&1 &
-XVFB_PID=$!
-sleep 3
-
-# Set permissions on X11 socket to allow container access
-if [ -e /tmp/.X11-unix/X98 ]; then
-    chmod 777 /tmp/.X11-unix/X98
-    echo -e "${GREEN}✅ X11 socket permissions set${NC}"
-else
-    echo -e "${RED}⚠️  X11 socket not found at /tmp/.X11-unix/X98${NC}"
-fi
-
-# Disable X11 access control to allow container connections
-xhost +local: >/dev/null 2>&1 || true
-
-# Verify X server
-if ! DISPLAY=:98 xdpyinfo >/dev/null 2>&1; then
-    echo -e "${RED}❌ Virtual display startup failed${NC}"
-    exit 1
-fi
-echo -e "${GREEN}✅ Virtual display started successfully ($DISPLAY)${NC}"
+echo -e "${GREEN}✅ Display configured: $DISPLAY${NC}"
 
 # Create screenshots directory
 mkdir -p $SCREENSHOTS_DIR
@@ -85,11 +54,8 @@ DOCKER_RUN_CMD="docker run -d \
     -e INSTALL_TYPE=$INSTALL_TYPE \
     -e QT_X11_NO_MITSHM=1 \
     -e QT_QPA_PLATFORM=xcb \
-    -e QT_PLUGIN_PATH=/usr/lib/qt6/plugins \
-    -e QML2_IMPORT_PATH=/usr/lib/qt6/qml \
     -e LC_ALL=C.UTF-8 \
     -e LANG=C.UTF-8 \
-    -v /tmp/.X11-unix:/tmp/.X11-unix:rw \
     --network host \
     --privileged \
     --device /dev/fuse"
@@ -193,30 +159,29 @@ echo -e "${BLUE}📸 Taking screenshot...${NC}"
 timestamp=$(date +"%Y%m%d_%H%M%S")
 screenshot_jpg="$SCREENSHOTS_DIR/openterface_app_${timestamp}.jpg"
 
-# Use ImageMagick import for reliable JPG screenshot capture
-echo -e "${BLUE}📷 Taking screenshot with ImageMagick (PNG/JPG)...${NC}"
+# Take screenshot from inside the container where Xvfb is running
+echo -e "${BLUE}📷 Taking screenshot from inside container...${NC}"
 screenshot_success=false
 
 # Debug: Check X11 display and window information before taking screenshot
 echo -e "${BLUE}🔍 Pre-screenshot diagnostics:${NC}"
-echo "   Display: $DISPLAY"
-echo "   Xvfb PID: $XVFB_PID"
+echo "   Display: $DISPLAY (inside container)"
 
-# Check if X server is responding
-if ! DISPLAY=:98 xdpyinfo >/dev/null 2>&1; then
-    echo -e "${RED}   ❌ X server not responding${NC}"
+# Check if X server is responding inside container
+if docker exec $CONTAINER_NAME sh -c "DISPLAY=$DISPLAY xdpyinfo >/dev/null 2>&1"; then
+    echo -e "${GREEN}   ✅ X server responding inside container${NC}"
 else
-    echo -e "${GREEN}   ✅ X server responding${NC}"
+    echo -e "${RED}   ❌ X server not responding inside container${NC}"
 fi
 
 # Check for active windows
-window_count=$(DISPLAY=:98 xwininfo -tree -root 2>/dev/null | grep -c "child" || echo "0")
+window_count=$(docker exec $CONTAINER_NAME sh -c "DISPLAY=$DISPLAY xwininfo -tree -root 2>/dev/null | grep -c 'child'" || echo "0")
 echo "   Active windows: $window_count"
 
 # List all windows
 if [ "$window_count" -gt 0 ]; then
     echo -e "${BLUE}   Window list:${NC}"
-    DISPLAY=:98 xwininfo -tree -root 2>/dev/null | grep "child" | head -5 | sed 's/^/     /'
+    docker exec $CONTAINER_NAME sh -c "DISPLAY=$DISPLAY xwininfo -tree -root 2>/dev/null | grep 'child' | head -5" | sed 's/^/     /'
 fi
 
 # Check if app window is visible
@@ -234,40 +199,24 @@ else
     echo -e "${RED}   App process status: Not running${NC}"
 fi
 
-# ImageMagick import is the most reliable method for this virtual display setup
-if command -v import >/dev/null 2>&1; then
-    echo -e "${BLUE}   Attempting screenshot with ImageMagick...${NC}"
-    # Show the command being run and capture both stdout and stderr
-    screenshot_output=$(DISPLAY=:98 import -window root -quality 90 "$screenshot_jpg" 2>&1)
-    screenshot_exit_code=$?
-    
-    if [ $screenshot_exit_code -eq 0 ] && [ -f "$screenshot_jpg" ]; then
+# Take screenshot inside container using ImageMagick
+echo -e "${BLUE}   Taking screenshot with ImageMagick inside container...${NC}"
+# Capture screenshot to temp location inside container
+container_screenshot="/tmp/screenshot_${timestamp}.jpg"
+if docker exec $CONTAINER_NAME sh -c "DISPLAY=$DISPLAY import -window root -quality 90 $container_screenshot 2>&1"; then
+    # Copy screenshot from container to host
+    if docker cp "$CONTAINER_NAME:$container_screenshot" "$screenshot_jpg" 2>/dev/null; then
         echo -e "${GREEN}✅ JPG screenshot saved: $screenshot_jpg${NC}"
         screenshot_success=true
+        # Clean up inside container
+        docker exec $CONTAINER_NAME rm -f "$container_screenshot" 2>/dev/null || true
     else
-        echo -e "${RED}❌ ImageMagick screenshot failed (exit code: $screenshot_exit_code)${NC}"
-        echo -e "${YELLOW}   Error output: $screenshot_output${NC}"
-        
-        # Try alternative screenshot method
-        echo -e "${BLUE}   Trying alternative screenshot method...${NC}"
-        if command -v xwd >/dev/null 2>&1 && command -v convert >/dev/null 2>&1; then
-            xwd_file="/tmp/screenshot.xwd"
-            DISPLAY=:98 xwd -root -out "$xwd_file" 2>/dev/null && \
-            convert "$xwd_file" -quality 90 "$screenshot_jpg" 2>/dev/null && \
-            rm -f "$xwd_file"
-            
-            if [ -f "$screenshot_jpg" ]; then
-                echo -e "${GREEN}✅ Alternative screenshot method succeeded${NC}"
-                screenshot_success=true
-            else
-                echo -e "${RED}❌ Alternative screenshot method also failed${NC}"
-            fi
-        fi
+        echo -e "${RED}❌ Failed to copy screenshot from container${NC}"
     fi
 else
-    echo -e "${RED}❌ ImageMagick import command not available${NC}"
-    echo -e "${YELLOW}💡 Please install ImageMagick: sudo apt-get install imagemagick${NC}"
+    echo -e "${RED}❌ ImageMagick screenshot failed inside container${NC}"
 fi
+
 
 if [ "$screenshot_success" = true ]; then
     echo -e "${GREEN}✅ Screenshot generated successfully${NC}"
@@ -347,9 +296,9 @@ else
     docker logs $CONTAINER_ID 2>&1 | sed 's/^/   /'
 fi
 
-# Show window information
-echo -e "${BLUE}🪟 X11 window information:${NC}"
-window_info=$(DISPLAY=:98 xwininfo -tree -root 2>/dev/null | head -10 || echo "Unable to get window information")
+# Show window information from inside container
+echo -e "${BLUE}🪟 X11 window information (inside container):${NC}"
+window_info=$(docker exec $CONTAINER_NAME sh -c "DISPLAY=$DISPLAY xwininfo -tree -root 2>/dev/null | head -10" || echo "Unable to get window information")
 if echo "$window_info" | grep -q "child"; then
     echo -e "${GREEN}   ✅ Active windows detected${NC}"
     echo "$window_info" | grep "child" | head -3 | sed 's/^/   /'
