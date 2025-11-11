@@ -157,6 +157,39 @@ for SEARCH_DIR in /opt/ffmpeg/lib /usr/lib/x86_64-linux-gnu /usr/lib; do
 done
 echo "✅ JPEG libraries processed for AppImage"
 
+# Copy EGL and GPU rendering libraries (required for Qt GUI rendering)
+echo "📦 Copying EGL and GPU rendering libraries for GUI support..."
+mkdir -p "appimage/AppDir/usr/lib"
+EGL_LIBS=(
+    "libEGL.so.1"
+    "libEGL.so"
+    "libGLESv2.so.2"
+    "libGLESv2.so"
+    "libGL.so.1"
+    "libGL.so"
+    "libGLX.so.0"
+    "libGLX.so"
+    "libglvnd.so.0"
+    "libglvnd_pthread.so.0"
+    "libglvnd_dl.so.0"
+)
+for SEARCH_DIR in /opt/Qt6/lib /usr/lib/x86_64-linux-gnu /usr/lib /usr/lib64; do
+    if [ -d "$SEARCH_DIR" ]; then
+        for lib in "${EGL_LIBS[@]}"; do
+            # Handle both regular files and symlinks
+            if find "$SEARCH_DIR" -maxdepth 1 -name "$lib" 2>/dev/null | grep -q .; then
+                find "$SEARCH_DIR" -maxdepth 1 -name "$lib" 2>/dev/null | while read -r file; do
+                    if [ ! -f "appimage/AppDir/usr/lib/$(basename "$file")" ]; then
+                        echo "  ✓ Copying: $(basename "$file")"
+                        cp -a "$file" "appimage/AppDir/usr/lib/" 2>/dev/null || true
+                    fi
+                done
+            fi
+        done
+    fi
+done
+echo "✅ EGL and GPU rendering libraries processed for AppImage"
+
 # Try to find and copy icon
 mkdir -p appimage/AppDir/usr/share/pixmaps
 mkdir -p appimage/AppDir/usr/share/icons/hicolor/256x256/apps
@@ -270,6 +303,39 @@ for SEARCH_DIR in /opt/ffmpeg/lib /usr/lib/x86_64-linux-gnu /usr/lib; do
 		fi
 	fi
 done
+
+# Copy EGL and GPU rendering libraries (required for Qt GUI rendering)
+echo "Including EGL and GPU rendering libraries for GUI support in comprehensive AppImage..."
+mkdir -p "${APPDIR}/usr/lib"
+EGL_LIBS=(
+	"libEGL.so.1"
+	"libEGL.so"
+	"libGLESv2.so.2"
+	"libGLESv2.so"
+	"libGL.so.1"
+	"libGL.so"
+	"libGLX.so.0"
+	"libGLX.so"
+	"libglvnd.so.0"
+	"libglvnd_pthread.so.0"
+	"libglvnd_dl.so.0"
+)
+for SEARCH_DIR in /opt/Qt6/lib /usr/lib/x86_64-linux-gnu /usr/lib /usr/lib64; do
+	if [ -d "$SEARCH_DIR" ]; then
+		for lib in "${EGL_LIBS[@]}"; do
+			# Handle both regular files and symlinks
+			if find "$SEARCH_DIR" -maxdepth 1 -name "$lib" 2>/dev/null | grep -q .; then
+				find "$SEARCH_DIR" -maxdepth 1 -name "$lib" 2>/dev/null | while read -r file; do
+					if [ ! -f "${APPDIR}/usr/lib/$(basename "$file")" ]; then
+						echo "✓ Copying: $(basename "$file")"
+						cp -a "$file" "${APPDIR}/usr/lib/" 2>/dev/null || true
+					fi
+				done
+			fi
+		done
+	fi
+done
+echo "✓ EGL and GPU rendering libraries processed"
 
 # Copy AppStream/metainfo (optional)
 if [ -f "${SRC}/packaging/appimage/com.openterface.openterfaceQT.metainfo.xml" ]; then
