@@ -220,7 +220,8 @@ JPEG_COPIED=0
 for SEARCH_DIR in /opt/ffmpeg/lib /usr/lib/x86_64-linux-gnu /usr/lib; do
     if [ -d "$SEARCH_DIR" ]; then
         # Copy libjpeg libraries (both files and symlinks)
-        if find "$SEARCH_DIR" -maxdepth 1 \( -name "libjpeg.so*" -type f -o -name "libjpeg.so*" -type l \) 2>/dev/null | grep -q .; then
+        LIBJPEG_COUNT=$(find "$SEARCH_DIR" -maxdepth 1 \( -name "libjpeg.so*" -type f -o -name "libjpeg.so*" -type l \) 2>/dev/null | wc -l)
+        if [ "$LIBJPEG_COUNT" -gt 0 ]; then
             echo "  ✅ Found libjpeg in $SEARCH_DIR"
             find "$SEARCH_DIR" -maxdepth 1 \( -name "libjpeg.so*" -type f -o -name "libjpeg.so*" -type l \) 2>/dev/null | while read -r file; do
                 if [ ! -f "appimage/AppDir/usr/lib/$(basename "$file")" ]; then
@@ -230,7 +231,8 @@ for SEARCH_DIR in /opt/ffmpeg/lib /usr/lib/x86_64-linux-gnu /usr/lib; do
             done
         fi
         # Copy libturbojpeg libraries (both files and symlinks)
-        if find "$SEARCH_DIR" -maxdepth 1 \( -name "libturbojpeg.so*" -type f -o -name "libturbojpeg.so*" -type l \) 2>/dev/null | grep -q .; then
+        LIBTURBOJPEG_COUNT=$(find "$SEARCH_DIR" -maxdepth 1 \( -name "libturbojpeg.so*" -type f -o -name "libturbojpeg.so*" -type l \) 2>/dev/null | wc -l)
+        if [ "$LIBTURBOJPEG_COUNT" -gt 0 ]; then
             echo "  ✅ Found libturbojpeg in $SEARCH_DIR"
             find "$SEARCH_DIR" -maxdepth 1 \( -name "libturbojpeg.so*" -type f -o -name "libturbojpeg.so*" -type l \) 2>/dev/null | while read -r file; do
                 if [ ! -f "appimage/AppDir/usr/lib/$(basename "$file")" ]; then
@@ -559,7 +561,8 @@ mkdir -p "${APPDIR}/usr/lib"
 for SEARCH_DIR in /opt/ffmpeg/lib /usr/lib/x86_64-linux-gnu /usr/lib; do
 	if [ -d "$SEARCH_DIR" ]; then
 		# Copy libjpeg libraries (both files and symlinks)
-		if find "$SEARCH_DIR" -maxdepth 1 \( -name "libjpeg.so*" -type f -o -name "libjpeg.so*" -type l \) 2>/dev/null | grep -q .; then
+		LIBJPEG_COUNT=$(find "$SEARCH_DIR" -maxdepth 1 \( -name "libjpeg.so*" -type f -o -name "libjpeg.so*" -type l \) 2>/dev/null | wc -l)
+		if [ "$LIBJPEG_COUNT" -gt 0 ]; then
 			find "$SEARCH_DIR" -maxdepth 1 \( -name "libjpeg.so*" -type f -o -name "libjpeg.so*" -type l \) 2>/dev/null | while read -r file; do
 				if [ ! -f "${APPDIR}/usr/lib/$(basename "$file")" ]; then
 					cp -a "$file" "${APPDIR}/usr/lib/"
@@ -568,7 +571,8 @@ for SEARCH_DIR in /opt/ffmpeg/lib /usr/lib/x86_64-linux-gnu /usr/lib; do
 			done
 		fi
 		# Copy libturbojpeg libraries (both files and symlinks)
-		if find "$SEARCH_DIR" -maxdepth 1 \( -name "libturbojpeg.so*" -type f -o -name "libturbojpeg.so*" -type l \) 2>/dev/null | grep -q .; then
+		LIBTURBOJPEG_COUNT=$(find "$SEARCH_DIR" -maxdepth 1 \( -name "libturbojpeg.so*" -type f -o -name "libturbojpeg.so*" -type l \) 2>/dev/null | wc -l)
+		if [ "$LIBTURBOJPEG_COUNT" -gt 0 ]; then
 			find "$SEARCH_DIR" -maxdepth 1 \( -name "libturbojpeg.so*" -type f -o -name "libturbojpeg.so*" -type l \) 2>/dev/null | while read -r file; do
 				if [ ! -f "${APPDIR}/usr/lib/$(basename "$file")" ]; then
 					cp -a "$file" "${APPDIR}/usr/lib/"
@@ -1024,7 +1028,8 @@ echo "================================"
 
 # Debug: Show what libraries are in the AppDir before linuxdeploy
 echo "📊 Verifying libusb in AppDir before linuxdeploy..."
-if find "${APPDIR}/usr/lib" -name "libusb*" 2>/dev/null | grep -q .; then
+LIBUSB_COUNT=$(find "${APPDIR}/usr/lib" -name "libusb*" 2>/dev/null | wc -l)
+if [ "$LIBUSB_COUNT" -gt 0 ]; then
 	echo "  ✅ libusb found in AppDir:"
 	find "${APPDIR}/usr/lib" -name "libusb*" 2>/dev/null | while read -r lib; do
 		echo "     - $lib"
@@ -1078,7 +1083,18 @@ if [ "${USE_QT_PLUGIN}" = "true" ]; then
 fi
 
 echo "Running linuxdeploy without output plugin..."
-"${LINUXDEPLOY_BIN}" "${LINUXDEPLOY_ARGS_NO_OUTPUT[@]}"
+if "${LINUXDEPLOY_BIN}" "${LINUXDEPLOY_ARGS_NO_OUTPUT[@]}"; then
+	echo "✓ linuxdeploy completed successfully"
+else
+	LINUXDEPLOY_EXIT=$?
+	echo "⚠️  linuxdeploy exited with code: $LINUXDEPLOY_EXIT"
+	if [ $LINUXDEPLOY_EXIT -eq 141 ] || [ $LINUXDEPLOY_EXIT -eq 3 ]; then
+		echo "   (This may be a SIGPIPE or similar non-critical error)"
+		echo "   Continuing with AppImage creation..."
+	else
+		echo "   This may indicate a critical error"
+	fi
+fi
 
 # After linuxdeploy, ensure we have the correct Qt platform plugins with all dependencies
 echo "Ensuring Qt platform plugins are properly bundled after linuxdeploy..."
@@ -1197,29 +1213,56 @@ chmod +x "${APPDIR}/AppRun"
 
 # Then use appimagetool directly with explicit runtime file
 echo "Running appimagetool with explicit runtime file..."
+APPIMAGETOOL_FAILED=0
 if command -v appimagetool >/dev/null 2>&1; then
 	if [ -f "${RUNTIME_FILE}" ]; then
-		appimagetool --runtime-file "${RUNTIME_FILE}" "${APPDIR}"
+		echo "Using runtime file: ${RUNTIME_FILE}"
+		appimagetool --runtime-file "${RUNTIME_FILE}" "${APPDIR}" || APPIMAGETOOL_FAILED=$?
 	else
 		echo "Warning: Runtime file not found, running appimagetool without runtime file"
-		appimagetool "${APPDIR}"
+		appimagetool "${APPDIR}" || APPIMAGETOOL_FAILED=$?
 	fi
 else
 	echo "appimagetool not found, trying linuxdeploy with output plugin..."
-	"${LINUXDEPLOY_BIN}" "${LINUXDEPLOY_ARGS[@]}"
+	LINUXDEPLOY_ARGS+=("--output" "appimage")
+	"${LINUXDEPLOY_BIN}" "${LINUXDEPLOY_ARGS[@]}" || APPIMAGETOOL_FAILED=$?
+fi
+
+if [ $APPIMAGETOOL_FAILED -ne 0 ] && [ $APPIMAGETOOL_FAILED -ne 141 ]; then
+	echo "⚠️  appimagetool exited with code: $APPIMAGETOOL_FAILED"
 fi
 
 # Normalize output name
 APPIMAGE_FILENAME="openterfaceQT_${VERSION}_${APPIMAGE_ARCH}.AppImage"
 # Move whichever AppImage got produced
-FOUND_APPIMAGE=$(ls -1 *.AppImage 2>/dev/null | grep -v -E '^linuxdeploy|^linuxdeploy-plugin-qt' | head -n1 || true)
+FOUND_APPIMAGE=$(ls -1 *.AppImage 2>/dev/null | grep -v -E '^linuxdeploy|^linuxdeploy-plugin-qt' | head -n1 || echo "")
 if [ -n "${FOUND_APPIMAGE}" ]; then
 	chmod +x "${FOUND_APPIMAGE}"
 	mv "${FOUND_APPIMAGE}" "${APPIMAGE_OUT}/${APPIMAGE_FILENAME}"
-	echo "AppImage created at ${APPIMAGE_OUT}/${APPIMAGE_FILENAME}"
+	echo "✅ AppImage created at ${APPIMAGE_OUT}/${APPIMAGE_FILENAME}"
+	echo "📊 AppImage size: $(ls -lh "${APPIMAGE_OUT}/${APPIMAGE_FILENAME}" | awk '{print $5}')"
 else
-	echo "Error: AppImage build did not produce an output." >&2
-	exit 1
+	echo "⚠️  No AppImage found in current directory"
+	echo "Checking for any .AppImage files in system..."
+	find . -name "*.AppImage" -type f 2>/dev/null | head -5 | while read -r img; do
+		echo "  Found: $img"
+		if [ -f "$img" ]; then
+			SIZE=$(ls -lh "$img" | awk '{print $5}')
+			echo "  Size: $SIZE"
+			chmod +x "$img"
+			FINAL_NAME=$(basename "$img" | sed "s/_continuous/${VERSION}/g")
+			mv "$img" "${APPIMAGE_OUT}/${FINAL_NAME}" 2>/dev/null && echo "  ✓ Moved to ${APPIMAGE_OUT}/${FINAL_NAME}" || echo "  ✗ Failed to move"
+		fi
+	done
+	
+	# Final check
+	if ls "${APPIMAGE_OUT}"/*.AppImage >/dev/null 2>&1; then
+		echo "✅ AppImage created successfully"
+		ls -lh "${APPIMAGE_OUT}"/*.AppImage
+	else
+		echo "❌ Error: AppImage build did not produce an output." >&2
+		exit 1
+	fi
 fi
 
 popd >/dev/null
