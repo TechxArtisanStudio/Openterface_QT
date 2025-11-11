@@ -512,11 +512,54 @@ fi
 
 if [ -d "${QT_PLUGIN_DIR}" ]; then
     mkdir -p "${PKG_ROOT}/usr/lib/openterfaceqt/qt6/plugins"
-    echo "Copying Qt plugins from ${QT_PLUGIN_DIR}..."
+    echo "📋 DEB: Copying Qt plugins from ${QT_PLUGIN_DIR}..."
     cp -ra "${QT_PLUGIN_DIR}"/* "${PKG_ROOT}/usr/lib/openterfaceqt/qt6/plugins/" 2>/dev/null || true
     echo "✅ Qt plugins copied successfully"
 else
     echo "⚠️  Warning: Qt plugin directory not found at ${QT_PLUGIN_DIR}"
+fi
+
+# Copy Qt6 XCB QPA library (needed by libqxcb.so plugin)
+echo "📋 DEB: Searching for Qt6 XCB QPA library..."
+XCB_QPA_FOUND=0
+for SEARCH_DIR in /opt/Qt6/lib /usr/lib/x86_64-linux-gnu /usr/lib; do
+    echo "   Checking: $SEARCH_DIR"
+    if [ -d "$SEARCH_DIR" ]; then
+        if ls "$SEARCH_DIR"/libQt6XcbQpa.so* >/dev/null 2>&1; then
+            echo "   ✅ Found libQt6XcbQpa.so in $SEARCH_DIR"
+            XCB_QPA_FILES=$(ls -la "$SEARCH_DIR"/libQt6XcbQpa.so*)
+            echo "   Files found:"
+            echo "$XCB_QPA_FILES" | sed 's/^/     /'
+            cp -Pv "$SEARCH_DIR"/libQt6XcbQpa.so* "${PKG_ROOT}/usr/lib/openterfaceqt/qt6/" 2>&1 | sed 's/^/     /'
+            echo "   ✅ libQt6XcbQpa.so copied to ${PKG_ROOT}/usr/lib/openterfaceqt/qt6/"
+            XCB_QPA_FOUND=1
+            break
+        else
+            echo "   ✗ No libQt6XcbQpa.so found in $SEARCH_DIR"
+        fi
+    else
+        echo "   ✗ Directory does not exist: $SEARCH_DIR"
+    fi
+done
+if [ $XCB_QPA_FOUND -eq 0 ]; then
+    echo "❌ ERROR: libQt6XcbQpa.so library not found!"
+    echo "   This library is required by the XCB platform plugin"
+else
+    echo "✅ libQt6XcbQpa.so found and copied"
+fi
+
+# Verify XCB platform plugin is bundled
+echo "📋 DEB: Verifying XCB platform plugin..."
+if [ -f "${PKG_ROOT}/usr/lib/openterfaceqt/qt6/plugins/platforms/libqxcb.so" ]; then
+    echo "   ✅ Found libqxcb.so platform plugin"
+    # Update RPATH for the plugin to find libQt6XcbQpa.so
+    if patchelf --set-rpath '/usr/lib/openterfaceqt/qt6:$ORIGIN/../..:$ORIGIN/../../..' "${PKG_ROOT}/usr/lib/openterfaceqt/qt6/plugins/platforms/libqxcb.so" 2>/dev/null; then
+        echo "   ✅ Updated RPATH for libqxcb.so plugin"
+    else
+        echo "   ⚠️  Could not update plugin RPATH (may not be critical)"
+    fi
+else
+    echo "   ⚠️  Warning: libqxcb.so platform plugin not found"
 fi
 
 # Copy Qt QML imports
@@ -690,6 +733,34 @@ QT_LIB_DIR="/opt/Qt6/lib"
 if [ -d "${QT_LIB_DIR}" ]; then
     echo "Copying Qt libraries to SOURCES..."
     cp -a "${QT_LIB_DIR}"/libQt6*.so* "${RPMTOP}/SOURCES/" 2>/dev/null || true
+fi
+
+# Copy Qt6 XCB QPA library to SOURCES (needed by libqxcb.so plugin)
+echo "📋 RPM: Searching for Qt6 XCB QPA library..."
+XCB_QPA_FOUND=0
+for SEARCH_DIR in /opt/Qt6/lib /usr/lib/x86_64-linux-gnu /usr/lib; do
+    echo "   Checking: $SEARCH_DIR"
+    if [ -d "$SEARCH_DIR" ]; then
+        if ls "$SEARCH_DIR"/libQt6XcbQpa.so* >/dev/null 2>&1; then
+            echo "   ✅ Found libQt6XcbQpa.so in $SEARCH_DIR"
+            XCB_QPA_FILES=$(ls -la "$SEARCH_DIR"/libQt6XcbQpa.so*)
+            echo "   Files found:"
+            echo "$XCB_QPA_FILES" | sed 's/^/     /'
+            cp -Pv "$SEARCH_DIR"/libQt6XcbQpa.so* "${RPMTOP}/SOURCES/" 2>&1 | sed 's/^/     /'
+            echo "   ✅ libQt6XcbQpa.so copied to ${RPMTOP}/SOURCES"
+            XCB_QPA_FOUND=1
+            break
+        else
+            echo "   ✗ No libQt6XcbQpa.so found in $SEARCH_DIR"
+        fi
+    else
+        echo "   ✗ Directory does not exist: $SEARCH_DIR"
+    fi
+done
+if [ $XCB_QPA_FOUND -eq 0 ]; then
+    echo "❌ ERROR: libQt6XcbQpa.so library not found!"
+else
+    echo "✅ libQt6XcbQpa.so found and copied"
 fi
 
 # Copy Qt plugins to SOURCES
