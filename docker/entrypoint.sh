@@ -163,15 +163,6 @@ if [ -f /usr/local/bin/openterfaceQT ]; then
     # Debug: Show library dependencies
     echo "🔍 Library Diagnostics:"
     echo "   LD_LIBRARY_PATH=$LD_LIBRARY_PATH"
-    echo ""
-    echo "   Available libusb-1.0.so.0 locations:"
-    find /lib /usr/lib /tmp -name "libusb-1.0.so.0*" 2>/dev/null | while read lib; do
-        echo "     - $lib"
-        if [ -f "$lib" ]; then
-            echo "       $(ldd "$lib" 2>&1 | grep -i glibc || echo 'No GLIBC info')"
-        fi
-    done
-    echo ""
     
     # Check for libusb in AppImage
     if [ "$INSTALL_TYPE_ARG" = "appimage" ]; then

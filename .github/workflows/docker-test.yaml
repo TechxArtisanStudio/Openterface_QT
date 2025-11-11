@@ -139,6 +139,7 @@ jobs:
           
           echo "📦 Docker image built successfully"
           echo "Note: Build artifacts will be passed at runtime if available"
+
       - name: Prepare volume mounts for build artifacts
         run: |
           echo "📦 Checking for build artifacts to mount..."
@@ -167,6 +168,7 @@ jobs:
           
           # Pass GITHUB_TOKEN to Docker containers for artifact downloads
           echo "GITHUB_TOKEN_ENV=-e GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }}" >> $GITHUB_ENV
+
       - name: Verify Docker image (Shared)
         run: |
           echo "�?Verifying Docker image was built successfully"
@@ -184,6 +186,148 @@ jobs:
           echo "🔍 Image layers (last 10):"
           docker history ${{ env.DOCKER_IMAGE_SHARED }}:${{ env.DOCKER_TAG }} | head -10
 
+      - name: Show all included libraries in AppImage (Shared)
+        if: matrix.install_type == 'appimage'
+        run: |
+          echo "📚 Analyzing AppImage included libraries"
+          
+          # Find the AppImage file
+          APPIMAGE=$(find build -name "*.AppImage" -type f | head -1)
+          
+          if [ -z "$APPIMAGE" ]; then
+            echo "⚠️ AppImage file not found in build directory"
+            echo "Available files:"
+            ls -la build/
+            exit 1
+          fi
+          
+          echo "Found AppImage: $APPIMAGE"
+          echo "File size: $(ls -lh "$APPIMAGE" | awk '{print $5}')"
+          echo ""
+          
+          # Mount the AppImage and list its contents
+          echo "📂 AppImage contents:"
+          echo "===================="
+          
+          # Create a temporary mount point
+          MOUNT_POINT=$(mktemp -d)
+          trap "rm -rf $MOUNT_POINT" EXIT
+          
+          # Mount the AppImage using FUSE
+          if command -v fusermount >/dev/null 2>&1; then
+            echo "🔧 Using FUSE to mount AppImage..."
+            "$APPIMAGE" -m "$MOUNT_POINT" &
+            sleep 2
+            MOUNT_PID=$!
+            
+            # List all libraries
+            echo ""
+            echo "📚 All libraries included in AppImage:"
+            echo "======================================"
+            find "$MOUNT_POINT" -type f \( -name "*.so*" -o -name "*.la" \) | sort
+            
+            # Count different types
+            echo ""
+            echo "📊 Library Statistics:"
+            echo "====================="
+            SO_COUNT=$(find "$MOUNT_POINT" -type f -name "*.so*" | wc -l)
+            LA_COUNT=$(find "$MOUNT_POINT" -type f -name "*.la" | wc -l)
+            echo "  Shared objects (.so*): $SO_COUNT"
+            echo "  Libtool archives (.la): $LA_COUNT"
+            
+            # Get Qt libraries
+            echo ""
+            echo "🎨 Qt Libraries:"
+            echo "================"
+            find "$MOUNT_POINT" -type f -name "libQt*.so*" | sort
+            
+            # Get FFmpeg/GStreamer libraries
+            echo ""
+            echo "🎬 Media Libraries (FFmpeg/GStreamer):"
+            echo "======================================"
+            find "$MOUNT_POINT" -type f \( -name "libav*.so*" -o -name "libsw*.so*" -o -name "libgst*.so*" \) | sort
+            
+            # Get USB/Device libraries
+            echo ""
+            echo "🔌 USB/Device Libraries:"
+            echo "======================="
+            find "$MOUNT_POINT" -type f \( -name "libusb*.so*" -o -name "libudev*.so*" \) | sort
+            
+            # Cleanup
+            wait $MOUNT_PID 2>/dev/null || true
+            fusermount -u "$MOUNT_POINT" 2>/dev/null || true
+          else
+            echo "⚠️ FUSE not available, attempting alternative extraction method..."
+            echo ""
+            
+            # Try using appimage-mount or extracting directly
+            if command -v appimage-mount >/dev/null 2>&1; then
+              echo "🔧 Using appimage-mount..."
+              appimage-mount "$APPIMAGE" "$MOUNT_POINT" &
+              sleep 2
+              MOUNT_PID=$!
+              
+              # List all libraries
+              echo ""
+              echo "📚 All libraries included in AppImage:"
+              echo "======================================"
+              find "$MOUNT_POINT" -type f \( -name "*.so*" -o -name "*.la" \) | sort
+              
+              # Count and categorize
+              echo ""
+              echo "📊 Library Statistics:"
+              echo "====================="
+              SO_COUNT=$(find "$MOUNT_POINT" -type f -name "*.so*" | wc -l)
+              LA_COUNT=$(find "$MOUNT_POINT" -type f -name "*.la" | wc -l)
+              echo "  Shared objects (.so*): $SO_COUNT"
+              echo "  Libtool archives (.la): $LA_COUNT"
+              
+              # Get categorized libraries
+              echo ""
+              echo "🎨 Qt Libraries:"
+              echo "================"
+              find "$MOUNT_POINT" -type f -name "libQt*.so*" | sort
+              
+              echo ""
+              echo "🎬 Media Libraries (FFmpeg/GStreamer):"
+              echo "======================================"
+              find "$MOUNT_POINT" -type f \( -name "libav*.so*" -o -name "libsw*.so*" -o -name "libgst*.so*" \) | sort
+              
+              echo ""
+              echo "🔌 USB/Device Libraries:"
+              echo "======================="
+              find "$MOUNT_POINT" -type f \( -name "libusb*.so*" -o -name "libudev*.so*" \) | sort
+              
+              # Cleanup
+              wait $MOUNT_PID 2>/dev/null || true
+            else
+              echo "ℹ️ Extracting AppImage contents directly..."
+              
+              # Extract AppImage using the --appimage-extract option if available
+              EXTRACT_DIR=$(mktemp -d)
+              trap "rm -rf $EXTRACT_DIR" EXIT
+              
+              # Try to extract - might require mounting in docker
+              docker run --rm \
+                -v "$APPIMAGE:/$APPIMAGE:ro" \
+                -v "$EXTRACT_DIR:/extract" \
+                ubuntu:24.04 bash -c "
+                  echo 'Attempting AppImage extraction...'
+                  cd /extract
+                  chmod +x /$APPIMAGE
+                  # Try to extract using the AppImage's built-in method
+                  /$APPIMAGE --appimage-extract 2>/dev/null || /$APPIMAGE -m . 2>/dev/null || echo 'Could not extract AppImage'
+                  
+                  echo ''
+                  echo '📚 Extracted contents:'
+                  find . -type f \( -name '*.so*' -o -name '*.la' \) 2>/dev/null | head -20
+                "
+            fi
+          fi
+          
+          echo ""
+          echo "✅ AppImage library analysis completed"
+          
       - name: Basic container functionality test (Shared)
         run: |
           echo "🧪 Testing basic container functionality"
