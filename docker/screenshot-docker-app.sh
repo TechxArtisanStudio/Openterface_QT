@@ -80,7 +80,8 @@ DOCKER_RUN_CMD="docker run -d \
     -e LANG=C.UTF-8 \
     -v /tmp/.X11-unix:/tmp/.X11-unix:rw \
     --network host \
-    --privileged"
+    --privileged \
+    --device /dev/fuse"
 
 # Add volume mount if provided
 if [ -n "$VOLUME_MOUNT" ]; then

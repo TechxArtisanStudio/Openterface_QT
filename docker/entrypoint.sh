@@ -95,8 +95,8 @@ if [ -f /usr/local/bin/openterfaceQT ]; then
     
     # Check if it's an AppImage
     if file /usr/local/bin/openterfaceQT | grep -q "AppImage"; then
-        echo "ℹ️  Detected AppImage format"
-        export APPIMAGE_EXTRACT_AND_RUN=1
+        echo "ℹ️  Detected AppImage format - using FUSE"
+        # Note: Not setting APPIMAGE_EXTRACT_AND_RUN to use FUSE mounting
     fi
     
     # Set up display environment for GUI
@@ -114,8 +114,10 @@ if [ -f /usr/local/bin/openterfaceQT ]; then
     export QT_DEBUG_PLUGINS=1  # Enable plugin debugging
     export QT_LOGGING_RULES="qt.qpa.plugin=true"  # Log plugin loading
     
-    # Additional AppImage environment variables
-    export APPIMAGE_EXTRACT_AND_RUN=1
+    # Additional environment variables (only for non-AppImage or when not extracting)
+    if ! file /usr/local/bin/openterfaceQT 2>/dev/null | grep -q "AppImage"; then
+        export APPIMAGE_EXTRACT_AND_RUN=1
+    fi
     export APPDIR="/tmp/.mount_openterfaceQT"  # AppImage mount point
     
     # Start the application and keep container running
@@ -127,16 +129,18 @@ if [ -f /usr/local/bin/openterfaceQT ]; then
     echo "📋 Log file: /tmp/openterfaceqt.log"
     echo ""
     
-    # Wait a moment for app to initialize
-    sleep 2
+    # Wait longer for app to initialize (increase from 2 to 10 seconds)
+    sleep 10
     
-    # Check if app is still running
+    # Check if app is still running and log more details
     if ps -p $APP_PID > /dev/null 2>&1; then
         echo "✅ Openterface QT is running!"
+        # Optionally, add a command to verify rendering, e.g., check for window creation
     else
-        echo "⚠️  Openterface QT process may have exited"
-        echo "Last 10 lines of log:"
-        tail -10 /tmp/openterfaceqt.log 2>&1 || true
+        echo "❌ Openterface QT process exited"
+        echo "Full log:"
+        cat /tmp/openterfaceqt.log 2>&1 || true
+        exit 1  # Fail early if app doesn't start
     fi
     
     echo ""
