@@ -277,28 +277,38 @@ EOF
     echo "Openterface QT is ready for testing!"
     echo ""
     
-    # Keep container running - monitor the app process
-    echo "ℹ️  Container will monitor app process..."
+    # If external commands provided (e.g., screenshot script via docker exec), execute them
+    if [ $# -gt 0 ]; then
+        echo "ℹ️  Executing provided command: $@"
+        # Execute the command
+        "$@"
+        # Command has finished, let app keep running
+    fi
     
-    # Create a monitoring loop that keeps container alive
+    # Set up signal handlers for graceful shutdown
+    trap 'echo "Received signal, terminating..."; kill -TERM $APP_PID 2>/dev/null; wait $APP_PID 2>/dev/null; exit 0' SIGTERM SIGINT
+    
+    # Keep container alive - app is running in background
+    # This allows external commands to be run via docker exec
+    echo "ℹ️  Openterface QT running in background (PID: $APP_PID)"
+    echo ""
+    echo "To interact with this container:"
+    echo "  docker exec <container-id> bash"
+    echo "  docker exec <container-id> scrot /tmp/screenshot.png"
+    echo ""
+    
+    # Monitor the app process - keep container alive until app dies or signal received
     while true; do
         if ps -p $APP_PID > /dev/null 2>&1; then
-            # App is still running, sleep and check again
-            sleep 5
+            # App is still running
+            sleep 2
         else
-            # App has exited, check if we should keep running
-            if [ $# -eq 0 ]; then
-                # No command provided, app exited, keep container alive for debugging/screenshots
-                echo "⚠️  App process exited, but keeping container running for testing..."
-                # Keep container alive indefinitely
-                sleep 1
-            else
-                # Execute provided command
-                echo "ℹ️  Executing command: $@"
-                exec "$@"
-                # If command exits, this line won't be reached
-                break
+            # App has exited
+            exit_code=$(wait $APP_PID 2>/dev/null || echo $?)
+            if [ "$exit_code" != "0" ] && [ "$exit_code" != "" ]; then
+                echo "⚠️  Openterface QT exited with code: $exit_code"
             fi
+            exit 0
         fi
     done
 else
