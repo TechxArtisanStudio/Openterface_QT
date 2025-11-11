@@ -114,16 +114,6 @@ if [ -f /usr/local/bin/openterfaceQT ]; then
         # Don't extract AppImage - run it directly with FUSE
         export APPIMAGE_EXTRACT_AND_RUN=0
         echo "ℹ️  AppImage will run directly (FUSE is available)"
-        
-        # Find the AppImage extraction directory and prioritize its libraries
-        # This ensures the AppImage uses its bundled libusb instead of the system one
-        APPIMAGE_EXTRACTED=$(find /tmp -maxdepth 1 -type d -name "appimage_extracted_*" 2>/dev/null | head -1)
-        if [ -n "$APPIMAGE_EXTRACTED" ] && [ -d "$APPIMAGE_EXTRACTED/usr/lib" ]; then
-            export LD_LIBRARY_PATH="$APPIMAGE_EXTRACTED/usr/lib:$LD_LIBRARY_PATH"
-            echo "ℹ️  Prioritizing AppImage bundled libraries: $APPIMAGE_EXTRACTED/usr/lib"
-        else
-            echo "ℹ️  AppImage extraction path not found yet (will be set at runtime)"
-        fi
     elif [ "$INSTALL_TYPE_ARG" = "deb" ]; then
         echo "ℹ️  Detected DEB package (from INSTALL_TYPE)"
         # For DEB packages, ensure Qt and system libraries are available
@@ -179,6 +169,27 @@ if [ -f /usr/local/bin/openterfaceQT ]; then
         fi
     done
     echo ""
+    
+    # Check for libusb in AppImage
+    if [ "$INSTALL_TYPE_ARG" = "appimage" ]; then
+        echo "   AppImage libusb check:"
+        APPIMAGE_EXTRACTED=$(find /tmp -maxdepth 1 -type d -name "appimage_extracted_*" -printf '%T@ %p\n' 2>/dev/null | sort -rn | head -1 | cut -d' ' -f2-)
+        
+        if [ -n "$APPIMAGE_EXTRACTED" ] && [ -d "$APPIMAGE_EXTRACTED" ]; then
+            echo "     ℹ️  Extracted AppImage found at: $APPIMAGE_EXTRACTED"
+            if find "$APPIMAGE_EXTRACTED" -name "libusb-1.0.so*" 2>/dev/null | grep -q .; then
+                echo "     ✅ libusb IS bundled in AppImage"
+                find "$APPIMAGE_EXTRACTED" -name "libusb-1.0.so*" 2>/dev/null | while read lib; do
+                    echo "       - $lib"
+                done
+            else
+                echo "     ❌ libusb NOT found in AppImage"
+            fi
+        else
+            echo "     ⏳ AppImage not yet extracted (will extract on first run)"
+        fi
+        echo ""
+    fi
     
     if [ -f /usr/local/bin/openterfaceQT ]; then
         echo "   Checking openterfaceQT dependencies:"
