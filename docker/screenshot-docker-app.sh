@@ -36,26 +36,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-# Check if Docker image exists, if not build it
-if ! docker images | grep -q "$DOCKER_IMAGE.*$DOCKER_TAG"; then
-    echo -e "${BLUE}🔨 Building Docker image...${NC}"
-    if [ ! -f "$DOCKERFILE_PATH" ]; then
-        echo -e "${RED}❌ Dockerfile does not exist: $DOCKERFILE_PATH${NC}"
-        exit 1
-    fi
-    
-    # Force rebuild to include latest fixes
-    echo -e "${BLUE}💡 Rebuilding image to include latest fixes...${NC}"
-    docker build --no-cache \
-        --build-arg INSTALL_TYPE=$INSTALL_TYPE \
-        --build-arg GITHUB_TOKEN=$GITHUB_TOKEN \
-        -f "$DOCKERFILE_PATH" -t "$DOCKER_IMAGE:$DOCKER_TAG" docker/
-    echo -e "${GREEN}✅ Image build completed${NC}"
-else
-    echo -e "${BLUE}📦 Using existing Docker image${NC}"
-    # Check if we should rebuild (optional)
-    echo -e "${YELLOW}💡 Tip: If you encounter issues, you can delete the image and rebuild: docker rmi $DOCKER_IMAGE:$DOCKER_TAG${NC}"
-fi
+echo -e "${BLUE}📦 Using existing Docker image${NC}"
 
 # Install virtual display and ImageMagick dependencies if needed
 if ! command -v Xvfb >/dev/null 2>&1 || ! command -v import >/dev/null 2>&1; then
@@ -108,7 +89,22 @@ fi
 
 # Add the image and command to launch the app
 DOCKER_RUN_CMD="$DOCKER_RUN_CMD $DOCKER_IMAGE:$DOCKER_TAG \
-    bash -c 'export DISPLAY=$DISPLAY QT_X11_NO_MITSHM=1 QT_QPA_PLATFORM=xcb && /usr/local/bin/check-qt-deps.sh && sleep 2 && exec /usr/local/bin/openterfaceQT 2>&1 || (echo \"App launch failed - running diagnostics...\"; echo \"---\"; /usr/local/bin/check-qt-deps.sh 2>&1; echo \"---\"; ls -la /usr/local/bin/openterface* 2>&1; which openterfaceQT 2>&1; echo \"---\"; /usr/local/bin/openterfaceQT --version 2>&1 || echo \"Binary exists but cannot run\")'"
+    bash -c '
+        export DISPLAY=$DISPLAY QT_X11_NO_MITSHM=1 QT_QPA_PLATFORM=xcb &&
+        /usr/local/bin/check-qt-deps.sh &&
+        sleep 2 &&
+        exec /usr/local/bin/openterfaceQT 2>&1 ||
+        (
+            echo "App launch failed - running diagnostics..." &&
+            echo "---" &&
+            /usr/local/bin/check-qt-deps.sh 2>&1 &&
+            echo "---" &&
+            ls -la /usr/local/bin/openterface* 2>&1 &&
+            which openterfaceQT 2>&1 &&
+            echo "---" &&
+            /usr/local/bin/openterfaceQT --version 2>&1 || echo "Binary exists but cannot run"
+        )
+    '
 
 # Execute the docker run command
 CONTAINER_ID=$(eval $DOCKER_RUN_CMD)
@@ -116,13 +112,43 @@ CONTAINER_ID=$(eval $DOCKER_RUN_CMD)
 echo -e "${GREEN}✅ Container started${NC}"
 echo -e "${BLUE}📱 App is initializing...${NC}"
 
-# Wait exactly 10 seconds with countdown
-echo -e "${YELLOW}⏱️  Waiting 10 seconds before taking screenshot:${NC}"
-for i in {10..1}; do
-    printf "\r${YELLOW}Countdown: %2d seconds${NC}" $i
+# Wait for app to start with 2-minute timeout
+echo -e "${YELLOW}⏱️  Waiting for app to start (timeout: 2 minutes)...${NC}"
+MAX_WAIT=120
+ELAPSED=0
+APP_STARTED=false
+
+while [ $ELAPSED -lt $MAX_WAIT ]; do
+    # Check if the app process is running
+    if docker exec $CONTAINER_NAME pgrep -f "openterfaceQT" >/dev/null 2>&1; then
+        echo -e "${GREEN}✅ App process detected!${NC}"
+        APP_STARTED=true
+        # Give it a few more seconds to fully initialize
+        sleep 3
+        break
+    fi
+    
+    # Check if container is still running
+    if ! docker ps | grep -q $CONTAINER_ID; then
+        echo -e "${RED}❌ Container has exited${NC}"
+        break
+    fi
+    
+    # Display countdown
+    REMAINING=$((MAX_WAIT - ELAPSED))
+    printf "\r${YELLOW}Waiting... %d seconds remaining${NC}" $REMAINING
+    
     sleep 1
+    ELAPSED=$((ELAPSED + 1))
 done
+
 echo ""
+
+if [ "$APP_STARTED" = false ]; then
+    echo -e "${YELLOW}⚠️  App process not detected within timeout, proceeding with screenshot anyway...${NC}"
+else
+    echo -e "${GREEN}✅ App startup complete!${NC}"
+fi
 
 # Take the main screenshot
 echo -e "${BLUE}📸 Taking screenshot...${NC}"
