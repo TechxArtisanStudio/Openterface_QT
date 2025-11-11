@@ -173,21 +173,73 @@ EGL_LIBS=(
     "libglvnd_pthread.so.0"
     "libglvnd_dl.so.0"
 )
-for SEARCH_DIR in /opt/Qt6/lib /usr/lib/x86_64-linux-gnu /usr/lib /usr/lib64; do
+
+# Track which libraries were found
+declare -A EGL_FOUND
+
+# Search in multiple directories
+for SEARCH_DIR in /opt/Qt6/lib /usr/lib/x86_64-linux-gnu /usr/lib /usr/lib64 /lib/x86_64-linux-gnu /lib; do
     if [ -d "$SEARCH_DIR" ]; then
         for lib in "${EGL_LIBS[@]}"; do
-            # Handle both regular files and symlinks
-            if find "$SEARCH_DIR" -maxdepth 1 -name "$lib" 2>/dev/null | grep -q .; then
-                find "$SEARCH_DIR" -maxdepth 1 -name "$lib" 2>/dev/null | while read -r file; do
-                    if [ ! -f "appimage/AppDir/usr/lib/$(basename "$file")" ]; then
-                        echo "  ✓ Copying: $(basename "$file")"
-                        cp -a "$file" "appimage/AppDir/usr/lib/" 2>/dev/null || true
+            # Skip if already found
+            if [ "${EGL_FOUND[$lib]}" = "1" ]; then
+                continue
+            fi
+            
+            # Search for the library (including wildcards for versioned libs)
+            found_files=$(find "$SEARCH_DIR" -maxdepth 1 \( -name "$lib" -o -name "${lib}.*" \) 2>/dev/null || true)
+            
+            if [ -n "$found_files" ]; then
+                echo "$found_files" | while read -r file; do
+                    if [ -f "$file" ] || [ -L "$file" ]; then
+                        dest_file="appimage/AppDir/usr/lib/$(basename "$file")"
+                        if [ ! -e "$dest_file" ]; then
+                            echo "  ✓ Copying: $(basename "$file") from $SEARCH_DIR"
+                            cp -P "$file" "appimage/AppDir/usr/lib/" 2>&1 || {
+                                echo "  ⚠️  Warning: Failed to copy $file"
+                            }
+                        fi
                     fi
                 done
+                EGL_FOUND[$lib]=1
             fi
         done
     fi
 done
+
+# Verify critical EGL libraries were copied
+echo "📊 Verifying EGL library installation..."
+MISSING_LIBS=()
+for lib in "libEGL.so.1" "libGL.so.1" "libGLX.so.0"; do
+    if [ ! -e "appimage/AppDir/usr/lib/$lib" ]; then
+        MISSING_LIBS+=("$lib")
+        echo "  ⚠️  Missing critical library: $lib"
+    else
+        echo "  ✓ Found: $lib"
+    fi
+done
+
+if [ ${#MISSING_LIBS[@]} -gt 0 ]; then
+    echo "⚠️  WARNING: Some critical EGL libraries are missing!"
+    echo "    Attempting to install mesa-libEGL..."
+    
+    # Try to install EGL libraries if missing
+    if command -v apt-get >/dev/null 2>&1; then
+        apt-get update -qq && apt-get install -y libgl1 libegl1 libglx0 libglvnd0 2>/dev/null || true
+        
+        # Retry copying after installation
+        for lib in "${MISSING_LIBS[@]}"; do
+            for SEARCH_DIR in /usr/lib/x86_64-linux-gnu /usr/lib /lib/x86_64-linux-gnu /lib; do
+                if [ -f "$SEARCH_DIR/$lib" ]; then
+                    echo "  ✓ Found and copying: $lib from $SEARCH_DIR"
+                    cp -P "$SEARCH_DIR/$lib" "appimage/AppDir/usr/lib/"
+                    break
+                fi
+            done
+        done
+    fi
+fi
+
 echo "✅ EGL and GPU rendering libraries processed for AppImage"
 
 # Try to find and copy icon
@@ -320,21 +372,73 @@ EGL_LIBS=(
 	"libglvnd_pthread.so.0"
 	"libglvnd_dl.so.0"
 )
-for SEARCH_DIR in /opt/Qt6/lib /usr/lib/x86_64-linux-gnu /usr/lib /usr/lib64; do
+
+# Track which libraries were found
+declare -A EGL_FOUND_COMP
+
+# Search in multiple directories including /lib paths
+for SEARCH_DIR in /opt/Qt6/lib /usr/lib/x86_64-linux-gnu /usr/lib /usr/lib64 /lib/x86_64-linux-gnu /lib; do
 	if [ -d "$SEARCH_DIR" ]; then
 		for lib in "${EGL_LIBS[@]}"; do
-			# Handle both regular files and symlinks
-			if find "$SEARCH_DIR" -maxdepth 1 -name "$lib" 2>/dev/null | grep -q .; then
-				find "$SEARCH_DIR" -maxdepth 1 -name "$lib" 2>/dev/null | while read -r file; do
-					if [ ! -f "${APPDIR}/usr/lib/$(basename "$file")" ]; then
-						echo "✓ Copying: $(basename "$file")"
-						cp -a "$file" "${APPDIR}/usr/lib/" 2>/dev/null || true
+			# Skip if already found
+			if [ "${EGL_FOUND_COMP[$lib]}" = "1" ]; then
+				continue
+			fi
+			
+			# Search for the library (including wildcards for versioned libs)
+			found_files=$(find "$SEARCH_DIR" -maxdepth 1 \( -name "$lib" -o -name "${lib}.*" \) 2>/dev/null || true)
+			
+			if [ -n "$found_files" ]; then
+				echo "$found_files" | while read -r file; do
+					if [ -f "$file" ] || [ -L "$file" ]; then
+						dest_file="${APPDIR}/usr/lib/$(basename "$file")"
+						if [ ! -e "$dest_file" ]; then
+							echo "  ✓ Copying: $(basename "$file") from $SEARCH_DIR"
+							cp -P "$file" "${APPDIR}/usr/lib/" 2>&1 || {
+								echo "  ⚠️  Warning: Failed to copy $file"
+							}
+						fi
 					fi
 				done
+				EGL_FOUND_COMP[$lib]=1
 			fi
 		done
 	fi
 done
+
+# Verify critical EGL libraries were copied
+echo "📊 Verifying EGL library installation in comprehensive AppImage..."
+MISSING_LIBS_COMP=()
+for lib in "libEGL.so.1" "libGL.so.1" "libGLX.so.0"; do
+	if [ ! -e "${APPDIR}/usr/lib/$lib" ]; then
+		MISSING_LIBS_COMP+=("$lib")
+		echo "  ⚠️  Missing critical library: $lib"
+	else
+		echo "  ✓ Found: $lib"
+	fi
+done
+
+if [ ${#MISSING_LIBS_COMP[@]} -gt 0 ]; then
+	echo "⚠️  WARNING: Some critical EGL libraries are missing!"
+	echo "    Attempting to install mesa-libEGL..."
+	
+	# Try to install EGL libraries if missing
+	if command -v apt-get >/dev/null 2>&1; then
+		apt-get update -qq && apt-get install -y libgl1 libegl1 libglx0 libglvnd0 2>/dev/null || true
+		
+		# Retry copying after installation
+		for lib in "${MISSING_LIBS_COMP[@]}"; do
+			for SEARCH_DIR in /usr/lib/x86_64-linux-gnu /usr/lib /lib/x86_64-linux-gnu /lib; do
+				if [ -f "$SEARCH_DIR/$lib" ]; then
+					echo "  ✓ Found and copying: $lib from $SEARCH_DIR"
+					cp -P "$SEARCH_DIR/$lib" "${APPDIR}/usr/lib/"
+					break
+				fi
+			done
+		done
+	fi
+fi
+
 echo "✓ EGL and GPU rendering libraries processed"
 
 # Copy AppStream/metainfo (optional)
