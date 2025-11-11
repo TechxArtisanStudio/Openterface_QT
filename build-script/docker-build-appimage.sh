@@ -1253,9 +1253,11 @@ echo "✓ Qt platform plugins ensured"
 # CRITICAL FIX: Remove coreutils utilities that have incompatible GLIBC versions
 # These utilities (like stdbuf) should come from the HOST system, not the AppImage
 # This prevents GLIBC_2.38 dependency errors from bundled coreutils
-echo "🔧 Removing problematic coreutils utilities that may have newer GLIBC dependencies..."
+echo "🔧 Removing problematic coreutils utilities and libraries that may have newer GLIBC dependencies..."
+
+# Remove coreutils binaries
 PROBLEM_BINS=(
-    "stdbuf"           # Most common culprit - uses libstdbuf.so.so
+    "stdbuf"           # Most common culprit - uses libstdbuf.so
     "time"             # May also have version issues
     "timeout"          # May have version issues
 )
@@ -1267,10 +1269,16 @@ for bin in "${PROBLEM_BINS[@]}"; do
     fi
 done
 
-# Also remove problematic coreutils libraries
-echo "Removing bundled coreutils utilities that might cause GLIBC issues..."
+# Remove problematic coreutils libraries from /usr/lib/
+echo "Removing coreutils libraries that have incompatible GLIBC versions..."
+rm -f "${APPDIR}/usr/lib/libstdbuf.so"* 2>/dev/null || true
+rm -f "${APPDIR}/lib/libstdbuf.so"* 2>/dev/null || true
+echo "  🗑️  Removed libstdbuf.so variants"
+
+# Remove the coreutils libexec directory
 rm -rf "${APPDIR}/usr/libexec/coreutils/" 2>/dev/null || true
-echo "  ✓ Coreutils utilities removed"
+rm -rf "${APPDIR}/libexec/coreutils/" 2>/dev/null || true
+echo "  ✓ Coreutils utilities and libraries removed"
 
 # Create custom AppRun script with proper environment setup after linuxdeploy to avoid override
 cat > "${APPDIR}/AppRun" << 'EOF'
