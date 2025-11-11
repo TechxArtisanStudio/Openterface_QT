@@ -111,14 +111,9 @@ if [ -f /usr/local/bin/openterfaceQT ]; then
     # Check if it's an AppImage
     if file /usr/local/bin/openterfaceQT | grep -q "AppImage"; then
         echo "ℹ️  Detected AppImage format"
-        # For AppImage in Docker, we should extract and run to avoid FUSE issues
-        export APPIMAGE_EXTRACT_AND_RUN=1
-        echo "ℹ️  Will extract AppImage (APPIMAGE_EXTRACT_AND_RUN=1)"
-        # DO NOT add system libraries to LD_LIBRARY_PATH for AppImage
-        # The AppImage has its own bundled libraries and adding system libs causes GLIBC conflicts
-        # Clear LD_LIBRARY_PATH to ensure AppImage uses only its bundled libraries
-        unset LD_LIBRARY_PATH
-        echo "ℹ️  Using AppImage bundled libraries only (LD_LIBRARY_PATH cleared)"
+        # Run AppImage directly (simulating user download and run behavior)
+        # Do NOT extract - let it run as the user would
+        echo "ℹ️  Running AppImage directly (user simulation mode)"
     fi
     
     # Set up display environment for GUI
@@ -146,23 +141,10 @@ if [ -f /usr/local/bin/openterfaceQT ]; then
     export QT_DEBUG_PLUGINS=1  # Enable plugin debugging
     export QT_LOGGING_RULES="qt.qpa.plugin=true"  # Log plugin loading
     
-    # Additional environment variables (only for non-AppImage or when not extracting)
-    if ! file /usr/local/bin/openterfaceQT 2>/dev/null | grep -q "AppImage"; then
-        export APPIMAGE_EXTRACT_AND_RUN=1
-    fi
-    # For AppImages, don't override plugin paths - let them use bundled ones with system libs
-    export APPDIR="/tmp/.mount_openterfaceQT"  # AppImage mount point
-    
     # Start the application and keep container running
     echo "📝 Starting Openterface QT..."
     echo "   DISPLAY=$DISPLAY"
     echo "   QT_QPA_PLATFORM=$QT_QPA_PLATFORM"
-    
-    # Check if it's AppImage and show library info
-    if file /usr/local/bin/openterfaceQT | grep -q "AppImage"; then
-        echo "   AppImage mode: Extract and run"
-        echo "   LD_LIBRARY_PATH=${LD_LIBRARY_PATH:-<not set>}"
-    fi
     
     nohup env DISPLAY=$DISPLAY QT_QPA_PLATFORM=$QT_QPA_PLATFORM /usr/local/bin/openterfaceQT > /tmp/openterfaceqt.log 2>&1 &
     APP_PID=$!

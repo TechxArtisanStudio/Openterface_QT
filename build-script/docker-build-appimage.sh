@@ -734,6 +734,13 @@ export PATH="/opt/Qt6/bin:$PATH"
 export QT_PLUGIN_PATH="/opt/Qt6/plugins:$QT_PLUGIN_PATH"
 export QML2_IMPORT_PATH="/opt/Qt6/qml:$QML2_IMPORT_PATH"
 
+# Exclude system libraries that should be loaded from the host system
+# These libraries typically have GLIBC dependencies that vary by distribution
+echo "📋 Setting up library exclusions for AppImage portability..."
+export LINUXDEPLOY_EXCLUDE_LIST="libusb-1.0.so.0,libdrm.so.2,libudev.so.1,libgbm.so.1,libwayland-client.so.0,libwayland-server.so.0,libsystemd.so.0"
+echo "   Excluded libraries: $LINUXDEPLOY_EXCLUDE_LIST"
+echo "   These libraries will be loaded from the host system to avoid GLIBC conflicts"
+
 # Build the command with proper argument handling
 LINUXDEPLOY_ARGS=(
 	"--appdir" "${APPDIR}"
@@ -770,6 +777,32 @@ fi
 
 echo "Running linuxdeploy without output plugin..."
 "${LINUXDEPLOY_BIN}" "${LINUXDEPLOY_ARGS_NO_OUTPUT[@]}"
+
+# Remove system libraries that should NOT be bundled to avoid GLIBC conflicts
+echo "🗑️  Removing system libraries that should be loaded from host..."
+EXCLUDED_LIBS=(
+    "libusb-1.0.so*"
+    "libdrm.so*"
+    "libudev.so*"
+    "libgbm.so*"
+    "libwayland-client.so*"
+    "libwayland-server.so*"
+    "libsystemd.so*"
+)
+
+for pattern in "${EXCLUDED_LIBS[@]}"; do
+    # Remove from usr/lib
+    if ls "${APPDIR}/usr/lib/${pattern}" 2>/dev/null; then
+        echo "   Removing: ${pattern} from ${APPDIR}/usr/lib/"
+        rm -f "${APPDIR}/usr/lib/${pattern}"
+    fi
+    # Also check lib directory
+    if ls "${APPDIR}/lib/${pattern}" 2>/dev/null; then
+        echo "   Removing: ${pattern} from ${APPDIR}/lib/"
+        rm -f "${APPDIR}/lib/${pattern}"
+    fi
+done
+echo "✅ System library exclusions complete - AppImage will use host system libraries"
 
 # After linuxdeploy, ensure we have the correct Qt platform plugins with all dependencies
 echo "Ensuring Qt platform plugins are properly bundled after linuxdeploy..."
