@@ -232,11 +232,21 @@ echo "======================================" >&2
 exec /usr/local/bin/openterfaceQT "$@"
 EOF
         chmod +x /tmp/run-appimage.sh
-        # Use stdbuf to unbuffer output for immediate logging
-        stdbuf -oL -eL env DISPLAY=$DISPLAY QT_QPA_PLATFORM=$QT_QPA_PLATFORM APPIMAGE_EXTRACT_AND_RUN=${APPIMAGE_EXTRACT_AND_RUN:-0} /tmp/run-appimage.sh > /tmp/openterfaceqt.log 2>&1 &
+        # Use stdbuf to unbuffer output for immediate logging (if available and compatible)
+        if command -v stdbuf >/dev/null 2>&1; then
+            stdbuf -oL -eL env DISPLAY=$DISPLAY QT_QPA_PLATFORM=$QT_QPA_PLATFORM APPIMAGE_EXTRACT_AND_RUN=${APPIMAGE_EXTRACT_AND_RUN:-0} /tmp/run-appimage.sh > /tmp/openterfaceqt.log 2>&1 &
+        else
+            # Fallback without stdbuf if not available or incompatible
+            env DISPLAY=$DISPLAY QT_QPA_PLATFORM=$QT_QPA_PLATFORM APPIMAGE_EXTRACT_AND_RUN=${APPIMAGE_EXTRACT_AND_RUN:-0} /tmp/run-appimage.sh > /tmp/openterfaceqt.log 2>&1 &
+        fi
     else
-        # Use stdbuf to unbuffer output for immediate logging
-        stdbuf -oL -eL env DISPLAY=$DISPLAY QT_QPA_PLATFORM=$QT_QPA_PLATFORM APPIMAGE_EXTRACT_AND_RUN=${APPIMAGE_EXTRACT_AND_RUN:-0} /usr/local/bin/openterfaceQT > /tmp/openterfaceqt.log 2>&1 &
+        # Use stdbuf to unbuffer output for immediate logging (if available and compatible)
+        if command -v stdbuf >/dev/null 2>&1; then
+            stdbuf -oL -eL env DISPLAY=$DISPLAY QT_QPA_PLATFORM=$QT_QPA_PLATFORM APPIMAGE_EXTRACT_AND_RUN=${APPIMAGE_EXTRACT_AND_RUN:-0} /usr/local/bin/openterfaceQT > /tmp/openterfaceqt.log 2>&1 &
+        else
+            # Fallback without stdbuf if not available or incompatible
+            env DISPLAY=$DISPLAY QT_QPA_PLATFORM=$QT_QPA_PLATFORM APPIMAGE_EXTRACT_AND_RUN=${APPIMAGE_EXTRACT_AND_RUN:-0} /usr/local/bin/openterfaceQT > /tmp/openterfaceqt.log 2>&1 &
+        fi
     fi
     APP_PID=$!
     

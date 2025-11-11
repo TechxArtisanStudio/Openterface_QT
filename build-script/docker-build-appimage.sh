@@ -452,6 +452,38 @@ for pattern in "${CRITICAL_LIBS[@]}"; do
 done
 echo "✅ Critical system libraries copied to comprehensive AppImage"
 
+# Copy libstdbuf.so from coreutils (required for stdbuf functionality)
+echo "📦 Copying libstdbuf.so from coreutils..."
+mkdir -p "${APPDIR}/usr/lib"
+STDBUF_FOUND=0
+for SEARCH_DIR in /usr/libexec/coreutils /opt /usr/lib/x86_64-linux-gnu /usr/lib /lib/x86_64-linux-gnu /lib; do
+    if [ -d "$SEARCH_DIR" ]; then
+        found_files=$(find "$SEARCH_DIR" -maxdepth 1 -name "libstdbuf.so*" 2>/dev/null || true)
+        if [ -n "$found_files" ]; then
+            echo "$found_files" | while read -r file; do
+                if [ -f "$file" ] || [ -L "$file" ]; then
+                    dest_file="${APPDIR}/usr/lib/$(basename "$file")"
+                    if [ ! -e "$dest_file" ]; then
+                        echo "  ✓ Copying: $(basename "$file") from $SEARCH_DIR"
+                        cp -P "$file" "${APPDIR}/usr/lib/" 2>&1 || {
+                            echo "  ⚠️  Warning: Failed to copy $file"
+                        }
+                    else
+                        echo "  ✓ Already exists: $(basename "$file")"
+                    fi
+                fi
+            done
+            STDBUF_FOUND=1
+            break
+        fi
+    fi
+done
+
+if [ $STDBUF_FOUND -eq 0 ]; then
+    echo "  ⏭️  libstdbuf.so not found (optional, skipping)"
+fi
+echo "✅ libstdbuf.so processing completed"
+
 # Copy JPEG libraries for image codec support
 echo "Including JPEG libraries for image codec support in comprehensive AppImage..."
 mkdir -p "${APPDIR}/usr/lib"
