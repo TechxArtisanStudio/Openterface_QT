@@ -87,6 +87,18 @@ echo ""
 if [ -f /usr/local/bin/openterfaceQT ]; then
     echo "✅ Found openterfaceQT application, starting it..."
     
+    # Verify the binary is executable
+    if [ ! -x /usr/local/bin/openterfaceQT ]; then
+        echo "⚠️  Binary is not executable, fixing permissions..."
+        chmod +x /usr/local/bin/openterfaceQT
+    fi
+    
+    # Check if it's an AppImage
+    if file /usr/local/bin/openterfaceQT | grep -q "AppImage"; then
+        echo "ℹ️  Detected AppImage format"
+        export APPIMAGE_EXTRACT_AND_RUN=1
+    fi
+    
     # Set up display environment for GUI
     # Note: DISPLAY should be set externally (e.g., :98 for Xvfb)
     # Only set QT_QPA_PLATFORM=offscreen if no DISPLAY is available
@@ -99,6 +111,12 @@ if [ -f /usr/local/bin/openterfaceQT ]; then
         echo "ℹ️  Using X11 display: $DISPLAY"
     fi
     export QT_X11_NO_MITSHM=1
+    export QT_DEBUG_PLUGINS=1  # Enable plugin debugging
+    export QT_LOGGING_RULES="qt.qpa.plugin=true"  # Log plugin loading
+    
+    # Additional AppImage environment variables
+    export APPIMAGE_EXTRACT_AND_RUN=1
+    export APPDIR="/tmp/.mount_openterfaceQT"  # AppImage mount point
     
     # Start the application and keep container running
     echo "📝 Starting Openterface QT..."

@@ -169,9 +169,12 @@ echo ""
 
 if [ "$APP_STARTED" = false ]; then
     echo -e "${YELLOW}⚠️  App process not detected within timeout, proceeding with screenshot anyway...${NC}"
-else
-    echo -e "${GREEN}✅ App startup complete!${NC}"
+echo -e "${GREEN}✅ App startup complete!${NC}"
 fi
+
+# Give the app extra time to fully initialize GUI
+echo -e "${BLUE}⏳ Waiting for GUI to initialize...${NC}"
+sleep 8
 
 # Take the main screenshot
 echo -e "${BLUE}📸 Taking screenshot...${NC}"
@@ -182,13 +185,72 @@ screenshot_jpg="$SCREENSHOTS_DIR/openterface_app_${timestamp}.jpg"
 echo -e "${BLUE}📷 Taking screenshot with ImageMagick (PNG/JPG)...${NC}"
 screenshot_success=false
 
+# Debug: Check X11 display and window information before taking screenshot
+echo -e "${BLUE}🔍 Pre-screenshot diagnostics:${NC}"
+echo "   Display: $DISPLAY"
+echo "   Xvfb PID: $XVFB_PID"
+
+# Check if X server is responding
+if ! DISPLAY=:98 xdpyinfo >/dev/null 2>&1; then
+    echo -e "${RED}   ❌ X server not responding${NC}"
+else
+    echo -e "${GREEN}   ✅ X server responding${NC}"
+fi
+
+# Check for active windows
+window_count=$(DISPLAY=:98 xwininfo -tree -root 2>/dev/null | grep -c "child" || echo "0")
+echo "   Active windows: $window_count"
+
+# List all windows
+if [ "$window_count" -gt 0 ]; then
+    echo -e "${BLUE}   Window list:${NC}"
+    DISPLAY=:98 xwininfo -tree -root 2>/dev/null | grep "child" | head -5 | sed 's/^/     /'
+fi
+
+# Check if app window is visible
+if docker exec $CONTAINER_NAME pgrep -x "openterfaceQT" >/dev/null 2>&1; then
+    echo -e "${BLUE}   App process status: Running${NC}"
+    
+    # Check app logs for any GUI-related messages
+    echo -e "${BLUE}   Recent app logs:${NC}"
+    docker exec $CONTAINER_NAME tail -10 /tmp/openterfaceqt.log 2>&1 | sed 's/^/     /' || echo "     No logs available"
+    
+    # Check for Qt platform plugin messages
+    echo -e "${BLUE}   Checking for Qt platform messages:${NC}"
+    docker exec $CONTAINER_NAME grep -i "platform\|xcb\|plugin" /tmp/openterfaceqt.log 2>&1 | tail -3 | sed 's/^/     /' || echo "     No platform messages found"
+else
+    echo -e "${RED}   App process status: Not running${NC}"
+fi
+
 # ImageMagick import is the most reliable method for this virtual display setup
 if command -v import >/dev/null 2>&1; then
-    if DISPLAY=:98 import -window root -quality 90 "$screenshot_jpg" 2>/dev/null; then
+    echo -e "${BLUE}   Attempting screenshot with ImageMagick...${NC}"
+    # Show the command being run and capture both stdout and stderr
+    screenshot_output=$(DISPLAY=:98 import -window root -quality 90 "$screenshot_jpg" 2>&1)
+    screenshot_exit_code=$?
+    
+    if [ $screenshot_exit_code -eq 0 ] && [ -f "$screenshot_jpg" ]; then
         echo -e "${GREEN}✅ JPG screenshot saved: $screenshot_jpg${NC}"
         screenshot_success=true
     else
-        echo -e "${RED}❌ ImageMagick screenshot failed${NC}"
+        echo -e "${RED}❌ ImageMagick screenshot failed (exit code: $screenshot_exit_code)${NC}"
+        echo -e "${YELLOW}   Error output: $screenshot_output${NC}"
+        
+        # Try alternative screenshot method
+        echo -e "${BLUE}   Trying alternative screenshot method...${NC}"
+        if command -v xwd >/dev/null 2>&1 && command -v convert >/dev/null 2>&1; then
+            xwd_file="/tmp/screenshot.xwd"
+            DISPLAY=:98 xwd -root -out "$xwd_file" 2>/dev/null && \
+            convert "$xwd_file" -quality 90 "$screenshot_jpg" 2>/dev/null && \
+            rm -f "$xwd_file"
+            
+            if [ -f "$screenshot_jpg" ]; then
+                echo -e "${GREEN}✅ Alternative screenshot method succeeded${NC}"
+                screenshot_success=true
+            else
+                echo -e "${RED}❌ Alternative screenshot method also failed${NC}"
+            fi
+        fi
     fi
 else
     echo -e "${RED}❌ ImageMagick import command not available${NC}"
