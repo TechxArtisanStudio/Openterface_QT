@@ -13,10 +13,10 @@
 # Required dependencies:
 #   - Graphics: libegl1, libgles2
 #   - Audio: libpulse0
-#   - Video: libgstreamer1.0-0, libv4l-0
+#   - Video: libgstreamer1.0-0 (core only, base libs are bundled), libv4l-0
 #   - X11/Display: libxkbcommon0, libwayland-client0, libxcb1, libx11-6
-#   - FFmpeg: libavformat60, libavcodec60, libavutil58, libavdevice60
-#   - GStreamer Plugins: gstreamer1.0-plugins-base, gstreamer1.0-plugins-good
+#   - FFmpeg: bundled in package
+#   - GStreamer Base: bundled in package (libgstbase, libgstaudio, libgstvideo, libgstapp, etc.)
 #   - OpenGL: libgl1, libglx0, libglvnd0, libglu1-mesa
 #   - Compression: zlib1g, libbz2-1.0
 #
@@ -72,18 +72,6 @@ DISPLAY_DEPS=(
     "libwayland-client0"
     "libxcb1"
     "libx11-6"
-)
-
-FFMPEG_DEPS=(
-    "libavformat60"
-    "libavcodec60"
-    "libavutil58"
-    "libavdevice60"
-)
-
-GSTREAMER_PLUGIN_DEPS=(
-    "gstreamer1.0-plugins-base"
-    "gstreamer1.0-plugins-good"
 )
 
 OPENGL_DEPS=(

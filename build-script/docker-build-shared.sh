@@ -310,18 +310,48 @@ else
     echo "✅ FFmpeg core libraries found and copied"
 fi
 
-# Copy GStreamer libraries - search multiple locations
-echo "📋 DEB: Searching for GStreamer libraries..."
+# Copy GStreamer core and base libraries - search multiple locations
+echo "📋 DEB: Searching for GStreamer core and base libraries..."
 GSTREAMER_FOUND=0
+
+# Define all GStreamer libraries to bundle (core + base + plugins-base)
+GSTREAMER_LIBS=(
+    "libgstreamer-1.0.so"
+    "libgstbase-1.0.so"
+    "libgstaudio-1.0.so"
+    "libgstvideo-1.0.so"
+    "libgstapp-1.0.so"
+    "libgstpbutils-1.0.so"
+    "libgsttag-1.0.so"
+    "libgstrtp-1.0.so"
+    "libgstrtsp-1.0.so"
+    "libgstsdp-1.0.so"
+    "libgstallocators-1.0.so"
+    "libgstgl-1.0.so"
+)
+
 for SEARCH_DIR in /usr/lib/x86_64-linux-gnu /usr/lib; do
     echo "   Checking: $SEARCH_DIR"
     if [ -d "$SEARCH_DIR" ]; then
-        if ls "$SEARCH_DIR"/libgstreamer*.so* >/dev/null 2>&1; then
+        # Check if any gstreamer library exists
+        FOUND_ANY=0
+        for gst_lib in "${GSTREAMER_LIBS[@]}"; do
+            if ls "$SEARCH_DIR"/${gst_lib}* >/dev/null 2>&1; then
+                FOUND_ANY=1
+                break
+            fi
+        done
+        
+        if [ $FOUND_ANY -eq 1 ]; then
             echo "   ✅ Found GStreamer libraries in $SEARCH_DIR"
-            GSTREAMER_FILES=$(ls -la "$SEARCH_DIR"/libgstreamer*.so*)
-            echo "   Files found:"
-            echo "$GSTREAMER_FILES" | sed 's/^/     /'
-            cp -av "$SEARCH_DIR"/libgstreamer*.so* "${PKG_ROOT}/usr/lib/" 2>&1 | sed 's/^/     /'
+            for gst_lib in "${GSTREAMER_LIBS[@]}"; do
+                if ls "$SEARCH_DIR"/${gst_lib}* >/dev/null 2>&1; then
+                    echo "   Copying: $gst_lib"
+                    cp -Pv "$SEARCH_DIR"/${gst_lib}* "${PKG_ROOT}/usr/lib/" 2>&1 | sed 's/^/     /'
+                else
+                    echo "   ⚠️  Skipping: $gst_lib (not found)"
+                fi
+            done
             echo "   ✅ GStreamer libraries copied to ${PKG_ROOT}/usr/lib"
             GSTREAMER_FOUND=1
             break
@@ -334,6 +364,8 @@ for SEARCH_DIR in /usr/lib/x86_64-linux-gnu /usr/lib; do
 done
 if [ $GSTREAMER_FOUND -eq 0 ]; then
     echo "⚠️  Warning: GStreamer libraries not found"
+else
+    echo "✅ GStreamer core and base libraries bundled successfully"
 fi
 
 # Copy v4l-utils libraries - search multiple locations
@@ -360,68 +392,6 @@ for SEARCH_DIR in /usr/lib/x86_64-linux-gnu /usr/lib; do
 done
 if [ $V4L_FOUND -eq 0 ]; then
     echo "⚠️  Warning: v4l-utils libraries not found"
-fi
-
-# Copy GStreamer video libraries - search multiple locations
-echo "📋 DEB: Searching for GStreamer video libraries..."
-GSTVIDEO_FOUND=0
-for SEARCH_DIR in /usr/lib/x86_64-linux-gnu /usr/lib; do
-    echo "   Checking: $SEARCH_DIR"
-    if [ -d "$SEARCH_DIR" ]; then
-        # Use find to detect both files and symlinks
-        if find "$SEARCH_DIR" -maxdepth 1 \( -name "libgstvideo-1.0.so*" -type f -o -name "libgstvideo-1.0.so*" -type l \) 2>/dev/null | grep -q .; then
-            echo "   ✅ Found GStreamer video libraries in $SEARCH_DIR"
-            # List files found for diagnostics
-            ls -la "$SEARCH_DIR"/libgstvideo-1.0.so* 2>/dev/null | while read -r line; do
-                echo "     $line"
-            done
-            # Copy all libgstvideo-1.0 files and symlinks
-            cp -Pv "$SEARCH_DIR"/libgstvideo-1.0.so* "${PKG_ROOT}/usr/lib/" 2>&1 | sed 's/^/     /'
-            echo "   ✅ GStreamer video libraries copied to ${PKG_ROOT}/usr/lib"
-            GSTVIDEO_FOUND=1
-            break
-        else
-            echo "   ✗ No GStreamer video libraries found in $SEARCH_DIR"
-        fi
-    else
-        echo "   ✗ Directory does not exist: $SEARCH_DIR"
-    fi
-done
-if [ $GSTVIDEO_FOUND -eq 0 ]; then
-    echo "⚠️  Warning: GStreamer video libraries not found"
-else
-    echo "✅ GStreamer video libraries found and copied"
-fi
-
-# Copy GStreamer app libraries - search multiple locations
-echo "📋 DEB: Searching for GStreamer app libraries..."
-GSTAPP_FOUND=0
-for SEARCH_DIR in /usr/lib/x86_64-linux-gnu /usr/lib; do
-    echo "   Checking: $SEARCH_DIR"
-    if [ -d "$SEARCH_DIR" ]; then
-        # Use find to detect both files and symlinks
-        if find "$SEARCH_DIR" -maxdepth 1 \( -name "libgstapp-1.0.so*" -type f -o -name "libgstapp-1.0.so*" -type l \) 2>/dev/null | grep -q .; then
-            echo "   ✅ Found GStreamer app libraries in $SEARCH_DIR"
-            # List files found for diagnostics
-            ls -la "$SEARCH_DIR"/libgstapp-1.0.so* 2>/dev/null | while read -r line; do
-                echo "     $line"
-            done
-            # Copy all libgstapp-1.0 files and symlinks
-            cp -Pv "$SEARCH_DIR"/libgstapp-1.0.so* "${PKG_ROOT}/usr/lib/" 2>&1 | sed 's/^/     /'
-            echo "   ✅ GStreamer app libraries copied to ${PKG_ROOT}/usr/lib"
-            GSTAPP_FOUND=1
-            break
-        else
-            echo "   ✗ No GStreamer app libraries found in $SEARCH_DIR"
-        fi
-    else
-        echo "   ✗ Directory does not exist: $SEARCH_DIR"
-    fi
-done
-if [ $GSTAPP_FOUND -eq 0 ]; then
-    echo "⚠️  Warning: GStreamer app libraries not found"
-else
-    echo "✅ GStreamer app libraries found and copied"
 fi
 
 echo "📋 DEB: Final library contents in ${PKG_ROOT}/usr/lib:"

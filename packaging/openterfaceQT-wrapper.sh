@@ -23,6 +23,30 @@ case "${UNAME_M}" in
 esac
 
 # ============================================
+# Library Path Setup (CRITICAL for bundled libs)
+# ============================================
+# Prioritize bundled libraries to avoid symbol conflicts with system libraries
+# This prevents errors like: "undefined symbol: _gst_meta_tag_memory_reference"
+
+BUNDLED_LIB_PATHS=(
+    "/usr/lib"                          # Bundled libraries (FFmpeg, GStreamer, etc.)
+)
+
+# Add bundled library paths first (highest priority)
+if [ -z "$LD_LIBRARY_PATH" ]; then
+    LD_LIBRARY_PATH="${BUNDLED_LIB_PATHS[0]}"
+else
+    # Prepend bundled paths to existing LD_LIBRARY_PATH
+    for lib_path in "${BUNDLED_LIB_PATHS[@]}"; do
+        if [ -d "$lib_path" ]; then
+            LD_LIBRARY_PATH="${lib_path}:${LD_LIBRARY_PATH}"
+        fi
+    done
+fi
+
+export LD_LIBRARY_PATH
+
+# ============================================
 # Qt Plugin Path Setup
 # ============================================
 # Priority order:
@@ -142,6 +166,7 @@ if [ "${OPENTERFACE_DEBUG}" = "1" ] || [ "${OPENTERFACE_DEBUG}" = "true" ]; then
     echo "========================================" >&2
     echo "OpenterfaceQT Runtime Environment Setup" >&2
     echo "========================================" >&2
+    echo "LD_LIBRARY_PATH=$LD_LIBRARY_PATH" >&2
     echo "QT_PLUGIN_PATH=$QT_PLUGIN_PATH" >&2
     echo "QML2_IMPORT_PATH=$QML2_IMPORT_PATH" >&2
     echo "GST_PLUGIN_PATH=$GST_PLUGIN_PATH" >&2
