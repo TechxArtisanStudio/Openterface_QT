@@ -340,7 +340,7 @@ fi
 echo "📋 DEB: Searching for GStreamer core and base libraries..."
 GSTREAMER_FOUND=0
 
-# Define all GStreamer libraries to bundle (core + base + plugins-base)
+# Define all GStreamer libraries to bundle (core + base + plugins-base + ORC)
 GSTREAMER_LIBS=(
     "libgstreamer-1.0.so"
     "libgstbase-1.0.so"
@@ -354,6 +354,7 @@ GSTREAMER_LIBS=(
     "libgstsdp-1.0.so"
     "libgstallocators-1.0.so"
     "libgstgl-1.0.so"
+    "liborc-0.4.so"
 )
 
 for SEARCH_DIR in /usr/lib/x86_64-linux-gnu /usr/lib; do
@@ -394,7 +395,33 @@ else
     echo "✅ GStreamer core and base libraries bundled successfully"
 fi
 
-# Copy v4l-utils libraries - search multiple locations
+# Copy ORC libraries (needed by GStreamer) - search multiple locations
+echo "📋 DEB: Searching for ORC libraries..."
+ORC_FOUND=0
+for SEARCH_DIR in /usr/lib/x86_64-linux-gnu /usr/lib; do
+    echo "   Checking: $SEARCH_DIR"
+    if [ -d "$SEARCH_DIR" ]; then
+        if ls "$SEARCH_DIR"/liborc-0.4.so* >/dev/null 2>&1; then
+            echo "   ✅ Found ORC libraries in $SEARCH_DIR"
+            ORC_FILES=$(ls -la "$SEARCH_DIR"/liborc-0.4.so*)
+            echo "   Files found:"
+            echo "$ORC_FILES" | sed 's/^/     /'
+            cp -av "$SEARCH_DIR"/liborc-0.4.so* "${PKG_ROOT}/usr/lib/openterfaceqt/" 2>&1 | sed 's/^/     /'
+            echo "   ✅ ORC libraries copied to ${PKG_ROOT}/usr/lib/openterfaceqt"
+            ORC_FOUND=1
+            break
+        else
+            echo "   ✗ No ORC libraries found in $SEARCH_DIR"
+        fi
+    else
+        echo "   ✗ Directory does not exist: $SEARCH_DIR"
+    fi
+done
+if [ $ORC_FOUND -eq 0 ]; then
+    echo "⚠️  Warning: ORC libraries not found"
+else
+    echo "✅ ORC libraries bundled successfully"
+fi
 echo "📋 DEB: Searching for v4l-utils libraries..."
 V4L_FOUND=0
 for SEARCH_DIR in /usr/lib/x86_64-linux-gnu /usr/lib; do
@@ -432,6 +459,7 @@ REQUIRED_LIBS=(
     "libva.so"
     "libvdpau.so"
     "libgstreamer-1.0.so"
+    "liborc-0.4.so"
     "libavcodec.so"
     "libavformat.so"
     "libavutil.so"
@@ -581,14 +609,14 @@ Version: ${VERSION}
 Section: base
 Priority: optional
 Architecture: ${ARCH}
-Depends: libxkbcommon0, libwayland-client0, libegl1, libgles2, libpulse0, libxcb1, libxcb-shm0, libxcb-xfixes0, libxcb-shape0, libx11-6, zlib1g, libbz2-1.0, liblzma5, libva2, libva-drm2, libva-x11-2, libvdpau1, libgstreamer1.0-0, libv4l-0, libgl1, libglx0, libglvnd0
+Depends: libxkbcommon0, libwayland-client0, libegl1, libgles2, libpulse0, libxcb1, libxcb-shm0, libxcb-xfixes0, libxcb-shape0, libx11-6, zlib1g, libbz2-1.0, liblzma5, libva2, libva-drm2, libva-x11-2, libvdpau1, liborc-0.4-0, libgstreamer1.0-0, libv4l-0, libgl1, libglx0, libglvnd0
 Maintainer: TechxArtisan <info@techxartisan.com>
 Description: OpenterfaceQT Mini-KVM Linux Edition
  Includes bundled FFmpeg 6.1.1 libraries (libavformat, libavcodec,
  libavdevice, libswresample, libswscale, libavutil, libavfilter), libturbojpeg,
  VA-API libraries (libva, libva-drm, libva-x11), VDPAU library (libvdpau),
- and GStreamer base libraries (libgstbase, libgstaudio, libgstvideo,
- libgstapp, libgstpbutils, libgsttag, libgstrtp, libgstrtsp, libgstsdp,
+ ORC library (liborc-0.4), and GStreamer base libraries (libgstbase, libgstaudio,
+ libgstvideo, libgstapp, libgstpbutils, libgsttag, libgstrtp, libgstrtsp, libgstsdp,
  libgstallocators, libgstgl)
 EOF
 fi
@@ -849,7 +877,7 @@ else
     echo "✅ FFmpeg core libraries found and copied"
 fi
 
-# Copy GStreamer libraries - search multiple locations
+# Copy GStreamer core and base libraries - search multiple locations
 echo "📋 RPM: Searching for GStreamer libraries..."
 GSTREAMER_FOUND=0
 for SEARCH_DIR in /usr/lib/x86_64-linux-gnu /usr/lib; do
@@ -875,6 +903,34 @@ if [ $GSTREAMER_FOUND -eq 0 ]; then
     echo "⚠️  Warning: GStreamer libraries not found"
 else
     echo "✅ GStreamer found and copied"
+fi
+
+# Copy ORC libraries (needed by GStreamer) - search multiple locations
+echo "📋 RPM: Searching for ORC libraries..."
+ORC_FOUND=0
+for SEARCH_DIR in /usr/lib/x86_64-linux-gnu /usr/lib; do
+    echo "   Checking: $SEARCH_DIR"
+    if [ -d "$SEARCH_DIR" ]; then
+        if ls "$SEARCH_DIR"/liborc-0.4.so* >/dev/null 2>&1; then
+            echo "   ✅ Found ORC libraries in $SEARCH_DIR"
+            ORC_FILES=$(ls -la "$SEARCH_DIR"/liborc-0.4.so*)
+            echo "   Files found:"
+            echo "$ORC_FILES" | sed 's/^/     /'
+            cp -av "$SEARCH_DIR"/liborc-0.4.so* "${RPMTOP}/SOURCES/" 2>&1 | sed 's/^/     /'
+            echo "   ✅ ORC libraries copied to ${RPMTOP}/SOURCES"
+            ORC_FOUND=1
+            break
+        else
+            echo "   ✗ No ORC libraries found in $SEARCH_DIR"
+        fi
+    else
+        echo "   ✗ Directory does not exist: $SEARCH_DIR"
+    fi
+done
+if [ $ORC_FOUND -eq 0 ]; then
+    echo "⚠️  Warning: ORC libraries not found"
+else
+    echo "✅ ORC libraries found and copied"
 fi
 
 # Copy v4l-utils libraries - search multiple locations
