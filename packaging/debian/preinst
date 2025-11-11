@@ -87,7 +87,7 @@ COMPRESSION_DEPS=(
 )
 
 # Combine all dependencies into a single array for checking
-CRITICAL_DEPS=("${GRAPHICS_DEPS[@]}" "${AUDIO_DEPS[@]}" "${VIDEO_DEPS[@]}" "${DISPLAY_DEPS[@]}" "${FFMPEG_DEPS[@]}" "${GSTREAMER_PLUGIN_DEPS[@]}" "${OPENGL_DEPS[@]}" "${COMPRESSION_DEPS[@]}")
+CRITICAL_DEPS=("${GRAPHICS_DEPS[@]}" "${AUDIO_DEPS[@]}" "${VIDEO_DEPS[@]}" "${DISPLAY_DEPS[@]}" "${OPENGL_DEPS[@]}" "${COMPRESSION_DEPS[@]}")
 
 MISSING_DEPS=()
 FOUND_DEPS=0
@@ -143,32 +143,6 @@ echo ""
 # Check Display dependencies
 print_category "X11/Display Server Libraries"
 for pkg in "${DISPLAY_DEPS[@]}"; do
-    if dpkg -l | grep -q "^ii.*$pkg"; then
-        echo "    ✅ $pkg"
-        FOUND_DEPS=$((FOUND_DEPS + 1))
-    else
-        echo "    ❌ $pkg (MISSING)"
-        MISSING_DEPS+=("$pkg")
-    fi
-done
-echo ""
-
-# Check FFmpeg dependencies
-print_category "FFmpeg Libraries"
-for pkg in "${FFMPEG_DEPS[@]}"; do
-    if dpkg -l | grep -q "^ii.*$pkg"; then
-        echo "    ✅ $pkg"
-        FOUND_DEPS=$((FOUND_DEPS + 1))
-    else
-        echo "    ❌ $pkg (MISSING)"
-        MISSING_DEPS+=("$pkg")
-    fi
-done
-echo ""
-
-# Check GStreamer Plugin dependencies
-print_category "GStreamer Plugins"
-for pkg in "${GSTREAMER_PLUGIN_DEPS[@]}"; do
     if dpkg -l | grep -q "^ii.*$pkg"; then
         echo "    ✅ $pkg"
         FOUND_DEPS=$((FOUND_DEPS + 1))
