@@ -92,7 +92,8 @@ DOCKER_RUN_CMD="$DOCKER_RUN_CMD $DOCKER_IMAGE:$DOCKER_TAG bash -c \"
 export DISPLAY=$DISPLAY QT_X11_NO_MITSHM=1 QT_QPA_PLATFORM=xcb &&
 /usr/local/bin/check-qt-deps.sh &&
 sleep 2 &&
-/usr/local/bin/openterfaceQT 2>&1 ||
+(/usr/local/bin/openterfaceQT 2>&1 &) &&
+sleep infinity ||
 {
     echo 'App launch failed - running diagnostics...'
     echo '---'
@@ -102,6 +103,7 @@ sleep 2 &&
     which openterfaceQT 2>&1
     echo '---'
     /usr/local/bin/openterfaceQT --version 2>&1 || echo 'Binary exists but cannot run'
+    sleep infinity
 }
 \""
 
