@@ -130,8 +130,27 @@ echo "✅ GStreamer plugin dependencies copied"
 # Copy critical system libraries that must be bundled to avoid GLIBC conflicts
 echo "📦 Copying critical system libraries (libusb, libdrm, libudev)..."
 mkdir -p "appimage/AppDir/usr/lib"
+
+# Debug: Show what libusb files exist in the system
+echo "  🔍 Searching for libusb in system..."
+LIBUSB_FOUND=$(find /usr/lib/x86_64-linux-gnu /usr/lib /lib/x86_64-linux-gnu /lib /opt -name "libusb*" 2>/dev/null | head -10)
+if [ -n "$LIBUSB_FOUND" ]; then
+	echo "    Found libusb files:"
+	echo "$LIBUSB_FOUND" | while read -r lib; do
+		echo "      - $lib"
+	done
+else
+	echo "    ⚠️  No libusb files found in system paths!"
+	echo "    Checking if libusb package is installed..."
+	dpkg -l | grep -i libusb || echo "    libusb not installed, attempting to install..."
+	apt-get update -qq && apt-get install -y libusb-1.0-0 libusb-1.0-0-dev 2>&1 | tail -5 || true
+fi
+echo ""
+
 CRITICAL_LIBS=(
     "libusb-1.0.so*"
+    "libusb-1.0-0*"
+    "libusb.so*"
     "libdrm.so*"
     "libudev.so*"
 )
@@ -139,7 +158,7 @@ CRITICAL_LIBS=(
 for pattern in "${CRITICAL_LIBS[@]}"; do
     # Search in build environment library paths (these have compatible GLIBC)
     FOUND=0
-    for SEARCH_DIR in /usr/lib/x86_64-linux-gnu /usr/lib /lib/x86_64-linux-gnu /lib; do
+    for SEARCH_DIR in /opt /usr/lib/x86_64-linux-gnu /usr/lib /lib/x86_64-linux-gnu /lib; do
         if [ -d "$SEARCH_DIR" ]; then
             # Use find with -print0 and xargs for better handling
             found_count=$(find "$SEARCH_DIR" -maxdepth 1 -name "$pattern" 2>/dev/null | wc -l)
@@ -164,7 +183,7 @@ for pattern in "${CRITICAL_LIBS[@]}"; do
         fi
     done
     if [ $FOUND -eq 0 ]; then
-        echo "  ❌ Pattern not found: $pattern"
+        echo "  ⏭️  Pattern not found: $pattern (skipping)"
     fi
 done
 echo "✅ Critical system libraries copying completed"
@@ -375,8 +394,27 @@ done
 # Copy critical system libraries that must be bundled to avoid GLIBC conflicts
 echo "Including critical system libraries (libusb, libdrm, libudev) in comprehensive AppImage..."
 mkdir -p "${APPDIR}/usr/lib"
+
+# Debug: Show what libusb files exist in the system
+echo "  🔍 Searching for libusb in system..."
+LIBUSB_FOUND_COMP=$(find /usr/lib/x86_64-linux-gnu /usr/lib /lib/x86_64-linux-gnu /lib /opt -name "libusb*" 2>/dev/null | head -10)
+if [ -n "$LIBUSB_FOUND_COMP" ]; then
+	echo "    Found libusb files:"
+	echo "$LIBUSB_FOUND_COMP" | while read -r lib; do
+		echo "      - $lib"
+	done
+else
+	echo "    ⚠️  No libusb files found in system paths!"
+	echo "    Checking if libusb package is installed..."
+	dpkg -l | grep -i libusb || echo "    libusb not installed, attempting to install..."
+	apt-get update -qq && apt-get install -y libusb-1.0-0 libusb-1.0-0-dev 2>&1 | tail -5 || true
+fi
+echo ""
+
 CRITICAL_LIBS=(
     "libusb-1.0.so*"
+    "libusb-1.0-0*"
+    "libusb.so*"
     "libdrm.so*"
     "libudev.so*"
 )
@@ -384,7 +422,7 @@ CRITICAL_LIBS=(
 for pattern in "${CRITICAL_LIBS[@]}"; do
     # Search in build environment library paths (these have compatible GLIBC)
     FOUND_CRITICAL=0
-    for SEARCH_DIR in /usr/lib/x86_64-linux-gnu /usr/lib /lib/x86_64-linux-gnu /lib; do
+    for SEARCH_DIR in /opt /usr/lib/x86_64-linux-gnu /usr/lib /lib/x86_64-linux-gnu /lib; do
         if [ -d "$SEARCH_DIR" ]; then
             # Count matches first
             found_count=$(find "$SEARCH_DIR" -maxdepth 1 -name "$pattern" 2>/dev/null | wc -l)
@@ -409,7 +447,7 @@ for pattern in "${CRITICAL_LIBS[@]}"; do
         fi
     done
     if [ $FOUND_CRITICAL -eq 0 ]; then
-        echo "  ❌ Pattern not found in system: $pattern"
+        echo "  ⏭️  Pattern not found in system: $pattern (skipping)"
     fi
 done
 echo "✅ Critical system libraries copied to comprehensive AppImage"
