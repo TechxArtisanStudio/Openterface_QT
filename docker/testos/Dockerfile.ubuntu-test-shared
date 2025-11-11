@@ -69,7 +69,8 @@ RUN apt-get install -y libx11-6 \
         libxcb-image0 \
         libxcb-util1 \
         libxcb-keysyms1 \
-        libxcb-icccm4
+        libxcb-icccm4 \
+        x11-utils
 # OpenGL and GPU libraries for rendering
 RUN apt-get install -y libgl1 \
         libglx0 \

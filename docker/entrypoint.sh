@@ -105,6 +105,22 @@ if [ -f /usr/local/bin/openterfaceQT ]; then
     
     # Set up display environment for GUI
     echo "ℹ️  DISPLAY environment: $DISPLAY"
+    
+    # Verify X11 connection before starting app
+    if ! xdpyinfo -display "$DISPLAY" >/dev/null 2>&1; then
+        echo "❌ Cannot connect to X display $DISPLAY"
+        echo "   Make sure X11 socket is mounted and accessible"
+        echo "   Socket should exist at: /tmp/.X11-unix/X${DISPLAY#:}"
+        if [ -e "/tmp/.X11-unix/X${DISPLAY#:}" ]; then
+            echo "   Socket exists but connection failed - check permissions"
+            ls -la "/tmp/.X11-unix/X${DISPLAY#:}"
+        else
+            echo "   Socket does not exist"
+        fi
+        exit 1
+    fi
+    echo "✅ X11 display connection verified"
+    
     export QT_QPA_PLATFORM=xcb
     echo "ℹ️  Using X11 display: $DISPLAY"
     export QT_X11_NO_MITSHM=1

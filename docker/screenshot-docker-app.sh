@@ -53,6 +53,17 @@ Xvfb :98 -screen 0 1920x1080x24 -ac +extension GLX +render -noreset >/dev/null 2
 XVFB_PID=$!
 sleep 3
 
+# Set permissions on X11 socket to allow container access
+if [ -e /tmp/.X11-unix/X98 ]; then
+    chmod 777 /tmp/.X11-unix/X98
+    echo -e "${GREEN}✅ X11 socket permissions set${NC}"
+else
+    echo -e "${RED}⚠️  X11 socket not found at /tmp/.X11-unix/X98${NC}"
+fi
+
+# Disable X11 access control to allow container connections
+xhost +local: >/dev/null 2>&1 || true
+
 # Verify X server
 if ! DISPLAY=:98 xdpyinfo >/dev/null 2>&1; then
     echo -e "${RED}❌ Virtual display startup failed${NC}"
