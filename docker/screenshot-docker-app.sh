@@ -109,8 +109,23 @@ sleep 2 &&
 CONTAINER_ID=$(eval $DOCKER_RUN_CMD)
 
 echo -e "${GREEN}✅ Container started${NC}"
-echo -e "${BLUE}� Container ID: ${CONTAINER_ID:0:12}${NC}"
-echo -e "${BLUE}�📱 App is initializing...${NC}"
+echo -e "${BLUE}📦 Container ID: ${CONTAINER_ID:0:12}${NC}"
+echo -e "${BLUE} App is initializing...${NC}"
+
+# Quick initial check to see if container is still running
+sleep 2
+if ! docker ps | grep -q $CONTAINER_ID; then
+    echo -e "${RED}⚠️  Container exited immediately after start!${NC}"
+    echo -e "${BLUE}📋 Early exit logs:${NC}"
+    docker logs $CONTAINER_ID 2>&1 | sed 's/^/   /'
+    echo ""
+    echo -e "${YELLOW}💡 Possible issues:${NC}"
+    echo "   - Check if the Docker image exists and is properly built"
+    echo "   - Verify entrypoint.sh is executable and working"
+    echo "   - Check X11 display connection"
+    echo "   - Verify installation package exists if INSTALL_TYPE=deb"
+    echo ""
+fi
 
 # Wait for app to start with 2-minute timeout
 echo -e "${YELLOW}⏱️  Waiting for app to start (timeout: 2 minutes)...${NC}"
