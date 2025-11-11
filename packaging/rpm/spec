@@ -18,7 +18,7 @@ OpenterfaceQT Application
 
 %install
 mkdir -p %{buildroot}/usr/bin
-mkdir -p %{buildroot}/usr/lib
+mkdir -p %{buildroot}/usr/lib/openterfaceqt
 mkdir -p %{buildroot}/usr/lib/qt6/plugins
 mkdir -p %{buildroot}/usr/lib/qt6/qml
 mkdir -p %{buildroot}/usr/share/applications
@@ -26,20 +26,20 @@ mkdir -p %{buildroot}/usr/share/icons/hicolor/256x256/apps
 
 cp -r %{_sourcedir}/openterfaceQT %{buildroot}/usr/bin/
 # Copy Qt libraries (required)
-cp %{_sourcedir}/libQt6*.so* %{buildroot}/usr/lib/ 2>/dev/null || true
+cp %{_sourcedir}/libQt6*.so* %{buildroot}/usr/lib/openterfaceqt/ 2>/dev/null || true
 # Copy optional JPEG and VA-API libraries
-cp %{_sourcedir}/libjpeg*.so* %{buildroot}/usr/lib/ 2>/dev/null || true
-cp %{_sourcedir}/libturbojpeg*.so* %{buildroot}/usr/lib/ 2>/dev/null || true
-cp %{_sourcedir}/libva*.so* %{buildroot}/usr/lib/ 2>/dev/null || true
-cp %{_sourcedir}/libgstreamer*.so* %{buildroot}/usr/lib/ 2>/dev/null || true
-cp %{_sourcedir}/libv4l*.so* %{buildroot}/usr/lib/ 2>/dev/null || true
+cp %{_sourcedir}/libjpeg*.so* %{buildroot}/usr/lib/openterfaceqt/ 2>/dev/null || true
+cp %{_sourcedir}/libturbojpeg*.so* %{buildroot}/usr/lib/openterfaceqt/ 2>/dev/null || true
+cp %{_sourcedir}/libva*.so* %{buildroot}/usr/lib/openterfaceqt/ 2>/dev/null || true
+cp %{_sourcedir}/libgstreamer*.so* %{buildroot}/usr/lib/openterfaceqt/ 2>/dev/null || true
+cp %{_sourcedir}/libv4l*.so* %{buildroot}/usr/lib/openterfaceqt/ 2>/dev/null || true
 # Copy FFmpeg core libraries
-cp %{_sourcedir}/libavdevice*.so* %{buildroot}/usr/lib/ 2>/dev/null || true
-cp %{_sourcedir}/libavcodec*.so* %{buildroot}/usr/lib/ 2>/dev/null || true
-cp %{_sourcedir}/libavformat*.so* %{buildroot}/usr/lib/ 2>/dev/null || true
-cp %{_sourcedir}/libavutil*.so* %{buildroot}/usr/lib/ 2>/dev/null || true
-cp %{_sourcedir}/libswscale*.so* %{buildroot}/usr/lib/ 2>/dev/null || true
-cp %{_sourcedir}/libswresample*.so* %{buildroot}/usr/lib/ 2>/dev/null || true
+cp %{_sourcedir}/libavdevice*.so* %{buildroot}/usr/lib/openterfaceqt/ 2>/dev/null || true
+cp %{_sourcedir}/libavcodec*.so* %{buildroot}/usr/lib/openterfaceqt/ 2>/dev/null || true
+cp %{_sourcedir}/libavformat*.so* %{buildroot}/usr/lib/openterfaceqt/ 2>/dev/null || true
+cp %{_sourcedir}/libavutil*.so* %{buildroot}/usr/lib/openterfaceqt/ 2>/dev/null || true
+cp %{_sourcedir}/libswscale*.so* %{buildroot}/usr/lib/openterfaceqt/ 2>/dev/null || true
+cp %{_sourcedir}/libswresample*.so* %{buildroot}/usr/lib/openterfaceqt/ 2>/dev/null || true
 # Copy Qt plugins and QML
 cp -r %{_sourcedir}/qt6-plugins/* %{buildroot}/usr/lib/qt6/plugins/ 2>/dev/null || true
 cp -r %{_sourcedir}/qt6-qml/* %{buildroot}/usr/lib/qt6/qml/ 2>/dev/null || true
@@ -61,6 +61,21 @@ EOF
 find %{buildroot} -type f -o -type l | sed 's|%{buildroot}||' > %{_builddir}/../FILELIST.txt
 
 %files -f %{_builddir}/../FILELIST.txt
+
+%post
+# Register bundled libraries with system linker
+cat > /etc/ld.so.conf.d/openterface-libs.conf <<'EOF'
+# OpenterfaceQT bundled libraries (isolated from system libraries)
+/usr/lib/openterfaceqt
+EOF
+ldconfig
+
+%postun
+# Remove ldconfig configuration on uninstall
+if [ $1 -eq 0 ]; then
+    rm -f /etc/ld.so.conf.d/openterface-libs.conf
+    ldconfig
+fi
 
 %changelog
 * Tue Mar 19 2024 Your Name <support@techxartisan.com> - ${VERSION}-1

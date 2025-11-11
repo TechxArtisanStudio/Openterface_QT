@@ -5,12 +5,12 @@ set -e
 if [ "$1" = "configure" ]; then
     # Create ldconfig configuration for bundled libraries
     cat > /etc/ld.so.conf.d/openterface-libs.conf <<'EOF'
-# OpenterfaceQT bundled libraries
+# OpenterfaceQT bundled libraries (isolated from system libraries)
 # - FFmpeg 6.1.1
 # - GStreamer 1.0 (if bundled)
 # - JPEG/TurboJPEG
 # - VA-API
-/usr/lib
+/usr/lib/openterfaceqt
 EOF
     
     # Update library cache
@@ -28,12 +28,13 @@ Expected Library Paths:
   - Qt6 Plugins: /usr/lib/qt6/plugins
   - Qt6 QML: /usr/lib/qt6/qml
   - GStreamer Plugins: /usr/lib/x86_64-linux-gnu/gstreamer-1.0
-  - Bundled Libs: /usr/lib
+  - Bundled Libs: /usr/lib/openterfaceqt
 
 Environment Variables (automatically set by wrapper):
   - QT_PLUGIN_PATH
   - QML2_IMPORT_PATH
   - GST_PLUGIN_PATH
+  - LD_LIBRARY_PATH
 
 If you encounter "symbol lookup error" when running openterfaceQT:
   1. Verify GStreamer packages are installed:

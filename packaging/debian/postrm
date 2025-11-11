@@ -1,17 +1,17 @@
 #!/bin/bash
 set -e
 
-# Clean up bundled FFmpeg library configuration on removal
+# Clean up bundled library configuration on removal
 if [ "$1" = "remove" ] || [ "$1" = "purge" ]; then
     # Remove ldconfig configuration
-    rm -f /etc/ld.so.conf.d/openterface-ffmpeg.conf
+    rm -f /etc/ld.so.conf.d/openterface-libs.conf
     
     # Update library cache
     if command -v ldconfig >/dev/null 2>&1; then
         ldconfig
     fi
     
-    echo "OpenterfaceQT: FFmpeg 6.1.1 library configuration removed"
+    echo "OpenterfaceQT: Bundled library configuration removed"
 fi
 
 exit 0

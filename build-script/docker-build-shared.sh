@@ -158,7 +158,7 @@ fi
 
 # Copy libjpeg and libturbojpeg libraries from FFmpeg prefix
 echo "🔍 Searching for JPEG libraries for FFmpeg support..."
-mkdir -p "${PKG_ROOT}/usr/lib"
+mkdir -p "${PKG_ROOT}/usr/lib/openterfaceqt"
 
 # Copy libjpeg libraries - search multiple locations
 echo "📋 DEB: Searching for libjpeg libraries..."
@@ -171,8 +171,8 @@ for SEARCH_DIR in /opt/ffmpeg/lib /usr/lib/x86_64-linux-gnu /usr/lib; do
             JPEG_FILES=$(ls -la "$SEARCH_DIR"/libjpeg.so*)
             echo "   Files found:"
             echo "$JPEG_FILES" | sed 's/^/     /'
-            cp -av "$SEARCH_DIR"/libjpeg.so* "${PKG_ROOT}/usr/lib/" 2>&1 | sed 's/^/     /'
-            echo "   ✅ libjpeg libraries copied to ${PKG_ROOT}/usr/lib"
+            cp -av "$SEARCH_DIR"/libjpeg.so* "${PKG_ROOT}/usr/lib/openterfaceqt/" 2>&1 | sed 's/^/     /'
+            echo "   ✅ libjpeg libraries copied to ${PKG_ROOT}/usr/lib/openterfaceqt"
             JPEG_FOUND=1
             break
         else
@@ -209,8 +209,8 @@ for SEARCH_DIR in /opt/ffmpeg/lib /usr/lib/x86_64-linux-gnu /usr/lib; do
                 echo "     $line"
             done
             # Copy all libturbojpeg files and symlinks - use cp -P to preserve symlinks
-            cp -Pv "$SEARCH_DIR"/libturbojpeg.so* "${PKG_ROOT}/usr/lib/" 2>&1 | sed 's/^/     /'
-            echo "   ✅ libturbojpeg libraries copied to ${PKG_ROOT}/usr/lib"
+            cp -Pv "$SEARCH_DIR"/libturbojpeg.so* "${PKG_ROOT}/usr/lib/openterfaceqt/" 2>&1 | sed 's/^/     /'
+            echo "   ✅ libturbojpeg libraries copied to ${PKG_ROOT}/usr/lib/openterfaceqt"
             TURBOJPEG_FOUND=1
             break
         else
@@ -244,8 +244,8 @@ for SEARCH_DIR in /usr/lib/x86_64-linux-gnu /usr/lib; do
             VA_FILES=$(ls -la "$SEARCH_DIR"/libva*.so*)
             echo "   Files found:"
             echo "$VA_FILES" | sed 's/^/     /'
-            cp -av "$SEARCH_DIR"/libva*.so* "${PKG_ROOT}/usr/lib/" 2>&1 | sed 's/^/     /'
-            echo "   ✅ VA-API libraries copied to ${PKG_ROOT}/usr/lib"
+            cp -av "$SEARCH_DIR"/libva*.so* "${PKG_ROOT}/usr/lib/openterfaceqt/" 2>&1 | sed 's/^/     /'
+            echo "   ✅ VA-API libraries copied to ${PKG_ROOT}/usr/lib/openterfaceqt"
             VA_FOUND=1
             break
         else
@@ -283,10 +283,10 @@ for SEARCH_DIR in /opt/ffmpeg/lib /usr/lib/x86_64-linux-gnu /usr/lib; do
                     echo "   Found: $ffmpeg_lib"
                     FFMPEG_FILES=$(ls -la "$SEARCH_DIR"/${ffmpeg_lib}* 2>/dev/null)
                     echo "     Files: $FFMPEG_FILES" | sed 's/^/     /'
-                    cp -Pv "$SEARCH_DIR"/${ffmpeg_lib}* "${PKG_ROOT}/usr/lib/" 2>&1 | sed 's/^/     /'
+                    cp -Pv "$SEARCH_DIR"/${ffmpeg_lib}* "${PKG_ROOT}/usr/lib/openterfaceqt/" 2>&1 | sed 's/^/     /'
                 fi
             done
-            echo "   ✅ FFmpeg core libraries copied to ${PKG_ROOT}/usr/lib"
+            echo "   ✅ FFmpeg core libraries copied to ${PKG_ROOT}/usr/lib/openterfaceqt"
             FFMPEG_FOUND=1
             break
         else
@@ -347,12 +347,12 @@ for SEARCH_DIR in /usr/lib/x86_64-linux-gnu /usr/lib; do
             for gst_lib in "${GSTREAMER_LIBS[@]}"; do
                 if ls "$SEARCH_DIR"/${gst_lib}* >/dev/null 2>&1; then
                     echo "   Copying: $gst_lib"
-                    cp -Pv "$SEARCH_DIR"/${gst_lib}* "${PKG_ROOT}/usr/lib/" 2>&1 | sed 's/^/     /'
+                    cp -Pv "$SEARCH_DIR"/${gst_lib}* "${PKG_ROOT}/usr/lib/openterfaceqt/" 2>&1 | sed 's/^/     /'
                 else
                     echo "   ⚠️  Skipping: $gst_lib (not found)"
                 fi
             done
-            echo "   ✅ GStreamer libraries copied to ${PKG_ROOT}/usr/lib"
+            echo "   ✅ GStreamer libraries copied to ${PKG_ROOT}/usr/lib/openterfaceqt"
             GSTREAMER_FOUND=1
             break
         else
@@ -379,8 +379,8 @@ for SEARCH_DIR in /usr/lib/x86_64-linux-gnu /usr/lib; do
             V4L_FILES=$(ls -la "$SEARCH_DIR"/libv4l*.so*)
             echo "   Files found:"
             echo "$V4L_FILES" | sed 's/^/     /'
-            cp -av "$SEARCH_DIR"/libv4l*.so* "${PKG_ROOT}/usr/lib/" 2>&1 | sed 's/^/     /'
-            echo "   ✅ v4l-utils libraries copied to ${PKG_ROOT}/usr/lib"
+            cp -av "$SEARCH_DIR"/libv4l*.so* "${PKG_ROOT}/usr/lib/openterfaceqt/" 2>&1 | sed 's/^/     /'
+            echo "   ✅ v4l-utils libraries copied to ${PKG_ROOT}/usr/lib/openterfaceqt"
             V4L_FOUND=1
             break
         else
@@ -394,8 +394,8 @@ if [ $V4L_FOUND -eq 0 ]; then
     echo "⚠️  Warning: v4l-utils libraries not found"
 fi
 
-echo "📋 DEB: Final library contents in ${PKG_ROOT}/usr/lib:"
-ls -lah "${PKG_ROOT}/usr/lib/" | head -20
+echo "📋 DEB: Final library contents in ${PKG_ROOT}/usr/lib/openterfaceqt:"
+ls -lah "${PKG_ROOT}/usr/lib/openterfaceqt/" | head -20
 
 echo "📋 DEB: Verifying all required libraries presence in package..."
 
@@ -416,9 +416,9 @@ LIBS_FOUND=0
 LIBS_MISSING=()
 
 for lib_name in "${REQUIRED_LIBS[@]}"; do
-    if ls "${PKG_ROOT}/usr/lib/${lib_name}"* >/dev/null 2>&1; then
+    if ls "${PKG_ROOT}/usr/lib/openterfaceqt/${lib_name}"* >/dev/null 2>&1; then
         echo "   ✅ Found $lib_name:"
-        ls -lah "${PKG_ROOT}/usr/lib/${lib_name}"* | sed 's/^/      /'
+        ls -lah "${PKG_ROOT}/usr/lib/openterfaceqt/${lib_name}"* | sed 's/^/      /'
         LIBS_FOUND=$((LIBS_FOUND + 1))
     else
         LIBS_MISSING+=("$lib_name")
@@ -439,10 +439,10 @@ fi
 
 echo ""
 echo "📋 DEB: Final package library contents:"
-echo "   Total .so files in ${PKG_ROOT}/usr/lib:"
-ls "${PKG_ROOT}/usr/lib/"*.so* 2>/dev/null | wc -l
+echo "   Total .so files in ${PKG_ROOT}/usr/lib/openterfaceqt:"
+ls "${PKG_ROOT}/usr/lib/openterfaceqt/"*.so* 2>/dev/null | wc -l
 echo "   Library files present:"
-ls -lah "${PKG_ROOT}/usr/lib/"*.so* 2>/dev/null | head -15
+ls -lah "${PKG_ROOT}/usr/lib/openterfaceqt/"*.so* 2>/dev/null | head -15
 
 # Copy Qt plugins
 QT_PLUGIN_DIR="/opt/Qt6/plugins"
@@ -473,14 +473,14 @@ if [ -d "${QT_QML_DIR}" ]; then
 fi
 
 # Update the binary's rpath to point to bundled libraries
-# Libraries are bundled in /usr/lib alongside the binary
+# Libraries are bundled in /usr/lib/openterfaceqt (isolated from system libraries)
 # Binary is at: /usr/local/bin/openterfaceQT
-# Libraries are at: /usr/lib/
-# So RPATH should be: /usr/lib (direct path to bundled libraries)
+# Libraries are at: /usr/lib/openterfaceqt/
+# So RPATH should be: /usr/lib/openterfaceqt (direct path to bundled libraries)
 if [ -f "${PKG_ROOT}/usr/local/bin/openterfaceQT" ]; then
     echo "🔧 Updating rpath for bundled libraries..."
-    echo "   Setting RPATH to: /usr/lib"
-    if patchelf --set-rpath '/usr/lib' "${PKG_ROOT}/usr/local/bin/openterfaceQT"; then
+    echo "   Setting RPATH to: /usr/lib/openterfaceqt"
+    if patchelf --set-rpath '/usr/lib/openterfaceqt' "${PKG_ROOT}/usr/local/bin/openterfaceQT"; then
         echo "   ✅ RPATH updated successfully"
         patchelf --print-rpath "${PKG_ROOT}/usr/local/bin/openterfaceQT" | sed 's/^/     Actual RPATH: /'
     else
@@ -913,10 +913,10 @@ fi
 echo "📋 RPM: Final SOURCES directory contents:"
 ls -lah "${RPMTOP}/SOURCES/" | head -30
 
-# Update the binary's rpath to point to /usr/lib for RPM
+# Update the binary's rpath to point to /usr/lib/openterfaceqt for RPM
 if [ -f "${RPMTOP}/SOURCES/openterfaceQT" ]; then
-    echo "Updating rpath for RPM bundled Qt libraries..."
-    patchelf --set-rpath '/usr/lib' "${RPMTOP}/SOURCES/openterfaceQT"
+    echo "Updating rpath for RPM bundled libraries..."
+    patchelf --set-rpath '/usr/lib/openterfaceqt' "${RPMTOP}/SOURCES/openterfaceQT"
 fi
 
 # Generate spec from template

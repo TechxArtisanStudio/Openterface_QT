@@ -29,7 +29,7 @@ esac
 # This prevents errors like: "undefined symbol: _gst_meta_tag_memory_reference"
 
 BUNDLED_LIB_PATHS=(
-    "/usr/lib"                          # Bundled libraries (FFmpeg, GStreamer, etc.)
+    "/usr/lib/openterfaceqt"            # Bundled libraries (FFmpeg, GStreamer, etc.)
 )
 
 # Add bundled library paths first (highest priority)
