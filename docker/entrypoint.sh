@@ -120,7 +120,10 @@ if [ -f /usr/local/bin/openterfaceQT ]; then
         export LD_LIBRARY_PATH=/usr/lib/x86_64-linux-gnu:/usr/lib:/lib/x86_64-linux-gnu:/lib:$LD_LIBRARY_PATH
         export QT_PLUGIN_PATH=/usr/lib/qt6/plugins:/usr/lib/x86_64-linux-gnu/qt6/plugins
         export QML2_IMPORT_PATH=/usr/lib/qt6/qml:/usr/lib/x86_64-linux-gnu/qt6/qml
+        # Set bundled Qt platform plugins path for installed application
+        export QT_QPA_PLATFORM_PLUGIN_PATH=/usr/lib/openterfaceqt/qt6/plugins/platforms
         echo "ℹ️  Library paths configured for system Qt6"
+        echo "ℹ️  QT_QPA_PLATFORM_PLUGIN_PATH set to: $QT_QPA_PLATFORM_PLUGIN_PATH"
     else
         echo "ℹ️  Package type unknown, using default configuration"
     fi

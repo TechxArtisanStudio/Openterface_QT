@@ -94,6 +94,38 @@ if [ -z "$QT_PLUGIN_PATH" ]; then
 fi
 
 # ============================================
+# Qt Platform Plugin Path Setup (CRITICAL)
+# ============================================
+# Explicitly set QT_QPA_PLATFORM_PLUGIN_PATH for platform plugin discovery
+# This is essential for XCB and other platform plugins to load correctly
+
+if [ -z "$QT_QPA_PLATFORM_PLUGIN_PATH" ]; then
+    QT_PLATFORM_PLUGIN_PATHS=()
+    
+    # Check bundled location first (for installed DEB package)
+    if [ -d "/usr/lib/openterfaceqt/qt6/plugins/platforms" ]; then
+        QT_PLATFORM_PLUGIN_PATHS+=("/usr/lib/openterfaceqt/qt6/plugins/platforms")
+    fi
+    
+    # Add system locations
+    if [ -d "/usr/lib/${ARCH_DIR}/qt6/plugins/platforms" ]; then
+        QT_PLATFORM_PLUGIN_PATHS+=("/usr/lib/${ARCH_DIR}/qt6/plugins/platforms")
+    fi
+    
+    if [ -d "/usr/lib/x86_64-linux-gnu/qt6/plugins/platforms" ]; then
+        QT_PLATFORM_PLUGIN_PATHS+=("/usr/lib/x86_64-linux-gnu/qt6/plugins/platforms")
+    fi
+    
+    if [ -d "/usr/lib/qt6/plugins/platforms" ]; then
+        QT_PLATFORM_PLUGIN_PATHS+=("/usr/lib/qt6/plugins/platforms")
+    fi
+    
+    # Join with colons
+    IFS=':' read -ra QT_QPA_PLATFORM_PLUGIN_PATH <<< "$(printf '%s:' "${QT_PLATFORM_PLUGIN_PATHS[@]}" | sed 's/:$//')"
+    export QT_QPA_PLATFORM_PLUGIN_PATH="${QT_QPA_PLATFORM_PLUGIN_PATH}"
+fi
+
+# ============================================
 # QML Import Path Setup
 # ============================================
 # Priority order: bundled QML first, then system locations
@@ -180,6 +212,7 @@ if [ "${OPENTERFACE_DEBUG}" = "1" ] || [ "${OPENTERFACE_DEBUG}" = "true" ]; then
     echo "========================================" >&2
     echo "LD_LIBRARY_PATH=$LD_LIBRARY_PATH" >&2
     echo "QT_PLUGIN_PATH=$QT_PLUGIN_PATH" >&2
+    echo "QT_QPA_PLATFORM_PLUGIN_PATH=$QT_QPA_PLATFORM_PLUGIN_PATH" >&2
     echo "QML2_IMPORT_PATH=$QML2_IMPORT_PATH" >&2
     echo "GST_PLUGIN_PATH=$GST_PLUGIN_PATH" >&2
     if [ -n "$GST_SCANNER_PATH" ]; then
