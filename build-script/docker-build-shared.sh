@@ -581,11 +581,12 @@ Version: ${VERSION}
 Section: base
 Priority: optional
 Architecture: ${ARCH}
-Depends: libxkbcommon0, libwayland-client0, libegl1, libgles2, libpulse0, libxcb1, libxcb-shm0, libxcb-xfixes0, libxcb-shape0, libx11-6, zlib1g, libbz2-1.0, liblzma5, libva2, libva-drm2, libva-x11-2, libgstreamer1.0-0, libv4l-0, libgl1, libglx0, libglvnd0
+Depends: libxkbcommon0, libwayland-client0, libegl1, libgles2, libpulse0, libxcb1, libxcb-shm0, libxcb-xfixes0, libxcb-shape0, libx11-6, zlib1g, libbz2-1.0, liblzma5, libva2, libva-drm2, libva-x11-2, libvdpau1, libgstreamer1.0-0, libv4l-0, libgl1, libglx0, libglvnd0
 Maintainer: TechxArtisan <info@techxartisan.com>
 Description: OpenterfaceQT Mini-KVM Linux Edition
  Includes bundled FFmpeg 6.1.1 libraries (libavformat, libavcodec,
  libavdevice, libswresample, libswscale, libavutil, libavfilter), libturbojpeg,
+ VA-API libraries (libva, libva-drm, libva-x11), VDPAU library (libvdpau),
  and GStreamer base libraries (libgstbase, libgstaudio, libgstvideo,
  libgstapp, libgstpbutils, libgsttag, libgstrtp, libgstrtsp, libgstsdp,
  libgstallocators, libgstgl)
