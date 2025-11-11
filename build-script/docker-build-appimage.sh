@@ -97,6 +97,31 @@ echo '✅ Executable copied'
 cp build/openterfaceQT appimage/AppDir/usr/bin/
 chmod +x appimage/AppDir/usr/bin/openterfaceQT
 
+echo '📦 Copying critical GLIBC libraries for compatibility...'
+# CRITICAL: Copy libc.so.6 and related glibc libraries from the build environment
+# This ensures the AppImage can run on systems with older GLIBC versions
+GLIBC_LIBS=(
+    "libc.so.6"
+    "libm.so.6"
+    "libpthread.so.0"
+    "libdl.so.2"
+    "librt.so.1"
+)
+
+for lib in "${GLIBC_LIBS[@]}"; do
+    for SEARCH_DIR in /lib/x86_64-linux-gnu /lib64 /lib /usr/lib/x86_64-linux-gnu /usr/lib; do
+        if [ -f "$SEARCH_DIR/$lib" ]; then
+            dest_file="appimage/AppDir/usr/lib/$(basename "$lib")"
+            if [ ! -e "$dest_file" ]; then
+                echo "  ✓ Copying: $lib"
+                cp -P "$SEARCH_DIR/$lib" "appimage/AppDir/usr/lib/" || true
+            fi
+            break
+        fi
+    done
+done
+echo '✅ GLIBC libraries copied'
+
 echo '📦 Copying essential GStreamer plugins...'
 COPIED_COUNT=0
 for plugin in "${GSTREAMER_PLUGINS[@]}"; do
@@ -452,6 +477,50 @@ for pattern in "${CRITICAL_LIBS[@]}"; do
 done
 echo "✅ Critical system libraries copied to comprehensive AppImage"
 
+# Copy critical GLIBC libraries to ensure compatibility across systems
+echo "📦 Copying critical GLIBC libraries for broader compatibility..."
+mkdir -p "${APPDIR}/usr/lib"
+
+# CRITICAL: Copy libc.so.6 and related glibc libraries from the build environment
+# This ensures the AppImage can run on systems with older GLIBC versions
+# by providing the exact version that all bundled libraries were compiled against
+GLIBC_LIBS=(
+    "libc.so.6"
+    "libm.so.6"
+    "libpthread.so.0"
+    "libdl.so.2"
+    "librt.so.1"
+    "libnss_compat.so.2"
+    "libnss_files.so.2"
+    "libnss_dns.so.2"
+    "libresolv.so.2"
+    "libcrypt.so.1"
+    "libutil.so.1"
+    "ld-linux-x86-64.so.2"
+)
+
+echo "  🔍 Locating glibc libraries..."
+for lib in "${GLIBC_LIBS[@]}"; do
+    for SEARCH_DIR in /lib/x86_64-linux-gnu /lib64 /lib /usr/lib/x86_64-linux-gnu /usr/lib; do
+        if [ -f "$SEARCH_DIR/$lib" ]; then
+            dest_file="${APPDIR}/usr/lib/$(basename "$lib")"
+            if [ ! -e "$dest_file" ]; then
+                echo "  ✓ Copying: $lib from $SEARCH_DIR"
+                cp -P "$SEARCH_DIR/$lib" "${APPDIR}/usr/lib/" 2>&1 || {
+                    echo "  ⚠️  Warning: Failed to copy $SEARCH_DIR/$lib"
+                }
+            fi
+            break
+        fi
+    done
+done
+
+# Also try to find glibc version directory for proper loader setup
+GLIBC_VERSION=$(ldd --version 2>/dev/null | head -1 | grep -oP '\d+\.\d+' | head -1)
+echo "  ℹ️  Build environment glibc version: $GLIBC_VERSION"
+
+echo "✅ Critical GLIBC libraries copied"
+
 # Copy libstdbuf.so from coreutils (required for stdbuf functionality)
 echo "📦 Copying libstdbuf.so from coreutils..."
 mkdir -p "${APPDIR}/usr/lib"
@@ -722,6 +791,77 @@ if [ -n "${ICON_SRC}" ]; then
 else
 	echo "No icon found; continuing without a custom icon."
 fi
+
+# Create diagnostic helper script for troubleshooting GLIBC issues
+mkdir -p "${APPDIR}/usr/bin"
+cat > "${APPDIR}/usr/bin/diagnose-appimage.sh" << 'EOFDIAG'
+#!/bin/bash
+# Diagnostic script for OpenterfaceQT AppImage
+# This script helps troubleshoot GLIBC and library compatibility issues
+
+HERE="$(dirname "$(readlink -f "${0}")/../..")"
+echo "=== OpenterfaceQT AppImage Diagnostic Report ==="
+echo ""
+echo "📍 AppImage Location: $HERE"
+echo ""
+
+echo "📊 System Information:"
+echo "  Architecture: $(uname -m)"
+echo "  System GLIBC: $(ldd --version 2>/dev/null | head -1)"
+echo "  System libc path: $(ldconfig -p 2>/dev/null | grep libc.so.6 | head -1 | awk '{print $NF}')"
+echo ""
+
+echo "📦 Bundled GLIBC in AppImage:"
+if [ -f "$HERE/usr/lib/libc.so.6" ]; then
+    echo "  ✓ Found: $HERE/usr/lib/libc.so.6"
+    file "$HERE/usr/lib/libc.so.6"
+    # Try to get version info
+    echo "  Version info:"
+    strings "$HERE/usr/lib/libc.so.6" 2>/dev/null | grep "^GLIBC_" | sort | tail -5 || echo "    (unable to extract)"
+else
+    echo "  ✗ NOT FOUND: $HERE/usr/lib/libc.so.6"
+fi
+echo ""
+
+echo "📦 Bundled critical libraries:"
+for lib in libc.so.6 libm.so.6 libpthread.so.0 libdl.so.2 librt.so.1 libusb-1.0.so.0 libstdbuf.so; do
+    if [ -f "$HERE/usr/lib/$lib" ] || [ -f "$HERE/usr/lib/${lib}.0" ] || [ -f "$HERE/usr/lib/${lib}.1" ]; then
+        echo "  ✓ Found: $lib"
+    else
+        echo "  ✗ Missing: $lib"
+    fi
+done
+echo ""
+
+echo "🔍 Library dependency check for main executable:"
+if [ -f "$HERE/usr/bin/openterfaceQT" ]; then
+    echo "  Checking: $HERE/usr/bin/openterfaceQT"
+    if command -v ldd >/dev/null 2>&1; then
+        echo "  Dependencies:"
+        ldd "$HERE/usr/bin/openterfaceQT" 2>&1 | head -20 || echo "    (unable to list)"
+        echo ""
+        echo "  Missing dependencies:"
+        ldd "$HERE/usr/bin/openterfaceQT" 2>&1 | grep "not found" || echo "    (none found - OK!)"
+    else
+        echo "  ldd not available"
+    fi
+else
+    echo "  ✗ Executable not found: $HERE/usr/bin/openterfaceQT"
+fi
+echo ""
+
+echo "📁 AppImage library directory contents:"
+echo "  usr/lib/ has $(ls -1 "$HERE/usr/lib/" 2>/dev/null | wc -l) files"
+echo "  First 20 files:"
+ls -1 "$HERE/usr/lib/" 2>/dev/null | head -20 | sed 's/^/    /'
+echo ""
+
+echo "✅ Diagnostic report complete"
+EOFDIAG
+
+chmod +x "${APPDIR}/usr/bin/diagnose-appimage.sh"
+echo "✓ Created diagnostic helper: diagnose-appimage.sh (run inside extracted AppImage)"
+
 
 # Prefer preinstalled linuxdeploy and plugin in the image; fallback to download
 TOOLS_DIR="${APPIMAGE_DIR}/tools"
@@ -1007,13 +1147,32 @@ echo "✓ Qt platform plugins ensured"
 cat > "${APPDIR}/AppRun" << 'EOF'
 #!/bin/bash
 # AppRun script for OpenterfaceQT enhanced AppImage with GStreamer plugins
+# This script ensures compatibility across systems with different glibc versions
 
 # Set the directory where this script is located
 HERE="$(dirname "$(readlink -f "${0}")")"
 
-# CRITICAL: Set library path to use ONLY AppImage bundled libraries first
+# CRITICAL: Set library path to use AppImage bundled libraries FIRST
 # This prevents loading incompatible system libraries with different GLIBC versions
+# The order is important:
+# 1. AppImage's own libc.so.6 and glibc libraries (built in the container environment)
+# 2. Other AppImage libraries
+# 3. System libraries (as fallback only)
 export LD_LIBRARY_PATH="${HERE}/usr/lib:${HERE}/usr/lib/x86_64-linux-gnu:${HERE}/lib:${HERE}/lib/x86_64-linux-gnu:${LD_LIBRARY_PATH}"
+
+# IMPORTANT: Also set LD_PRELOAD to force usage of bundled libc if available
+# This ensures all child processes use the same glibc version
+if [ -f "${HERE}/usr/lib/libc.so.6" ]; then
+    # Preload the bundled libc to ensure consistency
+    export LD_PRELOAD="${HERE}/usr/lib/libc.so.6${LD_PRELOAD:+:$LD_PRELOAD}"
+fi
+
+# Set dynamic linker to use bundled loader if available
+# This is critical for glibc compatibility
+if [ -f "${HERE}/usr/lib/ld-linux-x86-64.so.2" ]; then
+    # Some systems may respect this, though not all
+    export LD_LIBRARY_PATH="${HERE}/usr/lib:${LD_LIBRARY_PATH}"
+fi
 
 # Set GStreamer plugin path to our bundled plugins
 export GST_PLUGIN_PATH="${HERE}/usr/lib/gstreamer-1.0:${GST_PLUGIN_PATH}"
@@ -1021,8 +1180,14 @@ export GST_PLUGIN_PATH="${HERE}/usr/lib/gstreamer-1.0:${GST_PLUGIN_PATH}"
 # Set Qt plugin path
 export QT_PLUGIN_PATH="${HERE}/usr/plugins:${QT_PLUGIN_PATH}"
 
-# Debug: Show library path (remove in production)
+# Ensure we don't have conflicting environment variables that might bypass our setup
+unset LD_ORIGIN_PATH
+
+# Debug: Show library path (uncomment for debugging)
 # echo "LD_LIBRARY_PATH=${LD_LIBRARY_PATH}"
+# echo "LD_PRELOAD=${LD_PRELOAD}"
+# echo "GST_PLUGIN_PATH=${GST_PLUGIN_PATH}"
+# echo "QT_PLUGIN_PATH=${QT_PLUGIN_PATH}"
 
 # Run the application
 exec "${HERE}/usr/bin/openterfaceQT" "$@"
