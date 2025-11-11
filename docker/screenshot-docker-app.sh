@@ -118,14 +118,14 @@ ELAPSED=0
 APP_STARTED=false
 
 while [ $ELAPSED -lt $MAX_WAIT ]; do
-    # Check if the app process is running (match /usr/local/bin/openterfaceQT specifically)
-    if docker exec $CONTAINER_NAME pgrep -f "/usr/local/bin/openterfaceQT" >/dev/null 2>&1; then
+    # Check if the app process is running (match only the actual binary, not bash scripts)
+    if docker exec $CONTAINER_NAME pgrep -x "openterfaceQT" >/dev/null 2>&1; then
         echo -e "${GREEN}✅ App process detected!${NC}"
         APP_STARTED=true
         
-        # Show process details (filter to only the actual app process, not entrypoint)
+        # Show process details (filter to only the actual app process, not entrypoint or bash)
         echo -e "${BLUE}📊 Process Details:${NC}"
-        docker exec $CONTAINER_NAME ps aux | grep "/usr/local/bin/openterfaceQT" | grep -v grep | sed 's/^/   /'
+        docker exec $CONTAINER_NAME ps aux | grep "openterfaceQT" | grep -v grep | grep -v bash | sed 's/^/   /'
         
         # Give it a few more seconds to fully initialize
         sleep 3
