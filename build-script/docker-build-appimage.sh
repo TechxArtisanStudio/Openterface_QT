@@ -182,7 +182,7 @@ for SEARCH_DIR in /opt/Qt6/lib /usr/lib/x86_64-linux-gnu /usr/lib /usr/lib64 /li
     if [ -d "$SEARCH_DIR" ]; then
         for lib in "${EGL_LIBS[@]}"; do
             # Skip if already found
-            if [ "${EGL_FOUND[$lib]}" = "1" ]; then
+            if [ "${EGL_FOUND[$lib]:-}" = "1" ]; then
                 continue
             fi
             
@@ -381,7 +381,7 @@ for SEARCH_DIR in /opt/Qt6/lib /usr/lib/x86_64-linux-gnu /usr/lib /usr/lib64 /li
 	if [ -d "$SEARCH_DIR" ]; then
 		for lib in "${EGL_LIBS[@]}"; do
 			# Skip if already found
-			if [ "${EGL_FOUND_COMP[$lib]}" = "1" ]; then
+			if [ "${EGL_FOUND_COMP[$lib]:-}" = "1" ]; then
 				continue
 			fi
 			
