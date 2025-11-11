@@ -127,6 +127,39 @@ for plugin in "${GSTREAMER_PLUGINS[@]}"; do
 done
 echo "✅ GStreamer plugin dependencies copied"
 
+# Copy critical system libraries that must be bundled to avoid GLIBC conflicts
+echo "📦 Copying critical system libraries (libusb, libdrm, libudev)..."
+mkdir -p "appimage/AppDir/usr/lib"
+CRITICAL_LIBS=(
+    "libusb-1.0.so*"
+    "libdrm.so*"
+    "libudev.so*"
+)
+
+for pattern in "${CRITICAL_LIBS[@]}"; do
+    # Search in build environment library paths (these have compatible GLIBC)
+    for SEARCH_DIR in /usr/lib/x86_64-linux-gnu /usr/lib /lib/x86_64-linux-gnu /lib; do
+        if [ -d "$SEARCH_DIR" ]; then
+            found_files=$(find "$SEARCH_DIR" -maxdepth 1 -name "$pattern" 2>/dev/null || true)
+            if [ -n "$found_files" ]; then
+                echo "$found_files" | while read -r file; do
+                    if [ -f "$file" ] || [ -L "$file" ]; then
+                        dest_file="appimage/AppDir/usr/lib/$(basename "$file")"
+                        if [ ! -e "$dest_file" ]; then
+                            echo "  ✓ Copying critical library: $(basename "$file") from $SEARCH_DIR"
+                            cp -P "$file" "appimage/AppDir/usr/lib/" 2>&1 || {
+                                echo "  ⚠️  Warning: Failed to copy $file"
+                            }
+                        fi
+                    fi
+                done
+                break  # Found in this directory, stop searching for this pattern
+            fi
+        fi
+    done
+done
+echo "✅ Critical system libraries copied"
+
 # Copy JPEG libraries for image codec support (required by Qt and FFmpeg)
 echo "📦 Copying JPEG libraries for image codec support..."
 mkdir -p "appimage/AppDir/usr/lib"
@@ -329,6 +362,39 @@ for plugin in "${GSTREAMER_PLUGINS[@]}"; do
 		echo "✓ Copied plugin: ${plugin}"
 	fi
 done
+
+# Copy critical system libraries that must be bundled to avoid GLIBC conflicts
+echo "Including critical system libraries (libusb, libdrm, libudev) in comprehensive AppImage..."
+mkdir -p "${APPDIR}/usr/lib"
+CRITICAL_LIBS=(
+    "libusb-1.0.so*"
+    "libdrm.so*"
+    "libudev.so*"
+)
+
+for pattern in "${CRITICAL_LIBS[@]}"; do
+    # Search in build environment library paths (these have compatible GLIBC)
+    for SEARCH_DIR in /usr/lib/x86_64-linux-gnu /usr/lib /lib/x86_64-linux-gnu /lib; do
+        if [ -d "$SEARCH_DIR" ]; then
+            found_files=$(find "$SEARCH_DIR" -maxdepth 1 -name "$pattern" 2>/dev/null || true)
+            if [ -n "$found_files" ]; then
+                echo "$found_files" | while read -r file; do
+                    if [ -f "$file" ] || [ -L "$file" ]; then
+                        dest_file="${APPDIR}/usr/lib/$(basename "$file")"
+                        if [ ! -e "$dest_file" ]; then
+                            echo "  ✓ Copying critical library: $(basename "$file") from $SEARCH_DIR"
+                            cp -P "$file" "${APPDIR}/usr/lib/" 2>&1 || {
+                                echo "  ⚠️  Warning: Failed to copy $file"
+                            }
+                        fi
+                    fi
+                done
+                break  # Found in this directory, stop searching for this pattern
+            fi
+        fi
+    done
+done
+echo "✅ Critical system libraries copied to comprehensive AppImage"
 
 # Copy JPEG libraries for image codec support
 echo "Including JPEG libraries for image codec support in comprehensive AppImage..."
