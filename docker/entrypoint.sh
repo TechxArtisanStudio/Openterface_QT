@@ -6,7 +6,6 @@ echo "🔧 Openterface QT Docker Entrypoint"
 echo "===================================="
 
 # Set display environment for X11 early
-export DISPLAY="${DISPLAY:-:0}"
 export QT_X11_NO_MITSHM=1
 export QT_QPA_PLATFORM=xcb
 
@@ -95,13 +94,14 @@ if [ -f /usr/local/bin/openterfaceQT ]; then
     
     # Check if it's an AppImage
     if file /usr/local/bin/openterfaceQT | grep -q "AppImage"; then
-        echo "ℹ️  Detected AppImage format - using FUSE"
-        # Note: Not setting APPIMAGE_EXTRACT_AND_RUN to use FUSE mounting
+        echo "ℹ️  Detected AppImage format - using extraction for reliability"
+        export APPIMAGE_EXTRACT_AND_RUN=1  # Use extraction for consistent behavior
     fi
     
     # Set up display environment for GUI
     # Note: DISPLAY should be set externally (e.g., :98 for Xvfb)
     # Only set QT_QPA_PLATFORM=offscreen if no DISPLAY is available
+    echo "ℹ️  DISPLAY environment: $DISPLAY"
     if [ -z "$DISPLAY" ] || [ "$DISPLAY" = ":99" ]; then
         export DISPLAY=":99"
         export QT_QPA_PLATFORM=offscreen
@@ -117,12 +117,21 @@ if [ -f /usr/local/bin/openterfaceQT ]; then
     # Additional environment variables (only for non-AppImage or when not extracting)
     if ! file /usr/local/bin/openterfaceQT 2>/dev/null | grep -q "AppImage"; then
         export APPIMAGE_EXTRACT_AND_RUN=1
+    else
+        # For AppImage, try to use system Qt plugins if bundled ones don't work
+        export QT_PLUGIN_PATH="/usr/lib/qt6/plugins:/usr/lib/x86_64-linux-gnu/qt6/plugins"
+        export LD_LIBRARY_PATH="/usr/lib/x86_64-linux-gnu:$LD_LIBRARY_PATH"
+        echo "ℹ️  Using system Qt plugins and libraries for AppImage"
     fi
     export APPDIR="/tmp/.mount_openterfaceQT"  # AppImage mount point
     
     # Start the application and keep container running
     echo "📝 Starting Openterface QT..."
-    nohup /usr/local/bin/openterfaceQT > /tmp/openterfaceqt.log 2>&1 &
+    echo "   DISPLAY=$DISPLAY"
+    echo "   QT_QPA_PLATFORM=$QT_QPA_PLATFORM"
+    # Force DISPLAY to the correct value if it's not set properly
+    export DISPLAY="${DISPLAY:-:98}"
+    nohup env DISPLAY=$DISPLAY QT_QPA_PLATFORM=$QT_QPA_PLATFORM /usr/local/bin/openterfaceQT > /tmp/openterfaceqt.log 2>&1 &
     APP_PID=$!
     
     echo "✅ Openterface QT started with PID: $APP_PID"
