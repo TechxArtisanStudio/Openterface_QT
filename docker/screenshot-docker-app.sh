@@ -87,32 +87,17 @@ if [ -n "$VOLUME_MOUNT" ]; then
     DOCKER_RUN_CMD="$DOCKER_RUN_CMD $VOLUME_MOUNT"
 fi
 
-# Add the image and command to launch the app
-DOCKER_RUN_CMD="$DOCKER_RUN_CMD $DOCKER_IMAGE:$DOCKER_TAG bash -c \"
-export DISPLAY=$DISPLAY QT_X11_NO_MITSHM=1 QT_QPA_PLATFORM=xcb &&
-/usr/local/bin/check-qt-deps.sh &&
-sleep 2 &&
-(/usr/local/bin/openterfaceQT 2>&1 &) &&
-sleep infinity ||
-{
-    echo 'App launch failed - running diagnostics...'
-    echo '---'
-    /usr/local/bin/check-qt-deps.sh 2>&1
-    echo '---'
-    ls -la /usr/local/bin/openterface* 2>&1
-    which openterfaceQT 2>&1
-    echo '---'
-    /usr/local/bin/openterfaceQT --version 2>&1 || echo 'Binary exists but cannot run'
-    sleep infinity
-}
-\""
+# Add the image and let entrypoint handle installation and app launch
+# Instead of overriding with bash -c, we'll let the entrypoint do its job
+# and then keep the container alive
+DOCKER_RUN_CMD="$DOCKER_RUN_CMD $DOCKER_IMAGE:$DOCKER_TAG tail -f /dev/null"
 
 # Execute the docker run command
 CONTAINER_ID=$(eval $DOCKER_RUN_CMD)
 
 echo -e "${GREEN}✅ Container started${NC}"
 echo -e "${BLUE}📦 Container ID: ${CONTAINER_ID:0:12}${NC}"
-echo -e "${BLUE} App is initializing...${NC}"
+echo -e "${BLUE}📱 Waiting for installation and app initialization...${NC}"
 
 # Quick initial check to see if container is still running
 sleep 2
@@ -128,6 +113,25 @@ if ! docker ps | grep -q $CONTAINER_ID; then
     echo "   - Verify installation package exists if INSTALL_TYPE=deb"
     echo ""
 fi
+
+# Wait for entrypoint to finish installation
+echo -e "${BLUE}⏳ Waiting for entrypoint installation to complete...${NC}"
+sleep 60
+
+# Now manually launch the app inside the running container
+echo -e "${BLUE}🚀 Launching openterfaceQT app inside container...${NC}"
+docker exec -d $CONTAINER_NAME bash -c "
+export DISPLAY=$DISPLAY
+export QT_X11_NO_MITSHM=1
+export QT_QPA_PLATFORM=xcb
+export QT_PLUGIN_PATH=/usr/lib/qt6/plugins
+export QML2_IMPORT_PATH=/usr/lib/qt6/qml
+/usr/local/bin/openterfaceQT > /tmp/openterfaceqt.log 2>&1 || {
+    echo 'App launch failed - running diagnostics...' | tee /tmp/openterfaceqt-error.log
+    /usr/local/bin/check-qt-deps.sh 2>&1 | tee -a /tmp/openterfaceqt-error.log
+    ls -la /usr/local/bin/openterface* 2>&1 | tee -a /tmp/openterfaceqt-error.log
+}
+"
 
 # Wait for app to start with 2-minute timeout
 echo -e "${YELLOW}⏱️  Waiting for app to start (timeout: 2 minutes)...${NC}"
