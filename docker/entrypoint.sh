@@ -96,8 +96,10 @@ if [ -f /usr/local/bin/openterfaceQT ]; then
     
     # Check if it's an AppImage
     if file /usr/local/bin/openterfaceQT | grep -q "AppImage"; then
-        echo "ℹ️  Detected AppImage format - trying FUSE mounting"
-        export APPIMAGE_EXTRACT_AND_RUN=0  # Try FUSE instead of extraction
+        echo "ℹ️  Detected AppImage format"
+        # For AppImage in Docker, we should extract and run to avoid FUSE issues
+        export APPIMAGE_EXTRACT_AND_RUN=1
+        echo "ℹ️  Will extract AppImage (APPIMAGE_EXTRACT_AND_RUN=1)"
         # Make system libraries available to the AppImage
         export LD_LIBRARY_PATH="/usr/lib/x86_64-linux-gnu:/usr/lib:$LD_LIBRARY_PATH"
         echo "ℹ️  Added system library paths for AppImage"
@@ -107,19 +109,30 @@ if [ -f /usr/local/bin/openterfaceQT ]; then
     echo "ℹ️  DISPLAY environment: $DISPLAY"
     
     # Verify X11 connection before starting app
-    if ! xdpyinfo -display "$DISPLAY" >/dev/null 2>&1; then
-        echo "❌ Cannot connect to X display $DISPLAY"
-        echo "   Make sure X11 socket is mounted and accessible"
-        echo "   Socket should exist at: /tmp/.X11-unix/X${DISPLAY#:}"
-        if [ -e "/tmp/.X11-unix/X${DISPLAY#:}" ]; then
-            echo "   Socket exists but connection failed - check permissions"
-            ls -la "/tmp/.X11-unix/X${DISPLAY#:}"
-        else
-            echo "   Socket does not exist"
-        fi
-        exit 1
+    echo "🔍 X11 Connection Diagnostics:"
+    echo "   DISPLAY=$DISPLAY"
+    echo "   X11 socket path: /tmp/.X11-unix/X${DISPLAY#:}"
+    
+    if [ -e "/tmp/.X11-unix/X${DISPLAY#:}" ]; then
+        echo "   ✅ X11 socket exists"
+        ls -la "/tmp/.X11-unix/X${DISPLAY#:}" | sed 's/^/   /'
+    else
+        echo "   ❌ X11 socket does not exist"
     fi
-    echo "✅ X11 display connection verified"
+    
+    # Check if xdpyinfo is available, if not skip the test
+    if command -v xdpyinfo >/dev/null 2>&1; then
+        if ! xdpyinfo -display "$DISPLAY" >/dev/null 2>&1; then
+            echo "❌ Cannot connect to X display $DISPLAY"
+            echo "   X11 connection test failed with xdpyinfo"
+            echo "   This may cause the application to fail"
+        else
+            echo "   ✅ X11 display connection verified with xdpyinfo"
+        fi
+    else
+        echo "   ℹ️  xdpyinfo not available, skipping X11 connection test"
+        echo "   (Install x11-utils package to enable this check)"
+    fi
     
     export QT_QPA_PLATFORM=xcb
     echo "ℹ️  Using X11 display: $DISPLAY"
