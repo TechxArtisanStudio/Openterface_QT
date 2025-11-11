@@ -156,6 +156,30 @@ if [ -f /usr/local/bin/openterfaceQT ]; then
     echo "   DISPLAY=$DISPLAY"
     echo "   QT_QPA_PLATFORM=$QT_QPA_PLATFORM"
     echo "   APPIMAGE_EXTRACT_AND_RUN=${APPIMAGE_EXTRACT_AND_RUN:-0}"
+    echo ""
+    
+    # Debug: Show library dependencies
+    echo "🔍 Library Diagnostics:"
+    echo "   LD_LIBRARY_PATH=$LD_LIBRARY_PATH"
+    echo ""
+    echo "   Available libusb-1.0.so.0 locations:"
+    find /lib /usr/lib /tmp -name "libusb-1.0.so.0*" 2>/dev/null | while read lib; do
+        echo "     - $lib"
+        if [ -f "$lib" ]; then
+            echo "       $(ldd "$lib" 2>&1 | grep -i glibc || echo 'No GLIBC info')"
+        fi
+    done
+    echo ""
+    
+    if [ -f /usr/local/bin/openterfaceQT ]; then
+        echo "   Checking openterfaceQT dependencies:"
+        ldd /usr/local/bin/openterfaceQT 2>&1 | grep -E "libusb|libc\.so" || echo "     (ldd check skipped for AppImage)"
+    fi
+    echo ""
+    
+    echo "🔧 Executing command:"
+    echo "   env DISPLAY=$DISPLAY QT_QPA_PLATFORM=$QT_QPA_PLATFORM APPIMAGE_EXTRACT_AND_RUN=${APPIMAGE_EXTRACT_AND_RUN:-0} /usr/local/bin/openterfaceQT"
+    echo ""
     
     nohup env DISPLAY=$DISPLAY QT_QPA_PLATFORM=$QT_QPA_PLATFORM APPIMAGE_EXTRACT_AND_RUN=${APPIMAGE_EXTRACT_AND_RUN:-0} /usr/local/bin/openterfaceQT > /tmp/openterfaceqt.log 2>&1 &
     APP_PID=$!
