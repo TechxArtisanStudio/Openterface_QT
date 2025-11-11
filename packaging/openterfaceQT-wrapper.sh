@@ -59,6 +59,52 @@ fi
 export LD_LIBRARY_PATH
 
 # ============================================
+# LD_PRELOAD Setup (CRITICAL - Override binary's RPATH)
+# ============================================
+# The binary was compiled with RPATH pointing to system Qt libraries.
+# We use LD_PRELOAD to force the bundled Qt libraries to load first,
+# overriding the binary's hardcoded RPATH.
+
+PRELOAD_LIBS=()
+
+# Add critical Qt6 libraries that must be preloaded
+# Order matters - Core must be first, then Gui, then other modules
+QT6_LIBS=(
+    "libQt6Core.so.6"
+    "libQt6Gui.so.6"
+    "libQt6Widgets.so.6"
+    "libQt6Multimedia.so.6"
+    "libQt6MultimediaWidgets.so.6"
+    "libQt6Svg.so.6"
+    "libQt6SerialPort.so.6"
+    "libQt6Network.so.6"
+    "libQt6OpenGL.so.6"
+    "libQt6Xml.so.6"
+    "libQt6Concurrent.so.6"
+    "libQt6DBus.so.6"
+    "libQt6Quick.so.6"
+    "libQt6Qml.so.6"
+    "libQt6QuickWidgets.so.6"
+)
+
+for lib in "${QT6_LIBS[@]}"; do
+    lib_path="/usr/lib/openterfaceqt/qt6/$lib"
+    if [ -f "$lib_path" ]; then
+        PRELOAD_LIBS+=("$lib_path")
+    fi
+done
+
+# Build LD_PRELOAD string
+if [ ${#PRELOAD_LIBS[@]} -gt 0 ]; then
+    LD_PRELOAD_STR=$(IFS=':'; echo "${PRELOAD_LIBS[*]}")
+    if [ -z "$LD_PRELOAD" ]; then
+        export LD_PRELOAD="$LD_PRELOAD_STR"
+    else
+        export LD_PRELOAD="$LD_PRELOAD_STR:$LD_PRELOAD"
+    fi
+fi
+
+# ============================================
 # Qt Plugin Path Setup
 # ============================================
 # Priority order:
@@ -211,6 +257,7 @@ if [ "${OPENTERFACE_DEBUG}" = "1" ] || [ "${OPENTERFACE_DEBUG}" = "true" ]; then
     echo "OpenterfaceQT Runtime Environment Setup" >&2
     echo "========================================" >&2
     echo "LD_LIBRARY_PATH=$LD_LIBRARY_PATH" >&2
+    echo "LD_PRELOAD=$LD_PRELOAD" >&2
     echo "QT_PLUGIN_PATH=$QT_PLUGIN_PATH" >&2
     echo "QT_QPA_PLATFORM_PLUGIN_PATH=$QT_QPA_PLATFORM_PLUGIN_PATH" >&2
     echo "QML2_IMPORT_PATH=$QML2_IMPORT_PATH" >&2
