@@ -6,6 +6,8 @@ echo "🔧 Openterface QT Docker Entrypoint"
 echo "===================================="
 
 # Set display environment for X11 early
+# Force DISPLAY to :98 for screenshot testing (override any defaults)
+export DISPLAY=:98
 export QT_X11_NO_MITSHM=1
 export QT_QPA_PLATFORM=xcb
 
@@ -94,22 +96,17 @@ if [ -f /usr/local/bin/openterfaceQT ]; then
     
     # Check if it's an AppImage
     if file /usr/local/bin/openterfaceQT | grep -q "AppImage"; then
-        echo "ℹ️  Detected AppImage format - using extraction for reliability"
-        export APPIMAGE_EXTRACT_AND_RUN=1  # Use extraction for consistent behavior
+        echo "ℹ️  Detected AppImage format - trying FUSE mounting"
+        export APPIMAGE_EXTRACT_AND_RUN=0  # Try FUSE instead of extraction
+        # Make system libraries available to the AppImage
+        export LD_LIBRARY_PATH="/usr/lib/x86_64-linux-gnu:/usr/lib:$LD_LIBRARY_PATH"
+        echo "ℹ️  Added system library paths for AppImage"
     fi
     
     # Set up display environment for GUI
-    # Note: DISPLAY should be set externally (e.g., :98 for Xvfb)
-    # Only set QT_QPA_PLATFORM=offscreen if no DISPLAY is available
     echo "ℹ️  DISPLAY environment: $DISPLAY"
-    if [ -z "$DISPLAY" ] || [ "$DISPLAY" = ":99" ]; then
-        export DISPLAY=":99"
-        export QT_QPA_PLATFORM=offscreen
-        echo "ℹ️  No X11 display available, using offscreen rendering"
-    else
-        export QT_QPA_PLATFORM=xcb
-        echo "ℹ️  Using X11 display: $DISPLAY"
-    fi
+    export QT_QPA_PLATFORM=xcb
+    echo "ℹ️  Using X11 display: $DISPLAY"
     export QT_X11_NO_MITSHM=1
     export QT_DEBUG_PLUGINS=1  # Enable plugin debugging
     export QT_LOGGING_RULES="qt.qpa.plugin=true"  # Log plugin loading
@@ -117,20 +114,14 @@ if [ -f /usr/local/bin/openterfaceQT ]; then
     # Additional environment variables (only for non-AppImage or when not extracting)
     if ! file /usr/local/bin/openterfaceQT 2>/dev/null | grep -q "AppImage"; then
         export APPIMAGE_EXTRACT_AND_RUN=1
-    else
-        # For AppImage, try to use system Qt plugins if bundled ones don't work
-        export QT_PLUGIN_PATH="/usr/lib/qt6/plugins:/usr/lib/x86_64-linux-gnu/qt6/plugins"
-        export LD_LIBRARY_PATH="/usr/lib/x86_64-linux-gnu:$LD_LIBRARY_PATH"
-        echo "ℹ️  Using system Qt plugins and libraries for AppImage"
     fi
+    # For AppImages, don't override plugin paths - let them use bundled ones with system libs
     export APPDIR="/tmp/.mount_openterfaceQT"  # AppImage mount point
     
     # Start the application and keep container running
     echo "📝 Starting Openterface QT..."
     echo "   DISPLAY=$DISPLAY"
     echo "   QT_QPA_PLATFORM=$QT_QPA_PLATFORM"
-    # Force DISPLAY to the correct value if it's not set properly
-    export DISPLAY="${DISPLAY:-:98}"
     nohup env DISPLAY=$DISPLAY QT_QPA_PLATFORM=$QT_QPA_PLATFORM /usr/local/bin/openterfaceQT > /tmp/openterfaceqt.log 2>&1 &
     APP_PID=$!
     
