@@ -1253,7 +1253,33 @@ echo "✓ Qt platform plugins ensured"
 # CRITICAL FIX: Remove coreutils utilities that have incompatible GLIBC versions
 # These utilities (like stdbuf) should come from the HOST system, not the AppImage
 # This prevents GLIBC_2.38 dependency errors from bundled coreutils
-echo "🔧 Removing problematic coreutils utilities and libraries that may have newer GLIBC dependencies..."
+echo "🔧 Removing GLIBC libraries and coreutils that have incompatible versions..."
+
+# CRITICAL: Remove GLIBC libraries - use host system's compatible versions instead
+# The AppImage libc.so.6 is built against GLIBC 2.38
+# Target systems may have GLIBC 2.31 (Ubuntu 20.04) or other versions
+# Using host's GLIBC ensures compatibility across all systems
+GLIBC_LIBS=(
+    "libc.so.6"              # ⭐ PRIMARY FIX - Must use host version!
+    "libc-2.38.so"
+    "libc-2.37.so"
+    "libc-2.36.so"
+    "libm.so.6"              # Math library - must match libc version
+    "libm-2.38.so"
+    "libpthread.so.0"        # Threading - must match libc
+    "libpthread-2.38.so"
+    "libdl.so.2"             # Dynamic loader - must match libc
+    "libdl-2.38.so"
+    "librt.so.1"             # Real-time - must match libc
+    "librt-2.38.so"
+)
+
+for lib in "${GLIBC_LIBS[@]}"; do
+    if [ -f "${APPDIR}/usr/lib/$lib" ]; then
+        echo "  🗑️  Removing ${lib} (will use host system's version)"
+        rm -f "${APPDIR}/usr/lib/$lib"
+    fi
+done
 
 # Remove coreutils binaries
 PROBLEM_BINS=(
@@ -1278,7 +1304,7 @@ echo "  🗑️  Removed libstdbuf.so variants"
 # Remove the coreutils libexec directory
 rm -rf "${APPDIR}/usr/libexec/coreutils/" 2>/dev/null || true
 rm -rf "${APPDIR}/libexec/coreutils/" 2>/dev/null || true
-echo "  ✓ Coreutils utilities and libraries removed"
+echo "  ✓ GLIBC and coreutils libraries removed - will use host system versions"
 
 # Create custom AppRun script with proper environment setup after linuxdeploy to avoid override
 cat > "${APPDIR}/AppRun" << 'EOF'
@@ -1291,21 +1317,24 @@ HERE="$(dirname "$(readlink -f "${0}")")"
 
 # CRITICAL: Set library path to use AppImage bundled libraries FIRST
 # This prevents loading incompatible system libraries with different GLIBC versions
-# The order is important:
-# 1. AppImage's own libc.so.6 and glibc libraries (built in the container environment)
-# 2. Other AppImage libraries
-# 3. System libraries (as fallback only)
-export LD_LIBRARY_PATH="${HERE}/usr/lib:${HERE}/usr/lib/x86_64-linux-gnu:${HERE}/lib:${HERE}/lib/x86_64-linux-gnu:${LD_LIBRARY_PATH}"
+# However, we DON'T include system GLIBC libraries (they're removed for compatibility)
+# The order is:
+# 1. AppImage's own libraries (non-GLIBC, like plugins and Qt)
+# 2. System libraries (GLIBC, Qt, etc. - provided by host)
+export LD_LIBRARY_PATH="${HERE}/usr/lib:${HERE}/usr/lib/x86_64-linux-gnu:${HERE}/lib:${HERE}/lib/x86_64-linux-gnu:/usr/lib/x86_64-linux-gnu:/usr/lib:/lib:${LD_LIBRARY_PATH}"
 
-# CRITICAL: Ensure system PATH comes AFTER AppImage bin for utilities
-# But this allows fallback to host system utilities (like stdbuf) with compatible GLIBC
+# CRITICAL: Ensure system PATH for utilities and GLIBC
+# Allows fallback to host system utilities with compatible GLIBC
 export PATH="${HERE}/usr/bin:${HERE}/bin:/usr/local/bin:/usr/bin:/bin"
 
-# IMPORTANT: Also set LD_PRELOAD to force usage of bundled libc if available
-# This ensures all child processes use the same glibc version
+# IMPORTANT: Do NOT preload bundled libc - use host system's GLIBC
+# The bundled libc.so.6 is GLIBC 2.38, which doesn't work on older systems
+# We removed it to force using host system's compatible GLIBC
+# NO LD_PRELOAD for libc - let the system provide it
 if [ -f "${HERE}/usr/lib/libc.so.6" ]; then
-    # Preload the bundled libc to ensure consistency
-    export LD_PRELOAD="${HERE}/usr/lib/libc.so.6${LD_PRELOAD:+:$LD_PRELOAD}"
+    # libc.so.6 was removed, so this won't execute
+    # Keeping for reference only
+    true
 fi
 
 # Set dynamic linker to use bundled loader if available
