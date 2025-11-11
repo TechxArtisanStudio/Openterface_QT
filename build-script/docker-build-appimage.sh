@@ -1052,6 +1052,37 @@ export PATH="/opt/Qt6/bin:$PATH"
 export QT_PLUGIN_PATH="/opt/Qt6/plugins:$QT_PLUGIN_PATH"
 export QML2_IMPORT_PATH="/opt/Qt6/qml:$QML2_IMPORT_PATH"
 
+# CRITICAL: Save libraries BEFORE linuxdeploy (it will blacklist some)
+echo "📦 Pre-linuxdeploy: Saving critical libraries to prevent blacklisting..."
+mkdir -p "${APPDIR}/usr/lib/linuxdeploy_protected"
+
+# These libraries WILL be blacklisted by linuxdeploy - save them now
+PROTECTED_LIBS=(
+	"libc.so.6"
+	"libm.so.6" 
+	"libpthread.so.0"
+	"libdl.so.2"
+	"librt.so.1"
+	"libgcc_s.so.1"
+	"libstdc++.so.6"
+	"ld-linux-x86-64.so.2"
+	"libnss_compat.so.2"
+	"libnss_files.so.2"
+	"libnss_dns.so.2"
+	"libresolv.so.2"
+	"libcrypt.so.1"
+	"libutil.so.1"
+)
+
+PROTECTED_COUNT=0
+for lib in "${PROTECTED_LIBS[@]}"; do
+	if [ -f "${APPDIR}/usr/lib/$lib" ]; then
+		cp -P "${APPDIR}/usr/lib/$lib" "${APPDIR}/usr/lib/linuxdeploy_protected/" || true
+		PROTECTED_COUNT=$((PROTECTED_COUNT + 1))
+	fi
+done
+echo "  ✓ Protected $PROTECTED_COUNT critical libraries"
+
 # Build the command with proper argument handling
 LINUXDEPLOY_ARGS=(
 	"--appdir" "${APPDIR}"
@@ -1087,17 +1118,73 @@ if [ "${USE_QT_PLUGIN}" = "true" ]; then
 fi
 
 echo "Running linuxdeploy without output plugin..."
+echo "⚠️  IMPORTANT: linuxdeploy will skip/blacklist certain libraries"
+echo "    (libc.so.6, libgcc_s.so.1, libstdc++.so.6)"
+echo "    These have been backed up and will be restored after linuxdeploy completes"
+echo ""
+
+# Run linuxdeploy with environment variable to suppress some warnings
+# Note: linuxdeploy will still skip blacklisted libraries, but we'll restore them after
+export LDAI_SKIP_GLIBC=1
 if "${LINUXDEPLOY_BIN}" "${LINUXDEPLOY_ARGS_NO_OUTPUT[@]}"; then
-	echo "✓ linuxdeploy completed successfully"
+	echo "✓ linuxdeploy completed"
 else
 	LINUXDEPLOY_EXIT=$?
 	echo "⚠️  linuxdeploy exited with code: $LINUXDEPLOY_EXIT"
 	if [ $LINUXDEPLOY_EXIT -eq 141 ] || [ $LINUXDEPLOY_EXIT -eq 3 ]; then
 		echo "   (This may be a SIGPIPE or similar non-critical error)"
-		echo "   Continuing with AppImage creation..."
-	else
-		echo "   This may indicate a critical error"
+		echo "   Continuing..."
 	fi
+fi
+
+# CRITICAL FIX: Restore critical libraries that linuxdeploy blacklisted
+echo "🔧 Restoring critical libraries that linuxdeploy skipped..."
+echo "   (linuxdeploy blacklists: libc.so.6, libgcc_s.so.1, libstdc++.so.6, etc.)"
+
+if [ -d "${APPDIR}/usr/lib/linuxdeploy_protected" ]; then
+	RESTORED_COUNT=0
+	for lib in "${APPDIR}/usr/lib/linuxdeploy_protected"/*; do
+		if [ -f "$lib" ]; then
+			libname=$(basename "$lib")
+			# Check if linuxdeploy removed it
+			if [ ! -f "${APPDIR}/usr/lib/$libname" ]; then
+				echo "  ✓ Restoring blacklisted library: $libname"
+				cp -P "$lib" "${APPDIR}/usr/lib/" || echo "    ⚠️  Failed to restore $libname"
+				RESTORED_COUNT=$((RESTORED_COUNT + 1))
+			else
+				echo "  ℹ️  Library still present: $libname"
+			fi
+		fi
+	done
+	echo "  ✅ Restored $RESTORED_COUNT blacklisted libraries"
+	rm -rf "${APPDIR}/usr/lib/linuxdeploy_protected"
+else
+	echo "  ⚠️  No protected backup found!"
+fi
+
+# Double-check critical libraries are present
+echo ""
+echo "📊 Verifying critical libraries after linuxdeploy..."
+CRITICAL_LIBS=("libc.so.6" "libm.so.6" "libpthread.so.0" "libdl.so.2" "libgcc_s.so.1" "libstdc++.so.6")
+MISSING_LIBS=()
+for lib in "${CRITICAL_LIBS[@]}"; do
+	if [ -f "${APPDIR}/usr/lib/$lib" ]; then
+		echo "  ✓ Present: $lib"
+	else
+		echo "  ✗ MISSING: $lib"
+		MISSING_LIBS+=("$lib")
+	fi
+done
+
+if [ ${#MISSING_LIBS[@]} -gt 0 ]; then
+	echo ""
+	echo "❌ ERROR: Critical libraries are missing!"
+	echo "Missing: ${MISSING_LIBS[*]}"
+	echo ""
+	echo "This may cause the AppImage to fail with GLIBC version errors."
+	echo "Available libraries in ${APPDIR}/usr/lib:"
+	ls -1 "${APPDIR}/usr/lib" | grep -E "lib(c|m|gcc|stdc)" | head -10
+	echo ""
 fi
 
 # After linuxdeploy, ensure we have the correct Qt platform plugins with all dependencies
