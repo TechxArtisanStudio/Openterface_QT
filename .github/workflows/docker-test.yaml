@@ -232,47 +232,6 @@ jobs:
             fi
           fi
           
-          if [ -z "$APPIMAGE" ]; then
-            echo "⚠️ AppImage file not found in build directory"
-            echo "Available files:"
-            ls -la build/
-            exit 1
-          fi
-          
-          echo "Found AppImage: $APPIMAGE"
-          echo "File size: $(ls -lh "$APPIMAGE" | awk '{print $5}')"
-          echo ""
-          
-          # Extract AppImage contents without mounting
-          echo "📂 Extracting AppImage contents:"
-          echo "==============================="
-          
-          EXTRACT_DIR=$(mktemp -d)
-          trap "rm -rf $EXTRACT_DIR" EXIT
-          
-          cd "$EXTRACT_DIR"
-          
-          # AppImage is a special ELF file that can be executed with --appimage-extract
-          # First, try the standard extraction method
-          echo "� Attempting AppImage extraction with --appimage-extract..."
-          
-          if "$APPIMAGE" --appimage-extract >/dev/null 2>&1; then
-            echo "✅ Extraction successful using --appimage-extract"
-          else
-            echo "⚠️ --appimage-extract failed, trying alternative method..."
-            
-            # Alternative: AppImage is essentially a .squashfs archive
-            # We can extract it by treating it as a file
-            # Get the offset where the AppImage filesystem starts
-            OFFSET=$(strings "$APPIMAGE" | grep -a "\.sqsh" | head -1)
-            if [ -n "$OFFSET" ]; then
-              echo "ℹ️ Detected SquashFS filesystem in AppImage"
-              # Try to find and extract the squashfs part
-              tail -c +100000 "$APPIMAGE" | unsquashfs -d "$EXTRACT_DIR/squashfs-root" - 2>/dev/null || \
-              cd - && echo "⚠️ Could not extract SquashFS"
-            fi
-          fi
-          
           # Now list all the libraries found
           if [ -d "$EXTRACT_DIR/squashfs-root" ] || [ -n "$(find "$EXTRACT_DIR" -name "*.so*" 2>/dev/null | head -1)" ]; then
             echo ""
