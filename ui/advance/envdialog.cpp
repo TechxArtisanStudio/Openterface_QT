@@ -527,6 +527,8 @@ bool EnvironmentSetupDialog::checkEnvironmentSetup() {
         int ret = libusb_init(&context);
         if (ret < 0) {
             qWarning() << "Error initializing libusb: " << libusb_error_name(ret);
+            qWarning() << "Cannot proceed without libusb context. Skipping device checks.";
+            return true; // Skip checks if libusb initialization fails
         }
         qDebug() << "libusb initialized successfully.";
     }
