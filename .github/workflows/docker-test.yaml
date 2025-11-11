@@ -6,6 +6,7 @@ on:
     paths:
       - 'docker/testos/Dockerfile.ubuntu-test-shared'
       - 'docker/install-openterface.sh'
+      - 'docker/screenshot-docker-app.sh'
       - '.github/workflows/docker-test.yaml'
       - 'packaging/debian/**'
   pull_request:

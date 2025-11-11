@@ -122,6 +122,11 @@ while [ $ELAPSED -lt $MAX_WAIT ]; do
     if docker exec $CONTAINER_NAME pgrep -f "openterfaceQT" >/dev/null 2>&1; then
         echo -e "${GREEN}✅ App process detected!${NC}"
         APP_STARTED=true
+        
+        # Show process details
+        echo -e "${BLUE}📊 Process Details:${NC}"
+        docker exec $CONTAINER_NAME ps aux | grep "openterfaceQT" | grep -v grep | sed 's/^/   /'
+        
         # Give it a few more seconds to fully initialize
         sleep 3
         break
