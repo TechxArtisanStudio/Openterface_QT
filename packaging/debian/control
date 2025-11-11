@@ -6,4 +6,6 @@ Architecture: ${ARCH}
 Maintainer: TechxArtisan <info@techxartisan.com>
 Description: OpenterfaceQT KVM Linux Edition
  Includes bundled FFmpeg 6.1.1 libraries (libavformat, libavcodec,
- libswresample, libswscale, libavutil, libavfilter) and libturbojpeg
+ libswresample, libswscale, libavutil, libavfilter), libturbojpeg,
+ VA-API libraries (libva, libva-drm, libva-x11), and VDPAU library
+ (libvdpau) for hardware acceleration support

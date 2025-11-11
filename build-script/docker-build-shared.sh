@@ -259,6 +259,32 @@ if [ $VA_FOUND -eq 0 ]; then
     echo "⚠️  Warning: VA-API libraries not found"
 fi
 
+# Copy VDPAU libraries (libvdpau) for hardware acceleration - search multiple locations
+echo "📋 DEB: Searching for VDPAU libraries..."
+VDPAU_FOUND=0
+for SEARCH_DIR in /usr/lib/x86_64-linux-gnu /usr/lib; do
+    echo "   Checking: $SEARCH_DIR"
+    if [ -d "$SEARCH_DIR" ]; then
+        if ls "$SEARCH_DIR"/libvdpau.so* >/dev/null 2>&1; then
+            echo "   ✅ Found VDPAU libraries in $SEARCH_DIR"
+            VDPAU_FILES=$(ls -la "$SEARCH_DIR"/libvdpau*.so*)
+            echo "   Files found:"
+            echo "$VDPAU_FILES" | sed 's/^/     /'
+            cp -av "$SEARCH_DIR"/libvdpau*.so* "${PKG_ROOT}/usr/lib/openterfaceqt/" 2>&1 | sed 's/^/     /'
+            echo "   ✅ VDPAU libraries copied to ${PKG_ROOT}/usr/lib/openterfaceqt"
+            VDPAU_FOUND=1
+            break
+        else
+            echo "   ✗ No VDPAU libraries found in $SEARCH_DIR"
+        fi
+    else
+        echo "   ✗ Directory does not exist: $SEARCH_DIR"
+    fi
+done
+if [ $VDPAU_FOUND -eq 0 ]; then
+    echo "⚠️  Warning: VDPAU libraries not found"
+fi
+
 # Copy core FFmpeg libraries (libavdevice, libavcodec, libavformat, libavutil, libswscale, libswresample, libavfilter)
 echo "📋 DEB: Searching for FFmpeg core libraries..."
 FFMPEG_FOUND=0
@@ -404,6 +430,7 @@ REQUIRED_LIBS=(
     "libjpeg.so"
     "libturbojpeg.so"
     "libva.so"
+    "libvdpau.so"
     "libgstreamer-1.0.so"
     "libavcodec.so"
     "libavformat.so"
@@ -740,6 +767,34 @@ if [ $VA_FOUND -eq 0 ]; then
     echo "⚠️  Warning: VA-API libraries not found"
 else
     echo "✅ VA-API found and copied"
+fi
+
+# Copy VDPAU libraries for hardware acceleration - search multiple locations
+echo "📋 RPM: Searching for VDPAU libraries..."
+VDPAU_FOUND=0
+for SEARCH_DIR in /usr/lib/x86_64-linux-gnu /usr/lib; do
+    echo "   Checking: $SEARCH_DIR"
+    if [ -d "$SEARCH_DIR" ]; then
+        if ls "$SEARCH_DIR"/libvdpau.so* >/dev/null 2>&1; then
+            echo "   ✅ Found VDPAU libraries in $SEARCH_DIR"
+            VDPAU_FILES=$(ls -la "$SEARCH_DIR"/libvdpau*.so*)
+            echo "   Files found:"
+            echo "$VDPAU_FILES" | sed 's/^/     /'
+            cp -av "$SEARCH_DIR"/libvdpau*.so* "${RPMTOP}/SOURCES/" 2>&1 | sed 's/^/     /'
+            echo "   ✅ VDPAU libraries copied to ${RPMTOP}/SOURCES"
+            VDPAU_FOUND=1
+            break
+        else
+            echo "   ✗ No VDPAU libraries found in $SEARCH_DIR"
+        fi
+    else
+        echo "   ✗ Directory does not exist: $SEARCH_DIR"
+    fi
+done
+if [ $VDPAU_FOUND -eq 0 ]; then
+    echo "⚠️  Warning: VDPAU libraries not found"
+else
+    echo "✅ VDPAU found and copied"
 fi
 
 # Copy core FFmpeg libraries (libavdevice, libavcodec, libavformat, libavutil, libswscale, libswresample, libavfilter)
