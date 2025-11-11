@@ -146,8 +146,9 @@ if [ -f /usr/local/bin/openterfaceQT ]; then
     echo "📝 Starting Openterface QT..."
     echo "   DISPLAY=$DISPLAY"
     echo "   QT_QPA_PLATFORM=$QT_QPA_PLATFORM"
+    echo "   APPIMAGE_EXTRACT_AND_RUN=${APPIMAGE_EXTRACT_AND_RUN:-0}"
     
-    nohup env DISPLAY=$DISPLAY QT_QPA_PLATFORM=$QT_QPA_PLATFORM /usr/local/bin/openterfaceQT > /tmp/openterfaceqt.log 2>&1 &
+    nohup env DISPLAY=$DISPLAY QT_QPA_PLATFORM=$QT_QPA_PLATFORM APPIMAGE_EXTRACT_AND_RUN=${APPIMAGE_EXTRACT_AND_RUN:-0} /usr/local/bin/openterfaceQT > /tmp/openterfaceqt.log 2>&1 &
     APP_PID=$!
     
     echo "✅ Openterface QT started with PID: $APP_PID"
