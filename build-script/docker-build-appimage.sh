@@ -442,6 +442,89 @@ fi
 echo "✓ EGL and GPU rendering libraries processed"
 
 # Copy AppStream/metainfo (optional)
+
+# Copy Qt platform plugins (CRITICAL for GUI applications)
+echo "Including Qt platform plugins for GUI support in comprehensive AppImage..."
+mkdir -p "${APPDIR}/usr/plugins/platforms"
+
+QT_PLATFORM_PLUGINS=(
+    "libqxcb.so"
+    "libqoffscreen.so"
+    "libqminimal.so"
+)
+
+# Also ensure xcb-cursor library is included (required by xcb plugin)
+XCB_DEPS=(
+    "libxcb-cursor.so.0"
+    "libxcb-cursor.so"
+)
+
+# Copy xcb dependencies first
+for SEARCH_DIR in /usr/lib/x86_64-linux-gnu /usr/lib /lib/x86_64-linux-gnu /lib; do
+    if [ -d "$SEARCH_DIR" ]; then
+        for dep in "${XCB_DEPS[@]}"; do
+            found_files=$(find "$SEARCH_DIR" -maxdepth 1 \( -name "$dep" -o -name "${dep}.*" \) 2>/dev/null || true)
+            if [ -n "$found_files" ]; then
+                echo "$found_files" | while read -r file; do
+                    if [ -f "$file" ] && [ ! -f "${APPDIR}/usr/lib/$(basename "$file")" ]; then
+                        echo "  ✓ Copying xcb dependency: $(basename "$file")"
+                        cp "$file" "${APPDIR}/usr/lib/"
+                    fi
+                done
+            fi
+        done
+    fi
+done
+
+# Search for Qt platform plugins in multiple directories
+for SEARCH_DIR in /opt/Qt6/plugins/platforms /usr/lib/qt6/plugins/platforms /usr/lib/x86_64-linux-gnu/qt6/plugins/platforms; do
+    if [ -d "$SEARCH_DIR" ]; then
+        echo "  Searching Qt plugins in: $SEARCH_DIR"
+        for plugin in "${QT_PLATFORM_PLUGINS[@]}"; do
+            # Search for the plugin (including wildcards for versioned plugins)
+            found_files=$(find "$SEARCH_DIR" -maxdepth 1 \( -name "$plugin" -o -name "${plugin}.*" \) 2>/dev/null || true)
+            
+            if [ -n "$found_files" ]; then
+                echo "$found_files" | while read -r file; do
+                    if [ -f "$file" ]; then
+                        dest_file="${APPDIR}/usr/plugins/platforms/$(basename "$file")"
+                        if [ ! -e "$dest_file" ]; then
+                            echo "  ✓ Copying Qt platform plugin: $(basename "$file") from $SEARCH_DIR"
+                            cp "$file" "${APPDIR}/usr/plugins/platforms/"
+                            
+                            # Also copy plugin dependencies
+                            ldd "$file" 2>/dev/null | grep -v "linux-vdso" | grep -v "ld-linux" | awk '{print $3}' | while read -r dep; do
+                                if [ -f "$dep" ] && [[ "$dep" == /usr/lib/* || "$dep" == /lib/* ]] && [ ! -f "${APPDIR}/usr/lib/$(basename "$dep")" ]; then
+                                    echo "    Copying dependency: $(basename "$dep")"
+                                    cp "$dep" "${APPDIR}/usr/lib/"
+                                fi
+                            done
+                        fi
+                    fi
+                done
+            fi
+        done
+    fi
+done
+
+# Verify Qt platform plugins were copied
+echo "📊 Verifying Qt platform plugin installation..."
+MISSING_QT_PLUGINS=()
+for plugin in "${QT_PLATFORM_PLUGINS[@]}"; do
+    if [ ! -e "${APPDIR}/usr/plugins/platforms/$plugin" ]; then
+        MISSING_QT_PLUGINS+=("$plugin")
+        echo "  ⚠️  Missing Qt platform plugin: $plugin"
+    else
+        echo "  ✓ Found Qt platform plugin: $plugin"
+    fi
+done
+
+if [ ${#MISSING_QT_PLUGINS[@]} -gt 0 ]; then
+    echo "⚠️  WARNING: Some Qt platform plugins are missing!"
+    echo "    This may cause GUI display issues in the AppImage"
+fi
+
+echo "✓ Qt platform plugins processed"
 if [ -f "${SRC}/packaging/appimage/com.openterface.openterfaceQT.metainfo.xml" ]; then
 	mkdir -p "${APPDIR}/usr/share/metainfo"
 	cp "${SRC}/packaging/appimage/com.openterface.openterfaceQT.metainfo.xml" "${APPDIR}/usr/share/metainfo/"
@@ -687,6 +770,69 @@ fi
 
 echo "Running linuxdeploy without output plugin..."
 "${LINUXDEPLOY_BIN}" "${LINUXDEPLOY_ARGS_NO_OUTPUT[@]}"
+
+# After linuxdeploy, ensure we have the correct Qt platform plugins with all dependencies
+echo "Ensuring Qt platform plugins are properly bundled after linuxdeploy..."
+mkdir -p "${APPDIR}/usr/plugins/platforms"
+
+QT_PLATFORM_PLUGINS=(
+    "libqxcb.so"
+    "libqoffscreen.so" 
+    "libqminimal.so"
+)
+
+# Also ensure xcb-cursor library is included (required by xcb plugin)
+XCB_DEPS=(
+    "libxcb-cursor.so.0"
+    "libxcb-cursor.so"
+)
+
+# Copy xcb dependencies first
+for SEARCH_DIR in /usr/lib/x86_64-linux-gnu /usr/lib /lib/x86_64-linux-gnu /lib; do
+    if [ -d "$SEARCH_DIR" ]; then
+        for dep in "${XCB_DEPS[@]}"; do
+            found_files=$(find "$SEARCH_DIR" -maxdepth 1 \( -name "$dep" -o -name "${dep}.*" \) 2>/dev/null || true)
+            if [ -n "$found_files" ]; then
+                echo "$found_files" | while read -r file; do
+                    if [ -f "$file" ] && [ ! -f "${APPDIR}/usr/lib/$(basename "$file")" ]; then
+                        echo "  ✓ Copying xcb dependency: $(basename "$file")"
+                        cp "$file" "${APPDIR}/usr/lib/"
+                    fi
+                done
+            fi
+        done
+    fi
+done
+
+# Force copy Qt platform plugins (override any that linuxdeploy copied)
+for SEARCH_DIR in /opt/Qt6/plugins/platforms /usr/lib/qt6/plugins/platforms /usr/lib/x86_64-linux-gnu/qt6/plugins/platforms; do
+    if [ -d "$SEARCH_DIR" ]; then
+        echo "  Ensuring Qt plugins from: $SEARCH_DIR"
+        for plugin in "${QT_PLATFORM_PLUGINS[@]}"; do
+            found_files=$(find "$SEARCH_DIR" -maxdepth 1 \( -name "$plugin" -o -name "${plugin}.*" \) 2>/dev/null || true)
+            
+            if [ -n "$found_files" ]; then
+                echo "$found_files" | while read -r file; do
+                    if [ -f "$file" ]; then
+                        dest_file="${APPDIR}/usr/plugins/platforms/$(basename "$file")"
+                        echo "  ✓ Forcing Qt platform plugin: $(basename "$file")"
+                        cp "$file" "${APPDIR}/usr/plugins/platforms/"
+                        
+                        # Also copy plugin dependencies
+                        ldd "$file" 2>/dev/null | grep -v "linux-vdso" | grep -v "ld-linux" | awk '{print $3}' | while read -r dep; do
+                            if [ -f "$dep" ] && [[ "$dep" == /usr/lib/* || "$dep" == /lib/* ]] && [ ! -f "${APPDIR}/usr/lib/$(basename "$dep")" ]; then
+                                echo "    Copying dependency: $(basename "$dep")"
+                                cp "$dep" "${APPDIR}/usr/lib/"
+                            fi
+                        done
+                    fi
+                done
+            fi
+        done
+    fi
+done
+
+echo "✓ Qt platform plugins ensured"
 
 # Create custom AppRun script with proper environment setup after linuxdeploy to avoid override
 cat > "${APPDIR}/AppRun" << 'EOF'
