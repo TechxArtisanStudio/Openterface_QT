@@ -217,12 +217,26 @@ if [ -n "$APPIMAGE_EXTRACTED" ] && [ -d "$APPIMAGE_EXTRACTED/usr/lib" ]; then
     echo "ℹ️  Using AppImage bundled libraries from: $APPIMAGE_EXTRACTED/usr/lib" >&2
 fi
 
+# Enable more debugging
+export QT_DEBUG_PLUGINS=1
+export QT_LOGGING_RULES="*=true"
+
+# Print environment for debugging
+echo "=== Application Runtime Environment ===" >&2
+echo "DISPLAY=$DISPLAY" >&2
+echo "LD_LIBRARY_PATH=$LD_LIBRARY_PATH" >&2
+echo "QT_QPA_PLATFORM=$QT_QPA_PLATFORM" >&2
+echo "HOME=$HOME" >&2
+echo "======================================" >&2
+
 exec /usr/local/bin/openterfaceQT "$@"
 EOF
         chmod +x /tmp/run-appimage.sh
-        nohup env DISPLAY=$DISPLAY QT_QPA_PLATFORM=$QT_QPA_PLATFORM APPIMAGE_EXTRACT_AND_RUN=${APPIMAGE_EXTRACT_AND_RUN:-0} /tmp/run-appimage.sh > /tmp/openterfaceqt.log 2>&1 &
+        # Use stdbuf to unbuffer output for immediate logging
+        stdbuf -oL -eL env DISPLAY=$DISPLAY QT_QPA_PLATFORM=$QT_QPA_PLATFORM APPIMAGE_EXTRACT_AND_RUN=${APPIMAGE_EXTRACT_AND_RUN:-0} /tmp/run-appimage.sh > /tmp/openterfaceqt.log 2>&1 &
     else
-        nohup env DISPLAY=$DISPLAY QT_QPA_PLATFORM=$QT_QPA_PLATFORM APPIMAGE_EXTRACT_AND_RUN=${APPIMAGE_EXTRACT_AND_RUN:-0} /usr/local/bin/openterfaceQT > /tmp/openterfaceqt.log 2>&1 &
+        # Use stdbuf to unbuffer output for immediate logging
+        stdbuf -oL -eL env DISPLAY=$DISPLAY QT_QPA_PLATFORM=$QT_QPA_PLATFORM APPIMAGE_EXTRACT_AND_RUN=${APPIMAGE_EXTRACT_AND_RUN:-0} /usr/local/bin/openterfaceQT > /tmp/openterfaceqt.log 2>&1 &
     fi
     APP_PID=$!
     
@@ -240,7 +254,21 @@ EOF
     else
         echo "❌ Openterface QT process exited"
         echo "Full log:"
-        cat /tmp/openterfaceqt.log 2>&1 || true
+        if [ -f /tmp/openterfaceqt.log ]; then
+            cat /tmp/openterfaceqt.log 2>&1
+        else
+            echo "⚠️  Log file not created"
+        fi
+        
+        # Additional diagnostics
+        echo ""
+        echo "🔍 Additional Diagnostics:"
+        echo "   Process status: $(ps -p $APP_PID 2>&1 || echo 'Process not found')"
+        echo "   System time: $(date)"
+        echo "   Free memory: $(free -h 2>/dev/null || echo 'N/A')"
+        echo "   Loaded Qt plugins:"
+        find /usr/lib -name "*xcb*" -o -name "*platformtheme*" 2>/dev/null | head -10
+        
         exit 1  # Fail early if app doesn't start
     fi
     
