@@ -1250,6 +1250,28 @@ done
 
 echo "✓ Qt platform plugins ensured"
 
+# CRITICAL FIX: Remove coreutils utilities that have incompatible GLIBC versions
+# These utilities (like stdbuf) should come from the HOST system, not the AppImage
+# This prevents GLIBC_2.38 dependency errors from bundled coreutils
+echo "🔧 Removing problematic coreutils utilities that may have newer GLIBC dependencies..."
+PROBLEM_BINS=(
+    "stdbuf"           # Most common culprit - uses libstdbuf.so.so
+    "time"             # May also have version issues
+    "timeout"          # May have version issues
+)
+
+for bin in "${PROBLEM_BINS[@]}"; do
+    if [ -f "${APPDIR}/usr/bin/$bin" ]; then
+        echo "  🗑️  Removing ${bin} to avoid GLIBC compatibility issues"
+        rm -f "${APPDIR}/usr/bin/$bin"
+    fi
+done
+
+# Also remove problematic coreutils libraries
+echo "Removing bundled coreutils utilities that might cause GLIBC issues..."
+rm -rf "${APPDIR}/usr/libexec/coreutils/" 2>/dev/null || true
+echo "  ✓ Coreutils utilities removed"
+
 # Create custom AppRun script with proper environment setup after linuxdeploy to avoid override
 cat > "${APPDIR}/AppRun" << 'EOF'
 #!/bin/bash
@@ -1266,6 +1288,10 @@ HERE="$(dirname "$(readlink -f "${0}")")"
 # 2. Other AppImage libraries
 # 3. System libraries (as fallback only)
 export LD_LIBRARY_PATH="${HERE}/usr/lib:${HERE}/usr/lib/x86_64-linux-gnu:${HERE}/lib:${HERE}/lib/x86_64-linux-gnu:${LD_LIBRARY_PATH}"
+
+# CRITICAL: Ensure system PATH comes AFTER AppImage bin for utilities
+# But this allows fallback to host system utilities (like stdbuf) with compatible GLIBC
+export PATH="${HERE}/usr/bin:${HERE}/bin:/usr/local/bin:/usr/bin:/bin"
 
 # IMPORTANT: Also set LD_PRELOAD to force usage of bundled libc if available
 # This ensures all child processes use the same glibc version
@@ -1290,9 +1316,14 @@ export QT_PLUGIN_PATH="${HERE}/usr/plugins:${QT_PLUGIN_PATH}"
 # Ensure we don't have conflicting environment variables that might bypass our setup
 unset LD_ORIGIN_PATH
 
+# CRITICAL: Disable any LD_AUDIT hooks that might interfere
+# strace and other debugging tools can cause issues with AppImage
+unset LD_AUDIT
+
 # Debug: Show library path (uncomment for debugging)
 # echo "LD_LIBRARY_PATH=${LD_LIBRARY_PATH}"
 # echo "LD_PRELOAD=${LD_PRELOAD}"
+# echo "PATH=${PATH}"
 # echo "GST_PLUGIN_PATH=${GST_PLUGIN_PATH}"
 # echo "QT_PLUGIN_PATH=${QT_PLUGIN_PATH}"
 
