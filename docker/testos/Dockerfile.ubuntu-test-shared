@@ -24,7 +24,8 @@ ENV LC_ALL=C.UTF-8
 ENV LANG=C.UTF-8
 
 # Install minimal system dependencies and runtime libraries only
-RUN apt-get update -y --allow-releaseinfo-change --allow-unauthenticated
+RUN apt-get update -y --allow-releaseinfo-change --allow-unauthenticated \
+        && apt-get install -y \
         curl \
         wget \
         ca-certificates \
