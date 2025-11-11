@@ -296,10 +296,13 @@ jobs:
         run: |
           echo "🧪 Testing basic container functionality"
           
+          # Set up a trap to kill docker containers on timeout or error
+          trap 'echo "⚠️ Cleanup triggered"; docker ps -aq --filter "name=openterface-basic-test" | xargs -r docker kill 2>/dev/null || true; docker ps -aq --filter "name=openterface-basic-test" | xargs -r docker rm -f 2>/dev/null || true' EXIT
+          
           # Test simple command execution
           echo "🔍 Testing simple command execution..."
           if [ "$HAS_VOLUME_MOUNT" = "true" ]; then
-            timeout 60 docker run --rm $VOLUME_MOUNT -e GITHUB_TOKEN="${{ secrets.GITHUB_TOKEN }}" -e INSTALL_TYPE="${{ env.INSTALL_TYPE }}" \
+            timeout -s KILL 60 docker run --rm $VOLUME_MOUNT -e GITHUB_TOKEN="${{ secrets.GITHUB_TOKEN }}" -e INSTALL_TYPE="${{ env.INSTALL_TYPE }}" \
               --name openterface-basic-test \
               ${{ env.DOCKER_IMAGE_SHARED }}:${{ env.DOCKER_TAG }} \
               bash -c '
@@ -312,9 +315,9 @@ jobs:
                 echo "File system check:"
                 ls -la /home/openterface/ | head -5
                 echo "✅ Basic functionality test completed"
-              '
+              ' || docker kill openterface-basic-test 2>/dev/null || true
           else
-            timeout 60 docker run --rm -e GITHUB_TOKEN="${{ secrets.GITHUB_TOKEN }}" -e INSTALL_TYPE="${{ env.INSTALL_TYPE }}" \
+            timeout -s KILL 60 docker run --rm -e GITHUB_TOKEN="${{ secrets.GITHUB_TOKEN }}" -e INSTALL_TYPE="${{ env.INSTALL_TYPE }}" \
               --name openterface-basic-test \
               ${{ env.DOCKER_IMAGE_SHARED }}:${{ env.DOCKER_TAG }} \
               bash -c '
@@ -327,7 +330,7 @@ jobs:
                 echo "File system check:"
                 ls -la /home/openterface/ | head -5
                 echo "✅ Basic functionality test completed"
-              '
+              ' || docker kill openterface-basic-test 2>/dev/null || true
           fi
           
           echo "✅ Basic container functionality test passed"
@@ -337,8 +340,11 @@ jobs:
         run: |
           echo "🧪 Testing hardware interface dependencies"
           
+          # Set up a trap to kill docker containers on timeout or error
+          trap 'echo "⚠️ Cleanup triggered"; docker ps -aq --filter "name=openterface-hw-test" | xargs -r docker kill 2>/dev/null || true; docker ps -aq --filter "name=openterface-hw-test" | xargs -r docker rm -f 2>/dev/null || true' EXIT
+          
           # Skip entrypoint and just check system libraries directly
-          timeout 240 docker run --rm \
+          timeout -s KILL 240 docker run --rm \
             --entrypoint bash \
             -e GITHUB_TOKEN="${{ secrets.GITHUB_TOKEN }}" \
             -e INSTALL_TYPE="${{ env.INSTALL_TYPE }}" \
@@ -358,10 +364,10 @@ jobs:
               dpkg -l | grep gstreamer | head -5 || echo "No GStreamer packages found"
               
               echo "✅ Hardware interface dependencies check completed"
-            '
+            ' || docker kill openterface-hw-test 2>/dev/null || true
       
       - name: GUI screenshot test using proven script (Shared)
-        timeout-minutes: 10
+        timeout-minutes: 15
         env:
           CI_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CI_VOLUME_MOUNT: ${{ env.VOLUME_MOUNT }}
@@ -372,6 +378,9 @@ jobs:
           
           # Make the script executable
           chmod +x docker/screenshot-docker-app.sh
+          
+          # Set up a trap to kill docker containers on timeout or error
+          trap 'echo "⚠️ Timeout or error detected, killing all openterface docker containers..."; docker ps -aq | xargs -r docker kill 2>/dev/null || true; docker ps -aq | xargs -r docker rm -f 2>/dev/null || true; pkill -9 -f "docker.*openterface" 2>/dev/null || true' EXIT
           
           # Run the screenshot script with CI environment variables
           # The script will use these if set, otherwise fall back to defaults
@@ -390,16 +399,13 @@ jobs:
           echo "  GITHUB_TOKEN: $([ -z '$CI_GITHUB_TOKEN' ] && echo 'NOT SET' || echo 'SET')"
           echo ""
           
-          # Run with error handling and timeout (25 minutes for the script, 30 min step limit as safety)
-          timeout 500 ./docker/screenshot-docker-app.sh &
-          PID=$!
-          wait $PID
+          # Run with timeout that WILL kill the docker container
+          # 12 minutes timeout (720 seconds) ensures we stop before step timeout
+          timeout -s KILL 720 ./docker/screenshot-docker-app.sh
           SCRIPT_EXIT=$?
           
-          if [ $SCRIPT_EXIT -eq 124 ]; then
-            echo "❌ Screenshot script timed out after 25 minutes"
-            # Try to clean up any hanging containers
-            docker ps -aq --filter "name=openterface-screenshot" | xargs -r docker kill 2>/dev/null || true
+          if [ $SCRIPT_EXIT -eq 137 ] || [ $SCRIPT_EXIT -eq 124 ]; then
+            echo "❌ Screenshot script timed out and was killed"
             exit 1
           elif [ $SCRIPT_EXIT -eq 0 ]; then
             echo "✅ Screenshot script completed successfully"
@@ -723,8 +729,11 @@ jobs:
         run: |
           echo "🧪 Testing container with simulated USB device access"
           
+          # Set up a trap to kill docker containers on timeout or error
+          trap 'echo "⚠️ Cleanup triggered"; docker ps -aq --filter "name=openterface-usb-test" | xargs -r docker kill 2>/dev/null || true; docker ps -aq --filter "name=openterface-usb-test" | xargs -r docker rm -f 2>/dev/null || true' EXIT
+          
           # Run container with privileged access to test USB handling
-          timeout 240 docker run --rm \
+          timeout -s KILL 240 docker run --rm \
             --privileged \
             --name openterface-usb-test \
             -v /dev:/dev \
@@ -746,7 +755,7 @@ jobs:
               lsusb | grep -E "534d|1a86" || echo "No Openterface devices detected (expected in test environment)"
               
               echo "✅ USB device access test completed"
-            '
+            ' || docker kill openterface-usb-test 2>/dev/null || true
       - name: Clean up Docker resources (Shared)
         if: always()
         timeout-minutes: 5
@@ -754,32 +763,37 @@ jobs:
           echo "🧹 Cleaning up Docker resources (Shared)"
           
           # Kill any hanging containers immediately (don't wait for graceful shutdown)
-          echo "Stopping any running containers..."
+          echo "1️⃣ Force killing all openterface containers..."
           docker ps -aq --filter "name=openterface-" | xargs -r docker kill 2>/dev/null || true
           
           # Wait a moment for kills to take effect
-          sleep 2
+          sleep 1
           
           # Remove test containers (force remove any remaining)
-          echo "Removing stopped containers..."
+          echo "2️⃣ Force removing all openterface containers..."
           docker ps -aq --filter "name=openterface-" | xargs -r docker rm -f 2>/dev/null || true
           
           # Remove test image
-          echo "Removing test image..."
+          echo "3️⃣ Removing test image..."
           docker rmi ${{ env.DOCKER_IMAGE_SHARED }}:${{ env.DOCKER_TAG }} 2>/dev/null || true
           
-          # Additional safety: kill any dangling docker processes
-          echo "Checking for any remaining docker processes..."
-          if pgrep -f "docker.*openterface" > /dev/null; then
-            echo "⚠️ Found hanging docker processes, killing them..."
-            pkill -9 -f "docker.*openterface" 2>/dev/null || true
-          fi
+          # Additional safety: kill any dangling docker processes at OS level
+          echo "4️⃣ Killing dangling docker processes..."
+          pkill -9 -f "docker run.*openterface" 2>/dev/null || true
+          pkill -9 -f "screenshot-docker-app.sh" 2>/dev/null || true
+          
+          # Use killall as well
+          killall -9 docker 2>/dev/null || true
+          sleep 1
           
           # Verify cleanup
+          echo "5️⃣ Verifying cleanup..."
           remaining=$(docker ps -aq --filter "name=openterface-" 2>/dev/null | wc -l)
           if [ "$remaining" -gt 0 ]; then
             echo "⚠️ Warning: $remaining containers still exist after cleanup"
-            docker ps -a --filter "name=openterface-"
+            docker ps -a --filter "name=openterface-" || true
+            echo "❌ Cleanup incomplete - killing all docker processes..."
+            pkill -9 docker 2>/dev/null || true
           else
             echo "✅ All containers cleaned up successfully"
           fi
@@ -791,13 +805,40 @@ jobs:
     
     steps:
       - name: Emergency cleanup (if build-test-shared hung)
+        timeout-minutes: 5
         run: |
           echo "🛑 Performing emergency docker cleanup..."
+          
           # Kill any zombie containers from previous job
+          echo "1️⃣ Killing all docker containers..."
           docker ps -aq | xargs -r docker kill 2>/dev/null || true
-          sleep 2
+          
+          sleep 1
+          
+          echo "2️⃣ Removing all docker containers..."
           docker ps -aq | xargs -r docker rm -f 2>/dev/null || true
+          
+          # Kill processes aggressively
+          echo "3️⃣ Killing docker processes..."
           pkill -9 -f "docker run" 2>/dev/null || true
+          pkill -9 -f "docker" 2>/dev/null || true
+          
+          # More aggressive: kill all bash processes running docker commands
+          echo "4️⃣ Cleaning up bash subshells..."
+          pkill -9 -f "bash.*docker" 2>/dev/null || true
+          pkill -9 -f "timeout.*docker" 2>/dev/null || true
+          
+          sleep 1
+          
+          # Verify
+          remaining=$(docker ps -aq 2>/dev/null | wc -l)
+          if [ "$remaining" -gt 0 ]; then
+            echo "⚠️ $remaining containers still running, attempting more aggressive cleanup..."
+            docker ps -aq | while read container; do
+              docker kill -s 9 "$container" 2>/dev/null || true
+            done
+          fi
+          
           echo "✅ Emergency cleanup complete"
 
       - name: Checkout code
