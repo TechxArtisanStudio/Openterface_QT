@@ -133,7 +133,7 @@ mkdir -p "appimage/AppDir/usr/lib"
 
 # Debug: Show what libusb files exist in the system
 echo "  🔍 Searching for libusb in system..."
-LIBUSB_FOUND=$(find /usr/lib/x86_64-linux-gnu /usr/lib /lib/x86_64-linux-gnu /lib /opt -name "libusb*" 2>/dev/null | head -10)
+LIBUSB_FOUND=$(find /opt/ffmpeg/lib /opt /usr/lib/x86_64-linux-gnu /usr/lib /lib/x86_64-linux-gnu /lib -name "libusb*" 2>/dev/null | head -10)
 if [ -n "$LIBUSB_FOUND" ]; then
 	echo "    Found libusb files:"
 	echo "$LIBUSB_FOUND" | while read -r lib; do
@@ -158,7 +158,7 @@ CRITICAL_LIBS=(
 for pattern in "${CRITICAL_LIBS[@]}"; do
     # Search in build environment library paths (these have compatible GLIBC)
     FOUND=0
-    for SEARCH_DIR in /opt /usr/lib/x86_64-linux-gnu /usr/lib /lib/x86_64-linux-gnu /lib; do
+    for SEARCH_DIR in /opt/ffmpeg/lib /opt /usr/lib/x86_64-linux-gnu /usr/lib /lib/x86_64-linux-gnu /lib; do
         if [ -d "$SEARCH_DIR" ]; then
             # Use find with -print0 and xargs for better handling
             found_count=$(find "$SEARCH_DIR" -maxdepth 1 -name "$pattern" 2>/dev/null | wc -l)
@@ -397,7 +397,7 @@ mkdir -p "${APPDIR}/usr/lib"
 
 # Debug: Show what libusb files exist in the system
 echo "  🔍 Searching for libusb in system..."
-LIBUSB_FOUND_COMP=$(find /usr/lib/x86_64-linux-gnu /usr/lib /lib/x86_64-linux-gnu /lib /opt -name "libusb*" 2>/dev/null | head -10)
+LIBUSB_FOUND_COMP=$(find /opt/ffmpeg/lib /opt /usr/lib/x86_64-linux-gnu /usr/lib /lib/x86_64-linux-gnu /lib -name "libusb*" 2>/dev/null | head -10)
 if [ -n "$LIBUSB_FOUND_COMP" ]; then
 	echo "    Found libusb files:"
 	echo "$LIBUSB_FOUND_COMP" | while read -r lib; do
@@ -422,7 +422,7 @@ CRITICAL_LIBS=(
 for pattern in "${CRITICAL_LIBS[@]}"; do
     # Search in build environment library paths (these have compatible GLIBC)
     FOUND_CRITICAL=0
-    for SEARCH_DIR in /opt /usr/lib/x86_64-linux-gnu /usr/lib /lib/x86_64-linux-gnu /lib; do
+    for SEARCH_DIR in /opt/ffmpeg/lib /opt /usr/lib/x86_64-linux-gnu /usr/lib /lib/x86_64-linux-gnu /lib; do
         if [ -d "$SEARCH_DIR" ]; then
             # Count matches first
             found_count=$(find "$SEARCH_DIR" -maxdepth 1 -name "$pattern" 2>/dev/null | wc -l)
