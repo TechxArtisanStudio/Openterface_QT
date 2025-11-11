@@ -138,27 +138,36 @@ CRITICAL_LIBS=(
 
 for pattern in "${CRITICAL_LIBS[@]}"; do
     # Search in build environment library paths (these have compatible GLIBC)
+    FOUND=0
     for SEARCH_DIR in /usr/lib/x86_64-linux-gnu /usr/lib /lib/x86_64-linux-gnu /lib; do
         if [ -d "$SEARCH_DIR" ]; then
-            found_files=$(find "$SEARCH_DIR" -maxdepth 1 -name "$pattern" 2>/dev/null || true)
-            if [ -n "$found_files" ]; then
-                echo "$found_files" | while read -r file; do
+            # Use find with -print0 and xargs for better handling
+            found_count=$(find "$SEARCH_DIR" -maxdepth 1 -name "$pattern" 2>/dev/null | wc -l)
+            if [ "$found_count" -gt 0 ]; then
+                echo "  Found $found_count match(es) for pattern '$pattern' in $SEARCH_DIR"
+                find "$SEARCH_DIR" -maxdepth 1 -name "$pattern" 2>/dev/null | while IFS= read -r file; do
                     if [ -f "$file" ] || [ -L "$file" ]; then
                         dest_file="appimage/AppDir/usr/lib/$(basename "$file")"
                         if [ ! -e "$dest_file" ]; then
-                            echo "  ✓ Copying critical library: $(basename "$file") from $SEARCH_DIR"
+                            echo "    ✓ Copying: $(basename "$file")"
                             cp -P "$file" "appimage/AppDir/usr/lib/" 2>&1 || {
-                                echo "  ⚠️  Warning: Failed to copy $file"
+                                echo "    ⚠️  Warning: Failed to copy $file"
                             }
+                        else
+                            echo "    ✓ Already exists: $(basename "$file")"
                         fi
                     fi
                 done
+                FOUND=1
                 break  # Found in this directory, stop searching for this pattern
             fi
         fi
     done
+    if [ $FOUND -eq 0 ]; then
+        echo "  ❌ Pattern not found: $pattern"
+    fi
 done
-echo "✅ Critical system libraries copied"
+echo "✅ Critical system libraries copying completed"
 
 # Copy JPEG libraries for image codec support (required by Qt and FFmpeg)
 echo "📦 Copying JPEG libraries for image codec support..."
@@ -374,25 +383,34 @@ CRITICAL_LIBS=(
 
 for pattern in "${CRITICAL_LIBS[@]}"; do
     # Search in build environment library paths (these have compatible GLIBC)
+    FOUND_CRITICAL=0
     for SEARCH_DIR in /usr/lib/x86_64-linux-gnu /usr/lib /lib/x86_64-linux-gnu /lib; do
         if [ -d "$SEARCH_DIR" ]; then
-            found_files=$(find "$SEARCH_DIR" -maxdepth 1 -name "$pattern" 2>/dev/null || true)
-            if [ -n "$found_files" ]; then
-                echo "$found_files" | while read -r file; do
+            # Count matches first
+            found_count=$(find "$SEARCH_DIR" -maxdepth 1 -name "$pattern" 2>/dev/null | wc -l)
+            if [ "$found_count" -gt 0 ]; then
+                echo "  Found $found_count match(es) for pattern '$pattern' in $SEARCH_DIR"
+                find "$SEARCH_DIR" -maxdepth 1 -name "$pattern" 2>/dev/null | while IFS= read -r file; do
                     if [ -f "$file" ] || [ -L "$file" ]; then
                         dest_file="${APPDIR}/usr/lib/$(basename "$file")"
                         if [ ! -e "$dest_file" ]; then
-                            echo "  ✓ Copying critical library: $(basename "$file") from $SEARCH_DIR"
+                            echo "    ✓ Copying: $(basename "$file")"
                             cp -P "$file" "${APPDIR}/usr/lib/" 2>&1 || {
-                                echo "  ⚠️  Warning: Failed to copy $file"
+                                echo "    ⚠️  Warning: Failed to copy $file"
                             }
+                        else
+                            echo "    ✓ Already exists: $(basename "$file")"
                         fi
                     fi
                 done
+                FOUND_CRITICAL=1
                 break  # Found in this directory, stop searching for this pattern
             fi
         fi
     done
+    if [ $FOUND_CRITICAL -eq 0 ]; then
+        echo "  ❌ Pattern not found in system: $pattern"
+    fi
 done
 echo "✅ Critical system libraries copied to comprehensive AppImage"
 
@@ -793,6 +811,21 @@ echo "DESKTOP_OUT: ${DESKTOP_OUT}"
 echo "ICON_SRC: ${ICON_SRC}"
 echo "USE_QT_PLUGIN: ${USE_QT_PLUGIN}"
 echo "================================"
+
+# Debug: Show what libraries are in the AppDir before linuxdeploy
+echo "📊 Verifying libusb in AppDir before linuxdeploy..."
+if find "${APPDIR}/usr/lib" -name "libusb*" 2>/dev/null | grep -q .; then
+	echo "  ✅ libusb found in AppDir:"
+	find "${APPDIR}/usr/lib" -name "libusb*" 2>/dev/null | while read -r lib; do
+		echo "     - $lib"
+		file "$lib" 2>/dev/null || echo "       (unable to determine file type)"
+	done
+else
+	echo "  ❌ libusb NOT found in AppDir!"
+	echo "  Available system libraries:"
+	ls -lh "${APPDIR}/usr/lib/" | head -20
+fi
+echo ""
 
 # Set LD_LIBRARY_PATH to include ffmpeg and gstreamer libraries for dependency resolution
 export LD_LIBRARY_PATH="/opt/ffmpeg/lib:/opt/gstreamer/lib:/opt/gstreamer/lib/${ARCH}-linux-gnu:/opt/Qt6/lib:$LD_LIBRARY_PATH"
