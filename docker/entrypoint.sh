@@ -108,13 +108,22 @@ if [ -f /usr/local/bin/openterfaceQT ]; then
         chmod +x /usr/local/bin/openterfaceQT
     fi
     
-    # Check if it's an AppImage
-    if file /usr/local/bin/openterfaceQT | grep -q "AppImage"; then
-        echo "ℹ️  Detected AppImage format"
+    # Determine package type from INSTALL_TYPE_ARG
+    if [ "$INSTALL_TYPE_ARG" = "appimage" ]; then
+        echo "ℹ️  Detected AppImage format (from INSTALL_TYPE)"
         # Don't extract AppImage - run it directly with FUSE
         # This avoids GLIBC conflicts between bundled and system libraries
         export APPIMAGE_EXTRACT_AND_RUN=0
         echo "ℹ️  AppImage will run directly (FUSE is available)"
+    elif [ "$INSTALL_TYPE_ARG" = "deb" ]; then
+        echo "ℹ️  Detected DEB package (from INSTALL_TYPE)"
+        # For DEB packages, ensure Qt and system libraries are available
+        export LD_LIBRARY_PATH=/usr/lib/x86_64-linux-gnu:/usr/lib:/lib/x86_64-linux-gnu:/lib:$LD_LIBRARY_PATH
+        export QT_PLUGIN_PATH=/usr/lib/qt6/plugins:/usr/lib/x86_64-linux-gnu/qt6/plugins
+        export QML2_IMPORT_PATH=/usr/lib/qt6/qml:/usr/lib/x86_64-linux-gnu/qt6/qml
+        echo "ℹ️  Library paths configured for system Qt6"
+    else
+        echo "ℹ️  Package type unknown, using default configuration"
     fi
     
     # Set up display environment for GUI
