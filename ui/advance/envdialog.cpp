@@ -170,10 +170,11 @@ EnvironmentSetupDialog::~EnvironmentSetupDialog()
     delete ui;
 }
 
-// Override the closeEvent to prevent closing the dialog
+// Override the closeEvent to handle it same as quit button
 void EnvironmentSetupDialog::closeEvent(QCloseEvent *event)
 {
-    event->ignore(); // Ignore the close event
+    reject(); // Call reject to close the dialog same as quit button
+    event->accept(); // Accept the close event
 }
 
 #ifdef _WIN32
