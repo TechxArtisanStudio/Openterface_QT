@@ -31,6 +31,7 @@ jobs:
       matrix:
         install_type: ['deb', 'appimage']
     runs-on: ubuntu-24.04
+    timeout-minutes: 60
     
     steps:
       - name: Checkout code
@@ -291,13 +292,14 @@ jobs:
           echo "✅ AppImage library analysis completed"
 
       - name: Basic container functionality test (Shared)
+        timeout-minutes: 5
         run: |
           echo "🧪 Testing basic container functionality"
           
           # Test simple command execution
           echo "🔍 Testing simple command execution..."
           if [ "$HAS_VOLUME_MOUNT" = "true" ]; then
-            docker run --rm $VOLUME_MOUNT -e GITHUB_TOKEN="${{ secrets.GITHUB_TOKEN }}" -e INSTALL_TYPE="${{ env.INSTALL_TYPE }}" \
+            timeout 60 docker run --rm $VOLUME_MOUNT -e GITHUB_TOKEN="${{ secrets.GITHUB_TOKEN }}" -e INSTALL_TYPE="${{ env.INSTALL_TYPE }}" \
               --name openterface-basic-test \
               ${{ env.DOCKER_IMAGE_SHARED }}:${{ env.DOCKER_TAG }} \
               bash -c '
@@ -312,7 +314,7 @@ jobs:
                 echo "✅ Basic functionality test completed"
               '
           else
-            docker run --rm -e GITHUB_TOKEN="${{ secrets.GITHUB_TOKEN }}" -e INSTALL_TYPE="${{ env.INSTALL_TYPE }}" \
+            timeout 60 docker run --rm -e GITHUB_TOKEN="${{ secrets.GITHUB_TOKEN }}" -e INSTALL_TYPE="${{ env.INSTALL_TYPE }}" \
               --name openterface-basic-test \
               ${{ env.DOCKER_IMAGE_SHARED }}:${{ env.DOCKER_TAG }} \
               bash -c '
@@ -331,11 +333,12 @@ jobs:
           echo "✅ Basic container functionality test passed"
      
       - name: Test hardware interface dependencies (Shared)
+        timeout-minutes: 5
         run: |
           echo "🧪 Testing hardware interface dependencies"
           
           # Skip entrypoint and just check system libraries directly
-          docker run --rm \
+          timeout 240 docker run --rm \
             --entrypoint bash \
             -e GITHUB_TOKEN="${{ secrets.GITHUB_TOKEN }}" \
             -e INSTALL_TYPE="${{ env.INSTALL_TYPE }}" \
@@ -358,6 +361,7 @@ jobs:
             '
       
       - name: GUI screenshot test using proven script (Shared)
+        timeout-minutes: 10
         env:
           CI_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CI_VOLUME_MOUNT: ${{ env.VOLUME_MOUNT }}
@@ -386,11 +390,21 @@ jobs:
           echo "  GITHUB_TOKEN: $([ -z '$CI_GITHUB_TOKEN' ] && echo 'NOT SET' || echo 'SET')"
           echo ""
           
-          # Run with error handling
-          if ./docker/screenshot-docker-app.sh; then
+          # Run with error handling and timeout (25 minutes for the script, 30 min step limit as safety)
+          timeout 500 ./docker/screenshot-docker-app.sh &
+          PID=$!
+          wait $PID
+          SCRIPT_EXIT=$?
+          
+          if [ $SCRIPT_EXIT -eq 124 ]; then
+            echo "❌ Screenshot script timed out after 25 minutes"
+            # Try to clean up any hanging containers
+            docker ps -aq --filter "name=openterface-screenshot" | xargs -r docker kill 2>/dev/null || true
+            exit 1
+          elif [ $SCRIPT_EXIT -eq 0 ]; then
             echo "✅ Screenshot script completed successfully"
           else
-            echo "❌ Screenshot script failed with exit code $?"
+            echo "❌ Screenshot script failed with exit code $SCRIPT_EXIT"
             echo "📁 Checking for partial screenshot output..."
             ls -la screenshots-shared/ 2>&1 || echo "Directory does not exist"
           fi
@@ -705,11 +719,12 @@ jobs:
           if-no-files-found: warn
 
       - name: Test container with simulated USB devices (Shared)
+        timeout-minutes: 5
         run: |
           echo "🧪 Testing container with simulated USB device access"
           
           # Run container with privileged access to test USB handling
-          docker run --rm \
+          timeout 240 docker run --rm \
             --privileged \
             --name openterface-usb-test \
             -v /dev:/dev \
@@ -734,22 +749,57 @@ jobs:
             '
       - name: Clean up Docker resources (Shared)
         if: always()
+        timeout-minutes: 5
         run: |
           echo "🧹 Cleaning up Docker resources (Shared)"
           
-          # Remove test containers (if any still exist)
-          docker ps -aq --filter "name=openterface-" | xargs -r docker rm -f || true
+          # Kill any hanging containers immediately (don't wait for graceful shutdown)
+          echo "Stopping any running containers..."
+          docker ps -aq --filter "name=openterface-" | xargs -r docker kill 2>/dev/null || true
+          
+          # Wait a moment for kills to take effect
+          sleep 2
+          
+          # Remove test containers (force remove any remaining)
+          echo "Removing stopped containers..."
+          docker ps -aq --filter "name=openterface-" | xargs -r docker rm -f 2>/dev/null || true
           
           # Remove test image
-          docker rmi ${{ env.DOCKER_IMAGE_SHARED }}:${{ env.DOCKER_TAG }} || true
+          echo "Removing test image..."
+          docker rmi ${{ env.DOCKER_IMAGE_SHARED }}:${{ env.DOCKER_TAG }} 2>/dev/null || true
           
-          echo "�?Shared cleanup completed"
+          # Additional safety: kill any dangling docker processes
+          echo "Checking for any remaining docker processes..."
+          if pgrep -f "docker.*openterface" > /dev/null; then
+            echo "⚠️ Found hanging docker processes, killing them..."
+            pkill -9 -f "docker.*openterface" 2>/dev/null || true
+          fi
+          
+          # Verify cleanup
+          remaining=$(docker ps -aq --filter "name=openterface-" 2>/dev/null | wc -l)
+          if [ "$remaining" -gt 0 ]; then
+            echo "⚠️ Warning: $remaining containers still exist after cleanup"
+            docker ps -a --filter "name=openterface-"
+          else
+            echo "✅ All containers cleaned up successfully"
+          fi
   generate-combined-report:
     if: always()
     needs: [build-test-shared]
     runs-on: ubuntu-24.04
+    timeout-minutes: 30
     
     steps:
+      - name: Emergency cleanup (if build-test-shared hung)
+        run: |
+          echo "🛑 Performing emergency docker cleanup..."
+          # Kill any zombie containers from previous job
+          docker ps -aq | xargs -r docker kill 2>/dev/null || true
+          sleep 2
+          docker ps -aq | xargs -r docker rm -f 2>/dev/null || true
+          pkill -9 -f "docker run" 2>/dev/null || true
+          echo "✅ Emergency cleanup complete"
+
       - name: Checkout code
         uses: actions/checkout@v4
         
