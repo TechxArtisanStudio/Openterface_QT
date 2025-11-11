@@ -147,7 +147,7 @@ if [ ! -d "${QT_LIB_DIR}" ]; then
 fi
 
 if [ -d "${QT_LIB_DIR}" ]; then
-    mkdir -p "${PKG_ROOT}/usr/lib"
+    mkdir -p "${PKG_ROOT}/usr/lib/openterfaceqt/qt6"
     echo "Copying Qt libraries from ${QT_LIB_DIR}..."
     # Copy only Qt6 libraries (not all system libraries)
     find "${QT_LIB_DIR}" -maxdepth 1 -name "libQt6*.so*" -exec cp -a {} "${PKG_ROOT}/usr/lib/openterfaceqt/qt6" \; 2>/dev/null || true

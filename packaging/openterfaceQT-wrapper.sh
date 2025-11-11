@@ -29,15 +29,27 @@ esac
 # This prevents errors like: "undefined symbol: _gst_meta_tag_memory_reference"
 
 BUNDLED_LIB_PATHS=(
+    "/usr/lib/openterfaceqt/qt6"        # Bundled Qt6 libraries (highest priority)
     "/usr/lib/openterfaceqt"            # Bundled libraries (FFmpeg, GStreamer, etc.)
 )
 
 # Add bundled library paths first (highest priority)
 if [ -z "$LD_LIBRARY_PATH" ]; then
-    LD_LIBRARY_PATH="${BUNDLED_LIB_PATHS[0]}"
-else
-    # Prepend bundled paths to existing LD_LIBRARY_PATH
+    # Build initial path from bundled paths
+    LD_LIBRARY_PATH=""
     for lib_path in "${BUNDLED_LIB_PATHS[@]}"; do
+        if [ -d "$lib_path" ]; then
+            if [ -z "$LD_LIBRARY_PATH" ]; then
+                LD_LIBRARY_PATH="${lib_path}"
+            else
+                LD_LIBRARY_PATH="${LD_LIBRARY_PATH}:${lib_path}"
+            fi
+        fi
+    done
+else
+    # Prepend bundled paths to existing LD_LIBRARY_PATH (in reverse order for correct priority)
+    for ((i=${#BUNDLED_LIB_PATHS[@]}-1; i>=0; i--)); do
+        lib_path="${BUNDLED_LIB_PATHS[$i]}"
         if [ -d "$lib_path" ]; then
             LD_LIBRARY_PATH="${lib_path}:${LD_LIBRARY_PATH}"
         fi
