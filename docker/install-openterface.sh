@@ -683,14 +683,12 @@ if file "$BINARY_LOCATION" 2>/dev/null | grep -q "AppImage"; then
     # Check FUSE support
     if command -v fusermount >/dev/null 2>&1; then
         echo "✅ FUSE is available - running AppImage directly"
-        export LD_LIBRARY_PATH=/usr/lib:$LD_LIBRARY_PATH
         export QT_QPA_PLATFORM=xcb
         export QT_X11_NO_MITSHM=1
         exec "$BINARY_LOCATION" "$@"
     else
         echo "⚠️  FUSE not available - using extraction mode"
         echo "   (Install libfuse2 and fuse for better performance)"
-        export LD_LIBRARY_PATH=/usr/lib:$LD_LIBRARY_PATH
         export QT_QPA_PLATFORM=xcb
         export QT_X11_NO_MITSHM=1
         exec "$BINARY_LOCATION" --appimage-extract-and-run "$@"
