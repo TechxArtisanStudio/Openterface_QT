@@ -88,9 +88,17 @@ if [ -f /usr/local/bin/openterfaceQT ]; then
     echo "✅ Found openterfaceQT application, starting it..."
     
     # Set up display environment for GUI
-    export DISPLAY="${DISPLAY:-:99}"
+    # Note: DISPLAY should be set externally (e.g., :98 for Xvfb)
+    # Only set QT_QPA_PLATFORM=offscreen if no DISPLAY is available
+    if [ -z "$DISPLAY" ] || [ "$DISPLAY" = ":99" ]; then
+        export DISPLAY=":99"
+        export QT_QPA_PLATFORM=offscreen
+        echo "ℹ️  No X11 display available, using offscreen rendering"
+    else
+        export QT_QPA_PLATFORM=xcb
+        echo "ℹ️  Using X11 display: $DISPLAY"
+    fi
     export QT_X11_NO_MITSHM=1
-    export QT_QPA_PLATFORM=offscreen
     
     # Start the application and keep container running
     echo "📝 Starting Openterface QT..."
@@ -100,20 +108,31 @@ if [ -f /usr/local/bin/openterfaceQT ]; then
     echo "✅ Openterface QT started with PID: $APP_PID"
     echo "📋 Log file: /tmp/openterfaceqt.log"
     echo ""
+    
+    # Wait a moment for app to initialize
+    sleep 2
+    
+    # Check if app is still running
+    if ps -p $APP_PID > /dev/null 2>&1; then
+        echo "✅ Openterface QT is running!"
+    else
+        echo "⚠️  Openterface QT process may have exited"
+        echo "Last 10 lines of log:"
+        tail -10 /tmp/openterfaceqt.log 2>&1 || true
+    fi
+    
+    echo ""
     echo "Openterface QT is ready for testing!"
     echo ""
     
-    # Keep container running by waiting for the app process
-    # This prevents the container from stopping
+    # Keep container running
     if [ $# -eq 0 ]; then
-        # No command provided, just wait for the app to finish
-        wait $APP_PID
-        exit_code=$?
-        echo "Openterface QT exited with code: $exit_code"
-        # Keep container running even if app exits
-        exec /bin/bash -i
+        # No command provided, keep container alive with sleep
+        echo "ℹ️  No command provided, keeping container alive..."
+        exec tail -f /dev/null
     else
-        # Execute provided command but keep app running in background
+        # Execute provided command (keeps container alive)
+        echo "ℹ️  Executing command: $@"
         exec "$@"
     fi
 else

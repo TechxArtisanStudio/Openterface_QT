@@ -87,10 +87,10 @@ if [ -n "$VOLUME_MOUNT" ]; then
     DOCKER_RUN_CMD="$DOCKER_RUN_CMD $VOLUME_MOUNT"
 fi
 
-# Add the image - let the entrypoint run first, then keep container alive
-# The entrypoint will handle installation if needed
-# Pass 'sleep infinity' as the command to keep container running after entrypoint
-DOCKER_RUN_CMD="$DOCKER_RUN_CMD $DOCKER_IMAGE:$DOCKER_TAG sleep infinity"
+# Add the image and override entrypoint behavior
+# We want to run installation but NOT start the app automatically
+# Override the CMD to just sleep, and we'll start the app manually
+DOCKER_RUN_CMD="$DOCKER_RUN_CMD $DOCKER_IMAGE:$DOCKER_TAG tail -f /dev/null"
 
 # Execute the docker run command
 CONTAINER_ID=$(eval $DOCKER_RUN_CMD)
@@ -98,52 +98,33 @@ CONTAINER_ID=$(eval $DOCKER_RUN_CMD)
 echo -e "${GREEN}✅ Container started${NC}"
 echo -e "${BLUE}📦 Container ID: ${CONTAINER_ID:0:12}${NC}"
 
-# Wait a moment for entrypoint to complete
-echo -e "${BLUE}⏳ Waiting for entrypoint to complete installation...${NC}"
-sleep 8
+# Wait a moment for entrypoint to complete installation
+echo -e "${BLUE}⏳ Waiting for entrypoint to complete installation and start app...${NC}"
+sleep 12
 
-# Check if container is still running after entrypoint
+# Check if container is still running
 if ! docker ps | grep -q $CONTAINER_ID; then
-    echo -e "${RED}⚠️  Container exited after entrypoint!${NC}"
+    echo -e "${RED}⚠️  Container exited unexpectedly!${NC}"
     echo -e "${BLUE}📋 Container logs:${NC}"
     docker logs $CONTAINER_ID 2>&1 | sed 's/^/   /'
     exit 1
 fi
 
-echo -e "${GREEN}✅ Entrypoint completed successfully${NC}"
-echo -e "${BLUE}📱 Starting openterfaceQT app inside container...${NC}"
+echo -e "${GREEN}✅ Container is running${NC}"
 
-# Start the app inside the already-running container and capture output
-APP_START_OUTPUT=$(docker exec $CONTAINER_NAME /bin/bash -c "
-export DISPLAY=$DISPLAY
-export QT_X11_NO_MITSHM=1
-export QT_QPA_PLATFORM=xcb
-export QT_PLUGIN_PATH=/usr/lib/qt6/plugins
-export QML2_IMPORT_PATH=/usr/lib/qt6/qml
-export LC_ALL=C.UTF-8
-export LANG=C.UTF-8
-
-if [ -f /usr/local/bin/openterfaceQT ]; then
-    echo 'Starting openterfaceQT...'
-    nohup /usr/local/bin/openterfaceQT > /tmp/openterfaceqt.log 2>&1 &
-    APP_PID=\$!
-    echo \"App started with PID: \$APP_PID\"
+# Check if app is running
+echo -e "${BLUE}🔍 Checking if openterfaceQT is running...${NC}"
+if docker exec $CONTAINER_NAME pgrep -x openterfaceQT >/dev/null 2>&1; then
+    echo -e "${GREEN}✅ openterfaceQT process is running${NC}"
+    docker exec $CONTAINER_NAME ps aux | grep openterfaceQT | grep -v grep | sed 's/^/   /'
 else
-    echo 'ERROR: openterfaceQT not found!'
-    ls -la /usr/local/bin/openterface* 2>&1 || echo 'No openterface binaries found'
-    exit 1
-fi
-" 2>&1)
-
-echo "$APP_START_OUTPUT" | sed 's/^/   /'
-
-if echo "$APP_START_OUTPUT" | grep -q "ERROR:"; then
-    echo -e "${RED}❌ Failed to start app${NC}"
-    docker logs $CONTAINER_NAME 2>&1 | tail -20 | sed 's/^/   /'
-    exit 1
+    echo -e "${YELLOW}⚠️  openterfaceQT process not detected, checking logs...${NC}"
+    docker exec $CONTAINER_NAME tail -20 /tmp/openterfaceqt.log 2>&1 | sed 's/^/   /'
 fi
 
-sleep 3
+# Give the app extra time to fully initialize UI
+echo -e "${BLUE}⏳ Waiting for app UI to initialize...${NC}"
+sleep 5
 
 echo -e "${BLUE}📱 App is initializing...${NC}"
 
