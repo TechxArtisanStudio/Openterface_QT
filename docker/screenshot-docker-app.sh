@@ -109,7 +109,8 @@ sleep 2 &&
 CONTAINER_ID=$(eval $DOCKER_RUN_CMD)
 
 echo -e "${GREEN}✅ Container started${NC}"
-echo -e "${BLUE}📱 App is initializing...${NC}"
+echo -e "${BLUE}� Container ID: ${CONTAINER_ID:0:12}${NC}"
+echo -e "${BLUE}�📱 App is initializing...${NC}"
 
 # Wait for app to start with 2-minute timeout
 echo -e "${YELLOW}⏱️  Waiting for app to start (timeout: 2 minutes)...${NC}"
@@ -118,9 +119,21 @@ ELAPSED=0
 APP_STARTED=false
 
 while [ $ELAPSED -lt $MAX_WAIT ]; do
+    # Display countdown first
+    REMAINING=$((MAX_WAIT - ELAPSED))
+    printf "\r${YELLOW}Waiting... %d seconds elapsed, %d seconds remaining${NC}" $ELAPSED $REMAINING
+    
+    # Check if container is still running
+    if ! docker ps | grep -q $CONTAINER_ID; then
+        echo ""
+        echo -e "${RED}❌ Container has exited after $ELAPSED seconds${NC}"
+        break
+    fi
+    
     # Check if the app process is running (match only the actual binary, not bash scripts)
     if docker exec $CONTAINER_NAME pgrep -x "openterfaceQT" >/dev/null 2>&1; then
-        echo -e "${GREEN}✅ App process detected!${NC}"
+        echo ""
+        echo -e "${GREEN}✅ App process detected after $ELAPSED seconds!${NC}"
         APP_STARTED=true
         
         # Show process details (filter to only the actual app process, not entrypoint or bash)
@@ -131,16 +144,6 @@ while [ $ELAPSED -lt $MAX_WAIT ]; do
         sleep 3
         break
     fi
-    
-    # Check if container is still running
-    if ! docker ps | grep -q $CONTAINER_ID; then
-        echo -e "${RED}❌ Container has exited${NC}"
-        break
-    fi
-    
-    # Display countdown
-    REMAINING=$((MAX_WAIT - ELAPSED))
-    printf "\r${YELLOW}Waiting... %d seconds remaining${NC}" $REMAINING
     
     sleep 1
     ELAPSED=$((ELAPSED + 1))
