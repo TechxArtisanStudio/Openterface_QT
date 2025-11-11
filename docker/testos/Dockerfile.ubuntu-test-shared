@@ -34,8 +34,7 @@ RUN apt-get install -y \
         jq \
         sudo \
         udev \
-        usbutils \
-        file
+        usbutils
 # Hardware interface libraries (runtime only)
 RUN apt-get install -y libusb-1.0-0 \
         libudev1
