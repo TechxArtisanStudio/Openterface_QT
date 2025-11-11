@@ -475,12 +475,13 @@ fi
 # Update the binary's rpath to point to bundled libraries
 # Libraries are bundled in /usr/lib/openterfaceqt (isolated from system libraries)
 # Binary is at: /usr/local/bin/openterfaceQT
-# Libraries are at: /usr/lib/openterfaceqt/
-# So RPATH should be: /usr/lib/openterfaceqt (direct path to bundled libraries)
+# Qt6 libraries are at: /usr/lib/openterfaceqt/qt6/
+# Other libraries are at: /usr/lib/openterfaceqt/
+# So RPATH should include both: /usr/lib/openterfaceqt/qt6:/usr/lib/openterfaceqt
 if [ -f "${PKG_ROOT}/usr/local/bin/openterfaceQT" ]; then
     echo "🔧 Updating rpath for bundled libraries..."
-    echo "   Setting RPATH to: /usr/lib/openterfaceqt"
-    if patchelf --set-rpath '/usr/lib/openterfaceqt' "${PKG_ROOT}/usr/local/bin/openterfaceQT"; then
+    echo "   Setting RPATH to: /usr/lib/openterfaceqt/qt6:/usr/lib/openterfaceqt"
+    if patchelf --set-rpath '/usr/lib/openterfaceqt/qt6:/usr/lib/openterfaceqt' "${PKG_ROOT}/usr/local/bin/openterfaceQT"; then
         echo "   ✅ RPATH updated successfully"
         patchelf --print-rpath "${PKG_ROOT}/usr/local/bin/openterfaceQT" | sed 's/^/     Actual RPATH: /'
     else
@@ -916,7 +917,9 @@ ls -lah "${RPMTOP}/SOURCES/" | head -30
 # Update the binary's rpath to point to /usr/lib/openterfaceqt for RPM
 if [ -f "${RPMTOP}/SOURCES/openterfaceQT" ]; then
     echo "Updating rpath for RPM bundled libraries..."
-    patchelf --set-rpath '/usr/lib/openterfaceqt' "${RPMTOP}/SOURCES/openterfaceQT"
+    echo "   Setting RPATH to: /usr/lib/openterfaceqt/qt6:/usr/lib/openterfaceqt"
+    patchelf --set-rpath '/usr/lib/openterfaceqt/qt6:/usr/lib/openterfaceqt' "${RPMTOP}/SOURCES/openterfaceQT"
+    echo "   ✅ RPATH updated successfully"
 fi
 
 # Generate spec from template
