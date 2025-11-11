@@ -192,7 +192,7 @@ jobs:
           echo "📚 Analyzing AppImage included libraries"
           
           # Find the AppImage file with absolute path
-          APPIMAGE=$(cd build && pwd)/$(find . -name "*.AppImage" -type f | sed 's|^\./||' | head -1)
+          APPIMAGE=$(find build -name "*.AppImage" -type f | head -1)
           
           if [ -z "$APPIMAGE" ] || [ ! -f "$APPIMAGE" ]; then
             echo "⚠️ AppImage file not found in build directory"
@@ -200,6 +200,9 @@ jobs:
             ls -la build/
             exit 1
           fi
+          
+          # Convert to absolute path
+          APPIMAGE=$(cd "$(dirname "$APPIMAGE")" && pwd)/$(basename "$APPIMAGE")
           
           echo "Found AppImage: $APPIMAGE"
           echo "File size: $(ls -lh "$APPIMAGE" | awk '{print $5}')"
