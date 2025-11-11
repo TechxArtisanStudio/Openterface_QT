@@ -65,10 +65,9 @@ if [ -n "$VOLUME_MOUNT" ]; then
     DOCKER_RUN_CMD="$DOCKER_RUN_CMD $VOLUME_MOUNT"
 fi
 
-# Add the image and override entrypoint behavior
-# We want to run installation but NOT start the app automatically
-# Override the CMD to just sleep, and we'll start the app manually
-DOCKER_RUN_CMD="$DOCKER_RUN_CMD $DOCKER_IMAGE:$DOCKER_TAG tail -f /dev/null"
+# Add the image - let the entrypoint handle app startup
+# The entrypoint will install and start the app automatically
+DOCKER_RUN_CMD="$DOCKER_RUN_CMD $DOCKER_IMAGE:$DOCKER_TAG"
 
 # Execute the docker run command
 CONTAINER_ID=$(eval $DOCKER_RUN_CMD)
@@ -78,13 +77,20 @@ echo -e "${BLUE}📦 Container ID: ${CONTAINER_ID:0:12}${NC}"
 
 # Wait a moment for entrypoint to complete installation
 echo -e "${BLUE}⏳ Waiting for entrypoint to complete installation and start app...${NC}"
-sleep 12
+sleep 15
 
 # Check if container is still running
 if ! docker ps | grep -q $CONTAINER_ID; then
     echo -e "${RED}⚠️  Container exited unexpectedly!${NC}"
     echo -e "${BLUE}📋 Container logs:${NC}"
     docker logs $CONTAINER_ID 2>&1 | sed 's/^/   /'
+    
+    # Extract and display the openterfaceqt.log from exited container
+    echo ""
+    echo -e "${BLUE}📋 App logs (from exited container):${NC}"
+    docker cp $CONTAINER_NAME:/tmp/openterfaceqt.log /tmp/openterfaceqt.log 2>/dev/null && \
+        cat /tmp/openterfaceqt.log | sed 's/^/   /' || echo "   ⚠️  Could not retrieve app logs"
+    
     exit 1
 fi
 

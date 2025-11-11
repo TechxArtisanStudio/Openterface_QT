@@ -277,16 +277,30 @@ EOF
     echo "Openterface QT is ready for testing!"
     echo ""
     
-    # Keep container running
-    if [ $# -eq 0 ]; then
-        # No command provided, keep container alive with sleep
-        echo "ℹ️  No command provided, keeping container alive..."
-        exec tail -f /dev/null
-    else
-        # Execute provided command (keeps container alive)
-        echo "ℹ️  Executing command: $@"
-        exec "$@"
-    fi
+    # Keep container running - monitor the app process
+    echo "ℹ️  Container will monitor app process..."
+    
+    # Create a monitoring loop that keeps container alive
+    while true; do
+        if ps -p $APP_PID > /dev/null 2>&1; then
+            # App is still running, sleep and check again
+            sleep 5
+        else
+            # App has exited, check if we should keep running
+            if [ $# -eq 0 ]; then
+                # No command provided, app exited, keep container alive for debugging/screenshots
+                echo "⚠️  App process exited, but keeping container running for testing..."
+                # Keep container alive indefinitely
+                sleep 1
+            else
+                # Execute provided command
+                echo "ℹ️  Executing command: $@"
+                exec "$@"
+                # If command exits, this line won't be reached
+                break
+            fi
+        fi
+    done
 else
     echo "⚠️ openterfaceQT application not found"
     echo "Available applications:"
