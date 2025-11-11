@@ -191,8 +191,46 @@ jobs:
         run: |
           echo "📚 Analyzing AppImage included libraries"
           
-          # Find the AppImage file
-          APPIMAGE=$(find build -name "*.AppImage" -type f | head -1)
+          # Find the AppImage file with absolute path
+          APPIMAGE=$(cd build && pwd)/$(find . -name "*.AppImage" -type f | sed 's|^\./||' | head -1)
+          
+          if [ -z "$APPIMAGE" ] || [ ! -f "$APPIMAGE" ]; then
+            echo "⚠️ AppImage file not found in build directory"
+            echo "Available files:"
+            ls -la build/
+            exit 1
+          fi
+          
+          echo "Found AppImage: $APPIMAGE"
+          echo "File size: $(ls -lh "$APPIMAGE" | awk '{print $5}')"
+          echo ""
+          
+          # Extract AppImage contents without mounting
+          echo "📂 Extracting AppImage contents:"
+          echo "==============================="
+          
+          EXTRACT_DIR=$(mktemp -d)
+          trap "rm -rf $EXTRACT_DIR" EXIT
+          
+          cd "$EXTRACT_DIR"
+          
+          # AppImage is a special ELF file that can be executed with --appimage-extract
+          echo "🔧 Attempting AppImage extraction with --appimage-extract..."
+          
+          if "$APPIMAGE" --appimage-extract >/dev/null 2>&1; then
+            echo "✅ Extraction successful using --appimage-extract"
+          else
+            echo "⚠️ --appimage-extract failed, trying alternative method..."
+            
+            # Alternative: AppImage is essentially a .squashfs archive
+            if command -v unsquashfs >/dev/null 2>&1; then
+              echo "ℹ️ Attempting SquashFS extraction..."
+              tail -c +100000 "$APPIMAGE" 2>/dev/null | unsquashfs -d squashfs-root - 2>/dev/null && \
+              echo "✅ SquashFS extraction successful" || echo "⚠️ SquashFS extraction failed"
+            else
+              echo "⚠️ unsquashfs not available"
+            fi
+          fi
           
           if [ -z "$APPIMAGE" ]; then
             echo "⚠️ AppImage file not found in build directory"
