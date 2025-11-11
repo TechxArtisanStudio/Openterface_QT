@@ -87,17 +87,39 @@ if [ -n "$VOLUME_MOUNT" ]; then
     DOCKER_RUN_CMD="$DOCKER_RUN_CMD $VOLUME_MOUNT"
 fi
 
-# Add the image and let entrypoint handle installation and app launch
-# Instead of overriding with bash -c, we'll let the entrypoint do its job
-# and then keep the container alive
-DOCKER_RUN_CMD="$DOCKER_RUN_CMD $DOCKER_IMAGE:$DOCKER_TAG tail -f /dev/null"
+# Add the image and command to run openterfaceQT directly
+# Use --entrypoint to override the default entrypoint behavior
+DOCKER_RUN_CMD="$DOCKER_RUN_CMD --entrypoint /bin/bash $DOCKER_IMAGE:$DOCKER_TAG -c \"
+export DISPLAY=$DISPLAY
+export QT_X11_NO_MITSHM=1
+export QT_QPA_PLATFORM=xcb
+export QT_PLUGIN_PATH=/usr/lib/qt6/plugins
+export QML2_IMPORT_PATH=/usr/lib/qt6/qml
+export LC_ALL=C.UTF-8
+export LANG=C.UTF-8
+
+# Check if app exists
+if [ -f /usr/local/bin/openterfaceQT ]; then
+    echo 'Starting openterfaceQT...'
+    /usr/local/bin/openterfaceQT &
+    APP_PID=\\\$!
+    echo 'App started with PID:' \\\$APP_PID
+    # Keep container alive
+    wait \\\$APP_PID || sleep infinity
+else
+    echo 'openterfaceQT not found, checking installation...'
+    ls -la /usr/local/bin/openterface* 2>&1 || echo 'No openterface binaries found'
+    echo 'Binary check failed'
+    sleep infinity
+fi
+\""
 
 # Execute the docker run command
 CONTAINER_ID=$(eval $DOCKER_RUN_CMD)
 
 echo -e "${GREEN}✅ Container started${NC}"
 echo -e "${BLUE}📦 Container ID: ${CONTAINER_ID:0:12}${NC}"
-echo -e "${BLUE}📱 Waiting for installation and app initialization...${NC}"
+echo -e "${BLUE}📱 App is initializing...${NC}"
 
 # Quick initial check to see if container is still running
 sleep 2
@@ -108,30 +130,11 @@ if ! docker ps | grep -q $CONTAINER_ID; then
     echo ""
     echo -e "${YELLOW}💡 Possible issues:${NC}"
     echo "   - Check if the Docker image exists and is properly built"
-    echo "   - Verify entrypoint.sh is executable and working"
+    echo "   - Verify /usr/local/bin/openterfaceQT exists in the image"
     echo "   - Check X11 display connection"
-    echo "   - Verify installation package exists if INSTALL_TYPE=deb"
+    echo "   - Verify Qt dependencies are installed"
     echo ""
 fi
-
-# Wait for entrypoint to finish installation
-echo -e "${BLUE}⏳ Waiting for entrypoint installation to complete...${NC}"
-sleep 60
-
-# Now manually launch the app inside the running container
-echo -e "${BLUE}🚀 Launching openterfaceQT app inside container...${NC}"
-docker exec -d $CONTAINER_NAME bash -c "
-export DISPLAY=$DISPLAY
-export QT_X11_NO_MITSHM=1
-export QT_QPA_PLATFORM=xcb
-export QT_PLUGIN_PATH=/usr/lib/qt6/plugins
-export QML2_IMPORT_PATH=/usr/lib/qt6/qml
-/usr/local/bin/openterfaceQT > /tmp/openterfaceqt.log 2>&1 || {
-    echo 'App launch failed - running diagnostics...' | tee /tmp/openterfaceqt-error.log
-    /usr/local/bin/check-qt-deps.sh 2>&1 | tee -a /tmp/openterfaceqt-error.log
-    ls -la /usr/local/bin/openterface* 2>&1 | tee -a /tmp/openterfaceqt-error.log
-}
-"
 
 # Wait for app to start with 2-minute timeout
 echo -e "${YELLOW}⏱️  Waiting for app to start (timeout: 2 minutes)...${NC}"

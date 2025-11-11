@@ -270,6 +270,7 @@ jobs:
           export DOCKER_TAG="$CI_DOCKER_TAG"
           export DOCKER_IMAGE="$CI_DOCKER_IMAGE"
           export SCREENSHOTS_DIR="screenshots-shared"
+          export INSTALL_TYPE="${{ env.INSTALL_TYPE }}"
           
           echo "🎬 Executing screenshot script with environment:"
           echo "  DOCKER_IMAGE=$DOCKER_IMAGE"
