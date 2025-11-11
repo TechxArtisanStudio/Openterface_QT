@@ -88,23 +88,22 @@ if [ -n "$VOLUME_MOUNT" ]; then
 fi
 
 # Add the image and command to launch the app
-DOCKER_RUN_CMD="$DOCKER_RUN_CMD $DOCKER_IMAGE:$DOCKER_TAG \
-    bash -c '
-        export DISPLAY=$DISPLAY QT_X11_NO_MITSHM=1 QT_QPA_PLATFORM=xcb &&
-        /usr/local/bin/check-qt-deps.sh &&
-        sleep 2 &&
-        exec /usr/local/bin/openterfaceQT 2>&1 ||
-        (
-            echo "App launch failed - running diagnostics..." &&
-            echo "---" &&
-            /usr/local/bin/check-qt-deps.sh 2>&1 &&
-            echo "---" &&
-            ls -la /usr/local/bin/openterface* 2>&1 &&
-            which openterfaceQT 2>&1 &&
-            echo "---" &&
-            /usr/local/bin/openterfaceQT --version 2>&1 || echo "Binary exists but cannot run"
-        )
-    '
+DOCKER_RUN_CMD="$DOCKER_RUN_CMD $DOCKER_IMAGE:$DOCKER_TAG bash -c \"
+export DISPLAY=$DISPLAY QT_X11_NO_MITSHM=1 QT_QPA_PLATFORM=xcb &&
+/usr/local/bin/check-qt-deps.sh &&
+sleep 2 &&
+/usr/local/bin/openterfaceQT 2>&1 ||
+{
+    echo 'App launch failed - running diagnostics...'
+    echo '---'
+    /usr/local/bin/check-qt-deps.sh 2>&1
+    echo '---'
+    ls -la /usr/local/bin/openterface* 2>&1
+    which openterfaceQT 2>&1
+    echo '---'
+    /usr/local/bin/openterfaceQT --version 2>&1 || echo 'Binary exists but cannot run'
+}
+\""
 
 # Execute the docker run command
 CONTAINER_ID=$(eval $DOCKER_RUN_CMD)
