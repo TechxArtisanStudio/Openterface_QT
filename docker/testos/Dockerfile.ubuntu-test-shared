@@ -25,16 +25,14 @@ ENV LANG=C.UTF-8
 
 # Install minimal system dependencies and runtime libraries only
 RUN apt-get update -y --allow-releaseinfo-change --allow-unauthenticated
-RUN apt-get install -y \
-        # Essential utilities
-RUN apt-get install -y \
         curl \
         wget \
         ca-certificates \
         jq \
         sudo \
         udev \
-        usbutils
+        usbutils \
+        file
 # Hardware interface libraries (runtime only)
 RUN apt-get install -y libusb-1.0-0 \
         libudev1
