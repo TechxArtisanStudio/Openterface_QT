@@ -112,9 +112,18 @@ if [ -f /usr/local/bin/openterfaceQT ]; then
     if [ "$INSTALL_TYPE_ARG" = "appimage" ]; then
         echo "ℹ️  Detected AppImage format (from INSTALL_TYPE)"
         # Don't extract AppImage - run it directly with FUSE
-        # This avoids GLIBC conflicts between bundled and system libraries
         export APPIMAGE_EXTRACT_AND_RUN=0
         echo "ℹ️  AppImage will run directly (FUSE is available)"
+        
+        # Find the AppImage extraction directory and prioritize its libraries
+        # This ensures the AppImage uses its bundled libusb instead of the system one
+        APPIMAGE_EXTRACTED=$(find /tmp -maxdepth 1 -type d -name "appimage_extracted_*" 2>/dev/null | head -1)
+        if [ -n "$APPIMAGE_EXTRACTED" ] && [ -d "$APPIMAGE_EXTRACTED/usr/lib" ]; then
+            export LD_LIBRARY_PATH="$APPIMAGE_EXTRACTED/usr/lib:$LD_LIBRARY_PATH"
+            echo "ℹ️  Prioritizing AppImage bundled libraries: $APPIMAGE_EXTRACTED/usr/lib"
+        else
+            echo "ℹ️  AppImage extraction path not found yet (will be set at runtime)"
+        fi
     elif [ "$INSTALL_TYPE_ARG" = "deb" ]; then
         echo "ℹ️  Detected DEB package (from INSTALL_TYPE)"
         # For DEB packages, ensure Qt and system libraries are available
@@ -181,7 +190,26 @@ if [ -f /usr/local/bin/openterfaceQT ]; then
     echo "   env DISPLAY=$DISPLAY QT_QPA_PLATFORM=$QT_QPA_PLATFORM APPIMAGE_EXTRACT_AND_RUN=${APPIMAGE_EXTRACT_AND_RUN:-0} /usr/local/bin/openterfaceQT"
     echo ""
     
-    nohup env DISPLAY=$DISPLAY QT_QPA_PLATFORM=$QT_QPA_PLATFORM APPIMAGE_EXTRACT_AND_RUN=${APPIMAGE_EXTRACT_AND_RUN:-0} /usr/local/bin/openterfaceQT > /tmp/openterfaceqt.log 2>&1 &
+    # For AppImage, create a wrapper that sets LD_LIBRARY_PATH after extraction
+    if [ "$INSTALL_TYPE_ARG" = "appimage" ]; then
+        # Run AppImage with a wrapper script that detects and uses bundled libraries
+        cat > /tmp/run-appimage.sh << 'EOF'
+#!/bin/bash
+# Find the most recent AppImage extraction directory
+APPIMAGE_EXTRACTED=$(find /tmp -maxdepth 1 -type d -name "appimage_extracted_*" -printf '%T@ %p\n' 2>/dev/null | sort -rn | head -1 | cut -d' ' -f2-)
+
+if [ -n "$APPIMAGE_EXTRACTED" ] && [ -d "$APPIMAGE_EXTRACTED/usr/lib" ]; then
+    export LD_LIBRARY_PATH="$APPIMAGE_EXTRACTED/usr/lib:$LD_LIBRARY_PATH"
+    echo "ℹ️  Using AppImage bundled libraries from: $APPIMAGE_EXTRACTED/usr/lib" >&2
+fi
+
+exec /usr/local/bin/openterfaceQT "$@"
+EOF
+        chmod +x /tmp/run-appimage.sh
+        nohup env DISPLAY=$DISPLAY QT_QPA_PLATFORM=$QT_QPA_PLATFORM APPIMAGE_EXTRACT_AND_RUN=${APPIMAGE_EXTRACT_AND_RUN:-0} /tmp/run-appimage.sh > /tmp/openterfaceqt.log 2>&1 &
+    else
+        nohup env DISPLAY=$DISPLAY QT_QPA_PLATFORM=$QT_QPA_PLATFORM APPIMAGE_EXTRACT_AND_RUN=${APPIMAGE_EXTRACT_AND_RUN:-0} /usr/local/bin/openterfaceQT > /tmp/openterfaceqt.log 2>&1 &
+    fi
     APP_PID=$!
     
     echo "✅ Openterface QT started with PID: $APP_PID"
