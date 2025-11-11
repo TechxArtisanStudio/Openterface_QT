@@ -17,6 +17,7 @@
 #   - X11/Display: libxkbcommon0, libwayland-client0, libxcb1, libx11-6
 #   - FFmpeg: bundled in package
 #   - GStreamer Base: bundled in package (libgstbase, libgstaudio, libgstvideo, libgstapp, etc.)
+#   - Qt6 Libraries: bundled in package (Qt6 core, plugins, QPA)
 #   - Hardware Acceleration: libva2, libva-drm2, libva-x11-2, libvdpau1, liborc-0.4-0 (bundled or system)
 #   - OpenGL: libgl1, libglx0, libglvnd0, libglu1-mesa
 #   - Compression: zlib1g, libbz2-1.0
@@ -82,6 +83,16 @@ OPENGL_DEPS=(
     "libglu1-mesa"
 )
 
+QT6_DEPS=(
+    "libxcb-icccm4"
+    "libxcb-image0"
+    "libxcb-keysyms1"
+    "libxcb-randr0"
+    "libxcb-render-util0"
+    "libxcb-xfixes0"
+    "libxcb-xkb1"
+)
+
 HWACCEL_DEPS=(
     "libva2"
     "libva-drm2"
@@ -96,7 +107,7 @@ COMPRESSION_DEPS=(
 )
 
 # Combine all dependencies into a single array for checking
-CRITICAL_DEPS=("${GRAPHICS_DEPS[@]}" "${AUDIO_DEPS[@]}" "${VIDEO_DEPS[@]}" "${DISPLAY_DEPS[@]}" "${OPENGL_DEPS[@]}" "${HWACCEL_DEPS[@]}" "${COMPRESSION_DEPS[@]}")
+CRITICAL_DEPS=("${GRAPHICS_DEPS[@]}" "${AUDIO_DEPS[@]}" "${VIDEO_DEPS[@]}" "${DISPLAY_DEPS[@]}" "${OPENGL_DEPS[@]}" "${QT6_DEPS[@]}" "${HWACCEL_DEPS[@]}" "${COMPRESSION_DEPS[@]}")
 
 MISSING_DEPS=()
 FOUND_DEPS=0
@@ -165,6 +176,19 @@ echo ""
 # Check OpenGL dependencies
 print_category "OpenGL Libraries"
 for pkg in "${OPENGL_DEPS[@]}"; do
+    if dpkg -l | grep -q "^ii.*$pkg"; then
+        echo "    ✅ $pkg"
+        FOUND_DEPS=$((FOUND_DEPS + 1))
+    else
+        echo "    ❌ $pkg (MISSING)"
+        MISSING_DEPS+=("$pkg")
+    fi
+done
+echo ""
+
+# Check Qt6 XCB/Platform dependencies
+print_category "Qt6 Platform Dependencies (XCB)"
+for pkg in "${QT6_DEPS[@]}"; do
     if dpkg -l | grep -q "^ii.*$pkg"; then
         echo "    ✅ $pkg"
         FOUND_DEPS=$((FOUND_DEPS + 1))
