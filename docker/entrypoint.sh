@@ -111,9 +111,10 @@ if [ -f /usr/local/bin/openterfaceQT ]; then
     # Check if it's an AppImage
     if file /usr/local/bin/openterfaceQT | grep -q "AppImage"; then
         echo "ℹ️  Detected AppImage format"
-        # Run AppImage directly (simulating user download and run behavior)
-        # Do NOT extract - let it run as the user would
-        echo "ℹ️  Running AppImage directly (user simulation mode)"
+        # In containers, FUSE often doesn't work, so tell AppImage to extract and run
+        # This simulates what happens when a user runs AppImage on a system without FUSE
+        export APPIMAGE_EXTRACT_AND_RUN=1
+        echo "ℹ️  AppImage will extract and run (FUSE not available in container)"
     fi
     
     # Set up display environment for GUI
