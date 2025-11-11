@@ -150,7 +150,7 @@ if [ -d "${QT_LIB_DIR}" ]; then
     mkdir -p "${PKG_ROOT}/usr/lib"
     echo "Copying Qt libraries from ${QT_LIB_DIR}..."
     # Copy only Qt6 libraries (not all system libraries)
-    find "${QT_LIB_DIR}" -maxdepth 1 -name "libQt6*.so*" -exec cp -a {} "${PKG_ROOT}/usr/lib/" \; 2>/dev/null || true
+    find "${QT_LIB_DIR}" -maxdepth 1 -name "libQt6*.so*" -exec cp -a {} "${PKG_ROOT}/usr/lib/openterfaceqt/qt6" \; 2>/dev/null || true
     echo "✅ Qt libraries copied successfully"
 else
     echo "⚠️  Warning: Qt library directory not found"
@@ -456,9 +456,9 @@ if [ ! -d "${QT_PLUGIN_DIR}" ]; then
 fi
 
 if [ -d "${QT_PLUGIN_DIR}" ]; then
-    mkdir -p "${PKG_ROOT}/usr/lib/qt6/plugins"
+    mkdir -p "${PKG_ROOT}/usr/lib/openterfaceqt/qt6/plugins"
     echo "Copying Qt plugins from ${QT_PLUGIN_DIR}..."
-    cp -ra "${QT_PLUGIN_DIR}"/* "${PKG_ROOT}/usr/lib/qt6/plugins/" 2>/dev/null || true
+    cp -ra "${QT_PLUGIN_DIR}"/* "${PKG_ROOT}/usr/lib/openterfaceqt/qt6/plugins/" 2>/dev/null || true
     echo "✅ Qt plugins copied successfully"
 else
     echo "⚠️  Warning: Qt plugin directory not found at ${QT_PLUGIN_DIR}"
@@ -467,9 +467,9 @@ fi
 # Copy Qt QML imports
 QT_QML_DIR="/opt/Qt6/qml"
 if [ -d "${QT_QML_DIR}" ]; then
-    mkdir -p "${PKG_ROOT}/usr/lib/qt6/qml"
+    mkdir -p "${PKG_ROOT}/usr/lib/openterfaceqt/qt6/qml"
     echo "Copying Qt QML imports..."
-    cp -ra "${QT_QML_DIR}"/* "${PKG_ROOT}/usr/lib/qt6/qml/" 2>/dev/null || true
+    cp -ra "${QT_QML_DIR}"/* "${PKG_ROOT}/usr/lib/openterfaceqt/qt6/qml/" 2>/dev/null || true
 fi
 
 # Update the binary's rpath to point to bundled libraries

@@ -59,8 +59,8 @@ if [ -z "$QT_PLUGIN_PATH" ]; then
     QT_PLUGIN_PATHS=()
     
     # Check bundled location first
-    if [ -d "/usr/lib/qt6/plugins" ]; then
-        QT_PLUGIN_PATHS+=("/usr/lib/qt6/plugins")
+    if [ -d "/usr/lib/openterfaceqt/qt6/plugins" ]; then
+        QT_PLUGIN_PATHS+=("/usr/lib/openterfaceqt/qt6/plugins")
     fi
     
     # Add system locations
@@ -73,7 +73,7 @@ if [ -z "$QT_PLUGIN_PATH" ]; then
     fi
     
     if [ -d "/usr/lib/qt6/plugins" ]; then
-        QT_PLUGIN_PATHS+=("/usr/lib/qt6/plugins")
+        QT_PLUGIN_PATHS+=("/usr/lib/openterfaceqt/qt6/plugins")
     fi
     
     # Join with colons
@@ -90,8 +90,8 @@ if [ -z "$QML2_IMPORT_PATH" ]; then
     QML_IMPORT_PATHS=()
     
     # Check bundled location first
-    if [ -d "/usr/lib/qt6/qml" ]; then
-        QML_IMPORT_PATHS+=("/usr/lib/qt6/qml")
+    if [ -d "/usr/lib/openterfaceqt/qt6/qml" ]; then
+        QML_IMPORT_PATHS+=("/usr/lib/openterfaceqt/qt6/qml")
     fi
     
     # Add system locations
@@ -103,8 +103,8 @@ if [ -z "$QML2_IMPORT_PATH" ]; then
         QML_IMPORT_PATHS+=("/usr/lib/x86_64-linux-gnu/qt6/qml")
     fi
     
-    if [ -d "/usr/lib/qt6/qml" ]; then
-        QML_IMPORT_PATHS+=("/usr/lib/qt6/qml")
+    if [ -d "/usr/lib/openterfaceqt/qt6/qml" ]; then
+        QML_IMPORT_PATHS+=("/usr/lib/openterfaceqt/qt6/qml")
     fi
     
     # Join with colons
@@ -130,8 +130,8 @@ if [ -z "$GST_PLUGIN_PATH" ]; then
         GST_PLUGIN_PATHS+=("/usr/lib/x86_64-linux-gnu/gstreamer-1.0")
     fi
     
-    if [ -d "/usr/lib/gstreamer-1.0" ]; then
-        GST_PLUGIN_PATHS+=("/usr/lib/gstreamer-1.0")
+    if [ -d "/usr/lib/openterfaceqt/gstreamer-1.0" ]; then
+        GST_PLUGIN_PATHS+=("/usr/lib/openterfaceqt/gstreamer-1.0")
     fi
     
     # Bundled GStreamer plugins (secondary)
