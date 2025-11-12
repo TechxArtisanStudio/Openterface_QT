@@ -330,6 +330,10 @@ EOF
     echo "  docker exec <container-id> import -window root /tmp/screenshot.png"
     echo ""
     
+    # For a persistent container, we ignore SIGTERM and SIGINT
+    # This prevents the container from exiting when Docker sends stop signals
+    trap '' SIGTERM SIGINT
+    
     # Monitor the app process - keep container alive for testing
     while true; do
         if ps -p $APP_PID > /dev/null 2>&1; then
