@@ -154,7 +154,7 @@ if [ -z "$QT_PLUGIN_PATH" ]; then
     fi
     
     # Join with colons
-    IFS=':' read -ra QT_PLUGIN_PATH <<< "$(printf '%s:' "${QT_PLUGIN_PATHS[@]}" | sed 's/:$//')"
+    QT_PLUGIN_PATH=$(printf '%s:' "${QT_PLUGIN_PATHS[@]}" | sed 's/:$//')
     export QT_PLUGIN_PATH="${QT_PLUGIN_PATH}"
 fi
 
@@ -186,7 +186,7 @@ if [ -z "$QT_QPA_PLATFORM_PLUGIN_PATH" ]; then
     fi
     
     # Join with colons
-    IFS=':' read -ra QT_QPA_PLATFORM_PLUGIN_PATH <<< "$(printf '%s:' "${QT_PLATFORM_PLUGIN_PATHS[@]}" | sed 's/:$//')"
+    QT_QPA_PLATFORM_PLUGIN_PATH=$(printf '%s:' "${QT_PLATFORM_PLUGIN_PATHS[@]}" | sed 's/:$//')
     export QT_QPA_PLATFORM_PLUGIN_PATH="${QT_QPA_PLATFORM_PLUGIN_PATH}"
 fi
 
@@ -217,7 +217,7 @@ if [ -z "$QML2_IMPORT_PATH" ]; then
     fi
     
     # Join with colons
-    IFS=':' read -ra QML2_IMPORT_PATH <<< "$(printf '%s:' "${QML_IMPORT_PATHS[@]}" | sed 's/:$//')"
+    QML2_IMPORT_PATH=$(printf '%s:' "${QML_IMPORT_PATHS[@]}" | sed 's/:$//')
     export QML2_IMPORT_PATH="${QML2_IMPORT_PATH}"
 fi
 
@@ -249,7 +249,7 @@ if [ -z "$GST_PLUGIN_PATH" ]; then
     fi
     
     # Join with colons
-    IFS=':' read -ra GST_PLUGIN_PATH <<< "$(printf '%s:' "${GST_PLUGIN_PATHS[@]}" | sed 's/:$//')"
+    GST_PLUGIN_PATH=$(printf '%s:' "${GST_PLUGIN_PATHS[@]}" | sed 's/:$//')
     export GST_PLUGIN_PATH="${GST_PLUGIN_PATH}"
 fi
 
