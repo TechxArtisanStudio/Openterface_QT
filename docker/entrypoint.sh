@@ -126,6 +126,8 @@ else
     # Don't exit here - for persistent container testing, we need to keep running
 fi
 
+echo "📌 DEBUG: About to check for openterfaceQT application..."
+
 # Try to launch the openterfaceQT application
 if [ -f /usr/local/bin/openterfaceQT ]; then
     echo "✅ Found openterfaceQT application, starting it..."
@@ -135,6 +137,8 @@ if [ -f /usr/local/bin/openterfaceQT ]; then
         echo "⚠️  Binary is not executable, fixing permissions..."
         chmod +x /usr/local/bin/openterfaceQT
     fi
+    
+    echo "📌 DEBUG: About to determine package type..."
     
     # Determine package type from INSTALL_TYPE_ARG
     if [ "$INSTALL_TYPE_ARG" = "appimage" ]; then
@@ -223,8 +227,11 @@ if [ -f /usr/local/bin/openterfaceQT ]; then
     echo "   env DISPLAY=$DISPLAY QT_QPA_PLATFORM=$QT_QPA_PLATFORM APPIMAGE_EXTRACT_AND_RUN=${APPIMAGE_EXTRACT_AND_RUN:-0} /usr/local/bin/openterfaceQT"
     echo ""
     
+    echo "📌 DEBUG: About to start the application..."
+    
     # For AppImage, create a wrapper that sets LD_LIBRARY_PATH after extraction
     if [ "$INSTALL_TYPE_ARG" = "appimage" ]; then
+        echo "📌 DEBUG: Starting AppImage with wrapper..."
         # Run AppImage with a wrapper script that detects and uses bundled libraries
         cat > /tmp/run-appimage.sh << 'EOF'
 #!/bin/bash
@@ -269,12 +276,17 @@ EOF
     fi
     APP_PID=$!
     
+    echo "📌 DEBUG: App started with PID: $APP_PID"
     echo "✅ Openterface QT started with PID: $APP_PID"
     echo "📋 Log file: /tmp/openterfaceqt.log"
     echo ""
     
+    echo "📌 DEBUG: Waiting 10 seconds for app to initialize..."
+    
     # Wait longer for app to initialize (increase from 2 to 10 seconds)
     sleep 10
+    
+    echo "📌 DEBUG: Check if app is still running..."
     
     # Check if app is still running and log more details
     if ps -p $APP_PID > /dev/null 2>&1; then
@@ -305,6 +317,7 @@ EOF
     fi
     
     echo ""
+    echo "📌 DEBUG: Reached 'ready for testing' message point"
     echo "Openterface QT is ready for testing!"
     echo ""
     
@@ -321,6 +334,7 @@ EOF
     
     # Keep container alive - app is running in background
     # This allows external commands to be run via docker exec
+    echo "📌 DEBUG: Entering monitoring loop..."
     echo "ℹ️  Openterface QT running in background (PID: $APP_PID)"
     echo ""
     echo "To interact with this container:"
@@ -328,21 +342,27 @@ EOF
     echo "  docker exec <container-id> scrot /tmp/screenshot.png"
     echo ""
     
+    echo "📌 DEBUG: Starting infinite monitoring loop..."
+    
     # Monitor the app process - keep container alive until app dies or signal received
     while true; do
         if ps -p $APP_PID > /dev/null 2>&1; then
             # App is still running
+            echo "📌 DEBUG: App is still running (PID: $APP_PID)"
             sleep 2
         else
             # App has exited
             exit_code=$(wait $APP_PID 2>/dev/null || echo $?)
+            echo "📌 DEBUG: App exited with code: $exit_code"
             if [ "$exit_code" != "0" ] && [ "$exit_code" != "" ]; then
                 echo "⚠️  Openterface QT exited with code: $exit_code"
             fi
+            echo "📌 DEBUG: Exiting container..."
             exit 0
         fi
     done
 else
+    echo "📌 DEBUG: openterfaceQT file not found at /usr/local/bin/openterfaceQT"
     echo "⚠️ openterfaceQT application not found"
     echo "Available applications:"
     ls -la /usr/local/bin/openterface* 2>/dev/null || echo "None found"
@@ -350,8 +370,10 @@ else
     
     # Fall back to bash if application is not installed
     if [ $# -eq 0 ]; then
+        echo "📌 DEBUG: Starting bash shell..."
         exec /bin/bash
     else
+        echo "📌 DEBUG: Executing provided command: $@"
         exec "$@"
     fi
 fi
