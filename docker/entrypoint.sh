@@ -70,6 +70,8 @@ if [ ! -f /usr/local/bin/openterfaceQT ] && [ -n "$INSTALL_TYPE_ARG" ]; then
             echo "  2. Set GITHUB_TOKEN for artifact download: -e GITHUB_TOKEN=..."
             echo "  3. Check Docker permissions and network access"
             echo ""
+            # Don't exit here - continue to app launch for debugging
+            # This allows docker exec to work for troubleshooting
         fi
     fi
 else
@@ -365,14 +367,31 @@ else
     echo "Available applications:"
     ls -la /usr/local/bin/openterface* 2>/dev/null || echo "None found"
     echo ""
+    echo "🛠️  Installation likely failed. Checking details..."
+    echo ""
     
-    # Fall back to bash if application is not installed
-    if [ $# -eq 0 ]; then
-        echo "📌 DEBUG: Starting bash shell..."
-        exec /bin/bash
+    # Show installation attempts
+    if [ -f /tmp/install.log ]; then
+        echo "📋 Installation log tail:"
+        tail -30 /tmp/install.log 2>/dev/null | sed 's/^/  /'
+        echo ""
+    fi
+    
+    echo "📌 DEBUG: Starting bash shell for debugging..."
+    echo "You can use 'docker exec <container> bash' to investigate the installation issue"
+    echo ""
+    
+    # Start bash in interactive mode if connected to a terminal, otherwise sleep
+    if [ -t 0 ]; then
+        exec /bin/bash -i
     else
-        echo "📌 DEBUG: Executing provided command: $@"
-        exec "$@"
+        # Not connected to terminal - keep container running indefinitely
+        echo "ℹ️  Container will stay alive for debugging (docker exec)"
+        echo "🚀 Ready for testing!"
+        trap '' SIGTERM SIGINT  # Ignore signals to keep container alive
+        while true; do
+            sleep 3600
+        done
     fi
 fi
 

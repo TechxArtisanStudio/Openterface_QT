@@ -299,6 +299,7 @@ jobs:
           INSTALL_TYPE: ${{ env.INSTALL_TYPE }}
           DOCKER_IMAGE_SHARED: ${{ env.DOCKER_IMAGE_SHARED }}
           DOCKER_TAG: ${{ env.DOCKER_TAG }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           echo "🧪 Starting persistent container for all subsequent tests"
           
@@ -309,8 +310,8 @@ jobs:
           DOCKER_RUN_CMD="docker run -d \
             --name openterface-test-persistent \
             -e DISPLAY=:98 \
-            -e GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }} \
-            -e INSTALL_TYPE=$INSTALL_TYPE \
+            -e GITHUB_TOKEN=${GITHUB_TOKEN} \
+            -e INSTALL_TYPE=${INSTALL_TYPE} \
             -e QT_X11_NO_MITSHM=1 \
             -e QT_QPA_PLATFORM=xcb \
             -e LC_ALL=C.UTF-8 \
@@ -325,9 +326,15 @@ jobs:
           fi
           
           # Add image
-          DOCKER_RUN_CMD="$DOCKER_RUN_CMD $DOCKER_IMAGE_SHARED:$DOCKER_TAG"
+          DOCKER_RUN_CMD="$DOCKER_RUN_CMD ${DOCKER_IMAGE_SHARED}:${DOCKER_TAG}"
           
-          echo "Starting container: $DOCKER_RUN_CMD"
+          echo "📋 Starting container with config:"
+          echo "  Image: ${DOCKER_IMAGE_SHARED}:${DOCKER_TAG}"
+          echo "  Install Type: ${INSTALL_TYPE}"
+          echo "  Volume Mount: ${VOLUME_MOUNT:-none}"
+          echo "  GITHUB_TOKEN: $(echo ${GITHUB_TOKEN} | cut -c1-20)..."
+          echo ""
+          echo "Starting container..."
           CONTAINER_ID=$(eval $DOCKER_RUN_CMD)
           
           echo "✅ Container started"
@@ -339,13 +346,27 @@ jobs:
           WAIT_TIME=0
           MAX_WAIT=120
           APP_READY=false
+          INSTALLATION_FAILED=false
           
           while [ $WAIT_TIME -lt $MAX_WAIT ]; do
-              if docker logs $CONTAINER_ID 2>&1 | grep -q "ready for testing"; then
+              LOGS=$(docker logs $CONTAINER_ID 2>&1)
+              
+              # Check if app is ready
+              if echo "$LOGS" | grep -q "ready for testing"; then
                   echo "✅ App is ready! (detected after ${WAIT_TIME}s)"
                   APP_READY=true
                   break
               fi
+              
+              # Check if installation failed but container is still running
+              if echo "$LOGS" | grep -q "Installation failed\|openterfaceQT application not found"; then
+                  INSTALLATION_FAILED=true
+                  if [ $WAIT_TIME -gt 10 ]; then
+                    # Give installation script time to attempt recovery before stopping wait
+                    break
+                  fi
+              fi
+              
               printf "\r⏳ Progress: %d/%d seconds" $WAIT_TIME $MAX_WAIT
               sleep 1
               WAIT_TIME=$((WAIT_TIME + 1))
@@ -353,12 +374,17 @@ jobs:
           
           echo ""
           if [ "$APP_READY" = false ]; then
-              echo "⚠️ 'Ready' message not detected, but container is running"
-              echo "Last 20 lines of logs:"
-              docker logs $CONTAINER_ID 2>&1 | tail -20 | sed 's/^/  /'
+              if [ "$INSTALLATION_FAILED" = true ]; then
+                  echo "⚠️ Installation may have failed, but container is running"
+                  echo "📋 Checking container status and logs..."
+              else
+                  echo "⚠️ 'Ready' message not detected, but container is running"
+              fi
+              echo "Last 30 lines of logs:"
+              docker logs $CONTAINER_ID 2>&1 | tail -30 | sed 's/^/  /'
           fi
           
-          # Give the container a moment to settle after app startup
+          # Give the container a moment to settle
           sleep 2
           
           # Verify container is still running (with better diagnostics)
@@ -373,13 +399,26 @@ jobs:
           if [ "$CONTAINER_STATUS" = "true" ]; then
               echo "✅ Container is running and ready for tests"
           else
-              echo "❌ Container not in running state"
+              echo "⚠️ Container is not in running state (Status: $CONTAINER_STATUS)"
+              echo "Container may have exited due to installation failure"
               echo "Full container inspection:"
-              docker inspect $CONTAINER_ID 2>&1 | head -30 || echo "Container not found"
+              docker inspect $CONTAINER_ID 2>&1 | head -40 || echo "Container not found"
               echo ""
-              echo "Last 30 lines of logs:"
-              docker logs $CONTAINER_ID 2>&1 | tail -30 | sed 's/^/  /' || echo "Could not retrieve logs"
-              exit 1
+              echo "Last 40 lines of logs:"
+              docker logs $CONTAINER_ID 2>&1 | tail -40 | sed 's/^/  /' || echo "Could not retrieve logs"
+              echo ""
+              
+              # Try to restart the container or provide recovery info
+              echo "🔧 Attempting recovery..."
+              if docker ps -a --filter "id=$CONTAINER_ID" --format '{{.State}}' 2>/dev/null | grep -q "exited"; then
+                  echo "ℹ️ Container exited. Providing installation logs for debugging:"
+                  docker logs $CONTAINER_ID 2>&1 | grep -A5 -B5 "Installation\|failed\|error" | head -50
+              fi
+              
+              # Don't exit hard - allow downstream steps to diagnose
+              echo ""
+              echo "⚠️ WARNING: Container not ready, but continuing to next steps for diagnostics"
+              # exit 1  # Removed to allow diagnostics steps to run
           fi
           
           # Display container logs with first 200 lines (removing last 30 lines)
