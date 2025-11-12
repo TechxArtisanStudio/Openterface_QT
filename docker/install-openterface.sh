@@ -399,8 +399,8 @@ install_deb_package() {
             print_success "Package installed successfully"
         else
             print_warning "Package installation had issues (exit code: $DPKG_EXIT)"
+            echo "$DPKG_OUTPUT"
             print_info "Attempting to fix remaining dependencies (silent mode)..."
-            
             if APT_FIX=$($SUDO apt-get install -f -y -qq 2>&1); then
                 print_success "Dependencies resolved"
             else
