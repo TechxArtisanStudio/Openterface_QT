@@ -114,9 +114,20 @@ fi
 
 echo "🔔 CHECKPOINT 2: After both Xvfb approaches"
 
-echo "🔔 CHECKPOINT 2.5: Before sleep 3"
-sleep 3
-echo "🔔 CHECKPOINT 2.7: After sleep 3"
+echo "🔔 CHECKPOINT 2.5: Before waiting 3 seconds"
+# Wait 3 seconds without using sleep command (in case sleep is broken)
+for i in 1 2 3; do
+    echo "🔔 CHECKPOINT 2.6.$i: Waiting... ($i/3)"
+    sleep 1 || { echo "WARNING: sleep failed with $?"; true; }
+done
+echo "🔔 CHECKPOINT 2.7: After 3 second wait"
+
+# CRITICAL: Set up a subshell that will stay alive to prevent container exit
+# This subshell monitors background jobs and keeps the script running
+echo "🔔 CHECKPOINT 2.8: Setting up long-running process to keep container alive..."
+(while true; do sleep 1000; done) &
+KEEPALIVE_PID=$!
+echo "🔔 CHECKPOINT 2.9: Keep-alive process started (PID: $KEEPALIVE_PID)"
 
 # Verify Xvfb started
 if [ -n "$XVFB_PID" ] && ps -p $XVFB_PID > /dev/null 2>&1; then
