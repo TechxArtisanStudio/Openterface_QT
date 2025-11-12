@@ -127,7 +127,7 @@ print_category() {
 # Check Graphics dependencies
 print_category "Graphics Libraries"
 for pkg in "${GRAPHICS_DEPS[@]}"; do
-    if dpkg -l | grep -q "^ii.*${pkg}[[:space:]]"; then
+    if dpkg -l | grep -q "^ii.*${pkg}"; then
         echo "    ✅ $pkg"
         FOUND_DEPS=$((FOUND_DEPS + 1))
     else
@@ -140,7 +140,7 @@ echo ""
 # Check Audio dependencies
 print_category "Audio Libraries"
 for pkg in "${AUDIO_DEPS[@]}"; do
-    if dpkg -l | grep -q "^ii.*${pkg}[[:space:]]"; then
+    if dpkg -l | grep -q "^ii.*${pkg}"; then
         echo "    ✅ $pkg"
         FOUND_DEPS=$((FOUND_DEPS + 1))
     else
@@ -153,7 +153,7 @@ echo ""
 # Check Video dependencies
 print_category "Video/GStreamer Libraries"
 for pkg in "${VIDEO_DEPS[@]}"; do
-    if dpkg -l | grep -q "^ii.*${pkg}[[:space:]]"; then
+    if dpkg -l | grep -q "^ii.*${pkg}"; then
         echo "    ✅ $pkg"
         FOUND_DEPS=$((FOUND_DEPS + 1))
     else
@@ -166,7 +166,7 @@ echo ""
 # Check Display dependencies
 print_category "X11/Display Server Libraries"
 for pkg in "${DISPLAY_DEPS[@]}"; do
-    if dpkg -l | grep -q "^ii.*${pkg}[[:space:]]"; then
+    if dpkg -l | grep -q "^ii.*${pkg}"; then
         echo "    ✅ $pkg"
         FOUND_DEPS=$((FOUND_DEPS + 1))
     else
@@ -179,7 +179,7 @@ echo ""
 # Check OpenGL dependencies
 print_category "OpenGL Libraries"
 for pkg in "${OPENGL_DEPS[@]}"; do
-    if dpkg -l | grep -q "^ii.*${pkg}[[:space:]]"; then
+    if dpkg -l | grep -q "^ii.*${pkg}"; then
         echo "    ✅ $pkg"
         FOUND_DEPS=$((FOUND_DEPS + 1))
     else
@@ -191,7 +191,7 @@ done
 # Check Qt6 SVG support - CRITICAL for icon rendering
 print_category "  Qt6 SVG Support (CRITICAL for icon display):"
 for pkg in "${QT6_SVG_DEPS[@]}"; do
-    if dpkg -l | grep -q "^ii.*${pkg}[[:space:]]"; then
+    if dpkg -l | grep -q "^ii.*${pkg}"; then
         echo "    ✅ $pkg - SVG icons will render correctly"
         FOUND_DEPS=$((FOUND_DEPS + 1))
     else
@@ -203,7 +203,7 @@ done
 # Check Qt6 XCB/Platform dependencies
 print_category "  Qt6 Platform Dependencies (XCB):"
 for pkg in "${QT6_PLATFORM_DEPS[@]}"; do
-    if dpkg -l | grep -q "^ii.*${pkg}[[:space:]]"; then
+    if dpkg -l | grep -q "^ii.*${pkg}"; then
         echo "    ✅ $pkg"
         FOUND_DEPS=$((FOUND_DEPS + 1))
     else
@@ -215,7 +215,7 @@ done
 # Check Hardware Acceleration dependencies
 print_category "  Hardware Acceleration Libraries (VA-API, VDPAU):"
 for pkg in "${HWACCEL_DEPS[@]}"; do
-    if dpkg -l | grep -q "^ii.*${pkg}[[:space:]]"; then
+    if dpkg -l | grep -q "^ii.*${pkg}"; then
         echo "    ✅ $pkg"
         FOUND_DEPS=$((FOUND_DEPS + 1))
     else
@@ -226,7 +226,7 @@ done
 # Check Compression dependencies
 print_category "  Compression Libraries:"
 for pkg in "${COMPRESSION_DEPS[@]}"; do
-    if dpkg -l | grep -q "^ii.*${pkg}[[:space:]]"; then
+    if dpkg -l | grep -q "^ii.*${pkg}"; then
         echo "    ✅ $pkg"
         FOUND_DEPS=$((FOUND_DEPS + 1))
     else
