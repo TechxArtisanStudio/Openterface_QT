@@ -100,7 +100,6 @@ if Xvfb $DISPLAY -screen 0 1920x1080x24 -ac +extension GLX +render -noreset >/de
 then
     XVFB_PID=$!
     echo "✅ Xvfb started directly (PID: $XVFB_PID)"
-    echo "🔔 CHECKPOINT 1: After Xvfb if block"  
 fi
 
 # Approach 2: Try with sudo if direct failed
@@ -112,25 +111,13 @@ if [ -z "$XVFB_PID" ] || ! ps -p $XVFB_PID > /dev/null 2>&1; then
     fi
 fi
 
-echo "🔔 CHECKPOINT 2: After both Xvfb approaches"
-
 # Verify Xvfb started
-echo "🔔 CHECKPOINT 3: About to verify Xvfb"
-if [ -n "$XVFB_PID" ]; then
-    echo "🔔 CHECKPOINT 3.1: XVFB_PID is set to: $XVFB_PID"
-    if ps -p $XVFB_PID > /dev/null 2>&1; then
-        echo "✅ Xvfb started successfully (PID: $XVFB_PID, Display: $DISPLAY)"
-    else
-        echo "🔔 CHECKPOINT 3.2: ps check failed, trying socket check"
-    fi
-else
-    echo "🔔 CHECKPOINT 3.3: XVFB_PID is empty, checking socket"
-fi
-
-if [ -S /tmp/.X11-unix/98 ]; then
+if [ -n "$XVFB_PID" ] && ps -p $XVFB_PID > /dev/null 2>&1; then
+    echo "✅ Xvfb started successfully (PID: $XVFB_PID, Display: $DISPLAY)"
+elif [ -S /tmp/.X11-unix/98 ]; then
     # Socket exists but we couldn't verify PID - this is ok, X11 is running
     echo "✅ X11 display socket found at /tmp/.X11-unix/98"
-elif [ -z "$XVFB_PID" ]; then
+else
     echo "⚠️  Xvfb startup status uncertain"
     echo "   Running as: $(id)"
     echo "   Display: $DISPLAY"
@@ -140,14 +127,8 @@ elif [ -z "$XVFB_PID" ]; then
     # Don't exit here - for persistent container testing, we need to keep running
 fi
 
-echo "🔔 CHECKPOINT 3: After Xvfb verification"
-
+echo "✅ X11 display setup complete"
 echo ""
-echo "📌 DEBUG: Xvfb startup complete"
-echo "📌 DEBUG: Current shell PID: $$"  
-echo "📌 DEBUG: About to check for openterfaceQT application..."
-# Use read with timeout instead of sleep (more reliable in containers)
-read -t 1 _ < /dev/null || true
 
 # Try to launch the openterfaceQT application
 if [ -f /usr/local/bin/openterfaceQT ]; then
@@ -159,8 +140,6 @@ if [ -f /usr/local/bin/openterfaceQT ]; then
         echo "⚠️  Binary is not executable, fixing permissions..."
         chmod +x /usr/local/bin/openterfaceQT
     fi
-    
-    echo "📌 DEBUG: About to determine package type..."
     
     # Determine package type from INSTALL_TYPE_ARG
     if [ "$INSTALL_TYPE_ARG" = "appimage" ]; then
@@ -245,15 +224,10 @@ if [ -f /usr/local/bin/openterfaceQT ]; then
     fi
     echo ""
     
-    echo "🔧 Executing command:"
-    echo "   env DISPLAY=$DISPLAY QT_QPA_PLATFORM=$QT_QPA_PLATFORM APPIMAGE_EXTRACT_AND_RUN=${APPIMAGE_EXTRACT_AND_RUN:-0} /usr/local/bin/openterfaceQT"
-    echo ""
-    
-    echo "📌 DEBUG: About to start the application..."
+    echo "🔧 Starting Openterface QT application..."
     
     # For AppImage, create a wrapper that sets LD_LIBRARY_PATH after extraction
     if [ "$INSTALL_TYPE_ARG" = "appimage" ]; then
-        echo "📌 DEBUG: Starting AppImage with wrapper..."
         # Run AppImage with a wrapper script that detects and uses bundled libraries
         cat > /tmp/run-appimage.sh << 'EOF'
 #!/bin/bash
@@ -298,18 +272,13 @@ EOF
     fi
     APP_PID=$!
     
-    echo "📌 DEBUG: App started with PID: $APP_PID"
     echo "✅ Openterface QT started with PID: $APP_PID"
     echo "📋 Log file: /tmp/openterfaceqt.log"
     echo ""
     
-    echo "📌 DEBUG: Waiting 10 seconds for app to initialize..."
-    
     # Wait longer for app to initialize (increase from 2 to 10 seconds)
     # Use read with timeout instead of sleep for reliability
     read -t 10 _ < /dev/null || true
-    
-    echo "📌 DEBUG: Check if app is still running..."
     
     # Check if app is still running and log more details
     if ps -p $APP_PID > /dev/null 2>&1; then
@@ -357,31 +326,36 @@ EOF
     
     # Keep container alive - app is running in background
     # This allows external commands to be run via docker exec
-    echo "📌 DEBUG: Entering monitoring loop..."
     echo "ℹ️  Openterface QT running in background (PID: $APP_PID)"
     echo ""
     echo "To interact with this container:"
     echo "  docker exec <container-id> bash"
-    echo "  docker exec <container-id> scrot /tmp/screenshot.png"
+    echo "  docker exec <container-id> import -window root /tmp/screenshot.png"
     echo ""
     
-    echo "📌 DEBUG: Starting infinite monitoring loop..."
+    # Track last debug output time to avoid log spam
+    LAST_DEBUG=0
     
-    # Monitor the app process - keep container alive until app dies or signal received
+    # Monitor the app process - keep container alive for testing
     while true; do
+        CURRENT_TIME=$(date +%s 2>/dev/null || echo 0)
         if ps -p $APP_PID > /dev/null 2>&1; then
-            # App is still running
-            echo "📌 DEBUG: App is still running (PID: $APP_PID)"
+            # App is still running - only log debug every 60 seconds
+            if [ $((CURRENT_TIME - LAST_DEBUG)) -ge 60 ] 2>/dev/null; then
+                echo "ℹ️  Container is running with app (PID: $APP_PID)"
+                LAST_DEBUG=$CURRENT_TIME
+            fi
             read -t 2 _ < /dev/null || true
         else
-            # App has exited
+            # App has exited - but for a persistent container, we keep running
             exit_code=$(wait $APP_PID 2>/dev/null || echo $?)
-            echo "📌 DEBUG: App exited with code: $exit_code"
-            if [ "$exit_code" != "0" ] && [ "$exit_code" != "" ]; then
-                echo "⚠️  Openterface QT exited with code: $exit_code"
-            fi
-            echo "📌 DEBUG: Exiting container..."
-            exit 0
+            echo "⚠️  Openterface QT process exited (code: $exit_code)"
+            echo "ℹ️  Container stays alive for debugging"
+            echo "   To restart the app, use: docker exec <container> /usr/local/bin/openterfaceQT &"
+            echo "   Or enter the container: docker exec -it <container> bash"
+            # Keep the container alive - don't exit
+            # Just wait indefinitely
+            read -t 60 _ < /dev/null || true
         fi
     done
 else
