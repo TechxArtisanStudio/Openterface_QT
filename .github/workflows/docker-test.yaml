@@ -382,6 +382,78 @@ jobs:
               exit 1
           fi
           
+          # Display container logs with first 30 and last 30 lines
+          echo ""
+          echo "📋 Container Logs Summary:"
+          echo "=================================================="
+          
+          # Get all logs
+          ALL_LOGS=$(docker logs $CONTAINER_ID 2>&1)
+          TOTAL_LINES=$(echo "$ALL_LOGS" | wc -l)
+          
+          echo "Total log lines: $TOTAL_LINES"
+          echo ""
+          
+          if [ "$TOTAL_LINES" -gt 60 ]; then
+              echo "📌 FIRST 30 LINES:"
+              echo "---"
+              echo "$ALL_LOGS" | head -30
+              echo ""
+              echo "... (middle $((TOTAL_LINES - 60)) lines omitted) ..."
+              echo ""
+              echo "📌 LAST 30 LINES:"
+              echo "---"
+              echo "$ALL_LOGS" | tail -30
+          else
+              echo "📌 ALL LOGS ($TOTAL_LINES lines):"
+              echo "---"
+              echo "$ALL_LOGS"
+          fi
+          echo "=================================================="
+          echo ""
+          
+          # Display running processes in the container
+          echo ""
+          echo "📋 Running Processes in Container:"
+          echo "=================================================="
+          echo "Installation Type: $INSTALL_TYPE"
+          echo ""
+          docker exec $CONTAINER_ID bash -c '
+            echo "🔍 All running processes:"
+            ps auxf
+            echo ""
+            echo "🔍 OpenTerface related processes:"
+            ps aux | grep -i openterface || echo "No openterface processes found"
+            echo ""
+            echo "🔍 Checking installation type:"
+            if [ -d "/opt/openterface" ]; then
+              echo "✅ DEB installation detected - Files in /opt/openterface:"
+              ls -la /opt/openterface/ 2>/dev/null | head -20 || echo "Directory not found"
+              echo ""
+              echo "Installed packages:"
+              dpkg -l | grep -i openterface || echo "No openterface packages found"
+            fi
+            
+            if ls /tmp/*.AppImage 2>/dev/null | grep -i openterface >/dev/null 2>&1; then
+              echo "✅ AppImage installation detected:"
+              ls -lh /tmp/*.AppImage 2>/dev/null | grep -i openterface
+            fi
+            
+            echo ""
+            echo "🔍 Installation method verification:"
+            if [ -f /etc/openterface/openterface.conf ]; then
+              echo "✅ Configuration file found at /etc/openterface/openterface.conf"
+              cat /etc/openterface/openterface.conf 2>/dev/null | head -10
+            fi
+            
+            if [ -x /opt/openterface/bin/openterfaceqt ] || [ -x /usr/bin/openterfaceqt ]; then
+              echo "✅ DEB binary found in /opt/openterface/bin/ or /usr/bin/"
+              which openterfaceqt 2>/dev/null || echo "openterfaceqt not in PATH"
+            fi
+          ' || echo "⚠️ Could not retrieve process information"
+          echo "=================================================="
+          echo ""
+          
           # Display Openterface app logs for troubleshooting
           echo ""
           echo "📋 Openterface App Logs (for troubleshooting):"
