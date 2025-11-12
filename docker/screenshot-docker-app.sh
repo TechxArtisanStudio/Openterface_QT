@@ -75,90 +75,45 @@ CONTAINER_ID=$(eval $DOCKER_RUN_CMD)
 echo -e "${GREEN}✅ Container started${NC}"
 echo -e "${BLUE}📦 Container ID: ${CONTAINER_ID:0:12}${NC}"
 
-# Wait a moment for entrypoint to complete installation
-echo -e "${BLUE}⏳ Waiting for entrypoint to complete installation and start app...${NC}"
-sleep 15
+# Wait for app to be ready by monitoring container logs
+# Look for the "ready for testing" message from entrypoint
+echo -e "${BLUE}⏳ Waiting for app to start (monitoring logs, max 60 seconds)...${NC}"
 
-# Check if container is still running
-if ! docker ps | grep -q $CONTAINER_ID; then
-    echo -e "${RED}⚠️  Container exited unexpectedly!${NC}"
-    echo -e "${BLUE}📋 Container logs:${NC}"
-    docker logs $CONTAINER_ID 2>&1 | sed 's/^/   /'
-    
-    # Extract and display the openterfaceqt.log from exited container
-    echo ""
-    echo -e "${BLUE}📋 App logs (from exited container):${NC}"
-    docker cp $CONTAINER_NAME:/tmp/openterfaceqt.log /tmp/openterfaceqt.log 2>/dev/null && \
-        cat /tmp/openterfaceqt.log | sed 's/^/   /' || echo "   ⚠️  Could not retrieve app logs"
-    
-    exit 1
-fi
+WAIT_TIME=0
+MAX_WAIT=60
+APP_READY=false
 
-echo -e "${GREEN}✅ Container is running${NC}"
-
-# Check if app is running
-echo -e "${BLUE}🔍 Checking if openterfaceQT is running...${NC}"
-if docker exec $CONTAINER_NAME pgrep -x openterfaceQT >/dev/null 2>&1; then
-    echo -e "${GREEN}✅ openterfaceQT process is running${NC}"
-    docker exec $CONTAINER_NAME ps aux | grep openterfaceQT | grep -v grep | sed 's/^/   /'
-else
-    echo -e "${YELLOW}⚠️  openterfaceQT process not detected, checking logs...${NC}"
-    docker exec $CONTAINER_NAME tail -20 /tmp/openterfaceqt.log 2>&1 | sed 's/^/   /'
-fi
-
-# Give the app extra time to fully initialize UI
-echo -e "${BLUE}⏳ Waiting for app UI to initialize...${NC}"
-sleep 5
-
-echo -e "${BLUE}📱 App is initializing...${NC}"
-
-# Wait for app to start with 2-minute timeout
-echo -e "${YELLOW}⏱️  Waiting for app to start (timeout: 2 minutes)...${NC}"
-MAX_WAIT=120
-ELAPSED=0
-APP_STARTED=false
-
-while [ $ELAPSED -lt $MAX_WAIT ]; do
-    # Display countdown first
-    REMAINING=$((MAX_WAIT - ELAPSED))
-    printf "\r${YELLOW}Waiting... %d seconds elapsed, %d seconds remaining${NC}" $ELAPSED $REMAINING
-    
+while [ $WAIT_TIME -lt $MAX_WAIT ]; do
     # Check if container is still running
     if ! docker ps | grep -q $CONTAINER_ID; then
-        echo ""
-        echo -e "${RED}❌ Container has exited after $ELAPSED seconds${NC}"
+        echo -e "${YELLOW}⚠️  Container stopped after ${WAIT_TIME}s, checking logs...${NC}"
+        docker logs $CONTAINER_ID 2>&1 | tail -20 | sed 's/^/   /'
         break
     fi
     
-    # Check if the app process is running (match only the actual binary, not bash scripts)
-    if docker exec $CONTAINER_NAME pgrep -x "openterfaceQT" >/dev/null 2>&1; then
-        echo ""
-        echo -e "${GREEN}✅ App process detected after $ELAPSED seconds!${NC}"
-        APP_STARTED=true
-        
-        # Show process details (filter to only the actual app process, not entrypoint or bash)
-        echo -e "${BLUE}📊 Process Details:${NC}"
-        docker exec $CONTAINER_NAME ps aux | grep "openterfaceQT" | grep -v grep | grep -v bash | sed 's/^/   /'
-        
-        # Give it a few more seconds to fully initialize
-        sleep 3
+    # Check container logs for the ready message
+    if docker logs $CONTAINER_ID 2>&1 | grep -q "ready for testing"; then
+        echo -e "${GREEN}✅ App is ready! (detected after ${WAIT_TIME}s)${NC}"
+        APP_READY=true
         break
     fi
     
+    # Display progress
+    printf "\r${BLUE}  ⏳ Progress: %d/%d seconds${NC}" $WAIT_TIME $MAX_WAIT
     sleep 1
-    ELAPSED=$((ELAPSED + 1))
+    WAIT_TIME=$((WAIT_TIME + 1))
 done
 
 echo ""
 
-if [ "$APP_STARTED" = false ]; then
-    echo -e "${YELLOW}⚠️  App process not detected within timeout, proceeding with screenshot anyway...${NC}"
-echo -e "${GREEN}✅ App startup complete!${NC}"
+if [ "$APP_READY" = false ]; then
+    echo -e "${YELLOW}⚠️  'Ready' message not detected within ${MAX_WAIT}s timeout${NC}"
+    echo -e "${YELLOW}   Proceeding with screenshot anyway...${NC}"
 fi
 
-# Give the app extra time to fully initialize GUI
-echo -e "${BLUE}⏳ Waiting for GUI to initialize...${NC}"
-sleep 8
+# Give app final 3 seconds to fully render
+echo -e "${BLUE}⏳ Giving app 3 seconds to render...${NC}"
+sleep 3
 
 # Take the main screenshot
 echo -e "${BLUE}📸 Taking screenshot...${NC}"
