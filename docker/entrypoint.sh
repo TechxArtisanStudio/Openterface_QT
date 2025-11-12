@@ -338,24 +338,19 @@ EOF
     
     # Monitor the app process - keep container alive for testing
     while true; do
-        CURRENT_TIME=$(date +%s 2>/dev/null || echo 0)
         if ps -p $APP_PID > /dev/null 2>&1; then
-            # App is still running - only log debug every 60 seconds
-            if [ $((CURRENT_TIME - LAST_DEBUG)) -ge 60 ] 2>/dev/null; then
-                echo "ℹ️  Container is running with app (PID: $APP_PID)"
-                LAST_DEBUG=$CURRENT_TIME
-            fi
-            read -t 2 _ < /dev/null || true
+            # App is still running
+            # Just wait 2 seconds before checking again
+            read -t 2 _ < /dev/null 2>/dev/null || true
         else
             # App has exited - but for a persistent container, we keep running
-            exit_code=$(wait $APP_PID 2>/dev/null || echo $?)
-            echo "⚠️  Openterface QT process exited (code: $exit_code)"
+            echo "⚠️  Openterface QT process exited"
             echo "ℹ️  Container stays alive for debugging"
             echo "   To restart the app, use: docker exec <container> /usr/local/bin/openterfaceQT &"
             echo "   Or enter the container: docker exec -it <container> bash"
             # Keep the container alive - don't exit
             # Just wait indefinitely
-            read -t 60 _ < /dev/null || true
+            read -t 60 _ < /dev/null 2>/dev/null || true
         fi
     done
 else
