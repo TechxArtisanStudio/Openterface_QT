@@ -382,33 +382,26 @@ jobs:
               exit 1
           fi
           
-          # Display container logs with first 30 and last 30 lines
+          # Display container logs with first 200 lines (removing last 30 lines)
           echo ""
           echo "📋 Container Logs Summary:"
           echo "=================================================="
           
-          # Get all logs
+          # Get all logs and remove last 30 lines, then filter out ASCII art boxes
           ALL_LOGS=$(docker logs $CONTAINER_ID 2>&1)
           TOTAL_LINES=$(echo "$ALL_LOGS" | wc -l)
+          TRIMMED_LOGS=$(echo "$ALL_LOGS" | head -n $((TOTAL_LINES - 30)))
           
-          echo "Total log lines: $TOTAL_LINES"
+          # Filter out ASCII art blocks (lines with ╔, ╚, ║, ═, etc.)
+          FILTERED_LOGS=$(echo "$TRIMMED_LOGS" | grep -v '^[[:space:]]*[╔╚║╠╣╦╩╬═─│]' | grep -v '^[[:space:]]*┌' | grep -v '^[[:space:]]*└' | grep -v '^[[:space:]]*├' | grep -v '^[[:space:]]*┤' | grep -v '^[[:space:]]*┬' | grep -v '^[[:space:]]*┴' | grep -v '^[[:space:]]*┼' | grep -v '^[[:space:]]*─' | grep -v '^[[:space:]]*│')
+          TRIMMED_LINES=$(echo "$FILTERED_LOGS" | wc -l)
+          
+          echo "Total container log lines: $TOTAL_LINES (showing first 200 lines, last 30 lines removed, ASCII art blocks filtered)"
           echo ""
           
-          if [ "$TOTAL_LINES" -gt 60 ]; then
-              echo "📌 FIRST 30 LINES:"
-              echo "---"
-              echo "$ALL_LOGS" | head -30
-              echo ""
-              echo "... (middle $((TOTAL_LINES - 60)) lines omitted) ..."
-              echo ""
-              echo "📌 LAST 30 LINES:"
-              echo "---"
-              echo "$ALL_LOGS" | tail -30
-          else
-              echo "📌 ALL LOGS ($TOTAL_LINES lines):"
-              echo "---"
-              echo "$ALL_LOGS"
-          fi
+          echo "📌 CONTAINER LOGS - FIRST 200 LINES (last 30 lines and ASCII art removed):"
+          echo "---"
+          echo "$FILTERED_LOGS" | head -200
           echo "=================================================="
           echo ""
           
@@ -456,9 +449,33 @@ jobs:
           
           # Display Openterface app logs for troubleshooting
           echo ""
-          echo "📋 Openterface App Logs (for troubleshooting):"
+          echo "📋 Openterface Application Logs (First 30 and Last 30 lines):"
           echo "=================================================="
-          docker exec $CONTAINER_ID bash -c 'if [ -f /tmp/openterfaceqt.log ]; then echo "Latest 30 lines from /tmp/openterfaceqt.log:"; tail -30 /tmp/openterfaceqt.log; else echo "⚠️ Log file not found at /tmp/openterfaceqt.log"; fi' || echo "⚠️ Could not retrieve app logs"
+          docker exec $CONTAINER_ID bash -c '
+            if [ -f /tmp/openterfaceqt.log ]; then
+              TOTAL_APP_LINES=$(wc -l < /tmp/openterfaceqt.log)
+              echo "Total application log lines: $TOTAL_APP_LINES"
+              echo ""
+              
+              if [ "$TOTAL_APP_LINES" -gt 60 ]; then
+                echo "📌 FIRST 30 LINES OF APPLICATION LOG:"
+                echo "---"
+                head -30 /tmp/openterfaceqt.log
+                echo ""
+                echo "... (middle $((TOTAL_APP_LINES - 60)) lines omitted) ..."
+                echo ""
+                echo "📌 LAST 30 LINES OF APPLICATION LOG:"
+                echo "---"
+                tail -30 /tmp/openterfaceqt.log
+              else
+                echo "📌 ALL APPLICATION LOGS ($TOTAL_APP_LINES lines):"
+                echo "---"
+                cat /tmp/openterfaceqt.log
+              fi
+            else
+              echo "⚠️ Log file not found at /tmp/openterfaceqt.log"
+            fi
+          ' || echo "⚠️ Could not retrieve app logs"
           echo "=================================================="
           echo ""
 
