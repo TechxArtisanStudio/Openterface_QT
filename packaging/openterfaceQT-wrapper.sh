@@ -25,82 +25,101 @@ esac
 # ============================================
 # Library Path Setup (CRITICAL for bundled libs)
 # ============================================
-# Prioritize bundled libraries to avoid symbol conflicts with system libraries
-# This prevents errors like: "undefined symbol: _gst_meta_tag_memory_reference"
+# MUST prioritize bundled libraries to override system libraries
+# This is essential because the binary may have RPATH pointing to system Qt6
+# We need to ensure bundled libraries are loaded FIRST
 
 BUNDLED_LIB_PATHS=(
-    "/usr/lib/openterfaceqt/qt6"        # Bundled Qt6 libraries (highest priority)
+    "/usr/lib/openterfaceqt/qt6"        # Bundled Qt6 libraries (HIGHEST priority)
     "/usr/lib/openterfaceqt"            # Bundled libraries (FFmpeg, GStreamer, etc.)
 )
 
-# Add bundled library paths first (highest priority)
-if [ -z "$LD_LIBRARY_PATH" ]; then
-    # Build initial path from bundled paths
-    LD_LIBRARY_PATH=""
-    for lib_path in "${BUNDLED_LIB_PATHS[@]}"; do
-        if [ -d "$lib_path" ]; then
-            if [ -z "$LD_LIBRARY_PATH" ]; then
-                LD_LIBRARY_PATH="${lib_path}"
-            else
-                LD_LIBRARY_PATH="${LD_LIBRARY_PATH}:${lib_path}"
-            fi
+# Build LD_LIBRARY_PATH with bundled libraries at the front
+LD_LIBRARY_PATH_NEW=""
+for lib_path in "${BUNDLED_LIB_PATHS[@]}"; do
+    if [ -d "$lib_path" ]; then
+        if [ -z "$LD_LIBRARY_PATH_NEW" ]; then
+            LD_LIBRARY_PATH_NEW="${lib_path}"
+        else
+            LD_LIBRARY_PATH_NEW="${LD_LIBRARY_PATH_NEW}:${lib_path}"
         fi
-    done
-else
-    # Prepend bundled paths to existing LD_LIBRARY_PATH (in reverse order for correct priority)
-    for ((i=${#BUNDLED_LIB_PATHS[@]}-1; i>=0; i--)); do
-        lib_path="${BUNDLED_LIB_PATHS[$i]}"
-        if [ -d "$lib_path" ]; then
-            LD_LIBRARY_PATH="${lib_path}:${LD_LIBRARY_PATH}"
-        fi
-    done
+    fi
+done
+
+# Append existing LD_LIBRARY_PATH (if any)
+if [ -n "$LD_LIBRARY_PATH" ]; then
+    LD_LIBRARY_PATH_NEW="${LD_LIBRARY_PATH_NEW}:${LD_LIBRARY_PATH}"
 fi
 
-export LD_LIBRARY_PATH
+export LD_LIBRARY_PATH="${LD_LIBRARY_PATH_NEW}"
 
 # ============================================
-# LD_PRELOAD Setup (CRITICAL - Override binary's RPATH)
+# LD_PRELOAD Setup (MOST CRITICAL - Override binary's RPATH)
 # ============================================
-# The binary was compiled with RPATH pointing to system Qt libraries.
-# We use LD_PRELOAD to force the bundled Qt libraries to load first,
-# overriding the binary's hardcoded RPATH.
+# CRITICAL: The binary was compiled with RPATH pointing to system Qt libraries.
+# LD_PRELOAD must force bundled Qt libraries to load FIRST before any others.
+# This is THE KEY to avoiding "version `Qt_6.6' not found" errors.
 
 PRELOAD_LIBS=()
 
-# Add critical Qt6 libraries that must be preloaded
-# Order matters - Core must be first, then Gui, then other modules
-QT6_LIBS=(
-    "libQt6Core.so.6"
-    "libQt6Gui.so.6"
+# Qt6 core libraries - MUST be preloaded in correct order
+# The order is critical: Core first, then Gui, then everything else
+QT6_CORE_LIBS=(
+    "libQt6Core.so.6"      # MUST be first
+    "libQt6Gui.so.6"       # Must be before other modules
+)
+
+# Qt6 module libraries
+QT6_MODULE_LIBS=(
     "libQt6Widgets.so.6"
     "libQt6Multimedia.so.6"
     "libQt6MultimediaWidgets.so.6"
-    "libQt6Svg.so.6"
     "libQt6SerialPort.so.6"
     "libQt6Network.so.6"
     "libQt6OpenGL.so.6"
     "libQt6Xml.so.6"
     "libQt6Concurrent.so.6"
     "libQt6DBus.so.6"
+    "libQt6Svg.so.6"
     "libQt6Quick.so.6"
     "libQt6Qml.so.6"
     "libQt6QuickWidgets.so.6"
+    "libQt6PrintSupport.so.6"
 )
 
-for lib in "${QT6_LIBS[@]}"; do
+# Load core libraries first
+for lib in "${QT6_CORE_LIBS[@]}"; do
     lib_path="/usr/lib/openterfaceqt/qt6/$lib"
     if [ -f "$lib_path" ]; then
         PRELOAD_LIBS+=("$lib_path")
     fi
 done
 
-# Build LD_PRELOAD string
+# Then load module libraries
+for lib in "${QT6_MODULE_LIBS[@]}"; do
+    lib_path="/usr/lib/openterfaceqt/qt6/$lib"
+    if [ -f "$lib_path" ]; then
+        PRELOAD_LIBS+=("$lib_path")
+    fi
+done
+
+# Build LD_PRELOAD string with proper precedence
 if [ ${#PRELOAD_LIBS[@]} -gt 0 ]; then
-    LD_PRELOAD_STR=$(IFS=':'; echo "${PRELOAD_LIBS[*]}")
+    PRELOAD_STR=$(IFS=':'; echo "${PRELOAD_LIBS[*]}")
+    # PREPEND to any existing LD_PRELOAD to ensure our libs take priority
     if [ -z "$LD_PRELOAD" ]; then
-        export LD_PRELOAD="$LD_PRELOAD_STR"
+        export LD_PRELOAD="$PRELOAD_STR"
     else
-        export LD_PRELOAD="$LD_PRELOAD_STR:$LD_PRELOAD"
+        export LD_PRELOAD="$PRELOAD_STR:$LD_PRELOAD"
+    fi
+    
+    # Debug: Show what we're preloading
+    if [ "${OPENTERFACE_DEBUG}" = "1" ] || [ "${OPENTERFACE_DEBUG}" = "true" ]; then
+        echo "LD_PRELOAD (${#PRELOAD_LIBS[@]} libs): $LD_PRELOAD" >&2
+    fi
+else
+    if [ "${OPENTERFACE_DEBUG}" = "1" ] || [ "${OPENTERFACE_DEBUG}" = "true" ]; then
+        echo "⚠️  Warning: No Qt6 libraries found for LD_PRELOAD" >&2
     fi
 fi
 
@@ -273,13 +292,17 @@ fi
 # Application Execution
 # ============================================
 # Locate and execute the OpenterfaceQT binary
+# NOTE: The binary is renamed to openterfaceQT.bin and wrapped by this script
+# This ensures LD_PRELOAD and environment variables are ALWAYS applied
 
-# Try multiple locations for the binary
+# Try multiple locations for the binary (prioritize the wrapped version)
 OPENTERFACE_BIN=""
 for bin_path in \
+    "/usr/local/bin/openterfaceQT.bin" \
     "/usr/local/bin/openterfaceQT" \
     "/usr/bin/openterfaceQT" \
     "/opt/openterface/bin/openterfaceQT" \
+    "${SCRIPT_DIR}/openterfaceQT.bin" \
     "${SCRIPT_DIR}/openterfaceQT"; do
     if [ -f "$bin_path" ] && [ -x "$bin_path" ]; then
         OPENTERFACE_BIN="$bin_path"
@@ -290,11 +313,18 @@ done
 if [ -z "$OPENTERFACE_BIN" ]; then
     echo "Error: OpenterfaceQT binary not found in standard locations" >&2
     echo "Searched:" >&2
+    echo "  - /usr/local/bin/openterfaceQT.bin (wrapped version)" >&2
     echo "  - /usr/local/bin/openterfaceQT" >&2
     echo "  - /usr/bin/openterfaceQT" >&2
     echo "  - /opt/openterface/bin/openterfaceQT" >&2
+    echo "  - ${SCRIPT_DIR}/openterfaceQT.bin" >&2
     echo "  - ${SCRIPT_DIR}/openterfaceQT" >&2
     exit 1
+fi
+
+# Debug: Show what will be preloaded
+if [ "${OPENTERFACE_DEBUG}" = "1" ] || [ "${OPENTERFACE_DEBUG}" = "true" ]; then
+    echo "Executing: $OPENTERFACE_BIN" >&2
 fi
 
 # Execute the binary with all passed arguments

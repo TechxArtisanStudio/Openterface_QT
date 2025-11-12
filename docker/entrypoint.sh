@@ -222,7 +222,7 @@ if [ -f /usr/local/bin/openterfaceQT ]; then
     
     if [ -f /usr/local/bin/openterfaceQT ]; then
         echo "   Checking openterfaceQT dependencies:"
-        ldd /usr/local/bin/openterfaceQT 2>&1 | grep -E "libusb|libc\.so" || echo "     (ldd check skipped for AppImage)"
+        ldd /usr/local/bin/openterfaceQT 2>&1 || echo "     (ldd check skipped for AppImage)"
     fi
     echo ""
     
@@ -353,6 +353,9 @@ EOF
             # Keep the container alive - don't exit
             # Just wait indefinitely
             read -t 60 _ < /dev/null 2>/dev/null || true
+        fi
+        if [ $LOOP_COUNT -ge 30 ]; then
+            break
         fi
     done
     
