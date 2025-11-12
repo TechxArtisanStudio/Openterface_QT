@@ -291,20 +291,19 @@ check_and_install_missing_deps() {
         
         # Let apt-get try to resolve dependencies
         print_section "Installing missing dependencies..."
-        print_info "Running: apt-get update && apt-get install -f -y"
+        print_info "Running: apt-get update && apt-get install -f (silent mode)"
         echo ""
         
-        if $sudo_cmd apt-get update -qq 2>&1 | grep -v "^Get:\|^Hit:\|^Reading" || true; then
-            INSTALL_OUTPUT=$($sudo_cmd apt-get install -f -y 2>&1)
-            INSTALL_EXIT=$?
-            
-            echo "$INSTALL_OUTPUT"
-            echo ""
-            
-            if [ $INSTALL_EXIT -eq 0 ]; then
-                print_success "Missing dependencies installed successfully"
+        if $sudo_cmd apt-get update -qq >/dev/null 2>&1; then
+            # Run apt-get install -f silently, but capture output in case of errors
+            if INSTALL_OUTPUT=$($sudo_cmd apt-get install -f -y -qq 2>&1); then
+                INSTALL_EXIT=0
+                echo "✅ Missing dependencies fixed successfully"
                 return 0
             else
+                INSTALL_EXIT=$?
+                # Only show output if there was an error
+                echo "$INSTALL_OUTPUT"
                 print_warning "apt-get install -f had issues, but continuing..."
                 return 0
             fi
@@ -319,15 +318,21 @@ check_and_install_missing_deps() {
     echo ""
     
     print_section "Installing missing dependencies..."
-    print_info "Running: apt-get update && apt-get install -y $MISSING_PACKAGES"
+    print_info "Running: apt-get update && apt-get install (silent mode)"
     echo ""
     
-    if $sudo_cmd apt-get update -qq 2>&1 | grep -v "^Get:\|^Hit:\|^Reading" || true; then
-        print_info "Running apt-get install..."
-        INSTALL_OUTPUT=$($sudo_cmd apt-get install -y $MISSING_PACKAGES 2>&1)
-        INSTALL_EXIT=$?
-        
-        echo "$INSTALL_OUTPUT"
+    # Update package lists silently, suppress standard output
+    if $sudo_cmd apt-get update -qq >/dev/null 2>&1; then
+        print_info "Installing packages..."
+        # Run apt-get install silently, but capture output in case of errors
+        if INSTALL_OUTPUT=$($sudo_cmd apt-get install -y -qq $MISSING_PACKAGES 2>&1); then
+            INSTALL_EXIT=0
+            echo "✅ Packages installed successfully"
+        else
+            INSTALL_EXIT=$?
+            # Only show output if there was an error
+            echo "$INSTALL_OUTPUT"
+        fi
         echo ""
         
         if [ $INSTALL_EXIT -eq 0 ]; then
@@ -392,14 +397,12 @@ install_deb_package() {
         
         if [ $DPKG_EXIT -eq 0 ]; then
             print_success "Package installed successfully"
-            echo "$DPKG_OUTPUT"
         else
             print_warning "Package installation had issues (exit code: $DPKG_EXIT)"
-            print_info "Attempting to fix remaining dependencies..."
+            print_info "Attempting to fix remaining dependencies (silent mode)..."
             
-            if APT_FIX=$($SUDO apt-get install -f -y 2>&1); then
+            if APT_FIX=$($SUDO apt-get install -f -y -qq 2>&1); then
                 print_success "Dependencies resolved"
-                echo "$APT_FIX"
             else
                 print_error "Failed to fix dependencies"
                 print_info "Error output:"

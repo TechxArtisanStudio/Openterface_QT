@@ -421,26 +421,21 @@ jobs:
               # exit 1  # Removed to allow diagnostics steps to run
           fi
           
-          # Display container logs with first 200 lines (removing last 30 lines)
+          # Display full container logs
           echo ""
-          echo "📋 Container Logs Summary:"
+          echo "📋 Full Container Logs:"
           echo "=================================================="
           
-          # Get all logs and remove last 30 lines, then filter out ASCII art boxes
+          # Get all logs
           ALL_LOGS=$(docker logs $CONTAINER_ID 2>&1)
           TOTAL_LINES=$(echo "$ALL_LOGS" | wc -l)
-          TRIMMED_LOGS=$(echo "$ALL_LOGS" | head -n $((TOTAL_LINES - 30)))
           
-          # Filter out ASCII art blocks (lines with ╔, ╚, ║, ═, etc.)
-          FILTERED_LOGS=$(echo "$TRIMMED_LOGS" | grep -v '^[[:space:]]*[╔╚║╠╣╦╩╬═─│]' | grep -v '^[[:space:]]*┌' | grep -v '^[[:space:]]*└' | grep -v '^[[:space:]]*├' | grep -v '^[[:space:]]*┤' | grep -v '^[[:space:]]*┬' | grep -v '^[[:space:]]*┴' | grep -v '^[[:space:]]*┼' | grep -v '^[[:space:]]*─' | grep -v '^[[:space:]]*│')
-          TRIMMED_LINES=$(echo "$FILTERED_LOGS" | wc -l)
-          
-          echo "Total container log lines: $TOTAL_LINES (showing first 200 lines, last 30 lines removed, ASCII art blocks filtered)"
+          echo "Total container log lines: $TOTAL_LINES"
           echo ""
           
-          echo "📌 CONTAINER LOGS - FIRST 200 LINES (last 30 lines and ASCII art removed):"
+          echo "📌 CONTAINER LOGS - FULL OUTPUT:"
           echo "---"
-          echo "$FILTERED_LOGS" | head -200
+          echo "$ALL_LOGS"
           echo "=================================================="
           echo ""
           
