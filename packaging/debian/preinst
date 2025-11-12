@@ -1,0 +1,268 @@
+#!/bin/bash
+# =============================================================================
+# OpenterfaceQT Pre-Installation Script
+# =============================================================================
+#
+# This script runs BEFORE the DEB package is unpacked and installed.
+# It checks that all required runtime dependencies are already installed.
+#
+# IMPORTANT: Dependencies must be installed BEFORE running this script.
+# When using "dpkg -i", the dpkg lock prevents apt-get from running in preinst.
+# Dependencies must be pre-installed by the calling script/installer.
+#
+# Required dependencies:
+#   - Graphics: libegl1, libgles2
+#   - Audio: libpulse0
+#   - Video: libgstreamer1.0-0 (core only, base libs are bundled), libv4l-0
+#   - X11/Display: libxkbcommon0, libwayland-client0, libxcb1, libx11-6
+#   - FFmpeg: bundled in package
+#   - GStreamer Base: bundled in package (libgstbase, libgstraudio, libgstvideo, libgstapp, etc.)
+#   - Qt6 Libraries: bundled in package (Qt6 core, plugins, QPA)
+#   - Qt6 SVG Support: libqt6svg6 (CRITICAL for SVG icon rendering)
+#   - Hardware Acceleration: libva2, libva-drm2, libva-x11-2, libvdpau1, liborc-0.4-0 (bundled or system)
+#   - OpenGL: libgl1, libglx0, libglvnd0, libglu1-mesa
+#   - Compression: zlib1g, libbz2-1.0
+#
+# =============================================================================
+
+echo "=========================================="
+echo "OpenterfaceQT Pre-Installation Check"
+echo "=========================================="
+echo ""
+
+# Function to print status messages
+print_status() {
+    echo "📦 $1"
+}
+
+print_success() {
+    echo "✅ $1"
+}
+
+print_warning() {
+    echo "⚠️  $1"
+}
+
+print_error() {
+    echo "❌ $1"
+}
+
+# Check if running with install or upgrade
+if [ "$1" != "install" ] && [ "$1" != "upgrade" ]; then
+    exit 0
+fi
+
+print_status "Checking required dependencies..."
+echo ""
+
+# Define dependencies by category
+GRAPHICS_DEPS=(
+    "libegl1"
+    "libgles2"
+)
+
+AUDIO_DEPS=(
+    "libpulse0"
+)
+
+VIDEO_DEPS=(
+    "libgstreamer1.0-0"
+    "libv4l-0"
+)
+
+DISPLAY_DEPS=(
+    "libxkbcommon0"
+    "libwayland-client0"
+    "libxcb1"
+    "libxcb-shm0"
+    "libxcb-xfixes0"
+    "libx11-6"
+)
+
+OPENGL_DEPS=(
+    "libgl1"
+    "libglx0"
+    "libglvnd0"
+)
+
+QT6_SVG_DEPS=(
+    "libqt6svg6"
+)
+
+QT6_PLATFORM_DEPS=(
+    "libxcb-icccm4"
+    "libxcb-image0"
+    "libxcb-keysyms1"
+    "libxcb-randr0"
+    "libxcb-render-util0"
+    "libxcb-xkb1"
+)
+
+HWACCEL_DEPS=(
+    "libva2"
+    "libva-drm2"
+    "libva-x11-2"
+    "libvdpau1"
+)
+
+COMPRESSION_DEPS=(
+    "zlib1g"
+    "libbz2-1.0"
+)
+
+MISSING_DEPS=()
+FOUND_DEPS=0
+TOTAL_DEPS=0
+
+# Calculate total dependencies to check
+TOTAL_DEPS=$((${#GRAPHICS_DEPS[@]} + ${#AUDIO_DEPS[@]} + ${#VIDEO_DEPS[@]} + ${#DISPLAY_DEPS[@]} + ${#OPENGL_DEPS[@]} + ${#QT6_SVG_DEPS[@]} + ${#QT6_PLATFORM_DEPS[@]} + ${#HWACCEL_DEPS[@]} + ${#COMPRESSION_DEPS[@]}))
+
+echo "System dependency verification:"
+echo ""
+# Helper function to print category header
+print_category() {
+    local category=$1
+    echo "  📦 $category:"
+}
+# Check Graphics dependencies
+print_category "Graphics Libraries"
+for pkg in "${GRAPHICS_DEPS[@]}"; do
+    if dpkg -l | grep -q "^ii.*${pkg}"; then
+        echo "    ✅ $pkg"
+        FOUND_DEPS=$((FOUND_DEPS + 1))
+    else
+        echo "    ❌ $pkg (MISSING)"
+        MISSING_DEPS+=("$pkg")
+    fi
+done
+echo ""
+
+# Check Audio dependencies
+print_category "Audio Libraries"
+for pkg in "${AUDIO_DEPS[@]}"; do
+    if dpkg -l | grep -q "^ii.*${pkg}"; then
+        echo "    ✅ $pkg"
+        FOUND_DEPS=$((FOUND_DEPS + 1))
+    else
+        echo "    ❌ $pkg (MISSING)"
+        MISSING_DEPS+=("$pkg")
+    fi
+done
+echo ""
+
+# Check Video dependencies
+print_category "Video/GStreamer Libraries"
+for pkg in "${VIDEO_DEPS[@]}"; do
+    if dpkg -l | grep -q "^ii.*${pkg}"; then
+        echo "    ✅ $pkg"
+        FOUND_DEPS=$((FOUND_DEPS + 1))
+    else
+        echo "    ❌ $pkg (MISSING)"
+        MISSING_DEPS+=("$pkg")
+    fi
+done
+echo ""
+
+# Check Display dependencies
+print_category "X11/Display Server Libraries"
+for pkg in "${DISPLAY_DEPS[@]}"; do
+    if dpkg -l | grep -q "^ii.*${pkg}"; then
+        echo "    ✅ $pkg"
+        FOUND_DEPS=$((FOUND_DEPS + 1))
+    else
+        echo "    ❌ $pkg (MISSING)"
+        MISSING_DEPS+=("$pkg")
+    fi
+done
+echo ""
+
+# Check OpenGL dependencies
+print_category "OpenGL Libraries"
+for pkg in "${OPENGL_DEPS[@]}"; do
+    if dpkg -l | grep -q "^ii.*${pkg}"; then
+        echo "    ✅ $pkg"
+        FOUND_DEPS=$((FOUND_DEPS + 1))
+    else
+        echo "    ❌ $pkg (MISSING)"
+        MISSING_DEPS+=("$pkg")
+    fi
+done
+
+# Check Qt6 SVG support - CRITICAL for icon rendering
+print_category "  Qt6 SVG Support (CRITICAL for icon display):"
+for pkg in "${QT6_SVG_DEPS[@]}"; do
+    if dpkg -l | grep -q "^ii.*${pkg}"; then
+        echo "    ✅ $pkg - SVG icons will render correctly"
+        FOUND_DEPS=$((FOUND_DEPS + 1))
+    else
+        echo "    ❌ $pkg (MISSING - SVG icons will NOT display)"
+        MISSING_DEPS+=("$pkg")
+    fi
+done
+
+# Check Qt6 XCB/Platform dependencies
+print_category "  Qt6 Platform Dependencies (XCB):"
+for pkg in "${QT6_PLATFORM_DEPS[@]}"; do
+    if dpkg -l | grep -q "^ii.*${pkg}"; then
+        echo "    ✅ $pkg"
+        FOUND_DEPS=$((FOUND_DEPS + 1))
+    else
+        echo "    ❌ $pkg (MISSING)"
+        MISSING_DEPS+=("$pkg")
+    fi
+done
+
+# Check Hardware Acceleration dependencies
+print_category "  Hardware Acceleration Libraries (VA-API, VDPAU):"
+for pkg in "${HWACCEL_DEPS[@]}"; do
+    if dpkg -l | grep -q "^ii.*${pkg}"; then
+        echo "    ✅ $pkg"
+        FOUND_DEPS=$((FOUND_DEPS + 1))
+    else
+        echo "    ⚠️  $pkg (OPTIONAL - hardware acceleration may be slower)"
+    fi
+done
+
+# Check Compression dependencies
+print_category "  Compression Libraries:"
+for pkg in "${COMPRESSION_DEPS[@]}"; do
+    if dpkg -l | grep -q "^ii.*${pkg}"; then
+        echo "    ✅ $pkg"
+        FOUND_DEPS=$((FOUND_DEPS + 1))
+    else
+        echo "    ❌ $pkg (MISSING)"
+        MISSING_DEPS+=("$pkg")
+    fi
+done
+
+echo ""
+echo "=========================================="
+echo "Dependency Check Summary"
+echo "=========================================="
+echo "Found: $FOUND_DEPS/$TOTAL_DEPS"
+echo "Missing: ${#MISSING_DEPS[@]}/$TOTAL_DEPS"
+echo ""
+
+if [ ${#MISSING_DEPS[@]} -eq 0 ]; then
+    print_success "All required dependencies are installed!"
+    echo ""
+    print_status "Proceeding with OpenterfaceQT package installation..."
+    echo ""
+    exit 0
+else
+    print_error "Missing ${#MISSING_DEPS[@]} required dependencies!"
+    echo ""
+    echo "Missing packages: ${MISSING_DEPS[*]}"
+    echo ""
+    echo "=========================================="
+    echo "How to Install Missing Dependencies"
+    echo "=========================================="
+    echo ""
+    echo "Run the following command BEFORE installing OpenterfaceQT:"
+    echo ""
+    echo "  sudo apt-get update && sudo apt-get install -y ${MISSING_DEPS[*]}"
+    echo ""
+    echo "=========================================="
+    echo ""
+    exit 1
+fi

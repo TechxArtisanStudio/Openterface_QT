@@ -31,10 +31,11 @@
 #include <QDesktopServices> // Add this for opening URLs
 #include <QUrl> // Add this for handling URLs
 #include <QLabel> // Already included, but noting it's used for hyperlink
+#include <QFont> // Include QFont for system font information
 
 bool EnvironmentSetupDialog::isDriverInstalled = false;
-const QString EnvironmentSetupDialog::tickHtml = "<span style='color: green; font-size: 16pt'>âœ?/span>";
-const QString EnvironmentSetupDialog::crossHtml = "<span style='color: red; font-size: 16pt'>âœ?/span>";
+const QString EnvironmentSetupDialog::tickHtml = "<span style='color: green'>&#x2713;</span>";
+const QString EnvironmentSetupDialog::crossHtml = "<span style='color: red'>&#x2717;</span>";
 QString EnvironmentSetupDialog::latestFirewareDescription = QString("");
 // const QString EnvironmentSetupDialog::latestFirewareDescription = "not the latest firmware version. Please click OK then update it in Advance->Firmware Update...";
 FirmwareResult EnvironmentSetupDialog::latestFirmware = FirmwareResult::Checking;
@@ -105,8 +106,8 @@ EnvironmentSetupDialog::EnvironmentSetupDialog(QWidget *parent) :
     QString statusSummary = tr("The following steps help you install the driver and the Openterface firmware update. Current status:<br>");
     QString latestDescription = latestFirewareDescription;
     qDebug() << latestDescription;
-    statusSummary += tr("â€?Driver Installed: ") + QString(isDriverInstalled? tickHtml : crossHtml) + "<br>";
-    statusSummary += tr("â€?Latest Firmware: ") + QString(latestFirmware == FirmwareResult::Latest ? tickHtml : crossHtml) + QString(latestFirmware == FirmwareResult::Latest ?  QString(""): latestDescription);
+    statusSummary += tr("ï¿½?Driver Installed: ") + QString(isDriverInstalled? tickHtml : crossHtml) + "<br>";
+    statusSummary += tr("ï¿½?Latest Firmware: ") + QString(latestFirmware == FirmwareResult::Latest ? tickHtml : crossHtml) + QString(latestFirmware == FirmwareResult::Latest ?  QString(""): latestDescription);
     ui->descriptionLabel->setText(statusSummary);
 
     // if(isDriverInstalled)
@@ -137,11 +138,11 @@ EnvironmentSetupDialog::EnvironmentSetupDialog(QWidget *parent) :
 
     // Create the status summary
     QString statusSummary = tr("The following steps help you install the driver and access the device permissions and the Openterface firmware update. Current status:<br>");
-    statusSummary += tr("â€?Driver Installed: ") + QString(isDriverInstalled ? tickHtml : crossHtml) + "<br>";
-    statusSummary += tr("â€?In Serial Port Permission: ") + QString(isSerialPermission ? tickHtml : crossHtml) + "<br>";
-    statusSummary += tr("â€?HID Permission: ") + QString(isHidPermission ? tickHtml : crossHtml) + "<br>";
-    statusSummary += tr("â€?BRLTTY checking: ") + QString(isBrlttyRunning ? crossHtml + tr(" (needs removal)") : tickHtml + tr(" (not running)")) + "<br>";
-    statusSummary += tr("â€?Latest Firmware: ") + QString(latestFirmware == FirmwareResult::Latest ? tickHtml : crossHtml) + QString(latestFirmware == FirmwareResult::Latest ?  QString(""): latestFirewareDescription);
+    statusSummary += tr("ï¿½?Driver Installed: ") + QString(isDriverInstalled ? tickHtml : crossHtml) + "<br>";
+    statusSummary += tr("ï¿½?In Serial Port Permission: ") + QString(isSerialPermission ? tickHtml : crossHtml) + "<br>";
+    statusSummary += tr("ï¿½?HID Permission: ") + QString(isHidPermission ? tickHtml : crossHtml) + "<br>";
+    statusSummary += tr("ï¿½?BRLTTY checking: ") + QString(isBrlttyRunning ? crossHtml + tr(" (needs removal)") : tickHtml + tr(" (not running)")) + "<br>";
+    statusSummary += tr("ï¿½?Latest Firmware: ") + QString(latestFirmware == FirmwareResult::Latest ? tickHtml : crossHtml) + QString(latestFirmware == FirmwareResult::Latest ?  QString(""): latestFirewareDescription);
     ui->descriptionLabel->setText(statusSummary);
 
     // Create help link
@@ -169,10 +170,11 @@ EnvironmentSetupDialog::~EnvironmentSetupDialog()
     delete ui;
 }
 
-// Override the closeEvent to prevent closing the dialog
+// Override the closeEvent to handle it same as quit button
 void EnvironmentSetupDialog::closeEvent(QCloseEvent *event)
 {
-    event->ignore(); // Ignore the close event
+    reject(); // Call reject to close the dialog same as quit button
+    event->accept(); // Accept the close event
 }
 
 #ifdef _WIN32
@@ -525,6 +527,8 @@ bool EnvironmentSetupDialog::checkEnvironmentSetup() {
         int ret = libusb_init(&context);
         if (ret < 0) {
             qWarning() << "Error initializing libusb: " << libusb_error_name(ret);
+            qWarning() << "Cannot proceed without libusb context. Skipping device checks.";
+            return true; // Skip checks if libusb initialization fails
         }
         qDebug() << "libusb initialized successfully.";
     }

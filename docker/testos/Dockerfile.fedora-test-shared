@@ -4,8 +4,14 @@
 
 FROM fedora:latest
 
+# Build arguments
+ARG GITHUB_TOKEN=""
+ARG INSTALL_TYPE="deb"
+
 # Set environment variables
 ENV TZ=UTC
+ENV GITHUB_TOKEN=${GITHUB_TOKEN}
+ENV INSTALL_TYPE=${INSTALL_TYPE}
 
 # Set up display environment for GUI applications
 ENV DISPLAY=:0
@@ -52,6 +58,9 @@ RUN dnf update -y && \
         gstreamer1-libav \
         gstreamer1-plugins-good-extras \
         gstreamer1-plugins-bad-free-extras \
+        # FUSE support for AppImage installations
+        fuse \
+        fuse-libs \
         # Clean up to reduce image size
     && dnf clean all && \
     rm -rf /var/cache/dnf
@@ -61,11 +70,13 @@ RUN useradd -m -s /bin/bash openterface && \
     usermod -a -G dialout,uucp,audio,video openterface && \
     echo "openterface ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
 
-# Copy and run the installation script
-COPY install-openterface-shared.sh /tmp/install-openterface-shared.sh
-RUN chmod +x /tmp/install-openterface-shared.sh && \
-    /tmp/install-openterface-shared.sh && \
-    rm /tmp/install-openterface-shared.sh
+# Copy installation scripts for runtime execution
+COPY ./install-openterface.sh /docker/install-openterface.sh
+RUN chmod +x /docker/install-openterface.sh
+
+# Copy and setup entrypoint script
+COPY ./entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
 
 # Set up udev rules for Openterface hardware (backup rules, main setup in install script)
 RUN echo 'SUBSYSTEM=="hidraw", ATTRS{idVendor}=="534d", ATTRS{idProduct}=="2109", TAG+="uaccess", MODE="0666"' > /etc/udev/rules.d/50-openterface-backup.rules && \
@@ -85,5 +96,8 @@ LABEL description="Openterface QT Mini-KVM testing environment on Fedora"
 LABEL version="latest"
 LABEL purpose="testing"
 
-# Default command to run the application
-CMD ["/usr/local/bin/start-openterface.sh"]
+# Set entrypoint to handle installation on first run
+ENTRYPOINT ["/entrypoint.sh"]
+
+# Default command (will be passed to entrypoint)
+CMD ["/bin/bash"]

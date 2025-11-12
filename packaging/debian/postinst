@@ -1,0 +1,54 @@
+#!/bin/bash
+set -e
+
+# Register bundled FFmpeg 6.1.1 and GStreamer libraries with system linker
+if [ "$1" = "configure" ]; then
+    # Create ldconfig configuration for bundled libraries
+    cat > /etc/ld.so.conf.d/openterface-libs.conf <<'EOF'
+# OpenterfaceQT bundled libraries (isolated from system libraries)
+# - FFmpeg 6.1.1
+# - GStreamer 1.0 (if bundled)
+# - JPEG/TurboJPEG
+# - VA-API
+/usr/lib/openterfaceqt
+EOF
+    
+    # Update library cache
+    ldconfig
+    
+    echo "OpenterfaceQT: Bundled libraries (FFmpeg 6.1.1, GStreamer, etc.) registered with system linker"
+    
+    # Create marker for post-installation environment verification
+    mkdir -p /usr/share/openterfaceQT
+    cat > /usr/share/openterfaceQT/runtime-info.txt <<'EOF'
+OpenterfaceQT Runtime Information
+==================================
+
+Expected Library Paths:
+  - Qt6 Plugins: /usr/lib/qt6/plugins
+  - Qt6 QML: /usr/lib/qt6/qml
+  - GStreamer Plugins: /usr/lib/x86_64-linux-gnu/gstreamer-1.0
+  - Bundled Libs: /usr/lib/openterfaceqt
+
+Environment Variables (automatically set by wrapper):
+  - QT_PLUGIN_PATH
+  - QML2_IMPORT_PATH
+  - GST_PLUGIN_PATH
+  - LD_LIBRARY_PATH
+
+If you encounter "symbol lookup error" when running openterfaceQT:
+  1. Verify GStreamer packages are installed:
+     apt list --installed | grep gstreamer1.0
+  2. Update GStreamer if needed:
+     sudo apt update && sudo apt upgrade libgstreamer1.0-0
+  3. Run with debug enabled:
+     OPENTERFACE_DEBUG=1 openterfaceQT-wrapper.sh
+  4. For more help, see: /usr/share/doc/openterfaceQT/GSTREAMER_FIX.md
+
+EOF
+
+    echo "✓ Runtime info file created at /usr/share/openterfaceQT/runtime-info.txt"
+fi
+
+exit 0
+
