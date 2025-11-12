@@ -826,7 +826,21 @@ jobs:
         with:
           path: all-artifacts/
         continue-on-error: true
+        timeout-minutes: 15
         
+
+      - name: Check artifact availability
+        run: |
+          echo "🔍 Checking artifact status..."
+          if [ -d "all-artifacts" ] && [ -n "$(find all-artifacts -type f 2>/dev/null)" ]; then
+              echo "✅ Artifacts available"
+              echo "Artifact contents:"
+              find all-artifacts -type f | head -20
+          else
+              echo "⚠️ Artifacts unavailable (GitHub API timeout - this is transient)"
+              echo "Screenshots are still available in GitHub Actions UI: Actions → Job → Artifacts"
+              mkdir -p all-artifacts
+          fi
 
       - name: Generate comprehensive test report
         run: |
