@@ -112,6 +112,11 @@ COMPRESSION_DEPS=(
 
 MISSING_DEPS=()
 FOUND_DEPS=0
+TOTAL_DEPS=0
+
+# Calculate total dependencies to check
+TOTAL_DEPS=$((${#GRAPHICS_DEPS[@]} + ${#AUDIO_DEPS[@]} + ${#VIDEO_DEPS[@]} + ${#DISPLAY_DEPS[@]} + ${#OPENGL_DEPS[@]} + ${#QT6_SVG_DEPS[@]} + ${#QT6_PLATFORM_DEPS[@]} + ${#HWACCEL_DEPS[@]} + ${#COMPRESSION_DEPS[@]}))
+
 echo "System dependency verification:"
 echo ""
 # Helper function to print category header
@@ -215,7 +220,6 @@ for pkg in "${HWACCEL_DEPS[@]}"; do
         FOUND_DEPS=$((FOUND_DEPS + 1))
     else
         echo "    ⚠️  $pkg (OPTIONAL - hardware acceleration may be slower)"
-        MISSING_DEPS+=("$pkg")
     fi
 done
 
@@ -235,8 +239,8 @@ echo ""
 echo "=========================================="
 echo "Dependency Check Summary"
 echo "=========================================="
-echo "Found: $FOUND_DEPS/${#CRITICAL_DEPS[@]}"
-echo "Missing: ${#MISSING_DEPS[@]}/${#CRITICAL_DEPS[@]}"
+echo "Found: $FOUND_DEPS/$TOTAL_DEPS"
+echo "Missing: ${#MISSING_DEPS[@]}/$TOTAL_DEPS"
 echo ""
 
 if [ ${#MISSING_DEPS[@]} -eq 0 ]; then
