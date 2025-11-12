@@ -613,20 +613,97 @@ fi
 # Copy SVG icon engine plugin (libsvgicon.so)
 echo "   📦 Searching for libsvgicon.so (SVG icon engine plugin)..."
 SVGICON_PLUGIN_FOUND=0
+
+# First try: search in standard iconengines directories with wildcards
 for SEARCH_DIR in /opt/Qt6/plugins /usr/lib/qt6/plugins /usr/lib/x86_64-linux-gnu/qt6/plugins; do
     if [ -d "$SEARCH_DIR/iconengines" ]; then
-        if [ -f "$SEARCH_DIR/iconengines/libsvgicon.so" ]; then
-            echo "   ✅ Found libsvgicon.so in $SEARCH_DIR"
+        # Use find to look for libsvgicon.so with potential version suffixes
+        FOUND_FILES=$(find "$SEARCH_DIR/iconengines" -name "libsvgicon.so*" 2>/dev/null)
+        if [ -n "$FOUND_FILES" ]; then
+            echo "   ✅ Found libsvgicon.so in $SEARCH_DIR/iconengines"
             mkdir -p "${PKG_ROOT}/usr/lib/openterfaceqt/qt6/plugins/iconengines"
-            cp -Pv "$SEARCH_DIR/iconengines/libsvgicon.so" "${PKG_ROOT}/usr/lib/openterfaceqt/qt6/plugins/iconengines/" 2>&1 | sed 's/^/     /'
+            echo "$FOUND_FILES" | while read -r svg_icon_file; do
+                cp -Pv "$svg_icon_file" "${PKG_ROOT}/usr/lib/openterfaceqt/qt6/plugins/iconengines/" 2>&1 | sed 's/^/     /'
+            done
             SVGICON_PLUGIN_FOUND=1
             break
         fi
     fi
 done
+
+# Second try: search for it in the broader plugins directory (might not be in iconengines subdirectory)
+if [ $SVGICON_PLUGIN_FOUND -eq 0 ]; then
+    for SEARCH_DIR in /opt/Qt6/plugins /usr/lib/qt6/plugins /usr/lib/x86_64-linux-gnu/qt6/plugins; do
+        if [ -d "$SEARCH_DIR" ]; then
+            FOUND_FILES=$(find "$SEARCH_DIR" -name "libsvgicon.so*" -type f 2>/dev/null)
+            if [ -n "$FOUND_FILES" ]; then
+                echo "   ✅ Found libsvgicon.so in $SEARCH_DIR (in alternate location)"
+                mkdir -p "${PKG_ROOT}/usr/lib/openterfaceqt/qt6/plugins/iconengines"
+                echo "$FOUND_FILES" | while read -r svg_icon_file; do
+                    cp -Pv "$svg_icon_file" "${PKG_ROOT}/usr/lib/openterfaceqt/qt6/plugins/iconengines/" 2>&1 | sed 's/^/     /'
+                done
+                SVGICON_PLUGIN_FOUND=1
+                break
+            fi
+        fi
+    done
+fi
+
+# Third try: attempt to install SVG icon plugin if not found
 if [ $SVGICON_PLUGIN_FOUND -eq 0 ]; then
     echo "   ⚠️  libsvgicon.so not found in: /opt/Qt6/plugins, /usr/lib/qt6/plugins, /usr/lib/x86_64-linux-gnu/qt6/plugins"
-    echo "   ⚠️  SVG icons won't be displayed"
+    echo "   📥 Attempting to install SVG icon plugin packages..."
+    
+    # Try Debian package
+    if command -v apt-get >/dev/null 2>&1; then
+        if apt-get update >/dev/null 2>&1 && apt-get install -y qt6-svg 2>/dev/null; then
+            echo "   ✅ Installed qt6-svg package"
+            # Retry search after installation
+            for SEARCH_DIR in /usr/lib/qt6/plugins /usr/lib/x86_64-linux-gnu/qt6/plugins; do
+                if [ -d "$SEARCH_DIR/iconengines" ]; then
+                    FOUND_FILES=$(find "$SEARCH_DIR/iconengines" -name "libsvgicon.so*" 2>/dev/null)
+                    if [ -n "$FOUND_FILES" ]; then
+                        echo "   ✅ Found libsvgicon.so after installation"
+                        mkdir -p "${PKG_ROOT}/usr/lib/openterfaceqt/qt6/plugins/iconengines"
+                        echo "$FOUND_FILES" | while read -r svg_icon_file; do
+                            cp -Pv "$svg_icon_file" "${PKG_ROOT}/usr/lib/openterfaceqt/qt6/plugins/iconengines/" 2>&1 | sed 's/^/     /'
+                        done
+                        SVGICON_PLUGIN_FOUND=1
+                        break
+                    fi
+                fi
+            done
+        fi
+    fi
+    
+    # Try RPM package
+    if [ $SVGICON_PLUGIN_FOUND -eq 0 ] && command -v dnf >/dev/null 2>&1; then
+        if dnf install -y qt6-qtsvg 2>/dev/null; then
+            echo "   ✅ Installed qt6-qtsvg package"
+            # Retry search after installation
+            for SEARCH_DIR in /usr/lib/qt6/plugins /usr/lib/x86_64-linux-gnu/qt6/plugins; do
+                if [ -d "$SEARCH_DIR/iconengines" ]; then
+                    FOUND_FILES=$(find "$SEARCH_DIR/iconengines" -name "libsvgicon.so*" 2>/dev/null)
+                    if [ -n "$FOUND_FILES" ]; then
+                        echo "   ✅ Found libsvgicon.so after installation"
+                        mkdir -p "${PKG_ROOT}/usr/lib/openterfaceqt/qt6/plugins/iconengines"
+                        echo "$FOUND_FILES" | while read -r svg_icon_file; do
+                            cp -Pv "$svg_icon_file" "${PKG_ROOT}/usr/lib/openterfaceqt/qt6/plugins/iconengines/" 2>&1 | sed 's/^/     /'
+                        done
+                        SVGICON_PLUGIN_FOUND=1
+                        break
+                    fi
+                fi
+            done
+        fi
+    fi
+fi
+
+# Final status
+if [ $SVGICON_PLUGIN_FOUND -eq 0 ]; then
+    echo "   ⚠️  libsvgicon.so still not found - SVG icons may not display optimally"
+    echo "   ℹ️  Note: SVG image format support (libqsvg.so) is still available for SVG rendering"
+    echo "   ℹ️  Icons may fall back to other formats or display without SVG icon engine"
 fi
 
 # Verify SVG support components
@@ -890,18 +967,93 @@ fi
 # Copy SVG icon engine plugin (libsvgicon.so)
 echo "   📦 Searching for libsvgicon.so (SVG icon engine plugin)..."
 SVGICON_PLUGIN_FOUND=0
+
+# First try: search in standard iconengines directories with wildcards
 for SEARCH_DIR in /opt/Qt6/plugins /usr/lib/qt6/plugins /usr/lib/x86_64-linux-gnu/qt6/plugins; do
     if [ -d "$SEARCH_DIR/iconengines" ]; then
-        if [ -f "$SEARCH_DIR/iconengines/libsvgicon.so" ]; then
-            echo "   ✅ Found libsvgicon.so in $SEARCH_DIR"
-            cp -Pv "$SEARCH_DIR/iconengines/libsvgicon.so" "${RPMTOP}/SOURCES/" 2>&1 | sed 's/^/     /'
+        # Use find to look for libsvgicon.so with potential version suffixes
+        FOUND_FILES=$(find "$SEARCH_DIR/iconengines" -name "libsvgicon.so*" 2>/dev/null)
+        if [ -n "$FOUND_FILES" ]; then
+            echo "   ✅ Found libsvgicon.so in $SEARCH_DIR/iconengines"
+            echo "$FOUND_FILES" | while read -r svg_icon_file; do
+                cp -Pv "$svg_icon_file" "${RPMTOP}/SOURCES/" 2>&1 | sed 's/^/     /'
+            done
             SVGICON_PLUGIN_FOUND=1
             break
         fi
     fi
 done
+
+# Second try: search for it in the broader plugins directory (might not be in iconengines subdirectory)
 if [ $SVGICON_PLUGIN_FOUND -eq 0 ]; then
-    echo "   ⚠️  libsvgicon.so not found - SVG icons won't be displayed"
+    for SEARCH_DIR in /opt/Qt6/plugins /usr/lib/qt6/plugins /usr/lib/x86_64-linux-gnu/qt6/plugins; do
+        if [ -d "$SEARCH_DIR" ]; then
+            FOUND_FILES=$(find "$SEARCH_DIR" -name "libsvgicon.so*" -type f 2>/dev/null)
+            if [ -n "$FOUND_FILES" ]; then
+                echo "   ✅ Found libsvgicon.so in $SEARCH_DIR (in alternate location)"
+                echo "$FOUND_FILES" | while read -r svg_icon_file; do
+                    cp -Pv "$svg_icon_file" "${RPMTOP}/SOURCES/" 2>&1 | sed 's/^/     /'
+                done
+                SVGICON_PLUGIN_FOUND=1
+                break
+            fi
+        fi
+    done
+fi
+
+# Third try: attempt to install SVG icon plugin if not found
+if [ $SVGICON_PLUGIN_FOUND -eq 0 ]; then
+    echo "   ⚠️  libsvgicon.so not found in: /opt/Qt6/plugins, /usr/lib/qt6/plugins, /usr/lib/x86_64-linux-gnu/qt6/plugins"
+    echo "   📥 Attempting to install SVG icon plugin packages..."
+    
+    # Try Debian package
+    if command -v apt-get >/dev/null 2>&1; then
+        if apt-get update >/dev/null 2>&1 && apt-get install -y qt6-svg 2>/dev/null; then
+            echo "   ✅ Installed qt6-svg package"
+            # Retry search after installation
+            for SEARCH_DIR in /usr/lib/qt6/plugins /usr/lib/x86_64-linux-gnu/qt6/plugins; do
+                if [ -d "$SEARCH_DIR/iconengines" ]; then
+                    FOUND_FILES=$(find "$SEARCH_DIR/iconengines" -name "libsvgicon.so*" 2>/dev/null)
+                    if [ -n "$FOUND_FILES" ]; then
+                        echo "   ✅ Found libsvgicon.so after installation"
+                        echo "$FOUND_FILES" | while read -r svg_icon_file; do
+                            cp -Pv "$svg_icon_file" "${RPMTOP}/SOURCES/" 2>&1 | sed 's/^/     /'
+                        done
+                        SVGICON_PLUGIN_FOUND=1
+                        break
+                    fi
+                fi
+            done
+        fi
+    fi
+    
+    # Try RPM package
+    if [ $SVGICON_PLUGIN_FOUND -eq 0 ] && command -v dnf >/dev/null 2>&1; then
+        if dnf install -y qt6-qtsvg 2>/dev/null; then
+            echo "   ✅ Installed qt6-qtsvg package"
+            # Retry search after installation
+            for SEARCH_DIR in /usr/lib/qt6/plugins /usr/lib/x86_64-linux-gnu/qt6/plugins; do
+                if [ -d "$SEARCH_DIR/iconengines" ]; then
+                    FOUND_FILES=$(find "$SEARCH_DIR/iconengines" -name "libsvgicon.so*" 2>/dev/null)
+                    if [ -n "$FOUND_FILES" ]; then
+                        echo "   ✅ Found libsvgicon.so after installation"
+                        echo "$FOUND_FILES" | while read -r svg_icon_file; do
+                            cp -Pv "$svg_icon_file" "${RPMTOP}/SOURCES/" 2>&1 | sed 's/^/     /'
+                        done
+                        SVGICON_PLUGIN_FOUND=1
+                        break
+                    fi
+                fi
+            done
+        fi
+    fi
+fi
+
+# Final status
+if [ $SVGICON_PLUGIN_FOUND -eq 0 ]; then
+    echo "   ⚠️  libsvgicon.so still not found - SVG icons may not display optimally"
+    echo "   ℹ️  Note: SVG image format support (libqsvg.so) is still available for SVG rendering"
+    echo "   ℹ️  Icons may fall back to other formats or display without SVG icon engine"
 fi
 
 # Verify SVG support components
