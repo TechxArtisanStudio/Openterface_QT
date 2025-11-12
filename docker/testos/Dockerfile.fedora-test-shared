@@ -20,7 +20,7 @@ ENV QT_QPA_PLATFORM=xcb
 
 # Install minimal system dependencies and runtime libraries only
 RUN dnf update -y && \
-    dnf install -y \
+    dnf install -y --setopt=install_weak_deps=False \
         # Essential utilities
         curl \
         wget \
@@ -46,11 +46,6 @@ RUN dnf update -y && \
         freetype \
         fontconfig \
         bzip2-libs \
-        # FFmpeg runtime libraries
-        libavformat \
-        libavcodec \
-        libavutil \
-        libjpeg-turbo \
         # GStreamer runtime dependencies
         gstreamer1 \
         gstreamer1-plugins-base \
@@ -63,7 +58,8 @@ RUN dnf update -y && \
         fuse \
         fuse-libs \
         # X11 utilities for screenshots
-        xorg-x11-utils \
+        xdotool \
+        xwininfo \
         ImageMagick \
         # Clean up to reduce image size
     && dnf clean all && \
