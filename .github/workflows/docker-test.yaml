@@ -6,7 +6,6 @@ on:
     paths:
       - 'docker/testos/Dockerfile.ubuntu-test-shared'
       - 'docker/install-openterface.sh'
-      - 'docker/screenshot-docker-app.sh'
       - 'docker/entrypoint.sh'
       - '.github/workflows/docker-test.yaml'
       - 'packaging/debian/**'
@@ -480,7 +479,7 @@ jobs:
           container_screenshot="/tmp/screenshot_${timestamp}.jpg"
           screenshot_jpg="$SCREENSHOTS_DIR/openterface_app_${timestamp}.jpg"
           
-          if docker exec $CONTAINER_ID sh -c "DISPLAY=:98 import -window root -quality 90 $container_screenshot 2>&1"; then
+          if docker exec $CONTAINER_ID sh -c "DISPLAY=:98 import -window root -quality 100 $container_screenshot 2>&1"; then
               echo "✅ Screenshot created in container"
               
               if docker cp "$CONTAINER_ID:$container_screenshot" "$screenshot_jpg" 2>/dev/null; then
@@ -606,7 +605,7 @@ jobs:
                   
                   if [ -n "$UPLOAD_URL" ]; then
                     echo "✅ Upload successful: $UPLOAD_URL"
-                    echo "![Screenshot]($UPLOAD_URL)" >> $GITHUB_STEP_SUMMARY
+                    echo "<a href=\"$UPLOAD_URL\" target=\"_blank\"><img src=\"$UPLOAD_URL\" width=\"800\" alt=\"Screenshot\"></a>" >> $GITHUB_STEP_SUMMARY
                     echo "" >> $GITHUB_STEP_SUMMARY
                     echo "[View Full Size]($UPLOAD_URL)" >> $GITHUB_STEP_SUMMARY
                     echo "" >> $GITHUB_STEP_SUMMARY
@@ -619,7 +618,7 @@ jobs:
                     FALLBACK_URL=$(echo "$UPLOAD_OUTPUT" | grep -o 'https[^[:space:]]*' | tail -1 | sed 's|\\/|/|g')
                     if [ -n "$FALLBACK_URL" ] && echo "$FALLBACK_URL" | grep -q 'ibb.co'; then
                       echo "   ✅ Recovered URL: $FALLBACK_URL"
-                      echo "![Screenshot]($FALLBACK_URL)" >> $GITHUB_STEP_SUMMARY
+                      echo "<a href=\"$FALLBACK_URL\" target=\"_blank\"><img src=\"$FALLBACK_URL\" width=\"800\" alt=\"Screenshot\"></a>" >> $GITHUB_STEP_SUMMARY
                       echo "" >> $GITHUB_STEP_SUMMARY
                       echo "[View Full Size]($FALLBACK_URL)" >> $GITHUB_STEP_SUMMARY
                       echo "" >> $GITHUB_STEP_SUMMARY
@@ -757,7 +756,6 @@ jobs:
           # Additional safety: kill any dangling docker processes at OS level
           echo "4️⃣ Killing dangling docker processes..."
           pkill -9 -f "docker run.*openterface" 2>/dev/null || true
-          pkill -9 -f "screenshot-docker-app.sh" 2>/dev/null || true
           
           # Use killall as well
           killall -9 docker 2>/dev/null || true
