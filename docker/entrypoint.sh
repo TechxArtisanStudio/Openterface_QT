@@ -321,9 +321,6 @@ EOF
         # Command has finished, let app keep running
     fi
     
-    # Set up signal handlers for graceful shutdown
-    trap 'echo "Received signal, terminating..."; kill -TERM $APP_PID 2>/dev/null; wait $APP_PID 2>/dev/null; exit 0' SIGTERM SIGINT
-    
     # Keep container alive - app is running in background
     # This allows external commands to be run via docker exec
     echo "ℹ️  Openterface QT running in background (PID: $APP_PID)"
@@ -332,9 +329,6 @@ EOF
     echo "  docker exec <container-id> bash"
     echo "  docker exec <container-id> import -window root /tmp/screenshot.png"
     echo ""
-    
-    # Track last debug output time to avoid log spam
-    LAST_DEBUG=0
     
     # Monitor the app process - keep container alive for testing
     while true; do
