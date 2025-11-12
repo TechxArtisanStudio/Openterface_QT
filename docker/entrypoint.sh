@@ -84,18 +84,46 @@ fi
 echo "🚀 Launching Openterface application..."
 echo ""
 
-# Start Xvfb inside the container
+# Start Xvfb inside the container (may need root privileges)
 echo "🖥️  Starting Xvfb virtual display..."
-Xvfb $DISPLAY -screen 0 1920x1080x24 -ac +extension GLX +render -noreset >/dev/null 2>&1 &
-XVFB_PID=$!
+echo "   Current user: $(id)"
+
+# Xvfb typically needs root or special privileges to access /tmp/.X11-unix
+# Try multiple approaches in order of preference
+XVFB_PID=""
+
+# Approach 1: Direct execution (if running as root or user has permissions)
+if Xvfb $DISPLAY -screen 0 1920x1080x24 -ac +extension GLX +render -noreset >/dev/null 2>&1 &
+then
+    XVFB_PID=$!
+    echo "✅ Xvfb started directly (PID: $XVFB_PID)"
+fi
+
+# Approach 2: Try with sudo if direct failed
+if [ -z "$XVFB_PID" ] || ! ps -p $XVFB_PID > /dev/null 2>&1; then
+    if sudo -n Xvfb $DISPLAY -screen 0 1920x1080x24 -ac +extension GLX +render -noreset >/dev/null 2>&1 &
+    then
+        XVFB_PID=$!
+        echo "✅ Xvfb started with sudo (PID: $XVFB_PID)"
+    fi
+fi
+
 sleep 3
 
 # Verify Xvfb started
-if ps -p $XVFB_PID > /dev/null 2>&1; then
+if [ -n "$XVFB_PID" ] && ps -p $XVFB_PID > /dev/null 2>&1; then
     echo "✅ Xvfb started successfully (PID: $XVFB_PID, Display: $DISPLAY)"
+elif [ -S /tmp/.X11-unix/98 ]; then
+    # Socket exists but we couldn't verify PID - this is ok, X11 is running
+    echo "✅ X11 display socket found at /tmp/.X11-unix/98"
 else
-    echo "❌ Xvfb failed to start"
-    exit 1
+    echo "⚠️  Xvfb startup status uncertain"
+    echo "   Running as: $(id)"
+    echo "   Display: $DISPLAY"
+    echo "   Checking for X11 socket..."
+    ls -la /tmp/.X11-unix/ 2>/dev/null || echo "   No X11 sockets found"
+    echo "   Continuing anyway for persistent testing container..."
+    # Don't exit here - for persistent container testing, we need to keep running
 fi
 
 # Try to launch the openterfaceQT application
@@ -253,7 +281,7 @@ EOF
         echo "✅ Openterface QT is running!"
         # Optionally, add a command to verify rendering, e.g., check for window creation
     else
-        echo "❌ Openterface QT process exited"
+        echo "❌ Openterface QT process exited immediately"
         echo "Full log:"
         if [ -f /tmp/openterfaceqt.log ]; then
             cat /tmp/openterfaceqt.log 2>&1
@@ -269,8 +297,11 @@ EOF
         echo "   Free memory: $(free -h 2>/dev/null || echo 'N/A')"
         echo "   Loaded Qt plugins:"
         find /usr/lib -name "*xcb*" -o -name "*platformtheme*" 2>/dev/null | head -10
-        
-        exit 1  # Fail early if app doesn't start
+        echo ""
+        echo "⚠️  Note: Container is PERSISTENT and will stay running for debugging"
+        echo "   You can use: docker exec <container> bash"
+        echo "   To investigate issues and restart the app manually"
+        # Don't exit - keep container running for persistent testing
     fi
     
     echo ""

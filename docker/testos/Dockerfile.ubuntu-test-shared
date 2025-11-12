@@ -118,7 +118,6 @@ RUN chmod +x /docker/install-openterface.sh
 COPY ./entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
-
 # Set up udev rules for Openterface hardware (backup rules, main setup in install script)
 RUN echo 'SUBSYSTEM=="hidraw", ATTRS{idVendor}=="534d", ATTRS{idProduct}=="2109", TAG+="uaccess", MODE="0666"' > /etc/udev/rules.d/50-openterface-backup.rules && \
     echo 'SUBSYSTEM=="usb", ATTRS{idVendor}=="534d", ATTRS{idProduct}=="2109", TAG+="uaccess", MODE="0666"' >> /etc/udev/rules.d/50-openterface-backup.rules && \
@@ -154,8 +153,8 @@ RUN mkdir -p /usr/local/bin && \
     printf 'echo "QML2_IMPORT_PATH=$$QML2_IMPORT_PATH"\n' >> /usr/local/bin/check-qt-deps.sh && \
     chmod +x /usr/local/bin/check-qt-deps.sh
 
-# Switch to non-root user
-USER openterface
+# NOTE: Run entrypoint as root to allow Xvfb startup and system operations
+# After entrypoint initialization, app runs as non-root 'openterface' user
 
 # Set the working directory
 WORKDIR /home/openterface
@@ -166,7 +165,7 @@ LABEL description="Openterface QT Mini-KVM testing environment"
 LABEL version="latest"
 LABEL purpose="testing"
 
-# Set entrypoint to handle installation on first run
+# Set entrypoint to handle installation on first run (runs as root)
 ENTRYPOINT ["/entrypoint.sh"]
 
 # Default command (will be passed to entrypoint)
