@@ -879,35 +879,31 @@ jobs:
       - name: Test container with simulated USB devices (Shared)
         timeout-minutes: 5
         run: |
-          echo "🧪 Testing container with simulated USB device access"
+          echo "🧪 Testing container with simulated USB device access on persistent container"
           
-          # Set up a trap to kill docker containers on timeout or error
-          trap 'echo "⚠️ Cleanup triggered"; docker ps -aq --filter "name=openterface-usb-test" | xargs -r docker kill 2>/dev/null || true; docker ps -aq --filter "name=openterface-usb-test" | xargs -r docker rm -f 2>/dev/null || true' EXIT
+          CONTAINER_ID="${{ env.CONTAINER_ID }}"
           
-          # Run container with privileged access to test USB handling
-          timeout -s KILL 240 docker run --rm \
-            --privileged \
-            --name openterface-usb-test \
-            -v /dev:/dev \
-            ${{ env.DOCKER_IMAGE_SHARED }}:${{ env.DOCKER_TAG }} \
-            bash -c '
-              echo "🔍 Checking USB device access..."
-              ls -la /dev/bus/usb/ 2>/dev/null || echo "No USB devices found"
-              
-              echo "🔍 Checking hidraw devices..."
-              ls -la /dev/hidraw* 2>/dev/null || echo "No hidraw devices found"
-              
-              echo "🔍 Checking ttyUSB devices..."
-              ls -la /dev/ttyUSB* 2>/dev/null || echo "No ttyUSB devices found"
-              
-              echo "🔍 Testing lsusb command..."
-              lsusb || echo "lsusb command failed"
-              
-              echo "🔍 Checking for target Openterface devices..."
-              lsusb | grep -E "534d|1a86" || echo "No Openterface devices detected (expected in test environment)"
-              
-              echo "✅ USB device access test completed"
-            ' || docker kill openterface-usb-test 2>/dev/null || true
+          # Test USB device access using the already running persistent container
+          echo "Testing USB device access on container: $CONTAINER_ID"
+          
+          docker exec "$CONTAINER_ID" bash -c '
+            echo "🔍 Checking USB device access..."
+            ls -la /dev/bus/usb/ 2>/dev/null || echo "No USB devices found"
+            
+            echo "🔍 Checking hidraw devices..."
+            ls -la /dev/hidraw* 2>/dev/null || echo "No hidraw devices found"
+            
+            echo "🔍 Checking ttyUSB devices..."
+            ls -la /dev/ttyUSB* 2>/dev/null || echo "No ttyUSB devices found"
+            
+            echo "🔍 Testing lsusb command..."
+            lsusb || echo "lsusb command failed"
+            
+            echo "🔍 Checking for target Openterface devices..."
+            lsusb | grep -E "534d|1a86" || echo "No Openterface devices detected (expected in test environment)"
+            
+            echo "✅ USB device access test completed"
+          ' || echo "⚠️ USB device access test skipped - container not available"
       - name: Clean up Docker resources (Shared)
         if: always()
         timeout-minutes: 5
