@@ -136,24 +136,44 @@ fi
 apt update && apt install -y patchelf
 
 # Copy Qt libraries to bundle them in the deb
+# CRITICAL: Must use a proper Qt6 build, NOT system libraries
+# System Qt6 libraries have version dependencies that won't work at runtime
 QT_LIB_DIR="/opt/Qt6/lib"
+
 if [ ! -d "${QT_LIB_DIR}" ]; then
-    # Fallback to system Qt6 libraries if custom build not found
-    QT_LIB_DIR="/usr/lib/x86_64-linux-gnu"
-fi
-if [ ! -d "${QT_LIB_DIR}" ]; then
-    # Try alternative location
-    QT_LIB_DIR="/usr/lib"
+    echo "❌ ERROR: Qt6 custom build not found at /opt/Qt6/lib"
+    echo "   The DEB package requires a properly compiled Qt6 build."
+    echo "   System Qt6 libraries cannot be used as they have version dependencies."
+    echo "   Please ensure Qt6 is built and installed at /opt/Qt6/ before packaging."
+    exit 1
 fi
 
-if [ -d "${QT_LIB_DIR}" ]; then
-    mkdir -p "${PKG_ROOT}/usr/lib/openterfaceqt/qt6"
-    echo "Copying Qt libraries from ${QT_LIB_DIR}..."
-    # Copy only Qt6 libraries (not all system libraries)
-    find "${QT_LIB_DIR}" -maxdepth 1 -name "libQt6*.so*" -exec cp -a {} "${PKG_ROOT}/usr/lib/openterfaceqt/qt6" \; 2>/dev/null || true
-    echo "✅ Qt libraries copied successfully"
+mkdir -p "${PKG_ROOT}/usr/lib/openterfaceqt/qt6"
+echo "Copying Qt6 libraries from ${QT_LIB_DIR}..."
+echo "   Searching for libQt6*.so* files..."
+
+# Copy only Qt6 libraries (not all system libraries)
+COPIED_COUNT=0
+find "${QT_LIB_DIR}" -maxdepth 1 -name "libQt6*.so*" -type f 2>/dev/null | while read -r libfile; do
+    cp -a "$libfile" "${PKG_ROOT}/usr/lib/openterfaceqt/qt6/"
+    COPIED_COUNT=$((COPIED_COUNT + 1))
+    basename "$libfile"
+done
+
+# Also copy symlinks properly
+find "${QT_LIB_DIR}" -maxdepth 1 -name "libQt6*.so*" -type l 2>/dev/null | while read -r libfile; do
+    cp -Pa "$libfile" "${PKG_ROOT}/usr/lib/openterfaceqt/qt6/"
+done
+
+QT_LIBS=$(ls "${PKG_ROOT}/usr/lib/openterfaceqt/qt6"/libQt6*.so* 2>/dev/null | wc -l)
+if [ $QT_LIBS -gt 0 ]; then
+    echo "✅ Qt libraries copied successfully ($QT_LIBS files)"
+    ls -1 "${PKG_ROOT}/usr/lib/openterfaceqt/qt6"/libQt6*.so* | sed 's/^/     - /'
 else
-    echo "⚠️  Warning: Qt library directory not found"
+    echo "❌ ERROR: No Qt6 libraries were copied from ${QT_LIB_DIR}"
+    echo "   Available files in ${QT_LIB_DIR}:"
+    ls -la "${QT_LIB_DIR}"/libQt6*.so* 2>/dev/null | sed 's/^/     /' || echo "     (no libQt6*.so* files found)"
+    exit 1
 fi
 
 # Copy libjpeg and libturbojpeg libraries from FFmpeg prefix
@@ -499,51 +519,46 @@ ls "${PKG_ROOT}/usr/lib/openterfaceqt/"*.so* 2>/dev/null | wc -l
 echo "   Library files present:"
 ls -lah "${PKG_ROOT}/usr/lib/openterfaceqt/"*.so* 2>/dev/null | head -15
 
-# Copy Qt plugins
+# Copy Qt plugins (CRITICAL: must be from the same Qt6 build)
 QT_PLUGIN_DIR="/opt/Qt6/plugins"
+
 if [ ! -d "${QT_PLUGIN_DIR}" ]; then
-    # Fallback to system Qt6 plugins if custom build not found
-    QT_PLUGIN_DIR="/usr/lib/x86_64-linux-gnu/qt6/plugins"
-fi
-if [ ! -d "${QT_PLUGIN_DIR}" ]; then
-    # Try alternative location
-    QT_PLUGIN_DIR="/usr/lib/qt6/plugins"
+    echo "❌ ERROR: Qt6 plugins not found at ${QT_PLUGIN_DIR}"
+    echo "   Must use Qt6 from the same build as the libraries."
+    exit 1
 fi
 
-if [ -d "${QT_PLUGIN_DIR}" ]; then
-    mkdir -p "${PKG_ROOT}/usr/lib/openterfaceqt/qt6/plugins"
-    echo "📋 DEB: Copying Qt plugins from ${QT_PLUGIN_DIR}..."
-    cp -ra "${QT_PLUGIN_DIR}"/* "${PKG_ROOT}/usr/lib/openterfaceqt/qt6/plugins/" 2>/dev/null || true
-    echo "✅ Qt plugins copied successfully"
+mkdir -p "${PKG_ROOT}/usr/lib/openterfaceqt/qt6/plugins"
+echo "📋 DEB: Copying Qt plugins from ${QT_PLUGIN_DIR}..."
+if cp -ra "${QT_PLUGIN_DIR}"/* "${PKG_ROOT}/usr/lib/openterfaceqt/qt6/plugins/" 2>/dev/null; then
+    PLUGIN_COUNT=$(find "${PKG_ROOT}/usr/lib/openterfaceqt/qt6/plugins" -type f | wc -l)
+    echo "✅ Qt plugins copied successfully ($PLUGIN_COUNT files)"
 else
-    echo "⚠️  Warning: Qt plugin directory not found at ${QT_PLUGIN_DIR}"
+    echo "❌ ERROR: Failed to copy Qt plugins"
+    exit 1
 fi
 
-# Copy Qt6 XCB QPA library (needed by libqxcb.so plugin)
+# Copy Qt6 XCB QPA library (needed by libqxcb.so plugin) - must be from same Qt6 build
 echo "📋 DEB: Searching for Qt6 XCB QPA library..."
 XCB_QPA_FOUND=0
-for SEARCH_DIR in /opt/Qt6/lib /usr/lib/x86_64-linux-gnu /usr/lib; do
-    echo "   Checking: $SEARCH_DIR"
-    if [ -d "$SEARCH_DIR" ]; then
-        if ls "$SEARCH_DIR"/libQt6XcbQpa.so* >/dev/null 2>&1; then
-            echo "   ✅ Found libQt6XcbQpa.so in $SEARCH_DIR"
-            XCB_QPA_FILES=$(ls -la "$SEARCH_DIR"/libQt6XcbQpa.so*)
-            echo "   Files found:"
-            echo "$XCB_QPA_FILES" | sed 's/^/     /'
-            cp -Pv "$SEARCH_DIR"/libQt6XcbQpa.so* "${PKG_ROOT}/usr/lib/openterfaceqt/qt6/" 2>&1 | sed 's/^/     /'
-            echo "   ✅ libQt6XcbQpa.so copied to ${PKG_ROOT}/usr/lib/openterfaceqt/qt6/"
-            XCB_QPA_FOUND=1
-            break
-        else
-            echo "   ✗ No libQt6XcbQpa.so found in $SEARCH_DIR"
-        fi
-    else
-        echo "   ✗ Directory does not exist: $SEARCH_DIR"
-    fi
-done
+
+# Only look in the Qt6 build location, not system
+if [ -d "/opt/Qt6/lib" ] && ls "/opt/Qt6/lib"/libQt6XcbQpa.so* >/dev/null 2>&1; then
+    echo "   ✅ Found libQt6XcbQpa.so in /opt/Qt6/lib"
+    XCB_QPA_FILES=$(ls -la "/opt/Qt6/lib"/libQt6XcbQpa.so*)
+    echo "   Files found:"
+    echo "$XCB_QPA_FILES" | sed 's/^/     /'
+    cp -Pv "/opt/Qt6/lib"/libQt6XcbQpa.so* "${PKG_ROOT}/usr/lib/openterfaceqt/qt6/" 2>&1 | sed 's/^/     /'
+    echo "   ✅ libQt6XcbQpa.so copied to ${PKG_ROOT}/usr/lib/openterfaceqt/qt6/"
+    XCB_QPA_FOUND=1
+else
+    echo "   ✗ No libQt6XcbQpa.so found in /opt/Qt6/lib"
+fi
+
 if [ $XCB_QPA_FOUND -eq 0 ]; then
     echo "❌ ERROR: libQt6XcbQpa.so library not found!"
-    echo "   This library is required by the XCB platform plugin"
+    echo "   This library must be from the same Qt6 build as libQt6Core.so"
+    exit 1
 else
     echo "✅ libQt6XcbQpa.so found and copied"
 fi
@@ -876,37 +891,48 @@ cp "${BUILD}/openterfaceQT" "${RPMTOP}/SOURCES/"
 # Install patchelf for rpath manipulation if not already installed
 apt update && apt install -y patchelf
 
-# Copy Qt libraries to SOURCES for bundling
+# Copy Qt libraries to SOURCES for bundling (RPM)
+# CRITICAL: Must use a proper Qt6 build, NOT system libraries
 QT_LIB_DIR="/opt/Qt6/lib"
-if [ -d "${QT_LIB_DIR}" ]; then
-    echo "Copying Qt libraries to SOURCES..."
-    cp -a "${QT_LIB_DIR}"/libQt6*.so* "${RPMTOP}/SOURCES/" 2>/dev/null || true
+if [ ! -d "${QT_LIB_DIR}" ]; then
+    echo "❌ ERROR: Qt6 custom build not found at /opt/Qt6/lib"
+    echo "   The RPM package requires a properly compiled Qt6 build."
+    echo "   System Qt6 libraries cannot be used as they have version dependencies."
+    exit 1
 fi
 
-# Copy Qt6 XCB QPA library to SOURCES (needed by libqxcb.so plugin)
+echo "Copying Qt libraries to SOURCES..."
+QT_LIBS=$(find "${QT_LIB_DIR}" -maxdepth 1 -name "libQt6*.so*" -type f | wc -l)
+if [ $QT_LIBS -eq 0 ]; then
+    echo "❌ ERROR: No Qt6 libraries found in ${QT_LIB_DIR}"
+    exit 1
+fi
+
+find "${QT_LIB_DIR}" -maxdepth 1 -name "libQt6*.so*" -type f -exec cp -a {} "${RPMTOP}/SOURCES/" \;
+find "${QT_LIB_DIR}" -maxdepth 1 -name "libQt6*.so*" -type l -exec cp -Pa {} "${RPMTOP}/SOURCES/" \;
+echo "✅ Qt libraries copied to SOURCES ($QT_LIBS files)"
+
+# Copy Qt6 XCB QPA library to SOURCES (needed by libqxcb.so plugin) - must be from same Qt6 build
 echo "📋 RPM: Searching for Qt6 XCB QPA library..."
 XCB_QPA_FOUND=0
-for SEARCH_DIR in /opt/Qt6/lib /usr/lib/x86_64-linux-gnu /usr/lib; do
-    echo "   Checking: $SEARCH_DIR"
-    if [ -d "$SEARCH_DIR" ]; then
-        if ls "$SEARCH_DIR"/libQt6XcbQpa.so* >/dev/null 2>&1; then
-            echo "   ✅ Found libQt6XcbQpa.so in $SEARCH_DIR"
-            XCB_QPA_FILES=$(ls -la "$SEARCH_DIR"/libQt6XcbQpa.so*)
-            echo "   Files found:"
-            echo "$XCB_QPA_FILES" | sed 's/^/     /'
-            cp -Pv "$SEARCH_DIR"/libQt6XcbQpa.so* "${RPMTOP}/SOURCES/" 2>&1 | sed 's/^/     /'
-            echo "   ✅ libQt6XcbQpa.so copied to ${RPMTOP}/SOURCES"
-            XCB_QPA_FOUND=1
-            break
-        else
-            echo "   ✗ No libQt6XcbQpa.so found in $SEARCH_DIR"
-        fi
-    else
-        echo "   ✗ Directory does not exist: $SEARCH_DIR"
-    fi
-done
+
+# Only look in the Qt6 build location, not system
+if [ -d "/opt/Qt6/lib" ] && ls "/opt/Qt6/lib"/libQt6XcbQpa.so* >/dev/null 2>&1; then
+    echo "   ✅ Found libQt6XcbQpa.so in /opt/Qt6/lib"
+    XCB_QPA_FILES=$(ls -la "/opt/Qt6/lib"/libQt6XcbQpa.so*)
+    echo "   Files found:"
+    echo "$XCB_QPA_FILES" | sed 's/^/     /'
+    cp -Pv "/opt/Qt6/lib"/libQt6XcbQpa.so* "${RPMTOP}/SOURCES/" 2>&1 | sed 's/^/     /'
+    echo "   ✅ libQt6XcbQpa.so copied to ${RPMTOP}/SOURCES"
+    XCB_QPA_FOUND=1
+else
+    echo "   ✗ No libQt6XcbQpa.so found in /opt/Qt6/lib"
+fi
+
 if [ $XCB_QPA_FOUND -eq 0 ]; then
     echo "❌ ERROR: libQt6XcbQpa.so library not found!"
+    echo "   This library must be from the same Qt6 build as libQt6Core.so"
+    exit 1
 else
     echo "✅ libQt6XcbQpa.so found and copied"
 fi
