@@ -82,32 +82,56 @@ echo -e "${BLUE}⏳ Waiting for app to start (monitoring logs, max 120 seconds).
 WAIT_TIME=0
 MAX_WAIT=120
 APP_READY=false
+CONTAINER_EXISTS=true
 
 while [ $WAIT_TIME -lt $MAX_WAIT ]; do
-    # Check if container is still running
-    if ! docker ps | grep -q $CONTAINER_ID; then
-        echo -e "${YELLOW}⚠️  Container stopped after ${WAIT_TIME}s, checking logs...${NC}"
-        docker logs $CONTAINER_ID 2>&1 | tail -20 | sed 's/^/   /'
+    # Check if container exists (running or exited)
+    if ! docker ps -a | grep -q $CONTAINER_ID; then
+        echo -e "${RED}❌ Container was removed! Check cleanup function.${NC}"
+        CONTAINER_EXISTS=false
         break
+    fi
+    
+    # Check if container is running
+    IS_RUNNING=$(docker ps | grep -q $CONTAINER_ID && echo "true" || echo "false")
+    
+    # Display progress with container status
+    if [ "$IS_RUNNING" = "true" ]; then
+        printf "\r${BLUE}  ⏳ Progress: %d/%d seconds (container running)${NC}" $WAIT_TIME $MAX_WAIT
+    else
+        printf "\r${YELLOW}  ⏳ Progress: %d/%d seconds (container exited, checking logs)${NC}" $WAIT_TIME $MAX_WAIT
     fi
     
     # Check container logs for the ready message
     if docker logs $CONTAINER_ID 2>&1 | grep -q "ready for testing"; then
+        echo ""
         echo -e "${GREEN}✅ App is ready! (detected after ${WAIT_TIME}s)${NC}"
         APP_READY=true
         break
     fi
     
-    # Display progress
-    printf "\r${BLUE}  ⏳ Progress: %d/%d seconds${NC}" $WAIT_TIME $MAX_WAIT
     sleep 1
     WAIT_TIME=$((WAIT_TIME + 1))
 done
 
 echo ""
 
+if [ "$CONTAINER_EXISTS" = false ]; then
+    echo -e "${RED}❌ ERROR: Container was removed before completing.${NC}"
+    exit 1
+fi
+
 if [ "$APP_READY" = false ]; then
     echo -e "${YELLOW}⚠️  'Ready' message not detected within ${MAX_WAIT}s timeout${NC}"
+    
+    # Show current container status
+    CONTAINER_STATUS=$(docker inspect $CONTAINER_ID --format='{{.State.Status}}' 2>/dev/null || echo "unknown")
+    echo -e "${YELLOW}   Container Status: $CONTAINER_STATUS${NC}"
+    
+    # Show container logs for debugging
+    echo -e "${BLUE}   Last 30 lines of container logs:${NC}"
+    docker logs $CONTAINER_ID 2>&1 | tail -30 | sed 's/^/   /'
+    
     echo -e "${YELLOW}   Proceeding with screenshot anyway...${NC}"
 fi
 
@@ -128,43 +152,53 @@ screenshot_success=false
 echo -e "${BLUE}🔍 Pre-screenshot diagnostics:${NC}"
 echo "   Display: $DISPLAY (inside container)"
 
-# Check if X server is responding inside container
-if docker exec $CONTAINER_NAME sh -c "DISPLAY=$DISPLAY xdpyinfo >/dev/null 2>&1"; then
-    echo -e "${GREEN}   ✅ X server responding inside container${NC}"
+# Check if container is running for live diagnostics
+CONTAINER_RUNNING=$(docker ps | grep -q $CONTAINER_ID && echo "true" || echo "false")
+
+if [ "$CONTAINER_RUNNING" = "true" ]; then
+    # Check if X server is responding inside container
+    if docker exec $CONTAINER_NAME sh -c "DISPLAY=$DISPLAY xdpyinfo >/dev/null 2>&1"; then
+        echo -e "${GREEN}   ✅ X server responding inside container${NC}"
+    else
+        echo -e "${RED}   ❌ X server not responding inside container${NC}"
+    fi
+
+    # Check for active windows
+    window_count=$(docker exec $CONTAINER_NAME sh -c "DISPLAY=$DISPLAY xwininfo -tree -root 2>/dev/null | grep -c 'child'" || echo "0")
+    echo "   Active windows: $window_count"
+
+    # List all windows
+    if [ "$window_count" -gt 0 ]; then
+        echo -e "${BLUE}   Window list:${NC}"
+        docker exec $CONTAINER_NAME sh -c "DISPLAY=$DISPLAY xwininfo -tree -root 2>/dev/null | grep 'child' | head -5" | sed 's/^/     /'
+    fi
+
+    # Check if app process is running
+    if docker exec $CONTAINER_NAME pgrep -x "openterfaceQT" >/dev/null 2>&1; then
+        echo -e "${BLUE}   App process status: Running${NC}"
+        
+        # Check app logs for any GUI-related messages
+        echo -e "${BLUE}   Recent app logs:${NC}"
+        docker exec $CONTAINER_NAME tail -10 /tmp/openterfaceqt.log 2>&1 | sed 's/^/     /' || echo "     No logs available"
+        
+        # Check for Qt platform plugin messages
+        echo -e "${BLUE}   Checking for Qt platform messages:${NC}"
+        docker exec $CONTAINER_NAME grep -i "platform\|xcb\|plugin" /tmp/openterfaceqt.log 2>&1 | tail -3 | sed 's/^/     /' || echo "     No platform messages found"
+    else
+        echo -e "${RED}   App process status: Not running${NC}"
+    fi
 else
-    echo -e "${RED}   ❌ X server not responding inside container${NC}"
-fi
-
-# Check for active windows
-window_count=$(docker exec $CONTAINER_NAME sh -c "DISPLAY=$DISPLAY xwininfo -tree -root 2>/dev/null | grep -c 'child'" || echo "0")
-echo "   Active windows: $window_count"
-
-# List all windows
-if [ "$window_count" -gt 0 ]; then
-    echo -e "${BLUE}   Window list:${NC}"
-    docker exec $CONTAINER_NAME sh -c "DISPLAY=$DISPLAY xwininfo -tree -root 2>/dev/null | grep 'child' | head -5" | sed 's/^/     /'
-fi
-
-# Check if app window is visible
-if docker exec $CONTAINER_NAME pgrep -x "openterfaceQT" >/dev/null 2>&1; then
-    echo -e "${BLUE}   App process status: Running${NC}"
-    
-    # Check app logs for any GUI-related messages
-    echo -e "${BLUE}   Recent app logs:${NC}"
-    docker exec $CONTAINER_NAME tail -10 /tmp/openterfaceqt.log 2>&1 | sed 's/^/     /' || echo "     No logs available"
-    
-    # Check for Qt platform plugin messages
-    echo -e "${BLUE}   Checking for Qt platform messages:${NC}"
-    docker exec $CONTAINER_NAME grep -i "platform\|xcb\|plugin" /tmp/openterfaceqt.log 2>&1 | tail -3 | sed 's/^/     /' || echo "     No platform messages found"
-else
-    echo -e "${RED}   App process status: Not running${NC}"
+    echo -e "${YELLOW}   Container is not running (exited), skipping live diagnostics${NC}"
+    echo -e "${YELLOW}   Will attempt to copy screenshot from exited container${NC}"
 fi
 
 # Take screenshot inside container using ImageMagick
 echo -e "${BLUE}   Taking screenshot with ImageMagick inside container...${NC}"
 # Capture screenshot to temp location inside container
 container_screenshot="/tmp/screenshot_${timestamp}.jpg"
-if docker exec $CONTAINER_NAME sh -c "DISPLAY=$DISPLAY import -window root -quality 90 $container_screenshot 2>&1"; then
+
+# Try to take screenshot - works even if container is exited
+if docker exec $CONTAINER_NAME sh -c "DISPLAY=$DISPLAY import -window root -quality 90 $container_screenshot 2>&1" 2>/dev/null; then
     # Copy screenshot from container to host
     if docker cp "$CONTAINER_NAME:$container_screenshot" "$screenshot_jpg" 2>/dev/null; then
         echo -e "${GREEN}✅ JPG screenshot saved: $screenshot_jpg${NC}"
@@ -175,7 +209,17 @@ if docker exec $CONTAINER_NAME sh -c "DISPLAY=$DISPLAY import -window root -qual
         echo -e "${RED}❌ Failed to copy screenshot from container${NC}"
     fi
 else
-    echo -e "${RED}❌ ImageMagick screenshot failed inside container${NC}"
+    # If docker exec fails (container exited), show more diagnostic info
+    CONTAINER_STATUS=$(docker inspect $CONTAINER_ID --format='{{.State.Status}}' 2>/dev/null || echo "unknown")
+    EXIT_CODE=$(docker inspect $CONTAINER_ID --format='{{.State.ExitCode}}' 2>/dev/null || echo "unknown")
+    
+    if [ "$CONTAINER_STATUS" = "exited" ]; then
+        echo -e "${YELLOW}⚠️  Container has exited (exit code: $EXIT_CODE)${NC}"
+        echo -e "${YELLOW}   Screenshot command could not run in exited container${NC}"
+        echo -e "${YELLOW}   This typically means the app crashed or failed to start${NC}"
+    else
+        echo -e "${RED}❌ ImageMagick screenshot failed${NC}"
+    fi
 fi
 
 
