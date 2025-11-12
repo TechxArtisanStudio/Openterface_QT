@@ -326,12 +326,22 @@ EOF
     # This prevents the container from exiting when Docker sends stop signals
     trap '' SIGTERM SIGINT
     
+    echo "✅ Entering monitoring loop (PID $$)"
+    
     # Monitor the app process - keep container alive for testing
+    LOOP_COUNT=0
     while true; do
+        LOOP_COUNT=$((LOOP_COUNT + 1))
+        
         if ps -p $APP_PID > /dev/null 2>&1; then
             # App is still running
             # Just wait 2 seconds before checking again
             read -t 2 _ < /dev/null 2>/dev/null || true
+            
+            # Log status every 30 iterations (approximately every 60 seconds)
+            if [ $((LOOP_COUNT % 30)) -eq 0 ]; then
+                echo "ℹ️  Still monitoring app (PID: $APP_PID, loop iteration: $LOOP_COUNT)"
+            fi
         else
             # App has exited - but for a persistent container, we keep running
             echo "⚠️  Openterface QT process exited"
@@ -342,6 +352,12 @@ EOF
             # Just wait indefinitely
             read -t 60 _ < /dev/null 2>/dev/null || true
         fi
+    done
+    
+    # This should never be reached, but if it is, keep the container running
+    echo "⚠️ WARNING: Monitoring loop exited unexpectedly!"
+    while true; do
+        sleep 60
     done
 else
     echo "📌 DEBUG: openterfaceQT file not found at /usr/local/bin/openterfaceQT"

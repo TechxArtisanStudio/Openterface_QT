@@ -453,11 +453,14 @@ jobs:
           echo "⏳ Waiting 5 seconds for app to render..."
           sleep 5
           
-          # Check container status
-          if ! docker ps | grep -q $CONTAINER_ID; then
+          # Check container status using docker inspect (more reliable than docker ps | grep)
+          CONTAINER_STATUS=$(docker inspect -f '{{.State.Running}}' $CONTAINER_ID 2>/dev/null || echo "error")
+          
+          if [ "$CONTAINER_STATUS" != "true" ]; then
               echo "❌ Container is no longer running!"
+              echo "Container status: $CONTAINER_STATUS"
               echo "Last logs:"
-              docker logs $CONTAINER_ID 2>&1 | tail -30
+              docker logs $CONTAINER_ID 2>&1 | tail -30 | sed 's/^/  /'
               exit 1
           fi
           
