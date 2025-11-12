@@ -114,28 +114,23 @@ fi
 
 echo "🔔 CHECKPOINT 2: After both Xvfb approaches"
 
-echo "🔔 CHECKPOINT 2.5: Before waiting 3 seconds"
-# Wait 3 seconds without using sleep command (in case sleep is broken)
-for i in 1 2 3; do
-    echo "🔔 CHECKPOINT 2.6.$i: Waiting... ($i/3)"
-    sleep 1 || { echo "WARNING: sleep failed with $?"; true; }
-done
-echo "🔔 CHECKPOINT 2.7: After 3 second wait"
-
-# CRITICAL: Set up a subshell that will stay alive to prevent container exit
-# This subshell monitors background jobs and keeps the script running
-echo "🔔 CHECKPOINT 2.8: Setting up long-running process to keep container alive..."
-(while true; do sleep 1000; done) &
-KEEPALIVE_PID=$!
-echo "🔔 CHECKPOINT 2.9: Keep-alive process started (PID: $KEEPALIVE_PID)"
-
 # Verify Xvfb started
-if [ -n "$XVFB_PID" ] && ps -p $XVFB_PID > /dev/null 2>&1; then
-    echo "✅ Xvfb started successfully (PID: $XVFB_PID, Display: $DISPLAY)"
-elif [ -S /tmp/.X11-unix/98 ]; then
+echo "🔔 CHECKPOINT 3: About to verify Xvfb"
+if [ -n "$XVFB_PID" ]; then
+    echo "🔔 CHECKPOINT 3.1: XVFB_PID is set to: $XVFB_PID"
+    if ps -p $XVFB_PID > /dev/null 2>&1; then
+        echo "✅ Xvfb started successfully (PID: $XVFB_PID, Display: $DISPLAY)"
+    else
+        echo "🔔 CHECKPOINT 3.2: ps check failed, trying socket check"
+    fi
+else
+    echo "🔔 CHECKPOINT 3.3: XVFB_PID is empty, checking socket"
+fi
+
+if [ -S /tmp/.X11-unix/98 ]; then
     # Socket exists but we couldn't verify PID - this is ok, X11 is running
     echo "✅ X11 display socket found at /tmp/.X11-unix/98"
-else
+elif [ -z "$XVFB_PID" ]; then
     echo "⚠️  Xvfb startup status uncertain"
     echo "   Running as: $(id)"
     echo "   Display: $DISPLAY"
@@ -151,7 +146,8 @@ echo ""
 echo "📌 DEBUG: Xvfb startup complete"
 echo "📌 DEBUG: Current shell PID: $$"  
 echo "📌 DEBUG: About to check for openterfaceQT application..."
-sleep 1
+# Use read with timeout instead of sleep (more reliable in containers)
+read -t 1 _ < /dev/null || true
 
 # Try to launch the openterfaceQT application
 if [ -f /usr/local/bin/openterfaceQT ]; then
@@ -310,7 +306,8 @@ EOF
     echo "📌 DEBUG: Waiting 10 seconds for app to initialize..."
     
     # Wait longer for app to initialize (increase from 2 to 10 seconds)
-    sleep 10
+    # Use read with timeout instead of sleep for reliability
+    read -t 10 _ < /dev/null || true
     
     echo "📌 DEBUG: Check if app is still running..."
     
@@ -375,7 +372,7 @@ EOF
         if ps -p $APP_PID > /dev/null 2>&1; then
             # App is still running
             echo "📌 DEBUG: App is still running (PID: $APP_PID)"
-            sleep 2
+            read -t 2 _ < /dev/null || true
         else
             # App has exited
             exit_code=$(wait $APP_PID 2>/dev/null || echo $?)
