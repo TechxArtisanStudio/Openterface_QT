@@ -77,10 +77,10 @@ echo -e "${BLUE}📦 Container ID: ${CONTAINER_ID:0:12}${NC}"
 
 # Wait for app to be ready by monitoring container logs
 # Look for the "ready for testing" message from entrypoint
-echo -e "${BLUE}⏳ Waiting for app to start (monitoring logs, max 60 seconds)...${NC}"
+echo -e "${BLUE}⏳ Waiting for app to start (monitoring logs, max 120 seconds)...${NC}"
 
 WAIT_TIME=0
-MAX_WAIT=60
+MAX_WAIT=120
 APP_READY=false
 
 while [ $WAIT_TIME -lt $MAX_WAIT ]; do
