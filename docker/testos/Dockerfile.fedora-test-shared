@@ -47,20 +47,24 @@ RUN dnf update -y && \
         fontconfig \
         bzip2-libs \
         # FFmpeg runtime libraries
-        ffmpeg-libs \
-        libturbojpeg \
+        libavformat \
+        libavcodec \
+        libavutil \
+        libjpeg-turbo \
         # GStreamer runtime dependencies
         gstreamer1 \
         gstreamer1-plugins-base \
         gstreamer1-plugins-good \
         gstreamer1-plugins-bad-free \
-        gstreamer1-plugins-ugly \
         gstreamer1-libav \
         gstreamer1-plugins-good-extras \
         gstreamer1-plugins-bad-free-extras \
         # FUSE support for AppImage installations
         fuse \
         fuse-libs \
+        # X11 utilities for screenshots
+        xorg-x11-utils \
+        ImageMagick \
         # Clean up to reduce image size
     && dnf clean all && \
     rm -rf /var/cache/dnf
