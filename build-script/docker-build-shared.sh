@@ -570,6 +570,77 @@ if [ -d "${QT_QML_DIR}" ]; then
     cp -ra "${QT_QML_DIR}"/* "${PKG_ROOT}/usr/lib/openterfaceqt/qt6/qml/" 2>/dev/null || true
 fi
 
+# Copy SVG-specific Qt libraries and plugins (CRITICAL for SVG icon support)
+echo "📋 DEB: Ensuring SVG support for icons..."
+
+# Copy libQt6Svg library
+echo "   📦 Searching for libQt6Svg.so..."
+SVG_LIB_FOUND=0
+for SEARCH_DIR in /opt/Qt6/lib /usr/lib/x86_64-linux-gnu /usr/lib; do
+    if [ -d "$SEARCH_DIR" ]; then
+        if ls "$SEARCH_DIR"/libQt6Svg.so* >/dev/null 2>&1; then
+            echo "   ✅ Found libQt6Svg.so in $SEARCH_DIR"
+            cp -Pv "$SEARCH_DIR"/libQt6Svg.so* "${PKG_ROOT}/usr/lib/openterfaceqt/qt6/" 2>&1 | sed 's/^/     /'
+            SVG_LIB_FOUND=1
+            break
+        fi
+    fi
+done
+if [ $SVG_LIB_FOUND -eq 0 ]; then
+    echo "   ⚠️  libQt6Svg.so not found - attempting to install..."
+    apt update && apt install -y libqt6svg6 2>/dev/null || echo "   ⚠️  Installation failed, SVG support may be limited"
+fi
+
+# Copy SVG image format plugin (libqsvg.so)
+echo "   📦 Searching for libqsvg.so (SVG image format plugin)..."
+SVG_PLUGIN_FOUND=0
+for SEARCH_DIR in /opt/Qt6/plugins /usr/lib/qt6/plugins /usr/lib/x86_64-linux-gnu/qt6/plugins; do
+    if [ -d "$SEARCH_DIR/imageformats" ]; then
+        if [ -f "$SEARCH_DIR/imageformats/libqsvg.so" ]; then
+            echo "   ✅ Found libqsvg.so in $SEARCH_DIR"
+            mkdir -p "${PKG_ROOT}/usr/lib/openterfaceqt/qt6/plugins/imageformats"
+            cp -Pv "$SEARCH_DIR/imageformats/libqsvg.so" "${PKG_ROOT}/usr/lib/openterfaceqt/qt6/plugins/imageformats/" 2>&1 | sed 's/^/     /'
+            SVG_PLUGIN_FOUND=1
+            break
+        fi
+    fi
+done
+if [ $SVG_PLUGIN_FOUND -eq 0 ]; then
+    echo "   ⚠️  libqsvg.so not found in: /opt/Qt6/plugins, /usr/lib/qt6/plugins, /usr/lib/x86_64-linux-gnu/qt6/plugins"
+    echo "   ⚠️  SVG images won't be loaded properly"
+fi
+
+# Copy SVG icon engine plugin (libsvgicon.so)
+echo "   📦 Searching for libsvgicon.so (SVG icon engine plugin)..."
+SVGICON_PLUGIN_FOUND=0
+for SEARCH_DIR in /opt/Qt6/plugins /usr/lib/qt6/plugins /usr/lib/x86_64-linux-gnu/qt6/plugins; do
+    if [ -d "$SEARCH_DIR/iconengines" ]; then
+        if [ -f "$SEARCH_DIR/iconengines/libsvgicon.so" ]; then
+            echo "   ✅ Found libsvgicon.so in $SEARCH_DIR"
+            mkdir -p "${PKG_ROOT}/usr/lib/openterfaceqt/qt6/plugins/iconengines"
+            cp -Pv "$SEARCH_DIR/iconengines/libsvgicon.so" "${PKG_ROOT}/usr/lib/openterfaceqt/qt6/plugins/iconengines/" 2>&1 | sed 's/^/     /'
+            SVGICON_PLUGIN_FOUND=1
+            break
+        fi
+    fi
+done
+if [ $SVGICON_PLUGIN_FOUND -eq 0 ]; then
+    echo "   ⚠️  libsvgicon.so not found in: /opt/Qt6/plugins, /usr/lib/qt6/plugins, /usr/lib/x86_64-linux-gnu/qt6/plugins"
+    echo "   ⚠️  SVG icons won't be displayed"
+fi
+
+# Verify SVG support components
+echo ""
+if [ $SVG_LIB_FOUND -eq 1 ] && [ $SVG_PLUGIN_FOUND -eq 1 ] && [ $SVGICON_PLUGIN_FOUND -eq 1 ]; then
+    echo "✅ Full SVG support successfully bundled for DEB package"
+else
+    echo "⚠️  WARNING: Some SVG components are missing - SVG display may be incomplete"
+    echo "   - libQt6Svg.so: $([ $SVG_LIB_FOUND -eq 1 ] && echo '✅' || echo '❌')"
+    echo "   - libqsvg.so: $([ $SVG_PLUGIN_FOUND -eq 1 ] && echo '✅' || echo '❌')"
+    echo "   - libsvgicon.so: $([ $SVGICON_PLUGIN_FOUND -eq 1 ] && echo '✅' || echo '❌')"
+fi
+echo ""
+
 # Update the binary's rpath to point to bundled libraries
 # Libraries are bundled in /usr/lib/openterfaceqt (isolated from system libraries)
 # Binary is at: /usr/local/bin/openterfaceQT
@@ -778,6 +849,72 @@ if [ -d "${QT_QML_DIR}" ]; then
     echo "Copying Qt QML imports to SOURCES..."
     cp -ra "${QT_QML_DIR}"/* "${RPMTOP}/SOURCES/qt6-qml/" 2>/dev/null || true
 fi
+
+# Copy SVG-specific Qt libraries and plugins to SOURCES (CRITICAL for SVG icon support)
+echo "📋 RPM: Ensuring SVG support for icons..."
+
+# Copy libQt6Svg library
+echo "   📦 Searching for libQt6Svg.so..."
+SVG_LIB_FOUND=0
+for SEARCH_DIR in /opt/Qt6/lib /usr/lib/x86_64-linux-gnu /usr/lib; do
+    if [ -d "$SEARCH_DIR" ]; then
+        if ls "$SEARCH_DIR"/libQt6Svg.so* >/dev/null 2>&1; then
+            echo "   ✅ Found libQt6Svg.so in $SEARCH_DIR"
+            cp -Pv "$SEARCH_DIR"/libQt6Svg.so* "${RPMTOP}/SOURCES/" 2>&1 | sed 's/^/     /'
+            SVG_LIB_FOUND=1
+            break
+        fi
+    fi
+done
+if [ $SVG_LIB_FOUND -eq 0 ]; then
+    echo "   ⚠️  libQt6Svg.so not found - SVG support may be limited"
+fi
+
+# Copy SVG image format plugin (libqsvg.so)
+echo "   📦 Searching for libqsvg.so (SVG image format plugin)..."
+SVG_PLUGIN_FOUND=0
+for SEARCH_DIR in /opt/Qt6/plugins /usr/lib/qt6/plugins /usr/lib/x86_64-linux-gnu/qt6/plugins; do
+    if [ -d "$SEARCH_DIR/imageformats" ]; then
+        if [ -f "$SEARCH_DIR/imageformats/libqsvg.so" ]; then
+            echo "   ✅ Found libqsvg.so in $SEARCH_DIR"
+            cp -Pv "$SEARCH_DIR/imageformats/libqsvg.so" "${RPMTOP}/SOURCES/" 2>&1 | sed 's/^/     /'
+            SVG_PLUGIN_FOUND=1
+            break
+        fi
+    fi
+done
+if [ $SVG_PLUGIN_FOUND -eq 0 ]; then
+    echo "   ⚠️  libqsvg.so not found - SVG images won't be loaded"
+fi
+
+# Copy SVG icon engine plugin (libsvgicon.so)
+echo "   📦 Searching for libsvgicon.so (SVG icon engine plugin)..."
+SVGICON_PLUGIN_FOUND=0
+for SEARCH_DIR in /opt/Qt6/plugins /usr/lib/qt6/plugins /usr/lib/x86_64-linux-gnu/qt6/plugins; do
+    if [ -d "$SEARCH_DIR/iconengines" ]; then
+        if [ -f "$SEARCH_DIR/iconengines/libsvgicon.so" ]; then
+            echo "   ✅ Found libsvgicon.so in $SEARCH_DIR"
+            cp -Pv "$SEARCH_DIR/iconengines/libsvgicon.so" "${RPMTOP}/SOURCES/" 2>&1 | sed 's/^/     /'
+            SVGICON_PLUGIN_FOUND=1
+            break
+        fi
+    fi
+done
+if [ $SVGICON_PLUGIN_FOUND -eq 0 ]; then
+    echo "   ⚠️  libsvgicon.so not found - SVG icons won't be displayed"
+fi
+
+# Verify SVG support components
+echo ""
+if [ $SVG_LIB_FOUND -eq 1 ] && [ $SVG_PLUGIN_FOUND -eq 1 ] && [ $SVGICON_PLUGIN_FOUND -eq 1 ]; then
+    echo "✅ Full SVG support successfully bundled for RPM package"
+else
+    echo "⚠️  WARNING: Some SVG components are missing - SVG display may be incomplete"
+    echo "   - libQt6Svg.so: $([ $SVG_LIB_FOUND -eq 1 ] && echo '✅' || echo '❌')"
+    echo "   - libqsvg.so: $([ $SVG_PLUGIN_FOUND -eq 1 ] && echo '✅' || echo '❌')"
+    echo "   - libsvgicon.so: $([ $SVGICON_PLUGIN_FOUND -eq 1 ] && echo '✅' || echo '❌')"
+fi
+echo ""
 
 # Copy libjpeg and libturbojpeg libraries to SOURCES for bundling
 echo "🔍 Searching for JPEG libraries to RPM SOURCES..."
