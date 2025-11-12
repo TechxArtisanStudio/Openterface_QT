@@ -8,5 +8,5 @@ Description: OpenterfaceQT KVM Linux Edition
  Includes bundled FFmpeg 6.1.1 libraries (libavformat, libavcodec,
  libswresample, libswscale, libavutil, libavfilter), libturbojpeg,
  VA-API libraries (libva, libva-drm, libva-x11), VDPAU library
- (libvdpau), and GStreamer libraries including ORC for hardware
- acceleration support
+ (libvdpau), GStreamer libraries including ORC for hardware acceleration,
+ and Qt6 SVG support (libqt6svg6) for SVG icon rendering
