@@ -103,11 +103,11 @@ EnvironmentSetupDialog::EnvironmentSetupDialog(QWidget *parent) :
     ui->step2Label->setVisible(false);
     ui->copyButton->setVisible(false);
     ui->commandsTextEdit->setVisible(false);
-    QString statusSummary = tr("The following steps help you install the driver and the Openterface firmware update. Current status:<br>");
+    statusSummary += tr("The following steps help you install the driver and the Openterface firmware update. Current status:<br>");
     QString latestDescription = latestFirewareDescription;
     qDebug() << latestDescription;
-    statusSummary += tr("�?Driver Installed: ") + QString(isDriverInstalled? tickHtml : crossHtml) + "<br>";
-    statusSummary += tr("�?Latest Firmware: ") + QString(latestFirmware == FirmwareResult::Latest ? tickHtml : crossHtml) + QString(latestFirmware == FirmwareResult::Latest ?  QString(""): latestDescription);
+    statusSummary += tr("◆ Driver Installed: ") + QString(isDriverInstalled? tickHtml : crossHtml) + "<br>";
+    statusSummary += tr("◆ Latest Firmware: ") + QString(latestFirmware == FirmwareResult::Latest ? tickHtml : crossHtml) + QString(latestFirmware == FirmwareResult::Latest ?  QString(""): latestDescription);
     ui->descriptionLabel->setText(statusSummary);
 
     // if(isDriverInstalled)
@@ -138,11 +138,11 @@ EnvironmentSetupDialog::EnvironmentSetupDialog(QWidget *parent) :
 
     // Create the status summary
     QString statusSummary = tr("The following steps help you install the driver and access the device permissions and the Openterface firmware update. Current status:<br>");
-    statusSummary += tr("�?Driver Installed: ") + QString(isDriverInstalled ? tickHtml : crossHtml) + "<br>";
-    statusSummary += tr("�?In Serial Port Permission: ") + QString(isSerialPermission ? tickHtml : crossHtml) + "<br>";
-    statusSummary += tr("�?HID Permission: ") + QString(isHidPermission ? tickHtml : crossHtml) + "<br>";
-    statusSummary += tr("�?BRLTTY checking: ") + QString(isBrlttyRunning ? crossHtml + tr(" (needs removal)") : tickHtml + tr(" (not running)")) + "<br>";
-    statusSummary += tr("�?Latest Firmware: ") + QString(latestFirmware == FirmwareResult::Latest ? tickHtml : crossHtml) + QString(latestFirmware == FirmwareResult::Latest ?  QString(""): latestFirewareDescription);
+    statusSummary += tr("◆ Driver Installed: ") + QString(isDriverInstalled ? tickHtml : crossHtml) + "<br>";
+    statusSummary += tr("◆ In Serial Port Permission: ") + QString(isSerialPermission ? tickHtml : crossHtml) + "<br>";
+    statusSummary += tr("◆ HID Permission: ") + QString(isHidPermission ? tickHtml : crossHtml) + "<br>";
+    statusSummary += tr("◆ BRLTTY checking: ") + QString(isBrlttyRunning ? crossHtml + tr(" (needs removal)") : tickHtml + tr(" (not running)")) + "<br>";
+    statusSummary += tr("◆ Latest Firmware: ") + QString(latestFirmware == FirmwareResult::Latest ? tickHtml : crossHtml) + QString(latestFirmware == FirmwareResult::Latest ?  QString(""): latestFirewareDescription);
     ui->descriptionLabel->setText(statusSummary);
 
     // Create help link
