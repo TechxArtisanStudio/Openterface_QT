@@ -168,5 +168,6 @@ LABEL purpose="testing"
 # Set entrypoint to handle installation on first run (runs as root)
 ENTRYPOINT ["/entrypoint.sh"]
 
-# Default command (will be passed to entrypoint)
-CMD ["/bin/bash"]
+# No default command - entrypoint will run without arguments
+# This allows the container to start the app and enter monitoring loop
+# External commands can be executed via: docker exec <container> <command>

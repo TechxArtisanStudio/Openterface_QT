@@ -313,14 +313,6 @@ EOF
     echo "Openterface QT is ready for testing!"
     echo ""
     
-    # If external commands provided (e.g., screenshot script via docker exec), execute them
-    if [ $# -gt 0 ]; then
-        echo "ℹ️  Executing provided command: $@"
-        # Execute the command
-        "$@"
-        # Command has finished, let app keep running
-    fi
-    
     # Keep container alive - app is running in background
     # This allows external commands to be run via docker exec
     echo "ℹ️  Openterface QT running in background (PID: $APP_PID)"
