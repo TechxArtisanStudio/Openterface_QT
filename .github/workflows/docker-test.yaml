@@ -7,6 +7,7 @@ on:
       - 'docker/testos/Dockerfile.ubuntu-test-shared'
       - 'docker/install-openterface.sh'
       - 'docker/screenshot-docker-app.sh'
+      - 'docker/entrypoint.sh'
       - '.github/workflows/docker-test.yaml'
       - 'packaging/debian/**'
   pull_request:
@@ -358,12 +359,27 @@ jobs:
               docker logs $CONTAINER_ID 2>&1 | tail -20 | sed 's/^/  /'
           fi
           
-          # Verify container is still running
-          if docker ps | grep -q $CONTAINER_ID; then
+          # Give the container a moment to settle after app startup
+          sleep 2
+          
+          # Verify container is still running (with better diagnostics)
+          echo ""
+          echo "🔍 Verifying container status..."
+          echo "Container ID: $CONTAINER_ID"
+          
+          # Check if container exists and is running
+          CONTAINER_STATUS=$(docker inspect -f '{{.State.Running}}' $CONTAINER_ID 2>/dev/null || echo "error")
+          echo "Container status check: $CONTAINER_STATUS"
+          
+          if [ "$CONTAINER_STATUS" = "true" ]; then
               echo "✅ Container is running and ready for tests"
           else
-              echo "❌ Container exited unexpectedly"
-              docker logs $CONTAINER_ID 2>&1 | tail -30 | sed 's/^/  /'
+              echo "❌ Container not in running state"
+              echo "Full container inspection:"
+              docker inspect $CONTAINER_ID 2>&1 | head -30 || echo "Container not found"
+              echo ""
+              echo "Last 30 lines of logs:"
+              docker logs $CONTAINER_ID 2>&1 | tail -30 | sed 's/^/  /' || echo "Could not retrieve logs"
               exit 1
           fi
           
