@@ -2,8 +2,16 @@
 # Entrypoint script for Openterface QT Docker container
 # Handles installation on first run when artifacts are available via volume mount
 
+# Force stdout and stderr to be unbuffered
+export PYTHONUNBUFFERED=1
+exec 1> >(cat)
+exec 2> >(cat >&2)
+
 echo "🔧 Openterface QT Docker Entrypoint"
 echo "===================================="
+
+# Set up error handler to catch unexpected exits
+trap 'echo "ERROR: Entrypoint script encountered an error at line $LINENO with exit code $?"; sleep 10' ERR
 
 # Set display environment for X11 early
 # Force DISPLAY to :98 for screenshot testing (override any defaults)
@@ -97,6 +105,7 @@ if Xvfb $DISPLAY -screen 0 1920x1080x24 -ac +extension GLX +render -noreset >/de
 then
     XVFB_PID=$!
     echo "✅ Xvfb started directly (PID: $XVFB_PID)"
+    echo "🔔 CHECKPOINT 1: After Xvfb if block"  
 fi
 
 # Approach 2: Try with sudo if direct failed
@@ -107,6 +116,8 @@ if [ -z "$XVFB_PID" ] || ! ps -p $XVFB_PID > /dev/null 2>&1; then
         echo "✅ Xvfb started with sudo (PID: $XVFB_PID)"
     fi
 fi
+
+echo "🔔 CHECKPOINT 2: After both Xvfb approaches"
 
 sleep 3
 
@@ -126,10 +137,17 @@ else
     # Don't exit here - for persistent container testing, we need to keep running
 fi
 
+echo "🔔 CHECKPOINT 3: After Xvfb verification"
+
+echo ""
+echo "📌 DEBUG: Xvfb startup complete"
+echo "📌 DEBUG: Current shell PID: $$"  
 echo "📌 DEBUG: About to check for openterfaceQT application..."
+sleep 1
 
 # Try to launch the openterfaceQT application
 if [ -f /usr/local/bin/openterfaceQT ]; then
+    echo "📌 DEBUG ENTERED IF BLOCK for openterfaceQT"
     echo "✅ Found openterfaceQT application, starting it..."
     
     # Verify the binary is executable
