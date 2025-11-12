@@ -2,16 +2,11 @@
 # Entrypoint script for Openterface QT Docker container
 # Handles installation on first run when artifacts are available via volume mount
 
-# Force stdout and stderr to be unbuffered
-export PYTHONUNBUFFERED=1
-exec 1> >(cat)
-exec 2> >(cat >&2)
-
 echo "🔧 Openterface QT Docker Entrypoint"
 echo "===================================="
 
-# Set up error handler to catch unexpected exits
-trap 'echo "ERROR: Entrypoint script encountered an error at line $LINENO with exit code $?"; sleep 10' ERR
+# Set up error handler to catch unexpected exits (but don't exit, just log)
+trap 'echo "⚠️ WARNING: Command at line $LINENO returned exit code $?"; true' ERR
 
 # Set display environment for X11 early
 # Force DISPLAY to :98 for screenshot testing (override any defaults)
@@ -119,7 +114,9 @@ fi
 
 echo "🔔 CHECKPOINT 2: After both Xvfb approaches"
 
+echo "🔔 CHECKPOINT 2.5: Before sleep 3"
 sleep 3
+echo "🔔 CHECKPOINT 2.7: After sleep 3"
 
 # Verify Xvfb started
 if [ -n "$XVFB_PID" ] && ps -p $XVFB_PID > /dev/null 2>&1; then
