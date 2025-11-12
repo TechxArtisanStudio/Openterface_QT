@@ -291,19 +291,20 @@ check_and_install_missing_deps() {
         
         # Let apt-get try to resolve dependencies
         print_section "Installing missing dependencies..."
-        print_info "Running: apt-get update && apt-get install -f (silent mode)"
+        print_info "Running: apt-get update && apt-get install -f -y"
         echo ""
         
-        if $sudo_cmd apt-get update -qq >/dev/null 2>&1; then
-            # Run apt-get install -f silently, but capture output in case of errors
-            if INSTALL_OUTPUT=$($sudo_cmd apt-get install -f -y -qq 2>&1); then
-                INSTALL_EXIT=0
-                echo "✅ Missing dependencies fixed successfully"
+        if $sudo_cmd apt-get update -qq 2>&1 | grep -v "^Get:\|^Hit:\|^Reading" || true; then
+            INSTALL_OUTPUT=$($sudo_cmd apt-get install -f -y 2>&1)
+            INSTALL_EXIT=$?
+            
+            echo "$INSTALL_OUTPUT"
+            echo ""
+            
+            if [ $INSTALL_EXIT -eq 0 ]; then
+                print_success "Missing dependencies installed successfully"
                 return 0
             else
-                INSTALL_EXIT=$?
-                # Only show output if there was an error
-                echo "$INSTALL_OUTPUT"
                 print_warning "apt-get install -f had issues, but continuing..."
                 return 0
             fi
@@ -318,21 +319,15 @@ check_and_install_missing_deps() {
     echo ""
     
     print_section "Installing missing dependencies..."
-    print_info "Running: apt-get update && apt-get install (silent mode)"
+    print_info "Running: apt-get update && apt-get install -y $MISSING_PACKAGES"
     echo ""
     
-    # Update package lists silently, suppress standard output
-    if $sudo_cmd apt-get update -qq >/dev/null 2>&1; then
-        print_info "Installing packages..."
-        # Run apt-get install silently, but capture output in case of errors
-        if INSTALL_OUTPUT=$($sudo_cmd apt-get install -y -qq $MISSING_PACKAGES 2>&1); then
-            INSTALL_EXIT=0
-            echo "✅ Packages installed successfully"
-        else
-            INSTALL_EXIT=$?
-            # Only show output if there was an error
-            echo "$INSTALL_OUTPUT"
-        fi
+    if $sudo_cmd apt-get update -qq 2>&1 | grep -v "^Get:\|^Hit:\|^Reading" || true; then
+        print_info "Running apt-get install..."
+        INSTALL_OUTPUT=$($sudo_cmd apt-get install -y $MISSING_PACKAGES 2>&1)
+        INSTALL_EXIT=$?
+        
+        echo "$INSTALL_OUTPUT"
         echo ""
         
         if [ $INSTALL_EXIT -eq 0 ]; then
