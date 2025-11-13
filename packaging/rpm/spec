@@ -52,18 +52,21 @@ cp %{_sourcedir}/libz*.so* %{buildroot}/usr/lib/openterfaceqt/ 2>/dev/null || tr
 # Hardware acceleration libraries
 cp %{_sourcedir}/libva*.so* %{buildroot}/usr/lib/openterfaceqt/ 2>/dev/null || true
 
-# Multimedia libraries
-cp %{_sourcedir}/libgstreamer*.so* %{buildroot}/usr/lib/openterfaceqt/ 2>/dev/null || true
-cp %{_sourcedir}/libv4l*.so* %{buildroot}/usr/lib/openterfaceqt/ 2>/dev/null || true
+# GStreamer and multimedia libraries (from gstreamer subdirectory)
+cp %{_sourcedir}/gstreamer/libgstreamer*.so* %{buildroot}/usr/lib/openterfaceqt/ 2>/dev/null || true
+cp %{_sourcedir}/gstreamer/liborc*.so* %{buildroot}/usr/lib/openterfaceqt/ 2>/dev/null || true
+cp %{_sourcedir}/gstreamer/libv4l*.so* %{buildroot}/usr/lib/openterfaceqt/ 2>/dev/null || true
+cp %{_sourcedir}/gstreamer/libgstvideo*.so* %{buildroot}/usr/lib/openterfaceqt/ 2>/dev/null || true
+cp %{_sourcedir}/gstreamer/libgstapp*.so* %{buildroot}/usr/lib/openterfaceqt/ 2>/dev/null || true
 
-# FFmpeg core libraries (all components needed for video processing)
-cp %{_sourcedir}/libavdevice*.so* %{buildroot}/usr/lib/openterfaceqt/ 2>/dev/null || true
-cp %{_sourcedir}/libavcodec*.so* %{buildroot}/usr/lib/openterfaceqt/ 2>/dev/null || true
-cp %{_sourcedir}/libavformat*.so* %{buildroot}/usr/lib/openterfaceqt/ 2>/dev/null || true
-cp %{_sourcedir}/libavutil*.so* %{buildroot}/usr/lib/openterfaceqt/ 2>/dev/null || true
-cp %{_sourcedir}/libswscale*.so* %{buildroot}/usr/lib/openterfaceqt/ 2>/dev/null || true
-cp %{_sourcedir}/libswresample*.so* %{buildroot}/usr/lib/openterfaceqt/ 2>/dev/null || true
-cp %{_sourcedir}/libavfilter*.so* %{buildroot}/usr/lib/openterfaceqt/ 2>/dev/null || true
+# FFmpeg core libraries (from ffmpeg subdirectory - all components needed for video processing)
+cp %{_sourcedir}/ffmpeg/libavdevice*.so* %{buildroot}/usr/lib/openterfaceqt/ 2>/dev/null || true
+cp %{_sourcedir}/ffmpeg/libavcodec*.so* %{buildroot}/usr/lib/openterfaceqt/ 2>/dev/null || true
+cp %{_sourcedir}/ffmpeg/libavformat*.so* %{buildroot}/usr/lib/openterfaceqt/ 2>/dev/null || true
+cp %{_sourcedir}/ffmpeg/libavutil*.so* %{buildroot}/usr/lib/openterfaceqt/ 2>/dev/null || true
+cp %{_sourcedir}/ffmpeg/libswscale*.so* %{buildroot}/usr/lib/openterfaceqt/ 2>/dev/null || true
+cp %{_sourcedir}/ffmpeg/libswresample*.so* %{buildroot}/usr/lib/openterfaceqt/ 2>/dev/null || true
+cp %{_sourcedir}/ffmpeg/libavfilter*.so* %{buildroot}/usr/lib/openterfaceqt/ 2>/dev/null || true
 
 # Qt plugins and QML modules (optional but recommended)
 cp -r %{_sourcedir}/qt6-plugins/* %{buildroot}/usr/lib/qt6/plugins/ 2>/dev/null || true

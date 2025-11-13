@@ -51,14 +51,6 @@ RUN dnf update -y && \
         libtheora \
         libvorbis \
         libvpx \
-        # GStreamer runtime dependencies (includes audio/video support)
-        gstreamer1 \
-        gstreamer1-plugins-base \
-        gstreamer1-plugins-good \
-        gstreamer1-plugins-bad-free \
-        gstreamer1-libav \
-        gstreamer1-plugins-good-extras \
-        gstreamer1-plugins-bad-free-extras \
         # FUSE support for AppImage installations
         fuse \
         fuse-libs \
