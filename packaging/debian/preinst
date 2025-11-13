@@ -85,10 +85,6 @@ OPENGL_DEPS=(
     "libglvnd0"
 )
 
-QT6_SVG_DEPS=(
-    "libqt6svg6"
-)
-
 QT6_PLATFORM_DEPS=(
     "libxcb-icccm4"
     "libxcb-image0"
@@ -115,7 +111,7 @@ FOUND_DEPS=0
 TOTAL_DEPS=0
 
 # Calculate total dependencies to check
-TOTAL_DEPS=$((${#GRAPHICS_DEPS[@]} + ${#AUDIO_DEPS[@]} + ${#VIDEO_DEPS[@]} + ${#DISPLAY_DEPS[@]} + ${#OPENGL_DEPS[@]} + ${#QT6_SVG_DEPS[@]} + ${#QT6_PLATFORM_DEPS[@]} + ${#HWACCEL_DEPS[@]} + ${#COMPRESSION_DEPS[@]}))
+TOTAL_DEPS=$((${#GRAPHICS_DEPS[@]} + ${#AUDIO_DEPS[@]} + ${#VIDEO_DEPS[@]} + ${#DISPLAY_DEPS[@]} + ${#OPENGL_DEPS[@]} + ${#QT6_PLATFORM_DEPS[@]} + ${#HWACCEL_DEPS[@]} + ${#COMPRESSION_DEPS[@]}))
 
 echo "System dependency verification:"
 echo ""
@@ -184,18 +180,6 @@ for pkg in "${OPENGL_DEPS[@]}"; do
         FOUND_DEPS=$((FOUND_DEPS + 1))
     else
         echo "    ❌ $pkg (MISSING)"
-        MISSING_DEPS+=("$pkg")
-    fi
-done
-
-# Check Qt6 SVG support - CRITICAL for icon rendering
-print_category "  Qt6 SVG Support (CRITICAL for icon display):"
-for pkg in "${QT6_SVG_DEPS[@]}"; do
-    if dpkg -l | grep -q "^ii.*${pkg}"; then
-        echo "    ✅ $pkg - SVG icons will render correctly"
-        FOUND_DEPS=$((FOUND_DEPS + 1))
-    else
-        echo "    ❌ $pkg (MISSING - SVG icons will NOT display)"
         MISSING_DEPS+=("$pkg")
     fi
 done
