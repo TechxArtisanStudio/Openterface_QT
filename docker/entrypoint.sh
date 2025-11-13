@@ -163,6 +163,10 @@ if [ -f /usr/local/bin/openterfaceQT ]; then
     if [ -f /usr/local/bin/openterfaceQT ]; then
         echo "   Checking openterfaceQT dependencies:"
         ldd /usr/local/bin/openterfaceQT 2>&1 || echo "     (ldd check skipped for AppImage)"
+        ls -trl /usr/local/bin/openterfaceQT 2>&1
+        if [ -L /usr/local/bin/openterfaceQT ]; then
+            echo "   Final target: $(readlink -f /usr/local/bin/openterfaceQT)"
+        fi
     fi
     echo ""
     
