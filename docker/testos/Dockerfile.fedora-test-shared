@@ -20,7 +20,7 @@ ENV QT_QPA_PLATFORM=xcb
 
 # Install minimal system dependencies and runtime libraries only
 RUN dnf update -y && \
-    dnf install -y --setopt=install_weak_deps=False \
+    dnf install -y --setopt=install_weak_deps=False --skip-unavailable \
         # Essential utilities
         curl \
         wget \
@@ -46,13 +46,11 @@ RUN dnf update -y && \
         freetype \
         fontconfig \
         bzip2-libs \
-        # FFmpeg runtime libraries (need to enable RPM Fusion for full support)
-        # Using individual library packages that are available in standard repos
+        # FFmpeg-related codec libraries (available in Fedora repos)
         libtheora \
         libvorbis \
         libvpx \
-        libopus \
-        # GStreamer runtime dependencies
+        # GStreamer runtime dependencies (includes audio/video support)
         gstreamer1 \
         gstreamer1-plugins-base \
         gstreamer1-plugins-good \
