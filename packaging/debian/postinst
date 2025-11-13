@@ -42,7 +42,7 @@ If you encounter "symbol lookup error" when running openterfaceQT:
   2. Update GStreamer if needed:
      sudo apt update && sudo apt upgrade libgstreamer1.0-0
   3. Run with debug enabled:
-     OPENTERFACE_DEBUG=1 openterfaceQT-wrapper.sh
+     OPENTERFACE_DEBUG=1 openterfaceQT-launcher.sh
   4. For more help, see: /usr/share/doc/openterfaceQT/GSTREAMER_FIX.md
 
 EOF

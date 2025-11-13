@@ -22,6 +22,7 @@
 #   - Hardware Acceleration: libva2, libva-drm2, libva-x11-2, libvdpau1, liborc-0.4-0 (bundled or system)
 #   - OpenGL: libgl1, libglx0, libglvnd0, libglu1-mesa
 #   - Compression: zlib1g, libbz2-1.0
+#   - Debug: libdw1
 #
 # =============================================================================
 
@@ -66,7 +67,6 @@ AUDIO_DEPS=(
 )
 
 VIDEO_DEPS=(
-    "libgstreamer1.0-0"
     "libv4l-0"
 )
 
@@ -83,10 +83,6 @@ OPENGL_DEPS=(
     "libgl1"
     "libglx0"
     "libglvnd0"
-)
-
-QT6_SVG_DEPS=(
-    "libqt6svg6"
 )
 
 QT6_PLATFORM_DEPS=(
@@ -110,12 +106,16 @@ COMPRESSION_DEPS=(
     "libbz2-1.0"
 )
 
+DEBUG_DEPS=(
+    "libdw1"
+)
+
 MISSING_DEPS=()
 FOUND_DEPS=0
 TOTAL_DEPS=0
 
 # Calculate total dependencies to check
-TOTAL_DEPS=$((${#GRAPHICS_DEPS[@]} + ${#AUDIO_DEPS[@]} + ${#VIDEO_DEPS[@]} + ${#DISPLAY_DEPS[@]} + ${#OPENGL_DEPS[@]} + ${#QT6_SVG_DEPS[@]} + ${#QT6_PLATFORM_DEPS[@]} + ${#HWACCEL_DEPS[@]} + ${#COMPRESSION_DEPS[@]}))
+TOTAL_DEPS=$((${#GRAPHICS_DEPS[@]} + ${#AUDIO_DEPS[@]} + ${#VIDEO_DEPS[@]} + ${#DISPLAY_DEPS[@]} + ${#OPENGL_DEPS[@]} + ${#QT6_PLATFORM_DEPS[@]} + ${#HWACCEL_DEPS[@]} + ${#COMPRESSION_DEPS[@]} + ${#DEBUG_DEPS[@]}))
 
 echo "System dependency verification:"
 echo ""
@@ -188,18 +188,6 @@ for pkg in "${OPENGL_DEPS[@]}"; do
     fi
 done
 
-# Check Qt6 SVG support - CRITICAL for icon rendering
-print_category "  Qt6 SVG Support (CRITICAL for icon display):"
-for pkg in "${QT6_SVG_DEPS[@]}"; do
-    if dpkg -l | grep -q "^ii.*${pkg}"; then
-        echo "    ✅ $pkg - SVG icons will render correctly"
-        FOUND_DEPS=$((FOUND_DEPS + 1))
-    else
-        echo "    ❌ $pkg (MISSING - SVG icons will NOT display)"
-        MISSING_DEPS+=("$pkg")
-    fi
-done
-
 # Check Qt6 XCB/Platform dependencies
 print_category "  Qt6 Platform Dependencies (XCB):"
 for pkg in "${QT6_PLATFORM_DEPS[@]}"; do
@@ -226,6 +214,18 @@ done
 # Check Compression dependencies
 print_category "  Compression Libraries:"
 for pkg in "${COMPRESSION_DEPS[@]}"; do
+    if dpkg -l | grep -q "^ii.*${pkg}"; then
+        echo "    ✅ $pkg"
+        FOUND_DEPS=$((FOUND_DEPS + 1))
+    else
+        echo "    ❌ $pkg (MISSING)"
+        MISSING_DEPS+=("$pkg")
+    fi
+done
+
+# Check Debug dependencies
+print_category "  Debug Libraries:"
+for pkg in "${DEBUG_DEPS[@]}"; do
     if dpkg -l | grep -q "^ii.*${pkg}"; then
         echo "    ✅ $pkg"
         FOUND_DEPS=$((FOUND_DEPS + 1))

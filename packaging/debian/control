@@ -9,4 +9,5 @@ Description: OpenterfaceQT KVM Linux Edition
  libswresample, libswscale, libavutil, libavfilter), libturbojpeg,
  VA-API libraries (libva, libva-drm, libva-x11), VDPAU library
  (libvdpau), GStreamer libraries including ORC for hardware acceleration,
- and Qt6 SVG support (libqt6svg6) for SVG icon rendering
+ GStreamer plugins (v4l2, video conversion, audio processing), and Qt6
+ libraries for GUI rendering with SVG icon support

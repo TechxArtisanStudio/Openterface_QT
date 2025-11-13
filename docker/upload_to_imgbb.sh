@@ -3,13 +3,27 @@
 # Standalone ImgBB Upload Script
 # Extracts the upload logic from GitHub Actions workflow for local testing and reuse
 
-set -e  # Exit on any error
+# Don't use set -e - we need better error handling and reporting
+# set -e  # Exit on any error
+
+# Set error handling with explicit exit messages
+trap 'echo "ERROR: Script failed at line $LINENO with exit code $?"; exit 1' ERR
 
 # Configuration
 IMGBB_API_URL="https://api.imgbb.com/1/upload"
 CURL_CONNECT_TIMEOUT=30
 CURL_MAX_TIME=120
 MAX_BASE64_SIZE=131072  # ~128KB limit for command line
+
+# Detect timeout command (GNU timeout on Linux, use bash timeout on macOS, or gtimeout if installed)
+if command -v timeout &> /dev/null; then
+    TIMEOUT_CMD="timeout"
+elif command -v gtimeout &> /dev/null; then
+    TIMEOUT_CMD="gtimeout"
+else
+    # Fallback: use bash built-in timeout simulation (not perfect but works)
+    TIMEOUT_CMD=""
+fi
 
 # Colors for output
 RED='\033[0;31m'
@@ -101,14 +115,28 @@ fi
 # Check if image file exists
 if [ ! -f "$IMAGE_FILE" ]; then
     log_error "Image file not found: $IMAGE_FILE"
+    log_error "Current directory: $(pwd)"
+    log_error "Files in current directory:"
+    ls -la | head -20
     exit 1
 fi
 
 # Check if image file is readable
 if [ ! -r "$IMAGE_FILE" ]; then
     log_error "Image file is not readable: $IMAGE_FILE"
+    log_error "File permissions:"
+    ls -la "$IMAGE_FILE"
     exit 1
 fi
+
+# Check file is not empty
+FILE_SIZE=$(stat -f%z "$IMAGE_FILE" 2>/dev/null || stat -c%s "$IMAGE_FILE" 2>/dev/null || echo 0)
+if [ "$FILE_SIZE" -eq 0 ]; then
+    log_error "Image file is empty (0 bytes): $IMAGE_FILE"
+    exit 1
+fi
+
+log_info "Image file validated: $IMAGE_FILE ($(($FILE_SIZE / 1024))KB)"
 
 # Get API key from environment if not provided via command line
 if [ -z "$API_KEY" ]; then
@@ -119,73 +147,97 @@ fi
 if [ -z "$API_KEY" ]; then
     log_error "No API key provided. Use -k option or set IMGBB_API_KEY environment variable"
     log_info "Get your API key from: https://api.imgbb.com/"
+    log_error "IMGBB_API_KEY env var: '${IMGBB_API_KEY:-<not set>}'"
+    log_error "API_KEY argument: '${API_KEY:-<not set>}'"
     exit 1
 fi
 
 # Validate API key format (ImgBB keys are typically 32 characters)
 if [ ${#API_KEY} -ne 32 ]; then
     log_warning "API key length is ${#API_KEY} characters (expected 32). This might indicate an invalid key."
+    log_warning "API key preview: ${API_KEY:0:8}...${API_KEY: -8}"
 fi
 
 log_info "Starting ImgBB upload process..."
 log_info "Image file: $IMAGE_FILE"
-log_info "API key length: ${#API_KEY}"
+log_info "API key length: ${#API_KEY} characters"
+log_info "API key format: ${API_KEY:0:8}...${API_KEY: -8}"
 
 # Get file information
-FILE_SIZE=$(stat -c%s "$IMAGE_FILE" 2>/dev/null || echo "unknown")
+FILE_SIZE=$(stat -c%s "$IMAGE_FILE" 2>/dev/null || stat -f%z "$IMAGE_FILE" 2>/dev/null || echo "unknown")
 FILE_SIZE_HUMAN=$(ls -lh "$IMAGE_FILE" | awk '{print $5}')
 log_info "File size: $FILE_SIZE_HUMAN ($FILE_SIZE bytes)"
 
-# Convert image to base64
-log_info "Converting image to base64..."
-IMAGE_BASE64=$(base64 -w 0 "$IMAGE_FILE" 2>/dev/null || base64 "$IMAGE_FILE" 2>/dev/null || echo "")
-
-if [ -z "$IMAGE_BASE64" ] || [ ${#IMAGE_BASE64} -lt 100 ]; then
-    log_error "Failed to convert image to base64"
-    log_error "File exists: $(test -f "$IMAGE_FILE" && echo "Yes" || echo "No")"
-    log_error "File readable: $(test -r "$IMAGE_FILE" && echo "Yes" || echo "No")"
-    log_error "Base64 length: ${#IMAGE_BASE64}"
-    exit 1
+# Check if file size exceeds recommended limits
+if [ "$FILE_SIZE" -gt 32000000 ]; then
+    log_warning "File size ($FILE_SIZE bytes) is large (ImgBB recommends max ~32MB)"
 fi
 
-log_info "Base64 conversion successful (${#IMAGE_BASE64} characters)"
-
-# Test connectivity to ImgBB API
-if $VERBOSE; then
-    log_info "Testing connectivity to ImgBB API..."
-    # Skip connectivity test for now to avoid hanging
-    log_info "Skipping connectivity test (may hang with proxy)"
-fi
-
-# Perform upload
-log_info "Uploading to ImgBB..."
-
-UPLOAD_METHOD="binary"
-log_info "Using binary file upload method (most reliable for large files)"
+# Note: We always use binary file upload for reliability
+log_info "Using binary file upload method (direct file upload is most reliable)"
 
 if $DEBUG; then
     log_info "Curl command: curl -s -w '\\nHTTP_STATUS:%{http_code}\\nRESPONSE_TIME:%{time_total}' --connect-timeout $CURL_CONNECT_TIMEOUT --max-time $CURL_MAX_TIME -X POST '$IMGBB_API_URL' -F 'key=$API_KEY' -F 'image=@$IMAGE_FILE'"
 fi
 
 # First try without proxy
-UPLOAD_RESPONSE=$(timeout 120 curl -s --noproxy "*" -w "\nHTTP_STATUS:%{http_code}\nRESPONSE_TIME:%{time_total}" \
-    --connect-timeout $CURL_CONNECT_TIMEOUT \
-    --max-time $CURL_MAX_TIME \
-    -X POST "$IMGBB_API_URL" \
-    -F "key=$API_KEY" \
-    -F "image=@$IMAGE_FILE" \
-    2>&1 || echo "")
-
-# If that fails, try with proxy (fallback)
-if [ -z "$UPLOAD_RESPONSE" ] || echo "$UPLOAD_RESPONSE" | grep -q "000"; then
-    log_warning "Direct connection failed, trying with proxy..."
-    UPLOAD_RESPONSE=$(timeout 120 curl -s -w "\nHTTP_STATUS:%{http_code}\nRESPONSE_TIME:%{time_total}" \
+log_info "Attempting upload (attempt 1: direct connection)..."
+CURL_EXIT_CODE=0
+if [ -n "$TIMEOUT_CMD" ]; then
+    UPLOAD_RESPONSE=$($TIMEOUT_CMD 120 curl -s --noproxy "*" -w "\nHTTP_STATUS:%{http_code}\nRESPONSE_TIME:%{time_total}" \
         --connect-timeout $CURL_CONNECT_TIMEOUT \
         --max-time $CURL_MAX_TIME \
         -X POST "$IMGBB_API_URL" \
         -F "key=$API_KEY" \
         -F "image=@$IMAGE_FILE" \
-        2>&1 || echo '{"success": false, "error": {"message": "curl command failed"}}')
+        2>&1) || CURL_EXIT_CODE=$?
+else
+    UPLOAD_RESPONSE=$(curl -s --noproxy "*" -w "\nHTTP_STATUS:%{http_code}\nRESPONSE_TIME:%{time_total}" \
+        --connect-timeout $CURL_CONNECT_TIMEOUT \
+        --max-time $CURL_MAX_TIME \
+        -X POST "$IMGBB_API_URL" \
+        -F "key=$API_KEY" \
+        -F "image=@$IMAGE_FILE" \
+        2>&1) || CURL_EXIT_CODE=$?
+fi
+
+if [ $CURL_EXIT_CODE -ne 0 ]; then
+    log_warning "Curl failed with exit code: $CURL_EXIT_CODE"
+    if [ $CURL_EXIT_CODE -eq 124 ]; then
+        log_error "Upload timed out after 120 seconds"
+    fi
+fi
+
+# If that fails or returns no response, try with proxy (fallback)
+if [ -z "$UPLOAD_RESPONSE" ] || echo "$UPLOAD_RESPONSE" | grep -q "000"; then
+    log_warning "Direct connection failed or no HTTP response, trying with proxy..."
+    CURL_EXIT_CODE=0
+    if [ -n "$TIMEOUT_CMD" ]; then
+        UPLOAD_RESPONSE=$($TIMEOUT_CMD 120 curl -s -w "\nHTTP_STATUS:%{http_code}\nRESPONSE_TIME:%{time_total}" \
+            --connect-timeout $CURL_CONNECT_TIMEOUT \
+            --max-time $CURL_MAX_TIME \
+            -X POST "$IMGBB_API_URL" \
+            -F "key=$API_KEY" \
+            -F "image=@$IMAGE_FILE" \
+            2>&1) || CURL_EXIT_CODE=$?
+    else
+        UPLOAD_RESPONSE=$(curl -s -w "\nHTTP_STATUS:%{http_code}\nRESPONSE_TIME:%{time_total}" \
+            --connect-timeout $CURL_CONNECT_TIMEOUT \
+            --max-time $CURL_MAX_TIME \
+            -X POST "$IMGBB_API_URL" \
+            -F "key=$API_KEY" \
+            -F "image=@$IMAGE_FILE" \
+            2>&1) || CURL_EXIT_CODE=$?
+    fi
+    
+    if [ $CURL_EXIT_CODE -ne 0 ]; then
+        log_warning "Curl retry failed with exit code: $CURL_EXIT_CODE"
+    fi
+fi
+
+if [ -z "$UPLOAD_RESPONSE" ]; then
+    log_error "No response received from ImgBB API"
+    exit 1
 fi
 
 # Extract HTTP status and response
@@ -204,17 +256,18 @@ log_info "HTTP Status: $HTTP_STATUS"
 log_info "Response Time: ${RESPONSE_TIME}s"
 log_info "Response Length: ${#JSON_RESPONSE} characters"
 
-# If no valid JSON response, create error response
-if [ ${#JSON_RESPONSE} -lt 10 ] || ! echo "$JSON_RESPONSE" | grep -q '"success"'; then
-    if [ "$HTTP_STATUS" = "000" ] || [ "$HTTP_STATUS" = "unknown" ]; then
-        JSON_RESPONSE='{"success": false, "error": {"message": "Connection failed - no response from server"}}'
-    else
-        JSON_RESPONSE='{"success": false, "error": {"message": "Invalid response from server"}}'
-    fi
-fi
+# Parse the response - ImgBB uses different formats depending on success/failure
+# Success: {"status_code": 200, "success": true, "data": {...}}
+# Failure: {"status_code": 400, "error": {"message": "...", "code": ...}, "status_txt": "..."}
 
-# Parse the response
-UPLOAD_SUCCESS=$(echo "$JSON_RESPONSE" | grep -o '"success":[^,}]*' | cut -d':' -f2 | tr -d ' ",' 2>/dev/null || echo "false")
+# Try to determine success - look for status_code or success field
+if echo "$JSON_RESPONSE" | grep -q '"status_code":200'; then
+    UPLOAD_SUCCESS="true"
+elif echo "$JSON_RESPONSE" | grep -q '"success":true'; then
+    UPLOAD_SUCCESS="true"
+else
+    UPLOAD_SUCCESS="false"
+fi
 
 # Show response preview for debugging
 if $VERBOSE; then
@@ -225,10 +278,10 @@ fi
 if [ "$UPLOAD_SUCCESS" = "true" ]; then
     log_success "Upload successful!"
 
-    # Extract image URLs from response - ImgBB format
-    IMAGE_URL=$(echo "$JSON_RESPONSE" | grep -o '"url":"[^"]*"' | cut -d'"' -f4 | head -1 | sed 's|\\\/|/|g')
-    DISPLAY_URL=$(echo "$JSON_RESPONSE" | grep -o '"display_url":"[^"]*"' | cut -d'"' -f4 | head -1 | sed 's|\\\/|/|g')
-    VIEWER_URL=$(echo "$JSON_RESPONSE" | grep -o '"url_viewer":"[^"]*"' | cut -d'"' -f4 | head -1 | sed 's|\\\/|/|g')
+    # Extract image URLs from response - ImgBB format (under "data" field for success)
+    IMAGE_URL=$(echo "$JSON_RESPONSE" | sed -n 's/.*"url":"\([^"]*\)".*/\1/p' | head -1 | sed 's|\\\/|/|g')
+    DISPLAY_URL=$(echo "$JSON_RESPONSE" | sed -n 's/.*"display_url":"\([^"]*\)".*/\1/p' | head -1 | sed 's|\\\/|/|g')
+    VIEWER_URL=$(echo "$JSON_RESPONSE" | sed -n 's/.*"url_viewer":"\([^"]*\)".*/\1/p' | head -1 | sed 's|\\\/|/|g')
 
     # Use display_url if available, otherwise use url
     FINAL_URL="${DISPLAY_URL:-$IMAGE_URL}"
@@ -265,7 +318,17 @@ if [ "$UPLOAD_SUCCESS" = "true" ]; then
     fi
 else
     # Extract error message from ImgBB response
-    ERROR_MESSAGE=$(echo "$JSON_RESPONSE" | grep -o '"message":"[^"]*"' | cut -d'"' -f4 | head -1)
+    ERROR_MESSAGE=$(echo "$JSON_RESPONSE" | grep -o '"message":"[^"]*"' | head -1 | cut -d'"' -f4)
+    
+    # If that didn't work, try alternative format using sed (BSD compatible)
+    if [ -z "$ERROR_MESSAGE" ]; then
+        ERROR_MESSAGE=$(echo "$JSON_RESPONSE" | sed -n 's/.*"message":"\([^"]*\)".*/\1/p' | head -1)
+    fi
+    
+    # If still empty, just show the raw response
+    if [ -z "$ERROR_MESSAGE" ]; then
+        ERROR_MESSAGE="Check debug output for details"
+    fi
 
     log_error "Upload failed"
     log_error "Success: $UPLOAD_SUCCESS"
@@ -273,6 +336,11 @@ else
 
     if $DEBUG; then
         log_error "Full response: $JSON_RESPONSE"
+    else
+        # Always show response on HTTP 400 for debugging
+        if [ "$HTTP_STATUS" = "400" ]; then
+            log_error "Raw response: $JSON_RESPONSE"
+        fi
     fi
 
     # Provide troubleshooting tips

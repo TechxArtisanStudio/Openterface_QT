@@ -31,7 +31,9 @@ esac
 
 BUNDLED_LIB_PATHS=(
     "/usr/lib/openterfaceqt/qt6"        # Bundled Qt6 libraries (HIGHEST priority)
-    "/usr/lib/openterfaceqt"            # Bundled libraries (FFmpeg, GStreamer, etc.)
+    "/usr/lib/openterfaceqt/ffmpeg"     # Bundled FFmpeg libraries
+    "/usr/lib/openterfaceqt/gstreamer"  # Bundled GStreamer libraries
+    "/usr/lib/openterfaceqt"            # Bundled libraries (other dependencies)
 )
 
 # Build LD_LIBRARY_PATH with bundled libraries at the front
@@ -98,6 +100,43 @@ done
 # Then load module libraries
 for lib in "${QT6_MODULE_LIBS[@]}"; do
     lib_path="/usr/lib/openterfaceqt/qt6/$lib"
+    if [ -f "$lib_path" ]; then
+        PRELOAD_LIBS+=("$lib_path")
+    fi
+done
+
+# GStreamer libraries - essential for media handling
+GSTREAMER_LIBS=(
+    "libgstreamer-1.0.so.0"
+    "libgstbase-1.0.so.0"
+    "libgstapp-1.0.so.0"
+    "libgstvideo-1.0.so.0"
+    "libgstaudio-1.0.so.0"
+    "libgstpbutils-1.0.so.0"
+)
+
+# Load GStreamer libraries
+for lib in "${GSTREAMER_LIBS[@]}"; do
+    lib_path="/usr/lib/openterfaceqt/gstreamer/$lib"
+    if [ -f "$lib_path" ]; then
+        PRELOAD_LIBS+=("$lib_path")
+    fi
+done
+
+# FFmpeg libraries - essential for video/audio encoding and decoding
+FFMPEG_LIBS=(
+    "libavformat.so.61"
+    "libavcodec.so.61"
+    "libavutil.so.59"
+    "libswscale.so.8"
+    "libswresample.so.5"
+    "libavfilter.so.10"
+    "libavdevice.so.61"
+)
+
+# Load FFmpeg libraries
+for lib in "${FFMPEG_LIBS[@]}"; do
+    lib_path="/usr/lib/openterfaceqt/ffmpeg/$lib"
     if [ -f "$lib_path" ]; then
         PRELOAD_LIBS+=("$lib_path")
     fi
@@ -230,7 +269,12 @@ fi
 if [ -z "$GST_PLUGIN_PATH" ]; then
     GST_PLUGIN_PATHS=()
     
-    # System GStreamer plugins (primary)
+    # Bundled GStreamer plugins (PRIMARY - provides consistent plugins across systems)
+    if [ -d "/usr/lib/openterfaceqt/gstreamer/gstreamer-1.0" ]; then
+        GST_PLUGIN_PATHS+=("/usr/lib/openterfaceqt/gstreamer/gstreamer-1.0")
+    fi
+    
+    # System GStreamer plugins (secondary - as fallback)
     if [ -d "/usr/lib/${ARCH_DIR}/gstreamer-1.0" ]; then
         GST_PLUGIN_PATHS+=("/usr/lib/${ARCH_DIR}/gstreamer-1.0")
     fi
@@ -239,11 +283,11 @@ if [ -z "$GST_PLUGIN_PATH" ]; then
         GST_PLUGIN_PATHS+=("/usr/lib/x86_64-linux-gnu/gstreamer-1.0")
     fi
     
-    if [ -d "/usr/lib/openterfaceqt/gstreamer-1.0" ]; then
-        GST_PLUGIN_PATHS+=("/usr/lib/openterfaceqt/gstreamer-1.0")
+    if [ -d "/usr/lib/gstreamer-1.0" ]; then
+        GST_PLUGIN_PATHS+=("/usr/lib/gstreamer-1.0")
     fi
     
-    # Bundled GStreamer plugins (secondary)
+    # Additional bundled locations
     if [ -d "/opt/gstreamer/lib/gstreamer-1.0" ]; then
         GST_PLUGIN_PATHS+=("/opt/gstreamer/lib/gstreamer-1.0")
     fi

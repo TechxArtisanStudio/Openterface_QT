@@ -233,15 +233,16 @@ for SEARCH_DIR in /opt/ffmpeg/lib /usr/lib/x86_64-linux-gnu /usr/lib; do
         
         if [ $FOUND_ANY -eq 1 ]; then
             echo "   ✅ Found FFmpeg libraries in $SEARCH_DIR"
+            mkdir -p "${PKG_ROOT}/usr/lib/openterfaceqt/ffmpeg"
             for ffmpeg_lib in "${FFMPEG_LIBS[@]}"; do
                 if ls "$SEARCH_DIR"/${ffmpeg_lib}* >/dev/null 2>&1; then
                     echo "   Found: $ffmpeg_lib"
                     FFMPEG_FILES=$(ls -la "$SEARCH_DIR"/${ffmpeg_lib}* 2>/dev/null)
                     echo "     Files: $FFMPEG_FILES" | sed 's/^/     /'
-                    cp -Pv "$SEARCH_DIR"/${ffmpeg_lib}* "${PKG_ROOT}/usr/lib/openterfaceqt/" 2>&1 | sed 's/^/     /'
+                    cp -Pv "$SEARCH_DIR"/${ffmpeg_lib}* "${PKG_ROOT}/usr/lib/openterfaceqt/ffmpeg/" 2>&1 | sed 's/^/     /'
                 fi
             done
-            echo "   ✅ FFmpeg core libraries copied to ${PKG_ROOT}/usr/lib/openterfaceqt"
+            echo "   ✅ FFmpeg core libraries copied to ${PKG_ROOT}/usr/lib/openterfaceqt/ffmpeg"
             FFMPEG_FOUND=1
             break
         else
@@ -300,15 +301,16 @@ for SEARCH_DIR in /usr/lib/x86_64-linux-gnu /usr/lib; do
         
         if [ $FOUND_ANY -eq 1 ]; then
             echo "   ✅ Found GStreamer libraries in $SEARCH_DIR"
+            mkdir -p "${PKG_ROOT}/usr/lib/openterfaceqt/gstreamer"
             for gst_lib in "${GSTREAMER_LIBS[@]}"; do
                 if ls "$SEARCH_DIR"/${gst_lib}* >/dev/null 2>&1; then
                     echo "   Copying: $gst_lib"
-                    cp -Pv "$SEARCH_DIR"/${gst_lib}* "${PKG_ROOT}/usr/lib/openterfaceqt/" 2>&1 | sed 's/^/     /'
+                    cp -Pv "$SEARCH_DIR"/${gst_lib}* "${PKG_ROOT}/usr/lib/openterfaceqt/gstreamer/" 2>&1 | sed 's/^/     /'
                 else
                     echo "   ⚠️  Skipping: $gst_lib (not found)"
                 fi
             done
-            echo "   ✅ GStreamer libraries copied to ${PKG_ROOT}/usr/lib/openterfaceqt"
+            echo "   ✅ GStreamer libraries copied to ${PKG_ROOT}/usr/lib/openterfaceqt/gstreamer"
             GSTREAMER_FOUND=1
             break
         else
@@ -351,6 +353,72 @@ if [ $ORC_FOUND -eq 0 ]; then
 else
     echo "✅ ORC libraries bundled successfully"
 fi
+
+# Copy GStreamer plugins (essential for video capture)
+echo "📋 DEB: Searching for GStreamer plugins..."
+GSTREAMER_PLUGINS_FOUND=0
+
+# Essential GStreamer plugins for video capture
+GSTREAMER_PLUGINS=(
+    "libgstvideo4linux2.so"        # V4L2 video capture (CRITICAL)
+    "libgstv4l2codecs.so"          # V4L2 hardware codecs
+    "libgstvideoconvertscale.so"   # Video format conversion and scaling
+    "libgstvideorate.so"           # Video frame rate conversion
+    "libgstcoreelements.so"        # Core elements (queue, filesrc, etc.)
+    "libgsttypefindfunctions.so"   # Type detection
+    "libgstapp.so"                 # Application integration
+    "libgstplayback.so"           # Playback elements
+    "libgstjpeg.so"               # JPEG codec
+    "libgstximagesink.so"         # X11 video sink
+    "libgstxvimagesink.so"        # XVideo sink
+    "libgstautodetect.so"         # Auto detection
+    "libgstpulseaudio.so"         # PulseAudio
+    "libgstaudioparsers.so"       # Audio parsers
+    "libgstaudioconvert.so"       # Audio conversion
+    "libgstaudioresample.so"      # Audio resampling
+    "libdw.so"                 # DW plugin for debugging
+)
+
+# Detect GStreamer plugin directories
+GSTREAMER_PLUGIN_DIR=""
+for SEARCH_DIR in /usr/lib/x86_64-linux-gnu/gstreamer-1.0 /usr/lib/gstreamer-1.0 /opt/gstreamer/lib/x86_64-linux-gnu/gstreamer-1.0; do
+    if [ -d "$SEARCH_DIR" ] && ls "$SEARCH_DIR"/libgstvideo4linux2.so >/dev/null 2>&1; then
+        GSTREAMER_PLUGIN_DIR="$SEARCH_DIR"
+        echo "   ✅ Found GStreamer plugins directory: $GSTREAMER_PLUGIN_DIR"
+        break
+    fi
+done
+
+if [ -n "$GSTREAMER_PLUGIN_DIR" ]; then
+    mkdir -p "${PKG_ROOT}/usr/lib/openterfaceqt/gstreamer/gstreamer-1.0"
+    PLUGINS_COPIED=0
+    
+    for plugin in "${GSTREAMER_PLUGINS[@]}"; do
+        if [ -f "$GSTREAMER_PLUGIN_DIR/$plugin" ]; then
+            cp -Pv "$GSTREAMER_PLUGIN_DIR/$plugin" "${PKG_ROOT}/usr/lib/openterfaceqt/gstreamer/gstreamer-1.0/" 2>&1 | sed 's/^/     /'
+            PLUGINS_COPIED=$((PLUGINS_COPIED + 1))
+        else
+            echo "     ⚠️  Missing plugin: $plugin"
+        fi
+    done
+    
+    echo "   ✅ GStreamer plugins copied ($PLUGINS_COPIED plugins)"
+    GSTREAMER_PLUGINS_FOUND=1
+else
+    echo "   ⚠️  GStreamer plugins directory not found, checking if gstreamer packages are installed..."
+    if dpkg -l | grep -q gstreamer1.0-plugins; then
+        echo "   ℹ️  GStreamer plugins packages are installed on the system"
+        echo "   They will be required as a dependency in the final DEB package"
+    fi
+fi
+
+if [ $GSTREAMER_PLUGINS_FOUND -eq 0 ]; then
+    echo "⚠️  Warning: GStreamer plugins not found in binary form"
+    echo "   Note: GStreamer plugins should be listed as dependencies in the DEB package"
+else
+    echo "✅ GStreamer plugins bundled successfully"
+fi
+
 echo "📋 DEB: Searching for v4l-utils libraries..."
 V4L_FOUND=0
 for SEARCH_DIR in /usr/lib/x86_64-linux-gnu /usr/lib; do
@@ -387,13 +455,7 @@ REQUIRED_LIBS=(
     "libturbojpeg.so"
     "libva.so"
     "libvdpau.so"
-    "libgstreamer-1.0.so"
     "liborc-0.4.so"
-    "libavcodec.so"
-    "libavformat.so"
-    "libavutil.so"
-    "libswscale.so"
-    "libswresample.so"
 )
 
 LIBS_FOUND=0
@@ -677,20 +739,20 @@ fi
 
 # Copy desktop file (ensure Exec uses wrapper script for proper environment setup)
 if [ -f "${SRC}/com.openterface.openterfaceQT.desktop" ]; then
-	sed -e 's|^Exec=.*$|Exec=/usr/local/bin/openterfaceQT-wrapper.sh|g' \
+	sed -e 's|^Exec=.*$|Exec=/usr/local/bin/openterfaceQT-launcher.sh|g' \
 		-e 's|^Icon=.*$|Icon=openterfaceQT|g' \
 		"${SRC}/com.openterface.openterfaceQT.desktop" > "${PKG_ROOT}/usr/share/applications/com.openterface.openterfaceQT.desktop"
 fi
 
 # Copy wrapper script to bin
-if [ -f "${SRC}/packaging/openterfaceQT-wrapper.sh" ]; then
-	install -m 0755 "${SRC}/packaging/openterfaceQT-wrapper.sh" "${PKG_ROOT}/usr/local/bin/openterfaceQT-wrapper.sh"
-	echo "✅ Wrapper script installed"
+if [ -f "${SRC}/packaging/debian/openterfaceQT-launcher.sh" ]; then
+	install -m 0755 "${SRC}/packaging/debian/openterfaceQT-launcher.sh" "${PKG_ROOT}/usr/local/bin/openterfaceQT-launcher.sh"
+	echo "✅ Launcher script installed"
 	
 	# Create a symlink/alias at the standard binary location that points to the wrapper
 	# This ensures EVERY call to openterfaceQT goes through the wrapper with LD_PRELOAD
-	ln -sf openterfaceQT-wrapper.sh "${PKG_ROOT}/usr/local/bin/openterfaceQT"
-	echo "✅ Created symlink: /usr/local/bin/openterfaceQT → openterfaceQT-wrapper.sh"
+	ln -sf openterfaceQT-launcher.sh "${PKG_ROOT}/usr/local/bin/openterfaceQT"
+	echo "✅ Created symlink: /usr/local/bin/openterfaceQT → openterfaceQT-launcher.sh"
 else
 	echo "⚠️  Warning: wrapper script not found, using inline environment variables as fallback"
 	sed -e 's|^Exec=.*$|Exec=env QT_PLUGIN_PATH=/usr/lib/qt6/plugins:/usr/lib/x86_64-linux-gnu/qt6/plugins QML2_IMPORT_PATH=/usr/lib/qt6/qml:/usr/lib/x86_64-linux-gnu/qt6/qml GST_PLUGIN_PATH=/usr/lib/x86_64-linux-gnu/gstreamer-1.0:/usr/lib/gstreamer-1.0 /usr/local/bin/openterfaceQT|g' \
