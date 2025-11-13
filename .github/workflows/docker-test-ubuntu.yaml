@@ -1,4 +1,4 @@
-name: Docker Test - Openterface Shared Build
+name: Docker Test - Openterface Ubuntu 24
 
 on:
   push:
