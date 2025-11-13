@@ -37,6 +37,113 @@ fi
 export LD_LIBRARY_PATH="${LD_LIBRARY_PATH_NEW}"
 
 # ============================================
+# LD_PRELOAD Setup (MOST CRITICAL - Override binary's RPATH)
+# ============================================
+# CRITICAL: The binary was compiled with RPATH pointing to system Qt libraries.
+# LD_PRELOAD must force bundled Qt libraries to load FIRST before any others.
+# This is THE KEY to avoiding "version `Qt_6.6' not found" errors.
+
+PRELOAD_LIBS=()
+
+# Qt6 core libraries - MUST be preloaded in correct order
+# The order is critical: Core first, then Gui, then everything else
+QT6_CORE_LIBS=(
+    "libQt6Core.so.6"      # MUST be first
+    "libQt6Gui.so.6"       # Must be before other modules
+)
+
+# Qt6 module libraries
+QT6_MODULE_LIBS=(
+    "libQt6Widgets.so.6"
+    "libQt6Multimedia.so.6"
+    "libQt6MultimediaWidgets.so.6"
+    "libQt6SerialPort.so.6"
+    "libQt6Network.so.6"
+    "libQt6OpenGL.so.6"
+    "libQt6Xml.so.6"
+    "libQt6Concurrent.so.6"
+    "libQt6DBus.so.6"
+    "libQt6Svg.so.6"
+    "libQt6Quick.so.6"
+    "libQt6Qml.so.6"
+    "libQt6QuickWidgets.so.6"
+    "libQt6PrintSupport.so.6"
+)
+
+# Load core libraries first
+for lib in "${QT6_CORE_LIBS[@]}"; do
+    lib_path="/usr/lib/openterfaceqt/qt6/$lib"
+    if [ -f "$lib_path" ]; then
+        PRELOAD_LIBS+=("$lib_path")
+    fi
+done
+
+# Then load module libraries
+for lib in "${QT6_MODULE_LIBS[@]}"; do
+    lib_path="/usr/lib/openterfaceqt/qt6/$lib"
+    if [ -f "$lib_path" ]; then
+        PRELOAD_LIBS+=("$lib_path")
+    fi
+done
+
+# GStreamer libraries - essential for media handling
+GSTREAMER_LIBS=(
+    "libgstreamer-1.0.so.0"
+    "libgstbase-1.0.so.0"
+    "libgstapp-1.0.so.0"
+    "libgstvideo-1.0.so.0"
+    "libgstaudio-1.0.so.0"
+    "libgstpbutils-1.0.so.0"
+)
+
+# Load GStreamer libraries
+for lib in "${GSTREAMER_LIBS[@]}"; do
+    lib_path="/usr/lib/openterfaceqt/gstreamer/$lib"
+    if [ -f "$lib_path" ]; then
+        PRELOAD_LIBS+=("$lib_path")
+    fi
+done
+
+# FFmpeg libraries - essential for video/audio encoding and decoding
+FFMPEG_LIBS=(
+    "libavformat.so.61"
+    "libavcodec.so.61"
+    "libavutil.so.59"
+    "libswscale.so.8"
+    "libswresample.so.5"
+    "libavfilter.so.10"
+    "libavdevice.so.61"
+)
+
+# Load FFmpeg libraries
+for lib in "${FFMPEG_LIBS[@]}"; do
+    lib_path="/usr/lib/openterfaceqt/ffmpeg/$lib"
+    if [ -f "$lib_path" ]; then
+        PRELOAD_LIBS+=("$lib_path")
+    fi
+done
+
+# Build LD_PRELOAD string with proper precedence
+if [ ${#PRELOAD_LIBS[@]} -gt 0 ]; then
+    PRELOAD_STR=$(IFS=':'; echo "${PRELOAD_LIBS[*]}")
+    # PREPEND to any existing LD_PRELOAD to ensure our libs take priority
+    if [ -z "$LD_PRELOAD" ]; then
+        export LD_PRELOAD="$PRELOAD_STR"
+    else
+        export LD_PRELOAD="$PRELOAD_STR:$LD_PRELOAD"
+    fi
+    
+    # Debug: Show what we're preloading
+    if [ "${OPENTERFACE_DEBUG}" = "1" ] || [ "${OPENTERFACE_DEBUG}" = "true" ]; then
+        echo "LD_PRELOAD (${#PRELOAD_LIBS[@]} libs): $LD_PRELOAD" >&2
+    fi
+else
+    if [ "${OPENTERFACE_DEBUG}" = "1" ] || [ "${OPENTERFACE_DEBUG}" = "true" ]; then
+        echo "⚠️  Warning: No Qt6 libraries found for LD_PRELOAD" >&2
+    fi
+fi
+
+# ============================================
 # Qt Plugin Path Setup
 # ============================================
 if [ -z "$QT_PLUGIN_PATH" ]; then
@@ -129,6 +236,7 @@ if [ "${OPENTERFACE_DEBUG}" = "1" ] || [ "${OPENTERFACE_DEBUG}" = "true" ]; then
     echo "OpenterfaceQT Runtime Environment Setup" >&2
     echo "========================================" >&2
     echo "LD_LIBRARY_PATH=$LD_LIBRARY_PATH" >&2
+    echo "LD_PRELOAD=$LD_PRELOAD" >&2
     echo "QT_PLUGIN_PATH=$QT_PLUGIN_PATH" >&2
     echo "QT_QPA_PLATFORM_PLUGIN_PATH=$QT_QPA_PLATFORM_PLUGIN_PATH" >&2
     echo "QML2_IMPORT_PATH=$QML2_IMPORT_PATH" >&2

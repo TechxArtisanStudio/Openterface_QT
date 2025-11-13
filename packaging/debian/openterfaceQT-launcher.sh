@@ -105,6 +105,43 @@ for lib in "${QT6_MODULE_LIBS[@]}"; do
     fi
 done
 
+# GStreamer libraries - essential for media handling
+GSTREAMER_LIBS=(
+    "libgstreamer-1.0.so.0"
+    "libgstbase-1.0.so.0"
+    "libgstapp-1.0.so.0"
+    "libgstvideo-1.0.so.0"
+    "libgstaudio-1.0.so.0"
+    "libgstpbutils-1.0.so.0"
+)
+
+# Load GStreamer libraries
+for lib in "${GSTREAMER_LIBS[@]}"; do
+    lib_path="/usr/lib/openterfaceqt/gstreamer/$lib"
+    if [ -f "$lib_path" ]; then
+        PRELOAD_LIBS+=("$lib_path")
+    fi
+done
+
+# FFmpeg libraries - essential for video/audio encoding and decoding
+FFMPEG_LIBS=(
+    "libavformat.so.61"
+    "libavcodec.so.61"
+    "libavutil.so.59"
+    "libswscale.so.8"
+    "libswresample.so.5"
+    "libavfilter.so.10"
+    "libavdevice.so.61"
+)
+
+# Load FFmpeg libraries
+for lib in "${FFMPEG_LIBS[@]}"; do
+    lib_path="/usr/lib/openterfaceqt/ffmpeg/$lib"
+    if [ -f "$lib_path" ]; then
+        PRELOAD_LIBS+=("$lib_path")
+    fi
+done
+
 # Build LD_PRELOAD string with proper precedence
 if [ ${#PRELOAD_LIBS[@]} -gt 0 ]; then
     PRELOAD_STR=$(IFS=':'; echo "${PRELOAD_LIBS[*]}")
