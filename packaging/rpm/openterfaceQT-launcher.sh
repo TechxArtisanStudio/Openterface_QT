@@ -98,12 +98,12 @@ find_library() {
     
     # Try exact library files (prefer versioned over generic)
     for pattern in "$lib_base.so.*" "$lib_base.so"; do
-        for lib_file in $(ls "$lib_dir"/$pattern 2>/dev/null); do
-            if [ -f "$lib_file" ]; then
-                echo "$lib_file"
-                return 0
-            fi
-        done
+        # Use find instead of ls to avoid issues with globbing and spaces
+        found_lib=$(find "$lib_dir" -maxdepth 1 -name "$pattern" -type f 2>/dev/null | head -n 1)
+        if [ -n "$found_lib" ]; then
+            echo "$found_lib"
+            return 0
+        fi
     done
     
     return 1
