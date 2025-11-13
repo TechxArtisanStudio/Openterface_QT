@@ -67,16 +67,11 @@ echo "Copying Qt6 libraries from ${QT_LIB_DIR}..."
 echo "   Searching for libQt6*.so* files..."
 
 # Copy only Qt6 libraries (not all system libraries)
-COPIED_COUNT=0
-find "${QT_LIB_DIR}" -maxdepth 1 -name "libQt6*.so*" -type f 2>/dev/null | while read -r libfile; do
-    cp -a "$libfile" "${PKG_ROOT}/usr/lib/openterfaceqt/qt6/"
-    COPIED_COUNT=$((COPIED_COUNT + 1))
-    basename "$libfile"
-done
-
-# Also copy symlinks properly
-find "${QT_LIB_DIR}" -maxdepth 1 -name "libQt6*.so*" -type l 2>/dev/null | while read -r libfile; do
+# Use -o to match both regular files and symlinks in a single pass
+# This ensures all variants (libQt6Core.so, libQt6Core.so.6, libQt6Core.so.6.6.3, etc.) are copied
+find "${QT_LIB_DIR}" -maxdepth 1 \( -name "libQt6*.so*" -type f -o -name "libQt6*.so*" -type l \) 2>/dev/null | while read -r libfile; do
     cp -Pa "$libfile" "${PKG_ROOT}/usr/lib/openterfaceqt/qt6/"
+    basename "$libfile"
 done
 
 QT_LIBS=$(ls "${PKG_ROOT}/usr/lib/openterfaceqt/qt6"/libQt6*.so* 2>/dev/null | wc -l)

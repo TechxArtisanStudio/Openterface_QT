@@ -237,7 +237,7 @@ jobs:
           # Check for Qt libraries
           echo ""
           echo "🔹 Qt Libraries:"
-          find "$DEB_EXTRACT_DIR" -type f -name "libQt*.so*" | head -20 | sort
+          find "$DEB_EXTRACT_DIR" -type f -name "libQt*.so*"| sort
           
           # Count total libraries
           echo ""
