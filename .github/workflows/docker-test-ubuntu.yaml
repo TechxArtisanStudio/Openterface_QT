@@ -128,6 +128,83 @@ jobs:
           
           echo "📦 Build artifacts ready in ./build directory:"
           ls -la build/
+
+      - name: Extract and inspect DEB package contents (Ubuntu)
+        if: matrix.install_type == 'deb'
+        run: |
+          echo "📦 Extracting DEB package contents for inspection..."
+          
+          # Find the DEB file
+          DEB_FILE=$(find build -name "*.deb" -type f | head -1)
+          
+          if [ -z "$DEB_FILE" ]; then
+            echo "⚠️ No DEB file found in build directory"
+            echo "Available files:"
+            ls -la build/ 2>/dev/null || echo "Build directory is empty"
+            exit 0
+          fi
+          
+          echo "✅ Found DEB file: $DEB_FILE"
+          echo "📊 DEB file size: $(ls -lh "$DEB_FILE" | awk '{print $5}')"
+          echo ""
+          
+          # Create extraction directory
+          DEB_EXTRACT_DIR="deb-contents"
+          mkdir -p "$DEB_EXTRACT_DIR"
+          
+          echo "🔍 Extracting DEB package..."
+          # Extract DEB package (contains data.tar.xz, control.tar.xz, debian-binary)
+          ar x "$DEB_FILE" -o "$DEB_EXTRACT_DIR/"
+          
+          # Extract data tarball
+          if [ -f "$DEB_EXTRACT_DIR/data.tar.xz" ]; then
+            tar -xf "$DEB_EXTRACT_DIR/data.tar.xz" -C "$DEB_EXTRACT_DIR/"
+          elif [ -f "$DEB_EXTRACT_DIR/data.tar.gz" ]; then
+            tar -xzf "$DEB_EXTRACT_DIR/data.tar.gz" -C "$DEB_EXTRACT_DIR/"
+          fi
+          
+          echo ""
+          echo "📂 DEB Package Contents Structure:"
+          echo "=================================="
+          tree "$DEB_EXTRACT_DIR" -L 3 2>/dev/null || find "$DEB_EXTRACT_DIR" -type f | head -50
+          
+          echo ""
+          echo "📋 Key Files and Binaries:"
+          echo "=========================="
+          
+          # Find executable binaries
+          echo "🔹 Executables:"
+          find "$DEB_EXTRACT_DIR" -type f -executable | grep -E "(bin|lib)" | head -20
+          
+          # Find libraries
+          echo ""
+          echo "🔹 Libraries (.so files):"
+          find "$DEB_EXTRACT_DIR" -type f -name "*.so*" | head -20
+          
+          # Find main openterface binary
+          echo ""
+          echo "🔹 OpenTerface binary location:"
+          find "$DEB_EXTRACT_DIR" -type f -name "*openterface*" -o -name "*openterfaceqt*" -o -name "*openterfaceQT*"
+          
+          # Check for Qt libraries
+          echo ""
+          echo "🔹 Qt Libraries:"
+          find "$DEB_EXTRACT_DIR" -type f -name "libQt*" | head -10
+          
+          # Check for configuration files
+          echo ""
+          echo "🔹 Configuration Files:"
+          find "$DEB_EXTRACT_DIR" -type f \( -name "*.conf" -o -name "*.yaml" -o -name "*.json" \) | head -10
+          
+          # Get DEB metadata
+          echo ""
+          echo "📋 DEB Package Metadata:"
+          echo "======================="
+          dpkg -I "$DEB_FILE" | head -30
+          
+          echo ""
+          echo "✅ DEB package inspection completed"
+
       - name: Build Docker image (Shared)
         run: |
           echo "🔨 Building Docker image: ${{ env.DOCKER_IMAGE_SHARED }}:${{ env.DOCKER_TAG }}"
