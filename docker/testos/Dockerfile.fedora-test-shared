@@ -70,8 +70,9 @@ RUN useradd -m -s /bin/bash openterface && \
     usermod -a -G dialout,audio,video openterface && \
     # Configure sudo for container environment (no password, no PAM)
     echo "openterface ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers && \
-    echo "Defaults !pam_session" >> /etc/sudoers.d/openterface && \
-    echo "Defaults use_pty=no" >> /etc/sudoers.d/openterface && \
+    mkdir -p /etc/sudoers.d && \
+    echo "Defaults !pam_session" > /etc/sudoers.d/openterface && \
+    echo "Defaults use_pty" >> /etc/sudoers.d/openterface && \
     echo "openterface ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers.d/openterface && \
     chmod 0440 /etc/sudoers.d/openterface
 
