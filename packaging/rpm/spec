@@ -11,7 +11,6 @@ AutoReqProv: no
 
 # System-level dependencies only - Qt, FFmpeg and plugins are bundled in /usr/lib/openterfaceqt/
 # All libraries including libusb are bundled with the application
-Requires:
 
 %description
 OpenterfaceQT Application with bundled Qt6 and FFmpeg libraries
