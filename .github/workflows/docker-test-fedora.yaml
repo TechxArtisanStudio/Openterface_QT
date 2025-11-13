@@ -134,7 +134,7 @@ jobs:
           echo ""
           echo "📂 RPM Package Contents Structure:"
           echo "=================================="
-          tree "$RPM_EXTRACT_DIR" -L 3 2>/dev/null || find "$RPM_EXTRACT_DIR" -type f | head -50
+          tree "$RPM_EXTRACT_DIR" -L 3 2>/dev/null || find "$RPM_EXTRACT_DIR" -type f
           
           echo ""
           echo "📋 Key Files and Binaries:"
@@ -142,12 +142,12 @@ jobs:
           
           # Find executable binaries
           echo "🔹 Executables:"
-          find "$RPM_EXTRACT_DIR" -type f -executable | grep -E "(bin|lib)" | head -20
+          find "$RPM_EXTRACT_DIR" -type f -executable | grep -E "(bin|lib)"
           
           # Find libraries
           echo ""
           echo "🔹 Libraries (.so files):"
-          find "$RPM_EXTRACT_DIR" -type f -name "*.so*" | head -20
+          find "$RPM_EXTRACT_DIR" -type f -name "*.so*"
           
           # Find main openterface binary
           echo ""
@@ -157,18 +157,18 @@ jobs:
           # Check for Qt libraries
           echo ""
           echo "🔹 Qt Libraries:"
-          find "$RPM_EXTRACT_DIR" -type f -name "libQt*" | head -10
+          find "$RPM_EXTRACT_DIR" -type f -name "libQt*"
           
           # Check for configuration files
           echo ""
           echo "🔹 Configuration Files:"
-          find "$RPM_EXTRACT_DIR" -type f \( -name "*.conf" -o -name "*.yaml" -o -name "*.json" \) | head -10
+          find "$RPM_EXTRACT_DIR" -type f \( -name "*.conf" -o -name "*.yaml" -o -name "*.json" \)
           
           # Get RPM metadata
           echo ""
           echo "📋 RPM Package Metadata:"
           echo "======================="
-          rpm -qip "$RPM_FILE" | head -30
+          rpm -qip "$RPM_FILE"
           
           echo ""
           echo "✅ RPM package inspection completed"
