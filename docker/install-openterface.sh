@@ -592,8 +592,14 @@ install_rpm_package() {
     if $SUDO dnf install -y "$PACKAGE_FILE" 2>&1 | tail -20; then
         print_success "RPM package installed successfully"
     else
-        print_error "Failed to install RPM package"
-        return 1
+        # Try again with --skip-broken to handle missing dependencies
+        print_warning "First attempt failed, trying with --skip-broken..."
+        if $SUDO dnf install -y --skip-broken "$PACKAGE_FILE" 2>&1 | tail -20; then
+            print_success "RPM package installed with --skip-broken"
+        else
+            print_error "Failed to install RPM package even with --skip-broken"
+            return 1
+        fi
     fi
     
     # Update library cache

@@ -46,6 +46,12 @@ RUN dnf update -y && \
         freetype \
         fontconfig \
         bzip2-libs \
+        # FFmpeg runtime libraries (need to enable RPM Fusion for full support)
+        # Using individual library packages that are available in standard repos
+        libtheora \
+        libvorbis \
+        libvpx \
+        libopus \
         # GStreamer runtime dependencies
         gstreamer1 \
         gstreamer1-plugins-base \
