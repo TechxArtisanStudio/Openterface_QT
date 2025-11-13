@@ -517,7 +517,22 @@ for SEARCH_DIR in /opt/Qt6/lib /usr/lib/x86_64-linux-gnu /usr/lib; do
 done
 if [ $SVG_LIB_FOUND -eq 0 ]; then
     echo "   ⚠️  libQt6Svg.so not found - attempting to install..."
-    apt update && apt install -y libqt6svg6 2>/dev/null || echo "   ⚠️  Installation failed, SVG support may be limited"
+    if apt update && apt install -y libqt6svg6 2>/dev/null; then
+        echo "   ✅ Installed libqt6svg6 package"
+        # Retry search after installation
+        for SEARCH_DIR in /usr/lib/x86_64-linux-gnu /usr/lib /opt/Qt6/lib; do
+            if [ -d "$SEARCH_DIR" ]; then
+                if ls "$SEARCH_DIR"/libQt6Svg.so* >/dev/null 2>&1; then
+                    echo "   ✅ Found libQt6Svg.so in $SEARCH_DIR after installation"
+                    cp -Pv "$SEARCH_DIR"/libQt6Svg.so* "${PKG_ROOT}/usr/lib/openterfaceqt/qt6/" 2>&1 | sed 's/^/     /'
+                    SVG_LIB_FOUND=1
+                    break
+                fi
+            fi
+        done
+    else
+        echo "   ⚠️  Installation failed, SVG support may be limited"
+    fi
 fi
 
 # Copy SVG image format plugin (libqsvg.so)
