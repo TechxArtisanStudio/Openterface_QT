@@ -98,7 +98,7 @@ find_library() {
     
     # Try exact library files (prefer versioned over generic)
     for pattern in "$lib_base.so.*" "$lib_base.so"; do
-        for lib_file in "$lib_dir"/$pattern 2>/dev/null; do
+        for lib_file in $(ls "$lib_dir"/$pattern 2>/dev/null); do
             if [ -f "$lib_file" ]; then
                 echo "$lib_file"
                 return 0
@@ -356,7 +356,7 @@ APP_LOG="/tmp/openterfaceqt-app-$(date +%s).log"
 
 # Execute the binary with all passed arguments
 # Redirect output to both log file and console for monitoring
-("$OPENTERFACE_BIN" "$@" 2>&1 | tee -a "$APP_LOG") &
+"$OPENTERFACE_BIN" "$@" 2>&1 | tee -a "$APP_LOG" &
 APP_PID=$!
 
 {
