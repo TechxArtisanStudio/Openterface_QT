@@ -3,7 +3,11 @@
 # Standalone ImgBB Upload Script
 # Extracts the upload logic from GitHub Actions workflow for local testing and reuse
 
-set -e  # Exit on any error
+# Don't use set -e - we need better error handling and reporting
+# set -e  # Exit on any error
+
+# Set error handling with explicit exit messages
+trap 'echo "ERROR: Script failed at line $LINENO with exit code $?"; exit 1' ERR
 
 # Configuration
 IMGBB_API_URL="https://api.imgbb.com/1/upload"
@@ -101,14 +105,28 @@ fi
 # Check if image file exists
 if [ ! -f "$IMAGE_FILE" ]; then
     log_error "Image file not found: $IMAGE_FILE"
+    log_error "Current directory: $(pwd)"
+    log_error "Files in current directory:"
+    ls -la | head -20
     exit 1
 fi
 
 # Check if image file is readable
 if [ ! -r "$IMAGE_FILE" ]; then
     log_error "Image file is not readable: $IMAGE_FILE"
+    log_error "File permissions:"
+    ls -la "$IMAGE_FILE"
     exit 1
 fi
+
+# Check file is not empty
+FILE_SIZE=$(stat -f%z "$IMAGE_FILE" 2>/dev/null || stat -c%s "$IMAGE_FILE" 2>/dev/null || echo 0)
+if [ "$FILE_SIZE" -eq 0 ]; then
+    log_error "Image file is empty (0 bytes): $IMAGE_FILE"
+    exit 1
+fi
+
+log_info "Image file validated: $IMAGE_FILE ($(($FILE_SIZE / 1024))KB)"
 
 # Get API key from environment if not provided via command line
 if [ -z "$API_KEY" ]; then
@@ -119,36 +137,45 @@ fi
 if [ -z "$API_KEY" ]; then
     log_error "No API key provided. Use -k option or set IMGBB_API_KEY environment variable"
     log_info "Get your API key from: https://api.imgbb.com/"
+    log_error "IMGBB_API_KEY env var: '${IMGBB_API_KEY:-<not set>}'"
+    log_error "API_KEY argument: '${API_KEY:-<not set>}'"
     exit 1
 fi
 
 # Validate API key format (ImgBB keys are typically 32 characters)
 if [ ${#API_KEY} -ne 32 ]; then
     log_warning "API key length is ${#API_KEY} characters (expected 32). This might indicate an invalid key."
+    log_warning "API key preview: ${API_KEY:0:8}...${API_KEY: -8}"
 fi
 
 log_info "Starting ImgBB upload process..."
 log_info "Image file: $IMAGE_FILE"
-log_info "API key length: ${#API_KEY}"
+log_info "API key length: ${#API_KEY} characters"
+log_info "API key format: ${API_KEY:0:8}...${API_KEY: -8}"
 
 # Get file information
-FILE_SIZE=$(stat -c%s "$IMAGE_FILE" 2>/dev/null || echo "unknown")
+FILE_SIZE=$(stat -c%s "$IMAGE_FILE" 2>/dev/null || stat -f%z "$IMAGE_FILE" 2>/dev/null || echo "unknown")
 FILE_SIZE_HUMAN=$(ls -lh "$IMAGE_FILE" | awk '{print $5}')
 log_info "File size: $FILE_SIZE_HUMAN ($FILE_SIZE bytes)"
+
+# Check if file size exceeds base64 limit
+if [ "$FILE_SIZE" -gt "$MAX_BASE64_SIZE" ]; then
+    log_warning "File size ($FILE_SIZE bytes) exceeds recommended base64 limit ($MAX_BASE64_SIZE bytes)"
+    log_warning "Using direct binary upload instead of base64"
+fi
 
 # Convert image to base64
 log_info "Converting image to base64..."
 IMAGE_BASE64=$(base64 -w 0 "$IMAGE_FILE" 2>/dev/null || base64 "$IMAGE_FILE" 2>/dev/null || echo "")
 
 if [ -z "$IMAGE_BASE64" ] || [ ${#IMAGE_BASE64} -lt 100 ]; then
-    log_error "Failed to convert image to base64"
-    log_error "File exists: $(test -f "$IMAGE_FILE" && echo "Yes" || echo "No")"
-    log_error "File readable: $(test -r "$IMAGE_FILE" && echo "Yes" || echo "No")"
-    log_error "Base64 length: ${#IMAGE_BASE64}"
-    exit 1
+    log_warning "Base64 conversion resulted in short output (${#IMAGE_BASE64} characters)"
+    log_warning "Will use binary file upload instead"
+    log_info "File exists: $(test -f "$IMAGE_FILE" && echo "Yes" || echo "No")"
+    log_info "File readable: $(test -r "$IMAGE_FILE" && echo "Yes" || echo "No")"
+else
+    log_info "Base64 conversion successful (${#IMAGE_BASE64} characters)"
 fi
-
-log_info "Base64 conversion successful (${#IMAGE_BASE64} characters)"
 
 # Test connectivity to ImgBB API
 if $VERBOSE; then
@@ -168,24 +195,43 @@ if $DEBUG; then
 fi
 
 # First try without proxy
+log_info "Attempting upload (attempt 1: direct connection)..."
+CURL_EXIT_CODE=0
 UPLOAD_RESPONSE=$(timeout 120 curl -s --noproxy "*" -w "\nHTTP_STATUS:%{http_code}\nRESPONSE_TIME:%{time_total}" \
     --connect-timeout $CURL_CONNECT_TIMEOUT \
     --max-time $CURL_MAX_TIME \
     -X POST "$IMGBB_API_URL" \
     -F "key=$API_KEY" \
     -F "image=@$IMAGE_FILE" \
-    2>&1 || echo "")
+    2>&1) || CURL_EXIT_CODE=$?
 
-# If that fails, try with proxy (fallback)
+if [ $CURL_EXIT_CODE -ne 0 ]; then
+    log_warning "Curl failed with exit code: $CURL_EXIT_CODE"
+    if [ $CURL_EXIT_CODE -eq 124 ]; then
+        log_error "Upload timed out after 120 seconds"
+    fi
+fi
+
+# If that fails or returns no response, try with proxy (fallback)
 if [ -z "$UPLOAD_RESPONSE" ] || echo "$UPLOAD_RESPONSE" | grep -q "000"; then
-    log_warning "Direct connection failed, trying with proxy..."
+    log_warning "Direct connection failed or no HTTP response, trying with proxy..."
+    CURL_EXIT_CODE=0
     UPLOAD_RESPONSE=$(timeout 120 curl -s -w "\nHTTP_STATUS:%{http_code}\nRESPONSE_TIME:%{time_total}" \
         --connect-timeout $CURL_CONNECT_TIMEOUT \
         --max-time $CURL_MAX_TIME \
         -X POST "$IMGBB_API_URL" \
         -F "key=$API_KEY" \
         -F "image=@$IMAGE_FILE" \
-        2>&1 || echo '{"success": false, "error": {"message": "curl command failed"}}')
+        2>&1) || CURL_EXIT_CODE=$?
+    
+    if [ $CURL_EXIT_CODE -ne 0 ]; then
+        log_warning "Curl retry failed with exit code: $CURL_EXIT_CODE"
+    fi
+fi
+
+if [ -z "$UPLOAD_RESPONSE" ]; then
+    log_error "No response received from ImgBB API"
+    exit 1
 fi
 
 # Extract HTTP status and response

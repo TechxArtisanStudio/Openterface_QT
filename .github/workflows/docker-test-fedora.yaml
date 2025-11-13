@@ -637,7 +637,23 @@ jobs:
                 
                 if [ -n "$IMGBB_API_KEY" ]; then
                   echo "📤 Uploading $filename to ImgBB..."
-                  UPLOAD_OUTPUT=$(https_proxy="" IMGBB_API_KEY="$IMGBB_API_KEY" timeout 120 ./docker/upload_to_imgbb.sh "$img" 2>&1)
+                  echo "🔑 API Key validation: ${#IMGBB_API_KEY} characters"
+                  
+                  # Validate API key format
+                  if [ ${#IMGBB_API_KEY} -ne 32 ]; then
+                    echo "⚠️ WARNING: API key length is ${#IMGBB_API_KEY} (expected 32 characters)"
+                  fi
+                  
+                  # Capture only the final URL, suppress all debug output
+                  UPLOAD_EXIT_CODE=0
+                  UPLOAD_OUTPUT=$(https_proxy="" IMGBB_API_KEY="$IMGBB_API_KEY" timeout 120 ./docker/upload_to_imgbb.sh "$img" 2>&1) || UPLOAD_EXIT_CODE=$?
+                  
+                  if [ $UPLOAD_EXIT_CODE -ne 0 ]; then
+                    echo "❌ Upload script failed with exit code: $UPLOAD_EXIT_CODE"
+                    echo "📋 Upload output:"
+                    echo "$UPLOAD_OUTPUT"
+                    echo "---"
+                  fi
                   
                   UPLOAD_URL=$(echo "$UPLOAD_OUTPUT" | grep -oE 'https://i\.ibb\.co/[^ "]*' | head -1)
                   
