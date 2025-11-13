@@ -81,40 +81,24 @@ cp %{_sourcedir}/ffmpeg/libavfilter*.so* %{buildroot}/usr/lib/openterfaceqt/ffmp
 # Maps versioned libraries (e.g., libavdevice.so.60) to actual files (e.g., libavdevice.so.60.3.100)
 cd %{buildroot}/usr/lib/openterfaceqt/ffmpeg
 
-# Function to create symlinks for a library
-create_ffmpeg_symlinks() {
-    local lib_name="$1"
-    local so_files=($(ls "${lib_name}".so.* 2>/dev/null || true))
+# Create symlinks for each FFmpeg library
+for lib in libavdevice libavcodec libavformat libavutil libswscale libswresample libavfilter; do
+    # Find the most complete version file
+    full_lib=$(ls -t "${lib}".so.* 2>/dev/null | head -1 || true)
     
-    if [ ${#so_files[@]} -eq 0 ]; then
-        return 0  # No files to link
+    if [ -n "$full_lib" ]; then
+        # Extract major version (e.g., 60 from libavdevice.so.60.3.100)
+        major_version=$(echo "$full_lib" | sed 's/.*\.so\.\([0-9]*\).*/\1/')
+        
+        # Create symlink from versioned to full (e.g., libavdevice.so.60 -> libavdevice.so.60.3.100)
+        if [ -n "$major_version" ]; then
+            ln -sf "$full_lib" "${lib}.so.${major_version}" 2>/dev/null || true
+        fi
+        
+        # Also create unversioned symlink if it doesn't exist
+        ln -sf "$full_lib" "${lib}.so" 2>/dev/null || true
     fi
-    
-    # Get the full version library (e.g., libavdevice.so.60.3.100)
-    local full_lib="${so_files[-1]}"  # Get last (most specific) version
-    
-    # Extract major version (e.g., 60 from libavdevice.so.60.3.100)
-    local major_version=$(echo "$full_lib" | sed 's/.*\.so\.\([0-9]*\).*/\1/')
-    
-    # Create symlink from versioned to full (e.g., libavdevice.so.60 -> libavdevice.so.60.3.100)
-    if [ -n "$major_version" ] && [ ! -L "${lib_name}.so.${major_version}" ]; then
-        ln -sf "$full_lib" "${lib_name}.so.${major_version}"
-    fi
-    
-    # Also create unversioned symlink if it doesn't exist
-    if [ ! -L "${lib_name}.so" ]; then
-        ln -sf "$full_lib" "${lib_name}.so"
-    fi
-}
-
-# Create symlinks for all FFmpeg libraries
-create_ffmpeg_symlinks "libavdevice"
-create_ffmpeg_symlinks "libavcodec"
-create_ffmpeg_symlinks "libavformat"
-create_ffmpeg_symlinks "libavutil"
-create_ffmpeg_symlinks "libswscale"
-create_ffmpeg_symlinks "libswresample"
-create_ffmpeg_symlinks "libavfilter"
+done
 
 # Qt plugins and QML modules (from qt6 subdirectory structure)
 mkdir -p %{buildroot}/usr/lib/openterfaceqt/qt6/plugins
