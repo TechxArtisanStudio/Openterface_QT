@@ -48,77 +48,92 @@ PRELOAD_LIBS=()
 # Qt6 core libraries - MUST be preloaded in correct order
 # The order is critical: Core first, then Gui, then everything else
 QT6_CORE_LIBS=(
-    "libQt6Core.so.6"      # MUST be first
-    "libQt6Gui.so.6"       # Must be before other modules
+    "libQt6Core"      # MUST be first
+    "libQt6Gui"       # Must be before other modules
 )
 
 # Qt6 module libraries
 QT6_MODULE_LIBS=(
-    "libQt6Widgets.so.6"
-    "libQt6Multimedia.so.6"
-    "libQt6MultimediaWidgets.so.6"
-    "libQt6SerialPort.so.6"
-    "libQt6Network.so.6"
-    "libQt6OpenGL.so.6"
-    "libQt6Xml.so.6"
-    "libQt6Concurrent.so.6"
-    "libQt6DBus.so.6"
-    "libQt6Svg.so.6"
-    "libQt6Quick.so.6"
-    "libQt6Qml.so.6"
-    "libQt6QuickWidgets.so.6"
-    "libQt6PrintSupport.so.6"
+    "libQt6Widgets"
+    "libQt6Multimedia"
+    "libQt6MultimediaWidgets"
+    "libQt6SerialPort"
+    "libQt6Network"
+    "libQt6OpenGL"
+    "libQt6Xml"
+    "libQt6Concurrent"
+    "libQt6DBus"
+    "libQt6Svg"
+    "libQt6Quick"
+    "libQt6Qml"
+    "libQt6QuickWidgets"
+    "libQt6PrintSupport"
 )
+
+# Helper function to find library with any .so.6* version suffix
+find_library() {
+    local lib_base="$1"
+    local lib_dir="$2"
+    
+    # Try exact matches first (including version suffixes like .so.6.6.3, .so.6, etc.)
+    for lib_file in "$lib_dir"/"$lib_base".so.6*; do
+        if [ -f "$lib_file" ]; then
+            echo "$lib_file"
+            return 0
+        fi
+    done
+    return 1
+}
 
 # Load core libraries first
 for lib in "${QT6_CORE_LIBS[@]}"; do
-    lib_path="/usr/lib/openterfaceqt/qt6/$lib"
-    if [ -f "$lib_path" ]; then
+    lib_path=$(find_library "$lib" "/usr/lib/openterfaceqt/qt6")
+    if [ -n "$lib_path" ]; then
         PRELOAD_LIBS+=("$lib_path")
     fi
 done
 
 # Then load module libraries
 for lib in "${QT6_MODULE_LIBS[@]}"; do
-    lib_path="/usr/lib/openterfaceqt/qt6/$lib"
-    if [ -f "$lib_path" ]; then
+    lib_path=$(find_library "$lib" "/usr/lib/openterfaceqt/qt6")
+    if [ -n "$lib_path" ]; then
         PRELOAD_LIBS+=("$lib_path")
     fi
 done
 
 # GStreamer libraries - essential for media handling
 GSTREAMER_LIBS=(
-    "libgstreamer-1.0.so.0"
-    "libgstbase-1.0.so.0"
-    "libgstapp-1.0.so.0"
-    "libgstvideo-1.0.so.0"
-    "libgstaudio-1.0.so.0"
-    "libgstpbutils-1.0.so.0"
+    "libgstreamer-1.0"
+    "libgstbase-1.0"
+    "libgstapp-1.0"
+    "libgstvideo-1.0"
+    "libgstaudio-1.0"
+    "libgstpbutils-1.0"
 )
 
 # Load GStreamer libraries
 for lib in "${GSTREAMER_LIBS[@]}"; do
-    lib_path="/usr/lib/openterfaceqt/gstreamer/$lib"
-    if [ -f "$lib_path" ]; then
+    lib_path=$(find_library "$lib" "/usr/lib/openterfaceqt/gstreamer")
+    if [ -n "$lib_path" ]; then
         PRELOAD_LIBS+=("$lib_path")
     fi
 done
 
 # FFmpeg libraries - essential for video/audio encoding and decoding
 FFMPEG_LIBS=(
-    "libavformat.so.61"
-    "libavcodec.so.61"
-    "libavutil.so.59"
-    "libswscale.so.8"
-    "libswresample.so.5"
-    "libavfilter.so.10"
-    "libavdevice.so.61"
+    "libavformat"
+    "libavcodec"
+    "libavutil"
+    "libswscale"
+    "libswresample"
+    "libavfilter"
+    "libavdevice"
 )
 
 # Load FFmpeg libraries
 for lib in "${FFMPEG_LIBS[@]}"; do
-    lib_path="/usr/lib/openterfaceqt/ffmpeg/$lib"
-    if [ -f "$lib_path" ]; then
+    lib_path=$(find_library "$lib" "/usr/lib/openterfaceqt/ffmpeg")
+    if [ -n "$lib_path" ]; then
         PRELOAD_LIBS+=("$lib_path")
     fi
 done
