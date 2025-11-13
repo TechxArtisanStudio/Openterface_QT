@@ -118,7 +118,7 @@ cp -r %{_sourcedir}/qt6/qml/* %{buildroot}/usr/lib/openterfaceqt/qt6/qml/ 2>/dev
 # Install the wrapper script to set up library paths
 mkdir -p %{buildroot}/usr/lib/openterfaceqt
 # Copy wrapper script from source
-cp %{_sourcedir}/../openterfaceQT-launcher.sh %{buildroot}/usr/lib/openterfaceqt/launcher.sh
+cp %{_sourcedir}/openterfaceQT-launcher.sh %{buildroot}/usr/lib/openterfaceqt/launcher.sh
 chmod +x %{buildroot}/usr/lib/openterfaceqt/launcher.sh
 
 # Create symlink in /usr/local/bin for easy access (consistent with DEB/AppImage)

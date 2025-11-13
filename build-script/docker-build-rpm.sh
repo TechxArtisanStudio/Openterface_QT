@@ -37,6 +37,15 @@ if [ ! -f "${BUILD}/openterfaceQT" ]; then
 fi
 cp "${BUILD}/openterfaceQT" "${RPMTOP}/SOURCES/"
 
+# Copy launcher script
+if [ -f "${SRC}/packaging/rpm/openterfaceQT-launcher.sh" ]; then
+	cp "${SRC}/packaging/rpm/openterfaceQT-launcher.sh" "${RPMTOP}/SOURCES/"
+	echo "✅ Launcher script copied to SOURCES"
+else
+	echo "Error: launcher script not found at ${SRC}/packaging/rpm/openterfaceQT-launcher.sh" >&2
+	exit 1
+fi
+
 # Install patchelf for rpath manipulation if not already installed
 apt update && apt install -y patchelf
 
