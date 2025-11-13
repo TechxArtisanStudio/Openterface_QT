@@ -6,8 +6,12 @@ Summary:        OpenterfaceQT KVM Linux Application
 License:        AGPL-3.0
 URL:           https://github.com/TechxArtisanStudio/Openterface_QT
 
+# Disable automatic dependency detection since we bundle most libraries
+AutoReqProv: no
+
 # System-level dependencies only - Qt, FFmpeg and plugins are bundled in /usr/lib/openterfaceqt/
-Requires: libusb, bzip2-libs
+# All libraries including libusb are bundled with the application
+Requires:
 
 %description
 OpenterfaceQT Application with bundled Qt6 and FFmpeg libraries
@@ -38,6 +42,9 @@ cp %{_sourcedir}/libQt6*.so* %{buildroot}/usr/lib/openterfaceqt/ 2>/dev/null || 
 # Image processing libraries
 cp %{_sourcedir}/libjpeg*.so* %{buildroot}/usr/lib/openterfaceqt/ 2>/dev/null || true
 cp %{_sourcedir}/libturbojpeg*.so* %{buildroot}/usr/lib/openterfaceqt/ 2>/dev/null || true
+
+# USB libraries
+cp %{_sourcedir}/libusb*.so* %{buildroot}/usr/lib/openterfaceqt/ 2>/dev/null || true
 
 # Compression libraries (if bundled)
 cp %{_sourcedir}/libbz2*.so* %{buildroot}/usr/lib/openterfaceqt/ 2>/dev/null || true

@@ -1076,6 +1076,68 @@ if [ $SVGICON_PLUGIN_FOUND -eq 0 ] && find "${SRC}/images" -name "*.svg" 2>/dev/
     echo "   ⚠️  SVG icons found but libsvgicon.so plugin not available - icons will use fallback rendering"
 fi
 
+# Copy bzip2 libraries to SOURCES for bundling (needed for compression support in FFmpeg)
+echo "🔍 Searching for bzip2 libraries to RPM SOURCES..."
+
+# Copy libbz2 libraries - search multiple locations
+echo "📋 RPM: Searching for libbz2 libraries..."
+LIBBZ2_FOUND=0
+for SEARCH_DIR in /opt/ffmpeg/lib /usr/lib/x86_64-linux-gnu /usr/lib; do
+    echo "   Checking: $SEARCH_DIR"
+    if [ -d "$SEARCH_DIR" ]; then
+        if ls "$SEARCH_DIR"/libbz2.so* >/dev/null 2>&1; then
+            echo "   ✅ Found libbz2 in $SEARCH_DIR"
+            LIBBZ2_FILES=$(ls -la "$SEARCH_DIR"/libbz2.so*)
+            echo "   Files found:"
+            echo "$LIBBZ2_FILES" | sed 's/^/     /'
+            cp -av "$SEARCH_DIR"/libbz2.so* "${RPMTOP}/SOURCES/" 2>&1 | sed 's/^/     /'
+            echo "   ✅ libbz2 libraries copied to ${RPMTOP}/SOURCES"
+            LIBBZ2_FOUND=1
+            break
+        else
+            echo "   ✗ No libbz2 found in $SEARCH_DIR"
+        fi
+    else
+        echo "   ✗ Directory does not exist: $SEARCH_DIR"
+    fi
+done
+if [ $LIBBZ2_FOUND -eq 0 ]; then
+    echo "❌ ERROR: libbz2 libraries not found in any search path!"
+else
+    echo "✅ libbz2 found and copied"
+fi
+
+# Copy libusb libraries to SOURCES for bundling (needed for USB device access)
+echo "🔍 Searching for libusb libraries to RPM SOURCES..."
+
+# Copy libusb libraries - search multiple locations
+echo "📋 RPM: Searching for libusb libraries..."
+LIBUSB_FOUND=0
+for SEARCH_DIR in /opt/libusb/lib /usr/lib/x86_64-linux-gnu /usr/lib; do
+    echo "   Checking: $SEARCH_DIR"
+    if [ -d "$SEARCH_DIR" ]; then
+        if ls "$SEARCH_DIR"/libusb*.so* >/dev/null 2>&1; then
+            echo "   ✅ Found libusb in $SEARCH_DIR"
+            LIBUSB_FILES=$(ls -la "$SEARCH_DIR"/libusb*.so*)
+            echo "   Files found:"
+            echo "$LIBUSB_FILES" | sed 's/^/     /'
+            cp -av "$SEARCH_DIR"/libusb*.so* "${RPMTOP}/SOURCES/" 2>&1 | sed 's/^/     /'
+            echo "   ✅ libusb libraries copied to ${RPMTOP}/SOURCES"
+            LIBUSB_FOUND=1
+            break
+        else
+            echo "   ✗ No libusb found in $SEARCH_DIR"
+        fi
+    else
+        echo "   ✗ Directory does not exist: $SEARCH_DIR"
+    fi
+done
+if [ $LIBUSB_FOUND -eq 0 ]; then
+    echo "❌ ERROR: libusb libraries not found in any search path!"
+else
+    echo "✅ libusb found and copied"
+fi
+
 # Copy libjpeg and libturbojpeg libraries to SOURCES for bundling
 echo "🔍 Searching for JPEG libraries to RPM SOURCES..."
 
