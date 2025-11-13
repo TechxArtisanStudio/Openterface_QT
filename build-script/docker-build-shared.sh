@@ -1481,6 +1481,47 @@ if [ -f "${SRC}/images/icon_256.png" ]; then
 	cp "${SRC}/images/icon_256.png" "${RPMTOP}/SOURCES/"
 fi
 
+# Normalize library symlinks in SOURCES before building RPM
+# This ensures ldconfig doesn't complain about non-symlink files during installation
+echo "📋 RPM: Normalizing library symlinks in SOURCES..."
+if [ -d "${RPMTOP}/SOURCES" ]; then
+	cd "${RPMTOP}/SOURCES"
+	
+	# Process all library files to create proper symlink chains
+	# Find all .so.X.X.X files and create symlinks for .so.X and .so
+	for fullfile in *.so.*.* ; do
+		[ -f "$fullfile" ] || continue
+		
+		# Extract base name (e.g., libQt6Core from libQt6Core.so.6.6.3)
+		base=$(echo "$fullfile" | sed 's/\.so\..*//')
+		
+		# Extract soname (e.g., libQt6Core.so.6 from libQt6Core.so.6.6.3)
+		soname=$(echo "$fullfile" | sed 's/\(.*\.so\.[0-9]*\)\.*.*/\1/')
+		
+		# Create major version symlink if needed
+		if [ "$soname" != "$fullfile" ]; then
+			if [ ! -L "$soname" ] && [ ! -f "$soname" ]; then
+				ln -sf "$fullfile" "$soname"
+				echo "   ✅ Created symlink: $soname -> $fullfile"
+			elif [ -f "$soname" ]; then
+				# If real file exists, remove and replace with symlink
+				rm -f "$soname"
+				ln -sf "$fullfile" "$soname"
+				echo "   ✅ Converted to symlink: $soname -> $fullfile"
+			fi
+		fi
+		
+		# Create base .so symlink if needed
+		if [ ! -L "$base.so" ] && [ ! -f "$base.so" ]; then
+			ln -sf "$fullfile" "$base.so"
+			echo "   ✅ Created symlink: $base.so -> $fullfile"
+		fi
+	done
+	
+	echo "✅ Library symlinks normalized in SOURCES"
+	cd - > /dev/null
+fi
+
 # Build the RPM
 rpmbuild --define "_topdir ${RPMTOP}" -bb "${SPEC_OUT}"
 
