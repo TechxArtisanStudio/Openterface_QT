@@ -100,8 +100,22 @@ cat > /etc/ld.so.conf.d/openterface-libs.conf <<'EOF'
 /usr/lib/openterfaceqt
 EOF
 
+# Create symlinks for .so.X files to .so for compatibility
+# This prevents ldconfig warnings about non-symlink libraries
+cd /usr/lib/openterfaceqt 2>/dev/null && {
+    for lib in *.so.[0-9]*; do
+        if [ -f "$lib" ]; then
+            base="${lib%.[0-9]*}"
+            # Create symlink .so -> .so.X if it doesn't exist
+            if [ ! -L "$base" ]; then
+                ln -sf "$lib" "$base" 2>/dev/null || true
+            fi
+        fi
+    done
+}
+
 # Rebuild the dynamic linker cache to register bundled libraries
-ldconfig
+ldconfig 2>/dev/null || true
 
 # Verify libraries are registered
 echo "OpenterfaceQT libraries registered. Checking library cache..."
