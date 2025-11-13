@@ -353,6 +353,72 @@ if [ $ORC_FOUND -eq 0 ]; then
 else
     echo "✅ ORC libraries bundled successfully"
 fi
+
+# Copy GStreamer plugins (essential for video capture)
+echo "📋 DEB: Searching for GStreamer plugins..."
+GSTREAMER_PLUGINS_FOUND=0
+
+# Essential GStreamer plugins for video capture
+GSTREAMER_PLUGINS=(
+    "libgstvideo4linux2.so"        # V4L2 video capture (CRITICAL)
+    "libgstv4l2codecs.so"          # V4L2 hardware codecs
+    "libgstvideoconvertscale.so"   # Video format conversion and scaling
+    "libgstvideorate.so"           # Video frame rate conversion
+    "libgstcoreelements.so"        # Core elements (queue, filesrc, etc.)
+    "libgsttypefindfunctions.so"   # Type detection
+    "libgstapp.so"                 # Application integration
+    "libgstplayback.so"           # Playback elements
+    "libgstjpeg.so"               # JPEG codec
+    "libgstximagesink.so"         # X11 video sink
+    "libgstxvimagesink.so"        # XVideo sink
+    "libgstautodetect.so"         # Auto detection
+    "libgstpulseaudio.so"         # PulseAudio
+    "libgstaudioparsers.so"       # Audio parsers
+    "libgstaudioconvert.so"       # Audio conversion
+    "libgstaudioresample.so"      # Audio resampling
+    "libdw.so"                 # DW plugin for debugging
+)
+
+# Detect GStreamer plugin directories
+GSTREAMER_PLUGIN_DIR=""
+for SEARCH_DIR in /usr/lib/x86_64-linux-gnu/gstreamer-1.0 /usr/lib/gstreamer-1.0 /opt/gstreamer/lib/x86_64-linux-gnu/gstreamer-1.0; do
+    if [ -d "$SEARCH_DIR" ] && ls "$SEARCH_DIR"/libgstvideo4linux2.so >/dev/null 2>&1; then
+        GSTREAMER_PLUGIN_DIR="$SEARCH_DIR"
+        echo "   ✅ Found GStreamer plugins directory: $GSTREAMER_PLUGIN_DIR"
+        break
+    fi
+done
+
+if [ -n "$GSTREAMER_PLUGIN_DIR" ]; then
+    mkdir -p "${PKG_ROOT}/usr/lib/openterfaceqt/gstreamer/gstreamer-1.0"
+    PLUGINS_COPIED=0
+    
+    for plugin in "${GSTREAMER_PLUGINS[@]}"; do
+        if [ -f "$GSTREAMER_PLUGIN_DIR/$plugin" ]; then
+            cp -Pv "$GSTREAMER_PLUGIN_DIR/$plugin" "${PKG_ROOT}/usr/lib/openterfaceqt/gstreamer/gstreamer-1.0/" 2>&1 | sed 's/^/     /'
+            PLUGINS_COPIED=$((PLUGINS_COPIED + 1))
+        else
+            echo "     ⚠️  Missing plugin: $plugin"
+        fi
+    done
+    
+    echo "   ✅ GStreamer plugins copied ($PLUGINS_COPIED plugins)"
+    GSTREAMER_PLUGINS_FOUND=1
+else
+    echo "   ⚠️  GStreamer plugins directory not found, checking if gstreamer packages are installed..."
+    if dpkg -l | grep -q gstreamer1.0-plugins; then
+        echo "   ℹ️  GStreamer plugins packages are installed on the system"
+        echo "   They will be required as a dependency in the final DEB package"
+    fi
+fi
+
+if [ $GSTREAMER_PLUGINS_FOUND -eq 0 ]; then
+    echo "⚠️  Warning: GStreamer plugins not found in binary form"
+    echo "   Note: GStreamer plugins should be listed as dependencies in the DEB package"
+else
+    echo "✅ GStreamer plugins bundled successfully"
+fi
+
 echo "📋 DEB: Searching for v4l-utils libraries..."
 V4L_FOUND=0
 for SEARCH_DIR in /usr/lib/x86_64-linux-gnu /usr/lib; do

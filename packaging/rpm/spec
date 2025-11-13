@@ -60,12 +60,15 @@ cp %{_sourcedir}/libz*.so* %{buildroot}/usr/lib/openterfaceqt/ 2>/dev/null || tr
 cp %{_sourcedir}/libva*.so* %{buildroot}/usr/lib/openterfaceqt/ 2>/dev/null || true
 
 # GStreamer and multimedia libraries (from gstreamer subdirectory)
-mkdir -p %{buildroot}/usr/lib/openterfaceqt/gstreamer
+mkdir -p %{buildroot}/usr/lib/openterfaceqt/gstreamer/gstreamer-1.0
 cp %{_sourcedir}/gstreamer/libgstreamer*.so* %{buildroot}/usr/lib/openterfaceqt/gstreamer/ 2>/dev/null || true
 cp %{_sourcedir}/gstreamer/liborc*.so* %{buildroot}/usr/lib/openterfaceqt/gstreamer/ 2>/dev/null || true
 cp %{_sourcedir}/gstreamer/libv4l*.so* %{buildroot}/usr/lib/openterfaceqt/gstreamer/ 2>/dev/null || true
 cp %{_sourcedir}/gstreamer/libgstvideo*.so* %{buildroot}/usr/lib/openterfaceqt/gstreamer/ 2>/dev/null || true
 cp %{_sourcedir}/gstreamer/libgstapp*.so* %{buildroot}/usr/lib/openterfaceqt/gstreamer/ 2>/dev/null || true
+
+# GStreamer plugins (video capture, audio processing, codecs)
+cp %{_sourcedir}/gstreamer/gstreamer-1.0/*.so %{buildroot}/usr/lib/openterfaceqt/gstreamer/gstreamer-1.0/ 2>/dev/null || true
 
 # FFmpeg core libraries (from ffmpeg subdirectory - all components needed for video processing)
 mkdir -p %{buildroot}/usr/lib/openterfaceqt/ffmpeg
@@ -147,6 +150,7 @@ Exec=env \
     LD_LIBRARY_PATH=/usr/lib/openterfaceqt/qt6:/usr/lib/openterfaceqt/ffmpeg:/usr/lib/openterfaceqt/gstreamer:/usr/lib/openterfaceqt \
     QT_PLUGIN_PATH=/usr/lib/openterfaceqt/qt6/plugins \
     QML2_IMPORT_PATH=/usr/lib/openterfaceqt/qt6/qml \
+    GST_PLUGIN_PATH=/usr/lib/openterfaceqt/gstreamer/gstreamer-1.0 \
     /usr/local/bin/openterfaceQT
 Icon=openterfaceQT
 Comment=OpenterfaceQT KVM Application

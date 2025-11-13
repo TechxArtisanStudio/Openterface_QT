@@ -232,7 +232,12 @@ fi
 if [ -z "$GST_PLUGIN_PATH" ]; then
     GST_PLUGIN_PATHS=()
     
-    # System GStreamer plugins (primary)
+    # Bundled GStreamer plugins (PRIMARY - provides consistent plugins across systems)
+    if [ -d "/usr/lib/openterfaceqt/gstreamer/gstreamer-1.0" ]; then
+        GST_PLUGIN_PATHS+=("/usr/lib/openterfaceqt/gstreamer/gstreamer-1.0")
+    fi
+    
+    # System GStreamer plugins (secondary - as fallback)
     if [ -d "/usr/lib/${ARCH_DIR}/gstreamer-1.0" ]; then
         GST_PLUGIN_PATHS+=("/usr/lib/${ARCH_DIR}/gstreamer-1.0")
     fi
@@ -241,11 +246,11 @@ if [ -z "$GST_PLUGIN_PATH" ]; then
         GST_PLUGIN_PATHS+=("/usr/lib/x86_64-linux-gnu/gstreamer-1.0")
     fi
     
-    if [ -d "/usr/lib/openterfaceqt/gstreamer-1.0" ]; then
-        GST_PLUGIN_PATHS+=("/usr/lib/openterfaceqt/gstreamer-1.0")
+    if [ -d "/usr/lib/gstreamer-1.0" ]; then
+        GST_PLUGIN_PATHS+=("/usr/lib/gstreamer-1.0")
     fi
     
-    # Bundled GStreamer plugins (secondary)
+    # Additional bundled locations
     if [ -d "/opt/gstreamer/lib/gstreamer-1.0" ]; then
         GST_PLUGIN_PATHS+=("/opt/gstreamer/lib/gstreamer-1.0")
     fi
