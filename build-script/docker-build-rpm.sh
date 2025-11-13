@@ -1,6 +1,6 @@
 #!/bin/bash
 
-set -uo pipefail
+set -e
 
 # =========================
 # Build RPM package (.rpm)
@@ -20,6 +20,8 @@ RPMTOP=/workspace/rpmbuild-shared
 mkdir -p "${RPMTOP}/SPECS" "${RPMTOP}/SOURCES" "${RPMTOP}/BUILD" "${RPMTOP}/RPMS" "${RPMTOP}/SRPMS"
 
 ## VERSION and ARCH already computed above for .deb; reuse here
+VERSION="${VERSION:-0.0.1}"
+ARCH="${ARCH:-amd64}"
 
 case "${ARCH}" in
 	amd64|x86_64) RPM_ARCH=x86_64;;

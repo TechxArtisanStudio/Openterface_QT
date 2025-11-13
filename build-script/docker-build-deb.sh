@@ -1,6 +1,6 @@
 #!/bin/bash
 
-set -uo pipefail
+set -e
 
 # =========================
 # Build Debian package (.deb)
@@ -20,17 +20,9 @@ mkdir -p "${PKG_ROOT}/usr/share/metainfo"
 mkdir -p "${PKG_ROOT}/usr/share/openterfaceQT/translations"
 
 # Determine version from resources/version.h (APP_VERSION macro) if not already set
-if [ -z "${VERSION}" ]; then
-  VERSION_H="${SRC}/resources/version.h"
-  if [ -f "${VERSION_H}" ]; then
-	  VERSION=$(grep -Po '^#define APP_VERSION\s+"\K[0-9]+(\.[0-9]+)*' "${VERSION_H}" | head -n1)
-  fi
-  if [ -z "${VERSION}" ]; then
-	  VERSION="0.0.1"
-  fi
-fi
+VERSION="${VERSION:-0.0.1}"
+ARCH="${ARCH:-amd64}"
 
-# Determine architecture (map to Debian arch names) if not already set
 if [ -z "${ARCH}" ]; then
   ARCH=$(dpkg --print-architecture 2>/dev/null || true)
   if [ -z "${ARCH}" ]; then

@@ -151,22 +151,53 @@ jobs:
           # Create extraction directory
           DEB_EXTRACT_DIR="deb-contents"
           mkdir -p "$DEB_EXTRACT_DIR"
+          cd "$DEB_EXTRACT_DIR"
           
-          echo "🔍 Extracting DEB package..."
-          # Extract DEB package (contains data.tar.xz, control.tar.xz, debian-binary)
-          ar x "$DEB_FILE" -o "$DEB_EXTRACT_DIR/"
+          echo "🔍 Extracting DEB package using ar..."
+          # Extract DEB package (contains control.tar.zst, data.tar.zst, debian-binary)
+          ar x "$DEB_FILE"
           
-          # Extract data tarball
-          if [ -f "$DEB_EXTRACT_DIR/data.tar.xz" ]; then
-            tar -xf "$DEB_EXTRACT_DIR/data.tar.xz" -C "$DEB_EXTRACT_DIR/"
-          elif [ -f "$DEB_EXTRACT_DIR/data.tar.gz" ]; then
-            tar -xzf "$DEB_EXTRACT_DIR/data.tar.gz" -C "$DEB_EXTRACT_DIR/"
+          if [ $? -ne 0 ]; then
+            echo "❌ Failed to extract DEB with ar command"
+            exit 1
           fi
           
+          echo "✅ DEB archive extracted"
+          echo "📂 Archive contents:"
+          ls -la
+          echo ""
+          
+          # Extract control tarball
+          echo "🔍 Extracting control metadata..."
+          if [ -f "control.tar.zst" ]; then
+            tar --use-compress-program=unzstd -xf control.tar.zst
+            echo "✅ control.tar.zst extracted"
+          elif [ -f "control.tar.xz" ]; then
+            tar -xf control.tar.zst
+            echo "✅ control.tar.xz extracted"
+          elif [ -f "control.tar.gz" ]; then
+            tar -xzf control.tar.gz
+            echo "✅ control.tar.gz extracted"
+          fi
+          
+          # Extract data tarball
+          echo "🔍 Extracting package data..."
+          if [ -f "data.tar.zst" ]; then
+            tar --use-compress-program=unzstd -xf data.tar.zst
+            echo "✅ data.tar.zst extracted"
+          elif [ -f "data.tar.xz" ]; then
+            tar -xf data.tar.xz
+            echo "✅ data.tar.xz extracted"
+          elif [ -f "data.tar.gz" ]; then
+            tar -xzf data.tar.gz
+            echo "✅ data.tar.gz extracted"
+          fi
+          
+          cd ..
           echo ""
           echo "📂 DEB Package Contents Structure:"
           echo "=================================="
-          tree "$DEB_EXTRACT_DIR" -L 3 2>/dev/null || find "$DEB_EXTRACT_DIR" -type f | head -50
+          tree "$DEB_EXTRACT_DIR" -L 3 2>/dev/null || find "$DEB_EXTRACT_DIR" -type f -o -type d | head -100
           
           echo ""
           echo "📋 Key Files and Binaries:"
@@ -176,31 +207,84 @@ jobs:
           echo "🔹 Executables:"
           find "$DEB_EXTRACT_DIR" -type f -executable | grep -E "(bin|lib)" | head -20
           
-          # Find libraries
-          echo ""
-          echo "🔹 Libraries (.so files):"
-          find "$DEB_EXTRACT_DIR" -type f -name "*.so*" | head -20
-          
           # Find main openterface binary
           echo ""
           echo "🔹 OpenTerface binary location:"
-          find "$DEB_EXTRACT_DIR" -type f -name "*openterface*" -o -name "*openterfaceqt*" -o -name "*openterfaceQT*"
+          find "$DEB_EXTRACT_DIR" -type f \( -name "*openterface*" -o -name "*openterfaceqt*" -o -name "*openterfaceQT*" \) ! -path "*/.*"
+          
+          # Find libraries - FFmpeg
+          echo ""
+          echo "🔹 FFmpeg Libraries (.so files):"
+          find "$DEB_EXTRACT_DIR" -type f -name "libav*.so*" -o -name "libsw*.so*" | sort
+          
+          # Find libraries - GStreamer
+          echo ""
+          echo "🔹 GStreamer Libraries:"
+          find "$DEB_EXTRACT_DIR" -type f -name "libgst*.so*" | sort
+          
+          # Find libraries - Hardware acceleration
+          echo ""
+          echo "🔹 Hardware Acceleration Libraries (VA-API, VDPAU):"
+          find "$DEB_EXTRACT_DIR" -type f \( -name "libva*.so*" -o -name "libvdpau*.so*" \) | sort
+          
+          # Find libraries - Image processing
+          echo ""
+          echo "🔹 Image Processing Libraries:"
+          find "$DEB_EXTRACT_DIR" -type f -name "libturbojpeg*.so*" | sort
           
           # Check for Qt libraries
           echo ""
           echo "🔹 Qt Libraries:"
-          find "$DEB_EXTRACT_DIR" -type f -name "libQt*" | head -10
+          find "$DEB_EXTRACT_DIR" -type f -name "libQt*.so*" | head -20 | sort
           
-          # Check for configuration files
+          # Count total libraries
           echo ""
-          echo "🔹 Configuration Files:"
-          find "$DEB_EXTRACT_DIR" -type f \( -name "*.conf" -o -name "*.yaml" -o -name "*.json" \) | head -10
+          echo "� Library Statistics:"
+          echo "====================="
+          TOTAL_SO=$(find "$DEB_EXTRACT_DIR" -type f -name "*.so*" | wc -l)
+          echo "  Total .so files: $TOTAL_SO"
+          
+          FFMPEG_COUNT=$(find "$DEB_EXTRACT_DIR" -type f \( -name "libav*.so*" -o -name "libsw*.so*" \) | wc -l)
+          echo "  FFmpeg libraries: $FFMPEG_COUNT"
+          
+          GSTREAMER_COUNT=$(find "$DEB_EXTRACT_DIR" -type f -name "libgst*.so*" | wc -l)
+          echo "  GStreamer libraries: $GSTREAMER_COUNT"
+          
+          QT_COUNT=$(find "$DEB_EXTRACT_DIR" -type f -name "libQt*.so*" | wc -l)
+          echo "  Qt libraries: $QT_COUNT"
+          
+          # Check directory sizes
+          echo ""
+          echo "📦 Directory Sizes:"
+          echo "=================="
+          du -sh "$DEB_EXTRACT_DIR"/usr/* 2>/dev/null | sort -h
           
           # Get DEB metadata
           echo ""
           echo "📋 DEB Package Metadata:"
           echo "======================="
-          dpkg -I "$DEB_FILE" | head -30
+          dpkg -I "$DEB_FILE" 2>/dev/null | head -30 || echo "⚠️ dpkg not available, reading control file directly"
+          
+          if [ -f "$DEB_EXTRACT_DIR/control" ]; then
+            echo ""
+            echo "📄 Control File Content:"
+            echo "----------------------"
+            cat "$DEB_EXTRACT_DIR/control"
+          fi
+          
+          # Installation scripts
+          echo ""
+          echo "🔧 Installation Scripts:"
+          echo "======================="
+          if [ -f "$DEB_EXTRACT_DIR/preinst" ]; then
+            echo "✅ preinst found ($(wc -l < "$DEB_EXTRACT_DIR/preinst") lines)"
+          fi
+          if [ -f "$DEB_EXTRACT_DIR/postinst" ]; then
+            echo "✅ postinst found ($(wc -l < "$DEB_EXTRACT_DIR/postinst") lines)"
+          fi
+          if [ -f "$DEB_EXTRACT_DIR/postrm" ]; then
+            echo "✅ postrm found ($(wc -l < "$DEB_EXTRACT_DIR/postrm") lines)"
+          fi
           
           echo ""
           echo "✅ DEB package inspection completed"

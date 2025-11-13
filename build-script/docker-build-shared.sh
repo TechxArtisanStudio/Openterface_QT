@@ -126,6 +126,10 @@ VERSION_H="/workspace/src/resources/version.h"
 if [ -f "${VERSION_H}" ]; then
     VERSION=$(grep -Po '^#define APP_VERSION\s+"\K[0-9]+(\.[0-9]+)*' "${VERSION_H}" | head -n1)
 fi
+if [ -z "${VERSION}" ]; then
+    VERSION="0.0.1"
+fi
+export VERSION
 echo "Packaging OpenterfaceQT version: ${VERSION}"
 
 bash /workspace/src/build-script/docker-build-appimage.sh
