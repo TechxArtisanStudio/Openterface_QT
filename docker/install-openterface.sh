@@ -589,22 +589,37 @@ install_rpm_package() {
     echo ""
     print_section "Installing RPM package..."
     
-    if $SUDO dnf install -y "$PACKAGE_FILE" 2>&1 | tail -20; then
+    # RPM packages bundle libraries in /usr/lib/openterfaceqt/ and register with ldconfig
+    print_info "Installing RPM package..."
+    if $SUDO dnf install -y "$PACKAGE_FILE" 2>&1 | tail -30; then
         print_success "RPM package installed successfully"
     else
-        # Try again with --skip-broken to handle missing dependencies
-        print_warning "First attempt failed, trying with --skip-broken..."
-        if $SUDO dnf install -y --skip-broken "$PACKAGE_FILE" 2>&1 | tail -20; then
-            print_success "RPM package installed with --skip-broken"
-        else
-            print_error "Failed to install RPM package even with --skip-broken"
-            return 1
+        print_error "Failed to install RPM package"
+        print_info "Note: If dependencies are missing, they should be bundled in the package"
+        return 1
+    fi
+    
+    # Ensure bundled libraries are registered with the system linker
+    print_section "Registering bundled libraries with system linker..."
+    if [ -f /etc/ld.so.conf.d/openterface-libs.conf ]; then
+        print_info "Found openterface-libs.conf configuration"
+        print_info "Bundled libraries location: /usr/lib/openterfaceqt/"
+    else
+        print_warning "openterface-libs.conf not found"
+        print_info "Creating configuration for bundled libraries..."
+        if [ "$(id -u)" -eq 0 ]; then
+            mkdir -p /etc/ld.so.conf.d
+            cat > /etc/ld.so.conf.d/openterface-libs.conf <<'EOF'
+# OpenterfaceQT bundled libraries (isolated from system libraries)
+/usr/lib/openterfaceqt
+EOF
+            print_success "Created /etc/ld.so.conf.d/openterface-libs.conf"
         fi
     fi
     
-    # Update library cache
+    # Update library cache to register all bundled libraries
     print_section "Updating system library cache..."
-    if $SUDO ldconfig 2>&1 | head -3; then
+    if $SUDO ldconfig 2>&1 | head -5; then
         print_success "Library cache updated successfully"
     else
         print_warning "ldconfig may not be available in this environment"
@@ -783,8 +798,11 @@ if file "$BINARY_LOCATION" 2>/dev/null | grep -q "AppImage"; then
         exec "$BINARY_LOCATION" --appimage-extract-and-run "$@"
     fi
 else
-    # Regular binary (e.g., from DEB package)
-    export LD_LIBRARY_PATH=/usr/lib:$LD_LIBRARY_PATH
+    # Regular binary (e.g., from DEB or RPM package)
+    # RPM packages bundle FFmpeg libraries in /usr/lib/openterfaceqt/
+    export LD_LIBRARY_PATH=/usr/lib/openterfaceqt:/usr/lib:$LD_LIBRARY_PATH
+    export QT_PLUGIN_PATH=/usr/lib/qt6/plugins:/usr/lib/x86_64-linux-gnu/qt6/plugins
+    export QML2_IMPORT_PATH=/usr/lib/qt6/qml:/usr/lib/x86_64-linux-gnu/qt6/qml
     export QT_QPA_PLATFORM=xcb
     export QT_X11_NO_MITSHM=1
     exec "$BINARY_LOCATION" "$@"

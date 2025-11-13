@@ -6,17 +6,18 @@ Summary:        OpenterfaceQT KVM Linux Application
 License:        AGPL-3.0
 URL:           https://github.com/TechxArtisanStudio/Openterface_QT
 
-# Bundled Qt, no external Qt dependencies
-Requires: libusb, libturbojpeg, libva, gstreamer1, gstreamer1-plugins-base, libv4l, libavdevice, libavformat, libavcodec, libswresample, libswscale, libavutil, libavfilter
+# System-level dependencies only - Qt, FFmpeg and plugins are bundled in /usr/lib/openterfaceqt/
+Requires: libusb
 
 %description
-OpenterfaceQT Application
+OpenterfaceQT Application with bundled Qt6 and FFmpeg libraries
 
 %prep
-# Create a list of files that should be included
-# This allows us to handle optional files gracefully
+# Build system provides staged files in %{_sourcedir}
+# No extraction needed - build script handles preparation
 
 %install
+# Create necessary directories
 mkdir -p %{buildroot}/usr/bin
 mkdir -p %{buildroot}/usr/lib/openterfaceqt
 mkdir -p %{buildroot}/usr/lib/qt6/plugins
@@ -24,16 +25,28 @@ mkdir -p %{buildroot}/usr/lib/qt6/qml
 mkdir -p %{buildroot}/usr/share/applications
 mkdir -p %{buildroot}/usr/share/icons/hicolor/256x256/apps
 
+# Install main binary
 cp -r %{_sourcedir}/openterfaceQT %{buildroot}/usr/bin/
-# Copy Qt libraries (required)
+
+# Install bundled libraries into isolated directory
+# These prevent conflicts with system-installed versions
+echo "Installing bundled libraries to /usr/lib/openterfaceqt/"
+
+# Qt6 core libraries
 cp %{_sourcedir}/libQt6*.so* %{buildroot}/usr/lib/openterfaceqt/ 2>/dev/null || true
-# Copy optional JPEG and VA-API libraries
+
+# Image processing libraries
 cp %{_sourcedir}/libjpeg*.so* %{buildroot}/usr/lib/openterfaceqt/ 2>/dev/null || true
 cp %{_sourcedir}/libturbojpeg*.so* %{buildroot}/usr/lib/openterfaceqt/ 2>/dev/null || true
+
+# Hardware acceleration libraries
 cp %{_sourcedir}/libva*.so* %{buildroot}/usr/lib/openterfaceqt/ 2>/dev/null || true
+
+# Multimedia libraries
 cp %{_sourcedir}/libgstreamer*.so* %{buildroot}/usr/lib/openterfaceqt/ 2>/dev/null || true
 cp %{_sourcedir}/libv4l*.so* %{buildroot}/usr/lib/openterfaceqt/ 2>/dev/null || true
-# Copy FFmpeg core libraries
+
+# FFmpeg core libraries (all components needed for video processing)
 cp %{_sourcedir}/libavdevice*.so* %{buildroot}/usr/lib/openterfaceqt/ 2>/dev/null || true
 cp %{_sourcedir}/libavcodec*.so* %{buildroot}/usr/lib/openterfaceqt/ 2>/dev/null || true
 cp %{_sourcedir}/libavformat*.so* %{buildroot}/usr/lib/openterfaceqt/ 2>/dev/null || true
@@ -41,12 +54,15 @@ cp %{_sourcedir}/libavutil*.so* %{buildroot}/usr/lib/openterfaceqt/ 2>/dev/null 
 cp %{_sourcedir}/libswscale*.so* %{buildroot}/usr/lib/openterfaceqt/ 2>/dev/null || true
 cp %{_sourcedir}/libswresample*.so* %{buildroot}/usr/lib/openterfaceqt/ 2>/dev/null || true
 cp %{_sourcedir}/libavfilter*.so* %{buildroot}/usr/lib/openterfaceqt/ 2>/dev/null || true
-# Copy Qt plugins and QML
+
+# Qt plugins and QML modules (optional but recommended)
 cp -r %{_sourcedir}/qt6-plugins/* %{buildroot}/usr/lib/qt6/plugins/ 2>/dev/null || true
 cp -r %{_sourcedir}/qt6-qml/* %{buildroot}/usr/lib/qt6/qml/ 2>/dev/null || true
-# Copy icon if present
+
+# Install application icon if present
 [ -f %{_sourcedir}/icon_256.png ] && cp %{_sourcedir}/icon_256.png %{buildroot}/usr/share/icons/hicolor/256x256/apps/openterfaceQT.png || true
 
+# Create desktop entry with environment variables for bundled libraries
 cat > %{buildroot}/usr/share/applications/openterfaceQT.desktop << EOF
 [Desktop Entry]
 Version=${VERSION}
@@ -54,28 +70,39 @@ Type=Application
 Name=OpenterfaceQT
 Exec=env QT_PLUGIN_PATH=/usr/lib/qt6/plugins QML2_IMPORT_PATH=/usr/lib/qt6/qml /usr/bin/openterfaceQT
 Icon=openterfaceQT
-Comment=OpenterfaceQT Application
+Comment=OpenterfaceQT KVM Application
 Categories=Utility;
 EOF
 
-# Generate the file list dynamically to handle missing files
+# Generate dynamic file list to handle optional files gracefully
 find %{buildroot} -type f -o -type l | sed 's|%{buildroot}||' > %{_builddir}/../FILELIST.txt
 
 %files -f %{_builddir}/../FILELIST.txt
 
 %post
-# Register bundled libraries with system linker
+# Register bundled libraries with system linker during installation
+# This allows the binary to find bundled FFmpeg and Qt libraries without conflicts
+mkdir -p /etc/ld.so.conf.d
+
 cat > /etc/ld.so.conf.d/openterface-libs.conf <<'EOF'
 # OpenterfaceQT bundled libraries (isolated from system libraries)
+# This directory contains a complete set of FFmpeg, Qt6, and multimedia libraries
 /usr/lib/openterfaceqt
 EOF
+
+# Rebuild the dynamic linker cache to register bundled libraries
 ldconfig
 
+# Verify libraries are registered
+echo "OpenterfaceQT libraries registered. Checking library cache..."
+ldconfig -p 2>/dev/null | grep openterfaceqt | head -3 || echo "Note: Library check may not be available in all environments"
+
 %postun
-# Remove ldconfig configuration on uninstall
+# Remove ldconfig configuration on uninstall to clean up bundled library paths
 if [ $1 -eq 0 ]; then
     rm -f /etc/ld.so.conf.d/openterface-libs.conf
     ldconfig
+    echo "OpenterfaceQT library configuration removed"
 fi
 
 %changelog
