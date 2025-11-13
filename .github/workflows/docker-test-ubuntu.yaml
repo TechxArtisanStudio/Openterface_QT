@@ -701,13 +701,9 @@ jobs:
             file "$BINARY_PATH"
             echo ""
             
-            echo "📊 Binary size and permissions:"
-            ls -lh "$BINARY_PATH"
-            echo ""
-            
-            echo "📋 Dynamic library dependencies:"
+            echo "📋 The final executable dynamic library dependencies:"
             echo "---"
-            ldd "$BINARY_PATH" 2>&1
+            echo "   Final target: $(readlink -f "$BINARY_PATH")"
             echo ""
             
             # Check for missing dependencies (red flags)
