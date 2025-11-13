@@ -263,18 +263,21 @@ fi
 # ============================================
 # GStreamer Plugin Path Setup
 # ============================================
-# Critical for avoiding GStreamer symbol lookup errors
-# Priority: system GStreamer plugins first
+# CRITICAL FIX: Use ONLY system GStreamer plugins if bundled plugins cause symbol errors
+# Bundled plugins often have version mismatches with system GStreamer libraries,
+# causing "undefined symbol" errors. The launcher prioritizes system plugins for
+# compatibility with the system GStreamer core libraries.
+#
+# If system plugins are not found, the application will still try bundled locations
+# as a last resort, but this is only recommended if both bundled plugins and
+# bundled core GStreamer libraries are present and compatible.
 
 if [ -z "$GST_PLUGIN_PATH" ]; then
     GST_PLUGIN_PATHS=()
     
-    # Bundled GStreamer plugins (PRIMARY - provides consistent plugins across systems)
-    if [ -d "/usr/lib/openterfaceqt/gstreamer/gstreamer-1.0" ]; then
-        GST_PLUGIN_PATHS+=("/usr/lib/openterfaceqt/gstreamer/gstreamer-1.0")
-    fi
-    
-    # System GStreamer plugins (secondary - as fallback)
+    # PRIORITY 1: System GStreamer plugins (MOST IMPORTANT - ensures version compatibility)
+    # System plugins are compiled against system GStreamer libraries that are likely
+    # already installed as dependencies. This is the most reliable option.
     if [ -d "/usr/lib/${ARCH_DIR}/gstreamer-1.0" ]; then
         GST_PLUGIN_PATHS+=("/usr/lib/${ARCH_DIR}/gstreamer-1.0")
     fi
@@ -283,13 +286,37 @@ if [ -z "$GST_PLUGIN_PATH" ]; then
         GST_PLUGIN_PATHS+=("/usr/lib/x86_64-linux-gnu/gstreamer-1.0")
     fi
     
+    if [ -d "/usr/lib/aarch64-linux-gnu/gstreamer-1.0" ]; then
+        GST_PLUGIN_PATHS+=("/usr/lib/aarch64-linux-gnu/gstreamer-1.0")
+    fi
+    
     if [ -d "/usr/lib/gstreamer-1.0" ]; then
         GST_PLUGIN_PATHS+=("/usr/lib/gstreamer-1.0")
     fi
     
-    # Additional bundled locations
+    # PRIORITY 2: Local system locations
+    if [ -d "/usr/local/lib/gstreamer-1.0" ]; then
+        GST_PLUGIN_PATHS+=("/usr/local/lib/gstreamer-1.0")
+    fi
+    
+    # PRIORITY 3: Bundled GStreamer plugins (FALLBACK - only if system plugins not available)
+    # NOTE: Bundled plugins may cause "undefined symbol" errors if they were compiled
+    # against a different GStreamer version. Only use as a last resort.
+    if [ -d "/usr/lib/openterfaceqt/gstreamer/gstreamer-1.0" ]; then
+        # Only add bundled path if no system plugins were found yet
+        if [ ${#GST_PLUGIN_PATHS[@]} -eq 0 ]; then
+            if [ "${OPENTERFACE_DEBUG}" = "1" ] || [ "${OPENTERFACE_DEBUG}" = "true" ]; then
+                echo "⚠️  Warning: Using bundled GStreamer plugins - system plugins not found" >&2
+            fi
+            GST_PLUGIN_PATHS+=("/usr/lib/openterfaceqt/gstreamer/gstreamer-1.0")
+        fi
+    fi
+    
+    # PRIORITY 4: Qt6 build GStreamer plugins (for development/custom builds)
     if [ -d "/opt/gstreamer/lib/gstreamer-1.0" ]; then
-        GST_PLUGIN_PATHS+=("/opt/gstreamer/lib/gstreamer-1.0")
+        if [ ${#GST_PLUGIN_PATHS[@]} -eq 0 ]; then
+            GST_PLUGIN_PATHS+=("/opt/gstreamer/lib/gstreamer-1.0")
+        fi
     fi
     
     # Join with colons
@@ -315,6 +342,68 @@ fi
 # ============================================
 # Set OPENTERFACE_DEBUG=1 to see the environment variables being used
 
+# Helper function to validate GStreamer installation
+validate_gstreamer_installation() {
+    local gst_status=0
+    
+    echo "========================================" >&2
+    echo "GStreamer Installation Validation" >&2
+    echo "========================================" >&2
+    
+    # Check for core GStreamer library
+    if ldconfig -p | grep -q "libgstreamer-1.0.so"; then
+        echo "✅ libgstreamer-1.0 found in system" >&2
+    else
+        echo "❌ libgstreamer-1.0 NOT found - GStreamer may not be installed" >&2
+        gst_status=1
+    fi
+    
+    # Check for GStreamer plugin scanner
+    if [ -f "/usr/lib/x86_64-linux-gnu/gstreamer-1.0/gst-plugin-scanner" ]; then
+        echo "✅ gst-plugin-scanner found at /usr/lib/x86_64-linux-gnu/gstreamer-1.0/" >&2
+    elif [ -f "/usr/libexec/gstreamer-1.0/gst-plugin-scanner" ]; then
+        echo "✅ gst-plugin-scanner found at /usr/libexec/gstreamer-1.0/" >&2
+    else
+        echo "⚠️  gst-plugin-scanner not found - plugin loading may fail" >&2
+    fi
+    
+    # Check for common GStreamer plugins
+    local plugin_dirs=()
+    if [ -d "/usr/lib/${ARCH_DIR}/gstreamer-1.0" ]; then
+        plugin_dirs+=("/usr/lib/${ARCH_DIR}/gstreamer-1.0")
+    fi
+    if [ -d "/usr/lib/x86_64-linux-gnu/gstreamer-1.0" ]; then
+        plugin_dirs+=("/usr/lib/x86_64-linux-gnu/gstreamer-1.0")
+    fi
+    if [ -d "/usr/lib/aarch64-linux-gnu/gstreamer-1.0" ]; then
+        plugin_dirs+=("/usr/lib/aarch64-linux-gnu/gstreamer-1.0")
+    fi
+    
+    if [ ${#plugin_dirs[@]} -gt 0 ]; then
+        echo "Found plugin directories:" >&2
+        for plugin_dir in "${plugin_dirs[@]}"; do
+            if [ -d "$plugin_dir" ]; then
+                local plugin_count=$(find "$plugin_dir" -name "libgst*.so" 2>/dev/null | wc -l)
+                echo "  - $plugin_dir ($plugin_count plugins)" >&2
+            fi
+        done
+    else
+        echo "❌ No GStreamer plugin directories found" >&2
+        gst_status=1
+    fi
+    
+    # Attempt to query GStreamer version
+    if command -v gst-inspect-1.0 >/dev/null 2>&1; then
+        echo "GStreamer version:" >&2
+        gst-inspect-1.0 --version 2>&1 | sed 's/^/  /' >&2
+    else
+        echo "⚠️  gst-inspect-1.0 not found - cannot verify GStreamer version" >&2
+    fi
+    
+    echo "========================================" >&2
+    return $gst_status
+}
+
 if [ "${OPENTERFACE_DEBUG}" = "1" ] || [ "${OPENTERFACE_DEBUG}" = "true" ]; then
     echo "========================================" >&2
     echo "OpenterfaceQT Runtime Environment Setup" >&2
@@ -330,7 +419,186 @@ if [ "${OPENTERFACE_DEBUG}" = "1" ] || [ "${OPENTERFACE_DEBUG}" = "true" ]; then
     fi
     echo "ARCH: $UNAME_M ($ARCH_DIR)" >&2
     echo "========================================" >&2
+    echo "" >&2
+    
+    # Validate GStreamer installation when debug is enabled
+    validate_gstreamer_installation
+    echo "" >&2
 fi
+
+# ============================================
+# GStreamer Diagnostics Function
+# ============================================
+# Comprehensive diagnostics to help identify GStreamer version mismatches
+
+print_gstreamer_diagnostics() {
+    echo "========================================" >&2
+    echo "GStreamer Plugin & Library Diagnostics" >&2
+    echo "========================================" >&2
+    echo "" >&2
+    
+    # 1. Check bundled GStreamer core version
+    local bundled_gst_lib="/usr/lib/openterfaceqt/gstreamer/libgstreamer-1.0.so.0"
+    if [ -f "$bundled_gst_lib" ]; then
+        echo "1. Bundled GStreamer Core Library:" >&2
+        echo "   File: $bundled_gst_lib" >&2
+        echo "   Size: $(du -h "$bundled_gst_lib" | cut -f1)" >&2
+        
+        # Try to get version from the bundled gst-inspect if available
+        local bundled_gst_inspect="/usr/lib/openterfaceqt/gstreamer/bin/gst-inspect-1.0"
+        if [ -x "$bundled_gst_inspect" ]; then
+            echo "   Version: $("$bundled_gst_inspect" --version 2>&1 | head -1)" >&2
+        fi
+        echo "" >&2
+    else
+        echo "1. Bundled GStreamer Core Library:" >&2
+        echo "   ✗ NOT FOUND at $bundled_gst_lib" >&2
+        echo "" >&2
+    fi
+    
+    # 2. Check system GStreamer core version
+    echo "2. System GStreamer Core Library:" >&2
+    if command -v gst-inspect-1.0 >/dev/null 2>&1; then
+        local sys_version=$(gst-inspect-1.0 --version 2>&1 | head -1)
+        echo "   Version: $sys_version" >&2
+        
+        # Find the actual system library
+        local sys_gst_lib=$(ldconfig -p | grep "libgstreamer-1.0.so.0" | awk '{print $NF}' | head -1)
+        if [ -n "$sys_gst_lib" ]; then
+            echo "   File: $sys_gst_lib" >&2
+            echo "   Size: $(du -h "$sys_gst_lib" 2>/dev/null | cut -f1 || echo 'unknown')" >&2
+        fi
+        echo "" >&2
+    else
+        echo "   ✗ System gst-inspect-1.0 not found - system GStreamer not installed?" >&2
+        echo "" >&2
+    fi
+    
+    # 3. Check for critical symbols in bundled core library
+    echo "3. Critical GStreamer Symbols in Bundled Core:" >&2
+    if [ -f "$bundled_gst_lib" ] && command -v nm >/dev/null 2>&1; then
+        local critical_symbols=(
+            "gst_navigation_event_new_touch_up"
+            "gst_message_writable_details"
+            "gst_caps_features_get_nth_id_str"
+            "gst_vec_deque_free"
+            "gst_structure_set_static_str"
+        )
+        
+        local missing_count=0
+        for symbol in "${critical_symbols[@]}"; do
+            if nm -D "$bundled_gst_lib" 2>/dev/null | grep -q "^[0-9a-f]* T $symbol"; then
+                echo "   ✓ $symbol" >&2
+            else
+                echo "   ✗ $symbol (MISSING - indicates version mismatch)" >&2
+                missing_count=$((missing_count + 1))
+            fi
+        done
+        
+        if [ $missing_count -gt 0 ]; then
+            echo "" >&2
+            echo "   ⚠️  Found $missing_count missing symbols! This indicates:" >&2
+            echo "      - Bundled plugins may be compiled against a newer GStreamer version" >&2
+            echo "      - Bundled core libraries are older than what plugins expect" >&2
+        fi
+        echo "" >&2
+    else
+        echo "   (nm command not available or bundled library not found)" >&2
+        echo "" >&2
+    fi
+    
+    # 4. List bundled GStreamer core libraries
+    echo "4. Bundled GStreamer Core Libraries:" >&2
+    local bundled_libs_dir="/usr/lib/openterfaceqt/gstreamer"
+    if [ -d "$bundled_libs_dir" ]; then
+        local lib_count=$(find "$bundled_libs_dir" -maxdepth 1 -name "libgst*.so*" 2>/dev/null | wc -l)
+        if [ $lib_count -gt 0 ]; then
+            find "$bundled_libs_dir" -maxdepth 1 -name "libgst*.so*" 2>/dev/null | sort | while read lib; do
+                echo "   - $(basename "$lib")" >&2
+            done
+        else
+            echo "   (No GStreamer core libraries found)" >&2
+        fi
+        echo "" >&2
+    else
+        echo "   (Bundled GStreamer directory not found)" >&2
+        echo "" >&2
+    fi
+    
+    # 5. Check bundled GStreamer plugins
+    echo "5. Bundled GStreamer Plugins:" >&2
+    local bundled_plugins_dir="/usr/lib/openterfaceqt/gstreamer/gstreamer-1.0"
+    if [ -d "$bundled_plugins_dir" ]; then
+        local plugin_count=$(find "$bundled_plugins_dir" -name "libgst*.so" 2>/dev/null | wc -l)
+        echo "   Found $plugin_count plugins:" >&2
+        find "$bundled_plugins_dir" -name "libgst*.so" 2>/dev/null | sort | while read plugin; do
+            echo "   - $(basename "$plugin")" >&2
+        done
+        echo "" >&2
+    else
+        echo "   (Bundled plugins directory not found)" >&2
+        echo "" >&2
+    fi
+    
+    # 6. Check for plugin load errors
+    echo "6. Plugin Load Validation:" >&2
+    if [ -d "$bundled_plugins_dir" ]; then
+        local bundled_gst_inspect="/usr/lib/openterfaceqt/gstreamer/bin/gst-inspect-1.0"
+        if [ -x "$bundled_gst_inspect" ]; then
+            local errors=$("$bundled_gst_inspect" 2>&1 | grep -i "failed to load\|undefined symbol\|cannot open" || true)
+            if [ -z "$errors" ]; then
+                echo "   ✓ No plugin load errors detected" >&2
+            else
+                echo "   ✗ Plugin Load Errors Found:" >&2
+                echo "$errors" | head -10 | while read line; do
+                    echo "      $line" >&2
+                done
+                local error_count=$(echo "$errors" | wc -l)
+                if [ $error_count -gt 10 ]; then
+                    echo "      ... and $((error_count - 10)) more errors" >&2
+                fi
+            fi
+        else
+            echo "   (bundled gst-inspect-1.0 not available)" >&2
+        fi
+        echo "" >&2
+    fi
+    
+    # 7. Check system GStreamer plugins
+    echo "7. System GStreamer Plugins:" >&2
+    local system_plugin_dirs=()
+    for dir in "/usr/lib/x86_64-linux-gnu/gstreamer-1.0" "/usr/lib/aarch64-linux-gnu/gstreamer-1.0" "/usr/lib/gstreamer-1.0"; do
+        if [ -d "$dir" ]; then
+            system_plugin_dirs+=("$dir")
+        fi
+    done
+    
+    if [ ${#system_plugin_dirs[@]} -gt 0 ]; then
+        for plugin_dir in "${system_plugin_dirs[@]}"; do
+            local count=$(find "$plugin_dir" -name "libgst*.so" 2>/dev/null | wc -l)
+            echo "   $plugin_dir: $count plugins" >&2
+        done
+        echo "" >&2
+    else
+        echo "   (No system plugin directories found)" >&2
+        echo "" >&2
+    fi
+    
+    # 8. Summary and recommendations
+    echo "8. Recommendations:" >&2
+    echo "   Option A: Use bundled GStreamer" >&2
+    echo "      - Set: export OPENTERFACE_USE_BUNDLED_GSTREAMER=1" >&2
+    echo "      - Rebuild bundled plugins against bundled core libraries" >&2
+    echo "" >&2
+    echo "   Option B: Use system GStreamer (recommended for compatibility)" >&2
+    echo "      - Install: sudo apt-get install gstreamer1.0-plugins-*" >&2
+    echo "      - Set: export OPENTERFACE_USE_SYSTEM_GSTREAMER=1" >&2
+    echo "" >&2
+    echo "   Option C: Set GST_PLUGIN_PATH manually" >&2
+    echo "      - Set: export GST_PLUGIN_PATH=/path/to/plugins" >&2
+    echo "" >&2
+    echo "========================================" >&2
+}
 
 # ============================================
 # Application Execution
@@ -369,6 +637,20 @@ fi
 # Debug: Show what will be preloaded
 if [ "${OPENTERFACE_DEBUG}" = "1" ] || [ "${OPENTERFACE_DEBUG}" = "true" ]; then
     echo "Executing: $OPENTERFACE_BIN" >&2
+fi
+
+# ============================================
+# Display GStreamer Diagnostics at Startup
+# ============================================
+# Always show diagnostics to help users understand which GStreamer version is being used
+# This helps identify and resolve version mismatch issues
+if [ "${OPENTERFACE_SHOW_GSTREAMER_INFO}" != "0" ] && [ "${OPENTERFACE_SHOW_GSTREAMER_INFO}" != "false" ]; then
+    # Show diagnostics unless explicitly disabled
+    if [ -z "$OPENTERFACE_SHOW_GSTREAMER_INFO" ] || [ "${OPENTERFACE_SHOW_GSTREAMER_INFO}" = "1" ] || [ "${OPENTERFACE_SHOW_GSTREAMER_INFO}" = "true" ]; then
+        echo "" >&2
+        print_gstreamer_diagnostics
+        echo "" >&2
+    fi
 fi
 
 # Execute the binary with all passed arguments

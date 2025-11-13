@@ -40,14 +40,41 @@ If you encounter "symbol lookup error" when running openterfaceQT:
   1. Verify GStreamer packages are installed:
      apt list --installed | grep gstreamer1.0
   2. Update GStreamer if needed:
-     sudo apt update && sudo apt upgrade libgstreamer1.0-0
+     sudo apt update && sudo apt upgrade libgstreamer1.0-0 libgstreamer-plugins-base1.0-0 gstreamer1.0-plugins-*
   3. Run with debug enabled:
      OPENTERFACE_DEBUG=1 openterfaceQT-launcher.sh
-  4. For more help, see: /usr/share/doc/openterfaceQT/GSTREAMER_FIX.md
+  4. For more help, see: /usr/share/doc/openterfaceQT/GSTREAMER_TROUBLESHOOTING.md
 
 EOF
 
     echo "✓ Runtime info file created at /usr/share/openterfaceQT/runtime-info.txt"
+    
+    # IMPORTANT: Recommend installing system GStreamer packages
+    echo ""
+    echo "=========================================="
+    echo "Important: GStreamer Plugin Installation"
+    echo "=========================================="
+    echo ""
+    echo "For best compatibility, it is STRONGLY RECOMMENDED to install system"
+    echo "GStreamer packages. The OpenterfaceQT launcher automatically prioritizes"
+    echo "system GStreamer plugins over bundled ones for version compatibility."
+    echo ""
+    echo "To install GStreamer support, run:"
+    echo ""
+    echo "  sudo apt-get install -y \\"
+    echo "    libgstreamer1.0-0 \\"
+    echo "    libgstreamer-plugins-base1.0-0 \\"
+    echo "    gstreamer1.0-plugins-base \\"
+    echo "    gstreamer1.0-plugins-good \\"
+    echo "    gstreamer1.0-plugins-bad \\"
+    echo "    gstreamer1.0-x \\"
+    echo "    gstreamer1.0-v4l2"
+    echo ""
+    echo "If you encounter GStreamer 'undefined symbol' errors, see:"
+    echo "  /usr/share/doc/openterfaceQT/GSTREAMER_TROUBLESHOOTING.md"
+    echo ""
+    echo "=========================================="
+    echo ""
 fi
 
 exit 0
