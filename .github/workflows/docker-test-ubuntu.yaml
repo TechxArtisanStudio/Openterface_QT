@@ -198,7 +198,7 @@ jobs:
           echo ""
           echo "📂 DEB Package Contents Structure:"
           echo "=================================="
-          tree "$DEB_EXTRACT_DIR" -L 4 2>/dev/null || find "$DEB_EXTRACT_DIR" -type f -o -type d | head -100
+          tree "$DEB_EXTRACT_DIR" -L 5 2>/dev/null || find "$DEB_EXTRACT_DIR" -type f -o -type d | head -100
           
           echo ""
           echo "📋 Key Files and Binaries:"
