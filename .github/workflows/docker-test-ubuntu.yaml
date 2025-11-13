@@ -8,7 +8,6 @@ on:
       - 'docker/install-openterface.sh'
       - 'docker/entrypoint.sh'
       - '.github/workflows/docker-test-ubuntu.yaml'
-      - 'packaging/debian/**'
   pull_request:
     branches: ["main", "dev"]
     paths:
