@@ -233,15 +233,16 @@ for SEARCH_DIR in /opt/ffmpeg/lib /usr/lib/x86_64-linux-gnu /usr/lib; do
         
         if [ $FOUND_ANY -eq 1 ]; then
             echo "   ✅ Found FFmpeg libraries in $SEARCH_DIR"
+            mkdir -p "${PKG_ROOT}/usr/lib/openterfaceqt/ffmpeg"
             for ffmpeg_lib in "${FFMPEG_LIBS[@]}"; do
                 if ls "$SEARCH_DIR"/${ffmpeg_lib}* >/dev/null 2>&1; then
                     echo "   Found: $ffmpeg_lib"
                     FFMPEG_FILES=$(ls -la "$SEARCH_DIR"/${ffmpeg_lib}* 2>/dev/null)
                     echo "     Files: $FFMPEG_FILES" | sed 's/^/     /'
-                    cp -Pv "$SEARCH_DIR"/${ffmpeg_lib}* "${PKG_ROOT}/usr/lib/openterfaceqt/" 2>&1 | sed 's/^/     /'
+                    cp -Pv "$SEARCH_DIR"/${ffmpeg_lib}* "${PKG_ROOT}/usr/lib/openterfaceqt/ffmpeg/" 2>&1 | sed 's/^/     /'
                 fi
             done
-            echo "   ✅ FFmpeg core libraries copied to ${PKG_ROOT}/usr/lib/openterfaceqt"
+            echo "   ✅ FFmpeg core libraries copied to ${PKG_ROOT}/usr/lib/openterfaceqt/ffmpeg"
             FFMPEG_FOUND=1
             break
         else
@@ -300,15 +301,16 @@ for SEARCH_DIR in /usr/lib/x86_64-linux-gnu /usr/lib; do
         
         if [ $FOUND_ANY -eq 1 ]; then
             echo "   ✅ Found GStreamer libraries in $SEARCH_DIR"
+            mkdir -p "${PKG_ROOT}/usr/lib/openterfaceqt/gstreamer"
             for gst_lib in "${GSTREAMER_LIBS[@]}"; do
                 if ls "$SEARCH_DIR"/${gst_lib}* >/dev/null 2>&1; then
                     echo "   Copying: $gst_lib"
-                    cp -Pv "$SEARCH_DIR"/${gst_lib}* "${PKG_ROOT}/usr/lib/openterfaceqt/" 2>&1 | sed 's/^/     /'
+                    cp -Pv "$SEARCH_DIR"/${gst_lib}* "${PKG_ROOT}/usr/lib/openterfaceqt/gstreamer/" 2>&1 | sed 's/^/     /'
                 else
                     echo "   ⚠️  Skipping: $gst_lib (not found)"
                 fi
             done
-            echo "   ✅ GStreamer libraries copied to ${PKG_ROOT}/usr/lib/openterfaceqt"
+            echo "   ✅ GStreamer libraries copied to ${PKG_ROOT}/usr/lib/openterfaceqt/gstreamer"
             GSTREAMER_FOUND=1
             break
         else

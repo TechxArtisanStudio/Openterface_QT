@@ -31,7 +31,9 @@ esac
 
 BUNDLED_LIB_PATHS=(
     "/usr/lib/openterfaceqt/qt6"        # Bundled Qt6 libraries (HIGHEST priority)
-    "/usr/lib/openterfaceqt"            # Bundled libraries (FFmpeg, GStreamer, etc.)
+    "/usr/lib/openterfaceqt/ffmpeg"     # Bundled FFmpeg libraries
+    "/usr/lib/openterfaceqt/gstreamer"  # Bundled GStreamer libraries
+    "/usr/lib/openterfaceqt"            # Bundled libraries (other dependencies)
 )
 
 # Build LD_LIBRARY_PATH with bundled libraries at the front
