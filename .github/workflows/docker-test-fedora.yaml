@@ -1,20 +1,20 @@
-name: Docker Test - Openterface Shared Build
+name: Docker Test - Openterface Fedora 36
 
 on:
   push:
     branches: ["main", "dev"]
     paths:
-      - 'docker/testos/Dockerfile.ubuntu-test-shared'
+      - 'docker/testos/Dockerfile.fedora-test-shared'
       - 'docker/install-openterface.sh'
       - 'docker/entrypoint.sh'
-      - '.github/workflows/docker-test.yaml'
-      - 'packaging/debian/**'
+      - '.github/workflows/docker-test-fedora.yaml'
+      - 'packaging/rpm/**'
   pull_request:
     branches: ["main", "dev"]
     paths:
-      - 'docker/testos/Dockerfile.ubuntu-test-shared'
+      - 'docker/testos/Dockerfile.fedora-test-shared'
       - 'docker/install-openterface.sh'
-      - '.github/workflows/docker-test.yaml'
+      - '.github/workflows/docker-test-fedora.yaml'
   workflow_run:
     workflows: ["Linux Build"]
     types:
@@ -22,14 +22,11 @@ on:
   workflow_dispatch:
 
 env:
-  DOCKER_IMAGE_SHARED: openterface-test-shared
+  DOCKER_IMAGE_FEDORA: openterface-test-fedora
   DOCKER_TAG: test-${{ github.sha }}
 
 jobs:
-  build-test-shared:
-    strategy:
-      matrix:
-        install_type: ['deb', 'appimage']
+  build-test-fedora:
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     
@@ -37,17 +34,12 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set default install_type for non-workflow_dispatch triggers
-        run: |
-          # Set install_type from matrix
-          echo "INSTALL_TYPE=${{ matrix.install_type }}" >> $GITHUB_ENV
-          echo "ℹ️ Using install_type: ${{ matrix.install_type }}"
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
       - name: Download Latest Linux Build Artifacts
         run: |
-          echo "� Downloading latest Linux shared build artifacts..."
+          echo "⬇️ Downloading latest Linux shared build artifacts..."
           
           # Create build directory
           mkdir -p build
@@ -77,92 +69,135 @@ jobs:
           ARTIFACTS=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
             "https://api.github.com/repos/${{ github.repository }}/actions/runs/$RUN_ID/artifacts")
           
-          # Find and download the appropriate artifact based on install_type
-          if [ "${{ env.INSTALL_TYPE }}" = "deb" ]; then
-            ARTIFACT_PATTERN="shared.deb"
-          elif [ "${{ env.INSTALL_TYPE }}" = "appimage" ]; then
-            ARTIFACT_PATTERN="shared.AppImage"
-          else
-            echo "❌ Invalid install_type: ${{ env.INSTALL_TYPE }}"
-            exit 1
-          fi
+          # Find and download the shared RPM artifact
+          ARTIFACT_PATTERN="shared.rpm"
           
           ARTIFACT_ID=$(echo "$ARTIFACTS" | jq -r '.artifacts[] | select(.name | contains("'$ARTIFACT_PATTERN'")) | .id' | head -1)
           
           if [ -z "$ARTIFACT_ID" ] || [ "$ARTIFACT_ID" = "null" ]; then
-            echo "❌ No shared artifact matching pattern '$ARTIFACT_PATTERN' found in latest build"
+            echo "⚠️ No RPM artifact found in latest build, will use shell script for installation"
             echo "Available artifacts:"
             echo "$ARTIFACTS" | jq -r '.artifacts[].name'
-            exit 1
-          fi
-          
-          echo "📦 Found artifact: $ARTIFACT_ID"
-          
-          # Download the artifact
-          echo "⬇️ Downloading artifact..."
-          curl -L -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-            -o artifact.zip \
-            "https://api.github.com/repos/${{ github.repository }}/actions/artifacts/$ARTIFACT_ID/zip"
-          
-          # Extract the artifact file
-          unzip -j artifact.zip -d build/
-          
-          # Verify the correct file was extracted based on install_type
-          if [ "${{ env.INSTALL_TYPE }}" = "deb" ]; then
-            if ls build/*.deb 1> /dev/null 2>&1; then
-              echo "✅ DEB package extracted successfully"
-              ls -lh build/*.deb
+            echo "HAS_RPM=false" >> $GITHUB_ENV
+          else
+            echo "📦 Found artifact: $ARTIFACT_ID"
+            
+            # Download the artifact
+            echo "⬇️ Downloading artifact..."
+            curl -L -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+              -o artifact.zip \
+              "https://api.github.com/repos/${{ github.repository }}/actions/artifacts/$ARTIFACT_ID/zip"
+            
+            # Extract the artifact file
+            unzip -j artifact.zip -d build/
+            
+            if ls build/*.rpm 1> /dev/null 2>&1; then
+              echo "✅ RPM package extracted successfully"
+              ls -lh build/*.rpm
+              echo "HAS_RPM=true" >> $GITHUB_ENV
             else
-              echo "❌ Failed to extract DEB package"
-              exit 1
-            fi
-          elif [ "${{ env.INSTALL_TYPE }}" = "appimage" ]; then
-            if ls build/*.AppImage 1> /dev/null 2>&1; then
-              echo "✅ AppImage extracted successfully"
-              ls -lh build/*.AppImage
-            else
-              echo "❌ Failed to extract AppImage package"
-              exit 1
+              echo "⚠️ RPM artifact listed but not found after extraction"
+              echo "HAS_RPM=false" >> $GITHUB_ENV
             fi
           fi
           
-          echo "📦 Build artifacts ready in ./build directory:"
-          ls -la build/
-      - name: Build Docker image (Shared)
+          echo "📦 Build directory contents:"
+          ls -la build/ || echo "Build directory is empty"
+
+      - name: Extract and inspect RPM package contents (Fedora)
         run: |
-          echo "🔨 Building Docker image: ${{ env.DOCKER_IMAGE_SHARED }}:${{ env.DOCKER_TAG }}"
+          echo "📦 Extracting RPM package contents for inspection..."
+          
+          # Find the RPM file
+          RPM_FILE=$(find build -name "*.rpm" -type f | head -1)
+          
+          if [ -z "$RPM_FILE" ]; then
+            echo "⚠️ No RPM file found in build directory"
+            echo "Available files:"
+            ls -la build/ 2>/dev/null || echo "Build directory is empty"
+            exit 0
+          fi
+          
+          echo "✅ Found RPM file: $RPM_FILE"
+          echo "📊 RPM file size: $(ls -lh "$RPM_FILE" | awk '{print $5}')"
+          echo ""
+          
+          # Create extraction directory
+          RPM_EXTRACT_DIR="rpm-contents"
+          mkdir -p "$RPM_EXTRACT_DIR"
+          
+          echo "🔍 Extracting RPM package..."
+          # Use rpm2cpio to extract the RPM without installing it
+          rpm2cpio "$RPM_FILE" | cpio -idmv -D "$RPM_EXTRACT_DIR" 2>/dev/null || \
+          rpm2cpio "$RPM_FILE" | cpio -idmv -D "$RPM_EXTRACT_DIR"
+          
+          echo ""
+          echo "📂 RPM Package Contents Structure:"
+          echo "=================================="
+          tree "$RPM_EXTRACT_DIR" -L 3 2>/dev/null || find "$RPM_EXTRACT_DIR" -type f
+          
+          echo ""
+          echo "📋 Key Files and Binaries:"
+          echo "=========================="
+          
+          # Find executable binaries
+          echo "🔹 Executables:"
+          find "$RPM_EXTRACT_DIR" -type f -executable | grep -E "(bin|lib)"
+          
+          # Find libraries
+          echo ""
+          echo "🔹 Libraries (.so files):"
+          find "$RPM_EXTRACT_DIR" -type f -name "*.so*"
+          
+          # Find main openterface binary
+          echo ""
+          echo "🔹 OpenTerface binary location:"
+          find "$RPM_EXTRACT_DIR" -type f -name "*openterface*" -o -name "*openterfaceqt*" -o -name "*openterfaceQT*"
+          
+          # Check for Qt libraries
+          echo ""
+          echo "🔹 Qt Libraries:"
+          find "$RPM_EXTRACT_DIR" -type f -name "libQt*"
+          
+          # Check for configuration files
+          echo ""
+          echo "🔹 Configuration Files:"
+          find "$RPM_EXTRACT_DIR" -type f \( -name "*.conf" -o -name "*.yaml" -o -name "*.json" \)
+          
+          # Get RPM metadata
+          echo ""
+          echo "📋 RPM Package Metadata:"
+          echo "======================="
+          rpm -qip "$RPM_FILE"
+          
+          echo ""
+          echo "✅ RPM package inspection completed"
+      
+      - name: Build Docker image (Fedora)
+        run: |
+          echo "🔨 Building Docker image: ${{ env.DOCKER_IMAGE_FEDORA }}:${{ env.DOCKER_TAG }}"
           
           docker build \
-            -f docker/testos/Dockerfile.ubuntu-test-shared \
-            --build-arg INSTALL_TYPE=${{ env.INSTALL_TYPE }} \
-            -t ${{ env.DOCKER_IMAGE_SHARED }}:${{ env.DOCKER_TAG }} \
+            -f docker/testos/Dockerfile.fedora-test-shared \
+            --build-arg INSTALL_TYPE=rpm \
+            -t ${{ env.DOCKER_IMAGE_FEDORA }}:${{ env.DOCKER_TAG }} \
             docker/
           
           echo "📦 Docker image built successfully"
-          echo "Note: Build artifacts will be passed at runtime if available"
 
       - name: Prepare volume mounts for build artifacts
         run: |
           echo "📦 Checking for build artifacts to mount..."
           
-          # Determine artifact pattern based on install type
-          if [ "${{ env.INSTALL_TYPE }}" = "deb" ]; then
-            ARTIFACT_PATTERN="*.deb"
-            ARTIFACT_TYPE="DEB"
-          elif [ "${{ env.INSTALL_TYPE }}" = "appimage" ]; then
-            ARTIFACT_PATTERN="*.AppImage"
-            ARTIFACT_TYPE="AppImage"
-          fi
-          
-          # Check if we have the appropriate build artifacts to mount
-          if [ -d build ] && [ -n "$(find build -name "$ARTIFACT_PATTERN" 2>/dev/null)" ]; then
-            echo "✅ Found $ARTIFACT_TYPE build artifacts"
+          # Check if we have RPM build artifacts to mount
+          if [ -d build ] && [ -n "$(find build -name "*.rpm" 2>/dev/null)" ]; then
+            echo "✅ Found RPM build artifacts"
             VOLUME_MOUNT="-v $(pwd)/build:/tmp/build-artifacts:ro"
             echo "VOLUME_MOUNT=$VOLUME_MOUNT" >> $GITHUB_ENV
             echo "HAS_VOLUME_MOUNT=true" >> $GITHUB_ENV
             ls -lh build/
           else
-            echo "ℹ️ No $ARTIFACT_TYPE build artifacts found (will download from GitHub)"
+            echo "ℹ️ No RPM build artifacts found (will download from GitHub)"
             echo "VOLUME_MOUNT=" >> $GITHUB_ENV
             echo "HAS_VOLUME_MOUNT=false" >> $GITHUB_ENV
           fi
@@ -170,148 +205,43 @@ jobs:
           # Pass GITHUB_TOKEN to Docker containers for artifact downloads
           echo "GITHUB_TOKEN_ENV=-e GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }}" >> $GITHUB_ENV
 
-      - name: Verify Docker image (Shared)
+      - name: Verify Docker image (Fedora)
         run: |
-          echo "�?Verifying Docker image was built successfully"
-          docker images | grep ${{ env.DOCKER_IMAGE_SHARED }}
+          echo "🔍 Verifying Docker image was built successfully"
+          docker images | grep ${{ env.DOCKER_IMAGE_FEDORA }}
           
           echo "📊 Image information:"
-          docker inspect ${{ env.DOCKER_IMAGE_SHARED }}:${{ env.DOCKER_TAG }} --format='{{.Config.Env}}'
-          docker inspect ${{ env.DOCKER_IMAGE_SHARED }}:${{ env.DOCKER_TAG }} --format='{{.Config.User}}'
-          docker inspect ${{ env.DOCKER_IMAGE_SHARED }}:${{ env.DOCKER_TAG }} --format='{{.Config.WorkingDir}}'
+          docker inspect ${{ env.DOCKER_IMAGE_FEDORA }}:${{ env.DOCKER_TAG }} --format='{{.Config.Env}}'
+          docker inspect ${{ env.DOCKER_IMAGE_FEDORA }}:${{ env.DOCKER_TAG }} --format='{{.Config.User}}'
+          docker inspect ${{ env.DOCKER_IMAGE_FEDORA }}:${{ env.DOCKER_TAG }} --format='{{.Config.WorkingDir}}'
           
           echo "🔍 Image CMD and Entrypoint:"
-          docker inspect ${{ env.DOCKER_IMAGE_SHARED }}:${{ env.DOCKER_TAG }} --format='{{.Config.Cmd}}'
-          docker inspect ${{ env.DOCKER_IMAGE_SHARED }}:${{ env.DOCKER_TAG }} --format='{{.Config.Entrypoint}}'
+          docker inspect ${{ env.DOCKER_IMAGE_FEDORA }}:${{ env.DOCKER_TAG }} --format='{{.Config.Cmd}}'
+          docker inspect ${{ env.DOCKER_IMAGE_FEDORA }}:${{ env.DOCKER_TAG }} --format='{{.Config.Entrypoint}}'
           
           echo "🔍 Image layers (last 10):"
-          docker history ${{ env.DOCKER_IMAGE_SHARED }}:${{ env.DOCKER_TAG }} | head -10
+          docker history ${{ env.DOCKER_IMAGE_FEDORA }}:${{ env.DOCKER_TAG }} | head -10
 
-      - name: Show all included libraries in AppImage (Shared)
-        if: matrix.install_type == 'appimage'
-        run: |
-          echo "📚 Analyzing AppImage included libraries"
-          
-          # Find the AppImage file with absolute path
-          APPIMAGE=$(find build -name "*.AppImage" -type f | head -1)
-          
-          if [ -z "$APPIMAGE" ] || [ ! -f "$APPIMAGE" ]; then
-            echo "⚠️ AppImage file not found in build directory"
-            echo "Available files:"
-            ls -la build/
-            exit 1
-          fi
-          
-          # Convert to absolute path
-          APPIMAGE=$(cd "$(dirname "$APPIMAGE")" && pwd)/$(basename "$APPIMAGE")
-          
-          echo "Found AppImage: $APPIMAGE"
-          echo "File size: $(ls -lh "$APPIMAGE" | awk '{print $5}')"
-          echo ""
-          
-          # Extract AppImage contents without mounting
-          echo "📂 Extracting AppImage contents:"
-          echo "==============================="
-          
-          EXTRACT_DIR=$(mktemp -d)
-          trap "rm -rf $EXTRACT_DIR" EXIT
-          
-          cd "$EXTRACT_DIR"
-          
-          # AppImage is a special ELF file that can be executed with --appimage-extract
-          echo "🔧 Attempting AppImage extraction with --appimage-extract..."
-          
-          if "$APPIMAGE" --appimage-extract >/dev/null 2>&1; then
-            echo "✅ Extraction successful using --appimage-extract"
-          else
-            echo "⚠️ --appimage-extract failed, trying alternative method..."
-            
-            # Alternative: AppImage is essentially a .squashfs archive
-            if command -v unsquashfs >/dev/null 2>&1; then
-              echo "ℹ️ Attempting SquashFS extraction..."
-              tail -c +100000 "$APPIMAGE" 2>/dev/null | unsquashfs -d squashfs-root - 2>/dev/null && \
-              echo "✅ SquashFS extraction successful" || echo "⚠️ SquashFS extraction failed"
-            else
-              echo "⚠️ unsquashfs not available"
-            fi
-          fi
-          
-          # Now list all the libraries found
-          if [ -d "$EXTRACT_DIR/squashfs-root" ] || [ -n "$(find "$EXTRACT_DIR" -name "*.so*" 2>/dev/null | head -1)" ]; then
-            echo ""
-            echo "📚 All libraries included in AppImage:"
-            echo "======================================"
-            find "$EXTRACT_DIR" -type f \( -name "*.so*" -o -name "*.la" \) 2>/dev/null | sort
-            
-            # Count different types
-            echo ""
-            echo "📊 Library Statistics:"
-            echo "====================="
-            SO_COUNT=$(find "$EXTRACT_DIR" -type f -name "*.so*" 2>/dev/null | wc -l)
-            LA_COUNT=$(find "$EXTRACT_DIR" -type f -name "*.la" 2>/dev/null | wc -l)
-            echo "  Shared objects (.so*): $SO_COUNT"
-            echo "  Libtool archives (.la): $LA_COUNT"
-            echo "  Total: $((SO_COUNT + LA_COUNT))"
-            
-            # Get Qt libraries
-            QT_LIBS=$(find "$EXTRACT_DIR" -type f -name "libQt*.so*" 2>/dev/null)
-            if [ -n "$QT_LIBS" ]; then
-              echo ""
-              echo "🎨 Qt Libraries:"
-              echo "================"
-              echo "$QT_LIBS" | sort
-            fi
-            
-            # Get FFmpeg/GStreamer libraries
-            MEDIA_LIBS=$(find "$EXTRACT_DIR" -type f \( -name "libav*.so*" -o -name "libsw*.so*" -o -name "libgst*.so*" \) 2>/dev/null)
-            if [ -n "$MEDIA_LIBS" ]; then
-              echo ""
-              echo "🎬 Media Libraries (FFmpeg/GStreamer):"
-              echo "======================================"
-              echo "$MEDIA_LIBS" | sort
-            fi
-            
-            # Get USB/Device libraries
-            USB_LIBS=$(find "$EXTRACT_DIR" -type f \( -name "libusb*.so*" -o -name "libudev*.so*" \) 2>/dev/null)
-            if [ -n "$USB_LIBS" ]; then
-              echo ""
-              echo "🔌 USB/Device Libraries:"
-              echo "======================="
-              echo "$USB_LIBS" | sort
-            fi
-          else
-            echo "⚠️ Could not extract AppImage contents"
-            echo "Attempting to list AppImage format information..."
-            file "$APPIMAGE"
-            echo ""
-            echo "Checking AppImage ELF headers..."
-            readelf -l "$APPIMAGE" 2>/dev/null | head -20 || strings "$APPIMAGE" | head -30
-          fi
-          
-          echo ""
-          echo "✅ AppImage library analysis completed"
-
-      - name: Start persistent container for testing (Shared)
+      - name: Start persistent container for testing (Fedora)
         timeout-minutes: 15
         env:
           HAS_VOLUME_MOUNT: ${{ env.HAS_VOLUME_MOUNT }}
           VOLUME_MOUNT: ${{ env.VOLUME_MOUNT }}
-          INSTALL_TYPE: ${{ env.INSTALL_TYPE }}
-          DOCKER_IMAGE_SHARED: ${{ env.DOCKER_IMAGE_SHARED }}
+          DOCKER_IMAGE_FEDORA: ${{ env.DOCKER_IMAGE_FEDORA }}
           DOCKER_TAG: ${{ env.DOCKER_TAG }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           echo "🧪 Starting persistent container for all subsequent tests"
           
           # Set environment variable to track container name
-          echo "TEST_CONTAINER_NAME=openterface-test-persistent" >> $GITHUB_ENV
+          echo "TEST_CONTAINER_NAME=openterface-test-fedora-persistent" >> $GITHUB_ENV
           
           # Build docker run command
           DOCKER_RUN_CMD="docker run -d \
-            --name openterface-test-persistent \
+            --name openterface-test-fedora-persistent \
             -e DISPLAY=:98 \
             -e GITHUB_TOKEN=${GITHUB_TOKEN} \
-            -e INSTALL_TYPE=${INSTALL_TYPE} \
+            -e INSTALL_TYPE=rpm \
             -e QT_X11_NO_MITSHM=1 \
             -e QT_QPA_PLATFORM=xcb \
             -e LC_ALL=C.UTF-8 \
@@ -326,11 +256,10 @@ jobs:
           fi
           
           # Add image
-          DOCKER_RUN_CMD="$DOCKER_RUN_CMD ${DOCKER_IMAGE_SHARED}:${DOCKER_TAG}"
+          DOCKER_RUN_CMD="$DOCKER_RUN_CMD ${DOCKER_IMAGE_FEDORA}:${DOCKER_TAG}"
           
           echo "📋 Starting container with config:"
-          echo "  Image: ${DOCKER_IMAGE_SHARED}:${DOCKER_TAG}"
-          echo "  Install Type: ${INSTALL_TYPE}"
+          echo "  Image: ${DOCKER_IMAGE_FEDORA}:${DOCKER_TAG}"
           echo "  Volume Mount: ${VOLUME_MOUNT:-none}"
           echo "  GITHUB_TOKEN: $(echo ${GITHUB_TOKEN} | cut -c1-20)..."
           echo ""
@@ -387,12 +316,11 @@ jobs:
           # Give the container a moment to settle
           sleep 2
           
-          # Verify container is still running (with better diagnostics)
+          # Verify container is still running
           echo ""
           echo "🔍 Verifying container status..."
           echo "Container ID: $CONTAINER_ID"
           
-          # Check if container exists and is running
           CONTAINER_STATUS=$(docker inspect -f '{{.State.Running}}' $CONTAINER_ID 2>/dev/null || echo "error")
           echo "Container status check: $CONTAINER_STATUS"
           
@@ -400,25 +328,11 @@ jobs:
               echo "✅ Container is running and ready for tests"
           else
               echo "⚠️ Container is not in running state (Status: $CONTAINER_STATUS)"
-              echo "Container may have exited due to installation failure"
               echo "Full container inspection:"
               docker inspect $CONTAINER_ID 2>&1 | head -40 || echo "Container not found"
               echo ""
               echo "Last 40 lines of logs:"
               docker logs $CONTAINER_ID 2>&1 | tail -40 | sed 's/^/  /' || echo "Could not retrieve logs"
-              echo ""
-              
-              # Try to restart the container or provide recovery info
-              echo "🔧 Attempting recovery..."
-              if docker ps -a --filter "id=$CONTAINER_ID" --format '{{.State}}' 2>/dev/null | grep -q "exited"; then
-                  echo "ℹ️ Container exited. Providing installation logs for debugging:"
-                  docker logs $CONTAINER_ID 2>&1 | grep -A5 -B5 "Installation\|failed\|error" | head -50
-              fi
-              
-              # Don't exit hard - allow downstream steps to diagnose
-              echo ""
-              echo "⚠️ WARNING: Container not ready, but continuing to next steps for diagnostics"
-              # exit 1  # Removed to allow diagnostics steps to run
           fi
           
           # Display full container logs
@@ -426,13 +340,11 @@ jobs:
           echo "📋 Full Container Logs:"
           echo "=================================================="
           
-          # Get all logs
           ALL_LOGS=$(docker logs $CONTAINER_ID 2>&1)
           TOTAL_LINES=$(echo "$ALL_LOGS" | wc -l)
           
           echo "Total container log lines: $TOTAL_LINES"
           echo ""
-          
           echo "📌 CONTAINER LOGS - FULL OUTPUT:"
           echo "---"
           echo "$ALL_LOGS"
@@ -443,8 +355,6 @@ jobs:
           echo ""
           echo "📋 Running Processes in Container:"
           echo "=================================================="
-          echo "Installation Type: $INSTALL_TYPE"
-          echo ""
           docker exec $CONTAINER_ID bash -c '
             echo "🔍 All running processes:"
             ps auxf
@@ -453,37 +363,28 @@ jobs:
             ps aux | grep -i openterface || echo "No openterface processes found"
             echo ""
             echo "🔍 Checking installation type:"
-            if [ -d "/opt/openterface" ]; then
-              echo "✅ DEB installation detected - Files in /opt/openterface:"
-              ls -la /opt/openterface/ 2>/dev/null | head -20 || echo "Directory not found"
-              echo ""
+            if [ -f "/etc/redhat-release" ]; then
+              echo "✅ Fedora/RHEL system detected"
               echo "Installed packages:"
-              dpkg -l | grep -i openterface || echo "No openterface packages found"
+              dnf list installed 2>/dev/null | grep -i openterface || echo "No openterface packages found"
             fi
             
-            if ls /tmp/*.AppImage 2>/dev/null | grep -i openterface >/dev/null 2>&1; then
-              echo "✅ AppImage installation detected:"
-              ls -lh /tmp/*.AppImage 2>/dev/null | grep -i openterface
-            fi
-            
-            echo ""
-            echo "🔍 Installation method verification:"
             if [ -f /etc/openterface/openterface.conf ]; then
               echo "✅ Configuration file found at /etc/openterface/openterface.conf"
               cat /etc/openterface/openterface.conf 2>/dev/null | head -10
             fi
             
             if [ -x /opt/openterface/bin/openterfaceqt ] || [ -x /usr/bin/openterfaceqt ]; then
-              echo "✅ DEB binary found in /opt/openterface/bin/ or /usr/bin/"
+              echo "✅ Binary found in /opt/openterface/bin/ or /usr/bin/"
               which openterfaceqt 2>/dev/null || echo "openterfaceqt not in PATH"
             fi
           ' || echo "⚠️ Could not retrieve process information"
           echo "=================================================="
           echo ""
           
-          # Display Openterface app logs for troubleshooting
+          # Display application logs
           echo ""
-          echo "📋 Openterface Application Logs (First 30 and Last 30 lines):"
+          echo "📋 Openterface Application Logs:"
           echo "=================================================="
           docker exec $CONTAINER_ID bash -c '
             if [ -f /tmp/openterfaceqt.log ]; then
@@ -513,22 +414,20 @@ jobs:
           echo "=================================================="
           echo ""
 
-      - name: Test basic container functionality (Shared)
+      - name: Test basic container functionality (Fedora)
         timeout-minutes: 5
         run: |
           echo "🧪 Testing basic container functionality on persistent container"
           
           CONTAINER_ID="${{ env.CONTAINER_ID }}"
           
-          # Test simple command execution
-          echo "🔍 Testing simple command execution..."
           docker exec $CONTAINER_ID bash -c '
             echo "✅ Container can execute commands"
             whoami
             pwd
             echo "User ID:" $(id)
             echo "Environment variables:"
-            env | grep -E "HOME|USER|DISPLAY|QT_|GITHUB_TOKEN|INSTALL_TYPE" | head -10
+            env | grep -E "HOME|USER|DISPLAY|QT_|GITHUB_TOKEN" | head -10
             echo "File system check:"
             ls -la /home/openterface/ | head -5 || echo "Directory not found"
             echo "✅ Basic functionality test completed"
@@ -536,37 +435,36 @@ jobs:
           
           echo "✅ Basic container functionality test passed"
      
-      - name: Test hardware interface dependencies (Shared)
+      - name: Test hardware interface dependencies (Fedora)
         timeout-minutes: 5
         run: |
           echo "🧪 Testing hardware interface dependencies on persistent container"
           
           CONTAINER_ID="${{ env.CONTAINER_ID }}"
           
-          # Check system libraries directly
           docker exec $CONTAINER_ID bash -c '
             echo "🔍 Checking USB libraries..."
-            dpkg -l | grep libusb || echo "No libusb packages found"
+            dnf list installed 2>/dev/null | grep libusb || echo "No libusb packages found"
             
             echo "🔍 Checking udev libraries..."
-            dpkg -l | grep libudev || echo "No libudev packages found"
+            dnf list installed 2>/dev/null | grep libudev || echo "No libudev packages found"
             
             echo "🔍 Checking FFmpeg libraries..."
-            dpkg -l | grep libav | head -5 || echo "No FFmpeg packages found"
+            dnf list installed 2>/dev/null | grep ffmpeg | head -5 || echo "No FFmpeg packages found"
             
             echo "🔍 Checking GStreamer..."
-            dpkg -l | grep gstreamer | head -5 || echo "No GStreamer packages found"
+            dnf list installed 2>/dev/null | grep gstreamer | head -5 || echo "No GStreamer packages found"
             
             echo "✅ Hardware interface dependencies check completed"
           '
       
-      - name: GUI screenshot test on persistent container (Shared)
+      - name: GUI screenshot test on persistent container (Fedora)
         timeout-minutes: 10
         run: |
           echo "🧪 Taking screenshots from persistent container"
           
           CONTAINER_ID="${{ env.CONTAINER_ID }}"
-          SCREENSHOTS_DIR="screenshots-shared"
+          SCREENSHOTS_DIR="screenshots-fedora"
           mkdir -p $SCREENSHOTS_DIR
           
           echo "📸 Preparing to take screenshots..."
@@ -575,7 +473,7 @@ jobs:
           echo "⏳ Waiting 5 seconds for app to render..."
           sleep 5
           
-          # Check container status using docker inspect (more reliable than docker ps | grep)
+          # Check container status
           CONTAINER_STATUS=$(docker inspect -f '{{.State.Running}}' $CONTAINER_ID 2>/dev/null || echo "error")
           
           if [ "$CONTAINER_STATUS" != "true" ]; then
@@ -592,7 +490,6 @@ jobs:
           echo "🔍 Checking X11 display..."
           if docker exec $CONTAINER_ID sh -c "DISPLAY=:98 xdpyinfo >/dev/null 2>&1"; then
               echo "✅ X11 display :98 is available"
-              # Get display resolution
               DISPLAY_RES=$(docker exec $CONTAINER_ID sh -c "DISPLAY=:98 xdpyinfo 2>/dev/null | grep 'dimensions:' | awk '{print \$2}'" || echo "unknown")
               echo "📊 Display resolution: $DISPLAY_RES"
           else
@@ -605,10 +502,9 @@ jobs:
           container_screenshot="/tmp/screenshot_${timestamp}.jpg"
           screenshot_jpg="$SCREENSHOTS_DIR/openterface_app_${timestamp}.jpg"
           
-          # Try multiple screenshot methods in order of reliability
           SCREENSHOT_SUCCESS=false
           
-          # Method 1: Use xwd + convert (most reliable for full resolution)
+          # Method 1: Use xwd + convert
           if ! $SCREENSHOT_SUCCESS; then
               echo "📌 Attempting screenshot method 1: xwd + convert..."
               if docker exec $CONTAINER_ID sh -c "DISPLAY=:98 xwd -root 2>/dev/null | convert xwd:- -quality 100 -geometry 1920x1080 $container_screenshot 2>&1"; then
@@ -619,7 +515,7 @@ jobs:
               fi
           fi
           
-          # Method 2: Use scrot (screenshot tool, may not be available)
+          # Method 2: Use scrot
           if ! $SCREENSHOT_SUCCESS; then
               echo "📌 Attempting screenshot method 2: scrot..."
               if docker exec $CONTAINER_ID sh -c "DISPLAY=:98 scrot -z $container_screenshot 2>&1"; then
@@ -630,20 +526,9 @@ jobs:
               fi
           fi
           
-          # Method 3: Use gnome-screenshot (GNOME/GTK environment)
+          # Method 3: Use import with explicit geometry
           if ! $SCREENSHOT_SUCCESS; then
-              echo "📌 Attempting screenshot method 3: gnome-screenshot..."
-              if docker exec $CONTAINER_ID sh -c "DISPLAY=:98 gnome-screenshot -f $container_screenshot 2>&1"; then
-                  SCREENSHOT_SUCCESS=true
-                  echo "✅ Screenshot captured using gnome-screenshot"
-              else
-                  echo "⚠️ gnome-screenshot method failed, trying alternative..."
-              fi
-          fi
-          
-          # Method 4: Use import with explicit geometry (fallback, may scale down)
-          if ! $SCREENSHOT_SUCCESS; then
-              echo "📌 Attempting screenshot method 4: import with explicit geometry..."
+              echo "📌 Attempting screenshot method 3: import with explicit geometry..."
               if docker exec $CONTAINER_ID sh -c "DISPLAY=:98 import -window root -quality 100 -geometry 1920x1080 $container_screenshot 2>&1"; then
                   SCREENSHOT_SUCCESS=true
                   echo "✅ Screenshot captured using import with geometry"
@@ -656,13 +541,11 @@ jobs:
               if docker cp "$CONTAINER_ID:$container_screenshot" "$screenshot_jpg" 2>/dev/null; then
                   echo "✅ Screenshot copied to host: $screenshot_jpg"
                   
-                  # Analyze screenshot
                   if command -v identify >/dev/null 2>&1; then
                       filesize=$(ls -lh "$screenshot_jpg" | awk '{print $5}')
                       dimensions=$(identify "$screenshot_jpg" | awk '{print $3}')
                       echo "📊 Screenshot info: $filesize, Dimensions: $dimensions"
                       
-                      # Warn if resolution is not 1920x1080
                       if [ "$dimensions" != "1920x1080" ]; then
                           echo "⚠️ WARNING: Screenshot resolution is $dimensions, expected 1920x1080"
                       fi
@@ -674,42 +557,41 @@ jobs:
           else
               echo "❌ All screenshot methods failed"
               
-              # Show diagnostics
               echo "📋 Container logs (last 20 lines):"
               docker logs $CONTAINER_ID 2>&1 | tail -20 | sed 's/^/  /'
               exit 1
           fi
           
-          # List screenshots
           if [ -d "$SCREENSHOTS_DIR" ]; then
               echo ""
               echo "📊 Screenshots generated:"
               ls -lh $SCREENSHOTS_DIR/
           fi
-      - name: Display screenshots in summary (Shared)
+
+      - name: Display screenshots in summary (Fedora)
         if: always()
         env:
           IMGBB_API_KEY: ${{ secrets.IMGBB_API_KEY }}
         run: |
-          echo "🔍 DEBUG: Starting screenshot summary generation"
+          echo "🔍 DEBUG: Starting screenshot summary generation (Fedora)"
           echo "📁 Checking for screenshots directory..."
-          ls -la screenshots-shared/ 2>&1 || echo "Directory not found"
+          ls -la screenshots-fedora/ 2>&1 || echo "Directory not found"
           
           # Start the summary
-          echo "# GUI Screenshots - Shared Build (${{ env.INSTALL_TYPE }})" >> $GITHUB_STEP_SUMMARY
+          echo "# GUI Screenshots - Fedora Testing" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Build Type**: Shared Library" >> $GITHUB_STEP_SUMMARY
+          echo "**Build Type**: Fedora Testing" >> $GITHUB_STEP_SUMMARY
           echo "**Commit**: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
           echo "**Timestamp**: $(date -u)" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           
-          if [ -d "screenshots-shared" ] && [ "$(ls -A screenshots-shared/*.jpg 2>/dev/null)" ]; then
+          if [ -d "screenshots-fedora" ] && [ "$(ls -A screenshots-fedora/*.jpg 2>/dev/null)" ]; then
             echo "✅ Screenshots directory found"
             echo "## Test Results" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
             
-            total_jpgs=$(find screenshots-shared/ -name "*.jpg" 2>/dev/null | wc -l)
-            content_jpgs=$(find screenshots-shared/ -name "*.jpg" -exec identify -ping -format "%[mean]" {} \; 2>/dev/null | awk -F. '{if($1 > 100) count++} END {print count+0}')
+            total_jpgs=$(find screenshots-fedora/ -name "*.jpg" 2>/dev/null | wc -l)
+            content_jpgs=$(find screenshots-fedora/ -name "*.jpg" -exec identify -ping -format "%[mean]" {} \; 2>/dev/null | awk -F. '{if($1 > 100) count++} END {print count+0}')
             
             echo "📊 Found $total_jpgs screenshots with $content_jpgs containing content"
             
@@ -730,23 +612,22 @@ jobs:
             api_key_shown=0
             upload_failed=0
             
-            for img in screenshots-shared/*.jpg; do
+            for img in screenshots-fedora/*.jpg; do
               if [ -f "$img" ]; then
                 filename=$(basename "$img")
                 screenshot_count=$((screenshot_count + 1))
                 
-                artifact_name="screenshot-shared-${screenshot_count}-$(echo "$filename" | sed 's/[^a-zA-Z0-9.-]/_/g')"
-                echo "$artifact_name|$img" >> /tmp/screenshot_artifacts_shared.txt
+                artifact_name="screenshot-fedora-${screenshot_count}-$(echo "$filename" | sed 's/[^a-zA-Z0-9.-]/_/g')"
+                echo "$artifact_name|$img" >> /tmp/screenshot_artifacts_fedora.txt
                 
                 filesize=$(ls -lh "$img" | awk '{print $5}')
                 
-                # Add basic screenshot info to summary first
                 echo "### Screenshot $screenshot_count: $filename" >> $GITHUB_STEP_SUMMARY
                 echo "" >> $GITHUB_STEP_SUMMARY
                 echo "**Size:** $filesize" >> $GITHUB_STEP_SUMMARY
                 echo "" >> $GITHUB_STEP_SUMMARY
                 
-                # Determine if screenshot has content based on file size (more reliable than color analysis)
+                # Determine if screenshot has content based on file size
                 actual_size=$(stat -f%z "$img" 2>/dev/null || stat -c%s "$img" 2>/dev/null || echo 0)
                 if [ "$actual_size" -gt 50000 ]; then
                   echo "**Status:** ✅ Content detected ($(($actual_size / 1024))KB)" >> $GITHUB_STEP_SUMMARY
@@ -757,24 +638,18 @@ jobs:
                 
                 if [ -n "$IMGBB_API_KEY" ]; then
                   echo "📤 Uploading $filename to ImgBB..."
-                  # Capture only the final URL, suppress all debug output
                   UPLOAD_OUTPUT=$(https_proxy="" IMGBB_API_KEY="$IMGBB_API_KEY" timeout 120 ./docker/upload_to_imgbb.sh "$img" 2>&1)
                   
-                  # Try multiple extraction patterns to handle different escaping
-                  # Pattern 1: Unescaped URLs (https://i.ibb.co/...)
                   UPLOAD_URL=$(echo "$UPLOAD_OUTPUT" | grep -oE 'https://i\.ibb\.co/[^ "]*' | head -1)
                   
-                  # Pattern 2: Escaped URLs (https:\/\/i.ibb.co\/...) - use | as sed delimiter to avoid conflicts
                   if [ -z "$UPLOAD_URL" ]; then
                     UPLOAD_URL=$(echo "$UPLOAD_OUTPUT" | grep -oE 'https:\\/\\/i\.ibb\.co\\/[^ "]*' | head -1 | sed 's|\\/|/|g')
                   fi
                   
-                  # Pattern 3: IMAGE URL line - use | as sed delimiter
                   if [ -z "$UPLOAD_URL" ]; then
                     UPLOAD_URL=$(echo "$UPLOAD_OUTPUT" | grep "IMAGE URL:" | grep -oE 'https[^ ]*' | sed 's|\\/|/|g' | head -1)
                   fi
                   
-                  # Pattern 4: Get the last non-empty line that looks like a URL - use | as sed delimiter
                   if [ -z "$UPLOAD_URL" ]; then
                     UPLOAD_URL=$(echo "$UPLOAD_OUTPUT" | grep -E '^https' | tail -1 | sed 's|\\/|/|g')
                   fi
@@ -786,10 +661,9 @@ jobs:
                     echo "[View Full Size]($UPLOAD_URL)" >> $GITHUB_STEP_SUMMARY
                     echo "" >> $GITHUB_STEP_SUMMARY
                   else
-                    echo "⚠️  Upload URL extraction inconclusive for $filename"
+                    echo "⚠️ Upload URL extraction inconclusive for $filename"
                     echo "   Raw output (last 10 lines):"
                     echo "$UPLOAD_OUTPUT" | tail -10 | sed 's|^|   |'
-                    # Still try to extract from raw output as fallback
                     echo "   Attempting URL recovery..."
                     FALLBACK_URL=$(echo "$UPLOAD_OUTPUT" | grep -o 'https[^[:space:]]*' | tail -1 | sed 's|\\/|/|g')
                     if [ -n "$FALLBACK_URL" ] && echo "$FALLBACK_URL" | grep -q 'ibb.co'; then
@@ -820,71 +694,62 @@ jobs:
               echo "" >> $GITHUB_STEP_SUMMARY
               echo "Since ImgBB upload is not available, all screenshots are saved as artifacts:" >> $GITHUB_STEP_SUMMARY
               echo "" >> $GITHUB_STEP_SUMMARY
-              echo "- **openterface-gui-screenshots-shared-${{ env.INSTALL_TYPE }}-collection** - All screenshots" >> $GITHUB_STEP_SUMMARY
-              echo "- **openterface-gui-screenshots-shared-${{ env.INSTALL_TYPE }}-individual** - Individual images" >> $GITHUB_STEP_SUMMARY
+              echo "- **openterface-gui-screenshots-fedora-collection** - All screenshots" >> $GITHUB_STEP_SUMMARY
+              echo "- **openterface-gui-screenshots-fedora-individual** - Individual images" >> $GITHUB_STEP_SUMMARY
               echo "" >> $GITHUB_STEP_SUMMARY
             fi
             
             echo "" >> $GITHUB_STEP_SUMMARY
             echo "## 📋 Step Logs" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
-            echo "See the logs of the **GUI screenshot test using proven script** step for detailed test output." >> $GITHUB_STEP_SUMMARY
+            echo "See the logs of the **GUI screenshot test on persistent container (Fedora)** step for detailed test output." >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
             
           else
             echo "❌ Screenshots directory not found or empty"
             echo "## No Screenshots Available" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
-            echo "No screenshots were generated during the test. Please check the logs of the **GUI screenshot test using proven script** step for details." >> $GITHUB_STEP_SUMMARY
+            echo "No screenshots were generated during the test. Please check the logs of the **GUI screenshot test on persistent container (Fedora)** step for details." >> $GITHUB_STEP_SUMMARY
           fi
-      - name: Upload individual screenshots (Shared)
+
+      - name: Upload individual screenshots (Fedora)
         if: always()
         run: |
           echo "📤 Uploading individual screenshots as artifacts"
           
-          # Create temp directory for individual screenshots
-          mkdir -p /tmp/individual_screenshots
+          mkdir -p /tmp/individual_screenshots_fedora
           
-          # Upload each screenshot separately if the artifacts list exists
-          if [ -f /tmp/screenshot_artifacts_shared.txt ]; then
+          if [ -f /tmp/screenshot_artifacts_fedora.txt ]; then
             while IFS='|' read -r artifact_name img_path; do
               if [ -f "$img_path" ]; then
-                # Copy screenshot to temp directory with clean name
-                cp "$img_path" "/tmp/individual_screenshots/$(basename "$img_path")"
+                cp "$img_path" "/tmp/individual_screenshots_fedora/$(basename "$img_path")"
                 echo "Prepared: $img_path -> $artifact_name"
               fi
-            done < /tmp/screenshot_artifacts_shared.txt
+            done < /tmp/screenshot_artifacts_fedora.txt
           fi
-          
-          # Also upload the full collection as backup
-          if [ -d "screenshots-shared" ] && [ "$(ls -A screenshots-shared/*.jpg 2>/dev/null)" ]; then
-            echo "📁 Also creating full screenshots collection"
-          fi
-      - name: Upload screenshots collection (Shared)
+
+      - name: Upload screenshots collection (Fedora)
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: openterface-gui-screenshots-shared-${{ env.INSTALL_TYPE }}-collection
-          path: screenshots-shared/
+          name: openterface-gui-screenshots-fedora-collection
+          path: screenshots-fedora/
           if-no-files-found: warn
 
-      - name: Upload individual screenshots as artifacts (Shared)
+      - name: Upload individual screenshots as artifacts (Fedora)
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: openterface-gui-screenshots-shared-${{ env.INSTALL_TYPE }}-individual
-          path: /tmp/individual_screenshots/
+          name: openterface-gui-screenshots-fedora-individual
+          path: /tmp/individual_screenshots_fedora/
           if-no-files-found: warn
 
-      - name: Test container with simulated USB devices (Shared)
+      - name: Test container with simulated USB devices (Fedora)
         timeout-minutes: 5
         run: |
           echo "🧪 Testing container with simulated USB device access on persistent container"
           
           CONTAINER_ID="${{ env.CONTAINER_ID }}"
-          
-          # Test USB device access using the already running persistent container
-          echo "Testing USB device access on container: $CONTAINER_ID"
           
           docker exec "$CONTAINER_ID" bash -c '
             echo "🔍 Checking USB device access..."
@@ -904,36 +769,30 @@ jobs:
             
             echo "✅ USB device access test completed"
           ' || echo "⚠️ USB device access test skipped - container not available"
-      - name: Clean up Docker resources (Shared)
+
+      - name: Clean up Docker resources (Fedora)
         if: always()
         timeout-minutes: 5
         run: |
-          echo "🧹 Cleaning up Docker resources (Shared)"
+          echo "🧹 Cleaning up Docker resources (Fedora)"
           
-          # Kill any hanging containers immediately (don't wait for graceful shutdown)
           echo "1️⃣ Force killing all openterface containers..."
           docker ps -aq --filter "name=openterface-" | xargs -r docker kill 2>/dev/null || true
           
-          # Wait a moment for kills to take effect
           sleep 1
           
-          # Remove test containers (force remove any remaining)
           echo "2️⃣ Force removing all openterface containers..."
           docker ps -aq --filter "name=openterface-" | xargs -r docker rm -f 2>/dev/null || true
           
-          # Remove test image
           echo "3️⃣ Removing test image..."
-          docker rmi ${{ env.DOCKER_IMAGE_SHARED }}:${{ env.DOCKER_TAG }} 2>/dev/null || true
+          docker rmi ${{ env.DOCKER_IMAGE_FEDORA }}:${{ env.DOCKER_TAG }} 2>/dev/null || true
           
-          # Additional safety: kill any dangling docker processes at OS level
           echo "4️⃣ Killing dangling docker processes..."
           pkill -9 -f "docker run.*openterface" 2>/dev/null || true
           
-          # Use killall as well
           killall -9 docker 2>/dev/null || true
           sleep 1
           
-          # Verify cleanup
           echo "5️⃣ Verifying cleanup..."
           remaining=$(docker ps -aq --filter "name=openterface-" 2>/dev/null | wc -l)
           if [ "$remaining" -gt 0 ]; then
@@ -944,141 +803,3 @@ jobs:
           else
             echo "✅ All containers cleaned up successfully"
           fi
-  generate-combined-report:
-    if: always()
-    needs: [build-test-shared]
-    runs-on: ubuntu-24.04
-    timeout-minutes: 30
-    
-    steps:
-      - name: Emergency cleanup (if build-test-shared hung)
-        timeout-minutes: 5
-        run: |
-          echo "🛑 Performing emergency docker cleanup..."
-          
-          # Kill any zombie containers from previous job
-          echo "1️⃣ Killing all docker containers..."
-          docker ps -aq | xargs -r docker kill 2>/dev/null || true
-          
-          sleep 1
-          
-          echo "2️⃣ Removing all docker containers..."
-          docker ps -aq | xargs -r docker rm -f 2>/dev/null || true
-          
-          # Kill processes aggressively
-          echo "3️⃣ Killing docker processes..."
-          pkill -9 -f "docker run" 2>/dev/null || true
-          pkill -9 -f "docker" 2>/dev/null || true
-          
-          # More aggressive: kill all bash processes running docker commands
-          echo "4️⃣ Cleaning up bash subshells..."
-          pkill -9 -f "bash.*docker" 2>/dev/null || true
-          pkill -9 -f "timeout.*docker" 2>/dev/null || true
-          
-          sleep 1
-          
-          # Verify
-          remaining=$(docker ps -aq 2>/dev/null | wc -l)
-          if [ "$remaining" -gt 0 ]; then
-            echo "⚠️ $remaining containers still running, attempting more aggressive cleanup..."
-            docker ps -aq | while read container; do
-              docker kill -s 9 "$container" 2>/dev/null || true
-            done
-          fi
-          
-          echo "✅ Emergency cleanup complete"
-
-      - name: Checkout code
-        uses: actions/checkout@v4
-        
-      - name: Download shared screenshots
-        uses: actions/download-artifact@v4
-        with:
-          path: all-artifacts/
-        continue-on-error: true
-        timeout-minutes: 15
-        
-
-      - name: Check artifact availability
-        run: |
-          echo "🔍 Checking artifact status..."
-          if [ -d "all-artifacts" ] && [ -n "$(find all-artifacts -type f 2>/dev/null)" ]; then
-              echo "✅ Artifacts available"
-              echo "Artifact contents:"
-              find all-artifacts -type f | head -20
-          else
-              echo "⚠️ Artifacts unavailable (GitHub API timeout - this is transient)"
-              echo "Screenshots are still available in GitHub Actions UI: Actions → Job → Artifacts"
-              mkdir -p all-artifacts
-          fi
-
-      - name: Generate comprehensive test report
-        run: |
-          echo "📋 Generating comprehensive test report"
-          
-          # Add combined summary
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "# 📋 Test Report - Shared Build (DEB + AppImage)" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "## 📊 Test Results" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          
-          # Process each install type
-          for install_type in deb appimage; do
-            echo "### $install_type Results" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            
-            # Check if artifacts exist for this install type
-            screenshots_dir="all-artifacts/openterface-gui-screenshots-shared-${install_type}-collection"
-            if [ -d "$screenshots_dir" ]; then
-              total=$(find "$screenshots_dir" -name "*.jpg" 2>/dev/null | wc -l)
-              
-              if [ "$total" -gt 0 ]; then
-                # Use file size to determine if screenshots have content (more reliable)
-                content=$(find "$screenshots_dir" -name "*.jpg" -size +50k 2>/dev/null | wc -l)
-                
-                if [ "$content" -eq 0 ]; then
-                  # Fallback: check if files exist and are not tiny
-                  content=$(find "$screenshots_dir" -name "*.jpg" -type f 2>/dev/null | while read f; do
-                    size=$(stat -f%z "$f" 2>/dev/null || stat -c%s "$f" 2>/dev/null || echo 0)
-                    if [ "$size" -gt 1000 ]; then
-                      echo "1"
-                    fi
-                  done | wc -l)
-                fi
-                
-                if [ "$content" -gt 0 ]; then
-                  rate=$(( content * 100 / total ))
-                  status="✅ PASSED"
-                else
-                  rate=0
-                  status="✅ GENERATED (size verification inconclusive)"
-                fi
-                
-                echo "- **Total Screenshots**: $total" >> $GITHUB_STEP_SUMMARY
-                echo "- **With Content**: $content" >> $GITHUB_STEP_SUMMARY
-                echo "- **Success Rate**: ${rate}%" >> $GITHUB_STEP_SUMMARY
-                echo "- **Status**: $status" >> $GITHUB_STEP_SUMMARY
-              else
-                echo "- **Status**: ❌ FAILED - No screenshots generated" >> $GITHUB_STEP_SUMMARY
-              fi
-            else
-              echo "- **Status**: ⏭️ NOT RUN - No screenshots directory found" >> $GITHUB_STEP_SUMMARY
-            fi
-            echo "" >> $GITHUB_STEP_SUMMARY
-          done
-          
-          echo "---" >> $GITHUB_STEP_SUMMARY
-          echo "**Generated on**: $(date -u)" >> $GITHUB_STEP_SUMMARY
-          echo "**Workflow**: ${{ github.workflow }}" >> $GITHUB_STEP_SUMMARY
-          echo "**Run ID**: [${{ github.run_id }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})" >> $GITHUB_STEP_SUMMARY
-          
-          echo ""
-          echo "✅ Combined test report generated and added to summary"
-      - name: Upload combined test report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: combined-test-report
-          path: combined-test-report.md
-          if-no-files-found: warn

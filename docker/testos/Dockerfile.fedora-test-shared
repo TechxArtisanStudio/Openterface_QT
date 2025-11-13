@@ -20,7 +20,7 @@ ENV QT_QPA_PLATFORM=xcb
 
 # Install minimal system dependencies and runtime libraries only
 RUN dnf update -y && \
-    dnf install -y \
+    dnf install -y --setopt=install_weak_deps=False --skip-unavailable \
         # Essential utilities
         curl \
         wget \
@@ -28,6 +28,7 @@ RUN dnf update -y && \
         sudo \
         udev \
         usbutils \
+        procps-ng \
         # Runtime Qt6 libraries
         qt6-qtbase \
         qt6-qtbase-gui \
@@ -46,29 +47,31 @@ RUN dnf update -y && \
         freetype \
         fontconfig \
         bzip2-libs \
-        # FFmpeg runtime libraries
-        ffmpeg-libs \
-        libturbojpeg \
-        # GStreamer runtime dependencies
-        gstreamer1 \
-        gstreamer1-plugins-base \
-        gstreamer1-plugins-good \
-        gstreamer1-plugins-bad-free \
-        gstreamer1-plugins-ugly \
-        gstreamer1-libav \
-        gstreamer1-plugins-good-extras \
-        gstreamer1-plugins-bad-free-extras \
+        # FFmpeg-related codec libraries (available in Fedora repos)
+        libtheora \
+        libvorbis \
+        libvpx \
         # FUSE support for AppImage installations
         fuse \
         fuse-libs \
+        # X11 utilities for screenshots
+        xdotool \
+        xwininfo \
+        ImageMagick \
         # Clean up to reduce image size
     && dnf clean all && \
     rm -rf /var/cache/dnf
 
 # Create a non-root user for running the application
 RUN useradd -m -s /bin/bash openterface && \
-    usermod -a -G dialout,uucp,audio,video openterface && \
-    echo "openterface ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+    usermod -a -G dialout,audio,video openterface && \
+    # Configure sudo for container environment (no password, no PAM)
+    echo "openterface ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers && \
+    mkdir -p /etc/sudoers.d && \
+    echo "Defaults !pam_session" > /etc/sudoers.d/openterface && \
+    echo "Defaults use_pty" >> /etc/sudoers.d/openterface && \
+    echo "openterface ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers.d/openterface && \
+    chmod 0440 /etc/sudoers.d/openterface
 
 # Copy installation scripts for runtime execution
 COPY ./install-openterface.sh /docker/install-openterface.sh
@@ -84,9 +87,6 @@ RUN echo 'SUBSYSTEM=="hidraw", ATTRS{idVendor}=="534d", ATTRS{idProduct}=="2109"
     echo 'SUBSYSTEM=="ttyUSB", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="7523", TAG+="uaccess", MODE="0666"' >> /etc/udev/rules.d/50-openterface-backup.rules && \
     echo 'SUBSYSTEM=="usb", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="7523", TAG+="uaccess", MODE="0666"' >> /etc/udev/rules.d/50-openterface-backup.rules
 
-# Switch to non-root user
-USER openterface
-
 # Set the working directory
 WORKDIR /home/openterface
 
@@ -97,6 +97,7 @@ LABEL version="latest"
 LABEL purpose="testing"
 
 # Set entrypoint to handle installation on first run
+# Note: Entrypoint runs as root to handle installation
 ENTRYPOINT ["/entrypoint.sh"]
 
 # Default command (will be passed to entrypoint)

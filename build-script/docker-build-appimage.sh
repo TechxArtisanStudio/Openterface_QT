@@ -9,6 +9,11 @@ ORIGINAL_OPTS="$-"
 
 APPIMAGE_DIR="${BUILD_DIR}/appimage"
 
+# Enhanced AppImage build script with comprehensive GStreamer plugin support
+# This script builds an AppImage with all necessary GStreamer plugins for video capture
+
+echo "Building Enhanced Openterface AppImage with GStreamer plugins..."
+
 # Determine architecture
 ARCH=$(uname -m)
 case "${ARCH}" in

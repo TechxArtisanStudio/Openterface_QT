@@ -9,6 +9,7 @@
 # Usage:
 #   ./install-openterface.sh deb       # Install DEB package
 #   ./install-openterface.sh appimage  # Install AppImage package
+#   ./install-openterface.sh rpm       # Install RPM package
 #   INSTALL_TYPE=deb ./install-openterface.sh  # Via environment variable
 #
 # OVERVIEW:
@@ -32,6 +33,7 @@ NC='\033[0m' # No Color
 GITHUB_REPO="TechxArtisanStudio/Openterface_QT"
 DEB_PACKAGE_NAME="openterfaceQT.linux.amd64.shared.deb"
 APPIMAGE_PACKAGE_NAME="openterfaceQT.linux.amd64.shared.AppImage"
+RPM_PACKAGE_NAME="openterfaceQT.linux.amd64.shared.rpm"
 
 # Determine installation type from argument or environment variable
 INSTALL_TYPE="${1:-${INSTALL_TYPE:-}}"
@@ -79,10 +81,11 @@ validate_install_type() {
         print_error "INSTALL_TYPE not specified"
         echo ""
         echo "Usage: $0 <install_type>"
-        echo "  install_type: 'deb' or 'appimage'"
+        echo "  install_type: 'deb', 'rpm', or 'appimage'"
         echo ""
         echo "Examples:"
         echo "  $0 deb"
+        echo "  $0 rpm"
         echo "  $0 appimage"
         echo "  INSTALL_TYPE=deb $0"
         echo ""
@@ -90,13 +93,13 @@ validate_install_type() {
     fi
     
     case "$INSTALL_TYPE" in
-        deb|appimage)
+        deb|appimage|rpm)
             print_success "Installation type: $INSTALL_TYPE"
             return 0
             ;;
         *)
             print_error "Invalid INSTALL_TYPE: $INSTALL_TYPE"
-            echo "Supported types: deb, appimage"
+            echo "Supported types: deb, appimage, rpm"
             return 1
             ;;
     esac
@@ -552,6 +555,125 @@ check_fuse_support() {
 }
 
 # =============================================================================
+# RPM Installation Functions
+# =============================================================================
+
+install_rpm_package() {
+    print_header "RPM Package Installation"
+    
+    PACKAGE_FILE="/tmp/${RPM_PACKAGE_NAME}"
+    
+    # Find or download package
+    if ! download_rpm_package; then
+        print_error "Failed to find or download RPM package"
+        return 1
+    fi
+    
+    # Verify package file
+    if [ ! -f "$PACKAGE_FILE" ]; then
+        print_error "RPM package file not found: $PACKAGE_FILE"
+        return 1
+    fi
+    
+    print_info "Package file found:"
+    ls -lh "$PACKAGE_FILE"
+    
+    # Get sudo if needed
+    if [ "$(id -u)" -ne 0 ]; then
+        SUDO="sudo"
+    else
+        SUDO=""
+    fi
+    
+    # Attempt installation
+    echo ""
+    print_section "Installing RPM package..."
+    
+    # RPM packages bundle libraries in /usr/lib/openterfaceqt/ and register with ldconfig
+    print_info "Installing RPM package..."
+    
+    # Capture dnf output to check for actual install result
+    DNF_OUTPUT=$($SUDO dnf install -y "$PACKAGE_FILE" 2>&1)
+    DNF_EXIT=$?
+    
+    # Show dnf output (last 30 lines)
+    echo "$DNF_OUTPUT" | tail -30
+    
+    if [ $DNF_EXIT -ne 0 ]; then
+        print_error "Failed to install RPM package (exit code: $DNF_EXIT)"
+        print_error "Missing dependencies detected"
+        
+        # Extract missing package information from dnf output
+        MISSING_DEPS=$(echo "$DNF_OUTPUT" | grep "nothing provides" | head -5)
+        if [ -n "$MISSING_DEPS" ]; then
+            print_error "Missing dependencies:"
+            echo "$MISSING_DEPS"
+        fi
+        
+        return 1
+    fi
+    
+    print_success "RPM package installed successfully"
+    
+    # Ensure bundled libraries are registered with the system linker
+    print_section "Registering bundled libraries with system linker..."
+    if [ -f /etc/ld.so.conf.d/openterface-libs.conf ]; then
+        print_info "Found openterface-libs.conf configuration"
+        print_info "Bundled libraries location: /usr/lib/openterfaceqt/"
+    else
+        print_warning "openterface-libs.conf not found"
+        print_info "Creating configuration for bundled libraries..."
+        if [ "$(id -u)" -eq 0 ]; then
+            mkdir -p /etc/ld.so.conf.d
+            cat > /etc/ld.so.conf.d/openterface-libs.conf <<'EOF'
+# OpenterfaceQT bundled libraries (isolated from system libraries)
+/usr/lib/openterfaceqt
+EOF
+            print_success "Created /etc/ld.so.conf.d/openterface-libs.conf"
+        fi
+    fi
+    
+    # Update library cache to register all bundled libraries
+    print_section "Updating system library cache..."
+    if $SUDO ldconfig 2>&1 | head -5; then
+        print_success "Library cache updated successfully"
+    else
+        print_warning "ldconfig may not be available in this environment"
+    fi
+    
+    # Clean up
+    rm -f "$PACKAGE_FILE"
+    
+    print_success "RPM installation completed"
+    return 0
+}
+
+download_rpm_package() {
+    print_section "Looking for RPM package..."
+    
+    # Try to find locally first
+    if built_package=$(find_latest_package ".rpm"); then
+        print_info "Found local RPM artifact: $built_package"
+        
+        if [ -f "$built_package" ] && [ -r "$built_package" ]; then
+            if cp "$built_package" "/tmp/${RPM_PACKAGE_NAME}"; then
+                print_success "Build artifact copied to /tmp/${RPM_PACKAGE_NAME}"
+                return 0
+            fi
+        fi
+    fi
+    
+    print_info "No local RPM found, trying workflow download..."
+    
+    if download_from_latest_build "shared.rpm"; then
+        return 0
+    fi
+    
+    print_error "Failed to find or download RPM package"
+    return 1
+}
+
+# =============================================================================
 # Common Setup Functions
 # =============================================================================
 
@@ -692,8 +814,11 @@ if file "$BINARY_LOCATION" 2>/dev/null | grep -q "AppImage"; then
         exec "$BINARY_LOCATION" --appimage-extract-and-run "$@"
     fi
 else
-    # Regular binary (e.g., from DEB package)
-    export LD_LIBRARY_PATH=/usr/lib:$LD_LIBRARY_PATH
+    # Regular binary (e.g., from DEB or RPM package)
+    # RPM packages bundle FFmpeg libraries in /usr/lib/openterfaceqt/
+    export LD_LIBRARY_PATH=/usr/lib/openterfaceqt:/usr/lib:$LD_LIBRARY_PATH
+    export QT_PLUGIN_PATH=/usr/lib/qt6/plugins:/usr/lib/x86_64-linux-gnu/qt6/plugins
+    export QML2_IMPORT_PATH=/usr/lib/qt6/qml:/usr/lib/x86_64-linux-gnu/qt6/qml
     export QT_QPA_PLATFORM=xcb
     export QT_X11_NO_MITSHM=1
     exec "$BINARY_LOCATION" "$@"
@@ -722,6 +847,12 @@ main() {
         deb)
             if ! install_deb_package; then
                 print_error "DEB installation failed"
+                return 1
+            fi
+            ;;
+        rpm)
+            if ! install_rpm_package; then
+                print_error "RPM installation failed"
                 return 1
             fi
             ;;

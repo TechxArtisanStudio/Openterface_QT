@@ -36,27 +36,10 @@ if [ ! -f /usr/local/bin/openterfaceQT ] && [ -n "$INSTALL_TYPE_ARG" ]; then
     # Use unified installation script with INSTALL_TYPE
     INSTALL_SCRIPT="/docker/install-openterface.sh"
     
-    # Run installation as root (required for dpkg and apt-get)
+    # Run installation (container entrypoint runs as root)
     INSTALL_EXIT_CODE=0
-    if [ "$(id -u)" -ne 0 ]; then
-        # Not root, use sudo
-        if ! sudo -n "$INSTALL_SCRIPT" "$INSTALL_TYPE_ARG"; then
-            INSTALL_EXIT_CODE=$?
-            echo ""
-            echo "❌ Installation failed with exit code: $INSTALL_EXIT_CODE"
-            echo ""
-            echo "Please ensure one of the following:"
-            echo "  1. Volume mount with DEB package: -v /path/to/build:/tmp/build-artifacts"
-            echo "  2. Set GITHUB_TOKEN for artifact download: -e GITHUB_TOKEN=..."
-            echo "  3. Check Docker permissions and network access"
-            echo ""
-            echo "Run 'docker logs <container>' for detailed error messages"
-            echo ""
-        else
-            echo "✅ Installation completed successfully"
-        fi
-    else
-        # Already root: run directly
+    if [ "$(id -u)" -eq 0 ]; then
+        # Running as root: run directly
         if "$INSTALL_SCRIPT" "$INSTALL_TYPE_ARG"; then
             INSTALL_EXIT_CODE=$?
             echo "✅ Installation completed successfully"
@@ -73,6 +56,10 @@ if [ ! -f /usr/local/bin/openterfaceQT ] && [ -n "$INSTALL_TYPE_ARG" ]; then
             # Don't exit here - continue to app launch for debugging
             # This allows docker exec to work for troubleshooting
         fi
+    else
+        # Not root, shouldn't happen in container but handle gracefully
+        echo "❌ Installation requires root privileges"
+        echo "Please run container without -u flag to keep root for entrypoint"
     fi
 else
     if [ -f /usr/local/bin/openterfaceQT ]; then
@@ -158,6 +145,18 @@ if [ -f /usr/local/bin/openterfaceQT ]; then
         # Set bundled Qt platform plugins path for installed application
         export QT_QPA_PLATFORM_PLUGIN_PATH=/usr/lib/openterfaceqt/qt6/plugins/platforms
         echo "ℹ️  Library paths configured for system Qt6"
+        echo "ℹ️  QT_QPA_PLATFORM_PLUGIN_PATH set to: $QT_QPA_PLATFORM_PLUGIN_PATH"
+    elif [ "$INSTALL_TYPE_ARG" = "rpm" ]; then
+        echo "ℹ️  Detected RPM package (from INSTALL_TYPE)"
+        # For RPM packages, bundled libraries are in /usr/lib/openterfaceqt/
+        export LD_LIBRARY_PATH=/usr/lib/openterfaceqt:/usr/lib:/lib:$LD_LIBRARY_PATH
+        export QT_PLUGIN_PATH=/usr/lib/openterfaceqt/qt6/plugins:/usr/lib/qt6/plugins:/usr/lib/x86_64-linux-gnu/qt6/plugins
+        export QML2_IMPORT_PATH=/usr/lib/openterfaceqt/qt6/qml:/usr/lib/qt6/qml:/usr/lib/x86_64-linux-gnu/qt6/qml
+        # Set platform plugin path for bundled Qt6
+        export QT_QPA_PLATFORM_PLUGIN_PATH=/usr/lib/openterfaceqt/qt6/plugins/platforms
+        echo "ℹ️  Library paths configured for bundled Qt6 (RPM)"
+        echo "ℹ️  LD_LIBRARY_PATH set to: $LD_LIBRARY_PATH"
+        echo "ℹ️  QT_PLUGIN_PATH set to: $QT_PLUGIN_PATH"
         echo "ℹ️  QT_QPA_PLATFORM_PLUGIN_PATH set to: $QT_QPA_PLATFORM_PLUGIN_PATH"
     else
         echo "ℹ️  Package type unknown, using default configuration"
