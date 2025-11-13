@@ -146,6 +146,18 @@ if [ -f /usr/local/bin/openterfaceQT ]; then
         export QT_QPA_PLATFORM_PLUGIN_PATH=/usr/lib/openterfaceqt/qt6/plugins/platforms
         echo "ℹ️  Library paths configured for system Qt6"
         echo "ℹ️  QT_QPA_PLATFORM_PLUGIN_PATH set to: $QT_QPA_PLATFORM_PLUGIN_PATH"
+    elif [ "$INSTALL_TYPE_ARG" = "rpm" ]; then
+        echo "ℹ️  Detected RPM package (from INSTALL_TYPE)"
+        # For RPM packages, bundled libraries are in /usr/lib/openterfaceqt/
+        export LD_LIBRARY_PATH=/usr/lib/openterfaceqt:/usr/lib:/lib:$LD_LIBRARY_PATH
+        export QT_PLUGIN_PATH=/usr/lib/openterfaceqt/qt6/plugins:/usr/lib/qt6/plugins:/usr/lib/x86_64-linux-gnu/qt6/plugins
+        export QML2_IMPORT_PATH=/usr/lib/openterfaceqt/qt6/qml:/usr/lib/qt6/qml:/usr/lib/x86_64-linux-gnu/qt6/qml
+        # Set platform plugin path for bundled Qt6
+        export QT_QPA_PLATFORM_PLUGIN_PATH=/usr/lib/openterfaceqt/qt6/plugins/platforms
+        echo "ℹ️  Library paths configured for bundled Qt6 (RPM)"
+        echo "ℹ️  LD_LIBRARY_PATH set to: $LD_LIBRARY_PATH"
+        echo "ℹ️  QT_PLUGIN_PATH set to: $QT_PLUGIN_PATH"
+        echo "ℹ️  QT_QPA_PLATFORM_PLUGIN_PATH set to: $QT_QPA_PLATFORM_PLUGIN_PATH"
     else
         echo "ℹ️  Package type unknown, using default configuration"
     fi

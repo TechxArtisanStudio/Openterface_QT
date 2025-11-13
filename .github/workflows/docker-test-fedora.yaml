@@ -8,6 +8,7 @@ on:
       - 'docker/install-openterface.sh'
       - 'docker/entrypoint.sh'
       - '.github/workflows/docker-test-fedora.yaml'
+      - 'packaging/rpm/**'
   pull_request:
     branches: ["main", "dev"]
     paths:

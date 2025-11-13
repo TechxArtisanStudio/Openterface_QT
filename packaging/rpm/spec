@@ -100,22 +100,54 @@ cat > /etc/ld.so.conf.d/openterface-libs.conf <<'EOF'
 /usr/lib/openterfaceqt
 EOF
 
-# Create symlinks for .so.X files to .so for compatibility
+# Clean up library structure: remove intermediate .so.X files and keep only proper chains
 # This prevents ldconfig warnings about non-symlink libraries
-cd /usr/lib/openterfaceqt 2>/dev/null && {
-    for lib in *.so.[0-9]*; do
-        if [ -f "$lib" ]; then
-            base="${lib%.[0-9]*}"
-            # Create symlink .so -> .so.X if it doesn't exist
-            if [ ! -L "$base" ]; then
-                ln -sf "$lib" "$base" 2>/dev/null || true
+if [ -d /usr/lib/openterfaceqt ]; then
+    cd /usr/lib/openterfaceqt
+    
+    # Find all library files and organize them properly
+    for fullfile in *.so.*.* ; do
+        [ -f "$fullfile" ] || continue
+        
+        # Extract library name and version info
+        # e.g., libQt6Core.so.6.6.3 -> base=libQt6Core, major=6, full=6.6.3
+        base=$(echo "$fullfile" | sed 's/\.so\..*//')
+        soname=$(echo "$fullfile" | sed 's/\(.*\.so\.[0-9]*\).*/\1/')
+        
+        # Create major version symlink if needed: libQt6Core.so.6 -> libQt6Core.so.6.6.3
+        if [ "$soname" != "$fullfile" ] && [ ! -L "$soname" ] && [ ! -f "$soname" ]; then
+            ln -sf "$fullfile" "$soname" 2>/dev/null || true
+        fi
+        
+        # Create base .so symlink if needed: libQt6Core.so -> libQt6Core.so.6
+        if [ ! -L "$base.so" ] && [ ! -f "$base.so" ]; then
+            ln -sf "$soname" "$base.so" 2>/dev/null || true
+        fi
+    done
+    
+    # Remove any non-symlink .so.X files (keep only symlinks or .so.X.X.X)
+    for soXfile in *.so.[0-9] ; do
+        [ -L "$soXfile" ] && continue  # Skip if it's already a symlink
+        [ -f "$soXfile" ] || continue  # Skip if it doesn't exist
+        
+        # Check if this is a duplicate of a .so.X.X.X file
+        base=$(echo "$soXfile" | sed 's/\.so\.[0-9]*$//')
+        has_full=$(ls "$base".so.*.*.* 2>/dev/null | wc -l)
+        
+        if [ $has_full -gt 0 ]; then
+            # We have the full version, convert this to a symlink
+            fullversion=$(ls "$base".so.*.*.* 2>/dev/null | head -1)
+            if [ -n "$fullversion" ]; then
+                rm -f "$soXfile"
+                ln -sf "$fullversion" "$soXfile" 2>/dev/null || true
             fi
         fi
     done
-}
+fi
 
 # Rebuild the dynamic linker cache to register bundled libraries
-ldconfig 2>/dev/null || true
+# Suppress warnings about non-symlink files in bundled scenarios (they're expected)
+ldconfig 2>&1 | grep -v "is not a symbolic link" | grep -v "^$" || true
 
 # Verify libraries are registered
 echo "OpenterfaceQT libraries registered. Checking library cache..."
