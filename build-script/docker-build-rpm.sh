@@ -57,9 +57,10 @@ if [ $QT_LIBS -eq 0 ]; then
     exit 1
 fi
 
-find "${QT_LIB_DIR}" -maxdepth 1 -name "libQt6*.so*" -type f -exec cp -a {} "${RPMTOP}/SOURCES/" \;
-find "${QT_LIB_DIR}" -maxdepth 1 -name "libQt6*.so*" -type l -exec cp -Pa {} "${RPMTOP}/SOURCES/" \;
-echo "✅ Qt libraries copied to SOURCES ($QT_LIBS files)"
+# Only copy actual files (not symlinks) to avoid duplication
+mkdir -p "${RPMTOP}/SOURCES/qt6"
+find "${QT_LIB_DIR}" -maxdepth 1 -name "libQt6*.so*" -type f -exec cp -a {} "${RPMTOP}/SOURCES/qt6/" \;
+echo "✅ Qt libraries copied to SOURCES/qt6 ($QT_LIBS files)"
 
 # Copy Qt6 XCB QPA library to SOURCES (needed by libqxcb.so plugin) - must be from same Qt6 build
 echo "📋 RPM: Searching for Qt6 XCB QPA library..."
@@ -71,8 +72,9 @@ if [ -d "/opt/Qt6/lib" ] && ls "/opt/Qt6/lib"/libQt6XcbQpa.so* >/dev/null 2>&1; 
     XCB_QPA_FILES=$(ls -la "/opt/Qt6/lib"/libQt6XcbQpa.so*)
     echo "   Files found:"
     echo "$XCB_QPA_FILES" | sed 's/^/     /'
-    cp -Pv "/opt/Qt6/lib"/libQt6XcbQpa.so* "${RPMTOP}/SOURCES/" 2>&1 | sed 's/^/     /'
-    echo "   ✅ libQt6XcbQpa.so copied to ${RPMTOP}/SOURCES"
+    # Only copy actual files (not symlinks) to avoid duplication
+    find "/opt/Qt6/lib" -maxdepth 1 -name "libQt6XcbQpa.so*" -type f -exec cp -Pv {} "${RPMTOP}/SOURCES/qt6/" \; 2>&1 | sed 's/^/     /'
+    echo "   ✅ libQt6XcbQpa.so copied to ${RPMTOP}/SOURCES/qt6"
     XCB_QPA_FOUND=1
 else
     echo "   ✗ No libQt6XcbQpa.so found in /opt/Qt6/lib"
@@ -98,13 +100,13 @@ if [ -d "${QT_PLUGIN_DIR}" ]; then
         "platforminputcontexts"  # Input method contexts
     )
     
-    mkdir -p "${RPMTOP}/SOURCES/qt6-plugins"
+    mkdir -p "${RPMTOP}/SOURCES/qt6/plugins"
     
     for plugin_dir in "${ESSENTIAL_PLUGINS[@]}"; do
         if [ -d "${QT_PLUGIN_DIR}/${plugin_dir}" ]; then
             echo "   ✅ Copying ${plugin_dir}..."
-            mkdir -p "${RPMTOP}/SOURCES/qt6-plugins/${plugin_dir}"
-            cp -r "${QT_PLUGIN_DIR}/${plugin_dir}"/* "${RPMTOP}/SOURCES/qt6-plugins/${plugin_dir}/" 2>/dev/null || true
+            mkdir -p "${RPMTOP}/SOURCES/qt6/plugins/${plugin_dir}"
+            cp -r "${QT_PLUGIN_DIR}/${plugin_dir}"/* "${RPMTOP}/SOURCES/qt6/plugins/${plugin_dir}/" 2>/dev/null || true
         fi
     done
     
@@ -119,7 +121,7 @@ if [ -d "${QT_QML_DIR}" ]; then
     # Only copy if actually used by application - check if application uses QML
     if strings "${RPMTOP}/SOURCES/openterfaceQT" 2>/dev/null | grep -q "qml\|QML\|QtQuick"; then
         echo "   ✅ Application uses QML, copying essential modules..."
-        mkdir -p "${RPMTOP}/SOURCES/qt6-qml"
+        mkdir -p "${RPMTOP}/SOURCES/qt6/qml"
         
         # Only copy core QML modules needed at runtime
         ESSENTIAL_QML=(
@@ -130,8 +132,8 @@ if [ -d "${QT_QML_DIR}" ]; then
         for qml_module in "${ESSENTIAL_QML[@]}"; do
             if [ -d "${QT_QML_DIR}/${qml_module}" ]; then
                 echo "      Copying ${qml_module}..."
-                mkdir -p "${RPMTOP}/SOURCES/qt6-qml/${qml_module}"
-                cp -r "${QT_QML_DIR}/${qml_module}"/* "${RPMTOP}/SOURCES/qt6-qml/${qml_module}/" 2>/dev/null || true
+                mkdir -p "${RPMTOP}/SOURCES/qt6/qml/${qml_module}"
+                cp -r "${QT_QML_DIR}/${qml_module}"/* "${RPMTOP}/SOURCES/qt6/qml/${qml_module}/" 2>/dev/null || true
             fi
         done
         echo "   ✅ Essential QML modules copied"
@@ -154,7 +156,8 @@ if find "${SRC}/images" -name "*.svg" 2>/dev/null | grep -q .; then
         if [ -d "$SEARCH_DIR" ]; then
             if ls "$SEARCH_DIR"/libQt6Svg.so* >/dev/null 2>&1; then
                 echo "   ✅ Found libQt6Svg.so in $SEARCH_DIR"
-                cp -Pv "$SEARCH_DIR"/libQt6Svg.so* "${RPMTOP}/SOURCES/" 2>&1 | sed 's/^/     /'
+                # Only copy actual files (not symlinks) to avoid duplication
+                find "$SEARCH_DIR" -maxdepth 1 -name "libQt6Svg.so*" -type f -exec cp -Pv {} "${RPMTOP}/SOURCES/qt6/" \; 2>&1 | sed 's/^/     /'
                 SVG_LIB_FOUND=1
                 break
             fi
@@ -171,8 +174,8 @@ if find "${SRC}/images" -name "*.svg" 2>/dev/null | grep -q .; then
         if [ -d "$SEARCH_DIR/imageformats" ]; then
             if [ -f "$SEARCH_DIR/imageformats/libqsvg.so" ]; then
                 echo "   ✅ Found libqsvg.so in $SEARCH_DIR"
-                mkdir -p "${RPMTOP}/SOURCES/qt6-plugins/imageformats"
-                cp -Pv "$SEARCH_DIR/imageformats/libqsvg.so" "${RPMTOP}/SOURCES/qt6-plugins/imageformats/" 2>&1 | sed 's/^/     /'
+                mkdir -p "${RPMTOP}/SOURCES/qt6/plugins/imageformats"
+                cp -Pv "$SEARCH_DIR/imageformats/libqsvg.so" "${RPMTOP}/SOURCES/qt6/plugins/imageformats/" 2>&1 | sed 's/^/     /'
                 SVG_PLUGIN_FOUND=1
                 break
             fi
@@ -200,9 +203,9 @@ if find "${SRC}/images" -name "*.svg" 2>/dev/null | grep -q .; then
             FOUND_FILES=$(find "$SEARCH_DIR/iconengines" -name "libsvgicon.so*" 2>/dev/null)
             if [ -n "$FOUND_FILES" ]; then
                 echo "   ✅ Found libsvgicon.so, bundling for SVG icon support..."
-                mkdir -p "${RPMTOP}/SOURCES/qt6-plugins/iconengines"
+                mkdir -p "${RPMTOP}/SOURCES/qt6/plugins/iconengines"
                 echo "$FOUND_FILES" | while read -r svg_icon_file; do
-                    cp -Pv "$svg_icon_file" "${RPMTOP}/SOURCES/qt6-plugins/iconengines/" 2>&1 | sed 's/^/     /'
+                    cp -Pv "$svg_icon_file" "${RPMTOP}/SOURCES/qt6/plugins/iconengines/" 2>&1 | sed 's/^/     /'
                 done
                 SVGICON_PLUGIN_FOUND=1
                 break
@@ -231,7 +234,8 @@ for SEARCH_DIR in /opt/ffmpeg/lib /usr/lib/x86_64-linux-gnu /usr/lib; do
             LIBBZ2_FILES=$(ls -la "$SEARCH_DIR"/libbz2.so*)
             echo "   Files found:"
             echo "$LIBBZ2_FILES" | sed 's/^/     /'
-            cp -av "$SEARCH_DIR"/libbz2.so* "${RPMTOP}/SOURCES/" 2>&1 | sed 's/^/     /'
+            # Only copy actual files (not symlinks) to avoid duplication
+            find "$SEARCH_DIR" -maxdepth 1 -name "libbz2.so*" -type f -exec cp -av {} "${RPMTOP}/SOURCES/" \; 2>&1 | sed 's/^/     /'
             echo "   ✅ libbz2 libraries copied to ${RPMTOP}/SOURCES"
             LIBBZ2_FOUND=1
             break
@@ -262,7 +266,8 @@ for SEARCH_DIR in /opt/libusb/lib /usr/lib/x86_64-linux-gnu /usr/lib; do
             LIBUSB_FILES=$(ls -la "$SEARCH_DIR"/libusb*.so*)
             echo "   Files found:"
             echo "$LIBUSB_FILES" | sed 's/^/     /'
-            cp -av "$SEARCH_DIR"/libusb*.so* "${RPMTOP}/SOURCES/" 2>&1 | sed 's/^/     /'
+            # Only copy actual files (not symlinks) to avoid duplication
+            find "$SEARCH_DIR" -maxdepth 1 -name "libusb*.so*" -type f -exec cp -av {} "${RPMTOP}/SOURCES/" \; 2>&1 | sed 's/^/     /'
             echo "   ✅ libusb libraries copied to ${RPMTOP}/SOURCES"
             LIBUSB_FOUND=1
             break
@@ -293,7 +298,8 @@ for SEARCH_DIR in /opt/ffmpeg/lib /usr/lib/x86_64-linux-gnu /usr/lib; do
             JPEG_FILES=$(ls -la "$SEARCH_DIR"/libjpeg.so*)
             echo "   Files found:"
             echo "$JPEG_FILES" | sed 's/^/     /'
-            cp -av "$SEARCH_DIR"/libjpeg.so* "${RPMTOP}/SOURCES/" 2>&1 | sed 's/^/     /'
+            # Only copy actual files (not symlinks) to avoid duplication
+            find "$SEARCH_DIR" -maxdepth 1 -name "libjpeg.so*" -type f -exec cp -av {} "${RPMTOP}/SOURCES/" \; 2>&1 | sed 's/^/     /'
             echo "   ✅ libjpeg libraries copied to ${RPMTOP}/SOURCES"
             JPEG_FOUND=1
             break
@@ -323,8 +329,8 @@ for SEARCH_DIR in /opt/ffmpeg/lib /usr/lib/x86_64-linux-gnu /usr/lib; do
             ls -la "$SEARCH_DIR"/libturbojpeg.so* 2>/dev/null | while read -r line; do
                 echo "     $line"
             done
-            # Copy all libturbojpeg files and symlinks - use cp -P to preserve symlinks
-            cp -Pv "$SEARCH_DIR"/libturbojpeg.so* "${RPMTOP}/SOURCES/" 2>&1 | sed 's/^/     /'
+            # Only copy actual files (not symlinks) to avoid duplication
+            find "$SEARCH_DIR" -maxdepth 1 -name "libturbojpeg.so*" -type f -exec cp -Pv {} "${RPMTOP}/SOURCES/" \; 2>&1 | sed 's/^/     /'
             echo "   ✅ libturbojpeg libraries copied to ${RPMTOP}/SOURCES"
             TURBOJPEG_FOUND=1
             break
@@ -352,7 +358,8 @@ for SEARCH_DIR in /usr/lib/x86_64-linux-gnu /usr/lib; do
             VA_FILES=$(ls -la "$SEARCH_DIR"/libva*.so*)
             echo "   Files found:"
             echo "$VA_FILES" | sed 's/^/     /'
-            cp -av "$SEARCH_DIR"/libva*.so* "${RPMTOP}/SOURCES/" 2>&1 | sed 's/^/     /'
+            # Only copy actual files (not symlinks) to avoid duplication
+            find "$SEARCH_DIR" -maxdepth 1 -name "libva*.so*" -type f -exec cp -av {} "${RPMTOP}/SOURCES/" \; 2>&1 | sed 's/^/     /'
             echo "   ✅ VA-API libraries copied to ${RPMTOP}/SOURCES"
             VA_FOUND=1
             break
@@ -380,7 +387,8 @@ for SEARCH_DIR in /usr/lib/x86_64-linux-gnu /usr/lib; do
             VDPAU_FILES=$(ls -la "$SEARCH_DIR"/libvdpau*.so*)
             echo "   Files found:"
             echo "$VDPAU_FILES" | sed 's/^/     /'
-            cp -av "$SEARCH_DIR"/libvdpau*.so* "${RPMTOP}/SOURCES/" 2>&1 | sed 's/^/     /'
+            # Only copy actual files (not symlinks) to avoid duplication
+            find "$SEARCH_DIR" -maxdepth 1 -name "libvdpau*.so*" -type f -exec cp -av {} "${RPMTOP}/SOURCES/" \; 2>&1 | sed 's/^/     /'
             echo "   ✅ VDPAU libraries copied to ${RPMTOP}/SOURCES"
             VDPAU_FOUND=1
             break
@@ -423,7 +431,9 @@ for SEARCH_DIR in /opt/ffmpeg/lib /usr/lib/x86_64-linux-gnu /usr/lib; do
                     echo "   Found: $ffmpeg_lib"
                     FFMPEG_FILES=$(ls -la "$SEARCH_DIR"/${ffmpeg_lib}* 2>/dev/null)
                     echo "     Files: $FFMPEG_FILES" | sed 's/^/     /'
-                    cp -Pv "$SEARCH_DIR"/${ffmpeg_lib}* "${RPMTOP}/SOURCES/ffmpeg/" 2>&1 | sed 's/^/     /'
+                    # Only copy versioned files (e.g., libavformat.so.60.16.100), not symlinks (libavformat.so, libavformat.so.60)
+                    # This avoids duplicating symlinks that point to the same actual library file
+                    find "$SEARCH_DIR" -maxdepth 1 -name "${ffmpeg_lib}*" -type f -exec cp -Pv {} "${RPMTOP}/SOURCES/ffmpeg/" \; 2>&1 | sed 's/^/     /'
                 fi
             done
             echo "   ✅ FFmpeg core libraries copied to ${RPMTOP}/SOURCES/ffmpeg"
@@ -464,7 +474,8 @@ for SEARCH_DIR in /usr/lib/x86_64-linux-gnu /usr/lib; do
             GSTREAMER_FILES=$(ls -la "$SEARCH_DIR"/libgstreamer*.so*)
             echo "   Files found:"
             echo "$GSTREAMER_FILES" | sed 's/^/     /'
-            cp -av "$SEARCH_DIR"/libgstreamer*.so* "${RPMTOP}/SOURCES/gstreamer/" 2>&1 | sed 's/^/     /'
+            # Only copy actual files (not symlinks) to avoid duplication
+            find "$SEARCH_DIR" -maxdepth 1 -name "libgstreamer*.so*" -type f -exec cp -Pv {} "${RPMTOP}/SOURCES/gstreamer/" \; 2>&1 | sed 's/^/     /'
             echo "   ✅ GStreamer libraries copied to ${RPMTOP}/SOURCES/gstreamer"
             GSTREAMER_FOUND=1
             break
@@ -492,7 +503,8 @@ for SEARCH_DIR in /usr/lib/x86_64-linux-gnu /usr/lib; do
             ORC_FILES=$(ls -la "$SEARCH_DIR"/liborc-0.4.so*)
             echo "   Files found:"
             echo "$ORC_FILES" | sed 's/^/     /'
-            cp -av "$SEARCH_DIR"/liborc-0.4.so* "${RPMTOP}/SOURCES/gstreamer/" 2>&1 | sed 's/^/     /'
+            # Only copy actual files (not symlinks) to avoid duplication
+            find "$SEARCH_DIR" -maxdepth 1 -name "liborc-0.4.so*" -type f -exec cp -Pv {} "${RPMTOP}/SOURCES/gstreamer/" \; 2>&1 | sed 's/^/     /'
             echo "   ✅ ORC libraries copied to ${RPMTOP}/SOURCES/gstreamer"
             ORC_FOUND=1
             break
@@ -520,7 +532,8 @@ for SEARCH_DIR in /usr/lib/x86_64-linux-gnu /usr/lib; do
             V4L_FILES=$(ls -la "$SEARCH_DIR"/libv4l*.so*)
             echo "   Files found:"
             echo "$V4L_FILES" | sed 's/^/     /'
-            cp -av "$SEARCH_DIR"/libv4l*.so* "${RPMTOP}/SOURCES/gstreamer/" 2>&1 | sed 's/^/     /'
+            # Only copy actual files (not symlinks) to avoid duplication
+            find "$SEARCH_DIR" -maxdepth 1 -name "libv4l*.so*" -type f -exec cp -Pv {} "${RPMTOP}/SOURCES/gstreamer/" \; 2>&1 | sed 's/^/     /'
             echo "   ✅ v4l-utils libraries copied to ${RPMTOP}/SOURCES/gstreamer"
             V4L_FOUND=1
             break
@@ -550,8 +563,8 @@ for SEARCH_DIR in /usr/lib/x86_64-linux-gnu /usr/lib; do
             ls -la "$SEARCH_DIR"/libgstvideo-1.0.so* 2>/dev/null | while read -r line; do
                 echo "     $line"
             done
-            # Copy all libgstvideo-1.0 files and symlinks
-            cp -Pv "$SEARCH_DIR"/libgstvideo-1.0.so* "${RPMTOP}/SOURCES/gstreamer/" 2>&1 | sed 's/^/     /'
+            # Only copy actual files (not symlinks) to avoid duplication
+            find "$SEARCH_DIR" -maxdepth 1 -name "libgstvideo-1.0.so*" -type f -exec cp -Pv {} "${RPMTOP}/SOURCES/gstreamer/" \; 2>&1 | sed 's/^/     /'
             echo "   ✅ GStreamer video libraries copied to ${RPMTOP}/SOURCES/gstreamer"
             GSTVIDEO_FOUND=1
             break
@@ -581,8 +594,8 @@ for SEARCH_DIR in /usr/lib/x86_64-linux-gnu /usr/lib; do
             ls -la "$SEARCH_DIR"/libgstapp-1.0.so* 2>/dev/null | while read -r line; do
                 echo "     $line"
             done
-            # Copy all libgstapp-1.0 files and symlinks
-            cp -Pv "$SEARCH_DIR"/libgstapp-1.0.so* "${RPMTOP}/SOURCES/gstreamer/" 2>&1 | sed 's/^/     /'
+            # Only copy actual files (not symlinks) to avoid duplication
+            find "$SEARCH_DIR" -maxdepth 1 -name "libgstapp-1.0.so*" -type f -exec cp -Pv {} "${RPMTOP}/SOURCES/gstreamer/" \; 2>&1 | sed 's/^/     /'
             echo "   ✅ GStreamer app libraries copied to ${RPMTOP}/SOURCES/gstreamer"
             GSTAPP_FOUND=1
             break
