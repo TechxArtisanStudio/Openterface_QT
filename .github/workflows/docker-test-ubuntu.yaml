@@ -648,16 +648,50 @@ jobs:
           echo "📋 DEB Package Dynamic Library Dependencies (ldd):"
           echo "=================================================="
           docker exec $CONTAINER_ID bash -c '
-            echo "🔍 Checking ldd for installed openterface binary..."
+            echo "🔍 Searching for installed openterface binary..."
             
-            # Find the openterfaceqt binary
+            # Try multiple search strategies
             BINARY_PATH=""
-            if [ -x /opt/openterface/bin/openterfaceqt ]; then
-              BINARY_PATH="/opt/openterface/bin/openterfaceqt"
-            elif [ -x /usr/bin/openterfaceqt ]; then
-              BINARY_PATH="/usr/bin/openterfaceqt"
-            else
-              echo "⚠️ openterfaceqt binary not found"
+            
+            # Strategy 1: Check common installation paths
+            for path in /usr/lib/openterfaceqt /usr/local/bin; do
+              if [ -x "$path" ]; then
+                BINARY_PATH="$path"
+                break
+              fi
+            done
+            
+            # Strategy 2: Search PATH
+            if [ -z "$BINARY_PATH" ]; then
+              BINARY_PATH=$(which openterfaceqt 2>/dev/null || echo "")
+            fi
+            
+            # Strategy 3: Use find command as last resort
+            if [ -z "$BINARY_PATH" ]; then
+              echo "ℹ️ Searching filesystem for openterfaceqt binary..."
+              BINARY_PATH=$(find / -name "openterface*" -type f -executable 2>/dev/null | head -1)
+            fi
+            
+            if [ -z "$BINARY_PATH" ]; then
+              echo "⚠️ openterfaceqt binary not found in standard locations"
+              echo ""
+              echo "📂 Checking for alternative names and locations..."
+              echo "Searching for any executable with openterface in the name:"
+              find / -name "*openterface*" -type f -executable 2>/dev/null | head -20
+              echo ""
+              
+              echo "📦 Checking installed packages:"
+              dpkg -l | grep -i openterface || echo "No openterface packages installed"
+              echo ""
+              
+              echo "📂 Checking /opt/openterface directory structure:"
+              if [ -d "/opt/openterface" ]; then
+                find /opt/openterface -type f -executable 2>/dev/null | head -20 || echo "No executables found in /opt/openterface"
+              else
+                echo "/opt/openterface directory does not exist"
+              fi
+              echo ""
+              
               exit 0
             fi
             
