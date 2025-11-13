@@ -262,5 +262,38 @@ fi
 # ============================================
 # Application Execution
 # ============================================
-# Execute the main binary with all passed arguments
-exec /usr/bin/openterfaceQT "$@"
+# Locate and execute the OpenterfaceQT binary
+# NOTE: The binary is at /usr/bin/openterfaceQT-bin (renamed to avoid symlink conflict)
+# This ensures LD_PRELOAD and environment variables are ALWAYS applied
+
+# Try multiple locations for the binary (with fallbacks)
+OPENTERFACE_BIN=""
+for bin_path in \
+    "/usr/bin/openterfaceQT-bin" \
+    "/usr/local/bin/openterfaceQT-bin" \
+    "/opt/openterface/bin/openterfaceQT" \
+    "/opt/openterface/bin/openterfaceQT-bin"; do
+    if [ -f "$bin_path" ] && [ -x "$bin_path" ]; then
+        OPENTERFACE_BIN="$bin_path"
+        break
+    fi
+done
+
+if [ -z "$OPENTERFACE_BIN" ]; then
+    echo "Error: OpenterfaceQT binary not found in standard locations" >&2
+    echo "Searched:" >&2
+    echo "  - /usr/bin/openterfaceQT-bin" >&2
+    echo "  - /usr/local/bin/openterfaceQT-bin" >&2
+    echo "  - /opt/openterface/bin/openterfaceQT" >&2
+    echo "  - /opt/openterface/bin/openterfaceQT-bin" >&2
+    exit 1
+fi
+
+# Debug: Show what will be executed
+if [ "${OPENTERFACE_DEBUG}" = "1" ] || [ "${OPENTERFACE_DEBUG}" = "true" ]; then
+    echo "Executing: $OPENTERFACE_BIN" >&2
+fi
+
+# Execute the binary with all passed arguments
+exec "$OPENTERFACE_BIN" "$@"
+
