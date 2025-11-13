@@ -90,9 +90,6 @@ RUN echo 'SUBSYSTEM=="hidraw", ATTRS{idVendor}=="534d", ATTRS{idProduct}=="2109"
     echo 'SUBSYSTEM=="ttyUSB", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="7523", TAG+="uaccess", MODE="0666"' >> /etc/udev/rules.d/50-openterface-backup.rules && \
     echo 'SUBSYSTEM=="usb", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="7523", TAG+="uaccess", MODE="0666"' >> /etc/udev/rules.d/50-openterface-backup.rules
 
-# Switch to non-root user
-USER openterface
-
 # Set the working directory
 WORKDIR /home/openterface
 
@@ -103,7 +100,7 @@ LABEL version="latest"
 LABEL purpose="testing"
 
 # Set entrypoint to handle installation on first run
-# Note: Entrypoint runs as root to handle installation, then drops to openterface user
+# Note: Entrypoint runs as root to handle installation
 ENTRYPOINT ["/entrypoint.sh"]
 
 # Default command (will be passed to entrypoint)
