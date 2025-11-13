@@ -14,9 +14,9 @@
 #
 # OVERVIEW:
 # - Supports DEB package installation with dpkg
-# - Supports AppImage installation with FUSE support
+# - Supports RPM package installation with dnf
+# - Supports AppImage installation with softlink to /usr/local/bin
 # - Sets up device permissions and udev rules
-# - Configures launcher scripts
 #
 # =============================================================================
 
@@ -477,9 +477,6 @@ install_appimage_package() {
     print_info "Package file found:"
     ls -lh "$PACKAGE_FILE"
     
-    # Check FUSE support
-    check_fuse_support || true
-    
     # Get sudo if needed
     if [ "$(id -u)" -ne 0 ]; then
         SUDO="sudo"
@@ -487,25 +484,19 @@ install_appimage_package() {
         SUDO=""
     fi
     
-    # Copy to /usr/local/bin
-    print_section "Copying AppImage to /usr/local/bin..."
-    if $SUDO cp "$PACKAGE_FILE" /usr/local/bin/openterfaceQT 2>&1; then
-        print_success "AppImage copied successfully"
-        
-        # Make executable
-        if $SUDO chmod +x /usr/local/bin/openterfaceQT 2>&1; then
-            print_success "AppImage made executable"
-        else
-            print_error "Failed to make AppImage executable"
-            return 1
-        fi
+    # Create softlink to /usr/local/bin
+    print_section "Creating softlink to AppImage..."
+    
+    # Remove existing link if present
+    $SUDO rm -f /usr/local/bin/openterfaceQT 2>/dev/null || true
+    
+    # Create softlink
+    if $SUDO ln -s "$PACKAGE_FILE" /usr/local/bin/openterfaceQT 2>&1; then
+        print_success "Softlink created successfully"
     else
-        print_error "Failed to copy AppImage to /usr/local/bin"
+        print_error "Failed to create softlink"
         return 1
     fi
-    
-    # Clean up
-    rm -f "$PACKAGE_FILE"
     
     print_success "AppImage installation completed"
     return 0
@@ -541,15 +532,11 @@ check_fuse_support() {
     
     if command -v fusermount >/dev/null 2>&1; then
         print_success "FUSE (fusermount) is available"
-        # Store FUSE availability for launcher script
-        echo "FUSE_AVAILABLE=true" > /tmp/openterface-config.sh
         return 0
     else
         print_warning "FUSE (fusermount) not available"
         print_info "AppImage will run in extraction mode"
         print_info "For optimal performance, install: sudo apt-get install libfuse2 fuse"
-        # Store FUSE unavailability for launcher script
-        echo "FUSE_AVAILABLE=false" > /tmp/openterface-config.sh
         return 1
     fi
 }
@@ -750,84 +737,43 @@ verify_installation() {
     fi
 }
 
-create_launcher() {
-    print_section "Creating launcher script..."
-    
-    if [ "$(id -u)" -ne 0 ]; then
-        SUDO="sudo"
+create_symlink_wrapper() {
+    # DEB/RPM packages already create /usr/local/bin/openterfaceQT as a symlink
+    # AppImage needs explicit symlink creation
+    if [ "$INSTALL_TYPE" = "appimage" ]; then
+        print_section "Ensuring AppImage symlink is executable..."
+        
+        if [ "$(id -u)" -ne 0 ]; then
+            SUDO="sudo"
+        else
+            SUDO=""
+        fi
+        
+        if $SUDO chmod +x /usr/local/bin/openterfaceQT 2>&1; then
+            print_success "AppImage symlink is executable"
+            return 0
+        else
+            print_error "Failed to make AppImage symlink executable"
+            return 1
+        fi
     else
-        SUDO=""
+        # For DEB/RPM, the package should have created the wrapper symlink
+        # Just verify it exists
+        print_section "Verifying wrapper symlink..."
+        
+        if [ -L /usr/local/bin/openterfaceQT ]; then
+            TARGET=$(readlink /usr/local/bin/openterfaceQT)
+            print_success "Symlink verified: /usr/local/bin/openterfaceQT -> $TARGET"
+            return 0
+        elif [ -f /usr/local/bin/openterfaceQT ]; then
+            print_success "Executable found: /usr/local/bin/openterfaceQT"
+            return 0
+        else
+            print_warning "Expected /usr/local/bin/openterfaceQT not found after package installation"
+            # For DEB/RPM, the package should handle this, so just warn
+            return 0
+        fi
     fi
-    
-    $SUDO bash -c 'cat > /usr/local/bin/start-openterface.sh << '"'"'LAUNCHER_EOF'"'"'
-#!/bin/bash
-
-echo "🔧 Starting Openterface..."
-
-# Start udev if not running
-if ! pgrep -x "systemd-udevd" > /dev/null && ! pgrep -x "udevd" > /dev/null; then
-    echo "Starting udev..."
-    sudo /lib/systemd/systemd-udevd --daemon 2>/dev/null || true
-    sudo udevadm control --reload-rules 2>/dev/null || true
-    sudo udevadm trigger 2>/dev/null || true
-fi
-
-sleep 1
-
-# Set USB device permissions
-echo "🔌 Setting USB device permissions..."
-sudo chmod 666 /dev/ttyUSB* 2>/dev/null || true
-sudo chmod 666 /dev/hidraw* 2>/dev/null || true
-sudo chmod 666 /dev/bus/usb/*/* 2>/dev/null || true
-
-# Find and execute binary or AppImage
-BINARY_LOCATION=""
-for loc in /usr/local/bin/openterfaceQT /usr/bin/openterfaceQT /opt/openterface/bin/openterfaceQT; do
-    if [ -f "$loc" ] && [ -x "$loc" ]; then
-        BINARY_LOCATION="$loc"
-        break
-    fi
-done
-
-if [ -z "$BINARY_LOCATION" ]; then
-    echo "Error: openterfaceQT not found!"
-    exit 1
-fi
-
-echo "🚀 Running from $BINARY_LOCATION..."
-
-# Check if it is an AppImage and handle accordingly
-if file "$BINARY_LOCATION" 2>/dev/null | grep -q "AppImage"; then
-    echo "📦 Detected AppImage format"
-    
-    # Check FUSE support
-    if command -v fusermount >/dev/null 2>&1; then
-        echo "✅ FUSE is available - running AppImage directly"
-        export QT_QPA_PLATFORM=xcb
-        export QT_X11_NO_MITSHM=1
-        exec "$BINARY_LOCATION" "$@"
-    else
-        echo "⚠️  FUSE not available - using extraction mode"
-        echo "   (Install libfuse2 and fuse for better performance)"
-        export QT_QPA_PLATFORM=xcb
-        export QT_X11_NO_MITSHM=1
-        exec "$BINARY_LOCATION" --appimage-extract-and-run "$@"
-    fi
-else
-    # Regular binary (e.g., from DEB or RPM package)
-    # RPM packages bundle FFmpeg libraries in /usr/lib/openterfaceqt/
-    export LD_LIBRARY_PATH=/usr/lib/openterfaceqt:/usr/lib:$LD_LIBRARY_PATH
-    export QT_PLUGIN_PATH=/usr/lib/qt6/plugins:/usr/lib/x86_64-linux-gnu/qt6/plugins
-    export QML2_IMPORT_PATH=/usr/lib/qt6/qml:/usr/lib/x86_64-linux-gnu/qt6/qml
-    export QT_QPA_PLATFORM=xcb
-    export QT_X11_NO_MITSHM=1
-    exec "$BINARY_LOCATION" "$@"
-fi
-LAUNCHER_EOF'
-    
-    $SUDO chmod +x /usr/local/bin/start-openterface.sh
-    print_success "Launcher script created at /usr/local/bin/start-openterface.sh"
-    return 0
 }
 
 # =============================================================================
@@ -874,15 +820,21 @@ main() {
         return 1
     fi
     
-    if ! create_launcher; then
-        print_warning "Launcher creation failed"
+    if ! create_symlink_wrapper; then
+        print_warning "Symlink verification/setup failed"
     fi
     
     # Show summary
     print_header "Installation Complete ✅"
     echo "Package Type: $(echo $INSTALL_TYPE | tr '[:lower:]' '[:upper:]')"
-    echo "Binary Location: /usr/local/bin/openterfaceQT"
-    echo "Launcher Script: /usr/local/bin/start-openterface.sh"
+    
+    if [ "$INSTALL_TYPE" = "appimage" ]; then
+        echo "Binary Location: /usr/local/bin/openterfaceQT (softlink)"
+        echo "Source: $PACKAGE_FILE"
+    else
+        echo "Binary Location: /usr/bin/openterfaceQT (or /usr/local/bin/openterfaceQT)"
+        echo "Installed via: package manager (${INSTALL_TYPE^^})"
+    fi
     echo ""
     print_success "Openterface QT is ready for testing!"
     

@@ -124,44 +124,6 @@ if [ -f /usr/local/bin/openterfaceQT ]; then
     echo "📌 DEBUG ENTERED IF BLOCK for openterfaceQT"
     echo "✅ Found openterfaceQT application, starting it..."
     
-    # Verify the binary is executable
-    if [ ! -x /usr/local/bin/openterfaceQT ]; then
-        echo "⚠️  Binary is not executable, fixing permissions..."
-        chmod +x /usr/local/bin/openterfaceQT
-    fi
-    
-    # Determine package type from INSTALL_TYPE_ARG
-    if [ "$INSTALL_TYPE_ARG" = "appimage" ]; then
-        echo "ℹ️  Detected AppImage format (from INSTALL_TYPE)"
-        # Don't extract AppImage - run it directly with FUSE
-        export APPIMAGE_EXTRACT_AND_RUN=0
-        echo "ℹ️  AppImage will run directly (FUSE is available)"
-    elif [ "$INSTALL_TYPE_ARG" = "deb" ]; then
-        echo "ℹ️  Detected DEB package (from INSTALL_TYPE)"
-        # For DEB packages, ensure Qt and system libraries are available
-        export LD_LIBRARY_PATH=/usr/lib/x86_64-linux-gnu:/usr/lib:/lib/x86_64-linux-gnu:/lib:$LD_LIBRARY_PATH
-        export QT_PLUGIN_PATH=/usr/lib/qt6/plugins:/usr/lib/x86_64-linux-gnu/qt6/plugins
-        export QML2_IMPORT_PATH=/usr/lib/qt6/qml:/usr/lib/x86_64-linux-gnu/qt6/qml
-        # Set bundled Qt platform plugins path for installed application
-        export QT_QPA_PLATFORM_PLUGIN_PATH=/usr/lib/openterfaceqt/qt6/plugins/platforms
-        echo "ℹ️  Library paths configured for system Qt6"
-        echo "ℹ️  QT_QPA_PLATFORM_PLUGIN_PATH set to: $QT_QPA_PLATFORM_PLUGIN_PATH"
-    elif [ "$INSTALL_TYPE_ARG" = "rpm" ]; then
-        echo "ℹ️  Detected RPM package (from INSTALL_TYPE)"
-        # For RPM packages, bundled libraries are in /usr/lib/openterfaceqt/
-        export LD_LIBRARY_PATH=/usr/lib/openterfaceqt:/usr/lib:/lib:$LD_LIBRARY_PATH
-        export QT_PLUGIN_PATH=/usr/lib/openterfaceqt/qt6/plugins:/usr/lib/qt6/plugins:/usr/lib/x86_64-linux-gnu/qt6/plugins
-        export QML2_IMPORT_PATH=/usr/lib/openterfaceqt/qt6/qml:/usr/lib/qt6/qml:/usr/lib/x86_64-linux-gnu/qt6/qml
-        # Set platform plugin path for bundled Qt6
-        export QT_QPA_PLATFORM_PLUGIN_PATH=/usr/lib/openterfaceqt/qt6/plugins/platforms
-        echo "ℹ️  Library paths configured for bundled Qt6 (RPM)"
-        echo "ℹ️  LD_LIBRARY_PATH set to: $LD_LIBRARY_PATH"
-        echo "ℹ️  QT_PLUGIN_PATH set to: $QT_PLUGIN_PATH"
-        echo "ℹ️  QT_QPA_PLATFORM_PLUGIN_PATH set to: $QT_QPA_PLATFORM_PLUGIN_PATH"
-    else
-        echo "ℹ️  Package type unknown, using default configuration"
-    fi
-    
     # Set up display environment for GUI
     echo "ℹ️  DISPLAY environment: $DISPLAY"
     
@@ -198,27 +160,6 @@ if [ -f /usr/local/bin/openterfaceQT ]; then
     echo "🔍 Library Diagnostics:"
     echo "   LD_LIBRARY_PATH=$LD_LIBRARY_PATH"
     
-    # Check for libusb in AppImage
-    if [ "$INSTALL_TYPE_ARG" = "appimage" ]; then
-        echo "   AppImage libusb check:"
-        APPIMAGE_EXTRACTED=$(find /tmp -maxdepth 1 -type d -name "appimage_extracted_*" -printf '%T@ %p\n' 2>/dev/null | sort -rn | head -1 | cut -d' ' -f2-)
-        
-        if [ -n "$APPIMAGE_EXTRACTED" ] && [ -d "$APPIMAGE_EXTRACTED" ]; then
-            echo "     ℹ️  Extracted AppImage found at: $APPIMAGE_EXTRACTED"
-            if find "$APPIMAGE_EXTRACTED" -name "libusb-1.0.so*" 2>/dev/null | grep -q .; then
-                echo "     ✅ libusb IS bundled in AppImage"
-                find "$APPIMAGE_EXTRACTED" -name "libusb-1.0.so*" 2>/dev/null | while read lib; do
-                    echo "       - $lib"
-                done
-            else
-                echo "     ❌ libusb NOT found in AppImage"
-            fi
-        else
-            echo "     ⏳ AppImage not yet extracted (will extract on first run)"
-        fi
-        echo ""
-    fi
-    
     if [ -f /usr/local/bin/openterfaceQT ]; then
         echo "   Checking openterfaceQT dependencies:"
         ldd /usr/local/bin/openterfaceQT 2>&1 || echo "     (ldd check skipped for AppImage)"
@@ -227,50 +168,7 @@ if [ -f /usr/local/bin/openterfaceQT ]; then
     
     echo "🔧 Starting Openterface QT application..."
     
-    # For AppImage, create a wrapper that sets LD_LIBRARY_PATH after extraction
-    if [ "$INSTALL_TYPE_ARG" = "appimage" ]; then
-        # Run AppImage with a wrapper script that detects and uses bundled libraries
-        cat > /tmp/run-appimage.sh << 'EOF'
-#!/bin/bash
-# Find the most recent AppImage extraction directory
-APPIMAGE_EXTRACTED=$(find /tmp -maxdepth 1 -type d -name "appimage_extracted_*" -printf '%T@ %p\n' 2>/dev/null | sort -rn | head -1 | cut -d' ' -f2-)
-
-if [ -n "$APPIMAGE_EXTRACTED" ] && [ -d "$APPIMAGE_EXTRACTED/usr/lib" ]; then
-    export LD_LIBRARY_PATH="$APPIMAGE_EXTRACTED/usr/lib:$LD_LIBRARY_PATH"
-    echo "ℹ️  Using AppImage bundled libraries from: $APPIMAGE_EXTRACTED/usr/lib" >&2
-fi
-
-# Enable more debugging
-export QT_DEBUG_PLUGINS=1
-export QT_LOGGING_RULES="*=true"
-
-# Print environment for debugging
-echo "=== Application Runtime Environment ===" >&2
-echo "DISPLAY=$DISPLAY" >&2
-echo "LD_LIBRARY_PATH=$LD_LIBRARY_PATH" >&2
-echo "QT_QPA_PLATFORM=$QT_QPA_PLATFORM" >&2
-echo "HOME=$HOME" >&2
-echo "======================================" >&2
-
-exec /usr/local/bin/openterfaceQT "$@"
-EOF
-        chmod +x /tmp/run-appimage.sh
-        # Use stdbuf to unbuffer output for immediate logging (if available and compatible)
-        if command -v stdbuf >/dev/null 2>&1; then
-            stdbuf -oL -eL env DISPLAY=$DISPLAY QT_QPA_PLATFORM=$QT_QPA_PLATFORM APPIMAGE_EXTRACT_AND_RUN=${APPIMAGE_EXTRACT_AND_RUN:-0} /tmp/run-appimage.sh > /tmp/openterfaceqt.log 2>&1 &
-        else
-            # Fallback without stdbuf if not available or incompatible
-            env DISPLAY=$DISPLAY QT_QPA_PLATFORM=$QT_QPA_PLATFORM APPIMAGE_EXTRACT_AND_RUN=${APPIMAGE_EXTRACT_AND_RUN:-0} /tmp/run-appimage.sh > /tmp/openterfaceqt.log 2>&1 &
-        fi
-    else
-        # Use stdbuf to unbuffer output for immediate logging (if available and compatible)
-        if command -v stdbuf >/dev/null 2>&1; then
-            stdbuf -oL -eL env DISPLAY=$DISPLAY QT_QPA_PLATFORM=$QT_QPA_PLATFORM APPIMAGE_EXTRACT_AND_RUN=${APPIMAGE_EXTRACT_AND_RUN:-0} /usr/local/bin/openterfaceQT > /tmp/openterfaceqt.log 2>&1 &
-        else
-            # Fallback without stdbuf if not available or incompatible
-            env DISPLAY=$DISPLAY QT_QPA_PLATFORM=$QT_QPA_PLATFORM APPIMAGE_EXTRACT_AND_RUN=${APPIMAGE_EXTRACT_AND_RUN:-0} /usr/local/bin/openterfaceQT > /tmp/openterfaceqt.log 2>&1 &
-        fi
-    fi
+    /usr/local/bin/openterfaceQT > /tmp/openterfaceqt.log 2>&1 &
     APP_PID=$!
     
     echo "✅ Openterface QT started with PID: $APP_PID"
