@@ -356,7 +356,7 @@ APP_LOG="/tmp/openterfaceqt-app-$(date +%s).log"
 
 # Execute the binary with all passed arguments
 # Redirect output to both log file and console for monitoring
-"$OPENTERFACE_BIN" "$@" 2>&1 | tee -a "$APP_LOG" &
+("$OPENTERFACE_BIN" "$@" 2>&1 | tee -a "$APP_LOG") &
 APP_PID=$!
 
 {
