@@ -591,13 +591,29 @@ install_rpm_package() {
     
     # RPM packages bundle libraries in /usr/lib/openterfaceqt/ and register with ldconfig
     print_info "Installing RPM package..."
-    if $SUDO dnf install -y "$PACKAGE_FILE" 2>&1 | tail -30; then
-        print_success "RPM package installed successfully"
-    else
-        print_error "Failed to install RPM package"
-        print_info "Note: If dependencies are missing, they should be bundled in the package"
+    
+    # Capture dnf output to check for actual install result
+    DNF_OUTPUT=$($SUDO dnf install -y "$PACKAGE_FILE" 2>&1)
+    DNF_EXIT=$?
+    
+    # Show dnf output (last 30 lines)
+    echo "$DNF_OUTPUT" | tail -30
+    
+    if [ $DNF_EXIT -ne 0 ]; then
+        print_error "Failed to install RPM package (exit code: $DNF_EXIT)"
+        print_error "Missing dependencies detected"
+        
+        # Extract missing package information from dnf output
+        MISSING_DEPS=$(echo "$DNF_OUTPUT" | grep "nothing provides" | head -5)
+        if [ -n "$MISSING_DEPS" ]; then
+            print_error "Missing dependencies:"
+            echo "$MISSING_DEPS"
+        fi
+        
         return 1
     fi
+    
+    print_success "RPM package installed successfully"
     
     # Ensure bundled libraries are registered with the system linker
     print_section "Registering bundled libraries with system linker..."

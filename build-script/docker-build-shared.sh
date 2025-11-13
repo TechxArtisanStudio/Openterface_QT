@@ -945,162 +945,136 @@ else
     echo "✅ libQt6XcbQpa.so found and copied"
 fi
 
-# Copy Qt plugins to SOURCES
+# Copy Qt plugins to SOURCES (SELECTIVE: only essential plugins to reduce RPM size)
 QT_PLUGIN_DIR="/opt/Qt6/plugins"
 if [ -d "${QT_PLUGIN_DIR}" ]; then
+    echo "📋 RPM: Copying ONLY essential Qt plugins (selective bundling for size optimization)..."
+    
+    # Only copy essential plugin categories needed by openterfaceQT
+    # Excluding: imageformats (handled separately), codecs, tls, iconengines (handled separately)
+    ESSENTIAL_PLUGINS=(
+        "platforms"     # Platform abstraction (xcb, wayland, minimal)
+        "platforminputcontexts"  # Input method contexts
+    )
+    
     mkdir -p "${RPMTOP}/SOURCES/qt6-plugins"
-    echo "Copying Qt plugins to SOURCES..."
-    cp -ra "${QT_PLUGIN_DIR}"/* "${RPMTOP}/SOURCES/qt6-plugins/" 2>/dev/null || true
+    
+    for plugin_dir in "${ESSENTIAL_PLUGINS[@]}"; do
+        if [ -d "${QT_PLUGIN_DIR}/${plugin_dir}" ]; then
+            echo "   ✅ Copying ${plugin_dir}..."
+            mkdir -p "${RPMTOP}/SOURCES/qt6-plugins/${plugin_dir}"
+            cp -r "${QT_PLUGIN_DIR}/${plugin_dir}"/* "${RPMTOP}/SOURCES/qt6-plugins/${plugin_dir}/" 2>/dev/null || true
+        fi
+    done
+    
+    echo "   ✅ Essential Qt plugins copied (size-optimized)"
 fi
 
-# Copy Qt QML imports to SOURCES
+# Copy Qt QML imports to SOURCES (SELECTIVE: only essential modules)
 QT_QML_DIR="/opt/Qt6/qml"
 if [ -d "${QT_QML_DIR}" ]; then
-    mkdir -p "${RPMTOP}/SOURCES/qt6-qml"
-    echo "Copying Qt QML imports to SOURCES..."
-    cp -ra "${QT_QML_DIR}"/* "${RPMTOP}/SOURCES/qt6-qml/" 2>/dev/null || true
-fi
-
-# Copy SVG-specific Qt libraries and plugins to SOURCES (CRITICAL for SVG icon support)
-echo "📋 RPM: Ensuring SVG support for icons..."
-
-# Copy libQt6Svg library
-echo "   📦 Searching for libQt6Svg.so..."
-SVG_LIB_FOUND=0
-for SEARCH_DIR in /opt/Qt6/lib /usr/lib/x86_64-linux-gnu /usr/lib; do
-    if [ -d "$SEARCH_DIR" ]; then
-        if ls "$SEARCH_DIR"/libQt6Svg.so* >/dev/null 2>&1; then
-            echo "   ✅ Found libQt6Svg.so in $SEARCH_DIR"
-            cp -Pv "$SEARCH_DIR"/libQt6Svg.so* "${RPMTOP}/SOURCES/" 2>&1 | sed 's/^/     /'
-            SVG_LIB_FOUND=1
-            break
-        fi
+    echo "📋 RPM: Checking for essential Qt QML modules (selective bundling)..."
+    
+    # Only copy if actually used by application - check if application uses QML
+    if strings "${RPMTOP}/SOURCES/openterfaceQT" 2>/dev/null | grep -q "qml\|QML\|QtQuick"; then
+        echo "   ✅ Application uses QML, copying essential modules..."
+        mkdir -p "${RPMTOP}/SOURCES/qt6-qml"
+        
+        # Only copy core QML modules needed at runtime
+        ESSENTIAL_QML=(
+            "Qt"           # Core Qt QML module
+            "QtCore"       # QtCore bindings
+        )
+        
+        for qml_module in "${ESSENTIAL_QML[@]}"; do
+            if [ -d "${QT_QML_DIR}/${qml_module}" ]; then
+                echo "      Copying ${qml_module}..."
+                mkdir -p "${RPMTOP}/SOURCES/qt6-qml/${qml_module}"
+                cp -r "${QT_QML_DIR}/${qml_module}"/* "${RPMTOP}/SOURCES/qt6-qml/${qml_module}/" 2>/dev/null || true
+            fi
+        done
+        echo "   ✅ Essential QML modules copied"
+    else
+        echo "   ℹ️  Application doesn't use QML, skipping QML module bundling"
     fi
-done
-if [ $SVG_LIB_FOUND -eq 0 ]; then
-    echo "   ⚠️  libQt6Svg.so not found - SVG support may be limited"
 fi
 
-# Copy SVG image format plugin (libqsvg.so)
-echo "   📦 Searching for libqsvg.so (SVG image format plugin)..."
-SVG_PLUGIN_FOUND=0
-for SEARCH_DIR in /opt/Qt6/plugins /usr/lib/qt6/plugins /usr/lib/x86_64-linux-gnu/qt6/plugins; do
-    if [ -d "$SEARCH_DIR/imageformats" ]; then
-        if [ -f "$SEARCH_DIR/imageformats/libqsvg.so" ]; then
-            echo "   ✅ Found libqsvg.so in $SEARCH_DIR"
-            cp -Pv "$SEARCH_DIR/imageformats/libqsvg.so" "${RPMTOP}/SOURCES/" 2>&1 | sed 's/^/     /'
-            SVG_PLUGIN_FOUND=1
-            break
+# Copy SVG-specific Qt libraries and plugins to SOURCES (CONDITIONAL: only if SVG icons used)
+echo "📋 RPM: Checking for SVG icon usage in application..."
+
+# OPTIMIZATION: Only bundle SVG libraries if project contains SVG icons
+if find "${SRC}/images" -name "*.svg" 2>/dev/null | grep -q .; then
+    echo "   ✅ SVG icons detected - will bundle SVG support"
+    
+    # Copy libQt6Svg library
+    echo "   📦 Searching for libQt6Svg.so..."
+    SVG_LIB_FOUND=0
+    for SEARCH_DIR in /opt/Qt6/lib /usr/lib/x86_64-linux-gnu /usr/lib; do
+        if [ -d "$SEARCH_DIR" ]; then
+            if ls "$SEARCH_DIR"/libQt6Svg.so* >/dev/null 2>&1; then
+                echo "   ✅ Found libQt6Svg.so in $SEARCH_DIR"
+                cp -Pv "$SEARCH_DIR"/libQt6Svg.so* "${RPMTOP}/SOURCES/" 2>&1 | sed 's/^/     /'
+                SVG_LIB_FOUND=1
+                break
+            fi
         fi
+    done
+    if [ $SVG_LIB_FOUND -eq 0 ]; then
+        echo "   ⚠️  libQt6Svg.so not found - SVG support may be limited"
     fi
-done
-if [ $SVG_PLUGIN_FOUND -eq 0 ]; then
-    echo "   ⚠️  libqsvg.so not found - SVG images won't be loaded"
+
+    # Copy SVG image format plugin (libqsvg.so)
+    echo "   📦 Searching for libqsvg.so (SVG image format plugin)..."
+    SVG_PLUGIN_FOUND=0
+    for SEARCH_DIR in /opt/Qt6/plugins /usr/lib/qt6/plugins /usr/lib/x86_64-linux-gnu/qt6/plugins; do
+        if [ -d "$SEARCH_DIR/imageformats" ]; then
+            if [ -f "$SEARCH_DIR/imageformats/libqsvg.so" ]; then
+                echo "   ✅ Found libqsvg.so in $SEARCH_DIR"
+                mkdir -p "${RPMTOP}/SOURCES/qt6-plugins/imageformats"
+                cp -Pv "$SEARCH_DIR/imageformats/libqsvg.so" "${RPMTOP}/SOURCES/qt6-plugins/imageformats/" 2>&1 | sed 's/^/     /'
+                SVG_PLUGIN_FOUND=1
+                break
+            fi
+        fi
+    done
+    if [ $SVG_PLUGIN_FOUND -eq 0 ]; then
+        echo "   ⚠️  libqsvg.so not found - SVG images won't be loaded"
+    fi
+else
+    echo "   ℹ️  No SVG icons detected - skipping SVG library bundling (size optimization: ~5-10MB saved)"
+    SVG_LIB_FOUND=0
+    SVG_PLUGIN_FOUND=0
 fi
 
-# Copy SVG icon engine plugin (libsvgicon.so)
-echo "   📦 Searching for libsvgicon.so (SVG icon engine plugin)..."
+# Copy SVG icon engine plugin (libsvgicon.so) - OPTIONAL for RPM size optimization
+echo "   📦 Checking for SVG icon usage in application..."
 SVGICON_PLUGIN_FOUND=0
 
-# First try: search in standard iconengines directories with wildcards
-for SEARCH_DIR in /opt/Qt6/plugins /usr/lib/qt6/plugins /usr/lib/x86_64-linux-gnu/qt6/plugins; do
-    if [ -d "$SEARCH_DIR/iconengines" ]; then
-        # Use find to look for libsvgicon.so with potential version suffixes
-        FOUND_FILES=$(find "$SEARCH_DIR/iconengines" -name "libsvgicon.so*" 2>/dev/null)
-        if [ -n "$FOUND_FILES" ]; then
-            echo "   ✅ Found libsvgicon.so in $SEARCH_DIR/iconengines"
-            echo "$FOUND_FILES" | while read -r svg_icon_file; do
-                cp -Pv "$svg_icon_file" "${RPMTOP}/SOURCES/" 2>&1 | sed 's/^/     /'
-            done
-            SVGICON_PLUGIN_FOUND=1
-            break
-        fi
-    fi
-done
-
-# Second try: search for it in the broader plugins directory (might not be in iconengines subdirectory)
-if [ $SVGICON_PLUGIN_FOUND -eq 0 ]; then
+# Only bundle SVG icon plugin if icons actually use SVG format (size optimization)
+if find "${SRC}/images" -name "*.svg" 2>/dev/null | grep -q .; then
+    echo "   ℹ️  SVG icons detected, attempting to bundle SVG icon engine..."
+    
     for SEARCH_DIR in /opt/Qt6/plugins /usr/lib/qt6/plugins /usr/lib/x86_64-linux-gnu/qt6/plugins; do
-        if [ -d "$SEARCH_DIR" ]; then
-            FOUND_FILES=$(find "$SEARCH_DIR" -name "libsvgicon.so*" -type f 2>/dev/null)
+        if [ -d "$SEARCH_DIR/iconengines" ]; then
+            FOUND_FILES=$(find "$SEARCH_DIR/iconengines" -name "libsvgicon.so*" 2>/dev/null)
             if [ -n "$FOUND_FILES" ]; then
-                echo "   ✅ Found libsvgicon.so in $SEARCH_DIR (in alternate location)"
+                echo "   ✅ Found libsvgicon.so, bundling for SVG icon support..."
+                mkdir -p "${RPMTOP}/SOURCES/qt6-plugins/iconengines"
                 echo "$FOUND_FILES" | while read -r svg_icon_file; do
-                    cp -Pv "$svg_icon_file" "${RPMTOP}/SOURCES/" 2>&1 | sed 's/^/     /'
+                    cp -Pv "$svg_icon_file" "${RPMTOP}/SOURCES/qt6-plugins/iconengines/" 2>&1 | sed 's/^/     /'
                 done
                 SVGICON_PLUGIN_FOUND=1
                 break
             fi
         fi
     done
-fi
-
-# Third try: attempt to install SVG icon plugin if not found
-if [ $SVGICON_PLUGIN_FOUND -eq 0 ]; then
-    echo "   ⚠️  libsvgicon.so not found in: /opt/Qt6/plugins, /usr/lib/qt6/plugins, /usr/lib/x86_64-linux-gnu/qt6/plugins"
-    echo "   📥 Attempting to install SVG icon plugin packages..."
-    
-    # Try Debian package
-    if command -v apt-get >/dev/null 2>&1; then
-        if apt-get update >/dev/null 2>&1 && apt-get install -y qt6-svg 2>/dev/null; then
-            echo "   ✅ Installed qt6-svg package"
-            # Retry search after installation
-            for SEARCH_DIR in /usr/lib/qt6/plugins /usr/lib/x86_64-linux-gnu/qt6/plugins; do
-                if [ -d "$SEARCH_DIR/iconengines" ]; then
-                    FOUND_FILES=$(find "$SEARCH_DIR/iconengines" -name "libsvgicon.so*" 2>/dev/null)
-                    if [ -n "$FOUND_FILES" ]; then
-                        echo "   ✅ Found libsvgicon.so after installation"
-                        echo "$FOUND_FILES" | while read -r svg_icon_file; do
-                            cp -Pv "$svg_icon_file" "${RPMTOP}/SOURCES/" 2>&1 | sed 's/^/     /'
-                        done
-                        SVGICON_PLUGIN_FOUND=1
-                        break
-                    fi
-                fi
-            done
-        fi
-    fi
-    
-    # Try RPM package
-    if [ $SVGICON_PLUGIN_FOUND -eq 0 ] && command -v dnf >/dev/null 2>&1; then
-        if dnf install -y qt6-qtsvg 2>/dev/null; then
-            echo "   ✅ Installed qt6-qtsvg package"
-            # Retry search after installation
-            for SEARCH_DIR in /usr/lib/qt6/plugins /usr/lib/x86_64-linux-gnu/qt6/plugins; do
-                if [ -d "$SEARCH_DIR/iconengines" ]; then
-                    FOUND_FILES=$(find "$SEARCH_DIR/iconengines" -name "libsvgicon.so*" 2>/dev/null)
-                    if [ -n "$FOUND_FILES" ]; then
-                        echo "   ✅ Found libsvgicon.so after installation"
-                        echo "$FOUND_FILES" | while read -r svg_icon_file; do
-                            cp -Pv "$svg_icon_file" "${RPMTOP}/SOURCES/" 2>&1 | sed 's/^/     /'
-                        done
-                        SVGICON_PLUGIN_FOUND=1
-                        break
-                    fi
-                fi
-            done
-        fi
-    fi
-fi
-
-# Final status
-if [ $SVGICON_PLUGIN_FOUND -eq 0 ]; then
-    echo "   ⚠️  libsvgicon.so still not found - SVG icons may not display optimally"
-    echo "   ℹ️  Note: SVG image format support (libqsvg.so) is still available for SVG rendering"
-    echo "   ℹ️  Icons may fall back to other formats or display without SVG icon engine"
-fi
-
-# Verify SVG support components
-echo ""
-if [ $SVG_LIB_FOUND -eq 1 ] && [ $SVG_PLUGIN_FOUND -eq 1 ] && [ $SVGICON_PLUGIN_FOUND -eq 1 ]; then
-    echo "✅ Full SVG support successfully bundled for RPM package"
 else
-    echo "⚠️  WARNING: Some SVG components are missing - SVG display may be incomplete"
-    echo "   - libQt6Svg.so: $([ $SVG_LIB_FOUND -eq 1 ] && echo '✅' || echo '❌')"
-    echo "   - libqsvg.so: $([ $SVG_PLUGIN_FOUND -eq 1 ] && echo '✅' || echo '❌')"
-    echo "   - libsvgicon.so: $([ $SVGICON_PLUGIN_FOUND -eq 1 ] && echo '✅' || echo '❌')"
+    echo "   ℹ️  No SVG icons in application, skipping SVG icon engine (size optimization ~2MB saved)"
 fi
-echo ""
+
+if [ $SVGICON_PLUGIN_FOUND -eq 0 ] && find "${SRC}/images" -name "*.svg" 2>/dev/null | grep -q .; then
+    echo "   ⚠️  SVG icons found but libsvgicon.so plugin not available - icons will use fallback rendering"
+fi
 
 # Copy libjpeg and libturbojpeg libraries to SOURCES for bundling
 echo "🔍 Searching for JPEG libraries to RPM SOURCES..."
