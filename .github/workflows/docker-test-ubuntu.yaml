@@ -148,14 +148,16 @@ jobs:
           echo "📊 DEB file size: $(ls -lh "$DEB_FILE" | awk '{print $5}')"
           echo ""
           
-          # Create extraction directory
+          # Create extraction directory and get absolute path to DEB file
           DEB_EXTRACT_DIR="deb-contents"
           mkdir -p "$DEB_EXTRACT_DIR"
+          DEB_FILE_ABS=$(cd "$(dirname "$DEB_FILE")" && pwd)/$(basename "$DEB_FILE")
+          
           cd "$DEB_EXTRACT_DIR"
           
           echo "🔍 Extracting DEB package using ar..."
-          # Extract DEB package (contains control.tar.zst, data.tar.zst, debian-binary)
-          ar x "$DEB_FILE"
+          # Extract DEB package (contains control.tar.zst/xz/gz, data.tar.zst/xz/gz, debian-binary)
+          ar x "$DEB_FILE_ABS"
           
           if [ $? -ne 0 ]; then
             echo "❌ Failed to extract DEB with ar command"
@@ -173,7 +175,7 @@ jobs:
             tar --use-compress-program=unzstd -xf control.tar.zst
             echo "✅ control.tar.zst extracted"
           elif [ -f "control.tar.xz" ]; then
-            tar -xf control.tar.zst
+            tar -xJf control.tar.xz
             echo "✅ control.tar.xz extracted"
           elif [ -f "control.tar.gz" ]; then
             tar -xzf control.tar.gz
@@ -186,7 +188,7 @@ jobs:
             tar --use-compress-program=unzstd -xf data.tar.zst
             echo "✅ data.tar.zst extracted"
           elif [ -f "data.tar.xz" ]; then
-            tar -xf data.tar.xz
+            tar -xJf data.tar.xz
             echo "✅ data.tar.xz extracted"
           elif [ -f "data.tar.gz" ]; then
             tar -xzf data.tar.gz
