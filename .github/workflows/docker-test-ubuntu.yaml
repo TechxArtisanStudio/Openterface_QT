@@ -1022,7 +1022,9 @@ jobs:
                 if [ "$actual_size" -gt 50000 ]; then
                   echo "**Status:** ✅ Content detected ($(($actual_size / 1024))KB)" >> $GITHUB_STEP_SUMMARY
                 else
-                  echo "**Status:** ⚠️ File generated (size check: $actual_size bytes)" >> $GITHUB_STEP_SUMMARY
+                  echo "**Status:** ❌ FAILED - Screenshot too small (size: $actual_size bytes, expected: >50000 bytes)" >> $GITHUB_STEP_SUMMARY
+                  echo "Screenshot file size validation failed: $actual_size bytes < 50000 bytes"
+                  exit 1
                 fi
                 echo "" >> $GITHUB_STEP_SUMMARY
                 
