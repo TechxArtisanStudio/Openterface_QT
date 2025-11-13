@@ -258,7 +258,7 @@ echo "🔍 Searching for libusb libraries to RPM SOURCES..."
 # Copy libusb libraries - search multiple locations
 echo "📋 RPM: Searching for libusb libraries..."
 LIBUSB_FOUND=0
-for SEARCH_DIR in /opt/libusb/lib /usr/lib/x86_64-linux-gnu /usr/lib; do
+for SEARCH_DIR in /opt/libusb/lib /opt/ffmpeg/lib /usr/lib/x86_64-linux-gnu /usr/lib; do
     echo "   Checking: $SEARCH_DIR"
     if [ -d "$SEARCH_DIR" ]; then
         if ls "$SEARCH_DIR"/libusb*.so* >/dev/null 2>&1; then
