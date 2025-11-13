@@ -389,13 +389,7 @@ REQUIRED_LIBS=(
     "libturbojpeg.so"
     "libva.so"
     "libvdpau.so"
-    "libgstreamer-1.0.so"
     "liborc-0.4.so"
-    "libavcodec.so"
-    "libavformat.so"
-    "libavutil.so"
-    "libswscale.so"
-    "libswresample.so"
 )
 
 LIBS_FOUND=0
