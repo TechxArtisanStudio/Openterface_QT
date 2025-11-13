@@ -169,8 +169,7 @@ if [ -f /usr/local/bin/openterfaceQT ]; then
     echo ""
     
     echo "🔧 Starting Openterface QT application..."
-    
-    /usr/local/bin/openterfaceQT > /tmp/openterfaceqt.log 2>&1 &
+    OPENTERFACE_DEBUG=1 /usr/local/bin/openterfaceQT > /tmp/openterfaceqt.log 2>&1 &
     APP_PID=$!
     
     echo "✅ Openterface QT started with PID: $APP_PID"

@@ -117,26 +117,8 @@ cp -r %{_sourcedir}/qt6/qml/* %{buildroot}/usr/lib/openterfaceqt/qt6/qml/ 2>/dev
 
 # Install the wrapper script to set up library paths
 mkdir -p %{buildroot}/usr/lib/openterfaceqt
-# Note: wrapper script should be copied from source if available
-# For now, create a simple wrapper that sets up the environment
-cat > %{buildroot}/usr/lib/openterfaceqt/launcher.sh << 'WRAPPER_EOF'
-#!/bin/bash
-# OpenterfaceQT Launcher - Sets up bundled library paths
-set -e
-
-# Ensure bundled Qt6 and FFmpeg libraries are found FIRST (before system libraries)
-# This guarantees we use our bundled versions, not system versions
-LD_LIBRARY_PATH="/usr/lib/openterfaceqt/qt6:/usr/lib/openterfaceqt/ffmpeg:/usr/lib/openterfaceqt/gstreamer:/usr/lib/openterfaceqt:${LD_LIBRARY_PATH:-}"
-export LD_LIBRARY_PATH
-
-# Set Qt plugin paths to use bundled plugins
-export QT_PLUGIN_PATH="/usr/lib/openterfaceqt/qt6/plugins"
-export QML2_IMPORT_PATH="/usr/lib/openterfaceqt/qt6/qml"
-
-# Execute the main binary
-exec /usr/bin/openterfaceQT "$@"
-WRAPPER_EOF
-
+# Copy wrapper script from source
+cp %{_sourcedir}/../openterfaceQT-launcher.sh %{buildroot}/usr/lib/openterfaceqt/launcher.sh
 chmod +x %{buildroot}/usr/lib/openterfaceqt/launcher.sh
 
 # Create symlink in /usr/local/bin for easy access (consistent with DEB/AppImage)
@@ -149,15 +131,13 @@ cat > %{buildroot}/usr/share/applications/openterfaceQT.desktop << EOF
 Version=${VERSION}
 Type=Application
 Name=OpenterfaceQT
-Exec=env \
-    LD_LIBRARY_PATH=/usr/lib/openterfaceqt/qt6:/usr/lib/openterfaceqt/ffmpeg:/usr/lib/openterfaceqt/gstreamer:/usr/lib/openterfaceqt \
-    QT_PLUGIN_PATH=/usr/lib/openterfaceqt/qt6/plugins \
-    QML2_IMPORT_PATH=/usr/lib/openterfaceqt/qt6/qml \
-    GST_PLUGIN_PATH=/usr/lib/openterfaceqt/gstreamer/gstreamer-1.0 \
-    /usr/local/bin/openterfaceQT
+Exec=/usr/local/bin/openterfaceQT
 Icon=openterfaceQT
 Comment=OpenterfaceQT KVM Application for Fedora Linux
 Categories=Utility;
+
+# For debugging: uncomment and set OPENTERFACE_DEBUG=1 in environment
+# Exec=env OPENTERFACE_DEBUG=1 /usr/local/bin/openterfaceQT
 EOF
 
 # Generate dynamic file list to handle optional files gracefully

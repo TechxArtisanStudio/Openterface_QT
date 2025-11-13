@@ -739,20 +739,20 @@ fi
 
 # Copy desktop file (ensure Exec uses wrapper script for proper environment setup)
 if [ -f "${SRC}/com.openterface.openterfaceQT.desktop" ]; then
-	sed -e 's|^Exec=.*$|Exec=/usr/local/bin/openterfaceQT-wrapper.sh|g' \
+	sed -e 's|^Exec=.*$|Exec=/usr/local/bin/openterfaceQT-launcher.sh|g' \
 		-e 's|^Icon=.*$|Icon=openterfaceQT|g' \
 		"${SRC}/com.openterface.openterfaceQT.desktop" > "${PKG_ROOT}/usr/share/applications/com.openterface.openterfaceQT.desktop"
 fi
 
 # Copy wrapper script to bin
-if [ -f "${SRC}/packaging/openterfaceQT-wrapper.sh" ]; then
-	install -m 0755 "${SRC}/packaging/openterfaceQT-wrapper.sh" "${PKG_ROOT}/usr/local/bin/openterfaceQT-wrapper.sh"
-	echo "✅ Wrapper script installed"
+if [ -f "${SRC}/packaging/debian/openterfaceQT-launcher.sh" ]; then
+	install -m 0755 "${SRC}/packaging/debian/openterfaceQT-launcher.sh" "${PKG_ROOT}/usr/local/bin/openterfaceQT-launcher.sh"
+	echo "✅ Launcher script installed"
 	
 	# Create a symlink/alias at the standard binary location that points to the wrapper
 	# This ensures EVERY call to openterfaceQT goes through the wrapper with LD_PRELOAD
-	ln -sf openterfaceQT-wrapper.sh "${PKG_ROOT}/usr/local/bin/openterfaceQT"
-	echo "✅ Created symlink: /usr/local/bin/openterfaceQT → openterfaceQT-wrapper.sh"
+	ln -sf openterfaceQT-launcher.sh "${PKG_ROOT}/usr/local/bin/openterfaceQT"
+	echo "✅ Created symlink: /usr/local/bin/openterfaceQT → openterfaceQT-launcher.sh"
 else
 	echo "⚠️  Warning: wrapper script not found, using inline environment variables as fallback"
 	sed -e 's|^Exec=.*$|Exec=env QT_PLUGIN_PATH=/usr/lib/qt6/plugins:/usr/lib/x86_64-linux-gnu/qt6/plugins QML2_IMPORT_PATH=/usr/lib/qt6/qml:/usr/lib/x86_64-linux-gnu/qt6/qml GST_PLUGIN_PATH=/usr/lib/x86_64-linux-gnu/gstreamer-1.0:/usr/lib/gstreamer-1.0 /usr/local/bin/openterfaceQT|g' \
