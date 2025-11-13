@@ -198,7 +198,7 @@ jobs:
           echo ""
           echo "📂 DEB Package Contents Structure:"
           echo "=================================="
-          tree "$DEB_EXTRACT_DIR" -L 3 2>/dev/null || find "$DEB_EXTRACT_DIR" -type f -o -type d | head -100
+          tree "$DEB_EXTRACT_DIR" -L 4 2>/dev/null || find "$DEB_EXTRACT_DIR" -type f -o -type d | head -100
           
           echo ""
           echo "📋 Key Files and Binaries:"
@@ -640,6 +640,81 @@ jobs:
               which openterfaceqt 2>/dev/null || echo "openterfaceqt not in PATH"
             fi
           ' || echo "⚠️ Could not retrieve process information"
+          echo "=================================================="
+          echo ""
+          
+          # Check ldd dependencies for installed DEB package
+          echo ""
+          echo "📋 DEB Package Dynamic Library Dependencies (ldd):"
+          echo "=================================================="
+          docker exec $CONTAINER_ID bash -c '
+            echo "🔍 Checking ldd for installed openterface binary..."
+            
+            # Find the openterfaceqt binary
+            BINARY_PATH=""
+            if [ -x /opt/openterface/bin/openterfaceqt ]; then
+              BINARY_PATH="/opt/openterface/bin/openterfaceqt"
+            elif [ -x /usr/bin/openterfaceqt ]; then
+              BINARY_PATH="/usr/bin/openterfaceqt"
+            else
+              echo "⚠️ openterfaceqt binary not found"
+              exit 0
+            fi
+            
+            echo "✅ Found binary: $BINARY_PATH"
+            echo ""
+            echo "📊 File information:"
+            file "$BINARY_PATH"
+            echo ""
+            
+            echo "📊 Binary size and permissions:"
+            ls -lh "$BINARY_PATH"
+            echo ""
+            
+            echo "📋 Dynamic library dependencies:"
+            echo "---"
+            ldd "$BINARY_PATH" 2>&1
+            echo ""
+            
+            # Check for missing dependencies (red flags)
+            echo "🔍 Checking for missing dependencies..."
+            MISSING=$(ldd "$BINARY_PATH" 2>&1 | grep "not found" || true)
+            if [ -n "$MISSING" ]; then
+              echo "❌ MISSING DEPENDENCIES DETECTED:"
+              echo "$MISSING"
+            else
+              echo "✅ All dependencies resolved (no missing libraries)"
+            fi
+            echo ""
+            
+            # Count library types
+            echo "📊 Library dependency summary:"
+            TOTAL_LIBS=$(ldd "$BINARY_PATH" 2>&1 | grep "=>" | wc -l)
+            SYSTEM_LIBS=$(ldd "$BINARY_PATH" 2>&1 | grep "=>" | grep "/lib\|/usr/lib" | wc -l)
+            CUSTOM_LIBS=$(ldd "$BINARY_PATH" 2>&1 | grep "=>" | grep "/opt/openterface" | wc -l)
+            
+            echo "  Total libraries linked: $TOTAL_LIBS"
+            echo "  System libraries: $SYSTEM_LIBS"
+            echo "  Custom/local libraries: $CUSTOM_LIBS"
+            echo ""
+            
+            # List Qt libraries specifically
+            echo "🎨 Qt Libraries:"
+            ldd "$BINARY_PATH" 2>&1 | grep -i "libqt" || echo "No Qt libraries found in ldd output"
+            echo ""
+            
+            # List FFmpeg/GStreamer libraries specifically
+            echo "🎬 Media Libraries (FFmpeg/GStreamer):"
+            ldd "$BINARY_PATH" 2>&1 | grep -E "libav|libsw|libgst" || echo "No FFmpeg/GStreamer libraries found in ldd output"
+            echo ""
+            
+            # List USB/Hardware libraries
+            echo "🔌 USB/Hardware Libraries:"
+            ldd "$BINARY_PATH" 2>&1 | grep -E "libusb|libudev" || echo "No USB/Hardware libraries found in ldd output"
+            echo ""
+            
+            echo "✅ ldd analysis completed"
+          ' || echo "⚠️ Could not check ldd dependencies"
           echo "=================================================="
           echo ""
           
