@@ -121,6 +121,13 @@ ldconfig 2>/dev/null || true
 echo "OpenterfaceQT libraries registered. Checking library cache..."
 ldconfig -p 2>/dev/null | grep openterfaceqt | head -3 || echo "Note: Library check may not be available in all environments"
 
+# Create symlink for binary in /usr/local/bin for consistency with DEB/AppImage installations
+# This allows the standard entrypoint script to find the binary without modification
+mkdir -p /usr/local/bin
+if [ ! -L /usr/local/bin/openterfaceQT ]; then
+    ln -sf /usr/bin/openterfaceQT /usr/local/bin/openterfaceQT 2>/dev/null || true
+fi
+
 %postun
 # Remove ldconfig configuration on uninstall to clean up bundled library paths
 if [ $1 -eq 0 ]; then
