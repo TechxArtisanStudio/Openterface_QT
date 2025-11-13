@@ -4,6 +4,19 @@
 set -e
 
 # ============================================
+# Error Handling & Logging
+# ============================================
+LAUNCHER_LOG="/tmp/openterfaceqt-launcher-$(date +%s).log"
+{
+    echo "=== OpenterfaceQT Launcher Started at $(date) ==="
+    echo "Script PID: $$"
+    echo "Arguments: $@"
+} | tee "$LAUNCHER_LOG"
+
+# Trap errors and log them
+trap 'echo "ERROR at line $LINENO: $BASH_COMMAND" | tee -a "$LAUNCHER_LOG"; exit 1' ERR
+
+# ============================================
 # Library Path Setup (CRITICAL for bundled libs)
 # ============================================
 # Ensure bundled Qt6 and FFmpeg libraries are found FIRST (before system libraries)
@@ -70,18 +83,29 @@ QT6_MODULE_LIBS=(
     "libQt6PrintSupport"
 )
 
-# Helper function to find library with any .so.6* version suffix
+# Helper function to find library with any version suffix
 find_library() {
     local lib_base="$1"
     local lib_dir="$2"
     
-    # Try exact matches first (including version suffixes like .so.6.6.3, .so.6, etc.)
-    for lib_file in "$lib_dir"/"$lib_base".so.6*; do
-        if [ -f "$lib_file" ]; then
-            echo "$lib_file"
-            return 0
-        fi
+    if [ ! -d "$lib_dir" ]; then
+        return 1
+    fi
+    
+    # Try to find the library with various version suffixes in priority order
+    # Most specific versions first (e.g., .so.6.6.3), then generic versions
+    local found_lib=""
+    
+    # Try exact library files (prefer versioned over generic)
+    for pattern in "$lib_base.so.*" "$lib_base.so"; do
+        for lib_file in "$lib_dir"/$pattern 2>/dev/null; do
+            if [ -f "$lib_file" ]; then
+                echo "$lib_file"
+                return 0
+            fi
+        done
     done
+    
     return 1
 }
 
@@ -246,17 +270,30 @@ fi
 # Debug Mode
 # ============================================
 # Set OPENTERFACE_DEBUG=1 to see environment variables being used
+# NOTE: Debug info is NOW ALWAYS logged to file (launcher.log) regardless of DEBUG flag
 if [ "${OPENTERFACE_DEBUG}" = "1" ] || [ "${OPENTERFACE_DEBUG}" = "true" ]; then
-    echo "========================================" >&2
-    echo "OpenterfaceQT Runtime Environment Setup" >&2
-    echo "========================================" >&2
-    echo "LD_LIBRARY_PATH=$LD_LIBRARY_PATH" >&2
-    echo "LD_PRELOAD=$LD_PRELOAD" >&2
-    echo "QT_PLUGIN_PATH=$QT_PLUGIN_PATH" >&2
-    echo "QT_QPA_PLATFORM_PLUGIN_PATH=$QT_QPA_PLATFORM_PLUGIN_PATH" >&2
-    echo "QML2_IMPORT_PATH=$QML2_IMPORT_PATH" >&2
-    echo "GST_PLUGIN_PATH=$GST_PLUGIN_PATH" >&2
-    echo "========================================" >&2
+    {
+        echo "========================================" 
+        echo "OpenterfaceQT Runtime Environment Setup" 
+        echo "========================================" 
+        echo "LD_LIBRARY_PATH=$LD_LIBRARY_PATH" 
+        echo "LD_PRELOAD=$LD_PRELOAD" 
+        echo "QT_PLUGIN_PATH=$QT_PLUGIN_PATH" 
+        echo "QT_QPA_PLATFORM_PLUGIN_PATH=$QT_QPA_PLATFORM_PLUGIN_PATH" 
+        echo "QML2_IMPORT_PATH=$QML2_IMPORT_PATH" 
+        echo "GST_PLUGIN_PATH=$GST_PLUGIN_PATH" 
+        echo "========================================" 
+    } | tee -a "$LAUNCHER_LOG"
+else
+    # Log env vars to file even in non-debug mode for troubleshooting
+    {
+        echo "LD_LIBRARY_PATH=$LD_LIBRARY_PATH" 
+        echo "LD_PRELOAD=$LD_PRELOAD" 
+        echo "QT_PLUGIN_PATH=$QT_PLUGIN_PATH" 
+        echo "QT_QPA_PLATFORM_PLUGIN_PATH=$QT_QPA_PLATFORM_PLUGIN_PATH" 
+        echo "QML2_IMPORT_PATH=$QML2_IMPORT_PATH" 
+        echo "GST_PLUGIN_PATH=$GST_PLUGIN_PATH" 
+    } >> "$LAUNCHER_LOG"
 fi
 
 # ============================================
@@ -280,20 +317,63 @@ for bin_path in \
 done
 
 if [ -z "$OPENTERFACE_BIN" ]; then
-    echo "Error: OpenterfaceQT binary not found in standard locations" >&2
-    echo "Searched:" >&2
-    echo "  - /usr/bin/openterfaceQT-bin" >&2
-    echo "  - /usr/local/bin/openterfaceQT-bin" >&2
-    echo "  - /opt/openterface/bin/openterfaceQT" >&2
-    echo "  - /opt/openterface/bin/openterfaceQT-bin" >&2
+    {
+        echo "ERROR: OpenterfaceQT binary not found in standard locations" >&2
+        echo "Searched:" >&2
+        echo "  - /usr/bin/openterfaceQT-bin" >&2
+        echo "  - /usr/local/bin/openterfaceQT-bin" >&2
+        echo "  - /opt/openterface/bin/openterfaceQT" >&2
+        echo "  - /opt/openterface/bin/openterfaceQT-bin" >&2
+        echo "" >&2
+        echo "Launcher log: $LAUNCHER_LOG" >&2
+    } | tee -a "$LAUNCHER_LOG"
     exit 1
 fi
 
 # Debug: Show what will be executed
-if [ "${OPENTERFACE_DEBUG}" = "1" ] || [ "${OPENTERFACE_DEBUG}" = "true" ]; then
-    echo "Executing: $OPENTERFACE_BIN" >&2
-fi
+{
+    echo ""
+    echo "Executing: $OPENTERFACE_BIN $@"
+    echo "Launcher log location: $LAUNCHER_LOG"
+    echo ""
+} | tee -a "$LAUNCHER_LOG"
+
+# Capture binary output and error for debugging
+APP_LOG="/tmp/openterfaceqt-app-$(date +%s).log"
+{
+    echo "=== OpenterfaceQT Application Started at $(date) ===" 
+    echo "Binary: $OPENTERFACE_BIN"
+    echo "Environment Variables:"
+    echo "  LD_LIBRARY_PATH=$LD_LIBRARY_PATH"
+    echo "  LD_PRELOAD=$LD_PRELOAD"
+    echo "  QT_PLUGIN_PATH=$QT_PLUGIN_PATH"
+    echo "  QT_QPA_PLATFORM_PLUGIN_PATH=$QT_QPA_PLATFORM_PLUGIN_PATH"
+    echo "  QML2_IMPORT_PATH=$QML2_IMPORT_PATH"
+    echo "  GST_PLUGIN_PATH=$GST_PLUGIN_PATH"
+    echo ""
+    echo "=== Application Output ===" 
+} > "$APP_LOG" 2>&1
 
 # Execute the binary with all passed arguments
-exec "$OPENTERFACE_BIN" "$@"
+# Redirect output to both log file and console for monitoring
+"$OPENTERFACE_BIN" "$@" 2>&1 | tee -a "$APP_LOG" &
+APP_PID=$!
+
+{
+    echo "Application started with PID: $APP_PID"
+    echo "Application log: $APP_LOG"
+} | tee -a "$LAUNCHER_LOG"
+
+# Wait for application to finish and capture exit code
+wait $APP_PID
+APP_EXIT_CODE=$?
+
+{
+    echo ""
+    echo "=== Application Exited ===" 
+    echo "Exit Code: $APP_EXIT_CODE"
+    echo "Time: $(date)"
+} | tee -a "$LAUNCHER_LOG"
+
+exit $APP_EXIT_CODE
 
