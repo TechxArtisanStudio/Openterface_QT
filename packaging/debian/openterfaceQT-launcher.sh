@@ -307,16 +307,20 @@ fi
 # Application Execution
 # ============================================
 # Locate and execute the OpenterfaceQT binary
-# NOTE: The binary is at /usr/bin/openterfaceQT-bin (renamed to avoid symlink conflict)
+# NOTE: The binary is at /usr/local/bin/openterfaceQT.bin (with .bin extension)
 # This ensures LD_PRELOAD and environment variables are ALWAYS applied
 
 # Try multiple locations for the binary (with fallbacks)
+# NOTE: Do NOT include the launcher path itself (/usr/local/bin/openterfaceQT)
+# to avoid infinite recursion. The launcher should be named openterfaceQT or openterfaceQT-launcher.sh
+# and the actual binary should be named openterfaceQT.bin
 OPENTERFACE_BIN=""
 for bin_path in \
-    "/usr/bin/openterfaceQT-bin" \
-    "/usr/local/bin/openterfaceQT" \
+    "/usr/local/bin/openterfaceQT.bin" \
+    "/usr/bin/openterfaceQT.bin" \
+    "/opt/openterface/bin/openterfaceQT.bin" \
     "/usr/local/bin/openterfaceQT-bin" \
-    "/opt/openterface/bin/openterfaceQT" \
+    "/usr/bin/openterfaceQT-bin" \
     "/opt/openterface/bin/openterfaceQT-bin"; do
     if [ -f "$bin_path" ] && [ -x "$bin_path" ]; then
         OPENTERFACE_BIN="$bin_path"
@@ -328,12 +332,15 @@ if [ -z "$OPENTERFACE_BIN" ]; then
     {
         echo "ERROR: OpenterfaceQT binary not found in standard locations" >&2
         echo "Searched:" >&2
-        echo "  - /usr/bin/openterfaceQT-bin" >&2
-        echo "  - /usr/local/bin/openterfaceQT" >&2
+        echo "  - /usr/local/bin/openterfaceQT.bin" >&2
+        echo "  - /usr/bin/openterfaceQT.bin" >&2
+        echo "  - /opt/openterface/bin/openterfaceQT.bin" >&2
         echo "  - /usr/local/bin/openterfaceQT-bin" >&2
-        echo "  - /opt/openterface/bin/openterfaceQT" >&2
+        echo "  - /usr/bin/openterfaceQT-bin" >&2
         echo "  - /opt/openterface/bin/openterfaceQT-bin" >&2
         echo "" >&2
+        echo "NOTE: The actual binary should be named 'openterfaceQT.bin'" >&2
+        echo "The launcher script should be installed as 'openterfaceQT' or 'openterfaceQT-launcher.sh'" >&2
         echo "Launcher log: $LAUNCHER_LOG" >&2
     } | tee -a "$LAUNCHER_LOG"
     exit 1
