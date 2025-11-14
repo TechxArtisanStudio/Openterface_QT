@@ -475,7 +475,7 @@ GSTREAMER_FOUND=0
 
 mkdir -p "${RPMTOP}/SOURCES/gstreamer"
 
-for SEARCH_DIR in /usr/lib/x86_64-linux-gnu /usr/lib; do
+for SEARCH_DIR in /opt/gstreamer/lib/x86_64-linux-gnu /usr/lib/x86_64-linux-gnu /usr/lib; do
     echo "   Checking: $SEARCH_DIR"
     if [ -d "$SEARCH_DIR" ]; then
         if ls "$SEARCH_DIR"/libgstreamer*.so* >/dev/null 2>&1; then

@@ -139,6 +139,11 @@ for lib in "${GSTREAMER_LIBS[@]}"; do
     lib_path=$(find_library "$lib" "/usr/lib/openterfaceqt/gstreamer")
     if [ -n "$lib_path" ]; then
         PRELOAD_LIBS+=("$lib_path")
+    else
+        # Log missing libraries for debugging (suppress in non-debug mode)
+        if [ "${OPENTERFACE_DEBUG}" = "1" ] || [ "${OPENTERFACE_DEBUG}" = "true" ]; then
+            echo "⚠️  GStreamer library not found: $lib" >&2
+        fi
     fi
 done
 
@@ -158,6 +163,11 @@ for lib in "${FFMPEG_LIBS[@]}"; do
     lib_path=$(find_library "$lib" "/usr/lib/openterfaceqt/ffmpeg")
     if [ -n "$lib_path" ]; then
         PRELOAD_LIBS+=("$lib_path")
+    else
+        # Log missing libraries for debugging (suppress in non-debug mode)
+        if [ "${OPENTERFACE_DEBUG}" = "1" ] || [ "${OPENTERFACE_DEBUG}" = "true" ]; then
+            echo "⚠️  FFmpeg library not found: $lib" >&2
+        fi
     fi
 done
 

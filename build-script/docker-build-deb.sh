@@ -287,7 +287,7 @@ GSTREAMER_LIBS=(
     "liborc-0.4.so"
 )
 
-for SEARCH_DIR in /usr/lib/x86_64-linux-gnu /usr/lib; do
+for SEARCH_DIR in /opt/gstreamer/lib/x86_64-linux-gnu /usr/lib/x86_64-linux-gnu /usr/lib; do
     echo "   Checking: $SEARCH_DIR"
     if [ -d "$SEARCH_DIR" ]; then
         # Check if any gstreamer library exists
