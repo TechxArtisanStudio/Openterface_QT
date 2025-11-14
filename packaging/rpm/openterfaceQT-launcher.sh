@@ -12,8 +12,8 @@ LAUNCHER_LOG="/tmp/openterfaceqt-launcher-$(date +%s).log"
     echo "Arguments: $@"
 } | tee "$LAUNCHER_LOG"
 
-# Trap errors and log them (but don't use set -e to allow graceful library lookups)
-trap 'echo "ERROR at line $LINENO: $BASH_COMMAND" | tee -a "$LAUNCHER_LOG"; exit 1' ERR
+# Note: We use 'set +e' to allow graceful library lookups
+# This prevents the script from exiting prematurely when libraries are not found
 
 # ============================================
 # Library Path Setup (CRITICAL for bundled libs)
@@ -86,8 +86,12 @@ QT6_MODULE_LIBS=(
 find_library() {
     local lib_base="$1"
     local lib_dir="$2"
+    local debug_mode="${3:-0}"
     
     if [ ! -d "$lib_dir" ]; then
+        if [ "$debug_mode" = "1" ]; then
+            echo "❌ Directory not found: $lib_dir (searching for $lib_base)" >&2
+        fi
         return 1
     fi
     
@@ -95,34 +99,65 @@ find_library() {
     # Most specific versions first (e.g., .so.6.6.3), then generic versions
     local found_lib=""
     
+    if [ "$debug_mode" = "1" ]; then
+        echo "🔍 Searching for '$lib_base' in '$lib_dir'" >&2
+    fi
+    
     # Try exact library files (prefer versioned over generic)
     for pattern in "$lib_base.so.*" "$lib_base.so"; do
+        if [ "$debug_mode" = "1" ]; then
+            echo "   Trying pattern: $pattern" >&2
+        fi
         # Use find instead of ls to avoid issues with globbing and spaces
         found_lib=$(find "$lib_dir" -maxdepth 1 -name "$pattern" -type f 2>/dev/null | head -n 1)
         if [ -n "$found_lib" ]; then
+            if [ "$debug_mode" = "1" ]; then
+                echo "   ✅ Found: $found_lib" >&2
+            fi
             echo "$found_lib"
             return 0
         fi
     done
     
+    if [ "$debug_mode" = "1" ]; then
+        echo "   ⚠️  Library not found: $lib_base" >&2
+    fi
     return 1
 }
 
+# Determine debug mode
+DEBUG_MODE=0
+if [ "${OPENTERFACE_DEBUG}" = "1" ] || [ "${OPENTERFACE_DEBUG}" = "true" ]; then
+    DEBUG_MODE=1
+fi
+
 # Load core libraries first
-for lib in "${QT6_CORE_LIBS[@]}"; do
-    lib_path=$(find_library "$lib" "/usr/lib/openterfaceqt/qt6")
-    if [ -n "$lib_path" ]; then
-        PRELOAD_LIBS+=("$lib_path")
-    fi
-done
+{
+    echo "Loading Qt6 Core Libraries..."
+    for lib in "${QT6_CORE_LIBS[@]}"; do
+        lib_path=$(find_library "$lib" "/usr/lib/openterfaceqt/qt6" "$DEBUG_MODE")
+        if [ -n "$lib_path" ]; then
+            PRELOAD_LIBS+=("$lib_path")
+            echo "✅ Added to PRELOAD: $lib_path"
+        else
+            echo "⚠️  Core library not found: $lib"
+        fi
+    done
+} | tee -a "$LAUNCHER_LOG"
 
 # Then load module libraries
-for lib in "${QT6_MODULE_LIBS[@]}"; do
-    lib_path=$(find_library "$lib" "/usr/lib/openterfaceqt/qt6")
-    if [ -n "$lib_path" ]; then
-        PRELOAD_LIBS+=("$lib_path")
-    fi
-done
+{
+    echo "Loading Qt6 Module Libraries..."
+    for lib in "${QT6_MODULE_LIBS[@]}"; do
+        lib_path=$(find_library "$lib" "/usr/lib/openterfaceqt/qt6" "$DEBUG_MODE")
+        if [ -n "$lib_path" ]; then
+            PRELOAD_LIBS+=("$lib_path")
+            echo "✅ Added to PRELOAD: $lib_path"
+        else
+            echo "⚠️  Module library not found: $lib"
+        fi
+    done
+} | tee -a "$LAUNCHER_LOG"
 
 # GStreamer libraries - essential for media handling
 GSTREAMER_LIBS=(
@@ -135,17 +170,19 @@ GSTREAMER_LIBS=(
 )
 
 # Load GStreamer libraries
-for lib in "${GSTREAMER_LIBS[@]}"; do
-    lib_path=$(find_library "$lib" "/usr/lib/openterfaceqt/gstreamer")
-    if [ -n "$lib_path" ]; then
-        PRELOAD_LIBS+=("$lib_path")
-    else
-        # Log missing libraries for debugging (suppress in non-debug mode)
-        if [ "${OPENTERFACE_DEBUG}" = "1" ] || [ "${OPENTERFACE_DEBUG}" = "true" ]; then
-            echo "⚠️  GStreamer library not found: $lib" >&2
+{
+    echo "Loading GStreamer Libraries..."
+    for lib in "${GSTREAMER_LIBS[@]}"; do
+        lib_path=$(find_library "$lib" "/usr/lib/openterfaceqt/gstreamer" "$DEBUG_MODE")
+        if [ -n "$lib_path" ]; then
+            PRELOAD_LIBS+=("$lib_path")
+            echo "✅ Added to PRELOAD: $lib_path"
+        else
+            # Log missing libraries for debugging (suppress in non-debug mode)
+            echo "⚠️  GStreamer library not found: $lib"
         fi
-    fi
-done
+    done
+} | tee -a "$LAUNCHER_LOG"
 
 # FFmpeg libraries - essential for video/audio encoding and decoding
 FFMPEG_LIBS=(
@@ -159,17 +196,19 @@ FFMPEG_LIBS=(
 )
 
 # Load FFmpeg libraries
-for lib in "${FFMPEG_LIBS[@]}"; do
-    lib_path=$(find_library "$lib" "/usr/lib/openterfaceqt/ffmpeg")
-    if [ -n "$lib_path" ]; then
-        PRELOAD_LIBS+=("$lib_path")
-    else
-        # Log missing libraries for debugging (suppress in non-debug mode)
-        if [ "${OPENTERFACE_DEBUG}" = "1" ] || [ "${OPENTERFACE_DEBUG}" = "true" ]; then
-            echo "⚠️  FFmpeg library not found: $lib" >&2
+{
+    echo "Loading FFmpeg Libraries..."
+    for lib in "${FFMPEG_LIBS[@]}"; do
+        lib_path=$(find_library "$lib" "/usr/lib/openterfaceqt/ffmpeg" "$DEBUG_MODE")
+        if [ -n "$lib_path" ]; then
+            PRELOAD_LIBS+=("$lib_path")
+            echo "✅ Added to PRELOAD: $lib_path"
+        else
+            # Log missing libraries for debugging (suppress in non-debug mode)
+            echo "⚠️  FFmpeg library not found: $lib"
         fi
-    fi
-done
+    done
+} | tee -a "$LAUNCHER_LOG"
 
 # Build LD_PRELOAD string with proper precedence
 if [ ${#PRELOAD_LIBS[@]} -gt 0 ]; then
