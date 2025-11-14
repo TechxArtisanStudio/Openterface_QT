@@ -84,31 +84,9 @@ QT6_MODULE_LIBS=(
     "libQt6PrintSupport"
     "libQt6QmlModels"          # CRITICAL: Prevents system Qt6 QmlModels from loading
     "libQt6QmlWorkerScript"    # QML worker script support
-    "libQt6Test"               # Testing support
-    "libQt6Sql"                # SQL module
-    "libQt6Positioning"        # Positioning/GPS
-    "libQt6Location"           # Location services
-    "libQt6Sensors"            # Sensor support
-    "libQt6Bluetooth"          # Bluetooth support
-    "libQt6WebSockets"         # WebSocket support
-    "libQt6Nfc"                # NFC support
-    "libQt6Pdf"                # PDF support
-    "libQt6PdfWidgets"         # PDF widgets
-    "libQt6Core5Compat"        # Qt5 compatibility layer
-    "libQt6Accessibility"      # Accessibility support
-    "libQt6ShaderTools"        # Shader compilation tools
-    "libQt6Scxml"              # SCXML state machines
-    "libQt6StateMachine"       # State machine framework
-    "libQt6Designer"           # Designer plugin support
-    "libQt6DesignerComponents"
-    "libQt6VirtualKeyboard"    # Virtual keyboard
-    "libQt6InputMethodSubprocess"
     # ========== CRITICAL PLATFORM PLUGINS ==========
     "libQt6XcbQpa"             # CRITICAL: X11/XCB platform support (required by xcb plugin)
     "libQt6WaylandClient"      # Wayland client support
-    "libQt6WaylandEgl"         # Wayland EGL support
-    "libQt6EglFsDeviceIntegration"  # EGLFS device integration
-    "libQt6GlxIntegration"     # GLX integration
 )
 
 # Helper function to find library with any version suffix
