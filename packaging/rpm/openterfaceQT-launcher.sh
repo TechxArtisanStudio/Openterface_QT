@@ -49,11 +49,41 @@ fi
 export LD_LIBRARY_PATH="${LD_LIBRARY_PATH_NEW}"
 
 # ============================================
+# System Library Path Filtering (Qt Version Isolation)
+# ============================================
+# CRITICAL FIX: On systems with system Qt6 (e.g., Fedora with Qt 6.9),
+# prevent loading incompatible system Qt6 libraries that conflict with bundled Qt 6.6.3
+# Use LD_BIND_NOW to catch version conflicts early
+# This prevents libQt6QmlModels.so from the system pulling in incompatible symbols
+
+export LD_BIND_NOW=1
+
+# Optional: If system still loads conflicting Qt6, we can patch RPATH at runtime
+# This tells the linker to prefer our bundled libraries over system RPATH entries
+if [ -n "$LD_LIBRARY_PATH_RPATH_IGNORE" ]; then
+    # Some glibc versions support this - try to use it
+    export LD_LIBRARY_PATH_RPATH_IGNORE=1
+fi
+
+# ============================================
 # LD_PRELOAD Setup (MOST CRITICAL - Override binary's RPATH)
 # ============================================
 # CRITICAL: The binary was compiled with RPATH pointing to system Qt libraries.
 # LD_PRELOAD must force bundled Qt libraries to load FIRST before any others.
 # This is THE KEY to avoiding "version `Qt_6.6' not found" errors.
+
+# Step 1: Try to preload Qt version wrapper (filters system Qt versions)
+WRAPPER_LIB="/usr/lib/openterfaceqt/qt_version_wrapper.so"
+if [ -f "$WRAPPER_LIB" ]; then
+    export LD_PRELOAD="$WRAPPER_LIB"
+    if [ "${OPENTERFACE_DEBUG}" = "1" ] || [ "${OPENTERFACE_DEBUG}" = "true" ]; then
+        echo "✅ Qt Version Wrapper loaded: $WRAPPER_LIB" >&2
+    fi
+else
+    if [ "${OPENTERFACE_DEBUG}" = "1" ] || [ "${OPENTERFACE_DEBUG}" = "true" ]; then
+        echo "⚠️  Qt Version Wrapper not found: $WRAPPER_LIB (system Qt libraries may conflict)" >&2
+    fi
+fi
 
 PRELOAD_LIBS=()
 
@@ -318,10 +348,17 @@ if [ "${OPENTERFACE_DEBUG}" = "1" ] || [ "${OPENTERFACE_DEBUG}" = "true" ]; then
         echo "========================================" 
         echo "LD_LIBRARY_PATH=$LD_LIBRARY_PATH" 
         echo "LD_PRELOAD=$LD_PRELOAD" 
+        echo "LD_BIND_NOW=$LD_BIND_NOW" 
         echo "QT_PLUGIN_PATH=$QT_PLUGIN_PATH" 
         echo "QT_QPA_PLATFORM_PLUGIN_PATH=$QT_QPA_PLATFORM_PLUGIN_PATH" 
         echo "QML2_IMPORT_PATH=$QML2_IMPORT_PATH" 
         echo "GST_PLUGIN_PATH=$GST_PLUGIN_PATH" 
+        echo ""
+        echo "System Qt6 libraries (conflicts):" 
+        find /lib64 /lib /usr/lib64 /usr/lib -name "libQt6*.so*" 2>/dev/null | head -20
+        echo ""
+        echo "Bundled Qt6 libraries (used):" 
+        ls -la /usr/lib/openterfaceqt/qt6/libQt6*.so* 2>/dev/null | head -20
         echo "========================================" 
     } | tee -a "$LAUNCHER_LOG"
 else
@@ -329,6 +366,7 @@ else
     {
         echo "LD_LIBRARY_PATH=$LD_LIBRARY_PATH" 
         echo "LD_PRELOAD=$LD_PRELOAD" 
+        echo "LD_BIND_NOW=$LD_BIND_NOW" 
         echo "QT_PLUGIN_PATH=$QT_PLUGIN_PATH" 
         echo "QT_QPA_PLATFORM_PLUGIN_PATH=$QT_QPA_PLATFORM_PLUGIN_PATH" 
         echo "QML2_IMPORT_PATH=$QML2_IMPORT_PATH" 
