@@ -45,6 +45,36 @@ fi
 # These prevent conflicts with system-installed versions
 echo "Installing bundled libraries to /usr/lib/openterfaceqt/"
 
+# ================================================================
+# Install Qt Version Wrapper (CRITICAL for Fedora compatibility)
+# ================================================================
+# This wrapper intercepts dlopen() and prevents system Qt from being loaded
+mkdir -p %{buildroot}/usr/lib/openterfaceqt
+if [ -f "%{_sourcedir}/qt_version_wrapper.so" ]; then
+    cp %{_sourcedir}/qt_version_wrapper.so %{buildroot}/usr/lib/openterfaceqt/
+    chmod 755 %{buildroot}/usr/lib/openterfaceqt/qt_version_wrapper.so
+    echo "Installed Qt Version Wrapper: /usr/lib/openterfaceqt/qt_version_wrapper.so"
+else
+    echo "WARNING: Qt Version Wrapper not found (system Qt conflicts may occur)"
+fi
+
+# Install helper scripts
+if [ -f "%{_sourcedir}/setup-env.sh" ]; then
+    cp %{_sourcedir}/setup-env.sh %{buildroot}/usr/lib/openterfaceqt/
+    chmod 755 %{buildroot}/usr/lib/openterfaceqt/setup-env.sh
+    echo "Installed setup-env.sh"
+fi
+
+if [ -f "%{_sourcedir}/build-qt-wrapper.sh" ]; then
+    cp %{_sourcedir}/build-qt-wrapper.sh %{buildroot}/usr/lib/openterfaceqt/
+    chmod 755 %{buildroot}/usr/lib/openterfaceqt/build-qt-wrapper.sh
+fi
+
+if [ -f "%{_sourcedir}/qt_version_wrapper.c" ]; then
+    cp %{_sourcedir}/qt_version_wrapper.c %{buildroot}/usr/lib/openterfaceqt/
+    chmod 644 %{buildroot}/usr/lib/openterfaceqt/qt_version_wrapper.c
+fi
+
 # Qt6 core libraries (from qt6 subdirectory)
 mkdir -p %{buildroot}/usr/lib/openterfaceqt/qt6
 if [ -d "%{_sourcedir}/qt6" ]; then

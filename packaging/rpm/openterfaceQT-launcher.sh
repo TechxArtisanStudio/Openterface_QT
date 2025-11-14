@@ -235,16 +235,26 @@ done
 # Build LD_PRELOAD string with proper precedence
 if [ ${#PRELOAD_LIBS[@]} -gt 0 ]; then
     PRELOAD_STR=$(IFS=':'; echo "${PRELOAD_LIBS[*]}")
+    
+    # PREPEND wrapper and bundled Qt6 libs to ensure our versions are used
+    FINAL_PRELOAD="$PRELOAD_STR"
+    
+    # If wrapper exists, it must be FIRST to intercept all dlopen calls
+    if [ -f "$WRAPPER_LIB" ]; then
+        FINAL_PRELOAD="$WRAPPER_LIB:$FINAL_PRELOAD"
+    fi
+    
     # PREPEND to any existing LD_PRELOAD to ensure our libs take priority
     if [ -z "$LD_PRELOAD" ]; then
-        export LD_PRELOAD="$PRELOAD_STR"
+        export LD_PRELOAD="$FINAL_PRELOAD"
     else
-        export LD_PRELOAD="$PRELOAD_STR:$LD_PRELOAD"
+        export LD_PRELOAD="$FINAL_PRELOAD:$LD_PRELOAD"
     fi
     
     # Debug: Show what we're preloading
     if [ "${OPENTERFACE_DEBUG}" = "1" ] || [ "${OPENTERFACE_DEBUG}" = "true" ]; then
-        echo "LD_PRELOAD (${#PRELOAD_LIBS[@]} libs): $LD_PRELOAD" >&2
+        echo "LD_PRELOAD (${#PRELOAD_LIBS[@]} libs + wrapper): $LD_PRELOAD" | head -c 200 >&2
+        echo "..." >&2
     fi
 else
     if [ "${OPENTERFACE_DEBUG}" = "1" ] || [ "${OPENTERFACE_DEBUG}" = "true" ]; then

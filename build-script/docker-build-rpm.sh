@@ -46,8 +46,26 @@ else
 	exit 1
 fi
 
-# Install patchelf for rpath manipulation if not already installed
-apt update && apt install -y patchelf
+# Copy Qt Version Wrapper source and build script
+if [ -f "${SRC}/packaging/rpm/qt_version_wrapper.c" ]; then
+	cp "${SRC}/packaging/rpm/qt_version_wrapper.c" "${RPMTOP}/SOURCES/"
+	echo "✅ Qt Version Wrapper source copied to SOURCES"
+else
+	echo "Warning: Qt Version Wrapper source not found at ${SRC}/packaging/rpm/qt_version_wrapper.c" >&2
+fi
+
+if [ -f "${SRC}/packaging/rpm/build-qt-wrapper.sh" ]; then
+	cp "${SRC}/packaging/rpm/build-qt-wrapper.sh" "${RPMTOP}/SOURCES/"
+	echo "✅ Qt Version Wrapper build script copied to SOURCES"
+fi
+
+if [ -f "${SRC}/packaging/rpm/setup-env.sh" ]; then
+	cp "${SRC}/packaging/rpm/setup-env.sh" "${RPMTOP}/SOURCES/"
+	echo "✅ Environment setup script copied to SOURCES"
+fi
+
+# Install patchelf and gcc for wrapper compilation
+apt update && apt install -y patchelf gcc
 
 # Copy Qt libraries to SOURCES for bundling (RPM)
 # CRITICAL: Must use a proper Qt6 build, NOT system libraries
@@ -57,6 +75,32 @@ if [ ! -d "${QT_LIB_DIR}" ]; then
     echo "   The RPM package requires a properly compiled Qt6 build."
     echo "   System Qt6 libraries cannot be used as they have version dependencies."
     exit 1
+fi
+
+# ============================================================
+# BUILD Qt Version Wrapper (CRITICAL for Fedora compatibility)
+# ============================================================
+# This wrapper intercepts dlopen() calls and prevents system Qt6 from being loaded
+echo "📋 RPM: Building Qt Version Wrapper library..."
+if [ -f "${RPMTOP}/SOURCES/qt_version_wrapper.c" ]; then
+    cd "${RPMTOP}/SOURCES"
+    
+    # Compile the wrapper
+    gcc -shared -fPIC -o qt_version_wrapper.so \
+        -DBUNDLED_QT_PATH=\"/usr/lib/openterfaceqt/qt6\" \
+        qt_version_wrapper.c -ldl 2>&1 | sed 's/^/   /'
+    
+    if [ -f "qt_version_wrapper.so" ]; then
+        echo "✅ Qt Version Wrapper compiled successfully"
+        echo "   Size: $(stat -c%s qt_version_wrapper.so) bytes"
+    else
+        echo "⚠️  Warning: Qt Version Wrapper compilation failed"
+        echo "   Application may encounter Qt version conflicts on Fedora"
+    fi
+    
+    cd - > /dev/null
+else
+    echo "⚠️  Qt Version Wrapper source not available"
 fi
 
 echo "Copying Qt libraries to SOURCES..."
@@ -70,6 +114,48 @@ fi
 mkdir -p "${RPMTOP}/SOURCES/qt6"
 find "${QT_LIB_DIR}" -maxdepth 1 -name "libQt6*.so*" -type f -exec cp -a {} "${RPMTOP}/SOURCES/qt6/" \;
 echo "✅ Qt libraries copied to SOURCES/qt6 ($QT_LIBS files)"
+
+# CRITICAL: Also bundle Qt6 base modules and system-provided modules
+# These are sometimes provided by system Qt but we need to ensure we use bundled versions
+# to prevent version conflicts (e.g., system Qt6.9 vs bundled Qt6.6.3)
+echo "📋 RPM: Searching for additional Qt6 base modules..."
+QT_CRITICAL_MODULES=(
+    "libQt6QmlModels.so"      # CRITICAL: QML models - often causes version conflicts
+    "libQt6QmlWorkerScript.so" # CRITICAL: QML worker script support
+    "libQt6Core5Compat.so"    # Qt5 compatibility layer (if available)
+    "libQt6GuiPrivate.so"     # Private GUI API (if available)
+    "libQt6QuickControls2.so"  # Quick Controls 2
+    "libQt6QuickShapes.so"     # Quick Shapes
+    "libQt6QuickLayouts.so"    # Quick Layouts
+    "libQt6QuickTemplates2.so" # Quick Templates 2
+    "libQt6QuickParticles.so"  # Quick Particles
+    "libQt6OpenGLWidgets.so"   # OpenGL Widgets
+    "libQt6WebSockets.so"      # WebSockets support
+    "libQt6Positioning.so"     # Positioning (if available)
+    "libQt6Sensors.so"         # Sensors (if available)
+    "libQt6Sql.so"             # SQL support (if available)
+    "libQt6Test.so"            # Test framework (if available)
+)
+
+for qt_module in "${QT_CRITICAL_MODULES[@]}"; do
+    echo "   Checking for $qt_module..."
+    
+    # Search in bundled Qt first
+    if ls "${QT_LIB_DIR}"/${qt_module}* >/dev/null 2>&1; then
+        echo "      ✅ Found in bundled Qt: ${QT_LIB_DIR}/${qt_module}"
+        find "${QT_LIB_DIR}" -maxdepth 1 -name "${qt_module%.*}*" -type f -exec cp -Pv {} "${RPMTOP}/SOURCES/qt6/" \; 2>&1 | sed 's/^/         /'
+    else
+        # Try to find in system Qt if not in bundled (we'll flag these as potential conflicts)
+        for system_search_dir in /lib64 /usr/lib64 /usr/lib /usr/lib/x86_64-linux-gnu; do
+            if [ -d "$system_search_dir" ] && ls "$system_search_dir"/${qt_module}* >/dev/null 2>&1; then
+                echo "      ⚠️  Found in system Qt but NOT in bundled Qt: $system_search_dir/${qt_module}"
+                echo "         This will cause version conflicts! Check Qt6 build completeness."
+                break
+            fi
+        done
+    fi
+done
+echo "✅ Qt6 critical modules check complete"
 
 # Copy Qt6 XCB QPA library to SOURCES (needed by libqxcb.so plugin) - must be from same Qt6 build
 echo "📋 RPM: Searching for Qt6 XCB QPA library..."
