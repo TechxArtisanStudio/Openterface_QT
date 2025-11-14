@@ -72,6 +72,8 @@ RUN dnf update -y && \
         libtheora \
         libvorbis \
         libvpx \
+        # Wayland libraries
+        libwayland-cursor \
         # FUSE support for AppImage installations
         fuse \
         fuse-libs \
