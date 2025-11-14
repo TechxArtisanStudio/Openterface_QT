@@ -43,19 +43,18 @@ get_system_qt_version() {
             fi
             
             # Find all versioned libraries
-            for full_lib in "$path"/libQt6Core.so.6.* 2>/dev/null; do
-                if [ -f "$full_lib" ]; then
-                    # Resolve the real path (follow symlinks)
-                    real_path=$(readlink -f "$full_lib" 2>/dev/null)
-                    
-                    # Make sure it's not a symlink to bundled Qt
-                    if [[ "$real_path" != *"openterfaceqt"* ]]; then
-                        # Extract version from filename like /lib64/libQt6Core.so.6.9.3
-                        local filename_version=$(echo "$full_lib" | sed 's/.*libQt6Core\.so\.\(6\.[0-9]*\).*/\1/')
-                        if [ -n "$filename_version" ] && [ "$filename_version" != "$full_lib" ]; then
-                            echo "$filename_version"
-                            return 0
-                        fi
+            for full_lib in "$path"/libQt6Core.so.6.*; do
+                [ -f "$full_lib" ] || continue
+                # Resolve the real path (follow symlinks)
+                real_path=$(readlink -f "$full_lib" 2>/dev/null)
+                
+                # Make sure it's not a symlink to bundled Qt
+                if [[ "$real_path" != *"openterfaceqt"* ]]; then
+                    # Extract version from filename like /lib64/libQt6Core.so.6.9.3
+                    local filename_version=$(echo "$full_lib" | sed 's/.*libQt6Core\.so\.\(6\.[0-9]*\).*/\1/')
+                    if [ -n "$filename_version" ] && [ "$filename_version" != "$full_lib" ]; then
+                        echo "$filename_version"
+                        return 0
                     fi
                 fi
             done
