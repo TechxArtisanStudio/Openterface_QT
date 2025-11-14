@@ -475,16 +475,44 @@ GSTREAMER_FOUND=0
 
 mkdir -p "${RPMTOP}/SOURCES/gstreamer"
 
+# List of essential GStreamer libraries to bundle
+GSTREAMER_LIBS=(
+    "libgstreamer-1.0.so"       # Core GStreamer library
+    "libgstbase-1.0.so"         # Base classes for GStreamer plugins
+    "libgstaudio-1.0.so"        # Audio support library
+    "libgstpbutils-1.0.so"      # Playback utility library
+    "libgstvideo-1.0.so"        # Video support library
+    "libgstapp-1.0.so"          # Application integration library
+)
+
 for SEARCH_DIR in /opt/gstreamer/lib/x86_64-linux-gnu /usr/lib/x86_64-linux-gnu /usr/lib; do
     echo "   Checking: $SEARCH_DIR"
     if [ -d "$SEARCH_DIR" ]; then
-        if ls "$SEARCH_DIR"/libgstreamer*.so* >/dev/null 2>&1; then
+        LIBS_FOUND_IN_DIR=0
+        
+        # Search for all essential GStreamer libraries
+        for gst_lib in "${GSTREAMER_LIBS[@]}"; do
+            if ls "$SEARCH_DIR"/${gst_lib}* >/dev/null 2>&1; then
+                LIBS_FOUND_IN_DIR=$((LIBS_FOUND_IN_DIR + 1))
+            fi
+        done
+        
+        if [ $LIBS_FOUND_IN_DIR -gt 0 ]; then
             echo "   ✅ Found GStreamer libraries in $SEARCH_DIR"
-            GSTREAMER_FILES=$(ls -la "$SEARCH_DIR"/libgstreamer*.so*)
-            echo "   Files found:"
-            echo "$GSTREAMER_FILES" | sed 's/^/     /'
-            # Only copy actual files (not symlinks) to avoid duplication
-            find "$SEARCH_DIR" -maxdepth 1 -name "libgstreamer*.so*" -type f -exec cp -Pv {} "${RPMTOP}/SOURCES/gstreamer/" \; 2>&1 | sed 's/^/     /'
+            
+            # Copy each GStreamer library
+            for gst_lib in "${GSTREAMER_LIBS[@]}"; do
+                if ls "$SEARCH_DIR"/${gst_lib}* >/dev/null 2>&1; then
+                    echo "      📦 Copying $gst_lib..."
+                    GSTREAMER_FILES=$(ls -la "$SEARCH_DIR"/${gst_lib}* 2>/dev/null)
+                    echo "$GSTREAMER_FILES" | sed 's/^/         /'
+                    # Only copy actual files (not symlinks) to avoid duplication
+                    find "$SEARCH_DIR" -maxdepth 1 -name "${gst_lib}*" -type f -exec cp -Pv {} "${RPMTOP}/SOURCES/gstreamer/" \; 2>&1 | sed 's/^/         /'
+                else
+                    echo "      ⚠️  $gst_lib not found in $SEARCH_DIR"
+                fi
+            done
+            
             echo "   ✅ GStreamer libraries copied to ${RPMTOP}/SOURCES/gstreamer"
             GSTREAMER_FOUND=1
             break
@@ -498,7 +526,7 @@ done
 if [ $GSTREAMER_FOUND -eq 0 ]; then
     echo "⚠️  Warning: GStreamer libraries not found"
 else
-    echo "✅ GStreamer found and copied"
+    echo "✅ GStreamer libraries found and copied"
 fi
 
 # Copy ORC libraries (needed by GStreamer) - search multiple locations
