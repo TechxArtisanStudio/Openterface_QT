@@ -28,38 +28,87 @@ USE_SYSTEM_QT=0
 get_system_qt_version() {
     local qt_lib=""
     local version=""
+    local real_path=""
     
-    # Check for system Qt6Core library
+    # CRITICAL: Skip bundled Qt paths when detecting system Qt!
+    # Only look in standard system library paths, excluding /usr/lib/openterfaceqt
+    
+    # Method 1: Find versioned .so files and verify they're NOT from bundled location
+    # Look for files like /lib64/libQt6Core.so.6.9.3 but NOT /usr/lib/openterfaceqt
     for path in /lib64 /lib /usr/lib64 /usr/lib /usr/lib/x86_64-linux-gnu; do
-        if [ -f "$path/libQt6Core.so.6" ]; then
-            qt_lib="$path/libQt6Core.so.6"
-            break
+        if [ -d "$path" ]; then
+            # Skip openterfaceqt directory
+            if [[ "$path" == *"openterfaceqt"* ]]; then
+                continue
+            fi
+            
+            # Find all versioned libraries
+            for full_lib in "$path"/libQt6Core.so.6.* 2>/dev/null; do
+                if [ -f "$full_lib" ]; then
+                    # Resolve the real path (follow symlinks)
+                    real_path=$(readlink -f "$full_lib" 2>/dev/null)
+                    
+                    # Make sure it's not a symlink to bundled Qt
+                    if [[ "$real_path" != *"openterfaceqt"* ]]; then
+                        # Extract version from filename like /lib64/libQt6Core.so.6.9.3
+                        local filename_version=$(echo "$full_lib" | sed 's/.*libQt6Core\.so\.\(6\.[0-9]*\).*/\1/')
+                        if [ -n "$filename_version" ] && [ "$filename_version" != "$full_lib" ]; then
+                            echo "$filename_version"
+                            return 0
+                        fi
+                    fi
+                fi
+            done
         fi
     done
     
-    if [ -z "$qt_lib" ]; then
-        return 1
-    fi
-    
-    # Extract version using readelf or strings
+    # Method 2: Use readelf on the resolved library (follow symlinks)
     if command -v readelf &>/dev/null; then
-        # Try to get version from ELF version symbols
-        version=$(readelf -V "$qt_lib" 2>/dev/null | grep "Qt_6" | sed 's/.*Qt_6\.\([0-9]*\).*/\1/' | sort -u | tail -1)
-        if [ -n "$version" ]; then
-            echo "6.$version"
-            return 0
-        fi
+        for path in /lib64 /lib /usr/lib64 /usr/lib /usr/lib/x86_64-linux-gnu; do
+            if [ -d "$path" ] && [[ "$path" != *"openterfaceqt"* ]]; then
+                if [ -f "$path/libQt6Core.so.6" ]; then
+                    # Follow the symlink to get the real file
+                    real_path=$(readlink -f "$path/libQt6Core.so.6" 2>/dev/null)
+                    
+                    # Skip if it points to bundled Qt
+                    if [[ "$real_path" == *"openterfaceqt"* ]]; then
+                        continue
+                    fi
+                    
+                    # Try to get version from ELF version symbols
+                    version=$(readelf -V "$real_path" 2>/dev/null | grep "Qt_6\." | sed 's/.*Qt_6\.\([0-9]*\).*/\1/' | sort -u -n | tail -1)
+                    if [ -n "$version" ]; then
+                        echo "6.$version"
+                        return 0
+                    fi
+                fi
+            fi
+        done
     fi
     
-    # Alternative: check library filename version
-    local full_lib=$(find /lib* /usr/lib* -name "libQt6Core.so.6.*" 2>/dev/null | head -1)
-    if [ -n "$full_lib" ]; then
-        # Extract version from filename like libQt6Core.so.6.9.3
-        local filename_version=$(echo "$full_lib" | sed 's/.*libQt6Core\.so\.\(6\.[0-9]*\).*/\1/')
-        if [ -n "$filename_version" ] && [ "$filename_version" != "$full_lib" ]; then
-            echo "$filename_version"
-            return 0
-        fi
+    # Method 3: Use strings to find version info
+    if command -v strings &>/dev/null; then
+        for path in /lib64 /lib /usr/lib64 /usr/lib /usr/lib/x86_64-linux-gnu; do
+            if [ -d "$path" ] && [[ "$path" != *"openterfaceqt"* ]]; then
+                if [ -f "$path/libQt6Core.so.6" ]; then
+                    real_path=$(readlink -f "$path/libQt6Core.so.6" 2>/dev/null)
+                    
+                    # Skip if it points to bundled Qt
+                    if [[ "$real_path" == *"openterfaceqt"* ]]; then
+                        continue
+                    fi
+                    
+                    # Look for Qt version patterns in binary
+                    version=$(strings "$real_path" 2>/dev/null | grep -E "^6\.[0-9]+\.[0-9]+$" | head -1)
+                    if [ -n "$version" ]; then
+                        # Extract just major.minor
+                        local major_minor=$(echo "$version" | cut -d. -f1-2)
+                        echo "$major_minor"
+                        return 0
+                    fi
+                fi
+            fi
+        done
     fi
     
     return 1
@@ -70,15 +119,39 @@ version_gte() {
     local v1="$1"
     local v2="$2"
     
-    # Simple comparison: 6.9 > 6.6, 6.6 = 6.6
-    local major1=$(echo "$v1" | cut -d. -f1)
-    local minor1=$(echo "$v1" | cut -d. -f2)
-    local major2=$(echo "$v2" | cut -d. -f1)
-    local minor2=$(echo "$v2" | cut -d. -f2)
+    # Handle empty versions
+    [ -z "$v1" ] && return 1
+    [ -z "$v2" ] && return 0
     
-    if [ "$major1" -gt "$major2" ]; then
+    # Normalize versions (handle both "6.9" and "6.9.3" formats)
+    local v1_major=$(echo "$v1" | cut -d. -f1)
+    local v1_minor=$(echo "$v1" | cut -d. -f2)
+    local v1_patch=$(echo "$v1" | cut -d. -f3)
+    
+    local v2_major=$(echo "$v2" | cut -d. -f1)
+    local v2_minor=$(echo "$v2" | cut -d. -f2)
+    local v2_patch=$(echo "$v2" | cut -d. -f3)
+    
+    # Default patch version to 0 if not present
+    v1_patch=${v1_patch:-0}
+    v2_patch=${v2_patch:-0}
+    
+    # Comparison: major.minor.patch
+    if [ "$v1_major" -gt "$v2_major" ]; then
         return 0
-    elif [ "$major1" -eq "$major2" ] && [ "$minor1" -ge "$minor2" ]; then
+    elif [ "$v1_major" -lt "$v2_major" ]; then
+        return 1
+    fi
+    
+    # Major versions equal, compare minor
+    if [ "$v1_minor" -gt "$v2_minor" ]; then
+        return 0
+    elif [ "$v1_minor" -lt "$v2_minor" ]; then
+        return 1
+    fi
+    
+    # Major and minor equal, compare patch
+    if [ "$v1_patch" -ge "$v2_patch" ]; then
         return 0
     fi
     return 1
@@ -86,6 +159,10 @@ version_gte() {
 
 # Detect system Qt version and decide which to use
 SYSTEM_QT_VERSION=$(get_system_qt_version)
+if [ "${OPENTERFACE_DEBUG}" = "1" ] || [ "${OPENTERFACE_DEBUG}" = "true" ]; then
+    echo "🔍 System Qt detection result: '$SYSTEM_QT_VERSION'" | tee -a "$LAUNCHER_LOG"
+fi
+
 if [ -n "$SYSTEM_QT_VERSION" ]; then
     echo "System Qt version detected: $SYSTEM_QT_VERSION" | tee -a "$LAUNCHER_LOG"
     
@@ -97,7 +174,17 @@ if [ -n "$SYSTEM_QT_VERSION" ]; then
         USE_SYSTEM_QT=0
     fi
 else
-    echo "System Qt not detected, using bundled Qt $BUNDLED_QT_VERSION" | tee -a "$LAUNCHER_LOG"
+    echo "⚠️  System Qt not detected, using bundled Qt $BUNDLED_QT_VERSION" | tee -a "$LAUNCHER_LOG"
+    if [ "${OPENTERFACE_DEBUG}" = "1" ] || [ "${OPENTERFACE_DEBUG}" = "true" ]; then
+        # Try to provide debugging info
+        echo "Debug: Checking for libQt6Core.so.6 in standard paths..." | tee -a "$LAUNCHER_LOG"
+        for path in /lib64 /lib /usr/lib64 /usr/lib /usr/lib/x86_64-linux-gnu; do
+            if [ -f "$path/libQt6Core.so.6" ]; then
+                echo "  Found at: $path/libQt6Core.so.6" | tee -a "$LAUNCHER_LOG"
+                ls -la "$path"/libQt6Core.so* 2>/dev/null | tee -a "$LAUNCHER_LOG" || true
+            fi
+        done
+    fi
     USE_SYSTEM_QT=0
 fi
 
