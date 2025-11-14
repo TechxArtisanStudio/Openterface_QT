@@ -64,7 +64,8 @@ QT6_CORE_LIBS=(
     "libQt6Gui"       # Must be before other modules
 )
 
-# Qt6 module libraries
+# Qt6 module libraries - COMPREHENSIVE list including all possible Qt6 libraries
+# This ensures no system Qt libraries can sneak in through hidden dependencies
 QT6_MODULE_LIBS=(
     "libQt6Widgets"
     "libQt6Multimedia"
@@ -80,6 +81,29 @@ QT6_MODULE_LIBS=(
     "libQt6Qml"
     "libQt6QuickWidgets"
     "libQt6PrintSupport"
+    "libQt6QmlModels"          # CRITICAL: Prevents system Qt6 QmlModels from loading
+    "libQt6QmlWorkerScript"    # QML worker script support
+    "libQt6Test"               # Testing support
+    "libQt6Sql"                # SQL module
+    "libQt6Positioning"        # Positioning/GPS
+    "libQt6Location"           # Location services
+    "libQt6Sensors"            # Sensor support
+    "libQt6Bluetooth"          # Bluetooth support
+    "libQt6WebSockets"         # WebSocket support
+    "libQt6Nfc"                # NFC support
+    "libQt6Pdf"                # PDF support
+    "libQt6PdfWidgets"         # PDF widgets
+    "libQt6Core5Compat"        # Qt5 compatibility layer
+    "libQt6Gui"                # Already in core, but explicit
+    "libQt6Accessibility"      # Accessibility support
+    "libQt6ShaderTools"        # Shader compilation tools
+    "libQt6Concurrent"         # Concurrent programming
+    "libQt6Scxml"              # SCXML state machines
+    "libQt6StateMachine"       # State machine framework
+    "libQt6Designer"           # Designer plugin support
+    "libQt6DesignerComponents"
+    "libQt6VirtualKeyboard"   # Virtual keyboard
+    "libQt6InputMethodSubprocess"
 )
 
 # Helper function to find library with any version suffix
@@ -181,14 +205,20 @@ if [ ${#PRELOAD_LIBS[@]} -gt 0 ]; then
         export LD_PRELOAD="$PRELOAD_STR:$LD_PRELOAD"
     fi
     
-    # Debug: Show what we're preloading
-    if [ "${OPENTERFACE_DEBUG}" = "1" ] || [ "${OPENTERFACE_DEBUG}" = "true" ]; then
-        echo "LD_PRELOAD (${#PRELOAD_LIBS[@]} libs): $LD_PRELOAD" >&2
-    fi
+    # Always log comprehensive preload info
+    {
+        echo "========================================"
+        echo "LD_PRELOAD Configuration (${#PRELOAD_LIBS[@]} libraries)"
+        echo "========================================"
+        for ((i=0; i<${#PRELOAD_LIBS[@]}; i++)); do
+            echo "  [$((i+1))/${#PRELOAD_LIBS[@]}] ${PRELOAD_LIBS[$i]}"
+        done
+        echo "========================================"
+    } | tee -a "$LAUNCHER_LOG"
 else
-    if [ "${OPENTERFACE_DEBUG}" = "1" ] || [ "${OPENTERFACE_DEBUG}" = "true" ]; then
+    {
         echo "⚠️  Warning: No Qt6 libraries found for LD_PRELOAD" >&2
-    fi
+    } | tee -a "$LAUNCHER_LOG"
 fi
 
 # ============================================
@@ -352,8 +382,24 @@ fi
 # Debug: Show what will be executed
 {
     echo ""
+    echo "========================================" 
+    echo "Launcher Execution Summary"
+    echo "========================================" 
     echo "Executing: $OPENTERFACE_BIN $@"
-    echo "Launcher log location: $LAUNCHER_LOG"
+    echo "Launcher log: $LAUNCHER_LOG"
+    echo ""
+    echo "LD_LIBRARY_PATH:"
+    echo "  $LD_LIBRARY_PATH" | tr ':' '\n' | sed 's/^/    /'
+    echo ""
+    echo "LD_PRELOAD (first 5):"
+    echo "$LD_PRELOAD" | tr ':' '\n' | head -5 | sed 's/^/    /'
+    echo "  ... ($(echo "$LD_PRELOAD" | tr ':' '\n' | wc -l) total libraries)"
+    echo ""
+    echo "QT_PLUGIN_PATH: $QT_PLUGIN_PATH"
+    echo "QT_QPA_PLATFORM_PLUGIN_PATH: $QT_QPA_PLATFORM_PLUGIN_PATH"
+    echo "QML2_IMPORT_PATH: $QML2_IMPORT_PATH"
+    echo "GST_PLUGIN_PATH: $GST_PLUGIN_PATH"
+    echo "========================================"
     echo ""
 } | tee -a "$LAUNCHER_LOG"
 
@@ -362,13 +408,25 @@ APP_LOG="/tmp/openterfaceqt-app-$(date +%s).log"
 {
     echo "=== OpenterfaceQT Application Started at $(date) ===" 
     echo "Binary: $OPENTERFACE_BIN"
-    echo "Environment Variables:"
+    echo "Binary Type: $(file "$OPENTERFACE_BIN" 2>/dev/null || echo 'unknown')"
+    echo ""
+    echo "Binary Dependencies (ldd output):"
+    echo "--- Attempting to resolve dependencies ---"
+    ldd "$OPENTERFACE_BIN" 2>&1 || echo "(ldd failed - may be expected)"
+    echo ""
+    echo "Environment Variables at Execution:"
     echo "  LD_LIBRARY_PATH=$LD_LIBRARY_PATH"
     echo "  LD_PRELOAD=$LD_PRELOAD"
     echo "  QT_PLUGIN_PATH=$QT_PLUGIN_PATH"
     echo "  QT_QPA_PLATFORM_PLUGIN_PATH=$QT_QPA_PLATFORM_PLUGIN_PATH"
     echo "  QML2_IMPORT_PATH=$QML2_IMPORT_PATH"
     echo "  GST_PLUGIN_PATH=$GST_PLUGIN_PATH"
+    echo ""
+    echo "Available Bundled Qt6 Libraries:"
+    ls -1 /usr/lib/openterfaceqt/qt6/libQt6*.so* 2>/dev/null | head -10 || echo "(not found)"
+    echo ""
+    echo "System Qt6 Libraries (should NOT be used):"
+    find /lib64 /usr/lib64 -name "libQt6*.so*" -type f 2>/dev/null | head -5 || echo "(checking...)"
     echo ""
     echo "=== Application Output ===" 
 } > "$APP_LOG" 2>&1
