@@ -102,10 +102,13 @@ cp %{_sourcedir}/libva*.so* %{buildroot}/usr/lib/openterfaceqt/ 2>/dev/null || t
 mkdir -p %{buildroot}/usr/lib/openterfaceqt/gstreamer/gstreamer-1.0
 if [ -d "%{_sourcedir}/gstreamer" ]; then
     find %{_sourcedir}/gstreamer -maxdepth 1 -name "libgstreamer*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/gstreamer/ \;
-    find %{_sourcedir}/gstreamer -maxdepth 1 -name "liborc*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/gstreamer/ \;
-    find %{_sourcedir}/gstreamer -maxdepth 1 -name "libv4l*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/gstreamer/ \;
+    find %{_sourcedir}/gstreamer -maxdepth 1 -name "libgstbase*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/gstreamer/ \;
+    find %{_sourcedir}/gstreamer -maxdepth 1 -name "libgstaudio*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/gstreamer/ \;
+    find %{_sourcedir}/gstreamer -maxdepth 1 -name "libgstpbutils*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/gstreamer/ \;
     find %{_sourcedir}/gstreamer -maxdepth 1 -name "libgstvideo*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/gstreamer/ \;
     find %{_sourcedir}/gstreamer -maxdepth 1 -name "libgstapp*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/gstreamer/ \;
+    find %{_sourcedir}/gstreamer -maxdepth 1 -name "liborc*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/gstreamer/ \;
+    find %{_sourcedir}/gstreamer -maxdepth 1 -name "libv4l*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/gstreamer/ \;
     echo "Installed GStreamer libraries from %{_sourcedir}/gstreamer"
 else
     echo "WARNING: GStreamer directory not found at %{_sourcedir}/gstreamer"
