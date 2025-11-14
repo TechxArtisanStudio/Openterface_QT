@@ -47,7 +47,12 @@ echo "Installing bundled libraries to /usr/lib/openterfaceqt/"
 
 # Qt6 core libraries (from qt6 subdirectory)
 mkdir -p %{buildroot}/usr/lib/openterfaceqt/qt6
-cp %{_sourcedir}/qt6/libQt6*.so* %{buildroot}/usr/lib/openterfaceqt/qt6/ 2>/dev/null || true
+if [ -d "%{_sourcedir}/qt6" ]; then
+    find %{_sourcedir}/qt6 -maxdepth 1 -name "libQt6*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/qt6/ \;
+    echo "Installed Qt6 libraries from %{_sourcedir}/qt6"
+else
+    echo "WARNING: Qt6 directory not found at %{_sourcedir}/qt6"
+fi
 
 # Image processing libraries
 cp %{_sourcedir}/libjpeg*.so* %{buildroot}/usr/lib/openterfaceqt/ 2>/dev/null || true
@@ -65,24 +70,36 @@ cp %{_sourcedir}/libva*.so* %{buildroot}/usr/lib/openterfaceqt/ 2>/dev/null || t
 
 # GStreamer and multimedia libraries (from gstreamer subdirectory)
 mkdir -p %{buildroot}/usr/lib/openterfaceqt/gstreamer/gstreamer-1.0
-cp %{_sourcedir}/gstreamer/libgstreamer*.so* %{buildroot}/usr/lib/openterfaceqt/gstreamer/ 2>/dev/null || true
-cp %{_sourcedir}/gstreamer/liborc*.so* %{buildroot}/usr/lib/openterfaceqt/gstreamer/ 2>/dev/null || true
-cp %{_sourcedir}/gstreamer/libv4l*.so* %{buildroot}/usr/lib/openterfaceqt/gstreamer/ 2>/dev/null || true
-cp %{_sourcedir}/gstreamer/libgstvideo*.so* %{buildroot}/usr/lib/openterfaceqt/gstreamer/ 2>/dev/null || true
-cp %{_sourcedir}/gstreamer/libgstapp*.so* %{buildroot}/usr/lib/openterfaceqt/gstreamer/ 2>/dev/null || true
+if [ -d "%{_sourcedir}/gstreamer" ]; then
+    find %{_sourcedir}/gstreamer -maxdepth 1 -name "libgstreamer*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/gstreamer/ \;
+    find %{_sourcedir}/gstreamer -maxdepth 1 -name "liborc*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/gstreamer/ \;
+    find %{_sourcedir}/gstreamer -maxdepth 1 -name "libv4l*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/gstreamer/ \;
+    find %{_sourcedir}/gstreamer -maxdepth 1 -name "libgstvideo*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/gstreamer/ \;
+    find %{_sourcedir}/gstreamer -maxdepth 1 -name "libgstapp*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/gstreamer/ \;
+    echo "Installed GStreamer libraries from %{_sourcedir}/gstreamer"
+else
+    echo "WARNING: GStreamer directory not found at %{_sourcedir}/gstreamer"
+fi
 
 # GStreamer plugins (video capture, audio processing, codecs)
-cp %{_sourcedir}/gstreamer/gstreamer-1.0/*.so %{buildroot}/usr/lib/openterfaceqt/gstreamer/gstreamer-1.0/ 2>/dev/null || true
+if [ -d "%{_sourcedir}/gstreamer/gstreamer-1.0" ]; then
+    find %{_sourcedir}/gstreamer/gstreamer-1.0 -maxdepth 1 -name "*.so" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/gstreamer/gstreamer-1.0/ \;
+fi
 
 # FFmpeg core libraries (from ffmpeg subdirectory - all components needed for video processing)
 mkdir -p %{buildroot}/usr/lib/openterfaceqt/ffmpeg
-cp %{_sourcedir}/ffmpeg/libavdevice*.so* %{buildroot}/usr/lib/openterfaceqt/ffmpeg/ 2>/dev/null || true
-cp %{_sourcedir}/ffmpeg/libavcodec*.so* %{buildroot}/usr/lib/openterfaceqt/ffmpeg/ 2>/dev/null || true
-cp %{_sourcedir}/ffmpeg/libavformat*.so* %{buildroot}/usr/lib/openterfaceqt/ffmpeg/ 2>/dev/null || true
-cp %{_sourcedir}/ffmpeg/libavutil*.so* %{buildroot}/usr/lib/openterfaceqt/ffmpeg/ 2>/dev/null || true
-cp %{_sourcedir}/ffmpeg/libswscale*.so* %{buildroot}/usr/lib/openterfaceqt/ffmpeg/ 2>/dev/null || true
-cp %{_sourcedir}/ffmpeg/libswresample*.so* %{buildroot}/usr/lib/openterfaceqt/ffmpeg/ 2>/dev/null || true
-cp %{_sourcedir}/ffmpeg/libavfilter*.so* %{buildroot}/usr/lib/openterfaceqt/ffmpeg/ 2>/dev/null || true
+if [ -d "%{_sourcedir}/ffmpeg" ]; then
+    find %{_sourcedir}/ffmpeg -maxdepth 1 -name "libavdevice*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/ffmpeg/ \;
+    find %{_sourcedir}/ffmpeg -maxdepth 1 -name "libavcodec*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/ffmpeg/ \;
+    find %{_sourcedir}/ffmpeg -maxdepth 1 -name "libavformat*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/ffmpeg/ \;
+    find %{_sourcedir}/ffmpeg -maxdepth 1 -name "libavutil*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/ffmpeg/ \;
+    find %{_sourcedir}/ffmpeg -maxdepth 1 -name "libswscale*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/ffmpeg/ \;
+    find %{_sourcedir}/ffmpeg -maxdepth 1 -name "libswresample*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/ffmpeg/ \;
+    find %{_sourcedir}/ffmpeg -maxdepth 1 -name "libavfilter*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/ffmpeg/ \;
+    echo "Installed FFmpeg libraries from %{_sourcedir}/ffmpeg"
+else
+    echo "WARNING: FFmpeg directory not found at %{_sourcedir}/ffmpeg"
+fi
 
 # Create symlinks for FFmpeg libraries to ensure version compatibility
 # Maps versioned libraries (e.g., libavdevice.so.60) to actual files (e.g., libavdevice.so.60.3.100)
@@ -110,8 +127,16 @@ done
 # Qt plugins and QML modules (from qt6 subdirectory structure)
 mkdir -p %{buildroot}/usr/lib/openterfaceqt/qt6/plugins
 mkdir -p %{buildroot}/usr/lib/openterfaceqt/qt6/qml
-cp -r %{_sourcedir}/qt6/plugins/* %{buildroot}/usr/lib/openterfaceqt/qt6/plugins/ 2>/dev/null || true
-cp -r %{_sourcedir}/qt6/qml/* %{buildroot}/usr/lib/openterfaceqt/qt6/qml/ 2>/dev/null || true
+
+if [ -d "%{_sourcedir}/qt6/plugins" ]; then
+    cp -r %{_sourcedir}/qt6/plugins/* %{buildroot}/usr/lib/openterfaceqt/qt6/plugins/ 2>/dev/null || true
+    echo "Installed Qt6 plugins"
+fi
+
+if [ -d "%{_sourcedir}/qt6/qml" ]; then
+    cp -r %{_sourcedir}/qt6/qml/* %{buildroot}/usr/lib/openterfaceqt/qt6/qml/ 2>/dev/null || true
+    echo "Installed Qt6 QML modules"
+fi
 
 # Install application icon if present
 [ -f %{_sourcedir}/icon_256.png ] && cp %{_sourcedir}/icon_256.png %{buildroot}/usr/share/icons/hicolor/256x256/apps/openterfaceQT.png || true
