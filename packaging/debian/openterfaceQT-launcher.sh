@@ -1,39 +1,32 @@
 #!/bin/bash
-# OpenterfaceQT Launcher Wrapper
-# This script sets up the necessary environment variables before launching the application.
-# It handles Qt plugins, QML imports, and GStreamer plugins.
+# OpenterfaceQT Launcher - Sets up bundled library paths
+# This script ensures bundled Qt6, FFmpeg, and GStreamer libraries are loaded with proper priority
 
-set -e
+# ============================================
+# Error Handling & Logging
+# ============================================
+LAUNCHER_LOG="/tmp/openterfaceqt-launcher-$(date +%s).log"
+{
+    echo "=== OpenterfaceQT Launcher Started at $(date) ==="
+    echo "Script PID: $$"
+    echo "Arguments: $@"
+} | tee "$LAUNCHER_LOG"
 
-# Script directory (where this wrapper is located)
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)" 2>/dev/null || SCRIPT_DIR="/usr/local/bin"
-
-# Architecture detection
-UNAME_M=$(uname -m)
-case "${UNAME_M}" in
-    x86_64|amd64)
-        ARCH_DIR="x86_64-linux-gnu"
-        ;;
-    aarch64|arm64)
-        ARCH_DIR="aarch64-linux-gnu"
-        ;;
-    *)
-        ARCH_DIR="${UNAME_M}-linux-gnu"
-        ;;
-esac
+# Trap errors and log them (but don't use set -e to allow graceful library lookups)
+trap 'echo "ERROR at line $LINENO: $BASH_COMMAND" | tee -a "$LAUNCHER_LOG"' ERR
 
 # ============================================
 # Library Path Setup (CRITICAL for bundled libs)
 # ============================================
-# MUST prioritize bundled libraries to override system libraries
-# This is essential because the binary may have RPATH pointing to system Qt6
-# We need to ensure bundled libraries are loaded FIRST
+# Ensure bundled Qt6 and FFmpeg libraries are found FIRST (before system libraries)
+# This guarantees we use our bundled versions, not system versions
 
+# Bundled library paths in priority order
 BUNDLED_LIB_PATHS=(
-    "/usr/lib/openterfaceqt/qt6"        # Bundled Qt6 libraries (HIGHEST priority)
-    "/usr/lib/openterfaceqt/ffmpeg"     # Bundled FFmpeg libraries
-    "/usr/lib/openterfaceqt/gstreamer"  # Bundled GStreamer libraries
-    "/usr/lib/openterfaceqt"            # Bundled libraries (other dependencies)
+    "/usr/lib/openterfaceqt/qt6"
+    "/usr/lib/openterfaceqt/ffmpeg"
+    "/usr/lib/openterfaceqt/gstreamer"
+    "/usr/lib/openterfaceqt"
 )
 
 # Build LD_LIBRARY_PATH with bundled libraries at the front
@@ -67,78 +60,114 @@ PRELOAD_LIBS=()
 # Qt6 core libraries - MUST be preloaded in correct order
 # The order is critical: Core first, then Gui, then everything else
 QT6_CORE_LIBS=(
-    "libQt6Core.so.6"      # MUST be first
-    "libQt6Gui.so.6"       # Must be before other modules
+    "libQt6Core"      # MUST be first
+    "libQt6Gui"       # Must be before other modules
 )
 
 # Qt6 module libraries
 QT6_MODULE_LIBS=(
-    "libQt6Widgets.so.6"
-    "libQt6Multimedia.so.6"
-    "libQt6MultimediaWidgets.so.6"
-    "libQt6SerialPort.so.6"
-    "libQt6Network.so.6"
-    "libQt6OpenGL.so.6"
-    "libQt6Xml.so.6"
-    "libQt6Concurrent.so.6"
-    "libQt6DBus.so.6"
-    "libQt6Svg.so.6"
-    "libQt6Quick.so.6"
-    "libQt6Qml.so.6"
-    "libQt6QuickWidgets.so.6"
-    "libQt6PrintSupport.so.6"
+    "libQt6Widgets"
+    "libQt6Multimedia"
+    "libQt6MultimediaWidgets"
+    "libQt6SerialPort"
+    "libQt6Network"
+    "libQt6OpenGL"
+    "libQt6Xml"
+    "libQt6Concurrent"
+    "libQt6DBus"
+    "libQt6Svg"
+    "libQt6Quick"
+    "libQt6Qml"
+    "libQt6QuickWidgets"
+    "libQt6PrintSupport"
 )
+
+# Helper function to find library with any version suffix
+find_library() {
+    local lib_base="$1"
+    local lib_dir="$2"
+    
+    if [ ! -d "$lib_dir" ]; then
+        return 1
+    fi
+    
+    # Try to find the library with various version suffixes in priority order
+    # Most specific versions first (e.g., .so.6.6.3), then generic versions
+    local found_lib=""
+    
+    # Try exact library files (prefer versioned over generic)
+    for pattern in "$lib_base.so.*" "$lib_base.so"; do
+        # Use find instead of ls to avoid issues with globbing and spaces
+        found_lib=$(find "$lib_dir" -maxdepth 1 -name "$pattern" -type f 2>/dev/null | head -n 1)
+        if [ -n "$found_lib" ]; then
+            echo "$found_lib"
+            return 0
+        fi
+    done
+    
+    return 1
+}
 
 # Load core libraries first
 for lib in "${QT6_CORE_LIBS[@]}"; do
-    lib_path="/usr/lib/openterfaceqt/qt6/$lib"
-    if [ -f "$lib_path" ]; then
+    lib_path=$(find_library "$lib" "/usr/lib/openterfaceqt/qt6")
+    if [ -n "$lib_path" ]; then
         PRELOAD_LIBS+=("$lib_path")
     fi
 done
 
 # Then load module libraries
 for lib in "${QT6_MODULE_LIBS[@]}"; do
-    lib_path="/usr/lib/openterfaceqt/qt6/$lib"
-    if [ -f "$lib_path" ]; then
+    lib_path=$(find_library "$lib" "/usr/lib/openterfaceqt/qt6")
+    if [ -n "$lib_path" ]; then
         PRELOAD_LIBS+=("$lib_path")
     fi
 done
 
 # GStreamer libraries - essential for media handling
 GSTREAMER_LIBS=(
-    "libgstreamer-1.0.so.0"
-    "libgstbase-1.0.so.0"
-    "libgstapp-1.0.so.0"
-    "libgstvideo-1.0.so.0"
-    "libgstaudio-1.0.so.0"
-    "libgstpbutils-1.0.so.0"
+    "libgstreamer-1.0"
+    "libgstbase-1.0"
+    "libgstapp-1.0"
+    "libgstvideo-1.0"
+    "libgstaudio-1.0"
+    "libgstpbutils-1.0"
 )
 
 # Load GStreamer libraries
 for lib in "${GSTREAMER_LIBS[@]}"; do
-    lib_path="/usr/lib/openterfaceqt/gstreamer/$lib"
-    if [ -f "$lib_path" ]; then
+    lib_path=$(find_library "$lib" "/usr/lib/openterfaceqt/gstreamer")
+    if [ -n "$lib_path" ]; then
         PRELOAD_LIBS+=("$lib_path")
+    else
+        # Log missing libraries for debugging (suppress in non-debug mode)
+        if [ "${OPENTERFACE_DEBUG}" = "1" ] || [ "${OPENTERFACE_DEBUG}" = "true" ]; then
+            echo "⚠️  GStreamer library not found: $lib" >&2
+        fi
     fi
 done
 
 # FFmpeg libraries - essential for video/audio encoding and decoding
 FFMPEG_LIBS=(
-    "libavformat.so.61"
-    "libavcodec.so.61"
-    "libavutil.so.59"
-    "libswscale.so.8"
-    "libswresample.so.5"
-    "libavfilter.so.10"
-    "libavdevice.so.61"
+    "libavformat"
+    "libavcodec"
+    "libavutil"
+    "libswscale"
+    "libswresample"
+    "libavfilter"
+    "libavdevice"
 )
 
 # Load FFmpeg libraries
 for lib in "${FFMPEG_LIBS[@]}"; do
-    lib_path="/usr/lib/openterfaceqt/ffmpeg/$lib"
-    if [ -f "$lib_path" ]; then
+    lib_path=$(find_library "$lib" "/usr/lib/openterfaceqt/ffmpeg")
+    if [ -n "$lib_path" ]; then
         PRELOAD_LIBS+=("$lib_path")
+    else
+        # Log missing libraries for debugging (suppress in non-debug mode)
+        if [ "${OPENTERFACE_DEBUG}" = "1" ] || [ "${OPENTERFACE_DEBUG}" = "true" ]; then
+            echo "⚠️  FFmpeg library not found: $lib" >&2
+        fi
     fi
 done
 
@@ -165,12 +194,6 @@ fi
 # ============================================
 # Qt Plugin Path Setup
 # ============================================
-# Priority order:
-# 1. User's existing QT_PLUGIN_PATH (if set)
-# 2. Bundled Qt6 plugins in /usr/lib/qt6
-# 3. System Qt6 plugins
-# 4. Fallback to system architecture-specific path
-
 if [ -z "$QT_PLUGIN_PATH" ]; then
     QT_PLUGIN_PATHS=()
     
@@ -179,17 +202,9 @@ if [ -z "$QT_PLUGIN_PATH" ]; then
         QT_PLUGIN_PATHS+=("/usr/lib/openterfaceqt/qt6/plugins")
     fi
     
-    # Add system locations
-    if [ -d "/usr/lib/${ARCH_DIR}/qt6/plugins" ]; then
-        QT_PLUGIN_PATHS+=("/usr/lib/${ARCH_DIR}/qt6/plugins")
-    fi
-    
-    if [ -d "/usr/lib/x86_64-linux-gnu/qt6/plugins" ]; then
-        QT_PLUGIN_PATHS+=("/usr/lib/x86_64-linux-gnu/qt6/plugins")
-    fi
-    
+    # Add system locations as fallback
     if [ -d "/usr/lib/qt6/plugins" ]; then
-        QT_PLUGIN_PATHS+=("/usr/lib/openterfaceqt/qt6/plugins")
+        QT_PLUGIN_PATHS+=("/usr/lib/qt6/plugins")
     fi
     
     # Join with colons
@@ -200,26 +215,15 @@ fi
 # ============================================
 # Qt Platform Plugin Path Setup (CRITICAL)
 # ============================================
-# Explicitly set QT_QPA_PLATFORM_PLUGIN_PATH for platform plugin discovery
-# This is essential for XCB and other platform plugins to load correctly
-
 if [ -z "$QT_QPA_PLATFORM_PLUGIN_PATH" ]; then
     QT_PLATFORM_PLUGIN_PATHS=()
     
-    # Check bundled location first (for installed DEB package)
+    # Check bundled location first
     if [ -d "/usr/lib/openterfaceqt/qt6/plugins/platforms" ]; then
         QT_PLATFORM_PLUGIN_PATHS+=("/usr/lib/openterfaceqt/qt6/plugins/platforms")
     fi
     
-    # Add system locations
-    if [ -d "/usr/lib/${ARCH_DIR}/qt6/plugins/platforms" ]; then
-        QT_PLATFORM_PLUGIN_PATHS+=("/usr/lib/${ARCH_DIR}/qt6/plugins/platforms")
-    fi
-    
-    if [ -d "/usr/lib/x86_64-linux-gnu/qt6/plugins/platforms" ]; then
-        QT_PLATFORM_PLUGIN_PATHS+=("/usr/lib/x86_64-linux-gnu/qt6/plugins/platforms")
-    fi
-    
+    # Add system locations as fallback
     if [ -d "/usr/lib/qt6/plugins/platforms" ]; then
         QT_PLATFORM_PLUGIN_PATHS+=("/usr/lib/qt6/plugins/platforms")
     fi
@@ -232,8 +236,6 @@ fi
 # ============================================
 # QML Import Path Setup
 # ============================================
-# Priority order: bundled QML first, then system locations
-
 if [ -z "$QML2_IMPORT_PATH" ]; then
     QML_IMPORT_PATHS=()
     
@@ -242,17 +244,9 @@ if [ -z "$QML2_IMPORT_PATH" ]; then
         QML_IMPORT_PATHS+=("/usr/lib/openterfaceqt/qt6/qml")
     fi
     
-    # Add system locations
-    if [ -d "/usr/lib/${ARCH_DIR}/qt6/qml" ]; then
-        QML_IMPORT_PATHS+=("/usr/lib/${ARCH_DIR}/qt6/qml")
-    fi
-    
-    if [ -d "/usr/lib/x86_64-linux-gnu/qt6/qml" ]; then
-        QML_IMPORT_PATHS+=("/usr/lib/x86_64-linux-gnu/qt6/qml")
-    fi
-    
-    if [ -d "/usr/lib/openterfaceqt/qt6/qml" ]; then
-        QML_IMPORT_PATHS+=("/usr/lib/openterfaceqt/qt6/qml")
+    # Add system locations as fallback
+    if [ -d "/usr/lib/qt6/qml" ]; then
+        QML_IMPORT_PATHS+=("/usr/lib/qt6/qml")
     fi
     
     # Join with colons
@@ -263,33 +257,17 @@ fi
 # ============================================
 # GStreamer Plugin Path Setup
 # ============================================
-# Critical for avoiding GStreamer symbol lookup errors
-# Priority: system GStreamer plugins first
-
 if [ -z "$GST_PLUGIN_PATH" ]; then
     GST_PLUGIN_PATHS=()
     
-    # Bundled GStreamer plugins (PRIMARY - provides consistent plugins across systems)
+    # Bundled GStreamer plugins (PRIMARY)
     if [ -d "/usr/lib/openterfaceqt/gstreamer/gstreamer-1.0" ]; then
         GST_PLUGIN_PATHS+=("/usr/lib/openterfaceqt/gstreamer/gstreamer-1.0")
     fi
     
-    # System GStreamer plugins (secondary - as fallback)
-    if [ -d "/usr/lib/${ARCH_DIR}/gstreamer-1.0" ]; then
-        GST_PLUGIN_PATHS+=("/usr/lib/${ARCH_DIR}/gstreamer-1.0")
-    fi
-    
-    if [ -d "/usr/lib/x86_64-linux-gnu/gstreamer-1.0" ]; then
-        GST_PLUGIN_PATHS+=("/usr/lib/x86_64-linux-gnu/gstreamer-1.0")
-    fi
-    
+    # System GStreamer plugins (secondary)
     if [ -d "/usr/lib/gstreamer-1.0" ]; then
         GST_PLUGIN_PATHS+=("/usr/lib/gstreamer-1.0")
-    fi
-    
-    # Additional bundled locations
-    if [ -d "/opt/gstreamer/lib/gstreamer-1.0" ]; then
-        GST_PLUGIN_PATHS+=("/opt/gstreamer/lib/gstreamer-1.0")
     fi
     
     # Join with colons
@@ -298,56 +276,52 @@ if [ -z "$GST_PLUGIN_PATH" ]; then
 fi
 
 # ============================================
-# GStreamer Codec Path Setup
+# Debug Mode
 # ============================================
-# For GStreamer codec discovery
-
-if [ -z "$GST_SCANNER_PATH" ]; then
-    if [ -f "/usr/lib/x86_64-linux-gnu/gstreamer-1.0/gst-plugin-scanner" ]; then
-        export GST_SCANNER_PATH="/usr/lib/x86_64-linux-gnu/gstreamer-1.0/gst-plugin-scanner"
-    elif [ -f "/usr/libexec/gstreamer-1.0/gst-plugin-scanner" ]; then
-        export GST_SCANNER_PATH="/usr/libexec/gstreamer-1.0/gst-plugin-scanner"
-    fi
-fi
-
-# ============================================
-# Optional: Debug Mode
-# ============================================
-# Set OPENTERFACE_DEBUG=1 to see the environment variables being used
-
 if [ "${OPENTERFACE_DEBUG}" = "1" ] || [ "${OPENTERFACE_DEBUG}" = "true" ]; then
-    echo "========================================" >&2
-    echo "OpenterfaceQT Runtime Environment Setup" >&2
-    echo "========================================" >&2
-    echo "LD_LIBRARY_PATH=$LD_LIBRARY_PATH" >&2
-    echo "LD_PRELOAD=$LD_PRELOAD" >&2
-    echo "QT_PLUGIN_PATH=$QT_PLUGIN_PATH" >&2
-    echo "QT_QPA_PLATFORM_PLUGIN_PATH=$QT_QPA_PLATFORM_PLUGIN_PATH" >&2
-    echo "QML2_IMPORT_PATH=$QML2_IMPORT_PATH" >&2
-    echo "GST_PLUGIN_PATH=$GST_PLUGIN_PATH" >&2
-    if [ -n "$GST_SCANNER_PATH" ]; then
-        echo "GST_SCANNER_PATH=$GST_SCANNER_PATH" >&2
-    fi
-    echo "ARCH: $UNAME_M ($ARCH_DIR)" >&2
-    echo "========================================" >&2
+    {
+        echo "========================================" 
+        echo "OpenterfaceQT Runtime Environment Setup" 
+        echo "========================================" 
+        echo "LD_LIBRARY_PATH=$LD_LIBRARY_PATH" 
+        echo "LD_PRELOAD=$LD_PRELOAD" 
+        echo "QT_PLUGIN_PATH=$QT_PLUGIN_PATH" 
+        echo "QT_QPA_PLATFORM_PLUGIN_PATH=$QT_QPA_PLATFORM_PLUGIN_PATH" 
+        echo "QML2_IMPORT_PATH=$QML2_IMPORT_PATH" 
+        echo "GST_PLUGIN_PATH=$GST_PLUGIN_PATH" 
+        echo "========================================" 
+    } | tee -a "$LAUNCHER_LOG"
+else
+    # Log env vars to file even in non-debug mode for troubleshooting
+    {
+        echo "LD_LIBRARY_PATH=$LD_LIBRARY_PATH" 
+        echo "LD_PRELOAD=$LD_PRELOAD" 
+        echo "QT_PLUGIN_PATH=$QT_PLUGIN_PATH" 
+        echo "QT_QPA_PLATFORM_PLUGIN_PATH=$QT_QPA_PLATFORM_PLUGIN_PATH" 
+        echo "QML2_IMPORT_PATH=$QML2_IMPORT_PATH" 
+        echo "GST_PLUGIN_PATH=$GST_PLUGIN_PATH" 
+    } >> "$LAUNCHER_LOG"
 fi
 
 # ============================================
 # Application Execution
 # ============================================
 # Locate and execute the OpenterfaceQT binary
-# NOTE: The binary is renamed to openterfaceQT.bin and wrapped by this script
+# NOTE: The binary is at /usr/local/bin/openterfaceQT.bin (with .bin extension)
 # This ensures LD_PRELOAD and environment variables are ALWAYS applied
 
-# Try multiple locations for the binary (prioritize the wrapped version)
+# Try multiple locations for the binary (with fallbacks)
+# NOTE: Do NOT include the launcher path itself (/usr/local/bin/openterfaceQT)
+# to avoid infinite recursion. The launcher should be named openterfaceQT or openterfaceQT-launcher.sh
+# and the actual binary should be named openterfaceQT.bin
 OPENTERFACE_BIN=""
 for bin_path in \
     "/usr/local/bin/openterfaceQT.bin" \
-    "/usr/local/bin/openterfaceQT" \
-    "/usr/bin/openterfaceQT" \
-    "/opt/openterface/bin/openterfaceQT" \
-    "${SCRIPT_DIR}/openterfaceQT.bin" \
-    "${SCRIPT_DIR}/openterfaceQT"; do
+    "/usr/bin/openterfaceQT.bin" \
+    "/opt/openterface/bin/openterfaceQT.bin" \
+    "/usr/local/bin/openterfaceQT-bin" \
+    "/usr/bin/openterfaceQT-bin" \
+    "/opt/openterface/bin/openterfaceQT-bin"; do
     if [ -f "$bin_path" ] && [ -x "$bin_path" ]; then
         OPENTERFACE_BIN="$bin_path"
         break
@@ -355,21 +329,66 @@ for bin_path in \
 done
 
 if [ -z "$OPENTERFACE_BIN" ]; then
-    echo "Error: OpenterfaceQT binary not found in standard locations" >&2
-    echo "Searched:" >&2
-    echo "  - /usr/local/bin/openterfaceQT.bin (wrapped version)" >&2
-    echo "  - /usr/local/bin/openterfaceQT" >&2
-    echo "  - /usr/bin/openterfaceQT" >&2
-    echo "  - /opt/openterface/bin/openterfaceQT" >&2
-    echo "  - ${SCRIPT_DIR}/openterfaceQT.bin" >&2
-    echo "  - ${SCRIPT_DIR}/openterfaceQT" >&2
+    {
+        echo "ERROR: OpenterfaceQT binary not found in standard locations" >&2
+        echo "Searched:" >&2
+        echo "  - /usr/local/bin/openterfaceQT.bin" >&2
+        echo "  - /usr/bin/openterfaceQT.bin" >&2
+        echo "  - /opt/openterface/bin/openterfaceQT.bin" >&2
+        echo "  - /usr/local/bin/openterfaceQT-bin" >&2
+        echo "  - /usr/bin/openterfaceQT-bin" >&2
+        echo "  - /opt/openterface/bin/openterfaceQT-bin" >&2
+        echo "" >&2
+        echo "NOTE: The actual binary should be named 'openterfaceQT.bin'" >&2
+        echo "The launcher script should be installed as 'openterfaceQT' or 'openterfaceQT-launcher.sh'" >&2
+        echo "Launcher log: $LAUNCHER_LOG" >&2
+    } | tee -a "$LAUNCHER_LOG"
     exit 1
 fi
 
-# Debug: Show what will be preloaded
-if [ "${OPENTERFACE_DEBUG}" = "1" ] || [ "${OPENTERFACE_DEBUG}" = "true" ]; then
-    echo "Executing: $OPENTERFACE_BIN" >&2
-fi
+# Debug: Show what will be executed
+{
+    echo ""
+    echo "Executing: $OPENTERFACE_BIN $@"
+    echo "Launcher log location: $LAUNCHER_LOG"
+    echo ""
+} | tee -a "$LAUNCHER_LOG"
+
+# Capture binary output and error for debugging
+APP_LOG="/tmp/openterfaceqt-app-$(date +%s).log"
+{
+    echo "=== OpenterfaceQT Application Started at $(date) ===" 
+    echo "Binary: $OPENTERFACE_BIN"
+    echo "Environment Variables:"
+    echo "  LD_LIBRARY_PATH=$LD_LIBRARY_PATH"
+    echo "  LD_PRELOAD=$LD_PRELOAD"
+    echo "  QT_PLUGIN_PATH=$QT_PLUGIN_PATH"
+    echo "  QT_QPA_PLATFORM_PLUGIN_PATH=$QT_QPA_PLATFORM_PLUGIN_PATH"
+    echo "  QML2_IMPORT_PATH=$QML2_IMPORT_PATH"
+    echo "  GST_PLUGIN_PATH=$GST_PLUGIN_PATH"
+    echo ""
+    echo "=== Application Output ===" 
+} > "$APP_LOG" 2>&1
 
 # Execute the binary with all passed arguments
-exec "$OPENTERFACE_BIN" "$@"
+# Redirect output to both log file and console for monitoring
+"$OPENTERFACE_BIN" "$@" 2>&1 | tee -a "$APP_LOG" &
+APP_PID=$!
+
+{
+    echo "Application started with PID: $APP_PID"
+    echo "Application log: $APP_LOG"
+} | tee -a "$LAUNCHER_LOG"
+
+# Wait for application to finish and capture exit code
+wait $APP_PID
+APP_EXIT_CODE=$?
+
+{
+    echo ""
+    echo "=== Application Exited ===" 
+    echo "Exit Code: $APP_EXIT_CODE"
+    echo "Time: $(date)"
+} | tee -a "$LAUNCHER_LOG"
+
+exit $APP_EXIT_CODE
