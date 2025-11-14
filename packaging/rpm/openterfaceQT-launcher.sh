@@ -132,32 +132,28 @@ if [ "${OPENTERFACE_DEBUG}" = "1" ] || [ "${OPENTERFACE_DEBUG}" = "true" ]; then
 fi
 
 # Load core libraries first
-{
-    echo "Loading Qt6 Core Libraries..."
-    for lib in "${QT6_CORE_LIBS[@]}"; do
-        lib_path=$(find_library "$lib" "/usr/lib/openterfaceqt/qt6" "$DEBUG_MODE")
-        if [ -n "$lib_path" ]; then
-            PRELOAD_LIBS+=("$lib_path")
-            echo "✅ Added to PRELOAD: $lib_path"
-        else
-            echo "⚠️  Core library not found: $lib"
-        fi
-    done
-} | tee -a "$LAUNCHER_LOG"
+echo "Loading Qt6 Core Libraries..." | tee -a "$LAUNCHER_LOG"
+for lib in "${QT6_CORE_LIBS[@]}"; do
+    lib_path=$(find_library "$lib" "/usr/lib/openterfaceqt/qt6" "$DEBUG_MODE")
+    if [ -n "$lib_path" ]; then
+        PRELOAD_LIBS+=("$lib_path")
+        echo "✅ Added to PRELOAD: $lib_path" | tee -a "$LAUNCHER_LOG"
+    else
+        echo "⚠️  Core library not found: $lib" | tee -a "$LAUNCHER_LOG"
+    fi
+done
 
 # Then load module libraries
-{
-    echo "Loading Qt6 Module Libraries..."
-    for lib in "${QT6_MODULE_LIBS[@]}"; do
-        lib_path=$(find_library "$lib" "/usr/lib/openterfaceqt/qt6" "$DEBUG_MODE")
-        if [ -n "$lib_path" ]; then
-            PRELOAD_LIBS+=("$lib_path")
-            echo "✅ Added to PRELOAD: $lib_path"
-        else
-            echo "⚠️  Module library not found: $lib"
-        fi
-    done
-} | tee -a "$LAUNCHER_LOG"
+echo "Loading Qt6 Module Libraries..." | tee -a "$LAUNCHER_LOG"
+for lib in "${QT6_MODULE_LIBS[@]}"; do
+    lib_path=$(find_library "$lib" "/usr/lib/openterfaceqt/qt6" "$DEBUG_MODE")
+    if [ -n "$lib_path" ]; then
+        PRELOAD_LIBS+=("$lib_path")
+        echo "✅ Added to PRELOAD: $lib_path" | tee -a "$LAUNCHER_LOG"
+    else
+        echo "⚠️  Module library not found: $lib" | tee -a "$LAUNCHER_LOG"
+    fi
+done
 
 # GStreamer libraries - essential for media handling
 GSTREAMER_LIBS=(
@@ -170,19 +166,17 @@ GSTREAMER_LIBS=(
 )
 
 # Load GStreamer libraries
-{
-    echo "Loading GStreamer Libraries..."
-    for lib in "${GSTREAMER_LIBS[@]}"; do
-        lib_path=$(find_library "$lib" "/usr/lib/openterfaceqt/gstreamer" "$DEBUG_MODE")
-        if [ -n "$lib_path" ]; then
-            PRELOAD_LIBS+=("$lib_path")
-            echo "✅ Added to PRELOAD: $lib_path"
-        else
-            # Log missing libraries for debugging (suppress in non-debug mode)
-            echo "⚠️  GStreamer library not found: $lib"
-        fi
-    done
-} | tee -a "$LAUNCHER_LOG"
+echo "Loading GStreamer Libraries..." | tee -a "$LAUNCHER_LOG"
+for lib in "${GSTREAMER_LIBS[@]}"; do
+    lib_path=$(find_library "$lib" "/usr/lib/openterfaceqt/gstreamer" "$DEBUG_MODE")
+    if [ -n "$lib_path" ]; then
+        PRELOAD_LIBS+=("$lib_path")
+        echo "✅ Added to PRELOAD: $lib_path" | tee -a "$LAUNCHER_LOG"
+    else
+        # Log missing libraries for debugging (suppress in non-debug mode)
+        echo "⚠️  GStreamer library not found: $lib" | tee -a "$LAUNCHER_LOG"
+    fi
+done
 
 # FFmpeg libraries - essential for video/audio encoding and decoding
 FFMPEG_LIBS=(
@@ -196,19 +190,17 @@ FFMPEG_LIBS=(
 )
 
 # Load FFmpeg libraries
-{
-    echo "Loading FFmpeg Libraries..."
-    for lib in "${FFMPEG_LIBS[@]}"; do
-        lib_path=$(find_library "$lib" "/usr/lib/openterfaceqt/ffmpeg" "$DEBUG_MODE")
-        if [ -n "$lib_path" ]; then
-            PRELOAD_LIBS+=("$lib_path")
-            echo "✅ Added to PRELOAD: $lib_path"
-        else
-            # Log missing libraries for debugging (suppress in non-debug mode)
-            echo "⚠️  FFmpeg library not found: $lib"
-        fi
-    done
-} | tee -a "$LAUNCHER_LOG"
+echo "Loading FFmpeg Libraries..." | tee -a "$LAUNCHER_LOG"
+for lib in "${FFMPEG_LIBS[@]}"; do
+    lib_path=$(find_library "$lib" "/usr/lib/openterfaceqt/ffmpeg" "$DEBUG_MODE")
+    if [ -n "$lib_path" ]; then
+        PRELOAD_LIBS+=("$lib_path")
+        echo "✅ Added to PRELOAD: $lib_path" | tee -a "$LAUNCHER_LOG"
+    else
+        # Log missing libraries for debugging (suppress in non-debug mode)
+        echo "⚠️  FFmpeg library not found: $lib" | tee -a "$LAUNCHER_LOG"
+    fi
+done
 
 # Build LD_PRELOAD string with proper precedence
 if [ ${#PRELOAD_LIBS[@]} -gt 0 ]; then
