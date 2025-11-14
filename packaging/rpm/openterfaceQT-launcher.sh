@@ -1,7 +1,6 @@
 #!/bin/bash
 # OpenterfaceQT Launcher - Sets up bundled library paths
 # This script ensures bundled Qt6, FFmpeg, and GStreamer libraries are loaded with proper priority
-set -e
 
 # ============================================
 # Error Handling & Logging
@@ -13,7 +12,7 @@ LAUNCHER_LOG="/tmp/openterfaceqt-launcher-$(date +%s).log"
     echo "Arguments: $@"
 } | tee "$LAUNCHER_LOG"
 
-# Trap errors and log them
+# Trap errors and log them (but don't use set -e to allow graceful library lookups)
 trap 'echo "ERROR at line $LINENO: $BASH_COMMAND" | tee -a "$LAUNCHER_LOG"; exit 1' ERR
 
 # ============================================
