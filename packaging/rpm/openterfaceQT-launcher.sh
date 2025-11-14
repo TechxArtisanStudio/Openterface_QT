@@ -186,9 +186,6 @@ done
 PLATFORM_SUPPORT_LIBS=(
     "libQt6XcbQpa"             # X11/XCB support
     "libQt6WaylandClient"      # Wayland support
-    "libQt6WaylandEgl"         # Wayland EGL
-    "libQt6EglFsDeviceIntegration"  # EGLFS
-    "libQt6GlxIntegration"     # GLX
 )
 
 # Search for platform libraries in bundled location first, then system
