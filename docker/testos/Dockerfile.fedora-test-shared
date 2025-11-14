@@ -34,7 +34,6 @@ RUN dnf update -y && \
         pcre2-utf16 \
         glibc \
         # Hardware interface libraries (runtime only)
-        libusb1 \
         systemd-udev \
         pulseaudio-libs \
         # X11 and graphics libraries (runtime only)

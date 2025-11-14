@@ -179,6 +179,31 @@ for lib in "${FFMPEG_LIBS[@]}"; do
     fi
 done
 
+# Common/System libraries - essential support libraries
+COMMON_LIBS=(
+    "libusb-1.0"
+    "libv4l1"
+    "libv4l2"
+    "libv4l2rds"
+)
+
+# Load common libraries
+for lib in "${COMMON_LIBS[@]}"; do
+    lib_path=$(find_library "$lib" "/usr/lib/openterfaceqt")
+    if [ -z "$lib_path" ]; then
+        # Try gstreamer subdirectory for v4l libraries
+        lib_path=$(find_library "$lib" "/usr/lib/openterfaceqt/gstreamer")
+    fi
+    if [ -n "$lib_path" ]; then
+        PRELOAD_LIBS+=("$lib_path")
+    else
+        # Log missing libraries for debugging (suppress in non-debug mode)
+        if [ "${OPENTERFACE_DEBUG}" = "1" ] || [ "${OPENTERFACE_DEBUG}" = "true" ]; then
+            echo "⚠️  Common library not found: $lib" >&2
+        fi
+    fi
+done
+
 # ============================================
 # Platform Support Libraries (CRITICAL!)
 # ============================================
