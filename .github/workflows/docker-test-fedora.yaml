@@ -398,9 +398,9 @@ jobs:
                 echo ""
                 echo "... (middle $((TOTAL_APP_LINES - 60)) lines omitted) ..."
                 echo ""
-                echo "📌 LAST 30 LINES OF APPLICATION LOG:"
+                echo "📌 LAST 100 LINES OF APPLICATION LOG:"
                 echo "---"
-                tail -30 /tmp/openterfaceqt.log
+                tail -100 /tmp/openterfaceqt.log
               else
                 echo "📌 ALL APPLICATION LOGS ($TOTAL_APP_LINES lines):"
                 echo "---"
