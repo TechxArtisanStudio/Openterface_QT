@@ -804,11 +804,25 @@ echo "📋 RPM: Final SOURCES directory contents:"
 ls -lah "${RPMTOP}/SOURCES/" | head -30
 
 # Update the binary's rpath to point to /usr/lib/openterfaceqt for RPM
+# CRITICAL: RPATH must come BEFORE system paths to override /lib64 and /usr/lib
 if [ -f "${RPMTOP}/SOURCES/openterfaceQT" ]; then
     echo "Updating rpath for RPM bundled libraries..."
-    echo "   Setting RPATH to: /usr/lib/openterfaceqt/qt6:/usr/lib/openterfaceqt"
-    patchelf --set-rpath '/usr/lib/openterfaceqt/qt6:/usr/lib/openterfaceqt' "${RPMTOP}/SOURCES/openterfaceQT"
-    echo "   ✅ RPATH updated successfully"
+    echo "   Setting RPATH to prioritize bundled libraries over system"
+    echo "   RPATH: /usr/lib/openterfaceqt/qt6:/usr/lib/openterfaceqt/ffmpeg:/usr/lib/openterfaceqt/gstreamer:/usr/lib/openterfaceqt"
+    
+    # Set RPATH with multiple priority entries
+    # This ensures bundled libraries are found FIRST before system libraries
+    patchelf --set-rpath '/usr/lib/openterfaceqt/qt6:/usr/lib/openterfaceqt/ffmpeg:/usr/lib/openterfaceqt/gstreamer:/usr/lib/openterfaceqt' \
+             "${RPMTOP}/SOURCES/openterfaceQT"
+    
+    # Verify RPATH was set correctly
+    ACTUAL_RPATH=$(patchelf --print-rpath "${RPMTOP}/SOURCES/openterfaceQT" 2>/dev/null || echo "FAILED")
+    echo "   ✅ RPATH set to: $ACTUAL_RPATH"
+    
+    # Also strip RUNPATH (if exists) to prevent secondary search
+    patchelf --remove-rpath "${RPMTOP}/SOURCES/openterfaceQT" 2>/dev/null || true
+    patchelf --set-rpath '/usr/lib/openterfaceqt/qt6:/usr/lib/openterfaceqt/ffmpeg:/usr/lib/openterfaceqt/gstreamer:/usr/lib/openterfaceqt' \
+             "${RPMTOP}/SOURCES/openterfaceQT"
 fi
 
 # Generate spec from template
