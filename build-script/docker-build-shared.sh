@@ -132,6 +132,10 @@ fi
 export VERSION
 echo "Packaging OpenterfaceQT version: ${VERSION}"
 
+# Export architecture for build scripts
+export ARCH="${APPIMAGE_ARCH}"
+echo "Exporting ARCH: ${ARCH}"
+
 bash /workspace/src/build-script/docker-build-appimage.sh
 
 bash /workspace/src/build-script/docker-build-deb.sh
