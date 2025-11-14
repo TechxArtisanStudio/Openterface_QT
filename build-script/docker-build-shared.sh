@@ -133,8 +133,17 @@ export VERSION
 echo "Packaging OpenterfaceQT version: ${VERSION}"
 
 # Export architecture for build scripts
-export ARCH="${APPIMAGE_ARCH}"
+# Map AppImage architecture names to Debian architecture names
+case "${APPIMAGE_ARCH}" in
+    x86_64) DEB_ARCH="amd64";;
+    aarch64) DEB_ARCH="arm64";;
+    armhf) DEB_ARCH="armhf";;
+    *) DEB_ARCH="${APPIMAGE_ARCH}";;
+esac
+
+export ARCH="${DEB_ARCH}"
 echo "Exporting ARCH: ${ARCH}"
+echo "Exporting APPIMAGE_ARCH: ${APPIMAGE_ARCH}"
 
 bash /workspace/src/build-script/docker-build-appimage.sh
 
