@@ -569,7 +569,7 @@ GSTREAMER_LIBS=(
     "libgstpbutils-1.0.so"      # Playback utility library
     "libgstvideo-1.0.so"        # Video support library
     "libgstapp-1.0.so"          # Application integration library
-    "libgsttag-1.0.so.0"        # Tagging library
+    "libgsttag-1.0.so"          # Tagging library
     "libgstrtp-1.0.so"          # RTP support library
     "libgstrtsp-1.0.so"         # RTSP support library
     "libgstsdp-1.0.so"          # SDP support library
@@ -620,6 +620,35 @@ if [ $GSTREAMER_FOUND -eq 0 ]; then
     echo "⚠️  Warning: GStreamer libraries not found"
 else
     echo "✅ GStreamer libraries found and copied"
+fi
+
+# Copy ORC libraries (needed by GStreamer) - search multiple locations
+echo "📋 RPM: Searching for ORC libraries..."
+ORC_FOUND=0
+for SEARCH_DIR in /usr/lib/x86_64-linux-gnu /usr/lib; do
+    echo "   Checking: $SEARCH_DIR"
+    if [ -d "$SEARCH_DIR" ]; then
+        if ls "$SEARCH_DIR"/liborc-0.4.so* >/dev/null 2>&1; then
+            echo "   ✅ Found ORC libraries in $SEARCH_DIR"
+            ORC_FILES=$(ls -la "$SEARCH_DIR"/liborc-0.4.so*)
+            echo "   Files found:"
+            echo "$ORC_FILES" | sed 's/^/     /'
+            # Only copy actual files (not symlinks) to avoid duplication
+            find "$SEARCH_DIR" -maxdepth 1 -name "liborc-0.4.so*" -type f -exec cp -Pv {} "${RPMTOP}/SOURCES/gstreamer/" \; 2>&1 | sed 's/^/     /'
+            echo "   ✅ ORC libraries copied to ${RPMTOP}/SOURCES/gstreamer"
+            ORC_FOUND=1
+            break
+        else
+            echo "   ✗ No ORC libraries found in $SEARCH_DIR"
+        fi
+    else
+        echo "   ✗ Directory does not exist: $SEARCH_DIR"
+    fi
+done
+if [ $ORC_FOUND -eq 0 ]; then
+    echo "⚠️  Warning: ORC libraries not found"
+else
+    echo "✅ ORC libraries found and copied"
 fi
 
 # Copy GStreamer plugins (essential for video capture)
