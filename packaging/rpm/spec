@@ -116,6 +116,9 @@ if [ -d "%{_sourcedir}/gstreamer/gstreamer-1.0" ]; then
     find %{_sourcedir}/gstreamer/gstreamer-1.0 -maxdepth 1 -name "*.so" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/gstreamer/gstreamer-1.0/ \;
 fi
 
+# GStreamer plugins (video capture, audio processing, codecs)
+cp %{_sourcedir}/gstreamer/gstreamer-1.0/*.so %{buildroot}/usr/lib/openterfaceqt/gstreamer/gstreamer-1.0/ 2>/dev/null || true
+
 # FFmpeg core libraries (from ffmpeg subdirectory - all components needed for video processing)
 mkdir -p %{buildroot}/usr/lib/openterfaceqt/ffmpeg
 if [ -d "%{_sourcedir}/ffmpeg" ]; then
