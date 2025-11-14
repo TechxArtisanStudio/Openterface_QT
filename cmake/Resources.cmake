@@ -322,7 +322,7 @@ install(FILES ${CMAKE_SOURCE_DIR}/images/icon_256.svg
 )
 
 # Install desktop file
-install(FILES ${CMAKE_SOURCE_DIR}/com.openterface.openterfaceQT.desktop
+install(FILES ${CMAKE_SOURCE_DIR}/packaging/com.openterface.openterfaceQT.desktop
     DESTINATION ${CMAKE_INSTALL_DATADIR}/applications
 )
 

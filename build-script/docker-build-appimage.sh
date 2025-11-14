@@ -402,17 +402,7 @@ chmod +x "${APPDIR}/usr/bin/openterfaceQT"
 echo "✅ Setting up comprehensive AppImage structure with Docker runtime support"
 
 # Create desktop file for comprehensive AppImage
-cat > "${APPDIR}/usr/share/applications/openterfaceqt.desktop" << 'EOF'
-[Desktop Entry]
-Type=Application
-Name=OpenterfaceQT
-Comment=Openterface Mini-KVM Host Application  
-Exec=openterfaceQT
-Icon=openterfaceqt
-Categories=Utility;
-StartupNotify=true
-Terminal=false
-EOF
+cp "${SRC}/packaging/com.openterface.openterfaceQT.desktop" "${APPDIR}/usr/share/applications/openterfaceqt.desktop"
 
 # Copy desktop file to root of AppDir
 cp "${APPDIR}/usr/share/applications/openterfaceqt.desktop" "${DESKTOP_OUT}"

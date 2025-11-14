@@ -187,20 +187,9 @@ chmod +x %{buildroot}/usr/lib/openterfaceqt/launcher.sh
 mkdir -p %{buildroot}/usr/local/bin
 ln -sf /usr/lib/openterfaceqt/launcher.sh %{buildroot}/usr/local/bin/openterfaceQT || true
 
-# Create desktop entry that uses the wrapper script
-cat > %{buildroot}/usr/share/applications/openterfaceQT.desktop << EOF
-[Desktop Entry]
-Version=${VERSION}
-Type=Application
-Name=OpenterfaceQT
-Exec=/usr/local/bin/openterfaceQT
-Icon=openterfaceQT
-Comment=OpenterfaceQT KVM Application for Fedora Linux
-Categories=Utility;
-
-# For debugging: uncomment and set OPENTERFACE_DEBUG=1 in environment
-# Exec=env OPENTERFACE_DEBUG=1 /usr/local/bin/openterfaceQT
-EOF
+# Install shared desktop entry
+mkdir -p %{buildroot}/usr/share/applications
+install -Dm644 %{_sourcedir}/packaging/com.openterface.openterfaceQT.desktop %{buildroot}/usr/share/applications/com.openterface.openterfaceQT.desktop
 
 # Generate dynamic file list to handle optional files gracefully
 find %{buildroot} -type f -o -type l | sed 's|%{buildroot}||' > %{_builddir}/../FILELIST.txt
