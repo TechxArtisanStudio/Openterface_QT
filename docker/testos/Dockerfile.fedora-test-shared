@@ -36,6 +36,7 @@ RUN dnf update -y && \
         # Hardware interface libraries (runtime only)
         libusb1 \
         systemd-udev \
+        pulseaudio-libs \
         # X11 and graphics libraries (runtime only)
         libX11 \
         libXrandr \
