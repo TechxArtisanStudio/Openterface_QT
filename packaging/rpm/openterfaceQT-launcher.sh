@@ -236,6 +236,37 @@ for lib in "${PLATFORM_SUPPORT_LIBS[@]}"; do
     fi
 done
 
+# ============================================
+# X11/XCB Support Libraries
+# ============================================
+# Required by xcb platform plugin to connect to X11 display
+XCB_SUPPORT_LIBS=(
+    "libxcb"
+    "libX11"
+    "libxcb-cursor"
+    "libxcb-render"
+    "libxcb-xkb"
+    "libxkbcommon"
+    "libxkbcommon-x11"
+)
+
+# Search for XCB libraries in system locations (not bundled)
+for lib in "${XCB_SUPPORT_LIBS[@]}"; do
+    lib_path=$(find_library "$lib" "/lib64")
+    if [ -z "$lib_path" ]; then
+        lib_path=$(find_library "$lib" "/usr/lib64")
+    fi
+    
+    # Add to preload if found
+    if [ -n "$lib_path" ]; then
+        PRELOAD_LIBS+=("$lib_path")
+    else
+        if [ "${OPENTERFACE_DEBUG}" = "1" ] || [ "${OPENTERFACE_DEBUG}" = "true" ]; then
+            echo "⚠️  XCB library not found: $lib" >&2
+        fi
+    fi
+done
+
 # Build LD_PRELOAD string with proper precedence
 if [ ${#PRELOAD_LIBS[@]} -gt 0 ]; then
     PRELOAD_STR=$(IFS=':'; echo "${PRELOAD_LIBS[*]}")
@@ -354,7 +385,7 @@ fi
 if [ -z "$QT_QPA_PLATFORM" ]; then
     # Check if we're in a graphical environment
     if [ -z "$DISPLAY" ] && [ -z "$WAYLAND_DISPLAY" ]; then
-        # No display - use offscreen rendering
+        # No display - use offscreen rendering (safe fallback)
         export QT_QPA_PLATFORM="offscreen"
     else
         # Try to detect from environment
@@ -471,8 +502,13 @@ fi
     echo ""
     echo "QT_PLUGIN_PATH: $QT_PLUGIN_PATH"
     echo "QT_QPA_PLATFORM_PLUGIN_PATH: $QT_QPA_PLATFORM_PLUGIN_PATH"
+    echo "QT_QPA_PLATFORM: $QT_QPA_PLATFORM (🔑 Will use this platform)"
     echo "QML2_IMPORT_PATH: $QML2_IMPORT_PATH"
     echo "GST_PLUGIN_PATH: $GST_PLUGIN_PATH"
+    echo ""
+    echo "Environment Detection:"
+    echo "  DISPLAY: ${DISPLAY:-'(not set - headless)'}"
+    echo "  WAYLAND_DISPLAY: ${WAYLAND_DISPLAY:-'(not set)'}"
     echo "========================================"
     echo ""
     
@@ -528,6 +564,11 @@ APP_LOG="/tmp/openterfaceqt-app-$(date +%s).log"
     echo "=== OpenterfaceQT Application Started at $(date) ===" 
     echo "Binary: $OPENTERFACE_BIN"
     echo "Binary Type: $(file "$OPENTERFACE_BIN" 2>/dev/null || echo 'unknown')"
+    echo ""
+    echo "Qt Platform Configuration:"
+    echo "  QT_QPA_PLATFORM: $QT_QPA_PLATFORM"
+    echo "  QT_QPA_PLATFORM_PLUGIN_PATH: $QT_QPA_PLATFORM_PLUGIN_PATH"
+    echo ""
     echo ""
     echo "Binary Dependencies (ldd output):"
     echo "--- Attempting to resolve dependencies ---"
