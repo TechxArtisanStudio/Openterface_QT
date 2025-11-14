@@ -599,8 +599,21 @@ for SEARCH_DIR in /opt/gstreamer/lib/x86_64-linux-gnu /usr/lib/x86_64-linux-gnu 
                     echo "      📦 Copying $gst_lib..."
                     GSTREAMER_FILES=$(ls -la "$SEARCH_DIR"/${gst_lib}* 2>/dev/null)
                     echo "$GSTREAMER_FILES" | sed 's/^/         /'
+                    
+                    # Debug: Show what find command will match
+                    echo "         🔍 Debug: Files matched by find:"
+                    find "$SEARCH_DIR" -maxdepth 1 -name "${gst_lib}*" -type f -ls 2>&1 | sed 's/^/            /'
+                    
                     # Only copy actual files (not symlinks) to avoid duplication
                     find "$SEARCH_DIR" -maxdepth 1 -name "${gst_lib}*" -type f -exec cp -Pv {} "${RPMTOP}/SOURCES/gstreamer/" \; 2>&1 | sed 's/^/         /'
+                    
+                    # Verify the file was actually copied
+                    COPIED_COUNT=$(find "${RPMTOP}/SOURCES/gstreamer/" -name "${gst_lib}*" -type f | wc -l)
+                    if [ $COPIED_COUNT -eq 0 ]; then
+                        echo "         ❌ ERROR: No files copied for $gst_lib!"
+                    else
+                        echo "         ✅ Verified: $COPIED_COUNT file(s) copied for $gst_lib"
+                    fi
                 else
                     echo "      ⚠️  $gst_lib not found in $SEARCH_DIR"
                 fi
