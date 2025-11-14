@@ -313,7 +313,8 @@ fi
 # Try multiple locations for the binary (with fallbacks)
 OPENTERFACE_BIN=""
 for bin_path in \
-    "/usr/bin/openterfaceQT-bin" \
+    "/usr/bin/openterfaceQT-bin"
+    "/usr/local/bin/openterfaceQT" \
     "/usr/local/bin/openterfaceQT-bin" \
     "/opt/openterface/bin/openterfaceQT" \
     "/opt/openterface/bin/openterfaceQT-bin"; do
@@ -328,6 +329,7 @@ if [ -z "$OPENTERFACE_BIN" ]; then
         echo "ERROR: OpenterfaceQT binary not found in standard locations" >&2
         echo "Searched:" >&2
         echo "  - /usr/bin/openterfaceQT-bin" >&2
+        echo "  - /usr/local/bin/openterfaceQT" >&2
         echo "  - /usr/local/bin/openterfaceQT-bin" >&2
         echo "  - /opt/openterface/bin/openterfaceQT" >&2
         echo "  - /opt/openterface/bin/openterfaceQT-bin" >&2
