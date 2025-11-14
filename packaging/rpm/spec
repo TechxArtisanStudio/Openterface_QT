@@ -196,6 +196,301 @@ find %{buildroot} -type f -o -type l | sed 's|%{buildroot}||' > %{_builddir}/../
 
 %files -f %{_builddir}/../FILELIST.txt
 
+%pre
+# =============================================================================
+# OpenterfaceQT Pre-Installation Check (RPM)
+# =============================================================================
+# This scriptlet runs BEFORE the RPM package is installed.
+# It checks that all required runtime dependencies are available.
+#
+# Note: Unlike DEB packages, RPM's dependency system (Requires:) should handle
+# most dependencies automatically. However, this check provides:
+# 1. Clear user feedback about what's missing
+# 2. Helpful installation commands
+# 3. Graceful handling when AutoReqProv is disabled
+#
+# Required system dependencies (most are bundled, these are NOT):
+#   - Graphics: mesa-libEGL, mesa-libGLES
+#   - Audio: pulseaudio-libs
+#   - Video: libv4l
+#   - X11/Display: libxkbcommon, wayland-client, libxcb, libX11
+#   - Qt6 Platform: libxcb-icccm, libxcb-image, libxcb-keysyms, libxcb-randr, 
+#                   libxcb-render-util, libxcb-xkb
+#   - OpenGL: mesa-libGL, mesa-libGLU
+#   - Hardware Accel: libva, libvdpau (optional)
+#   - Compression: zlib, bzip2-libs
+#   - Debug: elfutils-libelf
+# =============================================================================
+
+if [ "$1" != "1" ] && [ "$1" != "2" ]; then
+    # Not install (1) or upgrade (2), skip checks
+    exit 0
+fi
+
+echo "=========================================="
+echo "OpenterfaceQT Pre-Installation Check"
+echo "=========================================="
+echo ""
+
+# Function to print status messages
+print_status() {
+    echo "📦 $1"
+}
+
+print_success() {
+    echo "✅ $1"
+}
+
+print_warning() {
+    echo "⚠️  $1"
+}
+
+print_error() {
+    echo "❌ $1"
+}
+
+print_status "Checking required system dependencies..."
+echo ""
+
+# Define RPM package names (different from DEB)
+GRAPHICS_DEPS=(
+    "mesa-libEGL"
+    "mesa-libGLES"
+)
+
+AUDIO_DEPS=(
+    "pulseaudio-libs"
+)
+
+VIDEO_DEPS=(
+    "libv4l"
+)
+
+DISPLAY_DEPS=(
+    "libxkbcommon"
+    "wayland-client"
+    "libxcb"
+    "libxcb-shm"
+    "libxcb-xfixes"
+    "libX11"
+)
+
+OPENGL_DEPS=(
+    "mesa-libGL"
+    "mesa-libglapi"
+    "mesa-libGLU"
+)
+
+QT6_PLATFORM_DEPS=(
+    "libxcb-icccm"
+    "libxcb-image"
+    "libxcb-keysyms"
+    "libxcb-randr"
+    "libxcb-render-util"
+    "libxcb-xkb"
+)
+
+HWACCEL_DEPS=(
+    "libva"
+    "libvdpau"
+)
+
+COMPRESSION_DEPS=(
+    "zlib"
+    "bzip2-libs"
+)
+
+DEBUG_DEPS=(
+    "elfutils-libelf"
+)
+
+MISSING_DEPS=()
+FOUND_DEPS=0
+TOTAL_DEPS=0
+
+# Calculate total dependencies to check
+TOTAL_DEPS=$((${#GRAPHICS_DEPS[@]} + ${#AUDIO_DEPS[@]} + ${#VIDEO_DEPS[@]} + ${#DISPLAY_DEPS[@]} + ${#OPENGL_DEPS[@]} + ${#QT6_PLATFORM_DEPS[@]} + ${#HWACCEL_DEPS[@]} + ${#COMPRESSION_DEPS[@]} + ${#DEBUG_DEPS[@]}))
+
+echo "System dependency verification:"
+echo ""
+
+# Helper function to print category header
+print_category() {
+    local category=$1
+    echo "  📦 $category:"
+}
+
+# Helper function to check if RPM package is installed
+is_rpm_installed() {
+    local pkg=$1
+    rpm -q "$pkg" >/dev/null 2>&1
+}
+
+# Check Graphics dependencies
+print_category "Graphics Libraries"
+for pkg in "${GRAPHICS_DEPS[@]}"; do
+    if is_rpm_installed "$pkg"; then
+        echo "    ✅ $pkg"
+        FOUND_DEPS=$((FOUND_DEPS + 1))
+    else
+        echo "    ❌ $pkg (MISSING)"
+        MISSING_DEPS+=("$pkg")
+    fi
+done
+echo ""
+
+# Check Audio dependencies
+print_category "Audio Libraries"
+for pkg in "${AUDIO_DEPS[@]}"; do
+    if is_rpm_installed "$pkg"; then
+        echo "    ✅ $pkg"
+        FOUND_DEPS=$((FOUND_DEPS + 1))
+    else
+        echo "    ❌ $pkg (MISSING)"
+        MISSING_DEPS+=("$pkg")
+    fi
+done
+echo ""
+
+# Check Video dependencies
+print_category "Video Libraries"
+for pkg in "${VIDEO_DEPS[@]}"; do
+    if is_rpm_installed "$pkg"; then
+        echo "    ✅ $pkg"
+        FOUND_DEPS=$((FOUND_DEPS + 1))
+    else
+        echo "    ❌ $pkg (MISSING)"
+        MISSING_DEPS+=("$pkg")
+    fi
+done
+echo ""
+
+# Check Display dependencies
+print_category "X11/Display Server Libraries"
+for pkg in "${DISPLAY_DEPS[@]}"; do
+    if is_rpm_installed "$pkg"; then
+        echo "    ✅ $pkg"
+        FOUND_DEPS=$((FOUND_DEPS + 1))
+    else
+        echo "    ❌ $pkg (MISSING)"
+        MISSING_DEPS+=("$pkg")
+    fi
+done
+echo ""
+
+# Check OpenGL dependencies
+print_category "OpenGL Libraries"
+for pkg in "${OPENGL_DEPS[@]}"; do
+    if is_rpm_installed "$pkg"; then
+        echo "    ✅ $pkg"
+        FOUND_DEPS=$((FOUND_DEPS + 1))
+    else
+        echo "    ❌ $pkg (MISSING)"
+        MISSING_DEPS+=("$pkg")
+    fi
+done
+echo ""
+
+# Check Qt6 XCB/Platform dependencies
+print_category "Qt6 Platform Dependencies (XCB)"
+for pkg in "${QT6_PLATFORM_DEPS[@]}"; do
+    if is_rpm_installed "$pkg"; then
+        echo "    ✅ $pkg"
+        FOUND_DEPS=$((FOUND_DEPS + 1))
+    else
+        echo "    ❌ $pkg (MISSING)"
+        MISSING_DEPS+=("$pkg")
+    fi
+done
+echo ""
+
+# Check Hardware Acceleration dependencies (optional)
+print_category "Hardware Acceleration Libraries (VA-API, VDPAU)"
+for pkg in "${HWACCEL_DEPS[@]}"; do
+    if is_rpm_installed "$pkg"; then
+        echo "    ✅ $pkg"
+        FOUND_DEPS=$((FOUND_DEPS + 1))
+    else
+        echo "    ⚠️  $pkg (OPTIONAL - hardware acceleration may be slower)"
+    fi
+done
+echo ""
+
+# Check Compression dependencies
+print_category "Compression Libraries"
+for pkg in "${COMPRESSION_DEPS[@]}"; do
+    if is_rpm_installed "$pkg"; then
+        echo "    ✅ $pkg"
+        FOUND_DEPS=$((FOUND_DEPS + 1))
+    else
+        echo "    ❌ $pkg (MISSING)"
+        MISSING_DEPS+=("$pkg")
+    fi
+done
+echo ""
+
+# Check Debug dependencies
+print_category "Debug Libraries"
+for pkg in "${DEBUG_DEPS[@]}"; do
+    if is_rpm_installed "$pkg"; then
+        echo "    ✅ $pkg"
+        FOUND_DEPS=$((FOUND_DEPS + 1))
+    else
+        echo "    ❌ $pkg (MISSING)"
+        MISSING_DEPS+=("$pkg")
+    fi
+done
+echo ""
+
+echo "Found: $FOUND_DEPS/$TOTAL_DEPS"
+echo "Missing: ${#MISSING_DEPS[@]}/$TOTAL_DEPS"
+echo ""
+
+if [ ${#MISSING_DEPS[@]} -eq 0 ]; then
+    print_success "All required dependencies are installed!"
+    echo ""
+    print_status "Proceeding with OpenterfaceQT package installation..."
+    echo ""
+    exit 0
+else
+    print_error "Missing ${#MISSING_DEPS[@]} required dependencies!"
+    echo ""
+    echo "Missing packages: ${MISSING_DEPS[*]}"
+    echo ""
+    echo "=========================================="
+    echo "How to Install Missing Dependencies"
+    echo "=========================================="
+    echo ""
+    echo "Run the following command BEFORE installing OpenterfaceQT:"
+    echo ""
+    
+    # Detect package manager
+    if command -v dnf >/dev/null 2>&1; then
+        echo "  sudo dnf install -y ${MISSING_DEPS[*]}"
+    elif command -v yum >/dev/null 2>&1; then
+        echo "  sudo yum install -y ${MISSING_DEPS[*]}"
+    else
+        echo "  # Use your package manager to install: ${MISSING_DEPS[*]}"
+    fi
+    
+    echo ""
+    echo "Then retry the installation:"
+    echo "  sudo rpm -ivh openterfaceqt-*.rpm"
+    echo ""
+    echo "Or use DNF/YUM to automatically resolve dependencies:"
+    echo "  sudo dnf install ./openterfaceqt-*.rpm"
+    echo ""
+    echo "=========================================="
+    echo ""
+    
+    # In RPM, we typically allow installation to continue
+    # but warn the user. Exit 1 would block installation.
+    # You can change this to 'exit 1' if you want to enforce dependencies.
+    print_warning "Installation will continue, but the application may not work correctly!"
+    echo ""
+    exit 0
+fi
+
 %post
 # Register bundled libraries with system linker during installation
 # Library symlinks are already properly set up by the build process

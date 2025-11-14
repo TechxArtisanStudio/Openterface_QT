@@ -29,13 +29,6 @@ RUN dnf update -y && \
         udev \
         usbutils \
         procps-ng \
-        # Runtime Qt6 libraries
-        qt6-qtbase \
-        qt6-qtbase-gui \
-        qt6-qtdeclarative \
-        qt6-qtmultimedia \
-        qt6-qtserialport \
-        qt6-qtsvg \
         # Hardware interface libraries (runtime only)
         libusb1 \
         systemd-udev \
@@ -43,10 +36,28 @@ RUN dnf update -y && \
         libX11 \
         libXrandr \
         libXrender \
+        libXcursor \
+        libxcb-cursor \
+        libXfixes \
+        libXinerama \
+        libXi \
+        libXext \
+        libxcb \
+        libxcb-shape \
+        libxcb-xfixes \
+        libxcb-shm \
+        libxkbcommon \
+        libxkbcommon-x11 \
         expat \
         freetype \
         fontconfig \
         bzip2-libs \
+        libxcb-render \
+        libxcb-render-util \
+        libxcb-image \
+        libxcb-util \
+        libxcb-keysyms \
+        libxcb-icccm \
         # FFmpeg-related codec libraries (available in Fedora repos)
         libtheora \
         libvorbis \
