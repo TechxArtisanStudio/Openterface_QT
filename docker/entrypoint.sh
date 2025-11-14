@@ -149,11 +149,21 @@ if [ -f /usr/local/bin/openterfaceQT ]; then
     export QT_DEBUG_PLUGINS=1  # Enable plugin debugging
     export QT_LOGGING_RULES="qt.qpa.plugin=true"  # Log plugin loading
     
+    # CRITICAL: Ensure Qt plugin paths point to bundled locations
+    export QT_PLUGIN_PATH="/usr/lib/openterfaceqt/qt6/plugins:/usr/lib/qt6/plugins:/usr/lib/x86_64-linux-gnu/qt6/plugins"
+    export QML2_IMPORT_PATH="/usr/lib/openterfaceqt/qt6/qml:/usr/lib/qt6/qml:/usr/lib/x86_64-linux-gnu/qt6/qml"
+    export QT_QPA_PLATFORM_PLUGIN_PATH="/usr/lib/openterfaceqt/qt6/plugins/platforms"
+    
+    # CRITICAL: Ensure LD_LIBRARY_PATH includes bundled Qt libraries
+    export LD_LIBRARY_PATH="/usr/lib/openterfaceqt/qt6:/usr/lib/openterfaceqt/ffmpeg:/usr/lib/openterfaceqt/gstreamer:/usr/lib/openterfaceqt:${LD_LIBRARY_PATH}"
+    
     # Start the application and keep container running
     echo "📝 Starting Openterface QT..."
     echo "   DISPLAY=$DISPLAY"
     echo "   QT_QPA_PLATFORM=$QT_QPA_PLATFORM"
     echo "   APPIMAGE_EXTRACT_AND_RUN=${APPIMAGE_EXTRACT_AND_RUN:-0}"
+    echo "   LD_LIBRARY_PATH=$LD_LIBRARY_PATH"
+    echo "   QT_PLUGIN_PATH=$QT_PLUGIN_PATH"
     echo ""
     
     # Debug: Show library dependencies
