@@ -285,7 +285,7 @@ else
     SVG_PLUGIN_FOUND=0
 fi
 
-# Copy SVG icon engine plugin (libsvgicon.so) - OPTIONAL for RPM size optimization
+# Copy SVG icon engine plugin (libqsvgicon.so) - OPTIONAL for RPM size optimization
 echo "   📦 Checking for SVG icon usage in application..."
 SVGICON_PLUGIN_FOUND=0
 
@@ -295,9 +295,9 @@ if find "${SRC}/images" -name "*.svg" 2>/dev/null | grep -q .; then
     
     for SEARCH_DIR in /opt/Qt6/plugins /usr/lib/qt6/plugins /usr/lib/x86_64-linux-gnu/qt6/plugins; do
         if [ -d "$SEARCH_DIR/iconengines" ]; then
-            FOUND_FILES=$(find "$SEARCH_DIR/iconengines" -name "libsvgicon.so*" 2>/dev/null)
+            FOUND_FILES=$(find "$SEARCH_DIR/iconengines" -name "libqsvgicon.so*" 2>/dev/null)
             if [ -n "$FOUND_FILES" ]; then
-                echo "   ✅ Found libsvgicon.so, bundling for SVG icon support..."
+                echo "   ✅ Found libqsvgicon.so, bundling for SVG icon support..."
                 mkdir -p "${RPMTOP}/SOURCES/qt6/plugins/iconengines"
                 echo "$FOUND_FILES" | while read -r svg_icon_file; do
                     cp -Pv "$svg_icon_file" "${RPMTOP}/SOURCES/qt6/plugins/iconengines/" 2>&1 | sed 's/^/     /'
@@ -312,7 +312,7 @@ else
 fi
 
 if [ $SVGICON_PLUGIN_FOUND -eq 0 ] && find "${SRC}/images" -name "*.svg" 2>/dev/null | grep -q .; then
-    echo "   ⚠️  SVG icons found but libsvgicon.so plugin not available - icons will use fallback rendering"
+    echo "   ⚠️  SVG icons found but libqsvgicon.so plugin not available - icons will use fallback rendering"
 fi
 
 # Copy bzip2 libraries to SOURCES for bundling (needed for compression support in FFmpeg)
