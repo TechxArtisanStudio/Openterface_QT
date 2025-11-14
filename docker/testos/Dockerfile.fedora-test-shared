@@ -40,27 +40,24 @@ RUN dnf update -y && \
         libXrandr \
         libXrender \
         libXcursor \
-        libxcb-cursor \
         libXfixes \
         libXinerama \
         libXi \
         libXext \
         libxcb \
-        libxcb-shape \
-        libxcb-xfixes \
-        libxcb-shm \
         libxkbcommon \
         libxkbcommon-x11 \
         expat \
         freetype \
         fontconfig \
         bzip2-libs \
-        libxcb-render \
-        libxcb-render-util \
-        libxcb-image \
-        libxcb-util \
-        libxcb-keysyms \
-        libxcb-icccm \
+        # XCB utility libraries (xcb-util-* packages in Fedora)
+        xcb-util \
+        xcb-util-image \
+        xcb-util-keysyms \
+        xcb-util-renderutil \
+        xcb-util-wm \
+        xcb-util-cursor \
         # OpenGL and GPU libraries for rendering
         mesa-libGL \
         mesa-libGLU \
