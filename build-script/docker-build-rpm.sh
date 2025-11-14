@@ -842,6 +842,15 @@ if [ -f "${SRC}/images/icon_256.png" ]; then
 	cp "${SRC}/images/icon_256.png" "${RPMTOP}/SOURCES/"
 fi
 
+# Copy desktop file to SOURCES
+if [ -f "${SRC}/packaging/com.openterface.openterfaceQT.desktop" ]; then
+	mkdir -p "${RPMTOP}/SOURCES/packaging"
+	cp "${SRC}/packaging/com.openterface.openterfaceQT.desktop" "${RPMTOP}/SOURCES/packaging/"
+	echo "✅ Desktop file copied to SOURCES"
+else
+	echo "Warning: Desktop file not found at ${SRC}/packaging/com.openterface.openterfaceQT.desktop" >&2
+fi
+
 # Normalize library symlinks in SOURCES before building RPM
 # This ensures ldconfig doesn't complain about non-symlink files during installation
 echo "📋 RPM: Normalizing library symlinks in SOURCES..."
