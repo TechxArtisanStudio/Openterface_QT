@@ -29,12 +29,15 @@ get_system_qt_version() {
     local qt_lib=""
     local version=""
     local real_path=""
+    local best_version="0.0"
+    local best_lib=""
     
     # CRITICAL: Skip bundled Qt paths when detecting system Qt!
     # Only look in standard system library paths, excluding /usr/lib/openterfaceqt
     
-    # Method 1: Find versioned .so files and verify they're NOT from bundled location
-    # Look for files like /lib64/libQt6Core.so.6.9.3 but NOT /usr/lib/openterfaceqt
+    # Method 1: Find ALL versioned .so files and pick the highest version
+    # We must find the HIGHEST version (e.g., 6.9.3 > 6.7.0) and verify it's NOT from bundled location
+    
     for path in /lib64 /lib /usr/lib64 /usr/lib /usr/lib/x86_64-linux-gnu; do
         if [ -d "$path" ]; then
             # Skip openterfaceqt directory
@@ -42,29 +45,48 @@ get_system_qt_version() {
                 continue
             fi
             
-            # Find all versioned libraries
-            for full_lib in "$path"/libQt6Core.so.6.*; do
-                [ -f "$full_lib" ] || continue
-                # Resolve the real path (follow symlinks)
-                real_path=$(readlink -f "$full_lib" 2>/dev/null)
-                
-                # Make sure it's not a symlink to bundled Qt
-                if [[ "$real_path" != *"openterfaceqt"* ]]; then
-                    # Extract version from filename like /lib64/libQt6Core.so.6.9.3
-                    local filename_version=$(echo "$full_lib" | sed 's/.*libQt6Core\.so\.\(6\.[0-9]*\).*/\1/')
-                    if [ -n "$filename_version" ] && [ "$filename_version" != "$full_lib" ]; then
-                        echo "$filename_version"
-                        return 0
+            # Find all versioned libraries - check if files exist first
+            if ls "$path"/libQt6Core.so.6.* >/dev/null 2>&1; then
+                for full_lib in "$path"/libQt6Core.so.6.*; do
+                    [ -f "$full_lib" ] || continue
+                    
+                    # Resolve the real path (follow symlinks completely)
+                    real_path=$(readlink -f "$full_lib" 2>/dev/null)
+                    [ -z "$real_path" ] && continue
+                    
+                    # Make sure it's not a symlink to bundled Qt
+                    if [[ "$real_path" != *"openterfaceqt"* ]]; then
+                        # Extract version from the real file path
+                        # Example: /usr/lib64/libQt6Core.so.6.9.3 -> "6.9"
+                        local filename_version=$(echo "$real_path" | sed 's/.*libQt6Core\.so\.\(6\.[0-9]*\).*/\1/')
+                        
+                        # Validate it looks like a version
+                        if [[ "$filename_version" =~ ^6\.[0-9]+$ ]]; then
+                            # Simple comparison: compare as version strings
+                            # Store this as a candidate (we'll return the highest we find)
+                            best_version="$filename_version"
+                            best_lib="$real_path"
+                            # Don't return immediately - keep looking for higher versions
+                        fi
                     fi
-                fi
-            done
+                done
+            fi
         fi
     done
     
+    # Return the best (highest) version we found
+    if [ -n "$best_lib" ] && [ "$best_version" != "0.0" ]; then
+        echo "$best_version"
+        return 0
+    fi
+    
     # Method 2: Use readelf on the resolved library (follow symlinks)
+    # This method scans ALL paths and looks for the highest version
     if command -v readelf &>/dev/null; then
+        best_version="0.0"
         for path in /lib64 /lib /usr/lib64 /usr/lib /usr/lib/x86_64-linux-gnu; do
             if [ -d "$path" ] && [[ "$path" != *"openterfaceqt"* ]]; then
+                # Look for libQt6Core.so.6 symlink
                 if [ -f "$path/libQt6Core.so.6" ]; then
                     # Follow the symlink to get the real file
                     real_path=$(readlink -f "$path/libQt6Core.so.6" 2>/dev/null)
@@ -75,18 +97,27 @@ get_system_qt_version() {
                     fi
                     
                     # Try to get version from ELF version symbols
+                    # Look for Qt_6.X version symbols and find the highest X
                     version=$(readelf -V "$real_path" 2>/dev/null | grep "Qt_6\." | sed 's/.*Qt_6\.\([0-9]*\).*/\1/' | sort -u -n | tail -1)
                     if [ -n "$version" ]; then
-                        echo "6.$version"
-                        return 0
+                        best_version="6.$version"
+                        best_lib="$real_path"
+                        # Continue searching for higher versions in other paths
                     fi
                 fi
             fi
         done
+        
+        if [ -n "$best_lib" ] && [ "$best_version" != "0.0" ]; then
+            echo "$best_version"
+            return 0
+        fi
     fi
     
     # Method 3: Use strings to find version info
+    # This method scans ALL paths and looks for the highest version
     if command -v strings &>/dev/null; then
+        best_version="0.0"
         for path in /lib64 /lib /usr/lib64 /usr/lib /usr/lib/x86_64-linux-gnu; do
             if [ -d "$path" ] && [[ "$path" != *"openterfaceqt"* ]]; then
                 if [ -f "$path/libQt6Core.so.6" ]; then
@@ -97,17 +128,23 @@ get_system_qt_version() {
                         continue
                     fi
                     
-                    # Look for Qt version patterns in binary
-                    version=$(strings "$real_path" 2>/dev/null | grep -E "^6\.[0-9]+\.[0-9]+$" | head -1)
+                    # Look for Qt version patterns in binary (format: 6.X.Y or 6.X)
+                    version=$(strings "$real_path" 2>/dev/null | grep -E "^6\.[0-9]+" | head -1)
                     if [ -n "$version" ]; then
                         # Extract just major.minor
                         local major_minor=$(echo "$version" | cut -d. -f1-2)
-                        echo "$major_minor"
-                        return 0
+                        best_version="$major_minor"
+                        best_lib="$real_path"
+                        # Continue searching for other paths
                     fi
                 fi
             fi
         done
+        
+        if [ -n "$best_lib" ] && [ "$best_version" != "0.0" ]; then
+            echo "$best_version"
+            return 0
+        fi
     fi
     
     return 1
@@ -327,50 +364,53 @@ QT6_MODULE_LIBS=(
     "libQt6PrintSupport"
 )
 
-# Only preload bundled Qt libraries if we're using bundled Qt
-if [ "$USE_SYSTEM_QT" -eq 0 ]; then
-    # Helper function to find library with any version suffix
-    find_library() {
-        local lib_base="$1"
-        local lib_dir="$2"
-        local debug_mode="${3:-0}"
-        
-        if [ ! -d "$lib_dir" ]; then
-            if [ "$debug_mode" = "1" ]; then
-                echo "❌ Directory not found: $lib_dir (searching for $lib_base)" >&2
-            fi
-            return 1
-        fi
-        
-        # Try to find the library with various version suffixes in priority order
-        # Most specific versions first (e.g., .so.6.6.3), then generic versions
-        local found_lib=""
-        
+# ============================================
+# Helper Function: Find Library in Directory
+# ============================================
+# This function can search for libraries in ANY directory (bundled or system)
+# Used for both Qt libraries and FFmpeg/GStreamer libraries
+find_library_in_dir() {
+    local lib_base="$1"
+    local lib_dir="$2"
+    local debug_mode="${3:-0}"
+    
+    if [ ! -d "$lib_dir" ]; then
         if [ "$debug_mode" = "1" ]; then
-            echo "🔍 Searching for '$lib_base' in '$lib_dir'" >&2
-        fi
-        
-        # Try exact library files (prefer versioned over generic)
-        for pattern in "$lib_base.so.*" "$lib_base.so"; do
-            if [ "$debug_mode" = "1" ]; then
-                echo "   Trying pattern: $pattern" >&2
-            fi
-            # Use find instead of ls to avoid issues with globbing and spaces
-            found_lib=$(find "$lib_dir" -maxdepth 1 -name "$pattern" -type f 2>/dev/null | head -n 1)
-            if [ -n "$found_lib" ]; then
-                if [ "$debug_mode" = "1" ]; then
-                    echo "   ✅ Found: $found_lib" >&2
-                fi
-                echo "$found_lib"
-                return 0
-            fi
-        done
-        
-        if [ "$debug_mode" = "1" ]; then
-            echo "   ⚠️  Library not found: $lib_base" >&2
+            echo "❌ Directory not found: $lib_dir (searching for $lib_base)" >&2
         fi
         return 1
-    }
+    fi
+    
+    local found_lib=""
+    
+    if [ "$debug_mode" = "1" ]; then
+        echo "🔍 Searching for '$lib_base' in '$lib_dir'" >&2
+    fi
+    
+    # Try exact library files (prefer versioned over generic)
+    for pattern in "$lib_base.so.*" "$lib_base.so"; do
+        if [ "$debug_mode" = "1" ]; then
+            echo "   Trying pattern: $pattern" >&2
+        fi
+        found_lib=$(find "$lib_dir" -maxdepth 1 -name "$pattern" -type f 2>/dev/null | head -n 1)
+        if [ -n "$found_lib" ]; then
+            if [ "$debug_mode" = "1" ]; then
+                echo "   ✅ Found: $found_lib" >&2
+            fi
+            echo "$found_lib"
+            return 0
+        fi
+    done
+    
+    if [ "$debug_mode" = "1" ]; then
+        echo "   ⚠️  Library not found: $lib_base" >&2
+    fi
+    return 1
+}
+
+# Only preload bundled Qt libraries if we're using bundled Qt
+if [ "$USE_SYSTEM_QT" -eq 0 ]; then
+    # For bundled Qt mode, use find_library_in_dir function
 
     # Determine debug mode
     DEBUG_MODE=0
@@ -381,7 +421,7 @@ if [ "$USE_SYSTEM_QT" -eq 0 ]; then
     # Load core libraries first
     echo "Loading Qt6 Core Libraries..." | tee -a "$LAUNCHER_LOG"
     for lib in "${QT6_CORE_LIBS[@]}"; do
-        lib_path=$(find_library "$lib" "/usr/lib/openterfaceqt/qt6" "$DEBUG_MODE")
+        lib_path=$(find_library_in_dir "$lib" "/usr/lib/openterfaceqt/qt6" "$DEBUG_MODE")
         if [ -n "$lib_path" ]; then
             PRELOAD_LIBS+=("$lib_path")
             echo "✅ Added to PRELOAD: $lib_path" | tee -a "$LAUNCHER_LOG"
@@ -393,7 +433,7 @@ if [ "$USE_SYSTEM_QT" -eq 0 ]; then
     # Then load module libraries
     echo "Loading Qt6 Module Libraries..." | tee -a "$LAUNCHER_LOG"
     for lib in "${QT6_MODULE_LIBS[@]}"; do
-        lib_path=$(find_library "$lib" "/usr/lib/openterfaceqt/qt6" "$DEBUG_MODE")
+        lib_path=$(find_library_in_dir "$lib" "/usr/lib/openterfaceqt/qt6" "$DEBUG_MODE")
         if [ -n "$lib_path" ]; then
             PRELOAD_LIBS+=("$lib_path")
             echo "✅ Added to PRELOAD: $lib_path" | tee -a "$LAUNCHER_LOG"
@@ -403,79 +443,13 @@ if [ "$USE_SYSTEM_QT" -eq 0 ]; then
     done
 else
     echo "Using system Qt, skipping bundled Qt preload" | tee -a "$LAUNCHER_LOG"
-    
-    # Helper function to find library with any version suffix (for system libs)
-    find_library() {
-        local lib_base="$1"
-        local debug_mode="${3:-0}"
-        
-        # Search system locations
-        local found_lib=""
-        
-        if [ "$debug_mode" = "1" ]; then
-            echo "🔍 Searching for system '$lib_base'" >&2
-        fi
-        
-        # Use ldconfig to find system libraries
-        found_lib=$(ldconfig -p 2>/dev/null | grep "$lib_base.so" | awk '{print $NF}' | head -1)
-        if [ -n "$found_lib" ]; then
-            if [ "$debug_mode" = "1" ]; then
-                echo "   ✅ Found: $found_lib" >&2
-            fi
-            echo "$found_lib"
-            return 0
-        fi
-        
-        # Fallback to manual search if ldconfig not available
-        for path in /lib64 /usr/lib64 /lib /usr/lib /usr/lib/x86_64-linux-gnu; do
-            found_lib=$(find "$path" -maxdepth 1 -name "$lib_base.so*" -type f 2>/dev/null | head -1)
-            if [ -n "$found_lib" ]; then
-                if [ "$debug_mode" = "1" ]; then
-                    echo "   ✅ Found: $found_lib" >&2
-                fi
-                echo "$found_lib"
-                return 0
-            fi
-        done
-        
-        if [ "$debug_mode" = "1" ]; then
-            echo "   ⚠️  Library not found: $lib_base" >&2
-        fi
-        return 1
-    }
 fi
 
-# Define debug mode (used by find_library if USE_SYSTEM_QT is 1)
-DEBUG_MODE=0
-if [ "${OPENTERFACE_DEBUG}" = "1" ] || [ "${OPENTERFACE_DEBUG}" = "true" ]; then
-    DEBUG_MODE=1
-fi
-
-# Load core libraries first (only if using bundled Qt)
-if [ "$USE_SYSTEM_QT" -eq 0 ]; then
-    echo "Loading Qt6 Core Libraries..." | tee -a "$LAUNCHER_LOG"
-    for lib in "${QT6_CORE_LIBS[@]}"; do
-        lib_path=$(find_library "$lib" "/usr/lib/openterfaceqt/qt6" "$DEBUG_MODE")
-        if [ -n "$lib_path" ]; then
-            PRELOAD_LIBS+=("$lib_path")
-            echo "✅ Added to PRELOAD: $lib_path" | tee -a "$LAUNCHER_LOG"
-        else
-            echo "⚠️  Core library not found: $lib" | tee -a "$LAUNCHER_LOG"
-        fi
-    done
-
-    # Then load module libraries
-    echo "Loading Qt6 Module Libraries..." | tee -a "$LAUNCHER_LOG"
-    for lib in "${QT6_MODULE_LIBS[@]}"; do
-        lib_path=$(find_library "$lib" "/usr/lib/openterfaceqt/qt6" "$DEBUG_MODE")
-        if [ -n "$lib_path" ]; then
-            PRELOAD_LIBS+=("$lib_path")
-            echo "✅ Added to PRELOAD: $lib_path" | tee -a "$LAUNCHER_LOG"
-        else
-            echo "⚠️  Module library not found: $lib" | tee -a "$LAUNCHER_LOG"
-        fi
-    done
-fi
+# ============================================
+# Load System/Bundled FFmpeg and GStreamer
+# ============================================
+# These libraries are ALWAYS from bundled paths, regardless of Qt version choice
+# They should be loaded in ALL cases (both USE_SYSTEM_QT=0 and USE_SYSTEM_QT=1)
 
 # GStreamer libraries - essential for media handling
 GSTREAMER_LIBS=(
@@ -487,10 +461,16 @@ GSTREAMER_LIBS=(
     "libgstpbutils-1.0"
 )
 
-# Load GStreamer libraries
+# Determine debug mode
+DEBUG_MODE=0
+if [ "${OPENTERFACE_DEBUG}" = "1" ] || [ "${OPENTERFACE_DEBUG}" = "true" ]; then
+    DEBUG_MODE=1
+fi
+
+# Load GStreamer libraries from bundled location
 echo "Loading GStreamer Libraries..." | tee -a "$LAUNCHER_LOG"
 for lib in "${GSTREAMER_LIBS[@]}"; do
-    lib_path=$(find_library "$lib" "/usr/lib/openterfaceqt/gstreamer" "$DEBUG_MODE")
+    lib_path=$(find_library_in_dir "$lib" "/usr/lib/openterfaceqt/gstreamer" "$DEBUG_MODE")
     if [ -n "$lib_path" ]; then
         PRELOAD_LIBS+=("$lib_path")
         echo "✅ Added to PRELOAD: $lib_path" | tee -a "$LAUNCHER_LOG"
@@ -511,10 +491,10 @@ FFMPEG_LIBS=(
     "libavdevice"
 )
 
-# Load FFmpeg libraries
+# Load FFmpeg libraries from bundled location
 echo "Loading FFmpeg Libraries..." | tee -a "$LAUNCHER_LOG"
 for lib in "${FFMPEG_LIBS[@]}"; do
-    lib_path=$(find_library "$lib" "/usr/lib/openterfaceqt/ffmpeg" "$DEBUG_MODE")
+    lib_path=$(find_library_in_dir "$lib" "/usr/lib/openterfaceqt/ffmpeg" "$DEBUG_MODE")
     if [ -n "$lib_path" ]; then
         PRELOAD_LIBS+=("$lib_path")
         echo "✅ Added to PRELOAD: $lib_path" | tee -a "$LAUNCHER_LOG"
