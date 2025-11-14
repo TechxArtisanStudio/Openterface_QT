@@ -412,6 +412,51 @@ fi
     echo "GST_PLUGIN_PATH: $GST_PLUGIN_PATH"
     echo "========================================"
     echo ""
+    
+    # ========================================
+    # COMPREHENSIVE DIAGNOSTIC SECTION
+    # ========================================
+    echo "DIAGNOSTIC: Checking for Qt Library Conflicts"
+    echo "=================================================="
+    echo ""
+    echo "System Qt6 Libraries in standard locations:"
+    SYSTEM_QT_COUNT=$(find /lib64 /usr/lib64 -name "libQt6*.so*" -type f 2>/dev/null | wc -l)
+    echo "  Total found: $SYSTEM_QT_COUNT"
+    find /lib64 /usr/lib64 -name "libQt6*.so*" -type f 2>/dev/null | head -5 | sed 's/^/    /'
+    if [ $SYSTEM_QT_COUNT -gt 5 ]; then
+        echo "    ... and $((SYSTEM_QT_COUNT - 5)) more"
+    fi
+    echo ""
+    
+    echo "Bundled Qt6 Libraries in /usr/lib/openterfaceqt/qt6/:"
+    BUNDLED_QT_COUNT=$(find /usr/lib/openterfaceqt/qt6 -name "libQt6*.so*" -type f 2>/dev/null | wc -l)
+    echo "  Total found: $BUNDLED_QT_COUNT"
+    find /usr/lib/openterfaceqt/qt6 -name "libQt6*.so*" -type f 2>/dev/null | head -5 | sed 's/^/    /'
+    if [ $BUNDLED_QT_COUNT -gt 5 ]; then
+        echo "    ... and $((BUNDLED_QT_COUNT - 5)) more"
+    fi
+    echo ""
+    
+    # Critical: Check for QmlModels - this is the known problem!
+    echo "🔍 CRITICAL: libQt6QmlModels location check:"
+    SYSTEM_QML=$(find /lib64 /usr/lib64 -name "*QmlModels*" 2>/dev/null | wc -l)
+    BUNDLED_QML=$(find /usr/lib/openterfaceqt -name "*QmlModels*" 2>/dev/null | wc -l)
+    echo "  System locations: $SYSTEM_QML"
+    echo "  Bundled locations: $BUNDLED_QML"
+    find /lib64 /usr/lib64 -name "*QmlModels*" 2>/dev/null | sed 's/^/    System: /'
+    find /usr/lib/openterfaceqt -name "*QmlModels*" 2>/dev/null | sed 's/^/    Bundled: /'
+    echo ""
+    
+    if [ $SYSTEM_QML -gt 0 ] && [ $BUNDLED_QML -eq 0 ]; then
+        echo "⚠️  WARNING: libQt6QmlModels found only in system, not in bundled!"
+        echo "    This WILL cause version conflicts. Need to either:"
+        echo "    1. Add libQt6QmlModels to bundled directory, OR"
+        echo "    2. Remove system Qt libraries with: sudo yum remove -y 'qt6-*'"
+        echo ""
+    fi
+    
+    echo "=================================================="
+    echo ""
 } | tee -a "$LAUNCHER_LOG"
 
 # Capture binary output and error for debugging
