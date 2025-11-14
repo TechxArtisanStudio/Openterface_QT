@@ -29,6 +29,9 @@ RUN dnf update -y && \
         udev \
         usbutils \
         procps-ng \
+        # Core system libraries (CRITICAL - needed by basic commands like tee, sed, head)
+        pcre2 \
+        glibc \
         # Hardware interface libraries (runtime only)
         libusb1 \
         systemd-udev \
@@ -58,6 +61,14 @@ RUN dnf update -y && \
         libxcb-util \
         libxcb-keysyms \
         libxcb-icccm \
+        # OpenGL and GPU libraries for rendering
+        mesa-libGL \
+        mesa-libGLU \
+        mesa-libglapi \
+        mesa-libEGL \
+        mesa-libGLES \
+        # Optional platform support (Wayland, EGL)
+        mesa-dri-drivers \
         # FFmpeg-related codec libraries (available in Fedora repos)
         libtheora \
         libvorbis \
