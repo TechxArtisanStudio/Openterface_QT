@@ -13,7 +13,8 @@ LAUNCHER_LOG="/tmp/openterfaceqt-launcher-$(date +%s).log"
 } | tee "$LAUNCHER_LOG"
 
 # Trap errors and log them (but don't use set -e to allow graceful library lookups)
-trap 'echo "ERROR at line $LINENO: $BASH_COMMAND" | tee -a "$LAUNCHER_LOG"' ERR
+# Only trap real errors, not expected return codes from find_library function
+trap 'if [ $? -ne 1 ]; then echo "ERROR at line $LINENO: $BASH_COMMAND" | tee -a "$LAUNCHER_LOG"; fi' ERR
 
 # ============================================
 # Library Path Setup (CRITICAL for bundled libs)
@@ -94,16 +95,20 @@ QT6_MODULE_LIBS=(
     "libQt6Pdf"                # PDF support
     "libQt6PdfWidgets"         # PDF widgets
     "libQt6Core5Compat"        # Qt5 compatibility layer
-    "libQt6Gui"                # Already in core, but explicit
     "libQt6Accessibility"      # Accessibility support
     "libQt6ShaderTools"        # Shader compilation tools
-    "libQt6Concurrent"         # Concurrent programming
     "libQt6Scxml"              # SCXML state machines
     "libQt6StateMachine"       # State machine framework
     "libQt6Designer"           # Designer plugin support
     "libQt6DesignerComponents"
-    "libQt6VirtualKeyboard"   # Virtual keyboard
+    "libQt6VirtualKeyboard"    # Virtual keyboard
     "libQt6InputMethodSubprocess"
+    # ========== CRITICAL PLATFORM PLUGINS ==========
+    "libQt6XcbQpa"             # CRITICAL: X11/XCB platform support (required by xcb plugin)
+    "libQt6WaylandClient"      # Wayland client support
+    "libQt6WaylandEgl"         # Wayland EGL support
+    "libQt6EglFsDeviceIntegration"  # EGLFS device integration
+    "libQt6GlxIntegration"     # GLX integration
 )
 
 # Helper function to find library with any version suffix
@@ -191,6 +196,42 @@ for lib in "${FFMPEG_LIBS[@]}"; do
         # Log missing libraries for debugging (suppress in non-debug mode)
         if [ "${OPENTERFACE_DEBUG}" = "1" ] || [ "${OPENTERFACE_DEBUG}" = "true" ]; then
             echo "⚠️  FFmpeg library not found: $lib" >&2
+        fi
+    fi
+done
+
+# ============================================
+# Platform Support Libraries (CRITICAL!)
+# ============================================
+# These are needed by platform plugins (xcb, wayland, etc)
+# Try to find them in bundled first, then system
+PLATFORM_SUPPORT_LIBS=(
+    "libQt6XcbQpa"             # X11/XCB support
+    "libQt6WaylandClient"      # Wayland support
+    "libQt6WaylandEgl"         # Wayland EGL
+    "libQt6EglFsDeviceIntegration"  # EGLFS
+    "libQt6GlxIntegration"     # GLX
+)
+
+# Search for platform libraries in bundled location first, then system
+for lib in "${PLATFORM_SUPPORT_LIBS[@]}"; do
+    # Try bundled first
+    lib_path=$(find_library "$lib" "/usr/lib/openterfaceqt/qt6")
+    
+    # If not in bundled, try system location (as fallback)
+    if [ -z "$lib_path" ]; then
+        lib_path=$(find_library "$lib" "/lib64")
+        if [ -z "$lib_path" ]; then
+            lib_path=$(find_library "$lib" "/usr/lib64")
+        fi
+    fi
+    
+    # Add to preload if found
+    if [ -n "$lib_path" ]; then
+        PRELOAD_LIBS+=("$lib_path")
+    else
+        if [ "${OPENTERFACE_DEBUG}" = "1" ] || [ "${OPENTERFACE_DEBUG}" = "true" ]; then
+            echo "⚠️  Platform library not found: $lib" >&2
         fi
     fi
 done
@@ -306,6 +347,26 @@ if [ -z "$GST_PLUGIN_PATH" ]; then
 fi
 
 # ============================================
+# Qt Platform Hints
+# ============================================
+# Try to detect available platform and set appropriate hint
+# Common platforms: xcb (X11), wayland, offscreen, linuxfb
+if [ -z "$QT_QPA_PLATFORM" ]; then
+    # Check if we're in a graphical environment
+    if [ -z "$DISPLAY" ] && [ -z "$WAYLAND_DISPLAY" ]; then
+        # No display - use offscreen rendering
+        export QT_QPA_PLATFORM="offscreen"
+    else
+        # Try to detect from environment
+        if [ -n "$WAYLAND_DISPLAY" ]; then
+            export QT_QPA_PLATFORM="wayland"
+        elif [ -n "$DISPLAY" ]; then
+            export QT_QPA_PLATFORM="xcb"
+        fi
+    fi
+fi
+
+# ============================================
 # Debug Mode
 # ============================================
 if [ "${OPENTERFACE_DEBUG}" = "1" ] || [ "${OPENTERFACE_DEBUG}" = "true" ]; then
@@ -316,7 +377,8 @@ if [ "${OPENTERFACE_DEBUG}" = "1" ] || [ "${OPENTERFACE_DEBUG}" = "true" ]; then
         echo "LD_LIBRARY_PATH=$LD_LIBRARY_PATH" 
         echo "LD_PRELOAD=$LD_PRELOAD" 
         echo "QT_PLUGIN_PATH=$QT_PLUGIN_PATH" 
-        echo "QT_QPA_PLATFORM_PLUGIN_PATH=$QT_QPA_PLATFORM_PLUGIN_PATH" 
+        echo "QT_QPA_PLATFORM_PLUGIN_PATH=$QT_QPA_PLATFORM_PLUGIN_PATH"
+        echo "QT_QPA_PLATFORM=$QT_QPA_PLATFORM"
         echo "QML2_IMPORT_PATH=$QML2_IMPORT_PATH" 
         echo "GST_PLUGIN_PATH=$GST_PLUGIN_PATH" 
         echo "========================================"
@@ -339,6 +401,7 @@ else
         echo "LD_PRELOAD=$LD_PRELOAD" 
         echo "QT_PLUGIN_PATH=$QT_PLUGIN_PATH" 
         echo "QT_QPA_PLATFORM_PLUGIN_PATH=$QT_QPA_PLATFORM_PLUGIN_PATH" 
+        echo "QT_QPA_PLATFORM=$QT_QPA_PLATFORM"
         echo "QML2_IMPORT_PATH=$QML2_IMPORT_PATH" 
         echo "GST_PLUGIN_PATH=$GST_PLUGIN_PATH" 
     } >> "$LAUNCHER_LOG"
