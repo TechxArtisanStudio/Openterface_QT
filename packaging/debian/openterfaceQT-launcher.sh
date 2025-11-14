@@ -313,7 +313,7 @@ fi
 # Try multiple locations for the binary (with fallbacks)
 OPENTERFACE_BIN=""
 for bin_path in \
-    "/usr/bin/openterfaceQT-bin"
+    "/usr/bin/openterfaceQT-bin" \
     "/usr/local/bin/openterfaceQT" \
     "/usr/local/bin/openterfaceQT-bin" \
     "/opt/openterface/bin/openterfaceQT" \
