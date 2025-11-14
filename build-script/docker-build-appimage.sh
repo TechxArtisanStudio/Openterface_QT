@@ -402,17 +402,10 @@ chmod +x "${APPDIR}/usr/bin/openterfaceQT"
 echo "✅ Setting up comprehensive AppImage structure with Docker runtime support"
 
 # Create desktop file for comprehensive AppImage
-cat > "${APPDIR}/usr/share/applications/openterfaceqt.desktop" << 'EOF'
-[Desktop Entry]
-Type=Application
-Name=OpenterfaceQT
-Comment=Openterface Mini-KVM Host Application  
-Exec=openterfaceQT
-Icon=openterfaceqt
-Categories=Utility;
-StartupNotify=true
-Terminal=false
-EOF
+cp "${SRC}/packaging/com.openterface.openterfaceQT.desktop" "${APPDIR}/usr/share/applications/openterfaceqt.desktop"
+
+# Update icon name in desktop file for appimage (use simpler name for appimage compatibility)
+sed -i 's/^Icon=.*/Icon=openterfaceQT/' "${APPDIR}/usr/share/applications/openterfaceqt.desktop"
 
 # Copy desktop file to root of AppDir
 cp "${APPDIR}/usr/share/applications/openterfaceqt.desktop" "${DESKTOP_OUT}"
@@ -796,11 +789,15 @@ if [ -n "${ICON_SRC}" ]; then
 	else
 		mkdir -p "${APPDIR}/usr/share/icons/hicolor/256x256/apps"
 		cp "${ICON_SRC}" "${APPDIR}/usr/share/icons/hicolor/256x256/apps/openterfaceQT.${ICON_EXT}" || true
+		# Also copy with full app ID name for better desktop integration
+		cp "${ICON_SRC}" "${APPDIR}/usr/share/icons/hicolor/256x256/apps/com.openterface.openterfaceQT.${ICON_EXT}" || true
 	fi
 	# Also copy to pixmaps and root
 	mkdir -p "${APPDIR}/usr/share/pixmaps"
 	cp "${ICON_SRC}" "${APPDIR}/usr/share/pixmaps/openterfaceqt.${ICON_EXT}" || true
 	cp "${ICON_SRC}" "${APPDIR}/openterfaceqt.${ICON_EXT}" || true
+	# Copy with full app ID to root as well for appimage tools
+	cp "${ICON_SRC}" "${APPDIR}/com.openterface.openterfaceQT.${ICON_EXT}" || true
 else
 	echo "No icon found; continuing without a custom icon."
 fi

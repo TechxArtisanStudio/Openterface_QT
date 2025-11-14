@@ -18,6 +18,18 @@ EOF
     
     echo "OpenterfaceQT: Bundled libraries (FFmpeg 6.1.1, GStreamer, etc.) registered with system linker"
     
+    # Install desktop entry for system start menu
+    if command -v update-desktop-database &> /dev/null; then
+        update-desktop-database /usr/share/applications
+        echo "✓ Desktop entry registered in system menu"
+    fi
+    
+    # Update icon cache for the desktop environment
+    if command -v update-icon-caches &> /dev/null; then
+        update-icon-caches /usr/share/icons/hicolor 2>/dev/null || true
+        echo "✓ Icon cache updated"
+    fi
+    
     # Create marker for post-installation environment verification
     mkdir -p /usr/share/openterfaceQT
     cat > /usr/share/openterfaceQT/runtime-info.txt <<'EOF'

@@ -110,16 +110,12 @@ DEBUG_DEPS=(
     "libdw1"
 )
 
-QT6_RUNTIME_DEPS=(
-    "libqt6svg6"
-)
-
 MISSING_DEPS=()
 FOUND_DEPS=0
 TOTAL_DEPS=0
 
 # Calculate total dependencies to check
-TOTAL_DEPS=$((${#GRAPHICS_DEPS[@]} + ${#AUDIO_DEPS[@]} + ${#VIDEO_DEPS[@]} + ${#DISPLAY_DEPS[@]} + ${#OPENGL_DEPS[@]} + ${#QT6_PLATFORM_DEPS[@]} + ${#HWACCEL_DEPS[@]} + ${#COMPRESSION_DEPS[@]} + ${#DEBUG_DEPS[@]} + ${#QT6_RUNTIME_DEPS[@]}))
+TOTAL_DEPS=$((${#GRAPHICS_DEPS[@]} + ${#AUDIO_DEPS[@]} + ${#VIDEO_DEPS[@]} + ${#DISPLAY_DEPS[@]} + ${#OPENGL_DEPS[@]} + ${#QT6_PLATFORM_DEPS[@]} + ${#HWACCEL_DEPS[@]} + ${#COMPRESSION_DEPS[@]} + ${#DEBUG_DEPS[@]}))
 
 echo "System dependency verification:"
 echo ""
@@ -239,18 +235,6 @@ for pkg in "${DEBUG_DEPS[@]}"; do
     fi
 done
 echo ""
-
-# Check Qt6 Runtime dependencies
-print_category "  Qt6 Runtime Libraries:"
-for pkg in "${QT6_RUNTIME_DEPS[@]}"; do
-    if dpkg -l | grep -q "^ii.*${pkg}"; then
-        echo "    ✅ $pkg"
-        FOUND_DEPS=$((FOUND_DEPS + 1))
-    else
-        echo "    ❌ $pkg (MISSING - required for SVG icon rendering)"
-        MISSING_DEPS+=("$pkg")
-    fi
-done
 
 echo ""
 echo "Found: $FOUND_DEPS/$TOTAL_DEPS"

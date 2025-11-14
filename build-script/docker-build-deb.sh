@@ -738,10 +738,10 @@ if [ -f "${PKG_ROOT}/usr/local/bin/openterfaceQT" ]; then
 fi
 
 # Copy desktop file (ensure Exec uses wrapper script for proper environment setup)
-if [ -f "${SRC}/com.openterface.openterfaceQT.desktop" ]; then
+if [ -f "${SRC}/packaging/com.openterface.openterfaceQT.desktop" ]; then
 	sed -e 's|^Exec=.*$|Exec=/usr/local/bin/openterfaceQT-launcher.sh|g' \
 		-e 's|^Icon=.*$|Icon=openterfaceQT|g' \
-		"${SRC}/com.openterface.openterfaceQT.desktop" > "${PKG_ROOT}/usr/share/applications/com.openterface.openterfaceQT.desktop"
+		"${SRC}/packaging/com.openterface.openterfaceQT.desktop" > "${PKG_ROOT}/usr/share/applications/com.openterface.openterfaceQT.desktop"
 fi
 
 # Copy wrapper script to bin
@@ -756,7 +756,7 @@ if [ -f "${SRC}/packaging/debian/openterfaceQT-launcher.sh" ]; then
 else
 	echo "⚠️  Warning: wrapper script not found, using inline environment variables as fallback"
 	sed -e 's|^Exec=.*$|Exec=env QT_PLUGIN_PATH=/usr/lib/qt6/plugins:/usr/lib/x86_64-linux-gnu/qt6/plugins QML2_IMPORT_PATH=/usr/lib/qt6/qml:/usr/lib/x86_64-linux-gnu/qt6/qml GST_PLUGIN_PATH=/usr/lib/x86_64-linux-gnu/gstreamer-1.0:/usr/lib/gstreamer-1.0 /usr/local/bin/openterfaceQT|g' \
-		"${SRC}/com.openterface.openterfaceQT.desktop" > "${PKG_ROOT}/usr/share/applications/com.openterface.openterfaceQT.desktop"
+		"${SRC}/packaging/com.openterface.openterfaceQT.desktop" > "${PKG_ROOT}/usr/share/applications/com.openterface.openterfaceQT.desktop"
 fi
 
 # Install icon into hicolor theme
