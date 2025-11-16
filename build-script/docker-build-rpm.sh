@@ -323,6 +323,8 @@ declare -a UNIFIED_LIBRARY_CONFIGS=(
     "GSTGL|GStreamer OpenGL|libgstgl-1.0.so|WARNING|gstreamer|${GSTREAMER_LIB_SEARCH_DIRS}"
     "ORC|ORC optimization|liborc-0.4.so|WARNING|gstreamer|/usr/lib/x86_64-linux-gnu|/usr/lib"
     "V4L|v4l-utils|libv4l*.so|WARNING|gstreamer|/usr/lib/x86_64-linux-gnu|/usr/lib"
+    "V4L1|v4l1 compatibility|libv4l1.so|WARNING|gstreamer|/usr/lib/x86_64-linux-gnu|/usr/lib"
+    "V4LCONVERT|v4l format conversion|libv4lconvert.so|WARNING|gstreamer|/usr/lib/x86_64-linux-gnu|/usr/lib"
     
     # GStreamer plugins -> ${RPMTOP}/SOURCES/gstreamer/gstreamer-1.0
     # Using common GStreamer plugin search directories

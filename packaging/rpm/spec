@@ -115,6 +115,7 @@ if [ -d "%{_sourcedir}/gstreamer" ]; then
     find %{_sourcedir}/gstreamer -maxdepth 1 -name "liborc*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/gstreamer/ \;
     find %{_sourcedir}/gstreamer -maxdepth 1 -name "libv4l*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/gstreamer/ \;
     find %{_sourcedir}/gstreamer -maxdepth 1 -name "libv4l1*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/gstreamer/ \;
+    find %{_sourcedir}/gstreamer -maxdepth 1 -name "libv4lconvert*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/gstreamer/ \;
     echo "Installed GStreamer libraries from %{_sourcedir}/gstreamer"
 else
     echo "WARNING: GStreamer directory not found at %{_sourcedir}/gstreamer"
