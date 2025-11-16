@@ -243,10 +243,11 @@ done
 # X11/XCB Support Libraries
 # ============================================
 # Required by xcb platform plugin to connect to X11 display
+# CRITICAL: libxcb-cursor is required by Qt6 >= 6.5.0 for xcb platform plugin
 XCB_SUPPORT_LIBS=(
     "libxcb"
     "libX11"
-    "libxcb-cursor"
+    "libxcb-cursor"        # CRITICAL for Qt6 >= 6.5.0
     "libxcb-render"
     "libxcb-xkb"
     "libxkbcommon"
@@ -254,6 +255,7 @@ XCB_SUPPORT_LIBS=(
 )
 
 # Search for XCB libraries in system locations (not bundled)
+MISSING_XCB_LIBS=()
 for lib in "${XCB_SUPPORT_LIBS[@]}"; do
     lib_path=$(find_library "$lib" "/lib64")
     if [ -z "$lib_path" ]; then
@@ -264,6 +266,13 @@ for lib in "${XCB_SUPPORT_LIBS[@]}"; do
     if [ -n "$lib_path" ]; then
         PRELOAD_LIBS+=("$lib_path")
     else
+        # Track missing libraries, especially critical ones
+        if [ "$lib" = "libxcb-cursor" ]; then
+            MISSING_XCB_LIBS+=("$lib (CRITICAL for Qt6 >= 6.5.0)")
+        else
+            MISSING_XCB_LIBS+=("$lib")
+        fi
+        
         if [ "${OPENTERFACE_DEBUG}" = "1" ] || [ "${OPENTERFACE_DEBUG}" = "true" ]; then
             echo "⚠️  XCB library not found: $lib" >&2
         fi
@@ -499,6 +508,34 @@ fi
     echo "Executing: $OPENTERFACE_BIN $@"
     echo "Launcher log: $LAUNCHER_LOG"
     echo ""
+    
+    # CRITICAL: Check for missing libxcb-cursor
+    if [ ${#MISSING_XCB_LIBS[@]} -gt 0 ]; then
+        echo "⚠️  WARNING: Missing XCB Libraries!"
+        echo "========================================"
+        for missing_lib in "${MISSING_XCB_LIBS[@]}"; do
+            echo "  ❌ $missing_lib"
+        done
+        echo ""
+        echo "CRITICAL: Qt6 >= 6.5.0 requires libxcb-cursor0 for xcb platform plugin!"
+        echo ""
+        echo "Fix: Install missing libraries with:"
+        if command -v dnf >/dev/null 2>&1; then
+            echo "  sudo dnf install -y libxcb-cursor0"
+        elif command -v yum >/dev/null 2>&1; then
+            echo "  sudo yum install -y libxcb-cursor0"
+        elif command -v apt >/dev/null 2>&1; then
+            echo "  sudo apt install -y libxcb-cursor0"
+        fi
+        echo ""
+        echo "Or install all Qt platform dependencies:"
+        if command -v dnf >/dev/null 2>&1; then
+            echo "  sudo dnf install -y libxcb-cursor0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1"
+        fi
+        echo "========================================"
+        echo ""
+    fi
+    
     echo "LD_LIBRARY_PATH:"
     echo "  $LD_LIBRARY_PATH" | tr ':' '\n' | sed 's/^/    /'
     echo ""

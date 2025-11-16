@@ -8,6 +8,7 @@ URL:           https://github.com/TechxArtisanStudio/Openterface_QT
 
 # System-level runtime dependencies
 Requires:       elfutils-libelf
+Requires:       libxcb-cursor0
 
 # Disable automatic dependency detection since we bundle most libraries
 AutoReqProv: no
@@ -430,6 +431,7 @@ OPENGL_DEPS=(
 )
 
 QT6_PLATFORM_DEPS=(
+    "libxcb-cursor0"
     "libxcb-icccm"
     "libxcb-image"
     "libxcb-keysyms"

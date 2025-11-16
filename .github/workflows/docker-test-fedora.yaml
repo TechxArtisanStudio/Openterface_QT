@@ -392,9 +392,9 @@ jobs:
               echo ""
               
               if [ "$TOTAL_APP_LINES" -gt 60 ]; then
-                echo "📌 FIRST 30 LINES OF APPLICATION LOG:"
+                echo "📌 FIRST 100 LINES OF APPLICATION LOG:"
                 echo "---"
-                head -30 /tmp/openterfaceqt.log
+                head -100 /tmp/openterfaceqt.log
                 echo ""
                 echo "... (middle $((TOTAL_APP_LINES - 60)) lines omitted) ..."
                 echo ""
