@@ -298,15 +298,9 @@ fi
 echo ""
 echo "Critical Libraries Verification:"
 # Check for critical Qt6 libraries
-CRITICAL_QT=(
-    "libQt6Core.so"
-    "libQt6Gui.so"
-    "libQt6Widgets.so"
-    "libQt6Qml.so"
-)
-
 MISSING_CRITICAL=0
-for lib in "${CRITICAL_QT[@]}"; do
+
+for lib in libQt6Core.so libQt6Gui.so libQt6Widgets.so libQt6Qml.so; do
     if [ -f "%{buildroot}/usr/lib/openterfaceqt/qt6/$lib" ] || [ -L "%{buildroot}/usr/lib/openterfaceqt/qt6/$lib" ]; then
         echo "  ✅ $lib"
     else
