@@ -222,11 +222,11 @@ mkdir -p "${RPMTOP}/SOURCES/qt6/plugins/platforminputcontexts"
 QT_LIB_SEARCH_DIRS="/opt/Qt6/lib|/usr/lib/x86_64-linux-gnu|/usr/lib"
 
 # Common search directories for Qt6 plugins
-QT_PLUGIN_SEARCH_DIRS="/opt/Qt6/plugins|/usr/lib/qt6/plugins|/usr/lib/x86_64-linux-gnu/qt6/plugins"
+QT_PLUGIN_SEARCH_DIRS="/opt/Qt6/plugins|/opt/Qt6/plugins/imageformats|/opt/Qt6/plugins/iconengines|/opt/Qt6/plugins"
 
 # Common search directories for FFmpeg libraries
 FFMPEG_LIB_SEARCH_DIRS="/opt/ffmpeg/lib|/usr/lib/x86_64-linux-gnu|/usr/lib"
-
+    
 # Common search directories for GStreamer libraries
 GSTREAMER_LIB_SEARCH_DIRS="/opt/gstreamer/lib/x86_64-linux-gnu|/usr/lib/x86_64-linux-gnu|/usr/lib"
 
@@ -273,8 +273,8 @@ declare -a UNIFIED_LIBRARY_CONFIGS=(
     
     # Qt6 plugins -> ${RPMTOP}/SOURCES/qt6/plugins/imageformats and iconengines
     # Using common Qt6 plugin search directories
-    "QTPLUGIN_SVG|Qt6 SVG image format plugin|libqsvg.so|WARNING|qt6/plugins/imageformats|${QT_PLUGIN_SEARCH_DIRS}/imageformats"
-    "QTPLUGIN_SVGICON|Qt6 SVG icon engine plugin|libqsvgicon.so|WARNING|qt6/plugins/iconengines|${QT_PLUGIN_SEARCH_DIRS}/iconengines"
+    "QTPLUGIN_SVG|Qt6 SVG image format plugin|libqsvg.so|WARNING|qt6/plugins/imageformats|${QT_PLUGIN_SEARCH_DIRS}"
+    "QTPLUGIN_SVGICON|Qt6 SVG icon engine plugin|libqsvgicon.so|WARNING|qt6/plugins/iconengines|${QT_PLUGIN_SEARCH_DIRS}"
     
     # Qt6 platform plugins -> ${RPMTOP}/SOURCES/qt6/plugins/platforms
     "QTPLUGIN_QXC|Qt6 XCB platform|libqxcb.so|ERROR|qt6/plugins/platforms|${QT_PLUGIN_SEARCH_DIRS}/platforms"

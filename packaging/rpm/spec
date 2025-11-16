@@ -83,6 +83,19 @@ if [ -d "%{_sourcedir}/qt6" ]; then
     if [ $QT_COUNT -gt 0 ]; then
         find %{_sourcedir}/qt6 -maxdepth 1 -name "libQt6*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/qt6/ \;
         echo "✅ Installed $QT_COUNT Qt6 libraries from %{_sourcedir}/qt6"
+        
+        # Create symlinks for base .so files (needed for runtime linking)
+        cd %{buildroot}/usr/lib/openterfaceqt/qt6
+        for fullfile in libQt6*.so.* ; do
+            [ -f "$fullfile" ] || continue
+            base=$(echo "$fullfile" | sed 's/\.so\..*//')
+            if [ ! -L "${base}.so" ] && [ ! -f "${base}.so" ]; then
+                ln -sf "$fullfile" "${base}.so"
+                echo "  ✅ Created symlink: ${base}.so -> $fullfile"
+            fi
+        done
+        cd - > /dev/null
+        
         ls -1 %{buildroot}/usr/lib/openterfaceqt/qt6/libQt6*.so* | wc -l | sed 's/^/   Verified: /'
     else
         echo "⚠️  No Qt6 libraries found in %{_sourcedir}/qt6"
@@ -297,11 +310,14 @@ fi
 
 echo ""
 echo "Critical Libraries Verification:"
-# Check for critical Qt6 libraries
+# Check for critical Qt6 libraries (accept both base .so and versioned .so.*)
 MISSING_CRITICAL=0
 
-for lib in libQt6Core.so libQt6Gui.so libQt6Widgets.so libQt6Qml.so; do
-    if [ -f "%{buildroot}/usr/lib/openterfaceqt/qt6/$lib" ] || [ -L "%{buildroot}/usr/lib/openterfaceqt/qt6/$lib" ]; then
+for lib in libQt6Core libQt6Gui libQt6Widgets libQt6Qml; do
+    # Check for base .so file OR any versioned .so.* file
+    if [ -f "%{buildroot}/usr/lib/openterfaceqt/qt6/${lib}.so" ] || \
+       [ -L "%{buildroot}/usr/lib/openterfaceqt/qt6/${lib}.so" ] || \
+       ls %{buildroot}/usr/lib/openterfaceqt/qt6/${lib}.so.* >/dev/null 2>&1; then
         echo "  ✅ $lib"
     else
         echo "  ❌ MISSING: $lib (CRITICAL!)"
@@ -312,6 +328,8 @@ done
 echo ""
 if [ $MISSING_CRITICAL -gt 0 ]; then
     echo "❌ ERROR: $MISSING_CRITICAL critical libraries missing!"
+    echo "Available Qt6 libraries in buildroot:"
+    ls -1 %{buildroot}/usr/lib/openterfaceqt/qt6/libQt6*.so* 2>/dev/null | head -20 || echo "(none found)"
     echo "The RPM package will NOT work correctly without these libraries."
     echo "Please ensure all Qt6 libraries are copied to SOURCES before building."
     exit 1
