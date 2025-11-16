@@ -173,8 +173,8 @@ copy_libraries() {
                 local files=$(ls -la "$search_dir"/${lib_pattern}* 2>/dev/null)
                 echo "   Files found:"
                 echo "$files" | sed 's/^/     /'
-                # Only copy actual files (not symlinks) to avoid duplication
-                find "$search_dir" -maxdepth 1 -name "${lib_pattern}*" -type f -exec cp -av {} "${target_dir}/" \; 2>&1 | sed 's/^/     /'
+                # Copy both actual files AND symlinks to preserve library versioning chains
+                find "$search_dir" -maxdepth 1 -name "${lib_pattern}*" \( -type f -o -type l \) -exec cp -avP {} "${target_dir}/" \; 2>&1 | sed 's/^/     /'
                 echo "   ✅ ${display_name} libraries copied to ${target_dir}"
                 found=1
                 break
