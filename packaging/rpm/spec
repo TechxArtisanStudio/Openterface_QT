@@ -10,30 +10,31 @@ URL:           https://github.com/TechxArtisanStudio/Openterface_QT
 # NOTE: This RPM now supports BOTH Wayland and X11/XCB platforms
 # RECOMMENDED: Wayland (modern, simpler dependencies)
 # FALLBACK: X11/XCB (legacy, requires more dependencies)
-Requires:       elfutils-libelf
 
-# Wayland support (RECOMMENDED - modern display server, simpler dependencies)
-# If running on Wayland, this is all that's needed for display support
+# CRITICAL: These are the minimum runtime dependencies for Wayland mode
+# The bundled Qt6 libraries and plugins handle everything else
 Requires:       libwayland-client
-
-# X11/XCB support (OPTIONAL - for X11 display servers)
-# Only needed if running on X11 with legacy window manager
-# Note: xorg-x11-libs may not exist on all Fedora versions
-# If not available, app will fallback to Wayland automatically
-Requires:       libxkbcommon
-Requires:       libxkbcommon-x11
 
 # Graphics and OpenGL support (needed for both Wayland and X11)
 Requires:       mesa-libEGL
 Requires:       mesa-libGL
-Requires:       mesa-libGLES
-Requires:       mesa-libglapi
 
 # Audio support
 Requires:       pulseaudio-libs
 
-# Video capture support
+# Video capture support  
 Requires:       libv4l
+
+# Keyboard input (works for both Wayland and X11)
+# libxkbcommon is available on all Fedora versions
+Requires:       libxkbcommon
+
+# X11/XCB support libraries (OPTIONAL - only if running on X11)
+# These are not bundled and only needed for X11 mode
+# If not available, app will auto-detect and use Wayland instead
+%{?_with_x11:Requires:       libxkbcommon-x11}
+%{?_with_x11:Requires:       libX11}
+%{?_with_x11:Requires:       libxcb}
 
 # Disable automatic dependency detection since we bundle Qt6, FFmpeg, and GStreamer libraries
 # This prevents conflicts with system-installed versions
