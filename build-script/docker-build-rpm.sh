@@ -103,6 +103,9 @@ else
     echo "⚠️  Qt Version Wrapper source not available"
 fi
 
+# ============================================================
+# Copy Qt libraries to RPM SOURCES
+
 echo "Copying Qt libraries to SOURCES..."
 QT_LIBS=$(find "${QT_LIB_DIR}" -maxdepth 1 -name "libQt6*.so*" -type f | wc -l)
 if [ $QT_LIBS -eq 0 ]; then
@@ -315,510 +318,138 @@ if [ $SVGICON_PLUGIN_FOUND -eq 0 ] && find "${SRC}/images" -name "*.svg" 2>/dev/
     echo "   ⚠️  SVG icons found but libqsvgicon.so plugin not available - icons will use fallback rendering"
 fi
 
-# Copy bzip2 libraries to SOURCES for bundling (needed for compression support in FFmpeg)
-echo "🔍 Searching for bzip2 libraries to RPM SOURCES..."
-
-# Copy libbz2 libraries - search multiple locations
-echo "📋 RPM: Searching for libbz2 libraries..."
-LIBBZ2_FOUND=0
-for SEARCH_DIR in /opt/ffmpeg/lib /usr/lib/x86_64-linux-gnu /usr/lib; do
-    echo "   Checking: $SEARCH_DIR"
-    if [ -d "$SEARCH_DIR" ]; then
-        if ls "$SEARCH_DIR"/libbz2.so* >/dev/null 2>&1; then
-            echo "   ✅ Found libbz2 in $SEARCH_DIR"
-            LIBBZ2_FILES=$(ls -la "$SEARCH_DIR"/libbz2.so*)
-            echo "   Files found:"
-            echo "$LIBBZ2_FILES" | sed 's/^/     /'
-            # Only copy actual files (not symlinks) to avoid duplication
-            find "$SEARCH_DIR" -maxdepth 1 -name "libbz2.so*" -type f -exec cp -av {} "${RPMTOP}/SOURCES/" \; 2>&1 | sed 's/^/     /'
-            echo "   ✅ libbz2 libraries copied to ${RPMTOP}/SOURCES"
-            LIBBZ2_FOUND=1
-            break
-        else
-            echo "   ✗ No libbz2 found in $SEARCH_DIR"
-        fi
-    else
-        echo "   ✗ Directory does not exist: $SEARCH_DIR"
-    fi
-done
-if [ $LIBBZ2_FOUND -eq 0 ]; then
-    echo "❌ ERROR: libbz2 libraries not found in any search path!"
-else
-    echo "✅ libbz2 found and copied"
-fi
-
-# Copy libusb libraries to SOURCES for bundling (needed for USB device access)
-echo "🔍 Searching for libusb libraries to RPM SOURCES..."
-
-# Copy libusb libraries - search multiple locations
-echo "📋 RPM: Searching for libusb libraries..."
-LIBUSB_FOUND=0
-for SEARCH_DIR in /opt/libusb/lib /opt/ffmpeg/lib /usr/lib/x86_64-linux-gnu /usr/lib; do
-    echo "   Checking: $SEARCH_DIR"
-    if [ -d "$SEARCH_DIR" ]; then
-        if ls "$SEARCH_DIR"/libusb*.so* >/dev/null 2>&1; then
-            echo "   ✅ Found libusb in $SEARCH_DIR"
-            LIBUSB_FILES=$(ls -la "$SEARCH_DIR"/libusb*.so*)
-            echo "   Files found:"
-            echo "$LIBUSB_FILES" | sed 's/^/     /'
-            # Only copy actual files (not symlinks) to avoid duplication
-            find "$SEARCH_DIR" -maxdepth 1 -name "libusb*.so*" -type f -exec cp -av {} "${RPMTOP}/SOURCES/" \; 2>&1 | sed 's/^/     /'
-            echo "   ✅ libusb libraries copied to ${RPMTOP}/SOURCES"
-            LIBUSB_FOUND=1
-            break
-        else
-            echo "   ✗ No libusb found in $SEARCH_DIR"
-        fi
-    else
-        echo "   ✗ Directory does not exist: $SEARCH_DIR"
-    fi
-done
-if [ $LIBUSB_FOUND -eq 0 ]; then
-    echo "❌ ERROR: libusb libraries not found in any search path!"
-else
-    echo "✅ libusb found and copied"
-fi
-
-# Copy libjpeg and libturbojpeg libraries to SOURCES for bundling
-echo "🔍 Searching for JPEG libraries to RPM SOURCES..."
-
-# Copy libjpeg libraries - search multiple locations
-echo "📋 RPM: Searching for libjpeg libraries..."
-JPEG_FOUND=0
-for SEARCH_DIR in /opt/ffmpeg/lib /usr/lib/x86_64-linux-gnu /usr/lib; do
-    echo "   Checking: $SEARCH_DIR"
-    if [ -d "$SEARCH_DIR" ]; then
-        if ls "$SEARCH_DIR"/libjpeg.so* >/dev/null 2>&1; then
-            echo "   ✅ Found libjpeg in $SEARCH_DIR"
-            JPEG_FILES=$(ls -la "$SEARCH_DIR"/libjpeg.so*)
-            echo "   Files found:"
-            echo "$JPEG_FILES" | sed 's/^/     /'
-            # Only copy actual files (not symlinks) to avoid duplication
-            find "$SEARCH_DIR" -maxdepth 1 -name "libjpeg.so*" -type f -exec cp -av {} "${RPMTOP}/SOURCES/" \; 2>&1 | sed 's/^/     /'
-            echo "   ✅ libjpeg libraries copied to ${RPMTOP}/SOURCES"
-            JPEG_FOUND=1
-            break
-        else
-            echo "   ✗ No libjpeg found in $SEARCH_DIR"
-        fi
-    else
-        echo "   ✗ Directory does not exist: $SEARCH_DIR"
-    fi
-done
-if [ $JPEG_FOUND -eq 0 ]; then
-    echo "❌ ERROR: libjpeg libraries not found in any search path!"
-else
-    echo "✅ libjpeg found and copied"
-fi
-
-# Copy libturbojpeg libraries - search multiple locations
-echo "📋 RPM: Searching for libturbojpeg libraries..."
-TURBOJPEG_FOUND=0
-for SEARCH_DIR in /opt/ffmpeg/lib /usr/lib/x86_64-linux-gnu /usr/lib; do
-    echo "   Checking: $SEARCH_DIR"
-    if [ -d "$SEARCH_DIR" ]; then
-        # Use find to detect both files and symlinks
-        if find "$SEARCH_DIR" -maxdepth 1 \( -name "libturbojpeg.so*" -type f -o -name "libturbojpeg.so*" -type l \) 2>/dev/null | grep -q .; then
-            echo "   ✅ Found libturbojpeg in $SEARCH_DIR"
-            # List files found for diagnostics
-            ls -la "$SEARCH_DIR"/libturbojpeg.so* 2>/dev/null | while read -r line; do
-                echo "     $line"
-            done
-            # Only copy actual files (not symlinks) to avoid duplication
-            find "$SEARCH_DIR" -maxdepth 1 -name "libturbojpeg.so*" -type f -exec cp -Pv {} "${RPMTOP}/SOURCES/" \; 2>&1 | sed 's/^/     /'
-            echo "   ✅ libturbojpeg libraries copied to ${RPMTOP}/SOURCES"
-            TURBOJPEG_FOUND=1
-            break
-        else
-            echo "   ✗ No libturbojpeg found in $SEARCH_DIR"
-        fi
-    else
-        echo "   ✗ Directory does not exist: $SEARCH_DIR"
-    fi
-done
-if [ $TURBOJPEG_FOUND -eq 0 ]; then
-    echo "❌ ERROR: libturbojpeg libraries not found in any search path!"
-else
-    echo "✅ libturbojpeg found and copied"
-fi
-
-# Copy VA-API libraries for hardware acceleration - search multiple locations
-echo "📋 RPM: Searching for VA-API libraries..."
-VA_FOUND=0
-for SEARCH_DIR in /usr/lib/x86_64-linux-gnu /usr/lib; do
-    echo "   Checking: $SEARCH_DIR"
-    if [ -d "$SEARCH_DIR" ]; then
-        if ls "$SEARCH_DIR"/libva.so* >/dev/null 2>&1; then
-            echo "   ✅ Found VA-API libraries in $SEARCH_DIR"
-            VA_FILES=$(ls -la "$SEARCH_DIR"/libva*.so*)
-            echo "   Files found:"
-            echo "$VA_FILES" | sed 's/^/     /'
-            # Only copy actual files (not symlinks) to avoid duplication
-            find "$SEARCH_DIR" -maxdepth 1 -name "libva*.so*" -type f -exec cp -av {} "${RPMTOP}/SOURCES/" \; 2>&1 | sed 's/^/     /'
-            echo "   ✅ VA-API libraries copied to ${RPMTOP}/SOURCES"
-            VA_FOUND=1
-            break
-        else
-            echo "   ✗ No VA-API libraries found in $SEARCH_DIR"
-        fi
-    else
-        echo "   ✗ Directory does not exist: $SEARCH_DIR"
-    fi
-done
-if [ $VA_FOUND -eq 0 ]; then
-    echo "⚠️  Warning: VA-API libraries not found"
-else
-    echo "✅ VA-API found and copied"
-fi
-
-# Copy VDPAU libraries for hardware acceleration - search multiple locations
-echo "📋 RPM: Searching for VDPAU libraries..."
-VDPAU_FOUND=0
-for SEARCH_DIR in /usr/lib/x86_64-linux-gnu /usr/lib; do
-    echo "   Checking: $SEARCH_DIR"
-    if [ -d "$SEARCH_DIR" ]; then
-        if ls "$SEARCH_DIR"/libvdpau.so* >/dev/null 2>&1; then
-            echo "   ✅ Found VDPAU libraries in $SEARCH_DIR"
-            VDPAU_FILES=$(ls -la "$SEARCH_DIR"/libvdpau*.so*)
-            echo "   Files found:"
-            echo "$VDPAU_FILES" | sed 's/^/     /'
-            # Only copy actual files (not symlinks) to avoid duplication
-            find "$SEARCH_DIR" -maxdepth 1 -name "libvdpau*.so*" -type f -exec cp -av {} "${RPMTOP}/SOURCES/" \; 2>&1 | sed 's/^/     /'
-            echo "   ✅ VDPAU libraries copied to ${RPMTOP}/SOURCES"
-            VDPAU_FOUND=1
-            break
-        else
-            echo "   ✗ No VDPAU libraries found in $SEARCH_DIR"
-        fi
-    else
-        echo "   ✗ Directory does not exist: $SEARCH_DIR"
-    fi
-done
-if [ $VDPAU_FOUND -eq 0 ]; then
-    echo "⚠️  Warning: VDPAU libraries not found"
-else
-    echo "✅ VDPAU found and copied"
-fi
-
-# Copy core FFmpeg libraries (libavdevice, libavcodec, libavformat, libavutil, libswscale, libswresample, libavfilter)
-echo "📋 RPM: Searching for FFmpeg core libraries..."
-FFMPEG_FOUND=0
-FFMPEG_LIBS=(libavdevice.so libavcodec.so libavformat.so libavutil.so libswscale.so libswresample.so libavfilter.so)
-
-mkdir -p "${RPMTOP}/SOURCES/ffmpeg"
-
-for SEARCH_DIR in /opt/ffmpeg/lib /usr/lib/x86_64-linux-gnu /usr/lib; do
-    echo "   Checking: $SEARCH_DIR"
-    if [ -d "$SEARCH_DIR" ]; then
-        # Check if any ffmpeg library exists
-        FOUND_ANY=0
-        for ffmpeg_lib in "${FFMPEG_LIBS[@]}"; do
-            if ls "$SEARCH_DIR"/${ffmpeg_lib}* >/dev/null 2>&1; then
-                FOUND_ANY=1
-                break
-            fi
-        done
-        
-        if [ $FOUND_ANY -eq 1 ]; then
-            echo "   ✅ Found FFmpeg libraries in $SEARCH_DIR"
-            for ffmpeg_lib in "${FFMPEG_LIBS[@]}"; do
-                if ls "$SEARCH_DIR"/${ffmpeg_lib}* >/dev/null 2>&1; then
-                    echo "   Found: $ffmpeg_lib"
-                    FFMPEG_FILES=$(ls -la "$SEARCH_DIR"/${ffmpeg_lib}* 2>/dev/null)
-                    echo "     Files: $FFMPEG_FILES" | sed 's/^/     /'
-                    # Only copy versioned files (e.g., libavformat.so.60.16.100), not symlinks (libavformat.so, libavformat.so.60)
-                    # This avoids duplicating symlinks that point to the same actual library file
-                    find "$SEARCH_DIR" -maxdepth 1 -name "${ffmpeg_lib}*" -type f -exec cp -Pv {} "${RPMTOP}/SOURCES/ffmpeg/" \; 2>&1 | sed 's/^/     /'
-                fi
-            done
-            echo "   ✅ FFmpeg core libraries copied to ${RPMTOP}/SOURCES/ffmpeg"
-            FFMPEG_FOUND=1
-            break
-        else
-            echo "   ✗ No FFmpeg libraries found in $SEARCH_DIR"
-        fi
-    else
-        echo "   ✗ Directory does not exist: $SEARCH_DIR"
-    fi
-done
-
-if [ $FFMPEG_FOUND -eq 0 ]; then
-    echo "⚠️  Warning: FFmpeg core libraries not found!"
-    echo "📁 Checking what's available in system library paths:"
-    echo "   /opt/ffmpeg/lib contents:"
-    ls -la /opt/ffmpeg/lib 2>/dev/null | grep -E "libav|libsw" || echo "     (directory not found or no ffmpeg files)"
-    echo "   /usr/lib/x86_64-linux-gnu contents (ffmpeg):"
-    ls -la /usr/lib/x86_64-linux-gnu/libav* /usr/lib/x86_64-linux-gnu/libsw* 2>/dev/null || echo "     (no ffmpeg files found)"
-    echo "   /usr/lib contents (ffmpeg):"
-    ls -la /usr/lib/libav* /usr/lib/libsw* 2>/dev/null || echo "     (no ffmpeg files found)"
-else
-    echo "✅ FFmpeg core libraries found and copied"
-fi
-
-# Copy GStreamer core and base libraries - search multiple locations
-echo "📋 RPM: Searching for GStreamer libraries..."
-GSTREAMER_FOUND=0
-
-mkdir -p "${RPMTOP}/SOURCES/gstreamer"
-
-# List of essential GStreamer libraries to bundle
-GSTREAMER_LIBS=(
-    "libgstreamer-1.0.so"       # Core GStreamer library
-    "libgstbase-1.0.so"         # Base classes for GStreamer plugins
-    "libgstaudio-1.0.so"        # Audio support library
-    "libgstpbutils-1.0.so"      # Playback utility library
-    "libgstvideo-1.0.so"        # Video support library
-    "libgstapp-1.0.so"          # Application integration library
-    "libgsttag-1.0.so"          # Tagging library
-    "libgstrtp-1.0.so"          # RTP support library
-    "libgstrtsp-1.0.so"         # RTSP support library
-    "libgstsdp-1.0.so"          # SDP support library
-    "libgstallocators-1.0.so"   # Memory allocator library
-    "libgstgl-1.0.so"           # OpenGL integration library
-    "liborc-0.4.so"             # ORC library (used by GStreamer for optimizations
-)
-
-for SEARCH_DIR in /opt/gstreamer/lib/x86_64-linux-gnu /usr/lib/x86_64-linux-gnu /usr/lib; do
-    echo "   Checking: $SEARCH_DIR"
-    if [ -d "$SEARCH_DIR" ]; then
-        LIBS_FOUND_IN_DIR=0
-        
-        # Search for all essential GStreamer libraries
-        for gst_lib in "${GSTREAMER_LIBS[@]}"; do
-            if ls "$SEARCH_DIR"/${gst_lib}* >/dev/null 2>&1; then
-                LIBS_FOUND_IN_DIR=$((LIBS_FOUND_IN_DIR + 1))
-            fi
-        done
-        
-        if [ $LIBS_FOUND_IN_DIR -gt 0 ]; then
-            echo "   ✅ Found GStreamer libraries in $SEARCH_DIR"
-            
-            # Copy each GStreamer library
-            for gst_lib in "${GSTREAMER_LIBS[@]}"; do
-                if ls "$SEARCH_DIR"/${gst_lib}* >/dev/null 2>&1; then
-                    echo "      📦 Copying $gst_lib..."
-                    GSTREAMER_FILES=$(ls -la "$SEARCH_DIR"/${gst_lib}* 2>/dev/null)
-                    echo "$GSTREAMER_FILES" | sed 's/^/         /'
-                    
-                    # Debug: Show what find command will match
-                    echo "         🔍 Debug: Files matched by find:"
-                    find "$SEARCH_DIR" -maxdepth 1 -name "${gst_lib}*" -type f -ls 2>&1 | sed 's/^/            /'
-                    
-                    # Only copy actual files (not symlinks) to avoid duplication
-                    find "$SEARCH_DIR" -maxdepth 1 -name "${gst_lib}*" -type f -exec cp -Pv {} "${RPMTOP}/SOURCES/gstreamer/" \; 2>&1 | sed 's/^/         /'
-                    
-                    # Verify the file was actually copied
-                    COPIED_COUNT=$(find "${RPMTOP}/SOURCES/gstreamer/" -name "${gst_lib}*" -type f | wc -l)
-                    if [ $COPIED_COUNT -eq 0 ]; then
-                        echo "         ❌ ERROR: No files copied for $gst_lib!"
-                    else
-                        echo "         ✅ Verified: $COPIED_COUNT file(s) copied for $gst_lib"
-                    fi
-                else
-                    echo "      ⚠️  $gst_lib not found in $SEARCH_DIR"
-                fi
-            done
-            
-            echo "   ✅ GStreamer libraries copied to ${RPMTOP}/SOURCES/gstreamer"
-            GSTREAMER_FOUND=1
-            break
-        else
-            echo "   ✗ No GStreamer libraries found in $SEARCH_DIR"
-        fi
-    else
-        echo "   ✗ Directory does not exist: $SEARCH_DIR"
-    fi
-done
-if [ $GSTREAMER_FOUND -eq 0 ]; then
-    echo "⚠️  Warning: GStreamer libraries not found"
-else
-    echo "✅ GStreamer libraries found and copied"
-fi
-
-# Copy ORC libraries (needed by GStreamer) - search multiple locations
-echo "📋 RPM: Searching for ORC libraries..."
-ORC_FOUND=0
-for SEARCH_DIR in /usr/lib/x86_64-linux-gnu /usr/lib; do
-    echo "   Checking: $SEARCH_DIR"
-    if [ -d "$SEARCH_DIR" ]; then
-        if ls "$SEARCH_DIR"/liborc-0.4.so* >/dev/null 2>&1; then
-            echo "   ✅ Found ORC libraries in $SEARCH_DIR"
-            ORC_FILES=$(ls -la "$SEARCH_DIR"/liborc-0.4.so*)
-            echo "   Files found:"
-            echo "$ORC_FILES" | sed 's/^/     /'
-            # Only copy actual files (not symlinks) to avoid duplication
-            find "$SEARCH_DIR" -maxdepth 1 -name "liborc-0.4.so*" -type f -exec cp -Pv {} "${RPMTOP}/SOURCES/gstreamer/" \; 2>&1 | sed 's/^/     /'
-            echo "   ✅ ORC libraries copied to ${RPMTOP}/SOURCES/gstreamer"
-            ORC_FOUND=1
-            break
-        else
-            echo "   ✗ No ORC libraries found in $SEARCH_DIR"
-        fi
-    else
-        echo "   ✗ Directory does not exist: $SEARCH_DIR"
-    fi
-done
-if [ $ORC_FOUND -eq 0 ]; then
-    echo "⚠️  Warning: ORC libraries not found"
-else
-    echo "✅ ORC libraries found and copied"
-fi
-
-# Copy GStreamer plugins (essential for video capture)
-echo "📋 RPM: Searching for GStreamer plugins..."
-GSTREAMER_PLUGINS_FOUND=0
-
-# Essential GStreamer plugins for video capture
-GSTREAMER_PLUGINS=(
-    "libgstvideo4linux2.so"        # V4L2 video capture (CRITICAL)
-    "libgstv4l2codecs.so"          # V4L2 hardware codecs
-    "libgstvideoconvertscale.so"   # Video format conversion and scaling
-    "libgstvideorate.so"           # Video frame rate conversion
-    "libgstcoreelements.so"        # Core elements (queue, filesrc, etc.)
-    "libgsttypefindfunctions.so"   # Type detection
-    "libgstapp.so"                 # Application integration
-    "libgstplayback.so"           # Playback elements
-    "libgstjpeg.so"               # JPEG codec
-    "libgstximagesink.so"         # X11 video sink
-    "libgstxvimagesink.so"        # XVideo sink
-    "libgstautodetect.so"         # Auto detection
-    "libgstpulseaudio.so"         # PulseAudio
-    "libgstaudioparsers.so"       # Audio parsers
-    "libgstaudioconvert.so"       # Audio conversion
-    "libgstaudioresample.so"      # Audio resampling
-    "libdw.so"                   # DW support (dependency for some plugins) 
-)
-
-# Detect GStreamer plugin directories
-GSTREAMER_PLUGIN_DIR=""
-for SEARCH_DIR in /usr/lib/x86_64-linux-gnu/gstreamer-1.0 /usr/lib/gstreamer-1.0 /opt/gstreamer/lib/x86_64-linux-gnu/gstreamer-1.0; do
-    if [ -d "$SEARCH_DIR" ] && ls "$SEARCH_DIR"/libgstvideo4linux2.so >/dev/null 2>&1; then
-        GSTREAMER_PLUGIN_DIR="$SEARCH_DIR"
-        echo "   ✅ Found GStreamer plugins directory: $GSTREAMER_PLUGIN_DIR"
-        break
-    fi
-done
-
-if [ -n "$GSTREAMER_PLUGIN_DIR" ]; then
-    mkdir -p "${RPMTOP}/SOURCES/gstreamer/gstreamer-1.0"
-    PLUGINS_COPIED=0
+# ============================================================
+# Generic library copying function
+# ============================================================
+# This function eliminates code duplication for library copying
+# Usage: copy_libraries "VARNAME" "Display Name" "lib_pattern" "ERROR|WARNING" "target_dir" "search_dir1" "search_dir2" ...
+copy_libraries() {
+    local var_name="$1"
+    local display_name="$2"
+    local lib_pattern="$3"
+    local severity="$4"  # ERROR or WARNING
+    local target_dir="$5"
+    shift 5
+    local search_dirs=("$@")
     
-    for plugin in "${GSTREAMER_PLUGINS[@]}"; do
-        if [ -f "$GSTREAMER_PLUGIN_DIR/$plugin" ]; then
-            cp -Pv "$GSTREAMER_PLUGIN_DIR/$plugin" "${RPMTOP}/SOURCES/gstreamer/gstreamer-1.0/" 2>&1 | sed 's/^/     /'
-            PLUGINS_COPIED=$((PLUGINS_COPIED + 1))
+    echo "� RPM: Searching for ${display_name} libraries..."
+    local found=0
+    
+    for search_dir in "${search_dirs[@]}"; do
+        echo "   Checking: $search_dir"
+        if [ -d "$search_dir" ]; then
+            if ls "$search_dir"/${lib_pattern}* >/dev/null 2>&1; then
+                echo "   ✅ Found ${display_name} in $search_dir"
+                local files=$(ls -la "$search_dir"/${lib_pattern}* 2>/dev/null)
+                echo "   Files found:"
+                echo "$files" | sed 's/^/     /'
+                # Only copy actual files (not symlinks) to avoid duplication
+                find "$search_dir" -maxdepth 1 -name "${lib_pattern}*" -type f -exec cp -av {} "${target_dir}/" \; 2>&1 | sed 's/^/     /'
+                echo "   ✅ ${display_name} libraries copied to ${target_dir}"
+                found=1
+                break
+            else
+                echo "   ✗ No ${display_name} found in $search_dir"
+            fi
         else
-            echo "     ⚠️  Missing plugin: $plugin"
+            echo "   ✗ Directory does not exist: $search_dir"
         fi
     done
     
-    echo "   ✅ GStreamer plugins copied ($PLUGINS_COPIED plugins)"
-    GSTREAMER_PLUGINS_FOUND=1
-else
-    echo "   ⚠️  GStreamer plugins directory not found, checking if gstreamer packages are installed..."
-    if dpkg -l | grep -q gstreamer1.0-plugins; then
-        echo "   ℹ️  GStreamer plugins packages are installed on the system"
-        echo "   They will be required as a dependency in the final RPM package"
-    fi
-fi
-
-if [ $GSTREAMER_PLUGINS_FOUND -eq 0 ]; then
-    echo "⚠️  Warning: GStreamer plugins not found in binary form"
-    echo "   Note: GStreamer plugins should be listed as dependencies in the RPM package"
-else
-    echo "✅ GStreamer plugins bundled successfully"
-fi
-
-# Copy v4l-utils libraries - search multiple locations
-echo "📋 RPM: Searching for v4l-utils libraries..."
-V4L_FOUND=0
-for SEARCH_DIR in /usr/lib/x86_64-linux-gnu /usr/lib; do
-    echo "   Checking: $SEARCH_DIR"
-    if [ -d "$SEARCH_DIR" ]; then
-        if ls "$SEARCH_DIR"/libv4l*.so* >/dev/null 2>&1; then
-            echo "   ✅ Found v4l-utils libraries in $SEARCH_DIR"
-            V4L_FILES=$(ls -la "$SEARCH_DIR"/libv4l*.so*)
-            echo "   Files found:"
-            echo "$V4L_FILES" | sed 's/^/     /'
-            # Only copy actual files (not symlinks) to avoid duplication
-            find "$SEARCH_DIR" -maxdepth 1 -name "libv4l*.so*" -type f -exec cp -Pv {} "${RPMTOP}/SOURCES/gstreamer/" \; 2>&1 | sed 's/^/     /'
-            echo "   ✅ v4l-utils libraries copied to ${RPMTOP}/SOURCES/gstreamer"
-            V4L_FOUND=1
-            break
+    if [ $found -eq 0 ]; then
+        if [ "$severity" = "ERROR" ]; then
+            echo "❌ ERROR: ${display_name} libraries not found in any search path!"
         else
-            echo "   ✗ No v4l-utils libraries found in $SEARCH_DIR"
+            echo "⚠️  Warning: ${display_name} libraries not found"
         fi
     else
-        echo "   ✗ Directory does not exist: $SEARCH_DIR"
+        echo "✅ ${display_name} found and copied"
     fi
-done
-if [ $V4L_FOUND -eq 0 ]; then
-    echo "⚠️  Warning: v4l-utils libraries not found"
-else
-    echo "✅ v4l-utils found and copied"
-fi
+    
+    # Export result as a variable (e.g., LIBBZ2_FOUND=1)
+    eval "${var_name}_FOUND=$found"
+}
 
-# Copy GStreamer video libraries to RPM SOURCES - search multiple locations
-echo "📋 RPM: Searching for GStreamer video libraries..."
-GSTVIDEO_FOUND=0
-for SEARCH_DIR in /usr/lib/x86_64-linux-gnu /usr/lib; do
-    echo "   Checking: $SEARCH_DIR"
-    if [ -d "$SEARCH_DIR" ]; then
-        # Use find to detect both files and symlinks
-        if find "$SEARCH_DIR" -maxdepth 1 \( -name "libgstvideo-1.0.so*" -type f -o -name "libgstvideo-1.0.so*" -type l \) 2>/dev/null | grep -q .; then
-            echo "   ✅ Found GStreamer video libraries in $SEARCH_DIR"
-            # List files found for diagnostics
-            ls -la "$SEARCH_DIR"/libgstvideo-1.0.so* 2>/dev/null | while read -r line; do
-                echo "     $line"
-            done
-            # Only copy actual files (not symlinks) to avoid duplication
-            find "$SEARCH_DIR" -maxdepth 1 -name "libgstvideo-1.0.so*" -type f -exec cp -Pv {} "${RPMTOP}/SOURCES/gstreamer/" \; 2>&1 | sed 's/^/     /'
-            echo "   ✅ GStreamer video libraries copied to ${RPMTOP}/SOURCES/gstreamer"
-            GSTVIDEO_FOUND=1
-            break
-        else
-            echo "   ✗ No GStreamer video libraries found in $SEARCH_DIR"
-        fi
-    else
-        echo "   ✗ Directory does not exist: $SEARCH_DIR"
-    fi
-done
-if [ $GSTVIDEO_FOUND -eq 0 ]; then
-    echo "⚠️  Warning: GStreamer video libraries not found"
-else
-    echo "✅ GStreamer video libraries found and copied"
-fi
+# ============================================================
+# Define library copying configurations in a unified structure
+# Format: variable_name|display_name|lib_pattern|severity|target_subdir|search_dirs...
+# target_subdir: "" (root), "ffmpeg", or "gstreamer"
+# ============================================================
 
-# Copy GStreamer app libraries to RPM SOURCES - search multiple locations
-echo "📋 RPM: Searching for GStreamer app libraries..."
-GSTAPP_FOUND=0
-for SEARCH_DIR in /usr/lib/x86_64-linux-gnu /usr/lib; do
-    echo "   Checking: $SEARCH_DIR"
-    if [ -d "$SEARCH_DIR" ]; then
-        # Use find to detect both files and symlinks
-        if find "$SEARCH_DIR" -maxdepth 1 \( -name "libgstapp-1.0.so*" -type f -o -name "libgstapp-1.0.so*" -type l \) 2>/dev/null | grep -q .; then
-            echo "   ✅ Found GStreamer app libraries in $SEARCH_DIR"
-            # List files found for diagnostics
-            ls -la "$SEARCH_DIR"/libgstapp-1.0.so* 2>/dev/null | while read -r line; do
-                echo "     $line"
-            done
-            # Only copy actual files (not symlinks) to avoid duplication
-            find "$SEARCH_DIR" -maxdepth 1 -name "libgstapp-1.0.so*" -type f -exec cp -Pv {} "${RPMTOP}/SOURCES/gstreamer/" \; 2>&1 | sed 's/^/     /'
-            echo "   ✅ GStreamer app libraries copied to ${RPMTOP}/SOURCES/gstreamer"
-            GSTAPP_FOUND=1
-            break
-        else
-            echo "   ✗ No GStreamer app libraries found in $SEARCH_DIR"
-        fi
+# Create target directories
+mkdir -p "${RPMTOP}/SOURCES/ffmpeg"
+mkdir -p "${RPMTOP}/SOURCES/gstreamer"
+
+# Unified library configurations with target subdirectories
+declare -a UNIFIED_LIBRARY_CONFIGS=(
+    # General libraries -> ${RPMTOP}/SOURCES (empty subdir means root)
+    "LIBBZ2|bzip2|libbz2.so|ERROR||/opt/ffmpeg/lib|/usr/lib/x86_64-linux-gnu|/usr/lib"
+    "LIBUSB|libusb|libusb*.so|ERROR||/opt/libusb/lib|/opt/ffmpeg/lib|/usr/lib/x86_64-linux-gnu|/usr/lib"
+    "JPEG|libjpeg|libjpeg.so|ERROR||/opt/ffmpeg/lib|/usr/lib/x86_64-linux-gnu|/usr/lib"
+    "TURBOJPEG|libturbojpeg|libturbojpeg.so|ERROR||/opt/ffmpeg/lib|/usr/lib/x86_64-linux-gnu|/usr/lib"
+    "VA|VA-API|libva.so|WARNING||/usr/lib/x86_64-linux-gnu|/usr/lib"
+    "VDPAU|VDPAU|libvdpau.so|WARNING||/usr/lib/x86_64-linux-gnu|/usr/lib"
+    
+    # FFmpeg libraries -> ${RPMTOP}/SOURCES/ffmpeg
+    "AVDEVICE|FFmpeg avdevice|libavdevice.so|WARNING|ffmpeg|/opt/ffmpeg/lib|/usr/lib/x86_64-linux-gnu|/usr/lib"
+    "AVCODEC|FFmpeg avcodec|libavcodec.so|WARNING|ffmpeg|/opt/ffmpeg/lib|/usr/lib/x86_64-linux-gnu|/usr/lib"
+    "AVFORMAT|FFmpeg avformat|libavformat.so|WARNING|ffmpeg|/opt/ffmpeg/lib|/usr/lib/x86_64-linux-gnu|/usr/lib"
+    "AVUTIL|FFmpeg avutil|libavutil.so|WARNING|ffmpeg|/opt/ffmpeg/lib|/usr/lib/x86_64-linux-gnu|/usr/lib"
+    "SWSCALE|FFmpeg swscale|libswscale.so|WARNING|ffmpeg|/opt/ffmpeg/lib|/usr/lib/x86_64-linux-gnu|/usr/lib"
+    "SWRESAMPLE|FFmpeg swresample|libswresample.so|WARNING|ffmpeg|/opt/ffmpeg/lib|/usr/lib/x86_64-linux-gnu|/usr/lib"
+    "AVFILTER|FFmpeg avfilter|libavfilter.so|WARNING|ffmpeg|/opt/ffmpeg/lib|/usr/lib/x86_64-linux-gnu|/usr/lib"
+    
+    # GStreamer libraries -> ${RPMTOP}/SOURCES/gstreamer
+    "GSTREAMER|GStreamer core|libgstreamer-1.0.so|WARNING|gstreamer|/opt/gstreamer/lib/x86_64-linux-gnu|/usr/lib/x86_64-linux-gnu|/usr/lib"
+    "GSTBASE|GStreamer base|libgstbase-1.0.so|WARNING|gstreamer|/opt/gstreamer/lib/x86_64-linux-gnu|/usr/lib/x86_64-linux-gnu|/usr/lib"
+    "GSTAUDIO|GStreamer audio|libgstaudio-1.0.so|WARNING|gstreamer|/opt/gstreamer/lib/x86_64-linux-gnu|/usr/lib/x86_64-linux-gnu|/usr/lib"
+    "GSTPBUTILS|GStreamer playback utils|libgstpbutils-1.0.so|WARNING|gstreamer|/opt/gstreamer/lib/x86_64-linux-gnu|/usr/lib/x86_64-linux-gnu|/usr/lib"
+    "GSTVIDEO|GStreamer video|libgstvideo-1.0.so|WARNING|gstreamer|/opt/gstreamer/lib/x86_64-linux-gnu|/usr/lib/x86_64-linux-gnu|/usr/lib"
+    "GSTAPP|GStreamer app|libgstapp-1.0.so|WARNING|gstreamer|/opt/gstreamer/lib/x86_64-linux-gnu|/usr/lib/x86_64-linux-gnu|/usr/lib"
+    "GSTTAG|GStreamer tag|libgsttag-1.0.so|WARNING|gstreamer|/opt/gstreamer/lib/x86_64-linux-gnu|/usr/lib/x86_64-linux-gnu|/usr/lib"
+    "GSTRTP|GStreamer RTP|libgstrtp-1.0.so|WARNING|gstreamer|/opt/gstreamer/lib/x86_64-linux-gnu|/usr/lib/x86_64-linux-gnu|/usr/lib"
+    "GSTRTSP|GStreamer RTSP|libgstrtsp-1.0.so|WARNING|gstreamer|/opt/gstreamer/lib/x86_64-linux-gnu|/usr/lib/x86_64-linux-gnu|/usr/lib"
+    "GSTSDP|GStreamer SDP|libgstsdp-1.0.so|WARNING|gstreamer|/opt/gstreamer/lib/x86_64-linux-gnu|/usr/lib/x86_64-linux-gnu|/usr/lib"
+    "GSTALLOCATORS|GStreamer allocators|libgstallocators-1.0.so|WARNING|gstreamer|/opt/gstreamer/lib/x86_64-linux-gnu|/usr/lib/x86_64-linux-gnu|/usr/lib"
+    "GSTGL|GStreamer OpenGL|libgstgl-1.0.so|WARNING|gstreamer|/opt/gstreamer/lib/x86_64-linux-gnu|/usr/lib/x86_64-linux-gnu|/usr/lib"
+    "ORC|ORC optimization|liborc-0.4.so|WARNING|gstreamer|/usr/lib/x86_64-linux-gnu|/usr/lib"
+    "V4L|v4l-utils|libv4l*.so|WARNING|gstreamer|/usr/lib/x86_64-linux-gnu|/usr/lib"
+    
+    # GStreamer plugins -> ${RPMTOP}/SOURCES/gstreamer/gstreamer-1.0
+    "GSTPLUGIN_VIDEO4LINUX2|GStreamer V4L2 video capture|libgstvideo4linux2.so|WARNING|gstreamer/gstreamer-1.0|/usr/lib/x86_64-linux-gnu/gstreamer-1.0|/usr/lib/gstreamer-1.0|/opt/gstreamer/lib/x86_64-linux-gnu/gstreamer-1.0"
+    "GSTPLUGIN_V4L2CODECS|GStreamer V4L2 hardware codecs|libgstv4l2codecs.so|WARNING|gstreamer/gstreamer-1.0|/usr/lib/x86_64-linux-gnu/gstreamer-1.0|/usr/lib/gstreamer-1.0|/opt/gstreamer/lib/x86_64-linux-gnu/gstreamer-1.0"
+    "GSTPLUGIN_VIDEOCONVERTSCALE|GStreamer video format conversion|libgstvideoconvertscale.so|WARNING|gstreamer/gstreamer-1.0|/usr/lib/x86_64-linux-gnu/gstreamer-1.0|/usr/lib/gstreamer-1.0|/opt/gstreamer/lib/x86_64-linux-gnu/gstreamer-1.0"
+    "GSTPLUGIN_VIDEORATE|GStreamer video frame rate conversion|libgstvideorate.so|WARNING|gstreamer/gstreamer-1.0|/usr/lib/x86_64-linux-gnu/gstreamer-1.0|/usr/lib/gstreamer-1.0|/opt/gstreamer/lib/x86_64-linux-gnu/gstreamer-1.0"
+    "GSTPLUGIN_COREELEMENTS|GStreamer core elements|libgstcoreelements.so|WARNING|gstreamer/gstreamer-1.0|/usr/lib/x86_64-linux-gnu/gstreamer-1.0|/usr/lib/gstreamer-1.0|/opt/gstreamer/lib/x86_64-linux-gnu/gstreamer-1.0"
+    "GSTPLUGIN_TYPEFIND|GStreamer type detection|libgsttypefindfunctions.so|WARNING|gstreamer/gstreamer-1.0|/usr/lib/x86_64-linux-gnu/gstreamer-1.0|/usr/lib/gstreamer-1.0|/opt/gstreamer/lib/x86_64-linux-gnu/gstreamer-1.0"
+    "GSTPLUGIN_APP|GStreamer application integration|libgstapp.so|WARNING|gstreamer/gstreamer-1.0|/usr/lib/x86_64-linux-gnu/gstreamer-1.0|/usr/lib/gstreamer-1.0|/opt/gstreamer/lib/x86_64-linux-gnu/gstreamer-1.0"
+    "GSTPLUGIN_PLAYBACK|GStreamer playback elements|libgstplayback.so|WARNING|gstreamer/gstreamer-1.0|/usr/lib/x86_64-linux-gnu/gstreamer-1.0|/usr/lib/gstreamer-1.0|/opt/gstreamer/lib/x86_64-linux-gnu/gstreamer-1.0"
+    "GSTPLUGIN_JPEG|GStreamer JPEG codec|libgstjpeg.so|WARNING|gstreamer/gstreamer-1.0|/usr/lib/x86_64-linux-gnu/gstreamer-1.0|/usr/lib/gstreamer-1.0|/opt/gstreamer/lib/x86_64-linux-gnu/gstreamer-1.0"
+    "GSTPLUGIN_XIMAGESINK|GStreamer X11 video sink|libgstximagesink.so|WARNING|gstreamer/gstreamer-1.0|/usr/lib/x86_64-linux-gnu/gstreamer-1.0|/usr/lib/gstreamer-1.0|/opt/gstreamer/lib/x86_64-linux-gnu/gstreamer-1.0"
+    "GSTPLUGIN_XVIMAGESINK|GStreamer XVideo sink|libgstxvimagesink.so|WARNING|gstreamer/gstreamer-1.0|/usr/lib/x86_64-linux-gnu/gstreamer-1.0|/usr/lib/gstreamer-1.0|/opt/gstreamer/lib/x86_64-linux-gnu/gstreamer-1.0"
+    "GSTPLUGIN_AUTODETECT|GStreamer auto detection|libgstautodetect.so|WARNING|gstreamer/gstreamer-1.0|/usr/lib/x86_64-linux-gnu/gstreamer-1.0|/usr/lib/gstreamer-1.0|/opt/gstreamer/lib/x86_64-linux-gnu/gstreamer-1.0"
+    "GSTPLUGIN_PULSEAUDIO|GStreamer PulseAudio|libgstpulseaudio.so|WARNING|gstreamer/gstreamer-1.0|/usr/lib/x86_64-linux-gnu/gstreamer-1.0|/usr/lib/gstreamer-1.0|/opt/gstreamer/lib/x86_64-linux-gnu/gstreamer-1.0"
+    "GSTPLUGIN_AUDIOPARSERS|GStreamer audio parsers|libgstaudioparsers.so|WARNING|gstreamer/gstreamer-1.0|/usr/lib/x86_64-linux-gnu/gstreamer-1.0|/usr/lib/gstreamer-1.0|/opt/gstreamer/lib/x86_64-linux-gnu/gstreamer-1.0"
+    "GSTPLUGIN_AUDIOCONVERT|GStreamer audio conversion|libgstaudioconvert.so|WARNING|gstreamer/gstreamer-1.0|/usr/lib/x86_64-linux-gnu/gstreamer-1.0|/usr/lib/gstreamer-1.0|/opt/gstreamer/lib/x86_64-linux-gnu/gstreamer-1.0"
+    "GSTPLUGIN_AUDIORESAMPLE|GStreamer audio resampling|libgstaudioresample.so|WARNING|gstreamer/gstreamer-1.0|/usr/lib/x86_64-linux-gnu/gstreamer-1.0|/usr/lib/gstreamer-1.0|/opt/gstreamer/lib/x86_64-linux-gnu/gstreamer-1.0"
+    "LIBDW|DW support library|libdw.so|WARNING|gstreamer/gstreamer-1.0|/usr/lib/x86_64-linux-gnu|/usr/lib"
+)
+
+# Process all library configurations
+echo "🔍 Copying required libraries to RPM SOURCES..."
+for config in "${UNIFIED_LIBRARY_CONFIGS[@]}"; do
+    IFS='|' read -r var_name display_name lib_pattern severity target_subdir search_dirs_str <<< "$config"
+    IFS='|' read -ra search_dirs <<< "$search_dirs_str"
+    
+    # Determine full target directory
+    if [ -z "$target_subdir" ]; then
+        target_dir="${RPMTOP}/SOURCES"
     else
-        echo "   ✗ Directory does not exist: $SEARCH_DIR"
+        target_dir="${RPMTOP}/SOURCES/${target_subdir}"
     fi
+    
+    copy_libraries "$var_name" "$display_name" "$lib_pattern" "$severity" "$target_dir" "${search_dirs[@]}"
 done
-if [ $GSTAPP_FOUND -eq 0 ]; then
-    echo "⚠️  Warning: GStreamer app libraries not found"
-else
-    echo "✅ GStreamer app libraries found and copied"
-fi
 
 echo "📋 RPM: Final SOURCES directory contents:"
 ls -lah "${RPMTOP}/SOURCES/" | head -30
