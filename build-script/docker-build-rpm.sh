@@ -67,7 +67,7 @@ fi
 # Install patchelf and gcc for wrapper compilation
 apt update && apt install -y patchelf gcc
 
-# Copy Qt libraries to SOURCES for bundling (RPM)
+# Verify Qt6 build exists
 # CRITICAL: Must use a proper Qt6 build, NOT system libraries
 QT_LIB_DIR="/opt/Qt6/lib"
 if [ ! -d "${QT_LIB_DIR}" ]; then
@@ -103,112 +103,10 @@ else
     echo "⚠️  Qt Version Wrapper source not available"
 fi
 
-# ============================================================
-# Copy Qt libraries to RPM SOURCES
-
-echo "Copying Qt libraries to SOURCES..."
-QT_LIBS=$(find "${QT_LIB_DIR}" -maxdepth 1 -name "libQt6*.so*" -type f | wc -l)
-if [ $QT_LIBS -eq 0 ]; then
-    echo "❌ ERROR: No Qt6 libraries found in ${QT_LIB_DIR}"
-    exit 1
-fi
-
-# Only copy actual files (not symlinks) to avoid duplication
-mkdir -p "${RPMTOP}/SOURCES/qt6"
-find "${QT_LIB_DIR}" -maxdepth 1 -name "libQt6*.so*" -type f -exec cp -a {} "${RPMTOP}/SOURCES/qt6/" \;
-echo "✅ Qt libraries copied to SOURCES/qt6 ($QT_LIBS files)"
-
-# CRITICAL: Also bundle Qt6 base modules and system-provided modules
-# These are sometimes provided by system Qt but we need to ensure we use bundled versions
-# to prevent version conflicts (e.g., system Qt6.9 vs bundled Qt6.6.3)
-echo "📋 RPM: Searching for additional Qt6 base modules..."
-QT_CRITICAL_MODULES=(
-    "libQt6QmlModels.so"      # CRITICAL: QML models - often causes version conflicts
-    "libQt6QmlWorkerScript.so" # CRITICAL: QML worker script support
-    "libQt6Core5Compat.so"    # Qt5 compatibility layer (if available)
-    "libQt6GuiPrivate.so"     # Private GUI API (if available)
-    "libQt6QuickControls2.so"  # Quick Controls 2
-    "libQt6QuickShapes.so"     # Quick Shapes
-    "libQt6QuickLayouts.so"    # Quick Layouts
-    "libQt6QuickTemplates2.so" # Quick Templates 2
-    "libQt6QuickParticles.so"  # Quick Particles
-    "libQt6OpenGLWidgets.so"   # OpenGL Widgets
-    "libQt6WebSockets.so"      # WebSockets support
-    "libQt6Positioning.so"     # Positioning (if available)
-    "libQt6Sensors.so"         # Sensors (if available)
-    "libQt6Sql.so"             # SQL support (if available)
-    "libQt6Test.so"            # Test framework (if available)
-)
-
-for qt_module in "${QT_CRITICAL_MODULES[@]}"; do
-    echo "   Checking for $qt_module..."
-    
-    # Search in bundled Qt first
-    if ls "${QT_LIB_DIR}"/${qt_module}* >/dev/null 2>&1; then
-        echo "      ✅ Found in bundled Qt: ${QT_LIB_DIR}/${qt_module}"
-        find "${QT_LIB_DIR}" -maxdepth 1 -name "${qt_module%.*}*" -type f -exec cp -Pv {} "${RPMTOP}/SOURCES/qt6/" \; 2>&1 | sed 's/^/         /'
-    else
-        # Try to find in system Qt if not in bundled (we'll flag these as potential conflicts)
-        for system_search_dir in /lib64 /usr/lib64 /usr/lib /usr/lib/x86_64-linux-gnu; do
-            if [ -d "$system_search_dir" ] && ls "$system_search_dir"/${qt_module}* >/dev/null 2>&1; then
-                echo "      ⚠️  Found in system Qt but NOT in bundled Qt: $system_search_dir/${qt_module}"
-                echo "         This will cause version conflicts! Check Qt6 build completeness."
-                break
-            fi
-        done
-    fi
-done
-echo "✅ Qt6 critical modules check complete"
-
-# Copy Qt6 XCB QPA library to SOURCES (needed by libqxcb.so plugin) - must be from same Qt6 build
-echo "📋 RPM: Searching for Qt6 XCB QPA library..."
-XCB_QPA_FOUND=0
-
-# Only look in the Qt6 build location, not system
-if [ -d "/opt/Qt6/lib" ] && ls "/opt/Qt6/lib"/libQt6XcbQpa.so* >/dev/null 2>&1; then
-    echo "   ✅ Found libQt6XcbQpa.so in /opt/Qt6/lib"
-    XCB_QPA_FILES=$(ls -la "/opt/Qt6/lib"/libQt6XcbQpa.so*)
-    echo "   Files found:"
-    echo "$XCB_QPA_FILES" | sed 's/^/     /'
-    # Only copy actual files (not symlinks) to avoid duplication
-    find "/opt/Qt6/lib" -maxdepth 1 -name "libQt6XcbQpa.so*" -type f -exec cp -Pv {} "${RPMTOP}/SOURCES/qt6/" \; 2>&1 | sed 's/^/     /'
-    echo "   ✅ libQt6XcbQpa.so copied to ${RPMTOP}/SOURCES/qt6"
-    XCB_QPA_FOUND=1
-else
-    echo "   ✗ No libQt6XcbQpa.so found in /opt/Qt6/lib"
-fi
-
-if [ $XCB_QPA_FOUND -eq 0 ]; then
-    echo "❌ ERROR: libQt6XcbQpa.so library not found!"
-    echo "   This library must be from the same Qt6 build as libQt6Core.so"
-    exit 1
-else
-    echo "✅ libQt6XcbQpa.so found and copied"
-fi
-
 # Copy Qt plugins to SOURCES (SELECTIVE: only essential plugins to reduce RPM size)
 QT_PLUGIN_DIR="/opt/Qt6/plugins"
 if [ -d "${QT_PLUGIN_DIR}" ]; then
-    echo "📋 RPM: Copying ONLY essential Qt plugins (selective bundling for size optimization)..."
-    
-    # Only copy essential plugin categories needed by openterfaceQT
-    # Excluding: imageformats (handled separately), codecs, tls, iconengines (handled separately)
-    ESSENTIAL_PLUGINS=(
-        "platforms"     # Platform abstraction (xcb, wayland, minimal)
-        "platforminputcontexts"  # Input method contexts
-    )
-    
-    mkdir -p "${RPMTOP}/SOURCES/qt6/plugins"
-    
-    for plugin_dir in "${ESSENTIAL_PLUGINS[@]}"; do
-        if [ -d "${QT_PLUGIN_DIR}/${plugin_dir}" ]; then
-            echo "   ✅ Copying ${plugin_dir}..."
-            mkdir -p "${RPMTOP}/SOURCES/qt6/plugins/${plugin_dir}"
-            cp -r "${QT_PLUGIN_DIR}/${plugin_dir}"/* "${RPMTOP}/SOURCES/qt6/plugins/${plugin_dir}/" 2>/dev/null || true
-        fi
-    done
-    
-    echo "   ✅ Essential Qt plugins copied (size-optimized)"
+    echo "📋 RPM: Qt plugins will be copied via unified library configuration..."
 fi
 
 # Copy Qt QML imports to SOURCES (SELECTIVE: only essential modules)
@@ -246,76 +144,8 @@ echo "📋 RPM: Checking for SVG icon usage in application..."
 # OPTIMIZATION: Only bundle SVG libraries if project contains SVG icons
 if find "${SRC}/images" -name "*.svg" 2>/dev/null | grep -q .; then
     echo "   ✅ SVG icons detected - will bundle SVG support"
-    
-    # Copy libQt6Svg library
-    echo "   📦 Searching for libQt6Svg.so..."
-    SVG_LIB_FOUND=0
-    for SEARCH_DIR in /opt/Qt6/lib /usr/lib/x86_64-linux-gnu /usr/lib; do
-        if [ -d "$SEARCH_DIR" ]; then
-            if ls "$SEARCH_DIR"/libQt6Svg.so* >/dev/null 2>&1; then
-                echo "   ✅ Found libQt6Svg.so in $SEARCH_DIR"
-                # Only copy actual files (not symlinks) to avoid duplication
-                find "$SEARCH_DIR" -maxdepth 1 -name "libQt6Svg.so*" -type f -exec cp -Pv {} "${RPMTOP}/SOURCES/qt6/" \; 2>&1 | sed 's/^/     /'
-                SVG_LIB_FOUND=1
-                break
-            fi
-        fi
-    done
-    if [ $SVG_LIB_FOUND -eq 0 ]; then
-        echo "   ⚠️  libQt6Svg.so not found - SVG support may be limited"
-    fi
-
-    # Copy SVG image format plugin (libqsvg.so)
-    echo "   📦 Searching for libqsvg.so (SVG image format plugin)..."
-    SVG_PLUGIN_FOUND=0
-    for SEARCH_DIR in /opt/Qt6/plugins /usr/lib/qt6/plugins /usr/lib/x86_64-linux-gnu/qt6/plugins; do
-        if [ -d "$SEARCH_DIR/imageformats" ]; then
-            if [ -f "$SEARCH_DIR/imageformats/libqsvg.so" ]; then
-                echo "   ✅ Found libqsvg.so in $SEARCH_DIR"
-                mkdir -p "${RPMTOP}/SOURCES/qt6/plugins/imageformats"
-                cp -Pv "$SEARCH_DIR/imageformats/libqsvg.so" "${RPMTOP}/SOURCES/qt6/plugins/imageformats/" 2>&1 | sed 's/^/     /'
-                SVG_PLUGIN_FOUND=1
-                break
-            fi
-        fi
-    done
-    if [ $SVG_PLUGIN_FOUND -eq 0 ]; then
-        echo "   ⚠️  libqsvg.so not found - SVG images won't be loaded"
-    fi
 else
     echo "   ℹ️  No SVG icons detected - skipping SVG library bundling (size optimization: ~5-10MB saved)"
-    SVG_LIB_FOUND=0
-    SVG_PLUGIN_FOUND=0
-fi
-
-# Copy SVG icon engine plugin (libqsvgicon.so) - OPTIONAL for RPM size optimization
-echo "   📦 Checking for SVG icon usage in application..."
-SVGICON_PLUGIN_FOUND=0
-
-# Only bundle SVG icon plugin if icons actually use SVG format (size optimization)
-if find "${SRC}/images" -name "*.svg" 2>/dev/null | grep -q .; then
-    echo "   ℹ️  SVG icons detected, attempting to bundle SVG icon engine..."
-    
-    for SEARCH_DIR in /opt/Qt6/plugins /usr/lib/qt6/plugins /usr/lib/x86_64-linux-gnu/qt6/plugins; do
-        if [ -d "$SEARCH_DIR/iconengines" ]; then
-            FOUND_FILES=$(find "$SEARCH_DIR/iconengines" -name "libqsvgicon.so*" 2>/dev/null)
-            if [ -n "$FOUND_FILES" ]; then
-                echo "   ✅ Found libqsvgicon.so, bundling for SVG icon support..."
-                mkdir -p "${RPMTOP}/SOURCES/qt6/plugins/iconengines"
-                echo "$FOUND_FILES" | while read -r svg_icon_file; do
-                    cp -Pv "$svg_icon_file" "${RPMTOP}/SOURCES/qt6/plugins/iconengines/" 2>&1 | sed 's/^/     /'
-                done
-                SVGICON_PLUGIN_FOUND=1
-                break
-            fi
-        fi
-    done
-else
-    echo "   ℹ️  No SVG icons in application, skipping SVG icon engine (size optimization ~2MB saved)"
-fi
-
-if [ $SVGICON_PLUGIN_FOUND -eq 0 ] && find "${SRC}/images" -name "*.svg" 2>/dev/null | grep -q .; then
-    echo "   ⚠️  SVG icons found but libqsvgicon.so plugin not available - icons will use fallback rendering"
 fi
 
 # ============================================================
@@ -379,10 +209,76 @@ copy_libraries() {
 # Create target directories
 mkdir -p "${RPMTOP}/SOURCES/ffmpeg"
 mkdir -p "${RPMTOP}/SOURCES/gstreamer"
+mkdir -p "${RPMTOP}/SOURCES/gstreamer/gstreamer-1.0"
+mkdir -p "${RPMTOP}/SOURCES/qt6"
+mkdir -p "${RPMTOP}/SOURCES/qt6/plugins"
+mkdir -p "${RPMTOP}/SOURCES/qt6/plugins/imageformats"
+mkdir -p "${RPMTOP}/SOURCES/qt6/plugins/iconengines"
+mkdir -p "${RPMTOP}/SOURCES/qt6/plugins/platforms"
+mkdir -p "${RPMTOP}/SOURCES/qt6/plugins/platforminputcontexts"
+
+# Common search directories for Qt6 libraries
+QT_LIB_SEARCH_DIRS="/opt/Qt6/lib|/lib64|/usr/lib64|/usr/lib|/usr/lib/x86_64-linux-gnu"
+
+# Common search directories for Qt6 plugins
+QT_PLUGIN_SEARCH_DIRS="/opt/Qt6/plugins|/usr/lib/qt6/plugins|/usr/lib/x86_64-linux-gnu/qt6/plugins"
+
+# Common search directories for FFmpeg libraries
+FFMPEG_LIB_SEARCH_DIRS="/opt/ffmpeg/lib|/usr/lib/x86_64-linux-gnu|/usr/lib"
+
+# Common search directories for GStreamer libraries
+GSTREAMER_LIB_SEARCH_DIRS="/opt/gstreamer/lib/x86_64-linux-gnu|/usr/lib/x86_64-linux-gnu|/usr/lib"
+
+# Common search directories for GStreamer plugins
+GSTREAMER_PLUGIN_SEARCH_DIRS="/opt/gstreamer/lib/x86_64-linux-gnu/gstreamer-1.0|/usr/lib/x86_64-linux-gnu/gstreamer-1.0|/usr/lib/gstreamer-1.0"
 
 # Unified library configurations with target subdirectories
 declare -a UNIFIED_LIBRARY_CONFIGS=(
-    # General libraries -> ${RPMTOP}/SOURCES (empty subdir means root)
+    # Qt6 libraries -> ${RPMTOP}/SOURCES/qt6
+    # Using common Qt6 library search directories
+    "QTCORE|Qt6 core|libQt6Core.so|ERROR|qt6|${QT_LIB_SEARCH_DIRS}"
+    "QTGUI|Qt6 gui|libQt6Gui.so|ERROR|qt6|${QT_LIB_SEARCH_DIRS}"
+    "QTWIDGETS|Qt6 widgets|libQt6Widgets.so|ERROR|qt6|${QT_LIB_SEARCH_DIRS}"
+    "QTQML|Qt6 qml|libQt6Qml.so|ERROR|qt6|${QT_LIB_SEARCH_DIRS}"
+    "QTQUICK|Qt6 quick|libQt6Quick.so|WARNING|qt6|${QT_LIB_SEARCH_DIRS}"
+    "QTXCBQPA|Qt6 XCB QPA|libQt6XcbQpa.so|ERROR|qt6|${QT_LIB_SEARCH_DIRS}"
+    "QTQMLMODELS|Qt6 QML models|libQt6QmlModels.so|WARNING|qt6|${QT_LIB_SEARCH_DIRS}"
+    "QTQMLWORKERSCRIPT|Qt6 QML worker script|libQt6QmlWorkerScript.so|WARNING|qt6|${QT_LIB_SEARCH_DIRS}"
+    "QTCORE5COMPAT|Qt6 core5 compat|libQt6Core5Compat.so|WARNING|qt6|${QT_LIB_SEARCH_DIRS}"
+    "QTGUIPRIVATE|Qt6 gui private|libQt6GuiPrivate.so|WARNING|qt6|${QT_LIB_SEARCH_DIRS}"
+    "QTQUICKCONTROLS2|Qt6 quick controls 2|libQt6QuickControls2.so|WARNING|qt6|${QT_LIB_SEARCH_DIRS}"
+    "QTQUICKSHAPES|Qt6 quick shapes|libQt6QuickShapes.so|WARNING|qt6|${QT_LIB_SEARCH_DIRS}"
+    "QTQUICKLAYOUTS|Qt6 quick layouts|libQt6QuickLayouts.so|WARNING|qt6|${QT_LIB_SEARCH_DIRS}"
+    "QTQUICKTEMPLATES2|Qt6 quick templates 2|libQt6QuickTemplates2.so|WARNING|qt6|${QT_LIB_SEARCH_DIRS}"
+    "QTQUICKPARTICLES|Qt6 quick particles|libQt6QuickParticles.so|WARNING|qt6|${QT_LIB_SEARCH_DIRS}"
+    "QTOPENGLWIDGETS|Qt6 opengl widgets|libQt6OpenGLWidgets.so|WARNING|qt6|${QT_LIB_SEARCH_DIRS}"
+    "QTWEBSOCKETS|Qt6 websockets|libQt6WebSockets.so|WARNING|qt6|${QT_LIB_SEARCH_DIRS}"
+    "QTPOSITIONING|Qt6 positioning|libQt6Positioning.so|WARNING|qt6|${QT_LIB_SEARCH_DIRS}"
+    "QTSENSORS|Qt6 sensors|libQt6Sensors.so|WARNING|qt6|${QT_LIB_SEARCH_DIRS}"
+    "QTSQL|Qt6 sql|libQt6Sql.so|WARNING|qt6|${QT_LIB_SEARCH_DIRS}"
+    "QTTEST|Qt6 test|libQt6Test.so|WARNING|qt6|${QT_LIB_SEARCH_DIRS}"
+    "QTSVG|Qt6 svg|libQt6Svg.so|WARNING|qt6|${QT_LIB_SEARCH_DIRS}"
+    
+    # Qt6 plugins -> ${RPMTOP}/SOURCES/qt6/plugins/imageformats and iconengines
+    # Using common Qt6 plugin search directories
+    "QTPLUGIN_SVG|Qt6 SVG image format plugin|libqsvg.so|WARNING|qt6/plugins/imageformats|${QT_PLUGIN_SEARCH_DIRS}/imageformats"
+    "QTPLUGIN_SVGICON|Qt6 SVG icon engine plugin|libqsvgicon.so|WARNING|qt6/plugins/iconengines|${QT_PLUGIN_SEARCH_DIRS}/iconengines"
+    
+    # Qt6 platform plugins -> ${RPMTOP}/SOURCES/qt6/plugins/platforms
+    "QTPLUGIN_QXC|Qt6 XCB platform|libqxcb.so|ERROR|qt6/plugins/platforms|${QT_PLUGIN_SEARCH_DIRS}/platforms"
+    "QTPLUGIN_WAYLAND_EGL|Qt6 Wayland EGL platform|libqwayland-egl.so|WARNING|qt6/plugins/platforms|${QT_PLUGIN_SEARCH_DIRS}/platforms"
+    "QTPLUGIN_WAYLAND_GENERIC|Qt6 Wayland generic platform|libqwayland-generic.so|WARNING|qt6/plugins/platforms|${QT_PLUGIN_SEARCH_DIRS}/platforms"
+    "QTPLUGIN_EGLFS|Qt6 EGLFS platform|libqeglfs.so|WARNING|qt6/plugins/platforms|${QT_PLUGIN_SEARCH_DIRS}/platforms"
+    "QTPLUGIN_MINIMAL|Qt6 minimal platform|libqminimal.so|WARNING|qt6/plugins/platforms|${QT_PLUGIN_SEARCH_DIRS}/platforms"
+    "QTPLUGIN_MINIMALEGL|Qt6 minimal EGL platform|libqminimalegl.so|WARNING|qt6/plugins/platforms|${QT_PLUGIN_SEARCH_DIRS}/platforms"
+    "QTPLUGIN_LINUXFB|Qt6 Linux framebuffer platform|libqlinuxfb.so|WARNING|qt6/plugins/platforms|${QT_PLUGIN_SEARCH_DIRS}/platforms"
+    "QTPLUGIN_OFFSCREEN|Qt6 offscreen platform|libqoffscreen.so|WARNING|qt6/plugins/platforms|${QT_PLUGIN_SEARCH_DIRS}/platforms"
+    "QTPLUGIN_VNC|Qt6 VNC platform|libqvnc.so|WARNING|qt6/plugins/platforms|${QT_PLUGIN_SEARCH_DIRS}/platforms"
+    "QTPLUGIN_VKKHRDISPLAY|Qt6 VK KHR display platform|libqvkkhrdisplay.so|WARNING|qt6/plugins/platforms|${QT_PLUGIN_SEARCH_DIRS}/platforms"
+    
+    # Qt6 platform input context plugins -> ${RPMTOP}/SOURCES/qt6/plugins/platforminputcontexts
+    "QTPLUGIN_COMPOSE|Qt6 compose platform input context|libcomposeplatforminputcontextplugin.so|WARNING|qt6/plugins/platforminputcontexts|${QT_PLUGIN_SEARCH_DIRS}/platforminputcontexts"
+    "QTPLUGIN_IBUS|Qt6 IBus platform input context|libibusplatforminputcontextplugin.so|WARNING|qt6/plugins/platforminputcontexts|${QT_PLUGIN_SEARCH_DIRS}/platforminputcontexts"
     "LIBBZ2|bzip2|libbz2.so|ERROR||/opt/ffmpeg/lib|/usr/lib/x86_64-linux-gnu|/usr/lib"
     "LIBUSB|libusb|libusb*.so|ERROR||/opt/libusb/lib|/opt/ffmpeg/lib|/usr/lib/x86_64-linux-gnu|/usr/lib"
     "JPEG|libjpeg|libjpeg.so|ERROR||/opt/ffmpeg/lib|/usr/lib/x86_64-linux-gnu|/usr/lib"
@@ -391,47 +287,50 @@ declare -a UNIFIED_LIBRARY_CONFIGS=(
     "VDPAU|VDPAU|libvdpau.so|WARNING||/usr/lib/x86_64-linux-gnu|/usr/lib"
     
     # FFmpeg libraries -> ${RPMTOP}/SOURCES/ffmpeg
-    "AVDEVICE|FFmpeg avdevice|libavdevice.so|WARNING|ffmpeg|/opt/ffmpeg/lib|/usr/lib/x86_64-linux-gnu|/usr/lib"
-    "AVCODEC|FFmpeg avcodec|libavcodec.so|WARNING|ffmpeg|/opt/ffmpeg/lib|/usr/lib/x86_64-linux-gnu|/usr/lib"
-    "AVFORMAT|FFmpeg avformat|libavformat.so|WARNING|ffmpeg|/opt/ffmpeg/lib|/usr/lib/x86_64-linux-gnu|/usr/lib"
-    "AVUTIL|FFmpeg avutil|libavutil.so|WARNING|ffmpeg|/opt/ffmpeg/lib|/usr/lib/x86_64-linux-gnu|/usr/lib"
-    "SWSCALE|FFmpeg swscale|libswscale.so|WARNING|ffmpeg|/opt/ffmpeg/lib|/usr/lib/x86_64-linux-gnu|/usr/lib"
-    "SWRESAMPLE|FFmpeg swresample|libswresample.so|WARNING|ffmpeg|/opt/ffmpeg/lib|/usr/lib/x86_64-linux-gnu|/usr/lib"
-    "AVFILTER|FFmpeg avfilter|libavfilter.so|WARNING|ffmpeg|/opt/ffmpeg/lib|/usr/lib/x86_64-linux-gnu|/usr/lib"
+    # Using common FFmpeg library search directories
+    "AVDEVICE|FFmpeg avdevice|libavdevice.so|WARNING|ffmpeg|${FFMPEG_LIB_SEARCH_DIRS}"
+    "AVCODEC|FFmpeg avcodec|libavcodec.so|WARNING|ffmpeg|${FFMPEG_LIB_SEARCH_DIRS}"
+    "AVFORMAT|FFmpeg avformat|libavformat.so|WARNING|ffmpeg|${FFMPEG_LIB_SEARCH_DIRS}"
+    "AVUTIL|FFmpeg avutil|libavutil.so|WARNING|ffmpeg|${FFMPEG_LIB_SEARCH_DIRS}"
+    "SWSCALE|FFmpeg swscale|libswscale.so|WARNING|ffmpeg|${FFMPEG_LIB_SEARCH_DIRS}"
+    "SWRESAMPLE|FFmpeg swresample|libswresample.so|WARNING|ffmpeg|${FFMPEG_LIB_SEARCH_DIRS}"
+    "AVFILTER|FFmpeg avfilter|libavfilter.so|WARNING|ffmpeg|${FFMPEG_LIB_SEARCH_DIRS}"
     
     # GStreamer libraries -> ${RPMTOP}/SOURCES/gstreamer
-    "GSTREAMER|GStreamer core|libgstreamer-1.0.so|WARNING|gstreamer|/opt/gstreamer/lib/x86_64-linux-gnu|/usr/lib/x86_64-linux-gnu|/usr/lib"
-    "GSTBASE|GStreamer base|libgstbase-1.0.so|WARNING|gstreamer|/opt/gstreamer/lib/x86_64-linux-gnu|/usr/lib/x86_64-linux-gnu|/usr/lib"
-    "GSTAUDIO|GStreamer audio|libgstaudio-1.0.so|WARNING|gstreamer|/opt/gstreamer/lib/x86_64-linux-gnu|/usr/lib/x86_64-linux-gnu|/usr/lib"
-    "GSTPBUTILS|GStreamer playback utils|libgstpbutils-1.0.so|WARNING|gstreamer|/opt/gstreamer/lib/x86_64-linux-gnu|/usr/lib/x86_64-linux-gnu|/usr/lib"
-    "GSTVIDEO|GStreamer video|libgstvideo-1.0.so|WARNING|gstreamer|/opt/gstreamer/lib/x86_64-linux-gnu|/usr/lib/x86_64-linux-gnu|/usr/lib"
-    "GSTAPP|GStreamer app|libgstapp-1.0.so|WARNING|gstreamer|/opt/gstreamer/lib/x86_64-linux-gnu|/usr/lib/x86_64-linux-gnu|/usr/lib"
-    "GSTTAG|GStreamer tag|libgsttag-1.0.so|WARNING|gstreamer|/opt/gstreamer/lib/x86_64-linux-gnu|/usr/lib/x86_64-linux-gnu|/usr/lib"
-    "GSTRTP|GStreamer RTP|libgstrtp-1.0.so|WARNING|gstreamer|/opt/gstreamer/lib/x86_64-linux-gnu|/usr/lib/x86_64-linux-gnu|/usr/lib"
-    "GSTRTSP|GStreamer RTSP|libgstrtsp-1.0.so|WARNING|gstreamer|/opt/gstreamer/lib/x86_64-linux-gnu|/usr/lib/x86_64-linux-gnu|/usr/lib"
-    "GSTSDP|GStreamer SDP|libgstsdp-1.0.so|WARNING|gstreamer|/opt/gstreamer/lib/x86_64-linux-gnu|/usr/lib/x86_64-linux-gnu|/usr/lib"
-    "GSTALLOCATORS|GStreamer allocators|libgstallocators-1.0.so|WARNING|gstreamer|/opt/gstreamer/lib/x86_64-linux-gnu|/usr/lib/x86_64-linux-gnu|/usr/lib"
-    "GSTGL|GStreamer OpenGL|libgstgl-1.0.so|WARNING|gstreamer|/opt/gstreamer/lib/x86_64-linux-gnu|/usr/lib/x86_64-linux-gnu|/usr/lib"
+    # Using common GStreamer library search directories
+    "GSTREAMER|GStreamer core|libgstreamer-1.0.so|WARNING|gstreamer|${GSTREAMER_LIB_SEARCH_DIRS}"
+    "GSTBASE|GStreamer base|libgstbase-1.0.so|WARNING|gstreamer|${GSTREAMER_LIB_SEARCH_DIRS}"
+    "GSTAUDIO|GStreamer audio|libgstaudio-1.0.so|WARNING|gstreamer|${GSTREAMER_LIB_SEARCH_DIRS}"
+    "GSTPBUTILS|GStreamer playback utils|libgstpbutils-1.0.so|WARNING|gstreamer|${GSTREAMER_LIB_SEARCH_DIRS}"
+    "GSTVIDEO|GStreamer video|libgstvideo-1.0.so|WARNING|gstreamer|${GSTREAMER_LIB_SEARCH_DIRS}"
+    "GSTAPP|GStreamer app|libgstapp-1.0.so|WARNING|gstreamer|${GSTREAMER_LIB_SEARCH_DIRS}"
+    "GSTTAG|GStreamer tag|libgsttag-1.0.so|WARNING|gstreamer|${GSTREAMER_LIB_SEARCH_DIRS}"
+    "GSTRTP|GStreamer RTP|libgstrtp-1.0.so|WARNING|gstreamer|${GSTREAMER_LIB_SEARCH_DIRS}"
+    "GSTRTSP|GStreamer RTSP|libgstrtsp-1.0.so|WARNING|gstreamer|${GSTREAMER_LIB_SEARCH_DIRS}"
+    "GSTSDP|GStreamer SDP|libgstsdp-1.0.so|WARNING|gstreamer|${GSTREAMER_LIB_SEARCH_DIRS}"
+    "GSTALLOCATORS|GStreamer allocators|libgstallocators-1.0.so|WARNING|gstreamer|${GSTREAMER_LIB_SEARCH_DIRS}"
+    "GSTGL|GStreamer OpenGL|libgstgl-1.0.so|WARNING|gstreamer|${GSTREAMER_LIB_SEARCH_DIRS}"
     "ORC|ORC optimization|liborc-0.4.so|WARNING|gstreamer|/usr/lib/x86_64-linux-gnu|/usr/lib"
     "V4L|v4l-utils|libv4l*.so|WARNING|gstreamer|/usr/lib/x86_64-linux-gnu|/usr/lib"
     
     # GStreamer plugins -> ${RPMTOP}/SOURCES/gstreamer/gstreamer-1.0
-    "GSTPLUGIN_VIDEO4LINUX2|GStreamer V4L2 video capture|libgstvideo4linux2.so|WARNING|gstreamer/gstreamer-1.0|/usr/lib/x86_64-linux-gnu/gstreamer-1.0|/usr/lib/gstreamer-1.0|/opt/gstreamer/lib/x86_64-linux-gnu/gstreamer-1.0"
-    "GSTPLUGIN_V4L2CODECS|GStreamer V4L2 hardware codecs|libgstv4l2codecs.so|WARNING|gstreamer/gstreamer-1.0|/usr/lib/x86_64-linux-gnu/gstreamer-1.0|/usr/lib/gstreamer-1.0|/opt/gstreamer/lib/x86_64-linux-gnu/gstreamer-1.0"
-    "GSTPLUGIN_VIDEOCONVERTSCALE|GStreamer video format conversion|libgstvideoconvertscale.so|WARNING|gstreamer/gstreamer-1.0|/usr/lib/x86_64-linux-gnu/gstreamer-1.0|/usr/lib/gstreamer-1.0|/opt/gstreamer/lib/x86_64-linux-gnu/gstreamer-1.0"
-    "GSTPLUGIN_VIDEORATE|GStreamer video frame rate conversion|libgstvideorate.so|WARNING|gstreamer/gstreamer-1.0|/usr/lib/x86_64-linux-gnu/gstreamer-1.0|/usr/lib/gstreamer-1.0|/opt/gstreamer/lib/x86_64-linux-gnu/gstreamer-1.0"
-    "GSTPLUGIN_COREELEMENTS|GStreamer core elements|libgstcoreelements.so|WARNING|gstreamer/gstreamer-1.0|/usr/lib/x86_64-linux-gnu/gstreamer-1.0|/usr/lib/gstreamer-1.0|/opt/gstreamer/lib/x86_64-linux-gnu/gstreamer-1.0"
-    "GSTPLUGIN_TYPEFIND|GStreamer type detection|libgsttypefindfunctions.so|WARNING|gstreamer/gstreamer-1.0|/usr/lib/x86_64-linux-gnu/gstreamer-1.0|/usr/lib/gstreamer-1.0|/opt/gstreamer/lib/x86_64-linux-gnu/gstreamer-1.0"
-    "GSTPLUGIN_APP|GStreamer application integration|libgstapp.so|WARNING|gstreamer/gstreamer-1.0|/usr/lib/x86_64-linux-gnu/gstreamer-1.0|/usr/lib/gstreamer-1.0|/opt/gstreamer/lib/x86_64-linux-gnu/gstreamer-1.0"
-    "GSTPLUGIN_PLAYBACK|GStreamer playback elements|libgstplayback.so|WARNING|gstreamer/gstreamer-1.0|/usr/lib/x86_64-linux-gnu/gstreamer-1.0|/usr/lib/gstreamer-1.0|/opt/gstreamer/lib/x86_64-linux-gnu/gstreamer-1.0"
-    "GSTPLUGIN_JPEG|GStreamer JPEG codec|libgstjpeg.so|WARNING|gstreamer/gstreamer-1.0|/usr/lib/x86_64-linux-gnu/gstreamer-1.0|/usr/lib/gstreamer-1.0|/opt/gstreamer/lib/x86_64-linux-gnu/gstreamer-1.0"
-    "GSTPLUGIN_XIMAGESINK|GStreamer X11 video sink|libgstximagesink.so|WARNING|gstreamer/gstreamer-1.0|/usr/lib/x86_64-linux-gnu/gstreamer-1.0|/usr/lib/gstreamer-1.0|/opt/gstreamer/lib/x86_64-linux-gnu/gstreamer-1.0"
-    "GSTPLUGIN_XVIMAGESINK|GStreamer XVideo sink|libgstxvimagesink.so|WARNING|gstreamer/gstreamer-1.0|/usr/lib/x86_64-linux-gnu/gstreamer-1.0|/usr/lib/gstreamer-1.0|/opt/gstreamer/lib/x86_64-linux-gnu/gstreamer-1.0"
-    "GSTPLUGIN_AUTODETECT|GStreamer auto detection|libgstautodetect.so|WARNING|gstreamer/gstreamer-1.0|/usr/lib/x86_64-linux-gnu/gstreamer-1.0|/usr/lib/gstreamer-1.0|/opt/gstreamer/lib/x86_64-linux-gnu/gstreamer-1.0"
-    "GSTPLUGIN_PULSEAUDIO|GStreamer PulseAudio|libgstpulseaudio.so|WARNING|gstreamer/gstreamer-1.0|/usr/lib/x86_64-linux-gnu/gstreamer-1.0|/usr/lib/gstreamer-1.0|/opt/gstreamer/lib/x86_64-linux-gnu/gstreamer-1.0"
-    "GSTPLUGIN_AUDIOPARSERS|GStreamer audio parsers|libgstaudioparsers.so|WARNING|gstreamer/gstreamer-1.0|/usr/lib/x86_64-linux-gnu/gstreamer-1.0|/usr/lib/gstreamer-1.0|/opt/gstreamer/lib/x86_64-linux-gnu/gstreamer-1.0"
-    "GSTPLUGIN_AUDIOCONVERT|GStreamer audio conversion|libgstaudioconvert.so|WARNING|gstreamer/gstreamer-1.0|/usr/lib/x86_64-linux-gnu/gstreamer-1.0|/usr/lib/gstreamer-1.0|/opt/gstreamer/lib/x86_64-linux-gnu/gstreamer-1.0"
-    "GSTPLUGIN_AUDIORESAMPLE|GStreamer audio resampling|libgstaudioresample.so|WARNING|gstreamer/gstreamer-1.0|/usr/lib/x86_64-linux-gnu/gstreamer-1.0|/usr/lib/gstreamer-1.0|/opt/gstreamer/lib/x86_64-linux-gnu/gstreamer-1.0"
+    # Using common GStreamer plugin search directories
+    "GSTPLUGIN_VIDEO4LINUX2|GStreamer V4L2 video capture|libgstvideo4linux2.so|WARNING|gstreamer/gstreamer-1.0|${GSTREAMER_PLUGIN_SEARCH_DIRS}"
+    "GSTPLUGIN_V4L2CODECS|GStreamer V4L2 hardware codecs|libgstv4l2codecs.so|WARNING|gstreamer/gstreamer-1.0|${GSTREAMER_PLUGIN_SEARCH_DIRS}"
+    "GSTPLUGIN_VIDEOCONVERTSCALE|GStreamer video format conversion|libgstvideoconvertscale.so|WARNING|gstreamer/gstreamer-1.0|${GSTREAMER_PLUGIN_SEARCH_DIRS}"
+    "GSTPLUGIN_VIDEORATE|GStreamer video frame rate conversion|libgstvideorate.so|WARNING|gstreamer/gstreamer-1.0|${GSTREAMER_PLUGIN_SEARCH_DIRS}"
+    "GSTPLUGIN_COREELEMENTS|GStreamer core elements|libgstcoreelements.so|WARNING|gstreamer/gstreamer-1.0|${GSTREAMER_PLUGIN_SEARCH_DIRS}"
+    "GSTPLUGIN_TYPEFIND|GStreamer type detection|libgsttypefindfunctions.so|WARNING|gstreamer/gstreamer-1.0|${GSTREAMER_PLUGIN_SEARCH_DIRS}"
+    "GSTPLUGIN_APP|GStreamer application integration|libgstapp.so|WARNING|gstreamer/gstreamer-1.0|${GSTREAMER_PLUGIN_SEARCH_DIRS}"
+    "GSTPLUGIN_PLAYBACK|GStreamer playback elements|libgstplayback.so|WARNING|gstreamer/gstreamer-1.0|${GSTREAMER_PLUGIN_SEARCH_DIRS}"
+    "GSTPLUGIN_JPEG|GStreamer JPEG codec|libgstjpeg.so|WARNING|gstreamer/gstreamer-1.0|${GSTREAMER_PLUGIN_SEARCH_DIRS}"
+    "GSTPLUGIN_XIMAGESINK|GStreamer X11 video sink|libgstximagesink.so|WARNING|gstreamer/gstreamer-1.0|${GSTREAMER_PLUGIN_SEARCH_DIRS}"
+    "GSTPLUGIN_XVIMAGESINK|GStreamer XVideo sink|libgstxvimagesink.so|WARNING|gstreamer/gstreamer-1.0|${GSTREAMER_PLUGIN_SEARCH_DIRS}"
+    "GSTPLUGIN_AUTODETECT|GStreamer auto detection|libgstautodetect.so|WARNING|gstreamer/gstreamer-1.0|${GSTREAMER_PLUGIN_SEARCH_DIRS}"
+    "GSTPLUGIN_PULSEAUDIO|GStreamer PulseAudio|libgstpulseaudio.so|WARNING|gstreamer/gstreamer-1.0|${GSTREAMER_PLUGIN_SEARCH_DIRS}"
+    "GSTPLUGIN_AUDIOPARSERS|GStreamer audio parsers|libgstaudioparsers.so|WARNING|gstreamer/gstreamer-1.0|${GSTREAMER_PLUGIN_SEARCH_DIRS}"
+    "GSTPLUGIN_AUDIOCONVERT|GStreamer audio conversion|libgstaudioconvert.so|WARNING|gstreamer/gstreamer-1.0|${GSTREAMER_PLUGIN_SEARCH_DIRS}"
+    "GSTPLUGIN_AUDIORESAMPLE|GStreamer audio resampling|libgstaudioresample.so|WARNING|gstreamer/gstreamer-1.0|${GSTREAMER_PLUGIN_SEARCH_DIRS}"
     "LIBDW|DW support library|libdw.so|WARNING|gstreamer/gstreamer-1.0|/usr/lib/x86_64-linux-gnu|/usr/lib"
 )
 
