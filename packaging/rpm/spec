@@ -7,27 +7,27 @@ License:        AGPL-3.0
 URL:           https://github.com/TechxArtisanStudio/Openterface_QT
 
 # System-level runtime dependencies (must-have for Qt6 platform plugins)
-# NOTE: In Fedora, XCB utility libraries are typically provided by xorg-x11-libs package
-# CRITICAL: Qt6 >= 6.5.0 requires XCB cursor support for xcb platform plugin
+# NOTE: This RPM now supports BOTH Wayland and X11/XCB platforms
+# RECOMMENDED: Wayland (modern, simpler dependencies)
+# FALLBACK: X11/XCB (legacy, requires more dependencies)
 Requires:       elfutils-libelf
 
-# X11/Display server support - use xorg-x11-libs which provides all XCB utilities
-# This includes: libxcb, libxcb-cursor, libxcb-icccm, libxcb-image, libxcb-keysyms,
-# libxcb-randr, libxcb-render-util, libxcb-xkb, libX11, etc.
-Requires:       xorg-x11-libs
+# Wayland support (RECOMMENDED - modern display server, simpler dependencies)
+# If running on Wayland, this is all that's needed for display support
+Requires:       libwayland-client
 
-# Keyboard support for X11/Wayland
+# X11/XCB support (OPTIONAL - for X11 display servers)
+# Only needed if running on X11 with legacy window manager
+# Note: xorg-x11-libs may not exist on all Fedora versions
+# If not available, app will fallback to Wayland automatically
 Requires:       libxkbcommon
 Requires:       libxkbcommon-x11
 
-# Graphics and OpenGL support
+# Graphics and OpenGL support (needed for both Wayland and X11)
 Requires:       mesa-libEGL
 Requires:       mesa-libGL
 Requires:       mesa-libGLES
 Requires:       mesa-libglapi
-
-# Display server support (Wayland + X11)
-Requires:       libwayland-client
 
 # Audio support
 Requires:       pulseaudio-libs
@@ -445,7 +445,6 @@ DISPLAY_DEPS=(
     "libxkbcommon"
     "libxkbcommon-x11"
     "libwayland-client"
-    "libX11"
 )
 
 OPENGL_DEPS=(
@@ -454,12 +453,9 @@ OPENGL_DEPS=(
     "mesa-libGLU"
 )
 
-# XCB/X11 utility libraries (provided by xorg-x11-libs in Fedora)
-# This meta-package includes: libxcb, libxcb-cursor, libxcb-icccm, libxcb-image,
-# libxcb-keysyms, libxcb-randr, libxcb-render-util, libxcb-shm, libxcb-xfixes, libxcb-xkb
-XCB_DEPS=(
-    "xorg-x11-libs"
-)
+# Note: X11/XCB libraries like xorg-x11-libs may not exist on all Fedora versions
+# App will fallback to Wayland if X11 is not available, so these are optional
+# User can install them manually for X11 support if needed
 
 HWACCEL_DEPS=(
     "libva"
@@ -480,7 +476,7 @@ FOUND_DEPS=0
 TOTAL_DEPS=0
 
 # Calculate total dependencies to check
-TOTAL_DEPS=$((${#GRAPHICS_DEPS[@]} + ${#AUDIO_DEPS[@]} + ${#VIDEO_DEPS[@]} + ${#DISPLAY_DEPS[@]} + ${#OPENGL_DEPS[@]} + ${#XCB_DEPS[@]} + ${#HWACCEL_DEPS[@]} + ${#COMPRESSION_DEPS[@]} + ${#DEBUG_DEPS[@]}))
+TOTAL_DEPS=$((${#GRAPHICS_DEPS[@]} + ${#AUDIO_DEPS[@]} + ${#VIDEO_DEPS[@]} + ${#DISPLAY_DEPS[@]} + ${#OPENGL_DEPS[@]} + ${#HWACCEL_DEPS[@]} + ${#COMPRESSION_DEPS[@]} + ${#DEBUG_DEPS[@]}))
 
 echo "System dependency verification:"
 echo ""
@@ -552,19 +548,6 @@ echo ""
 # Check OpenGL dependencies
 print_category "OpenGL Libraries"
 for pkg in "${OPENGL_DEPS[@]}"; do
-    if is_rpm_installed "$pkg"; then
-        echo "    ✅ $pkg"
-        FOUND_DEPS=$((FOUND_DEPS + 1))
-    else
-        echo "    ❌ $pkg (MISSING)"
-        MISSING_DEPS+=("$pkg")
-    fi
-done
-echo ""
-
-# Check Qt6 XCB/Platform dependencies
-print_category "Qt6 Platform Dependencies (XCB via xorg-x11-libs)"
-for pkg in "${XCB_DEPS[@]}"; do
     if is_rpm_installed "$pkg"; then
         echo "    ✅ $pkg"
         FOUND_DEPS=$((FOUND_DEPS + 1))
