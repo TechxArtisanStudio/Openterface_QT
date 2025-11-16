@@ -218,6 +218,9 @@ mkdir -p "${RPMTOP}/SOURCES/qt6/plugins/platforms"
 mkdir -p "${RPMTOP}/SOURCES/qt6/plugins/platforminputcontexts"
 
 
+# Common search directories for Qt6 libraries
+QT_LIB_SEARCH_DIRS="/opt/Qt6/lib|/usr/lib/x86_64-linux-gnu|/usr/lib"
+
 # Common search directories for Qt6 plugins
 QT_PLUGIN_SEARCH_DIRS="/opt/Qt6/plugins|/usr/lib/qt6/plugins|/usr/lib/x86_64-linux-gnu/qt6/plugins"
 
