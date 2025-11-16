@@ -399,6 +399,28 @@ if [ -z "$QT_QPA_PLATFORM" ]; then
     if [ -z "$DISPLAY" ] && [ -z "$WAYLAND_DISPLAY" ]; then
         # No display - use offscreen rendering (safe fallback)
         export QT_QPA_PLATFORM="offscreen"
+        
+        if [ "${OPENTERFACE_DEBUG}" = "1" ] || [ "${OPENTERFACE_DEBUG}" = "true" ]; then
+            {
+                echo "⚠️  WARNING: No DISPLAY or WAYLAND_DISPLAY detected!"
+                echo "Using offscreen rendering as fallback."
+                echo ""
+                echo "This usually happens when:"
+                echo "  1. Running from a cron job or service (no X11/Wayland connection)"
+                echo "  2. SSH connection without X11 forwarding (-X flag)"
+                echo "  3. Running as a different user (try: sudo -E openterfaceQT)"
+                echo ""
+                echo "To connect to your display, try:"
+                echo "  # For X11:"
+                echo "  export DISPLAY=:0"
+                echo "  openterfaceQT"
+                echo ""
+                echo "  # Or for Wayland:"
+                echo "  export WAYLAND_DISPLAY=wayland-0"
+                echo "  openterfaceQT"
+                echo ""
+            } | tee -a "$LAUNCHER_LOG"
+        fi
     else
         # Try to detect from environment
         if [ -n "$WAYLAND_DISPLAY" ]; then
@@ -517,21 +539,29 @@ fi
             echo "  ❌ $missing_lib"
         done
         echo ""
-        echo "CRITICAL: Qt6 >= 6.5.0 requires libxcb-cursor0 for xcb platform plugin!"
+        echo "CRITICAL: Qt6 >= 6.5.0 requires libxcb-cursor for xcb platform plugin!"
         echo ""
         echo "Fix: Install missing libraries with:"
         if command -v dnf >/dev/null 2>&1; then
-            echo "  sudo dnf install -y libxcb-cursor0"
+            # Fedora/RHEL package name (note: no version suffix like 0)
+            echo "  sudo dnf install -y libxcb-cursor"
+            echo ""
+            echo "Install all Qt6 platform dependencies:"
+            echo "  sudo dnf install -y libxcb libxcb-cursor libxcb-icccm libxcb-image libxcb-keysyms libxcb-randr libxcb-xkb mesa-libEGL mesa-libGL wayland-client"
         elif command -v yum >/dev/null 2>&1; then
-            echo "  sudo yum install -y libxcb-cursor0"
+            # RHEL/CentOS package name
+            echo "  sudo yum install -y libxcb-cursor"
+            echo ""
+            echo "Install all Qt6 platform dependencies:"
+            echo "  sudo yum install -y libxcb libxcb-cursor libxcb-icccm libxcb-image libxcb-keysyms libxcb-randr libxcb-xkb mesa-libEGL mesa-libGL wayland-client"
         elif command -v apt >/dev/null 2>&1; then
+            # Debian/Ubuntu package name (has version suffix)
             echo "  sudo apt install -y libxcb-cursor0"
+            echo ""
+            echo "Install all Qt6 platform dependencies:"
+            echo "  sudo apt install -y libxcb1 libxcb-cursor0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-randr0 libxcb-util1 libxcb-xkb1 libxkbcommon0 libxkbcommon-x11-0 libwayland-client0"
         fi
         echo ""
-        echo "Or install all Qt platform dependencies:"
-        if command -v dnf >/dev/null 2>&1; then
-            echo "  sudo dnf install -y libxcb-cursor0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1"
-        fi
         echo "========================================"
         echo ""
     fi

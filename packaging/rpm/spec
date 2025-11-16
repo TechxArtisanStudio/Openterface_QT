@@ -6,10 +6,40 @@ Summary:        OpenterfaceQT KVM Linux Application
 License:        AGPL-3.0
 URL:           https://github.com/TechxArtisanStudio/Openterface_QT
 
-# System-level runtime dependencies
+# System-level runtime dependencies (must-have for Qt6 platform plugins)
+# CRITICAL: libxcb-cursor is required by Qt6 >= 6.5.0 for xcb platform plugin
 Requires:       elfutils-libelf
+Requires:       libxcb-cursor
 
-# Disable automatic dependency detection since we bundle most libraries
+# X11/Display server support (needed for xcb platform plugin)
+Requires:       libxcb
+Requires:       libxcb-icccm
+Requires:       libxcb-image
+Requires:       libxcb-keysyms
+Requires:       libxcb-randr
+Requires:       libxcb-render-util
+Requires:       libxcb-xkb
+Requires:       libX11
+Requires:       libxkbcommon
+Requires:       libxkbcommon-x11
+
+# Graphics and OpenGL support
+Requires:       mesa-libEGL
+Requires:       mesa-libGL
+Requires:       mesa-libGLES
+Requires:       mesa-libglapi
+
+# Display server support (Wayland + X11)
+Requires:       wayland-client
+
+# Audio support
+Requires:       pulseaudio-libs
+
+# Video capture support
+Requires:       libv4l
+
+# Disable automatic dependency detection since we bundle Qt6, FFmpeg, and GStreamer libraries
+# This prevents conflicts with system-installed versions
 AutoReqProv: no
 
 # System-level dependencies only - Qt, FFmpeg and plugins are bundled in /usr/lib/openterfaceqt/
@@ -430,7 +460,7 @@ OPENGL_DEPS=(
 )
 
 QT6_PLATFORM_DEPS=(
-    "libxcb-cursor0"
+    "libxcb-cursor"
     "libxcb-icccm"
     "libxcb-image"
     "libxcb-keysyms"
