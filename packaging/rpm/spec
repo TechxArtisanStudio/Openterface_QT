@@ -7,19 +7,16 @@ License:        AGPL-3.0
 URL:           https://github.com/TechxArtisanStudio/Openterface_QT
 
 # System-level runtime dependencies (must-have for Qt6 platform plugins)
-# CRITICAL: libxcb-cursor is required by Qt6 >= 6.5.0 for xcb platform plugin
+# NOTE: In Fedora, XCB utility libraries are typically provided by xorg-x11-libs package
+# CRITICAL: Qt6 >= 6.5.0 requires XCB cursor support for xcb platform plugin
 Requires:       elfutils-libelf
-Requires:       libxcb-cursor
 
-# X11/Display server support (needed for xcb platform plugin)
-Requires:       libxcb
-Requires:       libxcb-icccm
-Requires:       libxcb-image
-Requires:       libxcb-keysyms
-Requires:       libxcb-randr
-Requires:       libxcb-render-util
-Requires:       libxcb-xkb
-Requires:       libX11
+# X11/Display server support - use xorg-x11-libs which provides all XCB utilities
+# This includes: libxcb, libxcb-cursor, libxcb-icccm, libxcb-image, libxcb-keysyms,
+# libxcb-randr, libxcb-render-util, libxcb-xkb, libX11, etc.
+Requires:       xorg-x11-libs
+
+# Keyboard support for X11/Wayland
 Requires:       libxkbcommon
 Requires:       libxkbcommon-x11
 
@@ -30,7 +27,7 @@ Requires:       mesa-libGLES
 Requires:       mesa-libglapi
 
 # Display server support (Wayland + X11)
-Requires:       wayland-client
+Requires:       libwayland-client
 
 # Audio support
 Requires:       pulseaudio-libs
@@ -446,10 +443,8 @@ VIDEO_DEPS=(
 
 DISPLAY_DEPS=(
     "libxkbcommon"
-    "wayland-client"
-    "libxcb"
-    "libxcb-shm"
-    "libxcb-xfixes"
+    "libxkbcommon-x11"
+    "libwayland-client"
     "libX11"
 )
 
@@ -459,14 +454,11 @@ OPENGL_DEPS=(
     "mesa-libGLU"
 )
 
-QT6_PLATFORM_DEPS=(
-    "libxcb-cursor"
-    "libxcb-icccm"
-    "libxcb-image"
-    "libxcb-keysyms"
-    "libxcb-randr"
-    "libxcb-render-util"
-    "libxcb-xkb"
+# XCB/X11 utility libraries (provided by xorg-x11-libs in Fedora)
+# This meta-package includes: libxcb, libxcb-cursor, libxcb-icccm, libxcb-image,
+# libxcb-keysyms, libxcb-randr, libxcb-render-util, libxcb-shm, libxcb-xfixes, libxcb-xkb
+XCB_DEPS=(
+    "xorg-x11-libs"
 )
 
 HWACCEL_DEPS=(
@@ -488,7 +480,7 @@ FOUND_DEPS=0
 TOTAL_DEPS=0
 
 # Calculate total dependencies to check
-TOTAL_DEPS=$((${#GRAPHICS_DEPS[@]} + ${#AUDIO_DEPS[@]} + ${#VIDEO_DEPS[@]} + ${#DISPLAY_DEPS[@]} + ${#OPENGL_DEPS[@]} + ${#QT6_PLATFORM_DEPS[@]} + ${#HWACCEL_DEPS[@]} + ${#COMPRESSION_DEPS[@]} + ${#DEBUG_DEPS[@]}))
+TOTAL_DEPS=$((${#GRAPHICS_DEPS[@]} + ${#AUDIO_DEPS[@]} + ${#VIDEO_DEPS[@]} + ${#DISPLAY_DEPS[@]} + ${#OPENGL_DEPS[@]} + ${#XCB_DEPS[@]} + ${#HWACCEL_DEPS[@]} + ${#COMPRESSION_DEPS[@]} + ${#DEBUG_DEPS[@]}))
 
 echo "System dependency verification:"
 echo ""
@@ -571,8 +563,8 @@ done
 echo ""
 
 # Check Qt6 XCB/Platform dependencies
-print_category "Qt6 Platform Dependencies (XCB)"
-for pkg in "${QT6_PLATFORM_DEPS[@]}"; do
+print_category "Qt6 Platform Dependencies (XCB via xorg-x11-libs)"
+for pkg in "${XCB_DEPS[@]}"; do
     if is_rpm_installed "$pkg"; then
         echo "    ✅ $pkg"
         FOUND_DEPS=$((FOUND_DEPS + 1))

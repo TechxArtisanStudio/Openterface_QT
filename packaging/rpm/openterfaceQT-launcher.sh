@@ -539,26 +539,23 @@ fi
             echo "  ❌ $missing_lib"
         done
         echo ""
-        echo "CRITICAL: Qt6 >= 6.5.0 requires libxcb-cursor for xcb platform plugin!"
+        echo "CRITICAL: Qt6 >= 6.5.0 requires XCB libraries for xcb platform plugin!"
         echo ""
         echo "Fix: Install missing libraries with:"
         if command -v dnf >/dev/null 2>&1; then
-            # Fedora/RHEL package name (note: no version suffix like 0)
-            echo "  sudo dnf install -y libxcb-cursor"
+            # Fedora/RHEL: use xorg-x11-libs which provides all XCB libraries
+            echo "  sudo dnf install -y xorg-x11-libs"
             echo ""
             echo "Install all Qt6 platform dependencies:"
-            echo "  sudo dnf install -y libxcb libxcb-cursor libxcb-icccm libxcb-image libxcb-keysyms libxcb-randr libxcb-xkb mesa-libEGL mesa-libGL wayland-client"
+            echo "  sudo dnf install -y xorg-x11-libs libxkbcommon libxkbcommon-x11 libwayland-client mesa-libEGL mesa-libGL mesa-libGLES pulseaudio-libs libv4l"
         elif command -v yum >/dev/null 2>&1; then
-            # RHEL/CentOS package name
-            echo "  sudo yum install -y libxcb-cursor"
+            # RHEL/CentOS: use xorg-x11-libs
+            echo "  sudo yum install -y xorg-x11-libs"
             echo ""
             echo "Install all Qt6 platform dependencies:"
-            echo "  sudo yum install -y libxcb libxcb-cursor libxcb-icccm libxcb-image libxcb-keysyms libxcb-randr libxcb-xkb mesa-libEGL mesa-libGL wayland-client"
+            echo "  sudo yum install -y xorg-x11-libs libxkbcommon libxkbcommon-x11 libwayland-client mesa-libEGL mesa-libGL mesa-libGLES pulseaudio-libs libv4l"
         elif command -v apt >/dev/null 2>&1; then
-            # Debian/Ubuntu package name (has version suffix)
-            echo "  sudo apt install -y libxcb-cursor0"
-            echo ""
-            echo "Install all Qt6 platform dependencies:"
+            # Debian/Ubuntu: individual package names
             echo "  sudo apt install -y libxcb1 libxcb-cursor0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-randr0 libxcb-util1 libxcb-xkb1 libxkbcommon0 libxkbcommon-x11-0 libwayland-client0"
         fi
         echo ""
