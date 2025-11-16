@@ -279,6 +279,43 @@ for lib in "${XCB_SUPPORT_LIBS[@]}"; do
     fi
 done
 
+# ============================================
+# Wayland Support Libraries (FEDORA OPTIMIZED)
+# ============================================
+# CRITICAL: Required for Wayland platform plugin support
+# On modern Fedora systems, Wayland is the default and preferred display server
+# These libraries are essential for Qt6 on Wayland-based systems
+WAYLAND_SUPPORT_LIBS=(
+    "libwayland-client"        # Core Wayland client library
+    "libwayland-cursor"        # Cursor support on Wayland
+    "libwayland-egl"           # OpenGL on Wayland
+    "libxkbcommon"             # Keyboard layout support (used by Wayland)
+    "libxkbcommon-x11"         # X11 integration with XKB (may be needed for hybrid setups)
+)
+
+# Search for Wayland libraries in system locations
+MISSING_WAYLAND_LIBS=()
+for lib in "${WAYLAND_SUPPORT_LIBS[@]}"; do
+    lib_path=$(find_library "$lib" "/lib64")
+    if [ -z "$lib_path" ]; then
+        lib_path=$(find_library "$lib" "/usr/lib64")
+    fi
+    if [ -z "$lib_path" ]; then
+        lib_path=$(find_library "$lib" "/usr/lib")
+    fi
+    
+    # Add to preload if found
+    if [ -n "$lib_path" ]; then
+        PRELOAD_LIBS+=("$lib_path")
+    else
+        MISSING_WAYLAND_LIBS+=("$lib")
+        
+        if [ "${OPENTERFACE_DEBUG}" = "1" ] || [ "${OPENTERFACE_DEBUG}" = "true" ]; then
+            echo "⚠️  Wayland library not found: $lib" >&2
+        fi
+    fi
+done
+
 # Build LD_PRELOAD string with proper precedence
 if [ ${#PRELOAD_LIBS[@]} -gt 0 ]; then
     PRELOAD_STR=$(IFS=':'; echo "${PRELOAD_LIBS[*]}")
@@ -390,10 +427,16 @@ if [ -z "$GST_PLUGIN_PATH" ]; then
 fi
 
 # ============================================
-# Qt Platform Hints
+# Qt Platform Hints - Fedora Optimized
 # ============================================
 # Try to detect available platform and set appropriate hint
 # Common platforms: xcb (X11), wayland, offscreen, linuxfb
+# 
+# FEDORA OPTIMIZATION: Prefer Wayland over X11/XCB
+# - Modern Fedora systems default to Wayland (RHEL/Fedora 21+)
+# - Wayland is more secure, modern, and recommended for new apps
+# - XCB/X11 is used as fallback for compatibility
+# - Offscreen is last resort for headless/display-less environments
 if [ -z "$QT_QPA_PLATFORM" ]; then
     # Check if we're in a graphical environment
     if [ -z "$DISPLAY" ] && [ -z "$WAYLAND_DISPLAY" ]; then
@@ -422,11 +465,53 @@ if [ -z "$QT_QPA_PLATFORM" ]; then
             } | tee -a "$LAUNCHER_LOG"
         fi
     else
-        # Try to detect from environment
+        # ========================================
+        # FEDORA PRIORITY: Wayland > XCB > Auto-detect
+        # ========================================
+        # On modern Fedora systems, Wayland is the default and preferred platform
+        # Only fall back to XCB if explicitly needed or if Wayland is not available
+        
         if [ -n "$WAYLAND_DISPLAY" ]; then
+            # Wayland is explicitly requested - use it (HIGHEST PRIORITY)
             export QT_QPA_PLATFORM="wayland"
+            
+            if [ "${OPENTERFACE_DEBUG}" = "1" ] || [ "${OPENTERFACE_DEBUG}" = "true" ]; then
+                {
+                    echo "✅ Platform Detection: Using Wayland (explicitly requested)"
+                    echo "   WAYLAND_DISPLAY=$WAYLAND_DISPLAY"
+                } | tee -a "$LAUNCHER_LOG"
+            fi
         elif [ -n "$DISPLAY" ]; then
-            export QT_QPA_PLATFORM="xcb"
+            # DISPLAY is set - prefer Wayland if available, otherwise use XCB
+            # Check if Wayland session is running (fallback detection)
+            if systemctl --user is-active --quiet wayland-session.target 2>/dev/null || \
+               [ -n "$(systemctl --user show-environment 2>/dev/null | grep QT_QPA_PLATFORM=wayland)" ] || \
+               echo "$XDG_SESSION_TYPE" | grep -q "wayland" 2>/dev/null; then
+                # Wayland is available - prefer it over XCB
+                export QT_QPA_PLATFORM="wayland"
+                
+                if [ "${OPENTERFACE_DEBUG}" = "1" ] || [ "${OPENTERFACE_DEBUG}" = "true" ]; then
+                    {
+                        echo "✅ Platform Detection: Using Wayland (auto-detected as primary)"
+                        echo "   XDG_SESSION_TYPE=${XDG_SESSION_TYPE:-unknown}"
+                    } | tee -a "$LAUNCHER_LOG"
+                fi
+            else
+                # Wayland not available - fall back to XCB
+                export QT_QPA_PLATFORM="xcb"
+                
+                if [ "${OPENTERFACE_DEBUG}" = "1" ] || [ "${OPENTERFACE_DEBUG}" = "true" ]; then
+                    {
+                        echo "⚠️  Platform Detection: Using XCB (Wayland not available)"
+                        echo "   DISPLAY=$DISPLAY"
+                        echo "   XDG_SESSION_TYPE=${XDG_SESSION_TYPE:-unknown}"
+                        echo ""
+                        echo "   To use Wayland instead, set:"
+                        echo "   export WAYLAND_DISPLAY=wayland-0"
+                        echo "   export QT_QPA_PLATFORM=wayland"
+                    } | tee -a "$LAUNCHER_LOG"
+                fi
+            fi
         fi
     fi
 fi
@@ -539,24 +624,55 @@ fi
             echo "  ❌ $missing_lib"
         done
         echo ""
-        echo "CRITICAL: Qt6 >= 6.5.0 requires XCB libraries for xcb platform plugin!"
+        
+        # Only show this warning if we're actually using XCB
+        if [ "$QT_QPA_PLATFORM" = "xcb" ]; then
+            echo "CRITICAL: Qt6 >= 6.5.0 requires XCB libraries for xcb platform plugin!"
+            echo ""
+            echo "Fix: Install missing libraries with:"
+            if command -v dnf >/dev/null 2>&1; then
+                # Fedora/RHEL: use xorg-x11-libs which provides all XCB libraries
+                echo "  sudo dnf install -y xorg-x11-libs"
+                echo ""
+                echo "Install all Qt6 platform dependencies:"
+                echo "  sudo dnf install -y xorg-x11-libs libxkbcommon libxkbcommon-x11 libwayland-client mesa-libEGL mesa-libGL mesa-libGLES pulseaudio-libs libv4l"
+            elif command -v yum >/dev/null 2>&1; then
+                # RHEL/CentOS: use xorg-x11-libs
+                echo "  sudo yum install -y xorg-x11-libs"
+                echo ""
+                echo "Install all Qt6 platform dependencies:"
+                echo "  sudo yum install -y xorg-x11-libs libxkbcommon libxkbcommon-x11 libwayland-client mesa-libEGL mesa-libGL mesa-libGLES pulseaudio-libs libv4l"
+            elif command -v apt >/dev/null 2>&1; then
+                # Debian/Ubuntu: individual package names
+                echo "  sudo apt install -y libxcb1 libxcb-cursor0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-randr0 libxcb-util1 libxcb-xkb1 libxkbcommon0 libxkbcommon-x11-0 libwayland-client0"
+            fi
+            echo ""
+        else
+            echo "Note: XCB libraries are missing, but currently using $QT_QPA_PLATFORM platform."
+            echo "These libraries are only needed if you switch to X11/XCB mode."
+            echo ""
+        fi
+        echo "========================================"
+        echo ""
+    fi
+    
+    # Check for missing Wayland libraries if using Wayland
+    if [ "$QT_QPA_PLATFORM" = "wayland" ] && [ ${#MISSING_WAYLAND_LIBS[@]} -gt 0 ]; then
+        echo "⚠️  WARNING: Missing Wayland Libraries!"
+        echo "========================================"
+        for missing_lib in "${MISSING_WAYLAND_LIBS[@]}"; do
+            echo "  ❌ $missing_lib"
+        done
+        echo ""
+        echo "Note: Some Wayland libraries are missing. This may cause issues."
         echo ""
         echo "Fix: Install missing libraries with:"
         if command -v dnf >/dev/null 2>&1; then
-            # Fedora/RHEL: use xorg-x11-libs which provides all XCB libraries
-            echo "  sudo dnf install -y xorg-x11-libs"
-            echo ""
-            echo "Install all Qt6 platform dependencies:"
-            echo "  sudo dnf install -y xorg-x11-libs libxkbcommon libxkbcommon-x11 libwayland-client mesa-libEGL mesa-libGL mesa-libGLES pulseaudio-libs libv4l"
+            echo "  sudo dnf install -y libwayland-client libwayland-cursor libxkbcommon libxkbcommon-x11"
         elif command -v yum >/dev/null 2>&1; then
-            # RHEL/CentOS: use xorg-x11-libs
-            echo "  sudo yum install -y xorg-x11-libs"
-            echo ""
-            echo "Install all Qt6 platform dependencies:"
-            echo "  sudo yum install -y xorg-x11-libs libxkbcommon libxkbcommon-x11 libwayland-client mesa-libEGL mesa-libGL mesa-libGLES pulseaudio-libs libv4l"
+            echo "  sudo yum install -y libwayland-client libwayland-cursor libxkbcommon libxkbcommon-x11"
         elif command -v apt >/dev/null 2>&1; then
-            # Debian/Ubuntu: individual package names
-            echo "  sudo apt install -y libxcb1 libxcb-cursor0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-randr0 libxcb-util1 libxcb-xkb1 libxkbcommon0 libxkbcommon-x11-0 libwayland-client0"
+            echo "  sudo apt install -y libwayland-client0 libwayland-cursor0 libxkbcommon0 libxkbcommon-x11-0"
         fi
         echo ""
         echo "========================================"
@@ -579,6 +695,70 @@ fi
     echo "Environment Detection:"
     echo "  DISPLAY: ${DISPLAY:-'(not set - headless)'}"
     echo "  WAYLAND_DISPLAY: ${WAYLAND_DISPLAY:-'(not set)'}"
+    echo "  XDG_SESSION_TYPE: ${XDG_SESSION_TYPE:-'(not set)'}"
+    echo ""
+    
+    # ========================================
+    # PLATFORM-SPECIFIC DIAGNOSTICS (FEDORA)
+    # ========================================
+    echo "🔍 PLATFORM DIAGNOSTICS:"
+    echo "========================================"
+    
+    if [ "$QT_QPA_PLATFORM" = "wayland" ]; then
+        echo "✅ WAYLAND MODE: Using Wayland as display server"
+        echo ""
+        echo "Wayland Environment Check:"
+        echo "  WAYLAND_DISPLAY: $WAYLAND_DISPLAY"
+        if systemctl --user is-active --quiet wayland-session.target 2>/dev/null; then
+            echo "  Wayland session: ✅ ACTIVE (systemd wayland-session.target)"
+        else
+            echo "  Wayland session: ⚠️  Not running (may still work via WAYLAND_DISPLAY)"
+        fi
+        
+        echo ""
+        echo "Wayland Libraries Availability:"
+        for lib in "${WAYLAND_SUPPORT_LIBS[@]}"; do
+            lib_check=$(find /lib64 /usr/lib64 /usr/lib -name "${lib}*.so*" -type f 2>/dev/null | head -1)
+            if [ -n "$lib_check" ]; then
+                echo "  ✅ $lib"
+            else
+                echo "  ❌ $lib (MISSING)"
+            fi
+        done
+        
+    elif [ "$QT_QPA_PLATFORM" = "xcb" ]; then
+        echo "⚠️  X11/XCB MODE: Using X11 display server (Wayland not detected)"
+        echo ""
+        echo "X11 Environment Check:"
+        echo "  DISPLAY: $DISPLAY"
+        if [ -n "$DISPLAY" ]; then
+            # Try to connect to the X display
+            if timeout 1 xset q >/dev/null 2>&1; then
+                echo "  X11 connection: ✅ ACTIVE"
+            else
+                echo "  X11 connection: ⚠️  Cannot connect to display (may still be usable)"
+            fi
+        fi
+        
+        echo ""
+        echo "XCB Libraries Availability:"
+        for lib in "${XCB_SUPPORT_LIBS[@]}"; do
+            lib_check=$(find /lib64 /usr/lib64 /usr/lib -name "${lib}*.so*" -type f 2>/dev/null | head -1)
+            if [ -n "$lib_check" ]; then
+                echo "  ✅ $lib"
+            else
+                echo "  ❌ $lib"
+            fi
+        done
+        
+        if [ ${#MISSING_XCB_LIBS[@]} -gt 0 ]; then
+            echo ""
+            echo "⚠️  To switch to Wayland (recommended for Fedora):"
+            echo "  export WAYLAND_DISPLAY=wayland-0"
+            echo "  $OPENTERFACE_BIN"
+        fi
+    fi
+    
     echo "========================================"
     echo ""
     
