@@ -252,11 +252,6 @@ declare -a UNIFIED_LIBRARY_CONFIGS=(
     "QTQUICKTEMPLATES2|Qt6 quick templates 2|libQt6QuickTemplates2.so|WARNING|qt6|${QT_LIB_SEARCH_DIRS}"
     "QTQUICKPARTICLES|Qt6 quick particles|libQt6QuickParticles.so|WARNING|qt6|${QT_LIB_SEARCH_DIRS}"
     "QTOPENGLWIDGETS|Qt6 opengl widgets|libQt6OpenGLWidgets.so|WARNING|qt6|${QT_LIB_SEARCH_DIRS}"
-    "QTWEBSOCKETS|Qt6 websockets|libQt6WebSockets.so|WARNING|qt6|${QT_LIB_SEARCH_DIRS}"
-    "QTPOSITIONING|Qt6 positioning|libQt6Positioning.so|WARNING|qt6|${QT_LIB_SEARCH_DIRS}"
-    "QTSENSORS|Qt6 sensors|libQt6Sensors.so|WARNING|qt6|${QT_LIB_SEARCH_DIRS}"
-    "QTSQL|Qt6 sql|libQt6Sql.so|WARNING|qt6|${QT_LIB_SEARCH_DIRS}"
-    "QTTEST|Qt6 test|libQt6Test.so|WARNING|qt6|${QT_LIB_SEARCH_DIRS}"
     "QTSVG|Qt6 svg|libQt6Svg.so|WARNING|qt6|${QT_LIB_SEARCH_DIRS}"
     
     # Qt6 plugins -> ${RPMTOP}/SOURCES/qt6/plugins/imageformats and iconengines

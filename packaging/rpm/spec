@@ -137,62 +137,57 @@ else
     echo "WARNING: FFmpeg directory not found at %{_sourcedir}/ffmpeg"
 fi
 
-# Create symlinks for FFmpeg libraries to ensure version compatibility
-# Maps versioned libraries (e.g., libavdevice.so.60) to actual files (e.g., libavdevice.so.60.3.100)
-cd %{buildroot}/usr/lib/openterfaceqt/ffmpeg
-
-# Create symlinks for each FFmpeg library
-for lib in libavdevice libavcodec libavformat libavutil libswscale libswresample libavfilter; do
-    # Find the most complete version file
-    full_lib=$(ls -t "${lib}".so.* 2>/dev/null | head -1 || true)
+# FFmpeg library symlinks
+# NOTE: Symlink normalization is now done in docker-build-rpm.sh before RPM build
+# This section only handles any edge cases where additional symlinks might be needed
+if [ -d %{buildroot}/usr/lib/openterfaceqt/ffmpeg ]; then
+    cd %{buildroot}/usr/lib/openterfaceqt/ffmpeg
     
-    if [ -n "$full_lib" ]; then
-        # Extract major version (e.g., 60 from libavdevice.so.60.3.100)
-        major_version=$(echo "$full_lib" | sed 's/.*\.so\.\([0-9]*\).*/\1/')
-        
-        # Create symlink from versioned to full (e.g., libavdevice.so.60 -> libavdevice.so.60.3.100)
-        if [ -n "$major_version" ]; then
-            ln -sf "$full_lib" "${lib}.so.${major_version}" 2>/dev/null || true
-        fi
-        
-        # Also create unversioned symlink if it doesn't exist
-        ln -sf "$full_lib" "${lib}.so" 2>/dev/null || true
-    fi
-done
-
-# Create symlinks for GStreamer libraries to ensure version compatibility
-# CRITICAL: GStreamer libraries also need proper symlink chains
-# Maps versioned libraries (e.g., libgsttag-1.0.so.0) to actual files (e.g., libgsttag-1.0.so.0.2606.0)
-cd %{buildroot}/usr/lib/openterfaceqt/gstreamer
-
-echo "Creating GStreamer library symlinks..."
-
-# Create symlinks for each GStreamer library
-for lib in libgstreamer-1.0 libgstbase-1.0 libgstaudio-1.0 libgstpbutils-1.0 libgstvideo-1.0 libgstapp-1.0 libgsttag-1.0 libgstrtp-1.0 libgstrtsp-1.0 libgstsdp-1.0 libgstallocators-1.0 libgstgl-1.0 liborc-0.4; do
-    # Find the most complete version file
-    full_lib=$(ls -t "${lib}".so.* 2>/dev/null | head -1 || true)
+    echo "Verifying FFmpeg library symlinks in buildroot..."
     
-    if [ -n "$full_lib" ]; then
-        echo "  Processing $full_lib"
+    # Only create symlinks if actual library files exist and symlinks don't
+    # This is a safety check for any libraries that were copied but need proper symlink chains
+    for fullfile in *.so.*.* ; do
+        [ -f "$fullfile" ] || continue
         
-        # Extract major version (e.g., 0 from libgsttag-1.0.so.0.2606.0)
-        major_version=$(echo "$full_lib" | sed 's/.*\.so\.\([0-9]*\).*/\1/')
+        # Extract base name (e.g., libavdevice from libavdevice.so.60.3.100)
+        base=$(echo "$fullfile" | sed 's/\.so\..*//')
         
-        # Create symlink from versioned to full (e.g., libgsttag-1.0.so.0 -> libgsttag-1.0.so.0.2606.0)
-        if [ -n "$major_version" ]; then
-            ln -sf "$full_lib" "${lib}.so.${major_version}" 2>/dev/null || true
-            echo "    Created: ${lib}.so.${major_version} -> $full_lib"
+        # Create base .so symlink if needed
+        if [ ! -L "${base}.so" ] && [ ! -f "${base}.so" ]; then
+            ln -sf "$fullfile" "${base}.so"
+            echo "  ✅ Created symlink: ${base}.so -> $fullfile"
         fi
-        
-        # Also create unversioned symlink (e.g., libgsttag-1.0.so -> libgsttag-1.0.so.0.2606.0)
-        ln -sf "$full_lib" "${lib}.so" 2>/dev/null || true
-        echo "    Created: ${lib}.so -> $full_lib"
-    else
-        echo "  ⚠️  Warning: $lib not found, skipping symlink creation"
-    fi
-done
+    done
+    
+    echo "✅ FFmpeg library symlinks verified in buildroot"
+fi
 
-echo "GStreamer library symlinks created successfully"
+# GStreamer library symlinks
+# NOTE: Symlink normalization is now done in docker-build-rpm.sh before RPM build
+# This section only handles any edge cases where additional symlinks might be needed
+if [ -d %{buildroot}/usr/lib/openterfaceqt/gstreamer ]; then
+    cd %{buildroot}/usr/lib/openterfaceqt/gstreamer
+    
+    echo "Verifying GStreamer library symlinks in buildroot..."
+    
+    # Only create symlinks if actual library files exist and symlinks don't
+    # This is a safety check for any libraries that were copied but need proper symlink chains
+    for fullfile in *.so.*.* ; do
+        [ -f "$fullfile" ] || continue
+        
+        # Extract base name (e.g., libgsttag-1.0 from libgsttag-1.0.so.0.2606.0)
+        base=$(echo "$fullfile" | sed 's/\.so\..*//')
+        
+        # Create base .so symlink if needed
+        if [ ! -L "${base}.so" ] && [ ! -f "${base}.so" ]; then
+            ln -sf "$fullfile" "${base}.so"
+            echo "  ✅ Created symlink: ${base}.so -> $fullfile"
+        fi
+    done
+    
+    echo "✅ GStreamer library symlinks verified in buildroot"
+fi
 
 # Qt plugins and QML modules (from qt6 subdirectory structure)
 mkdir -p %{buildroot}/usr/lib/openterfaceqt/qt6/plugins
