@@ -78,10 +78,17 @@ fi
 # Qt6 core libraries (from qt6 subdirectory)
 mkdir -p %{buildroot}/usr/lib/openterfaceqt/qt6
 if [ -d "%{_sourcedir}/qt6" ]; then
-    find %{_sourcedir}/qt6 -maxdepth 1 -name "libQt6*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/qt6/ \;
-    echo "Installed Qt6 libraries from %{_sourcedir}/qt6"
+    # Count libraries before copying
+    QT_COUNT=$(find %{_sourcedir}/qt6 -maxdepth 1 -name "libQt6*.so*" -type f | wc -l)
+    if [ $QT_COUNT -gt 0 ]; then
+        find %{_sourcedir}/qt6 -maxdepth 1 -name "libQt6*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/qt6/ \;
+        echo "✅ Installed $QT_COUNT Qt6 libraries from %{_sourcedir}/qt6"
+        ls -1 %{buildroot}/usr/lib/openterfaceqt/qt6/libQt6*.so* | wc -l | sed 's/^/   Verified: /'
+    else
+        echo "⚠️  No Qt6 libraries found in %{_sourcedir}/qt6"
+    fi
 else
-    echo "WARNING: Qt6 directory not found at %{_sourcedir}/qt6"
+    echo "❌ ERROR: Qt6 directory not found at %{_sourcedir}/qt6"
 fi
 
 # Image processing libraries
@@ -105,43 +112,56 @@ cp %{_sourcedir}/libvdpau.so* %{buildroot}/usr/lib/openterfaceqt/ 2>/dev/null ||
 # GStreamer and multimedia libraries (from gstreamer subdirectory)
 mkdir -p %{buildroot}/usr/lib/openterfaceqt/gstreamer/gstreamer-1.0
 if [ -d "%{_sourcedir}/gstreamer" ]; then
-    find %{_sourcedir}/gstreamer -maxdepth 1 -name "libgstreamer*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/gstreamer/ \;
-    find %{_sourcedir}/gstreamer -maxdepth 1 -name "libgstbase*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/gstreamer/ \;
-    find %{_sourcedir}/gstreamer -maxdepth 1 -name "libgstaudio*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/gstreamer/ \;
-    find %{_sourcedir}/gstreamer -maxdepth 1 -name "libgstpbutils*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/gstreamer/ \;
-    find %{_sourcedir}/gstreamer -maxdepth 1 -name "libgsttag*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/gstreamer/ \;
-    find %{_sourcedir}/gstreamer -maxdepth 1 -name "libgstvideo*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/gstreamer/ \;
-    find %{_sourcedir}/gstreamer -maxdepth 1 -name "libgstapp*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/gstreamer/ \;
-    find %{_sourcedir}/gstreamer -maxdepth 1 -name "liborc*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/gstreamer/ \;
-    find %{_sourcedir}/gstreamer -maxdepth 1 -name "libv4l*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/gstreamer/ \;
-    find %{_sourcedir}/gstreamer -maxdepth 1 -name "libv4l1*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/gstreamer/ \;
-    find %{_sourcedir}/gstreamer -maxdepth 1 -name "libv4lconvert*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/gstreamer/ \;
-    echo "Installed GStreamer libraries from %{_sourcedir}/gstreamer"
+    GST_LIBS=$(find %{_sourcedir}/gstreamer -maxdepth 1 -name "libgstreamer*.so*" -o -name "libgst*.so*" -type f | wc -l)
+    if [ $GST_LIBS -gt 0 ]; then
+        find %{_sourcedir}/gstreamer -maxdepth 1 -name "libgstreamer*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/gstreamer/ \;
+        find %{_sourcedir}/gstreamer -maxdepth 1 -name "libgstbase*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/gstreamer/ \;
+        find %{_sourcedir}/gstreamer -maxdepth 1 -name "libgstaudio*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/gstreamer/ \;
+        find %{_sourcedir}/gstreamer -maxdepth 1 -name "libgstpbutils*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/gstreamer/ \;
+        find %{_sourcedir}/gstreamer -maxdepth 1 -name "libgsttag*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/gstreamer/ \;
+        find %{_sourcedir}/gstreamer -maxdepth 1 -name "libgstvideo*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/gstreamer/ \;
+        find %{_sourcedir}/gstreamer -maxdepth 1 -name "libgstapp*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/gstreamer/ \;
+        find %{_sourcedir}/gstreamer -maxdepth 1 -name "liborc*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/gstreamer/ \;
+        find %{_sourcedir}/gstreamer -maxdepth 1 -name "libv4l*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/gstreamer/ \;
+        find %{_sourcedir}/gstreamer -maxdepth 1 -name "libv4l1*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/gstreamer/ \;
+        find %{_sourcedir}/gstreamer -maxdepth 1 -name "libv4lconvert*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/gstreamer/ \;
+        echo "✅ Installed GStreamer libraries ($(ls -1 %{buildroot}/usr/lib/openterfaceqt/gstreamer/*.so* 2>/dev/null | wc -l) files)"
+    else
+        echo "⚠️  No GStreamer libraries found in %{_sourcedir}/gstreamer"
+    fi
 else
-    echo "WARNING: GStreamer directory not found at %{_sourcedir}/gstreamer"
+    echo "❌ ERROR: GStreamer directory not found at %{_sourcedir}/gstreamer"
 fi
 
 # GStreamer plugins (video capture, audio processing, codecs)
 if [ -d "%{_sourcedir}/gstreamer/gstreamer-1.0" ]; then
-    find %{_sourcedir}/gstreamer/gstreamer-1.0 -maxdepth 1 -name "*.so" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/gstreamer/gstreamer-1.0/ \;
+    PLUGIN_COUNT=$(find %{_sourcedir}/gstreamer/gstreamer-1.0 -maxdepth 1 -name "*.so" -type f | wc -l)
+    if [ $PLUGIN_COUNT -gt 0 ]; then
+        find %{_sourcedir}/gstreamer/gstreamer-1.0 -maxdepth 1 -name "*.so" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/gstreamer/gstreamer-1.0/ \;
+        echo "✅ Installed $PLUGIN_COUNT GStreamer plugins"
+    else
+        echo "⚠️  No GStreamer plugins found in %{_sourcedir}/gstreamer/gstreamer-1.0"
+    fi
 fi
-
-# GStreamer plugins (video capture, audio processing, codecs)
-cp %{_sourcedir}/gstreamer/gstreamer-1.0/*.so %{buildroot}/usr/lib/openterfaceqt/gstreamer/gstreamer-1.0/ 2>/dev/null || true
 
 # FFmpeg core libraries (from ffmpeg subdirectory - all components needed for video processing)
 mkdir -p %{buildroot}/usr/lib/openterfaceqt/ffmpeg
 if [ -d "%{_sourcedir}/ffmpeg" ]; then
-    find %{_sourcedir}/ffmpeg -maxdepth 1 -name "libavdevice*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/ffmpeg/ \;
-    find %{_sourcedir}/ffmpeg -maxdepth 1 -name "libavcodec*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/ffmpeg/ \;
-    find %{_sourcedir}/ffmpeg -maxdepth 1 -name "libavformat*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/ffmpeg/ \;
-    find %{_sourcedir}/ffmpeg -maxdepth 1 -name "libavutil*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/ffmpeg/ \;
-    find %{_sourcedir}/ffmpeg -maxdepth 1 -name "libswscale*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/ffmpeg/ \;
-    find %{_sourcedir}/ffmpeg -maxdepth 1 -name "libswresample*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/ffmpeg/ \;
-    find %{_sourcedir}/ffmpeg -maxdepth 1 -name "libavfilter*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/ffmpeg/ \;
-    echo "Installed FFmpeg libraries from %{_sourcedir}/ffmpeg"
+    FFMPEG_COUNT=$(find %{_sourcedir}/ffmpeg -maxdepth 1 -name "libav*.so*" -o -name "libsw*.so*" -type f | wc -l)
+    if [ $FFMPEG_COUNT -gt 0 ]; then
+        find %{_sourcedir}/ffmpeg -maxdepth 1 -name "libavdevice*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/ffmpeg/ \;
+        find %{_sourcedir}/ffmpeg -maxdepth 1 -name "libavcodec*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/ffmpeg/ \;
+        find %{_sourcedir}/ffmpeg -maxdepth 1 -name "libavformat*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/ffmpeg/ \;
+        find %{_sourcedir}/ffmpeg -maxdepth 1 -name "libavutil*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/ffmpeg/ \;
+        find %{_sourcedir}/ffmpeg -maxdepth 1 -name "libswscale*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/ffmpeg/ \;
+        find %{_sourcedir}/ffmpeg -maxdepth 1 -name "libswresample*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/ffmpeg/ \;
+        find %{_sourcedir}/ffmpeg -maxdepth 1 -name "libavfilter*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/ffmpeg/ \;
+        echo "✅ Installed $FFMPEG_COUNT FFmpeg libraries ($(ls -1 %{buildroot}/usr/lib/openterfaceqt/ffmpeg/*.so* 2>/dev/null | wc -l) files)"
+    else
+        echo "⚠️  No FFmpeg libraries found in %{_sourcedir}/ffmpeg"
+    fi
 else
-    echo "WARNING: FFmpeg directory not found at %{_sourcedir}/ffmpeg"
+    echo "❌ ERROR: FFmpeg directory not found at %{_sourcedir}/ffmpeg"
 fi
 
 # FFmpeg library symlinks
@@ -226,6 +246,86 @@ ln -sf /usr/lib/openterfaceqt/launcher.sh %{buildroot}/usr/local/bin/openterface
 # Install shared desktop entry
 mkdir -p %{buildroot}/usr/share/applications
 install -Dm644 %{_sourcedir}/packaging/com.openterface.openterfaceQT.desktop %{buildroot}/usr/share/applications/com.openterface.openterfaceQT.desktop
+
+# ================================================================
+# FINAL VERIFICATION: Ensure all critical libraries were bundled
+# ================================================================
+echo ""
+echo "=========================================="
+echo "FINAL LIBRARY BUNDLING VERIFICATION"
+echo "=========================================="
+echo ""
+
+# Count bundled libraries
+QT6_LIBS=$(find %{buildroot}/usr/lib/openterfaceqt/qt6 -name "libQt6*.so*" -type f | wc -l)
+FFMPEG_LIBS=$(find %{buildroot}/usr/lib/openterfaceqt/ffmpeg -name "libav*.so*" -o -name "libsw*.so*" -type f | wc -l)
+GSTREAMER_LIBS=$(find %{buildroot}/usr/lib/openterfaceqt/gstreamer -name "libgst*.so*" -type f | wc -l)
+QT_PLUGINS=$(find %{buildroot}/usr/lib/openterfaceqt/qt6/plugins -name "*.so" -type f | wc -l)
+GSTREAMER_PLUGINS=$(find %{buildroot}/usr/lib/openterfaceqt/gstreamer/gstreamer-1.0 -name "*.so" -type f | wc -l)
+
+echo "Bundled Libraries Summary:"
+echo "  ✅ Qt6 Libraries: $QT6_LIBS"
+echo "  ✅ FFmpeg Libraries: $FFMPEG_LIBS"
+echo "  ✅ GStreamer Libraries: $GSTREAMER_LIBS"
+echo "  ✅ Qt6 Plugins: $QT_PLUGINS"
+echo "  ✅ GStreamer Plugins: $GSTREAMER_PLUGINS"
+echo ""
+
+# Check binary
+if [ -f "%{buildroot}/usr/bin/openterfaceQT-bin" ]; then
+    BINARY_SIZE=$(stat -c%s "%{buildroot}/usr/bin/openterfaceQT-bin" | numfmt --to=iec-i --suffix=B 2>/dev/null || stat -c%s "%{buildroot}/usr/bin/openterfaceQT-bin")
+    echo "Binary: %{buildroot}/usr/bin/openterfaceQT-bin"
+    echo "  Size: $BINARY_SIZE"
+    echo "  ✅ Binary installed successfully"
+else
+    echo "  ❌ ERROR: Binary not found at %{buildroot}/usr/bin/openterfaceQT-bin"
+fi
+
+# Check launcher script
+if [ -f "%{buildroot}/usr/lib/openterfaceqt/launcher.sh" ] && [ -x "%{buildroot}/usr/lib/openterfaceqt/launcher.sh" ]; then
+    echo "  ✅ Launcher script: /usr/lib/openterfaceqt/launcher.sh"
+else
+    echo "  ❌ ERROR: Launcher script not executable or not found"
+fi
+
+# Check symlinks
+if [ -L "%{buildroot}/usr/local/bin/openterfaceQT" ]; then
+    echo "  ✅ Symlink: /usr/local/bin/openterfaceQT -> $(readlink %{buildroot}/usr/local/bin/openterfaceQT)"
+else
+    echo "  ❌ WARNING: Symlink at /usr/local/bin/openterfaceQT not found"
+fi
+
+echo ""
+echo "Critical Libraries Verification:"
+# Check for critical Qt6 libraries
+CRITICAL_QT=(
+    "libQt6Core.so"
+    "libQt6Gui.so"
+    "libQt6Widgets.so"
+    "libQt6Qml.so"
+)
+
+MISSING_CRITICAL=0
+for lib in "${CRITICAL_QT[@]}"; do
+    if [ -f "%{buildroot}/usr/lib/openterfaceqt/qt6/$lib" ] || [ -L "%{buildroot}/usr/lib/openterfaceqt/qt6/$lib" ]; then
+        echo "  ✅ $lib"
+    else
+        echo "  ❌ MISSING: $lib (CRITICAL!)"
+        MISSING_CRITICAL=$((MISSING_CRITICAL + 1))
+    fi
+done
+
+echo ""
+if [ $MISSING_CRITICAL -gt 0 ]; then
+    echo "❌ ERROR: $MISSING_CRITICAL critical libraries missing!"
+    echo "The RPM package will NOT work correctly without these libraries."
+    echo "Please ensure all Qt6 libraries are copied to SOURCES before building."
+    exit 1
+fi
+
+echo "✅ All critical libraries verified!"
+echo "=========================================="
+echo ""
 
 # Generate dynamic file list to handle optional files gracefully
 find %{buildroot} -type f -o -type l | sed 's|%{buildroot}||' > %{_builddir}/../FILELIST.txt

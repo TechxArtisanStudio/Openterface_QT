@@ -452,16 +452,18 @@ fi
 # This ensures LD_PRELOAD and environment variables are ALWAYS applied
 
 # Try multiple locations for the binary (with fallbacks)
-# NOTE: Do NOT include the launcher path itself (/usr/local/bin/openterfaceQT)
+# NOTE: The spec file installs the binary as /usr/bin/openterfaceQT-bin
+# This launcher script searches for it in this primary location first
+# Do NOT include the launcher path itself (/usr/local/bin/openterfaceQT)
 # to avoid infinite recursion. The launcher should be named openterfaceQT or openterfaceQT-launcher.sh
-# and the actual binary should be named openterfaceQT.bin
+# and the actual binary should be named openterfaceQT-bin or openterfaceQT.bin
 OPENTERFACE_BIN=""
 for bin_path in \
+    "/usr/bin/openterfaceQT-bin" \
     "/usr/local/bin/openterfaceQT.bin" \
     "/usr/bin/openterfaceQT.bin" \
     "/opt/openterface/bin/openterfaceQT.bin" \
     "/usr/local/bin/openterfaceQT-bin" \
-    "/usr/bin/openterfaceQT-bin" \
     "/opt/openterface/bin/openterfaceQT-bin"; do
     if [ -f "$bin_path" ] && [ -x "$bin_path" ]; then
         OPENTERFACE_BIN="$bin_path"
@@ -473,15 +475,16 @@ if [ -z "$OPENTERFACE_BIN" ]; then
     {
         echo "ERROR: OpenterfaceQT binary not found in standard locations" >&2
         echo "Searched:" >&2
+        echo "  - /usr/bin/openterfaceQT-bin (PRIMARY - installed by RPM spec)" >&2
         echo "  - /usr/local/bin/openterfaceQT.bin" >&2
         echo "  - /usr/bin/openterfaceQT.bin" >&2
         echo "  - /opt/openterface/bin/openterfaceQT.bin" >&2
         echo "  - /usr/local/bin/openterfaceQT-bin" >&2
-        echo "  - /usr/bin/openterfaceQT-bin" >&2
         echo "  - /opt/openterface/bin/openterfaceQT-bin" >&2
         echo "" >&2
-        echo "NOTE: The actual binary should be named 'openterfaceQT.bin'" >&2
-        echo "The launcher script should be installed as 'openterfaceQT' or 'openterfaceQT-launcher.sh'" >&2
+        echo "NOTE: The RPM spec file installs the binary as /usr/bin/openterfaceQT-bin" >&2
+        echo "The launcher script should be installed as /usr/lib/openterfaceqt/launcher.sh" >&2
+        echo "Symlink: /usr/local/bin/openterfaceQT -> /usr/lib/openterfaceqt/launcher.sh" >&2
         echo "Launcher log: $LAUNCHER_LOG" >&2
     } | tee -a "$LAUNCHER_LOG"
     exit 1
