@@ -483,17 +483,48 @@ if [ -z "$QT_QPA_PLATFORM" ]; then
             fi
         elif [ -n "$DISPLAY" ]; then
             # DISPLAY is set - prefer Wayland if available, otherwise use XCB
-            # Check if Wayland session is running (fallback detection)
-            if systemctl --user is-active --quiet wayland-session.target 2>/dev/null || \
-               [ -n "$(systemctl --user show-environment 2>/dev/null | grep QT_QPA_PLATFORM=wayland)" ] || \
+            # Check if Wayland session is running (multiple detection methods)
+            WAYLAND_DETECTED=0
+            
+            # Method 1: Check systemd wayland-session.target
+            if systemctl --user is-active --quiet wayland-session.target 2>/dev/null; then
+                WAYLAND_DETECTED=1
+            fi
+            
+            # Method 2: Check systemd environment for QT_QPA_PLATFORM=wayland
+            if [ $WAYLAND_DETECTED -eq 0 ] && \
+               [ -n "$(systemctl --user show-environment 2>/dev/null | grep QT_QPA_PLATFORM=wayland)" ]; then
+                WAYLAND_DETECTED=1
+            fi
+            
+            # Method 3: Check XDG_SESSION_TYPE environment variable
+            if [ $WAYLAND_DETECTED -eq 0 ] && \
                echo "$XDG_SESSION_TYPE" | grep -q "wayland" 2>/dev/null; then
-                # Wayland is available - prefer it over XCB
+                WAYLAND_DETECTED=1
+            fi
+            
+            # Method 4: Check if Wayland libraries were successfully preloaded
+            # If Wayland libraries are in LD_PRELOAD and/or exist in bundled location,
+            # it's a strong indicator that this is a Wayland-capable system
+            if [ $WAYLAND_DETECTED -eq 0 ]; then
+                # Check if Wayland libraries are available (bundled or system)
+                if find /usr/lib/openterfaceqt -name "libwayland-client*" 2>/dev/null | grep -q . || \
+                   find /lib64 /usr/lib64 /usr/lib -name "libwayland-client*" 2>/dev/null | grep -q .; then
+                    # Wayland libraries are available - enable Wayland mode by default
+                    # This is CRITICAL for Docker/container environments where systemd isn't available
+                    WAYLAND_DETECTED=1
+                fi
+            fi
+            
+            if [ $WAYLAND_DETECTED -eq 1 ]; then
+                # Wayland is available - prefer it over XCB (Fedora modern default)
                 export QT_QPA_PLATFORM="wayland"
                 
                 if [ "${OPENTERFACE_DEBUG}" = "1" ] || [ "${OPENTERFACE_DEBUG}" = "true" ]; then
                     {
                         echo "✅ Platform Detection: Using Wayland (auto-detected as primary)"
                         echo "   XDG_SESSION_TYPE=${XDG_SESSION_TYPE:-unknown}"
+                        echo "   Detection methods: systemd/xdg/libraries"
                     } | tee -a "$LAUNCHER_LOG"
                 fi
             else
@@ -502,9 +533,10 @@ if [ -z "$QT_QPA_PLATFORM" ]; then
                 
                 if [ "${OPENTERFACE_DEBUG}" = "1" ] || [ "${OPENTERFACE_DEBUG}" = "true" ]; then
                     {
-                        echo "⚠️  Platform Detection: Using XCB (Wayland not available)"
+                        echo "⚠️  Platform Detection: Using XCB (Wayland not detected)"
                         echo "   DISPLAY=$DISPLAY"
                         echo "   XDG_SESSION_TYPE=${XDG_SESSION_TYPE:-unknown}"
+                        echo "   Wayland libraries found: NO"
                         echo ""
                         echo "   To use Wayland instead, set:"
                         echo "   export WAYLAND_DISPLAY=wayland-0"
