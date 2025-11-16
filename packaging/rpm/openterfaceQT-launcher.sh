@@ -186,6 +186,7 @@ COMMON_LIBS=(
     "libv4l1"
     "libv4l2"
     "libv4l2rds"
+    "libv4lconvert"
 )
 
 # Load common libraries
