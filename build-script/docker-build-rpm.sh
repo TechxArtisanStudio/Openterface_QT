@@ -293,6 +293,7 @@ declare -a UNIFIED_LIBRARY_CONFIGS=(
     "JPEG|libjpeg|libjpeg.so|ERROR||/opt/ffmpeg/lib|/usr/lib/x86_64-linux-gnu|/usr/lib"
     "TURBOJPEG|libturbojpeg|libturbojpeg.so|ERROR||/opt/ffmpeg/lib|/usr/lib/x86_64-linux-gnu|/usr/lib"
     "VA|VA-API|libva.so|WARNING||/usr/lib/x86_64-linux-gnu|/usr/lib"
+    "VADRM|VA-API DRM|libva-drm.so|WARNING||/usr/lib/x86_64-linux-gnu|/usr/lib"
     "VDPAU|VDPAU|libvdpau.so|WARNING||/usr/lib/x86_64-linux-gnu|/usr/lib"
     
     # FFmpeg libraries -> ${RPMTOP}/SOURCES/ffmpeg

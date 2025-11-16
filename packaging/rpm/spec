@@ -97,6 +97,7 @@ cp %{_sourcedir}/libz*.so* %{buildroot}/usr/lib/openterfaceqt/ 2>/dev/null || tr
 
 # Hardware acceleration libraries
 cp %{_sourcedir}/libva*.so* %{buildroot}/usr/lib/openterfaceqt/ 2>/dev/null || true
+cp %{_sourcedir}/libva-drm.so* %{buildroot}/usr/lib/openterfaceqt/ 2>/dev/null || true
 
 # GStreamer and multimedia libraries (from gstreamer subdirectory)
 mkdir -p %{buildroot}/usr/lib/openterfaceqt/gstreamer/gstreamer-1.0
