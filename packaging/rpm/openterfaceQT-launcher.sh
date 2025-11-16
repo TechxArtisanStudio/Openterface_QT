@@ -503,8 +503,8 @@ if [ -z "$QT_QPA_PLATFORM" ]; then
                 WAYLAND_DETECTED=1
             fi
             
-            # Method 4: Check if Wayland libraries were successfully preloaded
-            # If Wayland libraries are in LD_PRELOAD and/or exist in bundled location,
+            # Method 4: Check if Wayland libraries exist in filesystem (for standard Linux systems)
+            # If Wayland libraries are available (bundled or system),
             # it's a strong indicator that this is a Wayland-capable system
             if [ $WAYLAND_DETECTED -eq 0 ]; then
                 # Check if Wayland libraries are available (bundled or system)
@@ -512,6 +512,16 @@ if [ -z "$QT_QPA_PLATFORM" ]; then
                    find /lib64 /usr/lib64 /usr/lib -name "libwayland-client*" 2>/dev/null | grep -q .; then
                     # Wayland libraries are available - enable Wayland mode by default
                     # This is CRITICAL for Docker/container environments where systemd isn't available
+                    WAYLAND_DETECTED=1
+                fi
+            fi
+            
+            # Method 5: Check if Wayland libraries are already loaded in LD_PRELOAD
+            # This is CRITICAL for CI/CD environments (GitHub Actions, Docker) where
+            # systemd/XDG checks fail but Wayland libraries ARE actually preloaded
+            if [ $WAYLAND_DETECTED -eq 0 ] && [ -n "$LD_PRELOAD" ]; then
+                if echo "$LD_PRELOAD" | grep -q "libwayland-client"; then
+                    # Wayland libraries are already preloaded - use Wayland
                     WAYLAND_DETECTED=1
                 fi
             fi
@@ -524,7 +534,10 @@ if [ -z "$QT_QPA_PLATFORM" ]; then
                     {
                         echo "✅ Platform Detection: Using Wayland (auto-detected as primary)"
                         echo "   XDG_SESSION_TYPE=${XDG_SESSION_TYPE:-unknown}"
-                        echo "   Detection methods: systemd/xdg/libraries"
+                        echo "   Detection methods: systemd/xdg/filesystem/LD_PRELOAD"
+                        if echo "$LD_PRELOAD" | grep -q "libwayland-client"; then
+                            echo "   ✓ Detected: libwayland-client in LD_PRELOAD (CI/CD environment)"
+                        fi
                     } | tee -a "$LAUNCHER_LOG"
                 fi
             else
