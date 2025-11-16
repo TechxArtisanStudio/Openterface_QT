@@ -246,6 +246,7 @@ declare -a UNIFIED_LIBRARY_CONFIGS=(
     "QTQMLWORKERSCRIPT|Qt6 QML worker script|libQt6QmlWorkerScript.so|WARNING|qt6|${QT_LIB_SEARCH_DIRS}"
     "QTCORE5COMPAT|Qt6 core5 compat|libQt6Core5Compat.so|WARNING|qt6|${QT_LIB_SEARCH_DIRS}"
     "QTGUIPRIVATE|Qt6 gui private|libQt6GuiPrivate.so|WARNING|qt6|${QT_LIB_SEARCH_DIRS}"
+    "QTDBUS|Qt6 D-Bus|libQt6DBus.so|WARNING|qt6|${QT_LIB_SEARCH_DIRS}"
     "QTQUICKCONTROLS2|Qt6 quick controls 2|libQt6QuickControls2.so|WARNING|qt6|${QT_LIB_SEARCH_DIRS}"
     "QTQUICKSHAPES|Qt6 quick shapes|libQt6QuickShapes.so|WARNING|qt6|${QT_LIB_SEARCH_DIRS}"
     "QTQUICKLAYOUTS|Qt6 quick layouts|libQt6QuickLayouts.so|WARNING|qt6|${QT_LIB_SEARCH_DIRS}"
