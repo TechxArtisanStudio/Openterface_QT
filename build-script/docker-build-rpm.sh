@@ -217,14 +217,6 @@ mkdir -p "${RPMTOP}/SOURCES/qt6/plugins/iconengines"
 mkdir -p "${RPMTOP}/SOURCES/qt6/plugins/platforms"
 mkdir -p "${RPMTOP}/SOURCES/qt6/plugins/platforminputcontexts"
 
-# Common search directories for Qt6 libraries
-    "QTSQL|Qt6 sql|libQt6Sql.so|WARNING|qt6|${QT_LIB_SEARCH_DIRS}"
-    "QTSERIALPORT|Qt6 serial port|libQt6SerialPort.so|WARNING|qt6|${QT_LIB_SEARCH_DIRS}"
-    "QTSHADERTOOLS|Qt6 shader tools|libQt6ShaderTools.so|WARNING|qt6|${QT_LIB_SEARCH_DIRS}"
-    "QTSVGWIDGETS|Qt6 SVG widgets|libQt6SvgWidgets.so|WARNING|qt6|${QT_LIB_SEARCH_DIRS}"
-    "QTUITOOLS|Qt6 UI tools|libQt6UiTools.so|WARNING|qt6|${QT_LIB_SEARCH_DIRS}"
-    "QTXML|Qt6 XML|libQt6Xml.so|WARNING|qt6|${QT_LIB_SEARCH_DIRS}"
-    "QTTEST|Qt6 test|libQt6Test.so|WARNING|qt6|${QT_LIB_SEARCH_DIRS}"
 
 # Common search directories for Qt6 plugins
 QT_PLUGIN_SEARCH_DIRS="/opt/Qt6/plugins|/usr/lib/qt6/plugins|/usr/lib/x86_64-linux-gnu/qt6/plugins"
@@ -245,6 +237,13 @@ declare -a UNIFIED_LIBRARY_CONFIGS=(
     "QTCORE|Qt6 core|libQt6Core.so|ERROR|qt6|${QT_LIB_SEARCH_DIRS}"
     "QTGUI|Qt6 gui|libQt6Gui.so|ERROR|qt6|${QT_LIB_SEARCH_DIRS}"
     "QTWIDGETS|Qt6 widgets|libQt6Widgets.so|ERROR|qt6|${QT_LIB_SEARCH_DIRS}"
+    # Common search directories for Qt6 libraries
+    "QTSERIALPORT|Qt6 serial port|libQt6SerialPort.so|WARNING|qt6|${QT_LIB_SEARCH_DIRS}"
+    "QTSHADERTOOLS|Qt6 shader tools|libQt6ShaderTools.so|WARNING|qt6|${QT_LIB_SEARCH_DIRS}"
+    "QTSVGWIDGETS|Qt6 SVG widgets|libQt6SvgWidgets.so|WARNING|qt6|${QT_LIB_SEARCH_DIRS}"
+    "QTUITOOLS|Qt6 UI tools|libQt6UiTools.so|WARNING|qt6|${QT_LIB_SEARCH_DIRS}"
+    "QTXML|Qt6 XML|libQt6Xml.so|WARNING|qt6|${QT_LIB_SEARCH_DIRS}"
+    "QTTEST|Qt6 test|libQt6Test.so|WARNING|qt6|${QT_LIB_SEARCH_DIRS}"
     "QTQML|Qt6 qml|libQt6Qml.so|ERROR|qt6|${QT_LIB_SEARCH_DIRS}"
     "QTQMLCOMPILER|Qt6 QML compiler|libQt6QmlCompiler.so|WARNING|qt6|${QT_LIB_SEARCH_DIRS}"
     "QTQMLCORE|Qt6 QML core|libQt6QmlCore.so|WARNING|qt6|${QT_LIB_SEARCH_DIRS}"
