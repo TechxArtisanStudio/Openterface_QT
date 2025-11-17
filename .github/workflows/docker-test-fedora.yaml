@@ -287,8 +287,6 @@ jobs:
             -e DISPLAY=:98 \
             -e GITHUB_TOKEN=${GITHUB_TOKEN} \
             -e INSTALL_TYPE=${INSTALL_TYPE} \
-            -e QT_X11_NO_MITSHM=1 \
-            -e QT_QPA_PLATFORM=xcb \
             -e LC_ALL=C.UTF-8 \
             -e LANG=C.UTF-8 \
             --network host \
