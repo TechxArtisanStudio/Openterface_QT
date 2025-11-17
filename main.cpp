@@ -144,8 +144,9 @@ void suppressGLibMessages(const gchar *log_domain, GLogLevelFlags log_level, con
 
 void setupEnv(){
 #ifdef Q_OS_LINUX
-    // Only set QT_QPA_PLATFORM when not provided by the user
+    // Only set QT_QPA_PLATFORM when not provided by the user or launcher script
     const QByteArray currentPlatform = qgetenv("QT_QPA_PLATFORM");
+    const QByteArray launcherDetected = qgetenv("OPENTERFACE_LAUNCHER_PLATFORM");
     
     if (currentPlatform.isEmpty()) {
         // Check for available display systems
@@ -165,21 +166,32 @@ void setupEnv(){
             qDebug() << "Static build: No display detected, trying DISPLAY=:0 with xcb platform";
         }
         #else
-        // For dynamic builds, prefer XCB if DISPLAY is available
-        if (!x11Display.isEmpty()) {
-            qputenv("QT_QPA_PLATFORM", "xcb");
-            qDebug() << "Dynamic build: Set QT_QPA_PLATFORM to xcb (DISPLAY available)";
-        } else if (!waylandDisplay.isEmpty()) {
+        // For dynamic builds, prefer Wayland if WAYLAND_DISPLAY is set (from launcher detection)
+        // Otherwise prefer XCB if DISPLAY is available, then Wayland, then try XCB with fallback
+        if (!waylandDisplay.isEmpty()) {
+            // Wayland display is explicitly set - use it
             qputenv("QT_QPA_PLATFORM", "wayland");
             qDebug() << "Dynamic build: Set QT_QPA_PLATFORM to wayland (WAYLAND_DISPLAY available)";
+        } else if (!x11Display.isEmpty()) {
+            // DISPLAY is set - but check if it's actually a Wayland display
+            // In GitHub Actions/Docker with display :98, this is often Wayland
+            // Let launcher script's detection take precedence if it already set the platform
+            if (!launcherDetected.isEmpty()) {
+                qDebug() << "Dynamic build: Respecting launcher script's platform detection:" << launcherDetected;
+            } else {
+                // Launcher didn't detect, so try XCB
+                qputenv("QT_QPA_PLATFORM", "xcb");
+                qDebug() << "Dynamic build: Set QT_QPA_PLATFORM to xcb (DISPLAY available, Wayland not detected)";
+            }
         } else {
+            // No display found, try default settings
             qputenv("DISPLAY", ":0");
             qputenv("QT_QPA_PLATFORM", "xcb");
             qDebug() << "Dynamic build: No display detected, trying DISPLAY=:0 with xcb platform";
         }
         #endif
     } else {
-        qDebug() << "Current QT_QPA_PLATFORM:" << currentPlatform;
+        qDebug() << "QT_QPA_PLATFORM already set by launcher or user:" << currentPlatform;
     }
 #endif
 }

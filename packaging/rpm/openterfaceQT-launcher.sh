@@ -583,6 +583,7 @@ if [ -z "$QT_QPA_PLATFORM" ]; then
             if [ $WAYLAND_DETECTED -eq 1 ]; then
                 # Wayland is available - prefer it over XCB (Fedora modern default)
                 export QT_QPA_PLATFORM="wayland"
+                export OPENTERFACE_LAUNCHER_PLATFORM="wayland"
                 
                 if [ "${OPENTERFACE_DEBUG}" = "1" ] || [ "${OPENTERFACE_DEBUG}" = "true" ]; then
                     {
@@ -596,6 +597,7 @@ if [ -z "$QT_QPA_PLATFORM" ]; then
             else
                 # Wayland not available - fall back to XCB
                 export QT_QPA_PLATFORM="xcb"
+                export OPENTERFACE_LAUNCHER_PLATFORM="xcb"
                 
                 if [ "${OPENTERFACE_DEBUG}" = "1" ] || [ "${OPENTERFACE_DEBUG}" = "true" ]; then
                     {
