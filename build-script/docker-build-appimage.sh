@@ -160,16 +160,10 @@ mkdir -p "appimage/AppDir/usr/lib"
 # Format: variable_name|display_name|lib_pattern|severity|target_subdir|search_dirs...
 # Combines initial pass and comprehensive pass into single unified array
 declare -a APPIMAGE_LIBRARY_CONFIGS=(
-    # Core GLIBC libraries
-    "GLIBC|GLIBC|libc.so|WARNING||/usr/lib/x86_64-linux-gnu /lib64 /lib /usr/lib"
-    "GLIBC_LIBM|libm|libm.so|WARNING||/usr/lib/x86_64-linux-gnu /lib64 /lib /usr/lib"
-    "GLIBC_PTHREAD|libpthread|libpthread.so|WARNING||/usr/lib/x86_64-linux-gnu /lib64 /lib /usr/lib"
-    "GLIBC_DL|libdl|libdl.so|WARNING||/usr/lib/x86_64-linux-gnu /lib64 /lib /usr/lib"
-    "GLIBC_RT|librt|librt.so|WARNING||/usr/lib/x86_64-linux-gnu /lib64 /lib /usr/lib"
-    "GLIBC_NSS|libnss|libnss*.so|WARNING||/usr/lib/x86_64-linux-gnu /lib64 /lib /usr/lib"
-    "GLIBC_RESOLV|libresolv|libresolv.so|WARNING||/usr/lib/x86_64-linux-gnu /lib64 /lib /usr/lib"
-    "GLIBC_CRYPT|libcrypt|libcrypt.so|WARNING||/usr/lib/x86_64-linux-gnu /lib64 /lib /usr/lib"
-    "GLIBC_UTIL|libutil|libutil.so|WARNING||/usr/lib/x86_64-linux-gnu /lib64 /lib /usr/lib"
+    # NOTE: DO NOT bundle GLIBC libraries (libc.so.6, libm.so.6, libpthread.so.0, etc.)
+    # The AppImage must use the system's GLIBC to avoid version conflicts.
+    # linuxdeploy correctly excludes these, and we rely on the AppRun script's LD_LIBRARY_PATH
+    # to ensure proper library loading order.
     
     # C++ runtime libraries (CRITICAL for Qt/C++ applications)
     "GCC_S|libgcc_s|libgcc_s.so|ERROR||/usr/lib/x86_64-linux-gnu /lib/x86_64-linux-gnu /lib64 /lib /usr/lib"
@@ -637,20 +631,12 @@ mkdir -p "${APPDIR}/usr/lib/linuxdeploy_protected"
 
 # These libraries WILL be blacklisted by linuxdeploy - save them now
 PROTECTED_LIBS=(
-	"libc.so.6"
-	"libm.so.6" 
-	"libpthread.so.0"
-	"libdl.so.2"
-	"librt.so.1"
+	# NOTE: DO NOT protect GLIBC libraries - they should use system versions
+	# Protecting them causes version conflicts like "GLIBC_2.38 not found"
+	# C++ runtime libraries
 	"libgcc_s.so.1"
 	"libstdc++.so.6"
 	"ld-linux-x86-64.so.2"
-	"libnss_compat.so.2"
-	"libnss_files.so.2"
-	"libnss_dns.so.2"
-	"libresolv.so.2"
-	"libcrypt.so.1"
-	"libutil.so.1"
 	# GPU/EGL rendering libraries that are also blacklisted but needed
 	"libEGL.so.1"
 	"libEGL.so"
@@ -751,8 +737,8 @@ fi
 
 echo "Running linuxdeploy without output plugin..."
 echo "⚠️  IMPORTANT: linuxdeploy will skip/blacklist certain libraries"
-echo "    (libc.so.6, libgcc_s.so.1, libstdc++.so.6, libEGL.so.1, libGL.so.1, libdrm.so.2, etc.)"
-echo "    These have been backed up and will be restored after linuxdeploy completes"
+echo "    (GLIBC libraries are correctly excluded - the AppImage uses system GLIBC)"
+echo "    (libgcc_s.so.1 and libstdc++.so.6 have been backed up and will be restored)"
 echo ""
 
 # Run linuxdeploy with environment variable to suppress some warnings
@@ -770,8 +756,9 @@ else
 fi
 
 # CRITICAL FIX: Restore critical libraries that linuxdeploy blacklisted
-echo "🔧 Restoring critical libraries that linuxdeploy skipped..."
-echo "   (linuxdeploy blacklists: libc.so.6, libgcc_s.so.1, libstdc++.so.6, libEGL.so.1, libGL.so.1, libdrm.so.2, etc.)"
+echo "🔧 Restoring critical C++ runtime libraries that linuxdeploy skipped..."
+echo "   (linuxdeploy correctly excludes GLIBC libraries - the AppImage uses system versions)"
+echo "   (Restoring only: libgcc_s.so.1, libstdc++.so.6, ld-linux-x86-64.so.2)"
 
 if [ -d "${APPDIR}/usr/lib/linuxdeploy_protected" ]; then
 	echo "   Checking protected backup directory..."
@@ -807,7 +794,9 @@ fi
 # Double-check critical libraries are present
 echo ""
 echo "📊 Verifying critical libraries after linuxdeploy..."
-CRITICAL_LIBS=("libc.so.6" "libm.so.6" "libpthread.so.0" "libdl.so.2" "libgcc_s.so.1" "libstdc++.so.6")
+# NOTE: We do NOT verify GLIBC libraries here because they should NOT be bundled
+# The AppImage uses the system's GLIBC to avoid version conflicts
+CRITICAL_LIBS=("libgcc_s.so.1" "libstdc++.so.6")
 MISSING_LIBS=()
 for lib in "${CRITICAL_LIBS[@]}"; do
 	if [ -f "${APPDIR}/usr/lib/$lib" ]; then
@@ -820,12 +809,11 @@ done
 
 if [ ${#MISSING_LIBS[@]} -gt 0 ]; then
 	echo ""
-	echo "❌ ERROR: Critical libraries are missing!"
+	echo "❌ ERROR: Critical C++ runtime libraries are missing!"
 	echo "Missing: ${MISSING_LIBS[*]}"
 	echo ""
-	echo "This may cause the AppImage to fail with GLIBC version errors."
-	echo "Available libraries in ${APPDIR}/usr/lib:"
-	ls -1 "${APPDIR}/usr/lib" | grep -E "lib(c|m|gcc|stdc)" | head -20
+	echo "Available C++ libraries in ${APPDIR}/usr/lib:"
+	ls -1 "${APPDIR}/usr/lib" | grep -E "libgcc|libstdc" | head -20
 	echo ""
 	echo "📍 Diagnostic Info:"
 	echo "   Total files in ${APPDIR}/usr/lib:"
@@ -833,7 +821,7 @@ if [ ${#MISSING_LIBS[@]} -gt 0 ]; then
 	echo "   Subdirectories:"
 	ls -d "${APPDIR}/usr/lib"/*/ 2>/dev/null | sed 's|^|   |'
 	echo ""
-	echo "⚠️  CRITICAL: Libraries may not have been copied to AppDir before linuxdeploy!"
+	echo "⚠️  CRITICAL: C++ runtime libraries may not have been copied to AppDir before linuxdeploy!"
 	echo "   Check that copy_libraries() function is working correctly."
 	echo ""
 fi
@@ -841,9 +829,9 @@ fi
 # After linuxdeploy, clean up coreutils libraries that have incompatible GLIBC versions
 echo "🔧 Cleaning up incompatible coreutils libraries..."
 
-# NOTE: GLIBC libraries (libc.so.6, libm.so.6, etc.) are KEPT in the AppImage
-# These are critical and must be bundled for the application to run on systems
-# with different GLIBC versions. The LD_LIBRARY_PATH in AppRun ensures proper loading.
+# NOTE: GLIBC libraries (libc.so.6, libm.so.6, etc.) are NOT bundled in the AppImage
+# The AppImage uses the system's GLIBC to avoid version conflicts like "GLIBC_2.38 not found"
+# The LD_LIBRARY_PATH in AppRun ensures proper library loading order
 
 # Remove coreutils binaries
 PROBLEM_BINS=(
