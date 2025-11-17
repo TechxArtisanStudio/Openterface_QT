@@ -171,6 +171,10 @@ declare -a APPIMAGE_LIBRARY_CONFIGS=(
     "GLIBC_CRYPT|libcrypt|libcrypt.so|WARNING||/usr/lib/x86_64-linux-gnu /lib64 /lib /usr/lib"
     "GLIBC_UTIL|libutil|libutil.so|WARNING||/usr/lib/x86_64-linux-gnu /lib64 /lib /usr/lib"
     
+    # C++ runtime libraries (CRITICAL for Qt/C++ applications)
+    "GCC_S|libgcc_s|libgcc_s.so|ERROR||/usr/lib/x86_64-linux-gnu /lib/x86_64-linux-gnu /lib64 /lib /usr/lib"
+    "STDCXX|libstdc++|libstdc++.so|ERROR||/usr/lib/x86_64-linux-gnu /lib/x86_64-linux-gnu /lib64 /lib /usr/lib"
+    
     # Critical system libraries (libusb, libdrm, libudev)
     "LIBUSB|libusb|libusb*.so|ERROR||/opt/ffmpeg/lib /opt /usr/lib/x86_64-linux-gnu /usr/lib /lib/x86_64-linux-gnu /lib"
     "LIBDRM|libdrm|libdrm.so|WARNING||/usr/lib/x86_64-linux-gnu /usr/lib /lib/x86_64-linux-gnu /lib"
