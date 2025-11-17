@@ -687,13 +687,40 @@ PROTECTED_LIBS=(
 )
 
 PROTECTED_COUNT=0
+PROTECTED_MISSING=0
 for lib in "${PROTECTED_LIBS[@]}"; do
-	if [ -f "${APPDIR}/usr/lib/$lib" ]; then
-		cp -P "${APPDIR}/usr/lib/$lib" "${APPDIR}/usr/lib/linuxdeploy_protected/" || true
+	# Use wildcard to match versioned libraries (e.g., libEGL.so.1, libEGL.so.0, libEGL.so)
+	# Find all files/symlinks matching this pattern
+	lib_found=0
+	
+	if [ -f "${APPDIR}/usr/lib/${lib}" ] || [ -L "${APPDIR}/usr/lib/${lib}" ]; then
+		# Exact match found
+		cp -P "${APPDIR}/usr/lib/${lib}" "${APPDIR}/usr/lib/linuxdeploy_protected/" 2>/dev/null || true
 		PROTECTED_COUNT=$((PROTECTED_COUNT + 1))
+		lib_found=1
+	else
+		# Try wildcard match for versioned libraries
+		shopt -s nullglob
+		for libfile in "${APPDIR}/usr/lib/${lib}"*; do
+			if [ -f "$libfile" ] || [ -L "$libfile" ]; then
+				cp -P "$libfile" "${APPDIR}/usr/lib/linuxdeploy_protected/" 2>/dev/null || true
+				PROTECTED_COUNT=$((PROTECTED_COUNT + 1))
+				lib_found=1
+			fi
+		done
+		shopt -u nullglob
+	fi
+	
+	if [ $lib_found -eq 0 ]; then
+		PROTECTED_MISSING=$((PROTECTED_MISSING + 1))
 	fi
 done
 echo "  ✓ Protected $PROTECTED_COUNT critical libraries"
+if [ $PROTECTED_MISSING -gt 0 ]; then
+	echo "  ⚠️  $PROTECTED_MISSING libraries were not found to backup"
+	echo "     First 20 libs in ${APPDIR}/usr/lib:"
+	ls -1 "${APPDIR}/usr/lib" 2>/dev/null | head -20 | sed 's/^/       /'
+fi
 
 # Build the command with proper argument handling
 LINUXDEPLOY_ARGS=(
@@ -754,24 +781,34 @@ echo "🔧 Restoring critical libraries that linuxdeploy skipped..."
 echo "   (linuxdeploy blacklists: libc.so.6, libgcc_s.so.1, libstdc++.so.6, libEGL.so.1, libGL.so.1, libdrm.so.2, etc.)"
 
 if [ -d "${APPDIR}/usr/lib/linuxdeploy_protected" ]; then
-	RESTORED_COUNT=0
-	for lib in "${APPDIR}/usr/lib/linuxdeploy_protected"/*; do
-		if [ -f "$lib" ]; then
-			libname=$(basename "$lib")
-			# Check if linuxdeploy removed it
-			if [ ! -f "${APPDIR}/usr/lib/$libname" ]; then
-				echo "  ✓ Restoring blacklisted library: $libname"
-				cp -P "$lib" "${APPDIR}/usr/lib/" || echo "    ⚠️  Failed to restore $libname"
-				RESTORED_COUNT=$((RESTORED_COUNT + 1))
-			else
-				echo "  ℹ️  Library still present: $libname"
+	echo "   Checking protected backup directory..."
+	PROTECTED_LIB_COUNT=$(find "${APPDIR}/usr/lib/linuxdeploy_protected" -type f 2>/dev/null | wc -l)
+	echo "   Found $PROTECTED_LIB_COUNT libraries in protected backup"
+	
+	if [ "$PROTECTED_LIB_COUNT" -eq 0 ]; then
+		echo "   ⚠️  No files in protected directory!"
+		ls -la "${APPDIR}/usr/lib/linuxdeploy_protected/" 2>/dev/null | head -10
+	else
+		RESTORED_COUNT=0
+		for lib in "${APPDIR}/usr/lib/linuxdeploy_protected"/*; do
+			if [ -f "$lib" ]; then
+				libname=$(basename "$lib")
+				# Check if linuxdeploy removed it
+				if [ ! -f "${APPDIR}/usr/lib/$libname" ]; then
+					echo "  ✓ Restoring blacklisted library: $libname"
+					cp -P "$lib" "${APPDIR}/usr/lib/" || echo "    ⚠️  Failed to restore $libname"
+					RESTORED_COUNT=$((RESTORED_COUNT + 1))
+				else
+					echo "  ℹ️  Library still present: $libname"
+				fi
 			fi
-		fi
-	done
-	echo "  ✅ Restored $RESTORED_COUNT blacklisted libraries"
+		done
+		echo "  ✅ Restored $RESTORED_COUNT blacklisted libraries"
+	fi
 	rm -rf "${APPDIR}/usr/lib/linuxdeploy_protected"
 else
 	echo "  ⚠️  No protected backup found!"
+	echo "     Available at: ${APPDIR}/usr/lib/linuxdeploy_protected"
 fi
 
 # Double-check critical libraries are present
@@ -795,38 +832,25 @@ if [ ${#MISSING_LIBS[@]} -gt 0 ]; then
 	echo ""
 	echo "This may cause the AppImage to fail with GLIBC version errors."
 	echo "Available libraries in ${APPDIR}/usr/lib:"
-	ls -1 "${APPDIR}/usr/lib" | grep -E "lib(c|m|gcc|stdc)" | head -10
+	ls -1 "${APPDIR}/usr/lib" | grep -E "lib(c|m|gcc|stdc)" | head -20
+	echo ""
+	echo "📍 Diagnostic Info:"
+	echo "   Total files in ${APPDIR}/usr/lib:"
+	find "${APPDIR}/usr/lib" -type f 2>/dev/null | wc -l
+	echo "   Subdirectories:"
+	ls -d "${APPDIR}/usr/lib"/*/ 2>/dev/null | sed 's|^|   |'
+	echo ""
+	echo "⚠️  CRITICAL: Libraries may not have been copied to AppDir before linuxdeploy!"
+	echo "   Check that copy_libraries() function is working correctly."
 	echo ""
 fi
 
-# After linuxdeploy, restore any critical libraries that may have been removed
-echo "🔧 Restoring and cleaning up GLIBC and coreutils libraries..."
+# After linuxdeploy, clean up coreutils libraries that have incompatible GLIBC versions
+echo "🔧 Cleaning up incompatible coreutils libraries..."
 
-# CRITICAL: Remove GLIBC libraries - use host system's compatible versions instead
-# The AppImage libc.so.6 is built against GLIBC 2.38
-# Target systems may have GLIBC 2.31 (Ubuntu 20.04) or other versions
-# Using host's GLIBC ensures compatibility across all systems
-GLIBC_LIBS=(
-    "libc.so.6"              # ⭐ PRIMARY FIX - Must use host version!
-    "libc-2.38.so"
-    "libc-2.37.so"
-    "libc-2.36.so"
-    "libm.so.6"              # Math library - must match libc version
-    "libm-2.38.so"
-    "libpthread.so.0"        # Threading - must match libc
-    "libpthread-2.38.so"
-    "libdl.so.2"             # Dynamic loader - must match libc
-    "libdl-2.38.so"
-    "librt.so.1"             # Real-time - must match libc
-    "librt-2.38.so"
-)
-
-for lib in "${GLIBC_LIBS[@]}"; do
-    if [ -f "${APPDIR}/usr/lib/$lib" ]; then
-        echo "  🗑️  Removing ${lib} (will use host system's version)"
-        rm -f "${APPDIR}/usr/lib/$lib"
-    fi
-done
+# NOTE: GLIBC libraries (libc.so.6, libm.so.6, etc.) are KEPT in the AppImage
+# These are critical and must be bundled for the application to run on systems
+# with different GLIBC versions. The LD_LIBRARY_PATH in AppRun ensures proper loading.
 
 # Remove coreutils binaries
 PROBLEM_BINS=(
