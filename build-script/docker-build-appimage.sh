@@ -168,6 +168,9 @@ declare -a APPIMAGE_LIBRARY_CONFIGS=(
     "JPEG|libjpeg|libjpeg.so|WARNING||/opt/ffmpeg/lib /usr/lib/x86_64-linux-gnu /usr/lib"
     "TURBOJPEG|libturbojpeg|libturbojpeg.so|WARNING||/opt/ffmpeg/lib /usr/lib/x86_64-linux-gnu /usr/lib"
     
+    # Compression libraries
+    "BZ2|libbz2|libbz2.so|WARNING||/opt/ffmpeg/lib /usr/lib/x86_64-linux-gnu /usr/lib /lib/x86_64-linux-gnu /lib"
+    
     # EGL and GPU rendering libraries (with wildcard patterns to match all versions)
     "EGL|libEGL|libEGL.so|WARNING||/lib/x86_64-linux-gnu /opt/Qt6/lib /usr/lib/x86_64-linux-gnu /usr/lib /usr/lib64 /lib"
     "GL|libGL|libGL.so|WARNING||/lib/x86_64-linux-gnu /opt/Qt6/lib /usr/lib/x86_64-linux-gnu /usr/lib /usr/lib64 /lib"
