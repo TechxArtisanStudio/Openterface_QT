@@ -271,7 +271,7 @@ jobs:
         env:
           HAS_VOLUME_MOUNT: ${{ env.HAS_VOLUME_MOUNT }}
           VOLUME_MOUNT: ${{ env.VOLUME_MOUNT }}
-          DOCKER_IMAGE_FEDORA: ${{ env.DOCKER_IMAGE_FEDORA }}
+          DOCKER_IMAGE_NAME: ${{ env.DOCKER_IMAGE_FEDORA }}
           DOCKER_TAG: ${{ env.DOCKER_TAG }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           INSTALL_TYPE: ${{ matrix.install_type }}
