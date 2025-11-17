@@ -21,7 +21,7 @@ on:
   workflow_dispatch:
 
 env:
-  DOCKER_IMAGE_SHARED: openterface-test-fedora
+  DOCKER_IMAGE_FEDORA: openterface-test-fedora
   DOCKER_TAG: test-${{ github.sha }}
 
 jobs:
@@ -227,12 +227,12 @@ jobs:
       
       - name: Build Docker image (Fedora)
         run: |
-          echo "🔨 Building Docker image: ${{ env.DOCKER_IMAGE_SHARED }}:${{ env.DOCKER_TAG }}"
+          echo "🔨 Building Docker image: ${{ env.DOCKER_IMAGE_FEDORA }}:${{ env.DOCKER_TAG }}"
           
           docker build \
             -f docker/testos/Dockerfile.fedora-test-shared \
             --build-arg INSTALL_TYPE=${{ matrix.install_type }} \
-            -t ${{ env.DOCKER_IMAGE_SHARED }}:${{ env.DOCKER_TAG }} \
+            -t ${{ env.DOCKER_IMAGE_FEDORA }}:${{ env.DOCKER_TAG }} \
             docker/
           
           echo "📦 Docker image built successfully"
@@ -271,7 +271,7 @@ jobs:
         env:
           HAS_VOLUME_MOUNT: ${{ env.HAS_VOLUME_MOUNT }}
           VOLUME_MOUNT: ${{ env.VOLUME_MOUNT }}
-          DOCKER_IMAGE_NAME: openterface-test-fedora
+          DOCKER_IMAGE_FEDORA: ${{ env.DOCKER_IMAGE_FEDORA }}
           DOCKER_TAG: ${{ env.DOCKER_TAG }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           INSTALL_TYPE: ${{ matrix.install_type }}
@@ -312,20 +312,19 @@ jobs:
       - name: Verify Docker image (Fedora)
         run: |
           echo "🔍 Verifying Docker image was built successfully"
-          docker images | grep ${{ env.DOCKER_IMAGE_SHARED }}
+          docker images | grep ${{ env.DOCKER_IMAGE_FEDORA }}
           
           echo "📊 Image information:"
-          docker inspect ${{ env.DOCKER_IMAGE_SHARED }}:${{ env.DOCKER_TAG }} --format='{{.Config.Env}}'
-          docker inspect ${{ env.DOCKER_IMAGE_SHARED }}:${{ env.DOCKER_TAG }} --format='{{.Config.User}}'
-          docker inspect ${{ env.DOCKER_IMAGE_SHARED }}:${{ env.DOCKER_TAG }} --format='{{.Config.WorkingDir}}'
+          docker inspect ${{ env.DOCKER_IMAGE_FEDORA }}:${{ env.DOCKER_TAG }} --format='{{.Config.Env}}'
+          docker inspect ${{ env.DOCKER_IMAGE_FEDORA }}:${{ env.DOCKER_TAG }} --format='{{.Config.User}}'
+          docker inspect ${{ env.DOCKER_IMAGE_FEDORA }}:${{ env.DOCKER_TAG }} --format='{{.Config.WorkingDir}}'
           
           echo "🔍 Image CMD and Entrypoint:"
-          docker inspect ${{ env.DOCKER_IMAGE_SHARED }}:${{ env.DOCKER_TAG }} --format='{{.Config.Cmd}}'
-          docker inspect ${{ env.DOCKER_IMAGE_SHARED }}:${{ env.DOCKER_TAG }} --format='{{.Config.Entrypoint}}'
+          docker inspect ${{ env.DOCKER_IMAGE_FEDORA }}:${{ env.DOCKER_TAG }} --format='{{.Config.Cmd}}'
+          docker inspect ${{ env.DOCKER_IMAGE_FEDORA }}:${{ env.DOCKER_TAG }} --format='{{.Config.Entrypoint}}'
           
           echo "🔍 Image layers (last 10):"
-          docker history ${{ env.DOCKER_IMAGE_SHARED }}:${{ env.DOCKER_TAG }} | head -10
-
+          docker history ${{ env.DOCKER_IMAGE_FEDORA }}:${{ env.DOCKER_TAG }} | head -10
       - name: Start persistent container for testing (Fedora)
         timeout-minutes: 15
         env:
@@ -907,7 +906,7 @@ jobs:
           docker ps -aq --filter "name=openterface-" | xargs -r docker rm -f 2>/dev/null || true
           
           echo "3️⃣ Removing test image..."
-          docker rmi ${{ env.DOCKER_IMAGE_SHARED }}:${{ env.DOCKER_TAG }} 2>/dev/null || true
+          docker rmi ${{ env.DOCKER_IMAGE_FEDORA }}:${{ env.DOCKER_TAG }} 2>/dev/null || true
           
           echo "4️⃣ Killing dangling docker processes..."
           pkill -9 -f "docker run.*openterface" 2>/dev/null || true
