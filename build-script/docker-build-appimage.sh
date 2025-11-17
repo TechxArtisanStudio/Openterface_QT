@@ -245,6 +245,17 @@ done
 
 echo '✅ All GLIBC, critical, GPU, and GStreamer libraries copied'
 
+# Diagnostic: Verify critical libraries were actually copied
+echo ""
+echo "🔍 Diagnostic: Verifying GPU libraries in appimage/AppDir/usr/lib..."
+echo "   Checking for libEGL libraries:"
+ls -1 appimage/AppDir/usr/lib/libEGL* 2>/dev/null || echo "   ⚠️  NO libEGL files found!"
+echo "   Checking for libGL libraries:"
+ls -1 appimage/AppDir/usr/lib/libGL* 2>/dev/null || echo "   ⚠️  NO libGL files found!"
+echo "   Total .so files in appimage/AppDir/usr/lib:"
+find appimage/AppDir/usr/lib -maxdepth 1 -name "*.so*" -type f -o -type l 2>/dev/null | wc -l
+echo ""
+
 # Try to find and copy icon
 mkdir -p appimage/AppDir/usr/share/pixmaps
 mkdir -p appimage/AppDir/usr/share/icons/hicolor/256x256/apps
