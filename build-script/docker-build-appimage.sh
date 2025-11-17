@@ -687,6 +687,9 @@ PROTECTED_LIBS=(
 	"libxshmfence.so.1"
 	"libdrm.so.2"
 	"libdrm.so"
+	# Compression libraries
+	"libbz2.so.1"
+	"libbz2.so"
 )
 
 PROTECTED_COUNT=0
