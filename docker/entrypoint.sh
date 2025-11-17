@@ -19,18 +19,6 @@ export QT_X11_NO_MITSHM=1
 export WAYLAND_DISPLAY=${WAYLAND_DISPLAY:-wayland-0}
 export OPENTERFACE_LAUNCHER_PLATFORM=${OPENTERFACE_LAUNCHER_PLATFORM:-wayland}
 
-# Detect which Qt platform plugins are actually available in the bundled Qt
-# If Wayland plugin is not available, fall back to xcb
-PLUGIN_PATH="${QT_PLUGIN_PATH}:/usr/lib/openterfaceqt/qt6/plugins:/usr/lib/qt6/plugins:/usr/lib/x86_64-linux-gnu/qt6/plugins"
-if find $PLUGIN_PATH -name "libqwayland*.so" 2>/dev/null | grep -q libqwayland; then
-    export QT_QPA_PLATFORM=${QT_QPA_PLATFORM:-wayland}
-    echo "✅ Wayland plugin found - enabling Wayland backend"
-else
-    export QT_QPA_PLATFORM=${QT_QPA_PLATFORM:-xcb}
-    export OPENTERFACE_LAUNCHER_PLATFORM=xcb
-    echo "⚠️ Wayland plugin not found in bundled Qt - falling back to XCB"
-fi
-
 # Set Qt plugin and QML paths (must point to bundled locations in deb package)
 export QT_PLUGIN_PATH=/usr/lib/qt6/plugins:/usr/lib/x86_64-linux-gnu/qt6/plugins
 export QML2_IMPORT_PATH=/usr/lib/qt6/qml:/usr/lib/x86_64-linux-gnu/qt6/qml
