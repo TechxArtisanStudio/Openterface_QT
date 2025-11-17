@@ -234,8 +234,8 @@ for config in "${APPIMAGE_LIBRARY_CONFIGS[@]}"; do
         mkdir -p "$target_dir"
     fi
     
-    # Split search directories
-    read -ra search_dirs <<< "$search_dirs_str"
+    # Split search directories (reset IFS to default for proper space splitting)
+    IFS=' ' read -ra search_dirs <<< "$search_dirs_str"
     
     copy_libraries "$var_name" "$display_name" "$lib_pattern" "$severity" "$target_dir" "${search_dirs[@]}"
 done
