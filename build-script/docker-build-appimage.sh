@@ -8,6 +8,14 @@ IFS=$'\n\t'
 ORIGINAL_OPTS="$-"
 
 APPIMAGE_DIR="${BUILD_DIR}/appimage"
+# Set up variables for comprehensive AppImage creation
+SRC="/workspace/src"
+BUILD="/workspace/build" 
+APPDIR="${APPIMAGE_DIR}/AppDir"
+DESKTOP_OUT="${APPDIR}/openterfaceqt.desktop"
+APPIMAGE_OUT="${BUILD}"
+# Create comprehensive AppDir structure for the final AppImage
+mkdir -p "${APPDIR}/usr/bin" "${APPDIR}/usr/lib" "${APPDIR}/usr/share/applications" "${APPDIR}/usr/share/pixmaps"
 
 # Enhanced AppImage build script with comprehensive GStreamer plugin support
 # This script builds an AppImage with all necessary GStreamer plugins for video capture
@@ -233,14 +241,15 @@ declare -a APPIMAGE_LIBRARY_CONFIGS=(
 
 # Process merged AppImage library configurations for initial AppDir
 echo "🔍 Copying required libraries to initial AppImage AppDir..."
+mkdir -p "${APPDIR}/usr/lib"
 for config in "${APPIMAGE_LIBRARY_CONFIGS[@]}"; do
     IFS='|' read -r var_name display_name lib_pattern severity target_subdir search_dirs_str <<< "$config"
     
     # Determine full target directory
     if [ -z "$target_subdir" ]; then
-        target_dir="appimage/AppDir/usr/lib"
+        target_dir="${APPDIR}/usr/lib"
     else
-        target_dir="appimage/AppDir/usr/lib/${target_subdir}"
+        target_dir="${APPDIR}/usr/lib/${target_subdir}"
         mkdir -p "$target_dir"
     fi
     
@@ -300,30 +309,9 @@ echo "✅ Initial AppImage setup complete"
 echo "✅ Proceeding to comprehensive AppImage creation with Docker runtime support"
 cd /workspace
 
-# Determine linuxdeploy architecture tag from Debian arch
-case "${ARCH}" in
-	amd64|x86_64) APPIMAGE_ARCH=x86_64;;
-	arm64|aarch64) APPIMAGE_ARCH=aarch64;;
-	armhf|armv7l) APPIMAGE_ARCH=armhf;;
-	*) echo "Warning: unknown arch '${ARCH}', defaulting to x86_64"; APPIMAGE_ARCH=x86_64;;
-esac
-
-# Set up variables for comprehensive AppImage creation
-SRC="/workspace/src"
-BUILD="/workspace/build" 
-APPDIR="${APPIMAGE_DIR}/AppDir"
-DESKTOP_OUT="${APPDIR}/openterfaceqt.desktop"
-APPIMAGE_OUT="${BUILD}"
-
-# Create comprehensive AppDir structure for the final AppImage
-rm -rf "${APPDIR}"
-mkdir -p "${APPDIR}/usr/bin" "${APPDIR}/usr/lib" "${APPDIR}/usr/share/applications" "${APPDIR}/usr/share/pixmaps"
-
 # Copy the executable to the comprehensive AppDir
 cp "${BUILD}/openterfaceQT" "${APPDIR}/usr/bin/"
 chmod +x "${APPDIR}/usr/bin/openterfaceQT"
-
-echo "✅ Setting up comprehensive AppImage structure with Docker runtime support"
 
 # Create desktop file for comprehensive AppImage
 cp "${SRC}/packaging/com.openterface.openterfaceQT.desktop" "${APPDIR}/usr/share/applications/openterfaceqt.desktop"
@@ -333,29 +321,6 @@ sed -i 's/^Icon=.*/Icon=openterfaceQT/' "${APPDIR}/usr/share/applications/opente
 
 # Copy desktop file to root of AppDir
 cp "${APPDIR}/usr/share/applications/openterfaceqt.desktop" "${DESKTOP_OUT}"
-
-# Copy critical system libraries that must be bundled to avoid GLIBC conflicts
-echo "Setting up comprehensive library structure for comprehensive AppImage..."
-mkdir -p "${APPDIR}/usr/lib"
-
-# Process merged AppImage library configurations for comprehensive AppDir
-echo "🔍 Copying required libraries to comprehensive AppImage AppDir..."
-for config in "${APPIMAGE_LIBRARY_CONFIGS[@]}"; do
-    IFS='|' read -r var_name display_name lib_pattern severity target_subdir search_dirs_str <<< "$config"
-    
-    # Determine full target directory
-    if [ -z "$target_subdir" ]; then
-        target_dir="${APPDIR}/usr/lib"
-    else
-        target_dir="${APPDIR}/usr/lib/${target_subdir}"
-        mkdir -p "$target_dir"
-    fi
-    
-    # Split search directories
-    read -ra search_dirs <<< "$search_dirs_str"
-    
-    copy_libraries "$var_name" "$display_name" "$lib_pattern" "$severity" "$target_dir" "${search_dirs[@]}"
-done
 
 # Try to find glibc version directory for proper loader setup
 GLIBC_VERSION=$(ldd --version 2>/dev/null | head -1 | grep -oE '[0-9]+\.[0-9]+' | head -1 || echo "unknown")
@@ -901,76 +866,10 @@ rm -rf "${APPDIR}/usr/libexec/coreutils/" 2>/dev/null || true
 rm -rf "${APPDIR}/libexec/coreutils/" 2>/dev/null || true
 echo "  ✓ GLIBC and coreutils libraries removed - will use host system versions"
 
-# Create custom AppRun script with proper environment setup after linuxdeploy to avoid override
-cat > "${APPDIR}/AppRun" << 'EOF'
-#!/bin/bash
-# AppRun script for OpenterfaceQT enhanced AppImage with GStreamer plugins
-# This script ensures compatibility across systems with different glibc versions
-
-# Set the directory where this script is located
-HERE="$(dirname "$(readlink -f "${0}")")"
-
-# CRITICAL: Set library path to use AppImage bundled libraries FIRST
-# This prevents loading incompatible system libraries with different GLIBC versions
-# However, we DON'T include system GLIBC libraries (they're removed for compatibility)
-# The order is:
-# 1. AppImage's own libraries (non-GLIBC, like plugins and Qt)
-# 2. System libraries (GLIBC, Qt, etc. - provided by host)
-export LD_LIBRARY_PATH="${HERE}/usr/lib:${HERE}/usr/lib/x86_64-linux-gnu:${HERE}/lib:${HERE}/lib/x86_64-linux-gnu:/usr/lib/x86_64-linux-gnu:/usr/lib:/lib:${LD_LIBRARY_PATH}"
-
-# CRITICAL: Ensure system PATH for utilities and GLIBC
-# Allows fallback to host system utilities with compatible GLIBC
-export PATH="${HERE}/usr/bin:${HERE}/bin:/usr/local/bin:/usr/bin:/bin"
-
-# IMPORTANT: Do NOT preload bundled libc - use host system's GLIBC
-# The bundled libc.so.6 is GLIBC 2.38, which doesn't work on older systems
-# We removed it to force using host system's compatible GLIBC
-# NO LD_PRELOAD for libc - let the system provide it
-if [ -f "${HERE}/usr/lib/libc.so.6" ]; then
-    # libc.so.6 was removed, so this won't execute
-    # Keeping for reference only
-    true
-fi
-
-# Set dynamic linker to use bundled loader if available
-# This is critical for glibc compatibility
-if [ -f "${HERE}/usr/lib/ld-linux-x86-64.so.2" ]; then
-    # Some systems may respect this, though not all
-    export LD_LIBRARY_PATH="${HERE}/usr/lib:${LD_LIBRARY_PATH}"
-fi
-
-# Set GStreamer plugin path to our bundled plugins
-export GST_PLUGIN_PATH="${HERE}/usr/lib/gstreamer-1.0:${GST_PLUGIN_PATH}"
-
-# Set Qt plugin path and Wayland support
-export QT_PLUGIN_PATH="${HERE}/usr/plugins:${QT_PLUGIN_PATH}"
-
-# Add Wayland shell integration plugins path
-export QT_QPA_PLATFORM_PLUGIN_PATH="${HERE}/usr/plugins:${QT_QPA_PLATFORM_PLUGIN_PATH}"
-
-# Enable Wayland support (will automatically fallback to X11/XCB if Wayland not available)
-# Let Qt auto-detect the best platform (wayland if available, xcb otherwise)
-export QT_AUTO_SCREEN_SCALE_FACTOR=1
-
-# Ensure we don't have conflicting environment variables that might bypass our setup
-unset LD_ORIGIN_PATH
-
-# CRITICAL: Disable any LD_AUDIT hooks that might interfere
-# strace and other debugging tools can cause issues with AppImage
-unset LD_AUDIT
-
-# Debug: Show library path (uncomment for debugging)
-# echo "LD_LIBRARY_PATH=${LD_LIBRARY_PATH}"
-# echo "LD_PRELOAD=${LD_PRELOAD}"
-# echo "PATH=${PATH}"
-# echo "GST_PLUGIN_PATH=${GST_PLUGIN_PATH}"
-# echo "QT_PLUGIN_PATH=${QT_PLUGIN_PATH}"
-
-# Run the application
-exec "${HERE}/usr/bin/openterfaceQT" "$@"
-EOF
-
+# Copy AppRun script from packaging directory with proper environment setup
+cp "${SRC}/packaging/appimage/AppRun" "${APPDIR}/AppRun"
 chmod +x "${APPDIR}/AppRun"
+echo "✓ AppRun script copied from packaging/appimage/"
 
 # Then use appimagetool directly with explicit runtime file
 echo "Running appimagetool with explicit runtime file..."
