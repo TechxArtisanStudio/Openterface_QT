@@ -18,8 +18,18 @@ export QT_X11_NO_MITSHM=1
 # Default to Wayland, but can be overridden by OPENTERFACE_LAUNCHER_PLATFORM
 export WAYLAND_DISPLAY=${WAYLAND_DISPLAY:-wayland-0}
 export OPENTERFACE_LAUNCHER_PLATFORM=${OPENTERFACE_LAUNCHER_PLATFORM:-wayland}
-# Only set QT_QPA_PLATFORM if not already set by Dockerfile or environment
-export QT_QPA_PLATFORM=${QT_QPA_PLATFORM:-wayland}
+
+# Detect which Qt platform plugins are actually available in the bundled Qt
+# If Wayland plugin is not available, fall back to xcb
+PLUGIN_PATH="${QT_PLUGIN_PATH}:/usr/lib/openterfaceqt/qt6/plugins:/usr/lib/qt6/plugins:/usr/lib/x86_64-linux-gnu/qt6/plugins"
+if find $PLUGIN_PATH -name "libqwayland*.so" 2>/dev/null | grep -q libqwayland; then
+    export QT_QPA_PLATFORM=${QT_QPA_PLATFORM:-wayland}
+    echo "✅ Wayland plugin found - enabling Wayland backend"
+else
+    export QT_QPA_PLATFORM=${QT_QPA_PLATFORM:-xcb}
+    export OPENTERFACE_LAUNCHER_PLATFORM=xcb
+    echo "⚠️ Wayland plugin not found in bundled Qt - falling back to XCB"
+fi
 
 # Set Qt plugin and QML paths (must point to bundled locations in deb package)
 export QT_PLUGIN_PATH=/usr/lib/qt6/plugins:/usr/lib/x86_64-linux-gnu/qt6/plugins
@@ -158,13 +168,15 @@ if [ -f /usr/local/bin/openterfaceQT ]; then
     export QT_DEBUG_PLUGINS=1  # Enable plugin debugging
     export QT_LOGGING_RULES="qt.qpa.plugin=true"  # Log plugin loading
     
-    # CRITICAL: Ensure Qt plugin paths point to bundled locations
-    export QT_PLUGIN_PATH="/usr/lib/openterfaceqt/qt6/plugins:/usr/lib/qt6/plugins:/usr/lib/x86_64-linux-gnu/qt6/plugins"
-    export QML2_IMPORT_PATH="/usr/lib/openterfaceqt/qt6/qml:/usr/lib/qt6/qml:/usr/lib/x86_64-linux-gnu/qt6/qml"
-    export QT_QPA_PLATFORM_PLUGIN_PATH="/usr/lib/openterfaceqt/qt6/plugins/platforms"
+    # CRITICAL: Add Docker system Qt plugin paths to QT_PLUGIN_PATH
+    # AppImage has its own bundled plugins, but we add Docker system paths as fallback
+    # AppImage's own paths will be searched first due to APPIMAGE_EXTRACT_AND_RUN or AppImage's internal setup
+    export QT_PLUGIN_PATH="${QT_PLUGIN_PATH}:/usr/lib/openterfaceqt/qt6/plugins:/usr/lib/qt6/plugins:/usr/lib/x86_64-linux-gnu/qt6/plugins:/usr/lib/qt6/plugins/platforms"
+    export QML2_IMPORT_PATH="${QML2_IMPORT_PATH}:/usr/lib/openterfaceqt/qt6/qml:/usr/lib/qt6/qml:/usr/lib/x86_64-linux-gnu/qt6/qml"
     
-    # CRITICAL: Ensure LD_LIBRARY_PATH includes bundled Qt libraries
-    export LD_LIBRARY_PATH="/usr/lib/openterfaceqt/qt6:/usr/lib/openterfaceqt/ffmpeg:/usr/lib/openterfaceqt/gstreamer:/usr/lib/openterfaceqt:${LD_LIBRARY_PATH}"
+    # CRITICAL: Ensure LD_LIBRARY_PATH includes both AppImage and Docker Qt libraries
+    # This allows AppImage bundled libraries to be found, with Docker as fallback
+    export LD_LIBRARY_PATH="/usr/lib/openterfaceqt/qt6:/usr/lib/openterfaceqt/ffmpeg:/usr/lib/openterfaceqt/gstreamer:/usr/lib/openterfaceqt:/usr/lib/qt6:/usr/lib/x86_64-linux-gnu:${LD_LIBRARY_PATH}"
     
     # Start the application and keep container running
     echo "📝 Starting Openterface QT..."
