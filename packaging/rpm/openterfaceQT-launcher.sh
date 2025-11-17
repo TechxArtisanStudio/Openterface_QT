@@ -487,34 +487,78 @@ if [ -z "$QT_QPA_PLATFORM" ]; then
             # DISPLAY is set - prefer Wayland if available, otherwise use XCB
             # Check if Wayland session is running (multiple detection methods)
             WAYLAND_DETECTED=0
+            DETECTION_METHOD=""
+            
+            if [ "${OPENTERFACE_DEBUG}" = "1" ] || [ "${OPENTERFACE_DEBUG}" = "true" ]; then
+                echo "🔍 Platform Detection: Starting comprehensive Wayland detection..." | tee -a "$LAUNCHER_LOG"
+                echo "   DISPLAY=$DISPLAY" | tee -a "$LAUNCHER_LOG"
+                echo "   XDG_SESSION_TYPE=${XDG_SESSION_TYPE:-not set}" | tee -a "$LAUNCHER_LOG"
+                echo "   LD_PRELOAD set: $([ -n "$LD_PRELOAD" ] && echo "YES ($(echo "$LD_PRELOAD" | tr ':' '\n' | wc -l) entries)" || echo "NO")" | tee -a "$LAUNCHER_LOG"
+            fi
             
             # Method 1: Check systemd wayland-session.target
             if systemctl --user is-active --quiet wayland-session.target 2>/dev/null; then
                 WAYLAND_DETECTED=1
+                DETECTION_METHOD="systemd wayland-session.target"
+                if [ "${OPENTERFACE_DEBUG}" = "1" ] || [ "${OPENTERFACE_DEBUG}" = "true" ]; then
+                    echo "  ✅ Method 1 (systemd): wayland-session.target is ACTIVE" | tee -a "$LAUNCHER_LOG"
+                fi
+            else
+                if [ "${OPENTERFACE_DEBUG}" = "1" ] || [ "${OPENTERFACE_DEBUG}" = "true" ]; then
+                    echo "  ❌ Method 1 (systemd): wayland-session.target NOT active or systemctl unavailable" | tee -a "$LAUNCHER_LOG"
+                fi
             fi
             
             # Method 2: Check systemd environment for QT_QPA_PLATFORM=wayland
             if [ $WAYLAND_DETECTED -eq 0 ] && \
                [ -n "$(systemctl --user show-environment 2>/dev/null | grep QT_QPA_PLATFORM=wayland)" ]; then
                 WAYLAND_DETECTED=1
+                DETECTION_METHOD="systemd QT_QPA_PLATFORM environment"
+                if [ "${OPENTERFACE_DEBUG}" = "1" ] || [ "${OPENTERFACE_DEBUG}" = "true" ]; then
+                    echo "  ✅ Method 2 (systemd env): QT_QPA_PLATFORM=wayland FOUND" | tee -a "$LAUNCHER_LOG"
+                fi
+            else
+                if [ "${OPENTERFACE_DEBUG}" = "1" ] || [ "${OPENTERFACE_DEBUG}" = "true" ]; then
+                    echo "  ❌ Method 2 (systemd env): QT_QPA_PLATFORM=wayland NOT found" | tee -a "$LAUNCHER_LOG"
+                fi
             fi
             
             # Method 3: Check XDG_SESSION_TYPE environment variable
             if [ $WAYLAND_DETECTED -eq 0 ] && \
                echo "$XDG_SESSION_TYPE" | grep -q "wayland" 2>/dev/null; then
                 WAYLAND_DETECTED=1
+                DETECTION_METHOD="XDG_SESSION_TYPE environment"
+                if [ "${OPENTERFACE_DEBUG}" = "1" ] || [ "${OPENTERFACE_DEBUG}" = "true" ]; then
+                    echo "  ✅ Method 3 (XDG): XDG_SESSION_TYPE contains 'wayland'" | tee -a "$LAUNCHER_LOG"
+                fi
+            else
+                if [ "${OPENTERFACE_DEBUG}" = "1" ] || [ "${OPENTERFACE_DEBUG}" = "true" ]; then
+                    echo "  ❌ Method 3 (XDG): XDG_SESSION_TYPE='${XDG_SESSION_TYPE:-not set}' does NOT contain 'wayland'" | tee -a "$LAUNCHER_LOG"
+                fi
             fi
             
             # Method 4: Check if Wayland libraries exist in filesystem (for standard Linux systems)
             # If Wayland libraries are available (bundled or system),
             # it's a strong indicator that this is a Wayland-capable system
             if [ $WAYLAND_DETECTED -eq 0 ]; then
-                # Check if Wayland libraries are available (bundled or system)
-                if find /usr/lib/openterfaceqt -name "libwayland-client*" 2>/dev/null | grep -q . || \
-                   find /lib64 /usr/lib64 /usr/lib -name "libwayland-client*" 2>/dev/null | grep -q .; then
-                    # Wayland libraries are available - enable Wayland mode by default
-                    # This is CRITICAL for Docker/container environments where systemd isn't available
+                BUNDLED_WAYLAND=$(find /usr/lib/openterfaceqt -name "libwayland-client*" 2>/dev/null | head -1)
+                SYSTEM_WAYLAND=$(find /lib64 /usr/lib64 /usr/lib -name "libwayland-client*" 2>/dev/null | head -1)
+                
+                if [ -n "$BUNDLED_WAYLAND" ] || [ -n "$SYSTEM_WAYLAND" ]; then
                     WAYLAND_DETECTED=1
+                    DETECTION_METHOD="filesystem library detection"
+                    if [ "${OPENTERFACE_DEBUG}" = "1" ] || [ "${OPENTERFACE_DEBUG}" = "true" ]; then
+                        if [ -n "$BUNDLED_WAYLAND" ]; then
+                            echo "  ✅ Method 4a (bundled): Found $BUNDLED_WAYLAND" | tee -a "$LAUNCHER_LOG"
+                        fi
+                        if [ -n "$SYSTEM_WAYLAND" ]; then
+                            echo "  ✅ Method 4b (system): Found $SYSTEM_WAYLAND" | tee -a "$LAUNCHER_LOG"
+                        fi
+                    fi
+                else
+                    if [ "${OPENTERFACE_DEBUG}" = "1" ] || [ "${OPENTERFACE_DEBUG}" = "true" ]; then
+                        echo "  ❌ Method 4 (filesystem): libwayland-client NOT found in system" | tee -a "$LAUNCHER_LOG"
+                    fi
                 fi
             fi
             
@@ -525,6 +569,14 @@ if [ -z "$QT_QPA_PLATFORM" ]; then
                 if echo "$LD_PRELOAD" | grep -q "libwayland-client"; then
                     # Wayland libraries are already preloaded - use Wayland
                     WAYLAND_DETECTED=1
+                    DETECTION_METHOD="LD_PRELOAD detection (CI/CD environment)"
+                    if [ "${OPENTERFACE_DEBUG}" = "1" ] || [ "${OPENTERFACE_DEBUG}" = "true" ]; then
+                        echo "  ✅ Method 5 (LD_PRELOAD): Found libwayland-client in LD_PRELOAD" | tee -a "$LAUNCHER_LOG"
+                    fi
+                else
+                    if [ "${OPENTERFACE_DEBUG}" = "1" ] || [ "${OPENTERFACE_DEBUG}" = "true" ]; then
+                        echo "  ❌ Method 5 (LD_PRELOAD): libwayland-client NOT found in LD_PRELOAD" | tee -a "$LAUNCHER_LOG"
+                    fi
                 fi
             fi
             
@@ -534,12 +586,11 @@ if [ -z "$QT_QPA_PLATFORM" ]; then
                 
                 if [ "${OPENTERFACE_DEBUG}" = "1" ] || [ "${OPENTERFACE_DEBUG}" = "true" ]; then
                     {
+                        echo ""
                         echo "✅ Platform Detection: Using Wayland (auto-detected as primary)"
+                        echo "   Detection method: $DETECTION_METHOD"
                         echo "   XDG_SESSION_TYPE=${XDG_SESSION_TYPE:-unknown}"
-                        echo "   Detection methods: systemd/xdg/filesystem/LD_PRELOAD"
-                        if echo "$LD_PRELOAD" | grep -q "libwayland-client"; then
-                            echo "   ✓ Detected: libwayland-client in LD_PRELOAD (CI/CD environment)"
-                        fi
+                        echo "   Setting QT_QPA_PLATFORM=wayland"
                     } | tee -a "$LAUNCHER_LOG"
                 fi
             else
@@ -548,10 +599,12 @@ if [ -z "$QT_QPA_PLATFORM" ]; then
                 
                 if [ "${OPENTERFACE_DEBUG}" = "1" ] || [ "${OPENTERFACE_DEBUG}" = "true" ]; then
                     {
-                        echo "⚠️  Platform Detection: Using XCB (Wayland not detected)"
+                        echo ""
+                        echo "⚠️  Platform Detection: Using XCB (Wayland not detected by ANY method)"
                         echo "   DISPLAY=$DISPLAY"
                         echo "   XDG_SESSION_TYPE=${XDG_SESSION_TYPE:-unknown}"
-                        echo "   Wayland libraries found: NO"
+                        echo "   LD_PRELOAD contains libwayland-client: $(echo "$LD_PRELOAD" | grep -q "libwayland-client" && echo "YES" || echo "NO")"
+                        echo "   Setting QT_QPA_PLATFORM=xcb"
                         echo ""
                         echo "   To use Wayland instead, set:"
                         echo "   export WAYLAND_DISPLAY=wayland-0"
