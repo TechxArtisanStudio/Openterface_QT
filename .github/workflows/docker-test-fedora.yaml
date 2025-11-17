@@ -308,63 +308,7 @@ jobs:
           echo "  Install Type: ${INSTALL_TYPE}"
           echo "  Volume Mount: ${VOLUME_MOUNT:-none}"
           echo "  GITHUB_TOKEN: $(echo ${GITHUB_TOKEN} | cut -c1-20)..."
-
-      - name: Verify Docker image (Fedora)
-        run: |
-          echo "🔍 Verifying Docker image was built successfully"
-          docker images | grep ${{ env.DOCKER_IMAGE_FEDORA }}
           
-          echo "📊 Image information:"
-          docker inspect ${{ env.DOCKER_IMAGE_FEDORA }}:${{ env.DOCKER_TAG }} --format='{{.Config.Env}}'
-          docker inspect ${{ env.DOCKER_IMAGE_FEDORA }}:${{ env.DOCKER_TAG }} --format='{{.Config.User}}'
-          docker inspect ${{ env.DOCKER_IMAGE_FEDORA }}:${{ env.DOCKER_TAG }} --format='{{.Config.WorkingDir}}'
-          
-          echo "🔍 Image CMD and Entrypoint:"
-          docker inspect ${{ env.DOCKER_IMAGE_FEDORA }}:${{ env.DOCKER_TAG }} --format='{{.Config.Cmd}}'
-          docker inspect ${{ env.DOCKER_IMAGE_FEDORA }}:${{ env.DOCKER_TAG }} --format='{{.Config.Entrypoint}}'
-          
-          echo "🔍 Image layers (last 10):"
-          docker history ${{ env.DOCKER_IMAGE_FEDORA }}:${{ env.DOCKER_TAG }} | head -10
-      - name: Start persistent container for testing (Fedora)
-        timeout-minutes: 15
-        env:
-          HAS_VOLUME_MOUNT: ${{ env.HAS_VOLUME_MOUNT }}
-          VOLUME_MOUNT: ${{ env.VOLUME_MOUNT }}
-          DOCKER_IMAGE_FEDORA: ${{ env.DOCKER_IMAGE_FEDORA }}
-          DOCKER_TAG: ${{ env.DOCKER_TAG }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          echo "🧪 Starting persistent container for all subsequent tests"
-          
-          # Set environment variable to track container name
-          echo "TEST_CONTAINER_NAME=openterface-test-fedora-persistent" >> $GITHUB_ENV
-          
-          # Build docker run command
-          DOCKER_RUN_CMD="docker run -d \
-            --name openterface-test-fedora-persistent \
-            -e DISPLAY=:98 \
-            -e GITHUB_TOKEN=${GITHUB_TOKEN} \
-            -e INSTALL_TYPE=rpm \
-            -e QT_X11_NO_MITSHM=1 \
-            -e QT_QPA_PLATFORM=xcb \
-            -e LC_ALL=C.UTF-8 \
-            -e LANG=C.UTF-8 \
-            --network host \
-            --privileged \
-            --device /dev/fuse"
-          
-          # Add volume mount if provided
-          if [ -n "$VOLUME_MOUNT" ]; then
-            DOCKER_RUN_CMD="$DOCKER_RUN_CMD $VOLUME_MOUNT"
-          fi
-          
-          # Add image
-          DOCKER_RUN_CMD="$DOCKER_RUN_CMD ${DOCKER_IMAGE_FEDORA}:${DOCKER_TAG}"
-          
-          echo "📋 Starting container with config:"
-          echo "  Image: ${DOCKER_IMAGE_FEDORA}:${DOCKER_TAG}"
-          echo "  Volume Mount: ${VOLUME_MOUNT:-none}"
-          echo "  GITHUB_TOKEN: $(echo ${GITHUB_TOKEN} | cut -c1-20)..."
           echo ""
           echo "Starting container..."
           CONTAINER_ID=$(eval $DOCKER_RUN_CMD)
@@ -513,6 +457,51 @@ jobs:
             else
               echo "⚠️ Log file not found at /tmp/openterfaceqt.log"
             fi
+          ' || echo "⚠️ Could not retrieve app logs"
+          echo "=================================================="
+          echo ""
+
+      - name: Verify Docker image (Fedora)
+        run: |
+          echo "🔍 Verifying Docker image was built successfully"
+          docker images | grep openterface-test-fedora
+          
+          echo "📊 Image information:"
+          docker inspect openterface-test-fedora:${{ env.DOCKER_TAG }} --format='{{.Config.Env}}'
+          docker inspect openterface-test-fedora:${{ env.DOCKER_TAG }} --format='{{.Config.User}}'
+          docker inspect openterface-test-fedora:${{ env.DOCKER_TAG }} --format='{{.Config.WorkingDir}}'
+          
+          echo "🔍 Image CMD and Entrypoint:"
+          docker inspect openterface-test-fedora:${{ env.DOCKER_TAG }} --format='{{.Config.Cmd}}'
+          docker inspect openterface-test-fedora:${{ env.DOCKER_TAG }} --format='{{.Config.Entrypoint}}'
+          
+          echo "🔍 Image layers (last 10):"
+          docker history openterface-test-fedora:${{ env.DOCKER_TAG }} | head -10
+
+      - name: Verify Docker image (Fedora)
+        run: |
+          echo "🔍 Verifying Docker image was built successfully"
+          docker images | grep openterface-test-fedora
+          
+          echo "📊 Image information:"
+          docker inspect openterface-test-fedora:${{ env.DOCKER_TAG }} --format='{{.Config.Env}}'
+          docker inspect openterface-test-fedora:${{ env.DOCKER_TAG }} --format='{{.Config.User}}'
+          docker inspect openterface-test-fedora:${{ env.DOCKER_TAG }} --format='{{.Config.WorkingDir}}'
+          
+          echo "🔍 Image CMD and Entrypoint:"
+          docker inspect openterface-test-fedora:${{ env.DOCKER_TAG }} --format='{{.Config.Cmd}}'
+          docker inspect openterface-test-fedora:${{ env.DOCKER_TAG }} --format='{{.Config.Entrypoint}}'
+          
+          echo "🔍 Image layers (last 10):"
+                    docker history openterface-test-fedora:${{ env.DOCKER_TAG }} | head -10
+
+      - name: Test basic container functionality (Fedora)
+        timeout-minutes: 5
+        run: |
+          echo "🧪 Testing basic container functionality on persistent container"
+          
+          CONTAINER_ID="${{ env.CONTAINER_ID }}"
+          
           ' || echo "⚠️ Could not retrieve app logs"
           echo "=================================================="
           echo ""
