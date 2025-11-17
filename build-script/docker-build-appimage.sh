@@ -196,11 +196,11 @@ declare -a APPIMAGE_LIBRARY_CONFIGS=(
     "OPENGL|libOpenGL|libOpenGL.so|WARNING||/usr/lib/x86_64-linux-gnu /usr/lib /usr/lib64 /lib"
     
     # Qt platform plugins (CRITICAL for GUI applications)
-    "QTPLUGIN_XCB|Qt6 XCB platform|libqxcb.so|ERROR|/usr/lib/qt6/plugins/platforms|/opt/Qt6/plugins/platforms /usr/lib/qt6/plugins/platforms /usr/lib/x86_64-linux-gnu/qt6/plugins/platforms"
-    "QTPLUGIN_WAYLAND_EGL|Qt6 Wayland EGL|libqwayland-egl.so|WARNING|/usr/lib/qt6/plugins/platforms|/opt/Qt6/plugins/platforms /usr/lib/qt6/plugins/platforms /usr/lib/x86_64-linux-gnu/qt6/plugins/platforms"
-    "QTPLUGIN_WAYLAND_GENERIC|Qt6 Wayland Generic|libqwayland-generic.so|WARNING|/usr/lib/qt6/plugins/platforms|/opt/Qt6/plugins/platforms /usr/lib/qt6/plugins/platforms /usr/lib/x86_64-linux-gnu/qt6/plugins/platforms"
-    "QTPLUGIN_OFFSCREEN|Qt6 Offscreen|libqoffscreen.so|WARNING|/usr/lib/qt6/plugins/platforms|/opt/Qt6/plugins/platforms /usr/lib/qt6/plugins/platforms /usr/lib/x86_64-linux-gnu/qt6/plugins/platforms"
-    "QTPLUGIN_MINIMAL|Qt6 Minimal|libqminimal.so|WARNING|/usr/lib/qt6/plugins/platforms|/opt/Qt6/plugins/platforms /usr/lib/qt6/plugins/platforms /usr/lib/x86_64-linux-gnu/qt6/plugins/platforms"
+    "QTPLUGIN_XCB|Qt6 XCB platform|libqxcb.so|ERROR|plugins/platforms|/opt/Qt6/plugins/platforms /usr/lib/qt6/plugins/platforms /usr/lib/x86_64-linux-gnu/qt6/plugins/platforms"
+    "QTPLUGIN_WAYLAND_EGL|Qt6 Wayland EGL|libqwayland-egl.so|WARNING|plugins/platforms|/opt/Qt6/plugins/platforms /usr/lib/qt6/plugins/platforms /usr/lib/x86_64-linux-gnu/qt6/plugins/platforms"
+    "QTPLUGIN_WAYLAND_GENERIC|Qt6 Wayland Generic|libqwayland-generic.so|WARNING|plugins/platforms|/opt/Qt6/plugins/platforms /usr/lib/qt6/plugins/platforms /usr/lib/x86_64-linux-gnu/qt6/plugins/platforms"
+    "QTPLUGIN_OFFSCREEN|Qt6 Offscreen|libqoffscreen.so|WARNING|plugins/platforms|/opt/Qt6/plugins/platforms /usr/lib/qt6/plugins/platforms /usr/lib/x86_64-linux-gnu/qt6/plugins/platforms"
+    "QTPLUGIN_MINIMAL|Qt6 Minimal|libqminimal.so|WARNING|plugins/platforms|/opt/Qt6/plugins/platforms /usr/lib/qt6/plugins/platforms /usr/lib/x86_64-linux-gnu/qt6/plugins/platforms"
     
     # Wayland dependencies (required for wayland plugin)
     "WAYLAND_CLIENT|libwayland-client|libwayland-client.so|WARNING||/usr/lib/x86_64-linux-gnu /usr/lib /lib/x86_64-linux-gnu /lib"
