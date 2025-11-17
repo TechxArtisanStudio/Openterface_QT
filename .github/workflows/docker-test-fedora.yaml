@@ -271,7 +271,7 @@ jobs:
         env:
           HAS_VOLUME_MOUNT: ${{ env.HAS_VOLUME_MOUNT }}
           VOLUME_MOUNT: ${{ env.VOLUME_MOUNT }}
-          DOCKER_IMAGE_SHARED: ${{ env.DOCKER_IMAGE_SHARED }}
+          DOCKER_IMAGE_NAME: openterface-test-fedora
           DOCKER_TAG: ${{ env.DOCKER_TAG }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           INSTALL_TYPE: ${{ matrix.install_type }}
@@ -301,10 +301,10 @@ jobs:
           fi
           
           # Add image
-          DOCKER_RUN_CMD="$DOCKER_RUN_CMD ${DOCKER_IMAGE_SHARED}:${DOCKER_TAG}"
+          DOCKER_RUN_CMD="$DOCKER_RUN_CMD ${DOCKER_IMAGE_NAME}:${DOCKER_TAG}"
           
           echo "📋 Starting container with config:"
-          echo "  Image: ${DOCKER_IMAGE_SHARED}:${DOCKER_TAG}"
+          echo "  Image: ${DOCKER_IMAGE_NAME}:${DOCKER_TAG}"
           echo "  Install Type: ${INSTALL_TYPE}"
           echo "  Volume Mount: ${VOLUME_MOUNT:-none}"
           echo "  GITHUB_TOKEN: $(echo ${GITHUB_TOKEN} | cut -c1-20)..."
