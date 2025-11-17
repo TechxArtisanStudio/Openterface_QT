@@ -15,8 +15,6 @@ ENV INSTALL_TYPE=${INSTALL_TYPE}
 
 # Set up display environment for GUI applications
 ENV DISPLAY=:0
-ENV QT_X11_NO_MITSHM=1
-ENV QT_QPA_PLATFORM=xcb
 
 # Install minimal system dependencies and runtime libraries only
 RUN dnf update -y && \
