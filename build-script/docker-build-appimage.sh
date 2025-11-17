@@ -169,13 +169,13 @@ declare -a APPIMAGE_LIBRARY_CONFIGS=(
     "TURBOJPEG|libturbojpeg|libturbojpeg.so|WARNING||/opt/ffmpeg/lib /usr/lib/x86_64-linux-gnu /usr/lib"
     
     # EGL and GPU rendering libraries (with wildcard patterns to match all versions)
-    "EGL|libEGL|libEGL.so*|WARNING||/opt/Qt6/lib /usr/lib/x86_64-linux-gnu /usr/lib /usr/lib64 /lib/x86_64-linux-gnu /lib"
-    "GL|libGL|libGL.so*|WARNING||/opt/Qt6/lib /usr/lib/x86_64-linux-gnu /usr/lib /usr/lib64 /lib/x86_64-linux-gnu /lib"
-    "GLX|libGLX|libGLX.so*|WARNING||/opt/Qt6/lib /usr/lib/x86_64-linux-gnu /usr/lib /usr/lib64 /lib/x86_64-linux-gnu /lib"
-    "GLESV2|libGLESv2|libGLESv2.so*|WARNING||/opt/Qt6/lib /usr/lib/x86_64-linux-gnu /usr/lib /usr/lib64 /lib/x86_64-linux-gnu /lib"
-    "GLVND|libglvnd|libglvnd.so*|WARNING||/opt/Qt6/lib /usr/lib/x86_64-linux-gnu /usr/lib /usr/lib64 /lib/x86_64-linux-gnu /lib"
-    "GLDISPATCH|libGLdispatch|libGLdispatch.so*|WARNING||/opt/Qt6/lib /usr/lib/x86_64-linux-gnu /usr/lib /usr/lib64 /lib/x86_64-linux-gnu /lib"
-    "OPENGL|libOpenGL|libOpenGL.so*|WARNING||/opt/Qt6/lib /usr/lib/x86_64-linux-gnu /usr/lib /usr/lib64 /lib/x86_64-linux-gnu /lib"
+    "EGL|libEGL|libEGL.so|WARNING||/lib/x86_64-linux-gnu /opt/Qt6/lib /usr/lib/x86_64-linux-gnu /usr/lib /usr/lib64 /lib"
+    "GL|libGL|libGL.so|WARNING||/lib/x86_64-linux-gnu /opt/Qt6/lib /usr/lib/x86_64-linux-gnu /usr/lib /usr/lib64 /lib"
+    "GLX|libGLX|libGLX.so|WARNING||/lib/x86_64-linux-gnu /opt/Qt6/lib /usr/lib/x86_64-linux-gnu /usr/lib /usr/lib64 /lib"
+    "GLESV2|libGLESv2|libGLESv2.so|WARNING||/lib/x86_64-linux-gnu /opt/Qt6/lib /usr/lib/x86_64-linux-gnu /usr/lib /usr/lib64 /lib"
+    "GLVND|libglvnd|libglvnd.so|WARNING||/lib/x86_64-linux-gnu /opt/Qt6/lib /usr/lib/x86_64-linux-gnu /usr/lib /usr/lib64 /lib"
+    "GLDISPATCH|libGLdispatch|libGLdispatch.so|WARNING||/lib/x86_64-linux-gnu /opt/Qt6/lib /usr/lib/x86_64-linux-gnu /usr/lib /usr/lib64 /lib"
+    "OPENGL|libOpenGL|libOpenGL.so|WARNING||/lib/x86_64-linux-gnu /opt/Qt6/lib /usr/lib/x86_64-linux-gnu /usr/lib /usr/lib64 /lib"
     
     # Qt platform plugins (CRITICAL for GUI applications)
     "QTPLUGIN_XCB|Qt6 XCB platform|libqxcb.so|ERROR|qt6/plugins/platforms|/opt/Qt6/plugins/platforms /usr/lib/qt6/plugins/platforms /usr/lib/x86_64-linux-gnu/qt6/plugins/platforms"

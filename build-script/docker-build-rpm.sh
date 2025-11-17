@@ -292,7 +292,17 @@ declare -a UNIFIED_LIBRARY_CONFIGS=(
     # Qt6 platform input context plugins -> ${RPMTOP}/SOURCES/qt6/plugins/platforminputcontexts
     "QTPLUGIN_COMPOSE|Qt6 compose platform input context|libcomposeplatforminputcontextplugin.so|WARNING|qt6/plugins/platforminputcontexts|${QT_PLUGIN_SEARCH_DIRS}/platforminputcontexts"
     "QTPLUGIN_IBUS|Qt6 IBus platform input context|libibusplatforminputcontextplugin.so|WARNING|qt6/plugins/platforminputcontexts|${QT_PLUGIN_SEARCH_DIRS}/platforminputcontexts"
-    "LIBBZ2|bzip2|libbz2.so|ERROR||/opt/ffmpeg/lib|/usr/lib/x86_64-linux-gnu|/usr/lib"
+    
+    # GPU/Rendering libraries (CRITICAL for display)
+    "EGL|libEGL|libEGL.so|WARNING||/lib/x86_64-linux-gnu|/opt/Qt6/lib|/usr/lib/x86_64-linux-gnu|/usr/lib|/usr/lib64|/lib"
+    "GL|libGL|libGL.so|WARNING||/lib/x86_64-linux-gnu|/opt/Qt6/lib|/usr/lib/x86_64-linux-gnu|/usr/lib|/usr/lib64|/lib"
+    "GLX|libGLX|libGLX.so|WARNING||/lib/x86_64-linux-gnu|/opt/Qt6/lib|/usr/lib/x86_64-linux-gnu|/usr/lib|/usr/lib64|/lib"
+    "GLESV2|libGLESv2|libGLESv2.so|WARNING||/lib/x86_64-linux-gnu|/opt/Qt6/lib|/usr/lib/x86_64-linux-gnu|/usr/lib|/usr/lib64|/lib"
+    "GLVND|libglvnd|libglvnd.so|WARNING||/lib/x86_64-linux-gnu|/opt/Qt6/lib|/usr/lib/x86_64-linux-gnu|/usr/lib|/usr/lib64|/lib"
+    "GLDISPATCH|libGLdispatch|libGLdispatch.so|WARNING||/lib/x86_64-linux-gnu|/opt/Qt6/lib|/usr/lib/x86_64-linux-gnu|/usr/lib|/usr/lib64|/lib"
+    "OPENGL|libOpenGL|libOpenGL.so|WARNING||/lib/x86_64-linux-gnu|/opt/Qt6/lib|/usr/lib/x86_64-linux-gnu|/usr/lib|/usr/lib64|/lib"
+    
+    # Core media libraries
     "LIBUSB|libusb|libusb*.so|ERROR||/opt/libusb/lib|/opt/ffmpeg/lib|/usr/lib/x86_64-linux-gnu|/usr/lib"
     "JPEG|libjpeg|libjpeg.so|ERROR||/opt/ffmpeg/lib|/usr/lib/x86_64-linux-gnu|/usr/lib"
     "TURBOJPEG|libturbojpeg|libturbojpeg.so|ERROR||/opt/ffmpeg/lib|/usr/lib/x86_64-linux-gnu|/usr/lib"

@@ -179,6 +179,15 @@ declare -a UNIFIED_LIBRARY_CONFIGS=(
     "VAX11|VA-API X11|libva-x11.so|WARNING||/usr/lib/x86_64-linux-gnu /usr/lib"
     "VDPAU|VDPAU|libvdpau.so|WARNING||/usr/lib/x86_64-linux-gnu /usr/lib"
     
+    # GPU/Rendering libraries (CRITICAL for display)
+    "EGL|libEGL|libEGL.so|WARNING||/lib/x86_64-linux-gnu /opt/Qt6/lib /usr/lib/x86_64-linux-gnu /usr/lib /usr/lib64 /lib"
+    "GL|libGL|libGL.so|WARNING||/lib/x86_64-linux-gnu /opt/Qt6/lib /usr/lib/x86_64-linux-gnu /usr/lib /usr/lib64 /lib"
+    "GLX|libGLX|libGLX.so|WARNING||/lib/x86_64-linux-gnu /opt/Qt6/lib /usr/lib/x86_64-linux-gnu /usr/lib /usr/lib64 /lib"
+    "GLESV2|libGLESv2|libGLESv2.so|WARNING||/lib/x86_64-linux-gnu /opt/Qt6/lib /usr/lib/x86_64-linux-gnu /usr/lib /usr/lib64 /lib"
+    "GLVND|libglvnd|libglvnd.so|WARNING||/lib/x86_64-linux-gnu /opt/Qt6/lib /usr/lib/x86_64-linux-gnu /usr/lib /usr/lib64 /lib"
+    "GLDISPATCH|libGLdispatch|libGLdispatch.so|WARNING||/lib/x86_64-linux-gnu /opt/Qt6/lib /usr/lib/x86_64-linux-gnu /usr/lib /usr/lib64 /lib"
+    "OPENGL|libOpenGL|libOpenGL.so|WARNING||/lib/x86_64-linux-gnu /opt/Qt6/lib /usr/lib/x86_64-linux-gnu /usr/lib /usr/lib64 /lib"
+    
     # FFmpeg libraries -> ${PKG_ROOT}/usr/lib/openterfaceqt/ffmpeg
     "AVDEVICE|FFmpeg avdevice|libavdevice.so|WARNING|ffmpeg|/opt/ffmpeg/lib /usr/lib/x86_64-linux-gnu /usr/lib"
     "AVCODEC|FFmpeg avcodec|libavcodec.so|WARNING|ffmpeg|/opt/ffmpeg/lib /usr/lib/x86_64-linux-gnu /usr/lib"
