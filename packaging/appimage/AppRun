@@ -11,7 +11,7 @@ HERE="$(dirname "$(readlink -f "${0}")")"
 # The order is:
 # 1. AppImage's own libraries (non-GLIBC, like plugins and Qt)
 # 2. System libraries (GLIBC, Qt, etc. - provided by host)
-export LD_LIBRARY_PATH="${HERE}/usr/lib:${HERE}/usr/lib/x86_64-linux-gnu:${HERE}/lib:${HERE}/lib/x86_64-linux-gnu:/usr/lib/x86_64-linux-gnu:/usr/lib:/lib:${LD_LIBRARY_PATH}"
+export LD_LIBRARY_PATH="${HERE}/usr/lib:${HERE}/lib:${HERE}/lib/x86_64-linux-gnu:/usr/lib/x86_64-linux-gnu:/usr/lib:/lib:${LD_LIBRARY_PATH}"
 
 # CRITICAL: Ensure system PATH for utilities and GLIBC
 # Allows fallback to host system utilities with compatible GLIBC
@@ -38,10 +38,10 @@ fi
 export GST_PLUGIN_PATH="${HERE}/usr/lib/gstreamer-1.0:${GST_PLUGIN_PATH}"
 
 # Set Qt plugin path and Wayland support
-export QT_PLUGIN_PATH="${HERE}/usr/plugins:${QT_PLUGIN_PATH}"
+export QT_PLUGIN_PATH="${HERE}/usr/lib/plugins:${QT_PLUGIN_PATH}"
 
 # Add Wayland shell integration plugins path
-export QT_QPA_PLATFORM_PLUGIN_PATH="${HERE}/usr/plugins:${QT_QPA_PLATFORM_PLUGIN_PATH}"
+export QT_QPA_PLATFORM_PLUGIN_PATH="${HERE}/usr/lib/plugins:${QT_QPA_PLATFORM_PLUGIN_PATH}"
 
 # Enable Wayland support (will automatically fallback to X11/XCB if Wayland not available)
 # Let Qt auto-detect the best platform (wayland if available, xcb otherwise)

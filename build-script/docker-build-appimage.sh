@@ -150,35 +150,6 @@ echo '✅ Executable copied'
 cp build/openterfaceQT appimage/AppDir/usr/bin/
 chmod +x appimage/AppDir/usr/bin/openterfaceQT
 
-# CRITICAL: Copy Qt platform plugins to /usr/plugins (expected by AppImage Qt)
-echo "📦 Copying Qt platform plugins to AppImage /usr/plugins location..."
-for plugin_dir in /opt/Qt6/plugins/platforms /usr/lib/qt6/plugins/platforms /usr/lib/x86_64-linux-gnu/qt6/plugins/platforms; do
-    if [ -d "$plugin_dir" ]; then
-        echo "  Found Qt plugins at: $plugin_dir"
-        cp -r "$plugin_dir"/* "${APPDIR}/usr/plugins/platforms/" 2>/dev/null || true
-        break
-    fi
-done
-
-# Copy Wayland shell integration plugins
-for shell_dir in /opt/Qt6/plugins/wayland-shell-integration /usr/lib/qt6/plugins/wayland-shell-integration /usr/lib/x86_64-linux-gnu/qt6/plugins/wayland-shell-integration; do
-    if [ -d "$shell_dir" ]; then
-        echo "  Found Wayland shell integration at: $shell_dir"
-        cp -r "$shell_dir"/* "${APPDIR}/usr/plugins/wayland-shell-integration/" 2>/dev/null || true
-        break
-    fi
-done
-
-# Copy Wayland decoration plugins
-for deco_dir in /opt/Qt6/plugins/wayland-decoration-client /usr/lib/qt6/plugins/wayland-decoration-client /usr/lib/x86_64-linux-gnu/qt6/plugins/wayland-decoration-client; do
-    if [ -d "$deco_dir" ]; then
-        echo "  Found Wayland decoration at: $deco_dir"
-        cp -r "$deco_dir"/* "${APPDIR}/usr/plugins/wayland-decoration-client/" 2>/dev/null || true
-        break
-    fi
-done
-
-echo "✅ Qt plugins copied to /usr/plugins"
 
 echo '📦 Copying critical GLIBC libraries for compatibility...'
 # Create target directories for initial AppDir
@@ -228,11 +199,11 @@ declare -a APPIMAGE_LIBRARY_CONFIGS=(
     "OPENGL|libOpenGL|libOpenGL.so|WARNING||/usr/lib/x86_64-linux-gnu /usr/lib /usr/lib64 /lib"
     
     # Qt platform plugins (CRITICAL for GUI applications)
-    "QTPLUGIN_XCB|Qt6 XCB platform|libqxcb.so|ERROR|qt6/plugins/platforms|/opt/Qt6/plugins/platforms /usr/lib/qt6/plugins/platforms /usr/lib/x86_64-linux-gnu/qt6/plugins/platforms"
-    "QTPLUGIN_WAYLAND_EGL|Qt6 Wayland EGL|libqwayland-egl.so|WARNING|qt6/plugins/platforms|/opt/Qt6/plugins/platforms /usr/lib/qt6/plugins/platforms /usr/lib/x86_64-linux-gnu/qt6/plugins/platforms"
-    "QTPLUGIN_WAYLAND_GENERIC|Qt6 Wayland Generic|libqwayland-generic.so|WARNING|qt6/plugins/platforms|/opt/Qt6/plugins/platforms /usr/lib/qt6/plugins/platforms /usr/lib/x86_64-linux-gnu/qt6/plugins/platforms"
-    "QTPLUGIN_OFFSCREEN|Qt6 Offscreen|libqoffscreen.so|WARNING|qt6/plugins/platforms|/opt/Qt6/plugins/platforms /usr/lib/qt6/plugins/platforms /usr/lib/x86_64-linux-gnu/qt6/plugins/platforms"
-    "QTPLUGIN_MINIMAL|Qt6 Minimal|libqminimal.so|WARNING|qt6/plugins/platforms|/opt/Qt6/plugins/platforms /usr/lib/qt6/plugins/platforms /usr/lib/x86_64-linux-gnu/qt6/plugins/platforms"
+    "QTPLUGIN_XCB|Qt6 XCB platform|libqxcb.so|ERROR|/usr/lib/qt6/plugins/platforms|/opt/Qt6/plugins/platforms /usr/lib/qt6/plugins/platforms /usr/lib/x86_64-linux-gnu/qt6/plugins/platforms"
+    "QTPLUGIN_WAYLAND_EGL|Qt6 Wayland EGL|libqwayland-egl.so|WARNING|/usr/lib/qt6/plugins/platforms|/opt/Qt6/plugins/platforms /usr/lib/qt6/plugins/platforms /usr/lib/x86_64-linux-gnu/qt6/plugins/platforms"
+    "QTPLUGIN_WAYLAND_GENERIC|Qt6 Wayland Generic|libqwayland-generic.so|WARNING|/usr/lib/qt6/plugins/platforms|/opt/Qt6/plugins/platforms /usr/lib/qt6/plugins/platforms /usr/lib/x86_64-linux-gnu/qt6/plugins/platforms"
+    "QTPLUGIN_OFFSCREEN|Qt6 Offscreen|libqoffscreen.so|WARNING|/usr/lib/qt6/plugins/platforms|/opt/Qt6/plugins/platforms /usr/lib/qt6/plugins/platforms /usr/lib/x86_64-linux-gnu/qt6/plugins/platforms"
+    "QTPLUGIN_MINIMAL|Qt6 Minimal|libqminimal.so|WARNING|/usr/lib/qt6/plugins/platforms|/opt/Qt6/plugins/platforms /usr/lib/qt6/plugins/platforms /usr/lib/x86_64-linux-gnu/qt6/plugins/platforms"
     
     # Wayland dependencies (required for wayland plugin)
     "WAYLAND_CLIENT|libwayland-client|libwayland-client.so|WARNING||/usr/lib/x86_64-linux-gnu /usr/lib /lib/x86_64-linux-gnu /lib"
@@ -406,77 +377,6 @@ if [ -n "${ICON_SRC}" ]; then
 else
 	echo "No icon found; continuing without a custom icon."
 fi
-
-# Create diagnostic helper script for troubleshooting GLIBC issues
-mkdir -p "${APPDIR}/usr/bin"
-cat > "${APPDIR}/usr/bin/diagnose-appimage.sh" << 'EOFDIAG'
-#!/bin/bash
-# Diagnostic script for OpenterfaceQT AppImage
-# This script helps troubleshoot GLIBC and library compatibility issues
-
-HERE="$(dirname "$(readlink -f "${0}")/../..")"
-echo "=== OpenterfaceQT AppImage Diagnostic Report ==="
-echo ""
-echo "📍 AppImage Location: $HERE"
-echo ""
-
-echo "📊 System Information:"
-echo "  Architecture: $(uname -m)"
-echo "  System GLIBC: $(ldd --version 2>/dev/null | head -1)"
-echo "  System libc path: $(ldconfig -p 2>/dev/null | grep libc.so.6 | head -1 | awk '{print $NF}')"
-echo ""
-
-echo "📦 Bundled GLIBC in AppImage:"
-if [ -f "$HERE/usr/lib/libc.so.6" ]; then
-    echo "  ✓ Found: $HERE/usr/lib/libc.so.6"
-    file "$HERE/usr/lib/libc.so.6"
-    # Try to get version info
-    echo "  Version info:"
-    strings "$HERE/usr/lib/libc.so.6" 2>/dev/null | grep "^GLIBC_" | sort | tail -5 || echo "    (unable to extract)"
-else
-    echo "  ✗ NOT FOUND: $HERE/usr/lib/libc.so.6"
-fi
-echo ""
-
-echo "📦 Bundled critical libraries:"
-for lib in libc.so.6 libm.so.6 libpthread.so.0 libdl.so.2 librt.so.1 libusb-1.0.so.0 libstdbuf.so; do
-    if [ -f "$HERE/usr/lib/$lib" ] || [ -f "$HERE/usr/lib/${lib}.0" ] || [ -f "$HERE/usr/lib/${lib}.1" ]; then
-        echo "  ✓ Found: $lib"
-    else
-        echo "  ✗ Missing: $lib"
-    fi
-done
-echo ""
-
-echo "🔍 Library dependency check for main executable:"
-if [ -f "$HERE/usr/bin/openterfaceQT" ]; then
-    echo "  Checking: $HERE/usr/bin/openterfaceQT"
-    if command -v ldd >/dev/null 2>&1; then
-        echo "  Dependencies:"
-        ldd "$HERE/usr/bin/openterfaceQT" 2>&1 | head -20 || echo "    (unable to list)"
-        echo ""
-        echo "  Missing dependencies:"
-        ldd "$HERE/usr/bin/openterfaceQT" 2>&1 | grep "not found" || echo "    (none found - OK!)"
-    else
-        echo "  ldd not available"
-    fi
-else
-    echo "  ✗ Executable not found: $HERE/usr/bin/openterfaceQT"
-fi
-echo ""
-
-echo "📁 AppImage library directory contents:"
-echo "  usr/lib/ has $(ls -1 "$HERE/usr/lib/" 2>/dev/null | wc -l) files"
-echo "  First 20 files:"
-ls -1 "$HERE/usr/lib/" 2>/dev/null | head -20 | sed 's/^/    /'
-echo ""
-
-echo "✅ Diagnostic report complete"
-EOFDIAG
-
-chmod +x "${APPDIR}/usr/bin/diagnose-appimage.sh"
-echo "✓ Created diagnostic helper: diagnose-appimage.sh (run inside extracted AppImage)"
-
 
 # Prefer preinstalled linuxdeploy and plugin in the image; fallback to download
 TOOLS_DIR="${APPIMAGE_DIR}/tools"
