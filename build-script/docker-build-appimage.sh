@@ -661,6 +661,29 @@ PROTECTED_LIBS=(
 	"libresolv.so.2"
 	"libcrypt.so.1"
 	"libutil.so.1"
+	# GPU/EGL rendering libraries that are also blacklisted but needed
+	"libEGL.so.1"
+	"libEGL.so"
+	"libGLX.so.0"
+	"libGLX.so"
+	"libGL.so.1"
+	"libGL.so"
+	"libGLESv2.so.2"
+	"libGLESv2.so"
+	"libglvnd.so.0"
+	"libglvnd.so"
+	"libGLdispatch.so.0"
+	"libGLdispatch.so"
+	"libOpenGL.so.0"
+	"libOpenGL.so"
+	# Additional rendering support
+	"libxcb-dri2.so.0"
+	"libxcb-dri3.so.0"
+	"libxcb-present.so.0"
+	"libxcb-sync.so.1"
+	"libxshmfence.so.1"
+	"libdrm.so.2"
+	"libdrm.so"
 )
 
 PROTECTED_COUNT=0
@@ -708,7 +731,7 @@ fi
 
 echo "Running linuxdeploy without output plugin..."
 echo "⚠️  IMPORTANT: linuxdeploy will skip/blacklist certain libraries"
-echo "    (libc.so.6, libgcc_s.so.1, libstdc++.so.6)"
+echo "    (libc.so.6, libgcc_s.so.1, libstdc++.so.6, libEGL.so.1, libGL.so.1, libdrm.so.2, etc.)"
 echo "    These have been backed up and will be restored after linuxdeploy completes"
 echo ""
 
@@ -728,7 +751,7 @@ fi
 
 # CRITICAL FIX: Restore critical libraries that linuxdeploy blacklisted
 echo "🔧 Restoring critical libraries that linuxdeploy skipped..."
-echo "   (linuxdeploy blacklists: libc.so.6, libgcc_s.so.1, libstdc++.so.6, etc.)"
+echo "   (linuxdeploy blacklists: libc.so.6, libgcc_s.so.1, libstdc++.so.6, libEGL.so.1, libGL.so.1, libdrm.so.2, etc.)"
 
 if [ -d "${APPDIR}/usr/lib/linuxdeploy_protected" ]; then
 	RESTORED_COUNT=0
