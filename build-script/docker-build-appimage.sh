@@ -153,8 +153,15 @@ mkdir -p "appimage/AppDir/usr/lib"
 # Combines initial pass and comprehensive pass into single unified array
 declare -a APPIMAGE_LIBRARY_CONFIGS=(
     # Core GLIBC libraries
-    "GLIBC|GLIBC|libc.so\|libm.so\|libpthread.so\|libdl.so\|librt.so|WARNING||/lib/x86_64-linux-gnu /lib64 /lib /usr/lib/x86_64-linux-gnu /usr/lib"
-    "GLIBC_NSS|glibc NSS|libnss*.so\|libresolv.so\|libcrypt.so\|libutil.so|WARNING||/lib/x86_64-linux-gnu /lib64 /lib /usr/lib/x86_64-linux-gnu /usr/lib"
+    "GLIBC|GLIBC|libc.so|WARNING||/usr/lib/x86_64-linux-gnu /lib64 /lib /usr/lib"
+    "GLIBC_LIBM|libm|libm.so|WARNING||/usr/lib/x86_64-linux-gnu /lib64 /lib /usr/lib"
+    "GLIBC_PTHREAD|libpthread|libpthread.so|WARNING||/usr/lib/x86_64-linux-gnu /lib64 /lib /usr/lib"
+    "GLIBC_DL|libdl|libdl.so|WARNING||/usr/lib/x86_64-linux-gnu /lib64 /lib /usr/lib"
+    "GLIBC_RT|librt|librt.so|WARNING||/usr/lib/x86_64-linux-gnu /lib64 /lib /usr/lib"
+    "GLIBC_NSS|libnss|libnss*.so|WARNING||/usr/lib/x86_64-linux-gnu /lib64 /lib /usr/lib"
+    "GLIBC_RESOLV|libresolv|libresolv.so|WARNING||/usr/lib/x86_64-linux-gnu /lib64 /lib /usr/lib"
+    "GLIBC_CRYPT|libcrypt|libcrypt.so|WARNING||/usr/lib/x86_64-linux-gnu /lib64 /lib /usr/lib"
+    "GLIBC_UTIL|libutil|libutil.so|WARNING||/usr/lib/x86_64-linux-gnu /lib64 /lib /usr/lib"
     
     # Critical system libraries (libusb, libdrm, libudev)
     "LIBUSB|libusb|libusb*.so|ERROR||/opt/ffmpeg/lib /opt /usr/lib/x86_64-linux-gnu /usr/lib /lib/x86_64-linux-gnu /lib"
@@ -172,13 +179,13 @@ declare -a APPIMAGE_LIBRARY_CONFIGS=(
     "BZ2|libbz2|libbz2.so|WARNING||/opt/ffmpeg/lib /usr/lib/x86_64-linux-gnu /usr/lib /lib/x86_64-linux-gnu /lib"
     
     # EGL and GPU rendering libraries (with wildcard patterns to match all versions)
-    "EGL|libEGL|libEGL.so|WARNING||/lib/x86_64-linux-gnu /opt/Qt6/lib /usr/lib/x86_64-linux-gnu /usr/lib /usr/lib64 /lib"
-    "GL|libGL|libGL.so|WARNING||/lib/x86_64-linux-gnu /opt/Qt6/lib /usr/lib/x86_64-linux-gnu /usr/lib /usr/lib64 /lib"
-    "GLX|libGLX|libGLX.so|WARNING||/lib/x86_64-linux-gnu /opt/Qt6/lib /usr/lib/x86_64-linux-gnu /usr/lib /usr/lib64 /lib"
-    "GLESV2|libGLESv2|libGLESv2.so|WARNING||/lib/x86_64-linux-gnu /opt/Qt6/lib /usr/lib/x86_64-linux-gnu /usr/lib /usr/lib64 /lib"
-    "GLVND|libglvnd|libglvnd.so|WARNING||/lib/x86_64-linux-gnu /opt/Qt6/lib /usr/lib/x86_64-linux-gnu /usr/lib /usr/lib64 /lib"
-    "GLDISPATCH|libGLdispatch|libGLdispatch.so|WARNING||/lib/x86_64-linux-gnu /opt/Qt6/lib /usr/lib/x86_64-linux-gnu /usr/lib /usr/lib64 /lib"
-    "OPENGL|libOpenGL|libOpenGL.so|WARNING||/lib/x86_64-linux-gnu /opt/Qt6/lib /usr/lib/x86_64-linux-gnu /usr/lib /usr/lib64 /lib"
+    "EGL|libEGL|libEGL.so|WARNING||/usr/lib/x86_64-linux-gnu /usr/lib /usr/lib64 /lib"
+    "GL|libGL|libGL.so|WARNING||/usr/lib/x86_64-linux-gnu /usr/lib /usr/lib64 /lib"
+    "GLX|libGLX|libGLX.so|WARNING||/usr/lib/x86_64-linux-gnu /usr/lib /usr/lib64 /lib"
+    "GLESV2|libGLESv2|libGLESv2.so|WARNING||/usr/lib/x86_64-linux-gnu /usr/lib /usr/lib64 /lib"
+    "GLVND|libglvnd|libglvnd.so|WARNING||/usr/lib/x86_64-linux-gnu /usr/lib /usr/lib64 /lib"
+    "GLDISPATCH|libGLdispatch|libGLdispatch.so|WARNING||/usr/lib/x86_64-linux-gnu /usr/lib /usr/lib64 /lib"
+    "OPENGL|libOpenGL|libOpenGL.so|WARNING||/usr/lib/x86_64-linux-gnu /usr/lib /usr/lib64 /lib"
     
     # Qt platform plugins (CRITICAL for GUI applications)
     "QTPLUGIN_XCB|Qt6 XCB platform|libqxcb.so|ERROR|qt6/plugins/platforms|/opt/Qt6/plugins/platforms /usr/lib/qt6/plugins/platforms /usr/lib/x86_64-linux-gnu/qt6/plugins/platforms"
@@ -221,7 +228,7 @@ declare -a APPIMAGE_LIBRARY_CONFIGS=(
     "GSTTYPEFIND|GStreamer type find|libgsttypefindfunctions.so|WARNING|gstreamer-1.0|/opt/gstreamer/lib/x86_64-linux-gnu/gstreamer-1.0 /opt/gstreamer/lib/gstreamer-1.0 /usr/lib/x86_64-linux-gnu/gstreamer-1.0 /usr/lib/gstreamer-1.0"
     
     # System loader
-    "LDLINUX|Linux dynamic linker|ld-linux-x86-64.so.2|WARNING||/lib/x86_64-linux-gnu /lib64 /lib /usr/lib/x86_64-linux-gnu /usr/lib"
+    "LDLINUX|Linux dynamic linker|ld-linux-x86-64.so.2|WARNING||/usr/lib/x86_64-linux-gnu /lib64 /lib /usr/lib"
 )
 
 # Process merged AppImage library configurations for initial AppDir
