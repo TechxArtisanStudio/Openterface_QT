@@ -25,25 +25,57 @@ esac
 # Create build directory
 mkdir -p "${BUILD_DIR}" "${APPIMAGE_DIR}"
 
-# Essential GStreamer plugins for video capture
-GSTREAMER_PLUGINS=(
-    "libgstvideo4linux2.so"        # V4L2 video capture (CRITICAL)
-    "libgstv4l2codecs.so"          # V4L2 hardware codecs
-    "libgstvideoconvertscale.so"   # Video format conversion and scaling
-    "libgstvideorate.so"           # Video frame rate conversion
-    "libgstcoreelements.so"        # Core elements (queue, filesrc, etc.)
-    "libgsttypefindfunctions.so"   # Type detection
-    "libgstapp.so"                 # Application integration
-    "libgstplayback.so"           # Playback elements
-    "libgstjpeg.so"               # JPEG codec
-    "libgstximagesink.so"         # X11 video sink
-    "libgstxvimagesink.so"        # XVideo sink
-    "libgstautodetect.so"         # Auto detection
-    "libgstpulseaudio.so"         # PulseAudio
-    "libgstaudioparsers.so"       # Audio parsers
-    "libgstaudioconvert.so"       # Audio conversion
-    "libgstaudioresample.so"      # Audio resampling
-)
+# ============================================================
+# Generic library copying function (from docker-build-deb.sh)
+# ============================================================
+# This function eliminates code duplication for library copying
+# Usage: copy_libraries "VARNAME" "Display Name" "lib_pattern" "ERROR|WARNING" "target_dir" "search_dir1" "search_dir2" ...
+copy_libraries() {
+    local var_name="$1"
+    local display_name="$2"
+    local lib_pattern="$3"
+    local severity="$4"  # ERROR or WARNING
+    local target_dir="$5"
+    shift 5
+    local search_dirs=("$@")
+    
+    echo "📋 APPIMAGE: Searching for ${display_name} libraries..."
+    local found=0
+    
+    for search_dir in "${search_dirs[@]}"; do
+        echo "   Checking: $search_dir"
+        if [ -d "$search_dir" ]; then
+            if ls "$search_dir"/${lib_pattern}* >/dev/null 2>&1; then
+                echo "   ✅ Found ${display_name} in $search_dir"
+                local files=$(ls -la "$search_dir"/${lib_pattern}* 2>/dev/null)
+                echo "   Files found:"
+                echo "$files" | sed 's/^/     /'
+                # Copy both actual files AND symlinks to preserve library versioning chains
+                find "$search_dir" -maxdepth 1 -name "${lib_pattern}*" \( -type f -o -type l \) -exec cp -avP {} "${target_dir}/" \; 2>&1 | sed 's/^/     /'
+                echo "   ✅ ${display_name} libraries copied to ${target_dir}"
+                found=1
+                break
+            else
+                echo "   ✗ No ${display_name} found in $search_dir"
+            fi
+        else
+            echo "   ✗ Directory does not exist: $search_dir"
+        fi
+    done
+    
+    if [ $found -eq 0 ]; then
+        if [ "$severity" = "ERROR" ]; then
+            echo "❌ ERROR: ${display_name} libraries not found in any search path!"
+        else
+            echo "⚠️  Warning: ${display_name} libraries not found"
+        fi
+    else
+        echo "✅ ${display_name} found and copied"
+    fi
+    
+    # Export result as a variable (e.g., GSTREAMER_FOUND=1)
+    eval "${var_name}_FOUND=$found"
+}
 
 echo "Detecting GStreamer plugin directories..."
 
@@ -107,237 +139,87 @@ cp build/openterfaceQT appimage/AppDir/usr/bin/
 chmod +x appimage/AppDir/usr/bin/openterfaceQT
 
 echo '📦 Copying critical GLIBC libraries for compatibility...'
-# CRITICAL: Copy libc.so.6 and related glibc libraries from the build environment
-# This ensures the AppImage can run on systems with older GLIBC versions
-GLIBC_LIBS=(
-    "libc.so.6"
-    "libm.so.6"
-    "libpthread.so.0"
-    "libdl.so.2"
-    "librt.so.1"
-)
-
-for lib in "${GLIBC_LIBS[@]}"; do
-    for SEARCH_DIR in /lib/x86_64-linux-gnu /lib64 /lib /usr/lib/x86_64-linux-gnu /usr/lib; do
-        if [ -f "$SEARCH_DIR/$lib" ]; then
-            dest_file="appimage/AppDir/usr/lib/$(basename "$lib")"
-            if [ ! -e "$dest_file" ]; then
-                echo "  ✓ Copying: $lib"
-                cp -P "$SEARCH_DIR/$lib" "appimage/AppDir/usr/lib/" || true
-            fi
-            break
-        fi
-    done
-done
-echo '✅ GLIBC libraries copied'
-
-echo '📦 Copying essential GStreamer plugins...'
-COPIED_COUNT=0
-for plugin in "${GSTREAMER_PLUGINS[@]}"; do
-	if [ -f "$GSTREAMER_HOST_DIR/$plugin" ]; then
-		echo "✅ Included $plugin"
-		cp "$GSTREAMER_HOST_DIR/$plugin" "appimage/AppDir/usr/lib/gstreamer-1.0/" || true
-		chmod +x "appimage/AppDir/usr/lib/gstreamer-1.0/$plugin" || true
-		COPIED_COUNT=$((COPIED_COUNT + 1))
-	else
-		echo "⚠️ Missing $plugin"
-	fi
-done
-echo "📦 Copied $COPIED_COUNT essential GStreamer plugins"
-
-# Copy dependencies of GStreamer plugins
-echo "📦 Copying dependencies for GStreamer plugins..."
-mkdir -p "appimage/AppDir/usr/lib"
-for plugin in "${GSTREAMER_PLUGINS[@]}"; do
-	if [ -f "appimage/AppDir/usr/lib/gstreamer-1.0/$plugin" ]; then
-		echo "Checking dependencies for $plugin"
-		ldd "appimage/AppDir/usr/lib/gstreamer-1.0/$plugin" 2>/dev/null | grep -v "linux-vdso" | grep -v "ld-linux" | awk '{print $3}' | while read -r dep; do
-			if [ -f "$dep" ] && [[ "$dep" == /usr/lib/* || "$dep" == /lib/* ]] && [ ! -f "appimage/AppDir/usr/lib/$(basename "$dep")" ]; then
-				echo "  Copying dependency: $(basename "$dep")"
-				cp "$dep" "appimage/AppDir/usr/lib/" || true
-			fi
-		done || true
-	fi
-done
-echo "✅ GStreamer plugin dependencies copied"
-
-# Copy critical system libraries that must be bundled to avoid GLIBC conflicts
-echo "📦 Copying critical system libraries (libusb, libdrm, libudev)..."
+# Create target directories for initial AppDir
 mkdir -p "appimage/AppDir/usr/lib"
 
-# Debug: Show what libusb files exist in the system
-echo "  🔍 Searching for libusb in system..."
-LIBUSB_FOUND=$(find /opt/ffmpeg/lib /opt /usr/lib/x86_64-linux-gnu /usr/lib /lib/x86_64-linux-gnu /lib -name "libusb*" 2>/dev/null | head -10)
-if [ -n "$LIBUSB_FOUND" ]; then
-	echo "    Found libusb files:"
-	echo "$LIBUSB_FOUND" | while read -r lib; do
-		echo "      - $lib"
-	done
-else
-	echo "    ⚠️  No libusb files found in system paths!"
-	echo "    Checking if libusb package is installed..."
-	dpkg -l | grep -i libusb || echo "    libusb not installed, attempting to install..."
-	apt-get update -qq && apt-get install -y libusb-1.0-0 libusb-1.0-0-dev 2>&1 | tail -5 || true
-fi
-echo ""
+# ============================================================
+# Define unified library copying configurations
+# Format: variable_name|display_name|lib_pattern|severity|target_subdir|search_dirs...
+# target_subdir: "" (root) or subdirectory path
+# ============================================================
 
-CRITICAL_LIBS=(
-    "libusb-1.0.so*"
-    "libusb-1.0-0*"
-    "libusb.so*"
-    "libdrm.so*"
-    "libudev.so*"
-)
-
-for pattern in "${CRITICAL_LIBS[@]}"; do
-    # Search in build environment library paths (these have compatible GLIBC)
-    FOUND=0
-    for SEARCH_DIR in /opt/ffmpeg/lib /opt /usr/lib/x86_64-linux-gnu /usr/lib /lib/x86_64-linux-gnu /lib; do
-        if [ -d "$SEARCH_DIR" ]; then
-            # Use find with -print0 and xargs for better handling
-            found_count=$(find "$SEARCH_DIR" -maxdepth 1 -name "$pattern" 2>/dev/null | wc -l)
-            if [ "$found_count" -gt 0 ]; then
-                echo "  Found $found_count match(es) for pattern '$pattern' in $SEARCH_DIR"
-                find "$SEARCH_DIR" -maxdepth 1 -name "$pattern" 2>/dev/null | while IFS= read -r file; do
-                    if [ -f "$file" ] || [ -L "$file" ]; then
-                        dest_file="appimage/AppDir/usr/lib/$(basename "$file")"
-                        if [ ! -e "$dest_file" ]; then
-                            echo "    ✓ Copying: $(basename "$file")"
-                            cp -P "$file" "appimage/AppDir/usr/lib/" 2>&1 || {
-                                echo "    ⚠️  Warning: Failed to copy $file"
-                            }
-                        else
-                            echo "    ✓ Already exists: $(basename "$file")"
-                        fi
-                    fi
-                done
-                FOUND=1
-                break  # Found in this directory, stop searching for this pattern
-            fi
-        fi
-    done
-    if [ $FOUND -eq 0 ]; then
-        echo "  ⏭️  Pattern not found: $pattern (skipping)"
-    fi
-done
-echo "✅ Critical system libraries copying completed"
-
-# Copy JPEG libraries for image codec support (required by Qt and FFmpeg)
-echo "📦 Copying JPEG libraries for image codec support..."
-mkdir -p "appimage/AppDir/usr/lib"
-JPEG_COPIED=0
-for SEARCH_DIR in /opt/ffmpeg/lib /usr/lib/x86_64-linux-gnu /usr/lib; do
-    if [ -d "$SEARCH_DIR" ]; then
-        # Copy libjpeg libraries (both files and symlinks)
-        LIBJPEG_COUNT=$(find "$SEARCH_DIR" -maxdepth 1 \( -name "libjpeg.so*" -type f -o -name "libjpeg.so*" -type l \) 2>/dev/null | wc -l)
-        if [ "$LIBJPEG_COUNT" -gt 0 ]; then
-            echo "  ✅ Found libjpeg in $SEARCH_DIR"
-            find "$SEARCH_DIR" -maxdepth 1 \( -name "libjpeg.so*" -type f -o -name "libjpeg.so*" -type l \) 2>/dev/null | while read -r file; do
-                if [ ! -f "appimage/AppDir/usr/lib/$(basename "$file")" ]; then
-                    echo "    Copying: $(basename "$file")"
-                    cp -a "$file" "appimage/AppDir/usr/lib/"
-                fi
-            done
-        fi
-        # Copy libturbojpeg libraries (both files and symlinks)
-        LIBTURBOJPEG_COUNT=$(find "$SEARCH_DIR" -maxdepth 1 \( -name "libturbojpeg.so*" -type f -o -name "libturbojpeg.so*" -type l \) 2>/dev/null | wc -l)
-        if [ "$LIBTURBOJPEG_COUNT" -gt 0 ]; then
-            echo "  ✅ Found libturbojpeg in $SEARCH_DIR"
-            find "$SEARCH_DIR" -maxdepth 1 \( -name "libturbojpeg.so*" -type f -o -name "libturbojpeg.so*" -type l \) 2>/dev/null | while read -r file; do
-                if [ ! -f "appimage/AppDir/usr/lib/$(basename "$file")" ]; then
-                    echo "    Copying: $(basename "$file")"
-                    cp -a "$file" "appimage/AppDir/usr/lib/"
-                fi
-            done
-        fi
-    fi
-done
-echo "✅ JPEG libraries processed for AppImage"
-
-# Copy EGL and GPU rendering libraries (required for Qt GUI rendering)
-echo "📦 Copying EGL and GPU rendering libraries for GUI support..."
-mkdir -p "appimage/AppDir/usr/lib"
-EGL_LIBS=(
-    "libEGL.so.1"
-    "libEGL.so"
-    "libGLESv2.so.2"
-    "libGLESv2.so"
-    "libGL.so.1"
-    "libGL.so"
-    "libGLX.so.0"
-    "libGLX.so"
-    "libglvnd.so.0"
-    "libglvnd_pthread.so.0"
-    "libglvnd_dl.so.0"
-)
-
-# Track which libraries were found
-declare -A EGL_FOUND
-
-# Search in multiple directories
-for SEARCH_DIR in /opt/Qt6/lib /usr/lib/x86_64-linux-gnu /usr/lib /usr/lib64 /lib/x86_64-linux-gnu /lib; do
-    if [ -d "$SEARCH_DIR" ]; then
-        for lib in "${EGL_LIBS[@]}"; do
-            # Skip if already found
-            if [ "${EGL_FOUND[$lib]:-}" = "1" ]; then
-                continue
-            fi
-            
-            # Search for the library (including wildcards for versioned libs)
-            found_files=$(find "$SEARCH_DIR" -maxdepth 1 \( -name "$lib" -o -name "${lib}.*" \) 2>/dev/null || true)
-            
-            if [ -n "$found_files" ]; then
-                echo "$found_files" | while read -r file; do
-                    if [ -f "$file" ] || [ -L "$file" ]; then
-                        dest_file="appimage/AppDir/usr/lib/$(basename "$file")"
-                        if [ ! -e "$dest_file" ]; then
-                            echo "  ✓ Copying: $(basename "$file") from $SEARCH_DIR"
-                            cp -P "$file" "appimage/AppDir/usr/lib/" 2>&1 || {
-                                echo "  ⚠️  Warning: Failed to copy $file"
-                            }
-                        fi
-                    fi
-                done
-                EGL_FOUND[$lib]=1
-            fi
-        done
-    fi
-done
-
-# Verify critical EGL libraries were copied
-echo "📊 Verifying EGL library installation..."
-MISSING_LIBS=()
-for lib in "libEGL.so.1" "libGL.so.1" "libGLX.so.0"; do
-    if [ ! -e "appimage/AppDir/usr/lib/$lib" ]; then
-        MISSING_LIBS+=("$lib")
-        echo "  ⚠️  Missing critical library: $lib"
-    else
-        echo "  ✓ Found: $lib"
-    fi
-done
-
-if [ ${#MISSING_LIBS[@]} -gt 0 ]; then
-    echo "⚠️  WARNING: Some critical EGL libraries are missing!"
-    echo "    Attempting to install mesa-libEGL..."
+# Merged comprehensive AppImage library configurations
+# Format: variable_name|display_name|lib_pattern|severity|target_subdir|search_dirs...
+# Combines initial pass and comprehensive pass into single unified array
+declare -a APPIMAGE_LIBRARY_CONFIGS=(
+    # Core GLIBC libraries
+    "GLIBC|GLIBC|libc.so\|libm.so\|libpthread.so\|libdl.so\|librt.so|WARNING||/lib/x86_64-linux-gnu /lib64 /lib /usr/lib/x86_64-linux-gnu /usr/lib"
+    "GLIBC_NSS|glibc NSS|libnss*.so\|libresolv.so\|libcrypt.so\|libutil.so\|ld-linux|WARNING||/lib/x86_64-linux-gnu /lib64 /lib /usr/lib/x86_64-linux-gnu /usr/lib"
     
-    # Try to install EGL libraries if missing
-    if command -v apt-get >/dev/null 2>&1; then
-        apt-get update -qq && apt-get install -y libgl1 libegl1 libglx0 libglvnd0 2>/dev/null || true
-        
-        # Retry copying after installation
-        for lib in "${MISSING_LIBS[@]}"; do
-            for SEARCH_DIR in /usr/lib/x86_64-linux-gnu /usr/lib /lib/x86_64-linux-gnu /lib; do
-                if [ -f "$SEARCH_DIR/$lib" ]; then
-                    echo "  ✓ Found and copying: $lib from $SEARCH_DIR"
-                    cp -P "$SEARCH_DIR/$lib" "appimage/AppDir/usr/lib/"
-                    break
-                fi
-            done
-        done
-    fi
-fi
+    # Critical system libraries (libusb, libdrm, libudev)
+    "LIBUSB|libusb|libusb*.so|ERROR||/opt/ffmpeg/lib /opt /usr/lib/x86_64-linux-gnu /usr/lib /lib/x86_64-linux-gnu /lib"
+    "LIBDRM|libdrm|libdrm.so|WARNING||/usr/lib/x86_64-linux-gnu /usr/lib /lib/x86_64-linux-gnu /lib"
+    "LIBUDEV|libudev|libudev.so|WARNING||/usr/lib/x86_64-linux-gnu /usr/lib /lib/x86_64-linux-gnu /lib"
+    
+    # Coreutils support
+    "STDBUF|libstdbuf|libstdbuf.so|WARNING||/usr/libexec/coreutils /opt /usr/lib/x86_64-linux-gnu /usr/lib /lib/x86_64-linux-gnu /lib"
+    
+    # JPEG libraries
+    "JPEG|libjpeg|libjpeg.so|WARNING||/opt/ffmpeg/lib /usr/lib/x86_64-linux-gnu /usr/lib"
+    "TURBOJPEG|libturbojpeg|libturbojpeg.so|WARNING||/opt/ffmpeg/lib /usr/lib/x86_64-linux-gnu /usr/lib"
+    
+    # EGL and GPU rendering libraries
+    "EGL|libEGL|libEGL.so|WARNING||/opt/Qt6/lib /usr/lib/x86_64-linux-gnu /usr/lib /usr/lib64 /lib/x86_64-linux-gnu /lib"
+    "GL|libGL|libGL.so|WARNING||/opt/Qt6/lib /usr/lib/x86_64-linux-gnu /usr/lib /usr/lib64 /lib/x86_64-linux-gnu /lib"
+    "GLX|libGLX|libGLX.so|WARNING||/opt/Qt6/lib /usr/lib/x86_64-linux-gnu /usr/lib /usr/lib64 /lib/x86_64-linux-gnu /lib"
+    "GLESV2|libGLESv2|libGLESv2.so|WARNING||/opt/Qt6/lib /usr/lib/x86_64-linux-gnu /usr/lib /usr/lib64 /lib/x86_64-linux-gnu /lib"
+    "GLVND|libglvnd|libglvnd.so|WARNING||/opt/Qt6/lib /usr/lib/x86_64-linux-gnu /usr/lib /usr/lib64 /lib/x86_64-linux-gnu /lib"
+    
+    # Qt platform plugins (CRITICAL for GUI applications)
+    "QTPLUGIN_XCB|Qt6 XCB platform|libqxcb.so|ERROR|qt6/plugins/platforms|/opt/Qt6/plugins/platforms /usr/lib/qt6/plugins/platforms /usr/lib/x86_64-linux-gnu/qt6/plugins/platforms"
+    "QTPLUGIN_WAYLAND_EGL|Qt6 Wayland EGL|libqwayland-egl.so|WARNING|qt6/plugins/platforms|/opt/Qt6/plugins/platforms /usr/lib/qt6/plugins/platforms /usr/lib/x86_64-linux-gnu/qt6/plugins/platforms"
+    "QTPLUGIN_WAYLAND_GENERIC|Qt6 Wayland Generic|libqwayland-generic.so|WARNING|qt6/plugins/platforms|/opt/Qt6/plugins/platforms /usr/lib/qt6/plugins/platforms /usr/lib/x86_64-linux-gnu/qt6/plugins/platforms"
+    "QTPLUGIN_OFFSCREEN|Qt6 Offscreen|libqoffscreen.so|WARNING|qt6/plugins/platforms|/opt/Qt6/plugins/platforms /usr/lib/qt6/plugins/platforms /usr/lib/x86_64-linux-gnu/qt6/plugins/platforms"
+    "QTPLUGIN_MINIMAL|Qt6 Minimal|libqminimal.so|WARNING|qt6/plugins/platforms|/opt/Qt6/plugins/platforms /usr/lib/qt6/plugins/platforms /usr/lib/x86_64-linux-gnu/qt6/plugins/platforms"
+    
+    # Wayland dependencies (required for wayland plugin)
+    "WAYLAND_CLIENT|libwayland-client|libwayland-client.so|WARNING||/usr/lib/x86_64-linux-gnu /usr/lib /lib/x86_64-linux-gnu /lib"
+    "WAYLAND_CURSOR|libwayland-cursor|libwayland-cursor.so|WARNING||/usr/lib/x86_64-linux-gnu /usr/lib /lib/x86_64-linux-gnu /lib"
+    "WAYLAND_EGL|libwayland-egl|libwayland-egl.so|WARNING||/usr/lib/x86_64-linux-gnu /usr/lib /lib/x86_64-linux-gnu /lib"
+    "XKBCOMMON|libxkbcommon|libxkbcommon.so|WARNING||/usr/lib/x86_64-linux-gnu /usr/lib /lib/x86_64-linux-gnu /lib"
+    
+    # XCB dependencies (required by xcb plugin)
+    "XCB_CURSOR|libxcb-cursor|libxcb-cursor.so|WARNING||/usr/lib/x86_64-linux-gnu /usr/lib /lib/x86_64-linux-gnu /lib"
+    
+    # Essential GStreamer plugins for video capture
+    "GSTV4L2|GStreamer V4L2|libgstvideo4linux2.so|ERROR|gstreamer-1.0|/opt/gstreamer/lib/x86_64-linux-gnu/gstreamer-1.0 /opt/gstreamer/lib/gstreamer-1.0 /usr/lib/x86_64-linux-gnu/gstreamer-1.0 /usr/lib/gstreamer-1.0"
+    "GSTCODECS|GStreamer codecs|libgstv4l2codecs.so\|libgstjpeg.so|WARNING|gstreamer-1.0|/opt/gstreamer/lib/x86_64-linux-gnu/gstreamer-1.0 /opt/gstreamer/lib/gstreamer-1.0 /usr/lib/x86_64-linux-gnu/gstreamer-1.0 /usr/lib/gstreamer-1.0"
+    "GSTBASE|GStreamer base|libgstcoreelements.so\|libgstapp.so\|libgstplayback.so|WARNING|gstreamer-1.0|/opt/gstreamer/lib/x86_64-linux-gnu/gstreamer-1.0 /opt/gstreamer/lib/gstreamer-1.0 /usr/lib/x86_64-linux-gnu/gstreamer-1.0 /usr/lib/gstreamer-1.0"
+    "GSTVIDEO|GStreamer video|libgstvideoconvertscale.so\|libgstvideorate.so\|libgstximagesink.so\|libgstxvimagesink.so|WARNING|gstreamer-1.0|/opt/gstreamer/lib/x86_64-linux-gnu/gstreamer-1.0 /opt/gstreamer/lib/gstreamer-1.0 /usr/lib/x86_64-linux-gnu/gstreamer-1.0 /usr/lib/gstreamer-1.0"
+    "GSTAUDIO|GStreamer audio|libgstpulseaudio.so\|libgstaudioparsers.so\|libgstaudioconvert.so\|libgstaudioresample.so|WARNING|gstreamer-1.0|/opt/gstreamer/lib/x86_64-linux-gnu/gstreamer-1.0 /opt/gstreamer/lib/gstreamer-1.0 /usr/lib/x86_64-linux-gnu/gstreamer-1.0 /usr/lib/gstreamer-1.0"
+    "GSTUTIL|GStreamer utilities|libgsttypefindfunctions.so\|libgstautodetect.so|WARNING|gstreamer-1.0|/opt/gstreamer/lib/x86_64-linux-gnu/gstreamer-1.0 /opt/gstreamer/lib/gstreamer-1.0 /usr/lib/x86_64-linux-gnu/gstreamer-1.0 /usr/lib/gstreamer-1.0"
+)
 
-echo "✅ EGL and GPU rendering libraries processed for AppImage"
+# Process merged AppImage library configurations for initial AppDir
+echo "🔍 Copying required libraries to initial AppImage AppDir..."
+for config in "${APPIMAGE_LIBRARY_CONFIGS[@]}"; do
+    IFS='|' read -r var_name display_name lib_pattern severity target_subdir search_dirs_str <<< "$config"
+    
+    # Determine full target directory
+    if [ -z "$target_subdir" ]; then
+        target_dir="appimage/AppDir/usr/lib"
+    else
+        target_dir="appimage/AppDir/usr/lib/${target_subdir}"
+        mkdir -p "$target_dir"
+    fi
+    
+    # Split search directories
+    read -ra search_dirs <<< "$search_dirs_str"
+    
+    copy_libraries "$var_name" "$display_name" "$lib_pattern" "$severity" "$target_dir" "${search_dirs[@]}"
+done
+
+echo '✅ All GLIBC, critical, GPU, and GStreamer libraries copied'
 
 # Try to find and copy icon
 mkdir -p appimage/AppDir/usr/share/pixmaps
@@ -372,7 +254,7 @@ cp appimage/AppDir/usr/share/pixmaps/openterfaceqt.png appimage/AppDir/ 2>/dev/n
 
 # Continue to comprehensive AppImage creation section with Docker runtime support
 # (This section was simplified and moved to the end of the script for proper runtime handling)
-echo "📦 Copied $COPIED_COUNT essential GStreamer plugins"
+echo "✅ Initial AppImage setup complete"
 echo "✅ Proceeding to comprehensive AppImage creation with Docker runtime support"
 cd /workspace
 
@@ -410,350 +292,34 @@ sed -i 's/^Icon=.*/Icon=openterfaceQT/' "${APPDIR}/usr/share/applications/opente
 # Copy desktop file to root of AppDir
 cp "${APPDIR}/usr/share/applications/openterfaceqt.desktop" "${DESKTOP_OUT}"
 
-# Copy GStreamer plugins to comprehensive AppImage
-echo "Including GStreamer plugins for video capture in comprehensive AppImage..."
-mkdir -p "${APPDIR}/usr/lib/gstreamer-1.0"
-for plugin in "${GSTREAMER_PLUGINS[@]}"; do
-	if [ -f "$GSTREAMER_HOST_DIR/$plugin" ]; then
-		cp "$GSTREAMER_HOST_DIR/$plugin" "${APPDIR}/usr/lib/gstreamer-1.0/"
-		echo "✓ Copied plugin: ${plugin}"
-	fi
-done
-
 # Copy critical system libraries that must be bundled to avoid GLIBC conflicts
-echo "Including critical system libraries (libusb, libdrm, libudev) in comprehensive AppImage..."
+echo "Setting up comprehensive library structure for comprehensive AppImage..."
 mkdir -p "${APPDIR}/usr/lib"
 
-# Debug: Show what libusb files exist in the system
-echo "  🔍 Searching for libusb in system..."
-LIBUSB_FOUND_COMP=$(find /opt/ffmpeg/lib /opt /usr/lib/x86_64-linux-gnu /usr/lib /lib/x86_64-linux-gnu /lib -name "libusb*" 2>/dev/null | head -10)
-if [ -n "$LIBUSB_FOUND_COMP" ]; then
-	echo "    Found libusb files:"
-	echo "$LIBUSB_FOUND_COMP" | while read -r lib; do
-		echo "      - $lib"
-	done
-else
-	echo "    ⚠️  No libusb files found in system paths!"
-	echo "    Checking if libusb package is installed..."
-	dpkg -l | grep -i libusb || echo "    libusb not installed, attempting to install..."
-	apt-get update -qq && apt-get install -y libusb-1.0-0 libusb-1.0-0-dev 2>&1 | tail -5 || true
-fi
-echo ""
-
-CRITICAL_LIBS=(
-    "libusb-1.0.so*"
-    "libusb-1.0-0*"
-    "libusb.so*"
-    "libdrm.so*"
-    "libudev.so*"
-)
-
-for pattern in "${CRITICAL_LIBS[@]}"; do
-    # Search in build environment library paths (these have compatible GLIBC)
-    FOUND_CRITICAL=0
-    for SEARCH_DIR in /opt/ffmpeg/lib /opt /usr/lib/x86_64-linux-gnu /usr/lib /lib/x86_64-linux-gnu /lib; do
-        if [ -d "$SEARCH_DIR" ]; then
-            # Count matches first
-            found_count=$(find "$SEARCH_DIR" -maxdepth 1 -name "$pattern" 2>/dev/null | wc -l)
-            if [ "$found_count" -gt 0 ]; then
-                echo "  Found $found_count match(es) for pattern '$pattern' in $SEARCH_DIR"
-                find "$SEARCH_DIR" -maxdepth 1 -name "$pattern" 2>/dev/null | while IFS= read -r file; do
-                    if [ -f "$file" ] || [ -L "$file" ]; then
-                        dest_file="${APPDIR}/usr/lib/$(basename "$file")"
-                        if [ ! -e "$dest_file" ]; then
-                            echo "    ✓ Copying: $(basename "$file")"
-                            cp -P "$file" "${APPDIR}/usr/lib/" 2>&1 || {
-                                echo "    ⚠️  Warning: Failed to copy $file"
-                            }
-                        else
-                            echo "    ✓ Already exists: $(basename "$file")"
-                        fi
-                    fi
-                done
-                FOUND_CRITICAL=1
-                break  # Found in this directory, stop searching for this pattern
-            fi
-        fi
-    done
-    if [ $FOUND_CRITICAL -eq 0 ]; then
-        echo "  ⏭️  Pattern not found in system: $pattern (skipping)"
+# Process merged AppImage library configurations for comprehensive AppDir
+echo "🔍 Copying required libraries to comprehensive AppImage AppDir..."
+for config in "${APPIMAGE_LIBRARY_CONFIGS[@]}"; do
+    IFS='|' read -r var_name display_name lib_pattern severity target_subdir search_dirs_str <<< "$config"
+    
+    # Determine full target directory
+    if [ -z "$target_subdir" ]; then
+        target_dir="${APPDIR}/usr/lib"
+    else
+        target_dir="${APPDIR}/usr/lib/${target_subdir}"
+        mkdir -p "$target_dir"
     fi
-done
-echo "✅ Critical system libraries copied to comprehensive AppImage"
-
-# Copy critical GLIBC libraries to ensure compatibility across systems
-echo "📦 Copying critical GLIBC libraries for broader compatibility..."
-mkdir -p "${APPDIR}/usr/lib"
-
-# CRITICAL: Copy libc.so.6 and related glibc libraries from the build environment
-# This ensures the AppImage can run on systems with older GLIBC versions
-# by providing the exact version that all bundled libraries were compiled against
-GLIBC_LIBS=(
-    "libc.so.6"
-    "libm.so.6"
-    "libpthread.so.0"
-    "libdl.so.2"
-    "librt.so.1"
-    "libnss_compat.so.2"
-    "libnss_files.so.2"
-    "libnss_dns.so.2"
-    "libresolv.so.2"
-    "libcrypt.so.1"
-    "libutil.so.1"
-    "ld-linux-x86-64.so.2"
-)
-
-echo "  🔍 Locating glibc libraries..."
-for lib in "${GLIBC_LIBS[@]}"; do
-    for SEARCH_DIR in /lib/x86_64-linux-gnu /lib64 /lib /usr/lib/x86_64-linux-gnu /usr/lib; do
-        if [ -f "$SEARCH_DIR/$lib" ]; then
-            dest_file="${APPDIR}/usr/lib/$(basename "$lib")"
-            if [ ! -e "$dest_file" ]; then
-                echo "  ✓ Copying: $lib from $SEARCH_DIR"
-                cp -P "$SEARCH_DIR/$lib" "${APPDIR}/usr/lib/" 2>&1 || {
-                    echo "  ⚠️  Warning: Failed to copy $SEARCH_DIR/$lib"
-                }
-            fi
-            break
-        fi
-    done
+    
+    # Split search directories
+    read -ra search_dirs <<< "$search_dirs_str"
+    
+    copy_libraries "$var_name" "$display_name" "$lib_pattern" "$severity" "$target_dir" "${search_dirs[@]}"
 done
 
-# Also try to find glibc version directory for proper loader setup
+# Try to find glibc version directory for proper loader setup
 GLIBC_VERSION=$(ldd --version 2>/dev/null | head -1 | grep -oE '[0-9]+\.[0-9]+' | head -1 || echo "unknown")
 echo "  ℹ️  Build environment glibc version: $GLIBC_VERSION"
 
-echo "✅ Critical GLIBC libraries copied"
-
-# Copy libstdbuf.so from coreutils (required for stdbuf functionality)
-echo "📦 Copying libstdbuf.so from coreutils..."
-mkdir -p "${APPDIR}/usr/lib"
-STDBUF_FOUND=0
-for SEARCH_DIR in /usr/libexec/coreutils /opt /usr/lib/x86_64-linux-gnu /usr/lib /lib/x86_64-linux-gnu /lib; do
-    if [ -d "$SEARCH_DIR" ]; then
-        found_files=$(find "$SEARCH_DIR" -maxdepth 1 -name "libstdbuf.so*" 2>/dev/null || true)
-        if [ -n "$found_files" ]; then
-            echo "$found_files" | while read -r file; do
-                if [ -f "$file" ] || [ -L "$file" ]; then
-                    dest_file="${APPDIR}/usr/lib/$(basename "$file")"
-                    if [ ! -e "$dest_file" ]; then
-                        echo "  ✓ Copying: $(basename "$file") from $SEARCH_DIR"
-                        cp -P "$file" "${APPDIR}/usr/lib/" 2>&1 || {
-                            echo "  ⚠️  Warning: Failed to copy $file"
-                        }
-                    else
-                        echo "  ✓ Already exists: $(basename "$file")"
-                    fi
-                fi
-            done
-            STDBUF_FOUND=1
-            break
-        fi
-    fi
-done
-
-if [ $STDBUF_FOUND -eq 0 ]; then
-    echo "  ⏭️  libstdbuf.so not found (optional, skipping)"
-fi
-echo "✅ libstdbuf.so processing completed"
-
-# Copy JPEG libraries for image codec support
-echo "Including JPEG libraries for image codec support in comprehensive AppImage..."
-mkdir -p "${APPDIR}/usr/lib"
-for SEARCH_DIR in /opt/ffmpeg/lib /usr/lib/x86_64-linux-gnu /usr/lib; do
-	if [ -d "$SEARCH_DIR" ]; then
-		# Copy libjpeg libraries (both files and symlinks)
-		LIBJPEG_COUNT=$(find "$SEARCH_DIR" -maxdepth 1 \( -name "libjpeg.so*" -type f -o -name "libjpeg.so*" -type l \) 2>/dev/null | wc -l)
-		if [ "$LIBJPEG_COUNT" -gt 0 ]; then
-			find "$SEARCH_DIR" -maxdepth 1 \( -name "libjpeg.so*" -type f -o -name "libjpeg.so*" -type l \) 2>/dev/null | while read -r file; do
-				if [ ! -f "${APPDIR}/usr/lib/$(basename "$file")" ]; then
-					cp -a "$file" "${APPDIR}/usr/lib/"
-					echo "✓ Copied JPEG library: $(basename "$file")"
-				fi
-			done
-		fi
-		# Copy libturbojpeg libraries (both files and symlinks)
-		LIBTURBOJPEG_COUNT=$(find "$SEARCH_DIR" -maxdepth 1 \( -name "libturbojpeg.so*" -type f -o -name "libturbojpeg.so*" -type l \) 2>/dev/null | wc -l)
-		if [ "$LIBTURBOJPEG_COUNT" -gt 0 ]; then
-			find "$SEARCH_DIR" -maxdepth 1 \( -name "libturbojpeg.so*" -type f -o -name "libturbojpeg.so*" -type l \) 2>/dev/null | while read -r file; do
-				if [ ! -f "${APPDIR}/usr/lib/$(basename "$file")" ]; then
-					cp -a "$file" "${APPDIR}/usr/lib/"
-					echo "✓ Copied TurboJPEG library: $(basename "$file")"
-				fi
-			done
-		fi
-	fi
-done
-
-# Copy EGL and GPU rendering libraries (required for Qt GUI rendering)
-echo "Including EGL and GPU rendering libraries for GUI support in comprehensive AppImage..."
-mkdir -p "${APPDIR}/usr/lib"
-EGL_LIBS=(
-	"libEGL.so.1"
-	"libEGL.so"
-	"libGLESv2.so.2"
-	"libGLESv2.so"
-	"libGL.so.1"
-	"libGL.so"
-	"libGLX.so.0"
-	"libGLX.so"
-	"libglvnd.so.0"
-	"libglvnd_pthread.so.0"
-	"libglvnd_dl.so.0"
-)
-
-# Track which libraries were found
-declare -A EGL_FOUND_COMP
-
-# Search in multiple directories including /lib paths
-for SEARCH_DIR in /opt/Qt6/lib /usr/lib/x86_64-linux-gnu /usr/lib /usr/lib64 /lib/x86_64-linux-gnu /lib; do
-	if [ -d "$SEARCH_DIR" ]; then
-		for lib in "${EGL_LIBS[@]}"; do
-			# Skip if already found
-			if [ "${EGL_FOUND_COMP[$lib]:-}" = "1" ]; then
-				continue
-			fi
-			
-			# Search for the library (including wildcards for versioned libs)
-			found_files=$(find "$SEARCH_DIR" -maxdepth 1 \( -name "$lib" -o -name "${lib}.*" \) 2>/dev/null || true)
-			
-			if [ -n "$found_files" ]; then
-				echo "$found_files" | while read -r file; do
-					if [ -f "$file" ] || [ -L "$file" ]; then
-						dest_file="${APPDIR}/usr/lib/$(basename "$file")"
-						if [ ! -e "$dest_file" ]; then
-							echo "  ✓ Copying: $(basename "$file") from $SEARCH_DIR"
-							cp -P "$file" "${APPDIR}/usr/lib/" 2>&1 || {
-								echo "  ⚠️  Warning: Failed to copy $file"
-							}
-						fi
-					fi
-				done
-				EGL_FOUND_COMP[$lib]=1
-			fi
-		done
-	fi
-done
-
-# Verify critical EGL libraries were copied
-echo "📊 Verifying EGL library installation in comprehensive AppImage..."
-MISSING_LIBS_COMP=()
-for lib in "libEGL.so.1" "libGL.so.1" "libGLX.so.0"; do
-	if [ ! -e "${APPDIR}/usr/lib/$lib" ]; then
-		MISSING_LIBS_COMP+=("$lib")
-		echo "  ⚠️  Missing critical library: $lib"
-	else
-		echo "  ✓ Found: $lib"
-	fi
-done
-
-if [ ${#MISSING_LIBS_COMP[@]} -gt 0 ]; then
-	echo "⚠️  WARNING: Some critical EGL libraries are missing!"
-	echo "    Attempting to install mesa-libEGL..."
-	
-	# Try to install EGL libraries if missing
-	if command -v apt-get >/dev/null 2>&1; then
-		apt-get update -qq && apt-get install -y libgl1 libegl1 libglx0 libglvnd0 2>/dev/null || true
-		
-		# Retry copying after installation
-		for lib in "${MISSING_LIBS_COMP[@]}"; do
-			for SEARCH_DIR in /usr/lib/x86_64-linux-gnu /usr/lib /lib/x86_64-linux-gnu /lib; do
-				if [ -f "$SEARCH_DIR/$lib" ]; then
-					echo "  ✓ Found and copying: $lib from $SEARCH_DIR"
-					cp -P "$SEARCH_DIR/$lib" "${APPDIR}/usr/lib/"
-					break
-				fi
-			done
-		done
-	fi
-fi
-
-echo "✓ EGL and GPU rendering libraries processed"
-
-# Copy AppStream/metainfo (optional)
-
-# Copy Qt platform plugins (CRITICAL for GUI applications)
-echo "Including Qt platform plugins for GUI support in comprehensive AppImage..."
-mkdir -p "${APPDIR}/usr/plugins/platforms"
-
-QT_PLATFORM_PLUGINS=(
-    "libqxcb.so"
-    "libqoffscreen.so"
-    "libqminimal.so"
-)
-
-# Also ensure xcb-cursor library is included (required by xcb plugin)
-XCB_DEPS=(
-    "libxcb-cursor.so.0"
-    "libxcb-cursor.so"
-)
-
-# Copy xcb dependencies first
-for SEARCH_DIR in /usr/lib/x86_64-linux-gnu /usr/lib /lib/x86_64-linux-gnu /lib; do
-    if [ -d "$SEARCH_DIR" ]; then
-        for dep in "${XCB_DEPS[@]}"; do
-            found_files=$(find "$SEARCH_DIR" -maxdepth 1 \( -name "$dep" -o -name "${dep}.*" \) 2>/dev/null || true)
-            if [ -n "$found_files" ]; then
-                echo "$found_files" | while read -r file; do
-                    if [ -f "$file" ] && [ ! -f "${APPDIR}/usr/lib/$(basename "$file")" ]; then
-                        echo "  ✓ Copying xcb dependency: $(basename "$file")"
-                        cp "$file" "${APPDIR}/usr/lib/"
-                    fi
-                done
-            fi
-        done
-    fi
-done
-
-# Search for Qt platform plugins in multiple directories
-for SEARCH_DIR in /opt/Qt6/plugins/platforms /usr/lib/qt6/plugins/platforms /usr/lib/x86_64-linux-gnu/qt6/plugins/platforms; do
-    if [ -d "$SEARCH_DIR" ]; then
-        echo "  Searching Qt plugins in: $SEARCH_DIR"
-        for plugin in "${QT_PLATFORM_PLUGINS[@]}"; do
-            # Search for the plugin (including wildcards for versioned plugins)
-            found_files=$(find "$SEARCH_DIR" -maxdepth 1 \( -name "$plugin" -o -name "${plugin}.*" \) 2>/dev/null || true)
-            
-            if [ -n "$found_files" ]; then
-                echo "$found_files" | while read -r file; do
-                    if [ -f "$file" ]; then
-                        dest_file="${APPDIR}/usr/plugins/platforms/$(basename "$file")"
-                        if [ ! -e "$dest_file" ]; then
-                            echo "  ✓ Copying Qt platform plugin: $(basename "$file") from $SEARCH_DIR"
-                            cp "$file" "${APPDIR}/usr/plugins/platforms/"
-                            
-                            # Also copy plugin dependencies
-                            ldd "$file" 2>/dev/null | grep -v "linux-vdso" | grep -v "ld-linux" | awk '{print $3}' | while read -r dep; do
-                                if [ -f "$dep" ] && [[ "$dep" == /usr/lib/* || "$dep" == /lib/* ]] && [ ! -f "${APPDIR}/usr/lib/$(basename "$dep")" ]; then
-                                    echo "    Copying dependency: $(basename "$dep")"
-                                    cp "$dep" "${APPDIR}/usr/lib/"
-                                fi
-                            done
-                        fi
-                    fi
-                done
-            fi
-        done
-    fi
-done
-
-# Verify Qt platform plugins were copied
-echo "📊 Verifying Qt platform plugin installation..."
-MISSING_QT_PLUGINS=()
-for plugin in "${QT_PLATFORM_PLUGINS[@]}"; do
-    if [ ! -e "${APPDIR}/usr/plugins/platforms/$plugin" ]; then
-        MISSING_QT_PLUGINS+=("$plugin")
-        echo "  ⚠️  Missing Qt platform plugin: $plugin"
-    else
-        echo "  ✓ Found Qt platform plugin: $plugin"
-    fi
-done
-
-if [ ${#MISSING_QT_PLUGINS[@]} -gt 0 ]; then
-    echo "⚠️  WARNING: Some Qt platform plugins are missing!"
-    echo "    This may cause GUI display issues in the AppImage"
-fi
-
-echo "✓ Qt platform plugins processed"
+echo "✅ All critical, comprehensive, and platform plugin libraries copied"
 if [ -f "${SRC}/packaging/appimage/com.openterface.openterfaceQT.metainfo.xml" ]; then
 	mkdir -p "${APPDIR}/usr/share/metainfo"
 	cp "${SRC}/packaging/appimage/com.openterface.openterfaceQT.metainfo.xml" "${APPDIR}/usr/share/metainfo/"
@@ -1189,73 +755,8 @@ if [ ${#MISSING_LIBS[@]} -gt 0 ]; then
 	echo ""
 fi
 
-# After linuxdeploy, ensure we have the correct Qt platform plugins with all dependencies
-echo "Ensuring Qt platform plugins are properly bundled after linuxdeploy..."
-mkdir -p "${APPDIR}/usr/plugins/platforms"
-
-QT_PLATFORM_PLUGINS=(
-    "libqxcb.so"
-    "libqoffscreen.so" 
-    "libqminimal.so"
-)
-
-# Also ensure xcb-cursor library is included (required by xcb plugin)
-XCB_DEPS=(
-    "libxcb-cursor.so.0"
-    "libxcb-cursor.so"
-)
-
-# Copy xcb dependencies first
-for SEARCH_DIR in /usr/lib/x86_64-linux-gnu /usr/lib /lib/x86_64-linux-gnu /lib; do
-    if [ -d "$SEARCH_DIR" ]; then
-        for dep in "${XCB_DEPS[@]}"; do
-            found_files=$(find "$SEARCH_DIR" -maxdepth 1 \( -name "$dep" -o -name "${dep}.*" \) 2>/dev/null || true)
-            if [ -n "$found_files" ]; then
-                echo "$found_files" | while read -r file; do
-                    if [ -f "$file" ] && [ ! -f "${APPDIR}/usr/lib/$(basename "$file")" ]; then
-                        echo "  ✓ Copying xcb dependency: $(basename "$file")"
-                        cp "$file" "${APPDIR}/usr/lib/"
-                    fi
-                done
-            fi
-        done
-    fi
-done
-
-# Force copy Qt platform plugins (override any that linuxdeploy copied)
-for SEARCH_DIR in /opt/Qt6/plugins/platforms /usr/lib/qt6/plugins/platforms /usr/lib/x86_64-linux-gnu/qt6/plugins/platforms; do
-    if [ -d "$SEARCH_DIR" ]; then
-        echo "  Ensuring Qt plugins from: $SEARCH_DIR"
-        for plugin in "${QT_PLATFORM_PLUGINS[@]}"; do
-            found_files=$(find "$SEARCH_DIR" -maxdepth 1 \( -name "$plugin" -o -name "${plugin}.*" \) 2>/dev/null || true)
-            
-            if [ -n "$found_files" ]; then
-                echo "$found_files" | while read -r file; do
-                    if [ -f "$file" ]; then
-                        dest_file="${APPDIR}/usr/plugins/platforms/$(basename "$file")"
-                        echo "  ✓ Forcing Qt platform plugin: $(basename "$file")"
-                        cp "$file" "${APPDIR}/usr/plugins/platforms/"
-                        
-                        # Also copy plugin dependencies
-                        ldd "$file" 2>/dev/null | grep -v "linux-vdso" | grep -v "ld-linux" | awk '{print $3}' | while read -r dep; do
-                            if [ -f "$dep" ] && [[ "$dep" == /usr/lib/* || "$dep" == /lib/* ]] && [ ! -f "${APPDIR}/usr/lib/$(basename "$dep")" ]; then
-                                echo "    Copying dependency: $(basename "$dep")"
-                                cp "$dep" "${APPDIR}/usr/lib/"
-                            fi
-                        done
-                    fi
-                done
-            fi
-        done
-    fi
-done
-
-echo "✓ Qt platform plugins ensured"
-
-# CRITICAL FIX: Remove coreutils utilities that have incompatible GLIBC versions
-# These utilities (like stdbuf) should come from the HOST system, not the AppImage
-# This prevents GLIBC_2.38 dependency errors from bundled coreutils
-echo "🔧 Removing GLIBC libraries and coreutils that have incompatible versions..."
+# After linuxdeploy, restore any critical libraries that may have been removed
+echo "🔧 Restoring and cleaning up GLIBC and coreutils libraries..."
 
 # CRITICAL: Remove GLIBC libraries - use host system's compatible versions instead
 # The AppImage libc.so.6 is built against GLIBC 2.38
@@ -1349,8 +850,15 @@ fi
 # Set GStreamer plugin path to our bundled plugins
 export GST_PLUGIN_PATH="${HERE}/usr/lib/gstreamer-1.0:${GST_PLUGIN_PATH}"
 
-# Set Qt plugin path
+# Set Qt plugin path and Wayland support
 export QT_PLUGIN_PATH="${HERE}/usr/plugins:${QT_PLUGIN_PATH}"
+
+# Add Wayland shell integration plugins path
+export QT_QPA_PLATFORM_PLUGIN_PATH="${HERE}/usr/plugins:${QT_QPA_PLATFORM_PLUGIN_PATH}"
+
+# Enable Wayland support (will automatically fallback to X11/XCB if Wayland not available)
+# Let Qt auto-detect the best platform (wayland if available, xcb otherwise)
+export QT_AUTO_SCREEN_SCALE_FACTOR=1
 
 # Ensure we don't have conflicting environment variables that might bypass our setup
 unset LD_ORIGIN_PATH
