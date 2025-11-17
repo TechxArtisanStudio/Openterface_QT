@@ -16,10 +16,7 @@ DESKTOP_OUT="${APPDIR}/openterfaceqt.desktop"
 APPIMAGE_OUT="${BUILD}"
 # Create comprehensive AppDir structure for the final AppImage
 mkdir -p "${APPDIR}/usr/bin" "${APPDIR}/usr/lib" "${APPDIR}/usr/share/applications" "${APPDIR}/usr/share/pixmaps"
-
-# CRITICAL: Create the /usr/plugins structure that Qt expects in AppImage
-# AppImage's Qt looks for plugins at /usr/plugins, not /usr/lib/qt6/plugins
-mkdir -p "${APPDIR}/usr/plugins/platforms" "${APPDIR}/usr/plugins/wayland-shell-integration" "${APPDIR}/usr/plugins/wayland-decoration-client"
+mkdir -p "${APPDIR}/usr/lib/qt6/plugins/platforms" "${APPDIR}/usr/lib/qt6/plugins/wayland-shell-integration" "${APPDIR}/usr/lib/qt6/plugins/wayland-decoration-client"
 
 # Enhanced AppImage build script with comprehensive GStreamer plugin support
 # This script builds an AppImage with all necessary GStreamer plugins for video capture
