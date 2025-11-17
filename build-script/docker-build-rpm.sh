@@ -226,7 +226,7 @@ QT_PLUGIN_SEARCH_DIRS="/opt/Qt6/plugins|/opt/Qt6/plugins/imageformats|/opt/Qt6/p
 
 # Common search directories for FFmpeg libraries
 FFMPEG_LIB_SEARCH_DIRS="/opt/ffmpeg/lib|/usr/lib/x86_64-linux-gnu|/usr/lib"
-    
+
 # Common search directories for GStreamer libraries
 GSTREAMER_LIB_SEARCH_DIRS="/opt/gstreamer/lib/x86_64-linux-gnu|/usr/lib/x86_64-linux-gnu|/usr/lib"
 
@@ -254,6 +254,7 @@ declare -a UNIFIED_LIBRARY_CONFIGS=(
     "QTQMLMODELS|Qt6 QML models|libQt6QmlModels.so|WARNING|qt6|${QT_LIB_SEARCH_DIRS}"
     "QTQMLWORKERSCRIPT|Qt6 QML worker script|libQt6QmlWorkerScript.so|WARNING|qt6|${QT_LIB_SEARCH_DIRS}"
     "QTQUICK|Qt6 quick|libQt6Quick.so|WARNING|qt6|${QT_LIB_SEARCH_DIRS}"
+    "QTWAYLANDCLIENT|Qt6 Wayland Client|libQt6WaylandClient.so|WARNING|qt6|${QT_LIB_SEARCH_DIRS}"
     "QTXCBQPA|Qt6 XCB QPA|libQt6XcbQpa.so|ERROR|qt6|${QT_LIB_SEARCH_DIRS}"
     "QTCORE5COMPAT|Qt6 core5 compat|libQt6Core5Compat.so|WARNING|qt6|${QT_LIB_SEARCH_DIRS}"
     "QTGUIPRIVATE|Qt6 gui private|libQt6GuiPrivate.so|WARNING|qt6|${QT_LIB_SEARCH_DIRS}"

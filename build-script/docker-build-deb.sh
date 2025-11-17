@@ -224,6 +224,7 @@ declare -a UNIFIED_LIBRARY_CONFIGS=(
     "QTQMLMODELS|Qt6 QML models|libQt6QmlModels.so|WARNING|qt6|/opt/Qt6/lib /usr/lib/x86_64-linux-gnu /usr/lib"
     "QTQMLWORKERSCRIPT|Qt6 QML worker script|libQt6QmlWorkerScript.so|WARNING|qt6|/opt/Qt6/lib /usr/lib/x86_64-linux-gnu /usr/lib"
     "QTQUICK|Qt6 quick|libQt6Quick.so|WARNING|qt6|/opt/Qt6/lib /usr/lib/x86_64-linux-gnu /usr/lib"
+    "QTWAYLANDCLIENT|Qt6 Wayland Client|libQt6WaylandClient.so|WARNING|qt6|/opt/Qt6/lib /usr/lib/x86_64-linux-gnu /usr/lib"
     "QTXCBQPA|Qt6 XCB QPA|libQt6XcbQpa.so|ERROR|qt6|/opt/Qt6/lib /usr/lib/x86_64-linux-gnu /usr/lib"
     "QTCORE5COMPAT|Qt6 core5 compat|libQt6Core5Compat.so|WARNING|qt6|/opt/Qt6/lib /usr/lib/x86_64-linux-gnu /usr/lib"
     "QTGUIPRIVATE|Qt6 gui private|libQt6GuiPrivate.so|WARNING|qt6|/opt/Qt6/lib /usr/lib/x86_64-linux-gnu /usr/lib"
