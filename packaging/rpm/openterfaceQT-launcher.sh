@@ -293,16 +293,18 @@ WAYLAND_SUPPORT_LIBS=(
     "libxkbcommon-x11"         # X11 integration with XKB (may be needed for hybrid setups)
 )
 
-# Search for Wayland libraries in system locations
+# Search for Wayland libraries in system locations (multiple search paths)
 MISSING_WAYLAND_LIBS=()
 for lib in "${WAYLAND_SUPPORT_LIBS[@]}"; do
-    lib_path=$(find_library "$lib" "/lib64")
-    if [ -z "$lib_path" ]; then
-        lib_path=$(find_library "$lib" "/usr/lib64")
-    fi
-    if [ -z "$lib_path" ]; then
-        lib_path=$(find_library "$lib" "/usr/lib")
-    fi
+    lib_path=""
+    
+    # Search in multiple standard locations
+    for search_dir in /lib64 /usr/lib64 /usr/lib /lib /usr/local/lib; do
+        lib_path=$(find_library "$lib" "$search_dir" 2>/dev/null)
+        if [ -n "$lib_path" ]; then
+            break
+        fi
+    done
     
     # Add to preload if found
     if [ -n "$lib_path" ]; then

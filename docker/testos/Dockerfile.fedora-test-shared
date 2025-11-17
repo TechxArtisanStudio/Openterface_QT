@@ -73,6 +73,8 @@ RUN dnf update -y && \
         libvpx \
         # Wayland libraries
         libwayland-cursor \
+        libwayland-client \
+        libwayland-egl \
         # FUSE support for AppImage installations
         fuse \
         fuse-libs \
