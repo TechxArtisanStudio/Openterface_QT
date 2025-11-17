@@ -78,50 +78,53 @@ else
     echo "⚠ linuxdeploy-plugin-qt not found, will be downloaded during build"
 fi
 
-# Run the main build + deb + AppImage
-bash /workspace/src/build-script/docker-build.sh
 
-bash /workspace/src/build-script/docker-build-appimage.sh
+# Print a detailed failure report on any command error
+err_report() {
+    local exit_code=$?
+    local cmd="${BASH_COMMAND:-<unknown>}"
+    echo >&2
+    echo "========== ERROR ==========" >&2
+    echo "Script: $0" >&2
+    echo "Exit code: ${exit_code}" >&2
+    echo "Failed command: ${cmd}" >&2
+    echo "Location (top of stack): ${BASH_LINENO[0]:-<unknown>}" >&2
+    echo "Call stack:" >&2
+    local i=0
+    while caller $i; do ((i++)); done >&2
+    echo "===========================" >&2
+    exit "${exit_code}"
+}
+trap 'err_report' ERR
 
-# =========================
-# Build Debian package (.deb)
-# =========================
-echo "Preparing Debian package..."
-
-PKG_ROOT=/workspace/pkgroot
-PKG_OUT=/workspace/build
-SRC=/workspace/src
-BUILD=/workspace/build
-
-rm -rf "${PKG_ROOT}"
-mkdir -p "${PKG_ROOT}/DEBIAN"
-mkdir -p "${PKG_ROOT}/usr/local/bin"
-mkdir -p "${PKG_ROOT}/usr/share/applications"
-mkdir -p "${PKG_ROOT}/usr/share/metainfo"
-mkdir -p "${PKG_ROOT}/usr/share/openterfaceQT/translations"
-
-# Determine version from resources/version.h (APP_VERSION macro) if not already set
-if [ -z "${VERSION}" ]; then
-  VERSION_H="${SRC}/resources/version.h"
-  if [ -f "${VERSION_H}" ]; then
-	  VERSION=$(grep -Po '^#define APP_VERSION\s+"\K[0-9]+(\.[0-9]+)*' "${VERSION_H}" | head -n1)
-  fi
-  if [ -z "${VERSION}" ]; then
-	  VERSION="0.0.1"
-  fi
+# Enable debug tracing if DEBUG environment variable is set (useful for diagnostics)
+if [ "${DEBUG:-0}" != "0" ]; then
+    export PS4='+ ${BASH_SOURCE}:${LINENO}:${FUNCNAME[0]}: '
+    set -x
 fi
 
-# Determine architecture (map to Debian arch names) if not already set
-if [ -z "${ARCH}" ]; then
-  ARCH=$(dpkg --print-architecture 2>/dev/null || true)
-  if [ -z "${ARCH}" ]; then
-	  UNAME_M=$(uname -m)
-	  case "${UNAME_M}" in
-		  aarch64|arm64) ARCH=arm64;;
-		  x86_64|amd64) ARCH=amd64;;
-		  *) ARCH=${UNAME_M};;
-	  esac
-  fi
+# Configuration
+BUILD_DIR="/workspace/build"
+SRC_DIR="/workspace/src"
+
+# Verify Qt version
+echo "Using Qt version: $(qmake -query QT_VERSION)"
+echo "Qt installation prefix: $(qmake -query QT_INSTALL_PREFIX)"
+
+cd /workspace/build
+cmake -DCMAKE_BUILD_TYPE=Release \
+      -DOPENTERFACE_BUILD_STATIC=${OPENTERFACE_BUILD_STATIC} \
+      -DUSE_GSTREAMER_STATIC_PLUGINS=${USE_GSTREAMER_STATIC_PLUGINS} \
+      -DCMAKE_PREFIX_PATH="/opt/Qt6" \
+      -DQt6_DIR="/opt/Qt6/lib/cmake/Qt6" \
+      /workspace/src
+make -j4
+echo "Build with Qt 6.6.3 complete."
+
+# Determine version from resources/version.h
+VERSION_H="/workspace/src/resources/version.h"
+if [ -f "${VERSION_H}" ]; then
+    VERSION=$(grep -Po '^#define APP_VERSION\s+"\K[0-9]+(\.[0-9]+)*' "${VERSION_H}" | head -n1)
 fi
 
 # Copy main binary
@@ -400,72 +403,12 @@ case "${ARCH}" in
 	*) RPM_ARCH=${ARCH};;
 esac
 
-# Copy build output and resources to SOURCES
-if [ ! -f "${BUILD}/openterfaceQT" ]; then
-	echo "Error: built binary not found at ${BUILD}/openterfaceQT" >&2
-	exit 1
-fi
-cp "${BUILD}/openterfaceQT" "${RPMTOP}/SOURCES/"
+export ARCH="${DEB_ARCH}"
+echo "Exporting ARCH: ${ARCH}"
+echo "Exporting APPIMAGE_ARCH: ${APPIMAGE_ARCH}"
 
-# Install patchelf for rpath manipulation if not already installed
-apt update && apt install -y patchelf
+bash /workspace/src/build-script/docker-build-appimage.sh
 
-# Copy Qt libraries to SOURCES for bundling
-QT_LIB_DIR="/opt/Qt6/lib"
-if [ -d "${QT_LIB_DIR}" ]; then
-    echo "Copying Qt libraries to SOURCES..."
-    cp -a "${QT_LIB_DIR}"/libQt6*.so* "${RPMTOP}/SOURCES/" 2>/dev/null || true
-fi
+bash /workspace/src/build-script/docker-build-deb.sh
 
-# Copy Qt plugins to SOURCES
-QT_PLUGIN_DIR="/opt/Qt6/plugins"
-if [ -d "${QT_PLUGIN_DIR}" ]; then
-    mkdir -p "${RPMTOP}/SOURCES/qt6-plugins"
-    echo "Copying Qt plugins to SOURCES..."
-    cp -ra "${QT_PLUGIN_DIR}"/* "${RPMTOP}/SOURCES/qt6-plugins/" 2>/dev/null || true
-fi
-
-# Copy Qt QML imports to SOURCES
-QT_QML_DIR="/opt/Qt6/qml"
-if [ -d "${QT_QML_DIR}" ]; then
-    mkdir -p "${RPMTOP}/SOURCES/qt6-qml"
-    echo "Copying Qt QML imports to SOURCES..."
-    cp -ra "${QT_QML_DIR}"/* "${RPMTOP}/SOURCES/qt6-qml/" 2>/dev/null || true
-fi
-
-# Update the binary's rpath to point to /usr/lib for RPM
-if [ -f "${RPMTOP}/SOURCES/openterfaceQT" ]; then
-    echo "Updating rpath for RPM bundled Qt libraries..."
-    patchelf --set-rpath '/usr/lib' "${RPMTOP}/SOURCES/openterfaceQT"
-fi
-
-# Generate spec from template
-SPEC_TEMPLATE="${SRC}/packaging/rpm/spec"
-SPEC_OUT="${RPMTOP}/SPECS/openterfaceqt.spec"
-if [ -f "${SPEC_TEMPLATE}" ]; then
-	sed -e "s/\${VERSION}/${VERSION}/g" \
-			-e "s/\${ARCH}/${RPM_ARCH}/g" \
-			"${SPEC_TEMPLATE}" > "${SPEC_OUT}"
-else
-	echo "Error: RPM spec template not found at ${SPEC_TEMPLATE}" >&2
-	exit 1
-fi
-
-# Try to copy icon if available
-if [ -f "${SRC}/images/icon_256.png" ]; then
-	cp "${SRC}/images/icon_256.png" "${RPMTOP}/SOURCES/"
-fi
-
-# Build the RPM
-rpmbuild --define "_topdir ${RPMTOP}" -bb "${SPEC_OUT}"
-
-# Move resulting RPM to build output with normalized name
-RPM_OUT_NAME="openterfaceQT_${VERSION}_${RPM_ARCH}.rpm"
-FOUND_RPM=$(find "${RPMTOP}/RPMS" -name "*.rpm" -type f | head -n1 || true)
-if [ -n "${FOUND_RPM}" ]; then
-	mv "${FOUND_RPM}" "${BUILD}/${RPM_OUT_NAME}"
-	echo "RPM package created at ${BUILD}/${RPM_OUT_NAME}"
-else
-	echo "Error: RPM build did not produce an output." >&2
-	exit 1
-fi
+bash /workspace/src/build-script/docker-build-rpm.sh

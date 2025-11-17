@@ -29,10 +29,10 @@ set(mainwindow_resource_files
     "ui/../images/laptop.svg"
     "ui/../images/monitor.svg"
     "ui/../images/usbplug.svg"
-    "ui/../images/audio.svg"
-    "ui/../images/mute.svg"
     "ui/../images/startRecord.svg"
     "ui/../images/stopRecord.svg"
+    "ui/../images/audio.svg"
+    "ui/../images/mute.svg"
 )
 
 qt_add_resources(openterfaceQT "mainwindow"
@@ -323,7 +323,7 @@ install(FILES ${CMAKE_SOURCE_DIR}/images/icon_256.svg
 )
 
 # Install desktop file
-install(FILES ${CMAKE_SOURCE_DIR}/com.openterface.openterfaceQT.desktop
+install(FILES ${CMAKE_SOURCE_DIR}/packaging/com.openterface.openterfaceQT.desktop
     DESTINATION ${CMAKE_INSTALL_DATADIR}/applications
 )
 
