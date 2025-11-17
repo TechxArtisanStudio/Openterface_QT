@@ -154,7 +154,7 @@ mkdir -p "appimage/AppDir/usr/lib"
 declare -a APPIMAGE_LIBRARY_CONFIGS=(
     # Core GLIBC libraries
     "GLIBC|GLIBC|libc.so\|libm.so\|libpthread.so\|libdl.so\|librt.so|WARNING||/lib/x86_64-linux-gnu /lib64 /lib /usr/lib/x86_64-linux-gnu /usr/lib"
-    "GLIBC_NSS|glibc NSS|libnss*.so\|libresolv.so\|libcrypt.so\|libutil.so\|ld-linux|WARNING||/lib/x86_64-linux-gnu /lib64 /lib /usr/lib/x86_64-linux-gnu /usr/lib"
+    "GLIBC_NSS|glibc NSS|libnss*.so\|libresolv.so\|libcrypt.so\|libutil.so|WARNING||/lib/x86_64-linux-gnu /lib64 /lib /usr/lib/x86_64-linux-gnu /usr/lib"
     
     # Critical system libraries (libusb, libdrm, libudev)
     "LIBUSB|libusb|libusb*.so|ERROR||/opt/ffmpeg/lib /opt /usr/lib/x86_64-linux-gnu /usr/lib /lib/x86_64-linux-gnu /lib"
@@ -168,12 +168,14 @@ declare -a APPIMAGE_LIBRARY_CONFIGS=(
     "JPEG|libjpeg|libjpeg.so|WARNING||/opt/ffmpeg/lib /usr/lib/x86_64-linux-gnu /usr/lib"
     "TURBOJPEG|libturbojpeg|libturbojpeg.so|WARNING||/opt/ffmpeg/lib /usr/lib/x86_64-linux-gnu /usr/lib"
     
-    # EGL and GPU rendering libraries
-    "EGL|libEGL|libEGL.so|WARNING||/opt/Qt6/lib /usr/lib/x86_64-linux-gnu /usr/lib /usr/lib64 /lib/x86_64-linux-gnu /lib"
-    "GL|libGL|libGL.so|WARNING||/opt/Qt6/lib /usr/lib/x86_64-linux-gnu /usr/lib /usr/lib64 /lib/x86_64-linux-gnu /lib"
-    "GLX|libGLX|libGLX.so|WARNING||/opt/Qt6/lib /usr/lib/x86_64-linux-gnu /usr/lib /usr/lib64 /lib/x86_64-linux-gnu /lib"
-    "GLESV2|libGLESv2|libGLESv2.so|WARNING||/opt/Qt6/lib /usr/lib/x86_64-linux-gnu /usr/lib /usr/lib64 /lib/x86_64-linux-gnu /lib"
-    "GLVND|libglvnd|libglvnd.so|WARNING||/opt/Qt6/lib /usr/lib/x86_64-linux-gnu /usr/lib /usr/lib64 /lib/x86_64-linux-gnu /lib"
+    # EGL and GPU rendering libraries (with wildcard patterns to match all versions)
+    "EGL|libEGL|libEGL.so*|WARNING||/opt/Qt6/lib /usr/lib/x86_64-linux-gnu /usr/lib /usr/lib64 /lib/x86_64-linux-gnu /lib"
+    "GL|libGL|libGL.so*|WARNING||/opt/Qt6/lib /usr/lib/x86_64-linux-gnu /usr/lib /usr/lib64 /lib/x86_64-linux-gnu /lib"
+    "GLX|libGLX|libGLX.so*|WARNING||/opt/Qt6/lib /usr/lib/x86_64-linux-gnu /usr/lib /usr/lib64 /lib/x86_64-linux-gnu /lib"
+    "GLESV2|libGLESv2|libGLESv2.so*|WARNING||/opt/Qt6/lib /usr/lib/x86_64-linux-gnu /usr/lib /usr/lib64 /lib/x86_64-linux-gnu /lib"
+    "GLVND|libglvnd|libglvnd.so*|WARNING||/opt/Qt6/lib /usr/lib/x86_64-linux-gnu /usr/lib /usr/lib64 /lib/x86_64-linux-gnu /lib"
+    "GLDISPATCH|libGLdispatch|libGLdispatch.so*|WARNING||/opt/Qt6/lib /usr/lib/x86_64-linux-gnu /usr/lib /usr/lib64 /lib/x86_64-linux-gnu /lib"
+    "OPENGL|libOpenGL|libOpenGL.so*|WARNING||/opt/Qt6/lib /usr/lib/x86_64-linux-gnu /usr/lib /usr/lib64 /lib/x86_64-linux-gnu /lib"
     
     # Qt platform plugins (CRITICAL for GUI applications)
     "QTPLUGIN_XCB|Qt6 XCB platform|libqxcb.so|ERROR|qt6/plugins/platforms|/opt/Qt6/plugins/platforms /usr/lib/qt6/plugins/platforms /usr/lib/x86_64-linux-gnu/qt6/plugins/platforms"
@@ -190,14 +192,33 @@ declare -a APPIMAGE_LIBRARY_CONFIGS=(
     
     # XCB dependencies (required by xcb plugin)
     "XCB_CURSOR|libxcb-cursor|libxcb-cursor.so|WARNING||/usr/lib/x86_64-linux-gnu /usr/lib /lib/x86_64-linux-gnu /lib"
+    "XCB|libxcb|libxcb.so|WARNING||/usr/lib/x86_64-linux-gnu /usr/lib /lib/x86_64-linux-gnu /lib"
+    
+    # Qt platform plugin libraries (also as system libraries for backup copy)
+    "QTLIB_MINIMAL|Qt6 Minimal plugin library|libqminimal.so|WARNING||/opt/Qt6/plugins/platforms /opt/Qt6/lib /usr/lib/qt6/plugins/platforms /usr/lib/x86_64-linux-gnu/qt6/plugins/platforms /usr/lib/x86_64-linux-gnu /usr/lib /lib/x86_64-linux-gnu /lib"
+    "QTLIB_OFFSCREEN|Qt6 Offscreen plugin library|libqoffscreen.so|WARNING||/opt/Qt6/plugins/platforms /opt/Qt6/lib /usr/lib/qt6/plugins/platforms /usr/lib/x86_64-linux-gnu/qt6/plugins/platforms /usr/lib/x86_64-linux-gnu /usr/lib /lib/x86_64-linux-gnu /lib"
+    "XCB|libxcb|libxcb.so|WARNING||/usr/lib/x86_64-linux-gnu /usr/lib /lib/x86_64-linux-gnu /lib"
     
     # Essential GStreamer plugins for video capture
     "GSTV4L2|GStreamer V4L2|libgstvideo4linux2.so|ERROR|gstreamer-1.0|/opt/gstreamer/lib/x86_64-linux-gnu/gstreamer-1.0 /opt/gstreamer/lib/gstreamer-1.0 /usr/lib/x86_64-linux-gnu/gstreamer-1.0 /usr/lib/gstreamer-1.0"
-    "GSTCODECS|GStreamer codecs|libgstv4l2codecs.so\|libgstjpeg.so|WARNING|gstreamer-1.0|/opt/gstreamer/lib/x86_64-linux-gnu/gstreamer-1.0 /opt/gstreamer/lib/gstreamer-1.0 /usr/lib/x86_64-linux-gnu/gstreamer-1.0 /usr/lib/gstreamer-1.0"
-    "GSTBASE|GStreamer base|libgstcoreelements.so\|libgstapp.so\|libgstplayback.so|WARNING|gstreamer-1.0|/opt/gstreamer/lib/x86_64-linux-gnu/gstreamer-1.0 /opt/gstreamer/lib/gstreamer-1.0 /usr/lib/x86_64-linux-gnu/gstreamer-1.0 /usr/lib/gstreamer-1.0"
-    "GSTVIDEO|GStreamer video|libgstvideoconvertscale.so\|libgstvideorate.so\|libgstximagesink.so\|libgstxvimagesink.so|WARNING|gstreamer-1.0|/opt/gstreamer/lib/x86_64-linux-gnu/gstreamer-1.0 /opt/gstreamer/lib/gstreamer-1.0 /usr/lib/x86_64-linux-gnu/gstreamer-1.0 /usr/lib/gstreamer-1.0"
-    "GSTAUDIO|GStreamer audio|libgstpulseaudio.so\|libgstaudioparsers.so\|libgstaudioconvert.so\|libgstaudioresample.so|WARNING|gstreamer-1.0|/opt/gstreamer/lib/x86_64-linux-gnu/gstreamer-1.0 /opt/gstreamer/lib/gstreamer-1.0 /usr/lib/x86_64-linux-gnu/gstreamer-1.0 /usr/lib/gstreamer-1.0"
-    "GSTUTIL|GStreamer utilities|libgsttypefindfunctions.so\|libgstautodetect.so|WARNING|gstreamer-1.0|/opt/gstreamer/lib/x86_64-linux-gnu/gstreamer-1.0 /opt/gstreamer/lib/gstreamer-1.0 /usr/lib/x86_64-linux-gnu/gstreamer-1.0 /usr/lib/gstreamer-1.0"
+    "GSTV4L2CODECS|GStreamer V4L2 codecs|libgstv4l2codecs.so|WARNING|gstreamer-1.0|/opt/gstreamer/lib/x86_64-linux-gnu/gstreamer-1.0 /opt/gstreamer/lib/gstreamer-1.0 /usr/lib/x86_64-linux-gnu/gstreamer-1.0 /usr/lib/gstreamer-1.0"
+    "GSTJPEG|GStreamer JPEG|libgstjpeg.so|WARNING|gstreamer-1.0|/opt/gstreamer/lib/x86_64-linux-gnu/gstreamer-1.0 /opt/gstreamer/lib/gstreamer-1.0 /usr/lib/x86_64-linux-gnu/gstreamer-1.0 /usr/lib/gstreamer-1.0"
+    "GSTCOREELEMENTS|GStreamer core elements|libgstcoreelements.so|WARNING|gstreamer-1.0|/opt/gstreamer/lib/x86_64-linux-gnu/gstreamer-1.0 /opt/gstreamer/lib/gstreamer-1.0 /usr/lib/x86_64-linux-gnu/gstreamer-1.0 /usr/lib/gstreamer-1.0"
+    "GSTAPP|GStreamer app|libgstapp.so|WARNING|gstreamer-1.0|/opt/gstreamer/lib/x86_64-linux-gnu/gstreamer-1.0 /opt/gstreamer/lib/gstreamer-1.0 /usr/lib/x86_64-linux-gnu/gstreamer-1.0 /usr/lib/gstreamer-1.0"
+    "GSTPLAYBACK|GStreamer playback|libgstplayback.so|WARNING|gstreamer-1.0|/opt/gstreamer/lib/x86_64-linux-gnu/gstreamer-1.0 /opt/gstreamer/lib/gstreamer-1.0 /usr/lib/x86_64-linux-gnu/gstreamer-1.0 /usr/lib/gstreamer-1.0"
+    "GSTVIDEOCONVERT|GStreamer video convert/scale|libgstvideoconvertscale.so|WARNING|gstreamer-1.0|/opt/gstreamer/lib/x86_64-linux-gnu/gstreamer-1.0 /opt/gstreamer/lib/gstreamer-1.0 /usr/lib/x86_64-linux-gnu/gstreamer-1.0 /usr/lib/gstreamer-1.0"
+    "GSTVIDEORATE|GStreamer video rate|libgstvideorate.so|WARNING|gstreamer-1.0|/opt/gstreamer/lib/x86_64-linux-gnu/gstreamer-1.0 /opt/gstreamer/lib/gstreamer-1.0 /usr/lib/x86_64-linux-gnu/gstreamer-1.0 /usr/lib/gstreamer-1.0"
+    "GSTXIMAGESINK|GStreamer X image sink|libgstximagesink.so|WARNING|gstreamer-1.0|/opt/gstreamer/lib/x86_64-linux-gnu/gstreamer-1.0 /opt/gstreamer/lib/gstreamer-1.0 /usr/lib/x86_64-linux-gnu/gstreamer-1.0 /usr/lib/gstreamer-1.0"
+    "GSTXVIMAGESINK|GStreamer XV image sink|libgstxvimagesink.so|WARNING|gstreamer-1.0|/opt/gstreamer/lib/x86_64-linux-gnu/gstreamer-1.0 /opt/gstreamer/lib/gstreamer-1.0 /usr/lib/x86_64-linux-gnu/gstreamer-1.0 /usr/lib/gstreamer-1.0"
+    "GSTPULSEAUDIO|GStreamer PulseAudio|libgstpulseaudio.so|WARNING|gstreamer-1.0|/opt/gstreamer/lib/x86_64-linux-gnu/gstreamer-1.0 /opt/gstreamer/lib/gstreamer-1.0 /usr/lib/x86_64-linux-gnu/gstreamer-1.0 /usr/lib/gstreamer-1.0"
+    "GSTAUDIOPARSERS|GStreamer audio parsers|libgstaudioparsers.so|WARNING|gstreamer-1.0|/opt/gstreamer/lib/x86_64-linux-gnu/gstreamer-1.0 /opt/gstreamer/lib/gstreamer-1.0 /usr/lib/x86_64-linux-gnu/gstreamer-1.0 /usr/lib/gstreamer-1.0"
+    "GSTAUDIOCONVERT|GStreamer audio convert|libgstaudioconvert.so|WARNING|gstreamer-1.0|/opt/gstreamer/lib/x86_64-linux-gnu/gstreamer-1.0 /opt/gstreamer/lib/gstreamer-1.0 /usr/lib/x86_64-linux-gnu/gstreamer-1.0 /usr/lib/gstreamer-1.0"
+    "GSTAUDIORESAMPLE|GStreamer audio resample|libgstaudioresample.so|WARNING|gstreamer-1.0|/opt/gstreamer/lib/x86_64-linux-gnu/gstreamer-1.0 /opt/gstreamer/lib/gstreamer-1.0 /usr/lib/x86_64-linux-gnu/gstreamer-1.0 /usr/lib/gstreamer-1.0"
+    "GSTAUTOPLUG|GStreamer autodetect|libgstautodetect.so|WARNING|gstreamer-1.0|/opt/gstreamer/lib/x86_64-linux-gnu/gstreamer-1.0 /opt/gstreamer/lib/gstreamer-1.0 /usr/lib/x86_64-linux-gnu/gstreamer-1.0 /usr/lib/gstreamer-1.0"
+    "GSTTYPEFIND|GStreamer type find|libgsttypefindfunctions.so|WARNING|gstreamer-1.0|/opt/gstreamer/lib/x86_64-linux-gnu/gstreamer-1.0 /opt/gstreamer/lib/gstreamer-1.0 /usr/lib/x86_64-linux-gnu/gstreamer-1.0 /usr/lib/gstreamer-1.0"
+    
+    # System loader
+    "LDLINUX|Linux dynamic linker|ld-linux-x86-64.so.2|WARNING||/lib/x86_64-linux-gnu /lib64 /lib /usr/lib/x86_64-linux-gnu /usr/lib"
 )
 
 # Process merged AppImage library configurations for initial AppDir
