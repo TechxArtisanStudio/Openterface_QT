@@ -12,7 +12,14 @@ trap 'echo "⚠️ WARNING: Command at line $LINENO returned exit code $?"; true
 # Force DISPLAY to :98 for screenshot testing (override any defaults)
 export DISPLAY=:98
 export QT_X11_NO_MITSHM=1
-export QT_QPA_PLATFORM=xcb
+
+# Wayland support - detect and enable if available
+# Allow launcher script to detect and choose the best platform backend
+# Default to Wayland, but can be overridden by OPENTERFACE_LAUNCHER_PLATFORM
+export WAYLAND_DISPLAY=${WAYLAND_DISPLAY:-wayland-0}
+export OPENTERFACE_LAUNCHER_PLATFORM=${OPENTERFACE_LAUNCHER_PLATFORM:-wayland}
+# Only set QT_QPA_PLATFORM if not already set by Dockerfile or environment
+export QT_QPA_PLATFORM=${QT_QPA_PLATFORM:-wayland}
 
 # Set Qt plugin and QML paths (must point to bundled locations in deb package)
 export QT_PLUGIN_PATH=/usr/lib/qt6/plugins:/usr/lib/x86_64-linux-gnu/qt6/plugins
@@ -143,8 +150,10 @@ if [ -f /usr/local/bin/openterfaceQT ]; then
         echo "   ℹ️  xdpyinfo not available, skipping connection test"
     fi
     
-    export QT_QPA_PLATFORM=xcb
-    echo "ℹ️  Using X11 display: $DISPLAY"
+    # Let launcher script detect the platform backend (Wayland or X11)
+    # The OPENTERFACE_LAUNCHER_PLATFORM environment variable signals the preferred platform
+    echo "ℹ️  Platform detection: OPENTERFACE_LAUNCHER_PLATFORM=${OPENTERFACE_LAUNCHER_PLATFORM}"
+    echo "ℹ️  Display backend: QT_QPA_PLATFORM=${QT_QPA_PLATFORM:-wayland}"
     export QT_X11_NO_MITSHM=1
     export QT_DEBUG_PLUGINS=1  # Enable plugin debugging
     export QT_LOGGING_RULES="qt.qpa.plugin=true"  # Log plugin loading
