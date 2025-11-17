@@ -162,6 +162,20 @@ if [ -f /usr/local/bin/openterfaceQT ]; then
     export QT_PLUGIN_PATH="${QT_PLUGIN_PATH}:/usr/lib/openterfaceqt/qt6/plugins:/usr/lib/qt6/plugins:/usr/lib/x86_64-linux-gnu/qt6/plugins:/usr/lib/qt6/plugins/platforms"
     export QML2_IMPORT_PATH="${QML2_IMPORT_PATH}:/usr/lib/openterfaceqt/qt6/qml:/usr/lib/qt6/qml:/usr/lib/x86_64-linux-gnu/qt6/qml"
     
+    # CRITICAL: Only set QT_QPA_PLATFORM_PLUGIN_PATH for non-AppImage installations
+    # For AppImage, let it use its own plugin path from APPIMAGE environment
+    # Only set system paths if APPIMAGE is not set (non-AppImage installations)
+    if [ -z "$APPIMAGE" ]; then
+        # Non-AppImage (system installed or deb package)
+        # Explicitly set platform plugin path for system installations
+        export QT_QPA_PLATFORM_PLUGIN_PATH="/usr/lib/openterfaceqt/qt6/plugins/platforms:/usr/lib/qt6/plugins/platforms:/usr/lib/x86_64-linux-gnu/qt6/plugins/platforms"
+        echo "ℹ️  Non-AppImage detected: Using system Qt plugin paths"
+    else
+        # AppImage installation
+        # Let AppImage handle its own plugin paths, don't override
+        echo "ℹ️  AppImage detected (APPIMAGE=$APPIMAGE): Using AppImage plugin paths"
+    fi
+    
     # CRITICAL: Ensure LD_LIBRARY_PATH includes both AppImage and Docker Qt libraries
     # This allows AppImage bundled libraries to be found, with Docker as fallback
     export LD_LIBRARY_PATH="/usr/lib/openterfaceqt/qt6:/usr/lib/openterfaceqt/ffmpeg:/usr/lib/openterfaceqt/gstreamer:/usr/lib/openterfaceqt:/usr/lib/qt6:/usr/lib/x86_64-linux-gnu:${LD_LIBRARY_PATH}"

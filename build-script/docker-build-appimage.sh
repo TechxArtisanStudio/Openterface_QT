@@ -17,6 +17,10 @@ APPIMAGE_OUT="${BUILD}"
 # Create comprehensive AppDir structure for the final AppImage
 mkdir -p "${APPDIR}/usr/bin" "${APPDIR}/usr/lib" "${APPDIR}/usr/share/applications" "${APPDIR}/usr/share/pixmaps"
 
+# CRITICAL: Create the /usr/plugins structure that Qt expects in AppImage
+# AppImage's Qt looks for plugins at /usr/plugins, not /usr/lib/qt6/plugins
+mkdir -p "${APPDIR}/usr/plugins/platforms" "${APPDIR}/usr/plugins/wayland-shell-integration" "${APPDIR}/usr/plugins/wayland-decoration-client"
+
 # Enhanced AppImage build script with comprehensive GStreamer plugin support
 # This script builds an AppImage with all necessary GStreamer plugins for video capture
 
@@ -145,6 +149,36 @@ mkdir -p appimage/AppDir/usr/bin appimage/AppDir/usr/lib/gstreamer-1.0 appimage/
 echo '✅ Executable copied'
 cp build/openterfaceQT appimage/AppDir/usr/bin/
 chmod +x appimage/AppDir/usr/bin/openterfaceQT
+
+# CRITICAL: Copy Qt platform plugins to /usr/plugins (expected by AppImage Qt)
+echo "📦 Copying Qt platform plugins to AppImage /usr/plugins location..."
+for plugin_dir in /opt/Qt6/plugins/platforms /usr/lib/qt6/plugins/platforms /usr/lib/x86_64-linux-gnu/qt6/plugins/platforms; do
+    if [ -d "$plugin_dir" ]; then
+        echo "  Found Qt plugins at: $plugin_dir"
+        cp -r "$plugin_dir"/* "${APPDIR}/usr/plugins/platforms/" 2>/dev/null || true
+        break
+    fi
+done
+
+# Copy Wayland shell integration plugins
+for shell_dir in /opt/Qt6/plugins/wayland-shell-integration /usr/lib/qt6/plugins/wayland-shell-integration /usr/lib/x86_64-linux-gnu/qt6/plugins/wayland-shell-integration; do
+    if [ -d "$shell_dir" ]; then
+        echo "  Found Wayland shell integration at: $shell_dir"
+        cp -r "$shell_dir"/* "${APPDIR}/usr/plugins/wayland-shell-integration/" 2>/dev/null || true
+        break
+    fi
+done
+
+# Copy Wayland decoration plugins
+for deco_dir in /opt/Qt6/plugins/wayland-decoration-client /usr/lib/qt6/plugins/wayland-decoration-client /usr/lib/x86_64-linux-gnu/qt6/plugins/wayland-decoration-client; do
+    if [ -d "$deco_dir" ]; then
+        echo "  Found Wayland decoration at: $deco_dir"
+        cp -r "$deco_dir"/* "${APPDIR}/usr/plugins/wayland-decoration-client/" 2>/dev/null || true
+        break
+    fi
+done
+
+echo "✅ Qt plugins copied to /usr/plugins"
 
 echo '📦 Copying critical GLIBC libraries for compatibility...'
 # Create target directories for initial AppDir
