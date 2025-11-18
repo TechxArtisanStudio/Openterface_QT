@@ -925,13 +925,13 @@ jobs:
                 fi
                 echo "" >> $GITHUB_STEP_SUMMARY
                 
-                if [ -n "$QINIU_UPLOAD_TOKEN" ] && [ -n "$QINIU_BUCKET" ] && [ -n "$QINIU_DOMAIN" ]; then
+                if [ -n "$QINIU_AK" ] && [ -n "$QINIU_SK" ]; then
                   echo "📤 Uploading $filename to Qiniu..."
-                  echo "🔑 Qiniu credentials validation: token=${#QINIU_UPLOAD_TOKEN} chars, bucket=$QINIU_BUCKET"
+                  echo "🔑 Qiniu credentials validation: AK=${#QINIU_AK} chars, SK=${#QINIU_SK} chars"
                   
                   # Capture only the final URL, suppress all debug output
                   UPLOAD_EXIT_CODE=0
-                  UPLOAD_OUTPUT=$(https_proxy="" QINIU_UPLOAD_TOKEN="$QINIU_UPLOAD_TOKEN" QINIU_AK="$QINIU_AK" QINIU_SK="$QINIU_SK" QINIU_DOMAIN="$QINIU_DOMAIN" timeout 120 ./docker/upload_to_qiniu.sh "$img" 2>&1) || UPLOAD_EXIT_CODE=$?
+                  UPLOAD_OUTPUT=$(https_proxy="" QINIU_AK="$QINIU_AK" QINIU_SK="$QINIU_SK" QINIU_DOMAIN="$QINIU_DOMAIN" timeout 120 ./docker/upload_to_qiniu.sh "$img" 2>&1) || UPLOAD_EXIT_CODE=$?
                   
                   if [ $UPLOAD_EXIT_CODE -ne 0 ]; then
                     echo "❌ Upload script failed with exit code: $UPLOAD_EXIT_CODE"
@@ -981,7 +981,7 @@ jobs:
                   fi
                 else
                   if [ $api_key_shown -eq 0 ]; then
-                    echo "⚠️ Qiniu credentials not configured - displaying artifacts instead" >> $GITHUB_STEP_SUMMARY
+                    echo "⚠️ Qiniu AK/SK not configured - displaying artifacts instead" >> $GITHUB_STEP_SUMMARY
                     echo "" >> $GITHUB_STEP_SUMMARY
                     api_key_shown=1
                   fi
