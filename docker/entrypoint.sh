@@ -13,6 +13,24 @@ trap 'echo "⚠️ WARNING: Command at line $LINENO returned exit code $?"; true
 export DISPLAY=:98
 export QT_X11_NO_MITSHM=1
 
+# CRITICAL: Set APPIMAGE for AppImage installations
+# AppImage runtime doesn't automatically set this when executed via symlink
+# This is needed by main.cpp and launcher.sh for proper platform detection and fallback handling
+if [ -z "$APPIMAGE" ]; then
+    # Check if we're running AppImage-based installation
+    if [ -L /usr/local/bin/openterfaceQT ]; then
+        APPIMAGE_FILE=$(readlink -f /usr/local/bin/openterfaceQT)
+        if [ -f "$APPIMAGE_FILE" ] && file "$APPIMAGE_FILE" 2>/dev/null | grep -q "AppImage"; then
+            export APPIMAGE="$APPIMAGE_FILE"
+            echo "✅ Detected AppImage installation: APPIMAGE=$APPIMAGE"
+        fi
+    elif [ -f "/tmp/openterfaceQT.linux.amd64.shared.AppImage" ]; then
+        # Fallback: check standard AppImage location
+        export APPIMAGE="/tmp/openterfaceQT.linux.amd64.shared.AppImage"
+        echo "✅ Found AppImage at standard location: APPIMAGE=$APPIMAGE"
+    fi
+fi
+
 # Wayland support - detect and enable if available
 # Allow launcher script to detect and choose the best platform backend
 # Default to Wayland, but can be overridden by OPENTERFACE_LAUNCHER_PLATFORM
