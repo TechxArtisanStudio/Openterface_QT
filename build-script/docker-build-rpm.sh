@@ -311,6 +311,11 @@ declare -a UNIFIED_LIBRARY_CONFIGS=(
     "VAX11|VA-API X11|libva-x11.so|WARNING||/usr/lib/x86_64-linux-gnu|/usr/lib"
     "VDPAU|VDPAU|libvdpau.so|WARNING||/usr/lib/x86_64-linux-gnu|/usr/lib"
     
+    # Compression libraries (FFmpeg dependencies)
+    "BZ2|libbz2|libbz2.so|WARNING||/usr/lib/x86_64-linux-gnu|/usr/lib"
+    "Z|zlib|libz.so|WARNING||/usr/lib/x86_64-linux-gnu|/usr/lib"
+    "LZMA|liblzma|liblzma.so|WARNING||/usr/lib/x86_64-linux-gnu|/usr/lib"
+    
     # FFmpeg libraries -> ${RPMTOP}/SOURCES/ffmpeg
     # Using common FFmpeg library search directories
     "AVDEVICE|FFmpeg avdevice|libavdevice.so|WARNING|ffmpeg|${FFMPEG_LIB_SEARCH_DIRS}"

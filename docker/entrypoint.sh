@@ -9,8 +9,8 @@ echo "===================================="
 trap 'echo "⚠️ WARNING: Command at line $LINENO returned exit code $?"; true' ERR
 
 # Set display environment for X11 early
-# Force DISPLAY to :98 for screenshot testing (override any defaults)
-export DISPLAY=:98
+# Force DISPLAY to :0 for screenshot testing (override any defaults)
+export DISPLAY=:0
 export QT_X11_NO_MITSHM=1
 
 # CRITICAL: Set APPIMAGE for AppImage installations

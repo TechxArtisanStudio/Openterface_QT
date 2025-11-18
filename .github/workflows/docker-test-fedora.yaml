@@ -289,7 +289,7 @@ jobs:
           # Build docker run command
           DOCKER_RUN_CMD="docker run -d \
             --name openterface-test-fedora-persistent \
-            -e DISPLAY=:98 \
+            -e DISPLAY=:0 \
             -e GITHUB_TOKEN=${GITHUB_TOKEN} \
             -e INSTALL_TYPE=${INSTALL_TYPE} \
             -e APPIMAGE=${APPIMAGE_PATH} \
@@ -584,9 +584,9 @@ jobs:
           
           # Check X11 display
           echo "🔍 Checking X11 display..."
-          if docker exec $CONTAINER_ID sh -c "DISPLAY=:98 xdpyinfo >/dev/null 2>&1"; then
-              echo "✅ X11 display :98 is available"
-              DISPLAY_RES=$(docker exec $CONTAINER_ID sh -c "DISPLAY=:98 xdpyinfo 2>/dev/null | grep 'dimensions:' | awk '{print \$2}'" || echo "unknown")
+          if docker exec $CONTAINER_ID sh -c "DISPLAY=:0 xdpyinfo >/dev/null 2>&1"; then
+              echo "✅ X11 display :0 is available"
+              DISPLAY_RES=$(docker exec $CONTAINER_ID sh -c "DISPLAY=:0 xdpyinfo 2>/dev/null | grep 'dimensions:' | awk '{print \$2}'" || echo "unknown")
               echo "📊 Display resolution: $DISPLAY_RES"
           else
               echo "⚠️ X11 display check failed"
@@ -603,7 +603,7 @@ jobs:
           # Method 1: Use xwd + convert
           if ! $SCREENSHOT_SUCCESS; then
               echo "📌 Attempting screenshot method 1: xwd + convert..."
-              if docker exec $CONTAINER_ID sh -c "DISPLAY=:98 xwd -root 2>/dev/null | convert xwd:- -quality 100 -geometry 1920x1080 $container_screenshot 2>&1"; then
+              if docker exec $CONTAINER_ID sh -c "DISPLAY=:0 xwd -root 2>/dev/null | convert xwd:- -quality 100 -geometry 1920x1080 $container_screenshot 2>&1"; then
                   SCREENSHOT_SUCCESS=true
                   echo "✅ Screenshot captured using xwd + convert"
               else
@@ -614,7 +614,7 @@ jobs:
           # Method 2: Use scrot
           if ! $SCREENSHOT_SUCCESS; then
               echo "📌 Attempting screenshot method 2: scrot..."
-              if docker exec $CONTAINER_ID sh -c "DISPLAY=:98 scrot -z $container_screenshot 2>&1"; then
+              if docker exec $CONTAINER_ID sh -c "DISPLAY=:0 scrot -z $container_screenshot 2>&1"; then
                   SCREENSHOT_SUCCESS=true
                   echo "✅ Screenshot captured using scrot"
               else
@@ -625,7 +625,7 @@ jobs:
           # Method 3: Use import with explicit geometry
           if ! $SCREENSHOT_SUCCESS; then
               echo "📌 Attempting screenshot method 3: import with explicit geometry..."
-              if docker exec $CONTAINER_ID sh -c "DISPLAY=:98 import -window root -quality 100 -geometry 1920x1080 $container_screenshot 2>&1"; then
+              if docker exec $CONTAINER_ID sh -c "DISPLAY=:0 import -window root -quality 100 -geometry 1920x1080 $container_screenshot 2>&1"; then
                   SCREENSHOT_SUCCESS=true
                   echo "✅ Screenshot captured using import with geometry"
               else
