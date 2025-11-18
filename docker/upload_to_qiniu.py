@@ -172,9 +172,11 @@ def upload_to_qiniu(
             # Construct final URL
             final_url = f"https://{domain}/{key_val}"
             
-            log_success(f"Final URL: {final_url}")
+            log_success(f"✅ Upload successful: {final_url}")
             
-            print(f"\n🔗 IMAGE URL: {final_url}\n")
+            print(f"\n{'='*80}")
+            print(f"🔗 IMAGE URL: {final_url}")
+            print(f"{'='*80}\n")
             print(f"📦 Qiniu Key: {key_val}")
             print(f"🔐 Hash: {hash_val}\n")
             
