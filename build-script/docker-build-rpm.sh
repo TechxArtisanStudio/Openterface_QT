@@ -304,6 +304,7 @@ declare -a UNIFIED_LIBRARY_CONFIGS=(
     
     # Core media libraries
     "LIBUSB|libusb|libusb*.so|ERROR||/opt/libusb/lib|/opt/ffmpeg/lib|/usr/lib/x86_64-linux-gnu|/usr/lib"
+    "GUDEV|GUdev device|libgudev-1.0.so|WARNING||/usr/lib/x86_64-linux-gnu|/usr/lib"
     "JPEG|libjpeg|libjpeg.so|ERROR||/opt/ffmpeg/lib|/usr/lib/x86_64-linux-gnu|/usr/lib"
     "TURBOJPEG|libturbojpeg|libturbojpeg.so|ERROR||/opt/ffmpeg/lib|/usr/lib/x86_64-linux-gnu|/usr/lib"
     "VA|VA-API|libva.so|WARNING||/usr/lib/x86_64-linux-gnu|/usr/lib"

@@ -200,6 +200,7 @@ done
 # Common/System libraries - essential support libraries
 COMMON_LIBS=(
     "libusb-1.0"
+    "libgudev-1.0"
     "libv4l1"
     "libv4l2"
     "libv4l2rds"
