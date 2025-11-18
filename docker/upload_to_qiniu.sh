@@ -11,6 +11,7 @@ trap 'echo "ERROR: Script failed at line $LINENO with exit code $?"; exit 1' ERR
 
 # Configuration
 QINIU_UPLOAD_URL="https://upload.qiniup.com"
+QINIU_BUCKET_HARDCODED="openterface"  # Hardcoded bucket name
 CURL_CONNECT_TIMEOUT=30
 CURL_MAX_TIME=120
 MAX_FILE_SIZE=2097152  # 2MB limit for Qiniu
@@ -49,29 +50,68 @@ log_error() {
     echo -e "${RED}[ERROR]${NC} $1"
 }
 
+# Function to generate upload token from AK and SK
+generate_upload_token() {
+    local ak="$1"
+    local sk="$2"
+    local bucket="$3"
+    local deadline=$(( $(date +%s) + 3600 ))  # 1 hour validity
+    
+    # Create the policy JSON
+    local policy="{\"scope\":\"${bucket}\",\"deadline\":${deadline}}"
+    
+    # Base64 encode the policy
+    local encoded_policy=$(echo -n "$policy" | base64 | tr '+/' '-_' | tr -d '=')
+    
+    # Create HMAC-SHA1 signature
+    local signature=$(echo -n "$encoded_policy" | openssl dgst -sha1 -hmac "$sk" -binary | base64 | tr '+/' '-_' | tr -d '=')
+    
+    # Generate the upload token
+    local upload_token="${ak}:${signature}:${encoded_policy}"
+    
+    echo "$upload_token"
+}
+
 # Function to print usage
 usage() {
     echo "Usage: $0 [OPTIONS] IMAGE_FILE"
     echo ""
-    echo "Upload an image to Qiniu and get the shareable URL"
+    echo "Upload an image to Qiniu (bucket: openterface) and get the shareable URL"
     echo ""
-    echo "OPTIONS:"
+    echo "OPTIONS (Method 1: Pre-generated Token):"
     echo "  -t, --token TOKEN    Qiniu upload token (or set QINIU_UPLOAD_TOKEN env var)"
-    echo "  -b, --bucket BUCKET  Qiniu bucket name (or set QINIU_BUCKET env var)"
+    echo ""
+    echo "OPTIONS (Method 2: Generate from AK/SK - RECOMMENDED):"
+    echo "  -a, --ak AK          Qiniu Access Key (or set QINIU_AK env var)"
+    echo "  -s, --sk SK          Qiniu Secret Key (or set QINIU_SK env var)"
+    echo ""
+    echo "OPTIONAL OPTIONS:"
     echo "  -d, --domain DOMAIN  Qiniu domain for URLs (or set QINIU_DOMAIN env var)"
+    echo "                       Defaults to: openterface.qiniu.com"
+    echo ""
+    echo "OTHER OPTIONS:"
     echo "  -h, --help           Show this help message"
     echo "  -v, --verbose        Enable verbose output"
-    echo "  -d, --debug          Enable debug output"
+    echo "  --debug              Enable debug output"
     echo ""
     echo "ENVIRONMENT VARIABLES:"
-    echo "  QINIU_UPLOAD_TOKEN   Your Qiniu upload token"
-    echo "  QINIU_BUCKET         Your Qiniu bucket name"
-    echo "  QINIU_DOMAIN         Your Qiniu domain for accessing files"
+    echo "  Method 1 (Token):"
+    echo "    QINIU_UPLOAD_TOKEN   Pre-generated upload token"
+    echo "  Method 2 (AK/SK) - RECOMMENDED:"
+    echo "    QINIU_AK             Qiniu Access Key"
+    echo "    QINIU_SK             Qiniu Secret Key"
+    echo "  Optional:"
+    echo "    QINIU_DOMAIN         Your Qiniu domain (defaults to openterface.qiniu.com)"
     echo ""
     echo "EXAMPLES:"
-    echo "  $0 screenshot.jpg"
-    echo "  $0 -t YOUR_TOKEN -b bucket_name image.png"
-    echo "  QINIU_UPLOAD_TOKEN=token QINIU_BUCKET=bucket QINIU_DOMAIN=domain.com $0 photo.jpeg"
+    echo "  # Method 1: Using pre-generated token"
+    echo "  $0 -t YOUR_TOKEN image.png"
+    echo ""
+    echo "  # Method 2: Using AK/SK (recommended, token generated automatically)"
+    echo "  $0 -a YOUR_AK -s YOUR_SK photo.jpeg"
+    echo ""
+    echo "  # Using environment variables (recommended for CI/CD)"
+    echo "  QINIU_AK=ak QINIU_SK=sk $0 photo.jpeg"
     echo ""
     exit 1
 }
@@ -80,7 +120,8 @@ usage() {
 VERBOSE=false
 DEBUG=false
 UPLOAD_TOKEN=""
-BUCKET=""
+QINIU_AK=""
+QINIU_SK=""
 DOMAIN=""
 
 while [[ $# -gt 0 ]]; do
@@ -89,8 +130,12 @@ while [[ $# -gt 0 ]]; do
             UPLOAD_TOKEN="$2"
             shift 2
             ;;
-        -b|--bucket)
-            BUCKET="$2"
+        -a|--ak)
+            QINIU_AK="$2"
+            shift 2
+            ;;
+        -s|--sk)
+            QINIU_SK="$2"
             shift 2
             ;;
         -d|--domain)
@@ -101,7 +146,7 @@ while [[ $# -gt 0 ]]; do
             VERBOSE=true
             shift
             ;;
-        -d|--debug)
+        --debug)
             DEBUG=true
             VERBOSE=true
             shift
@@ -157,34 +202,50 @@ if [ -z "$UPLOAD_TOKEN" ]; then
     UPLOAD_TOKEN="$QINIU_UPLOAD_TOKEN"
 fi
 
-if [ -z "$BUCKET" ]; then
-    BUCKET="$QINIU_BUCKET"
+if [ -z "$QINIU_AK" ]; then
+    QINIU_AK="${QINIU_AK_ENV}"
 fi
 
+if [ -z "$QINIU_SK" ]; then
+    QINIU_SK="${QINIU_SK_ENV}"
+fi
+
+# Set bucket (hardcoded)
+BUCKET="$QINIU_BUCKET_HARDCODED"
+
+# Set domain with default
 if [ -z "$DOMAIN" ]; then
-    DOMAIN="$QINIU_DOMAIN"
+    DOMAIN="${QINIU_DOMAIN:-openterface.qiniu.com}"
 fi
 
-# Check if upload token is available
-if [ -z "$UPLOAD_TOKEN" ]; then
-    log_error "No upload token provided. Use -t option or set QINIU_UPLOAD_TOKEN environment variable"
-    log_info "Get your upload token from: https://portal.qiniu.com/"
-    log_error "QINIU_UPLOAD_TOKEN env var: '${QINIU_UPLOAD_TOKEN:-<not set>}'"
-    log_error "Upload token argument: '${UPLOAD_TOKEN:-<not set>}'"
-    exit 1
-fi
-
-# Check if bucket is available
-if [ -z "$BUCKET" ]; then
-    log_error "No bucket name provided. Use -b option or set QINIU_BUCKET environment variable"
-    log_info "Find your bucket at: https://portal.qiniu.com/"
-    exit 1
-fi
-
-# Check if domain is available
-if [ -z "$DOMAIN" ]; then
-    log_error "No domain provided. Use -d option or set QINIU_DOMAIN environment variable"
-    log_info "Configure your domain at: https://portal.qiniu.com/"
+# Check authentication: either token OR (AK and SK) must be provided
+AUTH_METHOD=""
+if [ -n "$UPLOAD_TOKEN" ]; then
+    AUTH_METHOD="token"
+    log_info "Using authentication method: Pre-generated Upload Token"
+elif [ -n "$QINIU_AK" ] && [ -n "$QINIU_SK" ]; then
+    AUTH_METHOD="ak_sk"
+    log_info "Using authentication method: Generate token from AK/SK"
+    
+    # Generate the upload token
+    log_info "Generating upload token from AK/SK..."
+    if ! UPLOAD_TOKEN=$(generate_upload_token "$QINIU_AK" "$QINIU_SK" "$BUCKET"); then
+        log_error "Failed to generate upload token from AK/SK"
+        exit 1
+    fi
+    log_success "Upload token generated successfully"
+    
+    if $VERBOSE; then
+        log_info "Generated token length: ${#UPLOAD_TOKEN} characters"
+    fi
+else
+    log_error "No authentication credentials provided!"
+    echo ""
+    log_error "Please provide either:"
+    log_error "  1. Pre-generated upload token: -t TOKEN or QINIU_UPLOAD_TOKEN env var"
+    log_error "  2. AK and SK: -a AK -s SK or QINIU_AK/QINIU_SK env vars"
+    echo ""
+    log_info "Get credentials from: https://portal.qiniu.com/"
     exit 1
 fi
 

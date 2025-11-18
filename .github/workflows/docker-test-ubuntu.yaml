@@ -851,8 +851,12 @@ jobs:
       - name: Display screenshots in summary (Shared)
         if: always()
         env:
+          # Method 1: Pre-generated token
           QINIU_UPLOAD_TOKEN: ${{ secrets.QINIU_UPLOAD_TOKEN }}
-          QINIU_BUCKET: ${{ secrets.QINIU_BUCKET }}
+          # Method 2: AK/SK (alternative, will be used if token is not provided)
+          QINIU_AK: ${{ secrets.QINIU_AK }}
+          QINIU_SK: ${{ secrets.QINIU_SK }}
+          # Optional: Qiniu domain (defaults to openterface.qiniu.com if not set)
           QINIU_DOMAIN: ${{ secrets.QINIU_DOMAIN }}
         run: |
           echo "🔍 DEBUG: Starting screenshot summary generation"
@@ -927,7 +931,7 @@ jobs:
                   
                   # Capture only the final URL, suppress all debug output
                   UPLOAD_EXIT_CODE=0
-                  UPLOAD_OUTPUT=$(https_proxy="" QINIU_UPLOAD_TOKEN="$QINIU_UPLOAD_TOKEN" QINIU_BUCKET="$QINIU_BUCKET" QINIU_DOMAIN="$QINIU_DOMAIN" timeout 120 ./docker/upload_to_qiniu.sh "$img" 2>&1) || UPLOAD_EXIT_CODE=$?
+                  UPLOAD_OUTPUT=$(https_proxy="" QINIU_UPLOAD_TOKEN="$QINIU_UPLOAD_TOKEN" QINIU_AK="$QINIU_AK" QINIU_SK="$QINIU_SK" QINIU_DOMAIN="$QINIU_DOMAIN" timeout 120 ./docker/upload_to_qiniu.sh "$img" 2>&1) || UPLOAD_EXIT_CODE=$?
                   
                   if [ $UPLOAD_EXIT_CODE -ne 0 ]; then
                     echo "❌ Upload script failed with exit code: $UPLOAD_EXIT_CODE"
