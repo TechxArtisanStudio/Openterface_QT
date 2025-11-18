@@ -30,6 +30,14 @@ BUNDLED_LIB_PATHS=(
     "/usr/lib/openterfaceqt"
 )
 
+# Fedora system library paths (fallback for system dependencies)
+FEDORA_SYSTEM_LIB_PATHS=(
+    "/usr/lib64"
+    "/usr/lib"
+    "/usr/local/lib64"
+    "/usr/local/lib"
+)
+
 # Build LD_LIBRARY_PATH with bundled libraries at the front
 LD_LIBRARY_PATH_NEW=""
 for lib_path in "${BUNDLED_LIB_PATHS[@]}"; do
@@ -46,6 +54,13 @@ done
 if [ -n "$LD_LIBRARY_PATH" ]; then
     LD_LIBRARY_PATH_NEW="${LD_LIBRARY_PATH_NEW}:${LD_LIBRARY_PATH}"
 fi
+
+# Append Fedora system library paths at the end
+for lib_path in "${FEDORA_SYSTEM_LIB_PATHS[@]}"; do
+    if [ -d "$lib_path" ]; then
+        LD_LIBRARY_PATH_NEW="${LD_LIBRARY_PATH_NEW}:${lib_path}"
+    fi
+done
 
 export LD_LIBRARY_PATH="${LD_LIBRARY_PATH_NEW}"
 
