@@ -286,6 +286,11 @@ jobs:
           # Enables proper platform detection and Wayland→XCB fallback handling
           APPIMAGE_PATH="/tmp/openterfaceQT.linux.amd64.shared.AppImage"
           
+          # Force XCB platform for stable testing in container environment
+          # Platform detection is automatic but can be overridden for testing
+          # OPENTERFACE_FORCE_PLATFORM can be set to: auto, xcb, or wayland
+          FORCE_PLATFORM="xcb"  # XCB is stable in container environments, Wayland fallback available
+          
           # Build docker run command
           DOCKER_RUN_CMD="docker run -d \
             --name openterface-test-fedora-persistent \
@@ -293,6 +298,7 @@ jobs:
             -e GITHUB_TOKEN=${GITHUB_TOKEN} \
             -e INSTALL_TYPE=${INSTALL_TYPE} \
             -e APPIMAGE=${APPIMAGE_PATH} \
+            -e OPENTERFACE_FORCE_PLATFORM=${FORCE_PLATFORM} \
             -e LC_ALL=C.UTF-8 \
             -e LANG=C.UTF-8 \
             --network host \
@@ -310,6 +316,7 @@ jobs:
           echo "📋 Starting container with config:"
           echo "  Image: ${DOCKER_IMAGE_NAME}:${DOCKER_TAG}"
           echo "  Install Type: ${INSTALL_TYPE}"
+          echo "  Platform: ${FORCE_PLATFORM}"
           echo "  Volume Mount: ${VOLUME_MOUNT:-none}"
           echo "  GITHUB_TOKEN: $(echo ${GITHUB_TOKEN} | cut -c1-20)..."
           

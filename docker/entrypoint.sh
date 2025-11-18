@@ -1,6 +1,7 @@
 #!/bin/bash
 # Entrypoint script for Openterface QT Docker container
 # Handles installation on first run when artifacts are available via volume mount
+# Supports both AppImage and RPM/DEB installations with intelligent platform detection
 
 echo "🔧 Openterface QT Docker Entrypoint"
 echo "===================================="
@@ -8,45 +9,76 @@ echo "===================================="
 # Set up error handler to catch unexpected exits (but don't exit, just log)
 trap 'echo "⚠️ WARNING: Command at line $LINENO returned exit code $?"; true' ERR
 
+# =============================================================================
+# Basic Environment Setup
+# =============================================================================
+
 # Set display environment for X11 early
 # Force DISPLAY to :0 for screenshot testing (override any defaults)
 export DISPLAY=:0
-export QT_X11_NO_MITSHM=1
+export LC_ALL=C.UTF-8
+export LANG=C.UTF-8
+
+# =============================================================================
+# Installation Type Detection
+# =============================================================================
 
 # CRITICAL: Set APPIMAGE for AppImage installations
 # AppImage runtime doesn't automatically set this when executed via symlink
 # This is needed by main.cpp and launcher.sh for proper platform detection and fallback handling
+DETECTED_INSTALL_TYPE="unknown"
 if [ -z "$APPIMAGE" ]; then
     # Check if we're running AppImage-based installation
     if [ -L /usr/local/bin/openterfaceQT ]; then
         APPIMAGE_FILE=$(readlink -f /usr/local/bin/openterfaceQT)
         if [ -f "$APPIMAGE_FILE" ] && file "$APPIMAGE_FILE" 2>/dev/null | grep -q "AppImage"; then
             export APPIMAGE="$APPIMAGE_FILE"
+            DETECTED_INSTALL_TYPE="appimage"
             echo "✅ Detected AppImage installation: APPIMAGE=$APPIMAGE"
+        else
+            DETECTED_INSTALL_TYPE="system"
+            echo "✅ Detected system installation (symlink to ELF binary)"
         fi
     elif [ -f "/tmp/openterfaceQT.linux.amd64.shared.AppImage" ]; then
         # Fallback: check standard AppImage location
         export APPIMAGE="/tmp/openterfaceQT.linux.amd64.shared.AppImage"
+        DETECTED_INSTALL_TYPE="appimage"
         echo "✅ Found AppImage at standard location: APPIMAGE=$APPIMAGE"
+    elif command -v rpm >/dev/null 2>&1 && rpm -q openterfaceqt >/dev/null 2>&1; then
+        DETECTED_INSTALL_TYPE="rpm"
+        echo "✅ Detected RPM package installation"
+    elif command -v dpkg >/dev/null 2>&1 && dpkg -l | grep -q openterfaceqt; then
+        DETECTED_INSTALL_TYPE="deb"
+        echo "✅ Detected DEB package installation"
     fi
 fi
 
-# Debug: Show Wayland environment variables
-echo "🔍 DEBUG - Wayland Configuration:"
-echo "   WAYLAND_DISPLAY: $WAYLAND_DISPLAY"
-echo "   OPENTERFACE_LAUNCHER_PLATFORM: $OPENTERFACE_LAUNCHER_PLATFORM"
-echo "   XDG_RUNTIME_DIR: ${XDG_RUNTIME_DIR:-not set}"
+echo "   Installation Type: $DETECTED_INSTALL_TYPE"
+echo ""
 
-# Set Qt plugin and QML paths (must point to bundled locations in deb package)
-export QT_PLUGIN_PATH=/usr/lib/qt6/plugins:/usr/lib/x86_64-linux-gnu/qt6/plugins:/usr/lib64
-export QML2_IMPORT_PATH=/usr/lib/qt6/qml:/usr/lib/x86_64-linux-gnu/qt6/qml
+# =============================================================================
+# Source Platform Detection Script
+# =============================================================================
 
-# Set library path for bundled libraries (especially for JPEG support)
-export LD_LIBRARY_PATH=/usr/lib:$LD_LIBRARY_PATH
+echo "🔍 Platform Detection: Importing detection script..."
+if [ -f "/docker/platform-detection.sh" ]; then
+    source /docker/platform-detection.sh
+    detect_platform
+    detect_installation_type
+    configure_platform_environment "$DETECTED_PLATFORM" "$DETECTED_INSTALL_TYPE"
+else
+    echo "⚠️  Platform detection script not found, using defaults"
+    export QT_QPA_PLATFORM="xcb"  # Default to XCB for stability
+    export QT_X11_NO_MITSHM=1
+    export QT_DEBUG_PLUGINS=1
+    export QT_LOGGING_RULES="qt.qpa.plugin=true"
+    export QT_PLUGIN_PATH=/usr/lib/qt6/plugins:/usr/lib/x86_64-linux-gnu/qt6/plugins:/usr/lib64
+    export QML2_IMPORT_PATH=/usr/lib/qt6/qml:/usr/lib/x86_64-linux-gnu/qt6/qml
+    export LD_LIBRARY_PATH=/usr/lib:$LD_LIBRARY_PATH
+    echo "   Using default settings: QT_QPA_PLATFORM=xcb"
+fi
 
-# Fix locale to UTF-8 (Qt6 requirement)
-export LC_ALL=C.UTF-8
-export LANG=C.UTF-8
+echo ""
 
 # Get installation type from environment variable (set by Dockerfile build arg)
 # INSTALL_TYPE is passed via environment, not as command argument
