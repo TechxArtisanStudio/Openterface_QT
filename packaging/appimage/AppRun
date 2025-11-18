@@ -38,7 +38,7 @@ fi
 export GST_PLUGIN_PATH="${HERE}/usr/lib/gstreamer-1.0:${GST_PLUGIN_PATH}"
 
 # Set Qt plugin path and Wayland support
-export QT_PLUGIN_PATH="${HERE}/usr/lib/plugins:${HERE}/usr/plugins:${QT_PLUGIN_PATH}"
+export QT_PLUGIN_PATH="${HERE}/usr/lib/plugins:${HERE}/usr/plugins:${QT_PLUGIN_PATH}:/usr/lib64"
 
 # Add Wayland shell integration plugins path - point to the platforms directory where the plugins are
 export QT_QPA_PLATFORM_PLUGIN_PATH="${HERE}/usr/lib/plugins/platforms:${QT_QPA_PLATFORM_PLUGIN_PATH}"
@@ -61,11 +61,11 @@ unset LD_ORIGIN_PATH
 unset LD_AUDIT
 
 # Debug: Show library path (uncomment for debugging)
-# echo "LD_LIBRARY_PATH=${LD_LIBRARY_PATH}"
-# echo "LD_PRELOAD=${LD_PRELOAD}"
-# echo "PATH=${PATH}"
-# echo "GST_PLUGIN_PATH=${GST_PLUGIN_PATH}"
-# echo "QT_PLUGIN_PATH=${QT_PLUGIN_PATH}"
+echo "LD_LIBRARY_PATH=${LD_LIBRARY_PATH}"
+echo "LD_PRELOAD=${LD_PRELOAD}"
+echo "PATH=${PATH}"
+echo "GST_PLUGIN_PATH=${GST_PLUGIN_PATH}"
+echo "QT_PLUGIN_PATH=${QT_PLUGIN_PATH}"
 
 # Run the application
 exec "${HERE}/usr/bin/openterfaceQT" "$@"
