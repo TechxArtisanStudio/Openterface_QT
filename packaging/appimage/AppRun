@@ -40,8 +40,8 @@ export GST_PLUGIN_PATH="${HERE}/usr/lib/gstreamer-1.0:${GST_PLUGIN_PATH}"
 # Set Qt plugin path and Wayland support
 export QT_PLUGIN_PATH="${HERE}/usr/lib/plugins:${HERE}/usr/plugins:${QT_PLUGIN_PATH}"
 
-# Add Wayland shell integration plugins path
-export QT_QPA_PLATFORM_PLUGIN_PATH="${HERE}/usr/lib/plugins:${QT_QPA_PLATFORM_PLUGIN_PATH}"
+# Add Wayland shell integration plugins path - point to the platforms directory where the plugins are
+export QT_QPA_PLATFORM_PLUGIN_PATH="${HERE}/usr/lib/plugins/platforms:${QT_QPA_PLATFORM_PLUGIN_PATH}"
 
 # Set XDG_RUNTIME_DIR for Wayland support (required for Wayland)
 # If not already set, use /run/user/$(id -u) which is the standard location
