@@ -547,7 +547,7 @@ jobs:
           fi
           
           # Give the container a moment to settle
-          sleep 2
+          sleep 5
           
           # Verify container is still running (with better diagnostics)
           echo ""
