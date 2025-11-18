@@ -16,10 +16,6 @@ ENV INSTALL_TYPE=${INSTALL_TYPE}
 # Set up display environment for GUI applications
 ENV DISPLAY=:0
 
-# Wayland display backend support
-ENV QT_QPA_PLATFORM=wayland
-ENV OPENTERFACE_LAUNCHER_PLATFORM=wayland
-
 # Install minimal system dependencies and runtime libraries only
 RUN dnf update -y && \
     dnf install -y --setopt=install_weak_deps=False --skip-unavailable \
