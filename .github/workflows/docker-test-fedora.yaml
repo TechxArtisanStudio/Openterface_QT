@@ -285,6 +285,7 @@ jobs:
           DOCKER_RUN_CMD="docker run -d \
             --name openterface-test-fedora-persistent \
             -e DISPLAY=:98 \
+            -e WAYLAND_DISPLAY=wayland-0 \
             -e GITHUB_TOKEN=${GITHUB_TOKEN} \
             -e INSTALL_TYPE=${INSTALL_TYPE} \
             -e LC_ALL=C.UTF-8 \

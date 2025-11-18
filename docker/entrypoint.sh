@@ -19,6 +19,12 @@ export QT_X11_NO_MITSHM=1
 export WAYLAND_DISPLAY=${WAYLAND_DISPLAY:-wayland-0}
 export OPENTERFACE_LAUNCHER_PLATFORM=${OPENTERFACE_LAUNCHER_PLATFORM:-wayland}
 
+# Debug: Show Wayland environment variables
+echo "🔍 DEBUG - Wayland Configuration:"
+echo "   WAYLAND_DISPLAY: $WAYLAND_DISPLAY"
+echo "   OPENTERFACE_LAUNCHER_PLATFORM: $OPENTERFACE_LAUNCHER_PLATFORM"
+echo "   XDG_RUNTIME_DIR: ${XDG_RUNTIME_DIR:-not set}"
+
 # Set Qt plugin and QML paths (must point to bundled locations in deb package)
 export QT_PLUGIN_PATH=/usr/lib/qt6/plugins:/usr/lib/x86_64-linux-gnu/qt6/plugins
 export QML2_IMPORT_PATH=/usr/lib/qt6/qml:/usr/lib/x86_64-linux-gnu/qt6/qml

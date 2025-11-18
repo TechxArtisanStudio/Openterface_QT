@@ -49,6 +49,26 @@ if [ -z "$XDG_RUNTIME_DIR" ]; then
     export XDG_RUNTIME_DIR="/run/user/$(id -u)"
 fi
 
+# Detect if Wayland compositor is running
+# Check if WAYLAND_DISPLAY is set or if wayland socket exists
+WAYLAND_AVAILABLE=0
+if [ -n "$WAYLAND_DISPLAY" ]; then
+    WAYLAND_AVAILABLE=1
+elif [ -S "$XDG_RUNTIME_DIR/wayland-0" ]; then
+    WAYLAND_AVAILABLE=1
+fi
+
+# Set Qt platform based on display server availability
+# Prefer Wayland if available, otherwise fallback to XCB (X11)
+if [ $WAYLAND_AVAILABLE -eq 1 ]; then
+    export QT_QPA_PLATFORM=wayland
+    echo "[AppRun] Wayland compositor detected - using Wayland platform"
+else
+    # Fallback to XCB (X11) when Wayland is not available
+    export QT_QPA_PLATFORM=xcb
+    echo "[AppRun] Wayland not available - falling back to XCB (X11) platform"
+fi
+
 # Enable Wayland support (will automatically fallback to X11/XCB if Wayland not available)
 # Let Qt auto-detect the best platform (wayland if available, xcb otherwise)
 export QT_AUTO_SCREEN_SCALE_FACTOR=1
