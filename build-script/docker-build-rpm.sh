@@ -67,7 +67,7 @@ fi
 # Install patchelf and gcc for wrapper compilation
 apt update && apt install -y patchelf gcc
 
-# Copy Qt libraries to SOURCES for bundling (RPM)
+# Verify Qt6 build exists
 # CRITICAL: Must use a proper Qt6 build, NOT system libraries
 QT_LIB_DIR="/opt/Qt6/lib"
 if [ ! -d "${QT_LIB_DIR}" ]; then
@@ -103,109 +103,10 @@ else
     echo "⚠️  Qt Version Wrapper source not available"
 fi
 
-echo "Copying Qt libraries to SOURCES..."
-QT_LIBS=$(find "${QT_LIB_DIR}" -maxdepth 1 -name "libQt6*.so*" -type f | wc -l)
-if [ $QT_LIBS -eq 0 ]; then
-    echo "❌ ERROR: No Qt6 libraries found in ${QT_LIB_DIR}"
-    exit 1
-fi
-
-# Only copy actual files (not symlinks) to avoid duplication
-mkdir -p "${RPMTOP}/SOURCES/qt6"
-find "${QT_LIB_DIR}" -maxdepth 1 -name "libQt6*.so*" -type f -exec cp -a {} "${RPMTOP}/SOURCES/qt6/" \;
-echo "✅ Qt libraries copied to SOURCES/qt6 ($QT_LIBS files)"
-
-# CRITICAL: Also bundle Qt6 base modules and system-provided modules
-# These are sometimes provided by system Qt but we need to ensure we use bundled versions
-# to prevent version conflicts (e.g., system Qt6.9 vs bundled Qt6.6.3)
-echo "📋 RPM: Searching for additional Qt6 base modules..."
-QT_CRITICAL_MODULES=(
-    "libQt6QmlModels.so"      # CRITICAL: QML models - often causes version conflicts
-    "libQt6QmlWorkerScript.so" # CRITICAL: QML worker script support
-    "libQt6Core5Compat.so"    # Qt5 compatibility layer (if available)
-    "libQt6GuiPrivate.so"     # Private GUI API (if available)
-    "libQt6QuickControls2.so"  # Quick Controls 2
-    "libQt6QuickShapes.so"     # Quick Shapes
-    "libQt6QuickLayouts.so"    # Quick Layouts
-    "libQt6QuickTemplates2.so" # Quick Templates 2
-    "libQt6QuickParticles.so"  # Quick Particles
-    "libQt6OpenGLWidgets.so"   # OpenGL Widgets
-    "libQt6WebSockets.so"      # WebSockets support
-    "libQt6Positioning.so"     # Positioning (if available)
-    "libQt6Sensors.so"         # Sensors (if available)
-    "libQt6Sql.so"             # SQL support (if available)
-    "libQt6Test.so"            # Test framework (if available)
-)
-
-for qt_module in "${QT_CRITICAL_MODULES[@]}"; do
-    echo "   Checking for $qt_module..."
-    
-    # Search in bundled Qt first
-    if ls "${QT_LIB_DIR}"/${qt_module}* >/dev/null 2>&1; then
-        echo "      ✅ Found in bundled Qt: ${QT_LIB_DIR}/${qt_module}"
-        find "${QT_LIB_DIR}" -maxdepth 1 -name "${qt_module%.*}*" -type f -exec cp -Pv {} "${RPMTOP}/SOURCES/qt6/" \; 2>&1 | sed 's/^/         /'
-    else
-        # Try to find in system Qt if not in bundled (we'll flag these as potential conflicts)
-        for system_search_dir in /lib64 /usr/lib64 /usr/lib /usr/lib/x86_64-linux-gnu; do
-            if [ -d "$system_search_dir" ] && ls "$system_search_dir"/${qt_module}* >/dev/null 2>&1; then
-                echo "      ⚠️  Found in system Qt but NOT in bundled Qt: $system_search_dir/${qt_module}"
-                echo "         This will cause version conflicts! Check Qt6 build completeness."
-                break
-            fi
-        done
-    fi
-done
-echo "✅ Qt6 critical modules check complete"
-
-# Copy Qt6 XCB QPA library to SOURCES (needed by libqxcb.so plugin) - must be from same Qt6 build
-echo "📋 RPM: Searching for Qt6 XCB QPA library..."
-XCB_QPA_FOUND=0
-
-# Only look in the Qt6 build location, not system
-if [ -d "/opt/Qt6/lib" ] && ls "/opt/Qt6/lib"/libQt6XcbQpa.so* >/dev/null 2>&1; then
-    echo "   ✅ Found libQt6XcbQpa.so in /opt/Qt6/lib"
-    XCB_QPA_FILES=$(ls -la "/opt/Qt6/lib"/libQt6XcbQpa.so*)
-    echo "   Files found:"
-    echo "$XCB_QPA_FILES" | sed 's/^/     /'
-    # Only copy actual files (not symlinks) to avoid duplication
-    find "/opt/Qt6/lib" -maxdepth 1 -name "libQt6XcbQpa.so*" -type f -exec cp -Pv {} "${RPMTOP}/SOURCES/qt6/" \; 2>&1 | sed 's/^/     /'
-    echo "   ✅ libQt6XcbQpa.so copied to ${RPMTOP}/SOURCES/qt6"
-    XCB_QPA_FOUND=1
-else
-    echo "   ✗ No libQt6XcbQpa.so found in /opt/Qt6/lib"
-fi
-
-if [ $XCB_QPA_FOUND -eq 0 ]; then
-    echo "❌ ERROR: libQt6XcbQpa.so library not found!"
-    echo "   This library must be from the same Qt6 build as libQt6Core.so"
-    exit 1
-else
-    echo "✅ libQt6XcbQpa.so found and copied"
-fi
-
 # Copy Qt plugins to SOURCES (SELECTIVE: only essential plugins to reduce RPM size)
 QT_PLUGIN_DIR="/opt/Qt6/plugins"
 if [ -d "${QT_PLUGIN_DIR}" ]; then
-    echo "📋 RPM: Copying ONLY essential Qt plugins (selective bundling for size optimization)..."
-    
-    # Only copy essential plugin categories needed by openterfaceQT
-    # Excluding: imageformats (handled separately), codecs, tls, iconengines (handled separately)
-    ESSENTIAL_PLUGINS=(
-        "platforms"     # Platform abstraction (xcb, wayland, minimal)
-        "platforminputcontexts"  # Input method contexts
-    )
-    
-    mkdir -p "${RPMTOP}/SOURCES/qt6/plugins"
-    
-    for plugin_dir in "${ESSENTIAL_PLUGINS[@]}"; do
-        if [ -d "${QT_PLUGIN_DIR}/${plugin_dir}" ]; then
-            echo "   ✅ Copying ${plugin_dir}..."
-            mkdir -p "${RPMTOP}/SOURCES/qt6/plugins/${plugin_dir}"
-            cp -r "${QT_PLUGIN_DIR}/${plugin_dir}"/* "${RPMTOP}/SOURCES/qt6/plugins/${plugin_dir}/" 2>/dev/null || true
-        fi
-    done
-    
-    echo "   ✅ Essential Qt plugins copied (size-optimized)"
+    echo "📋 RPM: Qt plugins will be copied via unified library configuration..."
 fi
 
 # Copy Qt QML imports to SOURCES (SELECTIVE: only essential modules)
@@ -243,586 +144,281 @@ echo "📋 RPM: Checking for SVG icon usage in application..."
 # OPTIMIZATION: Only bundle SVG libraries if project contains SVG icons
 if find "${SRC}/images" -name "*.svg" 2>/dev/null | grep -q .; then
     echo "   ✅ SVG icons detected - will bundle SVG support"
-    
-    # Copy libQt6Svg library
-    echo "   📦 Searching for libQt6Svg.so..."
-    SVG_LIB_FOUND=0
-    for SEARCH_DIR in /opt/Qt6/lib /usr/lib/x86_64-linux-gnu /usr/lib; do
-        if [ -d "$SEARCH_DIR" ]; then
-            if ls "$SEARCH_DIR"/libQt6Svg.so* >/dev/null 2>&1; then
-                echo "   ✅ Found libQt6Svg.so in $SEARCH_DIR"
-                # Only copy actual files (not symlinks) to avoid duplication
-                find "$SEARCH_DIR" -maxdepth 1 -name "libQt6Svg.so*" -type f -exec cp -Pv {} "${RPMTOP}/SOURCES/qt6/" \; 2>&1 | sed 's/^/     /'
-                SVG_LIB_FOUND=1
-                break
-            fi
-        fi
-    done
-    if [ $SVG_LIB_FOUND -eq 0 ]; then
-        echo "   ⚠️  libQt6Svg.so not found - SVG support may be limited"
-    fi
-
-    # Copy SVG image format plugin (libqsvg.so)
-    echo "   📦 Searching for libqsvg.so (SVG image format plugin)..."
-    SVG_PLUGIN_FOUND=0
-    for SEARCH_DIR in /opt/Qt6/plugins /usr/lib/qt6/plugins /usr/lib/x86_64-linux-gnu/qt6/plugins; do
-        if [ -d "$SEARCH_DIR/imageformats" ]; then
-            if [ -f "$SEARCH_DIR/imageformats/libqsvg.so" ]; then
-                echo "   ✅ Found libqsvg.so in $SEARCH_DIR"
-                mkdir -p "${RPMTOP}/SOURCES/qt6/plugins/imageformats"
-                cp -Pv "$SEARCH_DIR/imageformats/libqsvg.so" "${RPMTOP}/SOURCES/qt6/plugins/imageformats/" 2>&1 | sed 's/^/     /'
-                SVG_PLUGIN_FOUND=1
-                break
-            fi
-        fi
-    done
-    if [ $SVG_PLUGIN_FOUND -eq 0 ]; then
-        echo "   ⚠️  libqsvg.so not found - SVG images won't be loaded"
-    fi
 else
     echo "   ℹ️  No SVG icons detected - skipping SVG library bundling (size optimization: ~5-10MB saved)"
-    SVG_LIB_FOUND=0
-    SVG_PLUGIN_FOUND=0
 fi
 
-# Copy SVG icon engine plugin (libsvgicon.so) - OPTIONAL for RPM size optimization
-echo "   📦 Checking for SVG icon usage in application..."
-SVGICON_PLUGIN_FOUND=0
-
-# Only bundle SVG icon plugin if icons actually use SVG format (size optimization)
-if find "${SRC}/images" -name "*.svg" 2>/dev/null | grep -q .; then
-    echo "   ℹ️  SVG icons detected, attempting to bundle SVG icon engine..."
+# ============================================================
+# Generic library copying function
+# ============================================================
+# This function eliminates code duplication for library copying
+# Usage: copy_libraries "VARNAME" "Display Name" "lib_pattern" "ERROR|WARNING" "target_dir" "search_dir1" "search_dir2" ...
+copy_libraries() {
+    local var_name="$1"
+    local display_name="$2"
+    local lib_pattern="$3"
+    local severity="$4"  # ERROR or WARNING
+    local target_dir="$5"
+    shift 5
+    local search_dirs=("$@")
     
-    for SEARCH_DIR in /opt/Qt6/plugins /usr/lib/qt6/plugins /usr/lib/x86_64-linux-gnu/qt6/plugins; do
-        if [ -d "$SEARCH_DIR/iconengines" ]; then
-            FOUND_FILES=$(find "$SEARCH_DIR/iconengines" -name "libsvgicon.so*" 2>/dev/null)
-            if [ -n "$FOUND_FILES" ]; then
-                echo "   ✅ Found libsvgicon.so, bundling for SVG icon support..."
-                mkdir -p "${RPMTOP}/SOURCES/qt6/plugins/iconengines"
-                echo "$FOUND_FILES" | while read -r svg_icon_file; do
-                    cp -Pv "$svg_icon_file" "${RPMTOP}/SOURCES/qt6/plugins/iconengines/" 2>&1 | sed 's/^/     /'
-                done
-                SVGICON_PLUGIN_FOUND=1
+    echo "� RPM: Searching for ${display_name} libraries..."
+    local found=0
+    
+    for search_dir in "${search_dirs[@]}"; do
+        echo "   Checking: $search_dir"
+        if [ -d "$search_dir" ]; then
+            if ls "$search_dir"/${lib_pattern}* >/dev/null 2>&1; then
+                echo "   ✅ Found ${display_name} in $search_dir"
+                local files=$(ls -la "$search_dir"/${lib_pattern}* 2>/dev/null)
+                echo "   Files found:"
+                echo "$files" | sed 's/^/     /'
+                # Copy both actual files AND symlinks to preserve library versioning chains
+                find "$search_dir" -maxdepth 1 -name "${lib_pattern}*" \( -type f -o -type l \) -exec cp -avP {} "${target_dir}/" \; 2>&1 | sed 's/^/     /'
+                echo "   ✅ ${display_name} libraries copied to ${target_dir}"
+                found=1
                 break
+            else
+                echo "   ✗ No ${display_name} found in $search_dir"
             fi
+        else
+            echo "   ✗ Directory does not exist: $search_dir"
         fi
     done
-else
-    echo "   ℹ️  No SVG icons in application, skipping SVG icon engine (size optimization ~2MB saved)"
-fi
-
-if [ $SVGICON_PLUGIN_FOUND -eq 0 ] && find "${SRC}/images" -name "*.svg" 2>/dev/null | grep -q .; then
-    echo "   ⚠️  SVG icons found but libsvgicon.so plugin not available - icons will use fallback rendering"
-fi
-
-# Copy bzip2 libraries to SOURCES for bundling (needed for compression support in FFmpeg)
-echo "🔍 Searching for bzip2 libraries to RPM SOURCES..."
-
-# Copy libbz2 libraries - search multiple locations
-echo "📋 RPM: Searching for libbz2 libraries..."
-LIBBZ2_FOUND=0
-for SEARCH_DIR in /opt/ffmpeg/lib /usr/lib/x86_64-linux-gnu /usr/lib; do
-    echo "   Checking: $SEARCH_DIR"
-    if [ -d "$SEARCH_DIR" ]; then
-        if ls "$SEARCH_DIR"/libbz2.so* >/dev/null 2>&1; then
-            echo "   ✅ Found libbz2 in $SEARCH_DIR"
-            LIBBZ2_FILES=$(ls -la "$SEARCH_DIR"/libbz2.so*)
-            echo "   Files found:"
-            echo "$LIBBZ2_FILES" | sed 's/^/     /'
-            # Only copy actual files (not symlinks) to avoid duplication
-            find "$SEARCH_DIR" -maxdepth 1 -name "libbz2.so*" -type f -exec cp -av {} "${RPMTOP}/SOURCES/" \; 2>&1 | sed 's/^/     /'
-            echo "   ✅ libbz2 libraries copied to ${RPMTOP}/SOURCES"
-            LIBBZ2_FOUND=1
-            break
+    
+    if [ $found -eq 0 ]; then
+        if [ "$severity" = "ERROR" ]; then
+            echo "❌ ERROR: ${display_name} libraries not found in any search path!"
         else
-            echo "   ✗ No libbz2 found in $SEARCH_DIR"
+            echo "⚠️  Warning: ${display_name} libraries not found"
         fi
     else
-        echo "   ✗ Directory does not exist: $SEARCH_DIR"
+        echo "✅ ${display_name} found and copied"
     fi
-done
-if [ $LIBBZ2_FOUND -eq 0 ]; then
-    echo "❌ ERROR: libbz2 libraries not found in any search path!"
-else
-    echo "✅ libbz2 found and copied"
-fi
+    
+    # Export result as a variable (e.g., LIBBZ2_FOUND=1)
+    eval "${var_name}_FOUND=$found"
+}
 
-# Copy libusb libraries to SOURCES for bundling (needed for USB device access)
-echo "🔍 Searching for libusb libraries to RPM SOURCES..."
+# ============================================================
+# Define library copying configurations in a unified structure
+# Format: variable_name|display_name|lib_pattern|severity|target_subdir|search_dirs...
+# target_subdir: "" (root), "ffmpeg", or "gstreamer"
+# ============================================================
 
-# Copy libusb libraries - search multiple locations
-echo "📋 RPM: Searching for libusb libraries..."
-LIBUSB_FOUND=0
-for SEARCH_DIR in /opt/libusb/lib /opt/ffmpeg/lib /usr/lib/x86_64-linux-gnu /usr/lib; do
-    echo "   Checking: $SEARCH_DIR"
-    if [ -d "$SEARCH_DIR" ]; then
-        if ls "$SEARCH_DIR"/libusb*.so* >/dev/null 2>&1; then
-            echo "   ✅ Found libusb in $SEARCH_DIR"
-            LIBUSB_FILES=$(ls -la "$SEARCH_DIR"/libusb*.so*)
-            echo "   Files found:"
-            echo "$LIBUSB_FILES" | sed 's/^/     /'
-            # Only copy actual files (not symlinks) to avoid duplication
-            find "$SEARCH_DIR" -maxdepth 1 -name "libusb*.so*" -type f -exec cp -av {} "${RPMTOP}/SOURCES/" \; 2>&1 | sed 's/^/     /'
-            echo "   ✅ libusb libraries copied to ${RPMTOP}/SOURCES"
-            LIBUSB_FOUND=1
-            break
-        else
-            echo "   ✗ No libusb found in $SEARCH_DIR"
-        fi
-    else
-        echo "   ✗ Directory does not exist: $SEARCH_DIR"
-    fi
-done
-if [ $LIBUSB_FOUND -eq 0 ]; then
-    echo "❌ ERROR: libusb libraries not found in any search path!"
-else
-    echo "✅ libusb found and copied"
-fi
-
-# Copy libjpeg and libturbojpeg libraries to SOURCES for bundling
-echo "🔍 Searching for JPEG libraries to RPM SOURCES..."
-
-# Copy libjpeg libraries - search multiple locations
-echo "📋 RPM: Searching for libjpeg libraries..."
-JPEG_FOUND=0
-for SEARCH_DIR in /opt/ffmpeg/lib /usr/lib/x86_64-linux-gnu /usr/lib; do
-    echo "   Checking: $SEARCH_DIR"
-    if [ -d "$SEARCH_DIR" ]; then
-        if ls "$SEARCH_DIR"/libjpeg.so* >/dev/null 2>&1; then
-            echo "   ✅ Found libjpeg in $SEARCH_DIR"
-            JPEG_FILES=$(ls -la "$SEARCH_DIR"/libjpeg.so*)
-            echo "   Files found:"
-            echo "$JPEG_FILES" | sed 's/^/     /'
-            # Only copy actual files (not symlinks) to avoid duplication
-            find "$SEARCH_DIR" -maxdepth 1 -name "libjpeg.so*" -type f -exec cp -av {} "${RPMTOP}/SOURCES/" \; 2>&1 | sed 's/^/     /'
-            echo "   ✅ libjpeg libraries copied to ${RPMTOP}/SOURCES"
-            JPEG_FOUND=1
-            break
-        else
-            echo "   ✗ No libjpeg found in $SEARCH_DIR"
-        fi
-    else
-        echo "   ✗ Directory does not exist: $SEARCH_DIR"
-    fi
-done
-if [ $JPEG_FOUND -eq 0 ]; then
-    echo "❌ ERROR: libjpeg libraries not found in any search path!"
-else
-    echo "✅ libjpeg found and copied"
-fi
-
-# Copy libturbojpeg libraries - search multiple locations
-echo "📋 RPM: Searching for libturbojpeg libraries..."
-TURBOJPEG_FOUND=0
-for SEARCH_DIR in /opt/ffmpeg/lib /usr/lib/x86_64-linux-gnu /usr/lib; do
-    echo "   Checking: $SEARCH_DIR"
-    if [ -d "$SEARCH_DIR" ]; then
-        # Use find to detect both files and symlinks
-        if find "$SEARCH_DIR" -maxdepth 1 \( -name "libturbojpeg.so*" -type f -o -name "libturbojpeg.so*" -type l \) 2>/dev/null | grep -q .; then
-            echo "   ✅ Found libturbojpeg in $SEARCH_DIR"
-            # List files found for diagnostics
-            ls -la "$SEARCH_DIR"/libturbojpeg.so* 2>/dev/null | while read -r line; do
-                echo "     $line"
-            done
-            # Only copy actual files (not symlinks) to avoid duplication
-            find "$SEARCH_DIR" -maxdepth 1 -name "libturbojpeg.so*" -type f -exec cp -Pv {} "${RPMTOP}/SOURCES/" \; 2>&1 | sed 's/^/     /'
-            echo "   ✅ libturbojpeg libraries copied to ${RPMTOP}/SOURCES"
-            TURBOJPEG_FOUND=1
-            break
-        else
-            echo "   ✗ No libturbojpeg found in $SEARCH_DIR"
-        fi
-    else
-        echo "   ✗ Directory does not exist: $SEARCH_DIR"
-    fi
-done
-if [ $TURBOJPEG_FOUND -eq 0 ]; then
-    echo "❌ ERROR: libturbojpeg libraries not found in any search path!"
-else
-    echo "✅ libturbojpeg found and copied"
-fi
-
-# Copy VA-API libraries for hardware acceleration - search multiple locations
-echo "📋 RPM: Searching for VA-API libraries..."
-VA_FOUND=0
-for SEARCH_DIR in /usr/lib/x86_64-linux-gnu /usr/lib; do
-    echo "   Checking: $SEARCH_DIR"
-    if [ -d "$SEARCH_DIR" ]; then
-        if ls "$SEARCH_DIR"/libva.so* >/dev/null 2>&1; then
-            echo "   ✅ Found VA-API libraries in $SEARCH_DIR"
-            VA_FILES=$(ls -la "$SEARCH_DIR"/libva*.so*)
-            echo "   Files found:"
-            echo "$VA_FILES" | sed 's/^/     /'
-            # Only copy actual files (not symlinks) to avoid duplication
-            find "$SEARCH_DIR" -maxdepth 1 -name "libva*.so*" -type f -exec cp -av {} "${RPMTOP}/SOURCES/" \; 2>&1 | sed 's/^/     /'
-            echo "   ✅ VA-API libraries copied to ${RPMTOP}/SOURCES"
-            VA_FOUND=1
-            break
-        else
-            echo "   ✗ No VA-API libraries found in $SEARCH_DIR"
-        fi
-    else
-        echo "   ✗ Directory does not exist: $SEARCH_DIR"
-    fi
-done
-if [ $VA_FOUND -eq 0 ]; then
-    echo "⚠️  Warning: VA-API libraries not found"
-else
-    echo "✅ VA-API found and copied"
-fi
-
-# Copy VDPAU libraries for hardware acceleration - search multiple locations
-echo "📋 RPM: Searching for VDPAU libraries..."
-VDPAU_FOUND=0
-for SEARCH_DIR in /usr/lib/x86_64-linux-gnu /usr/lib; do
-    echo "   Checking: $SEARCH_DIR"
-    if [ -d "$SEARCH_DIR" ]; then
-        if ls "$SEARCH_DIR"/libvdpau.so* >/dev/null 2>&1; then
-            echo "   ✅ Found VDPAU libraries in $SEARCH_DIR"
-            VDPAU_FILES=$(ls -la "$SEARCH_DIR"/libvdpau*.so*)
-            echo "   Files found:"
-            echo "$VDPAU_FILES" | sed 's/^/     /'
-            # Only copy actual files (not symlinks) to avoid duplication
-            find "$SEARCH_DIR" -maxdepth 1 -name "libvdpau*.so*" -type f -exec cp -av {} "${RPMTOP}/SOURCES/" \; 2>&1 | sed 's/^/     /'
-            echo "   ✅ VDPAU libraries copied to ${RPMTOP}/SOURCES"
-            VDPAU_FOUND=1
-            break
-        else
-            echo "   ✗ No VDPAU libraries found in $SEARCH_DIR"
-        fi
-    else
-        echo "   ✗ Directory does not exist: $SEARCH_DIR"
-    fi
-done
-if [ $VDPAU_FOUND -eq 0 ]; then
-    echo "⚠️  Warning: VDPAU libraries not found"
-else
-    echo "✅ VDPAU found and copied"
-fi
-
-# Copy core FFmpeg libraries (libavdevice, libavcodec, libavformat, libavutil, libswscale, libswresample, libavfilter)
-echo "📋 RPM: Searching for FFmpeg core libraries..."
-FFMPEG_FOUND=0
-FFMPEG_LIBS=(libavdevice.so libavcodec.so libavformat.so libavutil.so libswscale.so libswresample.so libavfilter.so)
-
+# Create target directories
 mkdir -p "${RPMTOP}/SOURCES/ffmpeg"
-
-for SEARCH_DIR in /opt/ffmpeg/lib /usr/lib/x86_64-linux-gnu /usr/lib; do
-    echo "   Checking: $SEARCH_DIR"
-    if [ -d "$SEARCH_DIR" ]; then
-        # Check if any ffmpeg library exists
-        FOUND_ANY=0
-        for ffmpeg_lib in "${FFMPEG_LIBS[@]}"; do
-            if ls "$SEARCH_DIR"/${ffmpeg_lib}* >/dev/null 2>&1; then
-                FOUND_ANY=1
-                break
-            fi
-        done
-        
-        if [ $FOUND_ANY -eq 1 ]; then
-            echo "   ✅ Found FFmpeg libraries in $SEARCH_DIR"
-            for ffmpeg_lib in "${FFMPEG_LIBS[@]}"; do
-                if ls "$SEARCH_DIR"/${ffmpeg_lib}* >/dev/null 2>&1; then
-                    echo "   Found: $ffmpeg_lib"
-                    FFMPEG_FILES=$(ls -la "$SEARCH_DIR"/${ffmpeg_lib}* 2>/dev/null)
-                    echo "     Files: $FFMPEG_FILES" | sed 's/^/     /'
-                    # Only copy versioned files (e.g., libavformat.so.60.16.100), not symlinks (libavformat.so, libavformat.so.60)
-                    # This avoids duplicating symlinks that point to the same actual library file
-                    find "$SEARCH_DIR" -maxdepth 1 -name "${ffmpeg_lib}*" -type f -exec cp -Pv {} "${RPMTOP}/SOURCES/ffmpeg/" \; 2>&1 | sed 's/^/     /'
-                fi
-            done
-            echo "   ✅ FFmpeg core libraries copied to ${RPMTOP}/SOURCES/ffmpeg"
-            FFMPEG_FOUND=1
-            break
-        else
-            echo "   ✗ No FFmpeg libraries found in $SEARCH_DIR"
-        fi
-    else
-        echo "   ✗ Directory does not exist: $SEARCH_DIR"
-    fi
-done
-
-if [ $FFMPEG_FOUND -eq 0 ]; then
-    echo "⚠️  Warning: FFmpeg core libraries not found!"
-    echo "📁 Checking what's available in system library paths:"
-    echo "   /opt/ffmpeg/lib contents:"
-    ls -la /opt/ffmpeg/lib 2>/dev/null | grep -E "libav|libsw" || echo "     (directory not found or no ffmpeg files)"
-    echo "   /usr/lib/x86_64-linux-gnu contents (ffmpeg):"
-    ls -la /usr/lib/x86_64-linux-gnu/libav* /usr/lib/x86_64-linux-gnu/libsw* 2>/dev/null || echo "     (no ffmpeg files found)"
-    echo "   /usr/lib contents (ffmpeg):"
-    ls -la /usr/lib/libav* /usr/lib/libsw* 2>/dev/null || echo "     (no ffmpeg files found)"
-else
-    echo "✅ FFmpeg core libraries found and copied"
-fi
-
-# Copy GStreamer core and base libraries - search multiple locations
-echo "📋 RPM: Searching for GStreamer libraries..."
-GSTREAMER_FOUND=0
-
 mkdir -p "${RPMTOP}/SOURCES/gstreamer"
+mkdir -p "${RPMTOP}/SOURCES/gstreamer/gstreamer-1.0"
+mkdir -p "${RPMTOP}/SOURCES/qt6"
+mkdir -p "${RPMTOP}/SOURCES/qt6/plugins"
+mkdir -p "${RPMTOP}/SOURCES/qt6/plugins/imageformats"
+mkdir -p "${RPMTOP}/SOURCES/qt6/plugins/iconengines"
+mkdir -p "${RPMTOP}/SOURCES/qt6/plugins/platforms"
+mkdir -p "${RPMTOP}/SOURCES/qt6/plugins/platforminputcontexts"
 
-# List of essential GStreamer libraries to bundle
-GSTREAMER_LIBS=(
-    "libgstreamer-1.0.so"       # Core GStreamer library
-    "libgstbase-1.0.so"         # Base classes for GStreamer plugins
-    "libgstaudio-1.0.so"        # Audio support library
-    "libgstpbutils-1.0.so"      # Playback utility library
-    "libgstvideo-1.0.so"        # Video support library
-    "libgstapp-1.0.so"          # Application integration library
+
+# Common search directories for Qt6 libraries
+QT_LIB_SEARCH_DIRS="/opt/Qt6/lib|/usr/lib/x86_64-linux-gnu|/usr/lib"
+
+# Common search directories for Qt6 plugins
+QT_PLUGIN_SEARCH_DIRS="/opt/Qt6/plugins|/opt/Qt6/plugins/imageformats|/opt/Qt6/plugins/iconengines|/opt/Qt6/plugins"
+
+# Common search directories for FFmpeg libraries
+FFMPEG_LIB_SEARCH_DIRS="/opt/ffmpeg/lib|/usr/lib/x86_64-linux-gnu|/usr/lib"
+
+# Common search directories for GStreamer libraries
+GSTREAMER_LIB_SEARCH_DIRS="/opt/gstreamer/lib/x86_64-linux-gnu|/usr/lib/x86_64-linux-gnu|/usr/lib"
+
+# Common search directories for GStreamer plugins
+GSTREAMER_PLUGIN_SEARCH_DIRS="/opt/gstreamer/lib/x86_64-linux-gnu/gstreamer-1.0|/usr/lib/x86_64-linux-gnu/gstreamer-1.0|/usr/lib/gstreamer-1.0"
+
+# Unified library configurations with target subdirectories
+declare -a UNIFIED_LIBRARY_CONFIGS=(
+    # Qt6 libraries -> ${RPMTOP}/SOURCES/qt6
+    # Using common Qt6 library search directories
+    "QTCORE|Qt6 core|libQt6Core.so|ERROR|qt6|${QT_LIB_SEARCH_DIRS}"
+    "QTGUI|Qt6 gui|libQt6Gui.so|ERROR|qt6|${QT_LIB_SEARCH_DIRS}"
+    "QTWIDGETS|Qt6 widgets|libQt6Widgets.so|ERROR|qt6|${QT_LIB_SEARCH_DIRS}"
+    # Common search directories for Qt6 libraries
+    "QTSERIALPORT|Qt6 serial port|libQt6SerialPort.so|WARNING|qt6|${QT_LIB_SEARCH_DIRS}"
+    "QTSHADERTOOLS|Qt6 shader tools|libQt6ShaderTools.so|WARNING|qt6|${QT_LIB_SEARCH_DIRS}"
+    "QTSVGWIDGETS|Qt6 SVG widgets|libQt6SvgWidgets.so|WARNING|qt6|${QT_LIB_SEARCH_DIRS}"
+    "QTUITOOLS|Qt6 UI tools|libQt6UiTools.so|WARNING|qt6|${QT_LIB_SEARCH_DIRS}"
+    "QTXML|Qt6 XML|libQt6Xml.so|WARNING|qt6|${QT_LIB_SEARCH_DIRS}"
+    "QTTEST|Qt6 test|libQt6Test.so|WARNING|qt6|${QT_LIB_SEARCH_DIRS}"
+    "QTQML|Qt6 qml|libQt6Qml.so|ERROR|qt6|${QT_LIB_SEARCH_DIRS}"
+    "QTQMLCOMPILER|Qt6 QML compiler|libQt6QmlCompiler.so|WARNING|qt6|${QT_LIB_SEARCH_DIRS}"
+    "QTQMLCORE|Qt6 QML core|libQt6QmlCore.so|WARNING|qt6|${QT_LIB_SEARCH_DIRS}"
+    "QTQMLXMLLISTMODEL|Qt6 QML XML list model|libQt6QmlXmlListModel.so|WARNING|qt6|${QT_LIB_SEARCH_DIRS}"
+    "QTQMLMODELS|Qt6 QML models|libQt6QmlModels.so|WARNING|qt6|${QT_LIB_SEARCH_DIRS}"
+    "QTQMLWORKERSCRIPT|Qt6 QML worker script|libQt6QmlWorkerScript.so|WARNING|qt6|${QT_LIB_SEARCH_DIRS}"
+    "QTQUICK|Qt6 quick|libQt6Quick.so|WARNING|qt6|${QT_LIB_SEARCH_DIRS}"
+    "QTWAYLANDCLIENT|Qt6 Wayland Client|libQt6WaylandClient.so|WARNING|qt6|${QT_LIB_SEARCH_DIRS}"
+    "QTXCBQPA|Qt6 XCB QPA|libQt6XcbQpa.so|ERROR|qt6|${QT_LIB_SEARCH_DIRS}"
+    "QTCORE5COMPAT|Qt6 core5 compat|libQt6Core5Compat.so|WARNING|qt6|${QT_LIB_SEARCH_DIRS}"
+    "QTGUIPRIVATE|Qt6 gui private|libQt6GuiPrivate.so|WARNING|qt6|${QT_LIB_SEARCH_DIRS}"
+    "QTDBUS|Qt6 D-Bus|libQt6DBus.so|WARNING|qt6|${QT_LIB_SEARCH_DIRS}"
+    "QTMULTIMEDIA|Qt6 multimedia|libQt6Multimedia.so|WARNING|qt6|${QT_LIB_SEARCH_DIRS}"
+    "QTMULTIMEDIAQUICK|Qt6 multimedia quick|libQt6MultimediaQuick.so|WARNING|qt6|${QT_LIB_SEARCH_DIRS}"
+    "QTMULTIMEDIAWIDGETS|Qt6 multimedia widgets|libQt6MultimediaWidgets.so|WARNING|qt6|${QT_LIB_SEARCH_DIRS}"
+    "QTNETWORK|Qt6 network|libQt6Network.so|WARNING|qt6|${QT_LIB_SEARCH_DIRS}"
+    "QTOPENGL|Qt6 OpenGL|libQt6OpenGL.so|WARNING|qt6|${QT_LIB_SEARCH_DIRS}"
+    "QTQUICKCONTROLS2|Qt6 quick controls 2|libQt6QuickControls2.so|WARNING|qt6|${QT_LIB_SEARCH_DIRS}"
+    "QTQUICKSHAPES|Qt6 quick shapes|libQt6QuickShapes.so|WARNING|qt6|${QT_LIB_SEARCH_DIRS}"
+    "QTQUICKLAYOUTS|Qt6 quick layouts|libQt6QuickLayouts.so|WARNING|qt6|${QT_LIB_SEARCH_DIRS}"
+    "QTQUICKTEMPLATES2|Qt6 quick templates 2|libQt6QuickTemplates2.so|WARNING|qt6|${QT_LIB_SEARCH_DIRS}"
+    "QTQUICKPARTICLES|Qt6 quick particles|libQt6QuickParticles.so|WARNING|qt6|${QT_LIB_SEARCH_DIRS}"
+    "QTOPENGLWIDGETS|Qt6 opengl widgets|libQt6OpenGLWidgets.so|WARNING|qt6|${QT_LIB_SEARCH_DIRS}"
+    "QTSVG|Qt6 svg|libQt6Svg.so|WARNING|qt6|${QT_LIB_SEARCH_DIRS}"
+    
+    # Qt6 plugins -> ${RPMTOP}/SOURCES/qt6/plugins/imageformats and iconengines
+    # Using common Qt6 plugin search directories
+    "QTPLUGIN_SVG|Qt6 SVG image format plugin|libqsvg.so|WARNING|qt6/plugins/imageformats|${QT_PLUGIN_SEARCH_DIRS}"
+    "QTPLUGIN_SVGICON|Qt6 SVG icon engine plugin|libqsvgicon.so|WARNING|qt6/plugins/iconengines|${QT_PLUGIN_SEARCH_DIRS}"
+    
+    # Qt6 platform plugins -> ${RPMTOP}/SOURCES/qt6/plugins/platforms
+    "QTPLUGIN_QXC|Qt6 XCB platform|libqxcb.so|ERROR|qt6/plugins/platforms|${QT_PLUGIN_SEARCH_DIRS}/platforms"
+    "QTPLUGIN_WAYLAND_EGL|Qt6 Wayland EGL platform|libqwayland-egl.so|WARNING|qt6/plugins/platforms|${QT_PLUGIN_SEARCH_DIRS}/platforms"
+    "QTPLUGIN_WAYLAND_GENERIC|Qt6 Wayland generic platform|libqwayland-generic.so|WARNING|qt6/plugins/platforms|${QT_PLUGIN_SEARCH_DIRS}/platforms"
+    "QTPLUGIN_EGLFS|Qt6 EGLFS platform|libqeglfs.so|WARNING|qt6/plugins/platforms|${QT_PLUGIN_SEARCH_DIRS}/platforms"
+    "QTPLUGIN_MINIMAL|Qt6 minimal platform|libqminimal.so|WARNING|qt6/plugins/platforms|${QT_PLUGIN_SEARCH_DIRS}/platforms"
+    "QTPLUGIN_MINIMALEGL|Qt6 minimal EGL platform|libqminimalegl.so|WARNING|qt6/plugins/platforms|${QT_PLUGIN_SEARCH_DIRS}/platforms"
+    "QTPLUGIN_LINUXFB|Qt6 Linux framebuffer platform|libqlinuxfb.so|WARNING|qt6/plugins/platforms|${QT_PLUGIN_SEARCH_DIRS}/platforms"
+    "QTPLUGIN_OFFSCREEN|Qt6 offscreen platform|libqoffscreen.so|WARNING|qt6/plugins/platforms|${QT_PLUGIN_SEARCH_DIRS}/platforms"
+    "QTPLUGIN_VNC|Qt6 VNC platform|libqvnc.so|WARNING|qt6/plugins/platforms|${QT_PLUGIN_SEARCH_DIRS}/platforms"
+    "QTPLUGIN_VKKHRDISPLAY|Qt6 VK KHR display platform|libqvkkhrdisplay.so|WARNING|qt6/plugins/platforms|${QT_PLUGIN_SEARCH_DIRS}/platforms"
+    
+    # Qt6 platform input context plugins -> ${RPMTOP}/SOURCES/qt6/plugins/platforminputcontexts
+    "QTPLUGIN_COMPOSE|Qt6 compose platform input context|libcomposeplatforminputcontextplugin.so|WARNING|qt6/plugins/platforminputcontexts|${QT_PLUGIN_SEARCH_DIRS}/platforminputcontexts"
+    "QTPLUGIN_IBUS|Qt6 IBus platform input context|libibusplatforminputcontextplugin.so|WARNING|qt6/plugins/platforminputcontexts|${QT_PLUGIN_SEARCH_DIRS}/platforminputcontexts"
+    
+    # GPU/Rendering libraries (CRITICAL for display)
+    "EGL|libEGL|libEGL.so|WARNING||/lib/x86_64-linux-gnu|/opt/Qt6/lib|/usr/lib/x86_64-linux-gnu|/usr/lib|/usr/lib64|/lib"
+    "GL|libGL|libGL.so|WARNING||/lib/x86_64-linux-gnu|/opt/Qt6/lib|/usr/lib/x86_64-linux-gnu|/usr/lib|/usr/lib64|/lib"
+    "GLX|libGLX|libGLX.so|WARNING||/lib/x86_64-linux-gnu|/opt/Qt6/lib|/usr/lib/x86_64-linux-gnu|/usr/lib|/usr/lib64|/lib"
+    "GLESV2|libGLESv2|libGLESv2.so|WARNING||/lib/x86_64-linux-gnu|/opt/Qt6/lib|/usr/lib/x86_64-linux-gnu|/usr/lib|/usr/lib64|/lib"
+    "GLVND|libglvnd|libglvnd.so|WARNING||/lib/x86_64-linux-gnu|/opt/Qt6/lib|/usr/lib/x86_64-linux-gnu|/usr/lib|/usr/lib64|/lib"
+    "GLDISPATCH|libGLdispatch|libGLdispatch.so|WARNING||/lib/x86_64-linux-gnu|/opt/Qt6/lib|/usr/lib/x86_64-linux-gnu|/usr/lib|/usr/lib64|/lib"
+    "OPENGL|libOpenGL|libOpenGL.so|WARNING||/lib/x86_64-linux-gnu|/opt/Qt6/lib|/usr/lib/x86_64-linux-gnu|/usr/lib|/usr/lib64|/lib"
+    
+    # Core media libraries
+    "LIBUSB|libusb|libusb*.so|ERROR||/opt/libusb/lib|/opt/ffmpeg/lib|/usr/lib/x86_64-linux-gnu|/usr/lib"
+    "GUDEV|GUdev device|libgudev-1.0.so|WARNING||/usr/lib/x86_64-linux-gnu|/usr/lib"
+    "JPEG|libjpeg|libjpeg.so|ERROR||/opt/ffmpeg/lib|/usr/lib/x86_64-linux-gnu|/usr/lib"
+    "TURBOJPEG|libturbojpeg|libturbojpeg.so|ERROR||/opt/ffmpeg/lib|/usr/lib/x86_64-linux-gnu|/usr/lib"
+    "VA|VA-API|libva.so|WARNING||/usr/lib/x86_64-linux-gnu|/usr/lib"
+    "VADRM|VA-API DRM|libva-drm.so|WARNING||/usr/lib/x86_64-linux-gnu|/usr/lib"
+    "VAX11|VA-API X11|libva-x11.so|WARNING||/usr/lib/x86_64-linux-gnu|/usr/lib"
+    "VDPAU|VDPAU|libvdpau.so|WARNING||/usr/lib/x86_64-linux-gnu|/usr/lib"
+    
+    # Compression libraries (FFmpeg dependencies)
+    "BZ2|libbz2|libbz2.so|WARNING||/usr/lib/x86_64-linux-gnu|/usr/lib"
+    "Z|zlib|libz.so|WARNING||/usr/lib/x86_64-linux-gnu|/usr/lib"
+    "LZMA|liblzma|liblzma.so|WARNING||/usr/lib/x86_64-linux-gnu|/usr/lib"
+    
+    # FFmpeg libraries -> ${RPMTOP}/SOURCES/ffmpeg
+    # Using common FFmpeg library search directories
+    "AVDEVICE|FFmpeg avdevice|libavdevice.so|WARNING|ffmpeg|${FFMPEG_LIB_SEARCH_DIRS}"
+    "AVCODEC|FFmpeg avcodec|libavcodec.so|WARNING|ffmpeg|${FFMPEG_LIB_SEARCH_DIRS}"
+    "AVFORMAT|FFmpeg avformat|libavformat.so|WARNING|ffmpeg|${FFMPEG_LIB_SEARCH_DIRS}"
+    "AVUTIL|FFmpeg avutil|libavutil.so|WARNING|ffmpeg|${FFMPEG_LIB_SEARCH_DIRS}"
+    "SWSCALE|FFmpeg swscale|libswscale.so|WARNING|ffmpeg|${FFMPEG_LIB_SEARCH_DIRS}"
+    "SWRESAMPLE|FFmpeg swresample|libswresample.so|WARNING|ffmpeg|${FFMPEG_LIB_SEARCH_DIRS}"
+    "AVFILTER|FFmpeg avfilter|libavfilter.so|WARNING|ffmpeg|${FFMPEG_LIB_SEARCH_DIRS}"
+    
+    # GStreamer libraries -> ${RPMTOP}/SOURCES/gstreamer
+    # Using common GStreamer library search directories
+    "GSTREAMER|GStreamer core|libgstreamer-1.0.so|WARNING|gstreamer|${GSTREAMER_LIB_SEARCH_DIRS}"
+    "GSTBASE|GStreamer base|libgstbase-1.0.so|WARNING|gstreamer|${GSTREAMER_LIB_SEARCH_DIRS}"
+    "GSTAUDIO|GStreamer audio|libgstaudio-1.0.so|WARNING|gstreamer|${GSTREAMER_LIB_SEARCH_DIRS}"
+    "GSTPBUTILS|GStreamer playback utils|libgstpbutils-1.0.so|WARNING|gstreamer|${GSTREAMER_LIB_SEARCH_DIRS}"
+    "GSTVIDEO|GStreamer video|libgstvideo-1.0.so|WARNING|gstreamer|${GSTREAMER_LIB_SEARCH_DIRS}"
+    "GSTAPP|GStreamer app|libgstapp-1.0.so|WARNING|gstreamer|${GSTREAMER_LIB_SEARCH_DIRS}"
+    "GSTCODECS|GStreamer codecs|libgstcodecs-1.0.so|WARNING|gstreamer|${GSTREAMER_LIB_SEARCH_DIRS}"
+    "GSTCODECPARSERS|GStreamer codec parsers|libgstcodecparsers-1.0.so|WARNING|gstreamer|${GSTREAMER_LIB_SEARCH_DIRS}"
+    "GSTTAG|GStreamer tag|libgsttag-1.0.so|WARNING|gstreamer|${GSTREAMER_LIB_SEARCH_DIRS}"
+    "GSTRTP|GStreamer RTP|libgstrtp-1.0.so|WARNING|gstreamer|${GSTREAMER_LIB_SEARCH_DIRS}"
+    "GSTRTSP|GStreamer RTSP|libgstrtsp-1.0.so|WARNING|gstreamer|${GSTREAMER_LIB_SEARCH_DIRS}"
+    "GSTSDP|GStreamer SDP|libgstsdp-1.0.so|WARNING|gstreamer|${GSTREAMER_LIB_SEARCH_DIRS}"
+    "GSTALLOCATORS|GStreamer allocators|libgstallocators-1.0.so|WARNING|gstreamer|${GSTREAMER_LIB_SEARCH_DIRS}"
+    "GSTGL|GStreamer OpenGL|libgstgl-1.0.so|WARNING|gstreamer|${GSTREAMER_LIB_SEARCH_DIRS}"
+    "ORC|ORC optimization|liborc-0.4.so|WARNING|gstreamer|/usr/lib/x86_64-linux-gnu|/usr/lib"
+    "V4L|v4l-utils|libv4l*.so|WARNING|gstreamer|/usr/lib/x86_64-linux-gnu|/usr/lib"
+    "V4L1|v4l1 compatibility|libv4l1.so|WARNING|gstreamer|/usr/lib/x86_64-linux-gnu|/usr/lib"
+    "V4LCONVERT|v4l format conversion|libv4lconvert.so|WARNING|gstreamer|/usr/lib/x86_64-linux-gnu|/usr/lib"
+    
+    # GStreamer plugins -> ${RPMTOP}/SOURCES/gstreamer/gstreamer-1.0
+    # Using common GStreamer plugin search directories
+    "GSTPLUGIN_VIDEO4LINUX2|GStreamer V4L2 video capture|libgstvideo4linux2.so|WARNING|gstreamer/gstreamer-1.0|${GSTREAMER_PLUGIN_SEARCH_DIRS}"
+    "GSTPLUGIN_V4L2CODECS|GStreamer V4L2 hardware codecs|libgstv4l2codecs.so|WARNING|gstreamer/gstreamer-1.0|${GSTREAMER_PLUGIN_SEARCH_DIRS}"
+    "GSTPLUGIN_VIDEOCONVERTSCALE|GStreamer video format conversion|libgstvideoconvertscale.so|WARNING|gstreamer/gstreamer-1.0|${GSTREAMER_PLUGIN_SEARCH_DIRS}"
+    "GSTPLUGIN_VIDEORATE|GStreamer video frame rate conversion|libgstvideorate.so|WARNING|gstreamer/gstreamer-1.0|${GSTREAMER_PLUGIN_SEARCH_DIRS}"
+    "GSTPLUGIN_COREELEMENTS|GStreamer core elements|libgstcoreelements.so|WARNING|gstreamer/gstreamer-1.0|${GSTREAMER_PLUGIN_SEARCH_DIRS}"
+    "GSTPLUGIN_TYPEFIND|GStreamer type detection|libgsttypefindfunctions.so|WARNING|gstreamer/gstreamer-1.0|${GSTREAMER_PLUGIN_SEARCH_DIRS}"
+    "GSTPLUGIN_APP|GStreamer application integration|libgstapp.so|WARNING|gstreamer/gstreamer-1.0|${GSTREAMER_PLUGIN_SEARCH_DIRS}"
+    "GSTPLUGIN_PLAYBACK|GStreamer playback elements|libgstplayback.so|WARNING|gstreamer/gstreamer-1.0|${GSTREAMER_PLUGIN_SEARCH_DIRS}"
+    "GSTPLUGIN_JPEG|GStreamer JPEG codec|libgstjpeg.so|WARNING|gstreamer/gstreamer-1.0|${GSTREAMER_PLUGIN_SEARCH_DIRS}"
+    "GSTPLUGIN_XIMAGESINK|GStreamer X11 video sink|libgstximagesink.so|WARNING|gstreamer/gstreamer-1.0|${GSTREAMER_PLUGIN_SEARCH_DIRS}"
+    "GSTPLUGIN_XVIMAGESINK|GStreamer XVideo sink|libgstxvimagesink.so|WARNING|gstreamer/gstreamer-1.0|${GSTREAMER_PLUGIN_SEARCH_DIRS}"
+    "GSTPLUGIN_AUTODETECT|GStreamer auto detection|libgstautodetect.so|WARNING|gstreamer/gstreamer-1.0|${GSTREAMER_PLUGIN_SEARCH_DIRS}"
+    "GSTPLUGIN_PULSEAUDIO|GStreamer PulseAudio|libgstpulseaudio.so|WARNING|gstreamer/gstreamer-1.0|${GSTREAMER_PLUGIN_SEARCH_DIRS}"
+    "GSTPLUGIN_AUDIOPARSERS|GStreamer audio parsers|libgstaudioparsers.so|WARNING|gstreamer/gstreamer-1.0|${GSTREAMER_PLUGIN_SEARCH_DIRS}"
+    "GSTPLUGIN_AUDIOCONVERT|GStreamer audio conversion|libgstaudioconvert.so|WARNING|gstreamer/gstreamer-1.0|${GSTREAMER_PLUGIN_SEARCH_DIRS}"
+    "GSTPLUGIN_AUDIORESAMPLE|GStreamer audio resampling|libgstaudioresample.so|WARNING|gstreamer/gstreamer-1.0|${GSTREAMER_PLUGIN_SEARCH_DIRS}"
+    "LIBDW|DW support library|libdw.so|WARNING|gstreamer/gstreamer-1.0|/usr/lib/x86_64-linux-gnu|/usr/lib"
+    "XCBCURSOR|XCB cursor support|libxcb-cursor.so|ERROR|qt6|/usr/lib/x86_64-linux-gnu|/usr/lib"
+    "XCB|X11 XCB|libxcb.so|ERROR|qt6|/usr/lib/x86_64-linux-gnu|/usr/lib"
+    "XCBUTIL|XCB utilities|libxcb-util.so|WARNING|qt6|/usr/lib/x86_64-linux-gnu|/usr/lib"
 )
 
-for SEARCH_DIR in /opt/gstreamer/lib/x86_64-linux-gnu /usr/lib/x86_64-linux-gnu /usr/lib; do
-    echo "   Checking: $SEARCH_DIR"
-    if [ -d "$SEARCH_DIR" ]; then
-        LIBS_FOUND_IN_DIR=0
-        
-        # Search for all essential GStreamer libraries
-        for gst_lib in "${GSTREAMER_LIBS[@]}"; do
-            if ls "$SEARCH_DIR"/${gst_lib}* >/dev/null 2>&1; then
-                LIBS_FOUND_IN_DIR=$((LIBS_FOUND_IN_DIR + 1))
-            fi
-        done
-        
-        if [ $LIBS_FOUND_IN_DIR -gt 0 ]; then
-            echo "   ✅ Found GStreamer libraries in $SEARCH_DIR"
-            
-            # Copy each GStreamer library
-            for gst_lib in "${GSTREAMER_LIBS[@]}"; do
-                if ls "$SEARCH_DIR"/${gst_lib}* >/dev/null 2>&1; then
-                    echo "      📦 Copying $gst_lib..."
-                    GSTREAMER_FILES=$(ls -la "$SEARCH_DIR"/${gst_lib}* 2>/dev/null)
-                    echo "$GSTREAMER_FILES" | sed 's/^/         /'
-                    # Only copy actual files (not symlinks) to avoid duplication
-                    find "$SEARCH_DIR" -maxdepth 1 -name "${gst_lib}*" -type f -exec cp -Pv {} "${RPMTOP}/SOURCES/gstreamer/" \; 2>&1 | sed 's/^/         /'
-                else
-                    echo "      ⚠️  $gst_lib not found in $SEARCH_DIR"
-                fi
-            done
-            
-            echo "   ✅ GStreamer libraries copied to ${RPMTOP}/SOURCES/gstreamer"
-            GSTREAMER_FOUND=1
-            break
-        else
-            echo "   ✗ No GStreamer libraries found in $SEARCH_DIR"
-        fi
-    else
-        echo "   ✗ Directory does not exist: $SEARCH_DIR"
-    fi
-done
-if [ $GSTREAMER_FOUND -eq 0 ]; then
-    echo "⚠️  Warning: GStreamer libraries not found"
-else
-    echo "✅ GStreamer libraries found and copied"
-fi
-
-# Copy ORC libraries (needed by GStreamer) - search multiple locations
-echo "📋 RPM: Searching for ORC libraries..."
-ORC_FOUND=0
-for SEARCH_DIR in /usr/lib/x86_64-linux-gnu /usr/lib; do
-    echo "   Checking: $SEARCH_DIR"
-    if [ -d "$SEARCH_DIR" ]; then
-        if ls "$SEARCH_DIR"/liborc-0.4.so* >/dev/null 2>&1; then
-            echo "   ✅ Found ORC libraries in $SEARCH_DIR"
-            ORC_FILES=$(ls -la "$SEARCH_DIR"/liborc-0.4.so*)
-            echo "   Files found:"
-            echo "$ORC_FILES" | sed 's/^/     /'
-            # Only copy actual files (not symlinks) to avoid duplication
-            find "$SEARCH_DIR" -maxdepth 1 -name "liborc-0.4.so*" -type f -exec cp -Pv {} "${RPMTOP}/SOURCES/gstreamer/" \; 2>&1 | sed 's/^/     /'
-            echo "   ✅ ORC libraries copied to ${RPMTOP}/SOURCES/gstreamer"
-            ORC_FOUND=1
-            break
-        else
-            echo "   ✗ No ORC libraries found in $SEARCH_DIR"
-        fi
-    else
-        echo "   ✗ Directory does not exist: $SEARCH_DIR"
-    fi
-done
-if [ $ORC_FOUND -eq 0 ]; then
-    echo "⚠️  Warning: ORC libraries not found"
-else
-    echo "✅ ORC libraries found and copied"
-fi
-
-# Copy GStreamer plugins (essential for video capture)
-echo "📋 RPM: Searching for GStreamer plugins..."
-GSTREAMER_PLUGINS_FOUND=0
-
-# Essential GStreamer plugins for video capture
-GSTREAMER_PLUGINS=(
-    "libgstvideo4linux2.so"        # V4L2 video capture (CRITICAL)
-    "libgstv4l2codecs.so"          # V4L2 hardware codecs
-    "libgstvideoconvertscale.so"   # Video format conversion and scaling
-    "libgstvideorate.so"           # Video frame rate conversion
-    "libgstcoreelements.so"        # Core elements (queue, filesrc, etc.)
-    "libgsttypefindfunctions.so"   # Type detection
-    "libgstapp.so"                 # Application integration
-    "libgstplayback.so"           # Playback elements
-    "libgstjpeg.so"               # JPEG codec
-    "libgstximagesink.so"         # X11 video sink
-    "libgstxvimagesink.so"        # XVideo sink
-    "libgstautodetect.so"         # Auto detection
-    "libgstpulseaudio.so"         # PulseAudio
-    "libgstaudioparsers.so"       # Audio parsers
-    "libgstaudioconvert.so"       # Audio conversion
-    "libgstaudioresample.so"      # Audio resampling
-    "libdw.so"                   # DW support (dependency for some plugins) 
-)
-
-# Detect GStreamer plugin directories
-GSTREAMER_PLUGIN_DIR=""
-for SEARCH_DIR in /usr/lib/x86_64-linux-gnu/gstreamer-1.0 /usr/lib/gstreamer-1.0 /opt/gstreamer/lib/x86_64-linux-gnu/gstreamer-1.0; do
-    if [ -d "$SEARCH_DIR" ] && ls "$SEARCH_DIR"/libgstvideo4linux2.so >/dev/null 2>&1; then
-        GSTREAMER_PLUGIN_DIR="$SEARCH_DIR"
-        echo "   ✅ Found GStreamer plugins directory: $GSTREAMER_PLUGIN_DIR"
-        break
-    fi
-done
-
-if [ -n "$GSTREAMER_PLUGIN_DIR" ]; then
-    mkdir -p "${RPMTOP}/SOURCES/gstreamer/gstreamer-1.0"
-    PLUGINS_COPIED=0
+# Process all library configurations
+echo "🔍 Copying required libraries to RPM SOURCES..."
+for config in "${UNIFIED_LIBRARY_CONFIGS[@]}"; do
+    IFS='|' read -r var_name display_name lib_pattern severity target_subdir search_dirs_str <<< "$config"
+    IFS='|' read -ra search_dirs <<< "$search_dirs_str"
     
-    for plugin in "${GSTREAMER_PLUGINS[@]}"; do
-        if [ -f "$GSTREAMER_PLUGIN_DIR/$plugin" ]; then
-            cp -Pv "$GSTREAMER_PLUGIN_DIR/$plugin" "${RPMTOP}/SOURCES/gstreamer/gstreamer-1.0/" 2>&1 | sed 's/^/     /'
-            PLUGINS_COPIED=$((PLUGINS_COPIED + 1))
-        else
-            echo "     ⚠️  Missing plugin: $plugin"
-        fi
-    done
+    # Determine full target directory
+    if [ -z "$target_subdir" ]; then
+        target_dir="${RPMTOP}/SOURCES"
+    else
+        target_dir="${RPMTOP}/SOURCES/${target_subdir}"
+    fi
     
-    echo "   ✅ GStreamer plugins copied ($PLUGINS_COPIED plugins)"
-    GSTREAMER_PLUGINS_FOUND=1
-else
-    echo "   ⚠️  GStreamer plugins directory not found, checking if gstreamer packages are installed..."
-    if dpkg -l | grep -q gstreamer1.0-plugins; then
-        echo "   ℹ️  GStreamer plugins packages are installed on the system"
-        echo "   They will be required as a dependency in the final RPM package"
-    fi
-fi
-
-if [ $GSTREAMER_PLUGINS_FOUND -eq 0 ]; then
-    echo "⚠️  Warning: GStreamer plugins not found in binary form"
-    echo "   Note: GStreamer plugins should be listed as dependencies in the RPM package"
-else
-    echo "✅ GStreamer plugins bundled successfully"
-fi
-
-# Copy v4l-utils libraries - search multiple locations
-echo "📋 RPM: Searching for v4l-utils libraries..."
-V4L_FOUND=0
-for SEARCH_DIR in /usr/lib/x86_64-linux-gnu /usr/lib; do
-    echo "   Checking: $SEARCH_DIR"
-    if [ -d "$SEARCH_DIR" ]; then
-        if ls "$SEARCH_DIR"/libv4l*.so* >/dev/null 2>&1; then
-            echo "   ✅ Found v4l-utils libraries in $SEARCH_DIR"
-            V4L_FILES=$(ls -la "$SEARCH_DIR"/libv4l*.so*)
-            echo "   Files found:"
-            echo "$V4L_FILES" | sed 's/^/     /'
-            # Only copy actual files (not symlinks) to avoid duplication
-            find "$SEARCH_DIR" -maxdepth 1 -name "libv4l*.so*" -type f -exec cp -Pv {} "${RPMTOP}/SOURCES/gstreamer/" \; 2>&1 | sed 's/^/     /'
-            echo "   ✅ v4l-utils libraries copied to ${RPMTOP}/SOURCES/gstreamer"
-            V4L_FOUND=1
-            break
-        else
-            echo "   ✗ No v4l-utils libraries found in $SEARCH_DIR"
-        fi
-    else
-        echo "   ✗ Directory does not exist: $SEARCH_DIR"
-    fi
+    copy_libraries "$var_name" "$display_name" "$lib_pattern" "$severity" "$target_dir" "${search_dirs[@]}"
 done
-if [ $V4L_FOUND -eq 0 ]; then
-    echo "⚠️  Warning: v4l-utils libraries not found"
-else
-    echo "✅ v4l-utils found and copied"
-fi
-
-# Copy GStreamer video libraries to RPM SOURCES - search multiple locations
-echo "📋 RPM: Searching for GStreamer video libraries..."
-GSTVIDEO_FOUND=0
-for SEARCH_DIR in /usr/lib/x86_64-linux-gnu /usr/lib; do
-    echo "   Checking: $SEARCH_DIR"
-    if [ -d "$SEARCH_DIR" ]; then
-        # Use find to detect both files and symlinks
-        if find "$SEARCH_DIR" -maxdepth 1 \( -name "libgstvideo-1.0.so*" -type f -o -name "libgstvideo-1.0.so*" -type l \) 2>/dev/null | grep -q .; then
-            echo "   ✅ Found GStreamer video libraries in $SEARCH_DIR"
-            # List files found for diagnostics
-            ls -la "$SEARCH_DIR"/libgstvideo-1.0.so* 2>/dev/null | while read -r line; do
-                echo "     $line"
-            done
-            # Only copy actual files (not symlinks) to avoid duplication
-            find "$SEARCH_DIR" -maxdepth 1 -name "libgstvideo-1.0.so*" -type f -exec cp -Pv {} "${RPMTOP}/SOURCES/gstreamer/" \; 2>&1 | sed 's/^/     /'
-            echo "   ✅ GStreamer video libraries copied to ${RPMTOP}/SOURCES/gstreamer"
-            GSTVIDEO_FOUND=1
-            break
-        else
-            echo "   ✗ No GStreamer video libraries found in $SEARCH_DIR"
-        fi
-    else
-        echo "   ✗ Directory does not exist: $SEARCH_DIR"
-    fi
-done
-if [ $GSTVIDEO_FOUND -eq 0 ]; then
-    echo "⚠️  Warning: GStreamer video libraries not found"
-else
-    echo "✅ GStreamer video libraries found and copied"
-fi
-
-# Copy GStreamer app libraries to RPM SOURCES - search multiple locations
-echo "📋 RPM: Searching for GStreamer app libraries..."
-GSTAPP_FOUND=0
-for SEARCH_DIR in /usr/lib/x86_64-linux-gnu /usr/lib; do
-    echo "   Checking: $SEARCH_DIR"
-    if [ -d "$SEARCH_DIR" ]; then
-        # Use find to detect both files and symlinks
-        if find "$SEARCH_DIR" -maxdepth 1 \( -name "libgstapp-1.0.so*" -type f -o -name "libgstapp-1.0.so*" -type l \) 2>/dev/null | grep -q .; then
-            echo "   ✅ Found GStreamer app libraries in $SEARCH_DIR"
-            # List files found for diagnostics
-            ls -la "$SEARCH_DIR"/libgstapp-1.0.so* 2>/dev/null | while read -r line; do
-                echo "     $line"
-            done
-            # Only copy actual files (not symlinks) to avoid duplication
-            find "$SEARCH_DIR" -maxdepth 1 -name "libgstapp-1.0.so*" -type f -exec cp -Pv {} "${RPMTOP}/SOURCES/gstreamer/" \; 2>&1 | sed 's/^/     /'
-            echo "   ✅ GStreamer app libraries copied to ${RPMTOP}/SOURCES/gstreamer"
-            GSTAPP_FOUND=1
-            break
-        else
-            echo "   ✗ No GStreamer app libraries found in $SEARCH_DIR"
-        fi
-    else
-        echo "   ✗ Directory does not exist: $SEARCH_DIR"
-    fi
-done
-if [ $GSTAPP_FOUND -eq 0 ]; then
-    echo "⚠️  Warning: GStreamer app libraries not found"
-else
-    echo "✅ GStreamer app libraries found and copied"
-fi
 
 echo "📋 RPM: Final SOURCES directory contents:"
 ls -lah "${RPMTOP}/SOURCES/" | head -30
 
 # Update the binary's rpath to point to /usr/lib/openterfaceqt for RPM
-# CRITICAL: RPATH must come BEFORE system paths to override /lib64 and /usr/lib
+# CRITICAL: The binary needs BOTH RPATH and possibly RUNPATH
 if [ -f "${RPMTOP}/SOURCES/openterfaceQT" ]; then
-    echo "Updating rpath for RPM bundled libraries..."
-    echo "   Setting RPATH to prioritize bundled libraries over system"
-    echo "   RPATH: /usr/lib/openterfaceqt/qt6:/usr/lib/openterfaceqt/ffmpeg:/usr/lib/openterfaceqt/gstreamer:/usr/lib/openterfaceqt"
+    echo "Updating binary loader paths for RPM bundled libraries..."
+    echo "   This makes bundled Qt libraries load BEFORE system Qt libraries"
     
-    # Set RPATH with multiple priority entries
-    # This ensures bundled libraries are found FIRST before system libraries
-    patchelf --set-rpath '/usr/lib/openterfaceqt/qt6:/usr/lib/openterfaceqt/ffmpeg:/usr/lib/openterfaceqt/gstreamer:/usr/lib/openterfaceqt' \
-             "${RPMTOP}/SOURCES/openterfaceQT"
+    # First, try to REMOVE any existing RPATH/RUNPATH to start clean
+    patchelf --remove-rpath "${RPMTOP}/SOURCES/openterfaceQT" 2>/dev/null || true
     
-    # Verify RPATH was set correctly
+    # Set RPATH (preferred, checked by glibc before /lib64)
+    RPATH_DIRS='/usr/lib/openterfaceqt/qt6:/usr/lib/openterfaceqt/ffmpeg:/usr/lib/openterfaceqt/gstreamer:/usr/lib/openterfaceqt'
+    echo "   Setting RPATH to: $RPATH_DIRS"
+    patchelf --set-rpath "$RPATH_DIRS" "${RPMTOP}/SOURCES/openterfaceQT"
+    
+    # Verify RPATH was set
     ACTUAL_RPATH=$(patchelf --print-rpath "${RPMTOP}/SOURCES/openterfaceQT" 2>/dev/null || echo "FAILED")
     echo "   ✅ RPATH set to: $ACTUAL_RPATH"
     
-    # Also strip RUNPATH (if exists) to prevent secondary search
-    patchelf --remove-rpath "${RPMTOP}/SOURCES/openterfaceQT" 2>/dev/null || true
-    patchelf --set-rpath '/usr/lib/openterfaceqt/qt6:/usr/lib/openterfaceqt/ffmpeg:/usr/lib/openterfaceqt/gstreamer:/usr/lib/openterfaceqt' \
-             "${RPMTOP}/SOURCES/openterfaceQT"
+    # CRITICAL: Also check if we need to set RUNPATH (used by some linkers)
+    # On systems with LD_LIBRARY_PATH, RUNPATH takes precedence, so we want it too
+    if patchelf --help 2>/dev/null | grep -q "set-runpath"; then
+        echo "   Setting RUNPATH (for LD_LIBRARY_PATH precedence)..."
+        patchelf --set-runpath "$RPATH_DIRS" "${RPMTOP}/SOURCES/openterfaceQT" 2>/dev/null || true
+    fi
+    
+    # Verify final state
+    echo "   Final loader configuration:"
+    patchelf --print-rpath "${RPMTOP}/SOURCES/openterfaceQT" 2>/dev/null | sed 's/^/     RPATH: /'
 fi
 
 # Generate spec from template
@@ -837,9 +433,19 @@ else
 	exit 1
 fi
 
-# Try to copy icon if available
+# Copy icon files (both PNG and SVG) if available
+# These will be installed to /usr/share/icons/hicolor/ in the spec file
+echo "📋 RPM: Copying icon files..."
 if [ -f "${SRC}/images/icon_256.png" ]; then
-	cp "${SRC}/images/icon_256.png" "${RPMTOP}/SOURCES/"
+	cp "${SRC}/images/icon_256.png" "${RPMTOP}/SOURCES/icon_256.png"
+	echo "   ✅ Icon PNG copied"
+else
+	echo "   ⚠️  Warning: icon_256.png not found"
+fi
+
+if [ -f "${SRC}/images/icon_256.svg" ]; then
+	cp "${SRC}/images/icon_256.svg" "${RPMTOP}/SOURCES/icon_256.svg"
+	echo "   ✅ Icon SVG copied"
 fi
 
 # Copy desktop file to SOURCES

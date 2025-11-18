@@ -26,6 +26,9 @@ env:
 
 jobs:
   build-test-fedora:
+    strategy:
+      matrix:
+        install_type: ['appimage', 'rpm']
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     
@@ -68,16 +71,23 @@ jobs:
           ARTIFACTS=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
             "https://api.github.com/repos/${{ github.repository }}/actions/runs/$RUN_ID/artifacts")
           
-          # Find and download the shared RPM artifact
-          ARTIFACT_PATTERN="shared.rpm"
+          # Find and download the appropriate artifact based on install_type
+          if [ "${{ matrix.install_type }}" = "appimage" ]; then
+            ARTIFACT_PATTERN="shared.AppImage"
+          elif [ "${{ matrix.install_type }}" = "rpm" ]; then
+            ARTIFACT_PATTERN="shared.rpm"
+          else
+            echo "❌ Invalid install_type: ${{ matrix.install_type }}"
+            exit 1
+          fi
           
           ARTIFACT_ID=$(echo "$ARTIFACTS" | jq -r '.artifacts[] | select(.name | contains("'$ARTIFACT_PATTERN'")) | .id' | head -1)
           
           if [ -z "$ARTIFACT_ID" ] || [ "$ARTIFACT_ID" = "null" ]; then
-            echo "⚠️ No RPM artifact found in latest build, will use shell script for installation"
+            echo "❌ No artifact matching pattern '$ARTIFACT_PATTERN' found in latest build"
             echo "Available artifacts:"
             echo "$ARTIFACTS" | jq -r '.artifacts[].name'
-            echo "HAS_RPM=false" >> $GITHUB_ENV
+            exit 1
           else
             echo "📦 Found artifact: $ARTIFACT_ID"
             
@@ -90,87 +100,130 @@ jobs:
             # Extract the artifact file
             unzip -j artifact.zip -d build/
             
-            if ls build/*.rpm 1> /dev/null 2>&1; then
-              echo "✅ RPM package extracted successfully"
-              ls -lh build/*.rpm
-              echo "HAS_RPM=true" >> $GITHUB_ENV
-            else
-              echo "⚠️ RPM artifact listed but not found after extraction"
-              echo "HAS_RPM=false" >> $GITHUB_ENV
+            if [ "${{ matrix.install_type }}" = "appimage" ]; then
+              if ls build/*.AppImage 1> /dev/null 2>&1; then
+                echo "✅ AppImage extracted successfully"
+                ls -lh build/*.AppImage
+              else
+                echo "❌ Failed to extract AppImage package"
+                exit 1
+              fi
+            elif [ "${{ matrix.install_type }}" = "rpm" ]; then
+              if ls build/*.rpm 1> /dev/null 2>&1; then
+                echo "✅ RPM package extracted successfully"
+                ls -lh build/*.rpm
+              else
+                echo "❌ Failed to extract RPM package"
+                exit 1
+              fi
             fi
           fi
           
           echo "📦 Build directory contents:"
           ls -la build/ || echo "Build directory is empty"
 
-      - name: Extract and inspect RPM package contents (Fedora)
+      - name: Extract and inspect package contents (Fedora)
         run: |
-          echo "📦 Extracting RPM package contents for inspection..."
-          
-          # Find the RPM file
-          RPM_FILE=$(find build -name "*.rpm" -type f | head -1)
-          
-          if [ -z "$RPM_FILE" ]; then
-            echo "⚠️ No RPM file found in build directory"
-            echo "Available files:"
-            ls -la build/ 2>/dev/null || echo "Build directory is empty"
-            exit 0
+          if [ "${{ matrix.install_type }}" = "rpm" ]; then
+            echo "📦 Extracting RPM package contents for inspection..."
+            
+            # Find the RPM file
+            RPM_FILE=$(find build -name "*.rpm" -type f | head -1)
+            
+            if [ -z "$RPM_FILE" ]; then
+              echo "⚠️ No RPM file found in build directory"
+              echo "Available files:"
+              ls -la build/ 2>/dev/null || echo "Build directory is empty"
+              exit 0
+            fi
+            
+            echo "✅ Found RPM file: $RPM_FILE"
+            echo "📊 RPM file size: $(ls -lh "$RPM_FILE" | awk '{print $5}')"
+            echo ""
+            
+            # Create extraction directory
+            RPM_EXTRACT_DIR="rpm-contents"
+            mkdir -p "$RPM_EXTRACT_DIR"
+            
+            echo "🔍 Extracting RPM package..."
+            rpm2cpio "$RPM_FILE" | cpio -idmv -D "$RPM_EXTRACT_DIR" 2>/dev/null || \
+            rpm2cpio "$RPM_FILE" | cpio -idmv -D "$RPM_EXTRACT_DIR"
+            
+            echo ""
+            echo "📂 RPM Package Contents Structure:"
+            echo "=================================="
+            tree "$RPM_EXTRACT_DIR" -L 3 2>/dev/null || find "$RPM_EXTRACT_DIR" -type f
+            
+            echo ""
+            echo "📋 RPM Package Metadata:"
+            echo "======================="
+            rpm -qip "$RPM_FILE"
+            
+            echo ""
+            echo "✅ RPM package inspection completed"
+            
+          elif [ "${{ matrix.install_type }}" = "appimage" ]; then
+            echo "� Extracting AppImage contents for inspection..."
+            
+            # Find the AppImage file with absolute path
+            APPIMAGE=$(find build -name "*.AppImage" -type f | head -1)
+            
+            if [ -z "$APPIMAGE" ] || [ ! -f "$APPIMAGE" ]; then
+              echo "⚠️ AppImage file not found in build directory"
+              echo "Available files:"
+              ls -la build/
+              exit 1
+            fi
+            
+            # Convert to absolute path
+            APPIMAGE=$(cd "$(dirname "$APPIMAGE")" && pwd)/$(basename "$APPIMAGE")
+            
+            echo "Found AppImage: $APPIMAGE"
+            echo "File size: $(ls -lh "$APPIMAGE" | awk '{print $5}')"
+            echo ""
+            
+            # Extract AppImage contents without mounting
+            echo "� Extracting AppImage contents:"
+            echo "==============================="
+            
+            EXTRACT_DIR=$(mktemp -d)
+            trap "rm -rf $EXTRACT_DIR" EXIT
+            
+            cd "$EXTRACT_DIR"
+            
+            # AppImage is a special ELF file that can be executed with --appimage-extract
+            echo "🔧 Attempting AppImage extraction with --appimage-extract..."
+            
+            if "$APPIMAGE" --appimage-extract >/dev/null 2>&1; then
+              echo "✅ Extraction successful using --appimage-extract"
+            else
+              echo "⚠️ --appimage-extract failed, trying alternative method..."
+            fi
+            
+            # Now list all the libraries found
+            if [ -d "$EXTRACT_DIR/squashfs-root" ] || [ -n "$(find "$EXTRACT_DIR" -name "*.so*" 2>/dev/null | head -1)" ]; then
+              echo ""
+              echo "� All libraries included in AppImage:"
+              echo "======================================"
+              find "$EXTRACT_DIR" -type f \( -name "*.so*" -o -name "*.la" \) 2>/dev/null | sort
+              
+              # Count different types
+              echo ""
+              echo "� Library Statistics:"
+              echo "====================="
+              SO_COUNT=$(find "$EXTRACT_DIR" -type f -name "*.so*" 2>/dev/null | wc -l)
+              LA_COUNT=$(find "$EXTRACT_DIR" -type f -name "*.la" 2>/dev/null | wc -l)
+              echo "  Shared objects (.so*): $SO_COUNT"
+              echo "  Libtool archives (.la): $LA_COUNT"
+              echo "  Total: $((SO_COUNT + LA_COUNT))"
+            else
+              echo "⚠️ Could not extract AppImage contents"
+              file "$APPIMAGE"
+            fi
+            
+            echo ""
+            echo "✅ AppImage analysis completed"
           fi
-          
-          echo "✅ Found RPM file: $RPM_FILE"
-          echo "📊 RPM file size: $(ls -lh "$RPM_FILE" | awk '{print $5}')"
-          echo ""
-          
-          # Create extraction directory
-          RPM_EXTRACT_DIR="rpm-contents"
-          mkdir -p "$RPM_EXTRACT_DIR"
-          
-          echo "🔍 Extracting RPM package..."
-          # Use rpm2cpio to extract the RPM without installing it
-          rpm2cpio "$RPM_FILE" | cpio -idmv -D "$RPM_EXTRACT_DIR" 2>/dev/null || \
-          rpm2cpio "$RPM_FILE" | cpio -idmv -D "$RPM_EXTRACT_DIR"
-          
-          echo ""
-          echo "📂 RPM Package Contents Structure:"
-          echo "=================================="
-          tree "$RPM_EXTRACT_DIR" -L 3 2>/dev/null || find "$RPM_EXTRACT_DIR" -type f
-          
-          echo ""
-          echo "📋 Key Files and Binaries:"
-          echo "=========================="
-          
-          # Find executable binaries
-          echo "🔹 Executables:"
-          find "$RPM_EXTRACT_DIR" -type f -executable | grep -E "(bin|lib)"
-          
-          # Find libraries
-          echo ""
-          echo "🔹 Libraries (.so files):"
-          find "$RPM_EXTRACT_DIR" -type f -name "*.so*"
-          
-          # Find main openterface binary
-          echo ""
-          echo "🔹 OpenTerface binary location:"
-          find "$RPM_EXTRACT_DIR" -type f -name "*openterface*" -o -name "*openterfaceqt*" -o -name "*openterfaceQT*"
-          
-          # Check for Qt libraries
-          echo ""
-          echo "🔹 Qt Libraries:"
-          find "$RPM_EXTRACT_DIR" -type f -name "libQt*"
-          
-          # Check for configuration files
-          echo ""
-          echo "🔹 Configuration Files:"
-          find "$RPM_EXTRACT_DIR" -type f \( -name "*.conf" -o -name "*.yaml" -o -name "*.json" \)
-          
-          # Get RPM metadata
-          echo ""
-          echo "📋 RPM Package Metadata:"
-          echo "======================="
-          rpm -qip "$RPM_FILE"
-          
-          echo ""
-          echo "✅ RPM package inspection completed"
       
       - name: Build Docker image (Fedora)
         run: |
@@ -178,7 +231,7 @@ jobs:
           
           docker build \
             -f docker/testos/Dockerfile.fedora-test-shared \
-            --build-arg INSTALL_TYPE=rpm \
+            --build-arg INSTALL_TYPE=${{ matrix.install_type }} \
             -t ${{ env.DOCKER_IMAGE_FEDORA }}:${{ env.DOCKER_TAG }} \
             docker/
           
@@ -188,15 +241,24 @@ jobs:
         run: |
           echo "📦 Checking for build artifacts to mount..."
           
-          # Check if we have RPM build artifacts to mount
-          if [ -d build ] && [ -n "$(find build -name "*.rpm" 2>/dev/null)" ]; then
-            echo "✅ Found RPM build artifacts"
+          # Determine artifact pattern based on install type
+          if [ "${{ matrix.install_type }}" = "appimage" ]; then
+            ARTIFACT_PATTERN="*.AppImage"
+            ARTIFACT_TYPE="AppImage"
+          elif [ "${{ matrix.install_type }}" = "rpm" ]; then
+            ARTIFACT_PATTERN="*.rpm"
+            ARTIFACT_TYPE="RPM"
+          fi
+          
+          # Check if we have the appropriate build artifacts to mount
+          if [ -d build ] && [ -n "$(find build -name "$ARTIFACT_PATTERN" 2>/dev/null)" ]; then
+            echo "✅ Found $ARTIFACT_TYPE build artifacts"
             VOLUME_MOUNT="-v $(pwd)/build:/tmp/build-artifacts:ro"
             echo "VOLUME_MOUNT=$VOLUME_MOUNT" >> $GITHUB_ENV
             echo "HAS_VOLUME_MOUNT=true" >> $GITHUB_ENV
             ls -lh build/
           else
-            echo "ℹ️ No RPM build artifacts found (will download from GitHub)"
+            echo "ℹ️ No $ARTIFACT_TYPE build artifacts found (will download from GitHub)"
             echo "VOLUME_MOUNT=" >> $GITHUB_ENV
             echo "HAS_VOLUME_MOUNT=false" >> $GITHUB_ENV
           fi
@@ -204,45 +266,39 @@ jobs:
           # Pass GITHUB_TOKEN to Docker containers for artifact downloads
           echo "GITHUB_TOKEN_ENV=-e GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }}" >> $GITHUB_ENV
 
-      - name: Verify Docker image (Fedora)
-        run: |
-          echo "🔍 Verifying Docker image was built successfully"
-          docker images | grep ${{ env.DOCKER_IMAGE_FEDORA }}
-          
-          echo "📊 Image information:"
-          docker inspect ${{ env.DOCKER_IMAGE_FEDORA }}:${{ env.DOCKER_TAG }} --format='{{.Config.Env}}'
-          docker inspect ${{ env.DOCKER_IMAGE_FEDORA }}:${{ env.DOCKER_TAG }} --format='{{.Config.User}}'
-          docker inspect ${{ env.DOCKER_IMAGE_FEDORA }}:${{ env.DOCKER_TAG }} --format='{{.Config.WorkingDir}}'
-          
-          echo "🔍 Image CMD and Entrypoint:"
-          docker inspect ${{ env.DOCKER_IMAGE_FEDORA }}:${{ env.DOCKER_TAG }} --format='{{.Config.Cmd}}'
-          docker inspect ${{ env.DOCKER_IMAGE_FEDORA }}:${{ env.DOCKER_TAG }} --format='{{.Config.Entrypoint}}'
-          
-          echo "🔍 Image layers (last 10):"
-          docker history ${{ env.DOCKER_IMAGE_FEDORA }}:${{ env.DOCKER_TAG }} | head -10
-
       - name: Start persistent container for testing (Fedora)
         timeout-minutes: 15
         env:
           HAS_VOLUME_MOUNT: ${{ env.HAS_VOLUME_MOUNT }}
           VOLUME_MOUNT: ${{ env.VOLUME_MOUNT }}
-          DOCKER_IMAGE_FEDORA: ${{ env.DOCKER_IMAGE_FEDORA }}
+          DOCKER_IMAGE_NAME: ${{ env.DOCKER_IMAGE_FEDORA }}
           DOCKER_TAG: ${{ env.DOCKER_TAG }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          INSTALL_TYPE: ${{ matrix.install_type }}
         run: |
           echo "🧪 Starting persistent container for all subsequent tests"
           
           # Set environment variable to track container name
           echo "TEST_CONTAINER_NAME=openterface-test-fedora-persistent" >> $GITHUB_ENV
           
+          # Set APPIMAGE path for AppImage installations
+          # This signals to entrypoint.sh, launcher.sh, and main.cpp that we're using AppImage
+          # Enables proper platform detection and Wayland→XCB fallback handling
+          APPIMAGE_PATH="/tmp/openterfaceQT.linux.amd64.shared.AppImage"
+          
+          # Force XCB platform for stable testing in container environment
+          # Platform detection is automatic but can be overridden for testing
+          # OPENTERFACE_FORCE_PLATFORM can be set to: auto, xcb, or wayland
+          FORCE_PLATFORM="xcb"  # XCB is stable in container environments, Wayland fallback available
+          
           # Build docker run command
           DOCKER_RUN_CMD="docker run -d \
             --name openterface-test-fedora-persistent \
-            -e DISPLAY=:98 \
+            -e DISPLAY=:0 \
             -e GITHUB_TOKEN=${GITHUB_TOKEN} \
-            -e INSTALL_TYPE=rpm \
-            -e QT_X11_NO_MITSHM=1 \
-            -e QT_QPA_PLATFORM=xcb \
+            -e INSTALL_TYPE=${INSTALL_TYPE} \
+            -e APPIMAGE=${APPIMAGE_PATH} \
+            -e OPENTERFACE_FORCE_PLATFORM=${FORCE_PLATFORM} \
             -e LC_ALL=C.UTF-8 \
             -e LANG=C.UTF-8 \
             --network host \
@@ -255,12 +311,15 @@ jobs:
           fi
           
           # Add image
-          DOCKER_RUN_CMD="$DOCKER_RUN_CMD ${DOCKER_IMAGE_FEDORA}:${DOCKER_TAG}"
+          DOCKER_RUN_CMD="$DOCKER_RUN_CMD ${DOCKER_IMAGE_NAME}:${DOCKER_TAG}"
           
           echo "📋 Starting container with config:"
-          echo "  Image: ${DOCKER_IMAGE_FEDORA}:${DOCKER_TAG}"
+          echo "  Image: ${DOCKER_IMAGE_NAME}:${DOCKER_TAG}"
+          echo "  Install Type: ${INSTALL_TYPE}"
+          echo "  Platform: ${FORCE_PLATFORM}"
           echo "  Volume Mount: ${VOLUME_MOUNT:-none}"
           echo "  GITHUB_TOKEN: $(echo ${GITHUB_TOKEN} | cut -c1-20)..."
+          
           echo ""
           echo "Starting container..."
           CONTAINER_ID=$(eval $DOCKER_RUN_CMD)
@@ -313,7 +372,7 @@ jobs:
           fi
           
           # Give the container a moment to settle
-          sleep 2
+          sleep 5
           
           # Verify container is still running
           echo ""
@@ -392,9 +451,9 @@ jobs:
               echo ""
               
               if [ "$TOTAL_APP_LINES" -gt 60 ]; then
-                echo "📌 FIRST 30 LINES OF APPLICATION LOG:"
+                echo "📌 FIRST 100 LINES OF APPLICATION LOG:"
                 echo "---"
-                head -30 /tmp/openterfaceqt.log
+                head -100 /tmp/openterfaceqt.log
                 echo ""
                 echo "... (middle $((TOTAL_APP_LINES - 60)) lines omitted) ..."
                 echo ""
@@ -412,6 +471,40 @@ jobs:
           ' || echo "⚠️ Could not retrieve app logs"
           echo "=================================================="
           echo ""
+
+      - name: Verify Docker image (Fedora)
+        run: |
+          echo "🔍 Verifying Docker image was built successfully"
+          docker images | grep openterface-test-fedora
+          
+          echo "📊 Image information:"
+          docker inspect openterface-test-fedora:${{ env.DOCKER_TAG }} --format='{{.Config.Env}}'
+          docker inspect openterface-test-fedora:${{ env.DOCKER_TAG }} --format='{{.Config.User}}'
+          docker inspect openterface-test-fedora:${{ env.DOCKER_TAG }} --format='{{.Config.WorkingDir}}'
+          
+          echo "🔍 Image CMD and Entrypoint:"
+          docker inspect openterface-test-fedora:${{ env.DOCKER_TAG }} --format='{{.Config.Cmd}}'
+          docker inspect openterface-test-fedora:${{ env.DOCKER_TAG }} --format='{{.Config.Entrypoint}}'
+          
+          echo "🔍 Image layers (last 10):"
+          docker history openterface-test-fedora:${{ env.DOCKER_TAG }} | head -10
+
+      - name: Verify Docker image (Fedora)
+        run: |
+          echo "🔍 Verifying Docker image was built successfully"
+          docker images | grep openterface-test-fedora
+          
+          echo "📊 Image information:"
+          docker inspect openterface-test-fedora:${{ env.DOCKER_TAG }} --format='{{.Config.Env}}'
+          docker inspect openterface-test-fedora:${{ env.DOCKER_TAG }} --format='{{.Config.User}}'
+          docker inspect openterface-test-fedora:${{ env.DOCKER_TAG }} --format='{{.Config.WorkingDir}}'
+          
+          echo "🔍 Image CMD and Entrypoint:"
+          docker inspect openterface-test-fedora:${{ env.DOCKER_TAG }} --format='{{.Config.Cmd}}'
+          docker inspect openterface-test-fedora:${{ env.DOCKER_TAG }} --format='{{.Config.Entrypoint}}'
+          
+          echo "🔍 Image layers (last 10):"
+                    docker history openterface-test-fedora:${{ env.DOCKER_TAG }} | head -10
 
       - name: Test basic container functionality (Fedora)
         timeout-minutes: 5
@@ -487,9 +580,9 @@ jobs:
           
           # Check X11 display
           echo "🔍 Checking X11 display..."
-          if docker exec $CONTAINER_ID sh -c "DISPLAY=:98 xdpyinfo >/dev/null 2>&1"; then
-              echo "✅ X11 display :98 is available"
-              DISPLAY_RES=$(docker exec $CONTAINER_ID sh -c "DISPLAY=:98 xdpyinfo 2>/dev/null | grep 'dimensions:' | awk '{print \$2}'" || echo "unknown")
+          if docker exec $CONTAINER_ID sh -c "DISPLAY=:0 xdpyinfo >/dev/null 2>&1"; then
+              echo "✅ X11 display :0 is available"
+              DISPLAY_RES=$(docker exec $CONTAINER_ID sh -c "DISPLAY=:0 xdpyinfo 2>/dev/null | grep 'dimensions:' | awk '{print \$2}'" || echo "unknown")
               echo "📊 Display resolution: $DISPLAY_RES"
           else
               echo "⚠️ X11 display check failed"
@@ -506,7 +599,7 @@ jobs:
           # Method 1: Use xwd + convert
           if ! $SCREENSHOT_SUCCESS; then
               echo "📌 Attempting screenshot method 1: xwd + convert..."
-              if docker exec $CONTAINER_ID sh -c "DISPLAY=:98 xwd -root 2>/dev/null | convert xwd:- -quality 100 -geometry 1920x1080 $container_screenshot 2>&1"; then
+              if docker exec $CONTAINER_ID sh -c "DISPLAY=:0 xwd -root 2>/dev/null | convert xwd:- -quality 100 -geometry 1920x1080 $container_screenshot 2>&1"; then
                   SCREENSHOT_SUCCESS=true
                   echo "✅ Screenshot captured using xwd + convert"
               else
@@ -517,7 +610,7 @@ jobs:
           # Method 2: Use scrot
           if ! $SCREENSHOT_SUCCESS; then
               echo "📌 Attempting screenshot method 2: scrot..."
-              if docker exec $CONTAINER_ID sh -c "DISPLAY=:98 scrot -z $container_screenshot 2>&1"; then
+              if docker exec $CONTAINER_ID sh -c "DISPLAY=:0 scrot -z $container_screenshot 2>&1"; then
                   SCREENSHOT_SUCCESS=true
                   echo "✅ Screenshot captured using scrot"
               else
@@ -528,7 +621,7 @@ jobs:
           # Method 3: Use import with explicit geometry
           if ! $SCREENSHOT_SUCCESS; then
               echo "📌 Attempting screenshot method 3: import with explicit geometry..."
-              if docker exec $CONTAINER_ID sh -c "DISPLAY=:98 import -window root -quality 100 -geometry 1920x1080 $container_screenshot 2>&1"; then
+              if docker exec $CONTAINER_ID sh -c "DISPLAY=:0 import -window root -quality 100 -geometry 1920x1080 $container_screenshot 2>&1"; then
                   SCREENSHOT_SUCCESS=true
                   echo "✅ Screenshot captured using import with geometry"
               else
@@ -711,8 +804,8 @@ jobs:
               echo "" >> $GITHUB_STEP_SUMMARY
               echo "Since ImgBB upload is not available, all screenshots are saved as artifacts:" >> $GITHUB_STEP_SUMMARY
               echo "" >> $GITHUB_STEP_SUMMARY
-              echo "- **openterface-gui-screenshots-fedora-collection** - All screenshots" >> $GITHUB_STEP_SUMMARY
-              echo "- **openterface-gui-screenshots-fedora-individual** - Individual images" >> $GITHUB_STEP_SUMMARY
+              echo "- **openterface-gui-screenshots-fedora-${{ matrix.install_type }}-collection** - All screenshots" >> $GITHUB_STEP_SUMMARY
+              echo "- **openterface-gui-screenshots-fedora-${{ matrix.install_type }}-individual** - Individual images" >> $GITHUB_STEP_SUMMARY
               echo "" >> $GITHUB_STEP_SUMMARY
             fi
             
@@ -749,7 +842,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: openterface-gui-screenshots-fedora-collection
+          name: openterface-gui-screenshots-fedora-${{ matrix.install_type }}-collection
           path: screenshots-fedora/
           if-no-files-found: warn
 
@@ -757,7 +850,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: openterface-gui-screenshots-fedora-individual
+          name: openterface-gui-screenshots-fedora-${{ matrix.install_type }}-individual
           path: /tmp/individual_screenshots_fedora/
           if-no-files-found: warn
 

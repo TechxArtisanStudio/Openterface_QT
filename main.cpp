@@ -144,8 +144,9 @@ void suppressGLibMessages(const gchar *log_domain, GLogLevelFlags log_level, con
 
 void setupEnv(){
 #ifdef Q_OS_LINUX
-    // Only set QT_QPA_PLATFORM when not provided by the user
+    // Only set QT_QPA_PLATFORM when not provided by the user or launcher script
     const QByteArray currentPlatform = qgetenv("QT_QPA_PLATFORM");
+    const QByteArray launcherDetected = qgetenv("OPENTERFACE_LAUNCHER_PLATFORM");
     
     if (currentPlatform.isEmpty()) {
         // Check for available display systems
@@ -165,21 +166,27 @@ void setupEnv(){
             qDebug() << "Static build: No display detected, trying DISPLAY=:0 with xcb platform";
         }
         #else
-        // For dynamic builds, prefer XCB if DISPLAY is available
-        if (!x11Display.isEmpty()) {
+        // For dynamic builds, prefer XCB for better compatibility
+        // Only use Wayland if explicitly set by launcher script
+        if (!launcherDetected.isEmpty()) {
+            qDebug() << "Dynamic build: Using launcher script's platform detection:" << launcherDetected;
+        } else if (!x11Display.isEmpty()) {
+            // DISPLAY is set - use XCB
             qputenv("QT_QPA_PLATFORM", "xcb");
             qDebug() << "Dynamic build: Set QT_QPA_PLATFORM to xcb (DISPLAY available)";
         } else if (!waylandDisplay.isEmpty()) {
+            // Fallback to Wayland only if X11 is not available
             qputenv("QT_QPA_PLATFORM", "wayland");
-            qDebug() << "Dynamic build: Set QT_QPA_PLATFORM to wayland (WAYLAND_DISPLAY available)";
+            qDebug() << "Dynamic build: Set QT_QPA_PLATFORM to wayland (WAYLAND_DISPLAY available, X11 not found)";
         } else {
+            // No display found, try default settings
             qputenv("DISPLAY", ":0");
             qputenv("QT_QPA_PLATFORM", "xcb");
             qDebug() << "Dynamic build: No display detected, trying DISPLAY=:0 with xcb platform";
         }
         #endif
     } else {
-        qDebug() << "Current QT_QPA_PLATFORM:" << currentPlatform;
+        qDebug() << "QT_QPA_PLATFORM already set by launcher or user:" << currentPlatform;
     }
 #endif
 }
@@ -266,6 +273,15 @@ int main(int argc, char *argv[])
 {
     qDebug() << "Start openterface...";
     
+    // Parse command-line arguments early to check for --force-env-check
+    bool forceEnvironmentCheck = false;
+    for (int i = 1; i < argc; i++) {
+        if (strcmp(argv[i], "--force-env-check") == 0) {
+            forceEnvironmentCheck = true;
+            qDebug() << "Force environment check flag detected";
+        }
+    }
+    
     // Initialize GStreamer before Qt application
     #ifdef HAVE_GSTREAMER
     GError* gst_error = nullptr;
@@ -302,7 +318,9 @@ int main(int argc, char *argv[])
     app.setWindowIcon(QIcon("://images/icon_32.png"));
     
     // Check if the environment is properly set up
-    if (EnvironmentSetupDialog::autoEnvironmentCheck() && !EnvironmentSetupDialog::checkEnvironmentSetup()) {
+    // If --force-env-check is passed, always show the dialog even if auto-check is disabled
+    bool shouldCheckEnvironment = forceEnvironmentCheck || EnvironmentSetupDialog::autoEnvironmentCheck();
+    if (shouldCheckEnvironment && !EnvironmentSetupDialog::checkEnvironmentSetup()) {
         EnvironmentSetupDialog envDialog;
         qDebug() << "Environment setup dialog opened";
         if (envDialog.exec() == QDialog::Rejected) {

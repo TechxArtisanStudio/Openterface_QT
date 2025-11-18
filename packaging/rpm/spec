@@ -6,10 +6,38 @@ Summary:        OpenterfaceQT KVM Linux Application
 License:        AGPL-3.0
 URL:           https://github.com/TechxArtisanStudio/Openterface_QT
 
-# System-level runtime dependencies
-Requires:       elfutils-libelf
+# System-level runtime dependencies (must-have for Qt6 platform plugins)
+# NOTE: This RPM now supports BOTH Wayland and X11/XCB platforms
+# RECOMMENDED: Wayland (modern, simpler dependencies)
+# FALLBACK: X11/XCB (legacy, requires more dependencies)
 
-# Disable automatic dependency detection since we bundle most libraries
+# CRITICAL: These are the minimum runtime dependencies for Wayland mode
+# The bundled Qt6 libraries and plugins handle everything else
+Requires:       libwayland-client
+
+# Graphics and OpenGL support (needed for both Wayland and X11)
+Requires:       mesa-libEGL
+Requires:       mesa-libGL
+
+# Audio support
+Requires:       pulseaudio-libs
+
+# Video capture support  
+Requires:       libv4l
+
+# Keyboard input (works for both Wayland and X11)
+# libxkbcommon is available on all Fedora versions
+Requires:       libxkbcommon
+
+# X11/XCB support libraries (OPTIONAL - only if running on X11)
+# These are not bundled and only needed for X11 mode
+# If not available, app will auto-detect and use Wayland instead
+%{?_with_x11:Requires:       libxkbcommon-x11}
+%{?_with_x11:Requires:       libX11}
+%{?_with_x11:Requires:       libxcb}
+
+# Disable automatic dependency detection since we bundle Qt6, FFmpeg, and GStreamer libraries
+# This prevents conflicts with system-installed versions
 AutoReqProv: no
 
 # System-level dependencies only - Qt, FFmpeg and plugins are bundled in /usr/lib/openterfaceqt/
@@ -78,10 +106,30 @@ fi
 # Qt6 core libraries (from qt6 subdirectory)
 mkdir -p %{buildroot}/usr/lib/openterfaceqt/qt6
 if [ -d "%{_sourcedir}/qt6" ]; then
-    find %{_sourcedir}/qt6 -maxdepth 1 -name "libQt6*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/qt6/ \;
-    echo "Installed Qt6 libraries from %{_sourcedir}/qt6"
+    # Count libraries before copying
+    QT_COUNT=$(find %{_sourcedir}/qt6 -maxdepth 1 -name "libQt6*.so*" -type f | wc -l)
+    if [ $QT_COUNT -gt 0 ]; then
+        find %{_sourcedir}/qt6 -maxdepth 1 -name "libQt6*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/qt6/ \;
+        echo "✅ Installed $QT_COUNT Qt6 libraries from %{_sourcedir}/qt6"
+        
+        # Create symlinks for base .so files (needed for runtime linking)
+        cd %{buildroot}/usr/lib/openterfaceqt/qt6
+        for fullfile in libQt6*.so.* ; do
+            [ -f "$fullfile" ] || continue
+            base=$(echo "$fullfile" | sed 's/\.so\..*//')
+            if [ ! -L "${base}.so" ] && [ ! -f "${base}.so" ]; then
+                ln -sf "$fullfile" "${base}.so"
+                echo "  ✅ Created symlink: ${base}.so -> $fullfile"
+            fi
+        done
+        cd - > /dev/null
+        
+        ls -1 %{buildroot}/usr/lib/openterfaceqt/qt6/libQt6*.so* | wc -l | sed 's/^/   Verified: /'
+    else
+        echo "⚠️  No Qt6 libraries found in %{_sourcedir}/qt6"
+    fi
 else
-    echo "WARNING: Qt6 directory not found at %{_sourcedir}/qt6"
+    echo "❌ ERROR: Qt6 directory not found at %{_sourcedir}/qt6"
 fi
 
 # Image processing libraries
@@ -97,68 +145,117 @@ cp %{_sourcedir}/libz*.so* %{buildroot}/usr/lib/openterfaceqt/ 2>/dev/null || tr
 
 # Hardware acceleration libraries
 cp %{_sourcedir}/libva*.so* %{buildroot}/usr/lib/openterfaceqt/ 2>/dev/null || true
+cp %{_sourcedir}/libva.so* %{buildroot}/usr/lib/openterfaceqt/ 2>/dev/null || true
+cp %{_sourcedir}/libva-drm.so* %{buildroot}/usr/lib/openterfaceqt/ 2>/dev/null || true
+cp %{_sourcedir}/libva-x11.so* %{buildroot}/usr/lib/openterfaceqt/ 2>/dev/null || true
+cp %{_sourcedir}/libvdpau.so* %{buildroot}/usr/lib/openterfaceqt/ 2>/dev/null || true
 
 # GStreamer and multimedia libraries (from gstreamer subdirectory)
 mkdir -p %{buildroot}/usr/lib/openterfaceqt/gstreamer/gstreamer-1.0
 if [ -d "%{_sourcedir}/gstreamer" ]; then
-    find %{_sourcedir}/gstreamer -maxdepth 1 -name "libgstreamer*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/gstreamer/ \;
-    find %{_sourcedir}/gstreamer -maxdepth 1 -name "libgstbase*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/gstreamer/ \;
-    find %{_sourcedir}/gstreamer -maxdepth 1 -name "libgstaudio*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/gstreamer/ \;
-    find %{_sourcedir}/gstreamer -maxdepth 1 -name "libgstpbutils*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/gstreamer/ \;
-    find %{_sourcedir}/gstreamer -maxdepth 1 -name "libgstvideo*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/gstreamer/ \;
-    find %{_sourcedir}/gstreamer -maxdepth 1 -name "libgstapp*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/gstreamer/ \;
-    find %{_sourcedir}/gstreamer -maxdepth 1 -name "liborc*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/gstreamer/ \;
-    find %{_sourcedir}/gstreamer -maxdepth 1 -name "libv4l*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/gstreamer/ \;
-    echo "Installed GStreamer libraries from %{_sourcedir}/gstreamer"
+    GST_LIBS=$(find %{_sourcedir}/gstreamer -maxdepth 1 -name "libgstreamer*.so*" -o -name "libgst*.so*" -type f | wc -l)
+    if [ $GST_LIBS -gt 0 ]; then
+        find %{_sourcedir}/gstreamer -maxdepth 1 -name "libgstreamer*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/gstreamer/ \;
+        find %{_sourcedir}/gstreamer -maxdepth 1 -name "libgstbase*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/gstreamer/ \;
+        find %{_sourcedir}/gstreamer -maxdepth 1 -name "libgstaudio*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/gstreamer/ \;
+        find %{_sourcedir}/gstreamer -maxdepth 1 -name "libgstpbutils*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/gstreamer/ \;
+        find %{_sourcedir}/gstreamer -maxdepth 1 -name "libgsttag*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/gstreamer/ \;
+        find %{_sourcedir}/gstreamer -maxdepth 1 -name "libgstvideo*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/gstreamer/ \;
+        find %{_sourcedir}/gstreamer -maxdepth 1 -name "libgstapp*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/gstreamer/ \;
+        find %{_sourcedir}/gstreamer -maxdepth 1 -name "liborc*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/gstreamer/ \;
+        find %{_sourcedir}/gstreamer -maxdepth 1 -name "libv4l*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/gstreamer/ \;
+        find %{_sourcedir}/gstreamer -maxdepth 1 -name "libv4l1*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/gstreamer/ \;
+        find %{_sourcedir}/gstreamer -maxdepth 1 -name "libv4lconvert*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/gstreamer/ \;
+        echo "✅ Installed GStreamer libraries ($(ls -1 %{buildroot}/usr/lib/openterfaceqt/gstreamer/*.so* 2>/dev/null | wc -l) files)"
+    else
+        echo "⚠️  No GStreamer libraries found in %{_sourcedir}/gstreamer"
+    fi
 else
-    echo "WARNING: GStreamer directory not found at %{_sourcedir}/gstreamer"
+    echo "❌ ERROR: GStreamer directory not found at %{_sourcedir}/gstreamer"
 fi
 
 # GStreamer plugins (video capture, audio processing, codecs)
 if [ -d "%{_sourcedir}/gstreamer/gstreamer-1.0" ]; then
-    find %{_sourcedir}/gstreamer/gstreamer-1.0 -maxdepth 1 -name "*.so" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/gstreamer/gstreamer-1.0/ \;
+    PLUGIN_COUNT=$(find %{_sourcedir}/gstreamer/gstreamer-1.0 -maxdepth 1 -name "*.so" -type f | wc -l)
+    if [ $PLUGIN_COUNT -gt 0 ]; then
+        find %{_sourcedir}/gstreamer/gstreamer-1.0 -maxdepth 1 -name "*.so" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/gstreamer/gstreamer-1.0/ \;
+        echo "✅ Installed $PLUGIN_COUNT GStreamer plugins"
+    else
+        echo "⚠️  No GStreamer plugins found in %{_sourcedir}/gstreamer/gstreamer-1.0"
+    fi
 fi
-
-# GStreamer plugins (video capture, audio processing, codecs)
-cp %{_sourcedir}/gstreamer/gstreamer-1.0/*.so %{buildroot}/usr/lib/openterfaceqt/gstreamer/gstreamer-1.0/ 2>/dev/null || true
 
 # FFmpeg core libraries (from ffmpeg subdirectory - all components needed for video processing)
 mkdir -p %{buildroot}/usr/lib/openterfaceqt/ffmpeg
 if [ -d "%{_sourcedir}/ffmpeg" ]; then
-    find %{_sourcedir}/ffmpeg -maxdepth 1 -name "libavdevice*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/ffmpeg/ \;
-    find %{_sourcedir}/ffmpeg -maxdepth 1 -name "libavcodec*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/ffmpeg/ \;
-    find %{_sourcedir}/ffmpeg -maxdepth 1 -name "libavformat*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/ffmpeg/ \;
-    find %{_sourcedir}/ffmpeg -maxdepth 1 -name "libavutil*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/ffmpeg/ \;
-    find %{_sourcedir}/ffmpeg -maxdepth 1 -name "libswscale*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/ffmpeg/ \;
-    find %{_sourcedir}/ffmpeg -maxdepth 1 -name "libswresample*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/ffmpeg/ \;
-    find %{_sourcedir}/ffmpeg -maxdepth 1 -name "libavfilter*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/ffmpeg/ \;
-    echo "Installed FFmpeg libraries from %{_sourcedir}/ffmpeg"
+    FFMPEG_COUNT=$(find %{_sourcedir}/ffmpeg -maxdepth 1 -name "libav*.so*" -o -name "libsw*.so*" -type f | wc -l)
+    if [ $FFMPEG_COUNT -gt 0 ]; then
+        find %{_sourcedir}/ffmpeg -maxdepth 1 -name "libavdevice*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/ffmpeg/ \;
+        find %{_sourcedir}/ffmpeg -maxdepth 1 -name "libavcodec*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/ffmpeg/ \;
+        find %{_sourcedir}/ffmpeg -maxdepth 1 -name "libavformat*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/ffmpeg/ \;
+        find %{_sourcedir}/ffmpeg -maxdepth 1 -name "libavutil*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/ffmpeg/ \;
+        find %{_sourcedir}/ffmpeg -maxdepth 1 -name "libswscale*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/ffmpeg/ \;
+        find %{_sourcedir}/ffmpeg -maxdepth 1 -name "libswresample*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/ffmpeg/ \;
+        find %{_sourcedir}/ffmpeg -maxdepth 1 -name "libavfilter*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/ffmpeg/ \;
+        echo "✅ Installed $FFMPEG_COUNT FFmpeg libraries ($(ls -1 %{buildroot}/usr/lib/openterfaceqt/ffmpeg/*.so* 2>/dev/null | wc -l) files)"
+    else
+        echo "⚠️  No FFmpeg libraries found in %{_sourcedir}/ffmpeg"
+    fi
 else
-    echo "WARNING: FFmpeg directory not found at %{_sourcedir}/ffmpeg"
+    echo "❌ ERROR: FFmpeg directory not found at %{_sourcedir}/ffmpeg"
 fi
 
-# Create symlinks for FFmpeg libraries to ensure version compatibility
-# Maps versioned libraries (e.g., libavdevice.so.60) to actual files (e.g., libavdevice.so.60.3.100)
-cd %{buildroot}/usr/lib/openterfaceqt/ffmpeg
-
-# Create symlinks for each FFmpeg library
-for lib in libavdevice libavcodec libavformat libavutil libswscale libswresample libavfilter; do
-    # Find the most complete version file
-    full_lib=$(ls -t "${lib}".so.* 2>/dev/null | head -1 || true)
+# FFmpeg library symlinks
+# NOTE: Symlink normalization is now done in docker-build-rpm.sh before RPM build
+# This section only handles any edge cases where additional symlinks might be needed
+if [ -d %{buildroot}/usr/lib/openterfaceqt/ffmpeg ]; then
+    cd %{buildroot}/usr/lib/openterfaceqt/ffmpeg
     
-    if [ -n "$full_lib" ]; then
-        # Extract major version (e.g., 60 from libavdevice.so.60.3.100)
-        major_version=$(echo "$full_lib" | sed 's/.*\.so\.\([0-9]*\).*/\1/')
+    echo "Verifying FFmpeg library symlinks in buildroot..."
+    
+    # Only create symlinks if actual library files exist and symlinks don't
+    # This is a safety check for any libraries that were copied but need proper symlink chains
+    for fullfile in *.so.*.* ; do
+        [ -f "$fullfile" ] || continue
         
-        # Create symlink from versioned to full (e.g., libavdevice.so.60 -> libavdevice.so.60.3.100)
-        if [ -n "$major_version" ]; then
-            ln -sf "$full_lib" "${lib}.so.${major_version}" 2>/dev/null || true
+        # Extract base name (e.g., libavdevice from libavdevice.so.60.3.100)
+        base=$(echo "$fullfile" | sed 's/\.so\..*//')
+        
+        # Create base .so symlink if needed
+        if [ ! -L "${base}.so" ] && [ ! -f "${base}.so" ]; then
+            ln -sf "$fullfile" "${base}.so"
+            echo "  ✅ Created symlink: ${base}.so -> $fullfile"
         fi
+    done
+    
+    echo "✅ FFmpeg library symlinks verified in buildroot"
+fi
+
+# GStreamer library symlinks
+# NOTE: Symlink normalization is now done in docker-build-rpm.sh before RPM build
+# This section only handles any edge cases where additional symlinks might be needed
+if [ -d %{buildroot}/usr/lib/openterfaceqt/gstreamer ]; then
+    cd %{buildroot}/usr/lib/openterfaceqt/gstreamer
+    
+    echo "Verifying GStreamer library symlinks in buildroot..."
+    
+    # Only create symlinks if actual library files exist and symlinks don't
+    # This is a safety check for any libraries that were copied but need proper symlink chains
+    for fullfile in *.so.*.* ; do
+        [ -f "$fullfile" ] || continue
         
-        # Also create unversioned symlink if it doesn't exist
-        ln -sf "$full_lib" "${lib}.so" 2>/dev/null || true
-    fi
-done
+        # Extract base name (e.g., libgsttag-1.0 from libgsttag-1.0.so.0.2606.0)
+        base=$(echo "$fullfile" | sed 's/\.so\..*//')
+        
+        # Create base .so symlink if needed
+        if [ ! -L "${base}.so" ] && [ ! -f "${base}.so" ]; then
+            ln -sf "$fullfile" "${base}.so"
+            echo "  ✅ Created symlink: ${base}.so -> $fullfile"
+        fi
+    done
+    
+    echo "✅ GStreamer library symlinks verified in buildroot"
+fi
 
 # Qt plugins and QML modules (from qt6 subdirectory structure)
 mkdir -p %{buildroot}/usr/lib/openterfaceqt/qt6/plugins
@@ -174,8 +271,21 @@ if [ -d "%{_sourcedir}/qt6/qml" ]; then
     echo "Installed Qt6 QML modules"
 fi
 
-# Install application icon if present
-[ -f %{_sourcedir}/icon_256.png ] && cp %{_sourcedir}/icon_256.png %{buildroot}/usr/share/icons/hicolor/256x256/apps/openterfaceQT.png || true
+# Install application icon with correct FreeDesktop name (must match Icon= in desktop file)
+# Icon name must be: com.openterface.openterfaceQT (matches desktop file Icon= entry)
+mkdir -p %{buildroot}/usr/share/icons/hicolor/256x256/apps
+mkdir -p %{buildroot}/usr/share/icons/hicolor/scalable/apps
+if [ -f %{_sourcedir}/icon_256.png ]; then
+    cp %{_sourcedir}/icon_256.png %{buildroot}/usr/share/icons/hicolor/256x256/apps/com.openterface.openterfaceQT.png
+    echo "✅ Installed icon: /usr/share/icons/hicolor/256x256/apps/com.openterface.openterfaceQT.png"
+fi
+if [ -f %{_sourcedir}/icon_256.svg ]; then
+    cp %{_sourcedir}/icon_256.svg %{buildroot}/usr/share/icons/hicolor/scalable/apps/com.openterface.openterfaceQT.svg
+    echo "✅ Installed icon: /usr/share/icons/hicolor/scalable/apps/com.openterface.openterfaceQT.svg"
+elif [ -f %{_sourcedir}/icon_256.png ]; then
+    # Fallback: if no SVG, install PNG to scalable too (not ideal but better than nothing)
+    cp %{_sourcedir}/icon_256.png %{buildroot}/usr/share/icons/hicolor/scalable/apps/com.openterface.openterfaceQT.png
+fi
 
 # Install the wrapper script to set up library paths
 mkdir -p %{buildroot}/usr/lib/openterfaceqt
@@ -191,10 +301,363 @@ ln -sf /usr/lib/openterfaceqt/launcher.sh %{buildroot}/usr/local/bin/openterface
 mkdir -p %{buildroot}/usr/share/applications
 install -Dm644 %{_sourcedir}/packaging/com.openterface.openterfaceQT.desktop %{buildroot}/usr/share/applications/com.openterface.openterfaceQT.desktop
 
+# ================================================================
+# FINAL VERIFICATION: Ensure all critical libraries were bundled
+# ================================================================
+echo ""
+echo "=========================================="
+echo "FINAL LIBRARY BUNDLING VERIFICATION"
+echo "=========================================="
+echo ""
+
+# Count bundled libraries
+QT6_LIBS=$(find %{buildroot}/usr/lib/openterfaceqt/qt6 -name "libQt6*.so*" -type f | wc -l)
+FFMPEG_LIBS=$(find %{buildroot}/usr/lib/openterfaceqt/ffmpeg -name "libav*.so*" -o -name "libsw*.so*" -type f | wc -l)
+GSTREAMER_LIBS=$(find %{buildroot}/usr/lib/openterfaceqt/gstreamer -name "libgst*.so*" -type f | wc -l)
+QT_PLUGINS=$(find %{buildroot}/usr/lib/openterfaceqt/qt6/plugins -name "*.so" -type f | wc -l)
+GSTREAMER_PLUGINS=$(find %{buildroot}/usr/lib/openterfaceqt/gstreamer/gstreamer-1.0 -name "*.so" -type f | wc -l)
+
+echo "Bundled Libraries Summary:"
+echo "  ✅ Qt6 Libraries: $QT6_LIBS"
+echo "  ✅ FFmpeg Libraries: $FFMPEG_LIBS"
+echo "  ✅ GStreamer Libraries: $GSTREAMER_LIBS"
+echo "  ✅ Qt6 Plugins: $QT_PLUGINS"
+echo "  ✅ GStreamer Plugins: $GSTREAMER_PLUGINS"
+echo ""
+
+# Check binary
+if [ -f "%{buildroot}/usr/bin/openterfaceQT-bin" ]; then
+    BINARY_SIZE=$(stat -c%s "%{buildroot}/usr/bin/openterfaceQT-bin" | numfmt --to=iec-i --suffix=B 2>/dev/null || stat -c%s "%{buildroot}/usr/bin/openterfaceQT-bin")
+    echo "Binary: %{buildroot}/usr/bin/openterfaceQT-bin"
+    echo "  Size: $BINARY_SIZE"
+    echo "  ✅ Binary installed successfully"
+else
+    echo "  ❌ ERROR: Binary not found at %{buildroot}/usr/bin/openterfaceQT-bin"
+fi
+
+# Check launcher script
+if [ -f "%{buildroot}/usr/lib/openterfaceqt/launcher.sh" ] && [ -x "%{buildroot}/usr/lib/openterfaceqt/launcher.sh" ]; then
+    echo "  ✅ Launcher script: /usr/lib/openterfaceqt/launcher.sh"
+else
+    echo "  ❌ ERROR: Launcher script not executable or not found"
+fi
+
+# Check symlinks
+if [ -L "%{buildroot}/usr/local/bin/openterfaceQT" ]; then
+    echo "  ✅ Symlink: /usr/local/bin/openterfaceQT -> $(readlink %{buildroot}/usr/local/bin/openterfaceQT)"
+else
+    echo "  ❌ WARNING: Symlink at /usr/local/bin/openterfaceQT not found"
+fi
+
+echo ""
+echo "Critical Libraries Verification:"
+# Check for critical Qt6 libraries (accept both base .so and versioned .so.*)
+MISSING_CRITICAL=0
+
+for lib in libQt6Core libQt6Gui libQt6Widgets libQt6Qml; do
+    # Check for base .so file OR any versioned .so.* file
+    if [ -f "%{buildroot}/usr/lib/openterfaceqt/qt6/${lib}.so" ] || \
+       [ -L "%{buildroot}/usr/lib/openterfaceqt/qt6/${lib}.so" ] || \
+       ls %{buildroot}/usr/lib/openterfaceqt/qt6/${lib}.so.* >/dev/null 2>&1; then
+        echo "  ✅ $lib"
+    else
+        echo "  ❌ MISSING: $lib (CRITICAL!)"
+        MISSING_CRITICAL=$((MISSING_CRITICAL + 1))
+    fi
+done
+
+echo ""
+if [ $MISSING_CRITICAL -gt 0 ]; then
+    echo "❌ ERROR: $MISSING_CRITICAL critical libraries missing!"
+    echo "Available Qt6 libraries in buildroot:"
+    ls -1 %{buildroot}/usr/lib/openterfaceqt/qt6/libQt6*.so* 2>/dev/null | head -20 || echo "(none found)"
+    echo "The RPM package will NOT work correctly without these libraries."
+    echo "Please ensure all Qt6 libraries are copied to SOURCES before building."
+    exit 1
+fi
+
+echo "✅ All critical libraries verified!"
+echo "=========================================="
+echo ""
+
 # Generate dynamic file list to handle optional files gracefully
 find %{buildroot} -type f -o -type l | sed 's|%{buildroot}||' > %{_builddir}/../FILELIST.txt
 
 %files -f %{_builddir}/../FILELIST.txt
+
+%pre
+# =============================================================================
+# OpenterfaceQT Pre-Installation Check (RPM)
+# =============================================================================
+# This scriptlet runs BEFORE the RPM package is installed.
+# It checks that all required runtime dependencies are available.
+#
+# Note: Unlike DEB packages, RPM's dependency system (Requires:) should handle
+# most dependencies automatically. However, this check provides:
+# 1. Clear user feedback about what's missing
+# 2. Helpful installation commands
+# 3. Graceful handling when AutoReqProv is disabled
+#
+# Required system dependencies (most are bundled, these are NOT):
+#   - Graphics: mesa-libEGL, mesa-libGLES
+#   - Audio: pulseaudio-libs
+#   - Video: libv4l
+#   - X11/Display: libxkbcommon, wayland-client, libxcb, libX11
+#   - Qt6 Platform: libxcb-icccm, libxcb-image, libxcb-keysyms, libxcb-randr, 
+#                   libxcb-render-util, libxcb-xkb
+#   - OpenGL: mesa-libGL, mesa-libGLU
+#   - Hardware Accel: libva, libvdpau (optional)
+#   - Compression: zlib, bzip2-libs
+#   - Debug: elfutils-libelf
+# =============================================================================
+
+if [ "$1" != "1" ] && [ "$1" != "2" ]; then
+    # Not install (1) or upgrade (2), skip checks
+    exit 0
+fi
+
+echo "=========================================="
+echo "OpenterfaceQT Pre-Installation Check"
+echo "=========================================="
+echo ""
+
+# Function to print status messages
+print_status() {
+    echo "📦 $1"
+}
+
+print_success() {
+    echo "✅ $1"
+}
+
+print_warning() {
+    echo "⚠️  $1"
+}
+
+print_error() {
+    echo "❌ $1"
+}
+
+print_status "Checking required system dependencies..."
+echo ""
+
+# Define RPM package names (different from DEB)
+GRAPHICS_DEPS=(
+    "mesa-libEGL"
+    "mesa-libGLES"
+)
+
+AUDIO_DEPS=(
+    "pulseaudio-libs"
+)
+
+VIDEO_DEPS=(
+    "libv4l"
+)
+
+DISPLAY_DEPS=(
+    "libxkbcommon"
+    "libxkbcommon-x11"
+    "libwayland-client"
+)
+
+OPENGL_DEPS=(
+    "mesa-libGL"
+    "mesa-libglapi"
+    "mesa-libGLU"
+)
+
+# Note: X11/XCB libraries like xorg-x11-libs may not exist on all Fedora versions
+# App will fallback to Wayland if X11 is not available, so these are optional
+# User can install them manually for X11 support if needed
+
+HWACCEL_DEPS=(
+    "libva"
+    "libvdpau"
+)
+
+COMPRESSION_DEPS=(
+    "zlib"
+    "bzip2-libs"
+)
+
+DEBUG_DEPS=(
+    "elfutils-libelf"
+)
+
+MISSING_DEPS=()
+FOUND_DEPS=0
+TOTAL_DEPS=0
+
+# Calculate total dependencies to check
+TOTAL_DEPS=$((${#GRAPHICS_DEPS[@]} + ${#AUDIO_DEPS[@]} + ${#VIDEO_DEPS[@]} + ${#DISPLAY_DEPS[@]} + ${#OPENGL_DEPS[@]} + ${#HWACCEL_DEPS[@]} + ${#COMPRESSION_DEPS[@]} + ${#DEBUG_DEPS[@]}))
+
+echo "System dependency verification:"
+echo ""
+
+# Helper function to print category header
+print_category() {
+    local category=$1
+    echo "  📦 $category:"
+}
+
+# Helper function to check if RPM package is installed
+is_rpm_installed() {
+    local pkg=$1
+    rpm -q "$pkg" >/dev/null 2>&1
+}
+
+# Check Graphics dependencies
+print_category "Graphics Libraries"
+for pkg in "${GRAPHICS_DEPS[@]}"; do
+    if is_rpm_installed "$pkg"; then
+        echo "    ✅ $pkg"
+        FOUND_DEPS=$((FOUND_DEPS + 1))
+    else
+        echo "    ❌ $pkg (MISSING)"
+        MISSING_DEPS+=("$pkg")
+    fi
+done
+echo ""
+
+# Check Audio dependencies
+print_category "Audio Libraries"
+for pkg in "${AUDIO_DEPS[@]}"; do
+    if is_rpm_installed "$pkg"; then
+        echo "    ✅ $pkg"
+        FOUND_DEPS=$((FOUND_DEPS + 1))
+    else
+        echo "    ❌ $pkg (MISSING)"
+        MISSING_DEPS+=("$pkg")
+    fi
+done
+echo ""
+
+# Check Video dependencies
+print_category "Video Libraries"
+for pkg in "${VIDEO_DEPS[@]}"; do
+    if is_rpm_installed "$pkg"; then
+        echo "    ✅ $pkg"
+        FOUND_DEPS=$((FOUND_DEPS + 1))
+    else
+        echo "    ❌ $pkg (MISSING)"
+        MISSING_DEPS+=("$pkg")
+    fi
+done
+echo ""
+
+# Check Display dependencies
+print_category "X11/Display Server Libraries"
+for pkg in "${DISPLAY_DEPS[@]}"; do
+    if is_rpm_installed "$pkg"; then
+        echo "    ✅ $pkg"
+        FOUND_DEPS=$((FOUND_DEPS + 1))
+    else
+        echo "    ❌ $pkg (MISSING)"
+        MISSING_DEPS+=("$pkg")
+    fi
+done
+echo ""
+
+# Check OpenGL dependencies
+print_category "OpenGL Libraries"
+for pkg in "${OPENGL_DEPS[@]}"; do
+    if is_rpm_installed "$pkg"; then
+        echo "    ✅ $pkg"
+        FOUND_DEPS=$((FOUND_DEPS + 1))
+    else
+        echo "    ❌ $pkg (MISSING)"
+        MISSING_DEPS+=("$pkg")
+    fi
+done
+echo ""
+
+# Check Hardware Acceleration dependencies (optional)
+print_category "Hardware Acceleration Libraries (VA-API, VDPAU)"
+for pkg in "${HWACCEL_DEPS[@]}"; do
+    if is_rpm_installed "$pkg"; then
+        echo "    ✅ $pkg"
+        FOUND_DEPS=$((FOUND_DEPS + 1))
+    else
+        echo "    ⚠️  $pkg (OPTIONAL - hardware acceleration may be slower)"
+    fi
+done
+echo ""
+
+# Check Compression dependencies
+print_category "Compression Libraries"
+for pkg in "${COMPRESSION_DEPS[@]}"; do
+    if is_rpm_installed "$pkg"; then
+        echo "    ✅ $pkg"
+        FOUND_DEPS=$((FOUND_DEPS + 1))
+    else
+        echo "    ❌ $pkg (MISSING)"
+        MISSING_DEPS+=("$pkg")
+    fi
+done
+echo ""
+
+# Check Debug dependencies
+print_category "Debug Libraries"
+for pkg in "${DEBUG_DEPS[@]}"; do
+    if is_rpm_installed "$pkg"; then
+        echo "    ✅ $pkg"
+        FOUND_DEPS=$((FOUND_DEPS + 1))
+    else
+        echo "    ❌ $pkg (MISSING)"
+        MISSING_DEPS+=("$pkg")
+    fi
+done
+echo ""
+
+echo "Found: $FOUND_DEPS/$TOTAL_DEPS"
+echo "Missing: ${#MISSING_DEPS[@]}/$TOTAL_DEPS"
+echo ""
+
+if [ ${#MISSING_DEPS[@]} -eq 0 ]; then
+    print_success "All required dependencies are installed!"
+    echo ""
+    print_status "Proceeding with OpenterfaceQT package installation..."
+    echo ""
+    exit 0
+else
+    print_error "Missing ${#MISSING_DEPS[@]} required dependencies!"
+    echo ""
+    echo "Missing packages: ${MISSING_DEPS[*]}"
+    echo ""
+    echo "=========================================="
+    echo "How to Install Missing Dependencies"
+    echo "=========================================="
+    echo ""
+    echo "Run the following command BEFORE installing OpenterfaceQT:"
+    echo ""
+    
+    # Detect package manager
+    if command -v dnf >/dev/null 2>&1; then
+        echo "  sudo dnf install -y ${MISSING_DEPS[*]}"
+    elif command -v yum >/dev/null 2>&1; then
+        echo "  sudo yum install -y ${MISSING_DEPS[*]}"
+    else
+        echo "  # Use your package manager to install: ${MISSING_DEPS[*]}"
+    fi
+    
+    echo ""
+    echo "Then retry the installation:"
+    echo "  sudo rpm -ivh openterfaceqt-*.rpm"
+    echo ""
+    echo "Or use DNF/YUM to automatically resolve dependencies:"
+    echo "  sudo dnf install ./openterfaceqt-*.rpm"
+    echo ""
+    echo "=========================================="
+    echo ""
+    
+    # In RPM, we typically allow installation to continue
+    # but warn the user. Exit 1 would block installation.
+    # You can change this to 'exit 1' if you want to enforce dependencies.
+    print_warning "Installation will continue, but the application may not work correctly!"
+    echo ""
+    exit 0
+fi
 
 %post
 # Register bundled libraries with system linker during installation

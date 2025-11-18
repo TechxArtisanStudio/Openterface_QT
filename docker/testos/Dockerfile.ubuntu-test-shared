@@ -38,8 +38,7 @@ RUN apt-get update -y --allow-releaseinfo-change --allow-unauthenticated \
         imagemagick \
         x11-utils
 # Hardware interface libraries (runtime only)
-RUN apt-get install -y libusb-1.0-0 \
-        libudev1
+RUN apt-get install -y libudev1
 
 # Runtime dependencies for bundled Qt6 libraries
 RUN apt-get install -y libpcre2-16-0 \

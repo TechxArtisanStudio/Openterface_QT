@@ -1,0 +1,71 @@
+#!/bin/bash
+# AppRun script for OpenterfaceQT enhanced AppImage with GStreamer plugins
+# This script ensures compatibility across systems with different glibc versions
+
+# Set the directory where this script is located
+HERE="$(dirname "$(readlink -f "${0}")")"
+
+# CRITICAL: Set library path to use AppImage bundled libraries FIRST
+# This prevents loading incompatible system libraries with different GLIBC versions
+# However, we DON'T include system GLIBC libraries (they're removed for compatibility)
+# The order is:
+# 1. AppImage's own libraries (non-GLIBC, like plugins and Qt)
+# 2. System libraries (GLIBC, Qt, etc. - provided by host)
+export LD_LIBRARY_PATH="${HERE}/usr/lib:${HERE}/lib:${HERE}/lib/x86_64-linux-gnu:/usr/lib/x86_64-linux-gnu:/usr/lib:/lib:${LD_LIBRARY_PATH}"
+
+# CRITICAL: Ensure system PATH for utilities and GLIBC
+# Allows fallback to host system utilities with compatible GLIBC
+export PATH="${HERE}/usr/bin:${HERE}/bin:/usr/local/bin:/usr/bin:/bin"
+
+# IMPORTANT: Do NOT preload bundled libc - use host system's GLIBC
+# The bundled libc.so.6 is GLIBC 2.38, which doesn't work on older systems
+# We removed it to force using host system's compatible GLIBC
+# NO LD_PRELOAD for libc - let the system provide it
+if [ -f "${HERE}/usr/lib/libc.so.6" ]; then
+    # libc.so.6 was removed, so this won't execute
+    # Keeping for reference only
+    true
+fi
+
+# Set dynamic linker to use bundled loader if available
+# This is critical for glibc compatibility
+if [ -f "${HERE}/usr/lib/ld-linux-x86-64.so.2" ]; then
+    # Some systems may respect this, though not all
+    export LD_LIBRARY_PATH="${HERE}/usr/lib:${LD_LIBRARY_PATH}"
+fi
+
+# Set GStreamer plugin path to our bundled plugins
+export GST_PLUGIN_PATH="${HERE}/usr/lib/gstreamer-1.0:${GST_PLUGIN_PATH}"
+
+# Set Qt plugin path and Wayland support
+export QT_PLUGIN_PATH="${HERE}/usr/lib/plugins:${HERE}/usr/plugins:${QT_PLUGIN_PATH}:/usr/lib64"
+
+# Add Wayland shell integration plugins path - point to the platforms directory where the plugins are
+export QT_QPA_PLATFORM_PLUGIN_PATH="${HERE}/usr/lib/plugins/platforms:${QT_QPA_PLATFORM_PLUGIN_PATH}"
+
+# Set XDG_RUNTIME_DIR for Wayland support (required for Wayland)
+# If not already set, use /run/user/$(id -u) which is the standard location
+if [ -z "$XDG_RUNTIME_DIR" ]; then
+    export XDG_RUNTIME_DIR="/run/user/$(id -u)"
+fi
+
+# Enable Wayland support (will automatically fallback to X11/XCB if Wayland not available)
+# Let Qt auto-detect the best platform (wayland if available, xcb otherwise)
+export QT_AUTO_SCREEN_SCALE_FACTOR=1
+
+# Ensure we don't have conflicting environment variables that might bypass our setup
+unset LD_ORIGIN_PATH
+
+# CRITICAL: Disable any LD_AUDIT hooks that might interfere
+# strace and other debugging tools can cause issues with AppImage
+unset LD_AUDIT
+
+# Debug: Show library path (uncomment for debugging)
+echo "LD_LIBRARY_PATH=${LD_LIBRARY_PATH}"
+echo "LD_PRELOAD=${LD_PRELOAD}"
+echo "PATH=${PATH}"
+echo "GST_PLUGIN_PATH=${GST_PLUGIN_PATH}"
+echo "QT_PLUGIN_PATH=${QT_PLUGIN_PATH}"
+
+# Run the application
+exec "${HERE}/usr/bin/openterfaceQT" "$@"

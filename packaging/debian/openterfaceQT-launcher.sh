@@ -13,7 +13,9 @@ LAUNCHER_LOG="/tmp/openterfaceqt-launcher-$(date +%s).log"
 } | tee "$LAUNCHER_LOG"
 
 # Trap errors and log them (but don't use set -e to allow graceful library lookups)
-trap 'echo "ERROR at line $LINENO: $BASH_COMMAND" | tee -a "$LAUNCHER_LOG"' ERR
+# Only trap real errors (exit code other than 0 and 1)
+# Exit code 1 is expected from find_library when library is not found
+trap 'if [ $? -gt 1 ]; then echo "ERROR at line $LINENO: $BASH_COMMAND" | tee -a "$LAUNCHER_LOG"; fi' ERR
 
 # ============================================
 # Library Path Setup (CRITICAL for bundled libs)
@@ -131,6 +133,8 @@ GSTREAMER_LIBS=(
     "libgstapp-1.0"
     "libgstvideo-1.0"
     "libgstaudio-1.0"
+    "libgstcodecs-1.0"
+    "libgstcodecparsers-1.0"
     "libgstpbutils-1.0"
 )
 
@@ -167,6 +171,32 @@ for lib in "${FFMPEG_LIBS[@]}"; do
         # Log missing libraries for debugging (suppress in non-debug mode)
         if [ "${OPENTERFACE_DEBUG}" = "1" ] || [ "${OPENTERFACE_DEBUG}" = "true" ]; then
             echo "⚠️  FFmpeg library not found: $lib" >&2
+        fi
+    fi
+done
+
+# Common/System libraries - essential support libraries
+COMMON_LIBS=(
+    "libusb-1.0"
+    "libgudev-1.0"
+    "libv4l1"
+    "libv4l2"
+    "libv4l2rds"
+)
+
+# Load common libraries
+for lib in "${COMMON_LIBS[@]}"; do
+    lib_path=$(find_library "$lib" "/usr/lib/openterfaceqt")
+    if [ -z "$lib_path" ]; then
+        # Try gstreamer subdirectory for v4l libraries
+        lib_path=$(find_library "$lib" "/usr/lib/openterfaceqt/gstreamer")
+    fi
+    if [ -n "$lib_path" ]; then
+        PRELOAD_LIBS+=("$lib_path")
+    else
+        # Log missing libraries for debugging (suppress in non-debug mode)
+        if [ "${OPENTERFACE_DEBUG}" = "1" ] || [ "${OPENTERFACE_DEBUG}" = "true" ]; then
+            echo "⚠️  Common library not found: $lib" >&2
         fi
     fi
 done

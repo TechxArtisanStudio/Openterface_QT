@@ -1,6 +1,7 @@
 #!/bin/bash
 # Entrypoint script for Openterface QT Docker container
 # Handles installation on first run when artifacts are available via volume mount
+# Supports both AppImage and RPM/DEB installations with intelligent platform detection
 
 echo "🔧 Openterface QT Docker Entrypoint"
 echo "===================================="
@@ -8,22 +9,76 @@ echo "===================================="
 # Set up error handler to catch unexpected exits (but don't exit, just log)
 trap 'echo "⚠️ WARNING: Command at line $LINENO returned exit code $?"; true' ERR
 
+# =============================================================================
+# Basic Environment Setup
+# =============================================================================
+
 # Set display environment for X11 early
-# Force DISPLAY to :98 for screenshot testing (override any defaults)
-export DISPLAY=:98
-export QT_X11_NO_MITSHM=1
-export QT_QPA_PLATFORM=xcb
-
-# Set Qt plugin and QML paths (must point to bundled locations in deb package)
-export QT_PLUGIN_PATH=/usr/lib/qt6/plugins:/usr/lib/x86_64-linux-gnu/qt6/plugins
-export QML2_IMPORT_PATH=/usr/lib/qt6/qml:/usr/lib/x86_64-linux-gnu/qt6/qml
-
-# Set library path for bundled libraries (especially for JPEG support)
-export LD_LIBRARY_PATH=/usr/lib:$LD_LIBRARY_PATH
-
-# Fix locale to UTF-8 (Qt6 requirement)
+# Force DISPLAY to :0 for screenshot testing (override any defaults)
+export DISPLAY=:0
 export LC_ALL=C.UTF-8
 export LANG=C.UTF-8
+
+# =============================================================================
+# Installation Type Detection
+# =============================================================================
+
+# CRITICAL: Set APPIMAGE for AppImage installations
+# AppImage runtime doesn't automatically set this when executed via symlink
+# This is needed by main.cpp and launcher.sh for proper platform detection and fallback handling
+DETECTED_INSTALL_TYPE="unknown"
+if [ -z "$APPIMAGE" ]; then
+    # Check if we're running AppImage-based installation
+    if [ -L /usr/local/bin/openterfaceQT ]; then
+        APPIMAGE_FILE=$(readlink -f /usr/local/bin/openterfaceQT)
+        if [ -f "$APPIMAGE_FILE" ] && file "$APPIMAGE_FILE" 2>/dev/null | grep -q "AppImage"; then
+            export APPIMAGE="$APPIMAGE_FILE"
+            DETECTED_INSTALL_TYPE="appimage"
+            echo "✅ Detected AppImage installation: APPIMAGE=$APPIMAGE"
+        else
+            DETECTED_INSTALL_TYPE="system"
+            echo "✅ Detected system installation (symlink to ELF binary)"
+        fi
+    elif [ -f "/tmp/openterfaceQT.linux.amd64.shared.AppImage" ]; then
+        # Fallback: check standard AppImage location
+        export APPIMAGE="/tmp/openterfaceQT.linux.amd64.shared.AppImage"
+        DETECTED_INSTALL_TYPE="appimage"
+        echo "✅ Found AppImage at standard location: APPIMAGE=$APPIMAGE"
+    elif command -v rpm >/dev/null 2>&1 && rpm -q openterfaceqt >/dev/null 2>&1; then
+        DETECTED_INSTALL_TYPE="rpm"
+        echo "✅ Detected RPM package installation"
+    elif command -v dpkg >/dev/null 2>&1 && dpkg -l | grep -q openterfaceqt; then
+        DETECTED_INSTALL_TYPE="deb"
+        echo "✅ Detected DEB package installation"
+    fi
+fi
+
+echo "   Installation Type: $DETECTED_INSTALL_TYPE"
+echo ""
+
+# =============================================================================
+# Source Platform Detection Script
+# =============================================================================
+
+echo "🔍 Platform Detection: Importing detection script..."
+if [ -f "/docker/platform-detection.sh" ]; then
+    source /docker/platform-detection.sh
+    detect_platform
+    detect_installation_type
+    configure_platform_environment "$DETECTED_PLATFORM" "$DETECTED_INSTALL_TYPE"
+else
+    echo "⚠️  Platform detection script not found, using defaults"
+    export QT_QPA_PLATFORM="xcb"  # Default to XCB for stability
+    export QT_X11_NO_MITSHM=1
+    export QT_DEBUG_PLUGINS=1
+    export QT_LOGGING_RULES="qt.qpa.plugin=true"
+    export QT_PLUGIN_PATH=/usr/lib/qt6/plugins:/usr/lib/x86_64-linux-gnu/qt6/plugins:/usr/lib64
+    export QML2_IMPORT_PATH=/usr/lib/qt6/qml:/usr/lib/x86_64-linux-gnu/qt6/qml
+    export LD_LIBRARY_PATH=/usr/lib:$LD_LIBRARY_PATH
+    echo "   Using default settings: QT_QPA_PLATFORM=xcb"
+fi
+
+echo ""
 
 # Get installation type from environment variable (set by Dockerfile build arg)
 # INSTALL_TYPE is passed via environment, not as command argument
@@ -88,7 +143,13 @@ XVFB_PID=""
 if Xvfb $DISPLAY -screen 0 1920x1080x24 -ac +extension GLX +render -noreset >/dev/null 2>&1 &
 then
     XVFB_PID=$!
-    echo "✅ Xvfb started directly (PID: $XVFB_PID)"
+    sleep 1  # Give Xvfb time to start
+    if ps -p $XVFB_PID > /dev/null 2>&1; then
+        echo "✅ Xvfb started directly (PID: $XVFB_PID)"
+    else
+        echo "⚠️  Xvfb process died immediately"
+        XVFB_PID=""
+    fi
 fi
 
 # Approach 2: Try with sudo if direct failed
@@ -96,13 +157,22 @@ if [ -z "$XVFB_PID" ] || ! ps -p $XVFB_PID > /dev/null 2>&1; then
     if sudo -n Xvfb $DISPLAY -screen 0 1920x1080x24 -ac +extension GLX +render -noreset >/dev/null 2>&1 &
     then
         XVFB_PID=$!
-        echo "✅ Xvfb started with sudo (PID: $XVFB_PID)"
+        sleep 1  # Give Xvfb time to start
+        if ps -p $XVFB_PID > /dev/null 2>&1; then
+            echo "✅ Xvfb started with sudo (PID: $XVFB_PID)"
+        else
+            echo "⚠️  Xvfb process died immediately (sudo)"
+            XVFB_PID=""
+        fi
     fi
 fi
 
 # Verify Xvfb started
 if [ -n "$XVFB_PID" ] && ps -p $XVFB_PID > /dev/null 2>&1; then
     echo "✅ Xvfb started successfully (PID: $XVFB_PID, Display: $DISPLAY)"
+elif [ -S /tmp/.X11-unix/0 ]; then
+    # Socket exists but we couldn't verify PID - this is ok, X11 is running
+    echo "✅ X11 display socket found at /tmp/.X11-unix/0"
 elif [ -S /tmp/.X11-unix/98 ]; then
     # Socket exists but we couldn't verify PID - this is ok, X11 is running
     echo "✅ X11 display socket found at /tmp/.X11-unix/98"
@@ -112,6 +182,8 @@ else
     echo "   Display: $DISPLAY"
     echo "   Checking for X11 socket..."
     ls -la /tmp/.X11-unix/ 2>/dev/null || echo "   No X11 sockets found"
+    echo "   Attempting to diagnose Xvfb installation..."
+    which Xvfb > /dev/null 2>&1 && echo "   ✅ Xvfb command found" || echo "   ❌ Xvfb command NOT found - install xorg-x11-server-Xvfb"
     echo "   Continuing anyway for persistent testing container..."
     # Don't exit here - for persistent container testing, we need to keep running
 fi
@@ -143,17 +215,45 @@ if [ -f /usr/local/bin/openterfaceQT ]; then
         echo "   ℹ️  xdpyinfo not available, skipping connection test"
     fi
     
-    export QT_QPA_PLATFORM=xcb
-    echo "ℹ️  Using X11 display: $DISPLAY"
+    # Let launcher script detect the platform backend (Wayland or X11)
+    # The OPENTERFACE_LAUNCHER_PLATFORM environment variable signals the preferred platform
+    echo "ℹ️  Platform detection: OPENTERFACE_LAUNCHER_PLATFORM=${OPENTERFACE_LAUNCHER_PLATFORM}"
+    echo "ℹ️  Display backend: QT_QPA_PLATFORM=${QT_QPA_PLATFORM:-wayland}"
     export QT_X11_NO_MITSHM=1
     export QT_DEBUG_PLUGINS=1  # Enable plugin debugging
     export QT_LOGGING_RULES="qt.qpa.plugin=true"  # Log plugin loading
+    
+    # CRITICAL: Add Docker system Qt plugin paths to QT_PLUGIN_PATH
+    # AppImage has its own bundled plugins, but we add Docker system paths as fallback
+    # AppImage's own paths will be searched first due to APPIMAGE_EXTRACT_AND_RUN or AppImage's internal setup
+    export QT_PLUGIN_PATH="${QT_PLUGIN_PATH}:/usr/lib/openterfaceqt/qt6/plugins:/usr/lib/qt6/plugins:/usr/lib/x86_64-linux-gnu/qt6/plugins:/usr/lib/qt6/plugins/platforms"
+    export QML2_IMPORT_PATH="${QML2_IMPORT_PATH}:/usr/lib/openterfaceqt/qt6/qml:/usr/lib/qt6/qml:/usr/lib/x86_64-linux-gnu/qt6/qml"
+    
+    # CRITICAL: Only set QT_QPA_PLATFORM_PLUGIN_PATH for non-AppImage installations
+    # For AppImage, let it use its own plugin path from APPIMAGE environment
+    # Only set system paths if APPIMAGE is not set (non-AppImage installations)
+    if [ -z "$APPIMAGE" ]; then
+        # Non-AppImage (system installed or deb package)
+        # Explicitly set platform plugin path for system installations
+        export QT_QPA_PLATFORM_PLUGIN_PATH="/usr/lib/openterfaceqt/qt6/plugins/platforms:/usr/lib/qt6/plugins/platforms:/usr/lib/x86_64-linux-gnu/qt6/plugins/platforms"
+        echo "ℹ️  Non-AppImage detected: Using system Qt plugin paths"
+    else
+        # AppImage installation
+        # Let AppImage handle its own plugin paths, don't override
+        echo "ℹ️  AppImage detected (APPIMAGE=$APPIMAGE): Using AppImage plugin paths"
+    fi
+    
+    # CRITICAL: Ensure LD_LIBRARY_PATH includes both AppImage and Docker Qt libraries
+    # This allows AppImage bundled libraries to be found, with Docker as fallback
+    export LD_LIBRARY_PATH="/usr/lib/openterfaceqt/qt6:/usr/lib/openterfaceqt/ffmpeg:/usr/lib/openterfaceqt/gstreamer:/usr/lib/openterfaceqt:/usr/lib/qt6:/usr/lib/x86_64-linux-gnu:${LD_LIBRARY_PATH}"
     
     # Start the application and keep container running
     echo "📝 Starting Openterface QT..."
     echo "   DISPLAY=$DISPLAY"
     echo "   QT_QPA_PLATFORM=$QT_QPA_PLATFORM"
     echo "   APPIMAGE_EXTRACT_AND_RUN=${APPIMAGE_EXTRACT_AND_RUN:-0}"
+    echo "   LD_LIBRARY_PATH=$LD_LIBRARY_PATH"
+    echo "   QT_PLUGIN_PATH=$QT_PLUGIN_PATH"
     echo ""
     
     # Debug: Show library dependencies
@@ -169,7 +269,7 @@ if [ -f /usr/local/bin/openterfaceQT ]; then
     echo ""
     
     echo "🔧 Starting Openterface QT application..."
-    OPENTERFACE_DEBUG=1 /usr/local/bin/openterfaceQT > /tmp/openterfaceqt.log 2>&1 &
+    OPENTERFACE_DEBUG=1 /usr/local/bin/openterfaceQT --force-env-check > /tmp/openterfaceqt.log 2>&1 &
     APP_PID=$!
     
     echo "✅ Openterface QT started with PID: $APP_PID"

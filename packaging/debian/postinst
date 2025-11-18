@@ -14,13 +14,59 @@ if [ "$1" = "configure" ]; then
 EOF
     
     # Update library cache
-    ldconfig
+    # Suppress warnings about symlinks - these are expected in bundled scenarios
+    ldconfig 2>&1 | grep -v "is not a symbolic link" | grep -v "^$" || true
     
     echo "OpenterfaceQT: Bundled libraries (FFmpeg 6.1.1, GStreamer, etc.) registered with system linker"
     
+    # Setup permissions for dialout (serial port access)
+    # Add dialout group for standard serial port access
+    if getent group dialout > /dev/null; then
+        echo "✓ dialout group found"
+    else
+        groupadd dialout 2>/dev/null || true
+        echo "✓ dialout group created"
+    fi
+    
+    # Add uucp group for Arch Linux and similar distros
+    if getent group uucp > /dev/null; then
+        echo "✓ uucp group found"
+    else
+        groupadd uucp 2>/dev/null || true
+        echo "✓ uucp group created"
+    fi
+    
+    # Setup udev rules for hardware permissions
+    # This allows non-root users to access the Openterface device
+    cat > /etc/udev/rules.d/51-openterface.rules <<'EOF'
+# Openterface USB device access rules
+# Allow non-root users to access Openterface devices via USB and hidraw
+SUBSYSTEM=="usb", ATTRS{idVendor}=="534d", ATTRS{idProduct}=="2109", TAG+="uaccess"
+SUBSYSTEM=="hidraw", ATTRS{idVendor}=="534d", ATTRS{idProduct}=="2109", TAG+="uaccess"
+SUBSYSTEM=="ttyUSB", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="7523", TAG+="uaccess"
+SUBSYSTEM=="usb", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="7523", TAG+="uaccess"
+EOF
+    
+    # Reload udev rules and trigger device detection
+    if command -v udevadm &> /dev/null; then
+        # Attempt to reload udev rules, but don't fail if udev daemon is not running
+        # This is common in Docker containers and CI/CD environments
+        if udevadm control --reload-rules 2>/dev/null; then
+            udevadm trigger 2>/dev/null || true
+            echo "✓ udev rules reloaded and triggered"
+        else
+            # udevadm failed - likely no udev daemon running (Docker, chroot, etc.)
+            # Still exit successfully since udev rules are installed
+            echo "ℹ️  udevadm not available or udev daemon not running (expected in containers)"
+            echo "   udev rules will be applied when udev daemon becomes available"
+        fi
+    fi
+    
+    echo "OpenterfaceQT: Device permissions configured"
+    
     # Install desktop entry for system start menu
     if command -v update-desktop-database &> /dev/null; then
-        update-desktop-database /usr/share/applications
+        update-desktop-database /usr/share/applications 2>/dev/null || true
         echo "✓ Desktop entry registered in system menu"
     fi
     
@@ -29,62 +75,6 @@ EOF
         update-icon-caches /usr/share/icons/hicolor 2>/dev/null || true
         echo "✓ Icon cache updated"
     fi
-    
-    # Create marker for post-installation environment verification
-    mkdir -p /usr/share/openterfaceQT
-    cat > /usr/share/openterfaceQT/runtime-info.txt <<'EOF'
-OpenterfaceQT Runtime Information
-==================================
-
-Expected Library Paths:
-  - Qt6 Plugins: /usr/lib/qt6/plugins
-  - Qt6 QML: /usr/lib/qt6/qml
-  - GStreamer Plugins: /usr/lib/x86_64-linux-gnu/gstreamer-1.0
-  - Bundled Libs: /usr/lib/openterfaceqt
-
-Environment Variables (automatically set by wrapper):
-  - QT_PLUGIN_PATH
-  - QML2_IMPORT_PATH
-  - GST_PLUGIN_PATH
-  - LD_LIBRARY_PATH
-
-If you encounter "symbol lookup error" when running openterfaceQT:
-  1. Verify GStreamer packages are installed:
-     apt list --installed | grep gstreamer1.0
-  2. Update GStreamer if needed:
-     sudo apt update && sudo apt upgrade libgstreamer1.0-0 libgstreamer-plugins-base1.0-0 gstreamer1.0-plugins-*
-  3. Run with debug enabled:
-     OPENTERFACE_DEBUG=1 openterfaceQT-launcher.sh
-EOF
-
-    echo "✓ Runtime info file created at /usr/share/openterfaceQT/runtime-info.txt"
-    
-    # IMPORTANT: Recommend installing system GStreamer packages
-    echo ""
-    echo "=========================================="
-    echo "Important: GStreamer Plugin Installation"
-    echo "=========================================="
-    echo ""
-    echo "For best compatibility, it is STRONGLY RECOMMENDED to install system"
-    echo "GStreamer packages. The OpenterfaceQT launcher automatically prioritizes"
-    echo "system GStreamer plugins over bundled ones for version compatibility."
-    echo ""
-    echo "To install GStreamer support, run:"
-    echo ""
-    echo "  sudo apt-get install -y \\"
-    echo "    libgstreamer1.0-0 \\"
-    echo "    libgstreamer-plugins-base1.0-0 \\"
-    echo "    gstreamer1.0-plugins-base \\"
-    echo "    gstreamer1.0-plugins-good \\"
-    echo "    gstreamer1.0-plugins-bad \\"
-    echo "    gstreamer1.0-x \\"
-    echo "    gstreamer1.0-v4l2"
-    echo ""
-    echo "If you encounter GStreamer 'undefined symbol' errors, see:"
-    echo "  /usr/share/doc/openterfaceQT/GSTREAMER_TROUBLESHOOTING.md"
-    echo ""
-    echo "=========================================="
-    echo ""
 fi
 
 exit 0

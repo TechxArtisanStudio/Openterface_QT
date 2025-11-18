@@ -15,8 +15,6 @@ ENV INSTALL_TYPE=${INSTALL_TYPE}
 
 # Set up display environment for GUI applications
 ENV DISPLAY=:0
-ENV QT_X11_NO_MITSHM=1
-ENV QT_QPA_PLATFORM=xcb
 
 # Install minimal system dependencies and runtime libraries only
 RUN dnf update -y && \
@@ -29,24 +27,48 @@ RUN dnf update -y && \
         udev \
         usbutils \
         procps-ng \
-        # Runtime Qt6 libraries
-        qt6-qtbase \
-        qt6-qtbase-gui \
-        qt6-qtdeclarative \
-        qt6-qtmultimedia \
-        qt6-qtserialport \
-        qt6-qtsvg \
+        # Core system libraries (CRITICAL - needed by basic commands like tee, sed, head)
+        pcre2 \
+        pcre2-utf16 \
+        glibc \
         # Hardware interface libraries (runtime only)
-        libusb1 \
         systemd-udev \
+        pulseaudio-libs \
         # X11 and graphics libraries (runtime only)
         libX11 \
         libXrandr \
         libXrender \
+        libXcursor \
+        libXfixes \
+        libXinerama \
+        libXi \
+        libXext \
+        libxcb \
+        libxkbcommon \
+        libxkbcommon-x11 \
         expat \
         freetype \
         fontconfig \
         bzip2-libs \
+        # XCB utility libraries (xcb-util-* packages in Fedora)
+        xcb-util \
+        xcb-util-image \
+        xcb-util-keysyms \
+        xcb-util-renderutil \
+        xcb-util-wm \
+        xcb-util-cursor \
+        # Wayland libraries and support
+        libwayland-client \
+        libwayland-cursor \
+        libwayland-egl \
+        # OpenGL and GPU libraries for rendering
+        mesa-libGL \
+        mesa-libGLU \
+        mesa-libglapi \
+        mesa-libEGL \
+        mesa-libGLES \
+        # Optional platform support (Wayland, EGL)
+        mesa-dri-drivers \
         # FFmpeg-related codec libraries (available in Fedora repos)
         libtheora \
         libvorbis \
@@ -58,6 +80,8 @@ RUN dnf update -y && \
         xdotool \
         xwininfo \
         ImageMagick \
+        # Virtual display for headless testing
+        xorg-x11-server-Xvfb \
         # Clean up to reduce image size
     && dnf clean all && \
     rm -rf /var/cache/dnf
