@@ -281,6 +281,11 @@ jobs:
           # Set environment variable to track container name
           echo "TEST_CONTAINER_NAME=openterface-test-fedora-persistent" >> $GITHUB_ENV
           
+          # Set APPIMAGE path for AppImage installations
+          # This signals to entrypoint.sh, launcher.sh, and main.cpp that we're using AppImage
+          # Enables proper platform detection and Wayland→XCB fallback handling
+          APPIMAGE_PATH="/tmp/openterfaceQT.linux.amd64.shared.AppImage"
+          
           # Build docker run command
           DOCKER_RUN_CMD="docker run -d \
             --name openterface-test-fedora-persistent \
@@ -288,6 +293,7 @@ jobs:
             -e WAYLAND_DISPLAY=wayland-0 \
             -e GITHUB_TOKEN=${GITHUB_TOKEN} \
             -e INSTALL_TYPE=${INSTALL_TYPE} \
+            -e APPIMAGE=${APPIMAGE_PATH} \
             -e LC_ALL=C.UTF-8 \
             -e LANG=C.UTF-8 \
             --network host \
