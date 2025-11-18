@@ -506,17 +506,6 @@ jobs:
           
           CONTAINER_ID="${{ env.CONTAINER_ID }}"
           
-          ' || echo "⚠️ Could not retrieve app logs"
-          echo "=================================================="
-          echo ""
-
-      - name: Test basic container functionality (Fedora)
-        timeout-minutes: 5
-        run: |
-          echo "🧪 Testing basic container functionality on persistent container"
-          
-          CONTAINER_ID="${{ env.CONTAINER_ID }}"
-          
           docker exec $CONTAINER_ID bash -c '
             echo "✅ Container can execute commands"
             whoami
