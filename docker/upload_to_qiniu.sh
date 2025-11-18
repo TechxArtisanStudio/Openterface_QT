@@ -203,11 +203,11 @@ if [ -z "$UPLOAD_TOKEN" ]; then
 fi
 
 if [ -z "$QINIU_AK" ]; then
-    QINIU_AK="${QINIU_AK_ENV}"
+    QINIU_AK="${QINIU_AK}"
 fi
 
 if [ -z "$QINIU_SK" ]; then
-    QINIU_SK="${QINIU_SK_ENV}"
+    QINIU_SK="${QINIU_SK}"
 fi
 
 # Set bucket (hardcoded)
