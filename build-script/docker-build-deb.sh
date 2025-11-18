@@ -205,6 +205,7 @@ declare -a UNIFIED_LIBRARY_CONFIGS=(
     "GSTVIDEO|GStreamer video|libgstvideo-1.0.so|WARNING|gstreamer|/opt/gstreamer/lib/x86_64-linux-gnu /usr/lib/x86_64-linux-gnu /usr/lib"
     "GSTAPP|GStreamer app|libgstapp-1.0.so|WARNING|gstreamer|/opt/gstreamer/lib/x86_64-linux-gnu /usr/lib/x86_64-linux-gnu /usr/lib"
     "GSTCODECS|GStreamer codecs|libgstcodecs-1.0.so|WARNING|gstreamer|/opt/gstreamer/lib/x86_64-linux-gnu /usr/lib/x86_64-linux-gnu /usr/lib"
+    "GSTCODECPARSERS|GStreamer codec parsers|libgstcodecparsers-1.0.so|WARNING|gstreamer|/opt/gstreamer/lib/x86_64-linux-gnu /usr/lib/x86_64-linux-gnu /usr/lib"
     "GSTTAG|GStreamer tag|libgsttag-1.0.so|WARNING|gstreamer|/opt/gstreamer/lib/x86_64-linux-gnu /usr/lib/x86_64-linux-gnu /usr/lib"
     "GSTRTP|GStreamer RTP|libgstrtp-1.0.so|WARNING|gstreamer|/opt/gstreamer/lib/x86_64-linux-gnu /usr/lib/x86_64-linux-gnu /usr/lib"
     "GSTRTSP|GStreamer RTSP|libgstrtsp-1.0.so|WARNING|gstreamer|/opt/gstreamer/lib/x86_64-linux-gnu /usr/lib/x86_64-linux-gnu /usr/lib"

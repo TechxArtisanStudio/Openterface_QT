@@ -335,6 +335,7 @@ declare -a UNIFIED_LIBRARY_CONFIGS=(
     "GSTVIDEO|GStreamer video|libgstvideo-1.0.so|WARNING|gstreamer|${GSTREAMER_LIB_SEARCH_DIRS}"
     "GSTAPP|GStreamer app|libgstapp-1.0.so|WARNING|gstreamer|${GSTREAMER_LIB_SEARCH_DIRS}"
     "GSTCODECS|GStreamer codecs|libgstcodecs-1.0.so|WARNING|gstreamer|${GSTREAMER_LIB_SEARCH_DIRS}"
+    "GSTCODECPARSERS|GStreamer codec parsers|libgstcodecparsers-1.0.so|WARNING|gstreamer|${GSTREAMER_LIB_SEARCH_DIRS}"
     "GSTTAG|GStreamer tag|libgsttag-1.0.so|WARNING|gstreamer|${GSTREAMER_LIB_SEARCH_DIRS}"
     "GSTRTP|GStreamer RTP|libgstrtp-1.0.so|WARNING|gstreamer|${GSTREAMER_LIB_SEARCH_DIRS}"
     "GSTRTSP|GStreamer RTSP|libgstrtsp-1.0.so|WARNING|gstreamer|${GSTREAMER_LIB_SEARCH_DIRS}"

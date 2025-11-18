@@ -134,6 +134,7 @@ GSTREAMER_LIBS=(
     "libgstvideo-1.0"
     "libgstaudio-1.0"
     "libgstcodecs-1.0"
+    "libgstcodecparsers-1.0"
     "libgstpbutils-1.0"
 )
 
