@@ -202,6 +202,7 @@ if(USE_GSTREAMER AND EXISTS "${GSTREAMER_INCLUDE_DIR}/gst/gst.h" AND EXISTS "${G
         "libgstrtp-1.0${GSTREAMER_LIB_EXT}"
         "libgstrtsp-1.0${GSTREAMER_LIB_EXT}"
         "libgstsdp-1.0${GSTREAMER_LIB_EXT}"
+        "libgstcodecs-1.0${GSTREAMER_LIB_EXT}"        # GStreamer codecs library
         "libgstcodecparsers-1.0${GSTREAMER_LIB_EXT}"  # Codec parsers (may contain bit/byte readers)
     )
     
