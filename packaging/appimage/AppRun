@@ -43,6 +43,12 @@ export QT_PLUGIN_PATH="${HERE}/usr/lib/plugins:${HERE}/usr/plugins:${QT_PLUGIN_P
 # Add Wayland shell integration plugins path
 export QT_QPA_PLATFORM_PLUGIN_PATH="${HERE}/usr/lib/plugins:${QT_QPA_PLATFORM_PLUGIN_PATH}"
 
+# Set XDG_RUNTIME_DIR for Wayland support (required for Wayland)
+# If not already set, use /run/user/$(id -u) which is the standard location
+if [ -z "$XDG_RUNTIME_DIR" ]; then
+    export XDG_RUNTIME_DIR="/run/user/$(id -u)"
+fi
+
 # Enable Wayland support (will automatically fallback to X11/XCB if Wayland not available)
 # Let Qt auto-detect the best platform (wayland if available, xcb otherwise)
 export QT_AUTO_SCREEN_SCALE_FACTOR=1
