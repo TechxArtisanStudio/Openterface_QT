@@ -316,8 +316,10 @@ chmod +x "${APPDIR}/usr/bin/openterfaceQT"
 # Create desktop file for comprehensive AppImage
 cp "${SRC}/packaging/com.openterface.openterfaceQT.desktop" "${APPDIR}/usr/share/applications/openterfaceqt.desktop"
 
-# Update icon name in desktop file for appimage (use simpler name for appimage compatibility)
-sed -i 's/^Icon=.*/Icon=openterfaceQT/' "${APPDIR}/usr/share/applications/openterfaceqt.desktop"
+# For AppImage, keep the proper FreeDesktop icon name (com.openterface.openterfaceQT)
+# This ensures the icon is found by standard icon theme lookups on all platforms
+# We'll also install with the short name as a fallback
+# (No change needed - keep the original Icon= value in the desktop file)
 
 # Copy desktop file to root of AppDir
 cp "${APPDIR}/usr/share/applications/openterfaceqt.desktop" "${DESKTOP_OUT}"
@@ -356,21 +358,24 @@ for p in \
 done
 if [ -n "${ICON_SRC}" ]; then
 	ICON_EXT="${ICON_SRC##*.}"
+	# Install with both icon names:
+	# 1. com.openterface.openterfaceQT - for FreeDesktop icon theme lookup (standard)
+	# 2. openterfaceQT - as fallback for legacy applications
 	if [ "${ICON_EXT}" = "svg" ]; then
 		mkdir -p "${APPDIR}/usr/share/icons/hicolor/scalable/apps"
+		cp "${ICON_SRC}" "${APPDIR}/usr/share/icons/hicolor/scalable/apps/com.openterface.openterfaceQT.svg" || true
 		cp "${ICON_SRC}" "${APPDIR}/usr/share/icons/hicolor/scalable/apps/openterfaceQT.svg" || true
 	else
 		mkdir -p "${APPDIR}/usr/share/icons/hicolor/256x256/apps"
-		cp "${ICON_SRC}" "${APPDIR}/usr/share/icons/hicolor/256x256/apps/openterfaceQT.${ICON_EXT}" || true
-		# Also copy with full app ID name for better desktop integration
 		cp "${ICON_SRC}" "${APPDIR}/usr/share/icons/hicolor/256x256/apps/com.openterface.openterfaceQT.${ICON_EXT}" || true
+		cp "${ICON_SRC}" "${APPDIR}/usr/share/icons/hicolor/256x256/apps/openterfaceQT.${ICON_EXT}" || true
 	fi
-	# Also copy to pixmaps and root
+	# Also copy to pixmaps and root for maximum compatibility
 	mkdir -p "${APPDIR}/usr/share/pixmaps"
+	cp "${ICON_SRC}" "${APPDIR}/usr/share/pixmaps/com.openterface.openterfaceQT.${ICON_EXT}" || true
 	cp "${ICON_SRC}" "${APPDIR}/usr/share/pixmaps/openterfaceqt.${ICON_EXT}" || true
-	cp "${ICON_SRC}" "${APPDIR}/openterfaceqt.${ICON_EXT}" || true
-	# Copy with full app ID to root as well for appimage tools
 	cp "${ICON_SRC}" "${APPDIR}/com.openterface.openterfaceQT.${ICON_EXT}" || true
+	cp "${ICON_SRC}" "${APPDIR}/openterfaceqt.${ICON_EXT}" || true
 else
 	echo "No icon found; continuing without a custom icon."
 fi

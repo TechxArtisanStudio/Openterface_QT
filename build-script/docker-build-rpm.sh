@@ -425,9 +425,19 @@ else
 	exit 1
 fi
 
-# Try to copy icon if available
+# Copy icon files (both PNG and SVG) if available
+# These will be installed to /usr/share/icons/hicolor/ in the spec file
+echo "📋 RPM: Copying icon files..."
 if [ -f "${SRC}/images/icon_256.png" ]; then
-	cp "${SRC}/images/icon_256.png" "${RPMTOP}/SOURCES/"
+	cp "${SRC}/images/icon_256.png" "${RPMTOP}/SOURCES/icon_256.png"
+	echo "   ✅ Icon PNG copied"
+else
+	echo "   ⚠️  Warning: icon_256.png not found"
+fi
+
+if [ -f "${SRC}/images/icon_256.svg" ]; then
+	cp "${SRC}/images/icon_256.svg" "${RPMTOP}/SOURCES/icon_256.svg"
+	echo "   ✅ Icon SVG copied"
 fi
 
 # Copy desktop file to SOURCES

@@ -271,8 +271,21 @@ if [ -d "%{_sourcedir}/qt6/qml" ]; then
     echo "Installed Qt6 QML modules"
 fi
 
-# Install application icon if present
-[ -f %{_sourcedir}/icon_256.png ] && cp %{_sourcedir}/icon_256.png %{buildroot}/usr/share/icons/hicolor/256x256/apps/openterfaceQT.png || true
+# Install application icon with correct FreeDesktop name (must match Icon= in desktop file)
+# Icon name must be: com.openterface.openterfaceQT (matches desktop file Icon= entry)
+mkdir -p %{buildroot}/usr/share/icons/hicolor/256x256/apps
+mkdir -p %{buildroot}/usr/share/icons/hicolor/scalable/apps
+if [ -f %{_sourcedir}/icon_256.png ]; then
+    cp %{_sourcedir}/icon_256.png %{buildroot}/usr/share/icons/hicolor/256x256/apps/com.openterface.openterfaceQT.png
+    echo "✅ Installed icon: /usr/share/icons/hicolor/256x256/apps/com.openterface.openterfaceQT.png"
+fi
+if [ -f %{_sourcedir}/icon_256.svg ]; then
+    cp %{_sourcedir}/icon_256.svg %{buildroot}/usr/share/icons/hicolor/scalable/apps/com.openterface.openterfaceQT.svg
+    echo "✅ Installed icon: /usr/share/icons/hicolor/scalable/apps/com.openterface.openterfaceQT.svg"
+elif [ -f %{_sourcedir}/icon_256.png ]; then
+    # Fallback: if no SVG, install PNG to scalable too (not ideal but better than nothing)
+    cp %{_sourcedir}/icon_256.png %{buildroot}/usr/share/icons/hicolor/scalable/apps/com.openterface.openterfaceQT.png
+fi
 
 # Install the wrapper script to set up library paths
 mkdir -p %{buildroot}/usr/lib/openterfaceqt

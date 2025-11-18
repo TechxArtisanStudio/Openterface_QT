@@ -412,12 +412,13 @@ for p in \
 done
 if [ -n "${ICON_SRC}" ]; then
 	ICON_EXT="${ICON_SRC##*.}"
+	# Icons must be named com.openterface.openterfaceQT to match Icon= in desktop file
 	if [ "${ICON_EXT}" = "svg" ]; then
 		mkdir -p "${PKG_ROOT}/usr/share/icons/hicolor/scalable/apps"
-		cp "${ICON_SRC}" "${PKG_ROOT}/usr/share/icons/hicolor/scalable/apps/openterfaceQT.svg"
+		cp "${ICON_SRC}" "${PKG_ROOT}/usr/share/icons/hicolor/scalable/apps/com.openterface.openterfaceQT.svg"
 	else
 		mkdir -p "${PKG_ROOT}/usr/share/icons/hicolor/256x256/apps"
-		cp "${ICON_SRC}" "${PKG_ROOT}/usr/share/icons/hicolor/256x256/apps/openterfaceQT.png"
+		cp "${ICON_SRC}" "${PKG_ROOT}/usr/share/icons/hicolor/256x256/apps/com.openterface.openterfaceQT.png"
 	fi
 fi
 
