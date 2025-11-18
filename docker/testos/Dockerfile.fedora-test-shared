@@ -80,6 +80,8 @@ RUN dnf update -y && \
         xdotool \
         xwininfo \
         ImageMagick \
+        # Virtual display for headless testing
+        xorg-x11-server-Xvfb \
         # Clean up to reduce image size
     && dnf clean all && \
     rm -rf /var/cache/dnf

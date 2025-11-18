@@ -111,7 +111,13 @@ XVFB_PID=""
 if Xvfb $DISPLAY -screen 0 1920x1080x24 -ac +extension GLX +render -noreset >/dev/null 2>&1 &
 then
     XVFB_PID=$!
-    echo "✅ Xvfb started directly (PID: $XVFB_PID)"
+    sleep 1  # Give Xvfb time to start
+    if ps -p $XVFB_PID > /dev/null 2>&1; then
+        echo "✅ Xvfb started directly (PID: $XVFB_PID)"
+    else
+        echo "⚠️  Xvfb process died immediately"
+        XVFB_PID=""
+    fi
 fi
 
 # Approach 2: Try with sudo if direct failed
@@ -119,13 +125,22 @@ if [ -z "$XVFB_PID" ] || ! ps -p $XVFB_PID > /dev/null 2>&1; then
     if sudo -n Xvfb $DISPLAY -screen 0 1920x1080x24 -ac +extension GLX +render -noreset >/dev/null 2>&1 &
     then
         XVFB_PID=$!
-        echo "✅ Xvfb started with sudo (PID: $XVFB_PID)"
+        sleep 1  # Give Xvfb time to start
+        if ps -p $XVFB_PID > /dev/null 2>&1; then
+            echo "✅ Xvfb started with sudo (PID: $XVFB_PID)"
+        else
+            echo "⚠️  Xvfb process died immediately (sudo)"
+            XVFB_PID=""
+        fi
     fi
 fi
 
 # Verify Xvfb started
 if [ -n "$XVFB_PID" ] && ps -p $XVFB_PID > /dev/null 2>&1; then
     echo "✅ Xvfb started successfully (PID: $XVFB_PID, Display: $DISPLAY)"
+elif [ -S /tmp/.X11-unix/0 ]; then
+    # Socket exists but we couldn't verify PID - this is ok, X11 is running
+    echo "✅ X11 display socket found at /tmp/.X11-unix/0"
 elif [ -S /tmp/.X11-unix/98 ]; then
     # Socket exists but we couldn't verify PID - this is ok, X11 is running
     echo "✅ X11 display socket found at /tmp/.X11-unix/98"
@@ -135,6 +150,8 @@ else
     echo "   Display: $DISPLAY"
     echo "   Checking for X11 socket..."
     ls -la /tmp/.X11-unix/ 2>/dev/null || echo "   No X11 sockets found"
+    echo "   Attempting to diagnose Xvfb installation..."
+    which Xvfb > /dev/null 2>&1 && echo "   ✅ Xvfb command found" || echo "   ❌ Xvfb command NOT found - install xorg-x11-server-Xvfb"
     echo "   Continuing anyway for persistent testing container..."
     # Don't exit here - for persistent container testing, we need to keep running
 fi
