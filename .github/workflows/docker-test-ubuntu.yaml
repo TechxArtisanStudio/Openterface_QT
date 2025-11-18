@@ -851,12 +851,9 @@ jobs:
       - name: Display screenshots in summary (Shared)
         if: always()
         env:
-          # Method 1: Pre-generated token
-          QINIU_UPLOAD_TOKEN: ${{ secrets.QINIU_UPLOAD_TOKEN }}
-          # Method 2: AK/SK (alternative, will be used if token is not provided)
           QINIU_AK: ${{ secrets.QINIU_AK }}
           QINIU_SK: ${{ secrets.QINIU_SK }}
-          # Optional: Qiniu domain (defaults to openterface.qiniu.com if not set)
+          QINIU_BUCKET: ${{ secrets.QINIU_BUCKET }}
           QINIU_DOMAIN: ${{ secrets.QINIU_DOMAIN }}
         run: |
           echo "🔍 DEBUG: Starting screenshot summary generation"
@@ -892,8 +889,6 @@ jobs:
             echo "## Screenshots" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
             
-            chmod +x docker/upload_to_qiniu.sh
-            
             screenshot_count=0
             api_key_shown=0
             upload_failed=0
@@ -926,12 +921,12 @@ jobs:
                 echo "" >> $GITHUB_STEP_SUMMARY
                 
                 if [ -n "$QINIU_AK" ] && [ -n "$QINIU_SK" ]; then
-                  echo "📤 Uploading $filename to Qiniu..."
+                  echo "📤 Uploading $filename to Qiniu using Python script..."
                   echo "🔑 Qiniu credentials validation: AK=${#QINIU_AK} chars, SK=${#QINIU_SK} chars"
                   
-                  # Capture only the final URL, suppress all debug output
+                  # Use Python script for upload instead of bash script
                   UPLOAD_EXIT_CODE=0
-                  UPLOAD_OUTPUT=$(https_proxy="" QINIU_AK="$QINIU_AK" QINIU_SK="$QINIU_SK" QINIU_DOMAIN="$QINIU_DOMAIN" timeout 120 ./docker/upload_to_qiniu.sh "$img" 2>&1) || UPLOAD_EXIT_CODE=$?
+                  UPLOAD_OUTPUT=$(QINIU_AK="$QINIU_AK" QINIU_SK="$QINIU_SK" QINIU_BUCKET="${QINIU_BUCKET:-openterface}" QINIU_DOMAIN="$QINIU_DOMAIN" timeout 120 python3 ./docker/upload_to_qiniu.py "$img" 2>&1) || UPLOAD_EXIT_CODE=$?
                   
                   if [ $UPLOAD_EXIT_CODE -ne 0 ]; then
                     echo "❌ Upload script failed with exit code: $UPLOAD_EXIT_CODE"
@@ -940,18 +935,11 @@ jobs:
                     echo "---"
                   fi
                   
-                  # Try multiple extraction patterns to handle different escaping
-                  # Pattern 1: Simple HTTPS URL extraction
+                  # Extract URL from Python script output
                   UPLOAD_URL=$(echo "$UPLOAD_OUTPUT" | grep -oE 'https://[^ "]*' | tail -1)
                   
-                  # Pattern 2: IMAGE URL line - use | as sed delimiter
                   if [ -z "$UPLOAD_URL" ]; then
-                    UPLOAD_URL=$(echo "$UPLOAD_OUTPUT" | grep "IMAGE URL:" | grep -oE 'https[^ ]*' | sed 's|\\/|/|g' | head -1)
-                  fi
-                  
-                  # Pattern 3: Get the last non-empty line that looks like a URL - use | as sed delimiter
-                  if [ -z "$UPLOAD_URL" ]; then
-                    UPLOAD_URL=$(echo "$UPLOAD_OUTPUT" | grep -E '^https' | tail -1 | sed 's|\\/|/|g')
+                    UPLOAD_URL=$(echo "$UPLOAD_OUTPUT" | grep -E '^https' | tail -1)
                   fi
                   
                   if [ -n "$UPLOAD_URL" ]; then
@@ -961,12 +949,10 @@ jobs:
                     echo "[View Full Size]($UPLOAD_URL)" >> $GITHUB_STEP_SUMMARY
                     echo "" >> $GITHUB_STEP_SUMMARY
                   else
-                    echo "⚠️  Upload URL extraction inconclusive for $filename"
+                    echo "⚠️ Upload URL extraction inconclusive for $filename"
                     echo "   Raw output (last 10 lines):"
                     echo "$UPLOAD_OUTPUT" | tail -10 | sed 's|^|   |'
-                    # Still try to extract from raw output as fallback
-                    echo "   Attempting URL recovery..."
-                    FALLBACK_URL=$(echo "$UPLOAD_OUTPUT" | grep -o 'https[^[:space:]]*' | tail -1 | sed 's|\\/|/|g')
+                    FALLBACK_URL=$(echo "$UPLOAD_OUTPUT" | grep -o 'https[^[:space:]]*' | tail -1)
                     if [ -n "$FALLBACK_URL" ]; then
                       echo "   ✅ Recovered URL: $FALLBACK_URL"
                       echo "<a href=\"$FALLBACK_URL\" target=\"_blank\"><img src=\"$FALLBACK_URL\" width=\"800\" alt=\"Screenshot\"></a>" >> $GITHUB_STEP_SUMMARY
@@ -1050,6 +1036,36 @@ jobs:
           name: openterface-gui-screenshots-shared-${{ env.INSTALL_TYPE }}-individual
           path: /tmp/individual_screenshots/
           if-no-files-found: warn
+
+      - name: Manage Qiniu bucket - Keep max 50 recent images (Shared)
+        if: always()
+        env:
+          QINIU_AK: ${{ secrets.QINIU_AK }}
+          QINIU_SK: ${{ secrets.QINIU_SK }}
+          QINIU_BUCKET: ${{ secrets.QINIU_BUCKET }}
+          QINIU_DOMAIN: ${{ secrets.QINIU_DOMAIN }}
+        run: |
+          echo "🧹 Cleaning up Qiniu bucket - Keeping maximum 50 recent images"
+          
+          if [ -z "$QINIU_AK" ] || [ -z "$QINIU_SK" ]; then
+            echo "⚠️ Qiniu credentials not configured, skipping bucket management"
+            exit 0
+          fi
+          
+          echo "📊 Running bucket management script..."
+          QINIU_AK="$QINIU_AK" \
+          QINIU_SK="$QINIU_SK" \
+          QINIU_BUCKET="${QINIU_BUCKET:-openterface}" \
+          QINIU_DOMAIN="$QINIU_DOMAIN" \
+          python3 ./docker/manage_qiniu_bucket.py -k 50 --force 2>&1
+          
+          if [ $? -eq 0 ]; then
+            echo "✅ Bucket management completed successfully"
+            echo "📋 Summary: Kept maximum 50 most recent images in Qiniu bucket"
+          else
+            echo "⚠️ Bucket management encountered an issue (non-blocking)"
+            echo "   This may occur if the bucket has fewer than 50 images or credentials are invalid"
+          fi
 
       - name: Test container with simulated USB devices (Shared)
         timeout-minutes: 5
