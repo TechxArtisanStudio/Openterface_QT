@@ -842,6 +842,14 @@ jobs:
           path: /tmp/individual_screenshots_fedora/
           if-no-files-found: warn
 
+      - name: Install Qiniu SDK (Fedora)
+        if: always()
+        run: |
+          echo "📦 Installing Qiniu Python SDK..."
+          python3 -m pip install --upgrade pip > /dev/null 2>&1
+          python3 -m pip install qiniu > /dev/null 2>&1
+          echo "✅ Qiniu SDK installed"
+
       - name: Manage Qiniu bucket - Keep max 50 recent images (Fedora)
         if: always()
         env:
