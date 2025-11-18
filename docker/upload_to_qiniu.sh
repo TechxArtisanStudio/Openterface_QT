@@ -215,7 +215,7 @@ BUCKET="$QINIU_BUCKET_HARDCODED"
 
 # Set domain with default
 if [ -z "$DOMAIN" ]; then
-    DOMAIN="${QINIU_DOMAIN:-openterface.qiniu.com}"
+    DOMAIN="${QINIU_DOMAIN:-download.openterface.com}"
 fi
 
 # Check authentication: either token OR (AK and SK) must be provided
