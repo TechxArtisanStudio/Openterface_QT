@@ -16,8 +16,8 @@ export QT_X11_NO_MITSHM=1
 # Wayland support - detect and enable if available
 # Allow launcher script to detect and choose the best platform backend
 # Default to Wayland, but can be overridden by OPENTERFACE_LAUNCHER_PLATFORM
-export WAYLAND_DISPLAY=${WAYLAND_DISPLAY:-wayland-0}
-export OPENTERFACE_LAUNCHER_PLATFORM=${OPENTERFACE_LAUNCHER_PLATFORM:-wayland}
+#export WAYLAND_DISPLAY=${WAYLAND_DISPLAY:-wayland-0}
+#export OPENTERFACE_LAUNCHER_PLATFORM=${OPENTERFACE_LAUNCHER_PLATFORM:-wayland}
 
 # Debug: Show Wayland environment variables
 echo "🔍 DEBUG - Wayland Configuration:"
