@@ -273,6 +273,15 @@ int main(int argc, char *argv[])
 {
     qDebug() << "Start openterface...";
     
+    // Parse command-line arguments early to check for --force-env-check
+    bool forceEnvironmentCheck = false;
+    for (int i = 1; i < argc; i++) {
+        if (strcmp(argv[i], "--force-env-check") == 0) {
+            forceEnvironmentCheck = true;
+            qDebug() << "Force environment check flag detected";
+        }
+    }
+    
     // Initialize GStreamer before Qt application
     #ifdef HAVE_GSTREAMER
     GError* gst_error = nullptr;
@@ -309,7 +318,9 @@ int main(int argc, char *argv[])
     app.setWindowIcon(QIcon("://images/icon_32.png"));
     
     // Check if the environment is properly set up
-    if (EnvironmentSetupDialog::autoEnvironmentCheck() && !EnvironmentSetupDialog::checkEnvironmentSetup()) {
+    // If --force-env-check is passed, always show the dialog even if auto-check is disabled
+    bool shouldCheckEnvironment = forceEnvironmentCheck || EnvironmentSetupDialog::autoEnvironmentCheck();
+    if (shouldCheckEnvironment && !EnvironmentSetupDialog::checkEnvironmentSetup()) {
         EnvironmentSetupDialog envDialog;
         qDebug() << "Environment setup dialog opened";
         if (envDialog.exec() == QDialog::Rejected) {
