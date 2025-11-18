@@ -28,7 +28,7 @@ jobs:
   build-test-fedora:
     strategy:
       matrix:
-        install_type: ['appimage']
+        install_type: ['appimage', 'rpm']
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     
