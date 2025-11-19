@@ -1,7 +1,25 @@
 #!/bin/bash
-# Entrypoint script for Openterface QT Docker container
-# Handles installation on first run when artifacts are available via volume mount
-# Supports both AppImage and RPM/DEB installations with intelligent platform detection
+
+################################################################################
+# Openterface QT Docker Entrypoint Script
+################################################################################
+#
+# PURPOSE:
+#   Initializes and manages the Openterface QT Docker container environment.
+#   Handles first-run installation, platform-specific package detection,
+#   and X11 display configuration for containerized application execution.
+#
+# KEY FEATURES:
+#   - Automatic installation type detection (AppImage, RPM, DEB)
+#   - X11 display setup for GUI rendering in Docker
+#   - Proper APPIMAGE environment variable configuration
+#   - Error handling and comprehensive logging
+#
+# USAGE:
+#   Typically called automatically by Docker when the container starts.
+#   Volume mounts should provide installation artifacts if needed.
+#
+################################################################################
 
 echo "🔧 Openterface QT Docker Entrypoint"
 echo "===================================="
@@ -266,13 +284,54 @@ if [ -f /usr/local/bin/openterfaceQT ]; then
             echo "   Final target: $(readlink -f /usr/local/bin/openterfaceQT)"
         fi
     fi
+    
+    # Show AppImage information if running as AppImage
+    if [ -n "$APPIMAGE" ]; then
+        echo "🖼️  AppImage Information:"
+        echo "   APPIMAGE=$APPIMAGE"
+        if [ -f "$APPIMAGE" ]; then
+            echo "   AppImage path: $(readlink -f "$APPIMAGE")"
+            echo "   AppImage size: $(du -h "$APPIMAGE" | cut -f1)"
+            echo "   AppImage exists: ✅"
+        else
+            echo "   AppImage exists: ❌ NOT FOUND"
+        fi
+    fi
+    echo ""
+    
+    # Determine the actual executable path for launching
+    EXEC_PATH="/usr/local/bin/openterfaceQT"
+    ACTUAL_EXEC_PATH="$EXEC_PATH"
+    
+    # If it's a symlink, resolve to actual file
+    if [ -L "$EXEC_PATH" ]; then
+        ACTUAL_EXEC_PATH=$(readlink -f "$EXEC_PATH")
+        echo "🔗 Symlink detected: $EXEC_PATH → $ACTUAL_EXEC_PATH"
+    fi
+    
+    # For AppImage installations, use the AppImage directly if available
+    if [ -n "$APPIMAGE" ] && [ -f "$APPIMAGE" ]; then
+        ACTUAL_EXEC_PATH="$APPIMAGE"
+        echo "📦 Using AppImage for execution: $ACTUAL_EXEC_PATH"
+        # Ensure proper working directory for AppImage extraction
+        cd "$(dirname "$APPIMAGE")" || cd /tmp
+        echo "   Working directory: $(pwd)"
+    else
+        # For non-AppImage installations, use the symlink/binary directly
+        echo "📁 Using system binary for execution: $ACTUAL_EXEC_PATH"
+        cd /home || cd /root || cd /tmp
+        echo "   Working directory: $(pwd)"
+    fi
     echo ""
     
     echo "🔧 Starting Openterface QT application..."
-    OPENTERFACE_DEBUG=1 /usr/local/bin/openterfaceQT > /tmp/openterfaceqt.log 2>&1 &
+    echo "   Executable: $ACTUAL_EXEC_PATH"
+    echo "   Current working dir: $(pwd)"
+    OPENTERFACE_DEBUG=1 "$ACTUAL_EXEC_PATH" > /tmp/openterfaceqt.log 2>&1 &
     APP_PID=$!
     
     echo "✅ Openterface QT started with PID: $APP_PID"
+    echo "   Launch path: $ACTUAL_EXEC_PATH"
     echo "📋 Log file: /tmp/openterfaceqt.log"
     echo ""
     
