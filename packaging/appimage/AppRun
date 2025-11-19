@@ -4,6 +4,14 @@
 
 # Set the directory where this script is located
 HERE="$(dirname "$(readlink -f "${0}")")"
+
+# CRITICAL: Ensure HERE points to AppImage root, not a subdirectory
+# Remove /usr/bin or /bin if appended (can happen in some Docker/mount scenarios)
+HERE="${HERE%/usr/bin}"
+HERE="${HERE%/usr/bin/}"
+HERE="${HERE%/bin}"
+HERE="${HERE%/bin/}"
+
 echo "HERE=${HERE}"
 
 # CRITICAL: Set library path to use AppImage bundled libraries FIRST
