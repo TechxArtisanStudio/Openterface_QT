@@ -3,7 +3,42 @@
 # This script ensures compatibility across systems with different glibc versions
 
 # Set the directory where this script is located
-HERE="$(dirname "$(readlink -f "${0}")")"
+# Use multiple methods to ensure correct path detection in AppImage
+SCRIPT_DIR="$(dirname "$(readlink -f "${0}")")"
+
+# CRITICAL FIX: Handle AppImage self-extraction mount point
+# When running from an AppImage, the script location is usually the root of the mounted AppImage
+# However, in some cases the path might be doubled (e.g., /tmp/.mount_*/usr/bin/usr/bin)
+# We need to detect and fix this
+
+# First, check if we're in a doubled path situation
+if [[ "$SCRIPT_DIR" == */usr/bin/usr* ]]; then
+    # Extract the mount point (everything before the first /usr/bin/usr)
+    HERE="${SCRIPT_DIR%%/usr/bin/usr*}"
+elif [[ "$SCRIPT_DIR" == */usr/bin ]]; then
+    # Normal case: AppRun is in /tmp/.mount_*/usr/bin, we want /tmp/.mount_*
+    HERE="${SCRIPT_DIR%/usr/bin}"
+elif [[ "$SCRIPT_DIR" == */usr ]]; then
+    # AppRun might be in /tmp/.mount_*/usr
+    HERE="${SCRIPT_DIR%/usr}"
+elif [[ "$SCRIPT_DIR" == */bin ]]; then
+    # AppRun might be in /tmp/.mount_*/bin
+    HERE="${SCRIPT_DIR%/bin}"
+else
+    # Fallback: assume SCRIPT_DIR is already the root
+    HERE="$SCRIPT_DIR"
+fi
+
+# Verify that HERE/usr/bin/openterfaceQT exists, otherwise try parent
+if [ ! -f "${HERE}/usr/bin/openterfaceQT" ] && [ -f "$(dirname "${HERE}")/usr/bin/openterfaceQT" ]; then
+    HERE="$(dirname "${HERE}")"
+fi
+
+# Debug: Show path detection (uncomment for troubleshooting)
+# echo "DEBUG: SCRIPT_DIR=${SCRIPT_DIR}"
+# echo "DEBUG: HERE=${HERE}"
+# echo "DEBUG: Executable location: ${HERE}/usr/bin/openterfaceQT"
+# echo "DEBUG: Executable exists: $([ -f "${HERE}/usr/bin/openterfaceQT" ] && echo "YES" || echo "NO")"
 
 # CRITICAL: Set library path to use AppImage bundled libraries FIRST
 # This prevents loading incompatible system libraries with different GLIBC versions
@@ -61,6 +96,7 @@ unset LD_ORIGIN_PATH
 unset LD_AUDIT
 
 # Debug: Show library path (uncomment for debugging)
+echo "AppImage ROOT: ${HERE}"
 echo "LD_LIBRARY_PATH=${LD_LIBRARY_PATH}"
 echo "LD_PRELOAD=${LD_PRELOAD}"
 echo "PATH=${PATH}"
