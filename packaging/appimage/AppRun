@@ -77,4 +77,5 @@ echo "GST_PLUGIN_PATH=${GST_PLUGIN_PATH}"
 echo "QT_PLUGIN_PATH=${QT_PLUGIN_PATH}"
 
 # Run the application
-exec "${HERE}/usr/bin/openterfaceQT" "$@"
+# Use .bin suffix to avoid calling symlinks at /usr/local/bin/openterfaceQT
+exec "${HERE}/usr/bin/openterfaceQT.bin" "$@"

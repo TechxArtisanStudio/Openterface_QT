@@ -144,8 +144,8 @@ rm -rf appimage/AppDir
 mkdir -p appimage/AppDir/usr/bin appimage/AppDir/usr/lib/gstreamer-1.0 appimage/AppDir/usr/share/applications
 
 echo '✅ Executable copied'
-cp build/openterfaceQT appimage/AppDir/usr/bin/
-chmod +x appimage/AppDir/usr/bin/openterfaceQT
+cp build/openterfaceQT appimage/AppDir/usr/bin/openterfaceQT.bin
+chmod +x appimage/AppDir/usr/bin/openterfaceQT.bin
 
 
 echo '📦 Copying critical GLIBC libraries for compatibility...'
@@ -310,8 +310,8 @@ echo "✅ Proceeding to comprehensive AppImage creation with Docker runtime supp
 cd /workspace
 
 # Copy the executable to the comprehensive AppDir
-cp "${BUILD}/openterfaceQT" "${APPDIR}/usr/bin/"
-chmod +x "${APPDIR}/usr/bin/openterfaceQT"
+cp "${BUILD}/openterfaceQT" "${APPDIR}/usr/bin/openterfaceQT.bin"
+chmod +x "${APPDIR}/usr/bin/openterfaceQT.bin"
 
 # Create desktop file for comprehensive AppImage
 cp "${SRC}/packaging/com.openterface.openterfaceQT.desktop" "${APPDIR}/usr/share/applications/openterfaceqt.desktop"
@@ -640,7 +640,7 @@ fi
 # Build the command with proper argument handling
 LINUXDEPLOY_ARGS=(
 	"--appdir" "${APPDIR}"
-	"--executable" "${APPDIR}/usr/bin/openterfaceQT"
+	"--executable" "${APPDIR}/usr/bin/openterfaceQT.bin"
 	"--desktop-file" "${DESKTOP_OUT}"
 )
 
@@ -659,7 +659,7 @@ echo "Final command: ${LINUXDEPLOY_BIN}" "${LINUXDEPLOY_ARGS[@]}"
 # Try running linuxdeploy without the appimage output plugin first
 LINUXDEPLOY_ARGS_NO_OUTPUT=(
 	"--appdir" "${APPDIR}"
-	"--executable" "${APPDIR}/usr/bin/openterfaceQT"
+	"--executable" "${APPDIR}/usr/bin/openterfaceQT.bin"
 	"--desktop-file" "${DESKTOP_OUT}"
 )
 
