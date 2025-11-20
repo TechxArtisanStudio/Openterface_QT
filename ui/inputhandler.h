@@ -6,6 +6,7 @@
 #include <QMouseEvent>
 #include <QPoint>
 #include <QPointer>
+#include <QTimer>
 #include "target/mouseeventdto.h"
 
 class VideoPane; // Forward declaration
@@ -16,6 +17,7 @@ class InputHandler : public QObject
 
 public:
     explicit InputHandler(VideoPane *videoPane, QObject *parent = nullptr);
+    ~InputHandler();
 
     void handleKeyPress(QKeyEvent *event);
     void handleKeyRelease(QKeyEvent *event);
@@ -64,9 +66,10 @@ private:
     bool m_processingEnabled = true;  // Safety flag to disable event processing
     QPointer<QWidget> m_currentEventTarget;  // Use QPointer for safety
 
-    // Mouse throttling for performance optimization (60 FPS limit)
-    qint64 m_lastMouseMoveTime = 0;
-    int m_mouseMoveInterval = 17;  // 17ms = 60 FPS limit
+    // Mouse move timer for smooth event processing
+    QTimer* m_mouseMoveTimer = nullptr;
+    QMouseEvent* m_pendingMouseMoveEvent = nullptr;
+    int m_mouseMoveInterval = 8;  // 8ms = ~125 FPS limit for responsiveness
     int m_droppedMouseEvents = 0;
     
     // Duplicate event filtering (Qt sometimes sends duplicate press events)
@@ -82,6 +85,10 @@ private:
     int m_lastAbsoluteX = 0;
     int m_lastAbsoluteY = 0;
     bool m_hasLastAbsolutePosition = false;
+    
+    // Cache the last sent move position to use for press/release in absolute mode
+    int m_lastMoveAbsX = 0;
+    int m_lastMoveAbsY = 0;
     
     // Cache for double-click: Store coordinates from first press to reuse on second press
     int m_doubleClickCachedX = 0;
@@ -101,6 +108,9 @@ private:
     // Helper methods for coordinate transformation
     QPoint transformMousePosition(QMouseEvent *event, QWidget* sourceWidget);
     QWidget* getEffectiveVideoWidget() const;
+    
+    // Timer slot for processing pending mouse move
+    void processPendingMouseMove();
 };
 
 #endif // INPUTHANDLER_H

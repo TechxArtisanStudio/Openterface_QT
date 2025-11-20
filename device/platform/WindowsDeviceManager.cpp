@@ -36,7 +36,7 @@ extern "C" CONFIGRET WINAPI CM_Get_Sibling(
     ULONG ulFlags
 );
 
-Q_LOGGING_CATEGORY(log_device_windows, "opf.device.windows")
+Q_LOGGING_CATEGORY(log_device_windows, "opf.host.windows")
 
 WindowsDeviceManager::WindowsDeviceManager(QObject *parent)
     : AbstractPlatformDeviceManager(parent)
@@ -605,7 +605,9 @@ void WindowsDeviceManager::matchDevicePathsFromChildren(DeviceInfo& deviceInfo, 
         
         // Check for HID device
         else if (deviceClass.compare("HIDClass", Qt::CaseInsensitive) == 0 ||
-                 hardwareId.contains(QString("VID_%1").arg(AbstractPlatformDeviceManager::OPENTERFACE_VID), Qt::CaseInsensitive)) {
+                 hardwareId.contains(QString("VID_%1").arg(AbstractPlatformDeviceManager::OPENTERFACE_VID), Qt::CaseInsensitive) ||
+                 hardwareId.contains(QString("VID_%1").arg(AbstractPlatformDeviceManager::OPENTERFACE_VID_V2), Qt::CaseInsensitive) ||
+                 hardwareId.contains(QString("VID_%1").arg(AbstractPlatformDeviceManager::OPENTERFACE_VID_V3), Qt::CaseInsensitive)) {
             if (deviceId.toUpper().contains("HID")){
                 deviceInfo.hidDeviceId = deviceId;
                 qCDebug(log_device_windows) << "Found HID device ID:" << deviceInfo.hidDeviceId << "with hardware ID:" << hardwareId;
@@ -712,9 +714,21 @@ QString WindowsDeviceManager::findHIDByDeviceId(const QString& deviceId)
             if (interfaceDeviceId == deviceId) {
                 // Verify this is our HID device by checking VID/PID
                 QString hardwareId = getHardwareId(hDevInfo, &interfaceDevInfoData);
-                if (hardwareId.contains(AbstractPlatformDeviceManager::OPENTERFACE_VID, Qt::CaseInsensitive) &&
-                    hardwareId.contains(AbstractPlatformDeviceManager::OPENTERFACE_PID, Qt::CaseInsensitive)) {
+                // Check for any supported Openterface VID/PID combinations:
+                // V1: 534D:2109 (MS2109)
+                // V2: 345F:2132 (MS2130S)
+                // V3: 345F:2109
+                bool isOpenterfaceDevice = 
+                    (hardwareId.contains(AbstractPlatformDeviceManager::OPENTERFACE_VID, Qt::CaseInsensitive) &&
+                     hardwareId.contains(AbstractPlatformDeviceManager::OPENTERFACE_PID, Qt::CaseInsensitive)) ||
+                    (hardwareId.contains(AbstractPlatformDeviceManager::OPENTERFACE_VID_V2, Qt::CaseInsensitive) &&
+                     hardwareId.contains(AbstractPlatformDeviceManager::OPENTERFACE_PID_V2, Qt::CaseInsensitive)) ||
+                    (hardwareId.contains(AbstractPlatformDeviceManager::OPENTERFACE_VID_V3, Qt::CaseInsensitive) &&
+                     hardwareId.contains(AbstractPlatformDeviceManager::OPENTERFACE_PID_V3, Qt::CaseInsensitive));
+                
+                if (isOpenterfaceDevice) {
                     QString devicePath = QString::fromWCharArray(interfaceDetail->DevicePath);
+                    qCDebug(log_device_windows) << "Found HID device path:" << devicePath << "for device ID:" << deviceId;
                     SetupDiDestroyDeviceInfoList(hDevInfo);
                     return devicePath;
                 }
@@ -754,9 +768,16 @@ QPair<QString, QString> WindowsDeviceManager::findCameraAudioByDeviceInfo(const 
             qCDebug(log_device_windows) << "  Checking camera device:" << cameraDeviceId;
             qCDebug(log_device_windows) << "    Parent device ID:" << parentDeviceId;
             
-            // Check if this camera matches our hardware identifiers
-            if (cameraDeviceId.contains("345F", Qt::CaseInsensitive) ||
-                cameraDeviceId.contains("534D", Qt::CaseInsensitive)) {
+            // Check if this camera matches our hardware identifiers with valid VID:PID combinations
+            // Must be one of: 345F:2109, 345F:2132, or 534D:2109
+            bool isValidCameraVidPid = 
+                (cameraDeviceId.contains("345F", Qt::CaseInsensitive) && 
+                 (cameraDeviceId.contains("2109", Qt::CaseInsensitive) || 
+                  cameraDeviceId.contains("2132", Qt::CaseInsensitive))) ||
+                (cameraDeviceId.contains("534D", Qt::CaseInsensitive) && 
+                 cameraDeviceId.contains("2109", Qt::CaseInsensitive));
+            
+            if (isValidCameraVidPid) {
                 
                 // Enhanced verification: try multiple association methods
                 if (isDeviceAssociatedWithPortChain(parentDeviceId, deviceInfo.deviceInstanceId, deviceInfo.portChain) ||
@@ -769,6 +790,8 @@ QPair<QString, QString> WindowsDeviceManager::findCameraAudioByDeviceInfo(const 
                 } else {
                     qCDebug(log_device_windows) << "    ✗ Camera device verification failed - trying next";
                 }
+            } else {
+                qCDebug(log_device_windows) << "    ✗ Camera device does not have valid VID:PID (must be 345F:2109, 345F:2132, or 534D:2109)";
             }
         }
     }
@@ -1594,6 +1617,8 @@ QList<DeviceInfo> WindowsDeviceManager::discoverGeneration1Devices()
         DeviceInfo deviceInfo;
         deviceInfo.portChain = usbDevice.portChain;
         deviceInfo.deviceInstanceId = usbDevice.deviceInstanceId;
+        deviceInfo.vid = AbstractPlatformDeviceManager::OPENTERFACE_VID;
+        deviceInfo.pid = AbstractPlatformDeviceManager::OPENTERFACE_PID;
         deviceInfo.lastSeen = QDateTime::currentDateTime();
         deviceInfo.platformSpecific = usbDevice.deviceInfo;
         
@@ -1695,6 +1720,8 @@ QList<DeviceInfo> WindowsDeviceManager::discoverGeneration2Devices()
         DeviceInfo deviceInfo;
         deviceInfo.portChain = companionDevice.portChain;
         deviceInfo.deviceInstanceId = companionDevice.deviceInstanceId;
+        deviceInfo.vid = AbstractPlatformDeviceManager::OPENTERFACE_VID_V2;
+        deviceInfo.pid = AbstractPlatformDeviceManager::OPENTERFACE_PID_V2;
         deviceInfo.lastSeen = QDateTime::currentDateTime();
         deviceInfo.platformSpecific = companionDevice.deviceInfo;
         
@@ -1783,6 +1810,8 @@ QList<DeviceInfo> WindowsDeviceManager::discoverOptimizedDevices()
         DeviceInfo deviceInfo;
         deviceInfo.portChain = originalDevice.portChain;
         deviceInfo.deviceInstanceId = originalDevice.deviceInstanceId;
+        deviceInfo.vid = AbstractPlatformDeviceManager::SERIAL_VID;
+        deviceInfo.pid = AbstractPlatformDeviceManager::SERIAL_PID;
         deviceInfo.lastSeen = QDateTime::currentDateTime();
         deviceInfo.platformSpecific = originalDevice.deviceInfo;
         
@@ -1828,6 +1857,8 @@ QList<DeviceInfo> WindowsDeviceManager::discoverOptimizedDevices()
         DeviceInfo deviceInfo;
         deviceInfo.portChain = newGen2Device.portChain;
         deviceInfo.deviceInstanceId = newGen2Device.deviceInstanceId;
+        deviceInfo.vid = AbstractPlatformDeviceManager::SERIAL_VID_V2;
+        deviceInfo.pid = AbstractPlatformDeviceManager::SERIAL_PID_V2;
         deviceInfo.lastSeen = QDateTime::currentDateTime();
         deviceInfo.platformSpecific = newGen2Device.deviceInfo;
         
@@ -1907,6 +1938,8 @@ QList<DeviceInfo> WindowsDeviceManager::discoverOptimizedDevices()
         DeviceInfo deviceInfo;
         deviceInfo.portChain = associatedPortChain;
         deviceInfo.deviceInstanceId = integratedDevice.deviceInstanceId;
+        deviceInfo.vid = AbstractPlatformDeviceManager::OPENTERFACE_VID_V2;
+        deviceInfo.pid = AbstractPlatformDeviceManager::OPENTERFACE_PID_V2;
         deviceInfo.lastSeen = QDateTime::currentDateTime();
         deviceInfo.platformSpecific = integratedDevice.deviceInfo;
         
@@ -2007,6 +2040,8 @@ QList<DeviceInfo> WindowsDeviceManager::discoverOptimizedDevices()
         DeviceInfo deviceInfo;
         deviceInfo.portChain = associatedPortChain;
         deviceInfo.deviceInstanceId = integratedDevice.deviceInstanceId;
+        deviceInfo.vid = AbstractPlatformDeviceManager::OPENTERFACE_VID_V3;
+        deviceInfo.pid = AbstractPlatformDeviceManager::OPENTERFACE_PID_V3;
         deviceInfo.lastSeen = QDateTime::currentDateTime();
         deviceInfo.platformSpecific = integratedDevice.deviceInfo;
         
@@ -3246,19 +3281,26 @@ QString WindowsDeviceManager::findCameraDevicePathByDeviceId(const QString& devi
         
         qCDebug(log_device_windows) << "  Checking camera - Device ID:" << cameraDeviceId;
         
+        // Validate that this is a camera device with correct VID:PID
+        // Must be one of: 345F:2109, 345F:2132, or 534D:2109
+        bool isValidCameraVidPid = 
+            (cameraDeviceId.contains("345F", Qt::CaseInsensitive) && 
+             (cameraDeviceId.contains("2109", Qt::CaseInsensitive) || 
+              cameraDeviceId.contains("2132", Qt::CaseInsensitive))) ||
+            (cameraDeviceId.contains("534D", Qt::CaseInsensitive) && 
+             cameraDeviceId.contains("2109", Qt::CaseInsensitive));
+        
+        if (!isValidCameraVidPid) {
+            qCDebug(log_device_windows) << "  ✗ Camera device does not have valid VID:PID (must be 345F:2109, 345F:2132, or 534D:2109)";
+            continue;
+        }
+        
         // Check if this device matches our target device ID (exact match or contains)
         if (cameraDeviceId.compare(deviceId, Qt::CaseInsensitive) == 0 ||
             cameraDeviceId.contains(deviceId, Qt::CaseInsensitive) ||
             deviceId.contains(cameraDeviceId, Qt::CaseInsensitive)) {
             
             QString devicePath = camera.value("devicePath").toString();
-            if (devicePath.isEmpty()) {
-                // If devicePath is empty, try to use a standard format
-                // For Windows camera devices, we can try to construct the path
-                devicePath = QString("\\\\?\\usb#vid_345f&pid_2132#%1#{65e8773d-8f56-11d0-a3b9-00a0c9223196}\\global")
-                            .arg(cameraDeviceId.split('\\').last());
-                qCDebug(log_device_windows) << "  Constructed device path:" << devicePath;
-            }
             
             qCDebug(log_device_windows) << "  ✓ Found matching camera device with path:" << devicePath;
             return devicePath;
@@ -3360,5 +3402,4 @@ bool WindowsDeviceManager::isDeviceRelatedToPortChain(const QString& deviceId, c
     return false;
 }
 
-// ...existing code...
 #endif // _WIN32

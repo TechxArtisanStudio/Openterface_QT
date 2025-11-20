@@ -11,42 +11,65 @@
 cmake_minimum_required(VERSION 3.16)
 
 # Define minimum required Qt version
-set(QT6_MINIMUM_VERSION "6.6.3")
+if(WIN32)
+    # Windows can use Qt 6.5.3+ (standard Qt installer version)
+    set(QT6_MINIMUM_VERSION "6.5.3")
+else()
+    # Linux requires Qt 6.6.3+ for static builds
+    set(QT6_MINIMUM_VERSION "6.6.3")
+endif()
 
-message(STATUS "Searching for Qt 6.6.3 or higher...")
+message(STATUS "Searching for Qt ${QT6_MINIMUM_VERSION} or higher...")
 
 # First, try to find Qt6 in the standard locations
 find_package(Qt6 ${QT6_MINIMUM_VERSION} QUIET COMPONENTS Core)
 
-# If Qt6 is not found in standard locations, try our custom installation
+# If Qt6 is not found in standard locations, try custom installation paths
 if(NOT Qt6_FOUND)
-    message(STATUS "Qt6 not found in standard locations, trying /opt/Qt6...")
-    
-    # Set CMAKE_PREFIX_PATH to include our Qt installation
-    list(PREPEND CMAKE_PREFIX_PATH "/opt/Qt6")
+    if(WIN32)
+        message(STATUS "Qt6 not found in standard locations, trying ${QT_BUILD_PATH}...")
+        list(PREPEND CMAKE_PREFIX_PATH "${QT_BUILD_PATH}")
+    else()
+        message(STATUS "Qt6 not found in standard locations, trying /opt/Qt6...")
+        list(PREPEND CMAKE_PREFIX_PATH "/opt/Qt6")
+    endif()
     
     # Try to find Qt6 again with our custom path
     find_package(Qt6 ${QT6_MINIMUM_VERSION} QUIET COMPONENTS Core)
     
     if(Qt6_FOUND)
-        message(STATUS "Found Qt6 in custom installation: /opt/Qt6")
+        message(STATUS "Found Qt6 in custom installation: ${CMAKE_PREFIX_PATH}")
     endif()
 endif()
 
 # If still not found, provide detailed error message
 if(NOT Qt6_FOUND)
-    message(FATAL_ERROR
-        "Qt6 version ${QT6_MINIMUM_VERSION} or higher is required but was not found.\n"
-        "Searched locations:\n"
-        "  - Standard system paths\n"
-        "  - /opt/Qt6 (custom installation)\n"
-        "\n"
-        "To resolve this issue:\n"
-        "1. Ensure Qt 6.6.3+ is installed from source in /opt/Qt6\n"
-        "2. Run the installation script: ./docker/install-qt-6.6.3-from-source.sh\n"
-        "3. Source the Qt environment: source /opt/Qt6/setup-qt-env.sh\n"
-        "4. Set CMAKE_PREFIX_PATH to include Qt: -DCMAKE_PREFIX_PATH=/opt/Qt6\n"
-    )
+    if(WIN32)
+        message(FATAL_ERROR
+            "Qt6 version ${QT6_MINIMUM_VERSION} or higher is required but was not found.\n"
+            "Searched locations:\n"
+            "  - Standard system paths\n"
+            "  - ${QT_BUILD_PATH} (custom installation)\n"
+            "\n"
+            "To resolve this issue:\n"
+            "1. Ensure Qt ${QT6_MINIMUM_VERSION}+ is installed\n"
+            "2. Update QT_BUILD_PATH in cmake/Configuration.cmake to point to your Qt installation\n"
+            "3. Or set CMAKE_PREFIX_PATH: -DCMAKE_PREFIX_PATH=<path-to-qt>\n"
+        )
+    else()
+        message(FATAL_ERROR
+            "Qt6 version ${QT6_MINIMUM_VERSION} or higher is required but was not found.\n"
+            "Searched locations:\n"
+            "  - Standard system paths\n"
+            "  - /opt/Qt6 (custom installation)\n"
+            "\n"
+            "To resolve this issue:\n"
+            "1. Ensure Qt 6.6.3+ is installed from source in /opt/Qt6\n"
+            "2. Run the installation script: ./docker/install-qt-6.6.3-from-source.sh\n"
+            "3. Source the Qt environment: source /opt/Qt6/setup-qt-env.sh\n"
+            "4. Set CMAKE_PREFIX_PATH to include Qt: -DCMAKE_PREFIX_PATH=/opt/Qt6\n"
+        )
+    endif()
 endif()
 
 # Verify the version is actually 6.6.3 or higher

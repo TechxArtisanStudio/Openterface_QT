@@ -21,20 +21,22 @@ option(USE_GSTREAMER "Enable GStreamer multimedia backend" ON)
 # If you encounter linking errors with static plugins, try setting this to OFF
 option(USE_GSTREAMER_STATIC_PLUGINS "Link GStreamer plugins statically" ON)
 
-# Find additional packages required for static GStreamer linking
-pkg_check_modules(GUDEV REQUIRED gudev-1.0)
-pkg_check_modules(V4L2 REQUIRED libv4l2)
+# Find additional packages required for static GStreamer linking (Linux only)
+if(NOT WIN32)
+    pkg_check_modules(GUDEV REQUIRED gudev-1.0)
+    pkg_check_modules(V4L2 REQUIRED libv4l2)
 
-# Find X11 extension libraries required by GStreamer
-find_library(XI_LIBRARY Xi REQUIRED)
-find_library(XV_LIBRARY Xv REQUIRED)
+    # Find X11 extension libraries required by GStreamer
+    find_library(XI_LIBRARY Xi REQUIRED)
+    find_library(XV_LIBRARY Xv REQUIRED)
 
-# Find ORC library for GStreamer - only use pkg-config for dynamic builds
-if(NOT OPENTERFACE_BUILD_STATIC)
-    pkg_check_modules(ORC orc-0.4)
-else()
-    # For static builds, we'll manually find the static ORC library later
-    message(STATUS "Static build detected - skipping pkg-config for ORC, will use static ORC library")
+    # Find ORC library for GStreamer - only use pkg-config for dynamic builds
+    if(NOT OPENTERFACE_BUILD_STATIC)
+        pkg_check_modules(ORC orc-0.4)
+    else()
+        # For static builds, we'll manually find the static ORC library later
+        message(STATUS "Static build detected - skipping pkg-config for ORC, will use static ORC library")
+    endif()
 endif()
 
 # Check for GStreamer (prefer system GStreamer for plugins, even in static Qt6 builds)

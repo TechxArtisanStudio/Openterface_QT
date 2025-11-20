@@ -65,6 +65,9 @@ SettingDialog::SettingDialog(CameraManager *cameraManager, QWidget *parent)
     , videoPage(new VideoPage(cameraManager, this))
     , targetControlPage(new TargetControlPage(this))
     , buttonWidget(new QWidget(this))
+    , m_currentPageIndex(-1)
+    , m_changingPage(false)
+    , m_pageChangeTimer(new QTimer(this))
 
 {
     ui->setupUi(this);
@@ -79,6 +82,19 @@ SettingDialog::SettingDialog(CameraManager *cameraManager, QWidget *parent)
     targetControlPage->initHardwareSetting();
     // Connect the tree widget's currentItemChanged signal to a slot
     connect(settingTree, &QTreeWidget::currentItemChanged, this, &SettingDialog::changePage);
+    
+    // Connect timer to reset the changing page flag
+    connect(m_pageChangeTimer, &QTimer::timeout, this, [this]() {
+        m_changingPage = false;
+        m_pageChangeTimer->stop();
+    });
+    
+    // Set initial page to General (index 0)
+    if (settingTree->topLevelItemCount() > 0) {
+        settingTree->setCurrentItem(settingTree->topLevelItem(0));
+        m_currentPageIndex = 0;
+        stackedWidget->setCurrentIndex(0);
+    }
 }
 
 SettingDialog::~SettingDialog()
@@ -148,21 +164,39 @@ void SettingDialog::createLayout() {
 
 void SettingDialog::changePage(QTreeWidgetItem *current, QTreeWidgetItem *previous) {
 
+    // If we're already changing pages, ignore this call
+    if (m_changingPage) {
+        return;
+    }
+
     if (!current) {
         current = previous;
         if (!current) return;
     }
     
     QString itemText = current->text(0);
+    int newPageIndex = -1;
 
     if (itemText == tr("General")) {
-        stackedWidget->setCurrentIndex(0);
+        newPageIndex = 0;
     } else if (itemText == tr("Video")) {
-        stackedWidget->setCurrentIndex(1);
+        newPageIndex = 1;
     } else if (itemText == tr("Audio")) {
-        stackedWidget->setCurrentIndex(2);
+        newPageIndex = 2;
     } else if (itemText == tr("Target Control")) {
-        stackedWidget->setCurrentIndex(3);
+        newPageIndex = 3;
+    }
+
+    // Only switch page if it's different from the current page
+    if (newPageIndex != -1 && newPageIndex != m_currentPageIndex) {
+        m_changingPage = true;  // Set guard
+        
+        stackedWidget->setCurrentIndex(newPageIndex);
+        m_currentPageIndex = newPageIndex;
+        
+        // Start timer to reset the guard after a short delay (200ms)
+        // This prevents rapid clicking while allowing the UI to remain responsive
+        m_pageChangeTimer->start(200);
     }
 
 }

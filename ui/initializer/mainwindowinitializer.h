@@ -81,6 +81,12 @@ public:
      */
     void initialize();
 
+    /**
+     * @brief Get the HID thread
+     * @return Pointer to the HID thread
+     */
+    QThread* getHidThread() const { return m_hidThread; }
+
 private:
     /**
      * @brief Setup central widget and stacked layout
@@ -197,6 +203,7 @@ private:
     MenuCoordinator *m_menuCoordinator;
     LanguageManager *m_languageManager;
     QTimer *m_mouseEdgeTimer;
+    QThread *m_hidThread;  ///< Thread for VideoHid operations
 };
 
 #endif // MAINWINDOWINITIALIZER_H

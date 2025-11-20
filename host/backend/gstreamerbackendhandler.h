@@ -58,13 +58,13 @@ public:
     QString getBackendName() const override;
     MultimediaBackendConfig getDefaultConfig() const override;
 
-    void prepareCameraCreation(QCamera* oldCamera = nullptr) override;
-    void configureCameraDevice(QCamera* camera, const QCameraDevice& device) override;
-    void setupCaptureSession(QMediaCaptureSession* session, QCamera* camera) override;
+    void prepareCameraCreation() override;
+    void configureCameraDevice() override;
+    void setupCaptureSession(QMediaCaptureSession* session) override;
     void prepareVideoOutputConnection(QMediaCaptureSession* session, QObject* videoOutput) override;
     void finalizeVideoOutputConnection(QMediaCaptureSession* session, QObject* videoOutput) override;
-    void startCamera(QCamera* camera) override;
-    void stopCamera(QCamera* camera) override;
+    void startCamera() override;
+    void stopCamera() override;
 
     QList<int> getSupportedFrameRates(const QCameraFormat& format) const override;
     QCameraFormat selectOptimalFormat(const QList<QCameraFormat>& formats, 
@@ -72,7 +72,7 @@ public:
                                     int desiredFrameRate,
                                     QVideoFrameFormat::PixelFormat pixelFormat) const override;
 
-    void handleCameraError(QCamera::Error error, const QString& errorString) override;
+    void handleCameraError(int errorCode, const QString& errorString) override;
 
     // Direct GStreamer pipeline methods (enhanced with working example approach)
     bool createGStreamerPipeline(const QString& device, const QSize& resolution, int framerate);
@@ -96,15 +96,6 @@ public:
     // Pipeline string generation
     QString generatePipelineString(const QString& device, const QSize& resolution, int framerate, const QString& videoSink) const;
 
-    // Video recording methods
-    bool startRecording(const QString& outputPath, const QString& format = "mp4", int videoBitrate = 2000000) override;
-    void stopRecording() override;
-    void pauseRecording() override;
-    void resumeRecording() override;
-    bool isRecording() const override;
-    QString getCurrentRecordingPath() const override;
-    qint64 getRecordingDuration() const override;
-    
     // Recording configuration
     struct RecordingConfig {
         QString outputPath;
@@ -114,6 +105,27 @@ public:
         int videoQuality = 23;           // Quality setting
         bool useHardwareAcceleration = false;
     };
+
+    // Video recording methods
+    bool startRecording(const QString& outputPath, const QString& format = "mp4", int videoBitrate = 2000000) override;
+    bool stopRecording() override;
+    void pauseRecording() override;
+    void resumeRecording() override;
+    bool isRecording() const override;
+    bool isPaused() const;
+    QString getCurrentRecordingPath() const override;
+    qint64 getRecordingDuration() const override;
+    
+    // Advanced recording methods
+    bool isPipelineReady() const;
+    bool supportsAdvancedRecording() const;
+    bool startRecordingAdvanced(const QString& outputPath, const RecordingConfig& config);
+    bool forceStopRecording();
+    QString getLastError() const;
+    
+    // Recording statistics
+    bool supportsRecordingStats() const;
+    qint64 getRecordingFileSize() const;
     
     void setRecordingConfig(const RecordingConfig& config);
     RecordingConfig getRecordingConfig() const;
@@ -174,6 +186,9 @@ private:
     qint64 m_recordingPausedTime;
     qint64 m_totalPausedDuration;
     int m_recordingFrameNumber;
+    
+    // Error tracking
+    QString m_lastError;
     
     // Frame-based recording using external process
     QProcess* m_recordingProcess;

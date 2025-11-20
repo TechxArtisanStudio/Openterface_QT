@@ -132,6 +132,7 @@ MainWindow::MainWindow(LanguageManager *languageManager, QWidget *parent)
     , m_windowControlManager(nullptr)
     , m_deviceCoordinator(nullptr)
     , m_menuCoordinator(nullptr)
+    , m_deviceAutoSelected(false)
     , mouseEdgeTimer(nullptr)
 {
     qCDebug(log_ui_mainwindow) << "Initializing MainWindow...";
@@ -142,8 +143,8 @@ MainWindow::MainWindow(LanguageManager *languageManager, QWidget *parent)
     m_windowLayoutCoordinator = new WindowLayoutCoordinator(this, videoPane, menuBar(), statusBar(), this);
     
     // Delegate all initialization to initializer
-    MainWindowInitializer initializer(this);
-    initializer.initialize();
+    m_initializer = new MainWindowInitializer(this);
+    m_initializer->initialize();
     
     qCDebug(log_ui_mainwindow) << "MainWindow initialization complete, window ID:" << this->winId();
 }
@@ -367,18 +368,30 @@ void MainWindow::onActionResetSerialPortTriggered()
 
 void MainWindow::onActionSwitchToHostTriggered()
 {
-    qCDebug(log_ui_mainwindow) << "Switchable USB to host...";
-    VideoHid::getInstance().switchToHost();
-    ui->actionTo_Host->setChecked(true);
-    ui->actionTo_Target->setChecked(false);
+    bool isFE0C = SerialPortManager::getInstance().isChipTypeFE0C();
+    if(isFE0C){
+        SerialPortManager::getInstance().switchUsbToHostViaSerial();
+    }else{
+        qCDebug(log_ui_mainwindow) << "Switchable USB to host...";
+        VideoHid::getInstance().switchToHost();
+        ui->actionTo_Host->setChecked(true);
+        ui->actionTo_Target->setChecked(false);
+    }
+
 }
 
 void MainWindow::onActionSwitchToTargetTriggered()
 {
-    qCDebug(log_ui_mainwindow) << "Switchable USB to target...";
-    VideoHid::getInstance().switchToTarget();
-    ui->actionTo_Host->setChecked(false);
-    ui->actionTo_Target->setChecked(true);
+    bool isFE0C = SerialPortManager::getInstance().isChipTypeFE0C();
+    if(isFE0C){
+        SerialPortManager::getInstance().switchUsbToTargetViaSerial();
+    }else{
+        qCDebug(log_ui_mainwindow) << "Switchable USB to target...";
+        VideoHid::getInstance().switchToTarget();
+        ui->actionTo_Host->setChecked(false);
+        ui->actionTo_Target->setChecked(true);
+    }
+
 }
 
 void MainWindow::onToggleSwitchStateChanged(int state)
@@ -394,13 +407,18 @@ void MainWindow::onToggleSwitchStateChanged(int state)
 void MainWindow::onResolutionChange(const int& width, const int& height, const float& fps, const float& pixelClk)
 {
     // Log the resolution information received from the HID device
-    qCDebug(log_ui_mainwindow) << "Resolution received from HID device - Width:" << width 
-                              << "Height:" << height << "FPS:" << fps 
-                              << "PixelClock:" << pixelClk << "MHz";
+    // qCDebug(log_ui_mainwindow) << "Resolution received from HID device - Width:" << width 
+    //                           << "Height:" << height << "FPS:" << fps 
+    //                           << "PixelClock:" << pixelClk << "MHz";
     
     GlobalVar::instance().setInputWidth(width);
     GlobalVar::instance().setInputHeight(height);
+    GlobalVar::instance().setInputFps(fps);
+    GlobalVar::instance().setCaptureWidth(width);
+    GlobalVar::instance().setCaptureHeight(height);
+    GlobalVar::instance().setCaptureFps(fps);
     m_statusBarManager->setInputResolution(width, height, fps, pixelClk);
+    m_statusBarManager->setCaptureResolution(width, height, fps);
     
     // No popup message for resolution changes
 }
@@ -488,7 +506,25 @@ void MainWindow::updateCameraActive(bool active) {
         qCDebug(log_ui_mainwindow) << "Set index to : " << 0;
         stackedLayout->setCurrentIndex(0);
     }
-    m_cameraManager->queryResolutions();
+    // REMOVED: m_cameraManager->queryResolutions() - no longer needed with FFmpeg backend
+}
+
+void MainWindow::onDeviceSwitchCompleted() {
+    updateCameraActive(m_cameraManager->hasActiveCameraDevice());
+}
+
+void MainWindow::onDeviceSelected(const QString &portChain, bool success, const QString &message) {
+    if (!m_cameraManager->hasActiveCameraDevice()) {
+        // Try to auto-select the "Openterface" camera if available
+        const QList<QCameraDevice> availableCameras = QMediaDevices::videoInputs();
+        for (const QCameraDevice &camera : availableCameras) {
+            if (camera.description() == "Openterface") {
+                qCInfo(log_ui_mainwindow) << "Auto-selecting Openterface camera for device:" << portChain;
+                m_cameraManager->switchToCameraDevice(camera, portChain);
+                break;
+            }
+        }
+    }
 }
 
 void MainWindow::updateRecordTime()
@@ -658,43 +694,8 @@ void MainWindow::showRecordingSettings() {
         // Get the current backend from camera manager and set it
         MultimediaBackendHandler* backendHandler = m_cameraManager->getBackendHandler();
         if (backendHandler) {
-            // CRITICAL FIX: Ensure Qt backend has media recorder set before passing to dialog
-            if (backendHandler->getBackendType() == MultimediaBackendType::Qt) {
-                qDebug() << "Qt backend detected - ensuring media recorder is set";
-                
-                QMediaRecorder* mediaRecorder = m_cameraManager->getMediaRecorder();
-                QMediaCaptureSession* captureSession = m_cameraManager->getCaptureSession();
-                
-                if (mediaRecorder && captureSession) {
-                    qDebug() << "Setting media recorder on Qt backend:" << (void*)mediaRecorder;
-                    qDebug() << "Setting capture session on Qt backend:" << (void*)captureSession;
-                    
-#ifdef Q_OS_WIN
-                    if (auto qtHandler = qobject_cast<QtBackendHandler*>(backendHandler)) {
-                        qtHandler->setMediaRecorder(mediaRecorder);
-                        qtHandler->setCaptureSession(captureSession);
-                        qDebug() << "Media recorder and capture session successfully set on Qt backend";
-                    } else {
-                        qWarning() << "Failed to cast to QtBackendHandler";
-                    }
-#else
-                    qDebug() << "Qt backend configuration not available on non-Windows platforms";
-#endif
-                } else {
-                    qWarning() << "Missing components - mediaRecorder:" << (void*)mediaRecorder 
-                              << "captureSession:" << (void*)captureSession;
-                }
-            }
-            
+            // Set the backend handler for recording settings
             recordingSettingsDialog->setBackendHandler(backendHandler);
-            
-#ifndef Q_OS_WIN
-            // Also set FFmpeg backend specifically if it's available for backward compatibility
-            FFmpegBackendHandler* ffmpegBackend = m_cameraManager->getFFmpegBackend();
-            if (ffmpegBackend) {
-                recordingSettingsDialog->setFFmpegBackend(ffmpegBackend);
-            }
-#endif
         } else {
             qWarning() << "No video backend available for recording";
         }
@@ -963,8 +964,76 @@ void MainWindow::onPortConnected(const QString& port, const int& baudrate) {
             m_menuCoordinator->updateBaudrateMenu(baudrate);
         }
         
-        // Note: Camera coordination functionality has been removed
-        // The DeviceManager singleton now handles device coordination automatically
+        // Auto-select device if there's only one connected and not already auto-selected
+        DeviceManager& deviceManager = DeviceManager::getInstance();
+        QList<DeviceInfo> devices = deviceManager.getCurrentDevices();
+        if (GlobalSetting::instance().getOpenterfacePortChain().isEmpty() && devices.size() == 1 && !m_deviceAutoSelected) {
+            const DeviceInfo& device = devices.first();
+            qCDebug(log_ui_mainwindow) << "Only one device connected, auto-selecting and starting all components:" << device.getUniqueKey();
+            m_deviceAutoSelected = true; // Prevent multiple auto-selections
+            
+            // Defer the device switching to allow device info to be populated
+            // Camera device info may take a moment to be detected and populated
+            QTimer::singleShot(500, this, [this, device]() {
+                DeviceManager& deviceManager = DeviceManager::getInstance();
+                
+                // Retry camera switch if it fails (device info may not be ready yet)
+                auto attemptCameraSwitch = [this, &device]() -> bool {
+                    bool cameraSuccess = m_cameraManager->switchToCameraDeviceByPortChain(device.portChain);
+                    if (!cameraSuccess) {
+                        qCDebug(log_ui_mainwindow) << "Camera switch failed, will retry...";
+                    }
+                    return cameraSuccess;
+                };
+                
+                // Switch to the device's HID and audio components first (serial already connected)
+                bool hidSuccess = deviceManager.switchHIDDeviceByPortChain(device.portChain);
+                bool audioSuccess = deviceManager.switchAudioDeviceByPortChain(device.portChain);
+                
+                // Try camera switch with retry mechanism
+                bool cameraSuccess = attemptCameraSwitch();
+                if (!cameraSuccess) {
+                    // Retry after another 500ms if camera info wasn't ready
+                    // Force device re-discovery to populate camera/audio info
+                    QTimer::singleShot(500, this, [this, device, hidSuccess, audioSuccess]() {
+                        qCDebug(log_ui_mainwindow) << "Triggering device re-discovery to populate camera info...";
+                        DeviceManager::getInstance().forceRefresh();
+                        
+                        // Give device info time to populate after discovery
+                        QTimer::singleShot(300, this, [this, device, hidSuccess, audioSuccess]() {
+                            bool cameraSuccess = m_cameraManager->switchToCameraDeviceByPortChain(device.portChain);
+                            
+                            // If port chain matching still fails, reinitialize and start camera with any Openterface device
+                            if (!cameraSuccess) {
+                                qCWarning(log_ui_mainwindow) << "Port chain camera switch failed, attempting to reinitialize and start camera...";
+                                // Reinitialize with startCapture=true to find device and start capture
+                                cameraSuccess = m_cameraManager->initializeCameraWithVideoOutput(videoPane, true);
+                                if (cameraSuccess) {
+                                    qCDebug(log_ui_mainwindow) << "Camera reinitialized and started successfully (bypassing port chain)";
+                                } else {
+                                    qCWarning(log_ui_mainwindow) << "Failed to reinitialize camera";
+                                }
+                            }
+                            
+                            if (hidSuccess && audioSuccess && cameraSuccess) {
+                                qCDebug(log_ui_mainwindow) << "Successfully auto-selected all device components (after retry)";
+                            } else {
+                                qCWarning(log_ui_mainwindow) << "Failed to auto-select some device components (after retry) - HID:" 
+                                                            << hidSuccess << " Audio:" << audioSuccess << " Camera:" << cameraSuccess;
+                            }
+                        });
+                    });
+                } else {
+                    if (hidSuccess && audioSuccess && cameraSuccess) {
+                        qCDebug(log_ui_mainwindow) << "Successfully auto-selected and started device components (HID, audio, camera)";
+                    } else {
+                        qCWarning(log_ui_mainwindow) << "Failed to auto-select some device components - HID:" 
+                                                    << hidSuccess << " Audio:" << audioSuccess << " Camera:" << cameraSuccess;
+                    }
+                }
+            });
+        }
+        
         qCDebug(log_ui_mainwindow) << "Serial port connected:" << port << "at baudrate:" << baudrate;
     }else{
         m_statusBarManager->setConnectedPort(port, baudrate);
@@ -1029,7 +1098,8 @@ void MainWindow::checkMousePosition()
 void MainWindow::onVideoSettingsChanged() {
     if (m_cameraManager) {
         // Reinitialize camera with graphics video output to ensure proper connection
-        bool success = m_cameraManager->initializeCameraWithVideoOutput(videoPane);
+        // Do not start capture again since it's already running with new settings
+        bool success = m_cameraManager->initializeCameraWithVideoOutput(videoPane, false);
         if (!success) {
             // Fallback to just setting video output
             m_cameraManager->setVideoOutput(videoPane->getVideoItem());
@@ -1275,9 +1345,17 @@ MainWindow::~MainWindow()
     }
     
     // 6. Clean up static instances (but skip AudioManager since it's already stopped)
+    if (m_initializer && m_initializer->getHidThread()) {
+        m_initializer->getHidThread()->quit();
+        m_initializer->getHidThread()->wait(3000); // Wait up to 3 seconds for thread to finish
+    }
     VideoHid::getInstance().stop();
     // AudioManager::getInstance().stop(); // Already stopped above to prevent double cleanup
     SerialPortManager::getInstance().stop();
+    
+    // Delete initializer
+    delete m_initializer;
+    m_initializer = nullptr;
     
     // 7. Delete UI last
     if (ui) {
@@ -1336,6 +1414,7 @@ void MainWindow::initializeKeyboardLayouts() {
     qCDebug(log_ui_mainwindow) << "Read layout" << defaultLayout;
 
     m_cornerWidgetManager->initializeKeyboardLayouts(layouts, defaultLayout);
+    m_cornerWidgetManager->updatePosition(width(), menuBar()->height(), m_windowLayoutCoordinator->isFullScreenMode());
     if (layouts.contains(defaultLayout)) {
         changeKeyboardLayout(defaultLayout);
     } else if (!layouts.isEmpty()) {

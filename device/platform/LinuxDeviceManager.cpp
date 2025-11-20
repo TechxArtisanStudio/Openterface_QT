@@ -548,6 +548,8 @@ QList<DeviceInfo> LinuxDeviceManager::discoverGeneration2DevicesLinux()
         DeviceInfo deviceInfo;
         deviceInfo.portChain = companionDevice.portChain;
         deviceInfo.deviceInstanceId = companionDevice.syspath;
+        deviceInfo.vid = AbstractPlatformDeviceManager::OPENTERFACE_VID_V2;
+        deviceInfo.pid = AbstractPlatformDeviceManager::OPENTERFACE_PID_V2;
         deviceInfo.lastSeen = QDateTime::currentDateTime();
         deviceInfo.platformSpecific = companionDevice.properties;
         
@@ -612,6 +614,8 @@ QList<DeviceInfo> LinuxDeviceManager::discoverGeneration3DevicesLinux()
         DeviceInfo deviceInfo;
         deviceInfo.portChain = companionDevice.portChain;
         deviceInfo.deviceInstanceId = companionDevice.syspath;
+        deviceInfo.vid = AbstractPlatformDeviceManager::OPENTERFACE_VID_V3;
+        deviceInfo.pid = AbstractPlatformDeviceManager::OPENTERFACE_PID_V3;
         deviceInfo.lastSeen = QDateTime::currentDateTime();
         deviceInfo.platformSpecific = companionDevice.properties;
         
@@ -660,6 +664,8 @@ QList<DeviceInfo> LinuxDeviceManager::processDeviceMap(const QList<UdevDeviceDat
             DeviceInfo deviceInfo;
             deviceInfo.portChain = hubPort; // Use hub port as the common identifier
             deviceInfo.deviceInstanceId = serialDevice.syspath;
+            deviceInfo.vid = AbstractPlatformDeviceManager::SERIAL_VID;
+            deviceInfo.pid = AbstractPlatformDeviceManager::SERIAL_PID;
             deviceInfo.platformSpecific = serialDevice.properties;
             deviceInfo.lastSeen = QDateTime::currentDateTime();
             
@@ -678,6 +684,8 @@ QList<DeviceInfo> LinuxDeviceManager::processDeviceMap(const QList<UdevDeviceDat
                 DeviceInfo deviceInfo;
                 deviceInfo.portChain = hubPort; // Use hub port as the common identifier
                 deviceInfo.deviceInstanceId = usbDevice.syspath;
+                deviceInfo.vid = AbstractPlatformDeviceManager::OPENTERFACE_VID;
+                deviceInfo.pid = AbstractPlatformDeviceManager::OPENTERFACE_PID;
                 deviceInfo.platformSpecific = usbDevice.properties;
                 deviceInfo.lastSeen = QDateTime::currentDateTime();
                 

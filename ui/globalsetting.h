@@ -54,6 +54,9 @@ public:
     void setMediaBackend(const QString &backend);
     QString getMediaBackend() const;
     
+    void setHardwareAcceleration(const QString &hwAccel);
+    QString getHardwareAcceleration() const;
+    
     void setGStreamerPipelineTemplate(const QString &pipelineTemplate);
     QString getGStreamerPipelineTemplate() const;
     

@@ -108,6 +108,11 @@ QList<DeviceInfo> AbstractPlatformDeviceManager::filterDevicesByAnyPortChain(
                                 (targetPortChain.startsWith(device.companionPortChain + ".")) ||
                                 (device.companionPortChain.startsWith(targetPortChain + ".")));
         
+        // For 2109 devices (original generation), do not check companionPortChain as they never go to 3.0
+        if (device.pid == OPENTERFACE_PID) {
+            companionMatches = false;
+        }
+        
         if (mainMatches || companionMatches) {
             filtered.append(device);
         }

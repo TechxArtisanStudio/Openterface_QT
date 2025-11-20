@@ -171,7 +171,22 @@ QString DeviceManager::getSerialPortChain(const QString& requestedPortChain)
     }
     
     DeviceInfo device = devices.first();
-    return device.getSerialPortChain();
+    return device.hasCompanionPortChain() ? device.companionPortChain : device.portChain;
+}
+
+QString DeviceManager::getCompanionPortChain(const QString& portChain)
+{
+    if (!m_platformManager || portChain.isEmpty()) {
+        return QString();
+    }
+    
+    QList<DeviceInfo> devices = m_platformManager->getDevicesByAnyPortChain(portChain);
+    if (devices.isEmpty()) {
+        return QString();
+    }
+    
+    DeviceInfo device = devices.first();
+    return device.companionPortChain;
 }
 
 DeviceInfo DeviceManager::selectDeviceByPortChain(const QString& portChain)
@@ -266,12 +281,22 @@ DeviceManager::DeviceSwitchResult DeviceManager::switchToDeviceByPortChain(const
     if (selectedDevice.hasSerialPort()) {
         QString serialPortChain = selectedDevice.getSerialPortChain();
         result.serialSuccess = SerialPortManager::getInstance().switchSerialPortByPortChain(serialPortChain);
+        
+        if (!result.serialSuccess && !selectedDevice.companionPortChain.isEmpty()) {
+            // For USB 3.0 devices like KVMGO, try companion port chain for serial
+            qCDebug(log_device_manager) << "Serial switch failed, trying companion port chain:" << selectedDevice.companionPortChain;
+            result.serialSuccess = SerialPortManager::getInstance().switchSerialPortByPortChain(selectedDevice.companionPortChain);
+            if (result.serialSuccess) {
+                qCInfo(log_device_manager) << "✓ Serial port switched using companion port chain:" << selectedDevice.companionPortChain;
+            }
+        }
+        
         if (result.serialSuccess) {
             successMessages << "Serial port switched";
-            qCInfo(log_device_manager) << "✓ Serial port switched to device at port:" << serialPortChain;
+            qCInfo(log_device_manager) << "✓ Serial port switched to device at port:" << (selectedDevice.companionPortChain.isEmpty() ? serialPortChain : selectedDevice.companionPortChain);
         } else {
             failureMessages << "Serial port switch failed";
-            qCWarning(log_device_manager) << "Failed to switch serial port to device at port:" << serialPortChain;
+            qCWarning(log_device_manager) << "Failed to switch serial port to device at port:" << serialPortChain << " or companion:" << selectedDevice.companionPortChain;
         }
     }
     

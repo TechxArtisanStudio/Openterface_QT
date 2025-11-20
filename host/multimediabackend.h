@@ -24,7 +24,6 @@
 #define MULTIMEDIABACKEND_H
 
 #include <QObject>
-#include <QCamera>
 #include <QMediaCaptureSession>
 #include <QGraphicsVideoItem>
 #include <QCameraFormat>
@@ -87,15 +86,18 @@ public:
     virtual bool isBackendAvailable() const { return true; }
     virtual MultimediaBackendConfig getDefaultConfig() const;
 
+    // Hardware acceleration support
+    virtual QStringList getAvailableHardwareAccelerations() const { return QStringList(); }
+
     // Camera lifecycle management
-    virtual void prepareCameraCreation(QCamera* oldCamera = nullptr);
-    virtual void configureCameraDevice(QCamera* camera, const QCameraDevice& device);
-    virtual void setupCaptureSession(QMediaCaptureSession* session, QCamera* camera);
+    virtual void prepareCameraCreation();
+    virtual void configureCameraDevice();
+    virtual void setupCaptureSession(QMediaCaptureSession* session);
     virtual void prepareVideoOutputConnection(QMediaCaptureSession* session, QObject* videoOutput);
     virtual void finalizeVideoOutputConnection(QMediaCaptureSession* session, QObject* videoOutput);
-    virtual void startCamera(QCamera* camera);
-    virtual void stopCamera(QCamera* camera);
-    virtual void cleanupCamera(QCamera* camera);
+    virtual void startCamera();
+    virtual void stopCamera();
+    virtual void cleanupCamera();
 
     // Format and frame rate handling
     virtual QList<int> getSupportedFrameRates(const QCameraFormat& format) const;
@@ -108,12 +110,12 @@ public:
                                             QVideoFrameFormat::PixelFormat pixelFormat) const;
 
     // Error handling and recovery
-    virtual void handleCameraError(QCamera::Error error, const QString& errorString);
+    virtual void handleCameraError(int errorCode, const QString& errorString);
     virtual bool shouldRetryOperation(int attemptCount) const;
 
     // Video recording interface (virtual methods for backend implementations)
     virtual bool startRecording(const QString& outputPath, const QString& format = "mp4", int videoBitrate = 2000000) { return false; }
-    virtual void stopRecording() {}
+    virtual bool stopRecording() { return false; }
     virtual void pauseRecording() {}
     virtual void resumeRecording() {}
     virtual bool isRecording() const { return false; }

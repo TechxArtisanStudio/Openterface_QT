@@ -168,6 +168,8 @@ private slots:
     void displayCameraError();
 
     void updateCameraActive(bool active);
+    void onDeviceSwitchCompleted();
+    void onDeviceSelected(const QString &portChain, bool success, const QString &message);
     void setExposureCompensation(int index);
 
     void updateRecordTime();
@@ -282,6 +284,7 @@ private:
     bool m_isCapturingImage = false;
     bool m_applicationExiting = false;
     bool m_doImageCapture = true;
+    bool m_deviceAutoSelected = false; // Flag to prevent multiple auto-selections
     int video_width = 1920;
     int video_height = 1080;
     QList<QCameraDevice> m_lastCameraList;
@@ -306,6 +309,7 @@ private:
     DeviceCoordinator *m_deviceCoordinator;
     MenuCoordinator *m_menuCoordinator;
     WindowLayoutCoordinator *m_windowLayoutCoordinator;
+    MainWindowInitializer *m_initializer;
 
     void updateScrollbars();
     QPoint lastMousePos;

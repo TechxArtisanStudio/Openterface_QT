@@ -2,7 +2,7 @@ name: Windows Build and Release
 
 on:
   push:
-    branches: ["main", "dev"]
+    branches: ["main", "dev_251027_add_GPU_support"]
     tags: ["v*"]
   pull_request:
     branches: ["dev"]
@@ -55,15 +55,32 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: Cache Qt
-        id: cache-qt
+      - name: Cache MinGW and CMake
+        id: cache-mingw
         uses: actions/cache@v4
         with:
-          path: ${{ runner.temp }}/Qt
-          key: ${{ env.QT_CACHE_KEY }}
+          path: C:\msys64\mingw64
+          key: msys2-mingw64-cmake-windows
           restore-keys: |
-            ${{ env.QT_CACHE_KEY }}
-            qt-6.5-mingw-windows
+            msys2-mingw64-cmake-windows
+
+      - name: Cache MSYS2
+        id: cache-msys2
+        uses: actions/cache@v4
+        with:
+          path: C:\msys64
+          key: msys2-base-windows
+          restore-keys: |
+            msys2-base-windows
+
+      - name: Cache FFmpeg
+        id: cache-ffmpeg
+        uses: actions/cache@v4
+        with:
+          path: C:\ffmpeg-static
+          key: ffmpeg-static-6.1.1-windows
+          restore-keys: |
+            ffmpeg-static-6.1.1-windows
 
       - name: Update version
         run: |
@@ -83,6 +100,27 @@ jobs:
         run: |
           git fetch --all --tags -f
 
+      - name: Install MSYS2
+        run: |
+          if exist "C:\msys64\usr\bin\pacman.exe" (
+            echo "MSYS2 already installed"
+          ) else (
+            echo "Installing MSYS2..."
+            curl -L -o msys2.exe https://github.com/msys2/msys2-installer/releases/download/2023-10-26/msys2-x86_64-20231026.exe
+            msys2.exe --script install_msys2.msys2
+            del msys2.exe
+          )
+
+      - name: Install MinGW and CMake
+        if: steps.cache-mingw.outputs.cache-hit != 'true'
+        run: |
+          echo "Installing MinGW-w64 and CMake via MSYS2..."
+          set PATH=C:\msys64\usr\bin;%PATH%
+          pacman -S --needed --noconfirm mingw-w64-x86_64-gcc mingw-w64-x86_64-cmake mingw-w64-x86_64-libiconv
+
+          echo "Setting up PATH..."
+          echo "C:\msys64\mingw64\bin" >> $GITHUB_PATH
+
       - name: Install Qt
         if: steps.cache-qt.outputs.cache-hit != 'true'
         uses: jurplel/install-qt-action@v4
@@ -92,15 +130,15 @@ jobs:
           target: desktop
           arch: win64_mingw
           dir: ${{ runner.temp }}
-          modules: qtmultimedia qtserialport qtimageformats qtsvg qtnetwork
+          modules: qtmultimedia qtserialport qtimageformats
           setup-python: false
 
-      - name: Download and Unzip Jom
-        if: steps.cache-jom.outputs.cache-hit != 'true'
-        working-directory: ${{ runner.temp }}
+      - name: Build Static FFmpeg
+        if: steps.cache-ffmpeg.outputs.cache-hit != 'true'
         run: |
-          curl -L -o jom.zip "http://download.qt.io/official_releases/jom/jom.zip"
-          7z x jom.zip -ojom
+          echo "Building static FFmpeg..."
+          cd build-script
+          call build-static-ffmpeg-windows.bat
 
       - name: Set up Visual Studio shell
         uses: egor-tensin/vs-shell@v2
@@ -114,27 +152,28 @@ jobs:
       - name: Build
         working-directory: ${{ runner.temp }}\build
         run: |
-          echo "Building with qmake..."
-          set PATH=${{ runner.temp }}\\Qt\\${{ env.QT_VERSION }}\\mingw_64\\bin;%PATH%
-          
+          echo "Setting up build environment..."
+          set PATH=C:\msys64\mingw64\bin;${{ runner.temp }}\Qt\${{ env.QT_VERSION }}\mingw_64\bin;%PATH%
+
           echo "Updating translations with lupdate..."
           lupdate ${{ env.SOURCE_DIR }}\openterfaceQT.pro
-          
+
           echo "Generating .qm files with lrelease..."
           lrelease ${{ env.SOURCE_DIR }}\openterfaceQT.pro
-          
-          qmake -v
-          qmake -r ${{ env.SOURCE_DIR }}\openterfaceQT.pro CONFIG+=release
-          if errorlevel 1 exit /b 1
-          
+
+          echo "Configuring with CMake..."
+          cmake -G "MinGW Makefiles" ^
+            -DCMAKE_BUILD_TYPE=Release ^
+            -DFFMPEG_PREFIX=C:\ffmpeg-static ^
+            ${{ env.SOURCE_DIR }}
+
           echo "Building with mingw32-make..."
           mingw32-make -j2
-          if errorlevel 1 exit /b 1
 
-          echo "\n release dir:"
-          dir release
-          
-          if not exist release\openterfaceQT.exe (
+          echo "Build directory contents:"
+          dir
+
+          if not exist openterfaceQT.exe (
             echo "Error: Failed to build openterfaceQT.exe"
             exit 1
           )
@@ -146,7 +185,7 @@ jobs:
           mkdir ${{ env.PACKAGE_DIR }}\config\languages
           mkdir ${{ env.PACKAGE_DIR }}\config\keyboards
 
-          copy release\openterfaceQT.exe ${{ env.PACKAGE_DIR }}\${{ env.EXE_NAME }}
+          copy openterfaceQT.exe ${{ env.PACKAGE_DIR }}\${{ env.EXE_NAME }}
           copy ${{ env.SOURCE_DIR }}\LICENSE ${{ env.PACKAGE_DIR }}
           copy ${{ env.SOURCE_DIR }}\driver\windows\* ${{ env.PACKAGE_DIR }}\driver\windows
           

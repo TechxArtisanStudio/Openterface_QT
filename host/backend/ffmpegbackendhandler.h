@@ -40,13 +40,19 @@ struct DeviceChangeEvent;
 
 // Forward declarations for FFmpeg types (conditional compilation)
 #ifdef HAVE_FFMPEG
+extern "C" {
+    #include <libavutil/hwcontext.h>
+}
 struct AVFormatContext;
 struct AVCodecContext;
+struct AVCodecParameters;
+struct AVCodec;
 struct AVFrame;
 struct AVPacket;
 struct SwsContext;
 struct AVStream;
 struct AVOutputFormat;
+struct AVBufferRef;
 #endif
 
 // Forward declarations for libjpeg-turbo (conditional compilation)
@@ -67,15 +73,16 @@ public:
 
     MultimediaBackendType getBackendType() const override;
     QString getBackendName() const override;
+    QStringList getAvailableHardwareAccelerations() const override;
     MultimediaBackendConfig getDefaultConfig() const override;
 
-    void prepareCameraCreation(QCamera* oldCamera = nullptr) override;
-    void configureCameraDevice(QCamera* camera, const QCameraDevice& device) override;
-    void setupCaptureSession(QMediaCaptureSession* session, QCamera* camera) override;
+    void prepareCameraCreation() override;
+    void configureCameraDevice() override;
+    void setupCaptureSession(QMediaCaptureSession* session) override;
     void prepareVideoOutputConnection(QMediaCaptureSession* session, QObject* videoOutput) override;
     void finalizeVideoOutputConnection(QMediaCaptureSession* session, QObject* videoOutput) override;
-    void startCamera(QCamera* camera) override;
-    void stopCamera(QCamera* camera) override;
+    void startCamera() override;
+    void stopCamera() override;
     
     QCameraFormat selectOptimalFormat(const QList<QCameraFormat>& formats, 
                                     const QSize& resolution, 
@@ -88,16 +95,6 @@ public:
     void processFrame();
     bool isDirectCaptureRunning() const;
 
-    // Video recording methods
-    bool startRecording(const QString& outputPath, const QString& format = "mp4", int videoBitrate = 2000000);
-    void stopRecording();
-    void pauseRecording();
-    void resumeRecording();
-    bool isRecording() const;
-    bool isPaused() const;
-    QString getCurrentRecordingPath() const;
-    qint64 getRecordingDuration() const; // in milliseconds
-    
     // Recording configuration
     struct RecordingConfig {
         QString outputPath;
@@ -107,9 +104,33 @@ public:
         int videoQuality = 23;            // CRF value for x264 (lower = better quality)
         bool useHardwareAcceleration = false;
     };
+
+    // Video recording methods
+    bool startRecording(const QString& outputPath, const QString& format = "mp4", int videoBitrate = 2000000);
+    bool stopRecording();
+    void pauseRecording();
+    void resumeRecording();
+    bool isRecording() const;
+    bool isPaused() const;
+    QString getCurrentRecordingPath() const;
+    qint64 getRecordingDuration() const; // in milliseconds
+    
+    // Advanced recording methods
+    bool isCameraReady() const;
+    bool supportsAdvancedRecording() const;
+    bool startRecordingAdvanced(const QString& outputPath, const RecordingConfig& config);
+    bool forceStopRecording();
+    QString getLastError() const;
+    
+    // Recording statistics
+    bool supportsRecordingStats() const;
+    qint64 getRecordingFileSize() const;
     
     void setRecordingConfig(const RecordingConfig& config);
     RecordingConfig getRecordingConfig() const;
+
+    // Update preferred hardware acceleration from settings
+    void updatePreferredHardwareAcceleration();
 
     // Device availability and hotplug support
     bool checkCameraAvailable(const QString& devicePath = "");
@@ -121,8 +142,10 @@ public:
     void connectToHotplugMonitor();
     void disconnectFromHotplugMonitor();
     void waitForDeviceActivation(const QString& devicePath = "", int timeoutMs = 30000);
-    void handleDeviceActivation(const QString& devicePath);
+    void handleDeviceActivation(const QString& devicePath, const QString& portChain = QString());
     void handleDeviceDeactivation(const QString& devicePath);
+    void setCurrentDevicePortChain(const QString& portChain);  // Set port chain for current device
+    void setCurrentDevice(const QString& devicePath);  // Set current device path
     
     // Stub for MOC compatibility (might be leftover from autocomplete)
     void checkDeviceReconnection() { /* stub */ }
@@ -136,7 +159,6 @@ public:
 #endif
 #endif
 
-public slots:
     void setVideoOutput(QGraphicsVideoItem* videoItem);
     void setVideoOutput(VideoPane* videoPane);
 
@@ -158,11 +180,42 @@ signals:
 
 private:
 #ifdef HAVE_FFMPEG
+    // FFmpeg interrupt callback (needs access to private members)
+    static int interruptCallback(void* ctx);
+    
     // FFmpeg context management
     bool initializeFFmpeg();
     void cleanupFFmpeg();
     bool openInputDevice(const QString& devicePath, const QSize& resolution, int framerate);
     void closeInputDevice();
+    
+    // Hardware acceleration
+    bool initializeHardwareAcceleration();
+    void cleanupHardwareAcceleration();
+    bool tryHardwareDecoder(const AVCodecParameters* codecpar, const AVCodec** outCodec, bool* outUsingHwDecoder);
+    
+    struct HwDecoderInfo {
+        const char* name;
+        const char* decoderName;
+        AVHWDeviceType deviceType;
+        bool needsDeviceContext;
+        QString settingName;
+    };
+    bool tryInitializeHwDecoder(const HwDecoderInfo& decoder);
+    
+    // Device capability detection
+    struct CameraCapability {
+        QSize resolution;
+        int framerate;
+        CameraCapability() : resolution(0, 0), framerate(0) {}
+        CameraCapability(const QSize& res, int fps) : resolution(res), framerate(fps) {}
+    };
+    bool getMaxCameraCapability(const QString& devicePath, CameraCapability& capability);
+    
+    // Interrupt handling for FFmpeg operations
+    volatile bool m_interruptRequested;
+    qint64 m_operationStartTime;
+    static constexpr qint64 FFMPEG_OPERATION_TIMEOUT_MS = 5000; // 5 second timeout
     
     // Recording-specific methods
     bool initializeRecording();
@@ -189,6 +242,10 @@ private:
     AVPacket* m_packet;
     SwsContext* m_swsContext;
     
+    // Hardware acceleration (QSV)
+    AVBufferRef* m_hwDeviceContext;
+    enum AVHWDeviceType m_hwDeviceType;
+    
     // Recording components
     AVFormatContext* m_recordingFormatContext;
     AVCodecContext* m_recordingCodecContext;
@@ -206,11 +263,15 @@ private:
     // State management
 #ifdef HAVE_FFMPEG
     QString m_currentDevice;
+    QString m_currentDevicePortChain;  // Track port chain for hotplug detection
     QSize m_currentResolution;
     int m_currentFramerate;
     bool m_captureRunning;
     int m_videoStreamIndex;
 #endif
+    
+    // Hardware acceleration preference
+    QString m_preferredHwAccel;
     
     // Recording state
     bool m_recordingActive;
@@ -234,6 +295,9 @@ private:
     // Output management
     QGraphicsVideoItem* m_graphicsVideoItem;
     VideoPane* m_videoPane;
+    
+    // Error tracking
+    QString m_lastError;
     
 #ifdef HAVE_FFMPEG
     // Thread safety

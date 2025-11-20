@@ -14,6 +14,8 @@ public:
     // Device identification
     QString portChain;
     QString deviceInstanceId;
+    QString vid;  // Vendor ID
+    QString pid;  // Product ID
     
     // USB 3.0 Companion PortChain Association
     // For USB 3.0 devices, the serial port and composite devices (camera, HID, audio) 

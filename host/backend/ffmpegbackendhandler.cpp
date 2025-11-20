@@ -23,6 +23,7 @@
 #include "ffmpegbackendhandler.h"
 #include "../../ui/videopane.h"
 #include "../../global.h"
+#include "../../ui/globalsetting.h"
 #include "../../device/DeviceManager.h"
 #include "../../device/HotplugMonitor.h"
 #include "../../device/DeviceInfo.h"
@@ -37,6 +38,9 @@
 #include <QGraphicsPixmapItem>
 #include <QGraphicsScene>
 #include <QTimer>
+#include <QFileInfo>
+#include <QMediaDevices>
+#include <QCameraDevice>
 
 // FFmpeg includes (conditional compilation)
 #ifdef HAVE_FFMPEG
@@ -90,7 +94,7 @@ protected:
         
         int consecutiveFailures = 0;
         int framesProcessed = 0;
-        const int maxConsecutiveFailures = 100; // Allow some tolerance
+        const int maxConsecutiveFailures = 20; // Reduced from 100 - stop faster on device disconnect
         
         while (isRunning()) {
             if (m_handler && m_handler->readFrame()) {
@@ -98,15 +102,15 @@ protected:
                 consecutiveFailures = 0;
                 
                 // RESPONSIVENESS OPTIMIZATION: For KVM applications, prioritize responsiveness over smooth video
-                // Remove artificial frame rate limiting to reduce perceived mouse lag
+                // Minimal frame rate limiting to reduce perceived mouse lag
                 qint64 elapsed = frameTimer.elapsed();
                 
-                // Only enforce a minimal interval to prevent complete CPU saturation
-                // But prioritize responsiveness - especially important for mouse interaction
-                qint64 minInterval = 8; // ~120 FPS max, much more responsive than 25 FPS
+                // Only enforce a very minimal interval to prevent complete CPU saturation
+                // Prioritize responsiveness - especially important for mouse interaction
+                qint64 minInterval = 4; // ~250 FPS max for ultra-responsive KVM (reduced from 8ms)
                 if (elapsed < minInterval) {
                     // Very short sleep to yield CPU but maintain responsiveness
-                    msleep(5); // Just 1ms instead of forcing frame intervals
+                    msleep(1); // Reduced from 2ms to 1ms for lower latency
                     frameTimer.restart();
                 } else {
                     frameTimer.restart();
@@ -130,7 +134,7 @@ protected:
                 
                 // Be more aggressive about detecting device disconnections
                 // Check device availability after fewer failures, especially for I/O errors
-                if (consecutiveFailures >= 50 && consecutiveFailures % 25 == 0) { // Reduced from 200/100
+                if (consecutiveFailures >= 10 && consecutiveFailures % 10 == 0) { // Reduced from 50/25 - check every 10 failures
                     qCDebug(log_ffmpeg_backend) << "Checking device availability due to consecutive failures:" << consecutiveFailures;
                     if (m_handler && !m_handler->isCurrentDeviceAvailable()) {
                         qCWarning(log_ffmpeg_backend) << "Device no longer available, stopping capture thread";
@@ -185,6 +189,8 @@ FFmpegBackendHandler::FFmpegBackendHandler(QObject *parent)
       m_frameRGB(nullptr),
       m_packet(nullptr),
       m_swsContext(nullptr),
+      m_hwDeviceContext(nullptr),
+      m_hwDeviceType(AV_HWDEVICE_TYPE_NONE),
       m_captureRunning(false),
       m_videoStreamIndex(-1),
       m_frameCount(0),
@@ -194,7 +200,9 @@ FFmpegBackendHandler::FFmpegBackendHandler(QObject *parent)
       m_recordingVideoStream(nullptr),
       m_recordingSwsContext(nullptr),
       m_recordingFrame(nullptr),
-      m_recordingPacket(nullptr)
+      m_recordingPacket(nullptr),
+      m_interruptRequested(false),
+      m_operationStartTime(0)
 #endif
 #ifdef HAVE_LIBJPEG_TURBO
       , m_turboJpegHandle(nullptr)
@@ -215,6 +223,7 @@ FFmpegBackendHandler::FFmpegBackendHandler(QObject *parent)
       m_recordingFrameNumber(0)
 {
     m_config = getDefaultConfig();
+    m_preferredHwAccel = GlobalSetting::instance().getHardwareAcceleration();
     
     // Initialize device wait timer
     m_deviceWaitTimer = new QTimer(this);
@@ -274,6 +283,32 @@ QString FFmpegBackendHandler::getBackendName() const
     return "FFmpeg Direct Capture";
 }
 
+QStringList FFmpegBackendHandler::getAvailableHardwareAccelerations() const
+{
+    QStringList availableHwAccel;
+    availableHwAccel << "none";  // CPU option
+    availableHwAccel << "auto";  // Always include auto
+
+#ifdef HAVE_FFMPEG
+    // Check for CUDA/NVDEC
+    const AVCodec* cudaCodec = avcodec_find_decoder_by_name("mjpeg_cuvid");
+    if (cudaCodec) {
+        availableHwAccel << "cuda";
+    }
+
+    // Check for Intel QSV
+    const AVCodec* qsvCodec = avcodec_find_decoder_by_name("mjpeg_qsv");
+    if (qsvCodec) {
+        availableHwAccel << "qsv";
+    }
+
+    // Check for other hardware types if needed
+    // For now, focus on CUDA and QSV as they are the main ones for MJPEG
+#endif
+
+    return availableHwAccel;
+}
+
 #ifdef HAVE_FFMPEG
 bool FFmpegBackendHandler::isDirectCaptureRunning() const
 {
@@ -297,72 +332,23 @@ MultimediaBackendConfig FFmpegBackendHandler::getDefaultConfig() const
     return config;
 }
 
-void FFmpegBackendHandler::prepareCameraCreation(QCamera* oldCamera)
+void FFmpegBackendHandler::prepareCameraCreation()
 {
-    if (oldCamera) {
-        qCDebug(log_ffmpeg_backend) << "FFmpeg: Stopping old camera before creating new one";
-        stopDirectCapture();
-        QThread::msleep(m_config.deviceSwitchDelay);
-    }
+    qCDebug(log_ffmpeg_backend) << "FFmpeg: Preparing camera creation";
+    stopDirectCapture();
+    // QThread::msleep(m_config.deviceSwitchDelay);
 }
 
-void FFmpegBackendHandler::configureCameraDevice(QCamera* camera, const QCameraDevice& device)
+void FFmpegBackendHandler::configureCameraDevice()
 {
-    qCDebug(log_ffmpeg_backend) << "FFmpeg: Configuring camera device:" << device.description() << "ID:" << device.id();
+    qCDebug(log_ffmpeg_backend) << "FFmpeg: Configuring camera device";
 
 #ifdef HAVE_FFMPEG
-    // Extract device path for direct FFmpeg usage
-    QString deviceId = QString::fromUtf8(device.id());
-    QString deviceDescription = device.description();
-    
-    // Convert Qt device ID to V4L2 device path if needed
-    if (!deviceId.startsWith("/dev/video")) {
-        // Check if deviceId is a simple number (like "0", "1", etc.)
-        bool isNumber = false;
-        int deviceNumber = deviceId.toInt(&isNumber);
-        
-        if (isNumber) {
-            // Direct numeric ID - convert to /dev/video path
-            m_currentDevice = QString("/dev/video%1").arg(deviceNumber);
-            qCDebug(log_ffmpeg_backend) << "Converted numeric device ID" << deviceId << "to path:" << m_currentDevice;
-        } else {
-            // Complex device ID - try to extract number from it
-            QRegularExpression re("(\\d+)");
-            QRegularExpressionMatch match = re.match(deviceId);
-            if (match.hasMatch()) {
-                m_currentDevice = QString("/dev/video%1").arg(match.captured(1));
-                qCDebug(log_ffmpeg_backend) << "Extracted device number from complex ID" << deviceId << "-> path:" << m_currentDevice;
-            } else {
-                qCWarning(log_ffmpeg_backend) << "Could not parse device ID:" << deviceId << "- this may cause issues";
-                m_currentDevice = deviceId; // Use as-is and hope for the best
-            }
-        }
-    } else {
-        // Already a proper V4L2 device path
-        m_currentDevice = deviceId;
-        qCDebug(log_ffmpeg_backend) << "Using direct device path:" << m_currentDevice;
-    }
-    
-    qCDebug(log_ffmpeg_backend) << "FFmpeg device path configured as:" << m_currentDevice;
-    
-    // Check device availability and emit connection status
-    bool deviceAvailable = checkCameraAvailable(m_currentDevice);
-    emit deviceConnectionChanged(m_currentDevice, deviceAvailable);
-    
-    if (!deviceAvailable) {
-        qCWarning(log_ffmpeg_backend) << "Configured device is not available:" << m_currentDevice;
-    }
+    qCDebug(log_ffmpeg_backend) << "FFmpeg: Camera device configuration";
 #endif
-    
-    // Don't start Qt camera for FFmpeg backend
-    if (camera) {
-        qCDebug(log_ffmpeg_backend) << "Stopping Qt camera to prevent device conflicts";
-        camera->stop();
-        QThread::msleep(100);
-    }
 }
 
-void FFmpegBackendHandler::setupCaptureSession(QMediaCaptureSession* session, QCamera* camera)
+void FFmpegBackendHandler::setupCaptureSession(QMediaCaptureSession* session)
 {
     // For FFmpeg backend, skip Qt capture session setup to avoid device conflicts
     qCDebug(log_ffmpeg_backend) << "FFmpeg: Skipping Qt capture session setup - using direct capture";
@@ -401,7 +387,7 @@ void FFmpegBackendHandler::finalizeVideoOutputConnection(QMediaCaptureSession* s
     // The direct rendering will handle video display
 }
 
-void FFmpegBackendHandler::startCamera(QCamera* camera)
+void FFmpegBackendHandler::startCamera()
 {
     qCDebug(log_ffmpeg_backend) << "FFmpeg: Starting camera with direct capture";
     
@@ -410,29 +396,19 @@ void FFmpegBackendHandler::startCamera(QCamera* camera)
     qCDebug(log_ffmpeg_backend) << "Current resolution:" << m_currentResolution;
     qCDebug(log_ffmpeg_backend) << "Current framerate:" << m_currentFramerate;
     
-    // If no device is set or device is not available, wait for device activation
-    if (m_currentDevice.isEmpty() || !checkCameraAvailable(m_currentDevice)) {
-        qCInfo(log_ffmpeg_backend) << "Device not available, waiting for device activation:" << m_currentDevice;
-        waitForDeviceActivation(m_currentDevice, 30000); // Wait up to 30 seconds
-        return;
-    }
+    // Skip availability check - just try to open the device directly
+    // The checkCameraAvailable() opens the device which can interfere with immediate reopening
+    // We'll rely on startDirectCapture() to handle device availability
     
-    // Use direct FFmpeg capture instead of Qt's camera
-    qCDebug(log_ffmpeg_backend) << "FFmpeg: Using direct capture - Qt camera will NOT be started";
-    
-    // Ensure Qt camera is stopped
-    if (camera) {
-        qCDebug(log_ffmpeg_backend) << "Ensuring Qt camera is stopped";
-        camera->stop();
-        QThread::msleep(300); // Give time for device to be released
-    }
+    // Use direct FFmpeg capture
+    qCDebug(log_ffmpeg_backend) << "FFmpeg: Using direct capture";
     
     // Start direct FFmpeg capture
-    QSize resolution = m_currentResolution.isValid() ? m_currentResolution : QSize(1920, 1080);
-    int framerate = m_currentFramerate > 0 ? m_currentFramerate : 30;
+    QSize resolution = m_currentResolution.isValid() ? m_currentResolution : QSize(0, 0);
+    int framerate = m_currentFramerate > 0 ? m_currentFramerate : 0;
     
     if (!startDirectCapture(m_currentDevice, resolution, framerate)) {
-        qCWarning(log_ffmpeg_backend) << "Failed to start FFmpeg direct capture, not falling back to Qt camera";
+        qCWarning(log_ffmpeg_backend) << "Failed to start FFmpeg direct capture";
         emit captureError("Failed to start FFmpeg video capture");
     } else {
         qCDebug(log_ffmpeg_backend) << "FFmpeg direct capture started successfully";
@@ -444,7 +420,7 @@ void FFmpegBackendHandler::startCamera(QCamera* camera)
 #endif
 }
 
-void FFmpegBackendHandler::stopCamera(QCamera* camera)
+void FFmpegBackendHandler::stopCamera()
 {
     qCDebug(log_ffmpeg_backend) << "FFmpeg: Stopping camera";
     
@@ -452,12 +428,6 @@ void FFmpegBackendHandler::stopCamera(QCamera* camera)
     // Stop direct capture
     stopDirectCapture();
 #endif
-    
-    // Also stop Qt camera
-    if (camera) {
-        camera->stop();
-        QThread::msleep(100);
-    }
 }
 
 QCameraFormat FFmpegBackendHandler::selectOptimalFormat(const QList<QCameraFormat>& formats,
@@ -523,7 +493,188 @@ void FFmpegBackendHandler::cleanupFFmpeg()
     }
 #endif
     
+    // Cleanup hardware acceleration
+    cleanupHardwareAcceleration();
+    
     qCDebug(log_ffmpeg_backend) << "FFmpeg cleanup completed";
+}
+
+bool FFmpegBackendHandler::initializeHardwareAcceleration()
+{
+    qCDebug(log_ffmpeg_backend) << "Initializing hardware acceleration, preferred:" << m_preferredHwAccel;
+    
+    // Explicitly handle CPU-only mode
+    if (m_preferredHwAccel == "none") {
+        qCInfo(log_ffmpeg_backend) << "Hardware acceleration disabled - using CPU decoding";
+        m_hwDeviceContext = nullptr;
+        m_hwDeviceType = AV_HWDEVICE_TYPE_NONE;
+        return true;
+    }
+    
+    // For MJPEG decoding on Windows, CUVID decoders work differently than on Linux
+    // They can be used directly without creating a hardware device context first
+    // We just need to verify the decoder is available
+    
+    // Priority order for MJPEG hardware decoders:
+    // 1. NVIDIA CUVID (mjpeg_cuvid) - works on Windows without device context
+    // 2. Intel QSV (mjpeg_qsv) - may need device context on some platforms
+    
+    HwDecoderInfo hwDecoders[] = {
+        {"CUDA/NVDEC", "mjpeg_cuvid", AV_HWDEVICE_TYPE_CUDA, false, "cuda"},
+        {"Intel QSV", "mjpeg_qsv", AV_HWDEVICE_TYPE_QSV, false, "qsv"},
+        {nullptr, nullptr, AV_HWDEVICE_TYPE_NONE, false, ""}
+    };
+    
+    // If not auto, try the preferred one first
+    if (m_preferredHwAccel != "auto") {
+        for (int i = 0; hwDecoders[i].name != nullptr; i++) {
+            if (hwDecoders[i].settingName == m_preferredHwAccel) {
+                qCInfo(log_ffmpeg_backend) << "Trying preferred hardware decoder:" << hwDecoders[i].name;
+                if (tryInitializeHwDecoder(hwDecoders[i])) {
+                    return true;
+                }
+                break;
+            }
+        }
+        qCWarning(log_ffmpeg_backend) << "Preferred hardware acceleration" << m_preferredHwAccel << "not available, falling back to auto";
+    }
+    
+    // Auto mode or fallback: try all available
+    for (int i = 0; hwDecoders[i].name != nullptr; i++) {
+        if (tryInitializeHwDecoder(hwDecoders[i])) {
+            return true;
+        }
+    }
+    
+    qCWarning(log_ffmpeg_backend) << "No MJPEG-capable hardware acceleration found - using software decoding";
+    qCInfo(log_ffmpeg_backend) << "  - For NVIDIA GPU: Ensure latest drivers are installed and FFmpeg is built with --enable-cuda --enable-cuvid --enable-nvdec";
+    qCInfo(log_ffmpeg_backend) << "  - For Intel GPU: Ensure QSV drivers are installed and FFmpeg is built with --enable-libmfx";
+    m_hwDeviceContext = nullptr;
+    m_hwDeviceType = AV_HWDEVICE_TYPE_NONE;
+    return false;
+}
+
+bool FFmpegBackendHandler::tryInitializeHwDecoder(const HwDecoderInfo& decoder)
+{
+    qCInfo(log_ffmpeg_backend) << "Checking for" << decoder.name << "hardware decoder...";
+    
+    // First check if the decoder itself is available
+    const AVCodec* testCodec = avcodec_find_decoder_by_name(decoder.decoderName);
+    if (!testCodec) {
+        qCInfo(log_ffmpeg_backend) << "  ✗" << decoder.decoderName << "decoder not found in this FFmpeg build";
+        return false;
+    }
+    
+    qCInfo(log_ffmpeg_backend) << "  ✓ Found" << decoder.decoderName << "decoder";
+    
+    // For decoders that need a device context, try to create it
+    if (decoder.needsDeviceContext) {
+        m_hwDeviceType = decoder.deviceType;
+        
+        int ret = av_hwdevice_ctx_create(&m_hwDeviceContext, decoder.deviceType, nullptr, nullptr, 0);
+        if (ret < 0) {
+            char errbuf[AV_ERROR_MAX_STRING_SIZE];
+            av_strerror(ret, errbuf, AV_ERROR_MAX_STRING_SIZE);
+            qCWarning(log_ffmpeg_backend) << "  ✗ Failed to create device context:" << QString::fromUtf8(errbuf);
+            return false;
+        }
+        qCInfo(log_ffmpeg_backend) << "  ✓ Hardware device context created";
+    } else {
+        // For CUVID on Windows, we don't need a device context
+        qCInfo(log_ffmpeg_backend) << "  ℹ This decoder doesn't require a device context";
+        m_hwDeviceType = decoder.deviceType;
+        m_hwDeviceContext = nullptr;  // Explicitly set to nullptr for CUVID
+    }
+    
+    qCInfo(log_ffmpeg_backend) << "✓✓✓ Successfully initialized" << decoder.name 
+                               << "hardware acceleration for MJPEG decoding ✓✓✓";
+    return true;
+}
+
+void FFmpegBackendHandler::updatePreferredHardwareAcceleration()
+{
+    m_preferredHwAccel = GlobalSetting::instance().getHardwareAcceleration();
+    qCDebug(log_ffmpeg_backend) << "Updated preferred hardware acceleration to:" << m_preferredHwAccel;
+}
+
+bool FFmpegBackendHandler::tryHardwareDecoder(const AVCodecParameters* codecpar, 
+                                               const AVCodec** outCodec, 
+                                               bool* outUsingHwDecoder)
+{
+    // Allow trying hardware decoder even without device context (needed for CUVID on Windows)
+    if (m_hwDeviceType == AV_HWDEVICE_TYPE_NONE || !codecpar || !outCodec || !outUsingHwDecoder) {
+        return false;
+    }
+    
+    *outCodec = nullptr;
+    *outUsingHwDecoder = false;
+    
+    // Only try hardware acceleration for MJPEG
+    if (codecpar->codec_id != AV_CODEC_ID_MJPEG) {
+        return false;
+    }
+    
+    // Map hardware device types to MJPEG decoder names
+    const char* hwDecoderName = nullptr;
+    const char* hwDeviceTypeName = av_hwdevice_get_type_name(m_hwDeviceType);
+    
+    if (strcmp(hwDeviceTypeName, "cuda") == 0) {
+        hwDecoderName = "mjpeg_cuvid";
+        qCInfo(log_ffmpeg_backend) << "Attempting to use NVIDIA NVDEC/CUVID for MJPEG decoding";
+    } else if (strcmp(hwDeviceTypeName, "qsv") == 0) {
+        hwDecoderName = "mjpeg_qsv";
+        qCInfo(log_ffmpeg_backend) << "Attempting to use Intel QSV for MJPEG decoding";
+    } else {
+        // Unknown or unsupported hardware type for MJPEG
+        qCWarning(log_ffmpeg_backend) << "Hardware type" << hwDeviceTypeName 
+                                      << "does not support MJPEG hardware decoding";
+        return false;
+    }
+    
+    qCInfo(log_ffmpeg_backend) << "Looking for hardware decoder:" << hwDecoderName;
+    *outCodec = avcodec_find_decoder_by_name(hwDecoderName);
+    
+    if (*outCodec) {
+        qCInfo(log_ffmpeg_backend) << "✓ Found" << hwDecoderName << "hardware decoder";
+        qCInfo(log_ffmpeg_backend) << "  - Codec long name:" << (*outCodec)->long_name;
+        qCInfo(log_ffmpeg_backend) << "  - This will offload MJPEG decoding to GPU";
+        *outUsingHwDecoder = true;
+        return true;
+    } else {
+        qCWarning(log_ffmpeg_backend) << "✗ Hardware decoder" << hwDecoderName << "not found";
+        qCWarning(log_ffmpeg_backend) << "  - Your FFmpeg build may not include" << hwDecoderName << "support";
+        return false;
+    }
+}
+
+void FFmpegBackendHandler::cleanupHardwareAcceleration()
+{
+    if (m_hwDeviceContext) {
+        qCDebug(log_ffmpeg_backend) << "Cleaning up hardware device context";
+        av_buffer_unref(&m_hwDeviceContext);
+        m_hwDeviceContext = nullptr;
+    }
+    m_hwDeviceType = AV_HWDEVICE_TYPE_NONE;
+}
+
+bool FFmpegBackendHandler::getMaxCameraCapability(const QString& devicePath, CameraCapability& capability)
+{
+    qCInfo(log_ffmpeg_backend) << "Loading video settings from GlobalSetting for:" << devicePath;
+    
+    // Load video settings from GlobalSetting into GlobalVar
+    GlobalSetting::instance().loadVideoSettings();
+    
+    // Get the stored resolution and framerate
+    int width = GlobalVar::instance().getCaptureWidth();
+    int height = GlobalVar::instance().getCaptureHeight();
+    int fps = GlobalVar::instance().getCaptureFps();
+    
+    capability.resolution = QSize(width, height);
+    capability.framerate = fps;
+    
+    qCInfo(log_ffmpeg_backend) << "✓ Maximum capability from GlobalSetting:" 
+                              << capability.resolution << "@" << capability.framerate << "FPS";
+    return true;
 }
 #endif
 
@@ -536,19 +687,60 @@ bool FFmpegBackendHandler::startDirectCapture(const QString& devicePath, const Q
         stopDirectCapture();
     }
     
+    // Set current device
+    m_currentDevice = devicePath;
+    
     // Reset error suppression flag when starting capture
     m_suppressErrors = false;
     
     // Restore FFmpeg logging level
     av_log_set_level(AV_LOG_WARNING);
     
+    // Auto-detect maximum camera capability if not specified
+    QSize actualResolution = resolution;
+    int actualFramerate = framerate;
+    
+    if (!resolution.isValid() || resolution.width() <= 0 || resolution.height() <= 0 ||
+        framerate <= 0) {
+        qCInfo(log_ffmpeg_backend) << "Resolution or framerate not specified, detecting camera capabilities...";
+        
+        // Try to get settings from GlobalSetting
+        // Use stored values from video page settings
+        if (framerate <= 0) {
+            // Use getMaxCameraCapability which loads from GlobalSetting
+            CameraCapability tempCapability;
+            if (getMaxCameraCapability(devicePath, tempCapability)) {
+                actualFramerate = tempCapability.framerate;
+                qCInfo(log_ffmpeg_backend) << "✓ Got FPS from GlobalSetting:" << actualFramerate << "FPS";
+                
+                // Also use stored resolution if not specified
+                if (!resolution.isValid() || resolution.width() <= 0 || resolution.height() <= 0) {
+                    actualResolution = tempCapability.resolution;
+                    qCInfo(log_ffmpeg_backend) << "✓ Got resolution from GlobalSetting:" << actualResolution;
+                }
+            } else {
+                qCInfo(log_ffmpeg_backend) << "Could not load settings, will use defaults";
+            }
+        }
+        
+        // Fall back to defaults if still not set
+        if (!actualResolution.isValid() || actualResolution.width() <= 0 || actualResolution.height() <= 0) {
+            actualResolution = QSize(1920, 1080);
+            qCInfo(log_ffmpeg_backend) << "Using default resolution:" << actualResolution;
+        }
+        if (framerate <= 0 && actualFramerate <= 0) {
+            actualFramerate = 30;
+            qCInfo(log_ffmpeg_backend) << "Using default framerate:" << actualFramerate << "FPS";
+        }
+    }
+    
     qCDebug(log_ffmpeg_backend) << "Starting direct FFmpeg capture:"
                                 << "device=" << devicePath
-                                << "resolution=" << resolution
-                                << "framerate=" << framerate;
+                                << "resolution=" << actualResolution
+                                << "framerate=" << actualFramerate;
     
     // Open input device
-    if (!openInputDevice(devicePath, resolution, framerate)) {
+    if (!openInputDevice(devicePath, actualResolution, actualFramerate)) {
         qCWarning(log_ffmpeg_backend) << "Failed to open input device";
         return false;
     }
@@ -558,6 +750,9 @@ bool FFmpegBackendHandler::startDirectCapture(const QString& devicePath, const Q
     m_captureThread->setRunning(true);
     m_captureRunning = true;
     m_captureThread->start();
+    
+    // Set lower priority for capture thread to not starve UI thread
+    m_captureThread->setPriority(QThread::LowPriority);
     
     // Start performance monitoring
     if (m_performanceTimer) {
@@ -579,6 +774,9 @@ void FFmpegBackendHandler::stopDirectCapture()
     qCDebug(log_ffmpeg_backend) << "Stopping direct FFmpeg capture";
     
     m_captureRunning = false;
+    
+    // Set interrupt flag to break out of any blocking FFmpeg operations
+    m_interruptRequested = true;
     
     // Stop capture thread
     if (m_captureThread) {
@@ -620,10 +818,154 @@ void FFmpegBackendHandler::stopDirectCapture()
     qCDebug(log_ffmpeg_backend) << "Direct FFmpeg capture stopped";
 }
 
+#ifdef HAVE_FFMPEG
+// Static interrupt callback for FFmpeg operations to prevent blocking
+int FFmpegBackendHandler::interruptCallback(void* ctx)
+{
+    FFmpegBackendHandler* handler = static_cast<FFmpegBackendHandler*>(ctx);
+    if (!handler) {
+        return 0;
+    }
+    
+    // Check if interrupt was explicitly requested
+    if (handler->m_interruptRequested) {
+        qCDebug(log_ffmpeg_backend) << "FFmpeg operation interrupted by request";
+        return 1; // Interrupt the operation
+    }
+    
+    // Check if operation has timed out
+    if (handler->m_operationStartTime > 0) {
+        qint64 elapsed = QDateTime::currentMSecsSinceEpoch() - handler->m_operationStartTime;
+        if (elapsed > FFMPEG_OPERATION_TIMEOUT_MS) {
+            qCWarning(log_ffmpeg_backend) << "FFmpeg operation timed out after" << elapsed << "ms";
+            return 1; // Interrupt the operation
+        }
+    }
+    
+    return 0; // Continue the operation
+}
+#endif
+
 bool FFmpegBackendHandler::openInputDevice(const QString& devicePath, const QSize& resolution, int framerate)
 {
     qCDebug(log_ffmpeg_backend) << "Opening input device:" << devicePath;
     
+    // Reset interrupt state for this new operation
+    m_interruptRequested = false;
+    m_operationStartTime = QDateTime::currentMSecsSinceEpoch();
+    
+#ifdef Q_OS_WIN
+    // WINDOWS: Use DirectShow for video capture
+    qCDebug(log_ffmpeg_backend) << "Windows platform detected - using DirectShow input";
+    
+    // Add small delay to ensure device is not held by Qt's device enumeration (Windows issue)
+    // QThread::msleep(1000);
+    // qCDebug(log_ffmpeg_backend) << "Waited 200ms before opening device (Windows workaround)";
+    
+    // Allocate format context
+    m_formatContext = avformat_alloc_context();
+    if (!m_formatContext) {
+        qCCritical(log_ffmpeg_backend) << "Failed to allocate format context";
+        return false;
+    }
+    
+    // CRITICAL FIX: Set interrupt callback to prevent blocking operations
+    m_formatContext->interrupt_callback.callback = FFmpegBackendHandler::interruptCallback;
+    m_formatContext->interrupt_callback.opaque = this;
+    
+    // Find DirectShow input format
+    const AVInputFormat* inputFormat = av_find_input_format("dshow");
+    if (!inputFormat) {
+        qCCritical(log_ffmpeg_backend) << "DirectShow input format not found - FFmpeg may not be built with dshow support";
+        return false;
+    }
+    
+    // RESPONSIVENESS: Set low-latency input options for DirectShow
+    AVDictionary* options = nullptr;
+    av_dict_set(&options, "video_size", QString("%1x%2").arg(resolution.width()).arg(resolution.height()).toUtf8().constData(), 0);
+    av_dict_set(&options, "framerate", QString::number(framerate).toUtf8().constData(), 0);
+    
+    // CRITICAL LOW-LATENCY OPTIMIZATIONS for KVM responsiveness:
+    // av_dict_set(&options, "rtbufsize", "10000000", 0);        // Removed to prevent buffer overflow on hotplug
+    av_dict_set(&options, "fflags", "nobuffer+discardcorrupt", 0); // No buffering, discard corrupt frames
+    av_dict_set(&options, "flags", "low_delay", 0);       // Enable low delay mode
+    av_dict_set(&options, "max_delay", "2000", 0);           // Allow 3ms delay for stability
+    av_dict_set(&options, "probesize", "32", 0);          // Minimal probe size for fastest start (minimum allowed)
+    av_dict_set(&options, "analyzeduration", "0", 0);     // Skip analysis to reduce startup delay
+    
+    // CRITICAL FIX: Add timeout to prevent blocking on device reconnection
+    av_dict_set(&options, "timeout", "5000000", 0);       // 5 second timeout in microseconds
+    
+    // Try to set video format - DirectShow supports various formats
+    // Try MJPEG first for best performance
+    av_dict_set(&options, "vcodec", "mjpeg", 0);
+    
+    qCDebug(log_ffmpeg_backend) << "Trying DirectShow with MJPEG format, resolution" << resolution << "and framerate" << framerate;
+    qCDebug(log_ffmpeg_backend) << "DirectShow device string:" << devicePath;
+    
+    // Open input - devicePath should be in format "video=Device Name"
+    int ret = avformat_open_input(&m_formatContext, devicePath.toUtf8().constData(), inputFormat, &options);
+    av_dict_free(&options);
+    
+    // If MJPEG fails, try without specifying codec (auto-detect)
+    if (ret < 0) {
+        char errbuf[AV_ERROR_MAX_STRING_SIZE];
+        av_strerror(ret, errbuf, AV_ERROR_MAX_STRING_SIZE);
+        qCWarning(log_ffmpeg_backend) << "MJPEG format failed:" << QString::fromUtf8(errbuf) << "- trying auto-detection";
+        
+        // Reset format context
+        if (m_formatContext) {
+            avformat_close_input(&m_formatContext);
+        }
+        m_formatContext = avformat_alloc_context();
+        
+        // Re-set interrupt callback
+        m_formatContext->interrupt_callback.callback = FFmpegBackendHandler::interruptCallback;
+        m_formatContext->interrupt_callback.opaque = this;
+        
+        // Try without codec specification
+        AVDictionary* fallbackOptions = nullptr;
+        av_dict_set(&fallbackOptions, "video_size", QString("%1x%2").arg(resolution.width()).arg(resolution.height()).toUtf8().constData(), 0);
+        av_dict_set(&fallbackOptions, "framerate", QString::number(framerate).toUtf8().constData(), 0);
+        av_dict_set(&fallbackOptions, "rtbufsize", "100M", 0);
+        
+        ret = avformat_open_input(&m_formatContext, devicePath.toUtf8().constData(), inputFormat, &fallbackOptions);
+        av_dict_free(&fallbackOptions);
+    }
+    
+    // If that fails, try minimal options
+    if (ret < 0) {
+        char errbuf[AV_ERROR_MAX_STRING_SIZE];
+        av_strerror(ret, errbuf, AV_ERROR_MAX_STRING_SIZE);
+        qCWarning(log_ffmpeg_backend) << "Auto-detection failed:" << QString::fromUtf8(errbuf) << "- trying minimal options";
+        
+        // Reset format context
+        if (m_formatContext) {
+            avformat_close_input(&m_formatContext);
+        }
+        m_formatContext = avformat_alloc_context();
+        
+        // Re-set interrupt callback
+        m_formatContext->interrupt_callback.callback = FFmpegBackendHandler::interruptCallback;
+        m_formatContext->interrupt_callback.opaque = this;
+        
+        // Try with just the device path
+        ret = avformat_open_input(&m_formatContext, devicePath.toUtf8().constData(), inputFormat, nullptr);
+    }
+    
+    if (ret < 0) {
+        char errbuf[AV_ERROR_MAX_STRING_SIZE];
+        av_strerror(ret, errbuf, AV_ERROR_MAX_STRING_SIZE);
+        qCCritical(log_ffmpeg_backend) << "Failed to open DirectShow device:" << QString::fromUtf8(errbuf);
+        qCCritical(log_ffmpeg_backend) << "Device path:" << devicePath;
+        qCCritical(log_ffmpeg_backend) << "Make sure the device name is correct and the camera is not in use by another application";
+        return false;
+    }
+    
+    qCDebug(log_ffmpeg_backend) << "Successfully opened DirectShow device" << devicePath;
+    
+#else
+    // LINUX/MACOS: Use V4L2 for video capture
     // RESPONSIVENESS OPTIMIZATION: Configure device for minimal latency
     // This is critical for KVM applications where mouse responsiveness is key
     qCDebug(log_ffmpeg_backend) << "Pre-configuring device for low-latency MJPEG capture...";
@@ -648,7 +990,7 @@ bool FFmpegBackendHandler::openInputDevice(const QString& devicePath, const QSiz
     }
     
     // Reduce delay to minimize latency
-    QThread::msleep(100); // Reduced from 200ms to 100ms
+    // QThread::msleep(100); // Reduced from 200ms to 100ms
     
     // Allocate format context
     m_formatContext = avformat_alloc_context();
@@ -656,6 +998,10 @@ bool FFmpegBackendHandler::openInputDevice(const QString& devicePath, const QSiz
         qCCritical(log_ffmpeg_backend) << "Failed to allocate format context";
         return false;
     }
+    
+    // CRITICAL FIX: Set interrupt callback to prevent blocking operations
+    m_formatContext->interrupt_callback.callback = FFmpegBackendHandler::interruptCallback;
+    m_formatContext->interrupt_callback.opaque = this;
     
     // Find input format (V4L2) - try multiple format names
     const AVInputFormat* inputFormat = av_find_input_format("v4l2");
@@ -675,6 +1021,8 @@ bool FFmpegBackendHandler::openInputDevice(const QString& devicePath, const QSiz
     av_dict_set(&options, "flags", "low_delay", 0);        // Enable low delay mode  
     av_dict_set(&options, "framedrop", "1", 0);            // Allow frame dropping
     av_dict_set(&options, "use_wallclock_as_timestamps", "1", 0); // Use wall clock for timestamps
+    av_dict_set(&options, "probesize", "32", 0);           // Minimal probe size for faster start
+    av_dict_set(&options, "analyzeduration", "0", 0);      // Skip analysis to reduce startup delay
     
     qCDebug(log_ffmpeg_backend) << "Trying low-latency MJPEG format with resolution" << resolution << "and framerate" << framerate;
     
@@ -693,6 +1041,10 @@ bool FFmpegBackendHandler::openInputDevice(const QString& devicePath, const QSiz
             avformat_close_input(&m_formatContext);
         }
         m_formatContext = avformat_alloc_context();
+        
+        // Re-set interrupt callback
+        m_formatContext->interrupt_callback.callback = FFmpegBackendHandler::interruptCallback;
+        m_formatContext->interrupt_callback.opaque = this;
         
         // Try YUYV422 format
         AVDictionary* yuvOptions = nullptr;
@@ -716,6 +1068,10 @@ bool FFmpegBackendHandler::openInputDevice(const QString& devicePath, const QSiz
         }
         m_formatContext = avformat_alloc_context();
         
+        // Re-set interrupt callback
+        m_formatContext->interrupt_callback.callback = FFmpegBackendHandler::interruptCallback;
+        m_formatContext->interrupt_callback.opaque = this;
+        
         // Try again without input_format specification (auto-detect)
         AVDictionary* fallbackOptions = nullptr;
         av_dict_set(&fallbackOptions, "video_size", QString("%1x%2").arg(resolution.width()).arg(resolution.height()).toUtf8().constData(), 0);
@@ -737,6 +1093,10 @@ bool FFmpegBackendHandler::openInputDevice(const QString& devicePath, const QSiz
         }
         m_formatContext = avformat_alloc_context();
         
+        // Re-set interrupt callback
+        m_formatContext->interrupt_callback.callback = FFmpegBackendHandler::interruptCallback;
+        m_formatContext->interrupt_callback.opaque = this;
+        
         // Try with minimal options (just the device path)
         ret = avformat_open_input(&m_formatContext, devicePath.toUtf8().constData(), inputFormat, nullptr);
     }
@@ -749,8 +1109,15 @@ bool FFmpegBackendHandler::openInputDevice(const QString& devicePath, const QSiz
     }
     
     qCDebug(log_ffmpeg_backend) << "Successfully opened device" << devicePath;
+#endif // Q_OS_WIN
     
-    // Find stream info
+    // CRITICAL FIX: Set strict timeout for stream info to prevent blocking on device reconnection
+    // This prevents the app from hanging when a device is unplugged and replugged
+    m_formatContext->max_analyze_duration = 1000000; // 1 second max (in microseconds)
+    m_formatContext->probesize = 5000000; // 5MB max probe size
+    
+    // Find stream info with timeout protection
+    qCDebug(log_ffmpeg_backend) << "Finding stream info (max 1 second)...";
     ret = avformat_find_stream_info(m_formatContext, nullptr);
     if (ret < 0) {
         char errbuf[AV_ERROR_MAX_STRING_SIZE];
@@ -758,6 +1125,7 @@ bool FFmpegBackendHandler::openInputDevice(const QString& devicePath, const QSiz
         qCCritical(log_ffmpeg_backend) << "Failed to find stream info:" << QString::fromUtf8(errbuf);
         return false;
     }
+    qCDebug(log_ffmpeg_backend) << "Stream info found successfully";
     
     // Find video stream
     m_videoStreamIndex = -1;
@@ -776,11 +1144,36 @@ bool FFmpegBackendHandler::openInputDevice(const QString& devicePath, const QSiz
     // Get codec parameters
     AVCodecParameters* codecpar = m_formatContext->streams[m_videoStreamIndex]->codecpar;
     
-    // Find decoder
-    const AVCodec* codec = avcodec_find_decoder(codecpar->codec_id);
+    // Update preferred hardware acceleration from settings
+    updatePreferredHardwareAcceleration();
+    
+    // Try to initialize hardware acceleration if not already done
+    if (m_hwDeviceType == AV_HWDEVICE_TYPE_NONE) {
+        initializeHardwareAcceleration();
+    }
+    
+    // Find decoder - try hardware decoder for MJPEG if available
+    const AVCodec* codec = nullptr;
+    bool usingHwDecoder = false;
+    
+    // Try hardware decoder first if hardware acceleration is available
+    // Note: Some decoders like CUVID don't need a device context, so check device type instead
+    if (m_hwDeviceType != AV_HWDEVICE_TYPE_NONE) {
+        bool hwDecoderFound = tryHardwareDecoder(codecpar, &codec, &usingHwDecoder);
+        if (hwDecoderFound && codec) {
+            qCInfo(log_ffmpeg_backend) << "✓✓✓ Successfully selected hardware decoder:" << codec->name << "✓✓✓";
+        }
+    }
+    
+    // Fallback to software decoder if hardware decoder not found
     if (!codec) {
-        qCCritical(log_ffmpeg_backend) << "Decoder not found for codec ID:" << codecpar->codec_id;
-        return false;
+        codec = avcodec_find_decoder(codecpar->codec_id);
+        if (!codec) {
+            qCCritical(log_ffmpeg_backend) << "Decoder not found for codec ID:" << codecpar->codec_id;
+            return false;
+        }
+        const char* codecName = codec->name ? codec->name : "unknown";
+        qCDebug(log_ffmpeg_backend) << "Using software decoder:" << codecName;
     }
     
     // Allocate codec context
@@ -797,11 +1190,148 @@ bool FFmpegBackendHandler::openInputDevice(const QString& devicePath, const QSiz
         return false;
     }
     
+    // CRITICAL: Set low-latency codec options before opening
+    m_codecContext->flags |= AV_CODEC_FLAG_LOW_DELAY;      // Enable low-delay decoding
+    m_codecContext->flags2 |= AV_CODEC_FLAG2_FAST;         // Prioritize speed over quality
+    
+    // Use single-threading for lower latency, even with hardware acceleration
+    if (usingHwDecoder) {
+        m_codecContext->thread_count = 1;  // Single thread for lowest latency with GPU
+    } else {
+        m_codecContext->thread_count = 1;  // Single thread for software decoding latency
+    }
+    
+    // Set hardware device context if using hardware decoder AND context is available
+    // Note: CUVID on Windows doesn't require a device context, so we skip this step for CUDA
+    if (usingHwDecoder && m_hwDeviceContext) {
+        m_codecContext->hw_device_ctx = av_buffer_ref(m_hwDeviceContext);
+        if (!m_codecContext->hw_device_ctx) {
+            qCWarning(log_ffmpeg_backend) << "Failed to reference hardware device context";
+            // Continue with software fallback
+            avcodec_free_context(&m_codecContext);
+            
+            // Try again with software decoder
+            codec = avcodec_find_decoder(codecpar->codec_id);
+            if (!codec) {
+                qCCritical(log_ffmpeg_backend) << "Software decoder not found for codec ID:" << codecpar->codec_id;
+                return false;
+            }
+            
+            m_codecContext = avcodec_alloc_context3(codec);
+            if (!m_codecContext) {
+                qCCritical(log_ffmpeg_backend) << "Failed to allocate codec context for software decoder";
+                return false;
+            }
+            
+            ret = avcodec_parameters_to_context(m_codecContext, codecpar);
+            if (ret < 0) {
+                qCCritical(log_ffmpeg_backend) << "Failed to copy codec parameters to software decoder";
+                return false;
+            }
+            
+            // CRITICAL: Set low-latency codec options for software decoder
+            m_codecContext->flags |= AV_CODEC_FLAG_LOW_DELAY;
+            m_codecContext->flags2 |= AV_CODEC_FLAG2_FAST;
+            m_codecContext->thread_count = 1;
+            
+            usingHwDecoder = false;
+            qCInfo(log_ffmpeg_backend) << "Falling back to software decoder:" << codec->name;
+        } else {
+            const char* hwType = (m_hwDeviceType == AV_HWDEVICE_TYPE_CUDA) ? "CUDA/NVDEC" : "QSV";
+            qCInfo(log_ffmpeg_backend) << "✓" << hwType << "hardware device context set successfully";
+        }
+    } else if (usingHwDecoder && !m_hwDeviceContext) {
+        // CUVID on Windows case - no device context needed
+        const char* hwType = (m_hwDeviceType == AV_HWDEVICE_TYPE_CUDA) ? "CUDA/NVDEC" : "Hardware";
+        qCInfo(log_ffmpeg_backend) << "✓" << hwType << "decoder will be used without device context (normal for CUVID on Windows)";
+    }
+    
+    // Prepare decoder options for CUDA/NVDEC optimization
+    AVDictionary* codecOptions = nullptr;
+    if (usingHwDecoder && m_hwDeviceType == AV_HWDEVICE_TYPE_CUDA) {
+        // CUDA/NVDEC specific options for ultra-low latency
+        av_dict_set(&codecOptions, "gpu", "0", 0);  // Use first GPU (can be changed if multiple GPUs)
+        av_dict_set(&codecOptions, "surfaces", "1", 0);  // Minimal surfaces for lowest latency (deprecated but still used)
+        av_dict_set(&codecOptions, "low_latency", "1", 0);  // Enable low latency mode for CUVID decoders
+        av_dict_set(&codecOptions, "delay", "0", 0);  // No delay
+        av_dict_set(&codecOptions, "rgb_mode", "1", 0);  // Output RGB directly from GPU for faster rendering
+        
+        qCInfo(log_ffmpeg_backend) << "Setting CUDA/NVDEC decoder options: gpu=0, surfaces=1, low_latency=1, delay=0, rgb_mode=1";
+    }
+    
     // Open codec
-    ret = avcodec_open2(m_codecContext, codec, nullptr);
+    qCInfo(log_ffmpeg_backend) << "Attempting to open codec:" << codec->name;
+    ret = avcodec_open2(m_codecContext, codec, &codecOptions);
+    
+    // Log any unused options (helps debug configuration issues)
+    if (codecOptions) {
+        AVDictionaryEntry* entry = nullptr;
+        while ((entry = av_dict_get(codecOptions, "", entry, AV_DICT_IGNORE_SUFFIX))) {
+            qCWarning(log_ffmpeg_backend) << "Unused codec option:" << entry->key << "=" << entry->value;
+        }
+    }
+    av_dict_free(&codecOptions);
     if (ret < 0) {
-        qCCritical(log_ffmpeg_backend) << "Failed to open codec";
-        return false;
+        char errbuf[AV_ERROR_MAX_STRING_SIZE];
+        av_strerror(ret, errbuf, AV_ERROR_MAX_STRING_SIZE);
+        
+        // If hardware decoder fails, try software fallback
+        if (usingHwDecoder) {
+            const char* hwType = (m_hwDeviceType == AV_HWDEVICE_TYPE_CUDA) ? "CUDA/NVDEC" : "QSV";
+            qCWarning(log_ffmpeg_backend) << "✗ Failed to open" << hwType << "hardware codec:" 
+                                          << QString::fromUtf8(errbuf);
+            qCWarning(log_ffmpeg_backend) << "  - Falling back to software decoder...";
+            
+            avcodec_free_context(&m_codecContext);
+            
+            // Try software decoder
+            codec = avcodec_find_decoder(codecpar->codec_id);
+            if (!codec) {
+                qCCritical(log_ffmpeg_backend) << "Software decoder not found for codec ID:" << codecpar->codec_id;
+                return false;
+            }
+            
+            m_codecContext = avcodec_alloc_context3(codec);
+            if (!m_codecContext) {
+                qCCritical(log_ffmpeg_backend) << "Failed to allocate codec context for software decoder";
+                return false;
+            }
+            
+            ret = avcodec_parameters_to_context(m_codecContext, codecpar);
+            if (ret < 0) {
+                qCCritical(log_ffmpeg_backend) << "Failed to copy codec parameters to software decoder";
+                return false;
+            }
+            
+            // CRITICAL: Set low-latency codec options for software decoder fallback
+            m_codecContext->flags |= AV_CODEC_FLAG_LOW_DELAY;
+            m_codecContext->flags2 |= AV_CODEC_FLAG2_FAST;
+            m_codecContext->thread_count = 1;
+            
+            ret = avcodec_open2(m_codecContext, codec, nullptr);
+            if (ret < 0) {
+                av_strerror(ret, errbuf, AV_ERROR_MAX_STRING_SIZE);
+                qCCritical(log_ffmpeg_backend) << "Failed to open software codec:" << QString::fromUtf8(errbuf);
+                return false;
+            }
+            
+            usingHwDecoder = false;
+            qCInfo(log_ffmpeg_backend) << "✓ Successfully opened software decoder:" << codec->name;
+        } else {
+            qCCritical(log_ffmpeg_backend) << "Failed to open codec:" << QString::fromUtf8(errbuf);
+            return false;
+        }
+    } else if (usingHwDecoder) {
+        // Hardware codec opened successfully - log details
+        qCInfo(log_ffmpeg_backend) << "✓✓✓ Successfully opened hardware codec:" << codec->name << "✓✓✓";
+        qCInfo(log_ffmpeg_backend) << "  - Codec pixel format:" << m_codecContext->pix_fmt 
+                                   << "(" << av_get_pix_fmt_name(m_codecContext->pix_fmt) << ")";
+        qCInfo(log_ffmpeg_backend) << "  - Codec capabilities:" << codec->capabilities;
+        
+        // Check if this codec outputs hardware frames
+        if (codec->capabilities & AV_CODEC_CAP_HARDWARE) {
+            qCInfo(log_ffmpeg_backend) << "  - Codec has AV_CODEC_CAP_HARDWARE capability";
+        }
     }
     
     // Allocate frames
@@ -816,9 +1346,13 @@ bool FFmpegBackendHandler::openInputDevice(const QString& devicePath, const QSiz
     
     qCDebug(log_ffmpeg_backend) << "Input device opened successfully:"
                                 << "codec=" << codec->name
+                                << "hw_accel=" << (usingHwDecoder ? av_hwdevice_get_type_name(m_hwDeviceType) : "none")
                                 << "codec_id=" << codecpar->codec_id
                                 << "resolution=" << codecpar->width << "x" << codecpar->height
                                 << "pixel_format=" << codecpar->format;
+    
+    // Reset operation timer - device opened successfully
+    m_operationStartTime = 0;
     
     return true;
 }
@@ -858,6 +1392,9 @@ void FFmpegBackendHandler::closeInputDevice()
         avformat_close_input(&m_formatContext);
         m_formatContext = nullptr;
     }
+    
+    // Give Windows time to release the camera device
+    // QThread::msleep(1000);
     
     m_videoStreamIndex = -1;
 }
@@ -959,7 +1496,8 @@ void FFmpegBackendHandler::processFrame()
     }
     
     // Drop frames if we're processing too slowly, but be less aggressive when recording
-    int frameDropThreshold = isRecording ? 8 : 12; // 125 FPS when recording, 83 FPS when not recording
+    // ULTRA LOW LATENCY: Very aggressive frame dropping for minimal delay
+    int frameDropThreshold = isRecording ? 1 : 2; 
     if (currentTime - lastProcessTime < frameDropThreshold) {
         droppedFrames++;
         av_packet_unref(m_packet);
@@ -975,43 +1513,81 @@ void FFmpegBackendHandler::processFrame()
     
     QPixmap pixmap;
     
-    // Check if this is MJPEG/JPEG stream for direct libjpeg-turbo decoding
+    // Determine if we're using a hardware decoder
+    bool usingHardwareDecoder = false;
+    if (m_codecContext->codec) {
+        const char* codecName = m_codecContext->codec->name;
+        // Check if this is a hardware decoder (ends with _cuvid, _qsv, etc.)
+        usingHardwareDecoder = (strstr(codecName, "_cuvid") != nullptr || 
+                               strstr(codecName, "_qsv") != nullptr ||
+                               strstr(codecName, "_nvdec") != nullptr);
+    }
+    
+    // PRIORITY ORDER for MJPEG decoding:
+    // 1. Hardware decoder (CUVID/NVDEC, QSV) - Best performance, GPU acceleration
+    // 2. TurboJPEG - Fast CPU-based JPEG decoder
+    // 3. FFmpeg software decoder - Fallback option
+    
     if (m_codecContext->codec_id == AV_CODEC_ID_MJPEG) {
-#ifdef HAVE_LIBJPEG_TURBO
-        // Use TurboJPEG for significant performance improvement on MJPEG
-        static int turbojpegFrameCount = 0;
-        turbojpegFrameCount++;
-        
-        // RESPONSIVENESS: Reduce logging overhead even more
-        if (turbojpegFrameCount % 5000 == 1) { // Every 5000 frames instead of 1000
-            qCDebug(log_ffmpeg_backend) << "Using TurboJPEG acceleration (frame" << turbojpegFrameCount << ")";
-        }
-        
-        // Additional validation for JPEG data
-        if (m_packet->size < 10) { // Minimum JPEG header size
-            if (turbojpegFrameCount % 5000 == 1) { // Reduce warning spam
-                qCWarning(log_ffmpeg_backend) << "JPEG packet too small:" << m_packet->size << "bytes, falling back to FFmpeg decoder";
-            }
-            pixmap = decodeFrame(m_packet);
-        } else {
-            pixmap = decodeJpegFrame(m_packet->data, m_packet->size);
+        if (usingHardwareDecoder) {
+            // Use hardware decoder (CUVID/NVDEC or QSV)
+            static int hwFrameCount = 0;
+            hwFrameCount++;
             
-            // If TurboJPEG failed, fall back to FFmpeg decoder
+            if (hwFrameCount % 1000 == 1) {
+                const char* hwType = (strstr(m_codecContext->codec->name, "cuvid") != nullptr) ? "NVDEC/CUVID" : "Hardware";
+                qCInfo(log_ffmpeg_backend) << "Using" << hwType << "GPU acceleration for MJPEG (frame" << hwFrameCount << ")";
+            }
+            
+            pixmap = decodeFrame(m_packet);
+            
+            // If hardware decoder fails, try TurboJPEG fallback
             if (pixmap.isNull()) {
-                if (turbojpegFrameCount % 5000 == 1) { // Reduce fallback spam even more
-                    qCDebug(log_ffmpeg_backend) << "TurboJPEG failed, falling back to FFmpeg decoder";
+#ifdef HAVE_LIBJPEG_TURBO
+                if (hwFrameCount % 1000 == 1) {
+                    qCWarning(log_ffmpeg_backend) << "Hardware decoder failed, falling back to TurboJPEG";
+                }
+                pixmap = decodeJpegFrame(m_packet->data, m_packet->size);
+#endif
+            }
+        } else {
+            // No hardware decoder - use TurboJPEG or FFmpeg software decoder
+#ifdef HAVE_LIBJPEG_TURBO
+            // Use TurboJPEG for significant performance improvement on MJPEG
+            static int turbojpegFrameCount = 0;
+            turbojpegFrameCount++;
+            
+            // RESPONSIVENESS: Reduce logging overhead
+            if (turbojpegFrameCount % 5000 == 1) {
+                qCDebug(log_ffmpeg_backend) << "Using TurboJPEG CPU acceleration (frame" << turbojpegFrameCount << ")";
+            }
+            
+            // Additional validation for JPEG data
+            if (m_packet->size < 10) { // Minimum JPEG header size
+                if (turbojpegFrameCount % 5000 == 1) {
+                    qCWarning(log_ffmpeg_backend) << "JPEG packet too small:" << m_packet->size << "bytes, falling back to FFmpeg decoder";
                 }
                 pixmap = decodeFrame(m_packet);
+            } else {
+                pixmap = decodeJpegFrame(m_packet->data, m_packet->size);
+                
+                // If TurboJPEG failed, fall back to FFmpeg decoder
+                if (pixmap.isNull()) {
+                    if (turbojpegFrameCount % 5000 == 1) {
+                        qCDebug(log_ffmpeg_backend) << "TurboJPEG failed, falling back to FFmpeg software decoder";
+                    }
+                    pixmap = decodeFrame(m_packet);
+                }
             }
-        }
 #else
-        // RESPONSIVENESS: Only log this occasionally to reduce overhead
-        static int noTurboLogCount = 0;
-        if (++noTurboLogCount % 5000 == 1) {
-            qCDebug(log_ffmpeg_backend) << "Using FFmpeg decoder for MJPEG frame (TurboJPEG not available)";
-        }
-        pixmap = decodeFrame(m_packet);
+            // RESPONSIVENESS: Only log this occasionally to reduce overhead
+            static int noTurboLogCount = 0;
+            if (++noTurboLogCount % 5000 == 1) {
+                qCDebug(log_ffmpeg_backend) << "Using FFmpeg software decoder for MJPEG frame (TurboJPEG not available)";
+            }
+            pixmap = decodeFrame(m_packet);
 #endif
+        }
     } else {
         // Non-MJPEG codecs use FFmpeg decoder
         static int ffmpegFrameCount = 0;
@@ -1038,6 +1614,7 @@ void FFmpegBackendHandler::processFrame()
         // CRITICAL FIX: Skip first few frames to allow device signal to stabilize
         // Many USB video capture devices (including Openterface) output black frames initially
         // This can be configured via environment variable if needed
+        // OPTIMIZATION: Skip this when using hardware acceleration as it's not needed
         static int startupFramesToSkip = -1;
         if (startupFramesToSkip == -1) {
             // Check environment variable first, otherwise use default
@@ -1046,7 +1623,14 @@ void FFmpegBackendHandler::processFrame()
                 startupFramesToSkip = QString(envSkipFrames).toInt();
                 qCDebug(log_ffmpeg_backend) << "Using environment variable OPENTERFACE_SKIP_FRAMES:" << startupFramesToSkip;
             } else {
-                startupFramesToSkip = 5; // Default: skip first 5 frames
+                // When using hardware acceleration, don't skip frames (HW decoders are stable from start)
+                if (usingHardwareDecoder) {
+                    startupFramesToSkip = 0; // No frame skipping needed with HW acceleration
+                    qCInfo(log_ffmpeg_backend) << "Hardware decoder detected - skipping frame stabilization wait";
+                } else {
+                    startupFramesToSkip = 5; // Default: skip first 5 frames for software decoders
+                    qCDebug(log_ffmpeg_backend) << "Software decoder - will skip first" << startupFramesToSkip << "frames for signal stabilization";
+                }
             }
         }
         
@@ -1242,7 +1826,15 @@ QPixmap FFmpegBackendHandler::decodeFrame(AVPacket* packet)
         }
         char errbuf[AV_ERROR_MAX_STRING_SIZE];
         av_strerror(ret, errbuf, AV_ERROR_MAX_STRING_SIZE);
-        qCWarning(log_ffmpeg_backend) << "Error receiving frame from decoder:" << QString::fromUtf8(errbuf);
+        
+        // Log decoder information for debugging hardware decoder issues
+        static int errorCount = 0;
+        if (++errorCount <= 5) {
+            qCWarning(log_ffmpeg_backend) << "Error receiving frame from decoder:" << QString::fromUtf8(errbuf);
+            qCWarning(log_ffmpeg_backend) << "  Decoder:" << (m_codecContext->codec ? m_codecContext->codec->name : "unknown");
+            qCWarning(log_ffmpeg_backend) << "  Pixel format:" << m_codecContext->pix_fmt;
+            qCWarning(log_ffmpeg_backend) << "  Error code:" << ret;
+        }
         return QPixmap();
     }
     
@@ -1258,8 +1850,89 @@ QPixmap FFmpegBackendHandler::decodeFrame(AVPacket* packet)
         return QPixmap();
     }
     
+    // Log frame format information for hardware decoder debugging
+    static int frameFormatLogCount = 0;
+    if (++frameFormatLogCount <= 5 || frameFormatLogCount % 1000 == 1) {
+        const char* codecName = m_codecContext->codec ? m_codecContext->codec->name : "unknown";
+        const char* formatName = av_get_pix_fmt_name(static_cast<AVPixelFormat>(m_frame->format));
+        qCInfo(log_ffmpeg_backend) << "Received frame from" << codecName 
+                                   << "- format:" << m_frame->format 
+                                   << "(" << (formatName ? formatName : "unknown") << ")"
+                                   << "size:" << m_frame->width << "x" << m_frame->height;
+    }
+    
+    // IMPORTANT: mjpeg_cuvid on Windows decodes to system memory in NV12/YUV420P format
+    // It does NOT output AV_PIX_FMT_CUDA format like H264/HEVC CUVID decoders
+    // The GPU is still used for decoding, but output is directly in system memory
+    // This is actually GOOD - no need for slow GPU->CPU transfer!
+    
+    // Check if this is a hardware frame that needs to be transferred to system memory
+    AVFrame* frameToConvert = m_frame;
+    AVFrame* swFrame = nullptr;
+    
+    // Check for hardware pixel formats that need transfer
+    // NOTE: mjpeg_cuvid outputs to system memory (NV12/YUV420P), so no transfer needed
+    bool isHardwareFrame = (m_frame->format == AV_PIX_FMT_QSV ||       // Intel QSV
+                           m_frame->format == AV_PIX_FMT_CUDA);        // NVIDIA CUDA (H264/HEVC, not MJPEG)
+    
+    if (isHardwareFrame) {
+        // This is a hardware frame - need to transfer to system memory
+        static int hwTransferAttempts = 0;
+        hwTransferAttempts++;
+        
+        if (hwTransferAttempts <= 5) {
+            const char* hwType = (m_frame->format == AV_PIX_FMT_QSV) ? "QSV" : "CUDA";
+            qCInfo(log_ffmpeg_backend) << "Attempting to transfer hardware frame (" << hwType 
+                                       << ") to system memory (attempt" << hwTransferAttempts << ")";
+        }
+        
+        swFrame = av_frame_alloc();
+        if (!swFrame) {
+            qCWarning(log_ffmpeg_backend) << "Failed to allocate frame for hardware transfer";
+            return QPixmap();
+        }
+        
+        // Transfer data from GPU to CPU
+        ret = av_hwframe_transfer_data(swFrame, m_frame, 0);
+        if (ret < 0) {
+            char errbuf[AV_ERROR_MAX_STRING_SIZE];
+            av_strerror(ret, errbuf, AV_ERROR_MAX_STRING_SIZE);
+            
+            static int transferErrorCount = 0;
+            if (++transferErrorCount <= 5) {
+                qCWarning(log_ffmpeg_backend) << "Error transferring hardware frame to system memory:" 
+                                              << QString::fromUtf8(errbuf);
+                qCWarning(log_ffmpeg_backend) << "  Frame format:" << m_frame->format;
+                qCWarning(log_ffmpeg_backend) << "  Frame size:" << m_frame->width << "x" << m_frame->height;
+                qCWarning(log_ffmpeg_backend) << "  This might indicate the decoder doesn't support hardware frames properly";
+            }
+            
+            av_frame_free(&swFrame);
+            return QPixmap();
+        }
+        
+        // Copy metadata from hardware frame
+        av_frame_copy_props(swFrame, m_frame);
+        
+        frameToConvert = swFrame;
+        
+        static int hwTransferCount = 0;
+        if (++hwTransferCount % 1000 == 1) {
+            const char* hwType = (m_frame->format == AV_PIX_FMT_QSV) ? "QSV" : "CUDA";
+            qCDebug(log_ffmpeg_backend) << "Hardware frame (" << hwType 
+                                       << ") transferred to system memory (count:" << hwTransferCount << ")";
+        }
+    }
+    
     // PERFORMANCE: Skip success logging for every frame
-    return convertFrameToPixmap(m_frame);
+    QPixmap result = convertFrameToPixmap(frameToConvert);
+    
+    // Free the software frame if we allocated it
+    if (swFrame) {
+        av_frame_free(&swFrame);
+    }
+    
+    return result;
 }
 #endif
 
@@ -1292,13 +1965,42 @@ QPixmap FFmpegBackendHandler::convertFrameToPixmap(AVFrame* frame)
     }
     
     // PERFORMANCE: Minimize debug logging for better performance
-    // Only log critical conversion details every 1000th frame
+    // Only log critical conversion details for first few frames and every 1000th frame
     static int conversionLogCounter = 0;
     conversionLogCounter++;
     
-    if (conversionLogCounter % 1000 == 1) {
-        qCDebug(log_ffmpeg_backend) << "convertFrameToPixmap: frame" << width << "x" << height 
-                                   << "format:" << format << "linesize:" << frame->linesize[0];
+    const char* formatName = av_get_pix_fmt_name(format);
+    // TEMP: Always log format for debugging
+    // qCDebug(log_ffmpeg_backend) << "convertFrameToPixmap: frame" << width << "x" << height 
+    //                            << "format:" << format << "(" << (formatName ? formatName : "unknown") << ")"
+    //                            << "linesize:" << frame->linesize[0];
+    
+    // FAST PATH: If frame is already RGB, create QImage directly without scaling
+    if (format == AV_PIX_FMT_RGB24 || format == AV_PIX_FMT_BGR24 || 
+        format == AV_PIX_FMT_RGBA || format == AV_PIX_FMT_BGRA ||
+        format == AV_PIX_FMT_BGR0 || format == AV_PIX_FMT_RGB0) {
+        
+        qCDebug(log_ffmpeg_backend) << "Using RGB fast path for format:" << formatName;
+        
+        QImage::Format qtFormat;
+        if (format == AV_PIX_FMT_RGB24) qtFormat = QImage::Format_RGB888;
+        else if (format == AV_PIX_FMT_BGR24) qtFormat = QImage::Format_RGB888; // Qt will handle BGR->RGB
+        else if (format == AV_PIX_FMT_RGBA) qtFormat = QImage::Format_RGBA8888;
+        else if (format == AV_PIX_FMT_BGRA) qtFormat = QImage::Format_RGBA8888;
+        else if (format == AV_PIX_FMT_BGR0) qtFormat = QImage::Format_RGB32;
+        else if (format == AV_PIX_FMT_RGB0) qtFormat = QImage::Format_RGB32;
+        else qtFormat = QImage::Format_RGB888; // fallback
+        
+        // Create QImage directly from frame data
+        QImage image(frame->data[0], width, height, frame->linesize[0], qtFormat);
+        if (qtFormat == QImage::Format_RGB888 && format == AV_PIX_FMT_BGR24) {
+            // Need to swap BGR to RGB
+            image = image.rgbSwapped();
+        }
+        
+        QPixmap pixmap = QPixmap::fromImage(image);
+        qCDebug(log_ffmpeg_backend) << "Created pixmap from RGB fast path, size:" << pixmap.size() << "isNull:" << pixmap.isNull();
+        return pixmap;
     }
     
     // Check if we need to recreate the scaling context (format or size changed)
@@ -1312,6 +2014,12 @@ QPixmap FFmpegBackendHandler::convertFrameToPixmap(AVFrame* frame)
             m_swsContext = nullptr;
         }
         
+        const char* formatName = av_get_pix_fmt_name(format);
+        qCInfo(log_ffmpeg_backend) << "Creating scaling context:" 
+                                   << width << "x" << height 
+                                   << "from format" << format << "(" << (formatName ? formatName : "unknown") << ")"
+                                   << "to RGB24";
+        
         m_swsContext = sws_getContext(
             width, height, format,
             width, height, AV_PIX_FMT_RGB24,
@@ -1319,7 +2027,8 @@ QPixmap FFmpegBackendHandler::convertFrameToPixmap(AVFrame* frame)
         );
         
         if (!m_swsContext) {
-            qCWarning(log_ffmpeg_backend) << "Failed to create scaling context for format:" << format;
+            qCCritical(log_ffmpeg_backend) << "✗ Failed to create scaling context for format:" << format 
+                                          << "(" << (formatName ? formatName : "unknown") << ")";
             return QPixmap();
         }
         
@@ -1327,12 +2036,7 @@ QPixmap FFmpegBackendHandler::convertFrameToPixmap(AVFrame* frame)
         lastHeight = height;
         lastFormat = format;
         
-        // Only log scaling context creation every 1000th time for performance
-        static int scalingContextLogCounter = 0;
-        scalingContextLogCounter++;
-        if (scalingContextLogCounter % 1000 == 1) {
-            qCDebug(log_ffmpeg_backend) << "Created new scaling context for format:" << format;
-        }
+        qCInfo(log_ffmpeg_backend) << "✓ Successfully created scaling context";
     }
     
     // Allocate buffer for RGB frame
@@ -1346,16 +2050,28 @@ QPixmap FFmpegBackendHandler::convertFrameToPixmap(AVFrame* frame)
     uint8_t* rgbData[1] = { image.bits() };
     int rgbLinesize[1] = { static_cast<int>(image.bytesPerLine()) };
     
+    // Log first few scale operations for debugging
+    static int scaleLogCounter = 0;
+    if (++scaleLogCounter <= 5) {
+        qCDebug(log_ffmpeg_backend) << "Calling sws_scale: input" << width << "x" << height 
+                                   << "linesize[0]:" << frame->linesize[0]
+                                   << "output linesize:" << rgbLinesize[0];
+    }
+    
     // Convert frame to RGB
     int scaleResult = sws_scale(m_swsContext, frame->data, frame->linesize, 0, height, rgbData, rgbLinesize);
     if (scaleResult < 0) {
-        qCWarning(log_ffmpeg_backend) << "sws_scale failed with result:" << scaleResult;
+        qCCritical(log_ffmpeg_backend) << "✗ sws_scale failed with result:" << scaleResult;
         return QPixmap();
     }
     
     if (scaleResult != height) {
         qCWarning(log_ffmpeg_backend) << "sws_scale converted" << scaleResult << "lines, expected" << height;
-        // Continue anyway, as partial conversion might still be useful
+        return QPixmap(); // Return error instead of continuing with partial conversion
+    }
+    
+    if (scaleLogCounter <= 5) {
+        qCInfo(log_ffmpeg_backend) << "✓ sws_scale successful, converted" << scaleResult << "lines";
     }
     
     // PERFORMANCE: Skip sws_scale result logging for better performance
@@ -1473,6 +2189,34 @@ bool FFmpegBackendHandler::checkCameraAvailable(const QString& devicePath)
     
     qCDebug(log_ffmpeg_backend) << "Checking camera availability for device:" << device;
     
+#ifdef Q_OS_WIN
+    // On Windows, DirectShow device names like "video=Openterface" are not file paths
+    // Skip file existence check for DirectShow devices
+    if (device.startsWith("video=")) {
+        qCDebug(log_ffmpeg_backend) << "DirectShow device detected, skipping file existence check:" << device;
+    } else {
+        // Check if device file exists and is accessible (for V4L2 devices)
+        QFile deviceFile(device);
+        if (!deviceFile.exists()) {
+            qCDebug(log_ffmpeg_backend) << "Device file does not exist:" << device;
+            return false;
+        }
+        
+        // Try to open the device for reading to verify it's accessible
+        // Skip this check if we're currently capturing to avoid device conflicts
+        if (device == m_currentDevice && m_captureRunning) {
+            qCDebug(log_ffmpeg_backend) << "Device is currently in use for capture, skipping file open check";
+            return true;
+        }
+        
+        if (!deviceFile.open(QIODevice::ReadOnly)) {
+            qCDebug(log_ffmpeg_backend) << "Cannot open device for reading:" << device << "Error:" << deviceFile.errorString();
+            return false;
+        }
+        
+        deviceFile.close();
+    }
+#else
     // Check if device file exists and is accessible
     QFile deviceFile(device);
     if (!deviceFile.exists()) {
@@ -1493,12 +2237,19 @@ bool FFmpegBackendHandler::checkCameraAvailable(const QString& devicePath)
     }
     
     deviceFile.close();
+#endif
     
-    // Additional check: try to briefly open with FFmpeg to verify V4L2 compatibility
+    // Additional check: try to briefly open with FFmpeg to verify compatibility
     // Skip this intrusive check if device is currently being used for capture
     if (device == m_currentDevice && m_captureRunning) {
         qCDebug(log_ffmpeg_backend) << "Device is currently in use for capture, skipping FFmpeg compatibility check";
         return true;
+    }
+    
+    // Skip intrusive FFmpeg check if we're waiting for device activation
+    if (m_waitingForDevice) {
+        qCDebug(log_ffmpeg_backend) << "Waiting for device activation, skipping intrusive FFmpeg compatibility check";
+        return true; // Rely on OS-specific checks above
     }
     
 #ifdef HAVE_FFMPEG
@@ -1508,12 +2259,22 @@ bool FFmpegBackendHandler::checkCameraAvailable(const QString& devicePath)
         return false;
     }
     
+#ifdef Q_OS_WIN
+    // On Windows, use DirectShow input format
+    const AVInputFormat* inputFormat = av_find_input_format("dshow");
+    if (!inputFormat) {
+        qCDebug(log_ffmpeg_backend) << "DirectShow input format not available";
+        avformat_free_context(testContext);
+        return false;
+    }
+#else
     const AVInputFormat* inputFormat = av_find_input_format("v4l2");
     if (!inputFormat) {
         qCDebug(log_ffmpeg_backend) << "V4L2 input format not available";
         avformat_free_context(testContext);
         return false;
     }
+#endif
     
     // Try to open the device with minimal options
     AVDictionary* options = nullptr;
@@ -1536,7 +2297,7 @@ bool FFmpegBackendHandler::checkCameraAvailable(const QString& devicePath)
     qCDebug(log_ffmpeg_backend) << "Camera device is available:" << device;
     return true;
 #else
-    qCDebug(log_ffmpeg_backend) << "FFmpeg not available, basic file check passed for:" << device;
+    qCDebug(log_ffmpeg_backend) << "FFmpeg not available, basic check passed for:" << device;
     return true;
 #endif
 }
@@ -1633,38 +2394,149 @@ void FFmpegBackendHandler::connectToHotplugMonitor()
     // Connect to device unplugging signal
     connect(m_hotplugMonitor, &HotplugMonitor::deviceUnplugged,
             this, [this](const DeviceInfo& device) {
-                qCDebug(log_ffmpeg_backend) << "FFmpeg: Device unplugged:" << device.portChain;
+                qCInfo(log_ffmpeg_backend) << "FFmpeg: Device unplugged event received";
+                qCInfo(log_ffmpeg_backend) << "  Port Chain:" << device.portChain;
+                qCInfo(log_ffmpeg_backend) << "  Current device port chain:" << m_currentDevicePortChain;
+                qCInfo(log_ffmpeg_backend) << "  Current device:" << m_currentDevice;
+                qCInfo(log_ffmpeg_backend) << "  Capture running:" << m_captureRunning;
                 
-                // Only handle if device has camera component
-                if (!device.hasCameraDevice()) {
-                    return;
-                }
-                
-                // Check if this affects our current device
-                if (m_captureRunning && !isCurrentDeviceAvailable()) {
-                    qCInfo(log_ffmpeg_backend) << "Current camera device became unavailable, handling disconnection";
-                    handleDeviceDeactivation(m_currentDevice);
+                // Match by port chain like serial port manager does
+                // This works even when DeviceInfo doesn't have camera info populated yet
+                if (!m_currentDevicePortChain.isEmpty() && 
+                    m_currentDevicePortChain == device.portChain) {
+                    qCInfo(log_ffmpeg_backend) << "  → Our current camera device was unplugged, stopping capture";
+                    
+                    // Close immediately like serial port does - don't wait for I/O errors
+                    if (m_captureRunning) {
+                        // Use QTimer to avoid blocking the hotplug signal handler
+                        QTimer::singleShot(0, this, [this]() {
+                            handleDeviceDeactivation(m_currentDevice);
+                        });
+                    }
+                } else {
+                    qCDebug(log_ffmpeg_backend) << "  → Unplugged device is not our current camera, ignoring";
                 }
             });
             
     // Connect to new device plugged in signal
     connect(m_hotplugMonitor, &HotplugMonitor::newDevicePluggedIn,
             this, [this](const DeviceInfo& device) {
-                qCDebug(log_ffmpeg_backend) << "FFmpeg: New device plugged in:" << device.portChain;
+                qCInfo(log_ffmpeg_backend) << "FFmpeg: New device plugged in event received";
+                qCInfo(log_ffmpeg_backend) << "  Port Chain:" << device.portChain;
+                qCInfo(log_ffmpeg_backend) << "  Has Camera:" << device.hasCameraDevice();
+                qCInfo(log_ffmpeg_backend) << "  Camera Path:" << device.cameraDevicePath;
+                qCInfo(log_ffmpeg_backend) << "  Camera ID:" << device.cameraDeviceId;
+                qCInfo(log_ffmpeg_backend) << "  Waiting for device:" << m_waitingForDevice;
+                qCInfo(log_ffmpeg_backend) << "  Expected device:" << m_expectedDevicePath;
+                qCInfo(log_ffmpeg_backend) << "  Capture running:" << m_captureRunning;
                 
-                // Only handle if device has camera component
-                if (!device.hasCameraDevice()) {
+                // Get device path - either from DeviceInfo or try to find it
+                QString devicePath = device.cameraDevicePath;
+                
+                // If device doesn't have camera info yet, wait and retry
+                if (!device.hasCameraDevice() || devicePath.isEmpty()) {
+                    qCDebug(log_ffmpeg_backend) << "  → Device has no camera info yet, will retry after delay";
+                    
+                    // Capture port chain for later use
+                    QString portChain = device.portChain;
+                    
+                    // Wait 1 second for camera enumeration to complete, then retry
+                    QTimer::singleShot(1000, this, [this, portChain]() {
+                        qCDebug(log_ffmpeg_backend) << "Retrying device activation for port chain:" << portChain;
+                        
+                        // Try to find camera device by port chain using Qt's device enumeration
+                        QList<QCameraDevice> cameras = QMediaDevices::videoInputs();
+                        QString foundDeviceName;
+                        
+                        for (const QCameraDevice& camera : cameras) {
+                            QString cameraDesc = camera.description();
+                            QString cameraId = QString::fromUtf8(camera.id());
+                            qCDebug(log_ffmpeg_backend) << "  Checking camera:" << cameraDesc << "ID:" << cameraId;
+                            
+                            // On Windows, DirectShow needs the friendly name (description), not the ID
+                            // On Linux, use the device path
+                            if (cameraDesc.contains("Openterface", Qt::CaseInsensitive)) {
+                                #ifdef Q_OS_WIN
+                                foundDeviceName = QString("video=%1").arg(cameraDesc);  // Format for DirectShow
+                                #else
+                                foundDeviceName = cameraId;     // Use device path for V4L2
+                                #endif
+                                qCInfo(log_ffmpeg_backend) << "  Found Openterface camera:" << foundDeviceName;
+                                break;
+                            }
+                        }
+                        
+                        if (!foundDeviceName.isEmpty()) {
+                            // Found a camera device, proceed with activation
+                            if (m_waitingForDevice) {
+                                qCInfo(log_ffmpeg_backend) << "  → Found device after retry, attempting activation:" << foundDeviceName;
+                                // Add small delay to allow device to fully initialize after reconnection
+                                QTimer::singleShot(500, this, [this, foundDeviceName, portChain]() {
+                                    handleDeviceActivation(foundDeviceName, portChain);
+                                });
+                            } else if (!m_captureRunning) {
+                                qCInfo(log_ffmpeg_backend) << "  → Found device after retry, auto-starting capture:" << foundDeviceName;
+                                QTimer::singleShot(500, this, [this, foundDeviceName, portChain]() {
+                                    if (!m_captureRunning) {
+                                        handleDeviceActivation(foundDeviceName, portChain);
+                                    }
+                                });
+                            }
+                        } else {
+                            qCWarning(log_ffmpeg_backend) << "  → No camera device found after retry for port chain:" << portChain;
+                        }
+                    });
                     return;
                 }
                 
-                // If we're waiting for a device, check if this could be it
+                // If we're waiting for a device (after unplug), activate it
                 if (m_waitingForDevice) {
-                    QString devicePath = device.cameraDevicePath;
                     if (!devicePath.isEmpty() && 
                         (m_expectedDevicePath.isEmpty() || devicePath == m_expectedDevicePath)) {
-                        qCInfo(log_ffmpeg_backend) << "Found expected device, attempting activation:" << devicePath;
-                        handleDeviceActivation(devicePath);
+                        qCInfo(log_ffmpeg_backend) << "  → Found expected device, attempting activation:" << devicePath;
+                        QString portChain = device.portChain;
+                        // Use QTimer to avoid blocking the hotplug signal handler
+                        QTimer::singleShot(0, this, [this, devicePath, portChain]() {
+                            handleDeviceActivation(devicePath, portChain);
+                        });
+                    } else {
+                        qCDebug(log_ffmpeg_backend) << "  → Device path doesn't match expected device";
                     }
+                    return;
+                }
+                
+                // If capture is not running and we have a camera device, try to start capture
+                // This handles the case where camera was unplugged and plugged back in
+                if (!m_captureRunning && !devicePath.isEmpty()) {
+                    // Check if this might be the device we were using before
+                    bool shouldAutoStart = false;
+                    
+                    // If we have a stored current device path that matches
+                    if (!m_currentDevice.isEmpty() && devicePath == m_currentDevice) {
+                        shouldAutoStart = true;
+                        qCInfo(log_ffmpeg_backend) << "  → Detected previously used camera device, will auto-restart capture";
+                    }
+                    // Or if we don't have any device set yet and this is the first camera
+                    else if (m_currentDevice.isEmpty()) {
+                        shouldAutoStart = true;
+                        qCInfo(log_ffmpeg_backend) << "  → Detected new camera device and no capture running, will auto-start capture";
+                    }
+                    
+                    if (shouldAutoStart) {
+                        QString portChain = device.portChain;
+                        // Use a short delay to ensure device is fully initialized
+                        // This also prevents blocking the hotplug event handler
+                        QTimer::singleShot(500, this, [this, devicePath, portChain]() {
+                            if (!m_captureRunning) {
+                                qCInfo(log_ffmpeg_backend) << "Auto-starting capture for plugged-in device:" << devicePath;
+                                handleDeviceActivation(devicePath, portChain);
+                            }
+                        });
+                    } else {
+                        qCDebug(log_ffmpeg_backend) << "  → New camera device detected but not auto-starting (different from previous device)";
+                    }
+                } else {
+                    qCDebug(log_ffmpeg_backend) << "  → Capture already running or no valid device path, ignoring plug-in event";
                 }
             });
             
@@ -1718,23 +2590,28 @@ void FFmpegBackendHandler::waitForDeviceActivation(const QString& devicePath, in
     qCDebug(log_ffmpeg_backend) << "Started waiting for device activation";
 }
 
-void FFmpegBackendHandler::handleDeviceActivation(const QString& devicePath)
+void FFmpegBackendHandler::handleDeviceActivation(const QString& devicePath, const QString& portChain)
 {
-    qCInfo(log_ffmpeg_backend) << "Handling device activation:" << devicePath;
+    qCInfo(log_ffmpeg_backend) << "Handling device activation:" << devicePath << "port chain:" << portChain;
     
     m_waitingForDevice = false;
     m_deviceWaitTimer->stop();
     
     if (!devicePath.isEmpty()) {
         m_currentDevice = devicePath;
+        m_currentDevicePortChain = portChain;  // Store port chain for unplug detection
+        qCDebug(log_ffmpeg_backend) << "Stored current device port chain:" << m_currentDevicePortChain;
     }
     
-    // Start capture with current settings
-    QSize resolution = m_currentResolution.isValid() ? m_currentResolution : QSize(1920, 1080);
-    int framerate = m_currentFramerate > 0 ? m_currentFramerate : 30;
+    // Start capture with current settings, or auto-detect if not set
+    QSize resolution = m_currentResolution.isValid() ? m_currentResolution : QSize(0, 0);
+    int framerate = m_currentFramerate > 0 ? m_currentFramerate : 0;
     
     qCDebug(log_ffmpeg_backend) << "Starting capture on activated device:" << m_currentDevice
                                 << "resolution:" << resolution << "framerate:" << framerate;
+    
+    // Add delay to allow device to stabilize after hotplug
+    // QThread::msleep(500);
     
     if (startDirectCapture(m_currentDevice, resolution, framerate)) {
         qCInfo(log_ffmpeg_backend) << "Successfully started capture on activated device";
@@ -1763,11 +2640,29 @@ void FFmpegBackendHandler::handleDeviceDeactivation(const QString& devicePath)
         stopDirectCapture();
     }
     
+    // Clear device state to force re-detection on reconnection
+    m_currentDevicePortChain.clear();
+    m_currentResolution = QSize();  // Reset resolution
+    m_currentFramerate = 0;         // Reset framerate
+    qCDebug(log_ffmpeg_backend) << "Cleared current device port chain and settings";
+    
     emit deviceDeactivated(deactivatedDevice);
     
     // Start waiting for device to come back
     qCInfo(log_ffmpeg_backend) << "Starting to wait for device reconnection";
     waitForDeviceActivation(m_currentDevice, 30000); // Wait up to 30 seconds
+}
+
+void FFmpegBackendHandler::setCurrentDevicePortChain(const QString& portChain)
+{
+    m_currentDevicePortChain = portChain;
+    qCDebug(log_ffmpeg_backend) << "Set current device port chain to:" << m_currentDevicePortChain;
+}
+
+void FFmpegBackendHandler::setCurrentDevice(const QString& devicePath)
+{
+    m_currentDevice = devicePath;
+    qCDebug(log_ffmpeg_backend) << "Set current device to:" << m_currentDevice;
 }
 
 // ============================================================================
@@ -1821,7 +2716,7 @@ bool FFmpegBackendHandler::startRecording(const QString& outputPath, const QStri
 #endif
 }
 
-void FFmpegBackendHandler::stopRecording()
+bool FFmpegBackendHandler::stopRecording()
 {
 #ifdef HAVE_FFMPEG
     qCDebug(log_ffmpeg_backend) << "Stopping recording";
@@ -1831,7 +2726,7 @@ void FFmpegBackendHandler::stopRecording()
         QMutexLocker locker(&m_recordingMutex);
         if (!m_recordingActive) {
             qCDebug(log_ffmpeg_backend) << "Recording is not active";
-            return;
+            return false;
         }
         m_recordingActive = false;
         m_recordingPaused = false;
@@ -1850,8 +2745,10 @@ void FFmpegBackendHandler::stopRecording()
     
     qCInfo(log_ffmpeg_backend) << "Recording stopped successfully";
     emit recordingStopped();
+    return true;
 #else
     qCDebug(log_ffmpeg_backend) << "FFmpeg not available: stopRecording() called but no implementation";
+    return false;
 #endif
 }
 
@@ -1978,6 +2875,7 @@ bool FFmpegBackendHandler::initializeRecording()
     }
     
     // Configure encoder with current capture settings (ensure we have valid values)
+    // If current settings are not valid, they should have been auto-detected during startDirectCapture
     QSize encoderResolution = m_currentResolution.isValid() ? m_currentResolution : QSize(1920, 1080);
     int encoderFramerate = m_currentFramerate > 0 ? m_currentFramerate : 30;
     
@@ -2330,6 +3228,66 @@ void FFmpegBackendHandler::cleanupRecording()
     
     qCDebug(log_ffmpeg_backend) << "Recording cleanup completed";
 }
+
+// Advanced recording methods
+bool FFmpegBackendHandler::isCameraReady() const
+{
+#ifdef HAVE_FFMPEG
+    return m_captureRunning && m_formatContext != nullptr && m_codecContext != nullptr;
+#else
+    return false;
+#endif
+}
+
+bool FFmpegBackendHandler::supportsAdvancedRecording() const
+{
+    return true; // FFmpeg backend always supports advanced recording
+}
+
+bool FFmpegBackendHandler::startRecordingAdvanced(const QString& outputPath, const RecordingConfig& config)
+{
+    setRecordingConfig(config);
+    return startRecording(outputPath, config.format, config.videoBitrate);
+}
+
+bool FFmpegBackendHandler::forceStopRecording()
+{
+#ifdef HAVE_FFMPEG
+    qCDebug(log_ffmpeg_backend) << "Force stopping recording";
+    m_recordingActive = false;
+    m_recordingPaused = false;
+    cleanupRecording();
+    emit recordingStopped();
+    return true;
+#else
+    return false;
+#endif
+}
+
+QString FFmpegBackendHandler::getLastError() const
+{
+    return m_lastError;
+}
+
+bool FFmpegBackendHandler::supportsRecordingStats() const
+{
+    return true; // FFmpeg backend supports recording statistics
+}
+
+qint64 FFmpegBackendHandler::getRecordingFileSize() const
+{
+#ifdef HAVE_FFMPEG
+    if (m_recordingOutputPath.isEmpty() || !m_recordingActive) {
+        return 0;
+    }
+    
+    QFileInfo fileInfo(m_recordingOutputPath);
+    return fileInfo.size();
+#else
+    return 0;
+#endif
+}
+
 #endif // HAVE_FFMPEG
 
 

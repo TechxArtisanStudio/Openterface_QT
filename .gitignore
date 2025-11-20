@@ -13,3 +13,4 @@ build-script/temp/*
 .build-dir/*
 host/backend/gstreamerbackendhandler.cpp
 build_static/*
+ffmpeg-build-temp/*

@@ -57,8 +57,9 @@ public:
     VideoHid(VideoHid const&) = delete;             // Copy construct
     void operator=(VideoHid const&) = delete; // Copy assign
 
-    void start();
-    void stop();
+public:
+    Q_INVOKABLE void start();
+    Q_INVOKABLE void stop();
 
     // Get resolution
     QPair<int, int> getResolution();
@@ -150,6 +151,8 @@ private:
     std::string m_firmwareVersion;
     std::string m_currentfirmwareVersion;
     
+    // Helper method to start the monitoring timer
+    void startMonitoringTimer();
 
 #ifdef _WIN32
     HANDLE deviceHandle = INVALID_HANDLE_VALUE;
@@ -205,7 +208,7 @@ private:
     
     // Chipset identification and handling
     VideoChipType m_chipType = VideoChipType::UNKNOWN;
-    void detectChipType();
+    Q_INVOKABLE void detectChipType();
     VideoChipType getChipType() const { return m_chipType; }
 };
 

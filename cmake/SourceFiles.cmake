@@ -6,8 +6,13 @@ set(COMMON_SOURCES
     main.cpp
 )
 
-# Add dlopen_wrapper.c only for static builds
-if(OPENTERFACE_BUILD_STATIC)
+# Add Windows resource file for icon
+if(WIN32)
+    list(APPEND COMMON_SOURCES openterfaceQT.rc)
+endif()
+
+# Add dlopen_wrapper.c only for static builds on Linux (not needed on Windows)
+if(OPENTERFACE_BUILD_STATIC AND NOT WIN32)
     list(APPEND COMMON_SOURCES dlopen_wrapper.c)
 endif()
 
@@ -29,10 +34,17 @@ set(HOST_SOURCES
     host/usbcontrol.cpp host/usbcontrol.h
     host/multimediabackend.cpp host/multimediabackend.h
     host/backend/ffmpegbackendhandler.cpp host/backend/ffmpegbackendhandler.h
-    host/backend/gstreamerbackendhandler.cpp host/backend/gstreamerbackendhandler.h
     host/backend/qtmultimediabackendhandler.cpp host/backend/qtmultimediabackendhandler.h
     host/backend/qtbackendhandler.cpp host/backend/qtbackendhandler.h
 )
+
+# Add GStreamer backend only on Linux
+if(NOT WIN32)
+    list(APPEND HOST_SOURCES
+        host/backend/gstreamerbackendhandler.cpp
+        host/backend/gstreamerbackendhandler.h
+    )
+endif()
 
 # Regex sources
 set(REGEX_SOURCES
