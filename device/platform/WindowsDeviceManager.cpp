@@ -30,7 +30,7 @@ DEFINE_GUID(GUID_DEVINTERFACE_UVC,
     0xA5DCBF10, 0x6530, 0x11D2, 0x90, 0x1F, 0x00, 0xC0, 0x4F, 0xB9, 0x51, 0xED);
 
 // Function declaration for CM_Get_Sibling (if not available in headers)
-extern "C" CONFIGRET WINAPI CM_Get_Sibling(
+extern "C" __declspec(dllimport) CONFIGRET WINAPI CM_Get_Sibling(
     PDEVINST pdnDevInstSibling,
     DEVINST dnDevInst,
     ULONG ulFlags

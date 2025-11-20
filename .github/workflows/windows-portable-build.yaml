@@ -117,11 +117,11 @@ jobs:
         uses: actions/cache@v3
         with:
           path: C:\vcpkg
-          key: vcpkg-openssl-windows
+          key: vcpkg-openssl-zlib-windows
           restore-keys: |
-            vcpkg-openssl-windows
+            vcpkg-openssl-zlib-windows
 
-      - name: Install vcpkg and OpenSSL
+      - name: Install vcpkg and Static Libraries
         if: steps.cache-vcpkg.outputs.cache-hit != 'true'
         run: |
           echo "Installing vcpkg"
@@ -130,14 +130,14 @@ jobs:
             cd %VCPKG_DIR%
             call bootstrap-vcpkg.bat
           )
-          echo "Installing OpenSSL static libraries"
+          echo "Installing OpenSSL and zlib static libraries"
           %VCPKG_DIR%\vcpkg update
           %VCPKG_DIR%\vcpkg install openssl:x64-mingw-static zlib:x64-mingw-static --triplet x64-mingw-static --host-triplet x64-mingw-static --clean-after-build
           %VCPKG_DIR%\vcpkg integrate install
 
-      - name: check OpenSSL installation
+      - name: check Static Libraries installation
         run: |
-          echo "Verifying OpenSSL installation..."
+          echo "Verifying OpenSSL and zlib installation..."
           dir %OPENSSL_DIR%\lib
           if not exist "%OPENSSL_DIR%\lib\libssl.a" (
             echo "Error: libssl.a not found. OpenSSL static libraries not properly installed."
@@ -147,12 +147,17 @@ jobs:
             echo "Error: libcrypto.a not found. OpenSSL static libraries not properly installed."
             exit 1
           )
-          echo "OpenSSL static libraries verified successfully!"
+          if not exist "%OPENSSL_DIR%\lib\libz.a" (
+            echo "Error: libz.a not found. zlib static libraries not properly installed."
+            exit 1
+          )
+          echo "OpenSSL and zlib static libraries verified successfully!"
           
           echo "Checking library architecture..."
           file "%OPENSSL_DIR%\lib\libssl.a" || echo "file command not available"
           echo "SSL library size:" && dir "%OPENSSL_DIR%\lib\libssl.a" | findstr "libssl.a"
           echo "Crypto library size:" && dir "%OPENSSL_DIR%\lib\libcrypto.a" | findstr "libcrypto.a"
+          echo "Zlib library size:" && dir "%OPENSSL_DIR%\lib\libz.a" | findstr "libz.a"
 
       - name: Build Qt Statically
         if: steps.cache-qt.outputs.cache-hit != 'true'
@@ -183,7 +188,7 @@ jobs:
         uses: actions/cache@v3
         with:
           path: C:\vcpkg
-          key: vcpkg-openssl-windows
+          key: vcpkg-openssl-zlib-windows
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -225,6 +230,10 @@ jobs:
             echo "Error: libcrypto.a not found at %OPENSSL_DIR%\lib\libcrypto.a"
             exit 1
           )
+          if not exist "%OPENSSL_DIR%\lib\libz.a" (
+            echo "Error: libz.a not found at %OPENSSL_DIR%\lib\libz.a"
+            exit 1
+          )
           
           echo "Checking Qt configuration..."
           C:\Qt6\bin\qmake -query
@@ -232,8 +241,9 @@ jobs:
           echo "Configuring with CMake..."
           cmake -G "MinGW Makefiles" ^
             -DCMAKE_BUILD_TYPE=Release ^
-            -DCMAKE_PREFIX_PATH=C:\Qt6 ^
+            -DCMAKE_PREFIX_PATH="C:\Qt6;C:\vcpkg\installed\x64-mingw-static" ^
             -DFFMPEG_PREFIX=C:\ffmpeg-static ^
+            -DZLIB_LIBRARY=C:\vcpkg\installed\x64-mingw-static\lib\libz.a ^
             -DOPENTERFACE_BUILD_STATIC=ON ^
             ${{ env.SOURCE_DIR }}
           
