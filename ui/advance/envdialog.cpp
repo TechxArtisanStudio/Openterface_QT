@@ -95,8 +95,7 @@ EnvironmentSetupDialog::EnvironmentSetupDialog(QWidget *parent) :
     bool autoCheck = settings.value("autoCheck", true).toBool();
     ui->autoCheckBox->setChecked(autoCheck);
 
-
-
+    QString statusSummary;
 
 #ifdef _WIN32
     setFixedSize(250, 140);
