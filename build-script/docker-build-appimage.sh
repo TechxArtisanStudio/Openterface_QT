@@ -182,6 +182,7 @@ declare -a APPIMAGE_LIBRARY_CONFIGS=(
     # JPEG libraries
     "JPEG|libjpeg|libjpeg.so|WARNING||/opt/ffmpeg/lib /usr/lib/x86_64-linux-gnu /usr/lib"
     "TURBOJPEG|libturbojpeg|libturbojpeg.so|WARNING||/opt/ffmpeg/lib /usr/lib/x86_64-linux-gnu /usr/lib"
+    "MFX|Intel Media SDK|libmfx.so|WARNING||/opt/ffmpeg/lib /usr/lib/x86_64-linux-gnu /usr/lib"
     
     # Compression libraries
     "BZ2|libbz2|libbz2.so|WARNING||/usr/lib/x86_64-linux-gnu /usr/lib /lib"
