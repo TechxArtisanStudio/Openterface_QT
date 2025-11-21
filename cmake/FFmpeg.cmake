@@ -588,7 +588,7 @@ function(link_ffmpeg_libraries)
                     # Core system libs
                     -lpthread -lm -ldl -lz -llzma -lbz2
                     # DRM/VA/VDPAU/X11 stack (vdpa_device_create_x11 lives in libvdpau and needs X11)
-                    -ldrm -lva -lva-drm -lva-x11 -lvdpau -lX11
+                    -ldrm -lva -lva-drm -lva-x11 -lvdpau -lX11 -lXext
                     # XCB is required by avdevice xcbgrab; ensure core xcb gets linked
                     -lxcb
                     # XCB extensions used by xcbgrab (shared memory, xfixes for cursor, shape for OSD)
@@ -596,6 +596,21 @@ function(link_ffmpeg_libraries)
                     # PulseAudio is required by avdevice pulse input/output
                     -lpulse -lpulse-simple
                 )
+                
+                # Check for libpostproc in FFmpeg directory
+                if(EXISTS "${FFMPEG_PREFIX}/lib/libpostproc.a")
+                    list(APPEND _FFMPEG_STATIC_DEPS "${FFMPEG_PREFIX}/lib/libpostproc.a")
+                    message(STATUS "Found postproc library: ${FFMPEG_PREFIX}/lib/libpostproc.a")
+                endif()
+                
+                # Add libmfx if available
+                find_library(MFX_LIBRARY mfx)
+                if(MFX_LIBRARY)
+                    list(APPEND _FFMPEG_STATIC_DEPS ${MFX_LIBRARY})
+                    message(STATUS "Found MFX library: ${MFX_LIBRARY}")
+                else()
+                    message(STATUS "MFX library not found - QSV support may be limited")
+                endif()
             endif()
 
             # If we probed additional HW libs (full paths), append them too to be safe
