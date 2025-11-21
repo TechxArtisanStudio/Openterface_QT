@@ -17,6 +17,7 @@ const KeyboardLayoutConfig QWERTZ_DE("German QWERTZ", false);
 const KeyboardLayoutConfig QWERTY_DK("Danish QWERTY", false);
 const KeyboardLayoutConfig QWERTY_SE("Swedish QWERTY", false);
 const KeyboardLayoutConfig JAPANESE("Japanese", false);
+const KeyboardLayoutConfig QWERTY_ES("Spanish QWERTY", false);
 
 // Initialize all layouts
 struct LayoutInitializer {

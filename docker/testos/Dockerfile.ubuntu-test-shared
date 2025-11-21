@@ -6,11 +6,13 @@ FROM ubuntu:24.04
 
 # Build arguments
 ARG GITHUB_TOKEN=""
+ARG INSTALL_TYPE="deb"
 
 # Set environment variables to avoid interactive prompts
 ENV DEBIAN_FRONTEND=noninteractive
 ENV TZ=UTC
 ENV GITHUB_TOKEN=${GITHUB_TOKEN}
+ENV INSTALL_TYPE=${INSTALL_TYPE}
 
 # Set up display environment for GUI applications
 ENV DISPLAY=:0
@@ -22,19 +24,21 @@ ENV LC_ALL=C.UTF-8
 ENV LANG=C.UTF-8
 
 # Install minimal system dependencies and runtime libraries only
-RUN apt-get update -y --allow-releaseinfo-change --allow-unauthenticated
-RUN apt-get install -y \
-        # Essential utilities
+RUN apt-get update -y --allow-releaseinfo-change --allow-unauthenticated \
+        && apt-get install -y \
         curl \
         wget \
         ca-certificates \
         jq \
         sudo \
         udev \
-        usbutils
+        usbutils \
+        file \
+        xvfb \
+        imagemagick \
+        x11-utils
 # Hardware interface libraries (runtime only)
-RUN apt-get install -y libusb-1.0-0 \
-        libudev1
+RUN apt-get install -y libudev1
 
 # Runtime dependencies for bundled Qt6 libraries
 RUN apt-get install -y libpcre2-16-0 \
@@ -67,35 +71,25 @@ RUN apt-get install -y libx11-6 \
         libxcb-image0 \
         libxcb-util1 \
         libxcb-keysyms1 \
-        libxcb-icccm4
+        libxcb-icccm4 \
+        x11-utils
 # OpenGL and GPU libraries for rendering
 RUN apt-get install -y libgl1 \
         libglx0 \
         libglvnd0 \
         libglu1-mesa
-# FFmpeg runtime libraries
-RUN apt-get install -y libavformat60 \
-        libavcodec60 \
-        libavutil58 \
-        libavdevice60 \
-        libswresample4 \
-        libswscale7 \
-        libturbojpeg
-# GStreamer runtime dependencies
-RUN apt-get install -y libgstreamer1.0-0 \
-        gstreamer1.0-plugins-base \
-        gstreamer1.0-plugins-good \
-        gstreamer1.0-plugins-bad \
-        gstreamer1.0-plugins-ugly \
-        gstreamer1.0-libav \
-        gstreamer1.0-alsa \
-        gstreamer1.0-pulseaudio
 
-# Video4Linux utilities for V4L2 device management and testing
-RUN apt-get install -y v4l-utils
+# NOTE: FFmpeg, GStreamer plugins, JPEG, and Video4Linux utilities are now
+# installed by the preinst script during package installation.
+# This keeps the test image lean and allows the preinst to handle all
+# multimedia dependencies in a consistent, verified manner.
+
+# FUSE support for AppImage installations
+RUN apt-get install -y libfuse2 \
+        fuse
 
 # Clean up to reduce image size
- RUN   apt-get clean && \
+RUN apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
 # Create a non-root user for running the application
@@ -115,14 +109,13 @@ RUN mkdir -p /tmp/build-artifacts /tmp/packages && \
 # 1. Find .deb files if they were mounted at runtime via docker run -v
 # 2. Download the latest release from GitHub
 
-# Copy installation script for runtime execution
-COPY ./install-openterface-shared.sh /tmp/install-openterface-shared.sh
-RUN chmod +x /tmp/install-openterface-shared.sh
+# Copy installation scripts for runtime execution
+COPY ./install-openterface.sh /docker/install-openterface.sh
+RUN chmod +x /docker/install-openterface.sh
 
 # Copy and setup entrypoint script
 COPY ./entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
-
 
 # Set up udev rules for Openterface hardware (backup rules, main setup in install script)
 RUN echo 'SUBSYSTEM=="hidraw", ATTRS{idVendor}=="534d", ATTRS{idProduct}=="2109", TAG+="uaccess", MODE="0666"' > /etc/udev/rules.d/50-openterface-backup.rules && \
@@ -159,8 +152,8 @@ RUN mkdir -p /usr/local/bin && \
     printf 'echo "QML2_IMPORT_PATH=$$QML2_IMPORT_PATH"\n' >> /usr/local/bin/check-qt-deps.sh && \
     chmod +x /usr/local/bin/check-qt-deps.sh
 
-# Switch to non-root user
-USER openterface
+# NOTE: Run entrypoint as root to allow Xvfb startup and system operations
+# After entrypoint initialization, app runs as non-root 'openterface' user
 
 # Set the working directory
 WORKDIR /home/openterface
@@ -171,8 +164,9 @@ LABEL description="Openterface QT Mini-KVM testing environment"
 LABEL version="latest"
 LABEL purpose="testing"
 
-# Set entrypoint to handle installation on first run
+# Set entrypoint to handle installation on first run (runs as root)
 ENTRYPOINT ["/entrypoint.sh"]
 
-# Default command (will be passed to entrypoint)
-CMD ["/bin/bash"]
+# No default command - entrypoint will run without arguments
+# This allows the container to start the app and enter monitoring loop
+# External commands can be executed via: docker exec <container> <command>

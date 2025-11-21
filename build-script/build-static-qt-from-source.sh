@@ -674,7 +674,7 @@ for header in $REQUIRED_HEADERS; do
 done
 
 # Check for required libraries
-REQUIRED_LIBS="libgstvideo-1.0.a libgstaudio-1.0.a libgsttag-1.0.a libgstrtp-1.0.a libgstpbutils-1.0.a libgstbase-1.0.a libgstreamer-1.0.a"
+REQUIRED_LIBS="libgstvideo-1.0.a libgstaudio-1.0.a libgsttag-1.0.a libgstrtp-1.0.a libgstpbutils-1.0.a libgstcodecs-1.0.a libgstcodecparsers-1.0.a libgstbase-1.0.a libgstreamer-1.0.a"
 
 for lib in $REQUIRED_LIBS; do
   if [ -f "${QT_TARGET_DIR}/lib/${lib}" ]; then
@@ -707,7 +707,7 @@ fi
 
 # Test for required libraries
 echo -e "\nChecking GStreamer core static libraries:"
-CORE_LIBS="libgstvideo-1.0.a libgstaudio-1.0.a libgstpbutils-1.0.a libgstrtp-1.0.a libgsttag-1.0.a libgstbase-1.0.a libgstreamer-1.0.a"
+CORE_LIBS="libgstvideo-1.0.a libgstaudio-1.0.a libgstpbutils-1.0.a libgstrtp-1.0.a libgsttag-1.0.a libgstcodecs-1.0.a libgstcodecparsers-1.0.a libgstbase-1.0.a libgstreamer-1.0.a"
 for lib in $CORE_LIBS; do
     if [ -f "${QT_TARGET_DIR}/lib/$lib" ]; then
         echo "✓ $lib found"
