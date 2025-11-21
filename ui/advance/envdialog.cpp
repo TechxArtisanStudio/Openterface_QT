@@ -93,10 +93,11 @@ EnvironmentSetupDialog::EnvironmentSetupDialog(QWidget *parent) :
     bool autoCheck = settings.value("autoCheck", true).toBool();
     ui->autoCheckBox->setChecked(autoCheck);
 
-    QString statusSummary;
+    
 
 
 #ifdef _WIN32
+    QString statusSummary;
     setFixedSize(250, 140);
     ui->step1Label->setVisible(false);
     ui->extractButton->setVisible(false);
