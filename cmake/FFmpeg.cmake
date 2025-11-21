@@ -28,15 +28,8 @@ endif()
 # Option to control hardware acceleration libraries
 option(USE_HWACCEL "Enable hardware acceleration libraries (VA-API, VDPAU)" ON)
 
-# Determine which library type to search for based on build type
-# For shared builds, search for .so; for static builds, search for .a
-if(OPENTERFACE_BUILD_STATIC)
-    set(FFMPEG_LIB_EXTENSIONS ".a")
-    message(STATUS "Static build detected - searching for static FFmpeg libraries (.a)")
-else()
-    set(FFMPEG_LIB_EXTENSIONS ".so")
-    message(STATUS "Shared build detected - searching for shared FFmpeg libraries (.so)")
-endif()
+# Prefer static libraries for FFmpeg
+set(CMAKE_FIND_STATIC_PREFER ON)
 
 # Check for libjpeg-turbo (preferred for performance)
 # Look in FFMPEG_PREFIX first for static builds
@@ -100,34 +93,24 @@ else()
     )
 endif()
 
-# Attempt to locate FFmpeg libraries (prefer shared for shared builds, static for static builds)
+# Attempt to locate FFmpeg libraries (prefer static)
 # Prefer FFmpeg shipped inside the configured prefix if it actually exists there.
 set(_qt_lib_dir "${FFMPEG_PREFIX}/lib")
-
-# Check for appropriate library type based on build configuration
-if(OPENTERFACE_BUILD_STATIC)
-    set(_ffmpeg_check_lib "${_qt_lib_dir}/libavformat.a")
-    set(_build_type_desc "static")
-else()
-    set(_ffmpeg_check_lib "${_qt_lib_dir}/libavformat.so")
-    set(_build_type_desc "shared")
-endif()
-
-if(EXISTS "${_ffmpeg_check_lib}" AND EXISTS "${FFMPEG_PREFIX}/include/libavformat/avformat.h")
+if(EXISTS "${_qt_lib_dir}/libavformat.a" AND EXISTS "${FFMPEG_PREFIX}/include/libavformat/avformat.h")
     set(FFMPEG_LIB_DIR ${_qt_lib_dir})
     set(FFMPEG_INCLUDE_DIRS "${FFMPEG_PREFIX}/include")
-    message(STATUS "Found FFmpeg ${_build_type_desc} libraries in prefix: ${FFMPEG_LIB_DIR}")
+    message(STATUS "Found FFmpeg static libraries in prefix: ${FFMPEG_LIB_DIR}")
     set(FFMPEG_FOUND TRUE)
 else()
     # Keep the previous behavior as a fallback (directory may be validated later)
     set(FFMPEG_LIB_DIR ${_qt_lib_dir})
     set(FFMPEG_INCLUDE_DIRS "${FFMPEG_PREFIX}/include")
-    message(STATUS "FFmpeg ${_build_type_desc} libs not found at ${_qt_lib_dir} - will try other search methods")
+    message(STATUS "FFmpeg static libs not found at ${_qt_lib_dir} - will try other search methods")
 endif()
 
-# If pkg-config didn't find FFmpeg (or we're using specific linking), fall back to path search
+# If pkg-config didn't find FFmpeg (or we're using static linking), fall back to path search
 if(NOT FFMPEG_FOUND)
-    message(STATUS "Falling back to manual path search for FFmpeg (${_build_type_desc})...")
+    message(STATUS "Falling back to manual path search for FFmpeg (static)...")
 
     # Find FFmpeg installation
     message(STATUS "FFmpeg search paths: ${FFMPEG_SEARCH_PATHS}")
@@ -212,14 +195,8 @@ endif()
 
 # Set library extension and verify it was set during detection
 if(NOT DEFINED FFMPEG_LIB_EXT)
-    # Default based on build type
-    if(OPENTERFACE_BUILD_STATIC)
-        set(FFMPEG_LIB_EXT ".a")
-        message(STATUS "Static build: defaulting to .a libraries")
-    else()
-        set(FFMPEG_LIB_EXT ".so")
-        message(STATUS "Shared build: defaulting to .so libraries")
-    endif()
+    # Default to static libraries
+    set(FFMPEG_LIB_EXT ".a")
 endif()
 
 message(STATUS "Final FFmpeg library extension: ${FFMPEG_LIB_EXT}")
@@ -466,10 +443,9 @@ include_directories(${FFMPEG_INCLUDE_DIRS})
 function(link_ffmpeg_libraries)
     if(FFMPEG_FOUND AND FFMPEG_LIBRARIES)
         message(STATUS "Linking FFmpeg libraries to openterfaceQT: ${FFMPEG_LIBRARIES}")
-        message(STATUS "OPENTERFACE_BUILD_STATIC: ${OPENTERFACE_BUILD_STATIC}")
         
-        if(FFMPEG_LIB_EXT STREQUAL ".a" AND OPENTERFACE_BUILD_STATIC)
-            # Static FFmpeg libraries - use special linking flags (only when static build is enabled)
+        if(FFMPEG_LIB_EXT STREQUAL ".a")
+            # Static FFmpeg libraries - use special linking flags
             message(STATUS "Linking static FFmpeg libraries with whole-archive for avdevice")
             
             # Platform-specific JPEG library paths
@@ -510,14 +486,7 @@ function(link_ffmpeg_libraries)
             endif()
             
             if(EXISTS "${TURBOJPEG_STATIC_PATH}")
-                message(STATUS "Using static libturbojpeg: ${TURBO                # For shared library build:
-                cmake -B build -DOPENTERFACE_BUILD_STATIC=OFF
-                cmake --build build
-                
-                # You should now see:
-                # -- Shared build detected - searching for shared FFmpeg libraries (.so)
-                # -- Final FFmpeg library extension: .so
-                # -- Linking FFmpeg libraries to openterfaceQT: /opt/ffmpeg/lib/libavdevice.so;...JPEG_STATIC_PATH}")
+                message(STATUS "Using static libturbojpeg: ${TURBOJPEG_STATIC_PATH}")
                 set(TURBOJPEG_LINK "${TURBOJPEG_STATIC_PATH}")
             else()
                 message(WARNING "Static libturbojpeg.a not found at ${TURBOJPEG_STATIC_PATH}, falling back to -lturbojpeg")
@@ -663,53 +632,9 @@ function(link_ffmpeg_libraries)
                 ${_FFMPEG_STATIC_DEPS}
             )
         else()
-            # Dynamic FFmpeg libraries or shared build - use dynamic linking
+            # Dynamic FFmpeg libraries - simple linking
             message(STATUS "Linking dynamic FFmpeg libraries")
-            
-            # For shared builds, use shared JPEG libraries from /opt/ffmpeg
-            if(NOT OPENTERFACE_BUILD_STATIC)
-                message(STATUS "Shared build detected - looking for shared JPEG libraries in ${FFMPEG_PREFIX}")
-                
-                # Look for shared libjpeg in FFMPEG_PREFIX
-                find_library(JPEG_SHARED 
-                    NAMES jpeg
-                    HINTS "${FFMPEG_PREFIX}/lib"
-                    NO_DEFAULT_PATH
-                )
-                if(JPEG_SHARED)
-                    message(STATUS "Found shared libjpeg: ${JPEG_SHARED}")
-                    set(JPEG_LINK "${JPEG_SHARED}")
-                else()
-                    message(FATAL_ERROR "Shared libjpeg not found in ${FFMPEG_PREFIX}/lib")
-                endif()
-                
-                # Look for shared libturbojpeg in FFMPEG_PREFIX
-                find_library(TURBOJPEG_SHARED 
-                    NAMES turbojpeg
-                    HINTS "${FFMPEG_PREFIX}/lib"
-                    NO_DEFAULT_PATH
-                )
-                if(TURBOJPEG_SHARED)
-                    message(STATUS "Found shared libturbojpeg: ${TURBOJPEG_SHARED}")
-                    set(TURBOJPEG_LINK "${TURBOJPEG_SHARED}")
-                else()
-                    message(FATAL_ERROR "Shared libturbojpeg not found in ${FFMPEG_PREFIX}/lib")
-                endif()
-            else()
-                # Static build - use empty for now (already handled in static branch)
-                set(JPEG_LINK "")
-                set(TURBOJPEG_LINK "")
-            endif()
-            
-            target_link_libraries(openterfaceQT PRIVATE 
-                ${FFMPEG_LIBRARIES}
-                ${JPEG_LINK}
-                ${TURBOJPEG_LINK}
-                -lpthread -lm -ldl -lz -llzma -lbz2
-                -ldrm -lva -lva-drm -lva-x11 -lvdpau -lX11
-                -lxcb -lxcb-shm -lxcb-xfixes -lxcb-shape -lxcb-image
-                -lpulse -lpulse-simple
-            )
+            target_link_libraries(openterfaceQT PRIVATE ${FFMPEG_LIBRARIES})
         endif()
         
         message(STATUS "FFmpeg libraries linked successfully")
