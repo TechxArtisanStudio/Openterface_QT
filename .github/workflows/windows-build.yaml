@@ -85,13 +85,13 @@ jobs:
       - name: Update version
         run: |
           if [ "${{ github.event.inputs.increase_version }}" = "true" ]; then
-            python "${{ env.SOURCE_DIR }}/update_version.py" --increase-version
+            python "${{ env.SOURCE_DIR }}\update_version.py" --increase-version
           elif [ "${{ github.event.inputs.increase_major }}" = "true" ]; then
-            python "${{ env.SOURCE_DIR }}/update_version.py" --increase-major
+            python "${{ env.SOURCE_DIR }}\update_version.py" --increase-major
           elif [ "${{ github.event.inputs.increase_minor }}" = "true" ]; then
-            python "${{ env.SOURCE_DIR }}/update_version.py" --increase-minor
+            python "${{ env.SOURCE_DIR }}\update_version.py" --increase-minor
           else
-            python "${{ env.SOURCE_DIR }}/update_version.py"
+            python "${{ env.SOURCE_DIR }}\update_version.py"
           fi
         shell: bash
 
