@@ -136,9 +136,7 @@ jobs:
           %VCPKG_DIR%\vcpkg integrate install
 
       - name: check Static Libraries installation
-      - name: check Static Libraries installation
         run: |
-          echo "Verifying OpenSSL and zlib installation..."
           echo "Verifying OpenSSL and zlib installation..."
           dir %OPENSSL_DIR%\lib
           if not exist "%OPENSSL_DIR%\lib\libssl.a" (
@@ -196,7 +194,6 @@ jobs:
         uses: actions/cache@v3
         with:
           path: C:\vcpkg
-          key: vcpkg-openssl-zlib-windows
           key: vcpkg-openssl-zlib-windows
 
       - name: Set up Python
