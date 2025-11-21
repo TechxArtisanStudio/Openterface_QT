@@ -34,6 +34,11 @@ RUN apt update && apt install -y \
     libgl1-mesa-dev \
     intel-media-va-driver-non-free \
     libmfx-dev \
+    libmfx1 \
+    libva-drm2 \
+    libva-x11-2 \
+    vainfo \
+    intel-gpu-tools \
     && rm -rf /var/lib/apt/lists/*
 
 # Step 1: Install NVIDIA codec headers (ffnvcodec)
@@ -84,7 +89,7 @@ RUN echo "Building libjpeg-turbo from source..." && \
 
 # Step 4: Build FFmpeg with full HW acceleration support
 # ⚠️ Critical: Enable --enable-ffnvcodec for FFmpeg 6.x when using NVENC/NVDEC
-RUN echo "Building FFmpeg ${FFMPEG_VERSION} with Intel QSV and NVIDIA HW acceleration..." && \
+RUN echo "Building FFmpeg ${FFMPEG_VERSION} with Intel QSV, NVIDIA HW acceleration, and VAAPI support..." && \
     curl -L -o ffmpeg.tar.bz2 "https://ffmpeg.org/releases/ffmpeg-${FFMPEG_VERSION}.tar.bz2" && \
     tar xjf ffmpeg.tar.bz2 && \
     rm ffmpeg.tar.bz2 && \
@@ -103,6 +108,12 @@ RUN echo "Building FFmpeg ${FFMPEG_VERSION} with Intel QSV and NVIDIA HW acceler
         --enable-vaapi \
         --enable-vdpau \
         --enable-libmfx \
+        --enable-hwaccel=qsv \
+        --enable-hwaccel=h264_vaapi \
+        --enable-hwaccel=hevc_vaapi \
+        --enable-hwaccel=mpeg2_vaapi \
+        --enable-hwaccel=vp8_vaapi \
+        --enable-hwaccel=vp9_vaapi \
         --enable-cuda \
         --enable-cuvid \
         --enable-nvdec \
@@ -121,6 +132,9 @@ RUN echo "Building FFmpeg ${FFMPEG_VERSION} with Intel QSV and NVIDIA HW acceler
 RUN echo "Verifying FFmpeg installation..." && \
     ls -la "${FFMPEG_PREFIX}/lib/libavcodec.a" && \
     ls -la "${FFMPEG_PREFIX}/include/libavcodec/" && \
-    LD_LIBRARY_PATH="${FFMPEG_PREFIX}/lib" "${FFMPEG_PREFIX}/bin/ffmpeg" -hide_banner -hwaccels | grep -E "(cuda|nvenc|qsv|vaapi)"
+    LD_LIBRARY_PATH="${FFMPEG_PREFIX}/lib" "${FFMPEG_PREFIX}/bin/ffmpeg" -hide_banner -hwaccels | grep -E "(cuda|nvenc|qsv|vaapi)" && \
+    echo "Testing QSV support..." && \
+    LD_LIBRARY_PATH="${FFMPEG_PREFIX}/lib" "${FFMPEG_PREFIX}/bin/ffmpeg" -hide_banner -encoders | grep qsv && \
+    echo "QSV encoders found" || echo "No QSV encoders found"
 
 WORKDIR /workspace

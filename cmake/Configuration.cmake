@@ -55,6 +55,9 @@ if(NOT DEFINED CMAKE_PREFIX_PATH OR CMAKE_PREFIX_PATH STREQUAL "")
     message(STATUS "CMAKE_PREFIX_PATH set to ${CMAKE_PREFIX_PATH}")
 else()
     message(STATUS "CMAKE_PREFIX_PATH already set: ${CMAKE_PREFIX_PATH}")
+    # Extract the first path as QT_BUILD_PATH for Qt6_DIR setting
+    list(GET CMAKE_PREFIX_PATH 0 QT_BUILD_PATH)
+    message(STATUS "QT_BUILD_PATH set from CMAKE_PREFIX_PATH: ${QT_BUILD_PATH}")
 endif()
 
 # Find pkg-config dependencies required by Qt components (Linux only)

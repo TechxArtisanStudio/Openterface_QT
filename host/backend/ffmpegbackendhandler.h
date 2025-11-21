@@ -129,6 +129,10 @@ public:
     void setRecordingConfig(const RecordingConfig& config);
     RecordingConfig getRecordingConfig() const;
 
+    // Image capture methods
+    void takeImage(const QString& filePath);
+    void takeAreaImage(const QString& filePath, const QRect& captureArea);
+
     // Update preferred hardware acceleration from settings
     void updatePreferredHardwareAcceleration();
 
@@ -291,6 +295,8 @@ private:
     bool m_waitingForDevice;
     QTimer* m_deviceWaitTimer;
     bool m_suppressErrors;
+    
+    QImage m_latestFrame;
     
     // Output management
     QGraphicsVideoItem* m_graphicsVideoItem;

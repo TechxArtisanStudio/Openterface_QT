@@ -78,9 +78,9 @@ jobs:
         uses: actions/cache@v4
         with:
           path: C:\ffmpeg-static
-          key: ffmpeg-static-6.1.1-windows
+          key: ffmpeg-static-6.1.1-windows-qsv
           restore-keys: |
-            ffmpeg-static-6.1.1-windows
+            ffmpeg-static-6.1.1-windows-qsv
 
       - name: Update version
         run: |

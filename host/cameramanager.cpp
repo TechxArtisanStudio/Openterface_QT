@@ -354,16 +354,64 @@ void CameraManager::onImageCaptured(int id, const QImage& img){
 
 void CameraManager::takeImage(const QString& file)
 {
-    qCWarning(log_ui_camera) << "Image capture not yet implemented for pure FFmpeg backend";
-    // TODO: Implement FFmpeg frame capture by:
-    // 1. Connecting to frameReady signal to cache latest frame
-    // 2. Saving cached frame to file when this method is called
+    if (m_backendHandler && isFFmpegBackend()) {
+        FFmpegBackendHandler* ffmpeg = getFFmpegBackend();
+        if (ffmpeg) {
+            QString actualFile = file;
+            if (actualFile.isEmpty()) {
+                // Generate path like original Qt backend
+                QString timestamp = QDateTime::currentDateTime().toString("yyyyMMdd_HHmmss");
+                QString picturesPath = QStandardPaths::writableLocation(QStandardPaths::PicturesLocation);
+                QString customFolderPath;
+                if (picturesPath.isEmpty()) {
+                    customFolderPath = QDir::homePath() + "/Pictures";
+                } else {
+                    customFolderPath = picturesPath + "/openterface";
+                }
+                QDir dir(customFolderPath);
+                if (!dir.exists() && !dir.mkpath(customFolderPath)) {
+                    qCWarning(log_ui_camera) << "Failed to create directory:" << customFolderPath;
+                    return;
+                }
+                actualFile = customFolderPath + "/" + timestamp + ".png";
+            }
+            ffmpeg->takeImage(actualFile);
+            emit lastImagePath(actualFile);
+        }
+    } else {
+        qCWarning(log_ui_camera) << "Image capture not supported for current backend";
+    }
 }
 
 void CameraManager::takeAreaImage(const QString& file, const QRect& captureArea)
 {
-    qCWarning(log_ui_camera) << "Area image capture not yet implemented for pure FFmpeg backend";
-    // TODO: Implement FFmpeg frame capture with cropping
+    if (m_backendHandler && isFFmpegBackend()) {
+        FFmpegBackendHandler* ffmpeg = getFFmpegBackend();
+        if (ffmpeg) {
+            QString actualFile = file;
+            if (actualFile.isEmpty()) {
+                // Generate path like original Qt backend
+                QString timestamp = QDateTime::currentDateTime().toString("yyyyMMdd_HHmmss");
+                QString picturesPath = QStandardPaths::writableLocation(QStandardPaths::PicturesLocation);
+                QString customFolderPath;
+                if (picturesPath.isEmpty()) {
+                    customFolderPath = QDir::homePath() + "/Pictures";
+                } else {
+                    customFolderPath = picturesPath + "/openterface";
+                }
+                QDir dir(customFolderPath);
+                if (!dir.exists() && !dir.mkpath(customFolderPath)) {
+                    qCWarning(log_ui_camera) << "Failed to create directory:" << customFolderPath;
+                    return;
+                }
+                actualFile = customFolderPath + "/" + timestamp + ".png";
+            }
+            ffmpeg->takeAreaImage(actualFile, captureArea);
+            emit lastImagePath(actualFile);
+        }
+    } else {
+        qCWarning(log_ui_camera) << "Area image capture not supported for current backend";
+    }
 }
 
 void CameraManager::startRecording()

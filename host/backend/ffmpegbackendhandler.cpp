@@ -87,9 +87,7 @@ protected:
     void run() override {
         qCDebug(log_ffmpeg_backend) << "FFmpeg capture thread started";
         
-        QElapsedTimer frameTimer;
         QElapsedTimer performanceTimer;
-        frameTimer.start();
         performanceTimer.start();
         
         int consecutiveFailures = 0;
@@ -100,21 +98,6 @@ protected:
             if (m_handler && m_handler->readFrame()) {
                 // Reset failure counter on successful read
                 consecutiveFailures = 0;
-                
-                // RESPONSIVENESS OPTIMIZATION: For KVM applications, prioritize responsiveness over smooth video
-                // Minimal frame rate limiting to reduce perceived mouse lag
-                qint64 elapsed = frameTimer.elapsed();
-                
-                // Only enforce a very minimal interval to prevent complete CPU saturation
-                // Prioritize responsiveness - especially important for mouse interaction
-                qint64 minInterval = 4; // ~250 FPS max for ultra-responsive KVM (reduced from 8ms)
-                if (elapsed < minInterval) {
-                    // Very short sleep to yield CPU but maintain responsiveness
-                    msleep(1); // Reduced from 2ms to 1ms for lower latency
-                    frameTimer.restart();
-                } else {
-                    frameTimer.restart();
-                }
                 
                 // Process frame directly in capture thread to avoid packet invalidation
                 // This ensures packet data remains valid during processing
@@ -778,6 +761,9 @@ void FFmpegBackendHandler::stopDirectCapture()
     // Set interrupt flag to break out of any blocking FFmpeg operations
     m_interruptRequested = true;
     
+    // Close input device first to stop buffering
+    closeInputDevice();
+    
     // Stop capture thread
     if (m_captureThread) {
         m_captureThread->setRunning(false);
@@ -811,9 +797,6 @@ void FFmpegBackendHandler::stopDirectCapture()
     if (m_performanceTimer) {
         m_performanceTimer->stop();
     }
-    
-    // Close input device
-    closeInputDevice();
     
     qCDebug(log_ffmpeg_backend) << "Direct FFmpeg capture stopped";
 }
@@ -886,8 +869,8 @@ bool FFmpegBackendHandler::openInputDevice(const QString& devicePath, const QSiz
     av_dict_set(&options, "framerate", QString::number(framerate).toUtf8().constData(), 0);
     
     // CRITICAL LOW-LATENCY OPTIMIZATIONS for KVM responsiveness:
-    // av_dict_set(&options, "rtbufsize", "10000000", 0);        // Removed to prevent buffer overflow on hotplug
-    av_dict_set(&options, "fflags", "nobuffer+discardcorrupt", 0); // No buffering, discard corrupt frames
+    av_dict_set(&options, "rtbufsize", "10000000", 0);        // 10MB buffer to prevent overflow
+    av_dict_set(&options, "fflags", "discardcorrupt", 0); // Discard corrupt frames only
     av_dict_set(&options, "flags", "low_delay", 0);       // Enable low delay mode
     av_dict_set(&options, "max_delay", "2000", 0);           // Allow 3ms delay for stability
     av_dict_set(&options, "probesize", "32", 0);          // Minimal probe size for fastest start (minimum allowed)
@@ -1127,6 +1110,11 @@ bool FFmpegBackendHandler::openInputDevice(const QString& devicePath, const QSiz
     }
     qCDebug(log_ffmpeg_backend) << "Stream info found successfully";
     
+    // Set real-time flags to prevent buffer overflow
+    // m_formatContext->flags |= AVFMT_FLAG_NONBLOCK; // May not be supported
+    m_formatContext->max_analyze_duration = 50000; // 0.05 seconds
+    m_formatContext->probesize = 1000000; // 1MB
+    
     // Find video stream
     m_videoStreamIndex = -1;
     for (unsigned int i = 0; i < m_formatContext->nb_streams; i++) {
@@ -1271,6 +1259,15 @@ bool FFmpegBackendHandler::openInputDevice(const QString& devicePath, const QSiz
         }
     }
     av_dict_free(&codecOptions);
+    
+    // Set low delay flags to prevent buffer overflow
+    m_codecContext->flags |= AV_CODEC_FLAG_LOW_DELAY;
+    m_codecContext->delay = 0;
+    // Set video delay to 0 for the stream
+    if (m_formatContext->streams[m_videoStreamIndex]) {
+        m_formatContext->streams[m_videoStreamIndex]->codecpar->video_delay = 0;
+    }
+    
     if (ret < 0) {
         char errbuf[AV_ERROR_MAX_STRING_SIZE];
         av_strerror(ret, errbuf, AV_ERROR_MAX_STRING_SIZE);
@@ -1647,9 +1644,18 @@ void FFmpegBackendHandler::processFrame()
             qCDebug(log_ffmpeg_backend) << "Emitting frameReady signal with pixmap size:" << pixmap.size();
         }
         
+        // Store the latest frame for image capture
+        QImage img = pixmap.toImage();
+        {
+            QMutexLocker locker(&m_mutex);
+            m_latestFrame = img;
+        }
+        
         // CRITICAL: Use QueuedConnection to ensure UI thread handles frame updates properly
         // This prevents blocking the capture thread and ensures smooth frame delivery
-        emit frameReady(pixmap);
+        if (m_captureRunning) {
+            emit frameReady(pixmap);
+        }
         
         // Write frame to recording file if recording is active
 #ifdef HAVE_FFMPEG
@@ -3290,5 +3296,34 @@ qint64 FFmpegBackendHandler::getRecordingFileSize() const
 
 #endif // HAVE_FFMPEG
 
+
+void FFmpegBackendHandler::takeImage(const QString& filePath)
+{
+    QMutexLocker locker(&m_mutex);
+    if (!m_latestFrame.isNull()) {
+        if (m_latestFrame.save(filePath)) {
+            qCDebug(log_ffmpeg_backend) << "Image saved to:" << filePath;
+        } else {
+            qCWarning(log_ffmpeg_backend) << "Failed to save image to:" << filePath;
+        }
+    } else {
+        qCWarning(log_ffmpeg_backend) << "No frame available for image capture";
+    }
+}
+
+void FFmpegBackendHandler::takeAreaImage(const QString& filePath, const QRect& captureArea)
+{
+    QMutexLocker locker(&m_mutex);
+    if (!m_latestFrame.isNull()) {
+        QImage cropped = m_latestFrame.copy(captureArea);
+        if (cropped.save(filePath)) {
+            qCDebug(log_ffmpeg_backend) << "Cropped image saved to:" << filePath;
+        } else {
+            qCWarning(log_ffmpeg_backend) << "Failed to save cropped image to:" << filePath;
+        }
+    } else {
+        qCWarning(log_ffmpeg_backend) << "No frame available for area image capture";
+    }
+}
 
 #include "ffmpegbackendhandler.moc"

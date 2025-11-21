@@ -33,9 +33,9 @@ jobs:
         uses: actions/cache@v3
         with:
           path: C:\msys64\mingw64
-          key: msys2-mingw64-cmake-windows
+          key: msys2-mingw64-cmake-windows-v3
           restore-keys: |
-            msys2-mingw64-cmake-windows
+            msys2-mingw64-cmake-windows-v3
 
       - name: Cache MSYS2
         id: cache-msys2
@@ -65,7 +65,7 @@ jobs:
 
           echo "Installing MinGW-w64 and CMake via MSYS2..."
           set PATH=C:\msys64\usr\bin;%PATH%
-          pacman -S --needed --noconfirm mingw-w64-x86_64-gcc mingw-w64-x86_64-cmake mingw-w64-x86_64-libiconv
+          pacman -S --needed --noconfirm mingw-w64-x86_64-gcc mingw-w64-x86_64-cmake mingw-w64-x86_64-libiconv mingw-w64-x86_64-bzip2 mingw-w64-x86_64-xz mingw-w64-x86_64-winpthreads mingw-w64-x86_64-intel-media-sdk
 
           echo "Setting up PATH for MSYS2 MinGW-w64"
           set PATH=C:\msys64\mingw64\bin;%PATH%
@@ -118,9 +118,12 @@ jobs:
         with:
           path: C:\vcpkg
           key: vcpkg-openssl-zlib-windows
+          key: vcpkg-openssl-zlib-windows
           restore-keys: |
             vcpkg-openssl-zlib-windows
+            vcpkg-openssl-zlib-windows
 
+      - name: Install vcpkg and Static Libraries
       - name: Install vcpkg and Static Libraries
         if: steps.cache-vcpkg.outputs.cache-hit != 'true'
         run: |
@@ -131,12 +134,15 @@ jobs:
             call bootstrap-vcpkg.bat
           )
           echo "Installing OpenSSL and zlib static libraries"
+          echo "Installing OpenSSL and zlib static libraries"
           %VCPKG_DIR%\vcpkg update
           %VCPKG_DIR%\vcpkg install openssl:x64-mingw-static zlib:x64-mingw-static --triplet x64-mingw-static --host-triplet x64-mingw-static --clean-after-build
           %VCPKG_DIR%\vcpkg integrate install
 
       - name: check Static Libraries installation
+      - name: check Static Libraries installation
         run: |
+          echo "Verifying OpenSSL and zlib installation..."
           echo "Verifying OpenSSL and zlib installation..."
           dir %OPENSSL_DIR%\lib
           if not exist "%OPENSSL_DIR%\lib\libssl.a" (
@@ -147,8 +153,8 @@ jobs:
             echo "Error: libcrypto.a not found. OpenSSL static libraries not properly installed."
             exit 1
           )
-          if not exist "%OPENSSL_DIR%\lib\libz.a" (
-            echo "Error: libz.a not found. zlib static libraries not properly installed."
+          if not exist "%OPENSSL_DIR%\lib\libzlib.a" (
+            echo "Error: libzlib.a not found. zlib static libraries not properly installed."
             exit 1
           )
           echo "OpenSSL and zlib static libraries verified successfully!"
@@ -157,7 +163,7 @@ jobs:
           file "%OPENSSL_DIR%\lib\libssl.a" || echo "file command not available"
           echo "SSL library size:" && dir "%OPENSSL_DIR%\lib\libssl.a" | findstr "libssl.a"
           echo "Crypto library size:" && dir "%OPENSSL_DIR%\lib\libcrypto.a" | findstr "libcrypto.a"
-          echo "Zlib library size:" && dir "%OPENSSL_DIR%\lib\libz.a" | findstr "libz.a"
+          echo "Zlib library size:" && dir "%OPENSSL_DIR%\lib\libzlib.a" | findstr "libzlib.a"
 
       - name: Build Qt Statically
         if: steps.cache-qt.outputs.cache-hit != 'true'
@@ -171,6 +177,12 @@ jobs:
       - uses: actions/checkout@v2
         with:
           fetch-depth: 0
+
+      - name: Cache MinGW and CMake
+        uses: actions/cache@v3
+        with:
+          path: C:\msys64\mingw64
+          key: msys2-mingw64-cmake-windows-v3
 
       - name: Cache Qt
         uses: actions/cache@v3
@@ -188,6 +200,7 @@ jobs:
         uses: actions/cache@v3
         with:
           path: C:\vcpkg
+          key: vcpkg-openssl-zlib-windows
           key: vcpkg-openssl-zlib-windows
 
       - name: Set up Python
@@ -219,9 +232,9 @@ jobs:
           echo "Setting up build environment..."
           set PATH=C:\msys64\mingw64\bin;C:\Qt6\bin;%PATH%
           set INCLUDE=C:\Qt6\include;%OPENSSL_DIR%\include;%INCLUDE%
-          set LIB=%OPENSSL_DIR%\lib;%LIB%
+          set LIB=C:\msys64\mingw64\lib;%OPENSSL_DIR%\lib;%LIB%
           
-          echo "Verifying OpenSSL libraries..."
+          echo "Verifying static libraries..."
           if not exist "%OPENSSL_DIR%\lib\libssl.a" (
             echo "Error: libssl.a not found at %OPENSSL_DIR%\lib\libssl.a"
             exit 1
@@ -230,10 +243,16 @@ jobs:
             echo "Error: libcrypto.a not found at %OPENSSL_DIR%\lib\libcrypto.a"
             exit 1
           )
-          if not exist "%OPENSSL_DIR%\lib\libz.a" (
-            echo "Error: libz.a not found at %OPENSSL_DIR%\lib\libz.a"
+          if not exist "%OPENSSL_DIR%\lib\libzlib.a" (
+            echo "Error: libzlib.a not found at %OPENSSL_DIR%\lib\libzlib.a"
             exit 1
           )
+          if not exist "C:\msys64\mingw64\lib\libwinpthread.a" (
+            echo "Error: libwinpthread.a not found at C:\msys64\mingw64\lib\libwinpthread.a"
+            exit 1
+          )
+          
+          echo "Static libraries verified successfully!"
           
           echo "Checking Qt configuration..."
           C:\Qt6\bin\qmake -query
@@ -241,10 +260,12 @@ jobs:
           echo "Configuring with CMake..."
           cmake -G "MinGW Makefiles" ^
             -DCMAKE_BUILD_TYPE=Release ^
-            -DCMAKE_PREFIX_PATH="C:\Qt6;C:\vcpkg\installed\x64-mingw-static" ^
+            -DCMAKE_PREFIX_PATH="C:\Qt6;C:\vcpkg\installed\x64-mingw-static;C:\msys64\mingw64" ^
+            -DCMAKE_LIBRARY_PATH="C:\msys64\mingw64\lib" ^
             -DFFMPEG_PREFIX=C:\ffmpeg-static ^
-            -DZLIB_LIBRARY=C:\vcpkg\installed\x64-mingw-static\lib\libz.a ^
+            -DZLIB_LIBRARY=C:\vcpkg\installed\x64-mingw-static\lib\libzlib.a ^
             -DOPENTERFACE_BUILD_STATIC=ON ^
+            -DCMAKE_EXE_LINKER_FLAGS="-lmingwex" ^
             ${{ env.SOURCE_DIR }}
           
           echo "Building with mingw32-make..."
