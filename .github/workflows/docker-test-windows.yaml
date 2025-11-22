@@ -331,7 +331,7 @@ jobs:
           )
           
           if ($volumeMount) {
-            $dockerArgs += $volumeMount.Split(" ")
+            $dockerArgs += @("-v", "$(Convert-Path build):C:\tmp\build-artifacts")
           }
           
           $dockerArgs += "${{ env.DOCKER_IMAGE_WINDOWS }}:${{ env.DOCKER_TAG }}"
