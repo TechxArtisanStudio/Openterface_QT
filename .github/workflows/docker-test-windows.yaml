@@ -456,6 +456,30 @@ jobs:
             Write-Host "Continuing without artifacts for diagnostic purposes..."
           }
 
+      - name: Log in to GitHub Container Registry
+        shell: bash
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GHCR_USERNAME: ${{ github.actor }}
+          GHCR_REGISTRY: ${{ env.DOCKER_REGISTRY }}
+        run: |
+          echo "[AUTH] Logging into GitHub Container Registry..."
+          
+          if [ -z "$GHCR_TOKEN" ]; then
+            echo "[WARNING] GITHUB_TOKEN is empty or not set - will try pulling without authentication"
+            exit 0
+          fi
+          
+          echo "$GHCR_TOKEN" | docker login -u "$GHCR_USERNAME" --password-stdin "$GHCR_REGISTRY" 2>&1
+          EXIT_CODE=$?
+          
+          if [ $EXIT_CODE -eq 0 ]; then
+            echo "[SUCCESS] Successfully logged into $GHCR_REGISTRY"
+          else
+            echo "[WARNING] Failed to login to $GHCR_REGISTRY (exit code: $EXIT_CODE)"
+            echo "[INFO] Will attempt to pull without authentication"
+          fi
+
       - name: Pull Docker image from registry
         shell: powershell
         run: |
@@ -495,6 +519,13 @@ jobs:
           
           Write-Host "[WARNING] Could not pull pre-built image"
           Write-Host "[INFO] Will fall back to building locally"
+
+      - name: Log out from GitHub Container Registry
+        if: always()
+        shell: bash
+        run: |
+          docker logout "${{ env.DOCKER_REGISTRY }}" 2>&1 || true
+          echo "[SUCCESS] Logged out from registry"
 
       - name: Build Docker image locally if pull failed
         shell: powershell
