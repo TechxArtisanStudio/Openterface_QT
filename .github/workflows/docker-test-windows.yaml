@@ -596,15 +596,19 @@ jobs:
         run: |
           Write-Host "[CHECK] Checking if image is available locally..."
           
-          $imageExists = docker inspect "${{ env.DOCKER_IMAGE_WINDOWS }}:${{ env.DOCKER_TAG }}" 2>&1
+          $imageName = "${{ env.DOCKER_IMAGE_WINDOWS }}:${{ env.DOCKER_TAG }}"
+          
+          # Check if image exists locally
+          $inspectOutput = docker inspect $imageName 2>&1
           $checkCode = $LASTEXITCODE
           
           if ($checkCode -eq 0) {
-            Write-Host "[SUCCESS] Image is already available"
+            Write-Host "[SUCCESS] Image is already available locally"
             exit 0
           }
           
-          Write-Host "[BUILD] Image not available, building locally..."
+          Write-Host "[INFO] Image not found locally, will build..."
+          Write-Host "[BUILD] Building Docker image locally..."
           Write-Host "[INFO] This may take 20-30 minutes on first build"
           
           $buildArgs = @(
@@ -613,12 +617,13 @@ jobs:
             "docker/"
           )
           
+          Write-Host "[BUILD] Build arguments: $($buildArgs -join ' ')"
           docker build $buildArgs
           
           if ($LASTEXITCODE -eq 0) {
             Write-Host "[SUCCESS] Docker image built successfully locally"
           } else {
-            Write-Host "[ERROR] Docker build failed"
+            Write-Host "[ERROR] Docker build failed with exit code: $LASTEXITCODE"
             exit 1
           }
 
