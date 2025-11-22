@@ -217,7 +217,6 @@ jobs:
           Write-Host "[DOWNLOAD] Pulling base Windows image..."
           
           $baseImages = @(
-            "mcr.microsoft.com/windows/servercore:ltsc2022-20250121",
             "mcr.microsoft.com/windows/servercore:ltsc2022"
           )
           

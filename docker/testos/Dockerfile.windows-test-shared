@@ -38,7 +38,7 @@ RUN powershell -NoProfile -InputFormat None -ExecutionPolicy Bypass -Command " \
 # === Stage 2: Install Runtime Dependencies ===
 # Core utilities and tools required for testing
 RUN powershell -NoProfile -InputFormat None -ExecutionPolicy Bypass -Command \
-    "choco install -y curl wget git jq usbview hwinfo imagemagick --no-progress"
+    "choco install -y curl wget git jq usbview hwinfo --no-progress"
 
 # === Stage 3: Install Visual C++ Runtimes ===
 # Required by Qt6 libraries and other system components
