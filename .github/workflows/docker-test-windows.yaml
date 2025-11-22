@@ -159,34 +159,38 @@ jobs:
           echo "IMAGE_SHA=$imageSha" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
       - name: Check if image already exists
-        shell: powershell
+        shell: bash
+        continue-on-error: true
         run: |
-          Write-Host "[CHECK] Checking if Docker image already exists in registry..."
+          echo "[CHECK] Checking if Docker image already exists in registry..."
           
-          $registry = "${{ env.DOCKER_REGISTRY }}"
-          $repo = "${{ github.repository_owner }}"
-          $imageName = "${{ env.DOCKER_IMAGE_WINDOWS }}"
-          $sha_short = "${{ github.sha }}".Substring(0, 7)
+          REGISTRY="${{ env.DOCKER_REGISTRY }}"
+          REPO="${{ github.repository_owner }}"
+          IMAGE_NAME="${{ env.DOCKER_IMAGE_WINDOWS }}"
+          SHA_SHORT="${{ github.sha }}"
+          SHA_SHORT="${SHA_SHORT:0:7}"
           
-          $imageUri = "$registry/$repo/$imageName`:$sha_short"
+          IMAGE_URI="$REGISTRY/$REPO/$IMAGE_NAME:$SHA_SHORT"
           
-          Write-Host "[INFO] Checking image: $imageUri"
+          echo "[INFO] Checking image: $IMAGE_URI"
           
-          # Try to pull the image (without using it)
-          $pullOutput = docker pull $imageUri 2>&1
-          $pullExitCode = $LASTEXITCODE
-          
-          if ($pullExitCode -eq 0) {
-            Write-Host "[SUCCESS] Image already exists in registry"
-            Write-Host "[INFO] Using cached image for testing"
-            echo "IMAGE_EXISTS=true" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-            echo "SKIP_BUILD=true" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-          } else {
-            Write-Host "[INFO] Image not found or pull failed"
-            Write-Host "[INFO] Will rebuild and push image"
-            echo "IMAGE_EXISTS=false" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-            echo "SKIP_BUILD=false" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-          }
+          # Try to pull the image (without using it) - suppress normal output but keep errors
+          if docker pull "$IMAGE_URI" > /dev/null 2>&1; then
+            echo "[SUCCESS] Image already exists in registry"
+            echo "[INFO] Using cached image for testing"
+            echo "IMAGE_EXISTS=true" >> "$GITHUB_ENV"
+            echo "SKIP_BUILD=true" >> "$GITHUB_ENV"
+          else
+            PULL_EXIT=$?
+            if [ $PULL_EXIT -eq 0 ] || grep -q "manifest unknown" <<< "$PULL_OUTPUT"; then
+              echo "[INFO] Image not found in registry (manifest unknown)"
+            else
+              echo "[WARNING] Pull failed with exit code: $PULL_EXIT"
+            fi
+            echo "[INFO] Will rebuild and push image"
+            echo "IMAGE_EXISTS=false" >> "$GITHUB_ENV"
+            echo "SKIP_BUILD=false" >> "$GITHUB_ENV"
+          fi
 
       - name: Build Docker image
         if: env.SKIP_BUILD == 'false' || github.event.inputs.rebuild_docker_image == 'true'
