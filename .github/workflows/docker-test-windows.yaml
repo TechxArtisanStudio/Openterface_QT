@@ -35,6 +35,9 @@ jobs:
   build-and-push-image:
     runs-on: windows-2022
     timeout-minutes: 120
+    permissions:
+      contents: read
+      packages: write
     outputs:
       image_pushed: ${{ steps.check-rebuild.outputs.should_rebuild }}
     
