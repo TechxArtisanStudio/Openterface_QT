@@ -14,14 +14,212 @@ on:
       - 'docker/install-openterface.ps1'
       - '.github/workflows/docker-test-windows.yaml'
   workflow_dispatch:
+    inputs:
+      rebuild_docker_image:
+        description: 'Force rebuild Docker image (ignore cache)'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+          - 'false'
+          - 'true'
 
 env:
   DOCKER_IMAGE_WINDOWS: openterface-test-windows
   DOCKER_TAG: test-${{ github.sha }}
+  DOCKER_REGISTRY: ghcr.io
   INSTALL_TYPES: "exe,zip"
 
 jobs:
+  build-and-push-image:
+    runs-on: windows-2022
+    timeout-minutes: 120
+    outputs:
+      image_pushed: ${{ steps.check-rebuild.outputs.should_rebuild }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check if rebuild is needed
+        id: check-rebuild
+        shell: powershell
+        run: |
+          Write-Host "[INFO] Checking if Docker image rebuild is needed"
+          
+          # Get input from workflow dispatch, or check if Dockerfile changed
+          $shouldRebuild = "${{ github.event.inputs.rebuild_docker_image }}" -eq "true"
+          
+          if ($shouldRebuild) {
+            Write-Host "[INFO] User explicitly requested rebuild"
+            echo "should_rebuild=true" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+            exit 0
+          }
+          
+          # Check if Dockerfile or installation script changed
+          if ("${{ github.event_name }}" -eq "push" -or "${{ github.event_name }}" -eq "pull_request") {
+            Write-Host "[INFO] Checking for changed files in Dockerfile and scripts..."
+            
+            # For pull requests, compare with base branch
+            if ("${{ github.event_name }}" -eq "pull_request") {
+              $baseRef = "${{ github.base_ref }}"
+              Write-Host "[INFO] Comparing with base branch: $baseRef"
+              $changedFiles = @()
+            } else {
+              # For push, we'll rebuild if Dockerfile or scripts changed
+              $changedFiles = @(
+                "docker/testos/Dockerfile.windows-test-shared",
+                "docker/install-openterface.ps1",
+                ".github/workflows/docker-test-windows.yaml"
+              )
+            }
+            
+            # For this workflow, always check by default
+            Write-Host "[INFO] Docker image will be rebuilt on Dockerfile or script changes"
+            echo "should_rebuild=false" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          } else {
+            Write-Host "[INFO] workflow_dispatch or other trigger"
+            echo "should_rebuild=false" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          }
+
+      - name: Log in to GitHub Container Registry
+        if: github.event_name == 'push' || github.event.inputs.rebuild_docker_image == 'true'
+        shell: powershell
+        run: |
+          Write-Host "[AUTH] Logging into GitHub Container Registry..."
+          
+          $token = "${{ secrets.GITHUB_TOKEN }}"
+          $registry = "${{ env.DOCKER_REGISTRY }}"
+          
+          # Login to GHCR
+          echo $token | docker login $registry -u ${{ github.actor }} --password-stdin
+          
+          if ($LASTEXITCODE -eq 0) {
+            Write-Host "[SUCCESS] Successfully logged into $registry"
+          } else {
+            Write-Host "[ERROR] Failed to login to $registry"
+            exit 1
+          }
+
+      - name: Set Docker image tags
+        shell: powershell
+        run: |
+          $registry = "${{ env.DOCKER_REGISTRY }}"
+          $repo = "${{ github.repository_owner }}"
+          $imageName = "${{ env.DOCKER_IMAGE_WINDOWS }}"
+          
+          # Tags: latest, git-sha, version
+          $sha_short = "${{ github.sha }}".Substring(0, 7)
+          
+          $imageLatest = "$registry/$repo/$imageName`:latest"
+          $imageSha = "$registry/$repo/$imageName`:$sha_short"
+          
+          Write-Host "[INFO] Setting Docker image tags:"
+          Write-Host "  Latest: $imageLatest"
+          Write-Host "  SHA:    $imageSha"
+          
+          echo "IMAGE_LATEST=$imageLatest" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          echo "IMAGE_SHA=$imageSha" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Check if image already exists
+        shell: powershell
+        run: |
+          Write-Host "[CHECK] Checking if Docker image already exists in registry..."
+          
+          $registry = "${{ env.DOCKER_REGISTRY }}"
+          $repo = "${{ github.repository_owner }}"
+          $imageName = "${{ env.DOCKER_IMAGE_WINDOWS }}"
+          $sha_short = "${{ github.sha }}".Substring(0, 7)
+          
+          $imageUri = "$registry/$repo/$imageName`:$sha_short"
+          
+          Write-Host "[INFO] Checking image: $imageUri"
+          
+          # Try to pull the image (without using it)
+          $pullOutput = docker pull $imageUri 2>&1
+          $pullExitCode = $LASTEXITCODE
+          
+          if ($pullExitCode -eq 0) {
+            Write-Host "[SUCCESS] Image already exists in registry"
+            Write-Host "[INFO] Using cached image for testing"
+            echo "IMAGE_EXISTS=true" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+            echo "SKIP_BUILD=true" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          } else {
+            Write-Host "[INFO] Image not found or pull failed"
+            Write-Host "[INFO] Will rebuild and push image"
+            echo "IMAGE_EXISTS=false" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+            echo "SKIP_BUILD=false" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          }
+
+      - name: Build Docker image
+        if: env.SKIP_BUILD == 'false' || github.event.inputs.rebuild_docker_image == 'true'
+        shell: powershell
+        run: |
+          Write-Host "[BUILD] Building Docker image..."
+          Write-Host "[INFO] Image: ${{ env.DOCKER_IMAGE_WINDOWS }}:${{ env.DOCKER_TAG }}"
+          
+          $buildArgs = @(
+            "-f", "docker/testos/Dockerfile.windows-test-shared",
+            "-t", "${{ env.DOCKER_IMAGE_WINDOWS }}:${{ env.DOCKER_TAG }}",
+            "-t", "${{ env.IMAGE_LATEST }}",
+            "-t", "${{ env.IMAGE_SHA }}",
+            "docker/"
+          )
+          
+          Write-Host "[BUILD] Build command:"
+          Write-Host "docker build $($buildArgs -join ' ')"
+          
+          docker build $buildArgs
+          
+          if ($LASTEXITCODE -eq 0) {
+            Write-Host "[SUCCESS] Docker image built successfully"
+          } else {
+            Write-Host "[ERROR] Docker build failed"
+            exit 1
+          }
+
+      - name: Push image to GitHub Container Registry
+        if: github.event_name == 'push' || github.event.inputs.rebuild_docker_image == 'true'
+        shell: powershell
+        run: |
+          Write-Host "[PUSH] Pushing Docker image to registry..."
+          
+          # Only push if we built the image
+          if ("${{ env.SKIP_BUILD }}" -ne "false" -and "${{ github.event.inputs.rebuild_docker_image }}" -ne "true") {
+            Write-Host "[INFO] Skipping push - using cached image"
+            exit 0
+          }
+          
+          Write-Host "[PUSH] Pushing: ${{ env.IMAGE_LATEST }}"
+          docker push "${{ env.IMAGE_LATEST }}"
+          
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "[ERROR] Failed to push latest tag"
+            exit 1
+          }
+          
+          Write-Host "[PUSH] Pushing: ${{ env.IMAGE_SHA }}"
+          docker push "${{ env.IMAGE_SHA }}"
+          
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "[ERROR] Failed to push SHA tag"
+            exit 1
+          }
+          
+          Write-Host "[SUCCESS] Image pushed successfully"
+          Write-Host "[INFO] Available at:"
+          Write-Host "  - ${{ env.IMAGE_LATEST }}"
+          Write-Host "  - ${{ env.IMAGE_SHA }}"
+
+      - name: Log out from GitHub Container Registry
+        if: always()
+        shell: powershell
+        run: |
+          docker logout "${{ env.DOCKER_REGISTRY }}" 2>&1 | Out-Null
+          Write-Host "[SUCCESS] Logged out from registry"
+
   build-test-windows:
+    needs: build-and-push-image
     strategy:
       matrix:
         include:
@@ -211,61 +409,74 @@ jobs:
             Write-Host "Continuing without artifacts for diagnostic purposes..."
           }
 
-      - name: Pull base Windows image
+      - name: Pull Docker image from registry
         shell: powershell
         run: |
-          Write-Host "[DOWNLOAD] Pulling base Windows image..."
+          Write-Host "[DOWNLOAD] Pulling pre-built Docker image from registry..."
           
-          $baseImages = @(
-            "mcr.microsoft.com/windows/servercore:ltsc2022"
-          )
+          $registry = "${{ env.DOCKER_REGISTRY }}"
+          $repo = "${{ github.repository_owner }}"
+          $imageName = "${{ env.DOCKER_IMAGE_WINDOWS }}"
+          $sha_short = "${{ github.sha }}".Substring(0, 7)
           
-          $imagePulled = $false
-          foreach ($image in $baseImages) {
-            Write-Host "Attempting to pull: $image"
-            try {
-              docker pull $image 2>&1
-              if ($LASTEXITCODE -eq 0) {
-                Write-Host "[SUCCESS] Successfully pulled: $image"
-                $imagePulled = $true
-                break
-              } else {
-                Write-Host "[WARNING] Failed to pull $image (exit code: $LASTEXITCODE), trying next..."
-              }
-            } catch {
-              Write-Host "[WARNING] Error pulling $image`: $_"
-            }
+          # Try to pull by SHA first (most specific)
+          $imageSha = "$registry/$repo/$imageName`:$sha_short"
+          Write-Host "[PULL] Attempting to pull by SHA: $imageSha"
+          
+          docker pull $imageSha 2>&1
+          $pullExitCode = $LASTEXITCODE
+          
+          if ($pullExitCode -eq 0) {
+            Write-Host "[SUCCESS] Pulled image by SHA: $imageSha"
+            docker tag $imageSha "${{ env.DOCKER_IMAGE_WINDOWS }}:${{ env.DOCKER_TAG }}"
+            exit 0
           }
           
-          if (-not $imagePulled) {
-            Write-Host "[WARNING] Could not pull any base image, Docker build may fail"
+          # Fallback to latest tag
+          Write-Host "[INFO] SHA tag not found, trying latest tag..."
+          $imageLatest = "$registry/$repo/$imageName`:latest"
+          Write-Host "[PULL] Attempting to pull: $imageLatest"
+          
+          docker pull $imageLatest 2>&1
+          $pullExitCode = $LASTEXITCODE
+          
+          if ($pullExitCode -eq 0) {
+            Write-Host "[SUCCESS] Pulled image by latest tag: $imageLatest"
+            docker tag $imageLatest "${{ env.DOCKER_IMAGE_WINDOWS }}:${{ env.DOCKER_TAG }}"
+            exit 0
           }
+          
+          Write-Host "[WARNING] Could not pull pre-built image"
+          Write-Host "[INFO] Will fall back to building locally"
 
-      - name: Build Docker image (Windows)
+      - name: Build Docker image locally if pull failed
         shell: powershell
         run: |
-          Write-Host "[BUILD] Building Docker image: ${{ env.DOCKER_IMAGE_WINDOWS }}:${{ env.DOCKER_TAG }}"
+          Write-Host "[CHECK] Checking if image is available locally..."
+          
+          $imageExists = docker inspect "${{ env.DOCKER_IMAGE_WINDOWS }}:${{ env.DOCKER_TAG }}" 2>&1
+          $checkCode = $LASTEXITCODE
+          
+          if ($checkCode -eq 0) {
+            Write-Host "[SUCCESS] Image is already available"
+            exit 0
+          }
+          
+          Write-Host "[BUILD] Image not available, building locally..."
+          Write-Host "[INFO] This may take 20-30 minutes on first build"
           
           $buildArgs = @(
             "-f", "docker/testos/Dockerfile.windows-test-shared",
-            "--build-arg", "INSTALL_TYPE=${{ env.INSTALL_TYPE }}",
             "-t", "${{ env.DOCKER_IMAGE_WINDOWS }}:${{ env.DOCKER_TAG }}",
             "docker/"
           )
           
-          Write-Host "Build arguments:"
-          $buildArgs | ForEach-Object { Write-Host "  $_" }
-          
-          Write-Host ""
-          Write-Host "Starting build..."
-          
-          # Build Docker image directly (no timeout parameter with Start-Process)
           docker build $buildArgs
           
           if ($LASTEXITCODE -eq 0) {
-            Write-Host "[SUCCESS] Docker image built successfully"
+            Write-Host "[SUCCESS] Docker image built successfully locally"
           } else {
-            Write-Host "[ERROR] Docker build failed with exit code: $LASTEXITCODE"
+            Write-Host "[ERROR] Docker build failed"
             exit 1
           }
 
