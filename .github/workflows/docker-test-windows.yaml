@@ -114,9 +114,8 @@ jobs:
             
             # Define artifact patterns based on install type
             $patterns = @{
-              "exe" = @("shared.exe", "exe")
-              "msi" = @("shared.msi", "msi")
-              "zip" = @("shared.zip", "zip")
+              "exe" = @("windows.amd64.installer", "installer", "shared.exe", "exe")
+              "zip" = @("windows.amd64.portable", "portable", "shared.zip", "zip")
             }
             
             $searchPatterns = $patterns["${{ env.INSTALL_TYPE }}"]
