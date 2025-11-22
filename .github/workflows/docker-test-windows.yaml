@@ -239,80 +239,30 @@ jobs:
             exit 0
           }
           
-          # Only push if we built the image
-          if ("${{ env.SKIP_BUILD }}" -ne "false" -and "${{ github.event.inputs.rebuild_docker_image }}" -ne "true") {
-            Write-Host "[INFO] Skipping push - using cached image"
-            exit 0
-          }
+      - name: Push image to GitHub Container Registry
+        if: github.event_name == 'push' || github.event.inputs.rebuild_docker_image == 'true'
+        shell: powershell
+        run: |
+          Write-Host "[PUSH] Pushing Docker image to GHCR..."
           
           $imageName = "${{ env.DOCKER_IMAGE_WINDOWS }}:${{ env.DOCKER_TAG }}"
           $imageLatest = "${{ env.IMAGE_LATEST }}"
           $imageSha = "${{ env.IMAGE_SHA }}"
           
-          Write-Host "[PUSH] Pushing image to personal repo: ${{ env.DOCKER_REPO }}"
-          Write-Host "[INFO] Local image: $imageName"
+          Write-Host "[PUSH] Pushing: $imageLatest"
+          docker push "$imageLatest"
           
-          # Try to push latest tag - suppress errors and capture output
-          Write-Host "[PUSH] Attempting push: $imageLatest"
-          $ErrorActionPreference = 'Continue'
-          $pushOutput = & docker push "$imageLatest" 2>&1
-          $push1Exit = $LASTEXITCODE
-          $ErrorActionPreference = 'Stop'
+          Write-Host "[PUSH] Pushing: $imageSha"
+          docker push "$imageSha"
           
-          $pushOutputStr = $pushOutput | Out-String
-          
-          if ($push1Exit -eq 0) {
-            Write-Host "[SUCCESS] Pushed: $imageLatest"
+          if ($LASTEXITCODE -eq 0) {
+            Write-Host "[SUCCESS] Image pushed successfully"
+            Write-Host "[INFO] Available at:"
+            Write-Host "  - $imageLatest"
+            Write-Host "  - $imageSha"
           } else {
-            if ($pushOutputStr -match "denied.*installation not allowed") {
-              Write-Host "[WARNING] Push permission denied - 'installation not allowed to Create organization package'"
-              Write-Host "[INFO] GHCR registry may have restrictions on your account"
-              Write-Host "[INFO] Skipping push - will use local image for testing"
-              Write-Host "[INFO] To resolve: Check GitHub account GHCR settings and PAT scopes"
-              Write-Host ""
-              exit 0
-            } elseif ($pushOutputStr -match "denied|permission|not allowed") {
-              Write-Host "[WARNING] Push permission denied"
-              Write-Host "[INFO] Check if GITHUB_TOKEN has 'write:packages' scope"
-              Write-Host ""
-              exit 0
-            } else {
-              Write-Host "[WARNING] Push failed for latest tag (exit code: $push1Exit)"
-              Write-Host "[OUTPUT] $pushOutputStr"
-              exit 0
-            }
+            Write-Host "[WARNING] Push completed with warnings"
           }
-          
-          # Try to push SHA tag
-          Write-Host "[PUSH] Attempting push: $imageSha"
-          $ErrorActionPreference = 'Continue'
-          $pushOutput = & docker push "$imageSha" 2>&1
-          $push2Exit = $LASTEXITCODE
-          $ErrorActionPreference = 'Stop'
-          
-          $pushOutputStr = $pushOutput | Out-String
-          
-          if ($push2Exit -eq 0) {
-            Write-Host "[SUCCESS] Pushed: $imageSha"
-          } else {
-            Write-Host "[WARNING] Push failed for SHA tag (exit code: $push2Exit)"
-          }
-          
-          if ($push1Exit -eq 0 -or $push2Exit -eq 0) {
-            Write-Host "[SUCCESS] Image pushed to personal repo"
-            Write-Host "[INFO] Image available at:"
-            if ($push1Exit -eq 0) {
-              Write-Host "  ✓ $imageLatest"
-            }
-            if ($push2Exit -eq 0) {
-              Write-Host "  ✓ $imageSha"
-            }
-          } else {
-            Write-Host "[INFO] Push skipped - will use local image for testing"
-          }
-          
-          # Always exit 0 - local image works for testing
-          exit 0
 
       - name: Log out from GitHub Container Registry
         if: always()
