@@ -47,7 +47,7 @@ jobs:
       - name: Display environment info
         shell: powershell
         run: |
-          Write-Host "🔍 Windows Container Testing Environment"
+          Write-Host "[INFO] Windows Container Testing Environment"
           Write-Host "=========================================="
           Write-Host ""
           Write-Host "OS Information:"
@@ -72,7 +72,7 @@ jobs:
       - name: Download Latest Windows Build Artifacts
         shell: powershell
         run: |
-          Write-Host "📦 Downloading latest Windows build artifacts..."
+          Write-Host "[DOWNLOAD] Getting latest Windows build artifacts..."
           
           # Create build directory
           New-Item -ItemType Directory -Path "build" -Force | Out-Null
