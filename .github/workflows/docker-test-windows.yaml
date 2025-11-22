@@ -694,34 +694,84 @@ jobs:
             Write-Host "[WAIT] Waiting for container initialization (15 seconds)..."
             Start-Sleep -Seconds 15
             
+            # First, list available installers
+            Write-Host ""
+            Write-Host "[DEBUG] Checking available installers..."
+            docker exec $containerName powershell -Command {
+              Write-Host "📂 Contents of C:\tmp\build-artifacts:"
+              Get-ChildItem -Path "C:\tmp\build-artifacts" -ErrorAction SilentlyContinue | ForEach-Object { 
+                Write-Host "  - $($_.Name) ($($_.Length) bytes)"
+              }
+            }
+            
             # Install the application
             Write-Host ""
             Write-Host "[INSTALL] Installing the application..."
             Write-Host "Executing installation inside container..."
             
             $installCommand = {
+              # List current directory contents for debugging
+              Write-Host "[DEBUG] Current directory: $(Get-Location)"
+              Write-Host "[DEBUG] Artifacts directory contents:"
+              Get-ChildItem -Path "C:\tmp\build-artifacts" -ErrorAction SilentlyContinue | ForEach-Object { 
+                Write-Host "  - $($_.Name)"
+              }
+              
               # Check installation type and install accordingly
               if ($env:INSTALL_TYPE -eq "exe") {
                 Write-Host "[INSTALLER] Using EXE installer..."
                 # Look for exe installer in artifacts
-                $exeFile = Get-ChildItem -Path "C:\tmp\build-artifacts" -Filter "*.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
-                if ($exeFile) {
+                $exeFiles = Get-ChildItem -Path "C:\tmp\build-artifacts" -Filter "*.exe" -ErrorAction SilentlyContinue
+                Write-Host "[DEBUG] Found $($exeFiles.Count) EXE files"
+                
+                if ($exeFiles) {
+                  $exeFile = $exeFiles | Select-Object -First 1
                   Write-Host "[INSTALL] Running: $($exeFile.FullName)"
-                  & $exeFile.FullName /S /D="C:\Program Files\Openterface"
+                  Write-Host "[INSTALL] File size: $($exeFile.Length) bytes"
+                  
+                  # Run installer with logging
+                  & $exeFile.FullName /S /D="C:\Program Files\Openterface" 2>&1
                   Write-Host "[SUCCESS] EXE installation completed"
+                  
+                  # Verify installation
+                  Start-Sleep -Seconds 3
+                  if (Test-Path "C:\Program Files\Openterface") {
+                    Write-Host "[VERIFY] Installation directory created:"
+                    Get-ChildItem -Path "C:\Program Files\Openterface" -Recurse | ForEach-Object { Write-Host "    $($_.FullName)" }
+                  }
                 } else {
-                  Write-Host "[WARNING] No EXE installer found"
+                  Write-Host "[ERROR] No EXE installer found in C:\tmp\build-artifacts"
                 }
               } elseif ($env:INSTALL_TYPE -eq "zip") {
                 Write-Host "[INSTALLER] Using ZIP archive..."
                 # Look for zip file in artifacts
-                $zipFile = Get-ChildItem -Path "C:\tmp\build-artifacts" -Filter "*.zip" -ErrorAction SilentlyContinue | Select-Object -First 1
-                if ($zipFile) {
+                $zipFiles = Get-ChildItem -Path "C:\tmp\build-artifacts" -Filter "*.zip" -ErrorAction SilentlyContinue
+                Write-Host "[DEBUG] Found $($zipFiles.Count) ZIP files"
+                
+                if ($zipFiles) {
+                  $zipFile = $zipFiles | Select-Object -First 1
                   Write-Host "[INSTALL] Extracting: $($zipFile.FullName)"
-                  Expand-Archive -Path $zipFile.FullName -DestinationPath "C:\Program Files\Openterface" -Force
-                  Write-Host "[SUCCESS] ZIP extraction completed"
+                  Write-Host "[INSTALL] File size: $($zipFile.Length) bytes"
+                  
+                  # Create target directory
+                  New-Item -ItemType Directory -Path "C:\Program Files\Openterface" -Force | Out-Null
+                  
+                  # Extract with error checking
+                  try {
+                    Expand-Archive -Path $zipFile.FullName -DestinationPath "C:\Program Files\Openterface" -Force
+                    Write-Host "[SUCCESS] ZIP extraction completed"
+                    
+                    # Verify extraction
+                    Start-Sleep -Seconds 2
+                    if (Test-Path "C:\Program Files\Openterface") {
+                      Write-Host "[VERIFY] Extraction directory contents:"
+                      Get-ChildItem -Path "C:\Program Files\Openterface" -Recurse | ForEach-Object { Write-Host "    $($_.FullName)" }
+                    }
+                  } catch {
+                    Write-Host "[ERROR] ZIP extraction failed: $_"
+                  }
                 } else {
-                  Write-Host "[WARNING] No ZIP file found"
+                  Write-Host "[ERROR] No ZIP file found in C:\tmp\build-artifacts"
                 }
               }
             }
@@ -729,9 +779,9 @@ jobs:
             docker exec $containerName powershell -Command $installCommand
             
             if ($LASTEXITCODE -eq 0) {
-              Write-Host "[SUCCESS] Installation completed"
+              Write-Host "[SUCCESS] Installation step completed"
             } else {
-              Write-Host "[WARNING] Installation may have encountered issues"
+              Write-Host "[WARNING] Installation step had exit code: $LASTEXITCODE"
             }
             
             # Start the application
@@ -739,53 +789,93 @@ jobs:
             Write-Host "[START] Starting the Openterface application..."
             
             $startCommand = {
-              $appPath = "C:\Program Files\Openterface\Openterface.exe"
-              if (Test-Path $appPath) {
+              # Check multiple possible paths
+              $possiblePaths = @(
+                "C:\Program Files\Openterface\Openterface.exe",
+                "C:\Program Files\Openterface\bin\openterfaceqt.exe",
+                "C:\Program Files\Openterface\openterfaceqt.exe",
+                "C:\Program Files\Openterface\OpenTerface.exe"
+              )
+              
+              $appPath = $null
+              foreach ($path in $possiblePaths) {
+                if (Test-Path $path) {
+                  $appPath = $path
+                  break
+                }
+              }
+              
+              if ($appPath) {
                 Write-Host "[START] Launching: $appPath"
-                Start-Process -FilePath $appPath -NoNewWindow
+                Start-Process -FilePath $appPath -NoNewWindow -PassThru | Out-Null
+                Write-Host "[SUCCESS] Application launched"
                 Start-Sleep -Seconds 5
-                Write-Host "[SUCCESS] Application started"
               } else {
-                Write-Host "[WARNING] Application executable not found at: $appPath"
-                # List files in installation directory
-                Get-ChildItem -Path "C:\Program Files\Openterface" -Recurse | ForEach-Object { Write-Host "  - $($_.FullName)" }
+                Write-Host "[WARNING] Application executable not found"
+                Write-Host "[DEBUG] Checking C:\Program Files\Openterface contents:"
+                if (Test-Path "C:\Program Files\Openterface") {
+                  Get-ChildItem -Path "C:\Program Files\Openterface" -Recurse -File | Select-Object -First 20 | ForEach-Object { Write-Host "  - $($_.FullName)" }
+                } else {
+                  Write-Host "[ERROR] Installation directory does not exist!"
+                }
               }
             }
             
             docker exec $containerName powershell -Command $startCommand
             
-            # Wait for application to stabilize
+            # Wait for application and desktop to stabilize
             Write-Host ""
-            Write-Host "[WAIT] Waiting for application to stabilize (10 seconds)..."
-            Start-Sleep -Seconds 10
+            Write-Host "[WAIT] Waiting for application to stabilize (15 seconds)..."
+            Start-Sleep -Seconds 15
             
-            # Take a screenshot
+            # Take a screenshot with better method
             Write-Host ""
             Write-Host "[SCREENSHOT] Taking screenshot of the desktop..."
             
             $screenshotCommand = {
-              Add-Type -AssemblyName System.Windows.Forms
-              $bitmap = New-Object System.Drawing.Bitmap([System.Windows.Forms.Screen]::PrimaryScreen.Bounds.Width, [System.Windows.Forms.Screen]::PrimaryScreen.Bounds.Height)
-              $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
-              $graphics.CopyFromScreen([System.Windows.Forms.Screen]::PrimaryScreen.Bounds.Location, [System.Drawing.Point]::Empty, $bitmap.Size)
-              $graphics.Dispose()
-              
-              $screenshotPath = "C:\tmp\screenshot.png"
-              $bitmap.Save($screenshotPath, [System.Drawing.Imaging.ImageFormat]::Png)
-              $bitmap.Dispose()
-              
-              Write-Host "[SUCCESS] Screenshot saved to: $screenshotPath"
-              if (Test-Path $screenshotPath) {
-                Write-Host "[INFO] File size: $((Get-Item $screenshotPath).Length) bytes"
+              try {
+                # Add required assemblies
+                Add-Type -AssemblyName System.Windows.Forms
+                Add-Type -AssemblyName System.Drawing
+                
+                # Get screen dimensions
+                $screen = [System.Windows.Forms.Screen]::PrimaryScreen
+                $bounds = $screen.Bounds
+                
+                Write-Host "[DEBUG] Screen resolution: $($bounds.Width)x$($bounds.Height)"
+                
+                # Create bitmap with correct dimensions
+                $bitmap = New-Object System.Drawing.Bitmap($bounds.Width, $bounds.Height, [System.Drawing.Imaging.PixelFormat]::Format32bppArgb)
+                
+                # Capture screen to bitmap
+                $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
+                $graphics.CopyFromScreen($bounds.Location, [System.Drawing.Point]::Empty, $bounds.Size)
+                $graphics.Dispose()
+                
+                # Save as PNG with high quality
+                $screenshotPath = "C:\tmp\screenshot.png"
+                $bitmap.Save($screenshotPath, [System.Drawing.Imaging.ImageFormat]::Png)
+                $bitmap.Dispose()
+                
+                Write-Host "[SUCCESS] Screenshot saved to: $screenshotPath"
+                if (Test-Path $screenshotPath) {
+                  $fileSize = (Get-Item $screenshotPath).Length
+                  Write-Host "[INFO] File size: $fileSize bytes ($('{0:N2}' -f ($fileSize / 1KB)) KB)"
+                  if ($fileSize -lt 50000) {
+                    Write-Host "[WARNING] Screenshot file seems small, may not capture full desktop"
+                  }
+                }
+              } catch {
+                Write-Host "[ERROR] Screenshot capture failed: $_"
               }
             }
             
             docker exec $containerName powershell -Command $screenshotCommand
             
             if ($LASTEXITCODE -eq 0) {
-              Write-Host "[SUCCESS] Screenshot captured successfully"
+              Write-Host "[SUCCESS] Screenshot captured"
             } else {
-              Write-Host "[WARNING] Screenshot capture may have failed"
+              Write-Host "[WARNING] Screenshot capture had issues"
             }
             
             # Wait a bit more for container to stabilize
