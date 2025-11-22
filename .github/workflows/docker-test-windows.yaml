@@ -341,17 +341,17 @@ jobs:
           $dockerArgs | ForEach-Object { Write-Host "  $_" }
           Write-Host ""
           
-          # Run container with timeout
+          # Run container
           try {
-            $process = Start-Process -FilePath "docker" -ArgumentList $dockerArgs -NoNewWindow -PassThru -Wait -Timeout 2400
+            docker run $dockerArgs
             
-            if ($process.ExitCode -eq 0) {
+            if ($LASTEXITCODE -eq 0) {
               Write-Host "[SUCCESS] Container test completed successfully"
             } else {
-              Write-Host "[WARNING] Container exited with code: $($process.ExitCode)"
+              Write-Host "[WARNING] Container exited with code: $LASTEXITCODE"
             }
           } catch {
-            Write-Host "[WARNING] Container test timeout or error: $_"
+            Write-Host "[WARNING] Container test error: $_"
           }
           
           # Get container logs
