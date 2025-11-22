@@ -49,21 +49,19 @@ RUN powershell -NoProfile -InputFormat None -ExecutionPolicy Bypass -Command \
 RUN powershell -NoProfile -InputFormat None -ExecutionPolicy Bypass -Command \
     "choco install -y vcredist140 vcredist2015 dotnet-runtime --no-progress"
 
-# === Stage 4: Create Installation and Working Directories ===
-RUN powershell -NoProfile -InputFormat None -ExecutionPolicy Bypass -Command \
-    "mkdir -Force 'C:\tmp\build-artifacts' -ErrorAction SilentlyContinue | Out-Null; \
-    mkdir -Force 'C:\tmp\packages' -ErrorAction SilentlyContinue | Out-Null; \
-    mkdir -Force 'C:\scripts' -ErrorAction SilentlyContinue | Out-Null; \
-    mkdir -Force 'C:\docker' -ErrorAction SilentlyContinue | Out-Null"
+# === Stage 5: Copy Scripts ===
+# Copy entrypoint and installation scripts
+COPY docker/entrypoint.ps1 C:\\entrypoint.ps1
+COPY docker/install-openterface.ps1 C:\\docker\\install-openterface.ps1
 
-# === Stage 5: Set Working Directory ===
+# === Stage 6: Set Working Directory ===
 WORKDIR C:\\home\\openterface
 
-# === Stage 6: Add Labels for Metadata ===
+# === Stage 7: Add Labels for Metadata ===
 LABEL maintainer="TechxArtisan Studio"
 LABEL description="Openterface QT Mini-KVM Windows testing environment"
 LABEL version="latest"
 LABEL purpose="testing"
 
-# === Stage 7: Set Entrypoint ===
+# === Stage 8: Set Entrypoint ===
 ENTRYPOINT ["powershell", "-NoProfile", "-InputFormat", "None", "-ExecutionPolicy", "Bypass", "-File", "C:\\entrypoint.ps1"]
