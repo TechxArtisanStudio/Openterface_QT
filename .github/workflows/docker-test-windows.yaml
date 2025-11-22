@@ -290,40 +290,46 @@ jobs:
           
           # Try to push latest tag
           Write-Host "[PUSH] Attempting push: $imageLatest"
-          docker push "$imageLatest" 2>&1 | Tee-Object -Variable push1Output
+          $pushOutput = docker push "$imageLatest" 2>&1
           $push1Exit = $LASTEXITCODE
           
           if ($push1Exit -eq 0) {
             Write-Host "[SUCCESS] Pushed: $imageLatest"
           } else {
-            $output = $push1Output | Out-String
-            if ($output -match "denied|permission|not allowed") {
-              Write-Host "[WARNING] Push permission denied for latest tag"
-              Write-Host "[INFO] Check if token has 'write:packages' scope"
+            $output = $pushOutput | Out-String
+            if ($output -match "denied.*installation not allowed") {
+              Write-Host "[WARNING] Push permission denied - 'installation not allowed to Create organization package'"
+              Write-Host "[INFO] GHCR registry may have restrictions on your account"
+              Write-Host "[INFO] Skipping push - will use local image for testing"
+              Write-Host "[INFO] To resolve: Check GitHub account GHCR settings and PAT scopes"
+              exit 0
+            } elseif ($output -match "denied|permission|not allowed") {
+              Write-Host "[WARNING] Push permission denied"
+              Write-Host "[INFO] Check if GITHUB_TOKEN has 'write:packages' scope"
             } else {
               Write-Host "[WARNING] Push failed for latest tag (exit code: $push1Exit)"
             }
           }
           
+          if ($push1Exit -ne 0) {
+            Write-Host "[INFO] Skipping SHA tag push since latest failed"
+            Write-Host "[INFO] Image is available locally for testing"
+            exit 0
+          }
+          
           # Try to push SHA tag
           Write-Host "[PUSH] Attempting push: $imageSha"
-          docker push "$imageSha" 2>&1 | Tee-Object -Variable push2Output
+          $pushOutput = docker push "$imageSha" 2>&1
           $push2Exit = $LASTEXITCODE
           
           if ($push2Exit -eq 0) {
             Write-Host "[SUCCESS] Pushed: $imageSha"
           } else {
-            $output = $push2Output | Out-String
-            if ($output -match "denied|permission|not allowed") {
-              Write-Host "[WARNING] Push permission denied for SHA tag"
-              Write-Host "[INFO] Check if token has 'write:packages' scope"
-            } else {
-              Write-Host "[WARNING] Push failed for SHA tag (exit code: $push2Exit)"
-            }
+            Write-Host "[WARNING] Push failed for SHA tag (exit code: $push2Exit)"
           }
           
           if ($push1Exit -eq 0 -or $push2Exit -eq 0) {
-            Write-Host "[SUCCESS] At least one image tag pushed to personal repo"
+            Write-Host "[SUCCESS] Image pushed to personal repo"
             Write-Host "[INFO] Image available at:"
             if ($push1Exit -eq 0) {
               Write-Host "  ✓ $imageLatest"
@@ -332,12 +338,10 @@ jobs:
               Write-Host "  ✓ $imageSha"
             }
           } else {
-            Write-Host "[INFO] Could not push to registry"
-            Write-Host "[INFO] Reason: Permission or token scope issue"
-            Write-Host "[INFO] Image is still available locally for testing"
+            Write-Host "[INFO] Push failed - will use local image for testing"
           }
           
-          # Don't fail the workflow - local image works for testing
+          # Always exit 0 - local image works for testing
           exit 0
 
       - name: Log out from GitHub Container Registry
