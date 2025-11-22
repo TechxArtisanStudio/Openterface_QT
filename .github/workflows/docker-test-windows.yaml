@@ -175,6 +175,34 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
+      - name: Pull base Windows image
+        shell: powershell
+        run: |
+          Write-Host "[DOWNLOAD] Pulling base Windows image..."
+          
+          $baseImages = @(
+            "mcr.microsoft.com/windows/servercore:ltsc2022-20250121",
+            "mcr.microsoft.com/windows/servercore:ltsc2022"
+          )
+          
+          $imagePulled = $false
+          foreach ($image in $baseImages) {
+            Write-Host "Attempting to pull: $image"
+            $pullProcess = Start-Process -FilePath "docker" -ArgumentList @("pull", $image) -NoNewWindow -PassThru -Wait -Timeout 600
+            
+            if ($pullProcess.ExitCode -eq 0) {
+              Write-Host "[SUCCESS] Successfully pulled: $image"
+              $imagePulled = $true
+              break
+            } else {
+              Write-Host "[WARNING] Failed to pull $image, trying next..."
+            }
+          }
+          
+          if (-not $imagePulled) {
+            Write-Host "[WARNING] Could not pull any base image, Docker build may fail"
+          }
+
       - name: Build Docker image (Windows)
         shell: powershell
         run: |
