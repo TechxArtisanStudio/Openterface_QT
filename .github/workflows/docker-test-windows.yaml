@@ -698,7 +698,7 @@ jobs:
             Write-Host ""
             Write-Host "[DEBUG] Checking available installers..."
             docker exec $containerName powershell -Command {
-              Write-Host "📂 Contents of C:\tmp\build-artifacts:"
+              Write-Host "[LIST] Contents of C:\tmp\build-artifacts:"
               Get-ChildItem -Path "C:\tmp\build-artifacts" -ErrorAction SilentlyContinue | ForEach-Object { 
                 Write-Host "  - $($_.Name) ($($_.Length) bytes)"
               }
