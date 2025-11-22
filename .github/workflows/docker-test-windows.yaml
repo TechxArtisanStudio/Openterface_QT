@@ -456,6 +456,26 @@ jobs:
             Write-Host "Continuing without artifacts for diagnostic purposes..."
           }
 
+      - name: Prepare to pull or build Docker image
+        shell: powershell
+        run: |
+          Write-Host "[PREP] Preparing image pull or build strategy"
+          
+          # Set environment flags
+          $registry = "${{ env.DOCKER_REGISTRY }}"
+          $repo = "${{ github.repository_owner }}"
+          $imageName = "${{ env.DOCKER_IMAGE_WINDOWS }}"
+          $sha_short = "${{ github.sha }}".Substring(0, 7)
+          
+          $imageSha = "$registry/$repo/$imageName`:$sha_short"
+          $imageLatest = "$registry/$repo/$imageName`:latest"
+          
+          echo "IMAGE_SHA=$imageSha" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          echo "IMAGE_LATEST=$imageLatest" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          
+          Write-Host "[INFO] Will attempt to pull: $imageSha"
+          Write-Host "[INFO] Or fallback to: $imageLatest"
+
       - name: Log in to GitHub Container Registry
         shell: bash
         env:
@@ -466,7 +486,7 @@ jobs:
           echo "[AUTH] Logging into GitHub Container Registry..."
           
           if [ -z "$GHCR_TOKEN" ]; then
-            echo "[WARNING] GITHUB_TOKEN is empty or not set - will try pulling without authentication"
+            echo "[WARNING] GITHUB_TOKEN is empty or not set - will continue"
             exit 0
           fi
           
@@ -477,55 +497,60 @@ jobs:
             echo "[SUCCESS] Successfully logged into $GHCR_REGISTRY"
           else
             echo "[WARNING] Failed to login to $GHCR_REGISTRY (exit code: $EXIT_CODE)"
-            echo "[INFO] Will attempt to pull without authentication"
+            echo "[INFO] Will continue anyway - may fall back to local build"
           fi
 
       - name: Pull Docker image from registry
         shell: powershell
+        continue-on-error: true
         run: |
-          Write-Host "[DOWNLOAD] Pulling pre-built Docker image from registry..."
+          Write-Host "[DOWNLOAD] Attempting to pull pre-built Docker image from registry..."
           
-          $registry = "${{ env.DOCKER_REGISTRY }}"
-          $repo = "${{ github.repository_owner }}"
-          $imageName = "${{ env.DOCKER_IMAGE_WINDOWS }}"
-          $sha_short = "${{ github.sha }}".Substring(0, 7)
+          $imageSha = "${{ env.IMAGE_SHA }}"
+          $imageLatest = "${{ env.IMAGE_LATEST }}"
           
           # Try to pull by SHA first (most specific)
-          $imageSha = "$registry/$repo/$imageName`:$sha_short"
           Write-Host "[PULL] Attempting to pull by SHA: $imageSha"
           
-          docker pull $imageSha 2>&1
+          docker pull $imageSha 2>&1 | Tee-Object -Variable pullOutput
           $pullExitCode = $LASTEXITCODE
           
           if ($pullExitCode -eq 0) {
             Write-Host "[SUCCESS] Pulled image by SHA: $imageSha"
             docker tag $imageSha "${{ env.DOCKER_IMAGE_WINDOWS }}:${{ env.DOCKER_TAG }}"
+            echo "IMAGE_PULL_SUCCESS=true" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
             exit 0
+          } else {
+            $output = $pullOutput | Out-String
+            if ($output -match "manifest unknown|not found") {
+              Write-Host "[INFO] Image not found by SHA (manifest unknown)"
+            } else {
+              Write-Host "[WARNING] Pull failed with: $output"
+            }
           }
           
           # Fallback to latest tag
-          Write-Host "[INFO] SHA tag not found, trying latest tag..."
-          $imageLatest = "$registry/$repo/$imageName`:latest"
-          Write-Host "[PULL] Attempting to pull: $imageLatest"
+          Write-Host "[PULL] Attempting to pull by latest tag: $imageLatest"
           
-          docker pull $imageLatest 2>&1
+          docker pull $imageLatest 2>&1 | Tee-Object -Variable pullOutput
           $pullExitCode = $LASTEXITCODE
           
           if ($pullExitCode -eq 0) {
             Write-Host "[SUCCESS] Pulled image by latest tag: $imageLatest"
             docker tag $imageLatest "${{ env.DOCKER_IMAGE_WINDOWS }}:${{ env.DOCKER_TAG }}"
+            echo "IMAGE_PULL_SUCCESS=true" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
             exit 0
           }
           
-          Write-Host "[WARNING] Could not pull pre-built image"
-          Write-Host "[INFO] Will fall back to building locally"
+          Write-Host "[WARNING] Could not pull pre-built image from registry"
+          echo "IMAGE_PULL_SUCCESS=false" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
       - name: Log out from GitHub Container Registry
         if: always()
         shell: bash
         run: |
           docker logout "${{ env.DOCKER_REGISTRY }}" 2>&1 || true
-          echo "[SUCCESS] Logged out from registry"
+          echo "[INFO] Registry logout completed"
 
       - name: Build Docker image locally if pull failed
         shell: powershell
