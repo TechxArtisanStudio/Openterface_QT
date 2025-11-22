@@ -261,12 +261,12 @@ jobs:
             exit 1
           }
 
-      - name: Push image to GitHub Container Registry
+      - name: Push image to GitHub Container Registry (Personal Repo)
         if: github.event_name == 'push' || github.event.inputs.rebuild_docker_image == 'true'
         shell: powershell
         continue-on-error: true
         run: |
-          Write-Host "[PUSH] Attempting to push Docker image to registry..."
+          Write-Host "[PUSH] Attempting to push Docker image to personal GitHub repo..."
           
           # Skip if login failed
           if ($env:SKIP_REGISTRY_PUSH -eq "true") {
@@ -285,7 +285,7 @@ jobs:
           $imageLatest = "${{ env.IMAGE_LATEST }}"
           $imageSha = "${{ env.IMAGE_SHA }}"
           
-          Write-Host "[PUSH] Pushing image tags to registry..."
+          Write-Host "[PUSH] Pushing image to personal repo: ${{ env.DOCKER_REPO }}"
           Write-Host "[INFO] Local image: $imageName"
           
           # Try to push latest tag
@@ -299,7 +299,7 @@ jobs:
             $output = $push1Output | Out-String
             if ($output -match "denied|permission|not allowed") {
               Write-Host "[WARNING] Push permission denied for latest tag"
-              Write-Host "[INFO] This may require elevated permissions or org settings"
+              Write-Host "[INFO] Check if token has 'write:packages' scope"
             } else {
               Write-Host "[WARNING] Push failed for latest tag (exit code: $push1Exit)"
             }
@@ -316,14 +316,14 @@ jobs:
             $output = $push2Output | Out-String
             if ($output -match "denied|permission|not allowed") {
               Write-Host "[WARNING] Push permission denied for SHA tag"
-              Write-Host "[INFO] This may require elevated permissions or org settings"
+              Write-Host "[INFO] Check if token has 'write:packages' scope"
             } else {
               Write-Host "[WARNING] Push failed for SHA tag (exit code: $push2Exit)"
             }
           }
           
           if ($push1Exit -eq 0 -or $push2Exit -eq 0) {
-            Write-Host "[SUCCESS] At least one image tag pushed successfully"
+            Write-Host "[SUCCESS] At least one image tag pushed to personal repo"
             Write-Host "[INFO] Image available at:"
             if ($push1Exit -eq 0) {
               Write-Host "  ✓ $imageLatest"
@@ -332,17 +332,12 @@ jobs:
               Write-Host "  ✓ $imageSha"
             }
           } else {
-            Write-Host "[WARNING] Could not push to registry"
-            Write-Host "[INFO] Possible causes:"
-            Write-Host "  1. GitHub token permissions (needs 'write:packages' scope)"
-            Write-Host "  2. Organization package settings may restrict push"
-            Write-Host "  3. Registry temporarily unavailable"
-            Write-Host ""
+            Write-Host "[INFO] Could not push to registry"
+            Write-Host "[INFO] Reason: Permission or token scope issue"
             Write-Host "[INFO] Image is still available locally for testing"
-            Write-Host "[INFO] For CI/CD: local image will be used for downstream jobs"
           }
           
-          # Don't fail the workflow due to push permission issues
+          # Don't fail the workflow - local image works for testing
           exit 0
 
       - name: Log out from GitHub Container Registry
