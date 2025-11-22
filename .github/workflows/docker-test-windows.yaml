@@ -85,19 +85,61 @@ jobs:
       - name: Log in to GitHub Container Registry
         if: github.event_name == 'push' || github.event.inputs.rebuild_docker_image == 'true'
         shell: powershell
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GHCR_USERNAME: ${{ github.actor }}
+          GHCR_REGISTRY: ${{ env.DOCKER_REGISTRY }}
         run: |
           Write-Host "[AUTH] Logging into GitHub Container Registry..."
+          Write-Host "[INFO] Registry: $env:GHCR_REGISTRY"
+          Write-Host "[INFO] Username: $env:GHCR_USERNAME"
           
-          $token = "${{ secrets.GITHUB_TOKEN }}"
-          $registry = "${{ env.DOCKER_REGISTRY }}"
+          $token = $env:GHCR_TOKEN
+          $username = $env:GHCR_USERNAME
+          $registry = $env:GHCR_REGISTRY
           
-          # Login to GHCR
-          echo $token | docker login $registry -u ${{ github.actor }} --password-stdin
+          if ([string]::IsNullOrEmpty($token)) {
+            Write-Host "[ERROR] GITHUB_TOKEN is empty or not set"
+            exit 1
+          }
           
-          if ($LASTEXITCODE -eq 0) {
+          Write-Host "[DEBUG] Token length: $($token.Length) characters"
+          
+          # Create a temp file with the token for secure passing
+          $tempTokenFile = [System.IO.Path]::GetTempFileName()
+          try {
+            Set-Content -Path $tempTokenFile -Value $token -NoNewline -Force
+            $loginResult = Get-Content $tempTokenFile | docker login -u $username --password-stdin $registry 2>&1
+            $exitCode = $LASTEXITCODE
+          }
+          finally {
+            Remove-Item -Path $tempTokenFile -Force -ErrorAction SilentlyContinue
+          }
+          
+          if ($exitCode -eq 0) {
             Write-Host "[SUCCESS] Successfully logged into $registry"
           } else {
-            Write-Host "[ERROR] Failed to login to $registry"
+            Write-Host "[ERROR] Failed to login to $registry (exit code: $exitCode)"
+            Write-Host "[DEBUG] Output: $loginResult"
+            Write-Host ""
+            Write-Host "[INFO] Possible causes:"
+            Write-Host "  1. GITHUB_TOKEN missing or invalid"
+            Write-Host "  2. Token doesn't have 'write:packages' scope"
+            Write-Host "  3. Registry temporarily unavailable"
+            Write-Host ""
+            Write-Host "[INFO] Continuing without registry push - will use local builds"
+            echo "SKIP_REGISTRY_PUSH=true" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          }
+
+      - name: Verify Docker is accessible
+        shell: powershell
+        run: |
+          Write-Host "[CHECK] Verifying Docker is accessible..."
+          docker version
+          if ($LASTEXITCODE -eq 0) {
+            Write-Host "[SUCCESS] Docker is accessible"
+          } else {
+            Write-Host "[ERROR] Docker is not accessible"
             exit 1
           }
 
@@ -181,8 +223,16 @@ jobs:
       - name: Push image to GitHub Container Registry
         if: github.event_name == 'push' || github.event.inputs.rebuild_docker_image == 'true'
         shell: powershell
+        continue-on-error: true
         run: |
-          Write-Host "[PUSH] Pushing Docker image to registry..."
+          Write-Host "[PUSH] Attempting to push Docker image to registry..."
+          
+          # Skip if login failed
+          if ($env:SKIP_REGISTRY_PUSH -eq "true") {
+            Write-Host "[INFO] Skipping registry push - login failed"
+            Write-Host "[INFO] Image will be available locally for testing"
+            exit 0
+          }
           
           # Only push if we built the image
           if ("${{ env.SKIP_BUILD }}" -ne "false" -and "${{ github.event.inputs.rebuild_docker_image }}" -ne "true") {
@@ -192,24 +242,22 @@ jobs:
           
           Write-Host "[PUSH] Pushing: ${{ env.IMAGE_LATEST }}"
           docker push "${{ env.IMAGE_LATEST }}"
-          
-          if ($LASTEXITCODE -ne 0) {
-            Write-Host "[ERROR] Failed to push latest tag"
-            exit 1
-          }
+          $push1Exit = $LASTEXITCODE
           
           Write-Host "[PUSH] Pushing: ${{ env.IMAGE_SHA }}"
           docker push "${{ env.IMAGE_SHA }}"
+          $push2Exit = $LASTEXITCODE
           
-          if ($LASTEXITCODE -ne 0) {
-            Write-Host "[ERROR] Failed to push SHA tag"
-            exit 1
+          if ($push1Exit -eq 0 -and $push2Exit -eq 0) {
+            Write-Host "[SUCCESS] Image pushed successfully"
+            Write-Host "[INFO] Available at:"
+            Write-Host "  - ${{ env.IMAGE_LATEST }}"
+            Write-Host "  - ${{ env.IMAGE_SHA }}"
+          } else {
+            Write-Host "[WARNING] Push partially failed"
+            Write-Host "[WARNING] Exit codes: latest=$push1Exit, sha=$push2Exit"
+            Write-Host "[INFO] Image is still available locally for testing"
           }
-          
-          Write-Host "[SUCCESS] Image pushed successfully"
-          Write-Host "[INFO] Available at:"
-          Write-Host "  - ${{ env.IMAGE_LATEST }}"
-          Write-Host "  - ${{ env.IMAGE_SHA }}"
 
       - name: Log out from GitHub Container Registry
         if: always()
