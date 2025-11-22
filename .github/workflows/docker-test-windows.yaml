@@ -553,6 +553,7 @@ jobs:
           echo "[INFO] Registry logout completed"
 
       - name: Build Docker image locally if pull failed
+        if: env.IMAGE_PULL_SUCCESS != 'true'
         shell: powershell
         run: |
           Write-Host "[CHECK] Checking if image is available locally..."
