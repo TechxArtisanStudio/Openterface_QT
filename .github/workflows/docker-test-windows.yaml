@@ -794,12 +794,12 @@ jobs:
             
             # Basic system info
             Write-Host "System Information:"
-            docker exec $containerName powershell -Command "systeminfo | Select-String 'OS Name|OS Version|Manufacturer'" 2>$null || Write-Host "  [WARNING] Could not retrieve system info"
+            docker exec $containerName powershell -Command "systeminfo | Select-String 'OS Name|OS Version|Manufacturer'" 2>$null; if ($LASTEXITCODE -ne 0) { Write-Host "  [WARNING] Could not retrieve system info" }
             
             # Check installed packages via Chocolatey
             Write-Host ""
             Write-Host "Chocolatey Packages (relevant to testing):"
-            docker exec $containerName choco list -l | Select-String -Pattern "vcredist|ffmpeg|gstreamer|Qt" 2>$null || Write-Host "  [WARNING] Could not retrieve packages"
+            docker exec $containerName choco list -l | Select-String -Pattern "vcredist|ffmpeg|gstreamer|Qt" 2>$null; if ($LASTEXITCODE -ne 0) { Write-Host "  [WARNING] Could not retrieve packages" }
             
             # Check installation paths
             Write-Host ""
