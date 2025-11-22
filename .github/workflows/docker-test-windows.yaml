@@ -28,6 +28,7 @@ env:
   DOCKER_IMAGE_WINDOWS: openterface-test-windows
   DOCKER_TAG: test-${{ github.sha }}
   DOCKER_REGISTRY: ghcr.io
+  DOCKER_REPO: ${{ github.actor }}
   INSTALL_TYPES: "exe,zip"
 
 jobs:
@@ -142,7 +143,7 @@ jobs:
         shell: powershell
         run: |
           $registry = "${{ env.DOCKER_REGISTRY }}"
-          $repo = "${{ github.repository_owner }}"
+          $repo = "${{ env.DOCKER_REPO }}"
           $imageName = "${{ env.DOCKER_IMAGE_WINDOWS }}"
           
           # Tags: latest, git-sha, version
@@ -151,7 +152,9 @@ jobs:
           $imageLatest = "$registry/$repo/$imageName`:latest"
           $imageSha = "$registry/$repo/$imageName`:$sha_short"
           
-          Write-Host "[INFO] Setting Docker image tags:"
+          Write-Host "[INFO] Setting Docker image tags for personal repo:"
+          Write-Host "  Registry: $registry"
+          Write-Host "  Personal Repo: $repo"
           Write-Host "  Latest: $imageLatest"
           Write-Host "  SHA:    $imageSha"
           
@@ -188,10 +191,10 @@ jobs:
         shell: bash
         continue-on-error: true
         run: |
-          echo "[CHECK] Checking if Docker image already exists in registry..."
+          echo "[CHECK] Checking if Docker image already exists in personal repo..."
           
           REGISTRY="${{ env.DOCKER_REGISTRY }}"
-          REPO="${{ github.repository_owner }}"
+          REPO="${{ env.DOCKER_REPO }}"
           IMAGE_NAME="${{ env.DOCKER_IMAGE_WINDOWS }}"
           SHA_SHORT="${{ github.sha }}"
           SHA_SHORT="${SHA_SHORT:0:7}"
@@ -199,10 +202,11 @@ jobs:
           IMAGE_URI="$REGISTRY/$REPO/$IMAGE_NAME:$SHA_SHORT"
           
           echo "[INFO] Checking image: $IMAGE_URI"
+          echo "[INFO] Personal repo: $REPO"
           
           # Try to pull the image manifest only (dry-run without storing)
           if docker pull "$IMAGE_URI" --platform windows/amd64 > /dev/null 2>&1; then
-            echo "[SUCCESS] Image already exists in registry"
+            echo "[SUCCESS] Image already exists in personal repo"
             echo "[INFO] Image SHA: $SHA_SHORT"
             echo "[INFO] Skipping rebuild - using cached image for testing"
             echo "IMAGE_EXISTS=true" >> "$GITHUB_ENV"
@@ -213,11 +217,11 @@ jobs:
             
             # Check if error is due to image not found
             if echo "$PULL_OUTPUT" | grep -q "manifest unknown\|not found"; then
-              echo "[INFO] Image not found in registry"
+              echo "[INFO] Image not found in personal repo"
             else
               echo "[INFO] Image check result: exit code $PULL_EXIT"
             fi
-            echo "[INFO] Will rebuild and push image"
+            echo "[INFO] Will rebuild and push image to personal repo"
             echo "IMAGE_EXISTS=false" >> "$GITHUB_ENV"
             echo "SKIP_BUILD=false" >> "$GITHUB_ENV"
           fi
@@ -277,24 +281,69 @@ jobs:
             exit 0
           }
           
-          Write-Host "[PUSH] Pushing: ${{ env.IMAGE_LATEST }}"
-          docker push "${{ env.IMAGE_LATEST }}"
+          $imageName = "${{ env.DOCKER_IMAGE_WINDOWS }}:${{ env.DOCKER_TAG }}"
+          $imageLatest = "${{ env.IMAGE_LATEST }}"
+          $imageSha = "${{ env.IMAGE_SHA }}"
+          
+          Write-Host "[PUSH] Pushing image tags to registry..."
+          Write-Host "[INFO] Local image: $imageName"
+          
+          # Try to push latest tag
+          Write-Host "[PUSH] Attempting push: $imageLatest"
+          docker push "$imageLatest" 2>&1 | Tee-Object -Variable push1Output
           $push1Exit = $LASTEXITCODE
           
-          Write-Host "[PUSH] Pushing: ${{ env.IMAGE_SHA }}"
-          docker push "${{ env.IMAGE_SHA }}"
+          if ($push1Exit -eq 0) {
+            Write-Host "[SUCCESS] Pushed: $imageLatest"
+          } else {
+            $output = $push1Output | Out-String
+            if ($output -match "denied|permission|not allowed") {
+              Write-Host "[WARNING] Push permission denied for latest tag"
+              Write-Host "[INFO] This may require elevated permissions or org settings"
+            } else {
+              Write-Host "[WARNING] Push failed for latest tag (exit code: $push1Exit)"
+            }
+          }
+          
+          # Try to push SHA tag
+          Write-Host "[PUSH] Attempting push: $imageSha"
+          docker push "$imageSha" 2>&1 | Tee-Object -Variable push2Output
           $push2Exit = $LASTEXITCODE
           
-          if ($push1Exit -eq 0 -and $push2Exit -eq 0) {
-            Write-Host "[SUCCESS] Image pushed successfully"
-            Write-Host "[INFO] Available at:"
-            Write-Host "  - ${{ env.IMAGE_LATEST }}"
-            Write-Host "  - ${{ env.IMAGE_SHA }}"
+          if ($push2Exit -eq 0) {
+            Write-Host "[SUCCESS] Pushed: $imageSha"
           } else {
-            Write-Host "[WARNING] Push partially failed"
-            Write-Host "[WARNING] Exit codes: latest=$push1Exit, sha=$push2Exit"
-            Write-Host "[INFO] Image is still available locally for testing"
+            $output = $push2Output | Out-String
+            if ($output -match "denied|permission|not allowed") {
+              Write-Host "[WARNING] Push permission denied for SHA tag"
+              Write-Host "[INFO] This may require elevated permissions or org settings"
+            } else {
+              Write-Host "[WARNING] Push failed for SHA tag (exit code: $push2Exit)"
+            }
           }
+          
+          if ($push1Exit -eq 0 -or $push2Exit -eq 0) {
+            Write-Host "[SUCCESS] At least one image tag pushed successfully"
+            Write-Host "[INFO] Image available at:"
+            if ($push1Exit -eq 0) {
+              Write-Host "  ✓ $imageLatest"
+            }
+            if ($push2Exit -eq 0) {
+              Write-Host "  ✓ $imageSha"
+            }
+          } else {
+            Write-Host "[WARNING] Could not push to registry"
+            Write-Host "[INFO] Possible causes:"
+            Write-Host "  1. GitHub token permissions (needs 'write:packages' scope)"
+            Write-Host "  2. Organization package settings may restrict push"
+            Write-Host "  3. Registry temporarily unavailable"
+            Write-Host ""
+            Write-Host "[INFO] Image is still available locally for testing"
+            Write-Host "[INFO] For CI/CD: local image will be used for downstream jobs"
+          }
+          
+          # Don't fail the workflow due to push permission issues
+          exit 0
 
       - name: Log out from GitHub Container Registry
         if: always()
