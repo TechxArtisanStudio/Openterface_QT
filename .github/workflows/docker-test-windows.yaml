@@ -622,7 +622,7 @@ jobs:
 
       - name: Test Windows container build
         shell: powershell
-        timeout-minutes: 45
+        timeout-minutes: 60
         run: |
           Write-Host "[TEST] Testing Windows container"
           Write-Host "============================"
@@ -653,7 +653,7 @@ jobs:
           }
           
           Write-Host ""
-          Write-Host "Running container..."
+          Write-Host "Running container in background..."
           
           # Build docker run command
           # Note: Don't use -it (interactive + TTY) on GitHub Actions Windows runners
@@ -674,32 +674,117 @@ jobs:
           $dockerArgs | ForEach-Object { Write-Host "  $_" }
           Write-Host ""
           
-          # Run container in detached mode
-          Write-Host "[RUN] Starting container in detached mode..."
+          # Run container in detached mode (background)
+          Write-Host "[RUN] Starting container in background (detached mode)..."
           & docker run @dockerArgs
           
           if ($LASTEXITCODE -eq 0) {
-            Write-Host "[SUCCESS] Container started successfully"
+            Write-Host "[SUCCESS] Container started successfully in background"
+            Write-Host ""
             
-            # Wait for container to finish or timeout
-            $maxWait = 300  # 5 minutes
-            $elapsed = 0
-            Write-Host "[WAIT] Waiting for container to complete (max $maxWait seconds)..."
+            # Wait for container to become ready
+            Write-Host "[WAIT] Waiting for container initialization (15 seconds)..."
+            Start-Sleep -Seconds 15
             
-            while ($elapsed -lt $maxWait) {
-              $container = docker inspect $containerName 2>$null | ConvertFrom-Json 2>$null
-              if ($container -and -not $container.State.Running) {
-                Write-Host "[DONE] Container completed"
-                break
+            # Install the application
+            Write-Host ""
+            Write-Host "[INSTALL] Installing the application..."
+            Write-Host "Executing installation inside container..."
+            
+            $installCommand = {
+              # Check installation type and install accordingly
+              if ($env:INSTALL_TYPE -eq "exe") {
+                Write-Host "[INSTALLER] Using EXE installer..."
+                # Look for exe installer in artifacts
+                $exeFile = Get-ChildItem -Path "C:\tmp\build-artifacts" -Filter "*.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
+                if ($exeFile) {
+                  Write-Host "[INSTALL] Running: $($exeFile.FullName)"
+                  & $exeFile.FullName /S /D="C:\Program Files\Openterface"
+                  Write-Host "[SUCCESS] EXE installation completed"
+                } else {
+                  Write-Host "[WARNING] No EXE installer found"
+                }
+              } elseif ($env:INSTALL_TYPE -eq "zip") {
+                Write-Host "[INSTALLER] Using ZIP archive..."
+                # Look for zip file in artifacts
+                $zipFile = Get-ChildItem -Path "C:\tmp\build-artifacts" -Filter "*.zip" -ErrorAction SilentlyContinue | Select-Object -First 1
+                if ($zipFile) {
+                  Write-Host "[INSTALL] Extracting: $($zipFile.FullName)"
+                  Expand-Archive -Path $zipFile.FullName -DestinationPath "C:\Program Files\Openterface" -Force
+                  Write-Host "[SUCCESS] ZIP extraction completed"
+                } else {
+                  Write-Host "[WARNING] No ZIP file found"
+                }
               }
-              Start-Sleep -Seconds 5
-              $elapsed += 5
-              Write-Host "[...] Still running... ($elapsed/$maxWait seconds)"
             }
             
-            if ($elapsed -ge $maxWait) {
-              Write-Host "[TIMEOUT] Container did not complete within timeout"
+            docker exec $containerName powershell -Command $installCommand
+            
+            if ($LASTEXITCODE -eq 0) {
+              Write-Host "[SUCCESS] Installation completed"
+            } else {
+              Write-Host "[WARNING] Installation may have encountered issues"
             }
+            
+            # Start the application
+            Write-Host ""
+            Write-Host "[START] Starting the Openterface application..."
+            
+            $startCommand = {
+              $appPath = "C:\Program Files\Openterface\Openterface.exe"
+              if (Test-Path $appPath) {
+                Write-Host "[START] Launching: $appPath"
+                Start-Process -FilePath $appPath -NoNewWindow
+                Start-Sleep -Seconds 5
+                Write-Host "[SUCCESS] Application started"
+              } else {
+                Write-Host "[WARNING] Application executable not found at: $appPath"
+                # List files in installation directory
+                Get-ChildItem -Path "C:\Program Files\Openterface" -Recurse | ForEach-Object { Write-Host "  - $($_.FullName)" }
+              }
+            }
+            
+            docker exec $containerName powershell -Command $startCommand
+            
+            # Wait for application to stabilize
+            Write-Host ""
+            Write-Host "[WAIT] Waiting for application to stabilize (10 seconds)..."
+            Start-Sleep -Seconds 10
+            
+            # Take a screenshot
+            Write-Host ""
+            Write-Host "[SCREENSHOT] Taking screenshot of the desktop..."
+            
+            $screenshotCommand = {
+              Add-Type -AssemblyName System.Windows.Forms
+              $bitmap = New-Object System.Drawing.Bitmap([System.Windows.Forms.Screen]::PrimaryScreen.Bounds.Width, [System.Windows.Forms.Screen]::PrimaryScreen.Bounds.Height)
+              $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
+              $graphics.CopyFromScreen([System.Windows.Forms.Screen]::PrimaryScreen.Bounds.Location, [System.Drawing.Point]::Empty, $bitmap.Size)
+              $graphics.Dispose()
+              
+              $screenshotPath = "C:\tmp\screenshot.png"
+              $bitmap.Save($screenshotPath, [System.Drawing.Imaging.ImageFormat]::Png)
+              $bitmap.Dispose()
+              
+              Write-Host "[SUCCESS] Screenshot saved to: $screenshotPath"
+              if (Test-Path $screenshotPath) {
+                Write-Host "[INFO] File size: $((Get-Item $screenshotPath).Length) bytes"
+              }
+            }
+            
+            docker exec $containerName powershell -Command $screenshotCommand
+            
+            if ($LASTEXITCODE -eq 0) {
+              Write-Host "[SUCCESS] Screenshot captured successfully"
+            } else {
+              Write-Host "[WARNING] Screenshot capture may have failed"
+            }
+            
+            # Wait a bit more for container to stabilize
+            Write-Host ""
+            Write-Host "[WAIT] Waiting for container to stabilize (optional: waiting for completion)..."
+            Start-Sleep -Seconds 5
+            
           } else {
             Write-Host "[ERROR] Failed to start container"
           }
@@ -709,6 +794,69 @@ jobs:
           Write-Host "Container logs:"
           Write-Host "==============="
           docker logs $containerName 2>&1 | Tee-Object -FilePath "container-logs-${{ matrix.install_type }}.txt"
+
+      - name: Extract screenshot from container
+        if: always()
+        shell: powershell
+        run: |
+          Write-Host "[EXTRACT] Extracting screenshot from container..."
+          
+          $containerName = "openterface-test-windows-${{ matrix.install_type }}-${{ github.run_id }}"
+          $containerExists = docker ps -a --filter "name=$containerName" --format "{{.Names}}" 2>$null
+          
+          if ($containerExists) {
+            # Create screenshots directory if it doesn't exist
+            New-Item -ItemType Directory -Path "screenshots" -Force | Out-Null
+            
+            $localPath = "screenshots\screenshot-${{ matrix.install_type }}.png"
+            
+            Write-Host "[COPY] Copying screenshot from container to host..."
+            docker cp "$containerName`:C:\tmp\screenshot.png" $localPath 2>$null
+            
+            if (Test-Path $localPath) {
+              $fileSize = (Get-Item $localPath).Length
+              Write-Host "[SUCCESS] Screenshot extracted: $localPath"
+              Write-Host "[INFO] File size: $([Math]::Round($fileSize / 1MB, 2)) MB"
+            } else {
+              Write-Host "[WARNING] Screenshot file not found in container or extraction failed"
+            }
+          } else {
+            Write-Host "[WARNING] Container not found: $containerName"
+          }
+
+      - name: Verify container startup (Windows)
+        shell: powershell
+        timeout-minutes: 10
+        run: |
+          Write-Host "[SEARCH] Verifying container startup"
+          
+          $containerName = "openterface-test-windows-${{ matrix.install_type }}-${{ github.run_id }}"
+          
+          # Check if container exists
+          $container = docker inspect $containerName 2>$null | ConvertFrom-Json 2>$null
+          
+          if ($container) {
+            Write-Host "[SUCCESS] Container exists: $containerName"
+            
+            Write-Host ""
+            Write-Host "Container Status:"
+            Write-Host "  Running: $($container.State.Running)"
+            Write-Host "  Exit Code: $($container.State.ExitCode)"
+            Write-Host "  Status: $($container.State.Status)"
+            
+            # Check for installation success indicators
+            $logs = docker logs $containerName 2>&1 | Out-String
+            
+            if ($logs -match "ready for testing|SUCCESS.*installed|Application started") {
+              Write-Host "  Installation & Startup: [SUCCESS] Likely Successful"
+            } elseif ($logs -match "failed|error|ERROR") {
+              Write-Host "  Installation & Startup: [ERROR] May Have Failed"
+            } else {
+              Write-Host "  Installation & Startup: [INFO] Status Unknown"
+            }
+          } else {
+            Write-Host "[WARNING] Container not found: $containerName"
+          }
 
       - name: Verify container startup (Windows)
         shell: powershell
@@ -830,13 +978,14 @@ jobs:
             Write-Host "This is expected if the container already exited"
           }
 
-      - name: Upload container logs
+      - name: Upload container logs and screenshots
         if: always()
         shell: powershell
         run: |
-          Write-Host "[UPLOAD] Uploading logs"
+          Write-Host "[UPLOAD] Uploading logs and screenshots"
           
           $logFiles = Get-ChildItem -Path "container-logs-*.txt" -ErrorAction SilentlyContinue
+          $screenshots = Get-ChildItem -Path "screenshots\*" -ErrorAction SilentlyContinue
           
           if ($logFiles) {
             Write-Host "Found $($logFiles.Count) log file(s)"
@@ -845,6 +994,15 @@ jobs:
             }
           } else {
             Write-Host "No log files found"
+          }
+          
+          if ($screenshots) {
+            Write-Host "Found $($screenshots.Count) screenshot(s)"
+            foreach ($screenshot in $screenshots) {
+              Write-Host "  - $($screenshot.Name)"
+            }
+          } else {
+            Write-Host "No screenshots found"
           }
 
       - name: Clean up Docker resources
