@@ -166,32 +166,37 @@ jobs:
           SHA_SHORT="${{ github.sha }}"
           SHA_SHORT="${SHA_SHORT:0:7}"
           
-          IMAGE_URI="$REGISTRY/$REPO/$IMAGE_NAME:$SHA_SHORT"
+          IMAGE_URI_SHA="$REGISTRY/$REPO/$IMAGE_NAME:$SHA_SHORT"
+          IMAGE_URI_LATEST="$REGISTRY/$REPO/$IMAGE_NAME:latest"
           
-          echo "[INFO] Checking image: $IMAGE_URI"
+          echo "[INFO] Checking image for current commit: $IMAGE_URI_SHA"
           echo "[INFO] Repo: $REPO"
           
-          # Try to pull the image manifest only (dry-run without storing)
-          if docker pull "$IMAGE_URI" --platform windows/amd64 > /dev/null 2>&1; then
-            echo "[SUCCESS] Image already exists in repo"
+          # Try to pull the image for current SHA
+          if docker pull "$IMAGE_URI_SHA" > /dev/null 2>&1; then
+            echo "[SUCCESS] Image already exists for current commit"
             echo "[INFO] Image SHA: $SHA_SHORT"
             echo "[INFO] Skipping rebuild - using cached image for testing"
             echo "IMAGE_EXISTS=true" >> "$GITHUB_ENV"
             echo "SKIP_BUILD=true" >> "$GITHUB_ENV"
-          else
-            PULL_EXIT=$?
-            PULL_OUTPUT=$(docker pull "$IMAGE_URI" 2>&1 || true)
-            
-            # Check if error is due to image not found
-            if echo "$PULL_OUTPUT" | grep -q "manifest unknown\|not found"; then
-              echo "[INFO] Image not found in repo"
-            else
-              echo "[INFO] Image check result: exit code $PULL_EXIT"
-            fi
-            echo "[INFO] Will rebuild and push image to repo"
-            echo "IMAGE_EXISTS=false" >> "$GITHUB_ENV"
-            echo "SKIP_BUILD=false" >> "$GITHUB_ENV"
+            exit 0
           fi
+          
+          # Fallback: try latest tag
+          echo "[INFO] Current commit image not found, checking latest tag..."
+          if docker pull "$IMAGE_URI_LATEST" > /dev/null 2>&1; then
+            echo "[SUCCESS] Using latest image from previous build"
+            echo "[INFO] Tagging latest as current commit version"
+            docker tag "$IMAGE_URI_LATEST" "$IMAGE_URI_SHA" 2>/dev/null || true
+            echo "IMAGE_EXISTS=true" >> "$GITHUB_ENV"
+            echo "SKIP_BUILD=true" >> "$GITHUB_ENV"
+            exit 0
+          fi
+          
+          echo "[INFO] No cached image found"
+          echo "[INFO] Will rebuild and push image to repo"
+          echo "IMAGE_EXISTS=false" >> "$GITHUB_ENV"
+          echo "SKIP_BUILD=false" >> "$GITHUB_ENV"
 
       - name: Build Docker image
         if: env.SKIP_BUILD == 'false' || github.event.inputs.rebuild_docker_image == 'true'
@@ -651,8 +656,9 @@ jobs:
           Write-Host "Running container..."
           
           # Build docker run command
+          # Note: Don't use -it (interactive + TTY) on GitHub Actions Windows runners
           $dockerArgs = @(
-            "-it",
+            "-d",
             "--name", $containerName,
             "-e", "INSTALL_TYPE=${{ env.INSTALL_TYPE }}",
             "-e", "GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }}"
@@ -668,17 +674,34 @@ jobs:
           $dockerArgs | ForEach-Object { Write-Host "  $_" }
           Write-Host ""
           
-          # Run container using proper array splatting
-          try {
-            & docker run @dockerArgs
+          # Run container in detached mode
+          Write-Host "[RUN] Starting container in detached mode..."
+          & docker run @dockerArgs
+          
+          if ($LASTEXITCODE -eq 0) {
+            Write-Host "[SUCCESS] Container started successfully"
             
-            if ($LASTEXITCODE -eq 0) {
-              Write-Host "[SUCCESS] Container test completed successfully"
-            } else {
-              Write-Host "[WARNING] Container exited with code: $LASTEXITCODE"
+            # Wait for container to finish or timeout
+            $maxWait = 300  # 5 minutes
+            $elapsed = 0
+            Write-Host "[WAIT] Waiting for container to complete (max $maxWait seconds)..."
+            
+            while ($elapsed -lt $maxWait) {
+              $container = docker inspect $containerName 2>$null | ConvertFrom-Json 2>$null
+              if ($container -and -not $container.State.Running) {
+                Write-Host "[DONE] Container completed"
+                break
+              }
+              Start-Sleep -Seconds 5
+              $elapsed += 5
+              Write-Host "[...] Still running... ($elapsed/$maxWait seconds)"
             }
-          } catch {
-            Write-Host "[WARNING] Container test error: $_"
+            
+            if ($elapsed -ge $maxWait) {
+              Write-Host "[TIMEOUT] Container did not complete within timeout"
+            }
+          } else {
+            Write-Host "[ERROR] Failed to start container"
           }
           
           # Get container logs
