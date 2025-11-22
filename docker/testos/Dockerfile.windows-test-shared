@@ -1,0 +1,119 @@
+# Dockerfile for Testing Openterface QT Application on Windows
+# This Dockerfile creates a Windows Server testing environment for the Openterface QT application
+# Windows Server 2022 LTSC base image with runtime dependencies for GUI testing
+#
+# IMPORTANT: This Dockerfile requires Windows Docker Desktop or Windows Server with Docker
+# Linux containers cannot run Windows applications
+#
+# Build:
+#   docker build -t openterface-qt:windows-test -f docker/testos/Dockerfile.windows-test-shared .
+#
+# Run:
+#   docker run -it --name openterface-test ^
+#     -e INSTALL_TYPE=exe ^
+#     -v C:\packages:/tmp/build-artifacts ^
+#     openterface-qt:windows-test
+
+# Use Windows Server 2022 LTSC as base (smallest Windows Server image suitable for containers)
+FROM mcr.microsoft.com/windows/servercore:ltsc2022
+
+# Build arguments
+ARG GITHUB_TOKEN=""
+ARG INSTALL_TYPE="exe"
+
+# Set environment variables for testing
+ENV GITHUB_TOKEN=${GITHUB_TOKEN}
+ENV INSTALL_TYPE=${INSTALL_TYPE}
+ENV TEMP=C:\temp
+ENV TMP=C:\temp
+
+# === Stage 1: System Setup and Dependencies ===
+# Install Chocolatey package manager for easier dependency installation
+RUN powershell -NoProfile -InputFormat None -ExecutionPolicy Bypass -Command " \
+    [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; \
+    iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))" && \
+    setx PATH "%PATH%;C:\ProgramData\chocolatey\bin"
+
+# === Stage 2: Install Runtime Dependencies ===
+# Core utilities and tools required for testing
+RUN powershell -NoProfile -InputFormat None -ExecutionPolicy Bypass -Command \
+    "choco install -y curl wget git jq usbview hwinfo imagemagick --no-progress"
+
+# === Stage 3: Install Visual C++ Runtimes ===
+# Required by Qt6 libraries and other system components
+RUN powershell -NoProfile -InputFormat None -ExecutionPolicy Bypass -Command \
+    "choco install -y vcredist140 vcredist2015 dotnet-runtime --no-progress"
+
+# === Stage 4: Install Qt6 Runtime Libraries ===
+# Qt6 runtime dependencies (not development tools, just runtime)
+# Qt6 libraries will be bundled with the application installer or installed separately
+RUN powershell -NoProfile -InputFormat None -ExecutionPolicy Bypass -Command \
+    "mkdir -Force 'C:\Qt6\lib' -ErrorAction SilentlyContinue | Out-Null"
+
+# === Stage 5: Install OpenGL and GPU Support ===
+# Graphics libraries for rendering
+RUN powershell -NoProfile -InputFormat None -ExecutionPolicy Bypass -Command \
+    "choco install -y mesa opengl --no-progress"
+
+# === Stage 6: Install FFmpeg and GStreamer ===
+# Multimedia support required by the application
+RUN powershell -NoProfile -InputFormat None -ExecutionPolicy Bypass -Command \
+    "choco install -y ffmpeg gstreamer --no-progress"
+
+# === Stage 7: Install Device Communication Libraries ===
+# USB and serial communication support
+RUN powershell -NoProfile -InputFormat None -ExecutionPolicy Bypass -Command \
+    "choco install -y libusb 7zip --no-progress"
+
+# === Stage 8: Set Up Non-Admin User for Testing ===
+# Create a standard user account for running the application
+# Windows requires running GUI apps as non-admin for better security testing
+RUN powershell -NoProfile -InputFormat None -ExecutionPolicy Bypass -Command \
+    "New-LocalUser -Name 'openterface' -Password (ConvertTo-SecureString 'OpenterFace@123' -AsPlainText -Force) -FullName 'Openterface Test User' -Description 'Test user for Openterface QT' -PasswordNeverExpires; \
+    Add-LocalGroupMember -Group 'Users' -Member 'openterface'; \
+    Add-LocalGroupMember -Group 'Remote Desktop Users' -Member 'openterface'"
+
+# === Stage 9: Configure USB Rules (Windows Registry) ===
+# Windows uses Device Manager and INF files instead of udev rules
+# Set up registry for USB device access
+RUN powershell -NoProfile -InputFormat None -ExecutionPolicy Bypass -Command \
+    "New-Item -Path 'HKLM:\System\CurrentControlSet\Services\usbhid\Parameters' -Force -ErrorAction SilentlyContinue | Out-Null; \
+    New-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Services\usbhid\Parameters' -Name 'CollectDescriptors' -Value 1 -PropertyType DWord -Force -ErrorAction SilentlyContinue | Out-Null"
+
+# === Stage 10: Create Installation and Working Directories ===
+RUN powershell -NoProfile -InputFormat None -ExecutionPolicy Bypass -Command \
+    "mkdir -Force 'C:\tmp\build-artifacts' -ErrorAction SilentlyContinue | Out-Null; \
+    mkdir -Force 'C:\tmp\packages' -ErrorAction SilentlyContinue | Out-Null; \
+    mkdir -Force 'C:\scripts' -ErrorAction SilentlyContinue | Out-Null; \
+    mkdir -Force 'C:\docker' -ErrorAction SilentlyContinue | Out-Null"
+
+# === Stage 11: Create Installation Scripts ===
+# PowerShell installation wrapper script
+COPY docker/install-openterface.ps1 C:\docker\install-openterface.ps1
+RUN powershell -NoProfile -InputFormat None -ExecutionPolicy Bypass -Command \
+    "Get-Item 'C:\docker\install-openterface.ps1' -ErrorAction SilentlyContinue | ForEach-Object {Write-Host 'Installation script found: $_'}"
+
+# === Stage 12: Set Up System PATH ===
+RUN powershell -NoProfile -InputFormat None -ExecutionPolicy Bypass -Command \
+    "$currentPath = [Environment]::GetEnvironmentVariable('Path', 'Machine'); \
+    $newPaths = @('C:\Program Files\Openterface', 'C:\Program Files\FFmpeg\bin', 'C:\Program Files\GStreamer\bin', 'C:\Program Files (x86)\GStreamer\bin'); \
+    foreach (\$path in \$newPaths) { if (\$currentPath -notlike \"*\$path*\") { \$currentPath = \"\$currentPath;\$path\" } }; \
+    [Environment]::SetEnvironmentVariable('Path', \$currentPath, 'Machine')"
+
+# === Stage 13: Device Driver Setup ===
+# Device drivers are typically installed by the application installer
+# Additional driver files can be mounted and installed at runtime
+RUN powershell -NoProfile -InputFormat None -ExecutionPolicy Bypass -Command \
+    "Write-Host 'Device driver installation will be handled by the application installer'"
+
+# === Stage 14: Set Working Directory ===
+WORKDIR C:\home\openterface
+
+# === Stage 15: Add Labels for Metadata ===
+LABEL maintainer="TechxArtisan Studio"
+LABEL description="Openterface QT Mini-KVM Windows testing environment"
+LABEL version="latest"
+LABEL purpose="testing"
+
+# === Stage 16: Set Entrypoint ===
+ENTRYPOINT ["powershell", "-NoProfile", "-InputFormat", "None", "-ExecutionPolicy", "Bypass", "-File", "C:\\entrypoint.ps1"]
