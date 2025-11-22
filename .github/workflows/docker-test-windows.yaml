@@ -158,6 +158,32 @@ jobs:
           echo "IMAGE_LATEST=$imageLatest" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           echo "IMAGE_SHA=$imageSha" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
+      - name: Log in to GitHub Container Registry (for cache check)
+        shell: bash
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GHCR_USERNAME: ${{ github.actor }}
+          GHCR_REGISTRY: ${{ env.DOCKER_REGISTRY }}
+        run: |
+          echo "[AUTH] Logging into GitHub Container Registry for cache check..."
+          
+          if [ -z "$GHCR_TOKEN" ]; then
+            echo "[INFO] GITHUB_TOKEN not available, skipping cache check"
+            echo "SKIP_BUILD=false" >> "$GITHUB_ENV"
+            exit 0
+          fi
+          
+          echo "$GHCR_TOKEN" | docker login -u "$GHCR_USERNAME" --password-stdin "$GHCR_REGISTRY" 2>&1 | grep -v "WARNING"
+          EXIT_CODE=$?
+          
+          if [ $EXIT_CODE -eq 0 ]; then
+            echo "[SUCCESS] Successfully logged into $GHCR_REGISTRY"
+          else
+            echo "[WARNING] Failed to login to $GHCR_REGISTRY - will skip cache check"
+            echo "SKIP_BUILD=false" >> "$GITHUB_ENV"
+            exit 0
+          fi
+
       - name: Check if image already exists
         shell: bash
         continue-on-error: true
@@ -174,18 +200,22 @@ jobs:
           
           echo "[INFO] Checking image: $IMAGE_URI"
           
-          # Try to pull the image (without using it) - suppress normal output but keep errors
-          if docker pull "$IMAGE_URI" > /dev/null 2>&1; then
+          # Try to pull the image manifest only (dry-run without storing)
+          if docker pull "$IMAGE_URI" --platform windows/amd64 > /dev/null 2>&1; then
             echo "[SUCCESS] Image already exists in registry"
-            echo "[INFO] Using cached image for testing"
+            echo "[INFO] Image SHA: $SHA_SHORT"
+            echo "[INFO] Skipping rebuild - using cached image for testing"
             echo "IMAGE_EXISTS=true" >> "$GITHUB_ENV"
             echo "SKIP_BUILD=true" >> "$GITHUB_ENV"
           else
             PULL_EXIT=$?
-            if [ $PULL_EXIT -eq 0 ] || grep -q "manifest unknown" <<< "$PULL_OUTPUT"; then
-              echo "[INFO] Image not found in registry (manifest unknown)"
+            PULL_OUTPUT=$(docker pull "$IMAGE_URI" 2>&1 || true)
+            
+            # Check if error is due to image not found
+            if echo "$PULL_OUTPUT" | grep -q "manifest unknown\|not found"; then
+              echo "[INFO] Image not found in registry"
             else
-              echo "[WARNING] Pull failed with exit code: $PULL_EXIT"
+              echo "[INFO] Image check result: exit code $PULL_EXIT"
             fi
             echo "[INFO] Will rebuild and push image"
             echo "IMAGE_EXISTS=false" >> "$GITHUB_ENV"
@@ -196,6 +226,14 @@ jobs:
         if: env.SKIP_BUILD == 'false' || github.event.inputs.rebuild_docker_image == 'true'
         shell: powershell
         run: |
+          # Check if we should actually skip
+          if ("${{ env.SKIP_BUILD }}" -eq "true" -and "${{ github.event.inputs.rebuild_docker_image }}" -ne "true") {
+            Write-Host "[SKIP] Docker image already exists in registry"
+            Write-Host "[INFO] Using cached image for testing"
+            Write-Host "[INFO] To force rebuild, use 'Force rebuild Docker image' option"
+            exit 0
+          }
+          
           Write-Host "[BUILD] Building Docker image..."
           Write-Host "[INFO] Image: ${{ env.DOCKER_IMAGE_WINDOWS }}:${{ env.DOCKER_TAG }}"
           
