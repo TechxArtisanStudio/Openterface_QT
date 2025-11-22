@@ -63,7 +63,9 @@ jobs:
           
           Write-Host ""
           Write-Host "Memory:"
-          Get-WmiObject Win32_OperatingSystem | Select-Object @{Name="Memory (GB)";Expression={$_.TotalVisibleMemorySize / 1MB}} -ExpandProperty *
+          $osInfo = Get-WmiObject Win32_OperatingSystem
+          $memoryGB = $osInfo.TotalVisibleMemorySize / 1MB
+          Write-Host "Total Memory: $memoryGB GB"
           
           Write-Host ""
           Write-Host "Docker Configuration:"
