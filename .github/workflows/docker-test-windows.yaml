@@ -224,14 +224,17 @@ jobs:
           $imagePulled = $false
           foreach ($image in $baseImages) {
             Write-Host "Attempting to pull: $image"
-            $pullProcess = Start-Process -FilePath "docker" -ArgumentList @("pull", $image) -NoNewWindow -PassThru -Wait -Timeout 600
-            
-            if ($pullProcess.ExitCode -eq 0) {
-              Write-Host "[SUCCESS] Successfully pulled: $image"
-              $imagePulled = $true
-              break
-            } else {
-              Write-Host "[WARNING] Failed to pull $image, trying next..."
+            try {
+              docker pull $image 2>&1
+              if ($LASTEXITCODE -eq 0) {
+                Write-Host "[SUCCESS] Successfully pulled: $image"
+                $imagePulled = $true
+                break
+              } else {
+                Write-Host "[WARNING] Failed to pull $image (exit code: $LASTEXITCODE), trying next..."
+              }
+            } catch {
+              Write-Host "[WARNING] Error pulling $image`: $_"
             }
           }
           
@@ -257,13 +260,13 @@ jobs:
           Write-Host ""
           Write-Host "Starting build..."
           
-          # Build with timeout
-          $buildProcess = Start-Process -FilePath "docker" -ArgumentList ("build", $buildArgs) -NoNewWindow -PassThru -Wait -Timeout 3600
+          # Build Docker image directly (no timeout parameter with Start-Process)
+          docker build $buildArgs
           
-          if ($buildProcess.ExitCode -eq 0) {
+          if ($LASTEXITCODE -eq 0) {
             Write-Host "[SUCCESS] Docker image built successfully"
           } else {
-            Write-Host "[ERROR] Docker build failed with exit code: $($buildProcess.ExitCode)"
+            Write-Host "[ERROR] Docker build failed with exit code: $LASTEXITCODE"
             exit 1
           }
 
