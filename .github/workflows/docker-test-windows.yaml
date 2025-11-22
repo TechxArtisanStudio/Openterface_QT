@@ -211,9 +211,6 @@ jobs:
             Write-Host "Continuing without artifacts for diagnostic purposes..."
           }
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
       - name: Pull base Windows image
         shell: powershell
         run: |
