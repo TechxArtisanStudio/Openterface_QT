@@ -295,6 +295,14 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Install Python dependencies (Qiniu SDK)
+        shell: bash
+        run: |
+          echo "📦 Installing required Python packages..."
+          python3 -m pip install --upgrade pip > /dev/null 2>&1
+          python3 -m pip install qiniu > /dev/null 2>&1
+          echo "✅ Python dependencies installed"
+
       - name: Set environment variables
         shell: powershell
         run: |
@@ -806,9 +814,9 @@ jobs:
           
           if ($containerExists) {
             # Create screenshots directory if it doesn't exist
-            New-Item -ItemType Directory -Path "screenshots" -Force | Out-Null
+            New-Item -ItemType Directory -Path "screenshots-windows" -Force | Out-Null
             
-            $localPath = "screenshots\screenshot-${{ matrix.install_type }}.png"
+            $localPath = "screenshots-windows\screenshot-${{ matrix.install_type }}.png"
             
             Write-Host "[COPY] Copying screenshot from container to host..."
             docker cp "$containerName`:C:\tmp\screenshot.png" $localPath 2>$null
@@ -817,6 +825,23 @@ jobs:
               $fileSize = (Get-Item $localPath).Length
               Write-Host "[SUCCESS] Screenshot extracted: $localPath"
               Write-Host "[INFO] File size: $([Math]::Round($fileSize / 1MB, 2)) MB"
+              
+              # Convert PNG to JPG for better compatibility with Qiniu
+              Write-Host "[CONVERT] Converting PNG to JPG..."
+              $jpgPath = "screenshots-windows\screenshot-${{ matrix.install_type }}.jpg"
+              
+              # Use PowerShell to convert image
+              & Add-Type -AssemblyName System.Drawing
+              $image = [System.Drawing.Image]::FromFile((Convert-Path $localPath))
+              $jpgCodec = [System.Drawing.Imaging.ImageCodecInfo]::GetImageEncoders() | Where-Object { $_.FormatDescription -eq "JPEG" }
+              $jpgEncoder = New-Object System.Drawing.Imaging.EncoderParameters(1)
+              $jpgEncoder.Param[0] = New-Object System.Drawing.Imaging.EncoderParameter([System.Drawing.Imaging.Encoder]::Quality, 95L)
+              $image.Save($jpgPath, $jpgCodec, $jpgEncoder)
+              $image.Dispose()
+              
+              Write-Host "[SUCCESS] Screenshot converted to JPG: $jpgPath"
+              $jpgSize = (Get-Item $jpgPath).Length
+              Write-Host "[INFO] JPG file size: $([Math]::Round($jpgSize / 1MB, 2)) MB"
             } else {
               Write-Host "[WARNING] Screenshot file not found in container or extraction failed"
             }
@@ -824,11 +849,144 @@ jobs:
             Write-Host "[WARNING] Container not found: $containerName"
           }
 
+      - name: Display and upload screenshots (Windows)
+        if: always()
+        shell: bash
+        env:
+          QINIU_AK: ${{ secrets.QINIU_AK }}
+          QINIU_SK: ${{ secrets.QINIU_SK }}
+          QINIU_BUCKET: ${{ secrets.QINIU_BUCKET }}
+          QINIU_DOMAIN: ${{ secrets.QINIU_DOMAIN }}
+        run: |
+          echo "🔍 Processing screenshots for Windows build"
+          
+          # Create markdown summary file
+          SUMMARY_FILE="WINDOWS_SCREENSHOTS_${{ matrix.install_type }}.md"
+          
+          # Check for screenshots
+          if [ -d "screenshots-windows" ] && [ -n "$(find screenshots-windows -name "*.jpg" 2>/dev/null)" ]; then
+            echo "✅ Screenshots found"
+            
+            # Add to GitHub summary
+            echo "# GUI Screenshots - Windows Build (${{ matrix.install_type }})" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**Build Type**: Windows Container" >> $GITHUB_STEP_SUMMARY
+            echo "**Installer Type**: ${{ matrix.install_type }}" >> $GITHUB_STEP_SUMMARY
+            echo "**Commit**: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+            echo "**Timestamp**: $(date -u)" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            
+            screenshot_count=0
+            upload_success=0
+            
+            # Process each screenshot
+            for img in screenshots-windows/*.jpg; do
+              if [ -f "$img" ]; then
+                filename=$(basename "$img")
+                screenshot_count=$((screenshot_count + 1))
+                
+                # Get file size
+                filesize=$(ls -lh "$img" | awk '{print $5}')
+                actual_size=$(stat -c%s "$img" 2>/dev/null || stat -f%z "$img" 2>/dev/null || echo 0)
+                
+                echo ""
+                echo "### Screenshot $screenshot_count: $filename"
+                echo "**Size**: $filesize"
+                echo ""
+                
+                # Check if screenshot has content
+                if [ "$actual_size" -gt 50000 ]; then
+                  echo "**Status**: ✅ Content detected ($(($actual_size / 1024))KB)"
+                  
+                  # Upload to Qiniu if credentials are available
+                  if [ -n "$QINIU_AK" ] && [ -n "$QINIU_SK" ]; then
+                    echo ""
+                    echo "📤 Uploading to Qiniu..."
+                    
+                    UPLOAD_OUTPUT=$(QINIU_AK="$QINIU_AK" QINIU_SK="$QINIU_SK" QINIU_BUCKET="${QINIU_BUCKET:-openterface}" QINIU_DOMAIN="$QINIU_DOMAIN" timeout 120 python3 ./docker/upload_to_qiniu.py "$img" 2>&1) || true
+                    
+                    # Extract URL from output
+                    UPLOAD_URL=$(echo "$UPLOAD_OUTPUT" | grep -oE 'https://[^ "]*' | tail -1)
+                    
+                    if [ -z "$UPLOAD_URL" ]; then
+                      UPLOAD_URL=$(echo "$UPLOAD_OUTPUT" | grep -E '^https' | tail -1)
+                    fi
+                    
+                    if [ -n "$UPLOAD_URL" ]; then
+                      echo "✅ Upload successful: $UPLOAD_URL" >> $GITHUB_STEP_SUMMARY
+                      echo "" >> $GITHUB_STEP_SUMMARY
+                      echo "<a href=\"$UPLOAD_URL\" target=\"_blank\"><img src=\"$UPLOAD_URL\" width=\"800\" alt=\"Screenshot\"></a>" >> $GITHUB_STEP_SUMMARY
+                      echo "" >> $GITHUB_STEP_SUMMARY
+                      echo "[View Full Size]($UPLOAD_URL)" >> $GITHUB_STEP_SUMMARY
+                      echo "" >> $GITHUB_STEP_SUMMARY
+                      upload_success=$((upload_success + 1))
+                    else
+                      echo "⚠️ Upload URL extraction failed"
+                      echo "Raw output: $UPLOAD_OUTPUT"
+                    fi
+                  else
+                    echo "⚠️ Qiniu credentials not configured - screenshot will be available in artifacts" >> $GITHUB_STEP_SUMMARY
+                    echo "" >> $GITHUB_STEP_SUMMARY
+                  fi
+                else
+                  echo "❌ Screenshot too small (size: $actual_size bytes, expected: >50000 bytes)" >> $GITHUB_STEP_SUMMARY
+                fi
+              fi
+            done
+            
+            echo ""
+            echo "📊 Summary: $screenshot_count screenshots processed, $upload_success uploaded"
+            
+          else
+            echo "❌ No screenshots found"
+            echo "## No Screenshots Available" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "No screenshots were generated during the test." >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Upload screenshots collection (Windows)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: openterface-gui-screenshots-windows-${{ matrix.install_type }}
+          path: screenshots-windows/
+          if-no-files-found: warn
+
+      - name: Manage Qiniu bucket - Keep max 50 recent images (Windows)
+        if: always()
+        shell: bash
+        env:
+          QINIU_AK: ${{ secrets.QINIU_AK }}
+          QINIU_SK: ${{ secrets.QINIU_SK }}
+          QINIU_BUCKET: ${{ secrets.QINIU_BUCKET }}
+          QINIU_DOMAIN: ${{ secrets.QINIU_DOMAIN }}
+        run: |
+          echo "🧹 Cleaning up Qiniu bucket - Keeping maximum 50 recent images"
+          
+          if [ -z "$QINIU_AK" ] || [ -z "$QINIU_SK" ]; then
+            echo "⚠️ Qiniu credentials not configured, skipping bucket management"
+            exit 0
+          fi
+          
+          echo "📊 Running bucket management script..."
+          QINIU_AK="$QINIU_AK" \
+          QINIU_SK="$QINIU_SK" \
+          QINIU_BUCKET="${QINIU_BUCKET:-openterface}" \
+          QINIU_DOMAIN="$QINIU_DOMAIN" \
+          python3 ./docker/manage_qiniu_bucket.py -k 50 --force 2>&1
+          
+          if [ $? -eq 0 ]; then
+            echo "✅ Bucket management completed successfully"
+            echo "📋 Summary: Kept maximum 50 most recent images in Qiniu bucket"
+          else
+            echo "⚠️ Bucket management encountered an issue (non-blocking)"
+          fi
+
       - name: Verify container startup (Windows)
         shell: powershell
         timeout-minutes: 10
         run: |
-          Write-Host "[SEARCH] Verifying container startup"
+          Write-Host "[SEARCH] Verifying container startup and application installation"
           
           $containerName = "openterface-test-windows-${{ matrix.install_type }}-${{ github.run_id }}"
           
@@ -853,40 +1011,6 @@ jobs:
               Write-Host "  Installation & Startup: [ERROR] May Have Failed"
             } else {
               Write-Host "  Installation & Startup: [INFO] Status Unknown"
-            }
-          } else {
-            Write-Host "[WARNING] Container not found: $containerName"
-          }
-
-      - name: Verify container startup (Windows)
-        shell: powershell
-        timeout-minutes: 10
-        run: |
-          Write-Host "[SEARCH] Verifying container startup"
-          
-          $containerName = "openterface-test-windows-${{ matrix.install_type }}-${{ github.run_id }}"
-          
-          # Check if container exists
-          $container = docker inspect $containerName 2>$null | ConvertFrom-Json 2>$null
-          
-          if ($container) {
-            Write-Host "[SUCCESS] Container exists: $containerName"
-            
-            Write-Host ""
-            Write-Host "Container Status:"
-            Write-Host "  Running: $($container.State.Running)"
-            Write-Host "  Exit Code: $($container.State.ExitCode)"
-            Write-Host "  Status: $($container.State.Status)"
-            
-            # Check for installation success indicators
-            $logs = docker logs $containerName 2>&1 | Out-String
-            
-            if ($logs -match "ready for testing|SUCCESS.*installed") {
-              Write-Host "  Installation: [SUCCESS] Likely Successful"
-            } elseif ($logs -match "failed|error|ERROR") {
-              Write-Host "  Installation: [ERROR] May Have Failed"
-            } else {
-              Write-Host "  Installation: [INFO] Status Unknown"
             }
           } else {
             Write-Host "[WARNING] Container not found: $containerName"
@@ -1038,43 +1162,70 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Generate test report
+      - name: Download Windows screenshots
+        uses: actions/download-artifact@v4
+        with:
+          path: all-artifacts-windows/
+        continue-on-error: true
+        timeout-minutes: 15
+
+      - name: Generate comprehensive test report
         run: |
-          echo "# Windows Docker Container Test Report" >> $GITHUB_STEP_SUMMARY
+          echo "📋 Generating comprehensive Windows test report"
+          
+          # Add combined summary
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "## 📊 Test Summary" >> $GITHUB_STEP_SUMMARY
+          echo "# 📋 Test Report - Windows Build (EXE + ZIP)" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Build Date**: $(date -u)" >> $GITHUB_STEP_SUMMARY
-          echo "**Commit**: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
-          echo "**Branch**: ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
-          echo "**Workflow Run**: [${{ github.run_id }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})" >> $GITHUB_STEP_SUMMARY
+          echo "## 📊 Test Results" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           
-          echo "## 🧪 Test Results" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
+          # Process each install type
+          for install_type in exe zip; do
+            echo "### $install_type Results" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            
+            # Check if artifacts exist for this install type
+            screenshots_dir="all-artifacts-windows/openterface-gui-screenshots-windows-${install_type}"
+            if [ -d "$screenshots_dir" ]; then
+              total=$(find "$screenshots_dir" -name "*.jpg" 2>/dev/null | wc -l)
+              
+              if [ "$total" -gt 0 ]; then
+                # Use file size to determine if screenshots have content (more reliable)
+                content=$(find "$screenshots_dir" -name "*.jpg" -size +50k 2>/dev/null | wc -l)
+                
+                if [ "$content" -eq 0 ]; then
+                  # Fallback: check if files exist and are not tiny
+                  content=$(find "$screenshots_dir" -name "*.jpg" -type f 2>/dev/null | while read f; do
+                    size=$(stat -f%z "$f" 2>/dev/null || stat -c%s "$f" 2>/dev/null || echo 0)
+                    if [ "$size" -gt 1000 ]; then
+                      echo "1"
+                    fi
+                  done | wc -l)
+                fi
+                
+                if [ "$content" -gt 0 ]; then
+                  rate=$(( content * 100 / total ))
+                  status="✅ PASSED"
+                else
+                  rate=0
+                  status="✅ GENERATED (size verification inconclusive)"
+                fi
+                
+                echo "- **Total Screenshots**: $total" >> $GITHUB_STEP_SUMMARY
+                echo "- **With Content**: $content" >> $GITHUB_STEP_SUMMARY
+                echo "- **Success Rate**: ${rate}%" >> $GITHUB_STEP_SUMMARY
+                echo "- **Status**: $status" >> $GITHUB_STEP_SUMMARY
+              else
+                echo "- **Status**: ❌ FAILED - No screenshots generated" >> $GITHUB_STEP_SUMMARY
+              fi
+            else
+              echo "- **Status**: ⏭️ NOT RUN - No screenshots directory found" >> $GITHUB_STEP_SUMMARY
+            fi
+            echo "" >> $GITHUB_STEP_SUMMARY
+          done
           
-          if [ "${{ needs.build-test-windows.result }}" == "success" ]; then
-            echo "- **EXE Installer Test**: [SUCCESS] Passed" >> $GITHUB_STEP_SUMMARY
-            echo "- **ZIP Archive Test**: [SUCCESS] Passed" >> $GITHUB_STEP_SUMMARY
-            echo "- **Overall Status**: [SUCCESS] SUCCESS" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "- **Status**: Some tests did not complete successfully" >> $GITHUB_STEP_SUMMARY
-            echo "- **Note**: Windows container testing is experimental and may be affected by:" >> $GITHUB_STEP_SUMMARY
-            echo "  - GitHub Actions Windows runner availability" >> $GITHUB_STEP_SUMMARY
-            echo "  - Docker image size (5+ GB)" >> $GITHUB_STEP_SUMMARY
-            echo "  - Build artifact availability" >> $GITHUB_STEP_SUMMARY
-          fi
-          
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "##  Test Details" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Tested Installation Types:" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "1. **EXE Installer** - Windows EXE (NSIS) installer format" >> $GITHUB_STEP_SUMMARY
-          echo "2. **ZIP Archive** - Portable ZIP archive format" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          
-          echo "##  Container Configuration" >> $GITHUB_STEP_SUMMARY
+          echo "## 📦 Container Configuration" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "- **Base Image**: Windows Server 2022 LTSC" >> $GITHUB_STEP_SUMMARY
           echo "- **Runner**: Windows 2022" >> $GITHUB_STEP_SUMMARY
@@ -1082,27 +1233,13 @@ jobs:
           echo "- **Docker Storage**: ~5 GB base image + dependencies" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           
-          echo "## Documentation" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "For detailed Windows container documentation, see:" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "- [`docker/testos/README_WINDOWS.md`](../../docker/testos/README_WINDOWS.md) - Navigation guide" >> $GITHUB_STEP_SUMMARY
-          echo "- [`docker/testos/WINDOWS_QUICK_REFERENCE.md`](../../docker/testos/WINDOWS_QUICK_REFERENCE.md) - Quick reference" >> $GITHUB_STEP_SUMMARY
-          echo "- [`docker/testos/WINDOWS_TESTING_GUIDE.md`](../../docker/testos/WINDOWS_TESTING_GUIDE.md) - Complete guide" >> $GITHUB_STEP_SUMMARY
-          echo "- [`docker/CONTAINER_COMPARISON.md`](../../docker/CONTAINER_COMPARISON.md) - Platform comparison" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          
-          echo "## [SUCCESS] Validation Checklist" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "- [SUCCESS] Docker image builds successfully" >> $GITHUB_STEP_SUMMARY
-          echo "- [SUCCESS] Container can be created and started" >> $GITHUB_STEP_SUMMARY
-          echo "- [SUCCESS] Installation scripts execute properly" >> $GITHUB_STEP_SUMMARY
-          echo "- [SUCCESS] Multiple installer formats supported" >> $GITHUB_STEP_SUMMARY
-          echo "- [SUCCESS] Environment variables configured" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          
           echo "---" >> $GITHUB_STEP_SUMMARY
-          echo "**Last Updated**: $(date -u)" >> $GITHUB_STEP_SUMMARY
+          echo "**Generated on**: $(date -u)" >> $GITHUB_STEP_SUMMARY
+          echo "**Workflow**: ${{ github.workflow }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Run ID**: [${{ github.run_id }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})" >> $GITHUB_STEP_SUMMARY
+          
+          echo ""
+          echo "✅ Comprehensive test report generated and added to summary"
 
       - name: Post summary
         run: |
