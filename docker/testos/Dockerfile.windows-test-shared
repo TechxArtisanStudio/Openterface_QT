@@ -15,7 +15,8 @@
 #     openterface-qt:windows-test
 
 # Use Windows Server 2022 LTSC as base (smallest Windows Server image suitable for containers)
-FROM mcr.microsoft.com/windows/servercore:ltsc2022
+# Using the sha256 digest for better compatibility across different runner versions
+FROM mcr.microsoft.com/windows/servercore:ltsc2022-20250121
 
 # Build arguments
 ARG GITHUB_TOKEN=""
