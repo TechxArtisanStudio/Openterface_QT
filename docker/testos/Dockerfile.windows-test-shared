@@ -57,7 +57,7 @@ RUN powershell -NoProfile -InputFormat None -ExecutionPolicy Bypass -Command \
     mkdir -Force 'C:\docker' -ErrorAction SilentlyContinue | Out-Null"
 
 # === Stage 5: Set Working Directory ===
-WORKDIR C:\home\openterface
+WORKDIR C:\\home\\openterface
 
 # === Stage 6: Add Labels for Metadata ===
 LABEL maintainer="TechxArtisan Studio"
