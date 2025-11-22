@@ -51,8 +51,8 @@ RUN powershell -NoProfile -InputFormat None -ExecutionPolicy Bypass -Command \
 
 # === Stage 5: Copy Scripts ===
 # Copy entrypoint and installation scripts
-COPY docker/entrypoint.ps1 C:\\entrypoint.ps1
-COPY docker/install-openterface.ps1 C:\\docker\\install-openterface.ps1
+COPY entrypoint.ps1 C:\\entrypoint.ps1
+COPY install-openterface.ps1 C:\\docker\\install-openterface.ps1
 
 # === Stage 6: Set Working Directory ===
 WORKDIR C:\\home\\openterface
