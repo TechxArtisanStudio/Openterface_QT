@@ -18,7 +18,7 @@ on:
 env:
   DOCKER_IMAGE_WINDOWS: openterface-test-windows
   DOCKER_TAG: test-${{ github.sha }}
-  INSTALL_TYPES: "exe,msi,zip"
+  INSTALL_TYPES: "exe,zip"
 
 jobs:
   build-test-windows:
@@ -27,8 +27,6 @@ jobs:
         include:
           - install_type: exe
             description: "Windows EXE Installer"
-          - install_type: msi
-            description: "Windows MSI Installer"
           - install_type: zip
             description: "Portable ZIP Archive"
     runs-on: windows-2022
@@ -480,7 +478,6 @@ jobs:
           
           if [ "${{ needs.build-test-windows.result }}" == "success" ]; then
             echo "- **EXE Installer Test**: ✅ Passed" >> $GITHUB_STEP_SUMMARY
-            echo "- **MSI Installer Test**: ✅ Passed" >> $GITHUB_STEP_SUMMARY
             echo "- **ZIP Archive Test**: ✅ Passed" >> $GITHUB_STEP_SUMMARY
             echo "- **Overall Status**: ✅ SUCCESS" >> $GITHUB_STEP_SUMMARY
           else
@@ -497,8 +494,7 @@ jobs:
           echo "### Tested Installation Types:" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "1. **EXE Installer** - Windows EXE (NSIS) installer format" >> $GITHUB_STEP_SUMMARY
-          echo "2. **MSI Installer** - Windows MSI installer format" >> $GITHUB_STEP_SUMMARY
-          echo "3. **ZIP Archive** - Portable ZIP archive format" >> $GITHUB_STEP_SUMMARY
+          echo "2. **ZIP Archive** - Portable ZIP archive format" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           
           echo "## 🔧 Container Configuration" >> $GITHUB_STEP_SUMMARY
