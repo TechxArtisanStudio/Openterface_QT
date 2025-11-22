@@ -84,64 +84,59 @@ jobs:
 
       - name: Log in to GitHub Container Registry
         if: github.event_name == 'push' || github.event.inputs.rebuild_docker_image == 'true'
-        shell: powershell
+        shell: bash
         env:
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GHCR_USERNAME: ${{ github.actor }}
           GHCR_REGISTRY: ${{ env.DOCKER_REGISTRY }}
         run: |
-          Write-Host "[AUTH] Logging into GitHub Container Registry..."
-          Write-Host "[INFO] Registry: $env:GHCR_REGISTRY"
-          Write-Host "[INFO] Username: $env:GHCR_USERNAME"
+          echo "[AUTH] Logging into GitHub Container Registry..."
+          echo "[INFO] Registry: $GHCR_REGISTRY"
+          echo "[INFO] Username: $GHCR_USERNAME"
           
-          $token = $env:GHCR_TOKEN
-          $username = $env:GHCR_USERNAME
-          $registry = $env:GHCR_REGISTRY
-          
-          if ([string]::IsNullOrEmpty($token)) {
-            Write-Host "[ERROR] GITHUB_TOKEN is empty or not set"
+          if [ -z "$GHCR_TOKEN" ]; then
+            echo "[ERROR] GITHUB_TOKEN is empty or not set"
             exit 1
-          }
+          fi
           
-          Write-Host "[DEBUG] Token length: $($token.Length) characters"
+          TOKEN_LENGTH=${#GHCR_TOKEN}
+          echo "[DEBUG] Token length: $TOKEN_LENGTH characters"
           
-          # Create a temp file with the token for secure passing
-          $tempTokenFile = [System.IO.Path]::GetTempFileName()
-          try {
-            Set-Content -Path $tempTokenFile -Value $token -NoNewline -Force
-            $loginResult = Get-Content $tempTokenFile | docker login -u $username --password-stdin $registry 2>&1
-            $exitCode = $LASTEXITCODE
-          }
-          finally {
-            Remove-Item -Path $tempTokenFile -Force -ErrorAction SilentlyContinue
-          }
+          if [ "$TOKEN_LENGTH" -lt 40 ]; then
+            echo "[ERROR] Token appears truncated or invalid (length: $TOKEN_LENGTH)"
+            echo "[ERROR] Expected length: 60+ characters for PAT, or variable length for GITHUB_TOKEN"
+            exit 1
+          fi
           
-          if ($exitCode -eq 0) {
-            Write-Host "[SUCCESS] Successfully logged into $registry"
-          } else {
-            Write-Host "[ERROR] Failed to login to $registry (exit code: $exitCode)"
-            Write-Host "[DEBUG] Output: $loginResult"
-            Write-Host ""
-            Write-Host "[INFO] Possible causes:"
-            Write-Host "  1. GITHUB_TOKEN missing or invalid"
-            Write-Host "  2. Token doesn't have 'write:packages' scope"
-            Write-Host "  3. Registry temporarily unavailable"
-            Write-Host ""
-            Write-Host "[INFO] Continuing without registry push - will use local builds"
-            echo "SKIP_REGISTRY_PUSH=true" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-          }
+          # Use bash for more reliable token handling
+          echo "$GHCR_TOKEN" | docker login -u "$GHCR_USERNAME" --password-stdin "$GHCR_REGISTRY" 2>&1
+          EXIT_CODE=$?
+          
+          if [ $EXIT_CODE -eq 0 ]; then
+            echo "[SUCCESS] Successfully logged into $GHCR_REGISTRY"
+          else
+            echo "[ERROR] Failed to login to $GHCR_REGISTRY (exit code: $EXIT_CODE)"
+            echo ""
+            echo "[INFO] Possible causes:"
+            echo "  1. GITHUB_TOKEN missing or invalid"
+            echo "  2. Token doesn't have 'write:packages' scope"
+            echo "  3. Registry temporarily unavailable"
+            echo ""
+            echo "[INFO] Continuing without registry push - will use local builds"
+            echo "SKIP_REGISTRY_PUSH=true" >> "$GITHUB_ENV"
+          fi
 
       - name: Verify Docker is accessible
-        shell: powershell
+        shell: bash
         run: |
-          Write-Host "[CHECK] Verifying Docker is accessible..."
+          echo "[CHECK] Verifying Docker is accessible..."
           docker version
-          if ($LASTEXITCODE -eq 0) {
-            Write-Host "[SUCCESS] Docker is accessible"
-          } else {
-            Write-Host "[ERROR] Docker is not accessible"
+          if [ $? -eq 0 ]; then
+            echo "[SUCCESS] Docker is accessible"
+          else
+            echo "[ERROR] Docker is not accessible"
             exit 1
-          }
+          fi
 
       - name: Set Docker image tags
         shell: powershell
