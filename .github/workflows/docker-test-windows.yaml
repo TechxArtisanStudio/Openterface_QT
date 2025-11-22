@@ -288,39 +288,45 @@ jobs:
           Write-Host "[PUSH] Pushing image to personal repo: ${{ env.DOCKER_REPO }}"
           Write-Host "[INFO] Local image: $imageName"
           
-          # Try to push latest tag
+          # Try to push latest tag - suppress errors and capture output
           Write-Host "[PUSH] Attempting push: $imageLatest"
-          $pushOutput = docker push "$imageLatest" 2>&1
+          $ErrorActionPreference = 'Continue'
+          $pushOutput = & docker push "$imageLatest" 2>&1
           $push1Exit = $LASTEXITCODE
+          $ErrorActionPreference = 'Stop'
+          
+          $pushOutputStr = $pushOutput | Out-String
           
           if ($push1Exit -eq 0) {
             Write-Host "[SUCCESS] Pushed: $imageLatest"
           } else {
-            $output = $pushOutput | Out-String
-            if ($output -match "denied.*installation not allowed") {
+            if ($pushOutputStr -match "denied.*installation not allowed") {
               Write-Host "[WARNING] Push permission denied - 'installation not allowed to Create organization package'"
               Write-Host "[INFO] GHCR registry may have restrictions on your account"
               Write-Host "[INFO] Skipping push - will use local image for testing"
               Write-Host "[INFO] To resolve: Check GitHub account GHCR settings and PAT scopes"
+              Write-Host ""
               exit 0
-            } elseif ($output -match "denied|permission|not allowed") {
+            } elseif ($pushOutputStr -match "denied|permission|not allowed") {
               Write-Host "[WARNING] Push permission denied"
               Write-Host "[INFO] Check if GITHUB_TOKEN has 'write:packages' scope"
+              Write-Host ""
+              exit 0
             } else {
               Write-Host "[WARNING] Push failed for latest tag (exit code: $push1Exit)"
+              Write-Host "[OUTPUT] $pushOutputStr"
+              exit 0
             }
-          }
-          
-          if ($push1Exit -ne 0) {
-            Write-Host "[INFO] Skipping SHA tag push since latest failed"
-            Write-Host "[INFO] Image is available locally for testing"
-            exit 0
           }
           
           # Try to push SHA tag
           Write-Host "[PUSH] Attempting push: $imageSha"
-          $pushOutput = docker push "$imageSha" 2>&1
+          $ErrorActionPreference = 'Continue'
+          $pushOutput = & docker push "$imageSha" 2>&1
           $push2Exit = $LASTEXITCODE
+          $ErrorActionPreference = 'Stop'
+          
+          $pushOutputStr = $pushOutput | Out-String
           
           if ($push2Exit -eq 0) {
             Write-Host "[SUCCESS] Pushed: $imageSha"
@@ -338,7 +344,7 @@ jobs:
               Write-Host "  ✓ $imageSha"
             }
           } else {
-            Write-Host "[INFO] Push failed - will use local image for testing"
+            Write-Host "[INFO] Push skipped - will use local image for testing"
           }
           
           # Always exit 0 - local image works for testing
