@@ -85,47 +85,11 @@ jobs:
 
       - name: Log in to GitHub Container Registry
         if: github.event_name == 'push' || github.event.inputs.rebuild_docker_image == 'true'
-        shell: bash
-        env:
-          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GHCR_USERNAME: ${{ github.actor }}
-          GHCR_REGISTRY: ${{ env.DOCKER_REGISTRY }}
-        run: |
-          echo "[AUTH] Logging into GitHub Container Registry..."
-          echo "[INFO] Registry: $GHCR_REGISTRY"
-          echo "[INFO] Username: $GHCR_USERNAME"
-          
-          if [ -z "$GHCR_TOKEN" ]; then
-            echo "[ERROR] GITHUB_TOKEN is empty or not set"
-            exit 1
-          fi
-          
-          TOKEN_LENGTH=${#GHCR_TOKEN}
-          echo "[DEBUG] Token length: $TOKEN_LENGTH characters"
-          
-          if [ "$TOKEN_LENGTH" -lt 40 ]; then
-            echo "[ERROR] Token appears truncated or invalid (length: $TOKEN_LENGTH)"
-            echo "[ERROR] Expected length: 60+ characters for PAT, or variable length for GITHUB_TOKEN"
-            exit 1
-          fi
-          
-          # Use bash for more reliable token handling
-          echo "$GHCR_TOKEN" | docker login -u "$GHCR_USERNAME" --password-stdin "$GHCR_REGISTRY" 2>&1
-          EXIT_CODE=$?
-          
-          if [ $EXIT_CODE -eq 0 ]; then
-            echo "[SUCCESS] Successfully logged into $GHCR_REGISTRY"
-          else
-            echo "[ERROR] Failed to login to $GHCR_REGISTRY (exit code: $EXIT_CODE)"
-            echo ""
-            echo "[INFO] Possible causes:"
-            echo "  1. GITHUB_TOKEN missing or invalid"
-            echo "  2. Token doesn't have 'write:packages' scope"
-            echo "  3. Registry temporarily unavailable"
-            echo ""
-            echo "[INFO] Continuing without registry push - will use local builds"
-            echo "SKIP_REGISTRY_PUSH=true" >> "$GITHUB_ENV"
-          fi
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.DOCKER_REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Verify Docker is accessible
         shell: bash
