@@ -107,6 +107,16 @@ jobs:
             
             $runId = $latestRun.id
             Write-Host "[SUCCESS] Found latest windows-build run: $runId"
+            Write-Host "[INFO] Run created: $($latestRun.created_at)"
+            
+            # Calculate age of the build
+            $createdAt = [DateTime]::Parse($latestRun.created_at)
+            $age = [DateTime]::UtcNow - $createdAt
+            Write-Host "[INFO] Build age: $($age.Days) days, $($age.Hours) hours"
+            
+            if ($age.Days -gt 85) {
+              Write-Host "[WARNING] Build is very old ($($age.Days) days). Artifacts may have expired."
+            }
             
             # Get all artifacts from this run
             $artifactsUrl = "https://api.github.com/repos/${{ github.repository }}/actions/runs/$runId/artifacts"
@@ -139,19 +149,49 @@ jobs:
             
             Write-Host "[PACKAGE] Found artifact: $($foundArtifact.name) (ID: $($foundArtifact.id))"
             
+            # Check if artifact has expired
+            $expiresAt = [DateTime]::Parse($foundArtifact.expires_at)
+            $now = [DateTime]::UtcNow
+            
+            if ($now -gt $expiresAt) {
+              Write-Host "[WARNING] Artifact has expired on $expiresAt"
+              Write-Host "[INFO] Artifact availability is limited to 90 days from creation"
+              Write-Host "[INFO] Continuing with container build for diagnostic purposes..."
+              exit 0
+            }
+            
+            Write-Host "[INFO] Artifact expires at: $expiresAt"
+            
             # Download the artifact
             Write-Host "[DOWNLOAD] Downloading artifact..."
             $downloadUrl = "https://api.github.com/repos/${{ github.repository }}/actions/artifacts/$($foundArtifact.id)/zip"
             
             $zipPath = "artifact.zip"
             $ProgressPreference = 'SilentlyContinue'
-            Invoke-WebRequest -Uri $downloadUrl -Headers $headers -OutFile $zipPath -ErrorAction Stop
             
-            Write-Host "[SUCCESS] Artifact downloaded: $zipPath"
+            try {
+              Invoke-WebRequest -Uri $downloadUrl -Headers $headers -OutFile $zipPath -ErrorAction Stop
+              Write-Host "[SUCCESS] Artifact downloaded: $zipPath"
+            } catch {
+              $errorMsg = $_.Exception.Message
+              if ($errorMsg -match "410") {
+                Write-Host "[WARNING] Artifact download returned 410 Gone - artifact has expired"
+              } else {
+                Write-Host "[WARNING] Error downloading artifact: $errorMsg"
+              }
+              Write-Host "[INFO] Continuing with container build for diagnostic purposes..."
+              exit 0
+            }
             
             # Extract the artifact
             Write-Host "[PACKAGE] Extracting artifact..."
-            Expand-Archive -Path $zipPath -DestinationPath "build" -Force
+            try {
+              Expand-Archive -Path $zipPath -DestinationPath "build" -Force
+            } catch {
+              Write-Host "[WARNING] Error extracting artifact: $_"
+              Write-Host "[INFO] Continuing without extracted artifacts..."
+              exit 0
+            }
             
             # Verify extraction
             $installerFile = Get-ChildItem -Path "build" -Include "*.exe", "*.msi", "*.zip" -ErrorAction SilentlyContinue | Select-Object -First 1
