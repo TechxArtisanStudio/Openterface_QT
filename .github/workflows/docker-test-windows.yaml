@@ -387,26 +387,26 @@ jobs:
             # Check installation paths
             Write-Host ""
             Write-Host "Installation Paths Check:"
-            docker exec $containerName powershell -Command @"
-              `$installDir = 'C:\Program Files\Openterface'
-              if (Test-Path `$installDir) {
-                Write-Host "✅ Installation directory exists: `$installDir"
-                Get-ChildItem -Path `$installDir -ErrorAction SilentlyContinue | Format-Table Name, Length
+            docker exec $containerName powershell -Command {
+              $installDir = 'C:\Program Files\Openterface'
+              if (Test-Path $installDir) {
+                Write-Host "✅ Installation directory exists: $installDir"
+                Get-ChildItem -Path $installDir -ErrorAction SilentlyContinue | Format-Table Name, Length
               } else {
                 Write-Host "⚠️ Installation directory not found"
               }
-"@ 2>$null
+            } 2>$null
             
             # Check for logs
             Write-Host ""
             Write-Host "Installation Logs:"
-            docker exec $containerName powershell -Command @"
+            docker exec $containerName powershell -Command {
               if (Test-Path 'C:\tmp\install.log') {
                 Get-Content 'C:\tmp\install.log' -Tail 30
               } else {
                 Write-Host "⚠️ Installation log not found"
               }
-"@ 2>$null
+            } 2>$null
             
           } else {
             Write-Host "⚠️ Container not found: $containerName"
