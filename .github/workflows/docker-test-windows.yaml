@@ -380,7 +380,7 @@ jobs:
             # Define artifact patterns based on install type
             $patterns = @{
               "exe" = @("openterfaceQT.windows.amd64.installer", "windows.amd64.installer", "installer", "shared.exe", "exe")
-              "zip" = @("openterfaceQT-portable", "portable", "openterfaceQT.windows.amd64.installer", "windows.amd64.installer", "installer", "shared.zip", "zip")
+              "zip" = @("openterfaceQT.windows.amd64.portable", "portable", "openterfaceQT.windows.amd64.installer", "windows.amd64.installer", "installer", "shared.zip", "zip")
             }
             
             $searchPatterns = $patterns["${{ env.INSTALL_TYPE }}"]
@@ -473,12 +473,11 @@ jobs:
           
           # Set environment flags
           $registry = "${{ env.DOCKER_REGISTRY }}"
-          $repo = "${{ github.repository_owner }}"
-          $imageName = "${{ env.DOCKER_IMAGE_WINDOWS }}"
+          $imageName = "${{ env.IMAGE_NAME_LOWER }}"
           $sha_short = "${{ github.sha }}".Substring(0, 7)
           
-          $imageSha = "$registry/$repo/$imageName`:$sha_short"
-          $imageLatest = "$registry/$repo/$imageName`:latest"
+          $imageSha = "$registry/$imageName`:$sha_short"
+          $imageLatest = "$registry/$imageName`:latest"
           
           echo "IMAGE_SHA=$imageSha" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           echo "IMAGE_LATEST=$imageLatest" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
