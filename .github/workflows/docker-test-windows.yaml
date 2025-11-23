@@ -351,8 +351,8 @@ jobs:
             
             # Define artifact patterns based on install type
             $patterns = @{
-              "exe" = @("windows.amd64.installer", "installer", "shared.exe", "exe")
-              "zip" = @("windows.amd64.portable", "portable", "shared.zip", "zip")
+              "exe" = @("openterfaceQT.windows.amd64.installer", "windows.amd64.installer", "installer", "shared.exe", "exe")
+              "zip" = @("openterfaceQT-portable", "portable", "openterfaceQT.windows.amd64.installer", "windows.amd64.installer", "installer", "shared.zip", "zip")
             }
             
             $searchPatterns = $patterns["${{ env.INSTALL_TYPE }}"]
@@ -521,8 +521,8 @@ jobs:
             
             # Define artifact patterns based on install type
             $patterns = @{
-              "exe" = @("windows.amd64.installer", "installer", "shared.exe", "exe")
-              "zip" = @("windows.amd64.portable", "portable", "shared.zip", "zip")
+              "exe" = @("openterfaceQT.windows.amd64.installer", "windows.amd64.installer", "installer", "shared.exe", "exe")
+              "zip" = @("openterfaceQT-portable", "portable", "openterfaceQT.windows.amd64.installer", "windows.amd64.installer", "installer", "shared.zip", "zip")
             }
             
             $searchPatterns = $patterns["${{ env.INSTALL_TYPE }}"]
@@ -859,14 +859,17 @@ jobs:
                   Write-Host "[ERROR] No EXE installer found in C:\tmp\build-artifacts"
                 }
               } elseif ($env:INSTALL_TYPE -eq "zip") {
-                Write-Host "[INSTALLER] Using ZIP archive..."
-                # Look for zip file in artifacts
+                Write-Host "[INSTALLER] Using portable/ZIP installation..."
+                # Look for portable exe or zip file in artifacts
+                $portableFiles = Get-ChildItem -Path "C:\tmp\build-artifacts" -Filter "*portable*" -ErrorAction SilentlyContinue
                 $zipFiles = Get-ChildItem -Path "C:\tmp\build-artifacts" -Filter "*.zip" -ErrorAction SilentlyContinue
-                Write-Host "[DEBUG] Found $($zipFiles.Count) ZIP files"
+                $exeFiles = Get-ChildItem -Path "C:\tmp\build-artifacts" -Filter "*.exe" -ErrorAction SilentlyContinue
+                
+                Write-Host "[DEBUG] Found $($portableFiles.Count) portable files, $($zipFiles.Count) ZIP files, $($exeFiles.Count) EXE files"
                 
                 if ($zipFiles) {
                   $zipFile = $zipFiles | Select-Object -First 1
-                  Write-Host "[INSTALL] Extracting: $($zipFile.FullName)"
+                  Write-Host "[INSTALL] Extracting ZIP: $($zipFile.FullName)"
                   Write-Host "[INSTALL] File size: $($zipFile.Length) bytes"
                   
                   # Create target directory
@@ -886,8 +889,31 @@ jobs:
                   } catch {
                     Write-Host "[ERROR] ZIP extraction failed: $_"
                   }
+                } elseif ($portableFiles -or $exeFiles) {
+                  # Portable build - just copy to Program Files
+                  $portableExe = $portableFiles | Select-Object -First 1
+                  if (-not $portableExe) {
+                    $portableExe = $exeFiles | Select-Object -First 1
+                  }
+                  
+                  Write-Host "[INSTALL] Using portable EXE: $($portableExe.FullName)"
+                  Write-Host "[INSTALL] File size: $($portableExe.Length) bytes"
+                  
+                  # Create target directory
+                  $targetDir = "C:\Program Files\Openterface"
+                  New-Item -ItemType Directory -Path $targetDir -Force | Out-Null
+                  
+                  # Copy portable exe
+                  Copy-Item -Path $portableExe.FullName -Destination "$targetDir\openterfaceQT-portable.exe" -Force
+                  Write-Host "[SUCCESS] Portable EXE copied to: $targetDir"
+                  
+                  # Verify
+                  if (Test-Path "$targetDir\openterfaceQT-portable.exe") {
+                    Write-Host "[VERIFY] Installation directory contents:"
+                    Get-ChildItem -Path $targetDir -Recurse | ForEach-Object { Write-Host "    $($_.FullName)" }
+                  }
                 } else {
-                  Write-Host "[ERROR] No ZIP file found in C:\tmp\build-artifacts"
+                  Write-Host "[ERROR] No ZIP or portable EXE file found in C:\tmp\build-artifacts"
                 }
               }
             }
