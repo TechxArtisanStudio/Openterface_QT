@@ -106,22 +106,28 @@ jobs:
             exit 1
           fi
 
+      - name: Set lowercase image name
+        env:
+          OWNER: ${{ github.repository_owner }}
+        run: |
+          OWNER=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')
+          echo "IMAGE_NAME_LOWER=${OWNER}/openterface-test-windows" >> $GITHUB_ENV
+
       - name: Set Docker image tags
         shell: powershell
         run: |
           $registry = "${{ env.DOCKER_REGISTRY }}"
-          $repo = "${{ env.DOCKER_REPO }}"
-          $imageName = "${{ env.DOCKER_IMAGE_WINDOWS }}"
+          $imageName = "${{ env.IMAGE_NAME_LOWER }}"
           
           # Tags: latest, git-sha, version
           $sha_short = "${{ github.sha }}".Substring(0, 7)
           
-          $imageLatest = "$registry/$repo/$imageName`:latest"
-          $imageSha = "$registry/$repo/$imageName`:$sha_short"
+          $imageLatest = "$registry/$imageName`:latest"
+          $imageSha = "$registry/$imageName`:$sha_short"
           
           Write-Host "[INFO] Setting Docker image tags for repo:"
           Write-Host "  Registry: $registry"
-          Write-Host "  Repo: $repo"
+          Write-Host "  Image: $imageName"
           Write-Host "  Latest: $imageLatest"
           Write-Host "  SHA:    $imageSha"
           
