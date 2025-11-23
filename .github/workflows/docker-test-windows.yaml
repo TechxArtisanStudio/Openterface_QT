@@ -198,79 +198,23 @@ jobs:
           echo "IMAGE_EXISTS=false" >> "$GITHUB_ENV"
           echo "SKIP_BUILD=false" >> "$GITHUB_ENV"
 
-      - name: Build Docker image
+      - name: Set up Docker Buildx
         if: env.SKIP_BUILD == 'false' || github.event.inputs.rebuild_docker_image == 'true'
-        shell: powershell
-        run: |
-          # Check if we should actually skip
-          if ("${{ env.SKIP_BUILD }}" -eq "true" -and "${{ github.event.inputs.rebuild_docker_image }}" -ne "true") {
-            Write-Host "[SKIP] Docker image already exists in registry"
-            Write-Host "[INFO] Using cached image for testing"
-            Write-Host "[INFO] To force rebuild, use 'Force rebuild Docker image' option"
-            exit 0
-          }
-          
-          Write-Host "[BUILD] Building Docker image..."
-          Write-Host "[INFO] Image: ${{ env.DOCKER_IMAGE_WINDOWS }}:${{ env.DOCKER_TAG }}"
-          
-          $buildArgs = @(
-            "-f", "docker/testos/Dockerfile.windows-test-shared",
-            "-t", "${{ env.DOCKER_IMAGE_WINDOWS }}:${{ env.DOCKER_TAG }}",
-            "-t", "${{ env.IMAGE_LATEST }}",
-            "-t", "${{ env.IMAGE_SHA }}",
-            "docker/"
-          )
-          
-          Write-Host "[BUILD] Build command:"
-          Write-Host "docker build $($buildArgs -join ' ')"
-          
-          docker build $buildArgs
-          
-          if ($LASTEXITCODE -eq 0) {
-            Write-Host "[SUCCESS] Docker image built successfully"
-          } else {
-            Write-Host "[ERROR] Docker build failed"
-            exit 1
-          }
+        uses: docker/setup-buildx-action@v3
 
-      - name: Push image to GitHub Container Registry
-        if: github.event_name == 'push' || github.event.inputs.rebuild_docker_image == 'true'
-        shell: powershell
-        continue-on-error: true
-        run: |
-          Write-Host "[PUSH] Attempting to push Docker image to GitHub repo..."
-          
-          # Skip if login failed
-          if ($env:SKIP_REGISTRY_PUSH -eq "true") {
-            Write-Host "[INFO] Skipping registry push - login failed"
-            Write-Host "[INFO] Image will be available locally for testing"
-            exit 0
-          }
-          
-      - name: Push image to GitHub Container Registry
-        if: github.event_name == 'push' || github.event.inputs.rebuild_docker_image == 'true'
-        shell: powershell
-        run: |
-          Write-Host "[PUSH] Pushing Docker image to GHCR..."
-          
-          $imageName = "${{ env.DOCKER_IMAGE_WINDOWS }}:${{ env.DOCKER_TAG }}"
-          $imageLatest = "${{ env.IMAGE_LATEST }}"
-          $imageSha = "${{ env.IMAGE_SHA }}"
-          
-          Write-Host "[PUSH] Pushing: $imageLatest"
-          docker push "$imageLatest"
-          
-          Write-Host "[PUSH] Pushing: $imageSha"
-          docker push "$imageSha"
-          
-          if ($LASTEXITCODE -eq 0) {
-            Write-Host "[SUCCESS] Image pushed successfully"
-            Write-Host "[INFO] Available at:"
-            Write-Host "  - $imageLatest"
-            Write-Host "  - $imageSha"
-          } else {
-            Write-Host "[WARNING] Push completed with warnings"
-          }
+      - name: Build and push Docker image
+        if: env.SKIP_BUILD == 'false' || github.event.inputs.rebuild_docker_image == 'true'
+        uses: docker/build-push-action@v5
+        with:
+          context: docker/
+          file: docker/testos/Dockerfile.windows-test-shared
+          push: ${{ github.event_name == 'push' || github.event.inputs.rebuild_docker_image == 'true' }}
+          tags: |
+            ${{ env.DOCKER_IMAGE_WINDOWS }}:${{ env.DOCKER_TAG }}
+            ${{ env.IMAGE_LATEST }}
+            ${{ env.IMAGE_SHA }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
       - name: Log out from GitHub Container Registry
         if: always()
@@ -714,40 +658,15 @@ jobs:
 
       - name: Build Docker image locally if pull failed
         if: env.IMAGE_PULL_SUCCESS != 'true'
-        shell: powershell
-        run: |
-          Write-Host "[CHECK] Checking if image is available locally..."
-          
-          $imageName = "${{ env.DOCKER_IMAGE_WINDOWS }}:${{ env.DOCKER_TAG }}"
-          
-          # Check if image exists locally
-          $inspectOutput = docker inspect $imageName 2>&1
-          $checkCode = $LASTEXITCODE
-          
-          if ($checkCode -eq 0) {
-            Write-Host "[SUCCESS] Image is already available locally"
-            exit 0
-          }
-          
-          Write-Host "[INFO] Image not found locally, will build..."
-          Write-Host "[BUILD] Building Docker image locally..."
-          Write-Host "[INFO] This may take 20-30 minutes on first build"
-          
-          $buildArgs = @(
-            "-f", "docker/testos/Dockerfile.windows-test-shared",
-            "-t", "${{ env.DOCKER_IMAGE_WINDOWS }}:${{ env.DOCKER_TAG }}",
-            "docker/"
-          )
-          
-          Write-Host "[BUILD] Build arguments: $($buildArgs -join ' ')"
-          docker build $buildArgs
-          
-          if ($LASTEXITCODE -eq 0) {
-            Write-Host "[SUCCESS] Docker image built successfully locally"
-          } else {
-            Write-Host "[ERROR] Docker build failed with exit code: $LASTEXITCODE"
-            exit 1
-          }
+        uses: docker/build-push-action@v5
+        with:
+          context: docker/
+          file: docker/testos/Dockerfile.windows-test-shared
+          push: false
+          tags: ${{ env.DOCKER_IMAGE_WINDOWS }}:${{ env.DOCKER_TAG }}
+          load: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
       - name: Verify Docker image
         shell: powershell
