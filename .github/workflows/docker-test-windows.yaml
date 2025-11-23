@@ -303,9 +303,13 @@ jobs:
           # Create build directory
           New-Item -ItemType Directory -Path "build" -Force | Out-Null
           
-          # Get the latest successful windows-build workflow run
+          # Determine which workflow to use based on install type
+          $workflowName = if ("${{ env.INSTALL_TYPE }}" -eq "zip") { "windows-portable-build.yaml" } else { "windows-build.yaml" }
+          Write-Host "[INFO] Using workflow: $workflowName"
+          
+          # Get the latest successful build workflow run
           $headers = @{Authorization = "token ${{ secrets.GITHUB_TOKEN }}" }
-          $apiUrl = "https://api.github.com/repos/${{ github.repository }}/actions/workflows/windows-build.yaml/runs?status=success&head_branch=${{ github.ref_name }}&per_page=1"
+          $apiUrl = "https://api.github.com/repos/${{ github.repository }}/actions/workflows/$workflowName/runs?status=success&head_branch=${{ github.ref_name }}&per_page=1"
           
           Write-Host "[INFO] Fetching from: $apiUrl"
           
@@ -314,10 +318,10 @@ jobs:
             $latestRun = $response.workflow_runs[0]
             
             if ($null -eq $latestRun) {
-              Write-Host "[WARNING] No successful windows-build runs found for branch ${{ github.ref_name }}"
+              Write-Host "[WARNING] No successful build runs found for branch ${{ github.ref_name }}"
               Write-Host "[INFO] Trying to get from main branch..."
               
-              $apiUrl = "https://api.github.com/repos/${{ github.repository }}/actions/workflows/windows-build.yaml/runs?status=success&head_branch=main&per_page=1"
+              $apiUrl = "https://api.github.com/repos/${{ github.repository }}/actions/workflows/$workflowName/runs?status=success&head_branch=main&per_page=1"
               $response = Invoke-RestMethod -Uri $apiUrl -Headers $headers -ErrorAction Stop
               $latestRun = $response.workflow_runs[0]
             }
@@ -468,9 +472,13 @@ jobs:
           # Create build directory
           New-Item -ItemType Directory -Path "build" -Force | Out-Null
           
-          # Get the latest successful windows-build workflow run
+          # Determine which workflow to use based on install type
+          $workflowName = if ("${{ env.INSTALL_TYPE }}" -eq "zip") { "windows-portable-build.yaml" } else { "windows-build.yaml" }
+          Write-Host "[INFO] Using workflow: $workflowName"
+          
+          # Get the latest successful build workflow run
           $headers = @{Authorization = "token ${{ secrets.GITHUB_TOKEN }}" }
-          $apiUrl = "https://api.github.com/repos/${{ github.repository }}/actions/workflows/windows-build.yaml/runs?status=success&head_branch=${{ github.ref_name }}&per_page=1"
+          $apiUrl = "https://api.github.com/repos/${{ github.repository }}/actions/workflows/$workflowName/runs?status=success&head_branch=${{ github.ref_name }}&per_page=1"
           
           Write-Host "Fetching from: $apiUrl"
           
@@ -479,16 +487,16 @@ jobs:
             $latestRun = $response.workflow_runs[0]
             
             if ($null -eq $latestRun) {
-              Write-Host "[WARNING] No successful windows-build runs found for branch ${{ github.ref_name }}"
+              Write-Host "[WARNING] No successful build runs found for branch ${{ github.ref_name }}"
               Write-Host "Trying to get from main branch..."
               
-              $apiUrl = "https://api.github.com/repos/${{ github.repository }}/actions/workflows/windows-build.yaml/runs?status=success&head_branch=main&per_page=1"
+              $apiUrl = "https://api.github.com/repos/${{ github.repository }}/actions/workflows/$workflowName/runs?status=success&head_branch=main&per_page=1"
               $response = Invoke-RestMethod -Uri $apiUrl -Headers $headers -ErrorAction Stop
               $latestRun = $response.workflow_runs[0]
             }
             
             if ($null -eq $latestRun) {
-              Write-Host "[ERROR] No successful windows-build runs found"
+              Write-Host "[ERROR] No successful build runs found"
               Write-Host "[INFO] Note: Windows container test requires built artifacts"
               Write-Host "    Continuing with container build for diagnostic purposes..."
               exit 0
