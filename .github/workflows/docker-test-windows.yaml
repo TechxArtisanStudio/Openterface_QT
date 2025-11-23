@@ -107,11 +107,10 @@ jobs:
           fi
 
       - name: Set lowercase image name
-        env:
-          OWNER: ${{ github.repository_owner }}
+        shell: powershell
         run: |
-          OWNER=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')
-          echo "IMAGE_NAME_LOWER=${OWNER}/openterface-test-windows" >> $GITHUB_ENV
+          $owner = "${{ github.repository_owner }}".ToLower()
+          echo "IMAGE_NAME_LOWER=$owner/openterface-test-windows" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
       - name: Set Docker image tags
         shell: powershell
