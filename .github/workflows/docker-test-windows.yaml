@@ -203,28 +203,58 @@ jobs:
           echo "IMAGE_EXISTS=false" >> "$GITHUB_ENV"
           echo "SKIP_BUILD=false" >> "$GITHUB_ENV"
 
-      - name: Set up Docker Buildx
+      - name: Build Docker image (native)
         if: env.SKIP_BUILD == 'false' || github.event.inputs.rebuild_docker_image == 'true'
-        uses: docker/setup-buildx-action@v3
-        with:
-          driver-options: |
-            image=moby/buildkit:latest
-            network=host
+        shell: powershell
+        run: |
+          Write-Host "[BUILD] Building Docker image with native docker build"
+          
+          $context = "docker\"
+          $dockerfile = "docker/testos/Dockerfile.windows-test-shared"
+          $imageTag = "${{ env.DOCKER_IMAGE_WINDOWS }}:${{ env.DOCKER_TAG }}"
+          
+          Write-Host "[INFO] Building image: $imageTag"
+          Write-Host "[INFO] Dockerfile: $dockerfile"
+          Write-Host "[INFO] Context: $context"
+          
+          docker build -f $dockerfile -t $imageTag $context
+          
+          if ($LASTEXITCODE -eq 0) {
+            Write-Host "[SUCCESS] Image built successfully"
+            
+            # Tag with additional tags
+            Write-Host "[TAG] Adding additional tags..."
+            docker tag $imageTag "${{ env.IMAGE_LATEST }}"
+            docker tag $imageTag "${{ env.IMAGE_SHA }}"
+            
+            Write-Host "[SUCCESS] Additional tags applied"
+          } else {
+            Write-Host "[ERROR] Docker build failed with exit code $LASTEXITCODE"
+            exit 1
+          }
 
-      - name: Build and push Docker image
-        if: env.SKIP_BUILD == 'false' || github.event.inputs.rebuild_docker_image == 'true'
-        uses: docker/build-push-action@v5
-        with:
-          context: docker/
-          file: docker/testos/Dockerfile.windows-test-shared
-          push: ${{ github.event_name == 'push' || github.event.inputs.rebuild_docker_image == 'true' }}
-          tags: |
-            ${{ env.DOCKER_IMAGE_WINDOWS }}:${{ env.DOCKER_TAG }}
-            ${{ env.IMAGE_LATEST }}
-            ${{ env.IMAGE_SHA }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-          builder: default
+      - name: Push Docker image to registry
+        if: (env.SKIP_BUILD == 'false' || github.event.inputs.rebuild_docker_image == 'true') && (github.event_name == 'push' || github.event.inputs.rebuild_docker_image == 'true')
+        shell: powershell
+        run: |
+          Write-Host "[PUSH] Pushing Docker image to registry"
+          
+          $tags = @(
+            "${{ env.DOCKER_IMAGE_WINDOWS }}:${{ env.DOCKER_TAG }}",
+            "${{ env.IMAGE_LATEST }}",
+            "${{ env.IMAGE_SHA }}"
+          )
+          
+          foreach ($tag in $tags) {
+            Write-Host "[PUSH] Pushing tag: $tag"
+            docker push $tag
+            
+            if ($LASTEXITCODE -eq 0) {
+              Write-Host "[SUCCESS] Pushed: $tag"
+            } else {
+              Write-Host "[WARNING] Push failed for tag: $tag (exit code: $LASTEXITCODE)"
+            }
+          }
 
       - name: Log out from GitHub Container Registry
         if: always()
@@ -668,15 +698,26 @@ jobs:
 
       - name: Build Docker image locally if pull failed
         if: env.IMAGE_PULL_SUCCESS != 'true'
-        uses: docker/build-push-action@v5
-        with:
-          context: docker/
-          file: docker/testos/Dockerfile.windows-test-shared
-          push: false
-          tags: ${{ env.DOCKER_IMAGE_WINDOWS }}:${{ env.DOCKER_TAG }}
-          load: true
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+        shell: powershell
+        run: |
+          Write-Host "[BUILD] Building Docker image locally (pull failed)"
+          
+          $context = "docker\"
+          $dockerfile = "docker/testos/Dockerfile.windows-test-shared"
+          $imageTag = "${{ env.DOCKER_IMAGE_WINDOWS }}:${{ env.DOCKER_TAG }}"
+          
+          Write-Host "[INFO] Building image: $imageTag"
+          Write-Host "[INFO] Dockerfile: $dockerfile"
+          Write-Host "[INFO] Context: $context"
+          
+          docker build -f $dockerfile -t $imageTag $context
+          
+          if ($LASTEXITCODE -eq 0) {
+            Write-Host "[SUCCESS] Image built successfully"
+          } else {
+            Write-Host "[ERROR] Docker build failed with exit code $LASTEXITCODE"
+            exit 1
+          }
 
       - name: Verify Docker image
         shell: powershell
