@@ -130,7 +130,7 @@ if ($LASTEXITCODE -eq 0) {
                 # Scan for possible installation directories before installation
                 Write-Host "[DEBUG] Scanning common installation directories BEFORE installation:"
                 $commonPaths = @(
-                    "C:\Program Files\Openterface*",
+                    "C:\Program Files (x86)\Openterface*",
                     "C:\Program Files (x86)\Openterface*",
                     "C:\Users\ContainerAdministrator\AppData\Local\Openterface*",
                     "C:\Users\ContainerAdministrator\AppData\Roaming\Openterface*"
@@ -144,10 +144,10 @@ if ($LASTEXITCODE -eq 0) {
 
                 # Run installer with logging and capture output
                 Write-Host "[INSTALL] Starting installation with silent mode..."
-                Write-Host "[INSTALL] Command: $($exeFile.FullName) /S /D=`"C:\Program Files\Openterface Mini-KVM`""
+                Write-Host "[INSTALL] Command: $($exeFile.FullName) /S /D=`"C:\Program Files (x86)\Openterface Mini-KVM`""
 
                 # Capture installation output
-                $installOutput = & $exeFile.FullName /S /D="C:\Program Files\Openterface Mini-KVM" 2>&1 | Tee-Object -Variable installLogs
+                $installOutput = & $exeFile.FullName /S /D="C:\Program Files (x86)\Openterface Mini-KVM" 2>&1 | Tee-Object -Variable installLogs
                 $installExitCode = $LASTEXITCODE
 
                 # Save installation output to log file
@@ -175,12 +175,12 @@ if ($LASTEXITCODE -eq 0) {
                 Write-Host "[DEBUG] Scanning ALL possible installation locations AFTER installation:"
 
                 # Check expected location
-                if (Test-Path "C:\Program Files\Openterface Mini-KVM") {
-                    Write-Host "[VERIFY] ✅ Installation directory created: C:\Program Files\Openterface Mini-KVM"
+                if (Test-Path "C:\Program Files (x86)\Openterface Mini-KVM") {
+                    Write-Host "[VERIFY] ✅ Installation directory created: C:\Program Files (x86)\Openterface Mini-KVM"
                     Write-Host "[VERIFY] Contents:"
-                    Get-ChildItem -Path "C:\Program Files\Openterface Mini-KVM" -Recurse | ForEach-Object { Write-Host "    $($_.FullName)" }
+                    Get-ChildItem -Path "C:\Program Files (x86)\Openterface Mini-KVM" -Recurse | ForEach-Object { Write-Host "    $($_.FullName)" }
                 } else {
-                    Write-Host "[WARNING] ❌ Expected directory not found: C:\Program Files\Openterface Mini-KVM"
+                    Write-Host "[WARNING] ❌ Expected directory not found: C:\Program Files (x86)\Openterface Mini-KVM"
                 }
 
                 # Search for any Openterface-related directories
@@ -241,18 +241,18 @@ if ($LASTEXITCODE -eq 0) {
                 Write-Host "[INSTALL] File size: $($zipFile.Length) bytes"
 
                 # Create target directory
-                New-Item -ItemType Directory -Path "C:\Program Files\Openterface Mini-KVM" -Force | Out-Null
+                New-Item -ItemType Directory -Path "C:\Program Files (x86)\Openterface Mini-KVM" -Force | Out-Null
 
                 # Extract with error checking
                 try {
-                    Expand-Archive -Path $zipFile.FullName -DestinationPath "C:\Program Files\Openterface Mini-KVM" -Force
+                    Expand-Archive -Path $zipFile.FullName -DestinationPath "C:\Program Files (x86)\Openterface Mini-KVM" -Force
                     Write-Host "[SUCCESS] ZIP extraction completed"
 
                     # Verify extraction
                     Start-Sleep -Seconds 2
-                    if (Test-Path "C:\Program Files\Openterface Mini-KVM") {
+                    if (Test-Path "C:\Program Files (x86)\Openterface Mini-KVM") {
                         Write-Host "[VERIFY] Extraction directory contents:"
-                        Get-ChildItem -Path "C:\Program Files\Openterface Mini-KVM" -Recurse | ForEach-Object { Write-Host "    $($_.FullName)" }
+                        Get-ChildItem -Path "C:\Program Files (x86)\Openterface Mini-KVM" -Recurse | ForEach-Object { Write-Host "    $($_.FullName)" }
                     }
                 } catch {
                     Write-Host "[ERROR] ZIP extraction failed: $_"
@@ -268,7 +268,7 @@ if ($LASTEXITCODE -eq 0) {
                 Write-Host "[INSTALL] File size: $($portableExe.Length) bytes"
 
                 # Create target directory
-                $targetDir = "C:\Program Files\Openterface Mini-KVM"
+                $targetDir = "C:\Program Files (x86)\Openterface Mini-KVM"
                 New-Item -ItemType Directory -Path $targetDir -Force | Out-Null
 
                 # Copy portable exe
@@ -301,8 +301,8 @@ if ($LASTEXITCODE -eq 0) {
     $startCommand = {
         # Check multiple possible paths
         $possiblePaths = @(
-            "C:\Program Files\Openterface Mini-KVM\openterfaceQT.exe",  # installer version
-            "C:\Program Files\Openterface Mini-KVM\openterfaceQT-portable.exe" # portable version
+            "C:\Program Files (x86)\Openterface Mini-KVM\openterfaceQT.exe",  # installer version
+            "C:\Program Files (x86)\Openterface Mini-KVM\openterfaceQT-portable.exe" # portable version
         )
 
         $appPath = $null
@@ -320,9 +320,9 @@ if ($LASTEXITCODE -eq 0) {
             Start-Sleep -Seconds 5
         } else {
             Write-Host "[WARNING] Application executable not found"
-            Write-Host "[DEBUG] Checking C:\Program Files\Openterface Mini-KVM contents:"
-            if (Test-Path "C:\Program Files\Openterface Mini-KVM") {
-                Get-ChildItem -Path "C:\Program Files\Openterface Mini-KVM" -Recurse -File | Select-Object -First 20 | ForEach-Object { Write-Host "  - $($_.FullName)" }
+            Write-Host "[DEBUG] Checking C:\Program Files (x86)\Openterface Mini-KVM contents:"
+            if (Test-Path "C:\Program Files (x86)\Openterface Mini-KVM") {
+                Get-ChildItem -Path "C:\Program Files (x86)\Openterface Mini-KVM" -Recurse -File | Select-Object -First 20 | ForEach-Object { Write-Host "  - $($_.FullName)" }
             } else {
                 Write-Host "[ERROR] Installation directory does not exist!"
             }
