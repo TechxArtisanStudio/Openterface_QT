@@ -25,7 +25,7 @@ Write-Host "[TEST] Testing Windows container"
 Write-Host "============================"
 Write-Host ""
 Write-Host "Test Configuration:"
-Write-Host "  Image: $DockerImage:$DockerTag"
+Write-Host "  Image: ${DockerImage}:${DockerTag}"
 Write-Host "  Install Type: $InstallType"
 Write-Host "  Description: $TestDescription"
 Write-Host ""
@@ -65,9 +65,7 @@ if ($volumeMount) {
     $dockerArgs += @("-v", "$(Convert-Path build):C:\tmp\build-artifacts")
 }
 
-$dockerArgs += "$DockerImage:$DockerTag"
-
-Write-Host "Docker arguments:"
+          $dockerArgs += "${DockerImage}:${DockerTag}"Write-Host "Docker arguments:"
 $dockerArgs | ForEach-Object { Write-Host "  $_" }
 Write-Host ""
 
