@@ -121,8 +121,8 @@ jobs:
           # Tags: latest, git-sha, version
           $sha_short = "${{ github.sha }}".Substring(0, 7)
           
-          $imageLatest = "$registry/$imageName:latest"
-          $imageSha = "$registry/$imageName:$sha_short"
+          $imageLatest = "$registry/${imageName}:latest"
+          $imageSha = "$registry/${imageName}:$sha_short"
           
           Write-Host "[INFO] Setting Docker image tags for repo:"
           Write-Host "  Registry: $registry"
@@ -482,8 +482,8 @@ jobs:
           $imageName = "${{ env.IMAGE_NAME_LOWER }}"
           $sha_short = "${{ github.sha }}".Substring(0, 7)
           
-          $imageSha = "$registry/$imageName:$sha_short"
-          $imageLatest = "$registry/$imageName:latest"
+          $imageSha = "$registry/${imageName}:$sha_short"
+          $imageLatest = "$registry/${imageName}:latest"
           
           echo "IMAGE_SHA=$imageSha" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           echo "IMAGE_LATEST=$imageLatest" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
