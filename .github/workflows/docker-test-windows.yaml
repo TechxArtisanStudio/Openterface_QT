@@ -499,6 +499,28 @@ jobs:
                     echo ""
                     echo "📤 Uploading to Qiniu..."
                     
+                    # Check Python availability
+                    echo "🐍 Checking Python availability..."
+                    if command -v python3 >/dev/null 2>&1; then
+                      PYTHON_CMD="python3"
+                      echo "✅ python3 found: $(python3 --version 2>&1)"
+                    elif command -v python >/dev/null 2>&1; then
+                      PYTHON_CMD="python"
+                      echo "✅ python found: $(python --version 2>&1)"
+                    else
+                      echo "❌ Neither python3 nor python found!"
+                      exit 1
+                    fi
+                    
+                    # Check if script exists
+                    SCRIPT_PATH="./docker/upload_to_qiniu.py"
+                    if [ -f "$SCRIPT_PATH" ]; then
+                      echo "✅ Upload script found: $SCRIPT_PATH"
+                    else
+                      echo "❌ Upload script not found: $SCRIPT_PATH"
+                      exit 1
+                    fi
+                    
                     # Debug: Show environment and command
                     echo "🔍 Debug info:"
                     echo "  - File: $img"
@@ -510,7 +532,7 @@ jobs:
                     echo "  - QINIU_SK length: ${#QINIU_SK}"
                     
                     # Build upload command with environment variables and optional parameters
-                    UPLOAD_CMD="QINIU_AK=\"$QINIU_AK\" QINIU_SK=\"$QINIU_SK\" python3 ./docker/upload_to_qiniu.py"
+                    UPLOAD_CMD="QINIU_AK=\"$QINIU_AK\" QINIU_SK=\"$QINIU_SK\" $PYTHON_CMD ./docker/upload_to_qiniu.py"
                     
                     # Add bucket if set
                     if [ -n "$QINIU_BUCKET" ]; then
