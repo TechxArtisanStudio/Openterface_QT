@@ -7,6 +7,8 @@
 #include <QNetworkRequest>
 #include <QNetworkReply>
 #include <QEventLoop>
+#include <QMutex>
+#include <QMutexLocker>
 #include <vector>
 #include <chrono>
 

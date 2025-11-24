@@ -183,11 +183,11 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Cache MinGW and CMake
-        uses: actions/cache@v3
-        with:
-          path: C:\msys64\mingw64
-          key: msys2-mingw64-cmake-windows-v5
+      # - name: Cache MinGW and CMake
+      #   uses: actions/cache@v3
+      #   with:
+      #     path: C:\msys64\mingw64
+      #     key: msys2-mingw64-cmake-windows-v5
 
       - name: Cache Qt
         uses: actions/cache@v3
@@ -211,6 +211,21 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.10'
+
+      - name: Install MSYS2 MinGW Dependencies (Fresh Install)
+        run: |
+          echo "Updating MSYS2 and installing fresh MinGW dependencies..."
+          C:\msys64\usr\bin\bash.exe -lc "pacman -Syu --noconfirm"
+          C:\msys64\usr\bin\bash.exe -lc "pacman -Syu --noconfirm"
+          C:\msys64\usr\bin\bash.exe -lc "pacman -S --needed --noconfirm mingw-w64-x86_64-gcc mingw-w64-x86_64-cmake mingw-w64-x86_64-libiconv mingw-w64-x86_64-bzip2 mingw-w64-x86_64-xz mingw-w64-x86_64-winpthreads"
+
+          echo "Verifying libbz2.a exists..."
+          if not exist "C:\msys64\mingw64\lib\libbz2.a" (
+            echo "❌ libbz2.a is missing after fresh install!"
+            dir "C:\msys64\mingw64\lib\*bz2*"
+            exit /b 1
+          )
+          echo "✅ libbz2.a confirmed."
 
       - name: Create build directory
         run: |
