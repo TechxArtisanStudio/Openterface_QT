@@ -77,10 +77,6 @@ cmake -G "Ninja" ^
     -DCMAKE_CXX_COMPILER=g++ ^
 
     -DFEATURE_libb2=OFF ^
-
-    ..
-
-
     ..
 ninja
 ninja install
@@ -105,10 +101,6 @@ for %%m in (%MODULES%) do (
             -DCMAKE_C_COMPILER=gcc ^
 
             -DCMAKE_CXX_COMPILER=g++ ^
-
-            ..
-
-
             ..
         ninja
         ninja install
