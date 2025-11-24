@@ -166,13 +166,12 @@ jobs:
           echo "[CHECK] Checking if Docker image already exists in repo..."
           
           REGISTRY="${{ env.DOCKER_REGISTRY }}"
-          REPO="${{ env.DOCKER_REPO }}"
-          IMAGE_NAME="${{ env.DOCKER_IMAGE_WINDOWS }}"
+          IMAGE_NAME="${{ env.IMAGE_NAME_LOWER }}"
           SHA_SHORT="${{ github.sha }}"
           SHA_SHORT="${SHA_SHORT:0:7}"
           
-          IMAGE_URI_SHA="$REGISTRY/$REPO/$IMAGE_NAME:$SHA_SHORT"
-          IMAGE_URI_LATEST="$REGISTRY/$REPO/$IMAGE_NAME:latest"
+          IMAGE_URI_SHA="$REGISTRY/$IMAGE_NAME:$SHA_SHORT"
+          IMAGE_URI_LATEST="$REGISTRY/$IMAGE_NAME:latest"
           
           echo "[INFO] Checking image for current commit: $IMAGE_URI_SHA"
           echo "[INFO] Repo: $REPO"
