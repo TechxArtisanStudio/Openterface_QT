@@ -289,7 +289,7 @@ jobs:
             -DFFMPEG_PREFIX=C:\ffmpeg-static ^
             -DZLIB_LIBRARY=C:\vcpkg\installed\x64-mingw-static\lib\libzlib.a ^
             -DOPENTERFACE_BUILD_STATIC=ON ^
-            -DCMAKE_EXE_LINKER_FLAGS="-lmingwex" ^
+            -DCMAKE_EXE_LINKER_FLAGS="-lmingw32 -lgcc -lmingwex" ^
             ${{ env.SOURCE_DIR }}
           
           echo "Building with mingw32-make..."
