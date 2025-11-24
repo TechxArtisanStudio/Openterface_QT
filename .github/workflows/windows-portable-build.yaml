@@ -33,18 +33,18 @@ jobs:
         uses: actions/cache@v3
         with:
           path: C:\msys64\mingw64
-          key: msys2-mingw64-cmake-windows-v4
+          key: msys2-mingw64-static-gcc-v1
           restore-keys: |
-            msys2-mingw64-cmake-windows-v4
+            msys2-mingw64-static-gcc-v1
 
-      - name: Cache MSYS2
+      - name: Cache MSYS2 base
         id: cache-msys2
         uses: actions/cache@v3
         with:
           path: C:\msys64
-          key: msys2-base-windows
+          key: msys2-base-20231026
           restore-keys: |
-            msys2-base-windows
+            msys2-base-
 
       - name: Install MSYS2
         run: |
@@ -53,33 +53,43 @@ jobs:
           ) else (
             echo "Installing MSYS2..."
             curl -L -o msys2.exe https://github.com/msys2/msys2-installer/releases/download/2023-10-26/msys2-x86_64-20231026.exe
-            msys2.exe --script install_msys2.msys2
+            .\msys2.exe --script install_msys2.msys2
             del msys2.exe
           )
 
       - name: Install Build Tools
         if: steps.cache-mingw.outputs.cache-hit != 'true'
         run: |
-          echo "Installing Ninja"
+          echo "Installing Ninja via Chocolatey"
           choco install ninja -y
 
-          echo "Installing MinGW-w64 and CMake via MSYS2..."
-          C:\msys64\usr\bin\bash.exe -c "pacman -S --needed --noconfirm mingw-w64-x86_64-gcc mingw-w64-x86_64-gcc-libs mingw-w64-x86_64-cmake mingw-w64-x86_64-libiconv mingw-w64-x86_64-bzip2 mingw-w64-x86_64-xz mingw-w64-x86_64-winpthreads mingw-w64-x86_64-intel-media-sdk" && echo "Pacman install succeeded" || (echo "Pacman install failed" && exit 1)
+          echo "Updating MSYS2 and installing MinGW-w64 static toolchain..."
+          C:\msys64\usr\bin\bash.exe -lc "pacman -Syu --noconfirm"
+          C:\msys64\usr\bin\bash.exe -lc "pacman -S --needed --noconfirm mingw-w64-x86_64-gcc mingw-w64-x86_64-gcc-static mingw-w64-x86_64-cmake mingw-w64-x86_64-libiconv mingw-w64-x86_64-bzip2 mingw-w64-x86_64-xz mingw-w64-x86_64-winpthreads"
 
-          echo "Setting up PATH for MSYS2 MinGW-w64"
+          echo "Verifying g++ installation..."
           set PATH=C:\msys64\mingw64\bin;%PATH%
-          C:\msys64\usr\bin\bash.exe -c "g++ --version" || (echo "g++ installation failed. Please check the installation." && exit 1)
+          g++ --version
 
-      - name: Verify MinGW Installation
+      - name: Verify MinGW Static Linking Capability
         run: |
-          echo "Listing all .a libraries in MinGW lib directory:"
-          dir C:\msys64\mingw64\lib\*.a 2>nul || (
-            echo "No .a files found. Installing MinGW libraries..."
-            C:\msys64\usr\bin\bash.exe -c "pacman -S --needed --noconfirm mingw-w64-x86_64-gcc mingw-w64-x86_64-gcc-libs mingw-w64-x86_64-cmake mingw-w64-x86_64-libiconv mingw-w64-x86_64-bzip2 mingw-w64-x86_64-xz mingw-w64-x86_64-winpthreads mingw-w64-x86_64-intel-media-sdk" && echo "Pacman install succeeded" || (echo "Pacman install failed" && exit 1)
-            echo "Installation complete. Listing libraries:"
-            dir C:\msys64\mingw64\lib\*.a
+          set PATH=C:\msys64\mingw64\bin;%PATH%
+          echo "Testing static compilation with MinGW..."
+          echo #include ^<iostream^> > test.cpp
+          echo int main() { std::cout ^<^< "Static build OK!" ^<^< std::endl; return 0; } >> test.cpp
+          g++ -static -O2 -s -o test.exe test.cpp
+          if errorlevel 1 (
+            echo "❌ Failed to compile a static C++ program."
+            exit /b 1
           )
-          echo "MinGW installation verified"
+          test.exe
+          if errorlevel 1 (
+            echo "❌ Compiled executable failed to run."
+            exit /b 1
+          )
+          echo "✅ MinGW static linking verified successfully."
+          del test.cpp test.exe
+
 
   build-ffmpeg:
     needs: prepare-env
