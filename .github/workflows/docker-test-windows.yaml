@@ -512,13 +512,15 @@ jobs:
                       exit 1
                     fi
                     
-                    # Check if script exists
-                    SCRIPT_PATH="./docker/upload_to_qiniu.py"
-                    if [ -f "$SCRIPT_PATH" ]; then
-                      echo "✅ Upload script found: $SCRIPT_PATH"
+                    # Test if Python script can start
+                    echo "🧪 Testing Python script execution..."
+                    TEST_CMD="$PYTHON_CMD ./docker/upload_to_qiniu.py --help"
+                    echo "Running: $TEST_CMD"
+                    if $TEST_CMD >/dev/null 2>&1; then
+                      echo "✅ Python script can execute"
                     else
-                      echo "❌ Upload script not found: $SCRIPT_PATH"
-                      exit 1
+                      echo "❌ Python script execution test failed"
+                      $TEST_CMD 2>&1 | head -10
                     fi
                     
                     # Debug: Show environment and command
@@ -549,15 +551,22 @@ jobs:
                     
                     echo "🚀 Executing: $UPLOAD_CMD"
                     
-                    # Execute the upload command
-                    UPLOAD_OUTPUT=$(eval "$UPLOAD_CMD" 2>&1)
+                    # Execute the upload command and capture output
+                    set +e  # Don't exit on error
+                    UPLOAD_OUTPUT=$($UPLOAD_CMD 2>&1)
                     UPLOAD_EXIT_CODE=$?
+                    set -e  # Restore exit on error
                     
                     echo "📋 Upload exit code: $UPLOAD_EXIT_CODE"
                     echo "📄 Full upload output:"
-                    echo "$UPLOAD_OUTPUT" | while IFS= read -r line; do
-                      echo "  $line"
-                    done
+                    echo "$UPLOAD_OUTPUT" | head -50  # Limit output to first 50 lines
+                    echo ""
+                    
+                    # If output is truncated, show a message
+                    OUTPUT_LINES=$(echo "$UPLOAD_OUTPUT" | wc -l)
+                    if [ "$OUTPUT_LINES" -gt 50 ]; then
+                      echo "⚠️ Output truncated (showing first 50 lines of $OUTPUT_LINES total lines)"
+                    fi
                     
                     # Extract URL from output
                     UPLOAD_URL=$(echo "$UPLOAD_OUTPUT" | grep -oE 'https://[^ "]*' | tail -1)
@@ -662,6 +671,17 @@ jobs:
             exit 1
           fi
           
+          # Test if Python script can start
+          echo "🧪 Testing bucket management script execution..."
+          TEST_CMD="$PYTHON_CMD ./docker/manage_qiniu_bucket.py --help"
+          echo "Running: $TEST_CMD"
+          if $TEST_CMD >/dev/null 2>&1; then
+            echo "✅ Bucket management script can execute"
+          else
+            echo "❌ Bucket management script execution test failed"
+            $TEST_CMD 2>&1 | head -10
+          fi
+          
           echo "📊 Running bucket management script..."
           echo "🔍 Debug info:"
           echo "  - QINIU_BUCKET: ${QINIU_BUCKET:-'(using default: openterface)'}"
@@ -681,15 +701,22 @@ jobs:
           
           echo "🚀 Executing: $BUCKET_CMD"
           
-          # Execute the bucket management command
-          BUCKET_OUTPUT=$(eval "$BUCKET_CMD" 2>&1)
+          # Execute the bucket management command and capture output
+          set +e  # Don't exit on error
+          BUCKET_OUTPUT=$($BUCKET_CMD 2>&1)
           BUCKET_EXIT_CODE=$?
+          set -e  # Restore exit on error
           
           echo "📋 Bucket management exit code: $BUCKET_EXIT_CODE"
           echo "📄 Full bucket management output:"
-          echo "$BUCKET_OUTPUT" | while IFS= read -r line; do
-            echo "  $line"
-          done
+          echo "$BUCKET_OUTPUT" | head -50  # Limit output to first 50 lines
+          echo ""
+          
+          # If output is truncated, show a message
+          OUTPUT_LINES=$(echo "$BUCKET_OUTPUT" | wc -l)
+          if [ "$OUTPUT_LINES" -gt 50 ]; then
+            echo "⚠️ Output truncated (showing first 50 lines of $OUTPUT_LINES total lines)"
+          fi
           
           if [ $BUCKET_EXIT_CODE -eq 0 ]; then
             echo "✅ Bucket management completed successfully"
