@@ -485,7 +485,26 @@ jobs:
                     echo ""
                     echo "📤 Uploading to Qiniu..."
                     
-                    UPLOAD_OUTPUT=$(QINIU_AK="$QINIU_AK" QINIU_SK="$QINIU_SK" QINIU_BUCKET="${QINIU_BUCKET:-openterface}" QINIU_DOMAIN="$QINIU_DOMAIN" timeout 120 python3 ./docker/upload_to_qiniu.py "$img" 2>&1) || true
+                    # Debug: Show environment and command
+                    echo "🔍 Debug info:"
+                    echo "  - File: $img"
+                    echo "  - File exists: $([ -f "$img" ] && echo 'yes' || echo 'no')"
+                    echo "  - File size: $(stat -c%s "$img" 2>/dev/null || echo 'unknown')"
+                    echo "  - QINIU_BUCKET: ${QINIU_BUCKET:-openterface}"
+                    echo "  - QINIU_DOMAIN: $QINIU_DOMAIN"
+                    echo "  - QINIU_AK length: ${#QINIU_AK}"
+                    echo "  - QINIU_SK length: ${#QINIU_SK}"
+                    
+                    # Execute upload command
+                    echo "🚀 Executing: python3 ./docker/upload_to_qiniu.py \"$img\""
+                    UPLOAD_OUTPUT=$(QINIU_AK="$QINIU_AK" QINIU_SK="$QINIU_SK" QINIU_BUCKET="${QINIU_BUCKET:-openterface}" QINIU_DOMAIN="$QINIU_DOMAIN" timeout 120 python3 ./docker/upload_to_qiniu.py "$img" 2>&1)
+                    UPLOAD_EXIT_CODE=$?
+                    
+                    echo "📋 Upload exit code: $UPLOAD_EXIT_CODE"
+                    echo "📄 Full upload output:"
+                    echo "$UPLOAD_OUTPUT" | while IFS= read -r line; do
+                      echo "  $line"
+                    done
                     
                     # Extract URL from output
                     UPLOAD_URL=$(echo "$UPLOAD_OUTPUT" | grep -oE 'https://[^ "]*' | tail -1)
@@ -494,7 +513,7 @@ jobs:
                       UPLOAD_URL=$(echo "$UPLOAD_OUTPUT" | grep -E '^https' | tail -1)
                     fi
                     
-                    if [ -n "$UPLOAD_URL" ]; then
+                    if [ $UPLOAD_EXIT_CODE -eq 0 ] && [ -n "$UPLOAD_URL" ]; then
                       echo "✅ Upload successful: $UPLOAD_URL" >> $GITHUB_STEP_SUMMARY
                       echo "" >> $GITHUB_STEP_SUMMARY
                       echo "<a href=\"$UPLOAD_URL\" target=\"_blank\"><img src=\"$UPLOAD_URL\" width=\"800\" alt=\"Screenshot\"></a>" >> $GITHUB_STEP_SUMMARY
@@ -503,8 +522,12 @@ jobs:
                       echo "" >> $GITHUB_STEP_SUMMARY
                       upload_success=$((upload_success + 1))
                     else
-                      echo "⚠️ Upload URL extraction failed"
-                      echo "Raw output: $UPLOAD_OUTPUT"
+                      echo "❌ Upload failed (exit code: $UPLOAD_EXIT_CODE)"
+                      if [ -z "$UPLOAD_URL" ]; then
+                        echo "❌ No upload URL found in output"
+                      fi
+                      echo "🔍 Full output for debugging:"
+                      echo "$UPLOAD_OUTPUT"
                     fi
                   else
                     echo "⚠️ Qiniu credentials not configured - screenshot will be available in artifacts" >> $GITHUB_STEP_SUMMARY
@@ -551,17 +574,33 @@ jobs:
           fi
           
           echo "📊 Running bucket management script..."
-          QINIU_AK="$QINIU_AK" \
+          echo "🔍 Debug info:"
+          echo "  - QINIU_BUCKET: ${QINIU_BUCKET:-openterface}"
+          echo "  - QINIU_DOMAIN: $QINIU_DOMAIN"
+          echo "  - QINIU_AK length: ${#QINIU_AK}"
+          echo "  - QINIU_SK length: ${#QINIU_SK}"
+          
+          echo "🚀 Executing: python3 ./docker/manage_qiniu_bucket.py -k 50 --force"
+          BUCKET_OUTPUT=$(QINIU_AK="$QINIU_AK" \
           QINIU_SK="$QINIU_SK" \
           QINIU_BUCKET="${QINIU_BUCKET:-openterface}" \
           QINIU_DOMAIN="$QINIU_DOMAIN" \
-          python3 ./docker/manage_qiniu_bucket.py -k 50 --force 2>&1
+          python3 ./docker/manage_qiniu_bucket.py -k 50 --force 2>&1)
+          BUCKET_EXIT_CODE=$?
           
-          if [ $? -eq 0 ]; then
+          echo "📋 Bucket management exit code: $BUCKET_EXIT_CODE"
+          echo "📄 Full bucket management output:"
+          echo "$BUCKET_OUTPUT" | while IFS= read -r line; do
+            echo "  $line"
+          done
+          
+          if [ $BUCKET_EXIT_CODE -eq 0 ]; then
             echo "✅ Bucket management completed successfully"
             echo "📋 Summary: Kept maximum 50 most recent images in Qiniu bucket"
           else
             echo "⚠️ Bucket management encountered an issue (non-blocking)"
+            echo "🔍 Full output for debugging:"
+            echo "$BUCKET_OUTPUT"
           fi
 
       - name: Verify installation and application startup
