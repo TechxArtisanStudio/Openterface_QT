@@ -73,7 +73,12 @@ jobs:
       - name: Verify MinGW Installation
         run: |
           echo "Listing all .a libraries in MinGW lib directory:"
-          dir C:\msys64\mingw64\lib\*.a
+          dir C:\msys64\mingw64\lib\*.a 2>nul || (
+            echo "No .a files found. Installing MinGW libraries..."
+            C:\msys64\mingw64.exe -c "pacman -S --needed --noconfirm mingw-w64-x86_64-gcc mingw-w64-x86_64-gcc-libs mingw-w64-x86_64-cmake mingw-w64-x86_64-libiconv mingw-w64-x86_64-bzip2 mingw-w64-x86_64-xz mingw-w64-x86_64-winpthreads mingw-w64-x86_64-intel-media-sdk"
+            echo "Installation complete. Listing libraries:"
+            dir C:\msys64\mingw64\lib\*.a
+          )
           echo "MinGW installation verified"
 
   build-ffmpeg:
