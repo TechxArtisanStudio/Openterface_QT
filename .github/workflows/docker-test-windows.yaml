@@ -155,7 +155,7 @@ jobs:
             echo "[SUCCESS] Successfully logged into $GHCR_REGISTRY"
           else
             echo "[WARNING] Failed to login to $GHCR_REGISTRY - will skip cache check"
-            echo "SKIP_BUILD=false" >> "$GITHUB_ENV"
+            echo "SKIP_BUILD=true" >> "$GITHUB_ENV"
             exit 0
           fi
 
@@ -173,23 +173,11 @@ jobs:
           IMAGE_URI_SHA="$REGISTRY/$IMAGE_NAME:$SHA_SHORT"
           IMAGE_URI_LATEST="$REGISTRY/$IMAGE_NAME:latest"
           
-          echo "[INFO] Checking image for current commit: $IMAGE_URI_SHA"
-          echo "[INFO] Repo: $REPO"
+          echo "[INFO] Checking latest image: $IMAGE_URI_LATEST"
           
-          # Try to pull the image for current SHA
-          if docker pull "$IMAGE_URI_SHA" > /dev/null 2>&1; then
-            echo "[SUCCESS] Image already exists for current commit"
-            echo "[INFO] Image SHA: $SHA_SHORT"
-            echo "[INFO] Skipping rebuild - using cached image for testing"
-            echo "IMAGE_EXISTS=true" >> "$GITHUB_ENV"
-            echo "SKIP_BUILD=true" >> "$GITHUB_ENV"
-            exit 0
-          fi
-          
-          # Fallback: try latest tag
-          echo "[INFO] Current commit image not found, checking latest tag..."
+          # Try to pull the latest image
           if docker pull "$IMAGE_URI_LATEST" > /dev/null 2>&1; then
-            echo "[SUCCESS] Using latest image from previous build"
+            echo "[SUCCESS] Latest image exists"
             echo "[INFO] Tagging latest as current commit version"
             docker tag "$IMAGE_URI_LATEST" "$IMAGE_URI_SHA" 2>/dev/null || true
             echo "IMAGE_EXISTS=true" >> "$GITHUB_ENV"
@@ -198,9 +186,9 @@ jobs:
           fi
           
           echo "[INFO] No cached image found"
-          echo "[INFO] Will rebuild and push image to repo"
+          echo "[INFO] Will not rebuild unless forced"
           echo "IMAGE_EXISTS=false" >> "$GITHUB_ENV"
-          echo "SKIP_BUILD=false" >> "$GITHUB_ENV"
+          echo "SKIP_BUILD=true" >> "$GITHUB_ENV"
 
       - name: Build Docker image (native)
         if: env.SKIP_BUILD == 'false' || github.event.inputs.rebuild_docker_image == 'true'
@@ -233,7 +221,7 @@ jobs:
           }
 
       - name: Push Docker image to registry
-        if: env.SKIP_BUILD == 'false'
+        if: env.SKIP_BUILD == 'false' || github.event.inputs.rebuild_docker_image == 'true'
         shell: powershell
         run: |
           Write-Host "[PUSH] Pushing Docker image to registry"
