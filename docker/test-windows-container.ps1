@@ -301,10 +301,8 @@ if ($LASTEXITCODE -eq 0) {
     $startCommand = {
         # Check multiple possible paths
         $possiblePaths = @(
-            "C:\Program Files\Openterface Mini-KVM\Openterface.exe",
-            "C:\Program Files\Openterface Mini-KVM\bin\openterfaceqt.exe",
-            "C:\Program Files\Openterface Mini-KVM\openterfaceqt.exe",
-            "C:\Program Files\Openterface Mini-KVM\OpenTerface.exe"
+            "C:\Program Files\Openterface Mini-KVM\openterfaceQT.exe",  # installer version
+            "C:\Program Files\Openterface Mini-KVM\openterfaceQT-portable.exe" # portable version
         )
 
         $appPath = $null
