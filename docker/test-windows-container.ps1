@@ -65,7 +65,9 @@ if ($volumeMount) {
     $dockerArgs += @("-v", "$(Convert-Path build):C:\tmp\build-artifacts")
 }
 
-          $dockerArgs += "${DockerImage}:${DockerTag}"Write-Host "Docker arguments:"
+          $dockerArgs += "${DockerImage}:${DockerTag}"
+          
+          Write-Host "Docker arguments:"
 $dockerArgs | ForEach-Object { Write-Host "  $_" }
 Write-Host ""
 
