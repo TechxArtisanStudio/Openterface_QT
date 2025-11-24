@@ -509,8 +509,8 @@ jobs:
                     echo "  - QINIU_AK length: ${#QINIU_AK}"
                     echo "  - QINIU_SK length: ${#QINIU_SK}"
                     
-                    # Build upload command with optional parameters
-                    UPLOAD_CMD="python3 ./docker/upload_to_qiniu.py"
+                    # Build upload command with environment variables and optional parameters
+                    UPLOAD_CMD="QINIU_AK=\"$QINIU_AK\" QINIU_SK=\"$QINIU_SK\" python3 ./docker/upload_to_qiniu.py"
                     
                     # Add bucket if set
                     if [ -n "$QINIU_BUCKET" ]; then
@@ -626,7 +626,8 @@ jobs:
           echo "  - QINIU_SK length: ${#QINIU_SK}"
           
           # Build bucket management command with optional parameters
-          BUCKET_CMD="python3 ./docker/manage_qiniu_bucket.py -k 50 --force"
+          # Build bucket management command with environment variables
+          BUCKET_CMD="QINIU_AK=\"$QINIU_AK\" QINIU_SK=\"$QINIU_SK\" python3 ./docker/manage_qiniu_bucket.py -k 50 --force"
           
           # Add bucket if set
           if [ -n "$QINIU_BUCKET" ]; then
