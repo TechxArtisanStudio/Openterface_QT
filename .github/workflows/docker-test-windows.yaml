@@ -454,7 +454,7 @@ jobs:
             }
             
             # Verify extraction
-            $installerFile = Get-ChildItem -Path "build" -Include "*.exe", "*.msi", "*.zip" -ErrorAction SilentlyContinue | Select-Object -First 1
+            $installerFile = Get-ChildItem -Path "build" -Recurse -Include "*.exe", "*.msi", "*.zip" -ErrorAction SilentlyContinue | Select-Object -First 1
             
             if ($null -ne $installerFile) {
               Write-Host "[SUCCESS] Installer extracted: $($installerFile.Name)"
@@ -627,7 +627,7 @@ jobs:
           # Check if build artifacts exist
           $volumeMount = ""
           if (Test-Path "build") {
-            $buildFiles = Get-ChildItem -Path "build" -Include "*.exe", "*.msi", "*.zip" -ErrorAction SilentlyContinue
+            $buildFiles = Get-ChildItem -Path "build" -Recurse -Include "*.exe", "*.msi", "*.zip" -ErrorAction SilentlyContinue
             if ($buildFiles.Count -gt 0) {
               $volumeMount = "-v $(Convert-Path build):C:\tmp\build-artifacts"
               Write-Host "[SUCCESS] Volume mount prepared: $volumeMount"
