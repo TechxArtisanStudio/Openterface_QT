@@ -509,9 +509,26 @@ jobs:
                     echo "  - QINIU_AK length: ${#QINIU_AK}"
                     echo "  - QINIU_SK length: ${#QINIU_SK}"
                     
-                    # Execute upload command
-                    echo "🚀 Executing: python3 ./docker/upload_to_qiniu.py \"$img\""
-                    UPLOAD_OUTPUT=$(QINIU_AK="$QINIU_AK" QINIU_SK="$QINIU_SK" QINIU_BUCKET="${QINIU_BUCKET:-openterface}" QINIU_DOMAIN="$QINIU_DOMAIN" timeout 120 python3 ./docker/upload_to_qiniu.py "$img" 2>&1)
+                    # Build upload command with optional parameters
+                    UPLOAD_CMD="python3 ./docker/upload_to_qiniu.py"
+                    
+                    # Add bucket if set
+                    if [ -n "$QINIU_BUCKET" ]; then
+                      UPLOAD_CMD="$UPLOAD_CMD -b \"$QINIU_BUCKET\""
+                    fi
+                    
+                    # Add domain if set
+                    if [ -n "$QINIU_DOMAIN" ]; then
+                      UPLOAD_CMD="$UPLOAD_CMD -d \"$QINIU_DOMAIN\""
+                    fi
+                    
+                    # Add the image file
+                    UPLOAD_CMD="$UPLOAD_CMD \"$img\""
+                    
+                    echo "🚀 Executing: $UPLOAD_CMD"
+                    
+                    # Execute the upload command
+                    UPLOAD_OUTPUT=$(eval "$UPLOAD_CMD" 2>&1)
                     UPLOAD_EXIT_CODE=$?
                     
                     echo "📋 Upload exit code: $UPLOAD_EXIT_CODE"
@@ -608,12 +625,18 @@ jobs:
           echo "  - QINIU_AK length: ${#QINIU_AK}"
           echo "  - QINIU_SK length: ${#QINIU_SK}"
           
-          echo "🚀 Executing: python3 ./docker/manage_qiniu_bucket.py -k 50 --force"
-          BUCKET_OUTPUT=$(QINIU_AK="$QINIU_AK" \
-          QINIU_SK="$QINIU_SK" \
-          QINIU_BUCKET="${QINIU_BUCKET:-openterface}" \
-          QINIU_DOMAIN="$QINIU_DOMAIN" \
-          python3 ./docker/manage_qiniu_bucket.py -k 50 --force 2>&1)
+          # Build bucket management command with optional parameters
+          BUCKET_CMD="python3 ./docker/manage_qiniu_bucket.py -k 50 --force"
+          
+          # Add bucket if set
+          if [ -n "$QINIU_BUCKET" ]; then
+            BUCKET_CMD="$BUCKET_CMD --bucket \"$QINIU_BUCKET\""
+          fi
+          
+          echo "🚀 Executing: $BUCKET_CMD"
+          
+          # Execute the bucket management command
+          BUCKET_OUTPUT=$(eval "$BUCKET_CMD" 2>&1)
           BUCKET_EXIT_CODE=$?
           
           echo "📋 Bucket management exit code: $BUCKET_EXIT_CODE"
