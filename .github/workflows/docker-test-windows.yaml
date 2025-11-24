@@ -640,6 +640,28 @@ jobs:
             exit 0
           fi
           
+          # Check Python availability
+          echo "🐍 Checking Python availability..."
+          if command -v python3 >/dev/null 2>&1; then
+            PYTHON_CMD="python3"
+            echo "✅ python3 found: $(python3 --version 2>&1)"
+          elif command -v python >/dev/null 2>&1; then
+            PYTHON_CMD="python"
+            echo "✅ python found: $(python --version 2>&1)"
+          else
+            echo "❌ Neither python3 nor python found!"
+            exit 1
+          fi
+          
+          # Check if script exists
+          SCRIPT_PATH="./docker/manage_qiniu_bucket.py"
+          if [ -f "$SCRIPT_PATH" ]; then
+            echo "✅ Bucket management script found: $SCRIPT_PATH"
+          else
+            echo "❌ Bucket management script not found: $SCRIPT_PATH"
+            exit 1
+          fi
+          
           echo "📊 Running bucket management script..."
           echo "🔍 Debug info:"
           echo "  - QINIU_BUCKET: ${QINIU_BUCKET:-'(using default: openterface)'}"
@@ -649,7 +671,8 @@ jobs:
           
           # Build bucket management command with optional parameters
           # Build bucket management command with environment variables
-          BUCKET_CMD="QINIU_AK=\"$QINIU_AK\" QINIU_SK=\"$QINIU_SK\" python3 ./docker/manage_qiniu_bucket.py -k 50 --force"
+          # Build bucket management command with environment variables
+          BUCKET_CMD="QINIU_AK=\"$QINIU_AK\" QINIU_SK=\"$QINIU_SK\" $PYTHON_CMD ./docker/manage_qiniu_bucket.py -k 50 --force"
           
           # Add bucket if set
           if [ -n "$QINIU_BUCKET" ]; then
