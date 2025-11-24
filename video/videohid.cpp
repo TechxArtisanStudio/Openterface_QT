@@ -1202,6 +1202,8 @@ bool VideoHid::sendFeatureReport(uint8_t* buffer, size_t bufferLength) {
 }
 
 void VideoHid::closeHIDDeviceHandle() {
+    QMutexLocker locker(&m_deviceHandleMutex);
+    
     #ifdef _WIN32
         if (deviceHandle != INVALID_HANDLE_VALUE) {
             qCDebug(log_host_hid) << "Closing HID device handle...";
@@ -1313,8 +1315,13 @@ void VideoHid::connectToHotplugMonitor()
                 // Check if the unplugged device matches the current HID device
                 if (m_currentHIDPortChain == device.portChain) {
                     qCInfo(log_host_hid) << "Stopping HID device for unplugged device at port:" << device.portChain;
-                    stop();
-                    qCInfo(log_host_hid) << "✓ HID device stopped for unplugged device at port:" << device.portChain;
+                    QString oldPath = m_currentHIDDevicePath;
+                    // Defer stop() to avoid blocking the hotplug thread
+                    QTimer::singleShot(0, this, [this, oldPath]() {
+                        stop();
+                        emit hidDeviceDisconnected(oldPath);
+                    });
+                    qCInfo(log_host_hid) << "✓ HID device stop scheduled for unplugged device at port:" << device.portChain;
                 } else {
                     qCDebug(log_host_hid) << "HID device deactivation skipped - port chain mismatch. Current:" << m_currentHIDPortChain << "Unplugged:" << device.portChain;
                 }
@@ -1344,20 +1351,24 @@ void VideoHid::connectToHotplugMonitor()
                 if (switchSuccess) {
                     qCInfo(log_host_hid) << "✓ HID device auto-switched to new device at port:" << device.portChain;
                     
-                    // Add longer delay to allow device to fully stabilize after plugging in
-                    qCDebug(log_host_hid) << "Waiting for device stabilization after hotplug...";
-                    QThread::msleep(500);
-                    
-                    // Explicitly detect chip type when new device is plugged in
-                    // Note: This is also called in switchToHIDDeviceByPortChain, but we call it again here
-                    // for redundancy and to ensure it's explicitly tied to the new device plugged in event
-                    detectChipType();
-                    qCInfo(log_host_hid) << "Verified chip type on new device: " << 
-                        (m_chipType == VideoChipType::MS2130S ? "MS2130S" : 
-                         m_chipType == VideoChipType::MS2109 ? "MS2109" : "Unknown");
-                    
-                    // Start the HID device
-                    start();
+                    // Defer the start and stabilization to avoid blocking the hotplug thread
+                    QTimer::singleShot(0, this, [this]() {
+                        // Add longer delay to allow device to fully stabilize after plugging in
+                        qCDebug(log_host_hid) << "Waiting for device stabilization after hotplug...";
+                        QThread::msleep(500);
+                        
+                        // Explicitly detect chip type when new device is plugged in
+                        // Note: This is also called in switchToHIDDeviceByPortChain, but we call it again here
+                        // for redundancy and to ensure it's explicitly tied to the new device plugged in event
+                        detectChipType();
+                        qCInfo(log_host_hid) << "Verified chip type on new device: " << 
+                            (m_chipType == VideoChipType::MS2130S ? "MS2130S" : 
+                             m_chipType == VideoChipType::MS2109 ? "MS2109" : "Unknown");
+                        
+                        // Start the HID device
+                        start();
+                        emit hidDeviceConnected(m_currentHIDDevicePath);
+                    });
                 } else {
                     qCDebug(log_host_hid) << "HID device auto-switch failed for port:" << device.portChain;
                 }
@@ -1927,6 +1938,8 @@ std::wstring VideoHid::getProperDevicePath(const std::wstring& deviceInstancePat
 }
 
 bool VideoHid::sendFeatureReportWindows(BYTE* reportBuffer, DWORD bufferSize) {
+    QMutexLocker locker(&m_deviceHandleMutex);
+    
     bool openedForOperation = m_inTransaction || openHIDDeviceHandle();
     
     if (!openedForOperation) {
@@ -2063,6 +2076,8 @@ bool VideoHid::sendFeatureReportWindows(BYTE* reportBuffer, DWORD bufferSize) {
 }
 
 bool VideoHid::openHIDDeviceHandle() {
+    QMutexLocker locker(&m_deviceHandleMutex);
+    
     if (deviceHandle == INVALID_HANDLE_VALUE) {
         qCDebug(log_host_hid)  << "Opening HID device handle...";
         
@@ -2101,6 +2116,8 @@ bool VideoHid::openHIDDeviceHandle() {
 }
 
 bool VideoHid::getFeatureReportWindows(BYTE* reportBuffer, DWORD bufferSize) {
+    QMutexLocker locker(&m_deviceHandleMutex);
+    
     bool openedForOperation = m_inTransaction || openHIDDeviceHandle();
     
     if (!openedForOperation) {

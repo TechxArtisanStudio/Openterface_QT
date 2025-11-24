@@ -146,6 +146,9 @@ MainWindow::MainWindow(LanguageManager *languageManager, QWidget *parent)
     m_initializer = new MainWindowInitializer(this);
     m_initializer->initialize();
     
+    // Start VideoHid
+    VideoHid::getInstance().start();
+    
     qCDebug(log_ui_mainwindow) << "MainWindow initialization complete, window ID:" << this->winId();
 }
 

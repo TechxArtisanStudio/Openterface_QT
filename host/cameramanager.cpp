@@ -21,7 +21,6 @@
 #include <QRegularExpression>
 #include <QDateTime>
 #include "global.h"
-#include "video/videohid.h"
 #include "../ui/globalsetting.h"
 #include "../device/DeviceManager.h"
 #include "../device/HotplugMonitor.h"
@@ -281,9 +280,6 @@ void CameraManager::startCamera()
         emit cameraActiveChanged(true);
         qCDebug(log_ui_camera) << "FFmpeg backend camera started successfully";
         
-        // Start VideoHid after camera is active to ensure proper synchronization
-        VideoHid::getInstance().start();
-        
     } catch (const std::exception& e) {
         qCritical() << "Exception starting camera:" << e.what();
     } catch (...) {
@@ -296,9 +292,6 @@ void CameraManager::stopCamera()
     qCDebug(log_ui_camera) << "Stopping camera with FFmpeg backend";
     
     try {
-        // Stop VideoHid first
-        VideoHid::getInstance().stop();
-
         if (m_backendHandler) {
             qCDebug(log_ui_camera) << "Stopping FFmpeg backend camera";
             m_backendHandler->stopCamera();
@@ -1732,6 +1725,12 @@ void CameraManager::onVideoInputsChanged()
 void CameraManager::connectToHotplugMonitor()
 {
     qCDebug(log_ui_camera) << "Connecting CameraManager to hotplug monitor";
+    
+    // For FFmpeg backend, hotplug is handled directly by the backend to avoid conflicts
+    if (isFFmpegBackend()) {
+        qCDebug(log_ui_camera) << "FFmpeg backend handles hotplug directly, skipping CameraManager hotplug connections";
+        return;
+    }
     
     // Get the hotplug monitor from DeviceManager
     DeviceManager& deviceManager = DeviceManager::getInstance();

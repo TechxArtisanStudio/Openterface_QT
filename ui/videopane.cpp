@@ -1019,9 +1019,10 @@ void VideoPane::updateVideoFrame(const QPixmap& frame)
     
     // Reduce UI update interval for more responsive mouse handling
     // 12ms = ~83 FPS max (was 16ms = ~60 FPS)
-    if (currentTime - lastFrameTime < 12) {
-        return; // Drop frame silently for performance
-    }
+    // Temporarily disable frame dropping to ensure frames are displayed
+    // if (currentTime - lastFrameTime < 12) {
+    //     return; // Drop frame silently for performance
+    // }
     lastFrameTime = currentTime;
     
     // PERFORMANCE: Log only the very first frame
@@ -1075,6 +1076,9 @@ void VideoPane::updateVideoFrame(const QPixmap& frame)
             m_scene->addItem(m_pixmapItem);
             m_pixmapItem->setZValue(2);
         }
+        
+        // Force update of the pixmap item
+        m_pixmapItem->update();
     }
     
     // SMART OPTIMIZATION: Only update transform when frame size or viewport size changes
@@ -1094,7 +1098,7 @@ void VideoPane::updateVideoFrame(const QPixmap& frame)
     // PERFORMANCE: Minimize update calls - only update the pixmap item region
     if (m_pixmapItem) {
         // Force immediate scene invalidation for just the pixmap area - more efficient
-        m_scene->invalidate(m_pixmapItem->boundingRect());
+        m_scene->update(m_pixmapItem->boundingRect());
     }
     
     // CRITICAL: Hide Qt video item to prevent interference

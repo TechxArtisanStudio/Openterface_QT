@@ -190,6 +190,7 @@ private:
     // FFmpeg context management
     bool initializeFFmpeg();
     void cleanupFFmpeg();
+    void cleanupFFmpegResources();
     bool openInputDevice(const QString& devicePath, const QSize& resolution, int framerate);
     void closeInputDevice();
     

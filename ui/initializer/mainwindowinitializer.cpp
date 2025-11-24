@@ -488,11 +488,5 @@ void MainWindowInitializer::finalize()
 
     GlobalVar::instance().setMouseAutoHide(GlobalSetting::instance().getMouseAutoHideEnable());
     m_mainWindow->initializeKeyboardLayouts();
-    
-    // Start VideoHid in a separate thread to avoid blocking the UI
-    m_hidThread = new QThread(this);
-    VideoHid& hid = VideoHid::getInstance();
-    hid.moveToThread(m_hidThread);
-    connect(m_hidThread, &QThread::started, &hid, &VideoHid::start);
-    m_hidThread->start();
 }
+

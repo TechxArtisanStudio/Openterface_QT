@@ -7,10 +7,10 @@
 #include <QNetworkRequest>
 #include <QNetworkReply>
 #include <QEventLoop>
-#include <QMutex>
-#include <QMutexLocker>
 #include <vector>
 #include <chrono>
+#include <QMutex>
+#include <QRecursiveMutex>
 
 #include "../ui/statusevents.h"
 
@@ -59,9 +59,8 @@ public:
     VideoHid(VideoHid const&) = delete;             // Copy construct
     void operator=(VideoHid const&) = delete; // Copy assign
 
-public:
-    Q_INVOKABLE void start();
-    Q_INVOKABLE void stop();
+    void start();
+    void stop();
 
     // Get resolution
     QPair<int, int> getResolution();
@@ -203,6 +202,9 @@ private:
 
     std::chrono::time_point<std::chrono::steady_clock> m_lastPathQuery = std::chrono::steady_clock::now();
     bool m_inTransaction = false;
+    
+    // Mutex for thread-safe device handle operations
+    QRecursiveMutex m_deviceHandleMutex;
     
     // Current HID device tracking
     QString m_currentHIDDevicePath;

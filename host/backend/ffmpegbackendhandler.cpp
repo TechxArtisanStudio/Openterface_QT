@@ -95,6 +95,12 @@ protected:
         const int maxConsecutiveFailures = 20; // Reduced from 100 - stop faster on device disconnect
         
         while (isRunning()) {
+            // Check for interruption request
+            if (isInterruptionRequested()) {
+                qCDebug(log_ffmpeg_backend) << "Capture thread interrupted";
+                break;
+            }
+            
             if (m_handler && m_handler->readFrame()) {
                 // Reset failure counter on successful read
                 consecutiveFailures = 0;
@@ -482,6 +488,13 @@ void FFmpegBackendHandler::cleanupFFmpeg()
     qCDebug(log_ffmpeg_backend) << "FFmpeg cleanup completed";
 }
 
+void FFmpegBackendHandler::cleanupFFmpegResources()
+{
+#ifdef HAVE_FFMPEG
+    closeInputDevice();
+#endif
+}
+
 bool FFmpegBackendHandler::initializeHardwareAcceleration()
 {
     qCDebug(log_ffmpeg_backend) << "Initializing hardware acceleration, preferred:" << m_preferredHwAccel;
@@ -670,6 +683,9 @@ bool FFmpegBackendHandler::startDirectCapture(const QString& devicePath, const Q
         stopDirectCapture();
     }
     
+    // Cleanup any residual FFmpeg resources
+    cleanupFFmpegResources();
+    
     // Set current device
     m_currentDevice = devicePath;
     
@@ -748,52 +764,60 @@ bool FFmpegBackendHandler::startDirectCapture(const QString& devicePath, const Q
 
 void FFmpegBackendHandler::stopDirectCapture()
 {
-    QMutexLocker locker(&m_mutex);
-    
-    if (!m_captureRunning) {
-        return;
-    }
-    
-    qCDebug(log_ffmpeg_backend) << "Stopping direct FFmpeg capture";
-    
-    m_captureRunning = false;
-    
-    // Set interrupt flag to break out of any blocking FFmpeg operations
-    m_interruptRequested = true;
-    
-    // Close input device first to stop buffering
-    closeInputDevice();
-    
-    // Stop capture thread
-    if (m_captureThread) {
-        m_captureThread->setRunning(false);
+    {
+        QMutexLocker locker(&m_mutex);
         
-        // Check if we're being called from the capture thread itself
-        if (QThread::currentThread() == m_captureThread.get()) {
-            qCDebug(log_ffmpeg_backend) << "stopDirectCapture called from capture thread - will cleanup asynchronously";
-            // Don't wait for the thread to finish since we ARE the thread
-            // Just mark it for cleanup and let it finish naturally
-            QTimer::singleShot(100, this, [this]() {
-                if (m_captureThread && m_captureThread->isFinished()) {
-                    m_captureThread.reset();
-                    qCDebug(log_ffmpeg_backend) << "Capture thread cleaned up asynchronously";
-                }
-            });
-        } else {
-            // We're being called from a different thread, safe to wait
-            qCDebug(log_ffmpeg_backend) << "Waiting for capture thread to finish...";
-            m_captureThread->wait(3000); // Wait up to 3 seconds
-            if (m_captureThread->isRunning()) {
-                qCWarning(log_ffmpeg_backend) << "Capture thread did not stop gracefully, terminating";
-                m_captureThread->terminate();
-                m_captureThread->wait(1000);
-            }
-            m_captureThread.reset();
-            qCDebug(log_ffmpeg_backend) << "Capture thread stopped and cleaned up";
+        if (!m_captureRunning) {
+            return;
         }
-    }
-    
-    // Stop performance monitoring
+        
+        qCDebug(log_ffmpeg_backend) << "Stopping direct FFmpeg capture";
+        
+        m_captureRunning = false;
+        
+        // Set interrupt flag to break out of any blocking FFmpeg operations
+        m_interruptRequested = true;
+        
+        // Request thread interruption
+        m_captureThread->requestInterruption();
+        
+        // Close input device first to stop buffering and prevent buffer overflow
+        closeInputDevice();
+    } // Release mutex before waiting
+
+        // Stop capture thread
+        if (m_captureThread) {
+            m_captureThread->setRunning(false);
+            
+            // Check if we're being called from the capture thread itself
+            if (QThread::currentThread() == m_captureThread.get()) {
+                qCDebug(log_ffmpeg_backend) << "stopDirectCapture called from capture thread - will cleanup asynchronously";
+                // Don't wait for the thread to finish since we ARE the thread
+                // Just mark it for cleanup and let it finish naturally
+                QTimer::singleShot(100, this, [this]() {
+                    if (m_captureThread && m_captureThread->isFinished()) {
+                        m_captureThread.reset();
+                        qCDebug(log_ffmpeg_backend) << "Capture thread cleaned up asynchronously";
+                        // Cleanup resources after thread finishes (closeInputDevice already called)
+                        QMutexLocker locker(&m_mutex);
+                        cleanupFFmpegResources();
+                    }
+                });
+            } else {
+                // We're being called from a different thread, terminate immediately
+                qCDebug(log_ffmpeg_backend) << "Terminating capture thread immediately";
+                m_captureThread->terminate();
+                m_captureThread->wait(0); // Don't wait, just check
+                m_captureThread.reset();
+                qCDebug(log_ffmpeg_backend) << "Capture thread terminated and cleaned up";
+                
+                // Resources already cleaned up by closeInputDevice()
+            }
+        } else {
+            // No thread, but ensure resources are cleaned
+            QMutexLocker locker(&m_mutex);
+            cleanupFFmpegResources();
+        }    // Stop performance monitoring
     if (m_performanceTimer) {
         m_performanceTimer->stop();
     }
@@ -1398,6 +1422,12 @@ void FFmpegBackendHandler::closeInputDevice()
 
 bool FFmpegBackendHandler::readFrame()
 {
+    // Check for interrupt request first to avoid blocking operations
+    if (m_interruptRequested || QThread::currentThread()->isInterruptionRequested()) {
+        qCDebug(log_ffmpeg_backend) << "Read interrupted by request";
+        return false;
+    }
+
     if (!m_formatContext || m_videoStreamIndex == -1) {
         static int noContextWarnings = 0;
         if (noContextWarnings < 5) { // Limit warnings to avoid spam
@@ -1466,6 +1496,11 @@ bool FFmpegBackendHandler::readFrame()
 #ifdef HAVE_FFMPEG
 void FFmpegBackendHandler::processFrame()
 {
+    // Check if capture is stopping or resources are gone (no lock to avoid blocking)
+    if (!m_captureRunning || !m_formatContext || !m_codecContext) {
+        return; // Exit early if capture is stopping or resources are gone
+    }
+
     if (!m_packet || !m_codecContext) {
         return;
     }
@@ -2616,47 +2651,46 @@ void FFmpegBackendHandler::handleDeviceActivation(const QString& devicePath, con
     qCDebug(log_ffmpeg_backend) << "Starting capture on activated device:" << m_currentDevice
                                 << "resolution:" << resolution << "framerate:" << framerate;
     
-    // Add delay to allow device to stabilize after hotplug
-    // QThread::msleep(500);
-    
-    if (startDirectCapture(m_currentDevice, resolution, framerate)) {
-        qCInfo(log_ffmpeg_backend) << "Successfully started capture on activated device";
-        emit deviceActivated(m_currentDevice);
-    } else {
-        qCWarning(log_ffmpeg_backend) << "Failed to start capture on activated device";
-        emit captureError("Failed to start capture on activated device: " + m_currentDevice);
-    }
+    // Delay starting capture to allow device to stabilize after hotplug
+    QTimer::singleShot(500, this, [this, resolution, framerate]() {
+        if (startDirectCapture(m_currentDevice, resolution, framerate)) {
+            qCInfo(log_ffmpeg_backend) << "Successfully started capture on activated device";
+            emit deviceActivated(m_currentDevice);
+        } else {
+            qCWarning(log_ffmpeg_backend) << "Failed to start capture on activated device";
+            emit captureError("Failed to start capture on activated device: " + m_currentDevice);
+        }
+    });
 }
 
 void FFmpegBackendHandler::handleDeviceDeactivation(const QString& devicePath)
 {
     qCInfo(log_ffmpeg_backend) << "Handling device deactivation:" << devicePath;
-    
     QString deactivatedDevice = devicePath.isEmpty() ? m_currentDevice : devicePath;
-    
-    // Suppress further error messages to avoid V4L2 spam
+
     m_suppressErrors = true;
-    
-    // Temporarily suppress FFmpeg logs to avoid V4L2 ioctl spam
     av_log_set_level(AV_LOG_QUIET);
-    
-    // Stop capture if running
+
+    // STOP CAPTURE FIRST - This now properly waits for thread exit & cleans resources
     if (m_captureRunning) {
         qCDebug(log_ffmpeg_backend) << "Stopping capture due to device deactivation";
-        stopDirectCapture();
+        stopDirectCapture(); // <-- This now includes full cleanup
     }
-    
-    // Clear device state to force re-detection on reconnection
-    m_currentDevicePortChain.clear();
-    m_currentResolution = QSize();  // Reset resolution
-    m_currentFramerate = 0;         // Reset framerate
+
+    // NOW clear device state safely (mutex protected inside stopDirectCapture/cleanup)
+    {
+        QMutexLocker locker(&m_mutex); // Protect access to member vars
+        m_currentDevicePortChain.clear();
+        m_currentResolution = QSize();
+        m_currentFramerate = 0;
+        m_currentDevice.clear(); // <-- Also clear the device path itself
+    }
+
     qCDebug(log_ffmpeg_backend) << "Cleared current device port chain and settings";
-    
     emit deviceDeactivated(deactivatedDevice);
-    
-    // Start waiting for device to come back
+
     qCInfo(log_ffmpeg_backend) << "Starting to wait for device reconnection";
-    waitForDeviceActivation(m_currentDevice, 30000); // Wait up to 30 seconds
+    waitForDeviceActivation(deactivatedDevice, 30000);
 }
 
 void FFmpegBackendHandler::setCurrentDevicePortChain(const QString& portChain)
