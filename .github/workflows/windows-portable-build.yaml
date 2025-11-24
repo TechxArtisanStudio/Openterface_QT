@@ -60,14 +60,15 @@ jobs:
       - name: Install Build Tools
         if: steps.cache-mingw.outputs.cache-hit != 'true'
         run: |
-          echo "Installing Ninja via Chocolatey"
+          echo "Installing Ninja"
           choco install ninja -y
 
-          echo "Updating MSYS2 and installing MinGW-w64 static toolchain..."
+          echo "Updating MSYS2 and installing MinGW-w64 toolchain..."
           C:\msys64\usr\bin\bash.exe -lc "pacman -Syu --noconfirm"
-          C:\msys64\usr\bin\bash.exe -lc "pacman -S --needed --noconfirm mingw-w64-x86_64-gcc mingw-w64-x86_64-gcc-static mingw-w64-x86_64-cmake mingw-w64-x86_64-libiconv mingw-w64-x86_64-bzip2 mingw-w64-x86_64-xz mingw-w64-x86_64-winpthreads"
+          C:\msys64\usr\bin\bash.exe -lc "pacman -Syu --noconfirm"  # Yes, twice is recommended by MSYS2
+          C:\msys64\usr\bin\bash.exe -lc "pacman -S --needed --noconfirm mingw-w64-x86_64-gcc mingw-w64-x86_64-cmake mingw-w64-x86_64-libiconv mingw-w64-x86_64-bzip2 mingw-w64-x86_64-xz mingw-w64-x86_64-winpthreads"
 
-          echo "Verifying g++ installation..."
+          echo "Verifying compiler..."
           set PATH=C:\msys64\mingw64\bin;%PATH%
           g++ --version
 
