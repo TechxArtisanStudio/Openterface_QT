@@ -87,7 +87,7 @@ $InstallType = $InstallType.ToLower()
 Write-Success "Installation type: $InstallType"
 
 # Define installation paths
-$installDir = "C:\Program Files\Openterface"
+$installDir = "C:\Program Files\Openterface Mini-KVM"
 $tempDir = "C:\tmp\build-artifacts"
 $exePath = Join-Path $installDir "openterfaceQT.exe"
 $logPath = "C:\tmp\install.log"
