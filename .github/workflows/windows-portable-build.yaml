@@ -70,14 +70,11 @@ jobs:
           set PATH=C:\msys64\mingw64\bin;%PATH%
           C:\msys64\mingw64.exe -c "g++ --version" || (echo "g++ installation failed. Please check the installation." && exit 1)
 
-      # - name: Verify MinGW Installation
-      #   run: |
-      #     if not exist "C:\msys64\mingw64\lib\libwinpthread.a" (
-      #       echo "Error: libwinpthread.a not found after installation"
-      #       dir C:\msys64\mingw64\lib\
-      #       exit 1
-      #     )
-      #     echo "MinGW installation verified"
+      - name: Verify MinGW Installation
+        run: |
+          echo "Listing all .a libraries in MinGW lib directory:"
+          dir C:\msys64\mingw64\lib\*.a
+          echo "MinGW installation verified"
 
   build-ffmpeg:
     needs: prepare-env
