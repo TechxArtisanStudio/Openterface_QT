@@ -508,44 +508,23 @@ jobs:
         run: |
           Write-Host "[DOWNLOAD] Attempting to pull pre-built Docker image from registry..."
           
-          $imageSha = "${{ env.IMAGE_SHA }}"
           $imageLatest = "${{ env.IMAGE_LATEST }}"
           
-          # Try to pull by SHA first (most specific)
-          Write-Host "[PULL] Attempting to pull by SHA: $imageSha"
-          
-          docker pull $imageSha 2>&1 | Tee-Object -Variable pullOutput
-          $pullExitCode = $LASTEXITCODE
-          
-          if ($pullExitCode -eq 0) {
-            Write-Host "[SUCCESS] Pulled image by SHA: $imageSha"
-            docker tag $imageSha "${{ env.DOCKER_IMAGE_WINDOWS }}:${{ env.DOCKER_TAG }}"
-            echo "IMAGE_PULL_SUCCESS=true" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-            exit 0
-          } else {
-            $output = $pullOutput | Out-String
-            if ($output -match "manifest unknown|not found") {
-              Write-Host "[INFO] Image not found by SHA (manifest unknown)"
-            } else {
-              Write-Host "[WARNING] Pull failed with: $output"
-            }
-          }
-          
-          # Fallback to latest tag
-          Write-Host "[PULL] Attempting to pull by latest tag: $imageLatest"
+          # Pull the latest image directly
+          Write-Host "[PULL] Pulling latest image: $imageLatest"
           
           docker pull $imageLatest 2>&1 | Tee-Object -Variable pullOutput
           $pullExitCode = $LASTEXITCODE
           
           if ($pullExitCode -eq 0) {
-            Write-Host "[SUCCESS] Pulled image by latest tag: $imageLatest"
+            Write-Host "[SUCCESS] Pulled latest image: $imageLatest"
             docker tag $imageLatest "${{ env.DOCKER_IMAGE_WINDOWS }}:${{ env.DOCKER_TAG }}"
             echo "IMAGE_PULL_SUCCESS=true" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-            exit 0
+          } else {
+            $output = $pullOutput | Out-String
+            Write-Host "[WARNING] Pull failed with: $output"
+            echo "IMAGE_PULL_SUCCESS=false" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           }
-          
-          Write-Host "[WARNING] Could not pull pre-built image from registry"
-          echo "IMAGE_PULL_SUCCESS=false" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
       - name: Log out from GitHub Container Registry
         if: always()
