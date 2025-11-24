@@ -28,37 +28,14 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Cache MinGW and CMake
-        id: cache-mingw
-        uses: actions/cache@v3
-        with:
-          path: C:\msys64\mingw64
-          key: msys2-mingw64-static-gcc-v1
-          restore-keys: |
-            msys2-mingw64-static-gcc-v1
-
-      - name: Cache MSYS2 base
-        id: cache-msys2
-        uses: actions/cache@v3
-        with:
-          path: C:\msys64
-          key: msys2-base-20231026
-          restore-keys: |
-            msys2-base-
-
       - name: Install MSYS2
         run: |
-          if exist "C:\msys64\usr\bin\pacman.exe" (
-            echo "MSYS2 already installed"
-          ) else (
-            echo "Installing MSYS2..."
-            curl -L -o msys2.exe https://github.com/msys2/msys2-installer/releases/download/2023-10-26/msys2-x86_64-20231026.exe
-            .\msys2.exe --script install_msys2.msys2
-            del msys2.exe
-          )
+          echo "Installing MSYS2..."
+          curl -L -o msys2.exe https://github.com/msys2/msys2-installer/releases/download/2023-10-26/msys2-x86_64-20231026.exe
+          .\msys2.exe --script install_msys2.msys2
+          del msys2.exe
 
       - name: Install Build Tools
-        if: steps.cache-mingw.outputs.cache-hit != 'true'
         run: |
           echo "Installing Ninja"
           choco install ninja -y
