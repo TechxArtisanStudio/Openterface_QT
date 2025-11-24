@@ -43,7 +43,7 @@ jobs:
           echo "Updating MSYS2 and installing MinGW-w64 toolchain..."
           C:\msys64\usr\bin\bash.exe -lc "pacman -Syu --noconfirm"
           C:\msys64\usr\bin\bash.exe -lc "pacman -Syu --noconfirm"  # Yes, twice is recommended by MSYS2
-          C:\msys64\usr\bin\bash.exe -lc "pacman -S --needed --noconfirm mingw-w64-x86_64-gcc mingw-w64-x86_64-cmake mingw-w64-x86_64-libiconv mingw-w64-x86_64-bzip2 mingw-w64-x86_64-xz mingw-w64-x86_64-winpthreads"
+          C:\msys64\usr\bin\bash.exe -lc "pacman -S --needed --noconfirm --overwrite=* mingw-w64-x86_64-gcc mingw-w64-x86_64-cmake mingw-w64-x86_64-libiconv mingw-w64-x86_64-bzip2 mingw-w64-x86_64-xz mingw-w64-x86_64-winpthreads"
 
           echo "Verifying compiler..."
           set PATH=C:\msys64\mingw64\bin;%PATH%
@@ -217,7 +217,7 @@ jobs:
           echo "Updating MSYS2 and installing fresh MinGW dependencies..."
           C:\msys64\usr\bin\bash.exe -lc "pacman -Syu --noconfirm"
           C:\msys64\usr\bin\bash.exe -lc "pacman -Syu --noconfirm"
-          C:\msys64\usr\bin\bash.exe -lc "pacman -S --needed --noconfirm mingw-w64-x86_64-gcc mingw-w64-x86_64-cmake mingw-w64-x86_64-libiconv mingw-w64-x86_64-bzip2 mingw-w64-x86_64-xz mingw-w64-x86_64-winpthreads mingw-w64-x86_64-libmfx"
+          C:\msys64\usr\bin\bash.exe -lc "pacman -S --needed --noconfirm --overwrite=* mingw-w64-x86_64-gcc mingw-w64-x86_64-cmake mingw-w64-x86_64-libiconv mingw-w64-x86_64-bzip2 mingw-w64-x86_64-xz mingw-w64-x86_64-winpthreads mingw-w64-x86_64-libmfx"
 
           echo "Verifying libbz2.a exists..."
           if not exist "C:\msys64\mingw64\lib\libbz2.a" (

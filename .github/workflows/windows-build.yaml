@@ -116,7 +116,7 @@ jobs:
         run: |
           echo "Installing MinGW-w64 and CMake via MSYS2..."
           set PATH=C:\msys64\usr\bin;%PATH%
-          pacman -S --needed --noconfirm mingw-w64-x86_64-gcc mingw-w64-x86_64-cmake mingw-w64-x86_64-libiconv mingw-w64-x86_64-libmfx
+          pacman -S --needed --noconfirm --overwrite=* mingw-w64-x86_64-gcc mingw-w64-x86_64-cmake mingw-w64-x86_64-libiconv mingw-w64-x86_64-libmfx
 
           echo "Setting up PATH..."
           echo "C:\msys64\mingw64\bin" >> $GITHUB_PATH
