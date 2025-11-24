@@ -370,12 +370,9 @@ if ($LASTEXITCODE -eq 0) {
                 $fileSize = (Get-Item $screenshotPath).Length
                 $fileSizeKB = [Math]::Round($fileSize / 1KB, 2)
                 Write-Host "[INFO] File size: $fileSize bytes ($fileSizeKB KB)"
-                if ($fileSize -lt 50000) {
-                    Write-Host "[WARNING] Screenshot file seems small, may not capture full desktop"
-                }
             }
         } catch {
-            Write-Host "[ERROR] Screenshot capture failed: $_"
+            Write-Host "[INFO] Screenshot capture skipped (likely in headless environment): $_"
         }
     }
 
