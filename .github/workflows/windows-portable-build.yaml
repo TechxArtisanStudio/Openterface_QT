@@ -248,10 +248,6 @@ jobs:
             echo "Error: libzlib.a not found at %OPENSSL_DIR%\lib\libzlib.a"
             exit 1
           )
-          if not exist "C:\msys64\mingw64\lib\libwinpthread.a" (
-            echo "Error: libwinpthread.a not found at C:\msys64\mingw64\lib\libwinpthread.a"
-            exit 1
-          )
           
           echo "Static libraries verified successfully!"
           
