@@ -70,7 +70,7 @@ cmake -G "Ninja" ^
     -DOPENSSL_SSL_LIBRARY="%OPENSSL_LIB_DIR%\libssl.a" ^
     -DCMAKE_C_FLAGS="-mconsole -I%OPENSSL_INCLUDE_DIR%" ^
     -DCMAKE_CXX_FLAGS="-mconsole -I%OPENSSL_INCLUDE_DIR%" ^
-    -DCMAKE_EXE_LINKER_FLAGS="-Wl,--subsystem,console -lmingw32 -lgcc -lmingwex -L%OPENSSL_LIB_DIR% -lws2_32 -lcrypt32 -ladvapi32" ^
+    -DCMAKE_EXE_LINKER_FLAGS="-Wl,--subsystem,console -L%OPENSSL_LIB_DIR% -lws2_32 -lcrypt32 -ladvapi32" ^
 
     -DCMAKE_C_COMPILER=gcc ^
 
@@ -98,7 +98,7 @@ for %%m in (%MODULES%) do (
             -DOPENSSL_SSL_LIBRARY="%OPENSSL_LIB_DIR%\libssl.a" ^
             -DCMAKE_C_FLAGS="-mconsole -I%OPENSSL_INCLUDE_DIR%" ^
             -DCMAKE_CXX_FLAGS="-mconsole -I%OPENSSL_INCLUDE_DIR%" ^
-            -DCMAKE_EXE_LINKER_FLAGS="-Wl,--subsystem,console -lmingw32 -lgcc -lmingwex -L%OPENSSL_LIB_DIR%" ^
+            -DCMAKE_EXE_LINKER_FLAGS="-Wl,--subsystem,console -L%OPENSSL_LIB_DIR%" ^
 
             -DCMAKE_C_COMPILER=gcc ^
 
