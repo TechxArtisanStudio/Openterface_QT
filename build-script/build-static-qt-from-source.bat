@@ -63,6 +63,7 @@ cmake -G "Ninja" ^
     -DFEATURE_opengl=ON ^
     -DFEATURE_openssl=ON ^
     -DFEATURE_openssl_linked=ON ^
+    -DFEATURE_static_runtime=ON ^
     -DOPENSSL_ROOT_DIR="%OPENSSL_DIR%" ^
     -DOPENSSL_INCLUDE_DIR="%OPENSSL_INCLUDE_DIR%" ^
     -DOPENSSL_CRYPTO_LIBRARY="%OPENSSL_LIB_DIR%\libcrypto.a" ^
@@ -94,6 +95,7 @@ for %%m in (%MODULES%) do (
             -DCMAKE_INSTALL_PREFIX="%INSTALL_PREFIX%" ^
             -DCMAKE_PREFIX_PATH="%INSTALL_PREFIX%" ^
             -DBUILD_SHARED_LIBS=OFF ^
+            -DFEATURE_static_runtime=ON ^
             -DOPENSSL_ROOT_DIR="%OPENSSL_DIR%" ^
             -DOPENSSL_INCLUDE_DIR="%OPENSSL_INCLUDE_DIR%" ^
             -DOPENSSL_CRYPTO_LIBRARY="%OPENSSL_LIB_DIR%\libcrypto.a" ^
