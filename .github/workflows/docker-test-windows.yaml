@@ -437,10 +437,24 @@ jobs:
         env:
           QINIU_AK: ${{ secrets.QINIU_AK }}
           QINIU_SK: ${{ secrets.QINIU_SK }}
-          QINIU_BUCKET: ${{ secrets.QINIU_BUCKET }}
-          QINIU_DOMAIN: ${{ secrets.QINIU_DOMAIN }}
         run: |
           echo "🔍 Processing screenshots for Windows build"
+          
+          # Set optional QINIU_BUCKET if secret is available
+          if [ -n "${{ secrets.QINIU_BUCKET }}" ]; then
+            export QINIU_BUCKET="${{ secrets.QINIU_BUCKET }}"
+            echo "✅ QINIU_BUCKET set from secrets"
+          else
+            echo "⚠️ QINIU_BUCKET not set, will use script default (openterface)"
+          fi
+          
+          # Set optional QINIU_DOMAIN if secret is available
+          if [ -n "${{ secrets.QINIU_DOMAIN }}" ]; then
+            export QINIU_DOMAIN="${{ secrets.QINIU_DOMAIN }}"
+            echo "✅ QINIU_DOMAIN set from secrets"
+          else
+            echo "⚠️ QINIU_DOMAIN not set, will use script default (download.openterface.com)"
+          fi
           
           # Create markdown summary file
           SUMMARY_FILE="WINDOWS_SCREENSHOTS_${{ matrix.install_type }}.md"
@@ -490,8 +504,8 @@ jobs:
                     echo "  - File: $img"
                     echo "  - File exists: $([ -f "$img" ] && echo 'yes' || echo 'no')"
                     echo "  - File size: $(stat -c%s "$img" 2>/dev/null || echo 'unknown')"
-                    echo "  - QINIU_BUCKET: ${QINIU_BUCKET:-openterface}"
-                    echo "  - QINIU_DOMAIN: $QINIU_DOMAIN"
+                    echo "  - QINIU_BUCKET: ${QINIU_BUCKET:-'(using default: openterface)'}"
+                    echo "  - QINIU_DOMAIN: ${QINIU_DOMAIN:-'(using default: download.openterface.com)'}"
                     echo "  - QINIU_AK length: ${#QINIU_AK}"
                     echo "  - QINIU_SK length: ${#QINIU_SK}"
                     
@@ -563,10 +577,24 @@ jobs:
         env:
           QINIU_AK: ${{ secrets.QINIU_AK }}
           QINIU_SK: ${{ secrets.QINIU_SK }}
-          QINIU_BUCKET: ${{ secrets.QINIU_BUCKET }}
-          QINIU_DOMAIN: ${{ secrets.QINIU_DOMAIN }}
         run: |
           echo "🧹 Cleaning up Qiniu bucket - Keeping maximum 50 recent images"
+          
+          # Set optional QINIU_BUCKET if secret is available
+          if [ -n "${{ secrets.QINIU_BUCKET }}" ]; then
+            export QINIU_BUCKET="${{ secrets.QINIU_BUCKET }}"
+            echo "✅ QINIU_BUCKET set from secrets"
+          else
+            echo "⚠️ QINIU_BUCKET not set, will use script default (openterface)"
+          fi
+          
+          # Set optional QINIU_DOMAIN if secret is available
+          if [ -n "${{ secrets.QINIU_DOMAIN }}" ]; then
+            export QINIU_DOMAIN="${{ secrets.QINIU_DOMAIN }}"
+            echo "✅ QINIU_DOMAIN set from secrets"
+          else
+            echo "⚠️ QINIU_DOMAIN not set, will use script default (download.openterface.com)"
+          fi
           
           if [ -z "$QINIU_AK" ] || [ -z "$QINIU_SK" ]; then
             echo "⚠️ Qiniu credentials not configured, skipping bucket management"
@@ -575,8 +603,8 @@ jobs:
           
           echo "📊 Running bucket management script..."
           echo "🔍 Debug info:"
-          echo "  - QINIU_BUCKET: ${QINIU_BUCKET:-openterface}"
-          echo "  - QINIU_DOMAIN: $QINIU_DOMAIN"
+          echo "  - QINIU_BUCKET: ${QINIU_BUCKET:-'(using default: openterface)'}"
+          echo "  - QINIU_DOMAIN: ${QINIU_DOMAIN:-'(using default: download.openterface.com)'}"
           echo "  - QINIU_AK length: ${#QINIU_AK}"
           echo "  - QINIU_SK length: ${#QINIU_SK}"
           
