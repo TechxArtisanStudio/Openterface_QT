@@ -88,6 +88,8 @@ jobs:
             exit /b 1
           )
           echo "✅ MinGW static linking verified successfully."
+          echo "Listing all .a libraries in C:\msys64\mingw64\lib:"
+          dir C:\msys64\mingw64\lib\*.a
           del test.cpp test.exe
 
 
