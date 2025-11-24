@@ -68,7 +68,18 @@ jobs:
           echo "✅ MinGW static linking verified successfully."
           echo "Listing all .a libraries in C:\msys64\mingw64\lib:"
           dir C:\msys64\mingw64\lib\*.a
+          if not exist "C:\msys64\mingw64\lib\libbz2.a" (
+            echo "❌ libbz2.a not found in MinGW lib directory."
+            exit /b 1
+          )
+          echo "✅ libbz2.a verified."
           del test.cpp test.exe
+
+      - name: Cache MinGW
+        uses: actions/cache@v3
+        with:
+          path: C:\msys64\mingw64
+          key: msys2-mingw64-cmake-windows-v5
 
 
   build-ffmpeg:
@@ -176,7 +187,7 @@ jobs:
         uses: actions/cache@v3
         with:
           path: C:\msys64\mingw64
-          key: msys2-mingw64-cmake-windows-v4
+          key: msys2-mingw64-cmake-windows-v5
 
       - name: Cache Qt
         uses: actions/cache@v3
@@ -219,6 +230,11 @@ jobs:
           mkdir ${{ env.SOURCE_DIR }}\drivers\windows
           copy driver\windows\* ${{ env.SOURCE_DIR }}\drivers\windows
 
+      - name: Ensure MinGW dependencies
+        run: |
+          echo "Ensuring MinGW dependencies are installed..."
+          C:\msys64\usr\bin\bash.exe -lc "pacman -S --needed --noconfirm mingw-w64-x86_64-bzip2 mingw-w64-x86_64-xz mingw-w64-x86_64-winpthreads"
+
       - name: Build Portable Executable
         working-directory: ${{ runner.temp }}\build
         run: |
@@ -238,6 +254,10 @@ jobs:
           )
           if not exist "%OPENSSL_DIR%\lib\libzlib.a" (
             echo "Error: libzlib.a not found at %OPENSSL_DIR%\lib\libzlib.a"
+            exit 1
+          )
+          if not exist "C:\msys64\mingw64\lib\libbz2.a" (
+            echo "Error: libbz2.a not found at C:\msys64\mingw64\lib\libbz2.a"
             exit 1
           )
           
