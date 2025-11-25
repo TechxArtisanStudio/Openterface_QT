@@ -32,6 +32,7 @@
 #include <QSet>
 
 Q_LOGGING_CATEGORY(log_ui_camera, "opf.ui.camera")
+Q_LOGGING_CATEGORY(log_backend, "opf.backend")
 
 CameraManager::CameraManager(QObject *parent)
     : QObject(parent), m_graphicsVideoOutput(nullptr), m_video_width(0), m_video_height(0)
@@ -251,10 +252,10 @@ void CameraManager::setVideoOutput(QGraphicsVideoItem* videoOutput)
                 qDebug() << "Graphics video output successfully connected to FFmpeg backend";
             }
         } else {
-            qCWarning(log_ui_camera) << "FFmpeg backend not available for video output";
+            qDebug() << "FFmpeg backend not available for video output";
         }
     } else {
-        qCWarning(log_ui_camera) << "Attempted to set null graphics video output";
+        qDebug() << "Attempted to set null graphics video output";
     }
 }
 
@@ -269,16 +270,20 @@ void CameraManager::startCamera()
             return;
         }
         
+#ifdef Q_OS_WIN
+        // On Windows builds, only the FFmpeg backend is supported.
+        // For Linux build, both FFmepg and GStreamer backends are supported.
         if (!isFFmpegBackend()) {
-            qCWarning(log_ui_camera) << "Only FFmpeg backend is supported";
+            qCWarning(log_backend) << "Only FFmpeg backend is supported on Windows";
             return;
         }
+#endif
         
         // Start FFmpeg backend camera
         m_backendHandler->startCamera();
         
         emit cameraActiveChanged(true);
-        qCDebug(log_ui_camera) << "FFmpeg backend camera started successfully";
+        qCDebug(log_backend) << "Camera started successfully";
         
     } catch (const std::exception& e) {
         qCritical() << "Exception starting camera:" << e.what();
