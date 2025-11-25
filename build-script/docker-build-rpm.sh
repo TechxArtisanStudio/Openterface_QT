@@ -327,7 +327,7 @@ declare -a UNIFIED_LIBRARY_CONFIGS=(
     "SWRESAMPLE|FFmpeg swresample|libswresample.so|WARNING|ffmpeg|${FFMPEG_LIB_SEARCH_DIRS}"
     "AVFILTER|FFmpeg avfilter|libavfilter.so|WARNING|ffmpeg|${FFMPEG_LIB_SEARCH_DIRS}"
     "POSTPROC|FFmpeg postproc|libpostproc.so|WARNING|ffmpeg|${FFMPEG_LIB_SEARCH_DIRS}"
-    # "MFX|Intel Media SDK|libmfx.so.1|ERROR|ffmpeg|${FFMPEG_LIB_SEARCH_DIRS}"
+    "MFX|Intel Media SDK|libmfx.so.1|ERROR|ffmpeg|${FFMPEG_LIB_SEARCH_DIRS}"
     
     # GStreamer libraries -> ${RPMTOP}/SOURCES/gstreamer
     # Using common GStreamer library search directories
