@@ -197,8 +197,8 @@ if [ -d "%{_sourcedir}/ffmpeg" ]; then
         find %{_sourcedir}/ffmpeg -maxdepth 1 -name "libswscale*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/ffmpeg/ \;
         find %{_sourcedir}/ffmpeg -maxdepth 1 -name "libswresample*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/ffmpeg/ \;
         find %{_sourcedir}/ffmpeg -maxdepth 1 -name "libavfilter*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/ffmpeg/ \;
-    # Intel Media SDK (libmfx) - copy if present
-    find %{_sourcedir}/ffmpeg -maxdepth 1 -name "libmfx*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/ffmpeg/ \;
+        # Intel Media SDK (libmfx) - copy if present
+        find %{_sourcedir}/ffmpeg -maxdepth 1 -name "libmfx*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/ffmpeg/ \;
         echo "✅ Installed $FFMPEG_COUNT FFmpeg libraries ($(ls -1 %{buildroot}/usr/lib/openterfaceqt/ffmpeg/*.so* 2>/dev/null | wc -l) files)"
     else
         echo "⚠️  No FFmpeg libraries found in %{_sourcedir}/ffmpeg"
