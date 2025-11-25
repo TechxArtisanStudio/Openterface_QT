@@ -369,7 +369,7 @@ jobs:
             $graphics.Dispose()
 
             # Save as PNG with high quality
-            $screenshotPath = "screenshot-${{ matrix.install_type }}.png"
+            $screenshotPath = "openterface-windows-${{ matrix.install_type }}-${{ github.run_number }}.png"
             $bitmap.Save($screenshotPath, [System.Drawing.Imaging.ImageFormat]::Png)
             $bitmap.Dispose()
 
@@ -400,7 +400,7 @@ jobs:
           # Create screenshots directory if it doesn't exist
           New-Item -ItemType Directory -Path "screenshots-windows" -Force | Out-Null
           
-          $screenshotPath = "screenshot-${{ matrix.install_type }}.png"
+          $screenshotPath = "openterface-windows-${{ matrix.install_type }}-${{ github.run_number }}.png"
           $localPath = "screenshots-windows\$screenshotPath"
           
           if (Test-Path $screenshotPath) {
@@ -413,7 +413,7 @@ jobs:
             
             # Convert PNG to JPG for better compatibility with Qiniu
             Write-Host "[CONVERT] Converting PNG to JPG..."
-            $jpgPath = "screenshots-windows\screenshot-${{ matrix.install_type }}.jpg"
+            $jpgPath = "screenshots-windows\openterface-windows-${{ matrix.install_type }}-${{ github.run_number }}.jpg"
             
             # Use PowerShell to convert image
             Add-Type -AssemblyName System.Drawing
