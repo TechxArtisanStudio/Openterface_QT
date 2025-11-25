@@ -494,8 +494,12 @@ jobs:
                 if [ "$actual_size" -gt 50000 ]; then
                   echo "**Status**: ✅ Content detected ($(($actual_size / 1024))KB)"
                   
-                  # Upload to Qiniu if credentials are available
-                  if [ -n "$QINIU_AK" ] && [ -n "$QINIU_SK" ]; then
+                  # Verify file still exists before upload
+                  if [ -f "$img" ]; then
+                    echo "**File check**: ✅ File exists and is accessible"
+                    
+                    # Upload to Qiniu if credentials are available
+                    if [ -n "$QINIU_AK" ] && [ -n "$QINIU_SK" ]; then
                     echo ""
                     echo "📤 Uploading to Qiniu..."
                     
@@ -549,7 +553,7 @@ jobs:
                     fi
                     
                     # Add the image file
-                    UPLOAD_CMD="$UPLOAD_CMD \"$img\""
+                    UPLOAD_CMD="$UPLOAD_CMD $img"
                     
                     echo "🚀 Executing: $UPLOAD_CMD"
                     
@@ -587,8 +591,12 @@ jobs:
                       echo "🔍 Full output for debugging:"
                       echo "$UPLOAD_OUTPUT"
                     fi
+                    else
+                      echo "⚠️ Qiniu credentials not configured - screenshot will be available in artifacts" >> $GITHUB_STEP_SUMMARY
+                      echo "" >> $GITHUB_STEP_SUMMARY
+                    fi
                   else
-                    echo "⚠️ Qiniu credentials not configured - screenshot will be available in artifacts" >> $GITHUB_STEP_SUMMARY
+                    echo "**File check**: ❌ File no longer exists, skipping upload" >> $GITHUB_STEP_SUMMARY
                     echo "" >> $GITHUB_STEP_SUMMARY
                   fi
                 else
