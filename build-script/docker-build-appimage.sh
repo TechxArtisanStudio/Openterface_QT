@@ -287,8 +287,10 @@ echo ""
 if [ -d "${APPDIR}/usr/lib/openterfaceqt/ffmpeg" ]; then
 	echo "🔧 Normalizing FFmpeg symlinks in ${APPDIR}/usr/lib/openterfaceqt/ffmpeg..."
 	pushd "${APPDIR}/usr/lib/openterfaceqt/ffmpeg" >/dev/null || true
+	# Avoid literal globbing when no files found
+	shopt -s nullglob
 	# Create symlinks for multi-dot versioned libraries (libname.so.1.2.3)
-	for fullfile in *.so.*.* 2>/dev/null; do
+	for fullfile in *.so.*.*; do
 		[ -f "$fullfile" ] || continue
 		base=$(echo "$fullfile" | sed 's/\.so\..*//')
 		soname=$(echo "$fullfile" | sed 's/\(.*\.so\.[0-9]*\)\.*.*/\1/')
@@ -308,7 +310,7 @@ if [ -d "${APPDIR}/usr/lib/openterfaceqt/ffmpeg" ]; then
 		fi
 	done
 	# Also handle single-dot sonames (libname.so.1)
-	for fullfile in *.so.* 2>/dev/null; do
+	for fullfile in *.so.*; do
 		[ -f "$fullfile" ] || continue
 		base=$(echo "$fullfile" | sed 's/\.so\..*//')
 		soname=$(echo "$fullfile" | sed 's/\(.*\.so\.[0-9]*\)\.*.*/\1/')
@@ -322,6 +324,8 @@ if [ -d "${APPDIR}/usr/lib/openterfaceqt/ffmpeg" ]; then
 		fi
 	done
 	popd >/dev/null || true
+	# Turn off nullglob now that we are done
+	shopt -u nullglob
 	echo "✅ FFmpeg symlink normalization complete"
 fi
 
