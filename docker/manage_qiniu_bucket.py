@@ -51,7 +51,7 @@ def log_error(msg: str):
 
 def log_item(msg: str):
     """Log item message"""
-    print(f"{Colors.CYAN}  •{Colors.NC} {msg}")
+    print(f"  - {msg}")
 
 def list_files_in_folder(
     access_key: str,
@@ -241,7 +241,7 @@ def manage_bucket(
         return False, f"Failed to delete files"
     
     # Show result
-    print(f"\n{Colors.GREEN}✅ Bucket management completed!{Colors.NC}")
+    print(f"\n{Colors.GREEN}Bucket management completed!{Colors.NC}")
     log_item(f"Deleted: {deleted_count} file(s)")
     if failed_count > 0:
         log_warning(f"Failed: {failed_count} file(s)")
