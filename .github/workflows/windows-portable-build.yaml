@@ -291,6 +291,7 @@ jobs:
             -DZLIB_LIBRARY=C:\vcpkg\installed\x64-mingw-static\lib\libzlib.a ^
             -DOPENTERFACE_BUILD_STATIC=ON ^
             -DCMAKE_EXE_LINKER_FLAGS="-mconsole -lmingw32 -lgcc -lmingwex" ^
+            -DCMAKE_TRY_COMPILE_TARGET_TYPE=STATIC_LIBRARY ^
             ${{ env.SOURCE_DIR }}
           
           echo "Building with mingw32-make..."
