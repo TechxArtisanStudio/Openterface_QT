@@ -162,6 +162,66 @@ jobs:
             tree "$RPM_EXTRACT_DIR" -L 3 2>/dev/null || find "$RPM_EXTRACT_DIR" -type f
             
             echo ""
+            echo "📋 Key Files and Binaries:"
+            echo "=========================="
+            
+            # Find executable binaries
+            echo "🔹 Executables:"
+            find "$RPM_EXTRACT_DIR" -type f -executable | grep -E "(bin|lib)" | head -20
+            
+            # Find main openterface binary
+            echo ""
+            echo "🔹 OpenTerface binary location:"
+            find "$RPM_EXTRACT_DIR" -type f \( -name "*openterface*" -o -name "*openterfaceqt*" -o -name "*openterfaceQT*" \) ! -path "*/.*"
+            
+            # Find libraries - FFmpeg
+            echo ""
+            echo "🔹 FFmpeg Libraries (.so files):"
+            find "$RPM_EXTRACT_DIR" -type f -name "libav*.so*" -o -name "libsw*.so*" | sort
+            
+            # Find libraries - GStreamer
+            echo ""
+            echo "🔹 GStreamer Libraries:"
+            find "$RPM_EXTRACT_DIR" -type f -name "libgst*.so*" | sort
+            
+            # Find libraries - Hardware acceleration
+            echo ""
+            echo "🔹 Hardware Acceleration Libraries (VA-API, VDPAU):"
+            find "$RPM_EXTRACT_DIR" -type f \( -name "libva*.so*" -o -name "libvdpau*.so*" \) | sort
+            
+            # Find libraries - Image processing
+            echo ""
+            echo "🔹 Image Processing Libraries:"
+            find "$RPM_EXTRACT_DIR" -type f -name "libturbojpeg*.so*" | sort
+            
+            # Check for Qt libraries
+            echo ""
+            echo "🔹 Qt Libraries:"
+            find "$RPM_EXTRACT_DIR" -type f -name "libQt*.so*"| sort
+            
+            # Count total libraries
+            echo ""
+            echo "📊 Library Statistics:"
+            echo "====================="
+            TOTAL_SO=$(find "$RPM_EXTRACT_DIR" -type f -name "*.so*" | wc -l)
+            echo "  Total .so files: $TOTAL_SO"
+            
+            FFMPEG_COUNT=$(find "$RPM_EXTRACT_DIR" -type f \( -name "libav*.so*" -o -name "libsw*.so*" \) | wc -l)
+            echo "  FFmpeg libraries: $FFMPEG_COUNT"
+            
+            GSTREAMER_COUNT=$(find "$RPM_EXTRACT_DIR" -type f -name "libgst*.so*" | wc -l)
+            echo "  GStreamer libraries: $GSTREAMER_COUNT"
+            
+            QT_COUNT=$(find "$RPM_EXTRACT_DIR" -type f -name "libQt*.so*" | wc -l)
+            echo "  Qt libraries: $QT_COUNT"
+            
+            # Directory sizes
+            echo ""
+            echo "📦 Directory Sizes:"
+            echo "=================="
+            du -sh "$RPM_EXTRACT_DIR"/usr/* 2>/dev/null | sort -h
+            
+            echo ""
             echo "📋 RPM Package Metadata:"
             echo "======================="
             rpm -qip "$RPM_FILE"
@@ -210,19 +270,64 @@ jobs:
             # Now list all the libraries found
             if [ -d "$EXTRACT_DIR/squashfs-root" ] || [ -n "$(find "$EXTRACT_DIR" -name "*.so*" 2>/dev/null | head -1)" ]; then
               echo ""
-              echo "� All libraries included in AppImage:"
-              echo "======================================"
-              find "$EXTRACT_DIR" -type f \( -name "*.so*" -o -name "*.la" \) 2>/dev/null | sort
+              echo "📋 Key Files and Binaries:"
+              echo "=========================="
               
-              # Count different types
+              # Find executable binaries
+              echo "🔹 Executables:"
+              find "$EXTRACT_DIR" -type f -executable | grep -E "(bin|lib)" | head -20
+              
+              # Find main openterface binary
               echo ""
-              echo "� Library Statistics:"
+              echo "🔹 OpenTerface binary location:"
+              find "$EXTRACT_DIR" -type f \( -name "*openterface*" -o -name "*openterfaceqt*" -o -name "*openterfaceQT*" \) ! -path "*/.*"
+              
+              # Find libraries - FFmpeg
+              echo ""
+              echo "🔹 FFmpeg Libraries (.so files):"
+              find "$EXTRACT_DIR" -type f -name "libav*.so*" -o -name "libsw*.so*" | sort
+              
+              # Find libraries - GStreamer
+              echo ""
+              echo "🔹 GStreamer Libraries:"
+              find "$EXTRACT_DIR" -type f -name "libgst*.so*" | sort
+              
+              # Find libraries - Hardware acceleration
+              echo ""
+              echo "🔹 Hardware Acceleration Libraries (VA-API, VDPAU):"
+              find "$EXTRACT_DIR" -type f \( -name "libva*.so*" -o -name "libvdpau*.so*" \) | sort
+              
+              # Find libraries - Image processing
+              echo ""
+              echo "🔹 Image Processing Libraries:"
+              find "$EXTRACT_DIR" -type f -name "libturbojpeg*.so*" | sort
+              
+              # Check for Qt libraries
+              echo ""
+              echo "🔹 Qt Libraries:"
+              find "$EXTRACT_DIR" -type f -name "libQt*.so*"| sort
+              
+              # Count total libraries
+              echo ""
+              echo "📊 Library Statistics:"
               echo "====================="
-              SO_COUNT=$(find "$EXTRACT_DIR" -type f -name "*.so*" 2>/dev/null | wc -l)
-              LA_COUNT=$(find "$EXTRACT_DIR" -type f -name "*.la" 2>/dev/null | wc -l)
-              echo "  Shared objects (.so*): $SO_COUNT"
-              echo "  Libtool archives (.la): $LA_COUNT"
-              echo "  Total: $((SO_COUNT + LA_COUNT))"
+              TOTAL_SO=$(find "$EXTRACT_DIR" -type f -name "*.so*" | wc -l)
+              echo "  Total .so files: $TOTAL_SO"
+              
+              FFMPEG_COUNT=$(find "$EXTRACT_DIR" -type f \( -name "libav*.so*" -o -name "libsw*.so*" \) | wc -l)
+              echo "  FFmpeg libraries: $FFMPEG_COUNT"
+              
+              GSTREAMER_COUNT=$(find "$EXTRACT_DIR" -type f -name "libgst*.so*" | wc -l)
+              echo "  GStreamer libraries: $GSTREAMER_COUNT"
+              
+              QT_COUNT=$(find "$EXTRACT_DIR" -type f -name "libQt*.so*" | wc -l)
+              echo "  Qt libraries: $QT_COUNT"
+              
+              # Directory sizes
+              echo ""
+              echo "📦 Directory Sizes:"
+              echo "=================="
+              du -sh "$EXTRACT_DIR"/* 2>/dev/null | sort -h
             else
               echo "⚠️ Could not extract AppImage contents"
               file "$APPIMAGE"
