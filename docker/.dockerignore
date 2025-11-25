@@ -43,9 +43,11 @@ Thumbs.db
 *.msi
 *.exe
 
-# Other docker files (keep all arm64 Dockerfiles)
-docker/Dockerfile*
-!docker/Dockerfile.arm64*
+# Other docker files (keep test Dockerfiles and scripts)
+# Exclude main Dockerfiles but keep testos directory
+Dockerfile.qt-*
+Dockerfile.openterface-test-static
+!testos/
 
 # CI/CD
 .github/
