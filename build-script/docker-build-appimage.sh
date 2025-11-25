@@ -168,85 +168,85 @@ declare -a APPIMAGE_LIBRARY_CONFIGS=(
     # to ensure proper library loading order.
     
     # C++ runtime libraries (CRITICAL for Qt/C++ applications)
-    "GCC_S|libgcc_s|libgcc_s.so|ERROR||/usr/lib/x86_64-linux-gnu /lib/x86_64-linux-gnu /lib64 /lib /usr/lib"
-    "STDCXX|libstdc++|libstdc++.so|ERROR||/usr/lib/x86_64-linux-gnu /lib/x86_64-linux-gnu /lib64 /lib /usr/lib"
+    "GCC_S|libgcc_s|libgcc_s.so|ERROR||/usr/lib/${ARCH}-linux-gnu /lib/${ARCH}-linux-gnu /lib64 /lib /usr/lib"
+    "STDCXX|libstdc++|libstdc++.so|ERROR||/usr/lib/${ARCH}-linux-gnu /lib/${ARCH}-linux-gnu /lib64 /lib /usr/lib"
     
     # Critical system libraries (libusb, libdrm, libudev)
-    "LIBUSB|libusb|libusb*.so|ERROR||/opt/ffmpeg/lib /opt /usr/lib/x86_64-linux-gnu /usr/lib /lib/x86_64-linux-gnu /lib"
-    "LIBDRM|libdrm|libdrm.so|WARNING||/usr/lib/x86_64-linux-gnu /usr/lib /lib/x86_64-linux-gnu /lib"
-    "LIBUDEV|libudev|libudev.so|WARNING||/usr/lib/x86_64-linux-gnu /usr/lib /lib/x86_64-linux-gnu /lib"
+    "LIBUSB|libusb|libusb*.so|ERROR||/opt/ffmpeg/lib /opt /usr/lib/${ARCH}-linux-gnu /usr/lib /lib/${ARCH}-linux-gnu /lib"
+    "LIBDRM|libdrm|libdrm.so|WARNING||/usr/lib/${ARCH}-linux-gnu /usr/lib /lib/${ARCH}-linux-gnu /lib"
+    "LIBUDEV|libudev|libudev.so|WARNING||/usr/lib/${ARCH}-linux-gnu /usr/lib /lib/${ARCH}-linux-gnu /lib"
     
     # Coreutils support
-    "STDBUF|libstdbuf|libstdbuf.so|WARNING||/usr/libexec/coreutils /opt /usr/lib/x86_64-linux-gnu /usr/lib /lib/x86_64-linux-gnu /lib"
+    "STDBUF|libstdbuf|libstdbuf.so|WARNING||/usr/libexec/coreutils /opt /usr/lib/${ARCH}-linux-gnu /usr/lib /lib/${ARCH}-linux-gnu /lib"
     
     # JPEG libraries
-    "JPEG|libjpeg|libjpeg.so|WARNING||/opt/ffmpeg/lib /usr/lib/x86_64-linux-gnu /usr/lib"
-    "TURBOJPEG|libturbojpeg|libturbojpeg.so|WARNING||/opt/ffmpeg/lib /usr/lib/x86_64-linux-gnu /usr/lib"
-	"POSTPROC|FFmpeg postproc|libpostproc.so|WARNING|openterfaceqt/ffmpeg|/opt/ffmpeg/lib /usr/lib/x86_64-linux-gnu /usr/lib"
-	"MFX|Intel Media SDK|libmfx.so|WARNING|openterfaceqt/ffmpeg|/opt/ffmpeg/lib /usr/lib/x86_64-linux-gnu /usr/lib"
+    "JPEG|libjpeg|libjpeg.so|WARNING||/opt/ffmpeg/lib /usr/lib/${ARCH}-linux-gnu /usr/lib"
+    "TURBOJPEG|libturbojpeg|libturbojpeg.so|WARNING||/opt/ffmpeg/lib /usr/lib/${ARCH}-linux-gnu /usr/lib"
+	"POSTPROC|FFmpeg postproc|libpostproc.so|WARNING|openterfaceqt/ffmpeg|/opt/ffmpeg/lib /usr/lib/${ARCH}-linux-gnu /usr/lib"
+	"MFX|Intel Media SDK|libmfx.so|WARNING|openterfaceqt/ffmpeg|/opt/ffmpeg/lib /usr/lib/${ARCH}-linux-gnu /usr/lib"
 	# FFmpeg libraries -> AppImage bundle under /usr/lib/openterfaceqt/ffmpeg
-	"AVDEVICE|FFmpeg avdevice|libavdevice.so|WARNING|openterfaceqt/ffmpeg|/opt/ffmpeg/lib /usr/lib/x86_64-linux-gnu /usr/lib"
-	"AVCODEC|FFmpeg avcodec|libavcodec.so|WARNING|openterfaceqt/ffmpeg|/opt/ffmpeg/lib /usr/lib/x86_64-linux-gnu /usr/lib"
-	"AVFORMAT|FFmpeg avformat|libavformat.so|WARNING|openterfaceqt/ffmpeg|/opt/ffmpeg/lib /usr/lib/x86_64-linux-gnu /usr/lib"
-	"AVUTIL|FFmpeg avutil|libavutil.so|WARNING|openterfaceqt/ffmpeg|/opt/ffmpeg/lib /usr/lib/x86_64-linux-gnu /usr/lib"
-	"SWSCALE|FFmpeg swscale|libswscale.so|WARNING|openterfaceqt/ffmpeg|/opt/ffmpeg/lib /usr/lib/x86_64-linux-gnu /usr/lib"
-	"SWRESAMPLE|FFmpeg swresample|libswresample.so|WARNING|openterfaceqt/ffmpeg|/opt/ffmpeg/lib /usr/lib/x86_64-linux-gnu /usr/lib"
-	"AVFILTER|FFmpeg avfilter|libavfilter.so|WARNING|openterfaceqt/ffmpeg|/opt/ffmpeg/lib /usr/lib/x86_64-linux-gnu /usr/lib"
+	"AVDEVICE|FFmpeg avdevice|libavdevice.so|WARNING|openterfaceqt/ffmpeg|/opt/ffmpeg/lib /usr/lib/${ARCH}-linux-gnu /usr/lib"
+	"AVCODEC|FFmpeg avcodec|libavcodec.so|WARNING|openterfaceqt/ffmpeg|/opt/ffmpeg/lib /usr/lib/${ARCH}-linux-gnu /usr/lib"
+	"AVFORMAT|FFmpeg avformat|libavformat.so|WARNING|openterfaceqt/ffmpeg|/opt/ffmpeg/lib /usr/lib/${ARCH}-linux-gnu /usr/lib"
+	"AVUTIL|FFmpeg avutil|libavutil.so|WARNING|openterfaceqt/ffmpeg|/opt/ffmpeg/lib /usr/lib/${ARCH}-linux-gnu /usr/lib"
+	"SWSCALE|FFmpeg swscale|libswscale.so|WARNING|openterfaceqt/ffmpeg|/opt/ffmpeg/lib /usr/lib/${ARCH}-linux-gnu /usr/lib"
+	"SWRESAMPLE|FFmpeg swresample|libswresample.so|WARNING|openterfaceqt/ffmpeg|/opt/ffmpeg/lib /usr/lib/${ARCH}-linux-gnu /usr/lib"
+	"AVFILTER|FFmpeg avfilter|libavfilter.so|WARNING|openterfaceqt/ffmpeg|/opt/ffmpeg/lib /usr/lib/${ARCH}-linux-gnu /usr/lib"
     
     # Compression libraries
-    "BZ2|libbz2|libbz2.so|WARNING||/usr/lib/x86_64-linux-gnu /usr/lib /lib"
+    "BZ2|libbz2|libbz2.so|WARNING||/usr/lib/${ARCH}-linux-gnu /usr/lib /lib"
     
     # EGL and GPU rendering libraries (with wildcard patterns to match all versions)
-    "EGL|libEGL|libEGL.so|WARNING||/usr/lib/x86_64-linux-gnu /usr/lib /usr/lib64 /lib"
-    "GL|libGL|libGL.so|WARNING||/usr/lib/x86_64-linux-gnu /usr/lib /usr/lib64 /lib"
-    "GLX|libGLX|libGLX.so|WARNING||/usr/lib/x86_64-linux-gnu /usr/lib /usr/lib64 /lib"
-    "GLESV2|libGLESv2|libGLESv2.so|WARNING||/usr/lib/x86_64-linux-gnu /usr/lib /usr/lib64 /lib"
-    "GLVND|libglvnd|libglvnd.so|WARNING||/usr/lib/x86_64-linux-gnu /usr/lib /usr/lib64 /lib"
-    "GLDISPATCH|libGLdispatch|libGLdispatch.so|WARNING||/usr/lib/x86_64-linux-gnu /usr/lib /usr/lib64 /lib"
-    "OPENGL|libOpenGL|libOpenGL.so|WARNING||/usr/lib/x86_64-linux-gnu /usr/lib /usr/lib64 /lib"
+    "EGL|libEGL|libEGL.so|WARNING||/usr/lib/${ARCH}-linux-gnu /usr/lib /usr/lib64 /lib"
+    "GL|libGL|libGL.so|WARNING||/usr/lib/${ARCH}-linux-gnu /usr/lib /usr/lib64 /lib"
+    "GLX|libGLX|libGLX.so|WARNING||/usr/lib/${ARCH}-linux-gnu /usr/lib /usr/lib64 /lib"
+    "GLESV2|libGLESv2|libGLESv2.so|WARNING||/usr/lib/${ARCH}-linux-gnu /usr/lib /usr/lib64 /lib"
+    "GLVND|libglvnd|libglvnd.so|WARNING||/usr/lib/${ARCH}-linux-gnu /usr/lib /usr/lib64 /lib"
+    "GLDISPATCH|libGLdispatch|libGLdispatch.so|WARNING||/usr/lib/${ARCH}-linux-gnu /usr/lib /usr/lib64 /lib"
+    "OPENGL|libOpenGL|libOpenGL.so|WARNING||/usr/lib/${ARCH}-linux-gnu /usr/lib /usr/lib64 /lib"
     
     # Qt platform plugins (CRITICAL for GUI applications)
-    "QTPLUGIN_XCB|Qt6 XCB platform|libqxcb.so|ERROR|plugins/platforms|/opt/Qt6/plugins/platforms /usr/lib/qt6/plugins/platforms /usr/lib/x86_64-linux-gnu/qt6/plugins/platforms"
-    "QTPLUGIN_WAYLAND_EGL|Qt6 Wayland EGL|libqwayland-egl.so|WARNING|plugins/platforms|/opt/Qt6/plugins/platforms /usr/lib/qt6/plugins/platforms /usr/lib/x86_64-linux-gnu/qt6/plugins/platforms"
-    "QTPLUGIN_WAYLAND_GENERIC|Qt6 Wayland Generic|libqwayland-generic.so|WARNING|plugins/platforms|/opt/Qt6/plugins/platforms /usr/lib/qt6/plugins/platforms /usr/lib/x86_64-linux-gnu/qt6/plugins/platforms"
-    "QTPLUGIN_OFFSCREEN|Qt6 Offscreen|libqoffscreen.so|WARNING|plugins/platforms|/opt/Qt6/plugins/platforms /usr/lib/qt6/plugins/platforms /usr/lib/x86_64-linux-gnu/qt6/plugins/platforms"
-    "QTPLUGIN_MINIMAL|Qt6 Minimal|libqminimal.so|WARNING|plugins/platforms|/opt/Qt6/plugins/platforms /usr/lib/qt6/plugins/platforms /usr/lib/x86_64-linux-gnu/qt6/plugins/platforms"
+    "QTPLUGIN_XCB|Qt6 XCB platform|libqxcb.so|ERROR|plugins/platforms|/opt/Qt6/plugins/platforms /usr/lib/qt6/plugins/platforms /usr/lib/${ARCH}-linux-gnu/qt6/plugins/platforms"
+    "QTPLUGIN_WAYLAND_EGL|Qt6 Wayland EGL|libqwayland-egl.so|WARNING|plugins/platforms|/opt/Qt6/plugins/platforms /usr/lib/qt6/plugins/platforms /usr/lib/${ARCH}-linux-gnu/qt6/plugins/platforms"
+    "QTPLUGIN_WAYLAND_GENERIC|Qt6 Wayland Generic|libqwayland-generic.so|WARNING|plugins/platforms|/opt/Qt6/plugins/platforms /usr/lib/qt6/plugins/platforms /usr/lib/${ARCH}-linux-gnu/qt6/plugins/platforms"
+    "QTPLUGIN_OFFSCREEN|Qt6 Offscreen|libqoffscreen.so|WARNING|plugins/platforms|/opt/Qt6/plugins/platforms /usr/lib/qt6/plugins/platforms /usr/lib/${ARCH}-linux-gnu/qt6/plugins/platforms"
+    "QTPLUGIN_MINIMAL|Qt6 Minimal|libqminimal.so|WARNING|plugins/platforms|/opt/Qt6/plugins/platforms /usr/lib/qt6/plugins/platforms /usr/lib/${ARCH}-linux-gnu/qt6/plugins/platforms"
     
     # Wayland dependencies (required for wayland plugin)
-    "WAYLAND_CLIENT|libwayland-client|libwayland-client.so|WARNING||/usr/lib/x86_64-linux-gnu /usr/lib /lib/x86_64-linux-gnu /lib"
-    "WAYLAND_CURSOR|libwayland-cursor|libwayland-cursor.so|WARNING||/usr/lib/x86_64-linux-gnu /usr/lib /lib/x86_64-linux-gnu /lib"
-    "WAYLAND_EGL|libwayland-egl|libwayland-egl.so|WARNING||/usr/lib/x86_64-linux-gnu /usr/lib /lib/x86_64-linux-gnu /lib"
-    "XKBCOMMON|libxkbcommon|libxkbcommon.so|WARNING||/usr/lib/x86_64-linux-gnu /usr/lib /lib/x86_64-linux-gnu /lib"
+    "WAYLAND_CLIENT|libwayland-client|libwayland-client.so|WARNING||/usr/lib/${ARCH}-linux-gnu /usr/lib /lib/${ARCH}-linux-gnu /lib"
+    "WAYLAND_CURSOR|libwayland-cursor|libwayland-cursor.so|WARNING||/usr/lib/${ARCH}-linux-gnu /usr/lib /lib/${ARCH}-linux-gnu /lib"
+    "WAYLAND_EGL|libwayland-egl|libwayland-egl.so|WARNING||/usr/lib/${ARCH}-linux-gnu /usr/lib /lib/${ARCH}-linux-gnu /lib"
+    "XKBCOMMON|libxkbcommon|libxkbcommon.so|WARNING||/usr/lib/${ARCH}-linux-gnu /usr/lib /lib/${ARCH}-linux-gnu /lib"
     
     # XCB dependencies (required by xcb plugin)
-    "XCB_CURSOR|libxcb-cursor|libxcb-cursor.so|WARNING||/usr/lib/x86_64-linux-gnu /usr/lib /lib/x86_64-linux-gnu /lib"
-    "XCB|libxcb|libxcb.so|WARNING||/usr/lib/x86_64-linux-gnu /usr/lib /lib/x86_64-linux-gnu /lib"
+    "XCB_CURSOR|libxcb-cursor|libxcb-cursor.so|WARNING||/usr/lib/${ARCH}-linux-gnu /usr/lib /lib/${ARCH}-linux-gnu /lib"
+    "XCB|libxcb|libxcb.so|WARNING||/usr/lib/${ARCH}-linux-gnu /usr/lib /lib/${ARCH}-linux-gnu /lib"
     
     # Qt platform plugin libraries (also as system libraries for backup copy)
-    "QTLIB_MINIMAL|Qt6 Minimal plugin library|libqminimal.so|WARNING||/opt/Qt6/plugins/platforms /opt/Qt6/lib /usr/lib/qt6/plugins/platforms /usr/lib/x86_64-linux-gnu/qt6/plugins/platforms /usr/lib/x86_64-linux-gnu /usr/lib /lib/x86_64-linux-gnu /lib"
-    "QTLIB_OFFSCREEN|Qt6 Offscreen plugin library|libqoffscreen.so|WARNING||/opt/Qt6/plugins/platforms /opt/Qt6/lib /usr/lib/qt6/plugins/platforms /usr/lib/x86_64-linux-gnu/qt6/plugins/platforms /usr/lib/x86_64-linux-gnu /usr/lib /lib/x86_64-linux-gnu /lib"
-    "XCB|libxcb|libxcb.so|WARNING||/usr/lib/x86_64-linux-gnu /usr/lib /lib/x86_64-linux-gnu /lib"
+    "QTLIB_MINIMAL|Qt6 Minimal plugin library|libqminimal.so|WARNING||/opt/Qt6/plugins/platforms /opt/Qt6/lib /usr/lib/qt6/plugins/platforms /usr/lib/${ARCH}-linux-gnu/qt6/plugins/platforms /usr/lib/${ARCH}-linux-gnu /usr/lib /lib/${ARCH}-linux-gnu /lib"
+    "QTLIB_OFFSCREEN|Qt6 Offscreen plugin library|libqoffscreen.so|WARNING||/opt/Qt6/plugins/platforms /opt/Qt6/lib /usr/lib/qt6/plugins/platforms /usr/lib/${ARCH}-linux-gnu/qt6/plugins/platforms /usr/lib/${ARCH}-linux-gnu /usr/lib /lib/${ARCH}-linux-gnu /lib"
+    "XCB|libxcb|libxcb.so|WARNING||/usr/lib/${ARCH}-linux-gnu /usr/lib /lib/${ARCH}-linux-gnu /lib"
     
     # Essential GStreamer plugins for video capture
-    "GSTV4L2|GStreamer V4L2|libgstvideo4linux2.so|ERROR|gstreamer-1.0|/opt/gstreamer/lib/x86_64-linux-gnu/gstreamer-1.0 /opt/gstreamer/lib/gstreamer-1.0 /usr/lib/x86_64-linux-gnu/gstreamer-1.0 /usr/lib/gstreamer-1.0"
-    "GSTV4L2CODECS|GStreamer V4L2 codecs|libgstv4l2codecs.so|WARNING|gstreamer-1.0|/opt/gstreamer/lib/x86_64-linux-gnu/gstreamer-1.0 /opt/gstreamer/lib/gstreamer-1.0 /usr/lib/x86_64-linux-gnu/gstreamer-1.0 /usr/lib/gstreamer-1.0"
-    "GSTJPEG|GStreamer JPEG|libgstjpeg.so|WARNING|gstreamer-1.0|/opt/gstreamer/lib/x86_64-linux-gnu/gstreamer-1.0 /opt/gstreamer/lib/gstreamer-1.0 /usr/lib/x86_64-linux-gnu/gstreamer-1.0 /usr/lib/gstreamer-1.0"
-    "GSTCOREELEMENTS|GStreamer core elements|libgstcoreelements.so|WARNING|gstreamer-1.0|/opt/gstreamer/lib/x86_64-linux-gnu/gstreamer-1.0 /opt/gstreamer/lib/gstreamer-1.0 /usr/lib/x86_64-linux-gnu/gstreamer-1.0 /usr/lib/gstreamer-1.0"
-    "GSTAPP|GStreamer app|libgstapp.so|WARNING|gstreamer-1.0|/opt/gstreamer/lib/x86_64-linux-gnu/gstreamer-1.0 /opt/gstreamer/lib/gstreamer-1.0 /usr/lib/x86_64-linux-gnu/gstreamer-1.0 /usr/lib/gstreamer-1.0"
-    "GSTPLAYBACK|GStreamer playback|libgstplayback.so|WARNING|gstreamer-1.0|/opt/gstreamer/lib/x86_64-linux-gnu/gstreamer-1.0 /opt/gstreamer/lib/gstreamer-1.0 /usr/lib/x86_64-linux-gnu/gstreamer-1.0 /usr/lib/gstreamer-1.0"
-    "GSTVIDEOCONVERT|GStreamer video convert/scale|libgstvideoconvertscale.so|WARNING|gstreamer-1.0|/opt/gstreamer/lib/x86_64-linux-gnu/gstreamer-1.0 /opt/gstreamer/lib/gstreamer-1.0 /usr/lib/x86_64-linux-gnu/gstreamer-1.0 /usr/lib/gstreamer-1.0"
-    "GSTVIDEORATE|GStreamer video rate|libgstvideorate.so|WARNING|gstreamer-1.0|/opt/gstreamer/lib/x86_64-linux-gnu/gstreamer-1.0 /opt/gstreamer/lib/gstreamer-1.0 /usr/lib/x86_64-linux-gnu/gstreamer-1.0 /usr/lib/gstreamer-1.0"
-    "GSTXIMAGESINK|GStreamer X image sink|libgstximagesink.so|WARNING|gstreamer-1.0|/opt/gstreamer/lib/x86_64-linux-gnu/gstreamer-1.0 /opt/gstreamer/lib/gstreamer-1.0 /usr/lib/x86_64-linux-gnu/gstreamer-1.0 /usr/lib/gstreamer-1.0"
-    "GSTXVIMAGESINK|GStreamer XV image sink|libgstxvimagesink.so|WARNING|gstreamer-1.0|/opt/gstreamer/lib/x86_64-linux-gnu/gstreamer-1.0 /opt/gstreamer/lib/gstreamer-1.0 /usr/lib/x86_64-linux-gnu/gstreamer-1.0 /usr/lib/gstreamer-1.0"
-    "GSTPULSEAUDIO|GStreamer PulseAudio|libgstpulseaudio.so|WARNING|gstreamer-1.0|/opt/gstreamer/lib/x86_64-linux-gnu/gstreamer-1.0 /opt/gstreamer/lib/gstreamer-1.0 /usr/lib/x86_64-linux-gnu/gstreamer-1.0 /usr/lib/gstreamer-1.0"
-    "GSTAUDIOPARSERS|GStreamer audio parsers|libgstaudioparsers.so|WARNING|gstreamer-1.0|/opt/gstreamer/lib/x86_64-linux-gnu/gstreamer-1.0 /opt/gstreamer/lib/gstreamer-1.0 /usr/lib/x86_64-linux-gnu/gstreamer-1.0 /usr/lib/gstreamer-1.0"
-    "GSTAUDIOCONVERT|GStreamer audio convert|libgstaudioconvert.so|WARNING|gstreamer-1.0|/opt/gstreamer/lib/x86_64-linux-gnu/gstreamer-1.0 /opt/gstreamer/lib/gstreamer-1.0 /usr/lib/x86_64-linux-gnu/gstreamer-1.0 /usr/lib/gstreamer-1.0"
-    "GSTAUDIORESAMPLE|GStreamer audio resample|libgstaudioresample.so|WARNING|gstreamer-1.0|/opt/gstreamer/lib/x86_64-linux-gnu/gstreamer-1.0 /opt/gstreamer/lib/gstreamer-1.0 /usr/lib/x86_64-linux-gnu/gstreamer-1.0 /usr/lib/gstreamer-1.0"
-    "GSTAUTOPLUG|GStreamer autodetect|libgstautodetect.so|WARNING|gstreamer-1.0|/opt/gstreamer/lib/x86_64-linux-gnu/gstreamer-1.0 /opt/gstreamer/lib/gstreamer-1.0 /usr/lib/x86_64-linux-gnu/gstreamer-1.0 /usr/lib/gstreamer-1.0"
-    "GSTTYPEFIND|GStreamer type find|libgsttypefindfunctions.so|WARNING|gstreamer-1.0|/opt/gstreamer/lib/x86_64-linux-gnu/gstreamer-1.0 /opt/gstreamer/lib/gstreamer-1.0 /usr/lib/x86_64-linux-gnu/gstreamer-1.0 /usr/lib/gstreamer-1.0"
+    "GSTV4L2|GStreamer V4L2|libgstvideo4linux2.so|ERROR|gstreamer-1.0|/opt/gstreamer/lib/${ARCH}-linux-gnu/gstreamer-1.0 /opt/gstreamer/lib/gstreamer-1.0 /usr/lib/${ARCH}-linux-gnu/gstreamer-1.0 /usr/lib/gstreamer-1.0"
+    "GSTV4L2CODECS|GStreamer V4L2 codecs|libgstv4l2codecs.so|WARNING|gstreamer-1.0|/opt/gstreamer/lib/${ARCH}-linux-gnu/gstreamer-1.0 /opt/gstreamer/lib/gstreamer-1.0 /usr/lib/${ARCH}-linux-gnu/gstreamer-1.0 /usr/lib/gstreamer-1.0"
+    "GSTJPEG|GStreamer JPEG|libgstjpeg.so|WARNING|gstreamer-1.0|/opt/gstreamer/lib/${ARCH}-linux-gnu/gstreamer-1.0 /opt/gstreamer/lib/gstreamer-1.0 /usr/lib/${ARCH}-linux-gnu/gstreamer-1.0 /usr/lib/gstreamer-1.0"
+    "GSTCOREELEMENTS|GStreamer core elements|libgstcoreelements.so|WARNING|gstreamer-1.0|/opt/gstreamer/lib/${ARCH}-linux-gnu/gstreamer-1.0 /opt/gstreamer/lib/gstreamer-1.0 /usr/lib/${ARCH}-linux-gnu/gstreamer-1.0 /usr/lib/gstreamer-1.0"
+    "GSTAPP|GStreamer app|libgstapp.so|WARNING|gstreamer-1.0|/opt/gstreamer/lib/${ARCH}-linux-gnu/gstreamer-1.0 /opt/gstreamer/lib/gstreamer-1.0 /usr/lib/${ARCH}-linux-gnu/gstreamer-1.0 /usr/lib/gstreamer-1.0"
+    "GSTPLAYBACK|GStreamer playback|libgstplayback.so|WARNING|gstreamer-1.0|/opt/gstreamer/lib/${ARCH}-linux-gnu/gstreamer-1.0 /opt/gstreamer/lib/gstreamer-1.0 /usr/lib/${ARCH}-linux-gnu/gstreamer-1.0 /usr/lib/gstreamer-1.0"
+    "GSTVIDEOCONVERT|GStreamer video convert/scale|libgstvideoconvertscale.so|WARNING|gstreamer-1.0|/opt/gstreamer/lib/${ARCH}-linux-gnu/gstreamer-1.0 /opt/gstreamer/lib/gstreamer-1.0 /usr/lib/${ARCH}-linux-gnu/gstreamer-1.0 /usr/lib/gstreamer-1.0"
+    "GSTVIDEORATE|GStreamer video rate|libgstvideorate.so|WARNING|gstreamer-1.0|/opt/gstreamer/lib/${ARCH}-linux-gnu/gstreamer-1.0 /opt/gstreamer/lib/gstreamer-1.0 /usr/lib/${ARCH}-linux-gnu/gstreamer-1.0 /usr/lib/gstreamer-1.0"
+    "GSTXIMAGESINK|GStreamer X image sink|libgstximagesink.so|WARNING|gstreamer-1.0|/opt/gstreamer/lib/${ARCH}-linux-gnu/gstreamer-1.0 /opt/gstreamer/lib/gstreamer-1.0 /usr/lib/${ARCH}-linux-gnu/gstreamer-1.0 /usr/lib/gstreamer-1.0"
+    "GSTXVIMAGESINK|GStreamer XV image sink|libgstxvimagesink.so|WARNING|gstreamer-1.0|/opt/gstreamer/lib/${ARCH}-linux-gnu/gstreamer-1.0 /opt/gstreamer/lib/gstreamer-1.0 /usr/lib/${ARCH}-linux-gnu/gstreamer-1.0 /usr/lib/gstreamer-1.0"
+    "GSTPULSEAUDIO|GStreamer PulseAudio|libgstpulseaudio.so|WARNING|gstreamer-1.0|/opt/gstreamer/lib/${ARCH}-linux-gnu/gstreamer-1.0 /opt/gstreamer/lib/gstreamer-1.0 /usr/lib/${ARCH}-linux-gnu/gstreamer-1.0 /usr/lib/gstreamer-1.0"
+    "GSTAUDIOPARSERS|GStreamer audio parsers|libgstaudioparsers.so|WARNING|gstreamer-1.0|/opt/gstreamer/lib/${ARCH}-linux-gnu/gstreamer-1.0 /opt/gstreamer/lib/gstreamer-1.0 /usr/lib/${ARCH}-linux-gnu/gstreamer-1.0 /usr/lib/gstreamer-1.0"
+    "GSTAUDIOCONVERT|GStreamer audio convert|libgstaudioconvert.so|WARNING|gstreamer-1.0|/opt/gstreamer/lib/${ARCH}-linux-gnu/gstreamer-1.0 /opt/gstreamer/lib/gstreamer-1.0 /usr/lib/${ARCH}-linux-gnu/gstreamer-1.0 /usr/lib/gstreamer-1.0"
+    "GSTAUDIORESAMPLE|GStreamer audio resample|libgstaudioresample.so|WARNING|gstreamer-1.0|/opt/gstreamer/lib/${ARCH}-linux-gnu/gstreamer-1.0 /opt/gstreamer/lib/gstreamer-1.0 /usr/lib/${ARCH}-linux-gnu/gstreamer-1.0 /usr/lib/gstreamer-1.0"
+    "GSTAUTOPLUG|GStreamer autodetect|libgstautodetect.so|WARNING|gstreamer-1.0|/opt/gstreamer/lib/${ARCH}-linux-gnu/gstreamer-1.0 /opt/gstreamer/lib/gstreamer-1.0 /usr/lib/${ARCH}-linux-gnu/gstreamer-1.0 /usr/lib/gstreamer-1.0"
+    "GSTTYPEFIND|GStreamer type find|libgsttypefindfunctions.so|WARNING|gstreamer-1.0|/opt/gstreamer/lib/${ARCH}-linux-gnu/gstreamer-1.0 /opt/gstreamer/lib/gstreamer-1.0 /usr/lib/${ARCH}-linux-gnu/gstreamer-1.0 /usr/lib/gstreamer-1.0"
     
     # System loader
-    "LDLINUX|Linux dynamic linker|ld-linux-x86-64.so.2|WARNING||/usr/lib/x86_64-linux-gnu /lib64 /lib /usr/lib"
+    "LDLINUX|Linux dynamic linker|ld-linux-x86-64.so.2|WARNING||/usr/lib/${ARCH}-linux-gnu /lib64 /lib /usr/lib"
 )
 
 # Process merged AppImage library configurations for initial AppDir
