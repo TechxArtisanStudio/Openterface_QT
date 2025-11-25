@@ -270,6 +270,7 @@ XCB_SUPPORT_LIBS=(
     "libxcb-xkb"
     "libxkbcommon"
     "libxkbcommon-x11"
+    "libXv"
 )
 
 # Search for XCB libraries in system locations (not bundled)

@@ -176,10 +176,16 @@ fi
 
 # GStreamer plugins (video capture, audio processing, codecs)
 if [ -d "%{_sourcedir}/gstreamer/gstreamer-1.0" ]; then
-    PLUGIN_COUNT=$(find %{_sourcedir}/gstreamer/gstreamer-1.0 -maxdepth 1 -name "*.so" -type f | wc -l)
+    # Allow both unversioned and versioned plugin files (e.g., libgstcodecs-1.0.so and libgstcodecs-1.0.so.0.2606.0)
+    PLUGIN_COUNT=$(find %{_sourcedir}/gstreamer/gstreamer-1.0 -maxdepth 1 -name "*.so*" -type f | wc -l)
     if [ $PLUGIN_COUNT -gt 0 ]; then
-        find %{_sourcedir}/gstreamer/gstreamer-1.0 -maxdepth 1 -name "*.so" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/gstreamer/gstreamer-1.0/ \;
+        # Copy both versioned and unversioned plugin files
+        find %{_sourcedir}/gstreamer/gstreamer-1.0 -maxdepth 1 -name "*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/gstreamer/gstreamer-1.0/ \;
         echo "✅ Installed $PLUGIN_COUNT GStreamer plugins"
+        # Log if libgstcodecs is among the copied plugins for quick verification
+        if ls %{buildroot}/usr/lib/openterfaceqt/gstreamer/gstreamer-1.0/libgstcodecs-1.0.so* >/dev/null 2>&1; then
+            echo "  ✅ libgstcodecs-1.0 plugin copied to buildroot"
+        fi
     else
         echo "⚠️  No GStreamer plugins found in %{_sourcedir}/gstreamer/gstreamer-1.0"
     fi
@@ -283,6 +289,28 @@ if [ -d %{buildroot}/usr/lib/openterfaceqt/gstreamer ]; then
     echo "✅ GStreamer library symlinks verified in buildroot"
 fi
 
+# GStreamer PLUGINS symlink normalization (plugins live in gstreamer/gstreamer-1.0)
+if [ -d %{buildroot}/usr/lib/openterfaceqt/gstreamer/gstreamer-1.0 ]; then
+    cd %{buildroot}/usr/lib/openterfaceqt/gstreamer/gstreamer-1.0
+    echo "Verifying GStreamer plugin symlinks in buildroot..."
+    for fullfile in *.so.*.* ; do
+        [ -f "$fullfile" ] || continue
+        base=$(echo "$fullfile" | sed 's/\.so\..*//')
+        soname=$(echo "$fullfile" | sed 's/\(.*\.so\.[0-9]*\)\.*.*/\1/')
+
+        if [ ! -L "$soname" ] && [ ! -f "$soname" ]; then
+            ln -sf "$fullfile" "$soname"
+            echo "  ✅ Created symlink: $soname -> $fullfile"
+        fi
+        if [ ! -L "${base}.so" ] && [ ! -f "${base}.so" ]; then
+            ln -sf "$fullfile" "${base}.so"
+            echo "  ✅ Created symlink: ${base}.so -> $fullfile"
+        fi
+    done
+    echo "✅ GStreamer plugin symlinks verified in buildroot"
+    cd - > /dev/null
+fi
+
 # Qt plugins and QML modules (from qt6 subdirectory structure)
 mkdir -p %{buildroot}/usr/lib/openterfaceqt/qt6/plugins
 mkdir -p %{buildroot}/usr/lib/openterfaceqt/qt6/qml
@@ -341,7 +369,7 @@ QT6_LIBS=$(find %{buildroot}/usr/lib/openterfaceqt/qt6 -name "libQt6*.so*" -type
 FFMPEG_LIBS=$(find %{buildroot}/usr/lib/openterfaceqt/ffmpeg -name "libav*.so*" -o -name "libsw*.so*" -o -name "libmfx*.so*" -o -name "libpostproc*.so*" -type f | wc -l)
 GSTREAMER_LIBS=$(find %{buildroot}/usr/lib/openterfaceqt/gstreamer -name "libgst*.so*" -type f | wc -l)
 QT_PLUGINS=$(find %{buildroot}/usr/lib/openterfaceqt/qt6/plugins -name "*.so" -type f | wc -l)
-GSTREAMER_PLUGINS=$(find %{buildroot}/usr/lib/openterfaceqt/gstreamer/gstreamer-1.0 -name "*.so" -type f | wc -l)
+GSTREAMER_PLUGINS=$(find %{buildroot}/usr/lib/openterfaceqt/gstreamer/gstreamer-1.0 -name "*.so*" -type f | wc -l)
 
 echo "Bundled Libraries Summary:"
 echo "  ✅ Qt6 Libraries: $QT6_LIBS"
@@ -398,6 +426,13 @@ for lib in libQt6Core libQt6Gui libQt6Widgets libQt6Qml; do
         MISSING_CRITICAL=$((MISSING_CRITICAL + 1))
     fi
 done
+
+# Ensure libgstcodecs plugin exists (often required for codec handling)
+if ls %{buildroot}/usr/lib/openterfaceqt/gstreamer/gstreamer-1.0/libgstcodecs-1.0.so* >/dev/null 2>&1; then
+    echo "  ✅ libgstcodecs plugin bundled: $(ls %{buildroot}/usr/lib/openterfaceqt/gstreamer/gstreamer-1.0/libgstcodecs-1.0.so* 2>/dev/null | tr '\n' ' ')"
+else
+    echo "  ⚠️  libgstcodecs plugin not found in buildroot; please bundle libgstcodecs-1.0.so to ensure codecs work properly"
+fi
 
 echo ""
 if [ $MISSING_CRITICAL -gt 0 ]; then
@@ -492,6 +527,7 @@ DISPLAY_DEPS=(
     "libxkbcommon"
     "libxkbcommon-x11"
     "libwayland-client"
+    "libXv"
 )
 
 OPENGL_DEPS=(
