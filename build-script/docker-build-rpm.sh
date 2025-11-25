@@ -510,3 +510,24 @@ else
 	echo "Error: RPM build did not produce an output." >&2
 	exit 1
 fi
+
+# Diagnostic: Ensure FFmpeg libs (incl. libmfx) exist in buildroot and are included in RPM
+echo "🔍 RPM Build Diagnostics: Listing FFmpeg libs in BUILDROOT and package contents"
+BUILDROOT_DIR=$(find "${RPMTOP}/BUILDROOT" -maxdepth 1 -type d -name "*openterfaceqt-*" | head -n1 || true)
+if [ -n "${BUILDROOT_DIR}" ]; then
+    echo "Buildroot directory: ${BUILDROOT_DIR}"
+    ls -la "${BUILDROOT_DIR}/usr/lib/openterfaceqt/ffmpeg" || echo "   ⚠️  No ffmpeg directory in buildroot"
+else
+    echo "   ⚠️  No BUILDROOT directory found"
+fi
+
+if [ -f "${BUILD}/${RPM_OUT_NAME}" ]; then
+    echo "Listing ffmpeg files inside RPM package:" 
+    rpm -qpl "${BUILD}/${RPM_OUT_NAME}" | grep -i "openterfaceqt/ffmpeg" || echo "   ⚠️  No ffmpeg libs found in RPM package"
+    # Check specifically for libmfx
+    if rpm -qpl "${BUILD}/${RPM_OUT_NAME}" | grep -i "openterfaceqt/ffmpeg/libmfx" >/dev/null 2>&1; then
+        echo "✅ libmfx found inside RPM package"
+    else
+        echo "⚠️  libmfx NOT found inside RPM package"
+    fi
+fi
