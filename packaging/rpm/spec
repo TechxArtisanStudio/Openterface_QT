@@ -177,10 +177,10 @@ fi
 # GStreamer plugins (video capture, audio processing, codecs)
 if [ -d "%{_sourcedir}/gstreamer/gstreamer-1.0" ]; then
     # Allow both unversioned and versioned plugin files (e.g., libgstcodecs-1.0.so and libgstcodecs-1.0.so.0.2606.0)
-    PLUGIN_COUNT=$(find %{_sourcedir}/gstreamer/gstreamer-1.0 -maxdepth 1 -name "*.so*" -type f | wc -l)
+    PLUGIN_COUNT=$(find %{_sourcedir}/gstreamer/gstreamer-1.0 -maxdepth 1 -name "*.so*" \( -type f -o -type l \) | wc -l)
     if [ $PLUGIN_COUNT -gt 0 ]; then
-        # Copy both versioned and unversioned plugin files
-        find %{_sourcedir}/gstreamer/gstreamer-1.0 -maxdepth 1 -name "*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/gstreamer/gstreamer-1.0/ \;
+        # Copy both versioned and unversioned plugin files, preserving symlinks
+        find %{_sourcedir}/gstreamer/gstreamer-1.0 -maxdepth 1 -name "*.so*" \( -type f -o -type l \) -exec cp -aP {} %{buildroot}/usr/lib/openterfaceqt/gstreamer/gstreamer-1.0/ \;
         echo "✅ Installed $PLUGIN_COUNT GStreamer plugins"
         # Log if libgstcodecs is among the copied plugins for quick verification
         if ls %{buildroot}/usr/lib/openterfaceqt/gstreamer/gstreamer-1.0/libgstcodecs-1.0.so* >/dev/null 2>&1; then
@@ -432,6 +432,13 @@ if ls %{buildroot}/usr/lib/openterfaceqt/gstreamer/gstreamer-1.0/libgstcodecs-1.
     echo "  ✅ libgstcodecs plugin bundled: $(ls %{buildroot}/usr/lib/openterfaceqt/gstreamer/gstreamer-1.0/libgstcodecs-1.0.so* 2>/dev/null | tr '\n' ' ')"
 else
     echo "  ⚠️  libgstcodecs plugin not found in buildroot; please bundle libgstcodecs-1.0.so to ensure codecs work properly"
+fi
+
+# Ensure libgstcodecparsers plugin exists (often required for codec parsing)
+if ls %{buildroot}/usr/lib/openterfaceqt/gstreamer/gstreamer-1.0/libgstcodecparsers-1.0.so* >/dev/null 2>&1; then
+    echo "  ✅ libgstcodecparsers plugin bundled: $(ls %{buildroot}/usr/lib/openterfaceqt/gstreamer/gstreamer-1.0/libgstcodecparsers-1.0.so* 2>/dev/null | tr '\n' ' ')"
+else
+    echo "  ⚠️  libgstcodecparsers plugin not found in buildroot; please bundle libgstcodecparsers-1.0.so to ensure codec parsing works properly"
 fi
 
 echo ""
