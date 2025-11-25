@@ -273,12 +273,12 @@ int main(int argc, char *argv[])
 {
     qDebug() << "Start openterface...";
     
-    // Parse command-line arguments early to check for --force-env-check
-    bool forceEnvironmentCheck = false;
+    // Parse command-line arguments early to check for --skip-env-check
+    bool skipEnvironmentCheck = false;
     for (int i = 1; i < argc; i++) {
-        if (strcmp(argv[i], "--force-env-check") == 0) {
-            forceEnvironmentCheck = true;
-            qDebug() << "Force environment check flag detected";
+        if (strcmp(argv[i], "--skip-env-check") == 0) {
+            skipEnvironmentCheck = true;
+            qDebug() << "Skip environment check flag detected";
         }
     }
     
@@ -318,8 +318,8 @@ int main(int argc, char *argv[])
     app.setWindowIcon(QIcon("://images/icon_32.png"));
     
     // Check if the environment is properly set up
-    // If --force-env-check is passed, always show the dialog even if auto-check is disabled
-    bool shouldCheckEnvironment = forceEnvironmentCheck || EnvironmentSetupDialog::autoEnvironmentCheck();
+    // If --skip-env-check is passed, skip the check
+    bool shouldCheckEnvironment = !skipEnvironmentCheck && EnvironmentSetupDialog::autoEnvironmentCheck();
     if (shouldCheckEnvironment && !EnvironmentSetupDialog::checkEnvironmentSetup()) {
         EnvironmentSetupDialog envDialog;
         qDebug() << "Environment setup dialog opened";

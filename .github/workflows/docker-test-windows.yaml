@@ -1,22 +1,20 @@
-name: Docker Test - Windows Container
+name: Windows App Test
 
 on:
   push:
     branches: ["main", "dev"]
     paths:
-      - 'docker/testos/Dockerfile.windows-test-shared'
       - 'docker/install-openterface.ps1'
       - '.github/workflows/docker-test-windows.yaml'
   pull_request:
     branches: ["main", "dev"]
     paths:
-      - 'docker/testos/Dockerfile.windows-test-shared'
       - 'docker/install-openterface.ps1'
       - '.github/workflows/docker-test-windows.yaml'
   workflow_dispatch:
     inputs:
-      rebuild_docker_image:
-        description: 'Force rebuild Docker image (ignore cache)'
+      skip_test:
+        description: 'Skip the actual app testing (for debugging workflow changes)'
         required: false
         default: 'false'
         type: choice
@@ -25,252 +23,16 @@ on:
           - 'true'
 
 env:
-  DOCKER_IMAGE_WINDOWS: openterface-test-windows
-  DOCKER_TAG: test-${{ github.sha }}
-  DOCKER_REGISTRY: ghcr.io
-  DOCKER_REPO: ${{ github.actor }}
-  INSTALL_TYPES: "exe,zip"
+  INSTALL_TYPES: "installer,portable"
 
 jobs:
-  build-and-push-image:
-    runs-on: windows-2022
-    timeout-minutes: 120
-    permissions:
-      contents: read
-      packages: write
-    outputs:
-      image_pushed: ${{ steps.check-rebuild.outputs.should_rebuild }}
-    
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Check if rebuild is needed
-        id: check-rebuild
-        shell: powershell
-        run: |
-          Write-Host "[INFO] Checking if Docker image rebuild is needed"
-          
-          # Get input from workflow dispatch, or check if Dockerfile changed
-          $shouldRebuild = "${{ github.event.inputs.rebuild_docker_image }}" -eq "true"
-          
-          if ($shouldRebuild) {
-            Write-Host "[INFO] User explicitly requested rebuild"
-            echo "should_rebuild=true" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
-            exit 0
-          }
-          
-          # Check if Dockerfile or installation script changed
-          if ("${{ github.event_name }}" -eq "push" -or "${{ github.event_name }}" -eq "pull_request") {
-            Write-Host "[INFO] Checking for changed files in Dockerfile and scripts..."
-            
-            # For pull requests, compare with base branch
-            if ("${{ github.event_name }}" -eq "pull_request") {
-              $baseRef = "${{ github.base_ref }}"
-              Write-Host "[INFO] Comparing with base branch: $baseRef"
-              $changedFiles = @()
-            } else {
-              # For push, we'll rebuild if Dockerfile or scripts changed
-              $changedFiles = @(
-                "docker/testos/Dockerfile.windows-test-shared",
-                "docker/install-openterface.ps1",
-                ".github/workflows/docker-test-windows.yaml"
-              )
-            }
-            
-            # For this workflow, always check by default
-            Write-Host "[INFO] Docker image will be rebuilt on Dockerfile or script changes"
-            echo "should_rebuild=false" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
-          } else {
-            Write-Host "[INFO] workflow_dispatch or other trigger"
-            echo "should_rebuild=false" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
-          }
-
-      - name: Log in to GitHub Container Registry
-        if: github.event_name == 'push' || github.event.inputs.rebuild_docker_image == 'true'
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.DOCKER_REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Verify Docker is accessible
-        shell: bash
-        run: |
-          echo "[CHECK] Verifying Docker is accessible..."
-          docker version
-          if [ $? -eq 0 ]; then
-            echo "[SUCCESS] Docker is accessible"
-          else
-            echo "[ERROR] Docker is not accessible"
-            exit 1
-          fi
-
-      - name: Set lowercase image name
-        shell: powershell
-        run: |
-          $owner = "${{ github.repository_owner }}".ToLower()
-          echo "IMAGE_NAME_LOWER=$owner/openterface-test-windows" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-
-      - name: Set Docker image tags
-        shell: powershell
-        run: |
-          $registry = "${{ env.DOCKER_REGISTRY }}"
-          $imageName = "${{ env.IMAGE_NAME_LOWER }}"
-          
-          # Tags: latest, git-sha, version
-          $sha_short = "${{ github.sha }}".Substring(0, 7)
-          
-          $imageLatest = "$registry/$imageName`:latest"
-          $imageSha = "$registry/$imageName`:$sha_short"
-          
-          Write-Host "[INFO] Setting Docker image tags for repo:"
-          Write-Host "  Registry: $registry"
-          Write-Host "  Image: $imageName"
-          Write-Host "  Latest: $imageLatest"
-          Write-Host "  SHA:    $imageSha"
-          
-          echo "IMAGE_LATEST=$imageLatest" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-          echo "IMAGE_SHA=$imageSha" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-
-      - name: Log in to GitHub Container Registry (for cache check)
-        shell: bash
-        env:
-          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GHCR_USERNAME: ${{ github.actor }}
-          GHCR_REGISTRY: ${{ env.DOCKER_REGISTRY }}
-        run: |
-          echo "[AUTH] Logging into GitHub Container Registry for cache check..."
-          
-          if [ -z "$GHCR_TOKEN" ]; then
-            echo "[INFO] GITHUB_TOKEN not available, skipping cache check"
-            echo "SKIP_BUILD=false" >> "$GITHUB_ENV"
-            exit 0
-          fi
-          
-          echo "$GHCR_TOKEN" | docker login -u "$GHCR_USERNAME" --password-stdin "$GHCR_REGISTRY" 2>&1 | grep -v "WARNING"
-          EXIT_CODE=$?
-          
-          if [ $EXIT_CODE -eq 0 ]; then
-            echo "[SUCCESS] Successfully logged into $GHCR_REGISTRY"
-          else
-            echo "[WARNING] Failed to login to $GHCR_REGISTRY - will skip cache check"
-            echo "SKIP_BUILD=false" >> "$GITHUB_ENV"
-            exit 0
-          fi
-
-      - name: Check if image already exists
-        shell: bash
-        continue-on-error: true
-        run: |
-          echo "[CHECK] Checking if Docker image already exists in repo..."
-          
-          REGISTRY="${{ env.DOCKER_REGISTRY }}"
-          REPO="${{ env.DOCKER_REPO }}"
-          IMAGE_NAME="${{ env.DOCKER_IMAGE_WINDOWS }}"
-          SHA_SHORT="${{ github.sha }}"
-          SHA_SHORT="${SHA_SHORT:0:7}"
-          
-          IMAGE_URI_SHA="$REGISTRY/$REPO/$IMAGE_NAME:$SHA_SHORT"
-          IMAGE_URI_LATEST="$REGISTRY/$REPO/$IMAGE_NAME:latest"
-          
-          echo "[INFO] Checking image for current commit: $IMAGE_URI_SHA"
-          echo "[INFO] Repo: $REPO"
-          
-          # Try to pull the image for current SHA
-          if docker pull "$IMAGE_URI_SHA" > /dev/null 2>&1; then
-            echo "[SUCCESS] Image already exists for current commit"
-            echo "[INFO] Image SHA: $SHA_SHORT"
-            echo "[INFO] Skipping rebuild - using cached image for testing"
-            echo "IMAGE_EXISTS=true" >> "$GITHUB_ENV"
-            echo "SKIP_BUILD=true" >> "$GITHUB_ENV"
-            exit 0
-          fi
-          
-          # Fallback: try latest tag
-          echo "[INFO] Current commit image not found, checking latest tag..."
-          if docker pull "$IMAGE_URI_LATEST" > /dev/null 2>&1; then
-            echo "[SUCCESS] Using latest image from previous build"
-            echo "[INFO] Tagging latest as current commit version"
-            docker tag "$IMAGE_URI_LATEST" "$IMAGE_URI_SHA" 2>/dev/null || true
-            echo "IMAGE_EXISTS=true" >> "$GITHUB_ENV"
-            echo "SKIP_BUILD=true" >> "$GITHUB_ENV"
-            exit 0
-          fi
-          
-          echo "[INFO] No cached image found"
-          echo "[INFO] Will rebuild and push image to repo"
-          echo "IMAGE_EXISTS=false" >> "$GITHUB_ENV"
-          echo "SKIP_BUILD=false" >> "$GITHUB_ENV"
-
-      - name: Build Docker image (native)
-        if: env.SKIP_BUILD == 'false' || github.event.inputs.rebuild_docker_image == 'true'
-        shell: powershell
-        run: |
-          Write-Host "[BUILD] Building Docker image with native docker build"
-          
-          $context = "docker\"
-          $dockerfile = "docker/testos/Dockerfile.windows-test-shared"
-          $imageTag = "${{ env.DOCKER_IMAGE_WINDOWS }}:${{ env.DOCKER_TAG }}"
-          
-          Write-Host "[INFO] Building image: $imageTag"
-          Write-Host "[INFO] Dockerfile: $dockerfile"
-          Write-Host "[INFO] Context: $context"
-          
-          docker build -f $dockerfile -t $imageTag $context
-          
-          if ($LASTEXITCODE -eq 0) {
-            Write-Host "[SUCCESS] Image built successfully"
-            
-            # Tag with additional tags
-            Write-Host "[TAG] Adding additional tags..."
-            docker tag $imageTag "${{ env.IMAGE_LATEST }}"
-            docker tag $imageTag "${{ env.IMAGE_SHA }}"
-            
-            Write-Host "[SUCCESS] Additional tags applied"
-          } else {
-            Write-Host "[ERROR] Docker build failed with exit code $LASTEXITCODE"
-            exit 1
-          }
-
-      - name: Push Docker image to registry
-        if: (env.SKIP_BUILD == 'false' || github.event.inputs.rebuild_docker_image == 'true') && (github.event_name == 'push' || github.event.inputs.rebuild_docker_image == 'true')
-        shell: powershell
-        run: |
-          Write-Host "[PUSH] Pushing Docker image to registry"
-          
-          $tags = @(
-            "${{ env.DOCKER_IMAGE_WINDOWS }}:${{ env.DOCKER_TAG }}",
-            "${{ env.IMAGE_LATEST }}",
-            "${{ env.IMAGE_SHA }}"
-          )
-          
-          foreach ($tag in $tags) {
-            Write-Host "[PUSH] Pushing tag: $tag"
-            docker push $tag
-            
-            if ($LASTEXITCODE -eq 0) {
-              Write-Host "[SUCCESS] Pushed: $tag"
-            } else {
-              Write-Host "[WARNING] Push failed for tag: $tag (exit code: $LASTEXITCODE)"
-            }
-          }
-
-      - name: Log out from GitHub Container Registry
-        if: always()
-        shell: powershell
-        run: |
-          docker logout "${{ env.DOCKER_REGISTRY }}" 2>&1 | Out-Null
-          Write-Host "[SUCCESS] Logged out from registry"
-
-  build-test-windows:
-    needs: build-and-push-image
+  test-windows:
     strategy:
       matrix:
         include:
-          - install_type: exe
+          - install_type: installer
             description: "Windows EXE Installer"
-          - install_type: zip
+          - install_type: portable
             description: "Portable ZIP Archive"
     runs-on: windows-2022
     timeout-minutes: 90
@@ -295,160 +57,14 @@ jobs:
           Write-Host "Installation type: ${{ matrix.install_type }}"
           Write-Host "Description: ${{ matrix.description }}"
 
-      - name: Download Latest Windows Build Artifacts
-        shell: powershell
-        run: |
-          Write-Host "[DOWNLOAD] Getting latest Windows build artifacts..."
-          
-          # Create build directory
-          New-Item -ItemType Directory -Path "build" -Force | Out-Null
-          
-          # Determine which workflow to use based on install type
-          $workflowName = if ("${{ env.INSTALL_TYPE }}" -eq "zip") { "windows-portable-build.yaml" } else { "windows-build.yaml" }
-          Write-Host "[INFO] Using workflow: $workflowName"
-          
-          # Get the latest successful build workflow run
-          $headers = @{Authorization = "token ${{ secrets.GITHUB_TOKEN }}" }
-          $apiUrl = "https://api.github.com/repos/${{ github.repository }}/actions/workflows/$workflowName/runs?status=success&head_branch=${{ github.ref_name }}&per_page=1"
-          
-          Write-Host "[INFO] Fetching from: $apiUrl"
-          
-          try {
-            $response = Invoke-RestMethod -Uri $apiUrl -Headers $headers -ErrorAction Stop
-            $latestRun = $response.workflow_runs[0]
-            
-            if ($null -eq $latestRun) {
-              Write-Host "[WARNING] No successful build runs found for branch ${{ github.ref_name }}"
-              Write-Host "[INFO] Trying to get from main branch..."
-              
-              $apiUrl = "https://api.github.com/repos/${{ github.repository }}/actions/workflows/$workflowName/runs?status=success&head_branch=main&per_page=1"
-              $response = Invoke-RestMethod -Uri $apiUrl -Headers $headers -ErrorAction Stop
-              $latestRun = $response.workflow_runs[0]
-            }
-            
-            if ($null -eq $latestRun) {
-              Write-Host "[WARNING] No successful windows-build runs found"
-              Write-Host "[INFO] Will continue without pre-built artifacts"
-              exit 0
-            }
-            
-            $runId = $latestRun.id
-            Write-Host "[SUCCESS] Found latest windows-build run: $runId"
-            Write-Host "[INFO] Run created: $($latestRun.created_at)"
-            
-            # Calculate age of the build
-            $createdAt = [DateTime]::Parse($latestRun.created_at)
-            $age = [DateTime]::UtcNow - $createdAt
-            Write-Host "[INFO] Build age: $($age.Days) days, $($age.Hours) hours"
-            
-            if ($age.Days -gt 90) {
-              Write-Host "[WARNING] Build is very old ($($age.Days) days). Artifacts may have expired."
-            }
-            
-            # Get all artifacts from this run
-            $artifactsUrl = "https://api.github.com/repos/${{ github.repository }}/actions/runs/$runId/artifacts"
-            $artifacts = Invoke-RestMethod -Uri $artifactsUrl -Headers $headers -ErrorAction Stop
-            
-            # Define artifact patterns based on install type
-            $patterns = @{
-              "exe" = @("openterfaceQT.windows.amd64.installer", "windows.amd64.installer", "installer", "shared.exe", "exe")
-              "zip" = @("openterfaceQT-portable", "portable", "openterfaceQT.windows.amd64.installer", "windows.amd64.installer", "installer", "shared.zip", "zip")
-            }
-            
-            $searchPatterns = $patterns["${{ env.INSTALL_TYPE }}"]
-            Write-Host "[SEARCH] Looking for artifacts matching: $($searchPatterns -join ', ')"
-            
-            $foundArtifact = $null
-            foreach ($pattern in $searchPatterns) {
-              $artifact = $artifacts.artifacts | Where-Object { $_.name -like "*$pattern*" } | Select-Object -First 1
-              if ($artifact) {
-                $foundArtifact = $artifact
-                break
-              }
-            }
-            
-            if ($null -eq $foundArtifact) {
-              Write-Host "[WARNING] No artifact matching patterns found"
-              Write-Host "[INFO] Available artifacts:"
-              $artifacts.artifacts | ForEach-Object { Write-Host "  - $($_.name)" }
-              exit 0
-            }
-            
-            Write-Host "[SUCCESS] Found artifact: $($foundArtifact.name) (ID: $($foundArtifact.id))"
-            
-            # Check if artifact has expired
-            $expiresAt = [DateTime]::Parse($foundArtifact.expires_at)
-            $now = [DateTime]::UtcNow
-            
-            if ($now -gt $expiresAt) {
-              Write-Host "[WARNING] Artifact has expired on $expiresAt"
-              Write-Host "[INFO] Artifact availability is limited to 90 days from creation"
-              exit 0
-            }
-            
-            Write-Host "[INFO] Artifact expires at: $expiresAt"
-            
-            # Download the artifact
-            Write-Host "[DOWNLOAD] Downloading artifact..."
-            $downloadUrl = "https://api.github.com/repos/${{ github.repository }}/actions/artifacts/$($foundArtifact.id)/zip"
-            
-            $zipPath = "artifact.zip"
-            $ProgressPreference = 'SilentlyContinue'
-            
-            try {
-              Invoke-WebRequest -Uri $downloadUrl -Headers $headers -OutFile $zipPath -ErrorAction Stop
-              Write-Host "[SUCCESS] Artifact downloaded: $zipPath"
-            } catch {
-              $errorMsg = $_.Exception.Message
-              if ($errorMsg -match "410") {
-                Write-Host "[WARNING] Artifact download returned 410 Gone - artifact has expired"
-              } else {
-                Write-Host "[WARNING] Error downloading artifact: $errorMsg"
-              }
-              exit 0
-            }
-            
-            # Extract the artifact
-            Write-Host "[EXTRACT] Extracting artifact..."
-            try {
-              Expand-Archive -Path $zipPath -DestinationPath "build" -Force
-              Write-Host "[SUCCESS] Artifact extracted to build directory"
-            } catch {
-              Write-Host "[WARNING] Error extracting artifact: $_"
-              exit 0
-            }
-            
-            # Verify extraction
-            $installerFile = Get-ChildItem -Path "build" -Include "*.exe", "*.msi", "*.zip" -ErrorAction SilentlyContinue | Select-Object -First 1
-            
-            if ($null -ne $installerFile) {
-              Write-Host "[SUCCESS] Installer extracted: $($installerFile.Name)"
-              Write-Host "[INFO] Size: $([Math]::Round($installerFile.Length / 1MB, 2)) MB"
-              Write-Host "[INFO] Build directory contents:"
-              Get-ChildItem -Path "build" -Recurse | Format-Table Name, Length -AutoSize
-            } else {
-              Write-Host "[WARNING] Extraction completed but no installer file found"
-              Write-Host "[INFO] Contents of build directory:"
-              Get-ChildItem -Path "build" -Recurse | Format-Table FullName, Length -AutoSize
-            }
-            
-          } catch {
-            Write-Host "[WARNING] Error downloading artifacts: $_"
-            Write-Host "[INFO] Continuing without pre-built artifacts..."
-          }
-
       - name: Display environment info
         shell: powershell
         run: |
-          Write-Host "[INFO] Windows Container Testing Environment"
+          Write-Host "[INFO] Windows Runner Testing Environment"
           Write-Host "=========================================="
           Write-Host ""
           Write-Host "OS Information:"
           [System.Environment]::OSVersion | Format-List
-          
-          Write-Host ""
-          Write-Host "Docker Information:"
-          docker version
           
           Write-Host ""
           Write-Host "Disk Space:"
@@ -459,10 +75,6 @@ jobs:
           $osInfo = Get-WmiObject Win32_OperatingSystem
           $memoryGB = $osInfo.TotalVisibleMemorySize / 1MB
           Write-Host "Total Memory: $memoryGB GB"
-          
-          Write-Host ""
-          Write-Host "Docker Configuration:"
-          docker info
 
       - name: Download Latest Windows Build Artifacts
         shell: powershell
@@ -473,7 +85,7 @@ jobs:
           New-Item -ItemType Directory -Path "build" -Force | Out-Null
           
           # Determine which workflow to use based on install type
-          $workflowName = if ("${{ env.INSTALL_TYPE }}" -eq "zip") { "windows-portable-build.yaml" } else { "windows-build.yaml" }
+          $workflowName = if ("${{ env.INSTALL_TYPE }}" -eq "portable") { "windows-portable-build.yaml" } else { "windows-build.yaml" }
           Write-Host "[INFO] Using workflow: $workflowName"
           
           # Get the latest successful build workflow run
@@ -497,9 +109,7 @@ jobs:
             
             if ($null -eq $latestRun) {
               Write-Host "[ERROR] No successful build runs found"
-              Write-Host "[INFO] Note: Windows container test requires built artifacts"
-              Write-Host "    Continuing with container build for diagnostic purposes..."
-              exit 0
+              exit 1
             }
             
             $runId = $latestRun.id
@@ -521,8 +131,8 @@ jobs:
             
             # Define artifact patterns based on install type
             $patterns = @{
-              "exe" = @("openterfaceQT.windows.amd64.installer", "windows.amd64.installer", "installer", "shared.exe", "exe")
-              "zip" = @("openterfaceQT-portable", "portable", "openterfaceQT.windows.amd64.installer", "windows.amd64.installer", "installer", "shared.zip", "zip")
+              "installer" = @("openterfaceQT.windows.amd64.installer", "windows.amd64.installer", "installer", "shared.exe", "exe")
+              "portable" = @("openterfaceQT.windows.amd64.portable", "portable", "openterfaceQT.windows.amd64.installer", "windows.amd64.installer", "installer", "shared.zip", "zip")
             }
             
             $searchPatterns = $patterns["${{ env.INSTALL_TYPE }}"]
@@ -541,7 +151,7 @@ jobs:
               Write-Host "[ERROR] No artifact matching patterns found"
               Write-Host "Available artifacts:"
               $artifacts.artifacts | ForEach-Object { Write-Host "  - $($_.name)" }
-              exit 0
+              exit 1
             }
             
             Write-Host "[PACKAGE] Found artifact: $($foundArtifact.name) (ID: $($foundArtifact.id))"
@@ -553,8 +163,7 @@ jobs:
             if ($now -gt $expiresAt) {
               Write-Host "[WARNING] Artifact has expired on $expiresAt"
               Write-Host "[INFO] Artifact availability is limited to 90 days from creation"
-              Write-Host "[INFO] Continuing with container build for diagnostic purposes..."
-              exit 0
+              exit 1
             }
             
             Write-Host "[INFO] Artifact expires at: $expiresAt"
@@ -576,8 +185,7 @@ jobs:
               } else {
                 Write-Host "[WARNING] Error downloading artifact: $errorMsg"
               }
-              Write-Host "[INFO] Continuing with container build for diagnostic purposes..."
-              exit 0
+              exit 1
             }
             
             # Extract the artifact
@@ -586,12 +194,11 @@ jobs:
               Expand-Archive -Path $zipPath -DestinationPath "build" -Force
             } catch {
               Write-Host "[WARNING] Error extracting artifact: $_"
-              Write-Host "[INFO] Continuing without extracted artifacts..."
-              exit 0
+              exit 1
             }
             
             # Verify extraction
-            $installerFile = Get-ChildItem -Path "build" -Include "*.exe", "*.msi", "*.zip" -ErrorAction SilentlyContinue | Select-Object -First 1
+            $installerFile = Get-ChildItem -Path "build" -Recurse -Include "*.exe", "*.msi", "*.zip" -ErrorAction SilentlyContinue | Select-Object -First 1
             
             if ($null -ne $installerFile) {
               Write-Host "[SUCCESS] Installer extracted: $($installerFile.Name)"
@@ -605,481 +212,267 @@ jobs:
             
           } catch {
             Write-Host "[WARNING] Error downloading artifacts: $_"
-            Write-Host "Continuing without artifacts for diagnostic purposes..."
-          }
-
-      - name: Prepare to pull or build Docker image
-        shell: powershell
-        run: |
-          Write-Host "[PREP] Preparing image pull or build strategy"
-          
-          # Set environment flags
-          $registry = "${{ env.DOCKER_REGISTRY }}"
-          $repo = "${{ github.repository_owner }}"
-          $imageName = "${{ env.DOCKER_IMAGE_WINDOWS }}"
-          $sha_short = "${{ github.sha }}".Substring(0, 7)
-          
-          $imageSha = "$registry/$repo/$imageName`:$sha_short"
-          $imageLatest = "$registry/$repo/$imageName`:latest"
-          
-          echo "IMAGE_SHA=$imageSha" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-          echo "IMAGE_LATEST=$imageLatest" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-          
-          Write-Host "[INFO] Will attempt to pull: $imageSha"
-          Write-Host "[INFO] Or fallback to: $imageLatest"
-
-      - name: Log in to GitHub Container Registry
-        shell: bash
-        env:
-          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GHCR_USERNAME: ${{ github.actor }}
-          GHCR_REGISTRY: ${{ env.DOCKER_REGISTRY }}
-        run: |
-          echo "[AUTH] Logging into GitHub Container Registry..."
-          
-          if [ -z "$GHCR_TOKEN" ]; then
-            echo "[WARNING] GITHUB_TOKEN is empty or not set - will continue"
-            exit 0
-          fi
-          
-          echo "$GHCR_TOKEN" | docker login -u "$GHCR_USERNAME" --password-stdin "$GHCR_REGISTRY" 2>&1
-          EXIT_CODE=$?
-          
-          if [ $EXIT_CODE -eq 0 ]; then
-            echo "[SUCCESS] Successfully logged into $GHCR_REGISTRY"
-          else
-            echo "[WARNING] Failed to login to $GHCR_REGISTRY (exit code: $EXIT_CODE)"
-            echo "[INFO] Will continue anyway - may fall back to local build"
-          fi
-
-      - name: Pull Docker image from registry
-        shell: powershell
-        continue-on-error: true
-        run: |
-          Write-Host "[DOWNLOAD] Attempting to pull pre-built Docker image from registry..."
-          
-          $imageSha = "${{ env.IMAGE_SHA }}"
-          $imageLatest = "${{ env.IMAGE_LATEST }}"
-          
-          # Try to pull by SHA first (most specific)
-          Write-Host "[PULL] Attempting to pull by SHA: $imageSha"
-          
-          docker pull $imageSha 2>&1 | Tee-Object -Variable pullOutput
-          $pullExitCode = $LASTEXITCODE
-          
-          if ($pullExitCode -eq 0) {
-            Write-Host "[SUCCESS] Pulled image by SHA: $imageSha"
-            docker tag $imageSha "${{ env.DOCKER_IMAGE_WINDOWS }}:${{ env.DOCKER_TAG }}"
-            echo "IMAGE_PULL_SUCCESS=true" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-            exit 0
-          } else {
-            $output = $pullOutput | Out-String
-            if ($output -match "manifest unknown|not found") {
-              Write-Host "[INFO] Image not found by SHA (manifest unknown)"
-            } else {
-              Write-Host "[WARNING] Pull failed with: $output"
-            }
-          }
-          
-          # Fallback to latest tag
-          Write-Host "[PULL] Attempting to pull by latest tag: $imageLatest"
-          
-          docker pull $imageLatest 2>&1 | Tee-Object -Variable pullOutput
-          $pullExitCode = $LASTEXITCODE
-          
-          if ($pullExitCode -eq 0) {
-            Write-Host "[SUCCESS] Pulled image by latest tag: $imageLatest"
-            docker tag $imageLatest "${{ env.DOCKER_IMAGE_WINDOWS }}:${{ env.DOCKER_TAG }}"
-            echo "IMAGE_PULL_SUCCESS=true" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-            exit 0
-          }
-          
-          Write-Host "[WARNING] Could not pull pre-built image from registry"
-          echo "IMAGE_PULL_SUCCESS=false" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-
-      - name: Log out from GitHub Container Registry
-        if: always()
-        shell: bash
-        run: |
-          docker logout "${{ env.DOCKER_REGISTRY }}" 2>&1 || true
-          echo "[INFO] Registry logout completed"
-
-      - name: Build Docker image locally if pull failed
-        if: env.IMAGE_PULL_SUCCESS != 'true'
-        shell: powershell
-        run: |
-          Write-Host "[BUILD] Building Docker image locally (pull failed)"
-          
-          $context = "docker\"
-          $dockerfile = "docker/testos/Dockerfile.windows-test-shared"
-          $imageTag = "${{ env.DOCKER_IMAGE_WINDOWS }}:${{ env.DOCKER_TAG }}"
-          
-          Write-Host "[INFO] Building image: $imageTag"
-          Write-Host "[INFO] Dockerfile: $dockerfile"
-          Write-Host "[INFO] Context: $context"
-          
-          docker build -f $dockerfile -t $imageTag $context
-          
-          if ($LASTEXITCODE -eq 0) {
-            Write-Host "[SUCCESS] Image built successfully"
-          } else {
-            Write-Host "[ERROR] Docker build failed with exit code $LASTEXITCODE"
             exit 1
           }
 
-      - name: Verify Docker image
-        shell: powershell
-        run: |
-          Write-Host "[SEARCH] Verifying Docker image"
-          
-          Write-Host ""
-          Write-Host "Image listing:"
-          docker images | Select-String "${{ env.DOCKER_IMAGE_WINDOWS }}"
-          
-          Write-Host ""
-          Write-Host "Image info:"
-          docker inspect "${{ env.DOCKER_IMAGE_WINDOWS }}:${{ env.DOCKER_TAG }}" | Format-Table
-          
-          Write-Host ""
-          Write-Host "Image history (last 10 layers):"
-          docker history "${{ env.DOCKER_IMAGE_WINDOWS }}:${{ env.DOCKER_TAG }}" | Select-Object -First 10
-
-      - name: Test Windows container build
+      - name: Install and test application
         shell: powershell
         timeout-minutes: 60
         run: |
-          Write-Host "[TEST] Testing Windows container"
-          Write-Host "============================"
+          Write-Host "[TEST] Testing Windows application directly on runner"
+          Write-Host "=================================================="
           Write-Host ""
           Write-Host "Test Configuration:"
-          Write-Host "  Image: ${{ env.DOCKER_IMAGE_WINDOWS }}:${{ env.DOCKER_TAG }}"
           Write-Host "  Install Type: ${{ env.INSTALL_TYPE }}"
           Write-Host "  Description: ${{ env.TEST_DESCRIPTION }}"
           Write-Host ""
+
+          # Install the application
+          Write-Host "[INSTALL] Installing the application..."
           
-          $containerName = "openterface-test-windows-${{ matrix.install_type }}-${{ github.run_id }}"
-          $logFile = "C:\tmp\container-test-${{ matrix.install_type }}.log"
-          
-          Write-Host "Preparing volume mount..."
-          
-          # Check if build artifacts exist
-          $volumeMount = ""
-          if (Test-Path "build") {
-            $buildFiles = Get-ChildItem -Path "build" -Include "*.exe", "*.msi", "*.zip" -ErrorAction SilentlyContinue
-            if ($buildFiles.Count -gt 0) {
-              $volumeMount = "-v $(Convert-Path build):C:\tmp\build-artifacts"
-              Write-Host "[SUCCESS] Volume mount prepared: $volumeMount"
-            } else {
-              Write-Host "[WARNING] No installer files found in build directory"
-            }
-          } else {
-            Write-Host "[WARNING] Build directory not found"
-          }
-          
-          Write-Host ""
-          Write-Host "Running container in background..."
-          
-          # Build docker run command
-          # Note: Don't use -it (interactive + TTY) on GitHub Actions Windows runners
-          $dockerArgs = @(
-            "-d",
-            "--name", $containerName,
-            "-e", "INSTALL_TYPE=${{ env.INSTALL_TYPE }}",
-            "-e", "GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }}"
-          )
-          
-          if ($volumeMount) {
-            $dockerArgs += @("-v", "$(Convert-Path build):C:\tmp\build-artifacts")
-          }
-          
-          $dockerArgs += "${{ env.DOCKER_IMAGE_WINDOWS }}:${{ env.DOCKER_TAG }}"
-          
-          Write-Host "Docker arguments:"
-          $dockerArgs | ForEach-Object { Write-Host "  $_" }
-          Write-Host ""
-          
-          # Run container in detached mode (background)
-          Write-Host "[RUN] Starting container in background (detached mode)..."
-          & docker run @dockerArgs
-          
-          if ($LASTEXITCODE -eq 0) {
-            Write-Host "[SUCCESS] Container started successfully in background"
-            Write-Host ""
-            
-            # Wait for container to become ready
-            Write-Host "[WAIT] Waiting for container initialization (15 seconds)..."
-            Start-Sleep -Seconds 15
-            
-            # First, list available installers
-            Write-Host ""
-            Write-Host "[DEBUG] Checking available installers..."
-            docker exec $containerName powershell -Command {
-              Write-Host "[LIST] Contents of C:\tmp\build-artifacts:"
-              Get-ChildItem -Path "C:\tmp\build-artifacts" -ErrorAction SilentlyContinue | ForEach-Object { 
-                Write-Host "  - $($_.Name) ($($_.Length) bytes)"
-              }
-            }
-            
-            # Install the application
-            Write-Host ""
-            Write-Host "[INSTALL] Installing the application..."
-            Write-Host "Executing installation inside container..."
-            
-            $installCommand = {
-              # List current directory contents for debugging
-              Write-Host "[DEBUG] Current directory: $(Get-Location)"
-              Write-Host "[DEBUG] Artifacts directory contents:"
-              Get-ChildItem -Path "C:\tmp\build-artifacts" -ErrorAction SilentlyContinue | ForEach-Object { 
-                Write-Host "  - $($_.Name)"
-              }
-              
-              # Check installation type and install accordingly
-              if ($env:INSTALL_TYPE -eq "exe") {
-                Write-Host "[INSTALLER] Using EXE installer..."
-                # Look for exe installer in artifacts
-                $exeFiles = Get-ChildItem -Path "C:\tmp\build-artifacts" -Filter "*.exe" -ErrorAction SilentlyContinue
-                Write-Host "[DEBUG] Found $($exeFiles.Count) EXE files"
-                
-                if ($exeFiles) {
-                  $exeFile = $exeFiles | Select-Object -First 1
-                  Write-Host "[INSTALL] Running: $($exeFile.FullName)"
-                  Write-Host "[INSTALL] File size: $($exeFile.Length) bytes"
-                  
-                  # Run installer with logging
-                  & $exeFile.FullName /S /D="C:\Program Files\Openterface" 2>&1
-                  Write-Host "[SUCCESS] EXE installation completed"
-                  
-                  # Verify installation
-                  Start-Sleep -Seconds 3
-                  if (Test-Path "C:\Program Files\Openterface") {
-                    Write-Host "[VERIFY] Installation directory created:"
-                    Get-ChildItem -Path "C:\Program Files\Openterface" -Recurse | ForEach-Object { Write-Host "    $($_.FullName)" }
-                  }
-                } else {
-                  Write-Host "[ERROR] No EXE installer found in C:\tmp\build-artifacts"
-                }
-              } elseif ($env:INSTALL_TYPE -eq "zip") {
-                Write-Host "[INSTALLER] Using portable/ZIP installation..."
-                # Look for portable exe or zip file in artifacts
-                $portableFiles = Get-ChildItem -Path "C:\tmp\build-artifacts" -Filter "*portable*" -ErrorAction SilentlyContinue
-                $zipFiles = Get-ChildItem -Path "C:\tmp\build-artifacts" -Filter "*.zip" -ErrorAction SilentlyContinue
-                $exeFiles = Get-ChildItem -Path "C:\tmp\build-artifacts" -Filter "*.exe" -ErrorAction SilentlyContinue
-                
-                Write-Host "[DEBUG] Found $($portableFiles.Count) portable files, $($zipFiles.Count) ZIP files, $($exeFiles.Count) EXE files"
-                
-                if ($zipFiles) {
-                  $zipFile = $zipFiles | Select-Object -First 1
-                  Write-Host "[INSTALL] Extracting ZIP: $($zipFile.FullName)"
-                  Write-Host "[INSTALL] File size: $($zipFile.Length) bytes"
-                  
-                  # Create target directory
-                  New-Item -ItemType Directory -Path "C:\Program Files\Openterface" -Force | Out-Null
-                  
-                  # Extract with error checking
-                  try {
-                    Expand-Archive -Path $zipFile.FullName -DestinationPath "C:\Program Files\Openterface" -Force
-                    Write-Host "[SUCCESS] ZIP extraction completed"
-                    
-                    # Verify extraction
-                    Start-Sleep -Seconds 2
-                    if (Test-Path "C:\Program Files\Openterface") {
-                      Write-Host "[VERIFY] Extraction directory contents:"
-                      Get-ChildItem -Path "C:\Program Files\Openterface" -Recurse | ForEach-Object { Write-Host "    $($_.FullName)" }
-                    }
-                  } catch {
-                    Write-Host "[ERROR] ZIP extraction failed: $_"
-                  }
-                } elseif ($portableFiles -or $exeFiles) {
-                  # Portable build - just copy to Program Files
-                  $portableExe = $portableFiles | Select-Object -First 1
-                  if (-not $portableExe) {
-                    $portableExe = $exeFiles | Select-Object -First 1
-                  }
-                  
-                  Write-Host "[INSTALL] Using portable EXE: $($portableExe.FullName)"
-                  Write-Host "[INSTALL] File size: $($portableExe.Length) bytes"
-                  
-                  # Create target directory
-                  $targetDir = "C:\Program Files\Openterface"
-                  New-Item -ItemType Directory -Path $targetDir -Force | Out-Null
-                  
-                  # Copy portable exe
-                  Copy-Item -Path $portableExe.FullName -Destination "$targetDir\openterfaceQT-portable.exe" -Force
-                  Write-Host "[SUCCESS] Portable EXE copied to: $targetDir"
-                  
-                  # Verify
-                  if (Test-Path "$targetDir\openterfaceQT-portable.exe") {
-                    Write-Host "[VERIFY] Installation directory contents:"
-                    Get-ChildItem -Path $targetDir -Recurse | ForEach-Object { Write-Host "    $($_.FullName)" }
-                  }
-                } else {
-                  Write-Host "[ERROR] No ZIP or portable EXE file found in C:\tmp\build-artifacts"
-                }
-              }
-            }
-            
-            docker exec $containerName powershell -Command $installCommand
-            
-            if ($LASTEXITCODE -eq 0) {
-              Write-Host "[SUCCESS] Installation step completed"
-            } else {
-              Write-Host "[WARNING] Installation step had exit code: $LASTEXITCODE"
-            }
-            
-            # Start the application
-            Write-Host ""
-            Write-Host "[START] Starting the Openterface application..."
-            
-            $startCommand = {
-              # Check multiple possible paths
-              $possiblePaths = @(
-                "C:\Program Files\Openterface\Openterface.exe",
-                "C:\Program Files\Openterface\bin\openterfaceqt.exe",
-                "C:\Program Files\Openterface\openterfaceqt.exe",
-                "C:\Program Files\Openterface\OpenTerface.exe"
-              )
-              
-              $appPath = $null
-              foreach ($path in $possiblePaths) {
-                if (Test-Path $path) {
-                  $appPath = $path
-                  break
-                }
-              }
-              
-              if ($appPath) {
-                Write-Host "[START] Launching: $appPath"
-                Start-Process -FilePath $appPath -NoNewWindow -PassThru | Out-Null
-                Write-Host "[SUCCESS] Application launched"
-                Start-Sleep -Seconds 5
+          if ("${{ env.INSTALL_TYPE }}" -eq "installer") {
+            Write-Host "[INSTALLER] Using EXE installer..."
+            # Look for exe installer in build directory
+            $exeFiles = Get-ChildItem -Path "build" -Filter "*.exe" -ErrorAction SilentlyContinue
+            Write-Host "[DEBUG] Found $($exeFiles.Count) EXE files"
+
+            if ($exeFiles) {
+              $exeFile = $exeFiles | Select-Object -First 1
+              Write-Host "[INSTALL] Running: $($exeFile.FullName)"
+              Write-Host "[INSTALL] File size: $($exeFile.Length) bytes"
+
+              # Create log file for installation
+              $logFile = "install.log"
+              Write-Host "[INSTALL] Installation log will be saved to: $logFile"
+
+              # Run installer with silent mode
+              Write-Host "[INSTALL] Starting installation with silent mode..."
+              $installOutput = & $exeFile.FullName /S /D="C:\Program Files (x86)\Openterface Mini-KVM" 2>&1 | Tee-Object -Variable installLogs
+              $installExitCode = $LASTEXITCODE
+
+              # Save installation output to log file
+              $installOutput | Out-File -FilePath $logFile -Encoding UTF8
+
+              Write-Host "[INSTALL] Installer exit code: $installExitCode"
+
+              if ($installExitCode -eq 0) {
+                Write-Host "[SUCCESS] EXE installation completed successfully"
               } else {
-                Write-Host "[WARNING] Application executable not found"
-                Write-Host "[DEBUG] Checking C:\Program Files\Openterface contents:"
-                if (Test-Path "C:\Program Files\Openterface") {
-                  Get-ChildItem -Path "C:\Program Files\Openterface" -Recurse -File | Select-Object -First 20 | ForEach-Object { Write-Host "  - $($_.FullName)" }
-                } else {
-                  Write-Host "[ERROR] Installation directory does not exist!"
-                }
+                Write-Host "[WARNING] Installer exited with code: $installExitCode"
               }
-            }
-            
-            docker exec $containerName powershell -Command $startCommand
-            
-            # Wait for application and desktop to stabilize
-            Write-Host ""
-            Write-Host "[WAIT] Waiting for application to stabilize (15 seconds)..."
-            Start-Sleep -Seconds 15
-            
-            # Take a screenshot with better method
-            Write-Host ""
-            Write-Host "[SCREENSHOT] Taking screenshot of the desktop..."
-            
-            $screenshotCommand = {
-              try {
-                # Add required assemblies
-                Add-Type -AssemblyName System.Windows.Forms
-                Add-Type -AssemblyName System.Drawing
-                
-                # Get screen dimensions
-                $screen = [System.Windows.Forms.Screen]::PrimaryScreen
-                $bounds = $screen.Bounds
-                
-                Write-Host "[DEBUG] Screen resolution: $($bounds.Width)x$($bounds.Height)"
-                
-                # Create bitmap with correct dimensions
-                $bitmap = New-Object System.Drawing.Bitmap($bounds.Width, $bounds.Height, [System.Drawing.Imaging.PixelFormat]::Format32bppArgb)
-                
-                # Capture screen to bitmap
-                $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
-                $graphics.CopyFromScreen($bounds.Location, [System.Drawing.Point]::Empty, $bounds.Size)
-                $graphics.Dispose()
-                
-                # Save as PNG with high quality
-                $screenshotPath = "C:\tmp\screenshot.png"
-                $bitmap.Save($screenshotPath, [System.Drawing.Imaging.ImageFormat]::Png)
-                $bitmap.Dispose()
-                
-                Write-Host "[SUCCESS] Screenshot saved to: $screenshotPath"
-                if (Test-Path $screenshotPath) {
-                  $fileSize = (Get-Item $screenshotPath).Length
-                  $fileSizeKB = [Math]::Round($fileSize / 1KB, 2)
-                  Write-Host "[INFO] File size: $fileSize bytes ($fileSizeKB KB)"
-                  if ($fileSize -lt 50000) {
-                    Write-Host "[WARNING] Screenshot file seems small, may not capture full desktop"
-                  }
-                }
-              } catch {
-                Write-Host "[ERROR] Screenshot capture failed: $_"
-              }
-            }
-            
-            docker exec $containerName powershell -Command $screenshotCommand
-            
-            if ($LASTEXITCODE -eq 0) {
-              Write-Host "[SUCCESS] Screenshot captured"
             } else {
-              Write-Host "[WARNING] Screenshot capture had issues"
+              Write-Host "[ERROR] No EXE installer found in build directory"
+              exit 1
             }
+          } elseif ("${{ env.INSTALL_TYPE }}" -eq "portable") {
+            Write-Host "[INSTALLER] Using portable/ZIP installation..."
+            # Look for zip file in build directory
+            $zipFiles = Get-ChildItem -Path "build" -Filter "*.zip" -ErrorAction SilentlyContinue
+            $portableFiles = Get-ChildItem -Path "build" -Filter "*portable*" -ErrorAction SilentlyContinue
+
+            Write-Host "[DEBUG] Found $($zipFiles.Count) ZIP files, $($portableFiles.Count) portable files"
+
+            if ($zipFiles) {
+              $zipFile = $zipFiles | Select-Object -First 1
+              Write-Host "[INSTALL] Extracting ZIP: $($zipFile.FullName)"
+
+              # Create target directory
+              $targetDir = "C:\Program Files (x86)\Openterface Mini-KVM"
+              New-Item -ItemType Directory -Path $targetDir -Force | Out-Null
+
+              # Extract with error checking
+              try {
+                Expand-Archive -Path $zipFile.FullName -DestinationPath $targetDir -Force
+                Write-Host "[SUCCESS] ZIP extraction completed"
+              } catch {
+                Write-Host "[ERROR] ZIP extraction failed: $_"
+                exit 1
+              }
+            } elseif ($portableFiles) {
+              # Portable build - just copy to Program Files
+              $portableExe = $portableFiles | Select-Object -First 1
+              Write-Host "[INSTALL] Using portable EXE: $($portableExe.FullName)"
+
+              # Create target directory
+              $targetDir = "C:\Program Files (x86)\Openterface Mini-KVM"
+              New-Item -ItemType Directory -Path $targetDir -Force | Out-Null
+
+              # Copy portable exe
+              Copy-Item -Path $portableExe.FullName -Destination "$targetDir\openterfaceQT-portable.exe" -Force
+              Write-Host "[SUCCESS] Portable EXE copied to: $targetDir"
+            } else {
+              Write-Host "[ERROR] No ZIP or portable file found in build directory"
+              exit 1
+            }
+          }
+
+          # Verify installation
+          Write-Host ""
+          Write-Host "[VERIFY] Verifying installation..."
+          $installDir = "C:\Program Files (x86)\Openterface Mini-KVM"
+          if (Test-Path $installDir) {
+            Write-Host "[SUCCESS] Installation directory exists: $installDir"
+            Get-ChildItem -Path $installDir -Recurse | ForEach-Object { Write-Host "  $($_.FullName)" }
+          } else {
+            Write-Host "[WARNING] Installation directory not found"
+          }
+
+          # Start the application
+          Write-Host ""
+          Write-Host "[START] Starting the Openterface application..."
+
+          # Check multiple possible paths
+          $possiblePaths = @(
+            "$installDir\openterfaceQT.exe",  # installer version
+            "$installDir\openterfaceQT-portable.exe" # portable version
+          )
+
+          $appPath = $null
+          foreach ($path in $possiblePaths) {
+            if (Test-Path $path) {
+              $appPath = $path
+              break
+            }
+          }
+
+          if ($appPath) {
+            Write-Host "[START] Launching: $appPath"
             
-            # Wait a bit more for container to stabilize
-            Write-Host ""
-            Write-Host "[WAIT] Waiting for container to stabilize (optional: waiting for completion)..."
+            # Define log file paths for capturing output
+            $stdoutLog = "app_startup_stdout.log"
+            $stderrLog = "app_startup_stderr.log"
+            
+            # Start the process with output redirection
+            $process = Start-Process -FilePath $appPath -ArgumentList "--skip-env-check" -NoNewWindow -PassThru -RedirectStandardOutput $stdoutLog -RedirectStandardError $stderrLog
+            
+            Write-Host "[SUCCESS] Application launched (PID: $($process.Id))"
+            
+            # Wait briefly for initial logs to be written (adjust as needed for your app)
             Start-Sleep -Seconds 5
             
+            # Read and display the first 100 lines of stdout log
+            if (Test-Path $stdoutLog) {
+              $stdoutContent = Get-Content $stdoutLog -ErrorAction SilentlyContinue
+              $stdoutLines = $stdoutContent | Select-Object -First 100
+              Write-Host "[LOG] First 100 lines of app startup stdout log:"
+              if ($stdoutLines) {
+                $stdoutLines | ForEach-Object { Write-Host "  $_" }
+              } else {
+                Write-Host "  (No stdout output captured)"
+              }
+            } else {
+              Write-Host "[LOG] Stdout log file not found"
+            }
+            
+            # Read and display the first 100 lines of stderr log
+            if (Test-Path $stderrLog) {
+              $stderrContent = Get-Content $stderrLog -ErrorAction SilentlyContinue
+              $stderrLines = $stderrContent | Select-Object -First 100
+              Write-Host "[LOG] First 100 lines of app startup stderr log:"
+              if ($stderrLines) {
+                $stderrLines | ForEach-Object { Write-Host "  $_" }
+              } else {
+                Write-Host "  (No stderr output captured)"
+              }
+            } else {
+              Write-Host "[LOG] Stderr log file not found"
+            }
+            
+            # Clean up log files after logging
+            Remove-Item $stdoutLog -ErrorAction SilentlyContinue
+            Remove-Item $stderrLog -ErrorAction SilentlyContinue
+            
+            # Continue with screenshot (existing code)
+            Start-Sleep -Seconds 5  # Additional wait if needed for GUI to fully load
           } else {
-            Write-Host "[ERROR] Failed to start container"
+            Write-Host "[ERROR] Application executable not found"
+            exit 1
           }
-          
-          # Get container logs
-          Write-Host ""
-          Write-Host "Container logs:"
-          Write-Host "==============="
-          docker logs $containerName 2>&1 | Tee-Object -FilePath "container-logs-${{ matrix.install_type }}.txt"
 
-      - name: Extract screenshot from container
+          # Take a screenshot
+          Write-Host ""
+          Write-Host "[SCREENSHOT] Taking screenshot of the desktop..."
+
+          try {
+            # Add required assemblies
+            Add-Type -AssemblyName System.Windows.Forms
+            Add-Type -AssemblyName System.Drawing
+
+            # Get screen dimensions
+            $screen = [System.Windows.Forms.Screen]::PrimaryScreen
+            $bounds = $screen.Bounds
+
+            Write-Host "[DEBUG] Screen resolution: $($bounds.Width)x$($bounds.Height)"
+
+            # Create bitmap with correct dimensions
+            $bitmap = New-Object System.Drawing.Bitmap($bounds.Width, $bounds.Height, [System.Drawing.Imaging.PixelFormat]::Format32bppArgb)
+
+            # Capture screen to bitmap
+            $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
+            $graphics.CopyFromScreen($bounds.Location, [System.Drawing.Point]::Empty, $bounds.Size)
+            $graphics.Dispose()
+
+            # Save as PNG with high quality
+            $screenshotPath = "openterface-windows-${{ matrix.install_type }}-${{ github.run_number }}.png"
+            $bitmap.Save($screenshotPath, [System.Drawing.Imaging.ImageFormat]::Png)
+            $bitmap.Dispose()
+
+            Write-Host "[SUCCESS] Screenshot saved to: $screenshotPath"
+            if (Test-Path $screenshotPath) {
+              $fileSize = (Get-Item $screenshotPath).Length
+              $fileSizeKB = [Math]::Round($fileSize / 1KB, 2)
+              Write-Host "[INFO] File size: $fileSize bytes ($fileSizeKB KB)"
+            }
+          } catch {
+            Write-Host "[ERROR] Screenshot capture failed: $_"
+          }
+
+          # Stop the application
+          Write-Host ""
+          Write-Host "[STOP] Stopping the application..."
+          if ($process) {
+            Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
+            Write-Host "[SUCCESS] Application stopped"
+          }
+
+      - name: Process screenshots
         if: always()
         shell: powershell
         run: |
-          Write-Host "[EXTRACT] Extracting screenshot from container..."
+          Write-Host "[PROCESS] Processing screenshots..."
           
-          $containerName = "openterface-test-windows-${{ matrix.install_type }}-${{ github.run_id }}"
-          $containerExists = docker ps -a --filter "name=$containerName" --format "{{.Names}}" 2>$null
+          # Create screenshots directory if it doesn't exist
+          New-Item -ItemType Directory -Path "screenshots-windows" -Force | Out-Null
           
-          if ($containerExists) {
-            # Create screenshots directory if it doesn't exist
-            New-Item -ItemType Directory -Path "screenshots-windows" -Force | Out-Null
+          $screenshotPath = "openterface-windows-${{ matrix.install_type }}-${{ github.run_number }}.png"
+          $localPath = "screenshots-windows\$screenshotPath"
+          
+          if (Test-Path $screenshotPath) {
+            # Move screenshot to screenshots directory
+            Move-Item -Path $screenshotPath -Destination $localPath -Force
             
-            $localPath = "screenshots-windows\screenshot-${{ matrix.install_type }}.png"
+            $fileSize = (Get-Item $localPath).Length
+            Write-Host "[SUCCESS] Screenshot processed: $localPath"
+            Write-Host "[INFO] File size: $([Math]::Round($fileSize / 1MB, 2)) MB"
             
-            Write-Host "[COPY] Copying screenshot from container to host..."
-            docker cp "$containerName`:C:\tmp\screenshot.png" $localPath 2>$null
+            # Convert PNG to JPG for better compatibility with Qiniu
+            Write-Host "[CONVERT] Converting PNG to JPG..."
+            $jpgPath = "screenshots-windows\openterface-windows-${{ matrix.install_type }}-${{ github.run_number }}.jpg"
             
-            if (Test-Path $localPath) {
-              $fileSize = (Get-Item $localPath).Length
-              Write-Host "[SUCCESS] Screenshot extracted: $localPath"
-              Write-Host "[INFO] File size: $([Math]::Round($fileSize / 1MB, 2)) MB"
-              
-              # Convert PNG to JPG for better compatibility with Qiniu
-              Write-Host "[CONVERT] Converting PNG to JPG..."
-              $jpgPath = "screenshots-windows\screenshot-${{ matrix.install_type }}.jpg"
-              
-              # Use PowerShell to convert image
-              & Add-Type -AssemblyName System.Drawing
-              $image = [System.Drawing.Image]::FromFile((Convert-Path $localPath))
-              $jpgCodec = [System.Drawing.Imaging.ImageCodecInfo]::GetImageEncoders() | Where-Object { $_.FormatDescription -eq "JPEG" }
-              $jpgEncoder = New-Object System.Drawing.Imaging.EncoderParameters(1)
-              $jpgEncoder.Param[0] = New-Object System.Drawing.Imaging.EncoderParameter([System.Drawing.Imaging.Encoder]::Quality, 95L)
-              $image.Save($jpgPath, $jpgCodec, $jpgEncoder)
-              $image.Dispose()
-              
-              Write-Host "[SUCCESS] Screenshot converted to JPG: $jpgPath"
-              $jpgSize = (Get-Item $jpgPath).Length
-              Write-Host "[INFO] JPG file size: $([Math]::Round($jpgSize / 1MB, 2)) MB"
-            } else {
-              Write-Host "[WARNING] Screenshot file not found in container or extraction failed"
-            }
+            # Use PowerShell to convert image
+            Add-Type -AssemblyName System.Drawing
+            $image = [System.Drawing.Image]::FromFile((Convert-Path $localPath))
+            $jpgCodec = [System.Drawing.Imaging.ImageCodecInfo]::GetImageEncoders() | Where-Object { $_.FormatDescription -eq "JPEG" }
+            $jpgEncoder = New-Object System.Drawing.Imaging.EncoderParameters(1)
+            $jpgEncoder.Param[0] = New-Object System.Drawing.Imaging.EncoderParameter([System.Drawing.Imaging.Encoder]::Quality, 95L)
+            $image.Save($jpgPath, $jpgCodec, $jpgEncoder)
+            $image.Dispose()
+            
+            Write-Host "[SUCCESS] Screenshot converted to JPG: $jpgPath"
+            $jpgSize = (Get-Item $jpgPath).Length
+            Write-Host "[INFO] JPG file size: $([Math]::Round($jpgSize / 1MB, 2)) MB"
           } else {
-            Write-Host "[WARNING] Container not found: $containerName"
+            Write-Host "[WARNING] Screenshot file not found: $screenshotPath"
           }
 
       - name: Display and upload screenshots (Windows)
@@ -1088,10 +481,24 @@ jobs:
         env:
           QINIU_AK: ${{ secrets.QINIU_AK }}
           QINIU_SK: ${{ secrets.QINIU_SK }}
-          QINIU_BUCKET: ${{ secrets.QINIU_BUCKET }}
-          QINIU_DOMAIN: ${{ secrets.QINIU_DOMAIN }}
         run: |
           echo "🔍 Processing screenshots for Windows build"
+          
+          # Set optional QINIU_BUCKET if secret is available
+          if [ -n "${{ secrets.QINIU_BUCKET }}" ]; then
+            export QINIU_BUCKET="${{ secrets.QINIU_BUCKET }}"
+            echo "✅ QINIU_BUCKET set from secrets"
+          else
+            echo "⚠️ QINIU_BUCKET not set, will use script default (openterface)"
+          fi
+          
+          # Set optional QINIU_DOMAIN if secret is available
+          if [ -n "${{ secrets.QINIU_DOMAIN }}" ]; then
+            export QINIU_DOMAIN="${{ secrets.QINIU_DOMAIN }}"
+            echo "✅ QINIU_DOMAIN set from secrets"
+          else
+            echo "⚠️ QINIU_DOMAIN not set, will use script default (download.openterface.com)"
+          fi
           
           # Create markdown summary file
           SUMMARY_FILE="WINDOWS_SCREENSHOTS_${{ matrix.install_type }}.md"
@@ -1103,7 +510,7 @@ jobs:
             # Add to GitHub summary
             echo "# GUI Screenshots - Windows Build (${{ matrix.install_type }})" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
-            echo "**Build Type**: Windows Container" >> $GITHUB_STEP_SUMMARY
+            echo "**Build Type**: Windows Runner" >> $GITHUB_STEP_SUMMARY
             echo "**Installer Type**: ${{ matrix.install_type }}" >> $GITHUB_STEP_SUMMARY
             echo "**Commit**: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
             echo "**Timestamp**: $(date -u)" >> $GITHUB_STEP_SUMMARY
@@ -1131,12 +538,79 @@ jobs:
                 if [ "$actual_size" -gt 50000 ]; then
                   echo "**Status**: ✅ Content detected ($(($actual_size / 1024))KB)"
                   
-                  # Upload to Qiniu if credentials are available
-                  if [ -n "$QINIU_AK" ] && [ -n "$QINIU_SK" ]; then
+                  # Verify file still exists before upload
+                  if [ -f "$img" ]; then
+                    echo "**File check**: ✅ File exists and is accessible"
+                    
+                    # Upload to Qiniu if credentials are available
+                    if [ -n "$QINIU_AK" ] && [ -n "$QINIU_SK" ]; then
                     echo ""
                     echo "📤 Uploading to Qiniu..."
                     
-                    UPLOAD_OUTPUT=$(QINIU_AK="$QINIU_AK" QINIU_SK="$QINIU_SK" QINIU_BUCKET="${QINIU_BUCKET:-openterface}" QINIU_DOMAIN="$QINIU_DOMAIN" timeout 120 python3 ./docker/upload_to_qiniu.py "$img" 2>&1) || true
+                    # Check Python availability
+                    echo "🐍 Checking Python availability..."
+                    if command -v python3 >/dev/null 2>&1; then
+                      PYTHON_CMD="python3"
+                      echo "✅ python3 found: $(python3 --version 2>&1)"
+                    elif command -v python >/dev/null 2>&1; then
+                      PYTHON_CMD="python"
+                      echo "✅ python found: $(python --version 2>&1)"
+                    else
+                      echo "❌ Neither python3 nor python found!"
+                      exit 1
+                    fi
+                    
+                    # Test if Python script can start
+                    echo "🧪 Testing Python script execution..."
+                    TEST_CMD="$PYTHON_CMD ./docker/upload_to_qiniu.py --help"
+                    echo "Running: $TEST_CMD"
+                    if $TEST_CMD >/dev/null 2>&1; then
+                      echo "✅ Python script can execute"
+                    else
+                      echo "❌ Python script execution test failed"
+                      $TEST_CMD 2>&1 | head -10
+                    fi
+                    
+                    # Debug: Show environment and command
+                    echo "🔍 Debug info:"
+                    echo "  - File: $img"
+                    echo "  - File exists: $([ -f "$img" ] && echo 'yes' || echo 'no')"
+                    echo "  - File size: $(stat -c%s "$img" 2>/dev/null || echo 'unknown')"
+                    echo "  - QINIU_BUCKET: ${QINIU_BUCKET:-'(using default: openterface)'}"
+                    echo "  - QINIU_DOMAIN: ${QINIU_DOMAIN:-'(using default: download.openterface.com)'}"
+                    echo "  - QINIU_AK length: ${#QINIU_AK}"
+                    echo "  - QINIU_SK length: ${#QINIU_SK}"
+                    
+                    # Build upload command with environment variables and optional parameters
+                    export QINIU_AK="$QINIU_AK"
+                    export QINIU_SK="$QINIU_SK"
+                    UPLOAD_CMD="$PYTHON_CMD ./docker/upload_to_qiniu.py --verbose"
+                    
+                    # Add bucket if set
+                    if [ -n "$QINIU_BUCKET" ]; then
+                      UPLOAD_CMD="$UPLOAD_CMD -b \"$QINIU_BUCKET\""
+                    fi
+                    
+                    # Add domain if set
+                    if [ -n "$QINIU_DOMAIN" ]; then
+                      UPLOAD_CMD="$UPLOAD_CMD -d \"$QINIU_DOMAIN\""
+                    fi
+                    
+                    # Add the image file
+                    UPLOAD_CMD="$UPLOAD_CMD $img"
+                    
+                    echo "🚀 Executing: $UPLOAD_CMD"
+                    
+                    # Execute the upload command and capture output
+                    set +e  # Don't exit on error
+                    UPLOAD_OUTPUT=$($UPLOAD_CMD 2>&1)
+                    UPLOAD_EXIT_CODE=$?
+                    set -e  # Restore exit on error
+                    
+                    echo "📋 Upload exit code: $UPLOAD_EXIT_CODE"
+                    echo "📄 Full upload output:"
+                    echo "$UPLOAD_OUTPUT"
+                    echo ""
                     
                     # Extract URL from output
                     UPLOAD_URL=$(echo "$UPLOAD_OUTPUT" | grep -oE 'https://[^ "]*' | tail -1)
@@ -1145,7 +619,7 @@ jobs:
                       UPLOAD_URL=$(echo "$UPLOAD_OUTPUT" | grep -E '^https' | tail -1)
                     fi
                     
-                    if [ -n "$UPLOAD_URL" ]; then
+                    if [ $UPLOAD_EXIT_CODE -eq 0 ] && [ -n "$UPLOAD_URL" ]; then
                       echo "✅ Upload successful: $UPLOAD_URL" >> $GITHUB_STEP_SUMMARY
                       echo "" >> $GITHUB_STEP_SUMMARY
                       echo "<a href=\"$UPLOAD_URL\" target=\"_blank\"><img src=\"$UPLOAD_URL\" width=\"800\" alt=\"Screenshot\"></a>" >> $GITHUB_STEP_SUMMARY
@@ -1154,11 +628,19 @@ jobs:
                       echo "" >> $GITHUB_STEP_SUMMARY
                       upload_success=$((upload_success + 1))
                     else
-                      echo "⚠️ Upload URL extraction failed"
-                      echo "Raw output: $UPLOAD_OUTPUT"
+                      echo "❌ Upload failed (exit code: $UPLOAD_EXIT_CODE)"
+                      if [ -z "$UPLOAD_URL" ]; then
+                        echo "❌ No upload URL found in output"
+                      fi
+                      echo "🔍 Full output for debugging:"
+                      echo "$UPLOAD_OUTPUT"
+                    fi
+                    else
+                      echo "⚠️ Qiniu credentials not configured - screenshot will be available in artifacts" >> $GITHUB_STEP_SUMMARY
+                      echo "" >> $GITHUB_STEP_SUMMARY
                     fi
                   else
-                    echo "⚠️ Qiniu credentials not configured - screenshot will be available in artifacts" >> $GITHUB_STEP_SUMMARY
+                    echo "**File check**: ❌ File no longer exists, skipping upload" >> $GITHUB_STEP_SUMMARY
                     echo "" >> $GITHUB_STEP_SUMMARY
                   fi
                 else
@@ -1191,203 +673,133 @@ jobs:
         env:
           QINIU_AK: ${{ secrets.QINIU_AK }}
           QINIU_SK: ${{ secrets.QINIU_SK }}
-          QINIU_BUCKET: ${{ secrets.QINIU_BUCKET }}
-          QINIU_DOMAIN: ${{ secrets.QINIU_DOMAIN }}
         run: |
           echo "🧹 Cleaning up Qiniu bucket - Keeping maximum 50 recent images"
+          
+          # Set optional QINIU_BUCKET if secret is available
+          if [ -n "${{ secrets.QINIU_BUCKET }}" ]; then
+            export QINIU_BUCKET="${{ secrets.QINIU_BUCKET }}"
+            echo "✅ QINIU_BUCKET set from secrets"
+          else
+            echo "⚠️ QINIU_BUCKET not set, will use script default (openterface)"
+          fi
+          
+          # Set optional QINIU_DOMAIN if secret is available
+          if [ -n "${{ secrets.QINIU_DOMAIN }}" ]; then
+            export QINIU_DOMAIN="${{ secrets.QINIU_DOMAIN }}"
+            echo "✅ QINIU_DOMAIN set from secrets"
+          else
+            echo "⚠️ QINIU_DOMAIN not set, will use script default (download.openterface.com)"
+          fi
           
           if [ -z "$QINIU_AK" ] || [ -z "$QINIU_SK" ]; then
             echo "⚠️ Qiniu credentials not configured, skipping bucket management"
             exit 0
           fi
           
-          echo "📊 Running bucket management script..."
-          QINIU_AK="$QINIU_AK" \
-          QINIU_SK="$QINIU_SK" \
-          QINIU_BUCKET="${QINIU_BUCKET:-openterface}" \
-          QINIU_DOMAIN="$QINIU_DOMAIN" \
-          python3 ./docker/manage_qiniu_bucket.py -k 50 --force 2>&1
+          # Check Python availability
+          echo "🐍 Checking Python availability..."
+          if command -v python3 >/dev/null 2>&1; then
+            PYTHON_CMD="python3"
+            echo "✅ python3 found: $(python3 --version 2>&1)"
+          elif command -v python >/dev/null 2>&1; then
+            PYTHON_CMD="python"
+            echo "✅ python found: $(python --version 2>&1)"
+          else
+            echo "❌ Neither python3 nor python found!"
+            exit 1
+          fi
           
-          if [ $? -eq 0 ]; then
+          # Check if script exists
+          SCRIPT_PATH="./docker/manage_qiniu_bucket.py"
+          if [ -f "$SCRIPT_PATH" ]; then
+            echo "✅ Bucket management script found: $SCRIPT_PATH"
+          else
+            echo "❌ Bucket management script not found: $SCRIPT_PATH"
+            exit 1
+          fi
+          
+          # Test if Python script can start
+          echo "🧪 Testing bucket management script execution..."
+          TEST_CMD="$PYTHON_CMD ./docker/manage_qiniu_bucket.py --help"
+          echo "Running: $TEST_CMD"
+          if $TEST_CMD >/dev/null 2>&1; then
+            echo "✅ Bucket management script can execute"
+          else
+            echo "❌ Bucket management script execution test failed"
+            $TEST_CMD 2>&1 | head -10
+          fi
+          
+          echo "📊 Running bucket management script..."
+          echo "🔍 Debug info:"
+          echo "  - QINIU_BUCKET: ${QINIU_BUCKET:-'(using default: openterface)'}"
+          echo "  - QINIU_DOMAIN: ${QINIU_DOMAIN:-'(using default: download.openterface.com)'}"
+          echo "  - QINIU_AK length: ${#QINIU_AK}"
+          echo "  - QINIU_SK length: ${#QINIU_SK}"
+          
+          # Build bucket management command with environment variables
+          export QINIU_AK="$QINIU_AK"
+          export QINIU_SK="$QINIU_SK"
+          BUCKET_CMD="$PYTHON_CMD ./docker/manage_qiniu_bucket.py -k 50 --force --verbose"
+          
+          # Add bucket if set
+          if [ -n "$QINIU_BUCKET" ]; then
+            BUCKET_CMD="$BUCKET_CMD --bucket \"$QINIU_BUCKET\""
+          fi
+          
+          echo "🚀 Executing: $BUCKET_CMD"
+          
+          # Execute the bucket management command and capture output
+          set +e  # Don't exit on error
+          BUCKET_OUTPUT=$($BUCKET_CMD 2>&1)
+          BUCKET_EXIT_CODE=$?
+          set -e  # Restore exit on error
+          
+          echo "📋 Bucket management exit code: $BUCKET_EXIT_CODE"
+          echo "📄 Full bucket management output:"
+          echo "$BUCKET_OUTPUT"
+          echo ""
+          
+          if [ $BUCKET_EXIT_CODE -eq 0 ]; then
             echo "✅ Bucket management completed successfully"
             echo "📋 Summary: Kept maximum 50 most recent images in Qiniu bucket"
           else
             echo "⚠️ Bucket management encountered an issue (non-blocking)"
+            echo "🔍 Full output for debugging:"
+            echo "$BUCKET_OUTPUT"
           fi
 
-      - name: Verify container startup (Windows)
+      - name: Verify installation and application startup
         shell: powershell
         timeout-minutes: 10
         run: |
-          Write-Host "[SEARCH] Verifying container startup and application installation"
+          Write-Host "[SEARCH] Verifying application installation and startup"
           
-          $containerName = "openterface-test-windows-${{ matrix.install_type }}-${{ github.run_id }}"
+          $installDir = "C:\Program Files (x86)\Openterface Mini-KVM"
           
-          # Check if container exists
-          $container = docker inspect $containerName 2>$null | ConvertFrom-Json 2>$null
-          
-          if ($container) {
-            Write-Host "[SUCCESS] Container exists: $containerName"
+          if (Test-Path $installDir) {
+            Write-Host "[SUCCESS] Installation directory exists: $installDir"
             
             Write-Host ""
-            Write-Host "Container Status:"
-            Write-Host "  Running: $($container.State.Running)"
-            Write-Host "  Exit Code: $($container.State.ExitCode)"
-            Write-Host "  Status: $($container.State.Status)"
+            Write-Host "Installation Contents:"
+            Get-ChildItem -Path $installDir -Recurse | ForEach-Object { Write-Host "  $($_.FullName)" }
             
-            # Check for installation success indicators
-            $logs = docker logs $containerName 2>&1 | Out-String
-            
-            if ($logs -match "ready for testing|SUCCESS.*installed|Application started") {
-              Write-Host "  Installation & Startup: [SUCCESS] Likely Successful"
-            } elseif ($logs -match "failed|error|ERROR") {
-              Write-Host "  Installation & Startup: [ERROR] May Have Failed"
+            # Check for executable
+            $exeFiles = Get-ChildItem -Path $installDir -Filter "*.exe" -Recurse
+            if ($exeFiles) {
+              Write-Host ""
+              Write-Host "Found executables:"
+              $exeFiles | ForEach-Object { Write-Host "  - $($_.FullName)" }
             } else {
-              Write-Host "  Installation & Startup: [INFO] Status Unknown"
+              Write-Host "[WARNING] No executable files found in installation directory"
             }
           } else {
-            Write-Host "[WARNING] Container not found: $containerName"
+            Write-Host "[ERROR] Installation directory not found: $installDir"
           }
-
-      - name: Inspect container environment (Windows)
-        shell: powershell
-        timeout-minutes: 10
-        run: |
-          Write-Host "[SEARCH] Inspecting container environment"
-          
-          $containerName = "openterface-test-windows-${{ matrix.install_type }}-${{ github.run_id }}"
-          
-          # Check if container still exists
-          $containerExists = docker ps -a --filter "name=$containerName" --format "{{.Names}}" 2>$null
-          
-          if ($containerExists) {
-            Write-Host "Container environment info for: $containerName"
-            Write-Host ""
-            
-            # Get environment variables
-            Write-Host "Environment Variables (INSTALL_TYPE and GITHUB_TOKEN):"
-            docker inspect $containerName --format='{{json .Config.Env}}' 2>$null | ConvertFrom-Json | Where-Object { $_ -match "INSTALL_TYPE|GITHUB_TOKEN" } | ForEach-Object { Write-Host "  $_" }
-            
-            # Get mount points
-            Write-Host ""
-            Write-Host "Mount Points:"
-            docker inspect $containerName --format='{{json .Mounts}}' 2>$null | ConvertFrom-Json | ForEach-Object { Write-Host "  Source: $($_.Source) -> Destination: $($_.Destination)" }
-            
-            # Get working directory
-            Write-Host ""
-            Write-Host "Container Info:"
-            docker inspect $containerName --format='WorkingDir: {{.Config.WorkingDir}}' 2>$null
-            
-          } else {
-            Write-Host "[WARNING] Container not found: $containerName"
-          }
-
-      - name: Test Windows container diagnostics
-        shell: powershell
-        timeout-minutes: 10
-        run: |
-          Write-Host "[SEARCH] Running diagnostics"
-          
-          $containerName = "openterface-test-windows-${{ matrix.install_type }}-${{ github.run_id }}"
-          
-          # Check if container exists
-          $containerExists = docker ps -a --filter "name=$containerName" --format "{{.Names}}" 2>$null
-          
-          if ($containerExists) {
-            Write-Host "Running diagnostic commands in container: $containerName"
-            Write-Host ""
-            
-            # Basic system info
-            Write-Host "System Information:"
-            docker exec $containerName powershell -Command "systeminfo | Select-String 'OS Name|OS Version|Manufacturer'" 2>$null; if ($LASTEXITCODE -ne 0) { Write-Host "  [WARNING] Could not retrieve system info" }
-            
-            # Check installed packages via Chocolatey
-            Write-Host ""
-            Write-Host "Chocolatey Packages (relevant to testing):"
-            docker exec $containerName choco list -l | Select-String -Pattern "vcredist|ffmpeg|gstreamer|Qt" 2>$null; if ($LASTEXITCODE -ne 0) { Write-Host "  [WARNING] Could not retrieve packages" }
-            
-            # Check installation paths
-            Write-Host ""
-            Write-Host "Installation Paths Check:"
-            docker exec $containerName powershell -Command {
-              $installDir = 'C:\Program Files\Openterface'
-              if (Test-Path $installDir) {
-                Write-Host "[SUCCESS] Installation directory exists: $installDir"
-                Get-ChildItem -Path $installDir -ErrorAction SilentlyContinue | Format-Table Name, Length
-              } else {
-                Write-Host "[WARNING] Installation directory not found"
-              }
-            } 2>$null
-            
-            # Check for logs
-            Write-Host ""
-            Write-Host "Installation Logs:"
-            docker exec $containerName powershell -Command {
-              if (Test-Path 'C:\tmp\install.log') {
-                Get-Content 'C:\tmp\install.log' -Tail 30
-              } else {
-                Write-Host "[WARNING] Installation log not found"
-              }
-            } 2>$null
-            
-          } else {
-            Write-Host "[WARNING] Container not found: $containerName"
-            Write-Host "This is expected if the container already exited"
-          }
-
-      - name: Upload container logs and screenshots
-        if: always()
-        shell: powershell
-        run: |
-          Write-Host "[UPLOAD] Uploading logs and screenshots"
-          
-          $logFiles = Get-ChildItem -Path "container-logs-*.txt" -ErrorAction SilentlyContinue
-          $screenshots = Get-ChildItem -Path "screenshots\*" -ErrorAction SilentlyContinue
-          
-          if ($logFiles) {
-            Write-Host "Found $($logFiles.Count) log file(s)"
-            foreach ($log in $logFiles) {
-              Write-Host "  - $($log.Name)"
-            }
-          } else {
-            Write-Host "No log files found"
-          }
-          
-          if ($screenshots) {
-            Write-Host "Found $($screenshots.Count) screenshot(s)"
-            foreach ($screenshot in $screenshots) {
-              Write-Host "  - $($screenshot.Name)"
-            }
-          } else {
-            Write-Host "No screenshots found"
-          }
-
-      - name: Clean up Docker resources
-        if: always()
-        shell: powershell
-        run: |
-          Write-Host "[CLEANUP] Cleaning up Docker resources"
-          
-          $containerName = "openterface-test-windows-${{ matrix.install_type }}-${{ github.run_id }}"
-          
-          # Stop and remove container
-          Write-Host "Stopping container: $containerName"
-          docker stop $containerName 2>$null | Out-Null
-          
-          Start-Sleep -Seconds 2
-          
-          Write-Host "Removing container: $containerName"
-          docker rm -f $containerName 2>$null | Out-Null
-          
-          # Remove image
-          Write-Host "Removing image: ${{ env.DOCKER_IMAGE_WINDOWS }}:${{ env.DOCKER_TAG }}"
-          docker rmi -f "${{ env.DOCKER_IMAGE_WINDOWS }}:${{ env.DOCKER_TAG }}" 2>$null | Out-Null
-          
-          Write-Host "[SUCCESS] Cleanup completed"
 
   generate-test-report:
     if: always()
-    needs: [build-test-windows]
+    needs: [test-windows]
     runs-on: ubuntu-latest
     timeout-minutes: 30
     
@@ -1414,7 +826,7 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           
           # Process each install type
-          for install_type in exe zip; do
+          for install_type in installer portable; do
             echo "### $install_type Results" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
             
@@ -1458,12 +870,12 @@ jobs:
             echo "" >> $GITHUB_STEP_SUMMARY
           done
           
-          echo "## 📦 Container Configuration" >> $GITHUB_STEP_SUMMARY
+          echo "## 📦 Runner Configuration" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "- **Base Image**: Windows Server 2022 LTSC" >> $GITHUB_STEP_SUMMARY
-          echo "- **Runner**: Windows 2022" >> $GITHUB_STEP_SUMMARY
-          echo "- **Dependencies**: Visual C++ Runtimes, FFmpeg, GStreamer, Qt6, OpenGL" >> $GITHUB_STEP_SUMMARY
-          echo "- **Docker Storage**: ~5 GB base image + dependencies" >> $GITHUB_STEP_SUMMARY
+          echo "- **Base Image**: Windows Server 2022" >> $GITHUB_STEP_SUMMARY
+          echo "- **Runner**: Windows 2022 GitHub Actions Runner" >> $GITHUB_STEP_SUMMARY
+          echo "- **Dependencies**: Pre-installed on runner" >> $GITHUB_STEP_SUMMARY
+          echo "- **Storage**: GitHub Actions runner storage" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           
           echo "---" >> $GITHUB_STEP_SUMMARY
@@ -1476,7 +888,7 @@ jobs:
 
       - name: Post summary
         run: |
-          echo "[SUCCESS] Windows Docker Container Test Report Generated"
+          echo "[SUCCESS] Windows App Test Report Generated"
           echo ""
           echo "The test report has been added to the workflow summary."
           echo "View it in the workflow run under the 'Summary' tab."

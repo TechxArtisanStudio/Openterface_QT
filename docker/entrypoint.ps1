@@ -53,7 +53,7 @@ if (Test-Path $installScript) {
 }
 
 # Check if application is installed
-$appPath = "C:\Program Files\Openterface"
+$appPath = "C:\Program Files\Openterface Mini-KVM"
 if (Test-Path $appPath) {
     Write-Host "Application found at $appPath" -ForegroundColor Green
     "Application Verification: FOUND" | Tee-Object -FilePath $logFile -Append

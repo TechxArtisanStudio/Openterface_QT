@@ -172,13 +172,13 @@ def upload_to_qiniu(
             # Construct final URL
             final_url = f"https://{domain}/{key_val}"
             
-            log_success(f"✅ Upload successful: {final_url}")
+            log_success(f"Upload successful: {final_url}")
             
             print(f"\n{'='*80}")
-            print(f"🔗 IMAGE URL: {final_url}")
+            print(f"IMAGE URL: {final_url}")
             print(f"{'='*80}\n")
-            print(f"📦 Qiniu Key: {key_val}")
-            print(f"🔐 Hash: {hash_val}\n")
+            print(f"Qiniu Key: {key_val}")
+            print(f"Hash: {hash_val}\n")
             
             return True, final_url
         
@@ -190,7 +190,7 @@ def upload_to_qiniu(
             log_error(f"Error: {error_msg}")
             
             # Provide troubleshooting tips
-            print(f"\n🔧 Troubleshooting Tips:")
+            print(f"\nTroubleshooting Tips:")
             if info.status_code == 400:
                 print("  - The upload token might be invalid or expired")
                 print("  - Check your upload token at: https://portal.qiniu.com/")
@@ -219,7 +219,7 @@ def upload_to_qiniu(
         log_error(f"Upload failed: {str(e)}")
         
         # Provide troubleshooting tips
-        print(f"\n🔧 Troubleshooting Tips:")
+        print(f"\nTroubleshooting Tips:")
         if "timeout" in str(e).lower():
             print(f"  - Upload timed out after {timeout} seconds")
             print("  - Try increasing timeout with --timeout parameter")
@@ -338,6 +338,7 @@ ENVIRONMENT VARIABLES:
         print(result)
         sys.exit(0)
     else:
+        log_error(f"Upload failed: {result}")
         sys.exit(1)
 
 if __name__ == '__main__':

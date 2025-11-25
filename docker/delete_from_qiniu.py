@@ -97,8 +97,8 @@ def delete_from_qiniu(
             log_success("Delete successful!")
             log_success(f"File '{key}' has been deleted from bucket '{bucket}'")
             
-            print(f"\n✅ Delete successful!\n")
-            print(f"📦 Qiniu Key: {key}")
+            print(f"\nDelete successful!\n")
+            print(f"Qiniu Key: {key}")
             print(f"🗑️  Bucket: {bucket}\n")
             
             return True, f"File '{key}' deleted successfully from bucket '{bucket}'"
@@ -111,7 +111,7 @@ def delete_from_qiniu(
             log_error(f"Error: {error_msg}")
             
             # Provide troubleshooting tips
-            print(f"\n🔧 Troubleshooting Tips:")
+            print(f"\nTroubleshooting Tips:")
             if resp_info.status_code == 404:
                 print("  - File not found - it might already be deleted")
                 print("  - Check the file key is correct")
@@ -132,7 +132,7 @@ def delete_from_qiniu(
         log_error(f"Delete failed: {str(e)}")
         
         # Provide troubleshooting tips
-        print(f"\n🔧 Troubleshooting Tips:")
+        print(f"\nTroubleshooting Tips:")
         print("  - Check credentials validity")
         print("  - Check bucket name and permissions")
         print("  - Check file key format")
