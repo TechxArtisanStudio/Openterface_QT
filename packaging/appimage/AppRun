@@ -20,7 +20,7 @@ echo "HERE=${HERE}"
 # The order is:
 # 1. AppImage's own libraries (non-GLIBC, like plugins and Qt)
 # 2. System libraries (GLIBC, Qt, etc. - provided by host)
-export LD_LIBRARY_PATH="${HERE}/usr/lib:${HERE}/lib:${HERE}/lib/x86_64-linux-gnu:/usr/lib/x86_64-linux-gnu:/usr/lib:/lib:${LD_LIBRARY_PATH}"
+export LD_LIBRARY_PATH="${HERE}/usr/lib:${HERE}/usr/lib/gstreamer-1.0:${HERE}/lib/x86_64-linux-gnu:/usr/lib/x86_64-linux-gnu:/usr/lib:/lib:${LD_LIBRARY_PATH}"
 
 # CRITICAL: Ensure system PATH for utilities and GLIBC
 # Allows fallback to host system utilities with compatible GLIBC

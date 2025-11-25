@@ -188,15 +188,17 @@ fi
 # FFmpeg core libraries (from ffmpeg subdirectory - all components needed for video processing)
 mkdir -p %{buildroot}/usr/lib/openterfaceqt/ffmpeg
 if [ -d "%{_sourcedir}/ffmpeg" ]; then
-    FFMPEG_COUNT=$(find %{_sourcedir}/ffmpeg -maxdepth 1 -name "libav*.so*" -o -name "libsw*.so*" -o -name "libmfx*.so*" -type f | wc -l)
+    FFMPEG_COUNT=$(find %{_sourcedir}/ffmpeg -maxdepth 1 -name "libav*.so*" -o -name "libsw*.so*" -o -name "libmfx*.so*" -o -name "libpostproc*.so*" -type f | wc -l)
     if [ $FFMPEG_COUNT -gt 0 ]; then
-    find %{_sourcedir}/ffmpeg -maxdepth 1 -name "libavdevice*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/ffmpeg/ \;
+        find %{_sourcedir}/ffmpeg -maxdepth 1 -name "libavdevice*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/ffmpeg/ \;
         find %{_sourcedir}/ffmpeg -maxdepth 1 -name "libavcodec*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/ffmpeg/ \;
         find %{_sourcedir}/ffmpeg -maxdepth 1 -name "libavformat*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/ffmpeg/ \;
         find %{_sourcedir}/ffmpeg -maxdepth 1 -name "libavutil*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/ffmpeg/ \;
         find %{_sourcedir}/ffmpeg -maxdepth 1 -name "libswscale*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/ffmpeg/ \;
         find %{_sourcedir}/ffmpeg -maxdepth 1 -name "libswresample*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/ffmpeg/ \;
         find %{_sourcedir}/ffmpeg -maxdepth 1 -name "libavfilter*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/ffmpeg/ \;
+        # FFmpeg postproc library - copy if present
+        find %{_sourcedir}/ffmpeg -maxdepth 1 -name "libpostproc*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/ffmpeg/ \;
         # Intel Media SDK (libmfx) - copy if present
         find %{_sourcedir}/ffmpeg -maxdepth 1 -name "libmfx*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/ffmpeg/ \;
         echo "✅ Installed $FFMPEG_COUNT FFmpeg libraries ($(ls -1 %{buildroot}/usr/lib/openterfaceqt/ffmpeg/*.so* 2>/dev/null | wc -l) files)"
@@ -336,7 +338,7 @@ echo ""
 
 # Count bundled libraries
 QT6_LIBS=$(find %{buildroot}/usr/lib/openterfaceqt/qt6 -name "libQt6*.so*" -type f | wc -l)
-FFMPEG_LIBS=$(find %{buildroot}/usr/lib/openterfaceqt/ffmpeg -name "libav*.so*" -o -name "libsw*.so*" -o -name "libmfx*.so*" -type f | wc -l)
+FFMPEG_LIBS=$(find %{buildroot}/usr/lib/openterfaceqt/ffmpeg -name "libav*.so*" -o -name "libsw*.so*" -o -name "libmfx*.so*" -o -name "libpostproc*.so*" -type f | wc -l)
 GSTREAMER_LIBS=$(find %{buildroot}/usr/lib/openterfaceqt/gstreamer -name "libgst*.so*" -type f | wc -l)
 QT_PLUGINS=$(find %{buildroot}/usr/lib/openterfaceqt/qt6/plugins -name "*.so" -type f | wc -l)
 GSTREAMER_PLUGINS=$(find %{buildroot}/usr/lib/openterfaceqt/gstreamer/gstreamer-1.0 -name "*.so" -type f | wc -l)
