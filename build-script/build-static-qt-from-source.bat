@@ -17,6 +17,9 @@ set OPENSSL_INCLUDE_DIR=%OPENSSL_DIR%\include
 
 set PATH=C:\ProgramData\chocolatey\bin;C:\ProgramData\chocolatey\lib\ninja\tools;C:\msys64\mingw64\bin;C:\msys64\usr\bin;%PATH%
 
+REM Install dependencies with vcpkg
+"%VCPKG_DIR%\vcpkg.exe" install openssl:x64-mingw-static zlib:x64-mingw-static
+
 REM Check for Ninja
 where ninja >nul 2>nul
 if %errorlevel% neq 0 (
