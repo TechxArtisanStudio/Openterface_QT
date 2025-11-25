@@ -233,6 +233,28 @@ if [ -d %{buildroot}/usr/lib/openterfaceqt/ffmpeg ]; then
     echo "✅ FFmpeg library symlinks verified in buildroot"
 fi
 
+if [ -d %{buildroot}/usr/lib/openterfaceqt/ffmpeg ]; then
+    cd %{buildroot}/usr/lib/openterfaceqt/ffmpeg
+    # Handle libraries with single-dot sonames (e.g., libmfx.so.1)
+    for fullfile in *.so.* ; do
+        [ -f "$fullfile" ] || continue
+        base=$(echo "$fullfile" | sed 's/\.so\..*//')
+        soname=$(echo "$fullfile" | sed 's/\(.*\.so\.[0-9]*\)\.*.*/\1/')
+
+        if [ ! -L "$soname" ] && [ ! -f "$soname" ]; then
+            ln -sf "$fullfile" "$soname"
+            echo "  ✅ Created symlink: $soname -> $fullfile"
+        fi
+
+        if [ ! -L "${base}.so" ] && [ ! -f "${base}.so" ]; then
+            ln -sf "$fullfile" "${base}.so"
+            echo "  ✅ Created symlink: ${base}.so -> $fullfile"
+        fi
+    done
+    echo "✅ FFmpeg single-dot symlink normalization complete"
+    cd - > /dev/null
+fi
+
 # GStreamer library symlinks
 # NOTE: Symlink normalization is now done in docker-build-rpm.sh before RPM build
 # This section only handles any edge cases where additional symlinks might be needed
@@ -314,7 +336,7 @@ echo ""
 
 # Count bundled libraries
 QT6_LIBS=$(find %{buildroot}/usr/lib/openterfaceqt/qt6 -name "libQt6*.so*" -type f | wc -l)
-FFMPEG_LIBS=$(find %{buildroot}/usr/lib/openterfaceqt/ffmpeg -name "libav*.so*" -o -name "libsw*.so*" -type f | wc -l)
+FFMPEG_LIBS=$(find %{buildroot}/usr/lib/openterfaceqt/ffmpeg -name "libav*.so*" -o -name "libsw*.so*" -o -name "libmfx*.so*" -type f | wc -l)
 GSTREAMER_LIBS=$(find %{buildroot}/usr/lib/openterfaceqt/gstreamer -name "libgst*.so*" -type f | wc -l)
 QT_PLUGINS=$(find %{buildroot}/usr/lib/openterfaceqt/qt6/plugins -name "*.so" -type f | wc -l)
 GSTREAMER_PLUGINS=$(find %{buildroot}/usr/lib/openterfaceqt/gstreamer/gstreamer-1.0 -name "*.so" -type f | wc -l)
