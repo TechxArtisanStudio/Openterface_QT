@@ -67,6 +67,7 @@ public:
     
     // Backend handler access
     FFmpegBackendHandler* getFFmpegBackend() const;
+    GStreamerBackendHandler* getGStreamerBackend() const;
     MultimediaBackendHandler* getBackendHandler() const;
     
     // Video output management

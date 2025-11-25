@@ -283,6 +283,18 @@ void GStreamerBackendHandler::configureCameraDevice()
     MultimediaBackendHandler::configureCameraDevice();
 }
 
+void GStreamerBackendHandler::setCurrentDevicePortChain(const QString& portChain)
+{
+    m_currentDevicePortChain = portChain;
+    qCDebug(log_gstreamer_backend) << "Set current device port chain to:" << m_currentDevicePortChain;
+}
+
+void GStreamerBackendHandler::setCurrentDevice(const QString& devicePath)
+{
+    m_currentDevice = devicePath;
+    qCDebug(log_gstreamer_backend) << "Set current device to:" << m_currentDevice;
+}
+
 QList<int> GStreamerBackendHandler::getSupportedFrameRates(const QCameraFormat& format) const
 {
     if (m_config.useStandardFrameRatesOnly) {

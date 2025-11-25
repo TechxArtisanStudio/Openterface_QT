@@ -66,6 +66,7 @@ public:
     void startCamera() override;
     void stopCamera() override;
 
+    // Hotplug support: track device port chain in private members
     QList<int> getSupportedFrameRates(const QCameraFormat& format) const override;
     QCameraFormat selectOptimalFormat(const QList<QCameraFormat>& formats, 
                                     const QSize& resolution, 
@@ -130,6 +131,10 @@ public:
     void setRecordingConfig(const RecordingConfig& config);
     RecordingConfig getRecordingConfig() const;
 
+    // Hotplug support: set current device and port chain for tracking
+    void setCurrentDevicePortChain(const QString& portChain);
+    void setCurrentDevice(const QString& devicePath);
+
 private slots:
     void onPipelineMessage();
     void checkPipelineHealth();
@@ -171,6 +176,7 @@ private:
     // Pipeline state
     bool m_pipelineRunning;
     QString m_currentDevice;
+    QString m_currentDevicePortChain; // Track port chain for hotplug support
     QSize m_currentResolution;
     int m_currentFramerate;
     
