@@ -46,9 +46,6 @@ else
 	exit 1
 fi
 
-# Install patchelf for rpath manipulation
-apt update && apt install -y patchelf
-
 # Copy Qt libraries to bundle them in the deb
 # CRITICAL: Must use a proper Qt6 build, NOT system libraries
 # System Qt6 libraries have version dependencies that won't work at runtime
