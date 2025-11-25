@@ -160,8 +160,8 @@ void StatusBarManager::onLastMouseLocation(const QPoint& location, const QString
     int capture_width = m_statusWidget->getCaptureWidth() > 5000 ? 0 : m_statusWidget->getCaptureWidth();
     int capture_height = m_statusWidget->getCaptureHeight() > 5000 ? 0 : m_statusWidget->getCaptureHeight();
     
-    int mouse_x = static_cast<int>(location.x() / 4096.0 * capture_width);
-    int mouse_y = static_cast<int>(location.y() / 4096.0 * capture_height);
+    int mouse_x = location.x();
+    int mouse_y = location.y();
 
     mouseLocationLabel->setText(QString("(%1,%2)").arg(mouse_x).arg(mouse_y));
 }

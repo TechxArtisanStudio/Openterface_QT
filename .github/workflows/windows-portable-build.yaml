@@ -286,10 +286,11 @@ jobs:
             -DCMAKE_BUILD_TYPE=Release ^
             -DCMAKE_PREFIX_PATH="C:\Qt6;C:\vcpkg\installed\x64-mingw-static;C:\msys64\mingw64" ^
             -DCMAKE_LIBRARY_PATH="C:\msys64\mingw64\lib" ^
+            -DCMAKE_MAKE_PROGRAM="C:\msys64\mingw64\bin\mingw32-make.exe" ^
             -DFFMPEG_PREFIX=C:\ffmpeg-static ^
             -DZLIB_LIBRARY=C:\vcpkg\installed\x64-mingw-static\lib\libzlib.a ^
             -DOPENTERFACE_BUILD_STATIC=ON ^
-            -DCMAKE_EXE_LINKER_FLAGS="-lmingw32 -lgcc -lmingwex" ^
+            -DCMAKE_EXE_LINKER_FLAGS="-mconsole -lmingw32 -lgcc -lmingwex" ^
             ${{ env.SOURCE_DIR }}
           
           echo "Building with mingw32-make..."
