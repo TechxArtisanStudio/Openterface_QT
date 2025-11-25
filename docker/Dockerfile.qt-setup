@@ -30,6 +30,7 @@ RUN apt-get update && apt-get install -y \
     ca-certificates \
     file \
     patchelf \
+    gcc \
     desktop-file-utils
 
 # Install additional build tools
