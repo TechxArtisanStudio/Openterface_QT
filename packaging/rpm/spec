@@ -29,6 +29,9 @@ Requires:       libv4l
 # libxkbcommon is available on all Fedora versions
 Requires:       libxkbcommon
 
+# X Video extension support
+Requires:       libXv
+
 # X11/XCB support libraries (OPTIONAL - only if running on X11)
 # These are not bundled and only needed for X11 mode
 # If not available, app will auto-detect and use Wayland instead
