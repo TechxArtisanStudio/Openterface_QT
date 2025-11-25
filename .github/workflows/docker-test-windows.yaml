@@ -337,9 +337,53 @@ jobs:
 
           if ($appPath) {
             Write-Host "[START] Launching: $appPath"
-            $process = Start-Process -FilePath $appPath -ArgumentList "--skip-env-check" -NoNewWindow -PassThru
+            
+            # Define log file paths for capturing output
+            $stdoutLog = "app_startup_stdout.log"
+            $stderrLog = "app_startup_stderr.log"
+            
+            # Start the process with output redirection
+            $process = Start-Process -FilePath $appPath -ArgumentList "--skip-env-check" -NoNewWindow -PassThru -RedirectStandardOutput $stdoutLog -RedirectStandardError $stderrLog
+            
             Write-Host "[SUCCESS] Application launched (PID: $($process.Id))"
-            Start-Sleep -Seconds 10
+            
+            # Wait briefly for initial logs to be written (adjust as needed for your app)
+            Start-Sleep -Seconds 5
+            
+            # Read and display the first 100 lines of stdout log
+            if (Test-Path $stdoutLog) {
+              $stdoutContent = Get-Content $stdoutLog -ErrorAction SilentlyContinue
+              $stdoutLines = $stdoutContent | Select-Object -First 100
+              Write-Host "[LOG] First 100 lines of app startup stdout log:"
+              if ($stdoutLines) {
+                $stdoutLines | ForEach-Object { Write-Host "  $_" }
+              } else {
+                Write-Host "  (No stdout output captured)"
+              }
+            } else {
+              Write-Host "[LOG] Stdout log file not found"
+            }
+            
+            # Read and display the first 100 lines of stderr log
+            if (Test-Path $stderrLog) {
+              $stderrContent = Get-Content $stderrLog -ErrorAction SilentlyContinue
+              $stderrLines = $stderrContent | Select-Object -First 100
+              Write-Host "[LOG] First 100 lines of app startup stderr log:"
+              if ($stderrLines) {
+                $stderrLines | ForEach-Object { Write-Host "  $_" }
+              } else {
+                Write-Host "  (No stderr output captured)"
+              }
+            } else {
+              Write-Host "[LOG] Stderr log file not found"
+            }
+            
+            # Clean up log files after logging
+            Remove-Item $stdoutLog -ErrorAction SilentlyContinue
+            Remove-Item $stderrLog -ErrorAction SilentlyContinue
+            
+            # Continue with screenshot (existing code)
+            Start-Sleep -Seconds 5  # Additional wait if needed for GUI to fully load
           } else {
             Write-Host "[ERROR] Application executable not found"
             exit 1
