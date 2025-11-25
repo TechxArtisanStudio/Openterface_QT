@@ -9,6 +9,8 @@
 #include <QEventLoop>
 #include <vector>
 #include <chrono>
+#include <QMutex>
+#include <QRecursiveMutex>
 
 #include "../ui/statusevents.h"
 
@@ -150,6 +152,8 @@ private:
     std::string m_firmwareVersion;
     std::string m_currentfirmwareVersion;
     
+    // Helper method to start the monitoring timer
+    void startMonitoringTimer();
 
 #ifdef _WIN32
     HANDLE deviceHandle = INVALID_HANDLE_VALUE;
@@ -199,13 +203,16 @@ private:
     std::chrono::time_point<std::chrono::steady_clock> m_lastPathQuery = std::chrono::steady_clock::now();
     bool m_inTransaction = false;
     
+    // Mutex for thread-safe device handle operations
+    QRecursiveMutex m_deviceHandleMutex;
+    
     // Current HID device tracking
     QString m_currentHIDDevicePath;
     QString m_currentHIDPortChain;
     
     // Chipset identification and handling
     VideoChipType m_chipType = VideoChipType::UNKNOWN;
-    void detectChipType();
+    Q_INVOKABLE void detectChipType();
     VideoChipType getChipType() const { return m_chipType; }
 };
 

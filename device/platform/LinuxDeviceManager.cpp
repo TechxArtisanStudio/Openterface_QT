@@ -5,6 +5,7 @@
 #include <QStandardPaths>
 #include <QRegularExpression>
 #include <cstdlib>
+#include <QSerialPortInfo>
 
 #ifdef HAVE_LIBUDEV
 #include <libudev.h>
@@ -548,6 +549,8 @@ QList<DeviceInfo> LinuxDeviceManager::discoverGeneration2DevicesLinux()
         DeviceInfo deviceInfo;
         deviceInfo.portChain = companionDevice.portChain;
         deviceInfo.deviceInstanceId = companionDevice.syspath;
+        deviceInfo.vid = AbstractPlatformDeviceManager::OPENTERFACE_VID_V2;
+        deviceInfo.pid = AbstractPlatformDeviceManager::OPENTERFACE_PID_V2;
         deviceInfo.lastSeen = QDateTime::currentDateTime();
         deviceInfo.platformSpecific = companionDevice.properties;
         
@@ -612,6 +615,8 @@ QList<DeviceInfo> LinuxDeviceManager::discoverGeneration3DevicesLinux()
         DeviceInfo deviceInfo;
         deviceInfo.portChain = companionDevice.portChain;
         deviceInfo.deviceInstanceId = companionDevice.syspath;
+        deviceInfo.vid = AbstractPlatformDeviceManager::OPENTERFACE_VID_V3;
+        deviceInfo.pid = AbstractPlatformDeviceManager::OPENTERFACE_PID_V3;
         deviceInfo.lastSeen = QDateTime::currentDateTime();
         deviceInfo.platformSpecific = companionDevice.properties;
         
@@ -660,6 +665,8 @@ QList<DeviceInfo> LinuxDeviceManager::processDeviceMap(const QList<UdevDeviceDat
             DeviceInfo deviceInfo;
             deviceInfo.portChain = hubPort; // Use hub port as the common identifier
             deviceInfo.deviceInstanceId = serialDevice.syspath;
+            deviceInfo.vid = AbstractPlatformDeviceManager::SERIAL_VID;
+            deviceInfo.pid = AbstractPlatformDeviceManager::SERIAL_PID;
             deviceInfo.platformSpecific = serialDevice.properties;
             deviceInfo.lastSeen = QDateTime::currentDateTime();
             
@@ -678,6 +685,8 @@ QList<DeviceInfo> LinuxDeviceManager::processDeviceMap(const QList<UdevDeviceDat
                 DeviceInfo deviceInfo;
                 deviceInfo.portChain = hubPort; // Use hub port as the common identifier
                 deviceInfo.deviceInstanceId = usbDevice.syspath;
+                deviceInfo.vid = AbstractPlatformDeviceManager::OPENTERFACE_VID;
+                deviceInfo.pid = AbstractPlatformDeviceManager::OPENTERFACE_PID;
                 deviceInfo.platformSpecific = usbDevice.properties;
                 deviceInfo.lastSeen = QDateTime::currentDateTime();
                 
@@ -703,12 +712,12 @@ QList<DeviceInfo> LinuxDeviceManager::processDeviceMap(const QList<UdevDeviceDat
                     QString deviceVidStr = QString(vid).toUpper();
                     QString devicePidStr = QString(pid).toUpper();
                     
-                    // Check for both generation VID/PID combinations
+                    // Check for all generation VID/PID combinations
                     bool isMatchingSerial = false;
                     if (generation == "Gen1") {
                         isMatchingSerial = (deviceVidStr == AbstractPlatformDeviceManager::SERIAL_VID.toUpper() && 
                                           devicePidStr == AbstractPlatformDeviceManager::SERIAL_PID.toUpper());
-                    } else if (generation == "Gen2") {
+                    } else if (generation == "Gen2" || generation == "Gen3") {
                         isMatchingSerial = (deviceVidStr == AbstractPlatformDeviceManager::SERIAL_VID_V2.toUpper() && 
                                           devicePidStr == AbstractPlatformDeviceManager::SERIAL_PID_V2.toUpper());
                     }
@@ -730,6 +739,37 @@ QList<DeviceInfo> LinuxDeviceManager::processDeviceMap(const QList<UdevDeviceDat
                 udev_device_unref(usb_device);
             }
             udev_device_unref(device);
+        }
+    }
+    
+    // Fallback: Use QSerialPortInfo to find serial ports with matching VID/PID for devices that don't have tty paths yet
+    const auto serialPorts = QSerialPortInfo::availablePorts();
+    for (auto it = deviceMap.begin(); it != deviceMap.end(); ++it) {
+        if (it.value().serialPortPath.isEmpty()) {
+            for (const QSerialPortInfo& portInfo : serialPorts) {
+                if (portInfo.hasVendorIdentifier() && portInfo.hasProductIdentifier()) {
+                    QString vidStr = QString("%1").arg(portInfo.vendorIdentifier(), 4, 16, QChar('0')).toUpper();
+                    QString pidStr = QString("%1").arg(portInfo.productIdentifier(), 4, 16, QChar('0')).toUpper();
+                    
+                    bool isMatchingSerial = false;
+                    if (generation == "Gen1") {
+                        isMatchingSerial = (vidStr == AbstractPlatformDeviceManager::SERIAL_VID.toUpper() && 
+                                          pidStr == AbstractPlatformDeviceManager::SERIAL_PID.toUpper());
+                    } else if (generation == "Gen2" || generation == "Gen3") {
+                        isMatchingSerial = (vidStr == AbstractPlatformDeviceManager::SERIAL_VID_V2.toUpper() && 
+                                          pidStr == AbstractPlatformDeviceManager::SERIAL_PID_V2.toUpper());
+                    }
+                    
+                    if (isMatchingSerial) {
+                        QString portPath = portInfo.systemLocation();
+                        if (!portPath.isEmpty()) {
+                            it.value().serialPortPath = portPath;
+                            qCDebug(log_device_linux) << "Found" << generation << "serial port (fallback):" << portPath << "for hub port:" << it.key();
+                            break; // Use the first matching port
+                        }
+                    }
+                }
+            }
         }
     }
     
@@ -1049,9 +1089,11 @@ void LinuxDeviceManager::findAndAssociateInterfaceDevicesLinux(DeviceInfo& devic
                         QString deviceVidStr = QString(vid).toUpper();
                         QString devicePidStr = QString(pid).toUpper();
                         
-                        // Check if this TTY device belongs to our serial device (Gen2 VID/PID)
-                        if (deviceVidStr == AbstractPlatformDeviceManager::SERIAL_VID_V2.toUpper() && 
-                            devicePidStr == AbstractPlatformDeviceManager::SERIAL_PID_V2.toUpper()) {
+                        // Check if this TTY device belongs to our serial device (Gen2/Gen3 VID/PID)
+                        if ((deviceVidStr == AbstractPlatformDeviceManager::SERIAL_VID_V2.toUpper() && 
+                             devicePidStr == AbstractPlatformDeviceManager::SERIAL_PID_V2.toUpper()) ||
+                            (deviceVidStr == AbstractPlatformDeviceManager::SERIAL_VID_V3.toUpper() && 
+                             devicePidStr == AbstractPlatformDeviceManager::SERIAL_PID_V3.toUpper())) {
                             
                             QString devicePortChain = extractPortChainFromSyspath(QString(udev_device_get_syspath(usb_device)));
                             QString deviceSyspath = QString(udev_device_get_syspath(usb_device));
@@ -1061,7 +1103,7 @@ void LinuxDeviceManager::findAndAssociateInterfaceDevicesLinux(DeviceInfo& devic
                                 QString devNode = ttyDevice.properties.value("DEVNAME").toString();
                                 if (!devNode.isEmpty()) {
                                     deviceInfo.serialPortPath = devNode;
-                                    qCDebug(log_device_linux) << "Found Gen2 serial port:" << devNode << "for companion device";
+                                    qCDebug(log_device_linux) << "Found serial port:" << devNode << "for companion device (udev)";
                                 }
                             }
                         }
@@ -1069,6 +1111,29 @@ void LinuxDeviceManager::findAndAssociateInterfaceDevicesLinux(DeviceInfo& devic
                     udev_device_unref(usb_device);
                 }
                 udev_device_unref(device);
+            }
+        }
+        
+        // Fallback: Use QSerialPortInfo to find serial ports with matching VID/PID
+        if (deviceInfo.serialPortPath.isEmpty()) {
+            const auto serialPorts = QSerialPortInfo::availablePorts();
+            for (const QSerialPortInfo& portInfo : serialPorts) {
+                if (portInfo.hasVendorIdentifier() && portInfo.hasProductIdentifier()) {
+                    QString vidStr = QString("%1").arg(portInfo.vendorIdentifier(), 4, 16, QChar('0')).toUpper();
+                    QString pidStr = QString("%1").arg(portInfo.productIdentifier(), 4, 16, QChar('0')).toUpper();
+                    
+                    // Check for FE0C devices (Gen2/Gen3)
+                    if (vidStr == AbstractPlatformDeviceManager::SERIAL_VID_V3.toUpper() && 
+                        pidStr == AbstractPlatformDeviceManager::SERIAL_PID_V3.toUpper()) {
+                        
+                        QString portPath = portInfo.systemLocation();
+                        if (!portPath.isEmpty()) {
+                            deviceInfo.serialPortPath = portPath;
+                            qCDebug(log_device_linux) << "Found serial port:" << portPath << "for companion device (QSerialPortInfo fallback)";
+                            break; // Use the first matching port
+                        }
+                    }
+                }
             }
         }
     }

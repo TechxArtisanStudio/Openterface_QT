@@ -192,6 +192,7 @@ void SerialPortManager::initializeSerialPortFromPortChain() {
 
     // Find a device with a valid serial port path
     DeviceInfo selectedDevice;
+    QString usedPortChain = portChain;
     for (const DeviceInfo& device : devices) {
         if (!device.serialPortPath.isEmpty()) {
             selectedDevice = device;
@@ -199,6 +200,25 @@ void SerialPortManager::initializeSerialPortFromPortChain() {
             break;
         }
     }
+
+    // If no device with serial found on main port chain, try companion port chain
+    if (!selectedDevice.isValid() || selectedDevice.serialPortPath.isEmpty()) {
+        QString companionPortChain = deviceManager.getCompanionPortChain(portChain);
+        if (!companionPortChain.isEmpty()) {
+            QList<DeviceInfo> companionDevices = deviceManager.getDevicesByPortChain(companionPortChain);
+            qCDebug(log_core_serial) << "Checking companion port chain:" << companionPortChain << "with" << companionDevices.size() << "devices";
+            for (const DeviceInfo& companionDevice : companionDevices) {
+                if (!companionDevice.serialPortPath.isEmpty()) {
+                    selectedDevice = companionDevice;
+                    usedPortChain = companionPortChain;
+                    qCDebug(log_core_serial) << "Found device with serial port on companion chain:" << companionDevice.serialPortPath;
+                    break;
+                }
+            }
+        }
+    }
+
+
 
     if (!selectedDevice.isValid() || selectedDevice.serialPortPath.isEmpty()) {
         qCWarning(log_core_serial) << "No valid device with serial port found for port chain:" << portChain;
@@ -209,7 +229,7 @@ void SerialPortManager::initializeSerialPortFromPortChain() {
     onSerialPortConnected(selectedDevice.serialPortPath);
     // Optionally, set the selected device in DeviceManager
     deviceManager.setCurrentSelectedDevice(selectedDevice);
-    m_currentSerialPortChain = portChain;
+    m_currentSerialPortChain = usedPortChain;
 }
 
 QString SerialPortManager::getCurrentSerialPortPath() const
@@ -353,39 +373,43 @@ bool SerialPortManager::switchSerialPortByPortChain(const QString& portChain)
  * This method now works alongside the enhanced hotplug detection system
  */
 void SerialPortManager::checkSerialPort() {
-    QDateTime currentTime = QDateTime::currentDateTime();
-    if (lastSerialPortCheckTime.isValid() && lastSerialPortCheckTime.msecsTo(currentTime) < SERIAL_TIMER_INTERVAL) {
-        return;
-    }
-    lastSerialPortCheckTime = currentTime;
-    qCDebug(log_core_serial) << "Check serial port";
-
-    // Use new initialization logic
-    if (!serialPort || !serialPort->isOpen()) {
-        qCDebug(log_core_serial) << "Serial port not open, will initialize from port chain after 300ms delay";
-        QTimer::singleShot(300, this, [this]() {
-            initializeSerialPortFromPortChain();
-        });
-        return;
-    }
-
-    if (ready) {
-        if (isTargetUsbConnected) {
-            // Check target connection status when no data received in 3 seconds
-            if (latestUpdateTime.secsTo(QDateTime::currentDateTime()) > 3) {
-                ready = sendAsyncCommand(CMD_GET_INFO, false);
-            }
-        } else {
-            sendAsyncCommand(CMD_GET_INFO, false);
+    if(isChipTypeFE0C()){
+        ready = true; // FE0C chip is always ready
+    }else{
+        QDateTime currentTime = QDateTime::currentDateTime();
+        if (lastSerialPortCheckTime.isValid() && lastSerialPortCheckTime.msecsTo(currentTime) < SERIAL_TIMER_INTERVAL) {
+            return;
         }
-    }
+        lastSerialPortCheckTime = currentTime;
+        qCDebug(log_core_serial) << "Check serial port";
 
-    // Always send CMD_GET_INFO with force=true to ensure key state update every check,
-    // even if !ready (bypasses the ready guard in sendAsyncCommand)
-    sendAsyncCommand(CMD_GET_INFO, true);
+        // Use new initialization logic
+        if (!serialPort || !serialPort->isOpen()) {
+            qCDebug(log_core_serial) << "Serial port not open, will initialize from port chain after 300ms delay";
+            QTimer::singleShot(300, this, [this]() {
+                initializeSerialPortFromPortChain();
+            });
+            return;
+        }
 
-    if (latestUpdateTime.secsTo(QDateTime::currentDateTime()) > 5) {
-        ready = false;
+        if (ready) {
+            if (isTargetUsbConnected) {
+                // Check target connection status when no data received in 3 seconds
+                if (latestUpdateTime.secsTo(QDateTime::currentDateTime()) > 3) {
+                    ready = sendAsyncCommand(CMD_GET_INFO, false);
+                }
+            } else {
+                sendAsyncCommand(CMD_GET_INFO, false);
+            }
+        }
+
+        // Always send CMD_GET_INFO with force=true to ensure key state update every check,
+        // even if !ready (bypasses the ready guard in sendAsyncCommand)
+        sendAsyncCommand(CMD_GET_INFO, true);
+
+        if (latestUpdateTime.secsTo(QDateTime::currentDateTime()) > 5) {
+            ready = false;
+        }
     }
 }
 
@@ -1465,83 +1489,47 @@ void SerialPortManager::restartSwitchableUSB(){
 /*
  * Switch USB to host via serial command (new FE0C protocol)
  * Command: 57 AB 00 17 05 00 00 00 00 00 + checksum
- * Returns true if successful
+ * Asynchronous - sends command without waiting for response
  */
-bool SerialPortManager::switchUsbToHostViaSerial() {
-    qCDebug(log_core_serial) << "Switching USB to host via serial command...";
+void SerialPortManager::switchUsbToHostViaSerial() {
+    qCDebug(log_core_serial) << "Switching USB to host via serial command (async)...";
     
     if (!serialPort || !serialPort->isOpen()) {
         qCWarning(log_core_serial) << "Serial port not open, cannot switch USB to host";
-        return false;
+        return;
     }
     
     // Only use this method for FE0C chips
     if (!isChipTypeFE0C()) {
         qCDebug(log_core_serial) << "Not FE0C chip, skipping serial-based USB switch";
-        return false;
+        return;
     }
     
-    QByteArray response = sendSyncCommand(CMD_SWITCH_USB_TO_HOST, true);
-    
-    if (response.size() > 0) {
-        qCDebug(log_core_serial) << "Switch USB to host response:" << response.toHex(' ');
-        
-        // Expected response: 57 AB 00 17 01 00 + checksum (0x1A)
-        if (response.size() >= 7 && 
-            response[0] == 0x57 && response[1] == (char)0xAB && 
-            response[2] == 0x00 && response[3] == 0x17 &&
-            response[4] == 0x01 && response[5] == 0x00) {
-            qCInfo(log_core_serial) << "Successfully switched USB to host via serial";
-            return true;
-        } else {
-            qCWarning(log_core_serial) << "Unexpected response for switch USB to host:" << response.toHex(' ');
-            return false;
-        }
-    }
-    
-    qCWarning(log_core_serial) << "No response received for switch USB to host command";
-    return false;
+    sendAsyncCommand(CMD_SWITCH_USB_TO_HOST, true);
+    qCInfo(log_core_serial) << "USB switch to host command sent asynchronously";
 }
 
 /*
  * Switch USB to target via serial command (new FE0C protocol)
  * Command: 57 AB 00 17 05 00 00 00 00 01 + checksum
- * Returns true if successful
+ * Asynchronous - sends command without waiting for response
  */
-bool SerialPortManager::switchUsbToTargetViaSerial() {
-    qCDebug(log_core_serial) << "Switching USB to target via serial command...";
+void SerialPortManager::switchUsbToTargetViaSerial() {
+    qCDebug(log_core_serial) << "Switching USB to target via serial command (async)...";
     
     if (!serialPort || !serialPort->isOpen()) {
         qCWarning(log_core_serial) << "Serial port not open, cannot switch USB to target";
-        return false;
+        return;
     }
     
     // Only use this method for FE0C chips
     if (!isChipTypeFE0C()) {
         qCDebug(log_core_serial) << "Not FE0C chip, skipping serial-based USB switch";
-        return false;
+        return;
     }
     
-    QByteArray response = sendSyncCommand(CMD_SWITCH_USB_TO_TARGET, true);
-    
-    if (response.size() > 0) {
-        qCDebug(log_core_serial) << "Switch USB to target response:" << response.toHex(' ');
-        
-        // Expected response: 57 AB 00 17 01 01 + checksum (0x1B)
-        if (response.size() >= 7 && 
-            response[0] == 0x57 && response[1] == (char)0xAB && 
-            response[2] == 0x00 && response[3] == 0x17 &&
-            response[4] == 0x01 && response[5] == 0x01) {
-            qCInfo(log_core_serial) << "Successfully switched USB to target via serial";
-            return true;
-        } else {
-            qCWarning(log_core_serial) << "Unexpected response for switch USB to target:" << response.toHex(' ');
-            return false;
-        }
-    }
-    
-    qCWarning(log_core_serial) << "No response received for switch USB to target command";
-    return false;
+    sendAsyncCommand(CMD_SWITCH_USB_TO_TARGET, true);
+    qCInfo(log_core_serial) << "USB switch to target command sent asynchronously";
 }
 
 /*

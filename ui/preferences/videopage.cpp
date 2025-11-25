@@ -24,6 +24,8 @@
 #include "fontstyle.h"
 #include "ui/globalsetting.h"
 #include "host/cameramanager.h"
+#include "host/multimediabackend.h"
+#include "host/backend/ffmpegbackendhandler.h"
 #include <QDebug>
 #include <QComboBox>
 #include <QHBoxLayout>
@@ -147,6 +149,47 @@ void VideoPage::setupUI()
     // Connect the media backend change signal
     connect(mediaBackendBox, &QComboBox::currentIndexChanged, this, &VideoPage::onMediaBackendChanged);
 
+    // Hardware Acceleration Setting Section
+    QLabel *hwAccelLabel = new QLabel(tr("Hardware Acceleration: "));
+    hwAccelLabel->setStyleSheet(smallLabelFontSize);
+
+    QComboBox *hwAccelBox = new QComboBox();
+    hwAccelBox->setObjectName("hwAccelBox");
+
+    QLabel *hwAccelHintLabel = new QLabel(tr("Note: Hardware acceleration improves performance but may not be available on all systems. Changing this setting requires application restart to take effect."));
+    hwAccelHintLabel->setStyleSheet("color: #666666; font-style: italic;");
+
+    // Populate hardware acceleration options
+    if (m_cameraManager) {
+        MultimediaBackendHandler* backend = m_cameraManager->getBackendHandler();
+        if (backend) {
+            QStringList availableHwAccel = backend->getAvailableHardwareAccelerations();
+            hwAccelBox->clear();
+            for (const QString& hw : availableHwAccel) {
+                QString displayName;
+                if (hw == "auto") {
+                    displayName = tr("Auto (Recommended)");
+                } else if (hw == "cuda") {
+                    displayName = tr("NVIDIA CUDA");
+                } else if (hw == "qsv") {
+                    displayName = tr("Intel Quick Sync Video");
+                } else if (hw == "none") {
+                    displayName = tr("CPU");
+                } else {
+                    displayName = hw;
+                }
+                hwAccelBox->addItem(displayName, hw);
+            }
+
+            // Set current hardware acceleration from settings
+            QString currentHwAccel = GlobalSetting::instance().getHardwareAcceleration();
+            int hwIndex = hwAccelBox->findData(currentHwAccel);
+            if (hwIndex != -1) {
+                hwAccelBox->setCurrentIndex(hwIndex);
+            }
+        }
+    }
+
     // Add Capture Resolution elements to the layout
     videoLayout->addWidget(hintLabel);
     videoLayout->addWidget(resolutionsLabel);
@@ -159,6 +202,9 @@ void VideoPage::setupUI()
     videoLayout->addWidget(backendLabel);
     videoLayout->addWidget(mediaBackendBox);
     videoLayout->addWidget(backendHintLabel);
+    videoLayout->addWidget(hwAccelLabel);
+    videoLayout->addWidget(hwAccelBox);
+    videoLayout->addWidget(hwAccelHintLabel);
     videoLayout->addStretch();
 
     // Connect the checkbox state change to the slot
@@ -167,23 +213,48 @@ void VideoPage::setupUI()
     // Initialize the state of the custom resolution inputs
     toggleCustomResolutionInputs(overrideSettingsCheckBox->isChecked());
 
-    if (m_cameraManager && m_cameraManager->getCamera()) {
-        const QList<QCameraFormat> videoFormats = m_cameraManager->getCameraFormats();
-        populateResolutionBox(videoFormats);
+    // Note: Camera format enumeration removed with FFmpeg backend
+    // FFmpeg uses DirectShow/V4L2 format negotiation
+    if (m_cameraManager) {
+        // Populate with empty list (user can use custom resolution)
+        populateResolutionBox(QList<QCameraFormat>());
+        
+        // Add default resolution options for FFmpeg backend
+        if (videoFormatBox->count() == 0) {
+            // Add common resolutions as defaults when no camera formats available
+            std::set<int> defaultFps = {30, 60};
+            QVariant fpsVariant = QVariant::fromValue<std::set<int>>(defaultFps);
+            
+            videoFormatBox->addItem("1920x1080 [30 - 60 Hz]", fpsVariant);
+            videoFormatBox->addItem("1280x720 [30 - 60 Hz]", fpsVariant);
+            videoFormatBox->addItem("640x480 [30 - 60 Hz]", fpsVariant);
+            
+            // Set default resolution
+            m_currentResolution = QSize(1920, 1080);
+        }
+        
         connect(videoFormatBox, &QComboBox::currentIndexChanged, [this, videoFormatBox](int /*index*/){
-            this->setFpsRange(boxValue(videoFormatBox).value<std::set<int>>());
-
-            QString resolutionText = videoFormatBox->currentText();
-            QStringList resolutionParts = resolutionText.split(' ').first().split('x');
-            m_currentResolution = QSize(resolutionParts[0].toInt(), resolutionParts[1].toInt());
+            if (videoFormatBox->count() > 0) {
+                QString resolutionText = videoFormatBox->currentText();
+                QStringList resolutionParts = resolutionText.split(' ').first().split('x');
+                if (resolutionParts.size() >= 2) {
+                    m_currentResolution = QSize(resolutionParts[0].toInt(), resolutionParts[1].toInt());
+                }
+            }
         });
 
-        const std::set<int> fpsValues = boxValue(videoFormatBox).value<std::set<int>>();
-
-        setFpsRange(fpsValues);
-        QString resolutionText = videoFormatBox->currentText();
-        QStringList resolutionParts = resolutionText.split(' ').first().split('x');
-        m_currentResolution = QSize(resolutionParts[0].toInt(), resolutionParts[1].toInt());
+        // Only process if combobox has items
+        if (videoFormatBox->count() > 0) {
+            const std::set<int> fpsValues = boxValue(videoFormatBox).value<std::set<int>>();
+            setFpsRange(fpsValues);
+            
+            QString resolutionText = videoFormatBox->currentText();
+            QStringList resolutionParts = resolutionText.split(' ').first().split('x');
+            if (resolutionParts.size() >= 2) {
+                m_currentResolution = QSize(resolutionParts[0].toInt(), resolutionParts[1].toInt());
+            }
+        }
+        
         updatePixelFormats();
         // connect(pixelFormatBox, &QComboBox::currentIndexChanged, this,
         //         &VideoPage::updatePixelFormats);
@@ -291,28 +362,10 @@ void VideoPage::updatePixelFormats()
     QComboBox *pixelFormatBox = this->findChild<QComboBox*>("pixelFormatBox");
     pixelFormatBox->clear();
 
-    // Retrieve supported pixel formats from the camera manager
-    if (m_cameraManager) {
-        for (const auto &format : m_cameraManager->getSupportedPixelFormats()) {
-            QString description;
-
-            // Map pixel formats to their descriptions
-            switch (format.pixelFormat()) {
-                case QVideoFrameFormat::Format_YUV420P:
-                    description = "YUV420P";
-                    break;
-                case QVideoFrameFormat::Format_Jpeg:
-                    description = "JPEG";
-                    break;
-                default:
-                    description = "Unknown Format";
-                    break;
-            }
-
-            // Add each pixel format to the combo box
-            pixelFormatBox->addItem(description, QVariant::fromValue(format.pixelFormat()));
-        }
-    }
+    // Note: Pixel format enumeration removed with FFmpeg backend
+    // FFmpeg handles pixel format selection automatically
+    pixelFormatBox->addItem("Auto (FFmpeg)", QVariant::fromValue(0));
+    pixelFormatBox->setEnabled(false); // Disable as FFmpeg handles this
 
     m_updatingFormats = false;
 }
@@ -325,6 +378,10 @@ QVariant VideoPage::boxValue(const QComboBox *box) const
 
 void VideoPage::applyVideoSettings() {
     QComboBox *fpsComboBox = this->findChild<QComboBox*>("fpsComboBox");
+    if (!fpsComboBox) {
+        qWarning() << "fpsComboBox not found!";
+        return;
+    }
     int fps = fpsComboBox->currentData().toInt();
     qDebug() << "fpsComboBox current data:" << fpsComboBox->currentData();
     
@@ -345,21 +402,14 @@ void VideoPage::applyVideoSettings() {
 
     // Extract the pixel format from the QVariant
     QVariant pixelFormatVariant = boxValue(pixelFormatBox);
-    QVideoFrameFormat::PixelFormat pixelFormat = static_cast<QVideoFrameFormat::PixelFormat>(pixelFormatVariant.toInt());
+    // Note: Camera format selection removed with FFmpeg backend
+    // FFmpeg negotiates formats directly with DirectShow/V4L2
     
-    QCameraFormat format = m_cameraManager->getVideoFormat(m_currentResolution, fps, pixelFormat);
-
-    if (!format.isNull()) {
-        qDebug() << "Set Camera Format, resolution:" << format.resolution() << ", FPS:" << fps << format.pixelFormat();
-        if (isGStreamer) {
-            qDebug() << "GStreamer format range: min=" << format.minFrameRate() << "max=" << format.maxFrameRate();
-        }
-    } else {
-        qWarning() << "Invalid camera format!" << m_currentResolution << fps;
-        if (isGStreamer) {
-            qWarning() << "GStreamer may have rejected the format - try a different frame rate";
-        }
-        return;
+    // Save hardware acceleration setting
+    QComboBox *hwAccelBox = this->findChild<QComboBox*>("hwAccelBox");
+    if (hwAccelBox) {
+        QString hwAccel = hwAccelBox->currentData().toString();
+        GlobalSetting::instance().setHardwareAcceleration(hwAccel);
     }
 
     if (!m_cameraManager) {
@@ -370,30 +420,23 @@ void VideoPage::applyVideoSettings() {
     // Stop the camera if it is in an active status
     m_cameraManager->stopCamera();
 
-    // Set the new camera format
-    m_cameraManager->setCameraFormat(format);
-
+    // Store settings for FFmpeg backend
     handleResolutionSettings();
 
-    qDebug() << "Set global variable to:" << format.resolution().width() << format.resolution().height() << fps;
-    GlobalVar::instance().setCaptureWidth(format.resolution().width());
-    GlobalVar::instance().setCaptureHeight(format.resolution().height());
+    qDebug() << "Set global variable to:" << m_currentResolution.width() << m_currentResolution.height() << fps;
+    GlobalVar::instance().setCaptureWidth(m_currentResolution.width());
+    GlobalVar::instance().setCaptureHeight(m_currentResolution.height());
     GlobalVar::instance().setCaptureFps(fps);
 
     qDebug() << "Start the camera";
     // Start the camera with the new settings
     m_cameraManager->startCamera();
-    // qDebug() << "Camera started";
 
-    // Debug output to confirm settings
-    QCameraFormat appliedFormat = m_cameraManager->getCameraFormat();
-    qDebug() << "Applied Camera Format, resolution:" << appliedFormat.resolution()
-             << ", FPS:" << fps
-             << appliedFormat.pixelFormat();
+    qDebug() << "Applied settings: resolution:" << m_currentResolution << ", FPS:" << fps;
 
     updatePixelFormats();
 
-    GlobalSetting::instance().setVideoSettings(format.resolution().width(), format.resolution().height(), fps);
+    GlobalSetting::instance().setVideoSettings(m_currentResolution.width(), m_currentResolution.height(), fps);
     // Emit the signal with the new width and height
     emit videoSettingsChanged();
 }
@@ -413,11 +456,13 @@ void VideoPage::initVideoSettings() {
     for (int i = 0; i < videoFormatBox->count(); ++i) {
         QString resolutionText = videoFormatBox->itemText(i).split(' ').first();
         QStringList resolutionParts = resolutionText.split('x');
-        qDebug() << "resolution text: "<< resolutionText;
-        qDebug() << resolutionParts[0].toInt()<< width << resolutionParts[1].toInt() << height;
-        if (resolutionParts[0].toInt() == width && resolutionParts[1].toInt() == height) {
-            videoFormatBox->setCurrentIndex(i);
-            break;
+        if (resolutionParts.size() >= 2) {
+            qDebug() << "resolution text: "<< resolutionText;
+            qDebug() << resolutionParts[0].toInt()<< width << resolutionParts[1].toInt() << height;
+            if (resolutionParts[0].toInt() == width && resolutionParts[1].toInt() == height) {
+                videoFormatBox->setCurrentIndex(i);
+                break;
+            }
         }
     }
 
@@ -434,6 +479,16 @@ void VideoPage::initVideoSettings() {
         int backendIndex = mediaBackendBox->findData(currentBackend);
         if (backendIndex != -1) {
             mediaBackendBox->setCurrentIndex(backendIndex);
+        }
+    }
+
+    // Set the hardware acceleration in the combo box
+    QComboBox *hwAccelBox = this->findChild<QComboBox*>("hwAccelBox");
+    if (hwAccelBox) {
+        QString currentHwAccel = GlobalSetting::instance().getHardwareAcceleration();
+        int hwIndex = hwAccelBox->findData(currentHwAccel);
+        if (hwIndex != -1) {
+            hwAccelBox->setCurrentIndex(hwIndex);
         }
     }
 }

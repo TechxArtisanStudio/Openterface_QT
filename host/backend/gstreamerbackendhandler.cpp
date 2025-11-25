@@ -29,6 +29,7 @@
 #include <QWidget>
 #include <QFile>
 #include <QDir>
+#include <QFileInfo>
 #include <QLoggingCategory>
 #include <QGraphicsVideoItem>
 #include <QGraphicsView>
@@ -172,15 +173,13 @@ MultimediaBackendConfig GStreamerBackendHandler::getDefaultConfig() const
     return config;
 }
 
-void GStreamerBackendHandler::prepareCameraCreation(QCamera* oldCamera)
+void GStreamerBackendHandler::prepareCameraCreation()
 {
-    if (oldCamera) {
-        qCDebug(log_gstreamer_backend) << "GStreamer: Disconnecting old camera from capture session before creating new one.";
-        QThread::msleep(m_config.deviceSwitchDelay);
-    }
+    qCDebug(log_gstreamer_backend) << "GStreamer: Preparing camera creation";
+    QThread::msleep(m_config.deviceSwitchDelay);
 }
 
-void GStreamerBackendHandler::setupCaptureSession(QMediaCaptureSession* session, QCamera* camera)
+void GStreamerBackendHandler::setupCaptureSession(QMediaCaptureSession* session)
 {
     // For GStreamer backend, always use direct pipeline and never set up Qt camera
     // This prevents Qt from accessing the V4L2 device and causing conflicts
@@ -200,52 +199,37 @@ void GStreamerBackendHandler::finalizeVideoOutputConnection(QMediaCaptureSession
     // The direct pipeline will render directly to the video widget
 }
 
-void GStreamerBackendHandler::startCamera(QCamera* camera)
+void GStreamerBackendHandler::startCamera()
 {
      qCWarning(log_gstreamer_backend) << "GStreamer startCamera called";
      qCDebug(log_gstreamer_backend) << "Current device:" << m_currentDevice;
      qCDebug(log_gstreamer_backend) << "Current resolution:" << m_currentResolution;
      qCDebug(log_gstreamer_backend) << "Current framerate:" << m_currentFramerate;
      
-    // Check if we should use direct GStreamer pipeline instead of Qt's camera
+    // Check if we should use direct GStreamer pipeline
     bool useDirectPipeline = true; // This could be configurable
     
     if (useDirectPipeline && !m_currentDevice.isEmpty()) {
-        qCDebug(log_gstreamer_backend) << "GStreamer: Using direct pipeline - Qt camera will NOT be started";
-        
-        // Ensure Qt camera is definitely stopped and disconnected
-        if (camera) {
-            qCDebug(log_gstreamer_backend) << "Ensuring Qt camera is stopped and disconnected";
-            camera->stop();
-            QThread::msleep(300); // Give extra time for device to be fully released
-        }
+        qCDebug(log_gstreamer_backend) << "GStreamer: Using direct pipeline";
         
         if (!createGStreamerPipeline(m_currentDevice, m_currentResolution, m_currentFramerate)) {
-            qCWarning(log_gstreamer_backend) << "Failed to create GStreamer pipeline, falling back to Qt camera";
+            qCWarning(log_gstreamer_backend) << "Failed to create GStreamer pipeline";
             useDirectPipeline = false;
         } else if (!startGStreamerPipeline()) {
-            qCWarning(log_gstreamer_backend) << "Failed to start GStreamer pipeline, falling back to Qt camera";
+            qCWarning(log_gstreamer_backend) << "Failed to start GStreamer pipeline";
             useDirectPipeline = false;
         } else {
-            qCDebug(log_gstreamer_backend) << "GStreamer pipeline started successfully - NOT starting Qt camera";
-            return; // SUCCESS: Direct pipeline is running, don't start Qt camera
+            qCDebug(log_gstreamer_backend) << "GStreamer pipeline started successfully";
+            return; // SUCCESS: Direct pipeline is running
         }
     } else {
-        qCWarning(log_gstreamer_backend) << "GStreamer: No valid device configured, using Qt camera";
-        useDirectPipeline = false;
-    }
-    
-    if (!useDirectPipeline) {
-        // Fallback to original Qt camera approach
-        qCDebug(log_gstreamer_backend) << "GStreamer: Starting Qt camera as fallback";
-        camera->start();
-        QThread::msleep(50);
+        qCWarning(log_gstreamer_backend) << "GStreamer: No valid device configured";
     }
 }
 
-void GStreamerBackendHandler::stopCamera(QCamera* camera)
+void GStreamerBackendHandler::stopCamera()
 {
-    qCDebug(log_gstreamer_backend) << "GStreamer: Stopping camera with careful shutdown procedure.";
+    qCDebug(log_gstreamer_backend) << "GStreamer: Stopping camera";
     
     // Stop direct pipeline if running
     if (m_pipelineRunning) {
@@ -262,10 +246,6 @@ void GStreamerBackendHandler::stopCamera(QCamera* camera)
             }
         }
     }
-    
-    // Also stop Qt camera
-    camera->stop();
-    QThread::msleep(100);
 }
 
 void GStreamerBackendHandler::prepareVideoOutputConnection(QMediaCaptureSession* session, QObject* videoOutput)
@@ -295,52 +275,12 @@ void GStreamerBackendHandler::prepareVideoOutputConnection(QMediaCaptureSession*
     qCDebug(log_gstreamer_backend) << "GStreamer: Video output type not supported for direct rendering, will use Qt's default handling";
 }
 
-void GStreamerBackendHandler::configureCameraDevice(QCamera* camera, const QCameraDevice& device)
+void GStreamerBackendHandler::configureCameraDevice()
 {
-    // Extract device path for direct GStreamer usage
-    QString deviceId = QString::fromUtf8(device.id());
-    
-    qCDebug(log_gstreamer_backend) << "Configuring camera device with ID:" << deviceId;
-    
-    // Convert Qt device ID to V4L2 device path if needed
-    if (!deviceId.startsWith("/dev/video")) {
-        // Check if deviceId is a simple number (like "0", "1", etc.)
-        bool isNumber = false;
-        int deviceNumber = deviceId.toInt(&isNumber);
-        
-        if (isNumber) {
-            // Direct numeric ID - convert to /dev/video path
-            m_currentDevice = QString("/dev/video%1").arg(deviceNumber);
-            qCDebug(log_gstreamer_backend) << "Converted numeric device ID" << deviceId << "to path:" << m_currentDevice;
-        } else {
-            // Complex device ID (Windows style, USB IDs, etc.) - try to find corresponding V4L2 device
-            // For now, default to video0 but this could be enhanced with device enumeration
-            qCDebug(log_gstreamer_backend) << "Complex device ID detected:" << deviceId << "- using fallback /dev/video0";
-            m_currentDevice = "/dev/video0";
-            
-            // TODO: Implement more sophisticated device mapping based on:
-            // - USB vendor/product IDs
-            // - Device description matching
-            // - /sys/class/video4linux/ enumeration
-        }
-    } else {
-        // Already a proper V4L2 device path
-        m_currentDevice = deviceId;
-        qCDebug(log_gstreamer_backend) << "Using direct device path:" << m_currentDevice;
-    }
-    
-    qCDebug(log_gstreamer_backend) << "GStreamer device path configured as:" << m_currentDevice;
-    
-    // Ensure Qt camera is stopped before we configure it for potential direct GStreamer use
-    if (camera && !m_currentDevice.isEmpty()) {
-        qCDebug(log_gstreamer_backend) << "Stopping Qt camera during device configuration to prevent early device access";
-        camera->stop();
-        QThread::msleep(100);
-    }
+    qCDebug(log_gstreamer_backend) << "Configuring camera device";
     
     // Call parent implementation for standard Qt camera configuration
-    // But note: this might start the camera again, which is why we handle it in setupCaptureSession
-    MultimediaBackendHandler::configureCameraDevice(camera, device);
+    MultimediaBackendHandler::configureCameraDevice();
 }
 
 QList<int> GStreamerBackendHandler::getSupportedFrameRates(const QCameraFormat& format) const
@@ -377,9 +317,9 @@ QCameraFormat GStreamerBackendHandler::selectOptimalFormat(const QList<QCameraFo
     return MultimediaBackendHandler::selectOptimalFormat(formats, resolution, desiredFrameRate, pixelFormat);
 }
 
-void GStreamerBackendHandler::handleCameraError(QCamera::Error error, const QString& errorString)
+void GStreamerBackendHandler::handleCameraError(int errorCode, const QString& errorString)
 {
-    qCCritical(log_gstreamer_backend) << "GStreamer Camera Error:" << error << "-" << errorString;
+    qCCritical(log_gstreamer_backend) << "GStreamer Camera Error:" << errorCode << "-" << errorString;
     if (errorString.contains("GStreamer")) {
         emit backendWarning("A GStreamer-specific error occurred. Please check GStreamer installation and plugins.");
     }
@@ -1998,13 +1938,13 @@ bool GStreamerBackendHandler::startRecording(const QString& outputPath, const QS
     return true;
 }
 
-void GStreamerBackendHandler::stopRecording()
+bool GStreamerBackendHandler::stopRecording()
 {
     qCDebug(log_gstreamer_backend) << "GStreamer: Stopping valve-based recording";
     
     if (!m_recordingActive) {
         qCDebug(log_gstreamer_backend) << "No active recording to stop";
-        return;
+        return false;
     }
 
 #ifdef HAVE_GSTREAMER
@@ -2080,6 +2020,7 @@ void GStreamerBackendHandler::stopRecording()
     
     qCDebug(log_gstreamer_backend) << "Valve-based recording stopped successfully";
     emit recordingStopped();
+    return true;
 }
 
 void GStreamerBackendHandler::pauseRecording()
@@ -3741,4 +3682,75 @@ GstFlowReturn GStreamerBackendHandler::onNewRecordingSample(GstAppSink* sink)
     return GST_FLOW_OK;
 }
 #endif
+
+// Advanced recording methods
+bool GStreamerBackendHandler::isPipelineReady() const
+{
+#ifdef HAVE_GSTREAMER
+    return m_pipelineRunning && m_pipeline != nullptr;
+#else
+    return false;
+#endif
+}
+
+bool GStreamerBackendHandler::supportsAdvancedRecording() const
+{
+    return true; // GStreamer backend supports advanced recording
+}
+
+bool GStreamerBackendHandler::startRecordingAdvanced(const QString& outputPath, const RecordingConfig& config)
+{
+    setRecordingConfig(config);
+    return startRecording(outputPath, config.format, config.videoBitrate);
+}
+
+bool GStreamerBackendHandler::forceStopRecording()
+{
+#ifdef HAVE_GSTREAMER
+    qCDebug(log_gstreamer_backend) << "Force stopping recording";
+    m_recordingActive = false;
+    m_recordingPaused = false;
+    m_recordingOutputPath.clear();
+    
+    // Clean up recording elements if they exist
+    if (m_recordingValve) {
+        g_object_set(m_recordingValve, "drop", TRUE, NULL);
+    }
+    
+    emit recordingStopped();
+    return true;
+#else
+    return false;
+#endif
+}
+
+QString GStreamerBackendHandler::getLastError() const
+{
+    return m_lastError;
+}
+
+bool GStreamerBackendHandler::isPaused() const
+{
+    return m_recordingPaused;
+}
+
+bool GStreamerBackendHandler::supportsRecordingStats() const
+{
+    return true; // GStreamer backend supports recording statistics
+}
+
+qint64 GStreamerBackendHandler::getRecordingFileSize() const
+{
+#ifdef HAVE_GSTREAMER
+    if (m_recordingOutputPath.isEmpty() || !m_recordingActive) {
+        return 0;
+    }
+    
+    QFileInfo fileInfo(m_recordingOutputPath);
+    return fileInfo.size();
+#else
+    return 0;
+#endif
+}
+
 #endif // HAVE_GSTREAMER

@@ -53,9 +53,9 @@ public:
     bool isBackendAvailable() const override;
     
     // Camera management (for Windows, these delegate to Qt framework)
-    void configureCameraDevice(QCamera* camera, const QCameraDevice& device) override;
-    void prepareCameraCreation(QCamera* camera) override;
-    void setupCaptureSession(QMediaCaptureSession* session, QCamera* camera) override;
+    void configureCameraDevice() override;
+    void prepareCameraCreation() override;
+    void setupCaptureSession(QMediaCaptureSession* session) override;
     
     // Format and capability queries
     QCameraFormat selectOptimalFormat(const QList<QCameraFormat>& formats, 
@@ -70,7 +70,7 @@ public:
     
     // Recording functionality - Windows-specific implementation
     bool startRecording(const QString& outputPath, const QString& format, int videoBitrate) override;
-    void stopRecording() override;
+    bool stopRecording() override;
     void pauseRecording() override;
     void resumeRecording() override;
     bool isRecording() const override;

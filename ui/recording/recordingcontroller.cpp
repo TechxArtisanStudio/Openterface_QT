@@ -582,35 +582,31 @@ void RecordingController::resetRecordingSystem()
     }
     
     // Show a progress dialog
-    QProgressDialog progressDialog(tr("Resetting recording system..."), QString(), 0, 0, this);
-    progressDialog.setWindowModality(Qt::WindowModal);
-    progressDialog.setCancelButton(nullptr);
-    progressDialog.show();
+    // Note: recoverRecordingSystem removed with QCamera migration to FFmpeg
+    // FFmpeg backend handles recovery automatically
     
-    // No need to force process events - dialog will display naturally
-    
-    // Reset the recording system
-    m_cameraManager->recoverRecordingSystem();
-    
-    // Close the progress dialog
-    progressDialog.close();
-    
-    QMessageBox::information(this, tr("System Reset Complete"),
-        tr("The recording system has been reset. Please try recording again."));
+    QMessageBox::information(this, tr("System Reset"),
+        tr("FFmpeg backend automatically handles recovery. Please try recording again."));
 }
 
 void RecordingController::showRecordingDiagnostics()
 {
     qCInfo(log_ui_recordingcontroller) << "Recording diagnostics requested";
     
-    if (!m_cameraManager) {
-        QMessageBox::warning(this, tr("Diagnostics Unavailable"), 
-            tr("Cannot retrieve diagnostics - camera manager is not available."));
-        return;
-    }
+    // Note: getRecordingDiagnosticsReport removed with QCamera migration to FFmpeg
+    // Basic diagnostics for FFmpeg backend
     
-    // Get diagnostics report
-    QString diagnostics = m_cameraManager->getRecordingDiagnosticsReport();
+    QString diagnostics;
+    if (!m_cameraManager) {
+        diagnostics = "Camera manager not available";
+    } else {
+        diagnostics = QString("Recording System Diagnostics\n\n");
+        diagnostics += QString("Backend: FFmpeg\n");
+        diagnostics += QString("Current Device: %1\n").arg(m_cameraManager->getCurrentCameraDeviceDescription());
+        diagnostics += QString("Is Recording: %1\n").arg(m_cameraManager->isRecording() ? "Yes" : "No");
+        diagnostics += QString("Is Paused: %1\n").arg(m_cameraManager->isPaused() ? "Yes" : "No");
+        diagnostics += QString("\nFFmpeg backend handles device access automatically.");
+    }
     
     // Create a dialog with a text browser
     QDialog dialog(this);

@@ -197,6 +197,8 @@ declare -a UNIFIED_LIBRARY_CONFIGS=(
     "SWSCALE|FFmpeg swscale|libswscale.so|WARNING|ffmpeg|/opt/ffmpeg/lib /usr/lib/x86_64-linux-gnu /usr/lib"
     "SWRESAMPLE|FFmpeg swresample|libswresample.so|WARNING|ffmpeg|/opt/ffmpeg/lib /usr/lib/x86_64-linux-gnu /usr/lib"
     "AVFILTER|FFmpeg avfilter|libavfilter.so|WARNING|ffmpeg|/opt/ffmpeg/lib /usr/lib/x86_64-linux-gnu /usr/lib"
+    "POSTPROC|FFmpeg postproc|libpostproc.so|WARNING|ffmpeg|/opt/ffmpeg/lib /usr/lib/x86_64-linux-gnu /usr/lib"
+    "MFX|Intel Media SDK|libmfx.so|WARNING|ffmpeg|/opt/ffmpeg/lib /usr/lib/x86_64-linux-gnu /usr/lib"
     
     # GStreamer libraries -> ${PKG_ROOT}/usr/lib/openterfaceqt/gstreamer
     "GSTREAMER|GStreamer core|libgstreamer-1.0.so|WARNING|gstreamer|/opt/gstreamer/lib/x86_64-linux-gnu /usr/lib/x86_64-linux-gnu /usr/lib"

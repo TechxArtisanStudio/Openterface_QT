@@ -81,25 +81,20 @@ bool QtBackendHandler::isBackendAvailable() const
     return true; // Qt Multimedia is always available on Windows
 }
 
-void QtBackendHandler::configureCameraDevice(QCamera* camera, const QCameraDevice& device)
+void QtBackendHandler::configureCameraDevice()
 {
-    Q_UNUSED(camera)
-    Q_UNUSED(device)
     qCDebug(log_qt_backend) << "configureCameraDevice - Qt backend uses standard camera configuration";
 }
 
-void QtBackendHandler::prepareCameraCreation(QCamera* camera)
+void QtBackendHandler::prepareCameraCreation()
 {
-    Q_UNUSED(camera)
     qCDebug(log_qt_backend) << "prepareCameraCreation - Qt backend uses standard camera creation";
 }
 
-void QtBackendHandler::setupCaptureSession(QMediaCaptureSession* session, QCamera* camera)
+void QtBackendHandler::setupCaptureSession(QMediaCaptureSession* session)
 {
     qCDebug(log_qt_backend) << "setupCaptureSession - Using Qt standard setup";
-    if (session && camera) {
-        session->setCamera(camera);
-        
+    if (session) {
         // Set the recorder on the capture session if available
         if (m_mediaRecorder) {
             session->setRecorder(m_mediaRecorder);
@@ -292,19 +287,19 @@ bool QtBackendHandler::startRecording(const QString& outputPath, const QString& 
     }
 }
 
-void QtBackendHandler::stopRecording()
+bool QtBackendHandler::stopRecording()
 {
     qCDebug(log_qt_backend) << "Stopping recording";
     qCDebug(log_qt_backend) << "Current state - m_recordingActive:" << m_recordingActive << "m_mediaRecorder:" << m_mediaRecorder;
     
     if (!m_recordingActive) {
         qCWarning(log_qt_backend) << "Not currently recording (m_recordingActive is false)";
-        return;
+        return false;
     }
     
     if (!m_mediaRecorder) {
         qCWarning(log_qt_backend) << "No media recorder available";
-        return;
+        return false;
     }
     
     qCDebug(log_qt_backend) << "Media recorder state before stop():" << m_mediaRecorder->recorderState();
@@ -326,6 +321,7 @@ void QtBackendHandler::stopRecording()
         });
         
         // The onRecorderStateChanged slot will handle the rest
+        return true;
     } catch (const std::exception& e) {
         qCWarning(log_qt_backend) << "Exception while stopping recording:" << e.what();
         // Manually clean up state
@@ -333,6 +329,7 @@ void QtBackendHandler::stopRecording()
         m_recordingPaused = false;
         m_durationUpdateTimer->stop();
         emit recordingStopped();
+        return false;
     }
 }
 

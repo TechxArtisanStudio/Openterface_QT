@@ -99,6 +99,11 @@ signals:
      * @brief Emitted when device menu needs to be updated (e.g., after hotplug event)
      */
     void deviceMenuUpdateRequested();
+    
+    /**
+     * @brief Emitted when device switch is completed to update UI
+     */
+    void deviceSwitchCompleted();
 
 private slots:
     /**
@@ -153,6 +158,7 @@ private:
     QMenu *m_deviceMenu;                    ///< Pointer to device menu (not owned)
     CameraManager *m_cameraManager;         ///< Pointer to camera manager (not owned)
     QActionGroup *m_deviceMenuGroup;        ///< Action group for exclusive device selection
+    bool m_deviceAutoSelected;              ///< Flag to prevent multiple auto-selections
     
     // VID/PID constants
     static const QString MINI_KVM_VID;      ///< Mini-KVM Vendor ID

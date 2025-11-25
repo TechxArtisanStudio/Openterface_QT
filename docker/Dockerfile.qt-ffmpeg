@@ -2,16 +2,59 @@
 ARG BASE_IMAGE=ghcr.io/techxartisanstudio/openterface-qtbuild-setup:ubuntu-22.04-amd64
 ARG UBUNTU_VERSION=22.04
 ARG TARGETARCH=amd64
+
 FROM ${BASE_IMAGE}
 
-ARG http_proxy 
+# Define build paths and versions
+ARG BUILD_DIR=/workspace/qt-build
+ARG FFMPEG_PREFIX=/opt/ffmpeg
+ARG FFMPEG_VERSION=6.1.1
+ARG LIBUSB_VERSION=1.0.27
+
+# Proxy settings (optional)
+ARG http_proxy
 ARG https_proxy
 ENV http_proxy=$http_proxy \
     https_proxy=$https_proxy
-    
+
 WORKDIR ${BUILD_DIR}
 
-# Build libusb from source
+# Install system dependencies
+RUN apt update && apt install -y \
+    build-essential \
+    pkg-config \
+    yasm \
+    nasm \
+    git \
+    cmake \
+    libpulse-dev \
+    libva-dev \
+    libdrm-dev \
+    libx11-dev \
+    libgl1-mesa-dev \
+    intel-media-va-driver-non-free \
+    libmfx-dev \
+    libmfx1 \
+    libva-drm2 \
+    libva-x11-2 \
+    vainfo \
+    intel-gpu-tools \
+    && rm -rf /var/lib/apt/lists/*
+
+# Step 1: Install NVIDIA codec headers (ffnvcodec)
+RUN set -e; \
+    echo "Building ffnvcodec headers (n12.0.16.1 for FFmpeg 6.1)..." && \
+    git clone https://github.com/FFmpeg/nv-codec-headers.git && \
+    cd nv-codec-headers && \
+    git checkout n12.0.16.1 && \
+    make PREFIX="${FFMPEG_PREFIX}" && \
+    make PREFIX="${FFMPEG_PREFIX}" install && \
+    # Fix the pkgconfig file prefix
+    sed -i "s|prefix=/usr/local|prefix=${FFMPEG_PREFIX}|" "${FFMPEG_PREFIX}/lib/pkgconfig/ffnvcodec.pc" && \
+    cd ${BUILD_DIR} && \
+    rm -rf nv-codec-headers
+
+# Step 2: Build libusb
 RUN echo "Building libusb ${LIBUSB_VERSION} from source..." && \
     curl -L -o libusb.tar.bz2 "https://github.com/libusb/libusb/releases/download/v${LIBUSB_VERSION}/libusb-${LIBUSB_VERSION}.tar.bz2" && \
     tar xf libusb.tar.bz2 && \
@@ -24,7 +67,7 @@ RUN echo "Building libusb ${LIBUSB_VERSION} from source..." && \
     cd ${BUILD_DIR} && \
     rm -rf libusb
 
-# Build libjpeg-turbo from source
+# Step 3: Build libjpeg-turbo
 RUN echo "Building libjpeg-turbo from source..." && \
     curl -L -o libjpeg-turbo.tar.gz "https://github.com/libjpeg-turbo/libjpeg-turbo/archive/refs/tags/3.0.4.tar.gz" && \
     tar xzf libjpeg-turbo.tar.gz && \
@@ -44,30 +87,54 @@ RUN echo "Building libjpeg-turbo from source..." && \
     cd ${BUILD_DIR} && \
     rm -rf libjpeg-turbo-3.0.4
 
-# Build FFmpeg with both shared and static libs
-RUN echo "Building FFmpeg ${FFMPEG_VERSION} with both shared and static libs..." && \
+# Step 4: Build FFmpeg with full HW acceleration support
+# ⚠️ Critical: Enable --enable-ffnvcodec for FFmpeg 6.x when using NVENC/NVDEC
+RUN echo "Building FFmpeg ${FFMPEG_VERSION} with Intel QSV, NVIDIA HW acceleration, and VAAPI support..." && \
     curl -L -o ffmpeg.tar.bz2 "https://ffmpeg.org/releases/ffmpeg-${FFMPEG_VERSION}.tar.bz2" && \
     tar xjf ffmpeg.tar.bz2 && \
     rm ffmpeg.tar.bz2 && \
     cd "ffmpeg-${FFMPEG_VERSION}" && \
-    ./configure \
+    PKG_CONFIG_PATH="${FFMPEG_PREFIX}/lib/pkgconfig" ./configure \
         --prefix="${FFMPEG_PREFIX}" \
         --enable-static \
         --enable-shared \
-        --disable-doc \
-        --disable-programs \
-        --disable-outdevs \
         --enable-pic \
+        --enable-gpl \
+        --enable-version3 \
+        --enable-nonfree \
+        --disable-doc \
         --enable-libpulse \
-        --disable-debug && \
+        --enable-libdrm \
+        --enable-vaapi \
+        --enable-vdpau \
+        --enable-libmfx \
+        --enable-hwaccel=qsv \
+        --enable-hwaccel=h264_vaapi \
+        --enable-hwaccel=hevc_vaapi \
+        --enable-hwaccel=mpeg2_vaapi \
+        --enable-hwaccel=vp8_vaapi \
+        --enable-hwaccel=vp9_vaapi \
+        --enable-cuda \
+        --enable-cuvid \
+        --enable-nvdec \
+        --enable-nvenc \
+        --enable-hwaccels \
+        --enable-ffnvcodec \
+        # ← REQUIRED in FFmpeg 6.x
+        --extra-cflags="-I${FFMPEG_PREFIX}/include" \
+        --extra-ldflags="-L${FFMPEG_PREFIX}/lib" && \
     make -j$(nproc) && \
     make install && \
     cd ${BUILD_DIR} && \
     rm -rf "ffmpeg-${FFMPEG_VERSION}"
 
-# Verify FFmpeg installation
+# Verification step
 RUN echo "Verifying FFmpeg installation..." && \
-    ls -la ${FFMPEG_PREFIX}/lib/libav*.a && \
-    ls -la ${FFMPEG_PREFIX}/include/libav*/
+    ls -la "${FFMPEG_PREFIX}/lib/libavcodec.a" && \
+    ls -la "${FFMPEG_PREFIX}/include/libavcodec/" && \
+    LD_LIBRARY_PATH="${FFMPEG_PREFIX}/lib" "${FFMPEG_PREFIX}/bin/ffmpeg" -hide_banner -hwaccels | grep -E "(cuda|nvenc|qsv|vaapi)" && \
+    echo "Testing QSV support..." && \
+    LD_LIBRARY_PATH="${FFMPEG_PREFIX}/lib" "${FFMPEG_PREFIX}/bin/ffmpeg" -hide_banner -encoders | grep qsv && \
+    echo "QSV encoders found" || echo "No QSV encoders found"
 
 WORKDIR /workspace

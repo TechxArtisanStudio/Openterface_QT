@@ -4,18 +4,21 @@ REM To install OpenTerface QT with static OpenSSL support, you can run this scri
 setlocal enabledelayedexpansion
 
 REM Configuration
-set QT_VERSION=6.5.3
-set QT_MAJOR_VERSION=6.5
+set QT_VERSION=6.6.3
+set QT_MAJOR_VERSION=6.6
 set INSTALL_PREFIX=C:\Qt6
 set BUILD_DIR=%cd%\qt-build
-set MODULES=qtbase qtshadertools qtmultimedia qtsvg qtserialport qttools
+set MODULES=qtbase qtdeclarative qtshadertools qtmultimedia qtsvg qtserialport qttools
 set DOWNLOAD_BASE_URL=https://download.qt.io/archive/qt/%QT_MAJOR_VERSION%/%QT_VERSION%/submodules
 set VCPKG_DIR=C:\vcpkg
 set OPENSSL_DIR=%VCPKG_DIR%\installed\x64-mingw-static
 set OPENSSL_LIB_DIR=%OPENSSL_DIR%\lib
 set OPENSSL_INCLUDE_DIR=%OPENSSL_DIR%\include
 
-set PATH=C:\ProgramData\chocolatey\bin;C:\ProgramData\chocolatey\lib\ninja\tools;C:\mingw64\bin;%PATH%
+set PATH=C:\ProgramData\chocolatey\bin;C:\ProgramData\chocolatey\lib\ninja\tools;C:\msys64\mingw64\bin;C:\msys64\usr\bin;%PATH%
+
+REM Install dependencies with vcpkg
+"%VCPKG_DIR%\vcpkg.exe" install openssl:x64-mingw-static zlib:x64-mingw-static
 
 REM Check for Ninja
 where ninja >nul 2>nul
@@ -35,6 +38,12 @@ if not exist "%OPENSSL_LIB_DIR%\libssl.a" (
     exit /b 1
 )
 
+REM Check for zlib static library
+if not exist "%OPENSSL_LIB_DIR%\libzlib.a" (
+    echo zlib static library libzlib.a not found in %OPENSSL_LIB_DIR%. Please install zlib static libraries.
+    exit /b 1
+)
+
 REM Create build directory
 mkdir "%BUILD_DIR%"
 cd "%BUILD_DIR%"
@@ -49,7 +58,7 @@ for %%m in (%MODULES%) do (
     )
 )
 
-# Build qtbase first
+REM Build qtbase first
 cd "%BUILD_DIR%\qtbase"
 mkdir build
 cd build
@@ -63,15 +72,20 @@ cmake -G "Ninja" ^
     -DFEATURE_opengl=ON ^
     -DFEATURE_openssl=ON ^
     -DFEATURE_openssl_linked=ON ^
+    -DFEATURE_static_runtime=ON ^
+    -DFEATURE_zlib=system ^
     -DOPENSSL_ROOT_DIR="%OPENSSL_DIR%" ^
     -DOPENSSL_INCLUDE_DIR="%OPENSSL_INCLUDE_DIR%" ^
     -DOPENSSL_CRYPTO_LIBRARY="%OPENSSL_LIB_DIR%\libcrypto.a" ^
     -DOPENSSL_SSL_LIBRARY="%OPENSSL_LIB_DIR%\libssl.a" ^
+    -DZLIB_LIBRARY="%OPENSSL_LIB_DIR%\libzlib.a" ^
+    -DZLIB_INCLUDE_DIR="%OPENSSL_INCLUDE_DIR%" ^
     -DCMAKE_C_FLAGS="-I%OPENSSL_INCLUDE_DIR%" ^
     -DCMAKE_CXX_FLAGS="-I%OPENSSL_INCLUDE_DIR%" ^
-    -DCMAKE_EXE_LINKER_FLAGS="-L%OPENSSL_LIB_DIR% -lws2_32 -lcrypt32 -ladvapi32" ^
-    -DCMAKE_TOOLCHAIN_FILE="%VCPKG_DIR%\scripts\buildsystems\vcpkg.cmake" ^
-    -DVCPKG_TARGET_TRIPLET=x64-mingw-static ^
+    -DCMAKE_EXE_LINKER_FLAGS="-Wl,--subsystem,console -L%OPENSSL_LIB_DIR% -lws2_32 -lcrypt32 -ladvapi32 -lz" ^
+    -DCMAKE_C_COMPILER=gcc ^
+    -DCMAKE_CXX_COMPILER=g++ ^
+    -DFEATURE_libb2=OFF ^
     ..
 ninja
 ninja install
@@ -86,12 +100,21 @@ for %%m in (%MODULES%) do (
             -DCMAKE_INSTALL_PREFIX="%INSTALL_PREFIX%" ^
             -DCMAKE_PREFIX_PATH="%INSTALL_PREFIX%" ^
             -DBUILD_SHARED_LIBS=OFF ^
+            -DFEATURE_static_runtime=ON ^
+            -DFEATURE_zlib=system ^
             -DOPENSSL_ROOT_DIR="%OPENSSL_DIR%" ^
             -DOPENSSL_INCLUDE_DIR="%OPENSSL_INCLUDE_DIR%" ^
             -DOPENSSL_CRYPTO_LIBRARY="%OPENSSL_LIB_DIR%\libcrypto.a" ^
             -DOPENSSL_SSL_LIBRARY="%OPENSSL_LIB_DIR%\libssl.a" ^
-            -DCMAKE_TOOLCHAIN_FILE="%VCPKG_DIR%\scripts\buildsystems\vcpkg.cmake" ^
-            -DVCPKG_TARGET_TRIPLET=x64-mingw-static ^
+            -DZLIB_LIBRARY="%OPENSSL_LIB_DIR%\libzlib.a" ^
+            -DZLIB_INCLUDE_DIR="%OPENSSL_INCLUDE_DIR%" ^
+            -DCMAKE_C_FLAGS="-mconsole -I%OPENSSL_INCLUDE_DIR%" ^
+            -DCMAKE_CXX_FLAGS="-mconsole -I%OPENSSL_INCLUDE_DIR%" ^
+            -DCMAKE_EXE_LINKER_FLAGS="-Wl,--subsystem,console -L%OPENSSL_LIB_DIR%" ^
+
+            -DCMAKE_C_COMPILER=gcc ^
+
+            -DCMAKE_CXX_COMPILER=g++ ^
             ..
         ninja
         ninja install

@@ -83,6 +83,8 @@ EnvironmentSetupDialog::EnvironmentSetupDialog(QWidget *parent) :
 {
     ui->setupUi(this);
     
+    QString statusSummary;
+    
     // Set labels to interpret rich text
     ui->descriptionLabel->setTextFormat(Qt::RichText);
     ui->helpLabel->setTextFormat(Qt::RichText);
@@ -93,7 +95,7 @@ EnvironmentSetupDialog::EnvironmentSetupDialog(QWidget *parent) :
     bool autoCheck = settings.value("autoCheck", true).toBool();
     ui->autoCheckBox->setChecked(autoCheck);
 
-
+    
 
 
 #ifdef _WIN32
@@ -137,7 +139,7 @@ EnvironmentSetupDialog::EnvironmentSetupDialog(QWidget *parent) :
     connect(ui->copyButton, &QPushButton::clicked, this, &EnvironmentSetupDialog::copyCommands);
 
     // Create the status summary
-    QString statusSummary = tr("The following steps help you install the driver and access the device permissions and the Openterface firmware update. Current status:<br>");
+    statusSummary = tr("The following steps help you install the driver and access the device permissions and the Openterface firmware update. Current status:<br>");
     statusSummary += tr("◆ Driver Installed: ") + QString(isDriverInstalled ? tickHtml : crossHtml) + "<br>";
     statusSummary += tr("◆ In Serial Port Permission: ") + QString(isSerialPermission ? tickHtml : crossHtml) + "<br>";
     statusSummary += tr("◆ HID Permission: ") + QString(isHidPermission ? tickHtml : crossHtml) + "<br>";

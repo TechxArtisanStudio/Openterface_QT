@@ -112,6 +112,15 @@ QString GlobalSetting::getMediaBackend() const {
 #endif
 }
 
+void GlobalSetting::setHardwareAcceleration(const QString &hwAccel) {
+    m_settings.setValue("video/hardwareAcceleration", hwAccel);
+    m_settings.sync();  // Ensure the setting is written immediately
+}
+
+QString GlobalSetting::getHardwareAcceleration() const {
+    return m_settings.value("video/hardwareAcceleration", "auto").toString();
+}
+
 void GlobalSetting::setGStreamerPipelineTemplate(const QString &pipelineTemplate) {
     m_settings.setValue("video/gstreamerPipelineTemplate", pipelineTemplate);
 }

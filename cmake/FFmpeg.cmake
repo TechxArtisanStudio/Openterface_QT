@@ -4,13 +4,23 @@
 # Initialize FFmpeg configuration variables
 set(FFMPEG_PKG_CONFIG FALSE)
 
+# Set ZLIB_LIBRARY for static zlib
+if(NOT ZLIB_LIBRARY)
+    set(ZLIB_LIBRARY "C:/msys64/mingw64/lib/libz.a" CACHE FILEPATH "Path to static zlib library")
+endif()
+
 # Set FFMPEG_PREFIX from environment or default
 if(NOT DEFINED FFMPEG_PREFIX)
     if(DEFINED ENV{FFMPEG_PREFIX})
         set(FFMPEG_PREFIX "$ENV{FFMPEG_PREFIX}" CACHE PATH "FFmpeg installation directory")
         message(STATUS "Using FFMPEG_PREFIX from environment: ${FFMPEG_PREFIX}")
     else()
-        set(FFMPEG_PREFIX "/opt/ffmpeg" CACHE PATH "FFmpeg installation directory")
+        # Platform-specific defaults
+        if(WIN32)
+            set(FFMPEG_PREFIX "C:/ffmpeg-static" CACHE PATH "FFmpeg installation directory")
+        else()
+            set(FFMPEG_PREFIX "/opt/ffmpeg" CACHE PATH "FFmpeg installation directory")
+        endif()
         message(STATUS "Using default FFMPEG_PREFIX: ${FFMPEG_PREFIX}")
     endif()
 endif()
@@ -18,15 +28,8 @@ endif()
 # Option to control hardware acceleration libraries
 option(USE_HWACCEL "Enable hardware acceleration libraries (VA-API, VDPAU)" ON)
 
-# Determine which library type to search for based on build type
-# For shared builds, search for .so; for static builds, search for .a
-if(OPENTERFACE_BUILD_STATIC)
-    set(FFMPEG_LIB_EXTENSIONS ".a")
-    message(STATUS "Static build detected - searching for static FFmpeg libraries (.a)")
-else()
-    set(FFMPEG_LIB_EXTENSIONS ".so")
-    message(STATUS "Shared build detected - searching for shared FFmpeg libraries (.so)")
-endif()
+# Prefer static libraries for FFmpeg
+set(CMAKE_FIND_STATIC_PREFER ON)
 
 # Check for libjpeg-turbo (preferred for performance)
 # Look in FFMPEG_PREFIX first for static builds
@@ -63,51 +66,85 @@ else()
 endif()
 
 # Set FFmpeg include and library directories (prefer local prefix, then system)
-set(FFMPEG_SEARCH_PATHS 
-    ${FFMPEG_PREFIX}
-    "/usr/local"
-    "/usr"
-)
-
-# Attempt to locate FFmpeg libraries (prefer shared for shared builds, static for static builds)
-# Prefer FFmpeg shipped inside the configured prefix if it actually exists there.
-set(_qt_lib_dir "${FFMPEG_PREFIX}/lib")
-
-# Check for appropriate library type based on build configuration
-if(OPENTERFACE_BUILD_STATIC)
-    set(_ffmpeg_check_lib "${_qt_lib_dir}/libavformat.a")
-    set(_build_type_desc "static")
+if(WIN32)
+    set(FFMPEG_SEARCH_PATHS 
+        ${FFMPEG_PREFIX}
+        "C:/ffmpeg-static"
+        "C:/ffmpeg"
+    )
 else()
-    set(_ffmpeg_check_lib "${_qt_lib_dir}/libavformat.so")
-    set(_build_type_desc "shared")
+    set(FFMPEG_SEARCH_PATHS 
+        ${FFMPEG_PREFIX}
+        "/usr/local"
+        "/usr"
+    )
+endif()
+if(WIN32)
+    set(FFMPEG_SEARCH_PATHS 
+        ${FFMPEG_PREFIX}
+        "C:/ffmpeg-static"
+        "C:/ffmpeg"
+    )
+else()
+    set(FFMPEG_SEARCH_PATHS 
+        ${FFMPEG_PREFIX}
+        "/usr/local"
+        "/usr"
+    )
 endif()
 
-if(EXISTS "${_ffmpeg_check_lib}" AND EXISTS "${FFMPEG_PREFIX}/include/libavformat/avformat.h")
+# Attempt to locate FFmpeg libraries (prefer static)
+# Prefer FFmpeg shipped inside the configured prefix if it actually exists there.
+set(_qt_lib_dir "${FFMPEG_PREFIX}/lib")
+if(EXISTS "${_qt_lib_dir}/libavformat.a" AND EXISTS "${FFMPEG_PREFIX}/include/libavformat/avformat.h")
     set(FFMPEG_LIB_DIR ${_qt_lib_dir})
     set(FFMPEG_INCLUDE_DIRS "${FFMPEG_PREFIX}/include")
-    message(STATUS "Found FFmpeg ${_build_type_desc} libraries in prefix: ${FFMPEG_LIB_DIR}")
+    message(STATUS "Found FFmpeg static libraries in prefix: ${FFMPEG_LIB_DIR}")
     set(FFMPEG_FOUND TRUE)
 else()
     # Keep the previous behavior as a fallback (directory may be validated later)
     set(FFMPEG_LIB_DIR ${_qt_lib_dir})
     set(FFMPEG_INCLUDE_DIRS "${FFMPEG_PREFIX}/include")
-    message(STATUS "FFmpeg ${_build_type_desc} libs not found at ${_qt_lib_dir} - will try other search methods")
+    message(STATUS "FFmpeg static libs not found at ${_qt_lib_dir} - will try other search methods")
 endif()
 
-# If pkg-config didn't find FFmpeg (or we're using specific linking), fall back to path search
+# If pkg-config didn't find FFmpeg (or we're using static linking), fall back to path search
 if(NOT FFMPEG_FOUND)
-    message(STATUS "Falling back to manual path search for FFmpeg (${_build_type_desc})...")
+    message(STATUS "Falling back to manual path search for FFmpeg (static)...")
 
     # Find FFmpeg installation
     message(STATUS "FFmpeg search paths: ${FFMPEG_SEARCH_PATHS}")
     foreach(SEARCH_PATH ${FFMPEG_SEARCH_PATHS})
-        # For shared builds, search for .so; for static builds, search for .a
-        set(LIB_EXTENSIONS ${FFMPEG_LIB_EXTENSIONS})
-        set(LIB_PATHS 
-            "${SEARCH_PATH}/lib/x86_64-linux-gnu"
-            "${SEARCH_PATH}/lib/aarch64-linux-gnu"
-            "${SEARCH_PATH}/lib"
-        )
+        # For static builds, prefer .a files; check common lib directories
+        set(LIB_EXTENSIONS ".a")
+        
+        # Platform-specific library paths
+        if(WIN32)
+            set(LIB_PATHS 
+                "${SEARCH_PATH}/lib"
+                "${SEARCH_PATH}/bin"
+            )
+        else()
+            set(LIB_PATHS 
+                "${SEARCH_PATH}/lib/x86_64-linux-gnu"
+                "${SEARCH_PATH}/lib/aarch64-linux-gnu"
+                "${SEARCH_PATH}/lib"
+            )
+        endif()
+        
+        # Platform-specific library paths
+        if(WIN32)
+            set(LIB_PATHS 
+                "${SEARCH_PATH}/lib"
+                "${SEARCH_PATH}/bin"
+            )
+        else()
+            set(LIB_PATHS 
+                "${SEARCH_PATH}/lib/x86_64-linux-gnu"
+                "${SEARCH_PATH}/lib/aarch64-linux-gnu"
+                "${SEARCH_PATH}/lib"
+            )
+        endif()
 
         # Check each potential library path with each extension
         foreach(LIB_PATH ${LIB_PATHS})
@@ -158,14 +195,8 @@ endif()
 
 # Set library extension and verify it was set during detection
 if(NOT DEFINED FFMPEG_LIB_EXT)
-    # Default based on build type
-    if(OPENTERFACE_BUILD_STATIC)
-        set(FFMPEG_LIB_EXT ".a")
-        message(STATUS "Static build: defaulting to .a libraries")
-    else()
-        set(FFMPEG_LIB_EXT ".so")
-        message(STATUS "Shared build: defaulting to .so libraries")
-    endif()
+    # Default to static libraries
+    set(FFMPEG_LIB_EXT ".a")
 endif()
 
 message(STATUS "Final FFmpeg library extension: ${FFMPEG_LIB_EXT}")
@@ -232,13 +263,112 @@ else()
     message(STATUS "Hardware acceleration disabled by USE_HWACCEL=OFF")
 endif()
 
-# Always include these essential libraries
-list(APPEND HWACCEL_LIBRARIES
-    X11
-    atomic
-    pthread
-    m
-)
+# Add essential libraries (platform-specific)
+if(NOT WIN32)
+    # Linux libraries
+    list(APPEND HWACCEL_LIBRARIES
+        X11
+        atomic
+        pthread
+        m
+    )
+else()
+    # Windows libraries for FFmpeg
+    list(APPEND HWACCEL_LIBRARIES
+        ws2_32
+        secur32
+        bcrypt
+        mfplat
+        mfuuid
+        ole32
+        strmiids
+    )
+    
+    # Add Intel QSV library if available (prefer static)
+    find_library(MFX_STATIC_LIBRARY
+        NAMES libmfx.a
+        PATHS
+            "C:/ffmpeg-static/lib"
+            "${FFMPEG_PREFIX}/lib"
+            "$ENV{FFMPEG_PREFIX}/lib"
+            "C:/msys64/mingw64/lib"
+        NO_DEFAULT_PATH
+    )
+    if(MFX_STATIC_LIBRARY)
+        list(APPEND HWACCEL_LIBRARIES ${MFX_STATIC_LIBRARY})
+        message(STATUS "Found static Intel QSV library: ${MFX_STATIC_LIBRARY}")
+    else()
+        # Fallback to dynamic library
+        find_library(MFX_LIBRARY
+            NAMES mfx libmfx
+            PATHS
+                "C:/ffmpeg-static/lib"
+                "${FFMPEG_PREFIX}/lib"
+                "$ENV{FFMPEG_PREFIX}/lib"
+                "C:/msys64/mingw64/lib"
+            NO_DEFAULT_PATH
+        )
+        if(MFX_LIBRARY)
+            list(APPEND HWACCEL_LIBRARIES ${MFX_LIBRARY})
+            message(STATUS "Found dynamic Intel QSV library: ${MFX_LIBRARY}")
+        else()
+            message(STATUS "Intel QSV library (libmfx) not found - QSV support may be limited")
+        endif()
+    endif()
+endif()
+# Add essential libraries (platform-specific)
+if(NOT WIN32)
+    # Linux libraries
+    list(APPEND HWACCEL_LIBRARIES
+        X11
+        atomic
+        pthread
+        m
+    )
+else()
+    # Windows libraries for FFmpeg
+    list(APPEND HWACCEL_LIBRARIES
+        ws2_32
+        secur32
+        bcrypt
+        mfplat
+        mfuuid
+        ole32
+        strmiids
+    )
+    
+    # Add Intel QSV library if available (prefer static)
+    find_library(MFX_STATIC_LIBRARY
+        NAMES libmfx.a
+        PATHS
+            "C:/ffmpeg-static/lib"
+            "${FFMPEG_PREFIX}/lib"
+            "$ENV{FFMPEG_PREFIX}/lib"
+            "C:/msys64/mingw64/lib"
+        NO_DEFAULT_PATH
+    )
+    if(MFX_STATIC_LIBRARY)
+        list(APPEND HWACCEL_LIBRARIES ${MFX_STATIC_LIBRARY})
+        message(STATUS "Found static Intel QSV library: ${MFX_STATIC_LIBRARY}")
+    else()
+        # Fallback to dynamic library
+        find_library(MFX_LIBRARY
+            NAMES mfx libmfx
+            PATHS
+                "C:/ffmpeg-static/lib"
+                "${FFMPEG_PREFIX}/lib"
+                "$ENV{FFMPEG_PREFIX}/lib"
+                "C:/msys64/mingw64/lib"
+            NO_DEFAULT_PATH
+        )
+        if(MFX_LIBRARY)
+            list(APPEND HWACCEL_LIBRARIES ${MFX_LIBRARY})
+            message(STATUS "Found dynamic Intel QSV library: ${MFX_LIBRARY}")
+        else()
+            message(STATUS "Intel QSV library (libmfx) not found - QSV support may be limited")
+        endif()
+    endif()
+endif()
 
 # Check if FFmpeg is available and enable it
 # Determine the correct FFmpeg header to check (handle multiple include layouts)
@@ -313,55 +443,175 @@ include_directories(${FFMPEG_INCLUDE_DIRS})
 function(link_ffmpeg_libraries)
     if(FFMPEG_FOUND AND FFMPEG_LIBRARIES)
         message(STATUS "Linking FFmpeg libraries to openterfaceQT: ${FFMPEG_LIBRARIES}")
-        message(STATUS "OPENTERFACE_BUILD_STATIC: ${OPENTERFACE_BUILD_STATIC}")
         
-        if(FFMPEG_LIB_EXT STREQUAL ".a" AND OPENTERFACE_BUILD_STATIC)
-            # Static FFmpeg libraries - use special linking flags (only when static build is enabled)
+        if(FFMPEG_LIB_EXT STREQUAL ".a")
+            # Static FFmpeg libraries - use special linking flags
             message(STATUS "Linking static FFmpeg libraries with whole-archive for avdevice")
-            set(JPEG_STATIC_PATH "/opt/ffmpeg/lib/libjpeg.a")
-            set(TURBOJPEG_STATIC_PATH "/opt/ffmpeg/lib/libturbojpeg.a")
+            
+            # Platform-specific JPEG library paths
+            if(WIN32)
+                set(JPEG_STATIC_PATH "${FFMPEG_PREFIX}/lib/libjpeg.a")
+                set(TURBOJPEG_STATIC_PATH "${FFMPEG_PREFIX}/lib/libturbojpeg.a")
+            else()
+                set(JPEG_STATIC_PATH "/opt/ffmpeg/lib/libjpeg.a")
+                set(TURBOJPEG_STATIC_PATH "/opt/ffmpeg/lib/libturbojpeg.a")
+            endif()
+            
+            # Platform-specific JPEG library paths
+            if(WIN32)
+                set(JPEG_STATIC_PATH "${FFMPEG_PREFIX}/lib/libjpeg.a")
+                set(TURBOJPEG_STATIC_PATH "${FFMPEG_PREFIX}/lib/libturbojpeg.a")
+            else()
+                set(JPEG_STATIC_PATH "/opt/ffmpeg/lib/libjpeg.a")
+                set(TURBOJPEG_STATIC_PATH "/opt/ffmpeg/lib/libturbojpeg.a")
+            endif()
             
             if(EXISTS "${JPEG_STATIC_PATH}")
                 message(STATUS "Using static libjpeg: ${JPEG_STATIC_PATH}")
                 set(JPEG_LINK "${JPEG_STATIC_PATH}")
             else()
                 message(WARNING "Static libjpeg.a not found at ${JPEG_STATIC_PATH}, falling back to -ljpeg")
-                set(JPEG_LINK "-ljpeg")
+                if(WIN32)
+                    # On Windows, skip -ljpeg if not found (likely included in FFmpeg build)
+                    set(JPEG_LINK "")
+                else()
+                    set(JPEG_LINK "-ljpeg")
+                endif()
+                if(WIN32)
+                    # On Windows, skip -ljpeg if not found (likely included in FFmpeg build)
+                    set(JPEG_LINK "")
+                else()
+                    set(JPEG_LINK "-ljpeg")
+                endif()
             endif()
             
             if(EXISTS "${TURBOJPEG_STATIC_PATH}")
-                message(STATUS "Using static libturbojpeg: ${TURBO                # For shared library build:
-                cmake -B build -DOPENTERFACE_BUILD_STATIC=OFF
-                cmake --build build
-                
-                # You should now see:
-                # -- Shared build detected - searching for shared FFmpeg libraries (.so)
-                # -- Final FFmpeg library extension: .so
-                # -- Linking FFmpeg libraries to openterfaceQT: /opt/ffmpeg/lib/libavdevice.so;...JPEG_STATIC_PATH}")
+                message(STATUS "Using static libturbojpeg: ${TURBOJPEG_STATIC_PATH}")
                 set(TURBOJPEG_LINK "${TURBOJPEG_STATIC_PATH}")
             else()
                 message(WARNING "Static libturbojpeg.a not found at ${TURBOJPEG_STATIC_PATH}, falling back to -lturbojpeg")
-                set(TURBOJPEG_LINK "-lturbojpeg")
+                if(WIN32)
+                    # On Windows, skip -lturbojpeg if not found (likely included in FFmpeg build)
+                    set(TURBOJPEG_LINK "")
+                else()
+                    set(TURBOJPEG_LINK "-lturbojpeg")
+                endif()
+                if(WIN32)
+                    # On Windows, skip -lturbojpeg if not found (likely included in FFmpeg build)
+                    set(TURBOJPEG_LINK "")
+                else()
+                    set(TURBOJPEG_LINK "-lturbojpeg")
+                endif()
             endif()
             
-            # Prefer discovered HW accel libs when available; also ensure VDPAU and X11 are linked for hwcontext_vdpau
-            # Note: Keep dependency libraries AFTER FFmpeg libs (link order matters)
-            set(_FFMPEG_STATIC_DEPS
-                ${JPEG_LINK}
-                ${TURBOJPEG_LINK}
-                # Core system libs
-                -lpthread -lm -ldl -lz -llzma -lbz2
-                # DRM/VA/VDPAU/X11 stack (vdpa_device_create_x11 lives in libvdpau and needs X11)
-                -ldrm -lva -lva-drm -lva-x11 -lvdpau -lX11
-                # XCB is required by avdevice xcbgrab; ensure core xcb gets linked
-                -lxcb
-                # XCB extensions used by xcbgrab (shared memory, xfixes for cursor, shape for OSD)
-                -lxcb-shm -lxcb-xfixes -lxcb-shape -lxcb-image
-                # PulseAudio is required by avdevice pulse input/output
-                -lpulse -lpulse-simple
-                # Optionally include common helpers if needed by specific builds
-                # -lxcb-shm -lxcb-xfixes -lxcb-randr -lxcb-render -lxcb-shape -lxcb-image
-            )
+            # Platform-specific FFmpeg dependencies
+            if(WIN32)
+                # Windows-specific FFmpeg dependencies  
+                set(_FFMPEG_STATIC_DEPS
+                    ${JPEG_LINK}
+                    ${TURBOJPEG_LINK}
+                    # Windows system libraries for FFmpeg
+                    # Check for static zlib
+                    -lvfw32        # Video for Windows capture
+                    -lshlwapi      # Shell API (for SHCreateStreamOnFileA)
+                    ${ZLIB_LIBRARY}      # zlib for compression
+                    "C:/msys64/mingw64/lib/libbz2.a"    # bzip2 for compression
+                    "C:/msys64/mingw64/lib/liblzma.a"   # lzma/xz for compression
+                    "C:/msys64/mingw64/lib/libmfx.a"    # Intel Media SDK for QSV
+                    -lmingwex       # MinGW extensions for setjmp etc.
+                    "C:/msys64/mingw64/lib/libwinpthread.a"  # Windows pthreads for 64-bit time functions
+                    # -liconv        # Character encoding conversion
+                )
+                
+                # Use MSYS2's winpthread for 64-bit time functions
+                # if(EXISTS "C:/msys64/mingw64/lib/libwinpthread.a")
+                #     list(APPEND _FFMPEG_STATIC_DEPS "C:/msys64/mingw64/lib/libwinpthread.a")
+                #     message(STATUS "Using MSYS2 winpthread library")
+                # else()
+                #     list(APPEND _FFMPEG_STATIC_DEPS -lpthread)
+                # endif()
+                
+                # Check for libpostproc in FFmpeg directory
+                if(EXISTS "${FFMPEG_PREFIX}/lib/libpostproc.a")
+                    list(APPEND _FFMPEG_STATIC_DEPS "${FFMPEG_PREFIX}/lib/libpostproc.a")
+                    message(STATUS "Found postproc library: ${FFMPEG_PREFIX}/lib/libpostproc.a")
+                endif()
+                
+                # Add MSYS2 libraries (used when FFmpeg was built with MSYS2)
+                # if(EXISTS "C:/msys64/mingw64/lib/libbz2.a")
+                #     list(APPEND _FFMPEG_STATIC_DEPS "C:/msys64/mingw64/lib/libbz2.a")
+                #     message(STATUS "Found bz2 library in MSYS2")
+                # endif()
+                
+                # if(EXISTS "C:/msys64/mingw64/lib/liblzma.a")
+                #     list(APPEND _FFMPEG_STATIC_DEPS "C:/msys64/mingw64/lib/liblzma.a")
+                #     message(STATUS "Found lzma library in MSYS2")
+                # endif()
+                
+                # Check for libiconv (required for FFmpeg character encoding)
+                if(EXISTS "C:/msys64/mingw64/lib/libiconv.a")
+                    list(APPEND _FFMPEG_STATIC_DEPS "C:/msys64/mingw64/lib/libiconv.a")
+                    message(STATUS "Found libiconv library: C:/msys64/mingw64/lib/libiconv.a")
+                else()
+                    message(WARNING "libiconv.a not found - character encoding may not work properly")
+                endif()
+                
+                # Check for static zlib (required for FFmpeg compression)
+                # if(EXISTS "C:/msys64/mingw64/lib/libz.a")
+                #     list(APPEND _FFMPEG_STATIC_DEPS "C:/msys64/mingw64/lib/libz.a")
+                #     message(STATUS "Found static zlib library: C:/msys64/mingw64/lib/libz.a")
+                # else()
+                #     message(WARNING "libz.a not found - compression may not work properly")
+                # endif()
+                
+                # Add stack protection library LAST (required by MSYS2-compiled libraries)
+                # Use full path to static library to avoid linking to DLL
+                # Try multiple possible locations for libssp.a
+                set(SSP_PATHS
+                    "E:/Qt/Tools/mingw1120_64/lib/gcc/x86_64-w64-mingw32/11.2.0/libssp.a"
+                    "E:/Qt/Tools/mingw1120_64/x86_64-w64-mingw32/lib/libssp.a"
+                    "${MINGW_PATH}/lib/gcc/x86_64-w64-mingw32/11.2.0/libssp.a"
+                )
+                foreach(SSP_PATH ${SSP_PATHS})
+                    if(EXISTS "${SSP_PATH}")
+                        list(APPEND _FFMPEG_STATIC_DEPS "${SSP_PATH}")
+                        message(STATUS "Found static ssp library: ${SSP_PATH}")
+                        break()
+                    endif()
+                endforeach()
+                
+            else()
+                # Linux-specific FFmpeg dependencies
+                set(_FFMPEG_STATIC_DEPS
+                    ${JPEG_LINK}
+                    ${TURBOJPEG_LINK}
+                    # Core system libs
+                    -lpthread -lm -ldl -lz -llzma -lbz2
+                    # DRM/VA/VDPAU/X11 stack (vdpa_device_create_x11 lives in libvdpau and needs X11)
+                    -ldrm -lva -lva-drm -lva-x11 -lvdpau -lX11 -lXext
+                    # XCB is required by avdevice xcbgrab; ensure core xcb gets linked
+                    -lxcb
+                    # XCB extensions used by xcbgrab (shared memory, xfixes for cursor, shape for OSD)
+                    -lxcb-shm -lxcb-xfixes -lxcb-shape -lxcb-image
+                    # PulseAudio is required by avdevice pulse input/output
+                    -lpulse -lpulse-simple
+                )
+                
+                # Check for libpostproc in FFmpeg directory
+                if(EXISTS "${FFMPEG_PREFIX}/lib/libpostproc.a")
+                    list(APPEND _FFMPEG_STATIC_DEPS "${FFMPEG_PREFIX}/lib/libpostproc.a")
+                    message(STATUS "Found postproc library: ${FFMPEG_PREFIX}/lib/libpostproc.a")
+                endif()
+                
+                # Add libmfx if available
+                find_library(MFX_LIBRARY mfx)
+                if(MFX_LIBRARY)
+                    list(APPEND _FFMPEG_STATIC_DEPS ${MFX_LIBRARY})
+                    message(STATUS "Found MFX library: ${MFX_LIBRARY}")
+                else()
+                    message(STATUS "MFX library not found - QSV support may be limited")
+                endif()
+            endif()
 
             # If we probed additional HW libs (full paths), append them too to be safe
             if(HWACCEL_LIBRARIES)
@@ -382,53 +632,9 @@ function(link_ffmpeg_libraries)
                 ${_FFMPEG_STATIC_DEPS}
             )
         else()
-            # Dynamic FFmpeg libraries or shared build - use dynamic linking
+            # Dynamic FFmpeg libraries - simple linking
             message(STATUS "Linking dynamic FFmpeg libraries")
-            
-            # For shared builds, use shared JPEG libraries from /opt/ffmpeg
-            if(NOT OPENTERFACE_BUILD_STATIC)
-                message(STATUS "Shared build detected - looking for shared JPEG libraries in ${FFMPEG_PREFIX}")
-                
-                # Look for shared libjpeg in FFMPEG_PREFIX
-                find_library(JPEG_SHARED 
-                    NAMES jpeg
-                    HINTS "${FFMPEG_PREFIX}/lib"
-                    NO_DEFAULT_PATH
-                )
-                if(JPEG_SHARED)
-                    message(STATUS "Found shared libjpeg: ${JPEG_SHARED}")
-                    set(JPEG_LINK "${JPEG_SHARED}")
-                else()
-                    message(FATAL_ERROR "Shared libjpeg not found in ${FFMPEG_PREFIX}/lib")
-                endif()
-                
-                # Look for shared libturbojpeg in FFMPEG_PREFIX
-                find_library(TURBOJPEG_SHARED 
-                    NAMES turbojpeg
-                    HINTS "${FFMPEG_PREFIX}/lib"
-                    NO_DEFAULT_PATH
-                )
-                if(TURBOJPEG_SHARED)
-                    message(STATUS "Found shared libturbojpeg: ${TURBOJPEG_SHARED}")
-                    set(TURBOJPEG_LINK "${TURBOJPEG_SHARED}")
-                else()
-                    message(FATAL_ERROR "Shared libturbojpeg not found in ${FFMPEG_PREFIX}/lib")
-                endif()
-            else()
-                # Static build - use empty for now (already handled in static branch)
-                set(JPEG_LINK "")
-                set(TURBOJPEG_LINK "")
-            endif()
-            
-            target_link_libraries(openterfaceQT PRIVATE 
-                ${FFMPEG_LIBRARIES}
-                ${JPEG_LINK}
-                ${TURBOJPEG_LINK}
-                -lpthread -lm -ldl -lz -llzma -lbz2
-                -ldrm -lva -lva-drm -lva-x11 -lvdpau -lX11
-                -lxcb -lxcb-shm -lxcb-xfixes -lxcb-shape -lxcb-image
-                -lpulse -lpulse-simple
-            )
+            target_link_libraries(openterfaceQT PRIVATE ${FFMPEG_LIBRARIES})
         endif()
         
         message(STATUS "FFmpeg libraries linked successfully")

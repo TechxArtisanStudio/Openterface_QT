@@ -53,7 +53,9 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 find_package(Qt6Required REQUIRED)
 
 # Find additional Qt components (Qt6Required already found Core, Widgets, Gui, Multimedia, SerialPort, Svg)
-find_package(Qt6 REQUIRED COMPONENTS Network OpenGL OpenGLWidgets Xml Concurrent DBus Quick Qml QuickWidgets)
+find_package(Qt6 REQUIRED COMPONENTS Network OpenGL OpenGLWidgets Xml Concurrent DBus)
+
+find_package(Threads REQUIRED)
 
 # Use standardized Qt setup if available (Qt >= 6.3); otherwise emulate basics for Qt 6.2
 if(COMMAND qt_standard_project_setup)
@@ -119,10 +121,16 @@ if(OPENTERFACE_BUILD_STATIC)
     endforeach()
 endif()
 
-target_link_libraries(${PROJECT_NAME} PRIVATE Qt6::Core Qt6::Widgets Qt6::Gui Qt6::Network Qt6::Multimedia Qt6::MultimediaWidgets Qt6::SerialPort Qt6::OpenGL Qt6::OpenGLWidgets Qt6::Xml Qt6::Svg Qt6::SvgWidgets Qt6::Concurrent Qt6::DBus Qt6::Quick Qt6::Qml Qt6::QuickWidgets)
+target_link_libraries(${PROJECT_NAME} PRIVATE Qt6::Core Qt6::Widgets Qt6::Gui Qt6::Network Qt6::Multimedia Qt6::MultimediaWidgets Qt6::SerialPort Qt6::OpenGL Qt6::OpenGLWidgets Qt6::Xml Qt6::Svg Qt6::SvgWidgets Qt6::Concurrent Qt6::DBus Threads::Threads)
 
-# For static Qt builds, we need to link platform plugins and their dependencies
-if(OPENTERFACE_BUILD_STATIC)
+# For static Qt builds on Windows with MinGW, link MinGW runtime libraries
+if(OPENTERFACE_BUILD_STATIC AND WIN32)
+    target_link_libraries(${PROJECT_NAME} PRIVATE mingw32 mingwex)
+    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -static-libgcc -static-libstdc++ -static")
+endif()
+
+# For static Qt builds, we need to link platform plugins and their dependencies (Linux only)
+if(OPENTERFACE_BUILD_STATIC AND NOT WIN32)
     # Link XCB platform plugin directly using file path
     set(QT_XCB_PLUGIN_PATH "/opt/Qt6/plugins/platforms/libqxcb.a")
     if(EXISTS ${QT_XCB_PLUGIN_PATH})
@@ -253,8 +261,10 @@ if(LIBJPEG_FOUND)
     target_include_directories(openterfaceQT PRIVATE ${LIBJPEG_INCLUDE_DIRS})
 endif()
 
-# Add GStreamer libraries if available
-link_gstreamer_libraries()
+# Add GStreamer libraries if available (Linux only)
+if(NOT WIN32)
+    link_gstreamer_libraries()
+endif()
 
 # Add DBus on Unix systems (excluding macOS)
 if(UNIX AND NOT APPLE)

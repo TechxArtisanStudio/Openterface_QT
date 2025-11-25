@@ -206,6 +206,12 @@ void CornerWidgetManager::restoreMuteState(bool muted)
 
 void CornerWidgetManager::updatePosition(int windowWidth, int menuBarHeight, bool isFullScreen)
 {
+    if (windowWidth < layoutThreshold || isFullScreen) {
+        cornerWidget->setMaximumWidth(QWIDGETSIZE_MAX);
+    } else {
+        if (menuBar) cornerWidget->setMaximumWidth(horizontalLayout->sizeHint().width());
+    }
+
     horizontalLayout->invalidate();
     horizontalLayout->activate();
     cornerWidget->setMinimumSize(horizontalLayout->sizeHint());
@@ -219,7 +225,7 @@ void CornerWidgetManager::updatePosition(int windowWidth, int menuBarHeight, boo
         cornerWidget->setParent(cornerWidget->parentWidget());
 
         QSize size = cornerWidget->size();
-        int x = qMax(0, windowWidth - size.width() - 10);
+        int x = qMax(0, windowWidth - size.width());
         int y = isFullScreen ? 10 : (menuBarHeight > 0 ? menuBarHeight + 10 : 10);
         cornerWidget->setGeometry(x, y, size.width(), size.height());
         cornerWidget->raise();
