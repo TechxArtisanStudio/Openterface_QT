@@ -23,16 +23,16 @@ on:
           - 'true'
 
 env:
-  INSTALL_TYPES: "exe,zip"
+  INSTALL_TYPES: "installer,portable"
 
 jobs:
   test-windows:
     strategy:
       matrix:
         include:
-          - install_type: exe
+          - install_type: installer
             description: "Windows EXE Installer"
-          - install_type: zip
+          - install_type: portable
             description: "Portable ZIP Archive"
     runs-on: windows-2022
     timeout-minutes: 90
@@ -85,7 +85,7 @@ jobs:
           New-Item -ItemType Directory -Path "build" -Force | Out-Null
           
           # Determine which workflow to use based on install type
-          $workflowName = if ("${{ env.INSTALL_TYPE }}" -eq "zip") { "windows-portable-build.yaml" } else { "windows-build.yaml" }
+          $workflowName = if ("${{ env.INSTALL_TYPE }}" -eq "portable") { "windows-portable-build.yaml" } else { "windows-build.yaml" }
           Write-Host "[INFO] Using workflow: $workflowName"
           
           # Get the latest successful build workflow run
@@ -131,8 +131,8 @@ jobs:
             
             # Define artifact patterns based on install type
             $patterns = @{
-              "exe" = @("openterfaceQT.windows.amd64.installer", "windows.amd64.installer", "installer", "shared.exe", "exe")
-              "zip" = @("openterfaceQT.windows.amd64.portable", "portable", "openterfaceQT.windows.amd64.installer", "windows.amd64.installer", "installer", "shared.zip", "zip")
+              "installer" = @("openterfaceQT.windows.amd64.installer", "windows.amd64.installer", "installer", "shared.exe", "exe")
+              "portable" = @("openterfaceQT.windows.amd64.portable", "portable", "openterfaceQT.windows.amd64.installer", "windows.amd64.installer", "installer", "shared.zip", "zip")
             }
             
             $searchPatterns = $patterns["${{ env.INSTALL_TYPE }}"]
@@ -230,7 +230,7 @@ jobs:
           # Install the application
           Write-Host "[INSTALL] Installing the application..."
           
-          if ("${{ env.INSTALL_TYPE }}" -eq "exe") {
+          if ("${{ env.INSTALL_TYPE }}" -eq "installer") {
             Write-Host "[INSTALLER] Using EXE installer..."
             # Look for exe installer in build directory
             $exeFiles = Get-ChildItem -Path "build" -Filter "*.exe" -ErrorAction SilentlyContinue
@@ -264,7 +264,7 @@ jobs:
               Write-Host "[ERROR] No EXE installer found in build directory"
               exit 1
             }
-          } elseif ("${{ env.INSTALL_TYPE }}" -eq "zip") {
+          } elseif ("${{ env.INSTALL_TYPE }}" -eq "portable") {
             Write-Host "[INSTALLER] Using portable/ZIP installation..."
             # Look for zip file in build directory
             $zipFiles = Get-ChildItem -Path "build" -Filter "*.zip" -ErrorAction SilentlyContinue
@@ -337,7 +337,7 @@ jobs:
 
           if ($appPath) {
             Write-Host "[START] Launching: $appPath"
-            $process = Start-Process -FilePath $appPath -NoNewWindow -PassThru
+            $process = Start-Process -FilePath $appPath -ArgumentList "--skip-env-check" -NoNewWindow -PassThru
             Write-Host "[SUCCESS] Application launched (PID: $($process.Id))"
             Start-Sleep -Seconds 10
           } else {
@@ -782,7 +782,7 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           
           # Process each install type
-          for install_type in exe zip; do
+          for install_type in installer portable; do
             echo "### $install_type Results" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
             
